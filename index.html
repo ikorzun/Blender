@@ -669,16 +669,41 @@ const TYPES = [
   { name:'pill',   color:0x8fd8ff, rc:0.70, mat:'soft',    geo:()=>new THREE.CapsuleGeometry(0.5,0.7,6,12) },
 ];
 
-// Сочная карамель: HSL нормализуется в sRGB (s=0.75, l=0.55) и конвертится
-// в linear. История: линейная пастель L=0.5 (как в batch_lod_bvh) была
-// «слишком ванильной» по оценке владельца — не возвращать.
-function candyColor(hex){
-  const c = new THREE.Color(hex);
-  const hsl = {};
+// Сочная карамель: HSL нормализуется в sRGB (s=0.75) и конвертится в linear.
+// История: линейная пастель L=0.5 (как в batch_lod_bvh) была «слишком
+// ванильной» по оценке владельца — не возвращать.
+//
+// РАЗНЕСЁННАЯ СВЕТЛОТА (спека владельца 2026-07-20): раньше светлота была
+// зафиксирована на 0.55 у ВСЕХ типов, и различал их только тон. На 15 типах
+// круг ещё делился, на 24 (после моделей) — исчерпался: куча читалась
+// неоновой рябью, а в оттенках серого (и у дальтоников, ~8% мужчин) типы
+// сливались вовсе, хотя матч ПО ТИПУ — ядро механики.
+//
+// ⚠️ Целимся в ЯРКОСТЬ (relative luminance), а НЕ в HSL-L: при одинаковом L
+// жёлтый вчетверо ярче синего (веса 0.2126/0.7152/0.0722), поэтому равный
+// шаг по L не даёт равного шага по восприятию. Бисекция подбирает L под
+// нужную яркость; для тонов, которым цель недостижима (насыщенный синий
+// не бывает очень ярким), упирается в потолок и берёт ближайшее.
+const srgbToLin = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+function candyColor(hex, lum){
+  const c = new THREE.Color(hex), hsl = {};
   c.getHSL(hsl);
-  c.setHSL(hsl.h, 0.75, 0.55);
+  if (lum == null){ c.setHSL(hsl.h, 0.75, 0.55); return c.convertSRGBToLinear(); }
+  let lo = 0.08, hi = 0.94;
+  for (let i = 0; i < 12; i++){
+    const mid = (lo + hi) / 2;
+    c.setHSL(hsl.h, 0.75, mid);
+    const L = 0.2126*srgbToLin(c.r) + 0.7152*srgbToLin(c.g) + 0.0722*srgbToLin(c.b);
+    if (L < lum) lo = mid; else hi = mid;
+  }
+  c.setHSL(hsl.h, 0.75, (lo + hi) / 2);
   return c.convertSRGBToLinear();
 }
+// Ступени яркости раскладываются ПО ПОРЯДКУ типов: соседи в списке (а они же
+// соседи по тону в блоке моделей) гарантированно расходятся по светлоте.
+// Диапазон 0.20-0.60 — выше насыщенные синие/фиолетовые физически не тянут.
+const LUM_STEPS = [0.50, 0.20, 0.36, 0.60, 0.26, 0.43];
+TYPES.forEach((t, i) => { if (t.mat === 'soft') t.lum = LUM_STEPS[i % LUM_STEPS.length]; });
 const MESH_SCALE = 0.62;
 
 // ===== 35-steak: модель «Стейк» от владельца (Steak_01.obj, Blender) =====
@@ -770,7 +795,7 @@ function makeItem(typeIdx, size){
     mat = new THREE.MeshMatcapMaterial({
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
+      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color, t.lum)),
       matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
       vertexColors: t.mat === 'model',
     });
@@ -789,7 +814,7 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color, t.lum), metalness: 0, roughness: 0.18 });
     mat.envMapIntensity = 0.5;
   }
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
@@ -813,21 +838,26 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// Сюрприз со дна («археология» из концепции): золотой чайник, не матчится,
-// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS
+// Сюрприз со дна («археология» из концепции): золотой ПОДАРОК, не матчится,
+// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS.
+// Модель вместо чайника — спека владельца 2026-07-20. Материал остаётся
+// MeshStandard (matcap не умеет emissive), и это к лучшему: настоящий блеск
+// золота среди «запечённых» предметов сам выделяет клад.
 function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', teapotGeo());
+  if (!geoCache.has('S')) geoCache.set('S', present01Geo());
   const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
   mat.envMapIntensity = 1.1;
   mat.emissive = new THREE.Color(0x6b4a00);
   mat.emissiveIntensity = 0.5;
   const mesh = new THREE.Mesh(geoCache.get('S'), mat);
   mesh.castShadow = mesh.receiveShadow = true;
-  mesh.scale.setScalar(1.5 * MESH_SCALE);
+  // масштаб 1.2 (был 1.5): у модели охват 1.0 против 0.78 у чайника —
+  // так физический размер клада остаётся прежним
+  mesh.scale.setScalar(1.2 * MESH_SCALE);
   const item = {
     key: 'SURPRISE', surprise: true, type: { name:'surprise', mat:'gold' }, baseColor: mat.color.clone(),
-    r: 0.78 * 1.5 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
-    scl: 1.5 * MESH_SCALE,
+    r: 1.0 * 1.2 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
+    scl: 1.2 * MESH_SCALE,
     body: null,
     mesh, alive: true, animating: false, accessible: false,
   };
@@ -835,7 +865,13 @@ function makeSurprise(){
   mesh.rotation.set(0, Math.random()*6.28, 0);
   mesh.position.copy(item.p);
   scene.add(mesh);
-  createItemBody(item, 'surprise', null);
+  // ⚠️ Имя 'surprisehull', а НЕ 'surprise': ветка 'surprise' в 50-physics —
+  // компаунд из трёх шаров под ЧАЙНИК (тело + носик + ручка), для подарка он
+  // неверен. Незнакомое имя уходит в default -> convex hull из реальной
+  // геометрии, а сэмплы доступности — в свою default-ветку. Плотность золота
+  // берётся по флагу item.surprise и от имени не зависит.
+  // Чайниковая ветка в 50-physics стала мёртвой — оставлена, это чужая зона.
+  createItemBody(item, 'surprisehull', geoCache.get('S'));
   // на время осадки/утряски сюрприз ПРИБИТ ко дну (fixed): вибрация всей
   // массы выталкивает крупные тела наверх (эффект бразильского ореха) —
   // чайник всплывал и торчал над кромкой. Отпускается в finishIntro.

@@ -21,7 +21,7 @@ function makeItem(typeIdx, size){
     mat = new THREE.MeshMatcapMaterial({
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
+      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color, t.lum)),
       matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
       vertexColors: t.mat === 'model',
     });
@@ -40,7 +40,7 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color, t.lum), metalness: 0, roughness: 0.18 });
     mat.envMapIntensity = 0.5;
   }
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
@@ -64,21 +64,26 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// Сюрприз со дна («археология» из концепции): золотой чайник, не матчится,
-// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS
+// Сюрприз со дна («археология» из концепции): золотой ПОДАРОК, не матчится,
+// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS.
+// Модель вместо чайника — спека владельца 2026-07-20. Материал остаётся
+// MeshStandard (matcap не умеет emissive), и это к лучшему: настоящий блеск
+// золота среди «запечённых» предметов сам выделяет клад.
 function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', teapotGeo());
+  if (!geoCache.has('S')) geoCache.set('S', present01Geo());
   const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
   mat.envMapIntensity = 1.1;
   mat.emissive = new THREE.Color(0x6b4a00);
   mat.emissiveIntensity = 0.5;
   const mesh = new THREE.Mesh(geoCache.get('S'), mat);
   mesh.castShadow = mesh.receiveShadow = true;
-  mesh.scale.setScalar(1.5 * MESH_SCALE);
+  // масштаб 1.2 (был 1.5): у модели охват 1.0 против 0.78 у чайника —
+  // так физический размер клада остаётся прежним
+  mesh.scale.setScalar(1.2 * MESH_SCALE);
   const item = {
     key: 'SURPRISE', surprise: true, type: { name:'surprise', mat:'gold' }, baseColor: mat.color.clone(),
-    r: 0.78 * 1.5 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
-    scl: 1.5 * MESH_SCALE,
+    r: 1.0 * 1.2 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
+    scl: 1.2 * MESH_SCALE,
     body: null,
     mesh, alive: true, animating: false, accessible: false,
   };
@@ -86,7 +91,13 @@ function makeSurprise(){
   mesh.rotation.set(0, Math.random()*6.28, 0);
   mesh.position.copy(item.p);
   scene.add(mesh);
-  createItemBody(item, 'surprise', null);
+  // ⚠️ Имя 'surprisehull', а НЕ 'surprise': ветка 'surprise' в 50-physics —
+  // компаунд из трёх шаров под ЧАЙНИК (тело + носик + ручка), для подарка он
+  // неверен. Незнакомое имя уходит в default -> convex hull из реальной
+  // геометрии, а сэмплы доступности — в свою default-ветку. Плотность золота
+  // берётся по флагу item.surprise и от имени не зависит.
+  // Чайниковая ветка в 50-physics стала мёртвой — оставлена, это чужая зона.
+  createItemBody(item, 'surprisehull', geoCache.get('S'));
   // на время осадки/утряски сюрприз ПРИБИТ ко дну (fixed): вибрация всей
   // массы выталкивает крупные тела наверх (эффект бразильского ореха) —
   // чайник всплывал и торчал над кромкой. Отпускается в finishIntro.
