@@ -1,0 +1,447 @@
+// ===== 99-main: главный цикл, отладочный API, старт =====
+
+let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
+
+// ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
+// в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
+// с плавным переходом на игровой вид сверху. Ввод и миксер заблокированы.
+let intro = null; // { phase:'drop'|'orbit', t, shakes }
+let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
+function startIntro(){
+  intro = { phase:'drop', t: 0, shakes: 0 };
+  resetPointers();
+  setFallCap(11); // мягче терминальная скорость на время досыпки
+  camAz = 0.35; camPhi = 1.25; camR = 17.8;
+  updateCamera();
+}
+// Страховка от рыхлых сидов: всё, что торчит выше линии заполнения после
+// утряски, тихо изымается ПАРАМИ (верхний + его близнец) — чётность типов
+// цела, переполнения не бывает никогда
+function trimOverfill(){
+  let removed = 0;
+  for (let guard=0; guard<8; guard++){
+    let top = null;
+    for (const it of items){
+      if (it.alive && !it.surprise && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+    }
+    if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
+    const twin = items.find(i => i !== top && i.alive && i.key === top.key);
+    [top, twin].forEach(it => { if (it) { removeItem(it); removed++; } });
+  }
+  return removed;
+}
+function finishIntro(){
+  intro = null;
+  resetPointers();
+  setFallCap(); // вернуть боевую терминальную скорость
+  // отпустить сюрприз (был прибит ко дну на время осадки)
+  const sp = items.find(i => i.surprise && i.body);
+  if (sp) sp.body.setBodyType(RAPIER.RigidBodyType.Dynamic, false);
+  camAz = 0; camPhi = 0.45; camR = 16.2;
+  updateCamera();
+  stats.t0 = performance.now();
+  stats.lastAction = performance.now();
+  // свежий 3-секундный бюджет форс-сна ПОСЛЕ интро: wakeAtMs стоял с genLevel,
+  // и бюджет истекал к концу интро — форс-сон бил на первом же кадре игры
+  wakeAtMs = performance.now(); calmT = 0;
+  // ⚠️ ТРИМ И БАЗУ РАДИУСА ЗДЕСЬ НЕ СЧИТАТЬ: куча к концу облёта может ещё
+  // падать (на слабых машинах — сильно); трим по летящему столбу тихо удалял
+  // до 16 предметов, а topY0 по нему ломал динамический радиус. Ждём штиля.
+  pendingTrim = true;
+  refreshAccessibility(); updateHUD();
+}
+// Финализация заполнения — СТРОГО по осевшей куче (из loop при штиле)
+function finalizeFill(){
+  // после изъятия пар куча ОБЯЗАНА доосесть: трим по спящей куче оставлял
+  // замороженные полости (предметы висели над дырами от изъятых близнецов)
+  if (trimOverfill() > 0) wakePhysics('trim');
+  let top0 = 0, aliveN = 0;
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise) aliveN++; }
+  level.topY0 = top0;
+  // пар-скор (звёзды v1): база = «всё сматчено парами без комбо» по факту
+  // ПОСЛЕ трима; 2★ = ×1.3 (нужны комбо), 3★ = ×1.7 (нужны серии)
+  level.parBase = Math.floor(aliveN / 2) * MATCH_SCORE * 2;
+  refreshAccessibility(); updateHUD();
+}
+function tickIntro(dt){
+  intro.t += dt;
+  if (intro.phase === 'drop'){
+    // К ОБЛЁТУ ПОРАНЬШЕ (спека владельца: «ускорь переход»): не ждём
+    // почти-штиля — куча доседает уже во время облёта (утряска в орбите
+    // гейтится maxV<3, трим всё равно ждёт штиля через pendingTrim)
+    if ((intro.t > 0.8 && maxBodySpeed() < 3.5) || intro.t > 1.4){
+      removeTempTallWall();
+      intro.phase = 'orbit'; intro.t = 0;
+    }
+  } else {
+    // живая вибро-утряска ВСЕЙ массы во время облёта (арки-мосты рыхлят кучу);
+    // только по УЖЕ осевшей массе — бить по летящему столбу опасно (вылеты)
+    if (intro.shakes < 3 && intro.t > 0.1 + intro.shakes*0.3 && maxBodySpeed() < 3){
+      intro.shakes++;
+      let top = 0;
+      for (const it of items) if (it.alive) top = Math.max(top, it.p.y + it.r);
+      if (top > FUNNEL.H - 0.4){
+        for (const it of items){
+          if (it.alive && it.body)
+            impulseBody(it, (Math.random()-0.5)*1.4, -0.5 - Math.random()*0.4, (Math.random()-0.5)*1.4);
+        }
+      }
+    }
+    const k = Math.min(1, intro.t / 1); // облёт за 1 секунду (требование владельца)
+    const e = k*k*(3 - 2*k); // smoothstep
+    // финиш РОВНО в 2π (≡ 0): раньше облёт кончался на 0.35+2π, а finishIntro
+    // ставил 0 — скачок ~20° в последний кадр («дёргается» — баг владельца)
+    camAz = 0.35 + e*(Math.PI*2 - 0.35);
+    camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
+    camR = 17.8 + (16.2 - 17.8)*e;
+    updateCamera();
+    if (k >= 1) finishIntro();
+  }
+}
+
+// Сон физики: в покое интегратор ВЫКЛЮЧЕН — предметы лежат абсолютно
+// неподвижно (микродрожь от вечной борьбы гравитации с коррекцией
+// нервировала владельца). Будим на любое событие, меняющее массу.
+let physAwake = true, calmT = 0, wakeAtMs = 0, vibT = 0;
+const psLog = []; // диагностика: журнал сна/пробуждений {t, ev, src, v}
+function wakePhysics(src){
+  psLog.push({ t: Math.round(performance.now()), ev: 'wake', src: src || '?', v: +maxBodySpeed().toFixed(1) });
+  if (psLog.length > 200) psLog.shift();
+  if (!physAwake) wakeAllBodies();
+  physAwake = true; calmT = 0; wakeAtMs = performance.now();
+}
+function sleepPhysics(src){
+  // спасённый (телепортированный из стены) должен ДООСЕСТЬ — сон отменяется,
+  // иначе замораживали предмет в воздухе на новом месте; уснём на след. штиле
+  if (rescueSweep() > 0){ calmT = 0; return; }
+  psLog.push({ t: Math.round(performance.now()), ev: 'sleep', src: src || '?', v: +maxBodySpeed().toFixed(1) });
+  if (psLog.length > 200) psLog.shift();
+  physAwake = false; calmT = 0;
+  sleepAllBodies();
+  if (level) refreshAccessibility(); // финальный срез по уснувшей куче
+}
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // экранный градиент лихорадки
+}
+addEventListener('resize', resize);
+
+function loop(){
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  let dt = Math.min(0.033, (now-lastT)/1000); lastT = now;
+  if (intro) tickIntro(dt);
+  if (physAwake){
+    // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
+    // владельца), камера при этом идёт по реальному времени — облёт прежний
+    stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
+    const maxV = maxBodySpeed();
+    const noAnim = !items.some(i=>i.alive && i.animating);
+    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего события
+    if (maxV < 0.25 && noAnim){
+      calmT += dt;
+      if (calmT > 0.4) sleepPhysics('calm');
+    } else calmT = 0;
+    // медленное докатывание круглых форм может длиться долго — через 3 с
+    // бодрствования усыпляем принудительно. ⚠️ ТОЛЬКО ПРИ ПОЧТИ-ШТИЛЕ и НЕ в
+    // интро: форс-сон по чистым часам замораживал столб, падающий на v≈17
+    // (зависшие в воздухе предметы — баг владельца); докатывание — это v<2
+    if (!intro && maxV < 2.0 && noAnim && now - wakeAtMs > 3000) sleepPhysics('force3s');
+  }
+  // отложенная финализация заполнения: как только куча после интро осела
+  if (pendingTrim && !intro && (!physAwake || maxBodySpeed() < 1.0)){
+    pendingTrim = false;
+    finalizeFill();
+  }
+  stepFX(dt);
+  tickVeil(dt);
+  tickChainBar(now);
+  // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
+  // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
+  if (comboUntil && now > comboUntil){
+    comboUntil = 0; comboCount = 0; comboLevel = 0;
+    updateMatchRadius(); updateHUD();
+  }
+  // цепная реакция: досыпка по тику; гаснет по таймеру / 3 промахам /
+  // финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
+  if (chainUntil){
+    if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
+      chainUntil = 0; comboCount = 0;
+      updateMatchRadius(); updateHUD();
+    } else if (now >= chainNextDrop){
+      chainNextDrop = now + CHAIN_DROP_MS;
+      chainRefill();
+    }
+    // амбиентный треск: короткие дуги между верхними предметами
+    if (chainUntil && now >= chainNextBolt){
+      chainNextBolt = now + 200 + Math.random()*160;
+      const topmost = items.filter(i => i.alive && !i.animating).sort((a,b) => b.p.y - a.p.y).slice(0, 24);
+      if (topmost.length > 3){
+        const a0 = topmost[Math.floor(Math.random()*topmost.length)];
+        const b0 = topmost[Math.floor(Math.random()*topmost.length)];
+        if (a0 !== b0 && a0.p.distanceTo(b0.p) < 5.5) boltFX(a0.p, b0.p);
+      }
+    }
+  }
+  // фон-лихорадка: низ неба наливается красным (сильнее в цепной реакции)
+  if (skyMat){
+    // подогрев фона растёт с длиной серии: чем ближе цепь — тем гуще зелень
+    const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / CHAIN_COMBO_AT) : 0);
+    const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
+    skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
+  }
+  // тики по реальным часам (не по dt): при низком FPS детект тупика/миксера
+  // не растягивается. В ШТИЛЕ доступность не пересчитывается вовсе —
+  // предметы неподвижны, она не может измениться (перф: refresh ~десятки мс)
+  if (physAwake && now - lastAccMs > 300){ lastAccMs = now; refreshAccessibility(); }
+  // миксер: финальная зачистка остатков без пар; иначе — наказание за простой
+  let grinding = false;
+  if (!level.over && !intro){
+    const anyAlive = items.some(i=>i.alive);
+    const idle = (now - stats.lastAction)/1000;
+    if (anyAlive && !hasAnyPair()){
+      grinding = true;
+      if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
+    } else if (idle > level.idleLimit && anyAlive){
+      grinding = true;
+      if (now >= level.nextGrind){
+        level.nextGrind = now + MIXER_PERIOD*1000;
+        mixerGrind();
+      }
+    }
+  }
+  // лопасти: стоят, пока миксер не работает (владельца нервировало холостое вращение)
+  mixerSpeed += ((grinding ? 14 : 0) - mixerSpeed) * Math.min(1, dt*3);
+  mixerBlades.rotation.y += mixerSpeed * dt;
+  // работающий миксер ВИБРИРУЕТ массу: нижним слоям лёгкие импульсы
+  if (grinding){
+    if (!physAwake) wakePhysics('grind');
+    wakeAtMs = now; // при перемалывании не засыпаем принудительно
+    vibT += dt;
+    if (vibT > 0.12){
+      vibT = 0;
+      for (const it of items){
+        if (!it.alive || it.animating || !it.body) continue;
+        if (it.p.y < FLOOR_REST + 2.2){
+          impulseBody(it, (Math.random()-0.5)*0.4, Math.random()*0.3, (Math.random()-0.5)*0.4);
+        }
+      }
+    }
+  }
+  if (now - lastHudMs > 600){
+    lastHudMs = now;
+    updateEyes(now, grinding);
+    const ap = availablePairs();
+    $('apCount').textContent = ap;
+    const alive = items.some(i=>i.alive);
+    const noMoves = alive && ap === 0 && !level.over;
+    const idle = (now - stats.lastAction)/1000;
+    // Красный баннер УДАЛЁН (спека владельца 2026-07-19): всю коммуникацию
+    // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
+    // в красную по мере истечения времени; при помоле — красный «0 с»
+    const finale = alive && !hasAnyPair();
+    const mt = $('mixerTimer');
+    if (intro || level.over || !alive){
+      mt.style.display = 'none';
+    } else {
+      const leftS = grinding ? 0 : Math.max(0, Math.ceil(level.idleLimit - idle));
+      mt.textContent = leftS + ' с';
+      const frac = Math.max(0, Math.min(1, leftS / level.idleLimit));
+      mt.style.background = 'hsl(' + Math.round(140 * frac) + ', 62%, 42%)'; // 140°=зелёный -> 0°=красный
+      mt.style.display = 'block';
+    }
+    // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
+    // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает
+    if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && !items.some(i=>i.alive && i.animating)){
+      level.stuck++;
+      if (level.stuck >= 2) showLose();
+    } else level.stuck = Math.min(level.stuck, 0);
+    if (!level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000));
+  }
+  // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
+  // чаша не нужна и мешает совмещать): полная плотность при camR>=13.5,
+  // полностью тает к camR<=10 (smoothstep)
+  if (bowlMat){
+    const gk = Math.max(0, Math.min(1, (camR - 10) / 3.5));
+    bowlMat.opacity = 0.08 * gk * gk * (3 - 2 * gk);
+    bowlMesh.visible = bowlMat.opacity > 0.004;
+  }
+  // тени перерисовываем только когда что-то движется (свет статичен; в штиле
+  // экономим ~150 теневых draw calls каждый кадр)
+  renderer.shadowMap.needsUpdate = physAwake || !!intro || mixerSpeed > 0.01 || fx.length > 0;
+  if (camShake > 0){
+    camShake -= dt;
+    updateCamera();
+    camera.position.x += (Math.random()-0.5)*camShake*0.8;
+    camera.position.y += (Math.random()-0.5)*camShake*0.8;
+  }
+  renderer.render(scene, camera);
+}
+
+// ---------- Отладочный API ----------
+window.__game = {
+  alive(){ return items.filter(i=>i.alive).length; },
+  availablePairs,
+  autoMatch(){
+    refreshAccessibility();
+    const byKey = {};
+    for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key]=byKey[it.key]||[]).push(it);
+    for (const k in byKey){
+      const arr = byKey[k];
+      for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
+        if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius){ doMatch([arr[i], arr[j]]); return true; }
+      }
+    }
+    return false;
+  },
+  shake: performShake,
+  cfg: CFG,
+  regen: genLevel,
+  // мгновенно завершить интро (для тестов): синхронная осадка + утряска
+  skipIntro(){
+    if (!intro) return;
+    intro = null;
+    for (let s=0; s<300; s++){
+      world.step();
+      // терминальная скорость и тут: столб падает с ~40 юнитов, v>20
+      // пробивала компаунды (латентный источник флейков тестов)
+      if (s % 3 === 0) for (const it of items){
+        if (!it.alive || !it.body) continue;
+        const v = it.body.linvel();
+        if (v.y < -16) it.body.setLinvel({ x: v.x, y: -16, z: v.z }, false);
+      }
+    }
+    syncMeshes();
+    // вибро-утряска ВСЕЙ массы: свежая куча рыхлая (арки-мосты в конусе),
+    // импульсы только верхним мосты не рушат
+    for (let round=0; round<8; round++){
+      let top = 0;
+      for (const it of items) if (it.alive) top = Math.max(top, it.p.y + it.r);
+      if (top <= FUNNEL.H - 0.4) break;
+      for (const it of items){
+        if (it.alive && it.body)
+          impulseBody(it, (Math.random()-0.5)*1.4, -0.5 - Math.random()*0.4, (Math.random()-0.5)*1.4);
+      }
+      for (let s=0; s<70; s++) world.step();
+      syncMeshes();
+    }
+    removeTempTallWall();
+    finishIntro();
+    pendingTrim = false;
+    finalizeFill(); // синхронно: тесты читают topY0/трим сразу после skipIntro
+    sleepPhysics('skipIntro');
+  },
+  level(){ return level; },
+  stats(){ return stats; },
+  levelNum(){ return levelNum; },
+  adsMode(){ return Ads.mode; },
+  // отладка/тесты: принудительный пересчёт доступности и её слепок
+  forceRefresh(){ refreshAccessibility(); },
+  // диагностика регрессии: сон физики, мигание вуали, «висуны» в воздухе
+  awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
+  accFlips(){ return accFlips; },
+  // v1: кошелёк и звёзды (тесты экономики)
+  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, stars: Object.assign({}, Save.stars), total: totalStars() }; },
+  grant(n){ addCoins(n); updateHUD(); },
+  combo(){
+    const n = performance.now();
+    let top = 0, airborne = 0;
+    for (const it of items) if (it.alive){ if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++; }
+    return { hot: comboUntil > n, count: comboCount, level: comboLevel, chain: chainUntil > n, radius: +CFG.matchRadius.toFixed(2),
+      top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
+  },
+  psLog(){ return psLog.slice(); },
+  // отладка: телепорт предмета (постановка сцен доступности в тестах)
+  place(i, x, y, z){
+    const it = items[i];
+    if (!it || !it.body) return false;
+    it.body.setTranslation({ x, y, z }, true);
+    it.body.setLinvel({ x:0, y:0, z:0 }, true);
+    it.body.setAngvel({ x:0, y:0, z:0 }, true);
+    // ГРАБЛЯ Rapier: query pipeline (castRay) видит телепорт только после
+    // world.step() или явной прокачки — иначе лучи бьют по фантому
+    if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
+    syncMeshes();
+    return true;
+  },
+  floaters(){
+    // предмет «висит», если под его нижней точкой пусто больше 0.35
+    const ray = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:-1, z:0 });
+    const out = [];
+    for (const it of items){
+      if (!it.alive || !it.body) continue;
+      ray.origin.x = it.p.x; ray.origin.y = it.p.y - it.r - 0.02; ray.origin.z = it.p.z;
+      if (ray.origin.y <= FLOOR_REST + 0.05) continue; // лежит на дне
+      const hit = world.castRay(ray, 30, true, null, null, null, it.body);
+      const gap = hit ? hit.toi : 30;
+      if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2), gap: +gap.toFixed(2), sleeping: it.body.isSleeping() });
+    }
+    return out;
+  },
+  accessibleList(){
+    const out = [];
+    items.forEach((it, i) => { if (it.alive && it.accessible) out.push(i); });
+    return out;
+  },
+  // слепок по типам: сколько живых и сколько из них доступно
+  typesSnapshot(){
+    const m = {};
+    items.forEach(it => {
+      if (!it.alive) return;
+      const n = it.type.name;
+      (m[n] = m[n] || { alive: 0, acc: 0 }).alive++;
+      if (it.accessible) m[n].acc++;
+    });
+    return m;
+  },
+  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), intro: !!intro }; },
+  // отладка: поиск NaN в состоянии предметов
+  scanNaN(){
+    const bad = [];
+    items.forEach((it, i) => {
+      const ok = isFinite(it.p.x + it.p.y + it.p.z)
+        && isFinite(it.mesh.position.x + it.mesh.position.y + it.mesh.position.z);
+      if (!ok) bad.push({ i, name: it.type.name, alive: it.alive, p: [it.p.x, it.p.y, it.p.z] });
+    });
+    return bad;
+  },
+  topY(){ let m = 0; for (const it of items) if (it.alive) m = Math.max(m, it.p.y + it.r); return m; },
+  // максимальный ВЫСТУП края предмета за внутреннюю поверхность стекла
+  // (>0 — предмет визуально в стекле/снаружи; допуск ~0.0 благодаря WALL_GAP)
+  maxWallExcess(){
+    let worst = -99, who = '';
+    for (const it of items){
+      if (!it.alive) continue;
+      const d = Math.hypot(it.p.x, it.p.z);
+      const ex = (d + (it.wallR || it.r)) - radiusAt(it.p.y);
+      if (ex > worst){ worst = ex; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
+        + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
+    }
+    return { excess: +worst.toFixed(3), who };
+  },
+  topItem(){ let best = null; for (const it of items) if (it.alive && (!best || it.p.y + it.r > best.p.y + best.r)) best = it;
+    return best ? { name: best.type.name, y: +(best.p.y + best.r).toFixed(2), meshY: +best.mesh.position.y.toFixed(2), sleeping: best.body ? best.body.isSleeping() : null } : null; },
+  // отладка: оставить по одному предмету каждого типа (для теста финала миксера)
+  leaveSingles(){
+    const seen = new Set();
+    for (const it of items){
+      if (!it.alive) continue;
+      if (seen.has(it.key)){ removeItem(it); }
+      else seen.add(it.key);
+    }
+    wakePhysics('leaveSingles');
+    refreshAccessibility(); updateHUD();
+  },
+};
+
+// Старт асинхронный: сперва WASM-инициализация Rapier
+if (!window.RAPIER){
+  window.__fatal && window.__fatal('Не загрузился физический движок (Rapier).');
+} else {
+  RAPIER.init().then(() => {
+    initPhysicsWorld();
+    resize(); updateCamera(); Ads.init(); genLevel(); loop();
+  }).catch(e => { window.__fatal && window.__fatal('Физика не инициализировалась: ' + e.message); });
+}

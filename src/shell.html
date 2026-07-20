@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Воронка — прототип</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; background:#ffffff; touch-action:none; overscroll-behavior:none;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .bar { position:fixed; left:0; right:0; display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; pointer-events:none; z-index:5; }
+  #topBar { top:env(safe-area-inset-top, 0); }
+  #topBar .chip { background:rgba(20,26,38,.75); border:1px solid rgba(255,255,255,.08); border-radius:12px;
+    padding:6px 12px; font-size:15px; font-weight:600; backdrop-filter:blur(6px); }
+  .pop { position:fixed; z-index:9; pointer-events:none; font-weight:800; font-size:19px;
+    transform:translate(-50%,-50%);
+    /* спека владельца: очки — белые с чёрной обводкой минимум 2px
+       (stroke + 8-направленная тень как фолбэк, инлайновый color перебивается) */
+    color:#fff !important;
+    -webkit-text-stroke:2px #000; paint-order:stroke fill;
+    text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000,
+      2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+    transition:transform 1s ease-out, opacity 1s ease-out; opacity:1; }
+  .pop.big { font-size:28px; }
+  .pop.fly { transform:translate(-50%,-50%) translateY(-52px); opacity:0; }
+  #bottomBar { bottom:calc(env(safe-area-inset-bottom, 0) + 12px); }
+  .grp { display:flex; align-items:center; gap:12px; } /* спека владельца: отступы в группах 12px */
+  /* таймер миксера: по центру нижнего бара, между ⚙️ и Hint (спека
+     владельца); подложка зелёная -> красная из JS */
+  #mixerTimer { border-radius:12px; padding:9px 16px; font-size:16px; font-weight:800;
+    color:#fff; background:#2aa876; pointer-events:none; align-self:center; }
+  /* глаза миксера — интерактивный персонаж по центру сверху */
+  #eyes { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 4px); left:50%;
+    transform:translateX(-50%); font-size:71px; line-height:1; z-index:6;
+    cursor:pointer; user-select:none; -webkit-user-select:none; pointer-events:auto;
+    transition:transform .18s; } /* ×3, затем −30% (спека владельца) */
+  #eyes.bounce { transform:translateX(-50%) scale(1.3) rotate(-6deg); }
+  /* заряд цепной реакции: копится под глазами пока горит серия;
+     во время Power chain показывает остаток времени (оранжевый) */
+  #chainBar { display:none; position:fixed; top:calc(env(safe-area-inset-top, 0px) + 82px);
+    left:50%; transform:translateX(-50%); width:76px; height:6px; z-index:6;
+    background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; }
+  #chainBar i { display:block; height:100%; width:0%; background:#2aa876;
+    border-radius:3px; transition:width .2s; }
+  #chainBar.hot i { background:#ff9d2e; transition:none; }
+  /* одинаковая высота нижних кнопок (спека владельца) */
+  #hintBtn, #shakeBtn { height:54px; box-sizing:border-box; }
+  #shakeBtn { gap:3px; padding:6px 20px; }
+  #hintBtn { display:flex; align-items:center; }
+  /* ПЛОСКИЕ кнопки (спека владельца): сплошной цвет, без градиентов и теней */
+  #shakeBtn { pointer-events:auto; display:flex; flex-direction:column; align-items:center; gap:5px;
+    background:#3e63dd; border:none; border-radius:16px; color:#fff;
+    padding:12px 22px; font-size:16px; font-weight:700; cursor:pointer; }
+  #shakeBtn:active { transform:scale(.96); }
+  #hintBtn { pointer-events:auto; background:#2aa876; border:none;
+    border-radius:16px; color:#fff; padding:12px 14px; font-size:15px; font-weight:700; cursor:pointer; }
+  #hintBtn:active { transform:scale(.96); }
+  #shakeBtn.ad { background:#8e4ec6; }
+  #shakeBtn.off { background:#333c4d; opacity:.6; }
+  #shakeDots { display:flex; gap:6px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.25); }
+  .dot.on { background:#ffd60a; }
+  #gearBtn, #scopeBtn, #magnetBtn { pointer-events:auto; background:rgba(20,26,38,.75); border:1px solid rgba(255,255,255,.1);
+    border-radius:14px; width:48px; height:48px; font-size:20px; color:#e8ecf4; cursor:pointer; }
+  #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
+    border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
+    opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; font-size:14px; width:230px; }
+  #debugPanel .row { display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
+  #debugPanel input[type=range] { width:110px; }
+  #debugPanel button { background:#3e63dd; color:#fff; border:none; border-radius:9px; padding:8px 12px; font-size:14px; font-weight:600; width:100%; margin-top:6px; cursor:pointer; }
+  .overlay { display:none; position:fixed; inset:0; z-index:20; background:rgba(10,14,22,.72);
+    align-items:center; justify-content:center; backdrop-filter:blur(3px); }
+  .card { background:#1d2432; border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:26px 24px;
+    width:min(320px, 86vw); text-align:center; }
+  .card h2 { font-size:20px; margin-bottom:10px; }
+  .card p { font-size:14px; opacity:.8; line-height:1.45; margin-bottom:18px; }
+  .card .btns { display:flex; gap:10px; }
+  .card button { flex:1; border:none; border-radius:12px; padding:12px; font-size:15px; font-weight:700; cursor:pointer; }
+  .primary { background:#3e63dd; color:#fff; }
+  .ghost { background:rgba(255,255,255,.08); color:#e8ecf4; }
+  #adOverlay .card { background:#000; border-color:#333; }
+  #adCount { font-size:44px; font-weight:800; margin:14px 0; }
+  #scopeBtn, #magnetBtn { position:relative; }
+  #scopeBtn .mini { position:absolute; right:2px; bottom:2px; font-size:9px; font-weight:800; color:#ffc84a; }
+  #scopeBtn.off, #magnetBtn.off { opacity:.35; pointer-events:none; }
+  #winStars { font-size:36px; letter-spacing:8px; margin:4px 0 8px; color:#ffc84a; }
+  #winCoins { font-size:19px; font-weight:800; color:#ffc84a; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="bar" id="topBar">
+  <div class="grp"><div class="chip" id="pairsLeft">Ур.1 · 141</div><div class="chip" id="timer">0:00</div></div>
+  <div class="grp"><div class="chip" id="coinsChip">🪙 0</div><div class="chip" id="score">★ 0</div></div>
+</div>
+<div id="eyes" title="Миксер">👀</div>
+<div id="chainBar"><i></i></div>
+
+<div id="toast"></div>
+
+<div class="bar" id="bottomBar">
+  <div class="grp">
+    <button id="gearBtn">⚙️</button>
+    <button id="scopeBtn" title="Прицел: показать все пары">🎯<span class="mini">15</span></button>
+    <button id="magnetBtn" title="Металлоискатель">🧲</button>
+  </div>
+  <div class="chip" id="mixerTimer" style="display:none">30 с</div>
+  <div class="grp">
+    <button id="hintBtn">💡 Hint</button>
+    <button id="shakeBtn">
+      <span id="shakeLbl">Shake</span>
+      <span id="shakeDots"></span>
+    </button>
+  </div>
+</div>
+
+<div id="debugPanel">
+  <div class="row"><span>Радиус совпадения</span><input type="checkbox" id="radiusToggle" checked></div>
+  <div class="row"><span>Сложность Hard (перекрытия)</span><input type="checkbox" id="hardToggle"></div>
+  <div class="row"><span>Зазор: <b id="radiusVal">0.90</b></span><input type="range" id="radiusRange" min="0.3" max="2.2" step="0.05" value="0.9"></div>
+  <div class="row"><span>Подсветка доступных</span><input type="checkbox" id="hlToggle" checked></div>
+  <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
+  <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
+  <button id="restartBtn">New level</button>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-11 · 2026-07-20</div>
+</div>
+
+<div class="overlay" id="adAskOverlay">
+  <div class="card">
+    <h2>Ещё одна встряска</h2>
+    <p>Посмотрите короткое видео, чтобы ещё раз перемешать предметы.</p>
+    <div class="btns">
+      <button class="ghost" id="adNo">Cancel</button>
+      <button class="ghost" id="coinShakeBtn">🪙 25</button>
+      <button class="primary" id="adYes">📺 Watch</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="adOverlay">
+  <div class="card">
+    <h2>Реклама</h2>
+    <p>(здесь будет rewarded-видео)</p>
+    <div id="adCount">3</div>
+  </div>
+</div>
+
+<div class="overlay" id="loseOverlay">
+  <div class="card">
+    <h2>😕 Ходов не осталось</h2>
+    <p id="loseStats"></p>
+    <div class="btns">
+      <button class="ghost" id="loseContinue">Look around</button>
+      <button class="ghost" id="loseAdContinue">📺 Continue</button>
+      <button class="primary" id="loseAgainBtn">Retry</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="card">
+    <h2 id="winTitle">🎉 Уровень пройден!</h2>
+    <div id="winStars">★★★</div>
+    <p id="winStats"></p>
+    <p id="winCoins">+20 🪙</p>
+    <div class="btns">
+      <button class="ghost" id="winX2Btn">📺 ×2 coins</button>
+      <button class="primary" id="againBtn">Next ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="fatal" style="display:none; position:fixed; inset:0; z-index:99; background:#171c26; padding:40px 24px; font-size:14px; line-height:1.5; overflow:auto;"></div>
+<script>
+window.__fatal = function(msg){
+  var el = document.getElementById('fatal');
+  el.style.display = 'block';
+  el.innerHTML = '<h2 style="margin-bottom:12px">Не удалось запустить 3D</h2><p style="opacity:.8">' + msg +
+    '</p><p style="opacity:.6; margin-top:14px">Откройте файл в браузере (Safari/Chrome) — там игра работает.</p>';
+};
+window.onerror = function(m, src, line){ window.__fatal('Ошибка: ' + m + ' (строка ' + line + ')'); };
+(function(){
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+    if (!gl) window.__fatal('В этом просмотрщике отключён WebGL (3D-графика).');
+  } catch(e){ window.__fatal('WebGL недоступен: ' + e.message); }
+})();
+</script>
+<script>/*THREE_JS_INLINE*/</script>
+<script>
+if (typeof THREE === 'undefined') window.__fatal('Не загрузился 3D-движок (three.js). Возможно, просмотрщик блокирует загрузку скриптов с CDN.');
+</script>
+<script>/*RAPIER_JS_INLINE*/</script>
+<script>/*APP_JS_INLINE*/</script>
+</body>
+</html>
