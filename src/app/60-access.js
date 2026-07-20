@@ -113,6 +113,14 @@ function tickVeil(dt){
 // Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть
 // слегка отрицательной при касании/нахлёсте — это «вплотную», всегда матч
 function pairDist(a, b){ return a.p.distanceTo(b.p) - a.r - b.r; }
+// ЕДИНСТВЕННОЕ правило совпадения (тап/бот/подсказка/прицел/счётчик пар —
+// все ходят сюда): пара совпадает, если охватная сфера кандидата касается
+// видимой сферы тапа (см. MATCH_EDGE_PAD в 00-config, спека владельца
+// 2026-07-20). Рассинхрон правила и визуала — источник жалобы «край в
+// сфере, а не соединилось»; новые проверки писать ТОЛЬКО через pairMatch.
+function pairMatch(a, b){
+  return !CFG.radiusOn || pairDist(a, b) <= CFG.matchRadius + MATCH_EDGE_PAD;
+}
 function availablePairs(){
   const byKey = {};
   for (const it of items) if (it.alive && it.accessible) (byKey[it.key] = byKey[it.key]||[]).push(it);
@@ -120,7 +128,7 @@ function availablePairs(){
   for (const k in byKey){
     const arr = byKey[k];
     for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-      if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius) cnt++;
+      if (pairMatch(arr[i], arr[j])) cnt++;
     }
   }
   return cnt;

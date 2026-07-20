@@ -126,7 +126,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-12 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-13 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -270,6 +270,15 @@ const MATCH_R_MIN = 0.75; // ПОЛ радиуса в НОВОЙ метрике:
 // крупные пары (их центры далеко даже при касании). Все пороги — в зазорах:
 // база 0.9, пол 0.75, комбо-потолок 2.0. Старое «минимум 1.8 по центрам»
 // эквивалентно ~0.75 зазора для средних предметов.
+// ⚠️ ПРАВИЛО КАСАНИЯ СФЕРЫ (2026-07-20, спека владельца «соединять по
+// близости краёв, а не центров»): матч = охватная сфера кандидата КАСАЕТСЯ
+// видимой сферы тапа. Сфера рисуется с запасом «типичный чужой радиус»
+// (+0.55), а правило этот запас раньше НЕ учитывало: мелкий предмет краем
+// уже в сфере, а его центру не хватало 0.55 до совпадения — ровно жалоба
+// владельца. Теперь порог везде matchRadius + MATCH_EDGE_PAD (pairMatch в
+// 60-access — ЕДИНСТВЕННОЕ место сравнения), и сфера честна для любого
+// размера кандидата. Константа общая для правила и визуала sphereFX.
+const MATCH_EDGE_PAD = 0.55;
 const CFG = {
   // Сложность (спека владельца 2026-07): по умолчанию ЛЮБАЯ пара матчится
   // (перекрытия не проверяются, вуали нет); Hard включает механику
@@ -1248,6 +1257,14 @@ function tickVeil(dt){
 // Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть
 // слегка отрицательной при касании/нахлёсте — это «вплотную», всегда матч
 function pairDist(a, b){ return a.p.distanceTo(b.p) - a.r - b.r; }
+// ЕДИНСТВЕННОЕ правило совпадения (тап/бот/подсказка/прицел/счётчик пар —
+// все ходят сюда): пара совпадает, если охватная сфера кандидата касается
+// видимой сферы тапа (см. MATCH_EDGE_PAD в 00-config, спека владельца
+// 2026-07-20). Рассинхрон правила и визуала — источник жалобы «край в
+// сфере, а не соединилось»; новые проверки писать ТОЛЬКО через pairMatch.
+function pairMatch(a, b){
+  return !CFG.radiusOn || pairDist(a, b) <= CFG.matchRadius + MATCH_EDGE_PAD;
+}
 function availablePairs(){
   const byKey = {};
   for (const it of items) if (it.alive && it.accessible) (byKey[it.key] = byKey[it.key]||[]).push(it);
@@ -1255,7 +1272,7 @@ function availablePairs(){
   for (const k in byKey){
     const arr = byKey[k];
     for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-      if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius) cnt++;
+      if (pairMatch(arr[i], arr[j])) cnt++;
     }
   }
   return cnt;
@@ -1866,7 +1883,7 @@ function scopeHighlight(){
   for (const k in byKey){
     const arr = byKey[k];
     for (const a0 of arr){
-      const paired = arr.some(o => o !== a0 && (!CFG.radiusOn || pairDist(o, a0) <= CFG.matchRadius));
+      const paired = arr.some(o => o !== a0 && pairMatch(o, a0));
       if (paired){ scopePulse(a0, 5); lit++; }
     }
   }
@@ -1953,10 +1970,11 @@ function handleTap(x, y){
   if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
-  const eligible = CFG.radiusOn ? accessible.filter(i => pairDist(i, item) <= CFG.matchRadius) : accessible;
+  const eligible = accessible.filter(i => pairMatch(i, item));
 
-  // сфера радиуса: белая — матч есть, красная — промах
-  if (CFG.radiusOn) sphereFX(item.p, Math.min(CFG.matchRadius + item.r + 0.55, 4.2), eligible.length ? 0xffffff : 0xff5a64); // визуал: зазор + свой радиус + типичный чужой
+  // сфера радиуса: белая — матч есть, красная — промах. Формула радиуса
+  // согласована с pairMatch: всё, чего сфера касается охватной сферой, — матч
+  if (CFG.radiusOn) sphereFX(item.p, Math.min(CFG.matchRadius + item.r + MATCH_EDGE_PAD, 4.2), eligible.length ? 0xffffff : 0xff5a64);
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -1966,7 +1984,7 @@ function handleTap(x, y){
   }
   if (finale){ wiggle(item); return; }
   penalize(item.p);
-  const nearBuried = copies.filter(i => !CFG.radiusOn || pairDist(i, item) <= CFG.matchRadius);
+  const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
@@ -1990,8 +2008,7 @@ function findHintGroup(){
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
   let best = null;
   for (const it of acc){
-    const grp = acc.filter(o => o !== it && o.key === it.key &&
-      (!CFG.radiusOn || pairDist(o, it) <= CFG.matchRadius));
+    const grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
     if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
   }
   return best;
@@ -2003,7 +2020,7 @@ function showHint(){
     toast('Доступных пар нет — встряхните!');
     return;
   }
-  if (CFG.radiusOn) sphereFX(grp[0].p, Math.min(CFG.matchRadius + grp[0].r + 0.55, 4.2), 0xffe066);
+  if (CFG.radiusOn) sphereFX(grp[0].p, Math.min(CFG.matchRadius + grp[0].r + MATCH_EDGE_PAD, 4.2), 0xffe066);
   grp.forEach(it => hintPulse(it));
 }
 function hintPulse(item){
@@ -2638,7 +2655,7 @@ window.__game = {
     for (const k in byKey){
       const arr = byKey[k];
       for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-        if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius){ doMatch([arr[i], arr[j]]); return true; }
+        if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
       }
     }
     return false;
