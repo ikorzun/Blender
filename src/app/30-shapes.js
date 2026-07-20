@@ -96,6 +96,7 @@ const TYPES = [
   { name:'frogaxonart',           color:0xe2367b, rc:1.0, mat:'soft', geo:frogaxonartGeo },
   { name:'cahead',                color:0x36e27b, rc:1.0, mat:'soft', geo:caheadGeo },
   { name:'cellphoneretro',        color:0xe236c0, rc:1.0, wr:0.35, mat:'soft', geo:cellphoneretroGeo },
+  { name:'concretemixer',         color:0x36e236, rc:1.0, mat:'soft', geo:concretemixerGeo },
   { name:'iceskate',              color:0xc036e2, rc:1.0, mat:'soft', geo:iceskateGeo },
   { name:'lifebuoy',              color:0x7be236, rc:1.0, mat:'soft', geo:lifebuoyGeo },
   { name:'mouseretro',            color:0x7b36e2, rc:1.0, wr:0.96, mat:'soft', geo:mouseretroGeo },
