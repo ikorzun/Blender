@@ -40,6 +40,20 @@ function heartGeo(){ // контур из webgl_geometry_shapes
   g.scale(1.35, 1.35, 1.35);
   return g;
 }
+// Простые новые формы (спека владельца 2026-07-20): все ВЫПУКЛЫЕ — физика
+// и сэмплы доступности работают через convex hull без ручных компаундов
+function eggGeo(){
+  const g = new THREE.SphereGeometry(0.72, 16, 12);
+  g.scale(1, 1.32, 1); // яйцо: вытянутая сфера
+  return g;
+}
+function gemGeo(){ // кристалл: две 8-гранные пирамиды основаниями друг к другу
+  const up = new THREE.ConeGeometry(0.7, 0.8, 8);
+  const down = new THREE.ConeGeometry(0.7, 0.8, 8);
+  const mUp = new THREE.Matrix4().makeTranslation(0, 0.4, 0);
+  const mDown = new THREE.Matrix4().makeRotationX(Math.PI).setPosition(0, -0.4, 0);
+  return mergeGeos([[up, mUp], [down, mDown]]);
+}
 function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индексированная геометрия
   const pos = [], norm = [];
   for (const [g, m] of parts){
@@ -93,6 +107,11 @@ const TYPES = [
   { name:'heart',  color:0xff8fa8, rc:0.72, mat:'soft',    geo:heartGeo },
   { name:'pill',   color:0x8fd8ff, rc:0.70, mat:'soft',    geo:()=>new THREE.CapsuleGeometry(0.5,0.7,6,12) },
   { name:'teapot', color:0xc9b8ff, rc:0.78, mat:'soft',    geo:teapotGeo },
+  // простые формы 2026-07-20 (появляются на поздних уровнях по рампе типов)
+  { name:'egg',    color:0xe05ce0, rc:0.85, mat:'soft',    geo:eggGeo },
+  { name:'prism',  color:0x35c9a3, rc:0.78, mat:'soft',    geo:()=>new THREE.CylinderGeometry(0.75,0.75,1.4,3) },
+  { name:'nut',    color:0xb8c0cc, rc:0.80, wr:0.7, mat:'chrome', geo:()=>new THREE.CylinderGeometry(0.85,0.85,0.55,6) },
+  { name:'gem',    color:0x8f66ff, rc:0.75, mat:'soft',    geo:gemGeo },
 ];
 
 // Сочная карамель: HSL нормализуется в sRGB (s=0.75, l=0.55) и конвертится

@@ -92,7 +92,7 @@ function hullFromGeometry(geo, s){
   return RAPIER.ColliderDesc.convexHull(pts);
 }
 // «Катучие» формы глушим по вращению сильнее — в Rapier нет трения качения
-const ROLLY = { ball:1, torus:1, cyl:1, knot:1, spiral:1, pill:1 };
+const ROLLY = { ball:1, torus:1, cyl:1, knot:1, spiral:1, pill:1, egg:1 };
 
 // Цепочка капсул по ломаной (точная физика трубчатых форм: тор, узел,
 // спираль). ВАЖНО: three строит тор/узел в плоскости XY — прежние
