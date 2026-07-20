@@ -15,7 +15,19 @@ function makeItem(typeIdx, size){
   const gkey = String(typeIdx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   let mat;
-  if (t.mat === 'chrome'){
+  if (CFG.matcap){
+    // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
+    // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
+    mat = new THREE.MeshMatcapMaterial({
+      // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
+      // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
+      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
+      matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      vertexColors: t.mat === 'model',
+    });
+    addMatcapEmissive(mat);          // без этого падает подсветка Hint
+    mat.onBeforeCompile = matcapSpecPatch;
+  } else if (t.mat === 'chrome'){
     // Цикл v4: белый хром на белом фоне сливался («кубы еле различимы») —
     // теперь тёмный ГРАФИТОВЫЙ металлик: читается на белом, блики стабильны
     mat = new THREE.MeshStandardMaterial({ color: 0x424a56, metalness: 1, roughness: 0.3 });

@@ -280,6 +280,10 @@ const CFG = {
   matchRadius: 2.0, // текущий, пересчитывается в updateMatchRadius()
   highlight: true,
   sound: true,
+  // ПРОТОТИП «запечённого света» (A/B для владельца, 2026-07-20): предметы
+  // переходят с MeshStandard+софтбокс на matcap. Флаг оставлен, чтобы
+  // сравнение было в один тап и откат — тоже. Подробности в 10-stage.
+  matcap: true,
 };
 
 // ===== 10-stage: рендерер, камера, свет, IBL-окружение, небо =====
@@ -353,6 +357,95 @@ scene.add(dl);
   scene.environment = pmrem.fromScene(env, 0.02).texture;
   pmrem.dispose();
 })();
+
+// ===== MATCAP — «запечённый свет» (прототип A/B, спека владельца 2026-07-20) =====
+// Нормаль во ВЬЮ-пространстве -> пиксель текстуры: свет и финиш материала
+// запечены заранее. Блик физически НЕ МОЖЕТ скакать при повороте камеры
+// (историческая жалоба владельца) — скакать больше нечему.
+// RGB — диффуз: шейдер УМНОЖАЕТ его на material.color, поэтому candyColor и
+// серая вуаль недоступности продолжают работать без единой правки.
+// ALPHA — белый блик, добавляется ПОВЕРХ (см. matcapSpecPatch): чисто
+// мультипликативный matcap красит блик в цвет предмета, и пластик матовеет.
+// ⚠️ DataTexture, а НЕ CanvasTexture: канвас премножает RGB на альфу, и
+// диффуз погас бы везде, кроме пятна блика.
+// ⚠️ КАЛИБРОВКА (итерация 2 по скринам): текстура помечена sRGBEncoding, и
+// середина шкалы уходит в linear ВДВОЕ темнее (0.5 sRGB ≈ 0.21 linear) —
+// первый подбор (amb 0.34) дал тёмную тяжёлую кучу, а широкий блик (shin 20,
+// spec 0.60) сидел на шарах белой кляксой. Тело держим в 0.66-0.94 sRGB,
+// блик — узкий и слабый (искра, не пятно).
+const MATCAP_PRESETS = {
+  // мягкий глянец — характер v4-материалов (metalness 0, roughness 0.18)
+  soft:  { amb: 0.66, sky: 0.28, diff: 0.20, shin: 60, spec: 0.22, rim: 0.14, rimP: 3 },
+  // металл для кубов: ниже тело, шире блик, сильный ободок. Цвет предмета в
+  // matcap-ветке ОСВЕТЛЁН (40-items): у MeshStandard кубы держались отражением
+  // окружения (metalness 1), а множитель тёмного графита ушёл бы в чёрный.
+  metal: { amb: 0.44, sky: 0.34, diff: 0.30, shin: 34, spec: 0.50, rim: 0.42, rimP: 3 },
+};
+const matcapCache = new Map();
+function makeMatcap(kind){
+  if (matcapCache.has(kind)) return matcapCache.get(kind);
+  const P = MATCAP_PRESETS[kind] || MATCAP_PRESETS.soft;
+  const S = 128, data = new Uint8Array(S * S * 4);
+  // ключевой свет сверху-слева-спереди; взгляд по +Z, полувектор для Блинна
+  const Lx = -0.36, Ly = 0.60, Lz = 0.72;
+  const hl = Math.hypot(Lx, Ly, Lz + 1);
+  const Hx = Lx / hl, Hy = Ly / hl, Hz = (Lz + 1) / hl;
+  for (let y = 0; y < S; y++){
+    for (let x = 0; x < S; x++){
+      let nx = (x + 0.5) / S * 2 - 1;
+      let ny = 1 - (y + 0.5) / S * 2;          // v текстуры растёт вниз
+      const r2 = nx * nx + ny * ny;
+      // за кругом держим значение кромки — фильтрация не затягивает чёрное
+      if (r2 > 1){ const k = 1 / Math.sqrt(r2); nx *= k; ny *= k; }
+      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, r2)));
+      // окружение = наш же софтбокс: снизу глуше, к зениту ярче
+      const amb = P.amb + P.sky * (ny * 0.5 + 0.5);
+      const lam = Math.max(0, nx * Lx + ny * Ly + nz * Lz);
+      // френель-ободок: силуэт светлее — предметы не слипаются в плотной куче
+      const rim = P.rim * Math.pow(1 - nz, P.rimP);
+      const v = Math.min(1, amb + P.diff * lam + rim);
+      const sp = Math.min(1, Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), P.shin) * P.spec);
+      const i = (y * S + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = (v * 255) | 0;
+      data[i + 3] = (sp * 255) | 0;
+    }
+  }
+  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+  tex.encoding = THREE.sRGBEncoding;
+  tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
+  tex.needsUpdate = true;
+  matcapCache.set(kind, tex);
+  return tex;
+}
+// ⚠️ У MeshMatcapMaterial НЕТ emissive, а подсветка подсказки (hintPulse) и
+// «прицела» (scopePulse) в 80-gameplay пишут mat.emissive/emissiveIntensity
+// напрямую — без этих заглушек кнопка Hint падала с TypeError на setHex.
+// (test.js подсказку НЕ ПОКРЫВАЕТ — поймано отдельной пробой; если будете
+// править эту ветку, проверяйте Hint руками.)
+// Считать ничего не надо: как только у материала появляется .emissive, three
+// сам пишет emissive × emissiveIntensity в юниформу `emissive`
+// (refreshUniformsCommon). Наша задача — ЗАВЕСТИ эту юниформу в matcap-шейдере,
+// иначе three падает на undefined.value в первом же кадре (так и было).
+function addMatcapEmissive(mat){
+  mat.emissive = new THREE.Color(0x000000);
+  mat.emissiveIntensity = 0;
+}
+// Блик из альфы + emissive — поверх умножения. Функция ОДНА на все материалы,
+// поэтому кэш программ (по onBeforeCompile.toString()) даёт ОДИН
+// скомпилированный шейдер на все 181, а не 181.
+const matcapSpecPatch = (sh) => {
+  sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec3 emissive;')
+    .replace(
+      'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
+      'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb + vec3( matcapColor.a ) + emissive;'
+    );
+};
+// matcap-предметы тени НЕ ПРИНИМАЮТ (материал неосвещаемый) — значит теневой
+// пасс рисовал бы карту, которую некому показать. Замер: пасс УДВАИВАЕТ
+// draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.
+if (CFG.matcap) renderer.shadowMap.enabled = false;
 
 // Небо: БЕЛОЕ поле (по требованию владельца). ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
@@ -607,7 +700,19 @@ function makeItem(typeIdx, size){
   const gkey = String(typeIdx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   let mat;
-  if (t.mat === 'chrome'){
+  if (CFG.matcap){
+    // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
+    // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
+    mat = new THREE.MeshMatcapMaterial({
+      // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
+      // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
+      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
+      matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      vertexColors: t.mat === 'model',
+    });
+    addMatcapEmissive(mat);          // без этого падает подсветка Hint
+    mat.onBeforeCompile = matcapSpecPatch;
+  } else if (t.mat === 'chrome'){
     // Цикл v4: белый хром на белом фоне сливался («кубы еле различимы») —
     // теперь тёмный ГРАФИТОВЫЙ металлик: читается на белом, блики стабильны
     mat = new THREE.MeshStandardMaterial({ color: 0x424a56, metalness: 1, roughness: 0.3 });
