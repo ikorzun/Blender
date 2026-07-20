@@ -125,7 +125,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-16 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-17 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -2284,7 +2284,7 @@ function tickChainBar(now){
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
   const col = hot ? '#ff9d2e' : '#2aa876';
-  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, rgba(20,26,38,.55) 0 100%)'; // плотный трек: на пёстрой куче .18 терялся
+  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)'; // внутри прозрачный (спека владельца), читаемость держит белая кайма
 }
 function updateEyes(now, grinding){
   const el = $('eyes');
