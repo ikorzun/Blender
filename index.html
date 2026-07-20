@@ -126,7 +126,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-11 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-12 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -1040,7 +1040,7 @@ function syncMeshes(){
 }
 
 // Степпер с аккумулятором фиксированного шага (до 3 подшагов за кадр)
-let physAcc = 0, rescueMs = 0;
+let physAcc = 0, rescueMs = 0, stepMsLast = 0; // stepMsLast — перф-метр (см. soak.js)
 const MAX_FALL = 16; // терминальная скорость падения: CCD ненадёжен на мелких
                      // сферах компаундов при v>20 (rapier.js issue #302)
 // в интро столб падает с 30+ единиц и на 16-18 пробивал стены (3-4 спасения
@@ -1048,6 +1048,7 @@ const MAX_FALL = 16; // терминальная скорость падения
 let fallCap = MAX_FALL;
 function setFallCap(v){ fallCap = v || MAX_FALL; }
 function stepPhysics(dt){
+  const _t0 = performance.now();
   physAcc = Math.min(physAcc + dt, 3/60);
   while (physAcc >= 1/60){
     world.step();
@@ -1065,6 +1066,7 @@ function stepPhysics(dt){
     rescueMs = now;
     rescueSweep();
   }
+  stepMsLast = performance.now() - _t0;
 }
 // Возврат «сбежавших»: край предмета глубже 0.18 в стекле (вдавлен в стену/
 // снаружи) или ниже дна — телепорт внутрь. ОБЯЗАТЕЛЬНО зовётся перед сном:
@@ -2335,6 +2337,11 @@ $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='n
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
 
+// Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
+// кольца последних 600 кадров — сырое время кадра и время шага физики
+const frameRing = [], stepRing = [];
+let perfFrames = 0, perfWorstMs = 0;
+
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
 // в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
 // с плавным переходом на игровой вид сверху. Ввод и миксер заблокированы.
@@ -2464,12 +2471,19 @@ addEventListener('resize', resize);
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
-  let dt = Math.min(0.033, (now-lastT)/1000); lastT = now;
+  const rawMs = now - lastT;
+  let dt = Math.min(0.033, rawMs/1000); lastT = now;
+  perfFrames++;
+  if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
+    frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
+    if (rawMs > perfWorstMs) perfWorstMs = rawMs;
+  }
   if (intro) tickIntro(dt);
   if (physAwake){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
     // владельца), камера при этом идёт по реальному времени — облёт прежний
     stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
+    if (perfFrames > 5){ stepRing.push(stepMsLast); if (stepRing.length > 600) stepRing.shift(); }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
     // штиль: скорости тел малы, анимаций нет — замораживаем до следующего события
@@ -2686,6 +2700,26 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
+  // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
+  // по которым ловятся утечки (тела/коллайдеры/меши/геометрии/DOM/куча)
+  perfStats(){
+    const q = a => {
+      if (!a.length) return { avg: 0, p95: 0, max: 0 };
+      const s = a.slice().sort((x, y) => x - y);
+      return { avg: +(s.reduce((t, v) => t + v, 0)/s.length).toFixed(2),
+        p95: +s[Math.min(s.length-1, Math.floor(s.length*0.95))].toFixed(2),
+        max: +s[s.length-1].toFixed(2) };
+    };
+    return { frame: q(frameRing), step: q(stepRing), frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
+      bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
+      colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
+      sceneChildren: scene.children.length, fxN: fx.length,
+      geoms: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
+      drawCalls: renderer.info.render.calls, tris: renderer.info.render.triangles,
+      domNodes: document.getElementsByTagName('*').length,
+      heapMB: performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : -1 };
+  },
   // отладка: телепорт предмета (постановка сцен доступности в тестах)
   place(i, x, y, z){
     const it = items[i];
@@ -2700,7 +2734,12 @@ window.__game = {
     return true;
   },
   floaters(){
-    // предмет «висит», если под его нижней точкой пусто больше 0.35
+    // предмет «висит», если под его нижней точкой пусто больше 0.35.
+    // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит
+    // КОНЦАМИ на соседях, центр — над полостью, а у стены луч уходит мимо
+    // диска пола сквозь клиновые щели внешних краёв ступенчатых панелей
+    // (соак 2026-07-20, сид 101). Честная опора — контактные пары Rapier:
+    // висун = gap>0.35 И contacts===0. contacts>0 при gap>0.35 — «мост», норма.
     const ray = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:-1, z:0 });
     const out = [];
     for (const it of items){
@@ -2708,10 +2747,34 @@ window.__game = {
       ray.origin.x = it.p.x; ray.origin.y = it.p.y - it.r - 0.02; ray.origin.z = it.p.z;
       if (ray.origin.y <= FLOOR_REST + 0.05) continue; // лежит на дне
       const hit = world.castRay(ray, 30, true, null, null, null, it.body);
-      const gap = hit ? hit.toi : 30;
-      if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2), gap: +gap.toFixed(2), sleeping: it.body.isSleeping() });
+      // Rapier 0.12+ переименовал toi -> timeOfImpact: с hit.toi зазор был
+      // undefined, и floaters видел ТОЛЬКО случаи «луч не попал вовсе»
+      // (gap=30) — конечные зависания молчали (нашлось соаком 2026-07-20)
+      const gap = hit ? (hit.timeOfImpact !== undefined ? hit.timeOfImpact : hit.toi) : 30;
+      if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2),
+        d: +Math.hypot(it.p.x, it.p.z).toFixed(2), gap: +gap.toFixed(2),
+        contacts: this.contacts(items.indexOf(it)).touching, sleeping: it.body.isSleeping() });
     }
     return out;
+  },
+  // контактные пары нарровой фазы предмета i: pairs — соседи по AABB,
+  // touching — с реальными точками контакта. Пары живут и на спящей куче
+  // (наш глобальный сон не зовёт world.step, граф остаётся от последнего шага);
+  // -1 = API недоступен (страховка на смену версии Rapier)
+  contacts(i){
+    const it = items[i];
+    if (!it || !it.body || !world.contactPairsWith) return { pairs: -1, touching: -1 };
+    let pairs = 0, touching = 0;
+    try {
+      for (let c = 0; c < it.body.numColliders(); c++){
+        const col = it.body.collider(c);
+        world.contactPairsWith(col, other => {
+          pairs++;
+          world.contactPair(col, other, m => { if (m.numContacts() > 0) touching++; });
+        });
+      }
+    } catch (e){ return { pairs: -1, touching: -1 }; }
+    return { pairs, touching };
   },
   accessibleList(){
     const out = [];

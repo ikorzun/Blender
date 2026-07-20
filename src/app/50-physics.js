@@ -257,7 +257,7 @@ function syncMeshes(){
 }
 
 // Степпер с аккумулятором фиксированного шага (до 3 подшагов за кадр)
-let physAcc = 0, rescueMs = 0;
+let physAcc = 0, rescueMs = 0, stepMsLast = 0; // stepMsLast — перф-метр (см. soak.js)
 const MAX_FALL = 16; // терминальная скорость падения: CCD ненадёжен на мелких
                      // сферах компаундов при v>20 (rapier.js issue #302)
 // в интро столб падает с 30+ единиц и на 16-18 пробивал стены (3-4 спасения
@@ -265,6 +265,7 @@ const MAX_FALL = 16; // терминальная скорость падения
 let fallCap = MAX_FALL;
 function setFallCap(v){ fallCap = v || MAX_FALL; }
 function stepPhysics(dt){
+  const _t0 = performance.now();
   physAcc = Math.min(physAcc + dt, 3/60);
   while (physAcc >= 1/60){
     world.step();
@@ -282,6 +283,7 @@ function stepPhysics(dt){
     rescueMs = now;
     rescueSweep();
   }
+  stepMsLast = performance.now() - _t0;
 }
 // Возврат «сбежавших»: край предмета глубже 0.18 в стекле (вдавлен в стену/
 // снаружи) или ниже дна — телепорт внутрь. ОБЯЗАТЕЛЬНО зовётся перед сном:
