@@ -89,16 +89,23 @@ const TYPES = [
   // rc=1.0 (больше примитивов) НАМЕРЕННО: модели тонкие, при охвате 0.78
   // чаша набиралась только до topY 3.4 при норме 7.5-9.0. Значения rc/wr
   // печатает tools/glb2module.py — держать синхронными с RC в конвертере.
-  { name:'squaresquidart',  color:0xff4d4d, rc:1.0, mat:'soft', geo:squaresquidartGeo },
-  { name:'frogaxonart',     color:0x66ff4d, rc:1.0, mat:'soft', geo:frogaxonartGeo },
-  { name:'cahead',          color:0x4d8cff, rc:1.0, mat:'soft', geo:caheadGeo },
-  { name:'cellphoneretro',  color:0xd84dff, rc:1.0, wr:0.35, mat:'soft', geo:cellphoneretroGeo },
-  { name:'mouseretro',      color:0xffa64d, rc:1.0, wr:0.96, mat:'soft', geo:mouseretroGeo },
-  { name:'noelcap',         color:0x4dff8c, rc:1.0, mat:'soft', geo:noelcapGeo },
-  { name:'present01',       color:0xff4da6, rc:1.0, mat:'soft', geo:present01Geo },
-  { name:'pretzel',         color:0xd8ff4d, rc:1.0, mat:'soft', geo:pretzelGeo },
-  { name:'rock01',          color:0x4dffff, rc:1.0, mat:'soft', geo:rock01Geo },
-  { name:'sausage',         color:0x8c4dff, rc:1.0, wr:0.99, mat:'soft', geo:sausageGeo },
+  // Тона раскиданы по кругу с шагом 168° (а не подряд): соседи по списку
+  // расходятся и по тону, и по светлоте (LIGHT_OFFSETS ниже).
+  { name:'squaresquidart',        color:0xe23636, rc:1.0, mat:'soft', geo:squaresquidartGeo },
+  { name:'tallgoldencrown3dicon', color:0x36e2c0, rc:1.0, mat:'soft', geo:tallgoldencrown3diconGeo },
+  { name:'frogaxonart',           color:0xe2367b, rc:1.0, mat:'soft', geo:frogaxonartGeo },
+  { name:'cahead',                color:0x36e27b, rc:1.0, mat:'soft', geo:caheadGeo },
+  { name:'cellphoneretro',        color:0xe236c0, rc:1.0, wr:0.35, mat:'soft', geo:cellphoneretroGeo },
+  { name:'concretemixer',         color:0x36e236, rc:1.0, mat:'soft', geo:concretemixerGeo },
+  { name:'iceskate',              color:0xc036e2, rc:1.0, mat:'soft', geo:iceskateGeo },
+  { name:'lifebuoy',              color:0x7be236, rc:1.0, mat:'soft', geo:lifebuoyGeo },
+  { name:'mouseretro',            color:0x7b36e2, rc:1.0, wr:0.96, mat:'soft', geo:mouseretroGeo },
+  { name:'noelcap',               color:0xc0e236, rc:1.0, mat:'soft', geo:noelcapGeo },
+  { name:'present01',             color:0x3636e2, rc:1.0, mat:'soft', geo:present01Geo },
+  { name:'pretzel',               color:0xe2c036, rc:1.0, mat:'soft', geo:pretzelGeo },
+  { name:'retrocomputerbooth',    color:0x367be2, rc:1.0, mat:'soft', geo:retrocomputerboothGeo },
+  { name:'rock01',                color:0xe27b36, rc:1.0, mat:'soft', geo:rock01Geo },
+  { name:'sausage',               color:0x36c0e2, rc:1.0, wr:0.99, mat:'soft', geo:sausageGeo },
   // --- примитивы ---
   { name:'cube',   color:0xf2f4f8, rc:0.85, mat:'chrome',  geo:()=>new THREE.BoxGeometry(1.5,1.5,1.5) },
   { name:'ball',   color:0x7aa2ff, rc:0.95, mat:'soft',    geo:()=>new THREE.SphereGeometry(0.95,18,14) },
@@ -126,29 +133,26 @@ const TYPES = [
 // неоновой рябью, а в оттенках серого (и у дальтоников, ~8% мужчин) типы
 // сливались вовсе, хотя матч ПО ТИПУ — ядро механики.
 //
-// ⚠️ Целимся в ЯРКОСТЬ (relative luminance), а НЕ в HSL-L: при одинаковом L
-// жёлтый вчетверо ярче синего (веса 0.2126/0.7152/0.0722), поэтому равный
-// шаг по L не даёт равного шага по восприятию. Бисекция подбирает L под
-// нужную яркость; для тонов, которым цель недостижима (насыщенный синий
-// не бывает очень ярким), упирается в потолок и берёт ближайшее.
-const srgbToLin = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-function candyColor(hex, lum){
+// ⚠️ ИСТОРИЯ ДВУХ ПОДХОДОВ (первый забракован владельцем — не возвращать):
+// СНАЧАЛА целились в АБСОЛЮТНУЮ яркость (relative luminance) — каждому типу
+// своя ступень, бисекция гнала светлоту, пока тон в неё не попадёт. Разделение
+// вышло, цвет — нет: у тонов разная природная яркость, и жёлтый/лайм, которым
+// досталась низкая ступень, уезжали в болото, а синий/фиолетовый на высокой
+// разбеливались в пастель. Куча стала пыльно-розовой с оливковым. Карамель,
+// принятая владельцем третьей итерацией, была убита.
+// ТЕПЕРЬ сдвиг ОТНОСИТЕЛЬНЫЙ: тон остаётся у своей природной светлоты 0.55 и
+// лишь смещается на ±0.20. Соседи расходятся по значению — этого хватает,
+// чтобы куча не сливалась, — но ни один тон не выдавливается за края, где
+// HSL-насыщенность перестаёт давать цветность.
+function candyColor(hex, dl){
   const c = new THREE.Color(hex), hsl = {};
   c.getHSL(hsl);
-  if (lum == null){ c.setHSL(hsl.h, 0.75, 0.55); return c.convertSRGBToLinear(); }
-  let lo = 0.08, hi = 0.94;
-  for (let i = 0; i < 12; i++){
-    const mid = (lo + hi) / 2;
-    c.setHSL(hsl.h, 0.75, mid);
-    const L = 0.2126*srgbToLin(c.r) + 0.7152*srgbToLin(c.g) + 0.0722*srgbToLin(c.b);
-    if (L < lum) lo = mid; else hi = mid;
-  }
-  c.setHSL(hsl.h, 0.75, (lo + hi) / 2);
+  c.setHSL(hsl.h, 0.75, Math.max(0.30, Math.min(0.78, 0.55 + (dl || 0))));
   return c.convertSRGBToLinear();
 }
-// Ступени яркости раскладываются ПО ПОРЯДКУ типов: соседи в списке (а они же
-// соседи по тону в блоке моделей) гарантированно расходятся по светлоте.
-// Диапазон 0.20-0.60 — выше насыщенные синие/фиолетовые физически не тянут.
-const LUM_STEPS = [0.50, 0.20, 0.36, 0.60, 0.26, 0.43];
-TYPES.forEach((t, i) => { if (t.mat === 'soft') t.lum = LUM_STEPS[i % LUM_STEPS.length]; });
+// Сдвиги раскладываются ПО ПОРЯДКУ типов, поэтому соседи по списку заведомо
+// расходятся по светлоте. Тона у моделей тоже раскиданы по кругу с шагом 168°,
+// так что совпасть и по тону, и по светлоте соседи не могут.
+const LIGHT_OFFSETS = [0.00, -0.15, 0.12, -0.08, 0.18, -0.20];
+TYPES.forEach((t, i) => { if (t.mat === 'soft') t.dl = LIGHT_OFFSETS[i % LIGHT_OFFSETS.length]; });
 const MESH_SCALE = 0.62;

@@ -16,10 +16,10 @@ import json, os, re, struct, sys
 # модели тонкие и вытянутые, при равном охвате их объём вдвое меньше шара —
 # на 0.78 чаша заполнялась лишь до topY 3.4 при норме 7.5-9.0.
 RC = 1.00
-# Потолок полигонажа. Ориентир для боя — 400 тр. (стейк 144, на экране до 181
-# предмета); здесь порог заведомо мягкий, он ловит только декорации вроде
-# RetroComputerBooth (29721 тр., 23 МБ). Пропуски ПЕЧАТАЮТСЯ, не молчком.
-MAX_TRIS = 3000
+# Планка полигонажа: на экране до 181 предмета, стейк-эталон 144 тр.
+# Всё, что выше, ПРОРЕЖИВАЕТСЯ (см. decimate) — иначе «иконочные» ассеты
+# на 300-500 тыс. треугольников физически не влезают в игру.
+TARGET_TRIS = 500
 
 CT_SIZE = {5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4}
 CT_FMT = {5120: 'b', 5121: 'B', 5122: 'h', 5123: 'H', 5125: 'I', 5126: 'f'}
@@ -50,11 +50,11 @@ def accessor(g, bin_, idx):
     fmt = CT_FMT[a['componentType']]
     base = bv.get('byteOffset', 0) + a.get('byteOffset', 0)
     stride = bv.get('byteStride') or nc * csz
-    out = []
-    for i in range(a['count']):
-        o = base + i * stride
-        out.append(struct.unpack_from('<' + fmt * nc, bin_, o))
-    return out
+    if stride == nc * csz:  # плотная упаковка — читаем одним махом
+        vals = struct.unpack_from('<' + fmt * (nc * a['count']), bin_, base)
+        return [vals[i * nc:(i + 1) * nc] for i in range(a['count'])]
+    return [struct.unpack_from('<' + fmt * nc, bin_, base + i * stride)
+            for i in range(a['count'])]
 
 
 def node_matrix(n):
@@ -88,8 +88,71 @@ def xform(m, p):
             m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14])
 
 
+def cluster(tris, lo, size, n):
+    """Прореживание СХЛОПЫВАНИЕМ ВЕРШИН В СЕТКУ n×n×n.
+
+    Выбрано вместо честного edge-collapse осознанно: линейное по числу
+    треугольников (edge-collapse на полумиллионе рёбер в питоне не считается),
+    а огранка, которую оно даёт, совпадает с нашим flat-шейдингом — модель
+    становится низкополигональной «фасеточной», а не мыльной.
+    """
+    def key(v):
+        return (min(n - 1, int((v[0] - lo[0]) / size[0] * n)),
+                min(n - 1, int((v[1] - lo[1]) / size[1] * n)),
+                min(n - 1, int((v[2] - lo[2]) / size[2] * n)))
+    acc = {}
+    for t in tris:
+        for v in t:
+            k = key(v)
+            a = acc.get(k)
+            if a:
+                a[0] += v[0]; a[1] += v[1]; a[2] += v[2]; a[3] += 1
+            else:
+                acc[k] = [v[0], v[1], v[2], 1]
+    rep = {k: (a[0] / a[3], a[1] / a[3], a[2] / a[3]) for k, a in acc.items()}
+    out, seen = [], set()
+    for t in tris:
+        k0, k1, k2 = key(t[0]), key(t[1]), key(t[2])
+        if k0 == k1 or k1 == k2 or k0 == k2:
+            continue                      # схлопнулся в линию/точку
+        sig = (k0, k1, k2) if k0 < k1 < k2 else tuple(sorted((k0, k1, k2)))
+        if sig in seen:
+            continue                      # дубль грани после схлопывания
+        seen.add(sig)
+        out.append((rep[k0], rep[k1], rep[k2]))
+    return out
+
+
+def decimate(tris, target):
+    if len(tris) <= target:
+        return tris, False
+    vs = [v for t in tris for v in t]
+    lo = [min(v[i] for v in vs) for i in range(3)]
+    hi = [max(v[i] for v in vs) for i in range(3)]
+    size = [max(1e-9, hi[i] - lo[i]) for i in range(3)]
+    # грубый проход для очень тяжёлых моделей: бисекция по 500k треугольников
+    # в питоне слишком дорога, сначала сбиваем объём одним схлопыванием
+    if len(tris) > 60000:
+        tris = cluster(tris, lo, size, 56)
+        if len(tris) <= target:
+            return tris, True
+    n_lo, n_hi, best = 2, 160, None
+    for _ in range(9):
+        n = (n_lo + n_hi) // 2
+        out = cluster(tris, lo, size, n)
+        if len(out) > target:
+            n_hi = n
+        else:
+            n_lo, best = n, out
+        if n_hi - n_lo <= 1:
+            break
+    return (best if best else cluster(tris, lo, size, 2)), True
+
+
 def convert(path):
     g, bin_ = read_glb(path)
+    if not g.get('meshes') or not g.get('nodes'):
+        raise ValueError('в файле нет геометрии (пустой экспорт из Blender?)')
     tris = []
 
     def walk(ni, parent):
@@ -111,6 +174,8 @@ def convert(path):
     for ni in g['scenes'][g.get('scene', 0)]['nodes']:
         walk(ni, ident)
     assert tris, f'{path}: треугольников не найдено'
+    orig = len(tris)
+    tris, cut = decimate(tris, TARGET_TRIS)
 
     vs = [v for tri in tris for v in tri]
     lo = [min(v[i] for v in vs) for i in range(3)]
@@ -123,7 +188,7 @@ def convert(path):
     for v in vs:
         flat += [(v[i] - cen[i]) * k for i in range(3)]
     half = [(hi[i] - lo[i]) / 2 * k for i in range(3)]
-    return flat, len(tris), half
+    return flat, len(tris), half, orig, cut
 
 
 def num(x):
@@ -147,33 +212,38 @@ function modelGeo(pos){
   return g;
 }"""]
     report, skipped = [], []
+    for f in sorted(os.listdir(src_dir)):
+        if f.lower().endswith(('.fbx', '.obj', '.dae', '.blend')):
+            skipped.append((f, 'формат не поддержан — нужен .glb (экспорт из Blender)'))
     for f in files:
         # имя -> валидный JS-идентификатор: «048_Frogaxon_Art» -> frogaxonart
         # (ведущие цифры сделали бы `function 048...Geo()` синтаксической ошибкой)
         name = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
-        flat, ntri, half = convert(os.path.join(src_dir, f))
-        if ntri > MAX_TRIS:
-            skipped.append((f, ntri))
+        try:
+            flat, ntri, half, orig, cut = convert(os.path.join(src_dir, f))
+        except Exception as e:
+            skipped.append((f, str(e)))
             continue
         const = 'M_' + name.upper() + '_POS'
-        parts.append(f'// {f} — {ntri} тр.')
+        tag = f'{orig} -> {ntri} тр. (прорежена)' if cut else f'{ntri} тр.'
+        parts.append(f'// {f} — {tag}')
         parts.append(f'const {const} = new Float32Array([{",".join(num(v) for v in flat)}]);')
         parts.append(f'function {name}Geo(){{ return modelGeo({const}); }}')
         wr = max(half[0], half[2])
-        report.append((name, f, ntri, wr, half))
+        report.append((name, f, ntri, wr, half, orig, cut))
     open(out_path, 'w').write('\n'.join(parts) + '\n')
 
     kb = os.path.getsize(out_path) / 1024
     print(f'{out_path}: {kb:.0f} КБ, моделей {len(report)}\n')
-    for f, n in skipped:
-        print(f'⚠ ПРОПУЩЕНА {f}: {n} тр. > потолка {MAX_TRIS} — это декорация, не предмет в кучу')
+    for f, why in skipped:
+        print(f'⚠ НЕ ВЗЯТА  {f}: {why}')
     if skipped:
         print()
-    print(f'{"имя":<12}{"тр.":>6}{"wr":>7}   полугабариты (x,y,z)   строка для TYPES')
-    for name, f, ntri, wr, half in report:
-        hs = ' '.join(f'{h:.2f}' for h in half)
+    print(f'{"имя":<18}{"было":>8}{"стало":>7}{"wr":>7}   строка для TYPES')
+    for name, f, ntri, wr, half, orig, cut in report:
         flat_flag = f", wr:{wr:.2f}" if min(half) / max(half) < 0.35 else ''
-        print(f'{name:<12}{ntri:>6}{wr:>7.2f}   {hs}   '
+        was = str(orig) if cut else '—'
+        print(f'{name:<18}{was:>8}{ntri:>7}{wr:>7.2f}   '
               f"{{ name:'{name}', color:0x??????, rc:{RC}{flat_flag}, mat:'soft', geo:{name}Geo }},")
 
 

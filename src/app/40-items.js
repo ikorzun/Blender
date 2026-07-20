@@ -21,7 +21,7 @@ function makeItem(typeIdx, size){
     mat = new THREE.MeshMatcapMaterial({
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color, t.lum)),
+      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color, t.dl)),
       matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
       vertexColors: t.mat === 'model',
     });
@@ -40,7 +40,7 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color, t.lum), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color, t.dl), metalness: 0, roughness: 0.18 });
     mat.envMapIntensity = 0.5;
   }
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
