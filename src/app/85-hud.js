@@ -34,6 +34,7 @@ function tickChainBar(now){
   }
   if (frac < 0){ cr.style.display = 'none'; return; }
   cr.style.display = 'block';
+  cr.classList.toggle('hot', hot); // .hot показывает пульсирующую молнию внутри
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
   const col = hot ? '#ff9d2e' : '#2aa876';
