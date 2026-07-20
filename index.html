@@ -127,7 +127,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-13 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-14 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -233,7 +233,7 @@ const MIXER_IDLE_EASY = 30, MIXER_IDLE_HARD = 10;
 // вторая склейка в пределах цепочного окна -> радиус до COMBO_RADIUS на
 // COMBO_MS; каждый матч в лихорадке ПРОДЛЕВАЕТ окно (иначе фивер гаснет
 // посреди цепочки и злит)
-const COMBO_RADIUS = 2.0, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // окно серии 4 с (спека владельца; было 2), потолок зазора 2.0
+const COMBO_RADIUS = 1.5, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // окно серии 4 с; потолок зазора 1.5 (2-й нерф: «в серии слишком легко»)
 // разгон радиуса ЛЕСЕНКОЙ (тюнинг владельца: «мгновенные 3.5 — слишком
 // легко»): каждый матч серии +1 ступень к COMBO_STEPS, промах сбивает
 // COMBO_MISS_DROP ступеней (до нуля = серия погасла)
