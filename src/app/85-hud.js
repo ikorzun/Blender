@@ -37,8 +37,13 @@ function tickChainBar(now){
   cr.classList.toggle('hot', hot); // .hot показывает пульсирующую молнию внутри
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
-  const col = hot ? '#ff9d2e' : '#2aa876';
-  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)'; // внутри прозрачный (спека владельца), читаемость держит белая кайма
+  // турбо: ГОЛУБОЙ диск с белой молнией; выработанное время — приглушённый
+  // сектор того же голубого. Зарядка: зелёный пирог на прозрачном.
+  if (hot){
+    cr.style.background = 'conic-gradient(#4da6ff 0 ' + (frac * 100).toFixed(1) + '%, rgba(77,166,255,.38) 0 100%)';
+  } else {
+    cr.style.background = 'conic-gradient(#2aa876 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)';
+  }
 }
 function updateEyes(now, grinding){
   const el = $('eyes');

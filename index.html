@@ -46,7 +46,7 @@
   /* активный турбо: в диске пульсирует МОЛНИЯ (спека владельца), сектор
      вокруг продолжает показывать остаток времени */
   #chainBolt { display:none; position:absolute; inset:0; margin:auto; width:16px; height:16px;
-    fill:#ff9d2e; stroke:#fff; stroke-width:1.2; stroke-linejoin:round; }
+    fill:#fff; } /* белая молния на голубом диске (спека владельца) */
   #chainRing.hot #chainBolt { display:block; animation:boltPulse .5s ease-in-out infinite alternate; }
   @keyframes boltPulse { from { transform:scale(1); } to { transform:scale(1.25); } }
   /* одинаковая высота нижних кнопок (спека владельца) */
@@ -131,7 +131,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-18 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-19 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -2290,8 +2290,13 @@ function tickChainBar(now){
   cr.classList.toggle('hot', hot); // .hot показывает пульсирующую молнию внутри
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
-  const col = hot ? '#ff9d2e' : '#2aa876';
-  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)'; // внутри прозрачный (спека владельца), читаемость держит белая кайма
+  // турбо: ГОЛУБОЙ диск с белой молнией; выработанное время — приглушённый
+  // сектор того же голубого. Зарядка: зелёный пирог на прозрачном.
+  if (hot){
+    cr.style.background = 'conic-gradient(#4da6ff 0 ' + (frac * 100).toFixed(1) + '%, rgba(77,166,255,.38) 0 100%)';
+  } else {
+    cr.style.background = 'conic-gradient(#2aa876 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)';
+  }
 }
 function updateEyes(now, grinding){
   const el = $('eyes');
