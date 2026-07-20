@@ -16,10 +16,15 @@ import json, os, re, struct, sys
 # модели тонкие и вытянутые, при равном охвате их объём вдвое меньше шара —
 # на 0.78 чаша заполнялась лишь до topY 3.4 при норме 7.5-9.0.
 RC = 1.00
-# Планка полигонажа: на экране до 181 предмета, стейк-эталон 144 тр.
-# Всё, что выше, ПРОРЕЖИВАЕТСЯ (см. decimate) — иначе «иконочные» ассеты
-# на 300-500 тыс. треугольников физически не влезают в игру.
-TARGET_TRIS = 500
+# Планка полигонажа — только ДЛЯ ПРЕДУПРЕЖДЕНИЯ в отчёте. Приводить модели
+# к ней должен tools/blender-decimate.py ДО этого шага; здесь форма
+# неприкосновенна.
+TARGET_TRIS = 1500
+# Модели, которые НЕ переживают упрощение и потому в игру не берутся.
+# concretemixer — тонкий листовой металл и рама: воксельный ремеш, без
+# которого её 338k треугольников не сбить, рвёт такие поверхности в труху
+# (проверено на двух разрешениях вокселя). Нужен низкополигональный исходник.
+EXCLUDE = {'concretemixer'}
 
 CT_SIZE = {5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4}
 CT_FMT = {5120: 'b', 5121: 'B', 5122: 'h', 5123: 'H', 5125: 'I', 5126: 'f'}
@@ -88,67 +93,6 @@ def xform(m, p):
             m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14])
 
 
-def cluster(tris, lo, size, n):
-    """Прореживание СХЛОПЫВАНИЕМ ВЕРШИН В СЕТКУ n×n×n.
-
-    Выбрано вместо честного edge-collapse осознанно: линейное по числу
-    треугольников (edge-collapse на полумиллионе рёбер в питоне не считается),
-    а огранка, которую оно даёт, совпадает с нашим flat-шейдингом — модель
-    становится низкополигональной «фасеточной», а не мыльной.
-    """
-    def key(v):
-        return (min(n - 1, int((v[0] - lo[0]) / size[0] * n)),
-                min(n - 1, int((v[1] - lo[1]) / size[1] * n)),
-                min(n - 1, int((v[2] - lo[2]) / size[2] * n)))
-    acc = {}
-    for t in tris:
-        for v in t:
-            k = key(v)
-            a = acc.get(k)
-            if a:
-                a[0] += v[0]; a[1] += v[1]; a[2] += v[2]; a[3] += 1
-            else:
-                acc[k] = [v[0], v[1], v[2], 1]
-    rep = {k: (a[0] / a[3], a[1] / a[3], a[2] / a[3]) for k, a in acc.items()}
-    out, seen = [], set()
-    for t in tris:
-        k0, k1, k2 = key(t[0]), key(t[1]), key(t[2])
-        if k0 == k1 or k1 == k2 or k0 == k2:
-            continue                      # схлопнулся в линию/точку
-        sig = (k0, k1, k2) if k0 < k1 < k2 else tuple(sorted((k0, k1, k2)))
-        if sig in seen:
-            continue                      # дубль грани после схлопывания
-        seen.add(sig)
-        out.append((rep[k0], rep[k1], rep[k2]))
-    return out
-
-
-def decimate(tris, target):
-    if len(tris) <= target:
-        return tris, False
-    vs = [v for t in tris for v in t]
-    lo = [min(v[i] for v in vs) for i in range(3)]
-    hi = [max(v[i] for v in vs) for i in range(3)]
-    size = [max(1e-9, hi[i] - lo[i]) for i in range(3)]
-    # грубый проход для очень тяжёлых моделей: бисекция по 500k треугольников
-    # в питоне слишком дорога, сначала сбиваем объём одним схлопыванием
-    if len(tris) > 60000:
-        tris = cluster(tris, lo, size, 56)
-        if len(tris) <= target:
-            return tris, True
-    n_lo, n_hi, best = 2, 160, None
-    for _ in range(9):
-        n = (n_lo + n_hi) // 2
-        out = cluster(tris, lo, size, n)
-        if len(out) > target:
-            n_hi = n
-        else:
-            n_lo, best = n, out
-        if n_hi - n_lo <= 1:
-            break
-    return (best if best else cluster(tris, lo, size, 2)), True
-
-
 def convert(path):
     g, bin_ = read_glb(path)
     if not g.get('meshes') or not g.get('nodes'):
@@ -175,7 +119,11 @@ def convert(path):
         walk(ni, ident)
     assert tris, f'{path}: треугольников не найдено'
     orig = len(tris)
-    tris, cut = decimate(tris, TARGET_TRIS)
+    # ⚠️ КОНВЕРТЕР БОЛЬШЕ НЕ ТРОГАЕТ ФОРМУ. Прореживание переехало в
+    # tools/blender-decimate.py (квадричное схлопывание рёбер Blender):
+    # собственное схлопывание вершин в сетку рвало тонкую и полую геометрию
+    # на осколки — корона, конёк и будка приходили в игру кашей.
+    over = orig > TARGET_TRIS
 
     vs = [v for tri in tris for v in tri]
     lo = [min(v[i] for v in vs) for i in range(3)]
@@ -188,7 +136,7 @@ def convert(path):
     for v in vs:
         flat += [(v[i] - cen[i]) * k for i in range(3)]
     half = [(hi[i] - lo[i]) / 2 * k for i in range(3)]
-    return flat, len(tris), half, orig, cut
+    return flat, len(tris), half, orig, over
 
 
 def num(x):
@@ -220,17 +168,20 @@ function modelGeo(pos){
         # (ведущие цифры сделали бы `function 048...Geo()` синтаксической ошибкой)
         name = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
         try:
-            flat, ntri, half, orig, cut = convert(os.path.join(src_dir, f))
+            flat, ntri, half, orig, over = convert(os.path.join(src_dir, f))
         except Exception as e:
             skipped.append((f, str(e)))
             continue
+        if name in EXCLUDE:
+            skipped.append((f, 'в списке исключений — не переживает упрощение'))
+            continue
         const = 'M_' + name.upper() + '_POS'
-        tag = f'{orig} -> {ntri} тр. (прорежена)' if cut else f'{ntri} тр.'
+        tag = f'{ntri} тр.' + (' ⚠ выше планки' if over else '')
         parts.append(f'// {f} — {tag}')
         parts.append(f'const {const} = new Float32Array([{",".join(num(v) for v in flat)}]);')
         parts.append(f'function {name}Geo(){{ return modelGeo({const}); }}')
         wr = max(half[0], half[2])
-        report.append((name, f, ntri, wr, half, orig, cut))
+        report.append((name, f, ntri, wr, half, orig, over))
     open(out_path, 'w').write('\n'.join(parts) + '\n')
 
     kb = os.path.getsize(out_path) / 1024
@@ -239,11 +190,10 @@ function modelGeo(pos){
         print(f'⚠ НЕ ВЗЯТА  {f}: {why}')
     if skipped:
         print()
-    print(f'{"имя":<18}{"было":>8}{"стало":>7}{"wr":>7}   строка для TYPES')
-    for name, f, ntri, wr, half, orig, cut in report:
+    print(f'{"имя":<18}{"тр.":>7}{"wr":>7}   строка для TYPES')
+    for name, f, ntri, wr, half, orig, over in report:
         flat_flag = f", wr:{wr:.2f}" if min(half) / max(half) < 0.35 else ''
-        was = str(orig) if cut else '—'
-        print(f'{name:<18}{was:>8}{ntri:>7}{wr:>7.2f}   '
+        print(f'{name:<18}{ntri:>7}{wr:>7.2f}{"  ⚠" if over else "   "}'
               f"{{ name:'{name}', color:0x??????, rc:{RC}{flat_flag}, mat:'soft', geo:{name}Geo }},")
 
 
