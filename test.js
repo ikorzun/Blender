@@ -70,7 +70,17 @@ const path = require('path');
 
   // тупик: пар нет + встрясок нет -> экран поражения
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
-  await page.waitForTimeout(600);
+  // ⚠️ Ждём УСТОЙЧИВОГО штиля, а не фиксированной паузы: пока куча движется,
+  // updateMatchRadius каждый тик перезаписывает форсированный ниже matchRadius,
+  // и тупик не наступает вовсе. Прежние 600 мс работали лишь потому, что
+  // примитивы оседали мгновенно; модели из «3d assets» оседают ~3 с. Сразу
+  // после skipIntro бывает КРАТКИЙ ложный штиль (~150 мс), поэтому требуем
+  // серию подряд идущих спокойных опросов, а не первый же.
+  await page.waitForFunction(() => {
+    if (window.__game.awake().physAwake) { window.__calm = 0; return false; }
+    window.__calm = (window.__calm || 0) + 1;
+    return window.__calm >= 8;
+  }, null, { timeout: 30000, polling: 100 });
   await page.evaluate(() => {
     window.__game.cfg.baseRadius = 0.001; // радиус динамический — правим базу
     window.__game.cfg.matchRadius = -9; // зазор не бывает отрицательным настолько — гарантированный тупик

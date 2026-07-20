@@ -77,7 +77,29 @@ function teapotGeo(){ // стилизованный чайник из прими
 // Палитра — дружелюбная пастель (тёмно-зелёный и коричневый исключены);
 // mat: soft (полированный цветной лак), chrome (зеркальный хром) —
 // эталон webgl_materials_envmaps_fasthdr (сферы №5 и №3).
+// ⚠️ ПОРЯДОК ЗНАЧИМ: genLevel берёт ПЕРВЫЕ typesCount типов (9 на 1-м уровне,
+// +1 за уровень до 15). Модели владельца поставлены В НАЧАЛО намеренно —
+// иначе на первых уровнях их не увидеть (просьба 2026-07-20 «хочу глянуть»).
+// Вернуть примитивы вперёд = просто переставить блоки местами.
+// Тип 'teapot' убран по просьбе владельца; функция teapotGeo ОСТАВЛЕНА —
+// на ней держится золотой сюрприз со дна (makeSurprise).
 const TYPES = [
+  // --- модели из «3d assets» (36-models, текстуры сняты) ---
+  // цвет — плоский из палитры; тона разнесены по кругу через 36°
+  // rc=1.0 (больше примитивов) НАМЕРЕННО: модели тонкие, при охвате 0.78
+  // чаша набиралась только до topY 3.4 при норме 7.5-9.0. Значения rc/wr
+  // печатает tools/glb2module.py — держать синхронными с RC в конвертере.
+  { name:'squaresquidart',  color:0xff4d4d, rc:1.0, mat:'soft', geo:squaresquidartGeo },
+  { name:'frogaxonart',     color:0x66ff4d, rc:1.0, mat:'soft', geo:frogaxonartGeo },
+  { name:'cahead',          color:0x4d8cff, rc:1.0, mat:'soft', geo:caheadGeo },
+  { name:'cellphoneretro',  color:0xd84dff, rc:1.0, wr:0.35, mat:'soft', geo:cellphoneretroGeo },
+  { name:'mouseretro',      color:0xffa64d, rc:1.0, wr:0.96, mat:'soft', geo:mouseretroGeo },
+  { name:'noelcap',         color:0x4dff8c, rc:1.0, mat:'soft', geo:noelcapGeo },
+  { name:'present01',       color:0xff4da6, rc:1.0, mat:'soft', geo:present01Geo },
+  { name:'pretzel',         color:0xd8ff4d, rc:1.0, mat:'soft', geo:pretzelGeo },
+  { name:'rock01',          color:0x4dffff, rc:1.0, mat:'soft', geo:rock01Geo },
+  { name:'sausage',         color:0x8c4dff, rc:1.0, wr:0.99, mat:'soft', geo:sausageGeo },
+  // --- примитивы ---
   { name:'cube',   color:0xf2f4f8, rc:0.85, mat:'chrome',  geo:()=>new THREE.BoxGeometry(1.5,1.5,1.5) },
   { name:'ball',   color:0x7aa2ff, rc:0.95, mat:'soft',    geo:()=>new THREE.SphereGeometry(0.95,18,14) },
   { name:'cone',   color:0xffe066, rc:0.75, mat:'soft',    geo:()=>new THREE.ConeGeometry(0.85,1.7,16) },
@@ -92,7 +114,6 @@ const TYPES = [
   { name:'star',   color:0xffd27a, rc:0.78, mat:'soft',    geo:starGeo },
   { name:'heart',  color:0xff8fa8, rc:0.72, mat:'soft',    geo:heartGeo },
   { name:'pill',   color:0x8fd8ff, rc:0.70, mat:'soft',    geo:()=>new THREE.CapsuleGeometry(0.5,0.7,6,12) },
-  { name:'teapot', color:0xc9b8ff, rc:0.78, mat:'soft',    geo:teapotGeo },
 ];
 
 // Сочная карамель: HSL нормализуется в sRGB (s=0.75, l=0.55) и конвертится
