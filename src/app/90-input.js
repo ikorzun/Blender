@@ -3,8 +3,11 @@
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
 function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
 let pDown = null, dragging = false, pinch = null;
+// последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
+let lastPtrX = innerWidth / 2, lastPtrY = innerHeight / 2;
 const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
+  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована — жесты не копим
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
@@ -19,6 +22,7 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 canvas.addEventListener('pointermove', e => {
+  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){

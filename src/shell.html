@@ -37,14 +37,15 @@
     cursor:pointer; user-select:none; -webkit-user-select:none; pointer-events:auto;
     transition:transform .18s; } /* ×3, затем −30% (спека владельца) */
   #eyes.bounce { transform:translateX(-50%) scale(1.3) rotate(-6deg); }
-  /* заряд цепной реакции: копится под глазами пока горит серия;
-     во время Power chain показывает остаток времени (оранжевый) */
-  #chainBar { display:none; position:fixed; top:calc(env(safe-area-inset-top, 0px) + 82px);
-    left:50%; transform:translateX(-50%); width:76px; height:6px; z-index:6;
-    background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; }
-  #chainBar i { display:block; height:100%; width:0%; background:#2aa876;
-    border-radius:3px; transition:width .2s; }
-  #chainBar.hot i { background:#ff9d2e; transition:none; }
+  /* заряд цепной реакции: КОЛЬЦО у курсора/точки касания (спека владельца);
+     зелёное — копится серией, оранжевое в Power chain — остаток времени */
+  #chainRing { display:none; position:fixed; width:54px; height:54px; z-index:6;
+    pointer-events:none; transform:translate(-50%,-50%); }
+  #chainRing svg { width:100%; height:100%; transform:rotate(-90deg); }
+  #chainRing .track { fill:none; stroke:rgba(20,26,38,.20); stroke-width:5; }
+  #chainRing .fill { fill:none; stroke:#2aa876; stroke-width:5; stroke-linecap:round;
+    stroke-dasharray:125.66; stroke-dashoffset:125.66; }
+  #chainRing.hot .fill { stroke:#ff9d2e; }
   /* одинаковая высота нижних кнопок (спека владельца) */
   #hintBtn, #shakeBtn { height:54px; box-sizing:border-box; }
   #shakeBtn { gap:3px; padding:6px 20px; }
@@ -99,7 +100,7 @@
   <div class="grp"><div class="chip" id="coinsChip">🪙 0</div><div class="chip" id="score">★ 0</div></div>
 </div>
 <div id="eyes" title="Миксер">👀</div>
-<div id="chainBar"><i></i></div>
+<div id="chainRing"><svg viewBox="0 0 48 48"><circle class="track" cx="24" cy="24" r="20"/><circle class="fill" cx="24" cy="24" r="20"/></svg></div>
 
 <div id="toast"></div>
 
@@ -127,7 +128,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-14 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-15 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">

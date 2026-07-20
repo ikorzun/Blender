@@ -20,21 +20,23 @@ function eyesMood(now, grinding){
   if ((now - stats.lastAction)/1000 > level.idleLimit - 5) return '🥱';
   return '👀';
 }
-// Полоска заряда цепи: копится comboCount/CHAIN_COMBO_AT пока серия горит;
-// в реакции — ОСТАТОК времени Power chain (оранжевая). Зовётся каждый кадр.
+// Кольцо заряда цепи У КУРСОРА/касания (спека владельца): копится
+// comboCount/CHAIN_COMBO_AT пока горит серия; в Power chain — остаток
+// времени (оранжевое). Зовётся каждый кадр. Длина окружности r=20: 125.66.
 function tickChainBar(now){
-  const cb = $('chainBar'), fill = cb.firstElementChild;
+  const cr = $('chainRing');
+  let frac = -1, hot = false;
   if (chainUntil > now){
-    cb.style.display = 'block';
-    cb.classList.add('hot');
-    fill.style.width = Math.max(0, (chainUntil - now) / CHAIN_MS * 100) + '%';
+    frac = Math.max(0, (chainUntil - now) / CHAIN_MS); hot = true;
   } else if (comboUntil > now && comboCount > 0 && level && !level.over){
-    cb.style.display = 'block';
-    cb.classList.remove('hot');
-    fill.style.width = Math.min(100, comboCount / CHAIN_COMBO_AT * 100) + '%';
-  } else {
-    cb.style.display = 'none';
+    frac = Math.min(1, comboCount / CHAIN_COMBO_AT);
   }
+  if (frac < 0){ cr.style.display = 'none'; return; }
+  cr.style.display = 'block';
+  cr.classList.toggle('hot', hot);
+  cr.style.left = lastPtrX + 'px';
+  cr.style.top = lastPtrY + 'px';
+  cr.querySelector('.fill').style.strokeDashoffset = (125.66 * (1 - frac)).toFixed(1);
 }
 function updateEyes(now, grinding){
   const el = $('eyes');
