@@ -2284,7 +2284,7 @@ function tickChainBar(now){
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
   const col = hot ? '#ff9d2e' : '#2aa876';
-  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, rgba(20,26,38,.18) 0 100%)';
+  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, rgba(20,26,38,.55) 0 100%)'; // плотный трек: на пёстрой куче .18 терялся
 }
 function updateEyes(now, grinding){
   const el = $('eyes');
