@@ -186,6 +186,29 @@ function collectSurprise(it){
   }, 200);
 }
 
+// Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
+// на matchRadius по каждой локальной оси — честный образ зоны «истинный
+// зазор <= R» (сфера при неохватной метрике врала бы в обе стороны: у
+// стейка зона — плита, не шар). Геометрия ОБЯЗАТЕЛЬНО клонируется:
+// stepFX по завершении зовёт dispose — общий кэш геометрий типов трогать
+// нельзя (иначе все предметы типа теряют GPU-буферы).
+function reachGhostFX(item, color){
+  if (!CFG.radiusOn) return;
+  const geo = item.mesh.geometry;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox, s = item.mesh.scale.x;
+  const R = Math.min(CFG.matchRadius, 3.6); // в цепи/эндшпиле не больше чаши
+  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.06, 0.34));
+  ghost.position.copy(item.mesh.position);
+  ghost.quaternion.copy(item.mesh.quaternion);
+  ghost.scale.set(
+    s + R / Math.max(0.05, (bb.max.x - bb.min.x) / 2),
+    s + R / Math.max(0.05, (bb.max.y - bb.min.y) / 2),
+    s + R / Math.max(0.05, (bb.max.z - bb.min.z) / 2));
+  ghost.renderOrder = 10;
+  addFX(ghost, 0.9, (o, k) => { o.material.uniforms.op.value = 1 - k; });
+}
+
 function handleTap(x, y){
   if (level.over) return;
   // финал миксера (пар по типам не осталось): очки не тратятся и не
@@ -225,9 +248,8 @@ function handleTap(x, y){
   const accessible = copies.filter(i => isAccessible(i));
   const eligible = accessible.filter(i => pairMatch(i, item));
 
-  // сфера радиуса: белая — матч есть, красная — промах. Формула радиуса
-  // согласована с pairMatch: всё, чего сфера касается охватной сферой, — матч
-  if (CFG.radiusOn) sphereFX(item.p, Math.min(CFG.matchRadius + item.r + MATCH_EDGE_PAD, 4.2), eligible.length ? 0xffffff : 0xff5a64);
+  // ореол досягаемости: белый — матч есть, красный — промах
+  reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -273,7 +295,7 @@ function showHint(){
     toast('Доступных пар нет — встряхните!');
     return;
   }
-  if (CFG.radiusOn) sphereFX(grp[0].p, Math.min(CFG.matchRadius + grp[0].r + MATCH_EDGE_PAD, 4.2), 0xffe066);
+  reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
 }
 function hintPulse(item){
