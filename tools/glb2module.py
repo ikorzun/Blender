@@ -87,6 +87,17 @@ def mat_mul(a, b):
     return o
 
 
+def xform_dir(m, v):
+    """Поворот нормали матрицей ноды. Корректно для поворота и РАВНОМЕРНОГО
+    масштаба; для неравномерного нужна обратно-транспонированная — у наших
+    ассетов такого нет, при появлении будет заметно по «съехавшему» свету."""
+    x = m[0] * v[0] + m[4] * v[1] + m[8] * v[2]
+    y = m[1] * v[0] + m[5] * v[1] + m[9] * v[2]
+    z = m[2] * v[0] + m[6] * v[1] + m[10] * v[2]
+    ln = (x * x + y * y + z * z) ** 0.5 or 1.0
+    return (x / ln, y / ln, z / ln)
+
+
 def xform(m, p):
     return (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
             m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
@@ -97,7 +108,13 @@ def convert(path):
     g, bin_ = read_glb(path)
     if not g.get('meshes') or not g.get('nodes'):
         raise ValueError('в файле нет геометрии (пустой экспорт из Blender?)')
-    tris = []
+    # ⚠️ СОХРАНЯЕМ ИСХОДНЫЕ ИНДЕКСЫ И НОРМАЛИ. Раньше геометрия разбиралась
+    # на несвязанные треугольники, а нормали пересчитывались — получалось
+    # ПЛОСКОЕ гранение, из-за которого любая модель выглядела грубым комком
+    # независимо от числа треугольников («с топологией полная беда»).
+    # Индексный буфер из файла уже кодирует, где шов жёсткий, а где гладкий:
+    # на жёстких рёбрах вершины продублированы автором модели. Берём как есть.
+    verts, norms, idx, smooth = [], [], [], [True]
 
     def walk(ni, parent):
         n = g['nodes'][ni]
@@ -106,37 +123,49 @@ def convert(path):
             for p in g['meshes'][n['mesh']]['primitives']:
                 if p.get('mode', 4) != 4:
                     continue  # только треугольники
-                pos = [xform(m, v) for v in accessor(g, bin_, p['attributes']['POSITION'])]
-                idx = [i[0] for i in accessor(g, bin_, p['indices'])] if 'indices' in p \
-                    else list(range(len(pos)))
-                for t in range(0, len(idx), 3):
-                    tris.append((pos[idx[t]], pos[idx[t + 1]], pos[idx[t + 2]]))
+                pos = accessor(g, bin_, p['attributes']['POSITION'])
+                base = len(verts)
+                for v in pos:
+                    verts.append(xform(m, v))
+                if 'NORMAL' in p['attributes']:
+                    for nv in accessor(g, bin_, p['attributes']['NORMAL']):
+                        norms.append(xform_dir(m, nv))
+                else:
+                    smooth[0] = False
+                    norms.extend([(0.0, 1.0, 0.0)] * len(pos))
+                if 'indices' in p:
+                    idx.extend(i[0] + base for i in accessor(g, bin_, p['indices']))
+                else:
+                    idx.extend(range(base, base + len(pos)))
         for c in n.get('children', []):
             walk(c, m)
 
     ident = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
     for ni in g['scenes'][g.get('scene', 0)]['nodes']:
         walk(ni, ident)
-    assert tris, f'{path}: треугольников не найдено'
-    orig = len(tris)
-    # ⚠️ КОНВЕРТЕР БОЛЬШЕ НЕ ТРОГАЕТ ФОРМУ. Прореживание переехало в
-    # tools/blender-decimate.py (квадричное схлопывание рёбер Blender):
-    # собственное схлопывание вершин в сетку рвало тонкую и полую геометрию
-    # на осколки — корона, конёк и будка приходили в игру кашей.
-    over = orig > TARGET_TRIS
+    assert idx, f'{path}: треугольников не найдено'
+    ntri = len(idx) // 3
+    over = ntri > TARGET_TRIS
 
-    vs = [v for tri in tris for v in tri]
-    lo = [min(v[i] for v in vs) for i in range(3)]
-    hi = [max(v[i] for v in vs) for i in range(3)]
+    lo = [min(v[i] for v in verts) for i in range(3)]
+    hi = [max(v[i] for v in verts) for i in range(3)]
     cen = [(lo[i] + hi[i]) / 2 for i in range(3)]
-    rad = max(sum((v[i] - cen[i]) ** 2 for i in range(3)) ** 0.5 for v in vs)
+    rad = max(sum((v[i] - cen[i]) ** 2 for i in range(3)) ** 0.5 for v in verts)
     k = RC / rad
 
-    flat = []
-    for v in vs:
-        flat += [(v[i] - cen[i]) * k for i in range(3)]
+    flat_pos = []
+    for v in verts:
+        flat_pos += [(v[i] - cen[i]) * k for i in range(3)]
+    flat_nrm = []
+    for v in norms:
+        flat_nrm += [v[0], v[1], v[2]]
     half = [(hi[i] - lo[i]) / 2 * k for i in range(3)]
-    return flat, len(tris), half, orig, over
+    return flat_pos, flat_nrm, idx, ntri, half, smooth[0], over
+
+
+def nrm2(x):
+    s = f'{x:.2f}'.rstrip('0').rstrip('.')
+    return '0' if s in ('', '-0') else s
 
 
 def num(x):
@@ -153,10 +182,15 @@ def main(src_dir, out_path):
 // хочу глянуть») — остаётся геометрия, цвет берётся из палитры TYPES.
 // Примитивы слиты в один НЕиндексированный массив: flat-шейдинг получается
 // сам из computeVertexNormals, как у стейка (35-steak).
-function modelGeo(pos){
+function modelGeo(pos, nrm, idx){
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.computeVertexNormals();
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  // нормали ИЗ ФАЙЛА: сглаживание там, где его задумал автор модели.
+  // computeVertexNormals по не-индексированной геометрии давал плоское
+  // гранение и превращал любую модель в комок.
+  if (nrm) g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  else g.computeVertexNormals();
   return g;
 }"""]
     report, skipped = [], []
@@ -168,20 +202,24 @@ function modelGeo(pos){
         # (ведущие цифры сделали бы `function 048...Geo()` синтаксической ошибкой)
         name = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
         try:
-            flat, ntri, half, orig, over = convert(os.path.join(src_dir, f))
+            fpos, fnrm, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
         except Exception as e:
             skipped.append((f, str(e)))
             continue
         if name in EXCLUDE:
             skipped.append((f, 'в списке исключений — не переживает упрощение'))
             continue
-        const = 'M_' + name.upper() + '_POS'
-        tag = f'{ntri} тр.' + (' ⚠ выше планки' if over else '')
+        base = 'M_' + name.upper()
+        it = 'Uint32Array' if len(fpos) // 3 > 65535 else 'Uint16Array'
+        tag = f'{ntri} тр., {len(fpos)//3} верш.' + (' ⚠ выше планки' if over else '')
         parts.append(f'// {f} — {tag}')
-        parts.append(f'const {const} = new Float32Array([{",".join(num(v) for v in flat)}]);')
-        parts.append(f'function {name}Geo(){{ return modelGeo({const}); }}')
+        parts.append(f'const {base}_POS = new Float32Array([{",".join(num(v) for v in fpos)}]);')
+        # нормали — единичные векторы, двух знаков хватает (ошибка < 1 градуса)
+        parts.append(f'const {base}_NRM = {"new Float32Array([" + ",".join(nrm2(v) for v in fnrm) + "])" if smooth else "null"};')
+        parts.append(f'const {base}_IDX = new {it}([{",".join(str(i) for i in idx)}]);')
+        parts.append(f'function {name}Geo(){{ return modelGeo({base}_POS, {base}_NRM, {base}_IDX); }}')
         wr = max(half[0], half[2])
-        report.append((name, f, ntri, wr, half, orig, over))
+        report.append((name, f, ntri, wr, half, len(fpos) // 3, over))
     open(out_path, 'w').write('\n'.join(parts) + '\n')
 
     kb = os.path.getsize(out_path) / 1024
@@ -190,10 +228,10 @@ function modelGeo(pos){
         print(f'⚠ НЕ ВЗЯТА  {f}: {why}')
     if skipped:
         print()
-    print(f'{"имя":<18}{"тр.":>7}{"wr":>7}   строка для TYPES')
-    for name, f, ntri, wr, half, orig, over in report:
+    print(f'{"имя":<18}{"тр.":>7}{"верш.":>7}{"wr":>7}   строка для TYPES')
+    for name, f, ntri, wr, half, nvert, over in report:
         flat_flag = f", wr:{wr:.2f}" if min(half) / max(half) < 0.35 else ''
-        print(f'{name:<18}{ntri:>7}{wr:>7.2f}{"  ⚠" if over else "   "}'
+        print(f'{name:<18}{ntri:>7}{nvert:>7}{wr:>7.2f}{"  ⚠" if over else "   "}'
               f"{{ name:'{name}', color:0x??????, rc:{RC}{flat_flag}, mat:'soft', geo:{name}Geo }},")
 
 
