@@ -37,15 +37,12 @@
     cursor:pointer; user-select:none; -webkit-user-select:none; pointer-events:auto;
     transition:transform .18s; } /* ×3, затем −30% (спека владельца) */
   #eyes.bounce { transform:translateX(-50%) scale(1.3) rotate(-6deg); }
-  /* заряд цепной реакции: КОЛЬЦО у курсора/точки касания (спека владельца);
-     зелёное — копится серией, оранжевое в Power chain — остаток времени */
-  #chainRing { display:none; position:fixed; width:54px; height:54px; z-index:6;
-    pointer-events:none; transform:translate(-50%,-50%); }
-  #chainRing svg { width:100%; height:100%; transform:rotate(-90deg); }
-  #chainRing .track { fill:none; stroke:rgba(20,26,38,.20); stroke-width:5; }
-  #chainRing .fill { fill:none; stroke:#2aa876; stroke-width:5; stroke-linecap:round;
-    stroke-dasharray:125.66; stroke-dashoffset:125.66; }
-  #chainRing.hot .fill { stroke:#ff9d2e; }
+  /* заряд цепной реакции: ДИСК-«пляжный мяч» СНИЗУ-СПРАВА от курсора
+     (референс владельца — курсор загрузки Mac OS); сектор-пирог:
+     зелёный копится серией, оранжевый в Power chain — остаток времени */
+  #chainRing { display:none; position:fixed; width:30px; height:30px; z-index:6;
+    pointer-events:none; transform:translate(9px, 9px); border-radius:50%;
+    border:2px solid rgba(255,255,255,.9); }
   /* одинаковая высота нижних кнопок (спека владельца) */
   #hintBtn, #shakeBtn { height:54px; box-sizing:border-box; }
   #shakeBtn { gap:3px; padding:6px 20px; }
@@ -100,7 +97,7 @@
   <div class="grp"><div class="chip" id="coinsChip">🪙 0</div><div class="chip" id="score">★ 0</div></div>
 </div>
 <div id="eyes" title="Миксер">👀</div>
-<div id="chainRing"><svg viewBox="0 0 48 48"><circle class="track" cx="24" cy="24" r="20"/><circle class="fill" cx="24" cy="24" r="20"/></svg></div>
+<div id="chainRing"></div>
 
 <div id="toast"></div>
 
@@ -128,7 +125,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-15 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-16 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -2270,9 +2267,10 @@ function eyesMood(now, grinding){
   if ((now - stats.lastAction)/1000 > level.idleLimit - 5) return '🥱';
   return '👀';
 }
-// Кольцо заряда цепи У КУРСОРА/касания (спека владельца): копится
+// Диск заряда цепи СНИЗУ-СПРАВА от курсора/касания («пляжный мяч» Mac OS —
+// референс владельца): сектор-пирог conic-gradient. Копится
 // comboCount/CHAIN_COMBO_AT пока горит серия; в Power chain — остаток
-// времени (оранжевое). Зовётся каждый кадр. Длина окружности r=20: 125.66.
+// времени (оранжевый). Зовётся каждый кадр.
 function tickChainBar(now){
   const cr = $('chainRing');
   let frac = -1, hot = false;
@@ -2283,10 +2281,10 @@ function tickChainBar(now){
   }
   if (frac < 0){ cr.style.display = 'none'; return; }
   cr.style.display = 'block';
-  cr.classList.toggle('hot', hot);
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
-  cr.querySelector('.fill').style.strokeDashoffset = (125.66 * (1 - frac)).toFixed(1);
+  const col = hot ? '#ff9d2e' : '#2aa876';
+  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, rgba(20,26,38,.18) 0 100%)';
 }
 function updateEyes(now, grinding){
   const el = $('eyes');

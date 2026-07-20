@@ -20,9 +20,10 @@ function eyesMood(now, grinding){
   if ((now - stats.lastAction)/1000 > level.idleLimit - 5) return '🥱';
   return '👀';
 }
-// Кольцо заряда цепи У КУРСОРА/касания (спека владельца): копится
+// Диск заряда цепи СНИЗУ-СПРАВА от курсора/касания («пляжный мяч» Mac OS —
+// референс владельца): сектор-пирог conic-gradient. Копится
 // comboCount/CHAIN_COMBO_AT пока горит серия; в Power chain — остаток
-// времени (оранжевое). Зовётся каждый кадр. Длина окружности r=20: 125.66.
+// времени (оранжевый). Зовётся каждый кадр.
 function tickChainBar(now){
   const cr = $('chainRing');
   let frac = -1, hot = false;
@@ -33,10 +34,10 @@ function tickChainBar(now){
   }
   if (frac < 0){ cr.style.display = 'none'; return; }
   cr.style.display = 'block';
-  cr.classList.toggle('hot', hot);
   cr.style.left = lastPtrX + 'px';
   cr.style.top = lastPtrY + 'px';
-  cr.querySelector('.fill').style.strokeDashoffset = (125.66 * (1 - frac)).toFixed(1);
+  const col = hot ? '#ff9d2e' : '#2aa876';
+  cr.style.background = 'conic-gradient(' + col + ' 0 ' + (frac * 100).toFixed(1) + '%, rgba(20,26,38,.18) 0 100%)';
 }
 function updateEyes(now, grinding){
   const el = $('eyes');
