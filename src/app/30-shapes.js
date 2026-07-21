@@ -67,23 +67,8 @@ function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индекс�
   out.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
   return out;
 }
-function teapotGeo(){ // стилизованный чайник из примитивов (вместо тяжёлого TeapotGeometry)
-  const parts = [];
-  const M = (g, t, r, sc) => {
-    const m = new THREE.Matrix4();
-    m.compose(new THREE.Vector3(t[0],t[1],t[2]),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0],r[1],r[2])),
-      new THREE.Vector3(sc[0],sc[1],sc[2]));
-    parts.push([g, m]);
-  };
-  M(new THREE.SphereGeometry(0.62, 20, 14),          [0, 0, 0],       [0,0,0],   [1, 0.8, 1]);   // тело
-  M(new THREE.CylinderGeometry(0.5, 0.56, 0.12, 20), [0, -0.46, 0],   [0,0,0],   [1, 1, 1]);     // дно
-  M(new THREE.CylinderGeometry(0.2, 0.32, 0.16, 14), [0, 0.5, 0],     [0,0,0],   [1, 1, 1]);     // крышка
-  M(new THREE.SphereGeometry(0.11, 10, 8),           [0, 0.63, 0],    [0,0,0],   [1, 1, 1]);     // пимпочка
-  M(new THREE.ConeGeometry(0.15, 0.66, 10),          [0.72, 0.18, 0], [0,0,-2.1],[1, 1, 1]);     // носик
-  M(new THREE.TorusGeometry(0.3, 0.075, 8, 16),      [-0.7, 0.05, 0], [0,0,0],   [1, 1, 1]);     // ручка
-  return mergeGeos(parts);
-}
+// teapotGeo УДАЛЁН 2026-07-20 (спека владельца: «убери модель чайника»);
+// сюрприз-археология вернётся с реальной моделью из 3D-ассетов
 
 // rc — эффективный радиус НЕмасштабированной геометрии (между инрадиусом и
 // охватывающей сферой): коллайдер = rc * s * MESH_SCALE, чтобы предметы
@@ -106,7 +91,6 @@ const TYPES = [
   { name:'star',   color:0xffd27a, rc:0.78, mat:'soft',    geo:starGeo },
   { name:'heart',  color:0xff8fa8, rc:0.72, mat:'soft',    geo:heartGeo },
   { name:'pill',   color:0x8fd8ff, rc:0.70, mat:'soft',    geo:()=>new THREE.CapsuleGeometry(0.5,0.7,6,12) },
-  { name:'teapot', color:0xc9b8ff, rc:0.78, mat:'soft',    geo:teapotGeo },
   // простые формы 2026-07-20 (появляются на поздних уровнях по рампе типов)
   { name:'egg',    color:0xe05ce0, rc:0.85, mat:'soft',    geo:eggGeo },
   { name:'prism',  color:0x35c9a3, rc:0.78, mat:'soft',    geo:()=>new THREE.CylinderGeometry(0.75,0.75,1.4,3) },

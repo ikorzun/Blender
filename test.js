@@ -137,7 +137,7 @@ const path = require('path');
     score: window.__game.stats().score,
     lvl: window.__game.levelNum(),
     title: document.getElementById('winTitle').textContent }));
-  console.log('finale cleanup: alive', fin2.alive, '| win:', fin2.win, '| score (expect 150):', fin2.score,
+  console.log('finale cleanup: alive', fin2.alive, '| win:', fin2.win, '| score (expect 0, сюрприз отключён):', fin2.score,
     '| level', lvlBefore, '->', fin2.lvl, '|', fin2.title);
 
   // сложность: по умолчанию (easy) доступно всё живое, кроме сюрприза;
@@ -151,7 +151,7 @@ const path = require('path');
     window.__game.cfg.hard = false; window.__game.forceRefresh();
     return { easy, hard };
   });
-  console.log('difficulty: easy acc==alive-1(сюрприз):', diff.easy.acc === diff.easy.alive - 1,
+  console.log('difficulty: easy acc==alive (сюрприза нет):', diff.easy.acc === diff.easy.alive,
     '| hard acc<alive:', diff.hard.acc < diff.hard.alive,
     '(easy ' + diff.easy.acc + '/' + diff.easy.alive + ', hard ' + diff.hard.acc + '/' + diff.hard.alive + ')');
 

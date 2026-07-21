@@ -64,35 +64,9 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// Сюрприз со дна («археология» из концепции): золотой чайник, не матчится,
-// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS
-function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', teapotGeo());
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
-  mat.envMapIntensity = 1.1;
-  mat.emissive = new THREE.Color(0x6b4a00);
-  mat.emissiveIntensity = 0.5;
-  const mesh = new THREE.Mesh(geoCache.get('S'), mat);
-  mesh.castShadow = mesh.receiveShadow = true;
-  mesh.scale.setScalar(1.5 * MESH_SCALE);
-  const item = {
-    key: 'SURPRISE', surprise: true, type: { name:'surprise', mat:'gold' }, baseColor: mat.color.clone(),
-    r: 0.78 * 1.5 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
-    scl: 1.5 * MESH_SCALE,
-    body: null,
-    mesh, alive: true, animating: false, accessible: false,
-  };
-  mesh.userData.item = item;
-  mesh.rotation.set(0, Math.random()*6.28, 0);
-  mesh.position.copy(item.p);
-  scene.add(mesh);
-  createItemBody(item, 'surprise', null);
-  // на время осадки/утряски сюрприз ПРИБИТ ко дну (fixed): вибрация всей
-  // массы выталкивает крупные тела наверх (эффект бразильского ореха) —
-  // чайник всплывал и торчал над кромкой. Отпускается в finishIntro.
-  item.body.setBodyType(RAPIER.RigidBodyType.Fixed, false);
-  return item;
-}
+// СЮРПРИЗ ОТКЛЮЧЁН 2026-07-20 (спека владельца: «убери золотой чайник»).
+// Механика «археологии» (collectSurprise, бонус, детектор) в коде жива —
+// вернётся с реальной моделью из 3D-ассетов (кандидат: Present01 «подарок»).
 
 // Цепная реакция: досыпка CHAIN_DROP_N СЛУЧАЙНЫХ предметов за тик — НЕ
 // парами (спека владельца; сироты легальны, финал их ест). Типы независимые,
@@ -164,8 +138,6 @@ function genLevel(){
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
   const pairsCnt = levelNum <= PAIRS_EARLY.length ? PAIRS_EARLY[levelNum - 1] : PAIRS;
-  // сюрприз ложится на дно первым
-  items.push(makeSurprise());
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
   for (let i=0;i<pairsCnt;i++) pairs.push({ type: i % typesCount, size: levelSize() });
