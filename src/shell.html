@@ -115,6 +115,10 @@
   #eyes .eye { transform-box:fill-box; transform-origin:center; transition:transform .09s linear; }
   #eyes .face { opacity:0; transition:opacity .12s; }
   #eyes .face.on { opacity:1; }
+  /* переход в «ошибку»: веки грусти выезжают снизу (спека владельца
+     «сделай естественнее»); обратный ход — те же 0.22 с вниз */
+  #fSad .lid { transform:translateY(34px); transition:transform .22s ease-out; }
+  #fSad.on .lid { transform:translateY(0); }
   /* моргание: глаз схлопывается в полоску — это и есть «закрытые» из набора */
   #eyes.blink .eye { transform:scaleY(.06); }
   /* число отсчёта: садится на низ глаз (79.33/210 макета) и масштабируется
@@ -217,11 +221,13 @@
       <g clip-path="url(#clipAngL)"><circle class="p" id="pupAL" cx="60" cy="60" r="33" fill="#000"/></g>
       <g clip-path="url(#clipAngR)"><circle class="p" id="pupAR" cx="180" cy="59.5" r="33" fill="#000"/></g>
     </g>
-    <g class="face" id="fSad"><!-- eyes-1-6 (узел 741:1336): грустно смотрят вниз -->
+    <g class="face" id="fSad"><!-- eyes-1-6 (узел 741:1336): грустно смотрят вниз.
+         Веки .lid ВЫЕЗЖАЮТ снизу при включении слоя — переход в ошибку
+         читается как «глаза опустились», а не как подмена картинки -->
       <g clip-path="url(#clipSadL)"><circle cx="60" cy="60" r="60" fill="#fff"/>
-        <path d="M108 67C108 93.5097 86.5097 115 60 115C33.4903 115 12 93.5097 12 67H108Z" fill="#000"/></g>
+        <path class="lid" d="M108 67C108 93.5097 86.5097 115 60 115C33.4903 115 12 93.5097 12 67H108Z" fill="#000"/></g>
       <g clip-path="url(#clipSadR)"><circle cx="180" cy="60" r="60" fill="#fff"/>
-        <path d="M228 67C228 93.5097 206.51 115 180 115C153.49 115 132 93.5097 132 67H228Z" fill="#000"/></g>
+        <path class="lid" d="M228 67C228 93.5097 206.51 115 180 115C153.49 115 132 93.5097 132 67H228Z" fill="#000"/></g>
     </g>
     <g class="face" id="fX"><!-- eyes-4: поражение -->
       <path d="M84.929 20.929a10 10 0 0 1 14.142 14.142L74.143 60l24.928 24.929a10 10 0 0 1-14.142 14.142L60 74.143 35.071 99.071A10 10 0 0 1 20.93 84.93L45.857 60 20.929 35.071A10 10 0 0 1 35.07 20.93L60 45.857l24.929-24.928Z" fill="#000"/>
