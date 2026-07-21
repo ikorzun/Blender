@@ -263,6 +263,14 @@ function loop(){
       }
     }
   }
+  // фон-помол: ВЕРХ неба наливается красным, пока крутятся лопасти (зеркально
+  // нижней лихорадке комбо). Лерп ~0.35 с как у uCombo; юниформа и градиент —
+  // 10-stage. Правка санкционирована диспетчером (спека 2026-07-21-в): сигнал
+  // grinding живёт здесь, в hud-тике, рядом с обновлением uCombo выше.
+  if (skyMat){
+    const gTgt = grinding ? 1 : 0, gCur = skyMat.uniforms.uGrind.value, gStep = dt / 0.35;
+    skyMat.uniforms.uGrind.value = gCur < gTgt ? Math.min(gTgt, gCur + gStep) : Math.max(gTgt, gCur - gStep);
+  }
   // лопасти: стоят, пока миксер не работает (владельца нервировало холостое вращение)
   mixerSpeed += ((grinding ? 14 : 0) - mixerSpeed) * Math.min(1, dt*3);
   mixerBlades.rotation.y += mixerSpeed * dt;
