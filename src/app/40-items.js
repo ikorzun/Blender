@@ -260,7 +260,8 @@ function genLevel(){
   stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
   level = { shakes:3, adShakes:2, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
-            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false };
+            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
+            aliveN0: 0, camFollowOn: false }; // порог 20% и защёлка автопана камеры (90-input)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');

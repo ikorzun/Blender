@@ -64,6 +64,7 @@ function finalizeFill(){
   let top0 = 0, aliveN = 0;
   for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise) aliveN++; }
   level.topY0 = top0;
+  level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
   // пар-скор (звёзды v1): база = «всё сматчено парами без комбо» по факту
   // ПОСЛЕ трима; 2★ = ×1.3 (нужны комбо), 3★ = ×1.7 (нужны серии)
   level.parBase = Math.floor(aliveN / 2) * MATCH_SCORE * 2;

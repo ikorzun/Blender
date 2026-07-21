@@ -58,12 +58,13 @@ const path = require('path');
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
-  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null, sinceRest = 0;
+  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null, sinceRest = 0, midTyMin = 99;
   while (guard++ < 600) {
     const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
     if (st.alive === 0) break;
+    if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
     if (st.alive <= 9 && endgameRadius === null) endgameRadius = st.r; // 8 живых + рыбка
-    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // автопан успел опуститься за кучей
+    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // защёлка уже щёлкнула — камера в пути вниз
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
@@ -85,8 +86,10 @@ const path = require('path');
   expect(winShown === 'flex', 'экран победы показан');
   expect(shakes <= 12, 'встрясок тупика в разумном бюджете (' + shakes + ' <= 12)');
   expect(endgameRadius !== null && endgameRadius > 10, 'эндшпиль <=8 живых снимает радиус (∞), даже поверх цепи (' + endgameRadius + ')');
-  expect(endgameTy !== null && endgameTy <= 3.3 && endgameTy >= 3.1,
-    'автопан к эндшпилю дошёл до пола трети хода 3.2 и не глубже (ty ' + endgameTy + ')');
+  expect(midTyMin >= 4.19, 'до порога 20% камера по вертикали НЕ плавает (min ty ' + midTyMin + ')');
+  expect(endgameTy !== null && endgameTy < 4.19, 'защёлка 20% сработала — камера пошла вниз (ty ' + endgameTy + ')');
+  const finalTy = await page.evaluate(() => window.__game.cam().ty); // лерп доехал — финальная отметка
+  expect(finalTy <= 3.3 && finalTy >= 3.1, 'автопан остановился ровно на поле трети хода 3.2 (' + finalTy + ')');
   await page.screenshot({ path: 'shot_win.png' });
 
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения

@@ -14,36 +14,33 @@ function setTargetY(y){
   camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, y));
   updateCamera();
 }
-// АВТОПАН (уточнение владельца 2026-07-21: «камера сама опускается за кучей
-// по мере разбора, без жеста»). Привязка к РАЗОБРАННОСТИ, а не к абсолютной
-// высоте: на старте уровня target = дефолтные 4.2 (вид не меняется), и лишь
-// когда верх кучи уходит ниже стартового topY0, взгляд плавно едет вниз.
-// Верх кучи — 85-й перцентиль ниже кромки (как у тонировки: максимум
-// дёргали бы встряска и досыпка цепи), пересчёт раз в 500 мс, ведение лерпом.
-// Ручной пан жестами ПЕРЕБИВАЕТ автоматику на 4 с, потом она возвращается.
-// ⚠️ ПОЛ АВТОМАТИКИ (правка владельца 2026-07-21: «автоматом поднимать не
-// выше чем 1/3 от нижней границы, остальное игрок поднимет сам»): автомат
-// проходит только ТРЕТЬ хода до дна — AUTO_FOLLOW_MIN = 4.2 − (4.2−1.2)/3 =
-// 3.2; остаток пути к дну (картинка выше по экрану) игрок добирает жестами.
-const AUTO_FOLLOW_MIN = TARGET_Y_DEF - (TARGET_Y_DEF - TARGET_Y_MIN) / 3;
-let panManualUntil = 0, camFollowY = TARGET_Y_DEF, camFollowAt = 0;
+// АВТОПАН — ОДИН ШАГ В ЭНДШПИЛЕ (правки владельца 2026-07-21, финальная:
+// «не поднимай ведро по вертикали в начале уровня... начни поднимать если
+// в корзине остаётся 20% вещей от первоначальной загрузки. Иначе ведро
+// плавает по вертикали, это неудобно»). Никакого непрерывного следования:
+// весь уровень камера СТОИТ на дефолтных 4.2; когда живых предметов
+// остаётся <= CAM_FOLLOW_FRAC от стартовой загрузки (level.aliveN0 из
+// finalizeFill) — защёлка level.camFollowOn, и target ОДИН РАЗ плавно
+// съезжает к полу автоматики (треть хода, «остальное игрок поднимет сам»)
+// и больше не двигается. Досыпки цепи защёлку не снимают — обратного
+// «плавания» нет. Ручной пан жестами перебивает автоматику на 4 с.
+const AUTO_FOLLOW_MIN = TARGET_Y_DEF - (TARGET_Y_DEF - TARGET_Y_MIN) / 3; // 3.2
+const CAM_FOLLOW_FRAC = 0.2;
+let panManualUntil = 0, camFollowAt = 0;
 function noteManualPan(){ panManualUntil = performance.now() + 4000; }
 function tickCamFollow(dt){
-  if (intro || !level || !level.topY0 || paused) return;
+  if (intro || !level || !level.aliveN0 || paused) return;
   const now = performance.now();
   if (now < panManualUntil) return;
-  if (now > camFollowAt){
-    camFollowAt = now + 500;
-    const tops = [];
-    for (const it of items) if (it.alive && !it.surprise && it.p.y < FUNNEL.H) tops.push(it.p.y + it.r);
-    if (tops.length){
-      tops.sort((a, b) => a - b);
-      const top = tops[Math.min(tops.length - 1, Math.floor(tops.length * 0.85))];
-      camFollowY = Math.max(AUTO_FOLLOW_MIN, Math.min(TARGET_Y_DEF,
-        TARGET_Y_DEF - (level.topY0 - top) * 0.65));
-    }
+  if (!level.camFollowOn){
+    if (now < camFollowAt) return;
+    camFollowAt = now + 500; // подсчёт живых — не каждый кадр
+    let aliveCnt = 0;
+    for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
+    if (aliveCnt > level.aliveN0 * CAM_FOLLOW_FRAC) return; // камера стоит
+    level.camFollowOn = true;
   }
-  const d = camFollowY - camTarget.y;
+  const d = AUTO_FOLLOW_MIN - camTarget.y;
   if (Math.abs(d) > 0.005) setTargetY(camTarget.y + d * Math.min(1, dt * 1.5));
 }
 let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
@@ -103,7 +100,7 @@ function endPointer(e){
 function resetPointers(){
   touches.clear();
   pDown = null; dragging = false; pinch = null; rdrag = null;
-  panManualUntil = 0; camFollowY = TARGET_Y_DEF; camFollowAt = 0;
+  panManualUntil = 0; camFollowAt = 0; // защёлка camFollowOn живёт в level — новую создаёт genLevel
   setTargetY(TARGET_Y_DEF); // пан взгляда не переживает границы интро/уровня
 }
 canvas.addEventListener('pointerup', e => {
