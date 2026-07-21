@@ -251,6 +251,30 @@ const path = require('path');
   expect(adProbe.overlay === 'none', 'reген спрятал оверлей рекламы');
   expect(adProbe.adShakes === 2 && adProbe.used === 0, 'награда старого показа не прилетела новому уровню (adShakes ' + adProbe.adShakes + ', used ' + adProbe.used + ')');
 
+  // вертикальный пан взгляда (спека владельца: «приподнять и рассмотреть
+  // остатки»): Shift+колесо двигает target по Y с клампами, обычное колесо
+  // по-прежнему только зумит
+  const cam0 = await page.evaluate(() => window.__game.cam());
+  await page.keyboard.down('Shift');
+  await page.mouse.move(195, 400);
+  await page.mouse.wheel(0, 300);   // Shift+скролл вниз = смотреть ниже
+  await page.keyboard.up('Shift');
+  const cam1 = await page.evaluate(() => window.__game.cam());
+  expect(cam1.ty < cam0.ty, 'Shift+колесо опустило взгляд (' + cam0.ty + ' -> ' + cam1.ty + ')');
+  expect(cam1.r === cam0.r, 'Shift+колесо не тронуло зум (' + cam0.r + ' -> ' + cam1.r + ')');
+  await page.keyboard.down('Shift');
+  await page.mouse.wheel(0, -9999); // кламп сверху
+  await page.keyboard.up('Shift');
+  const cam2 = await page.evaluate(() => window.__game.cam());
+  expect(cam2.ty <= 5.2 && cam2.ty >= 5.19, 'пан ограничен потолком 5.2 (' + cam2.ty + ')');
+  await page.mouse.wheel(0, 120);   // обычное колесо — зум работает как раньше
+  const cam3 = await page.evaluate(() => window.__game.cam());
+  expect(cam3.r > cam2.r && cam3.ty === cam2.ty, 'обычное колесо зумит и не панит (r ' + cam2.r + ' -> ' + cam3.r + ')');
+  // рестарт уровня сбрасывает пан (resetPointers на границах интро)
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  const cam4 = await page.evaluate(() => window.__game.cam());
+  expect(cam4.ty === 4.2, 'новый уровень вернул взгляд к дефолту (' + cam4.ty + ')');
+
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
