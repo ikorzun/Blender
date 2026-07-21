@@ -2,6 +2,11 @@
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
 
+// Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
+// кольца последних 600 кадров — сырое время кадра и время шага физики
+const frameRing = [], stepRing = [];
+let perfFrames = 0, perfWorstMs = 0;
+
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
 // в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
 // с плавным переходом на игровой вид сверху. Ввод и миксер заблокированы.
@@ -128,19 +133,66 @@ function resize(){
 }
 addEventListener('resize', resize);
 
+// ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
+// окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
+// пауза не «съедает» простой и не гасит серию
+let paused = false, pausedAt = 0;
+// setTimeout-хвосты игровых цепочек (удаление матча, помол, финал) НЕ замирают
+// с паузой: колбэк, созревший под паузой, доделал бы removeItem/checkEnd —
+// вплоть до победы на застывшем экране. Такие колбэки оборачиваются в
+// afterPause: под паузой откладываются в очередь, resumeGame их дренирует.
+const pausedQueue = [];
+function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
+function pauseGame(){
+  if (paused || intro || !level || level.over) return;
+  paused = true; pausedAt = performance.now();
+  // ⚠️ НЕ писать в $('eyes').textContent: глаза теперь инлайновый SVG, любая
+  // запись текста стёрла бы всю графику персонажа. «Спит» — закрытые глаза
+  // через машину эмоций, на всю паузу.
+  faceEvent('closed', 24 * 3600 * 1000);
+  show('pauseOverlay');
+}
+function resumeGame(){
+  if (!paused) return;
+  const d = performance.now() - pausedAt;
+  stats.t0 += d; stats.lastAction += d;
+  if (level.nextGrind) level.nextGrind += d;
+  wakeAtMs += d;
+  if (comboUntil) comboUntil += d;
+  if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
+  if (lastMatchMs) lastMatchMs += d;
+  lastT = performance.now(); // без гигантского dt на первом кадре
+  paused = false;
+  // дренаж отложенных цепочек СТРОГО после paused=false (иначе afterPause
+  // вернул бы их в очередь) и после сдвига якорей — колбэки читают часы
+  pausedQueue.splice(0).forEach(fn => { try { fn(); } catch(e){} });
+  faceEvent('calm', 0); // снять «сон» — дальше состояние считает eyesMood
+  hide('pauseOverlay');
+  updateHUD();
+}
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
-  let dt = Math.min(0.033, (now-lastT)/1000); lastT = now;
+  const rawMs = now - lastT;
+  let dt = Math.min(0.033, rawMs/1000); lastT = now;
+  if (paused){ renderer.render(scene, camera); return; } // стоп-кадр (до перф-метра — пауза не портит статистику кадров)
+  perfFrames++;
+  if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
+    frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
+    if (rawMs > perfWorstMs) perfWorstMs = rawMs;
+  }
   if (intro) tickIntro(dt);
   if (physAwake){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
     // владельца), камера при этом идёт по реальному времени — облёт прежний
     stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
+    if (perfFrames > 5){ stepRing.push(stepMsLast); if (stepRing.length > 600) stepRing.shift(); }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
-    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего события
-    if (maxV < 0.25 && noAnim){
+    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего
+    // события. НЕ в интро: мгновение тишины между слоями сыплющегося столба —
+    // ещё не штиль, сон заморозил бы осадку (и интро-утряска не будит физику)
+    if (!intro && maxV < 0.25 && noAnim){
       calmT += dt;
       if (calmT > 0.4) sleepPhysics('calm');
     } else calmT = 0;
@@ -157,15 +209,16 @@ function loop(){
   }
   stepFX(dt);
   tickVeil(dt);
-  tickFace(now); // глаза + отсчёт + полоска турбо (одна конструкция)
+  tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
+  tickFace(now);     // персонаж (эмоции/взгляд/моргание) + кольцо заряда внутри
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
-  // цепная реакция: досыпка по тику; гаснет по таймеру / 3 промахам /
-  // финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
+  // цепная реакция: досыпка по тику; гаснет по таймеру / CHAIN_MISSES=2
+  // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
     if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
       chainUntil = 0; comboCount = 0;
@@ -268,8 +321,9 @@ function loop(){
   // полностью тает к camR<=10 (smoothstep)
   if (bowlMat){
     const gk = Math.max(0, Math.min(1, (camR - 10) / 3.5));
-    bowlMat.opacity = 0.08 * gk * gk * (3 - 2 * gk);
-    bowlMesh.visible = bowlMat.opacity > 0.004;
+    const k = gk * gk * (3 - 2 * gk);
+    bowlMat.uniforms.uFade.value = k;   // стекло — ShaderMaterial (20-arena)
+    bowlMesh.visible = k > 0.02;
   }
   // тени перерисовываем только когда что-то движется (свет статичен; в штиле
   // экономим ~150 теневых draw calls каждый кадр)
@@ -294,7 +348,7 @@ window.__game = {
     for (const k in byKey){
       const arr = byKey[k];
       for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-        if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius){ doMatch([arr[i], arr[j]]); return true; }
+        if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
       }
     }
     return false;
@@ -335,6 +389,7 @@ window.__game = {
     pendingTrim = false;
     finalizeFill(); // синхронно: тесты читают topY0/трим сразу после skipIntro
     sleepPhysics('skipIntro');
+    renderer.shadowMap.needsUpdate = true; // осадка прошла мимо loop-гейта — тень по финальной куче
   },
   level(){ return level; },
   stats(){ return stats; },
@@ -346,7 +401,7 @@ window.__game = {
   awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
   accFlips(){ return accFlips; },
   // v1: кошелёк и звёзды (тесты экономики)
-  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, stars: Object.assign({}, Save.stars), total: totalStars() }; },
+  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(), stars: Object.assign({}, Save.stars), total: totalStars() }; },
   grant(n){ addCoins(n); updateHUD(); },
   combo(){
     const n = performance.now();
@@ -356,6 +411,27 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  sfx(){ return Sound.loaded(); }, // какие аудио-сэмплы декодированы
+  // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
+  // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
+  // по которым ловятся утечки (тела/коллайдеры/меши/геометрии/DOM/куча)
+  perfStats(){
+    const q = a => {
+      if (!a.length) return { avg: 0, p95: 0, max: 0 };
+      const s = a.slice().sort((x, y) => x - y);
+      return { avg: +(s.reduce((t, v) => t + v, 0)/s.length).toFixed(2),
+        p95: +s[Math.min(s.length-1, Math.floor(s.length*0.95))].toFixed(2),
+        max: +s[s.length-1].toFixed(2) };
+    };
+    return { frame: q(frameRing), step: q(stepRing), frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
+      bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
+      colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
+      sceneChildren: scene.children.length, fxN: fx.length,
+      geoms: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
+      drawCalls: renderer.info.render.calls, tris: renderer.info.render.triangles,
+      domNodes: document.getElementsByTagName('*').length,
+      heapMB: performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : -1 };
+  },
   // отладка: телепорт предмета (постановка сцен доступности в тестах)
   place(i, x, y, z){
     const it = items[i];
@@ -367,10 +443,16 @@ window.__game = {
     // world.step() или явной прокачки — иначе лучи бьют по фантому
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
     syncMeshes();
+    renderer.shadowMap.needsUpdate = true; // autoUpdate=false: телепорт без пробуждения физики оставлял тень на старом месте
     return true;
   },
   floaters(){
-    // предмет «висит», если под его нижней точкой пусто больше 0.35
+    // предмет «висит», если под его нижней точкой пусто больше 0.35.
+    // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит
+    // КОНЦАМИ на соседях, центр — над полостью, а у стены луч уходит мимо
+    // диска пола сквозь клиновые щели внешних краёв ступенчатых панелей
+    // (соак 2026-07-20, сид 101). Честная опора — контактные пары Rapier:
+    // висун = gap>0.35 И contacts===0. contacts>0 при gap>0.35 — «мост», норма.
     const ray = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:-1, z:0 });
     const out = [];
     for (const it of items){
@@ -378,10 +460,34 @@ window.__game = {
       ray.origin.x = it.p.x; ray.origin.y = it.p.y - it.r - 0.02; ray.origin.z = it.p.z;
       if (ray.origin.y <= FLOOR_REST + 0.05) continue; // лежит на дне
       const hit = world.castRay(ray, 30, true, null, null, null, it.body);
-      const gap = hit ? hit.toi : 30;
-      if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2), gap: +gap.toFixed(2), sleeping: it.body.isSleeping() });
+      // Rapier 0.12+ переименовал toi -> timeOfImpact: с hit.toi зазор был
+      // undefined, и floaters видел ТОЛЬКО случаи «луч не попал вовсе»
+      // (gap=30) — конечные зависания молчали (нашлось соаком 2026-07-20)
+      const gap = hit ? (hit.timeOfImpact !== undefined ? hit.timeOfImpact : hit.toi) : 30;
+      if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2),
+        d: +Math.hypot(it.p.x, it.p.z).toFixed(2), gap: +gap.toFixed(2),
+        contacts: this.contacts(items.indexOf(it)).touching, sleeping: it.body.isSleeping() });
     }
     return out;
+  },
+  // контактные пары нарровой фазы предмета i: pairs — соседи по AABB,
+  // touching — с реальными точками контакта. Пары живут и на спящей куче
+  // (наш глобальный сон не зовёт world.step, граф остаётся от последнего шага);
+  // -1 = API недоступен (страховка на смену версии Rapier)
+  contacts(i){
+    const it = items[i];
+    if (!it || !it.body || !world.contactPairsWith) return { pairs: -1, touching: -1 };
+    let pairs = 0, touching = 0;
+    try {
+      for (let c = 0; c < it.body.numColliders(); c++){
+        const col = it.body.collider(c);
+        world.contactPairsWith(col, other => {
+          pairs++;
+          world.contactPair(col, other, m => { if (m.numContacts() > 0) touching++; });
+        });
+      }
+    } catch (e){ return { pairs: -1, touching: -1 }; }
+    return { pairs, touching };
   },
   accessibleList(){
     const out = [];
@@ -418,7 +524,7 @@ window.__game = {
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      const ex = (d + (it.wallR || it.r)) - radiusAt(it.p.y);
+      const ex = (d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
       if (ex > worst){ worst = ex; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
         + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
     }
@@ -446,5 +552,6 @@ if (!window.RAPIER){
   RAPIER.init().then(() => {
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
+    grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
   }).catch(e => { window.__fatal && window.__fatal('Физика не инициализировалась: ' + e.message); });
 }

@@ -7,20 +7,45 @@
 
 const Ads = (function(){
   let mode = 'stub';      // 'stub' | 'bridge'
-  let rewardCb = null;    // колбэк текущего показа
+  let rewardCb = null;    // колбэк награды текущего показа
+  let failCb = null;      // колбэк неудачи (FAILED/CLOSED/исключение) — опционален
   let watchdog = 0;
+  let stubTimer = 0;      // интервал заглушки — cancel() обязан уметь её прервать
+  let pendingTick = 0;    // пока показ висит, тикаем lastAction — миксер не ест предметы
 
+  // Ролик может идти десятки секунд (и стаб — 3 с): всё это время простой
+  // игрока не по его вине, миксер-наказание должно молчать. Тикаем на ЛЮБОМ
+  // показе (bridge И стаб) до развязки.
+  function beginPending(){
+    clearInterval(pendingTick);
+    pendingTick = setInterval(()=>{ if (stats) stats.lastAction = performance.now(); }, 800);
+  }
+  function endPending(){
+    clearInterval(pendingTick); pendingTick = 0;
+    clearTimeout(watchdog); watchdog = 0;
+    clearInterval(stubTimer); stubTimer = 0;
+  }
   function settleReward(){
     if (!rewardCb) return;
-    const cb = rewardCb; rewardCb = null;
-    clearTimeout(watchdog);
+    const cb = rewardCb; rewardCb = null; failCb = null;
+    endPending();
     cb();
   }
   function settleFail(silent){
     if (!rewardCb) return;
-    rewardCb = null;
-    clearTimeout(watchdog);
+    const fb = failCb; rewardCb = null; failCb = null;
+    endPending();
     if (!silent) toast('Реклама недоступна');
+    if (fb) fb();
+  }
+  // Смена контекста (genLevel): висящий показ никого не должен наградить —
+  // колбэки замкнуты на СТАРЫЙ level, награда пришла бы новому уровню
+  // (или уже несуществующему состоянию). Колбэк неудачи тоже не зовём:
+  // экран, который он восстанавливал, уже пересоздан.
+  function cancel(){
+    rewardCb = null; failCb = null;
+    endPending();
+    hide('adOverlay');
   }
 
   function init(){
@@ -37,7 +62,7 @@ const Ads = (function(){
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
           // любое состояние = платформа жива: гасим watchdog (ролики штатно
           // идут 15-30+ с — таймер на 20 с отбирал награду у досмотревших)
-          if (watchdog){ clearTimeout(watchdog); watchdog = null; }
+          if (watchdog){ clearTimeout(watchdog); watchdog = 0; }
           // во время рекламы миксер не должен пожирать предметы
           if (stats) stats.lastAction = performance.now();
           if (state === br.REWARDED_STATE.REWARDED) settleReward();
@@ -52,17 +77,16 @@ const Ads = (function(){
     document.head.appendChild(s);
   }
 
-  function showStub(onReward){
+  function showStub(){
     show('adOverlay');
     let left = 3;
     const el = $('adCount');
     el.textContent = left;
-    const iv = setInterval(()=>{
+    stubTimer = setInterval(()=>{
       left--; el.textContent = left;
       if (left <= 0){
-        clearInterval(iv);
         hide('adOverlay');
-        onReward();
+        settleReward(); // прибирает и сам stubTimer (endPending)
       }
     }, 1000);
   }
@@ -88,16 +112,23 @@ const Ads = (function(){
     init,
     noteWin,
     maybeInterstitial,
+    cancel, // genLevel гасит висящий показ (колбэки замкнуты на старый level)
     get mode(){ return mode; },
-    showRewarded(onReward){
+    // onFail (опционален) зовётся на FAILED/CLOSED/исключении — например,
+    // вернуть кнопку «×2», которую спрятали на время показа
+    showRewarded(onReward, onFail){
+      cancel(); // страховка: сирота прошлого показа (watchdog/стаб) не должен пережить новый
+      rewardCb = onReward; failCb = onFail || null;
+      beginPending();
       if (mode === 'bridge'){
-        rewardCb = onReward;
         // страховка ТОЛЬКО на полную тишину платформы (ни одного состояния)
         watchdog = setTimeout(()=>settleFail(false), 20000);
         try { window.bridge.advertisement.showRewarded(); }
-        catch(e){ settleFail(true); showStub(onReward); }
+        // исключение SDK = показа не было. Раньше тут открывался стаб —
+        // БЕСПЛАТНАЯ награда без рекламы на боевой платформе (дыра экономики)
+        catch(e){ settleFail(false); }
       } else {
-        showStub(onReward);
+        showStub();
       }
     },
   };

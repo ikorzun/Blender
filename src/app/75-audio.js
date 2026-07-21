@@ -13,9 +13,37 @@ const Sound = (function(){
       master.connect(ctx.destination);
     } catch(e){ ctx = null; }
   }
+  // Сэмплы из 74-sfx-data: декод лениво после unlock. m4a/AAC декодится
+  // везде (ogg Safari НЕ умеет — потому конверсия на этапе интеграции).
+  // При недоступности сэмпла звук честно падает на процедурный вариант.
+  const buffers = {};
+  function b64buf(b64){
+    const bin = atob(b64), arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+  }
+  function loadSamples(){
+    if (!ctx || loadSamples.done) return;
+    loadSamples.done = true;
+    for (const k in SFX_B64){
+      try { ctx.decodeAudioData(b64buf(SFX_B64[k]), buf => { buffers[k] = buf; }, ()=>{}); }
+      catch(e){}
+    }
+  }
+  function playBuf(name, peak){
+    const buf = buffers[name];
+    if (!buf) return false;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g = ctx.createGain(); g.gain.value = peak || 0.7;
+    src.connect(g); g.connect(master); src.start();
+    return true;
+  }
   function unlock(){
     ensure();
-    if (ctx && ctx.state === 'suspended') ctx.resume();
+    // не только 'suspended': iOS после звонка/сворачивания даёт 'interrupted' —
+    // резюмим из ЛЮБОГО не-running состояния, иначе звук молчал до перезагрузки
+    if (ctx && ctx.state !== 'running'){ try { ctx.resume(); } catch(e){} }
+    loadSamples();
   }
   function env(t0, a, d, peak){
     const g = ctx.createGain();
@@ -49,7 +77,10 @@ const Sound = (function(){
     },
     miss(){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); },
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
-    grind(){ const t = ctx.currentTime; noise(t, 0.45, 0.5, 300); tone(70, 'sawtooth', t, 0.01, 0.4, 0.22); },
+    grind(){ // сэмпл дробления (3 варианта, спека владельца) с процедурным фолбэком
+      if (playBuf('grind' + (1 + Math.floor(Math.random()*3)), 0.8)) return;
+      const t = ctx.currentTime; noise(t, 0.45, 0.5, 300); tone(70, 'sawtooth', t, 0.01, 0.4, 0.22); },
+    ui(){ if (!playBuf('ui', 0.5)){ const t = ctx.currentTime; tone(900, 'sine', t, 0.004, 0.05, 0.15); } },
     combo(){ // «пауэр-ап»: восходящее глиссандо + искорка; старт с задержкой,
              // чтобы не маскировать «буль» матча, звучащий в тот же тап
       const t = ctx.currentTime + 0.06;
@@ -79,6 +110,7 @@ const Sound = (function(){
   };
   return {
     unlock,
+    loaded(){ return Object.keys(buffers); }, // отладка: какие сэмплы декодированы
     play(name, arg){
       if (!CFG.sound) return;
       ensure();

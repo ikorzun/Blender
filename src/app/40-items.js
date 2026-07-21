@@ -15,7 +15,29 @@ function makeItem(typeIdx, size){
   const gkey = String(typeIdx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   let mat;
-  if (t.mat === 'chrome'){
+  if (CFG.matcap){
+    // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
+    // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
+    mat = new THREE.MeshMatcapMaterial({
+      // t.tex — «родная» раскраска модели из общего палитрового атласа
+      // (36-models). Цвет материала тогда БЕЛЫЙ: шейдер множит map на color,
+      // и любой оттенок здесь испортил бы задуманную автором раскраску.
+      // Серая вуаль недоступности продолжает работать — она лерпает этот же
+      // color от белого к серому, то есть просто притемняет текстуру.
+      // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
+      // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
+      color: t.mat === 'chrome' ? 0xb8c0cc
+           : (t.tex || t.mat === 'model') ? 0xffffff
+           : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap(t.tex) : null,
+      // у текстурных — почти белый matcap, иначе он пережимает авторские цвета
+      matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
+      vertexColors: t.mat === 'model',
+    });
+    if (t.tex) mat.userData.texTune = 1;  // патч выдаст ему ручки яркости/контраста
+    addMatcapEmissive(mat);          // без этого падает подсветка Hint
+    mat.onBeforeCompile = matcapSpecPatch;
+  } else if (t.mat === 'chrome'){
     // Цикл v4: белый хром на белом фоне сливался («кубы еле различимы») —
     // теперь тёмный ГРАФИТОВЫЙ металлик: читается на белом, блики стабильны
     mat = new THREE.MeshStandardMaterial({ color: 0x424a56, metalness: 1, roughness: 0.3 });
@@ -28,18 +50,34 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({
+      color: t.tex ? 0xffffff : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap(t.tex) : null,
+      metalness: 0, roughness: 0.18,
+    });
     mat.envMapIntensity = 0.5;
   }
-  const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
+  const geo = geoCache.get(gkey);
+  // полуразмеры В ЛОКАЛЬНЫХ единицах — для честного теста стены по
+  // ориентированной коробке (radialReach в 50-physics). Считаются ОДИН раз
+  // на тип: геометрия общая через geoCache, масштаб подставляется отдельно.
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const half = { x: Math.max(Math.abs(bb.min.x), Math.abs(bb.max.x)),
+                 y: Math.max(Math.abs(bb.min.y), Math.abs(bb.max.y)),
+                 z: Math.max(Math.abs(bb.min.z), Math.abs(bb.max.z)) };
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.scale.setScalar(sz.s * MESH_SCALE);
   const item = {
     key: 'T' + typeIdx, // матч по ТИПУ: размер не имеет значения
     type: t, baseColor: mat.color.clone(),
-    fxColor: t.mat === 'model' ? new THREE.Color(t.color).convertSRGBToLinear() : null, // цвет трухи для vertexColors-моделей
+    // цвет трухи: у моделей с текстурой и вершинными цветами baseColor БЕЛЫЙ,
+    // и без этого при распаде летела бы белая пыль вместо цветной
+    fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
     r: t.rc * sz.s * MESH_SCALE, p: new THREE.Vector3(),
-    wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // горизонтальный габарит для теста стены
+    wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // запасной габарит (если half нет)
+    half, // полуразмеры в локальных единицах — тест стены по OBB
     scl: sz.s * MESH_SCALE,
     geo: geoCache.get(gkey), // для convex hull в физике
     body: null,
@@ -52,21 +90,44 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// Сюрприз со дна («археология» из концепции): золотой чайник, не матчится,
-// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS
+// Сюрприз со дна («археология» из концепции): золотая РЫБКА, не матчится,
+// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS.
+// Модель вместо чайника — спека владельца 2026-07-20. Материал остаётся
+// MeshStandard (matcap не умеет emissive), и это к лучшему: настоящий блеск
+// золота среди «запечённых» предметов сам выделяет клад.
+// ⚠️ ГРАБЛЯ (обожглись 2026-07-21): геометрия сюрприза ЖЁСТКО ЗАВИСИТ от
+// содержимого папки «3d assets». Раньше здесь стоял present01Geo; владелец
+// заменил всю партию моделей — функция исчезла, genLevel падал на ReferenceError
+// ЕЩЁ ДО создания предметов, игра поднималась с пустой чашей и БЕЗ ошибки в
+// консоли. Поэтому теперь с проверкой и откатом на встроенный чайник, который
+// не зависит от папки. Если меняете модель — берите ту, что реально есть.
+const surpriseGeoFn = typeof animalfishGeo === 'function' ? animalfishGeo : gemGeo; // фолбэк БЕЗ чайника (удалён): процедурный кристалл не зависит от папки ассетов
 function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', teapotGeo());
+  // если рыбка есть и в TYPES — геометрию берём из общего кэша типов, а не
+  // плодим второй экземпляр той же BufferGeometry под ключом 'S'
+  if (!geoCache.has('S')){
+    const ti = TYPES.findIndex(t => t.geo === surpriseGeoFn);
+    if (ti >= 0){
+      const gkey = String(ti);
+      if (!geoCache.has(gkey)) geoCache.set(gkey, TYPES[ti].geo());
+      geoCache.set('S', geoCache.get(gkey)); // общий объект: dispose по 'S' не делается нигде
+    } else {
+      geoCache.set('S', surpriseGeoFn());
+    }
+  }
   const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
   mat.envMapIntensity = 1.1;
   mat.emissive = new THREE.Color(0x6b4a00);
   mat.emissiveIntensity = 0.5;
   const mesh = new THREE.Mesh(geoCache.get('S'), mat);
   mesh.castShadow = mesh.receiveShadow = true;
-  mesh.scale.setScalar(1.5 * MESH_SCALE);
+  // масштаб 1.2 (был 1.5): у модели охват 1.0 против 0.78 у чайника —
+  // так физический размер клада остаётся прежним
+  mesh.scale.setScalar(1.2 * MESH_SCALE);
   const item = {
     key: 'SURPRISE', surprise: true, type: { name:'surprise', mat:'gold' }, baseColor: mat.color.clone(),
-    r: 0.78 * 1.5 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
-    scl: 1.5 * MESH_SCALE,
+    r: 1.0 * 1.2 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
+    scl: 1.2 * MESH_SCALE,
     body: null,
     mesh, alive: true, animating: false, accessible: false,
   };
@@ -74,7 +135,13 @@ function makeSurprise(){
   mesh.rotation.set(0, Math.random()*6.28, 0);
   mesh.position.copy(item.p);
   scene.add(mesh);
-  createItemBody(item, 'surprise', null);
+  // ⚠️ Имя 'surprisehull', а НЕ 'surprise': ветка 'surprise' в 50-physics —
+  // компаунд из трёх шаров под ЧАЙНИК (тело + носик + ручка), для подарка он
+  // неверен. Незнакомое имя уходит в default -> convex hull из реальной
+  // геометрии, а сэмплы доступности — в свою default-ветку. Плотность золота
+  // берётся по флагу item.surprise и от имени не зависит.
+  // Чайниковая ветка в 50-physics стала мёртвой — оставлена, это чужая зона.
+  createItemBody(item, 'surprisehull', geoCache.get('S'));
   // на время осадки/утряски сюрприз ПРИБИТ ко дну (fixed): вибрация всей
   // массы выталкивает крупные тела наверх (эффект бразильского ореха) —
   // чайник всплывал и торчал над кромкой. Отпускается в finishIntro.
@@ -143,6 +210,10 @@ function levelSize(){
 }
 
 function genLevel(){
+  Ads.cancel(); // висящий rewarded-показ замкнут на СТАРЫЙ level — награду глушим
+  // тени существуют только в MeshStandard-ветке: рантайм-флип CFG.matcap в ⚙️
+  // без этого оставлял полусостояние (теневой пасс на матах, которые его не видят)
+  renderer.shadowMap.enabled = !CFG.matcap;
   items.forEach(removeItem);
   items = [];
   buildTempTallWall(); // столб спавна выше кромки — держим высокой стеной
@@ -152,7 +223,8 @@ function genLevel(){
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
   const pairsCnt = levelNum <= PAIRS_EARLY.length ? PAIRS_EARLY[levelNum - 1] : PAIRS;
-  // сюрприз ложится на дно первым
+  // сюрприз (золотая рыбка) ложится на дно первым — спека владельца в чате
+  // ГРАФИКИ (вернул спавн: при мерже удаление старого спавна затёрло строку)
   items.push(makeSurprise());
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];

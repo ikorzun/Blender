@@ -3,8 +3,11 @@
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
 function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
 let pDown = null, dragging = false, pinch = null;
+// последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
+let lastPtrX = innerWidth / 2, lastPtrY = innerHeight / 2;
 const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
+  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована — жесты не копим
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
@@ -20,6 +23,7 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 canvas.addEventListener('pointermove', e => {
+  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
@@ -66,16 +70,19 @@ $('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); Ads.maybe
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
 $('winX2Btn').addEventListener('click', ()=>{
   $('winX2Btn').style.display = 'none';
+  // выигрыш захватываем В МОМЕНТ КЛИКА: к концу ролика level может смениться
+  // (checkEnd пересоздаёт coinsWon уже для нового уровня)
+  const won = level.coinsWon;
   Ads.showRewarded(()=>{
-    addCoins(level.coinsWon);
-    $('winCoins').textContent = '+' + (level.coinsWon * 2) + ' 🪙 (×2)';
+    addCoins(won);
+    $('winCoins').textContent = '+' + (won * 2) + ' 🪙 (×2)';
     Telemetry.ev('rw', { p: 'x2' });
     updateHUD();
-  });
+  }, ()=>{ $('winX2Btn').style.display = ''; }); // FAILED/CLOSED — кнопка возвращается
 });
 // Continue после поражения — 1 раз за уровень
 $('loseAdContinue').addEventListener('click', ()=>{
-  Ads.showRewarded(()=>{ continueRun(); });
+  Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
 });
 // «Прицел»: 15 монет, все доступные пары на 5 с
 $('scopeBtn').addEventListener('click', ()=>{
@@ -129,3 +136,38 @@ $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// Звук интерфейса: один делегированный хук на ВСЕ кнопки (спека владельца)
+document.addEventListener('click', e => {
+  if (e.target && e.target.closest && e.target.closest('button')) Sound.play('ui');
+}, true);
+// Space = встряска (десктоп): гварды внутри requestShake (интро/конец)
+addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat){
+    e.preventDefault();
+    if (paused) return;
+    // под оверлеями рекламы Space чашу не трясёт (и не открывает второй
+    // вопрос о встряске поверх идущего ролика)
+    if ($('adOverlay').style.display === 'flex' || $('adAskOverlay').style.display === 'flex') return;
+    requestShake();
+  }
+});
+// Клавиатура должна работать СРАЗУ, без клика по чаше: во встраивании
+// (превью-панель, порталы) iframe глух к клавишам, пока не получит фокус —
+// забираем его программно при старте и при каждом возврате в окно
+function grabKeyFocus(){ try { canvas.focus({ preventScroll: true }); } catch(e){} }
+addEventListener('focus', grabKeyFocus);
+document.addEventListener('visibilitychange', () => {
+  // свёрнутая вкладка = пауза: rAF в фоне не тикает, а часы миксера/комбо
+  // идут — игрок возвращался к съеденным предметам. Гварды (интро/конец/уже
+  // на паузе) внутри pauseGame; резюмится игрок сам кнопкой Continue.
+  if (document.hidden) pauseGame();
+  else grabKeyFocus();
+});
+$('pauseBtn').addEventListener('click', pauseGame);
+$('resumeBtn').addEventListener('click', resumeGame);
+$('resetBtn').addEventListener('click', ()=>{
+  resetProgress();
+  $('debugPanel').style.display = 'none';
+  toast('Прогресс сброшен');
+  genLevel(); updateHUD();
+});

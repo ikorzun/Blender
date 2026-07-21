@@ -10,7 +10,10 @@ function stepFX(dt){
     const k = f.age / f.life;
     if (k >= 1){
       scene.remove(f.obj);
-      // GPU-утечка: у эффектов геометрия/материал персональные — освобождать
+      // GPU-утечка: у эффектов геометрия/материал персональные — освобождать.
+      // Скомпилированные ПРОГРАММЫ при этом не умирают: их держат вечные
+      // якоря fxProgramAnchors (низ файла) — без них three пересобирал шейдер
+      // на каждом первом тапе/молнии после простоя (джанк на слабых)
       if (f.obj.geometry) f.obj.geometry.dispose();
       if (f.obj.material) f.obj.material.dispose();
       fx.splice(i,1); continue;
@@ -20,7 +23,8 @@ function stepFX(dt){
 }
 // Френель-«призрак»: прозрачная сфера, плотнее у силуэта (общий материал
 // для сферы радиуса и маркеров — никакого wireframe, он читался как артефакт)
-function fresnelGhostMat(color, base, edge){
+function fresnelGhostMat(color, base, edge, fpow){
+  const p = (fpow || 1.8); // меньше степень — шире и мягче кромка («размытые грани»)
   return new THREE.ShaderMaterial({
     transparent:true, depthTest:false, depthWrite:false,
     uniforms:{ c:{ value:new THREE.Color(color).convertSRGBToLinear() }, op:{ value:1 } },
@@ -30,8 +34,9 @@ function fresnelGhostMat(color, base, edge){
     ].join('\n'),
     fragmentShader: [
       'varying vec3 vN; varying vec3 vV; uniform vec3 c; uniform float op;',
-      'void main(){ float ndv=abs(dot(normalize(vN),normalize(-vV))); float fres=pow(1.0-ndv,1.8);',
-      '  gl_FragColor = vec4(c, op*(' + base.toFixed(3) + ' + fres*' + edge.toFixed(3) + ')); }',
+      'void main(){ float ndv=abs(dot(normalize(vN),normalize(-vV))); float fres=pow(1.0-ndv,' + p.toFixed(2) + ');',
+      '  float a = op*(' + base.toFixed(3) + ' + smoothstep(0.0, 1.0, fres)*' + edge.toFixed(3) + ');',
+      '  gl_FragColor = vec4(c, a); }',
     ].join('\n'),
   });
 }
@@ -192,3 +197,32 @@ function wiggle(item){
   const startX = item.mesh.rotation.z;
   addFX(new THREE.Object3D(), 0.3, (o,k)=>{ item.mesh.rotation.z = startX + Math.sin(k*Math.PI*4)*0.2*(1-k); });
 }
+
+// ЯКОРЯ ШЕЙДЕРНЫХ ПРОГРАММ. stepFX диспозит материалы эффектов, а three
+// выбрасывает СКОМПИЛИРОВАННУЮ ПРОГРАММУ, как только умирает её последний
+// материал — следующий тап/маркер/молния компилировали шейдер заново прямо
+// в кадре (рывок, заметный на слабых устройствах). Держим по одному вечному
+// субпиксельному экземпляру каждого FX-рецепта на камере — программы живут
+// всю сессию. ⚠️ Числа френель-рецептов обязаны совпадать с боевыми вызовами
+// (они вшиваются в ТЕКСТ шейдера — другие числа = другая программа):
+// sphereFX (0.05, 0.32), markerFX (0.1, 0.5), reachGhostFX (0.02, 0.16, 1.1).
+(function fxProgramAnchors(){
+  const g = new THREE.Group();
+  const tiny = new THREE.SphereGeometry(0.001, 4, 3);
+  [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // sphereFX
+    fresnelGhostMat(0xffffff, 0.1, 0.5),        // markerFX
+    fresnelGhostMat(0xffffff, 0.02, 0.16, 1.1), // reachGhostFX (ореол тапа/подсказки)
+  ].forEach(m => { m.uniforms.op.value = 0; g.add(new THREE.Mesh(tiny, m)); });
+  g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0 }))); // popFX/boltFX
+  const pg = new THREE.BufferGeometry(); // dustCloud: Points + vertexColors
+  pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(3), 3));
+  g.add(new THREE.Points(pg, new THREE.PointsMaterial({ size:0.001, vertexColors:true, transparent:true, opacity:0, depthWrite:false })));
+  const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
+  const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
+  ln.computeLineDistances();
+  g.add(ln);
+  g.position.set(0, 0, -0.5); // всегда в кадре перед камерой, глазу невидим
+  camera.add(g);
+  scene.add(camera); // дети камеры рендерятся, только когда камера в графе сцены
+})();
