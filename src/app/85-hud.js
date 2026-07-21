@@ -15,13 +15,19 @@ function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'
 // параметрическая: зрачок ездит ±24 и меняет размер 15..50 в единицах
 // viewBox — этим покрыты семейства eyes-0 (взгляд/размер), eyes-2 (хитрые)
 // и eyes-5 (подмигивание). Несводимые формы — отдельными слоями SVG.
+// Дуги eyes-4-4 УДАЛЕНЫ (спека владельца 2026-07-21): «добрые» показываем
+// не формой, а РАЗМЕРОМ зрачков — асимметрией eyes-5 (741:1357).
 const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fRound',
-  closed:'fRound', kind:'fArc', angry:'fAngry', lose:'fX', squint:'fSquint' };
+  closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', squint:'fSquint' };
+// Геометрия из ассетов (viewBox 240×120): белок r60, зрачок r29.
+const EYE_R = 60, PUP_MIN = 15, PUP_WIDE = 50;
+// eyes-5 (асимметрия: левый зрачок 40, правый белок 44 со зрачком 12) пока
+// НЕ задействован — ждёт решения владельца, куда его повесить
 const FACE_GAZE = {                    // смещения зрачков [левый, правый]
   rolled: [[0,-24],[0,-24]],           // eyes-0-5: закатились вверх
   sly:    [[-16,-16],[16,16]],         // eyes-2: один вверх-влево, другой вниз-вправо
 };
-const PUP_BASE = 29, PUP_MAX = 50;     // радиусы зрачка из ассетов
+const PUP_BASE = 29;                   // радиус зрачка в покое (eyes-0)
 let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0;
 let lookVec = null, lookUntil = 0, wander = [0,0], wanderAt = 0, dart = [0,0], dartAt = 0;
 let pupPulseUntil = 0, lastScoreSeen = null;
@@ -39,7 +45,7 @@ function eyesMood(now, grinding){
 }
 // Диск заряда у курсора (tickChainBar) УДАЛЁН: индикатор турбо теперь
 // РАЗМЕР ЗРАЧКА персонажа (спека владельца в чате ИНТЕРФЕЙСА: «полоски
-// нет, копит глаз») — см. pupilScale ниже. CHAIN_RING_ENABLED в 00-config
+// нет, копит глаз») — см. eyeSizes ниже. CHAIN_RING_ENABLED в 00-config
 // остался мёртвым флагом истории.
 // короткая реакция поверх состояния (тап по глазам, промах, сюрприз)
 function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; }
@@ -53,29 +59,47 @@ function faceLook(x, y){
   lookUntil = performance.now() + 1400;
 }
 function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ах!» на матче
-// РАЗМЕР ЗРАЧКА = индикатор турбо (спека владельца: полоски нет, копит глаз):
-// серия копится 29 -> 50, в самом турбо распахнуты на максимум.
-function pupilScale(now){
-  if (chainUntil > now) return PUP_MAX / PUP_BASE;
-  let k = 1;
-  if (comboUntil > now && comboCount > 0)
-    k = 1 + (PUP_MAX / PUP_BASE - 1) * Math.min(1, comboCount / CHAIN_COMBO_AT);
-  if (pupPulseUntil > now) k *= 1.25;
-  return k;
+// РАЗМЕРЫ ЗРАЧКОВ И БЕЛКОВ, отдельно для левого и правого глаза.
+// Драматургия буста (спека владельца): копится — зрачки РАСТУТ 29->50;
+// как только буст набран — резко СЖИМАЮТСЯ до 15 (eyes-0-1) и катаются.
+function eyeSizes(now, state){
+  const s = { pl: PUP_BASE, pr: PUP_BASE, wl: EYE_R, wr: EYE_R };
+  if (chainUntil > now){ s.pl = s.pr = PUP_MIN; return s; }   // турбо: сжались
+  if (state === 'surprised'){ s.pl = s.pr = PUP_WIDE; return s; }
+  if (state === 'kind'){
+    // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
+    // Дуги eyes-4-4 этим и заменены — размером, а не формой.
+    const t = Math.min(1, comboCount / CHAIN_COMBO_AT);
+    s.pl = s.pr = PUP_BASE + (PUP_WIDE - PUP_BASE) * t;
+    return s;
+  }
+  if (pupPulseUntil > now){ s.pl = s.pr = PUP_BASE * 1.25; }   // «ах!» на матче
+  return s;
 }
-// КУДА СМОТРЯТ: турбо — мечется, тап — на палец, помол — вниз на лопасти,
-// поза эмоции — своя, иначе ленивое блуждание.
+// КУДА СМОТРЯТ. Вектор задаётся с запасом — реальную амплитуду обрежет
+// clampGaze по свободному месту внутри белка.
 function gazeFor(now, state){
   if (chainUntil > now){
-    if (now > dartAt){ dartAt = now + 180 + Math.random() * 120;
-      dart = [(Math.random() * 2 - 1) * 24, (Math.random() * 2 - 1) * 20]; }
-    return [dart, dart];
+    // ТУРБО: зрачки КАТАЮТСЯ в РАЗНЫЕ стороны (спека владельца) — один по
+    // часовой, другой против, оборот примерно за 1.2 с
+    const th = now / 1000 * 5.2;
+    const c = Math.cos(th) * 99, sn = Math.sin(th) * 99;       // 99 = «до упора»
+    return [[c, sn], [-c, -sn]];
   }
   if (FACE_GAZE[state]) return FACE_GAZE[state];
   if (lookUntil > now && lookVec) return [lookVec, lookVec];
   if (now > wanderAt){ wanderAt = now + 1500 + Math.random() * 1500;
     wander = [(Math.random() * 2 - 1) * 10, (Math.random() * 2 - 1) * 8]; }
   return [wander, wander];
+}
+// ⚠️ ГЛАВНОЕ ПРАВИЛО (спека владельца): чёрный зрачок НИКОГДА не выходит за
+// белок. Свободный ход = радиус белка − радиус зрачка − 1 (запас, чтобы не
+// касался края). Без этого распахнутый зрачок при взгляде вбок вылезал наружу.
+function clampGaze(vec, pupR, eyeR){
+  const room = Math.max(0, eyeR - pupR - 1);
+  const d = Math.hypot(vec[0], vec[1]);
+  if (d <= room || d === 0) return vec;
+  return [vec[0] / d * room, vec[1] / d * room];
 }
 // тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
 function tickFace(now){
@@ -99,14 +123,19 @@ function tickFace(now){
 }
 function setFace(state, now, blinking){
   const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
-  for (const id of ['fRound','fArc','fAngry','fX','fSquint'])
+  for (const id of ['fRound','fAngry','fX','fSquint'])
     $(id).classList.toggle('on', id === layer);
   svg.classList.toggle('blink', !!blinking);
   if (layer !== 'fRound') return;                 // у прочих слоёв зрачков нет
-  const g = gazeFor(now || performance.now(), state);
-  const s = state === 'surprised' ? PUP_MAX / PUP_BASE : pupilScale(now || performance.now());
-  $('pupL').style.transform = 'translate(' + g[0][0] + 'px,' + g[0][1] + 'px) scale(' + s.toFixed(3) + ')';
-  $('pupR').style.transform = 'translate(' + g[1][0] + 'px,' + g[1][1] + 'px) scale(' + s.toFixed(3) + ')';
+  const t = now || performance.now();
+  const sz = eyeSizes(t, state), g = gazeFor(t, state);
+  const gl = clampGaze(g[0], sz.pl, sz.wl), gr = clampGaze(g[1], sz.pr, sz.wr);
+  $('pupL').style.transform = 'translate(' + gl[0].toFixed(1) + 'px,' + gl[1].toFixed(1) +
+    'px) scale(' + (sz.pl / PUP_BASE).toFixed(3) + ')';
+  $('pupR').style.transform = 'translate(' + gr[0].toFixed(1) + 'px,' + gr[1].toFixed(1) +
+    'px) scale(' + (sz.pr / PUP_BASE).toFixed(3) + ')';
+  $('wL').style.transform = 'scale(' + (sz.wl / EYE_R).toFixed(3) + ')';
+  $('wR').style.transform = 'scale(' + (sz.wr / EYE_R).toFixed(3) + ')';
 }
 function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
 function updateHUD(){
