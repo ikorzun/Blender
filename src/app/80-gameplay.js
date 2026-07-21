@@ -70,11 +70,11 @@ function doMatch(list){
   addFX(new THREE.Object3D(), 0.14, (o,k)=>{
     list.forEach((it,i) => { it.mesh.scale.setScalar(scales[i]*(1-k)); });
   });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 150);
+  }), 150);
 }
 function checkEnd(){
   if (level.over) return;
@@ -91,13 +91,16 @@ function checkEnd(){
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
     setStars(levelNum, stars);
+    addHints(1); // +1 подсказка за успешный уровень (спека владельца)
     Telemetry.ev('win', { lv: levelNum, st: stars, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Уровень ' + levelNum + ' пройден!';
     $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     $('winStats').textContent =
       'Очки: ' + stats.score + (base ? ' / цель ' + Math.round(base * STAR2_K) : '') + '  ·  Время: ' + fmtTime(secs);
-    $('winCoins').textContent = '+' + level.coinsWon + ' 🪙';
-    $('winX2Btn').style.display = '';
+    // монеты скрыты: награда уровня на экране — звёзды + подсказка;
+    // начисление выше живёт (вернётся вместе с COINS_ENABLED)
+    $('winCoins').textContent = COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  +1 💡') : '+1 💡';
+    $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
     Ads.noteWin();
@@ -107,6 +110,7 @@ function checkEnd(){
 }
 function showLose(){
   level.over = true;
+  hide('adAskOverlay'); // тупик мог созреть, пока открыт вопрос о встряске — не копим оверлеи
   Sound.play('lose');
   Telemetry.ev('lose', { lv: levelNum, alive: items.filter(i=>i.alive).length });
   const secs = Math.round((performance.now()-stats.t0)/1000);
@@ -179,11 +183,11 @@ function collectSurprise(it){
   vibrate(30);
   const s0 = it.mesh.scale.x;
   addFX(new THREE.Object3D(), 0.2, (o,k)=>{ it.mesh.scale.setScalar(s0*(1-k)); });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     removeItem(it);
     wakePhysics('gameplay:L70');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 200);
+  }), 200);
 }
 
 // Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
@@ -291,13 +295,17 @@ function findHintGroup(){
 }
 function showHint(){
   if (level.over || intro) return;
+  if (hints() < 1){ toast('Подсказок нет'); return; }
   const grp = findHintGroup();
   if (!grp){
-    toast('Доступных пар нет — встряхните!');
+    toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим
     return;
   }
+  spendHint(); // числимый ресурс (спека владельца: старт 3, +1 за уровень)
+  Telemetry.ev('spend', { item: 'hint' });
   reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
+  updateHUD();
 }
 function hintPulse(item){
   const mat = item.mesh.material;
@@ -334,12 +342,12 @@ function mixerGrind(){
   });
   if (twin) dissolveFX(twin);
   camShake = Math.max(camShake, 0.22);
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor); // домололся — труха из-под ножей
     group.forEach(removeItem);
     wakePhysics('gameplay:L198');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 560);
+  }), 560);
 }
 // Финальная зачистка: парных не осталось — миксер уничтожает остатки (без штрафа)
 function finaleGrind(){
@@ -358,12 +366,12 @@ function finaleGrind(){
     low.mesh.rotation.y += 0.45;
     low.mesh.scale.setScalar(s0*(1-k*0.9));
   });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor);
     removeItem(low);
     wakePhysics('gameplay:L222');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 410);
+  }), 410);
 }
 
 // ---------- Встряска ----------
@@ -406,11 +414,12 @@ function requestShake(){
   if (level.over || intro) return;
   if (level.shakes > 0){
     useFreeShake(); // без подтверждения — сразу (по требованию владельца)
-  } else if (level.adShakes > 0 || coins() >= PRICE_SHAKE){
+  } else if (level.adShakes > 0 || (COINS_ENABLED && coins() >= PRICE_SHAKE)){
     // корректировка аудита: монеты НЕ конкурируют с бесплатной рекламой —
     // покупка за 25 открывается только после исчерпания rewarded-капа
+    // (при скрытых монетах покупной ветки нет вовсе)
     $('adYes').style.display = level.adShakes > 0 ? '' : 'none';
-    $('coinShakeBtn').style.display = (level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
+    $('coinShakeBtn').style.display = (COINS_ENABLED && level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
     show('adAskOverlay');
   } else {
     toast('Встряски закончились');
@@ -418,6 +427,7 @@ function requestShake(){
 }
 function buyCoinShake(){
   hide('adAskOverlay');
+  if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
   if (!spendCoins(PRICE_SHAKE)){ toast('Не хватает монет'); return; }
   Telemetry.ev('spend', { item: 'shake' });
   performShake(); updateHUD();
@@ -429,7 +439,11 @@ function useFreeShake(){
 function startAd(){
   hide('adAskOverlay');
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
+    // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
+    // уровня, наставший за время ролика (встряске некого трясти)
+    if (level.over) return;
     level.adShakes--; stats.adShakesUsed++;
+    Telemetry.ev('rw', { p: 'shake' });
     performShake(); updateHUD();
   });
 }
