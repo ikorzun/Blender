@@ -12,7 +12,8 @@
   :root { --font-round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system,
             "Segoe UI", Roboto, sans-serif;
           --ink:#1d1c26; }        /* carbon-purple из макета */
-  html, body { height:100%; overflow:hidden; background:#d0dff3; touch-action:none; overscroll-behavior:none;
+  /* фон — зона ГРАФИКИ (поле рисует шейдер неба), здесь не трогаем */
+  html, body { height:100%; overflow:hidden; background:#ffffff; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
   .bar { position:fixed; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between;
@@ -203,7 +204,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-15 · 2026-07-21</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-16 · 2026-07-21</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
