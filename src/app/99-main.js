@@ -420,6 +420,18 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // скрин-пробы эффектов: первый ДОСТУПНЫЙ предмет пачки + его экранные
+  // координаты (для реального mouse.click в headless)
+  findByTex(tex){
+    for (let i = 0; i < items.length; i++){
+      const it = items[i];
+      if (!it.alive || !it.accessible || it.animating || it.type.tex !== tex) continue;
+      const sp = it.p.clone().project(camera);
+      return { i, name: it.type.name,
+        px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+    }
+    return null;
+  },
   // вес при встряске: средняя |v| живых тел по пачкам (car/animal/food/...)
   // — замер отклика сразу после shake(); для тюнинга SHAKE_RESP владельцем
   velByTex(){

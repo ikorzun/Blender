@@ -59,7 +59,17 @@ function doMatch(list){
   const gained = MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1);
   stats.score += gained;
   popFX(mid);
-  list.forEach(it => dissolveFX(it));
+  // «ПУНКТ 5» (спека владельца 2026-07-21): разнообразие эффектов ПРАВИЛОМ.
+  // Пара/тройка — труха как раньше; группа >= BURST_MIN_N ЛОПАЕТСЯ эффектом
+  // своей пачки (burstFX) + физическая волна вздрагивает соседей от
+  // тапнутого (list[0]); в комбо/цепи поверх остаются молнии — как были.
+  const burst = n >= BURST_MIN_N;
+  if (burst){
+    list.forEach(it => burstFX(it));
+    blastWave(list[0].p, BURST_WAVE_R, BURST_WAVE_V);
+  } else {
+    list.forEach(it => dissolveFX(it));
+  }
   // цифра — сразу РЕЗУЛЬТАТ умножения (спека владельца: «+80», не «+40 ×2»)
   scorePop('+' + gained, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
@@ -67,8 +77,11 @@ function doMatch(list){
   vibrate(15);
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
   const scales = list.map(it => it.mesh.scale.x);
-  addFX(new THREE.Object3D(), 0.14, (o,k)=>{
-    list.forEach((it,i) => { it.mesh.scale.setScalar(scales[i]*(1-k)); });
+  // бурст: короткое НАДУВАНИЕ (до ×1.22 к 45% времени), потом схлопывание —
+  // читается как «лопнул»; обычный матч — прежнее плавное исчезновение
+  addFX(new THREE.Object3D(), burst ? 0.16 : 0.14, (o,k)=>{
+    const s = burst ? (k < 0.45 ? 1 + 0.5*k : 1.22 * (1 - (k - 0.45)/0.55)) : (1 - k);
+    list.forEach((it,i) => { it.mesh.scale.setScalar(scales[i]*Math.max(0, s)); });
   });
   setTimeout(()=>afterPause(()=>{
     list.forEach(removeItem);
@@ -76,6 +89,101 @@ function doMatch(list){
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 150);
 }
+// ===== Эффекты лопанья по пачкам («пункт 5», спека владельца 2026-07-21).
+// СТАРТОВЫЕ реализации зоны ФИЗИКИ через публичный addFX — 70-fx не тронут
+// (sphereFX-стиль жизненного цикла: материал/геометрия персональные,
+// stepFX сам их диспозит). Полировка/перенос в 70-fx — за ГРАФИКОЙ
+// (междузонный запрос в WORKSTREAMS). Баллистика ПАРАМЕТРИЧЕСКАЯ
+// (позиция от t=k·life, не по кадрам) — FPS-независимо.
+function burstFX(it){
+  const tex = it.type.tex;
+  if (tex === 'food') juiceFX(it);
+  else if (tex === 'car') sparkFX(it);
+  else if (tex === 'animal') starPopFX(it);
+  else dissolveFX(it); // стейк/без пачки — прежняя труха
+}
+// сок: крупные капли цвета типа, «мокрый» баллистический разлёт
+function juiceFX(it){
+  const N = 46, LIFE = 0.8;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*3.5;
+    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
+    vx.push(Math.cos(a)*sp); vy.push(2 + Math.random()*4.5); vz.push(Math.sin(a)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: (it.fxColor || it.baseColor || new THREE.Color(0xff5a6e)),
+    size: 0.34, transparent: true, opacity: 0.95, depthWrite: false });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 11*t*t; // ½·G·t², G=22
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 0.95*(1 - k);
+    o.material.size = 0.34*(1 - k*0.4);
+  });
+}
+// искры + «детальки»: яркие точки веером + 3 тёмных кубика-осколка кувырком
+function sparkFX(it){
+  const N = 36, LIFE = 0.45;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, e = Math.random()*Math.PI*0.5, sp = 4 + Math.random()*5;
+    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
+    vx.push(Math.cos(a)*Math.cos(e)*sp); vy.push(Math.sin(e)*sp); vz.push(Math.sin(a)*Math.cos(e)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  // ⚠️ normal blending: additive на светлой панораме невидим (грабля ГРАФИКИ)
+  const m = new THREE.PointsMaterial({ color: 0xffdf6b, size: 0.16, transparent: true, opacity: 1, depthWrite: false });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 6*t*t; // искры почти не падают
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - k*k;
+  });
+  for (let j = 0; j < 3; j++){
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09),
+      new THREE.MeshBasicMaterial({ color: 0x3a4048, transparent: true, opacity: 1 }));
+    const a = Math.random()*Math.PI*2, sp = 1.2 + Math.random()*2;
+    const bvx = Math.cos(a)*sp, bvy = 3 + Math.random()*2.5, bvz = Math.sin(a)*sp;
+    const rx = (Math.random()-0.5)*14, rz = (Math.random()-0.5)*14;
+    const o0 = it.p.clone();
+    addFX(box, 0.7, (o, k) => {
+      const t = k*0.7;
+      o.position.set(o0.x + bvx*t, o0.y + bvy*t - 11*t*t, o0.z + bvz*t);
+      o.rotation.x = rx*t; o.rotation.z = rz*t;
+      o.material.opacity = 1 - k;
+    });
+  }
+}
+// мультяшный pop: 5 звёздочек веером вверх с кувырком, тают в полёте
+function starPopFX(it){
+  for (let j = 0; j < 5; j++){
+    const star = new THREE.Mesh(starGeo(),
+      new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.95, depthWrite: false }));
+    const a = j/5*Math.PI*2 + Math.random()*0.8, sp = 1 + Math.random()*1.6;
+    const svx = Math.cos(a)*sp, svy = 3.2 + Math.random()*2.2, svz = Math.sin(a)*sp;
+    const rx = (Math.random()-0.5)*10, ry = (Math.random()-0.5)*10;
+    const o0 = it.p.clone(), s0 = 0.16 + Math.random()*0.07;
+    addFX(star, 0.7, (o, k) => {
+      const t = k*0.7;
+      o.position.set(o0.x + svx*t, o0.y + 0.3 + svy*t - 9*t*t, o0.z + svz*t);
+      o.rotation.x = rx*t; o.rotation.y = ry*t;
+      o.scale.setScalar(s0*(1 - k*0.8));
+      o.material.opacity = 0.95*(1 - k*k);
+    });
+  }
+}
+
 function checkEnd(){
   if (level.over) return;
   if (items.every(i=>!i.alive)){

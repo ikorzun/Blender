@@ -344,6 +344,23 @@ function rescueSweep(){
   return rescued;
 }
 
+// Волна лопанья (пункт 5, спека владельца 2026-07-21): лёгкое радиальное
+// вздрагивание соседей при бурсте группы >= BURST_MIN_N. Косметика, не
+// рыхление: дельта скорости мала и гаснет квадратично к краю радиуса;
+// лёгкие пачки (shakeK) вздрагивают сильнее — консистентно с весом встряски
+function blastWave(pos, R, vmax){
+  for (const it of items){
+    if (!it.alive || !it.body || it.animating) continue;
+    const dx = it.p.x - pos.x, dz = it.p.z - pos.z;
+    const d = Math.hypot(dx, it.p.y - pos.y, dz);
+    if (d > R || d < 1e-3) continue;
+    const f = vmax * (1 - d/R) * (1 - d/R) * (it.shakeK || 1);
+    const inv = 1 / Math.max(Math.hypot(dx, dz), 0.3);
+    impulseBody(it, dx*inv*f, f*0.3, dz*inv*f);
+  }
+  wakePhysics('burst');
+}
+
 // Максимальная скорость среди живых тел — для глобального штиля
 function maxBodySpeed(){
   let m = 0;
