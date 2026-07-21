@@ -29,11 +29,15 @@
      небе и на куче предметов цифры иначе сливаются. Как у попов очков:
      stroke + 8-направленная тень фолбэком (обводка переживает и градиентную
      заливку очков, где color:transparent). */
-  .hnum, #mixerTimer {
-    -webkit-text-stroke:2px #fff; paint-order:stroke fill; }
-  .hnum, #mixerTimer {
+  /* числа стека 22px — обводка 2px; число отсчёта 55px — 7px по спеке
+     владельца из Figma (пропорция та же ~0.13 кегля).
+     ⚠️ paint-order:stroke fill ОБЯЗАТЕЛЕН: без него -webkit-text-stroke
+     рисует обводку ПОВЕРХ заливки и съедает глиф изнутри — при 7px от
+     чёрной цифры остались бы одни ошмётки. */
+  .hnum { -webkit-text-stroke:2px #fff; paint-order:stroke fill;
     text-shadow:2px 0 0 #fff, -2px 0 0 #fff, 0 2px 0 #fff, 0 -2px 0 #fff,
       2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff; }
+  #mixerTimer { -webkit-text-stroke:7px #fff; paint-order:stroke fill; }
   /* ⚠️ ОЧКАМ ни stroke, ни text-shadow НЕЛЬЗЯ: заливка у них — ФОН, обрезанный
      по тексту (background-clip:text, color:transparent). Порядок отрисовки —
      фон, потом тени, потом текст, поэтому белые тени закрашивают градиент, а
