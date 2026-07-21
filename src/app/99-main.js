@@ -510,6 +510,13 @@ window.__game = {
     return bad;
   },
   topY(){ let m = 0; for (const it of items) if (it.alive) m = Math.max(m, it.p.y + it.r); return m; },
+  // отладка/тесты: уникальные множители размера живых предметов (спека
+  // «первые 15 уровней — один размер»: до ур.15 включительно ровно [1])
+  sizes(){
+    const s = new Set();
+    for (const it of items) if (it.alive && !it.surprise) s.add(+((it.scl || 0) / MESH_SCALE).toFixed(3));
+    return [...s].sort((a, b) => a - b);
+  },
   // максимальный ВЫСТУП края предмета за внутреннюю поверхность стекла
   // (>0 — предмет визуально в стекле/снаружи; допуск ~0.0 благодаря WALL_GAP)
   maxWallExcess(){

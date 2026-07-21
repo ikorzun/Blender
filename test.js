@@ -32,6 +32,9 @@ const path = require('path');
   // уровень 1: 64 пары + рыбка = 129; трим на рыхлом сиде может тихо изъять пары
   expect(t0.alive >= 110 && t0.alive <= 129, 'старт: предметов 110-129 (' + t0.alive + ')');
   expect(t0.pairsAvail > 0, 'старт: есть доступные пары (' + t0.pairsAvail + ')');
+  // первые 15 уровней — предметы одного размера (спека владельца 2026-07-21)
+  const sizes0 = await page.evaluate(() => window.__game.sizes());
+  expect(sizes0.length === 1 && sizes0[0] === 1, 'уровень <=15: все предметы одного размера (' + JSON.stringify(sizes0) + ')');
 
   await page.screenshot({ path: 'shot_start.png' });
 
