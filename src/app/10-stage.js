@@ -175,18 +175,18 @@ const matcapSpecPatch = function (sh) {
   // по-прежнему даёт ОДИН скомпилированный шейдер на все 181.
   const n = (x) => x.toFixed(3);
   sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
+  sh.uniforms.uDepth = uDepthTint;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
     .replace('#include <project_vertex>',
       '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>',
-      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nvarying float vWorldY;')
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
-      'float dk = clamp( ( vWorldY - uPileTop + ' + n(DEPTH_TINT_RANGE) + ' ) / '
-        + n(DEPTH_TINT_RANGE) + ', 0.0, 1.0 );\n'
-      + '\tdk = ' + n(DEPTH_TINT_MIN) + ' + ' + n(1 - DEPTH_TINT_MIN) + ' * dk;\n'
+      'float dk = clamp( ( vWorldY - uPileTop + uDepth.y ) / uDepth.y, 0.0, 1.0 );\n'
+      + '\tdk = uDepth.x + ( 1.0 - uDepth.x ) * dk;\n'
       // ⚠️ Глубиной гасится ТОЛЬКО диффуз. Блик и подсветку подсказки не
       // трогаем: иначе низ кучи превращается в чёрную кашу, где не разобрать
       // ни силуэтов, ни того, что подсвечено.
@@ -200,15 +200,37 @@ const matcapSpecPatch = function (sh) {
 // Верх кучи для тонировки. ОДИН общий объект-юниформа: обновили .value —
 // обновились все 181 материал разом, без обхода сцены.
 const uPileTop = { value: FUNNEL.H };
+// Глубина: x — во сколько раз темнеет дно, y — на сколько ниже верха кучи
+// достигается этот минимум. ОДИН объект на все материалы, поэтому крутится
+// на лету (и в игре, и в сравнительных прогонах) без пересборки.
+const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) };
 // Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
 // ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
 // Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).
 function tickDepthTint(dt){
   if (!CFG.matcap || !items) return;
   let top = 0;
-  for (const it of items) if (it.alive && !it.surprise) top = Math.max(top, it.p.y + it.r);
-  if (top <= 0) return;
-  const k = Math.min(1, dt * 4);
+  // ⚠️ ТОЛЬКО ПО КУЧЕ НИЖЕ КРОМКИ — летящие сверху НЕ СЧИТАЮТСЯ.
+  // Баг владельца 2026-07-21: «в турбо меняется освещение, модели темнеют».
+  // В турбо (лихорадке) chainRefill досыпает предметы с высоты ~13, и максимум
+  // по ВСЕМ живым скачком уезжал туда же — вся осевшая масса проваливалась
+  // ниже диапазона тонировки и гасла до DEPTH_TINT_MIN разом. То же самое
+  // било и в интро, где сверху падает весь столб.
+  // Тот же гвард стоит в chainRefill по той же причине (душил темп досыпки).
+  // ⚠️ НЕ МАКСИМУМ, А ПЕРЦЕНТИЛЬ. Максимум — величина хрупкая: один предмет,
+  // подскочивший выше прочих (досыпка в турбо, встряска, свежеупавший), уводил
+  // ОПОРУ вверх, и вся куча разом гасла до DEPTH_TINT_MIN. 85-й перцентиль
+  // на пару-тройку выскочивших не реагирует, а рост кучи по-настоящему ловит.
+  const tops = [];
+  for (const it of items){
+    if (it.alive && !it.surprise && it.p.y < FUNNEL.H) tops.push(it.p.y + it.r);
+  }
+  if (!tops.length) return;
+  tops.sort((a, b) => a - b);
+  top = tops[Math.min(tops.length - 1, Math.floor(tops.length * 0.85))];
+  // ЛЕРП МЕДЛЕННЫЙ (~1.2 с, было 0.25): короткая вспышка досыпки не должна
+  // успевать перекрасить кучу — за уровень опора всё равно доедет куда надо.
+  const k = Math.min(1, dt * 0.8);
   uPileTop.value += (top - uPileTop.value) * k;
 }
 // matcap-предметы тени НЕ ПРИНИМАЮТ (материал неосвещаемый) — значит теневой
@@ -216,7 +238,27 @@ function tickDepthTint(dt){
 // draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.
 if (CFG.matcap) renderer.shadowMap.enabled = false;
 
-// Небо: БЕЛОЕ поле (по требованию владельца). ShaderMaterial минует
+// ПАНОРАМА НЕБА (спека владельца 2026-07-21: «используй дневное небо, может
+// стоит ориентироваться на время на компьютере игрока»). Отменяет прежний
+// инвариант «поле БЕЛОЕ» — он держался до появления скайбоксов в ассетах.
+// ⚠️ encoding = LinearEncoding НАМЕРЕННО: шейдер неба минует конвертацию
+// рендерера, поэтому сырые sRGB-байты панорамы идут на экран как есть —
+// ровно так же, как раньше сюда клали сырые sRGB-цвета градиента.
+// ⚠️ Мипы выключены: сфера неба огромная, панорама всегда УВЕЛИЧЕНА, а мипы
+// сожрали бы 33% лишней памяти на текстуру, которая ими не пользуется.
+function skyPanorama(){
+  const tex = new THREE.Texture();
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.encoding = THREE.LinearEncoding;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  const img = new Image();
+  img.onload = () => { tex.image = img; tex.needsUpdate = true; };
+  img.src = skyForNow();
+  return tex;
+}
+
+// Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
 // (без convertSRGBToLinear) — #ffffff даёт настоящий белый на экране.
 let skyMat = null; // фон-лихорадка: uCombo подкрашивает низ красным (99-main)
@@ -226,10 +268,7 @@ let skyMat = null; // фон-лихорадка: uCombo подкрашивает
     uniforms: {
       uCombo: { value: 0 }, // 0 — обычное небо, 0.55 — комбо, 1 — цепная реакция
       uResY:  { value: 1 },  // высота канваса в device px (для экранного градиента)
-      cTop:  { value: new THREE.Color(0xffffff) },
-      cMid:  { value: new THREE.Color(0xf8fafc) },
-      cBot:  { value: new THREE.Color(0xf0f2f6) },
-      cGlow: { value: new THREE.Color(0xf3f6fd) },
+      uSky:   { value: skyPanorama() }, // панорама по времени суток (05-sky)
     },
     vertexShader: [
       'varying vec3 vDir;',
@@ -237,13 +276,13 @@ let skyMat = null; // фон-лихорадка: uCombo подкрашивает
     ].join('\n'),
     fragmentShader: [
       'varying vec3 vDir;',
-      'uniform vec3 cTop; uniform vec3 cMid; uniform vec3 cBot; uniform vec3 cGlow; uniform float uCombo; uniform float uResY;',
+      'uniform sampler2D uSky; uniform float uCombo; uniform float uResY;',
       'void main(){',
-      '  float h = vDir.y;',
-      '  vec3 col = mix(cBot, cMid, smoothstep(-0.35, 0.10, h));',
-      '  col = mix(col, cTop, smoothstep(0.10, 0.75, h));',
-      '  float band = exp(-pow((h - 0.16) / 0.16, 2.0));',
-      '  col = mix(col, cGlow, band * 0.5);',
+      // равнопромежуточная развёртка: направление взгляда -> UV панорамы
+      '  vec3 d = normalize(vDir);',
+      '  vec2 uv = vec2(atan(d.z, d.x) / 6.2831853 + 0.5,',
+      '                 asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);',
+      '  vec3 col = texture2D(uSky, uv).rgb;',
       // лихорадка: ЭКРАННЫЙ градиент — снизу красный, кверху белый (спека
       // владельца). Мировой (по vDir.y) из камеры сверху заливал ВСЁ красным.
       '  float sy = gl_FragCoord.y / uResY;',
