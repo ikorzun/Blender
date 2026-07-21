@@ -56,8 +56,10 @@ function isAccessible(item){
 // меньше пола (дебаг/тесты) уважается как есть.
 function updateMatchRadius(){
   if (!level) return;
-  // цепная реакция: радиус на всю чашу
-  if (chainUntil > performance.now()){ CFG.matchRadius = 99; return; }
+  // цепная реакция: радиус БОЛЬШЕ НЕ «вся чаша» — потолок зазора 1.1
+  // (спека владельца 2026-07-21: «даже в турборежиме не больше 1.1»);
+  // фишки цепи остаются: досыпка, молнии, ×2, продление серии
+  if (chainUntil > performance.now()){ CFG.matchRadius = COMBO_RADIUS; return; }
   let top = 0, aliveCnt = 0;
   for (const it of items) if (it.alive){ top = Math.max(top, it.p.y + it.r); if (!it.surprise) aliveCnt++; }
   // ЭНДШПИЛЬ: остатки лежат на дне дальше друг от друга, чем зажатый в пол
