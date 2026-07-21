@@ -276,14 +276,17 @@ function skyPanorama(){
 // Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
 // (без convertSRGBToLinear) — #ffffff даёт настоящий белый на экране.
-let skyMat = null; // фон-лихорадка: uCombo подкрашивает низ красным (99-main)
+let skyMat = null; // экранные градиенты: uCombo красит НИЗ голубым, uGrind — ВЕРХ красным (оба из 99-main)
 (function buildSky(){
   const skyM = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
     uniforms: {
-      uCombo: { value: 0 }, // 0 — обычное небо, 0.55 — комбо, 1 — цепная реакция
+      uCombo: { value: 0 }, // 0 — обычное небо, 0.3..0.8 — комбо, 1 — цепная реакция
+      uGrind: { value: 0 }, // 0 — покой, 1 — работают лопасти (помол)
       uResY:  { value: 1 },  // высота канваса в device px (для экранного градиента)
       uSky:   { value: skyPanorama() }, // панорама по времени суток (05-sky)
+      uFeverCol: { value: new THREE.Vector3(FEVER_COMBO[0], FEVER_COMBO[1], FEVER_COMBO[2]) },
+      uGrindCol: { value: new THREE.Vector3(GRIND_COLOR[0], GRIND_COLOR[1], GRIND_COLOR[2]) },
     },
     vertexShader: [
       'varying vec3 vDir;',
@@ -291,18 +294,25 @@ let skyMat = null; // фон-лихорадка: uCombo подкрашивает
     ].join('\n'),
     fragmentShader: [
       'varying vec3 vDir;',
-      'uniform sampler2D uSky; uniform float uCombo; uniform float uResY;',
+      'uniform sampler2D uSky; uniform float uCombo; uniform float uGrind; uniform float uResY;',
+      'uniform vec3 uFeverCol; uniform vec3 uGrindCol;',
       'void main(){',
       // равнопромежуточная развёртка: направление взгляда -> UV панорамы
       '  vec3 d = normalize(vDir);',
       '  vec2 uv = vec2(atan(d.z, d.x) / 6.2831853 + 0.5,',
       '                 asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);',
       '  vec3 col = texture2D(uSky, uv).rgb;',
-      // лихорадка: ЭКРАННЫЙ градиент — снизу красный, кверху белый (спека
-      // владельца). Мировой (по vDir.y) из камеры сверху заливал ВСЁ красным.
-      '  float sy = gl_FragCoord.y / uResY;',
-      '  vec3 hot = mix(vec3(0.30, 0.87, 0.50), vec3(1.0), smoothstep(0.1, 0.8, sy));', // ЗЕЛЁНАЯ (спека владельца; была красная)
-      '  col = mix(col, hot, uCombo);',
+      '  float sy = gl_FragCoord.y / uResY;', // 0 — низ экрана, 1 — верх
+      // ЛИХОРАДКА КОМБО: мягкое ГОЛУБОЕ свечение у нижней кромки, гаснущее
+      // кверху и ограниченное потолком FEVER_MAX — панорама НЕ выбеливается
+      // (спека владельца 2026-07-21-в). Раньше градиент уходил в чистую белизну.
+      '  float fever = uCombo * (1.0 - smoothstep(0.0, ' + FEVER_SPAN.toFixed(3) + ', sy)) * ' + FEVER_MAX.toFixed(3) + ';',
+      '  col = mix(col, uFeverCol, fever);',
+      // ПОМОЛ: зеркальный красный у ВЕРХНЕЙ кромки, пока крутятся лопасти
+      // (координата 1−sy). Наложен ДО затемнения верха — красный только темнит
+      // верхнюю полосу, поэтому контраст белого HUD растёт, а не падает.
+      '  float grind = uGrind * (1.0 - smoothstep(0.0, ' + GRIND_SPAN.toFixed(3) + ', 1.0 - sy)) * ' + GRIND_MAX.toFixed(3) + ';',
+      '  col = mix(col, uGrindCol, grind);',
       // затемнение ВЕРХНЕЙ полосы экрана: белые глаза и кнопка паузы иначе
       // не читаются на светлой панораме (замер: фон 204, контраст 1.61:1
       // при пороге 3:1). Экранная полоса, не всё небо — низ кадра не трогаем.
