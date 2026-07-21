@@ -58,8 +58,8 @@ const path = require('path');
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
-  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null;
-  while (guard++ < 400) {
+  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null, sinceRest = 0;
+  while (guard++ < 600) {
     const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
     if (st.alive === 0) break;
     if (st.alive <= 9 && endgameRadius === null) endgameRadius = st.r; // 8 живых + рыбка
@@ -70,7 +70,12 @@ const path = require('path');
       await page.evaluate(() => window.__game.shake());
       await page.waitForTimeout(1200);
     } else {
-      await page.waitForTimeout(300);
+      // передышка раз в 10 матчей: непрерывный бот-темп держал бы СЕРИЮ ТУРБО
+      // вечно (перезапуск цепи + досыпка 2.6/417мс = чаша не пустеет) —
+      // человек так не может, а прогон должен доигрывать уровень. Пауза
+      // >COMBO_MS гасит серию, текущая цепь дотикает и гаснет сама.
+      if (++sinceRest >= 10){ sinceRest = 0; await page.waitForTimeout(4300); }
+      else await page.waitForTimeout(300);
     }
   }
   const fin = await page.evaluate(() => window.__game.alive());
@@ -277,6 +282,26 @@ const path = require('path');
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   const cam4 = await page.evaluate(() => window.__game.cam());
   expect(cam4.ty > 3.6 && cam4.ty <= 4.2, 'новый уровень вернул взгляд к дефолту (' + cam4.ty + ')');
+
+  // СЕРИЯ ТУРБО (спека владельца): вторая цепь, собранная ВНУТРИ активной,
+  // перезапускает окно и растит chainSeries (>=2 — сигнал глазам eyes-5)
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(400);
+  const chainProbe = await page.evaluate(async () => {
+    const g = window.__game, out = { chainAt: -1, seriesAt: -1 };
+    for (let i = 0; i < 30; i++){
+      if (!g.autoMatch()) break;
+      const c = g.combo();
+      if (c.chain && out.chainAt < 0) out.chainAt = i;
+      if (c.series >= 2 && out.seriesAt < 0){ out.seriesAt = i; break; }
+      await new Promise(r => setTimeout(r, 60));
+    }
+    out.final = g.combo();
+    return out;
+  });
+  expect(chainProbe.chainAt >= 0, 'серия матчей зажгла цепь (матч #' + chainProbe.chainAt + ')');
+  expect(chainProbe.seriesAt > chainProbe.chainAt && chainProbe.final.series >= 2,
+    'второе турбо внутри первого = серия турбо (матч #' + chainProbe.seriesAt + ', series ' + chainProbe.final.series + ')');
 
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());

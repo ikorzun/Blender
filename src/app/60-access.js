@@ -86,6 +86,11 @@ function updateMatchRadius(){
 // длина серии; цепная реакция: до какого момента, промахи на старте, тик досыпки
 let comboUntil = 0, lastMatchMs = 0, comboCount = 0, comboLevel = 0;
 let chainUntil = 0, chainStartMisses = 0, chainNextDrop = 0, chainNextBolt = 0;
+// СЕРИЯ ТУРБО (спека владельца 2026-07-21): номер цепи в непрерывной связке —
+// 1 у обычной, 2+ когда следующее турбо собрано ВНУТРИ активного (перезапуск
+// окна в doMatch). >=2 — сигнал интерфейсу для глаз eyes-5. chainCarry —
+// дробный аккумулятор досыпки (2.6 шт/тик не спавнится целиком за раз).
+let chainSeries = 0, chainCarry = 0;
 let accFlips = 0; // диагностика: сколько предметов сменили доступность за последний refresh
 function refreshAccessibility(){
   updateMatchRadius();

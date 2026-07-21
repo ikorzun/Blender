@@ -219,7 +219,7 @@ function loop(){
   // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
     if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
-      chainUntil = 0; comboCount = 0;
+      chainUntil = 0; comboCount = 0; chainSeries = 0; chainCarry = 0;
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
       chainNextDrop = now + CHAIN_DROP_MS;
@@ -415,7 +415,7 @@ window.__game = {
     const n = performance.now();
     let top = 0, airborne = 0;
     for (const it of items) if (it.alive){ if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++; }
-    return { hot: comboUntil > n, count: comboCount, level: comboLevel, chain: chainUntil > n, radius: +CFG.matchRadius.toFixed(2),
+    return { hot: comboUntil > n, count: comboCount, level: comboLevel, chain: chainUntil > n, series: chainSeries, radius: +CFG.matchRadius.toFixed(2),
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
