@@ -68,6 +68,8 @@ function updateHUD(){
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }
   else { btn.classList.add('off'); btn.classList.remove('ad'); $('shakeLbl').textContent = 'No shakes'; }
   $('coinsChip').textContent = '🪙 ' + coins();
+  $('hintCnt').textContent = hints();
+  $('hintBtn').classList.toggle('off', hints() < 1);
   // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
   $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
   $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);

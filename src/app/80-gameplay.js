@@ -91,12 +91,13 @@ function checkEnd(){
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
     setStars(levelNum, stars);
+    addHints(1); // +1 подсказка за успешный уровень (спека владельца)
     Telemetry.ev('win', { lv: levelNum, st: stars, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Уровень ' + levelNum + ' пройден!';
     $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     $('winStats').textContent =
       'Очки: ' + stats.score + (base ? ' / цель ' + Math.round(base * STAR2_K) : '') + '  ·  Время: ' + fmtTime(secs);
-    $('winCoins').textContent = '+' + level.coinsWon + ' 🪙';
+    $('winCoins').textContent = '+' + level.coinsWon + ' 🪙  ·  +1 💡';
     $('winX2Btn').style.display = '';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
@@ -291,13 +292,17 @@ function findHintGroup(){
 }
 function showHint(){
   if (level.over || intro) return;
+  if (hints() < 1){ toast('Подсказок нет'); return; }
   const grp = findHintGroup();
   if (!grp){
-    toast('Доступных пар нет — встряхните!');
+    toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим
     return;
   }
+  spendHint(); // числимый ресурс (спека владельца: старт 3, +1 за уровень)
+  Telemetry.ev('spend', { item: 'hint' });
   reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
+  updateHUD();
 }
 function hintPulse(item){
   const mat = item.mesh.material;

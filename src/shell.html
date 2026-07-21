@@ -58,6 +58,9 @@
     background:#3e63dd; border:none; border-radius:16px; color:#fff;
     padding:12px 22px; font-size:16px; font-weight:700; cursor:pointer; }
   #shakeBtn:active { transform:scale(.96); }
+  #hintBtn #hintCnt { background:rgba(255,255,255,.25); border-radius:9px; padding:1px 7px;
+    font-size:13px; margin-left:6px; }
+  #hintBtn.off { background:#333c4d; opacity:.6; }
   #hintBtn { pointer-events:auto; background:#2aa876; border:none;
     border-radius:16px; color:#fff; padding:12px 14px; font-size:15px; font-weight:700; cursor:pointer; }
   #hintBtn:active { transform:scale(.96); }
@@ -116,7 +119,7 @@
   </div>
   <div class="chip" id="mixerTimer" style="display:none">30 с</div>
   <div class="grp">
-    <button id="hintBtn">💡 Hint</button>
+    <button id="hintBtn">💡 Hint <span id="hintCnt">3</span></button>
     <button id="shakeBtn">
       <span id="shakeLbl">Shake</span>
       <span id="shakeDots"></span>
@@ -133,7 +136,7 @@
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-28 · 2026-07-21</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-29 · 2026-07-21</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">

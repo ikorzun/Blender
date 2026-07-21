@@ -381,7 +381,7 @@ window.__game = {
   awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
   accFlips(){ return accFlips; },
   // v1: кошелёк и звёзды (тесты экономики)
-  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, stars: Object.assign({}, Save.stars), total: totalStars() }; },
+  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(), stars: Object.assign({}, Save.stars), total: totalStars() }; },
   grant(n){ addCoins(n); updateHUD(); },
   combo(){
     const n = performance.now();
