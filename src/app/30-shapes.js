@@ -91,21 +91,38 @@ const TYPES = [
   // печатает tools/glb2module.py — держать синхронными с RC в конвертере.
   // Тона раскиданы по кругу с шагом 168° (а не подряд): соседи по списку
   // расходятся и по тону, и по светлоте (LIGHT_OFFSETS ниже).
-  { name:'squaresquidart',        color:0xe23636, rc:1.0, mat:'soft', geo:squaresquidartGeo },
-  { name:'tallgoldencrown3dicon', color:0x36e2c0, rc:1.0, mat:'soft', geo:tallgoldencrown3diconGeo },
-  { name:'frogaxonart',           color:0xe2367b, rc:1.0, mat:'soft', geo:frogaxonartGeo },
-  { name:'cahead',                color:0x36e27b, rc:1.0, mat:'soft', geo:caheadGeo },
-  { name:'cellphoneretro',        color:0xe236c0, rc:1.0, wr:0.35, mat:'soft', geo:cellphoneretroGeo },
-  { name:'concretemixer',         color:0x36e236, rc:1.0, mat:'soft', geo:concretemixerGeo },
-  { name:'iceskate',              color:0xc036e2, rc:1.0, mat:'soft', geo:iceskateGeo },
-  { name:'lifebuoy',              color:0x7be236, rc:1.0, mat:'soft', geo:lifebuoyGeo },
-  { name:'mouseretro',            color:0x7b36e2, rc:1.0, wr:0.96, mat:'soft', geo:mouseretroGeo },
-  { name:'noelcap',               color:0xc0e236, rc:1.0, mat:'soft', geo:noelcapGeo },
-  { name:'present01',             color:0x3636e2, rc:1.0, mat:'soft', geo:present01Geo },
-  { name:'pretzel',               color:0xe2c036, rc:1.0, mat:'soft', geo:pretzelGeo },
-  { name:'retrocomputerbooth',    color:0x367be2, rc:1.0, mat:'soft', geo:retrocomputerboothGeo },
-  { name:'rock01',                color:0xe27b36, rc:1.0, mat:'soft', geo:rock01Geo },
-  { name:'sausage',               color:0x36c0e2, rc:1.0, wr:0.99, mat:'soft', geo:sausageGeo },
+  // --- модели из «3d assets» (36-models, текстуры сняты) ---
+  // 24 зверя, 422-951 тр. каждый — упрощать не потребовалось ни одного.
+  // rc=1.0: у моделей охват ~0.9-1.1, приводим к общему.
+  // Тона раскиданы по кругу с шагом 105° (взаимно простым с 24), чтобы
+  // соседи по списку расходились и по тону, и по светлоте (LIGHT_OFFSETS).
+  // ⚠️ Зверей 24, а genLevel берёт первые typesCount = 9 + уровень − 1.
+  // Значит примитивы ниже начнут появляться только с 17-го уровня —
+  // фактически игра стала «звериной». Порядок блоков менять здесь.
+  { name:'animalbeaver',        color:0xe23636, rc:1.0, mat:'soft', geo:animalbeaverGeo },
+  { name:'animalbee',           color:0x61e236, rc:1.0, mat:'soft', geo:animalbeeGeo },
+  { name:'animalbunny',         color:0x368ce2, rc:1.0, mat:'soft', geo:animalbunnyGeo },
+  { name:'animalcat',           color:0xe236b7, rc:1.0, mat:'soft', geo:animalcatGeo },
+  { name:'animalcaterpillar',   color:0xe2e236, rc:1.0, mat:'soft', geo:animalcaterpillarGeo },
+  { name:'animalchick',         color:0x36e2b7, rc:1.0, mat:'soft', geo:animalchickGeo },
+  { name:'animalcow',           color:0x8c36e2, rc:1.0, mat:'soft', geo:animalcowGeo },
+  { name:'animalcrab',          color:0xe26136, rc:1.0, mat:'soft', geo:animalcrabGeo },
+  { name:'animaldeer',          color:0x36e236, rc:1.0, mat:'soft', geo:animaldeerGeo },
+  { name:'animaldog',           color:0x3661e2, rc:1.0, mat:'soft', geo:animaldogGeo },
+  { name:'animalelephant',      color:0xe2368c, rc:1.0, mat:'soft', geo:animalelephantGeo },
+  { name:'animalfish',          color:0xb7e236, rc:1.0, mat:'soft', geo:animalfishGeo },
+  { name:'animalfox',           color:0x36e2e2, rc:1.0, mat:'soft', geo:animalfoxGeo },
+  { name:'animalgiraffe',       color:0xb736e2, rc:1.0, mat:'soft', geo:animalgiraffeGeo },
+  { name:'animalhog',           color:0xe28c36, rc:1.0, mat:'soft', geo:animalhogGeo },
+  { name:'animalkoala',         color:0x36e261, rc:1.0, mat:'soft', geo:animalkoalaGeo },
+  { name:'animallion',          color:0x3636e2, rc:1.0, mat:'soft', geo:animallionGeo },
+  { name:'animalmonkey',        color:0xe23661, rc:1.0, mat:'soft', geo:animalmonkeyGeo },
+  { name:'animalpanda',         color:0x8ce236, rc:1.0, mat:'soft', geo:animalpandaGeo },
+  { name:'animalparrot',        color:0x36b7e2, rc:1.0, mat:'soft', geo:animalparrotGeo },
+  { name:'animalpenguin',       color:0xe236e2, rc:1.0, mat:'soft', geo:animalpenguinGeo },
+  { name:'animalpig',           color:0xe2b736, rc:1.0, mat:'soft', geo:animalpigGeo },
+  { name:'animalpolar',         color:0x36e28c, rc:1.0, mat:'soft', geo:animalpolarGeo },
+  { name:'animaltiger',         color:0x6136e2, rc:1.0, mat:'soft', geo:animaltigerGeo },
   // --- примитивы ---
   { name:'cube',   color:0xf2f4f8, rc:0.85, mat:'chrome',  geo:()=>new THREE.BoxGeometry(1.5,1.5,1.5) },
   { name:'ball',   color:0x7aa2ff, rc:0.95, mat:'soft',    geo:()=>new THREE.SphereGeometry(0.95,18,14) },

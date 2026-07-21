@@ -64,13 +64,20 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// Сюрприз со дна («археология» из концепции): золотой ПОДАРОК, не матчится,
+// Сюрприз со дна («археология» из концепции): золотая РЫБКА, не матчится,
 // светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS.
 // Модель вместо чайника — спека владельца 2026-07-20. Материал остаётся
 // MeshStandard (matcap не умеет emissive), и это к лучшему: настоящий блеск
 // золота среди «запечённых» предметов сам выделяет клад.
+// ⚠️ ГРАБЛЯ (обожглись 2026-07-21): геометрия сюрприза ЖЁСТКО ЗАВИСИТ от
+// содержимого папки «3d assets». Раньше здесь стоял present01Geo; владелец
+// заменил всю партию моделей — функция исчезла, genLevel падал на ReferenceError
+// ЕЩЁ ДО создания предметов, игра поднималась с пустой чашей и БЕЗ ошибки в
+// консоли. Поэтому теперь с проверкой и откатом на встроенный чайник, который
+// не зависит от папки. Если меняете модель — берите ту, что реально есть.
+const surpriseGeoFn = typeof animalfishGeo === 'function' ? animalfishGeo : teapotGeo;
 function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', present01Geo());
+  if (!geoCache.has('S')) geoCache.set('S', surpriseGeoFn());
   const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
   mat.envMapIntensity = 1.1;
   mat.emissive = new THREE.Color(0x6b4a00);
