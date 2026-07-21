@@ -2,6 +2,7 @@
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
 let lastMtText = null; // кэш отсчёта до помола — DOM трогаем только при смене
+let lastFireOn = null; // кэш огня угрозы (<5 с) — класс тоже только при смене
 
 // Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
 // кольца последних 600 кадров — сырое время кадра и время шага физики
@@ -305,12 +306,20 @@ function loop(){
   // и число меняло значение неравномерно. grinding уже посчитан выше; DOM
   // трогаем только при СМЕНЕ текста — перерисовка SVG-обводки не бесплатна.
   {
-    let txt = '';
+    let txt = '', fireOn = false;
     if (!intro && !level.over && items.some(i => i.alive)){
       const idleS = (now - stats.lastAction) / 1000;
       // при работе лопастей вместо красного «0» — слово Grinding (спека
       // владельца); и число, и слово всегда чёрные с белой обводкой (CSS)
       txt = grinding ? 'Grinding' : String(Math.max(0, Math.ceil(level.idleLimit - idleS)));
+      // ОГОНЬ у глаз (спека владельца: «появление огня, если таймер меньше
+      // 5 секунд», макет 751:1122): тот же источник времени, что у числа —
+      // остаток < 5 с или уже Grinding; гаснет, когда матч сбросил таймер
+      fireOn = grinding || (level.idleLimit - idleS) < 5;
+    }
+    if (fireOn !== lastFireOn){
+      lastFireOn = fireOn;
+      $('fFire').classList.toggle('on', fireOn);
     }
     if (txt !== lastMtText){
       lastMtText = txt;
