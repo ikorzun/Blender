@@ -106,10 +106,13 @@ function setFace(state, now, blinking){
 }
 function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
 function updateHUD(){
-  // макет 741:1497: слева «LV N», монет на игровом экране нет (спека
-  // владельца 2026-07-21 — кошелёк живёт в меню и магазине)
-  $('pairsLeft').textContent = 'LV ' + levelNum;
-  $('score').textContent = '★ ' + stats.score;
+  // мобильный макет 741:1738: справа стек «предметов / время / очки».
+  // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
+  $('pairsLeft').textContent = items.filter(i=>i.alive).length;
+  // колонка макета рассчитана на трёхзначные очки, а к 3-му уровню счёт
+  // пятизначный — крупные значения сжимаем, иначе стек наезжает на глаза
+  $('score').textContent = '★ ' + (stats.score >= 10000
+    ? (stats.score / 1000).toFixed(1) + 'k' : stats.score);
   const btn = $('shakeBtn');
   if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }
