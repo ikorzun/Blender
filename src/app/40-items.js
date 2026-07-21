@@ -57,7 +57,16 @@ function makeItem(typeIdx, size){
     });
     mat.envMapIntensity = 0.5;
   }
-  const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
+  const geo = geoCache.get(gkey);
+  // полуразмеры В ЛОКАЛЬНЫХ единицах — для честного теста стены по
+  // ориентированной коробке (radialReach в 50-physics). Считаются ОДИН раз
+  // на тип: геометрия общая через geoCache, масштаб подставляется отдельно.
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const half = { x: Math.max(Math.abs(bb.min.x), Math.abs(bb.max.x)),
+                 y: Math.max(Math.abs(bb.min.y), Math.abs(bb.max.y)),
+                 z: Math.max(Math.abs(bb.min.z), Math.abs(bb.max.z)) };
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.scale.setScalar(sz.s * MESH_SCALE);
   const item = {
@@ -67,7 +76,8 @@ function makeItem(typeIdx, size){
     // и без этого при распаде летела бы белая пыль вместо цветной
     fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
     r: t.rc * sz.s * MESH_SCALE, p: new THREE.Vector3(),
-    wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // горизонтальный габарит для теста стены
+    wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // запасной габарит (если half нет)
+    half, // полуразмеры в локальных единицах — тест стены по OBB
     scl: sz.s * MESH_SCALE,
     geo: geoCache.get(gkey), // для convex hull в физике
     body: null,
