@@ -56,25 +56,31 @@ function isAccessible(item){
 // меньше пола (дебаг/тесты) уважается как есть.
 function updateMatchRadius(){
   if (!level) return;
-  // цепная реакция: радиус БОЛЬШЕ НЕ «вся чаша» — потолок зазора 1.1
-  // (спека владельца 2026-07-21: «даже в турборежиме не больше 1.1»);
-  // фишки цепи остаются: досыпка, молнии, ×2, продление серии
-  if (chainUntil > performance.now()){ CFG.matchRadius = COMBO_RADIUS; return; }
   let top = 0, aliveCnt = 0;
   for (const it of items) if (it.alive){ top = Math.max(top, it.p.y + it.r); if (!it.surprise) aliveCnt++; }
   // ЭНДШПИЛЬ: остатки лежат на дне дальше друг от друга, чем зажатый в пол
   // радиус. Аудит ботом: 100% встрясок эндшпиля — из-за расстояния, ни одной
   // из-за захоронения. При <=8 живых радиусная проверка снимается.
+  // ⚠️ Проверка ПЕРВАЯ, раньше цепи: инвариант владельца «эндшпильный ∞
+  // СОХРАНЁН» — цепная реакция (потолок 1.1) не имеет права его душить,
+  // иначе последние пары в цепи снова не совмещаются (анти-фрустрация).
   if (aliveCnt <= 8){ CFG.matchRadius = 99; return; }
   const k = level.topY0 > 0 ? radiusAt(top) / radiusAt(level.topY0) : 1;
   const base = CFG.baseRadius;
-  CFG.matchRadius = Math.max(Math.min(MATCH_R_MIN, base), Math.min(base, base * k));
+  let r = Math.max(Math.min(MATCH_R_MIN, base), Math.min(base, base * k));
+  // цепная реакция: радиус БОЛЬШЕ НЕ «вся чаша» — потолок зазора 1.1
+  // (спека владельца 2026-07-21: «даже в турборежиме не больше 1.1»);
+  // фишки цепи остаются: досыпка, молнии, ×2, продление серии.
+  // Буст только ВВЕРХ: ручной слайдер выше потолка цепью не срезается
+  if (chainUntil > performance.now()){ CFG.matchRadius = Math.max(r, COMBO_RADIUS); return; }
   // комбо-лихорадка: радиус растёт ЛЕСЕНКОЙ по ступеням серии (не сразу
-  // до максимума — «мгновенные 3.5» владелец забраковал как слишком лёгкие)
+  // до максимума — «мгновенные 3.5» владелец забраковал как слишком лёгкие).
+  // Тоже только ВВЕРХ: при базе выше потолка лесенка радиус не понижает
   if (comboUntil > performance.now() && comboLevel > 0){
     const t = Math.min(1, comboLevel / COMBO_STEPS);
-    CFG.matchRadius = CFG.matchRadius + (COMBO_RADIUS - CFG.matchRadius) * t;
+    r = Math.max(r, r + (COMBO_RADIUS - r) * t);
   }
+  CFG.matchRadius = r;
 }
 // Состояние комбо: до какого момента горит буст, время последнего матча,
 // длина серии; цепная реакция: до какого момента, промахи на старте, тик досыпки
@@ -138,14 +144,19 @@ function trueGapWithin(a, b, r){
 function pairMatch(a, b){
   if (!CFG.radiusOn) return true;
   const r = CFG.matchRadius;
-  if (r >= 9) return true;                 // цепная реакция/эндшпиль: вся чаша
+  if (r >= 9) return true;                 // эндшпиль (<=8 живых): вся чаша
   if (pairDist(a, b) > r) return false;    // грубая фаза (без GJK)
-  if (!a.body || !b.body) return true;     // страховка: тело уже снято — охватный вердикт
+  // тело уже снято (animating/удалён): предмета физически нет — НЕ матч.
+  // Прежний охватный вердикт «true» тихо откатывал метрику v3 на старую
+  // щедрую сферу именно в гонке с растворением
+  if (!a.body || !b.body) return false;
   return trueGapWithin(a, b, r);
 }
 function availablePairs(){
   const byKey = {};
-  for (const it of items) if (it.alive && it.accessible) (byKey[it.key] = byKey[it.key]||[]).push(it);
+  // animating отсекаем и здесь: между refresh'ами тапнутый предмет ещё числится
+  // accessible, а его тело уже снято — пары с ним фантомные
+  for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key] = byKey[it.key]||[]).push(it);
   let cnt = 0;
   for (const k in byKey){
     const arr = byKey[k];

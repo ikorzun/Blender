@@ -137,6 +137,12 @@ addEventListener('resize', resize);
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
 // пауза не «съедает» простой и не гасит серию
 let paused = false, pausedAt = 0;
+// setTimeout-хвосты игровых цепочек (удаление матча, помол, финал) НЕ замирают
+// с паузой: колбэк, созревший под паузой, доделал бы removeItem/checkEnd —
+// вплоть до победы на застывшем экране. Такие колбэки оборачиваются в
+// afterPause: под паузой откладываются в очередь, resumeGame их дренирует.
+const pausedQueue = [];
+function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
 function pauseGame(){
   if (paused || intro || !level || level.over) return;
   paused = true; pausedAt = performance.now();
@@ -154,6 +160,9 @@ function resumeGame(){
   if (lastMatchMs) lastMatchMs += d;
   lastT = performance.now(); // без гигантского dt на первом кадре
   paused = false;
+  // дренаж отложенных цепочек СТРОГО после paused=false (иначе afterPause
+  // вернул бы их в очередь) и после сдвига якорей — колбэки читают часы
+  pausedQueue.splice(0).forEach(fn => { try { fn(); } catch(e){} });
   hide('pauseOverlay');
   updateHUD();
 }
@@ -176,8 +185,10 @@ function loop(){
     if (perfFrames > 5){ stepRing.push(stepMsLast); if (stepRing.length > 600) stepRing.shift(); }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
-    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего события
-    if (maxV < 0.25 && noAnim){
+    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего
+    // события. НЕ в интро: мгновение тишины между слоями сыплющегося столба —
+    // ещё не штиль, сон заморозил бы осадку (и интро-утряска не будит физику)
+    if (!intro && maxV < 0.25 && noAnim){
       calmT += dt;
       if (calmT > 0.4) sleepPhysics('calm');
     } else calmT = 0;
@@ -202,8 +213,8 @@ function loop(){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
-  // цепная реакция: досыпка по тику; гаснет по таймеру / 3 промахам /
-  // финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
+  // цепная реакция: досыпка по тику; гаснет по таймеру / CHAIN_MISSES=2
+  // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
     if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
       chainUntil = 0; comboCount = 0;
@@ -371,6 +382,7 @@ window.__game = {
     pendingTrim = false;
     finalizeFill(); // синхронно: тесты читают topY0/трим сразу после skipIntro
     sleepPhysics('skipIntro');
+    renderer.shadowMap.needsUpdate = true; // осадка прошла мимо loop-гейта — тень по финальной куче
   },
   level(){ return level; },
   stats(){ return stats; },
@@ -424,6 +436,7 @@ window.__game = {
     // world.step() или явной прокачки — иначе лучи бьют по фантому
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
     syncMeshes();
+    renderer.shadowMap.needsUpdate = true; // autoUpdate=false: телепорт без пробуждения физики оставлял тень на старом месте
     return true;
   },
   floaters(){

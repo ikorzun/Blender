@@ -70,11 +70,11 @@ function doMatch(list){
   addFX(new THREE.Object3D(), 0.14, (o,k)=>{
     list.forEach((it,i) => { it.mesh.scale.setScalar(scales[i]*(1-k)); });
   });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 150);
+  }), 150);
 }
 function checkEnd(){
   if (level.over) return;
@@ -108,6 +108,7 @@ function checkEnd(){
 }
 function showLose(){
   level.over = true;
+  hide('adAskOverlay'); // тупик мог созреть, пока открыт вопрос о встряске — не копим оверлеи
   Sound.play('lose');
   Telemetry.ev('lose', { lv: levelNum, alive: items.filter(i=>i.alive).length });
   const secs = Math.round((performance.now()-stats.t0)/1000);
@@ -180,11 +181,11 @@ function collectSurprise(it){
   vibrate(30);
   const s0 = it.mesh.scale.x;
   addFX(new THREE.Object3D(), 0.2, (o,k)=>{ it.mesh.scale.setScalar(s0*(1-k)); });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     removeItem(it);
     wakePhysics('gameplay:L70');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 200);
+  }), 200);
 }
 
 // Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
@@ -339,12 +340,12 @@ function mixerGrind(){
   });
   if (twin) dissolveFX(twin);
   camShake = Math.max(camShake, 0.22);
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor); // домололся — труха из-под ножей
     group.forEach(removeItem);
     wakePhysics('gameplay:L198');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 560);
+  }), 560);
 }
 // Финальная зачистка: парных не осталось — миксер уничтожает остатки (без штрафа)
 function finaleGrind(){
@@ -363,12 +364,12 @@ function finaleGrind(){
     low.mesh.rotation.y += 0.45;
     low.mesh.scale.setScalar(s0*(1-k*0.9));
   });
-  setTimeout(()=>{
+  setTimeout(()=>afterPause(()=>{
     bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor);
     removeItem(low);
     wakePhysics('gameplay:L222');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }, 410);
+  }), 410);
 }
 
 // ---------- Встряска ----------
@@ -423,6 +424,7 @@ function requestShake(){
 }
 function buyCoinShake(){
   hide('adAskOverlay');
+  if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
   if (!spendCoins(PRICE_SHAKE)){ toast('Не хватает монет'); return; }
   Telemetry.ev('spend', { item: 'shake' });
   performShake(); updateHUD();
@@ -434,7 +436,11 @@ function useFreeShake(){
 function startAd(){
   hide('adAskOverlay');
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
+    // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
+    // уровня, наставший за время ролика (встряске некого трясти)
+    if (level.over) return;
     level.adShakes--; stats.adShakesUsed++;
+    Telemetry.ev('rw', { p: 'shake' });
     performShake(); updateHUD();
   });
 }

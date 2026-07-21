@@ -68,6 +68,7 @@ scene.add(dl);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(env, 0.02).texture;
   pmrem.dispose();
+  geo.dispose(); mat.dispose(); // софтбокс запечён в PMREM — исходники GPU больше не нужны
 })();
 
 // ===== MATCAP — «запечённый свет» (прототип A/B, спека владельца 2026-07-20) =====
@@ -116,6 +117,10 @@ function makeMatcap(kind){
   for (let y = 0; y < S; y++){
     for (let x = 0; x < S; x++){
       let nx = (x + 0.5) / S * 2 - 1;
+      // ⚠️ Ревью 2026-07-21 сочло знак ny спорным (возможна V-инверсия против
+      // конвенции matcap). НЕ «исправлять» мимоходом: все пресеты ОТКАЛИБРОВАНЫ
+      // владельцем под текущий знак (свет сверху выглядит правильно) — менять
+      // только вместе с пересъёмкой пресетов и A/B-скринами.
       let ny = 1 - (y + 0.5) / S * 2;          // v текстуры растёт вниз
       const r2 = nx * nx + ny * ny;
       // за кругом держим значение кромки — фильтрация не затягивает чёрное
@@ -196,6 +201,10 @@ const matcapSpecPatch = function (sh) {
       + '\toutgoingLight *= uTune.x;\n'
       + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';'
     );
+  // страж якорной строки: replace по несуществующему якорю МОЛЧА ничего не
+  // делает (смена версии three) — глубина/блик/подсказка отвалились бы тихо
+  if (sh.fragmentShader.indexOf('uPileTop') < 0)
+    console.warn('matcap-патч НЕ применился: строка-якорь three изменилась (10-stage matcapSpecPatch)');
 };
 // Верх кучи для тонировки. ОДИН общий объект-юниформа: обновили .value —
 // обновились все 181 материал разом, без обхода сцены.
@@ -252,6 +261,12 @@ function skyPanorama(){
   tex.encoding = THREE.LinearEncoding;
   tex.minFilter = tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
+  // ЗАГЛУШКА ДО ДЕКОДА: без image three биндит чёрный пиксель — первые кадры
+  // загрузки небо мигало ЧЁРНЫМ. 1×1 цвета светлого горизонта незаметен глазу
+  const ph = document.createElement('canvas'); ph.width = ph.height = 1;
+  const phx = ph.getContext('2d'); phx.fillStyle = '#c4d6e6'; phx.fillRect(0, 0, 1, 1);
+  tex.image = ph;
+  tex.needsUpdate = true;
   const img = new Image();
   img.onload = () => { tex.image = img; tex.needsUpdate = true; };
   img.src = skyForNow();

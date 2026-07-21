@@ -103,7 +103,18 @@ function makeItem(typeIdx, size){
 // не зависит от папки. Если меняете модель — берите ту, что реально есть.
 const surpriseGeoFn = typeof animalfishGeo === 'function' ? animalfishGeo : gemGeo; // фолбэк БЕЗ чайника (удалён): процедурный кристалл не зависит от папки ассетов
 function makeSurprise(){
-  if (!geoCache.has('S')) geoCache.set('S', surpriseGeoFn());
+  // если рыбка есть и в TYPES — геометрию берём из общего кэша типов, а не
+  // плодим второй экземпляр той же BufferGeometry под ключом 'S'
+  if (!geoCache.has('S')){
+    const ti = TYPES.findIndex(t => t.geo === surpriseGeoFn);
+    if (ti >= 0){
+      const gkey = String(ti);
+      if (!geoCache.has(gkey)) geoCache.set(gkey, TYPES[ti].geo());
+      geoCache.set('S', geoCache.get(gkey)); // общий объект: dispose по 'S' не делается нигде
+    } else {
+      geoCache.set('S', surpriseGeoFn());
+    }
+  }
   const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
   mat.envMapIntensity = 1.1;
   mat.emissive = new THREE.Color(0x6b4a00);
@@ -199,6 +210,10 @@ function levelSize(){
 }
 
 function genLevel(){
+  Ads.cancel(); // висящий rewarded-показ замкнут на СТАРЫЙ level — награду глушим
+  // тени существуют только в MeshStandard-ветке: рантайм-флип CFG.matcap в ⚙️
+  // без этого оставлял полусостояние (теневой пасс на матах, которые его не видят)
+  renderer.shadowMap.enabled = !CFG.matcap;
   items.forEach(removeItem);
   items = [];
   buildTempTallWall(); // столб спавна выше кромки — держим высокой стеной

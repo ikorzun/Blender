@@ -40,7 +40,9 @@ const Sound = (function(){
   }
   function unlock(){
     ensure();
-    if (ctx && ctx.state === 'suspended') ctx.resume();
+    // не только 'suspended': iOS после звонка/сворачивания даёт 'interrupted' —
+    // резюмим из ЛЮБОГО не-running состояния, иначе звук молчал до перезагрузки
+    if (ctx && ctx.state !== 'running'){ try { ctx.resume(); } catch(e){} }
     loadSamples();
   }
   function env(t0, a, d, peak){
