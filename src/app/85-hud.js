@@ -18,7 +18,7 @@ function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'
 // Дуги eyes-4-4 УДАЛЕНЫ (спека владельца 2026-07-21): «добрые» показываем
 // не формой, а РАЗМЕРОМ зрачков — асимметрией eyes-5 (741:1357).
 const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fRound',
-  closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', squint:'fSquint' };
+  closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', sad:'fSad' };
 // Геометрия из ассетов (viewBox 240×120): белок r60, зрачок r29.
 const EYE_R = 60, PUP_MIN = 15, PUP_WIDE = 50;
 // eyes-5 (асимметрия: левый зрачок 40, правый белок 44 со зрачком 12) пока
@@ -104,11 +104,14 @@ function clampGaze(vec, pupR, eyeR){
 // тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
 function tickFace(now){
   // РЕАКЦИИ без правок в чужой зоне: следим за счётом. Вырос — зрачок
-  // «ахнул», упал (промах −7 или помол −20) — зажмурился.
-  if (level && !intro){
+  // «ахнул», упал (промах −7) — ГРУСТНО смотрят вниз (eyes-1-6, спека
+  // владельца). ⚠️ ВО ВРЕМЯ ПОМОЛА реакции ГЛУШАТСЯ: штраф −20 капает
+  // каждый помол, и грусть перебивала бы злые глаза — владелец требует
+  // «при работе блендера всегда злые».
+  if (level && !intro && !lastGrind){
     if (lastScoreSeen === null) lastScoreSeen = stats.score;
     else if (stats.score > lastScoreSeen) facePulse();
-    else if (stats.score < lastScoreSeen) faceEvent('squint', 220);
+    else if (stats.score < lastScoreSeen) faceEvent('sad', 700);
     lastScoreSeen = stats.score;
   } else lastScoreSeen = null;
   if (!nextBlinkAt) nextBlinkAt = now + 4000;
@@ -118,14 +121,24 @@ function tickFace(now){
     blinkUntil = now + 120;
     nextBlinkAt = now + 4000 + Math.random() * 3000;
   }
-  const st = faceHoldUntil > now ? faceHold : faceState;
-  setFace(st, now, blinkUntil > now && st !== 'lose');
+  // помол перебивает всё, включая короткие реакции и моргание
+  const st = lastGrind ? 'angry' : (faceHoldUntil > now ? faceHold : faceState);
+  setFace(st, now, blinkUntil > now && st !== 'lose' && !lastGrind);
 }
 function setFace(state, now, blinking){
   const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
-  for (const id of ['fRound','fAngry','fX','fSquint'])
+  for (const id of ['fRound','fAngry','fX','fSad'])
     $(id).classList.toggle('on', id === layer);
   svg.classList.toggle('blink', !!blinking);
+  if (layer === 'fAngry'){
+    // злые СЛЕДЯТ ЗА ЧАШЕЙ (спека владельца): влево -> вправо -> вниз,
+    // шаг ~0.8 с; CSS-переход на .p сглаживает; клип держит внутри белка
+    const seq = [[-11, 5], [11, 5], [0, 11]];
+    const g2 = seq[Math.floor((now || performance.now()) / 800) % 3];
+    $('pupAL').style.transform = 'translate(' + g2[0] + 'px,' + g2[1] + 'px)';
+    $('pupAR').style.transform = 'translate(' + g2[0] + 'px,' + g2[1] + 'px)';
+    return;
+  }
   if (layer !== 'fRound') return;                 // у прочих слоёв зрачков нет
   const t = now || performance.now();
   const sz = eyeSizes(t, state), g = gazeFor(t, state);
@@ -137,7 +150,8 @@ function setFace(state, now, blinking){
   $('wL').style.transform = 'scale(' + (sz.wl / EYE_R).toFixed(3) + ')';
   $('wR').style.transform = 'scale(' + (sz.wr / EYE_R).toFixed(3) + ')';
 }
-function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
+let lastGrind = false;
+function updateEyes(now, grinding){ lastGrind = !!grinding; faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
 // Ночь по тем же границам, что выбор панорамы в 05-sky (skyForNow):
 // 18..5. Дублируем сознательно: 05-sky сгенерирован тулзой и руками не
 // правится, а ошибка тут стоит лишь оттенка кнопки.
@@ -147,6 +161,7 @@ function isNightSky(){
 }
 function updateHUD(){
   document.documentElement.classList.toggle('night', isNightSky());
+  $('lvlNum').textContent = 'LV ' + levelNum; // виден на десктопе/планшете
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
   // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
   $('pairsLeft').textContent = items.filter(i=>i.alive).length;

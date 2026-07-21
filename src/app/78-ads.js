@@ -35,7 +35,7 @@ const Ads = (function(){
     if (!rewardCb) return;
     const fb = failCb; rewardCb = null; failCb = null;
     endPending();
-    if (!silent) toast('Реклама недоступна');
+    if (!silent) toast('Ad unavailable');
     if (fb) fb();
   }
   // Смена контекста (genLevel): висящий показ никого не должен наградить —
