@@ -205,7 +205,10 @@ function removeItem(it){
 // случайный размер предмета по разбросу текущего уровня (близнецы пары
 // получают ОДИН размер — size генерится на пару)
 function levelSize(){
-  const spread = Math.min(SIZE_SPREAD_MAX, SIZE_SPREAD_MIN + (levelNum - 1) * SIZE_SPREAD_STEP);
+  // первые 15 уровней — все предметы ОДНОГО размера (спека владельца
+  // 2026-07-21); рампа разброса начинается с 16-го: ±10% -> +4%/ур -> ±50%
+  if (levelNum <= SIZE_UNIFORM_LEVELS) return 1;
+  const spread = Math.min(SIZE_SPREAD_MAX, SIZE_SPREAD_MIN + (levelNum - SIZE_UNIFORM_LEVELS - 1) * SIZE_SPREAD_STEP);
   return 1 + (Math.random() * 2 - 1) * spread;
 }
 

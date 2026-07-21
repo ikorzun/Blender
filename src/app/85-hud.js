@@ -37,6 +37,10 @@ function eyesMood(now, grinding){
   if (idle > 8) return 'rolled';                  // заскучал
   return 'calm';
 }
+// Диск заряда у курсора (tickChainBar) УДАЛЁН: индикатор турбо теперь
+// РАЗМЕР ЗРАЧКА персонажа (спека владельца в чате ИНТЕРФЕЙСА: «полоски
+// нет, копит глаз») — см. pupilScale ниже. CHAIN_RING_ENABLED в 00-config
+// остался мёртвым флагом истории.
 // короткая реакция поверх состояния (тап по глазам, промах, сюрприз)
 function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; }
 // зрачки поворачиваются к точке экрана (тап игрока) на 1.4 с
@@ -73,38 +77,8 @@ function gazeFor(now, state){
     wander = [(Math.random() * 2 - 1) * 10, (Math.random() * 2 - 1) * 8]; }
   return [wander, wander];
 }
-// Диск заряда цепи СНИЗУ-СПРАВА от курсора/касания («пляжный мяч» Mac OS —
-// референс владельца): сектор-пирог conic-gradient. Копится
-// comboCount/CHAIN_COMBO_AT пока горит серия; в Power chain — остаток
-// времени. Зовётся каждый кадр. ⚠️ Работает ПАРАЛЛЕЛЬНО с индикацией
-// зрачками (спека владельца «турбо показывают глаза») — кольцо у курсора,
-// зрачки на персонаже; обе живут за своими флагами, ничего не дублируется
-// в одной точке экрана.
-function tickChainBar(now){
-  const cr = $('chainRing');
-  if (!CHAIN_RING_ENABLED){ if (cr.style.display !== 'none') cr.style.display = 'none'; return; }
-  let frac = -1, hot = false;
-  if (chainUntil > now){
-    frac = Math.max(0, (chainUntil - now) / CHAIN_MS); hot = true;
-  } else if (comboUntil > now && comboCount > 0 && level && !level.over){
-    frac = Math.min(1, comboCount / CHAIN_COMBO_AT);
-  }
-  if (frac < 0){ cr.style.display = 'none'; return; }
-  cr.style.display = 'block';
-  cr.classList.toggle('hot', hot); // .hot показывает пульсирующую молнию внутри
-  cr.style.left = lastPtrX + 'px';
-  cr.style.top = lastPtrY + 'px';
-  // турбо: ГОЛУБОЙ диск с белой молнией; выработанное время — приглушённый
-  // сектор того же голубого. Зарядка: зелёный пирог на прозрачном.
-  if (hot){
-    cr.style.background = 'conic-gradient(#4da6ff 0 ' + (frac * 100).toFixed(1) + '%, rgba(77,166,255,.38) 0 100%)';
-  } else {
-    cr.style.background = 'conic-gradient(#2aa876 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)';
-  }
-}
 // тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
 function tickFace(now){
-  tickChainBar(now);
   // РЕАКЦИИ без правок в чужой зоне: следим за счётом. Вырос — зрачок
   // «ахнул», упал (промах −7 или помол −20) — зажмурился.
   if (level && !intro){
@@ -147,10 +121,10 @@ function updateHUD(){
   if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }
   else { btn.classList.add('off'); btn.classList.remove('ad'); $('shakeLbl').textContent = 'No shakes'; }
-  // Чипа монет на игровом экране НЕТ (мобильный макет + COINS_ENABLED в main
-  // ведут в одну сторону) — счётчики валюты живут, показываем их в меню.
-  // Счётчик подсказок из main сохраняем: он висит бейджем на круглой кнопке.
-  $('hintCnt').textContent = hints();
+  // чипа монет и счётчика подсказок в макете 741:1738 НЕТ (монеты к тому же
+  // скрыты COINS_ENABLED; кошелёк уедет в меню). Заряды подсказок живут в
+  // сейве — кнопка просто гаснет при нуле
+  $('hintCnt').textContent = hints(); // остаток зарядов бейджем на кнопке
   $('hintBtn').classList.toggle('off', hints() < 1);
   // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
   $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';

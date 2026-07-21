@@ -44,7 +44,13 @@
     padding:0; flex:none; }
   .iconBtn svg { width:32px; height:32px; display:block; }
   .iconBtn:active { transform:scale(.94); }
-  #hintBtn { background:transparent; border:3px solid var(--ink); }
+  #hintBtn { background:transparent; border:3px solid var(--ink); position:relative; }
+  /* подсказки расходуемые (main): счётчик бейджем на круглой кнопке макета,
+     кнопка гаснет на нуле — без этого игрок не видит остаток и жмёт впустую */
+  #hintCnt { position:absolute; right:-2px; bottom:-2px; min-width:20px; height:20px;
+    border-radius:10px; background:var(--ink); color:#fff; font-family:var(--font-round);
+    font-size:12px; font-weight:900; line-height:20px; text-align:center; padding:0 5px; }
+  #hintBtn.off { opacity:.45; pointer-events:none; }
   .pop { position:fixed; z-index:9; pointer-events:none; font-weight:800; font-size:19px;
     transform:translate(-50%,-50%);
     /* спека владельца: очки — белые с чёрной обводкой минимум 2px
@@ -94,23 +100,6 @@
   #shakeBtn.off { background:#8b8fa0; }
   #scopeBtn, #magnetBtn { pointer-events:auto; background:#fff; border:none;
     border-radius:999px; width:56px; height:56px; font-size:20px; color:var(--ink); cursor:pointer; }
-  /* --- из main: заряд цепи ДИСКОМ-«пляжный мяч» снизу-справа от курсора
-     (референс владельца — курсор загрузки Mac OS). Живёт параллельно с
-     индикацией зрачками: кольцо у пальца, зрачки на персонаже. --- */
-  #chainRing { display:none; position:fixed; width:30px; height:30px; z-index:6;
-    pointer-events:none; transform:translate(9px, 9px); border-radius:50%;
-    border:2px solid rgba(255,255,255,.9); }
-  #chainBolt { display:none; position:absolute; inset:0; margin:auto; width:16px; height:16px;
-    fill:#fff; } /* белая молния на голубом диске (спека владельца) */
-  #chainRing.hot #chainBolt { display:block; animation:boltPulse .5s ease-in-out infinite alternate; }
-  @keyframes boltPulse { from { transform:scale(1); } to { transform:scale(1.25); } }
-  /* --- из main: подсказки стали расходуемыми — счётчик бейджем на круглой
-     кнопке макета, кнопка гаснет при нуле --- */
-  #hintBtn { position:relative; }
-  #hintCnt { position:absolute; right:-2px; bottom:-2px; min-width:20px; height:20px;
-    border-radius:10px; background:var(--ink); color:#fff; font-family:var(--font-round);
-    font-size:12px; font-weight:900; line-height:20px; text-align:center; padding:0 5px; }
-  #hintBtn.off { opacity:.45; pointer-events:none; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
     opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
@@ -185,9 +174,6 @@
   </svg>
   <div id="mixerTimer" style="display:none">30</div>
 </div>
-<!-- эмодзи-глаза из main не нужны: персонаж выше — инлайновый SVG.
-     Кольцо заряда цепи (main) остаётся: оно висит у курсора, не в конструкции. -->
-<div id="chainRing"><svg id="chainBolt" viewBox="0 0 24 24"><path d="M13 2 L5 13 h5 L9.5 22 L19 9 h-5.5 Z"/></svg></div>
 
 <div id="toast"></div>
 
@@ -196,9 +182,6 @@
     <button class="iconBtn" id="hintBtn" aria-label="Подсказка"><svg viewBox="0 0 32 32" fill="none">
       <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
     </svg><span id="hintCnt">3</span></button>
-    <!-- ⚙️ и пауза из нижнего бара убраны: пауза стоит слева СВЕРХУ по
-         макету, настройки открываются из неё -->
-
     <button id="scopeBtn" title="Прицел: показать все пары">🎯<span class="mini">15</span></button>
     <button id="magnetBtn" title="Металлоискатель">🧲</button>
   </div>
@@ -228,7 +211,7 @@
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-35 · 2026-07-21</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-36 · 2026-07-21</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -259,16 +242,6 @@
       <button class="ghost" id="loseContinue">Look around</button>
       <button class="ghost" id="loseAdContinue">📺 Continue</button>
       <button class="primary" id="loseAgainBtn">Retry</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="pauseOverlay">
-  <div class="card">
-    <h2>Пауза</h2>
-    <p>Миксер подождёт. Всё замерло — время не тикает.</p>
-    <div class="btns">
-      <button class="primary" id="resumeBtn">Resume ▶</button>
     </div>
   </div>
 </div>

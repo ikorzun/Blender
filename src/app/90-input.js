@@ -109,16 +109,15 @@ $('eyes').addEventListener('click', ()=>{
   Sound.play('match', 1); vibrate(10);
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
 });
-// ПАУЗА (макет: кнопка слева сверху вместо ⚙️). Настоящей остановки цикла
-// нет — как и во время рекламы, просто не даём миксеру есть предметы, пока
-// оверлей открыт: на возврате отсчёт до перемолки начинается заново.
-$('pauseBtn').addEventListener('click', ()=>{ show('pauseOverlay'); });
-$('resumeBtn').addEventListener('click', ()=>{
-  hide('pauseOverlay'); if (level) stats.lastAction = performance.now();
-});
-$('pauseRestart').addEventListener('click', ()=>{ hide('pauseOverlay'); genLevel(); });
+// ПАУЗА (макет ИНТЕРФЕЙСА: кнопка слева сверху вместо ⚙️, оверлей с
+// Continue/Restart/Settings). Под капотом — НАСТОЯЩАЯ заморозка pauseGame/
+// resumeGame (99-main): стоп-кадр, сдвиг всех часовых якорей, afterPause-
+// очередь; хендлеры pauseBtn/resumeBtn ниже, у блока клавиатуры.
+// Выходы из паузы в genLevel/настройки обязаны резюмить (иначе loop стоит
+// стоп-кадром, а интро нового уровня не тикает).
+$('pauseRestart').addEventListener('click', ()=>{ resumeGame(); genLevel(); });
 $('pauseSettings').addEventListener('click', ()=>{
-  hide('pauseOverlay'); $('debugPanel').style.display = 'block';
+  resumeGame(); $('debugPanel').style.display = 'block';
 });
 $('loseContinue').addEventListener('click', ()=>{ hide('loseOverlay'); level.over = false; level.stuck = -8; }); // ~5 c форы, потом тупик покажется снова
 // ⚙️-панель открывается из паузы (кнопки ⚙️ на игровом экране больше нет)
