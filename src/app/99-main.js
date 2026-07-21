@@ -263,12 +263,22 @@ function loop(){
       }
     }
   }
-  // фон-помол: ВЕРХ неба наливается красным, пока крутятся лопасти (зеркально
-  // нижней лихорадке комбо). Лерп ~0.35 с как у uCombo; юниформа и градиент —
-  // 10-stage. Правка санкционирована диспетчером (спека 2026-07-21-в): сигнал
-  // grinding живёт здесь, в hud-тике, рядом с обновлением uCombo выше.
+  // фон-помол: ВЕРХ неба наливается красным — ЛЕСЕНКА УГРОЗЫ (спека владельца
+  // 2026-07-21-г). Работают лопасти -> цель 1.0; иначе за <GRIND_LEAD с до помола
+  // цель растёт САМА по таймеру (GRIND_LEAD−left)/GRIND_LEAD «медленно»; матч
+  // сбрасывает lastAction -> left подскакивает до idleLimit -> цель 0. Гаснет
+  // БЫСТРЕЕ, чем растёт (вниз GRIND_FADE_DN ~0.2 с, вверх GRIND_FADE_UP ~0.35 с).
+  // Гейты intro/over и сигнал grinding — те же, что у миксера выше. Правка в
+  // 99-main санкционирована диспетчером (спека 2026-07-21-в/г): таймер живёт тут.
   if (skyMat){
-    const gTgt = grinding ? 1 : 0, gCur = skyMat.uniforms.uGrind.value, gStep = dt / 0.35;
+    let gTgt = 0;
+    if (grinding) gTgt = 1;
+    else if (!level.over && !intro && items.some(i=>i.alive)){
+      const left = level.idleLimit - (now - stats.lastAction)/1000; // сек до помола
+      if (left < GRIND_LEAD) gTgt = Math.min(1, Math.max(0, (GRIND_LEAD - left)/GRIND_LEAD));
+    }
+    const gCur = skyMat.uniforms.uGrind.value;
+    const gStep = dt / (gTgt < gCur ? GRIND_FADE_DN : GRIND_FADE_UP); // вниз быстрее подъёма
     skyMat.uniforms.uGrind.value = gCur < gTgt ? Math.min(gTgt, gCur + gStep) : Math.max(gTgt, gCur - gStep);
   }
   // лопасти: стоят, пока миксер не работает (владельца нервировало холостое вращение)
