@@ -29,23 +29,30 @@
      небе и на куче предметов цифры иначе сливаются. Как у попов очков:
      stroke + 8-направленная тень фолбэком (обводка переживает и градиентную
      заливку очков, где color:transparent). */
-  /* числа стека 22px — обводка 2px; число отсчёта 55px — 7px по спеке
-     владельца из Figma (пропорция та же ~0.13 кегля).
-     ⚠️ paint-order:stroke fill ОБЯЗАТЕЛЕН: без него -webkit-text-stroke
-     рисует обводку ПОВЕРХ заливки и съедает глиф изнутри — при 7px от
-     чёрной цифры остались бы одни ошмётки. */
-  .hnum { -webkit-text-stroke:2px #fff; paint-order:stroke fill;
-    text-shadow:2px 0 0 #fff, -2px 0 0 #fff, 0 2px 0 #fff, 0 -2px 0 #fff,
-      2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff; }
-  #mixerTimer { -webkit-text-stroke:7px #fff; paint-order:stroke fill; }
+  /* ⚠️ ОБВОДКА ТЕНЯМИ, А НЕ -webkit-text-stroke (жалоба владельца «кривая
+     обводка, срезаются углы»): stroke соединяет контур ОСТРЫМИ стыками и
+     браузер их подрезает — на стыках цифр появлялись зазубрины, а толщина
+     гуляла. Двенадцать теней по кругу дают контур РОВНОЙ ширины с круглыми
+     углами (погрешность многоугольника при 12 лучах ~1% радиуса).
+     Числа стека 22px — радиус 2, число отсчёта 55px — радиус 7 (спека). */
+  .hnum { text-shadow:
+    2px 0 0 #fff, 1.73px 1px 0 #fff, 1px 1.73px 0 #fff, 0 2px 0 #fff,
+    -1px 1.73px 0 #fff, -1.73px 1px 0 #fff, -2px 0 0 #fff, -1.73px -1px 0 #fff,
+    -1px -1.73px 0 #fff, 0 -2px 0 #fff, 1px -1.73px 0 #fff, 1.73px -1px 0 #fff; }
+  #mixerTimer { text-shadow:
+    7px 0 0 #fff, 6.06px 3.5px 0 #fff, 3.5px 6.06px 0 #fff, 0 7px 0 #fff,
+    -3.5px 6.06px 0 #fff, -6.06px 3.5px 0 #fff, -7px 0 0 #fff, -6.06px -3.5px 0 #fff,
+    -3.5px -6.06px 0 #fff, 0 -7px 0 #fff, 3.5px -6.06px 0 #fff, 6.06px -3.5px 0 #fff; }
   /* ⚠️ ОЧКАМ ни stroke, ни text-shadow НЕЛЬЗЯ: заливка у них — ФОН, обрезанный
      по тексту (background-clip:text, color:transparent). Порядок отрисовки —
      фон, потом тени, потом текст, поэтому белые тени закрашивают градиент, а
      stroke затирает его сверху: число становится белым. Обводку даёт
      drop-shadow — фильтр применяется к УЖЕ отрисованному глифу и градиент
      переживает. Четырёх направлений хватает при 2px. */
-  #score { filter:drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
-    drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff); }
+  #score { filter:drop-shadow(2px 0 0 #fff) drop-shadow(1.4px 1.4px 0 #fff)
+    drop-shadow(0 2px 0 #fff) drop-shadow(-1.4px 1.4px 0 #fff)
+    drop-shadow(-2px 0 0 #fff) drop-shadow(-1.4px -1.4px 0 #fff)
+    drop-shadow(0 -2px 0 #fff) drop-shadow(1.4px -1.4px 0 #fff); }
   #timer { color:#0caa1e; }                       /* зелёный из макета, JS не трогает */
   /* стек 72px как в макете, но растёт влево на длинных числах: в мокапе
      счёт трёхзначный, а в игре к 3-му уровню он пятизначный и «★ 12480»
@@ -65,7 +72,8 @@
     padding:0; flex:none; }
   .iconBtn svg { width:32px; height:32px; display:block; }
   .iconBtn:active { transform:scale(.94); }
-  #hintBtn { background:transparent; border:3px solid var(--ink); position:relative; }
+  /* белая заливка как у паузы (спека владельца), иконка и счётчик чёрные */
+  #hintBtn { position:relative; }
   /* подсказки расходуемые (main): счётчик бейджем на круглой кнопке макета,
      кнопка гаснет на нуле — без этого игрок не видит остаток и жмёт впустую */
   #hintCnt { position:absolute; right:-2px; bottom:-2px; min-width:20px; height:20px;
