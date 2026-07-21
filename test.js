@@ -85,7 +85,8 @@ const path = require('path');
   expect(winShown === 'flex', 'экран победы показан');
   expect(shakes <= 12, 'встрясок тупика в разумном бюджете (' + shakes + ' <= 12)');
   expect(endgameRadius !== null && endgameRadius > 10, 'эндшпиль <=8 живых снимает радиус (∞), даже поверх цепи (' + endgameRadius + ')');
-  expect(endgameTy !== null && endgameTy < 3.5, 'камера сама опустилась за кучей к эндшпилю (ty ' + endgameTy + ')');
+  expect(endgameTy !== null && endgameTy <= 3.3 && endgameTy >= 3.1,
+    'автопан к эндшпилю дошёл до пола трети хода 3.2 и не глубже (ty ' + endgameTy + ')');
   await page.screenshot({ path: 'shot_win.png' });
 
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения
