@@ -198,7 +198,8 @@ function reachGhostFX(item, color){
   if (!geo.boundingBox) geo.computeBoundingBox();
   const bb = geo.boundingBox, s = item.mesh.scale.x;
   const R = Math.min(CFG.matchRadius, 3.6); // в цепи/эндшпиле не больше чаши
-  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.06, 0.34));
+  // воздушный вариант (спека владельца): прозрачнее втрое, кромка мягкая и широкая
+  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.02, 0.16, 1.1));
   ghost.position.copy(item.mesh.position);
   ghost.quaternion.copy(item.mesh.quaternion);
   ghost.scale.set(

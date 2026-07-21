@@ -20,7 +20,8 @@ function stepFX(dt){
 }
 // Френель-«призрак»: прозрачная сфера, плотнее у силуэта (общий материал
 // для сферы радиуса и маркеров — никакого wireframe, он читался как артефакт)
-function fresnelGhostMat(color, base, edge){
+function fresnelGhostMat(color, base, edge, fpow){
+  const p = (fpow || 1.8); // меньше степень — шире и мягче кромка («размытые грани»)
   return new THREE.ShaderMaterial({
     transparent:true, depthTest:false, depthWrite:false,
     uniforms:{ c:{ value:new THREE.Color(color).convertSRGBToLinear() }, op:{ value:1 } },
@@ -30,8 +31,9 @@ function fresnelGhostMat(color, base, edge){
     ].join('\n'),
     fragmentShader: [
       'varying vec3 vN; varying vec3 vV; uniform vec3 c; uniform float op;',
-      'void main(){ float ndv=abs(dot(normalize(vN),normalize(-vV))); float fres=pow(1.0-ndv,1.8);',
-      '  gl_FragColor = vec4(c, op*(' + base.toFixed(3) + ' + fres*' + edge.toFixed(3) + ')); }',
+      'void main(){ float ndv=abs(dot(normalize(vN),normalize(-vV))); float fres=pow(1.0-ndv,' + p.toFixed(2) + ');',
+      '  float a = op*(' + base.toFixed(3) + ' + smoothstep(0.0, 1.0, fres)*' + edge.toFixed(3) + ');',
+      '  gl_FragColor = vec4(c, a); }',
     ].join('\n'),
   });
 }
