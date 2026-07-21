@@ -97,8 +97,10 @@ function checkEnd(){
     $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     $('winStats').textContent =
       'Очки: ' + stats.score + (base ? ' / цель ' + Math.round(base * STAR2_K) : '') + '  ·  Время: ' + fmtTime(secs);
-    $('winCoins').textContent = '+' + level.coinsWon + ' 🪙  ·  +1 💡';
-    $('winX2Btn').style.display = '';
+    // монеты скрыты: награда уровня на экране — звёзды + подсказка;
+    // начисление выше живёт (вернётся вместе с COINS_ENABLED)
+    $('winCoins').textContent = COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  +1 💡') : '+1 💡';
+    $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
     Ads.noteWin();
@@ -412,11 +414,12 @@ function requestShake(){
   if (level.over || intro) return;
   if (level.shakes > 0){
     useFreeShake(); // без подтверждения — сразу (по требованию владельца)
-  } else if (level.adShakes > 0 || coins() >= PRICE_SHAKE){
+  } else if (level.adShakes > 0 || (COINS_ENABLED && coins() >= PRICE_SHAKE)){
     // корректировка аудита: монеты НЕ конкурируют с бесплатной рекламой —
     // покупка за 25 открывается только после исчерпания rewarded-капа
+    // (при скрытых монетах покупной ветки нет вовсе)
     $('adYes').style.display = level.adShakes > 0 ? '' : 'none';
-    $('coinShakeBtn').style.display = (level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
+    $('coinShakeBtn').style.display = (COINS_ENABLED && level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
     show('adAskOverlay');
   } else {
     toast('Встряски закончились');
