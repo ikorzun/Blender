@@ -9,16 +9,41 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
 function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
-// Глаза миксера — персонаж (план: «блендер с глазами, 3-4 эмоции»).
-// Настроение по приоритету: финал > цепная реакция > помол > комбо > скука
+// ===== Персонаж: 7 эмоций (матрица владельца 2026-07-21) =====
+// Логика отдаёт ИМЯ состояния, отрисовка — отдельно (setFace): сейчас
+// эмодзи-ЗАГЛУШКА, дальше SVG со слоем зрачков — менять только FACE_GLYPH.
+const FACE_STATES = ['calm','kind','angry','surprised','closed','sly','rolled'];
+const FACE_GLYPH = { // ВРЕМЕННО, до приезда ассетов
+  calm:'👀', kind:'😊', angry:'😠', surprised:'😲', closed:'😑', sly:'😏', rolled:'🙄' };
+let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0;
+// Приоритет сверху вниз. Лесенка угрозы: спокойные -> закатанные -> хитрые -> злые
 function eyesMood(now, grinding){
-  if (!level || intro) return '👀';
-  if (level.over) return items.every(i => !i.alive) ? '🥳' : '😵';
-  if (chainUntil > now) return '🤩';
-  if (grinding) return '😠';
-  if (comboUntil > now) return '😄';
-  if ((now - stats.lastAction)/1000 > level.idleLimit - 5) return '🥱';
-  return '👀';
+  if (!level || intro) return 'calm';
+  if (level.over) return items.every(i => !i.alive) ? 'kind' : 'closed';
+  if (chainUntil > now) return 'surprised';       // турбо
+  if (grinding) return 'angry';                   // лопасти едят вещи
+  const idle = (now - stats.lastAction)/1000;
+  if (level.idleLimit - idle <= 3) return 'sly';  // предвкушение: ≤3 с до перемолки
+  if (comboUntil > now) return 'kind';            // горит серия
+  if (idle > 8) return 'rolled';                  // заскучал
+  return 'calm';
+}
+// короткая реакция поверх состояния (тап по глазам, раскопанный сюрприз)
+function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; }
+// тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
+function tickFace(now){
+  tickChainBar(now);
+  if (!nextBlinkAt) nextBlinkAt = now + 4000;
+  // моргание 120 мс раз в 4-7 с, только в спокойных/добрых
+  if (now > nextBlinkAt && (faceState === 'calm' || faceState === 'kind')){
+    blinkUntil = now + 120;
+    nextBlinkAt = now + 4000 + Math.random() * 3000;
+  }
+  setFace(faceHoldUntil > now ? faceHold : (blinkUntil > now ? 'closed' : faceState));
+}
+function setFace(state){
+  const el = $('eyes'), g = FACE_GLYPH[state] || FACE_GLYPH.calm;
+  if (el.textContent !== g) el.textContent = g;
 }
 // Полоска заряда цепи: копится comboCount/CHAIN_COMBO_AT пока серия горит;
 // в реакции — ОСТАТОК времени Power chain (оранжевая). Зовётся каждый кадр.
@@ -36,12 +61,7 @@ function tickChainBar(now){
     cb.style.display = 'none';
   }
 }
-function updateEyes(now, grinding){
-  const el = $('eyes');
-  if (el.classList.contains('bounce')) return; // идёт реакция на тап
-  const m = eyesMood(now, grinding);
-  if (el.textContent !== m) el.textContent = m;
-}
+function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
 function updateHUD(){
   const left = items.filter(i=>i.alive).length;
   $('pairsLeft').textContent = 'Ур.' + levelNum + ' · ' + left; // уровень + предметов осталось

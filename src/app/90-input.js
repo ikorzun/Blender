@@ -97,7 +97,7 @@ $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
   el.classList.remove('bounce'); void el.offsetWidth;
   el.classList.add('bounce');
-  el.textContent = '😉';
+  faceEvent('sly', 800); // подмигнул в ответ на тап
   Sound.play('match', 1); vibrate(10);
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
 });

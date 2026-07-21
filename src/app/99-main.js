@@ -157,7 +157,7 @@ function loop(){
   }
   stepFX(dt);
   tickVeil(dt);
-  tickChainBar(now);
+  tickFace(now); // глаза + отсчёт + полоска турбо (одна конструкция)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -258,7 +258,8 @@ function loop(){
       level.stuck++;
       if (level.stuck >= 2) showLose();
     } else level.stuck = Math.min(level.stuck, 0);
-    if (!level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000));
+    // время партии УБРАНО из HUD (спека владельца 2026-07-21): на экране
+    // остаётся один таймер — отсчёт до перемолки в конструкции персонажа
   }
   // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
   // чаша не нужна и мешает совмещать): полная плотность при camR>=13.5,
