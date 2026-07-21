@@ -27,20 +27,25 @@
     font-variant-numeric:tabular-nums; line-height:1.2; }
   /* БЕЛАЯ ОБВОДКА вокруг каждого числа (спека владельца): на небе и на
      куче предметов цифры иначе сливаются. */
-  /* ⚠️ ОБВОДКА ТЕНЯМИ, А НЕ -webkit-text-stroke (жалоба владельца «кривая
-     обводка, срезаются углы»): stroke соединяет контур ОСТРЫМИ стыками и
-     браузер их подрезает — на стыках цифр появлялись зазубрины, а толщина
-     гуляла. Двенадцать теней по кругу дают контур РОВНОЙ ширины с круглыми
-     углами (погрешность многоугольника при 12 лучах ~1% радиуса).
-     Числа стека 22px — радиус 2, число отсчёта 55px — радиус 7 (спека). */
+  /* Обводка мелких чисел стека — 12 теней по кругу радиусом 2: на таком
+     радиусе многоугольник неотличим от круга. Крупному тексту у глаз тени
+     НЕ годятся (владелец забраковал волнистый край) — он ниже сделан
+     SVG-текстом с настоящим stroke. */
   .hnum { text-shadow:
     2px 0 0 #fff, 1.73px 1px 0 #fff, 1px 1.73px 0 #fff, 0 2px 0 #fff,
     -1px 1.73px 0 #fff, -1.73px 1px 0 #fff, -2px 0 0 #fff, -1.73px -1px 0 #fff,
     -1px -1.73px 0 #fff, 0 -2px 0 #fff, 1px -1.73px 0 #fff, 1.73px -1px 0 #fff; }
-  #mixerTimer { text-shadow:
-    7px 0 0 #fff, 6.06px 3.5px 0 #fff, 3.5px 6.06px 0 #fff, 0 7px 0 #fff,
-    -3.5px 6.06px 0 #fff, -6.06px 3.5px 0 #fff, -7px 0 0 #fff, -6.06px -3.5px 0 #fff,
-    -3.5px -6.06px 0 #fff, 0 -7px 0 #fff, 3.5px -6.06px 0 #fff, 6.06px -3.5px 0 #fff; }
+  /* Число отсчёта и слово Grinding — SVG-текст с НАСТОЯЩЕЙ обводкой.
+     Единицы viewBox (240 в ширину), поэтому всё масштабируется вместе с
+     конструкцией. stroke рисуется по центру контура, наружу уходит
+     половина — значит stroke-width вдвое больше нужной толщины.
+     Пропорция спеки владельца: обводка 14% кегля (7px при 50px). */
+  #mixerTimer { font-family:var(--font-round); font-weight:900; font-size:62.6px;
+    fill:#000; stroke:#fff; stroke-width:17.6; stroke-linejoin:round; paint-order:stroke;
+    font-variant-numeric:tabular-nums; }
+  /* Grinding длиннее числа — кегль вдвое меньше, обводка ТОЖЕ вдвое: при
+     фиксированной обводке на мелком кегле буквы заплывали в кашу */
+  #mixerTimer.grind { font-size:31.3px; stroke-width:8.8; letter-spacing:.5px; }
   /* ⚠️ ОЧКАМ ни stroke, ни text-shadow НЕЛЬЗЯ: заливка у них — ФОН, обрезанный
      по тексту (background-clip:text, color:transparent). Порядок отрисовки —
      фон, потом тени, потом текст, поэтому белые тени закрашивают градиент, а
@@ -118,14 +123,12 @@
   #eyes.blink .eye { transform:scaleY(.06); }
   /* число отсчёта: садится на низ глаз (79.33/210 макета) и масштабируется
      вместе с конструкцией — 54.8px при ширине экрана 393 */
-  #mixerTimer { position:absolute; left:0; right:0; top:calc(var(--eyeW) * .378); text-align:center;
-    font-family:var(--font-round); font-weight:900; font-size:calc(var(--eyeW) * .261); line-height:1; color:#000;
-    font-variant-numeric:tabular-nums; }
+  #mixerTimerSvg { position:absolute; left:0; right:0; top:calc(var(--eyeW) * .378);
+    width:100%; height:calc(var(--eyeW) * .325); overflow:visible; }
     /* мягкая тень макета (0 4.7px 16px) СНЯТА по спеке владельца: она
        читалась как градиентный фейд под глазами и числом */
   /* во время помола вместо красного «0» — слово Grinding тем же стилем,
      кегль меньше: «Grinding» в 55px не влезает в 191px конструкции */
-  #mixerTimer.grind { font-size:calc(var(--eyeW) * .13); letter-spacing:.5px; }
   /* нижние кнопки макета: «Shake ×3» — тёмная пилюля, подсказка — контурный круг */
   #shakeBtn { pointer-events:auto; height:56px; padding:16px 22px; border:none; border-radius:999px;
     background:var(--ink); color:#fff; font-family:var(--font-round); font-size:18px; font-weight:700;
@@ -211,7 +214,12 @@
       <path d="M174.77 39.477a10 10 0 0 1 10.777.203l36 24a10 10 0 1 1-11.094 16.64L180 60.018 149.547 80.32a10 10 0 0 1-11.094-16.64l36-24 .317-.203Z" fill="#000"/>
     </g>
   </svg>
-  <div id="mixerTimer" style="display:none">30</div>
+  <!-- отсчёт/Grinding — SVG-ТЕКСТ, а не div: только у него есть настоящая
+       обводка со скруглёнными стыками (stroke-linejoin round). Тенями по
+       кругу край получается волнистым — владелец забраковал качество. -->
+  <svg id="mixerTimerSvg" viewBox="0 0 240 78" style="display:none">
+    <text id="mixerTimer" x="120" y="58" text-anchor="middle">30</text>
+  </svg>
 </div>
 
 <div id="toast"></div>

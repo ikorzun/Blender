@@ -292,19 +292,18 @@ function loop(){
     // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
     // в красную по мере истечения времени; при помоле — красный «0 с»
     const finale = alive && !hasAnyPair();
-    const mt = $('mixerTimer');
+    const mt = $('mixerTimer'); // <text> внутри #mixerTimerSvg
     if (intro || level.over || !alive){
-      mt.style.display = 'none';
+      $('mixerTimerSvg').style.display = 'none';
     } else {
       const leftS = grinding ? 0 : Math.max(0, Math.ceil(level.idleLimit - idle));
       // при работе лопастей вместо красного «0» — слово Grinding (спека
       // владельца): ноль не объяснял, что происходит
       mt.textContent = grinding ? 'Grinding' : leftS;
       mt.classList.toggle('grind', grinding);
-      // в макете число чёрное; краснеет только на грани — там же, где
-      // персонаж переходит в «хитрые» (лесенка угрозы)
-      mt.style.color = leftS <= 3 ? '#e02424' : '#000';
-      mt.style.display = 'block';
+      // КРАСНОГО В ТЕКСТЕ НЕТ (спека владельца): и число, и слово Grinding
+      // всегда чёрные с белой обводкой. Цвет задан в CSS (fill), здесь не трогаем.
+      $('mixerTimerSvg').style.display = 'block';
     }
     // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
     // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает
