@@ -124,6 +124,10 @@ $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// Звук интерфейса: один делегированный хук на ВСЕ кнопки (спека владельца)
+document.addEventListener('click', e => {
+  if (e.target && e.target.closest && e.target.closest('button')) Sound.play('ui');
+}, true);
 // Space = встряска (десктоп): гварды внутри requestShake (интро/конец)
 addEventListener('keydown', e => {
   if (e.code === 'Space' && !e.repeat){ e.preventDefault(); if (!paused) requestShake(); }

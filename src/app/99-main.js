@@ -392,6 +392,7 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  sfx(){ return Sound.loaded(); }, // какие аудио-сэмплы декодированы
   // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
   // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
   // по которым ловятся утечки (тела/коллайдеры/меши/геометрии/DOM/куча)
