@@ -17,6 +17,17 @@ const WANT = [['morning', 'skybox-morning.png'], ['day', 'skybox-day.png'], ['ni
 
 (async () => {
   const [srcDir, outPath] = process.argv.slice(2);
+  // без проверки следующая сессия молча собрала бы мусор: node не ругается
+  // на undefined в path.join, а fs.existsSync вернёт false для каждой панорамы
+  if (!srcDir || !outPath) {
+    console.error('Запуск: node tools/sky2module.js <каталог со скайбоксами> <выход.js>');
+    console.error('Пример: node tools/sky2module.js "3d assets/skyboxes/Skyboxes" src/app/05-sky.js');
+    process.exit(1);
+  }
+  if (!fs.existsSync(srcDir)) {
+    console.error('Каталог не найден:', srcDir);
+    process.exit(1);
+  }
   const b = await chromium.launch();
   const p = await b.newPage();
   const parts = [`// ===== 05-sky: панорамы неба (data-модуль) =====

@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 """GLB -> data-модуль src/app/36-models.js (однофайловая сборка, лоадеров нет).
 
-ТЕКСТУРЫ И UV ОТБРАСЫВАЮТСЯ намеренно (просьба владельца 2026-07-20):
-берём только геометрию, цвет приходит из палитры TYPES как у примитивов.
+Запуск:
+    python3 tools/glb2module.py <выход.js> <каталог>:<префикс> [<каталог>:<префикс> ...]
 
-Что делает: сливает все примитивы модели в один НЕиндексированный массив
-позиций (flat-шейдинг через computeVertexNormals, как у стейка), применяет
-трансформы нод, центрирует по bbox и нормирует охват под rc.
+Пример (три пачки, у каждой СВОЙ палитровый атлас):
+    python3 tools/glb2module.py src/app/36-models.js \
+        "3d assets/Animals/.lowpoly:animal" \
+        "3d assets/Food/.lowpoly:food" \
+        "3d assets/Car/.lowpoly:car"
 
-Запуск:  python3 tools/glb2module.py "3d assets" src/app/36-models.js
+Каталоги — это ВЫХОД tools/blender-decimate.py, а не исходная папка: тяжёлые
+модели должны быть упрощены ДО этого шага, здесь форма неприкосновенна.
+
+Что кладётся в модуль:
+- позиции, ИСХОДНЫЕ НОРМАЛИ и UV, индексный буфер КАК В ФАЙЛЕ. Нормали и
+  индексы не пересчитываются: они кодируют, где шов жёсткий, а где гладкий.
+  Пересчёт через computeVertexNormals давал ПЛОСКОЕ гранение, и любая модель
+  выглядела грубым комком независимо от полигонажа;
+- палитровый атлас КАЖДОЙ пачки как data-URI (реестр MODEL_ATLASES). Ищется
+  в <каталог>/Textures/colormap.png и на уровень выше — Blender-проход
+  копирует только .glb и папку Textures за собой не тащит;
+- геометрия центрируется и нормируется под охват RC; имена функций
+  префиксуются пачкой (иначе animal-fish и просто fish столкнулись бы).
+
+Печатает готовые строки для TYPES в 30-shapes.js — цвет проставляется руками
+(у моделей с текстурой поле color красит НЕ модель, а труху при распаде).
 """
 import json, os, re, struct, sys
 
@@ -195,13 +212,24 @@ const MODEL_ATLASES = {};
 const _atlasTex = {};
 function modelColormap(pack){
   if (_atlasTex[pack]) return _atlasTex[pack];
+  // ⚠️ 1×1 БЕЛАЯ ЗАГЛУШКА до декода PNG. Без неё у текстуры первые кадры нет
+  // изображения вовсе, выборка даёт нули, а шейдер МНОЖИТ на неё — модели
+  // вспыхивают ЧЁРНЫМ на старте уровня. Белая заглушка нейтральна: множитель
+  // 1.0, предмет просто секунду виден без раскраски. Небу такую же заглушку
+  // подложили в 10-stage — причина та же.
+  const stub = document.createElement('canvas');
+  stub.width = stub.height = 1;
+  const sg = stub.getContext('2d');
+  sg.fillStyle = '#fff'; sg.fillRect(0, 0, 1, 1);
   const img = new Image();
-  const t = new THREE.Texture(img);
+  const t = new THREE.Texture(stub);
   t.flipY = false;                 // glTF считает UV от ВЕРХНЕГО левого угла
   t.encoding = THREE.sRGBEncoding;
   t.magFilter = t.minFilter = THREE.LinearFilter;
   t.generateMipmaps = false;       // полосы атласа узкие, мипы смешали бы их
-  img.onload = () => { t.needsUpdate = true; };
+  // подменяем источник только КОГДА картинка готова — обе картинки
+  // image-подобные, путь загрузки в three один и тот же
+  img.onload = () => { t.image = img; t.needsUpdate = true; };
   img.src = MODEL_ATLASES[pack];
   _atlasTex[pack] = t;
   return t;
