@@ -504,7 +504,7 @@ window.__game = {
     });
     return m;
   },
-  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), intro: !!intro }; },
+  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro }; },
   // отладка: поиск NaN в состоянии предметов
   scanNaN(){
     const bad = [];

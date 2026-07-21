@@ -2,6 +2,19 @@
 
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
 function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
+// ВЕРТИКАЛЬНЫЙ ПАН ВЗГЛЯДА (спека владельца 2026-07-21: «чуть сместить
+// камеру по вертикали, чтобы приподнять и рассмотреть остатки»): target
+// камеры ездит по Y в узких пределах — вниз до дна (остатки в центре
+// кадра), чуть вверх от дефолта. Основные жесты НЕ меняются; пан висит
+// на ДОПОЛНИТЕЛЬНЫХ: движение ЦЕНТРА двухпальцевого щипка (зум как был —
+// расстоянием), вертикальный драг ПРАВОЙ кнопкой, Shift+колесо.
+// Сбрасывается на границах интро (resetPointers).
+const TARGET_Y_MIN = 1.2, TARGET_Y_MAX = 5.2, TARGET_Y_DEF = 4.2;
+function setTargetY(y){
+  camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, y));
+  updateCamera();
+}
+let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
 let pDown = null, dragging = false, pinch = null;
 // последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
 let lastPtrX = innerWidth / 2, lastPtrY = innerHeight / 2;
@@ -9,10 +22,11 @@ const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована — жесты не копим
+  if (e.button === 2){ rdrag = { y: e.clientY, ty0: camTarget.y }; return; } // правый драг = пан, в тап/орбиту не идёт
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
     const [a,b] = [...touches.values()];
-    pinch = { d0: Math.hypot(a.x-b.x, a.y-b.y), r0: camR };
+    pinch = { d0: Math.hypot(a.x-b.x, a.y-b.y), r0: camR, cy: (a.y+b.y)/2 };
     pDown = null; dragging = false; // пинч отменяет тап и вращение
   } else if (touches.size === 1){
     pDown = { x:e.clientX, y:e.clientY, az:camAz, phi:camPhi };
@@ -25,11 +39,16 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована
+  if (rdrag){ setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // контент следует за мышью
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
     const [a,b] = [...touches.values()];
     const d = Math.hypot(a.x-b.x, a.y-b.y);
     if (d > 1) setCamR(pinch.r0 * pinch.d0 / d); // пальцы разводятся -> приближение
+    // движение ЦЕНТРА щипка по вертикали — пан взгляда (контент следует за пальцами)
+    const cy = (a.y + b.y) / 2;
+    setTargetY(camTarget.y + (cy - pinch.cy) * 0.012);
+    pinch.cy = cy;
     return;
   }
   if (!pDown) return;
@@ -44,12 +63,14 @@ canvas.addEventListener('pointermove', e => {
 function endPointer(e){
   touches.delete(e.pointerId);
   if (touches.size < 2) pinch = null;
+  rdrag = null;
 }
 // сброс всех жестов (вызывается на границах интро: зажатый в интро палец
 // не должен превращаться в драг со старой базой камеры)
 function resetPointers(){
   touches.clear();
-  pDown = null; dragging = false; pinch = null;
+  pDown = null; dragging = false; pinch = null; rdrag = null;
+  setTargetY(TARGET_Y_DEF); // пан взгляда не переживает границы интро/уровня
 }
 canvas.addEventListener('pointerup', e => {
   if (pDown && !dragging && !pinch && !intro) handleTap(e.clientX, e.clientY);
@@ -57,7 +78,14 @@ canvas.addEventListener('pointerup', e => {
   pDown = null; dragging = false;
 });
 canvas.addEventListener('pointercancel', e => { endPointer(e); pDown = null; dragging = false; });
-canvas.addEventListener('wheel', e => { e.preventDefault(); if (!intro) setCamR(camR + e.deltaY * 0.012); }, { passive:false });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (intro) return;
+  // Shift+колесо — вертикальный пан взгляда (скролл вниз = смотреть ниже);
+  // обычное колесо — зум, как было
+  if (e.shiftKey) setTargetY(camTarget.y - e.deltaY * 0.004);
+  else setCamR(camR + e.deltaY * 0.012);
+}, { passive:false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 
