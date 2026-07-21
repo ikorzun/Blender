@@ -530,5 +530,6 @@ if (!window.RAPIER){
   RAPIER.init().then(() => {
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
+    grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
   }).catch(e => { window.__fatal && window.__fatal('Физика не инициализировалась: ' + e.message); });
 }

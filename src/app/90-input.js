@@ -128,6 +128,12 @@ $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='n
 addEventListener('keydown', e => {
   if (e.code === 'Space' && !e.repeat){ e.preventDefault(); if (!paused) requestShake(); }
 });
+// Клавиатура должна работать СРАЗУ, без клика по чаше: во встраивании
+// (превью-панель, порталы) iframe глух к клавишам, пока не получит фокус —
+// забираем его программно при старте и при каждом возврате в окно
+function grabKeyFocus(){ try { canvas.focus({ preventScroll: true }); } catch(e){} }
+addEventListener('focus', grabKeyFocus);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) grabKeyFocus(); });
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
