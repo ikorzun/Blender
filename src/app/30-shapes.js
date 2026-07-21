@@ -108,30 +108,64 @@ const TYPES = [
   // медведь, тигр); бурые лохматики — бобёр, олень, заяц, кабан, обезьяна —
   // уведены в хвост: с родной раскраской они похожи друг на друга, а матч
   // идёт ПО ТИПУ, и путать их на старте нельзя.
-  { name:'animalbee',           color:0xffd633, rc:1.0, tex:1, mat:'soft', geo:animalbeeGeo }, // жёлто-чёрная
-  { name:'animalcrab',          color:0xff5a2b, rc:1.0, tex:1, mat:'soft', geo:animalcrabGeo }, // красный
-  { name:'animalpig',           color:0xff9ec4, rc:1.0, tex:1, mat:'soft', geo:animalpigGeo }, // розовый
-  { name:'animalpenguin',       color:0x3a4048, rc:1.0, tex:1, mat:'soft', geo:animalpenguinGeo }, // чёрно-белый
-  { name:'animalcaterpillar',   color:0x5ac44a, rc:1.0, tex:1, mat:'soft', geo:animalcaterpillarGeo }, // зелёная
-  { name:'animalfish',          color:0xff8c3a, rc:1.0, tex:1, mat:'soft', geo:animalfishGeo }, // оранжевая
-  { name:'animalelephant',      color:0x9aa6b4, rc:1.0, tex:1, mat:'soft', geo:animalelephantGeo }, // серый
-  { name:'animalpolar',         color:0xe8eef4, rc:1.0, tex:1, mat:'soft', geo:animalpolarGeo }, // белый
-  { name:'animaltiger',         color:0xff8a2b, rc:1.0, tex:1, mat:'soft', geo:animaltigerGeo }, // полосатый
-  { name:'animalpanda',         color:0xd8dce2, rc:1.0, tex:1, mat:'soft', geo:animalpandaGeo }, // чёрно-белая
-  { name:'animalcow',           color:0xe6ddd0, rc:1.0, tex:1, mat:'soft', geo:animalcowGeo }, // пятнистая
-  { name:'animalparrot',        color:0xe2453a, rc:1.0, tex:1, mat:'soft', geo:animalparrotGeo }, // пёстрый
-  { name:'animalkoala',         color:0x9ba3ad, rc:1.0, tex:1, mat:'soft', geo:animalkoalaGeo }, // серая
-  { name:'animalcat',           color:0x6b7280, rc:1.0, tex:1, mat:'soft', geo:animalcatGeo }, // серый
-  { name:'animalgiraffe',       color:0xe0b23a, rc:1.0, tex:1, mat:'soft', geo:animalgiraffeGeo }, // жёлтый
-  { name:'animalchick',         color:0xffd84a, rc:1.0, tex:1, mat:'soft', geo:animalchickGeo }, // жёлтый
-  { name:'animalfox',           color:0xf07a34, rc:1.0, tex:1, mat:'soft', geo:animalfoxGeo }, // рыжая
-  { name:'animallion',          color:0xd9a05b, rc:1.0, tex:1, mat:'soft', geo:animallionGeo }, // песочный
-  { name:'animalmonkey',        color:0xa9713f, rc:1.0, tex:1, mat:'soft', geo:animalmonkeyGeo }, // бурая
-  { name:'animaldog',           color:0xc98f5a, rc:1.0, tex:1, mat:'soft', geo:animaldogGeo }, // песочный
-  { name:'animalbeaver',        color:0x9c6b42, rc:1.0, tex:1, mat:'soft', geo:animalbeaverGeo }, // бурый
-  { name:'animaldeer',          color:0xb07a4a, rc:1.0, tex:1, mat:'soft', geo:animaldeerGeo }, // бурый
-  { name:'animalbunny',         color:0xd8b895, rc:1.0, tex:1, mat:'soft', geo:animalbunnyGeo }, // бежевый
-  { name:'animalhog',           color:0x8d6144, rc:1.0, tex:1, mat:'soft', geo:animalhogGeo }, // бурый
+  // --- модели владельца из «3d assets» (36-models) ---
+  // 24 зверя + 24 блюда, ПЕРЕМЕШАНЫ через одного (спека владельца
+  // 2026-07-21: «перемешай животных и еду в миксер»). Чередование не
+  // косметика: genLevel берёт первые 9+уровень−1 типов, и без него на
+  // старте были бы одни звери, а еда всплыла бы только к 25-му уровню.
+  // Раскраска РОДНАЯ: у каждой пачки СВОЙ атлас (tex:'animal'/'food'),
+  // цвет материала белый. Поле `color` красит НЕ модель, а ТРУХУ
+  // при распаде — подобрано под каждый предмет.
+  // Внутри пачек порядок задан РАЗЛИЧИМОСТЬЮ: впереди контрастные
+  // (пчела, пицца, краб, банан), похожие бурые звери — в хвосте.
+  { name:'animalbee',             color:0xffd633, rc:1.0, tex:'animal', mat:'soft', geo:animalbeeGeo },
+  { name:'foodpizza',             color:0xe8a33d, rc:1.0, tex:'food', mat:'soft', geo:foodpizzaGeo },
+  { name:'animalcrab',            color:0xff5a2b, rc:1.0, tex:'animal', mat:'soft', geo:animalcrabGeo },
+  { name:'foodbanana',            color:0xffe14d, rc:1.0, tex:'food', mat:'soft', geo:foodbananaGeo },
+  { name:'animalpig',             color:0xff9ec4, rc:1.0, tex:'animal', mat:'soft', geo:animalpigGeo },
+  { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
+  { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
+  { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', geo:fooddonutsprinklesGeo },
+  { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
+  { name:'foodburger',            color:0xc98a4b, rc:1.0, tex:'food', mat:'soft', geo:foodburgerGeo },
+  { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
+  { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
+  { name:'animalelephant',        color:0x9aa6b4, rc:1.0, tex:'animal', mat:'soft', geo:animalelephantGeo },
+  { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
+  { name:'animalpolar',           color:0xe8eef4, rc:1.0, tex:'animal', mat:'soft', geo:animalpolarGeo },
+  { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },
+  { name:'animaltiger',           color:0xff8a2b, rc:1.0, tex:'animal', mat:'soft', geo:animaltigerGeo },
+  { name:'foodcupcake',           color:0xffa8c8, rc:1.0, tex:'food', mat:'soft', geo:foodcupcakeGeo },
+  { name:'animalpanda',           color:0xd8dce2, rc:1.0, tex:'animal', mat:'soft', geo:animalpandaGeo },
+  { name:'foodicecream',          color:0xffd9b8, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamGeo },
+  { name:'animalcow',             color:0xe6ddd0, rc:1.0, tex:'animal', mat:'soft', geo:animalcowGeo },
+  { name:'foodtaco',              color:0xf0b040, rc:1.0, tex:'food', mat:'soft', geo:foodtacoGeo },
+  { name:'animalparrot',          color:0xe2453a, rc:1.0, tex:'animal', mat:'soft', geo:animalparrotGeo },
+  { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
+  { name:'animalkoala',           color:0x9ba3ad, rc:1.0, tex:'animal', mat:'soft', geo:animalkoalaGeo },
+  { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
+  { name:'animalcat',             color:0x6b7280, rc:1.0, tex:'animal', mat:'soft', geo:animalcatGeo },
+  { name:'foodcarrot',            color:0xff8c2b, rc:1.0, tex:'food', mat:'soft', geo:foodcarrotGeo },
+  { name:'animalgiraffe',         color:0xe0b23a, rc:1.0, tex:'animal', mat:'soft', geo:animalgiraffeGeo },
+  { name:'foodcheese',            color:0xffd24a, rc:1.0, tex:'food', mat:'soft', geo:foodcheeseGeo },
+  { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
+  { name:'foodfries',             color:0xffc94a, rc:1.0, tex:'food', mat:'soft', geo:foodfriesGeo },
+  { name:'animalfox',             color:0xf07a34, rc:1.0, tex:'animal', mat:'soft', geo:animalfoxGeo },
+  { name:'foodhotdog',            color:0xe07a4a, rc:1.0, tex:'food', mat:'soft', geo:foodhotdogGeo },
+  { name:'animallion',            color:0xd9a05b, rc:1.0, tex:'animal', mat:'soft', geo:animallionGeo },
+  { name:'foodcroissant',         color:0xe0b070, rc:1.0, tex:'food', mat:'soft', geo:foodcroissantGeo },
+  { name:'animalmonkey',          color:0xa9713f, rc:1.0, tex:'animal', mat:'soft', geo:animalmonkeyGeo },
+  { name:'foodcookie',            color:0xc08a50, rc:1.0, tex:'food', mat:'soft', geo:foodcookieGeo },
+  { name:'animaldog',             color:0xc98f5a, rc:1.0, tex:'animal', mat:'soft', geo:animaldogGeo },
+  { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
+  { name:'animalbeaver',          color:0x9c6b42, rc:1.0, tex:'animal', mat:'soft', geo:animalbeaverGeo },
+  { name:'foodmushroom',          color:0xe8ddc8, rc:1.0, tex:'food', mat:'soft', geo:foodmushroomGeo },
+  { name:'animaldeer',            color:0xb07a4a, rc:1.0, tex:'animal', mat:'soft', geo:animaldeerGeo },
+  { name:'foodpineapple',         color:0xf0c040, rc:1.0, tex:'food', mat:'soft', geo:foodpineappleGeo },
+  { name:'animalbunny',           color:0xd8b895, rc:1.0, tex:'animal', mat:'soft', geo:animalbunnyGeo },
+  { name:'foodtomato',            color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodtomatoGeo },
+  { name:'animalhog',             color:0x8d6144, rc:1.0, tex:'animal', mat:'soft', geo:animalhogGeo },
+  { name:'foodapple',             color:0xe83a3a, rc:1.0, tex:'food', mat:'soft', geo:foodappleGeo },
   // --- примитивы ---
   { name:'cube',   color:0xf2f4f8, rc:0.85, mat:'chrome',  geo:()=>new THREE.BoxGeometry(1.5,1.5,1.5) },
   { name:'ball',   color:0x7aa2ff, rc:0.95, mat:'soft',    geo:()=>new THREE.SphereGeometry(0.95,18,14) },

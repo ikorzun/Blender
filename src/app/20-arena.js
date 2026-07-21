@@ -20,10 +20,38 @@ const GLASS_T = 0.26; // толщина стекла
   // рендерить ВЕСЬ мир второй раз в FBO (замер аудита: ~55% КАЖДОГО кадра).
   // При ior 1.0 стекло и так ничего не преломляло — прозрачность даёт тот же
   // «практически незаметный» вид за долю цены. transmission НЕ возвращать.
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, metalness: 0, roughness: 0.03,
-    transparent: true, opacity: 0.08, depthWrite: false,
-    envMapIntensity: 0.06, specularIntensity: 0.25,
+  // ПОЛНОСТЬЮ ПРОЗРАЧНОЕ СТЕКЛО (спека владельца 2026-07-21, обведено красным):
+  // в лоб чаша не видна ВООБЩЕ, проступает только мягкий край по касательной.
+  // Прежняя равномерная opacity 0.08 затягивала белёсой плёнкой всю площадь
+  // и глушила предметы; здесь плёнки нет — альфа берётся из ФРЕНЕЛЯ, то есть
+  // растёт лишь там, где поверхность уходит от взгляда ребром.
+  // GLASS_POW правит мягкость перехода: больше — уже и резче кромка.
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: {
+      uEdge: { value: GLASS_EDGE },   // яркость кромки
+      uPow:  { value: GLASS_POW },    // мягкость перехода
+      uFade: { value: 1 },            // растворение при зуме (99-main)
+    },
+    vertexShader: [
+      'varying vec3 vN; varying vec3 vV;',
+      'void main(){',
+      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+      '  vN = normalize(normalMatrix * normal);',
+      '  vV = normalize(-mv.xyz);',
+      '  gl_Position = projectionMatrix * mv;',
+      '}',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float uEdge; uniform float uPow; uniform float uFade;',
+      'varying vec3 vN; varying vec3 vV;',
+      'void main(){',
+      // abs() — чтобы кромка читалась и на гранях, отвёрнутых от камеры
+      '  float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));',
+      '  f = pow(clamp(f, 0.0, 1.0), uPow);',
+      '  gl_FragColor = vec4(1.0, 1.0, 1.0, f * uEdge * uFade);',
+      '}',
+    ].join('\n'),
   });
   const bowl = new THREE.Mesh(lathe, mat); scene.add(bowl);
   bowlMesh = bowl; bowlMat = mat; // для растворения стекла при зуме (99-main)

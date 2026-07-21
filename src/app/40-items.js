@@ -29,7 +29,7 @@ function makeItem(typeIdx, size){
       color: t.mat === 'chrome' ? 0xb8c0cc
            : (t.tex || t.mat === 'model') ? 0xffffff
            : candyColor(t.color, t.dl),
-      map: t.tex ? modelColormap() : null,
+      map: t.tex ? modelColormap(t.tex) : null,
       // у текстурных — почти белый matcap, иначе он пережимает авторские цвета
       matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
@@ -52,7 +52,7 @@ function makeItem(typeIdx, size){
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
     mat = new THREE.MeshStandardMaterial({
       color: t.tex ? 0xffffff : candyColor(t.color, t.dl),
-      map: t.tex ? modelColormap() : null,
+      map: t.tex ? modelColormap(t.tex) : null,
       metalness: 0, roughness: 0.18,
     });
     mat.envMapIntensity = 0.5;

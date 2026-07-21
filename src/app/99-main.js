@@ -278,8 +278,9 @@ function loop(){
   // полностью тает к camR<=10 (smoothstep)
   if (bowlMat){
     const gk = Math.max(0, Math.min(1, (camR - 10) / 3.5));
-    bowlMat.opacity = 0.08 * gk * gk * (3 - 2 * gk);
-    bowlMesh.visible = bowlMat.opacity > 0.004;
+    const k = gk * gk * (3 - 2 * gk);
+    bowlMat.uniforms.uFade.value = k;   // стекло — ShaderMaterial (20-arena)
+    bowlMesh.visible = k > 0.02;
   }
   // тени перерисовываем только когда что-то движется (свет статичен; в штиле
   // экономим ~150 теневых draw calls каждый кадр)

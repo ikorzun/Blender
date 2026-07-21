@@ -216,7 +216,27 @@ function tickDepthTint(dt){
 // draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.
 if (CFG.matcap) renderer.shadowMap.enabled = false;
 
-// Небо: БЕЛОЕ поле (по требованию владельца). ShaderMaterial минует
+// ПАНОРАМА НЕБА (спека владельца 2026-07-21: «используй дневное небо, может
+// стоит ориентироваться на время на компьютере игрока»). Отменяет прежний
+// инвариант «поле БЕЛОЕ» — он держался до появления скайбоксов в ассетах.
+// ⚠️ encoding = LinearEncoding НАМЕРЕННО: шейдер неба минует конвертацию
+// рендерера, поэтому сырые sRGB-байты панорамы идут на экран как есть —
+// ровно так же, как раньше сюда клали сырые sRGB-цвета градиента.
+// ⚠️ Мипы выключены: сфера неба огромная, панорама всегда УВЕЛИЧЕНА, а мипы
+// сожрали бы 33% лишней памяти на текстуру, которая ими не пользуется.
+function skyPanorama(){
+  const tex = new THREE.Texture();
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.encoding = THREE.LinearEncoding;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  const img = new Image();
+  img.onload = () => { tex.image = img; tex.needsUpdate = true; };
+  img.src = skyForNow();
+  return tex;
+}
+
+// Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
 // (без convertSRGBToLinear) — #ffffff даёт настоящий белый на экране.
 let skyMat = null; // фон-лихорадка: uCombo подкрашивает низ красным (99-main)
@@ -226,10 +246,7 @@ let skyMat = null; // фон-лихорадка: uCombo подкрашивает
     uniforms: {
       uCombo: { value: 0 }, // 0 — обычное небо, 0.55 — комбо, 1 — цепная реакция
       uResY:  { value: 1 },  // высота канваса в device px (для экранного градиента)
-      cTop:  { value: new THREE.Color(0xffffff) },
-      cMid:  { value: new THREE.Color(0xf8fafc) },
-      cBot:  { value: new THREE.Color(0xf0f2f6) },
-      cGlow: { value: new THREE.Color(0xf3f6fd) },
+      uSky:   { value: skyPanorama() }, // панорама по времени суток (05-sky)
     },
     vertexShader: [
       'varying vec3 vDir;',
@@ -237,13 +254,13 @@ let skyMat = null; // фон-лихорадка: uCombo подкрашивает
     ].join('\n'),
     fragmentShader: [
       'varying vec3 vDir;',
-      'uniform vec3 cTop; uniform vec3 cMid; uniform vec3 cBot; uniform vec3 cGlow; uniform float uCombo; uniform float uResY;',
+      'uniform sampler2D uSky; uniform float uCombo; uniform float uResY;',
       'void main(){',
-      '  float h = vDir.y;',
-      '  vec3 col = mix(cBot, cMid, smoothstep(-0.35, 0.10, h));',
-      '  col = mix(col, cTop, smoothstep(0.10, 0.75, h));',
-      '  float band = exp(-pow((h - 0.16) / 0.16, 2.0));',
-      '  col = mix(col, cGlow, band * 0.5);',
+      // равнопромежуточная развёртка: направление взгляда -> UV панорамы
+      '  vec3 d = normalize(vDir);',
+      '  vec2 uv = vec2(atan(d.z, d.x) / 6.2831853 + 0.5,',
+      '                 asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);',
+      '  vec3 col = texture2D(uSky, uv).rgb;',
       // лихорадка: ЭКРАННЫЙ градиент — снизу красный, кверху белый (спека
       // владельца). Мировой (по vDir.y) из камеры сверху заливал ВСЁ красным.
       '  float sy = gl_FragCoord.y / uResY;',

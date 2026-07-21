@@ -188,6 +188,36 @@ def num(x):
     return '0' if s in ('', '-0') else s
 
 
+ATLAS_JS = """// Реестр палитровых атласов: у КАЖДОЙ пачки моделей (звери, еда, машины)
+// СВОЙ colormap. Пока пачка была одна, атлас тоже был один — со второй все
+// модели брали бы чужую палитру.
+const MODEL_ATLASES = {};
+const _atlasTex = {};
+function modelColormap(pack){
+  if (_atlasTex[pack]) return _atlasTex[pack];
+  const img = new Image();
+  const t = new THREE.Texture(img);
+  t.flipY = false;                 // glTF считает UV от ВЕРХНЕГО левого угла
+  t.encoding = THREE.sRGBEncoding;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;       // полосы атласа узкие, мипы смешали бы их
+  img.onload = () => { t.needsUpdate = true; };
+  img.src = MODEL_ATLASES[pack];
+  _atlasTex[pack] = t;
+  return t;
+}
+function modelGeo(pos, nrm, uv, idx){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  if (uv) g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  // нормали ИЗ ФАЙЛА: сглаживание там, где его задумал автор модели
+  if (nrm) g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  else g.computeVertexNormals();
+  return g;
+}"""
+
+
 def find_colormap(src_dir, explicit):
     """Общий палитровый атлас набора. Ищем рядом с моделями и на уровень выше:
     Blender-проход копирует только .glb, папку Textures не тащит."""
@@ -200,94 +230,60 @@ def find_colormap(src_dir, explicit):
     return None
 
 
-def main(src_dir, out_path, tex_path=None):
-    files = sorted(f for f in os.listdir(src_dir) if f.lower().endswith('.glb'))
-    assert files, f'GLB в {src_dir} не найдены'
+def main(out_path, packs):
+    """packs — список (каталог, префикс). У каждой пачки СВОЙ атлас."""
     parts = ["""// ===== 36-models: модели владельца из «3d assets» =====
 // Сгенерировано tools/glb2module.py — РУКАМИ НЕ ПРАВИТЬ.
-// ТЕКСТУРЫ И UV ОТБРОШЕНЫ (просьба владельца 2026-07-20: «убери все текстуры,
-// хочу глянуть») — остаётся геометрия, цвет берётся из палитры TYPES.
-// Примитивы слиты в один НЕиндексированный массив: flat-шейдинг получается
-// сам из computeVertexNormals, как у стейка (35-steak).
-function modelGeo(pos, nrm, uv, idx){
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setIndex(new THREE.BufferAttribute(idx, 1));
-  if (uv) g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  // нормали ИЗ ФАЙЛА: сглаживание там, где его задумал автор модели.
-  // computeVertexNormals по не-индексированной геометрии давал плоское
-  // гранение и превращал любую модель в комок.
-  if (nrm) g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-  else g.computeVertexNormals();
-  return g;
-}"""]
-    cm = find_colormap(src_dir, tex_path)
-    if cm:
-        import base64
-        b64 = base64.b64encode(open(cm, 'rb').read()).decode('ascii')
-        parts.append('// Палитровый атлас набора — ОДИН на все модели, встроен как data-URI.')
-        parts.append('// ⚠️ flipY=false: glTF считает UV от ВЕРХНЕГО левого угла, three по')
-        parts.append('// умолчанию от нижнего — без этого каждая модель берёт не свою полосу.')
-        parts.append('// ⚠️ Мипы ВЫКЛЮЧЕНЫ: полосы атласа узкие (~1/16 ширины), на дальних')
-        parts.append('// уровнях мипов соседние цвета смешивались бы в грязь.')
-        parts.append(f"const MODELS_COLORMAP_SRC = 'data:image/png;base64,{b64}';")
-        parts.append('''let _colormapTex = null;
-function modelColormap(){
-  if (_colormapTex) return _colormapTex;
-  const img = new Image();
-  const t = new THREE.Texture(img);
-  t.flipY = false;
-  t.encoding = THREE.sRGBEncoding;
-  t.magFilter = t.minFilter = THREE.LinearFilter;
-  t.generateMipmaps = false;
-  img.onload = () => { t.needsUpdate = true; };
-  img.src = MODELS_COLORMAP_SRC;
-  _colormapTex = t;
-  return t;
-}''')
+// Геометрия + UV + ИСХОДНЫЕ НОРМАЛИ; цвет даёт палитровый атлас пачки.
+// Индексный буфер сохранён из файла: он кодирует, где шов жёсткий, а где
+// гладкий, поэтому модель шейдится ровно так, как задумал её автор."""]
+    parts.append(ATLAS_JS)
     report, skipped = [], []
-    for f in sorted(os.listdir(src_dir)):
-        if f.lower().endswith(('.fbx', '.obj', '.dae', '.blend')):
-            skipped.append((f, 'формат не поддержан — нужен .glb (экспорт из Blender)'))
-    for f in files:
-        # имя -> валидный JS-идентификатор: «048_Frogaxon_Art» -> frogaxonart
-        # (ведущие цифры сделали бы `function 048...Geo()` синтаксической ошибкой)
-        name = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
-        try:
-            fpos, fnrm, fuv, has_uv, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
-        except Exception as e:
-            skipped.append((f, str(e)))
-            continue
-        if name in EXCLUDE:
-            skipped.append((f, 'в списке исключений — не переживает упрощение'))
-            continue
-        base = 'M_' + name.upper()
-        it = 'Uint32Array' if len(fpos) // 3 > 65535 else 'Uint16Array'
-        tag = f'{ntri} тр., {len(fpos)//3} верш.' + (' ⚠ выше планки' if over else '')
-        parts.append(f'// {f} — {tag}')
-        parts.append(f'const {base}_POS = new Float32Array([{",".join(num(v) for v in fpos)}]);')
-        # нормали — единичные векторы, двух знаков хватает (ошибка < 1 градуса)
-        parts.append(f'const {base}_NRM = {"new Float32Array([" + ",".join(nrm2(v) for v in fnrm) + "])" if smooth else "null"};')
-        parts.append(f'const {base}_UV = {"new Float32Array([" + ",".join(nrm3(v) for v in fuv) + "])" if has_uv else "null"};')
-        parts.append(f'const {base}_IDX = new {it}([{",".join(str(i) for i in idx)}]);')
-        parts.append(f'function {name}Geo(){{ return modelGeo({base}_POS, {base}_NRM, {base}_UV, {base}_IDX); }}')
-        wr = max(half[0], half[2])
-        report.append((name, f, ntri, wr, half, len(fpos) // 3, over))
+    for src_dir, prefix in packs:
+        cm = find_colormap(src_dir, None)
+        if cm:
+            import base64
+            b64 = base64.b64encode(open(cm, 'rb').read()).decode('ascii')
+            parts.append(f"MODEL_ATLASES['{prefix}'] = 'data:image/png;base64,{b64}';")
+        else:
+            skipped.append((src_dir, 'АТЛАС НЕ НАЙДЕН'))
+        files = sorted(f for f in os.listdir(src_dir) if f.lower().endswith('.glb'))
+        for f in files:
+            raw = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
+            # имя пачки в префиксе: у зверей и еды есть одинаковые основы
+            # (animal-fish и fish), без префикса функции перетёрли бы друг друга
+            name = raw if raw.startswith(prefix) else prefix + raw
+            try:
+                fpos, fnrm, fuv, has_uv, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
+            except Exception as e:
+                skipped.append((f, str(e)))
+                continue
+            base = 'M_' + name.upper()
+            it = 'Uint32Array' if len(fpos) // 3 > 65535 else 'Uint16Array'
+            parts.append(f'// {f} — {ntri} тр., {len(fpos)//3} верш.' + (' ⚠ выше планки' if over else ''))
+            parts.append(f'const {base}_POS = new Float32Array([{",".join(num(v) for v in fpos)}]);')
+            parts.append(f'const {base}_NRM = {"new Float32Array([" + ",".join(nrm2(v) for v in fnrm) + "])" if smooth else "null"};')
+            parts.append(f'const {base}_UV = {"new Float32Array([" + ",".join(nrm3(v) for v in fuv) + "])" if has_uv else "null"};')
+            parts.append(f'const {base}_IDX = new {it}([{",".join(str(i) for i in idx)}]);')
+            parts.append(f'function {name}Geo(){{ return modelGeo({base}_POS, {base}_NRM, {base}_UV, {base}_IDX); }}')
+            report.append((name, prefix, ntri, max(half[0], half[2]), half, over))
     open(out_path, 'w').write('\n'.join(parts) + '\n')
 
     kb = os.path.getsize(out_path) / 1024
-    print(f'{out_path}: {kb:.0f} КБ, моделей {len(report)}'
-          + (f', атлас {os.path.basename(cm)} встроен' if cm else ', АТЛАС НЕ НАЙДЕН') + '\n')
+    print(f'{out_path}: {kb:.0f} КБ, моделей {len(report)}\n')
     for f, why in skipped:
         print(f'⚠ НЕ ВЗЯТА  {f}: {why}')
     if skipped:
         print()
-    print(f'{"имя":<18}{"тр.":>7}{"верш.":>7}{"wr":>7}   строка для TYPES')
-    for name, f, ntri, wr, half, nvert, over in report:
-        flat_flag = f", wr:{wr:.2f}" if min(half) / max(half) < 0.35 else ''
-        print(f'{name:<18}{ntri:>7}{nvert:>7}{wr:>7.2f}{"  ⚠" if over else "   "}'
-              f"{{ name:'{name}', color:0x??????, rc:{RC}{flat_flag}, mat:'soft', geo:{name}Geo }},")
+    print(f'{"имя":<22}{"пачка":>8}{"тр.":>7}{"wr":>7}   строка для TYPES')
+    for name, prefix, ntri, wr, half, over in report:
+        flat = f", wr:{wr:.2f}" if min(half) / max(half) < 0.35 else ''
+        print(f'{name:<22}{prefix:>8}{ntri:>7}{wr:>7.2f}{"  ⚠" if over else "   "}'
+              f"{{ name:'{name}', color:0x??????, rc:{RC}{flat}, tex:'{prefix}', mat:'soft', geo:{name}Geo }},")
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
+    # tools/glb2module.py <выход.js> <каталог>:<префикс> [<каталог>:<префикс> ...]
+    out = sys.argv[1]
+    packs = [tuple(a.rsplit(':', 1)) for a in sys.argv[2:]]
+    main(out, packs)
