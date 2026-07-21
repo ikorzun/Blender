@@ -297,7 +297,10 @@ function loop(){
       mt.style.display = 'none';
     } else {
       const leftS = grinding ? 0 : Math.max(0, Math.ceil(level.idleLimit - idle));
-      mt.textContent = leftS;                       // макет: голое число под глазами
+      // при работе лопастей вместо красного «0» — слово Grinding (спека
+      // владельца): ноль не объяснял, что происходит
+      mt.textContent = grinding ? 'Grinding' : leftS;
+      mt.classList.toggle('grind', grinding);
       // в макете число чёрное; краснеет только на грани — там же, где
       // персонаж переходит в «хитрые» (лесенка угрозы)
       mt.style.color = leftS <= 3 ? '#e02424' : '#000';
