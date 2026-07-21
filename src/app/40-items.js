@@ -19,9 +19,17 @@ function makeItem(typeIdx, size){
     // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
     // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
     mat = new THREE.MeshMatcapMaterial({
+      // t.tex — «родная» раскраска модели из общего палитрового атласа
+      // (36-models). Цвет материала тогда БЕЛЫЙ: шейдер множит map на color,
+      // и любой оттенок здесь испортил бы задуманную автором раскраску.
+      // Серая вуаль недоступности продолжает работать — она лерпает этот же
+      // color от белого к серому, то есть просто притемняет текстуру.
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color, t.dl)),
+      color: t.mat === 'chrome' ? 0xb8c0cc
+           : (t.tex || t.mat === 'model') ? 0xffffff
+           : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap() : null,
       matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
       vertexColors: t.mat === 'model',
     });
@@ -40,7 +48,11 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color, t.dl), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({
+      color: t.tex ? 0xffffff : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap() : null,
+      metalness: 0, roughness: 0.18,
+    });
     mat.envMapIntensity = 0.5;
   }
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
@@ -49,7 +61,9 @@ function makeItem(typeIdx, size){
   const item = {
     key: 'T' + typeIdx, // матч по ТИПУ: размер не имеет значения
     type: t, baseColor: mat.color.clone(),
-    fxColor: t.mat === 'model' ? new THREE.Color(t.color).convertSRGBToLinear() : null, // цвет трухи для vertexColors-моделей
+    // цвет трухи: у моделей с текстурой и вершинными цветами baseColor БЕЛЫЙ,
+    // и без этого при распаде летела бы белая пыль вместо цветной
+    fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
     r: t.rc * sz.s * MESH_SCALE, p: new THREE.Vector3(),
     wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // горизонтальный габарит для теста стены
     scl: sz.s * MESH_SCALE,

@@ -114,7 +114,7 @@ def convert(path):
     # независимо от числа треугольников («с топологией полная беда»).
     # Индексный буфер из файла уже кодирует, где шов жёсткий, а где гладкий:
     # на жёстких рёбрах вершины продублированы автором модели. Берём как есть.
-    verts, norms, idx, smooth = [], [], [], [True]
+    verts, norms, uvs, idx, smooth = [], [], [], [], [True]
 
     def walk(ni, parent):
         n = g['nodes'][ni]
@@ -133,6 +133,11 @@ def convert(path):
                 else:
                     smooth[0] = False
                     norms.extend([(0.0, 1.0, 0.0)] * len(pos))
+                if 'TEXCOORD_0' in p['attributes']:
+                    for uv in accessor(g, bin_, p['attributes']['TEXCOORD_0']):
+                        uvs.append((uv[0], uv[1]))
+                else:
+                    uvs.extend([(0.0, 0.0)] * len(pos))
                 if 'indices' in p:
                     idx.extend(i[0] + base for i in accessor(g, bin_, p['indices']))
                 else:
@@ -159,8 +164,18 @@ def convert(path):
     flat_nrm = []
     for v in norms:
         flat_nrm += [v[0], v[1], v[2]]
+    flat_uv = []
+    for v in uvs:
+        flat_uv += [v[0], v[1]]
+    has_uv = any(u != 0.0 or v != 0.0 for u, v in uvs)
     half = [(hi[i] - lo[i]) / 2 * k for i in range(3)]
-    return flat_pos, flat_nrm, idx, ntri, half, smooth[0], over
+    return flat_pos, flat_nrm, flat_uv, has_uv, idx, ntri, half, smooth[0], over
+
+
+def nrm3(x):
+    # UV палитрового атласа: полосы шириной ~1/16, три знака с запасом
+    s = f'{x:.4f}'.rstrip('0').rstrip('.')
+    return '0' if s in ('', '-0') else s
 
 
 def nrm2(x):
@@ -173,7 +188,19 @@ def num(x):
     return '0' if s in ('', '-0') else s
 
 
-def main(src_dir, out_path):
+def find_colormap(src_dir, explicit):
+    """Общий палитровый атлас набора. Ищем рядом с моделями и на уровень выше:
+    Blender-проход копирует только .glb, папку Textures не тащит."""
+    cands = [explicit] if explicit else []
+    cands += [os.path.join(src_dir, 'Textures', 'colormap.png'),
+              os.path.join(os.path.dirname(src_dir.rstrip('/')), 'Textures', 'colormap.png')]
+    for c in cands:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def main(src_dir, out_path, tex_path=None):
     files = sorted(f for f in os.listdir(src_dir) if f.lower().endswith('.glb'))
     assert files, f'GLB в {src_dir} не найдены'
     parts = ["""// ===== 36-models: модели владельца из «3d assets» =====
@@ -182,10 +209,11 @@ def main(src_dir, out_path):
 // хочу глянуть») — остаётся геометрия, цвет берётся из палитры TYPES.
 // Примитивы слиты в один НЕиндексированный массив: flat-шейдинг получается
 // сам из computeVertexNormals, как у стейка (35-steak).
-function modelGeo(pos, nrm, idx){
+function modelGeo(pos, nrm, uv, idx){
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(new THREE.BufferAttribute(idx, 1));
+  if (uv) g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   // нормали ИЗ ФАЙЛА: сглаживание там, где его задумал автор модели.
   // computeVertexNormals по не-индексированной геометрии давал плоское
   // гранение и превращал любую модель в комок.
@@ -193,6 +221,30 @@ function modelGeo(pos, nrm, idx){
   else g.computeVertexNormals();
   return g;
 }"""]
+    cm = find_colormap(src_dir, tex_path)
+    if cm:
+        import base64
+        b64 = base64.b64encode(open(cm, 'rb').read()).decode('ascii')
+        parts.append('// Палитровый атлас набора — ОДИН на все модели, встроен как data-URI.')
+        parts.append('// ⚠️ flipY=false: glTF считает UV от ВЕРХНЕГО левого угла, three по')
+        parts.append('// умолчанию от нижнего — без этого каждая модель берёт не свою полосу.')
+        parts.append('// ⚠️ Мипы ВЫКЛЮЧЕНЫ: полосы атласа узкие (~1/16 ширины), на дальних')
+        parts.append('// уровнях мипов соседние цвета смешивались бы в грязь.')
+        parts.append(f"const MODELS_COLORMAP_SRC = 'data:image/png;base64,{b64}';")
+        parts.append('''let _colormapTex = null;
+function modelColormap(){
+  if (_colormapTex) return _colormapTex;
+  const img = new Image();
+  const t = new THREE.Texture(img);
+  t.flipY = false;
+  t.encoding = THREE.sRGBEncoding;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;
+  img.onload = () => { t.needsUpdate = true; };
+  img.src = MODELS_COLORMAP_SRC;
+  _colormapTex = t;
+  return t;
+}''')
     report, skipped = [], []
     for f in sorted(os.listdir(src_dir)):
         if f.lower().endswith(('.fbx', '.obj', '.dae', '.blend')):
@@ -202,7 +254,7 @@ function modelGeo(pos, nrm, idx){
         # (ведущие цифры сделали бы `function 048...Geo()` синтаксической ошибкой)
         name = re.sub(r'^[0-9]+', '', re.sub(r'[^a-z0-9]', '', os.path.splitext(f)[0].lower()))
         try:
-            fpos, fnrm, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
+            fpos, fnrm, fuv, has_uv, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
         except Exception as e:
             skipped.append((f, str(e)))
             continue
@@ -216,14 +268,16 @@ function modelGeo(pos, nrm, idx){
         parts.append(f'const {base}_POS = new Float32Array([{",".join(num(v) for v in fpos)}]);')
         # нормали — единичные векторы, двух знаков хватает (ошибка < 1 градуса)
         parts.append(f'const {base}_NRM = {"new Float32Array([" + ",".join(nrm2(v) for v in fnrm) + "])" if smooth else "null"};')
+        parts.append(f'const {base}_UV = {"new Float32Array([" + ",".join(nrm3(v) for v in fuv) + "])" if has_uv else "null"};')
         parts.append(f'const {base}_IDX = new {it}([{",".join(str(i) for i in idx)}]);')
-        parts.append(f'function {name}Geo(){{ return modelGeo({base}_POS, {base}_NRM, {base}_IDX); }}')
+        parts.append(f'function {name}Geo(){{ return modelGeo({base}_POS, {base}_NRM, {base}_UV, {base}_IDX); }}')
         wr = max(half[0], half[2])
         report.append((name, f, ntri, wr, half, len(fpos) // 3, over))
     open(out_path, 'w').write('\n'.join(parts) + '\n')
 
     kb = os.path.getsize(out_path) / 1024
-    print(f'{out_path}: {kb:.0f} КБ, моделей {len(report)}\n')
+    print(f'{out_path}: {kb:.0f} КБ, моделей {len(report)}'
+          + (f', атлас {os.path.basename(cm)} встроен' if cm else ', АТЛАС НЕ НАЙДЕН') + '\n')
     for f, why in skipped:
         print(f'⚠ НЕ ВЗЯТА  {f}: {why}')
     if skipped:
@@ -236,4 +290,4 @@ function modelGeo(pos, nrm, idx){
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)

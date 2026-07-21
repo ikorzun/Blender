@@ -99,30 +99,40 @@ const TYPES = [
   // ⚠️ Зверей 24, а genLevel берёт первые typesCount = 9 + уровень − 1.
   // Значит примитивы ниже начнут появляться только с 17-го уровня —
   // фактически игра стала «звериной». Порядок блоков менять здесь.
-  { name:'animalbeaver',        color:0xe23636, rc:1.0, mat:'soft', geo:animalbeaverGeo },
-  { name:'animalbee',           color:0x61e236, rc:1.0, mat:'soft', geo:animalbeeGeo },
-  { name:'animalbunny',         color:0x368ce2, rc:1.0, mat:'soft', geo:animalbunnyGeo },
-  { name:'animalcat',           color:0xe236b7, rc:1.0, mat:'soft', geo:animalcatGeo },
-  { name:'animalcaterpillar',   color:0xe2e236, rc:1.0, mat:'soft', geo:animalcaterpillarGeo },
-  { name:'animalchick',         color:0x36e2b7, rc:1.0, mat:'soft', geo:animalchickGeo },
-  { name:'animalcow',           color:0x8c36e2, rc:1.0, mat:'soft', geo:animalcowGeo },
-  { name:'animalcrab',          color:0xe26136, rc:1.0, mat:'soft', geo:animalcrabGeo },
-  { name:'animaldeer',          color:0x36e236, rc:1.0, mat:'soft', geo:animaldeerGeo },
-  { name:'animaldog',           color:0x3661e2, rc:1.0, mat:'soft', geo:animaldogGeo },
-  { name:'animalelephant',      color:0xe2368c, rc:1.0, mat:'soft', geo:animalelephantGeo },
-  { name:'animalfish',          color:0xb7e236, rc:1.0, mat:'soft', geo:animalfishGeo },
-  { name:'animalfox',           color:0x36e2e2, rc:1.0, mat:'soft', geo:animalfoxGeo },
-  { name:'animalgiraffe',       color:0xb736e2, rc:1.0, mat:'soft', geo:animalgiraffeGeo },
-  { name:'animalhog',           color:0xe28c36, rc:1.0, mat:'soft', geo:animalhogGeo },
-  { name:'animalkoala',         color:0x36e261, rc:1.0, mat:'soft', geo:animalkoalaGeo },
-  { name:'animallion',          color:0x3636e2, rc:1.0, mat:'soft', geo:animallionGeo },
-  { name:'animalmonkey',        color:0xe23661, rc:1.0, mat:'soft', geo:animalmonkeyGeo },
-  { name:'animalpanda',         color:0x8ce236, rc:1.0, mat:'soft', geo:animalpandaGeo },
-  { name:'animalparrot',        color:0x36b7e2, rc:1.0, mat:'soft', geo:animalparrotGeo },
-  { name:'animalpenguin',       color:0xe236e2, rc:1.0, mat:'soft', geo:animalpenguinGeo },
-  { name:'animalpig',           color:0xe2b736, rc:1.0, mat:'soft', geo:animalpigGeo },
-  { name:'animalpolar',         color:0x36e28c, rc:1.0, mat:'soft', geo:animalpolarGeo },
-  { name:'animaltiger',         color:0x6136e2, rc:1.0, mat:'soft', geo:animaltigerGeo },
+  // --- модели из «3d assets»: 24 зверя (36-models) ---
+  // Раскраска РОДНАЯ — общий атлас Textures/colormap.png встроен в модуль,
+  // материал берёт его как map (tex:1), цвет материала при этом БЕЛЫЙ.
+  // `color` здесь красит НЕ модель, а ТРУХУ при распаде — подобран под зверя.
+  // ⚠️ ПОРЯДОК = ЧИТАЕМОСТЬ. genLevel берёт первые 9+уровень−1 типов, значит
+  // первая девятка это то, что игрок видит на старте. Впереди стоят самые
+  // РАЗЛИЧИМЫЕ (пчела, краб, свинья, пингвин, гусеница, рыба, слон, белый
+  // медведь, тигр); бурые лохматики — бобёр, олень, заяц, кабан, обезьяна —
+  // уведены в хвост: с родной раскраской они похожи друг на друга, а матч
+  // идёт ПО ТИПУ, и путать их на старте нельзя.
+  { name:'animalbee',           color:0xffd633, rc:1.0, tex:1, mat:'soft', geo:animalbeeGeo }, // жёлто-чёрная
+  { name:'animalcrab',          color:0xff5a2b, rc:1.0, tex:1, mat:'soft', geo:animalcrabGeo }, // красный
+  { name:'animalpig',           color:0xff9ec4, rc:1.0, tex:1, mat:'soft', geo:animalpigGeo }, // розовый
+  { name:'animalpenguin',       color:0x3a4048, rc:1.0, tex:1, mat:'soft', geo:animalpenguinGeo }, // чёрно-белый
+  { name:'animalcaterpillar',   color:0x5ac44a, rc:1.0, tex:1, mat:'soft', geo:animalcaterpillarGeo }, // зелёная
+  { name:'animalfish',          color:0xff8c3a, rc:1.0, tex:1, mat:'soft', geo:animalfishGeo }, // оранжевая
+  { name:'animalelephant',      color:0x9aa6b4, rc:1.0, tex:1, mat:'soft', geo:animalelephantGeo }, // серый
+  { name:'animalpolar',         color:0xe8eef4, rc:1.0, tex:1, mat:'soft', geo:animalpolarGeo }, // белый
+  { name:'animaltiger',         color:0xff8a2b, rc:1.0, tex:1, mat:'soft', geo:animaltigerGeo }, // полосатый
+  { name:'animalpanda',         color:0xd8dce2, rc:1.0, tex:1, mat:'soft', geo:animalpandaGeo }, // чёрно-белая
+  { name:'animalcow',           color:0xe6ddd0, rc:1.0, tex:1, mat:'soft', geo:animalcowGeo }, // пятнистая
+  { name:'animalparrot',        color:0xe2453a, rc:1.0, tex:1, mat:'soft', geo:animalparrotGeo }, // пёстрый
+  { name:'animalkoala',         color:0x9ba3ad, rc:1.0, tex:1, mat:'soft', geo:animalkoalaGeo }, // серая
+  { name:'animalcat',           color:0x6b7280, rc:1.0, tex:1, mat:'soft', geo:animalcatGeo }, // серый
+  { name:'animalgiraffe',       color:0xe0b23a, rc:1.0, tex:1, mat:'soft', geo:animalgiraffeGeo }, // жёлтый
+  { name:'animalchick',         color:0xffd84a, rc:1.0, tex:1, mat:'soft', geo:animalchickGeo }, // жёлтый
+  { name:'animalfox',           color:0xf07a34, rc:1.0, tex:1, mat:'soft', geo:animalfoxGeo }, // рыжая
+  { name:'animallion',          color:0xd9a05b, rc:1.0, tex:1, mat:'soft', geo:animallionGeo }, // песочный
+  { name:'animalmonkey',        color:0xa9713f, rc:1.0, tex:1, mat:'soft', geo:animalmonkeyGeo }, // бурая
+  { name:'animaldog',           color:0xc98f5a, rc:1.0, tex:1, mat:'soft', geo:animaldogGeo }, // песочный
+  { name:'animalbeaver',        color:0x9c6b42, rc:1.0, tex:1, mat:'soft', geo:animalbeaverGeo }, // бурый
+  { name:'animaldeer',          color:0xb07a4a, rc:1.0, tex:1, mat:'soft', geo:animaldeerGeo }, // бурый
+  { name:'animalbunny',         color:0xd8b895, rc:1.0, tex:1, mat:'soft', geo:animalbunnyGeo }, // бежевый
+  { name:'animalhog',           color:0x8d6144, rc:1.0, tex:1, mat:'soft', geo:animalhogGeo }, // бурый
   // --- примитивы ---
   { name:'cube',   color:0xf2f4f8, rc:0.85, mat:'chrome',  geo:()=>new THREE.BoxGeometry(1.5,1.5,1.5) },
   { name:'ball',   color:0x7aa2ff, rc:0.95, mat:'soft',    geo:()=>new THREE.SphereGeometry(0.95,18,14) },
