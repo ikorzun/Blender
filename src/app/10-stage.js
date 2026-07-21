@@ -92,6 +92,17 @@ const MATCAP_PRESETS = {
   // matcap-ветке ОСВЕТЛЁН (40-items): у MeshStandard кубы держались отражением
   // окружения (metalness 1), а множитель тёмного графита ушёл бы в чёрный.
   metal: { amb: 0.44, sky: 0.34, diff: 0.30, shin: 34, spec: 0.50, rim: 0.42, rimP: 3 },
+  // ⚠️ ДЛЯ МОДЕЛЕЙ С РОДНОЙ ТЕКСТУРОЙ — почти белое тело. Шейдер МНОЖИТ
+  // matcap на текстуру, поэтому обычный пресет (тело 0.66-0.94) сажал
+  // авторские цвета: рядом с эталонным GLTFLoader тигр выходил тёмно-рыжим
+  // вместо палевого, свинья — малиновой вместо бледно-розовой. Здесь matcap
+  // отвечает только за мягкую подсветку формы, цвет полностью за атласом.
+  // ⚠️ БЫЛ аддитивный lift 0.20 — ЗАБРАКОВАН владельцем («всё сильно
+  // светлое»). Он прибавлял белое КО ВСЕМУ, включая тёмные места: чёрные
+  // полосы тигра и мех панды становились серыми, контраст умирал. Яркость
+  // текстурных моделей теперь поднимается УМНОЖЕНИЕМ (TEX_GAIN) — оно
+  // сохраняет отношение тёмного к светлому. Аддитив не возвращать.
+  tex:   { amb: 0.88, sky: 0.08, diff: 0.10, shin: 60, spec: 0.12, rim: 0.10, rimP: 3 },
 };
 const matcapCache = new Map();
 function makeMatcap(kind){
@@ -145,15 +156,61 @@ function addMatcapEmissive(mat){
 // Блик из альфы + emissive — поверх умножения. Функция ОДНА на все материалы,
 // поэтому кэш программ (по onBeforeCompile.toString()) даёт ОДИН
 // скомпилированный шейдер на все 181, а не 181.
-const matcapSpecPatch = (sh) => {
+const matcapSpecPatch = function (sh) {
   sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
+  // ЯРКОСТЬ и КОНТРАСТ — ручки владельца, живут в 00-config. Юниформа своя
+  // на материал (three хранит uniforms per-material), но ИСХОДНИК шейдера
+  // одинаков, поэтому программа по-прежнему компилируется ОДНА на все.
+  // Обычные предметы получают (1,1) — это тождественное преобразование.
+  const tune = this.userData && this.userData.texTune;
+  sh.uniforms.uTune = { value: new THREE.Vector2(
+    tune ? TEX_GAIN : 1.0, tune ? TEX_CONTRAST : 1.0) };
+  // ГЛУБИНА КУЧИ вместо теней (шаг 2 пакета). Тени выключены — matcap их не
+  // принимает, — а объём чем-то показывать надо. Мировая высота здесь честнее
+  // экранной тени: она совпадает с геймплейным «насколько предмет закопан»,
+  // то есть работает на игру, а не только на картинку. Две инструкции в
+  // шейдере, ноль работы в JS за кадр.
+  // Константы вшиваются ЛИТЕРАЛАМИ, а не юниформами: исходник получается
+  // одинаковый для всех материалов -> кэш программ по onBeforeCompile.toString()
+  // по-прежнему даёт ОДИН скомпилированный шейдер на все 181.
+  const n = (x) => x.toFixed(3);
+  sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
+    .replace('#include <project_vertex>',
+      '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform vec3 emissive;')
+    .replace('#include <common>',
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
-      'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb + vec3( matcapColor.a ) + emissive;'
+      'float dk = clamp( ( vWorldY - uPileTop + ' + n(DEPTH_TINT_RANGE) + ' ) / '
+        + n(DEPTH_TINT_RANGE) + ', 0.0, 1.0 );\n'
+      + '\tdk = ' + n(DEPTH_TINT_MIN) + ' + ' + n(1 - DEPTH_TINT_MIN) + ' * dk;\n'
+      // ⚠️ Глубиной гасится ТОЛЬКО диффуз. Блик и подсветку подсказки не
+      // трогаем: иначе низ кучи превращается в чёрную кашу, где не разобрать
+      // ни силуэтов, ни того, что подсвечено.
+      + '\tvec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb * dk'
+        + ' + vec3( matcapColor.a ) + emissive;\n'
+      // яркость — УМНОЖЕНИЕМ (контраст цел), затем контраст вокруг середины
+      + '\toutgoingLight *= uTune.x;\n'
+      + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';'
     );
 };
+// Верх кучи для тонировки. ОДИН общий объект-юниформа: обновили .value —
+// обновились все 181 материал разом, без обхода сцены.
+const uPileTop = { value: FUNNEL.H };
+// Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
+// ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
+// Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).
+function tickDepthTint(dt){
+  if (!CFG.matcap || !items) return;
+  let top = 0;
+  for (const it of items) if (it.alive && !it.surprise) top = Math.max(top, it.p.y + it.r);
+  if (top <= 0) return;
+  const k = Math.min(1, dt * 4);
+  uPileTop.value += (top - uPileTop.value) * k;
+}
 // matcap-предметы тени НЕ ПРИНИМАЮТ (материал неосвещаемый) — значит теневой
 // пасс рисовал бы карту, которую некому показать. Замер: пасс УДВАИВАЕТ
 // draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.

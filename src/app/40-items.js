@@ -19,12 +19,22 @@ function makeItem(typeIdx, size){
     // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
     // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
     mat = new THREE.MeshMatcapMaterial({
+      // t.tex — «родная» раскраска модели из общего палитрового атласа
+      // (36-models). Цвет материала тогда БЕЛЫЙ: шейдер множит map на color,
+      // и любой оттенок здесь испортил бы задуманную автором раскраску.
+      // Серая вуаль недоступности продолжает работать — она лерпает этот же
+      // color от белого к серому, то есть просто притемняет текстуру.
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
-      matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      color: t.mat === 'chrome' ? 0xb8c0cc
+           : (t.tex || t.mat === 'model') ? 0xffffff
+           : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap() : null,
+      // у текстурных — почти белый matcap, иначе он пережимает авторские цвета
+      matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
     });
+    if (t.tex) mat.userData.texTune = 1;  // патч выдаст ему ручки яркости/контраста
     addMatcapEmissive(mat);          // без этого падает подсветка Hint
     mat.onBeforeCompile = matcapSpecPatch;
   } else if (t.mat === 'chrome'){
@@ -40,7 +50,11 @@ function makeItem(typeIdx, size){
   } else {
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
-    mat = new THREE.MeshStandardMaterial({ color: candyColor(t.color), metalness: 0, roughness: 0.18 });
+    mat = new THREE.MeshStandardMaterial({
+      color: t.tex ? 0xffffff : candyColor(t.color, t.dl),
+      map: t.tex ? modelColormap() : null,
+      metalness: 0, roughness: 0.18,
+    });
     mat.envMapIntensity = 0.5;
   }
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
@@ -49,7 +63,9 @@ function makeItem(typeIdx, size){
   const item = {
     key: 'T' + typeIdx, // матч по ТИПУ: размер не имеет значения
     type: t, baseColor: mat.color.clone(),
-    fxColor: t.mat === 'model' ? new THREE.Color(t.color).convertSRGBToLinear() : null, // цвет трухи для vertexColors-моделей
+    // цвет трухи: у моделей с текстурой и вершинными цветами baseColor БЕЛЫЙ,
+    // и без этого при распаде летела бы белая пыль вместо цветной
+    fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
     r: t.rc * sz.s * MESH_SCALE, p: new THREE.Vector3(),
     wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // горизонтальный габарит для теста стены
     scl: sz.s * MESH_SCALE,
@@ -64,9 +80,53 @@ function makeItem(typeIdx, size){
   return item;
 }
 
-// СЮРПРИЗ ОТКЛЮЧЁН 2026-07-20 (спека владельца: «убери золотой чайник»).
-// Механика «археологии» (collectSurprise, бонус, детектор) в коде жива —
-// вернётся с реальной моделью из 3D-ассетов (кандидат: Present01 «подарок»).
+// Сюрприз со дна («археология» из концепции): золотая РЫБКА, не матчится,
+// светится сквозь щели; тап по раскопанному — бонус SURPRISE_BONUS.
+// Модель вместо чайника — спека владельца 2026-07-20. Материал остаётся
+// MeshStandard (matcap не умеет emissive), и это к лучшему: настоящий блеск
+// золота среди «запечённых» предметов сам выделяет клад.
+// ⚠️ ГРАБЛЯ (обожглись 2026-07-21): геометрия сюрприза ЖЁСТКО ЗАВИСИТ от
+// содержимого папки «3d assets». Раньше здесь стоял present01Geo; владелец
+// заменил всю партию моделей — функция исчезла, genLevel падал на ReferenceError
+// ЕЩЁ ДО создания предметов, игра поднималась с пустой чашей и БЕЗ ошибки в
+// консоли. Поэтому теперь с проверкой и откатом на встроенный чайник, который
+// не зависит от папки. Если меняете модель — берите ту, что реально есть.
+const surpriseGeoFn = typeof animalfishGeo === 'function' ? animalfishGeo : gemGeo; // фолбэк БЕЗ чайника (удалён): процедурный кристалл не зависит от папки ассетов
+function makeSurprise(){
+  if (!geoCache.has('S')) geoCache.set('S', surpriseGeoFn());
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffc84a, metalness: 1, roughness: 0.18 });
+  mat.envMapIntensity = 1.1;
+  mat.emissive = new THREE.Color(0x6b4a00);
+  mat.emissiveIntensity = 0.5;
+  const mesh = new THREE.Mesh(geoCache.get('S'), mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  // масштаб 1.2 (был 1.5): у модели охват 1.0 против 0.78 у чайника —
+  // так физический размер клада остаётся прежним
+  mesh.scale.setScalar(1.2 * MESH_SCALE);
+  const item = {
+    key: 'SURPRISE', surprise: true, type: { name:'surprise', mat:'gold' }, baseColor: mat.color.clone(),
+    r: 1.0 * 1.2 * MESH_SCALE, p: new THREE.Vector3(0, FLOOR_REST + 0.8, 0),
+    scl: 1.2 * MESH_SCALE,
+    body: null,
+    mesh, alive: true, animating: false, accessible: false,
+  };
+  mesh.userData.item = item;
+  mesh.rotation.set(0, Math.random()*6.28, 0);
+  mesh.position.copy(item.p);
+  scene.add(mesh);
+  // ⚠️ Имя 'surprisehull', а НЕ 'surprise': ветка 'surprise' в 50-physics —
+  // компаунд из трёх шаров под ЧАЙНИК (тело + носик + ручка), для подарка он
+  // неверен. Незнакомое имя уходит в default -> convex hull из реальной
+  // геометрии, а сэмплы доступности — в свою default-ветку. Плотность золота
+  // берётся по флагу item.surprise и от имени не зависит.
+  // Чайниковая ветка в 50-physics стала мёртвой — оставлена, это чужая зона.
+  createItemBody(item, 'surprisehull', geoCache.get('S'));
+  // на время осадки/утряски сюрприз ПРИБИТ ко дну (fixed): вибрация всей
+  // массы выталкивает крупные тела наверх (эффект бразильского ореха) —
+  // чайник всплывал и торчал над кромкой. Отпускается в finishIntro.
+  item.body.setBodyType(RAPIER.RigidBodyType.Fixed, false);
+  return item;
+}
 
 // Цепная реакция: досыпка CHAIN_DROP_N СЛУЧАЙНЫХ предметов за тик — НЕ
 // парами (спека владельца; сироты легальны, финал их ест). Типы независимые,

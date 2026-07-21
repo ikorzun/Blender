@@ -169,6 +169,7 @@ function loop(){
   }
   stepFX(dt);
   tickVeil(dt);
+  tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickChainBar(now);
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
