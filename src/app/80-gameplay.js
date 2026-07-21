@@ -403,8 +403,12 @@ function performShake(){
     }
     // сила ×1.2 (спека владельца: «усиль эффект встряхивания на 20%»)
     const pull = 7.8 * pullK, rnd = 1 - 0.75*pullK;
-    impulseBody(it, (Math.random()-0.5)*9*rnd + ax*pull, 5.4 + Math.random()*6, (Math.random()-0.5)*9*rnd + az*pull);
-    spinBody(it, (Math.random()-0.5)*7.2, (Math.random()-0.5)*7.2, (Math.random()-0.5)*7.2);
+    // вес (вариант 1, спека владельца 2026-07-21): множитель пачки ТОЛЬКО
+    // на случайное рыхление/подброс/вращение; притяжение к близнецу (pull)
+    // остаётся нормированным — оно функциональное, не «ощущенческое»
+    const wk = it.shakeK || 1;
+    impulseBody(it, (Math.random()-0.5)*9*rnd*wk + ax*pull, (5.4 + Math.random()*6)*wk, (Math.random()-0.5)*9*rnd*wk + az*pull);
+    spinBody(it, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk);
   }
   camShake = 0.42; // +20% и на камеру
   stats.lastAction = performance.now(); // встряска — тоже действие, миксер откладывается

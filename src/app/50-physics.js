@@ -172,6 +172,9 @@ function buildAccessSamples(item, typeName, geo){
 function createItemBody(item, typeName, geo){
   const s = item.scl;
   const density = item.surprise ? DENSITY.gold : (item.type.mat === 'chrome' ? DENSITY.chrome : DENSITY.plastic);
+  // вес при встряске (вариант 1): отклик на рыхление по пачке модели;
+  // нет в карте (стейк/сюрприз) = 1.0
+  item.shakeK = SHAKE_RESP[item.type.tex] || 1;
   item.mesh.updateMatrixWorld();
   const q = item.mesh.quaternion;
   const bd = RAPIER.RigidBodyDesc.dynamic()

@@ -284,7 +284,8 @@ function loop(){
       for (const it of items){
         if (!it.alive || it.animating || !it.body) continue;
         if (it.p.y < FLOOR_REST + 2.2){
-          impulseBody(it, (Math.random()-0.5)*0.4, Math.random()*0.3, (Math.random()-0.5)*0.4);
+          const wk = it.shakeK || 1; // вес: вибрация миксера тоже по пачке
+          impulseBody(it, (Math.random()-0.5)*0.4*wk, Math.random()*0.3*wk, (Math.random()-0.5)*0.4*wk);
         }
       }
     }
@@ -419,6 +420,20 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // вес при встряске: средняя |v| живых тел по пачкам (car/animal/food/...)
+  // — замер отклика сразу после shake(); для тюнинга SHAKE_RESP владельцем
+  velByTex(){
+    const m = {};
+    for (const it of items){
+      if (!it.alive || !it.body) continue;
+      const v = it.body.linvel();
+      const s = Math.hypot(v.x, v.y, v.z);
+      const k = it.type.tex || it.type.name;
+      (m[k] = m[k] || { n: 0, sum: 0 }).n++; m[k].sum += s;
+    }
+    for (const k in m) m[k] = +(m[k].sum / m[k].n).toFixed(2);
+    return m;
+  },
   sfx(){ return Sound.loaded(); }, // какие аудио-сэмплы декодированы
   // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
   // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
