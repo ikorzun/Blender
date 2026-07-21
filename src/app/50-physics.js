@@ -288,6 +288,30 @@ function stepPhysics(dt){
 // Возврат «сбежавших»: край предмета глубже 0.18 в стекле (вдавлен в стену/
 // снаружи) или ниже дна — телепорт внутрь. ОБЯЗАТЕЛЬНО зовётся перед сном:
 // глобальный сон умел замораживать недовытолкнутые из стен тела.
+// ГОРИЗОНТАЛЬНЫЙ ВЫЛЕТ предмета В СТОРОНУ СТЕНЫ с учётом ТЕКУЩЕГО ПОВОРОТА.
+// ⚠️ Прежний wallR — ОДНО число на тип, то есть предмет считался шаром. Для
+// плоских моделей это врёт вдвое: у пиццы охват 1.0 при любом наклоне, хотя
+// ребром она занимает по горизонтали доли этого. Отсюда шторм ложных спасений
+// (8 за интро при норме 0) — а спасение это ТЕЛЕПОРТ, игрок видит рывок.
+// Здесь берётся ориентированная коробка: проекция её полуразмеров на
+// радиальное направление. Для шара результат прежний, для плоского — честный.
+const _rq = new THREE.Quaternion(), _rm = new THREE.Matrix4();
+function radialReach(it, ux, uz){
+  const h = it.half;
+  if (!h || !it.body) return it.wallR || it.r;
+  const r = it.body.rotation();
+  _rq.set(r.x, r.y, r.z, r.w);
+  _rm.makeRotationFromQuaternion(_rq);
+  const m = _rm.elements; // столбцы — оси предмета в мире
+  const obb = it.scl * (h.x * Math.abs(ux * m[0] + uz * m[2])
+                      + h.y * Math.abs(ux * m[4] + uz * m[6])
+                      + h.z * Math.abs(ux * m[8] + uz * m[10]));
+  // ⚠️ МИНИМУМ из коробки и ОХВАТНОЙ СФЕРЫ. Коробка тесна для плоских, но для
+  // КРУГЛЫХ она ХУЖЕ сферы: по диагонали даёт до 1.73 радиуса, и арбуз начал
+  // ложно спасаться там, где раньше проходил. Обе оценки — честные верхние
+  // границы, значит их минимум тоже честен и всегда не хуже каждой.
+  return Math.min(it.r, obb);
+}
 function rescueSweep(){
   let rescued = 0;
   for (const it of items){
@@ -298,7 +322,8 @@ function rescueSweep(){
     // горизонтальный габарит — wallR: у плоских моделей (стейк) охватный r
     // сильно переоценивает ширину и давал шторм ложных спасений
     const legalR = tmpWallBodies.length ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
-    const out = (d + (it.wallR || it.r)) > legalR + 0.18 || it.p.y < FLOOR_REST - 0.8 || it.p.y > 60;
+    const reach = d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r);
+    const out = (d + reach) > legalR + 0.18 || it.p.y < FLOOR_REST - 0.8 || it.p.y > 60;
     if (out){
       rescued++;
       console.warn('[rescue]', it.type.name, 'd=' + d.toFixed(2), 'y=' + it.p.y.toFixed(2), 'r=' + it.r.toFixed(2));
