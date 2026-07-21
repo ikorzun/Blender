@@ -30,7 +30,8 @@ function makeItem(typeIdx, size){
            : (t.tex || t.mat === 'model') ? 0xffffff
            : candyColor(t.color, t.dl),
       map: t.tex ? modelColormap() : null,
-      matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      // у текстурных — почти белый matcap, иначе он пережимает авторские цвета
+      matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
     });
     addMatcapEmissive(mat);          // без этого падает подсветка Hint
