@@ -34,6 +34,7 @@ function makeItem(typeIdx, size){
       matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
     });
+    if (t.tex) mat.userData.texTune = 1;  // патч выдаст ему ручки яркости/контраста
     addMatcapEmissive(mat);          // без этого падает подсветка Hint
     mat.onBeforeCompile = matcapSpecPatch;
   } else if (t.mat === 'chrome'){

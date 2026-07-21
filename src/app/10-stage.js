@@ -97,12 +97,12 @@ const MATCAP_PRESETS = {
   // авторские цвета: рядом с эталонным GLTFLoader тигр выходил тёмно-рыжим
   // вместо палевого, свинья — малиновой вместо бледно-розовой. Здесь matcap
   // отвечает только за мягкую подсветку формы, цвет полностью за атласом.
-  // lift — ПОСТОЯННАЯ аддитивная добавка в альфу (она прибавляется белым
-  // поверх умножения). Без неё догнать эталон невозможно в принципе: matcap
-  // множится на текстуру и не бывает ярче 1, то есть умеет только ЗАТЕМНЯТЬ,
-  // а у эталонного рендера свет ярче единицы. Белая добавка заодно чуть
-  // разбеливает цвет — ровно тот пастельный характер, что у оригинала.
-  tex:   { amb: 0.80, sky: 0.10, diff: 0.12, shin: 60, spec: 0.12, rim: 0.10, rimP: 3, lift: 0.20 },
+  // ⚠️ БЫЛ аддитивный lift 0.20 — ЗАБРАКОВАН владельцем («всё сильно
+  // светлое»). Он прибавлял белое КО ВСЕМУ, включая тёмные места: чёрные
+  // полосы тигра и мех панды становились серыми, контраст умирал. Яркость
+  // текстурных моделей теперь поднимается УМНОЖЕНИЕМ (TEX_GAIN) — оно
+  // сохраняет отношение тёмного к светлому. Аддитив не возвращать.
+  tex:   { amb: 0.88, sky: 0.08, diff: 0.10, shin: 60, spec: 0.12, rim: 0.10, rimP: 3 },
 };
 const matcapCache = new Map();
 function makeMatcap(kind){
@@ -127,8 +127,7 @@ function makeMatcap(kind){
       // френель-ободок: силуэт светлее — предметы не слипаются в плотной куче
       const rim = P.rim * Math.pow(1 - nz, P.rimP);
       const v = Math.min(1, amb + P.diff * lam + rim);
-      const sp = Math.min(1, Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), P.shin) * P.spec
-                             + (P.lift || 0));
+      const sp = Math.min(1, Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), P.shin) * P.spec);
       const i = (y * S + x) * 4;
       data[i] = data[i + 1] = data[i + 2] = (v * 255) | 0;
       data[i + 3] = (sp * 255) | 0;
@@ -157,8 +156,15 @@ function addMatcapEmissive(mat){
 // Блик из альфы + emissive — поверх умножения. Функция ОДНА на все материалы,
 // поэтому кэш программ (по onBeforeCompile.toString()) даёт ОДИН
 // скомпилированный шейдер на все 181, а не 181.
-const matcapSpecPatch = (sh) => {
+const matcapSpecPatch = function (sh) {
   sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
+  // ЯРКОСТЬ и КОНТРАСТ — ручки владельца, живут в 00-config. Юниформа своя
+  // на материал (three хранит uniforms per-material), но ИСХОДНИК шейдера
+  // одинаков, поэтому программа по-прежнему компилируется ОДНА на все.
+  // Обычные предметы получают (1,1) — это тождественное преобразование.
+  const tune = this.userData && this.userData.texTune;
+  sh.uniforms.uTune = { value: new THREE.Vector2(
+    tune ? TEX_GAIN : 1.0, tune ? TEX_CONTRAST : 1.0) };
   // ГЛУБИНА КУЧИ вместо теней (шаг 2 пакета). Тени выключены — matcap их не
   // принимает, — а объём чем-то показывать надо. Мировая высота здесь честнее
   // экранной тени: она совпадает с геймплейным «насколько предмет закопан»,
@@ -175,7 +181,7 @@ const matcapSpecPatch = (sh) => {
       '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>',
-      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nvarying float vWorldY;')
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
       'float dk = clamp( ( vWorldY - uPileTop + ' + n(DEPTH_TINT_RANGE) + ' ) / '
@@ -185,7 +191,10 @@ const matcapSpecPatch = (sh) => {
       // трогаем: иначе низ кучи превращается в чёрную кашу, где не разобрать
       // ни силуэтов, ни того, что подсвечено.
       + '\tvec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb * dk'
-        + ' + vec3( matcapColor.a ) + emissive;'
+        + ' + vec3( matcapColor.a ) + emissive;\n'
+      // яркость — УМНОЖЕНИЕМ (контраст цел), затем контраст вокруг середины
+      + '\toutgoingLight *= uTune.x;\n'
+      + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';'
     );
 };
 // Верх кучи для тонировки. ОДИН общий объект-юниформа: обновили .value —
