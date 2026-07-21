@@ -26,6 +26,7 @@ function eyesMood(now, grinding){
 // времени (оранжевый). Зовётся каждый кадр.
 function tickChainBar(now){
   const cr = $('chainRing');
+  if (!CHAIN_RING_ENABLED){ if (cr.style.display !== 'none') cr.style.display = 'none'; return; }
   let frac = -1, hot = false;
   if (chainUntil > now){
     frac = Math.max(0, (chainUntil - now) / CHAIN_MS); hot = true;
