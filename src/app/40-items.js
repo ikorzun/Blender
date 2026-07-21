@@ -198,6 +198,9 @@ function genLevel(){
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
   const pairsCnt = levelNum <= PAIRS_EARLY.length ? PAIRS_EARLY[levelNum - 1] : PAIRS;
+  // сюрприз (золотая рыбка) ложится на дно первым — спека владельца в чате
+  // ГРАФИКИ (вернул спавн: при мерже удаление старого спавна затёрло строку)
+  items.push(makeSurprise());
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
   for (let i=0;i<pairsCnt;i++) pairs.push({ type: i % typesCount, size: levelSize() });
