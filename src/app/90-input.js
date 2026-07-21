@@ -143,6 +143,8 @@ function layoutHUD(){
   const left = document.querySelector('#topBar .grp');
   if (desk) left.appendChild($('tmSvg'));
   else $('statStack').insertBefore($('tmSvg'), $('scSvg'));
+  // после смены раскладки масштаб рамок другой — пережать по контенту
+  if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
 }
 addEventListener('resize', layoutHUD);
 layoutHUD();

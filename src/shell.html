@@ -36,16 +36,21 @@
     paint-order:stroke; font-variant-numeric:tabular-nums; }
   .otext.stat text { font-size:22px; stroke-width:4; }  /* видимая обводка 2 */
   /* размеры через CSS + viewBox: контент масштабируется вместе с рамкой */
-  #plSvg { width:64px; height:27px; } #tmSvg { width:72px; height:27px; }
-  #scSvg { width:104px; height:27px; } #lvlSvg { width:88px; height:27px; display:none; }
+  /* ⚠️ LV и время БЕЗ фиксированной ширины: рамку обжимает по тексту
+     fitStat (85-hud), иначе при коротких значениях между подписями
+     вырастала дыра, а время уезжало под глаза (скрин владельца).
+     Отступы pause↔LV↔время равны flex-гэпу автоматически. */
+  #plSvg { width:64px; height:27px; }
+  #tmSvg { height:27px; } #scSvg { width:104px; height:27px; }
+  #lvlSvg { height:27px; display:none; }
   /* ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): LV и время уезжают К ПАУЗЕ слева,
      справа остаётся только счёт; кегль 34 (=×1.545), счётчик предметов
      в макете отсутствует. Перенос узла делает layoutHUD (90-input). */
   @media (min-width:768px){
     #topBar .grp { align-items:center; }
     #plSvg { display:none; }
-    #lvlSvg { display:block; width:136px; height:42px; }
-    #tmSvg { width:111px; height:42px; }
+    #lvlSvg { display:block; height:42px; }
+    #tmSvg { height:42px; }
     #scSvg { width:161px; height:42px; }
   }
   #timer { fill:#0caa1e; }
@@ -177,11 +182,11 @@
       <path d="M7.667 7.667C7.667 6.746 8.413 6 9.333 6h2.5c.92 0 1.667.746 1.667 1.667v16.666c0 .921-.746 1.667-1.667 1.667h-2.5c-.92 0-1.666-.746-1.666-1.667V7.667Z" fill="#000"/>
       <path d="M19.333 7.667c0-.921.746-1.667 1.667-1.667h2.5c.92 0 1.667.746 1.667 1.667v16.666c0 .921-.746 1.667-1.667 1.667H21c-.92 0-1.667-.746-1.667-1.667V7.667Z" fill="#000"/>
     </svg></button>
-    <svg class="otext stat" id="lvlSvg" viewBox="0 0 88 27"><text id="lvlNum" x="2" y="21">LV 1</text></svg>
+    <svg class="otext stat" id="lvlSvg" viewBox="0 0 88 27" width="88"><text id="lvlNum" x="1" y="21">LV 1</text></svg>
   </div>
   <div class="grp" id="statStack">
     <svg class="otext stat" id="plSvg" viewBox="0 0 64 27"><text id="pairsLeft" x="62" y="21" text-anchor="end">141</text></svg>
-    <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27"><text id="timer" x="70" y="21" text-anchor="end">0:00</text></svg>
+    <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
     <svg class="otext stat" id="scSvg" viewBox="0 0 104 27">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
         <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>

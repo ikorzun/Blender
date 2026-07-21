@@ -114,6 +114,9 @@ function tickFace(now){
     else if (stats.score < lastScoreSeen) faceEvent('sad', 700);
     lastScoreSeen = stats.score;
   } else lastScoreSeen = null;
+  // время меняет ширину раз в секунду — обжимаем рамку по факту смены
+  const tmStr = $('timer').textContent;
+  if (tmStr !== tmStrLast){ tmStrLast = tmStr; fitStat('timer'); }
   if (!nextBlinkAt) nextBlinkAt = now + 4000;
   // моргание 120 мс раз в 4-7 с; в турбо и на помоле не моргаем
   const canBlink = faceState === 'calm' || faceState === 'kind' || faceState === 'rolled';
@@ -159,9 +162,24 @@ function isNightSky(){
   let h = 12; try { h = new Date().getHours(); } catch(e){}
   return h >= 18 || h < 5;
 }
+// Обжать svg-рамку по тексту: ширина = длина текста в юнитах viewBox ×
+// текущий масштаб (высота/27). Без этого фиксированные рамки давали дыру
+// между LV и временем и наезд времени на глаза (скрин владельца).
+function fitStat(id){
+  const t = $(id), svg = t.ownerSVGElement;
+  const u = t.getComputedTextLength() + 3;          // ширина в юнитах viewBox
+  // ⚠️ менять надо И viewBox, И css-ширину: svg держит пропорции viewBox
+  // (meet) — одна лишь ширина при высоте 42 УМЕНЬШАЛА контент (LV мельче
+  // времени на скрине владельца)
+  svg.setAttribute('viewBox', '0 0 ' + u.toFixed(1) + ' 27');
+  const k = (svg.getBoundingClientRect().height || 27) / 27;
+  svg.style.width = (u * k) + 'px';
+}
+let tmStrLast = '';
 function updateHUD(){
   document.documentElement.classList.toggle('night', isNightSky());
   $('lvlNum').textContent = 'LV ' + levelNum; // виден на десктопе/планшете
+  fitStat('lvlNum');
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
   // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
   $('pairsLeft').textContent = items.filter(i=>i.alive).length;
