@@ -174,6 +174,7 @@ function collectSurprise(it){
   it.animating = true;
   destroyItemBody(it);
   wakePhysics('gameplay:L58');
+  faceEvent('surprised', 1000); // матрица эмоций ИНТЕРФЕЙСА: клад — «удивлённые» глаза (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
   stats.score += SURPRISE_BONUS;
   scorePop('+' + SURPRISE_BONUS, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);

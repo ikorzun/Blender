@@ -17,6 +17,7 @@ canvas.addEventListener('pointerdown', e => {
   } else if (touches.size === 1){
     pDown = { x:e.clientX, y:e.clientY, az:camAz, phi:camPhi };
     dragging = false;
+    faceLook(e.clientX, e.clientY); // персонаж провожает палец взглядом
   } else {
     pDown = null;
   }
@@ -104,15 +105,22 @@ $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
   el.classList.remove('bounce'); void el.offsetWidth;
   el.classList.add('bounce');
-  el.textContent = '😉';
+  faceEvent('sly', 800); // подмигнул в ответ на тап
   Sound.play('match', 1); vibrate(10);
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
 });
-$('loseContinue').addEventListener('click', ()=>{ hide('loseOverlay'); level.over = false; level.stuck = -8; }); // ~5 c форы, потом тупик покажется снова
-$('gearBtn').addEventListener('click', ()=>{
-  const p = $('debugPanel');
-  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+// ПАУЗА (макет ИНТЕРФЕЙСА: кнопка слева сверху вместо ⚙️, оверлей с
+// Continue/Restart/Settings). Под капотом — НАСТОЯЩАЯ заморозка pauseGame/
+// resumeGame (99-main): стоп-кадр, сдвиг всех часовых якорей, afterPause-
+// очередь; хендлеры pauseBtn/resumeBtn ниже, у блока клавиатуры.
+// Выходы из паузы в genLevel/настройки обязаны резюмить (иначе loop стоит
+// стоп-кадром, а интро нового уровня не тикает).
+$('pauseRestart').addEventListener('click', ()=>{ resumeGame(); genLevel(); });
+$('pauseSettings').addEventListener('click', ()=>{
+  resumeGame(); $('debugPanel').style.display = 'block';
 });
+$('loseContinue').addEventListener('click', ()=>{ hide('loseOverlay'); level.over = false; level.stuck = -8; }); // ~5 c форы, потом тупик покажется снова
+// ⚙️-панель открывается из паузы (кнопки ⚙️ на игровом экране больше нет)
 $('radiusToggle').addEventListener('change', e => { CFG.radiusOn = e.target.checked; $('radiusVal').parentElement.style.opacity = CFG.radiusOn ? 1 : 0.4; updateHUD(); });
 // сложность живёт в localStorage — выбор переживает перезагрузку
 try { CFG.hard = localStorage.getItem('mixer_hard') === '1'; } catch(e){}

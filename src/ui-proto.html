@@ -83,12 +83,16 @@
       radial-gradient(circle at 58% 72%, #6fd0e0 0 23px, transparent 24px),
       radial-gradient(ellipse 62% 34% at 50% 56%, #e9edf3 0 99%, transparent),
       linear-gradient(#ffffff, #f4f6fa); }
-  .eyes { position:absolute; top:6px; left:50%; transform:translateX(-50%); font-size:71px; line-height:1; z-index:6; }
-  .chainbar { position:absolute; top:88px; left:50%; transform:translateX(-50%); width:76px; height:6px;
-    background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; z-index:6; }
+  /* конструкция персонажа: своя строка под чипами (замер: по центру верхнего
+     бара свободно 0-2 px на 320/360 при типичных значениях) */
+  .face { position:absolute; top:56px; left:50%; transform:translateX(-50%); width:220px; z-index:6;
+    display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .eyes { font-size:71px; line-height:1; }
+  .chainbar { width:140px; height:6px; background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; }
   .chainbar i { display:block; height:100%; border-radius:3px; background:var(--green); }
   .chainbar.hot i { background:#ff9d2e; }
-  .mixer-timer { border-radius:12px; padding:9px 16px; font-size:16px; font-weight:800; color:#fff; background:var(--green); }
+  .mixer-timer { border-radius:12px; padding:6px 14px; font-size:16px; font-weight:800; color:#fff;
+    background:var(--green); font-variant-numeric:tabular-nums; }
   .dots { display:flex; gap:6px; justify-content:center; }
   .dot { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.25); }
   .dot.on { background:#ffd60a; }
@@ -168,7 +172,7 @@
           <div class="prog"><i style="width:62%"></i></div>
           <div class="muted" style="margin-top:10px">Загрузка… 62%</div>
         </div>
-        <div style="position:absolute; bottom:26px; left:0; right:0" class="muted">сборка v1-test-12</div>
+        <div style="position:absolute; bottom:26px; left:0; right:0" class="muted">сборка v1-test-13</div>
       </div>
     </div></div>
   </figure>
@@ -271,17 +275,19 @@
     <div class="shrink"><div class="phone">
       <div class="field"></div>
       <div class="bar" style="top:0">
-        <div class="grp"><div class="chip">Ур.7 · 129</div><div class="chip">1:24</div></div>
+        <div class="grp"><div class="chip">Ур.7 · 129</div></div>
         <div class="grp"><div class="chip">🪙 124</div><div class="chip">★ 640</div></div>
       </div>
-      <div class="eyes">👀</div>
-      <div class="chainbar"><i style="width:40%"></i></div>
+      <div class="face">
+        <div class="eyes">👀</div>
+        <div class="mixer-timer">30 с</div>
+        <div class="chainbar"><i style="width:40%"></i></div>
+      </div>
       <div class="bar" style="bottom:12px">
         <div class="grp">
           <button class="icon-btn" data-go="7">⚙️</button>
           <button class="icon-btn" data-go="8">⏸</button>
         </div>
-        <div class="mixer-timer">30 с</div>
         <div class="grp">
           <button class="btn btn-green btn-hint">💡 Hint</button>
           <button class="btn btn-blue btn-shake" data-go="9">
@@ -299,7 +305,7 @@
     <div class="shrink"><div class="phone">
       <div class="field"></div>
       <div class="bar" style="top:0; opacity:.25">
-        <div class="grp"><div class="chip">Ур.1 · 141</div><div class="chip">0:04</div></div>
+        <div class="grp"><div class="chip">Ур.1 · 141</div></div>
         <div class="grp"><div class="chip">🪙 0</div><div class="chip">★ 0</div></div>
       </div>
       <div class="spot" style="left:104px; top:330px"></div>
@@ -327,7 +333,7 @@
           <span class="seg"><span class="sel">EN</span><span>RU</span></span></div>
         <div class="list-row"><span>Панель разработчика</span><span class="switch"></span></div>
         <div style="flex:1"></div>
-        <div class="muted" style="text-align:center">сборка v1-test-12 · 2026-07-20</div>
+        <div class="muted" style="text-align:center">сборка v1-test-13 · 2026-07-20</div>
       </div>
     </div></div>
   </figure>
