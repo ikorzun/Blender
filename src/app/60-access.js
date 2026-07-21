@@ -113,6 +113,34 @@ function tickVeil(dt){
 // Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть
 // слегка отрицательной при касании/нахлёсте — это «вплотную», всегда матч
 function pairDist(a, b){ return a.p.distanceTo(b.p) - a.r - b.r; }
+// ЕДИНСТВЕННОЕ правило совпадения (тап/бот/подсказка/прицел/счётчик пар/
+// детект тупика — все ходят сюда; новые проверки писать ТОЛЬКО через
+// pairMatch). МЕТРИКА v3 (спека владельца 2026-07-20): ИСТИННЫЙ зазор
+// между физическими поверхностями через GJK Rapier — охватные сферы
+// анизотропно щедрили продолговатым (стейк плашмя «матчился сквозь воздух»:
+// видимый зазор 1.0 = охватный −0.46). Охватный зазор остаётся ФИЛЬТРОМ
+// грубой фазы: он НИЖНЯЯ граница истинного, отсечение честное. Компаунды
+// (тор/узел/спираль/чайник) — перебор пар коллайдеров с ранним выходом;
+// дырка тора при этом «настоящая» (расстояние до трубки, не до диска).
+function trueGapWithin(a, b, r){
+  const na = a.body.numColliders(), nb = b.body.numColliders();
+  for (let i = 0; i < na; i++){
+    const ca = a.body.collider(i);
+    for (let j = 0; j < nb; j++){
+      const sc = ca.contactCollider(b.body.collider(j), r);
+      if (sc && sc.distance <= r) return true;
+    }
+  }
+  return false;
+}
+function pairMatch(a, b){
+  if (!CFG.radiusOn) return true;
+  const r = CFG.matchRadius;
+  if (r >= 9) return true;                 // цепная реакция/эндшпиль: вся чаша
+  if (pairDist(a, b) > r) return false;    // грубая фаза (без GJK)
+  if (!a.body || !b.body) return true;     // страховка: тело уже снято — охватный вердикт
+  return trueGapWithin(a, b, r);
+}
 function availablePairs(){
   const byKey = {};
   for (const it of items) if (it.alive && it.accessible) (byKey[it.key] = byKey[it.key]||[]).push(it);
@@ -120,7 +148,7 @@ function availablePairs(){
   for (const k in byKey){
     const arr = byKey[k];
     for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-      if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius) cnt++;
+      if (pairMatch(arr[i], arr[j])) cnt++;
     }
   }
   return cnt;

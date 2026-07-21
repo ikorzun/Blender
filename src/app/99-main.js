@@ -303,7 +303,7 @@ window.__game = {
     for (const k in byKey){
       const arr = byKey[k];
       for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-        if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius){ doMatch([arr[i], arr[j]]); return true; }
+        if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
       }
     }
     return false;

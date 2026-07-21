@@ -37,18 +37,14 @@
     cursor:pointer; user-select:none; -webkit-user-select:none; pointer-events:auto;
     transition:transform .18s; } /* ×3, затем −30% (спека владельца) */
   #eyes.bounce { transform:translateX(-50%) scale(1.3) rotate(-6deg); }
-  /* заряд цепной реакции: ДИСК-«пляжный мяч» СНИЗУ-СПРАВА от курсора
-     (референс владельца — курсор загрузки Mac OS); сектор-пирог:
-     зелёный копится серией, оранжевый в Power chain — остаток времени */
-  #chainRing { display:none; position:fixed; width:30px; height:30px; z-index:6;
-    pointer-events:none; transform:translate(9px, 9px); border-radius:50%;
-    border:2px solid rgba(255,255,255,.9); }
-  /* активный турбо: в диске пульсирует МОЛНИЯ (спека владельца), сектор
-     вокруг продолжает показывать остаток времени */
-  #chainBolt { display:none; position:absolute; inset:0; margin:auto; width:16px; height:16px;
-    fill:#fff; } /* белая молния на голубом диске (спека владельца) */
-  #chainRing.hot #chainBolt { display:block; animation:boltPulse .5s ease-in-out infinite alternate; }
-  @keyframes boltPulse { from { transform:scale(1); } to { transform:scale(1.25); } }
+  /* заряд цепной реакции: копится под глазами пока горит серия;
+     во время Power chain показывает остаток времени (оранжевый) */
+  #chainBar { display:none; position:fixed; top:calc(env(safe-area-inset-top, 0px) + 82px);
+    left:50%; transform:translateX(-50%); width:76px; height:6px; z-index:6;
+    background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; }
+  #chainBar i { display:block; height:100%; width:0%; background:#2aa876;
+    border-radius:3px; transition:width .2s; }
+  #chainBar.hot i { background:#ff9d2e; transition:none; }
   /* одинаковая высота нижних кнопок (спека владельца) */
   #hintBtn, #shakeBtn { height:54px; box-sizing:border-box; }
   #shakeBtn { gap:3px; padding:6px 20px; }
@@ -71,7 +67,6 @@
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
     opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
-  #debugPanel { display:none; position:fixed; right:12px; bottom:90px; z-index:7; background:rgba(15,20,30,.95);
     border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; font-size:14px; width:230px; }
   #debugPanel .row { display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
   #debugPanel input[type=range] { width:110px; }
@@ -103,7 +98,7 @@
   <div class="grp"><div class="chip" id="coinsChip">🪙 0</div><div class="chip" id="score">★ 0</div></div>
 </div>
 <div id="eyes" title="Миксер">👀</div>
-<div id="chainRing"><svg id="chainBolt" viewBox="0 0 24 24"><path d="M13 2 L5 13 h5 L9.5 22 L19 9 h-5.5 Z"/></svg></div>
+<div id="chainBar"><i></i></div>
 
 <div id="toast"></div>
 
@@ -131,7 +126,7 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-20 · 2026-07-20</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-15 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -237,7 +232,7 @@ const MIXER_IDLE_EASY = 30, MIXER_IDLE_HARD = 10;
 // вторая склейка в пределах цепочного окна -> радиус до COMBO_RADIUS на
 // COMBO_MS; каждый матч в лихорадке ПРОДЛЕВАЕТ окно (иначе фивер гаснет
 // посреди цепочки и злит)
-const COMBO_RADIUS = 1.5, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // окно серии 4 с; потолок зазора 1.5 (2-й нерф: «в серии слишком легко»)
+const COMBO_RADIUS = 2.0, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // окно серии 4 с (спека владельца; было 2), потолок ИСТИННОГО зазора 2.0 (метрика v3)
 // разгон радиуса ЛЕСЕНКОЙ (тюнинг владельца: «мгновенные 3.5 — слишком
 // легко»): каждый матч серии +1 ступень к COMBO_STEPS, промах сбивает
 // COMBO_MISS_DROP ступеней (до нуля = серия погасла)
@@ -267,7 +262,7 @@ const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_MISSES = 2, CHAIN_DROP_MS = 5
 // и по мере удаления предметов чуть сжимается — куча оседает в сужающийся
 // стакан, играбельная поверхность уменьшается. Фактор = radiusAt(верх кучи) /
 // radiusAt(верх кучи на старте уровня); пол — MATCH_R_MIN.
-const MATCH_R_MIN = 0.75; // ПОЛ радиуса в НОВОЙ метрике: ЗАЗОР между поверхностями // пол сжатия радиуса (требование владельца: не меньше 1.8)
+const MATCH_R_MIN = 0.75; // пол сжатия радиуса: ИСТИННЫЙ зазор 0.75 (метрика v3)
 
 // ⚠️ МЕТРИКА РАДИУСА (2026-07-18, вопрос владельца): расстояние считается
 // как ЗАЗОР МЕЖДУ ПОВЕРХНОСТЯМИ (pairDist: центры минус оба радиуса), а НЕ
@@ -275,20 +270,26 @@ const MATCH_R_MIN = 0.75; // ПОЛ радиуса в НОВОЙ метрике:
 // крупные пары (их центры далеко даже при касании). Все пороги — в зазорах:
 // база 0.9, пол 0.75, комбо-потолок 2.0. Старое «минимум 1.8 по центрам»
 // эквивалентно ~0.75 зазора для средних предметов.
+// ⚠️ МЕТРИКА v3 (2026-07-20, спека владельца «что-то умнее для
+// продолговатых»): матч = ИСТИННЫЙ зазор между физическими поверхностями
+// (GJK Rapier, contactCollider) <= matchRadius. История: метрика центров
+// наказывала крупных (v1), зазор ОХВАТНЫХ сфер (v2) анизотропно ЩЕДРИЛ
+// продолговатым — стейк плашмя «матчился сквозь воздух» (видимый зазор 1.0
+// = охватный −0.46). Промежуточный «запас касания сферы» (+0.55,
+// MATCH_EDGE_PAD) удалён вместе со сферой: телеграф — ореол-призрак самой
+// формы (reachGhostFX в 80-gameplay). Пороги — в истинных зазорах, числа
+// владельца канонические: база 0.9, пол 0.75, комбо-потолок 2.0.
+// Единственная точка сравнения — pairMatch (60-access).
 const CFG = {
   // Сложность (спека владельца 2026-07): по умолчанию ЛЮБАЯ пара матчится
   // (перекрытия не проверяются, вуали нет); Hard включает механику
   // физической доступности (веер лучей + серая вуаль). ⚙️ + localStorage.
   hard: false,
   radiusOn: true,
-  baseRadius: 0.9,  // стартовый радиус (регулируется слайдером в ⚙️)
+  baseRadius: 0.9,  // стартовый ИСТИННЫЙ зазор (регулируется слайдером в ⚙️)
   matchRadius: 2.0, // текущий, пересчитывается в updateMatchRadius()
   highlight: true,
   sound: true,
-  // ПРОТОТИП «запечённого света» (A/B для владельца, 2026-07-20): предметы
-  // переходят с MeshStandard+софтбокс на matcap. Флаг оставлен, чтобы
-  // сравнение было в один тап и откат — тоже. Подробности в 10-stage.
-  matcap: true,
 };
 
 // ===== 10-stage: рендерер, камера, свет, IBL-окружение, небо =====
@@ -362,95 +363,6 @@ scene.add(dl);
   scene.environment = pmrem.fromScene(env, 0.02).texture;
   pmrem.dispose();
 })();
-
-// ===== MATCAP — «запечённый свет» (прототип A/B, спека владельца 2026-07-20) =====
-// Нормаль во ВЬЮ-пространстве -> пиксель текстуры: свет и финиш материала
-// запечены заранее. Блик физически НЕ МОЖЕТ скакать при повороте камеры
-// (историческая жалоба владельца) — скакать больше нечему.
-// RGB — диффуз: шейдер УМНОЖАЕТ его на material.color, поэтому candyColor и
-// серая вуаль недоступности продолжают работать без единой правки.
-// ALPHA — белый блик, добавляется ПОВЕРХ (см. matcapSpecPatch): чисто
-// мультипликативный matcap красит блик в цвет предмета, и пластик матовеет.
-// ⚠️ DataTexture, а НЕ CanvasTexture: канвас премножает RGB на альфу, и
-// диффуз погас бы везде, кроме пятна блика.
-// ⚠️ КАЛИБРОВКА (итерация 2 по скринам): текстура помечена sRGBEncoding, и
-// середина шкалы уходит в linear ВДВОЕ темнее (0.5 sRGB ≈ 0.21 linear) —
-// первый подбор (amb 0.34) дал тёмную тяжёлую кучу, а широкий блик (shin 20,
-// spec 0.60) сидел на шарах белой кляксой. Тело держим в 0.66-0.94 sRGB,
-// блик — узкий и слабый (искра, не пятно).
-const MATCAP_PRESETS = {
-  // мягкий глянец — характер v4-материалов (metalness 0, roughness 0.18)
-  soft:  { amb: 0.66, sky: 0.28, diff: 0.20, shin: 60, spec: 0.22, rim: 0.14, rimP: 3 },
-  // металл для кубов: ниже тело, шире блик, сильный ободок. Цвет предмета в
-  // matcap-ветке ОСВЕТЛЁН (40-items): у MeshStandard кубы держались отражением
-  // окружения (metalness 1), а множитель тёмного графита ушёл бы в чёрный.
-  metal: { amb: 0.44, sky: 0.34, diff: 0.30, shin: 34, spec: 0.50, rim: 0.42, rimP: 3 },
-};
-const matcapCache = new Map();
-function makeMatcap(kind){
-  if (matcapCache.has(kind)) return matcapCache.get(kind);
-  const P = MATCAP_PRESETS[kind] || MATCAP_PRESETS.soft;
-  const S = 128, data = new Uint8Array(S * S * 4);
-  // ключевой свет сверху-слева-спереди; взгляд по +Z, полувектор для Блинна
-  const Lx = -0.36, Ly = 0.60, Lz = 0.72;
-  const hl = Math.hypot(Lx, Ly, Lz + 1);
-  const Hx = Lx / hl, Hy = Ly / hl, Hz = (Lz + 1) / hl;
-  for (let y = 0; y < S; y++){
-    for (let x = 0; x < S; x++){
-      let nx = (x + 0.5) / S * 2 - 1;
-      let ny = 1 - (y + 0.5) / S * 2;          // v текстуры растёт вниз
-      const r2 = nx * nx + ny * ny;
-      // за кругом держим значение кромки — фильтрация не затягивает чёрное
-      if (r2 > 1){ const k = 1 / Math.sqrt(r2); nx *= k; ny *= k; }
-      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, r2)));
-      // окружение = наш же софтбокс: снизу глуше, к зениту ярче
-      const amb = P.amb + P.sky * (ny * 0.5 + 0.5);
-      const lam = Math.max(0, nx * Lx + ny * Ly + nz * Lz);
-      // френель-ободок: силуэт светлее — предметы не слипаются в плотной куче
-      const rim = P.rim * Math.pow(1 - nz, P.rimP);
-      const v = Math.min(1, amb + P.diff * lam + rim);
-      const sp = Math.min(1, Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), P.shin) * P.spec);
-      const i = (y * S + x) * 4;
-      data[i] = data[i + 1] = data[i + 2] = (v * 255) | 0;
-      data[i + 3] = (sp * 255) | 0;
-    }
-  }
-  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
-  tex.encoding = THREE.sRGBEncoding;
-  tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
-  tex.needsUpdate = true;
-  matcapCache.set(kind, tex);
-  return tex;
-}
-// ⚠️ У MeshMatcapMaterial НЕТ emissive, а подсветка подсказки (hintPulse) и
-// «прицела» (scopePulse) в 80-gameplay пишут mat.emissive/emissiveIntensity
-// напрямую — без этих заглушек кнопка Hint падала с TypeError на setHex.
-// (test.js подсказку НЕ ПОКРЫВАЕТ — поймано отдельной пробой; если будете
-// править эту ветку, проверяйте Hint руками.)
-// Считать ничего не надо: как только у материала появляется .emissive, three
-// сам пишет emissive × emissiveIntensity в юниформу `emissive`
-// (refreshUniformsCommon). Наша задача — ЗАВЕСТИ эту юниформу в matcap-шейдере,
-// иначе three падает на undefined.value в первом же кадре (так и было).
-function addMatcapEmissive(mat){
-  mat.emissive = new THREE.Color(0x000000);
-  mat.emissiveIntensity = 0;
-}
-// Блик из альфы + emissive — поверх умножения. Функция ОДНА на все материалы,
-// поэтому кэш программ (по onBeforeCompile.toString()) даёт ОДИН
-// скомпилированный шейдер на все 181, а не 181.
-const matcapSpecPatch = (sh) => {
-  sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
-  sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform vec3 emissive;')
-    .replace(
-      'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
-      'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb + vec3( matcapColor.a ) + emissive;'
-    );
-};
-// matcap-предметы тени НЕ ПРИНИМАЮТ (материал неосвещаемый) — значит теневой
-// пасс рисовал бы карту, которую некому показать. Замер: пасс УДВАИВАЕТ
-// draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.
-if (CFG.matcap) renderer.shadowMap.enabled = false;
 
 // Небо: БЕЛОЕ поле (по требованию владельца). ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
@@ -598,20 +510,6 @@ function heartGeo(){ // контур из webgl_geometry_shapes
   g.scale(1.35, 1.35, 1.35);
   return g;
 }
-// Простые новые формы (спека владельца 2026-07-20): все ВЫПУКЛЫЕ — физика
-// и сэмплы доступности работают через convex hull без ручных компаундов
-function eggGeo(){
-  const g = new THREE.SphereGeometry(0.72, 16, 12);
-  g.scale(1, 1.32, 1); // яйцо: вытянутая сфера
-  return g;
-}
-function gemGeo(){ // кристалл: две 8-гранные пирамиды основаниями друг к другу
-  const up = new THREE.ConeGeometry(0.7, 0.8, 8);
-  const down = new THREE.ConeGeometry(0.7, 0.8, 8);
-  const mUp = new THREE.Matrix4().makeTranslation(0, 0.4, 0);
-  const mDown = new THREE.Matrix4().makeRotationX(Math.PI).setPosition(0, -0.4, 0);
-  return mergeGeos([[up, mUp], [down, mDown]]);
-}
 function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индексированная геометрия
   const pos = [], norm = [];
   for (const [g, m] of parts){
@@ -665,11 +563,6 @@ const TYPES = [
   { name:'heart',  color:0xff8fa8, rc:0.72, mat:'soft',    geo:heartGeo },
   { name:'pill',   color:0x8fd8ff, rc:0.70, mat:'soft',    geo:()=>new THREE.CapsuleGeometry(0.5,0.7,6,12) },
   { name:'teapot', color:0xc9b8ff, rc:0.78, mat:'soft',    geo:teapotGeo },
-  // простые формы 2026-07-20 (появляются на поздних уровнях по рампе типов)
-  { name:'egg',    color:0xe05ce0, rc:0.85, mat:'soft',    geo:eggGeo },
-  { name:'prism',  color:0x35c9a3, rc:0.78, mat:'soft',    geo:()=>new THREE.CylinderGeometry(0.75,0.75,1.4,3) },
-  { name:'nut',    color:0xb8c0cc, rc:0.80, wr:0.7, mat:'chrome', geo:()=>new THREE.CylinderGeometry(0.85,0.85,0.55,6) },
-  { name:'gem',    color:0x8f66ff, rc:0.75, mat:'soft',    geo:gemGeo },
 ];
 
 // Сочная карамель: HSL нормализуется в sRGB (s=0.75, l=0.55) и конвертится
@@ -724,19 +617,7 @@ function makeItem(typeIdx, size){
   const gkey = String(typeIdx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   let mat;
-  if (CFG.matcap){
-    // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
-    // работают как прежде — шейдер УМНОЖАЕТ matcap на material.color.
-    mat = new THREE.MeshMatcapMaterial({
-      // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
-      // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
-      color: t.mat === 'chrome' ? 0xb8c0cc : (t.mat === 'model' ? 0xffffff : candyColor(t.color)),
-      matcap: makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
-      vertexColors: t.mat === 'model',
-    });
-    addMatcapEmissive(mat);          // без этого падает подсветка Hint
-    mat.onBeforeCompile = matcapSpecPatch;
-  } else if (t.mat === 'chrome'){
+  if (t.mat === 'chrome'){
     // Цикл v4: белый хром на белом фоне сливался («кубы еле различимы») —
     // теперь тёмный ГРАФИТОВЫЙ металлик: читается на белом, блики стабильны
     mat = new THREE.MeshStandardMaterial({ color: 0x424a56, metalness: 1, roughness: 0.3 });
@@ -1004,7 +885,7 @@ function hullFromGeometry(geo, s){
   return RAPIER.ColliderDesc.convexHull(pts);
 }
 // «Катучие» формы глушим по вращению сильнее — в Rapier нет трения качения
-const ROLLY = { ball:1, torus:1, cyl:1, knot:1, spiral:1, pill:1, egg:1 };
+const ROLLY = { ball:1, torus:1, cyl:1, knot:1, spiral:1, pill:1 };
 
 // Цепочка капсул по ломаной (точная физика трубчатых форм: тор, узел,
 // спираль). ВАЖНО: three строит тор/узел в плоскости XY — прежние
@@ -1377,6 +1258,34 @@ function tickVeil(dt){
 // Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть
 // слегка отрицательной при касании/нахлёсте — это «вплотную», всегда матч
 function pairDist(a, b){ return a.p.distanceTo(b.p) - a.r - b.r; }
+// ЕДИНСТВЕННОЕ правило совпадения (тап/бот/подсказка/прицел/счётчик пар/
+// детект тупика — все ходят сюда; новые проверки писать ТОЛЬКО через
+// pairMatch). МЕТРИКА v3 (спека владельца 2026-07-20): ИСТИННЫЙ зазор
+// между физическими поверхностями через GJK Rapier — охватные сферы
+// анизотропно щедрили продолговатым (стейк плашмя «матчился сквозь воздух»:
+// видимый зазор 1.0 = охватный −0.46). Охватный зазор остаётся ФИЛЬТРОМ
+// грубой фазы: он НИЖНЯЯ граница истинного, отсечение честное. Компаунды
+// (тор/узел/спираль/чайник) — перебор пар коллайдеров с ранним выходом;
+// дырка тора при этом «настоящая» (расстояние до трубки, не до диска).
+function trueGapWithin(a, b, r){
+  const na = a.body.numColliders(), nb = b.body.numColliders();
+  for (let i = 0; i < na; i++){
+    const ca = a.body.collider(i);
+    for (let j = 0; j < nb; j++){
+      const sc = ca.contactCollider(b.body.collider(j), r);
+      if (sc && sc.distance <= r) return true;
+    }
+  }
+  return false;
+}
+function pairMatch(a, b){
+  if (!CFG.radiusOn) return true;
+  const r = CFG.matchRadius;
+  if (r >= 9) return true;                 // цепная реакция/эндшпиль: вся чаша
+  if (pairDist(a, b) > r) return false;    // грубая фаза (без GJK)
+  if (!a.body || !b.body) return true;     // страховка: тело уже снято — охватный вердикт
+  return trueGapWithin(a, b, r);
+}
 function availablePairs(){
   const byKey = {};
   for (const it of items) if (it.alive && it.accessible) (byKey[it.key] = byKey[it.key]||[]).push(it);
@@ -1384,7 +1293,7 @@ function availablePairs(){
   for (const k in byKey){
     const arr = byKey[k];
     for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-      if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius) cnt++;
+      if (pairMatch(arr[i], arr[j])) cnt++;
     }
   }
   return cnt;
@@ -1995,7 +1904,7 @@ function scopeHighlight(){
   for (const k in byKey){
     const arr = byKey[k];
     for (const a0 of arr){
-      const paired = arr.some(o => o !== a0 && (!CFG.radiusOn || pairDist(o, a0) <= CFG.matchRadius));
+      const paired = arr.some(o => o !== a0 && pairMatch(o, a0));
       if (paired){ scopePulse(a0, 5); lit++; }
     }
   }
@@ -2045,6 +1954,29 @@ function collectSurprise(it){
   }, 200);
 }
 
+// Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
+// на matchRadius по каждой локальной оси — честный образ зоны «истинный
+// зазор <= R» (сфера при неохватной метрике врала бы в обе стороны: у
+// стейка зона — плита, не шар). Геометрия ОБЯЗАТЕЛЬНО клонируется:
+// stepFX по завершении зовёт dispose — общий кэш геометрий типов трогать
+// нельзя (иначе все предметы типа теряют GPU-буферы).
+function reachGhostFX(item, color){
+  if (!CFG.radiusOn) return;
+  const geo = item.mesh.geometry;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox, s = item.mesh.scale.x;
+  const R = Math.min(CFG.matchRadius, 3.6); // в цепи/эндшпиле не больше чаши
+  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.06, 0.34));
+  ghost.position.copy(item.mesh.position);
+  ghost.quaternion.copy(item.mesh.quaternion);
+  ghost.scale.set(
+    s + R / Math.max(0.05, (bb.max.x - bb.min.x) / 2),
+    s + R / Math.max(0.05, (bb.max.y - bb.min.y) / 2),
+    s + R / Math.max(0.05, (bb.max.z - bb.min.z) / 2));
+  ghost.renderOrder = 10;
+  addFX(ghost, 0.9, (o, k) => { o.material.uniforms.op.value = 1 - k; });
+}
+
 function handleTap(x, y){
   if (level.over) return;
   // финал миксера (пар по типам не осталось): очки не тратятся и не
@@ -2082,10 +2014,10 @@ function handleTap(x, y){
   if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
-  const eligible = CFG.radiusOn ? accessible.filter(i => pairDist(i, item) <= CFG.matchRadius) : accessible;
+  const eligible = accessible.filter(i => pairMatch(i, item));
 
-  // сфера радиуса: белая — матч есть, красная — промах
-  if (CFG.radiusOn) sphereFX(item.p, Math.min(CFG.matchRadius + item.r + 0.55, 4.2), eligible.length ? 0xffffff : 0xff5a64); // визуал: зазор + свой радиус + типичный чужой
+  // ореол досягаемости: белый — матч есть, красный — промах
+  reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -2095,7 +2027,7 @@ function handleTap(x, y){
   }
   if (finale){ wiggle(item); return; }
   penalize(item.p);
-  const nearBuried = copies.filter(i => !CFG.radiusOn || pairDist(i, item) <= CFG.matchRadius);
+  const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
@@ -2119,8 +2051,7 @@ function findHintGroup(){
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
   let best = null;
   for (const it of acc){
-    const grp = acc.filter(o => o !== it && o.key === it.key &&
-      (!CFG.radiusOn || pairDist(o, it) <= CFG.matchRadius));
+    const grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
     if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
   }
   return best;
@@ -2132,7 +2063,7 @@ function showHint(){
     toast('Доступных пар нет — встряхните!');
     return;
   }
-  if (CFG.radiusOn) sphereFX(grp[0].p, Math.min(CFG.matchRadius + grp[0].r + 0.55, 4.2), 0xffe066);
+  reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
 }
 function hintPulse(item){
@@ -2292,29 +2223,20 @@ function eyesMood(now, grinding){
   if ((now - stats.lastAction)/1000 > level.idleLimit - 5) return '🥱';
   return '👀';
 }
-// Диск заряда цепи СНИЗУ-СПРАВА от курсора/касания («пляжный мяч» Mac OS —
-// референс владельца): сектор-пирог conic-gradient. Копится
-// comboCount/CHAIN_COMBO_AT пока горит серия; в Power chain — остаток
-// времени (оранжевый). Зовётся каждый кадр.
+// Полоска заряда цепи: копится comboCount/CHAIN_COMBO_AT пока серия горит;
+// в реакции — ОСТАТОК времени Power chain (оранжевая). Зовётся каждый кадр.
 function tickChainBar(now){
-  const cr = $('chainRing');
-  let frac = -1, hot = false;
+  const cb = $('chainBar'), fill = cb.firstElementChild;
   if (chainUntil > now){
-    frac = Math.max(0, (chainUntil - now) / CHAIN_MS); hot = true;
+    cb.style.display = 'block';
+    cb.classList.add('hot');
+    fill.style.width = Math.max(0, (chainUntil - now) / CHAIN_MS * 100) + '%';
   } else if (comboUntil > now && comboCount > 0 && level && !level.over){
-    frac = Math.min(1, comboCount / CHAIN_COMBO_AT);
-  }
-  if (frac < 0){ cr.style.display = 'none'; return; }
-  cr.style.display = 'block';
-  cr.classList.toggle('hot', hot); // .hot показывает пульсирующую молнию внутри
-  cr.style.left = lastPtrX + 'px';
-  cr.style.top = lastPtrY + 'px';
-  // турбо: ГОЛУБОЙ диск с белой молнией; выработанное время — приглушённый
-  // сектор того же голубого. Зарядка: зелёный пирог на прозрачном.
-  if (hot){
-    cr.style.background = 'conic-gradient(#4da6ff 0 ' + (frac * 100).toFixed(1) + '%, rgba(77,166,255,.38) 0 100%)';
+    cb.style.display = 'block';
+    cb.classList.remove('hot');
+    fill.style.width = Math.min(100, comboCount / CHAIN_COMBO_AT * 100) + '%';
   } else {
-    cr.style.background = 'conic-gradient(#2aa876 0 ' + (frac * 100).toFixed(1) + '%, transparent 0 100%)';
+    cb.style.display = 'none';
   }
 }
 function updateEyes(now, grinding){
@@ -2353,11 +2275,8 @@ function updateHUD(){
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
 function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
 let pDown = null, dragging = false, pinch = null;
-// последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
-let lastPtrX = innerWidth / 2, lastPtrY = innerHeight / 2;
 const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
-  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована — жесты не копим
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
@@ -2372,7 +2291,6 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 canvas.addEventListener('pointermove', e => {
-  lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
@@ -2780,7 +2698,7 @@ window.__game = {
     for (const k in byKey){
       const arr = byKey[k];
       for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){
-        if (!CFG.radiusOn || pairDist(arr[i], arr[j]) <= CFG.matchRadius){ doMatch([arr[i], arr[j]]); return true; }
+        if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
       }
     }
     return false;

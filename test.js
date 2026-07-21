@@ -72,7 +72,7 @@ const path = require('path');
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(600);
   await page.evaluate(() => {
-    window.__game.cfg.baseRadius = 0.001; // радиус динамический — правим базу
+    window.__game.cfg.baseRadius = -9; // радиус динамический — правим базу (метрика v3: 0.001 матчил бы касающиеся)
     window.__game.cfg.matchRadius = -9; // зазор не бывает отрицательным настолько — гарантированный тупик
     const lv = window.__game.level();
     lv.shakes = 0; lv.adShakes = 0;

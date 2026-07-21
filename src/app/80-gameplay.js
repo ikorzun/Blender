@@ -136,7 +136,7 @@ function scopeHighlight(){
   for (const k in byKey){
     const arr = byKey[k];
     for (const a0 of arr){
-      const paired = arr.some(o => o !== a0 && (!CFG.radiusOn || pairDist(o, a0) <= CFG.matchRadius));
+      const paired = arr.some(o => o !== a0 && pairMatch(o, a0));
       if (paired){ scopePulse(a0, 5); lit++; }
     }
   }
@@ -186,6 +186,29 @@ function collectSurprise(it){
   }, 200);
 }
 
+// Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
+// на matchRadius по каждой локальной оси — честный образ зоны «истинный
+// зазор <= R» (сфера при неохватной метрике врала бы в обе стороны: у
+// стейка зона — плита, не шар). Геометрия ОБЯЗАТЕЛЬНО клонируется:
+// stepFX по завершении зовёт dispose — общий кэш геометрий типов трогать
+// нельзя (иначе все предметы типа теряют GPU-буферы).
+function reachGhostFX(item, color){
+  if (!CFG.radiusOn) return;
+  const geo = item.mesh.geometry;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const bb = geo.boundingBox, s = item.mesh.scale.x;
+  const R = Math.min(CFG.matchRadius, 3.6); // в цепи/эндшпиле не больше чаши
+  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.06, 0.34));
+  ghost.position.copy(item.mesh.position);
+  ghost.quaternion.copy(item.mesh.quaternion);
+  ghost.scale.set(
+    s + R / Math.max(0.05, (bb.max.x - bb.min.x) / 2),
+    s + R / Math.max(0.05, (bb.max.y - bb.min.y) / 2),
+    s + R / Math.max(0.05, (bb.max.z - bb.min.z) / 2));
+  ghost.renderOrder = 10;
+  addFX(ghost, 0.9, (o, k) => { o.material.uniforms.op.value = 1 - k; });
+}
+
 function handleTap(x, y){
   if (level.over) return;
   // финал миксера (пар по типам не осталось): очки не тратятся и не
@@ -223,10 +246,10 @@ function handleTap(x, y){
   if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
-  const eligible = CFG.radiusOn ? accessible.filter(i => pairDist(i, item) <= CFG.matchRadius) : accessible;
+  const eligible = accessible.filter(i => pairMatch(i, item));
 
-  // сфера радиуса: белая — матч есть, красная — промах
-  if (CFG.radiusOn) sphereFX(item.p, Math.min(CFG.matchRadius + item.r + 0.55, 4.2), eligible.length ? 0xffffff : 0xff5a64); // визуал: зазор + свой радиус + типичный чужой
+  // ореол досягаемости: белый — матч есть, красный — промах
+  reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -236,7 +259,7 @@ function handleTap(x, y){
   }
   if (finale){ wiggle(item); return; }
   penalize(item.p);
-  const nearBuried = copies.filter(i => !CFG.radiusOn || pairDist(i, item) <= CFG.matchRadius);
+  const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
@@ -260,8 +283,7 @@ function findHintGroup(){
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
   let best = null;
   for (const it of acc){
-    const grp = acc.filter(o => o !== it && o.key === it.key &&
-      (!CFG.radiusOn || pairDist(o, it) <= CFG.matchRadius));
+    const grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
     if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
   }
   return best;
@@ -273,7 +295,7 @@ function showHint(){
     toast('Доступных пар нет — встряхните!');
     return;
   }
-  if (CFG.radiusOn) sphereFX(grp[0].p, Math.min(CFG.matchRadius + grp[0].r + 0.55, 4.2), 0xffe066);
+  reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
 }
 function hintPulse(item){
