@@ -164,8 +164,19 @@ function scorePopScreen(text, px, py, color, big){
   el.className = 'pop' + (big ? ' big' : '');
   el.style.left = px + 'px';
   el.style.top  = py + 'px';
-  el.style.color = color;
-  el.textContent = text;
+  // ЕДИНЫЙ МЕХАНИЗМ КОНТУРА (правка ИНТЕРФЕЙСА по прямому указанию
+  // владельца 2026-07-21-в): текст — SVG-<text> класса .otext, как весь
+  // обведённый текст HUD; div остаётся ради позиции и анимации полёта.
+  // Параметр color сохранён в API, но не применяется: попы всегда белые
+  // с чёрной обводкой (спека владельца).
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'otext');
+  svg.setAttribute('width', '260'); svg.setAttribute('height', '40');
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t.setAttribute('x', '130'); t.setAttribute('y', '30');
+  t.setAttribute('text-anchor', 'middle');
+  t.textContent = text;
+  svg.appendChild(t); el.appendChild(svg);
   document.body.appendChild(el);
   requestAnimationFrame(()=>el.classList.add('fly'));
   setTimeout(()=>el.remove(), 1100);

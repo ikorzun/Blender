@@ -138,7 +138,15 @@ function setFace(state, now, blinking){
   $('wR').style.transform = 'scale(' + (sz.wr / EYE_R).toFixed(3) + ')';
 }
 function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
+// Ночь по тем же границам, что выбор панорамы в 05-sky (skyForNow):
+// 18..5. Дублируем сознательно: 05-sky сгенерирован тулзой и руками не
+// правится, а ошибка тут стоит лишь оттенка кнопки.
+function isNightSky(){
+  let h = 12; try { h = new Date().getHours(); } catch(e){}
+  return h >= 18 || h < 5;
+}
 function updateHUD(){
+  document.documentElement.classList.toggle('night', isNightSky());
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
   // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
   $('pairsLeft').textContent = items.filter(i=>i.alive).length;
