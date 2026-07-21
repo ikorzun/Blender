@@ -87,7 +87,7 @@ $('loseAdContinue').addEventListener('click', ()=>{
 // «Прицел»: 15 монет, все доступные пары на 5 с
 $('scopeBtn').addEventListener('click', ()=>{
   if (level.over || intro) return;
-  if (!spendCoins(PRICE_SCOPE)){ toast('Нужно ' + PRICE_SCOPE + ' 🪙'); return; }
+  if (!spendCoins(PRICE_SCOPE)){ toast('Need ' + PRICE_SCOPE + ' 🪙'); return; }
   Telemetry.ev('spend', { item: 'scope' });
   refreshAccessibility();
   scopeHighlight();
@@ -135,6 +135,17 @@ $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): время переезжает из правого стека
+// к паузе слева; LV показывается только там (CSS прячет лишнее).
+// Один узел #tmSvg физически переносится — id не дублируются.
+function layoutHUD(){
+  const desk = innerWidth >= 768;
+  const left = document.querySelector('#topBar .grp');
+  if (desk) left.appendChild($('tmSvg'));
+  else $('statStack').insertBefore($('tmSvg'), $('scSvg'));
+}
+addEventListener('resize', layoutHUD);
+layoutHUD();
 // Звук интерфейса: один делегированный хук на ВСЕ кнопки (спека владельца)
 document.addEventListener('click', e => {
   if (e.target && e.target.closest && e.target.closest('button')) Sound.play('ui');
@@ -167,6 +178,6 @@ $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
   resetProgress();
   $('debugPanel').style.display = 'none';
-  toast('Прогресс сброшен');
+  toast('Progress reset');
   genLevel(); updateHUD();
 });

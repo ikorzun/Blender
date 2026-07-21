@@ -553,11 +553,11 @@ window.__game = {
 
 // Старт асинхронный: сперва WASM-инициализация Rapier
 if (!window.RAPIER){
-  window.__fatal && window.__fatal('Не загрузился физический движок (Rapier).');
+  window.__fatal && window.__fatal('Physics engine (Rapier) failed to load.');
 } else {
   RAPIER.init().then(() => {
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
     grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
-  }).catch(e => { window.__fatal && window.__fatal('Физика не инициализировалась: ' + e.message); });
+  }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }

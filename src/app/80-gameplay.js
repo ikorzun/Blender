@@ -93,10 +93,10 @@ function checkEnd(){
     setStars(levelNum, stars);
     addHints(1); // +1 подсказка за успешный уровень (спека владельца)
     Telemetry.ev('win', { lv: levelNum, st: stars, c: level.coinsWon, sc: stats.score, sec: secs });
-    $('winTitle').textContent = '🎉 Уровень ' + levelNum + ' пройден!';
+    $('winTitle').textContent = '🎉 Level ' + levelNum + ' cleared!';
     $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     $('winStats').textContent =
-      'Очки: ' + stats.score + (base ? ' / цель ' + Math.round(base * STAR2_K) : '') + '  ·  Время: ' + fmtTime(secs);
+      'Score: ' + stats.score + (base ? ' / goal ' + Math.round(base * STAR2_K) : '') + '  ·  Time: ' + fmtTime(secs);
     // монеты скрыты: награда уровня на экране — звёзды + подсказка;
     // начисление выше живёт (вернётся вместе с COINS_ENABLED)
     $('winCoins').textContent = COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  +1 💡') : '+1 💡';
@@ -114,8 +114,8 @@ function showLose(){
   Sound.play('lose');
   Telemetry.ev('lose', { lv: levelNum, alive: items.filter(i=>i.alive).length });
   const secs = Math.round((performance.now()-stats.t0)/1000);
-  $('loseStats').textContent = 'Доступных пар нет, встряски закончились. Осталось предметов: '
-    + items.filter(i=>i.alive).length + '  ·  Время: ' + fmtTime(secs);
+  $('loseStats').textContent = 'No pairs available and no shakes left. Items left: '
+    + items.filter(i=>i.alive).length + '  ·  Time: ' + fmtTime(secs);
   // Continue за рекламу — 1 раз за уровень (самый конвертящий плейсмент жанра)
   $('loseAdContinue').style.display = level.continueUsed ? 'none' : '';
   show('loseOverlay');
@@ -144,7 +144,7 @@ function scopeHighlight(){
       if (paired){ scopePulse(a0, 5); lit++; }
     }
   }
-  if (!lit) toast('Сейчас доступных пар нет');
+  if (!lit) toast('No pairs available right now');
 }
 function scopePulse(item, dur){
   const mat = item.mesh.material;
@@ -245,7 +245,7 @@ function handleTap(x, y){
 
   if (!isAccessible(item)){
     wiggle(item);
-    toast(item.surprise ? 'Сюрприз ещё перекрыт' : 'Предмет перекрыт сверху');
+    toast(item.surprise ? 'The treasure is still buried' : 'Item is covered from above');
     if (!finale) penalize(item.p);
     return;
   }
@@ -269,15 +269,15 @@ function handleTap(x, y){
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
-    toast('Пара слишком далеко — встряхните!');
+    toast('Pair is too far — shake!');
   } else if (nearBuried.length){
     nearBuried.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     markerFX(nearBuried[0].p, 0xffb224);
-    toast('Пара рядом, но перекрыта');
+    toast('Pair is near but covered');
   } else if (copies.length){
     copies.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     markerFX(copies[0].p, 0xff6369);
-    toast('Пара глубже и дальше');
+    toast('Pair is deeper and farther');
   }
   wiggle(item);
 }
@@ -296,7 +296,7 @@ function findHintGroup(){
 }
 function showHint(){
   if (level.over || intro) return;
-  if (hints() < 1){ toast('Подсказок нет'); return; }
+  if (hints() < 1){ toast('No hints left'); return; }
   const grp = findHintGroup();
   if (!grp){
     toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим
@@ -423,13 +423,13 @@ function requestShake(){
     $('coinShakeBtn').style.display = (COINS_ENABLED && level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
     show('adAskOverlay');
   } else {
-    toast('Встряски закончились');
+    toast('No shakes left');
   }
 }
 function buyCoinShake(){
   hide('adAskOverlay');
   if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
-  if (!spendCoins(PRICE_SHAKE)){ toast('Не хватает монет'); return; }
+  if (!spendCoins(PRICE_SHAKE)){ toast('Not enough coins'); return; }
   Telemetry.ev('spend', { item: 'shake' });
   performShake(); updateHUD();
 }
