@@ -21,8 +21,10 @@ const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fR
   closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', sad:'fSad' };
 // Геометрия из ассетов (viewBox 240×120): белок r60, зрачок r29.
 const EYE_R = 60, PUP_MIN = 15, PUP_WIDE = 50;
-// eyes-5 (асимметрия: левый зрачок 40, правый белок 44 со зрачком 12) пока
-// НЕ задействован — ждёт решения владельца, куда его повесить
+// eyes-5 (асимметрия из ассета: левый зрачок 40 в белке 60; правый белок 44
+// со зрачком 12) — СЕРИЯ ТУРБО (решение владельца 2026-07-21: второе турбо,
+// собранное внутри активного, = серия; ядро считает chainSeries в 60-access)
+const EYE5_PL = 40, EYE5_PR = 12, EYE5_WR = 44;
 const FACE_GAZE = {                    // смещения зрачков [левый, правый]
   rolled: [[0,-24],[0,-24]],           // eyes-0-5: закатились вверх
   sly:    [[-16,-16],[16,16]],         // eyes-2: один вверх-влево, другой вниз-вправо
@@ -64,7 +66,12 @@ function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ах!» н
 // как только буст набран — резко СЖИМАЮТСЯ до 15 (eyes-0-1) и катаются.
 function eyeSizes(now, state){
   const s = { pl: PUP_BASE, pr: PUP_BASE, wl: EYE_R, wr: EYE_R };
-  if (chainUntil > now){ s.pl = s.pr = PUP_MIN; return s; }   // турбо: сжались
+  if (chainUntil > now){
+    if (chainSeries >= 2){                       // СЕРИЯ турбо: асимметрия eyes-5
+      s.pl = EYE5_PL; s.pr = EYE5_PR; s.wr = EYE5_WR; return s;
+    }
+    s.pl = s.pr = PUP_MIN; return s;             // обычное турбо: сжались, катаются
+  }
   if (state === 'surprised'){ s.pl = s.pr = PUP_WIDE; return s; }
   if (state === 'kind'){
     // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
