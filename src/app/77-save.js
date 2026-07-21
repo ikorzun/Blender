@@ -40,4 +40,12 @@ function bridgeSyncSave(){
 function addCoins(n){ if (n > 0){ Save.ce += n; commitSave(); } }
 function spendCoins(n){ if (coins() < n) return false; Save.cs += n; commitSave(); return true; }
 function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; commitSave(); } }
+// Полный сброс прогресса (кнопка в ⚙️): нули пишутся И в облако Bridge —
+// иначе монотонный мерж (max) воскресил бы монеты из облачной копии
+function resetProgress(){
+  Save.ce = 0; Save.cs = 0; Save.stars = {};
+  commitSave();
+  levelNum = 1;
+  try { localStorage.setItem('mixer_level', '1'); } catch(e){}
+}
 loadSave();

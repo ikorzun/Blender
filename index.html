@@ -131,7 +131,8 @@
   <div class="row"><span>Звук</span><input type="checkbox" id="soundToggle" checked></div>
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-22 · 2026-07-20</div>
+  <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-23 · 2026-07-20</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -1768,6 +1769,14 @@ function bridgeSyncSave(){
 function addCoins(n){ if (n > 0){ Save.ce += n; commitSave(); } }
 function spendCoins(n){ if (coins() < n) return false; Save.cs += n; commitSave(); return true; }
 function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; commitSave(); } }
+// Полный сброс прогресса (кнопка в ⚙️): нули пишутся И в облако Bridge —
+// иначе монотонный мерж (max) воскресил бы монеты из облачной копии
+function resetProgress(){
+  Save.ce = 0; Save.cs = 0; Save.stars = {};
+  commitSave();
+  levelNum = 1;
+  try { localStorage.setItem('mixer_level', '1'); } catch(e){}
+}
 loadSave();
 
 // ===== 78-ads: rewarded-реклама через Playgama Bridge с фолбэком-заглушкой =====
@@ -2537,6 +2546,12 @@ $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+$('resetBtn').addEventListener('click', ()=>{
+  resetProgress();
+  $('debugPanel').style.display = 'none';
+  toast('Прогресс сброшен');
+  genLevel(); updateHUD();
+});
 
 // ===== 99-main: главный цикл, отладочный API, старт =====
 
