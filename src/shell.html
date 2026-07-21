@@ -66,7 +66,7 @@
   #shakeDots { display:flex; gap:6px; }
   .dot { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.25); }
   .dot.on { background:#ffd60a; }
-  #gearBtn, #scopeBtn, #magnetBtn { pointer-events:auto; background:rgba(20,26,38,.75); border:1px solid rgba(255,255,255,.1);
+  #gearBtn, #pauseBtn, #scopeBtn, #magnetBtn { pointer-events:auto; background:rgba(20,26,38,.75); border:1px solid rgba(255,255,255,.1);
     border-radius:14px; width:48px; height:48px; font-size:20px; color:#e8ecf4; cursor:pointer; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
@@ -110,6 +110,7 @@
 <div class="bar" id="bottomBar">
   <div class="grp">
     <button id="gearBtn">⚙️</button>
+    <button id="pauseBtn" title="Пауза">⏸</button>
     <button id="scopeBtn" title="Прицел: показать все пары">🎯<span class="mini">15</span></button>
     <button id="magnetBtn" title="Металлоискатель">🧲</button>
   </div>
@@ -132,7 +133,7 @@
   <div class="row"><span>Доступно пар</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-26 · 2026-07-21</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">сборка v1-test-27 · 2026-07-21</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -163,6 +164,16 @@
       <button class="ghost" id="loseContinue">Look around</button>
       <button class="ghost" id="loseAdContinue">📺 Continue</button>
       <button class="primary" id="loseAgainBtn">Retry</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pauseOverlay">
+  <div class="card">
+    <h2>Пауза</h2>
+    <p>Миксер подождёт. Всё замерло — время не тикает.</p>
+    <div class="btns">
+      <button class="primary" id="resumeBtn">Resume ▶</button>
     </div>
   </div>
 </div>

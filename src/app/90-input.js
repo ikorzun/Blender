@@ -124,6 +124,8 @@ $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+$('pauseBtn').addEventListener('click', pauseGame);
+$('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
   resetProgress();
   $('debugPanel').style.display = 'none';

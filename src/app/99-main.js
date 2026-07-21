@@ -133,11 +133,36 @@ function resize(){
 }
 addEventListener('resize', resize);
 
+// ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
+// окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
+// пауза не «съедает» простой и не гасит серию
+let paused = false, pausedAt = 0;
+function pauseGame(){
+  if (paused || intro || !level || level.over) return;
+  paused = true; pausedAt = performance.now();
+  $('eyes').textContent = '😴';
+  show('pauseOverlay');
+}
+function resumeGame(){
+  if (!paused) return;
+  const d = performance.now() - pausedAt;
+  stats.t0 += d; stats.lastAction += d;
+  if (level.nextGrind) level.nextGrind += d;
+  wakeAtMs += d;
+  if (comboUntil) comboUntil += d;
+  if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
+  if (lastMatchMs) lastMatchMs += d;
+  lastT = performance.now(); // без гигантского dt на первом кадре
+  paused = false;
+  hide('pauseOverlay');
+  updateHUD();
+}
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
   const rawMs = now - lastT;
   let dt = Math.min(0.033, rawMs/1000); lastT = now;
+  if (paused){ renderer.render(scene, camera); return; } // стоп-кадр (до перф-метра — пауза не портит статистику кадров)
   perfFrames++;
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
