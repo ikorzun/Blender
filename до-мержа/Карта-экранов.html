@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Миксер — карта экранов (макет)</title>
+<style>
+  /* Токены боевого shell.html: карточка #1d2432, чип rgba(20,26,38,.75),
+     плоские кнопки #3e63dd/#2aa876/#8e4ec6, золото #ffc84a, белое поле. */
+  :root {
+    --ink:#1d2432; --card:#1d2432; --line:rgba(255,255,255,.1); --text:#e8ecf4;
+    --chip:rgba(20,26,38,.75); --blue:#3e63dd; --green:#2aa876; --purple:#8e4ec6;
+    --gold:#ffc84a; --off:#333c4d; --page:#f2f4f8;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--page); color:var(--ink); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding:0 0 40px; }
+
+  /* ---------- панель навигации макета (не часть игры) ---------- */
+  #devbar { position:sticky; top:0; z-index:50; background:#fff; border-bottom:1px solid #dfe4ec;
+    padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  #devbar h1 { font-size:15px; font-weight:800; margin-right:4px; }
+  #devbar .hint { font-size:12px; opacity:.6; flex:1 1 100%; order:9; }
+  #devbar button, #devbar select { font:inherit; font-size:14px; border:1px solid #d3d9e4; background:#fff;
+    border-radius:9px; padding:7px 12px; cursor:pointer; color:var(--ink); }
+  #devbar button:hover { background:#eef1f6; }
+  #devbar .on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #counter { font-size:14px; font-weight:700; min-width:150px; text-align:center; }
+
+  /* ---------- рамки ---------- */
+  #stage { padding:22px 16px; }
+  #stage.mode-path { display:flex; justify-content:center; }
+  #stage.mode-grid { display:flex; flex-wrap:wrap; gap:20px; justify-content:flex-start; }
+  #stage.mode-path .frame { display:none; }
+  #stage.mode-path .frame.active { display:block; }
+  .frame .cap { font-size:13px; font-weight:700; margin-bottom:7px; display:flex; align-items:center; gap:7px; cursor:pointer; }
+  .tag { font-size:10px; font-weight:800; letter-spacing:.3px; padding:2px 7px; border-radius:20px; text-transform:uppercase; }
+  .tag.live { background:#d7f0e4; color:#15654a; }
+  .tag.p0 { background:#ffe1cf; color:#8a3c05; }
+  .tag.p1 { background:#dfe4ff; color:#26379a; }
+  .tag.p2 { background:#e8eaf0; color:#5a6377; }
+  .shrink { width:390px; height:844px; }
+  .phone { width:390px; height:844px; border-radius:28px; overflow:hidden; position:relative;
+    background:#fff; color:var(--ink); box-shadow:0 0 0 1px #d8dde6, 0 10px 26px rgba(20,26,38,.13); }
+  #stage.mode-grid .shrink { width:176px; height:381px; }
+  #stage.mode-grid .phone { transform:scale(.45); transform-origin:0 0; }
+
+  /* ---------- общие элементы интерфейса игры ---------- */
+  .chip { background:var(--chip); border:1px solid rgba(255,255,255,.08); border-radius:12px;
+    padding:6px 12px; font-size:15px; font-weight:600; color:var(--text); white-space:nowrap; }
+  .bar { position:absolute; left:0; right:0; display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; z-index:5; }
+  .grp { display:flex; align-items:center; gap:12px; }
+  .btn { border:none; border-radius:16px; color:#fff; padding:12px 22px; font-size:16px; font-weight:700;
+    cursor:pointer; font-family:inherit; }
+  .btn-blue { background:var(--blue); } .btn-green { background:var(--green); }
+  .btn-ad { background:var(--purple); } .btn-off { background:var(--off); opacity:.6; }
+  .btn-ghost { background:rgba(255,255,255,.08); color:var(--text); }
+  .btn-wide { width:100%; display:block; }
+  .icon-btn { background:var(--chip); border:1px solid rgba(255,255,255,.1); border-radius:14px;
+    width:48px; height:48px; font-size:20px; color:var(--text); cursor:pointer; }
+  .overlay { position:absolute; inset:0; z-index:20; background:rgba(10,14,22,.72);
+    display:flex; align-items:center; justify-content:center; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:26px 24px;
+    width:320px; text-align:center; color:var(--text); }
+  .card h2 { font-size:20px; margin-bottom:10px; }
+  .card p { font-size:14px; opacity:.8; line-height:1.45; margin-bottom:18px; }
+  .card .btns { display:flex; gap:10px; }
+  .card .btns .btn { flex:1; padding:12px; font-size:15px; border-radius:12px; }
+
+  /* ---------- поле (плейсхолдер 3D-канваса) ---------- */
+  .field { position:absolute; inset:0; background:
+      radial-gradient(circle at 26% 44%, #ef5da8 0 26px, transparent 27px),
+      radial-gradient(circle at 44% 38%, #6fd0e0 0 30px, transparent 31px),
+      radial-gradient(circle at 62% 45%, #8b4de0 0 27px, transparent 28px),
+      radial-gradient(circle at 34% 52%, #f2a33c 0 31px, transparent 32px),
+      radial-gradient(circle at 56% 55%, #5ed48a 0 25px, transparent 26px),
+      radial-gradient(circle at 70% 53%, #8a929e 0 29px, transparent 30px),
+      radial-gradient(circle at 30% 61%, #f5d24c 0 27px, transparent 28px),
+      radial-gradient(circle at 48% 63%, #4a7fe0 0 30px, transparent 31px),
+      radial-gradient(circle at 64% 64%, #ef5da8 0 24px, transparent 25px),
+      radial-gradient(circle at 42% 71%, #f2a33c 0 26px, transparent 27px),
+      radial-gradient(circle at 58% 72%, #6fd0e0 0 23px, transparent 24px),
+      radial-gradient(ellipse 62% 34% at 50% 56%, #e9edf3 0 99%, transparent),
+      linear-gradient(#ffffff, #f4f6fa); }
+  /* конструкция персонажа: своя строка под чипами (замер: по центру верхнего
+     бара свободно 0-2 px на 320/360 при типичных значениях) */
+  .face { position:absolute; top:56px; left:50%; transform:translateX(-50%); width:220px; z-index:6;
+    display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .eyes { font-size:71px; line-height:1; }
+  .chainbar { width:140px; height:6px; background:rgba(20,26,38,.22); border-radius:3px; overflow:hidden; }
+  .chainbar i { display:block; height:100%; border-radius:3px; background:var(--green); }
+  .chainbar.hot i { background:#ff9d2e; }
+  .mixer-timer { border-radius:12px; padding:6px 14px; font-size:16px; font-weight:800; color:#fff;
+    background:var(--green); font-variant-numeric:tabular-nums; }
+  .dots { display:flex; gap:6px; justify-content:center; }
+  .dot { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.25); }
+  .dot.on { background:#ffd60a; }
+  .btn-shake { display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px 20px; height:54px;
+    justify-content:center; }
+  .btn-hint { height:54px; padding:12px 14px; font-size:15px; display:flex; align-items:center; }
+
+  /* ---------- экраны меты (белое поле, тёмные карточки) ---------- */
+  .sheet { position:absolute; inset:0; padding:calc(14px + 8px) 18px 22px; display:flex; flex-direction:column; }
+  .sheet-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .sheet-head h2 { font-size:21px; font-weight:800; }
+  .back { width:40px; height:40px; border-radius:12px; border:1px solid #d8dde6; background:#fff;
+    font-size:17px; cursor:pointer; color:var(--ink); }
+  .wallet { display:flex; gap:8px; }
+  .wallet .chip { background:#eceff5; color:var(--ink); border-color:#dde2ea; }
+  .tile { background:var(--card); color:var(--text); border-radius:18px; padding:16px; text-align:left; }
+  .muted { opacity:.65; font-size:13px; line-height:1.4; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .prog { height:8px; border-radius:4px; background:#e3e7ee; overflow:hidden; }
+  .prog i { display:block; height:100%; background:var(--green); border-radius:4px; }
+  .prog.dark { background:rgba(255,255,255,.14); }
+  .prog.gold i { background:var(--gold); }
+  .switch { width:46px; height:27px; border-radius:14px; background:#d5dae4; position:relative; flex:none; }
+  .switch.on { background:var(--green); }
+  .switch::after { content:''; position:absolute; top:3px; left:3px; width:21px; height:21px; border-radius:50%; background:#fff; }
+  .switch.on::after { left:22px; }
+  .seg { display:flex; background:#e8ebf1; border-radius:11px; padding:3px; }
+  .seg span { padding:6px 14px; font-size:14px; font-weight:700; border-radius:9px; }
+  .seg span.sel { background:#fff; box-shadow:0 1px 3px rgba(20,26,38,.16); }
+  .list-row { display:flex; align-items:center; justify-content:space-between; padding:14px 0;
+    border-bottom:1px solid #e6eaf1; font-size:15px; font-weight:600; }
+  .shelf { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+  .slot { aspect-ratio:1; border-radius:16px; background:#eceff5; display:flex; align-items:center;
+    justify-content:center; font-size:34px; }
+  .slot.empty { color:#c3c9d4; }
+  .slot.rare { background:#e7f0ff; box-shadow:inset 0 0 0 2px #7aa2f7; }
+  .slot.epic { background:#f3e9ff; box-shadow:inset 0 0 0 2px var(--purple); }
+  .slot.new { background:#fff6dd; box-shadow:inset 0 0 0 2px var(--gold); }
+  .days { display:flex; gap:6px; }
+  .day { flex:1; border-radius:12px; background:#eceff5; padding:9px 0; text-align:center; font-size:12px; font-weight:700; }
+  .day.done { background:var(--green); color:#fff; }
+  .day.today { background:var(--ink); color:#fff; }
+  .spot { position:absolute; width:190px; height:190px; border-radius:50%;
+    box-shadow:0 0 0 9999px rgba(10,14,22,.74); }
+  .tut { position:absolute; left:22px; right:22px; bottom:120px; text-align:center; color:#fff; z-index:21; }
+  .tut .pic { font-size:44px; margin-bottom:10px; }
+  .tut p { font-size:17px; font-weight:700; line-height:1.35; margin-bottom:16px; }
+  .steps { display:flex; gap:7px; justify-content:center; margin-bottom:16px; }
+  .steps i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.35); }
+  .steps i.on { background:#fff; }
+</style>
+</head>
+<body>
+
+<div id="devbar">
+  <h1>Миксер — карта экранов</h1>
+  <button id="prev">◀</button>
+  <div id="counter">1 / 15</div>
+  <button id="next">▶</button>
+  <select id="jump"></select>
+  <button id="modeBtn">Сетка</button>
+  <div class="hint">Кадры 390×844. «Путь» — идти по экранам кнопками внутри макета; «Сетка» — все кадры сразу
+    (для развёртки в Figma). Метки: <b>в игре</b> — уже реализовано, <b>P0/P1/P2</b> — предложение и его приоритет.</div>
+</div>
+
+<div id="stage" class="mode-path">
+
+  <!-- 1. ЗАГРУЗКА -->
+  <figure class="frame" data-title="Загрузка">
+    <div class="cap">1. Загрузка <span class="tag p0">новый P0</span></div>
+    <div class="shrink"><div class="phone" data-go="2" style="cursor:pointer">
+      <div class="sheet" style="align-items:center; justify-content:center; text-align:center">
+        <div style="font-size:96px; line-height:1">👀</div>
+        <div style="font-size:30px; font-weight:800; letter-spacing:2px; margin:10px 0 6px">MIXER</div>
+        <div class="muted" style="margin-bottom:34px">Спасите вещи из-под лопастей</div>
+        <div style="width:220px">
+          <div class="prog"><i style="width:62%"></i></div>
+          <div class="muted" style="margin-top:10px">Загрузка… 62%</div>
+        </div>
+        <div style="position:absolute; bottom:26px; left:0; right:0" class="muted">сборка v1-test-13</div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 2. ГЛАВНЫЙ ЭКРАН -->
+  <figure class="frame" data-title="Главный экран (хаб)">
+    <div class="cap">2. Главный экран (хаб) <span class="tag p1">новый P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head">
+          <div class="wallet"><div class="chip">🪙 124</div><div class="chip">★ 18</div></div>
+          <button class="back" data-go="7">⚙️</button>
+        </div>
+        <div style="text-align:center; margin:18px 0 26px">
+          <div style="font-size:88px; line-height:1">👀</div>
+          <div style="font-size:26px; font-weight:800; letter-spacing:2px; margin-top:6px">MIXER</div>
+        </div>
+        <button class="btn btn-blue btn-wide" style="padding:18px; font-size:19px" data-go="4">▶ Играть · уровень 7</button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px">
+          <button class="tile" data-go="12" style="border:none; cursor:pointer">
+            <div style="font-size:26px">🏛️</div>
+            <div style="font-weight:700; margin-top:6px">Музей</div>
+            <div class="muted">Сет 2 · 12/20</div>
+          </button>
+          <button class="tile" data-go="11" style="border:none; cursor:pointer">
+            <div style="font-size:26px">🛒</div>
+            <div style="font-weight:700; margin-top:6px">Магазин</div>
+            <div class="muted">3 позиции</div>
+          </button>
+          <button class="tile" data-go="3" style="border:none; cursor:pointer; grid-column:1 / -1; background:#2a3550">
+            <div class="row">
+              <div>
+                <div style="font-weight:700">🗓️ Испытание дня <span style="color:var(--gold)">•</span></div>
+                <div class="muted">Стрик 3 дня · сегодня не пройдено</div>
+              </div>
+              <div style="font-size:24px">›</div>
+            </div>
+          </button>
+        </div>
+        <div style="flex:1"></div>
+        <div class="tile" style="background:#eceff5; color:var(--ink)">
+          <div class="row"><span style="font-weight:700">Завтра: редкий артефакт</span><span class="muted">06:12:44</span></div>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 3. ИСПЫТАНИЕ ДНЯ -->
+  <figure class="frame" data-title="Испытание дня">
+    <div class="cap">3. Испытание дня <span class="tag p1">новый P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head"><button class="back" data-go="2">‹</button><h2>Испытание дня</h2><div style="width:40px"></div></div>
+        <div class="tile" style="text-align:center; padding:22px">
+          <div style="font-size:46px">🗓️</div>
+          <div style="font-size:18px; font-weight:800; margin-top:8px">Один и тот же микс у всех</div>
+          <div class="muted" style="margin-top:6px">Одна попытка в день. Первый уровень дня — гарантированный редкий артефакт.</div>
+        </div>
+        <div style="margin:20px 0 8px; font-weight:700">Серия визитов</div>
+        <div class="days">
+          <div class="day done">1<div>✓</div></div>
+          <div class="day done">2<div>✓</div></div>
+          <div class="day done">3<div>✓</div></div>
+          <div class="day today">4<div>сегодня</div></div>
+          <div class="day">5<div>+2</div></div>
+          <div class="day">6<div>·</div></div>
+          <div class="day">7<div>🏆</div></div>
+        </div>
+        <div class="muted" style="margin-top:10px">Пропуск снимает одну ступень, а не обнуляет серию.</div>
+        <div style="flex:1"></div>
+        <button class="btn btn-blue btn-wide" style="padding:16px" data-go="4">Играть микс дня</button>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 4. ЦЕЛЬ УРОВНЯ -->
+  <figure class="frame" data-title="Цель уровня">
+    <div class="cap">4. Цель уровня (пре-левел) <span class="tag p2">новый P2</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px); opacity:.5"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>Уровень 7</h2>
+          <p>Зал «Чаепитие» · 141 предмет</p>
+          <div style="text-align:left; font-size:14px; line-height:2">
+            <div>★ пройти уровень</div>
+            <div>★★ набрать 2 400 очков</div>
+            <div>★★★ цепная реакция и ни одного помола</div>
+          </div>
+          <div class="btns" style="margin-top:20px"><button class="btn btn-blue" data-go="5">Начать</button></div>
+          <div class="muted" style="margin-top:12px">тап по экрану — пропустить</div>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 5. ИГРА -->
+  <figure class="frame" data-title="Игровой HUD">
+    <div class="cap">5. Игровой HUD <span class="tag live">в игре</span> <span class="tag p0">+ кнопка паузы P0</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field"></div>
+      <div class="bar" style="top:0">
+        <div class="grp"><div class="chip">Ур.7 · 129</div></div>
+        <div class="grp"><div class="chip">🪙 124</div><div class="chip">★ 640</div></div>
+      </div>
+      <div class="face">
+        <div class="eyes">👀</div>
+        <div class="mixer-timer">30 с</div>
+        <div class="chainbar"><i style="width:40%"></i></div>
+      </div>
+      <div class="bar" style="bottom:12px">
+        <div class="grp">
+          <button class="icon-btn" data-go="7">⚙️</button>
+          <button class="icon-btn" data-go="8">⏸</button>
+        </div>
+        <div class="grp">
+          <button class="btn btn-green btn-hint">💡 Hint</button>
+          <button class="btn btn-blue btn-shake" data-go="9">
+            <span>Shake</span>
+            <span class="dots"><i class="dot on"></i><i class="dot on"></i><i class="dot"></i></span>
+          </button>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 6. ОБУЧЕНИЕ -->
+  <figure class="frame" data-title="Обучение">
+    <div class="cap">6. Обучение, шаг 1 из 3 <span class="tag p0">новый P0</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field"></div>
+      <div class="bar" style="top:0; opacity:.25">
+        <div class="grp"><div class="chip">Ур.1 · 141</div></div>
+        <div class="grp"><div class="chip">🪙 0</div><div class="chip">★ 0</div></div>
+      </div>
+      <div class="spot" style="left:104px; top:330px"></div>
+      <div class="tut">
+        <div class="pic">👆</div>
+        <p>Тап по группе одинаковых —<br>они уходят вместе</p>
+        <div class="steps"><i class="on"></i><i></i><i></i></div>
+        <button class="btn btn-blue" data-go="5">Понятно</button>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 7. НАСТРОЙКИ -->
+  <figure class="frame" data-title="Настройки">
+    <div class="cap">7. Настройки <span class="tag p0">новый P0</span> <span class="tag live">заменяет ⚙️-отладку</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head"><button class="back" data-go="5">‹</button><h2>Настройки</h2><div style="width:40px"></div></div>
+        <div class="list-row"><span>Звук</span><span class="switch on"></span></div>
+        <div class="list-row"><span>Вибрация</span><span class="switch on"></span></div>
+        <div class="list-row"><span>Сложность</span>
+          <span class="seg"><span class="sel">Easy</span><span>Hard</span></span></div>
+        <div class="muted" style="padding:8px 0 4px">Hard: перекрытые предметы не нажимаются, миксер ждёт 10 с вместо 30.</div>
+        <div class="list-row"><span>Язык</span>
+          <span class="seg"><span class="sel">EN</span><span>RU</span></span></div>
+        <div class="list-row"><span>Панель разработчика</span><span class="switch"></span></div>
+        <div style="flex:1"></div>
+        <div class="muted" style="text-align:center">сборка v1-test-13 · 2026-07-20</div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 8. ПАУЗА -->
+  <figure class="frame" data-title="Пауза">
+    <div class="cap">8. Пауза <span class="tag p0">новый P0</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px)"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>Пауза</h2>
+          <p>Миксер тоже ждёт — таймер остановлен.</p>
+          <button class="btn btn-blue btn-wide" style="padding:13px; border-radius:12px" data-go="5">Продолжить</button>
+          <button class="btn btn-ghost btn-wide" style="padding:13px; border-radius:12px; margin-top:10px" data-go="4">Заново</button>
+          <button class="btn btn-ghost btn-wide" style="padding:13px; border-radius:12px; margin-top:10px" data-go="7">Настройки</button>
+          <button class="btn btn-ghost btn-wide" style="padding:13px; border-radius:12px; margin-top:10px" data-go="2">На главный</button>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 9. ВСТРЯСКА -->
+  <figure class="frame" data-title="Запрос встряски">
+    <div class="cap">9. Встряски кончились <span class="tag live">в игре</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px)"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>Ещё одна встряска</h2>
+          <p>Посмотрите короткое видео, чтобы ещё раз перемешать предметы.</p>
+          <div class="btns">
+            <button class="btn btn-ghost" data-go="5">Cancel</button>
+            <button class="btn btn-ghost" data-go="5">🪙 25</button>
+            <button class="btn btn-blue" data-go="5">📺 Watch</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 10. ПОБЕДА -->
+  <figure class="frame" data-title="Победа">
+    <div class="cap">10. Победа <span class="tag live">в игре</span> <span class="tag p1">+ цель по монетам P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px)"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>🎉 Уровень пройден!</h2>
+          <div style="font-size:36px; letter-spacing:8px; color:var(--gold); margin:4px 0 8px">★★☆</div>
+          <p style="margin-bottom:8px">2 480 очков · рекорд 2 100<br>до 3★ не хватило цепной реакции</p>
+          <div style="font-size:19px; font-weight:800; color:var(--gold); margin-bottom:6px">+24 🪙</div>
+          <div class="muted" style="margin-bottom:16px">до «Магнита» осталось 35 🪙</div>
+          <div class="btns">
+            <button class="btn btn-ad" data-go="10">📺 ×2 coins</button>
+            <button class="btn btn-blue" data-go="13">Next ▶</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 11. МАГАЗИН -->
+  <figure class="frame" data-title="Магазин">
+    <div class="cap">11. Магазин <span class="tag p1">новый P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head"><button class="back" data-go="2">‹</button><h2>Магазин</h2><div class="chip" style="background:#eceff5; color:var(--ink); border-color:#dde2ea">🪙 124</div></div>
+        <div class="tile" style="margin-bottom:12px">
+          <div class="row">
+            <div><div style="font-size:17px; font-weight:700">🔀 Доп. встряска</div>
+              <div class="muted">Перемешать предметы ещё раз</div></div>
+            <button class="btn btn-blue" style="padding:10px 16px; font-size:15px">🪙 25</button>
+          </div>
+        </div>
+        <div class="tile" style="margin-bottom:12px">
+          <div class="row">
+            <div><div style="font-size:17px; font-weight:700">🎯 Прицел</div>
+              <div class="muted">Подсветить все доступные пары на 5 с</div></div>
+            <button class="btn btn-blue" style="padding:10px 16px; font-size:15px">🪙 15</button>
+          </div>
+        </div>
+        <div class="tile" style="opacity:.55">
+          <div class="row">
+            <div><div style="font-size:17px; font-weight:700">🧲 Магнит</div>
+              <div class="muted">Собрать любую пару принудительно</div></div>
+            <button class="btn btn-off" style="padding:10px 16px; font-size:15px">🪙 40</button>
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="prog gold"><i style="width:76%"></i></div>
+          <div class="muted" style="margin-top:8px">До «Магнита» осталось 35 🪙 — примерно один уровень.</div>
+        </div>
+        <div style="flex:1"></div>
+        <button class="btn btn-green btn-wide" style="padding:15px" data-go="5">Вернуться в игру</button>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 12. МУЗЕЙ -->
+  <figure class="frame" data-title="Музей">
+    <div class="cap">12. Музей <span class="tag p1">новый P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head"><button class="back" data-go="2">‹</button><h2>Музей</h2><div class="chip" style="background:#eceff5; color:var(--ink); border-color:#dde2ea">7 / 24</div></div>
+        <div class="seg" style="margin-bottom:16px">
+          <span class="sel">Чаепитие</span><span>Геометрия</span><span style="opacity:.45">Гриль 🔒</span>
+        </div>
+        <div class="shelf">
+          <div class="slot new">🫖</div>
+          <div class="slot epic">🍰</div>
+          <div class="slot rare">🥄</div>
+          <div class="slot">🍵</div>
+          <div class="slot empty">?</div>
+          <div class="slot empty">?</div>
+        </div>
+        <div style="margin-top:18px">
+          <div class="row" style="margin-bottom:7px"><span style="font-weight:700">Сет 2 «Сервиз»</span><span class="muted">12 / 20</span></div>
+          <div class="prog"><i style="width:60%"></i></div>
+          <div class="muted" style="margin-top:8px">Прогресс капает от обычных матчей — отдельно играть не надо.</div>
+        </div>
+        <div class="tile" style="margin-top:16px; background:#eceff5; color:var(--ink)">
+          <div class="row"><span style="font-weight:700">Награда за полный сет</span><span class="muted">скин чаши + 3 встряски</span></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="muted" style="text-align:center">Редкость: обычный · <span style="color:#3a6fd8">редкий</span> ·
+          <span style="color:var(--purple)">эпик</span> · <span style="color:#c79200">легендарный</span></div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 13. ВИТРИНА -->
+  <figure class="frame" data-title="Витрина после победы">
+    <div class="cap">13. Витрина после победы (≤5 с) <span class="tag p1">новый P1</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="sheet">
+        <div class="sheet-head" style="margin-bottom:6px">
+          <button class="back" data-go="2">🏠</button>
+          <div style="text-align:center">
+            <div style="font-size:21px; font-weight:800">Спасено!</div>
+            <div class="muted">новый экспонат в музее</div>
+          </div>
+          <div style="width:40px"></div>
+        </div>
+        <div style="text-align:center; margin-bottom:22px">
+          <div class="slot new" style="width:150px; height:150px; margin:0 auto; font-size:76px">🫖</div>
+          <div style="font-weight:700; margin-top:12px">Золотой чайник</div>
+          <div class="muted">эпик · дубликат = 40 🪙</div>
+        </div>
+        <div>
+          <div class="row" style="margin-bottom:7px"><span style="font-weight:700">Сет 2 «Сервиз»</span><span class="muted">12 / 20</span></div>
+          <div class="prog"><i style="width:60%"></i></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="tile" style="background:#eceff5; color:var(--ink); margin-bottom:12px">
+          <div class="row"><span>Завтра: <b>редкий артефакт</b></span><span class="muted">06:12:44</span></div>
+        </div>
+        <button class="btn btn-blue btn-wide" style="padding:15px" data-go="4">Дальше ▶</button>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 14. ПОРАЖЕНИЕ -->
+  <figure class="frame" data-title="Поражение">
+    <div class="cap">14. Поражение <span class="tag live">в игре</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px)"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>😕 Ходов не осталось</h2>
+          <p>Пары есть, но до них не добраться.<br>Очки: 1 940 · встряски кончились</p>
+          <div class="btns">
+            <button class="btn btn-ghost" data-go="5">Look around</button>
+            <button class="btn btn-ad" data-go="5">📺 Continue</button>
+            <button class="btn btn-blue" data-go="4">Retry</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+  <!-- 15. ДНИ В ИГРЕ -->
+  <figure class="frame" data-title="Дни в игре">
+    <div class="cap">15. Дни в игре / возврат <span class="tag p2">новый P2</span></div>
+    <div class="shrink"><div class="phone">
+      <div class="field" style="filter:blur(3px); opacity:.4"></div>
+      <div class="overlay">
+        <div class="card">
+          <h2>Вы здесь 4-й день</h2>
+          <p>Чаша настоялась: +1 встряска и ×2 монет на первый уровень.</p>
+          <div class="days" style="margin-bottom:18px">
+            <div class="day done">2</div><div class="day done">3</div>
+            <div class="day today">5</div><div class="day">7</div><div class="day">10</div>
+          </div>
+          <div style="font-size:19px; font-weight:800; color:var(--gold); margin-bottom:16px">+40 🪙</div>
+          <button class="btn btn-blue btn-wide" style="padding:13px; border-radius:12px" data-go="2">Забрать</button>
+        </div>
+      </div>
+    </div></div>
+  </figure>
+
+</div>
+
+<script>
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var stage = document.getElementById('stage');
+  var counter = document.getElementById('counter');
+  var jump = document.getElementById('jump');
+  var idx = 0, grid = false;
+
+  frames.forEach(function(f, i){
+    var o = document.createElement('option');
+    o.value = i; o.textContent = (i + 1) + '. ' + f.dataset.title;
+    jump.appendChild(o);
+    f.querySelector('.cap').addEventListener('click', function(){ grid = false; apply(); go(i); });
+  });
+
+  function go(i){
+    idx = (i + frames.length) % frames.length;
+    frames.forEach(function(f, n){ f.classList.toggle('active', n === idx); });
+    counter.textContent = (idx + 1) + ' / ' + frames.length;
+    jump.value = idx;
+    if (!grid) window.scrollTo(0, 0);
+  }
+  function apply(){
+    stage.className = grid ? 'mode-grid' : 'mode-path';
+    document.getElementById('modeBtn').textContent = grid ? 'Путь' : 'Сетка';
+    document.getElementById('modeBtn').classList.toggle('on', grid);
+  }
+  document.getElementById('prev').addEventListener('click', function(){ grid = false; apply(); go(idx - 1); });
+  document.getElementById('next').addEventListener('click', function(){ grid = false; apply(); go(idx + 1); });
+  document.getElementById('jump').addEventListener('change', function(e){ grid = false; apply(); go(+e.target.value); });
+  document.getElementById('modeBtn').addEventListener('click', function(){ grid = !grid; apply(); });
+  // кнопки внутри макета ведут по пути: data-go = номер кадра (1-based)
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-go]');
+    if (t){ grid = false; apply(); go(+t.dataset.go - 1); }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight') { grid = false; apply(); go(idx + 1); }
+    if (e.key === 'ArrowLeft') { grid = false; apply(); go(idx - 1); }
+  });
+  apply(); go(0);
+</script>
+</body>
+</html>
