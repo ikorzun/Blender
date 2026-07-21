@@ -14,6 +14,34 @@ function setTargetY(y){
   camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, y));
   updateCamera();
 }
+// АВТОПАН (уточнение владельца 2026-07-21: «камера сама опускается за кучей
+// по мере разбора, без жеста»). Привязка к РАЗОБРАННОСТИ, а не к абсолютной
+// высоте: на старте уровня target = дефолтные 4.2 (вид не меняется), и лишь
+// когда верх кучи уходит ниже стартового topY0, взгляд плавно едет вниз —
+// к эндшпилю остатки на дне сами оказываются в центре кадра. Верх кучи —
+// 85-й перцентиль ниже кромки (как у тонировки: максимум дёргали бы
+// встряска и досыпка цепи), пересчёт раз в 500 мс, ведение лерпом.
+// Ручной пан жестами ПЕРЕБИВАЕТ автоматику на 4 с, потом она возвращается.
+let panManualUntil = 0, camFollowY = TARGET_Y_DEF, camFollowAt = 0;
+function noteManualPan(){ panManualUntil = performance.now() + 4000; }
+function tickCamFollow(dt){
+  if (intro || !level || !level.topY0 || paused) return;
+  const now = performance.now();
+  if (now < panManualUntil) return;
+  if (now > camFollowAt){
+    camFollowAt = now + 500;
+    const tops = [];
+    for (const it of items) if (it.alive && !it.surprise && it.p.y < FUNNEL.H) tops.push(it.p.y + it.r);
+    if (tops.length){
+      tops.sort((a, b) => a - b);
+      const top = tops[Math.min(tops.length - 1, Math.floor(tops.length * 0.85))];
+      camFollowY = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_DEF,
+        TARGET_Y_DEF - (level.topY0 - top) * 0.65));
+    }
+  }
+  const d = camFollowY - camTarget.y;
+  if (Math.abs(d) > 0.005) setTargetY(camTarget.y + d * Math.min(1, dt * 1.5));
+}
 let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
 let pDown = null, dragging = false, pinch = null;
 // последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
@@ -22,7 +50,7 @@ const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована — жесты не копим
-  if (e.button === 2){ rdrag = { y: e.clientY, ty0: camTarget.y }; return; } // правый драг = пан, в тап/орбиту не идёт
+  if (e.button === 2){ rdrag = { y: e.clientY, ty0: camTarget.y }; noteManualPan(); return; } // правый драг = пан, в тап/орбиту не идёт
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
     const [a,b] = [...touches.values()];
@@ -39,7 +67,7 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // во время интро камера скриптована
-  if (rdrag){ setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // контент следует за мышью
+  if (rdrag){ noteManualPan(); setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // контент следует за мышью
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
     const [a,b] = [...touches.values()];
@@ -47,6 +75,7 @@ canvas.addEventListener('pointermove', e => {
     if (d > 1) setCamR(pinch.r0 * pinch.d0 / d); // пальцы разводятся -> приближение
     // движение ЦЕНТРА щипка по вертикали — пан взгляда (контент следует за пальцами)
     const cy = (a.y + b.y) / 2;
+    noteManualPan();
     setTargetY(camTarget.y + (cy - pinch.cy) * 0.012);
     pinch.cy = cy;
     return;
@@ -70,6 +99,7 @@ function endPointer(e){
 function resetPointers(){
   touches.clear();
   pDown = null; dragging = false; pinch = null; rdrag = null;
+  panManualUntil = 0; camFollowY = TARGET_Y_DEF; camFollowAt = 0;
   setTargetY(TARGET_Y_DEF); // пан взгляда не переживает границы интро/уровня
 }
 canvas.addEventListener('pointerup', e => {
@@ -83,7 +113,7 @@ canvas.addEventListener('wheel', e => {
   if (intro) return;
   // Shift+колесо — вертикальный пан взгляда (скролл вниз = смотреть ниже);
   // обычное колесо — зум, как было
-  if (e.shiftKey) setTargetY(camTarget.y - e.deltaY * 0.004);
+  if (e.shiftKey){ noteManualPan(); setTargetY(camTarget.y - e.deltaY * 0.004); }
   else setCamR(camR + e.deltaY * 0.012);
 }, { passive:false });
 document.addEventListener('contextmenu', e => e.preventDefault());

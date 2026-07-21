@@ -58,11 +58,12 @@ const path = require('path');
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
-  let guard = 0, shakes = 0, endgameRadius = null;
+  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null;
   while (guard++ < 400) {
-    const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius }));
+    const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
     if (st.alive === 0) break;
     if (st.alive <= 9 && endgameRadius === null) endgameRadius = st.r; // 8 живых + рыбка
+    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // автопан успел опуститься за кучей
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
@@ -79,6 +80,7 @@ const path = require('path');
   expect(winShown === 'flex', 'экран победы показан');
   expect(shakes <= 12, 'встрясок тупика в разумном бюджете (' + shakes + ' <= 12)');
   expect(endgameRadius !== null && endgameRadius > 10, 'эндшпиль <=8 живых снимает радиус (∞), даже поверх цепи (' + endgameRadius + ')');
+  expect(endgameTy !== null && endgameTy < 3.5, 'камера сама опустилась за кучей к эндшпилю (ty ' + endgameTy + ')');
   await page.screenshot({ path: 'shot_win.png' });
 
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения
@@ -270,10 +272,11 @@ const path = require('path');
   await page.mouse.wheel(0, 120);   // обычное колесо — зум работает как раньше
   const cam3 = await page.evaluate(() => window.__game.cam());
   expect(cam3.r > cam2.r && cam3.ty === cam2.ty, 'обычное колесо зумит и не панит (r ' + cam2.r + ' -> ' + cam3.r + ')');
-  // рестарт уровня сбрасывает пан (resetPointers на границах интро)
+  // рестарт уровня сбрасывает пан (resetPointers на границах интро);
+  // автопан на свежей куче стоит у дефолта, допуск на первый лерп-тик
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   const cam4 = await page.evaluate(() => window.__game.cam());
-  expect(cam4.ty === 4.2, 'новый уровень вернул взгляд к дефолту (' + cam4.ty + ')');
+  expect(cam4.ty > 3.6 && cam4.ty <= 4.2, 'новый уровень вернул взгляд к дефолту (' + cam4.ty + ')');
 
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());
