@@ -1,6 +1,7 @@
 // ===== 99-main: главный цикл, отладочный API, старт =====
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
+let lastMtText = null; // кэш отсчёта до помола — DOM трогаем только при смене
 
 // Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
 // кольца последних 600 кадров — сырое время кадра и время шага физики
@@ -299,6 +300,30 @@ function loop(){
       }
     }
   }
+  // ОТСЧЁТ ДО ПОМОЛА — КАЖДЫЙ КАДР (жалоба владельца: «таймер под глазами
+  // запаздывает и дёргается»): в 600-мс HUD-тике граница секунды проскакивала
+  // и число меняло значение неравномерно. grinding уже посчитан выше; DOM
+  // трогаем только при СМЕНЕ текста — перерисовка SVG-обводки не бесплатна.
+  {
+    let txt = '';
+    if (!intro && !level.over && items.some(i => i.alive)){
+      const idleS = (now - stats.lastAction) / 1000;
+      // при работе лопастей вместо красного «0» — слово Grinding (спека
+      // владельца); и число, и слово всегда чёрные с белой обводкой (CSS)
+      txt = grinding ? 'Grinding' : String(Math.max(0, Math.ceil(level.idleLimit - idleS)));
+    }
+    if (txt !== lastMtText){
+      lastMtText = txt;
+      if (!txt){
+        $('mixerTimerSvg').style.display = 'none';
+      } else {
+        const mt = $('mixerTimer');
+        mt.textContent = txt;
+        mt.classList.toggle('grind', txt === 'Grinding');
+        $('mixerTimerSvg').style.display = 'block';
+      }
+    }
+  }
   if (now - lastHudMs > 600){
     lastHudMs = now;
     updateEyes(now, grinding);
@@ -311,27 +336,17 @@ function loop(){
     // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
     // в красную по мере истечения времени; при помоле — красный «0 с»
     const finale = alive && !hasAnyPair();
-    const mt = $('mixerTimer'); // <text> внутри #mixerTimerSvg
-    if (intro || level.over || !alive){
-      $('mixerTimerSvg').style.display = 'none';
-    } else {
-      const leftS = grinding ? 0 : Math.max(0, Math.ceil(level.idleLimit - idle));
-      // при работе лопастей вместо красного «0» — слово Grinding (спека
-      // владельца): ноль не объяснял, что происходит
-      mt.textContent = grinding ? 'Grinding' : leftS;
-      mt.classList.toggle('grind', grinding);
-      // КРАСНОГО В ТЕКСТЕ НЕТ (спека владельца): и число, и слово Grinding
-      // всегда чёрные с белой обводкой. Цвет задан в CSS (fill), здесь не трогаем.
-      $('mixerTimerSvg').style.display = 'block';
-    }
+    // (отсчёт до помола ПЕРЕЕХАЛ в каждокадровый блок ниже — в 600-мс тике
+    // секунды обновлялись то через 0.6 с, то через 1.2 с: «таймер запаздывает
+    // и дёргается», жалоба владельца 2026-07-21)
     // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
     // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает
     if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) showLose();
     } else level.stuck = Math.min(level.stuck, 0);
-    // время партии (макет 741:1497, зелёное слева); отсчёт до перемолки —
-    // отдельное число под глазами
+    // время партии (ЧЁРНОЕ — спека владельца 2026-07-21, был зелёный макета);
+    // отсчёт до перемолки — отдельное число под глазами
     if (!level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000));
   }
   // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
