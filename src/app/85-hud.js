@@ -9,17 +9,26 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
 function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
-// ===== Персонаж: 7 эмоций (матрица владельца 2026-07-21) =====
-// Логика отдаёт ИМЯ состояния, отрисовка — отдельно (setFace): сейчас
-// эмодзи-ЗАГЛУШКА, дальше SVG со слоем зрачков — менять только FACE_GLYPH.
-const FACE_STATES = ['calm','kind','angry','surprised','closed','sly','rolled'];
-const FACE_GLYPH = { // ВРЕМЕННО, до приезда ассетов
-  calm:'👀', kind:'😊', angry:'😠', surprised:'😲', closed:'😑', sly:'😏', rolled:'🙄' };
+// ===== Персонаж: 7 эмоций + живая анимация (ассеты владельца, Figma 741:1420) =====
+// Четыре НЕЗАВИСИМЫХ слоя: ЭМОЦИЯ (какая форма) + ВЗГЛЯД (куда смотрят
+// зрачки) + РЕАКЦИЯ (короткий всплеск) + МОРГАНИЕ. Круглая пара
+// параметрическая: зрачок ездит ±24 и меняет размер 15..50 в единицах
+// viewBox — этим покрыты семейства eyes-0 (взгляд/размер), eyes-2 (хитрые)
+// и eyes-5 (подмигивание). Несводимые формы — отдельными слоями SVG.
+const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fRound',
+  closed:'fRound', kind:'fArc', angry:'fAngry', lose:'fX', squint:'fSquint' };
+const FACE_GAZE = {                    // смещения зрачков [левый, правый]
+  rolled: [[0,-24],[0,-24]],           // eyes-0-5: закатились вверх
+  sly:    [[-16,-16],[16,16]],         // eyes-2: один вверх-влево, другой вниз-вправо
+};
+const PUP_BASE = 29, PUP_MAX = 50;     // радиусы зрачка из ассетов
 let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0;
+let lookVec = null, lookUntil = 0, wander = [0,0], wanderAt = 0, dart = [0,0], dartAt = 0;
+let pupPulseUntil = 0, lastScoreSeen = null;
 // Приоритет сверху вниз. Лесенка угрозы: спокойные -> закатанные -> хитрые -> злые
 function eyesMood(now, grinding){
   if (!level || intro) return 'calm';
-  if (level.over) return items.every(i => !i.alive) ? 'kind' : 'closed';
+  if (level.over) return items.every(i => !i.alive) ? 'kind' : 'lose'; // ✕✕ из набора
   if (chainUntil > now) return 'surprised';       // турбо
   if (grinding) return 'angry';                   // лопасти едят вещи
   const idle = (now - stats.lastAction)/1000;
@@ -28,56 +37,83 @@ function eyesMood(now, grinding){
   if (idle > 8) return 'rolled';                  // заскучал
   return 'calm';
 }
-// короткая реакция поверх состояния (тап по глазам, раскопанный сюрприз)
+// короткая реакция поверх состояния (тап по глазам, промах, сюрприз)
 function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; }
+// зрачки поворачиваются к точке экрана (тап игрока) на 1.4 с
+function faceLook(x, y){
+  const r = $('face').getBoundingClientRect();
+  const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy) || 1;
+  const k = 24 * Math.min(1, d / 260);          // чем дальше тап, тем сильнее косит
+  lookVec = [dx / d * k, dy / d * k];
+  lookUntil = performance.now() + 1400;
+}
+function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ах!» на матче
+// РАЗМЕР ЗРАЧКА = индикатор турбо (спека владельца: полоски нет, копит глаз):
+// серия копится 29 -> 50, в самом турбо распахнуты на максимум.
+function pupilScale(now){
+  if (chainUntil > now) return PUP_MAX / PUP_BASE;
+  let k = 1;
+  if (comboUntil > now && comboCount > 0)
+    k = 1 + (PUP_MAX / PUP_BASE - 1) * Math.min(1, comboCount / CHAIN_COMBO_AT);
+  if (pupPulseUntil > now) k *= 1.25;
+  return k;
+}
+// КУДА СМОТРЯТ: турбо — мечется, тап — на палец, помол — вниз на лопасти,
+// поза эмоции — своя, иначе ленивое блуждание.
+function gazeFor(now, state){
+  if (chainUntil > now){
+    if (now > dartAt){ dartAt = now + 180 + Math.random() * 120;
+      dart = [(Math.random() * 2 - 1) * 24, (Math.random() * 2 - 1) * 20]; }
+    return [dart, dart];
+  }
+  if (FACE_GAZE[state]) return FACE_GAZE[state];
+  if (lookUntil > now && lookVec) return [lookVec, lookVec];
+  if (now > wanderAt){ wanderAt = now + 1500 + Math.random() * 1500;
+    wander = [(Math.random() * 2 - 1) * 10, (Math.random() * 2 - 1) * 8]; }
+  return [wander, wander];
+}
 // тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
 function tickFace(now){
-  tickChainBar(now);
+  // РЕАКЦИИ без правок в чужой зоне: следим за счётом. Вырос — зрачок
+  // «ахнул», упал (промах −7 или помол −20) — зажмурился.
+  if (level && !intro){
+    if (lastScoreSeen === null) lastScoreSeen = stats.score;
+    else if (stats.score > lastScoreSeen) facePulse();
+    else if (stats.score < lastScoreSeen) faceEvent('squint', 220);
+    lastScoreSeen = stats.score;
+  } else lastScoreSeen = null;
   if (!nextBlinkAt) nextBlinkAt = now + 4000;
-  // моргание 120 мс раз в 4-7 с, только в спокойных/добрых
-  if (now > nextBlinkAt && (faceState === 'calm' || faceState === 'kind')){
+  // моргание 120 мс раз в 4-7 с; в турбо и на помоле не моргаем
+  const canBlink = faceState === 'calm' || faceState === 'kind' || faceState === 'rolled';
+  if (now > nextBlinkAt && canBlink){
     blinkUntil = now + 120;
     nextBlinkAt = now + 4000 + Math.random() * 3000;
   }
-  setFace(faceHoldUntil > now ? faceHold : (blinkUntil > now ? 'closed' : faceState));
+  const st = faceHoldUntil > now ? faceHold : faceState;
+  setFace(st, now, blinkUntil > now && st !== 'lose');
 }
-function setFace(state){
-  const el = $('eyes'), g = FACE_GLYPH[state] || FACE_GLYPH.calm;
-  if (el.textContent !== g) el.textContent = g;
-}
-// Полоска заряда цепи: копится comboCount/CHAIN_COMBO_AT пока серия горит;
-// в реакции — ОСТАТОК времени Power chain (оранжевая). Зовётся каждый кадр.
-function tickChainBar(now){
-  const cb = $('chainBar'), fill = cb.firstElementChild;
-  if (chainUntil > now){
-    cb.style.display = 'block';
-    cb.classList.add('hot');
-    fill.style.width = Math.max(0, (chainUntil - now) / CHAIN_MS * 100) + '%';
-  } else if (comboUntil > now && comboCount > 0 && level && !level.over){
-    cb.style.display = 'block';
-    cb.classList.remove('hot');
-    fill.style.width = Math.min(100, comboCount / CHAIN_COMBO_AT * 100) + '%';
-  } else {
-    cb.style.display = 'none';
-  }
+function setFace(state, now, blinking){
+  const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
+  for (const id of ['fRound','fArc','fAngry','fX','fSquint'])
+    $(id).classList.toggle('on', id === layer);
+  svg.classList.toggle('blink', !!blinking);
+  if (layer !== 'fRound') return;                 // у прочих слоёв зрачков нет
+  const g = gazeFor(now || performance.now(), state);
+  const s = state === 'surprised' ? PUP_MAX / PUP_BASE : pupilScale(now || performance.now());
+  $('pupL').style.transform = 'translate(' + g[0][0] + 'px,' + g[0][1] + 'px) scale(' + s.toFixed(3) + ')';
+  $('pupR').style.transform = 'translate(' + g[1][0] + 'px,' + g[1][1] + 'px) scale(' + s.toFixed(3) + ')';
 }
 function updateEyes(now, grinding){ faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
 function updateHUD(){
-  const left = items.filter(i=>i.alive).length;
-  $('pairsLeft').textContent = 'Ур.' + levelNum + ' · ' + left; // уровень + предметов осталось
+  // макет 741:1497: слева «LV N», монет на игровом экране нет (спека
+  // владельца 2026-07-21 — кошелёк живёт в меню и магазине)
+  $('pairsLeft').textContent = 'LV ' + levelNum;
   $('score').textContent = '★ ' + stats.score;
-  const dots = $('shakeDots');
-  dots.innerHTML = '';
-  for (let i=0;i<3;i++){
-    const d = document.createElement('span');
-    d.className = 'dot' + (i < level.shakes ? ' on' : '');
-    dots.appendChild(d);
-  }
   const btn = $('shakeBtn');
-  if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake'; }
+  if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }
   else { btn.classList.add('off'); btn.classList.remove('ad'); $('shakeLbl').textContent = 'No shakes'; }
-  $('coinsChip').textContent = '🪙 ' + coins();
   // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
   $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
   $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);

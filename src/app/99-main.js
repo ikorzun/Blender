@@ -247,9 +247,10 @@ function loop(){
       mt.style.display = 'none';
     } else {
       const leftS = grinding ? 0 : Math.max(0, Math.ceil(level.idleLimit - idle));
-      mt.textContent = leftS + ' с';
-      const frac = Math.max(0, Math.min(1, leftS / level.idleLimit));
-      mt.style.background = 'hsl(' + Math.round(140 * frac) + ', 62%, 42%)'; // 140°=зелёный -> 0°=красный
+      mt.textContent = leftS;                       // макет: голое число под глазами
+      // в макете число чёрное; краснеет только на грани — там же, где
+      // персонаж переходит в «хитрые» (лесенка угрозы)
+      mt.style.color = leftS <= 3 ? '#e02424' : '#000';
       mt.style.display = 'block';
     }
     // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
@@ -258,8 +259,9 @@ function loop(){
       level.stuck++;
       if (level.stuck >= 2) showLose();
     } else level.stuck = Math.min(level.stuck, 0);
-    // время партии УБРАНО из HUD (спека владельца 2026-07-21): на экране
-    // остаётся один таймер — отсчёт до перемолки в конструкции персонажа
+    // время партии (макет 741:1497, зелёное слева); отсчёт до перемолки —
+    // отдельное число под глазами
+    if (!level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000));
   }
   // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
   // чаша не нужна и мешает совмещать): полная плотность при camR>=13.5,
