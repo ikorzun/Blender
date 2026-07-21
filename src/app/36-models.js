@@ -10,13 +10,24 @@ const MODEL_ATLASES = {};
 const _atlasTex = {};
 function modelColormap(pack){
   if (_atlasTex[pack]) return _atlasTex[pack];
+  // ⚠️ 1×1 БЕЛАЯ ЗАГЛУШКА до декода PNG. Без неё у текстуры первые кадры нет
+  // изображения вовсе, выборка даёт нули, а шейдер МНОЖИТ на неё — модели
+  // вспыхивают ЧЁРНЫМ на старте уровня. Белая заглушка нейтральна: множитель
+  // 1.0, предмет просто секунду виден без раскраски. Небу такую же заглушку
+  // подложили в 10-stage — причина та же.
+  const stub = document.createElement('canvas');
+  stub.width = stub.height = 1;
+  const sg = stub.getContext('2d');
+  sg.fillStyle = '#fff'; sg.fillRect(0, 0, 1, 1);
   const img = new Image();
-  const t = new THREE.Texture(img);
+  const t = new THREE.Texture(stub);
   t.flipY = false;                 // glTF считает UV от ВЕРХНЕГО левого угла
   t.encoding = THREE.sRGBEncoding;
   t.magFilter = t.minFilter = THREE.LinearFilter;
   t.generateMipmaps = false;       // полосы атласа узкие, мипы смешали бы их
-  img.onload = () => { t.needsUpdate = true; };
+  // подменяем источник только КОГДА картинка готова — обе картинки
+  // image-подобные, путь загрузки в three один и тот же
+  img.onload = () => { t.image = img; t.needsUpdate = true; };
   img.src = MODEL_ATLASES[pack];
   _atlasTex[pack] = t;
   return t;
