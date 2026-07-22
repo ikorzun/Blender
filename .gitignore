@@ -3,3 +3,4 @@ release/*.zip
 release/Mixer.html
 shot_*.png
 до-мержа/
+.DS_Store
