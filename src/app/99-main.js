@@ -31,9 +31,9 @@ function trimOverfill(){
   for (let guard=0; guard<8; guard++){
     let top = null;
     for (const it of items){
-      // сюрприз и бомба триму не кандидаты: оба непарные, изъятие топ-пары
-      // для них вырождается в одиночное удаление спецпредмета
-      if (it.alive && !it.surprise && !it.bomb && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+      // сюрприз/бомба/камень триму не кандидаты: непарные спецпредметы,
+      // изъятие «топ-пары» для них вырождается в одиночное удаление
+      if (it.alive && !it.surprise && !it.bomb && !it.rock && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
     const twin = items.find(i => i !== top && i.alive && i.key === top.key);
@@ -67,7 +67,9 @@ function finalizeFill(){
   // замороженные полости (предметы висели над дырами от изъятых близнецов)
   if (trimOverfill() > 0) wakePhysics('trim');
   let top0 = 0, aliveN = 0;
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise) aliveN++; }
+  // камни не в счёте (спека 2026-07-22): пар-скор и порог автопана (20%)
+  // считаются по совмещаемой массе
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.rock) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
   // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
@@ -478,10 +480,37 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // КАЛИБРОВКА ЗВЁЗД: экранные координаты ЛУЧШЕЙ доступной группы
+  // (findHintGroup — тот же поиск, что у подсказки). Нужно ботам, которые
+  // ходят РЕАЛЬНЫМИ тапами: findByTex отдаёт любой предмет пачки, часто без
+  // пары в радиусе, и такой тап штрафуется как промах (замер показал 85%
+  // промахов) — человек же бьёт по видимой группе. Только для тестов.
+  // mode 'any' — СЛУЧАЙНАЯ валидная группа (модель обычного игрока: он бьёт
+  // по первой замеченной паре, а не сканирует чашу в поисках максимума);
+  // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
+  // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
+  bestTapTarget(mode){
+    let grp = null;
+    if (mode === 'any'){
+      refreshAccessibility();
+      const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
+      const cands = [];
+      for (const it of acc){
+        const g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+        if (g.length) cands.push([it].concat(g));
+      }
+      if (cands.length) grp = cands[Math.floor(Math.random() * cands.length)];
+    } else grp = findHintGroup();
+    if (!grp || !grp.length) return null;
+    const it = grp[0];
+    const sp = it.p.clone().project(camera);
+    return { n: grp.length, name: it.type.name,
+      px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+  },
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.rock && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
@@ -500,6 +529,9 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)
+  rocks(){ return items.filter(i => i.alive && i.rock).length; },
+  rockIndex(){ return items.findIndex(i => i.alive && i.rock); },
   // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
   detonate(){

@@ -7,7 +7,7 @@
 // докатывания круглых форм; в штиле world.step() не вызывается вовсе.
 
 let world = null;
-const DENSITY = { chrome: 7.8, gold: 5.0, plastic: 1.2 };
+const DENSITY = { chrome: 7.8, gold: 5.0, plastic: 1.2, rock: 2.6 }; // rock — камни (спека 2026-07-22, «тяжёлые»)
 const FRICTION = 0.5, RESTIT = 0.12;
 // Внутренний отступ физических стен от СТЕКЛА: предметы останавливаются,
 // не доходя до стеклянной поверхности, — визуального проникновения нет
@@ -171,7 +171,7 @@ function buildAccessSamples(item, typeName, geo){
 }
 function createItemBody(item, typeName, geo){
   const s = item.scl;
-  const density = item.surprise ? DENSITY.gold : (item.type.mat === 'chrome' ? DENSITY.chrome : DENSITY.plastic);
+  const density = item.surprise ? DENSITY.gold : item.rock ? DENSITY.rock : (item.type.mat === 'chrome' ? DENSITY.chrome : DENSITY.plastic);
   // вес при встряске (вариант 1): отклик на рыхление по пачке модели;
   // нет в карте (стейк/сюрприз) = 1.0
   item.shakeK = SHAKE_RESP[item.type.tex] || 1;

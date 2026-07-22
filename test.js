@@ -69,7 +69,6 @@ const path = require('path');
   const bombKilled = b0.alive - b1.alive - 1;
   expect(bombKilled >= 1 && bombKilled <= 7, 'взрыв снял 1..7 соседей (' + bombKilled + ')');
   expect(b1.score === b0.score, 'взрыв без очков (' + b0.score + ' -> ' + b1.score + ')');
-
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
@@ -78,7 +77,12 @@ const path = require('path');
     const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
     if (st.alive === 0) break;
     if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
-    if (st.alive <= 9 && endgameRadius === null) endgameRadius = st.r; // 8 живых + рыбка
+    if (st.alive <= 9 && endgameRadius === null){ // 8 живых + рыбка
+      // ⚠️ не сэмплить мгновенно: радиус пересчитывает refresh-тик (до 300 мс
+      // после матча) — мгновенное чтение ловило старый 1.1 (флейк)
+      await page.waitForFunction(() => window.__game.cfg.matchRadius > 10, null, { timeout: 900 }).catch(() => {});
+      endgameRadius = await page.evaluate(() => window.__game.cfg.matchRadius);
+    }
     if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // защёлка уже щёлкнула — камера в пути вниз
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
@@ -403,6 +407,67 @@ const path = require('path');
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
   if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
+  // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют
+  // уровень (setLevel 15/16 + regen), и в середине они ломали контекст
+  // «полного прогона» (он рассчитан на ур.1: бюджет встрясок, камера) ===
+  // НЕСОВМЕЩАЕМЫЕ КАМНИ (спека владельца 2026-07-22): рампа спавна,
+  // двойной штраф тапа, съём бомбой, ∞-порог эндшпиля без учёта камней
+  await page.evaluate(() => { window.__game.setLevel(15); window.__game.regen(); window.__game.skipIntro(); });
+  const r15 = await page.evaluate(() => window.__game.rocks());
+  expect(r15 === 0, 'ур.15: камней нет (' + r15 + ')');
+  await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
+  const r16 = await page.evaluate(() => window.__game.rocks());
+  expect(r16 === 1, 'ур.16: один камень (' + r16 + ')');
+  // тап по камню: −2×MISS_PENALTY (на ур.16 штрафы полные), misses растёт
+  const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
+    misses: window.__game.stats().misses, t: window.__game.findByTex('rock') }));
+  expect(!!rockTap0.t, 'камень доступен для тапа (' + JSON.stringify(rockTap0.t) + ')');
+  await page.mouse.click(rockTap0.t.px, rockTap0.t.py);
+  await page.waitForTimeout(300);
+  const rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
+    misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
+  expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
+  expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
+  expect(rockTap1.rocks === 1, 'камень тапом не убирается');
+  // бомба убирает камень: телепортируем обоих в воздух рядом и детонируем —
+  // камень в радиусе, прочая куча далеко внизу (кап не мешает)
+  const rocksBeforeBomb = await page.evaluate(() => {
+    const g = window.__game;
+    g.place(g.bombIndex(), 0, 13, 0);
+    g.place(g.rockIndex(), 0.9, 13.2, 0);
+    return g.rocks();
+  });
+  await page.evaluate(() => window.__game.detonate());
+  await page.waitForTimeout(450);
+  const rocksAfterBomb = await page.evaluate(() => window.__game.rocks());
+  expect(rocksBeforeBomb === 1 && rocksAfterBomb === 0,
+    'бомба убирает камень (' + rocksBeforeBomb + ' -> ' + rocksAfterBomb + ')');
+  // ∞-порог эндшпиля: камни не в счёте — при <=8 совмещаемых радиус 99
+  await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
+  let guardR = 0, sinceRestR = 0;
+  while (guardR++ < 500){
+    const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, rocks: window.__game.rocks(),
+      over: window.__game.level().over }));
+    if (st.over || st.alive === 0){ // финал доел всё раньше сэмпла ≤8 — тоже валидный исход
+      console.log('эндшпиль-с-камнем: уровень закрыт до сэмпла ≤8 (валидно)');
+      break;
+    }
+    if (st.alive - st.rocks - 1 <= 8){ // −сюрприз −камни
+      // ждём refresh-тик — мгновенное чтение радиуса ловит старое значение
+      await page.waitForFunction(() => window.__game.cfg.matchRadius > 10, null, { timeout: 900 }).catch(() => {});
+      const rFin = await page.evaluate(() => window.__game.cfg.matchRadius);
+      expect(rFin > 10, '∞-радиус при <=8 совмещаемых, камни не мешают (r=' + rFin + ', rocks=' + st.rocks + ')');
+      break;
+    }
+    const ok = await page.evaluate(() => window.__game.autoMatch());
+    if (!ok){ await page.evaluate(() => window.__game.shake()); await page.waitForTimeout(1100); }
+    // та же передышка, что в полном прогоне: непрерывный темп держит серию
+    // турбо вечно (досыпка не даёт чаше опустеть до ∞-порога)
+    else if (++sinceRestR >= 10){ sinceRestR = 0; await page.waitForTimeout(4300); }
+    else await page.waitForTimeout(120);
+  }
+  expect(guardR < 500, 'эндшпиль с камнем достигнут ботом');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
