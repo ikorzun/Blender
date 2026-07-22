@@ -357,7 +357,7 @@ function loop(){
     } else level.stuck = Math.min(level.stuck, 0);
     // время партии (ЧЁРНОЕ — спека владельца 2026-07-21, был зелёный макета);
     // отсчёт до перемолки — отдельное число под глазами
-    if (!level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000));
+    if (LEVEL_TIME_IN_HUD && !level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000)); // скрытому таймеру и fitStat не нужен
   }
   // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
   // чаша не нужна и мешает совмещать): полная плотность при camR>=13.5,

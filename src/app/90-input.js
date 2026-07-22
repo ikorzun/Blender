@@ -202,6 +202,9 @@ function layoutHUD(){
   const left = document.querySelector('#topBar .grp');
   if (desk) left.appendChild($('tmSvg'));
   else $('statStack').insertBefore($('tmSvg'), $('scSvg'));
+  // время уровня скрыто из HUD (спека владельца 2026-07-22) — живёт только
+  // на экранах завершения; узел продолжает переноситься, вернуть = флаг
+  $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none';
   // после смены раскладки масштаб рамок другой — пережать по контенту
   if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
 }
