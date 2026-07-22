@@ -106,11 +106,19 @@
      172) заложен под пятизначный счёт, который шире 72px мокапа: на 393
      даёт 203 вместо 210 макета — разница на глаз незаметна, зато стек
      никогда не наезжает на глаза. */
-  :root { --eyeW: min(210px, calc(100vw - 202px));
+  /* спека владельца 2026-07-22: в МОБИЛЬНОМ вебе глаза и число под ними
+     −30% (×0.7 от прежних min(210, 100vw−202)); вся конструкция — доли
+     --eyeW, поэтому одна переменная уменьшает глаза, огонь, лифт и число
+     разом. Десктоп (min-width:768) возвращает полный размер ниже. */
+  :root { --eyeW: min(147px, calc((100vw - 202px) * 0.7));
     /* лифт под корону пламени: высота короны над глазами = 47/240 ширины
        конструкции, минус уже имеющиеся 8px отступа и минус safe-area
        (на чёлках корона живёт в inset — опускать не нужно, лифт сам 0) */
     --fireLift: max(0px, calc(var(--eyeW) * 0.196 - 8px - env(safe-area-inset-top, 0px))); }
+  /* десктоп/планшет: полный размер (−30% только мобайл). ⚠️ Блок обязан
+     стоять ПОСЛЕ мобильного :root — специфичность равная, каскад решает
+     позиция в файле (грабля About-Us) */
+  @media (min-width:768px){ :root { --eyeW: min(210px, calc(100vw - 202px)); } }
   #face { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 8px); left:50%;
     transform:translateX(-50%); width:var(--eyeW); height:calc(var(--eyeW) * .667);
     z-index:6; pointer-events:none;
@@ -382,7 +390,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-66 · 2026-07-22</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-67 · 2026-07-22</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
