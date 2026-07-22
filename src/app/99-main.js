@@ -31,9 +31,9 @@ function trimOverfill(){
   for (let guard=0; guard<8; guard++){
     let top = null;
     for (const it of items){
-      // сюрприз и бомба триму не кандидаты: оба непарные, изъятие топ-пары
-      // для них вырождается в одиночное удаление спецпредмета
-      if (it.alive && !it.surprise && !it.bomb && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+      // сюрприз/бомба/камень триму не кандидаты: непарные спецпредметы,
+      // изъятие «топ-пары» для них вырождается в одиночное удаление
+      if (it.alive && !it.surprise && !it.bomb && !it.rock && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
     const twin = items.find(i => i !== top && i.alive && i.key === top.key);
@@ -67,7 +67,9 @@ function finalizeFill(){
   // замороженные полости (предметы висели над дырами от изъятых близнецов)
   if (trimOverfill() > 0) wakePhysics('trim');
   let top0 = 0, aliveN = 0;
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise) aliveN++; }
+  // камни не в счёте (спека 2026-07-22): пар-скор и порог автопана (20%)
+  // считаются по совмещаемой массе
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.rock) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
   // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
@@ -481,7 +483,7 @@ window.__game = {
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.rock && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
@@ -500,6 +502,9 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)
+  rocks(){ return items.filter(i => i.alive && i.rock).length; },
+  rockIndex(){ return items.findIndex(i => i.alive && i.rock); },
   // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
   detonate(){
