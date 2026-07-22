@@ -121,6 +121,26 @@ function doMatch(list){
 // stepFX сам их диспозит). Полировка/перенос в 70-fx — за ГРАФИКОЙ
 // (междузонный запрос в WORKSTREAMS). Баллистика ПАРАМЕТРИЧЕСКАЯ
 // (позиция от t=k·life, не по кадрам) — FPS-независимо.
+// Тап по КАМНЮ (спека владельца 2026-07-22): ДВОЙНОЙ штраф промаха как
+// обучение «камни не совмещаются». Механика — зеркало penalize (70-fx) с
+// суммой 2×MISS_PENALTY: «уровень 1 без штрафов» и кламп нуля ур.2..5
+// несёт единая точка scorePenalty; misses и срез комбо-ступеней — как у
+// стандартного промаха.
+function penalizeRock(item){
+  stats.misses++;
+  const charged = scorePenalty(2 * MISS_PENALTY);
+  if (comboUntil > performance.now()){
+    comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
+    comboCount = Math.max(0, comboCount - COMBO_MISS_DROP);
+    updateMatchRadius(); updateHUD();
+  }
+  if (charged) scorePop('-' + (2 * MISS_PENALTY), item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
+  Sound.play('miss');
+  vibrate(20);
+  wiggle(item);
+  updateHUD();
+}
+
 // ЧЁРНЫЙ ШАР-БОМБА (спека владельца 2026-07-22): тап = взрыв БЛИЖАЙШИХ
 // соседей (зазор охватных сфер <= BOMB_RADIUS, кап BOMB_MAX), без очков.
 // Поведение объекта — зона ФИЗИКИ (правило 9). Жертвы уходят пак-эффектами
@@ -427,6 +447,10 @@ function handleTap(x, y){
   }
   if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
+  if (item.rock){ // камень несовмещаем: двойной штраф-обучение (в финале штрафов нет)
+    if (!finale) penalizeRock(item); else wiggle(item);
+    return;
+  }
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   const eligible = accessible.filter(i => pairMatch(i, item));
@@ -500,7 +524,7 @@ function hintPulse(item){
 // затягивает в лопасти (тонет с вращением), его пара расщепляется вместе с ним,
 // за пару отнимаются очки.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb); // сюрприз и бомбу миксер-наказание не ест (бомбу доедает финал)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock); // сюрприз/бомбу/камни миксер-наказание не ест (их доедает финал)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];

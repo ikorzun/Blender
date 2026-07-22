@@ -57,7 +57,9 @@ function isAccessible(item){
 function updateMatchRadius(){
   if (!level) return;
   let top = 0, aliveCnt = 0;
-  for (const it of items) if (it.alive){ top = Math.max(top, it.p.y + it.r); if (!it.surprise) aliveCnt++; }
+  // камни в aliveCnt НЕ входят (спека 2026-07-22): они не пары, эндшпильный
+  // ∞-радиус <=8 не должен ждать, пока их уберут
+  for (const it of items) if (it.alive){ top = Math.max(top, it.p.y + it.r); if (!it.surprise && !it.rock) aliveCnt++; }
   // ЭНДШПИЛЬ: остатки лежат на дне дальше друг от друга, чем зажатый в пол
   // радиус. Аудит ботом: 100% встрясок эндшпиля — из-за расстояния, ни одной
   // из-за захоронения. При <=8 живых радиусная проверка снимается.
@@ -105,7 +107,9 @@ function refreshAccessibility(){
     // вуаль применяется ПЛАВНО в tickVeil (мгновенные скачки цвета всей кучи
     // при пересчёте читались как «цвета скачут» — жалоба владельца);
     // у animating вуаль не трогаем — пусть дотлевает как есть
-    if (!it.animating) it.veilTarget = (CFG.highlight && !it.surprise && !it.accessible) ? 0.65 : 0;
+    // камни вуалью не мигают (спека 2026-07-22: «иная природа» читается
+    // фактурой); лучи их тела при этом честно блокируют — завал настоящий
+    if (!it.animating) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.accessible) ? 0.65 : 0;
   }
 }
 // Плавное затухание/снятие вуали (~0.25 с), из главного цикла каждый кадр.
