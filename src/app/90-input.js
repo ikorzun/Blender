@@ -175,6 +175,15 @@ $('eyes').addEventListener('click', ()=>{
 // Выходы из паузы в genLevel/настройки обязаны резюмить (иначе loop стоит
 // стоп-кадром, а интро нового уровня не тикает).
 $('pauseRestart').addEventListener('click', ()=>{ resumeGame(); genLevel(); });
+$('museumBtn').addEventListener('click', openMuseum);
+$('museumClose').addEventListener('click', closeMuseum);
+// демо-кнопка всплывашки (панель разработчика): случайный живой предмет
+$('tierDemoBtn').addEventListener('click', ()=>{
+  const alive = items.filter(i => i.alive && !i.surprise);
+  if (!alive.length) return;
+  const it = alive[(Math.random() * alive.length) | 0];
+  showTierUp({ name: String(it.key), tier: 2, mult: 1.25, item: it });
+});
 $('pauseSettings').addEventListener('click', ()=>{
   resumeGame(); $('debugPanel').style.display = 'block';
 });
