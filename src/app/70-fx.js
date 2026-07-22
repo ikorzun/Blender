@@ -188,10 +188,13 @@ function scorePop(text, worldPos, color, big){
   const sp = worldPos.clone().project(camera);
   scorePopScreen(text, (sp.x+1)/2*rect.width + rect.left, (-sp.y+1)/2*rect.height + rect.top, color, big);
 }
-// Ошибка: −1/3 стоимости пары
+// Ошибка: −MISS_PENALTY через единую точку штрафов scorePenalty
+// (80-gameplay, баланс-таблица 2026-07-22: ур.1 без штрафов — тогда и поп
+// «−10» не рисуем; ур.<=5 кламп нулём). Промах СЧИТАЕТСЯ всегда
+// (stats.misses нужен цепным правилам), санкция — только очковая.
 function penalize(worldPos, sx, sy){
   stats.misses++;
-  stats.score -= MISS_PENALTY;
+  const charged = scorePenalty(MISS_PENALTY);
   // промах в лихорадке срезает COMBO_MISS_DROP=2 УСПЕШНЫХ ШАГА — и у
   // радиус-лесенки, и у заряда цепи — но серию НЕ гасит (тюнинг владельца:
   // «слишком резко сбрасываем power chain»); серию убивает только пауза
@@ -201,9 +204,11 @@ function penalize(worldPos, sx, sy){
     comboCount = Math.max(0, comboCount - COMBO_MISS_DROP);
     updateMatchRadius(); updateHUD();
   }
-  if (worldPos) scorePop('-' + MISS_PENALTY, worldPos, '#e5484d', false);
-  else scorePopScreen('-' + MISS_PENALTY, sx, sy, '#e5484d', false);
-  Sound.play('miss');
+  if (charged){
+    if (worldPos) scorePop('-' + MISS_PENALTY, worldPos, '#e5484d', false);
+    else scorePopScreen('-' + MISS_PENALTY, sx, sy, '#e5484d', false);
+  }
+  Sound.play('miss'); // звук ошибки остаётся и на ур.1 — фидбек «не туда»
   updateHUD();
 }
 function wiggle(item){

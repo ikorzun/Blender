@@ -1,7 +1,20 @@
 // ===== 80-gameplay: матчи, тап, миксер, встряска, победа/поражение =====
 
+// ЕДИНАЯ ТОЧКА ОЧКОВЫХ ШТРАФОВ (баланс-таблица владельца 2026-07-22).
+// Уровень 1 — штрафов нет вовсе (возврат false: поп «−N» не рисуем, чтобы
+// не врать); уровни 2..SCORE_CLAMP_LEVELS — кламп счёта снизу нулём
+// (штраф показывается, но в минус не уводит); дальше — полный минус.
+// Механика миксера (съедание предметов) от уровня НЕ зависит — только очки.
+function scorePenalty(n){
+  if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
+  stats.score -= n;
+  if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
+  return true;
+}
+
 // Группа из N>=2 одинаковых по ТИПУ: все расщепляются на пиксели;
-// очки 10*N*(N-1), при N>2 показывается множитель
+// очки 10*N*(N-1) × комбо × МНОЖИТЕЛЬ НАКОПЛЕНИЯ типа (спека владельца
+// 2026-07-22: накопленные совмещения растят цену типа, accMult в 77-save)
 function doMatch(list){
   if (level) level.stuck = 0; // успешный ход сжигает фору «Оглядеться»
   // КОМБО: группа 3+ сразу, или вторая склейка за COMBO_CHAIN_MS, или матч
@@ -63,7 +76,13 @@ function doMatch(list){
   const n = list.length;
   const mid = new THREE.Vector3();
   list.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n);
-  const gained = MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1);
+  // НАКОПЛЕНИЕ: инкремент счётчика типа НА N предметов группы ДО подсчёта
+  // очков — матч, пересёкший порог ступени, уже идёт по новому множителю
+  // (ап ступени и жирные очки приходят одним моментом); событие всплывашки
+  // (onAccTierUp) кидает accAdd в момент пересечения (спека владельца).
+  const typeName = list[0].type.name;
+  accAdd(typeName, n, list[0]);
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName));
   stats.score += gained;
   popFX(mid);
   // «ПУНКТ 5» (спека владельца 2026-07-21): разнообразие эффектов ПРАВИЛОМ.
@@ -331,8 +350,10 @@ function collectSurprise(it){
   wakePhysics('gameplay:L58');
   faceEvent('surprised', 1000); // матрица эмоций ИНТЕРФЕЙСА: клад — «удивлённые» глаза (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
-  stats.score += SURPRISE_BONUS;
-  scorePop('+' + SURPRISE_BONUS, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);
+  // рыбка дорожает с уровнем: +150 + 5×уровень (баланс-таблица 2026-07-22)
+  const bonus = SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum;
+  stats.score += bonus;
+  scorePop('+' + bonus, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);
   popFX(it.p);
   dissolveFX(it);
   Sound.play('surprise');
@@ -487,8 +508,8 @@ function mixerGrind(){
   const group = twin ? [low, twin] : [low];
   group.forEach(it => { it.animating = true; destroyItemBody(it); });
   wakePhysics('gameplay:L182');
-  stats.score -= MIXER_PENALTY;
-  scorePop('-' + MIXER_PENALTY, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+  if (scorePenalty(MIXER_PENALTY)) // ур.1 без штрафов; ур.<=5 кламп нулём (баланс-таблица 2026-07-22)
+    scorePop('-' + MIXER_PENALTY, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
   Sound.play('grind');
   vibrate(40);
   const p0 = low.p.clone(), s0 = low.mesh.scale.x;
