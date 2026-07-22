@@ -58,19 +58,25 @@ const path = require('path');
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
-  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null;
-  while (guard++ < 400) {
+  let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null, sinceRest = 0, midTyMin = 99;
+  while (guard++ < 600) {
     const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
     if (st.alive === 0) break;
+    if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
     if (st.alive <= 9 && endgameRadius === null) endgameRadius = st.r; // 8 живых + рыбка
-    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // автопан успел опуститься за кучей
+    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // защёлка уже щёлкнула — камера в пути вниз
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
       await page.evaluate(() => window.__game.shake());
       await page.waitForTimeout(1200);
     } else {
-      await page.waitForTimeout(300);
+      // передышка раз в 10 матчей: непрерывный бот-темп держал бы СЕРИЮ ТУРБО
+      // вечно (перезапуск цепи + досыпка 2.6/417мс = чаша не пустеет) —
+      // человек так не может, а прогон должен доигрывать уровень. Пауза
+      // >COMBO_MS гасит серию, текущая цепь дотикает и гаснет сама.
+      if (++sinceRest >= 10){ sinceRest = 0; await page.waitForTimeout(4300); }
+      else await page.waitForTimeout(300);
     }
   }
   const fin = await page.evaluate(() => window.__game.alive());
@@ -80,7 +86,10 @@ const path = require('path');
   expect(winShown === 'flex', 'экран победы показан');
   expect(shakes <= 12, 'встрясок тупика в разумном бюджете (' + shakes + ' <= 12)');
   expect(endgameRadius !== null && endgameRadius > 10, 'эндшпиль <=8 живых снимает радиус (∞), даже поверх цепи (' + endgameRadius + ')');
-  expect(endgameTy !== null && endgameTy < 3.5, 'камера сама опустилась за кучей к эндшпилю (ty ' + endgameTy + ')');
+  expect(midTyMin >= 4.19, 'до порога 20% камера по вертикали НЕ плавает (min ty ' + midTyMin + ')');
+  expect(endgameTy !== null && endgameTy < 4.19, 'защёлка 20% сработала — камера пошла вниз (ty ' + endgameTy + ')');
+  const finalTy = await page.evaluate(() => window.__game.cam().ty); // лерп доехал — финальная отметка
+  expect(finalTy <= 3.3 && finalTy >= 3.1, 'автопан остановился ровно на поле трети хода 3.2 (' + finalTy + ')');
   await page.screenshot({ path: 'shot_win.png' });
 
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения
@@ -176,10 +185,13 @@ const path = require('path');
   const fin2 = await page.evaluate(() => ({
     win: document.getElementById('winOverlay').style.display,
     score: window.__game.stats().score,
-    lvl: window.__game.levelNum() }));
+    lvl: window.__game.levelNum(),
+    timeOnWin: document.getElementById('winStats').textContent.includes('Time:'),
+    hudTimerHidden: getComputedStyle(document.getElementById('tmSvg')).display === 'none' }));
   expect(fin2.win === 'flex', 'финальная зачистка доводит до победы');
   expect(fin2.score === 150, 'финал: очки не тратятся/не начисляются, только рыбка +150 (' + fin2.score + ')');
   expect(fin2.lvl === lvlBefore + 1, 'победа апает уровень (' + lvlBefore + ' -> ' + fin2.lvl + ')');
+  expect(fin2.hudTimerHidden && fin2.timeOnWin, 'время уровня скрыто из HUD, но есть на экране победы (спека 2026-07-22)');
   // дальше уровни пересоздаются через evaluate-regen (мимо кнопки «Дальше») —
   // победный оверлей надо спрятать руками, иначе он перехватит реальные клики
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
@@ -277,6 +289,26 @@ const path = require('path');
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   const cam4 = await page.evaluate(() => window.__game.cam());
   expect(cam4.ty > 3.6 && cam4.ty <= 4.2, 'новый уровень вернул взгляд к дефолту (' + cam4.ty + ')');
+
+  // СЕРИЯ ТУРБО (спека владельца): вторая цепь, собранная ВНУТРИ активной,
+  // перезапускает окно и растит chainSeries (>=2 — сигнал глазам eyes-5)
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(400);
+  const chainProbe = await page.evaluate(async () => {
+    const g = window.__game, out = { chainAt: -1, seriesAt: -1 };
+    for (let i = 0; i < 30; i++){
+      if (!g.autoMatch()) break;
+      const c = g.combo();
+      if (c.chain && out.chainAt < 0) out.chainAt = i;
+      if (c.series >= 2 && out.seriesAt < 0){ out.seriesAt = i; break; }
+      await new Promise(r => setTimeout(r, 60));
+    }
+    out.final = g.combo();
+    return out;
+  });
+  expect(chainProbe.chainAt >= 0, 'серия матчей зажгла цепь (матч #' + chainProbe.chainAt + ')');
+  expect(chainProbe.seriesAt > chainProbe.chainAt && chainProbe.final.series >= 2,
+    'второе турбо внутри первого = серия турбо (матч #' + chainProbe.seriesAt + ', series ' + chainProbe.final.series + ')');
 
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());

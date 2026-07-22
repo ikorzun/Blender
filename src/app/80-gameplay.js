@@ -29,16 +29,23 @@ function doMatch(list){
         Sound.play('combo');
         vibrate([20, 40, 30]); // двойной пульс — отличим от одиночных 15/40 мс
       }
-      // серия дожата до цепной реакции: радиус на всю чашу + досыпка сверху
-      if (comboCount >= CHAIN_COMBO_AT && !chainUntil && !level.over){
+      // серия дожата до цепной реакции. ВТОРОЕ турбо, собранное ВНУТРИ
+      // активного, — «СЕРИЯ ТУРБО» (спека владельца 2026-07-21): окно
+      // перезапускается, chainSeries растёт (интерфейс вешает на >=2
+      // глаза eyes-5). Раньше гейт !chainUntil делал это невозможным —
+      // вопрос ревью «comboCount копится, а зажечь следующую нельзя»
+      // закрыт этим решением владельца.
+      if (comboCount >= CHAIN_COMBO_AT && !level.over){
+        const again = chainUntil > nowMs; // собрал турбо, не выходя из турбо
+        chainSeries = again ? chainSeries + 1 : 1;
         chainUntil = nowMs + CHAIN_MS;
         chainStartMisses = stats.misses;
-        chainNextDrop = nowMs + 600;
+        if (!again) chainNextDrop = nowMs + 600; // у активной цепи досыпка уже тикает
         comboCount = 0; // серия «потрачена» на запуск — следующая копится заново
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
-        scorePop('Power chain!', mid1, '#ff5a3c', true);
+        scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
         Sound.play('chain');
         vibrate([30, 50, 30, 50, 60]);
         updateMatchRadius();

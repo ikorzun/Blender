@@ -162,8 +162,13 @@ function chainRefill(){
     if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++;
   }
   if (top > FUNNEL.H - 1 || airborne >= 8) return;
+  // дробный объём тика (2.6 = +30%, спека владельца): целая часть спавнится,
+  // хвост копится в chainCarry до следующего тика
+  chainCarry += CHAIN_DROP_N;
+  const want = Math.floor(chainCarry);
+  chainCarry -= want;
   let dropped = 0;
-  for (let k = 0; k < CHAIN_DROP_N; k++){
+  for (let k = 0; k < want; k++){
     if (aliveCnt + dropped >= PAIRS*2 + 1) break;
     dropOneFromSky(k);
     dropped++;
@@ -255,8 +260,9 @@ function genLevel(){
   stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
   level = { shakes:3, adShakes:2, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
-            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false };
-  comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; // комбо/цепная реакция не переживают уровень
+            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
+            aliveN0: 0, camFollowOn: false }; // порог 20% и защёлка автопана камеры (90-input)
+  comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');
   startIntro();
