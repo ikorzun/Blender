@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- метод About-Us: iOS Safari красит статусбар/остров ЭТИМ цветом (фон
+     страницы там игнорируется — без меты тёмная тема даёт чёрную полосу).
+     Стартово белый в тон загрузки; после построения неба tintChrome
+     (99-main) перекрашивает мету и фон html/body в тон панорамы. -->
+<meta name="theme-color" content="#ffffff">
 <title>Mixer — Prototype</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -377,7 +382,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-65 · 2026-07-22</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-66 · 2026-07-22</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">

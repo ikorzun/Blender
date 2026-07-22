@@ -152,6 +152,38 @@ function resize(){
 }
 addEventListener('resize', resize);
 
+// iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
+// остров iOS красится ТОЛЬКО через meta theme-color (фон страницы там
+// игнорируется), жестовая зона снизу и Android-тулбар — фоном html/body.
+// Без этого тёмная тема телефона рисует чёрные поля вокруг канваса.
+// Красим всё в тон ВЕРХА панорамы неба (сэмпл её верхней полоски 2D-канвасом);
+// панорама выбирается раз за сессию (день/ночь в 10-stage) — одного прогона
+// с ретраем до декодировки data:uri достаточно.
+function tintChrome(){
+  let img = null;
+  try { img = skyMat && skyMat.uniforms.uSky.value.image; } catch(e){}
+  // ⚠️ ждать НАСТОЯЩУЮ панораму: до декода в uSky живёт заглушка-канвас 1×1
+  // светлого горизонта (10-stage) — проверка на голый width красила хром ею
+  if (!img || !(img.width > 4)){ setTimeout(tintChrome, 120); return; }
+  try {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 4;
+    const g = c.getContext('2d');
+    // полоса 10..30% высоты панорамы: то, что видно у верхней кромки экрана
+    // (камера смотрит выше горизонта, НЕ в зенит = самый верх картинки)
+    g.drawImage(img, 0, Math.round(img.height * 0.10), img.width, Math.max(1, Math.round(img.height * 0.20)), 0, 0, 8, 4);
+    const d = g.getImageData(0, 0, 8, 4).data;
+    let r = 0, gr = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4){ r += d[i]; gr += d[i+1]; b += d[i+2]; }
+    const n = d.length / 4;
+    const col = 'rgb(' + Math.round(r/n) + ',' + Math.round(gr/n) + ',' + Math.round(b/n) + ')';
+    document.documentElement.style.backgroundColor = col;
+    document.body.style.backgroundColor = col;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', col);
+  } catch(e){}
+}
+tintChrome();
+
 // ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
 // пауза не «съедает» простой и не гасит серию
