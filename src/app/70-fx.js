@@ -125,6 +125,148 @@ function dissolveFX(item, radial){
 function bladeDustFX(pos, baseColor){
   dissolveFX({ p: pos, r: 0.55, baseColor }, true);
 }
+// ===== ПАК-ЭФФЕКТЫ ЛОПАНЬЯ ГРУПП (перенос из 80-gameplay по просьбе ФИЗИКИ,
+// WORKSTREAMS 2026-07-22). Здесь ТОЛЬКО ВИЗУАЛ: правило выбора (burstFX,
+// BURST_MIN_N) осталось в 80-gameplay, физволна blastWave — в 50-physics.
+//
+// Что полировано против стартовой версии:
+// 1) точки стали КРУГЛЫМИ: у PointsMaterial без карты точка рисуется
+//    КВАДРАТОМ — сок и искры читались как пиксели, а не как капли/искры;
+// 2) звёзды — не меши, а точки со звёздной картой: точка всегда лицом к
+//    камере, а плоский меш с игрового ракурса ловил ребро и почти пропадал.
+//    Бонусом 5 мешей (5 draw calls, 5 геометрий) свернулись в ОДИН Points.
+//    ⚠️ НЕ THREE.Sprite: в r149 ВСЕ спрайты делят ОДНУ геометрию, а stepFX
+//    диспозит geometry догоревшего эффекта — первый же убил бы все будущие.
+// 3) карты ОБЩИЕ и ленивые, живут вечно. stepFX диспозит material, но НЕ
+//    его map (three текстуры материала не трогает) — общий кэш безопасен.
+//    ⚠️ Только DataTexture: канвас премножает RGB на альфу (грабля matcap).
+let _fxDot = null, _fxStar = null;
+function fxDotTex(){
+  if (_fxDot) return _fxDot;
+  const S = 64, d = new Uint8Array(S*S*4);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
+    const i = (y*S + x)*4;
+    const r = Math.hypot((x + 0.5)/S*2 - 1, (y + 0.5)/S*2 - 1);
+    // плотное ядро + узкий мягкий ободок: капля, а не размытое пятно
+    const a = r >= 1 ? 0 : (r <= 0.72 ? 1 : 1 - (r - 0.72)/0.28);
+    d[i] = d[i+1] = d[i+2] = 255; d[i+3] = Math.round(255*a);
+  }
+  _fxDot = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
+  _fxDot.needsUpdate = true;
+  return _fxDot;
+}
+function fxStarTex(){
+  if (_fxStar) return _fxStar;
+  const S = 64, d = new Uint8Array(S*S*4), IN = 0.46, SEG = Math.PI*2/5;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
+    const i = (y*S + x)*4;
+    const dx = (x + 0.5)/S*2 - 1, dy = (y + 0.5)/S*2 - 1, r = Math.hypot(dx, dy);
+    // радиус звезды по углу: во впадине сектора IN, на луче 1
+    let t = Math.atan2(dy, dx) + Math.PI/2;
+    t = ((t % SEG) + SEG) % SEG;
+    const R = IN + (1 - IN)*Math.abs(t - SEG/2)/(SEG/2);
+    const a = Math.max(0, Math.min(1, (R - r)/0.05)); // мягкая кромка
+    d[i] = d[i+1] = d[i+2] = 255; d[i+3] = Math.round(255*a);
+  }
+  _fxStar = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
+  _fxStar.needsUpdate = true;
+  return _fxStar;
+}
+// сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
+// ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
+function juiceFX(it){
+  const N = 46, LIFE = 0.8, S0 = 0.40;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*3.5;
+    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
+    vx.push(Math.cos(a)*sp); vy.push(2 + Math.random()*4.5); vz.push(Math.sin(a)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  // цвет типа, чуть высветленный: сок читается сочнее самого предмета
+  const c = (it.fxColor || it.baseColor || new THREE.Color(0xff5a6e)).clone()
+    .lerp(new THREE.Color(1, 1, 1), 0.18);
+  const m = new THREE.PointsMaterial({ color: c, map: fxDotTex(), size: S0,
+    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 11*t*t; // ½·G·t², G=22
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - k*k;         // держится дольше, гаснет резче
+    o.material.size = S0*(1 - k*0.45);
+  });
+}
+// искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
+function sparkFX(it){
+  const N = 36, LIFE = 0.45, S0 = 0.20;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, e = Math.random()*Math.PI*0.5, sp = 4 + Math.random()*5;
+    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
+    vx.push(Math.cos(a)*Math.cos(e)*sp); vy.push(Math.sin(e)*sp); vz.push(Math.sin(a)*Math.cos(e)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  // ⚠️ normal blending: additive на светлой панораме невидим (грабля ГРАФИКИ)
+  const m = new THREE.PointsMaterial({ color: 0xffe08a, map: fxDotTex(), size: S0,
+    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 6*t*t; // искры почти не падают
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - k*k;
+    o.material.size = S0*(1 - k*0.3);
+  });
+  for (let j = 0; j < 3; j++){
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09),
+      new THREE.MeshBasicMaterial({ color: 0x3a4048, transparent: true, opacity: 1 }));
+    const a = Math.random()*Math.PI*2, sp = 1.2 + Math.random()*2;
+    const bvx = Math.cos(a)*sp, bvy = 3 + Math.random()*2.5, bvz = Math.sin(a)*sp;
+    const rx = (Math.random()-0.5)*14, rz = (Math.random()-0.5)*14;
+    const o0 = it.p.clone();
+    addFX(box, 0.7, (o, k) => {
+      const t = k*0.7;
+      o.position.set(o0.x + bvx*t, o0.y + bvy*t - 11*t*t, o0.z + bvz*t);
+      o.rotation.x = rx*t; o.rotation.z = rz*t;
+      o.material.opacity = 1 - k;
+    });
+  }
+}
+// мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
+function starPopFX(it){
+  const N = 7, LIFE = 0.7, S0 = 0.34;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = i/N*Math.PI*2 + Math.random()*0.7, sp = 1 + Math.random()*1.6;
+    ox.push(it.p.x); oy.push(it.p.y + 0.3); oz.push(it.p.z);
+    vx.push(Math.cos(a)*sp); vy.push(3.2 + Math.random()*2.2); vz.push(Math.sin(a)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: 0xffd24a, map: fxStarTex(), size: S0,
+    transparent: true, opacity: 0.98, depthWrite: false, alphaTest: 0.02 });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 9*t*t;
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.size = S0*(1 - k*0.55);
+    o.material.opacity = 0.98*(1 - k*k);
+  });
+}
+
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
 // насыщенный цвет (additive-свечение на белом невидимо).
