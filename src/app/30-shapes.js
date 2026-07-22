@@ -115,16 +115,6 @@ const TYPES = [
   // владельца — его выпуклая оболочка заливает дырку, и в Hard бублик
   // «перекрывает» то, что сквозь неё видно; выбран увод, а не компаунд.
   { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
-  // БАНАН +40% (просьба владельца 2026-07-22). Масштаб задаётся В ГЕОМЕТРИИ,
-  // а не через mesh.scale: из неё же берутся полуразмеры half (тест стены по
-  // OBB) и convex hull коллайдера, поэтому картинка, физформа и габарит
-  // сходятся сами. Парный rc:1.4 держит в согласии ИГРОВУЮ метрику (item.r —
-  // зазор пар, доступность, wallR). Менять что-то одно из двух НЕЛЬЗЯ.
-  // ⚠️ .clone() ОБЯЗАТЕЛЕН: modelGeo оборачивает МОДУЛЬНЫЕ массивы 36-models
-  // без копии (new BufferAttribute(POS,3)), а .scale() мутирует и позиции,
-  // и нормали. Без клона мы бы испортили общий буфер типа: сейчас это молчит
-  // только потому, что geoCache никогда не чистится и geo() зовётся один раз —
-  // стоит очистить кэш на регене, и банан рос бы на 40% КАЖДЫЙ раз.
   { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
   { name:'animalbee',             color:0xffd633, rc:1.0, tex:'animal', mat:'soft', geo:animalbeeGeo },
@@ -198,8 +188,23 @@ const TYPES = [
   { name:'foodcupcake',           color:0xffa8c8, rc:1.0, tex:'food', mat:'soft', geo:foodcupcakeGeo },
   { name:'foodicecream',          color:0xffd9b8, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamGeo },
   { name:'foodburger',            color:0xc98a4b, rc:1.0, tex:'food', mat:'soft', geo:foodburgerGeo },
+  { name:'carcone', color:0xff9944, rc:1.0, tex:'car', mat:'soft', geo:carconeGeo },
   { name:'foodcroissant',         color:0xe0b070, rc:1.0, tex:'food', mat:'soft', geo:foodcroissantGeo },
   { name:'foodcookie',            color:0xc08a50, rc:1.0, tex:'food', mat:'soft', geo:foodcookieGeo },
+  { name:'foodleek', color:0x4db781, rc:1.0, wr:0.32, tex:'food', mat:'soft', geo:foodleekGeo },
+  { name:'carbox', color:0xb86847, rc:1.0, tex:'car', mat:'soft', geo:carboxGeo },
+  { name:'foodfish', color:0x626880, rc:1.0, wr:0.89, tex:'food', mat:'soft', geo:foodfishGeo },
+  { name:'foodturkey', color:0x945841, rc:1.0, tex:'food', mat:'soft', geo:foodturkeyGeo },
+  { name:'foodcheese', color:0xffc759, rc:1.0, wr:0.98, tex:'food', mat:'soft', geo:foodcheeseGeo },
+  { name:'cartruck', color:0x4a9e5c, rc:1.0, tex:'car', mat:'soft', geo:cartruckGeo },
+  { name:'foodsundae', color:0xe45e48, rc:1.0, wr:0.37, tex:'food', mat:'soft', geo:foodsundaeGeo },
+  { name:'foodchinese', color:0xebebf2, rc:1.0, tex:'food', mat:'soft', geo:foodchineseGeo },
+  { name:'foodwholeham', color:0xdc9e76, rc:1.0, tex:'food', mat:'soft', geo:foodwholehamGeo },
+  { name:'carkartoobi', color:0x8a6ec8, rc:1.0, tex:'car', mat:'soft', geo:carkartoobiGeo },
+  { name:'foodtaco', color:0xd4926b, rc:1.0, wr:0.85, tex:'food', mat:'soft', geo:foodtacoGeo },
+  { name:'foodhotdog', color:0xeb9268, rc:1.0, wr:0.99, tex:'food', mat:'soft', geo:foodhotdogGeo },
+  { name:'foodcakebirthday', color:0xffc044, rc:1.0, tex:'food', mat:'soft', geo:foodcakebirthdayGeo },
+  { name:'foodicecreamscoopmint', color:0x2b9571, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamscoopmintGeo },
   { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', geo:fooddonutsprinklesGeo },
   { name:'steak',  color:0xe23b2e, rc:0.85, wr:0.53, mat:'model', geo: steakGeo }, // модель владельца (35-steak); wr — плоский, для теста стены
 ];
