@@ -115,7 +115,17 @@ const TYPES = [
   // владельца — его выпуклая оболочка заливает дырку, и в Hard бублик
   // «перекрывает» то, что сквозь неё видно; выбран увод, а не компаунд.
   { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
-  { name:'foodbanana',            color:0xffe14d, rc:1.0, tex:'food', mat:'soft', geo:foodbananaGeo },
+  // БАНАН +40% (просьба владельца 2026-07-22). Масштаб задаётся В ГЕОМЕТРИИ,
+  // а не через mesh.scale: из неё же берутся полуразмеры half (тест стены по
+  // OBB) и convex hull коллайдера, поэтому картинка, физформа и габарит
+  // сходятся сами. Парный rc:1.4 держит в согласии ИГРОВУЮ метрику (item.r —
+  // зазор пар, доступность, wallR). Менять что-то одно из двух НЕЛЬЗЯ.
+  // ⚠️ .clone() ОБЯЗАТЕЛЕН: modelGeo оборачивает МОДУЛЬНЫЕ массивы 36-models
+  // без копии (new BufferAttribute(POS,3)), а .scale() мутирует и позиции,
+  // и нормали. Без клона мы бы испортили общий буфер типа: сейчас это молчит
+  // только потому, что geoCache никогда не чистится и geo() зовётся один раз —
+  // стоит очистить кэш на регене, и банан рос бы на 40% КАЖДЫЙ раз.
+  { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
   { name:'animalbee',             color:0xffd633, rc:1.0, tex:'animal', mat:'soft', geo:animalbeeGeo },
   { name:'animalcrab',            color:0xff5a2b, rc:1.0, tex:'animal', mat:'soft', geo:animalcrabGeo },
