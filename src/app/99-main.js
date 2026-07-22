@@ -3,6 +3,7 @@
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
 let lastMtText = null; // кэш отсчёта до помола — DOM трогаем только при смене
 let lastFireOn = null; // кэш огня угрозы (<5 с) — класс тоже только при смене
+if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 
 // Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
 // кольца последних 600 кадров — сырое время кадра и время шага физики
@@ -320,6 +321,10 @@ function loop(){
     if (fireOn !== lastFireOn){
       lastFireOn = fireOn;
       $('fFire').classList.toggle('on', fireOn);
+      // конструкция опускается под корону (решение владельца; подрежим —
+      // FIRE_DROP_MODE в 00-config): 'fire' — вместе с огнём, 'always' —
+      // класс ставится один раз ниже и не снимается
+      if (FIRE_DROP_MODE === 'fire') $('face').classList.toggle('dropped', fireOn);
     }
     if (txt !== lastMtText){
       lastMtText = txt;
