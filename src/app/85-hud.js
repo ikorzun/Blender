@@ -198,10 +198,10 @@ function updateHUD(){
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
   // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
   $('pairsLeft').textContent = items.filter(i=>i.alive).length;
-  // колонка макета рассчитана на трёхзначные очки, а к 3-му уровню счёт
-  // пятизначный — крупные значения сжимаем, иначе стек наезжает на глаза
-  $('score').textContent = '★ ' + (stats.score >= 10000
-    ? (stats.score / 1000).toFixed(1) + 'k' : stats.score);
+  // СПРАВА — ОБЩИЕ ЗВЁЗДЫ из сейва (спека владельца 2026-07-22: «выводить
+  // общее количество звезд, а не только за уровень»). Очки уровня живут
+  // во всплывающих попах и на экране победы (Score в winStats).
+  $('score').textContent = '★ ' + totalStars();
   const btn = $('shakeBtn');
   if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }

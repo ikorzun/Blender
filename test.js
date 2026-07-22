@@ -197,11 +197,13 @@ const path = require('path');
     score: window.__game.stats().score,
     lvl: window.__game.levelNum(),
     timeOnWin: document.getElementById('winStats').textContent.includes('Time:'),
-    hudTimerHidden: getComputedStyle(document.getElementById('tmSvg')).display === 'none' }));
+    hudTimerHidden: getComputedStyle(document.getElementById('tmSvg')).display === 'none',
+    starChip: document.getElementById('score').textContent }));
   expect(fin2.win === 'flex', 'финальная зачистка доводит до победы');
   expect(fin2.score === 150, 'финал: очки не тратятся/не начисляются, только рыбка +150 (' + fin2.score + ')');
   expect(fin2.lvl === lvlBefore + 1, 'победа апает уровень (' + lvlBefore + ' -> ' + fin2.lvl + ')');
   expect(fin2.hudTimerHidden && fin2.timeOnWin, 'время уровня скрыто из HUD, но есть на экране победы (спека 2026-07-22)');
+  expect(/^★ [1-9]\d*$/.test(fin2.starChip), 'чип справа показывает ОБЩИЕ звёзды из сейва (' + fin2.starChip + ')');
   // дальше уровни пересоздаются через evaluate-regen (мимо кнопки «Дальше») —
   // победный оверлей надо спрятать руками, иначе он перехватит реальные клики
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
