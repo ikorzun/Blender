@@ -158,12 +158,22 @@ const path = require('path');
 
   const preMixerAlive = await page.evaluate(() => window.__game.alive());
   await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // easy=30с — для теста лимит укорачиваем
-  await page.waitForTimeout(3500);
+  await page.waitForTimeout(1000);
+  // огонь — эскалация помола (правка владельца 2026-07-22): на 1-й секунде
+  // Grinding его ещё НЕТ, появляется вместе со спуском глаз после 3 с
+  const fireEarly = await page.evaluate(() => ({
+    fire: document.getElementById('fFire').classList.contains('on'),
+    dropped: document.getElementById('face').classList.contains('dropped') }));
+  expect(!fireEarly.fire && !fireEarly.dropped, 'на 1-й секунде помола огня и спуска глаз ещё нет');
+  await page.waitForTimeout(2600);
   const mixer = await page.evaluate(() => ({ alive: window.__game.alive(), score: window.__game.stats().score,
-    mt: document.getElementById('mixerTimer').textContent }));
+    mt: document.getElementById('mixerTimer').textContent,
+    fire: document.getElementById('fFire').classList.contains('on'),
+    dropped: document.getElementById('face').classList.contains('dropped') }));
   console.log('after idle: alive', mixer.alive, '| score', mixer.score, '| таймер-чип:', mixer.mt);
   expect(mixer.alive < preMixerAlive, 'миксер за простой съел предметы (' + preMixerAlive + ' -> ' + mixer.alive + ')');
   expect(mixer.score < sc, 'миксер снял очки за пару (' + sc + ' -> ' + mixer.score + ')');
+  expect(mixer.fire && mixer.dropped, 'после 3 с помола огонь горит и глаза опустились');
 
   // штраф за промах: тап в пустоту -> -7. Точка (25, 540) — слева от чаши,
   // вне HUD-чипов (клик по верхнему правому углу попадал в чип очков — флейк)
