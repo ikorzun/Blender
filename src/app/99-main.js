@@ -31,7 +31,9 @@ function trimOverfill(){
   for (let guard=0; guard<8; guard++){
     let top = null;
     for (const it of items){
-      if (it.alive && !it.surprise && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+      // сюрприз и бомба триму не кандидаты: оба непарные, изъятие топ-пары
+      // для них вырождается в одиночное удаление спецпредмета
+      if (it.alive && !it.surprise && !it.bomb && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
     const twin = items.find(i => i !== top && i.alive && i.key === top.key);
@@ -466,6 +468,14 @@ window.__game = {
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
   psLog(){ return psLog.slice(); },
+  // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
+  bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
+  detonate(){
+    const b = items.find(i => i.alive && i.bomb && !i.animating);
+    if (!b) return false;
+    detonateBomb(b);
+    return true;
+  },
   // скрин-пробы эффектов: первый ДОСТУПНЫЙ предмет пачки + его экранные
   // координаты (для реального mouse.click в headless)
   findByTex(tex){

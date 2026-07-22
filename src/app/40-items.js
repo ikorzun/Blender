@@ -149,6 +149,31 @@ function makeSurprise(){
   return item;
 }
 
+// Чёрный шар-бомба (спека владельца 2026-07-22, через диспетчера): не
+// матчится (key уникален — hasAnyPair/подсказка/прицел её парой не считают),
+// тап по доступной — взрыв ближайших соседей (detonateBomb в 80-gameplay;
+// поведение — зона ФИЗИКИ по правилу 9, здесь только фабрика). Тело — живая
+// ветка 'ball' в 50-physics (как сюрприз ходит через 'surprisehull').
+function makeBomb(){
+  if (!geoCache.has('B')) geoCache.set('B', new THREE.SphereGeometry(0.95, 28, 20));
+  // плоский чёрный: matcap-пайплайн не нужен, силуэт бомбы читается
+  // заливкой; блик/фитиль — полировка ГРАФИКИ по вкусу
+  const mat = new THREE.MeshBasicMaterial({ color: 0x181a20 });
+  const mesh = new THREE.Mesh(geoCache.get('B'), mat);
+  mesh.scale.setScalar(1.0 * MESH_SCALE); // «средний размер»: охват 0.95·MESH_SCALE
+  const item = {
+    key: 'BOMB', bomb: true, type: { name: 'bomb', mat: 'plain' },
+    baseColor: mat.color.clone(),
+    fxColor: new THREE.Color(0x3a3f4a).convertSRGBToLinear(), // тёмная труха взрыва
+    r: 0.95 * MESH_SCALE, scl: 1.0 * MESH_SCALE,
+    p: new THREE.Vector3(), body: null, geo: geoCache.get('B'),
+    mesh, alive: true, animating: false, accessible: false,
+  };
+  mesh.userData.item = item;
+  scene.add(mesh);
+  return item;
+}
+
 // Цепная реакция: досыпка CHAIN_DROP_N СЛУЧАЙНЫХ предметов за тик — НЕ
 // парами (спека владельца; сироты легальны, финал их ест). Типы независимые,
 // из активных на уровне. Стоп при полной чаше или лимите 141.
@@ -252,6 +277,15 @@ function genLevel(){
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[pr.type].name, it.geo);
       items.push(it); n++;
+      // бомба — в СЕРЕДИНУ столба заполнения (спека 2026-07-22): ровно на
+      // половине предметов, слоем выше текущего — осядет в середину кучи
+      if (n === pairsCnt){
+        const b = makeBomb();
+        b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
+        b.mesh.position.copy(b.p);
+        createItemBody(b, 'ball', geoCache.get('B'));
+        items.push(b);
+      }
     }
   }
   // БЕЗ предварительной осадки: падение происходит ЖИВЬЁМ на экране
