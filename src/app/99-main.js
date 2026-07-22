@@ -2,7 +2,8 @@
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
 let lastMtText = null; // кэш отсчёта до помола — DOM трогаем только при смене
-let lastFireOn = null; // кэш огня угрозы (<5 с) — класс тоже только при смене
+let lastFireOn = null; // кэш огня угрозы — класс тоже только при смене
+let grindStartMs = 0;  // якорь начала помола: огонь после FIRE_AFTER_GRIND_MS непрерывного Grinding
 if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 
 // Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
@@ -163,6 +164,7 @@ function resumeGame(){
   if (comboUntil) comboUntil += d;
   if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
   if (lastMatchMs) lastMatchMs += d;
+  if (grindStartMs) grindStartMs += d; // огонь помола — тоже якорь на часах
   lastT = performance.now(); // без гигантского dt на первом кадре
   paused = false;
   // дренаж отложенных цепочек СТРОГО после paused=false (иначе afterPause
@@ -314,11 +316,15 @@ function loop(){
       // при работе лопастей вместо красного «0» — слово Grinding (спека
       // владельца); и число, и слово всегда чёрные с белой обводкой (CSS)
       txt = grinding ? 'Grinding' : String(Math.max(0, Math.ceil(level.idleLimit - idleS)));
-      // ОГОНЬ у глаз (спека владельца: «появление огня, если таймер меньше
-      // 5 секунд», макет 751:1122): тот же источник времени, что у числа —
-      // остаток < 5 с или уже Grinding; гаснет, когда матч сбросил таймер
-      fireOn = grinding || (level.idleLimit - idleS) < 5;
-    }
+      // ОГОНЬ у глаз (правка владельца 2026-07-22): ТОЛЬКО после 3 с
+      // непрерывного помола — эскалация уже идущего Grinding, а не телеграф
+      // приближения (тот несёт красная лесенка неба). Матч рвёт помол ->
+      // якорь сбрасывается, огонь гаснет.
+      if (grinding){
+        if (!grindStartMs) grindStartMs = now;
+        fireOn = now - grindStartMs >= FIRE_AFTER_GRIND_MS;
+      } else grindStartMs = 0;
+    } else grindStartMs = 0;
     if (fireOn !== lastFireOn){
       lastFireOn = fireOn;
       $('fFire').classList.toggle('on', fireOn);
