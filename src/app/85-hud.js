@@ -219,3 +219,124 @@ function updateHUD(){
   $('apCount').textContent = availablePairs();
   $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // динамический; ∞ = эндшпиль
 }
+
+
+// ===== НАКОПЛЕНИЕ ОБЪЕКТОВ: всплывашка апа ступени + музей (каркас) =====
+// Контракт с МЕТОЙ (WORKSTREAMS): accSnapshot() -> [{name,count,tier,mult,
+// next}], хук onAccTierUp(cb) с {name,tier,mult,item}. Пока меты нет —
+// демо-данные с бейджем DEMO; стыковка ниже подхватит настоящие функции
+// автоматически, править ничего не придётся.
+
+// --- миниатюра предмета: однокадровый рендер НАСТОЯЩЕГО меша в офскрин-
+// канвас. Matcap не зависит от света — портрет честный без ламп. Кэш по
+// типу; второй WebGL-контекст один и переиспользуется.
+let thumbR = null, thumbScene = null, thumbCam = null;
+const thumbCache = {};
+function itemThumb(item){
+  if (!item || !item.mesh) return null;
+  const key = String(item.key);
+  if (thumbCache[key]) return thumbCache[key];
+  try {
+    if (!thumbR){
+      thumbR = new THREE.WebGLRenderer({ alpha:true, antialias:true });
+      thumbR.setSize(96, 96);
+      thumbR.outputEncoding = renderer.outputEncoding; // как у боевого
+      thumbScene = new THREE.Scene();
+      thumbCam = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+      thumbCam.position.set(1.7, 1.35, 2.3);
+      thumbCam.lookAt(0, 0, 0);
+      // на случай CFG.matcap=false (аварийный MeshStandard) — мягкий свет
+      thumbScene.add(new THREE.AmbientLight(0xffffff, 0.9));
+      const dl = new THREE.DirectionalLight(0xffffff, 0.5);
+      dl.position.set(2, 3, 2); thumbScene.add(dl);
+    }
+    // ⚠️ НЕ mesh.clone(): three r149 копирует userData через JSON.stringify,
+    // а в userData.item лежит тело Rapier — циклическая структура, throw.
+    // Портрет собираем вручную из той же геометрии и материала.
+    const m = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
+    m.scale.copy(item.mesh.scale);
+    m.rotation.set(0.42, 0.65, 0);
+    const bs = new THREE.Box3().setFromObject(m).getBoundingSphere(new THREE.Sphere());
+    const k = bs.radius > 0 ? 1 / bs.radius : 1;
+    m.scale.multiplyScalar(k);
+    m.position.copy(bs.center).multiplyScalar(-k);
+    thumbScene.add(m);
+    thumbR.render(thumbScene, thumbCam);
+    const url = thumbR.domElement.toDataURL();
+    thumbScene.remove(m);
+    thumbCache[key] = url;
+    return url;
+  } catch(e){ console.warn('itemThumb:', e && e.message); return null; }
+}
+
+// --- всплывашка: очередь, показываем по одной ~2.2 с ---
+const tierQueue = [];
+let tierBusy = false;
+function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
+function showTierUp(ev){ tierQueue.push(ev); if (!tierBusy) nextTierToast(); }
+function nextTierToast(){
+  const ev = tierQueue.shift();
+  if (!ev){ tierBusy = false; return; }
+  tierBusy = true;
+  const t = $('tierToast');
+  const url = itemThumb(ev.item);
+  $('ttImg').style.display = url ? '' : 'none';
+  if (url) $('ttImg').src = url;
+  $('ttName').textContent = String(ev.name || '').replace(/[-_]/g, ' ');
+  $('ttMult').textContent = fmtMult(ev.mult || 1);
+  t.classList.remove('bye'); void t.offsetWidth;
+  t.classList.add('show');
+  Sound.play('surprise', 0.6); vibrate([15, 30, 15]);
+  setTimeout(()=>{ t.classList.remove('show'); t.classList.add('bye'); }, 1900);
+  setTimeout(()=>{ t.classList.remove('bye'); nextTierToast(); }, 2250);
+}
+
+// --- музей: открывается ИЗ ПАУЗЫ (paused держится), закрытие — обратно ---
+const ACC_TIERS_DEMO = [100, 300, 700, 1500, 3100]; // пороги контракта (×2+100)
+function demoAccSnapshot(){
+  // демо: живые типы уровня с правдоподобными накоплениями — только чтобы
+  // владелец видел каркас; НЕ настоящие данные (бейдж DEMO в шапке)
+  const byKey = {};
+  for (const it of items) if (it.alive && !it.surprise) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
+  return Object.keys(byKey).slice(0, 12).map((k, i) => {
+    const count = 40 + i * 97 % 900 + byKey[k].n * 7;
+    let tier = 0; while (tier < ACC_TIERS_DEMO.length && count >= ACC_TIERS_DEMO[tier]) tier++;
+    return { name: k, count, tier, mult: 1 + 0.25 * tier,
+      next: ACC_TIERS_DEMO[tier] || null, _item: byKey[k].it };
+  });
+}
+function renderMuseum(rows, demo){
+  $('museumDemo').style.display = demo ? '' : 'none';
+  const list = $('museumList');
+  list.innerHTML = '';
+  for (const r of rows){
+    const row = document.createElement('div');
+    row.className = 'mrow';
+    const th = document.createElement('div');
+    th.className = 'mthumb';
+    const url = itemThumb(r._item || (items && items.find(i => i.alive && String(i.key) === String(r.name))));
+    if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
+    else th.textContent = String(r.name || '?').slice(0, 1).toUpperCase();
+    const mid = document.createElement('div');
+    mid.style.flex = '1'; mid.style.minWidth = '0';
+    const frac = r.next ? Math.min(1, r.count / r.next) : 1;
+    mid.innerHTML = '<div class="mname"></div><div class="mprog"><i style="width:' +
+      (frac * 100).toFixed(0) + '%"></i></div><div class="mcnt">' + r.count +
+      (r.next ? ' / ' + r.next : ' · max') + '</div>';
+    mid.firstChild.textContent = String(r.name).replace(/[-_]/g, ' ');
+    const right = document.createElement('div');
+    right.className = 'mmult';
+    right.innerHTML = '<b>' + fmtMult(r.mult) + '</b><span>tier ' + r.tier + '</span>';
+    row.appendChild(th); row.appendChild(mid); row.appendChild(right);
+    list.appendChild(row);
+  }
+}
+function openMuseum(){
+  hide('pauseOverlay');
+  show('museumOverlay');
+  const real = typeof accSnapshot === 'function';
+  renderMuseum(real ? accSnapshot() : demoAccSnapshot(), !real);
+}
+function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
+// стыковка с метой: хук подключаем, как только он появится в сборке
+if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);

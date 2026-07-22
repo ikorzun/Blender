@@ -110,9 +110,37 @@ function accAdd(name, n, item){
   commitSave();
   if (after > before){
     try { Telemetry.ev('acc_up', { t: name, tier: after }); } catch(e){}
-    const ev = { name: name, tier: after, mult: accMult(name), item: item || null };
+    // ev.name — ЧЕЛОВЕЧЕСКИЙ ярлык (его рендерит всплывашка ИНТЕРФЕЙСА),
+    // ev.key — ключ ассета; item ЖИВОЙ: mesh валиден, но тело Rapier уже
+    // уничтожено и растворение стартовало — портрет снимать сразу в колбэке
+    const ev = { name: accLabel(name), key: name, tier: after, mult: accMult(name), item: item || null };
     for (const cb of accTierUpCbs){ try { cb(ev); } catch(e){} }
   }
+}
+// ЧЕЛОВЕЧЕСКИЕ ЯРЛЫКИ ТИПОВ (просьба ИНТЕРФЕЙСА 2026-07-22: витрина музея
+// показывала ключи ассетов). Правило: срезать префикс пачки + заглавная
+// буква; уродцев-склейки — в карте исключений. Ярлыки EN (как кнопки).
+const ACC_LABELS = { polar: 'Polar bear', police: 'Police car', race: 'Race car',
+  firetruck: 'Fire truck', garbagetruck: 'Garbage truck', icecream: 'Ice cream',
+  donutsprinkles: 'Donut' };
+function accLabel(key){
+  const short = String(key).replace(/^(animal|food|car)/, '');
+  return ACC_LABELS[short] || (short.charAt(0).toUpperCase() + short.slice(1));
+}
+// Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
+// typeof): name — ярлык для показа, key — ключ ассета (аргумент accCount и
+// др.), _item — живой предмет типа для офскрин-портрета (или null).
+function accSnapshot(){
+  return TYPES.map(T => {
+    const k = T.name;
+    let live = null;
+    try {
+      if (typeof items !== 'undefined' && items)
+        live = items.find(i => i.alive && !i.animating && i.type && i.type.name === k) || null;
+    } catch(e){}
+    return { name: accLabel(k), key: k, count: accCount(k), tier: accTier(k),
+      mult: accMult(k), next: accNext(k), _item: live };
+  });
 }
 // Защита на смену партии моделей (обязательная связка (б) спеки): ключи
 // сейва, которых нет в текущих TYPES, НЕ удаляются — прогресс переживёт

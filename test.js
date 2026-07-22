@@ -357,13 +357,12 @@ const path = require('path');
   await page.waitForTimeout(500);
   const accProbe = await page.evaluate(() => {
     const g = window.__game;
-    const name = g.accSnapshot()[0].name; // TYPES[0] всегда в пуле уровня
+    const snap0 = g.accSnapshot()[0]; // TYPES[0] всегда в пуле уровня
     window.__accEvents = [];
-    g.onAccTierUp(e => window.__accEvents.push({ name: e.name, tier: e.tier, mult: e.mult }));
-    const start = g.accSnapshot()[0];
-    const t1 = g.accGrant(name, 100 - start.count); // ровно порог ступени 1
-    const t2 = g.accGrant(name, 300 - t1.count);    // порог ступени 2
-    return { name, t1, t2, events: window.__accEvents };
+    g.onAccTierUp(e => window.__accEvents.push({ key: e.key, name: e.name, tier: e.tier, mult: e.mult }));
+    const t1 = g.accGrant(snap0.key, 100 - snap0.count); // ровно порог ступени 1
+    const t2 = g.accGrant(snap0.key, 300 - t1.count);    // порог ступени 2
+    return { key: snap0.key, label: snap0.name, t1, t2, events: window.__accEvents };
   });
   expect(accProbe.t1.tier === 1 && accProbe.t1.mult === 1.25 && accProbe.t1.next === 300,
     'ступень 1 на 100 шт: множитель 1.25, следующий порог 300 (' + JSON.stringify(accProbe.t1) + ')');
@@ -371,13 +370,15 @@ const path = require('path');
     'ступень 2 на 300 шт: множитель 1.5, следующий порог 700 (' + JSON.stringify(accProbe.t2) + ')');
   expect(accProbe.events.length === 2 && accProbe.events[0].tier === 1 && accProbe.events[1].tier === 2,
     'onAccTierUp сработал на каждом пересечении порога (' + JSON.stringify(accProbe.events) + ')');
+  expect(accProbe.label !== accProbe.key && /^[A-Z]/.test(accProbe.label) && accProbe.events[0].name === accProbe.label,
+    'снапшот и событие несут человеческий ярлык, ключ отдельно (' + accProbe.key + ' -> ' + accProbe.label + ')');
   // множитель в очках: пара типа со ступенью 2 = round(20 × 1.5) = 30
   // (радиус временно широкий — пары типа могут лежать далеко друг от друга)
   const multProbe = await page.evaluate(() => {
     const g = window.__game;
     g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;
     const before = g.stats().score;
-    const ok = g.matchType(g.accSnapshot()[0].name);
+    const ok = g.matchType(g.accSnapshot()[0].key);
     g.cfg.baseRadius = 0.9;
     return { ok, delta: g.stats().score - before };
   });
@@ -389,7 +390,7 @@ const path = require('path');
     g.regen(); g.skipIntro();
     const alive = g.aliveByType();
     const mult = {};
-    for (const s of g.accSnapshot()) mult[s.name] = s.mult;
+    for (const s of g.accSnapshot()) mult[s.key] = s.mult;
     let exp = 0;
     for (const k in alive) exp += Math.floor(alive[k] / 2) * 20 * (mult[k] || 1);
     return { par: g.level().parBase, exp: Math.round(exp) };
