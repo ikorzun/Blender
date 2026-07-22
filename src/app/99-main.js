@@ -478,6 +478,33 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // КАЛИБРОВКА ЗВЁЗД: экранные координаты ЛУЧШЕЙ доступной группы
+  // (findHintGroup — тот же поиск, что у подсказки). Нужно ботам, которые
+  // ходят РЕАЛЬНЫМИ тапами: findByTex отдаёт любой предмет пачки, часто без
+  // пары в радиусе, и такой тап штрафуется как промах (замер показал 85%
+  // промахов) — человек же бьёт по видимой группе. Только для тестов.
+  // mode 'any' — СЛУЧАЙНАЯ валидная группа (модель обычного игрока: он бьёт
+  // по первой замеченной паре, а не сканирует чашу в поисках максимума);
+  // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
+  // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
+  bestTapTarget(mode){
+    let grp = null;
+    if (mode === 'any'){
+      refreshAccessibility();
+      const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
+      const cands = [];
+      for (const it of acc){
+        const g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+        if (g.length) cands.push([it].concat(g));
+      }
+      if (cands.length) grp = cands[Math.floor(Math.random() * cands.length)];
+    } else grp = findHintGroup();
+    if (!grp || !grp.length) return null;
+    const it = grp[0];
+    const sp = it.p.clone().project(camera);
+    return { n: grp.length, name: it.type.name,
+      px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+  },
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
     refreshAccessibility();
