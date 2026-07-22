@@ -70,9 +70,19 @@ function finalizeFill(){
   for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
-  // пар-скор (звёзды v1): база = «всё сматчено парами без комбо» по факту
-  // ПОСЛЕ трима; 2★ = ×1.3 (нужны комбо), 3★ = ×1.7 (нужны серии)
-  level.parBase = Math.floor(aliveN / 2) * MATCH_SCORE * 2;
+  // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
+  // С УЧЁТОМ МНОЖИТЕЛЕЙ НАКОПЛЕНИЯ (обязательная связка (а) спеки владельца
+  // 2026-07-22: иначе прокачанные типы делали бы 2★/3★ автоматом — база
+  // растёт вместе с ценой матчей, пороги остаются скилловыми). Сюрприз и
+  // бомба в пары не входят (не матчатся; заодно ушёл старый перекос базы
+  // на пол-пары от бомбы). Правка МЕТА в физическом файле — санкционирована
+  // задачей диспетчера (баланс-таблица).
+  const accPerType = {};
+  for (const it of items) if (it.alive && !it.surprise && !it.bomb)
+    accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
+  let accPar = 0;
+  for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
+  level.parBase = Math.round(accPar);
   refreshAccessibility(); updateHUD();
 }
 function tickIntro(dt){
@@ -460,6 +470,28 @@ window.__game = {
   // v1: кошелёк и звёзды (тесты экономики)
   wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(), stars: Object.assign({}, Save.stars), total: totalStars() }; },
   grant(n){ addCoins(n); updateHUD(); },
+  // НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22) — контракт для
+  // ИНТЕРФЕЙСА (вкладка «Музей объектов» + всплывашка апа) и тестов;
+  // сама функция глобальная в 77-save (85-hud подхватывает по typeof)
+  accSnapshot(){ return accSnapshot(); },
+  accGrant(name, n){ accAdd(name, n, null); return { count: accCount(name), tier: accTier(name), mult: accMult(name), next: accNext(name) }; },
+  onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
+  // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
+  setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
+  matchType(name){
+    refreshAccessibility();
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && i.type.name === name);
+    for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
+      if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
+    return false;
+  },
+  // живые по типам (независимая проверка пар-скора в тестах)
+  aliveByType(){
+    const m = {};
+    for (const it of items) if (it.alive && !it.surprise && !it.bomb) m[it.type.name] = (m[it.type.name] || 0) + 1;
+    return m;
+  },
   combo(){
     const n = performance.now();
     let top = 0, airborne = 0;

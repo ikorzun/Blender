@@ -10,7 +10,13 @@ const SAVE_KEY = 'mixer_save_v1';
 // (Bridge storage мог не принять нули, а мерж по max их «поднимал» обратно).
 // ⚠️ Чек-лист нового поля сейва: добавить в Save, в ОБЕ ветки mergeSave
 // (перенос при from.gen>gen и мерж при равных), в resetProgress.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, stars: {}, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// ac — НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22): пожизненные
+// монотонные счётчики совмещённых предметов КАЖДОГО типа (ключ = имя типа
+// из ассетов, TYPES[].name). Ступень/множитель ВЫЧИСЛЯЮТСЯ из счётчика
+// (accTier/accMult) и в сейве не дублируются — нечему расходиться.
+// Мерж: max по ключу (образец he/hs), gen-эпоха уважается. При смене
+// партии моделей осиротевшие ключи НЕ теряются (лог в accAuditOrphans).
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, stars: {}, ac: {}, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -21,6 +27,7 @@ function mergeSave(into, from){
     into.ce = from.ce || 0; into.cs = from.cs || 0;
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
     into.stars = Object.assign({}, from.stars || {});
+    into.ac = Object.assign({}, from.ac || {});
     into.gen = gf;
     return;
   }
@@ -31,6 +38,9 @@ function mergeSave(into, from){
   into.hs = Math.max(into.hs || 0, from.hs || 0);
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
+  if (!into.ac) into.ac = {};
+  const ac = from.ac || {};
+  for (const k in ac) into.ac[k] = Math.max(into.ac[k] || 0, ac[k] || 0);
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
@@ -65,9 +75,85 @@ function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; co
 // если запись нулей в облако сорвётся, mergeSave старую копию не воскресит
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
-  Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {};
+  Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
 }
+
+// ===== НАКОПЛЕНИЕ ПО ТИПАМ: API (контракт для ИНТЕРФЕЙСА, см. WORKSTREAMS).
+// Пороги — ряд ×2+100 владельца: 100/300/700/1500/3100/6300... = 100·(2^n−1).
+function accThreshold(t){ return t <= 0 ? 0 : 100 * (Math.pow(2, t) - 1); }
+function accCount(name){ return (Save.ac && Save.ac[name]) || 0; }
+function accTier(name){
+  const c = accCount(name);
+  let t = 0;
+  while (t < ACC_TIER_CAP && c >= accThreshold(t + 1)) t++;
+  return t;
+}
+function accMult(name){ return 1 + ACC_MULT_STEP * accTier(name); }
+function accNext(name){ // порог следующей ступени или null на капе
+  const t = accTier(name);
+  return t >= ACC_TIER_CAP ? null : accThreshold(t + 1);
+}
+// Событие апа ступени: интерфейс вешает всплывашку через onAccTierUp(cb);
+// колбэк получает { name, tier, mult, item } В МОМЕНТ пересечения порога
+// (из doMatch). Ошибка в чужом колбэке не роняет матч (try/catch).
+const accTierUpCbs = [];
+function onAccTierUp(cb){ if (typeof cb === 'function') accTierUpCbs.push(cb); }
+function accAdd(name, n, item){
+  if (!name || !(n > 0)) return;
+  if (!Save.ac) Save.ac = {};
+  const before = accTier(name);
+  Save.ac[name] = accCount(name) + n;
+  const after = accTier(name);
+  commitSave();
+  if (after > before){
+    try { Telemetry.ev('acc_up', { t: name, tier: after }); } catch(e){}
+    // ev.name — ЧЕЛОВЕЧЕСКИЙ ярлык (его рендерит всплывашка ИНТЕРФЕЙСА),
+    // ev.key — ключ ассета; item ЖИВОЙ: mesh валиден, но тело Rapier уже
+    // уничтожено и растворение стартовало — портрет снимать сразу в колбэке
+    const ev = { name: accLabel(name), key: name, tier: after, mult: accMult(name), item: item || null };
+    for (const cb of accTierUpCbs){ try { cb(ev); } catch(e){} }
+  }
+}
+// ЧЕЛОВЕЧЕСКИЕ ЯРЛЫКИ ТИПОВ (просьба ИНТЕРФЕЙСА 2026-07-22: витрина музея
+// показывала ключи ассетов). Правило: срезать префикс пачки + заглавная
+// буква; уродцев-склейки — в карте исключений. Ярлыки EN (как кнопки).
+const ACC_LABELS = { polar: 'Polar bear', police: 'Police car', race: 'Race car',
+  firetruck: 'Fire truck', garbagetruck: 'Garbage truck', icecream: 'Ice cream',
+  donutsprinkles: 'Donut' };
+function accLabel(key){
+  const short = String(key).replace(/^(animal|food|car)/, '');
+  return ACC_LABELS[short] || (short.charAt(0).toUpperCase() + short.slice(1));
+}
+// Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
+// typeof): name — ярлык для показа, key — ключ ассета (аргумент accCount и
+// др.), _item — живой предмет типа для офскрин-портрета (или null).
+function accSnapshot(){
+  return TYPES.map(T => {
+    const k = T.name;
+    let live = null;
+    try {
+      if (typeof items !== 'undefined' && items)
+        live = items.find(i => i.alive && !i.animating && i.type && i.type.name === k) || null;
+    } catch(e){}
+    return { name: accLabel(k), key: k, count: accCount(k), tier: accTier(k),
+      mult: accMult(k), next: accNext(k), _item: live };
+  });
+}
+// Защита на смену партии моделей (обязательная связка (б) спеки): ключи
+// сейва, которых нет в текущих TYPES, НЕ удаляются — прогресс переживёт
+// возврат типа в пул; в консоль — предупреждение со списком.
+function accAuditOrphans(){
+  try {
+    if (!Save.ac) return;
+    const known = {};
+    for (const T of TYPES) known[T.name] = 1;
+    const orphans = Object.keys(Save.ac).filter(k => !known[k]);
+    if (orphans.length)
+      console.warn('[acc] осиротевшие счётчики накопления (тип вне текущей партии, прогресс сохранён): ' + orphans.join(', '));
+  } catch(e){}
+}
 loadSave();
+accAuditOrphans();

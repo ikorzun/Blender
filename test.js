@@ -190,16 +190,29 @@ const path = require('path');
   expect(mixer.score < sc, 'миксер снял очки за пару (' + sc + ' -> ' + mixer.score + ')');
   expect(mixer.fire && mixer.dropped, 'после 3 с помола огонь горит и глаза опустились');
 
-  // штраф за промах: тап в пустоту -> -7. Точка (25, 540) — слева от чаши,
-  // вне HUD-чипов (клик по верхнему правому углу попадал в чип очков — флейк)
-  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  // БАЛАНС-ТАБЛИЦА (спека владельца 2026-07-22): промах −10; уровень 1 —
+  // БЕЗ очковых штрафов вовсе; уровни 2-5 — кламп счёта снизу нулём;
+  // с уровня 6 — полный минус. Точка (25, 540) — слева от чаши, вне HUD.
+  await page.evaluate(() => { window.__game.setLevel(1); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(600);
   await page.mouse.click(25, 540);
   await page.waitForTimeout(300);
-  const missScore = await page.evaluate(() => { const s = window.__game.stats();
-    return { score: s.score, taps: s.taps, misses: s.misses }; });
-  console.log('miss:', JSON.stringify(missScore));
-  expect(missScore.misses === 1 && missScore.score === -7, 'промах в пустоту: -7 очков (' + missScore.score + ', misses ' + missScore.misses + ')');
+  const missL1 = await page.evaluate(() => { const s = window.__game.stats();
+    return { score: s.score, misses: s.misses }; });
+  console.log('miss L1:', JSON.stringify(missL1));
+  expect(missL1.misses === 1 && missL1.score === 0, 'ур.1 без штрафов: промах не снял очков (score ' + missL1.score + ', misses ' + missL1.misses + ')');
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(600);
+  await page.mouse.click(25, 540);
+  await page.waitForTimeout(300);
+  const missL3 = await page.evaluate(() => window.__game.stats().score);
+  expect(missL3 === 0, 'ур.3: кламп нулём — промах с нуля держит 0 (' + missL3 + ')');
+  await page.evaluate(() => { window.__game.setLevel(8); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(600);
+  await page.mouse.click(25, 540);
+  await page.waitForTimeout(300);
+  const missL8 = await page.evaluate(() => window.__game.stats().score);
+  expect(missL8 === -10, 'ур.8: полный штраф промаха −10 (' + missL8 + ')');
 
   // финал: остались одиночки без пар — миксер зачищает их, собирает сюрприз (+150)
   // и наступает победа с апом уровня
@@ -215,7 +228,7 @@ const path = require('path');
     hudTimerHidden: getComputedStyle(document.getElementById('tmSvg')).display === 'none',
     starChip: document.getElementById('score').textContent }));
   expect(fin2.win === 'flex', 'финальная зачистка доводит до победы');
-  expect(fin2.score === 150, 'финал: очки не тратятся/не начисляются, только рыбка +150 (' + fin2.score + ')');
+  expect(fin2.score === 150 + 5 * lvlBefore, 'финал: очки не тратятся/не начисляются, только рыбка 150+5×ур (' + fin2.score + ' при ур.' + lvlBefore + ')');
   expect(fin2.lvl === lvlBefore + 1, 'победа апает уровень (' + lvlBefore + ' -> ' + fin2.lvl + ')');
   expect(fin2.hudTimerHidden && fin2.timeOnWin, 'время уровня скрыто из HUD, но есть на экране победы (спека 2026-07-22)');
   expect(/^★ [1-9]\d*$/.test(fin2.starChip), 'чип справа показывает ОБЩИЕ звёзды из сейва (' + fin2.starChip + ')');
@@ -336,6 +349,54 @@ const path = require('path');
   expect(chainProbe.chainAt >= 0, 'серия матчей зажгла цепь (матч #' + chainProbe.chainAt + ')');
   expect(chainProbe.seriesAt > chainProbe.chainAt && chainProbe.final.series >= 2,
     'второе турбо внутри первого = серия турбо (матч #' + chainProbe.seriesAt + ', series ' + chainProbe.final.series + ')');
+
+  // НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22): пороги 100·(2^n−1),
+  // множитель 1+0.25×ступень, событие апа в момент пересечения, множитель
+  // в очках матча и в пар-скоре
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(500);
+  const accProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const snap0 = g.accSnapshot()[0]; // TYPES[0] всегда в пуле уровня
+    window.__accEvents = [];
+    g.onAccTierUp(e => window.__accEvents.push({ key: e.key, name: e.name, tier: e.tier, mult: e.mult }));
+    const t1 = g.accGrant(snap0.key, 100 - snap0.count); // ровно порог ступени 1
+    const t2 = g.accGrant(snap0.key, 300 - t1.count);    // порог ступени 2
+    return { key: snap0.key, label: snap0.name, t1, t2, events: window.__accEvents };
+  });
+  expect(accProbe.t1.tier === 1 && accProbe.t1.mult === 1.25 && accProbe.t1.next === 300,
+    'ступень 1 на 100 шт: множитель 1.25, следующий порог 300 (' + JSON.stringify(accProbe.t1) + ')');
+  expect(accProbe.t2.tier === 2 && accProbe.t2.mult === 1.5 && accProbe.t2.next === 700,
+    'ступень 2 на 300 шт: множитель 1.5, следующий порог 700 (' + JSON.stringify(accProbe.t2) + ')');
+  expect(accProbe.events.length === 2 && accProbe.events[0].tier === 1 && accProbe.events[1].tier === 2,
+    'onAccTierUp сработал на каждом пересечении порога (' + JSON.stringify(accProbe.events) + ')');
+  expect(accProbe.label !== accProbe.key && /^[A-Z]/.test(accProbe.label) && accProbe.events[0].name === accProbe.label,
+    'снапшот и событие несут человеческий ярлык, ключ отдельно (' + accProbe.key + ' -> ' + accProbe.label + ')');
+  // множитель в очках: пара типа со ступенью 2 = round(20 × 1.5) = 30
+  // (радиус временно широкий — пары типа могут лежать далеко друг от друга)
+  const multProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;
+    const before = g.stats().score;
+    const ok = g.matchType(g.accSnapshot()[0].key);
+    g.cfg.baseRadius = 0.9;
+    return { ok, delta: g.stats().score - before };
+  });
+  expect(multProbe.ok, 'нашлась пара прокачанного типа для матча');
+  expect(multProbe.delta === 30, 'пара типа со ступенью 2 даёт 20×1.5=30 очков (' + multProbe.delta + ')');
+  // пар-скор с множителями: независимый пересчёт по aliveByType × accMult
+  const parProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    const alive = g.aliveByType();
+    const mult = {};
+    for (const s of g.accSnapshot()) mult[s.key] = s.mult;
+    let exp = 0;
+    for (const k in alive) exp += Math.floor(alive[k] / 2) * 20 * (mult[k] || 1);
+    return { par: g.level().parBase, exp: Math.round(exp) };
+  });
+  expect(parProbe.par === parProbe.exp && parProbe.par > 0,
+    'пар-скор учитывает множители накопления (' + parProbe.par + ' = ' + parProbe.exp + ')');
 
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());
