@@ -26,15 +26,25 @@ function makeItem(typeIdx, size){
       // color от белого к серому, то есть просто притемняет текстуру.
       // графит осветлён до 0xb8c0cc: характер металла несёт сам matcap, а
       // тёмный 0x424a56 в умножении давал чёрные кубы (см. MATCAP_PRESETS)
+      // t.paint (КИРПИЧИ, решение владельца 2026-07-22 «крась кирпичи»): у
+      // пачки Brick атлас БЕЛЫЙ (замер по UV: #f9f9fc), различать 11 белых
+      // прямоугольников сверху нельзя — поэтому цвет им даёт палитра, как
+      // процедурным. Шейдер множит белый атлас на color, тон выходит чистым,
+      // и труха (fxColor от t.color) совпадает с самим кирпичом.
       color: t.mat === 'chrome' ? 0xb8c0cc
+           : t.paint ? candyColor(t.color, t.dl)
            : (t.tex || t.mat === 'model') ? 0xffffff
            : candyColor(t.color, t.dl),
       map: t.tex ? modelColormap(t.tex) : null,
-      // у текстурных — почти белый matcap, иначе он пережимает авторские цвета
-      matcap: makeMatcap(t.tex ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
+      // у текстурных — почти белый matcap, иначе он пережимает авторские цвета.
+      // ПОКРАШЕННЫМ он не нужен: их цвет несёт material.color, а не атлас,
+      // значит им идёт обычный 'soft' — с ним форма читается объёмнее.
+      matcap: makeMatcap(t.tex && !t.paint ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
     });
-    if (t.tex) mat.userData.texTune = 1;  // патч выдаст ему ручки яркости/контраста
+    // ручки яркости/контраста калиброваны под АВТОРСКИЕ атласы; покрашенным
+    // они ни к чему — там цвет уже наш
+    if (t.tex && !t.paint) mat.userData.texTune = 1;
     addMatcapEmissive(mat);          // без этого падает подсветка Hint
     mat.onBeforeCompile = matcapSpecPatch;
   } else if (t.mat === 'chrome'){
@@ -51,7 +61,7 @@ function makeItem(typeIdx, size){
     // Цикл v4: мягкий глянец вместо зеркала (roughness 0 давал скачущие
     // блики при повороте камеры) — цвет доминирует, блик размытый и стабильный
     mat = new THREE.MeshStandardMaterial({
-      color: t.tex ? 0xffffff : candyColor(t.color, t.dl),
+      color: (t.tex && !t.paint) ? 0xffffff : candyColor(t.color, t.dl), // paint — см. matcap-ветку
       map: t.tex ? modelColormap(t.tex) : null,
       metalness: 0, roughness: 0.18,
     });
