@@ -102,6 +102,46 @@ function doMatch(list){
 // stepFX сам их диспозит). Полировка/перенос в 70-fx — за ГРАФИКОЙ
 // (междузонный запрос в WORKSTREAMS). Баллистика ПАРАМЕТРИЧЕСКАЯ
 // (позиция от t=k·life, не по кадрам) — FPS-независимо.
+// ЧЁРНЫЙ ШАР-БОМБА (спека владельца 2026-07-22): тап = взрыв БЛИЖАЙШИХ
+// соседей (зазор охватных сфер <= BOMB_RADIUS, кап BOMB_MAX), без очков.
+// Поведение объекта — зона ФИЗИКИ (правило 9). Жертвы уходят пак-эффектами
+// «пункта 5» (сок/искры/звёзды — взрыв бесплатно разнообразен), сама бомба —
+// тёмной трухой; волна сильнее бурстовой (BOMB_WAVE_V) — куча вздрагивает.
+// Комбо/серии взрыв НЕ трогает (не матч); сюрприз и другие бомбы не задевает.
+function detonateBomb(bomb){
+  bomb.animating = true;
+  destroyItemBody(bomb);
+  wakePhysics('bomb');
+  stats.lastAction = performance.now(); // тап = действие, миксер откладывается
+  const victims = items
+    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb)
+    .map(i => ({ i, d: pairDist(i, bomb) }))
+    .filter(v => v.d <= BOMB_RADIUS)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, BOMB_MAX)
+    .map(v => v.i);
+  victims.forEach(it => { it.animating = true; destroyItemBody(it); });
+  popFX(bomb.p);
+  dissolveFX(bomb);
+  victims.forEach(it => burstFX(it));
+  blastWave(bomb.p, BOMB_RADIUS + 1.2, BOMB_WAVE_V);
+  camShake = Math.max(camShake, 0.3);
+  Sound.play('shake');
+  vibrate([30, 60, 40]);
+  scorePop('BOOM', bomb.p.clone().setY(bomb.p.y + 0.9), '#1d1c26', true);
+  const all = [bomb].concat(victims);
+  const scales = all.map(it => it.mesh.scale.x);
+  addFX(new THREE.Object3D(), 0.16, (o, k) => {
+    const s = k < 0.45 ? 1 + 0.5*k : 1.22 * (1 - (k - 0.45)/0.55);
+    all.forEach((it, i) => { it.mesh.scale.setScalar(scales[i]*Math.max(0, s)); });
+  });
+  setTimeout(() => afterPause(() => {
+    all.forEach(removeItem);
+    wakePhysics('gameplay:L28'); // масса над воронкой взрыва должна осесть
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 150);
+}
+
 function burstFX(it){
   const tex = it.type.tex;
   if (tex === 'food') juiceFX(it);
@@ -365,6 +405,7 @@ function handleTap(x, y){
     return;
   }
   if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
+  if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   const eligible = accessible.filter(i => pairMatch(i, item));
@@ -438,7 +479,7 @@ function hintPulse(item){
 // затягивает в лопасти (тонет с вращением), его пара расщепляется вместе с ним,
 // за пару отнимаются очки.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise); // сюрприз миксер не ест
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb); // сюрприз и бомбу миксер-наказание не ест (бомбу доедает финал)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];

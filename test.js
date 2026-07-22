@@ -29,8 +29,8 @@ const path = require('path');
     pairsAvail: window.__game.availablePairs(),
   }));
   console.log('start:', JSON.stringify(t0));
-  // уровень 1: 64 пары + рыбка = 129; трим на рыхлом сиде может тихо изъять пары
-  expect(t0.alive >= 110 && t0.alive <= 129, 'старт: предметов 110-129 (' + t0.alive + ')');
+  // уровень 1: 64 пары + рыбка + бомба = 130; трим на рыхлом сиде может тихо изъять пары
+  expect(t0.alive >= 111 && t0.alive <= 130, 'старт: предметов 111-130 (' + t0.alive + ')');
   expect(t0.pairsAvail > 0, 'старт: есть доступные пары (' + t0.pairsAvail + ')');
   // первые 15 уровней — предметы одного размера (спека владельца 2026-07-21)
   const sizes0 = await page.evaluate(() => window.__game.sizes());
@@ -54,6 +54,21 @@ const path = require('path');
   const t2 = await page.evaluate(() => ({ alive: window.__game.alive(), ap: window.__game.availablePairs() }));
   console.log('after shake:', JSON.stringify(t2));
   expect(t2.alive === t1, 'встряска не уничтожает предметы (' + t1 + ' -> ' + t2.alive + ')');
+
+  // ЧЁРНЫЙ ШАР-БОМБА (спека владельца 2026-07-22): тап/детонация взрывает
+  // ближайших соседей — не более BOMB_MAX (7), без очков; бомба расходуется
+  const b0 = await page.evaluate(() => ({ alive: window.__game.alive(),
+    score: window.__game.stats().score, idx: window.__game.bombIndex() }));
+  expect(b0.idx >= 0, 'бомба заспавнена в кучу (index ' + b0.idx + ')');
+  const det = await page.evaluate(() => window.__game.detonate());
+  await page.waitForTimeout(450);
+  const b1 = await page.evaluate(() => ({ alive: window.__game.alive(),
+    score: window.__game.stats().score, idx: window.__game.bombIndex() }));
+  expect(det === true, 'детонация сработала');
+  expect(b1.idx === -1, 'бомба израсходована взрывом');
+  const bombKilled = b0.alive - b1.alive - 1;
+  expect(bombKilled >= 1 && bombKilled <= 7, 'взрыв снял 1..7 соседей (' + bombKilled + ')');
+  expect(b1.score === b0.score, 'взрыв без очков (' + b0.score + ' -> ' + b1.score + ')');
 
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
