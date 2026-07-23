@@ -407,17 +407,19 @@ const path = require('path');
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
   if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
-  // КОНТРАКТ CAMNEAR (витрина уровня, интерфейс): класс на <html> при
-  // camR<14.5, снятие при camR>15.2, между порогами — гистерезис держит
+  // КОНТРАКТ CAMNEAR v2 (спека владельца: «скрывать за 200px до вещей»):
+  // критерий — ЭКРАННЫЙ зазор панель↔куча (<200 скрыть, >240 показать).
+  // Вьюпорт сьюта мобильный → панели нет → vitrineGap null и класса нет;
+  // экранную геометрию проверяем постановкой камеры и чтением gap.
   const camnearAt = async (r) => {
     await page.evaluate(v => window.__game.setCamR(v), r);
-    await page.waitForTimeout(120); // пара кадров тика
-    return page.evaluate(() => document.documentElement.classList.contains('camnear'));
+    await page.waitForTimeout(400); // ≥2 тика по 150мс
+    return page.evaluate(() => ({ cls: document.documentElement.classList.contains('camnear'),
+      gap: window.__game.vitrineGap() }));
   };
-  expect(await camnearAt(16.2) === false, 'camnear: на дефолтной дистанции класса нет');
-  expect(await camnearAt(14.0) === true, 'camnear: ближе 14.5 класс повешен');
-  expect(await camnearAt(15.0) === true, 'camnear: в зазоре гистерезиса класс держится');
-  expect(await camnearAt(15.5) === false, 'camnear: дальше 15.2 класс снят');
+  const cnDef = await camnearAt(16.2);
+  expect(cnDef.gap === null && cnDef.cls === false,
+    'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
   await page.evaluate(() => window.__game.setCamR(16.2)); // вернуть камеру сценарию
 
   // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют
