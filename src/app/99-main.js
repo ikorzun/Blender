@@ -511,6 +511,39 @@ window.__game = {
   // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
   matcapTuner,
   matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
+  // замер вуали: выставить её ВСЕМ живым разом. Нужна именно так — чтобы
+  // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
+  // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)
+  veilAll: veilAllItems,
+  // срез вуали для сьюта: сколько материалов реально получили uVeil>0
+  veilStats(){
+    let withShader = 0, veiled = 0, max = 0;
+    for (const it of items){
+      if (!it.alive || !it.mesh) continue;
+      const sh = it.mesh.material.userData && it.mesh.material.userData.shader;
+      if (!sh) continue;
+      withShader++;
+      const v = sh.uniforms.uVeil.value;
+      if (v > 0.01) veiled++;
+      if (v > max) max = v;
+    }
+    return { mode: VEIL_MODE, withShader, veiled, max: +max.toFixed(2) };
+  },
+  // A/B прозрачности НА ЖИВОЙ странице. Боевой режим задаёт VEIL_MODE в
+  // 00-config; здесь — только замер и показ владельцу, без пересборки.
+  // ⚠️ Смена transparent — перекомпиляция шейдера: после вызова дать кадр-другой
+  // на прогрев, иначе в замер попадёт компиляция, а не установившаяся цена.
+  veilFade(on){
+    let n = 0;
+    for (const it of items){
+      if (!it.mesh || !it.mesh.material.userData.shader) continue;
+      const m = it.mesh.material;
+      m.transparent = !!on; m.needsUpdate = true;
+      m.opacity = on ? 1 - (it.veilK || 0) * (1 - VEIL_ALPHA) : 1;
+      n++;
+    }
+    return n;
+  },
   // контрольная сумма пикселей пресета: сьют проверяет ПЕРЕСЪЁМКУ текстуры,
   // а не только смену числа в объекте (иначе ассерт был бы пустым)
   matcapSum(kind){

@@ -93,6 +93,7 @@ let chainUntil = 0, chainStartMisses = 0, chainNextDrop = 0, chainNextBolt = 0;
 // окна в doMatch). >=2 — сигнал интерфейсу для глаз eyes-5. chainCarry —
 // дробный аккумулятор досыпки (2.6 шт/тик не спавнится целиком за раз).
 let chainSeries = 0, chainCarry = 0;
+let veilPinned = false; // тюнер держит вуаль на всех — refresh её не перебивает
 let accFlips = 0; // диагностика: сколько предметов сменили доступность за последний refresh
 function refreshAccessibility(){
   updateMatchRadius();
@@ -109,13 +110,45 @@ function refreshAccessibility(){
     // у animating вуаль не трогаем — пусть дотлевает как есть
     // камни вуалью не мигают (спека 2026-07-22: «иная природа» читается
     // фактурой); лучи их тела при этом честно блокируют — завал настоящий
-    if (!it.animating) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.accessible) ? 0.65 : 0;
+    // ⚠️ ПИН ТЮНЕРА выше доступности: без него превью «вуаль на всех» жило
+    // максимум до следующего тика refresh (300 мс) и молча растворялось —
+    // ползунки силы вуали были бы неподкручиваемы.
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 // Плавное затухание/снятие вуали (~0.25 с), из главного цикла каждый кадр.
 // Недоступные — серая вуаль (лерп к нейтральному), НЕ умножение цвета
 // (умножение давало «грязные» тёмно-зелёный и коричневый). Сюрприз не
 // вуалится — должен золотиться сквозь щели.
+// ⚠️ РЕЖИМ 'desat' (спека владельца 2026-07-23) вуалит В ШЕЙДЕРЕ — иначе
+// текстурные модели (114 из 130 в кадре) обесцветить НЕЛЬЗЯ: их material.color
+// белый, цвет несёт атлас, и лерп color к серому лишь притемнял его.
+// Лерп по color оставлен ЖИВЫМ фолбэком для материалов без нашего патча
+// (бомба на MeshBasicMaterial, аварийный откат CFG.matcap=false) — без него
+// они молча перестали бы вуалиться вовсе.
+function applyVeil(it, k){
+  const mat = it.mesh.material;
+  const sh = mat.userData && mat.userData.shader;
+  if (VEIL_MODE !== 'tint' && sh){
+    sh.uniforms.uVeil.value = k;
+    // 'fade': прозрачность поверх обесцвечивания. transparent выставлен ОДИН
+    // раз при создании материала (переключать на лету = перекомпиляция).
+    if (VEIL_MODE === 'fade') mat.opacity = 1 - k * (1 - VEIL_ALPHA);
+    return;
+  }
+  mat.color.copy(it.baseColor).lerp(DIM_GREY, k);
+}
+// Вуаль ВСЕМ живым разом: превью в тюнере и изоляция замеров (доля
+// недоступных гуляет от сида к сиду, на этом шуме дельта-замер тонет).
+// k = число: ПРИБИТЬ вуаль всем на этом значении; k = null: отпустить,
+// дальше вуаль снова ведёт доступность.
+function veilAllItems(k){
+  if (k === null){ veilPinned = false; refreshAccessibility(); return 0; }
+  veilPinned = true;
+  let n = 0;
+  for (const it of items) if (it.alive){ it.veilK = k; it.veilTarget = k; applyVeil(it, k); n++; }
+  return n;
+}
 function tickVeil(dt){
   const step = dt / 0.25;
   for (const it of items){
@@ -124,7 +157,7 @@ function tickVeil(dt){
     if (cur === target) continue;
     const next = cur < target ? Math.min(target, cur + step) : Math.max(target, cur - step);
     it.veilK = next;
-    it.mesh.material.color.copy(it.baseColor).lerp(DIM_GREY, next);
+    applyVeil(it, next);
   }
 }
 // Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть

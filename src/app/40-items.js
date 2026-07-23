@@ -47,6 +47,12 @@ function makeItem(typeIdx, size){
     if (t.tex && !t.paint) mat.userData.texTune = 1;
     addMatcapEmissive(mat);          // без этого падает подсветка Hint
     mat.onBeforeCompile = matcapSpecPatch;
+    // ⚠️ Режим 'fade' платит ВСЕГДА и ЗА ВСЕХ: three ставит предмет в
+    // прозрачную очередь по флагу material.transparent, а не по opacity —
+    // доступные (opacity 1) тоже уезжают туда и теряют ранний Z. Поэтому
+    // флаг выставляется ОДИН раз здесь: дёргать его покадрово нельзя,
+    // смена transparent — это перекомпиляция шейдера.
+    if (VEIL_MODE === 'fade') mat.transparent = true;
   } else if (t.mat === 'chrome'){
     // Цикл v4: белый хром на белом фоне сливался («кубы еле различимы») —
     // теперь тёмный ГРАФИТОВЫЙ металлик: читается на белом, блики стабильны
