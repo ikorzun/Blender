@@ -106,12 +106,17 @@ const MATCAP_PRESETS = {
   tex:   { amb: 0.88, sky: 0.08, diff: 0.10, shin: 60, spec: 0.12, rim: 0.10, rimP: 3 },
 };
 const matcapCache = new Map();
-function makeMatcap(kind){
-  if (matcapCache.has(kind)) return matcapCache.get(kind);
-  const P = MATCAP_PRESETS[kind] || MATCAP_PRESETS.soft;
-  const S = 128, data = new Uint8Array(S * S * 4);
-  // ключевой свет сверху-слева-спереди; взгляд по +Z, полувектор для Блинна
-  const Lx = -0.36, Ly = 0.60, Lz = 0.72;
+// ключевой свет сверху-слева-спереди; взгляд по +Z, полувектор для Блинна.
+// ОБЪЕКТ, а не три const: тюнер (matcapTuner) правит его на лету, и свет
+// ОБЩИЙ для всех пресетов — смена направления пересматривает их все.
+const MATCAP_LIGHT = { x: -0.36, y: 0.60, z: 0.72 };
+const MATCAP_SIZE = 128;
+// Съёмка пикселей пресета в готовый буфер. Вынесена из makeMatcap, чтобы
+// тюнер мог переснять пресет В ТУ ЖЕ DataTexture: материалы держат ссылку на
+// текстуру, менять её объект нельзя — только содержимое + needsUpdate.
+function bakeMatcap(P, data){
+  const S = MATCAP_SIZE;
+  const Lx = MATCAP_LIGHT.x, Ly = MATCAP_LIGHT.y, Lz = MATCAP_LIGHT.z;
   const hl = Math.hypot(Lx, Ly, Lz + 1);
   const Hx = Lx / hl, Hy = Ly / hl, Hz = (Lz + 1) / hl;
   for (let y = 0; y < S; y++){
@@ -138,12 +143,157 @@ function makeMatcap(kind){
       data[i + 3] = (sp * 255) | 0;
     }
   }
+}
+function makeMatcap(kind){
+  if (matcapCache.has(kind)) return matcapCache.get(kind);
+  const S = MATCAP_SIZE, data = new Uint8Array(S * S * 4);
+  bakeMatcap(MATCAP_PRESETS[kind] || MATCAP_PRESETS.soft, data);
   const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
   tex.encoding = THREE.sRGBEncoding;
   tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
   tex.needsUpdate = true;
   matcapCache.set(kind, tex);
   return tex;
+}
+// Пересъёмка уже выданных текстур (тюнер). kind не задан — все сразу: свет
+// общий, его сдвиг меняет каждый пресет. Материалы трогать НЕ НАДО — они
+// ссылаются на тот же объект текстуры, needsUpdate заливает новые пиксели
+// в GPU. (material.needsUpdate — это перекомпиляция шейдера, здесь лишняя.)
+function retuneMatcap(kind){
+  matcapCache.forEach((tex, k) => {
+    if (kind && k !== kind) return;
+    bakeMatcap(MATCAP_PRESETS[k] || MATCAP_PRESETS.soft, tex.image.data);
+    tex.needsUpdate = true;
+  });
+}
+// ── ДЕБАГ-ТЮНЕР ПРЕСЕТОВ (запрос владельца 2026-07-22: «хочу ползунками
+// настроить значения визуально»). Открывается ТОЛЬКО из консоли —
+// __game.matcapTuner(); повторный вызов закрывает. В код и сейв не пишет
+// ничего: значения владелец забирает кнопкой Copy и присылает нам.
+// ⚠️ Тюнер меняет ТОЛЬКО числа пресетов и направление света в рамках текущей
+// конвенции. Знак ny (см. предупреждение в bakeMatcap) он не трогает.
+const MATCAP_TUNE = [                    // имя, min, max, шаг (0 = лог-шкала)
+  ['amb',  0,   1,    0.01],
+  ['sky',  0,   0.8,  0.01],
+  ['diff', 0,   1,    0.01],
+  ['shin', 2,   256,  0],
+  ['spec', 0,   1.5,  0.01],
+  ['rim',  0,   1,    0.01],
+  ['rimP', 1,   8,    0.1],
+];
+const MATCAP_KINDS = ['soft', 'metal', 'tex'];
+let matcapPanel = null;
+function matcapTuner(){
+  if (matcapPanel){ matcapPanel.remove(); matcapPanel = null; return 'matcap tuner: closed'; }
+  const p = matcapPanel = document.createElement('div');
+  p.id = 'matcapTuner';
+  // z 21 — ВЫШЕ оверлеев (20): дебаг-панель не должна становиться недоступной,
+  // если поверх открылась пауза. Ниже fatal (99).
+  p.style.cssText = 'position:fixed; right:10px; top:10px; z-index:21; width:274px;'
+    + ' max-height:calc(100vh - 20px); overflow:auto; pointer-events:auto;'
+    + ' background:rgba(15,20,30,.96); color:#dfe6f2; border-radius:10px; padding:10px 12px;'
+    + ' font:12px/1.35 ui-monospace,Menlo,monospace; box-shadow:0 6px 24px rgba(0,0,0,.45);';
+  // 90-input слушает keydown НА ОКНЕ (Space = встряска): без этого стрелки и
+  // пробел на сфокусированном ползунке улетали бы в игру.
+  p.addEventListener('keydown', e => e.stopPropagation());
+
+  // пересъёмка гейтована кадром: перетаскивание ползунка даёт десятки
+  // input-событий, а нам хватает одной съёмки на кадр (3 пресета ≈ 1-2 мс)
+  const pending = new Set(); let raf = 0;
+  const queue = kind => {
+    pending.add(kind);
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (pending.has(null)) retuneMatcap(null);
+      else pending.forEach(k => retuneMatcap(k));
+      pending.clear();
+    });
+  };
+  const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2);
+  const head = (t, sub) => {
+    const h = document.createElement('div');
+    h.style.cssText = 'margin:9px 0 3px; color:#7fd1ff; letter-spacing:.04em;';
+    h.textContent = t + (sub ? '  ' + sub : '');
+    p.appendChild(h);
+  };
+  const row = (label, o) => {
+    const r = document.createElement('div');
+    r.style.cssText = 'display:grid; grid-template-columns:36px 1fr 40px; gap:6px; align-items:center; margin:2px 0;';
+    const lab = document.createElement('span'); lab.textContent = label; lab.style.opacity = '.7';
+    const inp = document.createElement('input');
+    inp.dataset.mc = o.id;               // адрес ползунка для сьюта
+    inp.type = 'range'; inp.min = o.min; inp.max = o.max; inp.step = o.step;
+    inp.value = o.get(); inp.style.cssText = 'width:100%; accent-color:#7fd1ff;';
+    const out = document.createElement('span'); out.style.textAlign = 'right';
+    const show = () => { out.textContent = fmt(o.txt()); };
+    show();
+    inp.addEventListener('input', () => { o.set(parseFloat(inp.value)); show(); });
+    r.append(lab, inp, out); p.appendChild(r);
+  };
+
+  const title = document.createElement('div');
+  title.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
+  title.innerHTML = '<b>matcap tuner</b>';
+  const close = document.createElement('button');
+  close.textContent = '×';
+  close.style.cssText = 'background:none; border:0; color:#dfe6f2; font-size:18px; cursor:pointer; line-height:1;';
+  close.onclick = () => matcapTuner();
+  title.appendChild(close); p.appendChild(title);
+
+  head('light', '(общий для всех пресетов)');
+  ['x', 'y', 'z'].forEach(ax => row('L' + ax, {
+    id: 'light.' + ax, min: -1, max: 1, step: 0.01,
+    get: () => MATCAP_LIGHT[ax], txt: () => MATCAP_LIGHT[ax],
+    set: v => { MATCAP_LIGHT[ax] = Math.round(v * 100) / 100; queue(null); },
+  }));
+
+  for (const kind of MATCAP_KINDS){
+    const tex = matcapCache.get(kind);
+    let used = 0;
+    if (tex) scene.traverse(o => { if (o.material && o.material.matcap === tex) used++; });
+    // счётчик честно говорит, что ползунок сдвинет: 'metal' сейчас без
+    // потребителей (хром-примитивы удалены из пула) — иначе владелец будет
+    // двигать его и думать, что инструмент сломан
+    head(kind, used ? '— ' + used + ' объектов' : '— НЕ используется сейчас');
+    const P = MATCAP_PRESETS[kind];
+    for (const [name, min, max, step] of MATCAP_TUNE){
+      if (step) row(name, {
+        id: kind + '.' + name, min, max, step,
+        get: () => P[name], txt: () => P[name],
+        set: v => { P[name] = Math.round(v * 100) / 100; queue(kind); },
+      });
+      // shin — показатель Блинна: на линейной шкале вся полезная часть
+      // (2..60) сидит в первой четверти ползунка, дальше визуально ничего
+      // не меняется. Поэтому ползунок ходит по логарифму.
+      else row(name, {
+        id: kind + '.' + name, min: Math.log(min), max: Math.log(max), step: 0.001,
+        get: () => Math.log(P[name]), txt: () => P[name],
+        set: v => { P[name] = Math.round(Math.exp(v)); queue(kind); },
+      });
+    }
+  }
+
+  const foot = document.createElement('div');
+  foot.style.cssText = 'margin-top:10px; display:flex; gap:8px; align-items:center;';
+  const copy = document.createElement('button');
+  copy.textContent = 'Copy';
+  copy.style.cssText = 'background:#2b6ea8; border:0; color:#fff; padding:5px 12px; border-radius:6px; cursor:pointer; font:inherit;';
+  const note = document.createElement('span'); note.style.opacity = '.65';
+  note.textContent = 'reload = откат';
+  copy.onclick = () => {
+    const s = '{\n  "light": ' + JSON.stringify(MATCAP_LIGHT) + ',\n  "presets": {\n'
+      + MATCAP_KINDS.map(k => '    "' + k + '": ' + JSON.stringify(MATCAP_PRESETS[k])).join(',\n')
+      + '\n  }\n}';
+    console.log('[matcap]\n' + s);
+    const done = t => { note.textContent = t; };
+    // clipboard может быть недоступен (file://, отказ в правах) — консоль есть всегда
+    if (navigator.clipboard) navigator.clipboard.writeText(s).then(() => done('скопировано'), () => done('только в консоли'));
+    else done('только в консоли');
+  };
+  foot.append(copy, note); p.appendChild(foot);
+  document.body.appendChild(p);
+  return 'matcap tuner: открыт (повторный вызов закроет)';
 }
 // ⚠️ У MeshMatcapMaterial НЕТ emissive, а подсветка подсказки (hintPulse) и
 // «прицела» (scopePulse) в 80-gameplay пишут mat.emissive/emissiveIntensity
