@@ -196,35 +196,11 @@ function burstFX(it){
 // полированы — круглые точки вместо квадратных, звёзды билбордами.
 // Здесь остаётся только ПРАВИЛО выбора (burstFX выше) — оно ваше.
 
-// ОСКОЛКИ (спека владельца 2026-07-23): угловатые куски цвета предмета —
-// разлёт баллистикой с кувырком. Общий кирпич для лопанья твёрдых пачек и
-// для эффектного помола (grindShred ниже). ⚠️ КАЖДЫЙ осколок — СВОЯ
-// геометрия+материал (как кубики sparkFX в 70-fx): stepFX диспозит и то и
-// другое, общий кэш отдавать нельзя (первый догоревший убил бы буфер у
-// остальных — грабля Sprite/star из 70-fx). СТАРТОВАЯ реализация зоны
-// ФИЗИКИ через addFX; полировка/перенос в 70-fx — запрос ГРАФИКЕ.
-function shardFX(pos, color, opts){
-  opts = opts || {};
-  const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
-  const spread = opts.spread || 3.2, sz = opts.size || 0.15;
-  const col = color || new THREE.Color(0x9aa0a8);
-  for (let i = 0; i < N; i++){
-    const geo = new THREE.TetrahedronGeometry(sz*(0.65 + Math.random()*0.7), 0);
-    const mat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 1, depthWrite: false });
-    const m = new THREE.Mesh(geo, mat);
-    const a = Math.random()*Math.PI*2, e = (0.15 + Math.random()*0.6)*Math.PI*0.5, sp = spread*(0.5 + Math.random());
-    const vx = Math.cos(a)*Math.cos(e)*sp, vy = up*(0.5 + Math.random()*0.7) + Math.sin(e)*sp*0.3, vz = Math.sin(a)*Math.cos(e)*sp;
-    const rx = (Math.random()-0.5)*16, ry = (Math.random()-0.5)*16, rz = (Math.random()-0.5)*16;
-    const o0 = pos.clone(); o0.y += 0.12;
-    addFX(m, LIFE, (o, k) => {
-      const t = k*LIFE;
-      o.position.set(o0.x + vx*t, o0.y + vy*t - 11*t*t, o0.z + vz*t); // ½·G·t², G=22
-      o.rotation.set(rx*t, ry*t, rz*t);
-      o.scale.setScalar(Math.max(0.001, 1 - k*0.3));
-      o.material.opacity = 1 - k*k;
-    });
-  }
-}
+// ⚠️ ВИЗУАЛ ОСКОЛКОВ (shardFX + makeShardGeo) ПЕРЕЕХАЛ В 70-fx (полировка
+// ГРАФИКОЙ 2026-07-23 по запросу ФИЗИКИ): нерегулярная форма скола, тинт
+// по граням (объём на плоском MeshBasicMaterial), звук «хруст». Сигнатура
+// та же — (pos, color, opts{count,life,up,spread,size}); здесь остаются
+// только ВЫЗОВЫ (правило burstFX выше и шинковка grindShred ниже) — ваша зона.
 
 // «МОЛОТЬ ЭФФЕКТНО» (спека владельца 2026-07-23): двухфазная анимация помола,
 // общий помощник для mixerGrind и finaleGrind (чтобы не разъезжались).

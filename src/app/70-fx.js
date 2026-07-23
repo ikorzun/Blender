@@ -267,6 +267,78 @@ function starPopFX(it){
   });
 }
 
+// ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки
+// brick/pirate/rock при бурсте и предмет под ножами при помоле КОЛЮТСЯ на
+// угловатые куски. Перенос из 80-gameplay + полировка (запрос ФИЗИКИ,
+// WORKSTREAMS 2026-07-23). Правило выбора (burstFX) и тайминги grindShred
+// остаются в 80-gameplay — их зона поведения.
+//
+// Что полировано против стартовой версии (регулярный TetrahedronGeometry +
+// плоский MeshBasicMaterial одного цвета):
+// 1) ФОРМА — НЕРЕГУЛЯРНЫЙ кусок: 4 угла правильного тетра сдвинуты в разные
+//    стороны, каждый скол уникален и читается как обломок, а не «кубик д4»;
+// 2) ТИНТ ПО ГРАНЯМ — на MeshBasicMaterial нет света, поэтому объём печём
+//    в ВЕРШИННЫЕ ЦВЕТА: грань светлее/темнее по своей нормали к ключевому
+//    свету (тому же, что у matcap: сверху-слева-спереди). Плоский кусок
+//    перестаёт быть силуэтом-пятном — грани разной яркости дают рельеф;
+// 3) ЗВУК — «хруст» раскола (75-audio 'crunch', спектр выше рокота grind).
+// ⚠️ КАЖДЫЙ осколок — СВОЯ геометрия+материал: stepFX диспозит и то и другое,
+// общий кэш отдавать нельзя (первый догоревший убил бы буфер остальным —
+// грабля Sprite/star). Баллистика параметрическая от t=k·life — FPS-независима.
+const SHARD_LIGHT = new THREE.Vector3(-0.36, 0.60, 0.72).normalize();
+const _shA = new THREE.Vector3(), _shB = new THREE.Vector3(), _shC = new THREE.Vector3(), _shN = new THREE.Vector3();
+// 4 угла правильного тетраэдра — тинтуем и джиттерим на месте
+const SHARD_CORNERS = [[1,1,1],[-1,-1,1],[-1,1,-1],[1,-1,-1]];
+const SHARD_FACES = [[0,1,2],[0,3,1],[0,2,3],[1,3,2]]; // грани наружу (CCW снаружи)
+function makeShardGeo(size){
+  // угол = единичный, сдвинут на ±38% — нерегулярный обломок
+  const c = SHARD_CORNERS.map(v => new THREE.Vector3(
+    v[0] + (Math.random()-0.5)*0.75, v[1] + (Math.random()-0.5)*0.75, v[2] + (Math.random()-0.5)*0.75
+  ).multiplyScalar(size*0.6));
+  const pos = new Float32Array(36), col = new Float32Array(36);
+  for (let f = 0; f < 4; f++){
+    const [i0, i1, i2] = SHARD_FACES[f];
+    _shA.copy(c[i0]); _shB.copy(c[i1]); _shC.copy(c[i2]);
+    // нормаль грани -> яркость по ключевому свету (0.62 тень … 1.30 блик)
+    _shN.copy(_shB).sub(_shA).cross(_shC.clone().sub(_shA)).normalize();
+    const tint = Math.max(0.55, Math.min(1.32, 0.9 + 0.42*_shN.dot(SHARD_LIGHT)));
+    for (let v = 0; v < 3; v++){
+      const src = v === 0 ? _shA : v === 1 ? _shB : _shC, o = (f*3 + v)*3;
+      pos[o] = src.x; pos[o+1] = src.y; pos[o+2] = src.z;
+      col[o] = col[o+1] = col[o+2] = tint;   // серый множитель — цвет несёт material.color
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+function shardFX(pos, color, opts){
+  opts = opts || {};
+  const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
+  const spread = opts.spread || 3.2, sz = opts.size || 0.15;
+  const col = color || new THREE.Color(0x9aa0a8);
+  if (opts.sound !== false) Sound.play('crunch', N);
+  for (let i = 0; i < N; i++){
+    const geo = makeShardGeo(sz*(0.7 + Math.random()*0.7));
+    // vertexColors: matcap-света нет, объём несёт запечённый в вершины тинт граней
+    const mat = new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
+      transparent: true, opacity: 1, depthWrite: false });
+    const m = new THREE.Mesh(geo, mat);
+    const a = Math.random()*Math.PI*2, e = (0.15 + Math.random()*0.6)*Math.PI*0.5, sp = spread*(0.5 + Math.random());
+    const vx = Math.cos(a)*Math.cos(e)*sp, vy = up*(0.5 + Math.random()*0.7) + Math.sin(e)*sp*0.3, vz = Math.sin(a)*Math.cos(e)*sp;
+    const rx = (Math.random()-0.5)*16, ry = (Math.random()-0.5)*16, rz = (Math.random()-0.5)*16;
+    const o0 = pos.clone(); o0.y += 0.12;
+    addFX(m, LIFE, (o, k) => {
+      const t = k*LIFE;
+      o.position.set(o0.x + vx*t, o0.y + vy*t - 11*t*t, o0.z + vz*t); // ½·G·t², G=22
+      o.rotation.set(rx*t, ry*t, rz*t);
+      o.scale.setScalar(Math.max(0.001, 1 - k*0.3));
+      o.material.opacity = 1 - k*k;
+    });
+  }
+}
+
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
 // насыщенный цвет (additive-свечение на белом невидимо).
