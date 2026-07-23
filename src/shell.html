@@ -231,6 +231,36 @@
   .mmult { margin-left:auto; text-align:right; flex:none; }
   .mmult b { font-family:var(--font-round); font-size:17px; color:#ffd60a; display:block; }
   .mmult span { font-size:10px; opacity:.6; }
+  /* ===== витрина уровня (десктоп) ===== */
+  #vitrine { display:none; position:fixed; right:16px;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:280px;
+    max-height:55vh; z-index:4; pointer-events:none; /* жёсткое требование:
+    не мешать игре — панель не ловит ни кликов, ни скролла */
+    flex-direction:column; gap:8px; padding:12px;
+    background:rgba(15,20,30,.55); border:1px solid rgba(255,255,255,.08);
+    border-radius:16px; backdrop-filter:blur(6px);
+    opacity:1; transition:opacity .2s; overflow:hidden; }
+  @media (min-width:1160px) and (pointer:fine){ #vitrine { display:flex; } }
+  html.camnear #vitrine { opacity:0; } /* камера близко — не мешаем */
+  .vhead { font-size:12px; font-weight:800; letter-spacing:.4px; color:#aeb6c6;
+    text-transform:uppercase; }
+  #vGrid { display:grid; grid-template-columns:1fr 1fr; gap:6px; overflow:hidden; }
+  .vcell { display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.06);
+    border-radius:10px; padding:5px 7px; min-width:0; }
+  .vthumb { width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,.08);
+    flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800; color:#8b93a5; }
+  .vthumb img { width:100%; height:100%; display:block; }
+  .vbody { flex:1; min-width:0; }
+  .vname { font-size:10px; font-weight:700; color:#cfd5e3; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; text-transform:capitalize; }
+  .vbar { height:4px; border-radius:2px; background:rgba(255,255,255,.13);
+    overflow:hidden; margin-top:3px; }
+  .vbar i { display:block; height:100%; width:0%; background:#ffd60a; border-radius:2px;
+    transition:width .25s ease-out; }
+  .vmult { font-family:var(--font-round); font-size:11px; font-weight:900; color:#ffd60a;
+    flex:none; }
+  #vMore { font-size:11px; font-weight:700; color:#8b93a5; text-align:center; }
   /* ===== всплывашка апа ступени ===== */
   #tierToast { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);
     z-index:8; display:flex; align-items:center; gap:10px; padding:8px 16px 8px 8px;
@@ -436,6 +466,18 @@
       <button class="primary" id="againBtn">Next ▶</button>
     </div>
   </div>
+</div>
+
+<!-- ВИТРИНА УРОВНЯ (спека владельца 2026-07-22: «на больших мониторах
+     мало жизни»): объекты уровня как в музее + реалтайм полоски накопления
+     до следующего множителя. ТОЛЬКО десктоп >=1160px и pointer:fine;
+     панель ИНФОРМАЦИОННАЯ — pointer-events:none целиком; исчезает при
+     приближении камеры (класс camnear на <html> вешает 99-main,
+     гистерезис 14.5/15.2). Временная стилистика до макета владельца. -->
+<div id="vitrine">
+  <div class="vhead">Level items</div>
+  <div id="vGrid"></div>
+  <div id="vMore" style="display:none"></div>
 </div>
 
 <!-- МУЗЕЙ ОБЪЕКТОВ (каркас до макетов владельца — он принесёт их в чат
