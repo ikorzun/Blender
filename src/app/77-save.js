@@ -120,12 +120,38 @@ function accAdd(name, n, item){
 // ЧЕЛОВЕЧЕСКИЕ ЯРЛЫКИ ТИПОВ (просьба ИНТЕРФЕЙСА 2026-07-22: витрина музея
 // показывала ключи ассетов). Правило: срезать префикс пачки + заглавная
 // буква; уродцев-склейки — в карте исключений. Ярлыки EN (как кнопки).
-const ACC_LABELS = { polar: 'Polar bear', police: 'Police car', race: 'Race car',
-  firetruck: 'Fire truck', garbagetruck: 'Garbage truck', icecream: 'Ice cream',
-  donutsprinkles: 'Donut' };
+// ⚠️ Список префиксов = ВСЕ пачки TYPES (запрос ИНТЕРФЕЙСА 2026-07-22: в
+// витрине выходило «Brickround»/«Piratebarrel»). Заводишь новую пачку —
+// добавь её префикс сюда, иначе ярлык поедет вместе с ключом ассета.
+// Кирпичам добавлено слово «brick»: их имена — голые формы (round/bar/duo/
+// stud...), и в списке музея «Round» без опоры не читается; пиратские
+// предметы самостоятельны (Barrel/Cannon/Chest) и идут как есть.
+// ⚠️ КЛЮЧИ КАРТЫ — ПОЛНЫЕ имена типов (не срез): срез у разных пачек
+// совпадает (animalfish и foodfish оба давали «Fish» — две неразличимые
+// строки в витрине), поэтому карта разводит их по исходному ключу.
+const ACC_LABELS = {
+  animalpolar: 'Polar bear', animalfish: 'Fish',
+  carpolice: 'Police car', carrace: 'Race car', carfiretruck: 'Fire truck',
+  cargarbagetruck: 'Garbage truck', carkartoobi: 'Go-kart', carbox: 'Box truck',
+  carcone: 'Traffic cone',
+  foodicecream: 'Ice cream', fooddonutsprinkles: 'Donut', foodfish: 'Cooked fish',
+  foodwholeham: 'Whole ham', foodcakebirthday: 'Birthday cake',
+  foodicecreamscoopmint: 'Mint ice cream', foodhotdog: 'Hot dog',
+  foodchinese: 'Takeout box',
+  // кирпичи: имена — голые формы (round/bar/duo/stud...), в списке музея
+  // «Round» без опоры не читается; пиратские предметы самостоятельны
+  // (Barrel/Cannon/Chest) и идут срезом как есть
+  brickround: 'Round brick', brickbar: 'Bar brick', brickcorner: 'Corner brick',
+  brickstud: 'Stud brick', brickclassic: 'Classic brick',
+  bricksquare: 'Square brick', brickduo: 'Duo brick' };
+// ⚠️ Список префиксов = ВСЕ пачки TYPES (запрос ИНТЕРФЕЙСА 2026-07-22: в
+// витрине выходило «Brickround»/«Piratebarrel»). Заводишь новую пачку —
+// добавь её префикс сюда, иначе ярлык поедет вместе с ключом ассета.
 function accLabel(key){
-  const short = String(key).replace(/^(animal|food|car)/, '');
-  return ACC_LABELS[short] || (short.charAt(0).toUpperCase() + short.slice(1));
+  const k = String(key);
+  if (ACC_LABELS[k]) return ACC_LABELS[k];
+  const short = k.replace(/^(animal|food|car|brick|pirate)/, '');
+  return short.charAt(0).toUpperCase() + short.slice(1);
 }
 // Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
 // typeof): name — ярлык для показа, key — ключ ассета (аргумент accCount и
