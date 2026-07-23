@@ -711,6 +711,28 @@ window.bridge = {
   await new Promise(r => srv2.close(r));
   if (aErrors.length) failures.push('реклама-проба: ' + aErrors.join(' | '));
 
+  // ОСКОЛКИ (полировка ГРАФИКИ 2026-07-23): shardFX переехал в 70-fx —
+  // нерегулярная форма + фасеточный тинт + звук «хруст». Проверяем, что
+  // залп создаёт fx и ПОЛНОСТЬЮ дренажит геометрии в базу (каждый осколок —
+  // своя геометрия+материал, stepFX обязан диспозить). Заодно путь Sound
+  // 'crunch' исполняется без ошибок (pageerror слушается сверху).
+  // свежий уровень + штиль: на СПЯЩЕЙ куче geoms стабилен, и base==after
+  // ловит именно осколочную утечку, а не фоновую досыпку цепи/миксера
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 4000 }).catch(() => {});
+  const shard = await page.evaluate(async () => {
+    const g = window.__game;
+    const base = g.perfStats().geoms;
+    const created = g.shardBurst(12);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const peak = g.perfStats().geoms;
+    await new Promise(r => setTimeout(r, 900));   // life 0.6с + запас
+    return { base, created, peak, after: g.perfStats().geoms };
+  });
+  expect(shard.created >= 12, 'осколки: залп создал fx (' + shard.created + ')');
+  expect(shard.peak > shard.base, 'осколки: свои геометрии на кадре (' + shard.base + ' -> ' + shard.peak + ')');
+  expect(shard.after === shard.base, 'осколки: геометрии дренажат в базу без утечки (' + shard.peak + ' -> ' + shard.after + ')');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

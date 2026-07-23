@@ -638,6 +638,19 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // ДЕБАГ ГРАФИКИ (осколки, полировка 2026-07-23): выстрелить shardFX над
+  // кучей — скрин визуала и перф-замер (реальный бурст/помол собрать
+  // детерминированно тяжело: burstFX нужна пачка >=4, помол хука не имеет).
+  // Мост к эффекту 70-fx, поведение (burstFX/grindShred) не трогает.
+  shardBurst(n, opts){
+    opts = opts || {};
+    const c = new THREE.Color(opts.color != null ? opts.color : 0x4a6cff);
+    const y = opts.y != null ? opts.y : FUNNEL.H + 2; // по умолчанию над кромкой — чистое небо
+    shardFX(new THREE.Vector3(opts.x || 0, y, opts.z || 0), c,
+      Object.assign({ count: n || 10, up: 4, spread: 2.6, size: 0.18, life: 0.6 }, opts));
+    wakePhysics('shardTest');
+    return fx.length;
+  },
   // КАЛИБРОВКА ЗВЁЗД: экранные координаты ЛУЧШЕЙ доступной группы
   // (findHintGroup — тот же поиск, что у подсказки). Нужно ботам, которые
   // ходят РЕАЛЬНЫМИ тапами: findByTex отдаёт любой предмет пачки, часто без
