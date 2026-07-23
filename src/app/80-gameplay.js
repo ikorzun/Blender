@@ -252,16 +252,22 @@ function checkEnd(){
     // МОНЕТЫ: база + конверсия очков (комбо наконец экономически выгодны)
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
-    setStars(levelNum, stars);
+    // ЗВЁЗДЫ-ВАЛЮТА (решение владельца 2026-07-23): начисление в кошелёк
+    // ДЕЛЬТОЙ рейтинга — перепрохождение без улучшения даёт 0 (анти-ферма);
+    // сам рейтинг stars[lv] обновляется внутри и тратами не трогается
+    level.starsWon = awardStarsForWin(levelNum, stars);
     addHints(1); // +1 подсказка за успешный уровень (спека владельца)
-    Telemetry.ev('win', { lv: levelNum, st: stars, c: level.coinsWon, sc: stats.score, sec: secs });
+    Telemetry.ev('win', { lv: levelNum, st: stars, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Level ' + levelNum + ' cleared!';
     $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
     $('winStats').textContent =
       'Score: ' + stats.score + (base ? ' / goal ' + Math.round(base * STAR2_K) : '') + '  ·  Time: ' + fmtTime(secs);
     // монеты скрыты: награда уровня на экране — звёзды + подсказка;
     // начисление выше живёт (вернётся вместе с COINS_ENABLED)
-    $('winCoins').textContent = COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  +1 💡') : '+1 💡';
+    // награда уровня: заработанные звёзды-валюта + подсказка (монеты скрыты
+    // флагом; их начисление выше живёт и вернётся вместе с COINS_ENABLED)
+    $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')
+      + (COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  ') : '') + '+1 💡';
     $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
