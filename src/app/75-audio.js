@@ -108,11 +108,22 @@ const Sound = (function(){
     win(){ const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f,i)=>tone(f, 'triangle', t + i*0.12, 0.01, 0.3, 0.38)); },
     lose(){ const t = ctx.currentTime; [330, 262, 196].forEach((f,i)=>tone(f, 'sine', t + i*0.15, 0.01, 0.35, 0.32)); },
   };
+  // ВНЕШНИЙ МЬЮТ — НЕЗАВИСИМЫЙ ОТ CFG.sound (запрос ИНТЕГРАЦИИ 2026-07-23).
+  // Два разных владельца тишины: CFG.sound — выбор ИГРОКА (тумблер настроек),
+  // extMuted — требование СРЕДЫ (рекламный ролик, площадка прислала
+  // AUDIO_STATE_CHANGED). Мешать их нельзя: «сохранить и восстановить»
+  // CFG.sound — гонка с игроком, который может открыть настройки под роликом
+  // и получить затёртый выбор. Глушим master-гейном, а не флагом: уже
+  // звучащие сэмплы обрываются тоже, иначе хвост звука лез бы поверх рекламы.
+  let extMuted = false;
+  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5; }
   return {
     unlock,
     loaded(){ return Object.keys(buffers); }, // отладка: какие сэмплы декодированы
+    setMuted(on){ extMuted = !!on; ensure(); applyGain(); return extMuted; },
+    isMuted(){ return extMuted; },
     play(name, arg){
-      if (!CFG.sound) return;
+      if (!CFG.sound || extMuted) return;
       ensure();
       if (!ctx || ctx.state !== 'running') return;
       try { fxMap[name](arg); } catch(e){}

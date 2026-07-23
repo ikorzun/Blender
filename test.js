@@ -420,6 +420,29 @@ const path = require('path');
   const cnDef = await camnearAt(16.2);
   expect(cnDef.gap === null && cnDef.cls === false,
     'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
+  // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23): тихая пауза
+  // без попапа + владение резюмом через boolean + внешний мьют, независимый
+  // от тумблера игрока CFG.sound
+  const adPrim = await page.evaluate(() => {
+    const g = window.__game;
+    const first = g.pause(true);                 // тихая пауза: поставил я
+    const s1 = g.pauseState();
+    const second = g.pause(true);                // повторный вызов: НЕ моя
+    g.sound.setMuted(true);
+    const s2 = g.pauseState();
+    g.resume(); g.sound.setMuted(false);
+    const s3 = g.pauseState();
+    return { first, second, s1, s2, s3, cfg: window.__game.cfg.sound };
+  });
+  expect(adPrim.first === true && adPrim.second === false,
+    'пауза под рекламу: первый вызов владеет паузой, повторный отдаёт false (' + adPrim.first + '/' + adPrim.second + ')');
+  expect(adPrim.s1.paused === true && adPrim.s1.overlay === false,
+    'тихая пауза НЕ показывает попап настроек (' + JSON.stringify(adPrim.s1) + ')');
+  expect(adPrim.s2.muted === true && adPrim.cfg === true,
+    'внешний мьют глушит звук, НЕ трогая тумблер игрока CFG.sound (' + JSON.stringify(adPrim.s2) + ')');
+  expect(adPrim.s3.paused === false && adPrim.s3.muted === false,
+    'после ролика пауза и мьют сняты (' + JSON.stringify(adPrim.s3) + ')');
+
   // КОНТРАКТ INTRODONE (витрина разворачивается после облёта, спека владельца):
   // класса нет пока идёт интро, появляется по его завершении (в т.ч. skipIntro)
   const introCls = await page.evaluate(() => {

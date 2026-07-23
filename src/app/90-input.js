@@ -246,7 +246,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) pauseGame();
   else grabKeyFocus();
 });
-$('pauseBtn').addEventListener('click', pauseGame);
+// ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: pauseGame(silent) с 2026-07-23 принимает аргумент,
+// а слушатель передал бы в него объект события — MouseEvent truthy, и попап
+// паузы молча перестал бы показываться (поймано сьютом сразу же).
+$('pauseBtn').addEventListener('click', () => pauseGame());
 $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
   resetProgress();

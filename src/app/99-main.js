@@ -243,12 +243,20 @@ let paused = false, pausedAt = 0;
 // afterPause: под паузой откладываются в очередь, resumeGame их дренирует.
 const pausedQueue = [];
 function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
-function pauseGame(){
-  if (paused || intro || !level || level.over) return;
+// silent=true — ПАУЗА БЕЗ ПОПАПА (запрос ИНТЕГРАЦИИ 2026-07-23 под рекламу:
+// игрок не должен возвращаться из ролика в нашу карточку паузы с настройками
+// и закрывать её руками). ВОЗВРАЩАЕТ true, только если паузу поставил ИМЕННО
+// ЭТОТ вызов — вызывающий обязан резюмить лишь свою паузу: вкладка могла уйти
+// в hidden, тогда паузу поставил visibilitychange (90-input), и её снимает
+// ТОЛЬКО игрок кнопкой Continue. Автоматический resume поверх чужой паузы
+// вернул бы игрока в живую игру, которую он не возобновлял.
+function pauseGame(silent){
+  if (paused || intro || !level || level.over) return false;
   paused = true; pausedAt = performance.now();
   // ⚠️ НЕ писать textContent в #eyes: это SVG-конструкция персонажа
   // (85-hud) — текст уничтожил бы слои. Лицо просто застывает стоп-кадром.
-  show('pauseOverlay');
+  if (!silent) show('pauseOverlay');
+  return true;
 }
 function resumeGame(){
   if (!paused) return;
@@ -787,6 +795,17 @@ window.__game = {
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // отладка: текущий экранный зазор панель↔куча в px (null — панели нет/пусто)
   vitrineGap(){ return vitrineGapPx; },
+  // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
+  // потребитель — 78-ads: pause(true) на входе в показ, resume() на ВСЕХ
+  // развязках, но ТОЛЬКО если pause вернул true (иначе снимем чужую паузу
+  // от visibilitychange, которую обязан снять игрок кнопкой Continue).
+  pause(silent){ return pauseGame(silent); },
+  resume(){ resumeGame(); },
+  sound: Sound, // setMuted/isMuted — внешний мьют, независимый от CFG.sound
+  // отладка: состояние паузы, видимость попапа и ВНЕШНИЙ мьют
+  pauseState(){ return { paused: paused,
+    overlay: $('pauseOverlay').style.display === 'flex',
+    muted: Sound.isMuted() }; },
   // отладка: поиск NaN в состоянии предметов
   scanNaN(){
     const bad = [];
