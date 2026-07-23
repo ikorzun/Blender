@@ -812,17 +812,41 @@ sendBeacon, ВЫКЛЮЧЕНА (URL='' в 79-telemetry) — ждёт endpoint в
 владельца. Пакет тестерам: release/mixer-v1-testers.zip (Mixer.html +
 README.txt, имена ASCII — кириллица в zip ломается на Windows).
 Стабильный пакет портала: funnel-game/release/mixer-playgama.zip.
+ХОСТИНГ ЕСТЬ: https://ikorzun.github.io/Blender/ (GitHub Pages от репо,
+автодеплой с каждым выкатом в main) — закрывает iPhone-тестеров и загрузку
+SDK по http(s).
+Фикс 2026-07-23 (ОБЛАЧНЫЙ СЕЙВ, потеря данных): bridgeSyncSave() поднят
+ВЫШЕ гейта isRewardedSupported. commitSave (77-save:53) пишет в
+bridge.storage всегда, когда storage есть, а читал облако только вызов
+из-за гейта — на площадке со storage, но БЕЗ rewarded прогресс уезжал в
+облако в один конец. Порядок безопасен: loadSave() — top-level в 77-save,
+Ads.init() — внутри RAPIER.init().then (99-main:830), т.е. локальный сейв
+всегда загружен ДО облачного мержа; mergeSave монотонный (max), откатить
+прогресс не может.
 
 **Инварианты:** playgama-bridge.js НЕ инлайнить (LGPL, грузится только на
 http/https); на file:// всегда режим-заглушка; вес по сети держать ~1МБ
-(козырь канала).
+(козырь канала). ⚠️ ЛОВУШКА ПРОБ: в headless-пробах НЕ трогать поля
+`window.bridge` (в т.ч. `platform.id`) до завершения `initialize()` —
+SDK на каждое обращение печатает console.error «Before using the SDK you
+must initialize it», и опрос в waitForFunction сам себе рисует пачку
+ошибок (ложный след 2026-07-23: 12 «ошибок игры» оказались следом пробы).
+Ждать пассивной паузой.
 
 **Дальше:** телеметрия-воркер (Cloudflare, по образцу platform-landings
 владельца) + вписать URL; смоук на developer.playgama.com (живой rewarded);
-хостинг для iPhone-тестеров; чек-листы Poki/CrazyGames через Bridge-конфиги;
-per-platform рекламная каденция (вердикт аудита).
+чек-листы Poki/CrazyGames через Bridge-конфиги; per-platform рекламная
+каденция (вердикт аудита).
 
-**Верификация:** test.js секция ads (stub на file://), смоук на площадке.
+**Верификация:** test.js секция ads (stub на file://) + секция bridge
+(локальный http-сервер с ПОДДЕЛЬНЫМ SDK rewarded=false: облако читается и
+пишется, режим остаётся stub); смоук на площадке.
+⚠️ Pages НЕ заменяет портал: замер 2026-07-23 по живому https — SDK и
+конфиг отдаются 200, initialize() резолвится с рукопожатием к
+api.playgama.com, консоль чистая, НО platform.id='mock' и
+isRewardedSupported=false, поэтому mode остаётся 'stub'. Ветка 'bridge'
+(showRewarded/interstitial/состояния + фиксы ревью 2026-07-21) не
+исполнялась НИ РАЗУ — смоук на developer.playgama.com обязателен.
 
 ---
 

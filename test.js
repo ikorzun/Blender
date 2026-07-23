@@ -532,6 +532,57 @@ const path = require('path');
   expect(tuner.back === tuner.was && tuner.sumBack === tuner.sum0, 'тюнер откатывается ровно назад');
   expect(tuner.closed, 'тюнер закрывается повторным вызовом');
 
+  // ── BRIDGE: облачный сейв НЕ зависит от поддержки rewarded ───────────────
+  // Регрессия 2026-07-23: bridgeSyncSave() стоял ПОСЛЕ гейта isRewardedSupported,
+  // а commitSave (77-save) пишет в bridge.storage всегда, когда storage есть.
+  // На площадке со storage, но без rewarded прогресс уезжал в облако в один
+  // конец и не поднимался никогда. Проверять приходится на http: на file://
+  // SDK не грузится вовсе (ранний return по протоколу), поэтому поднимаем
+  // локальный сервер и подсовываем ПОДДЕЛЬНЫЙ SDK с rewarded=false, который
+  // считает обращения к storage. Отдельная страница — состояние основного
+  // прогона не трогаем.
+  const http = require('http'), fs = require('fs');
+  const MOCK_SDK = `
+window.__probe = { initialized:false, gameReady:false, storageGet:0, storageSet:0 };
+window.bridge = {
+  PLATFORM_MESSAGE: { GAME_READY: 'game_ready' },
+  EVENT_NAME: { REWARDED_STATE_CHANGED: 'rewarded_state_changed' },
+  REWARDED_STATE: { REWARDED:'rewarded', FAILED:'failed', CLOSED:'closed' },
+  platform: { id:'mocktest', language:'en', sendMessage(){ window.__probe.gameReady = true; } },
+  advertisement: { isRewardedSupported:false, isInterstitialSupported:false,
+                   on(){}, showRewarded(){}, showInterstitial(){} },
+  storage: { get(k){ window.__probe.storageGet++; return Promise.resolve(null); },
+             set(k,v){ window.__probe.storageSet++; return Promise.resolve(); } },
+  initialize(){ window.__probe.initialized = true; return Promise.resolve(); },
+};
+`;
+  const srv = http.createServer((req, res) => {
+    const u = req.url.split('?')[0];
+    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_SDK); }
+    if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const bport = srv.address().port;
+  const bpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  const bErrors = [];
+  bpage.on('pageerror', e => bErrors.push('PAGEERROR: ' + e.message));
+  bpage.on('console', m => { if (m.type() === 'error') bErrors.push('CONSOLE: ' + m.text()); });
+  await bpage.goto('http://127.0.0.1:' + bport + '/index.html');
+  await bpage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  await bpage.waitForFunction(() => window.__probe && window.__probe.initialized, null, { timeout: 20000 });
+  await bpage.evaluate(() => window.__game.grant(1)); // любое изменение сейва -> commitSave -> запись в облако
+  await bpage.waitForTimeout(1000);                   // промисы sync/записи
+  const bp = await bpage.evaluate(() => ({ ...window.__probe, mode: window.__game.adsMode() }));
+  await bpage.close();
+  await new Promise(r => srv.close(r));
+  expect(bp.initialized && bp.gameReady, 'bridge: SDK инициализирован, GAME_READY отправлен');
+  expect(bp.storageGet >= 1, 'bridge: облако ЧИТАЕТСЯ и без rewarded (storage.get ' + bp.storageGet + ')');
+  expect(bp.storageSet >= 1, 'bridge: облако пишется (storage.set ' + bp.storageSet + ') — симметрия чтения/записи');
+  expect(bp.mode === 'stub', 'bridge: без rewarded режим остаётся stub (' + bp.mode + ')');
+  if (bErrors.length) failures.push('bridge-проба: ' + bErrors.join(' | '));
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

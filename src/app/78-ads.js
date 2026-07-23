@@ -58,6 +58,12 @@ const Ads = (function(){
       window.bridge.initialize().then(()=>{
         const br = window.bridge;
         try { br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY); } catch(e){}
+        // Облачный сейв НЕ зависит от рекламы и потому синкается ДО гейта
+        // rewarded: commitSave (77-save) пишет в bridge.storage всегда, когда
+        // storage есть, а читал облако только этот вызов — на площадке со
+        // storage, но без rewarded, прогресс уезжал в облако в один конец и
+        // не поднимался никогда (потеря прогресса между сессиями/устройствами).
+        bridgeSyncSave();
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
           // любое состояние = платформа жива: гасим watchdog (ролики штатно
@@ -70,7 +76,6 @@ const Ads = (function(){
           else if (state === br.REWARDED_STATE.CLOSED) settleFail(true); // закрыл до награды — без награды
         });
         mode = 'bridge';
-        bridgeSyncSave(); // подтянуть облачную копию сейва и смержить
       }).catch(()=>{ /* остаёмся на заглушке */ });
     };
     s.onerror = ()=>{ /* файла нет — остаёмся на заглушке */ };
