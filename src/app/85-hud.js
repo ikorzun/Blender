@@ -236,6 +236,13 @@ function updateHUD(){
 // типу; второй WebGL-контекст один и переиспользуется.
 let thumbR = null, thumbScene = null, thumbCam = null;
 const thumbCache = {};
+// РАЗМЕР БУФЕРА: 132 = 3×44 (витрина/музей) и 2.4×56 (тост) — хватает
+// ретине; 96 давало мыло, 176 — лишние 50% веса кэша. Буфер СТРОГО
+// КВАДРАТНЫЙ: у потребителей img 100%/100% без object-fit, неквадрат
+// сплющит портрет. MARGIN 4% — меньше нельзя: у боксов радиус 10-12,
+// углы круглых моделей срезало бы.
+const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
+const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
 function itemThumb(item){
   if (!item || !item.mesh) return null;
   const key = String(item.key);
@@ -243,12 +250,15 @@ function itemThumb(item){
   try {
     if (!thumbR){
       thumbR = new THREE.WebGLRenderer({ alpha:true, antialias:true });
-      thumbR.setSize(96, 96);
-      thumbR.outputEncoding = renderer.outputEncoding; // как у боевого
+      thumbR.setSize(THUMB_PX, THUMB_PX, false);
+      thumbR.outputEncoding = renderer.outputEncoding; // без неё цвета уезжают
       thumbScene = new THREE.Scene();
-      thumbCam = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
-      thumbCam.position.set(1.7, 1.35, 2.3);
-      thumbCam.lookAt(0, 0, 0);
+      // ОРТОГРАФИЯ (а не перспектива): проекция аффинная, поэтому кадр
+      // считается АНАЛИТИЧЕСКИ за один проход — без чтения пикселей,
+      // без второго рендера и без стойла GPU->CPU на readPixels.
+      thumbCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 50);
+      thumbCam.position.set(1.7, THUMB_Y + 1.35, 2.3);
+      thumbCam.lookAt(0, THUMB_Y, 0);
       // на случай CFG.matcap=false (аварийный MeshStandard) — мягкий свет
       thumbScene.add(new THREE.AmbientLight(0xffffff, 0.9));
       const dl = new THREE.DirectionalLight(0xffffff, 0.5);
@@ -256,16 +266,41 @@ function itemThumb(item){
     }
     // ⚠️ НЕ mesh.clone(): three r149 копирует userData через JSON.stringify,
     // а в userData.item лежит тело Rapier — циклическая структура, throw.
-    // Портрет собираем вручную из той же геометрии и материала.
     const m = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
     m.scale.copy(item.mesh.scale);
     m.rotation.set(0.42, 0.65, 0);
-    const bs = new THREE.Box3().setFromObject(m).getBoundingSphere(new THREE.Sphere());
-    const k = bs.radius > 0 ? 1 / bs.radius : 1;
-    m.scale.multiplyScalar(k);
-    m.position.copy(bs.center).multiplyScalar(-k);
+    // ⚠️ ВЫСОКО НАД СЦЕНОЙ: matcap-патч гасит диффуз по МИРОВОЙ высоте
+    // (vWorldY против uPileTop, 10-stage) — портрет на y=0 всегда выходил
+    // самым тёмным тоном кучи (замер: до −0.83 по каналу R).
+    m.position.set(0, THUMB_Y, 0);
     thumbScene.add(m);
+    m.updateMatrixWorld(true);
+    thumbCam.updateMatrixWorld(true);
+    // КАДР ПО СИЛУЭТУ: bbox проекций ВЕРШИН = bbox силуэта (проекция
+    // выпуклой оболочки = оболочка проекций). Прежний код нормировал по
+    // ОПИСАННОЙ СФЕРЕ вокруг УЖЕ ПОВЁРНУТОГО AABB — двойная переоценка,
+    // силуэт занимал ~55% кадра, вокруг воздух.
+    _thm.multiplyMatrices(thumbCam.matrixWorldInverse, m.matrixWorld);
+    const pos = m.geometry.attributes.position;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < pos.count; i++){
+      _thv.fromBufferAttribute(pos, i).applyMatrix4(_thm);
+      if (_thv.x < x0) x0 = _thv.x; if (_thv.x > x1) x1 = _thv.x;
+      if (_thv.y < y0) y0 = _thv.y; if (_thv.y > y1) y1 = _thv.y;
+    }
+    // ОДНА полурамка на обе оси — пропорции целы, вытянутое не растянется
+    const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    thumbCam.left = cx - half; thumbCam.right = cx + half;
+    thumbCam.top = cy + half;  thumbCam.bottom = cy - half;
+    thumbCam.updateProjectionMatrix();
+    // ⚠️ ВУАЛЬ НЕДОСТУПНОСТИ красит material.color лерпом к серому
+    // (tickVeil, 60-access): снимок в этот момент лёг бы в кэш СЕРЫМ
+    // НАВСЕГДА. На время рендера возвращаем исходный цвет типа.
+    const col = m.material.color, saved = (item.baseColor && col) ? col.clone() : null;
+    if (saved) col.copy(item.baseColor);
     thumbR.render(thumbScene, thumbCam);
+    if (saved) col.copy(saved);
     const url = thumbR.domElement.toDataURL();
     thumbScene.remove(m);
     thumbCache[key] = url;
@@ -289,8 +324,11 @@ function nextTierToast(){
   // владельца («красивый эффект»), а витрина показывает ап лишь тихой
   // полоской. При camnear-скрытой витрине и на мобайле — прежний угол.
   const vit = $('vitrine');
+  // панель считается видимой, только если она НЕ погашена ни одним из
+  // своих состояний: camnear (камера близко) и vempty (всё собрано)
   const vitShown = vit && getComputedStyle(vit).display !== 'none' &&
-    !document.documentElement.classList.contains('camnear');
+    !document.documentElement.classList.contains('camnear') &&
+    !vit.classList.contains('vempty');
   if (vitShown){
     t.style.bottom = (innerHeight - vit.getBoundingClientRect().top + 12) + 'px';
     t.style.left = '16px';
@@ -330,7 +368,11 @@ function renderMuseum(rows, demo){
     row.className = 'mrow';
     const th = document.createElement('div');
     th.className = 'mthumb';
-    const url = itemThumb(r._item || (items && items.find(i => i.alive && String(i.key) === String(r.name))));
+    // ⚠️ фолбэк по КЛЮЧУ типа, не по имени: r.name — человеческий ярлык
+    // («Watermelon»), а item.key — 'T{индекс}'; сравнение с name не могло
+    // совпасть никогда, и строки без _item молча теряли портрет
+    const url = itemThumb(r._item || (items && items.find(i =>
+      i.alive && i.type && String(i.type.name) === String(r.key))));
     if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
     else th.textContent = String(r.name || '?').slice(0, 1).toUpperCase();
     const mid = document.createElement('div');
