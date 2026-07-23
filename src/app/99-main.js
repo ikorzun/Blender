@@ -152,6 +152,18 @@ function resize(){
 }
 addEventListener('resize', resize);
 
+// КОНТРАКТ С ИНТЕРФЕЙСОМ (витрина уровня, 2026-07-22): класс `camnear` на
+// <html> при приближении камеры к чаше — их CSS плавно гасит панель, чтобы
+// зум не упирался в неё. Гистерезис 14.5/15.2 (дефолт camR 16.2, ближе —
+// пинч/колесо), иначе класс мигал бы на границе. До genLevel не тикает
+// (просьба интерфейса: интро камеру гоняет 17.8→16.2, класса там не будет).
+let camNearOn = false;
+function tickCamNear(){
+  if (!level) return;
+  if (!camNearOn && camR < 14.5){ camNearOn = true; document.documentElement.classList.add('camnear'); }
+  else if (camNearOn && camR > 15.2){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+}
+
 // iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
 // остров iOS красится ТОЛЬКО через meta theme-color (фон страницы там
 // игнорируется), жестовая зона снизу и Android-тулбар — фоном html/body.
@@ -251,6 +263,7 @@ function loop(){
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
   tickCamFollow(dt); // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickCamNear();     // класс camnear для витрины уровня (контракт с ИНТЕРФЕЙСОМ)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -683,6 +696,8 @@ window.__game = {
     return m;
   },
   cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro }; },
+  // отладка: постановка дистанции камеры (тесты контракта camnear витрины)
+  setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // отладка: поиск NaN в состоянии предметов
   scanNaN(){
     const bad = [];

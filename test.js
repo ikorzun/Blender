@@ -407,6 +407,19 @@ const path = require('path');
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
   if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
+  // КОНТРАКТ CAMNEAR (витрина уровня, интерфейс): класс на <html> при
+  // camR<14.5, снятие при camR>15.2, между порогами — гистерезис держит
+  const camnearAt = async (r) => {
+    await page.evaluate(v => window.__game.setCamR(v), r);
+    await page.waitForTimeout(120); // пара кадров тика
+    return page.evaluate(() => document.documentElement.classList.contains('camnear'));
+  };
+  expect(await camnearAt(16.2) === false, 'camnear: на дефолтной дистанции класса нет');
+  expect(await camnearAt(14.0) === true, 'camnear: ближе 14.5 класс повешен');
+  expect(await camnearAt(15.0) === true, 'camnear: в зазоре гистерезиса класс держится');
+  expect(await camnearAt(15.5) === false, 'camnear: дальше 15.2 класс снят');
+  await page.evaluate(() => window.__game.setCamR(16.2)); // вернуть камеру сценарию
+
   // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют
   // уровень (setLevel 15/16 + regen), и в середине они ломали контекст
   // «полного прогона» (он рассчитан на ур.1: бюджет встрясок, камера) ===
