@@ -110,6 +110,7 @@ function clampGaze(vec, pupR, eyeR){
 }
 // тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
 function tickFace(now){
+  tickVitrine(now); // витрина сама гейтится медиазапросом и 150 мс
   // РЕАКЦИИ без правок в чужой зоне: следим за счётом. Вырос — зрачок
   // «ахнул», упал (промах −7) — ГРУСТНО смотрят вниз (eyes-1-6, спека
   // владельца). ⚠️ ВО ВРЕМЯ ПОМОЛА реакции ГЛУШАТСЯ: штраф −20 капает
@@ -343,3 +344,75 @@ function openMuseum(){
 function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
 // стыковка с метой: хук подключаем, как только он появится в сборке
 if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
+
+
+// ===== ВИТРИНА УРОВНЯ (десктоп, спека владельца 2026-07-22) =====
+// Карточка на каждый ТИП замеса уровня: превью (кэш thumbCache), полоска
+// накопления к следующему порогу, множитель. РЕАЛТАЙМ дёшево: раз в
+// VIT_TICK_MS опрашиваются ТОЛЬКО ключи видимых карточек через accCount
+// (точечное чтение Save.ac), DOM трогается лишь при смене значения.
+// Пересборка — только на смене уровня. Скролла нет намеренно: панель
+// pointer-events:none (требование «не мешать игре»), поэтому при
+// переполнении хвост честно сворачивается в «+N more».
+const VIT_TICK_MS = 150, VIT_MAX_CELLS = 36;
+let vitLevelRef = null, vitAt = 0, vitCells = null;
+function vitrineOn(){
+  return window.matchMedia && matchMedia('(min-width:1160px) and (pointer:fine)').matches;
+}
+function buildVitrine(){
+  vitLevelRef = level;
+  const grid = $('vGrid'); grid.innerHTML = ''; vitCells = {};
+  const seen = new Set(), keys = [];
+  for (const it of items){
+    if (it.surprise || it.bomb || it.rock) continue; // спецпредметы — не типы
+    // ⚠️ КЛЮЧ НАКОПЛЕНИЯ — ИМЯ ТИПА (it.type.name), НЕ it.key: key предмета
+    // это 't{индекс}' для спаривания близнецов, а мета копит Save.ac по
+    // TYPES-именам ('foodorange') — с it.key полоски были мертвы (вечный 0)
+    const k = it.type && it.type.name ? String(it.type.name) : String(it.key);
+    if (!seen.has(k)){ seen.add(k); keys.push({ k, it }); }
+  }
+  const shown = keys.slice(0, VIT_MAX_CELLS);
+  for (const { k, it } of shown){
+    const cell = document.createElement('div');
+    cell.className = 'vcell';
+    cell.dataset.key = k; // адресуемость для проверок
+    const th = document.createElement('div');
+    th.className = 'vthumb';
+    const url = itemThumb(it);
+    if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
+    else th.textContent = k.slice(0, 1).toUpperCase();
+    const body = document.createElement('div');
+    body.className = 'vbody';
+    body.innerHTML = '<div class="vname"></div><div class="vbar"><i></i></div>';
+    body.firstChild.textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
+    const mult = document.createElement('div');
+    mult.className = 'vmult';
+    cell.appendChild(th); cell.appendChild(body); cell.appendChild(mult);
+    grid.appendChild(cell);
+    vitCells[k] = { fill: body.querySelector('i'), mult, last: -1 };
+  }
+  const more = keys.length - shown.length;
+  $('vMore').style.display = more > 0 ? '' : 'none';
+  if (more > 0) $('vMore').textContent = '+' + more + ' more';
+}
+function tickVitrine(now){
+  if (!vitrineOn()) return;
+  // строим ПОСЛЕ интро: на первых кадрах палитровые атласы моделей ещё
+  // декодируются (грабля 36-models) — офскрин-портрет выходил ЧЁРНЫМ и
+  // навсегда оседал в кэше превью
+  if (level && level !== vitLevelRef && !intro) buildVitrine();
+  if (!vitCells || now - vitAt < VIT_TICK_MS) return;
+  vitAt = now;
+  for (const k in vitCells){
+    const c = vitCells[k], n = accCount(k);
+    if (n === c.last) continue;
+    c.last = n;
+    const next = accNext(k);
+    // прогресс внутри текущей ступени: от прошлого порога к следующему
+    const tier = accTier(k);
+    const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
+    const frac = next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
+    c.fill.style.width = (frac * 100).toFixed(1) + '%';
+    c.mult.textContent = fmtMult(accMult(k));
+  }
+}
