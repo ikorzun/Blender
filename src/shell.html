@@ -231,6 +231,42 @@
   .mmult { margin-left:auto; text-align:right; flex:none; }
   .mmult b { font-family:var(--font-round); font-size:17px; color:#ffd60a; display:block; }
   .mmult span { font-size:10px; opacity:.6; }
+  /* ===== витрина уровня — ПО МАКЕТУ Figma 768:1061 =====
+     Панель 300px, радиус 32, белый 16%; 5 строк по 44 с зазором 12;
+     имя SF Pro Rounded Bold 16 #3a4068, полоска 140×8 (#23ce1a на белом
+     40%), множитель — пилюля по контенту. Заголовка в макете НЕТ.
+     Остальные типы уровня — В ОЧЕРЕДИ за кадром (спека владельца
+     «остальные за скролом»): ручной скролл невозможен при
+     pointer-events:none, поэтому АВТОРОТАЦИЯ — собранный тип уезжает,
+     следующий приезжает (vitDone в 85-hud). */
+  #vitrine { display:none; position:fixed; left:16px;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:300px;
+    z-index:4; pointer-events:none; padding:12px; border-radius:32px;
+    background:rgba(255,255,255,.16);
+    opacity:1; transition:opacity .2s; }
+  @media (min-width:1160px) and (pointer:fine){ #vitrine { display:block; } }
+  html.camnear #vitrine { opacity:0; } /* камера близко — не мешаем */
+  #vitrine.vempty { opacity:0; }       /* все типы собраны — панель ушла */
+  #vGrid { display:flex; flex-direction:column; gap:12px; }
+  .vcell { display:flex; align-items:center; gap:8px; height:44px;
+    transition:transform .28s ease-in, opacity .28s ease-in; }
+  .vcell.out { transform:translateX(-110%); opacity:0; }
+  .vcell.in { animation:vIn .32s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes vIn { from { transform:translateX(36px); opacity:0; }
+    to { transform:translateX(0); opacity:1; } }
+  .vthumb { width:44px; height:44px; flex:none; display:flex; align-items:center;
+    justify-content:center; font-size:15px; font-weight:800; color:#3a4068; }
+  .vthumb img { width:100%; height:100%; display:block; }
+  .vbody { flex:1; min-width:0; align-self:flex-start; padding-top:5px; }
+  .vname { font-family:var(--font-round); font-size:16px; font-weight:700;
+    color:#3a4068; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vbar { width:140px; height:8px; border-radius:40px;
+    background:rgba(255,255,255,.4); overflow:hidden; margin-top:8px; }
+  .vbar i { display:block; height:100%; width:0%; background:#23ce1a;
+    border-radius:40px; transition:width .25s ease-out; }
+  .vmult { font-family:var(--font-round); font-size:16px; font-weight:900;
+    color:#3a4068; flex:none; margin-left:auto; padding:8px;
+    background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ===== всплывашка апа ступени ===== */
   #tierToast { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);
     z-index:8; display:flex; align-items:center; gap:10px; padding:8px 16px 8px 8px;
@@ -390,7 +426,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-70 · 2026-07-22</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-77 · 2026-07-22</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -437,6 +473,14 @@
     </div>
   </div>
 </div>
+
+<!-- ВИТРИНА УРОВНЯ (спека владельца 2026-07-22: «на больших мониторах
+     мало жизни»): объекты уровня как в музее + реалтайм полоски накопления
+     до следующего множителя. ТОЛЬКО десктоп >=1160px и pointer:fine;
+     панель ИНФОРМАЦИОННАЯ — pointer-events:none целиком; исчезает при
+     приближении камеры (класс camnear на <html> вешает 99-main,
+     гистерезис 14.5/15.2). Временная стилистика до макета владельца. -->
+<div id="vitrine"><div id="vGrid"></div></div>
 
 <!-- МУЗЕЙ ОБЪЕКТОВ (каркас до макетов владельца — он принесёт их в чат
      ИНТЕРФЕЙСА): список накоплений по типам из accSnapshot() меты; пока

@@ -235,7 +235,7 @@ const path = require('path');
   expect(fin2.score === 150 + 5 * lvlBefore, 'финал: очки не тратятся/не начисляются, только рыбка 150+5×ур (' + fin2.score + ' при ур.' + lvlBefore + ')');
   expect(fin2.lvl === lvlBefore + 1, 'победа апает уровень (' + lvlBefore + ' -> ' + fin2.lvl + ')');
   expect(fin2.hudTimerHidden && fin2.timeOnWin, 'время уровня скрыто из HUD, но есть на экране победы (спека 2026-07-22)');
-  expect(/^★ [1-9]\d*$/.test(fin2.starChip), 'чип справа показывает ОБЩИЕ звёзды из сейва (' + fin2.starChip + ')');
+  expect(fin2.starChip === '★ ' + fin2.score, 'чип справа показывает ОЧКИ уровня под иконкой звезды, спека 2026-07-22-б (' + fin2.starChip + ' при score ' + fin2.score + ')');
   // дальше уровни пересоздаются через evaluate-regen (мимо кнопки «Дальше») —
   // победный оверлей надо спрятать руками, иначе он перехватит реальные клики
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
@@ -407,6 +407,21 @@ const path = require('path');
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
   if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
+  // КОНТРАКТ CAMNEAR v2 (спека владельца: «скрывать за 200px до вещей»):
+  // критерий — ЭКРАННЫЙ зазор панель↔куча (<200 скрыть, >240 показать).
+  // Вьюпорт сьюта мобильный → панели нет → vitrineGap null и класса нет;
+  // экранную геометрию проверяем постановкой камеры и чтением gap.
+  const camnearAt = async (r) => {
+    await page.evaluate(v => window.__game.setCamR(v), r);
+    await page.waitForTimeout(400); // ≥2 тика по 150мс
+    return page.evaluate(() => ({ cls: document.documentElement.classList.contains('camnear'),
+      gap: window.__game.vitrineGap() }));
+  };
+  const cnDef = await camnearAt(16.2);
+  expect(cnDef.gap === null && cnDef.cls === false,
+    'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
+  await page.evaluate(() => window.__game.setCamR(16.2)); // вернуть камеру сценарию
+
   // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют
   // уровень (setLevel 15/16 + regen), и в середине они ломали контекст
   // «полного прогона» (он рассчитан на ур.1: бюджет встрясок, камера) ===

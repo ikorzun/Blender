@@ -152,6 +152,42 @@ function resize(){
 }
 addEventListener('resize', resize);
 
+// КОНТРАКТ С ИНТЕРФЕЙСОМ (витрина уровня): класс `camnear` на <html>, их CSS
+// плавно гасит панель. КРИТЕРИЙ v2 (спека владельца 2026-07-22 по скрину:
+// «панель должна скрываться за 200 пикселей до вещей», прежний camR<14.5
+// прятал слишком рано): ЭКРАННЫЙ зазор между правым краем панели и левым
+// краем кучи (проекция предметов с учётом их экранного радиуса) < 200px →
+// скрыть; > 240px → показать (гистерезис 40, чтобы не мигало). Край панели
+// читается из живого rect #vitrine — смена ширины макетом ничего не сломает;
+// rect при opacity:0 валиден (фейд не display). Тик раз в 150мс, не в кадр.
+let camNearOn = false, camNearAt = 0, vitrineGapPx = null;
+const camNearV = new THREE.Vector3();
+function tickCamNear(){
+  if (!level) return;
+  const now = performance.now();
+  if (now - camNearAt < 150) return;
+  camNearAt = now;
+  const vit = document.getElementById('vitrine');
+  const pr = vit ? vit.getBoundingClientRect().right : 0;
+  if (!pr){ vitrineGapPx = null; return; } // панели нет (мобайл) — нечего прятать
+  const halfH = Math.tan(camera.fov * Math.PI / 360);
+  let minX = Infinity;
+  for (const it of items){
+    if (!it.alive) continue;
+    camNearV.copy(it.p).project(camera);
+    if (camNearV.z > 1) continue; // за камерой
+    const xPx = (camNearV.x + 1) / 2 * innerWidth;
+    const dist = camera.position.distanceTo(it.p);
+    const rPx = it.r / (dist * halfH) * (innerHeight / 2);
+    if (xPx - rPx < minX) minX = xPx - rPx;
+  }
+  if (minX === Infinity) return; // пустая чаша (миг между уровнями) — не дёргаем
+  const gap = minX - pr;
+  vitrineGapPx = Math.round(gap);
+  if (!camNearOn && gap < 200){ camNearOn = true; document.documentElement.classList.add('camnear'); }
+  else if (camNearOn && gap > 240){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+}
+
 // iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
 // остров iOS красится ТОЛЬКО через meta theme-color (фон страницы там
 // игнорируется), жестовая зона снизу и Android-тулбар — фоном html/body.
@@ -251,6 +287,7 @@ function loop(){
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
   tickCamFollow(dt); // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickCamNear();     // класс camnear для витрины уровня (контракт с ИНТЕРФЕЙСОМ)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -683,6 +720,10 @@ window.__game = {
     return m;
   },
   cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro }; },
+  // отладка: постановка дистанции камеры (тесты контракта camnear витрины)
+  setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
+  // отладка: текущий экранный зазор панель↔куча в px (null — панели нет/пусто)
+  vitrineGap(){ return vitrineGapPx; },
   // отладка: поиск NaN в состоянии предметов
   scanNaN(){
     const bad = [];
