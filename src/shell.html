@@ -244,9 +244,11 @@
      pointer-events:none, поэтому АВТОРОТАЦИЯ — собранный тип уезжает,
      следующий приезжает (vitDone в 85-hud). */
   #vitrine { display:none; position:fixed; left:8px;
-    /* left 8 = левый край кнопки подсказки (спека владельца «отступ как у
-       иконки снизу»); замер rect: hintBtn.left = 8 на 1440/1600/1920 */
-    bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:300px;
+    /* left 8 = левый край бывшей кнопки подсказки (спека владельца «отступ
+       как у иконки снизу»). НИЗ опущен на место подсказки (спека владельца
+       2026-07-23): Hint уехал вправо к Shake, витрина занимает низ-лево и
+       растёт ВВЕРХ. Было +76px (над баром) — стало +8px (у самого низа). */
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 8px); width:300px;
     z-index:4; pointer-events:none; padding:12px; border-radius:32px;
     background:rgba(255,255,255,.16);
     box-shadow:0 0 28px 0 #fff inset; /* значение владельца, как задано */
@@ -301,6 +303,30 @@
   .vmult { font-family:var(--font-round); font-size:16px; font-weight:900;
     color:#3a4068; flex:none; margin-left:auto; padding:8px;
     background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
+  /* ТЁМНАЯ ТЕМА (спека владельца): панель-стекло над НОЧНЫМ полем — тёмный
+     #3a4068 не читается, имя/множитель/букву инвертируем в белый. Плашку
+     множителя затемняем: белая цифра на светлом стекле .4 была бы слепой.
+     Сигнал html.night — тот же, что у Shake и выбора неба (updateHUD). */
+  html.night .vname, html.night .vmult, html.night .vthumb { color:#fff; }
+  html.night .vmult { background:rgba(0,0,0,.28); }
+  /* РЕАКЦИЯ НА СОВМЕЩЕНИЕ (спека владельца «связь блока и объектов, что я
+     совместил; интерактивно, но ненавязчиво»): при росте accCount слота
+     vitUpdateCell вешает .hit — короткий подскок портрета + вспышка полоски.
+     ⚠️ Transform/filter на ДЕТЯХ ячейки: rect ПАНЕЛИ не меняется (его читают
+     camnear в 99-main и якорь всплывашки в 85-hud). */
+  .vcell.hit .vthumb { animation:vHit .42s ease; }
+  .vcell.hit .vbar i { animation:vBarHit .42s ease; }
+  @keyframes vHit { 0%,100%{ transform:scale(1); } 35%{ transform:scale(1.2); } }
+  @keyframes vBarHit { 0%,100%{ filter:none; } 40%{ filter:brightness(1.5) saturate(1.25); } }
+  /* ПРИЯТНЫЙ РАЗВОРОТ (спека владельца «раскрываться должен приятнее»): к
+     clip-path-вытеснению панели добавлен КАСКАД строк — каждая приезжает
+     справа с задержкой i·70 мс (buildVitrine вешает .rin + animation-delay).
+     Тоже на transform/opacity ДЕТЕЙ — панель-rect неизменен. */
+  .vcell.rin { animation:vReveal .42s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes vReveal { from { transform:translateX(28px); opacity:0; }
+    to { transform:none; opacity:1; } }
+  @media (prefers-reduced-motion: reduce){
+    .vcell.rin, .vcell.hit .vthumb, .vcell.hit .vbar i { animation:none; } }
   /* ===== всплывашка апа ступени ===== */
   /* ===== ВСПЛЫВАШКА АПА — ПО МАКЕТУ Figma 769:56 =====
      Контейнер: padding 12/16/12/20 (асимметрия из ноды: слева 20, справа
@@ -443,13 +469,15 @@
 
 <div class="bar" id="bottomBar">
   <div class="grp">
-    <button class="iconBtn" id="hintBtn" aria-label="Hint"><svg viewBox="0 0 32 32" fill="none">
-      <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
-    </svg><span id="hintCnt">3</span></button>
     <button id="scopeBtn" title="Scope: show all pairs">🎯<span class="mini">15</span></button>
     <button id="magnetBtn" title="Metal detector">🧲</button>
   </div>
+  <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
+       освобождается под витрину, её опускаем на место подсказки -->
   <div class="grp">
+    <button class="iconBtn" id="hintBtn" aria-label="Hint"><svg viewBox="0 0 32 32" fill="none">
+      <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
+    </svg><span id="hintCnt">3</span></button>
     <button id="shakeBtn"><span id="shakeLbl">Shake ×3</span></button>
   </div>
 </div>
@@ -481,7 +509,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-86 · 2026-07-22</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-87 · 2026-07-22</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">

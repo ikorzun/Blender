@@ -410,13 +410,13 @@ function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
 if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 
 
-// ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 (спека владельца:
-// «берем 5 вещей, остальные за скролом, вещи меняются если набираются») =====
-// 5 видимых СЛОТОВ; остальные типы уровня — очередь за кадром. Ручной
-// скролл невозможен (pointer-events:none, «не мешать игре»), поэтому
-// АВТОРОТАЦИЯ: собранный тип уезжает влево, из очереди приезжает
-// следующий. Реалтайм-полоски: точечный accCount видимых раз в 150 мс.
-const VIT_TICK_MS = 150, VIT_SLOTS = 5;
+// ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 =====
+// ВСЕ типы замеса уровня строкой (спека владельца 2026-07-23 «в блоке нужны
+// все объекты уровня»; прежние «5 слотов + авторотация» отменены). Ручной
+// скролл невозможен (pointer-events:none, «не мешать игре»). Реалтайм-полоски:
+// точечный accCount строк раз в 150 мс. Собранный тип уезжает влево и
+// исчезает (vitRotate; очереди на замену больше нет — показаны все).
+const VIT_TICK_MS = 150;
 let vitLevelRef = null, vitAt = 0, vitSlots = null, vitQueue = null, vitRotating = false;
 function vitrineOn(){
   return window.matchMedia && matchMedia('(min-width:1160px) and (pointer:fine)').matches;
@@ -446,12 +446,26 @@ function vitFillCell(cell, entry){
 function vitUpdateCell(cell){
   const k = cell.dataset.key, n = accCount(k);
   if (n === cell._acc.last) return;
+  // рост счётчика = я СОВМЕСТИЛ этот тип (first-set с last=-1 не считаем)
+  const grew = cell._acc.last >= 0 && n > cell._acc.last;
   cell._acc.last = n;
   const next = accNext(k), tier = accTier(k);
   const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
   const frac = next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
   cell.querySelector('.vbar i').style.width = (frac * 100).toFixed(1) + '%';
   cell.querySelector('.vmult').textContent = fmtMult(accMult(k));
+  if (grew) vitPulse(cell); // ненавязчивая реакция на моё совмещение
+}
+// короткий подскок портрета + вспышка полоски; рестарт через reflow, чтобы
+// частые совмещения подряд перезапускали анимацию, а не глотали её.
+// ⚠️ СНИМАЕМ ПРЕДЫДУЩИЙ ТАЙМЕР: без этого при двух матчах одного типа за
+// <460 мс (цепь/эндшпиль-∞) старый таймер срывал .hit посреди новой
+// анимации — скачок scale (найдено адверс-ревью 2026-07-23)
+function vitPulse(cell){
+  if (cell._hitT) clearTimeout(cell._hitT);
+  cell.classList.remove('hit'); void cell.offsetWidth;
+  cell.classList.add('hit');
+  cell._hitT = setTimeout(()=>{ cell.classList.remove('hit'); cell._hitT = 0; }, 460);
 }
 function buildVitrine(){
   vitLevelRef = level;
@@ -465,13 +479,25 @@ function buildVitrine(){
     if (!seen.has(k)){ seen.add(k); vitQueue.push({ k, it }); }
   }
   vitSlots = [];
-  for (let i = 0; i < Math.min(VIT_SLOTS, vitQueue.length); i++){
+  // ВСЕ типы уровня (спека владельца 2026-07-23 «в блоке нужны все объекты
+  // уровня»): раньше показывали 5 с авторотацией — теперь строим весь замес.
+  // count фиксируем ДО цикла (vitQueue.shift сокращает длину по ходу).
+  const count = vitQueue.length;
+  // шаг каскада капим, чтобы разворот не тянулся при многих строках (~0.45 с)
+  const step = Math.min(0.07, 0.45 / Math.max(1, count));
+  for (let i = 0; i < count; i++){
     const cell = document.createElement('div');
     cell.className = 'vcell';
     cell.innerHTML = '<div class="vthumb"></div><div class="vbody">' +
       '<div class="vname"></div><div class="vbar"><i></i></div></div>' +
       '<div class="vmult"></div>';
     vitFillCell(cell, vitQueue.shift());
+    // КАСКАД РАЗВОРОТА: строки приезжают справа по очереди (i·step); .rin
+    // снимаем по завершении, чтобы остаточный animation-delay не задержал
+    // будущие .hit/.in на этой же ячейке
+    cell.style.animationDelay = (i * step) + 's';
+    cell.classList.add('rin');
+    setTimeout(()=>{ cell.classList.remove('rin'); cell.style.animationDelay = ''; }, 520 + i * step * 1000);
     grid.appendChild(cell);
     vitSlots.push(cell);
   }
