@@ -331,7 +331,7 @@ function nextTierToast(){
     !vit.classList.contains('vempty');
   if (vitShown){
     t.style.bottom = (innerHeight - vit.getBoundingClientRect().top + 12) + 'px';
-    t.style.left = '16px';
+    t.style.left = '8px'; // в ЛИНИЮ с витриной и кнопкой подсказки (обе на 8)
   } else { t.style.bottom = ''; t.style.left = ''; }
   const url = itemThumb(ev.item);
   $('ttImg').style.display = url ? '' : 'none';

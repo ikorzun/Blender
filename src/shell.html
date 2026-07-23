@@ -259,20 +259,22 @@
        html.camnear / .vempty) с одинаковой специфичностью — четвёртое
        правило решалось бы порядком в файле и убило бы камерный фейд.
        Разворот идёт ОТДЕЛЬНЫМИ свойствами, поэтому конфликта нет.
-       ⚠️ И НЕ transform:scaleY / max-height: оба меняют rect панели, а её
-       живой rect читают ДВОЕ — якорь всплывашки (85-hud) и критерий
-       camnear (99-main). clip-path не трогает ни layout, ни rect.
+       ⚠️ И НЕ transform (никакой — ни scaleY, ни translateY) и не
+       max-height: всё это меняет rect панели, а её ЖИВОЙ rect читают
+       ДВОЕ — якорь всплывашки (85-hud) и критерий camnear (99-main).
+       Микроподъём translateY тут был и УБРАН: он двигал rect на 12px
+       ~620 мс, и ап ступени, пришедший в это окно, ставил всплывашку
+       вплотную к панели (зазор 0 вместо 12). Разворот целиком на
+       clip-path — единственном свойстве, которое rect не трогает.
        Все переходы — в ОДНОЙ декларации: отдельное правило transition
        ниже перезаписало бы шорткат и убило фейд opacity. */
     clip-path:inset(100% 0 0 0 round 32px);
     -webkit-clip-path:inset(100% 0 0 0 round 32px);
-    transform:translateY(12px);
     transition:opacity .2s,
                clip-path .5s cubic-bezier(.4,0,.2,1) .12s,
-               -webkit-clip-path .5s cubic-bezier(.4,0,.2,1) .12s,
-               transform .5s cubic-bezier(.4,0,.2,1) .12s; }
+               -webkit-clip-path .5s cubic-bezier(.4,0,.2,1) .12s; }
   html.introdone #vitrine { clip-path:inset(0 0 0 0 round 32px);
-    -webkit-clip-path:inset(0 0 0 0 round 32px); transform:none; }
+    -webkit-clip-path:inset(0 0 0 0 round 32px); }
   @media (prefers-reduced-motion: reduce){
     #vitrine { transition:opacity .2s; } /* разворот мгновенный */
   }
