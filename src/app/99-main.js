@@ -628,8 +628,27 @@ window.__game = {
   awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
   accFlips(){ return accFlips; },
   // v1: кошелёк и звёзды (тесты экономики)
-  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(), stars: Object.assign({}, Save.stars), total: totalStars() }; },
+  wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(),
+    stars: Object.assign({}, Save.stars), total: totalStars(),
+    starBalance: starBalance(), se: Save.se, ss: Save.ss }; },
   grant(n){ addCoins(n); updateHUD(); },
+  // ===== ЗВЁЗДЫ-ВАЛЮТА + BOOST (контракт для ИНТЕРФЕЙСА, решение владельца
+  // 2026-07-23). Все ручки честные — плейсхолдеры меню можно снимать.
+  // ⚠️ Рейтинг уровня (wallet().stars) и кошелёк (starBalance) — РАЗНЫЕ
+  // сущности: трата валюты не отнимает заработанные 3★ на уровнях.
+  starBalance: starBalance,       // текущий тратимый баланс
+  starAward: starAward,           // номинал победы: (уровень, звёзды) -> сколько заплатит
+  spendStars: spendStars,         // списание с проверкой достаточности -> bool
+  onStarsChange: onStarsChange,   // подписка: {balance, earned, spent}
+  boostPrice: boostPrice,         // цена следующей ступени типа (null — кап)
+  canBoost: canBoost,             // хватает ли баланса
+  buyBoost: buyBoost,             // покупка -> {ok, price, tier, mult, balance, next}
+  boostTier: boostTier,           // сколько ступеней докуплено у типа
+  // тест/отладка
+  starGrant(n){ addStars(n); return starBalance(); },
+  starMigrate(){ return migrateStarsToWallet(); },
+  saveRaw(){ return JSON.parse(JSON.stringify(Save)); },
+  mergeRaw(o){ mergeSave(Save, o); commitSave(); return starBalance(); },
   // НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22) — контракт для
   // ИНТЕРФЕЙСА (вкладка «Музей объектов» + всплывашка апа) и тестов;
   // сама функция глобальная в 77-save (85-hud подхватывает по typeof)

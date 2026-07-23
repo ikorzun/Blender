@@ -16,7 +16,16 @@ const SAVE_KEY = 'mixer_save_v1';
 // (accTier/accMult) и в сейве не дублируются — нечему расходиться.
 // Мерж: max по ключу (образец he/hs), gen-эпоха уважается. При смене
 // партии моделей осиротевшие ключи НЕ теряются (лог в accAuditOrphans).
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, stars: {}, ac: {}, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// se/ss — ЗВЁЗДЫ-ВАЛЮТА (решение владельца 2026-07-23), earned/spent по
+// образцу монет: баланс = разность, ОБА счётчика монотонные и мержатся по
+// max. ⚠️ ПОЧЕМУ НЕ ОДНО ПОЛЕ-БАЛАНС: при max-мерже потраченное
+// ВОССТАНАВЛИВАЛОСЬ бы из отставшей облачной копии — валюта дюпится
+// бесконечно (вердикт аудита плана, та же грабля, что была у монет).
+// stars[lv] — это РЕЙТИНГ уровня (1..3), он НЕ кошелёк: max-мерж для него
+// корректен, тратами не трогается.
+// bo — купленные бустом ступени по типам (монотонно, мерж max по ключу).
+// sm — флаг разовой миграции рейтинга в стартовый баланс (монотонный 0->1).
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, stars: {}, ac: {}, bo: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -26,8 +35,10 @@ function mergeSave(into, from){
     // чужая копия из БОЛЕЕ НОВОГО поколения (после сброса): берём её целиком
     into.ce = from.ce || 0; into.cs = from.cs || 0;
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
+    into.se = from.se || 0; into.ss = from.ss || 0; into.sm = from.sm || 0;
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
+    into.bo = Object.assign({}, from.bo || {});
     into.gen = gf;
     return;
   }
@@ -36,11 +47,19 @@ function mergeSave(into, from){
   into.cs = Math.max(into.cs || 0, from.cs || 0);
   into.he = Math.max(into.he || 3, from.he || 3); // старые сейвы без he получают стартовые 3
   into.hs = Math.max(into.hs || 0, from.hs || 0);
+  // ⚠️ ЗВЁЗДЫ-ВАЛЮТА: max по ОБОИМ счётчикам. Потраченное (ss) не
+  // откатывается отставшей копией — это и есть защита от дюпа.
+  into.se = Math.max(into.se || 0, from.se || 0);
+  into.ss = Math.max(into.ss || 0, from.ss || 0);
+  into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
   if (!into.ac) into.ac = {};
   const ac = from.ac || {};
   for (const k in ac) into.ac[k] = Math.max(into.ac[k] || 0, ac[k] || 0);
+  if (!into.bo) into.bo = {};
+  const bo = from.bo || {};
+  for (const k in bo) into.bo[k] = Math.max(into.bo[k] || 0, bo[k] || 0);
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
@@ -60,7 +79,8 @@ function bridgeSyncSave(){
     window.bridge.storage.get(SAVE_KEY).then(v => {
       if (!v) return;
       try { mergeSave(Save, typeof v === 'string' ? JSON.parse(v) : v); } catch(e){}
-      commitSave(); updateHUD();
+      migrateStarsToWallet(); // облачная копия могла быть домиграционной
+      commitSave(); updateHUD(); fireStarsChange();
     }).catch(()=>{});
   } catch(e){}
 }
@@ -70,12 +90,88 @@ function spendHint(){ if (hints() < 1) return false; Save.hs += 1; commitSave();
 function addCoins(n){ if (n > 0){ Save.ce += n; commitSave(); } }
 function spendCoins(n){ if (coins() < n) return false; Save.cs += n; commitSave(); return true; }
 function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; commitSave(); } }
+
+// ===== ЗВЁЗДЫ-ВАЛЮТА: кошелёк (решение владельца 2026-07-23) =====
+// Подписка для интерфейса: баланс поменялся (награда/трата/миграция).
+const starChangeCbs = [];
+function onStarsChange(cb){ if (typeof cb === 'function') starChangeCbs.push(cb); }
+function fireStarsChange(){
+  const ev = { balance: starBalance(), earned: Save.se || 0, spent: Save.ss || 0 };
+  for (const cb of starChangeCbs){ try { cb(ev); } catch(e){} }
+  try { updateHUD(); } catch(e){}
+}
+function starBalance(){ return Math.max(0, (Save.se || 0) - (Save.ss || 0)); }
+// Номинал победы: по рейтингу + надбавка за номер уровня (поздние уровни
+// длиннее — платят больше). Чистая функция, ею же считается миграция.
+function starAward(lv, stars){
+  if (!(stars > 0)) return 0;
+  return (STAR_AWARD[Math.min(3, stars)] || 0) + STAR_LEVEL_BONUS * Math.max(1, lv | 0);
+}
+// Победа: платим ДЕЛЬТУ к прошлому рейтингу этого уровня. Перепрохождение
+// без улучшения = 0 (анти-ферма: ур.1 короткий и даёт лёгкие 3★).
+// Рейтинг обновляется отдельно (setStars) и тратами не трогается.
+function awardStarsForWin(lv, stars){
+  const prev = Save.stars[lv] || 0;
+  const gain = Math.max(0, starAward(lv, stars) - starAward(lv, prev));
+  if (gain > 0) Save.se = (Save.se || 0) + gain;
+  setStars(lv, stars);
+  commitSave();
+  if (gain > 0) fireStarsChange();
+  return gain;
+}
+function addStars(n){ if (n > 0){ Save.se = (Save.se || 0) + n; commitSave(); fireStarsChange(); } }
+function spendStars(n){
+  n = Math.max(0, n | 0);
+  if (starBalance() < n) return false;
+  Save.ss = (Save.ss || 0) + n;
+  commitSave(); fireStarsChange();
+  return true;
+}
+// РАЗОВАЯ МИГРАЦИЯ существующих сейвов: у игроков уже накоплен рейтинг —
+// начисляем стартовый баланс по тому же номиналу, прогресс не обнуляем.
+// Идемпотентна: флаг sm монотонный и мержится по max, поэтому второе
+// устройство/второй запуск повторно не начислит.
+function migrateStarsToWallet(){
+  if (Save.sm) return 0;
+  let sum = 0;
+  for (const lv in Save.stars) sum += starAward(parseInt(lv, 10) || 1, Save.stars[lv] || 0);
+  Save.sm = 1;
+  if (sum > 0) Save.se = (Save.se || 0) + sum;
+  commitSave();
+  if (sum > 0){ try { Telemetry.ev('stars_migrate', { n: sum }); } catch(e){} }
+  return sum;
+}
+
+// ===== BOOST: покупка ступени накопления за звёзды =====
+// Купленные ступени живут ОТДЕЛЬНО от счётчика совмещений (ac): ac — это
+// «сколько спасено» (витрина/музей показывают честную цифру), bo — «сколько
+// докуплено». Итоговая ступень = сумма, с общим капом.
+function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
+function boostPrice(name){
+  const t = accTier(name);
+  if (t >= ACC_TIER_CAP) return null; // выше капа покупать нечего
+  return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, t));
+}
+function canBoost(name){ const p = boostPrice(name); return p != null && starBalance() >= p; }
+function buyBoost(name){
+  const p = boostPrice(name);
+  if (p == null) return { ok: false, reason: 'capped', tier: accTier(name) };
+  if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
+  if (!Save.bo) Save.bo = {};
+  Save.ss = (Save.ss || 0) + p;          // трата — через монотонный счётчик
+  Save.bo[name] = boostTier(name) + 1;
+  commitSave(); fireStarsChange();
+  try { Telemetry.ev('boost', { t: name, tier: accTier(name), price: p }); } catch(e){}
+  return { ok: true, price: p, tier: accTier(name), mult: accMult(name),
+    balance: starBalance(), next: boostPrice(name) };
+}
 // Полный сброс прогресса (кнопка в ⚙️): нули пишутся И в облако Bridge, а
 // gen++ делает новое поколение СТАРШЕ любой отставшей облачной копии — даже
 // если запись нулей в облако сорвётся, mergeSave старую копию не воскресит
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
+  Save.se = 0; Save.ss = 0; Save.bo = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
@@ -85,15 +181,19 @@ function resetProgress(){
 // Пороги — ряд ×2+100 владельца: 100/300/700/1500/3100/6300... = 100·(2^n−1).
 function accThreshold(t){ return t <= 0 ? 0 : 100 * (Math.pow(2, t) - 1); }
 function accCount(name){ return (Save.ac && Save.ac[name]) || 0; }
-function accTier(name){
+// Ступени, ЗАРАБОТАННЫЕ совмещениями (без учёта покупок) — по ним считается
+// прогресс-полоска витрины: игрок должен видеть честное «спасено N из M».
+function accCountTier(name){
   const c = accCount(name);
   let t = 0;
   while (t < ACC_TIER_CAP && c >= accThreshold(t + 1)) t++;
   return t;
 }
+// ИТОГОВАЯ ступень = заработанные + купленные бустом (общий кап).
+function accTier(name){ return Math.min(ACC_TIER_CAP, accCountTier(name) + boostTier(name)); }
 function accMult(name){ return 1 + ACC_MULT_STEP * accTier(name); }
-function accNext(name){ // порог следующей ступени или null на капе
-  const t = accTier(name);
+function accNext(name){ // порог следующей ЗАРАБАТЫВАЕМОЙ ступени или null на капе
+  const t = accCountTier(name);
   return t >= ACC_TIER_CAP ? null : accThreshold(t + 1);
 }
 // Событие апа ступени: интерфейс вешает всплывашку через onAccTierUp(cb);
@@ -165,7 +265,11 @@ function accSnapshot(){
         live = items.find(i => i.alive && !i.animating && i.type && i.type.name === k) || null;
     } catch(e){}
     return { name: accLabel(k), key: k, count: accCount(k), tier: accTier(k),
-      mult: accMult(k), next: accNext(k), _item: live };
+      mult: accMult(k), next: accNext(k),
+      // BOOST для меню владельца: сколько ступеней докуплено, цена следующей
+      // (null — упёрлись в кап) и хватает ли баланса прямо сейчас
+      boost: boostTier(k), price: boostPrice(k), affordable: canBoost(k),
+      _item: live };
   });
 }
 // Защита на смену партии моделей (обязательная связка (б) спеки): ключи
@@ -182,4 +286,5 @@ function accAuditOrphans(){
   } catch(e){}
 }
 loadSave();
+migrateStarsToWallet(); // разовая: рейтинг существующих сейвов -> стартовый баланс
 accAuditOrphans();

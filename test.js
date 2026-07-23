@@ -402,6 +402,103 @@ const path = require('path');
   expect(parProbe.par === parProbe.exp && parProbe.par > 0,
     'пар-скор учитывает множители накопления (' + parProbe.par + ' = ' + parProbe.exp + ')');
 
+  // ===== ЗВЁЗДЫ-ВАЛЮТА + BOOST (решение владельца 2026-07-23) =====
+  // Номинал победы и анти-ферма: дельта рейтинга, а не полная выплата
+  const awardProbe = await page.evaluate(() => {
+    const g = window.__game;
+    return { a1: g.starAward(1, 1), a3at1: g.starAward(1, 3), a3at10: g.starAward(10, 3), a0: g.starAward(5, 0) };
+  });
+  expect(awardProbe.a1 === 110 && awardProbe.a3at1 === 510,
+    'номинал: 1★ на ур.1 = 110, 3★ = 510 (' + JSON.stringify(awardProbe) + ')');
+  expect(awardProbe.a3at10 === 600, 'надбавка за уровень: 3★ на ур.10 = 600 (' + awardProbe.a3at10 + ')');
+  expect(awardProbe.a0 === 0, 'непройденный уровень номинала не имеет (' + awardProbe.a0 + ')');
+
+  // Кошелёк и рейтинг РАЗДЕЛЕНЫ: трата не отнимает звёзды уровней
+  const walletProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.starGrant(5000);
+    const before = { bal: g.starBalance(), stars: Object.assign({}, g.wallet().stars) };
+    const ok = g.spendStars(2000);
+    const after = { bal: g.starBalance(), stars: Object.assign({}, g.wallet().stars) };
+    const tooMuch = g.spendStars(999999);
+    return { before, after, ok, tooMuch, balAfterFail: g.starBalance() };
+  });
+  expect(walletProbe.ok && walletProbe.after.bal === walletProbe.before.bal - 2000,
+    'списание уменьшает баланс (' + walletProbe.before.bal + ' -> ' + walletProbe.after.bal + ')');
+  expect(JSON.stringify(walletProbe.before.stars) === JSON.stringify(walletProbe.after.stars),
+    'трата валюты НЕ трогает рейтинг уровней (' + JSON.stringify(walletProbe.after.stars) + ')');
+  expect(walletProbe.tooMuch === false && walletProbe.balAfterFail === walletProbe.after.bal,
+    'списание сверх баланса отклонено и баланс не изменён (' + walletProbe.balAfterFail + ')');
+
+  // ⚠️ ГЛАВНЫЙ РИСК: потратил -> синхронизация с ОТСТАВШЕЙ облачной копией
+  // НЕ должна вернуть потраченное (наивный max по балансу дюпил бы валюту)
+  const dupProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const stale = g.saveRaw();            // копия ДО траты — как в облаке
+    const before = g.starBalance();
+    g.spendStars(1000);
+    const afterSpend = g.starBalance();
+    const afterMerge = g.mergeRaw(stale); // «облако» отдаёт устаревшее состояние
+    return { before, afterSpend, afterMerge };
+  });
+  expect(dupProbe.afterSpend === dupProbe.before - 1000, 'трата прошла (' + dupProbe.before + ' -> ' + dupProbe.afterSpend + ')');
+  expect(dupProbe.afterMerge === dupProbe.afterSpend,
+    '⚠️ ДЮП: мерж со старой облачной копией НЕ вернул потраченное (' + dupProbe.afterSpend + ' -> ' + dupProbe.afterMerge + ')');
+
+  // BOOST: цена по ступени, покупка растит множитель, списывает баланс
+  const boostProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const key = g.accSnapshot()[0].key;
+    g.starGrant(20000);
+    const p0 = g.boostPrice(key), t0 = g.accSnapshot()[0].tier, m0 = g.accSnapshot()[0].mult;
+    const bal0 = g.starBalance();
+    const buy = g.buyBoost(key);
+    const s1 = g.accSnapshot()[0];
+    const p1 = g.boostPrice(key);
+    return { key, p0, t0, m0, bal0, buy, t1: s1.tier, m1: s1.mult, boost: s1.boost,
+      count0: s1.count, bal1: g.starBalance(), p1 };
+  });
+  expect(boostProbe.p0 === 1500 * Math.pow(2, boostProbe.t0),
+    'цена буста удваивается со ступенью (ступень ' + boostProbe.t0 + ' -> ' + boostProbe.p0 + ')');
+  expect(boostProbe.buy.ok && boostProbe.t1 === boostProbe.t0 + 1,
+    'покупка подняла ступень (' + boostProbe.t0 + ' -> ' + boostProbe.t1 + ')');
+  expect(Math.abs(boostProbe.m1 - (boostProbe.m0 + 0.25)) < 1e-9,
+    'множитель типа вырос на ACC_MULT_STEP (' + boostProbe.m0 + ' -> ' + boostProbe.m1 + ')');
+  expect(boostProbe.bal1 === boostProbe.bal0 - boostProbe.p0,
+    'баланс списан ровно на цену (' + boostProbe.bal0 + ' -> ' + boostProbe.bal1 + ')');
+  expect(boostProbe.p1 === boostProbe.p0 * 2, 'следующая ступень дороже вдвое (' + boostProbe.p1 + ')');
+  expect(boostProbe.boost === 1, 'купленные ступени учтены отдельно от спасённых (boost ' + boostProbe.boost + ')');
+
+  // Недостаточно средств — отказ без списания
+  const denyProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const key = g.accSnapshot()[1].key;
+    while (g.starBalance() > 0) g.spendStars(g.starBalance());
+    const r = g.buyBoost(key);
+    return { r, bal: g.starBalance(), tier: g.accSnapshot()[1].tier };
+  });
+  expect(denyProbe.r.ok === false && denyProbe.r.reason === 'insufficient',
+    'буст без денег отклонён (' + JSON.stringify(denyProbe.r) + ')');
+  expect(denyProbe.bal === 0, 'отказ не списал баланс (' + denyProbe.bal + ')');
+
+  // Миграция старого сейва: накопленный РЕЙТИНГ даёт стартовый баланс, разово
+  const migProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const cur = g.saveRaw();
+    // «старый» сейв из БОЛЕЕ НОВОГО поколения: рейтинг есть, кошелька нет
+    g.mergeRaw({ gen: (cur.gen || 0) + 1, stars: { 1: 3, 2: 2, 3: 1 }, se: 0, ss: 0, sm: 0, ac: {}, bo: {} });
+    const before = g.starBalance();
+    const got = g.starMigrate();
+    const after = g.starBalance();
+    const again = g.starMigrate(); // повторный вызов не должен начислить
+    return { before, got, after, again, balFinal: g.starBalance() };
+  });
+  const migExpect = (500 + 10) + (250 + 20) + (100 + 30); // 3★ур1 + 2★ур2 + 1★ур3
+  expect(migProbe.before === 0 && migProbe.got === migExpect,
+    'миграция начислила стартовый баланс по рейтингу (' + migProbe.got + ' = ' + migExpect + ')');
+  expect(migProbe.again === 0 && migProbe.balFinal === migProbe.after,
+    'миграция разовая — повтор ничего не добавил (' + migProbe.balFinal + ')');
+
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
