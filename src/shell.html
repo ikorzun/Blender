@@ -466,6 +466,9 @@
     color:#000; border-radius:1000px; font-family:var(--font-round);
     font-size:13px; font-weight:700; }
   .msc.sel .msc-boost { background:#9ce52e; }
+  /* не хватает звёзд — кнопка честно гаснет; кап ступеней — «Max», disabled */
+  .msc-boost.poor { opacity:.45; }
+  .msc-boost:disabled { opacity:.5; cursor:default; }
   .msc-lvl { font-size:14px; font-weight:800; color:#3a4068; text-align:center; }
   /* ===== ДЕСКТОП — макет Figma 763:1031: ДВЕ КОЛОНКИ =====
      Слева Play (панель 560 = 292+8+260) и под ней в строку настройки|баннер,

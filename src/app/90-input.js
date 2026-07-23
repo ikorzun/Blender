@@ -233,7 +233,15 @@ $('msDiff').addEventListener('click', e => {
 $('msGetMore').addEventListener('click', ()=> toast('Coming soon'));
 $('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
 $('msGrid').addEventListener('click', e => {
-  if (e.target.closest('.msc-boost')){ toast('Coming soon'); return; } // Boost/Open — флаг
+  const btn = e.target.closest('.msc-boost');
+  if (btn){
+    // «Open» у локнутых — ещё заглушка (открытие типа идёт прогрессией уровней)
+    if (btn.dataset.act !== 'boost'){ toast('Coming soon'); return; }
+    const res = buyBoost(btn.closest('.msc').dataset.key);
+    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); }
+    else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough stars');
+    return;
+  }
   const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;
   msSelKey = (msSelKey === card.dataset.key) ? null : card.dataset.key; // выбор карточки (визуал)
   buildMainCollection();
