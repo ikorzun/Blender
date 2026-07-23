@@ -186,12 +186,81 @@ function burstFX(it){
   if (tex === 'food') juiceFX(it);
   else if (tex === 'car') sparkFX(it);
   else if (tex === 'animal') starPopFX(it);
+  // ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки —
+  // кладка/пиратское/камни — не в труху, а КОЛЮТСЯ на угловатые куски
+  else if (tex === 'brick' || tex === 'pirate' || tex === 'rock') shardFX(it.p, it.fxColor || it.baseColor, { count: 7 });
   else dissolveFX(it); // стейк/без пачки — прежняя труха
 }
 // ⚠️ ВИЗУАЛ пак-эффектов (juiceFX/sparkFX/starPopFX) ПЕРЕЕХАЛ В 70-fx
 // (просьба ФИЗИКИ в WORKSTREAMS, сделано ГРАФИКОЙ 2026-07-22): там они
 // полированы — круглые точки вместо квадратных, звёзды билбордами.
 // Здесь остаётся только ПРАВИЛО выбора (burstFX выше) — оно ваше.
+
+// ОСКОЛКИ (спека владельца 2026-07-23): угловатые куски цвета предмета —
+// разлёт баллистикой с кувырком. Общий кирпич для лопанья твёрдых пачек и
+// для эффектного помола (grindShred ниже). ⚠️ КАЖДЫЙ осколок — СВОЯ
+// геометрия+материал (как кубики sparkFX в 70-fx): stepFX диспозит и то и
+// другое, общий кэш отдавать нельзя (первый догоревший убил бы буфер у
+// остальных — грабля Sprite/star из 70-fx). СТАРТОВАЯ реализация зоны
+// ФИЗИКИ через addFX; полировка/перенос в 70-fx — запрос ГРАФИКЕ.
+function shardFX(pos, color, opts){
+  opts = opts || {};
+  const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
+  const spread = opts.spread || 3.2, sz = opts.size || 0.15;
+  const col = color || new THREE.Color(0x9aa0a8);
+  for (let i = 0; i < N; i++){
+    const geo = new THREE.TetrahedronGeometry(sz*(0.65 + Math.random()*0.7), 0);
+    const mat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 1, depthWrite: false });
+    const m = new THREE.Mesh(geo, mat);
+    const a = Math.random()*Math.PI*2, e = (0.15 + Math.random()*0.6)*Math.PI*0.5, sp = spread*(0.5 + Math.random());
+    const vx = Math.cos(a)*Math.cos(e)*sp, vy = up*(0.5 + Math.random()*0.7) + Math.sin(e)*sp*0.3, vz = Math.sin(a)*Math.cos(e)*sp;
+    const rx = (Math.random()-0.5)*16, ry = (Math.random()-0.5)*16, rz = (Math.random()-0.5)*16;
+    const o0 = pos.clone(); o0.y += 0.12;
+    addFX(m, LIFE, (o, k) => {
+      const t = k*LIFE;
+      o.position.set(o0.x + vx*t, o0.y + vy*t - 11*t*t, o0.z + vz*t); // ½·G·t², G=22
+      o.rotation.set(rx*t, ry*t, rz*t);
+      o.scale.setScalar(Math.max(0.001, 1 - k*0.3));
+      o.material.opacity = 1 - k*k;
+    });
+  }
+}
+
+// «МОЛОТЬ ЭФФЕКТНО» (спека владельца 2026-07-23): двухфазная анимация помола,
+// общий помощник для mixerGrind и finaleGrind (чтобы не разъезжались).
+// Фаза 1 (захват): предмет РЫВКОМ утягивается к плоскости ножей с ускорением,
+// ДРОЖИТ и СПЛЮЩИВАЕТСЯ (сжатие по Y, распор по XZ) — «затянуло под ножи».
+// Фаза 2 (шинковка): меш гаснет, из-под лопастей ФОНТАНОМ бьют осколки +
+// пылевой взрыв (+ по вкусу тряска камеры). Удаление предмета остаётся в
+// afterPause вызывающего (гварды целы), меш прячется масштабом.
+// ⚠️ ШИНКОВКА — НА РЕАЛЬНЫХ ЧАСАХ (setTimeout), а НЕ в тике addFX: тик растёт
+// на КЛАМПНУТОМ dt (99-main), и на <~20 FPS шинковка по FX-часам наступала
+// ПОЗЖЕ removeItem по реальным (560/410 мс) — фонтан отрывался от исчезнувшего
+// меша. Реальные часы держат порядок «шинковка -> removeItem» при любом FPS.
+// shake — амплитуда тряски (наказание mixerGrind ярче; финал спокойнее).
+function grindShred(item, dur, shake){
+  const p0 = item.p.clone(), s0 = item.mesh.scale.x, mesh = item.mesh;
+  const drop = Math.max(0.6, p0.y - FLOOR_REST + 0.25); // дотянуть до ножей
+  const grab = dur * 0.7; // длительность фазы захвата
+  // фаза 1 — покадровое сплющивание (косметика, безопасна на любом FPS)
+  addFX(new THREE.Object3D(), grab, (o, k) => {
+    const e = k*k;                                // ускорение вниз — «засасывает»
+    const jud = Math.sin(k*49)*0.05*k;            // дрожь захвата
+    mesh.position.set(p0.x + jud, p0.y - e*drop, p0.z - jud);
+    mesh.rotation.y += 0.7;
+    const sq = s0*Math.max(0.05, 1 - 0.6*k);      // сплющивание
+    mesh.scale.set(s0*(1 + 0.4*k), sq, s0*(1 + 0.4*k));
+  });
+  // фаза 2 — шинковка на реальных часах, ПЕРЕД removeItem вызывающего
+  setTimeout(() => {
+    if (!item.alive) return;                      // перестраховка: не стрелять по трупу
+    const gp = mesh.position.clone();
+    mesh.scale.setScalar(0.0001);                 // меш исчез — дальше только осколки
+    shardFX(gp, item.fxColor || item.baseColor, { count: 10, up: 5, spread: 2.0, size: 0.16, life: 0.5 });
+    bladeDustFX(gp, item.fxColor || item.baseColor);
+    if (shake) camShake = Math.max(camShake, shake);
+  }, grab * 1000);
+}
 
 function checkEnd(){
   if (level.over) return;
@@ -459,17 +528,11 @@ function mixerGrind(){
     scorePop('-' + MIXER_PENALTY, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
   Sound.play('grind');
   vibrate(40);
-  const p0 = low.p.clone(), s0 = low.mesh.scale.x;
-  addFX(new THREE.Object3D(), 0.55, (o,k)=>{
-    low.mesh.position.set(p0.x, p0.y - k*1.6, p0.z);
-    low.mesh.rotation.y += 0.5;
-    low.mesh.scale.setScalar(s0*(1-k*0.9));
-  });
-  if (twin) dissolveFX(twin);
+  grindShred(low, 0.5, 0.28); // двухфазный помол: захват -> шинковка в осколки (наказание — тряска ярче)
+  if (twin) dissolveFX(twin); // близнец не под ножами — уходит трухой (парность)
   camShake = Math.max(camShake, 0.22);
   setTimeout(()=>afterPause(()=>{
-    bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor); // домололся — труха из-под ножей
-    group.forEach(removeItem);
+    group.forEach(removeItem); // осколки/пыль спавнит grindShred на шинковке
     wakePhysics('gameplay:L198');
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 560);
@@ -485,14 +548,11 @@ function finaleGrind(){
   destroyItemBody(low);
   wakePhysics('gameplay:L211');
   Sound.play('grind');
-  const p0 = low.p.clone(), s0 = low.mesh.scale.x;
-  addFX(new THREE.Object3D(), 0.4, (o,k)=>{
-    low.mesh.position.set(p0.x, p0.y - k*1.4, p0.z);
-    low.mesh.rotation.y += 0.45;
-    low.mesh.scale.setScalar(s0*(1-k*0.9));
-  });
+  // финал по канону СПОКОЙНЫЙ (автосбор без очков) — тряску помола делаем
+  // лёгкой (0.1), а не наказательной 0.28: иначе камера дёргалась бы каждые
+  // 0.5 с весь финал (~8-10 с). Ревью 2026-07-23.
+  grindShred(low, 0.4, 0.1); // тот же помол, чуть короче (каденция финала 0.5 с) + мягкая тряска
   setTimeout(()=>afterPause(()=>{
-    bladeDustFX(low.mesh.position.clone(), low.fxColor || low.baseColor);
     removeItem(low);
     wakePhysics('gameplay:L222');
     refreshAccessibility(); updateHUD(); checkEnd();
