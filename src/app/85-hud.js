@@ -283,6 +283,18 @@ function nextTierToast(){
   if (!ev){ tierBusy = false; return; }
   tierBusy = true;
   const t = $('tierToast');
+  // СОСЕДСТВО С ВИТРИНОЙ (десктоп, витрина теперь СЛЕВА, v1-test-74):
+  // при видимой витрине всплывашка ПОДНИМАЕТСЯ над её верхом — читается
+  // как «выпрыгнула из карточки». Глушить тост не стали: он прямая спека
+  // владельца («красивый эффект»), а витрина показывает ап лишь тихой
+  // полоской. При camnear-скрытой витрине и на мобайле — прежний угол.
+  const vit = $('vitrine');
+  const vitShown = vit && getComputedStyle(vit).display !== 'none' &&
+    !document.documentElement.classList.contains('camnear');
+  if (vitShown){
+    t.style.bottom = (innerHeight - vit.getBoundingClientRect().top + 12) + 'px';
+    t.style.left = '16px';
+  } else { t.style.bottom = ''; t.style.left = ''; }
   const url = itemThumb(ev.item);
   $('ttImg').style.display = url ? '' : 'none';
   if (url) $('ttImg').src = url;
