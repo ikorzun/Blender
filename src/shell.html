@@ -396,8 +396,15 @@
   /* хедер */
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
+  /* слот профиля: аватар + имя (под будущий Google-профиль) */
+  .ms-prof { display:flex; align-items:center; gap:10px; min-width:0; }
   .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
     display:grid; place-items:center; font-size:22px; }
+  .ms-uname { font-size:16px; font-weight:700; color:#000; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .ms-dev { display:block; margin:4px auto 0; background:none; border:none;
+    font-family:var(--font-round); font-size:13px; font-weight:700;
+    color:rgba(0,0,0,.35); cursor:pointer; }
   .ms-head-r { display:flex; align-items:center; gap:12px; }
   .ms-stars { display:flex; align-items:center; gap:6px; }
   .ms-stars svg { display:block; }
@@ -460,6 +467,40 @@
     font-size:13px; font-weight:700; }
   .msc.sel .msc-boost { background:#9ce52e; }
   .msc-lvl { font-size:14px; font-weight:800; color:#3a4068; text-align:center; }
+  /* ===== ДЕСКТОП — макет Figma 763:1031: ДВЕ КОЛОНКИ =====
+     Слева Play (панель 560 = 292+8+260) и под ней в строку настройки|баннер,
+     справа коллекция по 4 карточки в ряд (156.5 + gap 10 в колонке 688).
+     ⚠️ ОТЛИЧИЕ ОТ МАКЕТА: в 763:1031 звёзды/Get More/аватар лежат в ШАПКЕ
+     ПРАВОЙ колонки рядом с «My Collection»; здесь шапка профиля идёт полосой
+     сверху на всю ширину (одна разметка на обе раскладки, без дублей узлов).
+     Если владелец захочет строго по макету — переносим узел в layoutHUD. */
+  @media (min-width:1160px){
+    /* ⚠️ РЯДЫ ЗАДАНЫ ЯВНО: коллекция справа спанит все три ряда и высокая, а
+       при дефолтном stretch она растягивала ряды — белая пилюля шапки
+       раздувалась в исполинскую арку на пол-экрана (поймано скрином).
+       auto/1fr/auto: шапка и настройки по контенту, запас забирает Play
+       (как flex-1 в макете). */
+    .ms-wrap { max-width:1256px; display:grid; align-content:start;
+      grid-template-columns:292px 260px 1fr;
+      grid-template-rows:auto 1fr auto; min-height:calc(100vh - 16px);
+      grid-template-areas:"head head coll"
+                          "play play coll"
+                          "sets bann coll"; }
+    .ms-head { grid-area:head; }
+    .ms-play { grid-area:play; min-height:423px; border-radius:56px; }
+    .ms-settings { grid-area:sets; border-radius:40px; }
+    .ms-banner { grid-area:bann; min-height:0; }
+    /* ⚠️ КОЛЛЕКЦИЯ СКРОЛЛИТСЯ ВНУТРИ СЕБЯ: в ней ВСЕ 93 типа (24 ряда по 4),
+       без кэпа её высота растягивала грид на ~6000px и Play-панель уезжала
+       на всю эту длину пустым полотном (поймано скрином). Кэп по вьюпорту =
+       как в макете: экран не прокручивается, список — да. */
+    .ms-coll { grid-area:coll; padding:8px 16px;
+      max-height:calc(100vh - 16px); overflow-y:auto; }
+    .ms-coll h2 { font-size:34px; }
+    .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
+    .ms-slider { width:172px; }
+    .ms-dev { grid-column:1 / -1; }
+  }
 </style>
 </head>
 <body>
@@ -682,7 +723,15 @@
   <div class="ms-wrap">
     <!-- ХЕДЕР: пилюля #fff, аватар 48 + звёзды + Get More -->
     <header class="ms-head">
-      <div class="ms-av" title="avatar (placeholder)">🫐</div>
+      <!-- МЕСТО ПОД GOOGLE-ПРОФИЛЬ (решение владельца 2026-07-23: «нужна
+           авторизация через гугл для сохранения прогресса»). Пока плейсхолдер
+           аватар+имя; саму авторизацию исследует ИНТЕГРАЦИЯ (на портале Google
+           в iframe может не работать — вероятна авторизация площадки), поэтому
+           кнопку «Войти» здесь НЕ рисуем. -->
+      <div class="ms-prof">
+        <div class="ms-av" title="profile (placeholder)">🫐</div>
+        <span class="ms-uname" id="msUser">Guest</span>
+      </div>
       <div class="ms-head-r">
         <div class="ms-stars">
           <svg viewBox="0 0 24 24" width="25" height="24" aria-hidden="true"><path d="M12 2.4l2.9 5.88 6.5.94-4.7 4.58 1.11 6.46L12 17.7l-5.81 3.06 1.11-6.46-4.7-4.58 6.5-.94z" fill="#ffc300"/></svg>
@@ -710,9 +759,12 @@
         <span>Sound</span>
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
       </div>
-      <div class="ms-set">
+      <!-- MUSIC СКРЫТ до появления музыки (решение владельца «музыка будет
+           позже»): нерабочий контрол игрок крутит впустую. Вернуть = убрать
+           style="display:none" в этой строке. -->
+      <div class="ms-set" id="msMusicRow" style="display:none">
         <span>Music</span>
-        <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70" title="music (placeholder)">
+        <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
       </div>
       <div class="ms-set">
         <span>Difficult</span>
@@ -726,6 +778,9 @@
       <h2>My collection</h2>
       <div class="ms-grid" id="msGrid"></div>
     </section>
+    <!-- вход в отладочную панель — неприметной ссылкой: раньше он жил внизу
+         карточки паузы, которую этот экран заменил -->
+    <button id="msDev" class="ms-dev">Developer panel</button>
   </div>
 </div>
 

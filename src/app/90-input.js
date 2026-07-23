@@ -215,9 +215,12 @@ function applySound(on){
   $('soundToggle').checked = CFG.sound;
 }
 $('msPlayBtn').addEventListener('click', ()=>{
-  hideMainScreen();
-  if (typeof paused !== 'undefined' && paused) resumeGame();
+  const fresh = !level || level.over; // нет живой партии — кнопка СТАРТУЕТ новую
+  closeMainScreen();                  // снимет ТОЛЬКО свою паузу (см. 85-hud)
+  if (fresh) genLevel();
 });
+// отладочная панель — из меню (раньше вход был в карточке паузы)
+$('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
 $('msSound').addEventListener('input', e => applySound(parseInt(e.target.value, 10) > 0));
 // Music — ПЛЕЙСХОЛДЕР: музыки в движке нет, слайдер визуальный (флаг в отчёт)
@@ -275,13 +278,20 @@ document.addEventListener('visibilitychange', () => {
   // свёрнутая вкладка = пауза: rAF в фоне не тикает, а часы миксера/комбо
   // идут — игрок возвращался к съеденным предметам. Гварды (интро/конец/уже
   // на паузе) внутри pauseGame; резюмится игрок сам кнопкой Continue.
-  if (document.hidden) pauseGame();
+  // ⚠️ ЧЕРЕЗ МЕНЮ, а не голый pauseGame(): карточка pauseOverlay больше не
+  // показывается (её заменил главный экран) — НЕтихая пауза оставила бы
+  // игрока перед осиротевшим попапом. openMainScreen ставит паузу тихо и
+  // берёт владение на себя, снимет её кнопка Resume.
+  if (document.hidden) openMainScreen();
   else grabKeyFocus();
 });
 // ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: pauseGame(silent) с 2026-07-23 принимает аргумент,
 // а слушатель передал бы в него объект события — MouseEvent truthy, и попап
 // паузы молча перестал бы показываться (поймано сьютом сразу же).
-$('pauseBtn').addEventListener('click', () => pauseGame());
+// ПАУЗА = ГЛАВНЫЙ ЭКРАН (спека владельца «это и главный экран и пауза»):
+// вместо карточки pauseOverlay открывается меню. Пауза ставится ТИХО внутри
+// openMainScreen, и только своя — поверх рекламной меню не открывается.
+$('pauseBtn').addEventListener('click', openMainScreen);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
   resetProgress();

@@ -501,16 +501,32 @@ function refreshMainSettings(){
 function refreshMainScreen(){
   const st = $('msStars');
   if (st) st.textContent = fmtStars(typeof totalStars === 'function' ? totalStars() : 0);
+  // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
-  if (btn) btn.textContent = (typeof paused !== 'undefined' && paused) ? 'Resume' : 'Play Game';
+  if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';
   refreshMainSettings();
   buildMainCollection();
 }
-function showMainScreen(){ refreshMainScreen(); $('mainScreen').classList.add('open'); }
-function hideMainScreen(){ $('mainScreen').classList.remove('open'); }
-// debug/preview: владелец открывает экран из консоли до интеграции в поток
-window.showMainScreen = showMainScreen;
-window.hideMainScreen = hideMainScreen;
+// ⚠️ ВЛАДЕНИЕ ПАУЗОЙ (контракт 99-main, тот же паттерн, что у рекламы в
+// 78-ads): pauseGame(silent) отдаёт true ТОЛЬКО если паузу поставил именно
+// этот вызов. Резюмить ЧУЖУЮ паузу (рекламную или от visibilitychange)
+// нельзя — игрок вернулся бы в живую игру, которую не возобновлял. Поэтому
+// меню (а) ставит паузу ТИХО (silent — своя карточка вместо pauseOverlay),
+// (б) над чужой паузой НЕ открывается вовсе, (в) снимает только свою.
+let menuPaused = false;
+function openMainScreen(){
+  if (!menuPaused) menuPaused = pauseGame(true);
+  if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
+  refreshMainScreen();
+  $('mainScreen').classList.add('open');
+}
+function closeMainScreen(){
+  $('mainScreen').classList.remove('open');
+  if (menuPaused){ menuPaused = false; resumeGame(); }
+}
+// debug/preview: открыть экран из консоли
+window.showMainScreen = openMainScreen;
+window.hideMainScreen = closeMainScreen;
 
 
 // ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 =====
