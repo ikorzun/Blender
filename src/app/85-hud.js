@@ -484,8 +484,16 @@ function buildMainCollection(){
       const frac = r.next ? Math.min(1, r.count / r.next) : 1;
       prog.innerHTML = '<i style="width:' + (frac * 100).toFixed(0) + '%"></i>';
       card.appendChild(prog);
+      // BOOST: цена следующей ступени из снапшота. price === null — КАП
+      // (показываем «Max», а не пустую цену); !affordable — гасим кнопку,
+      // чтобы не обещать покупку, которую buyBoost отвергнет.
       const boost = document.createElement('button');
-      boost.className = 'msc-boost'; boost.dataset.act = 'boost'; boost.textContent = 'Boost';
+      boost.className = 'msc-boost'; boost.dataset.act = 'boost';
+      if (r.price == null){ boost.textContent = 'Max'; boost.disabled = true; }
+      else {
+        boost.textContent = 'Boost ★' + fmtStars(r.price);
+        if (!r.affordable) boost.classList.add('poor');
+      }
       card.appendChild(boost);
     }
     grid.appendChild(card);
@@ -499,8 +507,11 @@ function refreshMainSettings(){
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
 }
 function refreshMainScreen(){
+  // ⚠️ БАЛАНС КОШЕЛЬКА (starBalance от МЕТЫ), а НЕ totalStars: сумма рейтинга
+  // уровней живёт отдельно и не тратится — показывать её как валюту было бы
+  // враньём (звёзды теперь тратимые: решение владельца «это валюта»)
   const st = $('msStars');
-  if (st) st.textContent = fmtStars(typeof totalStars === 'function' ? totalStars() : 0);
+  if (st) st.textContent = fmtStars(typeof starBalance === 'function' ? starBalance() : 0);
   // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
   if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';
@@ -524,6 +535,10 @@ function closeMainScreen(){
   $('mainScreen').classList.remove('open');
   if (menuPaused){ menuPaused = false; resumeGame(); }
 }
+// живое обновление шапки/цен при трате или начислении звёзд (подписка МЕТЫ)
+if (typeof onStarsChange === 'function') onStarsChange(()=>{
+  if ($('mainScreen').classList.contains('open')) refreshMainScreen();
+});
 // debug/preview: открыть экран из консоли
 window.showMainScreen = openMainScreen;
 window.hideMainScreen = closeMainScreen;
