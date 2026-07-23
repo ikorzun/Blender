@@ -172,7 +172,7 @@ addEventListener('resize', resize);
 // читается из живого rect #vitrine — смена ширины макетом ничего не сломает;
 // rect при opacity:0 валиден (фейд не display). Тик раз в 150мс, не в кадр.
 let camNearOn = false, camNearAt = 0, vitrineGapPx = null;
-const camNearV = new THREE.Vector3();
+const camNearV = new THREE.Vector3(), camNearRight = new THREE.Vector3();
 function tickCamNear(){
   // ⚠️ ВО ВРЕМЯ ИНТРО НЕ СЧИТАЕМ (баг 2026-07-23, замер интерфейса): предметы
   // падают широким столбом и камера идёт 17.8→16.2, зазор проваливается ниже
@@ -193,22 +193,39 @@ function tickCamNear(){
   const vit = document.getElementById('vitrine');
   const pr = vit ? vit.getBoundingClientRect().right : 0;
   if (!pr){ vitrineGapPx = null; return; } // панели нет (мобайл) — нечего прятать
-  const halfH = Math.tan(camera.fov * Math.PI / 360);
+  // ЗАЗОР СЧИТАЕТСЯ ДО ЧАШИ, А НЕ ДО ПРЕДМЕТОВ (спека владельца 2026-07-23:
+  // «панель прячется если до чащи по горизонтали меньше 60 px»).
+  // ⚠️ ПОЧЕМУ ЭТО ЖЕ И ЛЕЧИТ МОРГАНИЕ (жалоба владельца: «при кручении
+  // объектов и чаши панель моргает, несмотря на то, что полностью
+  // помещается»): прежний критерий брал левый край КУЧИ ПРЕДМЕТОВ, а она
+  // при вращении камеры меняет экранную ширину — замер драгом дал разброс
+  // зазора 70 px за один оборот, и у порога класс щёлкал туда-сюда.
+  // Чаша ОСЕСИММЕТРИЧНА: её левый край при повороте вокруг оси не меняется
+  // вовсе, поэтому дрожания нет ПО ПОСТРОЕНИЮ, а не за счёт гистерезиса.
+  // Левая точка кольца радиуса R = центр − R·(орт камеры вправо): для
+  // ортопроекции точно, для перспективы — с погрешностью много меньше
+  // пикселя на нашей дистанции.
+  // ⚠️ СНАЧАЛА СИНХРОНИЗИРОВАТЬ МАТРИЦЫ: орт «вправо» берётся из
+  // matrixWorld, а project() считает по matrixWorldInverse — во время
+  // драга они расходятся на кадр, и край чаши дрожал (замер: разброс
+  // 56 px за оборот даже на осесимметричной фигуре)
+  camera.updateMatrixWorld();
+  camNearRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
   let minX = Infinity;
-  for (const it of items){
-    if (!it.alive) continue;
-    camNearV.copy(it.p).project(camera);
+  for (let i = 0; i <= 4; i++){
+    const y = FUNNEL.H * i / 4;
+    camNearV.set(0, y, 0).addScaledVector(camNearRight, -radiusAt(y)).project(camera);
     if (camNearV.z > 1) continue; // за камерой
     const xPx = (camNearV.x + 1) / 2 * innerWidth;
-    const dist = camera.position.distanceTo(it.p);
-    const rPx = it.r / (dist * halfH) * (innerHeight / 2);
-    if (xPx - rPx < minX) minX = xPx - rPx;
+    if (xPx < minX) minX = xPx;
   }
-  if (minX === Infinity) return; // пустая чаша (миг между уровнями) — не дёргаем
+  if (minX === Infinity) return;
   const gap = minX - pr;
   vitrineGapPx = Math.round(gap);
-  if (!camNearOn && gap < 200){ camNearOn = true; document.documentElement.classList.add('camnear'); }
-  else if (camNearOn && gap > 240){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+  // порог владельца 60; отпускание 70 — узкая полоса против дрожания при
+  // плавном зуме (сама геометрия чаши стабильна, широкий гистерезис не нужен)
+  if (!camNearOn && gap < 60){ camNearOn = true; document.documentElement.classList.add('camnear'); }
+  else if (camNearOn && gap > 70){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
 }
 
 // iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
