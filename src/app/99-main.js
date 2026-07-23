@@ -174,6 +174,18 @@ addEventListener('resize', resize);
 let camNearOn = false, camNearAt = 0, vitrineGapPx = null;
 const camNearV = new THREE.Vector3();
 function tickCamNear(){
+  // ⚠️ ВО ВРЕМЯ ИНТРО НЕ СЧИТАЕМ (баг 2026-07-23, замер интерфейса): предметы
+  // падают широким столбом и камера идёт 17.8→16.2, зазор проваливается ниже
+  // 200 — класс встаёт ещё до начала игры. Дальше на 1440 зазор ~225 попадает
+  // в полосу гистерезиса (<240), класс НЕ снимается, и витрина не появляется
+  // вовсе: разворот по introdone проигрывается в невидимую панель.
+  // Спека владельца («скрывать за 200px до вещей») при этом не тронута —
+  // критерий тот же, просто не применяется к ещё не начавшемуся уровню.
+  if (intro){
+    if (camNearOn){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+    vitrineGapPx = null;
+    return;
+  }
   if (!level) return;
   const now = performance.now();
   if (now - camNearAt < 150) return;
