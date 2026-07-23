@@ -631,6 +631,85 @@ window.bridge = {
     'пин тюнера накрывает всю кучу (' + veil.pinned.veiled + '/' + veil.pinned.withShader + ')');
   expect(veil.released.veiled < veil.pinned.veiled,
     'снятие пина возвращает вуаль под управление доступности (' + veil.pinned.veiled + ' -> ' + veil.released.veiled + ')');
+  // ── РЕКЛАМА: игра СТОИТ и МОЛЧИТ на время ролика ─────────────────────────
+  // Требование Poki и CrazyGames; Bridge его не закрывает (проверено по его
+  // адаптерам). Мок объявляет rewarded поддержанным — тогда режим 'bridge' —
+  // и даёт из теста слать состояния. Показ запускаем БОЕВЫМ путём: клик по
+  // кнопке «Watch» -> startAd -> Ads.showRewarded.
+  const MOCK_RW = `
+window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); }, rwShown:0 };
+function reg(ev,cb){ (window.__mock.h[ev] = window.__mock.h[ev] || []).push(cb); }
+window.bridge = {
+  PLATFORM_MESSAGE: { GAME_READY:'game_ready' },
+  EVENT_NAME: { REWARDED_STATE_CHANGED:'rw', INTERSTITIAL_STATE_CHANGED:'inter', AUDIO_STATE_CHANGED:'audio' },
+  REWARDED_STATE: { REWARDED:'rewarded', FAILED:'failed', CLOSED:'closed' },
+  INTERSTITIAL_STATE: { LOADING:'loading', OPENED:'opened', CLOSED:'closed', FAILED:'failed' },
+  platform: { id:'mocktest', language:'en', isAudioEnabled:true, sendMessage(){}, on:reg },
+  advertisement: { isRewardedSupported:true, isInterstitialSupported:true, on:reg,
+                   showRewarded(){ window.__mock.rwShown++; }, showInterstitial(){} },
+  storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
+  initialize(){ return Promise.resolve(); },
+};
+`;
+  const srv2 = http.createServer((req, res) => {
+    const u = req.url.split('?')[0];
+    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_RW); }
+    if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(r => srv2.listen(0, '127.0.0.1', r));
+  const apage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  const aErrors = [];
+  apage.on('pageerror', e => aErrors.push('PAGEERROR: ' + e.message));
+  await apage.goto('http://127.0.0.1:' + srv2.address().port + '/index.html');
+  await apage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  await apage.evaluate(() => window.__game.skipIntro()); // пауза не встаёт во время интро
+  await apage.waitForFunction(() => window.__game.adsMode() === 'bridge', null, { timeout: 20000 });
+  expect(true, 'реклама: мок с rewarded даёт режим bridge');
+
+  const adState = async () => apage.evaluate(() => window.__game.pauseState());
+  const emit = async (ev, st) => { await apage.evaluate(([e,s]) => window.__mock.emit(e,s), [ev,st]); await apage.waitForTimeout(250); };
+
+  // 1. НАГРАДА: показ -> игра замерла и заглохла -> награда -> всё вернулось
+  await apage.evaluate(() => document.getElementById('adYes').click());
+  await apage.waitForTimeout(250);
+  const during = await adState();
+  expect(during.paused && during.muted, 'реклама: во время ролика игра на паузе и звук заглушен (' + JSON.stringify(during) + ')');
+  expect(!during.overlay, 'реклама: пауза ТИХАЯ — попап не показан (игрок не закрывает его руками)');
+  await emit('rw', 'rewarded');
+  const afterRw = await adState();
+  expect(!afterRw.paused && !afterRw.muted, 'реклама: после награды пауза и звук восстановлены (' + JSON.stringify(afterRw) + ')');
+
+  // 2. ПРОВАЛ: развязка обязана снимать паузу так же, иначе игра замёрзнет
+  await apage.evaluate(() => document.getElementById('adYes').click());
+  await apage.waitForTimeout(250);
+  const during2 = await adState();
+  await emit('rw', 'failed');
+  const afterFail = await adState();
+  expect(during2.paused && !afterFail.paused && !afterFail.muted,
+    'реклама: при ПРОВАЛЕ показа игра тоже размораживается (' + JSON.stringify(afterFail) + ')');
+
+  // 3. МЕЖСТРАНИЧНАЯ: идёт без наших колбэков — пауза висит на состояниях
+  await emit('inter', 'opened');
+  const interOn = await adState();
+  await emit('inter', 'closed');
+  const interOff = await adState();
+  expect(interOn.paused && interOn.muted && !interOn.overlay,
+    'межстраничная: игра на паузе и без звука, попапа нет (' + JSON.stringify(interOn) + ')');
+  expect(!interOff.paused && !interOff.muted, 'межстраничная: после закрытия всё восстановлено');
+
+  // 4. ЗВУК ПЛОЩАДКИ (AUDIO_STATE_CHANGED): глушит БЕЗ паузы и не залипает
+  await emit('audio', false);
+  const audOff = await adState();
+  await emit('audio', true);
+  const audOn = await adState();
+  expect(audOff.muted && !audOff.paused, 'звук площадки: выключение глушит игру, но не ставит её на паузу');
+  expect(!audOn.muted, 'звук площадки: включение возвращает звук');
+
+  await apage.close();
+  await new Promise(r => srv2.close(r));
+  if (aErrors.length) failures.push('реклама-проба: ' + aErrors.join(' | '));
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
