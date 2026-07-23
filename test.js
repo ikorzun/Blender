@@ -420,6 +420,17 @@ const path = require('path');
   const cnDef = await camnearAt(16.2);
   expect(cnDef.gap === null && cnDef.cls === false,
     'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
+  // КОНТРАКТ INTRODONE (витрина разворачивается после облёта, спека владельца):
+  // класса нет пока идёт интро, появляется по его завершении (в т.ч. skipIntro)
+  const introCls = await page.evaluate(() => {
+    const was = document.documentElement.classList.contains('introdone');
+    window.__game.regen(); // новый уровень — интро стартует, класс обязан слететь
+    const during = document.documentElement.classList.contains('introdone');
+    window.__game.skipIntro();
+    return { was, during, after: document.documentElement.classList.contains('introdone') };
+  });
+  expect(introCls.during === false && introCls.after === true,
+    'introdone: во время интро класса нет, после завершения есть (' + JSON.stringify(introCls) + ')');
   await page.evaluate(() => window.__game.setCamR(16.2)); // вернуть камеру сценарию
 
   // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют

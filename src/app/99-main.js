@@ -17,6 +17,11 @@ let perfFrames = 0, perfWorstMs = 0;
 let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
 function startIntro(){
+  // КОНТРАКТ С ИНТЕРФЕЙСОМ v2 (спека владельца 2026-07-22: «блок плавно
+  // разворачивается ПОСЛЕ анимации облёта ведра»): класс `introdone` на
+  // <html> снят на время интро, повешен в finishIntro — их CSS разворачивает
+  // витрину по нему. Сигнал именно КОНЦА облёта, а не построения панели.
+  document.documentElement.classList.remove('introdone');
   intro = { phase:'drop', t: 0, shakes: 0 };
   resetPointers();
   setFallCap(11); // мягче терминальная скорость на время досыпки
@@ -43,6 +48,7 @@ function trimOverfill(){
 }
 function finishIntro(){
   intro = null;
+  document.documentElement.classList.add('introdone'); // облёт кончился — витрина разворачивается
   resetPointers();
   setFallCap(); // вернуть боевую терминальную скорость
   // отпустить сюрприз (был прибит ко дну на время осадки)
@@ -488,6 +494,9 @@ window.__game = {
   skipIntro(){
     if (!intro) return;
     intro = null;
+    // тот же сигнал, что и у честного finishIntro (иначе витрина ждала бы
+    // облёта, которого в тестах/пробах не будет)
+    document.documentElement.classList.add('introdone');
     for (let s=0; s<300; s++){
       world.step();
       // терминальная скорость и тут: столб падает с ~40 юнитов, v>20
