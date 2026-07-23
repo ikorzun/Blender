@@ -248,6 +248,24 @@ function matcapTuner(){
     set: v => { MATCAP_LIGHT[ax] = Math.round(v * 100) / 100; queue(null); },
   }));
 
+  // ВУАЛЬ НЕДОСТУПНЫХ (Hard). Ползунки нужны именно живыми: «насколько гасить»
+  // — вопрос вкуса, а на статичном скрине его не решить. Галка показывает
+  // вуаль НА ВСЕЙ куче, иначе эффекта почти не видно: недоступные — это ровно
+  // те, кто НЕ видит небо, то есть они закрыты верхним слоем от самой камеры.
+  head('veil', '(недоступные в Hard)');
+  row('light', { id: 'veil.light', min: 0, max: 1, step: 0.01,
+    get: () => uVeilTune.value.x, txt: () => uVeilTune.value.x,
+    set: v => { uVeilTune.value.x = Math.round(v * 100) / 100; } });
+  row('lift', { id: 'veil.lift', min: 0, max: 1, step: 0.01,
+    get: () => uVeilTune.value.y, txt: () => uVeilTune.value.y,
+    set: v => { uVeilTune.value.y = Math.round(v * 100) / 100; } });
+  const prev = document.createElement('label');
+  prev.style.cssText = 'display:flex; gap:6px; align-items:center; margin:2px 0 0; opacity:.75; cursor:pointer;';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.mc = 'veil.preview';
+  cb.onchange = () => veilAllItems(cb.checked ? 1 : null);
+  prev.append(cb, document.createTextNode('показать на всех'));
+  p.appendChild(prev);
+
   for (const kind of MATCAP_KINDS){
     const tex = matcapCache.get(kind);
     let used = 0;
@@ -282,7 +300,9 @@ function matcapTuner(){
   const note = document.createElement('span'); note.style.opacity = '.65';
   note.textContent = 'reload = откат';
   copy.onclick = () => {
-    const s = '{\n  "light": ' + JSON.stringify(MATCAP_LIGHT) + ',\n  "presets": {\n'
+    const s = '{\n  "light": ' + JSON.stringify(MATCAP_LIGHT)
+      + ',\n  "veil": { "light": ' + uVeilTune.value.x + ', "lift": ' + uVeilTune.value.y + ' }'
+      + ',\n  "presets": {\n'
       + MATCAP_KINDS.map(k => '    "' + k + '": ' + JSON.stringify(MATCAP_PRESETS[k])).join(',\n')
       + '\n  }\n}';
     console.log('[matcap]\n' + s);
@@ -320,6 +340,11 @@ const matcapSpecPatch = function (sh) {
   const tune = this.userData && this.userData.texTune;
   sh.uniforms.uTune = { value: new THREE.Vector2(
     tune ? TEX_GAIN : 1.0, tune ? TEX_CONTRAST : 1.0) };
+  // ВУАЛЬ НЕДОСТУПНОСТИ — своя юниформа на материал, её крутит tickVeil.
+  // ⚠️ Ссылку на шейдер кладём в userData: onBeforeCompile зовётся ОДИН раз,
+  // а вуаль меняется каждый кадр — иначе до юниформы не дотянуться.
+  sh.uniforms.uVeil = { value: 0 };
+  this.userData.shader = sh;
   // ГЛУБИНА КУЧИ вместо теней (шаг 2 пакета). Тени выключены — matcap их не
   // принимает, — а объём чем-то показывать надо. Мировая высота здесь честнее
   // экранной тени: она совпадает с геймплейным «насколько предмет закопан»,
@@ -331,13 +356,14 @@ const matcapSpecPatch = function (sh) {
   const n = (x) => x.toFixed(3);
   sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
   sh.uniforms.uDepth = uDepthTint;
+  sh.uniforms.uVeilTune = uVeilTune;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
     .replace('#include <project_vertex>',
       '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>',
-      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nvarying float vWorldY;')
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nuniform float uVeil;\nuniform vec2 uVeilTune;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
       'float dk = clamp( ( vWorldY - uPileTop + uDepth.y ) / uDepth.y, 0.0, 1.0 );\n'
@@ -349,7 +375,12 @@ const matcapSpecPatch = function (sh) {
         + ' + vec3( matcapColor.a ) + emissive;\n'
       // яркость — УМНОЖЕНИЕМ (контраст цел), затем контраст вокруг середины
       + '\toutgoingLight *= uTune.x;\n'
-      + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';'
+      + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';\n'
+      // вуаль — САМОЙ ПОСЛЕДНЕЙ, по уже готовому цвету: обесцвечиваем в
+      // яркость и поднимаем к светло-серому. Тремя инструкциями и без
+      // ветвления — при uVeil=0 это тождество, доступные ничего не платят.
+      + '\tfloat vLum = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );\n'
+      + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ), vec3( uVeilTune.x ), uVeilTune.y ), uVeil );'
     );
   // страж якорной строки: replace по несуществующему якорю МОЛЧА ничего не
   // делает (смена версии three) — глубина/блик/подсказка отвалились бы тихо
@@ -363,6 +394,10 @@ const uPileTop = { value: FUNNEL.H };
 // достигается этот минимум. ОДИН объект на все материалы, поэтому крутится
 // на лету (и в игре, и в сравнительных прогонах) без пересборки.
 const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) };
+// Сила вуали — ОДИН общий объект на все материалы (как uPileTop/uDepth):
+// исходник шейдера от этого не меняется, программа по-прежнему компилируется
+// одна на все 183. x = целевой светло-серый, y = доля подъёма к нему.
+const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
 // Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
 // ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
 // Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).

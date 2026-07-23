@@ -260,12 +260,20 @@ let paused = false, pausedAt = 0;
 // afterPause: под паузой откладываются в очередь, resumeGame их дренирует.
 const pausedQueue = [];
 function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
-function pauseGame(){
-  if (paused || intro || !level || level.over) return;
+// silent=true — ПАУЗА БЕЗ ПОПАПА (запрос ИНТЕГРАЦИИ 2026-07-23 под рекламу:
+// игрок не должен возвращаться из ролика в нашу карточку паузы с настройками
+// и закрывать её руками). ВОЗВРАЩАЕТ true, только если паузу поставил ИМЕННО
+// ЭТОТ вызов — вызывающий обязан резюмить лишь свою паузу: вкладка могла уйти
+// в hidden, тогда паузу поставил visibilitychange (90-input), и её снимает
+// ТОЛЬКО игрок кнопкой Continue. Автоматический resume поверх чужой паузы
+// вернул бы игрока в живую игру, которую он не возобновлял.
+function pauseGame(silent){
+  if (paused || intro || !level || level.over) return false;
   paused = true; pausedAt = performance.now();
   // ⚠️ НЕ писать textContent в #eyes: это SVG-конструкция персонажа
   // (85-hud) — текст уничтожил бы слои. Лицо просто застывает стоп-кадром.
-  show('pauseOverlay');
+  if (!silent) show('pauseOverlay');
+  return true;
 }
 function resumeGame(){
   if (!paused) return;
@@ -528,6 +536,39 @@ window.__game = {
   // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
   matcapTuner,
   matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
+  // замер вуали: выставить её ВСЕМ живым разом. Нужна именно так — чтобы
+  // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
+  // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)
+  veilAll: veilAllItems,
+  // срез вуали для сьюта: сколько материалов реально получили uVeil>0
+  veilStats(){
+    let withShader = 0, veiled = 0, max = 0;
+    for (const it of items){
+      if (!it.alive || !it.mesh) continue;
+      const sh = it.mesh.material.userData && it.mesh.material.userData.shader;
+      if (!sh) continue;
+      withShader++;
+      const v = sh.uniforms.uVeil.value;
+      if (v > 0.01) veiled++;
+      if (v > max) max = v;
+    }
+    return { mode: VEIL_MODE, withShader, veiled, max: +max.toFixed(2) };
+  },
+  // A/B прозрачности НА ЖИВОЙ странице. Боевой режим задаёт VEIL_MODE в
+  // 00-config; здесь — только замер и показ владельцу, без пересборки.
+  // ⚠️ Смена transparent — перекомпиляция шейдера: после вызова дать кадр-другой
+  // на прогрев, иначе в замер попадёт компиляция, а не установившаяся цена.
+  veilFade(on){
+    let n = 0;
+    for (const it of items){
+      if (!it.mesh || !it.mesh.material.userData.shader) continue;
+      const m = it.mesh.material;
+      m.transparent = !!on; m.needsUpdate = true;
+      m.opacity = on ? 1 - (it.veilK || 0) * (1 - VEIL_ALPHA) : 1;
+      n++;
+    }
+    return n;
+  },
   // контрольная сумма пикселей пресета: сьют проверяет ПЕРЕСЪЁМКУ текстуры,
   // а не только смену числа в объекте (иначе ассерт был бы пустым)
   matcapSum(kind){
@@ -804,6 +845,17 @@ window.__game = {
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // отладка: текущий экранный зазор панель↔куча в px (null — панели нет/пусто)
   vitrineGap(){ return vitrineGapPx; },
+  // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
+  // потребитель — 78-ads: pause(true) на входе в показ, resume() на ВСЕХ
+  // развязках, но ТОЛЬКО если pause вернул true (иначе снимем чужую паузу
+  // от visibilitychange, которую обязан снять игрок кнопкой Continue).
+  pause(silent){ return pauseGame(silent); },
+  resume(){ resumeGame(); },
+  sound: Sound, // setMuted/isMuted — внешний мьют, независимый от CFG.sound
+  // отладка: состояние паузы, видимость попапа и ВНЕШНИЙ мьют
+  pauseState(){ return { paused: paused,
+    overlay: $('pauseOverlay').style.display === 'flex',
+    muted: Sound.isMuted() }; },
   // отладка: поиск NaN в состоянии предметов
   scanNaN(){
     const bad = [];

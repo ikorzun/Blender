@@ -420,6 +420,29 @@ const path = require('path');
   const cnDef = await camnearAt(16.2);
   expect(cnDef.gap === null && cnDef.cls === false,
     'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
+  // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23): тихая пауза
+  // без попапа + владение резюмом через boolean + внешний мьют, независимый
+  // от тумблера игрока CFG.sound
+  const adPrim = await page.evaluate(() => {
+    const g = window.__game;
+    const first = g.pause(true);                 // тихая пауза: поставил я
+    const s1 = g.pauseState();
+    const second = g.pause(true);                // повторный вызов: НЕ моя
+    g.sound.setMuted(true);
+    const s2 = g.pauseState();
+    g.resume(); g.sound.setMuted(false);
+    const s3 = g.pauseState();
+    return { first, second, s1, s2, s3, cfg: window.__game.cfg.sound };
+  });
+  expect(adPrim.first === true && adPrim.second === false,
+    'пауза под рекламу: первый вызов владеет паузой, повторный отдаёт false (' + adPrim.first + '/' + adPrim.second + ')');
+  expect(adPrim.s1.paused === true && adPrim.s1.overlay === false,
+    'тихая пауза НЕ показывает попап настроек (' + JSON.stringify(adPrim.s1) + ')');
+  expect(adPrim.s2.muted === true && adPrim.cfg === true,
+    'внешний мьют глушит звук, НЕ трогая тумблер игрока CFG.sound (' + JSON.stringify(adPrim.s2) + ')');
+  expect(adPrim.s3.paused === false && adPrim.s3.muted === false,
+    'после ролика пауза и мьют сняты (' + JSON.stringify(adPrim.s3) + ')');
+
   // КОНТРАКТ INTRODONE (витрина разворачивается после облёта, спека владельца):
   // класса нет пока идёт интро, появляется по его завершении (в т.ч. skipIntro)
   const introCls = await page.evaluate(() => {
@@ -526,7 +549,7 @@ const path = require('path');
       }));
     })));
   });
-  expect(tuner.sliders === 24, 'тюнер: 24 ползунка (3 света + 3×7 пресетов)');
+  expect(tuner.sliders === 26, 'тюнер: 26 ползунков (3 света + 2 вуали + 3×7 пресетов)');
   expect(tuner.moved === 0.05, 'тюнер меняет пресет (soft.amb ' + tuner.was + ' -> ' + tuner.moved + ')');
   expect(tuner.sum1 !== tuner.sum0, 'тюнер ПЕРЕСНИМАЕТ текстуру (сумма ' + tuner.sum0 + ' -> ' + tuner.sum1 + ')');
   expect(tuner.back === tuner.was && tuner.sumBack === tuner.sum0, 'тюнер откатывается ровно назад');
@@ -582,6 +605,32 @@ window.bridge = {
   expect(bp.storageSet >= 1, 'bridge: облако пишется (storage.set ' + bp.storageSet + ') — симметрия чтения/записи');
   expect(bp.mode === 'stub', 'bridge: без rewarded режим остаётся stub (' + bp.mode + ')');
   if (bErrors.length) failures.push('bridge-проба: ' + bErrors.join(' | '));
+
+  // ВУАЛЬ НЕДОСТУПНЫХ В HARD (спека владельца 2026-07-23): обесцвечивание
+  // идёт ЧЕРЕЗ ШЕЙДЕР — у текстурных моделей material.color белый, и старый
+  // лерп к серому их не обесцвечивал вовсе. Секция самовосстанавливающаяся:
+  // пин вуали глобальный, оставленный включённым, испортил бы всё дальнейшее.
+  const veil = await page.evaluate(async () => {
+    const g = window.__game;
+    g.cfg.hard = true; g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 1200));
+    g.forceRefresh();
+    await new Promise(r => setTimeout(r, 700));   // лерп вуали 0.25 с + запас
+    const hard = g.veilStats();
+    const pinned = (g.veilAll(1), await new Promise(r => setTimeout(() => r(g.veilStats()), 350)));
+    g.veilAll(null);
+    await new Promise(r => setTimeout(r, 700));
+    const released = g.veilStats();
+    g.cfg.hard = false;
+    return { hard, pinned, released, alive: g.alive() };
+  });
+  expect(veil.hard.withShader > 50, 'вуаль: шейдерный патч на всех предметах (' + veil.hard.withShader + ')');
+  expect(veil.hard.veiled > 0 && veil.hard.max > 0.5,
+    'Hard: недоступные реально обесцвечены через uVeil (' + veil.hard.veiled + ' шт, max ' + veil.hard.max + ')');
+  expect(veil.pinned.veiled === veil.pinned.withShader,
+    'пин тюнера накрывает всю кучу (' + veil.pinned.veiled + '/' + veil.pinned.withShader + ')');
+  expect(veil.released.veiled < veil.pinned.veiled,
+    'снятие пина возвращает вуаль под управление доступности (' + veil.pinned.veiled + ' -> ' + veil.released.veiled + ')');
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
