@@ -433,11 +433,21 @@ const path = require('path');
   await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
   const r16 = await page.evaluate(() => window.__game.rocks());
   expect(r16 === 1, 'ур.16: один камень (' + r16 + ')');
-  // тап по камню: −2×MISS_PENALTY (на ур.16 штрафы полные), misses растёт
+  // тап по камню: −2×MISS_PENALTY (на ур.16 штрафы полные), misses растёт.
+  // findByTex v2 отдаёт ВИДИМУЮ точку (рейкаст с камеры) — если камень
+  // целиком закрыт кучей, {occluded:true}: встряхиваем и повторяем (флейк
+  // v76: клик по проекции центра попадал в загораживающий предмет, +120)
+  let rockT = null;
+  for (let att = 0; att < 5; att++){
+    rockT = await page.evaluate(() => window.__game.findByTex('rock'));
+    if (rockT && !rockT.occluded) break;
+    await page.evaluate(() => window.__game.shake());
+    await page.waitForTimeout(1700);
+  }
+  expect(!!rockT && !rockT.occluded, 'камень имеет видимую точку (' + JSON.stringify(rockT) + ')');
   const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
-    misses: window.__game.stats().misses, t: window.__game.findByTex('rock') }));
-  expect(!!rockTap0.t, 'камень доступен для тапа (' + JSON.stringify(rockTap0.t) + ')');
-  await page.mouse.click(rockTap0.t.px, rockTap0.t.py);
+    misses: window.__game.stats().misses }));
+  await page.mouse.click(rockT.px, rockT.py);
   await page.waitForTimeout(300);
   const rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
     misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
