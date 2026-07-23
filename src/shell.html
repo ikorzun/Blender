@@ -379,6 +379,87 @@
     100% { transform:translate(var(--dx), var(--dy)) scale(.3); opacity:0; } }
   #winStars { font-size:36px; letter-spacing:8px; margin:4px 0 8px; color:#ffc84a; }
   #winCoins { font-size:19px; font-weight:800; color:#ffc84a; margin-bottom:14px; }
+
+  /* ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА — макет Figma 770:1271 (моб. 393).
+     Числа: поля 8, gap 8, пилюли radius 1000, панели radius 32/24.
+     Токены: BW/White #fff, Carbon-Purple #1d1c26, Salad #9ce52e; литералы
+     макета — #d9f4ff (фон экрана), #d8bbff (Play), #c0ff47 (лайм-баннер),
+     #3a4068 (текст карточек), #6e659d (аватар), #e7edf8 (трек сегмента). */
+  #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto;
+    -webkit-overflow-scrolling:touch; background:#d9f4ff; color:#000;
+    font-family:var(--font-round); }
+  #mainScreen.open { display:block; }
+  .ms-wrap { max-width:440px; margin:0 auto; min-height:100%; box-sizing:border-box;
+    padding:calc(8px + env(safe-area-inset-top,0)) 8px calc(8px + env(safe-area-inset-bottom,0));
+    display:flex; flex-direction:column; gap:8px; }
+  .ms-wrap section, .ms-wrap header { box-sizing:border-box; }
+  /* хедер */
+  .ms-head { display:flex; align-items:center; justify-content:space-between;
+    background:#fff; border-radius:1000px; padding:12px; }
+  .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
+    display:grid; place-items:center; font-size:22px; }
+  .ms-head-r { display:flex; align-items:center; gap:12px; }
+  .ms-stars { display:flex; align-items:center; gap:6px; }
+  .ms-stars svg { display:block; }
+  .ms-stars span { font-size:26px; font-weight:900; color:#000; line-height:1; }
+  .ms-getmore { border:none; cursor:pointer; background:#000; color:#fff;
+    border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
+    font-size:16px; font-weight:700; }
+  /* баннер No more AD */
+  .ms-banner { background:#c0ff47; border-radius:32px; padding:8px; min-height:160px;
+    display:flex; flex-direction:column; }
+  .ms-banner-t { flex:1; display:grid; place-items:center; font-size:21px;
+    font-weight:900; color:#000; }
+  .ms-sub { border:none; cursor:pointer; background:#fff; color:#000; width:100%;
+    height:56px; border-radius:1000px; font-family:var(--font-round);
+    font-size:20px; font-weight:700; }
+  /* Play */
+  .ms-play { background:#d8bbff; border-radius:32px; padding:16px; min-height:340px;
+    display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+    gap:32px; box-shadow:inset 0 0 60px 0 rgba(255,255,255,.35); }
+  .ms-eyes { width:240px; max-width:100%; height:auto; display:block; }
+  .ms-playbtn { border:none; cursor:pointer; background:#000; color:#fff; width:100%;
+    height:84px; border-radius:100px; font-family:var(--font-round);
+    font-size:34px; font-weight:800; }
+  /* настройки */
+  .ms-settings { background:#fff; border-radius:32px; padding:12px;
+    display:flex; flex-direction:column; gap:8px; }
+  .ms-set { display:flex; align-items:center; justify-content:space-between; gap:12px;
+    min-height:48px; padding:0 8px; }
+  .ms-set > span { font-size:22px; font-weight:800; color:#000; }
+  .ms-slider { flex:none; width:200px; height:30px; accent-color:#9ce52e; cursor:pointer; }
+  .ms-seg { display:inline-flex; background:#e7edf8; border-radius:72px; padding:4px; }
+  .ms-seg button { border:none; cursor:pointer; background:transparent; color:#1d1c26;
+    border-radius:1000px; padding:8px 20px; font-family:var(--font-round);
+    font-size:16px; font-weight:700; }
+  .ms-seg button.on { background:#1d1c26; color:#fff; }
+  /* коллекция */
+  .ms-coll { display:flex; flex-direction:column; gap:8px; }
+  .ms-coll h2 { text-align:center; font-size:28px; font-weight:900; color:#000; margin:8px 0; }
+  .ms-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .msc { display:flex; flex-direction:column; gap:10px; padding:8px; border-radius:24px;
+    background:transparent; }
+  .msc.sel { background:rgba(255,255,255,.6); }
+  .msc-imgwrap { position:relative; width:100%; aspect-ratio:1/1; }
+  .msc-img { width:100%; height:100%; object-fit:contain; display:block; }
+  .msc-img.letter { display:grid; place-items:center; font-size:34px; font-weight:900;
+    color:#3a4068; background:rgba(255,255,255,.35); border-radius:16px; }
+  .msc.lock .msc-img { filter:grayscale(1); opacity:.5; }
+  .msc-badge { position:absolute; right:0; bottom:0; min-width:35px; height:35px;
+    box-sizing:border-box; background:#fff; border-radius:32px; padding:0 8px;
+    display:grid; place-items:center; font-size:16px; font-weight:800; color:#3a4068; }
+  .msc-name { font-size:14px; font-weight:800; color:#3a4068; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .msc-cnt { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); }
+  .msc-prog { width:100%; height:12px; background:rgba(255,255,255,.4);
+    border-radius:40px; overflow:hidden; }
+  .msc-prog i { display:block; height:100%; background:rgba(44,47,98,.3); border-radius:40px; }
+  .msc.sel .msc-prog i { background:#9ce52e; }
+  .msc-boost { width:100%; height:40px; border:none; cursor:pointer; background:#fff;
+    color:#000; border-radius:1000px; font-family:var(--font-round);
+    font-size:13px; font-weight:700; }
+  .msc.sel .msc-boost { background:#9ce52e; }
+  .msc-lvl { font-size:14px; font-weight:800; color:#3a4068; text-align:center; }
 </style>
 </head>
 <body>
@@ -589,6 +670,63 @@
   </div>
   <i class="sp"></i><i class="sp"></i><i class="sp"></i>
   <i class="sp"></i><i class="sp"></i><i class="sp"></i>
+</div>
+
+<!-- ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макеты Figma 770:1271 моб., 763:1031 деск.).
+     ОДИН экран на две роли: до партии — «Play Game», в паузе — «Resume».
+     Верстается СТРОГО по числам Dev Mode. Живые данные: коллекция —
+     accSnapshot(), звёзды — totalStars(), Sound/Difficult — CFG. Плейсхолдеры
+     с флагами (владельцу в отчёт, междузонные запросы): аватар, Music,
+     Subscribe $1.99 (ИНТЕГРАЦИЯ), звёзды-валюта/Boost (МЕТА). -->
+<div id="mainScreen">
+  <div class="ms-wrap">
+    <!-- ХЕДЕР: пилюля #fff, аватар 48 + звёзды + Get More -->
+    <header class="ms-head">
+      <div class="ms-av" title="avatar (placeholder)">🫐</div>
+      <div class="ms-head-r">
+        <div class="ms-stars">
+          <svg viewBox="0 0 24 24" width="25" height="24" aria-hidden="true"><path d="M12 2.4l2.9 5.88 6.5.94-4.7 4.58 1.11 6.46L12 17.7l-5.81 3.06 1.11-6.46-4.7-4.58 6.5-.94z" fill="#ffc300"/></svg>
+          <span id="msStars">0</span>
+        </div>
+        <button class="ms-getmore" id="msGetMore">Get More</button>
+      </div>
+    </header>
+    <!-- БАННЕР No more AD (лайм) + Subscribe $1.99 -->
+    <section class="ms-banner">
+      <div class="ms-banner-t">No more AD</div>
+      <button class="ms-sub" id="msSubscribe">Subscribe $1.99</button>
+    </section>
+    <!-- PLAY: лиловая панель, спокойные глаза eyes-0 + большая кнопка -->
+    <section class="ms-play">
+      <svg class="ms-eyes" viewBox="0 0 240 120" fill="none" aria-hidden="true">
+        <circle cx="60" cy="60" r="60" fill="#fff"/><circle cx="60" cy="60" r="29" fill="#000"/>
+        <circle cx="180" cy="60" r="60" fill="#fff"/><circle cx="180" cy="60" r="29" fill="#000"/>
+      </svg>
+      <button class="ms-playbtn" id="msPlayBtn">Play Game</button>
+    </section>
+    <!-- НАСТРОЙКИ: Sound / Music / Difficult -->
+    <section class="ms-settings">
+      <div class="ms-set">
+        <span>Sound</span>
+        <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
+      </div>
+      <div class="ms-set">
+        <span>Music</span>
+        <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70" title="music (placeholder)">
+      </div>
+      <div class="ms-set">
+        <span>Difficult</span>
+        <div class="ms-seg" id="msDiff">
+          <button data-hard="0">Easy</button><button data-hard="1">Hard</button>
+        </div>
+      </div>
+    </section>
+    <!-- КОЛЛЕКЦИЯ: заголовок + сетка карточек (заполняется в 85-hud) -->
+    <section class="ms-coll">
+      <h2>My collection</h2>
+      <div class="ms-grid" id="msGrid"></div>
+    </section>
+  </div>
 </div>
 
 <div id="fatal" style="display:none; position:fixed; inset:0; z-index:99; background:#171c26; padding:40px 24px; font-size:14px; line-height:1.5; overflow:auto;"></div>
