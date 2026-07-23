@@ -235,7 +235,7 @@ const path = require('path');
   expect(fin2.score === 150 + 5 * lvlBefore, 'финал: очки не тратятся/не начисляются, только рыбка 150+5×ур (' + fin2.score + ' при ур.' + lvlBefore + ')');
   expect(fin2.lvl === lvlBefore + 1, 'победа апает уровень (' + lvlBefore + ' -> ' + fin2.lvl + ')');
   expect(fin2.hudTimerHidden && fin2.timeOnWin, 'время уровня скрыто из HUD, но есть на экране победы (спека 2026-07-22)');
-  expect(/^★ [1-9]\d*$/.test(fin2.starChip), 'чип справа показывает ОБЩИЕ звёзды из сейва (' + fin2.starChip + ')');
+  expect(fin2.starChip === '★ ' + fin2.score, 'чип справа показывает ОЧКИ уровня под иконкой звезды, спека 2026-07-22-б (' + fin2.starChip + ' при score ' + fin2.score + ')');
   // дальше уровни пересоздаются через evaluate-regen (мимо кнопки «Дальше») —
   // победный оверлей надо спрятать руками, иначе он перехватит реальные клики
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
