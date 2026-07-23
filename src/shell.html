@@ -300,32 +300,53 @@
     color:#3a4068; flex:none; margin-left:auto; padding:8px;
     background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ===== всплывашка апа ступени ===== */
+  /* ===== ВСПЛЫВАШКА АПА — ПО МАКЕТУ Figma 769:56 =====
+     Контейнер: padding 12/16/12/20 (асимметрия из ноды: слева 20, справа
+     16), радиус-ПИЛЮЛЯ var(--rounded 1000), белый 16% + inset-свечение
+     28px белым 0.7 — тот же язык, что у витрины, но свечение сильнее.
+     Строка: gap 12. Картинка ровно 44×44 object-fit:cover. Бейдж:
+     лайм #c0ff47 (токен Experimental/Electric lime), ширина 87 ФИКС,
+     padding 8/12, радиус 32, текст 23px Heavy чёрный (токен BW/Black).
+     ⚠️ Имени предмета в макете НЕТ — узел ttName удалён. */
   #tierToast { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);
-    z-index:8; display:flex; align-items:center; gap:10px; padding:8px 16px 8px 8px;
-    background:var(--ink); border-radius:16px; pointer-events:none;
-    transform:translateX(-130%); opacity:0; }
-  #tierToast.show { animation:ttIn .38s cubic-bezier(.34,1.56,.64,1) forwards,
-    ttGlow 1s ease-in-out .3s infinite alternate; }
+    z-index:8; display:flex; flex-direction:column; align-items:center;
+    padding:12px 16px 12px 20px; border-radius:1000px;
+    background:rgba(255,255,255,.16);
+    box-shadow:inset 0 0 28px 0 rgba(255,255,255,.7);
+    pointer-events:none; transform:translateX(-130%); opacity:0; }
+  .ttRow { display:flex; align-items:center; gap:12px; }
+  #ttImg { width:44px; height:44px; object-fit:cover; flex:none; }
+  #ttMult { width:87px; padding:8px 12px; border-radius:32px; background:#c0ff47;
+    font-family:var(--font-round); font-size:23px; font-weight:900; color:#000;
+    /* line-height ЯВНО 27: в макете строка 27 (бейдж 43 = 8+27+8), но
+       normal у шрифта-фолбэка (ui-rounded/system-ui) даёт 30 и высота
+       уезжала на 44 — SF Pro Rounded есть не везде */
+    line-height:27px; text-align:center; flex:none; box-sizing:border-box; }
+  /* ЭФФЕКТ (спека владельца «красивый эффект» от 2026-07-22 — макет
+     статичен, но её никто не отменял): вылет с пружиной + искры + «поп»
+     бейджа. ⚠️ Прежний ЗОЛОТОЙ внешний глоу (ttGlow) УБРАН: он спорил бы
+     с inset-свечением из макета, которое задал владелец. */
+  #tierToast.show { animation:ttIn .38s cubic-bezier(.34,1.56,.64,1) forwards; }
+  #tierToast.show #ttMult { animation:ttPop .42s cubic-bezier(.34,1.56,.64,1) .12s; }
   #tierToast.bye { animation:ttOut .28s ease-in forwards; }
   @keyframes ttIn { from { transform:translateX(-130%); opacity:0; }
     to { transform:translateX(0); opacity:1; } }
   @keyframes ttOut { from { transform:translateX(0); opacity:1; }
     to { transform:translateY(24px); opacity:0; } }
-  @keyframes ttGlow { from { box-shadow:0 0 0 rgba(255,214,10,0); }
-    to { box-shadow:0 0 22px rgba(255,214,10,.45); } }
-  #ttImg { width:56px; height:56px; border-radius:12px; background:rgba(255,255,255,.10); }
-  #ttName { font-size:12px; font-weight:700; color:#cfd5e3; text-transform:capitalize; }
-  #ttMult { font-family:var(--font-round); font-size:24px; font-weight:900; color:#ffd60a; line-height:1.1; }
-  /* искры разлетаются при показе */
-  #tierToast .sp { position:absolute; left:32px; top:50%; width:6px; height:6px; border-radius:50%;
-    background:#ffd60a; opacity:0; }
+  @keyframes ttPop { 0% { transform:scale(1); } 45% { transform:scale(1.12); }
+    100% { transform:scale(1); } }
+  /* искры разлетаются при показе. ⚠️ ПЕРЕКРАШЕНЫ под новую светлую
+     пилюлю: прежние жёлто-белые на ней и на светлом небе терялись —
+     теперь лайм бейджа + тёмный чернильный акцент. */
+  #tierToast .sp { position:absolute; left:34px; top:50%; width:6px; height:6px; border-radius:50%;
+    background:#c0ff47; opacity:0; }
   #tierToast.show .sp { animation:spFly .7s ease-out .15s; }
-  #tierToast .sp:nth-child(3) { --dx:-34px; --dy:-46px; }
-  #tierToast .sp:nth-child(4) { --dx:26px;  --dy:-52px; animation-delay:.2s !important; background:#fff; }
-  #tierToast .sp:nth-child(5) { --dx:60px;  --dy:-30px; animation-delay:.24s !important; }
-  #tierToast .sp:nth-child(6) { --dx:-52px; --dy:-18px; animation-delay:.3s !important; background:#ff9d2e; }
-  #tierToast .sp:nth-child(7) { --dx:44px;  --dy:-58px; animation-delay:.34s !important; }
-  #tierToast .sp:nth-child(8) { --dx:-14px; --dy:-64px; animation-delay:.4s !important; background:#fff; }
+  #tierToast .sp:nth-child(2) { --dx:-34px; --dy:-46px; }
+  #tierToast .sp:nth-child(3) { --dx:26px;  --dy:-52px; animation-delay:.2s !important; background:var(--ink); }
+  #tierToast .sp:nth-child(4) { --dx:60px;  --dy:-30px; animation-delay:.24s !important; }
+  #tierToast .sp:nth-child(5) { --dx:-52px; --dy:-18px; animation-delay:.3s !important; background:var(--ink); }
+  #tierToast .sp:nth-child(6) { --dx:44px;  --dy:-58px; animation-delay:.34s !important; }
+  #tierToast .sp:nth-child(7) { --dx:-14px; --dy:-64px; animation-delay:.4s !important; background:var(--ink); }
   @keyframes spFly { 0% { transform:translate(0,0) scale(1); opacity:1; }
     100% { transform:translate(var(--dx), var(--dy)) scale(.3); opacity:0; } }
   #winStars { font-size:36px; letter-spacing:8px; margin:4px 0 8px; color:#ffc84a; }
@@ -532,9 +553,8 @@
 <!-- ВСПЛЫВАШКА АПА СТУПЕНИ (спека владельца): миниатюра предмета +
      новый множитель, левый нижний угол НАД кнопкой подсказки, ~2 с -->
 <div id="tierToast">
-  <img id="ttImg" alt="">
-  <div class="ttTxt">
-    <div id="ttName"></div>
+  <div class="ttRow">
+    <img id="ttImg" alt="">
     <div id="ttMult">×1.25</div>
   </div>
   <i class="sp"></i><i class="sp"></i><i class="sp"></i>

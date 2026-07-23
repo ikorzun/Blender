@@ -336,7 +336,7 @@ function nextTierToast(){
   const url = itemThumb(ev.item);
   $('ttImg').style.display = url ? '' : 'none';
   if (url) $('ttImg').src = url;
-  $('ttName').textContent = String(ev.name || '').replace(/[-_]/g, ' ');
+  // имени предмета в макете 769:56 нет — показываем портрет и множитель
   $('ttMult').textContent = fmtMult(ev.mult || 1);
   t.classList.remove('bye'); void t.offsetWidth;
   t.classList.add('show');
