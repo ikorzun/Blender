@@ -232,7 +232,9 @@
   .mmult b { font-family:var(--font-round); font-size:17px; color:#ffd60a; display:block; }
   .mmult span { font-size:10px; opacity:.6; }
   /* ===== витрина уровня (десктоп) ===== */
-  #vitrine { display:none; position:fixed; right:16px;
+  #vitrine { display:none; position:fixed; left:16px; /* СЛЕВА — спека владельца
+    2026-07-22 по скрину каркаса (был right:16). Соседи по углу — tierToast
+    и hintBtn: разруливает интерфейс (задача поставлена при переносе) */
     bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:280px;
     max-height:55vh; z-index:4; pointer-events:none; /* жёсткое требование:
     не мешать игре — панель не ловит ни кликов, ни скролла */
@@ -420,7 +422,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-73 · 2026-07-22</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-74 · 2026-07-22</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
