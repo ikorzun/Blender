@@ -409,6 +409,125 @@ function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
 // стыковка с метой: хук подключаем, как только он появится в сборке
 if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 
+// ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет Figma 770:1271) =====
+// ОДИН экран, две роли: «Play Game» до партии, «Resume» в паузе. Живые
+// данные: коллекция — accSnapshot(), звёзды — totalStars(), Sound/Difficult —
+// CFG. ⚠️ ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ на плейсхолдерах (владельцу в отчёт,
+// междузонные запросы МЕТЕ/ИНТЕГРАЦИИ): звёзды-как-валюта + Boost (МЕТА),
+// Subscribe $1.99 (ИНТЕГРАЦИЯ), Music-слайдер и аватар (ассетов/фичи нет).
+let msSelKey = null;
+function fmtStars(n){
+  n = n | 0;
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+}
+// сколько типов открыто прогрессией: 9 на ур.1, +1 за уровень, потолок пула
+// (типы открываются ПО ПОРЯДКУ массива TYPES — как в genLevel)
+function unlockedTypeCount(){
+  const lvl = (typeof levelNum === 'number' ? levelNum : 1);
+  return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
+}
+function buildMainCollection(){
+  const grid = $('msGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
+  const open = unlockedTypeCount();
+  rows.forEach((r, i) => {
+    const locked = i >= open;
+    const card = document.createElement('div');
+    card.className = 'msc' + (locked ? ' lock' : '') + (r.key === msSelKey ? ' sel' : '');
+    card.dataset.key = r.key;
+    // портрет: живой предмет типа -> офскрин-рендер; иначе буква (как музей).
+    // ⚠️ портрет есть только у типов, живых в ТЕКУЩЕЙ партии (мешей вне
+    // уровня нет) — вне партии/у неоткрытых будет буква. Портрет для ВСЕХ
+    // типов = хелпер «собрать меш по типу» (междузонный запрос ГРАФИКЕ/МЕТЕ).
+    const wrap = document.createElement('div');
+    wrap.className = 'msc-imgwrap';
+    const live = r._item || (typeof items !== 'undefined' && items &&
+      items.find(it => it.alive && it.type && String(it.type.name) === String(r.key)));
+    const url = live ? itemThumb(live) : null;
+    if (url){
+      const im = document.createElement('img');
+      im.className = 'msc-img'; im.src = url; wrap.appendChild(im);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'msc-img letter';
+      ph.textContent = String(r.name || '?').slice(0, 1).toUpperCase();
+      wrap.appendChild(ph);
+    }
+    if (!locked){
+      const badge = document.createElement('div');
+      badge.className = 'msc-badge';
+      badge.textContent = fmtMult(r.mult || 1);
+      wrap.appendChild(badge);
+    }
+    card.appendChild(wrap);
+    const name = document.createElement('div');
+    name.className = 'msc-name'; name.textContent = r.name;
+    card.appendChild(name);
+    if (locked){
+      const lvl = document.createElement('div');
+      lvl.className = 'msc-lvl';
+      lvl.textContent = 'Level ' + Math.max(1, i - LEVEL_TYPES_MIN + 2);
+      card.appendChild(lvl);
+      const open = document.createElement('button');
+      open.className = 'msc-boost'; open.dataset.act = 'open'; open.textContent = 'Open';
+      card.appendChild(open);
+    } else {
+      const cnt = document.createElement('div');
+      cnt.className = 'msc-cnt';
+      cnt.textContent = r.next ? (r.count + '/' + r.next) : (r.count + ' · max');
+      card.appendChild(cnt);
+      const prog = document.createElement('div');
+      prog.className = 'msc-prog';
+      const frac = r.next ? Math.min(1, r.count / r.next) : 1;
+      prog.innerHTML = '<i style="width:' + (frac * 100).toFixed(0) + '%"></i>';
+      card.appendChild(prog);
+      const boost = document.createElement('button');
+      boost.className = 'msc-boost'; boost.dataset.act = 'boost'; boost.textContent = 'Boost';
+      card.appendChild(boost);
+    }
+    grid.appendChild(card);
+  });
+}
+// отражение текущих настроек в контролах экрана (значения из CFG)
+function refreshMainSettings(){
+  const snd = $('msSound'); if (snd) snd.value = CFG.sound ? 100 : 0;
+  const seg = $('msDiff');
+  if (seg) for (const b of seg.querySelectorAll('button'))
+    b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
+}
+function refreshMainScreen(){
+  const st = $('msStars');
+  if (st) st.textContent = fmtStars(typeof totalStars === 'function' ? totalStars() : 0);
+  // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
+  const btn = $('msPlayBtn');
+  if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';
+  refreshMainSettings();
+  buildMainCollection();
+}
+// ⚠️ ВЛАДЕНИЕ ПАУЗОЙ (контракт 99-main, тот же паттерн, что у рекламы в
+// 78-ads): pauseGame(silent) отдаёт true ТОЛЬКО если паузу поставил именно
+// этот вызов. Резюмить ЧУЖУЮ паузу (рекламную или от visibilitychange)
+// нельзя — игрок вернулся бы в живую игру, которую не возобновлял. Поэтому
+// меню (а) ставит паузу ТИХО (silent — своя карточка вместо pauseOverlay),
+// (б) над чужой паузой НЕ открывается вовсе, (в) снимает только свою.
+let menuPaused = false;
+function openMainScreen(){
+  if (!menuPaused) menuPaused = pauseGame(true);
+  if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
+  refreshMainScreen();
+  $('mainScreen').classList.add('open');
+}
+function closeMainScreen(){
+  $('mainScreen').classList.remove('open');
+  if (menuPaused){ menuPaused = false; resumeGame(); }
+}
+// debug/preview: открыть экран из консоли
+window.showMainScreen = openMainScreen;
+window.hideMainScreen = closeMainScreen;
+
 
 // ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 =====
 // ВСЕ типы замеса уровня строкой (спека владельца 2026-07-23 «в блоке нужны

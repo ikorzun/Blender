@@ -193,16 +193,51 @@ $('radiusToggle').addEventListener('change', e => { CFG.radiusOn = e.target.chec
 // сложность живёт в localStorage — выбор переживает перезагрузку
 try { CFG.hard = localStorage.getItem('mixer_hard') === '1'; } catch(e){}
 $('hardToggle').checked = CFG.hard;
-$('hardToggle').addEventListener('change', e => {
-  CFG.hard = e.target.checked;
+$('hardToggle').addEventListener('change', e => applyHard(e.target.checked));
+$('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.target.value); updateMatchRadius(); $('radiusVal').textContent = CFG.matchRadius.toFixed(2); updateHUD(); });
+$('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
+$('soundToggle').addEventListener('change', e => applySound(e.target.checked));
+$('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+
+// ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
+// Сложность и звук управляются ИЗ ДВУХ МЕСТ (чекбоксы паузы + контролы
+// главного экрана) — единые точки, чтобы состояния не разъезжались.
+function applyHard(v){
+  CFG.hard = !!v;
   try { localStorage.setItem('mixer_hard', CFG.hard ? '1' : '0'); } catch(e){}
   if (level) level.idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // таймер миксера живо следует сложности
   refreshAccessibility(); updateHUD();
+  $('hardToggle').checked = CFG.hard;
+  if (typeof refreshMainSettings === 'function') refreshMainSettings();
+}
+function applySound(on){
+  CFG.sound = !!on;
+  $('soundToggle').checked = CFG.sound;
+}
+$('msPlayBtn').addEventListener('click', ()=>{
+  const fresh = !level || level.over; // нет живой партии — кнопка СТАРТУЕТ новую
+  closeMainScreen();                  // снимет ТОЛЬКО свою паузу (см. 85-hud)
+  if (fresh) genLevel();
 });
-$('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.target.value); updateMatchRadius(); $('radiusVal').textContent = CFG.matchRadius.toFixed(2); updateHUD(); });
-$('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
-$('soundToggle').addEventListener('change', e => { CFG.sound = e.target.checked; });
-$('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// отладочная панель — из меню (раньше вход был в карточке паузы)
+$('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
+// Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
+$('msSound').addEventListener('input', e => applySound(parseInt(e.target.value, 10) > 0));
+// Music — ПЛЕЙСХОЛДЕР: музыки в движке нет, слайдер визуальный (флаг в отчёт)
+$('msDiff').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  applyHard(b.dataset.hard === '1');
+});
+// Get More / Subscribe / Boost / Open — ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ (МЕТА/ИНТЕГРАЦИЯ):
+// на плейсхолдере до решения владельца, действие — заметка «скоро»
+$('msGetMore').addEventListener('click', ()=> toast('Coming soon'));
+$('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
+$('msGrid').addEventListener('click', e => {
+  if (e.target.closest('.msc-boost')){ toast('Coming soon'); return; } // Boost/Open — флаг
+  const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;
+  msSelKey = (msSelKey === card.dataset.key) ? null : card.dataset.key; // выбор карточки (визуал)
+  buildMainCollection();
+});
 // ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): время переезжает из правого стека
 // к паузе слева; LV показывается только там (CSS прячет лишнее).
 // Один узел #tmSvg физически переносится — id не дублируются.
@@ -243,13 +278,20 @@ document.addEventListener('visibilitychange', () => {
   // свёрнутая вкладка = пауза: rAF в фоне не тикает, а часы миксера/комбо
   // идут — игрок возвращался к съеденным предметам. Гварды (интро/конец/уже
   // на паузе) внутри pauseGame; резюмится игрок сам кнопкой Continue.
-  if (document.hidden) pauseGame();
+  // ⚠️ ЧЕРЕЗ МЕНЮ, а не голый pauseGame(): карточка pauseOverlay больше не
+  // показывается (её заменил главный экран) — НЕтихая пауза оставила бы
+  // игрока перед осиротевшим попапом. openMainScreen ставит паузу тихо и
+  // берёт владение на себя, снимет её кнопка Resume.
+  if (document.hidden) openMainScreen();
   else grabKeyFocus();
 });
 // ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: pauseGame(silent) с 2026-07-23 принимает аргумент,
 // а слушатель передал бы в него объект события — MouseEvent truthy, и попап
 // паузы молча перестал бы показываться (поймано сьютом сразу же).
-$('pauseBtn').addEventListener('click', () => pauseGame());
+// ПАУЗА = ГЛАВНЫЙ ЭКРАН (спека владельца «это и главный экран и пауза»):
+// вместо карточки pauseOverlay открывается меню. Пауза ставится ТИХО внутри
+// openMainScreen, и только своя — поверх рекламной меню не открывается.
+$('pauseBtn').addEventListener('click', openMainScreen);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
   resetProgress();

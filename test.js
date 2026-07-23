@@ -277,16 +277,19 @@ const path = require('path');
   });
   expect(hintProbe.after === hintProbe.before - 1, 'подсказка списывает 1 заряд (' + hintProbe.before + ' -> ' + hintProbe.after + ')');
 
-  // пауза: оверлей, стоп-кадр и СДВИГ ЧАСОВ — пауза не съедает простой миксера
+  // пауза: МЕНЮ (главный экран заменил карточку pauseOverlay — спека владельца
+  // «это и главный экран и пауза»), стоп-кадр и СДВИГ ЧАСОВ — пауза не съедает
+  // простой миксера. Кнопка меню Resume и снимает паузу.
   await page.evaluate(() => { document.getElementById('pauseBtn').click(); });
   await page.waitForTimeout(1200);
   const pausedState = await page.evaluate(() => ({
-    overlay: document.getElementById('pauseOverlay').style.display,
+    overlay: document.getElementById('mainScreen').classList.contains('open'),
+    paused: window.__game.pauseState().paused,
     idle: performance.now() - window.__game.stats().lastAction,
   }));
-  await page.evaluate(() => { document.getElementById('resumeBtn').click(); });
+  await page.evaluate(() => { document.getElementById('msPlayBtn').click(); });
   const idleAfter = await page.evaluate(() => performance.now() - window.__game.stats().lastAction);
-  expect(pausedState.overlay === 'flex', 'пауза показывает оверлей');
+  expect(pausedState.overlay && pausedState.paused, 'пауза открывает меню и морозит игру');
   expect(idleAfter < pausedState.idle, 'резюме сдвинуло якоря часов (простой ' + Math.round(pausedState.idle) + ' -> ' + Math.round(idleAfter) + ' мс)');
 
   // смена уровня под идущей рекламой: genLevel гасит показ (Ads.cancel) —
