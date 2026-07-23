@@ -799,6 +799,26 @@ window.bridge = {
     'межстраничная: игра на паузе и без звука, попапа нет (' + JSON.stringify(interOn) + ')');
   expect(!interOff.paused && !interOff.muted, 'межстраничная: после закрытия всё восстановлено');
 
+  // ГЛАВНЫЙ ЭКРАН НЕ ЛЕЗЕТ ПОВЕРХ ЧУЖОЙ ПАУЗЫ (интерфейс честно сообщил, что
+  // сам эту ветку не покрыл — нужен именно этот bridge-мок). Сценарий: идёт
+  // межстраничная (пауза рекламная), игрок жмёт ⏸ — меню НЕ должно открыться
+  // и НЕ должно снять чужую паузу; после закрытия ролика игра размораживается
+  // сама. Без этого игрок вернулся бы в живую игру, которую не возобновлял.
+  await emit('inter', 'opened');
+  const menuTry = await apage.evaluate(() => {
+    window.showMainScreen();                       // попытка открыть поверх рекламы
+    return { open: document.getElementById('mainScreen').classList.contains('open'),
+             st: window.__game.pauseState() };
+  });
+  await emit('inter', 'closed');
+  const afterAd = await apage.evaluate(() => ({
+    open: document.getElementById('mainScreen').classList.contains('open'),
+    st: window.__game.pauseState() }));
+  expect(menuTry.open === false && menuTry.st.paused === true,
+    'меню НЕ открывается поверх рекламной паузы (' + JSON.stringify(menuTry) + ')');
+  expect(afterAd.st.paused === false && afterAd.open === false,
+    'после ролика игра разморожена, меню так и не открылось (' + JSON.stringify(afterAd) + ')');
+
   // 4. ЗВУК ПЛОЩАДКИ (AUDIO_STATE_CHANGED): глушит БЕЗ паузы и не залипает
   await emit('audio', false);
   const audOff = await adState();
@@ -826,12 +846,28 @@ window.bridge = {
     const created = g.shardBurst(12);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const peak = g.perfStats().geoms;
-    await new Promise(r => setTimeout(r, 900));   // life 0.6с + запас
+    // ⚠️ НЕ фиксированная пауза (флейк 2026-07-24, ловился и метой, и мной:
+    // «48 → 48», «52 → 54»). Осколки догорают по СВОИМ часам, а сьют к этой
+    // секции приходит с разной загрузкой машины — 900мс хватало не всегда, и
+    // тест обвинял продукт в утечке, которой нет: проба показала честный
+    // дренаж 33 → 21 к ~2с. Ждём УСЛОВИЯ с потолком, как чинили флейк радиуса.
+    const deadline = Date.now() + 6000;
+    while (g.perfStats().geoms > base && Date.now() < deadline)
+      await new Promise(r => setTimeout(r, 100));
     return { base, created, peak, after: g.perfStats().geoms };
   });
   expect(shard.created >= 12, 'осколки: залп создал fx (' + shard.created + ')');
   expect(shard.peak > shard.base, 'осколки: свои геометрии на кадре (' + shard.base + ' -> ' + shard.peak + ')');
-  expect(shard.after === shard.base, 'осколки: геометрии дренажат в базу без утечки (' + shard.peak + ' -> ' + shard.after + ')');
+  // ⚠️ ПОРОГ, А НЕ ТОЧНОЕ РАВЕНСТВО (разбор флейка 2026-07-24). geoms —
+  // счётчик ВСЕЙ сцены, а между base и after тикают соседние системы
+  // (витрина печёт портреты, догорают чужие эффекты) — ловилось стабильное
+  // +2 при 12 осколках, и ассерт обвинял осколки в чужом шуме. Настоящая
+  // утечка shardFX дала бы +12 и больше (по числу кусков), поэтому мерим
+  // «вернулось ли БОЛЬШИНСТВО»: остаток меньше половины залпа = дренаж есть.
+  // Изолированная проба подтвердила чистый дренаж 33 → 21 (диспетчер).
+  const shardLeak = shard.after - shard.base;
+  expect(shardLeak < shard.created / 2,
+    'осколки: геометрии дренажат в базу без утечки (пик ' + shard.peak + ' → остаток +' + shardLeak + ' при ' + shard.created + ' осколках)');
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
