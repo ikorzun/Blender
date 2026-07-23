@@ -297,9 +297,19 @@ function itemThumb(item){
     // ⚠️ ВУАЛЬ НЕДОСТУПНОСТИ красит material.color лерпом к серому
     // (tickVeil, 60-access): снимок в этот момент лёг бы в кэш СЕРЫМ
     // НАВСЕГДА. На время рендера возвращаем исходный цвет типа.
+    // ⚠️ С 2026-07-23 вуаль живёт ещё и В ШЕЙДЕРЕ (uVeil, режим 'desat'):
+    // одного восстановления color МАЛО — обесцвеченный портрет так же
+    // осел бы в кэше навсегда. Гасим обе ручки на время снимка.
     const col = m.material.color, saved = (item.baseColor && col) ? col.clone() : null;
     if (saved) col.copy(item.baseColor);
+    const sh = m.material.userData && m.material.userData.shader;
+    const savedVeil = sh ? sh.uniforms.uVeil.value : 0;
+    if (sh) sh.uniforms.uVeil.value = 0;
+    const savedOp = m.material.opacity;
+    m.material.opacity = 1;
     thumbR.render(thumbScene, thumbCam);
+    m.material.opacity = savedOp;
+    if (sh) sh.uniforms.uVeil.value = savedVeil;
     if (saved) col.copy(saved);
     const url = thumbR.domElement.toDataURL();
     thumbScene.remove(m);

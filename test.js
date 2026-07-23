@@ -549,7 +549,7 @@ const path = require('path');
       }));
     })));
   });
-  expect(tuner.sliders === 24, 'тюнер: 24 ползунка (3 света + 3×7 пресетов)');
+  expect(tuner.sliders === 26, 'тюнер: 26 ползунков (3 света + 2 вуали + 3×7 пресетов)');
   expect(tuner.moved === 0.05, 'тюнер меняет пресет (soft.amb ' + tuner.was + ' -> ' + tuner.moved + ')');
   expect(tuner.sum1 !== tuner.sum0, 'тюнер ПЕРЕСНИМАЕТ текстуру (сумма ' + tuner.sum0 + ' -> ' + tuner.sum1 + ')');
   expect(tuner.back === tuner.was && tuner.sumBack === tuner.sum0, 'тюнер откатывается ровно назад');
@@ -605,6 +605,32 @@ window.bridge = {
   expect(bp.storageSet >= 1, 'bridge: облако пишется (storage.set ' + bp.storageSet + ') — симметрия чтения/записи');
   expect(bp.mode === 'stub', 'bridge: без rewarded режим остаётся stub (' + bp.mode + ')');
   if (bErrors.length) failures.push('bridge-проба: ' + bErrors.join(' | '));
+
+  // ВУАЛЬ НЕДОСТУПНЫХ В HARD (спека владельца 2026-07-23): обесцвечивание
+  // идёт ЧЕРЕЗ ШЕЙДЕР — у текстурных моделей material.color белый, и старый
+  // лерп к серому их не обесцвечивал вовсе. Секция самовосстанавливающаяся:
+  // пин вуали глобальный, оставленный включённым, испортил бы всё дальнейшее.
+  const veil = await page.evaluate(async () => {
+    const g = window.__game;
+    g.cfg.hard = true; g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 1200));
+    g.forceRefresh();
+    await new Promise(r => setTimeout(r, 700));   // лерп вуали 0.25 с + запас
+    const hard = g.veilStats();
+    const pinned = (g.veilAll(1), await new Promise(r => setTimeout(() => r(g.veilStats()), 350)));
+    g.veilAll(null);
+    await new Promise(r => setTimeout(r, 700));
+    const released = g.veilStats();
+    g.cfg.hard = false;
+    return { hard, pinned, released, alive: g.alive() };
+  });
+  expect(veil.hard.withShader > 50, 'вуаль: шейдерный патч на всех предметах (' + veil.hard.withShader + ')');
+  expect(veil.hard.veiled > 0 && veil.hard.max > 0.5,
+    'Hard: недоступные реально обесцвечены через uVeil (' + veil.hard.veiled + ' шт, max ' + veil.hard.max + ')');
+  expect(veil.pinned.veiled === veil.pinned.withShader,
+    'пин тюнера накрывает всю кучу (' + veil.pinned.veiled + '/' + veil.pinned.withShader + ')');
+  expect(veil.released.veiled < veil.pinned.veiled,
+    'снятие пина возвращает вуаль под управление доступности (' + veil.pinned.veiled + ' -> ' + veil.released.veiled + ')');
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
