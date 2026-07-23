@@ -231,38 +231,42 @@
   .mmult { margin-left:auto; text-align:right; flex:none; }
   .mmult b { font-family:var(--font-round); font-size:17px; color:#ffd60a; display:block; }
   .mmult span { font-size:10px; opacity:.6; }
-  /* ===== витрина уровня (десктоп) ===== */
-  #vitrine { display:none; position:fixed; left:16px; /* СЛЕВА — спека владельца
-    2026-07-22 по скрину каркаса (был right:16). Соседи по углу — tierToast
-    и hintBtn: разруливает интерфейс (задача поставлена при переносе) */
-    bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:280px;
-    max-height:55vh; z-index:4; pointer-events:none; /* жёсткое требование:
-    не мешать игре — панель не ловит ни кликов, ни скролла */
-    flex-direction:column; gap:8px; padding:12px;
-    background:rgba(15,20,30,.55); border:1px solid rgba(255,255,255,.08);
-    border-radius:16px; backdrop-filter:blur(6px);
-    opacity:1; transition:opacity .2s; overflow:hidden; }
-  @media (min-width:1160px) and (pointer:fine){ #vitrine { display:flex; } }
+  /* ===== витрина уровня — ПО МАКЕТУ Figma 768:1061 =====
+     Панель 300px, радиус 32, белый 16%; 5 строк по 44 с зазором 12;
+     имя SF Pro Rounded Bold 16 #3a4068, полоска 140×8 (#23ce1a на белом
+     40%), множитель — пилюля по контенту. Заголовка в макете НЕТ.
+     Остальные типы уровня — В ОЧЕРЕДИ за кадром (спека владельца
+     «остальные за скролом»): ручной скролл невозможен при
+     pointer-events:none, поэтому АВТОРОТАЦИЯ — собранный тип уезжает,
+     следующий приезжает (vitDone в 85-hud). */
+  #vitrine { display:none; position:fixed; left:16px;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:300px;
+    z-index:4; pointer-events:none; padding:12px; border-radius:32px;
+    background:rgba(255,255,255,.16);
+    opacity:1; transition:opacity .2s; }
+  @media (min-width:1160px) and (pointer:fine){ #vitrine { display:block; } }
   html.camnear #vitrine { opacity:0; } /* камера близко — не мешаем */
-  .vhead { font-size:12px; font-weight:800; letter-spacing:.4px; color:#aeb6c6;
-    text-transform:uppercase; }
-  #vGrid { display:grid; grid-template-columns:1fr 1fr; gap:6px; overflow:hidden; }
-  .vcell { display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.06);
-    border-radius:10px; padding:5px 7px; min-width:0; }
-  .vthumb { width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,.08);
-    flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center;
-    font-size:12px; font-weight:800; color:#8b93a5; }
+  #vitrine.vempty { opacity:0; }       /* все типы собраны — панель ушла */
+  #vGrid { display:flex; flex-direction:column; gap:12px; }
+  .vcell { display:flex; align-items:center; gap:8px; height:44px;
+    transition:transform .28s ease-in, opacity .28s ease-in; }
+  .vcell.out { transform:translateX(-110%); opacity:0; }
+  .vcell.in { animation:vIn .32s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes vIn { from { transform:translateX(36px); opacity:0; }
+    to { transform:translateX(0); opacity:1; } }
+  .vthumb { width:44px; height:44px; flex:none; display:flex; align-items:center;
+    justify-content:center; font-size:15px; font-weight:800; color:#3a4068; }
   .vthumb img { width:100%; height:100%; display:block; }
-  .vbody { flex:1; min-width:0; }
-  .vname { font-size:10px; font-weight:700; color:#cfd5e3; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis; text-transform:capitalize; }
-  .vbar { height:4px; border-radius:2px; background:rgba(255,255,255,.13);
-    overflow:hidden; margin-top:3px; }
-  .vbar i { display:block; height:100%; width:0%; background:#ffd60a; border-radius:2px;
-    transition:width .25s ease-out; }
-  .vmult { font-family:var(--font-round); font-size:11px; font-weight:900; color:#ffd60a;
-    flex:none; }
-  #vMore { font-size:11px; font-weight:700; color:#8b93a5; text-align:center; }
+  .vbody { flex:1; min-width:0; align-self:flex-start; padding-top:5px; }
+  .vname { font-family:var(--font-round); font-size:16px; font-weight:700;
+    color:#3a4068; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vbar { width:140px; height:8px; border-radius:40px;
+    background:rgba(255,255,255,.4); overflow:hidden; margin-top:8px; }
+  .vbar i { display:block; height:100%; width:0%; background:#23ce1a;
+    border-radius:40px; transition:width .25s ease-out; }
+  .vmult { font-family:var(--font-round); font-size:16px; font-weight:900;
+    color:#3a4068; flex:none; margin-left:auto; padding:8px;
+    background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ===== всплывашка апа ступени ===== */
   #tierToast { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);
     z-index:8; display:flex; align-items:center; gap:10px; padding:8px 16px 8px 8px;
@@ -476,11 +480,7 @@
      панель ИНФОРМАЦИОННАЯ — pointer-events:none целиком; исчезает при
      приближении камеры (класс camnear на <html> вешает 99-main,
      гистерезис 14.5/15.2). Временная стилистика до макета владельца. -->
-<div id="vitrine">
-  <div class="vhead">Level items</div>
-  <div id="vGrid"></div>
-  <div id="vMore" style="display:none"></div>
-</div>
+<div id="vitrine"><div id="vGrid"></div></div>
 
 <!-- МУЗЕЙ ОБЪЕКТОВ (каркас до макетов владельца — он принесёт их в чат
      ИНТЕРФЕЙСА): список накоплений по типам из accSnapshot() меты; пока

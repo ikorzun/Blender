@@ -358,73 +358,108 @@ function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
 if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 
 
-// ===== ВИТРИНА УРОВНЯ (десктоп, спека владельца 2026-07-22) =====
-// Карточка на каждый ТИП замеса уровня: превью (кэш thumbCache), полоска
-// накопления к следующему порогу, множитель. РЕАЛТАЙМ дёшево: раз в
-// VIT_TICK_MS опрашиваются ТОЛЬКО ключи видимых карточек через accCount
-// (точечное чтение Save.ac), DOM трогается лишь при смене значения.
-// Пересборка — только на смене уровня. Скролла нет намеренно: панель
-// pointer-events:none (требование «не мешать игре»), поэтому при
-// переполнении хвост честно сворачивается в «+N more».
-const VIT_TICK_MS = 150, VIT_MAX_CELLS = 36;
-let vitLevelRef = null, vitAt = 0, vitCells = null;
+// ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 (спека владельца:
+// «берем 5 вещей, остальные за скролом, вещи меняются если набираются») =====
+// 5 видимых СЛОТОВ; остальные типы уровня — очередь за кадром. Ручной
+// скролл невозможен (pointer-events:none, «не мешать игре»), поэтому
+// АВТОРОТАЦИЯ: собранный тип уезжает влево, из очереди приезжает
+// следующий. Реалтайм-полоски: точечный accCount видимых раз в 150 мс.
+const VIT_TICK_MS = 150, VIT_SLOTS = 5;
+let vitLevelRef = null, vitAt = 0, vitSlots = null, vitQueue = null, vitRotating = false;
 function vitrineOn(){
   return window.matchMedia && matchMedia('(min-width:1160px) and (pointer:fine)').matches;
 }
+// ТРИГГЕР РОТАЦИИ — одна функция-предикат (дефолт диспетчера: тип
+// ПОЛНОСТЬЮ разобран на уровне; владельцу задан уточняющий вопрос —
+// альтернатива «полоска множителя набрана» меняется только здесь)
+function vitDone(k, aliveSet){ return !aliveSet.has(k); }
+function vitAliveSet(){
+  const a = new Set();
+  for (const it of items)
+    if (it.alive && !it.surprise && !it.bomb && !it.rock && it.type) a.add(String(it.type.name));
+  return a;
+}
+function vitFillCell(cell, entry){
+  cell.dataset.key = entry.k;
+  const th = cell.querySelector('.vthumb');
+  th.innerHTML = '';
+  const url = itemThumb(entry.it);
+  if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
+  else th.textContent = entry.k.slice(0, 1).toUpperCase();
+  cell.querySelector('.vname').textContent =
+    (typeof accLabel === 'function' ? accLabel(entry.k) : entry.k);
+  cell._acc = { last: -1 };
+  vitUpdateCell(cell);
+}
+function vitUpdateCell(cell){
+  const k = cell.dataset.key, n = accCount(k);
+  if (n === cell._acc.last) return;
+  cell._acc.last = n;
+  const next = accNext(k), tier = accTier(k);
+  const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
+  const frac = next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
+  cell.querySelector('.vbar i').style.width = (frac * 100).toFixed(1) + '%';
+  cell.querySelector('.vmult').textContent = fmtMult(accMult(k));
+}
 function buildVitrine(){
   vitLevelRef = level;
-  const grid = $('vGrid'); grid.innerHTML = ''; vitCells = {};
-  const seen = new Set(), keys = [];
+  const grid = $('vGrid'); grid.innerHTML = '';
+  $('vitrine').classList.remove('vempty');
+  // очередь — порядок появления типов в замесе уровня
+  const seen = new Set(); vitQueue = [];
   for (const it of items){
-    if (it.surprise || it.bomb || it.rock) continue; // спецпредметы — не типы
-    // ⚠️ КЛЮЧ НАКОПЛЕНИЯ — ИМЯ ТИПА (it.type.name), НЕ it.key: key предмета
-    // это 't{индекс}' для спаривания близнецов, а мета копит Save.ac по
-    // TYPES-именам ('foodorange') — с it.key полоски были мертвы (вечный 0)
-    const k = it.type && it.type.name ? String(it.type.name) : String(it.key);
-    if (!seen.has(k)){ seen.add(k); keys.push({ k, it }); }
+    if (it.surprise || it.bomb || it.rock || !it.type) continue;
+    const k = String(it.type.name);
+    if (!seen.has(k)){ seen.add(k); vitQueue.push({ k, it }); }
   }
-  const shown = keys.slice(0, VIT_MAX_CELLS);
-  for (const { k, it } of shown){
+  vitSlots = [];
+  for (let i = 0; i < Math.min(VIT_SLOTS, vitQueue.length); i++){
     const cell = document.createElement('div');
     cell.className = 'vcell';
-    cell.dataset.key = k; // адресуемость для проверок
-    const th = document.createElement('div');
-    th.className = 'vthumb';
-    const url = itemThumb(it);
-    if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
-    else th.textContent = k.slice(0, 1).toUpperCase();
-    const body = document.createElement('div');
-    body.className = 'vbody';
-    body.innerHTML = '<div class="vname"></div><div class="vbar"><i></i></div>';
-    body.firstChild.textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
-    const mult = document.createElement('div');
-    mult.className = 'vmult';
-    cell.appendChild(th); cell.appendChild(body); cell.appendChild(mult);
+    cell.innerHTML = '<div class="vthumb"></div><div class="vbody">' +
+      '<div class="vname"></div><div class="vbar"><i></i></div></div>' +
+      '<div class="vmult"></div>';
+    vitFillCell(cell, vitQueue.shift());
     grid.appendChild(cell);
-    vitCells[k] = { fill: body.querySelector('i'), mult, last: -1 };
+    vitSlots.push(cell);
   }
-  const more = keys.length - shown.length;
-  $('vMore').style.display = more > 0 ? '' : 'none';
-  if (more > 0) $('vMore').textContent = '+' + more + ' more';
+}
+function vitRotate(aliveSet){
+  // одна ротация за раз — уезд 0.28 с, потом замена контента и въезд
+  for (const cell of vitSlots){
+    if (cell.classList.contains('out') || !cell.dataset.key) continue;
+    if (!vitDone(cell.dataset.key, aliveSet)) continue;
+    vitRotating = true;
+    cell.classList.add('out');
+    setTimeout(()=>{
+      // из очереди — следующий НЕсобранный (собранные пропускаем насквозь)
+      let nxt = null;
+      const live = vitAliveSet();
+      while (vitQueue.length){ const c = vitQueue.shift();
+        if (!vitDone(c.k, live)){ nxt = c; break; } }
+      if (nxt){
+        vitFillCell(cell, nxt);
+        cell.classList.remove('out'); void cell.offsetWidth;
+        cell.classList.add('in');
+        setTimeout(()=>cell.classList.remove('in'), 360);
+      } else {
+        cell.dataset.key = ''; cell.style.display = 'none';
+        if (vitSlots.every(c => !c.dataset.key))
+          $('vitrine').classList.add('vempty'); // все собраны — панель ушла
+      }
+      vitRotating = false;
+    }, 300);
+    return; // по одной карточке за тик — очередь уездов не накапливаем
+  }
 }
 function tickVitrine(now){
   if (!vitrineOn()) return;
   // строим ПОСЛЕ интро: на первых кадрах палитровые атласы моделей ещё
-  // декодируются (грабля 36-models) — офскрин-портрет выходил ЧЁРНЫМ и
-  // навсегда оседал в кэше превью
+  // декодируются (грабля 36-models) — портреты выходили чёрными и
+  // навсегда оседали в кэше превью
   if (level && level !== vitLevelRef && !intro) buildVitrine();
-  if (!vitCells || now - vitAt < VIT_TICK_MS) return;
+  if (!vitSlots || now - vitAt < VIT_TICK_MS) return;
   vitAt = now;
-  for (const k in vitCells){
-    const c = vitCells[k], n = accCount(k);
-    if (n === c.last) continue;
-    c.last = n;
-    const next = accNext(k);
-    // прогресс внутри текущей ступени: от прошлого порога к следующему
-    const tier = accTier(k);
-    const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
-    const frac = next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
-    c.fill.style.width = (frac * 100).toFixed(1) + '%';
-    c.mult.textContent = fmtMult(accMult(k));
-  }
+  for (const cell of vitSlots) if (cell.dataset.key) vitUpdateCell(cell);
+  if (!vitRotating && !intro && level && !level.over) vitRotate(vitAliveSet());
 }
