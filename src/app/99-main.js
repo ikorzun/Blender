@@ -484,6 +484,19 @@ window.__game = {
   shake: performShake,
   cfg: CFG,
   regen: genLevel,
+  // дебаг-тюнер пресетов matcap (10-stage): ползунки поверх HUD, живое
+  // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
+  matcapTuner,
+  matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
+  // контрольная сумма пикселей пресета: сьют проверяет ПЕРЕСЪЁМКУ текстуры,
+  // а не только смену числа в объекте (иначе ассерт был бы пустым)
+  matcapSum(kind){
+    const t = matcapCache.get(kind);
+    if (!t) return -1;
+    const d = t.image.data; let s = 0;
+    for (let i = 0; i < d.length; i += 97) s += d[i];
+    return s;
+  },
   // мгновенно завершить интро (для тестов): синхронная осадка + утряска
   skipIntro(){
     if (!intro) return;

@@ -483,6 +483,34 @@ const path = require('path');
   }
   expect(guardR < 500, 'эндшпиль с камнем достигнут ботом');
 
+  // matcap-тюнер (дебаг-инструмент владельца): открывается из консоли, живьём
+  // пересматривает пресет, закрывается повторным вызовом. Секция В КОНЦЕ и
+  // САМОВОССТАНАВЛИВАЮЩАЯСЯ — пресеты глобальны, испорченный matcap утёк бы
+  // в любые последующие проверки.
+  const tuner = await page.evaluate(() => {
+    const g = window.__game;
+    const was = g.matcapPresets().soft.amb, sum0 = g.matcapSum('soft');
+    g.matcapTuner();
+    const sliders = document.querySelectorAll('#matcapTuner input[type=range]').length;
+    const el = document.querySelector('#matcapTuner input[data-mc="soft.amb"]');
+    const drag = v => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+    drag(0.05);
+    return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const moved = g.matcapPresets().soft.amb, sum1 = g.matcapSum('soft');
+      drag(was);                                        // вернуть как было
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        g.matcapTuner();                                // и закрыть
+        res({ sliders, was, moved, sum0, sum1, back: g.matcapPresets().soft.amb,
+              sumBack: g.matcapSum('soft'), closed: !document.getElementById('matcapTuner') });
+      }));
+    })));
+  });
+  expect(tuner.sliders === 24, 'тюнер: 24 ползунка (3 света + 3×7 пресетов)');
+  expect(tuner.moved === 0.05, 'тюнер меняет пресет (soft.amb ' + tuner.was + ' -> ' + tuner.moved + ')');
+  expect(tuner.sum1 !== tuner.sum0, 'тюнер ПЕРЕСНИМАЕТ текстуру (сумма ' + tuner.sum0 + ' -> ' + tuner.sum1 + ')');
+  expect(tuner.back === tuner.was && tuner.sumBack === tuner.sum0, 'тюнер откатывается ровно назад');
+  expect(tuner.closed, 'тюнер закрывается повторным вызовом');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
