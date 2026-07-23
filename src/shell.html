@@ -185,7 +185,11 @@
   #debugPanel input[type=range] { width:110px; }
   #debugPanel button { background:#3e63dd; color:#fff; border:none; border-radius:9px; padding:8px 12px; font-size:14px; font-weight:600; width:100%; margin-top:6px; cursor:pointer; }
   .overlay { display:none; position:fixed; inset:0; z-index:20; background:rgba(10,14,22,.72);
-    align-items:center; justify-content:center; backdrop-filter:blur(3px); }
+    align-items:center; justify-content:center;
+    /* -webkit- ОБЯЗАТЕЛЕН: Safari поддерживает backdrop-filter только с
+       префиксом вплоть до 17.x — без него размытие под оверлеями там не
+       работало вовсе (находка попутной проверки Safari-совместимости) */
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
   .card { background:#1d2432; border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:26px 24px;
     width:min(320px, 86vw); text-align:center; }
   .card h2 { font-size:20px; margin-bottom:10px; }
@@ -239,11 +243,39 @@
      «остальные за скролом»): ручной скролл невозможен при
      pointer-events:none, поэтому АВТОРОТАЦИЯ — собранный тип уезжает,
      следующий приезжает (vitDone в 85-hud). */
-  #vitrine { display:none; position:fixed; left:16px;
+  #vitrine { display:none; position:fixed; left:8px;
+    /* left 8 = левый край кнопки подсказки (спека владельца «отступ как у
+       иконки снизу»); замер rect: hintBtn.left = 8 на 1440/1600/1920 */
     bottom:calc(env(safe-area-inset-bottom, 0px) + 76px); width:300px;
     z-index:4; pointer-events:none; padding:12px; border-radius:32px;
     background:rgba(255,255,255,.16);
-    opacity:1; transition:opacity .2s; }
+    box-shadow:0 0 28px 0 #fff inset; /* значение владельца, как задано */
+    opacity:1;
+    /* РАЗВОРОТ ПОСЛЕ ОБЛЁТА (спека владельца «блок плавно разворачивается
+       после анимации облёта ведра»): панель раскатывается снизу вверх по
+       классу html.introdone (его вешает 99-main в finishIntro/skipIntro,
+       снимает в startIntro — на регене панель сложится тем же ходом).
+       ⚠️ OPACITY НЕ ТРОГАТЬ: она занята ТРЕМЯ состояниями (база /
+       html.camnear / .vempty) с одинаковой специфичностью — четвёртое
+       правило решалось бы порядком в файле и убило бы камерный фейд.
+       Разворот идёт ОТДЕЛЬНЫМИ свойствами, поэтому конфликта нет.
+       ⚠️ И НЕ transform:scaleY / max-height: оба меняют rect панели, а её
+       живой rect читают ДВОЕ — якорь всплывашки (85-hud) и критерий
+       camnear (99-main). clip-path не трогает ни layout, ни rect.
+       Все переходы — в ОДНОЙ декларации: отдельное правило transition
+       ниже перезаписало бы шорткат и убило фейд opacity. */
+    clip-path:inset(100% 0 0 0 round 32px);
+    -webkit-clip-path:inset(100% 0 0 0 round 32px);
+    transform:translateY(12px);
+    transition:opacity .2s,
+               clip-path .5s cubic-bezier(.4,0,.2,1) .12s,
+               -webkit-clip-path .5s cubic-bezier(.4,0,.2,1) .12s,
+               transform .5s cubic-bezier(.4,0,.2,1) .12s; }
+  html.introdone #vitrine { clip-path:inset(0 0 0 0 round 32px);
+    -webkit-clip-path:inset(0 0 0 0 round 32px); transform:none; }
+  @media (prefers-reduced-motion: reduce){
+    #vitrine { transition:opacity .2s; } /* разворот мгновенный */
+  }
   @media (min-width:1160px) and (pointer:fine){ #vitrine { display:block; } }
   html.camnear #vitrine { opacity:0; } /* камера близко — не мешаем */
   #vitrine.vempty { opacity:0; }       /* все типы собраны — панель ушла */
