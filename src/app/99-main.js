@@ -599,17 +599,41 @@ window.__game = {
     detonateBomb(b);
     return true;
   },
-  // скрин-пробы эффектов: первый ДОСТУПНЫЙ предмет пачки + его экранные
-  // координаты (для реального mouse.click в headless)
+  // скрин-пробы эффектов: ВИДИМАЯ точка первого доступного предмета пачки
+  // (для реального mouse.click в headless). v2 по флейк-репорту диспетчера
+  // (v76): проекция ЦЕНТРА иногда попадала в ЗАГОРАЖИВАЮЩИЙ передний предмет
+  // (клик матчил чужую группу: «−20» превращался в «+120»). Теперь точка
+  // ищется рейкастом с камеры — центр + 8 смещений по экранным осям в
+  // пределах охвата; отдаётся только пиксель, где предмет — ПЕРВОЕ
+  // пересечение. Все точки закрыты у всех кандидатов -> {occluded:true}:
+  // вызывающий делает встряску и повторяет.
   findByTex(tex){
+    const meshes = aliveMeshes();
+    const rc = new THREE.Raycaster();
+    const right = new THREE.Vector3(), up = new THREE.Vector3();
+    camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+    let firstHidden = null;
     for (let i = 0; i < items.length; i++){
       const it = items[i];
       if (!it.alive || !it.accessible || it.animating || it.type.tex !== tex) continue;
-      const sp = it.p.clone().project(camera);
-      return { i, name: it.type.name,
-        px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+      for (let k = 0; k < 9; k++){
+        const wp = it.p.clone();
+        if (k > 0){
+          const a = (k - 1)/8*Math.PI*2, d = it.r * 0.55;
+          wp.add(right.clone().multiplyScalar(Math.cos(a)*d))
+            .add(up.clone().multiplyScalar(Math.sin(a)*d));
+        }
+        const sp = wp.project(camera);
+        rc.setFromCamera({ x: sp.x, y: sp.y }, camera);
+        const hits = rc.intersectObjects(meshes, false);
+        if (hits.length && hits[0].object.userData.item === it){
+          return { i, name: it.type.name,
+            px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+        }
+      }
+      if (!firstHidden) firstHidden = { i, name: it.type.name, occluded: true };
     }
-    return null;
+    return firstHidden;
   },
   // вес при встряске: средняя |v| живых тел по пачкам (car/animal/food/...)
   // — замер отклика сразу после shake(); для тюнинга SHAKE_RESP владельцем
