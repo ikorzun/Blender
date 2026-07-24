@@ -425,8 +425,13 @@ function loop(){
     let gTgt = 0;
     if (grinding) gTgt = 1;
     else if (!level.over && !intro && items.some(i=>i.alive)){
+      // телеграф не длиннее самого таймера: после ÷3 (idleLimit 10/3.3) на Hard
+      // GRIND_LEAD=10 > idleLimit → небо было всегда ≥67% красным. Кап lead под
+      // idleLimit → красный честно наливается 0→1 по всему простою (Easy 10==10
+      // бит-в-бит как было, Hard 3.3 получает полную рампу без пола).
+      const lead = Math.min(GRIND_LEAD, level.idleLimit);
       const left = level.idleLimit - (now - stats.lastAction)/1000; // сек до помола
-      if (left < GRIND_LEAD) gTgt = Math.min(1, Math.max(0, (GRIND_LEAD - left)/GRIND_LEAD));
+      if (left < lead) gTgt = Math.min(1, Math.max(0, (lead - left)/lead));
     }
     const gCur = skyMat.uniforms.uGrind.value;
     const gStep = dt / (gTgt < gCur ? GRIND_FADE_DN : GRIND_FADE_UP); // вниз быстрее подъёма
@@ -507,7 +512,12 @@ function loop(){
     // секунды обновлялись то через 0.6 с, то через 1.2 с: «таймер запаздывает
     // и дёргается», жалоба владельца 2026-07-21)
     // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
-    // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает
+    // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает.
+    // ⚠️ СВЯЗКА С idleLimit: помол блокирует этот счётчик (items animating). После
+    // ÷3 (Hard idleLimit=3.3) запас до старта помола упал 8.8→2.1 c, ещё держит.
+    // Если КОГДА-НИБУДЬ опустят idleLimit ниже ~1.3 c — помол начнёт грызть РАНЬШЕ
+    // 2-го stuck-тика и экран поражения на реальном тупике не сработает: тогда
+    // пересмотреть порог stuck>=2 или гарантировать idleLimit > 2×HUD-тик(0.6).
     if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) showLose();

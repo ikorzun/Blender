@@ -176,7 +176,7 @@ const path = require('path');
   expect(sc === 20, 'пара даёт 20 очков (' + sc + ')');
 
   const preMixerAlive = await page.evaluate(() => window.__game.alive());
-  await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // easy=30с — для теста лимит укорачиваем
+  await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // easy=10с — для теста лимит укорачиваем до 5
   await page.waitForTimeout(1000);
   // огонь — эскалация помола (правка владельца 2026-07-22): на 1-й секунде
   // Grinding его ещё НЕТ, появляется вместе со спуском глаз после 3 с
