@@ -708,25 +708,20 @@ window.hideMainScreen = closeMainScreen;
 
 
 // ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 =====
-// ВСЕ типы замеса уровня строкой (спека владельца 2026-07-23 «в блоке нужны
-// все объекты уровня»; прежние «5 слотов + авторотация» отменены). Ручной
-// скролл невозможен (pointer-events:none, «не мешать игре»). Реалтайм-полоски:
-// точечный accCount строк раз в 150 мс. Собранный тип уезжает влево и
-// исчезает (vitRotate; очереди на замену больше нет — показаны все).
-const VIT_TICK_MS = 150;
-let vitLevelRef = null, vitAt = 0, vitSlots = null, vitQueue = null, vitRotating = false;
+// ТОП-5 ПО ПРОГРЕССУ (спека владельца 2026-07-24): видимых строк РОВНО 5, но
+// ранжируются ВСЕ типы уровня по vitFrac — скрытый тип, набравший больше,
+// ВЫТЕСНЯЕТ верхнего (входит в пятёрку, выбывший уходит за кадр). Отменяет
+// «весь замес» (2026-07-23) и авторотацию «собрал→ушёл» (v77): механизм — РАНГ.
+// Ручной скролл невозможен (pointer-events:none). Реалтайм: пересчёт vitFrac
+// ВСЕХ типов раз в 150 мс (число, дёшево — не DOM).
+// ⚠️ РОВНО 5 СЛОТОВ ВСЕГДА (LEVEL_TYPES_MIN=9 ≥ 5) → высота #vGrid постоянна →
+// rect #vitrine бит-в-бит: его читают camnear-порог (99-main) и якорь тоста
+// (85-hud). Смена типа в слоте — уезд/въезд ВНУТРИ слота (.out/.in на ДЕТЯХ
+// раскладки нет — на самой ячейке, но число ячеек не меняется), НЕ add/remove.
+const VIT_TICK_MS = 150, VIT_MAX = 5;
+let vitLevelRef = null, vitAt = 0, vitSlots = null, vitAll = null;
 function vitrineOn(){
   return window.matchMedia && matchMedia('(min-width:1160px) and (pointer:fine)').matches;
-}
-// ТРИГГЕР РОТАЦИИ — одна функция-предикат (дефолт диспетчера: тип
-// ПОЛНОСТЬЮ разобран на уровне; владельцу задан уточняющий вопрос —
-// альтернатива «полоска множителя набрана» меняется только здесь)
-function vitDone(k, aliveSet){ return !aliveSet.has(k); }
-function vitAliveSet(){
-  const a = new Set();
-  for (const it of items)
-    if (it.alive && !it.surprise && !it.bomb && !it.rock && it.type) a.add(String(it.type.name));
-  return a;
 }
 function vitFillCell(cell, entry){
   cell.dataset.key = entry.k;
@@ -769,27 +764,22 @@ function vitPulse(cell){
   cell.classList.add('hit');
   cell._hitT = setTimeout(()=>{ cell.classList.remove('hit'); cell._hitT = 0; }, 460);
 }
+// vitAll — ВСЕ типы замеса уровня (не расходуется: ранжируем среди всех, но
+// показываем только топ-5). Строим РОВНО 5 слотов, заполняем топ-5 по прогрессу.
 function buildVitrine(){
   vitLevelRef = level;
   const grid = $('vGrid'); grid.innerHTML = '';
   $('vitrine').classList.remove('vempty');
-  // очередь — порядок появления типов в замесе уровня
-  const seen = new Set(); vitQueue = [];
+  const seen = new Set(); vitAll = [];
   for (const it of items){
     if (it.surprise || it.bomb || it.rock || !it.type) continue;
     const k = String(it.type.name);
-    if (!seen.has(k)){ seen.add(k); vitQueue.push({ k, it }); }
+    if (!seen.has(k)){ seen.add(k); vitAll.push({ k, it }); }
   }
-  // СОРТИРОВКА ПО ПРОГРЕССУ УБЫВАНИЕМ (спека владельца): первая строка — с
-  // самой полной полоской; тай-брейк по накоплению. Каскад разворота пойдёт
-  // сверху в этом же порядке.
-  vitQueue.sort((a, b) => vitFrac(b.k) - vitFrac(a.k) || accCount(b.k) - accCount(a.k));
   vitSlots = [];
-  // ВСЕ типы уровня (спека владельца 2026-07-23 «в блоке нужны все объекты
-  // уровня»): раньше показывали 5 с авторотацией — теперь строим весь замес.
-  // count фиксируем ДО цикла (vitQueue.shift сокращает длину по ходу).
-  const count = vitQueue.length;
-  // шаг каскада капим, чтобы разворот не тянулся при многих строках (~0.45 с)
+  const ranked = vitRankedAll();
+  const count = Math.min(VIT_MAX, ranked.length); // РОВНО 5 (типов всегда ≥9)
+  // шаг каскада капим, чтобы разворот не тянулся (~0.45 с)
   const step = Math.min(0.07, 0.45 / Math.max(1, count));
   for (let i = 0; i < count; i++){
     const cell = document.createElement('div');
@@ -797,7 +787,7 @@ function buildVitrine(){
     cell.innerHTML = '<div class="vthumb"></div><div class="vbody">' +
       '<div class="vname"></div><div class="vbar"><i></i></div></div>' +
       '<div class="vmult"></div>';
-    vitFillCell(cell, vitQueue.shift());
+    vitFillCell(cell, ranked[i]);
     // КАСКАД РАЗВОРОТА: строки приезжают справа по очереди (i·step); .rin
     // снимаем по завершении, чтобы остаточный animation-delay не задержал
     // будущие .hit/.in на этой же ячейке
@@ -808,61 +798,35 @@ function buildVitrine(){
     vitSlots.push(cell);
   }
 }
-function vitRotate(aliveSet){
-  // одна ротация за раз — уезд 0.28 с, потом замена контента и въезд
-  for (const cell of vitSlots){
-    if (cell.classList.contains('out') || !cell.dataset.key) continue;
-    if (!vitDone(cell.dataset.key, aliveSet)) continue;
-    vitRotating = true;
+// РАНЖИРОВАНИЕ ВСЕХ типов уровня по прогрессу убыванием (тай-брейк — накопление)
+function vitRankedAll(){
+  return vitAll.slice().sort((a, b) =>
+    vitFrac(b.k) - vitFrac(a.k) || accCount(b.k) - accCount(a.k));
+}
+// СОГЛАСОВАНИЕ ТОП-5: держим РОВНО 5 слотов = топ-5 по рангу. Слот, чей тип
+// перестал занимать свою позицию топ-5 (вытеснён скрытым обгонщиком / пересорт),
+// уезжает влево (.out, 0.28 с), затем перезаполняется актуальным типом позиции
+// и въезжает пружинкой (.in). Слот, где тип не изменился, — обычный
+// vitUpdateCell (полоска + .hit-пульс на совмещении). Число ячеек НЕ меняется
+// → высота #vGrid и rect #vitrine постоянны. reduce-motion: мгновенная замена.
+function vitReconcile(){
+  if (!vitSlots || !vitAll) return;
+  const top5 = vitRankedAll().slice(0, VIT_MAX);
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (let i = 0; i < vitSlots.length; i++){
+    const cell = vitSlots[i], want = top5[i];
+    if (!want) continue;
+    if (cell.dataset.key === want.k){ vitUpdateCell(cell); continue; }
+    if (cell.classList.contains('out')) continue; // уже анимируется — не трогаем
+    if (reduce){ vitFillCell(cell, want); continue; }
     cell.classList.add('out');
     setTimeout(()=>{
-      // из очереди — следующий НЕсобранный (собранные пропускаем насквозь)
-      let nxt = null;
-      const live = vitAliveSet();
-      while (vitQueue.length){ const c = vitQueue.shift();
-        if (!vitDone(c.k, live)){ nxt = c; break; } }
-      if (nxt){
-        vitFillCell(cell, nxt);
-        cell.classList.remove('out'); void cell.offsetWidth;
-        cell.classList.add('in');
-        setTimeout(()=>cell.classList.remove('in'), 360);
-      } else {
-        cell.dataset.key = ''; cell.style.display = 'none';
-        if (vitSlots.every(c => !c.dataset.key))
-          $('vitrine').classList.add('vempty'); // все собраны — панель ушла
-      }
-      vitRotating = false;
-    }, 300);
-    return; // по одной карточке за тик — очередь уездов не накапливаем
-  }
-}
-// ДИНАМИЧЕСКИЙ ПЕРЕСОРТ (спека владельца «строка меняется, если полоска
-// обгонит первую»): держим строки по убыванию прогресса. Перестановка — FLIP
-// (замер старой позиции → переставить в DOM → анимировать из старой в новую),
-// transform на ДЕТЯХ (.vcell), не на #vitrine — его rect не трогаем.
-// prefers-reduced-motion: переставляем без анимации.
-function vitResort(){
-  const grid = $('vGrid'); if (!grid) return;
-  const live = [...grid.children].filter(c => c.dataset.key && c.style.display !== 'none');
-  if (live.length < 2) return;
-  const sorted = live.slice().sort((a, b) =>
-    vitFrac(b.dataset.key) - vitFrac(a.dataset.key) ||
-    accCount(b.dataset.key) - accCount(a.dataset.key));
-  let same = true;
-  for (let i = 0; i < live.length; i++) if (live[i] !== sorted[i]){ same = false; break; }
-  if (same) return;
-  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const before = new Map(); for (const c of live) before.set(c, c.getBoundingClientRect().top);
-  for (const c of sorted) grid.appendChild(c); // переставить в порядок прогресса
-  if (reduce) return;
-  for (const c of sorted){
-    const dy = before.get(c) - c.getBoundingClientRect().top;
-    if (!dy) continue;
-    c.style.transition = 'none'; c.style.transform = 'translateY(' + dy + 'px)';
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      c.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1)'; c.style.transform = '';
-    }));
-    setTimeout(()=>{ c.style.transition = ''; c.style.transform = ''; }, 380);
+      // топ мог сдвинуться за 0.28 с — берём АКТУАЛЬНЫЙ тип для этой позиции
+      const w = vitRankedAll()[i];
+      cell.classList.remove('out');
+      if (w){ vitFillCell(cell, w); void cell.offsetWidth; cell.classList.add('in');
+        setTimeout(()=>cell.classList.remove('in'), 360); }
+    }, 280);
   }
 }
 function tickVitrine(now){
@@ -873,6 +837,6 @@ function tickVitrine(now){
   if (level && level !== vitLevelRef && !intro) buildVitrine();
   if (!vitSlots || now - vitAt < VIT_TICK_MS) return;
   vitAt = now;
-  for (const cell of vitSlots) if (cell.dataset.key) vitUpdateCell(cell);
-  if (!vitRotating && !intro && level && !level.over){ vitResort(); vitRotate(vitAliveSet()); }
+  // vitReconcile сам зовёт vitUpdateCell для неизменившихся слотов (полоски/пульс)
+  if (!intro && level && !level.over) vitReconcile();
 }
