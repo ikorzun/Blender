@@ -582,6 +582,13 @@
     .ms-uname { display:none; }
     .ms-stars span { font-size:34px; }
     .ms-play { grid-area:play; min-height:423px; border-radius:56px; }
+    /* ⚠️ ГЛАЗА ЗАПОЛНЯЮТ карточку Play по вертикали (спека владельца «не
+       оставляя дыр, заполняй пространство блоком с глазами»): карточка растёт
+       1fr-рядом, flex:1 тянет бокс глаз (центрируя зрачки), кнопка flex:none
+       прижата к низу — внутри карточки пусто́т нет. Без этого justify:flex-end
+       сбивал глаза вниз, оставляя 300–400px лиловой пустоты сверху. */
+    .ms-eyes { flex:1 1 auto; min-height:0; }
+    .ms-playbtn { flex:none; }
     .ms-settings { grid-area:sets; border-radius:40px; }
     .ms-banner { grid-area:bann; min-height:0; }
     /* ⚠️ КОЛЛЕКЦИЯ СКРОЛЛИТСЯ ВНУТРИ СЕБЯ: в ней ВСЕ 93 типа. Высоту задаёт
@@ -608,15 +615,21 @@
      + gap), баннер уходит ПОД настройки, левая колонка проп. уже. Перебивает
      базовый бенто (side-by-side) — идёт ПОСЛЕ него по файлу. */
   @media (min-width:700px) and (max-width:900px){
+    /* ⚠️ 1fr НА РЯДУ PLAY (а НЕ на dev): блок с глазами — ЕДИНСТВЕННЫЙ гибкий
+       по высоте, он забирает весь запас колонки и РАСТЁТ, заполняя её донизу
+       (спека владельца «не оставляя дыр, заполняй им пространство по
+       вертикали»). Раньше 1fr стоял на dev → слабина копилась ПОД ссылкой
+       Developer panel = дыра снизу-слева. sets/bann/dev — по контенту. */
     .ms-wrap { grid-template-columns:minmax(240px, 42%) 1fr;
-      grid-template-rows:auto auto auto auto 1fr;
+      grid-template-rows:auto 1fr auto auto auto;
       grid-template-areas:"chead chead"
                           "play  grid "
                           "sets  grid "
                           "bann  grid "
                           "dev   grid "; }
-    .ms-play { min-height:236px; gap:16px; }   /* поджать блок с глазами по высоте */
-    .ms-eyes { width:172px; }                  /* глаза мельче — освобождаем вертикаль */
+    /* карточка тянется 1fr-рядом; глаза flex:1 (из правила ≥700) заполняют её
+       по вертикали, кнопка прижата к низу — внутренних пусто́т нет */
+    .ms-play { min-height:0; gap:16px; }
     .ms-playbtn { height:64px; font-size:26px; }
     .ms-settings { --ms-ctl:148px; }           /* левая колонка уже — контрол поджат */
     .ms-banner { min-height:120px; }
