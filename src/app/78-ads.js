@@ -157,21 +157,42 @@ const Ads = (function(){
     }, 1000);
   }
 
-  // interstitial между уровнями: не раньше INTER_MIN_WINS побед сессии и не
-  // чаще INTER_GAP_MS; только в bridge-режиме (в стабе не раздражаем).
-  // Каденция может переехать в per-platform конфиг (вердикт аудита плана).
-  let sessionWins = 0, interLastMs = 0;
-  function noteWin(){ sessionWins++; }
+  // interstitial между уровнями: раз в INTER_EVERY_LEVELS ПРОЙДЕННЫХ уровней
+  // (спека владельца 2026-07-23 «межстраничная каждый 5 уровень»). Счётчик
+  // двигает ТОЛЬКО победа (noteWin в showEnd) — поражение/повтор прогрессию
+  // не наращивают, поэтому САМИ по себе порога не достигают. ⚠️ НО показ —
+  // не «только на победе»: maybeInterstitial зовут ОБА перехода (againBtn/
+  // loseAgainBtn, 90-input), а уровень меняют и мимо них (msPlayBtn «Play
+  // Game», pauseRestart — genLevel без сброса счётчика). Поэтому накопленный
+  // за 5 побед ролик, если игрок ушёл с экрана победы НЕ через Next, выстрелит
+  // на СЛЕДУЮЩЕМ переходе — в т.ч. на Retry после поражения. Это ДОПУСТИМО:
+  // Poki/CrazyGames явно разрешают межстраничную на смерти/рестарте, а «раз в
+  // 5 побед» сохраняется (счётчик считает победы, показ лишь откладывается до
+  // ближайшего перехода). Строго «только на победе» = убрать вызов из
+  // loseAgainBtn (зона 90-input) — по слову владельца, не додумывая.
+  // Только в bridge-режиме (в стабе не раздражаем). Единственная точка ПОКАЗА.
+  // ⚠️ Это НАШ ЗАПРОС, а не гарантия: showInterstitial у Poki/CrazyGames —
+  // сигнал возможности, площадка сама пейсит и вправе пропустить. «Каждый 5»
+  // — верхняя граница нашей инициативы; ЧАЩЕ мы не просим (см.
+  // docs/AD-CADENCE-PER-PLATFORM.md). Пауза/мьют на время ролика висят на
+  // INTERSTITIAL_STATE_CHANGED (см. init) — если площадка ничего не показала,
+  // OPENED не придёт и игра не замрёт.
+  // ⚠️ ТОЧКА ПОДПИСКИ: когда владелец включит «Subscribe отключает баннеры»,
+  // сюда встанет ОДНА строка-гвард в начале (`if (adsRemoved()) return;`).
+  // Флаг «реклама снята» — покупка, живёт в сейве (зона МЕТЫ), запрос туда
+  // оформляется в момент решения по платежам (у Poki платежей в Bridge нет).
+  let winsSinceInter = 0;
+  function noteWin(){ winsSinceInter++; }
   function maybeInterstitial(){
     if (mode !== 'bridge') return;
-    if (sessionWins < INTER_MIN_WINS) return;
-    const now = performance.now();
-    if (now - interLastMs < INTER_GAP_MS) return;
+    if (winsSinceInter < INTER_EVERY_LEVELS) return;
+    winsSinceInter = 0; // крестим окно СРАЗУ: повторный клик или поражение
+    // между победами не должны выпустить второй ролик; при сбое показа
+    // best-effort теряем один — лучше, чем спам-ретраи каждый переход
     try {
       window.bridge.advertisement.showInterstitial();
-      interLastMs = now;
       if (stats) stats.lastAction = performance.now(); // миксер не ест предметы под рекламой
-      Telemetry.ev('inter', {});
+      Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
     } catch(e){}
   }
   return {
@@ -197,5 +218,11 @@ const Ads = (function(){
         showStub();
       }
     },
+    // отладка каденции (сьют): счётчик побед до следующего ролика
+    get _winsSinceInter(){ return winsSinceInter; },
   };
 })();
+// Отладочная ручка каденции для headless-сьюта (как __game для ядра): полный
+// прогон 5 побед в тесте медленный и флейкозависимый, а noteWin/maybeInter —
+// публичные методы Ads. Зона ИНТЕГРАЦИИ, снять = одна строка.
+if (typeof window !== 'undefined') window.__ads = Ads;

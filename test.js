@@ -737,7 +737,7 @@ window.bridge = {
   // и даёт из теста слать состояния. Показ запускаем БОЕВЫМ путём: клик по
   // кнопке «Watch» -> startAd -> Ads.showRewarded.
   const MOCK_RW = `
-window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); }, rwShown:0 };
+window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); }, rwShown:0, interShown:0 };
 function reg(ev,cb){ (window.__mock.h[ev] = window.__mock.h[ev] || []).push(cb); }
 window.bridge = {
   PLATFORM_MESSAGE: { GAME_READY:'game_ready' },
@@ -746,7 +746,7 @@ window.bridge = {
   INTERSTITIAL_STATE: { LOADING:'loading', OPENED:'opened', CLOSED:'closed', FAILED:'failed' },
   platform: { id:'mocktest', language:'en', isAudioEnabled:true, sendMessage(){}, on:reg },
   advertisement: { isRewardedSupported:true, isInterstitialSupported:true, on:reg,
-                   showRewarded(){ window.__mock.rwShown++; }, showInterstitial(){} },
+                   showRewarded(){ window.__mock.rwShown++; }, showInterstitial(){ window.__mock.interShown++; } },
   storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
   initialize(){ return Promise.resolve(); },
 };
@@ -826,6 +826,46 @@ window.bridge = {
   const audOn = await adState();
   expect(audOff.muted && !audOff.paused, 'звук площадки: выключение глушит игру, но не ставит её на паузу');
   expect(!audOn.muted, 'звук площадки: включение возвращает звук');
+
+  // 5. КАДЕНЦИЯ «каждый 5 уровень» (спека владельца 2026-07-23). Копим победы
+  // через публичные noteWin/maybeInterstitial (window.__ads), считаем реальные
+  // вызовы showInterstitial у мока. Полный прогон 5 побед был бы медленным и
+  // флейкозависимым — каденция это чистая функция счётчика, тестируем её.
+  const cad = await apage.evaluate(() => {
+    const A = window.__ads, M = window.__mock, every = 5;
+    const seq = [];
+    const base = M.interShown;
+    // 4 победы — ролика ещё нет
+    for (let i = 0; i < every - 1; i++){ A.noteWin(); A.maybeInterstitial(); }
+    seq.push(M.interShown - base);                 // 0
+    // 5-я победа — ролик показан ровно один раз
+    A.noteWin(); A.maybeInterstitial();
+    seq.push(M.interShown - base);                 // 1
+    // повторный переход без новой победы (напр. поражение+повтор) — не дублит
+    A.maybeInterstitial();
+    seq.push(M.interShown - base);                 // 1
+    // ещё 5 побед — следующий ролик
+    for (let i = 0; i < every; i++){ A.noteWin(); A.maybeInterstitial(); }
+    seq.push(M.interShown - base);                 // 2
+    // ОТЛОЖЕННЫЙ показ (контракт, вскрыт ревью 2026-07-23): уровень можно
+    // сменить МИМО maybeInterstitial (msPlayBtn «Play Game»/pauseRestart —
+    // genLevel без сброса). Тогда накопленный за 5 побед ролик выстрелит на
+    // ближайшем переходе, в т.ч. на Retry после ПОРАЖЕНИЯ. Победы — без показа:
+    const preDef = M.interShown;
+    for (let i = 0; i < every; i++) A.noteWin();    // 5 побед, ни одного maybeInterstitial
+    const deferredNoShow = M.interShown - preDef;   // 0 — пока не показан
+    A.maybeInterstitial();                          // «Retry после поражения»
+    const deferredFired = M.interShown - preDef;    // 1 — отложенный ролик вышел
+    return { seq, winsLeft: A._winsSinceInter, deferredNoShow, deferredFired };
+  });
+  expect(cad.seq[0] === 0, 'каденция: 4 победы — ролика нет (' + cad.seq[0] + ')');
+  expect(cad.seq[1] === 1, 'каденция: на 5-й победе ровно один ролик (' + cad.seq[1] + ')');
+  expect(cad.seq[2] === 1, 'каденция: переход без победы не дублирует ролик (' + cad.seq[2] + ')');
+  expect(cad.seq[3] === 2, 'каденция: следующие 5 побед дают ещё один ролик (' + cad.seq[3] + ')');
+  expect(cad.winsLeft === 0, 'каденция: окно сброшено после показа (' + cad.winsLeft + ')');
+  expect(cad.deferredNoShow === 0 && cad.deferredFired === 1,
+    'каденция: показ, отложенный не-рекламным выходом, выходит на след. переходе (' +
+    cad.deferredNoShow + '->' + cad.deferredFired + ')');
 
   await apage.close();
   await new Promise(r => srv2.close(r));
