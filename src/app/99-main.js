@@ -179,10 +179,10 @@ function tickCamNear(){
   // залипает в полосе гистерезиса, а витрина не появляется вовсе: разворот
   // по introdone проигрывается в невидимую панель. Гейт остаётся полезен и
   // после перехода критерия на чашу (камера в интро реально близко).
-  // ⚠️ КРИТЕРИЙ С 2026-07-23 — ЗАЗОР ДО ЧАШИ, ПОРОГ 60 (спека владельца
-  // «панель прячется если до чащи по горизонтали меньше 60 px»), а НЕ
-  // прежние 200/240 до кучи предметов: та при вращении меняла экранную
-  // ширину (разброс 70 px за оборот) и панель МОРГАЛА.
+  // ⚠️ КРИТЕРИЙ С 2026-07-23 — ЗАЗОР ДО ЧАШИ (не до кучи: та при вращении
+  // меняла экранную ширину, разброс 70px за оборот, панель МОРГАЛА).
+  // ПОРОГ 42/49 (спека владельца 2026-07-24 «прятать ближе к чаше, ~на 30%
+  // короче»; было 60/70): панель висит дольше и прячется у самой чаши.
   if (intro){
     if (camNearOn){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
     vitrineGapPx = null;
@@ -226,8 +226,8 @@ function tickCamNear(){
   vitrineGapPx = Math.round(gap);
   // порог владельца 60; отпускание 70 — узкая полоса против дрожания при
   // плавном зуме (сама геометрия чаши стабильна, широкий гистерезис не нужен)
-  if (!camNearOn && gap < 60){ camNearOn = true; document.documentElement.classList.add('camnear'); }
-  else if (camNearOn && gap > 70){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+  if (!camNearOn && gap < 42){ camNearOn = true; document.documentElement.classList.add('camnear'); }
+  else if (camNearOn && gap > 49){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
 }
 
 // iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
