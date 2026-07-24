@@ -511,6 +511,20 @@
     border-radius:40px; overflow:hidden; }
   .msc-prog i { display:block; height:100%; background:rgba(44,47,98,.3); border-radius:40px; }
   .msc.sel .msc-prog i { background:#9ce52e; }
+  /* BOOST-ЦЕЛЕБРАЦИЯ (спека владельца): на успешную покупку полоска ЗЕЛЕНЕЕТ и
+     анимированно доливается к текущей доле; под портретом бьют DOM-частицы
+     радости (лайм+белые). ⚠️ полоска считается по ЗАРАБОТАННЫМ ступеням, Boost
+     копит отдельно — доливка ЦЕЛЕБРАЦИОННАЯ (текущая доля в зелёном), экономику
+     не трогает. reduced-motion гасит и доливку, и частицы. */
+  .msc.boosted .msc-prog i { background:#9ce52e; transition:width .55s cubic-bezier(.2,.9,.3,1); }
+  .joyp { position:absolute; left:50%; bottom:18%; width:7px; height:7px; border-radius:50%;
+    pointer-events:none; will-change:transform,opacity; animation:joyBurst .72s ease-out forwards; }
+  @keyframes joyBurst {
+    0%   { transform:translate(-50%,0) scale(.3); opacity:1; }
+    100% { transform:translate(calc(-50% + var(--dx)), var(--dy)) scale(1); opacity:0; } }
+  @media (prefers-reduced-motion: reduce){
+    .msc.boosted .msc-prog i { transition:none; }
+    .joyp { display:none; } }
   .msc-boost { width:100%; height:40px; border:none; cursor:pointer; background:#fff;
     color:#000; border-radius:1000px; font-family:var(--font-round);
     font-size:13px; font-weight:700; }

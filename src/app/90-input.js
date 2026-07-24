@@ -238,8 +238,11 @@ $('msGrid').addEventListener('click', e => {
   if (btn){
     // «Open» у локнутых — ещё заглушка (открытие типа идёт прогрессией уровней)
     if (btn.dataset.act !== 'boost'){ toast('Coming soon'); return; }
-    const res = buyBoost(btn.closest('.msc').dataset.key);
-    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); }
+    const boostKey = btn.closest('.msc').dataset.key;
+    const res = buyBoost(boostKey);
+    // refreshMainScreen пересобирает сетку (баланс/доступность прочих) — целебрацию
+    // вешаем ПОСЛЕ, на свежую карточку по ключу (зелёная доливка + частицы радости)
+    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
     else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough stars');
     return;
   }

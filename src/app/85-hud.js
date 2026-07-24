@@ -594,6 +594,45 @@ function unlockedTypeCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
   return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
 }
+// BOOST-ЦЕЛЕБРАЦИЯ (спека владельца): на успешную покупку карточка празднует —
+// полоска зеленеет и доливается к текущей доле, под портретом бьют частицы
+// радости (лайм+белые). Зовётся ПОСЛЕ refreshMainScreen (карточка пересобрана)
+// — ищем свежую по ключу. ⚠️ полоска считается по ЗАРАБОТАННЫМ ступеням, Boost
+// копит отдельно → доливка ЦЕЛЕБРАЦИОННАЯ (к текущей доле), экономику не трогаем.
+function spawnJoyParticles(host){
+  if (!host) return;
+  const N = 12, col = ['#c0ff47', '#ffffff'];
+  for (let i = 0; i < N; i++){
+    const s = document.createElement('span');
+    s.className = 'joyp';
+    const ang = (i / N) * Math.PI * 2;
+    const dist = 24 + (i % 3) * 9;
+    s.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+    s.style.setProperty('--dy', (Math.sin(ang) * dist - 12).toFixed(1) + 'px'); // лёгкий подъём вверх
+    s.style.background = col[i % 2];
+    host.appendChild(s);
+    setTimeout(()=> s.remove(), 760);
+  }
+}
+function boostCelebrate(key){
+  const grid = $('msGrid'); if (!grid) return;
+  const card = [...grid.children].find(c => c.dataset && c.dataset.key === key);
+  if (!card) return;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  card.classList.add('boosted'); // полоска -> зелёная (+ transition из .boosted)
+  const bar = card.querySelector('.msc-prog i');
+  if (bar && !reduce){
+    const target = bar.style.width || '0%';
+    bar.style.transition = 'none'; bar.style.width = '0%'; // старт с нуля БЕЗ анимации
+    void bar.offsetWidth;
+    bar.style.transition = '';                              // вернуть CSS-переход .55с
+    bar.style.width = target;                               // анимируется 0 -> доля
+    setTimeout(()=>{ if (bar.isConnected) bar.style.transition = ''; }, 620);
+  }
+  if (!reduce) spawnJoyParticles(card.querySelector('.msc-imgwrap'));
+  // класс-целебрацию снимаем позже (следующий refresh и так пересоберёт карточку)
+  setTimeout(()=>{ if (card.isConnected) card.classList.remove('boosted'); }, 950);
+}
 function buildMainCollection(){
   const grid = $('msGrid');
   if (!grid) return;
