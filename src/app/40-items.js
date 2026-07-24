@@ -10,10 +10,10 @@ try { levelNum = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1'
 // size — НЕПРЕРЫВНЫЙ множитель (спека владельца: разброс ±10% на старте,
 // до ±50% с уровнями). Геометрия от размера не зависит (масштаб на меше) —
 // кэш по типу.
-function makeItem(typeIdx, size){
-  const t = TYPES[typeIdx], sz = { s: size || 1 };
-  const gkey = String(typeIdx);
-  if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
+// Материал предмета по типу — ВЫНЕСЕН из makeItem (2026-07-24), чтобы портреты
+// коллекции (thumbItemForKey в 85-hud) строили ТОТ ЖЕ материал (matcap-патч,
+// вуаль, texTune) без дублирования и дрейфа от боевого. Зависит только от t.
+function itemMaterial(t){
   let mat;
   if (CFG.matcap){
     // «Запечённый свет» (makeMatcap в 10-stage): цвет предмета и серая вуаль
@@ -73,6 +73,13 @@ function makeItem(typeIdx, size){
     });
     mat.envMapIntensity = 0.5;
   }
+  return mat;
+}
+function makeItem(typeIdx, size){
+  const t = TYPES[typeIdx], sz = { s: size || 1 };
+  const gkey = String(typeIdx);
+  if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
+  const mat = itemMaterial(t);
   const geo = geoCache.get(gkey);
   // полуразмеры В ЛОКАЛЬНЫХ единицах — для честного теста стены по
   // ориентированной коробке (radialReach в 50-physics). Считаются ОДИН раз

@@ -657,6 +657,23 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // ДЕБАГ ГРАФИКИ (вращение портрета, 2026-07-24): мост к thumb-машинерии
+  // 85-hud. thumbSpinKey резолвит ключ->портрет-меш и монтирует спин в host
+  // (item через границу page.evaluate не передать). buildAllThumbs — перф
+  // варианта B: время построения портретов всех открытых типов.
+  thumbSpinKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; if (it && host) thumbSpinStart(it, host); return !!(it && host); },
+  thumbSpinStop, thumbItemForKey,
+  spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
+    mounted: !!(spinR && spinR.domElement.parentNode),
+    // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
+    // весь спин (пересчёт = «дыхание»). Округляю грубо, чтобы не ловить эпсилон.
+    camW: spinCam ? +(spinCam.right - spinCam.left).toFixed(4) : 0 }; },
+  buildAllThumbs(n){
+    const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
+    const lim = Math.min(n || rows.length, rows.length); let built = 0;
+    for (let i = 0; i < lim; i++){ const it = thumbItemForKey(rows[i].key); if (it && itemThumb(it)) built++; }
+    return { built, total: lim };
+  },
   // ДЕБАГ ГРАФИКИ (осколки, полировка 2026-07-23): выстрелить shardFX над
   // кучей — скрин визуала и перф-замер (реальный бурст/помол собрать
   // детерминированно тяжело: burstFX нужна пачка >=4, помол хука не имеет).
