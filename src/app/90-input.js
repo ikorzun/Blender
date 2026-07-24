@@ -223,8 +223,16 @@ $('msPlayBtn').addEventListener('click', ()=>{
 $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
 $('msSound').addEventListener('input', e => { applySound(parseInt(e.target.value, 10) > 0); msFill(e.target); });
-$('msMusic').addEventListener('input', e => msFill(e.target)); // Music скрыт, но заливка живёт
-// Music — ПЛЕЙСХОЛДЕР: музыки в движке нет, слайдер визуальный (флаг в отчёт)
+// Music-ползунок = ГРОМКОСТЬ фонового трека (0..1); applyMusic сам заводит/глушит
+$('msMusic').addEventListener('input', e => { applyMusic(parseInt(e.target.value, 10) / 100); msFill(e.target); });
+// ПЕРВЫЙ ЖЕСТ страницы разблокирует автоплей (audio.play() до жеста браузер
+// блокирует). Один раз, пассивно — игровые pointerdown-хендлеры не задеты.
+let bgmUnlocked = false;
+function unlockBgm(){
+  if (bgmUnlocked) return; bgmUnlocked = true;
+  const bgm = $('bgm'); if (bgm){ bgm.volume = musicVol; if (musicVol > 0) bgm.play().catch(()=>{}); }
+}
+window.addEventListener('pointerdown', unlockBgm, { passive: true });
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyHard(b.dataset.hard === '1');
