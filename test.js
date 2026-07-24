@@ -847,14 +847,15 @@ window.bridge = {
     // ещё 5 побед — следующий ролик
     for (let i = 0; i < every; i++){ A.noteWin(); A.maybeInterstitial(); }
     seq.push(M.interShown - base);                 // 2
-    // ОТЛОЖЕННЫЙ показ (контракт, вскрыт ревью 2026-07-23): уровень можно
-    // сменить МИМО maybeInterstitial (msPlayBtn «Play Game»/pauseRestart —
-    // genLevel без сброса). Тогда накопленный за 5 побед ролик выстрелит на
-    // ближайшем переходе, в т.ч. на Retry после ПОРАЖЕНИЯ. Победы — без показа:
+    // ОТЛОЖЕННЫЙ показ: уровень можно сменить МИМО maybeInterstitial
+    // (msPlayBtn «Play Game»/pauseRestart — genLevel без сброса счётчика).
+    // Тогда накопленный за 5 побед ролик выстрелит на БЛИЖАЙШЕМ ПОБЕДНОМ
+    // переходе (againBtn) — единственный, кто теперь зовёт гейт. Здесь
+    // прямой вызов maybeInterstitial моделирует именно этот победный Next.
     const preDef = M.interShown;
     for (let i = 0; i < every; i++) A.noteWin();    // 5 побед, ни одного maybeInterstitial
     const deferredNoShow = M.interShown - preDef;   // 0 — пока не показан
-    A.maybeInterstitial();                          // «Retry после поражения»
+    A.maybeInterstitial();                          // ближайший победный Next
     const deferredFired = M.interShown - preDef;    // 1 — отложенный ролик вышел
     return { seq, winsLeft: A._winsSinceInter, deferredNoShow, deferredFired };
   });
@@ -864,8 +865,39 @@ window.bridge = {
   expect(cad.seq[3] === 2, 'каденция: следующие 5 побед дают ещё один ролик (' + cad.seq[3] + ')');
   expect(cad.winsLeft === 0, 'каденция: окно сброшено после показа (' + cad.winsLeft + ')');
   expect(cad.deferredNoShow === 0 && cad.deferredFired === 1,
-    'каденция: показ, отложенный не-рекламным выходом, выходит на след. переходе (' +
+    'каденция: показ, отложенный не-рекламным выходом, выходит на ПОБЕДНОМ переходе (' +
     cad.deferredNoShow + '->' + cad.deferredFired + ')');
+
+  // ПРОВОДКА (спека 2026-07-24): РЕАЛЬНЫЙ Retry из тупика НЕ показывает
+  // межстраничную, даже когда счётчик у порога — вызов убран из loseAgainBtn.
+  // Форсим настоящий тупик (нет совпадений + нет встрясок), ждём loseOverlay,
+  // ставим счётчик на порог, кликаем РЕАЛЬНУЮ кнопку Retry. До правки её
+  // обработчик звал maybeInterstitial и при счётчике 5 показал бы ролик —
+  // ассерт бы упал. Тупик считаем от чистого уровня (regen + skipIntro).
+  await apage.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await apage.waitForFunction(() => {
+    if (window.__game.awake().physAwake) { window.__calm = 0; return false; }
+    window.__calm = (window.__calm || 0) + 1;
+    return window.__calm >= 8;
+  }, null, { timeout: 30000, polling: 100 });
+  await apage.evaluate(() => {
+    window.__game.cfg.baseRadius = -9; window.__game.cfg.matchRadius = -9;
+    const lv = window.__game.level(); lv.shakes = 0; lv.adShakes = 0;
+    for (let i = 0; i < 5; i++) window.__ads.noteWin(); // счётчик у порога
+  });
+  await apage.waitForFunction(() => document.getElementById('loseOverlay').style.display === 'flex',
+    null, { timeout: 8000 });
+  const retry = await apage.evaluate(() => {
+    const before = window.__mock.interShown;
+    document.getElementById('loseAgainBtn').click(); // РЕАЛЬНЫЙ Retry
+    return { before, after: window.__mock.interShown, winsLeft: window.__ads._winsSinceInter };
+  });
+  expect(retry.after === retry.before,
+    'проводка: РЕАЛЬНЫЙ Retry из тупика при счётчике у порога НЕ показывает межстраничную ('
+    + retry.before + '->' + retry.after + ')');
+  expect(retry.winsLeft === 5,
+    'проводка: Retry счётчик побед не тронул (остался у порога ' + retry.winsLeft + ')');
+  await apage.evaluate(() => window.__game.skipIntro()); // loseAgainBtn запустил genLevel/интро
 
   await apage.close();
   await new Promise(r => srv2.close(r));

@@ -125,7 +125,7 @@ $('hintBtn').addEventListener('click', showHint);
 $('adYes').addEventListener('click', startAd);
 $('adNo').addEventListener('click', ()=>hide('adAskOverlay'));
 $('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
-$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); Ads.maybeInterstitial(); genLevel(); });
+$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
 $('winX2Btn').addEventListener('click', ()=>{
   $('winX2Btn').style.display = 'none';
