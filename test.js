@@ -999,6 +999,30 @@ window.bridge = {
   expect(spin.allBuilt, 'вариант B: портреты построены для всех открытых типов (' + spin.allTotal + ')');
   expect(spin.stopped, 'стоп: rAF погашен, канвас снят, ноль стоимости вне hover');
 
+  // ГХОСТ ЗАКРЫТЫХ + ЕДИНАЯ ПОЗА (спека владельца 2026-07-24-в). Гхост —
+  // полупрозрачный+обесцвеченный силуэт закрытого типа. Поза статики И спина
+  // из ОДНОГО источника (PORTRAIT_*) — иначе скачок при наведении.
+  const ghostPose = await page.evaluate(() => {
+    const g = window.__game, key = g.accSnapshot()[0].key;
+    // гхост строится и ОТЛИЧАЕТСЯ от цветного; item.ghost + материал transparent
+    const full = g.thumbURL(key, false), gh = g.thumbURL(key, true);
+    const gItem = g.thumbItemForKey(key, true);
+    const ghost = { built: !!gh, differ: full !== gh,
+      flag: !!(gItem && gItem.ghost), transp: !!(gItem && gItem.mesh.material.transparent) };
+    // ЕДИНЫЙ ИСТОЧНИК ПОЗЫ: меняем позу — спин стартует С НЕЁ (== PORTRAIT_YAW0)
+    g.setPortraitPose(0.1, 0.2);
+    const host = document.createElement('div'); host.id = '__ph';
+    host.style.cssText = 'position:fixed;left:0;top:0;width:80px;height:80px'; document.body.appendChild(host);
+    g.thumbSpinKey(g.accSnapshot()[0].key, '#__ph');
+    const startAngle = g.spinState().angle;
+    g.thumbSpinStop(); host.remove();
+    g.setPortraitPose(-0.15, -0.6);   // вернуть боевую позу
+    return { ghost, startAngle };
+  });
+  expect(ghostPose.ghost.built && ghostPose.ghost.differ, 'гхост: закрытый портрет строится и отличается от цветного');
+  expect(ghostPose.ghost.flag && ghostPose.ghost.transp, 'гхост: item.ghost + материал transparent');
+  expect(Math.abs(ghostPose.startAngle - 0.2) < 0.05, 'поза статики и спина — ОДИН источник (спин стартует с PORTRAIT_YAW0, angle=' + ghostPose.startAngle + ')');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

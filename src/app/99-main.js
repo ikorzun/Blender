@@ -662,6 +662,12 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  // ВРЕМЕННО (подбор ракурса портрета, спека владельца): сменить позу +
+  // сбросить thumbCache, чтобы портрет переснялся. Удаляю после бейка значений.
+  setPortraitPose(tx, yaw){ PORTRAIT_TILT_X = tx; PORTRAIT_YAW0 = yaw;
+    for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
+  // статический портрет как data-URL (проба/сьют): ghost=true -> гхост-режим
+  thumbURL(key, ghost){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it) : null; },
   // ДЕБАГ ГРАФИКИ (вращение портрета, 2026-07-24): мост к thumb-машинерии
   // 85-hud. thumbSpinKey резолвит ключ->портрет-меш и монтирует спин в host
   // (item через границу page.evaluate не передать). buildAllThumbs — перф
