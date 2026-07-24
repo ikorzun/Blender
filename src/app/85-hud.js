@@ -568,6 +568,10 @@ function buildMainCollection(){
   grid.innerHTML = '';
   const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
   const open = unlockedTypeCount();
+  // спин портрета — ТОЛЬКО на устройствах с настоящим hover (десктоп): на
+  // тач-экранах mouseenter стреляет по тапу и крутил бы карточку без причины
+  // (спека ГРАФИКИ «мобайл: hover не вешать, статический портрет и так есть»)
+  const canHover = !!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches);
   rows.forEach((r, i) => {
     const locked = i >= open;
     const card = document.createElement('div');
@@ -581,7 +585,10 @@ function buildMainCollection(){
     wrap.className = 'msc-imgwrap';
     const live = r._item || (typeof items !== 'undefined' && items &&
       items.find(it => it.alive && it.type && String(it.type.name) === String(r.key)));
-    const url = live ? itemThumb(live) : null;
+    // портрет: живой предмет типа -> его снимок; вне партии у ОТКРЫТЫХ типов
+    // строим меш по ключу (thumbItemForKey, ГРАФИКА) — буква остаётся только
+    // у локнутых (анти-спойлер). Кэш общий (key='T'+idx), двойного рендера нет.
+    const url = live ? itemThumb(live) : (!locked ? itemThumb(thumbItemForKey(r.key)) : null);
     if (url){
       const im = document.createElement('img');
       im.className = 'msc-img'; im.src = url; wrap.appendChild(im);
@@ -630,6 +637,13 @@ function buildMainCollection(){
         if (!r.affordable) boost.classList.add('poor');
       }
       card.appendChild(boost);
+    }
+    // HOVER-СПИН (десктоп): канвас ГРАФИКИ самомонтируется в .msc-imgwrap
+    // (absolute inset:0), накрывает статический <img>-кадр покоя; стоп гасит
+    // rAF полностью. Только у ОТКРЫТЫХ (у локнутых портрета/меша нет).
+    if (canHover && !locked){
+      card.addEventListener('mouseenter', () => thumbSpinStart(r._item || thumbItemForKey(r.key), wrap));
+      card.addEventListener('mouseleave', () => thumbSpinStop());
     }
     grid.appendChild(card);
   });
