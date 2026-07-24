@@ -500,8 +500,12 @@ function buildMainCollection(){
   });
 }
 // отражение текущих настроек в контролах экрана (значения из CFG)
+// --fill (в %) двигает зелёную заливку у WebKit-ползунка (см. shell.html);
+// Firefox рисует её сам через ::-moz-range-progress, но лишним не будет
+function msFill(el){ if (el) el.style.setProperty('--fill', el.value + '%'); }
 function refreshMainSettings(){
-  const snd = $('msSound'); if (snd) snd.value = CFG.sound ? 100 : 0;
+  const snd = $('msSound'); if (snd){ snd.value = CFG.sound ? 100 : 0; msFill(snd); }
+  msFill($('msMusic'));
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
@@ -577,16 +581,21 @@ function vitFillCell(cell, entry){
   cell._acc = { last: -1 };
   vitUpdateCell(cell);
 }
+// прогресс полоски типа (0..1) к следующей ступени; на капе = 1. Это КЛЮЧ
+// сортировки витрины (спека владельца «по убыванию, первая — с большим
+// прогрессом; строка меняется, если полоска обгонит первую»).
+function vitFrac(k){
+  const n = accCount(k), next = accNext(k), tier = accTier(k);
+  const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
+  return next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
+}
 function vitUpdateCell(cell){
   const k = cell.dataset.key, n = accCount(k);
   if (n === cell._acc.last) return;
   // рост счётчика = я СОВМЕСТИЛ этот тип (first-set с last=-1 не считаем)
   const grew = cell._acc.last >= 0 && n > cell._acc.last;
   cell._acc.last = n;
-  const next = accNext(k), tier = accTier(k);
-  const prev = tier > 0 ? 100 * (Math.pow(2, tier) - 1) : 0;
-  const frac = next ? Math.max(0, Math.min(1, (n - prev) / (next - prev))) : 1;
-  cell.querySelector('.vbar i').style.width = (frac * 100).toFixed(1) + '%';
+  cell.querySelector('.vbar i').style.width = (vitFrac(k) * 100).toFixed(1) + '%';
   cell.querySelector('.vmult').textContent = fmtMult(accMult(k));
   if (grew) vitPulse(cell); // ненавязчивая реакция на моё совмещение
 }
@@ -612,6 +621,10 @@ function buildVitrine(){
     const k = String(it.type.name);
     if (!seen.has(k)){ seen.add(k); vitQueue.push({ k, it }); }
   }
+  // СОРТИРОВКА ПО ПРОГРЕССУ УБЫВАНИЕМ (спека владельца): первая строка — с
+  // самой полной полоской; тай-брейк по накоплению. Каскад разворота пойдёт
+  // сверху в этом же порядке.
+  vitQueue.sort((a, b) => vitFrac(b.k) - vitFrac(a.k) || accCount(b.k) - accCount(a.k));
   vitSlots = [];
   // ВСЕ типы уровня (спека владельца 2026-07-23 «в блоке нужны все объекты
   // уровня»): раньше показывали 5 с авторотацией — теперь строим весь замес.
@@ -664,6 +677,35 @@ function vitRotate(aliveSet){
     return; // по одной карточке за тик — очередь уездов не накапливаем
   }
 }
+// ДИНАМИЧЕСКИЙ ПЕРЕСОРТ (спека владельца «строка меняется, если полоска
+// обгонит первую»): держим строки по убыванию прогресса. Перестановка — FLIP
+// (замер старой позиции → переставить в DOM → анимировать из старой в новую),
+// transform на ДЕТЯХ (.vcell), не на #vitrine — его rect не трогаем.
+// prefers-reduced-motion: переставляем без анимации.
+function vitResort(){
+  const grid = $('vGrid'); if (!grid) return;
+  const live = [...grid.children].filter(c => c.dataset.key && c.style.display !== 'none');
+  if (live.length < 2) return;
+  const sorted = live.slice().sort((a, b) =>
+    vitFrac(b.dataset.key) - vitFrac(a.dataset.key) ||
+    accCount(b.dataset.key) - accCount(a.dataset.key));
+  let same = true;
+  for (let i = 0; i < live.length; i++) if (live[i] !== sorted[i]){ same = false; break; }
+  if (same) return;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const before = new Map(); for (const c of live) before.set(c, c.getBoundingClientRect().top);
+  for (const c of sorted) grid.appendChild(c); // переставить в порядок прогресса
+  if (reduce) return;
+  for (const c of sorted){
+    const dy = before.get(c) - c.getBoundingClientRect().top;
+    if (!dy) continue;
+    c.style.transition = 'none'; c.style.transform = 'translateY(' + dy + 'px)';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      c.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1)'; c.style.transform = '';
+    }));
+    setTimeout(()=>{ c.style.transition = ''; c.style.transform = ''; }, 380);
+  }
+}
 function tickVitrine(now){
   if (!vitrineOn()) return;
   // строим ПОСЛЕ интро: на первых кадрах палитровые атласы моделей ещё
@@ -673,5 +715,5 @@ function tickVitrine(now){
   if (!vitSlots || now - vitAt < VIT_TICK_MS) return;
   vitAt = now;
   for (const cell of vitSlots) if (cell.dataset.key) vitUpdateCell(cell);
-  if (!vitRotating && !intro && level && !level.over) vitRotate(vitAliveSet());
+  if (!vitRotating && !intro && level && !level.over){ vitResort(); vitRotate(vitAliveSet()); }
 }
