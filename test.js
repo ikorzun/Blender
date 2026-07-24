@@ -740,7 +740,14 @@ window.bridge = {
     const hard = g.veilStats();
     const pinned = (g.veilAll(1), await new Promise(r => setTimeout(() => r(g.veilStats()), 350)));
     g.veilAll(null);
-    await new Promise(r => setTimeout(r, 700));
+    // ⚠️ НЕ фиксированная пауза (флейк 2026-07-24, флагнул интерфейс «181→181»):
+    // снятие пина возвращает вуаль под доступность ЧЕРЕЗ ЛЕРП (0.25с) +
+    // refresh-тик — на медленном прогоне 700мс не всегда хватало, veiled
+    // оставался на пине. Ждём УСЛОВИЯ (обесценилось меньше пиковых), потолок
+    // 3с — как чинили флейки осколков и эндшпильного радиуса.
+    const relDeadline = Date.now() + 3000;
+    while (g.veilStats().veiled >= pinned.veiled && Date.now() < relDeadline)
+      await new Promise(r => setTimeout(r, 100));
     const released = g.veilStats();
     g.cfg.hard = false;
     return { hard, pinned, released, alive: g.alive() };
