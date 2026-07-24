@@ -363,8 +363,11 @@ function ensureSpinR(){
   spinR.setSize(SPIN_PX, SPIN_PX, false);
   spinR.outputEncoding = renderer.outputEncoding;
   // absolute inset:0 — канвас НАКРЫВАЕТ статический <img> в ячейке
-  // (.msc-imgwrap position:relative), интерфейсу достаточно appendChild
-  spinR.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;';
+  // (.msc-imgwrap position:relative), интерфейсу достаточно appendChild.
+  // border-radius:inherit — если интерфейс округлит превью, канвас подхватит
+  // радиус хоста сам (сейчас у .msc-img радиуса нет — no-op, но self-mounting
+  // без CSS у интерфейса).
+  spinR.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:inherit;';
   spinScene = new THREE.Scene();
   spinCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 50);
   spinCam.position.set(1.7, THUMB_Y + 1.35, 2.3); // тот же ракурс, что itemThumb
