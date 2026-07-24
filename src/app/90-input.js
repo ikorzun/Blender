@@ -222,7 +222,8 @@ $('msPlayBtn').addEventListener('click', ()=>{
 // отладочная панель — из меню (раньше вход был в карточке паузы)
 $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
-$('msSound').addEventListener('input', e => applySound(parseInt(e.target.value, 10) > 0));
+$('msSound').addEventListener('input', e => { applySound(parseInt(e.target.value, 10) > 0); msFill(e.target); });
+$('msMusic').addEventListener('input', e => msFill(e.target)); // Music скрыт, но заливка живёт
 // Music — ПЛЕЙСХОЛДЕР: музыки в движке нет, слайдер визуальный (флаг в отчёт)
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
