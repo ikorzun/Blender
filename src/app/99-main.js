@@ -172,6 +172,9 @@ addEventListener('resize', resize);
 // читается из живого rect #vitrine — смена ширины макетом ничего не сломает;
 // rect при opacity:0 валиден (фейд не display). Тик раз в 150мс, не в кадр.
 let camNearOn = false, camNearAt = 0, vitrineGapPx = null;
+// порог прятанья витрины по краю КУЧИ (не чаши): в покое зазор ~261, макс.зум ~97.
+// live-тюн владельца через __game.camnearThreshold(hide, show) — точку крутит он.
+let camNearHide = 130, camNearShow = 150;
 const camNearV = new THREE.Vector3(), camNearRight = new THREE.Vector3();
 function tickCamNear(){
   // ⚠️ ВО ВРЕМЯ ИНТРО НЕ СЧИТАЕМ (баг 2026-07-23): камера идёт 17.8→16.2,
@@ -179,10 +182,19 @@ function tickCamNear(){
   // залипает в полосе гистерезиса, а витрина не появляется вовсе: разворот
   // по introdone проигрывается в невидимую панель. Гейт остаётся полезен и
   // после перехода критерия на чашу (камера в интро реально близко).
-  // ⚠️ КРИТЕРИЙ С 2026-07-23 — ЗАЗОР ДО ЧАШИ (не до кучи: та при вращении
-  // меняла экранную ширину, разброс 70px за оборот, панель МОРГАЛА).
-  // ПОРОГ 42/49 (спека владельца 2026-07-24 «прятать ближе к чаше, ~на 30%
-  // короче»; было 60/70): панель висит дольше и прячется у самой чаши.
+  // ⚠️ КРИТЕРИЙ v3 (спека владельца 2026-07-24 «скрывать по краю САМОГО
+  // ЛЕВОГО ОБЪЕКТА = синяя линия»): левый край КУЧИ ПРЕДМЕТОВ, а не чаши
+  // (замер: линия владельца 42% ширины легла ровно на край кучи, чаша
+  // левее — 29%). Прежде считали по куче и она МОРГАЛА (её ЭКРАННАЯ ширина
+  // менялась при вращении камеры). РЕШЕНИЕ — УСТОЙЧИВЫЙ РАДИУС ОХВАТА:
+  // hullR = макс. расстояние живого предмета от оси Y В МИРЕ. Оно НЕ зависит
+  // от угла камеры (вращается камера, не куча), поэтому левая точка
+  // окружности радиуса hullR (центр − hullR·орт-вправо) проецируется
+  // стабильно — тот же приём, что давал стабильность чаше, но по границе
+  // ПРЕДМЕТОВ. hullR медленно отступает по мере разбора → витрина
+  // возвращается, когда предметов меньше. Пересчёт раз в 150мс (оседание
+  // медленное). ПОРОГ 42/49 сохранён: скрыть когда край кучи подошёл к
+  // панели (куча наехала), показать когда отступил.
   if (intro){
     if (camNearOn){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
     vitrineGapPx = null;
@@ -213,21 +225,31 @@ function tickCamNear(){
   // 56 px за оборот даже на осесимметричной фигуре)
   camera.updateMatrixWorld();
   camNearRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-  let minX = Infinity;
-  for (let i = 0; i <= 4; i++){
-    const y = FUNNEL.H * i / 4;
-    camNearV.set(0, y, 0).addScaledVector(camNearRight, -radiusAt(y)).project(camera);
-    if (camNearV.z > 1) continue; // за камерой
-    const xPx = (camNearV.x + 1) / 2 * innerWidth;
-    if (xPx < minX) minX = xPx;
+  // УСТОЙЧИВЫЙ РАДИУС ОХВАТА КУЧИ: макс. расстояние живого предмета от оси Y
+  // + его радиус. Инвариант вращения камеры (позиции тел в мире не зависят
+  // от угла), поэтому проекция края не дрожит. Сюрприз/бомба/камни — не
+  // «куча» (спецпредметы), в охват не берём.
+  let hullR = 0, sy = 0, cnt = 0;
+  for (const it of items){
+    if (!it.alive || it.surprise || it.bomb || it.rock) continue;
+    const rr = Math.hypot(it.p.x, it.p.z) + it.r;
+    if (rr > hullR) hullR = rr;
+    sy += it.p.y; cnt++;
   }
-  if (minX === Infinity) return;
+  if (!cnt){ vitrineGapPx = null; return; } // куча пуста (миг между уровнями)
+  const cy = sy / cnt; // средняя высота кучи — уровень, на котором мерим край
+  camNearV.set(0, cy, 0).addScaledVector(camNearRight, -hullR).project(camera);
+  if (camNearV.z > 1){ vitrineGapPx = null; return; } // за камерой
+  const minX = (camNearV.x + 1) / 2 * innerWidth;
   const gap = minX - pr;
   vitrineGapPx = Math.round(gap);
-  // порог владельца 60; отпускание 70 — узкая полоса против дрожания при
-  // плавном зуме (сама геометрия чаши стабильна, широкий гистерезис не нужен)
-  if (!camNearOn && gap < 42){ camNearOn = true; document.documentElement.classList.add('camnear'); }
-  else if (camNearOn && gap > 49){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
+  // ⚠️ ПОРОГ 130/150 (не 42/49 как по чаше): КУЧА уже чаши, её край дальше
+  // от панели — в покое зазор ~261, на макс.зуме (camR 9) ещё 97. Прятать
+  // «при касании панели» по куче нельзя (чаша ограничивает зум) — прячем,
+  // когда куча заметно наехала. camnearThreshold(h,s) — live-тюн под линию
+  // владельца (размер кучи плавает по уровням, точную точку крутит он).
+  if (!camNearOn && gap < camNearHide){ camNearOn = true; document.documentElement.classList.add('camnear'); }
+  else if (camNearOn && gap > camNearShow){ camNearOn = false; document.documentElement.classList.remove('camnear'); }
 }
 
 // iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
@@ -907,6 +929,13 @@ window.__game = {
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // отладка: текущий экранный зазор панель↔куча в px (null — панели нет/пусто)
   vitrineGap(){ return vitrineGapPx; },
+  // live-тюн порога прятанья витрины по краю кучи (владелец крутит на живой
+  // игре, зовёт с одним арг = симметрично, или hide/show раздельно с зазором)
+  camnearThreshold(hide, show){
+    if (hide != null) camNearHide = +hide;
+    camNearShow = show != null ? +show : camNearHide + 20;
+    return { hide: camNearHide, show: camNearShow, gap: vitrineGapPx };
+  },
   // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
   // потребитель — 78-ads: pause(true) на входе в показ, resume() на ВСЕХ
   // развязках, но ТОЛЬКО если pause вернул true (иначе снимем чужую паузу
