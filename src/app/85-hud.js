@@ -639,11 +639,21 @@ function buildMainCollection(){
       card.appendChild(boost);
     }
     // HOVER-СПИН (десктоп): канвас ГРАФИКИ самомонтируется в .msc-imgwrap
-    // (absolute inset:0), накрывает статический <img>-кадр покоя; стоп гасит
-    // rAF полностью. Только у ОТКРЫТЫХ (у локнутых портрета/меша нет).
+    // (absolute inset:0). ⚠️ канвас ПРОЗРАЧНЫЙ (alpha) — под вращающимся
+    // силуэтом просвечивал статический <img> кадра покоя (жалоба владельца
+    // «картинка модели остаётся за ней»). ПРЯЧЕМ img на время спина
+    // (visibility, чтобы rect ячейки не схлопнулся — канвас на нём и стоит),
+    // возвращаем на mouseleave. Спин стартует с угла статики (SPIN_YAW0/TILT
+    // == rotation портрета) — подмена бесшовна. Только у ОТКРЫТЫХ.
     if (canHover && !locked){
-      card.addEventListener('mouseenter', () => thumbSpinStart(r._item || thumbItemForKey(r.key), wrap));
-      card.addEventListener('mouseleave', () => thumbSpinStop());
+      card.addEventListener('mouseenter', () => {
+        const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'hidden';
+        thumbSpinStart(r._item || thumbItemForKey(r.key), wrap);
+      });
+      card.addEventListener('mouseleave', () => {
+        thumbSpinStop();
+        const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible';
+      });
     }
     grid.appendChild(card);
   });
