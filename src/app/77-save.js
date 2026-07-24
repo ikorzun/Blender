@@ -253,11 +253,30 @@ function accLabel(key){
   const short = k.replace(/^(animal|food|car|brick|pirate)/, '');
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
+// ОТКРЫТОСТЬ ТИПОВ ПРОГРЕССИЕЙ (контракт для ГРАФИКИ — 3D-портрет только
+// открытым, иначе спойлер моделей). Правило ЕДИНОЕ с genLevel (40-items):
+// типы открываются ПО ПОРЯДКУ массива TYPES, 9 на ур.1, +1 за уровень,
+// потолок пула. levelNum монотонен в реальной игре (растёт на победе),
+// поэтому = ДОСТИГНУТЫЙ МАКСИМУМ. Интерфейс имеет СВОЮ unlockedTypeCount
+// (85-hud, его зона) — числа совпадают; converge позже, если захочет.
+function typesUnlockedCount(){
+  const lvl = (typeof levelNum === 'number' ? levelNum : 1);
+  return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
+}
+function unlockedTypes(){ return TYPES.slice(0, typesUnlockedCount()).map(T => T.name); }
+function isTypeUnlocked(name){
+  const idx = TYPES.findIndex(T => T.name === name);
+  return idx >= 0 && idx < typesUnlockedCount();
+}
+
 // Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
 // typeof): name — ярлык для показа, key — ключ ассета (аргумент accCount и
-// др.), _item — живой предмет типа для офскрин-портрета (или null).
+// др.), _item — живой предмет типа для офскрин-портрета (или null),
+// unlocked — открыт ли тип прогрессией (ГРАФИКА рендерит портрет только
+// открытым; поле аддитивное — старые потребители не задеты).
 function accSnapshot(){
-  return TYPES.map(T => {
+  const openN = typesUnlockedCount();
+  return TYPES.map((T, i) => {
     const k = T.name;
     let live = null;
     try {
@@ -269,7 +288,7 @@ function accSnapshot(){
       // BOOST для меню владельца: сколько ступеней докуплено, цена следующей
       // (null — упёрлись в кап) и хватает ли баланса прямо сейчас
       boost: boostTier(k), price: boostPrice(k), affordable: canBoost(k),
-      _item: live };
+      unlocked: i < openN, _item: live };
   });
 }
 // Защита на смену партии моделей (обязательная связка (б) спеки): ключи
