@@ -242,6 +242,16 @@ const thumbCache = {};
 // сплющит портрет. MARGIN 4% — меньше нельзя: у боксов радиус 10-12,
 // углы круглых моделей срезало бы.
 const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
+// ПОЗА ПОРТРЕТА — ЕДИНЫЙ ИСТОЧНИК для статики (itemThumb) И спина (thumbSpin):
+// интерфейс на hover прячет статичный img и показывает канвас, спин стартует
+// с этого же угла — подмена бесшовна. Если статика и спин разойдутся — скачок
+// при наведении, поэтому ОБА берут отсюда (нельзя развести). Спека владельца
+// 2026-07-24-в: «лёгкий подъём вправо-вверх, потом спин по горизонтали».
+// tx=−0.15 — ЛЁГКИЙ взгляд СНИЗУ (перёд модели приподнят, не «ныряет» сверху,
+// как прежний +0.42 top-down, который владелец забраковал «уводит в нижний
+// угол»); yaw=−0.6 даёт 3/4: у машин перёд вправо-вверх, у зверей видна морда.
+// Подобрано скрином на police/bee/banana (все три читаются геройски).
+let PORTRAIT_TILT_X = -0.15, PORTRAIT_YAW0 = -0.6;
 const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
 // ПОРТРЕТ-МЕШ ПО КЛЮЧУ ТИПА (type.name) — вариант B спеки владельца 2026-07-24:
 // даёт модель тем ОТКРЫТЫМ типам, которых НЕТ в текущей партии (иначе была
@@ -251,22 +261,36 @@ const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
 // вуаль, texTune честны. Кэш по ключу; key='T'+idx СОВПАДАЕТ с боевым, поэтому
 // thumbCache (по item.key) у портрета и живого предмета один — двойного
 // рендера нет. Возвращает минимальный item под itemThumb/thumbSpinStart.
+// ГХОСТ ЗАКРЫТЫХ ТИПОВ (спека владельца 2026-07-24-в: «не открытые модели
+// выглядят прозрачными и немного матовыми, но бесцветными» + «заполни весь
+// музей моделями»). Силуэт непойманного (как покедекс) — дразнит. Интерфейс
+// вешает на ЗАКРЫТЫЕ карточки ВМЕСТО буквы (ghost=true).
+// ⚠️ ПЕРЕИСПОЛЬЗУЕМ уже готовое: обесцвечивание — вуаль uVeil (десат в шейдере,
+// v84), прозрачность — material.opacity. itemThumb при item.ghost жмёт uVeil=1
+// + opacity=GHOST_ALPHA (иначе форсит uVeil=0/opacity=1). Матовость даёт сам
+// десат (серый читается как глина). Свой кэш-ключ '@g' — гхост и цветной
+// портрет одного типа не должны затирать друг друга в thumbCache.
+const GHOST_ALPHA = 0.42;   // «полупрозрачный»: сквозь силуэт видно фон карточки
 const thumbItemCache = {};
-function thumbItemForKey(key){
-  if (thumbItemCache[key]) return thumbItemCache[key];
+function thumbItemForKey(key, ghost){
+  const ck = ghost ? key + '@g' : key;
+  if (thumbItemCache[ck]) return thumbItemCache[ck];
   let idx = -1;
   for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === key){ idx = i; break; }
   if (idx < 0) return null;
   const t = TYPES[idx], gkey = String(idx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   const mat = itemMaterial(t);
+  // ⚠️ transparent выставляем ОДИН раз при создании (смена на лету =
+  // перекомпиляция шейдера); гхост-материал персональный, живых не трогает
+  if (ghost) mat.transparent = true;
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
   mesh.scale.setScalar(MESH_SCALE);
   const it = {
-    key: 'T' + idx, type: t, mesh, baseColor: mat.color.clone(),
+    key: 'T' + idx + (ghost ? 'g' : ''), type: t, mesh, ghost: !!ghost, baseColor: mat.color.clone(),
     fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
   };
-  thumbItemCache[key] = it;
+  thumbItemCache[ck] = it;
   return it;
 }
 function itemThumb(item){
@@ -294,7 +318,7 @@ function itemThumb(item){
     // а в userData.item лежит тело Rapier — циклическая структура, throw.
     const m = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
     m.scale.copy(item.mesh.scale);
-    m.rotation.set(0.42, 0.65, 0);
+    m.rotation.set(PORTRAIT_TILT_X, PORTRAIT_YAW0, 0);
     // ⚠️ ВЫСОКО НАД СЦЕНОЙ: matcap-патч гасит диффуз по МИРОВОЙ высоте
     // (vWorldY против uPileTop, 10-stage) — портрет на y=0 всегда выходил
     // самым тёмным тоном кучи (замер: до −0.83 по каналу R).
@@ -326,13 +350,21 @@ function itemThumb(item){
     // ⚠️ С 2026-07-23 вуаль живёт ещё и В ШЕЙДЕРЕ (uVeil, режим 'desat'):
     // одного восстановления color МАЛО — обесцвеченный портрет так же
     // осел бы в кэше навсегда. Гасим обе ручки на время снимка.
+    // ГХОСТ (item.ghost): наоборот — ЖМЁМ вуаль на максимум (десат к светло-
+    // серому) + полупрозрачность. Обычный портрет: обе ручки в 0/1 (полный цвет).
+    const gh = item.ghost;
+    // ⚠️ userData.shader ставит matcapSpecPatch в onBeforeCompile — на ПЕРВОМ
+    // рендере. У свежего гхост-материала до рендера он ещё null, и uVeil=1 не
+    // применился бы (гхост выходил цветным). Форс-компиляция даёт shader
+    // ДО чтения. Только для гхоста — обычным портретам uVeil=0 по умолчанию.
+    if (gh) thumbR.compile(thumbScene, thumbCam);
     const col = m.material.color, saved = (item.baseColor && col) ? col.clone() : null;
     if (saved) col.copy(item.baseColor);
     const sh = m.material.userData && m.material.userData.shader;
     const savedVeil = sh ? sh.uniforms.uVeil.value : 0;
-    if (sh) sh.uniforms.uVeil.value = 0;
+    if (sh) sh.uniforms.uVeil.value = gh ? 1 : 0;
     const savedOp = m.material.opacity;
-    m.material.opacity = 1;
+    m.material.opacity = gh ? GHOST_ALPHA : 1;
     thumbR.render(thumbScene, thumbCam);
     m.material.opacity = savedOp;
     if (sh) sh.uniforms.uVeil.value = savedVeil;
@@ -352,8 +384,8 @@ function itemThumb(item){
 // mouseenter/leave карточки, статический <img> остаётся кадром покоя.
 const SPIN_PX = 176;       // квадрат буфера; CSS растянет по ячейке
 const SPIN_SPEED = 0.9;    // рад/с — «медленно» (оборот ~7 с)
-const SPIN_TILT_X = 0.42;  // наклон как у статического портрета (itemThumb)
-const SPIN_YAW0 = 0.65;    // старт-угол = yaw статики -> появление без скачка
+// SPIN_TILT_X/SPIN_YAW0 — АЛИАСЫ на общий PORTRAIT_* (нельзя развести со статикой)
+
 let spinR = null, spinScene = null, spinCam = null;
 let spinMesh = null, spinItem = null, spinRAF = 0, spinPrev = 0, spinAngle = 0;
 const _spv = new THREE.Vector3(), _spm = new THREE.Matrix4();
@@ -391,7 +423,7 @@ function frameSpinCylinder(mesh){
     if (y < yMin) yMin = y; if (y > yMax) yMax = y;
   }
   R *= s; yMin *= s; yMax *= s;
-  _spm.makeRotationX(SPIN_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
+  _spm.makeRotationX(PORTRAIT_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
   const view = spinCam.matrixWorldInverse;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const yy of [yMin, (yMin + yMax) / 2, yMax]){
@@ -418,13 +450,13 @@ function thumbSpinStart(item, host){
   if (!item || !item.mesh || !host) return;
   ensureSpinR();
   thumbSpinStop();                       // один общий канвас: снять предыдущий
-  spinItem = item; spinAngle = SPIN_YAW0;
+  spinItem = item; spinAngle = PORTRAIT_YAW0;
   // ⚠️ НЕ mesh.clone() (JSON userData с телом Rapier — throw): обёртка на общих
   // geometry+material, как в itemThumb
   spinMesh = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
   spinMesh.scale.copy(item.mesh.scale);
   spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
-  spinMesh.rotation.set(SPIN_TILT_X, spinAngle, 0);
+  spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
   spinScene.add(spinMesh);
   frameSpinCylinder(spinMesh);
   host.appendChild(spinR.domElement);
@@ -437,7 +469,7 @@ function spinTick(now){
   if (!spinR.domElement.parentNode){ thumbSpinStop(); return; }
   const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
   spinAngle += dt * SPIN_SPEED;
-  spinMesh.rotation.set(SPIN_TILT_X, spinAngle, 0);
+  spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
   // вуаль/matcap-затемнение и прозрачность OFF на кадр (портрет не сереет) —
   // материал ОБЩИЙ с боевым, восстанавливаем сразу (как itemThumb)
   const mat = spinMesh.material;
