@@ -502,6 +502,27 @@ const path = require('path');
   expect(migProbe.again === 0 && migProbe.balFinal === migProbe.after,
     'миграция разовая — повтор ничего не добавил (' + migProbe.balFinal + ')');
 
+  // ОТКРЫТОСТЬ ТИПОВ прогрессией (ручка для ГРАФИКИ: портрет только открытым)
+  const unlockProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(1);
+    const snap1 = g.accSnapshot();
+    const u1 = g.unlockedTypes();
+    const first = snap1[0].key, at20 = snap1[20] ? snap1[20].key : null;
+    g.setLevel(15);
+    const u15 = g.unlockedTypes().length;
+    g.setLevel(1);
+    return { n1: u1.length, snapUnlocked1: snap1.filter(r => r.unlocked).length,
+      firstUnlocked: g.isTypeUnlocked(first), at20Unlocked: at20 ? g.isTypeUnlocked(at20) : null,
+      n15: u15, bogus: g.isTypeUnlocked('nope') };
+  });
+  expect(unlockProbe.n1 === 9 && unlockProbe.snapUnlocked1 === 9,
+    'ур.1: открыто ровно 9 типов, поле unlocked согласовано (' + unlockProbe.n1 + '/' + unlockProbe.snapUnlocked1 + ')');
+  expect(unlockProbe.firstUnlocked === true && unlockProbe.at20Unlocked === false,
+    'TYPES[0] открыт, TYPES[20] закрыт на ур.1 (' + unlockProbe.firstUnlocked + '/' + unlockProbe.at20Unlocked + ')');
+  expect(unlockProbe.n15 === 23, 'ур.15: открыто 9+14=23 типа (' + unlockProbe.n15 + ')');
+  expect(unlockProbe.bogus === false, 'несуществующий тип не открыт (' + unlockProbe.bogus + ')');
+
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
   const adsMode = await page.evaluate(() => window.__game.adsMode());
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');

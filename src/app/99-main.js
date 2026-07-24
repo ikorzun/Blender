@@ -653,6 +653,11 @@ window.__game = {
   // ИНТЕРФЕЙСА (вкладка «Музей объектов» + всплывашка апа) и тестов;
   // сама функция глобальная в 77-save (85-hud подхватывает по typeof)
   accSnapshot(){ return accSnapshot(); },
+  // ОТКРЫТОСТЬ ТИПОВ прогрессией (контракт для ГРАФИКИ: портрет только
+  // открытым). Правило единое с genLevel; accSnapshot() уже несёт поле
+  // `unlocked` per-тип, эти ручки — для прямых запросов/тестов.
+  unlockedTypes: unlockedTypes,       // -> [type.name] открытых по достигнутому уровню
+  isTypeUnlocked: isTypeUnlocked,     // (name) -> bool
   accGrant(name, n){ accAdd(name, n, null); return { count: accCount(name), tier: accTier(name), mult: accMult(name), next: accNext(name) }; },
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
