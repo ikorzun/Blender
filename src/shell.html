@@ -442,7 +442,20 @@
   .ms-seg button.on { background:#1d1c26; color:#fff; }
   /* коллекция */
   .ms-coll { display:flex; flex-direction:column; gap:8px; }
-  .ms-coll h2 { text-align:center; font-size:28px; font-weight:900; color:#000; margin:8px 0; }
+  .ms-coll-title { text-align:center; font-size:28px; font-weight:900; color:#000; margin:8px 0; }
+  /* МОБАЙЛ: обёртка растворяется — профиль и заголовок встают прямыми детьми
+     .ms-wrap и раскладываются по order (профиль пилюлей наверх, заголовок к
+     сетке). На десктопе обёртка станет реальным флекс-рядом (см. медиазапрос). */
+  .ms-collhead { display:contents; }
+  @media (max-width:1159px){
+    .ms-head { order:-1; }
+    .ms-banner { order:1; }
+    .ms-play { order:2; }
+    .ms-settings { order:3; }
+    .ms-coll-title { order:4; }
+    .ms-coll { order:5; }
+    .ms-dev { order:6; }
+  }
   .ms-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
   .msc { display:flex; flex-direction:column; gap:10px; padding:8px; border-radius:24px;
     background:transparent; }
@@ -478,18 +491,31 @@
      сверху на всю ширину (одна разметка на обе раскладки, без дублей узлов).
      Если владелец захочет строго по макету — переносим узел в layoutHUD. */
   @media (min-width:1160px){
-    /* ⚠️ РЯДЫ ЗАДАНЫ ЯВНО: коллекция справа спанит все три ряда и высокая, а
-       при дефолтном stretch она растягивала ряды — белая пилюля шапки
-       раздувалась в исполинскую арку на пол-экрана (поймано скрином).
-       auto/1fr/auto: шапка и настройки по контенту, запас забирает Play
-       (как flex-1 в макете). */
+    /* ⚠️ РЯДЫ ЗАДАНЫ ЯВНО: коллекция справа спанит все ряды и высокая, а при
+       дефолтном stretch она растягивала ряды — белая пилюля шапки раздувалась
+       в исполинскую арку на пол-экрана (поймано скрином). auto/1fr/auto/auto:
+       шапка-коллекции, настройки и dev по контенту, запас забирает Play. */
     .ms-wrap { max-width:1256px; display:grid; align-content:start;
       grid-template-columns:292px 260px 1fr;
-      grid-template-rows:auto 1fr auto; min-height:calc(100vh - 16px);
-      grid-template-areas:"head head coll"
-                          "play play coll"
-                          "sets bann coll"; }
-    .ms-head { grid-area:head; }
+      grid-template-rows:auto 1fr auto auto; min-height:calc(100vh - 16px);
+      grid-template-areas:"play play chead"
+                          "play play grid "
+                          "sets bann grid "
+                          "dev  dev  grid "; }
+    /* ПРАВАЯ КОЛОНКА (макет 763:1031): шапка = заголовок слева + профиль
+       справа, над сеткой. Профиль сюда переносит одна перемена display у
+       .ms-collhead (на мобайле она contents, тут — реальный флекс-ряд). */
+    .ms-collhead { grid-area:chead; display:flex; align-items:center;
+      justify-content:space-between; gap:16px; padding:8px 16px 0; }
+    .ms-coll-title { margin:0; font-size:34px; text-align:left; }
+    /* профиль БЕЗ пилюли; порядок как в макете: звёзды, Get More, аватар
+       (имя на десктопе прячем — справа в макете только аватар) */
+    .ms-head { background:none; padding:0; border-radius:0; gap:16px;
+      justify-content:flex-end; }
+    .ms-head-r { order:1; }
+    .ms-prof { order:2; }
+    .ms-uname { display:none; }
+    .ms-stars span { font-size:34px; }
     .ms-play { grid-area:play; min-height:423px; border-radius:56px; }
     .ms-settings { grid-area:sets; border-radius:40px; }
     .ms-banner { grid-area:bann; min-height:0; }
@@ -497,12 +523,11 @@
        без кэпа её высота растягивала грид на ~6000px и Play-панель уезжала
        на всю эту длину пустым полотном (поймано скрином). Кэп по вьюпорту =
        как в макете: экран не прокручивается, список — да. */
-    .ms-coll { grid-area:coll; padding:8px 16px;
+    .ms-coll { grid-area:grid; padding:0 16px 8px; min-height:0;
       max-height:calc(100vh - 16px); overflow-y:auto; }
-    .ms-coll h2 { font-size:34px; }
     .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
     .ms-slider { width:172px; }
-    .ms-dev { grid-column:1 / -1; }
+    .ms-dev { grid-area:dev; }
   }
 </style>
 </head>
@@ -724,8 +749,15 @@
      Subscribe $1.99 (ИНТЕГРАЦИЯ), звёзды-валюта/Boost (МЕТА). -->
 <div id="mainScreen">
   <div class="ms-wrap">
-    <!-- ХЕДЕР: пилюля #fff, аватар 48 + звёзды + Get More -->
-    <header class="ms-head">
+    <!-- ШАПКА ПРОФИЛЯ + ЗАГОЛОВОК КОЛЛЕКЦИИ. ДЕСКТОП (макет 763:1031): один
+         ряд правой колонки — «My collection» слева, профиль справа. МОБАЙЛ:
+         обёртка display:contents растворяется — профиль уезжает пилюлей наверх
+         (order -1), заголовок опускается к сетке (order 4). Профиль — ЕДИНЫЙ
+         узел (в нём id msStars/msGetMore/msUser), поэтому НЕ дублируется, а
+         переносится раскладкой; заголовок тоже один. -->
+    <div class="ms-collhead">
+      <h2 class="ms-coll-title">My collection</h2>
+      <header class="ms-head">
       <!-- МЕСТО ПОД GOOGLE-ПРОФИЛЬ (решение владельца 2026-07-23: «нужна
            авторизация через гугл для сохранения прогресса»). Пока плейсхолдер
            аватар+имя; саму авторизацию исследует ИНТЕГРАЦИЯ (на портале Google
@@ -743,6 +775,7 @@
         <button class="ms-getmore" id="msGetMore">Get More</button>
       </div>
     </header>
+    </div>
     <!-- БАННЕР No more AD (лайм) + Subscribe $1.99 -->
     <section class="ms-banner">
       <div class="ms-banner-t">No more AD</div>
@@ -776,9 +809,9 @@
         </div>
       </div>
     </section>
-    <!-- КОЛЛЕКЦИЯ: заголовок + сетка карточек (заполняется в 85-hud) -->
+    <!-- КОЛЛЕКЦИЯ: сетка карточек (заголовок «My collection» переехал в
+         .ms-collhead — на десктопе он в ряду с профилем правой колонки) -->
     <section class="ms-coll">
-      <h2>My collection</h2>
       <div class="ms-grid" id="msGrid"></div>
     </section>
     <!-- вход в отладочную панель — неприметной ссылкой: раньше он жил внизу
