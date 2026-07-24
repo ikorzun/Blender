@@ -656,10 +656,12 @@ function buildMainCollection(){
     wrap.className = 'msc-imgwrap';
     const live = r._item || (typeof items !== 'undefined' && items &&
       items.find(it => it.alive && it.type && String(it.type.name) === String(r.key)));
-    // портрет: живой предмет типа -> его снимок; вне партии у ОТКРЫТЫХ типов
-    // строим меш по ключу (thumbItemForKey, ГРАФИКА) — буква остаётся только
-    // у локнутых (анти-спойлер). Кэш общий (key='T'+idx), двойного рендера нет.
-    const url = live ? itemThumb(live) : (!locked ? itemThumb(thumbItemForKey(r.key)) : null);
+    // портрет: живой предмет типа -> его снимок; иначе строим меш по ключу
+    // (thumbItemForKey, ГРАФИКА). ЗАКРЫТЫЕ (locked) — ГХОСТ (2-й арг true:
+    // полупрозрачный+бесцветный силуэт, «покедекс»; спека владельца «не
+    // открытые модели прозрачные, матовые, бесцветные» + «заполни музей
+    // моделями», ОТМЕНЯЕТ прежнюю букву). ОТКРЫТЫЕ — цветной портрет.
+    const url = live ? itemThumb(live) : itemThumb(thumbItemForKey(r.key, locked));
     if (url){
       const im = document.createElement('img');
       im.className = 'msc-img'; im.src = url; wrap.appendChild(im);
