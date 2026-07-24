@@ -480,7 +480,7 @@
      .ms-wrap и раскладываются по order (профиль пилюлей наверх, заголовок к
      сетке). На десктопе обёртка станет реальным флекс-рядом (см. медиазапрос). */
   .ms-collhead { display:contents; }
-  @media (max-width:1159px){
+  @media (max-width:699px){
     .ms-head { order:-1; }
     .ms-banner { order:1; }
     .ms-play { order:2; }
@@ -490,8 +490,11 @@
     .ms-dev { order:6; }
   }
   .ms-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  /* ⚠️ min-width:0 — грид-элемент по умолчанию min-width:auto (min-content):
+     на узких колонках (2-3 карты у 700-1000) карточки не давали сетке ужаться,
+     она вылезала вправо и правый столбец обрезался overflow-x у .ms-coll. */
   .msc { display:flex; flex-direction:column; gap:10px; padding:8px; border-radius:24px;
-    background:transparent; }
+    background:transparent; min-width:0; }
   .msc.sel { background:rgba(255,255,255,.6); }
   .msc-imgwrap { position:relative; width:100%; aspect-ratio:1/1; }
   .msc-img { width:100%; height:100%; object-fit:contain; display:block; }
@@ -525,7 +528,7 @@
      ПРАВОЙ колонки рядом с «My Collection»; здесь шапка профиля идёт полосой
      сверху на всю ширину (одна разметка на обе раскладки, без дублей узлов).
      Если владелец захочет строго по макету — переносим узел в layoutHUD. */
-  @media (min-width:1160px){
+  @media (min-width:700px){
     /* ⚠️ РЯДЫ ЗАДАНЫ ЯВНО: коллекция справа спанит все ряды и высокая, а при
        дефолтном stretch она растягивала ряды — белая пилюля шапки раздувалась
        в исполинскую арку на пол-экрана (поймано скрином). auto/1fr/auto/auto:
@@ -535,8 +538,12 @@
        hidden — панели тайлами заполняют экран, страница НЕ прокручивается;
        длинная коллекция скроллится ВНУТРИ своей ячейки (см. .ms-coll). Было
        min-height → контент перерастал экран и нижний ряд карточек срезался. */
+    /* ⚠️ БОКОВЫЕ КОЛОНКИ ГИБКИЕ (спека владельца: десктоп-вид до 700px):
+       настройки ФИКС 292 (в них слайдер+свитчер 156 не ужать), баннер и
+       коллекция сжимаются к 700 — иначе 292+260 съедали всё, коллекции
+       оставалось ~132px. При 700: 292+~166+~226 ≈ вьюпорт, коллекция под 2 карт. */
     .ms-wrap { max-width:none; display:grid; align-content:stretch;
-      grid-template-columns:292px 260px 1fr;
+      grid-template-columns:292px minmax(160px,260px) minmax(220px,1fr);
       grid-template-rows:auto 1fr auto auto; height:100vh; overflow:hidden;
       grid-template-areas:"play play chead"
                           "play play grid "
@@ -545,8 +552,12 @@
     /* ПРАВАЯ КОЛОНКА (макет 763:1031): шапка = заголовок слева + профиль
        справа, над сеткой. Профиль сюда переносит одна перемена display у
        .ms-collhead (на мобайле она contents, тут — реальный флекс-ряд). */
+    /* flex-wrap: на узком десктопе (700-1040, колонка ~220-460) заголовок +
+       профиль (★/Get More/аватар) не влезали в строку и профиль уезжал за
+       вьюпорт (обрезался overflow:hidden обёртки). wrap роняет профиль под
+       заголовок; на широких (≥~1080) всё умещается в строку как было. */
     .ms-collhead { grid-area:chead; display:flex; align-items:center;
-      justify-content:space-between; gap:16px; padding:8px 16px 0; }
+      justify-content:space-between; gap:8px 16px; padding:8px 16px 0; flex-wrap:wrap; }
     .ms-coll-title { margin:0; font-size:34px; text-align:left; }
     /* профиль БЕЗ пилюли; порядок как в макете: звёзды, Get More, аватар
        (имя на десктопе прячем — справа в макете только аватар) */
@@ -563,12 +574,19 @@
        ГРИД-ЯЧЕЙКА (min-height:0 позволяет ужаться ниже контента), overflow-y
        доедает остаток. max-height НЕ нужен — bento-wrap уже ровно 100vh. */
     .ms-coll { grid-area:grid; padding:0 16px 8px; min-height:0; overflow-y:auto; }
-    .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
+    /* СЕТКА КОЛЛЕКЦИИ 4→3→2 по ширине (спека владельца): база десктопа = 2
+       (узкий конец у 700), 3 и 4 добавляют медиазапросы НИЖЕ. */
+    .ms-grid { grid-template-columns:repeat(2, 1fr); gap:10px; }
     /* колонка настроек 292 не вмещает 172-контрол рядом с «Difficult» (84px):
        84 + gap12 + 172 = 268 > 252 → свитчер ужимался. 156 держит 12px зазор */
     .ms-settings { --ms-ctl:156px; }
     .ms-dev { grid-area:dev; }
   }
+  /* СТУПЕНИ КОЛОНОК КОЛЛЕКЦИИ (только в десктоп-виде ≥700; идут ПОСЛЕ
+     базовых 2-х, поэтому перебивают их порядком в файле). Пороги подобраны
+     так, чтобы карточка не мельчала: 3 колонки с ~860, 4 — с ~1040. */
+  @media (min-width:860px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
+  @media (min-width:1040px){ .ms-grid { grid-template-columns:repeat(4, 1fr); } }
 </style>
 </head>
 <body>
