@@ -391,8 +391,79 @@
   #tierToast .sp:nth-child(7) { --dx:-14px; --dy:-64px; animation-delay:.4s !important; background:var(--ink); }
   @keyframes spFly { 0% { transform:translate(0,0) scale(1); opacity:1; }
     100% { transform:translate(var(--dx), var(--dy)) scale(.3); opacity:0; } }
-  #winStars { font-size:36px; letter-spacing:8px; margin:4px 0 8px; color:#ffc84a; }
-  #winCoins { font-size:19px; font-weight:800; color:#ffc84a; margin-bottom:14px; }
+  /* ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
+     Стикеры на текущем fade+blur backdrop (.overlay не тронут). Всё
+     обведённое — механизм .otext (векторный stroke); лайм/градиент — токены
+     макета (#c0ff47, #ff70b5→#f2ff00). Резиновая центрированная колонка. */
+  #winHolders[hidden] { display:none; }
+  .win-wrap { display:flex; flex-direction:column; align-items:center;
+    width:min(448px, calc(100vw - 32px)); font-family:var(--font-round); }
+  /* --- ШАПКА-ШТАМП: Level N + CLEANED + время + большой счёт --- */
+  .win-head { display:flex; flex-direction:column; align-items:center; margin-bottom:30px; }
+  .win-headline { display:flex; flex-direction:column; align-items:center; }
+  .win-level { width:min(240px, 66vw); height:auto; }
+  .otext.win-level text { font-size:50px; stroke-width:9; }  /* чёрная заливка, белая обводка ~4.5 */
+  /* CLEANED + время — ОДИН РЯД под Level (Figma: бейдж слева, время справа,
+     на одной линии). Ряд центрирован, слегка наезжает на низ Level. */
+  .win-cleanrow { margin-top:-4px; display:flex; align-items:center; gap:2px; }
+  .win-cleaned { transform:rotate(-10.6deg); z-index:2;
+    background:#c0ff47; color:#fff; font-weight:900; font-size:clamp(30px,9vw,43px);
+    line-height:1; padding:5px 15px 8px; border-radius:14px; white-space:nowrap;
+    letter-spacing:.5px; }
+  .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
+  .otext.win-time text { font-size:26px; stroke-width:7; }
+  .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
+  .otext.win-score text { font-size:68px; stroke-width:9; }
+  #winScore { fill:url(#gWinScore); }
+  /* --- НАГРАДА (+1 подсказка) + NEXT --- */
+  .win-actions { display:flex; gap:8px; align-items:center; width:100%; margin-bottom:26px; }
+  .win-reward { flex:none; display:flex; align-items:center; gap:7px; height:84px;
+    box-sizing:border-box; background:rgba(0,0,0,.2); border-radius:1000px; padding:10px 19px 10px 10px; }
+  .win-reward-ic { flex:none; width:64px; height:64px; border-radius:1000px; background:#c0ff47;
+    display:grid; place-items:center; }
+  .win-reward-ic svg { width:32px; height:32px; display:block; }
+  .win-reward-n { color:#c0ff47; font-weight:900; font-size:34px; line-height:1; }
+  .win-next { flex:1; height:84px; border:none; border-radius:1000px; cursor:pointer;
+    background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:900; font-size:34px; }
+  /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
+  .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
+  .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
+  .win-top-list { display:flex; flex-direction:column; gap:12px; }
+  .wt-row { display:flex; align-items:center; gap:8px; }
+  .wt-thumb { flex:none; width:44px; height:44px; border-radius:12px; overflow:hidden; }
+  .wt-thumb img { width:100%; height:100%; display:block; }
+  .wt-body { flex:1; min-width:0; display:flex; align-items:center; gap:16px; }
+  .wt-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .wt-name { color:#fff; font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .wt-bar { height:10px; border-radius:32px; background:rgba(0,0,0,.2); overflow:hidden; }
+  .wt-bar i { display:block; height:100%; width:0; background:#c0ff47; border-radius:40px;
+    transition:width .55s cubic-bezier(.34,1.56,.64,1); }
+  .wt-mult { flex:none; min-width:35px; height:35px; box-sizing:border-box; padding:0 8px;
+    background:rgba(0,0,0,.4); border-radius:32px; display:grid; place-items:center;
+    color:#fff; font-weight:900; font-size:16px; }
+  /* --- ВХОДНАЯ АНИМАЦИЯ: играет при каждом показе (.win-in ставит
+         renderWinScreen). CLEANED — «штамп-слэм» (герой), счёт — pop +
+         count-up (JS), строки TOP ITEMS — каскад справа + заливка полосок. --- */
+  @keyframes winDrop { from{opacity:0; transform:translateY(-24px) scale(.85)} to{opacity:1; transform:none} }
+  @keyframes winStamp { 0%{opacity:0; transform:rotate(-34deg) scale(1.9)} 60%{opacity:1; transform:rotate(-8deg) scale(.94)} 100%{opacity:1; transform:rotate(-10.6deg) scale(1)} }
+  @keyframes winPop { 0%{opacity:0; transform:scale(.5)} 70%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1)} }
+  @keyframes winTimeIn { from{opacity:0; transform:rotate(34deg) scale(.6)} to{opacity:1; transform:rotate(11deg) scale(1)} }
+  @keyframes winRise { from{opacity:0; transform:translateY(26px)} to{opacity:1; transform:none} }
+  @keyframes winRowIn { from{opacity:0; transform:translateX(26px)} to{opacity:1; transform:none} }
+  .win-in .win-level { animation:winDrop .4s cubic-bezier(.34,1.56,.64,1) .05s both; }
+  .win-in .win-cleaned { animation:winStamp .42s cubic-bezier(.34,1.56,.64,1) .34s both; }
+  .win-in .win-time { animation:winTimeIn .4s cubic-bezier(.34,1.56,.64,1) .72s both; }
+  .win-in .win-score { animation:winPop .5s cubic-bezier(.34,1.56,.64,1) .52s both; }
+  .win-in .win-reward { animation:winRise .4s ease-out .86s both; }
+  .win-in .win-next { animation:winRise .4s ease-out .94s both; }
+  .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
+  .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
+  @media (prefers-reduced-motion: reduce){
+    .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
+    .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row { animation:none; }
+    .win-cleaned { transform:rotate(-10.6deg); } .win-time { transform:rotate(11deg); }
+    .wt-bar i { transition:none; }
+  }
 
   /* ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА — макет Figma 770:1271 (моб. 393).
      Числа: поля 8, gap 8, пилюли radius 1000, панели radius 32/24.
@@ -792,14 +863,42 @@
 </div>
 
 <div class="overlay" id="winOverlay">
-  <div class="card">
-    <h2 id="winTitle">🎉 Level cleared!</h2>
-    <div id="winStars">★★★</div>
-    <p id="winStats"></p>
-    <p id="winCoins">+20 🪙</p>
-    <div class="btns">
-      <button class="ghost" id="winX2Btn">📺 ×2 coins</button>
-      <button class="primary" id="againBtn">Next ▶</button>
+  <!-- ⚠️ СКРЫТЫЕ ДЕРЖАТЕЛИ: checkEnd (80-gameplay — ВНЕ зоны интерфейса) пишет
+       строки в winTitle/winStars/winStats/winCoins и дёргает winX2Btn.display.
+       Видимый экран рисует renderWinScreen (85-hud) из ЖИВОГО состояния. Эти id
+       НЕ удалять — иначе $()→null уронил бы checkEnd (грабля fArc/setFace). -->
+  <div id="winHolders" hidden>
+    <h2 id="winTitle"></h2><div id="winStars"></div><p id="winStats"></p>
+    <p id="winCoins"></p><button id="winX2Btn"></button>
+  </div>
+  <!-- ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732): стикеры поверх текущего
+       fade+blur backdrop (.overlay не тронут — спека владельца). -->
+  <div class="win-wrap" id="winWrap">
+    <div class="win-head">
+      <div class="win-headline">
+        <svg class="otext win-level" viewBox="0 0 240 64"><text id="winLevel" x="120" y="50" text-anchor="middle">Level 1</text></svg>
+        <div class="win-cleanrow">
+          <div class="win-cleaned">CLEANED</div>
+          <svg class="otext win-time" viewBox="0 0 72 34"><text id="winTime" x="36" y="26" text-anchor="middle">0:00</text></svg>
+        </div>
+      </div>
+      <svg class="otext win-score" viewBox="0 0 320 88">
+        <defs><linearGradient id="gWinScore" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>
+        </linearGradient></defs>
+        <text id="winScore" x="160" y="68" text-anchor="middle">★ 0</text>
+      </svg>
+    </div>
+    <div class="win-actions">
+      <div class="win-reward">
+        <span class="win-reward-ic"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/></svg></span>
+        <span class="win-reward-n">+1</span>
+      </div>
+      <button class="win-next" id="againBtn">Next</button>
+    </div>
+    <div class="win-top">
+      <div class="win-top-label">TOP ITEMS</div>
+      <div class="win-top-list" id="winTopList"></div>
     </div>
   </div>
 </div>
