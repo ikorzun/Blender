@@ -605,6 +605,11 @@
 </head>
 <body>
 <canvas id="c" tabindex="-1" style="outline:none"></canvas>
+<!-- ФОНОВАЯ МУЗЫКА: внешний трек (~4.2 МБ), ЛЕНИВАЯ загрузка (preload=none) —
+     НЕ в критическом пути стартовой загрузки; потоковый HTML5-audio, WebAudio-
+     движок SFX (Sound, 75-audio) не трогаем. ⚠️ music.mp3 лежит РЯДОМ с
+     index.html — добавить в пакет портала (index.html + bridge + music.mp3). -->
+<audio id="bgm" loop preload="none" src="music.mp3"></audio>
 
 <div class="bar" id="topBar">
   <div class="grp">
@@ -867,10 +872,8 @@
         <span>Sound</span>
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
       </div>
-      <!-- MUSIC СКРЫТ до появления музыки (решение владельца «музыка будет
-           позже»): нерабочий контрол игрок крутит впустую. Вернуть = убрать
-           style="display:none" в этой строке. -->
-      <div class="ms-set" id="msMusicRow" style="display:none">
+      <!-- MUSIC: регулятор громкости фонового трека (спека владельца 2026-07-24) -->
+      <div class="ms-set" id="msMusicRow">
         <span>Music</span>
         <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
       </div>

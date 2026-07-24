@@ -735,9 +735,25 @@ function buildMainCollection(){
 // --fill (в %) двигает зелёную заливку у WebKit-ползунка (см. shell.html);
 // Firefox рисует её сам через ::-moz-range-progress, но лишним не будет
 function msFill(el){ if (el) el.style.setProperty('--fill', el.value + '%'); }
+// ===== ФОНОВАЯ МУЗЫКА (спека владельца 2026-07-24): регулятор + трек =====
+// Потоковый HTML5 <audio id="bgm"> (трек ~4.2 МБ грузится ЛЕНИВО, не в старте;
+// WebAudio-движок SFX (Sound) НЕ трогаем — музыка отдельный тракт). Ползунок
+// Music = громкость 0..1, хранится в mixer_music. Автоплей разблокирует ПЕРВЫЙ
+// жест страницы (90-input) — политика браузера: audio.play() только по жесту.
+let musicVol = 0.7;
+try { const _mv = localStorage.getItem('mixer_music');
+  if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
+function applyMusic(v01){
+  musicVol = Math.max(0, Math.min(1, v01));
+  try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
+  const bgm = $('bgm'); if (!bgm) return;
+  bgm.volume = musicVol;
+  if (musicVol > 0){ if (bgm.paused) bgm.play().catch(()=>{}); } // тянут вверх — заводим
+  else if (!bgm.paused) bgm.pause();                             // в ноль — глушим
+}
 function refreshMainSettings(){
   const snd = $('msSound'); if (snd){ snd.value = CFG.sound ? 100 : 0; msFill(snd); }
-  msFill($('msMusic'));
+  const mus = $('msMusic'); if (mus){ mus.value = Math.round(musicVol * 100); msFill(mus); }
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
