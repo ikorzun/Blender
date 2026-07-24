@@ -405,16 +405,36 @@ const path = require('path');
   expect(parProbe.par === parProbe.exp && parProbe.par > 0,
     'пар-скор учитывает множители накопления (' + parProbe.par + ' = ' + parProbe.exp + ')');
 
-  // ===== ЗВЁЗДЫ-ВАЛЮТА + BOOST (решение владельца 2026-07-23) =====
-  // Номинал победы и анти-ферма: дельта рейтинга, а не полная выплата
+  // ===== ЕДИНЫЙ БАЛАНС + BOOST + ОТКРЫТИЕ (финализация владельца 2026-07-24) =====
+  // starAward остался ТОЛЬКО для grandfather-миграции (валюту за победу
+  // больше не считает — её несёт bankLevelScore); проверяем как чистую функцию
   const awardProbe = await page.evaluate(() => {
     const g = window.__game;
     return { a1: g.starAward(1, 1), a3at1: g.starAward(1, 3), a3at10: g.starAward(10, 3), a0: g.starAward(5, 0) };
   });
   expect(awardProbe.a1 === 110 && awardProbe.a3at1 === 510,
-    'номинал: 1★ на ур.1 = 110, 3★ = 510 (' + JSON.stringify(awardProbe) + ')');
-  expect(awardProbe.a3at10 === 600, 'надбавка за уровень: 3★ на ур.10 = 600 (' + awardProbe.a3at10 + ')');
-  expect(awardProbe.a0 === 0, 'непройденный уровень номинала не имеет (' + awardProbe.a0 + ')');
+    'миграция-номинал: 1★ на ур.1 = 110, 3★ = 510 (' + JSON.stringify(awardProbe) + ')');
+  expect(awardProbe.a3at10 === 600 && awardProbe.a0 === 0,
+    'миграция-номинал: надбавка за уровень и 0 за непройденный (' + JSON.stringify(awardProbe) + ')');
+
+  // ЕДИНОЕ ЧИСЛО: банк счёта уровня деноминируется ×10 в кошелёк; чип
+  // (liveBalance) = баланс + незабанкованный счёт текущего уровня
+  const balProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const b0 = g.starBalance();
+    const banked = g.bankScore(6400);           // деноминация ÷10 -> +640
+    const b1 = g.starBalance();
+    // liveBalance = баланс + floor(score/10) во время уровня
+    g.regen(); g.skipIntro();
+    const st = g.stats(); st.score = 1230;
+    const live = g.liveBalance(), bal = g.starBalance();
+    return { b0, banked, b1, live, bal, lb: g.leaderboardScore() };
+  });
+  expect(balProbe.banked === 640 && balProbe.b1 === balProbe.b0 + 640,
+    'банк счёта деноминирован ×10: 6400 -> +640 (' + balProbe.banked + ')');
+  expect(balProbe.live === balProbe.bal + 123,
+    'чип (liveBalance) = баланс + незабанкованный счёт/10 (' + balProbe.bal + '+123 -> ' + balProbe.live + ')');
+  expect(balProbe.lb === balProbe.bal, 'лидерборд-число = баланс (' + balProbe.lb + ')');
 
   // Кошелёк и рейтинг РАЗДЕЛЕНЫ: трата не отнимает звёзды уровней
   const walletProbe = await page.evaluate(() => {
@@ -502,9 +522,55 @@ const path = require('path');
   expect(migProbe.again === 0 && migProbe.balFinal === migProbe.after,
     'миграция разовая — повтор ничего не добавил (' + migProbe.balFinal + ')');
 
+  // ОТКРЫТИЕ ТИПА ЗА БАЛАНС (финализация владельца): закрытый тип, трата,
+  // становится открытым (bought), лидерборд/баланс падают на цену
+  const unlockBuyProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(1); g.regen(); g.skipIntro();
+    // берём заведомо ЗАКРЫТЫЙ тип (индекс 40 > 9 открытых на ур.1)
+    const snap = g.accSnapshot();
+    const closed = snap.find((r, i) => i >= 20 && !r.unlocked);
+    g.starGrant(10000);
+    const price = g.typeUnlockPrice(closed.key);
+    const wasUnlocked = g.isTypeUnlocked(closed.key);
+    const lb0 = g.leaderboardScore();
+    const buy = g.purchaseUnlock(closed.key);
+    const nowUnlocked = g.isTypeUnlocked(closed.key);
+    const s2 = g.accSnapshot().find(r => r.key === closed.key);
+    const lb1 = g.leaderboardScore();
+    const buyAgain = g.purchaseUnlock(closed.key); // уже открыт -> отказ
+    return { key: closed.key, price, wasUnlocked, buy, nowUnlocked,
+      bought: s2.bought, snapUnlocked: s2.unlocked, lb0, lb1, buyAgain };
+  });
+  expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 500,
+    'закрытый тип имеет цену открытия 500 (' + unlockBuyProbe.price + ')');
+  expect(unlockBuyProbe.buy.ok && unlockBuyProbe.nowUnlocked === true,
+    'покупка открыла тип (' + unlockBuyProbe.key + ')');
+  expect(unlockBuyProbe.bought === true && unlockBuyProbe.snapUnlocked === true,
+    'снапшот: bought=true и unlocked=true после покупки');
+  expect(unlockBuyProbe.lb1 === unlockBuyProbe.lb0 - unlockBuyProbe.price,
+    'трата на открытие уронила лидерборд-баланс (' + unlockBuyProbe.lb0 + ' -> ' + unlockBuyProbe.lb1 + ')');
+  expect(unlockBuyProbe.buyAgain.ok === false && unlockBuyProbe.buyAgain.reason === 'already',
+    'повторная покупка открытого типа отклонена (' + JSON.stringify(unlockBuyProbe.buyAgain) + ')');
+
+  // открытие без средств — отказ без списания
+  const unlockDeny = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(1); g.regen(); g.skipIntro();
+    const closed = g.accSnapshot().find((r, i) => i >= 20 && !r.unlocked);
+    while (g.starBalance() > 0) g.spendStars(g.starBalance());
+    const r = g.purchaseUnlock(closed.key);
+    return { r, bal: g.starBalance(), unlocked: g.isTypeUnlocked(closed.key) };
+  });
+  expect(unlockDeny.r.ok === false && unlockDeny.r.reason === 'insufficient' && unlockDeny.unlocked === false,
+    'открытие без средств отклонено, тип закрыт (' + JSON.stringify(unlockDeny.r) + ')');
+
   // ОТКРЫТОСТЬ ТИПОВ прогрессией (ручка для ГРАФИКИ: портрет только открытым)
+  // ⚠️ сбрасываем купленные разлоки — иначе тест покупки выше засчитался бы
+  // как прогрессия (эта проверка про ЧИСТУЮ прогрессионную открытость)
   const unlockProbe = await page.evaluate(() => {
     const g = window.__game;
+    g.clearBought();
     g.setLevel(1);
     const snap1 = g.accSnapshot();
     const u1 = g.unlockedTypes();

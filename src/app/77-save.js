@@ -16,16 +16,22 @@ const SAVE_KEY = 'mixer_save_v1';
 // (accTier/accMult) и в сейве не дублируются — нечему расходиться.
 // Мерж: max по ключу (образец he/hs), gen-эпоха уважается. При смене
 // партии моделей осиротевшие ключи НЕ теряются (лог в accAuditOrphans).
-// se/ss — ЗВЁЗДЫ-ВАЛЮТА (решение владельца 2026-07-23), earned/spent по
-// образцу монет: баланс = разность, ОБА счётчика монотонные и мержатся по
-// max. ⚠️ ПОЧЕМУ НЕ ОДНО ПОЛЕ-БАЛАНС: при max-мерже потраченное
-// ВОССТАНАВЛИВАЛОСЬ бы из отставшей облачной копии — валюта дюпится
-// бесконечно (вердикт аудита плана, та же грабля, что была у монет).
-// stars[lv] — это РЕЙТИНГ уровня (1..3), он НЕ кошелёк: max-мерж для него
-// корректен, тратами не трогается.
-// bo — купленные бустом ступени по типам (монотонно, мерж max по ключу).
-// sm — флаг разовой миграции рейтинга в стартовый баланс (монотонный 0->1).
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, stars: {}, ac: {}, bo: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// se/ss — ЕДИНЫЙ БАЛАНС (финализация владельцем 2026-07-24: «очки=звёзды=
+// баланс»). se = ПОЖИЗНЕННЫЙ накопленный игровой счёт (деноминированный,
+// score/SCORE_DENOM, банкуется на победе раз за уровень), ss = пожизненные
+// траты. balance = se−ss — ОДНО число: чип в игре, кошелёк в меню, лидерборд.
+// ⚠️ ПОЧЕМУ НЕ ОДНО ПОЛЕ-БАЛАНС с max-мержем: потраченное ВОССТАНАВЛИВАЛОСЬ
+// бы из отставшей облачной копии — дюп (вердикт аудита, грабля монет).
+// «Одно число» — это СЕМАНТИКА (разность), хранение остаётся двумя
+// монотонными счётчиками. Фарм не грозит: игра линейна, реплея пройденных
+// уровней нет (levelNum только растёт) — счёт банкуется раз за уровень.
+// ⚠️ ЕСЛИ появится level-select/реплей — вернуть «лучший счёт за уровень»
+// (Save.sc[lv], банк дельты), иначе переигровка лёгкого уровня = ферма.
+// stars[lv] — РЕЙТИНГ уровня (1..3), качество прохождения; НЕ кошелёк,
+// max-мерж, тратами не трогается. bo — купленные бустом ступени (max).
+// uk — купленные ЗАРАНЕЕ типы (открытие за баланс; мерж OR). sm — флаг
+// разовой миграции старых сейвов (монотонный 0->1).
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -39,6 +45,7 @@ function mergeSave(into, from){
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
+    into.uk = Object.assign({}, from.uk || {});
     into.gen = gf;
     return;
   }
@@ -60,6 +67,9 @@ function mergeSave(into, from){
   if (!into.bo) into.bo = {};
   const bo = from.bo || {};
   for (const k in bo) into.bo[k] = Math.max(into.bo[k] || 0, bo[k] || 0);
+  if (!into.uk) into.uk = {};
+  const uk = from.uk || {};
+  for (const k in uk) if (uk[k]) into.uk[k] = 1; // купленные разлоки — мерж OR
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
@@ -101,23 +111,38 @@ function fireStarsChange(){
   try { updateHUD(); } catch(e){}
 }
 function starBalance(){ return Math.max(0, (Save.se || 0) - (Save.ss || 0)); }
-// Номинал победы: по рейтингу + надбавка за номер уровня (поздние уровни
-// длиннее — платят больше). Чистая функция, ею же считается миграция.
+// ЛИДЕРБОРД (финализация владельца 2026-07-24: «баланс влияет на позицию»).
+// Позиция = ТЕКУЩИЙ баланс, поэтому трата (unlock/boost) осознанно роняет
+// рейтинг — размен, который хочет владелец. Сам лидерборд-фича ждёт выбора
+// площадки (Playgama/Yandex есть, Poki нет); пока — число-хендл на будущее.
+function leaderboardScore(){ return starBalance(); }
+// ЖИВОЙ баланс для чипа в игре (запрос ИНТЕРФЕЙСУ: чип показывает balance,
+// а не per-level score): банкованный баланс + ещё НЕ забанкованный счёт
+// текущего уровня. На победе счёт уезжает в se, поэтому число непрерывно.
+function liveBalance(){
+  let live = 0;
+  try {
+    if (typeof level !== 'undefined' && level && !level.over &&
+        typeof stats !== 'undefined' && stats)
+      live = Math.floor(Math.max(0, stats.score) / SCORE_DENOM);
+  } catch(e){}
+  return starBalance() + live;
+}
+// БАНК СЧЁТА НА ПОБЕДЕ (финализация владельца: «всё заработанное в уровне =
+// баланс»). se += score/SCORE_DENOM (деноминация ×10, floor, клампится ≥0).
+// Раз за уровень — игра линейна, реплея нет, поэтому не фармится.
+function bankLevelScore(score){
+  const gain = Math.floor(Math.max(0, score || 0) / SCORE_DENOM);
+  if (gain > 0){ Save.se = (Save.se || 0) + gain; commitSave(); fireStarsChange(); }
+  return gain;
+}
+// Номинал победы по РЕЙТИНГУ — остался ТОЛЬКО для grandfather-миграции
+// старых сейвов (у них нет истории счёта, сеем стартовый баланс из рейтинга;
+// магнитуда совпадает с новым банком ~сотни/уровень). Валюту за победу
+// больше НЕ считает — её несёт bankLevelScore.
 function starAward(lv, stars){
   if (!(stars > 0)) return 0;
   return (STAR_AWARD[Math.min(3, stars)] || 0) + STAR_LEVEL_BONUS * Math.max(1, lv | 0);
-}
-// Победа: платим ДЕЛЬТУ к прошлому рейтингу этого уровня. Перепрохождение
-// без улучшения = 0 (анти-ферма: ур.1 короткий и даёт лёгкие 3★).
-// Рейтинг обновляется отдельно (setStars) и тратами не трогается.
-function awardStarsForWin(lv, stars){
-  const prev = Save.stars[lv] || 0;
-  const gain = Math.max(0, starAward(lv, stars) - starAward(lv, prev));
-  if (gain > 0) Save.se = (Save.se || 0) + gain;
-  setStars(lv, stars);
-  commitSave();
-  if (gain > 0) fireStarsChange();
-  return gain;
 }
 function addStars(n){ if (n > 0){ Save.se = (Save.se || 0) + n; commitSave(); fireStarsChange(); } }
 function spendStars(n){
@@ -171,7 +196,7 @@ function buyBoost(name){
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
-  Save.se = 0; Save.ss = 0; Save.bo = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
+  Save.se = 0; Save.ss = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
@@ -263,10 +288,36 @@ function typesUnlockedCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
   return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
 }
-function unlockedTypes(){ return TYPES.slice(0, typesUnlockedCount()).map(T => T.name); }
+// Открыт = прогрессией ИЛИ куплен заранее за баланс (uk). ⚠️ Покупной
+// разлок раскрывает тип в КОЛЛЕКЦИИ/портрете (и позволяет буст), но НЕ
+// меняет пул спавна genLevel (это была бы правка ядра/сложности) — тип
+// начнёт выпадать в игре по обычной прогрессии. Интерпретация помечена
+// диспетчеру; если владелец захочет ранний СПАВН — отдельная правка genLevel.
 function isTypeUnlocked(name){
   const idx = TYPES.findIndex(T => T.name === name);
-  return idx >= 0 && idx < typesUnlockedCount();
+  if (idx >= 0 && idx < typesUnlockedCount()) return true;
+  return !!(Save.uk && Save.uk[name]);
+}
+function unlockedTypes(){ return TYPES.filter(T => isTypeUnlocked(T.name)).map(T => T.name); }
+// ОТКРЫТИЕ ТИПА ЗА БАЛАНС (финализация владельца 2026-07-24). Цена
+// TYPE_UNLOCK_PRICE (провизорна, к таблице №2). Трата через ss → баланс и
+// лидерборд падают (осознанный размен владельца). Уже открытые не продаём.
+function typeUnlockPrice(name){
+  if (isTypeUnlocked(name)) return null; // уже открыт (прогрессией или куплен)
+  const idx = TYPES.findIndex(T => T.name === name);
+  return idx >= 0 ? TYPE_UNLOCK_PRICE : null;
+}
+function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && starBalance() >= p; }
+function purchaseUnlock(name){
+  const p = typeUnlockPrice(name);
+  if (p == null) return { ok: false, reason: isTypeUnlocked(name) ? 'already' : 'unknown' };
+  if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
+  if (!Save.uk) Save.uk = {};
+  Save.ss = (Save.ss || 0) + p; // трата — монотонный счётчик (лидерборд падает)
+  Save.uk[name] = 1;
+  commitSave(); fireStarsChange();
+  try { Telemetry.ev('unlock_buy', { t: name, price: p }); } catch(e){}
+  return { ok: true, price: p, balance: starBalance() };
 }
 
 // Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
@@ -283,12 +334,18 @@ function accSnapshot(){
       if (typeof items !== 'undefined' && items)
         live = items.find(i => i.alive && !i.animating && i.type && i.type.name === k) || null;
     } catch(e){}
+    const prog = i < openN;
     return { name: accLabel(k), key: k, count: accCount(k), tier: accTier(k),
       mult: accMult(k), next: accNext(k),
       // BOOST для меню владельца: сколько ступеней докуплено, цена следующей
       // (null — упёрлись в кап) и хватает ли баланса прямо сейчас
       boost: boostTier(k), price: boostPrice(k), affordable: canBoost(k),
-      unlocked: i < openN, _item: live };
+      // ОТКРЫТИЕ: unlocked = прогрессией ИЛИ куплено; bought — именно куплено
+      // (интерфейс отличает «дошёл» от «купил заранее»); unlockPrice/canUnlock
+      // — для кнопки «открыть за баланс» на ЗАКРЫТЫХ карточках
+      unlocked: prog || !!(Save.uk && Save.uk[k]), bought: !!(Save.uk && Save.uk[k]),
+      unlockPrice: typeUnlockPrice(k), canUnlock: canUnlockType(k),
+      _item: live };
   });
 }
 // Защита на смену партии моделей (обязательная связка (б) спеки): ключи

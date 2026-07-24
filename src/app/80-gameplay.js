@@ -252,10 +252,12 @@ function checkEnd(){
     // МОНЕТЫ: база + конверсия очков (комбо наконец экономически выгодны)
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
-    // ЗВЁЗДЫ-ВАЛЮТА (решение владельца 2026-07-23): начисление в кошелёк
-    // ДЕЛЬТОЙ рейтинга — перепрохождение без улучшения даёт 0 (анти-ферма);
-    // сам рейтинг stars[lv] обновляется внутри и тратами не трогается
-    level.starsWon = awardStarsForWin(levelNum, stars);
+    // ЕДИНЫЙ БАЛАНС (финализация владельца 2026-07-24: «всё заработанное в
+    // уровне = баланс»): банкуем НАКОПЛЕННЫЙ СЧЁТ уровня (деноминир. ×10) в
+    // кошелёк — то же число в чипе, меню и лидерборде. Рейтинг stars[lv]
+    // остаётся как индикатор качества (setStars), валюту больше не несёт.
+    setStars(levelNum, stars);
+    level.starsWon = bankLevelScore(stats.score);
     addHints(1); // +1 подсказка за успешный уровень (спека владельца)
     Telemetry.ev('win', { lv: levelNum, st: stars, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Level ' + levelNum + ' cleared!';
