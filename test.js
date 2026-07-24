@@ -962,6 +962,43 @@ window.bridge = {
   expect(shardLeak < shard.created / 2,
     'осколки: геометрии дренажат в базу без утечки (пик ' + shard.peak + ' → остаток +' + shardLeak + ' при ' + shard.created + ' осколках)');
 
+  // ВРАЩЕНИЕ ПОРТРЕТА (спека владельца 2026-07-24): портрет-меш по ключу
+  // типа (вариант B) + живой спин при hover. Секция самодостаточная —
+  // создаёт свой host, гасит спин в конце.
+  const spin = await page.evaluate(async () => {
+    const g = window.__game;
+    // портрет для типа, которого может не быть в текущей партии (хвост списка)
+    const rows = g.accSnapshot();
+    const tailKey = rows[rows.length - 1].key;
+    const it = g.thumbItemForKey(tailKey);
+    const built = !!(it && it.mesh);
+    // хост + старт спина
+    const host = document.createElement('div');
+    host.id = '__spinHost';
+    host.style.cssText = 'position:fixed;left:0;top:0;width:120px;height:120px;';
+    document.body.appendChild(host);
+    g.thumbSpinKey(rows[0].key, '#__spinHost');
+    const s0 = g.spinState();
+    const a0 = s0.angle, camW0 = s0.camW;
+    await new Promise(r => setTimeout(r, 500));           // крутится
+    const s1 = g.spinState();
+    // вариант B: построить портреты всех открытых типов
+    const all = g.buildAllThumbs();
+    g.thumbSpinStop();
+    const sStop = g.spinState();
+    host.remove();
+    return { built, tailKey, mounted: s0.mounted, rafOn: s0.rafOn,
+      angleGrew: s1.angle > a0, camConst: s1.camW === camW0,
+      allBuilt: all.built === all.total && all.total > 0, allTotal: all.total,
+      stopped: !sStop.rafOn && !sStop.mounted && !sStop.active };
+  });
+  expect(spin.built, 'портрет-меш строится по ключу типа вне партии (' + spin.tailKey + ')');
+  expect(spin.mounted && spin.rafOn, 'спин: канвас смонтирован и rAF идёт');
+  expect(spin.angleGrew, 'спин: угол растёт (модель крутится)');
+  expect(spin.camConst, 'спин: Y-рамка константна за оборот (не «дышит»)');
+  expect(spin.allBuilt, 'вариант B: портреты построены для всех открытых типов (' + spin.allTotal + ')');
+  expect(spin.stopped, 'стоп: rAF погашен, канвас снят, ноль стоимости вне hover');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

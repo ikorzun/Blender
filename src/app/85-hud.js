@@ -243,6 +243,32 @@ const thumbCache = {};
 // углы круглых моделей срезало бы.
 const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
 const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
+// ПОРТРЕТ-МЕШ ПО КЛЮЧУ ТИПА (type.name) — вариант B спеки владельца 2026-07-24:
+// даёт модель тем ОТКРЫТЫМ типам, которых НЕТ в текущей партии (иначе была
+// буква-заглушка). Меш строится БЕЗ тела Rapier (портрету физика не нужна) и
+// НЕ добавляется в главную сцену — itemThumb/спин делают свою меш-обёртку.
+// Материал — ТОТ ЖЕ itemMaterial (40-items), что у боевого предмета: matcap,
+// вуаль, texTune честны. Кэш по ключу; key='T'+idx СОВПАДАЕТ с боевым, поэтому
+// thumbCache (по item.key) у портрета и живого предмета один — двойного
+// рендера нет. Возвращает минимальный item под itemThumb/thumbSpinStart.
+const thumbItemCache = {};
+function thumbItemForKey(key){
+  if (thumbItemCache[key]) return thumbItemCache[key];
+  let idx = -1;
+  for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === key){ idx = i; break; }
+  if (idx < 0) return null;
+  const t = TYPES[idx], gkey = String(idx);
+  if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
+  const mat = itemMaterial(t);
+  const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
+  mesh.scale.setScalar(MESH_SCALE);
+  const it = {
+    key: 'T' + idx, type: t, mesh, baseColor: mat.color.clone(),
+    fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
+  };
+  thumbItemCache[key] = it;
+  return it;
+}
 function itemThumb(item){
   if (!item || !item.mesh) return null;
   const key = String(item.key);
@@ -316,6 +342,115 @@ function itemThumb(item){
     thumbCache[key] = url;
     return url;
   } catch(e){ console.warn('itemThumb:', e && e.message); return null; }
+}
+
+// ====== ЖИВОЕ ВРАЩЕНИЕ ПОРТРЕТА ПРИ HOVER (спека владельца 2026-07-24
+// «на витрине при наведении модель медленно вращается по горизонтали»).
+// ОДИН общий офскрин-контекст spinR, rAF ТОЛЬКО пока висит hover; вне hover —
+// НОЛЬ стоимости (rAF отменён, канвас снят). КОНТРАКТ С ИНТЕРФЕЙСОМ:
+// thumbSpinStart(item, hostEl) / thumbSpinStop() — интерфейс вешает на
+// mouseenter/leave карточки, статический <img> остаётся кадром покоя.
+const SPIN_PX = 176;       // квадрат буфера; CSS растянет по ячейке
+const SPIN_SPEED = 0.9;    // рад/с — «медленно» (оборот ~7 с)
+const SPIN_TILT_X = 0.42;  // наклон как у статического портрета (itemThumb)
+const SPIN_YAW0 = 0.65;    // старт-угол = yaw статики -> появление без скачка
+let spinR = null, spinScene = null, spinCam = null;
+let spinMesh = null, spinItem = null, spinRAF = 0, spinPrev = 0, spinAngle = 0;
+const _spv = new THREE.Vector3(), _spm = new THREE.Matrix4();
+function ensureSpinR(){
+  if (spinR) return;
+  spinR = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  spinR.setSize(SPIN_PX, SPIN_PX, false);
+  spinR.outputEncoding = renderer.outputEncoding;
+  // absolute inset:0 — канвас НАКРЫВАЕТ статический <img> в ячейке
+  // (.msc-imgwrap position:relative), интерфейсу достаточно appendChild.
+  // border-radius:inherit — если интерфейс округлит превью, канвас подхватит
+  // радиус хоста сам (сейчас у .msc-img радиуса нет — no-op, но self-mounting
+  // без CSS у интерфейса).
+  spinR.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:inherit;';
+  spinScene = new THREE.Scene();
+  spinCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 50);
+  spinCam.position.set(1.7, THUMB_Y + 1.35, 2.3); // тот же ракурс, что itemThumb
+  spinCam.lookAt(0, THUMB_Y, 0);
+  spinCam.updateMatrixWorld(true);
+  spinScene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.5);
+  dl.position.set(2, 3, 2); spinScene.add(dl);
+}
+// Y-ИНВАРИАНТНАЯ РАМКА: силуэт при вращении вокруг Y меняется, поэтому
+// кадрируем по ОХВАТНОМУ ЦИЛИНДРУ вокруг локальной оси Y — его силуэт под
+// Y-поворотом не меняется ПО ПОСТРОЕНИЮ (three Euler XYZ: R=Rx·Ry, а Ry не
+// трогает Y-симметричный цилиндр). Значит модель НЕ клипается и не «дышит»
+// зумом. Считается ОДИН раз на старте hover.
+function frameSpinCylinder(mesh){
+  const pos = mesh.geometry.attributes.position, s = mesh.scale.x;
+  let R = 0, yMin = Infinity, yMax = -Infinity;
+  for (let i = 0; i < pos.count; i++){
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const r = Math.hypot(x, z); if (r > R) R = r;
+    if (y < yMin) yMin = y; if (y > yMax) yMax = y;
+  }
+  R *= s; yMin *= s; yMax *= s;
+  _spm.makeRotationX(SPIN_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
+  const view = spinCam.matrixWorldInverse;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const yy of [yMin, (yMin + yMax) / 2, yMax]){
+    for (let a = 0; a < 24; a++){
+      const th = a / 24 * Math.PI * 2;
+      _spv.set(Math.cos(th) * R, yy, Math.sin(th) * R).applyMatrix4(_spm).applyMatrix4(view);
+      if (_spv.x < x0) x0 = _spv.x; if (_spv.x > x1) x1 = _spv.x;
+      if (_spv.y < y0) y0 = _spv.y; if (_spv.y > y1) y1 = _spv.y;
+    }
+  }
+  const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  spinCam.left = cx - half; spinCam.right = cx + half;
+  spinCam.top = cy + half;  spinCam.bottom = cy - half;
+  spinCam.updateProjectionMatrix();
+}
+function thumbSpinStop(){
+  if (spinRAF){ cancelAnimationFrame(spinRAF); spinRAF = 0; }
+  if (spinMesh && spinScene){ spinScene.remove(spinMesh); spinMesh = null; }
+  if (spinR && spinR.domElement.parentNode) spinR.domElement.parentNode.removeChild(spinR.domElement);
+  spinItem = null; spinPrev = 0;
+}
+function thumbSpinStart(item, host){
+  if (!item || !item.mesh || !host) return;
+  ensureSpinR();
+  thumbSpinStop();                       // один общий канвас: снять предыдущий
+  spinItem = item; spinAngle = SPIN_YAW0;
+  // ⚠️ НЕ mesh.clone() (JSON userData с телом Rapier — throw): обёртка на общих
+  // geometry+material, как в itemThumb
+  spinMesh = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
+  spinMesh.scale.copy(item.mesh.scale);
+  spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
+  spinMesh.rotation.set(SPIN_TILT_X, spinAngle, 0);
+  spinScene.add(spinMesh);
+  frameSpinCylinder(spinMesh);
+  host.appendChild(spinR.domElement);
+  spinRAF = requestAnimationFrame(spinTick);
+}
+function spinTick(now){
+  if (!spinItem || !spinMesh){ spinRAF = 0; return; }
+  // страховка: ячейку сняли из DOM без thumbSpinStop (ротация списка) —
+  // не крутить впустую в отцепленный канвас
+  if (!spinR.domElement.parentNode){ thumbSpinStop(); return; }
+  const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
+  spinAngle += dt * SPIN_SPEED;
+  spinMesh.rotation.set(SPIN_TILT_X, spinAngle, 0);
+  // вуаль/matcap-затемнение и прозрачность OFF на кадр (портрет не сереет) —
+  // материал ОБЩИЙ с боевым, восстанавливаем сразу (как itemThumb)
+  const mat = spinMesh.material;
+  const col = mat.color, saved = (spinItem.baseColor && col) ? col.clone() : null;
+  if (saved) col.copy(spinItem.baseColor);
+  const sh = mat.userData && mat.userData.shader;
+  const savedVeil = sh ? sh.uniforms.uVeil.value : 0; if (sh) sh.uniforms.uVeil.value = 0;
+  const savedOp = mat.opacity; mat.opacity = 1;
+  spinR.render(spinScene, spinCam);
+  mat.opacity = savedOp;
+  if (sh) sh.uniforms.uVeil.value = savedVeil;
+  if (saved) col.copy(saved);
+  spinRAF = requestAnimationFrame(spinTick);
 }
 
 // --- всплывашка: очередь, показываем по одной ~2.2 с ---
@@ -433,6 +568,10 @@ function buildMainCollection(){
   grid.innerHTML = '';
   const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
   const open = unlockedTypeCount();
+  // спин портрета — ТОЛЬКО на устройствах с настоящим hover (десктоп): на
+  // тач-экранах mouseenter стреляет по тапу и крутил бы карточку без причины
+  // (спека ГРАФИКИ «мобайл: hover не вешать, статический портрет и так есть»)
+  const canHover = !!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches);
   rows.forEach((r, i) => {
     const locked = i >= open;
     const card = document.createElement('div');
@@ -446,7 +585,10 @@ function buildMainCollection(){
     wrap.className = 'msc-imgwrap';
     const live = r._item || (typeof items !== 'undefined' && items &&
       items.find(it => it.alive && it.type && String(it.type.name) === String(r.key)));
-    const url = live ? itemThumb(live) : null;
+    // портрет: живой предмет типа -> его снимок; вне партии у ОТКРЫТЫХ типов
+    // строим меш по ключу (thumbItemForKey, ГРАФИКА) — буква остаётся только
+    // у локнутых (анти-спойлер). Кэш общий (key='T'+idx), двойного рендера нет.
+    const url = live ? itemThumb(live) : (!locked ? itemThumb(thumbItemForKey(r.key)) : null);
     if (url){
       const im = document.createElement('img');
       im.className = 'msc-img'; im.src = url; wrap.appendChild(im);
@@ -495,6 +637,13 @@ function buildMainCollection(){
         if (!r.affordable) boost.classList.add('poor');
       }
       card.appendChild(boost);
+    }
+    // HOVER-СПИН (десктоп): канвас ГРАФИКИ самомонтируется в .msc-imgwrap
+    // (absolute inset:0), накрывает статический <img>-кадр покоя; стоп гасит
+    // rAF полностью. Только у ОТКРЫТЫХ (у локнутых портрета/меша нет).
+    if (canHover && !locked){
+      card.addEventListener('mouseenter', () => thumbSpinStart(r._item || thumbItemForKey(r.key), wrap));
+      card.addEventListener('mouseleave', () => thumbSpinStop());
     }
     grid.appendChild(card);
   });
