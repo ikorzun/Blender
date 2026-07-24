@@ -214,11 +214,16 @@ function applySound(on){
   CFG.sound = !!on;
   $('soundToggle').checked = CFG.sound;
 }
-$('msPlayBtn').addEventListener('click', ()=>{
-  const fresh = !level || level.over; // нет живой партии — кнопка СТАРТУЕТ новую
+// ВЕСЬ Play-блок кликабелен → возврат в игру (спека владельца «всякая область
+// тапабельна»): хендлер на КАРТОЧКУ .ms-play, а не на кнопку — клик по кнопке
+// (внутри) доходит тем же всплытием, поэтому отдельный хендлер кнопки СНЯТ
+// (иначе двойной closeMainScreen/genLevel). Пустое поле карточки — тоже цель.
+function menuPlayResume(){
+  const fresh = !level || level.over; // нет живой партии — СТАРТ новой
   closeMainScreen();                  // снимет ТОЛЬКО свою паузу (см. 85-hud)
   if (fresh) genLevel();
-});
+}
+document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
 // отладочная панель — из меню (раньше вход был в карточке паузы)
 $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)

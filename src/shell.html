@@ -437,7 +437,7 @@
   /* Play */
   .ms-play { background:#d8bbff; border-radius:32px; padding:16px; min-height:340px;
     display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
-    gap:32px; box-shadow:inset 0 0 60px 0 rgba(255,255,255,.35); }
+    gap:32px; box-shadow:inset 0 0 60px 0 rgba(255,255,255,.35); cursor:pointer; }
   .ms-eyes { width:240px; max-width:100%; height:auto; display:block; }
   .ms-playbtn { border:none; cursor:pointer; background:#000; color:#fff; width:100%;
     height:84px; border-radius:100px; font-family:var(--font-round);
@@ -597,10 +597,30 @@
     .ms-dev { grid-area:dev; }
   }
   /* СТУПЕНИ КОЛОНОК КОЛЛЕКЦИИ (только в десктоп-виде ≥700; идут ПОСЛЕ
-     базовых 2-х, поэтому перебивают их порядком в файле). Пороги подобраны
-     так, чтобы карточка не мельчала: 3 колонки с ~860, 4 — с ~1040. */
-  @media (min-width:860px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
-  @media (min-width:1040px){ .ms-grid { grid-template-columns:repeat(4, 1fr); } }
+     базовых 2-х, поэтому перебивают их порядком в файле). ⚠️ 2 КОЛОНКИ МАКС
+     до 900 (спека владельца): 3 колонки — только С 901, 4 — с 1080. */
+  @media (min-width:901px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
+  @media (min-width:1080px){ .ms-grid { grid-template-columns:repeat(4, 1fr); } }
+  /* УЗКИЙ ДЕСКТОП 700–900 (спека владельца): левую часть перестраиваем
+     ВЕРТИКАЛЬНО по блокам — шапка коллекции ПОЛОСОЙ сверху, ниже слева стопка
+     [Play(поджатые глаза) → Settings → Banner ПОД настройками → dev], справа
+     коллекция (2 колонки). Play поджимаем по высоте (min-height + меньше глаза
+     + gap), баннер уходит ПОД настройки, левая колонка проп. уже. Перебивает
+     базовый бенто (side-by-side) — идёт ПОСЛЕ него по файлу. */
+  @media (min-width:700px) and (max-width:900px){
+    .ms-wrap { grid-template-columns:minmax(240px, 42%) 1fr;
+      grid-template-rows:auto auto auto auto 1fr;
+      grid-template-areas:"chead chead"
+                          "play  grid "
+                          "sets  grid "
+                          "bann  grid "
+                          "dev   grid "; }
+    .ms-play { min-height:236px; gap:16px; }   /* поджать блок с глазами по высоте */
+    .ms-eyes { width:172px; }                  /* глаза мельче — освобождаем вертикаль */
+    .ms-playbtn { height:64px; font-size:26px; }
+    .ms-settings { --ms-ctl:148px; }           /* левая колонка уже — контрол поджат */
+    .ms-banner { min-height:120px; }
+  }
 </style>
 </head>
 <body>
