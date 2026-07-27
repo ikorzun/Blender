@@ -121,7 +121,9 @@ const path = require('path');
   const shakesLeft = await page.evaluate(() => window.__game.level().shakes);
   expect(shakesLeft === 2, 'встряска мгновенная и списала заряд (3 -> ' + shakesLeft + ')');
 
-  // тупик: пар нет + встрясок нет -> экран поражения
+  // ТУПИК (пар нет достижимых + встрясок нет) -> ПОМОЛ-ВЫРУЧАЛКА, НЕ поражение
+  // (решение владельца 2026-07-27 «помол = штраф, не смерть»): помол разбирает
+  // кучу, пока не появится достижимая пара; экран поражения из тупика не всплывает.
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   // ⚠️ Ждём УСТОЙЧИВОГО штиля, а не фиксированной паузы: пока куча движется,
   // updateMatchRadius каждый тик перезаписывает форсированный ниже matchRadius,
@@ -138,30 +140,35 @@ const path = require('path');
     const lv = window.__game.level();
     lv.shakes = 0; lv.adShakes = 0;
   });
-  await page.waitForTimeout(2500);
-  const loseShown = await page.evaluate(() => document.getElementById('loseOverlay').style.display);
-  const loseStats = await page.evaluate(() => document.getElementById('loseStats').textContent);
-  console.log('lose stats:', loseStats);
-  expect(loseShown === 'flex', 'тупик без встрясок показывает экран поражения');
-  await page.screenshot({ path: 'shot_lose.png' });
+  const aliveBeforeMill = await page.evaluate(() => window.__game.alive());
+  // тупик подтверждается 2 стабильными тиками (~1.2с) -> level.deadlock
+  await page.waitForFunction(() => window.__game.level().deadlock === true, null, { timeout: 8000, polling: 100 });
+  await page.waitForTimeout(3000); // дать помолу-выручалке отработать пару оборотов
+  const dl = await page.evaluate(() => ({
+    lose: document.getElementById('loseOverlay').style.display,
+    deadlock: window.__game.level().deadlock,
+    over: window.__game.level().over,
+    grinding: document.getElementById('mixerTimer').textContent,
+    alive: window.__game.alive(),
+  }));
+  console.log('тупик→помол:', JSON.stringify(dl), '| было живых', aliveBeforeMill);
+  expect(dl.lose !== 'flex', 'тупик НЕ показывает экран поражения (помол-выручалка)');
+  expect(dl.over === false, 'уровень НЕ проигран в тупике (помол вместо смерти)');
+  expect(dl.deadlock === true, 'тупик выставил level.deadlock');
+  expect(dl.alive < aliveBeforeMill, 'помол-выручалка разбирает кучу (' + aliveBeforeMill + ' -> ' + dl.alive + ')');
+  await page.screenshot({ path: 'shot_deadlock_mill.png' });
 
-  // «Оглядеться» закрывает оверлей и даёт фору, потом тупик показывается снова
-  await page.click('#loseContinue');
-  await page.waitForTimeout(400);
-  const closed = await page.evaluate(() => document.getElementById('loseOverlay').style.display);
-  await page.waitForTimeout(9500);
-  const reShown = await page.evaluate(() => document.getElementById('loseOverlay').style.display);
-  expect(closed === 'none', '«Оглядеться» закрывает экран поражения');
-  expect(reShown === 'flex', 'после форы тупик показан снова');
+  // восстановление агентности (вернули встряски) -> тупик снят, помол встал
+  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; window.__game.cfg.matchRadius = 2.0; window.__game.level().shakes = 3; });
+  await page.waitForTimeout(1200);
+  const cleared = await page.evaluate(() => window.__game.level().deadlock);
+  expect(cleared === false, 'вернулась агентность -> тупик снят, помол-выручалка остановлена');
 
-  // «Начать заново» перезапускает уровень
-  await page.evaluate(() => { window.__game.cfg.matchRadius = 1.2; });
-  await page.click('#loseAgainBtn');
-  await page.waitForTimeout(300);
-  await page.evaluate(() => window.__game.skipIntro());
+  // рестарт уровня штатным regen (экран поражения больше не участвует)
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(300);
   const aliveAfterRestart = await page.evaluate(() => window.__game.alive());
-  expect(aliveAfterRestart > 0, 'рестарт после поражения пересоздал уровень (' + aliveAfterRestart + ')');
+  expect(aliveAfterRestart > 0, 'regen пересоздал уровень (' + aliveAfterRestart + ')');
 
   // заполнение доверху + очки за групповой матч + миксер за простой
   await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; window.__game.regen(); window.__game.skipIntro(); });
@@ -896,25 +903,19 @@ window.bridge = {
     'каденция: показ, отложенный не-рекламным выходом, выходит на ПОБЕДНОМ переходе (' +
     cad.deferredNoShow + '->' + cad.deferredFired + ')');
 
-  // ПРОВОДКА (спека 2026-07-24): РЕАЛЬНЫЙ Retry из тупика НЕ показывает
-  // межстраничную, даже когда счётчик у порога — вызов убран из loseAgainBtn.
-  // Форсим настоящий тупик (нет совпадений + нет встрясок), ждём loseOverlay,
-  // ставим счётчик на порог, кликаем РЕАЛЬНУЮ кнопку Retry. До правки её
-  // обработчик звал maybeInterstitial и при счётчике 5 показал бы ролик —
-  // ассерт бы упал. Тупик считаем от чистого уровня (regen + skipIntro).
+  // ПРОВОДКА (спека 2026-07-24): РЕАЛЬНЫЙ Retry НЕ показывает межстраничную,
+  // даже когда счётчик у порога — вызов убран из loseAgainBtn. ⚠️ С 2026-07-27
+  // экран поражения из ТУПИКА больше не всплывает (помол-выручалка, «помол =
+  // штраф, не смерть»), но UI поражения жив и проводка кнопки Retry остаётся
+  // валидной — показываем оверлей НАПРЯМУЮ (не через тупик) и жмём реальную
+  // кнопку. До правки её обработчик звал maybeInterstitial и при счётчике 5
+  // показал бы ролик — ассерт бы упал.
   await apage.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
-  await apage.waitForFunction(() => {
-    if (window.__game.awake().physAwake) { window.__calm = 0; return false; }
-    window.__calm = (window.__calm || 0) + 1;
-    return window.__calm >= 8;
-  }, null, { timeout: 30000, polling: 100 });
   await apage.evaluate(() => {
-    window.__game.cfg.baseRadius = -9; window.__game.cfg.matchRadius = -9;
-    const lv = window.__game.level(); lv.shakes = 0; lv.adShakes = 0;
     for (let i = 0; i < 5; i++) window.__ads.noteWin(); // счётчик у порога
+    window.__game.level().over = true;
+    document.getElementById('loseOverlay').style.display = 'flex'; // показать UI поражения напрямую
   });
-  await apage.waitForFunction(() => document.getElementById('loseOverlay').style.display === 'flex',
-    null, { timeout: 8000 });
   const retry = await apage.evaluate(() => {
     const before = window.__mock.interShown;
     document.getElementById('loseAgainBtn').click(); // РЕАЛЬНЫЙ Retry

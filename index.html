@@ -774,7 +774,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-110 · 2026-07-24</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-111 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -3245,7 +3245,7 @@ function genLevel(){
             t0: performance.now(), lastAction: performance.now() };
   level = { shakes:3, adShakes:2, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
-            aliveN0: 0, camFollowOn: false }; // порог 20% и защёлка автопана камеры (90-input)
+            aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');
@@ -7338,7 +7338,11 @@ function loop(){
     if (anyAlive && !hasAnyPair()){
       grinding = true;
       if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
-    } else if (idle > level.idleLimit && anyAlive){
+    } else if (anyAlive && (idle > level.idleLimit || level.deadlock)){
+      // idle>idleLimit — наказание за простой; level.deadlock — ТУПИК-ВЫРУЧАЛКА
+      // (нет достижимых пар + нет встрясок, выставляется в 600-мс тике ниже):
+      // помол разбирает кучу, пока не появится достижимая пара, ВМЕСТО экрана
+      // поражения (решение владельца 2026-07-27 «помол = штраф, не смерть»).
       grinding = true;
       if (now >= level.nextGrind){
         level.nextGrind = now + MIXER_PERIOD*1000;
@@ -7443,17 +7447,23 @@ function loop(){
     // (отсчёт до помола ПЕРЕЕХАЛ в каждокадровый блок ниже — в 600-мс тике
     // секунды обновлялись то через 0.6 с, то через 1.2 с: «таймер запаздывает
     // и дёргается», жалоба владельца 2026-07-21)
-    // тупик: пары в принципе есть, но недоступны, и встрясок нет — ждём 2 стабильных
-    // проверки (~1.2 c), чтобы масса доосела; во время финала миксера не срабатывает.
-    // ⚠️ СВЯЗКА С idleLimit: помол блокирует этот счётчик (items animating). После
-    // ÷3 (Hard idleLimit=3.3) запас до старта помола упал 8.8→2.1 c, ещё держит.
-    // Если КОГДА-НИБУДЬ опустят idleLimit ниже ~1.3 c — помол начнёт грызть РАНЬШЕ
-    // 2-го stuck-тика и экран поражения на реальном тупике не сработает: тогда
-    // пересмотреть порог stuck>=2 или гарантировать idleLimit > 2×HUD-тик(0.6).
+    // ТУПИК → ПОМОЛ-ВЫРУЧАЛКА, НЕ ПОРАЖЕНИЕ (решение владельца 2026-07-27
+    // «помол = штраф, не смерть»): пары есть, но недоступны, и встрясок нет —
+    // ждём 2 стабильных проверки (~1.2 c, чтобы масса доосела; при финале и при
+    // движении не срабатывает), затем ставим level.deadlock → кадровый gate
+    // выше гонит mixerGrind, разбирая кучу, пока не появится достижимая пара.
+    // Цена выручки — очки (−20/помол), она же влияет на лидерборд. Экран
+    // поражения (showLose) больше не вызывается из тупика; UI жив на будущее.
     if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
-      if (level.stuck >= 2) showLose();
-    } else level.stuck = Math.min(level.stuck, 0);
+      if (level.stuck >= 2) level.deadlock = true;
+    } else {
+      level.stuck = Math.min(level.stuck, 0);
+      // вернулась агентность (появилась достижимая пара / встряски) — тупик снят,
+      // помол-выручалка останавливается. НЕ снимаем по items animating: сам помол
+      // анимирует предметы, иначе флаг схлопнулся бы на первом же обороте лопастей.
+      if (ap > 0 || level.shakes > 0 || level.adShakes > 0) level.deadlock = false;
+    }
     // время партии (ЧЁРНОЕ — спека владельца 2026-07-21, был зелёный макета);
     // отсчёт до перемолки — отдельное число под глазами
     if (LEVEL_TIME_IN_HUD && !level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000)); // скрытому таймеру и fitStat не нужен
