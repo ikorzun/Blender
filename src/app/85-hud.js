@@ -1,8 +1,102 @@
 // ===== 85-hud: DOM-хелперы и обновление интерфейса =====
 
 function $(id){ return document.getElementById(id); }
-function show(id){ $(id).style.display = 'flex'; }
-function hide(id){ $(id).style.display = 'none'; }
+function show(id){ $(id).style.display = 'flex'; if (id === 'winOverlay') renderWinScreen(); }
+function hide(id){ $(id).style.display = 'none'; if (id === 'winOverlay') winStopScore(); }
+
+// ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
+// Рисуется из ЖИВОГО состояния при показе оверлея (хук в show выше). checkEnd
+// (80-gameplay, ВНЕ моей зоны) уже посчитал счёт, инкрементил levelNum и
+// записал скрытые держатели winTitle/… — я читаю состояние и крашу стикеры.
+let winScoreRAF = 0, winScoreTO = 0;
+// стоп count-up: гасим И таймер, И rAF (зовётся из hide — иначе после клика
+// Next досчёт бил бы по скрытому #winScore и мог перескочить в след. уровень)
+function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0; }
+// компрессия как в HUD (≥10000 → «12.5k»): большой счёт не рвёт рамку 320 и
+// согласован со счётом игрового экрана (иначе HUD «12.5k» vs победа «124800»)
+function winFmtScore(n){ return n >= 10000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '' + n; }
+function renderWinScreen(){
+  const wrap = $('winWrap'); if (!wrap) return;
+  const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // levelNum уже инкрементнут в checkEnd → только что пройденный = levelNum-1
+  const lv = Math.max(1, (typeof levelNum === 'number' ? levelNum - 1 : 1));
+  const score = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.score | 0) : 0;
+  const secs = (typeof stats !== 'undefined' && stats && stats.t0)
+    ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
+  const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
+  const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
+  renderWinTop(reduce);
+  // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
+  winStopScore();
+  const st = $('winScore');
+  if (st){
+    if (reduce || score <= 0){ st.textContent = '★ ' + winFmtScore(score); }
+    else {
+      st.textContent = '★ 0';
+      winScoreTO = setTimeout(()=>{
+        const t0 = performance.now(), dur = 700;
+        const tick = ()=>{
+          const p = Math.min(1, (performance.now() - t0) / dur);
+          st.textContent = '★ ' + winFmtScore(Math.round(score * (1 - Math.pow(1 - p, 3))));
+          winScoreRAF = p < 1 ? requestAnimationFrame(tick) : 0;
+        };
+        winScoreRAF = requestAnimationFrame(tick);
+      }, 520);
+    }
+  }
+  // ПЕРЕЗАПУСК ВХОДНОЙ АНИМАЦИИ: reflow-трюк — CSS-анимации детей отыгрывают
+  // заново при каждом показе (быстрый Next→win не «съедает» анимацию)
+  wrap.classList.remove('win-in'); void wrap.offsetWidth; wrap.classList.add('win-in');
+}
+// ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
+// мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
+// ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
+let winLevelTypes = null, winLevelRef = null;
+function captureLevelTypes(){
+  if (typeof level === 'undefined' || !level || level === winLevelRef) return;
+  if (typeof intro !== 'undefined' && intro) return; // атласы моделей ещё декодятся
+  const seen = new Set(), keys = [];
+  try {
+    for (const it of items){
+      if (!it || it.surprise || it.bomb || it.rock || !it.type) continue;
+      const k = String(it.type.name);
+      if (!seen.has(k)){ seen.add(k); keys.push(k); }
+    }
+  } catch(e){}
+  // пиним ref ТОЛЬКО при удачном захвате — иначе пустой items (крайний край)
+  // залочил бы прошлые типы навсегда, уровень не перезахватился бы
+  if (keys.length){ winLevelTypes = keys; winLevelRef = level; }
+}
+// TOP ITEMS: топ-3 типа уровня по прогрессу (та же метрика/портреты, что у
+// витрины). Источник — winLevelTypes (captureLevelTypes); фолбэк — vitAll.
+function renderWinTop(reduce){
+  const host = $('winTopList'); if (!host) return;
+  host.innerHTML = '';
+  let keys = (winLevelTypes && winLevelTypes.length) ? winLevelTypes.slice() : [];
+  if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
+  keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
+  const step = 0.09;
+  keys.slice(0, 3).forEach((k, i)=>{
+    const row = document.createElement('div');
+    row.className = 'wt-row';
+    row.style.animationDelay = (reduce ? 0 : (1 + i * step)) + 's';
+    let url = '';
+    try { const it = thumbItemForKey(k); if (it) url = itemThumb(it); } catch(e){}
+    row.innerHTML =
+      '<div class="wt-thumb">' + (url ? '<img alt="" src="' + url + '">' : '') + '</div>' +
+      '<div class="wt-body"><div class="wt-col"><div class="wt-name"></div>' +
+      '<div class="wt-bar"><i></i></div></div><div class="wt-mult"></div></div>';
+    row.querySelector('.wt-name').textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
+    row.querySelector('.wt-mult').textContent = fmtMult(typeof accMult === 'function' ? accMult(k) : 1);
+    host.appendChild(row);
+    const frac = (typeof vitFrac === 'function' ? vitFrac(k) : 0), bar = row.querySelector('.wt-bar i');
+    if (reduce){ bar.style.width = (frac * 100).toFixed(1) + '%'; }
+    else {
+      bar.style.transitionDelay = (1.05 + i * step) + 's';
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ bar.style.width = (frac * 100).toFixed(1) + '%'; }));
+    }
+  });
+}
 function toast(msg){
   const t = $('toast');
   t.textContent = msg; t.style.opacity = 1;
@@ -194,6 +288,7 @@ function fitStat(id){
 let tmStrLast = '';
 function updateHUD(){
   document.documentElement.classList.toggle('night', isNightSky());
+  captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
   $('lvlNum').textContent = 'LV ' + levelNum; // виден на десктопе/планшете
   fitStat('lvlNum');
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
