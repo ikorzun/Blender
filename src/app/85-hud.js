@@ -300,7 +300,11 @@ function updateHUD(){
   // спеку «общие звёзды в чипе»: САМИ звёзды теперь только на экране
   // завершения (winStars) и на будущем главном экране (макет владелец
   // покажет позже) — totalStars() в HUD не выводить.
-  $('score').textContent = '★ ' + stats.score;
+  // ЕДИНЫЙ БАЛАНС (финализация владельца 2026-07-24, запрос МЕТА): чип
+  // показывает liveBalance() = баланс + незабанкованный счёт уровня (÷10),
+  // а НЕ per-level stats.score — то же число, что кошелёк меню и лидерборд.
+  // На победе счёт уезжает в se (bankLevelScore) → число непрерывно.
+  $('score').textContent = '★ ' + liveBalance();
   const btn = $('shakeBtn');
   if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
   else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }

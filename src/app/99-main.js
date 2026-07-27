@@ -674,20 +674,27 @@ window.__game = {
     stars: Object.assign({}, Save.stars), total: totalStars(),
     starBalance: starBalance(), se: Save.se, ss: Save.ss }; },
   grant(n){ addCoins(n); updateHUD(); },
-  // ===== ЗВЁЗДЫ-ВАЛЮТА + BOOST (контракт для ИНТЕРФЕЙСА, решение владельца
-  // 2026-07-23). Все ручки честные — плейсхолдеры меню можно снимать.
-  // ⚠️ Рейтинг уровня (wallet().stars) и кошелёк (starBalance) — РАЗНЫЕ
-  // сущности: трата валюты не отнимает заработанные 3★ на уровнях.
-  starBalance: starBalance,       // текущий тратимый баланс
-  starAward: starAward,           // номинал победы: (уровень, звёзды) -> сколько заплатит
+  // ===== ЕДИНЫЙ БАЛАНС + BOOST + ОТКРЫТИЕ (контракт для ИНТЕРФЕЙСА,
+  // финализация владельца 2026-07-24: очки=звёзды=баланс=лидерборд).
+  // Все ручки честные — плейсхолдеры меню можно снимать.
+  starBalance: starBalance,       // ЕДИНОЕ число: чип, кошелёк, лидерборд-база
+  liveBalance: liveBalance,       // для ЧИПА в игре: баланс + незабанкованный счёт уровня
+  leaderboardScore: leaderboardScore, // = баланс (трата роняет позицию — размен владельца)
   spendStars: spendStars,         // списание с проверкой достаточности -> bool
   onStarsChange: onStarsChange,   // подписка: {balance, earned, spent}
   boostPrice: boostPrice,         // цена следующей ступени типа (null — кап)
   canBoost: canBoost,             // хватает ли баланса
   buyBoost: buyBoost,             // покупка -> {ok, price, tier, mult, balance, next}
   boostTier: boostTier,           // сколько ступеней докуплено у типа
+  // ОТКРЫТИЕ ТИПА ЗА БАЛАНС (на закрытых карточках коллекции)
+  typeUnlockPrice: typeUnlockPrice, // цена или null (уже открыт/неизвестен)
+  canUnlockType: canUnlockType,     // хватает ли баланса
+  purchaseUnlock: purchaseUnlock,   // покупка -> {ok, price, balance}
+  starAward: starAward,           // номинал (только миграция) — оставлен для тестов
   // тест/отладка
   starGrant(n){ addStars(n); return starBalance(); },
+  bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
+  clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
   starMigrate(){ return migrateStarsToWallet(); },
   saveRaw(){ return JSON.parse(JSON.stringify(Save)); },
   mergeRaw(o){ mergeSave(Save, o); commitSave(); return starBalance(); },
