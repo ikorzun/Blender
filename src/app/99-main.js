@@ -686,7 +686,7 @@ window.__game = {
   // Все ручки честные — плейсхолдеры меню можно снимать.
   starBalance: starBalance,       // ЕДИНОЕ число: чип, кошелёк, лидерборд-база
   liveBalance: liveBalance,       // для ЧИПА в игре: баланс + незабанкованный счёт уровня
-  leaderboardScore: leaderboardScore, // = баланс (трата роняет позицию — размен владельца)
+  leaderboardScore: leaderboardScore, // ранг = СЫГРАННОЕ (se−max(0,ss−tu)); ниже кошелька на неистраченный tu — пополнение не поднимает ранг
   spendStars: spendStars,         // списание с проверкой достаточности -> bool
   onStarsChange: onStarsChange,   // подписка: {balance, earned, spent}
   boostPrice: boostPrice,         // цена следующей ступени типа (null — кап)

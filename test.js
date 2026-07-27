@@ -598,6 +598,39 @@ const path = require('path');
   expect(ldbProbe.lb2 === 5000, 'ФИКС A: трата в пределах пополнения не роняет ранг (' + ldbProbe.lb2 + ')');
   expect(ldbProbe.lb3 === 4000, 'ФИКС A: трата сверх пополнения роняет сыгранный ранг (5000 -> ' + ldbProbe.lb3 + ')');
 
+  // КАП БУСТА (фикс код-ревью): макс купленных ступеней ЛЮБОГО типа = 5 =
+  // 2000·(2^5−1) = 62000 = пак-анкор Mega, универсально. Незалоченный
+  // несыгранный тип НЕ должен буститься на ~1M.
+  const boostCapProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const cur = g.saveRaw();
+    // чистый старт: гора баланса, НОЛЬ накопления и бустов у всех типов
+    g.mergeRaw({ gen: (cur.gen || 0) + 1, se: 2000000, ss: 0, tu: 0, sm: 1, stars: cur.stars, ac: {}, bo: {}, uk: {} });
+    const key = g.accSnapshot().find(r => r.unlocked).key; // открытый прогрессией, 0 заработанных
+    let spent = 0, steps = 0; const prices = [];
+    while (g.boostPrice(key) != null && steps < 20){
+      const p = g.boostPrice(key); prices.push(p); g.buyBoost(key); spent += p; steps++;
+    }
+    return { key, steps, spent, prices, finalPrice: g.boostPrice(key), boughtTier: g.boostTier(key) };
+  });
+  expect(boostCapProbe.steps === 5 && boostCapProbe.spent === 62000,
+    'макс буст любого типа = 5 ступеней = 62000 (Mega-анкор), не ~1M (' + boostCapProbe.steps + '/' + boostCapProbe.spent + ')');
+  expect(boostCapProbe.finalPrice === null && boostCapProbe.boughtTier === 5,
+    'после 5 купленных boostPrice=null — кап boostTier (' + boostCapProbe.boughtTier + ')');
+  expect(JSON.stringify(boostCapProbe.prices) === JSON.stringify([2000, 4000, 8000, 16000, 32000]),
+    'лестница цен буста 2000/4000/8000/16000/32000 (' + JSON.stringify(boostCapProbe.prices) + ')');
+
+  // закрытый тип НЕЛЬЗЯ бустить (сначала открыть) — boostPrice null, buyBoost 'locked'
+  const lockBoost = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(1); g.clearBought(); g.regen(); g.skipIntro();
+    const closed = g.accSnapshot().find((r, i) => i >= 20 && !r.unlocked);
+    g.starGrant(100000);
+    return { key: closed.key, price: g.boostPrice(closed.key), can: g.canBoost(closed.key), buy: g.buyBoost(closed.key) };
+  });
+  expect(lockBoost.price === null && lockBoost.can === false && lockBoost.buy.reason === 'locked',
+    'закрытый тип нельзя забустить, сначала открыть (' + JSON.stringify(lockBoost.buy) + ')');
+
   // открытие без средств — отказ без списания
   const unlockDeny = await page.evaluate(() => {
     const g = window.__game;

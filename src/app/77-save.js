@@ -184,18 +184,22 @@ function migrateStarsToWallet(){
 // докуплено». Итоговая ступень = сумма, с общим капом.
 function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
 function boostPrice(name){
-  if (accTier(name) >= ACC_TIER_CAP) return null; // общий кап (заработ.+купл.) — покупать нечего
+  if (!isTypeUnlocked(name)) return null;          // буст только ОТКРЫТОГО типа (гейт)
+  if (accTier(name) >= ACC_TIER_CAP) return null;  // множитель уже на потолке — нечего давать
+  if (boostTier(name) >= BOOST_TIER_CAP) return null; // купленный потолок (анкор 62000, фикс ревью)
   // ⚠️ ЦЕНА от КУПЛЕННЫХ ступеней (boostTier), НЕ суммарных (accTier) —
   // фикс B таблицы №2: иначе буст СЫГРАННОГО типа (у него есть заработанные
   // ступени) стоил бы 2000·2^earned, «макс любимого» раздувался до 248k+,
   // и пак-якорь «Mega=макс типа=62000» врал. Теперь каждая купленная
-  // ступень удваивается независимо от наигранности: 2000/4000/8000/…
+  // ступень удваивается независимо от наигранности: 2000/4000/8000/16000/32000
+  // (кап BOOST_TIER_CAP=5 → сумма 62000, универсально для любого типа).
   return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, boostTier(name)));
 }
 function canBoost(name){ const p = boostPrice(name); return p != null && starBalance() >= p; }
 function buyBoost(name){
+  if (!isTypeUnlocked(name)) return { ok: false, reason: 'locked' }; // сначала открыть тип
   const p = boostPrice(name);
-  if (p == null) return { ok: false, reason: 'capped', tier: accTier(name) };
+  if (p == null) return { ok: false, reason: 'capped', tier: accTier(name), boughtTier: boostTier(name) };
   if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
   if (!Save.bo) Save.bo = {};
   Save.ss = (Save.ss || 0) + p;          // трата — через монотонный счётчик

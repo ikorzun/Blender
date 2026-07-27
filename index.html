@@ -831,7 +831,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-116 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-117 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -1078,16 +1078,16 @@ const SURPRISE_LEVEL_BONUS = 5;
 // ×2+100: 100/300/700/1500/3100/6300... = 100·(2^n−1) — первая ступень
 // случается в первой сессии (~ур.7). Множитель очков типа = 1 + 0.25×ступень.
 // Счётчики — в сейве (77-save, Save.ac), применение — doMatch и пар-скор.
-// ===== ЗВЁЗДЫ КАК ВАЛЮТА (решение владельца 2026-07-23: «звезды это валюта,
-// очки которые можно тратить, никаких монет не нужно»).
-// ⚠️ У звёзд ДВЕ РОЛИ, и они разведены по разным полям сейва:
-//   (а) РЕЙТИНГ уровня 1★/2★/3★ — Save.stars[lv], НЕ тратится, мерж max;
-//   (б) КОШЕЛЁК — Save.se/ss (earned/spent), баланс = разность.
-// Награда за победу платится ДЕЛЬТОЙ рейтинга (см. awardStarsForWin):
-// перепрохождение уже взятого уровня без улучшения даёт 0 — иначе ур.1
-// (короткий, лёгкие 3★) стал бы бесконечной фермой валюты.
-const STAR_AWARD = [0, 100, 250, 500]; // за 1★ / 2★ / 3★
-const STAR_LEVEL_BONUS = 10;           // + STAR_LEVEL_BONUS × номер уровня (поздние уровни длиннее)
+// ===== ЕДИНЫЙ БАЛАНС (финализация владельца 2026-07-24: «очки=звёзды=баланс=
+// лидерборд»; ОТМЕНЯЕТ модель «дельта рейтинга» 2026-07-23). Награда за победу
+// = НАКОПЛЕННЫЙ игровой счёт ÷10 в кошелёк (bankLevelScore, 77-save), раз за
+// уровень — не фармится (игра линейна, реплея нет). Кошелёк se/ss (+tu top-up),
+// рейтинг stars[lv] отдельно (качество, не тратится).
+// ⚠️ STAR_AWARD/STAR_LEVEL_BONUS — ОСТАЛИСЬ ТОЛЬКО для grandfather-миграции
+// старых сейвов (starAward в 77-save сеет стартовый баланс из рейтинга);
+// награду за победу они БОЛЬШЕ НЕ считают (функция awardStarsForWin удалена).
+const STAR_AWARD = [0, 100, 250, 500]; // миграция: за 1★ / 2★ / 3★
+const STAR_LEVEL_BONUS = 10;           // миграция: + STAR_LEVEL_BONUS × номер уровня
 // BOOST — покупка ступени накопления предмета за звёзды (решение владельца
 // 2026-07-23 «да»). Цена удваивается с каждой купленной ступенью: экспонента
 // сама тормозит скупку, не требуя отдельного капа.
@@ -1097,6 +1097,15 @@ const STAR_LEVEL_BONUS = 10;           // + STAR_LEVEL_BONUS × номер ур�
 // уровня, полный макс типа (0-4) = 62 000 (~88 ур.). Мокап «Boost 11k» —
 // иллюстративный, не цена. Цена — от boostTier (купленные), НЕ accTier — фикс.
 const BOOST_PRICE_BASE = 2000, BOOST_PRICE_MULT = 2;
+// ⚠️ КАП КУПЛЕННЫХ СТУПЕНЕЙ (фикс код-ревью 2026-07-24): макс буст ЛЮБОГО
+// типа = BOOST_TIER_CAP купленных = 2000·(2^5−1) = 62 000 = пак-анкор Mega,
+// УНИВЕРСАЛЬНО. Без него незалоченный несыгранный тип (accCountTier=0) можно
+// было забустить на 9 ступеней = ~1 022 000 (в 16× больше анкора), т.к. общий
+// кап accTier=9 не ограничивал ПОКУПКИ у типа без заработанных ступеней.
+// Сыгранный любимец «доводится» дешевле (заработанные ступени бесплатны), но
+// потолок покупки одинаков. Буст доступен только ОТКРЫТОМУ типу (гейт в
+// boostPrice/buyBoost).
+const BOOST_TIER_CAP = 5;
 // REWARDED (реклама → баланс, таблица №2): 70/ролик = 10% уровня («10 роликов
 // = 1 уровень»), дневной софт-кап 5. ⚠️ Счётчик капа держать на server/bridge-
 // времени (не device-полночь) — зона ИНТЕГРАЦИИ, потребляется при вводе
@@ -4789,18 +4798,22 @@ function migrateStarsToWallet(){
 // докуплено». Итоговая ступень = сумма, с общим капом.
 function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
 function boostPrice(name){
-  if (accTier(name) >= ACC_TIER_CAP) return null; // общий кап (заработ.+купл.) — покупать нечего
+  if (!isTypeUnlocked(name)) return null;          // буст только ОТКРЫТОГО типа (гейт)
+  if (accTier(name) >= ACC_TIER_CAP) return null;  // множитель уже на потолке — нечего давать
+  if (boostTier(name) >= BOOST_TIER_CAP) return null; // купленный потолок (анкор 62000, фикс ревью)
   // ⚠️ ЦЕНА от КУПЛЕННЫХ ступеней (boostTier), НЕ суммарных (accTier) —
   // фикс B таблицы №2: иначе буст СЫГРАННОГО типа (у него есть заработанные
   // ступени) стоил бы 2000·2^earned, «макс любимого» раздувался до 248k+,
   // и пак-якорь «Mega=макс типа=62000» врал. Теперь каждая купленная
-  // ступень удваивается независимо от наигранности: 2000/4000/8000/…
+  // ступень удваивается независимо от наигранности: 2000/4000/8000/16000/32000
+  // (кап BOOST_TIER_CAP=5 → сумма 62000, универсально для любого типа).
   return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, boostTier(name)));
 }
 function canBoost(name){ const p = boostPrice(name); return p != null && starBalance() >= p; }
 function buyBoost(name){
+  if (!isTypeUnlocked(name)) return { ok: false, reason: 'locked' }; // сначала открыть тип
   const p = boostPrice(name);
-  if (p == null) return { ok: false, reason: 'capped', tier: accTier(name) };
+  if (p == null) return { ok: false, reason: 'capped', tier: accTier(name), boughtTier: boostTier(name) };
   if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
   if (!Save.bo) Save.bo = {};
   Save.ss = (Save.ss || 0) + p;          // трата — через монотонный счётчик
@@ -7911,7 +7924,7 @@ window.__game = {
   // Все ручки честные — плейсхолдеры меню можно снимать.
   starBalance: starBalance,       // ЕДИНОЕ число: чип, кошелёк, лидерборд-база
   liveBalance: liveBalance,       // для ЧИПА в игре: баланс + незабанкованный счёт уровня
-  leaderboardScore: leaderboardScore, // = баланс (трата роняет позицию — размен владельца)
+  leaderboardScore: leaderboardScore, // ранг = СЫГРАННОЕ (se−max(0,ss−tu)); ниже кошелька на неистраченный tu — пополнение не поднимает ранг
   spendStars: spendStars,         // списание с проверкой достаточности -> bool
   onStarsChange: onStarsChange,   // подписка: {balance, earned, spent}
   boostPrice: boostPrice,         // цена следующей ступени типа (null — кап)
