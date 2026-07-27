@@ -161,8 +161,12 @@ const path = require('path');
   // восстановление агентности (вернули встряски) -> тупик снят, помол встал
   await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; window.__game.cfg.matchRadius = 2.0; window.__game.level().shakes = 3; });
   await page.waitForTimeout(1200);
-  const cleared = await page.evaluate(() => window.__game.level().deadlock);
-  expect(cleared === false, 'вернулась агентность -> тупик снят, помол-выручалка остановлена');
+  const clr = await page.evaluate(() => ({ deadlock: window.__game.level().deadlock,
+    grinding: document.getElementById('mixerTimer').textContent }));
+  expect(clr.deadlock === false, 'вернулась агентность -> тупик снят');
+  // ФИКС ревью v116: сброс lastAction на снятии тупика -> idle-помол НЕ догрызает
+  // после появления пары (помол встал РОВНО со снятием, не крутится по инерции)
+  expect(clr.grinding !== 'Grinding', 'помол-выручалка встала со снятием тупика (не догрызает по инерции)');
 
   // рестарт уровня штатным regen (экран поражения больше не участвует)
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
@@ -183,7 +187,10 @@ const path = require('path');
   expect(sc === 20, 'пара даёт 20 очков (' + sc + ')');
 
   const preMixerAlive = await page.evaluate(() => window.__game.alive());
-  await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // easy=10с — для теста лимит укорачиваем до 5
+  // ТАЙМЕР ПОМОЛА ÷3 (спека владельца 2026-07-24): easy idleLimit=10 (было 30)
+  const idleDef = await page.evaluate(() => window.__game.level().idleLimit);
+  expect(idleDef === 10, 'таймер помола Easy = 10с (÷3 от 30, спека владельца) (' + idleDef + ')');
+  await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // укорачиваем лимит до 5 для скорости теста
   await page.waitForTimeout(1000);
   // огонь — эскалация помола (правка владельца 2026-07-22): на 1-й секунде
   // Grinding его ещё НЕТ, появляется вместе со спуском глаз после 3 с

@@ -831,7 +831,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-115 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-116 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -7755,7 +7755,14 @@ function loop(){
       // вернулась агентность (появилась достижимая пара / встряски) — тупик снят,
       // помол-выручалка останавливается. НЕ снимаем по items animating: сам помол
       // анимирует предметы, иначе флаг схлопнулся бы на первом же обороте лопастей.
-      if (ap > 0 || level.shakes > 0 || level.adShakes > 0) level.deadlock = false;
+      // ⚠️ СБРАСЫВАЕМ lastAction на переходе тупик→снят: помол мог крутиться дольше
+      // idleLimit (stats.lastAction застыл), и без сброса idle-помол ДОГРЫЗАЛ бы кучу
+      // после появления пары (idle всё ещё > idleLimit), пока игрок не тапнет — даём
+      // свежий отсчёт, чтобы выручалка встала РОВНО с появлением достижимой пары.
+      if (level.deadlock && (ap > 0 || level.shakes > 0 || level.adShakes > 0)){
+        level.deadlock = false;
+        stats.lastAction = now;
+      }
     }
     // время партии (ЧЁРНОЕ — спека владельца 2026-07-21, был зелёный макета);
     // отсчёт до перемолки — отдельное число под глазами
