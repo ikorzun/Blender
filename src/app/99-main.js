@@ -701,6 +701,7 @@ window.__game = {
   // тест/отладка
   starGrant(n){ addStars(n); return starBalance(); },
   bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
+  scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
   starMigrate(){ return migrateStarsToWallet(); },
   saveRaw(){ return JSON.parse(JSON.stringify(Save)); },

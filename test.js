@@ -232,6 +232,30 @@ const path = require('path');
   const missL8 = await page.evaluate(() => window.__game.stats().score);
   expect(missL8 === -10, 'ур.8: полный штраф промаха −10 (' + missL8 + ')');
 
+  // #10 ДЕНОМИНАЦИЯ В ПРОЦЕССЕ (спека владельца 2026-07-27): всплывающие
+  // поп-числа матча = деноминир. прирост чипа (÷10), «понятно и в процессе».
+  const denomShownProbe = await page.evaluate(() => window.__game.scoreShownDenom(1234)
+    + ',' + window.__game.scoreShownDenom(6400) + ',' + window.__game.scoreShownDenom(5));
+  expect(denomShownProbe === '123,640,0', 'scoreShownDenom деноминирует ÷10 floor (' + denomShownProbe + ')');
+  // end-to-end: поп на экране = изменение liveBalance-чипа (одна шкала)
+  const popProbe = await page.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(3); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    document.querySelectorAll('.pop').forEach(p => p.remove()); // чистим прежние
+    const chip0 = g.liveBalance();
+    const ok = g.autoMatch();
+    await new Promise(r => setTimeout(r, 120));
+    const chip1 = g.liveBalance();
+    // поп-очки — тот, что начинается с +цифра (не ярлык «×N»)
+    const texts = [...document.querySelectorAll('.pop text')].map(t => t.textContent);
+    const scorePop = texts.find(s => /^\+\d/.test(s));
+    return { ok, chip0, chip1, scorePop, texts };
+  });
+  expect(popProbe.ok && popProbe.scorePop != null, 'матч создал поп-число (' + JSON.stringify(popProbe.texts) + ')');
+  expect(parseInt(popProbe.scorePop, 10) === popProbe.chip1 - popProbe.chip0,
+    'поп на экране = прирост чипа (' + popProbe.scorePop + ' = ' + popProbe.chip0 + '→' + popProbe.chip1 + ')');
+
   // финал: остались одиночки без пар — миксер зачищает их, собирает сюрприз (+150)
   // и наступает победа с апом уровня
   const lvlBefore = await page.evaluate(() => window.__game.levelNum());
