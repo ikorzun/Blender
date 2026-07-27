@@ -187,9 +187,9 @@ const path = require('path');
   expect(sc === 20, 'пара даёт 20 очков (' + sc + ')');
 
   const preMixerAlive = await page.evaluate(() => window.__game.alive());
-  // ТАЙМЕР ПОМОЛА ÷3 (спека владельца 2026-07-24): easy idleLimit=10 (было 30)
+  // ТАЙМЕР ПОМОЛА (спека владельца 2026-07-27, перетюн): easy idleLimit=15
   const idleDef = await page.evaluate(() => window.__game.level().idleLimit);
-  expect(idleDef === 10, 'таймер помола Easy = 10с (÷3 от 30, спека владельца) (' + idleDef + ')');
+  expect(idleDef === 15, 'таймер помола Easy = 15с (спека владельца 2026-07-27) (' + idleDef + ')');
   await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // укорачиваем лимит до 5 для скорости теста
   await page.waitForTimeout(1000);
   // огонь — эскалация помола (правка владельца 2026-07-22): на 1-й секунде
