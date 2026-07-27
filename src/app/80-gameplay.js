@@ -83,7 +83,9 @@ function doMatch(list){
   const typeName = list[0].type.name;
   accAdd(typeName, n, list[0]);
   const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName));
+  const scoreBefore = stats.score;
   stats.score += gained;
+  const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
   popFX(mid);
   // «ПУНКТ 5» (спека владельца 2026-07-21): разнообразие эффектов ПРАВИЛОМ.
   // Пара/тройка — труха как раньше; группа >= BURST_MIN_N ЛОПАЕТСЯ эффектом
@@ -96,8 +98,9 @@ function doMatch(list){
   } else {
     list.forEach(it => dissolveFX(it));
   }
-  // цифра — сразу РЕЗУЛЬТАТ умножения (спека владельца: «+80», не «+40 ×2»)
-  scorePop('+' + gained, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
+  // цифра — деноминированный прирост чипа (#10: «понятно и в процессе»);
+  // множитель ×(n−1) остаётся как ярлык (не очки)
+  scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
   Sound.play('match', n);
   vibrate(15);
@@ -128,13 +131,15 @@ function doMatch(list){
 // стандартного промаха.
 function penalizeRock(item){
   stats.misses++;
+  const before = stats.score;
   const charged = scorePenalty(2 * MISS_PENALTY);
+  const shown = scoreShownDelta(stats.score, before); // положительная величина падения чипа (#10)
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
     comboCount = Math.max(0, comboCount - COMBO_MISS_DROP);
     updateMatchRadius(); updateHUD();
   }
-  if (charged) scorePop('-' + (2 * MISS_PENALTY), item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
+  if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
   Sound.play('miss');
   vibrate(20);
   wiggle(item);
@@ -348,8 +353,10 @@ function collectSurprise(it){
   stats.lastAction = performance.now();
   // рыбка дорожает с уровнем: +150 + 5×уровень (баланс-таблица 2026-07-22)
   const bonus = SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum;
+  const before = stats.score;
   stats.score += bonus;
-  scorePop('+' + bonus, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);
+  const shown = scoreShownDelta(before, stats.score); // деноминир. прирост (#10)
+  scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);
   popFX(it.p);
   dissolveFX(it);
   Sound.play('surprise');
@@ -508,8 +515,11 @@ function mixerGrind(){
   const group = twin ? [low, twin] : [low];
   group.forEach(it => { it.animating = true; destroyItemBody(it); });
   wakePhysics('gameplay:L182');
-  if (scorePenalty(MIXER_PENALTY)) // ур.1 без штрафов; ур.<=5 кламп нулём (баланс-таблица 2026-07-22)
-    scorePop('-' + MIXER_PENALTY, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+  const grindBefore = stats.score;
+  if (scorePenalty(MIXER_PENALTY)){ // ур.1 без штрафов; ур.<=5 кламп нулём (баланс-таблица 2026-07-22)
+    const shown = scoreShownDelta(stats.score, grindBefore); // деноминир. падение чипа (#10)
+    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+  }
   Sound.play('grind');
   vibrate(40);
   grindShred(low, 0.5, 0.28); // двухфазный помол: захват -> шинковка в осколки (наказание — тряска ярче)

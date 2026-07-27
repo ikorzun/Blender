@@ -125,6 +125,14 @@ function starBalance(){ return Math.max(0, (Save.se || 0) + (Save.tu || 0) - (Sa
 // осознанно роняет позицию (размен владельца). Сам лидерборд-фича ждёт
 // площадки (Playgama/Yandex да, Poki нет) — пока число-хендл.
 function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0))); }
+// ДЕНОМИНИРОВАННЫЙ ПОКАЗ счёта: floor(max(0,score)/10). Единый источник для
+// чипа И для всплывающих поп-чисел (#10 владельца 2026-07-27: «числа понятны
+// и в процессе, и в подсчёте»). ⚠️ Поп считается как ДЕЛЬТА этой величины
+// (scoreShownDelta), а не floor(value/10) поштучно — иначе сумма попов
+// расходится с приростом чипа на перенос (±1 дрейф). Гарантия: Σ попов =
+// изменение чипа за уровень, бит-в-бит.
+function scoreShownDenom(v){ return Math.floor(Math.max(0, v || 0) / SCORE_DENOM); }
+function scoreShownDelta(before, after){ return scoreShownDenom(after) - scoreShownDenom(before); }
 // ЖИВОЙ баланс для чипа в игре (запрос ИНТЕРФЕЙСУ: чип показывает balance,
 // а не per-level score): банкованный баланс + ещё НЕ забанкованный счёт
 // текущего уровня. На победе счёт уезжает в se, поэтому число непрерывно.
@@ -133,7 +141,7 @@ function liveBalance(){
   try {
     if (typeof level !== 'undefined' && level && !level.over &&
         typeof stats !== 'undefined' && stats)
-      live = Math.floor(Math.max(0, stats.score) / SCORE_DENOM);
+      live = scoreShownDenom(stats.score);
   } catch(e){}
   return starBalance() + live;
 }
