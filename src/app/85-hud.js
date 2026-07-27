@@ -21,6 +21,10 @@ function renderWinScreen(){
   // levelNum уже инкрементнут в checkEnd → только что пройденный = levelNum-1
   const lv = Math.max(1, (typeof levelNum === 'number' ? levelNum - 1 : 1));
   const score = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.score | 0) : 0;
+  // ★-число на победе = ДЕНОМИНИРОВАННЫЙ прирост (score/SCORE_DENOM) = ровно
+  // столько ушло в баланс (bankLevelScore) и на сколько подрос чип. Единый
+  // баланс: чип/кошелёк/лидерборд/победа — одна шкала (решение диспетчера v113)
+  const bal = Math.floor(score / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10));
   const secs = (typeof stats !== 'undefined' && stats && stats.t0)
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
@@ -30,14 +34,14 @@ function renderWinScreen(){
   winStopScore();
   const st = $('winScore');
   if (st){
-    if (reduce || score <= 0){ st.textContent = '★ ' + winFmtScore(score); }
+    if (reduce || bal <= 0){ st.textContent = '★ ' + winFmtScore(bal); }
     else {
       st.textContent = '★ 0';
       winScoreTO = setTimeout(()=>{
         const t0 = performance.now(), dur = 700;
         const tick = ()=>{
           const p = Math.min(1, (performance.now() - t0) / dur);
-          st.textContent = '★ ' + winFmtScore(Math.round(score * (1 - Math.pow(1 - p, 3))));
+          st.textContent = '★ ' + winFmtScore(Math.round(bal * (1 - Math.pow(1 - p, 3))));
           winScoreRAF = p < 1 ? requestAnimationFrame(tick) : 0;
         };
         winScoreRAF = requestAnimationFrame(tick);
