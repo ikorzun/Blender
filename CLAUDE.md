@@ -586,16 +586,23 @@ level.over` -> `genLevel()`). Вход в отладочную панель пе
   незабанкованный счёт текущего уровня (floor/10); на победе непрерывен.
   ⚠️ Интерфейс должен переключить чип с `stats.score` на `liveBalance()`.
 - **ОТКРЫТИЕ ТИПА ЗА БАЛАНС** (`purchaseUnlock`, Save.uk мерж OR, цена
-  TYPE_UNLOCK_PRICE=500 ПРОВИЗОРНО): раскрывает тип в КОЛЛЕКЦИИ/портрете
-  (+буст), НЕ меняет пул спавна genLevel (ранний спавн = правка ядра, не
-  делал). Трата через ss → баланс и лидерборд падают (осознанный размен
-  владельца). isTypeUnlocked/unlockedTypes/accSnapshot учитывают uk
-  (поля `bought`/`unlockPrice`/`canUnlock`).
-- **ЛИДЕРБОРД** = `leaderboardScore()` = баланс; сам фича ждёт выбора
+  TYPE_UNLOCK_PRICE=700): раскрывает тип в КОЛЛЕКЦИИ/портрете (+буст), НЕ
+  меняет пул спавна genLevel (ранний спавн = правка ядра, не делал). Трата
+  через ss. isTypeUnlocked/unlockedTypes/accSnapshot учитывают uk (поля
+  `bought`/`unlockPrice`/`canUnlock`).
+- ⚠️ **ЛИДЕРБОРД ≠ PAY-TO-WIN (фикс A, таблица №2):** пополнения
+  (реклама/IAP) идут в отдельное поле `Save.tu`, НЕ в se. КОШЕЛЁК =
+  `starBalance()` = se+tu−ss; РАНГ = `leaderboardScore()` = se−max(0,ss−tu)
+  (трата сперва ест tu, ранг падает лишь при трате СВЕРХ пополнения). Так
+  купленное тратится, но НЕ поднимает ранг; трата сыгранного на буст/анлок
+  осознанно роняет позицию. `addStars` пишет в tu. Сам лидерборд-фича ждёт
   площадки (Playgama/Yandex да, Poki нет) — пока число-хендл.
-- ⚠️ **ПЕРЕКАЛИБРОВКА (таблица №2, к утверждению):** Boost-лесенка
-  (1500-ладдер) и цена открытия ПРОВИЗОРНЫ под новый earn rate. Отдельный
-  блок владельцу.
+- ⚠️ **ТАБЛИЦА №2 УТВЕРЖДЕНА** (диспетчер по делегированию владельца
+  2026-07-24, docs/STARS-STORE-ECONOMY.md §v2) под earn ~700 деноминир./
+  уровень: BOOST_PRICE_BASE=2000 (лестница 2000/4000/8000/16000/32000, цена
+  от boughtTier — фикс B, иначе «макс любимого» раздувался), TYPE_UNLOCK
+  700, REWARD_STARS_PER_AD=70/кап 5, STAR_PACKS 3000/19000/90000. Фикс C
+  (кап рекламы на server-времени) — зона ИНТЕГРАЦИИ при вводе топапа.
 - API (все в __game): `starBalance`, `liveBalance`, `leaderboardScore`,
   `spendStars`, `onStarsChange`, `boostPrice/canBoost/buyBoost/boostTier`,
   `typeUnlockPrice/canUnlockType/purchaseUnlock`; тест-ручки
