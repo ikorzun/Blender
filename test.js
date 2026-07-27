@@ -483,17 +483,19 @@ const path = require('path');
   const boostProbe = await page.evaluate(() => {
     const g = window.__game;
     const key = g.accSnapshot()[0].key;
-    g.starGrant(20000);
-    const p0 = g.boostPrice(key), t0 = g.accSnapshot()[0].tier, m0 = g.accSnapshot()[0].mult;
+    g.starGrant(60000);
+    const p0 = g.boostPrice(key), t0 = g.accSnapshot()[0].tier, bt0 = g.boostTier(key), m0 = g.accSnapshot()[0].mult;
     const bal0 = g.starBalance();
     const buy = g.buyBoost(key);
     const s1 = g.accSnapshot()[0];
     const p1 = g.boostPrice(key);
-    return { key, p0, t0, m0, bal0, buy, t1: s1.tier, m1: s1.mult, boost: s1.boost,
+    return { key, p0, t0, bt0, m0, bal0, buy, t1: s1.tier, m1: s1.mult, boost: s1.boost,
       count0: s1.count, bal1: g.starBalance(), p1 };
   });
-  expect(boostProbe.p0 === 1500 * Math.pow(2, boostProbe.t0),
-    'цена буста удваивается со ступенью (ступень ' + boostProbe.t0 + ' -> ' + boostProbe.p0 + ')');
+  // фикс B: цена от КУПЛЕННЫХ ступеней (boostTier), НЕ суммарных (accTier).
+  // snap0 имеет заработанные ступени, но первая КУПЛЕННАЯ стоит base·2^0=2000
+  expect(boostProbe.p0 === 2000 * Math.pow(2, boostProbe.bt0),
+    'цена буста от boughtTier (не accTier): base 2000 (boughtTier ' + boostProbe.bt0 + ' -> ' + boostProbe.p0 + ')');
   expect(boostProbe.buy.ok && boostProbe.t1 === boostProbe.t0 + 1,
     'покупка подняла ступень (' + boostProbe.t0 + ' -> ' + boostProbe.t1 + ')');
   expect(Math.abs(boostProbe.m1 - (boostProbe.m0 + 0.25)) < 1e-9,
@@ -544,25 +546,50 @@ const path = require('path');
     g.starGrant(10000);
     const price = g.typeUnlockPrice(closed.key);
     const wasUnlocked = g.isTypeUnlocked(closed.key);
-    const lb0 = g.leaderboardScore();
+    const w0 = g.starBalance();
     const buy = g.purchaseUnlock(closed.key);
     const nowUnlocked = g.isTypeUnlocked(closed.key);
     const s2 = g.accSnapshot().find(r => r.key === closed.key);
-    const lb1 = g.leaderboardScore();
+    const w1 = g.starBalance();
     const buyAgain = g.purchaseUnlock(closed.key); // уже открыт -> отказ
     return { key: closed.key, price, wasUnlocked, buy, nowUnlocked,
-      bought: s2.bought, snapUnlocked: s2.unlocked, lb0, lb1, buyAgain };
+      bought: s2.bought, snapUnlocked: s2.unlocked, w0, w1, buyAgain };
   });
-  expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 500,
-    'закрытый тип имеет цену открытия 500 (' + unlockBuyProbe.price + ')');
+  expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 700,
+    'закрытый тип имеет цену открытия 700 (' + unlockBuyProbe.price + ')');
   expect(unlockBuyProbe.buy.ok && unlockBuyProbe.nowUnlocked === true,
     'покупка открыла тип (' + unlockBuyProbe.key + ')');
   expect(unlockBuyProbe.bought === true && unlockBuyProbe.snapUnlocked === true,
     'снапшот: bought=true и unlocked=true после покупки');
-  expect(unlockBuyProbe.lb1 === unlockBuyProbe.lb0 - unlockBuyProbe.price,
-    'трата на открытие уронила лидерборд-баланс (' + unlockBuyProbe.lb0 + ' -> ' + unlockBuyProbe.lb1 + ')');
+  expect(unlockBuyProbe.w1 === unlockBuyProbe.w0 - unlockBuyProbe.price,
+    'трата на открытие списала кошелёк на цену (' + unlockBuyProbe.w0 + ' -> ' + unlockBuyProbe.w1 + ')');
   expect(unlockBuyProbe.buyAgain.ok === false && unlockBuyProbe.buyAgain.reason === 'already',
     'повторная покупка открытого типа отклонена (' + JSON.stringify(unlockBuyProbe.buyAgain) + ')');
+
+  // ФИКС A — ЧЕСТНЫЙ ЛИДЕРБОРД (таблица №2): пополнение (реклама/IAP) растит
+  // КОШЕЛЁК, но НЕ ранг; трата сперва ест пополнение, ранг падает лишь при
+  // трате СВЕРХ пополнения. Чистый старт через мерж нового поколения.
+  const ldbProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const cur = g.saveRaw();
+    // gen-bump берёт копию ЦЕЛИКОМ — сбрасываем только se/ss/tu, остальное
+    // (накопление/рейтинг/бусты/разлоки) переносим из текущего сейва
+    g.mergeRaw({ gen: (cur.gen || 0) + 1, se: 5000, ss: 0, tu: 0, sm: 1,
+      stars: cur.stars, ac: cur.ac, bo: cur.bo, uk: cur.uk });
+    const lb0 = g.leaderboardScore(), w0 = g.starBalance();  // se=5000 -> оба 5000
+    g.starGrant(3000);                                        // пополнение -> tu
+    const lb1 = g.leaderboardScore(), w1 = g.starBalance();  // кошелёк 8000, ранг 5000
+    g.spendStars(2000);                                       // в пределах пополнения (3000)
+    const lb2 = g.leaderboardScore();                         // ранг цел
+    g.spendStars(2000);                                       // ss=4000 > tu=3000 на 1000 -> ранг 4000
+    const lb3 = g.leaderboardScore();
+    return { lb0, w0, lb1, w1, lb2, lb3 };
+  });
+  expect(ldbProbe.w0 === 5000 && ldbProbe.lb0 === 5000, 'ФИКС A: чистый старт se=5000 (кошелёк=ранг=5000)');
+  expect(ldbProbe.w1 === 8000 && ldbProbe.lb1 === 5000,
+    'ФИКС A: пополнение растит КОШЕЛЁК (8000), но НЕ лидерборд (5000) — не pay-to-win');
+  expect(ldbProbe.lb2 === 5000, 'ФИКС A: трата в пределах пополнения не роняет ранг (' + ldbProbe.lb2 + ')');
+  expect(ldbProbe.lb3 === 4000, 'ФИКС A: трата сверх пополнения роняет сыгранный ранг (5000 -> ' + ldbProbe.lb3 + ')');
 
   // открытие без средств — отказ без списания
   const unlockDeny = await page.evaluate(() => {

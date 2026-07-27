@@ -31,7 +31,12 @@ const SAVE_KEY = 'mixer_save_v1';
 // max-мерж, тратами не трогается. bo — купленные бустом ступени (max).
 // uk — купленные ЗАРАНЕЕ типы (открытие за баланс; мерж OR). sm — флаг
 // разовой миграции старых сейвов (монотонный 0->1).
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// ⚠️ tu — ПОПОЛНЕННЫЕ звёзды (реклама/IAP top-up; монотонный, мерж max).
+// РАЗВЕДЕНЫ с se (сыгранным счётом), чтобы ЛИДЕРБОРД не был pay-to-win
+// (фикс A, таблица №2 2026-07-24): купленное наполняет КОШЕЛЁК, но ранг
+// растёт только СЫГРАННЫМ счётом. balance(кошелёк)=se+tu−ss;
+// leaderboard=se−max(0,ss−tu) (траты сперва съедают tu, потом сыгранное).
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -41,7 +46,7 @@ function mergeSave(into, from){
     // чужая копия из БОЛЕЕ НОВОГО поколения (после сброса): берём её целиком
     into.ce = from.ce || 0; into.cs = from.cs || 0;
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
-    into.se = from.se || 0; into.ss = from.ss || 0; into.sm = from.sm || 0;
+    into.se = from.se || 0; into.ss = from.ss || 0; into.tu = from.tu || 0; into.sm = from.sm || 0;
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
@@ -58,6 +63,7 @@ function mergeSave(into, from){
   // откатывается отставшей копией — это и есть защита от дюпа.
   into.se = Math.max(into.se || 0, from.se || 0);
   into.ss = Math.max(into.ss || 0, from.ss || 0);
+  into.tu = Math.max(into.tu || 0, from.tu || 0); // пополнения — монотонны, как se/ss
   into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
@@ -110,12 +116,15 @@ function fireStarsChange(){
   for (const cb of starChangeCbs){ try { cb(ev); } catch(e){} }
   try { updateHUD(); } catch(e){}
 }
-function starBalance(){ return Math.max(0, (Save.se || 0) - (Save.ss || 0)); }
-// ЛИДЕРБОРД (финализация владельца 2026-07-24: «баланс влияет на позицию»).
-// Позиция = ТЕКУЩИЙ баланс, поэтому трата (unlock/boost) осознанно роняет
-// рейтинг — размен, который хочет владелец. Сам лидерборд-фича ждёт выбора
-// площадки (Playgama/Yandex есть, Poki нет); пока — число-хендл на будущее.
-function leaderboardScore(){ return starBalance(); }
+// КОШЕЛЁК = сыгранное + пополнения − траты (то, что можно ТРАТИТЬ).
+function starBalance(){ return Math.max(0, (Save.se || 0) + (Save.tu || 0) - (Save.ss || 0)); }
+// ЛИДЕРБОРД (финализация владельца 2026-07-24 + фикс A таблицы №2): ранг =
+// только СЫГРАННЫЙ счёт. Траты сперва съедают пополнения (tu), и лишь
+// избыток трат сверх пополнений роняет сыгранное — так покупка звёзд НЕ
+// поднимает ранг (не pay-to-win), а трата на буст/анлок сверх купленного
+// осознанно роняет позицию (размен владельца). Сам лидерборд-фича ждёт
+// площадки (Playgama/Yandex да, Poki нет) — пока число-хендл.
+function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0))); }
 // ЖИВОЙ баланс для чипа в игре (запрос ИНТЕРФЕЙСУ: чип показывает balance,
 // а не per-level score): банкованный баланс + ещё НЕ забанкованный счёт
 // текущего уровня. На победе счёт уезжает в se, поэтому число непрерывно.
@@ -144,7 +153,9 @@ function starAward(lv, stars){
   if (!(stars > 0)) return 0;
   return (STAR_AWARD[Math.min(3, stars)] || 0) + STAR_LEVEL_BONUS * Math.max(1, lv | 0);
 }
-function addStars(n){ if (n > 0){ Save.se = (Save.se || 0) + n; commitSave(); fireStarsChange(); } }
+// ПОПОЛНЕНИЕ кошелька (реклама/IAP) — в tu, НЕ в se: не поднимает лидерборд
+// (фикс A). Кормит кошелёк, тратится наравне со сыгранным.
+function addStars(n){ if (n > 0){ Save.tu = (Save.tu || 0) + n; commitSave(); fireStarsChange(); } }
 function spendStars(n){
   n = Math.max(0, n | 0);
   if (starBalance() < n) return false;
@@ -173,9 +184,13 @@ function migrateStarsToWallet(){
 // докуплено». Итоговая ступень = сумма, с общим капом.
 function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
 function boostPrice(name){
-  const t = accTier(name);
-  if (t >= ACC_TIER_CAP) return null; // выше капа покупать нечего
-  return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, t));
+  if (accTier(name) >= ACC_TIER_CAP) return null; // общий кап (заработ.+купл.) — покупать нечего
+  // ⚠️ ЦЕНА от КУПЛЕННЫХ ступеней (boostTier), НЕ суммарных (accTier) —
+  // фикс B таблицы №2: иначе буст СЫГРАННОГО типа (у него есть заработанные
+  // ступени) стоил бы 2000·2^earned, «макс любимого» раздувался до 248k+,
+  // и пак-якорь «Mega=макс типа=62000» врал. Теперь каждая купленная
+  // ступень удваивается независимо от наигранности: 2000/4000/8000/…
+  return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, boostTier(name)));
 }
 function canBoost(name){ const p = boostPrice(name); return p != null && starBalance() >= p; }
 function buyBoost(name){
@@ -196,7 +211,7 @@ function buyBoost(name){
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
-  Save.se = 0; Save.ss = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
+  Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
