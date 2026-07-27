@@ -574,7 +574,7 @@
     .ms-coll { order:5; }
     .ms-dev { order:6; }
   }
-  .ms-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .ms-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }
   /* ⚠️ min-width:0 — грид-элемент по умолчанию min-width:auto (min-content):
      на узких колонках (2-3 карты у 700-1000) карточки не давали сетке ужаться,
      она вылезала вправо и правый столбец обрезался overflow-x у .ms-coll. */
@@ -689,11 +689,13 @@
     .ms-settings { --ms-ctl:156px; }
     .ms-dev { grid-area:dev; }
   }
-  /* КОЛОНКИ КОЛЛЕКЦИИ (спека владельца 2026-07-24): <700 моб = 3 (база) ·
-     700–800 → 2 · 800–1080 → 3 (база) · ≥1080 бенто → 4 (см. бенто-блок выше).
-     ⚠️ Старый узкий-десктоп 700–900 с БОКОВОЙ раскладкой УДАЛЁН: <1080 теперь
+  /* КОЛОНКИ КОЛЛЕКЦИИ — МОНОТОННО (решение диспетчера 2026-07-27 по делегации
+     владельца, убираем «горб» 2-в-полосе-700-800): <800 = 2 (база) ·
+     800–1080 → 3 · ≥1080 бенто → 4 (см. бенто-блок выше). ⚠️ Диапазон 800–1079
+     ОГРАНИЧЕН сверху (max-width), иначе перебил бы 4 колонки бенто на ≥1080.
+     ⚠️ Старый узкий-десктоп 700–900 с БОКОВОЙ раскладкой УДАЛЁН: <1080 —
      СТАКЕД-колонка (база .ms-wrap + порядок), бок-о-бок только ≥1080. */
-  @media (min-width:700px) and (max-width:799px){ .ms-grid { grid-template-columns:repeat(2, 1fr); } }
+  @media (min-width:800px) and (max-width:1079px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
 </style>
 </head>
 <body>
@@ -829,7 +831,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-113 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-114 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
