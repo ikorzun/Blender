@@ -107,6 +107,10 @@
     border-radius:32px; background:#c0ff47; color:#000; font-family:var(--font-round);
     font-size:14px; font-weight:800; line-height:1; text-align:center; padding:8px 12px;
     filter:drop-shadow(0 2px 4px rgba(0,0,0,.16)); }
+  /* AD-СОСТОЯНИЕ бейджа — ноды 778:723 / 783:93: та же лайм-плашка, но падинг
+     РОВНЫЙ 8 (у числового 12/8). Цвет — АКЦЕНТ, под системное правило кнопок
+     (8) не попадает: лайм в обеих темах. */
+  #hintCnt.ad { padding:8px; }
   #hintBtn.off { opacity:.45; pointer-events:none; }
   .pop { position:fixed; z-index:9; pointer-events:none;
     transform:translate(-50%,-50%);
@@ -977,7 +981,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-129 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-130 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -6476,8 +6480,17 @@ function updateHUD(){
   // чипа монет и счётчика подсказок в макете 741:1738 НЕТ (монеты к тому же
   // скрыты COINS_ENABLED; кошелёк уедет в меню). Заряды подсказок живут в
   // сейве — кнопка просто гаснет при нуле
-  $('hintCnt').textContent = hints(); // остаток зарядов бейджем на кнопке
-  $('hintBtn').classList.toggle('off', hints() < 1);
+  // ПОДСКАЗКА — ТРИ СОСТОЯНИЯ бейджа (контракт МЕТЫ v129):
+  //  заряды есть      → число зарядов (бейдж Number 783:91/778:721/778:719);
+  //  зарядов 0 + ролик → лайм «Ad» (бейдж Ad 778:723/783:93) — тап крутит ролик;
+  //  зарядов 0, кап    → «0» и кнопка гаснет (паттерн Shake .off).
+  const hCnt = hints(), hAd = (typeof adHintAvailable === 'function') && adHintAvailable();
+  $('hintCnt').textContent = hAd ? 'Ad' : hCnt;
+  $('hintCnt').classList.toggle('ad', hAd);   // у ad-бейджа падинг 8 (в ноде без 12/8)
+  // ⚠️ .off ТОЛЬКО когда И зарядов нет, И ролик недоступен. Раньше гасили по
+  // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
+  // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
+  $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
   // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
   $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
   $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);
@@ -7410,7 +7423,15 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 
 $('shakeBtn').addEventListener('click', requestShake);
-$('hintBtn').addEventListener('click', showHint);
+// В AD-СОСТОЯНИИ ТАП = РОЛИК, а не обычная подсказка. Подтверждающего оверлея
+// НЕТ намеренно (решение МЕТЫ, диспетчер согласовал): слово «Ad» на кнопке уже
+// делает тап осознанным; исторический оверлей встряски сюда не копируем.
+// showHint() и сам перенаправил бы, но явная ветка читается честнее и не
+// зависит от порядка проверок внутри него.
+$('hintBtn').addEventListener('click', ()=>{
+  if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
+  else showHint();
+});
 $('adYes').addEventListener('click', startAd);
 $('adNo').addEventListener('click', ()=>hide('adAskOverlay'));
 $('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
