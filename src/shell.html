@@ -825,6 +825,57 @@
      ⚠️ Старый узкий-десктоп 700–900 с БОКОВОЙ раскладкой УДАЛЁН: <1080 —
      СТАКЕД-колонка (база .ms-wrap + порядок), бок-о-бок только ≥1080. */
   @media (min-width:800px) and (max-width:1079px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
+
+  /* ===== «MORE STARS» (Get More) — макеты 783:95 деск. / 785:112 моб. =====
+     Экран ложится ПОВЕРХ меню (#mainScreen z-index 30), поэтому 40.
+     ⚠️ Прокрутка своя + align-items:flex-start + margin:auto у обёртки —
+     безопасное центрирование: при нехватке высоты (три карточки на мобиле)
+     автомаржины схлопываются и ВЕРХ не срезается, как было бы у голого
+     align-items:center с overflow. Общий .overlay (пауза/победа/реклама)
+     не трогаем — правила только под #starsOverlay. */
+  #starsOverlay { z-index:40; overflow-y:auto; align-items:flex-start; }
+  /* БАЗА = МОБАЙЛ (макет 785:112): колонка, поля 16, кнопка закрытия сверху */
+  #starsOverlay .st-wrap { margin:auto; width:min(742px, 100vw - 32px);
+    display:flex; flex-direction:column; align-items:center; gap:16px;
+    padding:24px 0 32px; font-family:var(--font-round); }
+  .st-close { align-self:center; flex:none; }
+  .st-head { display:flex; flex-direction:column; align-items:center; gap:5px;
+    text-align:center; color:#fff; width:100%; }
+  .st-title { font-size:44px; font-weight:900; line-height:normal; }
+  .st-sub { font-size:18px; font-weight:900; line-height:normal; }
+  .st-cards { display:flex; flex-direction:column; gap:8px; width:100%; margin-top:8px; }
+  .st-card { border-radius:32px; padding:16px 8px 8px; display:flex; flex-direction:column;
+    align-items:center; gap:20px; }
+  .st-c5 { background:#e0aaff; } .st-c3 { background:#b7ff2d; } .st-c2 { background:#ffee36; }
+  /* мобайл: множитель СЛЕВА, бонусы СПРАВА, по нижнему краю (узел 785:201) */
+  .st-row { display:flex; gap:20px; align-items:flex-end; padding:0 16px; width:100%;
+    box-sizing:border-box; }
+  .st-mult { flex:1 0 0; min-width:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:flex-end; line-height:1; color:#000; white-space:nowrap; }
+  .st-x { font-size:64px; font-weight:900; }
+  .st-time { font-size:26px; font-weight:800; }
+  .st-bonus { flex:1 0 0; min-width:0; font-size:20px; font-weight:800; line-height:1.2; color:#000; }
+  .st-buy { width:100%; height:56px; border:none; border-radius:1000px; background:#fff;
+    color:#000; font-family:var(--font-round); font-size:20px; font-weight:700; cursor:pointer;
+    padding:13px 16px; }
+  .st-buy:active { transform:scale(.97); }
+  /* ДЕСКТОП (макет 783:95): три карточки В РЯД по 242 + gap 8 (=742), кегли
+     крупнее, множитель НАД бонусами, кнопка закрытия в углу экрана.
+     ⚠️ Порог 780, а не 700: 742 контента + поля не влезают в 700-760. */
+  @media (min-width:780px){
+    #starsOverlay .st-wrap { gap:48px; padding:32px 0; }
+    .st-title { font-size:50px; }
+    .st-sub { font-size:20px; width:415px; max-width:100%; }
+    .st-cards { flex-direction:row; gap:8px; margin-top:0; }
+    .st-card { flex:1 1 0; min-width:0; justify-content:flex-end; }
+    .st-row { flex-direction:column; align-items:center; gap:20px; padding:0; }
+    .st-mult { flex:none; }
+    .st-x { font-size:80px; }
+    .st-time { font-size:33px; font-weight:900; }
+    .st-bonus { flex:none; text-align:center; line-height:24px; width:100%; }
+    /* в макете кнопка в левом верхнем углу ЭКРАНА (не обёртки) */
+    .st-close { position:fixed; top:16px; left:16px; align-self:auto; }
+  }
   /* ГЛАЗА НА КАРТОЧКЕ PLAY — КРУПНЕЕ И ВЫШЕ (разметка владельца 2026-07-28:
      белки почти во всю ширину карточки с небольшими полями, блок в ВЕРХНЕЙ
      части, а не по вертикальному центру). Было: жёстко width:240px (0.43
@@ -1065,6 +1116,45 @@
      ИНТЕРФЕЙСА): список накоплений по типам из accSnapshot() меты; пока
      меты нет — демо-данные с бейджем DEMO. Открывается ИЗ ПАУЗЫ и держит
      paused — игра стоит, закрытие возвращает в паузу. -->
+<!-- ЭКРАН «MORE STARS» (Get More) — макеты 783:95 десктоп / 785:112 мобайл.
+     Три бандла бустера; ПАКОВ ЗВЁЗД тут НЕТ (решение владельца — уходят из UI).
+     Подложка макета #676767 — это ЗАТЕМНЕНИЕ, а не фон: берём общий .overlay
+     (fade+blur), экран ложится поверх меню (z-index выше #mainScreen). -->
+<div class="overlay" id="starsOverlay">
+  <div class="st-wrap">
+    <button class="iconBtn st-close" id="starsClose" aria-label="Close"><svg viewBox="0 0 32 32" fill="none">
+      <path d="M8.94 8.94a1.667 1.667 0 0 1 2.357 0L16 13.643l4.703-4.703a1.667 1.667 0 1 1 2.357 2.357L18.357 16l4.703 4.703a1.667 1.667 0 1 1-2.357 2.357L16 18.357l-4.703 4.703a1.667 1.667 0 0 1-2.357-2.357L13.643 16 8.94 11.297a1.667 1.667 0 0 1 0-2.357Z" fill="#000"/>
+    </svg></button>
+    <div class="st-head">
+      <div class="st-title">More Stars</div>
+      <div class="st-sub">Switch on a booster and every match you make earns extra stars — ×2, ×3 or ×5.</div>
+    </div>
+    <div class="st-cards">
+      <div class="st-card st-c5">
+        <div class="st-row">
+          <div class="st-mult"><div class="st-x">×5</div><div class="st-time">30 min</div></div>
+          <div class="st-bonus">+10 Shake’s<br>+15 Tips<br>1 day no Ad</div>
+        </div>
+        <button class="st-buy" data-tier="5">Upgrade $4.99</button>
+      </div>
+      <div class="st-card st-c3">
+        <div class="st-row">
+          <div class="st-mult"><div class="st-x">×3</div><div class="st-time">1 hour</div></div>
+          <div class="st-bonus">+15 Shake’s<br>+20 Tips<br>3 days no Ad</div>
+        </div>
+        <button class="st-buy" data-tier="3">Upgrade $9.99</button>
+      </div>
+      <div class="st-card st-c2">
+        <div class="st-row">
+          <div class="st-mult"><div class="st-x">×2</div><div class="st-time">1 day</div></div>
+          <div class="st-bonus">+50 Shake’s<br>+30 Tips<br>1 month no Ad</div>
+        </div>
+        <button class="st-buy" data-tier="2">Upgrade $19.99</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="museumOverlay">
   <div class="card" id="museumCard">
     <div class="mhead">
