@@ -443,7 +443,7 @@ function handleTap(x, y){
     }
     item = best;
   }
-  if (!item){ if (!finale) penalize(null, x, y); return; }
+  if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
   if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
 
   if (!isAccessible(item)){
@@ -452,9 +452,10 @@ function handleTap(x, y){
     if (!finale) penalize(item.p);
     return;
   }
-  if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
+  if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
   if (item.rock){ // камень несовмещаем: двойной штраф-обучение (в финале штрафов нет)
+    Telemetry.tap(x, y, 'rock');
     if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
@@ -468,10 +469,12 @@ function handleTap(x, y){
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
     // оставшихся без пары в конце уничтожит миксер
+    Telemetry.tap(x, y, 'match');
     doMatch([item].concat(eligible));
     return;
   }
   if (finale){ wiggle(item); return; }
+  Telemetry.tap(x, y, 'miss');   // тапнул по недоступному/непарному — карта промахов
   penalize(item.p);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){

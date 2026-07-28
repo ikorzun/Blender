@@ -17,6 +17,8 @@ let perfFrames = 0, perfWorstMs = 0;
 let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
 function startIntro(){
+  // экран 'intro' — облёт; закрывается finishIntro/skipIntro (docs/METRICS.md §3)
+  try { Telemetry.screen.enter('intro'); } catch(_){}
   // КОНТРАКТ С ИНТЕРФЕЙСОМ v2 (спека владельца 2026-07-22: «блок плавно
   // разворачивается ПОСЛЕ анимации облёта ведра»): класс `introdone` на
   // <html> снят на время интро, повешен в finishIntro — их CSS разворачивает
@@ -47,6 +49,7 @@ function trimOverfill(){
   return removed;
 }
 function finishIntro(){
+  try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
   intro = null;
   document.documentElement.classList.add('introdone'); // облёт кончился — витрина разворачивается
   resetPointers();
@@ -285,10 +288,10 @@ function loop(){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
-  // цепная реакция: досыпка по тику; гаснет по таймеру / CHAIN_MISSES=2
+  // цепная реакция: досыпка по тику; гаснет по таймеру / chainMissesLimit() (Easy 4, Hard 3)
   // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
-    if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
+    if (level.over || now > chainUntil || stats.misses - chainStartMisses >= chainMissesLimit() || !hasAnyPair()){
       chainUntil = 0; comboCount = 0; chainSeries = 0; chainCarry = 0;
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
@@ -604,6 +607,10 @@ window.__game = {
   level(){ return level; },
   stats(){ return stats; },
   levelNum(){ return levelNum; },
+  // отладка/сьют: последние события телеметрии (буфер копится даже при
+  // выключенной отправке — иначе метрики нельзя было бы проверить до прода)
+  telemetry(n){ const b = Telemetry.buffer(); return n ? b.slice(-n) : b; },
+  telemetryScreen(){ return Telemetry.screen.current(); },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок

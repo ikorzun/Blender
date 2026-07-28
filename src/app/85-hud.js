@@ -1,8 +1,22 @@
 // ===== 85-hud: DOM-хелперы и обновление интерфейса =====
 
 function $(id){ return document.getElementById(id); }
-function show(id){ $(id).style.display = 'flex'; if (id === 'winOverlay') renderWinScreen(); }
-function hide(id){ $(id).style.display = 'none'; if (id === 'winOverlay') winStopScore(); }
+// ⚠️ ЕДИНАЯ ТОЧКА ПОКАЗА/СКРЫТИЯ = единая точка учёта ЭКРАНОВ (docs/METRICS.md
+// §3). Вешать замер на каждый оверлей отдельно бессмысленно: их семь, и
+// новый восьмой молча выпал бы из статистики.
+const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
+  starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
+function show(id){
+  $(id).style.display = 'flex';
+  if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
+  if (id === 'winOverlay') renderWinScreen();
+}
+function hide(id){
+  $(id).style.display = 'none';
+  // вернулись в игру — экран снова 'game' (если партия жива)
+  if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
+  if (id === 'winOverlay') winStopScore();
+}
 
 // ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
 // Рисуется из ЖИВОГО состояния при показе оверлея (хук в show выше). checkEnd

@@ -633,7 +633,9 @@
     height:56px; border-radius:1000px; font-family:var(--font-round);
     font-size:20px; font-weight:700; }
   /* Play */
-  .ms-play { background:#d8bbff; border-radius:32px; padding:16px; min-height:340px;
+  /* заливка = градиент времени суток (--sky-grad ставит 10-stage из SKY_GRAD);
+     #d8bbff — фолбэк, если сцена ещё не поднялась */
+  .ms-play { background:var(--sky-grad, #d8bbff); border-radius:32px; padding:16px; min-height:340px;
     display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
     gap:32px; box-shadow:inset 0 0 60px 0 rgba(255,255,255,.35); cursor:pointer; }
   /* глаза ЗАПОЛНЯЮТ карточку Play по вертикали (исправл. блок глаз) — в БАЗЕ,
@@ -1082,7 +1084,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-155 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-156 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">

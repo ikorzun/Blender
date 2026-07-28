@@ -633,7 +633,9 @@
     height:56px; border-radius:1000px; font-family:var(--font-round);
     font-size:20px; font-weight:700; }
   /* Play */
-  .ms-play { background:#d8bbff; border-radius:32px; padding:16px; min-height:340px;
+  /* заливка = градиент времени суток (--sky-grad ставит 10-stage из SKY_GRAD);
+     #d8bbff — фолбэк, если сцена ещё не поднялась */
+  .ms-play { background:var(--sky-grad, #d8bbff); border-radius:32px; padding:16px; min-height:340px;
     display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
     gap:32px; box-shadow:inset 0 0 60px 0 rgba(255,255,255,.35); cursor:pointer; }
   /* глаза ЗАПОЛНЯЮТ карточку Play по вертикали (исправл. блок глаз) — в БАЗЕ,
@@ -1082,7 +1084,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-155 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-156 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1554,7 +1556,14 @@ const INTER_EVERY_LEVELS = 5;
 // Досыпка турбо (спека владельца 2026-07-21: «вещи в турбо должны сыпаться
 // на 20% быстрее и их количество на 30% больше»): интервал 500 -> 417
 // (темп ×1.2), объём за тик 2 -> 2.6 (дробь копится аккумулятором chainCarry)
-const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_MISSES = 2, CHAIN_DROP_MS = 417, CHAIN_DROP_N = 2.6;
+const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 417, CHAIN_DROP_N = 2.6;
+// ⚠️ ТЕРПИМОСТЬ ТУРБО К ПРОМАХАМ — ПО СЛОЖНОСТИ (жалоба владельца 2026-07-28:
+// «2 ошибки в турбо на простом полностью останавливают падение вещей, на
+// сложном нет попыток вовсе — 1 ошибка критична»). Было ФЛЭТ 2 на обе
+// сложности, и на Hard, где часть пар скрыта вуалью недоступности, промах
+// случается не по вине игрока — турбо гасло почти сразу. Easy 4 / Hard 3.
+const CHAIN_MISSES_EASY = 4, CHAIN_MISSES_HARD = 3;
+function chainMissesLimit(){ return CFG.hard ? CHAIN_MISSES_HARD : CHAIN_MISSES_EASY; }
 // АМБИЕНТНЫЙ ТРЕСК В ТУРБО (спека владельца 2026-07-28 «больше мелких молний»).
 // Было: один разряд раз в 200-360 мс. Стало: 2 разряда раз в 130-240 мс, каждый
 // сам по себе гуще (дуга + ответвления, см. boltFX в 70-fx) и КОРОЧЕ — дуги на
@@ -1596,7 +1605,7 @@ const BURST_MIN_N = 4, BURST_WAVE_R = 2.4, BURST_WAVE_V = 0.9;
 // Очков не даёт и не отнимает (инструмент расчистки); сюрприз и другие
 // бомбы не задевает; миксер-наказание бомбу НЕ ест (как сюрприз),
 // финальная зачистка — доедает; чётность пар взрыв рвёт — сироты легальны.
-const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 5.0; // зона ×2 (2.86→5.72, спека владельца 2026-07-27-б; история: 2.2→+30%→×2); кап BOMB_MAX=7 держит баланс («не более 5-7») — реально решает он, радиус теперь накрывает почти всё дно
+const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // зона ×2 (2.86→5.72, спека владельца 2026-07-27-б; история: 2.2→+30%→×2); кап BOMB_MAX=7 держит баланс («не более 5-7») — реально решает он, радиус теперь накрывает почти всё дно
 // «ВЗРЫВ ПОХОЖ НА ЭФФЕКТ SHAKE» (вторая половина спеки владельца 2026-07-27-б;
 // константы ФИЗИКИ, добавлены по правилу 3 — свои добавлять можно).
 // BOMB_JOLT — амплитуда толчка ВСЕЙ куче (второй слой blastWave поверх
@@ -1625,7 +1634,11 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 5.0; // зона ×2 (2.86
 // BOMB_WAVE_PAD — АДДИТИВНЫЙ запас радиуса панча над зоной поражения
 // (историческое поведение BOMB_RADIUS+1.2; мультипликативная версия молча
 // УМЕНЬШАЛА радиус 6.92 -> 6.86 и меняла семантику при будущем тюнинге зоны).
-const BOMB_JOLT = 6.0, BOMB_CAM_SHAKE = 0.45, BOMB_WAVE_PAD = 1.2;
+// ⚠️ ЭФФЕКТ ×3 (спека владельца 2026-07-28): панч 5→15, джолт 6→18, камера
+// 0.45→0.6 (камерный кик — ДЛИТЕЛЬНОСТЬ дрожания, её втрое не гоним: 1.35 с
+// тряски читались бы как баг, а не как мощь). Кап жертв BOMB_MAX=7 и радиус
+// НЕ тронуты — владелец просил силу ЭФФЕКТА, а не размер зачистки.
+const BOMB_JOLT = 18.0, BOMB_CAM_SHAKE = 0.6, BOMB_WAVE_PAD = 1.2;
 
 // НЕСОВМЕЩАЕМЫЕ КАМНИ (спека владельца 2026-07-22, «запускай физику»):
 // rocks-a / rocks-sand-c из «3d assets/Pirate» (модуль 37-rocks, ВНЕ
@@ -1814,6 +1827,17 @@ function skyForNow(){
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+// ⚠️ ПОТЕРЯ КОНТЕКСТА = «КРЕШ» БЕЗ ОШИБКИ (docs/METRICS.md §6): на мобильных
+// система отбирает GPU-контекст (фон, память, перегрев) — игра не падает, но
+// экран ЧЕРНЕЕТ, и в статистике это выглядело бы обычным уходом игрока.
+// Ловим отдельным событием, иначе самый частый 3D-сбой невидим.
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();                       // без этого контекст не восстановят
+  try { Telemetry.err('webgl', 'context lost', '', ''); } catch(_){}
+}, false);
+canvas.addEventListener('webglcontextrestored', () => {
+  try { Telemetry.ev('webgl_restored', {}); } catch(_){}
+}, false);
 // на телефонах DPR-кап 1.5: кадр на DPR2 в ~1.8 раза дороже (замер аудита),
 // HUD — DOM и остаётся резким; на десктопе оставляем 2
 renderer.setPixelRatio(Math.min(devicePixelRatio||1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
@@ -2265,6 +2289,14 @@ const v3 = a => new THREE.Vector3(a[0], a[1], a[2]);
 // meta[theme-color] ВЕРХНИМ цветом градиента. Раньше он сэмплил полосу
 // картинки — картинки больше нет, читает это значение напрямую.
 const skyChromeCSS = 'rgb(' + skyGrad.top.map(c => Math.round(c*255)).join(',') + ')';
+// ⚠️ ТОТ ЖЕ ГРАДИЕНТ — В CSS (спека владельца 2026-07-28: «заливка этого блока —
+// градиенты времени суток»). Один источник с небом: карточка Play и фон игры
+// разъехаться не могут ПО ПОСТРОЕНИЮ. Считается раз при загрузке, как и небо
+// (skyGrad) — время суток в пределах сессии не меняется, а тик updateHUD ставил
+// бы одну и ту же строку впустую.
+const skyGradCSS = 'linear-gradient(180deg,' +
+  ['top','hor','bot'].map(k => 'rgb(' + skyGrad[k].map(c => Math.round(c*255)).join(',') + ')').join(',') + ')';
+try { document.documentElement.style.setProperty('--sky-grad', skyGradCSS); } catch(e){}
 
 // Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
@@ -2560,7 +2592,7 @@ const TYPES = [
   { name:'animalbee',             color:0xffd633, rc:1.0, tex:'animal', mat:'soft', geo:animalbeeGeo },
   { name:'animalcrab',            color:0xff5a2b, rc:1.0, tex:'animal', mat:'soft', geo:animalcrabGeo },
   { name:'animalpig',             color:0xff9ec4, rc:1.0, tex:'animal', mat:'soft', geo:animalpigGeo },
-  { name:'carpolice',             color:0x3a6ee0, rc:1.0, tex:'car', mat:'soft', geo:carpoliceGeo },
+  { name:'carpolice',             color:0x3a6ee0, rc:1.4, tex:'car', mat:'soft', geo:()=>carpoliceGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
@@ -2569,7 +2601,7 @@ const TYPES = [
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
-  { name:'cartaxi',               color:0xffc21a, rc:1.0, tex:'car', mat:'soft', geo:cartaxiGeo },
+  { name:'cartaxi',               color:0xffc21a, rc:1.4, tex:'car', mat:'soft', geo:()=>cartaxiGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickbar', color:0xe8433a, rc:1.0, wr:0.98, tex:'brick', paint:1, mat:'soft', geo:brickbarGeo },
   { name:'piratepalm', color:0xc87551, rc:1.0, tex:'pirate', mat:'soft', geo:piratepalmGeo },
   { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },
@@ -2578,7 +2610,7 @@ const TYPES = [
   { name:'animalelephant',        color:0x9aa6b4, rc:1.0, tex:'animal', mat:'soft', geo:animalelephantGeo },
   { name:'animalpolar',           color:0xe8eef4, rc:1.0, tex:'animal', mat:'soft', geo:animalpolarGeo },
   { name:'animaltiger',           color:0xff8a2b, rc:1.0, tex:'animal', mat:'soft', geo:animaltigerGeo },
-  { name:'carfiretruck',          color:0xe03a2e, rc:1.0, tex:'car', mat:'soft', geo:carfiretruckGeo },
+  { name:'carfiretruck',          color:0xe03a2e, rc:1.4, tex:'car', mat:'soft', geo:()=>carfiretruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickcorner', color:0xb45ac4, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickcornerGeo },
   { name:'piratecannon', color:0x4d515f, rc:1.0, tex:'pirate', mat:'soft', geo:piratecannonGeo },
   { name:'foodtomato',            color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodtomatoGeo },
@@ -2587,7 +2619,7 @@ const TYPES = [
   { name:'animalpanda',           color:0xd8dce2, rc:1.0, tex:'animal', mat:'soft', geo:animalpandaGeo },
   { name:'animalcow',             color:0xe6ddd0, rc:1.0, tex:'animal', mat:'soft', geo:animalcowGeo },
   { name:'animalparrot',          color:0xe2453a, rc:1.0, tex:'animal', mat:'soft', geo:animalparrotGeo },
-  { name:'carambulance',          color:0xeef2f6, rc:1.0, tex:'car', mat:'soft', geo:carambulanceGeo },
+  { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickstud', color:0xffd633, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickstudGeo },
   { name:'piratechest', color:0xa4abcd, rc:1.0, tex:'pirate', mat:'soft', geo:piratechestGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
@@ -2596,7 +2628,7 @@ const TYPES = [
   { name:'animalkoala',           color:0x9ba3ad, rc:1.0, tex:'animal', mat:'soft', geo:animalkoalaGeo },
   { name:'animalcat',             color:0x6b7280, rc:1.0, tex:'animal', mat:'soft', geo:animalcatGeo },
   { name:'animalgiraffe',         color:0xe0b23a, rc:1.0, tex:'animal', mat:'soft', geo:animalgiraffeGeo },
-  { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.0, tex:'car', mat:'soft', geo:cargarbagetruckGeo },
+  { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cargarbagetruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickclassic', color:0x5ac44a, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickclassicGeo },
   { name:'piratecrate', color:0x3aa378, rc:1.0, tex:'pirate', mat:'soft', geo:piratecrateGeo },
   { name:'foodpear',              color:0xc8d94a, rc:1.0, tex:'food', mat:'soft', geo:foodpearGeo },
@@ -2605,7 +2637,7 @@ const TYPES = [
   { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
   { name:'animalfox',             color:0xf07a34, rc:1.0, tex:'animal', mat:'soft', geo:animalfoxGeo },
   { name:'animallion',            color:0xd9a05b, rc:1.0, tex:'animal', mat:'soft', geo:animallionGeo },
-  { name:'carrace',               color:0xff5a2b, rc:1.0, tex:'car', mat:'soft', geo:carraceGeo },
+  { name:'carrace',               color:0xff5a2b, rc:1.4, tex:'car', mat:'soft', geo:()=>carraceGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'bricksquare', color:0xff9a2b, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:bricksquareGeo },
   { name:'pirateball', color:0x505362, rc:1.0, tex:'pirate', mat:'soft', geo:pirateballGeo },
   { name:'foodcabbage',           color:0x8fc46a, rc:1.0, tex:'food', mat:'soft', geo:foodcabbageGeo },
@@ -2614,7 +2646,7 @@ const TYPES = [
   { name:'animalmonkey',          color:0xa9713f, rc:1.0, tex:'animal', mat:'soft', geo:animalmonkeyGeo },
   { name:'animaldog',             color:0xc98f5a, rc:1.0, tex:'animal', mat:'soft', geo:animaldogGeo },
   { name:'animalbeaver',          color:0x9c6b42, rc:1.0, tex:'animal', mat:'soft', geo:animalbeaverGeo },
-  { name:'cartractor',            color:0x4caf50, rc:1.0, tex:'car', mat:'soft', geo:cartractorGeo },
+  { name:'cartractor',            color:0x4caf50, rc:1.4, tex:'car', mat:'soft', geo:()=>cartractorGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickduo', color:0x3a6ee0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickduoGeo },
   { name:'piratetower', color:0xadb5d9, rc:1.0, tex:'pirate', mat:'soft', geo:piratetowerGeo },
   { name:'foodmushroom',          color:0xe8ddc8, rc:1.0, tex:'food', mat:'soft', geo:foodmushroomGeo },
@@ -2623,24 +2655,24 @@ const TYPES = [
   { name:'animaldeer',            color:0xb07a4a, rc:1.0, tex:'animal', mat:'soft', geo:animaldeerGeo },
   { name:'animalbunny',           color:0xd8b895, rc:1.0, tex:'animal', mat:'soft', geo:animalbunnyGeo },
   { name:'animalhog',             color:0x8d6144, rc:1.0, tex:'animal', mat:'soft', geo:animalhogGeo },
-  { name:'carvan',                color:0xe0a04a, rc:1.0, tex:'car', mat:'soft', geo:carvanGeo },
+  { name:'carvan',                color:0xe0a04a, rc:1.4, tex:'car', mat:'soft', geo:()=>carvanGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'piratedoor', color:0xadb5d9, rc:1.0, tex:'pirate', mat:'soft', geo:piratedoorGeo },
   { name:'foodcupcake',           color:0xffa8c8, rc:1.0, tex:'food', mat:'soft', geo:foodcupcakeGeo },
   { name:'foodicecream',          color:0xffd9b8, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamGeo },
   { name:'foodburger',            color:0xc98a4b, rc:1.0, tex:'food', mat:'soft', geo:foodburgerGeo },
-  { name:'carcone', color:0xff9944, rc:1.0, tex:'car', mat:'soft', geo:carconeGeo },
+  { name:'carcone', color:0xff9944, rc:1.4, tex:'car', mat:'soft', geo:()=>carconeGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodcroissant',         color:0xe0b070, rc:1.0, tex:'food', mat:'soft', geo:foodcroissantGeo },
   { name:'foodcookie',            color:0xc08a50, rc:1.0, tex:'food', mat:'soft', geo:foodcookieGeo },
   { name:'foodleek', color:0x4db781, rc:1.0, wr:0.32, tex:'food', mat:'soft', geo:foodleekGeo },
-  { name:'carbox', color:0xb86847, rc:1.0, tex:'car', mat:'soft', geo:carboxGeo },
+  { name:'carbox', color:0xb86847, rc:1.4, tex:'car', mat:'soft', geo:()=>carboxGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodfish', color:0x626880, rc:1.0, wr:0.89, tex:'food', mat:'soft', geo:foodfishGeo },
   { name:'foodturkey', color:0x945841, rc:1.0, tex:'food', mat:'soft', geo:foodturkeyGeo },
   { name:'foodcheese', color:0xffc759, rc:1.0, wr:0.98, tex:'food', mat:'soft', geo:foodcheeseGeo },
-  { name:'cartruck', color:0x4a9e5c, rc:1.0, tex:'car', mat:'soft', geo:cartruckGeo },
+  { name:'cartruck', color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cartruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodsundae', color:0xe45e48, rc:1.0, wr:0.37, tex:'food', mat:'soft', geo:foodsundaeGeo },
   { name:'foodchinese', color:0xebebf2, rc:1.0, tex:'food', mat:'soft', geo:foodchineseGeo },
   { name:'foodwholeham', color:0xdc9e76, rc:1.0, tex:'food', mat:'soft', geo:foodwholehamGeo },
-  { name:'carkartoobi', color:0x8a6ec8, rc:1.0, tex:'car', mat:'soft', geo:carkartoobiGeo },
+  { name:'carkartoobi', color:0x8a6ec8, rc:1.4, tex:'car', mat:'soft', geo:()=>carkartoobiGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodtaco', color:0xd4926b, rc:1.0, wr:0.85, tex:'food', mat:'soft', geo:foodtacoGeo },
   { name:'foodhotdog', color:0xeb9268, rc:1.0, wr:0.99, tex:'food', mat:'soft', geo:foodhotdogGeo },
   { name:'foodcakebirthday', color:0xffc044, rc:1.0, tex:'food', mat:'soft', geo:foodcakebirthdayGeo },
@@ -5920,26 +5952,127 @@ const Ads = (function(){
 // публичные методы Ads. Зона ИНТЕГРАЦИИ, снять = одна строка.
 if (typeof window !== 'undefined') window.__ads = Ads;
 
-// ===== 79-telemetry: beacon-каркас (план v1, корректировка №2) =====
-// Endpoint пуст — телеметрия ВЫКЛЮЧЕНА (no-op). Включение одной строкой:
+// ===== 79-telemetry: beacon-каркас + ловля крешей + экраны/отвалы =====
+// Endpoint пуст — отправка ВЫКЛЮЧЕНА (no-op). Включение одной строкой:
 // URL воркера владельца (Cloudflare, как platform-landings) — события уйдут
 // батчами через sendBeacon. Схема события: {t, s: session, n: name, ...поля}.
+// Набор метрик и что каким решением закрывается — docs/METRICS.md.
 const Telemetry = (function(){
   const URL = ''; // например 'https://mixer-telemetry.<аккаунт>.workers.dev/e'
   let buf = [];
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const t0 = Date.now();
+  // ⚠️ БУФЕР КОПИТСЯ ДАЖЕ ПРИ ПУСТОМ URL. Раньше ev() выходил сразу, и до
+  // включения endpoint'а телеметрию нельзя было ни отладить, ни проверить
+  // тестом — «работает ли» выяснялось бы уже на проде. Теперь события живут
+  // в кольце (кап RING), отправки по-прежнему нет: __game.telemetry() их
+  // показывает, ассерты сьюта проверяют по нему.
+  const RING = 200;
   function ev(name, data){
-    if (!URL) return;
-    buf.push(Object.assign({ t: Date.now(), s: sid, n: name }, data || {}));
-    if (buf.length >= 12) flush();
+    const e = Object.assign({ t: Date.now(), s: sid, n: name }, data || {});
+    buf.push(e);
+    if (buf.length > RING) buf.splice(0, buf.length - RING);
+    if (URL && buf.length >= 12) flush();
+    return e;
   }
   function flush(){
     if (!URL || !buf.length) return;
     try { navigator.sendBeacon(URL, JSON.stringify(buf)); } catch(e){}
     buf = [];
   }
-  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
-  return { ev, flush };
+  // ⚠️ КРЕШ ШЛЁТСЯ НЕМЕДЛЕННО, не по батчу: следующая строка кода может убить
+  // страницу, и накопленное уйдёт в никуда вместе с причиной.
+  function sendNow(e){
+    if (!URL) return;
+    try { navigator.sendBeacon(URL, JSON.stringify([e])); } catch(_){}
+  }
+
+  // ===== КРЕШИ (docs/METRICS.md §6) =====
+  // Три источника: синхронные ошибки, упавшие промисы и ПОТЕРЯ WEBGL-КОНТЕКСТА
+  // (в 3D на мобильных это самый частый «креш»: игра не падает, но экран
+  // чернеет — без своего события выглядело бы как обычный уход игрока).
+  const seen = new Set();      // дедуп по сигнатуре: одна и та же — раз за сессию
+  let errCount = 0;            // потолок: цикл ошибок не должен затопить приём
+  const ERR_CAP = 5;
+  function ctx(){
+    // где именно упало — без этого стек мало что даёт
+    let lv = null, scr = null, build = null;
+    try { lv = typeof levelNum !== 'undefined' ? levelNum : null; } catch(_){}
+    try { scr = Screen.current(); } catch(_){}
+    try { const b = document.getElementById('buildVer'); build = b && b.textContent.trim(); } catch(_){}
+    return { lv: lv, v: scr, b: build };
+  }
+  function err(kind, msg, file, stack){
+    if (errCount >= ERR_CAP) return null;
+    const sig = kind + '|' + (msg || '').slice(0, 120) + '|' + (file || '');
+    if (seen.has(sig)) return null;
+    seen.add(sig); errCount++;
+    const e = Object.assign(ev('err', {
+      k: kind,
+      m: String(msg || '').slice(0, 200),
+      f: String(file || '').slice(0, 120),
+      st: String(stack || '').split('\n').slice(0, 3).join(' | ').slice(0, 300),
+    }), {});
+    Object.assign(e, ctx());
+    sendNow(e);
+    return e;
+  }
+  addEventListener('error', (e) => {
+    err('js', e.message, (e.filename || '') + ':' + (e.lineno || 0), e.error && e.error.stack);
+  });
+  addEventListener('unhandledrejection', (e) => {
+    const r = e && e.reason;
+    err('promise', r && (r.message || r), '', r && r.stack);
+  });
+
+  // ===== ЭКРАНЫ И ОТВАЛЫ (docs/METRICS.md §3 и §5) =====
+  // Время меряем по УХОДУ с экрана — только тогда известна длительность.
+  const Screen = (function(){
+    let cur = null, since = 0;
+    function enter(name){
+      if (cur === name) return;
+      leave();
+      cur = name; since = Date.now();
+    }
+    function leave(){
+      if (!cur) return;
+      const ms = Date.now() - since;
+      // экраны-«моргания» (< 150 мс) не пишем: это переходы, а не просмотры
+      if (ms >= 150) ev('screen', { v: cur, ms: ms, lv: ctx().lv });
+      cur = null;
+    }
+    return { enter, leave, current: () => cur };
+  })();
+
+  // ===== КАРТА ТАПОВ (docs/METRICS.md §4) =====
+  // Сектор 3×3, а НЕ координаты: точный heat-map требует нормировки под сотни
+  // разрешений и хранит на порядок больше данных, а решения («палец закрывает
+  // низ-центр») читаются уже по секторам.
+  function tap(x, y, result){
+    const col = x < innerWidth / 3 ? 'l' : x < innerWidth * 2 / 3 ? 'c' : 'r';
+    const row = y < innerHeight / 3 ? 't' : y < innerHeight * 2 / 3 ? 'm' : 'b';
+    ev('tap', { z: row + col, r: result, lv: ctx().lv });
+  }
+
+  // уход со вкладки = отвал: фиксируем ГДЕ и В КАКОМ состоянии бросили
+  addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    let st = 'playing';
+    try {
+      if (typeof level !== 'undefined' && level){
+        if (level.over) st = 'after_win';
+        else if (level.deadlock) st = 'stuck';
+      }
+      const scr = Screen.current();
+      if (scr === 'more_stars') st = 'on_offer';
+      else if (scr === 'ad') st = 'on_ad';
+    } catch(_){}
+    ev('quit', { v: Screen.current(), st: st, ms: Date.now() - t0, lv: ctx().lv });
+    Screen.leave();
+    flush();
+  });
+
+  return { ev, flush, err, tap, screen: Screen, buffer: () => buf.slice(), sid };
 })();
 
 // ===== 80-gameplay: матчи, тап, миксер, встряска, победа/поражение =====
@@ -6387,7 +6520,7 @@ function handleTap(x, y){
     }
     item = best;
   }
-  if (!item){ if (!finale) penalize(null, x, y); return; }
+  if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
   if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
 
   if (!isAccessible(item)){
@@ -6396,9 +6529,10 @@ function handleTap(x, y){
     if (!finale) penalize(item.p);
     return;
   }
-  if (item.surprise){ collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
+  if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
   if (item.rock){ // камень несовмещаем: двойной штраф-обучение (в финале штрафов нет)
+    Telemetry.tap(x, y, 'rock');
     if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
@@ -6412,10 +6546,12 @@ function handleTap(x, y){
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
     // оставшихся без пары в конце уничтожит миксер
+    Telemetry.tap(x, y, 'match');
     doMatch([item].concat(eligible));
     return;
   }
   if (finale){ wiggle(item); return; }
+  Telemetry.tap(x, y, 'miss');   // тапнул по недоступному/непарному — карта промахов
   penalize(item.p);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
@@ -6634,8 +6770,22 @@ function startAd(){
 // ===== 85-hud: DOM-хелперы и обновление интерфейса =====
 
 function $(id){ return document.getElementById(id); }
-function show(id){ $(id).style.display = 'flex'; if (id === 'winOverlay') renderWinScreen(); }
-function hide(id){ $(id).style.display = 'none'; if (id === 'winOverlay') winStopScore(); }
+// ⚠️ ЕДИНАЯ ТОЧКА ПОКАЗА/СКРЫТИЯ = единая точка учёта ЭКРАНОВ (docs/METRICS.md
+// §3). Вешать замер на каждый оверлей отдельно бессмысленно: их семь, и
+// новый восьмой молча выпал бы из статистики.
+const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
+  starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
+function show(id){
+  $(id).style.display = 'flex';
+  if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
+  if (id === 'winOverlay') renderWinScreen();
+}
+function hide(id){
+  $(id).style.display = 'none';
+  // вернулись в игру — экран снова 'game' (если партия жива)
+  if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
+  if (id === 'winOverlay') winStopScore();
+}
 
 // ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
 // Рисуется из ЖИВОГО состояния при показе оверлея (хук в show выше). checkEnd
@@ -8199,6 +8349,8 @@ let perfFrames = 0, perfWorstMs = 0;
 let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
 function startIntro(){
+  // экран 'intro' — облёт; закрывается finishIntro/skipIntro (docs/METRICS.md §3)
+  try { Telemetry.screen.enter('intro'); } catch(_){}
   // КОНТРАКТ С ИНТЕРФЕЙСОМ v2 (спека владельца 2026-07-22: «блок плавно
   // разворачивается ПОСЛЕ анимации облёта ведра»): класс `introdone` на
   // <html> снят на время интро, повешен в finishIntro — их CSS разворачивает
@@ -8229,6 +8381,7 @@ function trimOverfill(){
   return removed;
 }
 function finishIntro(){
+  try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
   intro = null;
   document.documentElement.classList.add('introdone'); // облёт кончился — витрина разворачивается
   resetPointers();
@@ -8467,10 +8620,10 @@ function loop(){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
-  // цепная реакция: досыпка по тику; гаснет по таймеру / CHAIN_MISSES=2
+  // цепная реакция: досыпка по тику; гаснет по таймеру / chainMissesLimit() (Easy 4, Hard 3)
   // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
-    if (level.over || now > chainUntil || stats.misses - chainStartMisses >= CHAIN_MISSES || !hasAnyPair()){
+    if (level.over || now > chainUntil || stats.misses - chainStartMisses >= chainMissesLimit() || !hasAnyPair()){
       chainUntil = 0; comboCount = 0; chainSeries = 0; chainCarry = 0;
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
@@ -8786,6 +8939,10 @@ window.__game = {
   level(){ return level; },
   stats(){ return stats; },
   levelNum(){ return levelNum; },
+  // отладка/сьют: последние события телеметрии (буфер копится даже при
+  // выключенной отправке — иначе метрики нельзя было бы проверить до прода)
+  telemetry(n){ const b = Telemetry.buffer(); return n ? b.slice(-n) : b; },
+  telemetryScreen(){ return Telemetry.screen.current(); },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок

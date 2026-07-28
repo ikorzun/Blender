@@ -860,7 +860,12 @@ const path = require('path');
   const adsMode = await page.evaluate(() => window.__game.adsMode());
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
-  if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
+
+  // ⚠️ синтетический креш секции МЕТРИК — ожидаемый, он и есть предмет
+  // проверки; иначе собственный тест ловли ошибок валил бы сьют как «ошибка
+  // страницы» и маскировал настоящие
+  const realErrors = errors.filter(e => !/reading 'boom'/.test(e));
+  if (realErrors.length) failures.push('runtime errors: ' + realErrors.join(' | '));
   // ВИТРИНА: ПРАВИЛО 2/3 (спека владельца 2026-07-27, ОТМЕНЯЕТ camnear):
   // панель видна на десктопе И планшетах (@media min-width:813 = 3×271px
   // полосы, pointer:fine снят), прячется ТОЛЬКО по ширине; приближение
@@ -955,6 +960,49 @@ const path = require('path');
     misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
   expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
   expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
+
+  // ── МЕТРИКИ (docs/METRICS.md) — СЕКЦИЯ В КОНЦЕ НАМЕРЕННО:
+  // она регенерит уровень и бросает синтетический креш, т.е. портит контекст
+  // соседям (поймал на себе: следующий тест ждал ур.1 и промах, а получил 0).
+  // ⚠️ Буфер телеметрии копится ДАЖЕ при выключенной отправке (URL пуст) —
+  // иначе «работает ли сбор» выяснялось бы только на проде.
+  const tm = await page.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 700));
+    const scrInGame = g.telemetryScreen();
+    setTimeout(() => { null.boom(); }, 0);          // синтетический креш
+    await new Promise(r => setTimeout(r, 300));
+    return { scrInGame, evs: g.telemetry(60) };
+  });
+  {
+    const err = tm.evs.filter(e => e.n === 'err').pop();
+    expect(tm.scrInGame === 'game', 'экран партии помечен как game (' + tm.scrInGame + ')');
+    expect(!!err && /boom/.test(err.m) && !!err.st,
+      'креш пойман с сообщением и стеком (' + (err ? err.m.slice(0, 40) : 'нет') + ')');
+    expect(!!err && err.v === 'game' && err.lv >= 1,
+      'у креша есть контекст: экран и уровень (' + (err ? err.v + '/' + err.lv : '—') + ')');
+  }
+  // тап пишет СЕКТОР и ИСХОД (а не координаты — см. METRICS §4)
+  // ⚠️ кликаем по ЭКРАННОЙ позиции живого предмета, а не в наугад выбранную
+  // точку: первая версия била в пустоту мимо кучи и ассерт «нет тапа» врал
+  const pt = await page.evaluate(() => {
+    const g = window.__game, t = g.topItem();
+    if (!t) return null;
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  });
+  if (pt) await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(300);
+  const tap = await page.evaluate(() => window.__game.telemetry(20).filter(e => e.n === 'tap').pop());
+  expect(!!tap && /^(t|m|b)(l|c|r)$/.test(tap.z) && !!tap.r,
+    'тап записан сектором и исходом (' + (tap ? tap.z + '/' + tap.r : 'нет') + ')');
+  // экран закрывается с длительностью
+  const scr = await page.evaluate(() => window.__game.telemetry(60).filter(e => e.n === 'screen').pop());
+  expect(!!scr && scr.ms > 0 && !!scr.v,
+    'экран закрыт с длительностью (' + (scr ? scr.v + ' ' + scr.ms + 'мс' : 'нет') + ')');
+
+
   expect(rockTap1.rocks === 1, 'камень тапом не убирается');
   // бомба убирает камень: телепортируем обоих в воздух рядом и детонируем —
   // камень в радиусе, прочая куча далеко внизу (кап не мешает)

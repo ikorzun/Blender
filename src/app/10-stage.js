@@ -4,6 +4,17 @@
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+// ⚠️ ПОТЕРЯ КОНТЕКСТА = «КРЕШ» БЕЗ ОШИБКИ (docs/METRICS.md §6): на мобильных
+// система отбирает GPU-контекст (фон, память, перегрев) — игра не падает, но
+// экран ЧЕРНЕЕТ, и в статистике это выглядело бы обычным уходом игрока.
+// Ловим отдельным событием, иначе самый частый 3D-сбой невидим.
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();                       // без этого контекст не восстановят
+  try { Telemetry.err('webgl', 'context lost', '', ''); } catch(_){}
+}, false);
+canvas.addEventListener('webglcontextrestored', () => {
+  try { Telemetry.ev('webgl_restored', {}); } catch(_){}
+}, false);
 // на телефонах DPR-кап 1.5: кадр на DPR2 в ~1.8 раза дороже (замер аудита),
 // HUD — DOM и остаётся резким; на десктопе оставляем 2
 renderer.setPixelRatio(Math.min(devicePixelRatio||1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
@@ -455,6 +466,14 @@ const v3 = a => new THREE.Vector3(a[0], a[1], a[2]);
 // meta[theme-color] ВЕРХНИМ цветом градиента. Раньше он сэмплил полосу
 // картинки — картинки больше нет, читает это значение напрямую.
 const skyChromeCSS = 'rgb(' + skyGrad.top.map(c => Math.round(c*255)).join(',') + ')';
+// ⚠️ ТОТ ЖЕ ГРАДИЕНТ — В CSS (спека владельца 2026-07-28: «заливка этого блока —
+// градиенты времени суток»). Один источник с небом: карточка Play и фон игры
+// разъехаться не могут ПО ПОСТРОЕНИЮ. Считается раз при загрузке, как и небо
+// (skyGrad) — время суток в пределах сессии не меняется, а тик updateHUD ставил
+// бы одну и ту же строку впустую.
+const skyGradCSS = 'linear-gradient(180deg,' +
+  ['top','hor','bot'].map(k => 'rgb(' + skyGrad[k].map(c => Math.round(c*255)).join(',') + ')').join(',') + ')';
+try { document.documentElement.style.setProperty('--sky-grad', skyGradCSS); } catch(e){}
 
 // Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
