@@ -411,25 +411,26 @@
   /* CLEANED + время — ОДИН РЯД под Level (Figma: бейдж слева, время справа,
      на одной линии). Ряд центрирован, слегка наезжает на низ Level. */
   .win-cleanrow { margin-top:-4px; display:flex; align-items:center; gap:2px; }
-  .win-cleaned { transform:rotate(-10.6deg); z-index:2;
-    background:#c0ff47; color:#fff; font-weight:900; font-size:clamp(30px,9vw,43px);
-    line-height:1; padding:5px 15px 8px; border-radius:14px; white-space:nowrap;
-    letter-spacing:.5px; }
+  /* CLEANED = ОБВЕДЁННЫЙ ЛАЙМ-ТЕКСТ (Figma 778:732: лайм-заливка + белая
+     обводка, БЕЗ пилюли — фон просвечивает сквозь буквы). Механизм .otext. */
+  .win-cleaned { width:min(220px, 60vw); height:auto; transform:rotate(-10.6deg); z-index:2; }
+  .otext.win-cleaned text { font-size:44px; stroke-width:9; }
+  #winCleaned { fill:#c0ff47; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
-  .otext.win-time text { font-size:26px; stroke-width:7; }
+  .otext.win-time text { font-size:26px; stroke-width:5; }  /* тоньше — мелкий кегль (пропорц. к Level) */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
   .otext.win-score text { font-size:68px; stroke-width:9; }
   #winScore { fill:url(#gWinScore); }
   /* --- НАГРАДА (+1 подсказка) + NEXT --- */
   .win-actions { display:flex; gap:8px; align-items:center; width:100%; margin-bottom:26px; }
-  .win-reward { flex:none; display:flex; align-items:center; gap:7px; height:84px;
-    box-sizing:border-box; background:rgba(0,0,0,.2); border-radius:1000px; padding:10px 19px 10px 10px; }
+  .win-reward { flex:none; width:145px; display:flex; align-items:center; gap:7px; height:84px;
+    box-sizing:border-box; background:rgba(0,0,0,.2); border-radius:1000px; padding:8px 19px 8px 10px; }
   .win-reward-ic { flex:none; width:64px; height:64px; border-radius:1000px; background:#c0ff47;
     display:grid; place-items:center; }
   .win-reward-ic svg { width:32px; height:32px; display:block; }
-  .win-reward-n { color:#c0ff47; font-weight:900; font-size:34px; line-height:1; }
+  .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1000px; cursor:pointer;
-    background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:900; font-size:34px; }
+    background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
   /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
   .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
   .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
@@ -445,7 +446,7 @@
     transition:width .55s cubic-bezier(.34,1.56,.64,1); }
   .wt-mult { flex:none; min-width:35px; height:35px; box-sizing:border-box; padding:0 8px;
     background:rgba(0,0,0,.4); border-radius:32px; display:grid; place-items:center;
-    color:#fff; font-weight:900; font-size:16px; }
+    color:#fff; font-weight:800; font-size:16px; }  /* Heavy (Figma), не Black */
   /* --- ВХОДНАЯ АНИМАЦИЯ: играет при каждом показе (.win-in ставит
          renderWinScreen). CLEANED — «штамп-слэм» (герой), счёт — pop +
          count-up (JS), строки TOP ITEMS — каскад справа + заливка полосок. --- */
@@ -522,7 +523,16 @@
   .ms-eyes { width:240px; max-width:100%; height:auto; display:block; flex:1 1 auto; min-height:0; }
   .ms-playbtn { border:none; cursor:pointer; background:#000; color:#fff; width:100%;
     height:84px; border-radius:100px; font-family:var(--font-round);
-    font-size:34px; font-weight:800; flex:none; }
+    font-size:34px; font-weight:800; flex:none; position:relative; overflow:hidden; }
+  /* #8a ЛЁГКИЙ БЛИК (спека владельца): диагональная белая полоса пробегает по
+     кнопке раз в ~4.5 с. Анимация на ::after (кнопку/лейаут не трогает). */
+  .ms-playbtn::after { content:''; position:absolute; top:0; left:0; width:36%; height:100%;
+    background:linear-gradient(100deg, transparent, rgba(255,255,255,.32), transparent);
+    transform:translateX(-160%) skewX(-16deg); pointer-events:none;
+    animation:msGlint 4.5s ease-in-out infinite; }
+  @keyframes msGlint { 0%{ transform:translateX(-160%) skewX(-16deg); }
+    16%,100%{ transform:translateX(430%) skewX(-16deg); } }
+  @media (prefers-reduced-motion: reduce){ .ms-playbtn::after { animation:none; opacity:0; } }
   /* настройки */
   .ms-settings { background:#fff; border-radius:32px; padding:12px;
     display:flex; flex-direction:column; gap:8px; --ms-ctl:172px; }
@@ -591,7 +601,10 @@
     display:grid; place-items:center; font-size:16px; font-weight:800; color:#3a4068; }
   .msc-name { font-size:14px; font-weight:800; color:#3a4068; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
-  .msc-cnt { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); }
+  /* отступ имя↔строка количества/уровня ÷2 (спека владельца #6): карточка
+     держит общий gap:10px, поджимаем ТОЛЬКО этот зазор через -5px (прочие —
+     img↔имя, строка↔полоска, полоска↔кнопка — по 10 как были) */
+  .msc-cnt { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); margin-top:-5px; }
   .msc-prog { width:100%; height:12px; background:rgba(255,255,255,.4);
     border-radius:40px; overflow:hidden; }
   .msc-prog i { display:block; height:100%; background:rgba(44,47,98,.3); border-radius:40px; }
@@ -619,7 +632,7 @@
   .msc-boost:disabled { opacity:.5; cursor:default; }
   /* «Level N» на локнутой карточке — ТЕМ ЖЕ шрифтом/цветом/местом, что счётчик
      «4/100» (спека владельца): под названием, слева, мелкий приглушённый */
-  .msc-lvl { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); }
+  .msc-lvl { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); margin-top:-5px; } /* #6: тот же поджим имя↔уровень, что у .msc-cnt */
   /* ===== ДЕСКТОП — макет Figma 763:1031: ДВЕ КОЛОНКИ =====
      Слева Play (панель 560 = 292+8+260) и под ней в строку настройки|баннер,
      справа коллекция по 4 карточки в ряд (156.5 + gap 10 в колонке 688).
@@ -882,7 +895,7 @@
       <div class="win-headline">
         <svg class="otext win-level" viewBox="0 0 240 64"><text id="winLevel" x="120" y="50" text-anchor="middle">Level 1</text></svg>
         <div class="win-cleanrow">
-          <div class="win-cleaned">CLEANED</div>
+          <svg class="otext win-cleaned" viewBox="0 0 220 60"><text id="winCleaned" x="110" y="45" text-anchor="middle">CLEANED</text></svg>
           <svg class="otext win-time" viewBox="0 0 72 34"><text id="winTime" x="36" y="26" text-anchor="middle">0:00</text></svg>
         </div>
       </div>
@@ -984,8 +997,8 @@
     <!-- PLAY: лиловая панель, спокойные глаза eyes-0 + большая кнопка -->
     <section class="ms-play">
       <svg class="ms-eyes" viewBox="0 0 240 120" fill="none" aria-hidden="true">
-        <circle cx="60" cy="60" r="60" fill="#fff"/><circle cx="60" cy="60" r="29" fill="#000"/>
-        <circle cx="180" cy="60" r="60" fill="#fff"/><circle cx="180" cy="60" r="29" fill="#000"/>
+        <circle cx="60" cy="60" r="60" fill="#fff"/><circle id="msPupL" cx="60" cy="60" r="29" fill="#000"/>
+        <circle cx="180" cy="60" r="60" fill="#fff"/><circle id="msPupR" cx="180" cy="60" r="29" fill="#000"/>
       </svg>
       <button class="ms-playbtn" id="msPlayBtn">Play Game</button>
     </section>

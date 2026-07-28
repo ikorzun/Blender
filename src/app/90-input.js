@@ -260,20 +260,31 @@ $('msGrid').addEventListener('click', e => {
     return;
   }
   const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;
+  // #4 (спека владельца): ТАП = СПИН портрета (как ховер на десктопе). На ТАЧе
+  // (нет hover) тап крутит портрет toggle БЕЗ смены размера; на десктопе спин
+  // даёт hover, а клик — по-прежнему выбор карточки (визуал).
+  if (!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches)){ msCardTapSpin(card); return; }
   msSelKey = (msSelKey === card.dataset.key) ? null : card.dataset.key; // выбор карточки (визуал)
   buildMainCollection();
 });
-// ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): время переезжает из правого стека
-// к паузе слева; LV показывается только там (CSS прячет лишнее).
-// Один узел #tmSvg физически переносится — id не дублируются.
+// ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): #lvlSvg (LV) и #tmSvg (время) живут в левой
+// группе у паузы. МОБАЙЛ (#11, спека владельца 2026-07-27 «над очками — УРОВЕНЬ,
+// не время»): #lvlSvg переносим в правый стек перед #scSvg (LV над очками), а
+// #tmSvg остаётся СКРЫТЫМ (время — атавизм). Узлы физически переносятся — id не
+// дублируются. Время вернуть = флаг LEVEL_TIME_IN_HUD.
 function layoutHUD(){
   const desk = innerWidth >= 768;
   const left = document.querySelector('#topBar .grp');
-  if (desk) left.appendChild($('tmSvg'));
-  else $('statStack').insertBefore($('tmSvg'), $('scSvg'));
-  // время уровня скрыто из HUD (спека владельца 2026-07-22) — живёт только
-  // на экранах завершения; узел продолжает переноситься, вернуть = флаг
-  $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none';
+  if (desk){
+    left.appendChild($('lvlSvg'));       // LV у паузы (десктоп-макет)
+    left.appendChild($('tmSvg'));        // время тоже слева (скрыто флагом)
+    $('lvlSvg').style.display = '';       // управление отдаём CSS (media ≥768 → block)
+  } else {
+    $('statStack').insertBefore($('tmSvg'), $('scSvg'));   // время скрыто, но держим в стеке
+    $('statStack').insertBefore($('lvlSvg'), $('scSvg'));  // LV прямо над очками
+    $('lvlSvg').style.display = 'block';  // база CSS прячет #lvlSvg — показываем в стеке
+  }
+  $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none'; // время скрыто из HUD (флаг off)
   // после смены раскладки масштаб рамок другой — пережать по контенту
   if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
 }
