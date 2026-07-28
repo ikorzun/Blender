@@ -257,6 +257,15 @@ $('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
 // ПОКУПКА — через ручку МЕТЫ buyBundle(tier). Ручки может ещё не быть:
 // тогда НИЧЕГО НЕ НАЧИСЛЯЕМ (мок-начисление запрещено — это валюта), а ведём
 // себя как прежний Get More в тестбилде: тост «Coming soon» + console.warn.
+// КЛИК/ТАП ПО ВСЕЙ КАРТОЧКЕ = КЛИК ПО КНОПКЕ ПОКУПКИ (спека владельца
+// 2026-07-28). ⚠️ Клик по САМОЙ кнопке пропускаем — иначе покупка ушла бы
+// ДВАЖДЫ (обработчик кнопки + этот). Делегирование на оверлее: карточки
+// статичны, но так правило переживёт возможную пересборку разметки.
+$('starsOverlay').addEventListener('click', (e) => {
+  if (e.target.closest('.st-buy')) return;      // кнопка отработает сама
+  const card = e.target.closest('.st-card'); if (!card) return;
+  const btn = card.querySelector('.st-buy'); if (btn) btn.click();
+});
 document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
   btn.addEventListener('click', ()=>{
     const tier = +btn.dataset.tier;
