@@ -821,6 +821,28 @@ window.__game = {
   },
   // вес при встряске: средняя |v| живых тел по пачкам (car/animal/food/...)
   // — замер отклика сразу после shake(); для тюнинга SHAKE_RESP владельцем
+  // отклик кучи ПО ВЫСОТЕ (замер «взрыв похож на shake», 2026-07-27):
+  // средняя |v| и доля шевельнувшихся в трёх слоях — низ/середина/ВЕРХ.
+  // Верх — ключевой: до второго слоя волны он стоял как вкопанный.
+  velByHeight(){
+    const alive = items.filter(i => i.alive && i.body && !i.animating);
+    if (!alive.length) return {};
+    const ys = alive.map(i => i.p.y).sort((a,b) => a-b);
+    const q1 = ys[Math.floor(ys.length/3)], q2 = ys[Math.floor(ys.length*2/3)];
+    const band = { низ: [], середина: [], верх: [] };
+    for (const it of alive){
+      const v = it.body.linvel();
+      const s = Math.hypot(v.x, v.y, v.z);
+      (it.p.y <= q1 ? band['низ'] : it.p.y <= q2 ? band['середина'] : band['верх']).push(s);
+    }
+    const out = {};
+    for (const k in band){
+      const a = band[k];
+      out[k] = a.length ? { n: a.length, avg: +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2),
+        max: +Math.max(...a).toFixed(2), movingPct: Math.round(a.filter(v=>v>0.5).length/a.length*100) } : null;
+    }
+    return out;
+  },
   velByTex(){
     const m = {};
     for (const it of items){

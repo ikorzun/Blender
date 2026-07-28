@@ -171,8 +171,15 @@ function detonateBomb(bomb){
   popFX(bomb.p);
   dissolveFX(bomb);
   victims.forEach(it => burstFX(it));
-  blastWave(bomb.p, BOMB_RADIUS + 1.2, BOMB_WAVE_V);
-  camShake = Math.max(camShake, 0.3);
+  // «ВЗРЫВ ПОХОЖ НА ЭФФЕКТ SHAKE» (спека владельца 2026-07-27-б): волна идёт
+  // ДВУМЯ слоями — радиальный ПАНЧ в зоне поражения (характер взрыва, чтобы
+  // он не стал неотличим от встряски) + ДЖОЛТ по ВСЕЙ куче, включая верх
+  // (вздрагивает весь миксер — то самое «как shake»). Радиус панча едет за
+  // BOMB_RADIUS через BOMB_WAVE_R_K, без хардкода: зону владелец уже менял.
+  blastWave(bomb.p, BOMB_RADIUS + BOMB_WAVE_PAD, BOMB_WAVE_V, CFG.bombJolt);
+  // camShake — ДЛИТЕЛЬНОСТЬ дрожания: держим НИЖЕ встряски (0.42), иначе
+  // взрыв дрожал бы дольше неё при вчетверо меньшем толчке (ревью 2026-07-27)
+  camShake = Math.max(camShake, BOMB_CAM_SHAKE);
   Sound.play('shake');
   vibrate([30, 60, 40]);
   scorePop('BOOM', bomb.p.clone().setY(bomb.p.y + 0.9), '#1d1c26', true);
