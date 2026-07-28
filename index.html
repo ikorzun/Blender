@@ -16,7 +16,15 @@
      подключать вебфонт ради HUD дороже, чем он стоит. */
   :root { --font-round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system,
             "Segoe UI", Roboto, sans-serif;
-          --ink:#1d1c26; }        /* carbon-purple из макета */
+          --ink:#1d1c26;          /* carbon-purple из макета */
+  /* ⚠️ СИСТЕМНОЕ ПРАВИЛО ЦВЕТА КНОПОК (спека владельца 2026-07-28):
+     СВЕТЛАЯ тема — кнопки ТЁМНЫЕ, ТЁМНАЯ (html.night) — СВЕТЛЫЕ. Все
+     кнопки игрового экрана ходят через эту пару, новые наследуют её
+     автоматически; точечные отклонения — переопределением поверх.
+     ⚠️ ПЕРЕВОРАЧИВАЕТ пары дневных/ночных Figma-нод из v127 у круглых
+     кнопок (там день был БЕЛЫЙ круг) — прямая спека новее макета. */
+          --btn-bg:#2a2935; --btn-fg:#ffffff; }
+  html.night { --btn-bg:#ffffff; --btn-fg:#2a2935; }
   /* фон — зона ГРАФИКИ (поле рисует шейдер неба), здесь не трогаем */
   html, body { height:100%; overflow:hidden; background:#ffffff; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
@@ -75,18 +83,17 @@
   #statStack { flex-direction:column; align-items:flex-end; gap:2px; min-width:72px; }
   #statStack > * { white-space:nowrap; }
   /* круглые кнопки-иконки 56 px, радиус-пилюля (var(--rounded,1000px) в макете) */
-  /* КРУГЛЫЕ КНОПКИ (пауза, подсказка) — макеты 778:728/769:132 (Pause-white/
-     dark) и 769:123·778:708/769:114 (hand white/dark). Радиус-пилюля 1000,
-     иконка ровно 32. ⚠️ ТЕМА ПО ВРЕМЕНИ СУТОК — как у Shake (html.night):
-     днём белая кнопка с тёмной иконкой, ночью #2a2935 со светлой. Раньше
-     круглые были белыми ВСЕГДА — на ночном небе они спорили с тёмным Shake. */
+  /* КРУГЛЫЕ КНОПКИ (пауза, подсказка) — геометрия из макетов 778:728/769:132
+     и 769:123·778:708/769:114: радиус-пилюля 1000, иконка ровно 32.
+     ЦВЕТ — по СИСТЕМНОМУ ПРАВИЛУ --btn-bg/--btn-fg (см. :root): светлая
+     тема = ТЁМНАЯ кнопка + светлая иконка, ночь = наоборот. ⚠️ Это
+     ПЕРЕВОРОТ пар из v127 (там день был белый круг по дневным нодам) —
+     прямая спека владельца 2026-07-28 новее макета. */
   .iconBtn { pointer-events:auto; width:56px; height:56px; border-radius:1000px; border:none;
-    background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background:var(--btn-bg); display:flex; align-items:center; justify-content:center; cursor:pointer;
     padding:0; flex:none; }
   .iconBtn svg { width:32px; height:32px; display:block; }
-  .iconBtn svg path { fill:#2a2935; }            /* иконка = токен макета */
-  html.night .iconBtn { background:#2a2935; }
-  html.night .iconBtn svg path { fill:#fff; }
+  .iconBtn svg path { fill:var(--btn-fg); }
   .iconBtn:active { transform:scale(.94); }
   /* белая заливка как у паузы (спека владельца), иконка и счётчик чёрные */
   #hintBtn { position:relative; }
@@ -181,22 +188,21 @@
      778:715 (ad-dark) / 778:707 (ad-white). Геометрия макета совпала с
      прежней (padding 16/22, радиус-пилюля, кегль 18); ТОКЕН ФОНА уточнён
      var(--ink) → #2a2935 (carbon-purple-400), вес Bold 700 как было. */
+  /* цвет — по системному правилу --btn-bg/--btn-fg (день тёмная, ночь
+     белая): Shake ему УЖЕ соответствовала, просто переведена на переменные. */
   #shakeBtn { pointer-events:auto; height:56px; padding:16px 22px; border:none; border-radius:1000px;
-    background:#2a2935; color:#fff; font-family:var(--font-round); font-size:18px; font-weight:700;
+    background:var(--btn-bg); color:var(--btn-fg); font-family:var(--font-round); font-size:18px; font-weight:700;
     cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
-  /* спека владельца 2026-07-21-в: ночью Shake БЕЛАЯ с чёрным текстом,
-     днём — чёрная с белым. Класс night ставит updateHUD по тем же часам,
-     что выбор панорамы неба в 05-sky (18..5). Макеты дают ровно эту пару:
-     dark = #2a2935/белый текст, white = #fff/текст #2a2935. */
-  html.night #shakeBtn { background:#fff; color:#2a2935; }
   #shakeBtn:active { transform:scale(.96); }
   /* AD-СОСТОЯНИЕ ПО НОВЫМ МАКЕТАМ (778:715/778:707): фон пилюли НЕ меняется,
      слово «Ad» идёт ЛАЙМОМ #9ce52e внутри той же надписи. ⚠️ ЗАМЕНА прежней
      реализации: был сплошной фиолетовый фон #8e4ec6 и текст «📺 Shake». */
   #shakeBtn.ad .ad-w { color:#9ce52e; }
   #shakeBtn.off { background:#8b8fa0; }   /* «No shakes» — в макетах нет, оставлено как было */
-  #scopeBtn, #magnetBtn { pointer-events:auto; background:#fff; border:none;
-    border-radius:999px; width:56px; height:56px; font-size:20px; color:var(--ink); cursor:pointer; }
+  /* тоже по системному правилу (сейчас скрыты флагами SCOPE_/MAGNET_ENABLED —
+     вернутся уже в правильной теме, без отдельной правки) */
+  #scopeBtn, #magnetBtn { pointer-events:auto; background:var(--btn-bg); border:none;
+    border-radius:1000px; width:56px; height:56px; font-size:20px; color:var(--btn-fg); cursor:pointer; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
     opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
