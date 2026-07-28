@@ -327,12 +327,15 @@ function isTypeUnlocked(name){
 }
 function unlockedTypes(){ return TYPES.filter(T => isTypeUnlocked(T.name)).map(T => T.name); }
 // ОТКРЫТИЕ ТИПА ЗА БАЛАНС (финализация владельца 2026-07-24). Цена
-// TYPE_UNLOCK_PRICE (провизорна, к таблице №2). Трата через ss → баланс и
-// лидерборд падают (осознанный размен владельца). Уже открытые не продаём.
+// LEVEL-SCALED (матрица #9, §v3): BASE + PER_LEVEL·levelNum — растёт с
+// доходом, держит вмятину ~29% банка на любом уровне. Трата через ss →
+// баланс и лидерборд падают (осознанный размен владельца). Уже открытые
+// не продаём. ⚠️ Цена от ТЕКУЩЕГО уровня, НЕ от дистанции до типа —
+// безопасность спайка структурна (спавн-гейт), см. §v3 TRIPWIRE.
 function typeUnlockPrice(name){
   if (isTypeUnlocked(name)) return null; // уже открыт (прогрессией или куплен)
   const idx = TYPES.findIndex(T => T.name === name);
-  return idx >= 0 ? TYPE_UNLOCK_PRICE : null;
+  return idx >= 0 ? (TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum) : null;
 }
 function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && starBalance() >= p; }
 function purchaseUnlock(name){

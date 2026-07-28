@@ -586,8 +586,19 @@ const path = require('path');
     return { key: closed.key, price, wasUnlocked, buy, nowUnlocked,
       bought: s2.bought, snapUnlocked: s2.unlocked, w0, w1, buyAgain };
   });
-  expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 700,
-    'закрытый тип имеет цену открытия 700 (' + unlockBuyProbe.price + ')');
+  expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 1000,
+    'ур.1: цена открытия 1000 = BASE 800 + PER_LEVEL 200·1 (' + unlockBuyProbe.price + ')');
+  // #9 МАТРИЦА: цена ЗАВИСИТ от уровня (не флэт). Проверяем L1/L10/L50.
+  const unlockMatrixProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const pick = () => { const s = g.accSnapshot(); const c = s.find((r, i) => i >= 20 && !r.unlocked); return c ? c.key : null; };
+    g.setLevel(1);  g.regen(); g.skipIntro(); const p1  = g.typeUnlockPrice(pick());
+    g.setLevel(10); g.regen(); g.skipIntro(); const p10 = g.typeUnlockPrice(pick());
+    g.setLevel(50); g.regen(); g.skipIntro(); const p50 = g.typeUnlockPrice(pick());
+    return { p1, p10, p50 };
+  });
+  expect(unlockMatrixProbe.p1 === 1000 && unlockMatrixProbe.p10 === 2800 && unlockMatrixProbe.p50 === 10800,
+    'матрица цены по уровню: L1=1000 L10=2800 L50=10800 (' + JSON.stringify(unlockMatrixProbe) + ')');
   expect(unlockBuyProbe.buy.ok && unlockBuyProbe.nowUnlocked === true,
     'покупка открыла тип (' + unlockBuyProbe.key + ')');
   expect(unlockBuyProbe.bought === true && unlockBuyProbe.snapUnlocked === true,

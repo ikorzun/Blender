@@ -831,7 +831,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-119 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-120 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -1131,9 +1131,15 @@ const STAR_PACKS = [
 // цены Boost/unlock — в тех же мелких единицах. Если владелец скорректирует
 // охват — правка ДО финализации se-записи.
 const SCORE_DENOM = 10;
-// ОТКРЫТЬ ТИП В КОЛЛЕКЦИИ ЗАРАНЕЕ — 700 (таблица №2 утверждена; было 500).
-// ≈ 1 уровень дохода, 35% от tier-0 буста — дешёвый «пик вперёд».
-const TYPE_UNLOCK_PRICE = 700;
+// ОТКРЫТЬ ТИП В КОЛЛЕКЦИИ ЗАРАНЕЕ — LEVEL-SCALED (матрица #9, утв. диспетчером
+// 2026-07-27, docs/STARS-STORE-ECONOMY.md §v3). Цена = BASE + PER_LEVEL·level:
+// L1=1000 ... L50=10800. Линейная под линейный доход (~700/ур) → держит вмятину
+// ~29% банка на любом уровне, «трудно, но достижимо». БЕЗОПАСНОСТЬ спайка —
+// структурная (спавн-гейт), не ценой; владелец может двигать BASE/PER_LEVEL
+// под ощущение. ⚠️ TRIPWIRE: если введём ранний спавн купленного типа — цену
+// перевести на дистанцию base(L)+150·(d−1) (см. §v3).
+const TYPE_UNLOCK_BASE = 800;
+const TYPE_UNLOCK_PER_LEVEL = 200;
 
 const ACC_MULT_STEP = 0.25;  // +25% очков типа за ступень (утверждено)
 const ACC_TIER_CAP = 9;      // потолок ступеней (×3.25; порог 9-й = 51 100 — практически недостижим, кап держит формулу под контролем)
@@ -4943,12 +4949,15 @@ function isTypeUnlocked(name){
 }
 function unlockedTypes(){ return TYPES.filter(T => isTypeUnlocked(T.name)).map(T => T.name); }
 // ОТКРЫТИЕ ТИПА ЗА БАЛАНС (финализация владельца 2026-07-24). Цена
-// TYPE_UNLOCK_PRICE (провизорна, к таблице №2). Трата через ss → баланс и
-// лидерборд падают (осознанный размен владельца). Уже открытые не продаём.
+// LEVEL-SCALED (матрица #9, §v3): BASE + PER_LEVEL·levelNum — растёт с
+// доходом, держит вмятину ~29% банка на любом уровне. Трата через ss →
+// баланс и лидерборд падают (осознанный размен владельца). Уже открытые
+// не продаём. ⚠️ Цена от ТЕКУЩЕГО уровня, НЕ от дистанции до типа —
+// безопасность спайка структурна (спавн-гейт), см. §v3 TRIPWIRE.
 function typeUnlockPrice(name){
   if (isTypeUnlocked(name)) return null; // уже открыт (прогрессией или куплен)
   const idx = TYPES.findIndex(T => T.name === name);
-  return idx >= 0 ? TYPE_UNLOCK_PRICE : null;
+  return idx >= 0 ? (TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum) : null;
 }
 function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && starBalance() >= p; }
 function purchaseUnlock(name){
