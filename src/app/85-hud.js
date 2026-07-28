@@ -344,7 +344,7 @@ const thumbCache = {};
 // КВАДРАТНЫЙ: у потребителей img 100%/100% без object-fit, неквадрат
 // сплющит портрет. MARGIN 4% — меньше нельзя: у боксов радиус 10-12,
 // углы круглых моделей срезало бы.
-const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
+const THUMB_PX = 256, THUMB_MARGIN = 0.04, THUMB_Y = 100; // 256 (было 132): резче на карточке коллекции (спека владельца «качество»)
 // ПОЗА ПОРТРЕТА — ЕДИНЫЙ ИСТОЧНИК для статики (itemThumb) И спина (thumbSpin):
 // интерфейс на hover прячет статичный img и показывает канвас, спин стартует
 // с этого же угла — подмена бесшовна. Если статика и спин разойдутся — скачок
@@ -355,7 +355,6 @@ const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
 // угол»); yaw=−0.6 даёт 3/4: у машин перёд вправо-вверх, у зверей видна морда.
 // Подобрано скрином на police/bee/banana (все три читаются геройски).
 let PORTRAIT_TILT_X = -0.15, PORTRAIT_YAW0 = -0.6;
-const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
 // ПОРТРЕТ-МЕШ ПО КЛЮЧУ ТИПА (type.name) — вариант B спеки владельца 2026-07-24:
 // даёт модель тем ОТКРЫТЫМ типам, которых НЕТ в текущей партии (иначе была
 // буква-заглушка). Меш строится БЕЗ тела Rapier (портрету физика не нужна) и
@@ -429,24 +428,13 @@ function itemThumb(item){
     thumbScene.add(m);
     m.updateMatrixWorld(true);
     thumbCam.updateMatrixWorld(true);
-    // КАДР ПО СИЛУЭТУ: bbox проекций ВЕРШИН = bbox силуэта (проекция
-    // выпуклой оболочки = оболочка проекций). Прежний код нормировал по
-    // ОПИСАННОЙ СФЕРЕ вокруг УЖЕ ПОВЁРНУТОГО AABB — двойная переоценка,
-    // силуэт занимал ~55% кадра, вокруг воздух.
-    _thm.multiplyMatrices(thumbCam.matrixWorldInverse, m.matrixWorld);
-    const pos = m.geometry.attributes.position;
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (let i = 0; i < pos.count; i++){
-      _thv.fromBufferAttribute(pos, i).applyMatrix4(_thm);
-      if (_thv.x < x0) x0 = _thv.x; if (_thv.x > x1) x1 = _thv.x;
-      if (_thv.y < y0) y0 = _thv.y; if (_thv.y > y1) y1 = _thv.y;
-    }
-    // ОДНА полурамка на обе оси — пропорции целы, вытянутое не растянется
-    const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
-    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    thumbCam.left = cx - half; thumbCam.right = cx + half;
-    thumbCam.top = cy + half;  thumbCam.bottom = cy - half;
-    thumbCam.updateProjectionMatrix();
+    // ⚠️ КАДР ПО ОХВАТНОМУ ЦИЛИНДРУ (общий frameCylinder), НЕ по силуэту при
+    // одном угле. Причина (спека владельца 2026-07-27 «размер при hover не
+    // должен меняться»): спин обязан кадрировать по цилиндру (иначе «дышит»
+    // при вращении), а статика по силуэту давала БОЛЬШУЮ модель → на hover
+    // подмена img→канвас ШРИНКАЛА объект. Единая цилиндр-рамка = статика РОВНО
+    // равна спину. Y-инвариантна: yaw не влияет, поэтому одна на любой ракурс.
+    frameCylinder(thumbCam, m);
     // ⚠️ ВУАЛЬ НЕДОСТУПНОСТИ красит material.color лерпом к серому
     // (tickVeil, 60-access): снимок в этот момент лёг бы в кэш СЕРЫМ
     // НАВСЕГДА. На время рендера возвращаем исходный цвет типа.
@@ -485,7 +473,7 @@ function itemThumb(item){
 // НОЛЬ стоимости (rAF отменён, канвас снят). КОНТРАКТ С ИНТЕРФЕЙСОМ:
 // thumbSpinStart(item, hostEl) / thumbSpinStop() — интерфейс вешает на
 // mouseenter/leave карточки, статический <img> остаётся кадром покоя.
-const SPIN_PX = 176;       // квадрат буфера; CSS растянет по ячейке
+const SPIN_PX = 256;       // квадрат буфера = THUMB_PX (качество, спека владельца)
 const SPIN_SPEED = 0.9;    // рад/с — «медленно» (оборот ~7 с)
 // SPIN_TILT_X/SPIN_YAW0 — АЛИАСЫ на общий PORTRAIT_* (нельзя развести со статикой)
 
@@ -517,7 +505,7 @@ function ensureSpinR(){
 // Y-поворотом не меняется ПО ПОСТРОЕНИЮ (three Euler XYZ: R=Rx·Ry, а Ry не
 // трогает Y-симметричный цилиндр). Значит модель НЕ клипается и не «дышит»
 // зумом. Считается ОДИН раз на старте hover.
-function frameSpinCylinder(mesh){
+function frameCylinder(cam, mesh){
   const pos = mesh.geometry.attributes.position, s = mesh.scale.x;
   let R = 0, yMin = Infinity, yMax = -Infinity;
   for (let i = 0; i < pos.count; i++){
@@ -527,7 +515,7 @@ function frameSpinCylinder(mesh){
   }
   R *= s; yMin *= s; yMax *= s;
   _spm.makeRotationX(PORTRAIT_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
-  const view = spinCam.matrixWorldInverse;
+  const view = cam.matrixWorldInverse;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const yy of [yMin, (yMin + yMax) / 2, yMax]){
     for (let a = 0; a < 24; a++){
@@ -539,9 +527,9 @@ function frameSpinCylinder(mesh){
   }
   const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  spinCam.left = cx - half; spinCam.right = cx + half;
-  spinCam.top = cy + half;  spinCam.bottom = cy - half;
-  spinCam.updateProjectionMatrix();
+  cam.left = cx - half; cam.right = cx + half;
+  cam.top = cy + half;  cam.bottom = cy - half;
+  cam.updateProjectionMatrix();
 }
 function thumbSpinStop(){
   if (spinRAF){ cancelAnimationFrame(spinRAF); spinRAF = 0; }
@@ -561,9 +549,20 @@ function thumbSpinStart(item, host){
   spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
   spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
   spinScene.add(spinMesh);
-  frameSpinCylinder(spinMesh);
+  frameCylinder(spinCam, spinMesh);
   host.appendChild(spinR.domElement);
   spinRAF = requestAnimationFrame(spinTick);
+}
+// TAP = HOVER (спека владельца 2026-07-24 «один компонент, ховер = тап»): на
+// мобиле нет mouseleave, поэтому ИНТЕРФЕЙС вешает НА ТАП карточки ОДИН
+// обработчик thumbSpinToggle — тап по неактивной карточке заводит спин (сам
+// снимет спин с прежней — канвас общий), повторный тап по ТОЙ ЖЕ карточке
+// останавливает. Ховер (десктоп) как был: start на enter / stop на leave.
+// Возвращает true, если после вызова карточка крутится. Размер при этом РОВНО
+// как у статики (единый frameCylinder, см. #3) — тап не «дёргает» масштаб.
+function thumbSpinToggle(item, host){
+  if (spinItem === item && spinR && spinR.domElement.parentNode === host){ thumbSpinStop(); return false; }
+  thumbSpinStart(item, host); return true;
 }
 function spinTick(now){
   if (!spinItem || !spinMesh){ spinRAF = 0; return; }
