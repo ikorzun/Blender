@@ -36,7 +36,9 @@ const SAVE_KEY = 'mixer_save_v1';
 // (фикс A, таблица №2 2026-07-24): купленное наполняет КОШЕЛЁК, но ранг
 // растёт только СЫГРАННЫМ счётом. balance(кошелёк)=se+tu−ss;
 // leaderboard=se−max(0,ss−tu) (траты сперва съедают tu, потом сыгранное).
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// bx/bk — БУСТЕР ОЧКОВ: момент истечения (epoch ms) и его множитель.
+// ls — «последнее виденное время», монотонная метка против отката часов.
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: 0, bk: 1, ls: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -65,6 +67,12 @@ function mergeSave(into, from){
   into.ss = Math.max(into.ss || 0, from.ss || 0);
   into.tu = Math.max(into.tu || 0, from.tu || 0); // пополнения — монотонны, как se/ss
   into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
+  into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
+  // ⚠️ БУСТЕР: множитель ходит ЗА своим сроком, а не мержится отдельно по max.
+  // Иначе копия с x5-на-30-минут отдала бы свой множитель длинному x2-на-день —
+  // «апгрейд» дневного бустера дешёвым получасовым. Берём пару целиком у той
+  // копии, чей срок дальше.
+  if ((from.bx || 0) > (into.bx || 0)){ into.bx = from.bx || 0; into.bk = from.bk || 1; }
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
   if (!into.ac) into.ac = {};
@@ -99,6 +107,75 @@ function bridgeSyncSave(){
       commitSave(); updateHUD(); fireStarsChange();
     }).catch(()=>{});
   } catch(e){}
+}
+// ── БУСТЕР ОЧКОВ (спека владельца 2026-07-28) ────────────────────────────────
+// ⚠️ ЧАСЫ УСТРОЙСТВА — ЕДИНСТВЕННЫЙ ИСТОЧНИК ВРЕМЕНИ, и ему нельзя верить:
+// перевести часы назад = продлить оплаченный бустер бесплатно. Защита —
+// МОНОТОННАЯ метка `ls`: она только растёт (и мержится по max между
+// устройствами, так что смена устройства обход не даёт). Если текущее время
+// оказалось РАНЬШЕ виденного больше чем на люфт — часы откатили, и остаток
+// ПЕРЕАНКОРИВАЕТСЯ (см. boostNow: выигранного времени ноль, потерянного тоже).
+// ⚠️ ПОЛНАЯ защита — server-time, это зона ИНТЕГРАЦИИ
+// (та же зависимость, что у дневного капа рекламы); для тестбилда монотонной
+// метки достаточно — решение диспетчера.
+let lsDirty = 0;
+function boostNow(){
+  const now = Date.now();
+  const seen = Save.ls || 0;
+  if (now < seen - BOOST_CLOCK_SLACK_MS){
+    // ⚠️ ЧАСЫ ОТКАТИЛИ. НЕ УБИВАЕМ оплаченное (правило «откатил → бустер
+    // истёк» разбирается ниже), а ПЕРЕАНКОРИВАЕМ ОСТАТОК: сколько времени
+    // было на момент последнего честного замера — столько и остаётся. Игрок
+    // не получает ни секунды сверх — обхода нет; и не теряет купленное.
+    // ⚠️ ПОЧЕМУ НЕ «СЧИТАТЬ ИСТЁКШИМ» (поймано собственным прогоном):
+    // метка `ls` монотонна, поэтому ОДИН скачок часов ВПЕРЁД (перевёл время
+    // в другой игре, слетел NTP) залипал бы навсегда — now уже никогда не
+    // догонит ls, и КАЖДЫЙ следующий купленный бустер умирал бы мгновенно.
+    // Платящий игрок получал бы ноль за деньги. Переанкор самолечится:
+    // новая точка отсчёта — текущее время.
+    const left = Math.max(0, (Save.bx || 0) - seen);
+    Save.bx = left > 0 ? now + left : 0;
+    if (!(left > 0)) Save.bk = 1;
+    Save.ls = now; // иначе залипнем в вечном «откате»
+    commitSave();
+    return { now, rolled: true };
+  }
+  if (now > seen){
+    Save.ls = now;
+    // сейв не на каждый кадр: пишем не чаще раза в минуту (метка грубая)
+    if (now - lsDirty > 60000){ lsDirty = now; commitSave(); }
+  }
+  return { now, rolled: false };
+}
+// Активный множитель очков: 1 — бустера нет/истёк/часы откатили.
+function scoreBoostMult(){
+  const t = boostNow(); // при откате часов остаток уже переанкорен внутри
+  if (!(Save.bx > t.now)) return 1;
+  return Math.max(1, Save.bk || 1);
+}
+function scoreBoostLeftMs(){
+  const t = boostNow();
+  return Math.max(0, (Save.bx || 0) - t.now);
+}
+function boostClear(){ if (Save.bx || (Save.bk || 1) !== 1){ Save.bx = 0; Save.bk = 1; commitSave(); } }
+// ПОКУПКА (точка входа для ИНТЕГРАЦИИ: зовётся после подтверждённой оплаты).
+// ⚠️ ПРАВИЛО СТАКА — КАРКАСНОЕ, ждёт слова владельца: пока активен бустер,
+// докупать можно ТОЛЬКО такой же множитель (время складывается). Другой
+// множитель отклоняем. Причина: «брать max множителя и max срока» позволяет
+// апгрейдить дневной x2 получасовым x5 за $1.99 на все сутки; а «заменять»
+// молча сжигает оплаченный остаток. Очередь тиров — отдельная фича.
+function grantScoreBoost(id){
+  const tier = SCORE_BOOSTERS.find(b => b.id === id);
+  if (!tier) return { ok: false, reason: 'unknown' };
+  const t = boostNow();
+  const active = Save.bx > t.now;
+  if (active && (Save.bk || 1) !== tier.mult) return { ok: false, reason: 'active', mult: Save.bk, leftMs: Save.bx - t.now };
+  Save.bx = (active ? Save.bx : t.now) + tier.ms; // тот же множитель — продлеваем
+  Save.bk = tier.mult;
+  Save.ls = Math.max(Save.ls || 0, t.now);
+  commitSave();
+  Telemetry.ev('boost_buy', { tier: tier.id, mult: tier.mult, usd: tier.usd });
+  return { ok: true, mult: tier.mult, leftMs: Save.bx - t.now };
 }
 function hints(){ return Math.max(0, (Save.he || 0) - (Save.hs || 0)); }
 function addHints(n){ if (n > 0){ Save.he += n; commitSave(); } }

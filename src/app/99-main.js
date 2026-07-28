@@ -625,6 +625,15 @@ window.__game = {
   adHintAvailable: adHintAvailable,
   requestAdHint: requestAdHint,
   spendHint: spendHint, // тест-ручка: слить заряды, чтобы проверить ad-ветку
+  // БУСТЕР ОЧКОВ — контракт с ИНТЕРФЕЙСОМ (экран «More Stars») и ИНТЕГРАЦИЕЙ
+  // (grantScoreBoost зовётся ПОСЛЕ подтверждённой оплаты; сами платежи не мои).
+  scoreBoostMult: scoreBoostMult,     // активный множитель (1 — бустера нет)
+  scoreBoostLeftMs: scoreBoostLeftMs, // остаток в мс — для таймера на экране
+  scoreBoosters(){ return SCORE_BOOSTERS.map(b => ({ ...b })); }, // витрина тиров
+  grantScoreBoost: grantScoreBoost,
+  boostRaw(){ return { bx: Save.bx, bk: Save.bk, ls: Save.ls }; }, // тест-ручка часов
+  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
+  boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять бустер начисто
   bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)

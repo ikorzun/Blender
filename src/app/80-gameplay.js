@@ -82,7 +82,10 @@ function doMatch(list){
   // (onAccTierUp) кидает accAdd в момент пересечения (спека владельца).
   const typeName = list[0].type.name;
   accAdd(typeName, n, list[0]);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName));
+  // ⚠️ Купленный бустер — ПОСЛЕДНИЙ множитель стека (комбо ×2 × накопление до
+  // ×3.25 × бустер до ×5). Штрафы (промах/помол/камень) он НЕ трогает: за
+  // деньги усиливают награду, а не наказание.
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName) * scoreBoostMult());
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -352,7 +355,7 @@ function collectSurprise(it){
   faceEvent('surprised', 1000); // матрица эмоций ИНТЕРФЕЙСА: клад — «удивлённые» глаза (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
   // рыбка дорожает с уровнем: +150 + 5×уровень (баланс-таблица 2026-07-22)
-  const bonus = SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum;
+  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * scoreBoostMult()); // бустер работает и на клад
   const before = stats.score;
   stats.score += bonus;
   const shown = scoreShownDelta(before, stats.score); // деноминир. прирост (#10)
