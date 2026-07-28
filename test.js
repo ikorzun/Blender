@@ -1439,33 +1439,33 @@ window.bridge = {
     'запас кончился → тупик признан, помол выручает (' + JSON.stringify(sbDeadlock) + ')');
   await page.evaluate(() => { window.__game.cfg.baseRadius = 0.35; });
 
-  // НАЧИСЛЕНИЕ: множитель РЕАЛЬНО умножает. Серией по 8 матчей — размер группы
-  // гуляет, одиночный замер ничего не доказал бы.
-  const sbScore = await page.evaluate(async () => {
+  // НАЧИСЛЕНИЕ, ТОЧНО: бонус клада — единственный ДЕТЕРМИНИРОВАННЫЙ путь очков
+  // (150 + 5×уровень, без комбо и без накопления). Финал сам собирает рыбку,
+  // очки за зачистку не начисляются — значит весь счёт партии это ровно бонус.
+  // ⚠️ Через матчи точную проверку сделать нельзя: autoMatch берёт ПАРУ, но
+  // комбо ×2 зажигается от темпа, а accMult зависит от типа — первая версия
+  // этого теста гуляла 1.24…3.33 и была флейком, а не проверкой.
+  const sbExact = await page.evaluate(async () => {
     const g = window.__game;
-    const run = async (n) => {
-      let sum = 0;
-      for (let i = 0; i < n; i++){
-        const s = g.stats().score;
-        if (!g.autoMatch()) break;
-        await new Promise(r => setTimeout(r, 140));
-        sum += g.stats().score - s;
-      }
-      return sum;
-    };
-    g.boostSetClock(0); g.boostClear();            // ⚠️ снять окна прошлых секций
-    g.setLevel(3); g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 400));
-    const multPlain = g.scoreBoostMult();
-    const plain = await run(8);
-    g.setLevel(3); g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 400));
-    g.buyBundle('bundle2');                        // x2
-    const boosted = await run(8);
-    return { multPlain, plain, boosted, mult: g.scoreBoostMult(), ratio: +(boosted / Math.max(1, plain)).toFixed(2) };
+    g.boostSetClock(0); g.boostClear();
+    g.regen(); g.skipIntro(); g.leaveSingles();
+    return { lv: g.levelNum() };
   });
-  expect(sbScore.multPlain === 1 && sbScore.mult === 2 && sbScore.plain > 0 && sbScore.ratio >= 1.5,
-    'бандл x2 РЕАЛЬНО умножает очки серии матчей (ratio ' + sbScore.ratio + ', ' + JSON.stringify(sbScore) + ')');
+  await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
+  const sbPlainFinale = await page.evaluate(() => window.__game.stats().score);
+  expect(sbPlainFinale === 150 + 5 * sbExact.lv,
+    'контроль: без бандла клад даёт ровно 150+5×ур (' + sbPlainFinale + ' при ур.' + sbExact.lv + ')');
+  const sbBoosted = await page.evaluate(async () => {
+    const g = window.__game;
+    g.buyBundle('bundle2');                        // x2
+    g.regen(); g.skipIntro(); g.leaveSingles();
+    return { lv: g.levelNum(), mult: g.scoreBoostMult() };
+  });
+  await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
+  const sbBoostedFinale = await page.evaluate(() => window.__game.stats().score);
+  expect(sbBoosted.mult === 2 && sbBoostedFinale === 2 * (150 + 5 * sbBoosted.lv),
+    '⚠️ БАНДЛ x2 УМНОЖАЕТ ТОЧНО: клад ' + sbBoostedFinale + ' = 2×(150+5×' + sbBoosted.lv + ')');
+  await page.evaluate(() => { window.__game.boostClear(); });
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
