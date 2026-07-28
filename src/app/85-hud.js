@@ -938,11 +938,18 @@ function refreshMainSettings(){
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
 }
 function refreshMainScreen(){
-  // ⚠️ БАЛАНС КОШЕЛЬКА (starBalance от МЕТЫ), а НЕ totalStars: сумма рейтинга
-  // уровней живёт отдельно и не тратится — показывать её как валюту было бы
-  // враньём (звёзды теперь тратимые: решение владельца «это валюта»)
+  // ⚠️ ЕДИНОЕ ЧИСЛО ВЕЗДЕ — liveBalance(), ТОТ ЖЕ вызов, что у игрового чипа
+  // ($('score') в updateHUD). Жалоба владельца 2026-07-27: «во время игры одно
+  // число, а на пузе второе — игрок всегда и везде видит свой единый баланс».
+  // Причина расхождения была: чип показывал liveBalance (забанкованное +
+  // незабанкованный счёт текущего уровня ÷10), а меню — starBalance (только
+  // забанкованное), т.е. открытие меню посреди уровня «съедало» заработанное
+  // за партию. Теперь оба читают liveBalance.
+  // ⚠️ НЕ totalStars: сумма рейтинга уровней живёт отдельно и не тратится —
+  // показывать её как валюту было бы враньём.
   const st = $('msStars');
-  setWalletNumber(st, typeof starBalance === 'function' ? starBalance() : 0);
+  setWalletNumber(st, typeof liveBalance === 'function' ? liveBalance()
+                    : (typeof starBalance === 'function' ? starBalance() : 0));
   // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
   if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';

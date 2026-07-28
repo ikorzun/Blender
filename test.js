@@ -502,6 +502,29 @@ const path = require('path');
   expect(balProbe.live === balProbe.bal + 123,
     'чип (liveBalance) = баланс + незабанкованный счёт/10 (' + balProbe.bal + '+123 -> ' + balProbe.live + ')');
   expect(balProbe.lb === balProbe.bal, 'лидерборд-число = баланс (' + balProbe.lb + ')');
+  // ЕДИНОЕ ЧИСЛО ВЕЗДЕ (жалоба владельца 2026-07-27 «во время игры одно число,
+  // а на пузе второе»): игровой чип и кошелёк меню обязаны показывать ОДНО И ТО
+  // ЖЕ. Раньше чип читал liveBalance, а меню — starBalance, и открытие меню
+  // посреди уровня «съедало» заработанное за партию.
+  const oneNumber = await page.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    g.starGrant(500);
+    for (let i = 0; i < 6; i++) g.autoMatch();   // копим НЕзабанкованный счёт уровня
+    await new Promise(r => setTimeout(r, 500));   // дать updateHUD отработать
+    const chip = document.getElementById('score').textContent;
+    window.showMainScreen();                      // открыть меню поверх партии
+    await new Promise(r => setTimeout(r, 400));
+    const wallet = document.getElementById('msStars').textContent;
+    const unbanked = Math.floor(Math.max(0, g.stats().score) / 10);
+    window.hideMainScreen && window.hideMainScreen();
+    const d = s => String(s).replace(/[^0-9]/g, '');
+    return { chip: d(chip), wallet: d(wallet), unbanked, live: g.liveBalance() };
+  });
+  expect(oneNumber.chip === oneNumber.wallet,
+    'ЕДИНОЕ ЧИСЛО: чип в игре = кошелёк меню (' + oneNumber.chip + ' = ' + oneNumber.wallet + ')');
+  expect(oneNumber.unbanked > 0 && Number(oneNumber.wallet) === oneNumber.live,
+    'кошелёк меню включает незабанкованный счёт уровня (+' + oneNumber.unbanked + ', live ' + oneNumber.live + ')');
 
   // Кошелёк и рейтинг РАЗДЕЛЕНЫ: трата не отнимает звёзды уровней
   const walletProbe = await page.evaluate(() => {
