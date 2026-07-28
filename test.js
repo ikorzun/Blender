@@ -1312,88 +1312,135 @@ window.bridge = {
     expect(dup.capAfterMerge === 0,
       'мерж со старой облачной копией НЕ вернул просмотренный ролик (' + dup.capAfterMerge + ')');
   }
-  // ── БУСТЕР ОЧКОВ ЗА ДЕНЬГИ (спека владельца 2026-07-28) ──────────────────
+  // ── БАНДЛЫ «More Stars» (макеты владельца 2026-07-28) ────────────────────
   // Секция В КОНЦЕ намеренно (setLevel/regen меняют контекст — см. камни).
   const sbProbe = await page.evaluate(() => {
     const g = window.__game;
-    const tiers = g.scoreBoosters();
-    const idle = g.scoreBoostMult();
-    const buy = g.grantScoreBoost('boost1d');       // x2 на день
-    const active = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
-    // ⚠️ АПГРЕЙД ДЕШЁВЫМ: при активном x2 покупка x5 должна быть ОТКЛОНЕНА,
-    // иначе $1.99 поднимали бы дневной бустер до x5 на все сутки
-    const upsell = g.grantScoreBoost('boost30m');
-    const afterUpsell = g.scoreBoostMult();
-    // тот же множитель — время складывается
-    const leftBefore = g.scoreBoostLeftMs();
-    const extend = g.grantScoreBoost('boost1d');
-    return { tiers, idle, buy, active, upsell, afterUpsell,
-      extended: g.scoreBoostLeftMs() > leftBefore + 20 * 60 * 60 * 1000, extend };
+    g.boostClear();
+    const tiers = g.bundles();
+    const idle = { mult: g.scoreBoostMult(), noAd: g.noAdActive(), shakes: g.purchasedShakes() };
+    const hints0 = g.wallet().hints;
+    const buy = g.buyBundle('bundle2');            // $19.99: x2/сутки + 50 встрясок + 30 подсказок + месяц без рекламы
+    const st = g.bundleState();
+    return { tiers, idle, hints0, buy, st, hints1: g.wallet().hints };
   });
-  expect(sbProbe.tiers.length === 3 && sbProbe.tiers[0].mult === 5 && sbProbe.tiers[2].mult === 2,
-    'тиры бустера по спеке: x5/30м, x3/1ч, x2/1д (' + JSON.stringify(sbProbe.tiers.map(t=>t.mult)) + ')');
-  expect(sbProbe.idle === 1, 'без бустера множитель ровно 1 (' + sbProbe.idle + ')');
-  expect(sbProbe.buy.ok && sbProbe.active.mult === 2 && sbProbe.active.left > 23 * 60 * 60 * 1000,
-    'покупка x2 включила множитель на сутки (' + JSON.stringify(sbProbe.active) + ')');
-  expect(sbProbe.upsell.ok === false && sbProbe.upsell.reason === 'active' && sbProbe.afterUpsell === 2,
-    '⚠️ АПГРЕЙД: дешёвый x5 НЕ поднял активный x2 (' + JSON.stringify(sbProbe.upsell) + ' -> ' + sbProbe.afterUpsell + ')');
-  expect(sbProbe.extend.ok && sbProbe.extended,
-    'тот же множитель докупается временем (' + JSON.stringify(sbProbe.extend) + ')');
+  expect(sbProbe.tiers.length === 3 && sbProbe.tiers[0].usd === 4.99 && sbProbe.tiers[2].shakes === 50,
+    'тиры бандлов по макету ($4.99 x5, ... $19.99 = 50 встрясок) (' + JSON.stringify(sbProbe.tiers.map(t=>t.usd)) + ')');
+  expect(sbProbe.idle.mult === 1 && sbProbe.idle.noAd === false,
+    'без бандла: множитель 1, реклама не отключена (' + JSON.stringify(sbProbe.idle) + ')');
+  expect(sbProbe.buy.ok && sbProbe.st.mult === 2 && sbProbe.st.shakes === 50 &&
+         sbProbe.hints1 === sbProbe.hints0 + 30 && sbProbe.st.noAdLeftMs > 29 * 24 * 3600 * 1000,
+    'бандл выдал ВСЁ разом: x2 + 50 встрясок + 30 подсказок + месяц без рекламы (' + JSON.stringify(sbProbe.st) + ')');
 
-  // ЧАСЫ: откат назад НЕ даёт лишнего времени, но и НЕ сжигает оплаченное.
-  // ⚠️ Почему не «считаем истёкшим»: метка ls монотонна, поэтому ОДИН скачок
-  // вперёд залипал бы навсегда и КАЖДЫЙ следующий купленный бустер умирал бы
-  // мгновенно — платящий получал бы ноль (поймано этим же прогоном).
+  // ⚠️ ОЧЕРЕДЬ ТИРОВ: множители НЕ стекуются — играет сильнейший, время копится
+  // СВОЕМУ тиру. Отклонять покупку нельзя: в бандле едут расходники.
+  const sbQueue = await page.evaluate(() => {
+    const g = window.__game;
+    const before = g.bundleState();
+    const buy = g.buyBundle('bundle5');            // x5/30мин поверх активного x2/сутки
+    const after = g.bundleState();
+    const t2 = after.tiers.find(t => t.mult === 2), t5 = after.tiers.find(t => t.mult === 5);
+    return { before, buy, mult: after.mult, left2: t2.leftMs, left5: t5.leftMs,
+             shakes: after.shakes, wasLeft2: before.tiers.find(t => t.mult === 2).leftMs };
+  });
+  expect(sbQueue.buy.ok && sbQueue.mult === 5,
+    'сильнейший тир играет: x5 поверх x2 (' + sbQueue.mult + ')');
+  expect(sbQueue.left5 > 29 * 60 * 1000 && sbQueue.left5 <= 30 * 60 * 1000,
+    'x5 получил СВОИ 30 минут (' + Math.round(sbQueue.left5/60000) + ' мин)');
+  expect(Math.abs(sbQueue.left2 - sbQueue.wasLeft2) < 5000,
+    '⚠️ ОЧЕРЕДЬ: время x2 НЕ сгорело под x5 — вернётся после (' + Math.round(sbQueue.left2/3600000) + ' ч)');
+  expect(sbQueue.shakes === 60, 'расходники бандлов просто суммируются (50+10=' + sbQueue.shakes + ')');
+
+  // ЧАСЫ: откат не даёт лишнего, но и не сжигает оплаченное; брика нет
   const sbClock = await page.evaluate(() => {
     const g = window.__game;
-    const before = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
+    const before = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs(), noAd: g.noAdLeftMs() };
     g.boostSetClock(Date.now() + 60 * 60 * 1000); // метка «виденного» ушла на час вперёд
-    const after = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
-    const lsGap = g.boostRaw().ls - Date.now();   // метка обязана вернуться к «сейчас»
+    const after = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs(), noAd: g.noAdLeftMs() };
+    const lsGap = g.boostRaw().ls - Date.now();
     g.boostSetClock(Date.now() + 30 * 60 * 1000); // повторный откат
-    const again = g.scoreBoostLeftMs();
+    const again = g.noAdLeftMs();
     return { before, after, lsGap, again };
   });
-  expect(sbClock.after.mult === 2,
-    '⚠️ ЧАСЫ: скачок НЕ сжёг оплаченный бустер (mult ' + sbClock.after.mult + ')');
-  const sbLost = sbClock.before.left - sbClock.after.left;
-  expect(sbLost > 55 * 60 * 1000 && sbLost < 65 * 60 * 1000,
-    'часы: списан ровно скачок ~1 ч, ни секунды сверх (' + Math.round(sbLost / 60000) + ' мин)');
+  // ⚠️ Часовой скачок ЗАКОННО добивает 30-минутное окно x5 (его остаток меньше
+  // скачка) — но длинные окна обязаны выжить, потеряв ровно час.
+  expect(sbClock.after.mult === 2 && sbClock.after.noAd > 0,
+    '⚠️ ЧАСЫ: скачок съел только КОРОТКОЕ окно, x2 и no-Ad живы (mult ' + sbClock.after.mult + ', noAd ' + Math.round(sbClock.after.noAd/86400000) + ' д)');
+  const sbLostNoAd = sbClock.before.noAd - sbClock.after.noAd;
+  expect(sbLostNoAd > 55 * 60 * 1000 && sbLostNoAd < 65 * 60 * 1000,
+    'часы: списан ровно скачок ~1 ч, ни секунды сверх (' + Math.round(sbLostNoAd/60000) + ' мин)');
   expect(Math.abs(sbClock.lsGap) < 10000,
-    '⚠️ ЧАСЫ: метка ресинхронизирована на «сейчас» — вечного залипания нет (' + sbClock.lsGap + ' мс)');
-  expect(sbClock.again <= sbClock.after.left,
-    '⚠️ ЧАСЫ: повторный откат НЕ добавил времени (' + sbClock.after.left + ' -> ' + sbClock.again + ')');
-  // НЕТ БРИКА: после часового инцидента новая покупка обязана работать
+    '⚠️ ЧАСЫ: метка ресинхронизирована — вечного залипания нет (' + sbClock.lsGap + ' мс)');
+  expect(sbClock.again <= sbClock.after.noAd,
+    '⚠️ ЧАСЫ: повторный откат НЕ добавил времени (' + sbClock.after.noAd + ' -> ' + sbClock.again + ')');
   const sbAfterIncident = await page.evaluate(() => {
     const g = window.__game;
-    g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000); // грубый скачок часов
-    g.scoreBoostMult();                               // «увидели» его
-    g.grantScoreBoost('boost1d');                     // игрок платит ПОСЛЕ инцидента
-    return { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
+    g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000);
+    g.scoreBoostMult();
+    g.buyBundle('bundle2');
+    return { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
   });
-  expect(sbAfterIncident.mult === 2 && sbAfterIncident.left > 20 * 60 * 60 * 1000,
-    '⚠️ НЕТ БРИКА: купленный ПОСЛЕ скачка часов бустер работает (' + JSON.stringify(sbAfterIncident) + ')');
+  expect(sbAfterIncident.noAd > 20 * 24 * 3600 * 1000,
+    '⚠️ НЕТ БРИКА: бандл, купленный ПОСЛЕ скачка часов, работает (' + Math.round(sbAfterIncident.noAd/86400000) + ' д)');
 
-  // МЕРЖ: множитель ходит ЗА своим сроком — короткий x5 не апгрейдит длинный x2
+  // МЕРЖ: окна мержатся max ПО КЛЮЧУ-МНОЖИТЕЛЮ — чужой короткий x5 не апгрейдит
   const sbMerge = await page.evaluate(() => {
     const g = window.__game;
-    g.grantScoreBoost('boost1d');                 // свой: x2 на сутки
-    const mine = g.boostRaw();
-    // «облако» отдаёт КОРОТКИЙ, но СИЛЬНЫЙ бустер
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: Date.now() + 10 * 60 * 1000, bk: 5 });
-    const afterShortStrong = { mult: g.scoreBoostMult(), raw: g.boostRaw() };
-    // «облако» отдаёт бустер с БОЛЕЕ ДАЛЬНИМ сроком — вот он должен приняться
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: mine.bx + 60 * 60 * 1000, bk: 3 });
-    return { afterShortStrong, afterFarther: { mult: g.scoreBoostMult() } };
+    g.boostClear(); g.buyBundle('bundle2');        // свой: x2 на сутки
+    const mine = g.bundleState().tiers.find(t => t.mult === 2).leftMs;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: { 5: Date.now() + 10 * 60 * 1000 } });
+    const withCloud5 = g.bundleState();
+    const still2 = withCloud5.tiers.find(t => t.mult === 2).leftMs;
+    return { mine, mult: withCloud5.mult, left5: withCloud5.tiers.find(t => t.mult === 5).leftMs, still2 };
   });
-  expect(sbMerge.afterShortStrong.mult === 2,
-    '⚠️ МЕРЖ: короткий x5 из облака НЕ поднял действующий x2 (' + JSON.stringify(sbMerge.afterShortStrong) + ')');
-  expect(sbMerge.afterFarther.mult === 3,
-    'мерж принял пару целиком у копии с ДАЛЬНИМ сроком (' + sbMerge.afterFarther.mult + ')');
+  expect(sbMerge.mult === 5 && sbMerge.left5 > 0 && Math.abs(sbMerge.still2 - sbMerge.mine) < 5000,
+    '⚠️ МЕРЖ: чужой x5 лёг в СВОЙ ключ, не тронув x2 (' + JSON.stringify(sbMerge) + ')');
 
-  // НАЧИСЛЕНИЕ: множитель реально умножает очки матча, а штраф — НЕТ
-  // ⚠️ Серией по 8 матчей, а не одним: размер группы гуляет, одиночный замер
-  // ничего не доказал бы. Ожидание ×2, порог 1.5 — с запасом на шум.
+  // КУПЛЕННЫЕ ВСТРЯСКИ: порядок расхода и анти-дюп
+  const sbShakes = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(3); g.regen(); g.skipIntro();
+    const lv = g.level(); const free0 = lv.shakes, bought0 = g.purchasedShakes();
+    g.requestShake();                              // РЕАЛЬНЫЙ путь: должен съесть БЕСПЛАТНУЮ
+    const afterFree = { free: g.level().shakes, bought: g.purchasedShakes() };
+    g.level().shakes = 0;                          // бесплатные кончились
+    g.requestShake();                              // теперь — купленную
+    const afterBought = { free: g.level().shakes, bought: g.purchasedShakes() };
+    const stale = g.saveRaw();                     // «облако» ДО траты
+    g.mergeRaw(stale);
+    return { free0, bought0, afterFree, afterBought, afterMerge: g.purchasedShakes() };
+  });
+  expect(sbShakes.afterFree.free === sbShakes.free0 - 1 && sbShakes.afterFree.bought === sbShakes.bought0,
+    'порядок расхода: сперва БЕСПЛАТНЫЕ (' + JSON.stringify(sbShakes.afterFree) + ')');
+  expect(sbShakes.afterBought.bought === sbShakes.bought0 - 1,
+    'бесплатные кончились → тратится КУПЛЕННЫЙ запас (' + JSON.stringify(sbShakes.afterBought) + ')');
+  expect(sbShakes.afterMerge === sbShakes.afterBought.bought,
+    '⚠️ ДЮП: мерж со старой облачной копией НЕ вернул потраченную встряску (' + sbShakes.afterMerge + ')');
+
+  // ⚠️ ТУПИК-ВЫРУЧАЛКА: пока есть купленный запас, помол за игрока НЕ включается
+  const sbDeadlock = await page.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(3); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    const lv = g.level(); lv.shakes = 0; lv.adShakes = 0;
+    g.cfg.baseRadius = -9;                         // форсим «нет достижимых пар» (cfg — объект, не функция)
+    await new Promise(r => setTimeout(r, 2200));
+    const withStock = g.level().deadlock;          // запас есть → тупика быть не должно
+    const raw = g.boostRaw(); const before = g.purchasedShakes();
+    await page_drain();                            // сливаем запас
+    await new Promise(r => setTimeout(r, 2200));
+    const noStock = g.level().deadlock;
+    return { withStock: !!withStock, noStock: !!noStock, before, after: g.purchasedShakes() };
+    function page_drain(){ let n = 500; while (g.purchasedShakes() > 0 && n-- > 0) g.requestShake(); return Promise.resolve(); }
+  });
+  expect(sbDeadlock.withStock === false,
+    '⚠️ ТУПИК: с купленным запасом помол-выручалка НЕ включается — у игрока есть чем ходить');
+  expect(sbDeadlock.noStock === true,
+    'запас кончился → тупик признан, помол выручает (' + JSON.stringify(sbDeadlock) + ')');
+  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.35; });
+
+  // НАЧИСЛЕНИЕ: множитель РЕАЛЬНО умножает. Серией по 8 матчей — размер группы
+  // гуляет, одиночный замер ничего не доказал бы.
   const sbScore = await page.evaluate(async () => {
     const g = window.__game;
     const run = async (n) => {
@@ -1406,21 +1453,19 @@ window.bridge = {
       }
       return sum;
     };
-    // ⚠️ ОБЯЗАТЕЛЬНО снять бустер, оставшийся от предыдущих секций: иначе
-    // «чистый» замер идёт уже под множителем и ratio выходит бессмысленным.
-    g.boostSetClock(0); g.boostClear();
+    g.boostSetClock(0); g.boostClear();            // ⚠️ снять окна прошлых секций
     g.setLevel(3); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
-    const multPlain = g.scoreBoostMult();            // фиксируем: замер честно без бустера
+    const multPlain = g.scoreBoostMult();
     const plain = await run(8);
-    g.setLevel(3); g.regen(); g.skipIntro();         // тот же уровень заново
+    g.setLevel(3); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
-    g.grantScoreBoost('boost1d');                    // x2
+    g.buyBundle('bundle2');                        // x2
     const boosted = await run(8);
     return { multPlain, plain, boosted, mult: g.scoreBoostMult(), ratio: +(boosted / Math.max(1, plain)).toFixed(2) };
   });
   expect(sbScore.multPlain === 1 && sbScore.mult === 2 && sbScore.plain > 0 && sbScore.ratio >= 1.5,
-    'бустер x2 РЕАЛЬНО умножает очки серии матчей (ratio ' + sbScore.ratio + ', ' + JSON.stringify(sbScore) + ')');
+    'бандл x2 РЕАЛЬНО умножает очки серии матчей (ratio ' + sbScore.ratio + ', ' + JSON.stringify(sbScore) + ')');
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');

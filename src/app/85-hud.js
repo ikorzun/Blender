@@ -321,7 +321,11 @@ function updateHUD(){
   // На победе счёт уезжает в se (bankLevelScore) → число непрерывно.
   $('score').textContent = '★ ' + liveBalance();
   const btn = $('shakeBtn');
-  if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
+  // ⚠️ Счётчик = бесплатные уровня + КУПЛЕННЫЙ запас бандла (77-save): без
+  // этого игрок с 50 оплаченными встрясками видел бы «No shakes». Стиль/
+  // раскладка бейджа — за ИНТЕРФЕЙСОМ, здесь только правдивое число.
+  const shakesLeft = level.shakes + purchasedShakes();
+  if (shakesLeft > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + shakesLeft; }
   // AD-состояние по макетам 778:715/778:707: та же пилюля, слово «Ad» ЛАЙМОМ
   // внутри надписи (было «📺 Shake» на фиолетовом фоне). innerHTML — строка
   // своя, без пользовательских данных.

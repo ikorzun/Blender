@@ -630,6 +630,11 @@ function requestShake(){
   if (level.over || intro) return;
   if (level.shakes > 0){
     useFreeShake(); // без подтверждения — сразу (по требованию владельца)
+  } else if (purchasedShakes() > 0){
+    // КУПЛЕННЫЙ ЗАПАС (бандл) — между бесплатными и рекламой: уже оплачен,
+    // поэтому тратится так же молча, без оверлея-подтверждения.
+    spendPurchasedShake(); stats.shakesUsed++;
+    performShake(); updateHUD();
   } else if (level.adShakes > 0 || (COINS_ENABLED && coins() >= PRICE_SHAKE)){
     // корректировка аудита: монеты НЕ конкурируют с бесплатной рекламой —
     // покупка за 25 открывается только после исчерпания rewarded-капа
