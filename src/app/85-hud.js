@@ -738,21 +738,25 @@ function boostCelebrate(key){
   // класс-целебрацию снимаем позже (следующий refresh и так пересоберёт карточку)
   setTimeout(()=>{ if (card.isConnected) card.classList.remove('boosted'); }, 950);
 }
-// #4 ТАП-СПИН (тач): тап по карточке крутит портрет как ховер на десктопе;
-// второй тап той же — стоп; тап другой — вернуть img прошлой и крутить новую.
-// Один общий канвас (spinR) → крутится одна карточка. БЕЗ смены размера.
+// #4 ТАП-СПИН (тач): один тап-обработчик через хук ГРАФИКИ thumbSpinToggle
+// (контракт диспетчера v121): тап по неактивной заводит спин (общий канвас сам
+// снимет спин с прежней), повторный тап по ТОЙ ЖЕ — стоп, размер НЕ дёргается.
+// Хук управляет ТОЛЬКО спином; статический <img> (канвас alpha:true накрывает
+// его, но просвечивает) прячем/возвращаем МЫ — как ховер. msTapSpinCard держит,
+// у какой карточки img спрятан, чтобы вернуть его при переключении на другую.
 let msTapSpinCard = null;
 function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard = null; } }
 function msCardTapSpin(card){
   if (!card || card.classList.contains('lock')) return;
   const wrap = card.querySelector('.msc-imgwrap'); if (!wrap) return;
-  if (msTapSpinCard === card){ thumbSpinStop(); msTapSpinRestore(); return; }
-  msTapSpinRestore();
   const key = card.dataset.key;
   const live = (typeof items !== 'undefined' && items) ? items.find(it => it.alive && it.type && String(it.type.name) === String(key)) : null;
-  const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'hidden';
-  try { thumbSpinStart(live || thumbItemForKey(key), wrap); msTapSpinCard = card; }
-  catch(e){ if (im) im.style.visibility = 'visible'; msTapSpinCard = null; }
+  msTapSpinRestore();                                   // вернуть img прошлой тап-крутящейся
+  let spinning = false;
+  try { spinning = thumbSpinToggle(live || thumbItemForKey(key), wrap); } catch(e){ spinning = false; }
+  const im = wrap.querySelector('img.msc-img');
+  if (im) im.style.visibility = spinning ? 'hidden' : 'visible';
+  msTapSpinCard = spinning ? card : null;
 }
 function buildMainCollection(){
   const grid = $('msGrid');
@@ -907,6 +911,10 @@ function openMainScreen(){
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
 function closeMainScreen(){
+  // #4: тап-спин крутит offscreen-WebGL rAF; без mouseleave он бы жил ВЕСЬ
+  // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
+  // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
+  if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
   if (menuPaused){ menuPaused = false; resumeGame(); }
 }
