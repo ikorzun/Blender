@@ -318,7 +318,10 @@ function updateHUD(){
   $('score').textContent = '★ ' + liveBalance();
   const btn = $('shakeBtn');
   if (level.shakes > 0){ btn.classList.remove('ad','off'); $('shakeLbl').textContent = 'Shake ×' + level.shakes; }
-  else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').textContent = '📺 Shake'; }
+  // AD-состояние по макетам 778:715/778:707: та же пилюля, слово «Ad» ЛАЙМОМ
+  // внутри надписи (было «📺 Shake» на фиолетовом фоне). innerHTML — строка
+  // своя, без пользовательских данных.
+  else if (level.adShakes > 0){ btn.classList.add('ad'); btn.classList.remove('off'); $('shakeLbl').innerHTML = 'Shake <span class="ad-w">Ad</span>'; }
   else { btn.classList.add('off'); btn.classList.remove('ad'); $('shakeLbl').textContent = 'No shakes'; }
   // чипа монет и счётчика подсказок в макете 741:1738 НЕТ (монеты к тому же
   // скрыты COINS_ENABLED; кошелёк уедет в меню). Заряды подсказок живут в

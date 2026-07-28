@@ -75,18 +75,31 @@
   #statStack { flex-direction:column; align-items:flex-end; gap:2px; min-width:72px; }
   #statStack > * { white-space:nowrap; }
   /* круглые кнопки-иконки 56 px, радиус-пилюля (var(--rounded,1000px) в макете) */
-  .iconBtn { pointer-events:auto; width:56px; height:56px; border-radius:999px; border:none;
+  /* КРУГЛЫЕ КНОПКИ (пауза, подсказка) — макеты 778:728/769:132 (Pause-white/
+     dark) и 769:123·778:708/769:114 (hand white/dark). Радиус-пилюля 1000,
+     иконка ровно 32. ⚠️ ТЕМА ПО ВРЕМЕНИ СУТОК — как у Shake (html.night):
+     днём белая кнопка с тёмной иконкой, ночью #2a2935 со светлой. Раньше
+     круглые были белыми ВСЕГДА — на ночном небе они спорили с тёмным Shake. */
+  .iconBtn { pointer-events:auto; width:56px; height:56px; border-radius:1000px; border:none;
     background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
     padding:0; flex:none; }
   .iconBtn svg { width:32px; height:32px; display:block; }
+  .iconBtn svg path { fill:#2a2935; }            /* иконка = токен макета */
+  html.night .iconBtn { background:#2a2935; }
+  html.night .iconBtn svg path { fill:#fff; }
   .iconBtn:active { transform:scale(.94); }
   /* белая заливка как у паузы (спека владельца), иконка и счётчик чёрные */
   #hintBtn { position:relative; }
   /* подсказки расходуемые (main): счётчик бейджем на круглой кнопке макета,
      кнопка гаснет на нуле — без этого игрок не видит остаток и жмёт впустую */
-  #hintCnt { position:absolute; right:-2px; bottom:-2px; min-width:20px; height:20px;
-    border-radius:10px; background:var(--ink); color:#fff; font-family:var(--font-round);
-    font-size:12px; font-weight:900; line-height:20px; text-align:center; padding:0 5px; }
+  /* БЕЙДЖ ЗАРЯДОВ — макеты Number 783:91 / 778:721 / 778:719: ЛАЙМ #c0ff47,
+     ЧЁРНАЯ цифра, Heavy(800), кегль 14, радиус 32, падинги 12/8, тень
+     0 2 4 rgba(0,0,0,.16). ⚠️ ЗАМЕНА прежнего: был тёмный var(--ink) с
+     БЕЛОЙ цифрой 12px/900 и радиусом 10 — макет развернул его в лайм. */
+  #hintCnt { position:absolute; right:-6px; bottom:-6px; min-width:20px;
+    border-radius:32px; background:#c0ff47; color:#000; font-family:var(--font-round);
+    font-size:14px; font-weight:800; line-height:1; text-align:center; padding:8px 12px;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.16)); }
   #hintBtn.off { opacity:.45; pointer-events:none; }
   .pop { position:fixed; z-index:9; pointer-events:none;
     transform:translate(-50%,-50%);
@@ -164,16 +177,24 @@
   /* во время помола вместо красного «0» — слово Grinding тем же стилем,
      кегль меньше: «Grinding» в 55px не влезает в 191px конструкции */
   /* нижние кнопки макета: «Shake ×3» — тёмная пилюля, подсказка — контурный круг */
-  #shakeBtn { pointer-events:auto; height:56px; padding:16px 22px; border:none; border-radius:999px;
-    background:var(--ink); color:#fff; font-family:var(--font-round); font-size:18px; font-weight:700;
-    cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  /* SHAKE — макеты 769:109 (number-dark) / 769:119 (number-white) /
+     778:715 (ad-dark) / 778:707 (ad-white). Геометрия макета совпала с
+     прежней (padding 16/22, радиус-пилюля, кегль 18); ТОКЕН ФОНА уточнён
+     var(--ink) → #2a2935 (carbon-purple-400), вес Bold 700 как было. */
+  #shakeBtn { pointer-events:auto; height:56px; padding:16px 22px; border:none; border-radius:1000px;
+    background:#2a2935; color:#fff; font-family:var(--font-round); font-size:18px; font-weight:700;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
   /* спека владельца 2026-07-21-в: ночью Shake БЕЛАЯ с чёрным текстом,
      днём — чёрная с белым. Класс night ставит updateHUD по тем же часам,
-     что выбор панорамы неба в 05-sky (18..5). ad/off перекрывают тему. */
-  html.night #shakeBtn { background:#fff; color:var(--ink); }
+     что выбор панорамы неба в 05-sky (18..5). Макеты дают ровно эту пару:
+     dark = #2a2935/белый текст, white = #fff/текст #2a2935. */
+  html.night #shakeBtn { background:#fff; color:#2a2935; }
   #shakeBtn:active { transform:scale(.96); }
-  #shakeBtn.ad { background:#8e4ec6; }
-  #shakeBtn.off { background:#8b8fa0; }
+  /* AD-СОСТОЯНИЕ ПО НОВЫМ МАКЕТАМ (778:715/778:707): фон пилюли НЕ меняется,
+     слово «Ad» идёт ЛАЙМОМ #9ce52e внутри той же надписи. ⚠️ ЗАМЕНА прежней
+     реализации: был сплошной фиолетовый фон #8e4ec6 и текст «📺 Shake». */
+  #shakeBtn.ad .ad-w { color:#9ce52e; }
+  #shakeBtn.off { background:#8b8fa0; }   /* «No shakes» — в макетах нет, оставлено как было */
   #scopeBtn, #magnetBtn { pointer-events:auto; background:#fff; border:none;
     border-radius:999px; width:56px; height:56px; font-size:20px; color:var(--ink); cursor:pointer; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
@@ -426,14 +447,31 @@
   .otext.win-level text { font-size:50px; stroke-width:9; }  /* чёрная заливка, белая обводка ~4.5 */
   /* CLEANED + время — ОДИН РЯД под Level (Figma: бейдж слева, время справа,
      на одной линии). Ряд центрирован, слегка наезжает на низ Level. */
-  /* gap 2 → 12: обводка CLEANED ×3 вылезает за свой бокс (~6 юнитов на
-     сторону) и НАЕЗЖАЛА на время (замер: зазор −4px). 12 возвращает воздух. */
+  /* gap 12 (в #124 ставился под жирную обводку 27). Обводка ушла в 4, но
+     САМА НАДПИСЬ выросла на 30% (бокс 220→286, плюс поворот −10.6°): на
+     gap 2 она снова наезжала на время (замер −5px). 12 держит зазор +6. */
   .win-cleanrow { margin-top:-4px; display:flex; align-items:center; gap:12px; }
   /* CLEANED = ОБВЕДЁННЫЙ ЛАЙМ-ТЕКСТ (Figma 778:732: лайм-заливка + белая
      обводка, БЕЗ пилюли — фон просвечивает сквозь буквы). Механизм .otext. */
-  .win-cleaned { width:min(220px, 60vw); height:auto; transform:rotate(-10.6deg); z-index:2; }
-  .otext.win-cleaned text { font-size:44px; stroke-width:27; }  /* обводка ×3 (спека владельца) */
-  #winCleaned { fill:#c0ff47; }
+  /* CLEANED — БЕЛАЯ и КРУПНЕЕ НА 30% (спека владельца 2026-07-28, ответ на
+     вопрос про слипание обводки: вместо «×3 или 18» он повернул — заливка
+     БЕЛАЯ, кегль ×1.3). Лайм из надписи ушёл. Слипание контуров соседних
+     букв при белой заливке ПЕРЕСТАЁТ быть дефектом — это и есть задуманный
+     вид «жирные белые чанки-литеры».
+     ⚠️ Растут ВМЕСТЕ viewBox (220→286) и CSS-ширина (220→286): так 1 юнит
+     остаётся 1 пикселем, кегль 44→57.2 даёт ровно +30% на экране, а текст
+     сохраняет тот же запас в рамке (при росте одного лишь font-size буквы
+     вылезли бы за бокс и легли на время).
+     ⚠️ ОБВОДКА 27 → 4 (решение «на твой глаз» по делегированию диспетчера).
+     Причина: раньше заливка была ЛАЙМОВОЙ, и белый контур, даже смыкаясь
+     с соседним, оставлял буквы различимыми — цвет внутри отличался. Теперь
+     заливка И контур БЕЛЫЕ, поэтому любое смыкание даёт СПЛОШНОЕ пятно: на
+     27 слово превращалось в белую «колбасу» (проверено рендером). Лесенка
+     0/4/8/12/16: на 12+ каша, на 8 буквы касаются, на 4 — чистые жирные
+     белые литеры. «Жирность» и так несёт начертание Black 900 на 57.2px. */
+  .win-cleaned { width:min(286px, 78vw); height:auto; transform:rotate(-10.6deg); z-index:2; }
+  .otext.win-cleaned text { font-size:57.2px; stroke-width:4; }
+  #winCleaned { fill:#fff; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
   .otext.win-time text { font-size:26px; stroke-width:5; }  /* тоньше — мелкий кегль (пропорц. к Level) */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
@@ -885,7 +923,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-126 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-127 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -936,7 +974,7 @@
       <div class="win-headline">
         <svg class="otext win-level" viewBox="0 0 240 64"><text id="winLevel" x="120" y="50" text-anchor="middle">Level 1</text></svg>
         <div class="win-cleanrow">
-          <svg class="otext win-cleaned" viewBox="0 0 220 60"><text id="winCleaned" x="110" y="45" text-anchor="middle">CLEANED</text></svg>
+          <svg class="otext win-cleaned" viewBox="0 0 286 78"><text id="winCleaned" x="143" y="58.5" text-anchor="middle">CLEANED</text></svg>
           <svg class="otext win-time" viewBox="0 0 72 34"><text id="winTime" x="36" y="26" text-anchor="middle">0:00</text></svg>
         </div>
       </div>
