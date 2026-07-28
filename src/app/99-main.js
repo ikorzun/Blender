@@ -503,6 +503,7 @@ window.__game = {
     return false;
   },
   shake: performShake,
+  penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
   requestShake: requestShake, // тест: РЕАЛЬНЫЙ путь встряски с учётом (бесплатные -> купленные -> реклама)
   cfg: CFG,
   regen: genLevel,

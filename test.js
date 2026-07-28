@@ -1469,6 +1469,92 @@ window.bridge = {
     '⚠️ БАНДЛ x2 УМНОЖАЕТ ТОЧНО: клад ' + sbBoostedFinale + ' = 2×(150+5×' + sbBoosted.lv + ')');
   await page.evaluate(() => { window.__game.boostClear(); });
 
+  // ── ШТРАФЫ ПОД БУСТЕРОМ (решение владельца 2026-07-28) ───────────────────
+  // Симметрия: бустер множит и награду, и наказание. Плоские −10/−20 на фоне
+  // «+700» делали карательную сторону шумом ровно в оплаченном окне.
+  const penSym = await page.evaluate(async () => {
+    const g = window.__game;
+    g.boostClear(); g.boostSetClock(0);
+    g.setLevel(8); g.regen(); g.skipIntro();          // ур.>5: клампа нет, минус честный
+    await new Promise(r => setTimeout(r, 400));
+    const s0 = g.stats().score;
+    g.penalizeTest();                                  // промах без бустера
+    const plain = s0 - g.stats().score;
+    g.buyBundle('bundle2');                            // x2
+    const s1 = g.stats().score;
+    g.penalizeTest();
+    const boosted = s1 - g.stats().score;
+    return { plain, boosted, mult: g.scoreBoostMult() };
+  });
+  expect(penSym.plain === 10 && penSym.boosted === 20 && penSym.mult === 2,
+    '⚠️ СИММЕТРИЯ: под x2 промах стоит ×2 (−' + penSym.plain + ' -> −' + penSym.boosted + ')');
+
+  // КЛАМП ЖИВ ПОСЛЕ УМНОЖЕНИЯ: новичок под x5 не улетает в минус быстрее
+  const penClamp = await page.evaluate(async () => {
+    const g = window.__game;
+    g.boostClear(); g.boostSetClock(0);
+    g.setLevel(3); g.regen(); g.skipIntro();          // ур.<=5 — кламп нулём
+    await new Promise(r => setTimeout(r, 400));
+    g.buyBundle('bundle5');                            // x5
+    for (let i = 0; i < 5; i++) g.penalizeTest();
+    const clamped = g.stats().score;
+    g.setLevel(1); g.regen(); g.skipIntro();          // ур.1 — штрафов нет вовсе
+    await new Promise(r => setTimeout(r, 400));
+    g.penalizeTest();
+    return { clamped, lv1: g.stats().score, mult: g.scoreBoostMult() };
+  });
+  expect(penClamp.mult === 5 && penClamp.clamped === 0,
+    'кламп нулём применён ПОСЛЕ умножения — новичок под x5 не в минусе (' + penClamp.clamped + ')');
+  expect(penClamp.lv1 === 0,
+    'ур.1 без штрафов вовсе — бустер этого не меняет (' + penClamp.lv1 + ')');
+
+  // ⚠️ ЗАМЕР ДЛЯ ВЛАДЕЛЬЦА: цена помол-выручалки под бустером. Под x5 налог
+  // −100 за оборот вместо −20 — насколько глубоко уходит застрявший игрок.
+  // ⚠️ Запас встрясок из бандла приходится СЛИВАТЬ: собственный гвард не
+  // признаёт тупик, пока у игрока есть чем ходить (это и проверяется выше).
+  const stuckRun = async (withBoost) => {
+    await page.evaluate(async (boost) => {
+      const g = window.__game;
+      g.boostClear(); g.boostSetClock(0);
+      g.setLevel(8); g.regen(); g.skipIntro();        // ур.>5 — минус честный, без клампа
+      if (boost) g.buyBundle('bundle5');              // x5 — худший случай
+      // ⚠️ Слив запаса ОБЯЗАТЕЛЕН В ОБОИХ прогонах: купленные встряски копятся
+      // в сейве от прежних секций, а собственный гвард не признаёт тупик, пока
+      // игроку есть чем ходить (см. ассерт «ТУПИК: с купленным запасом…»).
+      const lv0 = g.level(); lv0.shakes = 0; lv0.adShakes = 0;
+      let n = 500; while (g.purchasedShakes() > 0 && n-- > 0) g.requestShake();
+    }, withBoost);
+    await page.waitForFunction(() => {                // штиль: иначе тупик не признается
+      if (window.__game.awake().physAwake){ window.__calm = 0; return false; }
+      window.__calm = (window.__calm || 0) + 1;
+      return window.__calm >= 8;
+    }, null, { timeout: 30000, polling: 100 });
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.cfg.baseRadius = -9; g.cfg.matchRadius = -9;  // гарантированный тупик (рецепт сьюта)
+      const lv = g.level(); lv.shakes = 0; lv.adShakes = 0;
+    });
+    await page.waitForFunction(() => window.__game.level().deadlock === true, null, { timeout: 10000, polling: 100 });
+    await page.evaluate(() => { window.__s0 = window.__game.stats().score; }); // отсчёт С МОМЕНТА тупика
+    await page.waitForTimeout(10000);                 // 10 с выручалки
+    return page.evaluate(() => {
+      const g = window.__game;
+      const r = { drop: window.__s0 - g.stats().score, deadlock: !!g.level().deadlock, mult: g.scoreBoostMult() };
+      g.cfg.baseRadius = 0.35; g.boostClear();
+      return r;
+    });
+  };
+  const stuckPlain = await stuckRun(false);
+  const stuckBoost = await stuckRun(true);
+  console.log('ЗАМЕР выручалки за 10 с: без бустера −' + stuckPlain.drop +
+              ', под x' + stuckBoost.mult + ' −' + stuckBoost.drop);
+  expect(stuckPlain.deadlock && stuckBoost.deadlock,
+    'выручалка запустилась в обоих прогонах');
+  expect(stuckBoost.drop > stuckPlain.drop * 2,
+    '⚠️ ЦЕНА ВЫРУЧАЛКИ под бустером кратно выше — число для владельца (−' + stuckPlain.drop + ' -> −' + stuckBoost.drop + ')');
+
+  await page.evaluate(() => { window.__game.boostClear(); });
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

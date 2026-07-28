@@ -7,7 +7,12 @@
 // Механика миксера (съедание предметов) от уровня НЕ зависит — только очки.
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
-  stats.score -= n;
+  // ⚠️ БУСТЕР МНОЖИТ И НАКАЗАНИЕ (решение владельца 2026-07-28): под x5 промах
+  // −50, помол −100. Симметрия с наградой: плоские −10/−20 на фоне «+700»
+  // превращали карательную сторону в шум ровно в оплаченном окне.
+  // Кламп нулём применяется ПОСЛЕ умножения — новичок (ур.<=SCORE_CLAMP_LEVELS)
+  // под бустером не улетает в минус быстрее, чем без него.
+  stats.score -= Math.round(n * scoreBoostMult());
   if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
   return true;
 }
