@@ -215,12 +215,28 @@
   #debugPanel .row { display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
   #debugPanel input[type=range] { width:110px; }
   #debugPanel button { background:#3e63dd; color:#fff; border:none; border-radius:9px; padding:8px 12px; font-size:14px; font-weight:600; width:100%; margin-top:6px; cursor:pointer; }
-  .overlay { display:none; position:fixed; inset:0; z-index:20; background:rgba(10,14,22,.72);
+  /* ПОДЛОЖКА ВСЕХ ПОПАПОВ — СКВОЗНАЯ (спека владельца 2026-07-27: fade
+     10,14,22,0.88 + blur 6px). Общая для семи оверлеев (pause/ad/lose/win/
+     stars/museum/…): пер-оверлейно переопределяем только z-index и прокрутку.
+     ⚠️ ЗАМЕР НА СЛАБОМ УСТРОЙСТВЕ (просьба владельца, эмуляция 390×780 тач +
+     CPU-троттлинг ×6): blur(6) против blur(3) — РАЗНИЦА 0 fps, против «без
+     размытия» — 1 fps (12 против 13). Узкое место кадра — 3D-сцена, а не
+     подложка: backdrop-filter композитится на GPU. Поэтому НИКАКИХ
+     пер-устройственных даунгрейдов не вводим (проверял, выигрыша нет).
+     Единственная страховка — reduced-motion ниже (доступность/батарея).
+     ⚠️ ОГОВОРКА: замер CPU-bound; на бюджетном Android с СЛАБЫМ GPU
+     backdrop-filter может стоить дороже — там лечится одной строкой
+     (@media (pointer:coarse){ blur(3px) }), если тестеры пожалуются. */
+  .overlay { display:none; position:fixed; inset:0; z-index:20; background:rgba(10,14,22,.88);
     align-items:center; justify-content:center;
     /* -webkit- ОБЯЗАТЕЛЕН: Safari поддерживает backdrop-filter только с
        префиксом вплоть до 17.x — без него размытие под оверлеями там не
        работало вовсе (находка попутной проверки Safari-совместимости) */
-    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  /* Экономия батареи/доступность: полностью без размытия — заливки 88% хватает */
+  @media (prefers-reduced-motion: reduce){
+    .overlay { -webkit-backdrop-filter:none; backdrop-filter:none; }
+  }
   .card { background:#1d2432; border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:26px 24px;
     width:min(320px, 86vw); text-align:center; }
   .card h2 { font-size:20px; margin-bottom:10px; }
@@ -1032,7 +1048,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-133 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-134 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
