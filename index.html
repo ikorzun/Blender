@@ -44,10 +44,18 @@
      под заливку, paint-order:stroke). История брака: -webkit-text-stroke
      срезал углы (miter), тени по кругу волнили край — оба запрещены. */
   .otext { overflow:visible; display:block; }
+  /* ⚠️ ОДНА ПЕРЕМЕННАЯ НА ОБВОДКУ (спека владельца 2026-07-28: «буду писать
+     только толщину и цвет»):
+        --otl        — ВИДИМАЯ толщина в px (именно её и пишем);
+        --otl-color  — цвет обводки.
+     Удвоение спрятано ВНУТРЬ: stroke-width = --otl × 2, потому что половина
+     обводки уходит под заливку (paint-order:stroke). Снаружи про это знать
+     не нужно: пишешь --otl:8 — видишь 8px. */
   .otext text { font-family:var(--font-round); font-weight:900;
-    fill:#000; stroke:#fff; stroke-linejoin:round; stroke-linecap:round;
+    fill:#000; stroke:var(--otl-color, #fff); stroke-width:calc(var(--otl, 2) * 2);
+    stroke-linejoin:round; stroke-linecap:round;
     paint-order:stroke; font-variant-numeric:tabular-nums; }
-  .otext.stat text { font-size:22px; stroke-width:4; }  /* видимая обводка 2 */
+  .otext.stat text { font-size:22px; --otl:2; }
   /* размеры через CSS + viewBox: контент масштабируется вместе с рамкой */
   /* ⚠️ LV и время БЕЗ фиксированной ширины: рамку обжимает по тексту
      fitStat (85-hud), иначе при коротких значениях между подписями
@@ -73,10 +81,10 @@
      конструкцией. stroke рисуется по центру контура, наружу уходит
      половина — значит stroke-width вдвое больше нужной толщины.
      Пропорция спеки владельца: обводка 14% кегля (7px при 50px). */
-  #mixerTimer { font-size:62.6px; stroke-width:17.6; } /* база .otext, видимая обводка ~7 */
+  #mixerTimer { font-size:62.6px; --otl:8.8; } /* было stroke-width 17.6 */
   /* Grinding длиннее числа — кегль вдвое меньше, обводка ТОЖЕ вдвое: при
      фиксированной обводке на мелком кегле буквы заплывали в кашу */
-  #mixerTimer.grind { font-size:40.7px; stroke-width:11.4; letter-spacing:.5px; } /* +30% (спека владельца) */
+  #mixerTimer.grind { font-size:40.7px; --otl:5.7; letter-spacing:.5px; } /* +30% (спека владельца); было 11.4 */
   /* стек 72px как в макете, но растёт влево на длинных числах: в мокапе
      счёт трёхзначный, а в игре к 3-му уровню он пятизначный и «★ 12480»
      рвался на две строки */
@@ -117,8 +125,8 @@
     transition:transform 1s ease-out, opacity 1s ease-out; opacity:1; }
   /* спека владельца: очки — белые с ЧЁРНОЙ обводкой, инлайновый цвет
      из вызовов игнорируется; тот же единый механизм .otext */
-  .pop text { font-size:19px; stroke-width:4; fill:#fff; stroke:#000; }
-  .pop.big text { font-size:28px; stroke-width:6; }
+  .pop text { font-size:19px; --otl:2; --otl-color:#000; fill:#fff; }
+  .pop.big text { font-size:28px; --otl:3; }
   .pop.fly { transform:translate(-50%,-50%) translateY(-52px); opacity:0; }
   #bottomBar { bottom:calc(env(safe-area-inset-bottom, 0) + 4px); align-items:flex-end; }
   .grp { display:flex; align-items:center; gap:12px; } /* спека владельца: отступы в группах 12px */
@@ -470,7 +478,7 @@
   .win-head { display:flex; flex-direction:column; align-items:center; margin-bottom:30px; }
   .win-headline { display:flex; flex-direction:column; align-items:center; }
   .win-level { width:min(240px, 66vw); height:auto; }
-  .otext.win-level text { font-size:50px; stroke-width:9; }  /* чёрная заливка, белая обводка ~4.5 */
+  .otext.win-level text { font-size:50px; --otl:4.5; }  /* чёрная заливка, белая обводка 4.5 */
   /* CLEANED + время — ОДИН РЯД под Level (Figma: бейдж слева, время справа,
      на одной линии). Ряд центрирован, слегка наезжает на низ Level. */
   /* gap 12 (в #124 ставился под жирную обводку 27). Обводка ушла в 4, но
@@ -496,12 +504,17 @@
      0/4/8/12/16: на 12+ каша, на 8 буквы касаются, на 4 — чистые жирные
      белые литеры. «Жирность» и так несёт начертание Black 900 на 57.2px. */
   .win-cleaned { width:min(286px, 78vw); height:auto; transform:rotate(-10.6deg); z-index:2; }
-  .otext.win-cleaned text { font-size:57.2px; stroke-width:4; }
+  /* ПРИМЕНЕНИЕ B (спека владельца): обводка ЦВЕТА КНОПКИ NEXT (лайм) и
+     толщиной 10 — заливка остаётся белой. Толстая цветная обводка вокруг
+     белых букв СМЫКАЕТСЯ в лаймовое пятно: раньше это было браком (белое
+     на белом = каша), теперь ЗАДУМАНО и совпадает с рендером Figma —
+     тем самым закрыт старый спор про «лайм-пилюлю» под CLEANED. */
+  .otext.win-cleaned text { font-size:57.2px; --otl:10; --otl-color:#c0ff47; }
   #winCleaned { fill:#fff; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
-  .otext.win-time text { font-size:28px; stroke-width:5; }  /* 28 по ноде 783:1065 (было 26); обводка тоньше — мелкий кегль */
+  .otext.win-time text { font-size:28px; --otl:2.5; }  /* 28 по ноде 783:1065; обводка тоньше — мелкий кегль */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
-  .otext.win-score text { font-size:68px; stroke-width:18; }  /* обводка ×2 (спека владельца) */
+  .otext.win-score text { font-size:68px; --otl:9; }  /* обводка ×2 от базовой (спека владельца) */
   #winScore { fill:url(#gWinScore); }
   /* --- НАГРАДА (+1 подсказка) + NEXT --- */
   .win-actions { display:flex; gap:8px; align-items:center; width:100%; margin-bottom:26px; }
@@ -875,7 +888,14 @@
   .st-mult { flex:1 0 0; min-width:0; display:flex; flex-direction:column; align-items:center;
     justify-content:flex-end; line-height:1; color:#000; white-space:nowrap; }
   /* тень множителя — обновлённая нода 783:95 (0 2px 12px rgba(0,0,0,.16)) */
-  .st-x { font-size:64px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.16); }
+  /* ПРИМЕНЕНИЕ A (спека владельца): ×N — БЕЛАЯ обводка 8px. Узел переведён
+     с HTML-текста на SVG-.otext: только он даёт настоящий векторный stroke
+     (-webkit-text-stroke в проекте ЗАПРЕЩЁН — срезает углы miter).
+     ⚠️ Тень макета осталась на САМОМ svg (drop-shadow вместо text-shadow:
+     text-shadow на SVG-текст не действует). */
+  .st-x { width:120px; max-width:100%; height:auto; --otl:8; --otl-color:#fff;
+    filter:drop-shadow(0 2px 12px rgba(0,0,0,.16)); }
+  .otext.st-x text { font-size:64px; fill:#000; }
   .st-time { font-size:26px; font-weight:800; }
   .st-bonus { flex:1 0 0; min-width:0; font-size:20px; font-weight:800; line-height:1.2; color:#000; }
   .st-buy { width:100%; height:56px; border:none; border-radius:1000px; background:#fff;
@@ -892,7 +912,10 @@
   /* ДЕСКТОП (макет 783:95): три карточки В РЯД по 242 + gap 8 (=742), кегли
      крупнее, множитель НАД бонусами, кнопка закрытия в углу экрана.
      ⚠️ Порог 780, а не 700: 742 контента + поля не влезают в 700-760. */
-  @media (min-width:780px){
+  /* порог 780 → 700 (решение диспетчера 2026-07-28): карточки гибкие
+     (flex:1 1 0) и на 700 сжимаются до ~225 — это ближе к макету, чем
+     мобильная колонка, которую владелец и увидел «мельче макета». */
+  @media (min-width:700px){
     #starsOverlay .st-wrap { gap:48px; padding:32px 0; }
     .st-title { font-size:50px; }
     .st-sub { font-size:20px; width:415px; max-width:100%; }
@@ -900,7 +923,8 @@
     .st-card { flex:1 1 0; min-width:0; justify-content:flex-end; }
     .st-row { flex-direction:column; align-items:center; gap:20px; padding:0; }
     .st-mult { flex:none; }
-    .st-x { font-size:80px; }
+    .st-x { width:150px; }
+    .otext.st-x text { font-size:80px; }
     .st-time { font-size:33px; font-weight:900; }
     .st-bonus { flex:none; text-align:center; line-height:24px; width:100%; }
     /* в макете кнопка в левом верхнем углу ЭКРАНА (не обёртки) */
@@ -1058,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-139 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-140 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1150,21 +1174,21 @@
     <div class="st-cards">
       <div class="st-card st-c5">
         <div class="st-row">
-          <div class="st-mult"><div class="st-x">×5</div><div class="st-time">30 min</div></div>
+          <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×5"><text x="60" y="70" text-anchor="middle">×5</text></svg><div class="st-time">30 min</div></div>
           <div class="st-bonus">10 Shake’s<br>15 Tips<br>1 day no Ad</div>
         </div>
         <button class="st-buy" data-tier="5">Upgrade $4.99</button>
       </div>
       <div class="st-card st-c3">
         <div class="st-row">
-          <div class="st-mult"><div class="st-x">×3</div><div class="st-time">1 hour</div></div>
+          <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×3"><text x="60" y="70" text-anchor="middle">×3</text></svg><div class="st-time">1 hour</div></div>
           <div class="st-bonus">15 Shake’s<br>20 Tips<br>3 days no Ad</div>
         </div>
         <button class="st-buy" data-tier="3">Upgrade $9.99</button>
       </div>
       <div class="st-card st-c2">
         <div class="st-row">
-          <div class="st-mult"><div class="st-x">×2</div><div class="st-time">1 day</div></div>
+          <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×2"><text x="60" y="70" text-anchor="middle">×2</text></svg><div class="st-time">1 day</div></div>
           <div class="st-bonus">50 Shake’s<br>30 Tips<br>1 month no Ad</div>
         </div>
         <button class="st-buy" data-tier="2">Upgrade $19.99</button>
@@ -6476,7 +6500,18 @@ let winScoreRAF = 0, winScoreTO = 0;
 function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0; }
 // компрессия как в HUD (≥10000 → «12.5k»): большой счёт не рвёт рамку 320 и
 // согласован со счётом игрового экрана (иначе HUD «12.5k» vs победа «124800»)
-function winFmtScore(n){ return n >= 10000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '' + n; }
+// КОМПРЕССОР БОЛЬШИХ ЧИСЕЛ — общий для экрана победы И чипа счёта в HUD.
+// Ступени: <10k как есть · <100k «12.5k» · <1M «125k» (дробь уже не нужна,
+// а знак экономит место) · дальше «1.2M». Максимум 5 символов — этим и
+// лечится наезд чипа на глаза (см. вызов в updateHUD).
+// ⚠️ Ветка M добавлена 2026-07-28: с бандлами кошелёк становится
+// 7-значным (МЕТА: ~29 уровней под x5), а без неё вышло бы «1200k».
+function winFmtScore(n){
+  n = n | 0;
+  if (n < 10000) return '' + n;
+  if (n < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0).replace(/\.0$/, '') + 'k';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+}
 function renderWinScreen(){
   const wrap = $('winWrap'); if (!wrap) return;
   const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -6781,7 +6816,16 @@ function updateHUD(){
   // показывает liveBalance() = баланс + незабанкованный счёт уровня (÷10),
   // а НЕ per-level stats.score — то же число, что кошелёк меню и лидерборд.
   // На победе счёт уезжает в se (bankLevelScore) → число непрерывно.
-  $('score').textContent = '★ ' + liveBalance();
+  // ⚠️ ЧИП ПЕРЕПОЛНЯЛСЯ (замер МЕТЫ: 6 цифр на 360px наезжали на глаза на
+  // 4px, 7 цифр на 393px — на 14px): число писалось СЫРЫМ, а #scSvg имеет
+  // фиксированный viewBox и ширину — лишнее рисовалось ЗА рамкой
+  // (.otext overflow:visible) прямо на конструкцию глаз. Лечение из двух
+  // частей: (а) тот же компрессор, что на экране победы — длина строки
+  // ограничена сверху; (б) fitStat — рамка по факту текста, как у
+  // lvlNum/timer. Бандлы делают это критичным: кошелёк 6-7 цифр уже в
+  // первую платную сессию.
+  $('score').textContent = '★ ' + winFmtScore(liveBalance());
+  fitStat('score');
   const btn = $('shakeBtn');
   // ⚠️ Счётчик = бесплатные уровня + КУПЛЕННЫЙ запас бандла (77-save): без
   // этого игрок с 50 оплаченными встрясками видел бы «No shakes». Стиль/

@@ -14,7 +14,18 @@ let winScoreRAF = 0, winScoreTO = 0;
 function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0; }
 // компрессия как в HUD (≥10000 → «12.5k»): большой счёт не рвёт рамку 320 и
 // согласован со счётом игрового экрана (иначе HUD «12.5k» vs победа «124800»)
-function winFmtScore(n){ return n >= 10000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '' + n; }
+// КОМПРЕССОР БОЛЬШИХ ЧИСЕЛ — общий для экрана победы И чипа счёта в HUD.
+// Ступени: <10k как есть · <100k «12.5k» · <1M «125k» (дробь уже не нужна,
+// а знак экономит место) · дальше «1.2M». Максимум 5 символов — этим и
+// лечится наезд чипа на глаза (см. вызов в updateHUD).
+// ⚠️ Ветка M добавлена 2026-07-28: с бандлами кошелёк становится
+// 7-значным (МЕТА: ~29 уровней под x5), а без неё вышло бы «1200k».
+function winFmtScore(n){
+  n = n | 0;
+  if (n < 10000) return '' + n;
+  if (n < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0).replace(/\.0$/, '') + 'k';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+}
 function renderWinScreen(){
   const wrap = $('winWrap'); if (!wrap) return;
   const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -319,7 +330,16 @@ function updateHUD(){
   // показывает liveBalance() = баланс + незабанкованный счёт уровня (÷10),
   // а НЕ per-level stats.score — то же число, что кошелёк меню и лидерборд.
   // На победе счёт уезжает в se (bankLevelScore) → число непрерывно.
-  $('score').textContent = '★ ' + liveBalance();
+  // ⚠️ ЧИП ПЕРЕПОЛНЯЛСЯ (замер МЕТЫ: 6 цифр на 360px наезжали на глаза на
+  // 4px, 7 цифр на 393px — на 14px): число писалось СЫРЫМ, а #scSvg имеет
+  // фиксированный viewBox и ширину — лишнее рисовалось ЗА рамкой
+  // (.otext overflow:visible) прямо на конструкцию глаз. Лечение из двух
+  // частей: (а) тот же компрессор, что на экране победы — длина строки
+  // ограничена сверху; (б) fitStat — рамка по факту текста, как у
+  // lvlNum/timer. Бандлы делают это критичным: кошелёк 6-7 цифр уже в
+  // первую платную сессию.
+  $('score').textContent = '★ ' + winFmtScore(liveBalance());
+  fitStat('score');
   const btn = $('shakeBtn');
   // ⚠️ Счётчик = бесплатные уровня + КУПЛЕННЫЙ запас бандла (77-save): без
   // этого игрок с 50 оплаченными встрясками видел бы «No shakes». Стиль/
