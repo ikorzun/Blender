@@ -5,6 +5,10 @@ let items = [];
 let stats, level;
 // номер уровня — переживает перезагрузку
 let levelNum = 1;
+// Кап роликов «подсказка за рекламу», привязанный к НОМЕРУ уровня (не к
+// объекту level): переживает Restart той же партии, обнуляется только на
+// НОВОМ уровне. Подробности и почему так — у места использования в genLevel.
+let adHintLevelNo = -1, adHintCarry = AD_HINTS_PER_LEVEL;
 try { levelNum = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1', 10) || 1); } catch(e){}
 
 // size — НЕПРЕРЫВНЫЙ множитель (спека владельца: разброс ±10% на старте,
@@ -428,9 +432,17 @@ function genLevel(){
   // БЕЗ предварительной осадки: падение происходит ЖИВЬЁМ на экране
   // (интро: вид сбоку -> облёт -> вид сверху); утряска и трим — в интро
   // (tickIntro/finishIntro) или в __game.skipIntro() для тестов
-  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, score:0,
+  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
-  level = { shakes:3, adShakes:2, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
+  // ⚠️ adHints (кап роликов на подсказку) НЕ пишется в сейв — это анти-дюп:
+  // остаток в Save мержился бы по max и облако ВОЗВРАЩАЛО бы просмотренный
+  // ролик. Награда (+1 заряд) уходит в монотонную пару he/hs — дюп-безопасна.
+  // ⚠️ И НЕ обнуляется на КАЖДЫЙ genLevel, а привязан к НОМЕРУ уровня: иначе
+  // «Restart» в паузе (pauseRestart -> genLevel) refill'ил бы кап, и подсказки
+  // за рекламу становились бы БЕСКОНЕЧНЫМИ. У встряски этой дыры нет — её
+  // награда тратится внутри уровня, а заряд подсказки ПОЖИЗНЕННЫЙ (he).
+  if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
+  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень

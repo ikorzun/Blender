@@ -1244,6 +1244,75 @@ window.bridge = {
   expect(ghostPose.ghost.flag && ghostPose.ghost.transp, 'гхост: item.ghost + материал transparent');
   expect(Math.abs(ghostPose.startAngle - 0.2) < 0.05, 'поза статики и спина — ОДИН источник (спин стартует с PORTRAIT_YAW0, angle=' + ghostPose.startAngle + ')');
 
+  // ── ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) ────────────────────
+  // Секция В КОНЦЕ намеренно (setLevel/regen меняют контекст — см. камни).
+  // Зеркало ad-встряски: заряды кончились → ролик → +1 заряд, кап на уровень.
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(400);
+  // 1. ГЕЙТ: пока заряды есть — ad-состояния НЕТ (ролик не предлагаем зря)
+  const hintGate = await page.evaluate(() => {
+    const g = window.__game;
+    const withCharges = { hints: g.wallet().hints, ad: g.adHintAvailable() };
+    let guard = 200;
+    while (g.wallet().hints > 0 && guard-- > 0) g.spendHint();
+    return { withCharges, empty: { hints: g.wallet().hints, ad: g.adHintAvailable(), cap: g.level().adHints } };
+  });
+  {
+    expect(hintGate.withCharges.hints > 0 && hintGate.withCharges.ad === false,
+      'ad-подсказка НЕ предлагается, пока заряды есть (' + JSON.stringify(hintGate.withCharges) + ')');
+    expect(hintGate.empty.hints === 0 && hintGate.empty.ad === true && hintGate.empty.cap === 2,
+      'заряды кончились → ad-состояние доступно, кап 2 (' + JSON.stringify(hintGate.empty) + ')');
+    // 2. РОЛИК ДАЁТ ЗАРЯД: stub 3 с, награда после досмотра
+    const before = await page.evaluate(() => ({ hints: window.__game.wallet().hints,
+      he: window.__game.saveRaw().he, cap: window.__game.level().adHints,
+      used: window.__game.stats().adHintsUsed, started: window.__game.requestAdHint() }));
+    await page.waitForTimeout(3600);
+    const after = await page.evaluate(() => ({ hints: window.__game.wallet().hints,
+      he: window.__game.saveRaw().he, cap: window.__game.level().adHints,
+      used: window.__game.stats().adHintsUsed }));
+    expect(before.started === true && after.cap === before.cap - 1 && after.used === 1,
+      'ролик списал кап и посчитан в stats (' + JSON.stringify(before) + ' -> ' + JSON.stringify(after) + ')');
+    // ⚠️ Заряд проверяем по МОНОТОННОМУ he, а не по остатку hints: свежий заряд
+    // сразу уходит на показ подсказки (hints 0->0 ничего не доказал бы).
+    expect(after.he === before.he + 1,
+      'ролик начислил РОВНО один заряд в he (' + before.he + ' -> ' + after.he + ')');
+    // 2б. RESTART НЕ ВОЗВРАЩАЕТ КАП (дыра: заряд подсказки ПОЖИЗНЕННЫЙ, поэтому
+    // refill капа на каждый genLevel давал бы бесконечные подсказки за рекламу —
+    // «Restart» в паузе делает ровно genLevel). Кап привязан к НОМЕРУ уровня.
+    const restartProbe = await page.evaluate(() => {
+      const g = window.__game; const capBefore = g.level().adHints; const lv = g.levelNum();
+      g.regen(); g.skipIntro();                    // = pauseRestart той же партии
+      const capAfterRestart = g.level().adHints;
+      g.setLevel(lv + 1); g.regen(); g.skipIntro(); // новый уровень — кап обязан вернуться
+      return { capBefore, capAfterRestart, capNewLevel: g.level().adHints };
+    });
+    expect(restartProbe.capAfterRestart === restartProbe.capBefore,
+      'Restart той же партии НЕ вернул кап роликов (' + restartProbe.capBefore + ' -> ' + restartProbe.capAfterRestart + ')');
+    expect(restartProbe.capNewLevel === 2,
+      'на НОВОМ уровне кап роликов восстановлен (' + restartProbe.capNewLevel + ')');
+    await page.evaluate(() => { const g = window.__game; let n = 200; while (g.wallet().hints > 0 && n-- > 0) g.spendHint(); });
+    // 3. КАП ИСЧЕРПАН → ad-состояние гаснет (бесконечных роликов нет)
+    const capOut = await page.evaluate(() => {
+      const g = window.__game; g.level().adHints = 0;
+      return { ad: g.adHintAvailable(), started: g.requestAdHint() };
+    });
+    expect(capOut.ad === false && capOut.started === false,
+      'кап исчерпан → ролик больше не предлагается и не стартует (' + JSON.stringify(capOut) + ')');
+    // 4. АНТИ-ДЮП: кап НЕ в сейве (иначе max-мерж вернул бы просмотренный ролик)
+    const dup = await page.evaluate(() => {
+      const g = window.__game; const raw = g.saveRaw();
+      const keys = Object.keys(raw).join(',');
+      const stale = JSON.parse(JSON.stringify(raw)); // «облако» ДО траты
+      g.level().adHints = 0;                          // ролик просмотрен, кап съеден
+      g.mergeRaw(stale);                              // облако отдаёт устаревшую копию
+      return { keys, capAfterMerge: g.level().adHints };
+    });
+    expect(/adHint|adhint/i.test(dup.keys) === false,
+      'кап роликов НЕ хранится в сейве — мержу нечего возвращать (поля: ' + dup.keys + ')');
+    expect(dup.capAfterMerge === 0,
+      'мерж со старой облачной копией НЕ вернул просмотренный ролик (' + dup.capAfterMerge + ')');
+  }
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

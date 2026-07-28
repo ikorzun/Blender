@@ -619,6 +619,12 @@ window.__game = {
   starAward: starAward,           // номинал (только миграция) — оставлен для тестов
   // тест/отладка
   starGrant(n){ addStars(n); return starBalance(); },
+  // ПОДСКАЗКА ЗА РЕКЛАМУ — контракт с ИНТЕРФЕЙСОМ (бейдж «Ad» на кнопке):
+  // adHintAvailable() — рисовать ли ad-состояние; requestAdHint() — запустить
+  // ролик (сам showHint уже уходит в эту ветку при нуле зарядов).
+  adHintAvailable: adHintAvailable,
+  requestAdHint: requestAdHint,
+  spendHint: spendHint, // тест-ручка: слить заряды, чтобы проверить ad-ветку
   bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
