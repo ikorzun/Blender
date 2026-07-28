@@ -556,6 +556,41 @@ const path = require('path');
   expect(oneNumber.unbanked > 0 && Number(oneNumber.wallet) === oneNumber.live,
     'кошелёк меню включает незабанкованный счёт уровня (+' + oneNumber.unbanked + ', live ' + oneNumber.live + ')');
 
+  // ЧИП НЕ ВЫЛЕЗАЕТ ЗА ЭКРАН (регрессия v140→v148, жалоба владельца «отступы
+  // поломались»): fitStat ужимал viewBox, но НЕ двигал якорь end-текста —
+  // тот оставался на x=102 от исходной рамки 104 и рисовался ЗА ней (.otext
+  // overflow:visible), уезжая за вьюпорт. Меряем ПРАВЫЙ край текста против
+  // ширины окна на всех балансах: и коротком, и сжатом до «12.5M».
+  // ⚠️ ДЛИНУ ЧИСЛА НАБИРАЕМ СЧЁТОМ УРОВНЯ, А НЕ ВЫДАЧЕЙ ЗВЁЗД: starGrant
+  // необратим (se/tu монотонные) и 12М в кошельке ломали соседний ассерт
+  // «списание сверх баланса отклонено». stats.score — величина УРОВНЯ, её
+  // снимает regen в конце пробы, состояние кошелька не трогаем вовсе.
+  const chipFit = await page.evaluate(async () => {
+    const g = window.__game, out = [];
+    const keep = g.stats().score;
+    for (const sc of [0, 16790, 1234560, 123456780]){
+      g.stats().score = sc;
+      g.autoMatch();                                   // любой матч дёргает updateHUD
+      await new Promise(r => setTimeout(r, 220));
+      const t = document.getElementById('score'), svg = document.getElementById('scSvg');
+      const tr = t.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+      out.push({ text: t.textContent, over: Math.round(tr.right - innerWidth),
+                 outOfBox: Math.round(tr.right - sr.right) });
+    }
+    g.stats().score = keep;                            // счёт уровня вернули
+    g.regen(); g.skipIntro();                          // и уровень с чистого листа
+    return out;
+  });
+  {
+    const worstScreen = Math.max(...chipFit.map(o => o.over));
+    const worstBox = Math.max(...chipFit.map(o => o.outOfBox));
+    expect(worstScreen < 0,
+      'чип НЕ вылезает за экран ни на одном балансе (худший край ' + worstScreen + 'px, ' +
+      chipFit.map(o => o.text.trim()).join(' / ') + ')');
+    expect(worstBox <= 0,
+      'текст чипа НЕ выходит за свою рамку — якорь едет за viewBox (' + worstBox + 'px)');
+  }
+
   // Кошелёк и рейтинг РАЗДЕЛЕНЫ: трата не отнимает звёзды уровней
   const walletProbe = await page.evaluate(() => {
     const g = window.__game;

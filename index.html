@@ -1082,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-147 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-148 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -6931,6 +6931,14 @@ function fitStat(id){
   // (meet) — одна лишь ширина при высоте 42 УМЕНЬШАЛА контент (LV мельче
   // времени на скрине владельца)
   svg.setAttribute('viewBox', '0 0 ' + u.toFixed(1) + ' 27');
+  // ⚠️ ЯКОРЬ ЕДЕТ ЗА РАМКОЙ (жалоба владельца 2026-07-27 «отступы поломались»,
+  // скрин: число обрезано краем экрана). LV и время привязаны к ЛЕВОМУ краю
+  // (x=1) — им сжатие рамки безразлично. А чип очков привязан к ПРАВОМУ
+  // (text-anchor=end, x=102 под ИСХОДНУЮ рамку 104). Ужав viewBox до ~91, мы
+  // оставляли якорь на 102 — текст рисовался НА 10 ЮНИТОВ ЗА рамкой (overflow
+  // у .otext visible, поэтому не обрезался, а вылезал) и уходил за вьюпорт:
+  // замер 390px — правый край текста 392 при рамке до 382.
+  if (t.getAttribute('text-anchor') === 'end') t.setAttribute('x', (u - 2).toFixed(1));
   const k = (svg.getBoundingClientRect().height || 27) / 27;
   svg.style.width = (u * k) + 'px';
 }
