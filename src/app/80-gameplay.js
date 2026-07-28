@@ -64,6 +64,12 @@ function doMatch(list){
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
         scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
+        // ⚠️ ПОДБРОС КУЧИ НА ВХОДЕ В ТУРБО (спека владельца 2026-07-28
+        // «подкидывать все вещи, словно это шейк на старте») — заменил
+        // молнии как маркер входа. performShake() НЕ списывает зарядов
+        // (списание живёт у вызывающих: useFreeShake и др.), поэтому это
+        // чистый эффект, а не бесплатная встряска-ресурс.
+        if (TURBO_SHAKE) performShake();
         Sound.play('chain');
         vibrate([30, 50, 30, 50, 60]);
         updateMatchRadius();

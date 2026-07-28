@@ -417,6 +417,11 @@ function boltMat(color, opacity){
   return new THREE.MeshBasicMaterial({ color, transparent:true, opacity, depthTest:false });
 }
 function boltFX(a, b){
+  // ⚠️ СКРЫТО ФЛАГОМ, НЕ УДАЛЕНО (спека владельца 2026-07-28): вход в турбо
+  // теперь отмечается ПОДБРОСОМ кучи, а не разрядами. Весь механизм молний
+  // (ветвление, слияние филаментов, free-list материалов) остаётся рабочим —
+  // TURBO_BOLTS=true в 00-config включает обратно одним значением.
+  if (!TURBO_BOLTS) return;
   const main = boltPath(a, b, BOLT_SEG, 0.13);
   if (!main || main.len < 0.2) return;
   // ОТВЕТВЛЕНИЯ: короткие ветки от случайных узлов основной дуги, вбок и
