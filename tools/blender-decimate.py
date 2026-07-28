@@ -49,10 +49,22 @@ def meshes():
 def main(src_dir, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     rows = []
-    for f in sorted(os.listdir(src_dir)):
-        if not f.lower().endswith('.glb'):
-            continue
-        src, dst = os.path.join(src_dir, f), os.path.join(out_dir, f)
+    # ⚠️ РЕКУРСИВНЫЙ ОБХОД (2026-07-28): модели разложены по ТИПАМ в подпапки
+    # («Food/Фрукты-ягоды», «Car/Машины», …) по просьбе владельца. Прежний
+    # os.listdir видел только корень пачки и после раскладки не нашёл бы НИ
+    # ОДНОЙ модели — конвейер молча собрал бы пустой выхлоп.
+    # Служебные каталоги пропускаем: .lowpoly — это ВЫХОД (иначе децимировали
+    # бы уже децимированное), .pick — исторический staging.
+    names = []
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = [d for d in dirs if d not in ('.lowpoly', '.pick')]
+        for fn in files:
+            if fn.lower().endswith('.glb'):
+                names.append(os.path.relpath(os.path.join(root, fn), src_dir))
+    for f in sorted(names):
+        # выход остаётся ПЛОСКИМ: glb2module читает .lowpoly одним списком,
+        # а имена моделей уникальны в пределах пачки
+        src, dst = os.path.join(src_dir, f), os.path.join(out_dir, os.path.basename(f))
         clear()
         try:
             bpy.ops.import_scene.gltf(filepath=src)

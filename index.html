@@ -1082,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-152 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-153 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1444,6 +1444,17 @@ const MIXER_IDLE_EASY = 15, MIXER_IDLE_HARD = 10;
 // монетизационное решение, не баланс-упущение. Дефицит намеренный.
 const SHAKES_BASE = 3;
 function freeShakesFor(){ return SHAKES_BASE; }
+// ⚠️ РЕКЛАМНЫЕ ВСТРЯСКИ — БЕЗ ЛИМИТА (спека владельца 2026-07-28: «каждая
+// следующая только за показ рекламы»; было 2 на уровень). Сколько роликов
+// посмотрел — столько встрясок. Кап снят намеренно: встряски продаются
+// рекламой, ограничивать показы = ограничивать выручку.
+// ⚠️ СЛЕДСТВИЕ, КОТОРОЕ ПРИШЛОСЬ ЗАКРЫТЬ ОТДЕЛЬНО (99-main): тупик-выручалка
+// раньше ждала adShakes===0 — с безлимитом это условие НИКОГДА не наступит,
+// и игрок, НЕ смотрящий рекламу, завис бы навсегда (ни помола, ни поражения).
+// Поэтому тупик теперь считается по СВОИМ ресурсам (бесплатные + купленные),
+// а реклама агентностью для выручалки не считается: она всегда доступна, но
+// требует согласия игрока.
+const AD_SHAKES_PER_LEVEL = Infinity;
 // КОМБО-БУСТ радиуса (спека владельца 2026-07): группа 3+ одним тапом ИЛИ
 // вторая склейка в пределах цепочного окна -> радиус до COMBO_RADIUS на
 // COMBO_MS; каждый матч в лихорадке ПРОДЛЕВАЕТ окно (иначе фивер гаснет
@@ -3759,7 +3770,7 @@ function genLevel(){
   if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
   // встряски РАСТУТ С УРОВНЕМ (freeShakesFor в 00-config): 3 + ⌊уровень/10⌋,
   // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
-  level = { shakes: freeShakesFor(levelNum), adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
+  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -8603,7 +8614,7 @@ function loop(){
     // ⚠️ КУПЛЕННЫЙ ЗАПАС ВСТРЯСОК = АГЕНТНОСТЬ: пока он есть, тупика НЕТ —
     // игроку есть чем разрулить, и выручалка-помол (она стоит очков) не должна
     // включаться за него. Условие расширено вместе с вводом бандлов.
-    if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
+    if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) level.deadlock = true;
     } else {
@@ -8615,7 +8626,7 @@ function loop(){
       // idleLimit (stats.lastAction застыл), и без сброса idle-помол ДОГРЫЗАЛ бы кучу
       // после появления пары (idle всё ещё > idleLimit), пока игрок не тапнет — даём
       // свежий отсчёт, чтобы выручалка встала РОВНО с появлением достижимой пары.
-      if (level.deadlock && (ap > 0 || level.shakes > 0 || level.adShakes > 0 || purchasedShakes() > 0)){
+      if (level.deadlock && (ap > 0 || level.shakes > 0 || purchasedShakes() > 0)){
         level.deadlock = false;
         stats.lastAction = now;
       }

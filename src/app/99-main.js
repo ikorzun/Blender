@@ -454,7 +454,7 @@ function loop(){
     // ⚠️ КУПЛЕННЫЙ ЗАПАС ВСТРЯСОК = АГЕНТНОСТЬ: пока он есть, тупика НЕТ —
     // игроку есть чем разрулить, и выручалка-помол (она стоит очков) не должна
     // включаться за него. Условие расширено вместе с вводом бандлов.
-    if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
+    if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) level.deadlock = true;
     } else {
@@ -466,7 +466,7 @@ function loop(){
       // idleLimit (stats.lastAction застыл), и без сброса idle-помол ДОГРЫЗАЛ бы кучу
       // после появления пары (idle всё ещё > idleLimit), пока игрок не тапнет — даём
       // свежий отсчёт, чтобы выручалка встала РОВНО с появлением достижимой пары.
-      if (level.deadlock && (ap > 0 || level.shakes > 0 || level.adShakes > 0 || purchasedShakes() > 0)){
+      if (level.deadlock && (ap > 0 || level.shakes > 0 || purchasedShakes() > 0)){
         level.deadlock = false;
         stats.lastAction = now;
       }

@@ -187,7 +187,10 @@ const path = require('path');
     window.__game.cfg.baseRadius = -9; // радиус динамический — правим базу (метрика v3: 0.001 матчил бы касающиеся)
     window.__game.cfg.matchRadius = -9; // зазор не бывает отрицательным настолько — гарантированный тупик
     const lv = window.__game.level();
-    lv.shakes = 0; lv.adShakes = 0;
+    // ⚠️ adShakes НЕ трогаем — он безлимитный (Infinity). Тупик обязан
+    // сработать ИМЕННО ПРИ ЖИВОЙ рекламе: иначе игрок, не смотрящий ролики,
+    // завис бы навсегда. Обнуляем только СВОИ ресурсы.
+    lv.shakes = 0;
   });
   const aliveBeforeMill = await page.evaluate(() => window.__game.alive());
   // тупик подтверждается 2 стабильными тиками (~1.2с) -> level.deadlock
@@ -199,6 +202,7 @@ const path = require('path');
     over: window.__game.level().over,
     grinding: document.getElementById('mixerTimer').textContent,
     alive: window.__game.alive(),
+    adShakesInfinite: !Number.isFinite(window.__game.level().adShakes),
   }));
   console.log('тупик→помол:', JSON.stringify(dl), '| было живых', aliveBeforeMill);
   expect(dl.lose !== 'flex', 'тупик НЕ показывает экран поражения (помол-выручалка)');
@@ -213,6 +217,12 @@ const path = require('path');
   const clr = await page.evaluate(() => ({ deadlock: window.__game.level().deadlock,
     grinding: document.getElementById('mixerTimer').textContent }));
   expect(clr.deadlock === false, 'вернулась агентность -> тупик снят');
+  // ⚠️ БЕЗЛИМИТ AD-ВСТРЯСОК НЕ ДОЛЖЕН УБИТЬ ВЫРУЧАЛКУ. Раньше тупик требовал
+  // adShakes===0 — с Infinity это условие НИКОГДА не наступит, и игрок, НЕ
+  // смотрящий рекламу, завис бы навсегда (ни помола, ни поражения). Поэтому
+  // тупик считается по СВОИМ ресурсам; ассерт стережёт именно это.
+  expect(dl.adShakesInfinite === true,
+    'тупик сработал ПРИ БЕЗЛИМИТНОЙ рекламе — ролики не блокируют выручалку');
   // ФИКС ревью v116: сброс lastAction на снятии тупика -> idle-помол НЕ догрызает
   // после появления пары (помол встал РОВНО со снятием, не крутится по инерции)
   expect(clr.grinding !== 'Grinding', 'помол-выручалка встала со снятием тупика (не догрызает по инерции)');
@@ -425,11 +435,20 @@ const path = require('path');
   await page.waitForTimeout(3600); // стаб бы уже дозрел
   const adProbe = await page.evaluate(() => ({
     overlay: document.getElementById('adOverlay').style.display,
-    adShakes: window.__game.level().adShakes,
+    adShakes: Number.isFinite(window.__game.level().adShakes) ? window.__game.level().adShakes : null,
+    shakes: window.__game.level().shakes,
     used: window.__game.stats().adShakesUsed,
   }));
   expect(adProbe.overlay === 'none', 'reген спрятал оверлей рекламы');
-  expect(adProbe.adShakes === 2 && adProbe.used === 0, 'награда старого показа не прилетела новому уровню (adShakes ' + adProbe.adShakes + ', used ' + adProbe.used + ')');
+  // ⚠️ ЛИМИТА AD-ВСТРЯСОК БОЛЬШЕ НЕТ (спека владельца 2026-07-28: «каждая
+  // следующая только за показ рекламы») — прежняя сверка «adShakes === 2»
+  // потеряла смысл. Стережём то же САМОЕ по существу: протухшая награда не
+  // должна ни списаться в статистику, ни подарить встряску новому уровню.
+  expect(adProbe.used === 0 && adProbe.shakes === 3,
+    'награда старого показа не прилетела новому уровню (used ' + adProbe.used +
+    ', бесплатных ' + adProbe.shakes + ' — как у свежего уровня)');
+  expect(adProbe.adShakes === null,
+    'ad-встряски БЕЗ лимита (' + adProbe.adShakes + ' = Infinity)');
 
   // вертикальный пан взгляда (спека владельца: «приподнять и рассмотреть
   // остатки»): Shift+колесо двигает target по Y с клампами, обычное колесо
