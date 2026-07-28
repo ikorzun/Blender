@@ -604,6 +604,7 @@ window.__game = {
   level(){ return level; },
   stats(){ return stats; },
   levelNum(){ return levelNum; },
+  freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок
   forceRefresh(){ refreshAccessibility(); },

@@ -145,8 +145,30 @@ const path = require('path');
   await page.waitForTimeout(300);
   await page.click('#shakeBtn');
   await page.waitForTimeout(400);
-  const shakesLeft = await page.evaluate(() => window.__game.level().shakes);
-  expect(shakesLeft === 2, 'встряска мгновенная и списала заряд (3 -> ' + shakesLeft + ')');
+  // ⚠️ БАЗА НЕ ФИКСИРОВАННАЯ 3: встряски растут с уровнем (3 + ⌊ур/10⌋,
+  // решение владельца 2026-07-27) — сверяем со СТАРТОВЫМ значением уровня,
+  // а не с константой, иначе ассерт врал бы на ур.10+.
+  const shakeSpend = await page.evaluate(() => ({ left: window.__game.level().shakes,
+    expect: window.__game.freeShakes(window.__game.levelNum()) - 1, lv: window.__game.levelNum() }));
+  expect(shakeSpend.left === shakeSpend.expect,
+    'встряска мгновенная и списала заряд (ур.' + shakeSpend.lv + ': ' +
+    (shakeSpend.expect + 1) + ' -> ' + shakeSpend.left + ')');
+  // ФЛЭТ 3 НА ЛЮБОМ УРОВНЕ (окончательное решение владельца 2026-07-27-в:
+  // «8 бесплатных много, мы же продаём их за рекламу»). Лесенка 3+⌊ур/10⌋ была
+  // введена и тут же отменена — стережём именно ПОСТОЯНСТВО запаса.
+  const shakeFlat = await page.evaluate(() => {
+    const g = window.__game, was = g.levelNum(), out = [];
+    for (const lv of [1, 10, 20, 50]){
+      g.setLevel(lv); g.regen(); g.skipIntro();
+      out.push({ lv, n: g.level().shakes });
+    }
+    g.setLevel(was); g.regen(); g.skipIntro();
+    return out;
+  });
+  await page.waitForTimeout(400);
+  expect(shakeFlat.every(x => x.n === 3),
+    'бесплатных встрясок ВЕЗДЕ 3, лесенки нет (' +
+    shakeFlat.map(x => 'ур.' + x.lv + '→' + x.n).join(', ') + ')');
 
   // ТУПИК (пар нет достижимых + встрясок нет) -> ПОМОЛ-ВЫРУЧАЛКА, НЕ поражение
   // (решение владельца 2026-07-27 «помол = штраф, не смерть»): помол разбирает

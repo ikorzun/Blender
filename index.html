@@ -1082,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-148 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-150 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1435,6 +1435,15 @@ const LEVEL_TYPES_MIN = 9;                          // типов на 1-м ур
 // Hard 10. Помол-выручалка на Easy даёт 15 с подумать, на Hard 10 с. (Было
 // 30/10 до ÷3, затем 10/3.3; 3.3 на Hard оказалось слишком нервно.)
 const MIXER_IDLE_EASY = 15, MIXER_IDLE_HARD = 10;
+// БЕСПЛАТНЫЕ ВСТРЯСКИ — ФЛЭТ 3 НА ЛЮБОМ УРОВНЕ (окончательное решение
+// владельца 2026-07-27-в: «8 бесплатных много, мы же продаём их за рекламу;
+// пусть везде остаётся 3, а каждая следующая только за показ рекламы»).
+// ⚠️ ЛЕСЕНКА 3+⌊ур/10⌋ БЫЛА ВВЕДЕНА И ТУТ ЖЕ ОТМЕНЕНА (v149→v150): замер МЕТЫ
+// показывал недоснабжение с ~15 ур. (7-11 сухих эпизодов против 5), но
+// владелец закрывает разрыв НЕ бесплатным запасом, а рекламой — это его
+// монетизационное решение, не баланс-упущение. Дефицит намеренный.
+const SHAKES_BASE = 3;
+function freeShakesFor(){ return SHAKES_BASE; }
 // КОМБО-БУСТ радиуса (спека владельца 2026-07): группа 3+ одним тапом ИЛИ
 // вторая склейка в пределах цепочного окна -> радиус до COMBO_RADIUS на
 // COMBO_MS; каждый матч в лихорадке ПРОДЛЕВАЕТ окно (иначе фивер гаснет
@@ -3779,7 +3788,9 @@ function genLevel(){
   // за рекламу становились бы БЕСКОНЕЧНЫМИ. У встряски этой дыры нет — её
   // награда тратится внутри уровня, а заряд подсказки ПОЖИЗНЕННЫЙ (he).
   if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
-  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
+  // встряски РАСТУТ С УРОВНЕМ (freeShakesFor в 00-config): 3 + ⌊уровень/10⌋,
+  // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
+  level = { shakes: freeShakesFor(levelNum), adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -8780,6 +8791,7 @@ window.__game = {
   level(){ return level; },
   stats(){ return stats; },
   levelNum(){ return levelNum; },
+  freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок
   forceRefresh(){ refreshAccessibility(); },
