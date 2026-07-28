@@ -411,13 +411,17 @@ function penalize(worldPos, sx, sy){
   const before = stats.score;
   const charged = scorePenalty(MISS_PENALTY);
   const shown = scoreShownDelta(stats.score, before); // деноминир. падение чипа (#10)
-  // промах в лихорадке срезает COMBO_MISS_DROP=2 УСПЕШНЫХ ШАГА — и у
-  // радиус-лесенки, и у заряда цепи — но серию НЕ гасит (тюнинг владельца:
-  // «слишком резко сбрасываем power chain»); серию убивает только пауза
-  // без матчей > COMBO_MS
+  // ⚠️ ПРОМАХ ОБНУЛЯЕТ НАБОР ТУРБО (спека владельца 2026-07-27: «если при
+  // наборе турборежима игрок ошибается — счётчик режима сбрасывается»).
+  // ⚠️ ЭТО РАЗВОРОТ ЕГО ЖЕ ПРЕЖНЕГО ТЮНИНГА: раньше здесь стояло −2 шага
+  // вместо сброса, потому что он говорил «слишком резко сбрасываем power
+  // chain». Новая спека прямая и новее — берём её; РАДИУС-ЛЕСЕНКА (comboLevel)
+  // при этом по-прежнему теряет COMBO_MISS_DROP=2, а не обнуляется: владелец
+  // назвал «счётчик РЕЖИМА», это заряд цепи (comboCount), лесенка — отдельная
+  // механика, её он не трогал.
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
-    comboCount = Math.max(0, comboCount - COMBO_MISS_DROP);
+    comboCount = 0; // набор турбо — с нуля
     updateMatchRadius(); updateHUD();
   }
   if (charged && shown > 0){

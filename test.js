@@ -259,6 +259,36 @@ const path = require('path');
   const missL8 = await page.evaluate(() => window.__game.stats().score);
   expect(missL8 === -10, 'ур.8: полный штраф промаха −10 (' + missL8 + ')');
 
+  // ПРОМАХ ОБНУЛЯЕТ НАБОР ТУРБО (спека владельца 2026-07-27; РАЗВОРОТ его же
+  // прежнего тюнинга «слишком резко сбрасываем power chain», где было −2).
+  // Радиус-лесенка (combo.level) при этом теряет ровно COMBO_MISS_DROP=2, а не
+  // обнуляется — владелец назвал «счётчик РЕЖИМА», лесенку не трогал.
+  const turboReset = await page.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    for (let i = 0; i < 4; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 130)); }
+    const hot = g.combo();                       // серия набрана, лихорадка горит
+    g.tapEmpty ? g.tapEmpty() : null;            // промах, если есть ручка
+    return { hot };
+  });
+  {
+    // промах кликом в пустоту (та же дорога, что у ассертов штрафа выше)
+    const before = await page.evaluate(() => window.__game.combo());
+    await page.mouse.click(25, 540);
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => window.__game.combo());
+    if (before.hot && before.count > 0){
+      expect(after.count === 0,
+        'промах ОБНУЛЯЕТ набор турбо (' + before.count + ' -> ' + after.count + ')');
+      expect(after.level === Math.max(0, before.level - 2),
+        'радиус-лесенка теряет ровно 2 шага, а не обнуляется (' + before.level + ' -> ' + after.level + ')');
+    } else {
+      expect(after.count === 0, 'набор турбо не копится вне лихорадки (' + after.count + ')');
+    }
+    void turboReset;
+  }
+
   // #10 ДЕНОМИНАЦИЯ В ПРОЦЕССЕ (спека владельца 2026-07-27): всплывающие
   // поп-числа матча = деноминир. прирост чипа (÷10), «понятно и в процессе».
   const denomShownProbe = await page.evaluate(() => window.__game.scoreShownDenom(1234)

@@ -137,9 +137,11 @@ function penalizeRock(item){
   const before = stats.score;
   const charged = scorePenalty(2 * MISS_PENALTY);
   const shown = scoreShownDelta(stats.score, before); // положительная величина падения чипа (#10)
+  // тап по камню — тоже промах: набор турбо обнуляется (спека владельца
+  // 2026-07-27), радиус-лесенка теряет свои 2 шага. Симметрично registerMiss.
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
-    comboCount = Math.max(0, comboCount - COMBO_MISS_DROP);
+    comboCount = 0; // набор турбо — с нуля
     updateMatchRadius(); updateHUD();
   }
   if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
