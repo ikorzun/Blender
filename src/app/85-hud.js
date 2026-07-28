@@ -75,7 +75,11 @@ function captureLevelTypes(){
 // витрины; было 3 — спека владельца 2026-07-28). Источник — winLevelTypes
 // (captureLevelTypes); фолбэк — vitAll. Если типов уровня меньше — строк
 // столько, сколько есть (slice не добивает пустышками).
-const WIN_TOP_N = 5;
+// Строк на ДЕСКТОПЕ 5 (спека #124), на МОБАЙЛЕ 3 (макет 783:711, спека
+// владельца 2026-07-28). Брейкпоинт тот же 768, что у HUD и мобильной
+// раскладки экрана победы в shell.html — разводить нельзя.
+const WIN_TOP_N = 5, WIN_TOP_N_MOB = 3;
+function winTopN(){ return innerWidth < 768 ? WIN_TOP_N_MOB : WIN_TOP_N; }
 function renderWinTop(reduce){
   const host = $('winTopList'); if (!host) return;
   host.innerHTML = '';
@@ -83,7 +87,7 @@ function renderWinTop(reduce){
   if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
   keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
   const step = 0.09;
-  keys.slice(0, WIN_TOP_N).forEach((k, i)=>{
+  keys.slice(0, winTopN()).forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
     row.style.animationDelay = (reduce ? 0 : (1 + i * step)) + 's';
@@ -699,6 +703,35 @@ function fmtStars(n){
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return String(n);
 }
+// КОШЕЛЁК В ШАПКЕ МЕНЮ: ТОЧНОЕ ЧИСЛО, ЕСЛИ ВЛЕЗАЕТ ПО ГОРИЗОНТАЛИ (спека
+// владельца 2026-07-28: «1466, а не 1.5K, если помещается»). Пишем точное,
+// меряем ряд — если он переполнился ИЛИ Get More съехал на другую строку
+// (у .ms-collhead на десктопе flex-wrap), откатываемся в сокращение.
+// ⚠️ Порог не в знаках: ширина зависит от раскладки (мобильная пилюля против
+// десктопной шапки) и от длины имени — меряем ФАКТ, а не угадываем.
+// Кнопки Boost сокращение сохраняют (спека про кошелёк) — они зовут fmtStars.
+function setWalletNumber(el, n){
+  if (!el) return;
+  const exact = String(n | 0), short = fmtStars(n);
+  el.textContent = exact;
+  if (exact === short) return;                       // сокращать нечего
+  const row = el.closest('.ms-head'); if (!row) return;
+  let fits = row.scrollWidth <= row.clientWidth + 1; // ряд не переполнен
+  if (fits){
+    const gm = $('msGetMore');
+    if (gm){                                          // Get More на той же строке?
+      const a = el.getBoundingClientRect(), b = gm.getBoundingClientRect();
+      if (Math.abs(a.top - b.top) > Math.max(a.height, b.height) * 0.6) fits = false;
+    }
+    // ⚠️ И ИМЯ НЕ ДОЛЖНО ОБРЕЗАТЬСЯ: у .ms-uname overflow:hidden, поэтому
+    // флекс «впихивал» длинное число за счёт имени («Guest» → «Gu…»), а ряд
+    // при этом НЕ переполнялся и проверка выше молчала. Обрезка имени = число
+    // по горизонтали не поместилось.
+    const un = row.querySelector('.ms-uname');
+    if (fits && un && un.offsetParent !== null && un.scrollWidth > un.clientWidth + 1) fits = false;
+  }
+  if (!fits) el.textContent = short;
+}
 // сколько типов открыто прогрессией: 9 на ур.1, +1 за уровень, потолок пула
 // (типы открываются ПО ПОРЯДКУ массива TYPES — как в genLevel)
 function unlockedTypeCount(){
@@ -896,7 +929,7 @@ function refreshMainScreen(){
   // уровней живёт отдельно и не тратится — показывать её как валюту было бы
   // враньём (звёзды теперь тратимые: решение владельца «это валюта»)
   const st = $('msStars');
-  if (st) st.textContent = fmtStars(typeof starBalance === 'function' ? starBalance() : 0);
+  setWalletNumber(st, typeof starBalance === 'function' ? starBalance() : 0);
   // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
   if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';

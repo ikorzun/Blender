@@ -520,6 +520,23 @@
   .win-in .win-next { animation:winRise .4s ease-out .94s both; }
   .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
   .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
+  /* ===== МОБИЛЬНЫЙ ЭКРАН ЗАВЕРШЕНИЯ — макет 783:711 =====
+     Отличия от десктопа (778:732) ровно те, что назвал владелец: ПОРЯДОК
+     БЛОКОВ и число строк. В макете колонка идёт шапка → TOP ITEMS → кнопки
+     (на десктопе кнопки ВЫШЕ списка), поля по бокам 16, зазор блоков 32.
+     Кнопки: Next тянется (flex 1 0 0) и НИЖЕ — 72 вместо 84; плашка награды
+     НЕ фиксированной ширины, а по контенту (падинги 4/14/4/6), «+1» 34px.
+     Число строк — WIN_TOP_N по брейкпоинту в renderWinTop (мобайл 3).
+     ⚠️ Десктоп НЕ переизобретаем — правила живут только в этом медиазапросе. */
+  @media (max-width:767px){
+    .win-wrap { gap:32px; }
+    .win-head { margin-bottom:0; }
+    .win-top { order:2; }
+    .win-actions { order:3; margin-bottom:0; }
+    .win-reward { width:auto; padding:4px 14px 4px 6px; }
+    .win-reward-n { font-size:34px; width:auto; }
+    .win-next { height:72px; flex:1 0 0; min-width:0; }
+  }
   @media (prefers-reduced-motion: reduce){
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row { animation:none; }
@@ -559,7 +576,11 @@
   .ms-stars { display:flex; align-items:center; gap:6px; }
   .ms-stars svg { display:block; }
   .ms-stars span { font-size:26px; font-weight:900; color:#000; line-height:1; }
-  .ms-getmore { border:none; cursor:pointer; background:#000; color:#fff;
+  /* nowrap: без него длинное ТОЧНОЕ число кошелька (спека 2026-07-28) не
+     переполняло ряд, а ЛОМАЛО «Get More» на две строки — ряд формально
+     «влезал», фит-чек не срабатывал. Теперь не влезающее число даёт честное
+     переполнение, и setWalletNumber откатывается в сокращение. */
+  .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#000; color:#fff;
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
   /* баннер No more AD */
@@ -674,7 +695,11 @@
   .msc-cnt { font-size:10px; font-weight:700; color:rgba(58,64,104,.6); margin-top:-5px; }
   .msc-prog { width:100%; height:12px; background:rgba(255,255,255,.4);
     border-radius:40px; overflow:hidden; }
-  .msc-prog i { display:block; height:100%; background:rgba(44,47,98,.3); border-radius:40px; }
+  /* ЗАЛИВКА ВСЕГДА ЗЕЛЁНАЯ (спека владельца 2026-07-28 «полоска зелёная и в
+     спокойном состоянии, как на ховере»): была серо-синяя rgba(44,47,98,.3)
+     в покое и зелёная только у .sel/.boosted. Пустая полоска зелёной не
+     выглядит по построению — заливать нечего (width 0). */
+  .msc-prog i { display:block; height:100%; background:#9ce52e; border-radius:40px; }
   .msc.sel .msc-prog i { background:#9ce52e; }
   /* BOOST-ЦЕЛЕБРАЦИЯ (спека владельца): на успешную покупку полоска ЗЕЛЕНЕЕТ и
      анимированно доливается к текущей доле; под портретом бьют DOM-частицы
