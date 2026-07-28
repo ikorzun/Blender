@@ -46,13 +46,6 @@ function fresnelGhostMat(color, base, edge, fpow){
     ].join('\n'),
   });
 }
-// Поле совпадения: еле видная прозрачная сфера радиуса matchRadius.
-// Белая — матч состоялся, красная — промах.
-function sphereFX(pos, radius, color){
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 24), fresnelGhostMat(color, 0.05, 0.32));
-  mesh.position.copy(pos); mesh.renderOrder = 10;
-  addFX(mesh, 0.9, (o,k)=>{ o.material.uniforms.op.value = 1-k; });
-}
 function popFX(pos){
   const g = new THREE.SphereGeometry(0.2, 10, 8);
   const m = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.9 });
@@ -532,7 +525,7 @@ function wiggle(item){
 (function fxProgramAnchors(){
   const g = new THREE.Group();
   const tiny = new THREE.SphereGeometry(0.001, 4, 3);
-  [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // sphereFX
+  [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // (запас: вариант удалённой sphereFX; массив НЕ трогаем — прогрев шейдеров)
     fresnelGhostMat(0xffffff, 0.1, 0.5),        // markerFX
     fresnelGhostMat(0xffffff, 0.02, 0.16, 1.1), // reachGhostFX (ореол тапа/подсказки)
   ].forEach(m => { m.uniforms.op.value = 0; g.add(new THREE.Mesh(tiny, m)); });

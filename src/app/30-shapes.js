@@ -3,50 +3,8 @@
 // webgl_geometry_teapot (формы); webgl_batch_lod_bvh (пастельные цвета
 // в линейном HSL); webgl_loader_ldraw (финиш LEGO-пластика).
 
-function spiralGeo(){
-  const curve = new THREE.Curve();
-  curve.getPoint = function(t){
-    const turns = 2.2, a = 0.46, h = 1.5;
-    const th = t*Math.PI*2*turns;
-    return new THREE.Vector3(Math.cos(th)*a, (t-0.5)*h, Math.sin(th)*a);
-  };
-  return new THREE.TubeGeometry(curve, 64, 0.17, 8, false);
-}
-function starGeo(){
-  const shape = new THREE.Shape();
-  for (let i=0;i<10;i++){
-    const rad = (i%2 === 0) ? 0.95 : 0.42;
-    const a = i/10*Math.PI*2 - Math.PI/2;
-    const x = Math.cos(a)*rad, y = Math.sin(a)*rad;
-    if (i === 0) shape.moveTo(x,y); else shape.lineTo(x,y);
-  }
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, { depth:0.38, bevelEnabled:true, bevelThickness:0.08, bevelSize:0.08, bevelSegments:2, curveSegments:6 });
-  g.center();
-  return g;
-}
-function heartGeo(){ // контур из webgl_geometry_shapes
-  const s = new THREE.Shape();
-  s.moveTo(0.25, 0.25);
-  s.bezierCurveTo(0.25, 0.25, 0.20, 0, 0, 0);
-  s.bezierCurveTo(-0.30, 0, -0.30, 0.35, -0.30, 0.35);
-  s.bezierCurveTo(-0.30, 0.55, -0.15, 0.77, 0.25, 0.95);
-  s.bezierCurveTo(0.60, 0.77, 0.80, 0.55, 0.80, 0.35);
-  s.bezierCurveTo(0.80, 0.35, 0.80, 0, 0.50, 0);
-  s.bezierCurveTo(0.35, 0, 0.25, 0.25, 0.25, 0.25);
-  const g = new THREE.ExtrudeGeometry(s, { depth:0.35, bevelEnabled:true, bevelThickness:0.07, bevelSize:0.07, bevelSegments:2, curveSegments:8 });
-  g.center();
-  g.rotateZ(Math.PI); // остриём вниз
-  g.scale(1.35, 1.35, 1.35);
-  return g;
-}
 // Простые новые формы (спека владельца 2026-07-20): все ВЫПУКЛЫЕ — физика
 // и сэмплы доступности работают через convex hull без ручных компаундов
-function eggGeo(){
-  const g = new THREE.SphereGeometry(0.72, 16, 12);
-  g.scale(1, 1.32, 1); // яйцо: вытянутая сфера
-  return g;
-}
 function gemGeo(){ // кристалл: две 8-гранные пирамиды основаниями друг к другу
   const up = new THREE.ConeGeometry(0.7, 0.8, 8);
   const down = new THREE.ConeGeometry(0.7, 0.8, 8);
