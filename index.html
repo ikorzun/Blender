@@ -885,7 +885,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-125 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-126 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -1299,7 +1299,7 @@ const BURST_MIN_N = 4, BURST_WAVE_R = 2.4, BURST_WAVE_V = 0.9;
 // Очков не даёт и не отнимает (инструмент расчистки); сюрприз и другие
 // бомбы не задевает; миксер-наказание бомбу НЕ ест (как сюрприз),
 // финальная зачистка — доедает; чётность пар взрыв рвёт — сироты легальны.
-const BOMB_RADIUS = 2.86, BOMB_MAX = 7, BOMB_WAVE_V = 2.2; // радиус +30% (2.2→2.86, спека владельца 2026-07-27); кап BOMB_MAX=7 не тронут — при желании «сильнее» поднять и его
+const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 2.2; // зона ×2 (2.86→5.72, спека владельца 2026-07-27-б; история: 2.2→+30%→×2); кап BOMB_MAX=7 держит баланс («не более 5-7») — реально решает он, радиус теперь накрывает почти всё дно
 
 // НЕСОВМЕЩАЕМЫЕ КАМНИ (спека владельца 2026-07-22, «запускай физику»):
 // rocks-a / rocks-sand-c из «3d assets/Pirate» (модуль 37-rocks, ВНЕ
