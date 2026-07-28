@@ -725,12 +725,34 @@ window.__game = {
     for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
   // статический портрет как data-URL (проба/сьют): ghost=true -> гхост-режим
   thumbURL(key, ghost){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it) : null; },
+  // РЕГРЕССИЯ #3 (спека владельца 2026-07-24 «размер при hover = размер статики»):
+  // статика (itemThumb) и спин ДОЛЖНЫ кадрировать ОДНИМ frameCylinder — иначе
+  // на hover подмена img->канвас шринкает объект. Хук фреймит обе камеры ПРЯМО
+  // (мимо кэша itemThumb) на одном меше и сверяет ширины ортокамер бит-в-бит.
+  // Сьют ассертит equal===true; если кто-то ужмёт itemThumb обратно по силуэту —
+  // ассерт покраснеет. Лёгкий (без рендера/readback).
+  thumbFrames(key){
+    const it = thumbItemForKey(key); if (!it) return null;
+    if (!thumbR) itemThumb(it); // поднять thumbCam/thumbR
+    ensureSpinR();
+    thumbCam.updateMatrixWorld(true);
+    const m1 = new THREE.Mesh(it.mesh.geometry, it.mesh.material); m1.scale.copy(it.mesh.scale);
+    frameCylinder(thumbCam, m1);
+    const m2 = new THREE.Mesh(it.mesh.geometry, it.mesh.material); m2.scale.copy(it.mesh.scale);
+    frameCylinder(spinCam, m2);
+    const tW = thumbCam.right - thumbCam.left, sW = spinCam.right - spinCam.left;
+    return { thumbW: +tW.toFixed(4), spinW: +sW.toFixed(4), equal: Math.abs(tW - sW) < 1e-4 };
+  },
   // ДЕБАГ ГРАФИКИ (вращение портрета, 2026-07-24): мост к thumb-машинерии
   // 85-hud. thumbSpinKey резолвит ключ->портрет-меш и монтирует спин в host
   // (item через границу page.evaluate не передать). buildAllThumbs — перф
   // варианта B: время построения портретов всех открытых типов.
   thumbSpinKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; if (it && host) thumbSpinStart(it, host); return !!(it && host); },
-  thumbSpinStop, thumbItemForKey,
+  // TAP=HOVER (#4): тап-обработчик интерфейса. Резолв ключ->портрет + host по
+  // селектору, дальше toggle (см. thumbSpinToggle в 85-hud). Возвращает,
+  // крутится ли карточка после вызова.
+  thumbSpinToggleKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; return (it && host) ? thumbSpinToggle(it, host) : false; },
+  thumbSpinStop, thumbSpinToggle, thumbItemForKey,
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
     mounted: !!(spinR && spinR.domElement.parentNode),
     // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
@@ -809,6 +831,11 @@ window.__game = {
   rockIndex(){ return items.findIndex(i => i.alive && i.rock); },
   // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
+  // РЕГРЕССИЯ #2 (спека владельца 2026-07-23 «переливающаяся бомба»): материал
+  // бомбы — радужный MeshMatcapMaterial (bombMatcap), НЕ плоский MeshBasicMaterial.
+  // Сьют ассертит type==='MeshMatcapMaterial' && hasMatcap.
+  bombMatKind(){ const b = items.find(i => i.alive && i.bomb); if (!b) return null;
+    const m = b.mesh.material; return { type: m.type, hasMatcap: !!m.matcap }; },
   detonate(){
     const b = items.find(i => i.alive && i.bomb && !i.animating);
     if (!b) return false;

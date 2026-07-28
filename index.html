@@ -831,7 +831,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-120 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-121 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -3170,11 +3170,60 @@ function makeSurprise(){
 // тап по доступной — взрыв ближайших соседей (detonateBomb в 80-gameplay;
 // поведение — зона ФИЗИКИ по правилу 9, здесь только фабрика). Тело — живая
 // ветка 'ball' в 50-physics (как сюрприз ходит через 'surprisehull').
+// ПЕРЕЛИВАЮЩАЯСЯ БОМБА (спека владельца 2026-07-23 «сделай переливающейся»).
+// three r149 не умеет MeshPhysicalMaterial.iridescence (r150+, а UMD-сборку
+// выше r160 не поднять) — печём СОБСТВЕННЫЙ радужный matcap и вешаем плоский
+// MeshMatcapMaterial. Matcap = лукап по нормали В ПРОСТРАНСТВЕ КАМЕРЫ: пока шар
+// катается/крутится в чаше, нормали скользят по текстуре и радужные полосы
+// «переливаются» сами, без света и без onBeforeCompile-патча. Тёмная жемчужная
+// сердцевина + тонкоплёночная радуга к кромке + узкая искра. Своя текстура
+// (не makeMatcap — тот печёт СЕРУЮ шкалу «яркость+спек-в-альфе», а тут нужен
+// ЦВЕТ прямо в текселях); кэш один на все бомбы.
+let _bombMatcap = null;
+function bombMatcap(){
+  if (_bombMatcap) return _bombMatcap;
+  const S = 128, data = new Uint8Array(S * S * 4);
+  // ключевой свет — тот же верх-слева-спереди, что у matcap (10-stage), чтобы
+  // искра бомбы легла согласованно с бликами остальной кучи
+  const Lx = -0.36, Ly = 0.60, Lz = 0.72, hl = Math.hypot(Lx, Ly, Lz + 1);
+  const Hx = Lx / hl, Hy = Ly / hl, Hz = (Lz + 1) / hl;
+  const col = new THREE.Color();
+  for (let y = 0; y < S; y++){
+    for (let x = 0; x < S; x++){
+      let nx = (x + 0.5) / S * 2 - 1, ny = 1 - (y + 0.5) / S * 2;
+      const r2 = nx * nx + ny * ny;
+      if (r2 > 1){ const k = 1 / Math.sqrt(r2); nx *= k; ny *= k; }
+      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, r2)));
+      const f = 1 - nz;                          // френель: 0 в центре, 1 к кромке
+      const ang = Math.atan2(ny, nx);            // угол вокруг диска
+      // тонкоплёночный hue бежит и по радиусу, и по углу — двойной градиент
+      // даёт «масляные разводы», а не ровные кольца
+      let hue = (f * 2.15 + ang / (Math.PI * 2) + 0.03) % 1; if (hue < 0) hue += 1;
+      col.setHSL(hue, 0.9, 0.53);               // сочная полоса цвета (sRGB, текстура помечена sRGB)
+      // конверт яркости: тёмная сердцевина, перелив крепнет к силуэту
+      const band = 0.16 + 0.84 * Math.pow(f, 1.35);
+      const base = 0.04;                         // почти-чёрная жемчужная база
+      const sp = Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), 70) * 0.7; // узкая резкая искра
+      const i = (y * S + x) * 4;
+      data[i]     = Math.min(255, (base + col.r * band * 0.85 + sp) * 255) | 0;
+      data[i + 1] = Math.min(255, (base + col.g * band * 0.85 + sp) * 255) | 0;
+      data[i + 2] = Math.min(255, (base + col.b * band * 0.92 + sp) * 255) | 0;
+      data[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+  tex.encoding = THREE.sRGBEncoding;
+  tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
+  tex.needsUpdate = true;
+  _bombMatcap = tex;
+  return tex;
+}
 function makeBomb(){
   if (!geoCache.has('B')) geoCache.set('B', new THREE.SphereGeometry(0.95, 28, 20));
-  // плоский чёрный: matcap-пайплайн не нужен, силуэт бомбы читается
-  // заливкой; блик/фитиль — полировка ГРАФИКИ по вкусу
-  const mat = new THREE.MeshBasicMaterial({ color: 0x181a20 });
+  // переливающийся: радужный matcap (bombMatcap), лукап по нормали в
+  // пространстве камеры — при качении шара разводы «плывут». Плоский
+  // MeshMatcapMaterial (без нашего spec-патча): свет не нужен, всё в текстуре.
+  const mat = new THREE.MeshMatcapMaterial({ matcap: bombMatcap() });
   const mesh = new THREE.Mesh(geoCache.get('B'), mat);
   mesh.scale.setScalar(1.0 * MESH_SCALE); // «средний размер»: охват 0.95·MESH_SCALE
   const item = {
@@ -6248,7 +6297,7 @@ const thumbCache = {};
 // КВАДРАТНЫЙ: у потребителей img 100%/100% без object-fit, неквадрат
 // сплющит портрет. MARGIN 4% — меньше нельзя: у боксов радиус 10-12,
 // углы круглых моделей срезало бы.
-const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
+const THUMB_PX = 256, THUMB_MARGIN = 0.04, THUMB_Y = 100; // 256 (было 132): резче на карточке коллекции (спека владельца «качество»)
 // ПОЗА ПОРТРЕТА — ЕДИНЫЙ ИСТОЧНИК для статики (itemThumb) И спина (thumbSpin):
 // интерфейс на hover прячет статичный img и показывает канвас, спин стартует
 // с этого же угла — подмена бесшовна. Если статика и спин разойдутся — скачок
@@ -6259,7 +6308,6 @@ const THUMB_PX = 132, THUMB_MARGIN = 0.04, THUMB_Y = 100;
 // угол»); yaw=−0.6 даёт 3/4: у машин перёд вправо-вверх, у зверей видна морда.
 // Подобрано скрином на police/bee/banana (все три читаются геройски).
 let PORTRAIT_TILT_X = -0.15, PORTRAIT_YAW0 = -0.6;
-const _thv = new THREE.Vector3(), _thm = new THREE.Matrix4();
 // ПОРТРЕТ-МЕШ ПО КЛЮЧУ ТИПА (type.name) — вариант B спеки владельца 2026-07-24:
 // даёт модель тем ОТКРЫТЫМ типам, которых НЕТ в текущей партии (иначе была
 // буква-заглушка). Меш строится БЕЗ тела Rapier (портрету физика не нужна) и
@@ -6333,24 +6381,13 @@ function itemThumb(item){
     thumbScene.add(m);
     m.updateMatrixWorld(true);
     thumbCam.updateMatrixWorld(true);
-    // КАДР ПО СИЛУЭТУ: bbox проекций ВЕРШИН = bbox силуэта (проекция
-    // выпуклой оболочки = оболочка проекций). Прежний код нормировал по
-    // ОПИСАННОЙ СФЕРЕ вокруг УЖЕ ПОВЁРНУТОГО AABB — двойная переоценка,
-    // силуэт занимал ~55% кадра, вокруг воздух.
-    _thm.multiplyMatrices(thumbCam.matrixWorldInverse, m.matrixWorld);
-    const pos = m.geometry.attributes.position;
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (let i = 0; i < pos.count; i++){
-      _thv.fromBufferAttribute(pos, i).applyMatrix4(_thm);
-      if (_thv.x < x0) x0 = _thv.x; if (_thv.x > x1) x1 = _thv.x;
-      if (_thv.y < y0) y0 = _thv.y; if (_thv.y > y1) y1 = _thv.y;
-    }
-    // ОДНА полурамка на обе оси — пропорции целы, вытянутое не растянется
-    const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
-    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    thumbCam.left = cx - half; thumbCam.right = cx + half;
-    thumbCam.top = cy + half;  thumbCam.bottom = cy - half;
-    thumbCam.updateProjectionMatrix();
+    // ⚠️ КАДР ПО ОХВАТНОМУ ЦИЛИНДРУ (общий frameCylinder), НЕ по силуэту при
+    // одном угле. Причина (спека владельца 2026-07-27 «размер при hover не
+    // должен меняться»): спин обязан кадрировать по цилиндру (иначе «дышит»
+    // при вращении), а статика по силуэту давала БОЛЬШУЮ модель → на hover
+    // подмена img→канвас ШРИНКАЛА объект. Единая цилиндр-рамка = статика РОВНО
+    // равна спину. Y-инвариантна: yaw не влияет, поэтому одна на любой ракурс.
+    frameCylinder(thumbCam, m);
     // ⚠️ ВУАЛЬ НЕДОСТУПНОСТИ красит material.color лерпом к серому
     // (tickVeil, 60-access): снимок в этот момент лёг бы в кэш СЕРЫМ
     // НАВСЕГДА. На время рендера возвращаем исходный цвет типа.
@@ -6389,7 +6426,7 @@ function itemThumb(item){
 // НОЛЬ стоимости (rAF отменён, канвас снят). КОНТРАКТ С ИНТЕРФЕЙСОМ:
 // thumbSpinStart(item, hostEl) / thumbSpinStop() — интерфейс вешает на
 // mouseenter/leave карточки, статический <img> остаётся кадром покоя.
-const SPIN_PX = 176;       // квадрат буфера; CSS растянет по ячейке
+const SPIN_PX = 256;       // квадрат буфера = THUMB_PX (качество, спека владельца)
 const SPIN_SPEED = 0.9;    // рад/с — «медленно» (оборот ~7 с)
 // SPIN_TILT_X/SPIN_YAW0 — АЛИАСЫ на общий PORTRAIT_* (нельзя развести со статикой)
 
@@ -6421,7 +6458,7 @@ function ensureSpinR(){
 // Y-поворотом не меняется ПО ПОСТРОЕНИЮ (three Euler XYZ: R=Rx·Ry, а Ry не
 // трогает Y-симметричный цилиндр). Значит модель НЕ клипается и не «дышит»
 // зумом. Считается ОДИН раз на старте hover.
-function frameSpinCylinder(mesh){
+function frameCylinder(cam, mesh){
   const pos = mesh.geometry.attributes.position, s = mesh.scale.x;
   let R = 0, yMin = Infinity, yMax = -Infinity;
   for (let i = 0; i < pos.count; i++){
@@ -6431,7 +6468,7 @@ function frameSpinCylinder(mesh){
   }
   R *= s; yMin *= s; yMax *= s;
   _spm.makeRotationX(PORTRAIT_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
-  const view = spinCam.matrixWorldInverse;
+  const view = cam.matrixWorldInverse;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const yy of [yMin, (yMin + yMax) / 2, yMax]){
     for (let a = 0; a < 24; a++){
@@ -6443,9 +6480,9 @@ function frameSpinCylinder(mesh){
   }
   const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  spinCam.left = cx - half; spinCam.right = cx + half;
-  spinCam.top = cy + half;  spinCam.bottom = cy - half;
-  spinCam.updateProjectionMatrix();
+  cam.left = cx - half; cam.right = cx + half;
+  cam.top = cy + half;  cam.bottom = cy - half;
+  cam.updateProjectionMatrix();
 }
 function thumbSpinStop(){
   if (spinRAF){ cancelAnimationFrame(spinRAF); spinRAF = 0; }
@@ -6465,9 +6502,20 @@ function thumbSpinStart(item, host){
   spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
   spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
   spinScene.add(spinMesh);
-  frameSpinCylinder(spinMesh);
+  frameCylinder(spinCam, spinMesh);
   host.appendChild(spinR.domElement);
   spinRAF = requestAnimationFrame(spinTick);
+}
+// TAP = HOVER (спека владельца 2026-07-24 «один компонент, ховер = тап»): на
+// мобиле нет mouseleave, поэтому ИНТЕРФЕЙС вешает НА ТАП карточки ОДИН
+// обработчик thumbSpinToggle — тап по неактивной карточке заводит спин (сам
+// снимет спин с прежней — канвас общий), повторный тап по ТОЙ ЖЕ карточке
+// останавливает. Ховер (десктоп) как был: start на enter / stop на leave.
+// Возвращает true, если после вызова карточка крутится. Размер при этом РОВНО
+// как у статики (единый frameCylinder, см. #3) — тап не «дёргает» масштаб.
+function thumbSpinToggle(item, host){
+  if (spinItem === item && spinR && spinR.domElement.parentNode === host){ thumbSpinStop(); return false; }
+  thumbSpinStart(item, host); return true;
 }
 function spinTick(now){
   if (!spinItem || !spinMesh){ spinRAF = 0; return; }
@@ -7992,12 +8040,34 @@ window.__game = {
     for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
   // статический портрет как data-URL (проба/сьют): ghost=true -> гхост-режим
   thumbURL(key, ghost){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it) : null; },
+  // РЕГРЕССИЯ #3 (спека владельца 2026-07-24 «размер при hover = размер статики»):
+  // статика (itemThumb) и спин ДОЛЖНЫ кадрировать ОДНИМ frameCylinder — иначе
+  // на hover подмена img->канвас шринкает объект. Хук фреймит обе камеры ПРЯМО
+  // (мимо кэша itemThumb) на одном меше и сверяет ширины ортокамер бит-в-бит.
+  // Сьют ассертит equal===true; если кто-то ужмёт itemThumb обратно по силуэту —
+  // ассерт покраснеет. Лёгкий (без рендера/readback).
+  thumbFrames(key){
+    const it = thumbItemForKey(key); if (!it) return null;
+    if (!thumbR) itemThumb(it); // поднять thumbCam/thumbR
+    ensureSpinR();
+    thumbCam.updateMatrixWorld(true);
+    const m1 = new THREE.Mesh(it.mesh.geometry, it.mesh.material); m1.scale.copy(it.mesh.scale);
+    frameCylinder(thumbCam, m1);
+    const m2 = new THREE.Mesh(it.mesh.geometry, it.mesh.material); m2.scale.copy(it.mesh.scale);
+    frameCylinder(spinCam, m2);
+    const tW = thumbCam.right - thumbCam.left, sW = spinCam.right - spinCam.left;
+    return { thumbW: +tW.toFixed(4), spinW: +sW.toFixed(4), equal: Math.abs(tW - sW) < 1e-4 };
+  },
   // ДЕБАГ ГРАФИКИ (вращение портрета, 2026-07-24): мост к thumb-машинерии
   // 85-hud. thumbSpinKey резолвит ключ->портрет-меш и монтирует спин в host
   // (item через границу page.evaluate не передать). buildAllThumbs — перф
   // варианта B: время построения портретов всех открытых типов.
   thumbSpinKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; if (it && host) thumbSpinStart(it, host); return !!(it && host); },
-  thumbSpinStop, thumbItemForKey,
+  // TAP=HOVER (#4): тап-обработчик интерфейса. Резолв ключ->портрет + host по
+  // селектору, дальше toggle (см. thumbSpinToggle в 85-hud). Возвращает,
+  // крутится ли карточка после вызова.
+  thumbSpinToggleKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; return (it && host) ? thumbSpinToggle(it, host) : false; },
+  thumbSpinStop, thumbSpinToggle, thumbItemForKey,
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
     mounted: !!(spinR && spinR.domElement.parentNode),
     // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
@@ -8076,6 +8146,11 @@ window.__game = {
   rockIndex(){ return items.findIndex(i => i.alive && i.rock); },
   // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
+  // РЕГРЕССИЯ #2 (спека владельца 2026-07-23 «переливающаяся бомба»): материал
+  // бомбы — радужный MeshMatcapMaterial (bombMatcap), НЕ плоский MeshBasicMaterial.
+  // Сьют ассертит type==='MeshMatcapMaterial' && hasMatcap.
+  bombMatKind(){ const b = items.find(i => i.alive && i.bomb); if (!b) return null;
+    const m = b.mesh.material; return { type: m.type, hasMatcap: !!m.matcap }; },
   detonate(){
     const b = items.find(i => i.alive && i.bomb && !i.animating);
     if (!b) return false;

@@ -60,6 +60,11 @@ const path = require('path');
   const b0 = await page.evaluate(() => ({ alive: window.__game.alive(),
     score: window.__game.stats().score, idx: window.__game.bombIndex() }));
   expect(b0.idx >= 0, 'бомба заспавнена в кучу (index ' + b0.idx + ')');
+  // #2 ПЕРЕЛИВАЮЩАЯСЯ БОМБА (спека владельца 2026-07-23): материал — радужный
+  // matcap, НЕ плоский MeshBasicMaterial (проверяем на живой бомбе до детонации)
+  const bombMat = await page.evaluate(() => window.__game.bombMatKind());
+  expect(bombMat && bombMat.type === 'MeshMatcapMaterial' && bombMat.hasMatcap,
+    'бомба переливается: MeshMatcapMaterial с matcap (' + JSON.stringify(bombMat) + ')');
   const det = await page.evaluate(() => window.__game.detonate());
   await page.waitForTimeout(450);
   const b1 = await page.evaluate(() => ({ alive: window.__game.alive(),
@@ -69,6 +74,28 @@ const path = require('path');
   const bombKilled = b0.alive - b1.alive - 1;
   expect(bombKilled >= 1 && bombKilled <= 7, 'взрыв снял 1..7 соседей (' + bombKilled + ')');
   expect(b1.score === b0.score, 'взрыв без очков (' + b0.score + ' -> ' + b1.score + ')');
+
+  // ПОРТРЕТЫ КОЛЛЕКЦИИ (спека владельца 2026-07-24): #3 размер при hover/спине =
+  // размер статики; #4 tap=hover одним toggle. thumbFrames не рендерит (только
+  // фрустумы) — работает и до декода атласов.
+  const key0 = await page.evaluate(() => window.__game.accSnapshot()[0].key); // .key = TYPES.name
+  const frm = await page.evaluate((k) => window.__game.thumbFrames(k), key0);
+  expect(frm && frm.equal, '#3 статика и спин кадрируют одинаково (thumbW ' + (frm && frm.thumbW)
+    + ' = spinW ' + (frm && frm.spinW) + ')');
+  const tog = await page.evaluate((k) => {
+    let h = document.getElementById('tsHost');
+    if (!h){ h = document.createElement('div'); h.id = 'tsHost';
+      h.style.cssText = 'position:fixed;left:-999px;top:0;width:120px;height:120px'; document.body.appendChild(h); }
+    const on = window.__game.thumbSpinToggleKey(k, '#tsHost');   // тап 1 -> завести
+    const a1 = window.__game.spinState().active;
+    const off = window.__game.thumbSpinToggleKey(k, '#tsHost');  // тап 2 по той же -> снять
+    const a2 = window.__game.spinState().active;
+    window.__game.thumbSpinStop();
+    return { on, a1, off, a2 };
+  }, key0);
+  expect(tog.on === true && tog.a1 === true, '#4 тап заводит спин (' + JSON.stringify(tog) + ')');
+  expect(tog.off === false && tog.a2 === false, '#4 повторный тап по той же карточке снимает спин (' + JSON.stringify(tog) + ')');
+
   // доиграть до конца автоматом (с встрясками при тупике); по пути ловим
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
