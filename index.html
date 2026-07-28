@@ -45,7 +45,8 @@
      fitStat (85-hud), иначе при коротких значениях между подписями
      вырастала дыра, а время уезжало под глаза (скрин владельца).
      Отступы pause↔LV↔время равны flex-гэпу автоматически. */
-  #plSvg { width:64px; height:27px; }
+  /* #plSvg (счётчик предметов) УДАЛЁН 2026-07-28 — спека владельца; на
+     десктопе его и не было (в макете отсутствует), жил только на мобайле. */
   #tmSvg { height:27px; } #scSvg { width:104px; height:27px; }
   #lvlSvg { height:27px; display:none; }
   /* ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): LV и время уезжают К ПАУЗЕ слева,
@@ -53,7 +54,6 @@
      в макете отсутствует. Перенос узла делает layoutHUD (90-input). */
   @media (min-width:768px){
     #topBar .grp { align-items:center; }
-    #plSvg { display:none; }
     #lvlSvg { display:block; height:42px; }
     #tmSvg { height:42px; }
     #scSvg { width:161px; height:42px; }
@@ -408,6 +408,15 @@
      обведённое — механизм .otext (векторный stroke); лайм/градиент — токены
      макета (#c0ff47, #ff70b5→#f2ff00). Резиновая центрированная колонка. */
   #winHolders[hidden] { display:none; }
+  /* 5 строк TOP ITEMS (+112px против трёх) на низких экранах (замер 360×640:
+     низ уезжал на 644 при вьюпорте 640) — даём прокрутку ТОЛЬКО экрану победы.
+     ⚠️ Общий .overlay не трогаем: на нём пауза/поражение/реклама.
+     ⚠️ align-items:flex-start + margin:auto — безопасное центрирование: при
+     нехватке места автомаржины схлопываются и ВЕРХ не срезается (у голого
+     align-items:center с overflow верх карточки уходит под край и не
+     доскроливается). */
+  #winOverlay { overflow-y:auto; align-items:flex-start; }
+  #winOverlay .win-wrap { margin:auto; }
   .win-wrap { display:flex; flex-direction:column; align-items:center;
     width:min(448px, calc(100vw - 32px)); font-family:var(--font-round); }
   /* --- ШАПКА-ШТАМП: Level N + CLEANED + время + большой счёт --- */
@@ -417,16 +426,18 @@
   .otext.win-level text { font-size:50px; stroke-width:9; }  /* чёрная заливка, белая обводка ~4.5 */
   /* CLEANED + время — ОДИН РЯД под Level (Figma: бейдж слева, время справа,
      на одной линии). Ряд центрирован, слегка наезжает на низ Level. */
-  .win-cleanrow { margin-top:-4px; display:flex; align-items:center; gap:2px; }
+  /* gap 2 → 12: обводка CLEANED ×3 вылезает за свой бокс (~6 юнитов на
+     сторону) и НАЕЗЖАЛА на время (замер: зазор −4px). 12 возвращает воздух. */
+  .win-cleanrow { margin-top:-4px; display:flex; align-items:center; gap:12px; }
   /* CLEANED = ОБВЕДЁННЫЙ ЛАЙМ-ТЕКСТ (Figma 778:732: лайм-заливка + белая
      обводка, БЕЗ пилюли — фон просвечивает сквозь буквы). Механизм .otext. */
   .win-cleaned { width:min(220px, 60vw); height:auto; transform:rotate(-10.6deg); z-index:2; }
-  .otext.win-cleaned text { font-size:44px; stroke-width:9; }
+  .otext.win-cleaned text { font-size:44px; stroke-width:27; }  /* обводка ×3 (спека владельца) */
   #winCleaned { fill:#c0ff47; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
   .otext.win-time text { font-size:26px; stroke-width:5; }  /* тоньше — мелкий кегль (пропорц. к Level) */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
-  .otext.win-score text { font-size:68px; stroke-width:9; }
+  .otext.win-score text { font-size:68px; stroke-width:18; }  /* обводка ×2 (спека владельца) */
   #winScore { fill:url(#gWinScore); }
   /* --- НАГРАДА (+1 подсказка) + NEXT --- */
   .win-actions { display:flex; gap:8px; align-items:center; width:100%; margin-bottom:26px; }
@@ -603,9 +614,20 @@
   .msc-img.letter { display:grid; place-items:center; font-size:34px; font-weight:900;
     color:#3a4068; background:rgba(255,255,255,.35); border-radius:16px; }
   .msc.lock .msc-img { filter:grayscale(1); opacity:.5; }
-  .msc-badge { position:absolute; right:0; bottom:0; min-width:35px; height:35px;
+  /* ⚠️ z-index ОБЯЗАТЕЛЕН (спека владельца 2026-07-28 «бейдж всегда поверх
+     модели»): спин-канвас ГРАФИКИ монтируется в .msc-imgwrap ПОЗЖЕ бейджа и
+     сам position:absolute — при равном z-index (auto) побеждает порядок в
+     DOM, и крутящаяся модель накрывала ×N. z-index:2 поднимает бейдж над
+     канвасом; статичный <img> (не позиционирован) был ниже и так. */
+  .msc-badge { position:absolute; right:0; bottom:0; min-width:35px; height:35px; z-index:2;
     box-sizing:border-box; background:#fff; border-radius:32px; padding:0 8px;
-    display:grid; place-items:center; font-size:16px; font-weight:800; color:#3a4068; }
+    display:grid; place-items:center; font-size:16px; font-weight:800; color:#3a4068;
+    transition:opacity .18s; }
+  /* при разглядывании крутящейся модели бейдж уходит в полупрозрачность и не
+     мешает (спека владельца). ХОВЕР — десктоп; .spinning — активный ТАП-спин
+     на таче (ховера нет, контракт «ховер = тап»). */
+  .msc:hover .msc-badge, .msc.spinning .msc-badge { opacity:.4; }
+  @media (prefers-reduced-motion: reduce){ .msc-badge { transition:none; } }
   .msc-name { font-size:14px; font-weight:800; color:#3a4068; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
   /* отступ имя↔строка количества/уровня ÷2 (спека владельца #6): карточка
@@ -702,6 +724,19 @@
        ГРИД-ЯЧЕЙКА (min-height:0 позволяет ужаться ниже контента), overflow-y
        доедает остаток. max-height НЕ нужен — bento-wrap уже ровно 100vh. */
     .ms-coll { grid-area:grid; padding:0 16px 8px; min-height:0; overflow-y:auto; }
+    /* ПРОЗРАЧНАЯ ШАПКА КОЛЛЕКЦИИ (спека владельца 2026-07-28 «подложку при
+       скроле сделать прозрачной»): раньше шапка была отдельным рядом грида,
+       а .ms-coll обрезал контент по своей рамке — карточки/Open рубились об
+       НЕПРОЗРАЧНУЮ полосу цвета страницы (она читалась как плотная подложка).
+       Теперь скролл-бокс растянут ВВЕРХ под шапку (margin-top −64) и на
+       столько же отодвинут padding-top: визуально контент стартует там же,
+       но при прокрутке уходит ПОД шапку и виден за ней (padding не обрезает).
+       Шапка своего фона не имеет, только поднята z-index над контентом.
+       ⚠️ НИЗ НЕ ДВИГАЕТСЯ: в гриде stretch подгоняет МАРЖИН-бокс, высота
+       растёт вверх — вьюпорт (bento ровно 100vh, overflow:hidden) не
+       переполняется. Сменится высота шапки — поменять оба числа вместе. */
+    .ms-collhead { position:relative; z-index:2; background:transparent; }
+    .ms-coll { margin-top:-64px; padding-top:64px; }
     /* ≥1080 БЕНТО: коллекция 4 колонки (спека владельца 2026-07-24). */
     .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
     /* колонка настроек 292 не вмещает 172-контрол рядом с «Difficult» (84px):
@@ -735,7 +770,6 @@
     <svg class="otext stat" id="lvlSvg" viewBox="0 0 88 27" width="88"><text id="lvlNum" x="1" y="21">LV 1</text></svg>
   </div>
   <div class="grp" id="statStack">
-    <svg class="otext stat" id="plSvg" viewBox="0 0 64 27"><text id="pairsLeft" x="62" y="21" text-anchor="end">141</text></svg>
     <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
     <svg class="otext stat" id="scSvg" viewBox="0 0 104 27">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
@@ -851,7 +885,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-124 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-125 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -6044,8 +6078,11 @@ function captureLevelTypes(){
   // залочил бы прошлые типы навсегда, уровень не перезахватился бы
   if (keys.length){ winLevelTypes = keys; winLevelRef = level; }
 }
-// TOP ITEMS: топ-3 типа уровня по прогрессу (та же метрика/портреты, что у
-// витрины). Источник — winLevelTypes (captureLevelTypes); фолбэк — vitAll.
+// TOP ITEMS: топ-5 типов уровня по прогрессу (та же метрика/портреты, что у
+// витрины; было 3 — спека владельца 2026-07-28). Источник — winLevelTypes
+// (captureLevelTypes); фолбэк — vitAll. Если типов уровня меньше — строк
+// столько, сколько есть (slice не добивает пустышками).
+const WIN_TOP_N = 5;
 function renderWinTop(reduce){
   const host = $('winTopList'); if (!host) return;
   host.innerHTML = '';
@@ -6053,7 +6090,7 @@ function renderWinTop(reduce){
   if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
   keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
   const step = 0.09;
-  keys.slice(0, 3).forEach((k, i)=>{
+  keys.slice(0, WIN_TOP_N).forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
     row.style.animationDelay = (reduce ? 0 : (1 + i * step)) + 's';
@@ -6271,9 +6308,10 @@ function updateHUD(){
   // (#tmSvg) остаётся СКРЫТЫМ, слот не репёрпоузим — ассерт «время скрыто» цел.
   $('lvlNum').textContent = 'LV ' + levelNum;
   fitStat('lvlNum');
-  // мобильный макет 741:1738: справа стек «предметов / время / очки».
-  // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
-  $('pairsLeft').textContent = items.filter(i=>i.alive).length;
+  // мобильный макет 741:1738: справа стек «уровень / очки». СЧЁТЧИК ПРЕДМЕТОВ
+  // УДАЛЁН (спека владельца 2026-07-28 «верхняя цифра вообще не нужна»): на
+  // десктопе его и так не было (макета нет), оставался только мобайл.
+  // Монет тоже нет (кошелёк — в меню), номер уровня — #lvlSvg (#11).
   // СПРАВА — ОЧКИ УРОВНЯ под иконкой звезды (спека владельца 2026-07-22-б:
   // «звезды справа это не звезды, а очки. Иконка звезды остается, но подсчет
   // очков идет так же от совмещения или ошибок»). Отменяет короткоживущую
@@ -6717,7 +6755,7 @@ function boostCelebrate(key){
 // его, но просвечивает) прячем/возвращаем МЫ — как ховер. msTapSpinCard держит,
 // у какой карточки img спрятан, чтобы вернуть его при переключении на другую.
 let msTapSpinCard = null;
-function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard = null; } }
+function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard.classList.remove('spinning'); msTapSpinCard = null; } }
 function msCardTapSpin(card){
   if (!card || card.classList.contains('lock')) return;
   const wrap = card.querySelector('.msc-imgwrap'); if (!wrap) return;
@@ -6728,6 +6766,7 @@ function msCardTapSpin(card){
   try { spinning = thumbSpinToggle(live || thumbItemForKey(key), wrap); } catch(e){ spinning = false; }
   const im = wrap.querySelector('img.msc-img');
   if (im) im.style.visibility = spinning ? 'hidden' : 'visible';
+  card.classList.toggle('spinning', spinning); // тач-аналог :hover для бейджа (40%)
   msTapSpinCard = spinning ? card : null;
 }
 function buildMainCollection(){
