@@ -259,13 +259,14 @@
        после анимации облёта ведра»): панель раскатывается снизу вверх по
        классу html.introdone (его вешает 99-main в finishIntro/skipIntro,
        снимает в startIntro — на регене панель сложится тем же ходом).
-       ⚠️ OPACITY НЕ ТРОГАТЬ: она занята ТРЕМЯ состояниями (база /
-       html.camnear / .vempty) с одинаковой специфичностью — четвёртое
-       правило решалось бы порядком в файле и убило бы камерный фейд.
+       ⚠️ OPACITY НЕ ТРОГАТЬ: она занята ДВУМЯ состояниями (база / .vempty)
+       с одинаковой специфичностью — лишнее правило решалось бы порядком
+       в файле и убило бы фейд. (Третье состояние html.camnear ОТМЕНЕНО
+       2026-07-27 — панель больше не прячется от камеры, только @media.)
        Разворот идёт ОТДЕЛЬНЫМИ свойствами, поэтому конфликта нет.
        ⚠️ И НЕ transform (никакой — ни scaleY, ни translateY) и не
-       max-height: всё это меняет rect панели, а её ЖИВОЙ rect читают
-       ДВОЕ — якорь всплывашки (85-hud) и критерий camnear (99-main).
+       max-height: всё это меняет rect панели, а её ЖИВОЙ rect читает
+       якорь всплывашки (85-hud).
        Микроподъём translateY тут был и УБРАН: он двигал rect на 12px
        ~620 мс, и ап ступени, пришедший в это окно, ставил всплывашку
        вплотную к панели (зазор 0 вместо 12). Разворот целиком на
@@ -282,8 +283,14 @@
   @media (prefers-reduced-motion: reduce){
     #vitrine { transition:opacity .2s; } /* разворот мгновенный */
   }
-  @media (min-width:1160px) and (pointer:fine){ #vitrine { display:block; } }
-  html.camnear #vitrine { opacity:0; } /* камера близко — не мешаем */
+  /* ПРАВИЛО 2/3 (спека владельца 2026-07-27): панель видна на десктопе И
+     планшетах, прячется ТОЛЬКО когда занимала бы больше 1/3 ширины экрана
+     (игровому полю остаётся меньше 2/3). Панель занимает полосу 271px
+     (left 8 + width 263, замер) → порог = 3×271 = 813px. pointer:fine СНЯТ —
+     планшеты (coarse) тоже видят панель. Скрытие по приближению камеры
+     (html.camnear) ОТМЕНЕНО той же спекой — при зуме панель стоит.
+     ⚠️ Сменится ширина панели (толще строки/шрифты) — перемерить порог. */
+  @media (min-width:813px){ #vitrine { display:block; } }
   #vitrine.vempty { opacity:0; }       /* все типы собраны — панель ушла */
   #vGrid { display:flex; flex-direction:column; gap:6px; } /* зазор строк /2 (спека владельца) */
   .vcell { display:flex; align-items:center; gap:8px; height:44px;
@@ -327,8 +334,8 @@
   /* РЕАКЦИЯ НА СОВМЕЩЕНИЕ (спека владельца «связь блока и объектов, что я
      совместил; интерактивно, но ненавязчиво»): при росте accCount слота
      vitUpdateCell вешает .hit — короткий подскок портрета + вспышка полоски.
-     ⚠️ Transform/filter на ДЕТЯХ ячейки: rect ПАНЕЛИ не меняется (его читают
-     camnear в 99-main и якорь всплывашки в 85-hud). */
+     ⚠️ Transform/filter на ДЕТЯХ ячейки: rect ПАНЕЛИ не меняется (его читает
+     якорь всплывашки в 85-hud). */
   .vcell.hit .vthumb { animation:vHit .42s ease; }
   .vcell.hit .vbar i { animation:vBarHit .42s ease; }
   @keyframes vHit { 0%,100%{ transform:scale(1); } 35%{ transform:scale(1.2); } }
@@ -844,7 +851,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-123 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-124 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adAskOverlay">
@@ -922,10 +929,10 @@
 
 <!-- ВИТРИНА УРОВНЯ (спека владельца 2026-07-22: «на больших мониторах
      мало жизни»): объекты уровня как в музее + реалтайм полоски накопления
-     до следующего множителя. ТОЛЬКО десктоп >=1160px и pointer:fine;
-     панель ИНФОРМАЦИОННАЯ — pointer-events:none целиком; исчезает при
-     приближении камеры (класс camnear на <html> вешает 99-main,
-     гистерезис 14.5/15.2). Временная стилистика до макета владельца. -->
+     до следующего множителя. Видимость — ПРАВИЛО 2/3 (спека 2026-07-27):
+     @media (min-width:813px), десктоп И планшеты; скрытие по приближению
+     камеры (camnear) отменено. Панель ИНФОРМАЦИОННАЯ —
+     pointer-events:none целиком. Временная стилистика до макета владельца. -->
 <div id="vitrine"><div id="vGrid"></div></div>
 
 <!-- МУЗЕЙ ОБЪЕКТОВ (каркас до макетов владельца — он принесёт их в чат

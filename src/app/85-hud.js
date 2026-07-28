@@ -604,12 +604,11 @@ function nextTierToast(){
   // при видимой витрине всплывашка ПОДНИМАЕТСЯ над её верхом — читается
   // как «выпрыгнула из карточки». Глушить тост не стали: он прямая спека
   // владельца («красивый эффект»), а витрина показывает ап лишь тихой
-  // полоской. При camnear-скрытой витрине и на мобайле — прежний угол.
+  // полоской. При скрытой витрине (узко/мобайл) — прежний угол.
   const vit = $('vitrine');
-  // панель считается видимой, только если она НЕ погашена ни одним из
-  // своих состояний: camnear (камера близко) и vempty (всё собрано)
+  // панель считается видимой, только если она НЕ погашена своим состоянием
+  // vempty (всё собрано). (camnear отменён 2026-07-27 — правило ширины.)
   const vitShown = vit && getComputedStyle(vit).display !== 'none' &&
-    !document.documentElement.classList.contains('camnear') &&
     !vit.classList.contains('vempty');
   if (vitShown){
     t.style.bottom = (innerHeight - vit.getBoundingClientRect().top + 12) + 'px';
@@ -971,13 +970,16 @@ window.hideMainScreen = closeMainScreen;
 // Ручной скролл невозможен (pointer-events:none). Реалтайм: пересчёт vitFrac
 // ВСЕХ типов раз в 150 мс (число, дёшево — не DOM).
 // ⚠️ РОВНО 5 СЛОТОВ ВСЕГДА (LEVEL_TYPES_MIN=9 ≥ 5) → высота #vGrid постоянна →
-// rect #vitrine бит-в-бит: его читают camnear-порог (99-main) и якорь тоста
+// rect #vitrine бит-в-бит: его читает якорь тоста
 // (85-hud). Смена типа в слоте — уезд/въезд ВНУТРИ слота (.out/.in на ДЕТЯХ
 // раскладки нет — на самой ячейке, но число ячеек не меняется), НЕ add/remove.
 const VIT_TICK_MS = 150, VIT_MAX = 5;
 let vitLevelRef = null, vitAt = 0, vitSlots = null, vitAll = null;
 function vitrineOn(){
-  return window.matchMedia && matchMedia('(min-width:1160px) and (pointer:fine)').matches;
+  // ПРАВИЛО 2/3 (спека владельца 2026-07-27): панель на десктопе И планшетах,
+  // прячется только когда заняла бы >1/3 ширины (порог 813 = 3×271px полосы,
+  // тот же @media в shell.html). pointer:fine снят — планшеты видят панель.
+  return window.matchMedia && matchMedia('(min-width:813px)').matches;
 }
 function vitFillCell(cell, entry){
   cell.dataset.key = entry.k;

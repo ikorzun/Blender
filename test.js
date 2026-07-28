@@ -734,19 +734,33 @@ const path = require('path');
   expect(adsMode === 'stub', 'ads mode на file:// — stub (' + adsMode + ')');
 
   if (errors.length) failures.push('runtime errors: ' + errors.join(' | '));
-  // КОНТРАКТ CAMNEAR v2 (спека владельца: «скрывать за 200px до вещей»):
-  // критерий — ЭКРАННЫЙ зазор панель↔куча (<200 скрыть, >240 показать).
-  // Вьюпорт сьюта мобильный → панели нет → vitrineGap null и класса нет;
-  // экранную геометрию проверяем постановкой камеры и чтением gap.
-  const camnearAt = async (r) => {
-    await page.evaluate(v => window.__game.setCamR(v), r);
-    await page.waitForTimeout(400); // ≥2 тика по 150мс
-    return page.evaluate(() => ({ cls: document.documentElement.classList.contains('camnear'),
-      gap: window.__game.vitrineGap() }));
-  };
-  const cnDef = await camnearAt(16.2);
-  expect(cnDef.gap === null && cnDef.cls === false,
-    'camnear v2: без панели (мобайл-вьюпорт) зазор null и класса нет (' + JSON.stringify(cnDef) + ')');
+  // ВИТРИНА: ПРАВИЛО 2/3 (спека владельца 2026-07-27, ОТМЕНЯЕТ camnear):
+  // панель видна на десктопе И планшетах (@media min-width:813 = 3×271px
+  // полосы, pointer:fine снят), прячется ТОЛЬКО по ширине; приближение
+  // камеры её больше НЕ гасит.
+  const vitDisp = () => page.evaluate(() =>
+    getComputedStyle(document.getElementById('vitrine')).display);
+  expect(await vitDisp() === 'none',
+    'витрина: мобайл-вьюпорт (390 < 813) — панели нет');
+  await page.setViewportSize({ width: 1024, height: 768 }); // планшет-ландшафт
+  await page.waitForTimeout(500); // тик витрины 150мс — дать построиться
+  expect(await vitDisp() === 'block',
+    'витрина: планшет 1024 ≥ 813 — панель ВИДНА (pointer:fine снят)');
+  const vitZoom = await (async () => {
+    await page.evaluate(() => window.__game.setCamR(9)); // максимальный зум
+    await page.waitForTimeout(400);
+    return { disp: await vitDisp(),
+      cls: await page.evaluate(() => document.documentElement.classList.contains('camnear')) };
+  })();
+  expect(vitZoom.disp === 'block' && vitZoom.cls === false,
+    'витрина: при СИЛЬНОМ зуме панель СТОИТ (camnear отменён) (' + JSON.stringify(vitZoom) + ')');
+  await page.setViewportSize({ width: 800, height: 768 }); // уже порога 813
+  await page.waitForTimeout(250);
+  expect(await vitDisp() === 'none',
+    'витрина: 800 < 813 (панель заняла бы >1/3) — скрыта');
+  await page.setViewportSize({ width: 390, height: 780 }); // вернуть сьюту мобайл
+  await page.evaluate(() => window.__game.setCamR(16.2));
+  await page.waitForTimeout(250);
   // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23): тихая пауза
   // без попапа + владение резюмом через boolean + внешний мьют, независимый
   // от тумблера игрока CFG.sound
