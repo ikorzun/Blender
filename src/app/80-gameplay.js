@@ -7,7 +7,12 @@
 // Механика миксера (съедание предметов) от уровня НЕ зависит — только очки.
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
-  stats.score -= n;
+  // ⚠️ БУСТЕР МНОЖИТ И НАКАЗАНИЕ (решение владельца 2026-07-28): под x5 промах
+  // −50, помол −100. Симметрия с наградой: плоские −10/−20 на фоне «+700»
+  // превращали карательную сторону в шум ровно в оплаченном окне.
+  // Кламп нулём применяется ПОСЛЕ умножения — новичок (ур.<=SCORE_CLAMP_LEVELS)
+  // под бустером не улетает в минус быстрее, чем без него.
+  stats.score -= Math.round(n * scoreBoostMult());
   if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
   return true;
 }
@@ -83,8 +88,10 @@ function doMatch(list){
   const typeName = list[0].type.name;
   accAdd(typeName, n, list[0]);
   // ⚠️ Купленный бустер — ПОСЛЕДНИЙ множитель стека (комбо ×2 × накопление до
-  // ×3.25 × бустер до ×5). Штрафы (промах/помол/камень) он НЕ трогает: за
-  // деньги усиливают награду, а не наказание.
+  // ×3.25 × бустер до ×5). ⚠️ ШТРАФЫ ОН ТОЖЕ МНОЖИТ (решение владельца
+  // 2026-07-28, единая точка scorePenalty выше) — прежняя оговорка «наказание
+  // не трогает» ОТМЕНЕНА: плоские −10/−20 на фоне «+700» делали карательную
+  // сторону шумом ровно в оплаченном окне.
   const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName) * scoreBoostMult());
   const scoreBefore = stats.score;
   stats.score += gained;
