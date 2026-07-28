@@ -295,14 +295,24 @@ function loop(){
       chainNextDrop = now + CHAIN_DROP_MS;
       chainRefill();
     }
-    // амбиентный треск: короткие дуги между верхними предметами
+    // амбиентный треск: короткие дуги между верхними предметами.
+    // ⚠️ ГУЩЕ (спека владельца 2026-07-28 «больше мелких молний»): тик чаще и
+    // за тик выпускается несколько КОРОТКИХ разрядов. Дорогая часть тика —
+    // filter+sort по всей куче, поэтому она делается ОДИН раз, а разряды берут
+    // пары из уже готового списка (участить сам тик втрое было бы втрое дороже).
     if (chainUntil && now >= chainNextBolt){
-      chainNextBolt = now + 200 + Math.random()*160;
+      chainNextBolt = now + BOLT_TICK_MS + Math.random()*BOLT_TICK_JIT;
       const topmost = items.filter(i => i.alive && !i.animating).sort((a,b) => b.p.y - a.p.y).slice(0, 24);
       if (topmost.length > 3){
-        const a0 = topmost[Math.floor(Math.random()*topmost.length)];
-        const b0 = topmost[Math.floor(Math.random()*topmost.length)];
-        if (a0 !== b0 && a0.p.distanceTo(b0.p) < 5.5) boltFX(a0.p, b0.p);
+        for (let n = 0; n < BOLT_PER_TICK; n++){
+          // до 3 попыток найти БЛИЗКУЮ пару: раньше неудачный жребий гасил
+          // весь тик и треск заикался
+          for (let att = 0; att < 3; att++){
+            const a0 = topmost[Math.floor(Math.random()*topmost.length)];
+            const b0 = topmost[Math.floor(Math.random()*topmost.length)];
+            if (a0 !== b0 && a0.p.distanceTo(b0.p) < BOLT_MAX_D){ boltFX(a0.p, b0.p); break; }
+          }
+        }
       }
     }
   }
@@ -766,6 +776,23 @@ window.__game = {
     for (const it of items) if (it.alive){ if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++; }
     return { hot: comboUntil > n, count: comboCount, level: comboLevel, chain: chainUntil > n, series: chainSeries, radius: +CFG.matchRadius.toFixed(2),
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
+  },
+  // ДЕБАГ ГРАФИКИ (густота молний, 2026-07-28): непрерывно сыпать разряды между
+  // верхними предметами ms миллисекунд. Нужен потому, что молния живёт 0.16 с —
+  // случайный скрин ловит её как повезёт, и «стало ли гуще» на глаз не проверить.
+  // Мост к boltFX (70-fx), поведение цепи/турбо не трогает. Как shardBurst у осколков.
+  boltProbe(ms){
+    const top = items.filter(i => i.alive && !i.animating).sort((a,b) => b.p.y - a.p.y).slice(0, 24);
+    if (top.length < 4) return 0;
+    const t = setInterval(() => {
+      for (let n = 0; n < BOLT_PER_TICK; n++)
+        for (let a = 0; a < 3; a++){
+          const x = top[Math.floor(Math.random()*top.length)], y = top[Math.floor(Math.random()*top.length)];
+          if (x !== y && x.p.distanceTo(y.p) < BOLT_MAX_D){ boltFX(x.p, y.p); break; }
+        }
+    }, 45);
+    setTimeout(() => clearInterval(t), ms || 1500);
+    return top.length;
   },
   psLog(){ return psLog.slice(); },
   // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)

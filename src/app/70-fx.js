@@ -15,7 +15,13 @@ function stepFX(dt){
       // якоря fxProgramAnchors (низ файла) — без них three пересобирал шейдер
       // на каждом первом тапе/молнии после простоя (джанк на слабых)
       if (f.obj.geometry) f.obj.geometry.dispose();
-      if (f.obj.material) f.obj.material.dispose();
+      // молнии отдают материал в free-list (boltMat) — в турбо их много, и
+      // пересоздавать одинаковые MeshBasicMaterial на каждый разряд незачем;
+      // ВСЕ остальные эффекты освобождают материал как раньше
+      if (f.obj.material){
+        if (f.obj.userData && f.obj.userData.poolBolt && boltMatPool.length < BOLT_POOL_MAX) boltMatPool.push(f.obj.material);
+        else f.obj.material.dispose();
+      }
       fx.splice(i,1); continue;
     }
     f.tick && f.tick(f.obj, k);
@@ -342,37 +348,116 @@ function shardFX(pos, color, opts){
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
 // насыщенный цвет (additive-свечение на белом невидимо).
-const _bN1 = new THREE.Vector3(), _bN2 = new THREE.Vector3(), _bDir = new THREE.Vector3();
-function boltFX(a, b){
-  _bDir.copy(b).sub(a);
-  const len = _bDir.length();
-  if (len < 0.2) return;
-  _bN1.crossVectors(_bDir, new THREE.Vector3(0,1,0));
-  if (_bN1.lengthSq() < 1e-4) _bN1.set(1,0,0); else _bN1.normalize();
-  _bN2.crossVectors(_bDir, _bN1).normalize();
-  const SEG = 9, pts = [];
-  for (let i=0;i<=SEG;i++){
-    const t = i/SEG;
-    const p = a.clone().lerp(b, t);
-    if (i>0 && i<SEG){
-      const amp = len*0.13*Math.sin(Math.PI*t);
-      p.addScaledVector(_bN1, (Math.random()-0.5)*2*amp).addScaledVector(_bN2, (Math.random()-0.5)*2*amp);
+//
+// ⚠️ «БОЛЬШЕ МЕЛКИХ МОЛНИЙ» (спека владельца 2026-07-28): разряд теперь не
+// одна дуга, а дуга + BOLT_FORKS коротких ОТВЕТВЛЕНИЙ, и всё ТОНЬШЕ прежнего —
+// куча выглядит наэлектризованной, а не прошитой двумя толстыми жилами.
+// ⚠️ ЦЕНА ДЕРЖИТСЯ ПОСТОЯННОЙ: все филаменты слоя сливаются в ОДНУ геометрию,
+// поэтому на разряд по-прежнему РОВНО 2 объекта / 2 материала / 2 draw call —
+// столько же, сколько было у одиночной дуги. Наивный путь «звать boltFX в 6
+// раз чаще» дал бы ×6 объектов и мешей в кадре.
+const BOLT_SEG = 9;          // узлов основной дуги
+const BOLT_FORKS = 5;        // ответвлений на разряд
+const BOLT_LIFE = 0.16;
+// ⚠️ Общих временных векторов у молний БОЛЬШЕ НЕТ: boltPath заводит свой базис
+// на каждый вызов, иначе генерация ответвлений затирала бы базис основной дуги
+// (ветки ушли бы не в ту сторону). _bUp — константа, её переиспользовать можно.
+const _bUp = new THREE.Vector3(0,1,0);
+// Ломаная с поперечным дрожанием между двумя точками -> кусочно-линейный путь
+// (CatmullRom сгладил бы изломы — молния перестала бы быть молнией).
+function boltPath(p0, p1, seg, jitter){
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const len = dir.length();
+  if (len < 1e-4) return null;
+  const n1 = new THREE.Vector3().crossVectors(dir, _bUp);
+  if (n1.lengthSq() < 1e-4) n1.set(1,0,0); else n1.normalize();
+  const n2 = new THREE.Vector3().crossVectors(dir, n1).normalize();
+  const pts = [];
+  for (let i=0;i<=seg;i++){
+    const t = i/seg;
+    const p = p0.clone().lerp(p1, t);
+    if (i>0 && i<seg){
+      const amp = len*jitter*Math.sin(Math.PI*t); // максимум дрожания посередине
+      p.addScaledVector(n1, (Math.random()-0.5)*2*amp).addScaledVector(n2, (Math.random()-0.5)*2*amp);
     }
     pts.push(p);
   }
-  // ТРУБКИ, не линии: WebGL рисует линии в 1px — молния была еле видна.
-  // Зигзаг держим кусочно-линейным путём (CatmullRom сгладил бы изломы).
   const path = new THREE.CurvePath();
-  for (let i=0;i<SEG;i++) path.add(new THREE.LineCurve3(pts[i], pts[i+1]));
-  const layer = (color, radius, opacity) => {
-    const g = new THREE.TubeGeometry(path, SEG*2, radius, 4, false);
-    const m = new THREE.MeshBasicMaterial({ color, transparent:true, opacity, depthTest:false });
-    const mesh = new THREE.Mesh(g, m);
+  for (let i=0;i<seg;i++) path.add(new THREE.LineCurve3(pts[i], pts[i+1]));
+  return { path, pts, len, n1, n2, dir };
+}
+// ⚠️ РУЧНОЕ СЛИЯНИЕ: в UMD-сборке r149 BufferGeometryUtils НЕТ (в бандле от
+// него только строка в тексте ошибки BufferGeometry.merge). Материал молний —
+// MeshBasicMaterial без света и текстур, поэтому копируем ТОЛЬКО position
+// и index: normal/uv шейдером не читаются, их перенос был бы чистой тратой
+// (втрое меньше данных в GPU и меньше работы на слияние).
+function mergeTubeGeos(list){
+  let vc = 0, ic = 0;
+  for (const g of list){ vc += g.attributes.position.count; ic += g.index.count; }
+  const pos = new Float32Array(vc*3);
+  const idx = vc > 65535 ? new Uint32Array(ic) : new Uint16Array(ic);
+  let vo = 0, io = 0;
+  for (const g of list){
+    const src = g.attributes.position.array, n = g.attributes.position.count, gi = g.index.array;
+    pos.set(src, vo*3);
+    for (let i=0;i<gi.length;i++) idx[io+i] = gi[i] + vo; // индексы съезжают на уже уложенные вершины
+    vo += n; io += gi.length;
+    g.dispose(); // временная геометрия филамента: в GPU не уезжала, но освобождаем честно
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+// ПУЛ МАТЕРИАЛОВ (просьба диспетчера: не плодить материалы на каждый разряд).
+// ⚠️ Это FREE-LIST, а НЕ общий материал: у каждого ЖИВОГО разряда opacity
+// мерцает индивидуально, поэтому шарить один материал между одновременными
+// молниями нельзя — переиспользуем только ОСВОБОДИВШИЕСЯ (stepFX кладёт сюда
+// вместо dispose по флагу userData.poolBolt).
+const boltMatPool = [];
+const BOLT_POOL_MAX = 24;
+function boltMat(color, opacity){
+  const m = boltMatPool.pop();
+  // setHex повторяет поведение конструктора (в r149 без ColorManagement hex
+  // кладётся как есть) — тон переиспользованного материала бит-в-бит прежний
+  if (m){ m.color.setHex(color); m.opacity = opacity; return m; }
+  return new THREE.MeshBasicMaterial({ color, transparent:true, opacity, depthTest:false });
+}
+function boltFX(a, b){
+  const main = boltPath(a, b, BOLT_SEG, 0.13);
+  if (!main || main.len < 0.2) return;
+  // ОТВЕТВЛЕНИЯ: короткие ветки от случайных узлов основной дуги, вбок и
+  // немного вдоль. Базис берём ИЗ main (boltPath заводит свой на каждый вызов —
+  // общие _bN1/_bN2 затёрлись бы при генерации веток).
+  const forks = [];
+  const axis = main.dir.clone().normalize();
+  for (let i=0;i<BOLT_FORKS;i++){
+    const j = 1 + Math.floor(Math.random()*(BOLT_SEG-1)); // не от самых концов
+    const from = main.pts[j];
+    const to = from.clone()
+      .addScaledVector(main.n1, (Math.random()-0.5)*2)
+      .addScaledVector(main.n2, (Math.random()-0.5)*2)
+      .addScaledVector(axis, (Math.random()-0.5)*0.8);
+    // нормируем смещение к доле длины основной дуги -> ветка всегда «мелкая»
+    to.sub(from).normalize().multiplyScalar(main.len*(0.12+Math.random()*0.20)).add(from);
+    const f = boltPath(from, to, 3, 0.22);
+    if (f) forks.push(f);
+  }
+  const layer = (color, rMain, rFork, opacity) => {
+    const geos = [ new THREE.TubeGeometry(main.path, BOLT_SEG*2, rMain, 4, false) ];
+    // у веток грубее тесселяция: они мелкие, разницы не видно, а вершин втрое меньше
+    for (const f of forks) geos.push(new THREE.TubeGeometry(f.path, 6, rFork, 3, false));
+    const mesh = new THREE.Mesh(mergeTubeGeos(geos), boltMat(color, opacity));
     mesh.renderOrder = 12;
-    addFX(mesh, 0.18, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.55+0.45*Math.random()); }); // мерцание
+    mesh.userData.poolBolt = true; // stepFX вернёт материал в пул вместо dispose
+    addFX(mesh, BOLT_LIFE, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.55+0.45*Math.random()); }); // мерцание
   };
-  layer(0x2f6bff, 0.09, 0.6);  // оболочка
-  layer(0xdceeff, 0.035, 1.0); // ядро
+  // ⚠️ ПРОПОРЦИЯ ОБОЛОЧКА:ЯДРО ~3:1, А НЕ 2.3:1 КАК У ТОЛСТОЙ ВЕРСИИ. При
+  // утоньшении филамента синий ореол первым уходит в субпиксель: на крупном
+  // плане проба дала БЕЛЫЕ нитки вместо электрических (ядро почти догнало
+  // оболочку по экранной ширине). Ореолу нужна доля ШИРЕ, чем при толстой дуге.
+  layer(0x2f6bff, 0.075, 0.038, 0.6);  // оболочка (было 0.09 — всё равно «мельче»)
+  layer(0xdceeff, 0.024, 0.012, 1.0);  // ядро (было 0.035)
 }
 // Всплывающий текст (+очки, ×множитель, штрафы)
 function scorePopScreen(text, px, py, color, big){
