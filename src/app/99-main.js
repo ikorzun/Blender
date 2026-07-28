@@ -641,7 +641,8 @@ window.__game = {
   boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // тест-ручка
   boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
   boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
-  bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
+  bankScore(n){ return bankLevelScore(n); },
+  addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
   starMigrate(){ return migrateStarsToWallet(); },
