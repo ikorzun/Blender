@@ -367,9 +367,7 @@ const path = require('path');
     const lv = window.__game.level();
     lv.shakes = 0; lv.adShakes = 1;
   });
-  await page.click('#shakeBtn');   // вопрос «смотреть рекламу?»
-  await page.waitForTimeout(200);
-  await page.click('#adYes');      // пошёл 3-секундный стаб
+  await page.click('#shakeBtn');   // ad-состояние: ролик СРАЗУ, без подтверждения
   await page.waitForTimeout(600);
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); }); // уровень сменился ПОД роликом
   await page.waitForTimeout(3600); // стаб бы уже дозрел
@@ -1020,7 +1018,9 @@ window.bridge = {
   const emit = async (ev, st) => { await apage.evaluate(([e,s]) => window.__mock.emit(e,s), [ev,st]); await apage.waitForTimeout(250); };
 
   // 1. НАГРАДА: показ -> игра замерла и заглохла -> награда -> всё вернулось
-  await apage.evaluate(() => document.getElementById('adYes').click());
+  await apage.evaluate(() => { const lv = window.__game.level();
+    lv.shakes = 0; lv.adShakes = 2;            // ad-состояние Shake
+    document.getElementById('shakeBtn').click(); });  // тап = ролик сразу (оверлей снесён)
   await apage.waitForTimeout(250);
   const during = await adState();
   expect(during.paused && during.muted, 'реклама: во время ролика игра на паузе и звук заглушен (' + JSON.stringify(during) + ')');
@@ -1030,7 +1030,9 @@ window.bridge = {
   expect(!afterRw.paused && !afterRw.muted, 'реклама: после награды пауза и звук восстановлены (' + JSON.stringify(afterRw) + ')');
 
   // 2. ПРОВАЛ: развязка обязана снимать паузу так же, иначе игра замёрзнет
-  await apage.evaluate(() => document.getElementById('adYes').click());
+  await apage.evaluate(() => { const lv = window.__game.level();
+    lv.shakes = 0; lv.adShakes = 2;            // ad-состояние Shake
+    document.getElementById('shakeBtn').click(); });  // тап = ролик сразу (оверлей снесён)
   await apage.waitForTimeout(250);
   const during2 = await adState();
   await emit('rw', 'failed');

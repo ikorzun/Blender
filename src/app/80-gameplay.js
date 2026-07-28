@@ -288,7 +288,6 @@ function checkEnd(){
 }
 function showLose(){
   level.over = true;
-  hide('adAskOverlay'); // тупик мог созреть, пока открыт вопрос о встряске — не копим оверлеи
   Sound.play('lose');
   Telemetry.ev('lose', { lv: levelNum, alive: items.filter(i=>i.alive).length });
   const secs = Math.round((performance.now()-stats.t0)/1000);
@@ -630,19 +629,17 @@ function requestShake(){
   if (level.over || intro) return;
   if (level.shakes > 0){
     useFreeShake(); // без подтверждения — сразу (по требованию владельца)
-  } else if (level.adShakes > 0 || (COINS_ENABLED && coins() >= PRICE_SHAKE)){
-    // корректировка аудита: монеты НЕ конкурируют с бесплатной рекламой —
-    // покупка за 25 открывается только после исчерпания rewarded-капа
-    // (при скрытых монетах покупной ветки нет вовсе)
-    $('adYes').style.display = level.adShakes > 0 ? '' : 'none';
-    $('coinShakeBtn').style.display = (COINS_ENABLED && level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
-    show('adAskOverlay');
+  } else if (level.adShakes > 0){
+    // РОЛИК СРАЗУ, БЕЗ ПОДТВЕРЖДЕНИЯ (спека владельца 2026-07-28: «Shake с
+    // рекламой работает по принципу подсказки — единое решение, сразу
+    // запускает рекламу»). Оверлей adAskOverlay (Cancel/Watch) УДАЛЁН: у
+    // подсказки его нет, слово «Ad» на кнопке само делает тап осознанным.
+    startAd();
   } else {
     toast('No shakes left');
   }
 }
 function buyCoinShake(){
-  hide('adAskOverlay');
   if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
   if (!spendCoins(PRICE_SHAKE)){ toast('Not enough coins'); return; }
   Telemetry.ev('spend', { item: 'shake' });
@@ -653,7 +650,6 @@ function useFreeShake(){
   performShake(); updateHUD();
 }
 function startAd(){
-  hide('adAskOverlay');
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
     // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
     // уровня, наставший за время ролика (встряске некого трясти)
