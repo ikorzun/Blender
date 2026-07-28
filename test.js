@@ -1353,28 +1353,43 @@ window.bridge = {
     '⚠️ ОЧЕРЕДЬ: время x2 НЕ сгорело под x5 — вернётся после (' + Math.round(sbQueue.left2/3600000) + ' ч)');
   expect(sbQueue.shakes === 60, 'расходники бандлов просто суммируются (50+10=' + sbQueue.shakes + ')');
 
-  // ЧАСЫ: откат не даёт лишнего, но и не сжигает оплаченное; брика нет
+  // ⚠️ ЭКСПЛОЙТ «ОТКАТ ПОД ЛЮФТ» (найден адверс-прогоном матрицы №3, был в
+  // проде v131-v135): откат РОВНО в пределах прежнего люфта не детектился, а
+  // окна хранятся абсолютной меткой → остаток РОС. Откат по 5 мин каждые
+  // 5 мин = вечный x5 за $4.99. Теперь амнистия — ПОЖИЗНЕННЫЙ БЮДЖЕТ.
+  const sbExploit = await page.evaluate(() => {
+    const g = window.__game;
+    g.boostClear(); g.boostSetClock(0); // чистый сейв
+    g.buyBundle('bundle5');                                   // x5 на 30 минут
+    const left = [g.scoreBoostLeftMs()];
+    for (let i = 0; i < 6; i++){
+      g.boostSetClock(Date.now() + 5 * 60 * 1000);            // «часы отмотаны на 5 минут назад»
+      left.push(g.scoreBoostLeftMs());
+    }
+    return { minutes: left.map(ms => +(ms / 60000).toFixed(1)), mult: g.scoreBoostMult() };
+  });
+  expect(sbExploit.minutes[1] === 25 && sbExploit.minutes[2] === 20,
+    '⚠️ ЭКСПЛОЙТ ЗАКРЫТ: откат под прежний люфт больше НЕ добавляет времени (' + sbExploit.minutes + ')');
+  expect(sbExploit.minutes[6] === 0,
+    'окно сгорает ровно за своё время при ЛЮБОЙ каденции отката (' + sbExploit.minutes + ')');
+
+  // ЧАСЫ: разовый большой скачок НЕ сжигает оплаченное (кап списания), брика нет
   const sbClock = await page.evaluate(() => {
     const g = window.__game;
-    const before = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs(), noAd: g.noAdLeftMs() };
-    g.boostSetClock(Date.now() + 60 * 60 * 1000); // метка «виденного» ушла на час вперёд
-    const after = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs(), noAd: g.noAdLeftMs() };
+    g.boostClear(); g.boostSetClock(0);
+    g.buyBundle('bundle2');                                   // x2 на сутки + месяц no-Ad
+    const before = { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
+    g.boostSetClock(Date.now() + 60 * 60 * 1000);             // скачок часов на час
+    const after = { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
     const lsGap = g.boostRaw().ls - Date.now();
-    g.boostSetClock(Date.now() + 30 * 60 * 1000); // повторный откат
-    const again = g.noAdLeftMs();
-    return { before, after, lsGap, again };
+    return { before, after, lsGap, lostMin: +((before.noAd - after.noAd) / 60000).toFixed(1) };
   });
-  // ⚠️ Часовой скачок ЗАКОННО добивает 30-минутное окно x5 (его остаток меньше
-  // скачка) — но длинные окна обязаны выжить, потеряв ровно час.
   expect(sbClock.after.mult === 2 && sbClock.after.noAd > 0,
-    '⚠️ ЧАСЫ: скачок съел только КОРОТКОЕ окно, x2 и no-Ad живы (mult ' + sbClock.after.mult + ', noAd ' + Math.round(sbClock.after.noAd/86400000) + ' д)');
-  const sbLostNoAd = sbClock.before.noAd - sbClock.after.noAd;
-  expect(sbLostNoAd > 55 * 60 * 1000 && sbLostNoAd < 65 * 60 * 1000,
-    'часы: списан ровно скачок ~1 ч, ни секунды сверх (' + Math.round(sbLostNoAd/60000) + ' мин)');
+    '⚠️ ЧАСЫ: разовый скачок НЕ сжёг оплаченные окна (mult ' + sbClock.after.mult + ')');
+  expect(sbClock.lostMin > 55 && sbClock.lostMin < 65,
+    'часы: скачок стоит РОВНО себя, ни секунды сверх (' + sbClock.lostMin + ' мин)');
   expect(Math.abs(sbClock.lsGap) < 10000,
     '⚠️ ЧАСЫ: метка ресинхронизирована — вечного залипания нет (' + sbClock.lsGap + ' мс)');
-  expect(sbClock.again <= sbClock.after.noAd,
-    '⚠️ ЧАСЫ: повторный откат НЕ добавил времени (' + sbClock.after.noAd + ' -> ' + sbClock.again + ')');
   const sbAfterIncident = await page.evaluate(() => {
     const g = window.__game;
     g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000);
