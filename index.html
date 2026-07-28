@@ -499,7 +499,7 @@
   .otext.win-cleaned text { font-size:57.2px; stroke-width:4; }
   #winCleaned { fill:#fff; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
-  .otext.win-time text { font-size:26px; stroke-width:5; }  /* тоньше — мелкий кегль (пропорц. к Level) */
+  .otext.win-time text { font-size:28px; stroke-width:5; }  /* 28 по ноде 783:1065 (было 26); обводка тоньше — мелкий кегль */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
   .otext.win-score text { font-size:68px; stroke-width:18; }  /* обводка ×2 (спека владельца) */
   #winScore { fill:url(#gWinScore); }
@@ -511,7 +511,7 @@
     display:grid; place-items:center; }
   .win-reward-ic svg { width:32px; height:32px; display:block; }
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
-  .win-next { flex:1; height:84px; border:none; border-radius:1000px; cursor:pointer;
+  .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
   /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
   .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
@@ -526,7 +526,9 @@
   .wt-bar { height:10px; border-radius:32px; background:rgba(0,0,0,.2); overflow:hidden; }
   .wt-bar i { display:block; height:100%; width:0; background:#c0ff47; border-radius:40px;
     transition:width .55s cubic-bezier(.34,1.56,.64,1); }
-  .wt-mult { flex:none; min-width:35px; height:35px; box-sizing:border-box; padding:0 8px;
+  /* паддинг РОВНЫЙ 8 по ноде 783:1065 (было 0/8 с фикс. высотой 35 — высота
+     теперь набирается контентом + паддингом, ширина по содержимому «×1.6») */
+  .wt-mult { flex:none; min-width:35px; box-sizing:border-box; padding:8px;
     background:rgba(0,0,0,.4); border-radius:32px; display:grid; place-items:center;
     color:#fff; font-weight:800; font-size:16px; }  /* Heavy (Figma), не Black */
   /* --- ВХОДНАЯ АНИМАЦИЯ: играет при каждом показе (.win-in ставит
@@ -872,13 +874,21 @@
     box-sizing:border-box; }
   .st-mult { flex:1 0 0; min-width:0; display:flex; flex-direction:column; align-items:center;
     justify-content:flex-end; line-height:1; color:#000; white-space:nowrap; }
-  .st-x { font-size:64px; font-weight:900; }
+  /* тень множителя — обновлённая нода 783:95 (0 2px 12px rgba(0,0,0,.16)) */
+  .st-x { font-size:64px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.16); }
   .st-time { font-size:26px; font-weight:800; }
   .st-bonus { flex:1 0 0; min-width:0; font-size:20px; font-weight:800; line-height:1.2; color:#000; }
   .st-buy { width:100%; height:56px; border:none; border-radius:1000px; background:#fff;
     color:#000; font-family:var(--font-round); font-size:20px; font-weight:700; cursor:pointer;
     padding:13px 16px; }
   .st-buy:active { transform:scale(.97); }
+  /* ХОВЕР (спека владельца 2026-07-28): инверсия — ЧЁРНАЯ подложка + БЕЛЫЙ
+     текст. ⚠️ Под @media (hover:hover): на таче :hover ЗАЛИПАЕТ после тапа
+     (кнопка осталась бы чёрной), а :active-имитации в макете нет. */
+  @media (hover:hover) and (pointer:fine){
+    .st-buy { transition:background-color .15s, color .15s; }
+    .st-buy:hover { background:#000; color:#fff; }
+  }
   /* ДЕСКТОП (макет 783:95): три карточки В РЯД по 242 + gap 8 (=742), кегли
      крупнее, множитель НАД бонусами, кнопка закрытия в углу экрана.
      ⚠️ Порог 780, а не 700: 742 контента + поля не влезают в 700-760. */
@@ -1048,19 +1058,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-135 · 2026-07-27</div>
-</div>
-
-<div class="overlay" id="adAskOverlay">
-  <div class="card">
-    <h2>One more shake</h2>
-    <p>Watch a short video to shake the items once more.</p>
-    <div class="btns">
-      <button class="ghost" id="adNo">Cancel</button>
-      <button class="ghost" id="coinShakeBtn">🪙 25</button>
-      <button class="primary" id="adYes">📺 Watch</button>
-    </div>
-  </div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-136 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1153,21 +1151,21 @@
       <div class="st-card st-c5">
         <div class="st-row">
           <div class="st-mult"><div class="st-x">×5</div><div class="st-time">30 min</div></div>
-          <div class="st-bonus">+10 Shake’s<br>+15 Tips<br>1 day no Ad</div>
+          <div class="st-bonus">10 Shake’s<br>15 Tips<br>1 day no Ad</div>
         </div>
         <button class="st-buy" data-tier="5">Upgrade $4.99</button>
       </div>
       <div class="st-card st-c3">
         <div class="st-row">
           <div class="st-mult"><div class="st-x">×3</div><div class="st-time">1 hour</div></div>
-          <div class="st-bonus">+15 Shake’s<br>+20 Tips<br>3 days no Ad</div>
+          <div class="st-bonus">15 Shake’s<br>20 Tips<br>3 days no Ad</div>
         </div>
         <button class="st-buy" data-tier="3">Upgrade $9.99</button>
       </div>
       <div class="st-card st-c2">
         <div class="st-row">
           <div class="st-mult"><div class="st-x">×2</div><div class="st-time">1 day</div></div>
-          <div class="st-bonus">+50 Shake’s<br>+30 Tips<br>1 month no Ad</div>
+          <div class="st-bonus">50 Shake’s<br>30 Tips<br>1 month no Ad</div>
         </div>
         <button class="st-buy" data-tier="2">Upgrade $19.99</button>
       </div>
@@ -6071,7 +6069,6 @@ function checkEnd(){
 }
 function showLose(){
   level.over = true;
-  hide('adAskOverlay'); // тупик мог созреть, пока открыт вопрос о встряске — не копим оверлеи
   Sound.play('lose');
   Telemetry.ev('lose', { lv: levelNum, alive: items.filter(i=>i.alive).length });
   const secs = Math.round((performance.now()-stats.t0)/1000);
@@ -6418,19 +6415,17 @@ function requestShake(){
     // поэтому тратится так же молча, без оверлея-подтверждения.
     spendPurchasedShake(); stats.shakesUsed++;
     performShake(); updateHUD();
-  } else if (level.adShakes > 0 || (COINS_ENABLED && coins() >= PRICE_SHAKE)){
-    // корректировка аудита: монеты НЕ конкурируют с бесплатной рекламой —
-    // покупка за 25 открывается только после исчерпания rewarded-капа
-    // (при скрытых монетах покупной ветки нет вовсе)
-    $('adYes').style.display = level.adShakes > 0 ? '' : 'none';
-    $('coinShakeBtn').style.display = (COINS_ENABLED && level.adShakes === 0 && coins() >= PRICE_SHAKE) ? '' : 'none';
-    show('adAskOverlay');
+  } else if (level.adShakes > 0){
+    // РОЛИК СРАЗУ, БЕЗ ПОДТВЕРЖДЕНИЯ (спека владельца 2026-07-28: «Shake с
+    // рекламой работает по принципу подсказки — единое решение, сразу
+    // запускает рекламу»). Оверлей adAskOverlay (Cancel/Watch) УДАЛЁН: у
+    // подсказки его нет, слово «Ad» на кнопке само делает тап осознанным.
+    startAd();
   } else {
     toast('No shakes left');
   }
 }
 function buyCoinShake(){
-  hide('adAskOverlay');
   if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
   if (!spendCoins(PRICE_SHAKE)){ toast('Not enough coins'); return; }
   Telemetry.ev('spend', { item: 'shake' });
@@ -6441,7 +6436,6 @@ function useFreeShake(){
   performShake(); updateHUD();
 }
 function startAd(){
-  hide('adAskOverlay');
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
     // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
     // уровня, наставший за время ролика (встряске некого трясти)
@@ -7740,8 +7734,6 @@ $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
 });
-$('adYes').addEventListener('click', startAd);
-$('adNo').addEventListener('click', ()=>hide('adAskOverlay'));
 $('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
 $('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
@@ -7776,7 +7768,6 @@ $('magnetBtn').addEventListener('click', ()=>{
   if (level.over || intro || level.detectorUsed) return;
   Ads.showRewarded(()=>{ detectorHighlight(); });
 });
-$('coinShakeBtn').addEventListener('click', buyCoinShake);
 // глаза миксера: интерактивный персонаж — подмигивает на тап
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
@@ -7934,7 +7925,7 @@ addEventListener('keydown', e => {
     if (paused) return;
     // под оверлеями рекламы Space чашу не трясёт (и не открывает второй
     // вопрос о встряске поверх идущего ролика)
-    if ($('adOverlay').style.display === 'flex' || $('adAskOverlay').style.display === 'flex') return;
+    if ($('adOverlay').style.display === 'flex') return; // adAskOverlay удалён (ролик идёт сразу)
     requestShake();
   }
 });
