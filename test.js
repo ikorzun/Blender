@@ -1349,7 +1349,11 @@ window.bridge = {
     const gItem = g.thumbItemForKey(key, true);
     const ghost = { built: !!gh, differ: full !== gh,
       flag: !!(gItem && gItem.ghost), transp: !!(gItem && gItem.mesh.material.transparent) };
-    // ЕДИНЫЙ ИСТОЧНИК ПОЗЫ: меняем позу — спин стартует С НЕЁ (== PORTRAIT_YAW0)
+    // ⚠️ ЕДИНЫЙ ИСТОЧНИК ПОЗЫ — МУТАЦИЯ ЗДЕСЬ НЕСУЩАЯ, НЕ ОСТАТОК ТЮНИНГА.
+    // Меняем позу — спин обязан стартовать С НЕЁ (== PORTRAIT_YAW0). Заменить
+    // на getter НЕЛЬЗЯ: статика и спин читают ОДНУ переменную, сверка
+    // «getter против getter» пуста и зелена всегда. Проверено симуляцией
+    // 2026-07-27: дали спину свою копию yaw → упало (−0.6 вместо 0.2).
     g.setPortraitPose(0.1, 0.2);
     const host = document.createElement('div'); host.id = '__ph';
     host.style.cssText = 'position:fixed;left:0;top:0;width:80px;height:80px'; document.body.appendChild(host);
