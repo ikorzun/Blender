@@ -36,9 +36,13 @@ const SAVE_KEY = 'mixer_save_v1';
 // (фикс A, таблица №2 2026-07-24): купленное наполняет КОШЕЛЁК, но ранг
 // растёт только СЫГРАННЫМ счётом. balance(кошелёк)=se+tu−ss;
 // leaderboard=se−max(0,ss−tu) (траты сперва съедают tu, потом сыгранное).
-// bx/bk — БУСТЕР ОЧКОВ: момент истечения (epoch ms) и его множитель.
-// ls — «последнее виденное время», монотонная метка против отката часов.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: 0, bk: 1, ls: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+// bx — ОКНА МНОЖИТЕЛЯ БАНДЛА: {множитель: момент истечения}. Ключ = сам
+// множитель, поэтому мерж — max ПО КЛЮЧУ (как ac/bo) и «апгрейд» чужим тиром
+// невозможен по построению. na — окно без межстраничной рекламы (epoch ms).
+// pe/ps — КУПЛЕННЫЕ ВСТРЯСКИ монотонной парой (образец he/hs), постоянный
+// кошелёк поверх 3 бесплатных на уровень. ls — «последнее виденное время»,
+// монотонная метка против отката часов.
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -49,6 +53,8 @@ function mergeSave(into, from){
     into.ce = from.ce || 0; into.cs = from.cs || 0;
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
     into.se = from.se || 0; into.ss = from.ss || 0; into.tu = from.tu || 0; into.sm = from.sm || 0;
+    into.na = from.na || 0; into.pe = from.pe || 0; into.ps = from.ps || 0;
+    into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
@@ -68,11 +74,16 @@ function mergeSave(into, from){
   into.tu = Math.max(into.tu || 0, from.tu || 0); // пополнения — монотонны, как se/ss
   into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
   into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
-  // ⚠️ БУСТЕР: множитель ходит ЗА своим сроком, а не мержится отдельно по max.
-  // Иначе копия с x5-на-30-минут отдала бы свой множитель длинному x2-на-день —
-  // «апгрейд» дневного бустера дешёвым получасовым. Берём пару целиком у той
-  // копии, чей срок дальше.
-  if ((from.bx || 0) > (into.bx || 0)){ into.bx = from.bx || 0; into.bk = from.bk || 1; }
+  into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
+  into.pe = Math.max(into.pe || 0, from.pe || 0); // купленные встряски: пара как he/hs,
+  into.ps = Math.max(into.ps || 0, from.ps || 0); // отставшая копия не воскрешает потраченное
+  // ⚠️ ОКНА МНОЖИТЕЛЯ — max ПО КЛЮЧУ-МНОЖИТЕЛЮ. Ключ несёт сам множитель,
+  // поэтому копия с коротким x5 НЕ может «поднять» действующий x2: она кладёт
+  // своё время в СВОЙ ключ. Прежняя схема (одна пара срок+множитель) такой
+  // апгрейд допускала — из-за неё и разведено по ключам.
+  if (!into.bx || typeof into.bx !== 'object') into.bx = {};
+  const bxf = (from.bx && typeof from.bx === 'object') ? from.bx : {};
+  for (const k in bxf) into.bx[k] = Math.max(into.bx[k] || 0, bxf[k] || 0);
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
   if (!into.ac) into.ac = {};
@@ -108,74 +119,87 @@ function bridgeSyncSave(){
     }).catch(()=>{});
   } catch(e){}
 }
-// ── БУСТЕР ОЧКОВ (спека владельца 2026-07-28) ────────────────────────────────
+// ── БАНДЛЫ: множитель-окно + расходники + окно без рекламы ──────────────────
 // ⚠️ ЧАСЫ УСТРОЙСТВА — ЕДИНСТВЕННЫЙ ИСТОЧНИК ВРЕМЕНИ, и ему нельзя верить:
-// перевести часы назад = продлить оплаченный бустер бесплатно. Защита —
-// МОНОТОННАЯ метка `ls`: она только растёт (и мержится по max между
-// устройствами, так что смена устройства обход не даёт). Если текущее время
-// оказалось РАНЬШЕ виденного больше чем на люфт — часы откатили, и остаток
-// ПЕРЕАНКОРИВАЕТСЯ (см. boostNow: выигранного времени ноль, потерянного тоже).
-// ⚠️ ПОЛНАЯ защита — server-time, это зона ИНТЕГРАЦИИ
-// (та же зависимость, что у дневного капа рекламы); для тестбилда монотонной
-// метки достаточно — решение диспетчера.
+// перевести часы назад = продлить оплаченное окно бесплатно. Защита —
+// МОНОТОННАЯ метка `ls` (мержится по max между устройствами, смена устройства
+// обхода не даёт). При откате остаток ПЕРЕАНКОРИВАЕТСЯ (см. boostNow):
+// выигранного времени ноль, потерянного тоже. ⚠️ ПОЛНАЯ защита — server-time,
+// зона ИНТЕГРАЦИИ (та же зависимость, что у дневного капа рекламы).
 let lsDirty = 0;
+// Все временные окна разом: тиры множителя (bx по ключу-множителю) + no-Ad (na).
+function boostWindows(){ if (!Save.bx || typeof Save.bx !== 'object') Save.bx = {}; return Save.bx; }
 function boostNow(){
   const now = Date.now();
   const seen = Save.ls || 0;
   if (now < seen - BOOST_CLOCK_SLACK_MS){
-    // ⚠️ ЧАСЫ ОТКАТИЛИ. НЕ УБИВАЕМ оплаченное (правило «откатил → бустер
-    // истёк» разбирается ниже), а ПЕРЕАНКОРИВАЕМ ОСТАТОК: сколько времени
-    // было на момент последнего честного замера — столько и остаётся. Игрок
-    // не получает ни секунды сверх — обхода нет; и не теряет купленное.
-    // ⚠️ ПОЧЕМУ НЕ «СЧИТАТЬ ИСТЁКШИМ» (поймано собственным прогоном):
-    // метка `ls` монотонна, поэтому ОДИН скачок часов ВПЕРЁД (перевёл время
-    // в другой игре, слетел NTP) залипал бы навсегда — now уже никогда не
-    // догонит ls, и КАЖДЫЙ следующий купленный бустер умирал бы мгновенно.
-    // Платящий игрок получал бы ноль за деньги. Переанкор самолечится:
-    // новая точка отсчёта — текущее время.
-    const left = Math.max(0, (Save.bx || 0) - seen);
-    Save.bx = left > 0 ? now + left : 0;
-    if (!(left > 0)) Save.bk = 1;
-    Save.ls = now; // иначе залипнем в вечном «откате»
+    // ⚠️ ЧАСЫ ОТКАТИЛИ. НЕ СЖИГАЕМ оплаченное, а ПЕРЕАНКОРИВАЕМ ОСТАТОК:
+    // сколько было на момент последнего честного замера — столько и остаётся.
+    // ⚠️ ПОЧЕМУ НЕ «СЧИТАТЬ ИСТЁКШИМ» (поймано собственным прогоном): метка
+    // `ls` монотонна, поэтому ОДИН скачок часов ВПЕРЁД (NTP, перевод времени
+    // в другой игре) залипал бы навсегда — now уже никогда не догонит ls, и
+    // КАЖДОЕ следующее КУПЛЕННОЕ окно умирало бы мгновенно: платящий получает
+    // ноль. Переанкор самолечится — новая точка отсчёта есть текущее время.
+    const w = boostWindows();
+    for (const k in w){ const left = Math.max(0, (w[k] || 0) - seen); if (left > 0) w[k] = now + left; else delete w[k]; }
+    const naLeft = Math.max(0, (Save.na || 0) - seen);
+    Save.na = naLeft > 0 ? now + naLeft : 0;
+    Save.ls = now;
     commitSave();
     return { now, rolled: true };
   }
   if (now > seen){
     Save.ls = now;
-    // сейв не на каждый кадр: пишем не чаще раза в минуту (метка грубая)
-    if (now - lsDirty > 60000){ lsDirty = now; commitSave(); }
+    if (now - lsDirty > 60000){ lsDirty = now; commitSave(); } // метка грубая — не пишем каждый кадр
   }
   return { now, rolled: false };
 }
-// Активный множитель очков: 1 — бустера нет/истёк/часы откатили.
+// ⚠️ МНОЖИТЕЛИ НЕ СТЕКУЮТСЯ — играет СИЛЬНЕЙШИЙ ЖИВОЙ тир, время копится
+// КАЖДОМУ тиру своё (дефолт диспетчера). Купив x5-на-30-минут поверх
+// x2-на-день, игрок получает 30 минут x5, после чего возвращается остаток x2 —
+// ничего не сгорает. ⚠️ Отклонять покупку, как в прежнем каркасе-бустере,
+// БОЛЬШЕ НЕЛЬЗЯ: в бандле едут расходники, отказ съел бы оплаченное.
 function scoreBoostMult(){
-  const t = boostNow(); // при откате часов остаток уже переанкорен внутри
-  if (!(Save.bx > t.now)) return 1;
-  return Math.max(1, Save.bk || 1);
+  const t = boostNow(); const w = boostWindows();
+  let best = 1;
+  for (const k in w) if (w[k] > t.now) best = Math.max(best, +k || 1);
+  return best;
 }
+// Остаток ДЕЙСТВУЮЩЕГО (сильнейшего) тира — для таймера на экране.
 function scoreBoostLeftMs(){
-  const t = boostNow();
-  return Math.max(0, (Save.bx || 0) - t.now);
+  const t = boostNow(); const w = boostWindows();
+  const m = scoreBoostMult();
+  return m > 1 ? Math.max(0, (w[m] || 0) - t.now) : 0;
 }
-function boostClear(){ if (Save.bx || (Save.bk || 1) !== 1){ Save.bx = 0; Save.bk = 1; commitSave(); } }
-// ПОКУПКА (точка входа для ИНТЕГРАЦИИ: зовётся после подтверждённой оплаты).
-// ⚠️ ПРАВИЛО СТАКА — КАРКАСНОЕ, ждёт слова владельца: пока активен бустер,
-// докупать можно ТОЛЬКО такой же множитель (время складывается). Другой
-// множитель отклоняем. Причина: «брать max множителя и max срока» позволяет
-// апгрейдить дневной x2 получасовым x5 за $1.99 на все сутки; а «заменять»
-// молча сжигает оплаченный остаток. Очередь тиров — отдельная фича.
-function grantScoreBoost(id){
-  const tier = SCORE_BOOSTERS.find(b => b.id === id);
-  if (!tier) return { ok: false, reason: 'unknown' };
-  const t = boostNow();
-  const active = Save.bx > t.now;
-  if (active && (Save.bk || 1) !== tier.mult) return { ok: false, reason: 'active', mult: Save.bk, leftMs: Save.bx - t.now };
-  Save.bx = (active ? Save.bx : t.now) + tier.ms; // тот же множитель — продлеваем
-  Save.bk = tier.mult;
+function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); }
+// ОКНО БЕЗ РЕКЛАМЫ: гасит ТОЛЬКО межстраничные; rewarded живут — их игрок
+// просит сам (решение диспетчера), и они же несут заряды подсказок/встрясок.
+function noAdActive(){ const t = boostNow(); return (Save.na || 0) > t.now; }
+function noAdLeftMs(){ const t = boostNow(); return Math.max(0, (Save.na || 0) - t.now); }
+// КУПЛЕННЫЕ ВСТРЯСКИ — ПОСТОЯННЫЙ кошелёк монотонной парой (образец he/hs):
+// анти-дюп по построению, облачный max-мерж не воскрешает потраченное.
+function purchasedShakes(){ return Math.max(0, (Save.pe || 0) - (Save.ps || 0)); }
+function spendPurchasedShake(){ if (purchasedShakes() < 1) return false; Save.ps = (Save.ps || 0) + 1; commitSave(); return true; }
+// ПОКУПКА БАНДЛА — точка входа ИНТЕГРАЦИИ (зовётся ПОСЛЕ подтверждённой оплаты).
+function buyBundle(id){
+  const b = STAR_BUNDLES.find(x => x.id === id);
+  if (!b) return { ok: false, reason: 'unknown' };
+  const t = boostNow(); const w = boostWindows();
+  w[b.mult] = Math.max(w[b.mult] || 0, t.now) + b.ms; // время копится СВОЕМУ тиру
+  Save.na = Math.max(Save.na || 0, t.now) + b.noAdMs; // окно без рекламы — просто плюсуется
+  Save.pe = (Save.pe || 0) + b.shakes;
   Save.ls = Math.max(Save.ls || 0, t.now);
+  addHints(b.hints); // подсказки — в существующие заряды he, новой системы не надо
   commitSave();
-  Telemetry.ev('boost_buy', { tier: tier.id, mult: tier.mult, usd: tier.usd });
-  return { ok: true, mult: tier.mult, leftMs: Save.bx - t.now };
+  Telemetry.ev('bundle_buy', { tier: b.id, usd: b.usd, mult: b.mult });
+  return { ok: true, tier: b.id, mult: scoreBoostMult(), state: bundleState() };
+}
+// Снимок для ИНТЕРФЕЙСА (отрисовка активного бандла).
+function bundleState(){
+  const t = boostNow(); const w = boostWindows();
+  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: Math.max(0, (w[b.mult] || 0) - t.now) }));
+  return { mult: scoreBoostMult(), boostLeftMs: scoreBoostLeftMs(), tiers,
+           shakes: purchasedShakes(), hints: hints(), noAd: noAdActive(), noAdLeftMs: noAdLeftMs() };
 }
 function hints(){ return Math.max(0, (Save.he || 0) - (Save.hs || 0)); }
 function addHints(n){ if (n > 0){ Save.he += n; commitSave(); } }
@@ -300,7 +324,8 @@ function buyBoost(name){
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
-  Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1; // sm=1: мигрировать нечего, рейтинг пуст
+  Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
+  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; // окна бандла и купленные встряски // sm=1: мигрировать нечего, рейтинг пуст
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}

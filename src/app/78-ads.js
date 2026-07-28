@@ -185,6 +185,9 @@ const Ads = (function(){
   let winsSinceInter = 0;
   function noteWin(){ winsSinceInter++; }
   function maybeInterstitial(){
+    // ОКНО БЕЗ РЕКЛАМЫ из бандла (77-save): гасит ТОЛЬКО межстраничные.
+    // Rewarded НЕ трогаем — их игрок просит сам, и они несут заряды.
+    if (typeof noAdActive === 'function' && noAdActive()) return;
     if (mode !== 'bridge') return;
     if (winsSinceInter < INTER_EVERY_LEVELS) return;
     winsSinceInter = 0; // крестим окно СРАЗУ: повторный клик или поражение

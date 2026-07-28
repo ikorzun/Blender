@@ -441,7 +441,10 @@ function loop(){
     // выше гонит mixerGrind, разбирая кучу, пока не появится достижимая пара.
     // Цена выручки — очки (−20/помол), она же влияет на лидерборд. Экран
     // поражения (showLose) больше не вызывается из тупика; UI жив на будущее.
-    if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && !items.some(i=>i.alive && i.animating)){
+    // ⚠️ КУПЛЕННЫЙ ЗАПАС ВСТРЯСОК = АГЕНТНОСТЬ: пока он есть, тупика НЕТ —
+    // игроку есть чем разрулить, и выручалка-помол (она стоит очков) не должна
+    // включаться за него. Условие расширено вместе с вводом бандлов.
+    if (noMoves && !finale && level.shakes === 0 && level.adShakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) level.deadlock = true;
     } else {
@@ -453,7 +456,7 @@ function loop(){
       // idleLimit (stats.lastAction застыл), и без сброса idle-помол ДОГРЫЗАЛ бы кучу
       // после появления пары (idle всё ещё > idleLimit), пока игрок не тапнет — даём
       // свежий отсчёт, чтобы выручалка встала РОВНО с появлением достижимой пары.
-      if (level.deadlock && (ap > 0 || level.shakes > 0 || level.adShakes > 0)){
+      if (level.deadlock && (ap > 0 || level.shakes > 0 || level.adShakes > 0 || purchasedShakes() > 0)){
         level.deadlock = false;
         stats.lastAction = now;
       }
@@ -500,6 +503,7 @@ window.__game = {
     return false;
   },
   shake: performShake,
+  requestShake: requestShake, // тест: РЕАЛЬНЫЙ путь встряски с учётом (бесплатные -> купленные -> реклама)
   cfg: CFG,
   regen: genLevel,
   // дебаг-тюнер пресетов matcap (10-stage): ползунки поверх HUD, живое
@@ -619,15 +623,18 @@ window.__game = {
   starAward: starAward,           // номинал (только миграция) — оставлен для тестов
   // тест/отладка
   starGrant(n){ addStars(n); return starBalance(); },
-  // БУСТЕР ОЧКОВ — контракт с ИНТЕРФЕЙСОМ (экран «More Stars») и ИНТЕГРАЦИЕЙ
-  // (grantScoreBoost зовётся ПОСЛЕ подтверждённой оплаты; сами платежи не мои).
-  scoreBoostMult: scoreBoostMult,     // активный множитель (1 — бустера нет)
-  scoreBoostLeftMs: scoreBoostLeftMs, // остаток в мс — для таймера на экране
-  scoreBoosters(){ return SCORE_BOOSTERS.map(b => ({ ...b })); }, // витрина тиров
-  grantScoreBoost: grantScoreBoost,
-  boostRaw(){ return { bx: Save.bx, bk: Save.bk, ls: Save.ls }; }, // тест-ручка часов
+  // БАНДЛЫ — контракт с ИНТЕРФЕЙСОМ (экран «More Stars») и ИНТЕГРАЦИЕЙ
+  // (buyBundle зовётся ПОСЛЕ подтверждённой оплаты; сами платежи не мои).
+  buyBundle: buyBundle,               // покупка тира целиком
+  bundleState: bundleState,           // снимок для отрисовки активного
+  bundles(){ return STAR_BUNDLES.map(b => ({ ...b })); }, // витрина тиров
+  scoreBoostMult: scoreBoostMult,     // активный множитель (1 — окна нет)
+  scoreBoostLeftMs: scoreBoostLeftMs, // остаток сильнейшего тира — таймер экрана
+  noAdActive: noAdActive, noAdLeftMs: noAdLeftMs,
+  purchasedShakes: purchasedShakes,
+  boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // тест-ручка
   boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
-  boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять бустер начисто
+  boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
   bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
