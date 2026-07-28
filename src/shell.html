@@ -499,7 +499,7 @@
   .otext.win-cleaned text { font-size:57.2px; stroke-width:4; }
   #winCleaned { fill:#fff; }
   .win-time { flex:none; width:72px; height:34px; transform:rotate(11deg); }
-  .otext.win-time text { font-size:26px; stroke-width:5; }  /* тоньше — мелкий кегль (пропорц. к Level) */
+  .otext.win-time text { font-size:28px; stroke-width:5; }  /* 28 по ноде 783:1065 (было 26); обводка тоньше — мелкий кегль */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:8px; }
   .otext.win-score text { font-size:68px; stroke-width:18; }  /* обводка ×2 (спека владельца) */
   #winScore { fill:url(#gWinScore); }
@@ -511,7 +511,7 @@
     display:grid; place-items:center; }
   .win-reward-ic svg { width:32px; height:32px; display:block; }
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
-  .win-next { flex:1; height:84px; border:none; border-radius:1000px; cursor:pointer;
+  .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
   /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
   .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
@@ -526,7 +526,9 @@
   .wt-bar { height:10px; border-radius:32px; background:rgba(0,0,0,.2); overflow:hidden; }
   .wt-bar i { display:block; height:100%; width:0; background:#c0ff47; border-radius:40px;
     transition:width .55s cubic-bezier(.34,1.56,.64,1); }
-  .wt-mult { flex:none; min-width:35px; height:35px; box-sizing:border-box; padding:0 8px;
+  /* паддинг РОВНЫЙ 8 по ноде 783:1065 (было 0/8 с фикс. высотой 35 — высота
+     теперь набирается контентом + паддингом, ширина по содержимому «×1.6») */
+  .wt-mult { flex:none; min-width:35px; box-sizing:border-box; padding:8px;
     background:rgba(0,0,0,.4); border-radius:32px; display:grid; place-items:center;
     color:#fff; font-weight:800; font-size:16px; }  /* Heavy (Figma), не Black */
   /* --- ВХОДНАЯ АНИМАЦИЯ: играет при каждом показе (.win-in ставит
@@ -1049,18 +1051,6 @@
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
   <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-135 · 2026-07-27</div>
-</div>
-
-<div class="overlay" id="adAskOverlay">
-  <div class="card">
-    <h2>One more shake</h2>
-    <p>Watch a short video to shake the items once more.</p>
-    <div class="btns">
-      <button class="ghost" id="adNo">Cancel</button>
-      <button class="ghost" id="coinShakeBtn">🪙 25</button>
-      <button class="primary" id="adYes">📺 Watch</button>
-    </div>
-  </div>
 </div>
 
 <div class="overlay" id="adOverlay">

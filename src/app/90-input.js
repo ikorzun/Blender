@@ -130,8 +130,6 @@ $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
 });
-$('adYes').addEventListener('click', startAd);
-$('adNo').addEventListener('click', ()=>hide('adAskOverlay'));
 $('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
 $('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
@@ -166,7 +164,6 @@ $('magnetBtn').addEventListener('click', ()=>{
   if (level.over || intro || level.detectorUsed) return;
   Ads.showRewarded(()=>{ detectorHighlight(); });
 });
-$('coinShakeBtn').addEventListener('click', buyCoinShake);
 // глаза миксера: интерактивный персонаж — подмигивает на тап
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
@@ -324,7 +321,7 @@ addEventListener('keydown', e => {
     if (paused) return;
     // под оверлеями рекламы Space чашу не трясёт (и не открывает второй
     // вопрос о встряске поверх идущего ролика)
-    if ($('adOverlay').style.display === 'flex' || $('adAskOverlay').style.display === 'flex') return;
+    if ($('adOverlay').style.display === 'flex') return; // adAskOverlay удалён (ролик идёт сразу)
     requestShake();
   }
 });
