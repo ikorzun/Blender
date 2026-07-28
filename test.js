@@ -1171,6 +1171,29 @@ window.bridge = {
     'каденция: показ, отложенный не-рекламным выходом, выходит на ПОБЕДНОМ переходе (' +
     cad.deferredNoShow + '->' + cad.deferredFired + ')');
 
+  // ⚠️ СЧЁТЧИК ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ (находка матрицы №3): пока он был
+  // переменной замыкания, INTER_EVERY_LEVELS побед надо было набрать в ОДНОЙ
+  // сессии страницы — три захода по 20 минут давали НОЛЬ показов всегда, и
+  // «месяц без рекламы» из бандла гасил то, чего игрок и так не получал.
+  await apage.evaluate(() => { window.__ads.noteWin(); window.__ads.noteWin(); window.__ads.noteWin(); });
+  const cadBefore = await apage.evaluate(() => window.__ads._winsSinceInter);
+  await apage.reload({ waitUntil: 'domcontentloaded' });
+  await apage.waitForFunction(() => window.__ads && window.__game, null, { timeout: 20000 });
+  const cadAfter = await apage.evaluate(() => window.__ads._winsSinceInter);
+  expect(cadBefore === 3 && cadAfter === 3,
+    '⚠️ КАДЕНЦИЯ ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ: ' + cadBefore + ' побед до, ' + cadAfter + ' после');
+  // и порог по-прежнему срабатывает — накопленное через перезагрузку не потеряно
+  const cadFire = await apage.evaluate(() => {
+    const A = window.__ads, M = window.__mock;
+    const base = M.interShown;
+    A.noteWin(); A.maybeInterstitial();   // 4-я
+    const at4 = M.interShown - base;
+    A.noteWin(); A.maybeInterstitial();   // 5-я — ролик
+    return { at4, at5: M.interShown - base, left: A._winsSinceInter };
+  });
+  expect(cadFire.at4 === 0 && cadFire.at5 === 1 && cadFire.left === 0,
+    'порог считает победы ЧЕРЕЗ перезагрузку (4→0 показов, 5→1, счётчик сброшен)');
+
   // ПРОВОДКА (спека 2026-07-24): РЕАЛЬНЫЙ Retry НЕ показывает межстраничную,
   // даже когда счётчик у порога — вызов убран из loseAgainBtn. ⚠️ С 2026-07-27
   // экран поражения из ТУПИКА больше не всплывает (помол-выручалка, «помол =
