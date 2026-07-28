@@ -252,7 +252,22 @@ $('msDiff').addEventListener('click', e => {
 });
 // Get More / Subscribe / Boost / Open — ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ (МЕТА/ИНТЕГРАЦИЯ):
 // на плейсхолдере до решения владельца, действие — заметка «скоро»
-$('msGetMore').addEventListener('click', ()=> toast('Coming soon'));
+// «MORE STARS» (Get More) — экран бандлов бустера (макеты 783:95 / 785:112).
+// Открывается ПОВЕРХ меню; игра уже на паузе меню, своей паузы НЕ ставим
+// (владение паузой — у openMainScreen, лезть туда нельзя, см. CLAUDE.md).
+$('msGetMore').addEventListener('click', ()=> show('starsOverlay'));
+$('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
+// ПОКУПКА — через ручку МЕТЫ buyBundle(tier). Ручки может ещё не быть:
+// тогда НИЧЕГО НЕ НАЧИСЛЯЕМ (мок-начисление запрещено — это валюта), а ведём
+// себя как прежний Get More в тестбилде: тост «Coming soon» + console.warn.
+document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    const tier = +btn.dataset.tier;
+    if (typeof buyBundle === 'function'){ buyBundle(tier); return; }
+    console.warn('[stars] buyBundle(' + tier + ') ещё не реализован МЕТОЙ — покупка не проведена');
+    toast('Coming soon');
+  });
+});
 $('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
 $('msGrid').addEventListener('click', e => {
   const btn = e.target.closest('.msc-boost');
