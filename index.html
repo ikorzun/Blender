@@ -1082,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-145 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-146 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -8840,8 +8840,18 @@ window.__game = {
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
-  // ВРЕМЕННО (подбор ракурса портрета, спека владельца): сменить позу +
-  // сбросить thumbCache, чтобы портрет переснялся. Удаляю после бейка значений.
+  // ⚠️ ТЕСТ-ХУК, НЕ ВРЕМЕННЫЙ — НЕ УДАЛЯТЬ (метка «ВРЕМЕННО, удалю после
+  // бейка» висела здесь ошибочно и чуть не привела к сносу 2026-07-27).
+  // На нём стоит ЕДИНСТВЕННЫЙ страж инварианта «поза статики и спина — ОДИН
+  // источник» (сам инвариант — в CLAUDE.md: развести нельзя, иначе скачок при
+  // подмене img→канвас на hover). Ассерт сьюта МЕНЯЕТ позу этим хуком и ждёт,
+  // что спин стартует с новой. ПОЧЕМУ БЕЗ МУТАЦИИ НЕЛЬЗЯ: статика и спин
+  // читают ОДНУ переменную PORTRAIT_YAW0 — любой getter вернул бы её дважды,
+  // и сверка «getter против getter» была бы пуста и зелена всегда. Мутация и
+  // ЕСТЬ проверка. ГРАФИКА доказала симуляцией (дала спину свою копию yaw):
+  // ассерт упал — startAngle −0.6 вместо 0.2; вернули общую — снова 0.2.
+  // Рамку стережёт отдельный thumbFrames, а ПОЗУ — только этот хук.
+  // Сменить позу + сбросить thumbCache, чтобы портрет переснялся.
   setPortraitPose(tx, yaw){ PORTRAIT_TILT_X = tx; PORTRAIT_YAW0 = yaw;
     for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
   // статический портрет как data-URL (проба/сьют): ghost=true -> гхост-режим
