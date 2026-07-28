@@ -907,9 +907,11 @@ function buildMainCollection(){
       lvl.className = 'msc-lvl';
       lvl.textContent = 'Level ' + Math.max(1, i - LEVEL_TYPES_MIN + 2);
       card.appendChild(lvl);
-      const open = document.createElement('button');
-      open.className = 'msc-boost'; open.dataset.act = 'open'; open.textContent = 'Open';
-      card.appendChild(open);
+      // КНОПКА «Open» СКРЫТА (спека владельца 2026-07-28: «не имеет сейчас
+      // никакого смысла для игроков»). Механика покупки типа (purchaseUnlock,
+      // act:'open') ЖИВА и не тронута — вернуть = раскомментировать три строки.
+      // ОТЛОЖЕНО (просьба владельца записать): когда-нибудь вернуть открытие
+      // предметов ЗА ЗВЁЗДЫ — см. блок ИНТЕРФЕЙС в WORKSTREAMS.
     } else {
       const cnt = document.createElement('div');
       cnt.className = 'msc-cnt';
@@ -1076,7 +1078,11 @@ window.hideMainScreen = closeMainScreen;
 // rect #vitrine бит-в-бит: его читает якорь тоста
 // (85-hud). Смена типа в слоте — уезд/въезд ВНУТРИ слота (.out/.in на ДЕТЯХ
 // раскладки нет — на самой ячейке, но число ячеек не меняется), НЕ add/remove.
-const VIT_TICK_MS = 150, VIT_MAX = 5;
+// VIT_MAX 5 → 3 (спека владельца 2026-07-28 «давай сюда всё же три строки,
+// и они так же меняются при наборе»): кап строк, ротация НЕ трогается —
+// собранный тип уезжает, на его место встаёт следующий из ranked-очереди.
+// Побочно закрыт открытый вопрос «на высоких уровнях панель уходит выше вьюпорта».
+const VIT_TICK_MS = 150, VIT_MAX = 3;
 let vitLevelRef = null, vitAt = 0, vitSlots = null, vitAll = null;
 function vitrineOn(){
   // ПРАВИЛО 2/3 (спека владельца 2026-07-27): панель на десктопе И планшетах,
@@ -1139,7 +1145,7 @@ function buildVitrine(){
   }
   vitSlots = [];
   const ranked = vitRankedAll();
-  const count = Math.min(VIT_MAX, ranked.length); // РОВНО 5 (типов всегда ≥9)
+  const count = Math.min(VIT_MAX, ranked.length); // РОВНО 3 (типов всегда ≥9)
   // шаг каскада капим, чтобы разворот не тянулся (~0.45 с)
   const step = Math.min(0.07, 0.45 / Math.max(1, count));
   for (let i = 0; i < count; i++){
@@ -1173,7 +1179,7 @@ function vitRankedAll(){
 // → высота #vGrid и rect #vitrine постоянны. reduce-motion: мгновенная замена.
 function vitReconcile(){
   if (!vitSlots || !vitAll) return;
-  const top5 = vitRankedAll().slice(0, VIT_MAX);
+  const top5 = vitRankedAll().slice(0, VIT_MAX); // имя историческое: теперь топ-3
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (let i = 0; i < vitSlots.length; i++){
     const cell = vitSlots[i], want = top5[i];
