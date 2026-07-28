@@ -330,8 +330,17 @@ function updateHUD(){
   // чипа монет и счётчика подсказок в макете 741:1738 НЕТ (монеты к тому же
   // скрыты COINS_ENABLED; кошелёк уедет в меню). Заряды подсказок живут в
   // сейве — кнопка просто гаснет при нуле
-  $('hintCnt').textContent = hints(); // остаток зарядов бейджем на кнопке
-  $('hintBtn').classList.toggle('off', hints() < 1);
+  // ПОДСКАЗКА — ТРИ СОСТОЯНИЯ бейджа (контракт МЕТЫ v129):
+  //  заряды есть      → число зарядов (бейдж Number 783:91/778:721/778:719);
+  //  зарядов 0 + ролик → лайм «Ad» (бейдж Ad 778:723/783:93) — тап крутит ролик;
+  //  зарядов 0, кап    → «0» и кнопка гаснет (паттерн Shake .off).
+  const hCnt = hints(), hAd = (typeof adHintAvailable === 'function') && adHintAvailable();
+  $('hintCnt').textContent = hAd ? 'Ad' : hCnt;
+  $('hintCnt').classList.toggle('ad', hAd);   // у ad-бейджа падинг 8 (в ноде без 12/8)
+  // ⚠️ .off ТОЛЬКО когда И зарядов нет, И ролик недоступен. Раньше гасили по
+  // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
+  // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
+  $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
   // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
   $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
   $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);

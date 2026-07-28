@@ -121,7 +121,15 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 
 $('shakeBtn').addEventListener('click', requestShake);
-$('hintBtn').addEventListener('click', showHint);
+// В AD-СОСТОЯНИИ ТАП = РОЛИК, а не обычная подсказка. Подтверждающего оверлея
+// НЕТ намеренно (решение МЕТЫ, диспетчер согласовал): слово «Ad» на кнопке уже
+// делает тап осознанным; исторический оверлей встряски сюда не копируем.
+// showHint() и сам перенаправил бы, но явная ветка читается честнее и не
+// зависит от порядка проверок внутри него.
+$('hintBtn').addEventListener('click', ()=>{
+  if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
+  else showHint();
+});
 $('adYes').addEventListener('click', startAd);
 $('adNo').addEventListener('click', ()=>hide('adAskOverlay'));
 $('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
