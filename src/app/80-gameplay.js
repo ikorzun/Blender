@@ -185,12 +185,12 @@ function detonateBomb(bomb){
   // он не стал неотличим от встряски) + ДЖОЛТ по ВСЕЙ куче, включая верх
   // (вздрагивает весь миксер — то самое «как shake»). Радиус панча едет за
   // BOMB_RADIUS через BOMB_WAVE_R_K, без хардкода: зону владелец уже менял.
-  blastWave(bomb.p, BOMB_RADIUS + BOMB_WAVE_PAD, BOMB_WAVE_V, CFG.bombJolt);
+  blastWave(bomb.p, BOMB_RADIUS + BOMB_WAVE_PAD, CFG.bombWaveV, CFG.bombJolt);
   // camShake — ДЛИТЕЛЬНОСТЬ дрожания: держим НИЖЕ встряски (0.42), иначе
   // взрыв дрожал бы дольше неё при вчетверо меньшем толчке (ревью 2026-07-27)
   camShake = Math.max(camShake, BOMB_CAM_SHAKE);
   Sound.play('shake');
-  vibrate([30, 60, 40]);
+  vibrate([40, 80, 50]); // тактильная сила взрыва под усиленную волну (спека «усилить силу», 2026-07-27)
   scorePop('BOOM', bomb.p.clone().setY(bomb.p.y + 0.9), '#1d1c26', true);
   const all = [bomb].concat(victims);
   const scales = all.map(it => it.mesh.scale.x);
