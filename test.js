@@ -1234,10 +1234,37 @@ window.bridge = {
   await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 4000 }).catch(() => {});
   const shard = await page.evaluate(async () => {
     const g = window.__game;
-    const base = g.perfStats().geoms;
-    const created = g.shardBurst(12);
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const peak = g.perfStats().geoms;
+    const geoms = () => g.perfStats().geoms;
+    // ⚠️ ФЛЕЙК «96 → 95» (репорт диспетчера 2026-07-28): база бралась МГНОВЕННО,
+    // и если в этот момент ещё дренажились геометрии ПРЕДЫДУЩЕЙ секции, за два
+    // кадра их уходило больше, чем осколки успевали добавить, — «после»
+    // оказывалось МЕНЬШЕ «до». Разброс базы в репорте (96 / 74 / 71) — это она
+    // и есть. Лечение, как у флейков вуали и радиуса: не мгновенное чтение, а
+    // (1) СТАБИЛИЗАЦИЯ базы — ждём, пока счётчик перестанет меняться...
+    let prev = -1, still = 0;
+    const settle = Date.now() + 4000;
+    while (still < 3 && Date.now() < settle){
+      await new Promise(r => setTimeout(r, 80));
+      const v = geoms();
+      if (v === prev) still++; else { still = 0; prev = v; }
+    }
+    const base = geoms();
+    // ⚠️ N — ЯВНЫЙ размер залпа: shardBurst возвращает fx.length (ВСЕ живые
+    // эффекты, не только осколки), и опираться на него как на «сколько кусков
+    // прилетело» нельзя — порог раннего выхода мог бы стать недостижимым.
+    const N = 12;
+    const created = g.shardBurst(N);
+    // ...и (2) ПИК ЗА ОКНО, а не одна выборка: осколки регистрируются в
+    // renderer.info на РЕНДЕРЕ, и один кадр мог прийтись на провал между
+    // дренажом чужих и появлением своих. Ранний выход, как только рост доказан.
+    let peak = base;
+    const peakDl = Date.now() + 2000;
+    while (Date.now() < peakDl){
+      await new Promise(r => requestAnimationFrame(r));
+      const v = geoms();
+      if (v > peak) peak = v;
+      if (peak >= base + N / 2) break;
+    }
     // ⚠️ НЕ фиксированная пауза (флейк 2026-07-24, ловился и метой, и мной:
     // «48 → 48», «52 → 54»). Осколки догорают по СВОИМ часам, а сьют к этой
     // секции приходит с разной загрузкой машины — 900мс хватало не всегда, и
@@ -1246,10 +1273,19 @@ window.bridge = {
     const deadline = Date.now() + 6000;
     while (g.perfStats().geoms > base && Date.now() < deadline)
       await new Promise(r => setTimeout(r, 100));
-    return { base, created, peak, after: g.perfStats().geoms };
+    return { base, created, peak, N, after: g.perfStats().geoms };
   });
   expect(shard.created >= 12, 'осколки: залп создал fx (' + shard.created + ')');
-  expect(shard.peak > shard.base, 'осколки: свои геометрии на кадре (' + shard.base + ' -> ' + shard.peak + ')');
+  // ⚠️ ПОРОГ N/2, А НЕ «БОЛЬШЕ БАЗЫ НА 1» (усиление 2026-07-28 вместе с фиксом
+  // флейка). Смысл секции — стеречь инвариант 70-fx «КАЖДЫЙ осколок несёт СВОЮ
+  // геометрию, общий кэш отдавать нельзя». При `peak > base` регрессия «все
+  // осколки на одной кэшированной геометрии» даёт +1 и проходит ЗЕЛЁНОЙ. После
+  // стабилизации базы прирост стал детерминированным ровно +N (замер: 71 -> 83
+  // в полном сьюте, 21 -> 33 в изоляции), так что требовать хотя бы половину
+  // залпа безопасно — запас на случайный дренаж соседей остаётся.
+  expect(shard.peak >= shard.base + shard.N / 2,
+    'осколки: КАЖДЫЙ несёт свою геометрию (' + shard.base + ' -> ' + shard.peak
+    + ', +' + (shard.peak - shard.base) + ' при залпе ' + shard.N + ')');
   // ⚠️ ПОРОГ, А НЕ ТОЧНОЕ РАВЕНСТВО (разбор флейка 2026-07-24). geoms —
   // счётчик ВСЕЙ сцены, а между base и after тикают соседние системы
   // (витрина печёт портреты, догорают чужие эффекты) — ловилось стабильное
