@@ -1273,7 +1273,11 @@ window.bridge = {
     const deadline = Date.now() + 6000;
     while (g.perfStats().geoms > base && Date.now() < deadline)
       await new Promise(r => setTimeout(r, 100));
-    return { base, created, peak, N, after: g.perfStats().geoms };
+    // ⚠️ settled=false — база взята ПО ПОТОЛКУ, посреди дренажа. Сейчас
+    // недостижимо (нужен >4 с монотонного падения), но без этого флага такой
+    // провал выглядел бы КАК ИСХОДНЫЙ ФЛЕЙК, и следующий диагностировал бы
+    // всё заново. Флаг только в сообщении — на вердикт не влияет.
+    return { base, created, peak, N, settled: still >= 3, after: g.perfStats().geoms };
   });
   expect(shard.created >= 12, 'осколки: залп создал fx (' + shard.created + ')');
   // ⚠️ ПОРОГ N/2, А НЕ «БОЛЬШЕ БАЗЫ НА 1» (усиление 2026-07-28 вместе с фиксом
@@ -1285,7 +1289,8 @@ window.bridge = {
   // залпа безопасно — запас на случайный дренаж соседей остаётся.
   expect(shard.peak >= shard.base + shard.N / 2,
     'осколки: КАЖДЫЙ несёт свою геометрию (' + shard.base + ' -> ' + shard.peak
-    + ', +' + (shard.peak - shard.base) + ' при залпе ' + shard.N + ')');
+    + ', +' + (shard.peak - shard.base) + ' при залпе ' + shard.N
+    + (shard.settled ? '' : '; ⚠️ база НЕ устоялась — взята по потолку 4с') + ')');
   // ⚠️ ПОРОГ, А НЕ ТОЧНОЕ РАВЕНСТВО (разбор флейка 2026-07-24). geoms —
   // счётчик ВСЕЙ сцены, а между base и after тикают соседние системы
   // (витрина печёт портреты, догорают чужие эффекты) — ловилось стабильное
