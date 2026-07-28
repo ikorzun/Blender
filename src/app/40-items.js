@@ -442,7 +442,7 @@ function genLevel(){
   // за рекламу становились бы БЕСКОНЕЧНЫМИ. У встряски этой дыры нет — её
   // награда тратится внутри уровня, а заряд подсказки ПОЖИЗНЕННЫЙ (he).
   if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
-  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
+  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень

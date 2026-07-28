@@ -1082,7 +1082,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-141 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-142 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -3779,7 +3779,7 @@ function genLevel(){
   // за рекламу становились бы БЕСКОНЕЧНЫМИ. У встряски этой дыры нет — её
   // награда тратится внутри уровня, а заряд подсказки ПОЖИЗНЕННЫЙ (he).
   if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
-  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
+  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -5383,22 +5383,55 @@ function scoreShownDelta(before, after){ return scoreShownDenom(after) - scoreSh
 // ЖИВОЙ баланс для чипа в игре (запрос ИНТЕРФЕЙСУ: чип показывает balance,
 // а не per-level score): банкованный баланс + ещё НЕ забанкованный счёт
 // текущего уровня. На победе счёт уезжает в se, поэтому число непрерывно.
-function liveBalance(){
-  let live = 0;
+// НЕЗАБАНКОВАННАЯ часть текущего уровня, за вычетом уже забанкованного
+// ДОСРОЧНО (level.banked — водяной знак партии, живёт в памяти уровня).
+function liveScoreDenom(){
   try {
     if (typeof level !== 'undefined' && level && !level.over &&
         typeof stats !== 'undefined' && stats)
-      live = scoreShownDenom(stats.score);
+      return Math.max(0, scoreShownDenom(stats.score) - (level.banked || 0));
   } catch(e){}
-  return starBalance() + live;
+  return 0;
+}
+function liveBalance(){ return starBalance() + liveScoreDenom(); }
+// ⚠️ БАНК ПО ТРЕБОВАНИЮ (спека владельца 2026-07-28 «во время игры одно
+// число, а на пузе второе» → кошелёк ПОКАЗЫВАЕТ liveBalance). Показанное
+// обязано быть ТРАТИМЫМ: если забанкованного не хватает, но с учётом текущего
+// уровня хватает — банкуем накопленное сейчас и двигаем водяной знак, чтобы
+// победа НЕ забанковала это второй раз.
+function bankLive(){
+  const add = liveScoreDenom();
+  if (add <= 0) return 0;
+  Save.se = (Save.se || 0) + add;
+  if (typeof level !== 'undefined' && level) level.banked = (level.banked || 0) + add;
+  commitSave(); fireStarsChange();
+  return add;
+}
+// Единый гейт всех трат.
+function ensureBanked(price){
+  price = Math.max(0, price | 0);
+  if (starBalance() >= price) return true;   // забанкованного и так довольно
+  if (liveBalance() < price) return false;   // не хватает даже с текущим уровнем
+  bankLive();
+  return starBalance() >= price;
 }
 // БАНК СЧЁТА НА ПОБЕДЕ (финализация владельца: «всё заработанное в уровне =
 // баланс»). se += score/SCORE_DENOM (деноминация ×10, floor, клампится ≥0).
 // Раз за уровень — игра линейна, реплея нет, поэтому не фармится.
 function bankLevelScore(score){
-  const gain = Math.floor(Math.max(0, score || 0) / SCORE_DENOM);
-  if (gain > 0){ Save.se = (Save.se || 0) + gain; commitSave(); fireStarsChange(); }
-  return gain;
+  const total = Math.floor(Math.max(0, score || 0) / SCORE_DENOM);
+  const pre = (typeof level !== 'undefined' && level && level.banked) || 0;
+  const rest = total - pre;
+  if (rest > 0) Save.se = (Save.se || 0) + rest;
+  // ⚠️ СЧЁТ УПАЛ ПОСЛЕ ДОСРОЧНОГО БАНКА (штрафы/помол): забанковано больше,
+  // чем уровень стоил в итоге. Уменьшать se НЕЛЬЗЯ — он монотонный, и мерж по
+  // max с отставшей облачной копией вернул бы списанное (грабля монет).
+  // Коррекция идёт в ss (тоже монотонный): разность se−ss выходит РОВНО
+  // floor(score/10), и лидерборд se−max(0,ss−tu) сходится так же.
+  else if (rest < 0) Save.ss = (Save.ss || 0) + (-rest);
+  if (typeof level !== 'undefined' && level) level.banked = Math.max(pre, total);
+  commitSave(); fireStarsChange();
+  return total; // «заработано за уровень» целиком, включая досрочно забанкованное
 }
 // Номинал победы по РЕЙТИНГУ — остался ТОЛЬКО для grandfather-миграции
 // старых сейвов (у них нет истории счёта, сеем стартовый баланс из рейтинга;
@@ -5415,7 +5448,7 @@ function starAward(lv, stars){
 function addStars(n){ if (n > 0){ Save.tu = (Save.tu || 0) + n; commitSave(); fireStarsChange(); } }
 function spendStars(n){
   n = Math.max(0, n | 0);
-  if (starBalance() < n) return false;
+  if (!ensureBanked(n)) return false;
   Save.ss = (Save.ss || 0) + n;
   commitSave(); fireStarsChange();
   return true;
@@ -5452,12 +5485,12 @@ function boostPrice(name){
   // (кап BOOST_TIER_CAP=5 → сумма 62000, универсально для любого типа).
   return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, boostTier(name)));
 }
-function canBoost(name){ const p = boostPrice(name); return p != null && starBalance() >= p; }
+function canBoost(name){ const p = boostPrice(name); return p != null && liveBalance() >= p; } // по ПОКАЗАННОМУ
 function buyBoost(name){
   if (!isTypeUnlocked(name)) return { ok: false, reason: 'locked' }; // сначала открыть тип
   const p = boostPrice(name);
   if (p == null) return { ok: false, reason: 'capped', tier: accTier(name), boughtTier: boostTier(name) };
-  if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
+  if (!ensureBanked(p)) return { ok: false, reason: 'insufficient', price: p, balance: liveBalance() };
   if (!Save.bo) Save.bo = {};
   Save.ss = (Save.ss || 0) + p;          // трата — через монотонный счётчик
   Save.bo[name] = boostTier(name) + 1;
@@ -5587,11 +5620,11 @@ function typeUnlockPrice(name){
   const idx = TYPES.findIndex(T => T.name === name);
   return idx >= 0 ? (TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum) : null;
 }
-function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && starBalance() >= p; }
+function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && liveBalance() >= p; } // по ПОКАЗАННОМУ
 function purchaseUnlock(name){
   const p = typeUnlockPrice(name);
   if (p == null) return { ok: false, reason: isTypeUnlocked(name) ? 'already' : 'unknown' };
-  if (starBalance() < p) return { ok: false, reason: 'insufficient', price: p, balance: starBalance() };
+  if (!ensureBanked(p)) return { ok: false, reason: 'insufficient', price: p, balance: liveBalance() };
   if (!Save.uk) Save.uk = {};
   Save.ss = (Save.ss || 0) + p; // трата — монотонный счётчик (лидерборд падает)
   Save.uk[name] = 1;
@@ -8778,7 +8811,8 @@ window.__game = {
   boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // тест-ручка
   boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
   boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
-  bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
+  bankScore(n){ return bankLevelScore(n); },
+  addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
   starMigrate(){ return migrateStarsToWallet(); },

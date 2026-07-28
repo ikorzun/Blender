@@ -1622,6 +1622,79 @@ window.bridge = {
     '⚠️ ЦЕНА ВЫРУЧАЛКИ под бустером кратно выше — число для владельца (−' + stuckPlain.drop + ' -> −' + stuckBoost.drop + ')');
 
   await page.evaluate(() => { window.__game.boostClear(); });
+  // ── ПОКАЗАННОЕ = ТРАТИМОЕ (спека владельца 2026-07-28) ───────────────────
+  // Кошелёк показывает liveBalance (забанкованное + счёт текущего уровня ÷10),
+  // а траты проверяли starBalance (только забанкованное) → «вижу 2003, но
+  // Boost за 2000 не покупается». Лечение — банк по требованию.
+  const liveSpend = await page.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(3); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    g.saveRaw();                                     // прогрев
+    // ставим ровно ту вилку из репорта: показано >= цены, забанковано < цены
+    const price = 2000;
+    g.starGrant(0);
+    const need = price - g.starBalance();
+    if (need > 0) g.addScore(need * 10 + 30);        // +живой счёт с запасом 3 ед.
+    const shown0 = g.liveBalance(), banked0 = g.starBalance();
+    const gap = shown0 >= price && banked0 < price;  // та самая вилка
+    const before = { shown: shown0, banked: banked0 };
+    const ok = g.spendStars(price);
+    const after = { shown: g.liveBalance(), banked: g.starBalance() };
+    return { gap, before, after, ok, price };
+  });
+  expect(liveSpend.gap === true,
+    'воспроизведена вилка репорта: показано ' + liveSpend.before.shown + ' >= 2000 > забанковано ' + liveSpend.before.banked);
+  expect(liveSpend.ok === true,
+    '⚠️ (а) покупка на ВИДИМЫЕ деньги проходит (было «вижу, но не куплю»)');
+  expect(liveSpend.after.shown === liveSpend.before.shown - liveSpend.price,
+    '⚠️ (в) баланс после покупки = показанному минус цена (' + liveSpend.before.shown + ' − ' + liveSpend.price + ' = ' + liveSpend.after.shown + ')');
+
+  // (б) сумма банка за уровень = floor(score/10) РОВНО, сколько бы досрочных
+  // банков ни случилось: ни дюпа, ни потери.
+  const bankSum = await page.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(3); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    const w0 = g.starBalance();
+    g.addScore(5000);                                // 500 единиц живого счёта
+    g.spendStars(100); g.spendStars(150); g.spendStars(70); // три досрочных банка
+    const spent = 320;
+    const scoreNow = g.stats().score;
+    g.bankScore(scoreNow);                           // «победа»
+    const w1 = g.starBalance();
+    return { w0, w1, spent, expected: Math.floor(scoreNow / 10) };
+  });
+  expect(bankSum.w1 === bankSum.w0 + bankSum.expected - bankSum.spent,
+    '⚠️ (б) банк за уровень РОВНО floor(score/10) при трёх досрочных банках (' +
+    bankSum.w0 + ' + ' + bankSum.expected + ' − ' + bankSum.spent + ' = ' + bankSum.w1 + ')');
+
+  // ⚠️ МОЙ СЛУЧАЙ, которого не было в постановке: счёт УПАЛ после досрочного
+  // банка (штрафы/помол). se монотонный — уменьшать нельзя, коррекция в ss.
+  const bankDrop = await page.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(8); g.regen(); g.skipIntro();          // ур.>5 — минус честный
+    await new Promise(r => setTimeout(r, 400));
+    const w0 = g.starBalance(), rank0 = g.leaderboardScore();
+    g.addScore(3000);                                 // 300 единиц
+    g.spendStars(250);                                // досрочный банк на 300
+    g.addScore(-1500);                                // счёт упал до 150 единиц
+    const scoreNow = g.stats().score;
+    g.bankScore(scoreNow);                            // победа: банк ОСТАТКА (он отрицательный)
+    return { w0, w1: g.starBalance(), rank0, rank1: g.leaderboardScore(),
+             expected: Math.floor(scoreNow / 10), spent: 250 };
+  });
+  expect(bankDrop.w1 === bankDrop.w0 + bankDrop.expected - bankDrop.spent,
+    '⚠️ СЧЁТ УПАЛ ПОСЛЕ БАНКА: кошелёк всё равно ровно floor(score/10) − траты (' +
+    bankDrop.w0 + ' + ' + bankDrop.expected + ' − ' + bankDrop.spent + ' = ' + bankDrop.w1 + ')');
+  // ⚠️ Ранг двигается ТАК ЖЕ, как кошелёк: заработок поднимает, трата опускает
+  // (утверждённый размен владельца). Проверяем ГЛАВНОЕ — что досрочный банк не
+  // РАЗДУЛ ранг по пику счёта: без коррекции в ss вышло бы rank0+300−250.
+  const rankHonest = bankDrop.rank0 + bankDrop.expected - bankDrop.spent;
+  const rankInflated = bankDrop.rank0 + 300 - bankDrop.spent; // если бы банк по пику остался
+  expect(bankDrop.rank1 === rankHonest && bankDrop.rank1 !== rankInflated,
+    '⚠️ ЛИДЕРБОРД не раздут пиком: ' + bankDrop.rank1 + ' (честно ' + rankHonest +
+    ', по пику было бы ' + rankInflated + ')');
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
