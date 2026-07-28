@@ -478,9 +478,39 @@ function findHintGroup(){
   }
   return best;
 }
+// ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) — зеркало ad-встряски:
+// заряды кончились → предлагаем ролик → +1 заряд. Доступна ТОЛЬКО при нуле
+// зарядов (как ad-встряска открывается лишь после бесплатных) и в пределах
+// пер-уровневого капа. Контракт для ИНТЕРФЕЙСА: этой ручкой они решают,
+// показывать ли на кнопке лайм-бейдж «Ad».
+function adHintAvailable(){
+  return !!(level && !level.over && !intro && hints() < 1 && level.adHints > 0);
+}
+// Ролик за заряд. Подтверждающего оверлея НЕТ намеренно: кнопка сама несёт
+// бейдж «Ad», тап по ней — уже осознанный выбор (у встряски оверлей остался
+// историческим, её поток не трогаю).
+function requestAdHint(){
+  if (!adHintAvailable()) return false;
+  Ads.showRewarded(()=>{ // награда только после досмотра (78-ads)
+    // ⚠️ ЗАРЯД ДАЁМ ВСЕГДА, даже если уровень кончился за время ролика:
+    // игрок ролик ДОСМОТРЕЛ, а заряд пожизненный (he) и не пропадает —
+    // в отличие от встряски, которой на мёртвом уровне некого трясти.
+    addHints(1);
+    if (level) level.adHints--;
+    adHintCarry = Math.max(0, adHintCarry - 1); // кап переживает Restart той же партии
+    stats.adHintsUsed++;
+    Telemetry.ev('rw', { p: 'hint' });
+    updateHUD();
+    if (!level.over && !intro) showHint(); // свежий заряд тратим сразу — игрок жал «подсказку»
+  });
+  return true;
+}
 function showHint(){
   if (level.over || intro) return;
-  if (hints() < 1){ toast('No hints left'); return; }
+  if (hints() < 1){
+    if (adHintAvailable()){ requestAdHint(); return; } // ролик вместо отказа
+    toast('No hints left'); return;
+  }
   const grp = findHintGroup();
   if (!grp){
     toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим

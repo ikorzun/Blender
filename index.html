@@ -1263,6 +1263,11 @@ const CHAIN_RING_ENABLED = false; // диск-заряд у курсора ск�
 const COIN_BASE = 20;        // монет за победу
 const COIN_PER_SCORE = 500;  // +1 монета за каждые 500 очков (комбо выгодны)
 const PRICE_SHAKE = 25;      // встряска за монеты — ТОЛЬКО после rewarded-капа
+// ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28, лайм-бейдж «Ad» на кнопке):
+// кончились заряды → кнопка предлагает ролик → +1 заряд. Кап ПЕР-УРОВНЕВЫЙ, как
+// у встряски (level.adHints), НЕ дневной: дневной требует server-времени
+// (зона ИНТЕГРАЦИИ) — эту зависимость сюда не тащим.
+const AD_HINTS_PER_LEVEL = 2;
 const PRICE_SCOPE = 15;      // «Прицел»: подсветить все доступные пары на 5 с
 // Пороги звёзд подняты (баланс-таблица владельца 2026-07-22, «стартово
 // 1.5/2.1, откалибруй ботом»): пар-скор теперь учитывает множители
@@ -3090,6 +3095,10 @@ let items = [];
 let stats, level;
 // номер уровня — переживает перезагрузку
 let levelNum = 1;
+// Кап роликов «подсказка за рекламу», привязанный к НОМЕРУ уровня (не к
+// объекту level): переживает Restart той же партии, обнуляется только на
+// НОВОМ уровне. Подробности и почему так — у места использования в genLevel.
+let adHintLevelNo = -1, adHintCarry = AD_HINTS_PER_LEVEL;
 try { levelNum = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1', 10) || 1); } catch(e){}
 
 // size — НЕПРЕРЫВНЫЙ множитель (спека владельца: разброс ±10% на старте,
@@ -3513,9 +3522,17 @@ function genLevel(){
   // БЕЗ предварительной осадки: падение происходит ЖИВЬЁМ на экране
   // (интро: вид сбоку -> облёт -> вид сверху); утряска и трим — в интро
   // (tickIntro/finishIntro) или в __game.skipIntro() для тестов
-  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, score:0,
+  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
-  level = { shakes:3, adShakes:2, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
+  // ⚠️ adHints (кап роликов на подсказку) НЕ пишется в сейв — это анти-дюп:
+  // остаток в Save мержился бы по max и облако ВОЗВРАЩАЛО бы просмотренный
+  // ролик. Награда (+1 заряд) уходит в монотонную пару he/hs — дюп-безопасна.
+  // ⚠️ И НЕ обнуляется на КАЖДЫЙ genLevel, а привязан к НОМЕРУ уровня: иначе
+  // «Restart» в паузе (pauseRestart -> genLevel) refill'ил бы кап, и подсказки
+  // за рекламу становились бы БЕСКОНЕЧНЫМИ. У встряски этой дыры нет — её
+  // награда тратится внутри уровня, а заряд подсказки ПОЖИЗНЕННЫЙ (he).
+  if (adHintLevelNo !== levelNum){ adHintLevelNo = levelNum; adHintCarry = AD_HINTS_PER_LEVEL; }
+  level = { shakes:3, adShakes:2, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount,
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -5890,9 +5907,39 @@ function findHintGroup(){
   }
   return best;
 }
+// ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) — зеркало ad-встряски:
+// заряды кончились → предлагаем ролик → +1 заряд. Доступна ТОЛЬКО при нуле
+// зарядов (как ad-встряска открывается лишь после бесплатных) и в пределах
+// пер-уровневого капа. Контракт для ИНТЕРФЕЙСА: этой ручкой они решают,
+// показывать ли на кнопке лайм-бейдж «Ad».
+function adHintAvailable(){
+  return !!(level && !level.over && !intro && hints() < 1 && level.adHints > 0);
+}
+// Ролик за заряд. Подтверждающего оверлея НЕТ намеренно: кнопка сама несёт
+// бейдж «Ad», тап по ней — уже осознанный выбор (у встряски оверлей остался
+// историческим, её поток не трогаю).
+function requestAdHint(){
+  if (!adHintAvailable()) return false;
+  Ads.showRewarded(()=>{ // награда только после досмотра (78-ads)
+    // ⚠️ ЗАРЯД ДАЁМ ВСЕГДА, даже если уровень кончился за время ролика:
+    // игрок ролик ДОСМОТРЕЛ, а заряд пожизненный (he) и не пропадает —
+    // в отличие от встряски, которой на мёртвом уровне некого трясти.
+    addHints(1);
+    if (level) level.adHints--;
+    adHintCarry = Math.max(0, adHintCarry - 1); // кап переживает Restart той же партии
+    stats.adHintsUsed++;
+    Telemetry.ev('rw', { p: 'hint' });
+    updateHUD();
+    if (!level.over && !intro) showHint(); // свежий заряд тратим сразу — игрок жал «подсказку»
+  });
+  return true;
+}
 function showHint(){
   if (level.over || intro) return;
-  if (hints() < 1){ toast('No hints left'); return; }
+  if (hints() < 1){
+    if (adHintAvailable()){ requestAdHint(); return; } // ролик вместо отказа
+    toast('No hints left'); return;
+  }
   const grp = findHintGroup();
   if (!grp){
     toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим
@@ -8112,6 +8159,12 @@ window.__game = {
   starAward: starAward,           // номинал (только миграция) — оставлен для тестов
   // тест/отладка
   starGrant(n){ addStars(n); return starBalance(); },
+  // ПОДСКАЗКА ЗА РЕКЛАМУ — контракт с ИНТЕРФЕЙСОМ (бейдж «Ad» на кнопке):
+  // adHintAvailable() — рисовать ли ad-состояние; requestAdHint() — запустить
+  // ролик (сам showHint уже уходит в эту ветку при нуле зарядов).
+  adHintAvailable: adHintAvailable,
+  requestAdHint: requestAdHint,
+  spendHint: spendHint, // тест-ручка: слить заряды, чтобы проверить ad-ветку
   bankScore(n){ return bankLevelScore(n); }, // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
