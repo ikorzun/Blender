@@ -1084,7 +1084,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-156 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-157 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1595,6 +1595,22 @@ const SHAKE_RESP = { car: 0.75, animal: 1.0, food: 1.15, rock: 0.7, brick: 0.72,
 // вздрагивает соседей (blastWave в 50-physics). Волна — КОСМЕТИКА, не
 // рыхление: пик BURST_WAVE_V мал (встряска даёт ~9), затухает квадратично.
 const BURST_MIN_N = 4, BURST_WAVE_R = 2.4, BURST_WAVE_V = 0.9;
+
+// КАП РАЗМЕРА ГРУППЫ (спека владельца 2026-07-27: «поставь кап на 8»).
+// До этого капа НЕ БЫЛО вовсе: тап уносил ВСЕ доступные однотипные в
+// радиусе. Замер потолка по доступности: ур.1 (9 типов) до 16 штук,
+// ур.10 (18 типов) 10, ур.40 (48 типов) 3-4 — то есть кап реально работает
+// только на РАННИХ уровнях, на поздних не меняет ничего.
+// ⚠️ Считается ВЕСЬ матч, ВКЛЮЧАЯ тапнутый предмет (группа <= 8 штук).
+// Лишние отсекаются по ДАЛЬНОСТИ: остаются ближайшие к тапнутому по
+// истинному зазору (та же метрика, что у бомбы) — «схлопнулось вокруг
+// пальца», остальные ждут следующего тапа и легальны как сироты.
+// ⚠️ СЛЕДСТВИЕ ДЛЯ ОЧКОВ: цена группы 10·N·(N−1) квадратична, поэтому кап
+// срезает ранний доход (было 16 -> 2400 очков за тап, стало 8 -> 560), а
+// пар-скор для звёзд (finalizeFill) от размера группы НЕ зависит — значит
+// 2★/3★ на ранних уровнях становятся заметно труднее. Это ожидаемая цена
+// решения владельца, при жалобе «звёзды не даются» — первый подозреваемый.
+const MATCH_MAX_N = 8;
 
 // ЧЁРНЫЙ ШАР-БОМБА (спека владельца 2026-07-22, через диспетчера: «добавь
 // в игру черный шар, средний размер... Клик на него взрывает все вещи
@@ -6538,7 +6554,19 @@ function handleTap(x, y){
   }
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
-  const eligible = accessible.filter(i => pairMatch(i, item));
+  let eligible = accessible.filter(i => pairMatch(i, item));
+  // КАП ГРУППЫ (спека владельца 2026-07-27 «поставь кап на 8»): в матч уходит
+  // не больше MATCH_MAX_N предметов ВСЕГО, включая тапнутый. Лишние
+  // отсекаются по ДАЛЬНОСТИ — остаются ближайшие по истинному зазору (та же
+  // метрика, что у жертв бомбы): визуально «схлопнулось вокруг пальца».
+  // Отсечённые остаются жить и матчатся следующим тапом.
+  if (eligible.length > MATCH_MAX_N - 1){
+    eligible = eligible
+      .map(i => ({ i, d: pairDist(i, item) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, MATCH_MAX_N - 1)
+      .map(v => v.i);
+  }
 
   // ореол досягаемости: белый — матч есть, красный — промах
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
@@ -6577,7 +6605,13 @@ function findHintGroup(){
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
   let best = null;
   for (const it of acc){
-    const grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+    let grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+    // тот же кап, что и в тапе (спека владельца 2026-07-27): подсказка не
+    // должна обещать группу больше той, что реально соединится
+    if (grp.length > MATCH_MAX_N - 1){
+      grp = grp.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
+               .slice(0, MATCH_MAX_N - 1).map(v => v.o);
+    }
     if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
   }
   return best;
@@ -8832,6 +8866,39 @@ function loop(){
 }
 
 // ---------- Отладочный API ----------
+// ⚠️ ПИКСЕЛЬ, ГДЕ ПРЕДМЕТ — ПЕРВОЕ ПЕРЕСЕЧЕНИЕ ЛУЧА (общий для findByTex и
+// bestTapTarget; только для тестов). Проекция ЦЕНТРА для клика НЕ ГОДИТСЯ:
+// центр бывает закрыт соседом, и тест бьёт не по тому предмету. Историю этой
+// грабли писали дважды: флейк-репорт v76 (клик по центру попадал в
+// загораживающий предмет, «−20» вместо «+120») и флейк v157 (новый ассерт капа
+// кликал по центру группы, случайно попадал в БОМБУ и детонировал её ДО секции
+// бомбы — три ассерта бомбы падали через раз). Пробуем центр и 8 смещений по
+// экранным осям камеры на 0.55·r; ни один не подошёл — предмет закрыт целиком.
+function pickCtx(){
+  const right = new THREE.Vector3(), up = new THREE.Vector3();
+  camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+  return { meshes: aliveMeshes(), rc: new THREE.Raycaster(), right, up };
+}
+function visiblePixel(it, ctx){
+  for (let k = 0; k < 9; k++){
+    const wp = it.p.clone();
+    if (k > 0){
+      const a = (k - 1)/8*Math.PI*2, d = it.r * 0.55;
+      wp.add(ctx.right.clone().multiplyScalar(Math.cos(a)*d))
+        .add(ctx.up.clone().multiplyScalar(Math.sin(a)*d));
+    }
+    const sp = wp.project(camera);
+    // ⚠️ ПРОВЕРЯЕМ ПО ОКРУГЛЁННОМУ ПИКСЕЛЮ, а не по сырой проекции: тест кликает
+    // ЦЕЛЫМИ координатами, а смещённые пробы лежат у самого силуэта — округление
+    // на полпикселя перебрасывало луч на соседа. Замер: 5 расхождений «обещано
+    // n, ушло меньше» из 14 тапов; после сверки по округлённому — 0.
+    const px = Math.round((sp.x + 1)/2*innerWidth), py = Math.round((-sp.y + 1)/2*innerHeight);
+    ctx.rc.setFromCamera({ x: px/innerWidth*2 - 1, y: -(py/innerHeight*2 - 1) }, camera);
+    const hits = ctx.rc.intersectObjects(ctx.meshes, false);
+    if (hits.length && hits[0].object.userData.item === it) return { px, py };
+  }
+  return null;
+}
 window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
   availablePairs,
@@ -9090,22 +9157,46 @@ window.__game = {
   // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
   // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
   bestTapTarget(mode){
-    let grp = null;
-    if (mode === 'any'){
-      refreshAccessibility();
-      const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
-      const cands = [];
-      for (const it of acc){
-        const g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
-        if (g.length) cands.push([it].concat(g));
+    refreshAccessibility();
+    const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
+    // ⚠️ ГРУППА СЧИТАЕТСЯ ВОКРУГ КОНКРЕТНОГО ЯКОРЯ — ровно так, как её
+    // пересоберёт handleTap, ВКЛЮЧАЯ кап. pairMatch — это БЛИЗОСТЬ (зазор <=
+    // matchRadius), а НЕ класс эквивалентности: у соседа по цепочке набор
+    // соседей свой. Поэтому «n от одного предмета, пиксель от другого» врёт —
+    // ревью v157 замерило: 9 тапов из 14 уносили не то число, что обещано.
+    const groupAround = (it) => {
+      let g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+      const raw = g.length + 1;
+      if (g.length > MATCH_MAX_N - 1){
+        g = g.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
+             .slice(0, MATCH_MAX_N - 1).map(v => v.o);
       }
-      if (cands.length) grp = cands[Math.floor(Math.random() * cands.length)];
-    } else grp = findHintGroup();
-    if (!grp || !grp.length) return null;
-    const it = grp[0];
-    const sp = it.p.clone().project(camera);
-    return { n: grp.length, name: it.type.name,
-      px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+      return { n: g.length + 1, raw };
+    };
+    const cands = [];
+    for (const it of acc){ const g = groupAround(it); if (g.n > 1) cands.push({ it, n: g.n, raw: g.raw }); }
+    if (!cands.length) return null;
+    // mode 'any' — СЛУЧАЙНЫЙ порядок (модель обычного игрока: бьёт по первой
+    // замеченной паре); без аргумента — сперва САМЫЕ КРУПНЫЕ группы (модель
+    // внимательного игрока). Разброс двух моделей и есть коридор порогов звёзд.
+    if (mode === 'any') for (let i = cands.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t;
+    } else cands.sort((a, b) => b.raw - a.raw);
+    // ⚠️ ПЕРЕБИРАЕМ ВСЕХ КАНДИДАТОВ, а не одну группу: доступность считается
+    // лучами В НЕБО, а пиксель — лучом ОТ КАМЕРЫ, и предмет бывает доступен,
+    // но закрыт соседом. Первая версия v157 сдавалась на первой же закрытой
+    // группе и отдавала null при сотне живых пар (замер ревью: дефолтный режим
+    // возвращал null на ур.5/10/20, хотя 31-40 из 60 групп были видимы), а
+    // ассерт капа молча уходил в «пропуск». Как findByTex — идём до упора.
+    const ctx = pickCtx();
+    for (const c of cands){
+      const px = visiblePixel(c.it, ctx);
+      // n — размер того матча, который РЕАЛЬНО соберётся вокруг отданного
+      // пикселя (с капом); raw — тот же матч ДО капа, по нему видно, сработал
+      // ли кап вообще (нужно ассерту сьюта, иначе он проверяет пустоту).
+      if (px) return Object.assign({ n: c.n, raw: c.raw, name: c.it.type.name }, px);
+    }
+    return { n: 0, occluded: true };   // группы есть, но все закрыты от камеры
   },
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
@@ -9171,29 +9262,13 @@ window.__game = {
   // пересечение. Все точки закрыты у всех кандидатов -> {occluded:true}:
   // вызывающий делает встряску и повторяет.
   findByTex(tex){
-    const meshes = aliveMeshes();
-    const rc = new THREE.Raycaster();
-    const right = new THREE.Vector3(), up = new THREE.Vector3();
-    camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+    const ctx = pickCtx();
     let firstHidden = null;
     for (let i = 0; i < items.length; i++){
       const it = items[i];
       if (!it.alive || !it.accessible || it.animating || it.type.tex !== tex) continue;
-      for (let k = 0; k < 9; k++){
-        const wp = it.p.clone();
-        if (k > 0){
-          const a = (k - 1)/8*Math.PI*2, d = it.r * 0.55;
-          wp.add(right.clone().multiplyScalar(Math.cos(a)*d))
-            .add(up.clone().multiplyScalar(Math.sin(a)*d));
-        }
-        const sp = wp.project(camera);
-        rc.setFromCamera({ x: sp.x, y: sp.y }, camera);
-        const hits = rc.intersectObjects(meshes, false);
-        if (hits.length && hits[0].object.userData.item === it){
-          return { i, name: it.type.name,
-            px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
-        }
-      }
+      const px = visiblePixel(it, ctx);
+      if (px) return Object.assign({ i, name: it.type.name }, px);
       if (!firstHidden) firstHidden = { i, name: it.type.name, occluded: true };
     }
     return firstHidden;

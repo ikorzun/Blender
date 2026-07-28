@@ -461,7 +461,19 @@ function handleTap(x, y){
   }
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
-  const eligible = accessible.filter(i => pairMatch(i, item));
+  let eligible = accessible.filter(i => pairMatch(i, item));
+  // КАП ГРУППЫ (спека владельца 2026-07-27 «поставь кап на 8»): в матч уходит
+  // не больше MATCH_MAX_N предметов ВСЕГО, включая тапнутый. Лишние
+  // отсекаются по ДАЛЬНОСТИ — остаются ближайшие по истинному зазору (та же
+  // метрика, что у жертв бомбы): визуально «схлопнулось вокруг пальца».
+  // Отсечённые остаются жить и матчатся следующим тапом.
+  if (eligible.length > MATCH_MAX_N - 1){
+    eligible = eligible
+      .map(i => ({ i, d: pairDist(i, item) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, MATCH_MAX_N - 1)
+      .map(v => v.i);
+  }
 
   // ореол досягаемости: белый — матч есть, красный — промах
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
@@ -500,7 +512,13 @@ function findHintGroup(){
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
   let best = null;
   for (const it of acc){
-    const grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+    let grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+    // тот же кап, что и в тапе (спека владельца 2026-07-27): подсказка не
+    // должна обещать группу больше той, что реально соединится
+    if (grp.length > MATCH_MAX_N - 1){
+      grp = grp.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
+               .slice(0, MATCH_MAX_N - 1).map(v => v.o);
+    }
     if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
   }
   return best;

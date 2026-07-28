@@ -500,6 +500,39 @@ function loop(){
 }
 
 // ---------- Отладочный API ----------
+// ⚠️ ПИКСЕЛЬ, ГДЕ ПРЕДМЕТ — ПЕРВОЕ ПЕРЕСЕЧЕНИЕ ЛУЧА (общий для findByTex и
+// bestTapTarget; только для тестов). Проекция ЦЕНТРА для клика НЕ ГОДИТСЯ:
+// центр бывает закрыт соседом, и тест бьёт не по тому предмету. Историю этой
+// грабли писали дважды: флейк-репорт v76 (клик по центру попадал в
+// загораживающий предмет, «−20» вместо «+120») и флейк v157 (новый ассерт капа
+// кликал по центру группы, случайно попадал в БОМБУ и детонировал её ДО секции
+// бомбы — три ассерта бомбы падали через раз). Пробуем центр и 8 смещений по
+// экранным осям камеры на 0.55·r; ни один не подошёл — предмет закрыт целиком.
+function pickCtx(){
+  const right = new THREE.Vector3(), up = new THREE.Vector3();
+  camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+  return { meshes: aliveMeshes(), rc: new THREE.Raycaster(), right, up };
+}
+function visiblePixel(it, ctx){
+  for (let k = 0; k < 9; k++){
+    const wp = it.p.clone();
+    if (k > 0){
+      const a = (k - 1)/8*Math.PI*2, d = it.r * 0.55;
+      wp.add(ctx.right.clone().multiplyScalar(Math.cos(a)*d))
+        .add(ctx.up.clone().multiplyScalar(Math.sin(a)*d));
+    }
+    const sp = wp.project(camera);
+    // ⚠️ ПРОВЕРЯЕМ ПО ОКРУГЛЁННОМУ ПИКСЕЛЮ, а не по сырой проекции: тест кликает
+    // ЦЕЛЫМИ координатами, а смещённые пробы лежат у самого силуэта — округление
+    // на полпикселя перебрасывало луч на соседа. Замер: 5 расхождений «обещано
+    // n, ушло меньше» из 14 тапов; после сверки по округлённому — 0.
+    const px = Math.round((sp.x + 1)/2*innerWidth), py = Math.round((-sp.y + 1)/2*innerHeight);
+    ctx.rc.setFromCamera({ x: px/innerWidth*2 - 1, y: -(py/innerHeight*2 - 1) }, camera);
+    const hits = ctx.rc.intersectObjects(ctx.meshes, false);
+    if (hits.length && hits[0].object.userData.item === it) return { px, py };
+  }
+  return null;
+}
 window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
   availablePairs,
@@ -758,22 +791,46 @@ window.__game = {
   // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
   // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
   bestTapTarget(mode){
-    let grp = null;
-    if (mode === 'any'){
-      refreshAccessibility();
-      const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
-      const cands = [];
-      for (const it of acc){
-        const g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
-        if (g.length) cands.push([it].concat(g));
+    refreshAccessibility();
+    const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
+    // ⚠️ ГРУППА СЧИТАЕТСЯ ВОКРУГ КОНКРЕТНОГО ЯКОРЯ — ровно так, как её
+    // пересоберёт handleTap, ВКЛЮЧАЯ кап. pairMatch — это БЛИЗОСТЬ (зазор <=
+    // matchRadius), а НЕ класс эквивалентности: у соседа по цепочке набор
+    // соседей свой. Поэтому «n от одного предмета, пиксель от другого» врёт —
+    // ревью v157 замерило: 9 тапов из 14 уносили не то число, что обещано.
+    const groupAround = (it) => {
+      let g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
+      const raw = g.length + 1;
+      if (g.length > MATCH_MAX_N - 1){
+        g = g.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
+             .slice(0, MATCH_MAX_N - 1).map(v => v.o);
       }
-      if (cands.length) grp = cands[Math.floor(Math.random() * cands.length)];
-    } else grp = findHintGroup();
-    if (!grp || !grp.length) return null;
-    const it = grp[0];
-    const sp = it.p.clone().project(camera);
-    return { n: grp.length, name: it.type.name,
-      px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
+      return { n: g.length + 1, raw };
+    };
+    const cands = [];
+    for (const it of acc){ const g = groupAround(it); if (g.n > 1) cands.push({ it, n: g.n, raw: g.raw }); }
+    if (!cands.length) return null;
+    // mode 'any' — СЛУЧАЙНЫЙ порядок (модель обычного игрока: бьёт по первой
+    // замеченной паре); без аргумента — сперва САМЫЕ КРУПНЫЕ группы (модель
+    // внимательного игрока). Разброс двух моделей и есть коридор порогов звёзд.
+    if (mode === 'any') for (let i = cands.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t;
+    } else cands.sort((a, b) => b.raw - a.raw);
+    // ⚠️ ПЕРЕБИРАЕМ ВСЕХ КАНДИДАТОВ, а не одну группу: доступность считается
+    // лучами В НЕБО, а пиксель — лучом ОТ КАМЕРЫ, и предмет бывает доступен,
+    // но закрыт соседом. Первая версия v157 сдавалась на первой же закрытой
+    // группе и отдавала null при сотне живых пар (замер ревью: дефолтный режим
+    // возвращал null на ур.5/10/20, хотя 31-40 из 60 групп были видимы), а
+    // ассерт капа молча уходил в «пропуск». Как findByTex — идём до упора.
+    const ctx = pickCtx();
+    for (const c of cands){
+      const px = visiblePixel(c.it, ctx);
+      // n — размер того матча, который РЕАЛЬНО соберётся вокруг отданного
+      // пикселя (с капом); raw — тот же матч ДО капа, по нему видно, сработал
+      // ли кап вообще (нужно ассерту сьюта, иначе он проверяет пустоту).
+      if (px) return Object.assign({ n: c.n, raw: c.raw, name: c.it.type.name }, px);
+    }
+    return { n: 0, occluded: true };   // группы есть, но все закрыты от камеры
   },
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
@@ -839,29 +896,13 @@ window.__game = {
   // пересечение. Все точки закрыты у всех кандидатов -> {occluded:true}:
   // вызывающий делает встряску и повторяет.
   findByTex(tex){
-    const meshes = aliveMeshes();
-    const rc = new THREE.Raycaster();
-    const right = new THREE.Vector3(), up = new THREE.Vector3();
-    camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+    const ctx = pickCtx();
     let firstHidden = null;
     for (let i = 0; i < items.length; i++){
       const it = items[i];
       if (!it.alive || !it.accessible || it.animating || it.type.tex !== tex) continue;
-      for (let k = 0; k < 9; k++){
-        const wp = it.p.clone();
-        if (k > 0){
-          const a = (k - 1)/8*Math.PI*2, d = it.r * 0.55;
-          wp.add(right.clone().multiplyScalar(Math.cos(a)*d))
-            .add(up.clone().multiplyScalar(Math.sin(a)*d));
-        }
-        const sp = wp.project(camera);
-        rc.setFromCamera({ x: sp.x, y: sp.y }, camera);
-        const hits = rc.intersectObjects(meshes, false);
-        if (hits.length && hits[0].object.userData.item === it){
-          return { i, name: it.type.name,
-            px: Math.round((sp.x + 1)/2*innerWidth), py: Math.round((-sp.y + 1)/2*innerHeight) };
-        }
-      }
+      const px = visiblePixel(it, ctx);
+      if (px) return Object.assign({ i, name: it.type.name }, px);
       if (!firstHidden) firstHidden = { i, name: it.type.name, occluded: true };
     }
     return firstHidden;

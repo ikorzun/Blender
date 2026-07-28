@@ -36,6 +36,48 @@ const path = require('path');
   const sizes0 = await page.evaluate(() => window.__game.sizes());
   expect(sizes0.length === 1 && sizes0[0] === 1, 'уровень <=15: все предметы одного размера (' + JSON.stringify(sizes0) + ')');
 
+  // КАП ГРУППЫ (спека владельца 2026-07-27 «поставь кап на 8»): ур.1 — 9 типов,
+  // до капа тап уносил до 16 штук разом. Бьём РЕАЛЬНЫМ тапом по лучшей группе
+  // и смотрим, сколько предметов ушло (кап считает и тапнутый).
+  const capBefore = await page.evaluate(() => {
+    const t = window.__game.bestTapTarget();
+    return t ? { alive: window.__game.alive(), n: t.n, raw: t.raw, px: t.px, py: t.py } : null;
+  });
+  if (capBefore && capBefore.px != null){
+    await page.mouse.click(capBefore.px, capBefore.py);
+    await page.waitForTimeout(400);
+    const gone = capBefore.alive - await page.evaluate(() => window.__game.alive());
+    expect(gone <= 8, 'кап группы: за тап ушло не больше 8 (' + gone + ', цель обещала ' + capBefore.n + ')');
+    expect(capBefore.n <= 8, 'цель тапа не обещает больше капа (' + capBefore.n + ')');
+    // ⚠️ БЕЗ ЭТОГО АССЕРТ МОЖЕТ ПРОВЕРЯТЬ ПУСТОТУ: если самая крупная группа
+    // сама меньше 8, «ушло <= 8» верно тривиально и кап не тронут. raw —
+    // размер ДО капа, поэтому видно, сработал он или нет (ревью v157).
+    console.log('кап группы (естественный): raw ' + capBefore.raw + ' -> n ' + capBefore.n + ', ушло ' + gone);
+  } else console.log('кап группы: цели не нашлось (' + JSON.stringify(capBefore) + ') — пропуск');
+
+  // ⚠️ ДЕТЕРМИНИРОВАННЫЙ СТРАЖ КАПА. Естественная крупнейшая группа на свежей
+  // куче до 8 почти не дотягивает (замер 10 сидов: ни разу), поэтому «ушло <=8»
+  // сверху проверяет ПУСТОТУ — ревью v157 поймало это как единственную дыру в
+  // защите капа. Тут радиус ВРЕМЕННО раздувается: группа заведомо больше капа,
+  // и срез виден. Радиус возвращается сразу же — ниже по сьюту он боевой.
+  const radSave = await page.evaluate(() => window.__game.cfg.baseRadius);
+  await page.evaluate(() => { window.__game.cfg.baseRadius = 3.0; });
+  await page.waitForTimeout(500);           // updateMatchRadius тикает раз в 300 мс
+  const capBig = await page.evaluate(() => {
+    const t = window.__game.bestTapTarget();
+    return t ? { alive: window.__game.alive(), n: t.n, raw: t.raw, px: t.px, py: t.py } : null;
+  });
+  if (capBig && capBig.px != null){
+    expect(capBig.raw > 8, 'раздутый радиус даёт группу больше капа (raw ' + capBig.raw + ')');
+    expect(capBig.n === 8, 'кап срезал группу до 8 (raw ' + capBig.raw + ' -> n ' + capBig.n + ')');
+    await page.mouse.click(capBig.px, capBig.py);
+    await page.waitForTimeout(500);
+    const goneBig = capBig.alive - await page.evaluate(() => window.__game.alive());
+    expect(goneBig === 8, 'за тап по раздутой группе ушло РОВНО 8 (' + goneBig + ' при raw ' + capBig.raw + ')');
+  } else console.log('кап группы (форс): цели не нашлось — пропуск');
+  await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, radSave);
+  await page.waitForTimeout(400);
+
   await page.screenshot({ path: 'shot_start.png' });
 
   // 5 авто-матчей
