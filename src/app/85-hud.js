@@ -293,7 +293,10 @@ let tmStrLast = '';
 function updateHUD(){
   document.documentElement.classList.toggle('night', isNightSky());
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
-  $('lvlNum').textContent = 'LV ' + levelNum; // виден на десктопе/планшете
+  // #11 (спека владельца): УРОВЕНЬ показываем на десктопе (левая группа) И на
+  // мобайле — над очками (тот же #lvlSvg переносит в стек layoutHUD). Время
+  // (#tmSvg) остаётся СКРЫТЫМ, слот не репёрпоузим — ассерт «время скрыто» цел.
+  $('lvlNum').textContent = 'LV ' + levelNum;
   fitStat('lvlNum');
   // мобильный макет 741:1738: справа стек «предметов / время / очки».
   // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
@@ -735,9 +738,26 @@ function boostCelebrate(key){
   // класс-целебрацию снимаем позже (следующий refresh и так пересоберёт карточку)
   setTimeout(()=>{ if (card.isConnected) card.classList.remove('boosted'); }, 950);
 }
+// #4 ТАП-СПИН (тач): тап по карточке крутит портрет как ховер на десктопе;
+// второй тап той же — стоп; тап другой — вернуть img прошлой и крутить новую.
+// Один общий канвас (spinR) → крутится одна карточка. БЕЗ смены размера.
+let msTapSpinCard = null;
+function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard = null; } }
+function msCardTapSpin(card){
+  if (!card || card.classList.contains('lock')) return;
+  const wrap = card.querySelector('.msc-imgwrap'); if (!wrap) return;
+  if (msTapSpinCard === card){ thumbSpinStop(); msTapSpinRestore(); return; }
+  msTapSpinRestore();
+  const key = card.dataset.key;
+  const live = (typeof items !== 'undefined' && items) ? items.find(it => it.alive && it.type && String(it.type.name) === String(key)) : null;
+  const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'hidden';
+  try { thumbSpinStart(live || thumbItemForKey(key), wrap); msTapSpinCard = card; }
+  catch(e){ if (im) im.style.visibility = 'visible'; msTapSpinCard = null; }
+}
 function buildMainCollection(){
   const grid = $('msGrid');
   if (!grid) return;
+  if (msTapSpinCard){ thumbSpinStop(); msTapSpinCard = null; } // сброс тап-спина при пересборке
   grid.innerHTML = '';
   const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
   const open = unlockedTypeCount();
@@ -808,7 +828,7 @@ function buildMainCollection(){
       boost.className = 'msc-boost'; boost.dataset.act = 'boost';
       if (r.price == null){ boost.textContent = 'Max'; boost.disabled = true; }
       else {
-        boost.textContent = 'Boost ★' + fmtStars(r.price);
+        boost.textContent = 'Boost ' + fmtStars(r.price); // ★ убрана (спека владельца #5)
         if (!r.affordable) boost.classList.add('poor');
       }
       card.appendChild(boost);
@@ -884,10 +904,47 @@ function openMainScreen(){
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
   $('mainScreen').classList.add('open');
+  menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
 function closeMainScreen(){
   $('mainScreen').classList.remove('open');
   if (menuPaused){ menuPaused = false; resumeGame(); }
+}
+// #8b ЖИВЫЕ ГЛАЗА МЕНЮ (спека владельца): десктоп — зрачки СЛЕДЯТ за курсором;
+// тач — зациклённая мягкая «оглядка» (курсора нет). Зрачок не выходит за белок.
+// Активно ТОЛЬКО пока меню открыто (перф). НЕ путать с игровым #face.
+let _menuEyesInit = false, _menuEyesRun = false;
+function menuEyesStart(){
+  const eyes = document.querySelector('.ms-eyes');
+  const pL = $('msPupL'), pR = $('msPupR');
+  if (!eyes || !pL || !pR) return;
+  const CX_L = 60, CX_R = 180, CY = 60, MAXOFF = 29; // зрачок r29 в белке r60 → ход 29
+  const menuOpen = () => { const m = $('mainScreen'); return !!(m && m.classList.contains('open')); };
+  const center = () => { pL.setAttribute('cx', CX_L); pR.setAttribute('cx', CX_R); pL.setAttribute('cy', CY); pR.setAttribute('cy', CY); };
+  const clamp = (dx, dy) => { const d = Math.hypot(dx, dy); return d > MAXOFF ? [dx / d * MAXOFF, dy / d * MAXOFF] : [dx, dy]; };
+  const offset = (ox, oy) => { pL.setAttribute('cx', (CX_L + ox).toFixed(1)); pR.setAttribute('cx', (CX_R + ox).toFixed(1)); pL.setAttribute('cy', (CY + oy).toFixed(1)); pR.setAttribute('cy', (CY + oy).toFixed(1)); };
+  const look = (tx, ty) => { // десктоп: оба зрачка сходятся к курсору
+    const [lx, ly] = clamp(tx - CX_L, ty - CY); pL.setAttribute('cx', (CX_L + lx).toFixed(1)); pL.setAttribute('cy', (CY + ly).toFixed(1));
+    const [rx, ry] = clamp(tx - CX_R, ty - CY); pR.setAttribute('cx', (CX_R + rx).toFixed(1)); pR.setAttribute('cy', (CY + ry).toFixed(1));
+  };
+  const canHover = !!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches);
+  const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (!_menuEyesInit){
+    _menuEyesInit = true;
+    if (canHover) addEventListener('pointermove', (e) => {
+      if (!menuOpen()) return;
+      const r = eyes.getBoundingClientRect(); if (!r.width) return;
+      look((e.clientX - r.left) / r.width * 240, (e.clientY - r.top) / r.height * 120);
+    }, { passive: true });
+  }
+  if (canHover || reduce) return;            // десктоп двигает на pointermove; reduce — статичные зрачки
+  if (_menuEyesRun) return; _menuEyesRun = true;   // тач: зациклённая мягкая «оглядка»
+  requestAnimationFrame(function loop(ts){
+    if (!menuOpen()){ _menuEyesRun = false; center(); return; }
+    const t = ts / 1000, [ox, oy] = clamp(Math.cos(t * 0.8) * 26, Math.sin(t * 1.25) * 17);
+    offset(ox, oy);
+    requestAnimationFrame(loop);
+  });
 }
 // живое обновление шапки/цен при трате или начислении звёзд (подписка МЕТЫ)
 if (typeof onStarsChange === 'function') onStarsChange(()=>{
