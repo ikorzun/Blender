@@ -71,8 +71,11 @@ function captureLevelTypes(){
   // залочил бы прошлые типы навсегда, уровень не перезахватился бы
   if (keys.length){ winLevelTypes = keys; winLevelRef = level; }
 }
-// TOP ITEMS: топ-3 типа уровня по прогрессу (та же метрика/портреты, что у
-// витрины). Источник — winLevelTypes (captureLevelTypes); фолбэк — vitAll.
+// TOP ITEMS: топ-5 типов уровня по прогрессу (та же метрика/портреты, что у
+// витрины; было 3 — спека владельца 2026-07-28). Источник — winLevelTypes
+// (captureLevelTypes); фолбэк — vitAll. Если типов уровня меньше — строк
+// столько, сколько есть (slice не добивает пустышками).
+const WIN_TOP_N = 5;
 function renderWinTop(reduce){
   const host = $('winTopList'); if (!host) return;
   host.innerHTML = '';
@@ -80,7 +83,7 @@ function renderWinTop(reduce){
   if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
   keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
   const step = 0.09;
-  keys.slice(0, 3).forEach((k, i)=>{
+  keys.slice(0, WIN_TOP_N).forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
     row.style.animationDelay = (reduce ? 0 : (1 + i * step)) + 's';
@@ -298,9 +301,10 @@ function updateHUD(){
   // (#tmSvg) остаётся СКРЫТЫМ, слот не репёрпоузим — ассерт «время скрыто» цел.
   $('lvlNum').textContent = 'LV ' + levelNum;
   fitStat('lvlNum');
-  // мобильный макет 741:1738: справа стек «предметов / время / очки».
-  // Номера уровня на игровом экране нет, монет тоже (кошелёк — в меню).
-  $('pairsLeft').textContent = items.filter(i=>i.alive).length;
+  // мобильный макет 741:1738: справа стек «уровень / очки». СЧЁТЧИК ПРЕДМЕТОВ
+  // УДАЛЁН (спека владельца 2026-07-28 «верхняя цифра вообще не нужна»): на
+  // десктопе его и так не было (макета нет), оставался только мобайл.
+  // Монет тоже нет (кошелёк — в меню), номер уровня — #lvlSvg (#11).
   // СПРАВА — ОЧКИ УРОВНЯ под иконкой звезды (спека владельца 2026-07-22-б:
   // «звезды справа это не звезды, а очки. Иконка звезды остается, но подсчет
   // очков идет так же от совмещения или ошибок»). Отменяет короткоживущую
@@ -744,7 +748,7 @@ function boostCelebrate(key){
 // его, но просвечивает) прячем/возвращаем МЫ — как ховер. msTapSpinCard держит,
 // у какой карточки img спрятан, чтобы вернуть его при переключении на другую.
 let msTapSpinCard = null;
-function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard = null; } }
+function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard.classList.remove('spinning'); msTapSpinCard = null; } }
 function msCardTapSpin(card){
   if (!card || card.classList.contains('lock')) return;
   const wrap = card.querySelector('.msc-imgwrap'); if (!wrap) return;
@@ -755,6 +759,7 @@ function msCardTapSpin(card){
   try { spinning = thumbSpinToggle(live || thumbItemForKey(key), wrap); } catch(e){ spinning = false; }
   const im = wrap.querySelector('img.msc-img');
   if (im) im.style.visibility = spinning ? 'hidden' : 'visible';
+  card.classList.toggle('spinning', spinning); // тач-аналог :hover для бейджа (40%)
   msTapSpinCard = spinning ? card : null;
 }
 function buildMainCollection(){
