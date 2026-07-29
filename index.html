@@ -1156,7 +1156,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-161 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-162 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1876,7 +1876,33 @@ const GRIND_LEAD = 10;      // за сколько секунд до помол�
 const GRIND_FADE_UP = 0.35; // c — подъём (как у uCombo)
 const GRIND_FADE_DN = 0.20; // c — гашение на матч: «плавно, но быстро»
 
+// ===== КАЧЕСТВО ПО СИЛЕ УСТРОЙСТВА (спека владельца 2026-07-29: «оптимизируй,
+// слабые телефоны важны, но умей определять, что это слабый телефон») =====
+// ⚠️ ДВЕ СТУПЕНИ, А НЕ ПЯТЬ. Больше ступеней = больше состояний, в которых игра
+// выглядит по-разному, и каждое надо проверять. Владелец просил различать
+// «слабый», а не строить лестницу качества.
+// ⚠️ ОПРЕДЕЛЯЕМ ЗАМЕРОМ, А НЕ МОДЕЛЬЮ ТЕЛЕФОНА. Строку user-agent подделывают,
+// а список моделей устаревает через полгода. Меряем МЕДИАНУ реального кадра
+// уже во время игры: она не врёт ни на новом флагмане в режиме энергосбережения,
+// ни на старом телефоне с горячим процессором.
+const PERF_SLOW_FRAME_MS = 30;   // медиана кадра хуже 30 мс (~33 fps) = слабый
+const PERF_WINDOW_MS = 2500;     // сколько мс игры копим замер, прежде чем решить
+const PERF_MIN_SAMPLES = 20;     // но не меньше стольких кадров, иначе медиана случайна
+// ⚠️ РЕШАЕМ ПО ВРЕМЕНИ, А НЕ ПО ЧИСЛУ КАДРОВ. Первая версия ждала 90 кадров —
+// и получалось наоборот: чем слабее телефон, тем ДОЛЬШЕ он до решения живёт на
+// высоком качестве (на ×8 замедлении 90 кадров это 9 секунд тормозов). По
+// времени слабый определяется за те же 2.5 с, что и сильный, просто по меньшему
+// числу выборок — на то и минимум.
+const PERF_OUTLIER_MS = 200;     // кадры длиннее выкидываем: это уход во вкладку, а не рендер
+// ⚠️ ПОНИЖАЕМ ОДИН РАЗ И НЕ ПОВЫШАЕМ ОБРАТНО. Иначе на границе игра «дышит»:
+// понизили -> стало быстрее -> повысили -> снова тормозит. Мигающее качество
+// раздражает сильнее, чем стабильно среднее.
+const PERF_LOW_DPR = 1.0;        // против 1.5 на тач-устройствах
+const PERF_LOW_FX = 0.4;         // доля частиц от полной (труха 1280 -> 512)
+
 const CFG = {
+  perfTier: 'high',   // 'high' | 'low' — ставит applyPerfTier (10-stage)
+  fxScale: 1,         // множитель числа частиц; 70-fx читает его при каждом эффекте
   // Сложность (спека владельца 2026-07): по умолчанию ЛЮБАЯ пара матчится
   // (перекрытия не проверяются, вуали нет); Hard включает механику
   // физической доступности (веер лучей + серая вуаль). ⚙️ + localStorage.
@@ -1948,7 +1974,48 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 // на телефонах DPR-кап 1.5: кадр на DPR2 в ~1.8 раза дороже (замер аудита),
 // HUD — DOM и остаётся резким; на десктопе оставляем 2
-renderer.setPixelRatio(Math.min(devicePixelRatio||1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
+const DPR_CAP_TOUCH = 1.5, DPR_CAP_DESK = 2;
+function dprCap(){
+  if (CFG.perfTier === 'low') return PERF_LOW_DPR;
+  return matchMedia('(pointer:coarse)').matches ? DPR_CAP_TOUCH : DPR_CAP_DESK;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
+// ⚠️ ПЕРЕХОД НА «СЛАБЫЙ» — ОДНОЙ ФУНКЦИЕЙ И ТОЛЬКО ВНИЗ (см. 00-config).
+// Что уменьшаем и почему именно это:
+//  • ПЛОТНОСТЬ ПИКСЕЛЕЙ 1.5 -> 1.0. Самый большой выигрыш на телефоне и самый
+//    честный: заливка растёт КВАДРАТОМ плотности, 1.5 против 1.0 — это 2.25×
+//    пикселей на тот же экран. Геймплей не меняется вовсе, только чёткость.
+//  • ЧАСТИЦ ВТРОЕ МЕНЬШЕ (CFG.fxScale). Труха матча — 1280 штук, это самый
+//    тяжёлый разовый всплеск в игре.
+// ⚠️ ТЕНИ В СПИСКЕ НЕ ЗНАЧАТСЯ НАМЕРЕННО: замер показал, что в matcap-режиме
+// теневой проход УЖЕ выключен (renderer.shadowMap.enabled=false и на «сильном»
+// устройстве). Выключать выключённое — ручка-пустышка, а такие однажды уже
+// пришлось выкидывать из проекта.
+// ⚠️ ФИЗИКУ НЕ ТРОГАЕМ. Число итераций солвера и подшагов держит плотную кучу
+// от проваливания друг в друга; ослабив их, мы поменяли бы ПОВЕДЕНИЕ кучи, то
+// есть геймплей — на слабом телефоне игра стала бы другой игрой. Это отдельное
+// решение владельца, а не тихая оптимизация.
+function applyPerfTier(tier){
+  if (tier !== 'low' || CFG.perfTier === 'low') return false;
+  CFG.perfTier = 'low';
+  CFG.fxScale = PERF_LOW_FX;
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
+  try { renderer.setSize(innerWidth, innerHeight, false); } catch(e){}
+  try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
+  return true;
+}
+// ⚠️ ПОДСКАЗКА УСТРОЙСТВА — ТОЛЬКО КАК СТАРТОВАЯ ГИПОТЕЗА, решает всё равно
+// замер. Два ядра или 2 ГБ памяти — это заведомо слабая машина, и ждать
+// доказательств 3 секунды, роняя кадры, незачем. Оба поля есть не везде
+// (deviceMemory нет в Safari) — отсутствие трактуем как «не знаем», не как «слабый».
+function deviceLooksWeak(){
+  try {
+    const cores = navigator.hardwareConcurrency || 0;
+    const mem = navigator.deviceMemory || 0;
+    return (cores > 0 && cores <= 2) || (mem > 0 && mem <= 2);
+  } catch(e){ return false; }
+}
+if (deviceLooksWeak()) applyPerfTier('low');
 renderer.setClearColor(0xffffff);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -4667,6 +4734,9 @@ function lineFX(a, b, color){
 // Труха ОБЩАЯ для матча и помола (bladeDustFX) — меняется вся.
 // radial=true — плоский разлёт кольцом (пыль из-под лопастей миксера).
 const DUST_FRACTIONS = [
+  // ⚠️ ЧИСЛО УМНОЖАЕТСЯ НА CFG.fxScale В МОМЕНТ ЭФФЕКТА (не здесь): на слабом
+  // устройстве труха режется втрое, на обычном идёт полной. Размеры фракций
+  // НЕ трогаем — мельче спека владельца уже не просила.
   { n: 640, size: 0.0225 }, // мука
   { n: 400, size: 0.035 },  // крошка
   { n: 240, size: 0.05 },   // крупные обломки
@@ -4711,7 +4781,9 @@ function dustCloud(item, radial, COUNT, size, base){
 }
 function dissolveFX(item, radial){
   const base = (item.fxColor || item.baseColor);
-  for (const f of DUST_FRACTIONS) dustCloud(item, radial, f.n, f.size, base);
+  // ⚠️ fxScale читается ЗДЕСЬ, а не в таблице: ступень качества может смениться
+  // посреди партии, и следующий же эффект обязан пойти уже по новой.
+  for (const f of DUST_FRACTIONS) dustCloud(item, radial, Math.max(24, Math.round(f.n * CFG.fxScale)), f.size, base);
 }
 // Пылевой взрыв у лопастей: predмет домололся — труха летит из-под ножей
 function bladeDustFX(pos, baseColor){
@@ -8715,6 +8787,29 @@ function resumeGame(){
   hide('pauseOverlay');
   updateHUD();
 }
+// ⚠️ ОПРЕДЕЛЕНИЕ СЛАБОГО УСТРОЙСТВА ЗАМЕРОМ (спека владельца 2026-07-29).
+// Копим окно РЕАЛЬНЫХ кадров и смотрим МЕДИАНУ, а не среднее: одна секундная
+// заминка (сборка мусора, уход во вкладку) среднее утащит, медиану — нет.
+// Считаем только когда игра действительно рисует нагруженную сцену: не в интро
+// и не на паузе, иначе замерили бы пустой экран и сочли телефон быстрым.
+// Кадры длиннее PERF_OUTLIER_MS выбрасываем — это не рендер, это система.
+let perfWin = [], perfWinStart = 0, perfDecided = false;
+function tickPerfTier(ms){
+  if (perfDecided || CFG.perfTier === 'low') { perfDecided = true; return; }
+  if (intro || ms > PERF_OUTLIER_MS) return;   // интро и системные заминки не в счёт
+  if (!perfWinStart) perfWinStart = performance.now();
+  perfWin.push(ms);
+  if (performance.now() - perfWinStart < PERF_WINDOW_MS || perfWin.length < PERF_MIN_SAMPLES) return;
+  perfWin.sort((a,b) => a - b);
+  const med = perfWin[perfWin.length >> 1];
+  perfDecided = true;                       // решаем ОДИН раз за сессию
+  if (med > PERF_SLOW_FRAME_MS){
+    applyPerfTier('low');
+    console.warn('[perf] слабое устройство: медиана кадра ' + med.toFixed(1) + ' мс -> качество понижено');
+  }
+  perfWin = [];
+}
+
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
@@ -8725,6 +8820,7 @@ function loop(){
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
     if (rawMs > perfWorstMs) perfWorstMs = rawMs;
+    tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
   if (physAwake){
@@ -9265,6 +9361,10 @@ window.__game = {
   // по первой замеченной паре, а не сканирует чашу в поисках максимума);
   // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
   // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
+  // ручки качества для тестов и замеров
+  perfTier(){ return { tier: CFG.perfTier, dpr: renderer.getPixelRatio(), fx: CFG.fxScale,
+    shadows: renderer.shadowMap.enabled, decided: perfDecided }; },
+  setPerfTier(t){ if (t === 'low') return applyPerfTier('low'); return false; },
   bestTapTarget(mode){
     refreshAccessibility();
     const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);

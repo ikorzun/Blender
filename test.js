@@ -1048,17 +1048,24 @@ const path = require('path');
   expect(rockTap1.rocks === 1, 'камень тапом не убирается');
   // бомба убирает камень: телепортируем обоих в воздух рядом и детонируем —
   // камень в радиусе, прочая куча далеко внизу (кап не мешает)
-  const rocksBeforeBomb = await page.evaluate(() => {
+  // ⚠️ БОМБУ ПРОВЕРЯЕМ ЯВНО (флейк 2026-07-29 «1 -> 1»): если её израсходовала
+  // предыдущая секция, bombIndex()=-1, place(-1,…) молча ничего не делает и
+  // detonate() тоже — камень остаётся, а сообщение винит бомбу в том, что её
+  // просто нет. Теперь индекс попадает в текст ассерта: следующий отказ сразу
+  // назовёт настоящую причину, а не заставит гадать.
+  const bombPre = await page.evaluate(() => {
     const g = window.__game;
-    g.place(g.bombIndex(), 0, 13, 0);
+    const bi = g.bombIndex();
+    if (bi >= 0) g.place(bi, 0, 13, 0);
     g.place(g.rockIndex(), 0.9, 13.2, 0);
-    return g.rocks();
+    return { rocks: g.rocks(), bomb: bi };
   });
   await page.evaluate(() => window.__game.detonate());
   await page.waitForTimeout(450);
   const rocksAfterBomb = await page.evaluate(() => window.__game.rocks());
-  expect(rocksBeforeBomb === 1 && rocksAfterBomb === 0,
-    'бомба убирает камень (' + rocksBeforeBomb + ' -> ' + rocksAfterBomb + ')');
+  expect(bombPre.rocks === 1 && bombPre.bomb >= 0 && rocksAfterBomb === 0,
+    'бомба убирает камень (камней ' + bombPre.rocks + ' -> ' + rocksAfterBomb +
+    ', бомба index ' + bombPre.bomb + ')');
   // ∞-порог эндшпиля: камни не в счёте — при <=8 совмещаемых радиус 99
   await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
   let guardR = 0, sinceRestR = 0;

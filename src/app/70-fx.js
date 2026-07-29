@@ -74,6 +74,9 @@ function lineFX(a, b, color){
 // Труха ОБЩАЯ для матча и помола (bladeDustFX) — меняется вся.
 // radial=true — плоский разлёт кольцом (пыль из-под лопастей миксера).
 const DUST_FRACTIONS = [
+  // ⚠️ ЧИСЛО УМНОЖАЕТСЯ НА CFG.fxScale В МОМЕНТ ЭФФЕКТА (не здесь): на слабом
+  // устройстве труха режется втрое, на обычном идёт полной. Размеры фракций
+  // НЕ трогаем — мельче спека владельца уже не просила.
   { n: 640, size: 0.0225 }, // мука
   { n: 400, size: 0.035 },  // крошка
   { n: 240, size: 0.05 },   // крупные обломки
@@ -118,7 +121,9 @@ function dustCloud(item, radial, COUNT, size, base){
 }
 function dissolveFX(item, radial){
   const base = (item.fxColor || item.baseColor);
-  for (const f of DUST_FRACTIONS) dustCloud(item, radial, f.n, f.size, base);
+  // ⚠️ fxScale читается ЗДЕСЬ, а не в таблице: ступень качества может смениться
+  // посреди партии, и следующий же эффект обязан пойти уже по новой.
+  for (const f of DUST_FRACTIONS) dustCloud(item, radial, Math.max(24, Math.round(f.n * CFG.fxScale)), f.size, base);
 }
 // Пылевой взрыв у лопастей: predмет домололся — труха летит из-под ножей
 function bladeDustFX(pos, baseColor){

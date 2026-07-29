@@ -17,7 +17,48 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 // на телефонах DPR-кап 1.5: кадр на DPR2 в ~1.8 раза дороже (замер аудита),
 // HUD — DOM и остаётся резким; на десктопе оставляем 2
-renderer.setPixelRatio(Math.min(devicePixelRatio||1, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
+const DPR_CAP_TOUCH = 1.5, DPR_CAP_DESK = 2;
+function dprCap(){
+  if (CFG.perfTier === 'low') return PERF_LOW_DPR;
+  return matchMedia('(pointer:coarse)').matches ? DPR_CAP_TOUCH : DPR_CAP_DESK;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
+// ⚠️ ПЕРЕХОД НА «СЛАБЫЙ» — ОДНОЙ ФУНКЦИЕЙ И ТОЛЬКО ВНИЗ (см. 00-config).
+// Что уменьшаем и почему именно это:
+//  • ПЛОТНОСТЬ ПИКСЕЛЕЙ 1.5 -> 1.0. Самый большой выигрыш на телефоне и самый
+//    честный: заливка растёт КВАДРАТОМ плотности, 1.5 против 1.0 — это 2.25×
+//    пикселей на тот же экран. Геймплей не меняется вовсе, только чёткость.
+//  • ЧАСТИЦ ВТРОЕ МЕНЬШЕ (CFG.fxScale). Труха матча — 1280 штук, это самый
+//    тяжёлый разовый всплеск в игре.
+// ⚠️ ТЕНИ В СПИСКЕ НЕ ЗНАЧАТСЯ НАМЕРЕННО: замер показал, что в matcap-режиме
+// теневой проход УЖЕ выключен (renderer.shadowMap.enabled=false и на «сильном»
+// устройстве). Выключать выключённое — ручка-пустышка, а такие однажды уже
+// пришлось выкидывать из проекта.
+// ⚠️ ФИЗИКУ НЕ ТРОГАЕМ. Число итераций солвера и подшагов держит плотную кучу
+// от проваливания друг в друга; ослабив их, мы поменяли бы ПОВЕДЕНИЕ кучи, то
+// есть геймплей — на слабом телефоне игра стала бы другой игрой. Это отдельное
+// решение владельца, а не тихая оптимизация.
+function applyPerfTier(tier){
+  if (tier !== 'low' || CFG.perfTier === 'low') return false;
+  CFG.perfTier = 'low';
+  CFG.fxScale = PERF_LOW_FX;
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
+  try { renderer.setSize(innerWidth, innerHeight, false); } catch(e){}
+  try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
+  return true;
+}
+// ⚠️ ПОДСКАЗКА УСТРОЙСТВА — ТОЛЬКО КАК СТАРТОВАЯ ГИПОТЕЗА, решает всё равно
+// замер. Два ядра или 2 ГБ памяти — это заведомо слабая машина, и ждать
+// доказательств 3 секунды, роняя кадры, незачем. Оба поля есть не везде
+// (deviceMemory нет в Safari) — отсутствие трактуем как «не знаем», не как «слабый».
+function deviceLooksWeak(){
+  try {
+    const cores = navigator.hardwareConcurrency || 0;
+    const mem = navigator.deviceMemory || 0;
+    return (cores > 0 && cores <= 2) || (mem > 0 && mem <= 2);
+  } catch(e){ return false; }
+}
+if (deviceLooksWeak()) applyPerfTier('low');
 renderer.setClearColor(0xffffff);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;

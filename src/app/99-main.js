@@ -240,6 +240,29 @@ function resumeGame(){
   hide('pauseOverlay');
   updateHUD();
 }
+// ⚠️ ОПРЕДЕЛЕНИЕ СЛАБОГО УСТРОЙСТВА ЗАМЕРОМ (спека владельца 2026-07-29).
+// Копим окно РЕАЛЬНЫХ кадров и смотрим МЕДИАНУ, а не среднее: одна секундная
+// заминка (сборка мусора, уход во вкладку) среднее утащит, медиану — нет.
+// Считаем только когда игра действительно рисует нагруженную сцену: не в интро
+// и не на паузе, иначе замерили бы пустой экран и сочли телефон быстрым.
+// Кадры длиннее PERF_OUTLIER_MS выбрасываем — это не рендер, это система.
+let perfWin = [], perfWinStart = 0, perfDecided = false;
+function tickPerfTier(ms){
+  if (perfDecided || CFG.perfTier === 'low') { perfDecided = true; return; }
+  if (intro || ms > PERF_OUTLIER_MS) return;   // интро и системные заминки не в счёт
+  if (!perfWinStart) perfWinStart = performance.now();
+  perfWin.push(ms);
+  if (performance.now() - perfWinStart < PERF_WINDOW_MS || perfWin.length < PERF_MIN_SAMPLES) return;
+  perfWin.sort((a,b) => a - b);
+  const med = perfWin[perfWin.length >> 1];
+  perfDecided = true;                       // решаем ОДИН раз за сессию
+  if (med > PERF_SLOW_FRAME_MS){
+    applyPerfTier('low');
+    console.warn('[perf] слабое устройство: медиана кадра ' + med.toFixed(1) + ' мс -> качество понижено');
+  }
+  perfWin = [];
+}
+
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
@@ -250,6 +273,7 @@ function loop(){
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
     if (rawMs > perfWorstMs) perfWorstMs = rawMs;
+    tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
   if (physAwake){
@@ -790,6 +814,10 @@ window.__game = {
   // по первой замеченной паре, а не сканирует чашу в поисках максимума);
   // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
   // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
+  // ручки качества для тестов и замеров
+  perfTier(){ return { tier: CFG.perfTier, dpr: renderer.getPixelRatio(), fx: CFG.fxScale,
+    shadows: renderer.shadowMap.enabled, decided: perfDecided }; },
+  setPerfTier(t){ if (t === 'low') return applyPerfTier('low'); return false; },
   bestTapTarget(mode){
     refreshAccessibility();
     const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
