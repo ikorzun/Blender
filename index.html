@@ -1161,7 +1161,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-166 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-167 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -8574,6 +8574,18 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     // видел, потому что звал buyBundle строкой и кнопку не нажимал.
     const tier = 'bundle' + btn.dataset.tier;
     if (typeof buyBundle !== 'function'){ toast('Coming soon'); return; }
+    // ⚠️ 🔴 В БОЮ ТОВАР НЕ ВЫДАЁТСЯ, ПОКА НЕТ ПЛАТЕЖЕЙ (репорт ИНТЕГРАЦИИ
+    // 2026-07-29, дыра моя). История в две ступени: сперва кнопка не работала
+    // вовсе (число вместо строкового id), в v163 я это починил — и она стала
+    // начислять бандл БЕЗ ОПЛАТЫ, при живых ценниках $4.99/$9.99/$19.99 на
+    // раздаваемой сборке. Платёжного шлюза в проекте нет вообще: `payments`
+    // Bridge не используется ни разу.
+    // ⚠️ ПОЧЕМУ НЕ СНЯТЬ КНОПКУ СОВСЕМ: владельцу нужна ЭМУЛЯЦИЯ купленного
+    // режима, чтобы смотреть бустер на экране. Поэтому выдача осталась, но
+    // ТОЛЬКО в разработке (DEV: file://, localhost, ?dev=1) — там же, где живёт
+    // весь служебный интерфейс. В бою — честное «скоро».
+    // ⚠️ СНИМАТЬ ЭТОТ ГЕЙТ ТОЛЬКО ВМЕСТЕ С ВВОДОМ bridge.payments, не раньше.
+    if (!DEV){ toast('Coming soon'); return; }
     const res = buyBundle(tier);
     // ⚠️ РЕЗУЛЬТАТ ЧИТАЕМ ОБЯЗАТЕЛЬНО: молчаливый отказ — это ровно то, из-за
     // чего дыра прожила незамеченной. Любое будущее расхождение имени теперь
@@ -8583,6 +8595,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
       toast('Purchase failed'); return;
     }
     Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
+    toast('TEST: booster activated');   // видно, что это эмуляция, а не покупка
     hide('starsOverlay'); refreshMainScreen();
   });
 });
