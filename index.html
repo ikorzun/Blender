@@ -699,35 +699,47 @@
   html.night .ms-playbtn { background:#fff; color:#000; }
   html.night .ms-playbtn::after {
     background:linear-gradient(100deg, transparent, rgba(0,0,0,.16), transparent); }
-  /* настройки */
-  .ms-settings { background:#fff; border-radius:32px; padding:12px;
-    display:flex; flex-direction:column; gap:8px; --ms-ctl:172px; }
-  .ms-set { display:flex; align-items:center; justify-content:space-between; gap:12px;
-    min-height:48px; padding:0 8px; }
-  .ms-set > span { font-size:22px; font-weight:800; color:#000; }
-  /* ПОЛЗУНОК по макету 763:1428 (Volume): зелёная #9ce52e заливка слева,
-     светлый трек #e7edf8 справа, БЕЛЫЙ круглый бегунок с тенью. accent-color
-     так не умеет (красит и бегунок). У WebKit нативного progress нет — заливку
-     двигает --fill (в %, JS ставит по value); у Firefox — ::-moz-range-progress.
-     Ширина = свитчеру сложности через общую --ms-ctl (спека «не длиннее
-     свитчера»): оба flex:none и одной шириной, поэтому ползунок ВСЕГДА равен
-     свитчеру. 172 на мобильном (панель широкая), 156 на десктопе (колонка 292
-     не вмещает 172 рядом с ярлыком «Difficult» — иначе свитчер ужимался). */
-  .ms-slider { -webkit-appearance:none; appearance:none; flex:none; width:var(--ms-ctl);
+  /* НАСТРОЙКИ по макету 812:1115 — КОНТРОЛЫ ТЯНУТСЯ (спека владельца
+     «элементы из этого блока умеют тянуться»). В макете все три контрола
+     ОДНОЙ ширины (500) при разных ярлыках (68/63/84) — то есть выровнены по
+     одной вертикали, а не просто прижаты вправо. Поэтому не флекс-строка с
+     flex:1 (там ширина зависела бы от длины ярлыка), а СЕТКА на всю панель:
+     колонка ярлыков по самому широкому + колонка контролов на остаток.
+     Строки .ms-set растворяются в display:contents, чтобы их дети встали
+     прямыми детьми сетки (тот же приём, что у .ms-collhead).
+     ⚠️ Прежняя пара костылей --ms-ctl 172/156 СНЯТА: 172 было размером
+     РАСТРОВОГО узла 763:1428 (вектора в нём не было), 156 — заплатка под
+     узкую десктоп-колонку. Сетка подгоняет ширину сама, обе не нужны.
+     Отступы: у макета контейнер p12 + внутренний ряд px8 = 20 по бокам;
+     строка 48, зазор 8 → высота панели 12+48·3+8·2+12 = 184 (как в макете). */
+  .ms-settings { background:#fff; border-radius:32px; padding:12px 20px;
+    display:grid; grid-template-columns:max-content minmax(0, 1fr);
+    align-items:center; column-gap:12px; row-gap:8px; grid-auto-rows:48px; }
+  .ms-set { display:contents; }
+  .ms-set > span { font-size:22px; font-weight:800; color:#000; white-space:nowrap; }
+  /* ПОЛЗУНОК (Volume 812:1119): зелёная #9ce52e заливка слева, светлый трек
+     #e7edf8 справа, БЕЛЫЙ круглый бегунок с тенью. accent-color так не умеет
+     (красит и бегунок). У WebKit нативного progress нет — заливку двигает
+     --fill (в %, JS ставит по value); у Firefox — ::-moz-range-progress.
+     Трек 17 и бегунок 30 — из макета (у растрового 763:1428 чисел не было,
+     прежние 12/26 были прикидкой по картинке). */
+  .ms-slider { -webkit-appearance:none; appearance:none; width:100%;
     height:30px; background:transparent; cursor:pointer; --fill:100%; }
-  .ms-slider::-webkit-slider-runnable-track { height:12px; border-radius:40px;
+  .ms-slider::-webkit-slider-runnable-track { height:17px; border-radius:40px;
     background:linear-gradient(90deg, #9ce52e 0 var(--fill), #e7edf8 var(--fill) 100%); }
-  .ms-slider::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px;
-    margin-top:-7px; border-radius:50%; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.25); }
-  .ms-slider::-moz-range-track { height:12px; border-radius:40px; background:#e7edf8; }
-  .ms-slider::-moz-range-progress { height:12px; border-radius:40px; background:#9ce52e; }
-  .ms-slider::-moz-range-thumb { width:26px; height:26px; border:none; border-radius:50%;
+  .ms-slider::-webkit-slider-thumb { -webkit-appearance:none; width:30px; height:30px;
+    margin-top:-6.5px; border-radius:50%; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .ms-slider::-moz-range-track { height:17px; border-radius:40px; background:#e7edf8; }
+  .ms-slider::-moz-range-progress { height:17px; border-radius:40px; background:#9ce52e; }
+  .ms-slider::-moz-range-thumb { width:30px; height:30px; border:none; border-radius:50%;
     background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.25); }
-  /* свитчер сложности = ползунку (--ms-ctl), flex:none чтобы не ужимался
-     в узкой десктоп-колонке; кнопки flex:1 заполняют его */
-  .ms-seg { display:flex; flex:none; width:var(--ms-ctl); background:#e7edf8; border-radius:72px; padding:4px; }
+  /* свитчер сложности тянется так же, как ползунок (в макете обе 500 — спека
+     «ползунок не длиннее свитчера» соблюдена равенством); кнопки flex:1
+     делят его пополам, высота 40 = 48 минус padding 4 сверху и снизу */
+  .ms-seg { display:flex; width:100%; height:48px; background:#e7edf8;
+    border-radius:72px; padding:4px; }
   .ms-seg button { flex:1; border:none; cursor:pointer; background:transparent; color:#1d1c26;
-    border-radius:1000px; padding:8px 0; font-family:var(--font-round);
+    border-radius:1000px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
   .ms-seg button.on { background:#1d1c26; color:#fff; }
   /* коллекция */
@@ -920,9 +932,6 @@
               mask-image:linear-gradient(to bottom, transparent 0, #000 64px); }
     /* ≥1080 БЕНТО: коллекция 4 колонки (спека владельца 2026-07-24). */
     .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
-    /* колонка настроек 292 не вмещает 172-контрол рядом с «Difficult» (84px):
-       84 + gap12 + 172 = 268 > 252 → свитчер ужимался. 156 держит 12px зазор */
-    .ms-settings { --ms-ctl:156px; }
     .ms-dev { grid-area:dev; }
   }
   /* КОЛОНКИ КОЛЛЕКЦИИ — МОНОТОННО (решение диспетчера 2026-07-27 по делегации
