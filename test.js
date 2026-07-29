@@ -1257,8 +1257,14 @@ window.bridge = {
   platform: { id:'mocktest', language:'ru', isAudioEnabled:true, isPaused:false, on:reg,
               sendMessage(n, p){ window.__mock.msgs.push({ n, p }); return Promise.resolve(); } },
   player: { id:'p1', isAuthorized:false },
-  leaderboards: { type:'in_game',
-    setScore(id, sc){ window.__mock.lb.push({ id, sc }); return Promise.resolve({ ok:true }); } },
+  // ⚠️ МОК ВЕДЁТ СЕБЯ КАК НАСТОЯЩИЙ СЕРВЕР (форма и семантика сняты живым
+  // прогоном 2026-07-29): хранит МАКСИМУМ и в ответе отдаёт СОХРАНЁННЫЙ счёт,
+  // а не присланный; статус «normal» одинаков и при приёме, и при игноре.
+  leaderboards: { type:'in_game', _best:0,
+    setScore(id, sc){ window.__mock.lb.push({ id, sc });
+      this._best = Math.max(this._best, sc);
+      return Promise.resolve({ uuid:'u', score:this._best, platformId:'mocktest',
+        scoreAttemptStatus:'normal', scoreAttemptReasons:[] }); } },
   advertisement: { isRewardedSupported:true, isInterstitialSupported:true, on:reg,
                    showRewarded(pl){ window.__mock.rwShown++; window.__mock.rwPlace = pl === undefined ? null : pl; },
                    showInterstitial(pl){ window.__mock.interShown++; window.__mock.interPlace = pl === undefined ? null : pl; } },
@@ -1574,8 +1580,41 @@ window.bridge = {
   expect(lb.sentTwice === 1, 'лидерборд: то же значение повторно не шлём (' + lb.sentTwice + ')');
   expect(lb.last && lb.last.id === 'top_score' && typeof lb.last.sc === 'number',
     'лидерборд: уходит id борда и число (' + JSON.stringify(lb.last) + ')');
-  expect(lb.raw === '{"ok":true}',
+  expect(!!lb.raw && lb.raw.indexOf('"score"') > 0,
     'лидерборд: сырой ответ сохранён для разбора, а не выброшен (' + lb.raw + ')');
+
+  // РАЗБОР ТЕЛА (форма и семантика — с живого прогона 2026-07-29). Сервер
+  // хранит МАКСИМУМ и на проигнорированную запись отвечает тем же успешным
+  // статусом, что и на принятую; отличить можно ТОЛЬКО сравнив число в ответе
+  // с отправленным. Проверяем оба исхода.
+  const lbp = await apage.evaluate(async () => {
+    const A = window.__ads, out = {};
+    A.setBoardId('top_score');
+    window.bridge.player.isAuthorized = true;
+    window.bridge.leaderboards.type = 'in_game';
+    window.bridge.leaderboards._best = 0;
+    // ⚠️ Ранг поднимает ТОЛЬКО заработанное (bankScore → se). starGrant пишет
+    // в пополнения (tu), а они ранг НЕ двигают — это и есть защита от
+    // pay-to-win, и на ней я сам оступился при первом наброске теста.
+    // 1) счёт ВЫШЕ пика — принят
+    window.__game.bankScore(50000);
+    A.submitScore();
+    await new Promise(r => setTimeout(r, 150));
+    out.hi = { accepted: A.lbAccepted, stored: A.lbRaw && A.lbRaw.score, sent: A.lbLast };
+    // 2) счёт НИЖЕ пика: поднимаем ЛИЧНЫЙ ПИК на сервере и шлём другое (меньшее
+    // по отношению к пику) значение. Ответ придёт «успешный», но с чужим числом.
+    window.bridge.leaderboards._best = 999999;
+    window.__game.bankScore(1000);            // сдвинуть значение, иначе дедуп не пустит
+    A.submitScore();
+    await new Promise(r => setTimeout(r, 150));
+    out.lo = { accepted: A.lbAccepted, stored: A.lbRaw && A.lbRaw.score, sent: A.lbLast };
+    return out;
+  });
+  expect(lbp.hi.accepted === true && lbp.hi.stored === lbp.hi.sent,
+    'разбор: счёт выше пика — принят (' + JSON.stringify(lbp.hi) + ')');
+  expect(lbp.lo.accepted === false && lbp.lo.stored !== lbp.lo.sent,
+    'разбор: счёт ниже пика — распознан как ПРОИГНОРИРОВАННЫЙ, хотя ответ «успех» ('
+    + JSON.stringify(lbp.lo) + ')');
 
   await apage.close();
   await new Promise(r => srv2.close(r));
