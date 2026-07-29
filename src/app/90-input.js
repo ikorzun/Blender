@@ -149,21 +149,14 @@ $('winX2Btn').addEventListener('click', ()=>{
 $('loseAdContinue').addEventListener('click', ()=>{
   Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
 });
-// «Прицел»: 15 монет, все доступные пары на 5 с
-$('scopeBtn').addEventListener('click', ()=>{
-  if (level.over || intro) return;
-  if (!spendCoins(PRICE_SCOPE)){ toast('Need ' + PRICE_SCOPE + ' 🪙'); return; }
-  Telemetry.ev('spend', { item: 'scope' });
-  refreshAccessibility();
-  scopeHighlight();
-  stats.lastAction = performance.now();
-  updateHUD();
-});
-// «Металлоискатель»: rewarded, показывает где копать до сюрприза
-$('magnetBtn').addEventListener('click', ()=>{
-  if (level.over || intro || level.detectorUsed) return;
-  Ads.showRewarded(()=>{ detectorHighlight(); });
-});
+// ⚠️ КНОПКИ «ПРИЦЕЛ» И «МЕТАЛЛОИСКАТЕЛЬ» УДАЛЕНЫ (спека владельца 2026-07-29:
+// «при загрузке в мобильном моргают старые кнопки магнита и ещё что-то в левом
+// нижнем углу — это всё нужно удалить»). Они лежали в разметке видимыми и
+// прятались лишь ПЕРВЫМ тиком updateHUD, то есть после запуска движка — отсюда
+// и моргание. ОТМЕНЯЕТ прежнее «не удаляй, скрой флагом» (2026-07-18/21).
+// Сама механика (scopeHighlight/detectorHighlight, PRICE_SCOPE, флаги
+// SCOPE_ENABLED/MAGNET_ENABLED) НЕ тронута — вернуть кнопки = вернуть эти
+// два обработчика и две строки разметки в bottomBar.
 // глаза миксера: интерактивный персонаж — подмигивает на тап
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');

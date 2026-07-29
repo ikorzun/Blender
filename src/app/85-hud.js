@@ -387,11 +387,6 @@ function updateHUD(){
   // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
   // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
   $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
-  // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
-  $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
-  $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);
-  const sp = items.find(i => i.surprise && i.alive);
-  $('magnetBtn').style.display = (MAGNET_ENABLED && sp && !level.detectorUsed && !level.over) ? '' : 'none';
   $('apCount').textContent = availablePairs();
   $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // динамический; ∞ = эндшпиль
 }

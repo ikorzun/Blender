@@ -31,6 +31,18 @@
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
   .bar { position:fixed; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between;
     padding:8px; pointer-events:none; z-index:5; } /* поля 8 — как в макете */
+  /* ⚠️ ПОЧТИ-ПРОЗРАЧНЫЙ ФОН БАРОВ — ЭТО НЕ УКРАШЕНИЕ, А ЛЕЧЕНИЕ ЧЁРНЫХ ПОЛЕЙ
+     В SAFARI 26 (жалоба владельца 2026-07-29 «поля снизу и сверху так и не
+     решены»). Рецепт с лендинга about-us: Safari 26 ИГНОРИРУЕТ theme-color и
+     красит свои бары по background-color html/body, но fixed-элемент поверх
+     ОТРАВЛЯЕТ тинт своим фоном, а `transparent` трактуется как «прозрачный
+     ЧЁРНЫЙ» — отсюда чёрные полосы. Альфа 0.01 глазу не видна, а каналу тинта
+     достаточно. ⚠️ Верх и низ РАЗНЫЕ: небо градиентное, у кромок свой цвет
+     (переменные ставит 10-stage из того же SKY_GRAD). ⚠️ НЕ заменять на
+     transparent «для чистоты» — вернутся чёрные поля. */
+  #topBar    { background:rgba(var(--sky-top-rgb, 206,228,254), .01); }
+  #bottomBar { background:rgba(var(--sky-bot-rgb, 190,199,254), .01); }
+  #face      { background:rgba(var(--sky-top-rgb, 206,228,254), .01); }
   #topBar { top:env(safe-area-inset-top, 0); }
   /* ===== HUD по МОБИЛЬНОМУ макету Figma 741:1738 (393×852) =====
      Справа вертикальный стек: предметов / время / очки — по 22px, зазор 2.
@@ -120,6 +132,17 @@
      (8) не попадает: лайм в обеих темах. */
   #hintCnt.ad { padding:8px; }
   #hintBtn.off { opacity:.45; pointer-events:none; }
+  /* ⚠️ ПОДСКАЗКА В ЛЕВЫЙ НИЖНИЙ УГОЛ НА МОБИЛЕ (спека владельца 2026-07-29:
+     «по одной вертикали с кнопкой паузы»). Пауза живёт в левом верхнем углу с
+     отступом 8, поэтому здесь ровно тот же left:8 — кнопки стоят одна под
+     другой. ⚠️ ТОЛЬКО НА МОБИЛЕ: с 813px в левом нижнем углу разворачивается
+     витрина уровня и растёт ВВЕРХ, поэтому там подсказка остаётся справа у
+     Shake, как и была. DOM не трогаем — иначе пришлось бы дублировать id. */
+  @media (max-width:812px){
+    /* 12 = 8 (падинг бара) + 4 (его собственный сдвиг) — чтобы подсказка стояла
+       на ОДНОЙ линии с Shake, а не на 8px ниже (замер: 840 против 848) */
+    #hintBtn { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); }
+  }
   .pop { position:fixed; z-index:9; pointer-events:none;
     transform:translate(-50%,-50%);
     transition:transform 1s ease-out, opacity 1s ease-out; opacity:1; }
@@ -211,10 +234,6 @@
      реализации: был сплошной фиолетовый фон #8e4ec6 и текст «📺 Shake». */
   #shakeBtn.ad .ad-w { color:#9ce52e; }
   #shakeBtn.off { background:#8b8fa0; }   /* «No shakes» — в макетах нет, оставлено как было */
-  /* тоже по системному правилу (сейчас скрыты флагами SCOPE_/MAGNET_ENABLED —
-     вернутся уже в правильной теме, без отдельной правки) */
-  #scopeBtn, #magnetBtn { pointer-events:auto; background:var(--btn-bg); border:none;
-    border-radius:1000px; width:56px; height:56px; font-size:20px; color:var(--btn-fg); cursor:pointer; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
     opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
@@ -263,9 +282,6 @@
   .ghost { background:rgba(255,255,255,.08); color:#e8ecf4; }
   #adOverlay .card { background:#000; border-color:#333; }
   #adCount { font-size:44px; font-weight:800; margin:14px 0; }
-  #scopeBtn, #magnetBtn { position:relative; }
-  #scopeBtn .mini { position:absolute; right:2px; bottom:2px; font-size:9px; font-weight:800; color:#ffc84a; }
-  #scopeBtn.off, #magnetBtn.off { opacity:.35; pointer-events:none; }
   /* ===== музей (каркас) ===== */
   #museumCard { width:min(380px, 92vw); text-align:left; }
   .mhead { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -1102,8 +1118,6 @@
 
 <div class="bar" id="bottomBar">
   <div class="grp">
-    <button id="scopeBtn" title="Scope: show all pairs">🎯<span class="mini">15</span></button>
-    <button id="magnetBtn" title="Metal detector">🧲</button>
   </div>
   <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
        освобождается под витрину, её опускаем на место подсказки -->
@@ -1142,7 +1156,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-160 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-161 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1362,9 +1376,25 @@ window.__fatal = function(msg){
   var el = document.getElementById('fatal');
   el.style.display = 'block';
   el.innerHTML = '<h2 style="margin-bottom:12px">Failed to start 3D</h2><p style="opacity:.8">' + msg +
-    '</p><p style="opacity:.6; margin-top:14px">Open the file in a browser (Safari/Chrome) — the game works there.</p>';
+    '</p><p style="opacity:.6; margin-top:14px">Try reloading the page. If it keeps failing, your browser may have 3D graphics turned off.</p>' +
+    '<button onclick="location.reload()" style="margin-top:20px; padding:14px 28px; border:none; border-radius:1000px; background:#c0ff47; color:#000; font-size:16px; font-weight:800; cursor:pointer">Reload</button>';
 };
-window.onerror = function(m, src, line){ window.__fatal('Error: ' + m + ' (line ' + line + ')'); };
+// ⚠️ ФАТАЛЬНЫЙ ЭКРАН — ТОЛЬКО ДО СТАРТА, И НИКОГДА ПО ЧУЖОЙ ОШИБКЕ.
+// Жалоба владельца 2026-07-29 со скрина реального iPhone: «Failed to start 3D —
+// Script error. (line 0)» на уже РАБОТАЮЩЕЙ игре. Разбор: обработчик стоял
+// глобально и навсегда, а «Script error.» с line 0 — это НЕПРОЗРАЧНАЯ ошибка
+// чужого скрипта (браузер не раскрывает её из-за политики происхождения).
+// То есть игру убивала ошибка рекламного SDK, к нашему коду отношения не имея,
+// причём экран несъёмный, без кнопок, и советует «откройте в браузере»
+// человеку, который УЖЕ в браузере.
+// Правила теперь: (1) чужие непрозрачные ошибки игнорируем совсем;
+// (2) после успешного старта (__booted ставит 99-main) экран не показываем —
+// игра переживает ошибку, а не умирает; (3) на самом экране есть кнопка.
+window.onerror = function(m, src, line){
+  if (!m || String(m).indexOf('Script error') === 0) return;   // чужой скрипт, деталей нет
+  if (window.__booted) return;                                  // игра уже идёт — не хороним сессию
+  window.__fatal('Error: ' + m + ' (line ' + line + ')');
+};
 (function(){
   try {
     var c = document.createElement('canvas');

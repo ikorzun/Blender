@@ -456,7 +456,7 @@ if (CFG.matcap) renderer.shadowMap.enabled = false;
 // сознательно и отмечено там же.
 function skyTimeNow(){
   let h = 12; try { h = new Date().getHours(); } catch(e){}
-  return (h >= 5 && h < 11) ? 'morning' : (h >= 11 && h < 18) ? 'day' : 'night';
+  return (h >= 5 && h < 18) ? 'day' : 'night';   // утро отменено владельцем 2026-07-29
 }
 // Небо БЕЗ КАРТИНКИ (спека владельца 2026-07-22): три опорных цвета текущего
 // времени суток. Считается РАЗ при загрузке — как раньше выбор панорамы.
@@ -473,7 +473,21 @@ const skyChromeCSS = 'rgb(' + skyGrad.top.map(c => Math.round(c*255)).join(',') 
 // бы одну и ту же строку впустую.
 const skyGradCSS = 'linear-gradient(180deg,' +
   ['top','hor','bot'].map(k => 'rgb(' + skyGrad[k].map(c => Math.round(c*255)).join(',') + ')').join(',') + ')';
-try { document.documentElement.style.setProperty('--sky-grad', skyGradCSS); } catch(e){}
+// ⚠️ ЦВЕТА ВЕРХНЕЙ И НИЖНЕЙ КРОМКИ — ОТДЕЛЬНЫМИ ПЕРЕМЕННЫМИ (рецепт Safari 26,
+// см. CLAUDE.md «хром iOS»): Safari 26 ИГНОРИРУЕТ theme-color и берёт тинт своих
+// баров из background-color самих html/body, а fixed-элемент с ПРОЗРАЧНЫМ фоном
+// отравляет тинт — прозрачный читается как «прозрачный ЧЁРНЫЙ». Наши #topBar и
+// #bottomBar ровно такие, отсюда чёрные поля сверху и снизу на iPhone.
+// Лечение по рецепту: дать каждому бару фон цвета СВОЕЙ кромки с альфой 0.01 —
+// невидимо глазу, но тинт берётся правильный. Верх и низ разные, потому что
+// небо градиентное.
+const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
+try {
+  const d = document.documentElement.style;
+  d.setProperty('--sky-grad', skyGradCSS);
+  d.setProperty('--sky-top-rgb', rgbTriple(skyGrad.top));
+  d.setProperty('--sky-bot-rgb', rgbTriple(skyGrad.bot));
+} catch(e){}
 
 // Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ

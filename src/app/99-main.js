@@ -1105,5 +1105,11 @@ if (!window.RAPIER){
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
     grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
+    // ⚠️ ФЛАГ «ИГРА ПОДНЯЛАСЬ» — по нему window.onerror (shell.html) перестаёт
+    // хоронить сессию фатальным экраном. До этой строки ошибка действительно
+    // означает «не запустилось», после — игра уже идёт, и падение чужого
+    // скрипта не повод убивать партию (жалоба владельца 2026-07-29 со скрина:
+    // «Failed to start 3D — Script error.» на работающей игре).
+    window.__booted = true;
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }

@@ -31,6 +31,18 @@
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
   .bar { position:fixed; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between;
     padding:8px; pointer-events:none; z-index:5; } /* поля 8 — как в макете */
+  /* ⚠️ ПОЧТИ-ПРОЗРАЧНЫЙ ФОН БАРОВ — ЭТО НЕ УКРАШЕНИЕ, А ЛЕЧЕНИЕ ЧЁРНЫХ ПОЛЕЙ
+     В SAFARI 26 (жалоба владельца 2026-07-29 «поля снизу и сверху так и не
+     решены»). Рецепт с лендинга about-us: Safari 26 ИГНОРИРУЕТ theme-color и
+     красит свои бары по background-color html/body, но fixed-элемент поверх
+     ОТРАВЛЯЕТ тинт своим фоном, а `transparent` трактуется как «прозрачный
+     ЧЁРНЫЙ» — отсюда чёрные полосы. Альфа 0.01 глазу не видна, а каналу тинта
+     достаточно. ⚠️ Верх и низ РАЗНЫЕ: небо градиентное, у кромок свой цвет
+     (переменные ставит 10-stage из того же SKY_GRAD). ⚠️ НЕ заменять на
+     transparent «для чистоты» — вернутся чёрные поля. */
+  #topBar    { background:rgba(var(--sky-top-rgb, 206,228,254), .01); }
+  #bottomBar { background:rgba(var(--sky-bot-rgb, 190,199,254), .01); }
+  #face      { background:rgba(var(--sky-top-rgb, 206,228,254), .01); }
   #topBar { top:env(safe-area-inset-top, 0); }
   /* ===== HUD по МОБИЛЬНОМУ макету Figma 741:1738 (393×852) =====
      Справа вертикальный стек: предметов / время / очки — по 22px, зазор 2.
@@ -120,6 +132,17 @@
      (8) не попадает: лайм в обеих темах. */
   #hintCnt.ad { padding:8px; }
   #hintBtn.off { opacity:.45; pointer-events:none; }
+  /* ⚠️ ПОДСКАЗКА В ЛЕВЫЙ НИЖНИЙ УГОЛ НА МОБИЛЕ (спека владельца 2026-07-29:
+     «по одной вертикали с кнопкой паузы»). Пауза живёт в левом верхнем углу с
+     отступом 8, поэтому здесь ровно тот же left:8 — кнопки стоят одна под
+     другой. ⚠️ ТОЛЬКО НА МОБИЛЕ: с 813px в левом нижнем углу разворачивается
+     витрина уровня и растёт ВВЕРХ, поэтому там подсказка остаётся справа у
+     Shake, как и была. DOM не трогаем — иначе пришлось бы дублировать id. */
+  @media (max-width:812px){
+    /* 12 = 8 (падинг бара) + 4 (его собственный сдвиг) — чтобы подсказка стояла
+       на ОДНОЙ линии с Shake, а не на 8px ниже (замер: 840 против 848) */
+    #hintBtn { position:fixed; left:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); }
+  }
   .pop { position:fixed; z-index:9; pointer-events:none;
     transform:translate(-50%,-50%);
     transition:transform 1s ease-out, opacity 1s ease-out; opacity:1; }
@@ -211,10 +234,6 @@
      реализации: был сплошной фиолетовый фон #8e4ec6 и текст «📺 Shake». */
   #shakeBtn.ad .ad-w { color:#9ce52e; }
   #shakeBtn.off { background:#8b8fa0; }   /* «No shakes» — в макетах нет, оставлено как было */
-  /* тоже по системному правилу (сейчас скрыты флагами SCOPE_/MAGNET_ENABLED —
-     вернутся уже в правильной теме, без отдельной правки) */
-  #scopeBtn, #magnetBtn { pointer-events:auto; background:var(--btn-bg); border:none;
-    border-radius:1000px; width:56px; height:56px; font-size:20px; color:var(--btn-fg); cursor:pointer; }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
     opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
@@ -263,9 +282,6 @@
   .ghost { background:rgba(255,255,255,.08); color:#e8ecf4; }
   #adOverlay .card { background:#000; border-color:#333; }
   #adCount { font-size:44px; font-weight:800; margin:14px 0; }
-  #scopeBtn, #magnetBtn { position:relative; }
-  #scopeBtn .mini { position:absolute; right:2px; bottom:2px; font-size:9px; font-weight:800; color:#ffc84a; }
-  #scopeBtn.off, #magnetBtn.off { opacity:.35; pointer-events:none; }
   /* ===== музей (каркас) ===== */
   #museumCard { width:min(380px, 92vw); text-align:left; }
   .mhead { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -1102,8 +1118,6 @@
 
 <div class="bar" id="bottomBar">
   <div class="grp">
-    <button id="scopeBtn" title="Scope: show all pairs">🎯<span class="mini">15</span></button>
-    <button id="magnetBtn" title="Metal detector">🧲</button>
   </div>
   <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
        освобождается под витрину, её опускаем на место подсказки -->
@@ -1142,7 +1156,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-160 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-161 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1362,9 +1376,25 @@ window.__fatal = function(msg){
   var el = document.getElementById('fatal');
   el.style.display = 'block';
   el.innerHTML = '<h2 style="margin-bottom:12px">Failed to start 3D</h2><p style="opacity:.8">' + msg +
-    '</p><p style="opacity:.6; margin-top:14px">Open the file in a browser (Safari/Chrome) — the game works there.</p>';
+    '</p><p style="opacity:.6; margin-top:14px">Try reloading the page. If it keeps failing, your browser may have 3D graphics turned off.</p>' +
+    '<button onclick="location.reload()" style="margin-top:20px; padding:14px 28px; border:none; border-radius:1000px; background:#c0ff47; color:#000; font-size:16px; font-weight:800; cursor:pointer">Reload</button>';
 };
-window.onerror = function(m, src, line){ window.__fatal('Error: ' + m + ' (line ' + line + ')'); };
+// ⚠️ ФАТАЛЬНЫЙ ЭКРАН — ТОЛЬКО ДО СТАРТА, И НИКОГДА ПО ЧУЖОЙ ОШИБКЕ.
+// Жалоба владельца 2026-07-29 со скрина реального iPhone: «Failed to start 3D —
+// Script error. (line 0)» на уже РАБОТАЮЩЕЙ игре. Разбор: обработчик стоял
+// глобально и навсегда, а «Script error.» с line 0 — это НЕПРОЗРАЧНАЯ ошибка
+// чужого скрипта (браузер не раскрывает её из-за политики происхождения).
+// То есть игру убивала ошибка рекламного SDK, к нашему коду отношения не имея,
+// причём экран несъёмный, без кнопок, и советует «откройте в браузере»
+// человеку, который УЖЕ в браузере.
+// Правила теперь: (1) чужие непрозрачные ошибки игнорируем совсем;
+// (2) после успешного старта (__booted ставит 99-main) экран не показываем —
+// игра переживает ошибку, а не умирает; (3) на самом экране есть кнопка.
+window.onerror = function(m, src, line){
+  if (!m || String(m).indexOf('Script error') === 0) return;   // чужой скрипт, деталей нет
+  if (window.__booted) return;                                  // игра уже идёт — не хороним сессию
+  window.__fatal('Error: ' + m + ' (line ' + line + ')');
+};
 (function(){
   try {
     var c = document.createElement('canvas');
@@ -1810,11 +1840,15 @@ const GLASS_POW  = 2.6;   // мягкость перехода; больше —
 // расхождение 0-4 из 255, тогда как smoothstep задрал бы горизонт полосой.
 // ⚠️ Значения СЫРЫЕ sRGB (шейдер неба минует тонмаппинг и sRGB-конвертацию),
 // как FEVER_*/GRIND_COLOR рядом. Границы часов — те же, что были у панорам.
+// ⚠️ ТОЛЬКО ДЕНЬ И НОЧЬ (спека владельца 2026-07-29: «оставь только день и ночь
+// по фоновому изображению/градиенту»). Утро (#fdedd6/#f8dcbf/#f1bba3, часы 5-11)
+// УДАЛЕНО — его часы отошли дню. Побочная польза: границы теперь ровно те же,
+// что у isNightSky в 85-hud (ночь 18..5), и продублированный час перестал быть
+// местом, где две функции могут разъехаться.
 const SKY_GRAD = {
-  //                зенит                    горизонт                 надир
-  morning: { top:[0.992,0.929,0.839], hor:[0.973,0.863,0.749], bot:[0.945,0.733,0.639] }, // #fdedd6 / #f8dcbf / #f1bba3
-  day:     { top:[0.808,0.894,0.996], hor:[0.804,0.867,0.996], bot:[0.745,0.780,0.996] }, // #cee4fe / #cdddfe / #bec7fe
-  night:   { top:[0.157,0.212,0.404], hor:[0.169,0.220,0.396], bot:[0.122,0.157,0.310] }, // #283667 / #2b3865 / #1f284f
+  //             зенит                    горизонт                 надир
+  day:   { top:[0.808,0.894,0.996], hor:[0.804,0.867,0.996], bot:[0.745,0.780,0.996] }, // #cee4fe / #cdddfe / #bec7fe
+  night: { top:[0.157,0.212,0.404], hor:[0.169,0.220,0.396], bot:[0.122,0.157,0.310] }, // #283667 / #2b3865 / #1f284f
 };
 
 // ЛИХОРАДКА КОМБО и ПОМОЛ — экранные градиенты неба (спека владельца через
@@ -2353,7 +2387,7 @@ if (CFG.matcap) renderer.shadowMap.enabled = false;
 // сознательно и отмечено там же.
 function skyTimeNow(){
   let h = 12; try { h = new Date().getHours(); } catch(e){}
-  return (h >= 5 && h < 11) ? 'morning' : (h >= 11 && h < 18) ? 'day' : 'night';
+  return (h >= 5 && h < 18) ? 'day' : 'night';   // утро отменено владельцем 2026-07-29
 }
 // Небо БЕЗ КАРТИНКИ (спека владельца 2026-07-22): три опорных цвета текущего
 // времени суток. Считается РАЗ при загрузке — как раньше выбор панорамы.
@@ -2370,7 +2404,21 @@ const skyChromeCSS = 'rgb(' + skyGrad.top.map(c => Math.round(c*255)).join(',') 
 // бы одну и ту же строку впустую.
 const skyGradCSS = 'linear-gradient(180deg,' +
   ['top','hor','bot'].map(k => 'rgb(' + skyGrad[k].map(c => Math.round(c*255)).join(',') + ')').join(',') + ')';
-try { document.documentElement.style.setProperty('--sky-grad', skyGradCSS); } catch(e){}
+// ⚠️ ЦВЕТА ВЕРХНЕЙ И НИЖНЕЙ КРОМКИ — ОТДЕЛЬНЫМИ ПЕРЕМЕННЫМИ (рецепт Safari 26,
+// см. CLAUDE.md «хром iOS»): Safari 26 ИГНОРИРУЕТ theme-color и берёт тинт своих
+// баров из background-color самих html/body, а fixed-элемент с ПРОЗРАЧНЫМ фоном
+// отравляет тинт — прозрачный читается как «прозрачный ЧЁРНЫЙ». Наши #topBar и
+// #bottomBar ровно такие, отсюда чёрные поля сверху и снизу на iPhone.
+// Лечение по рецепту: дать каждому бару фон цвета СВОЕЙ кромки с альфой 0.01 —
+// невидимо глазу, но тинт берётся правильный. Верх и низ разные, потому что
+// небо градиентное.
+const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
+try {
+  const d = document.documentElement.style;
+  d.setProperty('--sky-grad', skyGradCSS);
+  d.setProperty('--sky-top-rgb', rgbTriple(skyGrad.top));
+  d.setProperty('--sky-bot-rgb', rgbTriple(skyGrad.bot));
+} catch(e){}
 
 // Небо. ShaderMaterial минует
 // тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
@@ -7248,11 +7296,6 @@ function updateHUD(){
   // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
   // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
   $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
-  // «Прицел» доступен при деньгах; «Металлоискатель» — пока сюрприз жив и не использован
-  $('scopeBtn').style.display = SCOPE_ENABLED ? '' : 'none';
-  $('scopeBtn').classList.toggle('off', coins() < PRICE_SCOPE || level.over);
-  const sp = items.find(i => i.surprise && i.alive);
-  $('magnetBtn').style.display = (MAGNET_ENABLED && sp && !level.detectorUsed && !level.over) ? '' : 'none';
   $('apCount').textContent = availablePairs();
   $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // динамический; ∞ = эндшпиль
 }
@@ -8221,21 +8264,14 @@ $('winX2Btn').addEventListener('click', ()=>{
 $('loseAdContinue').addEventListener('click', ()=>{
   Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
 });
-// «Прицел»: 15 монет, все доступные пары на 5 с
-$('scopeBtn').addEventListener('click', ()=>{
-  if (level.over || intro) return;
-  if (!spendCoins(PRICE_SCOPE)){ toast('Need ' + PRICE_SCOPE + ' 🪙'); return; }
-  Telemetry.ev('spend', { item: 'scope' });
-  refreshAccessibility();
-  scopeHighlight();
-  stats.lastAction = performance.now();
-  updateHUD();
-});
-// «Металлоискатель»: rewarded, показывает где копать до сюрприза
-$('magnetBtn').addEventListener('click', ()=>{
-  if (level.over || intro || level.detectorUsed) return;
-  Ads.showRewarded(()=>{ detectorHighlight(); });
-});
+// ⚠️ КНОПКИ «ПРИЦЕЛ» И «МЕТАЛЛОИСКАТЕЛЬ» УДАЛЕНЫ (спека владельца 2026-07-29:
+// «при загрузке в мобильном моргают старые кнопки магнита и ещё что-то в левом
+// нижнем углу — это всё нужно удалить»). Они лежали в разметке видимыми и
+// прятались лишь ПЕРВЫМ тиком updateHUD, то есть после запуска движка — отсюда
+// и моргание. ОТМЕНЯЕТ прежнее «не удаляй, скрой флагом» (2026-07-18/21).
+// Сама механика (scopeHighlight/detectorHighlight, PRICE_SCOPE, флаги
+// SCOPE_ENABLED/MAGNET_ENABLED) НЕ тронута — вернуть кнопки = вернуть эти
+// два обработчика и две строки разметки в bottomBar.
 // глаза миксера: интерактивный персонаж — подмигивает на тап
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
@@ -9544,6 +9580,12 @@ if (!window.RAPIER){
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
     grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
+    // ⚠️ ФЛАГ «ИГРА ПОДНЯЛАСЬ» — по нему window.onerror (shell.html) перестаёт
+    // хоронить сессию фатальным экраном. До этой строки ошибка действительно
+    // означает «не запустилось», после — игра уже идёт, и падение чужого
+    // скрипта не повод убивать партию (жалоба владельца 2026-07-29 со скрина:
+    // «Failed to start 3D — Script error.» на работающей игре).
+    window.__booted = true;
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }
 

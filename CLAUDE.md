@@ -1541,6 +1541,25 @@ matchRadius — динамический (updateMatchRadius в 60-access, пол
 плотности и MAX_FALL/fallCap — в 50-physics. Камера: phi=0.45, r=16.2,
 target y=4.2.
 
+## Хром iOS: чёрные поля Safari 26 (рецепт, НЕ ломать)
+
+Safari 26 (Liquid Glass) **игнорирует `theme-color`** и красит свои бары сверху и
+снизу по `background-color` **самих `html` и `body`**. Но fixed-элемент поверх
+ОТРАВЛЯЕТ этот тинт своим фоном, причём `transparent` трактуется как
+«прозрачный ЧЁРНЫЙ» — отсюда чёрные поля. Рецепт (обкатан на лендинге
+playgama.com/about-us, применён здесь 2026-07-29):
+
+1. `viewport-fit=cover` в мете — без него iOS леттербоксит страницу.
+2. `tintChrome` (99-main) пишет цвет в `documentElement.style.backgroundColor`
+   И `document.body.style.backgroundColor` (+ meta для Android/macOS).
+3. **Каждому fixed-элементу — фон цвета своей кромки с альфой 0.01**:
+   `#topBar`/`#face` берут `--sky-top-rgb`, `#bottomBar` — `--sky-bot-rgb`
+   (обе ставит 10-stage из SKY_GRAD). ⚠️ НЕ заменять на `transparent` — вернутся
+   чёрные поля.
+4. Скрытые полноэкранные оверлеи прятать `display:none` (Safari семплит пиксели
+   `opacity:0`/`visibility:hidden`). У нас `hide()` в 85-hud так и делает.
+5. Проверить можно ТОЛЬКО на устройстве — headless этого не воспроизводит.
+
 ## Верификация
 
 - Только headless Playwright (`node test.js`) — превью-таб Claude
