@@ -1161,7 +1161,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-165 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-166 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -6862,8 +6862,22 @@ function handleTap(x, y){
     return;
   }
   if (finale){ wiggle(item); return; }
-  Telemetry.tap(x, y, 'miss');   // тапнул по недоступному/непарному — карта промахов
-  penalize(item.p);
+  // ⚠️ ТАП ПО ДОСТУПНОМУ ПРЕДМЕТУ БЕЗ ПАРЫ — НЕ ОШИБКА И НЕ ШТРАФУЕТСЯ
+  // (спека владельца 2026-07-29). Он потыкал в цветные предметы у дна чаши и
+  // получил штраф; замер объяснил почему: на ур.20 Hard доступных предметов 50,
+  // а доступных ПАР 11 — то есть больше половины «цветных» соединить не с чем
+  // в принципе. Вуаль отвечает на вопрос «ДОТЯНУСЬ ЛИ», а игрок читает её как
+  // «МОГУ ЛИ ИСПОЛЬЗОВАТЬ»; это разные множества, и разрыв огромный. Наказывать
+  // за то, что игра сама показала зелёный свет, нечестно.
+  // ⚠️ ОСТАЛЬНЫЕ ПРОМАХИ ШТРАФ СОХРАНЯЮТ: пустое место, ПЕРЕКРЫТЫЙ предмет
+  // (он завуалирован, игрок это видит) и камень (двойной штраф-обучение).
+  // ⚠️ НЕ ТРОГАЕМ stats.lastAction: иначе тапами по одинокому предмету можно
+  // было бы бесконечно откладывать помол — это была бы дыра, а не поблажка.
+  // ⚠️ ТУРБО ТОЖЕ НЕ СТРАДАЕТ: penalize сбрасывает набор цепи и роняет
+  // радиус-лесенку, а раз это не ошибка — ничего сбрасывать не за что.
+  // Обратная связь остаётся: красный ореол уже нарисован выше + дрожание.
+  Telemetry.tap(x, y, 'nopair');   // отдельно от 'miss' — в карте промахов это другой случай
+  wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));

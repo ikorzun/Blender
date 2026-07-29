@@ -1937,6 +1937,40 @@ window.bridge = {
     '⚠️ ЛИДЕРБОРД не раздут пиком: ' + bankDrop.rank1 + ' (честно ' + rankHonest +
     ', по пику было бы ' + rankInflated + ')');
 
+  // ⚠️ ЭТА СЕКЦИЯ СТОИТ В САМОМ КОНЦЕ НАМЕРЕННО — по той же причине, что и
+  // секция камней: она делает setLevel/regen, а это меняет контекст следующим
+  // проверкам. Когда я поставил её в середину, она сломала «5 матчей сняли
+  // >=10 предметов» (уровень стал больше, живых 172 вместо 130) и секцию
+  // бомбы. Проект эту граблю уже документировал — я на неё наступил повторно.
+
+  // ⚠️ ТАП ПО ДОСТУПНОМУ БЕЗ ПАРЫ НЕ ШТРАФУЕТСЯ (спека владельца 2026-07-29).
+  // Стережём ЯВНО: снятие штрафа — это одна строка, и вернуть её случайной
+  // правкой в handleTap проще простого, а игрок заметит не сразу.
+  // Радиус загоняем в −9 (документированный приём форса «пар нет»), уровень
+  // берём 10-й: на 1-м штрафов нет вовсе, на 2-5 счёт клампится нулём — там
+  // ассерт был бы зелёным по чужой причине.
+  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
+  const npRad = await page.evaluate(() => window.__game.cfg.baseRadius);
+  await page.evaluate(() => { window.__game.cfg.baseRadius = -9; });
+  await page.waitForTimeout(500);                       // updateMatchRadius тикает раз в 300 мс
+  const npTarget = await page.evaluate(() => {
+    const g = window.__game; g.forceRefresh();
+    return g.findByTex('food') || g.findByTex('animal');
+  });
+  if (npTarget && npTarget.px != null){
+    const npBefore = await page.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
+    await page.mouse.click(npTarget.px, npTarget.py);
+    await page.waitForTimeout(400);
+    const npAfter = await page.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
+    expect(npAfter.score === npBefore.score,
+      'тап по доступному без пары НЕ снял очки (' + npBefore.score + ' -> ' + npAfter.score + ')');
+    expect(npAfter.misses === npBefore.misses,
+      'тап по доступному без пары НЕ засчитан промахом (' + npBefore.misses + ' -> ' + npAfter.misses + ')');
+  } else console.log('тап без пары: доступной цели не нашлось — пропуск');
+  await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
+  await page.waitForTimeout(400);
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
