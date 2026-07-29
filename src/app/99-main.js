@@ -585,6 +585,40 @@ window.__game = {
   // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
   // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)
   veilAll: veilAllItems,
+  // ДЕБАГ ГРАФИКИ (цена прозрачности + цена переключения сложности на лету,
+  // 2026-07-29): флип material.transparent на ВСЕХ живых предметах. Возвращает
+  // мс на сам флип + первый кадр — это и есть цена перекомпиляции (transparent
+  // входит в ключ программы three через `#define OPAQUE`).
+  // ЗАМЕРЕНО: 1-й флип 183 материалов — 34 мс (компиляция второго варианта),
+  // каждый следующий 1.2-1.6 мс (обе программы уже в кэше three). Поэтому
+  // «сложность применяется со следующего уровня» — ограничение снимаемое.
+  // Им же меряется цена прозрачности парным чередующимся замером (см. WORKSTREAMS).
+  setItemsTransparent(on){
+    const t0 = performance.now();
+    let n = 0;
+    for (const it of items){
+      if (!it.alive || !it.mesh) continue;
+      const m = it.mesh.material;
+      if (!m || m.transparent === !!on) continue;
+      m.transparent = !!on;
+      m.opacity = on ? VEIL_ALPHA : 1;
+      m.needsUpdate = true; n++;
+    }
+    renderer.render(scene, camera);          // форсим компиляцию здесь, а не в тике
+    return { flipped: n, ms: +(performance.now() - t0).toFixed(1) };
+  },
+  // ДЕБАГ ГРАФИКИ (подбор тона вуали, спека владельца «светло-синяя, не серая»):
+  // менять тон/светлоту/подъём на ЖИВОЙ сцене без пересборки. uVeilCol и
+  // uVeilTune — ОБЩИЕ юниформы (10-stage), поэтому правка видна сразу всем.
+  // Оставлен постоянным (как matcapTuner): тон — вкусовое решение владельца,
+  // и он к нему возвращался уже дважды; пересобирать билд на каждый оттенок
+  // не нужно, а контактный лист вариантов снимается одним прогоном.
+  veilTune(hex, light, lift){
+    if (hex != null) uVeilCol.value.setHex(hex).convertSRGBToLinear();
+    if (light != null) uVeilTune.value.x = light;
+    if (lift != null) uVeilTune.value.y = lift;
+    return { hex: '#' + (hex == null ? 0 : hex).toString(16), light: uVeilTune.value.x, lift: uVeilTune.value.y };
+  },
   // срез вуали для сьюта: сколько материалов реально получили uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;
