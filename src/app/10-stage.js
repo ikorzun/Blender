@@ -409,13 +409,14 @@ const matcapSpecPatch = function (sh) {
   sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
   sh.uniforms.uDepth = uDepthTint;
   sh.uniforms.uVeilTune = uVeilTune;
+  sh.uniforms.uVeilCol = uVeilCol;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
     .replace('#include <project_vertex>',
       '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>',
-      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nuniform float uVeil;\nuniform vec2 uVeilTune;\nvarying float vWorldY;')
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nuniform float uVeil;\nuniform vec2 uVeilTune;\nuniform vec3 uVeilCol;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
       'float dk = clamp( ( vWorldY - uPileTop + uDepth.y ) / uDepth.y, 0.0, 1.0 );\n'
@@ -432,7 +433,15 @@ const matcapSpecPatch = function (sh) {
       // яркость и поднимаем к светло-серому. Тремя инструкциями и без
       // ветвления — при uVeil=0 это тождество, доступные ничего не платят.
       + '\tfloat vLum = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );\n'
-      + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ), vec3( uVeilTune.x ), uVeilTune.y ), uVeil );'
+      // ⚠️ БЫЛО: обесцвечивание в СЕРЫЙ и подъём к серому же. Стало: обесцвеченная
+      // яркость КРАСИТСЯ в uVeilCol и поднимается к светлому тону того же цвета.
+      // Форма выражения та же — при uVeil=0 это по-прежнему тождество, доступные
+      // предметы не платят ничего.
+      // ⚠️ КОММЕНТАРИЙ ОБЯЗАН СТОЯТЬ НАД «+», А НЕ ПОСЛЕ НЕГО: `X + // …` даёт
+      // `X + (+'строка')`, унарный плюс на строке — это NaN, и в шейдер вместо
+      // кода уезжает «NaN». Предметы тогда просто перестают рисоваться, а
+      // консоль молчит — я на этом потерял два прогона.
+      + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ) * uVeilCol, uVeilCol * uVeilTune.x, uVeilTune.y ), uVeil );'
     );
   // страж якорной строки: replace по несуществующему якорю МОЛЧА ничего не
   // делает (смена версии three) — глубина/блик/подсказка отвалились бы тихо
@@ -450,6 +459,9 @@ const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) 
 // исходник шейдера от этого не меняется, программа по-прежнему компилируется
 // одна на все 183. x = целевой светло-серый, y = доля подъёма к нему.
 const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
+// ⚠️ ЦВЕТ ВУАЛИ — В ЛИНЕЙНОМ ПРОСТРАНСТВЕ: патч правит outgoingLight ДО
+// тонмаппинга, поэтому сырой sRGB здесь дал бы пересветлённый тон.
+const uVeilCol = { value: new THREE.Color(VEIL_TINT).convertSRGBToLinear() };
 // Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
 // ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
 // Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).

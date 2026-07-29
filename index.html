@@ -1161,7 +1161,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-164 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-165 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1829,9 +1829,27 @@ const TEX_PIVOT = 0.34;     // середина, вокруг которой к�
 // ⚠️ ПЕРЕКЛЮЧЕНИЕ СЛОЖНОСТИ ПРИМЕНЯЕТСЯ СО СЛЕДУЮЩЕГО УРОВНЯ: applyHard
 //     материалы не пересобирает, а менять флаг на лету нельзя — это
 //     перекомпиляция шейдера каждому предмету.
-const VEIL_MODE = 'fade';
-const VEIL_LIGHT = 0.72;    // целевой светло-серый на выходе шейдера
-const VEIL_LIFT = 0.30;     // доля подъёма к нему: 0 — честная яркость (тёмное
+// ⚠️ ПРОЗРАЧНОСТЬ ОТКАЧЕНА В ТОТ ЖЕ ДЕНЬ, И ВОТ ПОЧЕМУ (замер + скрин):
+// светло-синяя вуаль ПОВЕРХ прозрачности на светло-синем небе = предметы
+// исчезают совсем. На кадре ур.20 Hard из 181 предмета осталась видна пара
+// штук: 123 завуалированных при opacity 0.42 и тоне, близком к небу, слились
+// с фоном, и сквозь них стало видно дно чаши. «Видно, но не тронуть»
+// превратилось в «не видно вовсе».
+// Владелец сам дал развилку: «если прозрачность дорого — нужна просто светло
+// синяя matcap». Берём её: тон остаётся синим, режим — непрозрачный.
+// ⚠️ ЦЕНУ ПРОЗРАЧНОСТИ ТАК И НЕ ИЗМЕРИЛИ (разброс headless больше разницы) —
+// то есть откат сделан не из-за перфа, а потому что ВЫГЛЯДИТ ХУЖЕ.
+// Вернуть: 'fade' — но тогда тон обязан уйти от цвета неба, иначе повторится.
+const VEIL_MODE = 'desat';
+// ⚠️ ВУАЛЬ СВЕТЛО-СИНЯЯ, А НЕ СЕРАЯ (спека владельца 2026-07-29: «нужна просто
+// светло синяя matcap на недоступные объекты, текущий серый выглядит не секси»).
+// Работает в ОБОИХ режимах вуали, поэтому вопрос «оставлять ли прозрачность»
+// решается отдельной константой и вида не меняет.
+// ⚠️ НЕ БРАТЬ ЦВЕТ НЕБА (#cee4fe): вуаль слилась бы с фоном, и недоступные
+// пропали бы совсем вместо «видно, но не тронуть».
+const VEIL_TINT = 0x9ec2f0;
+const VEIL_LIGHT = 0.95;    // целевой светло-серый на выходе шейдера
+const VEIL_LIFT = 0.55;     // доля подъёма к нему: 0 — честная яркость (тёмное
                             // остаётся тёмным), 1 — ровная светлая заливка.
                             // 0.30 подобрано по скринам НА ОБОИХ небах: при 0.62
                             // куча выцветала в фон и силуэты переставали читаться,
@@ -2419,13 +2437,14 @@ const matcapSpecPatch = function (sh) {
   sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
   sh.uniforms.uDepth = uDepthTint;
   sh.uniforms.uVeilTune = uVeilTune;
+  sh.uniforms.uVeilCol = uVeilCol;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
     .replace('#include <project_vertex>',
       '#include <project_vertex>\n\tvWorldY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>',
-      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nuniform float uVeil;\nuniform vec2 uVeilTune;\nvarying float vWorldY;')
+      '#include <common>\nuniform vec3 emissive;\nuniform float uPileTop;\nuniform vec2 uTune;\nuniform vec2 uDepth;\nuniform float uVeil;\nuniform vec2 uVeilTune;\nuniform vec3 uVeilCol;\nvarying float vWorldY;')
     .replace(
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
       'float dk = clamp( ( vWorldY - uPileTop + uDepth.y ) / uDepth.y, 0.0, 1.0 );\n'
@@ -2442,7 +2461,15 @@ const matcapSpecPatch = function (sh) {
       // яркость и поднимаем к светло-серому. Тремя инструкциями и без
       // ветвления — при uVeil=0 это тождество, доступные ничего не платят.
       + '\tfloat vLum = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );\n'
-      + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ), vec3( uVeilTune.x ), uVeilTune.y ), uVeil );'
+      // ⚠️ БЫЛО: обесцвечивание в СЕРЫЙ и подъём к серому же. Стало: обесцвеченная
+      // яркость КРАСИТСЯ в uVeilCol и поднимается к светлому тону того же цвета.
+      // Форма выражения та же — при uVeil=0 это по-прежнему тождество, доступные
+      // предметы не платят ничего.
+      // ⚠️ КОММЕНТАРИЙ ОБЯЗАН СТОЯТЬ НАД «+», А НЕ ПОСЛЕ НЕГО: `X + // …` даёт
+      // `X + (+'строка')`, унарный плюс на строке — это NaN, и в шейдер вместо
+      // кода уезжает «NaN». Предметы тогда просто перестают рисоваться, а
+      // консоль молчит — я на этом потерял два прогона.
+      + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ) * uVeilCol, uVeilCol * uVeilTune.x, uVeilTune.y ), uVeil );'
     );
   // страж якорной строки: replace по несуществующему якорю МОЛЧА ничего не
   // делает (смена версии three) — глубина/блик/подсказка отвалились бы тихо
@@ -2460,6 +2487,9 @@ const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) 
 // исходник шейдера от этого не меняется, программа по-прежнему компилируется
 // одна на все 183. x = целевой светло-серый, y = доля подъёма к нему.
 const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
+// ⚠️ ЦВЕТ ВУАЛИ — В ЛИНЕЙНОМ ПРОСТРАНСТВЕ: патч правит outgoingLight ДО
+// тонмаппинга, поэтому сырой sRGB здесь дал бы пересветлённый тон.
+const uVeilCol = { value: new THREE.Color(VEIL_TINT).convertSRGBToLinear() };
 // Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
 // ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
 // Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).
