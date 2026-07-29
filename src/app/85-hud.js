@@ -520,7 +520,19 @@ function itemThumb(item){
     if (sh) sh.uniforms.uVeil.value = gh ? 1 : 0;
     const savedOp = m.material.opacity;
     m.material.opacity = gh ? GHOST_ALPHA : 1;
+    // ⚠️ ГХОСТ ОБЯЗАН ОСТАТЬСЯ БЕСЦВЕТНЫМ (спека владельца «не открытые модели —
+    // прозрачные, немного матовые, но БЕСЦВЕТНЫЕ»). Гхост переиспользует ту же
+    // юниформу uVeil, что и боевая вуаль, а у неё с 2026-07-29 ЕСТЬ ТОН
+    // (VEIL_TINT, «светло-синяя, не серая») — и он молча красил силуэты
+    // коллекции в синий: замер среднего цвета гхоста дал rgb(81,117,161), синева
+    // b−r = +80. Два применения одной юниформы разъехались по требованиям,
+    // поэтому на время СЪЁМКИ ПОРТРЕТА тон возвращается в нейтраль (белый:
+    // vec3(vLum)*1 = честный серый). Боевая вуаль не затронута — правка живёт
+    // ровно на кадр снимка, как и соседние сохранения color/opacity.
+    const savedCol = uVeilCol.value.clone();
+    if (gh) uVeilCol.value.setRGB(1, 1, 1);
     thumbR.render(thumbScene, thumbCam);
+    uVeilCol.value.copy(savedCol);
     m.material.opacity = savedOp;
     if (sh) sh.uniforms.uVeil.value = savedVeil;
     if (saved) col.copy(saved);
