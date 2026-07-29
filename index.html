@@ -880,6 +880,23 @@
        стала 56, и прежнее «пол-заголовка» уже не воспроизводится).
        ⚠️ ЧИСЛО ЗАВИСИТ ОТ ВЫСОТЫ ШАПКИ: сменится она — мерить заново оба. */
     .ms-coll { margin-top:-64px; padding-top:64px; }
+    /* ⚠️ МЯГКОЕ РАСТВОРЕНИЕ ВМЕСТО ЖЁСТКОГО КРАЯ (спека владельца 2026-07-29:
+       «дать заголовку мягкий градиент-растворение сверху вместо жёсткой
+       границы»). Карточка, уходящая под заголовок, больше не обрубается о верх
+       скролл-бокса, а гаснет по альфе ровно на высоте шапки.
+       ⚠️ ИМЕННО МАСКА, А НЕ НАКЛАДНОЙ ГРАДИЕНТ ЦВЕТА СТРАНИЦЫ: накладка — это
+       и есть та самая «подложка», которую владелец просил убрать (её он и
+       увидел бы как плотную полосу поверх контента). Маска делает сам контент
+       ПРОЗРАЧНЫМ, за ним видно то, что там есть на самом деле.
+       ⚠️ 64 — ТО ЖЕ ЧИСЛО, ЧТО У ПЕРЕКРЫТИЯ ВЫШЕ, и это не совпадение: конец
+       растворения обязан совпасть с верхом сетки, иначе первая строка карточек
+       окажется полупрозрачной в покое. Меняешь одно — меняй оба.
+       ⚠️ Градиентная маска — БЕЗОПАСНЫЙ случай (в отличие от масок из внешних
+       SVG, где mask-mode расходится между движками и уже ломал нам вордмарк);
+       -webkit- нужен Safari и старым Chromium. */
+    .ms-coll {
+      -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 64px);
+              mask-image:linear-gradient(to bottom, transparent 0, #000 64px); }
     /* ≥1080 БЕНТО: коллекция 4 колонки (спека владельца 2026-07-24). */
     .ms-grid { grid-template-columns:repeat(4, 1fr); gap:10px; }
     /* колонка настроек 292 не вмещает 172-контрол рядом с «Difficult» (84px):
@@ -1125,7 +1142,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-159 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-160 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
