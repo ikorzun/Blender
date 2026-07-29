@@ -22,7 +22,33 @@ const path = require('path');
   // не слепые 2.5 с, а честное ожидание: RAPIER.init асинхронный, __game
   // появляется после старта игры (флейк на холодной машине)
   await page.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+
+  // ⚠️ ЗАНАВЕС ЗАГРУЗКИ — ЕДИНСТВЕННОЕ ОКНО, ГДЕ ЕГО ВИДНО: дальше сьют зовёт
+  // skipIntro, тот ставит introdone и защёлка uiready открывается навсегда.
+  // Спека владельца 2026-07-30 «во время загрузки бриджа не должно быть никаких
+  // элементов интерфейса» — без этого ассерта фичу не проверяет ничто.
+  // ⚠️ Ассерт УСЛОВНЫЙ, и это НЕ слабость: страховочный таймаут (8 с в 85-hud)
+  // на медленной машине может успеть открыть занавес до этой строки, и
+  // безусловная проверка стала бы флейком. Регрессию (снесли CSS-правило) он
+  // ловит всё равно — при живой защёлке узлы обязаны быть скрыты.
+  const curtain = await page.evaluate(() => {
+    const ids = ['topBar', 'bottomBar', 'face', 'toast', 'tierToast', 'vitrine'];
+    const shown = ids.filter(id => getComputedStyle(document.getElementById(id)).visibility !== 'hidden');
+    const btn = document.getElementById('shakeBtn').getBoundingClientRect();
+    const under = document.elementFromPoint(btn.left + btn.width / 2, btn.top + btn.height / 2);
+    return { latched: document.documentElement.classList.contains('uiready'), shown,
+             tapReaches: !!(under && under.closest && under.closest('#bottomBar')) };
+  });
+  if (curtain.latched) console.log('SKIP: занавес уже открыт страховкой — окно проверки упущено');
+  else {
+    expect(curtain.shown.length === 0, 'ЗАНАВЕС: до introdone интерфейса нет (видимых узлов: ' +
+      (curtain.shown.join(',') || 'ноль') + ')');
+    expect(!curtain.tapReaches, 'ЗАНАВЕС: тап по месту Shake не доходит до кнопки');
+  }
+
   await page.evaluate(() => window.__game.skipIntro());
+  const latchedAfter = await page.evaluate(() => document.documentElement.classList.contains('uiready'));
+  expect(latchedAfter, 'ЗАНАВЕС: introdone открыл защёлку uiready');
 
   const t0 = await page.evaluate(() => ({
     alive: window.__game.alive(),
