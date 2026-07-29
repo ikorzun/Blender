@@ -50,6 +50,12 @@ function trimOverfill(){
 }
 function finishIntro(){
   try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
+  // ПЛОЩАДКЕ: первый ИГРАБЕЛЬНЫЙ кадр + старт уровня. GAME_READY раньше
+  // уходил из Ads.init (до genLevel и интро) — площадка снимала свой лоадер
+  // над чёрным экраном. LEVEL_STARTED у Poki/CrazyGames маппится в нативный
+  // gameplayStart: без него площадка пейсит рекламу вслепую. Оба вызова
+  // идемпотентны и молчат вне bridge-режима.
+  try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
   intro = null;
   document.documentElement.classList.add('introdone'); // облёт кончился — витрина разворачивается
   resetPointers();
@@ -220,6 +226,7 @@ function pauseGame(silent){
   // ⚠️ НЕ писать textContent в #eyes: это SVG-конструкция персонажа
   // (85-hud) — текст уничтожил бы слои. Лицо просто застывает стоп-кадром.
   if (!silent) show('pauseOverlay');
+  try { Ads.msg('LEVEL_PAUSED'); } catch(_){} // площадке: геймплей встал (нативный gameplayStop)
   return true;
 }
 function resumeGame(){
@@ -234,6 +241,7 @@ function resumeGame(){
   if (grindStartMs) grindStartMs += d; // огонь помола — тоже якорь на часах
   lastT = performance.now(); // без гигантского dt на первом кадре
   paused = false;
+  try { Ads.msg('LEVEL_RESUMED'); } catch(_){} // площадке: геймплей продолжился (нативный gameplayStart)
   // дренаж отложенных цепочек СТРОГО после paused=false (иначе afterPause
   // вернул бы их в очередь) и после сдвига якорей — колбэки читают часы
   pausedQueue.splice(0).forEach(fn => { try { fn(); } catch(e){} });
@@ -628,8 +636,9 @@ window.__game = {
     if (!intro) return;
     intro = null;
     // тот же сигнал, что и у честного finishIntro (иначе витрина ждала бы
-    // облёта, которого в тестах/пробах не будет)
+    // облёта, которого в тестах/пробах не будет) — и те же сообщения площадке
     document.documentElement.classList.add('introdone');
+    try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
     for (let s=0; s<300; s++){
       world.step();
       // терминальная скорость и тут: столб падает с ~40 юнитов, v>20

@@ -1162,10 +1162,19 @@ window.bridge = {
   await bpage.waitForFunction(() => window.__probe && window.__probe.initialized, null, { timeout: 20000 });
   await bpage.evaluate(() => window.__game.grant(1)); // любое изменение сейва -> commitSave -> запись в облако
   await bpage.waitForTimeout(1000);                   // промисы sync/записи
+  // ⚠️ GAME_READY шлётся НЕ в init, а по первому ИГРАБЕЛЬНОМУ кадру (правка
+  // 2026-07-29 по требованию доки): до интро площадка сняла бы свой лоадер над
+  // чёрным экраном. Поэтому сначала фиксируем, что в init его НЕТ, и только
+  // потом доводим игру до играбельного состояния.
+  const readyBeforeIntro = await bpage.evaluate(() => window.__probe.gameReady);
+  await bpage.evaluate(() => window.__game.skipIntro());
+  await bpage.waitForTimeout(300);
   const bp = await bpage.evaluate(() => ({ ...window.__probe, mode: window.__game.adsMode() }));
   await bpage.close();
   await new Promise(r => srv.close(r));
-  expect(bp.initialized && bp.gameReady, 'bridge: SDK инициализирован, GAME_READY отправлен');
+  expect(bp.initialized, 'bridge: SDK инициализирован');
+  expect(!readyBeforeIntro, 'bridge: GAME_READY НЕ уходит до первого играбельного кадра');
+  expect(bp.gameReady, 'bridge: GAME_READY отправлен по готовности игры');
   expect(bp.storageGet >= 1, 'bridge: облако ЧИТАЕТСЯ и без rewarded (storage.get ' + bp.storageGet + ')');
   expect(bp.storageSet >= 1, 'bridge: облако пишется (storage.set ' + bp.storageSet + ') — симметрия чтения/записи');
   expect(bp.mode === 'stub', 'bridge: без rewarded режим остаётся stub (' + bp.mode + ')');
@@ -1209,16 +1218,21 @@ window.bridge = {
   // и даёт из теста слать состояния. Показ запускаем БОЕВЫМ путём: клик по
   // кнопке «Watch» -> startAd -> Ads.showRewarded.
   const MOCK_RW = `
-window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); }, rwShown:0, interShown:0 };
+window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); },
+  rwShown:0, interShown:0, msgs:[], rwPlace:null, interPlace:null };
 function reg(ev,cb){ (window.__mock.h[ev] = window.__mock.h[ev] || []).push(cb); }
 window.bridge = {
-  PLATFORM_MESSAGE: { GAME_READY:'game_ready' },
-  EVENT_NAME: { REWARDED_STATE_CHANGED:'rw', INTERSTITIAL_STATE_CHANGED:'inter', AUDIO_STATE_CHANGED:'audio' },
+  PLATFORM_MESSAGE: { GAME_READY:'game_ready', LEVEL_STARTED:'level_started',
+    LEVEL_COMPLETED:'level_completed', LEVEL_PAUSED:'level_paused', LEVEL_RESUMED:'level_resumed' },
+  EVENT_NAME: { REWARDED_STATE_CHANGED:'rw', INTERSTITIAL_STATE_CHANGED:'inter',
+    AUDIO_STATE_CHANGED:'audio', PAUSE_STATE_CHANGED:'pause' },
   REWARDED_STATE: { REWARDED:'rewarded', FAILED:'failed', CLOSED:'closed' },
   INTERSTITIAL_STATE: { LOADING:'loading', OPENED:'opened', CLOSED:'closed', FAILED:'failed' },
-  platform: { id:'mocktest', language:'en', isAudioEnabled:true, sendMessage(){}, on:reg },
+  platform: { id:'mocktest', language:'ru', isAudioEnabled:true, isPaused:false, on:reg,
+              sendMessage(n, p){ window.__mock.msgs.push({ n, p }); return Promise.resolve(); } },
   advertisement: { isRewardedSupported:true, isInterstitialSupported:true, on:reg,
-                   showRewarded(){ window.__mock.rwShown++; }, showInterstitial(){ window.__mock.interShown++; } },
+                   showRewarded(pl){ window.__mock.rwShown++; window.__mock.rwPlace = pl === undefined ? null : pl; },
+                   showInterstitial(pl){ window.__mock.interShown++; window.__mock.interPlace = pl === undefined ? null : pl; } },
   storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
   initialize(){ return Promise.resolve(); },
 };
@@ -1391,6 +1405,96 @@ window.bridge = {
   expect(retry.winsLeft === 5,
     'проводка: Retry счётчик побед не тронул (остался у порога ' + retry.winsLeft + ')');
   await apage.evaluate(() => window.__game.skipIntro()); // loseAgainBtn запустил genLevel/интро
+
+  // ── ИНТЕГРАЦИЯ BRIDGE v2 (2026-07-29): обязательные шаги доки ───────────
+  // 6. ПАУЗА ПЛОЩАДКИ. Площадка просит паузу не только под рекламу (свой
+  // оверлей, меню портала). До подписки под ним тикал миксер и ЖРАЛ предметы.
+  await emit('pause', true);
+  const platOn = await adState();
+  await emit('pause', false);
+  const platOff = await adState();
+  expect(platOn.paused && platOn.muted && !platOn.overlay,
+    'пауза площадки: игра встала тихо и замолчала (' + JSON.stringify(platOn) + ')');
+  expect(!platOff.paused && !platOff.muted,
+    'пауза площадки: снятие вернуло игру и звук (' + JSON.stringify(platOff) + ')');
+
+  // 7. ВЛАДЕНИЕ: конец РОЛИКА не должен снимать паузу, поставленную ПЛОЩАДКОЙ
+  // (разные флаги). Ставим платформенную, затем гоняем ролик до развязки.
+  await emit('pause', true);
+  await apage.evaluate(() => { window.__ads.showRewarded(()=>{}, ()=>{}); });
+  await apage.waitForTimeout(200);
+  await emit('rw', 'closed');           // ролик кончился
+  const ownWar = await adState();
+  expect(ownWar.paused && ownWar.muted,
+    'владение: конец ролика НЕ снял паузу площадки (' + JSON.stringify(ownWar) + ')');
+  await emit('pause', false);
+  const ownFree = await adState();
+  expect(!ownFree.paused, 'владение: снятие платформенной паузы разморозило игру');
+
+  // 8. МУЗЫКА глохнет вместе с SFX (требование площадок: во время
+  // полноэкранной рекламы игра И ЗВУК на паузе). Музыка — отдельный тракт
+  // <audio id="bgm">, Sound.setMuted его не касается.
+  // ⚠️ НЕ ПРОВЕРЯТЬ ЧЕРЕЗ bgm.paused: в headless автоплей запрещён, трек не
+  // играет вовсе, и «во время ролика он остановлен» выполняется САМО СОБОЙ —
+  // ассерт проходил и с фиксом, и без него (поймано реверс-проверкой).
+  // Следим за ВЫЗОВАМИ play(): под роликом их быть не должно даже когда игрок
+  // сам тянет ползунок громкости, а после ролика громкость обязана вернуться.
+  const music = await apage.evaluate(async () => {
+    const bgm = document.getElementById('bgm'), sl = document.getElementById('msMusic');
+    if (!bgm || !sl) return { no: true };
+    let plays = 0;
+    const orig = bgm.play.bind(bgm);
+    bgm.play = function(){ plays++; return orig().catch(()=>{}); };
+    const drag = (v)=>{ sl.value = String(v); sl.dispatchEvent(new Event('input', { bubbles:true })); };
+    drag(70);                                    // игрок включил музыку
+    await new Promise(r => setTimeout(r, 80));
+    const base = plays;
+    window.__ads.showRewarded(()=>{}, ()=>{});   // ролик пошёл
+    await new Promise(r => setTimeout(r, 120));
+    drag(70);                                    // тянет ползунок ПОД роликом
+    await new Promise(r => setTimeout(r, 120));
+    const during = plays - base;                 // должно остаться 0
+    return { no:false, during, paused: bgm.paused };
+  });
+  expect(music.no || (music.during === 0 && music.paused),
+    'музыка: под роликом трек НЕ заводится даже ползунком (play ×' + music.during + ')');
+  const musicBack = await apage.evaluate(async () => {
+    const bgm = document.getElementById('bgm');
+    if (!bgm) return { no: true };
+    let plays = 0; const orig = bgm.play.bind(bgm);
+    bgm.play = function(){ plays++; return orig().catch(()=>{}); };
+    window.__mock.emit('rw', 'closed');          // ролик кончился
+    await new Promise(r => setTimeout(r, 200));
+    return { no:false, plays };
+  });
+  expect(musicBack.no || musicBack.plays >= 1,
+    'музыка: после ролика возвращается (play ×' + musicBack.plays + ')');
+
+  // 9. СООБЩЕНИЯ ПЛОЩАДКЕ: game_ready + жизненный цикл уровня. У Poki и
+  // CrazyGames LEVEL_* маппятся в нативные gameplayStart/Stop — без них
+  // площадка пейсит рекламу вслепую.
+  const msgs = await apage.evaluate(() => {
+    const seen = window.__mock.msgs.map(m => m.n);
+    return { seen, ready: seen.filter(n => n === 'game_ready').length,
+             started: seen.includes('level_started'),
+             paused: seen.includes('level_paused'), resumed: seen.includes('level_resumed'),
+             lang: window.__ads.lang };
+  });
+  expect(msgs.ready === 1, 'сообщения: game_ready отправлен РОВНО один раз (' + msgs.ready + ')');
+  expect(msgs.started, 'сообщения: level_started отправлен на старте уровня');
+  expect(msgs.paused && msgs.resumed, 'сообщения: level_paused/level_resumed идут с паузой');
+  expect(msgs.lang === 'ru', 'язык игрока прочитан с площадки (' + msgs.lang + ')');
+
+  // 10. PLACEMENT — имя рекламного места уходит в SDK (иначе статистика слепая)
+  const places = await apage.evaluate(async () => {
+    window.__ads.showRewarded(()=>{}, ()=>{}, 'shake');
+    await new Promise(r => setTimeout(r, 120));
+    return { rw: window.__mock.rwPlace, inter: window.__mock.interPlace };
+  });
+  await emit('rw', 'closed');
+  expect(places.rw === 'shake', 'placement: rewarded ушёл с именем места (' + places.rw + ')');
+  expect(places.inter === 'level_completed',
+    'placement: межстраничная ушла с именем места (' + places.inter + ')');
 
   await apage.close();
   await new Promise(r => srv2.close(r));

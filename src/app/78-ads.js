@@ -24,10 +24,65 @@ const Ads = (function(){
   // hidden, тогда паузу поставил visibilitychange (90-input), и снять её
   // обязан игрок кнопкой Continue — автоснятие вернуло бы его в живую игру.
   let pausedByAd = false, mutedByAd = false, mutedByPlatform = false;
-  // Два независимых источника тишины: ролик и сама площадка
-  // (AUDIO_STATE_CHANGED — игрок выключил звук в плеере портала). Складываем,
-  // иначе конец ролика включал бы звук, который площадка просила выключить.
-  function applyMute(){ try { Sound.setMuted(mutedByAd || mutedByPlatform); } catch(e){} }
+  // ПЛАТФОРМЕННАЯ ПАУЗА — ТРЕТИЙ владелец паузы, СВОЙ флаг (2026-07-29,
+  // обязательный шаг доки: подписка на ОБА события, pause и audio).
+  // ⚠️ НЕЛЬЗЯ переиспользовать pausedByAd: конец ролика снял бы паузу,
+  // которую поставила площадка, и игрок вернулся бы в живую игру под
+  // чужим оверлеем. `visibilitychange` (90-input) это НЕ покрывает: игра
+  // на портале живёт в iframe, и когда площадка открывает своё меню/промо
+  // поверх фрейма, document.hidden НЕ становится true — сигнал приходит
+  // только от платформы. До этой подписки под оверлеем портала у нас
+  // продолжал тикать миксер и ЖРАТЬ предметы игрока.
+  // ⚠️ У ПАУЗЫ СВОЙ МЬЮТ, ОТДЕЛЬНО ОТ mutedByPlatform. Сначала я переиспользовал
+  // общий флаг звука площадки — и снятие паузы не возвращало звук: флаг
+  // принадлежит AUDIO_STATE_CHANGED, снимать его чужой рукой нельзя (поймано
+  // собственным ассертом). Один флаг = один владелец, как и у паузы.
+  let pausedByPlatform = false, mutedByPause = false;
+  let bridgeLang = null;      // platform.language — читаем, отдаём наружу под будущий словарь
+  let sdkReady = false;       // initialize() резолвился
+  let gameReadyWanted = false, gameReadySent = false; // латч: игра дозрела раньше SDK
+
+  // GAME_READY шлётся ОДИН РАЗ и по факту первого играбельного кадра.
+  // Идемпотентность обязательна: finishIntro и skipIntro оба зовут, а
+  // повторный sendMessage у части площадок отдаёт rejected-промис.
+  function sendGameReady(){
+    if (gameReadySent || !sdkReady) return;
+    gameReadySent = true;
+    try {
+      const br = window.bridge;
+      const p = br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY);
+      if (p && p.catch) p.catch(()=>{}); // промис — синхронный try его не поймает
+    } catch(e){}
+  }
+  // Сообщения жизненного цикла уровня. У POKI и CRAZY_GAMES адаптеры Bridge
+  // маппят LEVEL_* в НАТИВНЫЕ gameplayStart()/gameplayStop() — без них
+  // площадка не знает, что геймплей идёт, и пейсит рекламу вслепую (прямая
+  // потеря показов). Ядро зовёт только Ads.msg(...) и о bridge не знает.
+  function sendMsg(name, params){
+    if (!sdkReady) return;
+    try {
+      const br = window.bridge;
+      const id = br.PLATFORM_MESSAGE && br.PLATFORM_MESSAGE[name];
+      if (!id) return;
+      const p = br.platform.sendMessage(id, params);
+      if (p && p.catch) p.catch(()=>{});
+    } catch(e){}
+  }
+  // ТРИ независимых источника тишины: ролик, звук площадки
+  // (AUDIO_STATE_CHANGED — игрок выключил звук в плеере портала) и
+  // платформенная пауза. Складываем: иначе конец ролика включал бы звук,
+  // который площадка просила выключить.
+  // ⚠️ ГЛУШИМ ОБА ТРАКТА. Sound.setMuted — это master-гейн WebAudio, то есть
+  // ТОЛЬКО процедурные SFX; фоновая музыка живёт отдельно (<audio id="bgm">,
+  // 85-hud). Когда мьют писался (v85), музыки в движке не было — её завели
+  // в v106 и в мьют не внесли, из-за чего трек играл ПОВЕРХ рекламы. Это
+  // нарушение требования площадок «во время полноэкранной рекламы игра и её
+  // звук должны быть на паузе» и пункт их самопроверки.
+  function applyMute(){
+    const m = mutedByAd || mutedByPlatform || mutedByPause;
+    try { Sound.setMuted(m); } catch(e){}
+    try { musicSuspend(m); } catch(e){} // 85-hud; своя среда, musicVol не трогает
+  }
   function adBlockOn(){
     if (!pausedByAd) pausedByAd = pauseGame(true); // true — тихая, без попапа
     mutedByAd = true; applyMute();
@@ -50,13 +105,13 @@ const Ads = (function(){
   // ЕДИНСТВЕННАЯ развязка: сюда сходятся награда, провал, watchdog, исключение
   // SDK и cancel(). Снимать паузу и мьют только здесь — иначе один забытый
   // путь оставит игру замороженной навсегда, а это хуже исходного бага.
-  function endPending(){
+  function clearTimers(){
     clearInterval(pendingTick); pendingTick = 0;
     clearTimeout(watchdog); watchdog = 0;
     clearInterval(stubTimer); stubTimer = 0;
     clearTimeout(interWatchdog); interWatchdog = 0;
-    adBlockOff();
   }
+  function endPending(){ clearTimers(); adBlockOff(); }
   function settleReward(){
     if (!rewardCb) return;
     const cb = rewardCb; rewardCb = null; failCb = null;
@@ -89,7 +144,14 @@ const Ads = (function(){
       if (!window.bridge || !window.bridge.initialize) return;
       window.bridge.initialize().then(()=>{
         const br = window.bridge;
-        try { br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY); } catch(e){}
+        sdkReady = true;
+        // ⚠️ GAME_READY здесь БОЛЬШЕ НЕ ШЛЁТСЯ. Дока: слать «когда готов
+        // первый играбельный кадр», а тут ещё не было ни genLevel, ни
+        // декодирования атласов, ни ~2 с интро — площадка сняла бы свой
+        // лоадер над чёрным экраном. Шлём из finishIntro/skipIntro через
+        // Ads.gameReady(); если игра успела дозреть раньше SDK, латч
+        // gameReadyWanted досылает сообщение здесь.
+        if (gameReadyWanted) sendGameReady();
         // Облачный сейв НЕ зависит от рекламы и потому синкается ДО гейта
         // rewarded: commitSave (77-save) пишет в bridge.storage всегда, когда
         // storage есть, а читал облако только этот вызов — на площадке со
@@ -108,6 +170,27 @@ const Ads = (function(){
           });
           applyMute();
         } catch(e){}
+        // ПАУЗА ПЛОЩАДКИ (обязательный шаг доки — подписка на ОБА события).
+        // Площадка просит паузу не только под свою рекламу: свой оверлей,
+        // меню портала, диалог оценки. Своё владение — снимаем ТОЛЬКО свою.
+        try {
+          const setPlatPause = (isPaused)=>{
+            if (isPaused){
+              if (!pausedByPlatform) pausedByPlatform = pauseGame(true); // тихо, без попапа
+              mutedByPause = true;
+            } else {
+              mutedByPause = false;
+              if (pausedByPlatform){ pausedByPlatform = false; resumeGame(); }
+            }
+            applyMute();
+          };
+          if (br.platform.isPaused) setPlatPause(true); // стартовое: событие о уже поставленной паузе не придёт
+          br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
+        } catch(e){}
+        // ЯЗЫК ИГРОКА (обязательный шаг доки). Локализации пока нет —
+        // интерфейс жёстко EN по спеке владельца; читаем и отдаём наружу,
+        // чтобы словарь можно было завести без правок этого файла.
+        try { bridgeLang = String(br.platform.language || '').slice(0, 2).toLowerCase() || null; } catch(e){}
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
           // любое состояние = платформа жива: гасим watchdog (ролики штатно
@@ -207,12 +290,21 @@ const Ads = (function(){
     // Rewarded НЕ трогаем — их игрок просит сам, и они несут заряды.
     if (typeof noAdActive === 'function' && noAdActive()) return;
     if (mode !== 'bridge') return;
+    // ⚠️ ГВАРД ПОДДЕРЖКИ — СТРОГО ДО сброса окна. mode==='bridge' ставится по
+    // isRewardedSupported, а межстраничная поддержана НЕ везде (в бандле это
+    // разные геттеры, у части адаптеров интерстишл ещё и отключается конфигом
+    // `advertisement.interstitial.disable`). Без гварда мы обнуляли накопленные
+    // 5 побед там, где ролика не будет НИКОГДА, — окно скручивалось впустую.
+    try { if (!window.bridge.advertisement.isInterstitialSupported) return; } catch(e){ return; }
     if (interWins() < INTER_EVERY_LEVELS) return;
     Save.iw = 0; commitSave(); // крестим окно СРАЗУ: повторный клик или поражение
     // между победами не должны выпустить второй ролик; при сбое показа
     // best-effort теряем один — лучше, чем спам-ретраи каждый переход
     try {
-      window.bridge.advertisement.showInterstitial();
+      // PLACEMENT — имя рекламного места. Адаптеры прокидывают его в нативные
+      // SDK площадок (у Poki/GameSnacks это `name` в adBreak), и без него вся
+      // статистика по местам слепая. У межстраничной место ровно одно.
+      window.bridge.advertisement.showInterstitial('level_completed');
       if (stats) stats.lastAction = performance.now(); // миксер не ест предметы под рекламой
       Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
     } catch(e){}
@@ -223,16 +315,32 @@ const Ads = (function(){
     maybeInterstitial,
     cancel, // genLevel гасит висящий показ (колбэки замкнуты на старый level)
     get mode(){ return mode; },
+    get lang(){ return bridgeLang; }, // язык игрока с площадки (под будущий словарь)
+    // Первый ИГРАБЕЛЬНЫЙ кадр (зовут finishIntro/skipIntro). Идемпотентно и
+    // терпит вызов до готовности SDK — тогда досылается из init.
+    gameReady(){ gameReadyWanted = true; sendGameReady(); },
+    // Жизненный цикл уровня для площадки: LEVEL_STARTED/COMPLETED/PAUSED/
+    // RESUMED. LEVEL_FAILED не шлём — поражения в игре нет (тупик = помол).
+    msg: sendMsg,
     // onFail (опционален) зовётся на FAILED/CLOSED/исключении — например,
     // вернуть кнопку «×2», которую спрятали на время показа
-    showRewarded(onReward, onFail){
-      cancel(); // страховка: сирота прошлого показа (watchdog/стаб) не должен пережить новый
+    // placement — имя рекламного места ('shake'/'continue'/'x2'/'magnet'),
+    // прокидывается в нативный SDK площадки; без него статистика по местам
+    // слепая. Необязателен: старые вызовы работают как раньше.
+    showRewarded(onReward, onFail, placement){
+      // Страховка: сирота прошлого показа (watchdog/стаб) не должен пережить
+      // новый. ⚠️ НЕ полный cancel(): тот снимает паузу и МЬЮТ, а мы через
+      // строку ставим их обратно — на этом «сняли-вернули» музыка успевала
+      // рыпнуться и заиграть поверх начинающегося ролика (поймано ассертом
+      // «трек не заводится под роликом»). Гасим только таймеры и колбэки;
+      // A/V переарминает beginPending, единая точка снятия (endPending) цела.
+      rewardCb = null; failCb = null; clearTimers(); hide('adOverlay');
       rewardCb = onReward; failCb = onFail || null;
       beginPending();
       if (mode === 'bridge'){
         // страховка ТОЛЬКО на полную тишину платформы (ни одного состояния)
         watchdog = setTimeout(()=>settleFail(false), 20000);
-        try { window.bridge.advertisement.showRewarded(); }
+        try { window.bridge.advertisement.showRewarded(placement || 'rewarded'); }
         // исключение SDK = показа не было. Раньше тут открывался стаб —
         // БЕСПЛАТНАЯ награда без рекламы на боевой платформе (дыра экономики)
         catch(e){ settleFail(false); }
