@@ -4,17 +4,45 @@
     "interstitial": {
       "placementFallback": "level_completed",
       "placements": [
-        { "id": "level_completed" }
+        {
+          "id": "level_completed"
+        }
       ]
     },
     "rewarded": {
       "placementFallback": "rewarded",
       "placements": [
-        { "id": "shake" },
-        { "id": "continue" },
-        { "id": "x2" },
-        { "id": "magnet" }
+        {
+          "id": "shake"
+        },
+        {
+          "id": "continue"
+        },
+        {
+          "id": "x2"
+        },
+        {
+          "id": "magnet"
+        }
       ]
     }
-  }
+  },
+  "saas": {
+    "publicToken": "cms68frqf0008ri0h81k1dujg",
+    "leaderboards": {
+      "platforms": [
+        "playgama",
+        "poki",
+        "crazy_games",
+        "yandex",
+        "y8"
+      ]
+    }
+  },
+  "leaderboards": [
+    {
+      "id": "Blendo",
+      "isMain": true
+    }
+  ]
 }
