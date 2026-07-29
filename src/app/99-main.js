@@ -1141,3 +1141,11 @@ if (!window.RAPIER){
     window.__booted = true;
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }
+
+// ⚠️ СЛУЖЕБНЫЙ ИНТЕРФЕЙС СНИМАЕТСЯ В БОЮ (спека владельца 2026-07-29).
+// Не вырезан, а закрыт: на нём стоит весь сьют, и вырезав его, мы тестировали
+// бы не то, что выпускаем. В боевой сборке window.__game просто отсутствует —
+// вместе с ним закрыты starGrant (выдать валюту), buyBundle (бандл за $19.99
+// бесплатно), setLevel и boostSetClock (переставить метку времени, на которой
+// держится защита от перевода часов). Открыть на живом сайте: ?dev=1.
+if (!DEV){ try { delete window.__game; } catch(e){ window.__game = undefined; } }

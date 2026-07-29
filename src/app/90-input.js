@@ -223,7 +223,7 @@ function menuPlayResume(){
 }
 document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
 // отладочная панель — из меню (раньше вход был в карточке паузы)
-$('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
+if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
 $('msSound').addEventListener('input', e => { applySound(parseInt(e.target.value, 10) > 0); msFill(e.target); });
 // Music-ползунок = ГРОМКОСТЬ фонового трека (0..1); applyMusic сам заводит/глушит
@@ -261,10 +261,23 @@ $('starsOverlay').addEventListener('click', (e) => {
 });
 document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
   btn.addEventListener('click', ()=>{
-    const tier = +btn.dataset.tier;
-    if (typeof buyBundle === 'function'){ buyBundle(tier); return; }
-    console.warn('[stars] buyBundle(' + tier + ') ещё не реализован МЕТОЙ — покупка не проведена');
-    toast('Coming soon');
+    // ⚠️ ИМЯ ТИРА — СТРОКА, А НЕ ЧИСЛО. Здесь стоял `+btn.dataset.tier`, то есть
+    // в buyBundle уходило 5, а бандлы зовутся 'bundle5' — товар не находился,
+    // функция тихо возвращала отказ, и его никто не читал. Игрок жал
+    // «Upgrade $4.99» и не получал НИЧЕГО: ни покупки, ни ошибки. Сьют дыру не
+    // видел, потому что звал buyBundle строкой и кнопку не нажимал.
+    const tier = 'bundle' + btn.dataset.tier;
+    if (typeof buyBundle !== 'function'){ toast('Coming soon'); return; }
+    const res = buyBundle(tier);
+    // ⚠️ РЕЗУЛЬТАТ ЧИТАЕМ ОБЯЗАТЕЛЬНО: молчаливый отказ — это ровно то, из-за
+    // чего дыра прожила незамеченной. Любое будущее расхождение имени теперь
+    // видно и игроку, и в консоли.
+    if (!res || !res.ok){
+      console.warn('[stars] покупка не прошла:', tier, res);
+      toast('Purchase failed'); return;
+    }
+    Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
+    hide('starsOverlay'); refreshMainScreen();
   });
 });
 $('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
