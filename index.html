@@ -44,6 +44,41 @@
   #bottomBar { background:rgba(var(--sky-bot-rgb, 190,199,254), .01); }
   #face      { background:rgba(var(--sky-top-rgb, 206,228,254), .01); }
   #topBar { top:env(safe-area-inset-top, 0); }
+  /* ⚠️⚠️ ЗАНАВЕС ЗАГРУЗКИ (спека владельца 2026-07-30: «во время загрузки
+     бриджа не должно быть никаких элементов интерфейса. Они появляются плавно
+     сразу после»). Сплэш Playgama Bridge — чужой `#loading-overlay` с
+     z-index 1, а наши бары 5 и #face 6: HUD пробивал его насквозь и по нему
+     можно было ТАПАТЬ (Shake под сплэшем).
+     ⚠️ ГЕЙТ — СВОЙ КЛАСС `html.uiready`, А НЕ `html.introdone`. introdone
+     снимается в startIntro (99-main) в начале КАЖДОГО уровня, поэтому занавес
+     на нём гасил бы HUD на каждом интро — шире, чем просили. `uiready` —
+     ЗАЩЁЛКА: ставится по ПЕРВОМУ introdone (или по страховочному таймауту,
+     см. 85-hud) и НИКОГДА не снимается.
+     ⚠️ ГАСИТ ИМЕННО `visibility` — она НАСЛЕДУЕТСЯ и убивает попадание
+     курсора/тапа во ВСЕХ детях. `pointer-events:none` на баре тут бесполезен:
+     у кнопок внутри стоит `pointer-events:auto`, и он его не перебивает.
+     ⚠️ `#fatal` В СПИСОК НЕ ВХОДИТ СОЗНАТЕЛЬНО: если игра падает на старте,
+     экран ошибки обязан быть виден. Оверлеи (.overlay/#mainScreen) тоже не
+     нужны — они `display:none` до явного show().
+     ⚠️ ПОЯВЛЕНИЕ — АНИМАЦИЯ, НЕ transition: у #face в `transition` уже сидит
+     transform (и .dropped его переопределяет), добавление opacity туда
+     перезаписало бы шорткат. Витрине фейд НЕ даём — у неё свой разворот по
+     introdone (clip-path + каскад .rin), а пятое правило на её opacity
+     запрещено (см. CLAUDE.md). */
+  html:not(.uiready) #topBar,
+  html:not(.uiready) #bottomBar,
+  html:not(.uiready) #face,
+  html:not(.uiready) #toast,
+  html:not(.uiready) #tierToast,
+  html:not(.uiready) #vitrine,
+  html:not(.uiready) .pop { visibility:hidden; }
+  html.uiready #topBar,
+  html.uiready #bottomBar,
+  html.uiready #face { animation:uiIn .35s ease-out both; }
+  @keyframes uiIn { from { opacity:0; } to { opacity:1; } }
+  @media (prefers-reduced-motion:reduce) {
+    html.uiready #topBar, html.uiready #bottomBar, html.uiready #face { animation:none; }
+  }
   /* ===== HUD по МОБИЛЬНОМУ макету Figma 741:1738 (393×852) =====
      Справа вертикальный стек: предметов / время / очки — по 22px, зазор 2.
      Слева пауза 56. Конструкция персонажа встаёт МЕЖДУ ними в той же
@@ -7110,6 +7145,35 @@ function startAd(){
 // ===== 85-hud: DOM-хелперы и обновление интерфейса =====
 
 function $(id){ return document.getElementById(id); }
+
+// ===== ЗАНАВЕС ЗАГРУЗКИ: защёлка `html.uiready` (CSS-часть в shell.html) =====
+// Спека владельца 2026-07-30: «во время загрузки бриджа не должно быть никаких
+// элементов интерфейса. Они появляются плавно сразу после».
+// ⚠️ ОТКРЫВАЕМ ОДИН РАЗ И НЕ ЗАКРЫВАЕМ. Ядро снимает `introdone` в startIntro
+// (99-main) в начале КАЖДОГО уровня, поэтому занавес, повешенный прямо на
+// introdone, гасил бы HUD на каждом интро — это шире спеки. Отсюда своя
+// защёлка: первый introdone открывает её навсегда.
+// ⚠️ НЕ ЦЕПЛЯЕМСЯ ЗА `#loading-overlay` СПЛЭША: это приватный DOM чужого SDK,
+// и снимает его сам SDK (замер: сплэш ушёл на 3947 мс, а GAME_READY уходит
+// только на 4359) — наблюдатель по чужому id молча сломается на обновлении
+// Bridge. Наблюдаем ТОЛЬКО за своим <html>.
+// ⚠️ СТРАХОВОЧНЫЙ ТАЙМАУТ ОБЯЗАТЕЛЕН: если интро не доехало (ошибка, зависший
+// bridge), HUD остался бы скрыт НАВСЕГДА и игра выглядела бы сломанной наглухо
+// — хуже исходного бага. По истечении предела открываем безусловно.
+const UI_CURTAIN_MAX_MS = 8000;
+let uiCurtainObs = null;
+function openUICurtain(){
+  document.documentElement.classList.add('uiready');
+  if (uiCurtainObs){ uiCurtainObs.disconnect(); uiCurtainObs = null; }
+}
+if (document.documentElement.classList.contains('introdone')) openUICurtain();
+else {
+  uiCurtainObs = new MutationObserver(function(){
+    if (document.documentElement.classList.contains('introdone')) openUICurtain();
+  });
+  uiCurtainObs.observe(document.documentElement, { attributes:true, attributeFilter:['class'] });
+  setTimeout(openUICurtain, UI_CURTAIN_MAX_MS);
+}
 // ⚠️ ЕДИНАЯ ТОЧКА ПОКАЗА/СКРЫТИЯ = единая точка учёта ЭКРАНОВ (docs/METRICS.md
 // §3). Вешать замер на каждый оверлей отдельно бессмысленно: их семь, и
 // новый восьмой молча выпал бы из статистики.

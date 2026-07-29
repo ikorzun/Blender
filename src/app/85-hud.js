@@ -1,6 +1,35 @@
 // ===== 85-hud: DOM-хелперы и обновление интерфейса =====
 
 function $(id){ return document.getElementById(id); }
+
+// ===== ЗАНАВЕС ЗАГРУЗКИ: защёлка `html.uiready` (CSS-часть в shell.html) =====
+// Спека владельца 2026-07-30: «во время загрузки бриджа не должно быть никаких
+// элементов интерфейса. Они появляются плавно сразу после».
+// ⚠️ ОТКРЫВАЕМ ОДИН РАЗ И НЕ ЗАКРЫВАЕМ. Ядро снимает `introdone` в startIntro
+// (99-main) в начале КАЖДОГО уровня, поэтому занавес, повешенный прямо на
+// introdone, гасил бы HUD на каждом интро — это шире спеки. Отсюда своя
+// защёлка: первый introdone открывает её навсегда.
+// ⚠️ НЕ ЦЕПЛЯЕМСЯ ЗА `#loading-overlay` СПЛЭША: это приватный DOM чужого SDK,
+// и снимает его сам SDK (замер: сплэш ушёл на 3947 мс, а GAME_READY уходит
+// только на 4359) — наблюдатель по чужому id молча сломается на обновлении
+// Bridge. Наблюдаем ТОЛЬКО за своим <html>.
+// ⚠️ СТРАХОВОЧНЫЙ ТАЙМАУТ ОБЯЗАТЕЛЕН: если интро не доехало (ошибка, зависший
+// bridge), HUD остался бы скрыт НАВСЕГДА и игра выглядела бы сломанной наглухо
+// — хуже исходного бага. По истечении предела открываем безусловно.
+const UI_CURTAIN_MAX_MS = 8000;
+let uiCurtainObs = null;
+function openUICurtain(){
+  document.documentElement.classList.add('uiready');
+  if (uiCurtainObs){ uiCurtainObs.disconnect(); uiCurtainObs = null; }
+}
+if (document.documentElement.classList.contains('introdone')) openUICurtain();
+else {
+  uiCurtainObs = new MutationObserver(function(){
+    if (document.documentElement.classList.contains('introdone')) openUICurtain();
+  });
+  uiCurtainObs.observe(document.documentElement, { attributes:true, attributeFilter:['class'] });
+  setTimeout(openUICurtain, UI_CURTAIN_MAX_MS);
+}
 // ⚠️ ЕДИНАЯ ТОЧКА ПОКАЗА/СКРЫТИЯ = единая точка учёта ЭКРАНОВ (docs/METRICS.md
 // §3). Вешать замер на каждый оверлей отдельно бессмысленно: их семь, и
 // новый восьмой молча выпал бы из статистики.
