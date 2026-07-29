@@ -142,16 +142,42 @@ const path = require('path');
   // эндшпиль: при <=8 живых радиус обязан сняться (∞=99) — и он ПРИОРИТЕТНЕЕ
   // цепной реакции (фикс ревью: цепь глушила ∞ потолком 1.1)
   let guard = 0, shakes = 0, endgameRadius = null, endgameTy = null, sinceRest = 0, midTyMin = 99;
+  // ⚠️ ЭНДШПИЛЬНЫЙ РАДИУС ЛОВИМ НАБЛЮДАТЕЛЕМ ВНУТРИ СТРАНИЦЫ, А НЕ ОПРОСОМ
+  // СНАРУЖИ (флейк, найден ГРАФИКОЙ 2026-07-29 на чистой базе, 1 прогон из 4).
+  // Разбор: окно `alive<=9` проверялось только В НАЧАЛЕ итерации, а между
+  // итерациями кучу разбирают ДВА процесса — autoMatch уносит целую ГРУППУ, и
+  // всё это время работает МИКСЕР-ФИНАЛ, снимающий по предмету раз в 0.5 с
+  // (за паузу 1200 мс после встряски успевает 2+). Если на прошлом опросе было
+  // >9, а к следующему стало 0 — окно проскакивало ЦЕЛИКОМ, ветка сэмпла не
+  // срабатывала ни разу, и ассерт падал с null (значение оставалось
+  // инициализатором — это и отличает «не прочитали вовремя» от «не читали
+  // вообще», спасибо ГРАФИКЕ за то, что поправила мою гипотезу по логу).
+  // ⚠️ ЛЕЧИМ ТЕМ ЖЕ ПРИНЦИПОМ, ЧТО И ГОНКУ ШТИЛЯ: не поднимаем потолок ожидания,
+  // а не даём состоянию проскочить мимо наблюдателя. Тик 50 мс внутри страницы
+  // видит окно даже если снаружи между опросами прошла секунда; условие
+  // `matchRadius > 10` заодно сохраняет прежнюю защиту от раннего чтения —
+  // сэмпл берётся только когда радиус УЖЕ пересчитан refresh-тиком.
+  await page.evaluate(() => {
+    window.__egSample = null;
+    window.__egTimer = setInterval(() => {
+      const g = window.__game; if (!g) return;
+      if (window.__egSample === null && g.alive() <= 9 && g.cfg.matchRadius > 10){
+        window.__egSample = g.cfg.matchRadius;
+        clearInterval(window.__egTimer);
+      }
+    }, 50);
+  });
   while (guard++ < 600) {
     const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, ty: window.__game.cam().ty }));
-    if (st.alive === 0) break;
-    if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
-    if (st.alive <= 9 && endgameRadius === null){ // 8 живых + рыбка
-      // ⚠️ не сэмплить мгновенно: радиус пересчитывает refresh-тик (до 300 мс
-      // после матча) — мгновенное чтение ловило старый 1.1 (флейк)
-      await page.waitForFunction(() => window.__game.cfg.matchRadius > 10, null, { timeout: 900 }).catch(() => {});
-      endgameRadius = await page.evaluate(() => window.__game.cfg.matchRadius);
+    if (st.alive === 0){
+      // последний шанс: окно могло закрыться, пока мы ждали снаружи —
+      // наблюдатель его всё равно записал
+      if (endgameRadius === null) endgameRadius = await page.evaluate(() => window.__egSample);
+      await page.evaluate(() => clearInterval(window.__egTimer));
+      break;
     }
+    if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
+    if (endgameRadius === null) endgameRadius = await page.evaluate(() => window.__egSample);
     if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // защёлка уже щёлкнула — камера в пути вниз
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
