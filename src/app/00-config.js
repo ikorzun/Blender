@@ -173,9 +173,9 @@ const AD_HINTS_PER_LEVEL = 2;
 // рекламы. Маппинг множитель↔время прежний (короткий = сильный).
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 4.99,  mult: 5, ms: 30 * 60 * 1000, shakes: 10, hints: 15, noAdMs: 1 * DAY_MS },
-  { id: 'bundle3', usd: 9.99,  mult: 3, ms: 60 * 60 * 1000, shakes: 15, hints: 20, noAdMs: 3 * DAY_MS },
-  { id: 'bundle2', usd: 19.99, mult: 2, ms: DAY_MS,         shakes: 50, hints: 30, noAdMs: 30 * DAY_MS },
+  { id: 'bundle5', usd: 4.90,  mult: 5, ms: 30 * 60 * 1000, shakes: 10, hints: 15, noAdMs: 1 * DAY_MS },
+  { id: 'bundle3', usd: 9.90,  mult: 3, ms: 60 * 60 * 1000, shakes: 15, hints: 20, noAdMs: 3 * DAY_MS },
+  { id: 'bundle2', usd: 19.90, mult: 2, ms: DAY_MS,         shakes: 50, hints: 30, noAdMs: 30 * DAY_MS },
 ];
 // Люфт часов: перевод времени/DST/дрейф не должен убивать оплаченный бустер,
 // но откат назад дальше люфта считаем попыткой продлить его вручную.

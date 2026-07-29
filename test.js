@@ -1866,12 +1866,24 @@ window.bridge = {
     const tiers = g.bundles();
     const idle = { mult: g.scoreBoostMult(), noAd: g.noAdActive(), shakes: g.purchasedShakes() };
     const hints0 = g.wallet().hints;
-    const buy = g.buyBundle('bundle2');            // $19.99: x2/сутки + 50 встрясок + 30 подсказок + месяц без рекламы
+    const buy = g.buyBundle('bundle2');            // $19.90: x2/сутки + 50 встрясок + 30 подсказок + месяц без рекламы
     const st = g.bundleState();
-    return { tiers, idle, hints0, buy, st, hints1: g.wallet().hints };
+    // ⚠️ Цена на кнопке — ЗАШИТЫЙ ТЕКСТ в shell.html, каталог площадки её не
+    // подставляет. Значит конфиг и разметку надо сверять, иначе игрок увидит
+    // одну цену, а спишется другая — и узнаем мы об этом от него, не от сьюта.
+    const btnLabels = [...document.querySelectorAll('.st-buy')].map(b => b.textContent.trim());
+    return { tiers, idle, hints0, buy, st, hints1: g.wallet().hints, btnLabels };
   });
-  expect(sbProbe.tiers.length === 3 && sbProbe.tiers[0].usd === 4.99 && sbProbe.tiers[2].shakes === 50,
-    'тиры бандлов по макету ($4.99 x5, ... $19.99 = 50 встрясок) (' + JSON.stringify(sbProbe.tiers.map(t=>t.usd)) + ')');
+  // ⚠️ ЦЕНЫ БЕЗ ДЕВЯТОК — спека владельца 2026-07-30 «цены везде без последних
+  // 9 центов, т.е. 4.90, 9.90, 19.90». Ассерт держит ТРИ вещи разом: цену,
+  // порядок тиров и то, что текст кнопок в shell.html не разъехался с конфигом
+  // (цена там ЗАШИТА В HTML, каталог площадки её не подставляет).
+  expect(sbProbe.tiers.length === 3 && sbProbe.tiers[0].usd === 4.90
+      && sbProbe.tiers[1].usd === 9.90 && sbProbe.tiers[2].usd === 19.90
+      && sbProbe.tiers[2].shakes === 50,
+    'тиры бандлов по спеке ($4.90 x5, $9.90 x3, $19.90 x2 = 50 встрясок) (' + JSON.stringify(sbProbe.tiers.map(t=>t.usd)) + ')');
+  expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Upgrade $4.90|Upgrade $9.90|Upgrade $19.90',
+    'ценники на КНОПКАХ совпадают с конфигом (' + JSON.stringify(sbProbe.btnLabels) + ')');
   expect(sbProbe.idle.mult === 1 && sbProbe.idle.noAd === false,
     'без бандла: множитель 1, реклама не отключена (' + JSON.stringify(sbProbe.idle) + ')');
   expect(sbProbe.buy.ok && sbProbe.st.mult === 2 && sbProbe.st.shakes === 50 &&

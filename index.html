@@ -1205,7 +1205,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-174 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-175 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1300,21 +1300,21 @@
           <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×5"><text x="60" y="70" text-anchor="middle">×5</text></svg><div class="st-time">30 min</div></div>
           <div class="st-bonus">10 Shake’s<br>15 Tips<br>1 day no Ad</div>
         </div>
-        <button class="st-buy" data-tier="5">Upgrade $4.99</button>
+        <button class="st-buy" data-tier="5">Upgrade $4.90</button>
       </div>
       <div class="st-card st-c3">
         <div class="st-row">
           <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×3"><text x="60" y="70" text-anchor="middle">×3</text></svg><div class="st-time">1 hour</div></div>
           <div class="st-bonus">15 Shake’s<br>20 Tips<br>3 days no Ad</div>
         </div>
-        <button class="st-buy" data-tier="3">Upgrade $9.99</button>
+        <button class="st-buy" data-tier="3">Upgrade $9.90</button>
       </div>
       <div class="st-card st-c2">
         <div class="st-row">
           <div class="st-mult"><svg class="otext st-x" viewBox="0 0 120 92" aria-label="×2"><text x="60" y="70" text-anchor="middle">×2</text></svg><div class="st-time">1 day</div></div>
           <div class="st-bonus">50 Shake’s<br>30 Tips<br>1 month no Ad</div>
         </div>
-        <button class="st-buy" data-tier="2">Upgrade $19.99</button>
+        <button class="st-buy" data-tier="2">Upgrade $19.90</button>
       </div>
     </div>
   </div>
@@ -1641,9 +1641,9 @@ const AD_HINTS_PER_LEVEL = 2;
 // рекламы. Маппинг множитель↔время прежний (короткий = сильный).
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 4.99,  mult: 5, ms: 30 * 60 * 1000, shakes: 10, hints: 15, noAdMs: 1 * DAY_MS },
-  { id: 'bundle3', usd: 9.99,  mult: 3, ms: 60 * 60 * 1000, shakes: 15, hints: 20, noAdMs: 3 * DAY_MS },
-  { id: 'bundle2', usd: 19.99, mult: 2, ms: DAY_MS,         shakes: 50, hints: 30, noAdMs: 30 * DAY_MS },
+  { id: 'bundle5', usd: 4.90,  mult: 5, ms: 30 * 60 * 1000, shakes: 10, hints: 15, noAdMs: 1 * DAY_MS },
+  { id: 'bundle3', usd: 9.90,  mult: 3, ms: 60 * 60 * 1000, shakes: 15, hints: 20, noAdMs: 3 * DAY_MS },
+  { id: 'bundle2', usd: 19.90, mult: 2, ms: DAY_MS,         shakes: 50, hints: 30, noAdMs: 30 * DAY_MS },
 ];
 // Люфт часов: перевод времени/DST/дрейф не должен убивать оплаченный бустер,
 // но откат назад дальше люфта считаем попыткой продлить его вручную.
