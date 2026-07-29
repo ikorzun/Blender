@@ -978,8 +978,24 @@ function applyMusic(v01){
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
   const bgm = $('bgm'); if (!bgm) return;
   bgm.volume = musicVol;
-  if (musicVol > 0){ if (bgm.paused) bgm.play().catch(()=>{}); } // тянут вверх — заводим
+  // ⚠️ Внешняя приглушка (реклама/пауза площадки) СИЛЬНЕЕ ползунка: иначе
+  // игрок, двинувший громкость во время ролика, завёл бы трек поверх рекламы.
+  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused) bgm.play().catch(()=>{}); } // тянут вверх — заводим
   else if (!bgm.paused) bgm.pause();                             // в ноль — глушим
+}
+// ВНЕШНЯЯ ПРИГЛУШКА МУЗЫКИ (правка ИНТЕГРАЦИИ 2026-07-29 по авторизации
+// диспетчера; аналог Sound.setMuted для WebAudio-тракта). Зовётся из
+// applyMute (78-ads) на время рекламного ролика и платформенной паузы.
+// ⚠️ СВОЙ ФЛАГ, `musicVol` НЕ ТРОГАЕМ: громкость — выбор игрока, лежит в
+// localStorage; затирать его временной приглушкой нельзя. Поэтому храним
+// причину отдельно и на снятии восстанавливаем ровно то, что выбрал игрок
+// (в т.ч. НЕ заводим трек, если ползунок стоит в нуле).
+let musicExtMuted = false;
+function musicSuspend(on){
+  musicExtMuted = !!on;
+  const bgm = $('bgm'); if (!bgm) return;
+  if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
+  else if (musicVol > 0 && bgm.paused) bgm.play().catch(()=>{});
 }
 function refreshMainSettings(){
   const snd = $('msSound'); if (snd){ snd.value = CFG.sound ? 100 : 0; msFill(snd); }

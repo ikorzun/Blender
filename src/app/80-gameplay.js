@@ -304,6 +304,9 @@ function checkEnd(){
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
     Ads.noteWin();
+    // площадке: уровень пройден (у Poki/CrazyGames — нативный gameplayStop,
+    // естественная точка, где площадка вправе показать свою рекламу)
+    try { Ads.msg('LEVEL_COMPLETED', { level: String(levelNum - 1) }); } catch(_){}
     show('winOverlay');
     updateHUD();
   }
