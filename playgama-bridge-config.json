@@ -31,11 +31,11 @@
     "publicToken": "cms68frqf0008ri0h81k1dujg",
     "leaderboards": {
       "platforms": [
+        "crazy_games",
         "playgama",
         "poki",
-        "crazy_games",
-        "yandex",
-        "y8"
+        "y8",
+        "yandex"
       ]
     }
   },

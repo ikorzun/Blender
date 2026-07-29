@@ -1245,7 +1245,7 @@ window.bridge = {
   // кнопке «Watch» -> startAd -> Ads.showRewarded.
   const MOCK_RW = `
 window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); },
-  rwShown:0, interShown:0, msgs:[], rwPlace:null, interPlace:null };
+  rwShown:0, interShown:0, msgs:[], rwPlace:null, interPlace:null, lb:[] };
 function reg(ev,cb){ (window.__mock.h[ev] = window.__mock.h[ev] || []).push(cb); }
 window.bridge = {
   PLATFORM_MESSAGE: { GAME_READY:'game_ready', LEVEL_STARTED:'level_started',
@@ -1256,6 +1256,9 @@ window.bridge = {
   INTERSTITIAL_STATE: { LOADING:'loading', OPENED:'opened', CLOSED:'closed', FAILED:'failed' },
   platform: { id:'mocktest', language:'ru', isAudioEnabled:true, isPaused:false, on:reg,
               sendMessage(n, p){ window.__mock.msgs.push({ n, p }); return Promise.resolve(); } },
+  player: { id:'p1', isAuthorized:false },
+  leaderboards: { type:'in_game',
+    setScore(id, sc){ window.__mock.lb.push({ id, sc }); return Promise.resolve({ ok:true }); } },
   advertisement: { isRewardedSupported:true, isInterstitialSupported:true, on:reg,
                    showRewarded(pl){ window.__mock.rwShown++; window.__mock.rwPlace = pl === undefined ? null : pl; },
                    showInterstitial(pl){ window.__mock.interShown++; window.__mock.interPlace = pl === undefined ? null : pl; } },
@@ -1521,6 +1524,58 @@ window.bridge = {
   expect(places.rw === 'shake', 'placement: rewarded ушёл с именем места (' + places.rw + ')');
   expect(places.inter === 'level_completed',
     'placement: межстраничная ушла с именем места (' + places.inter + ')');
+
+  // ── ЛИДЕРБОРД: отправка счёта без экрана (спека владельца 2026-07-29) ────
+  // ⚠️ ГЛАВНОЕ ПОД СТРАЖЕМ — ГЕЙТ ГОСТЕЙ. Он ПРОДУКТОВОЕ решение владельца
+  // («чтобы попасть в лидерборд, нужно залогиниться») и СТРОЖЕ, чем делает
+  // SDK: тот пропускает по непустому playerId, а у гостя он непустой. Без
+  // нашей проверки гости поехали бы в таблицу, а удаления записей в SDK нет.
+  const lb = await apage.evaluate(async () => {
+    const A = window.__ads, M = window.__mock, out = {};
+    A.setBoardId('');                       // как в бою по умолчанию: id пуст
+    out.offWhy = A.lbWhy();
+    out.offSent = (A.submitScore().ok === true);
+    A.setBoardId('top_score');              // борд заведён
+    // 1. ГОСТЬ (isAuthorized=false) — не отправляем
+    window.bridge.player.isAuthorized = false;
+    out.guestWhy = A.lbWhy();
+    const before = M.lb.length;
+    A.submitScore();
+    out.guestSent = M.lb.length - before;
+    // 2. Площадка не умеет — не отправляем даже авторизованному
+    window.bridge.player.isAuthorized = true;
+    window.bridge.leaderboards.type = 'not_available';
+    out.naWhy = A.lbWhy();
+    const before2 = M.lb.length;
+    A.submitScore();
+    out.naSent = M.lb.length - before2;
+    // 3. Всё сложилось — отправляем ровно один раз, и не дублируем то же число
+    window.bridge.leaderboards.type = 'in_game';
+    out.okWhy = A.lbWhy();
+    const before3 = M.lb.length;
+    A.submitScore();
+    const first = M.lb.length - before3;
+    A.submitScore();                        // повтор с тем же счётом
+    out.sentOnce = first;
+    out.sentTwice = M.lb.length - before3;
+    out.last = M.lb[M.lb.length - 1] || null;
+    await new Promise(r => setTimeout(r, 150));
+    out.raw = JSON.stringify(A.lbRaw);
+    return out;
+  });
+  expect(lb.offWhy === 'нет id борда/токена' && !lb.offSent,
+    'лидерборд: без id борда/токена не отправляем и не шумим (' + lb.offWhy + ')');
+  expect(lb.guestWhy === 'игрок не авторизован' && lb.guestSent === 0,
+    'лидерборд: ГОСТЬ не попадает в таблицу — гейт строже SDK (' + lb.guestWhy + ')');
+  expect(lb.naWhy === 'площадка не поддерживает' && lb.naSent === 0,
+    'лидерборд: на площадке без поддержки не отправляем (' + lb.naWhy + ')');
+  expect(lb.okWhy === null && lb.sentOnce === 1,
+    'лидерборд: при трёх выполненных предусловиях счёт уходит (' + JSON.stringify(lb.last) + ')');
+  expect(lb.sentTwice === 1, 'лидерборд: то же значение повторно не шлём (' + lb.sentTwice + ')');
+  expect(lb.last && lb.last.id === 'top_score' && typeof lb.last.sc === 'number',
+    'лидерборд: уходит id борда и число (' + JSON.stringify(lb.last) + ')');
+  expect(lb.raw === '{"ok":true}',
+    'лидерборд: сырой ответ сохранён для разбора, а не выброшен (' + lb.raw + ')');
 
   await apage.close();
   await new Promise(r => srv2.close(r));
