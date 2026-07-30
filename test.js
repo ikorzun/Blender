@@ -2598,88 +2598,81 @@ window.bridge = {
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));
   if (lateErrors.length) failures.push('runtime errors ПОСЛЕ раннего гейта: ' + lateErrors.join(' | '));
-  // ── СЮЖЕТ: виньетки К0/К1 (docs/STORY-SPEC.md) ──────────────────────────
-  // Секция В КОНЦЕ намеренно (setLevel/regen меняют контекст — см. камни).
-  const stFirst = await page.evaluate(async () => {
+  // ── ПРОЛОГ-КОМИКС ПЕРЕД ИГРОЙ (спека владельца 2026-07-30) ───────────────
+  // ⚠️ Это осознанная отмена правила §6.1 «никогда до первого тапа»: слово
+  // владельца новее спеки. Риск темпа снят конструкцией — пролог живёт в фазе
+  // 'wait' интро (занавес убран, предметы ещё не падали), поэтому анимация
+  // заполнения не теряется, а панели быстрее обычных.
+  const stPro = await page.evaluate(async () => {
     const g = window.__game;
-    g.storyEnable(true); g.storyReset();
-    g.setLevel(1); g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 400));
-    const noTap = (() => { g.stats().taps = 0; g.storyOnWin(); return g.storyState(); })();
-    document.querySelectorAll('#storyOverlay').forEach(n => n.remove());
-    g.stats().taps = 3;                       // игрок в сессии уже тапал
-    g.storyOnWin();
-    const s1 = g.storyState();
+    g.storyEnable(true);
+    const due0 = g.storyPrologueDue();            // после старта пролог уже показан/закрыт
+    g.storyReset();                               // «новый игрок»
+    const due1 = g.storyPrologueDue();
+    let done = false;
+    g.storyPrologueSpy(() => { done = true; });   // проигрываем пролог заново
     const panels = document.querySelectorAll('#storyOverlay svg').length;
-    return { noTapOpen: noTap.open, due: noTap.due, open: s1.open, panels, stAfterOpen: s1.st };
+    return { due0, due1, done, panels, open: !!document.getElementById('storyOverlay'), st: g.storyState().st };
   });
-  expect(stFirst.noTapOpen === false,
-    '⚠️ ТЕМП: без единого тапа виньетка НЕ всплывает (правило §6.1)');
-  expect(stFirst.due === 'k0' && stFirst.open === true && stFirst.panels === 1,
-    'К0 открылся после первой победы, панель одна на экране (' + JSON.stringify(stFirst) + ')');
-  expect(stFirst.stAfterOpen === 0,
-    'глава помечается ПОСЛЕ показа, а не при открытии (st ' + stFirst.stAfterOpen + ')');
+  expect(stPro.due0 === false && stPro.due1 === true,
+    'пролог положен НОВОМУ игроку и не положен уже видевшему (' + stPro.due0 + '/' + stPro.due1 + ')');
+  expect(stPro.done === false,
+    '⚠️ КОЛБЭК ждёт закрытия: пока комикс на экране, падение предметов НЕ стартует');
+  expect(stPro.open === true && stPro.panels === 1,
+    'пролог открылся новому игроку, панель одна на экране (' + JSON.stringify(stPro) + ')');
 
-  // ТАП ЛИСТАЕТ И СКИПАЕТ: К0 — две панели, второй тап закрывает
-  const stTap = await page.evaluate(async () => {
-    const box = document.getElementById('storyOverlay');
-    const tap = () => box.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  // ТАП ЛИСТАЕТ ТРИ ПАНЕЛИ, закрытие метит и пролог, и К0/К1
+  const stProTap = await page.evaluate(async () => {
+    const g = window.__game;
+    const tap = () => document.getElementById('storyOverlay')
+      .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     tap(); await new Promise(r => setTimeout(r, 60));
-    const afterFirst = !!document.getElementById('storyOverlay');
+    const p2 = !!document.getElementById('storyOverlay');
     tap(); await new Promise(r => setTimeout(r, 60));
-    const g = window.__game;
-    return { afterFirst, closed: !document.getElementById('storyOverlay'), st: g.storyState() };
+    const p3 = !!document.getElementById('storyOverlay');
+    tap(); await new Promise(r => setTimeout(r, 60));
+    return { p2, p3, closed: !document.getElementById('storyOverlay'), st: g.storyState().st };
   });
-  expect(stTap.afterFirst === true && stTap.closed === true,
-    'тап листает панели и закрывает виньетку (2 панели К0)');
-  expect((stTap.st.st & 1) === 1 && stTap.st.sv >= 1,
-    'после показа глава отмечена в сейве и записан уровень виньетки (' + JSON.stringify(stTap.st) + ')');
+  expect(stProTap.p2 && stProTap.p3 && stProTap.closed,
+    'пролог — ТРИ панели (рецепт → мечта → помощник), закрывается третьим тапом');
+  expect((stProTap.st & 32) === 32 && (stProTap.st & 1) === 1 && (stProTap.st & 2) === 2,
+    '⚠️ закрытие пролога метит и К0, и К1 — между уровнями они больше НЕ придут (st ' + stProTap.st + ')');
 
-  // ПОВТОРА НЕТ и КАДЕНЦИЯ: сразу следующая победа виньетку не даёт
-  const stGap = await page.evaluate(async () => {
+  // ⚠️ КОЛБЭК НЕ ТЕРЯЕТСЯ — на нём висит запуск падения предметов. Проверяем
+  // ОБА пути: когда пролог не нужен (зовётся сразу) и когда показан.
+  const stProCb = await page.evaluate(async () => {
     const g = window.__game;
-    g.stats().taps = 3;
-    g.storyOnWin();                            // тот же уровень — ни К0 (показан), ни К1 (рано)
-    const same = g.storyState();
-    g.setLevel(2); g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 300));
-    g.stats().taps = 3; g.storyOnWin();        // разрыв 1 уровень — рано
-    const gap1 = g.storyState();
-    g.setLevel(4); g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 300));
-    g.stats().taps = 3; g.storyOnWin();        // разрыв >= 2 — пора К1
-    const gap2 = g.storyState();
-    const panels = document.querySelectorAll('#storyOverlay svg').length;
-    return { same: same.open, gap1: gap1.open, gap2: gap2.open, due2: gap2.due, panels };
+    let fastCalled = false;
+    g.storyPrologueSpy(() => { fastCalled = true; });   // st уже не 0 — пролог не нужен
+    return { fastCalled };
   });
-  expect(stGap.same === false, 'показанная глава не повторяется (К0 второй раз не всплыл)');
-  expect(stGap.gap1 === false,
-    '⚠️ ТЕМП: разрыв в 1 уровень — виньетки нет (правило «не чаще одной за 2 уровня»)');
-  expect(stGap.gap2 === true && stGap.panels === 1,
-    'К1 пришёл, когда разрыв дорос до 2 уровней (' + JSON.stringify(stGap) + ')');
+  expect(stProCb.fastCalled === true,
+    '⚠️ КОЛБЭК: пролог не нужен → done() зовётся сразу, падение предметов не зависает');
 
-  // АВТО-УХОД ≤4 с без всякого тапа (правило §6.2)
-  const stAuto = await page.evaluate(async () => {
-    await new Promise(r => setTimeout(r, 4400));
+  // СТАРЫЙ ИГРОК пролога не видит: он уже смотрел этот контент по прежней схеме
+  const stProOld = await page.evaluate(() => {
     const g = window.__game;
-    return { closed: !document.getElementById('storyOverlay'), st: g.storyState().st };
+    g.storyReset(); g.storyMark(1); g.storyMark(2);   // видел К0/К1 между уровнями
+    return { due: g.storyPrologueDue() };
   });
-  expect(stAuto.closed === true && (stAuto.st & 2) === 2,
-    '⚠️ ТЕМП: панель уходит сама за ≤4 с и глава отмечена (' + JSON.stringify(stAuto) + ')');
+  expect(stProOld.due === false,
+    '⚠️ ГРАНДФАЗЕР: игрок, видевший К0/К1 по старой схеме, пролог НЕ получает (' + stProOld.due + ')');
 
-  // МЕРЖ: главы OR — отставшая облачная копия не «разпоказывает» виньетку
+  // МЕРЖ: главы OR — отставшая облачная копия не «разпоказывает» пролог
   const stMerge = await page.evaluate(() => {
     const g = window.__game;
+    g.storyMark(32);
     const mine = g.storyState().st;
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 0, sv: 0 });   // облако без сюжета
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 0, sv: 0 });
     const afterOld = g.storyState().st;
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 4, sv: 9 });   // облако видело главу, которой нет у нас
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 4, sv: 9 });
     return { mine, afterOld, afterNew: g.storyState().st, sv: g.storyState().sv };
   });
   expect(stMerge.afterOld === stMerge.mine,
     '⚠️ МЕРЖ: старая копия НЕ сбросила показанные главы (' + stMerge.mine + ' -> ' + stMerge.afterOld + ')');
   expect((stMerge.afterNew & 4) === 4 && stMerge.sv === 9,
     'мерж принял главу с другого устройства (OR) и подвинул уровень виньетки (' + JSON.stringify(stMerge) + ')');
+
   // ── К2/К3/К4: вехи из счётчиков накопления ───────────────────────────────
   // ⚠️ Триггеры выведены из Save.ac (мои данные), а не из событий музея —
   // поэтому проверяются напрямую: ступень типа / вторая пачка / полный зал.
