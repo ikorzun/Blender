@@ -3116,6 +3116,25 @@ window.bridge = {
   // ВВЕРХУ дубля быть не должно: настоящая кнопка Play видна, плавающая скрыта
   expect(!menuTop.нетУзлов && menuTop.stuck === false && menuTop.playoff === false && menuTop.кнопка === 'none',
     'МЕНЮ: наверху шапка не залипшая и плавающей кнопки НЕТ (' + JSON.stringify(menuTop) + ')');
+  // ⚠️⚠️ ПРОКРУЧИВАЕМ НАСТОЯЩИМ КОЛЕСОМ, А НЕ ПРИСВАИВАНИЕМ scrollTop.
+  // Присваивание перескакивает целый класс дефектов: первая версия правки
+  // ужимала шапку в потоке на 24px, Blink компенсировал усадку своим scroll
+  // anchoring, класс снимался — и МЕНЮ НЕ ПРОКРУЧИВАЛОСЬ ВООБЩЕ (замер: колесо
+  // 8px ×10 → scrollTop [0,0,0,0,0,0,0,0,0,0] против [8,16,…,72] на базе).
+  // Все ассерты при этом были зелёными: они ходили через присваивание.
+  // В WebKit механизма нет — на iOS дефект не виден, ловится только здесь.
+  await menuPage.mouse.move(196, 500);
+  const wheelSteps = [];
+  for (let i = 0; i < 10; i++){
+    await menuPage.mouse.wheel(0, 8);
+    await menuPage.waitForTimeout(60);
+    wheelSteps.push(await menuPage.evaluate(() => document.getElementById('mainScreen').scrollTop));
+  }
+  expect(wheelSteps[wheelSteps.length - 1] >= 56,
+    'МЕНЮ ПРОКРУЧИВАЕТСЯ настоящим колесом, а не только присваиванием (' +
+    JSON.stringify(wheelSteps) + ')');
+  // дальше — вниз до упора; осадку ждём ОПРОСОМ (патч диспетчера 0b2de04:
+  // фикс-таймер ловил кнопку до конца доката — «низ 3»)
   await menuPage.evaluate(() => { const ms = document.getElementById('mainScreen');
     ms.scrollTop = ms.scrollHeight; });
   // ⚠️ ЖДАТЬ ОСАДКИ СКРОЛЛА ОПРОСОМ (повтор патча 0b2de04: их файл из эпохи до
@@ -3135,7 +3154,7 @@ window.bridge = {
     const hr = h.getBoundingClientRect(), fr = fl.getBoundingClientRect();
     const cf = getComputedStyle(fl);
     return { stuck: ms.classList.contains('stuck'), playoff: ms.classList.contains('playoff'),
-             шапкаTop: Math.round(hr.top), шапкаH: Math.round(hr.height),
+             коробкаTop: Math.round(hr.top), коробкаH: Math.round(hr.height),
              заголовок: getComputedStyle(document.querySelector('.ms-head-title')).display,
              профиль: getComputedStyle(document.querySelector('.ms-prof')).display,
              кнопкаH: Math.round(fr.height),
@@ -3146,10 +3165,38 @@ window.bridge = {
              низ: Math.round(761 - fr.bottom), фон: cf.backgroundColor, радиус: cf.borderRadius,
              подпись: fl.textContent, роль: document.getElementById('msPlayBtn').textContent };
   });
+  // ⚠️ ГЕОМЕТРИЮ ПИЛЮЛИ МЕРИМ ПИКСЕЛЯМИ, А НЕ RECT'ОМ КОРОБКИ. Коробка `.ms-head`
+  // намеренно осталась 72 высотой и стоит на −4 (иначе Blink ломает прокрутку,
+  // см. выше), а пилюля ноды — это её `::before` 48 высотой на 8. У
+  // псевдоэлемента rect не взять, да и вопрос владельца зрительный: сканируем
+  // белые пиксели по осевой линии.
+  const pillPx = await (async () => {
+    const buf = await menuPage.screenshot({ clip: { x: 0, y: 0, width: 393, height: 70 } });
+    return menuPage.evaluate(async (b64) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+      const d = cx.getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
+      const K = Math.round(W / 393);                       // масштаб снимка
+      let верх = -1, низ = -1;
+      for (let y = 0; y < 70; y++){
+        const i = ((y * K) * W + 196 * K) * 4;
+        if (d[i] > 245 && d[i+1] > 245 && d[i+2] > 245){ if (верх < 0) верх = y; низ = y; }
+      }
+      return { верх, высота: низ - верх + 1 };
+    }, buf.toString('base64'));
+  })();
   expect(!menuScrolled.нетУзлов && menuScrolled.stuck && menuScrolled.playoff &&
-    menuScrolled.шапкаTop === 8 && menuScrolled.шапкаH === 48 &&
+    pillPx.верх === 8 && pillPx.высота === 48 &&
     menuScrolled.заголовок === 'block' && menuScrolled.профиль === 'none',
-    'МЕНЮ: шапка залипла на 8 и приняла вид ноды 815:1506 (' + JSON.stringify(menuScrolled) + ')');
+    'МЕНЮ: пилюля залипла на 8 высотой 48 и приняла вид ноды 815:1506 (' +
+    JSON.stringify(pillPx) + ' ' + JSON.stringify(menuScrolled) + ')');
+  // ⚠️ И ВЫСОТА КОРОБКИ В ПОТОКЕ НЕ ДОЛЖНА МЕНЯТЬСЯ — на этом держится
+  // прокрутка в Blink. Ужмёт кто-то коробку до 48 «чтобы совпало с макетом» —
+  // упадёт этот ассерт, а не игрок в неподвижное меню.
+  expect(menuScrolled.коробкаH === 72,
+    'МЕНЮ: коробка шапки в потоке осталась 72 — Blink не отматывает прокрутку (' +
+    menuScrolled.коробкаH + ')');
   expect(!menuScrolled.нетУзлов && menuScrolled.кнопкаH === 60 &&
     Math.abs(menuScrolled.сдвигОтЦентра) <= 1 && menuScrolled.низ === 8 &&
     menuScrolled.фон === 'rgb(0, 0, 0)' && menuScrolled.радиус === '1500px' &&

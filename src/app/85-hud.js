@@ -1222,12 +1222,17 @@ function openMainScreen(){
   refreshMainScreen();
   const ms = $('mainScreen');
   ms.classList.add('open');
-  // СБРОС СОСТОЯНИЯ ПРОКРУТКИ: контейнер помнит scrollTop между открытиями, и
-  // без сброса меню открывалось бы сразу с залипшей шапкой и плавающей кнопкой
-  // поверх видимой карточки Play. Классы снимаем ЯВНО — scrollTop=0 не рождает
-  // события scroll, само бы не пересчиталось.
-  ms.scrollTop = 0;
-  ms.classList.remove('stuck', 'playoff');
+  // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
+  // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
+  // залипшей шапкой и плавающей кнопкой поверх видимой карточки Play.
+  // ⚠️ НО НЕ БЕЗУСЛОВНО: `openMainScreen` зовётся ещё и по visibilitychange
+  // (90-input) — при уходе вкладки в фон НА УЖЕ ОТКРЫТОМ меню. Безусловный
+  // сброс выбрасывал игрока из середины коллекции в самый верх (замер: 3000 →
+  // 0). Классы снимаем ЯВНО: scrollTop=0 события scroll не рождает.
+  if (!ms.classList.contains('open')){
+    ms.scrollTop = 0;
+    ms.classList.remove('stuck', 'playoff');
+  }
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
 function closeMainScreen(){
