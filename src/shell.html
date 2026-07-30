@@ -1171,6 +1171,12 @@
   <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
        освобождается под витрину, её опускаем на место подсказки -->
   <div class="grp">
+    <!-- СЛОТ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31: «расположи рядом с
+         кнопкой подсказки»). Показывает ПОРТРЕТ выпавшего типа; ≤7 с медленно
+         растворяется (opacity ведёт 85-hud по leftMs). Минимальная версия
+         диспетчера — ПОЛИРОВКА ЗА ИНТЕРФЕЙСОМ. pointer-events:auto обязателен:
+         .bar глушит события (грабля канона). -->
+    <button class="iconBtn" id="chargeBtn" style="display:none" aria-label="Type charge"><img id="chargeImg" style="width:70%;height:70%;object-fit:contain" alt=""></button>
     <button class="iconBtn" id="hintBtn" aria-label="Hint"><svg viewBox="0 0 32 32" fill="none">
       <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
     </svg><span id="hintCnt">3</span></button>
@@ -1205,7 +1211,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-196 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-197 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">

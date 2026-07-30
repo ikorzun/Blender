@@ -2608,6 +2608,93 @@ window.bridge = {
   });
   expect(pokeCalm, 'ПРОВОКАЦИЯ: матч сбросил злость — простой снова в норме');
 
+  // ===== «ЗАРЯД ТИПА» + ЛЕСЕНКА ТУРБО (спеки владельца 2026-07-31) =====
+  // Секция в конце: regen/setLevel меняют контекст (правило канона).
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(300);
+  const chg = await page.evaluate(() => {
+    const g = window.__game;
+    const sn = g.typesSnapshot();
+    // ведущий тип: максимум живых копий (surprise в снимке не тип)
+    let name = null, n = 0;
+    for (const [k, v] of Object.entries(sn)) if (k !== 'surprise' && v.alive > n){ name = k; n = v.alive; }
+    const acc0 = g.accSnapshot().find(x => x.key === name);
+    const s0 = g.stats().score;
+    g.chargeGrant(name);
+    const okBtn = document.getElementById('chargeBtn').style.display !== 'none';
+    const fired = g.detonateCharge();
+    const s1 = g.stats().score;
+    const acc1 = g.accSnapshot().find(x => x.key === name);
+    const N = Math.min(n, 8);
+    return { name, n, fired, okBtn, gained: s1 - s0, want: 10 * N * (N - 1),
+             accGrew: (acc1 ? acc1.count : 0) - (acc0 ? acc0.count : 0),
+             cleared: g.charge().name === '' };
+  });
+  // ⚠️ Удаление идёт ХВОСТОМ АНИМАЦИИ (afterPause 150 мс, паттерн бомбы) —
+  // мгновенный снимок остатка врал «осталось 16» при исправной механике.
+  // Первый прогон этого стража я завалил именно так.
+  await page.waitForTimeout(700);
+  const chgLeft = await page.evaluate((nm) =>
+    (window.__game.typesSnapshot()[nm] || { alive: 0 }).alive, chg.name);
+  // ⚠️ АССЕРТ КАПА СПОСОБЕН УПАСТЬ: на ур.3 ведущий тип даёт ~14 копий (замер),
+  // без капа gained был бы 10·14·13=1820 — проверяем РОВНО капнутую цену.
+  expect(chg.fired && chgLeft === 0,
+    'ЗАРЯД: детонация сняла ВСЕХ ' + chg.n + ' предметов типа ' + chg.name + ' (осталось ' + chgLeft + ')');
+  expect(chg.gained === chg.want,
+    'ЗАРЯД: цена капнута формулой группы БЕЗ ×2 (' + chg.gained + ' == ' + chg.want + ' при n=' + chg.n + ')');
+  expect(chg.accGrew === chg.n,
+    'ЗАРЯД = СПАСЕНИЕ: пожизненный счётчик вырос на все ' + chg.n + ' (' + chg.accGrew + ')');
+  expect(chg.okBtn && chg.cleared, 'ЗАРЯД: слот показался при гранте и очищен после детонации');
+  // TTL: заряд живёт <= 7 c и растворяется сам
+  const ttl = await page.evaluate(async () => {
+    const g = window.__game;
+    g.chargeGrant('foodwatermelon', 250);
+    const alive0 = g.charge().name;
+    await new Promise(r => setTimeout(r, 600));
+    return { alive0, after: g.charge().name, fired: g.detonateCharge() };
+  });
+  expect(ttl.alive0 === 'foodwatermelon' && ttl.after === '' && ttl.fired === false,
+    'ЗАРЯД: растворился по TTL, детонация после смерти отказана (' + JSON.stringify(ttl) + ')');
+  // ЛЕСЕНКА ТУРБО: порог входа растёт с уровнем. Числа ПИНУЮТСЯ как двойник
+  // спеки (10 + ⌊ур/8⌋, кап 14) — читать из игры значило бы проверять пустоту.
+  const chainLadder = await page.evaluate(() => {
+    const g = window.__game, out = {};
+    for (const lv of [1, 8, 16, 40]){ g.setLevel(lv); out[lv] = g.chainAt(); }
+    g.setLevel(3);
+    return out;
+  });
+  expect(chainLadder[1] === 10 && chainLadder[8] === 11 && chainLadder[16] === 12 && chainLadder[40] === 14,
+    'ТУРБО ДОРОЖАЕТ: порог 10/11/12/14 на ур.1/8/16/40 (' + JSON.stringify(chainLadder) + ')');
+  // ВЫПАДЕНИЕ ИЗ ЖИВОЙ СЕРИИ: честные 10 быстрых матчей зажигают цепь,
+  // и в момент зажигания выпадает заряд типа с >= 6 копиями
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(300);
+  const drop = await page.evaluate(async () => {
+    const g = window.__game;
+    for (let i = 0; i < 12; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 120)); }
+    const cs = g.charge();
+    const copies = cs.name ? (g.typesSnapshot()[cs.name] || { alive: 0 }).alive : 0;
+    return { name: cs.name, leftMs: cs.leftMs, copies };
+  });
+  expect(!!drop.name && drop.leftMs > 0,
+    'ВЫПАДЕНИЕ: зажигание цепи выдало заряд (' + drop.name + ', жить ' + Math.round(drop.leftMs) + ' мс)');
+  expect(drop.copies >= 6,
+    'ВЫПАДЕНИЕ: тип заряда имеет >= 6 живых копий (' + drop.copies + ')');
+
+  // ОДИН ПРОМАХ ГАСИТ ТУРБО (спека владельца 2026-07-31, отменяет 4/3).
+  // Цепь сейчас живая после выпадения заряда — бьём промахом в пустоту.
+  // ⚠️ combo() отдаёт БУЛЕВО поле chain, а не сырой chainUntil — первый прогон
+  // этого стража я завалил чтением несуществующего поля (undefined > now).
+  const missKill = await page.evaluate(async () => {
+    const g = window.__game;
+    const before = g.combo().chain;
+    g.penalizeTest();                              // один промах
+    await new Promise(r => setTimeout(r, 250));    // тик планировщика цепи
+    return { before, after: g.combo().chain };
+  });
+  expect(missKill.before && !missKill.after,
+    'ТУРБО: один промах остановил режим (' + JSON.stringify(missKill) + ')');
+
   // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));

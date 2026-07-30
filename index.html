@@ -1171,6 +1171,12 @@
   <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
        освобождается под витрину, её опускаем на место подсказки -->
   <div class="grp">
+    <!-- СЛОТ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31: «расположи рядом с
+         кнопкой подсказки»). Показывает ПОРТРЕТ выпавшего типа; ≤7 с медленно
+         растворяется (opacity ведёт 85-hud по leftMs). Минимальная версия
+         диспетчера — ПОЛИРОВКА ЗА ИНТЕРФЕЙСОМ. pointer-events:auto обязателен:
+         .bar глушит события (грабля канона). -->
+    <button class="iconBtn" id="chargeBtn" style="display:none" aria-label="Type charge"><img id="chargeImg" style="width:70%;height:70%;object-fit:contain" alt=""></button>
     <button class="iconBtn" id="hintBtn" aria-label="Hint"><svg viewBox="0 0 32 32" fill="none">
       <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
     </svg><span id="hintCnt">3</span></button>
@@ -1205,7 +1211,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-196 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-197 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1736,6 +1742,42 @@ const CURTAIN_MAX_MS   = 12000;
 
 
 const INTER_EVERY_LEVELS = 3;
+
+// ===== «ЗАРЯД ТИПА» (спека владельца 2026-07-31 «объектная бомба») =====
+// «если игрок собрал буст, ему может выпасть любой объект (рядом с кнопкой
+// подсказки), при клике на который в чаше взрываются все объекты этого типа».
+// РЕШЕНИЯ ВЛАДЕЛЬЦА по моим двум вопросам: это СПАСЕНИЕ (accAdd копит, музей
+// растёт, миксер злится) и ЧАСТОТА 1/уровень. Выпадение — на зажигании Power
+// chain; тип — случайный из живых с >= CHARGE_MIN_COPIES копий (замер: медиана
+// копий 14 на ранних, 6 на ур.25 — ниже порога выпал бы «взрыв одной штуки»).
+// ⚠️ ОЧКИ С КАПОМ ГРУППЫ И БЕЗ ×2 СЕРИИ: формула 10·N·(N−1) при N=16 дала бы
+// +25% дохода уровня одним кликом — звёзды и ранг поплыли бы. N капится
+// MATCH_MAX_N (максимум 560 сырых ≈ +7-9%), комбо-множитель НЕ применяется:
+// заряд сам награда за серию, множить награду наградой нельзя.
+// ⚠️ НЕ НАЗЫВАТЬ «бомбой» ни в коде, ни в UI — клэш с чёрным шаром.
+const CHARGE_MIN_COPIES = 6;
+// ⚡ ПОПРАВКА ВЛАДЕЛЬЦА (та же дата, поверх первой спеки): «объект должен жить
+// не больше 7 секунд и медленно растворяться. Так игроку будет важно сразу
+// его активировать, а не оставить на потом». СЛЕДСТВИЕ ДЛЯ КОДА: заряд стал
+// ЧИСТО РАНТАЙМОВЫМ (переменные в 80-gameplay) — хранение в сейве, мерж и
+// «агентность для тупика» умерли вместе с «оставить на потом»; НЕ возвращать
+// сейв-поле oc, оно жило меньше часа и снято ровно этой поправкой.
+const CHARGE_TTL_MS = 7000;
+
+// ===== ВХОД В ТУРБО ДОРОЖАЕТ С УРОВНЯМИ (спека владельца 2026-07-31:
+// «увеличивать количество вещей для входа в этот режим… аккуратно, по мере
+// прохождения уровней»). Лесенка: базовые CHAIN_COMBO_AT=10 до ур.7, дальше
+// +1 каждые CHAIN_AT_STEP уровней, кап CHAIN_AT_CAP: ур.8→11, 16→12, 24→13,
+// 32+→14. ⚠️ ЧИСЛА — ПЕРВАЯ ИТЕРАЦИЯ ДИСПЕТЧЕРА («аккуратно» = медленный
+// рост с капом; поздние уровни и так копят серию труднее — группы мельче,
+// замер в разделе капа группы: средняя 3.28 на ур.1 → 2.19 на ур.20).
+// Тюнить по плейтесту; потребители обязаны звать chainComboAt(), НЕ константу.
+const CHAIN_AT_STEP = 8, CHAIN_AT_CAP = 14;
+function chainComboAt(){
+  const lv = (typeof levelNum === 'number') ? levelNum : 1;
+  return Math.min(CHAIN_AT_CAP, CHAIN_COMBO_AT + Math.max(0, Math.floor(lv / CHAIN_AT_STEP)));
+}
+
 // ЛИДЕРБОРД: id борда, заведённого владельцем в кабинете Playgama. ПУСТО =
 // отправка выключена целиком. Это НАШ выключатель, и он же — замена проверки
 // «токен в конфиге есть»: прочитать `saas.publicToken` из JS НЕЛЬЗЯ (у Bridge
@@ -1760,13 +1802,27 @@ const LEADERBOARD_ID = '';
 // Досыпка турбо (спека владельца 2026-07-21: «вещи в турбо должны сыпаться
 // на 20% быстрее и их количество на 30% больше»): интервал 500 -> 417
 // (темп ×1.2), объём за тик 2 -> 2.6 (дробь копится аккумулятором chainCarry)
-const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 417, CHAIN_DROP_N = 2.6;
+// ⚡ СПЕКА ВЛАДЕЛЬЦА 2026-07-31: «ускорить падение вещей в турборежиме, пусть
+// они все укладываются в 3 секунды, но количество вещей оставить текущее».
+// Реализация: ОКНО досыпки CHAIN_DROP_WINDOW_MS=3000 от старта цепи, тик
+// уплотнён 417→125 мс. Арифметика количества: было 10000/417≈24 тика × 2.6,
+// стало 3000/125=24 тика × 2.6 — СУММА ТА ЖЕ, высыпается втрое быстрее и
+// успевает упасть в 3 c (падение со спавна при MAX_FALL занимает <1 c).
+// Лимиты полноты (141 живых / top>H-1 / <=8 в воздухе) не тронуты — они и
+// раньше резали тики, теперь режут плотнее, число никогда не превысит старое.
+const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 125, CHAIN_DROP_N = 2.6;
+const CHAIN_DROP_WINDOW_MS = 3000;
 // ⚠️ ТЕРПИМОСТЬ ТУРБО К ПРОМАХАМ — ПО СЛОЖНОСТИ (жалоба владельца 2026-07-28:
 // «2 ошибки в турбо на простом полностью останавливают падение вещей, на
 // сложном нет попыток вовсе — 1 ошибка критична»). Было ФЛЭТ 2 на обе
 // сложности, и на Hard, где часть пар скрыта вуалью недоступности, промах
 // случается не по вине игрока — турбо гасло почти сразу. Easy 4 / Hard 3.
-const CHAIN_MISSES_EASY = 4, CHAIN_MISSES_HARD = 3;
+// ⚡ СПЕКА ВЛАДЕЛЬЦА 2026-07-31 (напоминанием, дословно): «если игрок 1 раз
+// промахнулся в турбо режиме, то режим останавливается». ОТМЕНЯЕТ прежние
+// 4/3 по сложности — теперь РОВНО ОДИН промах на обеих сложностях. Функция
+// оставлена (потребители зовут её, не константу) — вернуть мягкость = два
+// числа здесь, но только словом владельца.
+const CHAIN_MISSES_EASY = 1, CHAIN_MISSES_HARD = 1;
 function chainMissesLimit(){ return CFG.hard ? CHAIN_MISSES_HARD : CHAIN_MISSES_EASY; }
 // АМБИЕНТНЫЙ ТРЕСК В ТУРБО (спека владельца 2026-07-28 «больше мелких молний»).
 // Было: один разряд раз в 200-360 мс. Стало: 2 разряда раз в 130-240 мс, каждый
@@ -4553,7 +4609,7 @@ function genLevel(){
   // встряски растут с уровнем (freeShakesFor в 00-config; лесенка возвращена
   // спекой владельца 2026-07-30 «подними встряски»),
   // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
-  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
+  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -6128,7 +6184,7 @@ const SAVE_KEY = 'mixer_save_v1';
 // pe/ps — КУПЛЕННЫЕ ВСТРЯСКИ монотонной парой (образец he/hs), постоянный
 // кошелёк поверх 3 бесплатных на уровень. ls — «последнее виденное время»,
 // монотонная метка против отката часов.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0  }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -7352,13 +7408,30 @@ function doMatch(list){
       // глаза eyes-5). Раньше гейт !chainUntil делал это невозможным —
       // вопрос ревью «comboCount копится, а зажечь следующую нельзя»
       // закрыт этим решением владельца.
-      if (comboCount >= CHAIN_COMBO_AT && !level.over){
+      if (comboCount >= chainComboAt() && !level.over){ // порог входа в турбо растёт с уровнем
         const again = chainUntil > nowMs; // собрал турбо, не выходя из турбо
         chainSeries = again ? chainSeries + 1 : 1;
         chainUntil = nowMs + CHAIN_MS;
         chainStartMisses = stats.misses;
         if (!again) chainNextDrop = nowMs + 600; // у активной цепи досыпка уже тикает
         comboCount = 0; // серия «потрачена» на запуск — следующая копится заново
+        // ВЫПАДЕНИЕ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31, 00-config):
+        // 1/уровень (level.chargeGiven) и только в пустой слот. Тип — случайный
+        // из ЖИВЫХ с >= CHARGE_MIN_COPIES копий: ниже порога заряд взрывал бы
+        // 1-2 предмета и разочаровывал (замер: медиана копий 14 рано / 6 ур.25).
+        if (!level.chargeGiven && !chargeName){
+          const cnt = {};
+          for (const it of items)
+            if (it.alive && !it.surprise && !it.bomb && !it.rock && it.type)
+              cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
+          const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
+          if (pool.length){
+            level.chargeGiven = true;
+            chargeName = pool[Math.floor(Math.random() * pool.length)];
+            chargeUntil = performance.now() + CHARGE_TTL_MS; // ≤7 c, дальше растворяется
+            try { updateHUD(); } catch(e){}
+          }
+        }
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
@@ -7508,6 +7581,57 @@ function detonateBomb(bomb){
     wakePhysics('gameplay:L28'); // масса над воронкой взрыва должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 150);
+}
+
+// ===== ДЕТОНАЦИЯ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31; 00-config) =====
+// СПАСЕНИЕ, не уничтожение (решение владельца): accAdd копит, музей и вехи
+// сюжета честны, а миксер ЗЛИТСЯ — игрок дерзко спас целый тип разом.
+// Снимает ВСЕХ живых этого типа, ВКЛЮЧАЯ недоступные — в этом сила заряда:
+// раскопка без встряски. Очки: формула группы с капом MATCH_MAX_N, ×множитель
+// типа, БЕЗ комбо-×2 (обоснование у CHARGE_MIN_COPIES). Паттерн удаления —
+// detonateBomb: animating → эффекты → afterPause → removeItem.
+// Состояние заряда — РАНТАЙМ, не сейв (поправка владельца «жить не больше 7
+// секунд»): chargeName/chargeUntil; истечение проверяет chargeTick из loop.
+let chargeName = '', chargeUntil = 0;
+function chargeState(){
+  return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
+}
+function chargeTick(){
+  if (chargeName && performance.now() > chargeUntil){
+    chargeName = ''; chargeUntil = 0;              // растворился — момент упущен
+    try { updateHUD(); } catch(e){}
+  }
+}
+function detonateCharge(){
+  if (intro || paused || !level || level.over) return false;
+  if (!chargeName || performance.now() > chargeUntil) return false;
+  const name = chargeName;
+  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock
+                                    && i.type && i.type.name === name);
+  chargeName = ''; chargeUntil = 0;
+  if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // тип кончился раньше клика
+  wakePhysics('charge');
+  stats.lastAction = performance.now();          // клик = действие, миксер откладывается
+  const n = victims.length;
+  const N = Math.min(n, MATCH_MAX_N);            // кап цены — как у группы
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name));
+  stats.score += gained;
+  accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
+  lastMatchMs = performance.now();               // окно серии продлевается (действие),
+                                                 // comboCount НЕ трогаем — заряд серию не копит
+  victims.forEach(it => { it.animating = true; destroyItemBody(it); });
+  victims.forEach(it => burstFX(it));
+  const mid = new THREE.Vector3();
+  victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
+  scorePop('+' + gained, mid, '#ffffff', true);
+  try { faceEvent('angry', 1400); } catch(e){}   // канон глаз: злость поверх — он ЗАМЕТИЛ
+  Sound.play('match', N); vibrate([30, 60, 40]);
+  setTimeout(() => afterPause(() => {
+    victims.forEach(removeItem);
+    wakePhysics('charge:settle');
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 150);
+  return true;
 }
 
 function burstFX(it){
@@ -8262,7 +8386,7 @@ function eyeSizes(now, state){
   if (state === 'kind'){
     // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
     // Дуги eyes-4-4 этим и заменены — размером, а не формой.
-    const t = Math.min(1, comboCount / CHAIN_COMBO_AT);
+    const t = Math.min(1, comboCount / chainComboAt()); // порог растёт с уровнем (00-config)
     s.pl = s.pr = PUP_BASE + (PUP_WIDE - PUP_BASE) * t;
     return s;
   }
@@ -8392,6 +8516,25 @@ function fitStat(id){
 }
 let tmStrLast = '';
 function updateHUD(){
+  // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
+  // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
+  // v183-правило само доложит картинку позже), прозрачность = остаток жизни.
+  try {
+    const cb = $('chargeBtn');
+    if (cb && typeof chargeState === 'function'){
+      const cs = chargeState();
+      if (cs.name && level && !level.over && !intro){
+        cb.style.display = '';
+        cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
+        if (cb.dataset.oc !== cs.name){
+          cb.dataset.oc = cs.name;
+          const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
+          const url = it ? itemThumb(it) : '';
+          if (url) $('chargeImg').src = url;
+        }
+      } else { cb.style.display = 'none'; cb.dataset.oc = ''; }
+    }
+  } catch(e){}
   document.documentElement.classList.toggle('night', isNightSky());
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
   // #11 (спека владельца): УРОВЕНЬ показываем на десктопе (левая группа) И на
@@ -9914,6 +10057,9 @@ $('shakeBtn').addEventListener('click', requestShake);
 // делает тап осознанным; исторический оверлей встряски сюда не копируем.
 // showHint() и сам перенаправил бы, но явная ветка читается честнее и не
 // зависит от порядка проверок внутри него.
+// ЗАРЯД ТИПА: клик = детонация, мгновенно, без подтверждения (попапы
+// отвергнуты канонично). Гварды внутри detonateCharge.
+$('chargeBtn').addEventListener('click', ()=>{ try { detonateCharge(); } catch(e){} });
 $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
@@ -10530,6 +10676,7 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
+  try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
   // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
   if (physAwake && !(intro && intro.phase === 'wait')){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
@@ -10575,7 +10722,10 @@ function loop(){
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
       chainNextDrop = now + CHAIN_DROP_MS;
-      chainRefill();
+      // ОКНО ДОСЫПКИ — только первые CHAIN_DROP_WINDOW_MS цепи (спека владельца
+      // 2026-07-31 «всё укладывается в 3 секунды»): старт цепи восстанавливаем
+      // из chainUntil (единственный источник, паузо-сдвиги двигают его сами)
+      if (now < chainUntil - CHAIN_MS + CHAIN_DROP_WINDOW_MS) chainRefill();
     }
     // амбиентный треск: короткие дуги между верхними предметами.
     // ⚠️ ГУЩЕ (спека владельца 2026-07-28 «больше мелких молний»): тик чаще и
@@ -10601,7 +10751,7 @@ function loop(){
   // фон-лихорадка: низ неба наливается красным (сильнее в цепной реакции)
   if (skyMat){
     // подогрев фона растёт с длиной серии: чем ближе цепь — тем гуще зелень
-    const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / CHAIN_COMBO_AT) : 0);
+    const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
   }
@@ -11372,6 +11522,11 @@ window.__game = {
   // синхронизирует), но здесь без него хук отдавал бы старые координаты и
   // страж «после подъёма под полом никого» падал бы на пустом месте.
   rescueNow(){ const n = rescueSweep(); syncMeshes(); return n; },
+  // заряд типа: состояние/грант/детонация (стражи сьюта)
+  charge(){ return chargeState(); },
+  chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
+  detonateCharge(){ return detonateCharge(); },
+  chainAt(){ return chainComboAt(); },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.
     // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит

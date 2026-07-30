@@ -53,13 +53,30 @@ function doMatch(list){
       // глаза eyes-5). Раньше гейт !chainUntil делал это невозможным —
       // вопрос ревью «comboCount копится, а зажечь следующую нельзя»
       // закрыт этим решением владельца.
-      if (comboCount >= CHAIN_COMBO_AT && !level.over){
+      if (comboCount >= chainComboAt() && !level.over){ // порог входа в турбо растёт с уровнем
         const again = chainUntil > nowMs; // собрал турбо, не выходя из турбо
         chainSeries = again ? chainSeries + 1 : 1;
         chainUntil = nowMs + CHAIN_MS;
         chainStartMisses = stats.misses;
         if (!again) chainNextDrop = nowMs + 600; // у активной цепи досыпка уже тикает
         comboCount = 0; // серия «потрачена» на запуск — следующая копится заново
+        // ВЫПАДЕНИЕ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31, 00-config):
+        // 1/уровень (level.chargeGiven) и только в пустой слот. Тип — случайный
+        // из ЖИВЫХ с >= CHARGE_MIN_COPIES копий: ниже порога заряд взрывал бы
+        // 1-2 предмета и разочаровывал (замер: медиана копий 14 рано / 6 ур.25).
+        if (!level.chargeGiven && !chargeName){
+          const cnt = {};
+          for (const it of items)
+            if (it.alive && !it.surprise && !it.bomb && !it.rock && it.type)
+              cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
+          const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
+          if (pool.length){
+            level.chargeGiven = true;
+            chargeName = pool[Math.floor(Math.random() * pool.length)];
+            chargeUntil = performance.now() + CHARGE_TTL_MS; // ≤7 c, дальше растворяется
+            try { updateHUD(); } catch(e){}
+          }
+        }
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
@@ -209,6 +226,57 @@ function detonateBomb(bomb){
     wakePhysics('gameplay:L28'); // масса над воронкой взрыва должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 150);
+}
+
+// ===== ДЕТОНАЦИЯ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31; 00-config) =====
+// СПАСЕНИЕ, не уничтожение (решение владельца): accAdd копит, музей и вехи
+// сюжета честны, а миксер ЗЛИТСЯ — игрок дерзко спас целый тип разом.
+// Снимает ВСЕХ живых этого типа, ВКЛЮЧАЯ недоступные — в этом сила заряда:
+// раскопка без встряски. Очки: формула группы с капом MATCH_MAX_N, ×множитель
+// типа, БЕЗ комбо-×2 (обоснование у CHARGE_MIN_COPIES). Паттерн удаления —
+// detonateBomb: animating → эффекты → afterPause → removeItem.
+// Состояние заряда — РАНТАЙМ, не сейв (поправка владельца «жить не больше 7
+// секунд»): chargeName/chargeUntil; истечение проверяет chargeTick из loop.
+let chargeName = '', chargeUntil = 0;
+function chargeState(){
+  return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
+}
+function chargeTick(){
+  if (chargeName && performance.now() > chargeUntil){
+    chargeName = ''; chargeUntil = 0;              // растворился — момент упущен
+    try { updateHUD(); } catch(e){}
+  }
+}
+function detonateCharge(){
+  if (intro || paused || !level || level.over) return false;
+  if (!chargeName || performance.now() > chargeUntil) return false;
+  const name = chargeName;
+  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock
+                                    && i.type && i.type.name === name);
+  chargeName = ''; chargeUntil = 0;
+  if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // тип кончился раньше клика
+  wakePhysics('charge');
+  stats.lastAction = performance.now();          // клик = действие, миксер откладывается
+  const n = victims.length;
+  const N = Math.min(n, MATCH_MAX_N);            // кап цены — как у группы
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name));
+  stats.score += gained;
+  accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
+  lastMatchMs = performance.now();               // окно серии продлевается (действие),
+                                                 // comboCount НЕ трогаем — заряд серию не копит
+  victims.forEach(it => { it.animating = true; destroyItemBody(it); });
+  victims.forEach(it => burstFX(it));
+  const mid = new THREE.Vector3();
+  victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
+  scorePop('+' + gained, mid, '#ffffff', true);
+  try { faceEvent('angry', 1400); } catch(e){}   // канон глаз: злость поверх — он ЗАМЕТИЛ
+  Sound.play('match', N); vibrate([30, 60, 40]);
+  setTimeout(() => afterPause(() => {
+    victims.forEach(removeItem);
+    wakePhysics('charge:settle');
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 150);
+  return true;
 }
 
 function burstFX(it){

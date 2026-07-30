@@ -338,6 +338,7 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
+  try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
   // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
   if (physAwake && !(intro && intro.phase === 'wait')){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
@@ -383,7 +384,10 @@ function loop(){
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
       chainNextDrop = now + CHAIN_DROP_MS;
-      chainRefill();
+      // ОКНО ДОСЫПКИ — только первые CHAIN_DROP_WINDOW_MS цепи (спека владельца
+      // 2026-07-31 «всё укладывается в 3 секунды»): старт цепи восстанавливаем
+      // из chainUntil (единственный источник, паузо-сдвиги двигают его сами)
+      if (now < chainUntil - CHAIN_MS + CHAIN_DROP_WINDOW_MS) chainRefill();
     }
     // амбиентный треск: короткие дуги между верхними предметами.
     // ⚠️ ГУЩЕ (спека владельца 2026-07-28 «больше мелких молний»): тик чаще и
@@ -409,7 +413,7 @@ function loop(){
   // фон-лихорадка: низ неба наливается красным (сильнее в цепной реакции)
   if (skyMat){
     // подогрев фона растёт с длиной серии: чем ближе цепь — тем гуще зелень
-    const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / CHAIN_COMBO_AT) : 0);
+    const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
   }
@@ -1180,6 +1184,11 @@ window.__game = {
   // синхронизирует), но здесь без него хук отдавал бы старые координаты и
   // страж «после подъёма под полом никого» падал бы на пустом месте.
   rescueNow(){ const n = rescueSweep(); syncMeshes(); return n; },
+  // заряд типа: состояние/грант/детонация (стражи сьюта)
+  charge(){ return chargeState(); },
+  chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
+  detonateCharge(){ return detonateCharge(); },
+  chainAt(){ return chainComboAt(); },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.
     // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит

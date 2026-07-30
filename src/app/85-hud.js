@@ -235,7 +235,7 @@ function eyeSizes(now, state){
   if (state === 'kind'){
     // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
     // Дуги eyes-4-4 этим и заменены — размером, а не формой.
-    const t = Math.min(1, comboCount / CHAIN_COMBO_AT);
+    const t = Math.min(1, comboCount / chainComboAt()); // порог растёт с уровнем (00-config)
     s.pl = s.pr = PUP_BASE + (PUP_WIDE - PUP_BASE) * t;
     return s;
   }
@@ -365,6 +365,25 @@ function fitStat(id){
 }
 let tmStrLast = '';
 function updateHUD(){
+  // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
+  // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
+  // v183-правило само доложит картинку позже), прозрачность = остаток жизни.
+  try {
+    const cb = $('chargeBtn');
+    if (cb && typeof chargeState === 'function'){
+      const cs = chargeState();
+      if (cs.name && level && !level.over && !intro){
+        cb.style.display = '';
+        cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
+        if (cb.dataset.oc !== cs.name){
+          cb.dataset.oc = cs.name;
+          const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
+          const url = it ? itemThumb(it) : '';
+          if (url) $('chargeImg').src = url;
+        }
+      } else { cb.style.display = 'none'; cb.dataset.oc = ''; }
+    }
+  } catch(e){}
   document.documentElement.classList.toggle('night', isNightSky());
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
   // #11 (спека владельца): УРОВЕНЬ показываем на десктопе (левая группа) И на

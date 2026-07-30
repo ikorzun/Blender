@@ -126,6 +126,9 @@ $('shakeBtn').addEventListener('click', requestShake);
 // делает тап осознанным; исторический оверлей встряски сюда не копируем.
 // showHint() и сам перенаправил бы, но явная ветка читается честнее и не
 // зависит от порядка проверок внутри него.
+// ЗАРЯД ТИПА: клик = детонация, мгновенно, без подтверждения (попапы
+// отвергнуты канонично). Гварды внутри detonateCharge.
+$('chargeBtn').addEventListener('click', ()=>{ try { detonateCharge(); } catch(e){} });
 $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
