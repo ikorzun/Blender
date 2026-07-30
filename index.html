@@ -1205,7 +1205,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-176 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-177 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1696,6 +1696,24 @@ const LEVEL_TIME_IN_HUD = false;
 // пропустить (Poki/CrazyGames самопейсят межстраничную) — см.
 // docs/AD-CADENCE-PER-PLATFORM.md. Прежние INTER_MIN_WINS/INTER_GAP_MS
 // (частота «каждые 2 победы / раз в 3 мин») заменены этой каденцией.
+// Занавес площадки (78-ads). Числа — из РАЗБОРА КОДА SDK v2.0.0 и замеров,
+// не на глаз: FADE — собственное затухание лоадера после прогресса 100
+// (setTimeout 1400 в бандле, берём с запасом); SELF — сколько ждать, когда
+// занавес снимает сам SDK (его `.finally` +700, затем затухание 1400 = 2100);
+// GRACE — пауза перед страховкой, если игра готова, а GAME_READY уйти не смог
+// (даём initialize шанс дорезолвиться); MAX — жёсткий предел, чтобы игра
+// НИКОГДА не ждала занавес вечно (замер: на живой площадке он уходит к ~4 с).
+const CURTAIN_FADE_MS  = 1500;
+const CURTAIN_SELF_MS  = 2400;
+const CURTAIN_GRACE_MS = 1200;
+// ⚠️ 12000, А НЕ 8000: при 8000 предел ОБГОНЯЛ страховку (замер на живом
+// стенде: обещание 8.8 с против снятия 9.4 с) и обещание разрешалось над
+// висящим занавесом. Предел обязан быть заведомо ПОЗЖЕ штатного пути
+// (готовность ~2 с + пауза 1.2 + затухание 1.5), иначе он не страховка,
+// а конкурент.
+const CURTAIN_MAX_MS   = 12000;
+
+
 const INTER_EVERY_LEVELS = 3;
 // ЛИДЕРБОРД: id борда, заведённого владельцем в кабинете Playgama. ПУСТО =
 // отправка выключена целиком. Это НАШ выключатель, и он же — замена проверки
@@ -6119,9 +6137,56 @@ const Ads = (function(){
   let sdkReady = false;       // initialize() резолвился
   let gameReadyWanted = false, gameReadySent = false; // латч: игра дозрела раньше SDK
 
+  // ===== ЗАНАВЕС ПЛОЩАДКИ (жалоба владельца 2026-07-30) =====
+  // Симптом: «после загрузки бриджа пропала анимация заполнения корзины».
+  // РАЗБОР КОДА SDK (v2.0.0, вендорный бандл): у Playgama свой БРЕНДОВЫЙ
+  // лоадер — непрозрачный `#242424` во весь вьюпорт (замер: он и виден).
+  // Снимается ДВУМЯ путями:
+  //   1) `sendMessage(GAME_READY)` — СИНХРОННО удаляет узел внутри вызова;
+  //   2) сам SDK: `initialize()` в `.finally` через 700 мс ставит прогресс
+  //      100 (мягко — только если игра ни разу не сообщала прогресс), а
+  //      снятие идёт ещё через 1400 мс. Итого ≈2.1 с после резолва init.
+  // Отдельного события «занавес снят» в SDK НЕТ. Но нам оно и не нужно:
+  // путь 1 — НАШ, значит момент снятия мы не угадываем, а НАЗНАЧАЕМ.
+  // ⚠️⚠️ НАЙДЕНО ЗАМЕРОМ И ХУЖЕ ИСХОДНОЙ ЖАЛОБЫ: если `initialize()` НЕ
+  // РЕЗОЛВИТСЯ (у меня на стенде playgama вне их домена — висел 20 с),
+  // то `sdkReady` остаётся false, GAME_READY не уходит, `.finally` не
+  // наступает — и занавес висит НАВСЕГДА, игра под ним невидима.
+  // Поэтому нужна страховка. Рычаг — ПУБЛИЧНЫЙ `setGameLoadingProgress(100)`
+  // (документированный метод v2), проверен замером: занавес уходит.
+  // ⚠️ НЕ трогаем `#loading-overlay` по id — приватный DOM чужого SDK
+  // (прямой запрет диспетчера; молча отвалится на обновлении).
+  let curtainSettle = null, curtainWhy = null, curtainForce = 0;
+  const curtainGone = new Promise((res)=>{ curtainSettle = res; });
+  function curtainDone(why){
+    if (!curtainSettle) return;
+    const r = curtainSettle; curtainSettle = null; curtainWhy = why;
+    clearTimeout(curtainForce); curtainForce = 0;
+    r(why);
+  }
+  // Дёрнуть публичный рычаг и разрешить обещание ТОЛЬКО ПОСЛЕ затухания.
+  // ⚠️ РАЗРЕШАТЬ РАНЬШЕ СНЯТИЯ НЕЛЬЗЯ — это ровно исходный баг, только короче:
+  // потребитель начнёт показ под ещё висящим занавесом. Поймано замером на
+  // живом стенде (обещание 8771 мс против фактического снятия 9442 мс —
+  // жёсткий предел обгонял страховку), мок этого не воспроизводил.
+  function liftCurtain(why){
+    if (!curtainSettle) return;
+    try { window.bridge.setGameLoadingProgress(100); } catch(e){}
+    setTimeout(()=>curtainDone(why), CURTAIN_FADE_MS); // у SDK своё затухание 1400
+  }
+  // Страховка ставится ТОЛЬКО когда игра уже сказала «я готова», а
+  // GAME_READY уйти не смог: занавес в этот момент врёт — картинка есть.
+  // Если не готова сама игра — занавес честен, и снимать его нельзя.
+  function armCurtainFallback(){
+    if (curtainForce || !curtainSettle) return;
+    curtainForce = setTimeout(()=>{ curtainForce = 0; liftCurtain('снят страховкой'); },
+      CURTAIN_GRACE_MS);
+  }
+
   // GAME_READY шлётся ОДИН РАЗ и по факту первого играбельного кадра.
   // Идемпотентность обязательна: finishIntro и skipIntro оба зовут, а
-  // повторный sendMessage у части площадок отдаёт rejected-промис.
+  // повторный sendMessage у части площадок отдаёт rejected-промис
+  // (в бандле: второй GAME_READY уходит в `Promise.reject()`).
   function sendGameReady(){
     if (gameReadySent || !sdkReady) return;
     gameReadySent = true;
@@ -6129,6 +6194,9 @@ const Ads = (function(){
       const br = window.bridge;
       const p = br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY);
       if (p && p.catch) p.catch(()=>{}); // промис — синхронный try его не поймает
+      // Узел занавеса удаляется СИНХРОННО внутри sendMessage — к этой строке
+      // его уже нет, поэтому ждать нечего.
+      curtainDone('снят game_ready');
     } catch(e){}
   }
   // Сообщения жизненного цикла уровня. У POKI и CRAZY_GAMES адаптеры Bridge
@@ -6214,7 +6282,15 @@ const Ads = (function(){
 
   function init(){
     // file:// (офлайн-прототип, headless-тесты) — SDK не грузим, живём на заглушке
-    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+      curtainDone('нет sdk (file://)');   // занавеса быть не может — не заставляем ждать
+      return;
+    }
+    // ЖЁСТКИЙ ПРЕДЕЛ на весь путь: что бы ни случилось со SDK (не загрузился,
+    // повис, площадка без лоадера), обещание разрешится и игра не встанет.
+    // Предел не «сдаётся молча»: перед тем как отпустить игру, он делает
+    // последнюю попытку СНЯТЬ занавес тем же публичным рычагом.
+    setTimeout(()=>liftCurtain('снят по пределу ожидания'), CURTAIN_MAX_MS);
     const s = document.createElement('script');
     s.src = 'playgama-bridge.js';
     s.onload = ()=>{
@@ -6307,9 +6383,15 @@ const Ads = (function(){
           }
         });
         mode = 'bridge';
-      }).catch(()=>{ /* остаёмся на заглушке */ });
+      }).catch(()=>{ /* остаёмся на заглушке */
+        // initialize упал: GAME_READY отправить нечем, но у SDK сработает свой
+        // `.finally` (прогресс 100 -> снятие через 1400 мс) — ждём ровно его
+        setTimeout(()=>curtainDone('снят самим sdk после сбоя init'), CURTAIN_SELF_MS);
+      });
     };
-    s.onerror = ()=>{ /* файла нет — остаёмся на заглушке */ };
+    s.onerror = ()=>{ /* файла нет — остаёмся на заглушке */
+      curtainDone('sdk не загрузился');   // занавес рисовать некому
+    };
     document.head.appendChild(s);
   }
 
@@ -6472,7 +6554,21 @@ const Ads = (function(){
     get lang(){ return bridgeLang; }, // язык игрока с площадки (под будущий словарь)
     // Первый ИГРАБЕЛЬНЫЙ кадр (зовут finishIntro/skipIntro). Идемпотентно и
     // терпит вызов до готовности SDK — тогда досылается из init.
-    gameReady(){ gameReadyWanted = true; sendGameReady(); },
+    gameReady(){
+      gameReadyWanted = true; sendGameReady();
+      // не смогли отправить (initialize ещё/уже не резолвится) — взводим
+      // страховку: игра-то готова, значит занавес поверх неё врёт
+      if (!gameReadySent) armCurtainFallback();
+    },
+    // «ЗАНАВЕС ПЛОЩАДКИ УБРАН, ИГРОКА МОЖНО ПОКАЗЫВАТЬ» — однократный промис
+    // с ГАРАНТИЕЙ срабатывания. Резолвится: сразу, если занавеса быть не может
+    // (file://, SDK не загрузился, initialize упал); при отправке GAME_READY
+    // (SDK снимает узел синхронно); либо страховкой через публичный
+    // setGameLoadingProgress. Никогда не висит: жёсткий предел в init.
+    // ⚠️ Дефолт — РЕЗОЛВИТЬ. Ошибиться в сторону «показать игру» безопасно,
+    // в сторону «ждать вечно» — нет.
+    get curtainGone(){ return curtainGone; },
+    get curtainWhy(){ return curtainWhy; },   // отладка: чем именно разрешилось
     // Жизненный цикл уровня для площадки: LEVEL_STARTED/COMPLETED/PAUSED/
     // RESUMED. LEVEL_FAILED не шлём — поражения в игре нет (тупик = помол).
     msg: sendMsg,
@@ -9055,7 +9151,22 @@ function startIntro(){
   // <html> снят на время интро, повешен в finishIntro — их CSS разворачивает
   // витрину по нему. Сигнал именно КОНЦА облёта, а не построения панели.
   document.documentElement.classList.remove('introdone');
-  intro = { phase:'drop', t: 0, shakes: 0 };
+  // ⚠️ ФАЗА 'wait' — ЖДЁМ, ПОКА ПЛОЩАДКА УБЕРЁТ СВОЙ ЗАНАВЕС (жалоба владельца
+  // 2026-07-30: «пропала анимация заполнения корзины, сразу попадаю на её
+  // разворот»). Замер диспетчера показал, почему: сплэш площадки непрозрачный
+  // и висит 1778→3947 мс, а предметы сыплются 1706→3200 — ВСЯ анимация играла
+  // в закрытый занавес, игрок видел только хвост облёта.
+  // Пока фаза 'wait': физика НЕ шагает (предметы стоят над чашей, их никто не
+  // видит — занавес сверху), камера на стартовом виде сбоку. Как занавес ушёл —
+  // переходим в 'drop' и куча сыплется НА ГЛАЗАХ.
+  // ⚠️ ПОЧЕМУ НЕ ПЕРЕНЕСЛИ genLevel ЗА ЗАНАВЕС: loop и весь HUD читают level,
+  // а до genLevel его нет — пришлось бы гейтить десяток мест. Заморозка на
+  // один-два кадра дешевле и локальнее.
+  // ⚠️ ПОЧЕМУ ЭТО НЕ ВОЗВРАЩАЕТ РЕГРЕССИЮ «предметы висят в воздухе»: та была
+  // ФОРС-СНОМ по чистым часам ПОСРЕДИ падения столба, на глазах игрока и на
+  // неопределённое время. Здесь пауза до ПЕРВОГО шага физики, под занавесом,
+  // и снимается гарантированно (Ads.curtainGone всегда резолвится, предел 12 с).
+  intro = { phase:'wait', t: 0, shakes: 0, readySent: false };
   resetPointers();
   setFallCap(11); // мягче терминальная скорость на время досыпки
   camAz = 0.35; camPhi = 1.25; camR = 17.8;
@@ -9140,6 +9251,27 @@ function finalizeFill(){
 }
 function tickIntro(dt){
   intro.t += dt;
+  if (intro.phase === 'wait'){
+    // Ждём ВТОРОГО тика: к нему первый кадр с пустой чашей уже ушёл на экран,
+    // и «игра готова» — не ложь. Слать раньше нельзя ровно по той причине,
+    // которая записана в 78-ads: площадка сняла бы лоадер над пустотой.
+    if (!intro.readySent && intro.t > 0){
+      intro.readySent = true;
+      // ЭТО И ЕСТЬ «ТРЕТЬЯ ТОЧКА»: уровень сгенерирован, чаша нарисована,
+      // предметы ещё не тронулись. GAME_READY здесь СНИМАЕТ занавес площадки
+      // (в SDK узел удаляется синхронно внутри вызова — разбор ИНТЕГРАЦИИ),
+      // то есть момент снятия мы не угадываем, а НАЗНАЧАЕМ.
+      try { Ads.gameReady(); } catch(_){}
+      // Разрешается всегда: сразу на file:// и без SDK, по game_ready,
+      // страховкой, жёстким пределом. Ждать вечно эта ветка не может.
+      try {
+        Ads.curtainGone.then(()=>{
+          if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; }
+        });
+      } catch(_){ intro.phase = 'drop'; intro.t = 0; }
+    }
+    return;
+  }
   if (intro.phase === 'drop'){
     // К ОБЛЁТУ ПОРАНЬШЕ (спека владельца: «ускорь переход»): не ждём
     // почти-штиля — куча доседает уже во время облёта (утряска в орбите
@@ -9315,7 +9447,8 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
-  if (physAwake){
+  // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
+  if (physAwake && !(intro && intro.phase === 'wait')){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
     // владельца), камера при этом идёт по реальному времени — облёт прежний
     stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
