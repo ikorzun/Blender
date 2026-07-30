@@ -364,6 +364,28 @@ function fitStat(id){
   svg.style.width = (u * k) + 'px';
 }
 let tmStrLast = '';
+let chargeInT = 0, chargeRAF = 0;
+// ⚠️⚠️ РАСТВОРЕНИЕ ЗАРЯДА ВЕДЁТ ПОКАДРОВЫЙ ТИК, А НЕ updateHUD. Постановка
+// описывала «лестничную opacity из updateHUD (тик 600 мс)» — ТИКА НЕТ:
+// `updateHUD` зовётся ПО СОБЫТИЯМ (матч, конец серии/цепи, встряска, реген,
+// сам грант), а таймер миксера обновляет отдельный блок в loop. Замер на main:
+// пока игрок не трогает игру, прозрачность пишется ОДИН раз при выпадении и
+// не меняется — растворения не было вовсе, кнопка просто исчезала через 7 с.
+// Поэтому здесь свой rAF: читает ЖИВОЙ `chargeState().leftMs` (единственный
+// источник времени — ядро; пауза TTL не двигает, `chargeUntil` — чистая метка),
+// пишет opacity каждый кадр и САМ ОСТАНАВЛИВАЕТСЯ, когда заряда нет.
+// ⚠️ Писатель opacity ОДИН. Прежняя пара «шаг из updateHUD + переход в CSS»
+// разъезжалась бы: на паузе меню кадры идут, а событий нет.
+function chargeFadeStart(){ if (!chargeRAF) chargeRAF = requestAnimationFrame(chargeFadeTick); }
+function chargeFadeTick(){
+  chargeRAF = 0;
+  const cb = $('chargeBtn');
+  if (!cb || cb.style.display === 'none') return;
+  const cs = (typeof chargeState === 'function') ? chargeState() : null;
+  if (!cs || !cs.name) return;                    // заряд ушёл — тик умирает сам
+  cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
+  chargeRAF = requestAnimationFrame(chargeFadeTick);
+}
 function updateHUD(){
   // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
   // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
@@ -374,14 +396,30 @@ function updateHUD(){
       const cs = chargeState();
       if (cs.name && level && !level.over && !intro){
         cb.style.display = '';
-        cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
         if (cb.dataset.oc !== cs.name){
-          cb.dataset.oc = cs.name;
+          cb.dataset.oc = cs.name; cb.dataset.img = '';   // портрет ещё не подтверждён
+          cb.style.opacity = '1';
+          // ВХОД: короткий поп — заряд выпадает на зажигании Power chain, момент
+          // яркий. Поп на TRANSFORM, растворение на OPACITY — свойства разные,
+          // поэтому не спорят. Класс снимаем таймером, иначе остаточная
+          // анимация подавляла бы `.iconBtn:active`.
+          cb.classList.remove('in'); void cb.offsetWidth; cb.classList.add('in');
+          if (chargeInT) clearTimeout(chargeInT);
+          chargeInT = setTimeout(() => { cb.classList.remove('in'); chargeInT = 0; }, 420);
+        }
+        chargeFadeStart();
+        // ⚠️ ПОРТРЕТ ДОБИРАЕМ, ПОКА НЕ ПРИДЁТ, а не один раз на смене имени:
+        // тип заряда СЛУЧАЙНЫЙ, и его пачка вполне может быть холодной —
+        // тогда `itemThumb` по правилу v183 честно отдаёт пусто, и разовая
+        // попытка оставила бы слот с ЧУЖОЙ картинкой прошлого заряда (хуже
+        // пустоты: кнопка обещала бы не тот предмет). До прихода снимаем src.
+        if (cb.dataset.img !== cs.name){
           const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
           const url = it ? itemThumb(it) : '';
-          if (url) $('chargeImg').src = url;
+          if (url){ $('chargeImg').src = url; cb.dataset.img = cs.name; }
+          else $('chargeImg').removeAttribute('src');
         }
-      } else { cb.style.display = 'none'; cb.dataset.oc = ''; }
+      } else { cb.style.display = 'none'; cb.dataset.oc = ''; cb.dataset.img = ''; }
     }
   } catch(e){}
   document.documentElement.classList.toggle('night', isNightSky());
