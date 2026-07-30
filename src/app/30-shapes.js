@@ -32,6 +32,14 @@ function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индекс�
 // охватывающей сферой): коллайдер = rc * s * MESH_SCALE, чтобы предметы
 // визуально касались пола и друг друга, а не висели на невидимых сферах.
 // Палитра — дружелюбная пастель (тёмно-зелёный и коричневый исключены);
+// ⚠️ УДАЛЕНЫ ПО ПРЯМОЙ СПЕКЕ ВЛАДЕЛЬЦА 2026-07-30: `holidaycandycanered`
+// (леденец — «убери полностью», по скрину читался толстой полосатой трубой)
+// и `steak` («убери стейк совсем»). ⚠️ ПРО СТЕЙК: это ОТМЕНА его же спеки
+// того же дня — тем утром модель уводили НА ИНДЕКС 9 с формулировкой «НЕ
+// уводить в хвост, модель владельца обязана быть в игре», и на этом стоял
+// ассерт сьюта. Владелец передумал; ассерт снят вместе с типом. Данные
+// модели (35-steak.js) тоже удалены — «совсем». Вернуть = восстановить файл
+// из истории git + строку TYPES.
 // mat: soft (полированный цветной лак), chrome (зеркальный хром) —
 // эталон webgl_materials_envmaps_fasthdr (сферы №5 и №3).
 // ⚠️ ПОРЯДОК ЗНАЧИМ: прогрессия ОТКРЫВАЕТ первые typesCount типов (9 на 1-м
@@ -92,7 +100,6 @@ const TYPES = [
   { name:'carpolice',             color:0x3a6ee0, rc:1.4, tex:'car', mat:'soft', geo:()=>carpoliceGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
-  { name:'steak',  color:0xe23b2e, rc:0.85, wr:0.53, mat:'model', geo: steakGeo }, // ⚠️ МОДЕЛЬ ВЛАДЕЛЬЦА (35-steak) — ДЕРЖИМ БЛИЗКО К НАЧАЛУ по его спеке 2026-07-30: на индексе 92 она открывалась только с 85-го уровня, куда доходят единицы, то есть в игре её фактически не было. Индекс 9 = открывается со ВТОРОГО уровня. НЕ уводить в хвост. wr — плоский, для теста стены
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
@@ -103,7 +110,6 @@ const TYPES = [
 // они не открывались раньше ур.86 и владелец их не видел вовсе.
   // color красит НЕ модель (её красит атлас), а ТРУХУ при распаде — подобран по
   // доминирующему тону предмета. wr там, где конвертер отметил плоскую форму.
-  { name:'holidaycandycanered', color:0xe8574a, rc:1.0, wr:0.55, tex:'holiday', mat:'soft', geo:holidaycandycaneredGeo },
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
