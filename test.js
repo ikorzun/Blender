@@ -696,6 +696,50 @@ const path = require('path');
   expect(oneNumber.unbanked > 0 && Number(oneNumber.wallet) === oneNumber.live,
     'кошелёк меню включает незабанкованный счёт уровня (+' + oneNumber.unbanked + ', live ' + oneNumber.live + ')');
 
+  // ⚠️ ПОЛЗУНОК SOUND ХРАНИТ СОСТОЯНИЕ (жалоба владельца 2026-07-30 «не
+  // сохраняет состояние после выхода из паузы»). До правки состоянием был
+  // БУЛЕВ CFG.sound, и refreshMainSettings рисовал ползунок как
+  // `CFG.sound ? 100 : 0` — выставленные 40 при возврате в меню становились 100.
+  // ⚠️ ПЕРЕЗАГРУЗКУ здесь НЕ проверяем (reload посреди сьюта сбросил бы уровень
+  // и контекст следующих секций) — но проверяем ЗАПИСЬ в localStorage, на
+  // которой перезагрузка и держится; сам reload покрыт пробой в отчёте.
+  const soundState = await page.evaluate(async () => {
+    const g = window.__game;
+    const set = async v => { const s = document.getElementById('msSound');
+      s.value = v; s.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 60)); };
+    const cycle = async () => { window.hideMainScreen && window.hideMainScreen();
+      await new Promise(r => setTimeout(r, 120)); window.showMainScreen();
+      await new Promise(r => setTimeout(r, 200)); };
+    window.showMainScreen(); await new Promise(r => setTimeout(r, 200));
+    await set(40); await cycle();
+    const mid = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound,
+                  ls: localStorage.getItem('mixer_sound'),
+                  eng: (g.sound && g.sound.volume) ? g.sound.volume() : null };
+    await set(0); await cycle();
+    const off = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound,
+                  ls: localStorage.getItem('mixer_sound') };
+    // тумблер держателя состояний: выкл -> вкл обязан вернуть ПОСЛЕДНИЕ 40
+    await set(40);
+    const cb = document.getElementById('soundToggle');
+    cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 60));
+    cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 60));
+    const back = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound };
+    await set(100);                                  // вернуть громкость следующим секциям
+    window.hideMainScreen && window.hideMainScreen();
+    return { mid, off, back };
+  });
+  expect(soundState.mid.v === 40 && soundState.mid.cfg === true && soundState.mid.ls === '40',
+    'ЗВУК: 40 выжило выход-возврат в меню (' + JSON.stringify(soundState.mid) + ')');
+  expect(soundState.mid.eng === 0.4,
+    'ЗВУК: громкость дошла до движка (мастер-гейн ' + soundState.mid.eng + ')');
+  expect(soundState.off.v === 0 && soundState.off.cfg === false && soundState.off.ls === '0',
+    'ЗВУК: тишина выжила выход-возврат и записана в localStorage (' + JSON.stringify(soundState.off) + ')');
+  expect(soundState.back.v === 40 && soundState.back.cfg === true,
+    'ЗВУК: тумблер выкл→вкл вернул ПОСЛЕДНИЕ 40, а не 100 (' + JSON.stringify(soundState.back) + ')');
+
   // ⚠️ ПОРТРЕТЫ КОЛЛЕКЦИИ НЕ ПУСТЫЕ (жалоба владельца 2026-07-30 «где превью у
   // всех новых объектов?»). До правки на main 29 карточек из 122 показывали
   // ПУСТУЮ картинку: атлас новой пачки декодируется асинхронно, портрет

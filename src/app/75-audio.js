@@ -126,11 +126,22 @@ const Sound = (function(){
   // и получить затёртый выбор. Глушим master-гейном, а не флагом: уже
   // звучащие сэмплы обрываются тоже, иначе хвост звука лез бы поверх рекламы.
   let extMuted = false;
-  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5; }
+  // ГРОМКОСТЬ ИГРОКА 0..1 (ползунок Sound в настройках, 85-hud/applySoundVol).
+  // ⚠️ ДОБАВЛЕНО ИНТЕРФЕЙСОМ 2026-07-30 по жалобе владельца «ползунок Sound не
+  // сохраняет состояние»: до этого состоянием звука был ТОЛЬКО булев CFG.sound,
+  // и ползунок 0..100 физически не мог ничего сохранить — громкости в тракте
+  // не существовало. БАЗОВЫЙ УРОВЕНЬ МАСТЕРА 0.5 (запас на клиппинг) СОХРАНЁН:
+  // при playerVol=1 гейн ровно 0.5, как было до правки, бит-в-бит.
+  // ⚠️ ВНЕШНИЙ МЬЮТ СИЛЬНЕЕ: extMuted=true глушит в 0 при любой громкости —
+  // иначе игрок, двинувший ползунок под рекламой, завёл бы звук поверх ролика.
+  let playerVol = 1;
+  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5 * playerVol; }
   return {
     unlock,
     loaded(){ return Object.keys(buffers); }, // отладка: какие сэмплы декодированы
     setMuted(on){ extMuted = !!on; ensure(); applyGain(); return extMuted; },
+    setVolume(v){ playerVol = Math.max(0, Math.min(1, +v || 0)); applyGain(); return playerVol; },
+    volume(){ return playerVol; },
     isMuted(){ return extMuted; },
     play(name, arg){
       if (!CFG.sound || extMuted) return;

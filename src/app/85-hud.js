@@ -1043,6 +1043,41 @@ function buildMainCollection(){
 // --fill (в %) двигает зелёную заливку у WebKit-ползунка (см. shell.html);
 // Firefox рисует её сам через ::-moz-range-progress, но лишним не будет
 function msFill(el){ if (el) el.style.setProperty('--fill', el.value + '%'); }
+// ===== ГРОМКОСТЬ ЗВУКА 0..1, хранится в mixer_sound =====
+// ⚠️⚠️ ЖАЛОБА ВЛАДЕЛЬЦА 2026-07-30: «ползунок Sound не сохраняет состояние
+// после выхода из паузы». ДИАГНОЗ: состоянием звука был БУЛЕВ `CFG.sound`, а
+// в блоке настроек стоит ПОЛЗУНОК 0..100. `refreshMainSettings` рисовал его
+// как `CFG.sound ? 100 : 0` — любое промежуточное значение (40) при повторном
+// открытии меню превращалось в 100. Плюс персиста не было ВОВСЕ: у музыки есть
+// `mixer_music`, у звука не было ничего, поэтому и тишина не выживала
+// перезагрузку (замер: выставил 0 → reload → снова 100 и звук включён).
+// ⚠️ ЛЕЧЕНИЕ СИММЕТРИЧНО МУЗЫКЕ: своя громкость 0..1 + localStorage + единая
+// точка применения. `CFG.sound` ОСТАЁТСЯ (на него смотрят `Sound.play` и
+// `vibrate`) и вычисляется как `soundVol > 0` — старый смысл «вкл/выкл» цел,
+// а чекбокс `#soundToggle` в держателе состояний паузы синхронизируется тут же.
+// ⚠️ ВНЕШНИЙ МЬЮТ (`Sound.setMuted` из 78-ads на время ролика) НЕ ТРОГАЕМ —
+// у него свой флаг и он СИЛЬНЕЕ ползунка, как и у музыки (musicSuspend).
+// ⚠️ ДВЕ ПЕРЕМЕННЫЕ, А НЕ ОДНА: `soundVolPrev` — ПОСЛЕДНЯЯ НЕНУЛЕВАЯ громкость.
+// Без неё тумблер «выкл → вкл» возвращал 100 вместо выбранных игроком 40:
+// выключение обнуляет `soundVol`, и «последнее ненулевое» брать уже негде
+// (поймано собственным замером ПОСЛЕ первой версии этой правки).
+let soundVol = 1, soundVolPrev = 1;
+try { const _sv = localStorage.getItem('mixer_sound');
+  if (_sv !== null) soundVol = Math.max(0, Math.min(1, (parseInt(_sv, 10) || 0) / 100)); } catch(e){}
+if (soundVol > 0) soundVolPrev = soundVol;
+function applySoundVol(v01){
+  soundVol = Math.max(0, Math.min(1, v01));
+  if (soundVol > 0) soundVolPrev = soundVol;
+  try { localStorage.setItem('mixer_sound', String(Math.round(soundVol * 100))); } catch(e){}
+  CFG.sound = soundVol > 0;
+  const cb = $('soundToggle'); if (cb) cb.checked = CFG.sound;   // держатель состояний паузы
+  // ⚠️ ПОЛЗУНОК ТОЖЕ ЗДЕСЬ: иначе тумблер паузы менял громкость, а ползунок
+  // продолжал показывать старое число — два элемента об одном состоянии
+  // расходились (замер: тумблер выкл → ползунок всё ещё 35 при тишине).
+  const snd = $('msSound'); if (snd){ snd.value = Math.round(soundVol * 100); msFill(snd); }
+  try { Sound.setVolume(soundVol); } catch(e){}                  // мастер-гейн WebAudio
+}
+applySoundVol(soundVol);   // боевое восстановление на старте (как CFG.hard из mixer_hard)
 // ===== ФОНОВАЯ МУЗЫКА (спека владельца 2026-07-24): регулятор + трек =====
 // Потоковый HTML5 <audio id="bgm"> (трек ~4.2 МБ грузится ЛЕНИВО, не в старте;
 // WebAudio-движок SFX (Sound) НЕ трогаем — музыка отдельный тракт). Ползунок
@@ -1076,7 +1111,9 @@ function musicSuspend(on){
   else if (musicVol > 0 && bgm.paused) bgm.play().catch(()=>{});
 }
 function refreshMainSettings(){
-  const snd = $('msSound'); if (snd){ snd.value = CFG.sound ? 100 : 0; msFill(snd); }
+  // ⚠️ ИЗ `soundVol`, А НЕ ИЗ `CFG.sound ? 100 : 0` — именно та строка теряла
+  // промежуточное положение ползунка (жалоба владельца, см. applySoundVol).
+  const snd = $('msSound'); if (snd){ snd.value = Math.round(soundVol * 100); msFill(snd); }
   const mus = $('msMusic'); if (mus){ mus.value = Math.round(musicVol * 100); msFill(mus); }
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))

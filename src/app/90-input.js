@@ -208,9 +208,12 @@ function applyHard(v){
   $('hardToggle').checked = CFG.hard;
   if (typeof refreshMainSettings === 'function') refreshMainSettings();
 }
+// ⚠️ ТОНКАЯ ОБЁРТКА над applySoundVol (85-hud) — держателю состояний паузы
+// (#soundToggle) нужен именно ВКЛ/ВЫКЛ. Включение возвращает ПОСЛЕДНЮЮ
+// ненулевую громкость (а не всегда 100): игрок, поставивший 40 и щёлкнувший
+// тумблером, должен получить свои 40, иначе тумблер тихо стирает его выбор.
 function applySound(on){
-  CFG.sound = !!on;
-  $('soundToggle').checked = CFG.sound;
+  applySoundVol(on ? soundVolPrev : 0);
 }
 // ВЕСЬ Play-блок кликабелен → возврат в игру (спека владельца «всякая область
 // тапабельна»): хендлер на КАРТОЧКУ .ms-play, а не на кнопку — клик по кнопке
@@ -224,8 +227,9 @@ function menuPlayResume(){
 document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
 // отладочная панель — из меню (раньше вход был в карточке паузы)
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
-// Sound-слайдер = вкл/выкл по порогу (гранулярной громкости в движке нет — флаг)
-$('msSound').addEventListener('input', e => { applySound(parseInt(e.target.value, 10) > 0); msFill(e.target); });
+// Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
+// порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).
+$('msSound').addEventListener('input', e => { applySoundVol(parseInt(e.target.value, 10) / 100); msFill(e.target); });
 // Music-ползунок = ГРОМКОСТЬ фонового трека (0..1); applyMusic сам заводит/глушит
 $('msMusic').addEventListener('input', e => { applyMusic(parseInt(e.target.value, 10) / 100); msFill(e.target); });
 // ПЕРВЫЙ ЖЕСТ страницы разблокирует автоплей (audio.play() до жеста браузер
