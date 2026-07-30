@@ -1194,6 +1194,7 @@ window.bridge = {
   storage: { get(k){ window.__probe.storageGet++; return Promise.resolve(null); },
              set(k,v){ window.__probe.storageSet++; return Promise.resolve(); } },
   initialize(){ window.__probe.initialized = true; return Promise.resolve(); },
+  setGameLoadingProgress(v){ window.__probe.progress = v; },
 };
 `;
   const srv = http.createServer((req, res) => {
@@ -1221,6 +1222,13 @@ window.bridge = {
   const readyBeforeIntro = await bpage.evaluate(() => window.__probe.gameReady);
   await bpage.evaluate(() => window.__game.skipIntro());
   await bpage.waitForTimeout(300);
+  // ЗАНАВЕС: обещание обязано разрешиться, и именно НАШИМ game_ready — на этом
+  // пути SDK удаляет свой узел синхронно, поэтому момент назначаем мы.
+  const curtainSdk = await bpage.evaluate(async () => {
+    const why = await Promise.race([ window.__ads.curtainGone,
+      new Promise(r => setTimeout(()=>r('НЕ РАЗРЕШИЛОСЬ'), 3000)) ]);
+    return why;
+  });
   const bp = await bpage.evaluate(() => ({ ...window.__probe, mode: window.__game.adsMode() }));
   await bpage.close();
   await new Promise(r => srv.close(r));
@@ -1230,7 +1238,52 @@ window.bridge = {
   expect(bp.storageGet >= 1, 'bridge: облако ЧИТАЕТСЯ и без rewarded (storage.get ' + bp.storageGet + ')');
   expect(bp.storageSet >= 1, 'bridge: облако пишется (storage.set ' + bp.storageSet + ') — симметрия чтения/записи');
   expect(bp.mode === 'stub', 'bridge: без rewarded режим остаётся stub (' + bp.mode + ')');
+  expect(curtainSdk === 'снят game_ready', 'занавес: снят НАШИМ game_ready (' + curtainSdk + ')');
   if (bErrors.length) failures.push('bridge-проба: ' + bErrors.join(' | '));
+
+  // === ЗАНАВЕС: SDK ПОВИС (найдено замером, хуже исходной жалобы) ===
+  // Если `initialize()` не резолвится, то и sdkReady не встаёт: GAME_READY
+  // отправить нечем, а собственный `.finally` лоадера не наступает — на живом
+  // стенде занавес висел 20 с, игра под ним невидима. Страховка обязана
+  // сработать ЧЕРЕЗ ПУБЛИЧНЫЙ setGameLoadingProgress(100).
+  // ⚠️ Различаем 'снят страховкой' и 'предел ожидания': второе значит, что
+  // страховка НЕ отработала и спас только жёсткий предел — обещание-то
+  // разрешилось, но занавес остался бы висеть. Ассерт на первое.
+  const MOCK_HANG = `
+window.__probe = { progress:null };
+window.bridge = {
+  PLATFORM_MESSAGE: { GAME_READY: 'game_ready' },
+  EVENT_NAME: {}, REWARDED_STATE: {},
+  platform: { id:'mocktest', language:'en', sendMessage(){} },
+  advertisement: { isRewardedSupported:false, isInterstitialSupported:false, on(){}, showRewarded(){}, showInterstitial(){} },
+  storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
+  setGameLoadingProgress(v){ window.__probe.progress = v; },
+  initialize(){ return new Promise(()=>{}); },   // НИКОГДА не резолвится
+};
+`;
+  const srvH = http.createServer((req, res) => {
+    const u = req.url.split('?')[0];
+    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_HANG); }
+    if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(r => srvH.listen(0, '127.0.0.1', r));
+  const hpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  await hpage.goto('http://127.0.0.1:' + srvH.address().port + '/index.html');
+  await hpage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  await hpage.evaluate(() => window.__game.skipIntro());   // игра готова -> Ads.gameReady()
+  const hang = await hpage.evaluate(async () => {
+    const why = await Promise.race([ window.__ads.curtainGone,
+      new Promise(r => setTimeout(()=>r('НЕ РАЗРЕШИЛОСЬ'), 6000)) ]);
+    return { why, progress: window.__probe.progress };
+  });
+  await hpage.close(); await new Promise(r => srvH.close(r));
+  expect(hang.why === 'снят страховкой',
+    'занавес: повисший SDK не оставил занавес навсегда — сработала страховка (' + hang.why + ')');
+  expect(hang.progress === 100,
+    'занавес: страховка сняла его ПУБЛИЧНЫМ setGameLoadingProgress(100) (прогресс ' + hang.progress + ')');
+
 
   // ВУАЛЬ НЕДОСТУПНЫХ В HARD (спека владельца 2026-07-23): обесцвечивание
   // идёт ЧЕРЕЗ ШЕЙДЕР — у текстурных моделей material.color белый, и старый
