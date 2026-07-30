@@ -165,6 +165,41 @@ const TYPES = [
   { name:'foodicecreamscoopmint', color:0x2b9571, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamscoopmintGeo },
   { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', geo:fooddonutsprinklesGeo },
   { name:'steak',  color:0xe23b2e, rc:0.85, wr:0.53, mat:'model', geo: steakGeo }, // модель владельца (35-steak); wr — плоский, для теста стены
+
+  // ===== ПАРТИЯ KENNEY 2026-07-30: 28 предметов из 7 китов (модуль 38-kenney.js,
+  // отдельный от 36-models — см. WORKSTREAMS, там же почему 36-models НЕ перегенерён).
+  // ⚠️ ДОПИСАНЫ В ХВОСТ НАМЕРЕННО: типы открываются ПО ПОРЯДКУ массива, поэтому
+  // хвост не двигает ранние уровни — отобранная кривая 1..84 остаётся какой была.
+  // color красит НЕ модель (её красит атлас), а ТРУХУ при распаде — подобран по
+  // доминирующему тону предмета. wr там, где конвертер отметил плоскую форму.
+  { name:'holidaycandycanered', color:0xe8574a, rc:1.0, wr:0.55, tex:'holiday', mat:'soft', geo:holidaycandycaneredGeo },
+  { name:'holidaygingerbreadman', color:0xc08a50, rc:1.0, wr:0.83, tex:'holiday', mat:'soft', geo:holidaygingerbreadmanGeo },
+  { name:'holidayhanukkahdreidel', color:0x5b8fd0, rc:1.0, tex:'holiday', mat:'soft', geo:holidayhanukkahdreidelGeo },
+  { name:'holidaynutcracker', color:0xd6483f, rc:1.0, wr:0.49, tex:'holiday', mat:'soft', geo:holidaynutcrackerGeo },
+  { name:'holidaypresentacube', color:0xe0574f, rc:1.0, tex:'holiday', mat:'soft', geo:holidaypresentacubeGeo },
+  { name:'holidaypresentaround', color:0x6fb8e0, rc:1.0, tex:'holiday', mat:'soft', geo:holidaypresentaroundGeo },
+  { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
+  { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
+  { name:'survivalbarrel', color:0x9a6b45, rc:1.0, tex:'survival', mat:'soft', geo:survivalbarrelGeo },
+  { name:'survivalbottle', color:0x7fb8a8, rc:1.0, wr:0.38, tex:'survival', mat:'soft', geo:survivalbottleGeo },
+  { name:'survivalbucket', color:0x8d949e, rc:1.0, tex:'survival', mat:'soft', geo:survivalbucketGeo },
+  { name:'survivalchest', color:0xa77b4a, rc:1.0, tex:'survival', mat:'soft', geo:survivalchestGeo },
+  { name:'survivaltoolaxe', color:0x8d949e, rc:1.0, wr:0.43, tex:'survival', mat:'soft', geo:survivaltoolaxeGeo },
+  { name:'survivaltoolhammer', color:0x8d949e, rc:1.0, wr:0.57, tex:'survival', mat:'soft', geo:survivaltoolhammerGeo },
+  { name:'survivaltoolpickaxe', color:0x8d949e, rc:1.0, wr:0.67, tex:'survival', mat:'soft', geo:survivaltoolpickaxeGeo },
+  { name:'toycaritemcoingold', color:0xf2c14a, rc:1.0, tex:'toycar', mat:'soft', geo:toycaritemcoingoldGeo },
+  { name:'toycaritemcone', color:0xff9944, rc:1.0, tex:'toycar', mat:'soft', geo:toycaritemconeGeo },
+  { name:'toycarvehiclemonstertruck', color:0x6f7ad0, rc:1.0, tex:'toycar', mat:'soft', geo:toycarvehiclemonstertruckGeo },
+  { name:'toycarvehiclespeedster', color:0xe8574a, rc:1.0, tex:'toycar', mat:'soft', geo:toycarvehiclespeedsterGeo },
+  { name:'toycarvehiclevintageracer', color:0x4aa3c9, rc:1.0, tex:'toycar', mat:'soft', geo:toycarvehiclevintageracerGeo },
+  { name:'factoryboxsmall', color:0xc9a06a, rc:1.0, tex:'factory', mat:'soft', geo:factoryboxsmallGeo },
+  { name:'factorycoga', color:0x8d949e, rc:1.0, wr:0.96, tex:'factory', mat:'soft', geo:factorycogaGeo },
+  { name:'factorycogc', color:0x8d949e, rc:1.0, wr:0.94, tex:'factory', mat:'soft', geo:factorycogcGeo },
+  { name:'factorypistonround', color:0xadb5d9, rc:1.0, tex:'factory', mat:'soft', geo:factorypistonroundGeo },
+  { name:'marketcashregister', color:0x9aa4b0, rc:1.0, tex:'market', mat:'soft', geo:marketcashregisterGeo },
+  { name:'marketshoppingbasket', color:0xe05a5a, rc:1.0, tex:'market', mat:'soft', geo:marketshoppingbasketGeo },
+  { name:'arcadeclawmachine', color:0x6f7ad0, rc:1.0, tex:'arcade', mat:'soft', geo:arcadeclawmachineGeo },
+  { name:'forestplant', color:0x5fb562, rc:1.0, tex:'forest', mat:'soft', geo:forestplantGeo },
 ];
 
 // Сочная карамель: HSL нормализуется в sRGB (s=0.75) и конвертится в linear.
