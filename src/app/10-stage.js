@@ -691,3 +691,27 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
   scene.add(sky);
   skyMat = skyM;
 })();
+
+// ЖИВАЯ ПОДМЕНА ПАЛИТРЫ НЕБА — для подбора цветов владельцем без пересборки
+// (тот же смысл, что у veilTune: тон — вкусовое решение, и владелец к нему
+// возвращается; контактный лист вариантов снимается ОДНИМ прогоном).
+// ⚠️ Старая рампа ДИСПОЗИТСЯ: иначе контактный лист из десятка вариантов
+// оставил бы за собой десяток текстур в GPU.
+// ⚠️ CSS-переменные обновляются здесь же — иначе полоса Safari осталась бы
+// от прежней палитры, а её цвет и есть половина вопроса при подборе низа.
+// Тон хрома (html/body) берётся из ВЕРХНЕГО стопа один раз при загрузке и
+// живой подменой не двигается: верх ночи спека не трогает.
+function setSkyStops(list){
+  if (!skyMat || !Array.isArray(list) || list.length < 2) return null;
+  const rgb = list.map(hexRGB);
+  const old = skyMat.uniforms.uRamp.value;
+  skyMat.uniforms.uRamp.value = buildSkyRamp(rgb);
+  if (old && old.dispose) old.dispose();
+  try {
+    const d = document.documentElement.style;
+    d.setProperty('--sky-grad', 'linear-gradient(180deg,' + list.join(',') + ')');
+    d.setProperty('--sky-top-rgb', rgbTriple(rgb[0]));
+    d.setProperty('--sky-bot-rgb', rgbTriple(rgb[rgb.length - 1]));
+  } catch(e){}
+  return list.slice();
+}
