@@ -261,6 +261,26 @@ function menuPlayResume(){
   if (fresh) genLevel();
 }
 document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
+// ПЛАВАЮЩАЯ КНОПКА ведёт туда же, что и карточка Play — одно действие, один
+// путь (иначе разошлись бы гварды паузы и старта новой партии).
+$('msFloatResume').addEventListener('click', menuPlayResume);
+// ПРОКРУТКА МЕНЮ: два состояния (спека владельца 2026-07-31).
+//  `.stuck`   — шапка уже уехала под свой `top`, показываем её видом ноды 815:1506;
+//  `.playoff` — карточка Play ушла ЗА ВЕРХ экрана, снизу всплывает кнопка 815:1521.
+// ⚠️ ДВА РАЗНЫХ ПОРОГА, а не один: шапка обязана меняться сразу при прокрутке,
+// а кнопка — только когда настоящая кнопка Play не видна; связать их одним
+// порогом значило бы показывать дубль поверх видимого оригинала.
+// ⚠️ Слушатель passive — иначе браузер ждёт обработчик перед прокруткой и на
+// телефоне скролл начинает подтормаживать.
+(function(){
+  const ms = $('mainScreen'), play = document.querySelector('.ms-play');
+  if (!ms || !play) return;
+  ms.addEventListener('scroll', () => {
+    ms.classList.toggle('stuck', ms.scrollTop > 4);
+    // порог по НИЖНЕЙ кромке карточки: пока видна хоть полоска — дубля нет
+    ms.classList.toggle('playoff', play.getBoundingClientRect().bottom < 8);
+  }, { passive: true });
+})();
 // отладочная панель — из меню (раньше вход был в карточке паузы)
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по

@@ -727,8 +727,12 @@
      макета — #d9f4ff (фон экрана), #d8bbff (Play), #c0ff47 (лайм-баннер),
      #3a4068 (текст карточек), #6e659d (аватар), #e7edf8 (трек сегмента). */
   #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto;
-    -webkit-overflow-scrolling:touch; background:#d9f4ff; color:#000;
-    font-family:var(--font-round); }
+    -webkit-overflow-scrolling:touch; background:var(--ms-bg); color:#000;
+    font-family:var(--font-round);
+    /* ⚠️ ФОН ЭКРАНА — ПЕРЕМЕННОЙ, а не литералом: его же красит полоса над
+       залипшей шапкой (см. `.ms-head::before`). Два литерала одного фона
+       разъехались бы на первой смене цвета, и над шапкой поехал бы контент. */
+    --ms-bg:#d9f4ff; }
   #mainScreen.open { display:block; }
   /* СТАКЕД-КОЛОНКА (<1080): тянется ДО 700px по ширине, поля 16px от краёв вью
      (спека владельца 2026-07-24 «заполнять пространство, а не центрировать
@@ -740,6 +744,9 @@
   /* хедер */
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
+  /* заголовок залипшей шапки — по умолчанию скрыт (см. мобильный блок ниже) */
+  .ms-head-title { display:none; font-size:20px; font-weight:900; color:#000;
+    white-space:nowrap; padding-left:4px; }
   /* слот профиля: аватар + имя (под будущий Google-профиль) */
   .ms-prof { display:flex; align-items:center; gap:10px; min-width:0; }
   .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
@@ -870,6 +877,66 @@
     .ms-coll-title { order:4; }
     .ms-coll { order:5; }
     .ms-dev { order:6; }
+    /* ⚠️⚠️ ЗАЛИПАЮЩАЯ ШАПКА (спека владельца 2026-07-31 «при прокрутке шапка
+       должна залипать сверху и выглядеть вот так», нода 815:1506).
+       Само залипание делает ОДНО свойство `position:sticky` — класса для него
+       не нужно; класс `.stuck` меняет только ВИД (нода показывает шапку уже
+       прокрученной: вместо аватара с именем — заголовок).
+       ⚠️ `top` с safe-area: под чёлкой iOS иначе прилипало бы под вырез.
+       ⚠️ Прокручивается `#mainScreen` (у него overflow-y:auto), а `.ms-wrap` —
+       обычная колонка; sticky работает от неё как от контейнера. */
+    .ms-head { position:sticky; top:calc(8px + env(safe-area-inset-top,0)); z-index:3; }
+    /* ЧИСЛА ЗАЛИПШЕГО СОСТОЯНИЯ — из ноды 815:1506: пилюля 48 высотой,
+       падинги 12/4/4, заголовок 20/900, ★ 16 и баланс 18/900. */
+    #mainScreen.stuck .ms-head { padding:4px 4px 4px 12px; min-height:48px;
+      /* ⚠️⚠️ В ЗАЛИПШЕМ СОСТОЯНИИ САМ УЗЕЛ — ПОДЛОЖКА ЦВЕТА ЭКРАНА, а белая
+         пилюля уезжает на `::before`. Причина замерена, а не придумана: у
+         пилюли радиус 1000, и уезжающий контент просвечивал СКВОЗЬ ВЫРЕЗЫ
+         СКРУГЛЁННЫХ УГЛОВ — на скрине из-за левого верхнего угла торчал кусок
+         карточки. Одним фоном это не лечится: фон у элемента один, и он же
+         обрезан радиусом. */
+      background:var(--ms-bg); border-radius:0; }
+    /* белая пилюля ноды 815:1506; z-index:-1 кладёт её ПОД содержимое шапки,
+       но НАД её собственным фоном — потому текст и кнопка остаются видны */
+    #mainScreen.stuck .ms-head::before { content:''; position:absolute; z-index:-1;
+      inset:0; background:#fff; border-radius:1000px; }
+    /* ⚠️ ПОЛОСА НАД ШАПКОЙ. Шапка липнет не к нулю, а к 8+safe-area (так в
+       макете), и в этот зазор тоже было видно уезжающий контент. Растянута на
+       поля `.ms-wrap` (16 слева/справа), поэтому закрывает всю ширину вью. */
+    #mainScreen.stuck .ms-head::after { content:''; position:absolute;
+      left:-16px; right:-16px; bottom:100%;
+      height:calc(8px + env(safe-area-inset-top,0)); background:var(--ms-bg); }
+    #mainScreen.stuck .ms-prof { display:none; }
+    #mainScreen.stuck .ms-head-title { display:block; }
+    #mainScreen.stuck .ms-stars span { font-size:18px; }
+    #mainScreen.stuck .ms-stars svg { width:16px; height:16px; }
+    /* высота кнопки ровно 40 — иначе пилюля 48 при падингах 4 не сходится */
+    #mainScreen.stuck .ms-getmore { height:40px; padding:0 16px; }
+    /* ⚠️ «Get More» ЛАЙМОВАЯ С ЧЁРНЫМ ТЕКСТОМ — нода 815:1512. Была чёрная с
+       белым (из более старой ноды); действует правило «новая нода побеждает».
+       Ставим в ОБОИХ состояниях шапки: если красить только залипшую, кнопка
+       меняла бы цвет на прокрутке. Десктоп пока не трогаем — нода мобильная. */
+    .ms-getmore { background:#c0ff47; color:#000; }
+    /* ПЛАВАЮЩАЯ КНОПКА показывается, только когда карточка Play уехала вверх */
+    #mainScreen.playoff .ms-float { display:block; animation:msFloatIn .28s ease-out both; }
+  }
+  /* ПЛАВАЮЩАЯ КНОПКА — нода 815:1521: чёрная пилюля, радиус 1500, поля 24,
+     высота 60, подпись 24/900 белым. Поле снизу 8 (в макете 761−693−60=8).
+     ⚠️ Отступ считается ОТ safe-area: кнопка не должна залезать в полосу
+     Safari — иначе её чёрный отравит тинт полосы (рецепт канона про хром iOS). */
+  .ms-float { display:none; position:fixed; left:50%; z-index:4;
+    bottom:calc(8px + env(safe-area-inset-bottom,0)); transform:translateX(-50%);
+    height:60px; padding:0 24px; border:none; border-radius:1500px;
+    background:#000; color:#fff; font-family:var(--font-round);
+    font-weight:900; font-size:24px; line-height:1; cursor:pointer; }
+  /* ⚠️ В кадрах анимации transform ОБЯЗАН нести translateX(-50%): иначе
+     центрирование слетит на время анимации и кнопка прыгнет вправо. */
+  @keyframes msFloatIn {
+    from { opacity:0; transform:translateX(-50%) translateY(14px); }
+    to { opacity:1; transform:translateX(-50%) translateY(0); }
+  }
+  @media (prefers-reduced-motion:reduce){
+    #mainScreen.playoff .ms-float { animation:none; }
   }
   .ms-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }
   /* ⚠️ min-width:0 — грид-элемент по умолчанию min-width:auto (min-content):
@@ -1519,6 +1586,12 @@
     <div class="ms-collhead">
       <h2 class="ms-coll-title">My collection</h2>
       <header class="ms-head">
+      <!-- ЗАГОЛОВОК ДЛЯ ЗАЛИПШЕЙ ШАПКИ (нода 815:1506). Виден ТОЛЬКО когда
+           шапка залипла: в ноде на её месте стоит «My collection», а аватар с
+           именем не показаны. Отдельный узел, а не перенос `.ms-coll-title`:
+           тот живёт в потоке над сеткой и на десктопе стоит в ряду профиля —
+           таскать его скроллом значило бы дёргать раскладку. -->
+      <span class="ms-head-title">My collection</span>
       <!-- МЕСТО ПОД GOOGLE-ПРОФИЛЬ (решение владельца 2026-07-23: «нужна
            авторизация через гугл для сохранения прогресса»). Пока плейсхолдер
            аватар+имя; саму авторизацию исследует ИНТЕГРАЦИЯ (на портале Google
@@ -1581,6 +1654,13 @@
          карточки паузы, которую этот экран заменил -->
     <button id="msDev" class="ms-dev">Developer panel</button>
   </div>
+  <!-- ПЛАВАЮЩАЯ КНОПКА (нода 815:1521, спека владельца «снизу вью появляется
+       плавающая кнопка Resume»). Живёт ВНЕ `.ms-wrap` — иначе `position:fixed`
+       считался бы от прокручиваемой колонки, а не от вьюпорта. Показывается,
+       когда карточка Play уехала за верх экрана: пока она видна, настоящая
+       кнопка на месте и дубль был бы шумом. Подпись ведёт тот же писатель,
+       что и у `#msPlayBtn` (refreshMainScreen) — источник роли один. -->
+  <button class="ms-float" id="msFloatResume">Resume</button>
 </div>
 
 <div id="fatal" style="display:none; position:fixed; inset:0; z-index:99; background:#171c26; padding:40px 24px; font-size:14px; line-height:1.5; overflow:auto;"></div>
