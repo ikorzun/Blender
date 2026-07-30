@@ -2756,32 +2756,7 @@ window.bridge = {
     return { cleared: g.charge().name === '' };
   });
   expect(tap1.cleared, 'ЗАРЯД: сработал с ПЕРВОГО pointerdown по слоту');
-  // ДРОЖЬ КУРСОРА на «пара не сходится»: класс появляется и сам гаснет ~0.5 c
-  const shake = await page.evaluate(async () => {
-    const el = document.documentElement;
-    window.__game.cfg.baseRadius = -9; window.__game.forceRefresh();
-    // тап по доступному без пары повторяет ветку nopair — зовём её напрямую
-    // через реальный обработчик нельзя без клика по предмету; дёргаем хук
-    return null;
-  });
-  // честный путь: реальный тап по доступному предмету при радиусе -9 (нет пар)
-  await page.evaluate(() => { window.__game.cfg.baseRadius = -9; window.__game.forceRefresh(); });
-  const shakeTap = await page.evaluate(() => {
-    const t = window.__game.bestTapTarget();
-    return t && t.px != null ? { px: t.px, py: t.py } : null;
-  });
-  if (shakeTap){
-    await page.mouse.click(shakeTap.px, shakeTap.py);
-    const on = await page.evaluate(() =>
-      document.documentElement.classList.contains('cshake-a') ||
-      document.documentElement.classList.contains('cshake-b'));
-    await page.waitForTimeout(900);
-    const off = await page.evaluate(() =>
-      document.documentElement.classList.contains('cshake-a') ||
-      document.documentElement.classList.contains('cshake-b'));
-    expect(on && !off, 'ДРОЖЬ КУРСОРА: включилась на ошибке и погасла за ~0.5 c (' + on + '/' + off + ')');
-  } else console.log('дрожь: цель для тапа не нашлась — пропуск');
-  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.35; window.__game.forceRefresh(); });
+  // (страж дрожи курсора удалён вместе с фичей — отвергнута владельцем v202)
 
   // ===== КАСТОМНЫЕ КУРСОРЫ ДЕСКТОПА (спека владельца 2026-07-31) =====
   // headless chromium отдаёт pointer:fine — медиа-гейт открыт, курсоры видны

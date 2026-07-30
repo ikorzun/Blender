@@ -580,7 +580,6 @@ function handleTap(x, y){
   // радиус-лесенку, а раз это не ошибка — ничего сбрасывать не за что.
   // Обратная связь остаётся: красный ореол уже нарисован выше + дрожание.
   Telemetry.tap(x, y, 'nopair');   // отдельно от 'miss' — в карте промахов это другой случай
-  try { cursorShake(); } catch(e){} // «пара не сходится» — дрожь курсора 1 c (десктоп)
   wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){

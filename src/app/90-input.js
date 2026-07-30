@@ -103,24 +103,10 @@ function endPointer(e){
 }
 // сброс всех жестов (вызывается на границах интро: зажатый в интро палец
 // не должен превращаться в драг со старой базой камеры)
-// ДРОЖЬ КУРСОРА НА ОШИБКЕ (спека владельца 2026-07-31: «если игрок ошибся и
-// пара не сходится, чуть потряхивай курсор, буквально 1 секунду»). Сам
-// системный курсор двигать нельзя — дрожь делается быстрым чередованием двух
-// CSS-классов с ОДНОЙ картинкой, но смещёнными хотспотами (±2px): картинка
-// прыгает относительно точки указания. Только pointer:fine; на таче ничего.
-let cshakeTimer = 0;
-function cursorShake(){
-  if (!matchMedia('(pointer:fine)').matches) return;
-  const el = document.documentElement;
-  clearInterval(cshakeTimer);
-  let k = 0;
-  cshakeTimer = setInterval(()=>{
-    el.classList.toggle('cshake-a', k % 2 === 0);
-    el.classList.toggle('cshake-b', k % 2 === 1);
-    if (++k >= 8){ clearInterval(cshakeTimer); cshakeTimer = 0;
-      el.classList.remove('cshake-a', 'cshake-b'); }
-  }, 62); // 8 тиков × 62 мс ≈ 0.5 c (правка владельца тут же: «1 секунда — слишком долго»)
-}
+// ⛔ ДРОЖЬ КУРСОРА НА ОШИБКЕ — ЖИЛА 20 МИНУТ И ОТВЕРГНУТА ВЛАДЕЛЬЦЕМ живым
+// тестом 2026-07-31 («убери дрожь курсора»; до этого он же успел ужать её с
+// 1 c до 0.5 c — не помогло). Была: чередование двух хотспотов ±2px, классы
+// cshake-a/b. НЕ ВОЗВРАЩАТЬ без его слова; реализация — в истории v200.
 function resetPointers(){
   document.documentElement.classList.remove('grabbing');
   touches.clear();
