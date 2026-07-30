@@ -1205,7 +1205,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-185 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-186 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -9501,14 +9501,28 @@ $('loseAdContinue').addEventListener('click', ()=>{
 // Сама механика (scopeHighlight/detectorHighlight, PRICE_SCOPE, флаги
 // SCOPE_ENABLED/MAGNET_ENABLED) НЕ тронута — вернуть кнопки = вернуть эти
 // два обработчика и две строки разметки в bottomBar.
-// глаза миксера: интерактивный персонаж — подмигивает на тап
+// глаза миксера: ТАП = ПРОВОКАЦИЯ (спека владельца 2026-07-30 «клик или тап на
+// глаза сразу злит миксер и включает измельчение»; ОТМЕНЯЕТ «подмигивает»
+// 2026-07-19). Механика НЕ новая — тот же путь, что наказание за простой:
+// терпение объявляется исчерпанным (lastAction в прошлое), планировщик 99-main
+// начинает жевать нижние пары; глаза злеют САМИ — помол перебивает все
+// состояния (канон глаз). Первый укус НЕМЕДЛЕННО (nextGrind = now).
+// Останавливается как обычный помол: любой матч/встряска сбрасывают простой.
+// ⚠️ Звук 'match' УБРАН — он ВРАЛ «совместил» (AUDIO-PLAN §1 звал это прямой
+// ложью); свой звук даёт сам помол, отдельного не выдумываем.
+// ⚠️ Цена провокации = цена помола (−20/укус со 2-го уровня, ур.1 без штрафов
+// по общей таблице) — владелец просил именно «включает измельчение», смягчать
+// без его слова нельзя.
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
   el.classList.remove('bounce'); void el.offsetWidth;
   el.classList.add('bounce');
-  faceEvent('sly', 800); // подмигнул в ответ на тап
-  Sound.play('match', 1); vibrate(10);
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
+  vibrate(25);
+  if (intro || paused || !level || level.over) return; // вне партии — только подскок
+  stats.lastAction = performance.now() - (level.idleLimit + 0.5)*1000; // терпение исчерпано
+  level.nextGrind = performance.now();                                 // укус сразу
+  Telemetry.ev('poke', { lv: levelNum });
 });
 // ПАУЗА (макет ИНТЕРФЕЙСА: кнопка слева сверху вместо ⚙️, оверлей с
 // Continue/Restart/Settings). Под капотом — НАСТОЯЩАЯ заморозка pauseGame/

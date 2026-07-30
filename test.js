@@ -2553,6 +2553,33 @@ window.bridge = {
   expect(floorLive.length === 0,
     'ПОЛ: после встрясок и взрыва под полом никого (' + JSON.stringify(floorLive).slice(0, 160) + ')');
 
+  // ===== ТАП ПО ГЛАЗАМ = ПРОВОКАЦИЯ ПОМОЛА (спека владельца 2026-07-30) =====
+  // В конце файла: regen меняет контекст. Механика переиспользует наказание за
+  // простой, поэтому проверяем ОБА конца: укус случился И матч его ОСТАНОВИЛ.
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(300);
+  // ⚠️ ОВЕРЛЕИ ПЕРЕКРЫВАЮТ КЛИК (правило сьюта): предыдущая секция могла
+  // оставить экран победы — regen его не прячет, и click('#eyes') умирал
+  // TimeoutError «winOverlay intercepts pointer events» (первый прогон).
+  await page.evaluate(() => {
+    for (const id of ['winOverlay','loseOverlay','mainScreen'])
+      { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+  });
+  const pokeBefore = await page.evaluate(() => window.__game.alive());
+  await page.click('#eyes');
+  await page.waitForTimeout(1800); // первый укус немедленный, анимация помола ~0.6 с
+  const pokeAfter = await page.evaluate(() => window.__game.alive());
+  expect(pokeBefore - pokeAfter >= 2,
+    'ПРОВОКАЦИЯ: тап по глазам включил помол — съедена пара (' + pokeBefore + ' -> ' + pokeAfter + ')');
+  // матч останавливает: простой обнуляется, дальше миксер молчит
+  await page.evaluate(() => window.__game.autoMatch());
+  await page.waitForTimeout(200);
+  const pokeCalm = await page.evaluate(() => {
+    const g = window.__game;
+    return (performance.now() - g.stats().lastAction)/1000 < g.level().idleLimit;
+  });
+  expect(pokeCalm, 'ПРОВОКАЦИЯ: матч сбросил злость — простой снова в норме');
+
   // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));
