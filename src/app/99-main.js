@@ -412,6 +412,12 @@ function loop(){
   }
   // фон-лихорадка: низ неба наливается красным (сильнее в цепной реакции)
   if (skyMat){
+    // ЧАСЫ ЗВЁЗД. ⚠️ КОПИМ dt, а не берём performance.now(): dt в игре КЛАМПНУТ,
+    // поэтому на паузе, при уходе вкладки и на просадке кадра моргание не
+    // «перепрыгивает» вперёд — иначе после возврата всё небо мигнуло бы разом.
+    // ⚠️ И БЕЗ ГЕЙТА ПО НОЧИ: юниформа копится всегда, а ветка звёзд днём не
+    // исполняется вовсе (uStars = 0) — ветвление тут дороже сложения.
+    skyMat.uniforms.uTime.value += dt;
     // подогрев фона растёт с длиной серии: чем ближе цепь — тем гуще зелень
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
@@ -701,6 +707,10 @@ window.__game = {
   // ДЕБАГ ГРАФИКИ: подменить палитру неба на живой сцене (подбор цветов
   // владельцем без пересборки, как veilTune). Массив хексов любой длины >= 2.
   skyStops(list){ return setSkyStops(list); },
+  // ДЕБАГ ГРАФИКИ: форма звезды на живой сцене — 0 чистая точка, 1 искра.
+  // Контактный лист вариантов снимается одним прогоном, как у палитр.
+  starSpark(v){ if (skyMat && v != null) skyMat.uniforms.uStarSpark.value = v;
+    return skyMat ? skyMat.uniforms.uStarSpark.value : null; },
   // срез вуали для сьюта: сколько материалов реально получили uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;
