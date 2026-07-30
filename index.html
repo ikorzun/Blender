@@ -1073,6 +1073,35 @@
     .ms-play { justify-content:flex-start; }
     .ms-eyes { flex:0 0 auto; width:min(88%, 480px); height:auto; margin-bottom:auto; }
   }
+  /* ⚠️ БЛОК КУРСОРОВ СТОИТ ПОСЛЕДНИМ В CSS НАМЕРЕННО: у кнопок по файлу
+     рассыпаны свои cursor:pointer той же специфичности, и при ранней вставке
+     каскад их выбирал — страж сьюта это поймал первым прогоном (кнопка
+     отдавала 'pointer' вместо руки). Порядок здесь несущий, не переносить. */
+  /* ===== КАСТОМНЫЕ КУРСОРЫ, ТОЛЬКО ДЕСКТОП (спека владельца 2026-07-31:
+     «возьми из папки кастомные курсоры и добавь их в десктопную версию»).
+     Исходники — Interface/hand_*.svg (32×32), растеризованы в PNG: Safari
+     НЕ умеет SVG-курсоры, а PNG понимают все движки (правило кросс-браузера).
+     Гейт pointer:fine — тач-устройствам курсоры не нужны и не мешают.
+     Семантика: открытая ладонь = покой; указательная = кликабельное
+     (hover кнопок); СЖАТАЯ = драг камеры (класс html.grabbing вешает
+     90-input на время жеста). Хотспоты: ладони ~центр (14,12), палец —
+     кончик (8,2). Фолбэк-ключевые слова обязательны: без них битый data-URI
+     оставил бы страницу ВООБЩЕ без курсора. */
+  @media (pointer:fine){
+    html, body, #c { cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAECUlEQVR4nMRXXUhTURz/b3N+bC0RNC0odNVcD1pmQWOICVrM3vRBrTdBqKBAenJYD5EfDypE9BKpL1KP4oNhlFSM9UnrQ42QGivLjzUJo3QfLvv9270xr3fqdgf94Ld77jnnnvM/5/85Nf1naCgxFIFnwKOgFvwErlACSKH4oAJvg3WS/u+gDXxGcUJN8eGCuLndbn/c19f3qLCw8DNes8ABUCfM2wWWgXtpg0OqaH2cAk8I7ZsUOf02l8vlKCkpKRP6w5WVle9GR0dZLfdBo0ARXkHoh/EIwCe4BVrlBhcXFyczMjJM4vvS0tJ7nU5nFt81Gs1vi8Uy6XQ6zSsrf00jCO4H30vXklPBdvAtb24wGH61tLQ4m5ubn6SkpITFCYFAwB/9AYQxG43GKW4XFRW5g8HgvMPhMPv9fk9VVdUYulPByzJ7yQpgBzNrampcCwsLy+3t7daenh7L2NjYU3ECrnte+lFnZ+cHfg4PD39Tq9U53E5NTc3v7e1dFKaUyOwlq4I7oG1mZuZFXl7e4VWS2e2Ojo6Osurq6tfY6ID0Q9yMOy0tzSjpDkMgElSxxiDlbuAr/wwODv6UDrS1te2D1X8qLi7+KfMdyWzO0MA++BZ+y30jdwN86udarTYE4/LBoLaTQuTm5s57vd4taKZLx+Ru4AV4LxQKaVtbW92UBOAGAhQxxDUHjuWG7NNveBy3MJmenm4iBWDPGB8fZ/XsAGeix2JFQnYdjmzU1NT0gxSitLRU9Jo90rH1QnEL6B8YGDjE1k0KUF9f/0to7o1HAPaGa9zo7++fIgWwWq3ZQvO4dGyjXLAb/AAr9s3OzmZSJPUmgrBerw8ghLMhcpj/ZwcbZcOP4NO5ublsj8fzkhKHprGxkY2aA9HJ6AE5Afik1ymSxTh8HeFOhGRSAhjzstBcleCkoZHzOsf8VW7H2a28vNxPCmAymfKE5qoQLrWBq+D5ioqKiZGRET0nE0oegiqVim2AXTI7lgBs+Tvgdp4kb07hcHgaKZ0D0SRYKPZLbYD1z2k0m5KM6elp0ZXnovulAjzkH5RcryjJQL0gZsMH0f1SFRwD7yKtBrq6up7V1dUZoLe/QsIQVVlZWRwX9BQn4MJPCgoKLBTxKg7H7lgCMLh0uii3EHuDzWYbRzW8nJOTc5A2AWTVKczNRHW1VVj3SvR4rEjINUETRWK3OIft458L1dbWuhCidagbzTHWoImJCScqZhOiKJdoXDHzDa9sRoBY2AmeBc+RoIqGhoaXCFKh/Pz8YnjPrM/nm3e73Uvd3d2GoaEhsQ7k0MtV8TfpgvEKIILtoh68RFEuJYMQeIMiavXKTUhUgGhBKsHTwnNK4Bfh2Q9+Xm8BpQIoRrz/DZOOPwAAAP//oCxCzwAAAAZJREFUAwCpzTntz0krjQAAAABJRU5ErkJggg==) 14 12, auto; }
+    /* ⚠️ !important ЗАКОНЕН ИМЕННО ЗДЕСЬ (вторая итерация; первый прогон
+       стража падал и после переноса в конец CSS): cursor:pointer рассыпан по
+       файлу НА ID-СЕЛЕКТОРАХ (#shakeBtn и др.) — специфичность (1,0,0) бьёт
+       любой порядок. Перечислять 20 id хрупко: новая кнопка молча выпадала бы
+       из курсора. Правило «на десктопе интерактив = рука» ДОЛЖНО быть
+       неоспоримым, это и есть семантика !important. */
+    button, input[type=range], input[type=checkbox], .ms-play, .devlink, .ms-sub, .st-buy {
+      cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD50lEQVR4nMSXW0xTSRjHv16glJbVElfZbXc3brohuwYXN1lFxduLgAmQaAgkeI1PhktCxBgQQgh98IEQ9YEnARWjgRgDJAo+GLxGTQQreMdblKhQCgKtVLHU/9fTY07wFJFTwj/5ncx8p3Pmm29mvpmqaY6lpjnWVA78BPaCc8AJ3oDTYDmFUKog9p3gEJgn8+4z2AJaKASSiwCP8Ch3npube3NkZOSBz+dzDw0N3cvLy7sBuxacBIsoBNLI2A6DJU1NTe0FBQVrdDrdz6iHR0RELExJSbH09PTc7u7uXgxbJDhPCiU3BYPANDExMaxSqb6ZAq/X+y4sLCyGo4LqQvCBFEhuChz8QAdjcg00Gk1MWlraHRQNIIvkZQIrgJFm4MBtftjt9ifBGpWVlbkCxX3gCGgElwG3GSEhijfBKGgKOCMruSnYBk7wKJubm5cFaefS6/VhHo9HR9OTl4RonZmOAxy2fsy/fnx8/DVC/pvMb6ihoaG9q6tLFxsbO261WtUWi0UXHR1tiIyMXKRWq+djDTnHxsaGamtr+/Lz89ehyUfwD3j+PQdY9WBrS0vLpdTU1PWkUDab7UppaelaFI+TkGO+68BGcCEuLu4FRrmYFAo7pxc7x4KF7UP1F9AnvguWii8CB+93l8v1gBQK02jJyMjoIGHA26XvgjnAi+YEF+rq6hwUApWXl3sCxd1Su2qKNv8Cu8lkGh4cHOSFqSFl8hiNRq/b7eb8kQBusVEuAmkkpNjrXMEZMK+3t7eDlCuiuLhY/M4m0TjZAd6rZ0EKCZnOr8rKSi+FQNnZ2WLeiBNt0in4HTxmT1tbWy8lJSUtkzsLlAh55VV4eDj38wxY2aaVvD9IQpiuJicnr6dZkFar1QeKX88IaQRegj+QXp/iCLbSLAjf7kEK/wvFbrDU75TkPR+thM4tNEtyOp3vA8V+0SZdhPf54XA4FCeeYKqvrxfvDndEm3QKDgBbfHz8087OzgVYgPMphMLh9BY5xYgrXhSqS4B/oNII8LnegXuA1Ww2f2pra7uMaNgHBgbuMqOjoxyhCZqZfOnp6X2Bzo+LnbMmZ8JoEi4Qa+S+EhUV5c7JybGXlJQsMBgMsTRNNTY2tmdmZm4gYZv/R5JrnFwqZtsuwGc43wXEKP0ZqPuVlZV1q7q6Wo+wLg3WMd8nioqKXldVVa3CQchnwf/g3uTOfkSrwdaAg/6slpiY+LCioqI/ISHBjJszO6lGvn9UU1PjKCwsXAkneKddA3smdz4TB0T9CmxgB03974q3235wLNgPZuqAKDPYTMLh8jeIAa9AFwl3ilNgeKoPKHVAseb83/EXAAAA//9Rd/3VAAAABklEQVQDACzVPT3lRIicAAAAAElFTkSuQmCC) 8 2, pointer !important;
+    }
+    html.grabbing, html.grabbing #c {
+      cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADTklEQVR4nOyXXUiTURjHH2dZTs2vizIpNSRNGRoTbV5NiEFYF0JtIUYUQ6Qr7yMELzToMoTAhBFs0IUMhMiLMJv4lVquNlxjtJWjrWWbW+m2yq3/8d1AX7a5uYE3/uH3vmfv+Xo45znPcyagA5aADliHBhyh1FUKFKAVlIHP4BWYBXdBC8gGVjAOtIkGy6LUVAimgCiFPi/BNbAVq3KvLcgHD4AJ/AIf2eQSieTTxMTEG5fL9R5vXXV1tZ017u/vn7JarfMmk2mms7NzSSAQhPH5Crgfb4JEK3AVPAUnd37MyckJ+v1+NwYvi34Lh8Mes9m8UlNT07qzrVqtft3V1dWGog1UpWKAHDxnhfb2dr1KpQqXlpZWjo6OLodCobBcLm+jJATD1ouKirJ9Pl8Bcdtm4LfJjtP3MbO4p6dnTqPRNAmFwlNZWVnH6+rqKuvr66soSbE+drv93cLCwhn8nCZuC3cpng+wDtTX13eU0lRzc3MgUrwQqz6eAT/ZIxAI/KM0JZVKhZGijFIwwMweOp1uk9JURUWFCI77B8UmUElJGHAZKLB/bA8pAxL29va+jcx1nV/Jn4Et03hBQcGmw+FYzcvLq6UMyOPx6EtKShpQnAeXdtbxV+AWMwrBZSlTkzMVFxefxysExPw6vgHl7IHIVkSZVS6O8Ffick9+IgO2PXZjYyNAmVco8i5MZMAyewwODm5RZuVHfmABjOUGbyIDNKzR0NCQRKlUziPs/qAMyGaz6TEWc3gWin8nMkAH7oHQyMhICzz3GDo6KU0NDAxEixp+Xaw48ASwIzPr9XpPdHR0OFD+S/sUln56eHiYHT0WjJ4lYwATWyoWE4xjY2MXFQrFB9qH3G63vrGxMXr02DJ847fJTtCfWfwC3DYajefKy8snxWLxWUryFmUwGGZwP2gIBoPHiMuEd4hzwl3a60b0BdxgHbu7u6UymcxosVjmiOfJEfnX1tb0Wq12EnFkVSQStWLyHOKiHxsjFGuCZIO9FKjB6e1OyBFYEVdtbe133BVCTqdTuLi4WB3x9Kh84BF4COJm1VSyDYuOSnCTYoRU4pbXQlwsmQQqsGc23W+6yyUubLP7Iru0rIMVEKQUlZF8m44O/5oduAH/AQAA//8C0RpyAAAABklEQVQDAApEBeKdP9kHAAAAAElFTkSuQmCC) 14 12, grabbing;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1211,7 +1240,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-197 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-198 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -10014,7 +10043,12 @@ canvas.addEventListener('pointermove', e => {
   }
   if (!pDown) return;
   const dx = e.clientX - pDown.x, dy = e.clientY - pDown.y;
-  if (!dragging && Math.hypot(dx,dy) > 9) dragging = true;
+  if (!dragging && Math.hypot(dx,dy) > 9){
+    dragging = true;
+    // курсор «сжатая рука» на время драга камеры (десктоп; CSS в shell по
+    // классу html.grabbing, тачам класс безвреден — курсоров у них нет)
+    document.documentElement.classList.add('grabbing');
+  }
   if (dragging){
     camAz = pDown.az - dx*0.006;
     camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // до ~77° — вид сбоку на миксер
@@ -10025,10 +10059,12 @@ function endPointer(e){
   touches.delete(e.pointerId);
   if (touches.size < 2) pinch = null;
   rdrag = null;
+  document.documentElement.classList.remove('grabbing'); // разжать руку-курсор
 }
 // сброс всех жестов (вызывается на границах интро: зажатый в интро палец
 // не должен превращаться в драг со старой базой камеры)
 function resetPointers(){
+  document.documentElement.classList.remove('grabbing');
   touches.clear();
   pDown = null; dragging = false; pinch = null; rdrag = null;
   panManualUntil = 0; camFollowAt = 0; // защёлка camFollowOn живёт в level — новую создаёт genLevel

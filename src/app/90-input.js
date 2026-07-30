@@ -83,7 +83,12 @@ canvas.addEventListener('pointermove', e => {
   }
   if (!pDown) return;
   const dx = e.clientX - pDown.x, dy = e.clientY - pDown.y;
-  if (!dragging && Math.hypot(dx,dy) > 9) dragging = true;
+  if (!dragging && Math.hypot(dx,dy) > 9){
+    dragging = true;
+    // курсор «сжатая рука» на время драга камеры (десктоп; CSS в shell по
+    // классу html.grabbing, тачам класс безвреден — курсоров у них нет)
+    document.documentElement.classList.add('grabbing');
+  }
   if (dragging){
     camAz = pDown.az - dx*0.006;
     camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // до ~77° — вид сбоку на миксер
@@ -94,10 +99,12 @@ function endPointer(e){
   touches.delete(e.pointerId);
   if (touches.size < 2) pinch = null;
   rdrag = null;
+  document.documentElement.classList.remove('grabbing'); // разжать руку-курсор
 }
 // сброс всех жестов (вызывается на границах интро: зажатый в интро палец
 // не должен превращаться в драг со старой базой камеры)
 function resetPointers(){
+  document.documentElement.classList.remove('grabbing');
   touches.clear();
   pDown = null; dragging = false; pinch = null; rdrag = null;
   panManualUntil = 0; camFollowAt = 0; // защёлка camFollowOn живёт в level — новую создаёт genLevel

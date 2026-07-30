@@ -2695,6 +2695,26 @@ window.bridge = {
   expect(missKill.before && !missKill.after,
     'ТУРБО: один промах остановил режим (' + JSON.stringify(missKill) + ')');
 
+  // ===== КАСТОМНЫЕ КУРСОРЫ ДЕСКТОПА (спека владельца 2026-07-31) =====
+  // headless chromium отдаёт pointer:fine — медиа-гейт открыт, курсоры видны
+  const cur = await page.evaluate(() => ({
+    fine: matchMedia('(pointer:fine)').matches,
+    body: getComputedStyle(document.body).cursor.slice(0, 30),
+    btn: getComputedStyle(document.getElementById('shakeBtn')).cursor.slice(0, 30),
+  }));
+  expect(cur.fine && cur.body.startsWith('url("data:image/png'),
+    'КУРСОР: открытая ладонь на поле (' + cur.body + '…)');
+  expect(cur.btn.startsWith('url("data:image/png'),
+    'КУРСОР: указательная рука на кнопках (' + cur.btn + '…)');
+  // драг камеры сжимает руку, отпускание разжимает
+  await page.mouse.move(200, 400); await page.mouse.down();
+  await page.mouse.move(260, 420, { steps: 4 });
+  const grabOn = await page.evaluate(() => document.documentElement.classList.contains('grabbing'));
+  await page.mouse.up();
+  const grabOff = await page.evaluate(() => document.documentElement.classList.contains('grabbing'));
+  expect(grabOn && !grabOff,
+    'КУРСОР: драг сжимает руку, отпускание разжимает (' + grabOn + '/' + grabOff + ')');
+
   // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));
