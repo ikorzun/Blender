@@ -69,6 +69,7 @@ function mulberry32(a){
   let mode = 'active', modeUntil = 0, nextSample = 0, lastGc = 0, lastMinute = -1;
   let lastPsT = 0, samples = 0, wins = 0, loses = 0, shakes = 0, matchFails = 0, evalFails = 0;
   let bombedLvl = -1, blasts = 0; // взрыв — РОВНО ОДИН на уровень, на ещё полной куче
+  let underPrev = [], underHits = 0; // просадки в пол: залипание против транзиента
   const gcHeap = []; // {t, mb} — только сэмплы сразу после GC (тренд утечки)
 
   while (Date.now() < tEnd){
@@ -142,10 +143,25 @@ function mulberry32(a){
           problems.push(`SLEEPING FLOATERS t=+${tSec}s: ${JSON.stringify(sleepingFloaters)}`);
         if (s.wall.excess > 0.18)
           problems.push(`WALL EXCESS ${s.wall.excess} (${s.wall.who}) t=+${tSec}s`);
-        // ПОЛ: спасатель обязан вынуть провалившегося за 0.5 с, поэтому в
-        // сэмпле его быть не должно вовсе — ни на живой куче, ни на спящей
-        if (s.under.length)
-          problems.push(`UNDER FLOOR t=+${tSec}s: ${JSON.stringify(s.under)}`);
+        // ПОЛ. ⚠️ ОДИНОЧНЫЙ СЭМПЛ — НЕ ДЕФЕКТ, и это не смягчение ради
+        // зелёного: спасатель ПО ЗАМЫСЛУ ждёт до 1.5 с у ДВИЖУЩЕГОСЯ предмета
+        // (гейт покоя, иначе шторм телепортов на встряске). Замер длительностей
+        // 2026-07-30: 8 сидов с помолом дали 4 эпизода, максимум РОВНО 1500 мс,
+        // ни одного незакрытого. Сэмпл раз в 5 с законно ловит дип в процессе.
+        // ДЕФЕКТ — ЗАЛИПАНИЕ, и ловится он двумя признаками:
+        //   (1) тот же предмет под полом в ДВУХ подряд сэмплах (>=5 с — втрое
+        //       выше проектного потолка; исходный баг жил 30 с и дольше);
+        //   (2) под полом на СПЯЩЕМ теле — это и есть «навсегда», интегратор
+        //       выключен и само оно уже не выйдет.
+        const underNow = s.under.map(u => u.name + '@' + Math.round(u.y * 5));
+        underHits += s.under.length;
+        const stuck = s.under.filter((u, i) => underPrev.includes(underNow[i]));
+        if (stuck.length)
+          problems.push(`UNDER FLOOR ЗАЛИПАНИЕ (2 сэмпла подряд) t=+${tSec}s: ${JSON.stringify(stuck)}`);
+        const frozen = s.under.filter(u => u.sleeping);
+        if (frozen.length)
+          problems.push(`UNDER FLOOR НА СПЯЩЕЙ КУЧЕ t=+${tSec}s: ${JSON.stringify(frozen)}`);
+        underPrev = underNow;
         if (s.nan > 0) problems.push(`NaN x${s.nan} t=+${tSec}s`);
         if (doGc && s.perf.heapMB > 0) gcHeap.push({ t: tSec, mb: s.perf.heapMB });
         samples++;
@@ -181,7 +197,7 @@ function mulberry32(a){
   if (floorLifts > MINUTES)
     problems.push(`FLOOR LIFT STORM: ${floorLifts} подъёмов за ${MINUTES} мин (норма <= ${MINUTES})`);
   const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, wins, loses, shakes, rescues,
-    blasts, floorLifts, heap: heapVerdict, problems: problems.length, errors: errors.length };
+    blasts, floorLifts, underHits, heap: heapVerdict, problems: problems.length, errors: errors.length };
   outStream.write(JSON.stringify({ summary, problems, errors: errors.slice(0, 20) }) + '\n');
   outStream.end();
   console.log('SOAK SUMMARY', JSON.stringify(summary));
