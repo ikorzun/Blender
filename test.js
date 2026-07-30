@@ -696,6 +696,78 @@ const path = require('path');
   expect(oneNumber.unbanked > 0 && Number(oneNumber.wallet) === oneNumber.live,
     'кошелёк меню включает незабанкованный счёт уровня (+' + oneNumber.unbanked + ', live ' + oneNumber.live + ')');
 
+  // ⚠️ ПОЛЗУНОК SOUND ХРАНИТ СОСТОЯНИЕ (жалоба владельца 2026-07-30 «не
+  // сохраняет состояние после выхода из паузы»). До правки состоянием был
+  // БУЛЕВ CFG.sound, и refreshMainSettings рисовал ползунок как
+  // `CFG.sound ? 100 : 0` — выставленные 40 при возврате в меню становились 100.
+  // ⚠️ ПЕРЕЗАГРУЗКУ здесь НЕ проверяем (reload посреди сьюта сбросил бы уровень
+  // и контекст следующих секций) — но проверяем ЗАПИСЬ в localStorage, на
+  // которой перезагрузка и держится; сам reload покрыт пробой в отчёте.
+  const soundState = await page.evaluate(async () => {
+    const g = window.__game;
+    const set = async v => { const s = document.getElementById('msSound');
+      s.value = v; s.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 60)); };
+    const cycle = async () => { window.hideMainScreen && window.hideMainScreen();
+      await new Promise(r => setTimeout(r, 120)); window.showMainScreen();
+      await new Promise(r => setTimeout(r, 200)); };
+    window.showMainScreen(); await new Promise(r => setTimeout(r, 200));
+    await set(40); await cycle();
+    const mid = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound,
+                  ls: localStorage.getItem('mixer_sound'),
+                  eng: (g.sound && g.sound.volume) ? g.sound.volume() : null };
+    await set(0); await cycle();
+    const off = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound,
+                  ls: localStorage.getItem('mixer_sound') };
+    // тумблер держателя состояний: выкл -> вкл обязан вернуть ПОСЛЕДНИЕ 40
+    await set(40);
+    const cb = document.getElementById('soundToggle');
+    cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 60));
+    cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 60));
+    const back = { v: +document.getElementById('msSound').value, cfg: g.cfg.sound };
+    await set(100);                                  // вернуть громкость следующим секциям
+    window.hideMainScreen && window.hideMainScreen();
+    return { mid, off, back };
+  });
+  expect(soundState.mid.v === 40 && soundState.mid.cfg === true && soundState.mid.ls === '40',
+    'ЗВУК: 40 выжило выход-возврат в меню (' + JSON.stringify(soundState.mid) + ')');
+  expect(soundState.mid.eng === 0.4,
+    'ЗВУК: громкость дошла до движка (мастер-гейн ' + soundState.mid.eng + ')');
+  expect(soundState.off.v === 0 && soundState.off.cfg === false && soundState.off.ls === '0',
+    'ЗВУК: тишина выжила выход-возврат и записана в localStorage (' + JSON.stringify(soundState.off) + ')');
+  expect(soundState.back.v === 40 && soundState.back.cfg === true,
+    'ЗВУК: тумблер выкл→вкл вернул ПОСЛЕДНИЕ 40, а не 100 (' + JSON.stringify(soundState.back) + ')');
+
+  // ⚠️ ХОЛОДНЫЙ СТАРТ ГРОМКОСТИ — щель, которую метрика eng ВЫШЕ не ловит:
+  // eng читает volume() = playerVol, а НЕ настоящий master.gain. Master
+  // создаётся ЛЕНИВО по первому жесту с хардкодом 0.5, и восстановленные из
+  // localStorage 40% играли на ПОЛНОЙ громкости до первого касания ползунка.
+  // Страж: свежая страница с mixer_sound='0.4' -> первый жест -> настоящий
+  // гейн обязан быть 0.5·0.4 = 0.2. До фикса (applyGain в ensure) здесь 0.5.
+  {
+    const spage = await browser.newPage({ viewport: { width: 400, height: 800 } });
+    // ⚠️ ФОРМАТ ХРАНЕНИЯ — ПРОЦЕНТЫ ('40'), не доля ('0.4'): первый прогон этого
+    // стража я завалил СВОИМ входом — движок честно сыграл 0.4% как ~тишину.
+    await spage.addInitScript(() => { try { localStorage.setItem('mixer_sound', '40'); } catch(e){} });
+    await spage.goto('file://' + path.join(__dirname, 'index.html'));
+    await spage.waitForFunction(() => window.__game, null, { timeout: 30000 });
+    await spage.mouse.click(200, 400); // первый жест: unlock -> ensure -> master
+    await spage.waitForTimeout(250);
+    const cold = await spage.evaluate(() => ({
+      vol: window.__game.sound.volume ? window.__game.sound.volume() : null,
+      gain: window.__game.sound.gain ? window.__game.sound.gain() : 'нет хука',
+    }));
+    await spage.close();
+    if (cold.gain === null) console.log('SKIP: master не создался (нет AudioContext в headless?) — страж холодного старта пропущен');
+    else {
+      expect(cold.vol === 0.4 && Math.abs(cold.gain - 0.2) < 1e-6,
+        'ЗВУК, ХОЛОДНЫЙ СТАРТ: ленивый master уважает восстановленную громкость (гейн '
+        + cold.gain + ', ожидание 0.2)');
+    }
+  }
+
   // ⚠️ ПОРТРЕТЫ КОЛЛЕКЦИИ НЕ ПУСТЫЕ (жалоба владельца 2026-07-30 «где превью у
   // всех новых объектов?»). До правки на main 29 карточек из 122 показывали
   // ПУСТУЮ картинку: атлас новой пачки декодируется асинхронно, портрет

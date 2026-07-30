@@ -9,8 +9,15 @@ const Sound = (function(){
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       master = ctx.createGain();
-      master.gain.value = 0.5;
+      // ⚠️ НЕ хардкод 0.5, а applyGain() — ЩЕЛЬ, найденная диспетчером на мерже
+      // правки громкости (2026-07-30): master создаётся ЛЕНИВО по первому жесту,
+      // а восстановление ползунка из localStorage (applySoundVol на старте,
+      // 85-hud) отрабатывает РАНЬШЕ, когда master ещё null и applyGain — no-op.
+      // С хардкодом восстановленные 40% ИГРАЛИ НА ПОЛНОЙ громкости до первого
+      // касания ползунка или мьюта рекламы. Замер стража ниже: гейн после
+      // холодного старта обязан быть 0.5·playerVol, а не 0.5.
       master.connect(ctx.destination);
+      applyGain();
     } catch(e){ ctx = null; }
   }
   // Сэмплы из 74-sfx-data: декод лениво после unlock. m4a/AAC декодится
@@ -126,11 +133,25 @@ const Sound = (function(){
   // и получить затёртый выбор. Глушим master-гейном, а не флагом: уже
   // звучащие сэмплы обрываются тоже, иначе хвост звука лез бы поверх рекламы.
   let extMuted = false;
-  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5; }
+  // ГРОМКОСТЬ ИГРОКА 0..1 (ползунок Sound в настройках, 85-hud/applySoundVol).
+  // ⚠️ ДОБАВЛЕНО ИНТЕРФЕЙСОМ 2026-07-30 по жалобе владельца «ползунок Sound не
+  // сохраняет состояние»: до этого состоянием звука был ТОЛЬКО булев CFG.sound,
+  // и ползунок 0..100 физически не мог ничего сохранить — громкости в тракте
+  // не существовало. БАЗОВЫЙ УРОВЕНЬ МАСТЕРА 0.5 (запас на клиппинг) СОХРАНЁН:
+  // при playerVol=1 гейн ровно 0.5, как было до правки, бит-в-бит.
+  // ⚠️ ВНЕШНИЙ МЬЮТ СИЛЬНЕЕ: extMuted=true глушит в 0 при любой громкости —
+  // иначе игрок, двинувший ползунок под рекламой, завёл бы звук поверх ролика.
+  let playerVol = 1;
+  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5 * playerVol; }
   return {
     unlock,
     loaded(){ return Object.keys(buffers); }, // отладка: какие сэмплы декодированы
     setMuted(on){ extMuted = !!on; ensure(); applyGain(); return extMuted; },
+    setVolume(v){ playerVol = Math.max(0, Math.min(1, +v || 0)); applyGain(); return playerVol; },
+    volume(){ return playerVol; },
+    // диагностика для стражей: НАСТОЯЩИЙ гейн мастера (volume() отдаёт лишь
+    // playerVol и не видит расхождения с движком — на этом и жила щель выше)
+    gain(){ return master ? master.gain.value : null; },
     isMuted(){ return extMuted; },
     play(name, arg){
       if (!CFG.sound || extMuted) return;
