@@ -3107,7 +3107,19 @@ window.bridge = {
     'МЕНЮ: наверху шапка не залипшая и плавающей кнопки НЕТ (' + JSON.stringify(menuTop) + ')');
   await menuPage.evaluate(() => { const ms = document.getElementById('mainScreen');
     ms.scrollTop = ms.scrollHeight; });
-  await menuPage.waitForTimeout(400);
+  // ⚠️ ЖДАТЬ ОСАДКИ СКРОЛЛА ОПРОСОМ, А НЕ ТАЙМЕРОМ (флейк, уехавший в прод с
+  // v205: фикс 400 мс ловил кнопку на «низ 3» вместо 8 — плавный докат ещё
+  // шёл; палитровый релиз был ни при чём, красный оказался этим стражем).
+  // Тот же класс, что снимок-против-хвоста-анимации у заряда: мерить можно
+  // только УСТОЯВШЕЕСЯ значение.
+  await menuPage.waitForFunction(() => {
+    const ms = document.getElementById('mainScreen');
+    const fl = document.getElementById('msFloatBtn') || document.querySelector('.ms-float');
+    if (!fl) return true;                       // фича снята — пусть меряет и честно падает
+    const b = fl.getBoundingClientRect().bottom;
+    if (window.__flPrev === b && ms.scrollTop === window.__stPrev) return true;
+    window.__flPrev = b; window.__stPrev = ms.scrollTop; return false;
+  }, null, { polling: 120, timeout: 4000 }).catch(() => {});
   const menuScrolled = await menuPage.evaluate(() => {
     const ms = document.getElementById('mainScreen'), h = document.querySelector('.ms-head');
     const fl = document.getElementById('msFloatResume'), ttl = document.querySelector('.ms-head-title');
