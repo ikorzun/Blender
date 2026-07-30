@@ -395,7 +395,31 @@ function genLevel(){
   items.push(makeSurprise());
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
-  for (let i=0;i<pairsCnt;i++) pairs.push({ type: i % typesCount, size: levelSize() });
+  // ⚠️⚠️ ВЫБОР ТИПОВ УРОВНЯ (спека владельца 2026-07-30 «поменяй строку выбора
+  // типов, чтобы всё ожило»). БЫЛО: `type: i % typesCount` — круговой перебор
+  // С НУЛЯ, поэтому при pairsCnt=90 спавнялись ТОЛЬКО индексы 0..89, а весь
+  // хвост TYPES был СТРУКТУРНО МЁРТВ при любом уровне. Мертвы были и свои:
+  // foodicecreamscoopmint (90), fooddonutsprinkles (91) и steak (92) —
+  // собственная модель владельца в игру не попадала НИКОГДА. Отсюда же ложь в
+  // доках «потолок прогрессии = TYPES.length»: реальный потолок был PAIRS.
+  // СТАЛО: столько же РАЗНЫХ типов, но выбранных ИЗ ВСЕГО открытого диапазона.
+  // ⚠️ ЧИСЛО типов НЕ ТРОНУТО — это главный рычаг сложности, и он остаётся
+  // min(typesCount, pairsCnt), как был. Меняется только КАКИЕ именно.
+  // ⚠️ КРИВАЯ 1..82 НЕ ЗАТРОНУТА БИТ-В-БИТ: пока typesCount <= pairsCnt, distinct
+  // равен typesCount, то есть берутся ВСЕ открытые типы — тот же САМЫЙ НАБОР,
+  // что и раньше (меняется лишь порядок в массиве pairs, а он всё равно
+  // сортируется по размеру ниже). Выборка начинает что-то отсекать только с
+  // typesCount > pairsCnt, то есть ровно там, где раньше была мёртвая зона.
+  const distinct = Math.min(typesCount, pairsCnt);
+  const pool = [];
+  for (let i = 0; i < typesCount; i++) pool.push(i);
+  for (let i = pool.length - 1; i > 0; i--){          // Фишер-Йетс по открытому диапазону
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  // round-robin по ВЫБРАННЫМ — распределение копий по типам такое же ровное,
+  // как было у `i % typesCount` (иначе редкие типы давали бы сирот)
+  for (let i=0;i<pairsCnt;i++) pairs.push({ type: pool[i % distinct], size: levelSize() });
   pairs.sort((a,b)=>a.size - b.size); // мелкие первыми (лягут ниже)
   let n = 0;
   for (const pr of pairs){
