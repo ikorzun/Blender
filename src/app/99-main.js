@@ -204,11 +204,23 @@ function sleepPhysics(src){
   sleepAllBodies();
   if (level) refreshAccessibility(); // финальный срез по уснувшей куче
 }
+// ⚠️⚠️ ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ПИШЕТСЯ uResY. Кто МЕНЯЕТ РАЗМЕР БУФЕРА —
+// ОБЯЗАН позвать resize(), иначе юниформа протухает. Раньше это было почти
+// безобидно (uResY кормил только слои uCombo/uGrind, а они в покое равны нулю),
+// но с 2026-07-31 от неё зависит САМА БАЗА неба (раскладка стопов по экрану),
+// и протухшая uResY срезает верх палитры. Ловушка найдена ревью: понижение
+// качества applyPerfTier('low') зовёт setPixelRatio+setSize ПОСРЕДИ ИГРЫ и
+// resize() не вызывало — замер на 400×800 DPR 1.5 давал верх кадра #42b9ff
+// (третий стоп) вместо #6e86ff (первый), и так до конца сессии, потому что на
+// телефоне события resize может не случиться вовсе.
+// ⚠️ ПОЧЕМУ ПРАВКА ЗДЕСЬ, А НЕ ВНУТРИ applyPerfTier: та объявлена в 10-stage и
+// зовётся там же на старте (deviceLooksWeak) РАНЬШЕ инициализации skyMat —
+// обращение к нему изнутри упало бы в TDZ. Поэтому resize() зовут вызывающие.
 function resize(){
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
-  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // экранный градиент лихорадки
+  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // база неба + слои лихорадки
 }
 addEventListener('resize', resize);
 
@@ -306,6 +318,8 @@ function tickPerfTier(ms){
   perfDecided = true;                       // решаем ОДИН раз за сессию
   if (med > PERF_SLOW_FRAME_MS){
     applyPerfTier('low');
+    resize();  // ⚠️ ОБЯЗАТЕЛЬНО, см. комментарий у resize: понижение качества
+               // меняет высоту буфера, а uResY пишет только resize()
     console.warn('[perf] слабое устройство: медиана кадра ' + med.toFixed(1) + ' мс -> качество понижено');
   }
   perfWin = [];
@@ -668,6 +682,16 @@ window.__game = {
     if (lift != null) uVeilTune.value.y = lift;
     return { hex: '#' + (hex == null ? 0 : hex).toString(16), light: uVeilTune.value.x, lift: uVeilTune.value.y };
   },
+  // ДЕБАГ ГРАФИКИ: раскладка стопов неба на живой сцене — 'screen' (как
+  // CSS-градиент владельца) или 'view' (по высоте взгляда). Нужен для A/B без
+  // пересборки: разница между режимами ВИДНА ТОЛЬКО НА СКРИНЕ, числами её не
+  // передать, а решение о раскладке — за владельцем. Дефолт — SKY_MAP.
+  skyMap(mode){
+    if (skyMat && mode != null) skyMat.uniforms.uSkyMap.value = mode === 'view' ? 0 : 1;
+    return skyMat ? (skyMat.uniforms.uSkyMap.value ? 'screen' : 'view') : null;
+  },
+  // час, по которому выбраны небо и тема (форс через ?hour=N) — для стражей тем
+  skyHour(){ return { hour: skyHourNow(), time: skyTimeNow(), night: isNightSky() }; },
   // срез вуали для сьюта: сколько материалов реально получили uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;
@@ -930,7 +954,8 @@ window.__game = {
   // ручки качества для тестов и замеров
   perfTier(){ return { tier: CFG.perfTier, dpr: renderer.getPixelRatio(), fx: CFG.fxScale,
     shadows: renderer.shadowMap.enabled, decided: perfDecided }; },
-  setPerfTier(t){ if (t === 'low') return applyPerfTier('low'); return false; },
+  setPerfTier(t){ if (t !== 'low') return false;
+    const ok = applyPerfTier('low'); if (ok) resize(); return ok; },  // resize — см. tickPerfTier
   bestTapTarget(mode){
     refreshAccessibility();
     const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);

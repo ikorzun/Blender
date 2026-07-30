@@ -2771,6 +2771,40 @@ window.bridge = {
 
   await page.evaluate(() => { window.__game.storyReset(); window.__game.storyEnable(false); });
 
+  // ===== ВРЕМЯ СУТОК: НЕБО И ТЕМА КНОПОК В ОДНУ СЕКУНДУ (спека владельца
+  // 2026-07-31 «день до 20:00, ночь с 20:00») =====
+  // ⚠️ ЗАЧЕМ СТРАЖ: границу держат ДВЕ функции в разных файлах — skyTimeNow
+  // (10-stage, небо/лихорадка) и isNightSky (85-hud, html.night: тема витрины,
+  // инверсия Shake, правило цвета кнопок). Раньше час был вписан в обе руками,
+  // и правка одной дала бы с 20 до 22 ДНЕВНОЕ НЕБО ПРИ НОЧНОЙ ТЕМЕ КНОПОК.
+  // Теперь обе читают SKY_DAY_FROM/SKY_NIGHT_FROM — ассерт стережёт именно это
+  // СОВПАДЕНИЕ, а не сами числа: разведут источники — упадёт.
+  // ⚠️ Проверяется отдельными загрузками с ?hour=N, потому что палитра неба
+  // считается РАЗ при загрузке (как раньше выбор панорамы) — на живой странице
+  // час не подменить. Хук ?hour= заведён по запросу ИНТЕРФЕЙСА: до него три
+  // темовые фичи проверялись только подменой Date.
+  const hourPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  const hoursSeen = [];
+  for (const [h, wantNight] of [[4, true], [5, false], [19, false], [20, true], [23, true]]){
+    await hourPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
+    await hourPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    const got = await hourPage.evaluate(() => {
+      const s = window.__game.skyHour();
+      return { hour: s.hour, sky: s.time, night: s.night,
+               html: document.documentElement.classList.contains('night') };
+    });
+    hoursSeen.push({ h, ...got, wantNight });
+    expect(got.hour === h, 'форс-хук ?hour=' + h + ' принят (' + got.hour + ')');
+    expect((got.sky === 'night') === wantNight,
+      'небо на ' + h + ':00 — ' + (wantNight ? 'ночь' : 'день') + ' (' + got.sky + ')');
+    expect(got.night === wantNight && got.html === wantNight,
+      'тема кнопок на ' + h + ':00 совпала с небом (' + JSON.stringify(got) + ')');
+  }
+  expect(hoursSeen.every(x => (x.sky === 'night') === x.night),
+    '⚠️ ЕДИНЫЙ ИСТОЧНИК: skyTimeNow и isNightSky не разошлись ни на одном часе (' +
+    JSON.stringify(hoursSeen.map(x => x.h + ':' + x.sky + '/' + (x.night ? 'n' : 'd'))) + ')');
+  await hourPage.close();
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
