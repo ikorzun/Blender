@@ -1198,7 +1198,14 @@ function refreshMainScreen(){
                     : (typeof starBalance === 'function' ? starBalance() : 0));
   // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
-  if (btn) btn.textContent = (!level || level.over) ? 'Play Game' : 'Resume';
+  const роль = (!level || level.over) ? 'Play Game' : 'Resume';
+  if (btn) btn.textContent = роль;
+  // ПЛАВАЮЩАЯ КНОПКА (нода 815:1521) — ТОТ ЖЕ ПИСАТЕЛЬ РОЛИ. Заводить ей
+  // собственный расчёт нельзя: два источника одной подписи разъезжаются на
+  // первом же переходе (в ноде стоит «Resume», но без живой партии это «Play
+  // Game», и кнопки не должны спорить между собой).
+  const fl = $('msFloatResume');
+  if (fl) fl.textContent = роль;
   refreshMainSettings();
   buildMainCollection();
 }
@@ -1213,7 +1220,14 @@ function openMainScreen(){
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
-  $('mainScreen').classList.add('open');
+  const ms = $('mainScreen');
+  ms.classList.add('open');
+  // СБРОС СОСТОЯНИЯ ПРОКРУТКИ: контейнер помнит scrollTop между открытиями, и
+  // без сброса меню открывалось бы сразу с залипшей шапкой и плавающей кнопкой
+  // поверх видимой карточки Play. Классы снимаем ЯВНО — scrollTop=0 не рождает
+  // события scroll, само бы не пересчиталось.
+  ms.scrollTop = 0;
+  ms.classList.remove('stuck', 'playoff');
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
 function closeMainScreen(){

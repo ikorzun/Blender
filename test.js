@@ -3083,6 +3083,72 @@ window.bridge = {
     JSON.stringify(hoursSeen.map(x => x.h + ':' + x.sky + '/' + (x.night ? 'n' : 'd'))) + ')');
   await hourPage.close();
 
+  // ===== МОБИЛЬНОЕ МЕНЮ: ЗАЛИПАЮЩАЯ ШАПКА + ПЛАВАЮЩИЙ RESUME =====
+  // Спека владельца 2026-07-31, ноды 815:1506 (шапка) и 815:1521 (кнопка).
+  // ⚠️ СЕКЦИЯ НА ОТДЕЛЬНОЙ СТРАНИЦЕ И В КОНЦЕ: открытие меню ставит ТИХУЮ
+  // паузу и крутит глаза меню — в середине сьюта это меняло бы контекст
+  // соседним секциям (та же причина, по которой в конце живёт секция камней).
+  const menuPage = await browser.newPage({ viewport: { width: 393, height: 761 } });
+  await menuPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await menuPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await menuPage.evaluate(() => window.__game.skipIntro());
+  await menuPage.waitForTimeout(400);
+  await menuPage.evaluate(() => window.showMainScreen());
+  await menuPage.waitForTimeout(400);
+  const menuTop = await menuPage.evaluate(() => {
+    const ms = document.getElementById('mainScreen');
+    const fl = document.getElementById('msFloatResume');
+    if (!fl) return { нетУзлов: true };          // фича снята — честный FAIL, а не исключение
+    return { stuck: ms.classList.contains('stuck'), playoff: ms.classList.contains('playoff'),
+             кнопка: getComputedStyle(fl).display };
+  });
+  // ВВЕРХУ дубля быть не должно: настоящая кнопка Play видна, плавающая скрыта
+  expect(!menuTop.нетУзлов && menuTop.stuck === false && menuTop.playoff === false && menuTop.кнопка === 'none',
+    'МЕНЮ: наверху шапка не залипшая и плавающей кнопки НЕТ (' + JSON.stringify(menuTop) + ')');
+  await menuPage.evaluate(() => { const ms = document.getElementById('mainScreen');
+    ms.scrollTop = ms.scrollHeight; });
+  await menuPage.waitForTimeout(400);
+  const menuScrolled = await menuPage.evaluate(() => {
+    const ms = document.getElementById('mainScreen'), h = document.querySelector('.ms-head');
+    const fl = document.getElementById('msFloatResume'), ttl = document.querySelector('.ms-head-title');
+    if (!fl || !ttl) return { нетУзлов: true, вЗазоре: [] };
+    const hr = h.getBoundingClientRect(), fr = fl.getBoundingClientRect();
+    const cf = getComputedStyle(fl);
+    // ⚠️ ЧТО ЛЕЖИТ В ПОЛОСЕ НАД ШАПКОЙ — фактом, а не наличием правила: до
+    // подложки сквозь зазор и ВЫРЕЗЫ СКРУГЛЁННЫХ УГЛОВ просвечивал уезжающий
+    // контент, и никакое computed style этого бы не показало.
+    const вЗазоре = new Set();
+    for (let x = 4; x < 393; x += 8) for (let y = 0; y < 8; y += 2){
+      const el = document.elementFromPoint(x, y);
+      вЗазоре.add(el ? (el.id || el.className || el.tagName) : 'нет');
+    }
+    return { stuck: ms.classList.contains('stuck'), playoff: ms.classList.contains('playoff'),
+             шапкаTop: Math.round(hr.top), шапкаH: Math.round(hr.height),
+             заголовок: getComputedStyle(document.querySelector('.ms-head-title')).display,
+             профиль: getComputedStyle(document.querySelector('.ms-prof')).display,
+             кнопкаH: Math.round(fr.height),
+             // ⚠️ НЕ абсолютная координата центра: вьюпорт 393 даёт центр 196.5,
+             // и округление ушло бы то в 196, то в 197 — страж падал бы на
+             // исправной сборке (поймано двусторонним прогоном).
+             сдвигОтЦентра: +(fr.left + fr.width / 2 - window.innerWidth / 2).toFixed(2),
+             низ: Math.round(761 - fr.bottom), фон: cf.backgroundColor, радиус: cf.borderRadius,
+             подпись: fl.textContent, роль: document.getElementById('msPlayBtn').textContent,
+             вЗазоре: [...вЗазоре] };
+  });
+  expect(!menuScrolled.нетУзлов && menuScrolled.stuck && menuScrolled.playoff &&
+    menuScrolled.шапкаTop === 8 && menuScrolled.шапкаH === 48 &&
+    menuScrolled.заголовок === 'block' && menuScrolled.профиль === 'none',
+    'МЕНЮ: шапка залипла на 8 и приняла вид ноды 815:1506 (' + JSON.stringify(menuScrolled) + ')');
+  expect(!menuScrolled.нетУзлов && menuScrolled.кнопкаH === 60 &&
+    Math.abs(menuScrolled.сдвигОтЦентра) <= 1 && menuScrolled.низ === 8 &&
+    menuScrolled.фон === 'rgb(0, 0, 0)' && menuScrolled.радиус === '1500px' &&
+    menuScrolled.подпись === menuScrolled.роль,
+    'МЕНЮ: плавающая кнопка по ноде 815:1521 и подпись из одного источника с #msPlayBtn (' +
+    JSON.stringify(menuScrolled) + ')');
+  expect(menuScrolled.вЗазоре.length === 1 && menuScrolled.вЗазоре[0] === 'ms-head',
+    'МЕНЮ: над залипшей шапкой не просвечивает контент (' + JSON.stringify(menuScrolled.вЗазоре) + ')');
+  await menuPage.close();
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
