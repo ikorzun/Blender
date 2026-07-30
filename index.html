@@ -103,6 +103,16 @@
     stroke-linejoin:round; stroke-linecap:round;
     paint-order:stroke; font-variant-numeric:tabular-nums; }
   .otext.stat text { font-size:22px; --otl:2; }
+  /* ЗАЛИВКА ПРОГАЛОВ — РОВНО ДВУМ ПОТРЕБИТЕЛЯМ, У КОТОРЫХ ЗАМЕР ДАЛ ЩЕЛЬ:
+     счёт победы и «×N» карточек. Отсчёту и мелким НЕ ставим — щели у них нет,
+     а на мелком приём склеивает соседние глифы («LV 8» — две компоненты силуэта
+     становились одной). Механика и все замеры — у определения фильтра в body.
+     ⚠️ ЦВЕТ ПОДЛОЖКИ В ФИЛЬТРЕ ЖЁСТКИЙ, БЕЛЫЙ (feFlood не умеет читать
+     `--otl-color`: фильтр живёт в defs и наследует от СВОЕГО родителя, а не от
+     того, к кому применён). У обоих потребителей обводка белая — совпадает.
+     Сменишь им `--otl-color` — заведи второй фильтр со своим flood-color,
+     иначе прогал молча останется белым на цветной обводке. */
+  #winScore, .otext.st-x text { filter:url(#otlFill); }
   /* размеры через CSS + viewBox: контент масштабируется вместе с рамкой */
   /* ⚠️ LV и время БЕЗ фиксированной ширины: рамку обжимает по тексту
      fitStat (85-hud), иначе при коротких значениях между подписями
@@ -150,32 +160,48 @@
   .iconBtn svg { width:32px; height:32px; display:block; }
   .iconBtn svg path { fill:var(--btn-fg); }
   .iconBtn:active { transform:scale(.94); }
-  /* ===== СЛОТ «ЗАРЯДА ТИПА» (полировка ИНТЕРФЕЙСА поверх минимальной версии
-     диспетчера, v197). Макета НЕТ — владелец уехал, поэтому решения по канону:
-     • ФОРМА — обычный `.iconBtn`, то есть ровно язык нижнего бара: круг 56,
-       заливка `--btn-bg` (системное правило «день тёмная / ночь светлая»
-       наследуется само, отдельных цветов не пишем).
-     • ЛАЙМОВОЕ КОЛЬЦО — единственная добавленная тяжесть. Лайм #c0ff47 у нас
-       уже ЯЗЫК ЗАРЯДОВ (бейдж подсказки #hintCnt, слово «Ad» внутри Shake),
-       и он АКЦЕНТ — правило дня/ночи его сознательно не трогает. Кольцо
-       отделяет портрет от подложки и метит кнопку как «редкое, тратится».
+  /* ===== СЛОТ «ЗАРЯДА ТИПА» v3 — НЕ КНОПКА, А МОДЕЛЬ (спека владельца
+     2026-07-31 дословно: «бонусная кнопка должна пульсировать и растворяться
+     в течение 7 секунд… Сделай её НЕ КНОПКОЙ, а МОДЕЛЬЮ конкретной вещи
+     размером с кнопку подсказки. Пульсировать = менять свой размер (совсем
+     немного) с эффектом bounce»).
+     ⛔ ЭТИМ ОТМЕНЁН МОЙ ЖЕ v197: круг `.iconBtn` с заливкой `--btn-bg` и
+     лаймовое кольцо #c0ff47 СНЯТЫ ПОЛНОСТЬЮ — владелец увидел их живьём и
+     сказал «не кнопка». Класс `iconBtn` с узла снят, поэтому здесь ЯВНО
+     повторены три его свойства, которые несущие, а не косметические:
+     pointer-events:auto (⚠️ `.bar` глушит события — канонная грабля, без него
+     слот кликается «сквозь» в канвас), flex:none и размер 56 = ровно кнопка
+     подсказки («размером с кнопку подсказки» — её же 56).
+     ⚠️ ПОРТРЕТ ТЕПЕРЬ 100%, А НЕ 70%: раньше модель сидела внутри круга и
+     поле давал сам круг. Круга нет — вещь обязана занять весь габарит, иначе
+     она читается мельче кнопки подсказки, чего спека не велит.
      ⚠️ БЕЙДЖ С ЦИФРАМИ НЕ ДЕЛАЮ: заряд живёт 7 с и таймером служит само
-     растворение. Второй канал того же времени (число рядом с гаснущей
-     кнопкой) — шум; если владелец захочет отсчёт, это отдельное слово.
-     ⚠️ pointer-events:auto НЕ ДУБЛИРУЮ — он в `.iconBtn` (грабля .bar учтена
-     там же); проверено попаданием тапа замером, а не повтором свойства. */
-  /* ⚠️ ПЕРЕХОДА/АНИМАЦИИ НА opacity ЗДЕСЬ НЕТ СОЗНАТЕЛЬНО: растворение ведёт
+     растворение. Второй канал того же времени — шум; захочет отсчёт — слово.
+     ⚠️ ПЕРЕХОДА/АНИМАЦИИ НА opacity ЗДЕСЬ НЕТ СОЗНАТЕЛЬНО: растворение ведёт
      покадровый тик в 85-hud прямо по `chargeState().leftMs`, то есть по ЖИВОМУ
      остатку из ядра. CSS-переход поверх покадровой записи только тянулся бы
      за значением (каждый кадр запускал бы новую интерполяцию), а
      `animation: 7s` завела бы ВТОРОЙ отсчёт времени рядом с ядерным. */
-  #chargeBtn { box-shadow:0 0 0 3px #c0ff47; }
-  #chargeBtn img { width:70%; height:70%; object-fit:contain; display:block; }
-  /* ВХОД: заряд выпадает на зажигании Power chain — момент яркий, кнопка не
-     должна просто возникнуть. Овершут даёт сама кривая, кадров всего два. */
+  #chargeBtn { pointer-events:auto; width:56px; height:56px; flex:none;
+    border:none; padding:0; background:none; box-shadow:none; cursor:pointer;
+    display:block; -webkit-tap-highlight-color:transparent; }
+  #chargeBtn img { width:100%; height:100%; object-fit:contain; display:block; }
+  /* ⚠️ ТРИ ДВИЖЕНИЯ НА ТРЁХ РАЗНЫХ НОСИТЕЛЯХ — иначе они затрут друг друга:
+     ВХОД   — transform УЗЛА (`#chargeBtn.in`, разовый поп);
+     ПУЛЬС  — transform КАРТИНКИ (бесконечный, поэтому не может жить на том же
+              узле, что и вход: последняя объявленная анимация выиграла бы);
+     РАСТВОРЕНИЕ — opacity узла, покадрово из 85-hud (см. выше).
+     Пульс «совсем немного» = ±4% (1.0 -> 1.04): на 56px это 2.2px хода —
+     заметно боковым зрением и не дёргает нижний бар. Овершут даёт кривая
+     cubic-bezier(.34,1.56,.64,1) — тот же bounce, что у входа, язык один. */
   #chargeBtn.in { animation:chargePop .3s cubic-bezier(.34,1.56,.64,1); }
   @keyframes chargePop { from { transform:scale(.55); } to { transform:scale(1); } }
-  @media (prefers-reduced-motion:reduce) { #chargeBtn.in { animation:none; } }
+  #chargeBtn img { animation:chargePulse 1.1s cubic-bezier(.34,1.56,.64,1) infinite; }
+  @keyframes chargePulse { 0%, 100% { transform:scale(1); } 50% { transform:scale(1.04); } }
+  @media (prefers-reduced-motion:reduce) {
+    #chargeBtn.in { animation:none; }
+    #chargeBtn img { animation:none; }
+  }
   /* белая заливка как у паузы (спека владельца), иконка и счётчик чёрные */
   #hintBtn { position:relative; }
   /* подсказки расходуемые (main): счётчик бейджем на круглой кнопке макета,
@@ -610,9 +636,24 @@
   #winScore { fill:url(#gWinScore); }
   /* --- НАГРАДА (+1 подсказка) + NEXT --- */
   .win-actions { display:flex; gap:8px; align-items:center; width:100%; margin-bottom:26px; }
-  .win-reward { flex:none; width:145px; display:flex; align-items:center; gap:7px; height:84px;
-    box-sizing:border-box; background:rgba(0,0,0,.2); border-radius:1000px; padding:8px 19px 8px 10px; }
-  .win-reward-ic { flex:none; width:64px; height:64px; border-radius:1000px; background:#c0ff47;
+  /* ⚠️ ПИЛЮЛЯ НАГРАДЫ — ПО НОДЕ 779:1114 «Item toast black» (спека владельца
+     2026-07-31 «переделай на Implement this design from Figma»). Числа сняты
+     get_design_context, не со скрина: фон rgba(255,255,255,.16), внутреннее
+     ЛАЙМОВОЕ свечение inset 0 0 28px #c0ff47, падинги 8/20/8/8, gap 7,
+     круг 64 БЕЛЫЙ с иконкой 32, «+1» лайм 39px шириной 45.
+     ⛔ ЧТО ОТМЕНЕНО НОДОЙ: тёмный фон rgba(0,0,0,.2) и ЛАЙМОВЫЙ круг —
+     теперь наоборот, лайм ушёл в свечение пилюли, круг стал белым.
+     ⚠️ ШИРИНА БОЛЬШЕ НЕ ФИКСИРОВАНА (была 145): по новым падингам контент
+     ровно 8+64+7+45+20 = 144, и фикс-число опять разъехалось бы с содержимым —
+     ту же болезнь чинили сегодня у бейджа множителя. Ширину даёт контент.
+     ⚠️ ВЫСОТА 84, А НЕ 80 (нода даёт 8+64+8): 84 держит ОДНУ строку с кнопкой
+     Next (нода 783:1065) — в макете 779:1114 сам чип живёт вне этого ряда.
+     ⚠️ ИКОНКА — НАША ИНЛАЙНОВАЯ (тот же глиф, что в #hintBtn), экспорт SVG из
+     Dev Mode каноном запрещён (preserveAspectRatio="none" + 100% габариты). */
+  .win-reward { flex:none; display:flex; align-items:center; gap:7px; height:84px;
+    box-sizing:border-box; background:rgba(255,255,255,.16); border-radius:1000px;
+    box-shadow:inset 0 0 28px 0 #c0ff47; padding:8px 20px 8px 8px; }
+  .win-reward-ic { flex:none; width:64px; height:64px; border-radius:1000px; background:#fff;
     display:grid; place-items:center; }
   .win-reward-ic svg { width:32px; height:32px; display:block; }
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
@@ -669,7 +710,7 @@
     .win-head { margin-bottom:0; }
     .win-top { order:2; }
     .win-actions { order:3; margin-bottom:0; }
-    .win-reward { width:auto; padding:4px 14px 4px 6px; }
+    .win-reward { padding:4px 14px 4px 6px; }  /* width:auto снят — ширину и на десктопе даёт контент */
     .win-reward-n { font-size:34px; width:auto; }
     .win-next { height:72px; flex:1 0 0; min-width:0; }
   }
@@ -1144,6 +1185,49 @@
 </head>
 <body>
 <canvas id="c" tabindex="-1" style="outline:none"></canvas>
+<!-- ⚠️⚠️ ЗАЛИВКА ВНУТРЕННИХ ПРОГАЛОВ ГЛИФОВ (спека владельца 2026-07-31 со
+     скрина «8»: «внутри 8 и подобных цифр должно быть полностью залито цветом
+     обводки»). Обводка идёт и по ВНУТРЕННЕМУ контуру счётчика, закрывая его на
+     --otl с каждой стороны; счётчик шире 2·--otl оставляет в середине щель, и
+     сквозь неё видно сцену.
+     ⚠️ КТО БОЛЕН — ЗАМЕРЕНО НА ЖИВЫХ УЗЛАХ, а не выведено: счёт победы (132
+     дырявых пикселя при 1:1, 1339 при ретинном ×3) и «×N» карточек More Stars
+     (8 и 145). ⛔ ОТСЧЁТ `#mixerTimer` ЗДОРОВ — 0 дырок и на SF Pro Rounded
+     (шрифт владельца), и на фолбэке system-ui, и при ×3. Фильтр ему НЕ ставим:
+     он там ничего не чинит. Если кто-то соберётся «починить восьмёрку отсчёта» —
+     сперва перемерить, дефекта там нет.
+     ⛔ ПРОСТОЙ DILATE НЕ ГОДИТСЯ — ЭТО ДОКАЗАНО, А НЕ МНЕНИЕ: при
+     paint-order:stroke заливка+обводка(2r) ТОЖДЕСТВЕННО равны dilate(глиф, r),
+     поэтому подложка с feMorphology dilate радиусом <= --otl целиком лежит
+     внутри уже нарисованного и не меняет НИ ПИКСЕЛЯ.
+     ⛔ ЗАМЫКАНИЕ (dilate+erode) ТОЖЕ ОТВЕРГНУТО ЗАМЕРОМ: щель закрывает, но
+     раздувает контур до +31px на «×8» и +6px на «28» — прямой конфликт с
+     «наружный силуэт менять нельзя».
+     ПРИЁМ: РАЗМЫТИЕ С ПОРОГОМ. Из SourceAlpha делаем размытую копию и режем её
+     ступенькой на уровне 0.5 — у размытой ПРЯМОЙ кромки уровень 0.5 совпадает
+     с исходной кромкой, поэтому силуэт остаётся на месте, а щель уже ~2σ
+     затягивается. Маской заливаем ЦВЕТОМ ОБВОДКИ и кладём ПОД оригинал
+     (feMerge): все настоящие края рисует сам текст, подложка видна только там,
+     где текста нет — то есть в прогале.
+     ⚠️ ПОРОГ РОВНО 0.5 (матрица 40/−20) — НЕСУЩЕЕ ЧИСЛО, не вкус. Замер: на
+     0.4 (40/−16) контур раздувает до +220px и CLEANED слипается в кашу.
+     ⚠️ σ=4.5 — минимум, закрывающий счёт победы НА ЖИВОМ УЗЛЕ (σ=3 оставляла
+     14 пикселей из 132). Цена замерена профилем контура до/после: +3px у счёта
+     (12 строк из 136), +2px у карточки (9 из 132), склейки нет нигде.
+     ⚠️ СТАВИТЬ ТОЛЬКО ТУДА, ГДЕ ЩЕЛЬ ЕСТЬ. На мелком тексте приём вредит:
+     замер «LV 8» показал СКЛЕЙКУ — силуэт из двух компонент стал одной.
+     ⚠️ color-interpolation-filters=sRGB задан явно: по умолчанию linearRGB,
+     и на цветной заливке (лаймовая обводка) тон бы поехал. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="otlFill" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="4.5" result="b"/>
+    <feColorMatrix in="b" type="matrix" result="m"
+      values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 40 -20"/>
+    <feFlood flood-color="#fff" result="c"/>
+    <feComposite in="c" in2="m" operator="in" result="slug"/>
+    <feMerge><feMergeNode in="slug"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs></svg>
 <!-- ФОНОВАЯ МУЗЫКА: внешний трек (~4.2 МБ), ЛЕНИВАЯ загрузка (preload=none) —
      НЕ в критическом пути стартовой загрузки; потоковый HTML5-audio, WebAudio-
      движок SFX (Sound, 75-audio) не трогаем. ⚠️ music.mp3 лежит РЯДОМ с
@@ -1243,7 +1327,10 @@
          растворяется (opacity ведёт 85-hud по leftMs). Минимальная версия
          диспетчера — ПОЛИРОВКА ЗА ИНТЕРФЕЙСОМ. pointer-events:auto обязателен:
          .bar глушит события (грабля канона). -->
-    <button class="iconBtn" id="chargeBtn" style="display:none" aria-label="Type charge"><img id="chargeImg" alt=""></button>
+    <!-- ⚠️ БЕЗ class="iconBtn" (спека владельца v3 «не кнопкой, а моделью») —
+         кнопочный хром снят, узел остался <button> ради доступности и ради
+         обработчика pointerdown в 90-input (детонация с ПЕРВОГО касания). -->
+    <button id="chargeBtn" style="display:none" aria-label="Type charge"><img id="chargeImg" alt=""></button>
     <button class="iconBtn" id="hintBtn" aria-label="Hint"><svg viewBox="0 0 32 32" fill="none">
       <path d="M14.333 2.667c.922 0 1.667.744 1.667 1.666V15.167h-3.333V4.333c0-.922.745-1.666 1.666-1.666ZM19.333 11c.922 0 1.667.745 1.667 1.667V16a1.667 1.667 0 1 1-3.333 0v-3.333c0-.922.745-1.667 1.666-1.667ZM22.667 14.333a1.667 1.667 0 0 1 3.333 0v3.334a1.667 1.667 0 0 1-3.333 0v-3.334ZM7.526 5.333l4.302 9.834H8.188L4.474 6.667a1.667 1.667 0 0 1 3.052-1.334ZM8.932 16.859l-.01-.026h5.001a2.084 2.084 0 0 1 0 4.167h-2.917a.833.833 0 0 0 0 1.667h2.917a3.75 3.75 0 0 0 3.75-3.75v-.032c.49.282 1.057.448 1.667.448a3.73 3.73 0 0 0 1.854-.562A3.752 3.752 0 0 0 24.339 21c.609 0 1.177-.161 1.666-.448V21a7.667 7.667 0 0 1-7.666 7.667h-3.214a9.667 9.667 0 0 1-6.89-2.876l-.604-.604A9.667 9.667 0 0 1 6 21.573v-1.406a3.75 3.75 0 0 1 2.932-3.308Z" fill="#1d1c26"/>
     </svg><span id="hintCnt">3</span></button>
@@ -1278,7 +1365,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-202 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-203 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -8625,9 +8712,11 @@ function updateHUD(){
           cb.dataset.oc = cs.name; cb.dataset.img = '';   // портрет ещё не подтверждён
           cb.style.opacity = '1';
           // ВХОД: короткий поп — заряд выпадает на зажигании Power chain, момент
-          // яркий. Поп на TRANSFORM, растворение на OPACITY — свойства разные,
-          // поэтому не спорят. Класс снимаем таймером, иначе остаточная
-          // анимация подавляла бы `.iconBtn:active`.
+          // яркий. Поп на TRANSFORM УЗЛА, растворение на OPACITY, а бесконечный
+          // ПУЛЬС — на transform КАРТИНКИ (v3, «не кнопкой, а моделью»): три
+          // движения на трёх носителях, поэтому не спорят. Класс снимаем
+          // таймером — иначе разовая анимация висела бы на узле вечно и
+          // перебивала бы будущий поп следующего заряда.
           cb.classList.remove('in'); void cb.offsetWidth; cb.classList.add('in');
           if (chargeInT) clearTimeout(chargeInT);
           chargeInT = setTimeout(() => { cb.classList.remove('in'); chargeInT = 0; }, 420);

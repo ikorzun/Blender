@@ -400,9 +400,11 @@ function updateHUD(){
           cb.dataset.oc = cs.name; cb.dataset.img = '';   // портрет ещё не подтверждён
           cb.style.opacity = '1';
           // ВХОД: короткий поп — заряд выпадает на зажигании Power chain, момент
-          // яркий. Поп на TRANSFORM, растворение на OPACITY — свойства разные,
-          // поэтому не спорят. Класс снимаем таймером, иначе остаточная
-          // анимация подавляла бы `.iconBtn:active`.
+          // яркий. Поп на TRANSFORM УЗЛА, растворение на OPACITY, а бесконечный
+          // ПУЛЬС — на transform КАРТИНКИ (v3, «не кнопкой, а моделью»): три
+          // движения на трёх носителях, поэтому не спорят. Класс снимаем
+          // таймером — иначе разовая анимация висела бы на узле вечно и
+          // перебивала бы будущий поп следующего заряда.
           cb.classList.remove('in'); void cb.offsetWidth; cb.classList.add('in');
           if (chargeInT) clearTimeout(chargeInT);
           chargeInT = setTimeout(() => { cb.classList.remove('in'); chargeInT = 0; }, 420);
