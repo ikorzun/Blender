@@ -1094,6 +1094,29 @@ const path = require('path');
   })();
   expect(vitZoom.disp === 'block' && vitZoom.cls === false,
     'витрина: при СИЛЬНОМ зуме панель СТОИТ (camnear отменён) (' + JSON.stringify(vitZoom) + ')');
+  // МНОЖИТЕЛЬ: паддинги ФИКС 6/6, ширина ПО СОДЕРЖИМОМУ (спека владельца
+  // 2026-07-31 по живому багу «множитель не влезает»). ⚠️ МЕРИТЬ ШИРИНОЙ ТЕКСТА
+  // против ДРОБНОЙ внутренней ширины: scrollWidth в LTR НЕ считает вылет ВЛЕВО
+  // (на сломанной сборке он честно отдавал scrollWidth===clientWidth при срезанном
+  // ×), а clientWidth округлён до целого и сам даёт ложные 0.3px.
+  const multFit = await page.evaluate(() => {
+    const e = document.querySelector('.vmult');
+    if (!e) return { нетБейджа: true };
+    const old = e.textContent, out = [];
+    for (const t of ['×1.25', '×3.25']) { // рабочее значение и кап ACC_TIER_CAP=9
+      e.textContent = t; void e.offsetWidth;
+      const c = getComputedStyle(e), r = e.getBoundingClientRect();
+      const rg = document.createRange(); rg.selectNodeContents(e);
+      const inner = r.width - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight);
+      out.push({ t, вылет: +(rg.getBoundingClientRect().width - inner).toFixed(2),
+                 pl: parseFloat(c.paddingLeft), pr: parseFloat(c.paddingRight) });
+    }
+    e.textContent = old; void e.offsetWidth;
+    return { out };
+  });
+  expect(!multFit.нетБейджа &&
+    multFit.out.every(o => o.вылет <= 0.01 && o.pl === 6 && o.pr === 6),
+    'витрина: множитель влезает целиком при паддингах 6/6 (' + JSON.stringify(multFit) + ')');
   await page.setViewportSize({ width: 800, height: 768 }); // уже порога 813
   await page.waitForTimeout(250);
   expect(await vitDisp() === 'none',
