@@ -287,6 +287,25 @@ const Ads = (function(){
             adBlockOff();
           }
         });
+        // ЦЕНА «НАВСЕГДА БЕЗ РЕКЛАМЫ» — ИЗ КАТАЛОГА ПЛОЩАДКИ (спека владельца
+        // 2026-07-30 «проверь цену из бриджа»). Кнопка в shell.html несёт фолбэк
+        // «Forever for $4.90»; здесь подтягивается живая цена товара
+        // noads_forever (у площадки она в локальной валюте игрока). Ошибки
+        // глотаем молча — кнопка остаётся с фолбэком, покупку это не ломает.
+        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
+        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
+        // кабинетом: 'noads_forever'.
+        try {
+          if (br.payments && br.payments.getCatalog){
+            br.payments.getCatalog().then((items)=>{
+              const it = (items || []).find(x => x && x.id === 'noads_forever');
+              const price = it && (it.price ||
+                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
+              const btn = document.getElementById('msSubscribe');
+              if (price && btn) btn.textContent = 'Forever for ' + price;
+            }).catch(()=>{});
+          }
+        } catch(e){}
         mode = 'bridge';
       }).catch(()=>{ /* остаёмся на заглушке */
         // initialize упал: GAME_READY отправить нечем, но у SDK сработает свой

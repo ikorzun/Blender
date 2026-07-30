@@ -1205,7 +1205,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-181 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-182 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1380,7 +1380,11 @@
     <!-- БАННЕР No more AD (лайм) + Subscribe $1.99 -->
     <section class="ms-banner">
       <div class="ms-banner-t">No more AD</div>
-      <button class="ms-sub" id="msSubscribe">Subscribe $1.99</button>
+      <!-- «БЕЗ РЕКЛАМЫ НАВСЕГДА» вместо подписки (спека владельца 2026-07-30:
+     разовая покупка noads_forever за $4.90, подписок в веб-версии нет).
+     $4.90 здесь — ФОЛБЭК: живую цену (локальная валюта площадки) подтягивает
+     78-ads из bridge.payments.getCatalog, когда платежи доступны. -->
+    <button class="ms-sub" id="msSubscribe">Forever for $4.90</button>
     </section>
     <!-- PLAY: лиловая панель, спокойные глаза eyes-0 + большая кнопка -->
     <section class="ms-play">

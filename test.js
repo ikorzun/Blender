@@ -2388,7 +2388,27 @@ window.bridge = {
     'ХВОСТ TYPES ДОСТИЖИМ: последний тип и рыба попадают в кучу при полном открытии ('
     + tailProbe.regens + ' реген(ов))');
   expect(!tailProbe.tail20,
-    'прогрессия цела: хвостовые типы на ур.20 ещё не открыты');
+    'сентинел forestplant на ур.20 ещё не открыт (он намеренно последний)');
+  // ПЕРЕМЕШИВАНИЕ (спека владельца 2026-07-30): новые типы обязаны быть видны
+  // РАНО. На ур.20 открыты индексы 0..27 ДЕТЕРМИНИРОВАННО (typesCount<=pairsCnt
+  // — берутся все открытые), поэтому проверка без регенов честная.
+  const mixProbe = await page.evaluate(() => {
+    const g = window.__game;
+    g.setLevel(20); g.regen(); g.skipIntro();
+    const n20 = Object.keys(g.typesSnapshot());
+    g.setLevel(10); g.regen(); g.skipIntro();
+    const n10 = Object.keys(g.typesSnapshot());
+    return { holiday20: ['holidaycandycanered','holidaygingerbreadman','holidaynutcracker']
+               .filter(x => n20.includes(x)).length,
+             fish10: n10.includes('survivalfish'),
+             donut20: n20.includes('fooddonutsprinkles') };
+  });
+  expect(mixProbe.holiday20 >= 2,
+    'ПЕРЕМЕШИВАНИЕ: к ур.20 видны новые типы (' + mixProbe.holiday20 + ' из 3 сентинелов)');
+  expect(!mixProbe.fish10,
+    'рыба НЕ в первой десятке уровней (учёт возражения Графики о путанице с кладом)');
+  expect(!mixProbe.donut20,
+    'пончик остаётся поздним, пока не починен его коллайдер');
   // Лесенка 3 + ⌊ур/6⌋, кап 8 — числа из 00-config, ассерт их ПИНУЕТ
   // намеренно (двойник спеки; читать из игры значило бы проверять пустоту).
   expect(tailProbe.shakes1 === 3 && tailProbe.shakes20 === 6 && tailProbe.shakes40 === 8,
