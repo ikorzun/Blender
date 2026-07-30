@@ -2453,7 +2453,6 @@ window.bridge = {
     const g = window.__game;
     const at = (lv) => { g.setLevel(lv); g.regen(); g.skipIntro();
                          return Object.keys(g.typesSnapshot()); };
-    const lv2  = at(2);
     const lv20 = at(20);
     // ⚠️ УРОВЕНЬ ПОЛНОГО ОТКРЫТИЯ ПЛАВАЕТ С ЧИСЛОМ ТИПОВ (берём 160 с запасом),
     // а с v181 состав кучи на высоких уровнях ещё и СЛУЧАЕН: спавн выбирает
@@ -2469,17 +2468,16 @@ window.bridge = {
       for (const n of at(160)) seen.add(n);
       if (seen.has('forestplant') && seen.has('survivalfish')) break;
     }
-    return { steak2: lv2.includes('steak'),
+    return {
              tailAll: seen.has('forestplant'),   // последний тип массива
              fishAll: seen.has('survivalfish'),  // рыба владельца (v180)
              regens,
              tail20:  lv20.includes('forestplant'),
              shakes1: g.freeShakes(1), shakes20: g.freeShakes(20), shakes40: g.freeShakes(40) };
   });
-  // ⚠️ МОДЕЛЬ ВЛАДЕЛЬЦА ОБЯЗАНА БЫТЬ В ИГРЕ. На индексе 92 она открывалась с
-  // 85-го уровня, то есть фактически отсутствовала; спекой 2026-07-30 уведена
-  // на индекс 9 (второй уровень). Ассерт падает, если её снова уведут в хвост.
-  expect(tailProbe.steak2, 'СТЕЙК (модель владельца) есть в куче со ВТОРОГО уровня');
+  // ⚠️ СТРАЖ СТЕЙКА СНЯТ ВМЕСТЕ С ТИПОМ (спека владельца 2026-07-30 «убери
+  // стейк совсем»). Это отмена его же утренней спеки, на которой страж и
+  // стоял; данные 35-steak.js удалены. Вернут стейк — вернуть и ассерт.
   // ⚠️ АССЕРТ СПОСОБЕН УПАСТЬ: вернуть `i % typesCount` — и tail113 станет
   // false, потому что pairsCnt (90) меньше числа типов (121).
   expect(tailProbe.tailAll && tailProbe.fishAll,
@@ -2496,7 +2494,7 @@ window.bridge = {
     const n20 = Object.keys(g.typesSnapshot());
     g.setLevel(10); g.regen(); g.skipIntro();
     const n10 = Object.keys(g.typesSnapshot());
-    return { holiday20: ['holidaycandycanered','holidaygingerbreadman','holidaynutcracker']
+    return { holiday20: ['holidayhanukkahdreidel','holidaygingerbreadman','holidaynutcracker']
                .filter(x => n20.includes(x)).length,
              fish10: n10.includes('survivalfish'),
              donut20: n20.includes('fooddonutsprinkles') };
