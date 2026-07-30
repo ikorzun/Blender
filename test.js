@@ -2718,17 +2718,61 @@ window.bridge = {
   expect(missKill.before && !missKill.after,
     'ТУРБО: один промах остановил режим (' + JSON.stringify(missKill) + ')');
 
+  // ЗАРЯД С ПЕРВОГО КАСАНИЯ (жалоба владельца «нажимать дважды»): детонация
+  // обязана уйти с ОДНОГО pointerdown по слоту, без click-синтеза
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(300);
+  const tap1 = await page.evaluate(() => {
+    const g = window.__game;
+    const sn = g.typesSnapshot();
+    let name = null, n = 0;
+    for (const [k, v] of Object.entries(sn)) if (k !== 'surprise' && v.alive > n){ name = k; n = v.alive; }
+    g.chargeGrant(name);
+    document.getElementById('chargeBtn').dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    return { cleared: g.charge().name === '' };
+  });
+  expect(tap1.cleared, 'ЗАРЯД: сработал с ПЕРВОГО pointerdown по слоту');
+  // ДРОЖЬ КУРСОРА на «пара не сходится»: класс появляется и сам гаснет ~0.5 c
+  const shake = await page.evaluate(async () => {
+    const el = document.documentElement;
+    window.__game.cfg.baseRadius = -9; window.__game.forceRefresh();
+    // тап по доступному без пары повторяет ветку nopair — зовём её напрямую
+    // через реальный обработчик нельзя без клика по предмету; дёргаем хук
+    return null;
+  });
+  // честный путь: реальный тап по доступному предмету при радиусе -9 (нет пар)
+  await page.evaluate(() => { window.__game.cfg.baseRadius = -9; window.__game.forceRefresh(); });
+  const shakeTap = await page.evaluate(() => {
+    const t = window.__game.bestTapTarget();
+    return t && t.px != null ? { px: t.px, py: t.py } : null;
+  });
+  if (shakeTap){
+    await page.mouse.click(shakeTap.px, shakeTap.py);
+    const on = await page.evaluate(() =>
+      document.documentElement.classList.contains('cshake-a') ||
+      document.documentElement.classList.contains('cshake-b'));
+    await page.waitForTimeout(900);
+    const off = await page.evaluate(() =>
+      document.documentElement.classList.contains('cshake-a') ||
+      document.documentElement.classList.contains('cshake-b'));
+    expect(on && !off, 'ДРОЖЬ КУРСОРА: включилась на ошибке и погасла за ~0.5 c (' + on + '/' + off + ')');
+  } else console.log('дрожь: цель для тапа не нашлась — пропуск');
+  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.35; window.__game.forceRefresh(); });
+
   // ===== КАСТОМНЫЕ КУРСОРЫ ДЕСКТОПА (спека владельца 2026-07-31) =====
   // headless chromium отдаёт pointer:fine — медиа-гейт открыт, курсоры видны
   const cur = await page.evaluate(() => ({
     fine: matchMedia('(pointer:fine)').matches,
-    body: getComputedStyle(document.body).cursor.slice(0, 30),
-    btn: getComputedStyle(document.getElementById('shakeBtn')).cursor.slice(0, 30),
+    body: getComputedStyle(document.body).cursor.slice(0, 60),
+    btn: getComputedStyle(document.getElementById('shakeBtn')).cursor.slice(0, 60),
   }));
-  expect(cur.fine && cur.body.startsWith('url("data:image/png'),
-    'КУРСОР: открытая ладонь на поле (' + cur.body + '…)');
-  expect(cur.btn.startsWith('url("data:image/png'),
-    'КУРСОР: указательная рука на кнопках (' + cur.btn + '…)');
+  // v2: основной курсор — указательная рука (слово владельца), computed может
+  // отдавать image-set(...) — проверяем ВХОЖДЕНИЕ data-URI, не префикс
+  expect(cur.fine && cur.body.includes('data:image/png'),
+    'КУРСОР: указательная рука — основной (' + cur.body + '…)');
+  expect(cur.btn.includes('data:image/png'),
+    'КУРСОР: рука и на кнопках (' + cur.btn + '…)');
   // драг камеры сжимает руку, отпускание разжимает
   await page.mouse.move(200, 400); await page.mouse.down();
   await page.mouse.move(260, 420, { steps: 4 });

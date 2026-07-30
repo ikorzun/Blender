@@ -103,6 +103,24 @@ function endPointer(e){
 }
 // сброс всех жестов (вызывается на границах интро: зажатый в интро палец
 // не должен превращаться в драг со старой базой камеры)
+// ДРОЖЬ КУРСОРА НА ОШИБКЕ (спека владельца 2026-07-31: «если игрок ошибся и
+// пара не сходится, чуть потряхивай курсор, буквально 1 секунду»). Сам
+// системный курсор двигать нельзя — дрожь делается быстрым чередованием двух
+// CSS-классов с ОДНОЙ картинкой, но смещёнными хотспотами (±2px): картинка
+// прыгает относительно точки указания. Только pointer:fine; на таче ничего.
+let cshakeTimer = 0;
+function cursorShake(){
+  if (!matchMedia('(pointer:fine)').matches) return;
+  const el = document.documentElement;
+  clearInterval(cshakeTimer);
+  let k = 0;
+  cshakeTimer = setInterval(()=>{
+    el.classList.toggle('cshake-a', k % 2 === 0);
+    el.classList.toggle('cshake-b', k % 2 === 1);
+    if (++k >= 8){ clearInterval(cshakeTimer); cshakeTimer = 0;
+      el.classList.remove('cshake-a', 'cshake-b'); }
+  }, 62); // 8 тиков × 62 мс ≈ 0.5 c (правка владельца тут же: «1 секунда — слишком долго»)
+}
 function resetPointers(){
   document.documentElement.classList.remove('grabbing');
   touches.clear();
@@ -135,7 +153,15 @@ $('shakeBtn').addEventListener('click', requestShake);
 // зависит от порядка проверок внутри него.
 // ЗАРЯД ТИПА: клик = детонация, мгновенно, без подтверждения (попапы
 // отвергнуты канонично). Гварды внутри detonateCharge.
-$('chargeBtn').addEventListener('click', ()=>{ try { detonateCharge(); } catch(e){} });
+// ⚠️ POINTERDOWN, НЕ CLICK (жалоба владельца с телефона: «приходится нажимать
+// дважды и есть задержка»): click синтезируется на up и глотается, если между
+// down и up узел моргнул (растворение пишет opacity покадрово) или палец чуть
+// уехал. pointerdown срабатывает МГНОВЕННО и не зависит от up.
+// stopPropagation — чтобы тот же down не утёк в жестыканваса/бара.
+$('chargeBtn').addEventListener('pointerdown', (e)=>{
+  e.stopPropagation(); e.preventDefault();
+  try { detonateCharge(); } catch(err){}
+});
 $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();

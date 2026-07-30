@@ -265,17 +265,24 @@ function detonateCharge(){
   lastMatchMs = performance.now();               // окно серии продлевается (действие),
                                                  // comboCount НЕ трогаем — заряд серию не копит
   victims.forEach(it => { it.animating = true; destroyItemBody(it); });
-  victims.forEach(it => burstFX(it));
+  // РАСТВОРЕНИЕ, а не пак-бурст (спека владельца 2026-07-31: «должны разлетаться
+  // сильнее, или просто растворяться, иначе не понятно что произошло»): выбрано
+  // растворение — труха dissolveFX на КАЖДОМ из 6-16 предметов читается как
+  // одновременное исчезновение типа, бурст на этом числе выглядел мелко.
+  victims.forEach(it => dissolveFX(it));
   const mid = new THREE.Vector3();
   victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
   scorePop('+' + gained, mid, '#ffffff', true);
   try { faceEvent('angry', 1400); } catch(e){}   // канон глаз: злость поверх — он ЗАМЕТИЛ
   Sound.play('match', N); vibrate([30, 60, 40]);
-  setTimeout(() => afterPause(() => {
+  // ⚠️ БЕЗ 150 мс ожидания (жалоба «задержка по уничтожению»): труха уже
+  // прячет меши, удаление сразу — паттерн бомбы держал паузу ради надувания,
+  // которого у заряда больше нет.
+  afterPause(() => {
     victims.forEach(removeItem);
     wakePhysics('charge:settle');
     refreshAccessibility(); updateHUD(); checkEnd();
-  }), 150);
+  });
   return true;
 }
 
@@ -573,6 +580,7 @@ function handleTap(x, y){
   // радиус-лесенку, а раз это не ошибка — ничего сбрасывать не за что.
   // Обратная связь остаётся: красный ореол уже нарисован выше + дрожание.
   Telemetry.tap(x, y, 'nopair');   // отдельно от 'miss' — в карте промахов это другой случай
+  try { cursorShake(); } catch(e){} // «пара не сходится» — дрожь курсора 1 c (десктоп)
   wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
