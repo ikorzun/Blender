@@ -492,6 +492,24 @@ function itemThumb(item){
   if (!item || !item.mesh) return null;
   const key = String(item.key);
   if (thumbCache[key]) return thumbCache[key];
+  // ⚠️⚠️ АТЛАС ЕЩЁ НЕ ДЕКОДИРОВАН -> НЕ СНИМАТЬ И НЕ КЭШИРОВАТЬ (жалоба
+  // владельца 2026-07-30 «где превью у всех новых объектов?»).
+  // `modelColormap` (36-models) отдаёт текстуру с БЕЛОЙ 1×1 заглушкой, а
+  // `needsUpdate` ставит только в `img.onload` — до него `map.version === 0`,
+  // то есть текстура НИ РАЗУ не загружена в GPU. Портрет снимается синхронно
+  // и выходит ПУСТЫМ (замер: 0 непрозрачных пикселей из 65536, а два разных
+  // типа дают побайтово одинаковый PNG 3174 Б), после чего пустышка оседает
+  // в thumbCache НАВСЕГДА — карточка остаётся без картинки до перезагрузки.
+  // ⚠️ Болели только НОВЫЕ пачки (holiday/survival/toycar/factory/market/
+  // arcade/forest): их атласы не нужны раннему уровню и декодируются впервые
+  // ровно на этом вызове. Старые (animal/food/car/brick/pirate) прогреты
+  // живой партией, поэтому дефект годами не проявлялся.
+  // ⚠️ ВТОРОЙ РЕНДЕР ПОДРЯД НЕ ЛЕЧИТ (проверено: оба кадра по 3174 Б) —
+  // ждать нужно СОБЫТИЯ декода, а не лишнего кадра. Сам вызов уже запустил
+  // загрузку (itemMaterial -> modelColormap), поэтому добор идёт по таймеру
+  // в buildMainCollection.
+  const map0 = item.mesh.material && item.mesh.material.map;
+  if (map0 && (!map0.image || !map0.image.width || map0.image.width <= 1 || !map0.version)) return null;
   try {
     if (!thumbR){
       thumbR = new THREE.WebGLRenderer({ alpha:true, antialias:true });
@@ -889,11 +907,35 @@ function msCardTapSpin(card){
   card.classList.toggle('spinning', spinning); // тач-аналог :hover для бейджа (40%)
   msTapSpinCard = spinning ? card : null;
 }
+// ДОБОР ПОРТРЕТОВ: атлас пачки декодируется асинхронно, и карточки типов из
+// ещё не прогретой пачки открываются с буквой. Ждём декода и подменяем букву
+// картинкой НА МЕСТЕ. Предел 16×200 мс = 3.2 с — если пачка так и не пришла
+// (битый атлас), добор молча прекращается и буква остаётся честным фолбэком.
+let msThumbWait = null;
+const MS_THUMB_TRIES = 16, MS_THUMB_MS = 200;
+function msThumbFill(pending, left){
+  msThumbWait = setTimeout(() => {
+    msThumbWait = null;
+    const rest = [];
+    for (const p of pending){
+      if (!p.wrap.isConnected) continue;   // сетку пересобрали — эта карточка мертва
+      const url = p.live ? itemThumb(p.live) : itemThumb(thumbItemForKey(p.key, p.locked));
+      if (!url){ rest.push(p); continue; }
+      const im = document.createElement('img');
+      im.className = 'msc-img'; im.src = url;
+      const ph = p.wrap.querySelector('.msc-img.letter');
+      if (ph) p.wrap.replaceChild(im, ph); else p.wrap.insertBefore(im, p.wrap.firstChild);
+    }
+    if (rest.length && left > 1) msThumbFill(rest, left - 1);
+  }, MS_THUMB_MS);
+}
 function buildMainCollection(){
   const grid = $('msGrid');
   if (!grid) return;
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinCard = null; } // сброс тап-спина при пересборке
   grid.innerHTML = '';
+  if (msThumbWait){ clearTimeout(msThumbWait); msThumbWait = null; } // старый добор к мёртвым карточкам
+  const pending = []; // карточки без портрета: атлас пачки ещё декодируется
   const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
   const open = unlockedTypeCount();
   // спин портрета — ТОЛЬКО на устройствах с настоящим hover (десктоп): на
@@ -927,6 +969,12 @@ function buildMainCollection(){
       ph.className = 'msc-img letter';
       ph.textContent = String(r.name || '?').slice(0, 1).toUpperCase();
       wrap.appendChild(ph);
+      // ⚠️ ПОРТРЕТА ПОКА НЕТ — берём на ДОБОР, а не оставляем букву навсегда.
+      // itemThumb отказывается снимать, пока атлас пачки не декодирован
+      // (см. страж там же); сам этот вызов декод и запустил. Буква остаётся
+      // видимой доли секунды и подменяется картинкой НА МЕСТЕ — без
+      // пересборки сетки, чтобы не рвать скролл и тап-спин.
+      pending.push({ wrap, key: r.key, locked, live });
     }
     if (!locked){
       const badge = document.createElement('div');
@@ -989,6 +1037,7 @@ function buildMainCollection(){
     }
     grid.appendChild(card);
   });
+  if (pending.length) msThumbFill(pending, MS_THUMB_TRIES);
 }
 // отражение текущих настроек в контролах экрана (значения из CFG)
 // --fill (в %) двигает зелёную заливку у WebKit-ползунка (см. shell.html);

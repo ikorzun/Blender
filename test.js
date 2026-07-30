@@ -696,6 +696,32 @@ const path = require('path');
   expect(oneNumber.unbanked > 0 && Number(oneNumber.wallet) === oneNumber.live,
     'кошелёк меню включает незабанкованный счёт уровня (+' + oneNumber.unbanked + ', live ' + oneNumber.live + ')');
 
+  // ⚠️ ПОРТРЕТЫ КОЛЛЕКЦИИ НЕ ПУСТЫЕ (жалоба владельца 2026-07-30 «где превью у
+  // всех новых объектов?»). До правки на main 29 карточек из 122 показывали
+  // ПУСТУЮ картинку: атлас новой пачки декодируется асинхронно, портрет
+  // снимался с 1×1-заглушкой (map.version 0) и пустышка оседала в thumbCache
+  // НАВСЕГДА. Болели только пачки, которых нет на раннем уровне, — поэтому
+  // дефект и жил незамеченным.
+  // ⚠️ ПОРОГ ПО ДЛИНЕ data-URL, А НЕ ЧТЕНИЕ ПИКСЕЛЕЙ: пустой PNG 256×256 весит
+  // РОВНО 3174 Б (у двух разных типов совпадал побайтово), живой — от ~9 КБ.
+  // Декодировать 122 картинки в сьюте дорого, а порог различает надёжно.
+  await page.evaluate(() => window.showMainScreen());
+  await page.waitForFunction(() => {            // ждём добор портретов (16×200 мс)
+    const g = document.getElementById('msGrid');
+    return g && g.children.length > 0 && !g.querySelector('.msc-img.letter');
+  }, null, { timeout: 6000 }).catch(() => {});
+  const thumbs = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('#msGrid .msc')];
+    const bad = cards.filter(c => { const im = c.querySelector('img.msc-img');
+      return !im || im.src.length < 5000; })
+      .map(c => { const n = c.querySelector('.msc-name'); return n ? n.textContent : '?'; });
+    return { всего: cards.length, плохих: bad.length, примеры: bad.slice(0, 5) };
+  });
+  await page.evaluate(() => window.hideMainScreen && window.hideMainScreen());
+  expect(thumbs.всего > 100 && thumbs.плохих === 0,
+    'ПОРТРЕТЫ: живая картинка у всех ' + thumbs.всего + ' карточек коллекции' +
+    (thumbs.плохих ? ' — ПУСТЫЕ: ' + thumbs.примеры.join(', ') : ''));
+
   // ЧИП НЕ ВЫЛЕЗАЕТ ЗА ЭКРАН (регрессия v140→v148, жалоба владельца «отступы
   // поломались»): fitStat ужимал viewBox, но НЕ двигал якорь end-текста —
   // тот оставался на x=102 от исходной рамки 104 и рисовался ЗА ней (.otext
