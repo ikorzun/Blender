@@ -273,12 +273,18 @@ $('msFloatResume').addEventListener('click', menuPlayResume);
 // ⚠️ Слушатель passive — иначе браузер ждёт обработчик перед прокруткой и на
 // телефоне скролл начинает подтормаживать.
 (function(){
-  const ms = $('mainScreen'), play = document.querySelector('.ms-play');
+  const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
+        head = document.querySelector('.ms-head');
   if (!ms || !play) return;
   ms.addEventListener('scroll', () => {
     ms.classList.toggle('stuck', ms.scrollTop > 4);
-    // порог по НИЖНЕЙ кромке карточки: пока видна хоть полоска — дубля нет
-    ms.classList.toggle('playoff', play.getBoundingClientRect().bottom < 8);
+    // ⚠️ ПОРОГ — ПО НИЗУ ЗАЛИПШЕЙ ШАПКИ, А НЕ ПО НУЛЮ ЭКРАНА. Карточка Play
+    // уходит ПОД шапку раньше, чем за верх вью, и в этом окне (замер: 78px
+    // прокрутки) настоящая кнопка уже не нажимается, а плавающей ещё нет —
+    // нажать было нечего. Низ шапки читаем с живого узла: он зависит от
+    // safe-area, числом его не зашить.
+    const порог = head ? head.getBoundingClientRect().bottom + 8 : 8;
+    ms.classList.toggle('playoff', play.getBoundingClientRect().bottom < порог);
   }, { passive: true });
 })();
 // отладочная панель — из меню (раньше вход был в карточке паузы)

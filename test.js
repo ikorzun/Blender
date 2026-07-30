@@ -2821,11 +2821,22 @@ window.bridge = {
   // и в момент зажигания выпадает заряд типа с >= 6 копиями
   await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(300);
+  // ⚠️ КОПИИ СЧИТАТЬ В МОМЕНТ ВЫПАДЕНИЯ, А НЕ ПОСЛЕ ЦИКЛА (страж падал «4 < 6»
+  // на исправной фиче: грант честно выбрал тип с >=6, но два ХВОСТОВЫХ
+  // autoMatch успевали съесть его копии до снимка). Ловим тесным опросом и
+  // рвём цикл сразу по гранту — удаление зажёгшего матча живёт 150 мс, снимок
+  // в первые ~50 мс видит копии ещё живыми.
   const drop = await page.evaluate(async () => {
     const g = window.__game;
-    for (let i = 0; i < 12; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 120)); }
-    const cs = g.charge();
-    const copies = cs.name ? (g.typesSnapshot()[cs.name] || { alive: 0 }).alive : 0;
+    let cs = { name: '', leftMs: 0 }, copies = 0;
+    for (let i = 0; i < 14 && !cs.name; i++){
+      g.autoMatch();
+      for (let t = 0; t < 3 && !cs.name; t++){
+        await new Promise(r => setTimeout(r, 40));
+        cs = g.charge();
+      }
+    }
+    if (cs.name) copies = (g.typesSnapshot()[cs.name] || { alive: 0 }).alive;
     return { name: cs.name, leftMs: cs.leftMs, copies };
   });
   expect(!!drop.name && drop.leftMs > 0,
@@ -3107,15 +3118,12 @@ window.bridge = {
     'МЕНЮ: наверху шапка не залипшая и плавающей кнопки НЕТ (' + JSON.stringify(menuTop) + ')');
   await menuPage.evaluate(() => { const ms = document.getElementById('mainScreen');
     ms.scrollTop = ms.scrollHeight; });
-  // ⚠️ ЖДАТЬ ОСАДКИ СКРОЛЛА ОПРОСОМ, А НЕ ТАЙМЕРОМ (флейк, уехавший в прод с
-  // v205: фикс 400 мс ловил кнопку на «низ 3» вместо 8 — плавный докат ещё
-  // шёл; палитровый релиз был ни при чём, красный оказался этим стражем).
-  // Тот же класс, что снимок-против-хвоста-анимации у заряда: мерить можно
-  // только УСТОЯВШЕЕСЯ значение.
+  // ⚠️ ЖДАТЬ ОСАДКИ СКРОЛЛА ОПРОСОМ (повтор патча 0b2de04: их файл из эпохи до
+  // пойманного флейка «низ 3» — фикс-таймер ловил кнопку до конца доката)
   await menuPage.waitForFunction(() => {
     const ms = document.getElementById('mainScreen');
     const fl = document.getElementById('msFloatBtn') || document.querySelector('.ms-float');
-    if (!fl) return true;                       // фича снята — пусть меряет и честно падает
+    if (!fl) return true;
     const b = fl.getBoundingClientRect().bottom;
     if (window.__flPrev === b && ms.scrollTop === window.__stPrev) return true;
     window.__flPrev = b; window.__stPrev = ms.scrollTop; return false;
@@ -3126,14 +3134,6 @@ window.bridge = {
     if (!fl || !ttl) return { нетУзлов: true, вЗазоре: [] };
     const hr = h.getBoundingClientRect(), fr = fl.getBoundingClientRect();
     const cf = getComputedStyle(fl);
-    // ⚠️ ЧТО ЛЕЖИТ В ПОЛОСЕ НАД ШАПКОЙ — фактом, а не наличием правила: до
-    // подложки сквозь зазор и ВЫРЕЗЫ СКРУГЛЁННЫХ УГЛОВ просвечивал уезжающий
-    // контент, и никакое computed style этого бы не показало.
-    const вЗазоре = new Set();
-    for (let x = 4; x < 393; x += 8) for (let y = 0; y < 8; y += 2){
-      const el = document.elementFromPoint(x, y);
-      вЗазоре.add(el ? (el.id || el.className || el.tagName) : 'нет');
-    }
     return { stuck: ms.classList.contains('stuck'), playoff: ms.classList.contains('playoff'),
              шапкаTop: Math.round(hr.top), шапкаH: Math.round(hr.height),
              заголовок: getComputedStyle(document.querySelector('.ms-head-title')).display,
@@ -3144,8 +3144,7 @@ window.bridge = {
              // исправной сборке (поймано двусторонним прогоном).
              сдвигОтЦентра: +(fr.left + fr.width / 2 - window.innerWidth / 2).toFixed(2),
              низ: Math.round(761 - fr.bottom), фон: cf.backgroundColor, радиус: cf.borderRadius,
-             подпись: fl.textContent, роль: document.getElementById('msPlayBtn').textContent,
-             вЗазоре: [...вЗазоре] };
+             подпись: fl.textContent, роль: document.getElementById('msPlayBtn').textContent };
   });
   expect(!menuScrolled.нетУзлов && menuScrolled.stuck && menuScrolled.playoff &&
     menuScrolled.шапкаTop === 8 && menuScrolled.шапкаH === 48 &&
@@ -3157,8 +3156,84 @@ window.bridge = {
     menuScrolled.подпись === menuScrolled.роль,
     'МЕНЮ: плавающая кнопка по ноде 815:1521 и подпись из одного источника с #msPlayBtn (' +
     JSON.stringify(menuScrolled) + ')');
-  expect(menuScrolled.вЗазоре.length === 1 && menuScrolled.вЗазоре[0] === 'ms-head',
-    'МЕНЮ: над залипшей шапкой не просвечивает контент (' + JSON.stringify(menuScrolled.вЗазоре) + ')');
+  // ⚠️⚠️ ПОЛОСА НАД ШАПКОЙ — ПРОВЕРЯЕТСЯ ПИКСЕЛЯМИ, А НЕ ХИТТЕСТОМ. Первая
+  // версия стража считала `elementFromPoint` по полосе, и это работало, пока
+  // зазор закрывал НАСТОЯЩИЙ узел (`::after`). Когда полосу перевели на
+  // box-shadow (ради чужого замера scrollWidth), страж покраснел на ИСПРАВНОЙ
+  // сборке: тень честно рисует, но тап сквозь неё проходит — инструмент
+  // перестал видеть то, что проверяет. Вопрос владельца зрительный
+  // («не просвечивает»), поэтому и мерить надо цвет пикселей.
+  const stripPx = await (async () => {
+    const buf = await menuPage.screenshot({ clip: { x: 0, y: 0, width: 393, height: 8 } });
+    return menuPage.evaluate(async (b64) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+      const d = cx.getImageData(0, 0, cv.width, cv.height).data;
+      const фон = getComputedStyle(document.getElementById('mainScreen'))
+        .backgroundColor.match(/\d+/g).map(Number);
+      let чужих = 0;
+      for (let i = 0; i < d.length; i += 4){
+        if (Math.abs(d[i] - фон[0]) + Math.abs(d[i+1] - фон[1]) + Math.abs(d[i+2] - фон[2]) > 12) чужих++;
+      }
+      return { всего: d.length / 4, чужих };
+    }, buf.toString('base64'));
+  })();
+  expect(stripPx.чужих === 0,
+    'МЕНЮ: над залипшей шапкой не просвечивает контент — полоса ровного фона (' +
+    JSON.stringify(stripPx) + ')');
+  // ⚠️⚠️ ЗАЛИПШАЯ ШАПКА НЕ ДОЛЖНА ПЕРЕПОЛНЯТЬСЯ — ЭТО ЗАЩИТА ЧУЖОЙ ФИЧИ.
+  // `setWalletNumber` (85-hud) решает «точное число или сокращённое» по
+  // `.ms-head.scrollWidth <= clientWidth`. Первая версия полосы над шапкой была
+  // абсолютным `::after` с `right:-16px` — он добавлял ровно 16px переполнения,
+  // и после любого живого начисления точный баланс схлопывался в «12.5K» на
+  // широком ряду. Полосу перевели на box-shadow (ink overflow, в scrollWidth не
+  // входит). Кто вернёт сюда торчащего ребёнка — уронит этот ассерт.
+  const headFit = await menuPage.evaluate(() => {
+    const h = document.querySelector('.ms-head');
+    return { scrollW: h.scrollWidth, clientW: h.clientWidth };
+  });
+  expect(headFit.scrollW <= headFit.clientW + 1,
+    'МЕНЮ: залипшая шапка не переполнена — сокращение баланса не сработает вхолостую (' +
+    JSON.stringify(headFit) + ')');
+  // НИЗ НЕ ПЕРЕКРЫТ: кнопка `fixed`, места в потоке не занимает и накрывала
+  // последний элемент колонки целиком (тап до него не доходил). Полосу под неё
+  // освобождает padding-bottom у `.ms-wrap` в состоянии `.playoff`.
+  // ⚠️ ПРОКРУЧИВАТЬ ДВАЖДЫ: от первой прокрутки включается `.playoff`, от него
+  // растёт падинг и высота — одиночная прокрутка меряет промежуточный кадр
+  // (на нём я и получила ложное «не починилось»).
+  const bottomHit = await menuPage.evaluate(async () => {
+    const ms = document.getElementById('mainScreen'), wrap = document.querySelector('.ms-wrap');
+    for (let i = 0; i < 2; i++){ ms.scrollTop = ms.scrollHeight; await new Promise(r => setTimeout(r, 350)); }
+    let el = wrap.lastElementChild;
+    if (!el || el.getBoundingClientRect().height < 2){        // dev-ссылка скрыта — берём карточку
+      const cards = document.querySelectorAll('.ms-grid .msc');
+      el = cards[cards.length - 1];
+    }
+    if (!el) return { нетУзла: true };
+    const r = el.getBoundingClientRect();
+    const кто = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { кто: кто ? (кто.id || кто.className || кто.tagName) : 'нет',
+             своё: !!(кто && wrap.contains(кто)) };
+  });
+  expect(!bottomHit.нетУзла && bottomHit.своё,
+    'МЕНЮ: плавающая кнопка не накрывает низ колонки — тап доходит (' + JSON.stringify(bottomHit) + ')');
+  // УЗКИЙ ЭКРАН: ряд шапки обязан ужиматься заголовком, а не выпихивать баланс
+  // с «Get More» за край. До правки на 320 у меню появлялась ГОРИЗОНТАЛЬНАЯ
+  // прокрутка (замер: правый край ряда на 47px за экраном при балансе 166500).
+  await menuPage.setViewportSize({ width: 320, height: 780 });
+  await menuPage.waitForTimeout(250);
+  const narrow = await menuPage.evaluate(async () => {
+    if (window.__game.starGrant) window.__game.starGrant(166500);
+    const ms = document.getElementById('mainScreen');
+    ms.scrollTop = 200; await new Promise(r => setTimeout(r, 250));
+    const h = document.querySelector('.ms-head'), r = document.querySelector('.ms-head-r');
+    return { гориз: ms.scrollWidth - ms.clientWidth,
+             ряд: Math.round(r.getBoundingClientRect().right),
+             пилюля: Math.round(h.getBoundingClientRect().right) };
+  });
+  expect(narrow.гориз === 0 && narrow.ряд <= narrow.пилюля,
+    'МЕНЮ на 320: горизонтальной прокрутки нет и ряд не вылез из пилюли (' + JSON.stringify(narrow) + ')');
   await menuPage.close();
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');

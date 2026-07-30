@@ -900,14 +900,26 @@
        но НАД её собственным фоном — потому текст и кнопка остаются видны */
     #mainScreen.stuck .ms-head::before { content:''; position:absolute; z-index:-1;
       inset:0; background:#fff; border-radius:1000px; }
-    /* ⚠️ ПОЛОСА НАД ШАПКОЙ. Шапка липнет не к нулю, а к 8+safe-area (так в
-       макете), и в этот зазор тоже было видно уезжающий контент. Растянута на
-       поля `.ms-wrap` (16 слева/справа), поэтому закрывает всю ширину вью. */
-    #mainScreen.stuck .ms-head::after { content:''; position:absolute;
-      left:-16px; right:-16px; bottom:100%;
-      height:calc(8px + env(safe-area-inset-top,0)); background:var(--ms-bg); }
+    /* ⚠️⚠️ ПОЛОСА НАД ШАПКОЙ — ТЕНЬЮ, А НЕ ПСЕВДОЭЛЕМЕНТОМ. Шапка липнет не к
+       нулю, а к 8+safe-area (так в макете), и в этот зазор было видно уезжающий
+       контент. ПЕРВАЯ версия закрывала его `::after` с `right:-16px` — и ТИХО
+       ЛОМАЛА ЧУЖУЮ ФИЧУ: `setWalletNumber` (85-hud) решает, показывать точное
+       число или сокращённое, по `.ms-head.scrollWidth <= clientWidth`, а
+       абсолютный ребёнок, торчащий ВПРАВО, добавлял ровно 16px переполнения —
+       после любого живого начисления точный баланс схлопывался в «12.5K» даже
+       на широком ряду. Тень — ink overflow: она не входит ни в раскладку, ни в
+       scrollWidth. Ширины тени хватает: поля `.ms-wrap` (16) содержимого не
+       несут, там и так виден фон экрана. */
+    #mainScreen.stuck .ms-head {
+      box-shadow:0 calc(-8px - env(safe-area-inset-top,0)) 0 0 var(--ms-bg); }
     #mainScreen.stuck .ms-prof { display:none; }
-    #mainScreen.stuck .ms-head-title { display:block; }
+    /* ⚠️ min-width:0 + обрезка: без них заголовок с `white-space:nowrap` не
+       ужимался, ряд переполнялся и на 320px ★-баланс с «Get More» уезжали за
+       край экрана — у меню появлялась ГОРИЗОНТАЛЬНАЯ прокрутка (замер: правый
+       край на 47px за экраном при балансе 166500). Ужимается ЗАГОЛОВОК, а не
+       числа: терять цифры кошелька нельзя. */
+    #mainScreen.stuck .ms-head-title { display:block; min-width:0;
+      overflow:hidden; text-overflow:ellipsis; }
     #mainScreen.stuck .ms-stars span { font-size:18px; }
     #mainScreen.stuck .ms-stars svg { width:16px; height:16px; }
     /* высота кнопки ровно 40 — иначе пилюля 48 при падингах 4 не сходится */
@@ -919,6 +931,11 @@
     .ms-getmore { background:#c0ff47; color:#000; }
     /* ПЛАВАЮЩАЯ КНОПКА показывается, только когда карточка Play уехала вверх */
     #mainScreen.playoff .ms-float { display:block; animation:msFloatIn .28s ease-out both; }
+    /* ⚠️ И ПОД НЕЙ ОСВОБОЖДАЕМ ПОЛОСУ: кнопка `fixed`, поэтому места в потоке
+       не занимает и НАКРЫВАЛА нижний контент целиком (замер: ссылка отладки
+       перекрыта на 100%, тап до неё не доходил, доскроллить ниже нечем).
+       76 = 60 высоты кнопки + 8 её отступа + 8 базовых. */
+    #mainScreen.playoff .ms-wrap { padding-bottom:calc(76px + env(safe-area-inset-bottom,0)); }
   }
   /* ПЛАВАЮЩАЯ КНОПКА — нода 815:1521: чёрная пилюля, радиус 1500, поля 24,
      высота 60, подпись 24/900 белым. Поле снизу 8 (в макете 761−693−60=8).
@@ -1432,7 +1449,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-205 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-206 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -10533,12 +10550,18 @@ $('msFloatResume').addEventListener('click', menuPlayResume);
 // ⚠️ Слушатель passive — иначе браузер ждёт обработчик перед прокруткой и на
 // телефоне скролл начинает подтормаживать.
 (function(){
-  const ms = $('mainScreen'), play = document.querySelector('.ms-play');
+  const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
+        head = document.querySelector('.ms-head');
   if (!ms || !play) return;
   ms.addEventListener('scroll', () => {
     ms.classList.toggle('stuck', ms.scrollTop > 4);
-    // порог по НИЖНЕЙ кромке карточки: пока видна хоть полоска — дубля нет
-    ms.classList.toggle('playoff', play.getBoundingClientRect().bottom < 8);
+    // ⚠️ ПОРОГ — ПО НИЗУ ЗАЛИПШЕЙ ШАПКИ, А НЕ ПО НУЛЮ ЭКРАНА. Карточка Play
+    // уходит ПОД шапку раньше, чем за верх вью, и в этом окне (замер: 78px
+    // прокрутки) настоящая кнопка уже не нажимается, а плавающей ещё нет —
+    // нажать было нечего. Низ шапки читаем с живого узла: он зависит от
+    // safe-area, числом его не зашить.
+    const порог = head ? head.getBoundingClientRect().bottom + 8 : 8;
+    ms.classList.toggle('playoff', play.getBoundingClientRect().bottom < порог);
   }, { passive: true });
 })();
 // отладочная панель — из меню (раньше вход был в карточке паузы)
