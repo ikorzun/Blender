@@ -95,18 +95,6 @@ const TYPES = [
   { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
   { name:'animalbee',             color:0xffd633, rc:1.0, tex:'animal', mat:'soft', geo:animalbeeGeo },
-  // ⚠️ ТЕСТ СТИЛИСТИКИ (спека владельца 2026-07-31, дословно: «хочу попробовать
-  // закинуть объекты в другой стилистики… Это тест, возьми 5 подходящих… сделай
-  // доступными сразу с первого уровня»). Пять РЕАЛИСТИЧНЫХ предметов из пака
-  // Dirty на индексах 4..8 — попадают в базовую девятку ур.1 (typesCount=9),
-  // рядом остаются 4 «наших» для контраста стилей. НАМЕРЕННО не в хвосте.
-  // ⚠️ Это ВРЕМЕННО ДО ВЕРДИКТА владельца: убрать тест = снести 5 строк ниже
-  // + модуль 39-dirty.js. Прежние обитатели индексов 4..8 сдвинуты, НЕ удалены.
-  { name:'dirtyburger',       color:0xc98a4b, rc:1.0, tex:'dirtyburger',       mat:'soft', geo:dirtyburgerGeo },       // ТЕСТ
-  { name:'dirtyextinguisher', color:0xd7372c, rc:1.0, tex:'dirtyextinguisher', mat:'soft', geo:dirtyextinguisherGeo }, // ТЕСТ
-  { name:'dirtyd20',          color:0x7a4fd0, rc:1.0, tex:'dirtyd20',          mat:'soft', geo:dirtyd20Geo },          // ТЕСТ
-  { name:'dirtycamera',       color:0x4a4f57, rc:1.0, tex:'dirtycamera',       mat:'soft', geo:dirtycameraGeo },       // ТЕСТ
-  { name:'dirtybottle',       color:0x7fae4e, rc:1.0, tex:'dirtybottle',       mat:'soft', geo:dirtybottleGeo },       // ТЕСТ
   { name:'animalcrab',            color:0xff5a2b, rc:1.0, tex:'animal', mat:'soft', geo:animalcrabGeo },
   { name:'animalpig',             color:0xff9ec4, rc:1.0, tex:'animal', mat:'soft', geo:animalpigGeo },
   { name:'carpolice',             color:0x3a6ee0, rc:1.4, tex:'car', mat:'soft', geo:()=>carpoliceGeo().clone().scale(1.4, 1.4, 1.4) },
