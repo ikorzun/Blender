@@ -260,8 +260,13 @@ const path = require('path');
     return out;
   });
   await page.waitForTimeout(400);
-  expect(shakeFlat.every(x => x.n === 3),
-    'бесплатных встрясок ВЕЗДЕ 3, лесенки нет (' +
+  // ⚠️ ЭТОТ АССЕРТ ДЕРЖАЛ «ФЛЭТ 3, ЛЕСЕНКИ НЕТ» — решение владельца 2026-07-27,
+  // РАЗВЁРНУТОЕ ИМ ЖЕ 2026-07-30 («подними встряски»). Он честно упал на
+  // правке, и это правильная работа стража: экономика встрясок не должна
+  // меняться молча. Новая спека — лесенка 3 + ⌊ур/6⌋ с капом 8, и ассерт
+  // проверяет ЛЕСЕНКУ, а не просто «стало больше»: монотонность плюс потолок.
+  expect(shakeFlat.every(x => x.n === Math.min(8, 3 + Math.floor(x.lv / 6))),
+    'ЛЕСЕНКА встрясок 3 + ⌊ур/6⌋, кап 8 (' +
     shakeFlat.map(x => 'ур.' + x.lv + '→' + x.n).join(', ') + ')');
 
   // ТУПИК (пар нет достижимых + встрясок нет) -> ПОМОЛ-ВЫРУЧАЛКА, НЕ поражение
@@ -2342,6 +2347,37 @@ window.bridge = {
   } else console.log('тап без пары: доступной цели не нашлось — пропуск');
   await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
   await page.waitForTimeout(400);
+
+  // ===== ХВОСТ TYPES И ЛЕСЕНКА ВСТРЯСОК (спека владельца 2026-07-30) =====
+  // ⚠️ СЕКЦИЯ В САМОМ КОНЦЕ НАМЕРЕННО: setLevel/regen меняют контекст, и в
+  // середине файла она ломала бы соседние ассерты (та же грабля, что у камней).
+  const tailProbe = await page.evaluate(() => {
+    const g = window.__game;
+    const at = (lv) => { g.setLevel(lv); g.regen(); g.skipIntro();
+                         return Object.keys(g.typesSnapshot()); };
+    // ⚠️ ИМЕННО 85, А НЕ 84: typesCount = 8 + уровень, и индекс стейка (92)
+    // открывается только с 85-го. На 84-м его нет ПО ПРОГРЕССИИ, и ассерт
+    // ловил бы не формулу спавна, а собственную ошибку в выборе уровня.
+    const lv85 = at(85);
+    const lv20 = at(20);
+    return { steak85: lv85.includes('steak'),
+             mint85:  lv85.includes('foodicecreamscoopmint'),
+             donut85: lv85.includes('fooddonutsprinkles'),
+             steak20: lv20.includes('steak'),
+             shakes1: g.freeShakes(1), shakes20: g.freeShakes(20), shakes40: g.freeShakes(40) };
+  });
+  // ⚠️ ЭТОТ АССЕРТ СПОСОБЕН УПАСТЬ: вернуть `i % typesCount` — и steak85
+  // станет false (проверено, до правки было именно так).
+  expect(tailProbe.steak85 && tailProbe.mint85 && tailProbe.donut85,
+    'ХВОСТ TYPES ДОСТИЖИМ: на ур.85 в куче есть steak/мороженое/пончик ('
+    + JSON.stringify([tailProbe.steak85, tailProbe.mint85, tailProbe.donut85]) + ')');
+  expect(!tailProbe.steak20,
+    'прогрессия цела: на ур.20 хвостовых типов нет (открываются позже)');
+  // Лесенка 3 + ⌊ур/6⌋, кап 8 — числа из 00-config, ассерт их ПИНУЕТ
+  // намеренно (двойник спеки; читать из игры значило бы проверять пустоту).
+  expect(tailProbe.shakes1 === 3 && tailProbe.shakes20 === 6 && tailProbe.shakes40 === 8,
+    'ЛЕСЕНКА ВСТРЯСОК 3/6/8 на ур.1/20/40 (' + tailProbe.shakes1 + '/'
+    + tailProbe.shakes20 + '/' + tailProbe.shakes40 + ')');
 
   // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
