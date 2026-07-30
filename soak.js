@@ -40,12 +40,13 @@ function mulberry32(a){
   const browser = await chromium.launch({ args: ['--js-flags=--expose-gc', '--enable-precise-memory-info'] });
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const problems = [], errors = [];
-  let rescues = 0;
+  let rescues = 0, floorLifts = 0;
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
     const t = m.text();
     if (m.type() === 'error') errors.push('CONSOLE: ' + t);
     if (t.startsWith('[rescue]')) rescues++;
+    if (t.startsWith('[floor]')) floorLifts++; // подъёмы из плиты пола: следим за штормом
   });
   await page.addInitScript(([seed, hard]) => {
     let a = seed | 0;
@@ -67,6 +68,7 @@ function mulberry32(a){
   const tEnd = t0 + MINUTES * 60000;
   let mode = 'active', modeUntil = 0, nextSample = 0, lastGc = 0, lastMinute = -1;
   let lastPsT = 0, samples = 0, wins = 0, loses = 0, shakes = 0, matchFails = 0, evalFails = 0;
+  let bombedLvl = -1, blasts = 0; // взрыв — РОВНО ОДИН на уровень, на ещё полной куче
   const gcHeap = []; // {t, mb} — только сэмплы сразу после GC (тренд утечки)
 
   while (Date.now() < tEnd){
@@ -84,6 +86,18 @@ function mulberry32(a){
 
       const now = Date.now();
       if (now >= modeUntil){
+        // ВЗРЫВ НА ЕЩЁ ПОЛНОЙ КУЧЕ (сценарий 2026-07-30 «провал сквозь пол»):
+        // тонкие предметы у дна лежат под всей массой, и просадка в плиту пола
+        // случалась именно там. Один взрыв на уровень — бомба и так одна, а
+        // «когда придётся» пришлось бы на полупустую чашу и ничего не проверяло.
+        // ⚠️ Проверка тут, а не в каждом тике цикла: фаза меняется хотя бы раз
+        // в 8 с, этого хватает «пока куча полная», а лишний round-trip на тик
+        // заметно замедлял бы бота.
+        const lvlNow = await page.evaluate(() => window.__game.levelNum());
+        if (lvlNow !== bombedLvl){
+          bombedLvl = lvlNow;
+          if (await page.evaluate(() => window.__game.detonate())) blasts++;
+        }
         // следующая фаза: простой под миксер-помол ИЛИ активная игра; на входе
         // в фазу иногда встряска (рыхление/притяжение — физический стресс)
         if (rnd() < IDLE_SHARE){ mode = 'idle'; modeUntil = now + (HARD ? 13000 : 36000); }
@@ -114,6 +128,7 @@ function mulberry32(a){
           return { alive: g.alive(), ap: g.availablePairs(), topY: +g.topY().toFixed(2), lvl: g.levelNum(),
                    score: g.stats().score, misses: g.stats().misses, awake: g.awake(), combo: g.combo(),
                    floaters: fl.filter(f => f.contacts <= 0), bridges: fl.filter(f => f.contacts > 0).length,
+                   under: g.underFloor(), // провал сквозь пол: центр ниже верха плиты
                    wall: g.maxWallExcess(), nan: g.scanNaN().length,
                    flips: g.accFlips(), ps: g.psLog(), perf: g.perfStats() };
         });
@@ -127,11 +142,15 @@ function mulberry32(a){
           problems.push(`SLEEPING FLOATERS t=+${tSec}s: ${JSON.stringify(sleepingFloaters)}`);
         if (s.wall.excess > 0.18)
           problems.push(`WALL EXCESS ${s.wall.excess} (${s.wall.who}) t=+${tSec}s`);
+        // ПОЛ: спасатель обязан вынуть провалившегося за 0.5 с, поэтому в
+        // сэмпле его быть не должно вовсе — ни на живой куче, ни на спящей
+        if (s.under.length)
+          problems.push(`UNDER FLOOR t=+${tSec}s: ${JSON.stringify(s.under)}`);
         if (s.nan > 0) problems.push(`NaN x${s.nan} t=+${tSec}s`);
         if (doGc && s.perf.heapMB > 0) gcHeap.push({ t: tSec, mb: s.perf.heapMB });
         samples++;
         s.ps = freshPs; // в файл — только новые события сна
-        outStream.write(JSON.stringify({ t: tSec, gc: doGc, wins, loses, shakes, rescues, ...s }) + '\n');
+        outStream.write(JSON.stringify({ t: tSec, gc: doGc, wins, loses, shakes, rescues, blasts, floorLifts, ...s }) + '\n');
         const min = Math.floor(tSec / 60);
         if (min !== lastMinute){
           lastMinute = min;
@@ -156,8 +175,13 @@ function mulberry32(a){
     heapVerdict = `${base}MB -> ${last}MB (+${grow.toFixed(1)})`;
     if (grow > Math.max(8, base * 0.25)) problems.push(`HEAP LEAK? ${heapVerdict}`);
   }
+  // ШТОРМ СПАСАТЕЛЯ ПОЛА: подъём — это телепорт, пусть и на миллиметры;
+  // если он повторяется чаще примерно раза в минуту, значит порог ловит не
+  // провал, а нормальную осадку — и это регрессия, а не защита.
+  if (floorLifts > MINUTES)
+    problems.push(`FLOOR LIFT STORM: ${floorLifts} подъёмов за ${MINUTES} мин (норма <= ${MINUTES})`);
   const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, wins, loses, shakes, rescues,
-    heap: heapVerdict, problems: problems.length, errors: errors.length };
+    blasts, floorLifts, heap: heapVerdict, problems: problems.length, errors: errors.length };
   outStream.write(JSON.stringify({ summary, problems, errors: errors.slice(0, 20) }) + '\n');
   outStream.end();
   console.log('SOAK SUMMARY', JSON.stringify(summary));

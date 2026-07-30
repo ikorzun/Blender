@@ -2513,6 +2513,46 @@ window.bridge = {
     'ЛЕСЕНКА ВСТРЯСОК 3/6/8 на ур.1/20/40 (' + tailProbe.shakes1 + '/'
     + tailProbe.shakes20 + '/' + tailProbe.shakes40 + ')');
 
+  // ===== ПРОВАЛ СКВОЗЬ ПОЛ (жалоба владельца 2026-07-30 «дыра в объектах») =====
+  // Стейк и посох лежали НА ЛОПАСТЯХ, ниже невидимого пола: плита пола была
+  // толщиной 0.6 и НИЧЕГО под ней, а глобальный сон замораживал провалившегося
+  // навсегда. Две половины правки — толстая плита (корень) и спасатель пола.
+  // ⚠️ СТРАЖ ДЕТЕРМИНИРОВАННЫЙ, и иначе нельзя: сам провал стохастичен (в
+  // стрессе он выпадал в 2 циклах из 28), ассерт «после взрыва никто не под
+  // полом» на чистой базе зелен в 26 прогонах из 28 и механику НЕ проверяет.
+  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
+  const floorGuard = await page.evaluate(() => {
+    const g = window.__game;
+    // сперва ОСУШАЕМ спасателя: дальше «>=1» обязано быть заслугой подкладки,
+    // а не хвоста от осадки
+    const drained = g.rescueNow();
+    const idx = g.accessibleList()[0];
+    // кладём предмет ВНУТРЬ плиты (0.5 под её верх) у оси — там точно пол,
+    // а не стена: радиус стены на этой высоте 2.5 при d=0.85
+    g.place(idx, 0.6, 1.15 - 0.5, 0.6);
+    const before = g.underFloor().length;
+    const lifted = g.rescueNow();
+    return { drained, before, lifted, after: g.underFloor().length };
+  });
+  expect(floorGuard.drained === 0,
+    'СТРАЖ ПОЛА: на осевшей куче спасателю нечего делать (' + floorGuard.drained + ')');
+  expect(floorGuard.before >= 1,
+    'СТРАЖ ПОЛА: подкладка сработала — предмет под полом (' + floorGuard.before + ')');
+  expect(floorGuard.lifted >= 1,
+    'СТРАЖ ПОЛА: спасатель поднял утонувшего (' + floorGuard.lifted + ')');
+  expect(floorGuard.after === 0,
+    'СТРАЖ ПОЛА: под полом больше никого (' + floorGuard.after + ')');
+  // Живой контроль сверху детерминированного: реальный стресс (встряски +
+  // взрыв на полной куче) не оставляет никого в полу.
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  for (let i = 0; i < 2; i++){ await page.evaluate(() => window.__game.shake()); await page.waitForTimeout(1200); }
+  await page.evaluate(() => window.__game.detonate());
+  await page.waitForTimeout(3000);
+  const floorLive = await page.evaluate(() => window.__game.underFloor());
+  expect(floorLive.length === 0,
+    'ПОЛ: после встрясок и взрыва под полом никого (' + JSON.stringify(floorLive).slice(0, 160) + ')');
+
   // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));

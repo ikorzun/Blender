@@ -193,7 +193,7 @@ function wakePhysics(src){
 function sleepPhysics(src){
   // спасённый (телепортированный из стены) должен ДООСЕСТЬ — сон отменяется,
   // иначе замораживали предмет в воздухе на новом месте; уснём на след. штиле
-  if (rescueSweep() > 0){ calmT = 0; return; }
+  if (rescueSweep(true) > 0){ calmT = 0; return; }
   psLog.push({ t: Math.round(performance.now()), ev: 'sleep', src: src || '?', v: +maxBodySpeed().toFixed(1) });
   if (psLog.length > 200) psLog.shift();
   physAwake = false; calmT = 0;
@@ -1094,9 +1094,34 @@ window.__game = {
     return items.filter(i => i.alive && i.body).map(i => ({
       name: i.type ? i.type.name : '?', y: +i.p.y.toFixed(2),
       bottom: +(i.p.y - i.r).toFixed(2), r: +i.r.toFixed(2),
+      // low — нижняя точка по ориентированной коробке (bottom по охватной
+      // сфере врёт вдвое у плоских). ⚠️ ОЦЕНКА СВЕРХУ, для порогов не годится;
+      // pen — ИСТИННОЕ проникновение в плиту пола по манифолду (null = нет
+      // контакта с полом), вот он ground truth.
+      low: +lowestPoint(i).toFixed(3), pen: floorPenetration(i),
+      d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
       sleeping: i.body.isSleeping(), rock: !!i.rock, bomb: !!i.bomb
     }));
   },
+  // диагностика провала: кто сидит ЦЕНТРОМ ниже пола. У выпуклого предмета,
+  // лежащего на полу, центр ВСЕГДА выше FLOOR_REST на свой полу-габарит —
+  // значит центр ниже пола = проникновение или уже провал насквозь.
+  underFloor(){
+    return items.filter(i => i.alive && i.body && i.p.y < FLOOR_REST)
+      .map(i => ({ name: i.type.name, y: +i.p.y.toFixed(3),
+        low: +lowestPoint(i).toFixed(3), pen: floorPenetration(i),
+        d: +Math.hypot(i.p.x, i.p.z).toFixed(2), sleeping: i.body.isSleeping(),
+        touching: this.contacts(items.indexOf(i)).touching,
+        rock: !!i.rock, bomb: !!i.bomb }));
+  },
+  // ТЕСТ-ХУК СПАСАТЕЛЯ, НЕСУЩИЙ: прогнать sweep СИНХРОННО. Без него страж
+  // пола был бы гонкой — place() физику НЕ будит, а на спящей куче sweep не
+  // зовёт никто (stepPhysics не вызывается вовсе), и «зелёный» ничего не значил бы.
+  // ⚠️ syncMeshes ОБЯЗАТЕЛЕН: спасатель двигает ТЕЛА, а item.p обновляется
+  // только синхронизацией. В бою это неважно (следующий кадр всё равно
+  // синхронизирует), но здесь без него хук отдавал бы старые координаты и
+  // страж «после подъёма под полом никого» падал бы на пустом месте.
+  rescueNow(){ const n = rescueSweep(); syncMeshes(); return n; },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.
     // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит
