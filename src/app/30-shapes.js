@@ -184,6 +184,12 @@ const TYPES = [
   { name:'survivalbottle', color:0x7fb8a8, rc:1.0, wr:0.38, tex:'survival', mat:'soft', geo:survivalbottleGeo },
   { name:'survivalbucket', color:0x8d949e, rc:1.0, tex:'survival', mat:'soft', geo:survivalbucketGeo },
   { name:'survivalchest', color:0xa77b4a, rc:1.0, tex:'survival', mat:'soft', geo:survivalchestGeo },
+  // ⚠️ РЫБА ДОБАВЛЕНА ПО ПРЯМОЙ ПРОСЬБЕ ВЛАДЕЛЬЦА 2026-07-30 («добавь рыбу,
+  // объектов слишком мало»). Я отводила её как риск путаницы с золотой
+  // РЫБКОЙ-СЮРПРИЗОМ — владелец решил иначе. Риск умеренный: у сюрприза
+  // свой золотой emissive-материал (MeshStandard даже в matcap-режиме),
+  // а эта идёт с атласом survival — тон и блеск разные.
+  { name:'survivalfish', color:0x7fa8c4, rc:1.0, wr:0.89, tex:'survival', mat:'soft', geo:survivalfishGeo },
   { name:'survivaltoolaxe', color:0x8d949e, rc:1.0, wr:0.43, tex:'survival', mat:'soft', geo:survivaltoolaxeGeo },
   { name:'survivaltoolhammer', color:0x8d949e, rc:1.0, wr:0.57, tex:'survival', mat:'soft', geo:survivaltoolhammerGeo },
   { name:'survivaltoolpickaxe', color:0x8d949e, rc:1.0, wr:0.67, tex:'survival', mat:'soft', geo:survivaltoolpickaxeGeo },
