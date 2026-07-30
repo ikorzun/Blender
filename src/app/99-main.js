@@ -802,6 +802,21 @@ window.__game = {
                          due: (storyDue() || {}).id || null }; },
   storyOnWin(){ return storyOnWin(); },
   storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
+  storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // тест: считать главу показанной
+  storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
+  storyClearAcc(){ Save.ac = {}; commitSave(); },  // тест: обнулить накопления — вехи К2-К4 считаются по ним
+  storyClose(){ const b = document.getElementById('storyOverlay');
+    if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
+  storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // тест: имена типов с пачкой
+  storyPackOf(name){ const t = TYPES.find(x => x.name === name); return t ? t.tex : null; },
+  storyFullSet(){ return stFullSet(); },
+  storyFillSet(){ // тест: добрать самую маленькую годную пачку до полного зала
+    const by = {}; for (const t of TYPES) if (t.tex) (by[t.tex] = by[t.tex] || []).push(t.name);
+    let best = null;
+    for (const k in by) if (by[k].length >= 4 && (!best || by[k].length < by[best].length)) best = k;
+    if (best) by[best].forEach(n => accAdd(n, 1, null)); // accGrant — метод __game, глобальная точка это accAdd
+    return best;
+  },
   storyEnable(v){ storyEnable(v); }, // тест: глушить сюжет на механических секциях
   bankScore(n){ return bankLevelScore(n); },
   addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта

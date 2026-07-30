@@ -2680,6 +2680,88 @@ window.bridge = {
     '⚠️ МЕРЖ: старая копия НЕ сбросила показанные главы (' + stMerge.mine + ' -> ' + stMerge.afterOld + ')');
   expect((stMerge.afterNew & 4) === 4 && stMerge.sv === 9,
     'мерж принял главу с другого устройства (OR) и подвинул уровень виньетки (' + JSON.stringify(stMerge) + ')');
+  // ── К2/К3/К4: вехи из счётчиков накопления ───────────────────────────────
+  // ⚠️ Триггеры выведены из Save.ac (мои данные), а не из событий музея —
+  // поэтому проверяются напрямую: ступень типа / вторая пачка / полный зал.
+  const stMile = await page.evaluate(async () => {
+    const g = window.__game;
+    g.storyEnable(true); g.storyReset();
+    // ⚠️ ОБНУЛЯЕМ НАКОПЛЕНИЯ: за прогон сьюта счётчики типов давно перешагнули
+    // порог ступени, и веха К2 была бы «уже выполнена» до всякого гранта —
+    // тест мерил бы не триггер, а историю прогона.
+    g.storyClearAcc(); g.clearBought();   // и накопления, и КУПЛЕННЫЕ ступени
+    g.setLevel(20); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    // ⚠️ Закрывать панель ТОЛЬКО штатным путём: снос узла напрямую оставлял
+    // внутренний флаг занятости взведённым, и следующая глава не открывалась.
+    // ⚠️ Между главами раздвигаем разрыв: правило «≤1 виньетка за 2 уровня»
+    // честно тормозит следующую главу сразу после предыдущей — без этого тест
+    // мерил бы кулдаун, а не веху.
+    const ready = () => g.storySetLevelMark(1);
+    const seen = () => { ready(); g.stats().taps = 3; g.storyOnWin();
+      const o = !!document.getElementById('storyOverlay');
+      while (document.getElementById('storyOverlay')) g.storyClose();
+      return o; };
+    const mark = (bit) => g.storyMark(bit);
+    mark(1); mark(2);                       // К0/К1 считаем показанными
+    g.storySetLevelMark(1);                 // виньетка была на 1-м — разрыв есть
+    ready();
+    const beforeMile = { due: g.storyState().due, open: seen() };
+    // ВЕХА К2: первый тип добрался до 1-й ступени накопления
+    const types = g.storyTypeNames();
+    g.accGrant(types[0], 120);              // порог 1-й ступени = 100
+    const k2 = { due: g.storyState().due, open: seen() };
+    mark(4);
+    // ВЕХА К3: ступень появилась во ВТОРОЙ пачке
+    const packOf = g.storyPackOf;
+    const other = types.find(t => packOf(t) && packOf(t) !== packOf(types[0]));
+    ready(); const k3before = g.storyState().due;
+    g.accGrant(other, 120);
+    const k3 = { due: g.storyState().due, open: seen() };
+    mark(8);
+    // ВЕХА К4: собран ПОЛНЫЙ зал (все типы пачки хоть раз спасены)
+    ready(); const k4before = g.storyState().due;
+    g.storyFillSet();                       // добираем самую маленькую годную пачку
+    ready(); g.stats().taps = 3; g.storyOnWin();
+    const panels = document.querySelectorAll('#storyOverlay svg').length;
+    const k4 = { due: g.storyState().due, open: !!document.getElementById('storyOverlay'), panels };
+    return { beforeMile, k2, k3before, k3, k4before, k4, set: g.storyFullSet() };
+  });
+  expect(stMile.beforeMile.due === null && stMile.beforeMile.open === false,
+    '⚠️ ВЕХА: пока ни один тип не добрался до ступени — К2 НЕ всплывает (' + JSON.stringify(stMile.beforeMile) + ')');
+  expect(stMile.k2.due === 'k2' && stMile.k2.open === true,
+    'К2 «Куда?..» пришёл на первую ступень накопления (' + JSON.stringify(stMile.k2) + ')');
+  expect(stMile.k3before === null,
+    '⚠️ ВЕХА: одна пачка со ступенью — К3 ещё ждёт (' + stMile.k3before + ')');
+  expect(stMile.k3.due === 'k3' && stMile.k3.open === true,
+    'К3 «Раздел второй» пришёл, когда ступень появилась во ВТОРОЙ пачке');
+  expect(stMile.k4before === null,
+    '⚠️ ВЕХА: полного зала нет — твист К4 ждёт (' + stMile.k4before + ')');
+  expect(stMile.k4.due === 'k4' && stMile.k4.open === true && stMile.k4.panels === 1,
+    'К4 «Музей?!» пришёл на первый ПОЛНЫЙ зал: ' + stMile.set + ' (' + JSON.stringify(stMile.k4) + ')');
+  const stK4 = await page.evaluate(async () => {
+    const box = document.getElementById('storyOverlay');
+    const tap = () => box.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    tap(); await new Promise(r => setTimeout(r, 60));
+    const p2 = !!document.getElementById('storyOverlay');
+    tap(); await new Promise(r => setTimeout(r, 60));
+    const p3 = !!document.getElementById('storyOverlay');
+    tap(); await new Promise(r => setTimeout(r, 60));
+    return { p2, p3, closed: !document.getElementById('storyOverlay'), st: window.__game.storyState().st };
+  });
+  expect(stK4.p2 && stK4.p3 && stK4.closed,
+    'твист К4 — ТРИ панели (полка → шок → ярость), закрывается на третьем тапе');
+  expect((stK4.st & 16) === 16, 'К4 отмечен в сейве после показа (st ' + stK4.st + ')');
+  // ⚠️ ПОРЯДОК: твист не может опередить сомнение даже при готовом сете
+  const stOrder = await page.evaluate(() => {
+    const g = window.__game;
+    g.storyReset();                          // все главы забыты, вехи К2-К4 уже выполнены
+    g.storySetLevelMark(1);
+    return { due: g.storyState().due };
+  });
+  expect(stOrder.due === 'k0',
+    '⚠️ ПОРЯДОК СТРОГИЙ: при готовых вехах очередь всё равно начинается с К0 (' + stOrder.due + ')');
+
   await page.evaluate(() => { window.__game.storyReset(); window.__game.storyEnable(false); });
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');

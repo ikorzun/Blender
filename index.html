@@ -1205,7 +1205,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-191 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-192 · 2026-07-27</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -9300,6 +9300,7 @@ function tickVitrine(now){
 const STORY_AUTO_MS = 4000;    // §6.2: панель живёт не дольше 4 с сама по себе
 const STORY_GAP_LEVELS = 2;    // §6.3: не чаще одной виньетки на 2 уровня
 const STORY_INK = '#fff', STORY_DIM = 'rgba(255,255,255,.5)', STORY_ACC = '#c0ff47';
+const STORY_BG = '#0e1320', STORY_PAPER = '#161c2a', STORY_FIRE = '#ff5a3c';
 
 // ── Словарь фигур. Язык — тот же, что у персонажа: белые формы, чёрные
 // зрачки, плоская заливка. Никаких градиентов и теней (§3 спеки).
@@ -9311,10 +9312,25 @@ function stEye(cx, cy, r, pr, dx, dy){
 // 'calm' — сверяется с рецептом; 'dream' — взгляд вверх, мечтает; 'adore' —
 // распахнутые зрачки, «помощник превзошёл себя».
 function stEyes(cx, cy, mood){
+  // ЗЛЫЕ — отдельная форма (в игре это eyes-3, клин): белок закрывается сверху-
+  // изнутри «бровью» цветом подложки. Так злость читается без новой геометрии.
+  if (mood === 'angry'){
+    const brow = (bx, dir) =>
+      '<path d="M' + (bx - 30 * dir) + ' ' + (cy - 34) + ' L' + (bx + 30 * dir) + ' ' + (cy - 8) +
+      ' L' + (bx + 30 * dir) + ' ' + (cy - 34) + ' Z" fill="' + STORY_BG + '"/>';
+    return stEye(cx - 30, cy, 26, 12, -3, 5) + brow(cx - 30, 1) +
+           stEye(cx + 30, cy, 26, 12,  3, 5) + brow(cx + 30, -1);
+  }
   const m = { calm:  { r: 26, pr: 11, dx: 0,  dy: 2 },
               dream: { r: 26, pr: 10, dx: 2,  dy: -9 },
-              adore: { r: 27, pr: 17, dx: 0,  dy: 0 } }[mood] || { r: 26, pr: 11, dx: 0, dy: 2 };
-  return stEye(cx - 30, cy, m.r, m.pr, m.dx, m.dy) + stEye(cx + 30, cy, m.r, m.pr, m.dx, m.dy);
+              adore: { r: 27, pr: 17, dx: 0,  dy: 0 },
+              doubt: { r: 26, pr: 10, dx: -8, dy: 3 },   // взгляд в сторону: «а куда они деваются?»
+              sly:   { r: 26, pr: 12, dx: 7,  dy: 6 },   // хитрые: зрачки вниз-вбок (в игре eyes-2)
+              shock: { r: 30, pr: 8,  dx: 0,  dy: 0 } }[mood] || { r: 26, pr: 11, dx: 0, dy: 2 };
+  // хитрым добавляем полуприкрытое верхнее веко — иначе они читаются как спокойные
+  const lid = mood === 'sly'
+    ? '<rect x="' + (cx - 62) + '" y="' + (cy - 30) + '" width="124" height="17" fill="' + STORY_BG + '"/>' : '';
+  return stEye(cx - 30, cy, m.r, m.pr, m.dx, m.dy) + stEye(cx + 30, cy, m.r, m.pr, m.dx, m.dy) + lid;
 }
 // Чаша миксера — узнаваемый силуэт, тонкий контур (в игре стекло почти прозрачно)
 function stJar(x, y, w, h){
@@ -9372,6 +9388,42 @@ function stHeart(x, y, s){
   return '<path d="M' + x + ' ' + (y + s * .42) + ' C' + (x - s * .75) + ' ' + (y - s * .1) + ' ' + (x - s * .3) + ' ' + (y - s * .62) + ' ' + x + ' ' + (y - s * .18) +
          ' C' + (x + s * .3) + ' ' + (y - s * .62) + ' ' + (x + s * .75) + ' ' + (y - s * .1) + ' ' + x + ' ' + (y + s * .42) + ' Z" fill="' + STORY_ACC + '"/>';
 }
+// Знак вопроса — рисуем ПУТЁМ, а не текстом: шрифт не нужен, локализация тоже
+// (символ, а не слово — инвариант «бессловесно» цел).
+function stQuestion(x, y, s){
+  return '<path d="M' + (x - s * .34) + ' ' + (y - s * .34) +
+         ' a' + s * .36 + ' ' + s * .36 + ' 0 1 1 ' + s * .62 + ' ' + s * .3 +
+         ' q-' + s * .28 + ' ' + s * .22 + ' -' + s * .28 + ' ' + s * .42 + '"' +
+         ' fill="none" stroke="' + STORY_INK + '" stroke-width="' + s * .17 + '" stroke-linecap="round"/>' +
+         '<circle cx="' + (x + s * .06) + '" cy="' + (y + s * .62) + '" r="' + s * .11 + '" fill="' + STORY_INK + '"/>';
+}
+// Полка музея: предметы стоят ЦЕЛЫМИ и довольными — то, чего он не ожидал увидеть
+function stShelf(x, y, w){
+  return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="7" rx="3" fill="' + STORY_DIM + '"/>';
+}
+function stSpark(x, y, s){
+  return '<path d="M' + x + ' ' + (y - s) + ' L' + (x + s * .28) + ' ' + (y - s * .28) +
+         ' L' + (x + s) + ' ' + y + ' L' + (x + s * .28) + ' ' + (y + s * .28) +
+         ' L' + x + ' ' + (y + s) + ' L' + (x - s * .28) + ' ' + (y + s * .28) +
+         ' L' + (x - s) + ' ' + y + ' L' + (x - s * .28) + ' ' + (y - s * .28) + ' Z" fill="' + STORY_ACC + '"/>';
+}
+function stFlame(x, y, s){
+  // ⚠️ Симметричная «капля» читалась КАПЛЕЙ, а не огнём (видно на скрине).
+  // Язык пламени делаем АСИММЕТРИЧНЫМ и с внутренним ядром посветлее —
+  // два тона превращают силуэт в огонь без градиентов и текстур.
+  const outer = 'M' + x + ' ' + (y - s) +
+    ' q' + s * .34 + ' ' + s * .42 + ' ' + s * .16 + ' ' + s * .72 +
+    ' q' + s * .30 + ' -' + s * .12 + ' ' + s * .22 + ' -' + s * .40 +
+    ' q' + s * .42 + ' ' + s * .58 + ' -' + s * .04 + ' ' + s * 1.02 +
+    ' q-' + s * .34 + ' ' + s * .30 + ' -' + s * .72 + ' 0' +
+    ' q-' + s * .46 + ' -' + s * .52 + ' ' + s * .38 + ' -' + s * 1.34 + ' Z';
+  const core = 'M' + x + ' ' + (y - s * .14) +
+    ' q' + s * .30 + ' ' + s * .34 + ' ' + s * .06 + ' ' + s * .60 +
+    ' q-' + s * .26 + ' ' + s * .18 + ' -' + s * .40 + ' -' + s * .06 +
+    ' q-' + s * .18 + ' -' + s * .28 + ' ' + s * .34 + ' -' + s * .54 + ' Z';
+  return '<path d="' + outer + '" fill="' + STORY_FIRE + '"/>' +
+         '<path d="' + core + '" fill="#ffc247"/>';
+}
 function stArrow(x, y, w){
   return '<path d="M' + x + ' ' + y + ' L' + (x + w) + ' ' + y + '" stroke="' + STORY_DIM + '" stroke-width="3" stroke-linecap="round"/>' +
          '<path d="M' + (x + w - 9) + ' ' + (y - 7) + ' L' + (x + w) + ' ' + y + ' L' + (x + w - 9) + ' ' + (y + 7) + '" fill="none" stroke="' + STORY_DIM + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -9415,20 +9467,117 @@ function stPanelK1(){
     '</svg>';
 }
 
+// К2 «Куда?..»: первое сомнение. В пузыре предмет ТАЕТ и на его месте «?».
+// Он впервые замечает, что смолотое куда-то девается. Сетап твиста К4.
+function stPanelK2(){
+  return '<svg viewBox="0 0 360 230" width="100%" height="100%">' +
+    stBubble(146, 22, 194, 106, 130, 134) +
+    stApple(190, 74, 30) +
+    '<g opacity=".45">' + stArrow(216, 74, 34) + '</g>' +
+    stQuestion(292, 74, 40) +
+    stJar(30, 116, 84, 96) + stEyes(72, 152, 'doubt') +
+    '</svg>';
+}
+// К3 «Раздел второй»: чек-лист рецепта. Сад закрыт ✓ — на очереди ЗВЕРИ.
+// Хитрые глаза: план идёт по плану (он всё ещё уверен, что побеждает).
+function stPanelK3(){
+  return '<svg viewBox="0 0 360 230" width="100%" height="100%">' +
+    '<rect x="140" y="34" width="196" height="162" rx="10" fill="' + STORY_PAPER + '" stroke="' + STORY_DIM + '" stroke-width="2.5"/>' +
+    stApple(186, 80, 28) +
+    '<path d="M222 80 l8 9 l15 -18" fill="none" stroke="' + STORY_ACC + '" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M186 112 L186 132" stroke="' + STORY_DIM + '" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M180 126 L186 134 L192 126" fill="none" stroke="' + STORY_DIM + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+    stAnimal(186, 160, 30) +
+    '<circle cx="252" cy="160" r="15" fill="none" stroke="' + STORY_INK + '" stroke-width="3"/>' +
+    stJar(24, 112, 84, 96) + stEyes(66, 148, 'sly') +
+    '</svg>';
+}
+// К4 «Музей?!» — ТВИСТ, 3 панели: он видит полку со «смолотыми» целыми →
+// шок → ярость. Дальше эскалация сложности получает нарративное объяснение.
+function stPanelK4a(){
+  return '<svg viewBox="0 0 360 230" width="100%" height="100%">' +
+    stApple(130, 92, 30) + stAnimal(196, 92, 32) + stCar(266, 96, 32) +
+    stSpark(160, 58, 8) + stSpark(232, 54, 7) + stSpark(300, 66, 6) +
+    stShelf(96, 122, 210) +
+    stJar(20, 130, 74, 84) + stEyes(57, 160, 'calm') +
+    '</svg>';
+}
+function stPanelK4b(){
+  return '<svg viewBox="0 0 360 230" width="100%" height="100%">' +
+    stApple(126, 74, 26) + stAnimal(186, 74, 28) + stCar(250, 78, 28) +
+    stShelf(96, 100, 190) +
+    stJar(120, 132, 110, 84) + stEyes(175, 168, 'shock') +
+    '</svg>';
+}
+function stPanelK4c(){
+  return '<svg viewBox="0 0 360 230" width="100%" height="100%">' +
+    stFlame(96, 150, 46) + stFlame(268, 146, 42) +
+    stFlame(52, 172, 30) + stFlame(310, 170, 32) + stFlame(180, 60, 26) +
+    stJar(116, 104, 128, 100) + stEyes(180, 140, 'angry') +
+    '</svg>';
+}
+
+// ── ВЕХИ-ТРИГГЕРЫ. ⚠️ Выведены из МОИХ данных (Save.ac, пожизненные счётчики
+// по типам), а не из событий интерфейса: спека привязывала К2-К4 к музею, но
+// музей И ЕСТЬ эти счётчики — тип «на полке», если его хоть раз спасли.
+// Так главы не ждут чужой зоны и работают уже сегодня.
+const STORY_SET_MIN = 4; // «зал» — пачка от 4 типов: пачки из 1-2 (forest/arcade/
+// market) стоят в ХВОСТЕ массива, но защита нужна на будущее: сет из одного
+// предмета не должен считаться собранным залом и запускать твист.
+function stPacks(){
+  const by = {};
+  for (const t of TYPES) if (t.tex) (by[t.tex] = by[t.tex] || []).push(t.name);
+  return by;
+}
+// Пачки, в которых есть тип с ДОСТИГНУТОЙ первой ступенью накопления
+function stTieredPacks(){
+  const by = stPacks(), out = [];
+  // ⚠️ accCountTier, а НЕ accTier: последний складывает заработанное с
+  // КУПЛЕННЫМ за деньги (boostTier). На accTier веха «первый экспонат встал на
+  // полку» выдавалась бы игроку, который НИЧЕГО не собрал, а просто купил
+  // Boost — сюжет поздравлял бы с чужой заслугой. Поймано собственным
+  // прогоном: сьют покупает бусты, и К2 всплывал при нулевых счётчиках.
+  for (const k in by) if (by[k].some(n => accCountTier(n) >= 1)) out.push(k);
+  return out;
+}
+// Первый ПОЛНЫЙ зал: все типы пачки хоть раз спасены (и пачка не карликовая)
+function stFullSet(){
+  const by = stPacks();
+  for (const k in by){
+    if (by[k].length < STORY_SET_MIN) continue;
+    if (by[k].every(n => accCount(n) > 0)) return k;
+  }
+  return null;
+}
+
 // ── ГЛАВЫ. bit — разряд битмаски Save.st (§7): монотонно, мерж OR, глава не
 // показывается дважды; потеря сейва = повтор с К0 (безвредно).
+// `when` — веха главы. null = «сразу, как дошла очередь».
 const STORY_CHAPTERS = [
-  { id: 'k0', bit: 1, panels: [stPanelK0a, stPanelK0b] }, // пролог — 2 панели (§3)
-  { id: 'k1', bit: 2, panels: [stPanelK1] },
+  { id: 'k0', bit: 1, panels: [stPanelK0a, stPanelK0b], when: null },       // пролог — 2 панели (§3)
+  { id: 'k1', bit: 2, panels: [stPanelK1],  when: null },
+  // первый «экспонат встал на полку» = первый тип, добравшийся до 1-й ступени
+  { id: 'k2', bit: 4, panels: [stPanelK2],  when: () => stTieredPacks().length >= 1 },
+  // «раздел второй» = ступень появилась во ВТОРОЙ пачке (новый зал рецепта)
+  { id: 'k3', bit: 8, panels: [stPanelK3],  when: () => stTieredPacks().length >= 2 },
+  // ТВИСТ: первый полностью собранный зал
+  { id: 'k4', bit: 16, panels: [stPanelK4a, stPanelK4b, stPanelK4c], when: () => !!stFullSet() },
 ];
 function storySeen(bit){ return !!((Save.st || 0) & bit); }
 // Какая глава «должна» сейчас. ВЕХА ВАЖНЕЕ ОЧЕРЕДИ (§6.3): К0 привязан к
 // ПЕРВОЙ победе и паузу не ждёт, остальные — не чаще раза в 2 уровня.
 function storyDue(){
   const lv = Math.max(1, levelNum - 1); // уровень, который только что пройден
-  if (!storySeen(1)) return STORY_CHAPTERS[0];
-  if (lv - (Save.sv || 0) < STORY_GAP_LEVELS) return null;
-  if (!storySeen(2)) return STORY_CHAPTERS[1];
+  // ⚠️ ПОРЯДОК СТРОГИЙ: глава ждёт, пока показана предыдущая. Иначе твист К4
+  // («он узнал про музей») мог бы опередить К2 («первое сомнение») — у игрока
+  // с быстрым сетом сюжет собрался бы задом наперёд.
+  for (const ch of STORY_CHAPTERS){
+    if (storySeen(ch.bit)) continue;
+    if (ch.when && !ch.when()) return null;   // веха не наступила — и следующие ждут
+    // К0 привязан к ПЕРВОЙ победе и паузу не ждёт (веха важнее очереди, §6.3)
+    if (ch.bit !== 1 && lv - (Save.sv || 0) < STORY_GAP_LEVELS) return null;
+    return ch;
+  }
   return null;
 }
 let storyBusy = false;
@@ -10705,6 +10854,21 @@ window.__game = {
                          due: (storyDue() || {}).id || null }; },
   storyOnWin(){ return storyOnWin(); },
   storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
+  storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // тест: считать главу показанной
+  storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
+  storyClearAcc(){ Save.ac = {}; commitSave(); },  // тест: обнулить накопления — вехи К2-К4 считаются по ним
+  storyClose(){ const b = document.getElementById('storyOverlay');
+    if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
+  storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // тест: имена типов с пачкой
+  storyPackOf(name){ const t = TYPES.find(x => x.name === name); return t ? t.tex : null; },
+  storyFullSet(){ return stFullSet(); },
+  storyFillSet(){ // тест: добрать самую маленькую годную пачку до полного зала
+    const by = {}; for (const t of TYPES) if (t.tex) (by[t.tex] = by[t.tex] || []).push(t.name);
+    let best = null;
+    for (const k in by) if (by[k].length >= 4 && (!best || by[k].length < by[best].length)) best = k;
+    if (best) by[best].forEach(n => accAdd(n, 1, null)); // accGrant — метод __game, глобальная точка это accAdd
+    return best;
+  },
   storyEnable(v){ storyEnable(v); }, // тест: глушить сюжет на механических секциях
   bankScore(n){ return bankLevelScore(n); },
   addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
