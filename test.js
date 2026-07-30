@@ -46,6 +46,9 @@ const path = require('path');
     expect(!curtain.tapReaches, 'ЗАНАВЕС: тап по месту Shake не доходит до кнопки');
   }
 
+  // сюжет глушим на время механических секций: его полноэкранная виньетка
+  // съедала бы координатные клики (своя секция включает его обратно)
+  await page.evaluate(() => window.__game.storyEnable(false));
   await page.evaluate(() => window.__game.skipIntro());
   const latchedAfter = await page.evaluate(() => document.documentElement.classList.contains('uiready'));
   expect(latchedAfter, 'ЗАНАВЕС: introdone открыл защёлку uiready');
@@ -2582,6 +2585,90 @@ window.bridge = {
   // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
   const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));
   if (lateErrors.length) failures.push('runtime errors ПОСЛЕ раннего гейта: ' + lateErrors.join(' | '));
+  // ── СЮЖЕТ: виньетки К0/К1 (docs/STORY-SPEC.md) ──────────────────────────
+  // Секция В КОНЦЕ намеренно (setLevel/regen меняют контекст — см. камни).
+  const stFirst = await page.evaluate(async () => {
+    const g = window.__game;
+    g.storyEnable(true); g.storyReset();
+    g.setLevel(1); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    const noTap = (() => { g.stats().taps = 0; g.storyOnWin(); return g.storyState(); })();
+    document.querySelectorAll('#storyOverlay').forEach(n => n.remove());
+    g.stats().taps = 3;                       // игрок в сессии уже тапал
+    g.storyOnWin();
+    const s1 = g.storyState();
+    const panels = document.querySelectorAll('#storyOverlay svg').length;
+    return { noTapOpen: noTap.open, due: noTap.due, open: s1.open, panels, stAfterOpen: s1.st };
+  });
+  expect(stFirst.noTapOpen === false,
+    '⚠️ ТЕМП: без единого тапа виньетка НЕ всплывает (правило §6.1)');
+  expect(stFirst.due === 'k0' && stFirst.open === true && stFirst.panels === 1,
+    'К0 открылся после первой победы, панель одна на экране (' + JSON.stringify(stFirst) + ')');
+  expect(stFirst.stAfterOpen === 0,
+    'глава помечается ПОСЛЕ показа, а не при открытии (st ' + stFirst.stAfterOpen + ')');
+
+  // ТАП ЛИСТАЕТ И СКИПАЕТ: К0 — две панели, второй тап закрывает
+  const stTap = await page.evaluate(async () => {
+    const box = document.getElementById('storyOverlay');
+    const tap = () => box.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    tap(); await new Promise(r => setTimeout(r, 60));
+    const afterFirst = !!document.getElementById('storyOverlay');
+    tap(); await new Promise(r => setTimeout(r, 60));
+    const g = window.__game;
+    return { afterFirst, closed: !document.getElementById('storyOverlay'), st: g.storyState() };
+  });
+  expect(stTap.afterFirst === true && stTap.closed === true,
+    'тап листает панели и закрывает виньетку (2 панели К0)');
+  expect((stTap.st.st & 1) === 1 && stTap.st.sv >= 1,
+    'после показа глава отмечена в сейве и записан уровень виньетки (' + JSON.stringify(stTap.st) + ')');
+
+  // ПОВТОРА НЕТ и КАДЕНЦИЯ: сразу следующая победа виньетку не даёт
+  const stGap = await page.evaluate(async () => {
+    const g = window.__game;
+    g.stats().taps = 3;
+    g.storyOnWin();                            // тот же уровень — ни К0 (показан), ни К1 (рано)
+    const same = g.storyState();
+    g.setLevel(2); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 300));
+    g.stats().taps = 3; g.storyOnWin();        // разрыв 1 уровень — рано
+    const gap1 = g.storyState();
+    g.setLevel(4); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 300));
+    g.stats().taps = 3; g.storyOnWin();        // разрыв >= 2 — пора К1
+    const gap2 = g.storyState();
+    const panels = document.querySelectorAll('#storyOverlay svg').length;
+    return { same: same.open, gap1: gap1.open, gap2: gap2.open, due2: gap2.due, panels };
+  });
+  expect(stGap.same === false, 'показанная глава не повторяется (К0 второй раз не всплыл)');
+  expect(stGap.gap1 === false,
+    '⚠️ ТЕМП: разрыв в 1 уровень — виньетки нет (правило «не чаще одной за 2 уровня»)');
+  expect(stGap.gap2 === true && stGap.panels === 1,
+    'К1 пришёл, когда разрыв дорос до 2 уровней (' + JSON.stringify(stGap) + ')');
+
+  // АВТО-УХОД ≤4 с без всякого тапа (правило §6.2)
+  const stAuto = await page.evaluate(async () => {
+    await new Promise(r => setTimeout(r, 4400));
+    const g = window.__game;
+    return { closed: !document.getElementById('storyOverlay'), st: g.storyState().st };
+  });
+  expect(stAuto.closed === true && (stAuto.st & 2) === 2,
+    '⚠️ ТЕМП: панель уходит сама за ≤4 с и глава отмечена (' + JSON.stringify(stAuto) + ')');
+
+  // МЕРЖ: главы OR — отставшая облачная копия не «разпоказывает» виньетку
+  const stMerge = await page.evaluate(() => {
+    const g = window.__game;
+    const mine = g.storyState().st;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 0, sv: 0 });   // облако без сюжета
+    const afterOld = g.storyState().st;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, st: 4, sv: 9 });   // облако видело главу, которой нет у нас
+    return { mine, afterOld, afterNew: g.storyState().st, sv: g.storyState().sv };
+  });
+  expect(stMerge.afterOld === stMerge.mine,
+    '⚠️ МЕРЖ: старая копия НЕ сбросила показанные главы (' + stMerge.mine + ' -> ' + stMerge.afterOld + ')');
+  expect((stMerge.afterNew & 4) === 4 && stMerge.sv === 9,
+    'мерж принял главу с другого устройства (OR) и подвинул уровень виньетки (' + JSON.stringify(stMerge) + ')');
+  await page.evaluate(() => { window.__game.storyReset(); window.__game.storyEnable(false); });
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

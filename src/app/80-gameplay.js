@@ -308,6 +308,7 @@ function checkEnd(){
     // естественная точка, где площадка вправе показать свою рекламу)
     try { Ads.msg('LEVEL_COMPLETED', { level: String(levelNum - 1) }); } catch(_){}
     show('winOverlay');
+    storyOnWin(); // виньетка сюжета ВКЛАДЫВАЕТСЯ в экран победы (86-story, STORY-SPEC §6.4)
     updateHUD();
   }
 }
