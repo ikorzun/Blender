@@ -1086,6 +1086,17 @@ window.__game = {
     renderer.shadowMap.needsUpdate = true; // autoUpdate=false: телепорт без пробуждения физики оставлял тень на старом месте
     return true;
   },
+  // Диагностика «дыры» (жалоба владельца 2026-07-30): краткий срез всех живых
+  // тел — имя/высота/нижняя точка/сон/контакты. floaters() ловит зазор ПОД
+  // предметом, но не ловит ПРОВАЛ СКВОЗЬ ПОЛ (провалившийся лежит на лопастях
+  // с контактами и без зазора) — для него нужен именно y ниже FLOOR_REST.
+  itemsBrief(){
+    return items.filter(i => i.alive && i.body).map(i => ({
+      name: i.type ? i.type.name : '?', y: +i.p.y.toFixed(2),
+      bottom: +(i.p.y - i.r).toFixed(2), r: +i.r.toFixed(2),
+      sleeping: i.body.isSleeping(), rock: !!i.rock, bomb: !!i.bomb
+    }));
+  },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.
     // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит
