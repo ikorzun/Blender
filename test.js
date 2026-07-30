@@ -960,6 +960,14 @@ const path = require('path');
   // страницы» и маскировал настоящие
   const realErrors = errors.filter(e => !/reading 'boom'/.test(e));
   if (realErrors.length) failures.push('runtime errors: ' + realErrors.join(' | '));
+  // ⚠️ ЭТОТ ГЕЙТ СТОИТ НА ~40% ФАЙЛА, И ДО 2026-07-30 ОН БЫЛ ЕДИНСТВЕННЫМ:
+  // ошибки страницы, случившиеся ПОСЛЕ этой строки, лишь печатались в конце и
+  // в `failures` не попадали — то есть больше половины сьюта гонялось с
+  // неработающим стражем ошибок, а «SUITE: PASS» это скрывал. Найдено ревью
+  // 2026-07-30 и подтверждено подсчётом строк. Гейт оставлен здесь как РАННИЙ
+  // сигнал (падает ближе к причине), а перед вердиктом стоит второй, добирающий
+  // хвост. Счётчик учтённого — чтобы не дублировать одни и те же ошибки.
+  let errorsReported = errors.length;
   // ВИТРИНА: ПРАВИЛО 2/3 (спека владельца 2026-07-27, ОТМЕНЯЕТ camnear):
   // панель видна на десктопе И планшетах (@media min-width:813 = 3×271px
   // полосы, pointer:fine снят), прячется ТОЛЬКО по ширине; приближение
@@ -2335,6 +2343,10 @@ window.bridge = {
   await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
   await page.waitForTimeout(400);
 
+  // ХВОСТОВОЙ ГЕЙТ: всё, что случилось после раннего гейта, обязано валить
+  // вердикт — иначе стража нет у 59% прогона (см. комментарий у errorsReported).
+  const lateErrors = errors.slice(errorsReported).filter(e => !/reading 'boom'/.test(e));
+  if (lateErrors.length) failures.push('runtime errors ПОСЛЕ раннего гейта: ' + lateErrors.join(' | '));
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
