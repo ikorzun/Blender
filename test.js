@@ -1382,20 +1382,27 @@ window.bridge = {
   // через публичные noteWin/maybeInterstitial (window.__ads), считаем реальные
   // вызовы showInterstitial у мока. Полный прогон 5 побед был бы медленным и
   // флейкозависимым — каденция это чистая функция счётчика, тестируем её.
-  const cad = await apage.evaluate(() => {
-    const A = window.__ads, M = window.__mock, every = 5;
+  // ⚠️ ЧИСЛО КАДЕНЦИИ ЗАДАЁТСЯ ЗДЕСЬ И ТОЛЬКО ЗДЕСЬ. Это НАМЕРЕННЫЙ ДВОЙНИК
+  // INTER_EVERY_LEVELS из 00-config: если его читать из игры, ассерт станет
+  // тавтологией и пройдёт при любой каденции, а он обязан ловить именно
+  // расхождение с утверждённой спекой владельца.
+  // Спека: 2026-07-23 «каждый 5 уровень» → 2026-07-30 «раз в 3 уровня».
+  // Меняется число у владельца — правится ЭТА строка, дальше всё считается.
+  const INTER_EVERY = 3;
+  const cad = await apage.evaluate((every) => {
+    const A = window.__ads, M = window.__mock;
     const seq = [];
     const base = M.interShown;
-    // 4 победы — ролика ещё нет
+    // every-1 побед — ролика ещё нет
     for (let i = 0; i < every - 1; i++){ A.noteWin(); A.maybeInterstitial(); }
     seq.push(M.interShown - base);                 // 0
-    // 5-я победа — ролик показан ровно один раз
+    // порогова победа — ролик показан ровно один раз
     A.noteWin(); A.maybeInterstitial();
     seq.push(M.interShown - base);                 // 1
     // повторный переход без новой победы (напр. поражение+повтор) — не дублит
     A.maybeInterstitial();
     seq.push(M.interShown - base);                 // 1
-    // ещё 5 побед — следующий ролик
+    // ещё every побед — следующий ролик
     for (let i = 0; i < every; i++){ A.noteWin(); A.maybeInterstitial(); }
     seq.push(M.interShown - base);                 // 2
     // ОТЛОЖЕННЫЙ показ: уровень можно сменить МИМО maybeInterstitial
@@ -1404,16 +1411,16 @@ window.bridge = {
     // переходе (againBtn) — единственный, кто теперь зовёт гейт. Здесь
     // прямой вызов maybeInterstitial моделирует именно этот победный Next.
     const preDef = M.interShown;
-    for (let i = 0; i < every; i++) A.noteWin();    // 5 побед, ни одного maybeInterstitial
+    for (let i = 0; i < every; i++) A.noteWin();    // every побед, ни одного maybeInterstitial
     const deferredNoShow = M.interShown - preDef;   // 0 — пока не показан
     A.maybeInterstitial();                          // ближайший победный Next
     const deferredFired = M.interShown - preDef;    // 1 — отложенный ролик вышел
     return { seq, winsLeft: A._winsSinceInter, deferredNoShow, deferredFired };
-  });
-  expect(cad.seq[0] === 0, 'каденция: 4 победы — ролика нет (' + cad.seq[0] + ')');
-  expect(cad.seq[1] === 1, 'каденция: на 5-й победе ровно один ролик (' + cad.seq[1] + ')');
+  }, INTER_EVERY);
+  expect(cad.seq[0] === 0, 'каденция: ' + (INTER_EVERY - 1) + ' побед — ролика нет (' + cad.seq[0] + ')');
+  expect(cad.seq[1] === 1, 'каденция: на ' + INTER_EVERY + '-й победе ровно один ролик (' + cad.seq[1] + ')');
   expect(cad.seq[2] === 1, 'каденция: переход без победы не дублирует ролик (' + cad.seq[2] + ')');
-  expect(cad.seq[3] === 2, 'каденция: следующие 5 побед дают ещё один ролик (' + cad.seq[3] + ')');
+  expect(cad.seq[3] === 2, 'каденция: следующие ' + INTER_EVERY + ' побед дают ещё один ролик (' + cad.seq[3] + ')');
   expect(cad.winsLeft === 0, 'каденция: окно сброшено после показа (' + cad.winsLeft + ')');
   expect(cad.deferredNoShow === 0 && cad.deferredFired === 1,
     'каденция: показ, отложенный не-рекламным выходом, выходит на ПОБЕДНОМ переходе (' +
@@ -1423,24 +1430,29 @@ window.bridge = {
   // переменной замыкания, INTER_EVERY_LEVELS побед надо было набрать в ОДНОЙ
   // сессии страницы — три захода по 20 минут давали НОЛЬ показов всегда, и
   // «месяц без рекламы» из бандла гасил то, чего игрок и так не получал.
-  await apage.evaluate(() => { window.__ads.noteWin(); window.__ads.noteWin(); window.__ads.noteWin(); });
+  // Набираем НЕДОБОР до порога (every-2), чтобы после перезагрузки одна победа
+  // ещё НЕ дала ролик, а следующая — дала. При every=3 это одна победа.
+  const preload = Math.max(1, INTER_EVERY - 2);
+  await apage.evaluate((n) => { for (let i = 0; i < n; i++) window.__ads.noteWin(); }, preload);
   const cadBefore = await apage.evaluate(() => window.__ads._winsSinceInter);
   await apage.reload({ waitUntil: 'domcontentloaded' });
   await apage.waitForFunction(() => window.__ads && window.__game, null, { timeout: 20000 });
   const cadAfter = await apage.evaluate(() => window.__ads._winsSinceInter);
-  expect(cadBefore === 3 && cadAfter === 3,
+  expect(cadBefore === preload && cadAfter === preload,
     '⚠️ КАДЕНЦИЯ ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ: ' + cadBefore + ' побед до, ' + cadAfter + ' после');
   // и порог по-прежнему срабатывает — накопленное через перезагрузку не потеряно
-  const cadFire = await apage.evaluate(() => {
+  const cadFire = await apage.evaluate((n) => {
     const A = window.__ads, M = window.__mock;
     const base = M.interShown;
-    A.noteWin(); A.maybeInterstitial();   // 4-я
-    const at4 = M.interShown - base;
-    A.noteWin(); A.maybeInterstitial();   // 5-я — ролик
-    return { at4, at5: M.interShown - base, left: A._winsSinceInter };
-  });
-  expect(cadFire.at4 === 0 && cadFire.at5 === 1 && cadFire.left === 0,
-    'порог считает победы ЧЕРЕЗ перезагрузку (4→0 показов, 5→1, счётчик сброшен)');
+    // добираем до every-1 — ролика ещё быть не должно
+    while (A._winsSinceInter < n - 1){ A.noteWin(); A.maybeInterstitial(); }
+    const atBelow = M.interShown - base;
+    A.noteWin(); A.maybeInterstitial();   // порогова победа — ролик
+    return { atBelow, atFire: M.interShown - base, left: A._winsSinceInter };
+  }, INTER_EVERY);
+  expect(cadFire.atBelow === 0 && cadFire.atFire === 1 && cadFire.left === 0,
+    'порог считает победы ЧЕРЕЗ перезагрузку (' + (INTER_EVERY - 1) + '→0 показов, '
+    + INTER_EVERY + '→1, счётчик сброшен)');
 
   // ПРОВОДКА (спека 2026-07-24): РЕАЛЬНЫЙ Retry НЕ показывает межстраничную,
   // даже когда счётчик у порога — вызов убран из loseAgainBtn. ⚠️ С 2026-07-27
@@ -1450,8 +1462,9 @@ window.bridge = {
   // кнопку. До правки её обработчик звал maybeInterstitial и при счётчике 5
   // показал бы ролик — ассерт бы упал.
   await apage.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
+  await apage.evaluate((n) => { window.__interEvery = n; }, INTER_EVERY);
   await apage.evaluate(() => {
-    for (let i = 0; i < 5; i++) window.__ads.noteWin(); // счётчик у порога
+    for (let i = 0; i < window.__interEvery; i++) window.__ads.noteWin(); // счётчик у порога
     window.__game.level().over = true;
     document.getElementById('loseOverlay').style.display = 'flex'; // показать UI поражения напрямую
   });
@@ -1463,7 +1476,7 @@ window.bridge = {
   expect(retry.after === retry.before,
     'проводка: РЕАЛЬНЫЙ Retry из тупика при счётчике у порога НЕ показывает межстраничную ('
     + retry.before + '->' + retry.after + ')');
-  expect(retry.winsLeft === 5,
+  expect(retry.winsLeft === INTER_EVERY,
     'проводка: Retry счётчик побед не тронул (остался у порога ' + retry.winsLeft + ')');
   await apage.evaluate(() => window.__game.skipIntro()); // loseAgainBtn запустил genLevel/интро
 
