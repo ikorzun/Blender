@@ -45,7 +45,7 @@ const SAVE_KEY = 'mixer_save_v1';
 // pe/ps — КУПЛЕННЫЕ ВСТРЯСКИ монотонной парой (образец he/hs), постоянный
 // кошелёк поверх 3 бесплатных на уровень. ls — «последнее виденное время»,
 // монотонная метка против отката часов.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0 }; // he/hs — подсказки (старт 3, спека владельца)
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0 }; // he/hs — подсказки (старт 3, спека владельца)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -57,6 +57,7 @@ function mergeSave(into, from){
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
     into.se = from.se || 0; into.ss = from.ss || 0; into.tu = from.tu || 0; into.sm = from.sm || 0;
     into.na = from.na || 0; into.pe = from.pe || 0; into.ps = from.ps || 0; into.iw = from.iw || 0;
+    into.st = from.st || 0; into.sv = from.sv || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
@@ -76,6 +77,8 @@ function mergeSave(into, from){
   into.ss = Math.max(into.ss || 0, from.ss || 0);
   into.tu = Math.max(into.tu || 0, from.tu || 0); // пополнения — монотонны, как se/ss
   into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
+  into.st = (into.st || 0) | (from.st || 0); // главы сюжета — мерж OR, показанное не «разпоказывается»
+  into.sv = Math.max(into.sv || 0, from.sv || 0);
   into.iw = Math.max(into.iw || 0, from.iw || 0); // каденция, не валюта: max = максимум один лишний показ
   into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
   into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
@@ -364,7 +367,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; // окна бандла и купленные встряски // sm=1: мигрировать нечего, рейтинг пуст
+  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; // окна бандла и купленные встряски // sm=1: мигрировать нечего, рейтинг пуст
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}

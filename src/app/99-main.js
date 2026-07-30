@@ -797,6 +797,12 @@ window.__game = {
   boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // тест-ручка
   boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
   boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
+  // СЮЖЕТ (86-story): состояние глав и ручной показ для тестов
+  storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),
+                         due: (storyDue() || {}).id || null }; },
+  storyOnWin(){ return storyOnWin(); },
+  storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
+  storyEnable(v){ storyEnable(v); }, // тест: глушить сюжет на механических секциях
   bankScore(n){ return bankLevelScore(n); },
   addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
