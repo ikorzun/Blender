@@ -2348,31 +2348,31 @@ window.bridge = {
   await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
   await page.waitForTimeout(400);
 
-  // ===== ХВОСТ TYPES И ЛЕСЕНКА ВСТРЯСОК (спека владельца 2026-07-30) =====
+  // ===== ХВОСТ TYPES, СТЕЙК И ЛЕСЕНКА ВСТРЯСОК (спеки владельца 2026-07-30) =====
   // ⚠️ СЕКЦИЯ В САМОМ КОНЦЕ НАМЕРЕННО: setLevel/regen меняют контекст, и в
   // середине файла она ломала бы соседние ассерты (та же грабля, что у камней).
   const tailProbe = await page.evaluate(() => {
     const g = window.__game;
     const at = (lv) => { g.setLevel(lv); g.regen(); g.skipIntro();
                          return Object.keys(g.typesSnapshot()); };
-    // ⚠️ ИМЕННО 85, А НЕ 84: typesCount = 8 + уровень, и индекс стейка (92)
-    // открывается только с 85-го. На 84-м его нет ПО ПРОГРЕССИИ, и ассерт
-    // ловил бы не формулу спавна, а собственную ошибку в выборе уровня.
-    const lv85 = at(85);
+    const lv2  = at(2);
     const lv20 = at(20);
-    return { steak85: lv85.includes('steak'),
-             mint85:  lv85.includes('foodicecreamscoopmint'),
-             donut85: lv85.includes('fooddonutsprinkles'),
-             steak20: lv20.includes('steak'),
+    const lv113 = at(113);   // все 121 тип открыты: typesCount = 8 + уровень
+    return { steak2: lv2.includes('steak'),
+             tail113: lv113.includes('forestplant'),   // последний тип массива
+             tail20:  lv20.includes('forestplant'),
              shakes1: g.freeShakes(1), shakes20: g.freeShakes(20), shakes40: g.freeShakes(40) };
   });
-  // ⚠️ ЭТОТ АССЕРТ СПОСОБЕН УПАСТЬ: вернуть `i % typesCount` — и steak85
-  // станет false (проверено, до правки было именно так).
-  expect(tailProbe.steak85 && tailProbe.mint85 && tailProbe.donut85,
-    'ХВОСТ TYPES ДОСТИЖИМ: на ур.85 в куче есть steak/мороженое/пончик ('
-    + JSON.stringify([tailProbe.steak85, tailProbe.mint85, tailProbe.donut85]) + ')');
-  expect(!tailProbe.steak20,
-    'прогрессия цела: на ур.20 хвостовых типов нет (открываются позже)');
+  // ⚠️ МОДЕЛЬ ВЛАДЕЛЬЦА ОБЯЗАНА БЫТЬ В ИГРЕ. На индексе 92 она открывалась с
+  // 85-го уровня, то есть фактически отсутствовала; спекой 2026-07-30 уведена
+  // на индекс 9 (второй уровень). Ассерт падает, если её снова уведут в хвост.
+  expect(tailProbe.steak2, 'СТЕЙК (модель владельца) есть в куче со ВТОРОГО уровня');
+  // ⚠️ АССЕРТ СПОСОБЕН УПАСТЬ: вернуть `i % typesCount` — и tail113 станет
+  // false, потому что pairsCnt (90) меньше числа типов (121).
+  expect(tailProbe.tail113,
+    'ХВОСТ TYPES ДОСТИЖИМ: последний тип массива попадает в куче на ур.113');
+  expect(!tailProbe.tail20,
+    'прогрессия цела: хвостовые типы на ур.20 ещё не открыты');
   // Лесенка 3 + ⌊ур/6⌋, кап 8 — числа из 00-config, ассерт их ПИНУЕТ
   // намеренно (двойник спеки; читать из игры значило бы проверять пустоту).
   expect(tailProbe.shakes1 === 3 && tailProbe.shakes20 === 6 && tailProbe.shakes40 === 8,
