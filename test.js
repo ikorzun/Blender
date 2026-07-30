@@ -2357,9 +2357,15 @@ window.bridge = {
                          return Object.keys(g.typesSnapshot()); };
     const lv2  = at(2);
     const lv20 = at(20);
-    const lv113 = at(113);   // все 121 тип открыты: typesCount = 8 + уровень
+    // ⚠️ УРОВЕНЬ ПОЛНОГО ОТКРЫТИЯ ПЛАВАЕТ С ЧИСЛОМ ТИПОВ: typesCount = 8 + ур.,
+    // значит все N типов открыты с уровня N − 8. При 121 типе это был 113-й,
+    // при 122 (v180, +survivalfish) — 114-й. Страж на этом уже падал; чтобы не
+    // падал при каждом добавлении типа, уровень берём С ЗАПАСОМ (+40), а
+    // ДОСТИЖИМОСТЬ хвоста он проверяет так же честно — формула-то одна.
+    const lvAll = at(160);
     return { steak2: lv2.includes('steak'),
-             tail113: lv113.includes('forestplant'),   // последний тип массива
+             tailAll: lvAll.includes('forestplant'),   // последний тип массива
+             fishAll: lvAll.includes('survivalfish'),  // рыба владельца (v180)
              tail20:  lv20.includes('forestplant'),
              shakes1: g.freeShakes(1), shakes20: g.freeShakes(20), shakes40: g.freeShakes(40) };
   });
@@ -2369,8 +2375,8 @@ window.bridge = {
   expect(tailProbe.steak2, 'СТЕЙК (модель владельца) есть в куче со ВТОРОГО уровня');
   // ⚠️ АССЕРТ СПОСОБЕН УПАСТЬ: вернуть `i % typesCount` — и tail113 станет
   // false, потому что pairsCnt (90) меньше числа типов (121).
-  expect(tailProbe.tail113,
-    'ХВОСТ TYPES ДОСТИЖИМ: последний тип массива попадает в куче на ур.113');
+  expect(tailProbe.tailAll && tailProbe.fishAll,
+    'ХВОСТ TYPES ДОСТИЖИМ: последний тип и рыба попадают в кучу при полном открытии');
   expect(!tailProbe.tail20,
     'прогрессия цела: хвостовые типы на ур.20 ещё не открыты');
   // Лесенка 3 + ⌊ур/6⌋, кап 8 — числа из 00-config, ассерт их ПИНУЕТ
