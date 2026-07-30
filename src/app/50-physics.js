@@ -315,6 +315,24 @@ function radialReach(it, ux, uz){
   // границы, значит их минимум тоже честен и всегда не хуже каждой.
   return Math.min(it.r, obb);
 }
+// ВЕРТИКАЛЬНЫЙ ВЫЛЕТ ВНИЗ с учётом ТЕКУЩЕГО ПОВОРОТА — та же ориентированная
+// коробка, что у radialReach, только проекция на мировую вертикаль. Нужна
+// ИМЕННО она, а не охватная сфера: у стейка охват 0.53, а плашмя он занимает
+// вниз 0.07 — по сфере «нижняя точка» ушла бы под пол у любого лежащего
+// предмета и спасатель пола штормил бы на ровном месте.
+// ⚠️ min(r, obb) — как в radialReach: обе оценки честные ВЕРХНИЕ границы
+// вылета, у круглых коробка по диагонали хуже сферы (до 1.73r).
+function downReach(it){
+  const h = it.half;
+  if (!h || !it.body) return it.r;
+  const r = it.body.rotation();
+  _rq.set(r.x, r.y, r.z, r.w);
+  _rm.makeRotationFromQuaternion(_rq);
+  const m = _rm.elements; // столбцы — оси предмета в мире; y-компоненты: m[1], m[5], m[9]
+  const obb = it.scl * (h.x * Math.abs(m[1]) + h.y * Math.abs(m[5]) + h.z * Math.abs(m[9]));
+  return Math.min(it.r, obb);
+}
+function lowestPoint(it){ return it.p.y - downReach(it); }
 function rescueSweep(){
   let rescued = 0;
   for (const it of items){

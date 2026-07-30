@@ -4858,6 +4858,24 @@ function radialReach(it, ux, uz){
   // границы, значит их минимум тоже честен и всегда не хуже каждой.
   return Math.min(it.r, obb);
 }
+// ВЕРТИКАЛЬНЫЙ ВЫЛЕТ ВНИЗ с учётом ТЕКУЩЕГО ПОВОРОТА — та же ориентированная
+// коробка, что у radialReach, только проекция на мировую вертикаль. Нужна
+// ИМЕННО она, а не охватная сфера: у стейка охват 0.53, а плашмя он занимает
+// вниз 0.07 — по сфере «нижняя точка» ушла бы под пол у любого лежащего
+// предмета и спасатель пола штормил бы на ровном месте.
+// ⚠️ min(r, obb) — как в radialReach: обе оценки честные ВЕРХНИЕ границы
+// вылета, у круглых коробка по диагонали хуже сферы (до 1.73r).
+function downReach(it){
+  const h = it.half;
+  if (!h || !it.body) return it.r;
+  const r = it.body.rotation();
+  _rq.set(r.x, r.y, r.z, r.w);
+  _rm.makeRotationFromQuaternion(_rq);
+  const m = _rm.elements; // столбцы — оси предмета в мире; y-компоненты: m[1], m[5], m[9]
+  const obb = it.scl * (h.x * Math.abs(m[1]) + h.y * Math.abs(m[5]) + h.z * Math.abs(m[9]));
+  return Math.min(it.r, obb);
+}
+function lowestPoint(it){ return it.p.y - downReach(it); }
 function rescueSweep(){
   let rescued = 0;
   for (const it of items){
@@ -10629,8 +10647,22 @@ window.__game = {
     return items.filter(i => i.alive && i.body).map(i => ({
       name: i.type ? i.type.name : '?', y: +i.p.y.toFixed(2),
       bottom: +(i.p.y - i.r).toFixed(2), r: +i.r.toFixed(2),
+      // low — ЧЕСТНАЯ нижняя точка по ориентированной коробке (bottom по
+      // охватной сфере врёт вдвое у плоских: у лежащего стейка bottom «под
+      // полом» всегда). Провал сквозь пол ловится именно по low.
+      low: +lowestPoint(i).toFixed(3), d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
       sleeping: i.body.isSleeping(), rock: !!i.rock, bomb: !!i.bomb
     }));
+  },
+  // диагностика провала: кто ниже пола по ЧЕСТНОЙ нижней точке (порог в
+  // единицах глубины под FLOOR_REST)
+  underFloor(eps){
+    const e = eps == null ? 0.02 : +eps;
+    return items.filter(i => i.alive && i.body && lowestPoint(i) < FLOOR_REST - e)
+      .map(i => ({ name: i.type.name, y: +i.p.y.toFixed(3), low: +lowestPoint(i).toFixed(3),
+        deep: +(FLOOR_REST - lowestPoint(i)).toFixed(3), d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
+        sleeping: i.body.isSleeping(), touching: this.contacts(items.indexOf(i)).touching,
+        rock: !!i.rock, bomb: !!i.bomb }));
   },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.

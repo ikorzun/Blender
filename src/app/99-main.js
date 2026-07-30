@@ -1094,8 +1094,22 @@ window.__game = {
     return items.filter(i => i.alive && i.body).map(i => ({
       name: i.type ? i.type.name : '?', y: +i.p.y.toFixed(2),
       bottom: +(i.p.y - i.r).toFixed(2), r: +i.r.toFixed(2),
+      // low — ЧЕСТНАЯ нижняя точка по ориентированной коробке (bottom по
+      // охватной сфере врёт вдвое у плоских: у лежащего стейка bottom «под
+      // полом» всегда). Провал сквозь пол ловится именно по low.
+      low: +lowestPoint(i).toFixed(3), d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
       sleeping: i.body.isSleeping(), rock: !!i.rock, bomb: !!i.bomb
     }));
+  },
+  // диагностика провала: кто ниже пола по ЧЕСТНОЙ нижней точке (порог в
+  // единицах глубины под FLOOR_REST)
+  underFloor(eps){
+    const e = eps == null ? 0.02 : +eps;
+    return items.filter(i => i.alive && i.body && lowestPoint(i) < FLOOR_REST - e)
+      .map(i => ({ name: i.type.name, y: +i.p.y.toFixed(3), low: +lowestPoint(i).toFixed(3),
+        deep: +(FLOOR_REST - lowestPoint(i)).toFixed(3), d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
+        sleeping: i.body.isSleeping(), touching: this.contacts(items.indexOf(i)).touching,
+        rock: !!i.rock, bomb: !!i.bomb }));
   },
   floaters(){
     // предмет «висит», если под его нижней точкой пусто больше 0.35.
