@@ -2549,10 +2549,23 @@ window.bridge = {
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   for (let i = 0; i < 2; i++){ await page.evaluate(() => window.__game.shake()); await page.waitForTimeout(1200); }
   await page.evaluate(() => window.__game.detonate());
-  await page.waitForTimeout(3000);
-  const floorLive = await page.evaluate(() => window.__game.underFloor());
+  // ⚠️ НЕ ОДИН СНИМОК ПО ЧАСАМ, А ОПРОС ДО ЧИСТОТЫ. Прежний вид (снимок ровно
+  // на 3000 мс) флейкал ~5% прогонов — диагноз ГРАФИКИ, подтверждён их пробой
+  // 2×18 попыток: транзиентная просадка на ЛЕТЯЩЕЙ куче (норма по замеру
+  // Физики 0.05..0.28) попадала в кадр РАНЬШЕ, чем спасатель имеет право её
+  // поднять — его второй ключ ТРЕБУЕТ просадки, держащейся ~1.5 с, и это
+  // задумано (иначе шторм телепортов). Настоящий дефект — ЗАЛИПАНИЕ, а оно
+  // от опроса не прячется: застрявший не очистится ни к 3-й, ни к 9-й
+  // секунде (проба Графики: у обеих сборок чисто к 7-й, 0/18). Падение
+  // теперь означает «спасатель НЕ вынул за 9 с» — ровно инвариант соака.
+  let floorLive = null;
+  for (let t = 0; t < 30; t++){
+    await page.waitForTimeout(300);
+    floorLive = await page.evaluate(() => window.__game.underFloor());
+    if (floorLive.length === 0) break;
+  }
   expect(floorLive.length === 0,
-    'ПОЛ: после встрясок и взрыва под полом никого (' + JSON.stringify(floorLive).slice(0, 160) + ')');
+    'ПОЛ: после встрясок и взрыва спасатель вынул всех не позднее 9 с (' + JSON.stringify(floorLive).slice(0, 160) + ')');
 
   // ===== ТАП ПО ГЛАЗАМ = ПРОВОКАЦИЯ ПОМОЛА (спека владельца 2026-07-30) =====
   // В конце файла: regen меняет контекст. Механика переиспользует наказание за

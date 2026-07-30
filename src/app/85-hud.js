@@ -330,9 +330,9 @@ function setFace(state, now, blinking){
 }
 let lastGrind = false;
 function updateEyes(now, grinding){ lastGrind = !!grinding; faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
-// Ночь по тем же границам, что выбор панорамы в 05-sky (skyForNow):
-// 18..5. Дублируем сознательно: 05-sky сгенерирован тулзой и руками не
-// правится, а ошибка тут стоит лишь оттенка кнопки.
+// Ночь по тем же границам, что градиент неба в 10-stage (skyTimeNow):
+// 18..5. Дублируем сознательно: ошибка тут стоит лишь оттенка кнопки.
+// (Раньше границы жили в 05-sky/skyForNow — модуль панорам удалён 2026-07-30.)
 function isNightSky(){
   let h = 12; try { h = new Date().getHours(); } catch(e){}
   return h >= 18 || h < 5;

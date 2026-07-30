@@ -552,57 +552,22 @@ function feverColorNow(){
   // час НЕ пересчитываем — берём ту же точку, что выбирает градиент неба
   return v3(skyTimeNow() === 'night' ? FEVER_NIGHT : FEVER_DAY);
 }
-// РЕЖИМ НЕБА (решение владельца 2026-07-22: «панорама неба оставляем на
-// десктопе, на мобиле кати градиент»).
-// ⚠️ КРИТЕРИЙ — ТИП УКАЗАТЕЛЯ, а не ширина окна. Диспетчер предлагал ≥768px
-// как у HUD; выбор мой, обоснование: здесь вопрос «какой это КЛАСС УСТРОЙСТВА»
-// (GPU, память, декод картинки), а не «широкое ли окно». pointer:coarse уже
-// используется В ЭТОМ ЖЕ файле ровно для такого решения — кап pixelRatio
-// 1.5 против 2. По ширине планшет в альбоме (>=768) ошибочно получил бы
-// панораму, а десктоп в узком окне — градиент. Бонусом снимается вопрос
-// ресайза: тип указателя от ширины окна не меняется, пересоздавать нечего.
-// У HUD ≥768 — вопрос ВЁРСТКИ («влезает ли раскладка»), он честно про ширину:
-// разные вопросы — разные критерии, совпадение ради совпадения тут вредно.
-const SKY_PANORAMA = !matchMedia('(pointer:coarse)').matches;
-
-// ПАНОРАМА (только десктоп): равнопромежуточная картинка по времени суток.
-function skyPanorama(){
-  const tex = new THREE.Texture();
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.encoding = THREE.LinearEncoding;
-  tex.minFilter = tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  // ЗАГЛУШКА ДО ДЕКОДА: без image three биндит чёрный пиксель — первые кадры
-  // загрузки небо мигало ЧЁРНЫМ. 1×1 цвета светлого горизонта незаметен глазу
-  const ph = document.createElement('canvas'); ph.width = ph.height = 1;
-  const phx = ph.getContext('2d'); phx.fillStyle = '#c4d6e6'; phx.fillRect(0, 0, 1, 1);
-  tex.image = ph;
-  tex.needsUpdate = true;
-  const img = new Image();
-  img.onload = () => { tex.image = img; tex.needsUpdate = true; };
-  img.src = skyForNow();
-  return tex;
-}
-
+// ГРАДИЕНТ ВЕЗДЕ (спека владельца 2026-07-30: «убери в десктопе на фоне
+// картинку, сделай так же как в мобиле: всегда градиент по времени суток»).
+// ⛔ ОТМЕНЯЕТ решение 2026-07-22 «панорама на десктопе, градиент на мобиле»:
+// флаг SKY_PANORAMA (критерий pointer:coarse), функция skyPanorama и ветка
+// равнопромежуточной развёртки в шейдере УДАЛЕНЫ, вместе с ними — модуль
+// 05-sky (три base64-JPEG 1536×768). Одна база на все устройства.
 let skyMat = null; // экранные слои: uCombo красит НИЗ, uGrind — ВЕРХ (оба из 99-main)
 (function buildSky(){
-  // РАЗЛИЧАЕТСЯ ТОЛЬКО БАЗА. Лихорадка, лесенка помола и затемнение верха —
-  // общие для обоих режимов, они идут ПОВЕРХ и о базе ничего не знают.
-  const baseUni = SKY_PANORAMA
-    ? { uSky: { value: skyPanorama() } }
-    : { uSkyTop: { value: v3(skyGrad.top) }, uSkyHor: { value: v3(skyGrad.hor) },
+  // Лихорадка, лесенка помола и затемнение верха идут ПОВЕРХ базы.
+  const baseUni =
+      { uSkyTop: { value: v3(skyGrad.top) }, uSkyHor: { value: v3(skyGrad.hor) },
         uSkyBot: { value: v3(skyGrad.bot) }, uStars: { value: skyTimeNow() === 'night' ? 1 : 0 } };
-  const baseDecl = SKY_PANORAMA
-    ? ['uniform sampler2D uSky;']
-    : ['uniform vec3 uSkyTop; uniform vec3 uSkyHor; uniform vec3 uSkyBot; uniform float uStars;',
+  const baseDecl =
+      ['uniform vec3 uSkyTop; uniform vec3 uSkyHor; uniform vec3 uSkyBot; uniform float uStars;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
-  const baseCol = SKY_PANORAMA ? [
-      // равнопромежуточная развёртка: направление взгляда -> UV панорамы
-      '  vec3 d = normalize(vDir);',
-      '  vec2 uv = vec2(atan(d.z, d.x) / 6.2831853 + 0.5,',
-      '                 asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);',
-      '  vec3 col = texture2D(uSky, uv).rgb;',
-    ] : [
+  const baseCol = [
       // ГРАДИЕНТ: два отрезка от горизонта — вверх к зениту, вниз к надиру,
       // ЛИНЕЙНО по высоте взгляда. Линейно, а не smoothstep: профиль панорам
       // почти линеен, smoothstep выдал бы у горизонта видимую полосу.
