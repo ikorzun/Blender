@@ -139,7 +139,11 @@ function tickIntro(dt){
       // страховкой, жёстким пределом. Ждать вечно эта ветка не может.
       try {
         Ads.curtainGone.then(()=>{
-          if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; }
+          if (!(intro && intro.phase === 'wait')) return;
+          // ПРОЛОГ-КОМИКС новому игроку — ровно здесь: занавес убран, чаша
+          // пустая, предметы ещё не тронулись (86-story). Если пролог не нужен,
+          // колбэк зовётся сразу и падение начинается как раньше.
+          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; } });
         });
       } catch(_){ intro.phase = 'drop'; intro.t = 0; }
     }
@@ -704,6 +708,11 @@ window.__game = {
   },
   // мгновенно завершить интро (для тестов): синхронная осадка + утряска
   skipIntro(){
+    // ⚠️ Пролог-комикс висит поверх фазы 'wait' и ЖДЁТ тапа. В автопрогоне
+    // тапать некому: без этой строки сьют застревал бы на первом же экране,
+    // а координатные клики уходили бы в панель. Закрываем штатно — так пролог
+    // ещё и метится показанным, и не всплывает в следующих секциях.
+    try { storyForceClose(); } catch(_){}
     if (!intro) return;
     intro = null;
     // тот же сигнал, что и у честного finishIntro (иначе витрина ждала бы
@@ -799,12 +808,15 @@ window.__game = {
   boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
   // СЮЖЕТ (86-story): состояние глав и ручной показ для тестов
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),
-                         due: (storyDue() || {}).id || null }; },
+                         due: (storyDue() || {}).id || null, busy: storyBusy, on: storyOn }; },
   storyOnWin(){ return storyOnWin(); },
   storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
   storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // тест: считать главу показанной
   storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
   storyClearAcc(){ Save.ac = {}; commitSave(); },  // тест: обнулить накопления — вехи К2-К4 считаются по ним
+  storyPrologueDue(){ return storyPrologueDue(); },
+  storyPrologueSpy(cb){ return storyPrologue(cb); }, // тест: проверить, что колбэк зовётся
+  storyPrologueNow(){ Save.st = 0; commitSave(); return new Promise(r => storyPrologue(() => r(true))); },
   storyClose(){ const b = document.getElementById('storyOverlay');
     if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
   storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // тест: имена типов с пачкой

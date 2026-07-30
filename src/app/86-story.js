@@ -24,6 +24,11 @@
 // точка входа одна (storyPlay), панели — чистые функции, возвращающие SVG.
 
 const STORY_AUTO_MS = 4000;    // §6.2: панель живёт не дольше 4 с сама по себе
+// ⚠️ ПРОЛОГ ЖИВЁТ БЫСТРЕЕ виньеток: он стоит ПЕРЕД первой игрой, и каждая
+// лишняя секунда здесь бьёт по козырю портала «играю через 20 секунд».
+// 3 панели × 2.6 с = 7.8 с в худшем случае, если игрок не трогает экран вовсе;
+// тап пролистывает мгновенно, то есть внимательный проходит за ~1-2 с.
+const STORY_INTRO_MS = 2600;
 const STORY_GAP_LEVELS = 2;    // §6.3: не чаще одной виньетки на 2 уровня
 const STORY_INK = '#fff', STORY_DIM = 'rgba(255,255,255,.5)', STORY_ACC = '#c0ff47';
 const STORY_BG = '#0e1320', STORY_PAPER = '#161c2a', STORY_FIRE = '#ff5a3c';
@@ -326,9 +331,10 @@ function storyOnWin(){
   if (ch) storyPlay(ch);
 }
 // Показ. Оверлей строится из JS (см. заметку о зонах в шапке файла).
-function storyPlay(ch){
-  if (storyBusy) return;
+function storyPlay(ch, done){
+  if (storyBusy){ if (done) done(); return; }
   storyBusy = true;
+  const autoMs = ch.intro ? STORY_INTRO_MS : STORY_AUTO_MS;
   let i = 0, timer = 0;
   const box = document.createElement('div');
   box.id = 'storyOverlay';
@@ -353,7 +359,7 @@ function storyPlay(ch){
     i++;
     if (i >= ch.panels.length){ close(); return; }
     draw();
-    timer = setTimeout(next, STORY_AUTO_MS);
+    timer = setTimeout(next, autoMs);
   };
   const close = () => {
     clearTimeout(timer);
@@ -361,13 +367,40 @@ function storyPlay(ch){
     storyBusy = false;
     // отметку ставим ПО ЗАВЕРШЕНИИ, включая скип: скип не наказывается (§6.2),
     // глава считается показанной и второй раз не всплывёт.
-    Save.st = (Save.st || 0) | ch.bit;
+    Save.st = (Save.st || 0) | (ch.marks || ch.bit);
     Save.sv = Math.max(Save.sv || 0, Math.max(1, levelNum - 1));
     commitSave();
     Telemetry.ev('story', { ch: ch.id });
+    if (done) done();
   };
+  storyDismiss = close; // чтобы skipIntro/тесты могли закрыть панель штатно
   box.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); next(); });
   document.body.appendChild(box);
   draw();
-  timer = setTimeout(next, STORY_AUTO_MS);
+  timer = setTimeout(next, autoMs);
 }
+// ── ПРОЛОГ (спека владельца 2026-07-30: «рассказать эту историю ПЕРЕД игрой
+// в виде комикса»). ⚠️ ЭТО ОСОЗНАННАЯ ОТМЕНА правила §6.1 спеки «никогда до
+// первого тапа сессии»: оно защищало козырь «играю через 20 секунд», и слово
+// владельца новее. Риск снят КОНСТРУКЦИЕЙ, а не игнором:
+//  • пролог встроен в фазу 'wait' интро — занавес площадки уже убран, чаша
+//    пустая, а предметы ЕЩЁ НЕ ПАДАЛИ. Значит анимация заполнения (владелец
+//    отдельно за неё бился) не теряется: она просто начинается после комикса.
+//  • панели быстрее обычных (2.6 с против 4), тап пролистывает мгновенно;
+//  • показывается РОВНО ОДИН РАЗ за жизнь сейва и только НОВОМУ игроку.
+// ⚠️ Условие «st === 0», а не «бит не стоит»: у игрока, который уже видел К0/К1
+// между уровнями по старой схеме, пролог НЕ всплывёт — иначе он посмотрел бы
+// тот же контент дважды. Закрытие пролога метит и К0, и К1 — между уровнями
+// они больше не придут.
+const STORY_PROLOGUE = { id: 'p0', bit: 32, marks: 32 | 1 | 2, intro: true,
+                         panels: [stPanelK0a, stPanelK0b, stPanelK1] };
+let storyDismiss = null;
+function storyPrologueDue(){ return storyOn && (Save.st || 0) === 0; }
+// done() зовётся ВСЕГДА — и когда пролог показан, и когда он не нужен:
+// на этом колбэке висит запуск падения предметов, потерять его нельзя.
+function storyPrologue(done){
+  if (!storyPrologueDue()) return done && done();
+  storyPlay(STORY_PROLOGUE, done);
+}
+// Закрыть открытую панель штатно (skipIntro в тестах, аварийные пути)
+function storyForceClose(){ if (storyDismiss) storyDismiss(); return !document.getElementById('storyOverlay'); }
