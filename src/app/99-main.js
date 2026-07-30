@@ -698,6 +698,9 @@ window.__game = {
   },
   // час, по которому выбраны небо и тема (форс через ?hour=N) — для стражей тем
   skyHour(){ return { hour: skyHourNow(), time: skyTimeNow(), night: isNightSky() }; },
+  // ДЕБАГ ГРАФИКИ: подменить палитру неба на живой сцене (подбор цветов
+  // владельцем без пересборки, как veilTune). Массив хексов любой длины >= 2.
+  skyStops(list){ return setSkyStops(list); },
   // срез вуали для сьюта: сколько материалов реально получили uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;
