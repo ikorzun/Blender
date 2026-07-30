@@ -234,6 +234,83 @@ const path = require('path');
   const finalTy = await page.evaluate(() => window.__game.cam().ty); // лерп доехал — финальная отметка
   expect(finalTy <= 3.3 && finalTy >= 3.1, 'автопан остановился ровно на поле трети хода 3.2 (' + finalTy + ')');
   await page.screenshot({ path: 'shot_win.png' });
+  // ПИЛЮЛЯ НАГРАДЫ ПО НОДЕ 779:1114 (спека владельца «переделай на Implement
+  // this design from Figma»): светлая полупрозрачная подложка + ЛАЙМОВОЕ
+  // ВНУТРЕННЕЕ свечение, круг БЕЛЫЙ 64 с иконкой 32, «+1» лаймом, зазор 7.
+  // ⛔ До правки было наоборот — тёмная подложка rgba(0,0,0,.2) и ЛАЙМОВЫЙ
+  // круг, без свечения: на той сборке страж падает по трём полям сразу.
+  // Падинги здесь НЕ проверяем: вьюпорт сьюта мобильный, а мобильный макет
+  // 783:711 их сознательно переопределяет — проверялись бы не числа ноды.
+  const pill = await page.evaluate(() => {
+    const r = document.querySelector('.win-reward'), ic = document.querySelector('.win-reward-ic'),
+          n = document.querySelector('.win-reward-n'), sv = ic && ic.querySelector('svg');
+    if (!r || !ic || !n || !sv) return { нетУзла: true };
+    const c = getComputedStyle(r), ci = getComputedStyle(ic), cn = getComputedStyle(n);
+    return { фон: c.backgroundColor, тень: c.boxShadow, зазор: c.gap,
+      круг: ci.backgroundColor, диаметр: Math.round(ic.getBoundingClientRect().width),
+      иконка: Math.round(sv.getBoundingClientRect().width), плюс: cn.color };
+  });
+  expect(pill.фон === 'rgba(255, 255, 255, 0.16)' &&
+    /inset/.test(pill.тень) && /192, 255, 71/.test(pill.тень) &&
+    pill.круг === 'rgb(255, 255, 255)' && pill.диаметр === 64 && pill.иконка === 32 &&
+    pill.зазор === '7px' && pill.плюс === 'rgb(192, 255, 71)',
+    'ПОБЕДА: пилюля награды по ноде 779:1114 — лайм в свечении, круг белый (' + JSON.stringify(pill) + ')');
+  // ПРОГАЛЫ ГЛИФОВ ЗАЛИТЫ ЦВЕТОМ ОБВОДКИ (спека владельца «внутри 8 и подобных
+  // цифр должно быть полностью залито цветом обводки»).
+  // ⚠️ МЕРИМ ОТРИСОВАННЫЕ ПИКСЕЛИ, а не наличие `filter` в стилях: объявление
+  // фильтра не доказывает НИЧЕГО — вопрос в том, закрылась ли щель.
+  // ⚠️ Клон живого узла кладём на заведомый фон В МАСШТАБЕ 1:1 К viewBox. CSS по
+  // id и классу матчит клон, поэтому кегль/обводка/фильтр у него боевые; а 1:1
+  // ОБЯЗАТЕЛЕН, потому что «×N» живёт в СКРЫТОМ оверлее — по живому rect клон
+  // вышел бы нулевой ширины и страж стал бы тавтологией «нет пикселей — нет дырок».
+  // На базе без приёма даёт 132 и 8 дырявых пикселей (и 1339/145 при ретинном ×3).
+  const glyphHoles = await (async () => {
+    const out = {};
+    for (const [sel, txt, имя] of [['.otext.win-score', '★ 88', 'счёт'],
+                                   ['.otext.st-x', '×8', 'карточка']]) {
+      const есть = await page.evaluate(([sel, txt]) => {
+        const old = document.getElementById('holeProbe'); if (old) old.remove();
+        const src = document.querySelector(sel); if (!src) return false;
+        const vb = (src.getAttribute('viewBox') || '0 0 240 78').split(/\s+/).map(Number);
+        const box = document.createElement('div'); box.id = 'holeProbe';
+        box.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#ff00ff;padding:20px';
+        const cl = src.cloneNode(true);
+        cl.style.display = 'block';
+        cl.setAttribute('width', vb[2]); cl.setAttribute('height', vb[3]);
+        cl.style.width = vb[2] + 'px'; cl.style.height = vb[3] + 'px';
+        const t = cl.querySelector('text');
+        if (t){ t.textContent = txt; t.style.fill = '#000'; }   // заливка сплошная: градиент в клоне не разрешается
+        box.appendChild(cl); document.body.appendChild(box);
+        return true;
+      }, [sel, txt]);
+      if (!есть){ out[имя] = -1; continue; }
+      const b64 = (await page.locator('#holeProbe').screenshot()).toString('base64');
+      out[имя] = await page.evaluate(async (b64) => {
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+        const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+        const d = cx.getImageData(0, 0, cv.width, cv.height).data, W = cv.width, H = cv.height;
+        const фон = i => d[i] > 200 && d[i + 1] < 60 && d[i + 2] > 200;
+        const seen = new Uint8Array(W * H), st = [];
+        for (let x = 0; x < W; x++){ st.push([x, 0], [x, H - 1]); }
+        for (let y = 0; y < H; y++){ st.push([0, y], [W - 1, y]); }
+        while (st.length){
+          const [x, y] = st.pop();
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          const p = y * W + x;
+          if (seen[p] || !фон(p * 4)) continue;
+          seen[p] = 1; st.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+        let n = 0;
+        for (let p = 0; p < W * H; p++) if (фон(p * 4) && !seen[p]) n++;
+        return n;
+      }, b64);
+    }
+    await page.evaluate(() => { const b = document.getElementById('holeProbe'); if (b) b.remove(); });
+    return out;
+  })();
+  expect(glyphHoles.счёт === 0 && glyphHoles.карточка === 0,
+    'ПРОГАЛЫ ГЛИФОВ: сквозь «8» не видно фона ни в счёте, ни на карточке (' + JSON.stringify(glyphHoles) + ')');
 
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения
   await page.click('#againBtn');
@@ -2701,6 +2778,35 @@ window.bridge = {
   });
   expect(fade.drop > 0.15,                          // ожидаемые ~0.21, на main ровно 0
     'ЗАРЯД: прозрачность падает БЕЗ событий — растворение видно (' + fade.a + ' -> ' + fade.b + ')');
+  // СЛОТ = МОДЕЛЬ, А НЕ КНОПКА (спека владельца v3): кнопочного хрома нет,
+  // габарит равен кнопке подсказки, и вещь ПУЛЬСИРУЕТ.
+  // ⚠️ ПУЛЬС ПРОВЕРЯЕМ ФАКТОМ — реальным габаритом картинки за ПОЛНЫЙ период
+  // (1.1 с; 80 кадров ≈ 1.33 с ловят и пик, и провал), а НЕ именем анимации из
+  // computed style: имя там стоит и у анимации, которую ничто не двигает.
+  // ⚠️ Полсекунды перед замером — переждать РАЗОВЫЙ поп входа: он живёт на
+  // transform РОДИТЕЛЯ и тоже растягивает rect картинки.
+  const slot = await page.evaluate(async () => {
+    const g = window.__game, sn = g.typesSnapshot();
+    let name = null, n = 0;
+    for (const [k, v] of Object.entries(sn)) if (k !== 'surprise' && v.alive > n){ name = k; n = v.alive; }
+    g.chargeGrant(name);
+    await new Promise(r => setTimeout(r, 500));
+    const cb = document.getElementById('chargeBtn'), img = document.getElementById('chargeImg');
+    const c = getComputedStyle(cb), w = [];
+    for (let i = 0; i < 80; i++){
+      w.push(img.getBoundingClientRect().width);
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    const res = { фон: c.backgroundColor, кольцо: c.boxShadow,
+      слот: cb.getBoundingClientRect().width,
+      подсказка: document.getElementById('hintBtn').getBoundingClientRect().width,
+      ход: +(Math.max(...w) - Math.min(...w)).toFixed(2) };
+    g.detonateCharge();
+    return res;
+  });
+  expect(/rgba\(0, 0, 0, 0\)|transparent/.test(slot.фон) && slot.кольцо === 'none' &&
+    slot.слот === slot.подсказка && slot.ход > 1 && slot.ход < 6,
+    'ЗАРЯД: не кнопка, а модель размером с подсказку, и она пульсирует (' + JSON.stringify(slot) + ')');
   // ЛЕСЕНКА ТУРБО: порог входа растёт с уровнем. Числа ПИНУЮТСЯ как двойник
   // спеки (10 + ⌊ур/8⌋, кап 14) — читать из игры значило бы проверять пустоту.
   const chainLadder = await page.evaluate(() => {
