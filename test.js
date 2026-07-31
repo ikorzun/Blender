@@ -2196,6 +2196,24 @@ window.bridge = {
     'тиры бандлов по спеке ($4.90 x5, $9.90 x3, $19.90 x2 = 50 встрясок) (' + JSON.stringify(sbProbe.tiers.map(t=>t.usd)) + ')');
   expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Upgrade $4.90|Upgrade $9.90|Upgrade $19.90',
     'ценники на КНОПКАХ совпадают с конфигом (' + JSON.stringify(sbProbe.btnLabels) + ')');
+  // ⚠️ КРЕСТИК ЗАКРЫТИЯ — ВСЕГДА белый с чёрным крестом (спека владельца
+  // 2026-07-31: «цвет иконки не зависит от времени суток» — оверлей тёмный в
+  // обе темы, системное правило --btn-bg давало днём тёмную кнопку на тёмном).
+  // Проверяем В ОБЕ темы: точечное отклонение не должно съесться правилом.
+  const stClose = await page.evaluate(() => {
+    const b = document.getElementById('starsClose'), p = b.querySelector('svg path');
+    const wasNight = document.documentElement.classList.contains('night');
+    const snap = () => ({ bg: getComputedStyle(b).backgroundColor, fill: getComputedStyle(p).fill });
+    document.documentElement.classList.remove('night');
+    const день = snap();
+    document.documentElement.classList.add('night');
+    const ночь = snap();
+    document.documentElement.classList.toggle('night', wasNight);
+    return { день, ночь };
+  });
+  expect(stClose.день.bg === 'rgb(255, 255, 255)' && stClose.ночь.bg === 'rgb(255, 255, 255)' &&
+    stClose.день.fill === 'rgb(0, 0, 0)' && stClose.ночь.fill === 'rgb(0, 0, 0)',
+    'крестик More Stars всегда белый с чёрным крестом, вне времени суток (' + JSON.stringify(stClose) + ')');
   expect(sbProbe.idle.mult === 1 && sbProbe.idle.noAd === false,
     'без бандла: множитель 1, реклама не отключена (' + JSON.stringify(sbProbe.idle) + ')');
   expect(sbProbe.buy.ok && sbProbe.st.mult === 2 && sbProbe.st.shakes === 50 &&
