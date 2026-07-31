@@ -44,7 +44,7 @@ const FLOOR_CALM_V = 0.5;
 // секунд (замер соака: 30 с подряд).
 const FLOOR_SUNK_TICKS = 3;
 let floorCol = null;    // коллайдер плиты — истинное проникновение по манифолду
-let tmpWallBodies = []; // высокая временная стена на время осадки genLevel
+let tmpWallBody = null;  // высокая временная стена на время осадки genLevel (ОДНО тело, A1)
 
 const _pq = new THREE.Quaternion();
 const _pe = new THREE.Euler();
@@ -60,6 +60,15 @@ function initPhysicsWorld(){
   // не по конусу (у дна грань уезжала на ~0.3 наружу — предметы «в стекле»,
   // спасатель штормил). Кольца без наклона: грань = radiusAt(midY)-WALL_GAP
   // тривиально верна. Ступенька между кольцами 0.12 — внутрь не выступает.
+  // ⚠️ A1 (перф мобильного тира 2026-07-31): ВЕСЬ КОНТЕЙНЕР — ОДНО фикс-тело
+  // со многими коллайдерами. Было 417 отдельных тел (12 колец × 32 + 32
+  // верхних + дно) против 182 предметов: 70% прокси широкой фазы приходилось
+  // на НЕПОДВИЖНУЮ чашу. Геометрия НЕ МЕНЯЕТСЯ бит-в-бит: раньше смещение
+  // нёс body, поворот — коллайдер; теперь оба несёт коллайдер, а тело стоит
+  // в начале координат с единичным поворотом, то есть локальная поза
+  // коллайдера И ЕСТЬ мировая. Это шаг БЕЗ смены поведения — он и мерялся
+  // отдельно от снятия π/2, чтобы атрибуция была честной.
+  const shellB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   const RINGS = 12, LOW = 0.5;
   for (let ring = 0; ring < RINGS; ring++){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
@@ -69,13 +78,12 @@ function initPhysicsWorld(){
     const chord = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
     for (let i = 0; i < WALL_SEG; i++){
       const a = (i + 0.5)/WALL_SEG*Math.PI*2;
-      const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30)));
       const cd = RAPIER.ColliderDesc.cuboid(0.30, (y1 - y0)/2 + 0.09, chord/2)
-        .setFriction(FRICTION).setRestitution(RESTIT);
+        .setFriction(FRICTION).setRestitution(RESTIT)
+        .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
       _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-      world.createCollider(cd, body);
+      world.createCollider(cd, shellB);
     }
   }
   // вертикальное продолжение над кромкой: скользкое, БЕЗ наклона (наклон
@@ -84,13 +92,12 @@ function initPhysicsWorld(){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const faceR = FUNNEL.R1 - WALL_GAP;
     const chord2 = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
-    const b2 = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30)));
     const cd2 = RAPIER.ColliderDesc.cuboid(0.30, 2.1, chord2/2)
-      .setFriction(0.02).setRestitution(RESTIT);
+      .setFriction(0.02).setRestitution(RESTIT)
+      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
     _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd2, b2);
+    world.createCollider(cd2, shellB);
   }
   // ⚠️ ПЛИТА ТОНКАЯ (полутолщина 0.3, то есть [0.55..1.15]) И ПОД НЕЙ ПУСТО.
   // Замер 2026-07-30: максимум просадки на летящей куче 0.28 — до середины
@@ -99,28 +106,31 @@ function initPhysicsWorld(){
   // распределение просадок и на перф не влияет (шаг физики на взрыве p95
   // 7.9-10.9 против 7.7-9.1), ОТКЛОНЕНО владельцем 2026-07-30 — «откати
   // толщину плиты, оставь только спасателя». Возврат = два числа в этих строках.
-  const floorB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, FLOOR_REST - 0.3, 0));
-  // floorCol нужен спасателю пола: по нему берётся ИСТИННОЕ проникновение
-  floorCol = world.createCollider(RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2).setFriction(FRICTION), floorB);
+  // плита — на том же теле контейнера; floorCol нужен спасателю пола (по нему
+  // берётся ИСТИННОЕ проникновение), и он остаётся отдельным КОЛЛАЙДЕРОМ
+  floorCol = world.createCollider(
+    RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2)
+      .setFriction(FRICTION).setTranslation(0, FLOOR_REST - 0.3, 0), shellB);
 }
 
+// временная стена — тоже ОДНО тело (A1): она строится и сносится КАЖДЫЙ
+// уровень, то есть прежние 32 тела создавались и удалялись на каждом genLevel
 function buildTempTallWall(){
   removeTempTallWall();
+  tmpWallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   for (let i=0; i<WALL_SEG; i++){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const chord = 2*(FUNNEL.R1 - WALL_GAP)*Math.tan(Math.PI/WALL_SEG) + 0.08;
-    const b = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(Math.cos(a)*(FUNNEL.R1 - WALL_GAP + 0.15), 24, Math.sin(a)*(FUNNEL.R1 - WALL_GAP + 0.15)));
-    const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02);
+    const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02)
+      .setTranslation(Math.cos(a)*(FUNNEL.R1 - WALL_GAP + 0.15), 24, Math.sin(a)*(FUNNEL.R1 - WALL_GAP + 0.15));
     _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
     cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd, b);
-    tmpWallBodies.push(b);
+    world.createCollider(cd, tmpWallBody);
   }
 }
 function removeTempTallWall(){
-  tmpWallBodies.forEach(b => world.removeRigidBody(b));
-  tmpWallBodies = [];
+  if (tmpWallBody) world.removeRigidBody(tmpWallBody);
+  tmpWallBody = null;
 }
 
 // Физическая форма по типу: примитив / convex hull из рендер-геометрии / компаунд
@@ -426,7 +436,7 @@ function rescueSweep(beforeSleep){
     // переоценивает ширину и давал шторм ложных спасений (грабля найдена на
     // стейке — тип удалён в v187, но правило про КЛАСС плоских живо: wr в
     // TYPES обязателен любой модели с одной осью много меньше остальных)
-    const legalR = tmpWallBodies.length ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
+    const legalR = tmpWallBody ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
     const reach = d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r);
     const out = (d + reach) > legalR + 0.18 || it.p.y < FLOOR_REST - 0.8 || it.p.y > 60;
     if (out){
