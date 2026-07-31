@@ -3294,6 +3294,152 @@ window.bridge = {
     JSON.stringify(hoursSeen.map(x => x.h + ':' + x.sky + '/' + (x.night ? 'n' : 'd'))) + ')');
   await hourPage.close();
 
+  // ===== ПОЛ КОНТРАСТА HUD К НЕБУ (заказ диспетчера 2026-07-31) =====
+  // ⚠️ ЗАЧЕМ: белые глаза читаются на небе ТОЛЬКО за счёт яркости самого неба, и
+  // сторожить это было нечем. Риск не гипотетический — он уже срабатывал дважды:
+  // на белом поле глаза пропадали (жалоба владельца), а откат дневного декора
+  // 2026-07-31 уронил контраст 3.18 -> 2.96, и заметили это только ручным
+  // замером. Осветлит кто-нибудь верх дневной палитры — глаза уйдут МОЛЧА.
+  // ⚠️ ПОЛ, А НЕ ПЛАНКА: 2.9 стоит ЧУТЬ НИЖЕ текущих 3.06-3.08, это страж против
+  // ТИХОЙ ДЕГРАДАЦИИ. Рекомендуемые 3:1 сейчас НЕ берутся, и это принятое
+  // владельцем состояние чистого градиента — поднимать порог здесь нельзя, страж
+  // сразу бы покраснел на исправной сборке.
+  // ⚠️ ГЛАЗА, А НЕ КНОПКА ПАУЗЫ: в старом абзаце канона белыми названы обе, но по
+  // правилу цвета кнопок днём пауза ТЁМНАЯ (риск обратный и запаса там вдоволь),
+  // а белок глаза белый в обеих темах — он и есть худший случай.
+  const HUD_FLOOR = { day: 2.9, night: 10.0 };
+  // Метрика: самый светлый пиксель ВНУТРИ конструкции глаз против МЕДИАНЫ неба в
+  // двух полосах вплотную по бокам, на тех же строках.
+  // ⚠️ ПОЧЕМУ ПРОФИЛЬ, А НЕ ДВЕ ТОЧКИ: первая проба этого замера (ИНТЕРФЕЙС,
+  // канон) брала точку «белок» и точку «фон» — первая попала в распахнутый
+  // зрачок, вторая ушла за кадр, и число было втрое неверным.
+  // ⚠️ ПОЧЕМУ ОСТАЛЬНОЙ HUD ПРЯЧЕМ: полосы фона ловили правый стек (очки к 3-му
+  // уровню пятизначные и лезут влево), и замер гулял 2.83-3.10 по раскладкам —
+  // ровно тот разброс, на котором страж бы флейкал. Отношение «белок к небу»
+  // от соседних элементов не зависит, поэтому их сокрытие ничего не подменяет.
+  const hudContrast = async (pg) => {
+    const geo = await pg.evaluate(() => {
+      const r = document.getElementById('face').getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    });
+    const b64 = (await pg.screenshot()).toString('base64');
+    return pg.evaluate(async ([b64, g]) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
+      const k = img.width / window.innerWidth;
+      const sl = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const lum = i => 0.2126 * sl(d[i]) + 0.7152 * sl(d[i + 1]) + 0.0722 * sl(d[i + 2]);
+      const X0 = Math.round(g.x * k), X1 = Math.round((g.x + g.w) * k);
+      const Y0 = Math.round(g.y * k), Y1 = Math.round((g.y + g.h * 0.55) * k);
+      const IN = Math.round(6 * k), OUT = Math.round(26 * k);
+      const med = a => { const b = a.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
+      let white = 0, spread = 0; const rowMed = [];
+      for (let y = Y0; y < Y1; y++){
+        for (let x = X0; x < X1; x++){ const L = lum((y * W + x) * 4); if (L > white) white = L; }
+        const row = [];
+        for (let x = Math.max(0, X0 - OUT); x < X0 - IN; x++) row.push(lum((y * W + x) * 4));
+        for (let x = X1 + IN; x < Math.min(W, X1 + OUT); x++) row.push(lum((y * W + x) * 4));
+        if (!row.length) continue;
+        rowMed.push(med(row));
+        // ⚠️ ДЕТЕКТОР ЗАГРЯЗНЕНИЯ ВЫБОРКИ: небо разложено ПО ЭКРАНУ, значит строка
+        // чистого неба горизонтально ПОСТОЯННА (замер: разброс ровно 0). Заедет в
+        // полосу посторонний объект (стекло чаши на неосевшей сцене, будущий
+        // элемент HUD) — разброс скакнёт, и замер обязан честно провалиться, а не
+        // отдать правдоподобное неверное число.
+        const s = Math.max.apply(null, row) - Math.min.apply(null, row);
+        if (s > spread) spread = s;
+      }
+      const sky = med(rowMed);
+      // ⚠️ ДЕТЕКТОР УГРОЗЫ ПОМОЛА, И ОН ЗАКРЫВАЕТ СЛЕПОЕ ПЯТНО, А НЕ ФЛЕЙК:
+      // uGrind наливает верх кадра красным за секунды простоя, небо ТЕМНЕЕТ, и
+      // контраст к белым глазам РАСТЁТ — то есть страж прошёл бы на сборке, где
+      // небо на самом деле слишком светлое. Разброс выборки этого не ловит:
+      // краснеет вся строка разом, горизонтальный разброс остаётся нулевым.
+      // Приём — из канона: кромку меряют в первую секунду после действия, пока
+      // угроза на нуле, и тогда верхний пиксель РОВНО равен первому стопу.
+      const tv = getComputedStyle(document.documentElement)
+        .getPropertyValue('--sky-top-rgb').trim().split(',').map(Number);
+      const ti = (2 * W + Math.round(W / 2)) * 4;
+      const topDelta = tv.length === 3
+        ? Math.max(Math.abs(d[ti] - tv[0]), Math.abs(d[ti + 1] - tv[1]), Math.abs(d[ti + 2] - tv[2]))
+        : 999;
+      return { white: +white.toFixed(4), sky: +sky.toFixed(4), spread: +spread.toFixed(4),
+               topDelta: topDelta,
+               ratio: +(((Math.max(white, sky) + 0.05) / (Math.min(white, sky) + 0.05)).toFixed(3)) };
+    }, [b64, geo]);
+  };
+  // ⚠️ ЖДЁМ СОСТОЯНИЯ, А НЕ ЧАСОВ (правило канона): опрашиваем, пока замер не
+  // УСТОИТСЯ (два подряд сходятся), с потолком-страховкой. Фикс-пауза здесь уже
+  // подводила: после подмены палитры рампа доезжает не в тот же кадр (замер
+  // ловил 2.40 вместо 1.11), а на нагруженном стенде это растянется сильнее.
+  // ⚠️ И ОТДЕЛЬНО — МОРГАНИЕ: белок ищется в ВЕРХНИХ 55% конструкции (там только
+  // глаза, число отсчёта ниже), а раз в 4-7 с веки закрываются на 120 мс, и в
+  // этот момент чистого белого в выборке нет вовсе — контраст просел бы сам
+  // собой, без всякой регрессии неба. Кадр с белком < 0.9 считаем НЕ пойманным
+  // и переснимаем: это тот же приём, что и детектор загрязнения, — не давать
+  // замеру отдать правдоподобное число не про то.
+  const settledContrast = async (pg) => {
+    let prev = null;
+    for (let i = 0; i < 12; i++){
+      const r = await hudContrast(pg);
+      if (r.white < 0.9){ prev = null; continue; }              // поймали моргание — пересъём
+      // угроза помола успела налиться за время цикла — снимаем её ДЕЙСТВИЕМ и
+      // переснимаем (иначе замер пойдёт по покрасневшему небу и завысит контраст)
+      if (r.topDelta > 6){ await pg.evaluate(() => window.__game.shake()); prev = null; continue; }
+      if (prev && Math.abs(r.ratio - prev.ratio) < 0.02) return { ...r, settled: true };
+      prev = r;
+    }
+    return { ...(prev || { white: 0, sky: 0, spread: 9, topDelta: 999, ratio: 0 }), settled: false };
+  };
+  const hudPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  const hudSeen = {};
+  for (const [tema, h] of [['day', 12], ['night', 22]]){
+    await hudPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
+    await hudPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await hudPage.evaluate(() => { window.__game.skipIntro();
+      [...document.body.children].forEach(e => {
+        if (e.tagName !== 'CANVAS' && e.id !== 'face') e.style.display = 'none'; }); });
+    const r = await settledContrast(hudPage);
+    hudSeen[tema] = r;
+    expect(r.settled, 'контраст HUD (' + tema + ') устоялся, а не пойман в переходе');
+    expect(r.spread < 0.02,
+      'выборка неба чистая (' + tema + '): горизонтальный разброс ' + r.spread + ' < 0.02');
+    expect(r.topDelta <= 6,
+      'замер вне угрозы помола (' + tema + '): верх кадра = первый стоп, Δ' + r.topDelta + ' <= 6');
+    expect(r.ratio >= HUD_FLOOR[tema],
+      'ПОЛ КОНТРАСТА HUD (' + tema + '): ' + r.ratio + ' >= ' + HUD_FLOOR[tema] +
+      ' (белок ' + r.white + ', небо ' + r.sky + ')');
+  }
+  await hudPage.close();
+  // ⚠️ ДВУСТОРОННИЙ ПРОГОН ВНУТРИ СЬЮТА: страж не сдан, пока не показано, что он
+  // КРАСНЕЕТ на сломанном. Здесь это проверяется КАЖДЫМ прогоном — подменяем
+  // палитру на светлую и убеждаемся, что метрика проваливает свой же пол. Без
+  // этого «зелёный контраст» мог бы означать, что замер ослеп (не туда попал
+  // пиксель), а не что небо в порядке.
+  // ⚠️ ОТДЕЛЬНАЯ СТРАНИЦА И ЗАКРЫТИЕ: у setSkyStops НЕТ геттера и НЕТ отката —
+  // вызов без списка возвращает null и НИЧЕГО не восстанавливает (проверено:
+  // «восстановленная» страница осталась с диверсионной палитрой). Единственный
+  // честный откат — новая загрузка.
+  const sabPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  await sabPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=12');
+  await sabPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  const sabApplied = await sabPage.evaluate(() => {
+    window.__game.skipIntro();
+    [...document.body.children].forEach(e => {
+      if (e.tagName !== 'CANVAS' && e.id !== 'face') e.style.display = 'none'; });
+    // светлый верх — ровно та регрессия, от которой ставится пол
+    return !!window.__game.skyStops(['#eaf4ff', '#e7f2ff', '#e4f0ff', '#e1eeff',
+                                     '#deecff', '#dbeaff', '#d8e8ff']);
+  });
+  expect(sabApplied, 'САНИТАР: диверсионная палитра принята (иначе «сломанного» прогона не было)');
+  const sab = await settledContrast(sabPage);
+  expect(sab.ratio < HUD_FLOOR.day,
+    '⚠️ ДВУСТОРОННЕ: на светлом небе метрика ПАДАЕТ ниже пола — ' + sab.ratio +
+    ' < ' + HUD_FLOOR.day + ' (на исправной палитре было ' + hudSeen.day.ratio + ')');
+  await sabPage.close();
+
   // ===== МОБИЛЬНОЕ МЕНЮ: ПЛАВАЮЩАЯ ШАПКА + ПЛАВАЮЩИЙ RESUME =====
   // Спека владельца 2026-07-31: «плавающая шапка появляется ТОЛЬКО когда блок
   // My Collection уходит за границу верхнего вью. Появляется сверху быстро, но
