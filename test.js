@@ -3233,34 +3233,38 @@ window.bridge = {
   expect(narrow.гориз === 0 && narrow.ряд <= narrow.пилюля,
     'МЕНЮ на 320: горизонтальной прокрутки нет и ряд не вылез из пилюли (' + JSON.stringify(narrow) + ')');
   // ⚠️⚠️ СБРОС ПРОКРУТКИ: у `openMainScreen` ДВА пути с РАЗНЫМИ ожиданиями
-  // (страж диспетчера v207, адаптирован под #msSticky в v208). Вызов НА
-  // ОТКРЫТОМ меню (так его зовёт visibilitychange из 90-input) прокрутку
-  // СОХРАНЯЕТ — безусловный сброс выбрасывал игрока из середины коллекции в
-  // верх. А НАСТОЯЩЕЕ переоткрытие (закрыл-открыл) СБРАСЫВАЕТ в верх и снимает
-  // playoff/#msSticky.on — иначе меню открывается сразу с плавающей шапкой
-  // поверх карточки Play. Починка 56cca3b отличала эти пути проверкой
-  // `!contains('open')` ПОСЛЕ `add('open')` — та всегда ложна, сброс был
-  // мёртвым кодом; второй ассерт ловит именно это.
+  // (страж диспетчера v207). Вызов НА ОТКРЫТОМ меню (так его зовёт
+  // visibilitychange из 90-input) прокрутку СОХРАНЯЕТ — безусловный сброс
+  // выбрасывал игрока из середины коллекции в верх. А НАСТОЯЩЕЕ переоткрытие
+  // (закрыл-открыл) СБРАСЫВАЕТ в верх и снимает stuck/playoff — иначе меню
+  // открывается сразу с залипшей шапкой поверх карточки Play. Починка 56cca3b
+  // отличала эти пути проверкой `!contains('open')` ПОСЛЕ `add('open')` — та
+  // всегда ложна, сброс был мёртвым кодом; второй ассерт ловит именно это.
+  // ⚠️ ПРИВЕДЕНО К НОВОЙ АРХИТЕКТУРЕ: класса `stuck` больше нет (залипание
+  // отменено спекой владельца), сигнал шапки — `#msSticky.on`. Проверять снятый
+  // класс значило бы ассертить всегда-ложное — половина стража была бы пустой.
+  // Прокрутка берётся ЗАВЕДОМО БОЛЬШАЯ, чтобы шапка успела выехать: на 300px
+  // блок My Collection ещё виден и `on` был бы false сам по себе.
   const reopen = await menuPage.evaluate(async () => {
-    const ms = document.getElementById('mainScreen');
-    ms.scrollTop = 300; await new Promise(r => setTimeout(r, 200));
+    const ms = document.getElementById('mainScreen'), sk = document.getElementById('msSticky');
+    ms.scrollTop = ms.scrollHeight; await new Promise(r => setTimeout(r, 350));
+    const былаШапка = sk.classList.contains('on'), былаПрокрутка = ms.scrollTop;
     window.showMainScreen();                     // путь visibilitychange: меню уже открыто
-    await new Promise(r => setTimeout(r, 150));
-    const приФоне = ms.scrollTop;
+    await new Promise(r => setTimeout(r, 200));
+    const приФоне = ms.scrollTop, шапкаПриФоне = sk.classList.contains('on');
     window.hideMainScreen();
     await new Promise(r => setTimeout(r, 150));
     window.showMainScreen();                     // настоящее переоткрытие
-    await new Promise(r => setTimeout(r, 250));
-    const sk = document.getElementById('msSticky');
-    return { приФоне, послеОткрытия: ms.scrollTop,
-             шапка: !!(sk && sk.classList.contains('on')),
+    await new Promise(r => setTimeout(r, 300));
+    return { былаШапка, былаПрокрутка, приФоне, шапкаПриФоне,
+             послеОткрытия: ms.scrollTop, шапка: sk.classList.contains('on'),
              playoff: ms.classList.contains('playoff') };
   });
-  expect(reopen.приФоне >= 250,
-    'МЕНЮ: openMainScreen на открытом меню (visibilitychange) НЕ сбрасывает прокрутку (' +
+  expect(reopen.былаШапка && reopen.приФоне === reopen.былаПрокрутка && reopen.шапкаПриФоне,
+    'МЕНЮ: openMainScreen на открытом меню (visibilitychange) НЕ сбрасывает ни прокрутку, ни шапку (' +
     JSON.stringify(reopen) + ')');
   expect(reopen.послеОткрытия === 0 && !reopen.шапка && !reopen.playoff,
-    'МЕНЮ: настоящее переоткрытие сбрасывает прокрутку в верх и гасит шапку/кнопку (' +
+    'МЕНЮ: настоящее переоткрытие сбрасывает прокрутку в верх и убирает шапку с кнопкой (' +
     JSON.stringify(reopen) + ')');
   await menuPage.close();
 
