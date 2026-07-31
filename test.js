@@ -2726,7 +2726,13 @@ window.bridge = {
     const s1 = g.stats().score;
     const acc1 = g.accSnapshot().find(x => x.key === name);
     const N = Math.min(n, 8);
-    return { name, n, fired, okBtn, gained: s1 - s0, want: 10 * N * (N - 1),
+    // ⚠️ ЦЕНА — С МНОЖИТЕЛЕМ ТИПА, снятым ДО детонации (detonateCharge считает
+    // gained ПЕРЕД accAdd). Первая версия ждала голые 10·N·(N−1) и была
+    // ФЛЕЙКОМ-ЛОТЕРЕЕЙ: молчала, пока ведущий тип шёл с mult 1, и упала, когда
+    // им оказался прокачанный прежними секциями (1260 = 560 × 2.25, тир 5 от
+    // пожизненных счётчиков + купленного буста — сейв живёт весь прогон).
+    return { name, n, fired, okBtn, gained: s1 - s0,
+             want: Math.round(10 * N * (N - 1) * (acc0 ? acc0.mult : 1)),
              accGrew: (acc1 ? acc1.count : 0) - (acc0 ? acc0.count : 0),
              cleared: g.charge().name === '' };
   });
@@ -2741,7 +2747,7 @@ window.bridge = {
   expect(chg.fired && chgLeft === 0,
     'ЗАРЯД: детонация сняла ВСЕХ ' + chg.n + ' предметов типа ' + chg.name + ' (осталось ' + chgLeft + ')');
   expect(chg.gained === chg.want,
-    'ЗАРЯД: цена капнута формулой группы БЕЗ ×2 (' + chg.gained + ' == ' + chg.want + ' при n=' + chg.n + ')');
+    'ЗАРЯД: цена капнута формулой группы ×множитель типа, БЕЗ комбо-×2 (' + chg.gained + ' == ' + chg.want + ' при n=' + chg.n + ')');
   expect(chg.accGrew === chg.n,
     'ЗАРЯД = СПАСЕНИЕ: пожизненный счётчик вырос на все ' + chg.n + ' (' + chg.accGrew + ')');
   expect(chg.okBtn && chg.cleared, 'ЗАРЯД: слот показался при гранте и очищен после детонации');
@@ -3281,6 +3287,33 @@ window.bridge = {
   });
   expect(narrow.гориз === 0 && narrow.ряд <= narrow.пилюля,
     'МЕНЮ на 320: горизонтальной прокрутки нет и ряд не вылез из пилюли (' + JSON.stringify(narrow) + ')');
+  // ⚠️⚠️ СБРОС ПРОКРУТКИ: у `openMainScreen` ДВА пути с РАЗНЫМИ ожиданиями
+  // (страж диспетчера v207). Вызов НА ОТКРЫТОМ меню (так его зовёт
+  // visibilitychange из 90-input) прокрутку СОХРАНЯЕТ — безусловный сброс
+  // выбрасывал игрока из середины коллекции в верх. А НАСТОЯЩЕЕ переоткрытие
+  // (закрыл-открыл) СБРАСЫВАЕТ в верх и снимает stuck/playoff — иначе меню
+  // открывается сразу с залипшей шапкой поверх карточки Play. Починка 56cca3b
+  // отличала эти пути проверкой `!contains('open')` ПОСЛЕ `add('open')` — та
+  // всегда ложна, сброс был мёртвым кодом; второй ассерт ловит именно это.
+  const reopen = await menuPage.evaluate(async () => {
+    const ms = document.getElementById('mainScreen');
+    ms.scrollTop = 300; await new Promise(r => setTimeout(r, 200));
+    window.showMainScreen();                     // путь visibilitychange: меню уже открыто
+    await new Promise(r => setTimeout(r, 150));
+    const приФоне = ms.scrollTop;
+    window.hideMainScreen();
+    await new Promise(r => setTimeout(r, 150));
+    window.showMainScreen();                     // настоящее переоткрытие
+    await new Promise(r => setTimeout(r, 250));
+    return { приФоне, послеОткрытия: ms.scrollTop,
+             stuck: ms.classList.contains('stuck'), playoff: ms.classList.contains('playoff') };
+  });
+  expect(reopen.приФоне >= 250,
+    'МЕНЮ: openMainScreen на открытом меню (visibilitychange) НЕ сбрасывает прокрутку (' +
+    JSON.stringify(reopen) + ')');
+  expect(reopen.послеОткрытия === 0 && !reopen.stuck && !reopen.playoff,
+    'МЕНЮ: настоящее переоткрытие сбрасывает прокрутку в верх и снимает stuck/playoff (' +
+    JSON.stringify(reopen) + ')');
   await menuPage.close();
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');

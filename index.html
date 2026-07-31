@@ -1454,7 +1454,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-206 · 2026-07-27</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-207 · 2026-07-31</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -9669,6 +9669,9 @@ function openMainScreen(){
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
   const ms = $('mainScreen');
+  // «Было ли открыто» снимается ДО add('open') — проверка после него всегда
+  // ложна, и сброс превращался в мёртвый код (поймано стражем переоткрытия).
+  const wasOpen = ms.classList.contains('open');
   ms.classList.add('open');
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
@@ -9677,7 +9680,7 @@ function openMainScreen(){
   // (90-input) — при уходе вкладки в фон НА УЖЕ ОТКРЫТОМ меню. Безусловный
   // сброс выбрасывал игрока из середины коллекции в самый верх (замер: 3000 →
   // 0). Классы снимаем ЯВНО: scrollTop=0 события scroll не рождает.
-  if (!ms.classList.contains('open')){
+  if (!wasOpen){
     ms.scrollTop = 0;
     ms.classList.remove('stuck', 'playoff');
   }
