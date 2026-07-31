@@ -291,6 +291,9 @@ function resumeGame(){
   if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
   if (lastMatchMs) lastMatchMs += d;
   if (grindStartMs) grindStartMs += d; // огонь помола — тоже якорь на часах
+  if (chargeUntil) chargeUntil += d;   // ревью v212: пауза (реклама/меню/вкладка)
+                                       // не съедает TTL заряда — как все якоря;
+                                       // потратить под паузой всё равно нельзя
   lastT = performance.now(); // без гигантского dt на первом кадре
   paused = false;
   try { Ads.msg('LEVEL_RESUMED'); } catch(_){} // площадке: геймплей продолжился (нативный gameplayStart)

@@ -16,6 +16,8 @@
      подключать вебфонт ради HUD дороже, чем он стоит. */
   :root { --font-round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system,
             "Segoe UI", Roboto, sans-serif;
+          --ms-bg:#d9f4ff;        /* фон меню; на :root, т.к. читают И #mainScreen,
+                                     И его СОСЕД #msSticky (ревью v212) */
           --ink:#1d1c26;          /* carbon-purple из макета */
   /* ⚠️ СИСТЕМНОЕ ПРАВИЛО ЦВЕТА КНОПОК (спека владельца 2026-07-28):
      СВЕТЛАЯ тема — кнопки ТЁМНЫЕ, ТЁМНАЯ (html.night) — СВЕТЛЫЕ. Все
@@ -741,11 +743,15 @@
   #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto;
     -webkit-overflow-scrolling:touch; background:var(--ms-bg); color:#000;
     font-family:var(--font-round);
-    /* ⚠️ ФОН ЭКРАНА — ПЕРЕМЕННОЙ, а не литералом: его же берёт плавающая
-       шапка `#msSticky` (v208; до неё — полоса `.ms-head::before` старой
-       залипающей архитектуры). Два литерала одного фона разъехались бы на
-       первой смене цвета, и шапка перестала бы сливаться с экраном. */
-    --ms-bg:#d9f4ff; }
+    /* ⚠️ ФОН ЭКРАНА — ПЕРЕМЕННОЙ `--ms-bg`, а не литералом: его же берёт
+       плавающая шапка `#msSticky`. Два литерала одного фона разъехались бы
+       на первой смене цвета, и шапка перестала бы сливаться с экраном.
+       ⚠️⚠️ ОБЪЯВЛЕНА НА :root, НЕ ЗДЕСЬ (ревью v212): #msSticky — СОСЕД
+       #mainScreen по DOM, объявление на #mainScreen до него не наследуется,
+       и шапка выезжала с background:transparent (invalid at computed-value
+       time → initial) — контент просвечивал сквозь вырезы углов пилюли,
+       тинт полосы Safari отравлялся. Замер: rgba(0,0,0,0) → rgb(217,244,255). */
+    }
   #mainScreen.open { display:block; }
   /* СТАКЕД-КОЛОНКА (<1080): тянется ДО 700px по ширине, поля 16px от краёв вью
      (спека владельца 2026-07-24 «заполнять пространство, а не центрировать
@@ -1472,7 +1478,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-211 · 2026-07-31</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-212 · 2026-07-31</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -5018,6 +5024,9 @@ function genLevel(){
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
+  chargeName = ''; chargeUntil = 0; // ревью v212: заряд типа тоже не переживает
+  // уровень — иначе чип чужого типа в новом уровне, детонация по новой куче
+  // после быстрого рестарта и ВТОРОЙ заряд поверх (chargeGiven у уровня свежий)
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');
   startIntro();
@@ -7334,6 +7343,23 @@ const Ads = (function(){
         // интерфейс жёстко EN по спеке владельца; читаем и отдаём наружу,
         // чтобы словарь можно было завести без правок этого файла.
         try { bridgeLang = String(br.platform.language || '').slice(0, 2).toLowerCase() || null; } catch(e){}
+        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
+        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
+        // кабинетом: 'noads_forever'. СТОИТ ДО ГЕЙТА rewarded НАМЕРЕННО (ревью
+        // v212): платежи от rewarded не зависят — та же причина, по которой
+        // bridgeSyncSave вынесен выше (площадка с платежами, но без rewarded,
+        // иначе не получала бы живую цену никогда).
+        try {
+          if (br.payments && br.payments.getCatalog){
+            br.payments.getCatalog().then((items)=>{
+              const it = (items || []).find(x => x && x.id === 'noads_forever');
+              const price = it && (it.price ||
+                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
+              const btn = document.getElementById('msSubscribe');
+              if (price && btn) btn.textContent = 'Forever for ' + price;
+            }).catch(()=>{});
+          }
+        } catch(e){}
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
           // любое состояние = платформа жива: гасим watchdog (ролики штатно
@@ -7377,20 +7403,7 @@ const Ads = (function(){
         // «Forever for $4.90»; здесь подтягивается живая цена товара
         // noads_forever (у площадки она в локальной валюте игрока). Ошибки
         // глотаем молча — кнопка остаётся с фолбэком, покупку это не ломает.
-        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
-        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
-        // кабинетом: 'noads_forever'.
-        try {
-          if (br.payments && br.payments.getCatalog){
-            br.payments.getCatalog().then((items)=>{
-              const it = (items || []).find(x => x && x.id === 'noads_forever');
-              const price = it && (it.price ||
-                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
-              const btn = document.getElementById('msSubscribe');
-              if (price && btn) btn.textContent = 'Forever for ' + price;
-            }).catch(()=>{});
-          }
-        } catch(e){}
+        // (фетч каталога платежей — ВЫШЕ, до гейта rewarded: ревью v212)
         mode = 'bridge';
       }).catch(()=>{ /* остаёмся на заглушке */
         // initialize упал: GAME_READY отправить нечем, но у SDK сработает свой
@@ -9813,6 +9826,11 @@ function closeMainScreen(){
   // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
+  // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
+  // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
+  // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
+  // плавающую Resume — плашка «My collection» проникла на игровой экран).
+  const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
 }
 // #8b ЖИВЫЕ ГЛАЗА МЕНЮ (спека владельца): десктоп — зрачки СЛЕДЯТ за курсором;
@@ -11165,6 +11183,9 @@ function resumeGame(){
   if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
   if (lastMatchMs) lastMatchMs += d;
   if (grindStartMs) grindStartMs += d; // огонь помола — тоже якорь на часах
+  if (chargeUntil) chargeUntil += d;   // ревью v212: пауза (реклама/меню/вкладка)
+                                       // не съедает TTL заряда — как все якоря;
+                                       // потратить под паузой всё равно нельзя
   lastT = performance.now(); // без гигантского dt на первом кадре
   paused = false;
   try { Ads.msg('LEVEL_RESUMED'); } catch(_){} // площадке: геймплей продолжился (нативный gameplayStart)

@@ -1,5 +1,11 @@
 {
   "platforms": {},
+  "payments": [
+    { "id": "bundle5",       "playgama": { "amount": 49 } },
+    { "id": "bundle3",       "playgama": { "amount": 99 } },
+    { "id": "bundle2",       "playgama": { "amount": 199 } },
+    { "id": "noads_forever", "playgama": { "amount": 49 } }
+  ],
   "advertisement": {
     "interstitial": {
       "placementFallback": "level_completed",

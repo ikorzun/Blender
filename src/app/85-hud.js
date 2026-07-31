@@ -1250,6 +1250,11 @@ function closeMainScreen(){
   // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
+  // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
+  // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
+  // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
+  // плавающую Resume — плашка «My collection» проникла на игровой экран).
+  const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
 }
 // #8b ЖИВЫЕ ГЛАЗА МЕНЮ (спека владельца): десктоп — зрачки СЛЕДЯТ за курсором;

@@ -2779,6 +2779,35 @@ window.bridge = {
   });
   expect(ttl.alive0 === 'foodwatermelon' && ttl.after === '' && ttl.fired === false,
     'ЗАРЯД: растворился по TTL, детонация после смерти отказана (' + JSON.stringify(ttl) + ')');
+  // ⚠️ ЖИЗНЕННЫЙ ЦИКЛ (ревью v212, оба дефекта подтверждены скептиками):
+  // (1) заряд НЕ переживает смену уровня — genLevel сбрасывает chargeName
+  //     (иначе чип чужого типа в новом уровне, детонация по новой куче после
+  //     быстрого рестарта и ВТОРОЙ заряд поверх — chargeGiven-то свежий);
+  // (2) пауза НЕ съедает TTL — resumeGame сдвигает chargeUntil как все якоря
+  //     (реклама/меню длиннее остатка молча гасили ресурс «1/уровень», при
+  //     том что турбо той же цепи паузу переживало — асимметрия).
+  const chgLife = await page.evaluate(async () => {
+    const g = window.__game;
+    g.chargeGrant('foodwatermelon');
+    g.regen();
+    const послеРегена = g.charge().name;
+    g.skipIntro();
+    await new Promise(r => setTimeout(r, 200));
+    g.chargeGrant('foodwatermelon');
+    const до = g.charge().leftMs;
+    window.showMainScreen();                       // тихая пауза меню
+    await new Promise(r => setTimeout(r, 700));
+    window.hideMainScreen();
+    await new Promise(r => setTimeout(r, 100));
+    const после = g.charge().leftMs;
+    g.detonateCharge();                            // прибрать за собой
+    return { послеРегена, съедено: Math.round(до - после) };
+  });
+  expect(chgLife.послеРегена === '',
+    'ЗАРЯД: не переживает смену уровня — genLevel сбрасывает (' + JSON.stringify(chgLife) + ')');
+  expect(chgLife.съедено < 350,
+    'ЗАРЯД: пауза не съедает TTL — resumeGame сдвигает chargeUntil (съедено ' +
+    chgLife.съедено + ' мс из 700 паузы)');
   // ⚠️ РАСТВОРЕНИЕ ВИДНО ГЛАЗУ (полировка ИНТЕРФЕЙСА). До неё прозрачность
   // писалась ОДИН раз при выпадении: `updateHUD` зовётся ПО СОБЫТИЯМ, а не
   // тиком (таймер миксера обновляет отдельный блок loop — на нём легко
@@ -3341,6 +3370,41 @@ window.bridge = {
   expect(reopen.послеОткрытия === 0 && !reopen.шапка && !reopen.playoff,
     'МЕНЮ: настоящее переоткрытие сбрасывает прокрутку в верх и убирает шапку с кнопкой (' +
     JSON.stringify(reopen) + ')');
+  // ⚠️⚠️ ШАПКА НЕ ПЕРЕЖИВАЕТ ЗАКРЫТИЕ МЕНЮ (скрин владельца 2026-07-31, v212):
+  // #msSticky — отдельный fixed-узел ВНЕ #mainScreen, закрытие экрана его не
+  // прячет. До фикса: прокрутил меню (шапка выехала), нажал плавающую Resume —
+  // плашка «My collection» оставалась висеть НАД ИГРОЙ. Гасит closeMainScreen.
+  const closeLeak = await menuPage.evaluate(async () => {
+    const ms = document.getElementById('mainScreen'), sk = document.getElementById('msSticky');
+    const ждать = async (усл) => {
+      for (let i = 0; i < 30; i++){ if (усл()) return true;
+        await new Promise(r => setTimeout(r, 60)); }
+      return усл();
+    };
+    window.showMainScreen();
+    await new Promise(r => setTimeout(r, 200));
+    ms.scrollTop = ms.scrollHeight;
+    const шапкаБыла = await ждать(() => sk.classList.contains('on'));
+    window.hideMainScreen();                     // = нажатие плавающей Resume
+    const погасла = await ждать(() => !sk.classList.contains('on') &&
+      getComputedStyle(sk).visibility === 'hidden');
+    return { шапкаБыла, менюЗакрыто: !ms.classList.contains('open'), погасла };
+  });
+  expect(closeLeak.шапкаБыла && closeLeak.менюЗакрыто && closeLeak.погасла,
+    'МЕНЮ: плавающая шапка гаснет при закрытии меню — не висит над игрой (' +
+    JSON.stringify(closeLeak) + ')');
+  // ⚠️ ФОН ШАПКИ РЕЗОЛВИТСЯ (ревью v212): --ms-bg жила на #mainScreen, а
+  // #msSticky — его СОСЕД, переменная не наследовалась → background был
+  // transparent, контент просвечивал сквозь вырезы углов пилюли. Теперь на
+  // :root; страж сверяет НЕ «не transparent», а точное совпадение с фоном
+  // меню — единый источник цвета.
+  const stickyBg = await menuPage.evaluate(() => ({
+    шапка: getComputedStyle(document.getElementById('msSticky')).backgroundColor,
+    меню: getComputedStyle(document.getElementById('mainScreen')).backgroundColor,
+  }));
+  expect(stickyBg.шапка === stickyBg.меню && stickyBg.шапка !== 'rgba(0, 0, 0, 0)',
+    'МЕНЮ: фон плавающей шапки резолвится и совпадает с фоном меню (' +
+    JSON.stringify(stickyBg) + ')');
   await menuPage.close();
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');

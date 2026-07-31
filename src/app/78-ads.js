@@ -249,6 +249,23 @@ const Ads = (function(){
         // интерфейс жёстко EN по спеке владельца; читаем и отдаём наружу,
         // чтобы словарь можно было завести без правок этого файла.
         try { bridgeLang = String(br.platform.language || '').slice(0, 2).toLowerCase() || null; } catch(e){}
+        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
+        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
+        // кабинетом: 'noads_forever'. СТОИТ ДО ГЕЙТА rewarded НАМЕРЕННО (ревью
+        // v212): платежи от rewarded не зависят — та же причина, по которой
+        // bridgeSyncSave вынесен выше (площадка с платежами, но без rewarded,
+        // иначе не получала бы живую цену никогда).
+        try {
+          if (br.payments && br.payments.getCatalog){
+            br.payments.getCatalog().then((items)=>{
+              const it = (items || []).find(x => x && x.id === 'noads_forever');
+              const price = it && (it.price ||
+                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
+              const btn = document.getElementById('msSubscribe');
+              if (price && btn) btn.textContent = 'Forever for ' + price;
+            }).catch(()=>{});
+          }
+        } catch(e){}
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
           // любое состояние = платформа жива: гасим watchdog (ролики штатно
@@ -292,20 +309,7 @@ const Ads = (function(){
         // «Forever for $4.90»; здесь подтягивается живая цена товара
         // noads_forever (у площадки она в локальной валюте игрока). Ошибки
         // глотаем молча — кнопка остаётся с фолбэком, покупку это не ломает.
-        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
-        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
-        // кабинетом: 'noads_forever'.
-        try {
-          if (br.payments && br.payments.getCatalog){
-            br.payments.getCatalog().then((items)=>{
-              const it = (items || []).find(x => x && x.id === 'noads_forever');
-              const price = it && (it.price ||
-                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
-              const btn = document.getElementById('msSubscribe');
-              if (price && btn) btn.textContent = 'Forever for ' + price;
-            }).catch(()=>{});
-          }
-        } catch(e){}
+        // (фетч каталога платежей — ВЫШЕ, до гейта rewarded: ревью v212)
         mode = 'bridge';
       }).catch(()=>{ /* остаёмся на заглушке */
         // initialize упал: GAME_READY отправить нечем, но у SDK сработает свой
