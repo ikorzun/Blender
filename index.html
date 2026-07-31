@@ -5136,7 +5136,7 @@ const FLOOR_CALM_V = 0.5;
 // секунд (замер соака: 30 с подряд).
 const FLOOR_SUNK_TICKS = 3;
 let floorCol = null;    // коллайдер плиты — истинное проникновение по манифолду
-let tmpWallBodies = []; // высокая временная стена на время осадки genLevel
+let tmpWallBody = null;  // высокая временная стена на время осадки genLevel (ОДНО тело, A1)
 
 const _pq = new THREE.Quaternion();
 const _pe = new THREE.Euler();
@@ -5152,22 +5152,43 @@ function initPhysicsWorld(){
   // не по конусу (у дна грань уезжала на ~0.3 наружу — предметы «в стекле»,
   // спасатель штормил). Кольца без наклона: грань = radiusAt(midY)-WALL_GAP
   // тривиально верна. Ступенька между кольцами 0.12 — внутрь не выступает.
+  // ⚠️ A1 (перф мобильного тира 2026-07-31): ВЕСЬ КОНТЕЙНЕР — ОДНО фикс-тело
+  // со многими коллайдерами. Было 417 отдельных тел (12 колец × 32 + 32
+  // верхних + дно) против 182 предметов. Геометрия не меняется: раньше
+  // смещение нёс body, поворот — коллайдер; теперь оба несёт коллайдер, а
+  // тело стоит в начале координат.
+  // ⛔⛔ ВЫИГРЫША ЭТО НЕ ДАЛО, И ПРИЧИНУ НАЗЫВАЮ ЧЕСТНО — Я ОПТИМИЗИРОВАЛ НЕ ТОТ
+  // СЧЁТЧИК. Замер: солвер p95 при CPU ×4 37.0 -> 35.7 (шум), без троттлинга
+  // 6.7 -> 6.7. ТЕЛ стало 599 -> 183, а КОЛЛАЙДЕРОВ как было 599, так и
+  // осталось — ШИРОКАЯ ФАЗА RAPIER РАБОТАЕТ ПО КОЛЛАЙДЕРАМ (прокси), а не по
+  // телам. 417 стенных прокси никуда не делись.
+  // ⚠️ СЛЕДСТВИЕ ДЛЯ БУДУЩЕЙ ПРАВКИ СТЕН: настоящий рычаг — ЧИСЛО СТЕННЫХ
+  // КОЛЛАЙДЕРОВ (меньше сегментов / одна форма на всю чашу), а не число тел.
+  // ⚠️ И оговорка к слову «тождественно»: геометрия — да, ПОВЕДЕНИЕ — нет.
+  // Порядок контактов в солвере меняется, куча из 182 тел хаотична, траектории
+  // расходятся. Статистика цела (живых 182/182, верх 7.65 -> 7.54, под полом 0).
+  const shellB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   const RINGS = 12, LOW = 0.5;
   for (let ring = 0; ring < RINGS; ring++){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
     const y1 = LOW + (FUNNEL.H - LOW)*(ring + 1)/RINGS;
     const midY = (y0 + y1)/2;
-    const faceR = radiusAt(midY) - WALL_GAP;
+    // ⚠️ ГРАНЬ КОЛЬЦА — ПО ЕГО НИЖНЕЙ КРОМКЕ, А НЕ ПО СЕРЕДИНЕ (замер 2026-07-31).
+    // Ступенька кольца 0.725 по высоте, конус за неё расширяется на 0.134.
+    // При грани по midY стена у НИЗА кольца оказывается ШИРЕ конуса на этой
+    // высоте — предмет, лежащий на ней, честно торчит за radiusAt(его y), и
+    // спасатель считает это вылетом: после снятия π/2 телепортов стало вдвое
+    // больше (24 -> 47 на ур.40). По y0 стена ВСЕГДА внутри конуса.
+    const faceR = radiusAt(y0) - WALL_GAP;
     const chord = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
     for (let i = 0; i < WALL_SEG; i++){
       const a = (i + 0.5)/WALL_SEG*Math.PI*2;
-      const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30)));
       const cd = RAPIER.ColliderDesc.cuboid(0.30, (y1 - y0)/2 + 0.09, chord/2)
-        .setFriction(FRICTION).setRestitution(RESTIT);
-      _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+        .setFriction(FRICTION).setRestitution(RESTIT)
+        .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
+      _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-      world.createCollider(cd, body);
+      world.createCollider(cd, shellB);
     }
   }
   // вертикальное продолжение над кромкой: скользкое, БЕЗ наклона (наклон
@@ -5176,13 +5197,12 @@ function initPhysicsWorld(){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const faceR = FUNNEL.R1 - WALL_GAP;
     const chord2 = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
-    const b2 = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30)));
     const cd2 = RAPIER.ColliderDesc.cuboid(0.30, 2.1, chord2/2)
-      .setFriction(0.02).setRestitution(RESTIT);
-    _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+      .setFriction(0.02).setRestitution(RESTIT)
+      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd2, b2);
+    world.createCollider(cd2, shellB);
   }
   // ⚠️ ПЛИТА ТОНКАЯ (полутолщина 0.3, то есть [0.55..1.15]) И ПОД НЕЙ ПУСТО.
   // Замер 2026-07-30: максимум просадки на летящей куче 0.28 — до середины
@@ -5191,28 +5211,31 @@ function initPhysicsWorld(){
   // распределение просадок и на перф не влияет (шаг физики на взрыве p95
   // 7.9-10.9 против 7.7-9.1), ОТКЛОНЕНО владельцем 2026-07-30 — «откати
   // толщину плиты, оставь только спасателя». Возврат = два числа в этих строках.
-  const floorB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, FLOOR_REST - 0.3, 0));
-  // floorCol нужен спасателю пола: по нему берётся ИСТИННОЕ проникновение
-  floorCol = world.createCollider(RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2).setFriction(FRICTION), floorB);
+  // плита — на том же теле контейнера; floorCol нужен спасателю пола (по нему
+  // берётся ИСТИННОЕ проникновение), и он остаётся отдельным КОЛЛАЙДЕРОМ
+  floorCol = world.createCollider(
+    RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2)
+      .setFriction(FRICTION).setTranslation(0, FLOOR_REST - 0.3, 0), shellB);
 }
 
+// временная стена — тоже ОДНО тело (A1): она строится и сносится КАЖДЫЙ
+// уровень, то есть прежние 32 тела создавались и удалялись на каждом genLevel
 function buildTempTallWall(){
   removeTempTallWall();
+  tmpWallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   for (let i=0; i<WALL_SEG; i++){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const chord = 2*(FUNNEL.R1 - WALL_GAP)*Math.tan(Math.PI/WALL_SEG) + 0.08;
-    const b = world.createRigidBody(RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(Math.cos(a)*(FUNNEL.R1 - WALL_GAP + 0.15), 24, Math.sin(a)*(FUNNEL.R1 - WALL_GAP + 0.15)));
-    const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02);
-    _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+    const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02)
+      .setTranslation(Math.cos(a)*(FUNNEL.R1 - WALL_GAP + 0.15), 24, Math.sin(a)*(FUNNEL.R1 - WALL_GAP + 0.15));
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd, b);
-    tmpWallBodies.push(b);
+    world.createCollider(cd, tmpWallBody);
   }
 }
 function removeTempTallWall(){
-  tmpWallBodies.forEach(b => world.removeRigidBody(b));
-  tmpWallBodies = [];
+  if (tmpWallBody) world.removeRigidBody(tmpWallBody);
+  tmpWallBody = null;
 }
 
 // Физическая форма по типу: примитив / convex hull из рендер-геометрии / компаунд
@@ -5518,7 +5541,7 @@ function rescueSweep(beforeSleep){
     // переоценивает ширину и давал шторм ложных спасений (грабля найдена на
     // стейке — тип удалён в v187, но правило про КЛАСС плоских живо: wr в
     // TYPES обязателен любой модели с одной осью много меньше остальных)
-    const legalR = tmpWallBodies.length ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
+    const legalR = tmpWallBody ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
     const reach = d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r);
     const out = (d + reach) > legalR + 0.18 || it.p.y < FLOOR_REST - 0.8 || it.p.y > 60;
     if (out){
@@ -5915,7 +5938,22 @@ function fxParticleCount(){
 // физикой, ни stepFX, ни рендером. Здесь копится время конструирования
 // (Float32Array на 1280 точек, BufferGeometry, материал, возможная компиляция
 // шейдера); loop забирает и обнуляет раз в кадр.
+// ⚠️⚠️ ИСПРАВЛЕНО ПО ЛОВЛЕ ГРАФИКИ (2026-07-31). ПЕРВАЯ ВЕРСИЯ СЧИТАЛА ТОЛЬКО
+// ПЫЛЕВЫЕ ОБЛАКА — единственная точка прибавки сидела внутри dustCloud, а
+// колонка в отчёте называлась «постройка эффекта». Слепа она была ровно к
+// тому, куда едет редизайн Графики: у ОСКОЛКОВ каждый кусок это своя
+// геометрия и свой материал (9-23 за бурст), и в счётчике они давали НОЛЬ.
+// Классика «метрика правдоподобна, но меряет не то, что названо вслух».
+// Теперь считается ВСЯ постройка эффектов. Пара in/out УСТОЙЧИВА К ВЛОЖЕННОСТИ
+// (dissolveFX зовёт dustCloud трижды): копит только внешняя пара, иначе одно
+// облако считалось бы дважды.
 let fxBuildMs = 0;
+const _fxBStack = [];
+function fxBuildIn(){ _fxBStack.push(performance.now()); }
+function fxBuildOut(){
+  const t0 = _fxBStack.pop();
+  if (t0 !== undefined && _fxBStack.length === 0) fxBuildMs += performance.now() - t0;
+}
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
@@ -5999,7 +6037,7 @@ const DUST_FRACTIONS = [
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
-  const _b0 = performance.now();
+  fxBuildIn();
   const life = 1.0;
   const start = new Float32Array(COUNT*3), vel = new Float32Array(COUNT*3), cols = new Float32Array(COUNT*3);
   for (let i=0;i<COUNT;i++){
@@ -6025,7 +6063,7 @@ function dustCloud(item, radial, COUNT, size, base){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
   const pts = new THREE.Points(geo, m);
-  fxBuildMs += performance.now() - _b0;   // цена конструирования облака (см. fxBuildMs)
+  fxBuildOut();   // цена конструирования облака (см. fxBuildMs)
   addFX(pts, life, (o,k)=>{
     const t = k*life, a = o.geometry.attributes.position.array;
     for (let i=0;i<COUNT;i++){
@@ -6096,7 +6134,8 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-function juiceFX(it){
+function juiceFX(it){ fxBuildIn(); try { return _juiceFX_impl(it) } finally { fxBuildOut(); } }
+function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6124,7 +6163,8 @@ function juiceFX(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-function sparkFX(it){
+function sparkFX(it){ fxBuildIn(); try { return _sparkFX_impl(it) } finally { fxBuildOut(); } }
+function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6164,7 +6204,8 @@ function sparkFX(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-function starPopFX(it){
+function starPopFX(it){ fxBuildIn(); try { return _starPopFX_impl(it) } finally { fxBuildOut(); } }
+function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6235,7 +6276,8 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-function shardFX(pos, color, opts){
+function shardFX(pos, color, opts){ fxBuildIn(); try { return _shardFX_impl(pos, color, opts) } finally { fxBuildOut(); } }
+function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
   const spread = opts.spread || 3.2, sz = opts.size || 0.15;
@@ -8030,7 +8072,12 @@ function doMatch(list){
   if (chainUntil > performance.now() && list.length > 1){
     for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
   }
+  // ⚠️ ЗАМЕР ХВОСТА doMatch (передан Графикой: попы и сейв они сняли, 0.34 мс
+  // из 4.1). Снос тел — их главный подозреваемый: удаление коллайдера
+  // перестраивает широкую фазу, а прокси у нас 599.
+  const _td0 = performance.now();
   list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // тела сразу из мира; метка — для спасателя зависших удалений (99-main)
+  tapDestroyMs += performance.now() - _td0;
   wakePhysics('gameplay:L7'); // соседи начинают оседать
   stats.matches++;
   stats.lastAction = performance.now();
@@ -8448,6 +8495,15 @@ function reachGhostFX(item, color){
 // в профиле висели ~40 мс «ничьих». Копим сюда, loop забирает раз в кадр.
 let tapMs = 0;
 const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
+// ⚠️ РАЗБОРКА САМОГО ТАПА (2026-07-31). Спор с ГРАФИКОЙ: их гипотеза —
+// «9.6 мс это логика (рейкаст/GJK/доступность)», моя первая версия говорила
+// «аллокации». Ни одна НЕ БЫЛА ИЗМЕРЕНА: у меня счётчик постройки видел
+// только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
+// Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
+// призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
+let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0, tapDestroyMs = 0;
+const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs, destroy: tapDestroyMs };
+  tapPickMs = tapCandMs = tapGhostMs = tapDestroyMs = 0; return v; };
 function handleTap(x, y){
   const _tap0 = performance.now();
   try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
@@ -8459,6 +8515,7 @@ function handleTapInner(x, y){
   // тап по раскопанному сюрпризу остаётся рабочим
   const finale = !hasAnyPair();
   stats.taps++;
+  const _tp0 = performance.now();
   const rect = canvas.getBoundingClientRect();
   const ndc = new THREE.Vector2(((x-rect.left)/rect.width)*2-1, -((y-rect.top)/rect.height)*2+1);
   raycaster.setFromCamera(ndc, camera);
@@ -8477,6 +8534,7 @@ function handleTapInner(x, y){
     }
     item = best;
   }
+  tapPickMs += performance.now() - _tp0;   // выбор предмета лучом + фолбэк-проекция
   if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
   if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
 
@@ -8493,6 +8551,7 @@ function handleTapInner(x, y){
     if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
+  const _tc0 = performance.now();
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   let eligible = accessible.filter(i => pairMatch(i, item));
@@ -8510,7 +8569,10 @@ function handleTapInner(x, y){
   }
 
   // ореол досягаемости: белый — матч есть, красный — промах
+  tapCandMs += performance.now() - _tc0;   // отбор кандидатов, внутри GJK pairMatch
+  const _tg0 = performance.now();
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
+  tapGhostMs += performance.now() - _tg0;   // ореол-призрак: КЛОН геометрии предмета
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -11106,6 +11168,7 @@ let seriesNextTick = 0; // троттлинг тревожного тика ок
 const fxRing = [], renRing = [], uiRing = [];
 // разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
 const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
+let _tapPh = { pick:0, cand:0, ghost:0 };  // фазы последнего тапа (профилировка)
 const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
@@ -11500,7 +11563,11 @@ function loop(){
   const _tFx = performance.now();
   stepFX(dt);
   const _tUi = performance.now();
-  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); _pushRing(tapRing, tapMsTake()); }
+  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); const _tm = tapMsTake(); _pushRing(tapRing, _tm);
+    // ⚠️ фазы держим от ПОСЛЕДНЕГО НАСТОЯЩЕГО тапа: перезапись каждым
+    // кадром затирала их нулями с кадров без тапа, и разборка читалась
+    // как «выбор 0 + кандидаты 0 + призрак 0» при ненулевом итоге
+    const _ph = tapPhasesTake(); if (_tm > 0) _tapPh = _ph; }
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
@@ -12344,7 +12411,7 @@ window.__game = {
     };
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
-      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing),
+      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
       frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,

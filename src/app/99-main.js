@@ -21,6 +21,7 @@ let seriesNextTick = 0; // троттлинг тревожного тика ок
 const fxRing = [], renRing = [], uiRing = [];
 // разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
 const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
+let _tapPh = { pick:0, cand:0, ghost:0 };  // фазы последнего тапа (профилировка)
 const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
@@ -415,7 +416,11 @@ function loop(){
   const _tFx = performance.now();
   stepFX(dt);
   const _tUi = performance.now();
-  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); _pushRing(tapRing, tapMsTake()); }
+  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); const _tm = tapMsTake(); _pushRing(tapRing, _tm);
+    // ⚠️ фазы держим от ПОСЛЕДНЕГО НАСТОЯЩЕГО тапа: перезапись каждым
+    // кадром затирала их нулями с кадров без тапа, и разборка читалась
+    // как «выбор 0 + кандидаты 0 + призрак 0» при ненулевом итоге
+    const _ph = tapPhasesTake(); if (_tm > 0) _tapPh = _ph; }
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
@@ -1259,7 +1264,7 @@ window.__game = {
     };
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
-      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing),
+      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
       frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
