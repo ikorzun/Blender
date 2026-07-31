@@ -1478,7 +1478,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-221 · 2026-08-01</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-222 · 2026-08-01</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -2138,7 +2138,11 @@ const LEADERBOARD_ID = '';
 // успевает упасть в 3 c (падение со спавна при MAX_FALL занимает <1 c).
 // Лимиты полноты (141 живых / top>H-1 / <=8 в воздухе) не тронуты — они и
 // раньше резали тики, теперь режут плотнее, число никогда не превысит старое.
-const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 125, CHAIN_DROP_N = 2.6;
+const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 125, CHAIN_DROP_N = 3.0;
+// ⚠️ CHAIN_DROP_N 2.6→3.0 (слово владельца 2026-08-01 «добить докидку»):
+// в 3-секундном окне помещается 20 тиков (прайм 600 мс на сетке 125), а не
+// 24 из наивного деления — 2.6×20=52 нарушало спеку «количество текущее»
+// (~60 при старой сетке). 3.0×20=60 — сумма восстановлена (ревью v212).
 const CHAIN_DROP_WINDOW_MS = 3000;
 // ⚠️ ТЕРПИМОСТЬ ТУРБО К ПРОМАХАМ — ПО СЛОЖНОСТИ (жалоба владельца 2026-07-28:
 // «2 ошибки в турбо на простом полностью останавливают падение вещей, на
@@ -8252,7 +8256,9 @@ function detonateCharge(){
   stats.lastAction = performance.now();          // клик = действие, миксер откладывается
   const n = victims.length;
   const N = Math.min(n, MATCH_MAX_N);            // кап цены — как у группы
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name));
+  // ⚠️ БУСТЕР МНОЖИТ И ЗАРЯД (слово владельца 2026-08-01: «множит») — как все
+  // очковые точки; комбо-×2 по-прежнему НЕ участвует (обоснование у формулы).
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
   lastMatchMs = performance.now();               // окно серии продлевается (действие),
@@ -11758,7 +11764,13 @@ function loop(){
     // ⚠️ КУПЛЕННЫЙ ЗАПАС ВСТРЯСОК = АГЕНТНОСТЬ: пока он есть, тупика НЕТ —
     // игроку есть чем разрулить, и выручалка-помол (она стоит очков) не должна
     // включаться за него. Условие расширено вместе с вводом бандлов.
-    if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
+    // ⚠️ И ВСТРЯСКА ЗА РЕКЛАМУ — ТОЖЕ АГЕНТНОСТЬ (слово владельца 2026-08-01:
+    // «встряска за рекламу считается выходом»): при adShakes>0 тупик не
+    // объявляется. Сейчас adShakes=∞ → deadlock-ветка фактически в резерве
+    // (на случай площадок без rewarded/отключения рекламы); кучу при простое
+    // всё равно разбирает обычный idle-помол — вечного стояния нет.
+    if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 &&
+        !(level.adShakes > 0) && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
       if (level.stuck >= 2) level.deadlock = true;
     } else {

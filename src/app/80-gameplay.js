@@ -292,7 +292,9 @@ function detonateCharge(){
   stats.lastAction = performance.now();          // клик = действие, миксер откладывается
   const n = victims.length;
   const N = Math.min(n, MATCH_MAX_N);            // кап цены — как у группы
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name));
+  // ⚠️ БУСТЕР МНОЖИТ И ЗАРЯД (слово владельца 2026-08-01: «множит») — как все
+  // очковые точки; комбо-×2 по-прежнему НЕ участвует (обоснование у формулы).
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
   lastMatchMs = performance.now();               // окно серии продлевается (действие),
