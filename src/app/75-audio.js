@@ -78,10 +78,17 @@ const Sound = (function(){
     src.start(t0);
   }
   const fxMap = {
-    match(n){ // «буль»-арпеджио, выше и длиннее при большой группе
-      const t = ctx.currentTime, base = 380 + Math.min(4, n)*60;
+    match(a){ // «буль»-арпеджио, выше и длиннее при большой группе.
+      // Аргумент: число (совместимость) ЛИБО {n, k} — k = длина серии,
+      // питч растёт лесенкой с темпом (пакет темпа 2026-07-31), кап +60%.
+      const n = (a && a.n) || a || 2, k = (a && a.k) || 0;
+      const pitch = 1 + 0.06 * Math.min(10, k);
+      const t = ctx.currentTime, base = (380 + Math.min(4, n)*60) * pitch;
       for (let i=0;i<Math.min(n,4);i++) tone(base*Math.pow(1.25, i), 'sine', t + i*0.055, 0.008, 0.16, 0.45);
     },
+    tick(){ // тревога у края окна серии (пакет темпа): сухой короткий «тк»,
+            // тихий — периферийный сигнал, не событие
+      const t = ctx.currentTime; tone(1250, 'sine', t, 0.002, 0.035, 0.10); },
     miss(){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); },
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
     grind(){ // сэмпл дробления (3 варианта, спека владельца) с процедурным фолбэком

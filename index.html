@@ -1478,7 +1478,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-217 · 2026-07-31</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-218 · 2026-07-31</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1932,6 +1932,33 @@ const TURBO_SHAKE = true;
 // COMBO_MS; каждый матч в лихорадке ПРОДЛЕВАЕТ окно (иначе фивер гаснет
 // посреди цепочки и злит)
 const COMBO_RADIUS = 1.1, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // ПОТОЛОК ЗАЗОРА 1.1 ВЕЗДЕ, включая Power chain (спека владельца 2026-07-21)
+// ===== ПАКЕТ ТЕМПА (спека владельца 2026-07-31: «не хватает драйва, особенно
+// если предметы совмещать легко и рядом» -> «давай попробуем с темпом, но
+// показывай это не за счёт шкалы, а за счёт глаз миксера»). Три части:
+// 1) ОКНО СЕРИИ УТЕКАЕТ И СЖИМАЕТСЯ с её длиной (вместо плоского COMBO_MS=4000
+//    — тот остаётся константой-историей, окно считает seriesWindowMs);
+// 2) ЛЕСЕНКА МНОЖИТЕЛЯ ×2 -> ×3 (с SERIES_X3_AT-го матча) -> ×4 (в турбо) —
+//    вместо плоского ×2: лёгкие матчи становятся топливом удержания;
+// 3) показ — ГЛАЗАМИ (зона Интерфейса, API __game.series()) + звук: питч
+//    «буля» растёт с серией, у края окна — тревожный тик (SERIES_TICK_FROM).
+// ⚠️ ШКАЛУ НЕ ЗАВОДИТЬ — прямой запрет владельца («не за счёт шкалы»).
+// ⚠️ БАЗА = ПРЕЖНИЕ 4000 НАМЕРЕННО (первая итерация 3000 уронила ДВА чужих
+// стража, калиброванных под старое окно, — прогон пёстрый): вход в серию
+// мягкий как раньше, СЖАТИЕ приходит с длиной — темп требуется там, где
+// идёт драйв, а ранние пары не штрафуются.
+const SERIES_WIN_BASE = 4000; // окно после 1-го матча серии, мс
+const SERIES_WIN_STEP = 150;  // −мс за каждый следующий матч серии
+const SERIES_WIN_MIN  = 1800; // пол окна — темп требуемый, но берущийся
+const SERIES_X3_AT    = 6;    // с этого матча серии очки ×3
+const SERIES_MULT_X3  = 3;
+const SERIES_MULT_CHAIN = 4;  // в турбо (chainUntil) — вершина лесенки
+const SERIES_TICK_FROM  = 800; // мс до конца окна, с которых тикает тревога
+const ANIM_RESCUE_MS = 1200; // спасатель зависших удалений (99-main): анимация
+                             // матча живёт ~0.16с + 150мс таймер — всё, что
+                             // animating дольше этого, зависло и доедается
+function seriesWindowMs(len){
+  return Math.max(SERIES_WIN_MIN, SERIES_WIN_BASE - SERIES_WIN_STEP * Math.max(0, len));
+}
 // разгон радиуса ЛЕСЕНКОЙ (тюнинг владельца: «мгновенные 3.5 — слишком
 // легко»): каждый матч серии +1 ступень к COMBO_STEPS, промах сбивает
 // COMBO_MISS_DROP ступеней (до нуля = серия погасла)
@@ -6509,10 +6536,17 @@ const Sound = (function(){
     src.start(t0);
   }
   const fxMap = {
-    match(n){ // «буль»-арпеджио, выше и длиннее при большой группе
-      const t = ctx.currentTime, base = 380 + Math.min(4, n)*60;
+    match(a){ // «буль»-арпеджио, выше и длиннее при большой группе.
+      // Аргумент: число (совместимость) ЛИБО {n, k} — k = длина серии,
+      // питч растёт лесенкой с темпом (пакет темпа 2026-07-31), кап +60%.
+      const n = (a && a.n) || a || 2, k = (a && a.k) || 0;
+      const pitch = 1 + 0.06 * Math.min(10, k);
+      const t = ctx.currentTime, base = (380 + Math.min(4, n)*60) * pitch;
       for (let i=0;i<Math.min(n,4);i++) tone(base*Math.pow(1.25, i), 'sine', t + i*0.055, 0.008, 0.16, 0.45);
     },
+    tick(){ // тревога у края окна серии (пакет темпа): сухой короткий «тк»,
+            // тихий — периферийный сигнал, не событие
+      const t = ctx.currentTime; tone(1250, 'sine', t, 0.002, 0.035, 0.10); },
     miss(){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); },
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
     grind(){ // сэмпл дробления (3 варианта, спека владельца) с процедурным фолбэком
@@ -7873,12 +7907,18 @@ function doMatch(list){
   // игрок быстр; первый матч цепочки идёт по обычной цене)
   const nowMs = performance.now();
   const comboHot = list.length >= 3 || nowMs - lastMatchMs < COMBO_CHAIN_MS || comboUntil > nowMs;
+  // (лесенка темпа — seriesMult объявлен ниже doMatch, функции хойстятся)
   {
     const wasHot = comboUntil > nowMs;
     lastMatchMs = nowMs;
     if (comboHot){
-      comboUntil = nowMs + COMBO_MS;
-      comboCount++;
+      // ПАКЕТ ТЕМПА (спека владельца 2026-07-31): НОВОЕ зажигание начинает
+      // счёт серии с 1 — раньше comboCount переживал протухшее окно и копился
+      // сквозь паузы (турбо собиралось за несколько вялых серий, а лесенка
+      // ×3 стартовала бы мгновенно). Теперь серия = непрерывный темп.
+      comboCount = wasHot ? comboCount + 1 : 1;
+      // окно УТЕКАЕТ и сжимается с длиной серии (было плоское COMBO_MS)
+      comboUntil = nowMs + seriesWindowMs(comboCount);
       comboLevel = Math.min(COMBO_STEPS, comboLevel + 1); // +ступень радиуса за матч серии
       if (!wasHot){
         const mid0 = new THREE.Vector3();
@@ -7891,6 +7931,15 @@ function doMatch(list){
         setTimeout(()=>{ scorePop('Radius Up', mid1, '#ff9d2e', true); }, 800);
         Sound.play('combo');
         vibrate([20, 40, 30]); // двойной пульс — отличим от одиночных 15/40 мс
+      }
+      // лесенка темпа: пересечение порога ×3 — короткий поп тем же стилем
+      // (это НЕ шкала — разовый момент, как «Combo ×2»; постоянный показ
+      // темпа несут ГЛАЗА, зона Интерфейса)
+      if (comboCount === SERIES_X3_AT){
+        const mid3 = new THREE.Vector3();
+        list.forEach(it => mid3.add(it.p));
+        mid3.multiplyScalar(1/list.length).y += 0.9;
+        scorePop('×' + SERIES_MULT_X3 + '!', mid3, '#ff9d2e', true);
       }
       // серия дожата до цепной реакции. ВТОРОЕ турбо, собранное ВНУТРИ
       // активного, — «СЕРИЯ ТУРБО» (спека владельца 2026-07-21): окно
@@ -7942,7 +7991,7 @@ function doMatch(list){
   if (chainUntil > performance.now() && list.length > 1){
     for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
   }
-  list.forEach(it => { it.animating = true; destroyItemBody(it); }); // тела сразу из мира
+  list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // тела сразу из мира; метка — для спасателя зависших удалений (99-main)
   wakePhysics('gameplay:L7'); // соседи начинают оседать
   stats.matches++;
   stats.lastAction = performance.now();
@@ -7960,7 +8009,11 @@ function doMatch(list){
   // 2026-07-28, единая точка scorePenalty выше) — прежняя оговорка «наказание
   // не трогает» ОТМЕНЕНА: плоские −10/−20 на фоне «+700» делали карательную
   // сторону шумом ровно в оплаченном окне.
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName) * scoreBoostMult());
+  // ЛЕСЕНКА ТЕМПА вместо плоского ×2 (спека владельца 2026-07-31): ×2 с
+  // зажигания, ×3 с SERIES_X3_AT-го матча серии, ×4 в турбо. Единая точка —
+  // seriesMult; comboCount к этой строке уже инкрементирован (матч,
+  // пересёкший порог, идёт по новому множителю — как у ступеней накопления).
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult());
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -7980,7 +8033,8 @@ function doMatch(list){
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
-  Sound.play('match', n);
+  // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
+  Sound.play('match', { n, k: comboHot ? comboCount : 0 });
   vibrate(15);
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
   const scales = list.map(it => it.mesh.scale.x);
@@ -8083,6 +8137,14 @@ function detonateBomb(bomb){
 // Состояние заряда — РАНТАЙМ, не сейв (поправка владельца «жить не больше 7
 // секунд»): chargeName/chargeUntil; истечение проверяет chargeTick из loop.
 let chargeName = '', chargeUntil = 0;
+// ЛЕСЕНКА ТЕМПА — единая точка множителя серии (пакет темпа 2026-07-31):
+// ×4 в турбо, ×3 с SERIES_X3_AT-го матча серии, иначе базовый ×2. Потребители:
+// начисление в doMatch и __game.series() (глаза Интерфейса читают его же —
+// показ и деньги не могут разойтись по построению).
+function seriesMult(nowMs){
+  if (chainUntil > nowMs) return SERIES_MULT_CHAIN;
+  return comboCount >= SERIES_X3_AT ? SERIES_MULT_X3 : COMBO_SCORE_MULT;
+}
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
 }
@@ -9798,6 +9860,14 @@ applySoundVol(soundVol);   // боевое восстановление на с�
 let musicVol = 0.7;
 try { const _mv = localStorage.getItem('mixer_music');
   if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
+// ⚠️⚠️ ГРОМКОСТЬ ПРИМЕНЯЕТСЯ К ЭЛЕМЕНТУ СРАЗУ, НЕ ПРИ ПЕРВОМ ЖЕСТЕ (жалоба
+// владельца 2026-07-31: «при загрузке музыка выше, падает до настроек после
+// анимации ведра»). МЕХАНИКА, доказана пробой: volume ставил только жестовый
+// unlockBgm, а на портале трек заводила РАЗМОРОЗКА (musicSuspend(false) после
+// рекламы/паузы площадки) — play() шёл на дефолтной 1.0, и до первого жеста
+// игрока музыка орала мимо настроек. Инвариант: volume выставлен ДО любого
+// возможного play, кто бы его ни позвал.
+{ const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicVol; }
 function applyMusic(v01){
   musicVol = Math.max(0, Math.min(1, v01));
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
@@ -9820,7 +9890,10 @@ function musicSuspend(on){
   musicExtMuted = !!on;
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
-  else if (musicVol > 0 && bgm.paused) bgm.play().catch(()=>{});
+  else if (musicVol > 0 && bgm.paused){
+    bgm.volume = musicVol; // инвариант: громкость ДО play (см. блок musicVol)
+    bgm.play().catch(()=>{});
+  }
 }
 function refreshMainSettings(){
   // ⚠️ ИЗ `soundVol`, А НЕ ИЗ `CFG.sound ? 100 : 0` — именно та строка теряла
@@ -10974,6 +11047,7 @@ if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 // кольца последних 600 кадров — сырое время кадра и время шага физики
 const frameRing = [], stepRing = [];
 let perfFrames = 0, perfWorstMs = 0;
+let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
 // в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
@@ -11306,6 +11380,35 @@ function loop(){
   }
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
+  // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
+  // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
+  // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
+  // не наступает — предметы остаются alive+animating НАВСЕГДА: полусжатые
+  // висят в куче, глотают рейкаст тапа, недоступны матчам (сьют ловил как
+  // «за тап ушло 0»). По образцу спасателя пола: страховка по СРОКУ — жизнь
+  // анимации ≤0.16с + пауза 150мс, всё старше ANIM_RESCUE_MS зависло̆ —
+  // доудаляем с warn. Корень (почему хвост не наступает) — TODO расследовать.
+  if (!paused){
+    const nowA = performance.now();
+    for (const it of items){
+      if (it.alive && it.animating && it.animStartMs && nowA - it.animStartMs > ANIM_RESCUE_MS){
+        console.warn('[anim-rescue] зависшее удаление доедено:', it.type && it.type.name);
+        it.animStartMs = 0;
+        try { removeItem(it); } catch(e){}
+      }
+    }
+  }
+  // ТРЕВОГА ОКНА СЕРИИ (пакет темпа): у края окна — сухой тик раз в 250 мс.
+  // В турбо не тикаем (там своя лихорадка), визуальный канал — глаза (Интерфейс).
+  {
+    const nowT = performance.now();
+    if (comboUntil > nowT && chainUntil <= nowT && !intro){
+      const left = comboUntil - nowT;
+      if (left < SERIES_TICK_FROM && nowT >= seriesNextTick){
+        Sound.play('tick'); seriesNextTick = nowT + 250;
+      }
+    }
+  }
   // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
   if (physAwake && !(intro && intro.phase === 'wait')){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
@@ -11997,6 +12100,19 @@ window.__game = {
     const m = {};
     for (const it of items) if (it.alive && !it.surprise && !it.bomb) m[it.type.name] = (m[it.type.name] || 0) + 1;
     return m;
+  },
+  // диагностика зависших удалений (найдено пробой v218: doMatch отработал,
+  // а removeItem не случился — см. разбор в журнале)
+  isPaused(){ return paused; },
+  animCount(){ let k = 0; for (const it of items) if (it.alive && it.animating) k++; return k; },
+  // ПАКЕТ ТЕМПА — API для глаз Интерфейса (спека владельца: показ темпа
+  // ТОЛЬКО глазами, шкалы нет). mult читает ТУ ЖЕ seriesMult, что и деньги.
+  series(){
+    const n = performance.now();
+    const active = comboUntil > n;
+    return { len: active ? comboCount : 0, mult: active ? seriesMult(n) : 1,
+             leftMs: Math.max(0, Math.round(comboUntil - n)),
+             winMs: seriesWindowMs(comboCount) };
   },
   combo(){
     const n = performance.now();

@@ -1150,6 +1150,14 @@ applySoundVol(soundVol);   // боевое восстановление на с�
 let musicVol = 0.7;
 try { const _mv = localStorage.getItem('mixer_music');
   if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
+// ⚠️⚠️ ГРОМКОСТЬ ПРИМЕНЯЕТСЯ К ЭЛЕМЕНТУ СРАЗУ, НЕ ПРИ ПЕРВОМ ЖЕСТЕ (жалоба
+// владельца 2026-07-31: «при загрузке музыка выше, падает до настроек после
+// анимации ведра»). МЕХАНИКА, доказана пробой: volume ставил только жестовый
+// unlockBgm, а на портале трек заводила РАЗМОРОЗКА (musicSuspend(false) после
+// рекламы/паузы площадки) — play() шёл на дефолтной 1.0, и до первого жеста
+// игрока музыка орала мимо настроек. Инвариант: volume выставлен ДО любого
+// возможного play, кто бы его ни позвал.
+{ const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicVol; }
 function applyMusic(v01){
   musicVol = Math.max(0, Math.min(1, v01));
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
@@ -1172,7 +1180,10 @@ function musicSuspend(on){
   musicExtMuted = !!on;
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
-  else if (musicVol > 0 && bgm.paused) bgm.play().catch(()=>{});
+  else if (musicVol > 0 && bgm.paused){
+    bgm.volume = musicVol; // инвариант: громкость ДО play (см. блок musicVol)
+    bgm.play().catch(()=>{});
+  }
 }
 function refreshMainSettings(){
   // ⚠️ ИЗ `soundVol`, А НЕ ИЗ `CFG.sound ? 100 : 0` — именно та строка теряла

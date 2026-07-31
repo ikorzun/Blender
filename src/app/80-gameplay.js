@@ -28,12 +28,18 @@ function doMatch(list){
   // игрок быстр; первый матч цепочки идёт по обычной цене)
   const nowMs = performance.now();
   const comboHot = list.length >= 3 || nowMs - lastMatchMs < COMBO_CHAIN_MS || comboUntil > nowMs;
+  // (лесенка темпа — seriesMult объявлен ниже doMatch, функции хойстятся)
   {
     const wasHot = comboUntil > nowMs;
     lastMatchMs = nowMs;
     if (comboHot){
-      comboUntil = nowMs + COMBO_MS;
-      comboCount++;
+      // ПАКЕТ ТЕМПА (спека владельца 2026-07-31): НОВОЕ зажигание начинает
+      // счёт серии с 1 — раньше comboCount переживал протухшее окно и копился
+      // сквозь паузы (турбо собиралось за несколько вялых серий, а лесенка
+      // ×3 стартовала бы мгновенно). Теперь серия = непрерывный темп.
+      comboCount = wasHot ? comboCount + 1 : 1;
+      // окно УТЕКАЕТ и сжимается с длиной серии (было плоское COMBO_MS)
+      comboUntil = nowMs + seriesWindowMs(comboCount);
       comboLevel = Math.min(COMBO_STEPS, comboLevel + 1); // +ступень радиуса за матч серии
       if (!wasHot){
         const mid0 = new THREE.Vector3();
@@ -46,6 +52,15 @@ function doMatch(list){
         setTimeout(()=>{ scorePop('Radius Up', mid1, '#ff9d2e', true); }, 800);
         Sound.play('combo');
         vibrate([20, 40, 30]); // двойной пульс — отличим от одиночных 15/40 мс
+      }
+      // лесенка темпа: пересечение порога ×3 — короткий поп тем же стилем
+      // (это НЕ шкала — разовый момент, как «Combo ×2»; постоянный показ
+      // темпа несут ГЛАЗА, зона Интерфейса)
+      if (comboCount === SERIES_X3_AT){
+        const mid3 = new THREE.Vector3();
+        list.forEach(it => mid3.add(it.p));
+        mid3.multiplyScalar(1/list.length).y += 0.9;
+        scorePop('×' + SERIES_MULT_X3 + '!', mid3, '#ff9d2e', true);
       }
       // серия дожата до цепной реакции. ВТОРОЕ турбо, собранное ВНУТРИ
       // активного, — «СЕРИЯ ТУРБО» (спека владельца 2026-07-21): окно
@@ -97,7 +112,7 @@ function doMatch(list){
   if (chainUntil > performance.now() && list.length > 1){
     for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
   }
-  list.forEach(it => { it.animating = true; destroyItemBody(it); }); // тела сразу из мира
+  list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // тела сразу из мира; метка — для спасателя зависших удалений (99-main)
   wakePhysics('gameplay:L7'); // соседи начинают оседать
   stats.matches++;
   stats.lastAction = performance.now();
@@ -115,7 +130,11 @@ function doMatch(list){
   // 2026-07-28, единая точка scorePenalty выше) — прежняя оговорка «наказание
   // не трогает» ОТМЕНЕНА: плоские −10/−20 на фоне «+700» делали карательную
   // сторону шумом ровно в оплаченном окне.
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? COMBO_SCORE_MULT : 1) * accMult(typeName) * scoreBoostMult());
+  // ЛЕСЕНКА ТЕМПА вместо плоского ×2 (спека владельца 2026-07-31): ×2 с
+  // зажигания, ×3 с SERIES_X3_AT-го матча серии, ×4 в турбо. Единая точка —
+  // seriesMult; comboCount к этой строке уже инкрементирован (матч,
+  // пересёкший порог, идёт по новому множителю — как у ступеней накопления).
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult());
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -135,7 +154,8 @@ function doMatch(list){
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
-  Sound.play('match', n);
+  // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
+  Sound.play('match', { n, k: comboHot ? comboCount : 0 });
   vibrate(15);
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
   const scales = list.map(it => it.mesh.scale.x);
@@ -238,6 +258,14 @@ function detonateBomb(bomb){
 // Состояние заряда — РАНТАЙМ, не сейв (поправка владельца «жить не больше 7
 // секунд»): chargeName/chargeUntil; истечение проверяет chargeTick из loop.
 let chargeName = '', chargeUntil = 0;
+// ЛЕСЕНКА ТЕМПА — единая точка множителя серии (пакет темпа 2026-07-31):
+// ×4 в турбо, ×3 с SERIES_X3_AT-го матча серии, иначе базовый ×2. Потребители:
+// начисление в doMatch и __game.series() (глаза Интерфейса читают его же —
+// показ и деньги не могут разойтись по построению).
+function seriesMult(nowMs){
+  if (chainUntil > nowMs) return SERIES_MULT_CHAIN;
+  return comboCount >= SERIES_X3_AT ? SERIES_MULT_X3 : COMBO_SCORE_MULT;
+}
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
 }

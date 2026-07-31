@@ -10,6 +10,7 @@ if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 // кольца последних 600 кадров — сырое время кадра и время шага физики
 const frameRing = [], stepRing = [];
 let perfFrames = 0, perfWorstMs = 0;
+let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
 // в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
@@ -342,6 +343,35 @@ function loop(){
   }
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
+  // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
+  // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
+  // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
+  // не наступает — предметы остаются alive+animating НАВСЕГДА: полусжатые
+  // висят в куче, глотают рейкаст тапа, недоступны матчам (сьют ловил как
+  // «за тап ушло 0»). По образцу спасателя пола: страховка по СРОКУ — жизнь
+  // анимации ≤0.16с + пауза 150мс, всё старше ANIM_RESCUE_MS зависло̆ —
+  // доудаляем с warn. Корень (почему хвост не наступает) — TODO расследовать.
+  if (!paused){
+    const nowA = performance.now();
+    for (const it of items){
+      if (it.alive && it.animating && it.animStartMs && nowA - it.animStartMs > ANIM_RESCUE_MS){
+        console.warn('[anim-rescue] зависшее удаление доедено:', it.type && it.type.name);
+        it.animStartMs = 0;
+        try { removeItem(it); } catch(e){}
+      }
+    }
+  }
+  // ТРЕВОГА ОКНА СЕРИИ (пакет темпа): у края окна — сухой тик раз в 250 мс.
+  // В турбо не тикаем (там своя лихорадка), визуальный канал — глаза (Интерфейс).
+  {
+    const nowT = performance.now();
+    if (comboUntil > nowT && chainUntil <= nowT && !intro){
+      const left = comboUntil - nowT;
+      if (left < SERIES_TICK_FROM && nowT >= seriesNextTick){
+        Sound.play('tick'); seriesNextTick = nowT + 250;
+      }
+    }
+  }
   // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
   if (physAwake && !(intro && intro.phase === 'wait')){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
@@ -1033,6 +1063,19 @@ window.__game = {
     const m = {};
     for (const it of items) if (it.alive && !it.surprise && !it.bomb) m[it.type.name] = (m[it.type.name] || 0) + 1;
     return m;
+  },
+  // диагностика зависших удалений (найдено пробой v218: doMatch отработал,
+  // а removeItem не случился — см. разбор в журнале)
+  isPaused(){ return paused; },
+  animCount(){ let k = 0; for (const it of items) if (it.alive && it.animating) k++; return k; },
+  // ПАКЕТ ТЕМПА — API для глаз Интерфейса (спека владельца: показ темпа
+  // ТОЛЬКО глазами, шкалы нет). mult читает ТУ ЖЕ seriesMult, что и деньги.
+  series(){
+    const n = performance.now();
+    const active = comboUntil > n;
+    return { len: active ? comboCount : 0, mult: active ? seriesMult(n) : 1,
+             leftMs: Math.max(0, Math.round(comboUntil - n)),
+             winMs: seriesWindowMs(comboCount) };
   },
   combo(){
     const n = performance.now();

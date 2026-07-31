@@ -89,6 +89,11 @@ const path = require('path');
   // сверху проверяет ПУСТОТУ — ревью v157 поймало это как единственную дыру в
   // защите капа. Тут радиус ВРЕМЕННО раздувается: группа заведомо больше капа,
   // и срез виден. Радиус возвращается сразу же — ниже по сьюту он боевой.
+  // ⚠️ ОСАДКА АНИМАЦИЙ ОПРОСОМ (v218): natural-клик выше изредка оставляет
+  // предметы alive+animating (латентный класс «зависшее удаление», ловится
+  // спасателем в loop за ANIM_RESCUE_MS) — force-цель, посчитанная при живых
+  // зависших, кликала в них и получала «ушло 0». Ждём чистоты фактом.
+  await page.waitForFunction(() => window.__game.animCount() === 0, null, { timeout: 4000 });
   const radSave = await page.evaluate(() => window.__game.cfg.baseRadius);
   await page.evaluate(() => { window.__game.cfg.baseRadius = 3.0; });
   await page.waitForTimeout(500);           // updateMatchRadius тикает раз в 300 мс
@@ -2816,6 +2821,58 @@ window.bridge = {
   });
   expect(pokeCalm, 'ПРОВОКАЦИЯ: матч сбросил злость — простой снова в норме');
 
+  // ===== ПАКЕТ ТЕМПА (спека владельца 2026-07-31: «драйва не хватает» →
+  // окно серии утекает и сжимается, лесенка множителя ×2→×3→×4, показ
+  // глазами/звуком — БЕЗ шкалы). Секция ставит свой уровень и стоит перед
+  // зарядом — тот начинается со своего regen, контекст не течёт.
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(300);
+  const tempo = await page.evaluate(async () => {
+    const g = window.__game;
+    const идти = async (k) => { for (let i = 0; i < k; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); } };
+    const s0 = g.series();                        // до серии
+    await идти(2);                                // второй матч в окне склейки — зажигание
+    const s2 = g.series();
+    await идти(6);                                // до порога ×3 и дальше
+    const s8 = g.series();
+    return { s0, s2, s8 };
+  });
+  expect(tempo.s0.mult === 1 && tempo.s2.mult === 2 && tempo.s8.len >= 6 && tempo.s8.mult === 3,
+    'ТЕМП: лесенка множителя 1 → ×2 (зажигание) → ×3 (длинная серия) (' +
+    [tempo.s0.mult, tempo.s2.mult, tempo.s8.mult].join('/') + ' при len ' + tempo.s8.len + ')');
+  expect(tempo.s8.winMs < tempo.s2.winMs,
+    'ТЕМП: окно СЖИМАЕТСЯ с длиной серии (' + tempo.s2.winMs + ' -> ' + tempo.s8.winMs + ' мс)');
+  // окно реально утекает: без матчей серия гаснет к концу СВОЕГО окна
+  // (осадка-опрос по факту, потолок-страховка сверх winMs)
+  const tempoDie = await page.evaluate(async () => {
+    const g = window.__game;
+    const win = g.series().leftMs;
+    const t0 = Date.now();
+    while (g.series().mult > 1 && Date.now() - t0 < win + 1500)
+      await new Promise(r => setTimeout(r, 100));
+    return { погасла: g.series().mult === 1, ждали: Date.now() - t0, окно: win };
+  });
+  expect(tempoDie.погасла && tempoDie.ждали <= tempoDie.окно + 1500,
+    'ТЕМП: окно утекло без матчей — множитель упал на базу (' + JSON.stringify(tempoDie) + ')');
+  // НОВОЕ зажигание после смерти окна начинает серию С ЕДИНИЦЫ (раньше
+  // comboCount переживал протухшее окно — лесенка стартовала бы с ×3 мгновенно)
+  const tempoFresh = await page.evaluate(async () => {
+    const g = window.__game;
+    for (let i = 0; i < 2; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
+    return g.series();
+  });
+  expect(tempoFresh.mult === 2 && tempoFresh.len <= 2,
+    'ТЕМП: новая серия после протухшей начинается с единицы, а не с хвоста старой (' +
+    JSON.stringify(tempoFresh) + ')');
+  // вершина лесенки: догоняем до турбо — множитель ×4 при живой цепи
+  const tempoChain = await page.evaluate(async () => {
+    const g = window.__game;
+    for (let i = 0; i < 14 && !g.combo().chain; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
+    return { chain: g.combo().chain, mult: g.series().mult };
+  });
+  expect(tempoChain.chain && tempoChain.mult === 4,
+    'ТЕМП: в турбо множитель ×4 — вершина лесенки (' + JSON.stringify(tempoChain) + ')');
+
   // ===== «ЗАРЯД ТИПА» + ЛЕСЕНКА ТУРБО (спеки владельца 2026-07-31) =====
   // Секция в конце: regen/setLevel меняют контекст (правило канона).
   await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
@@ -3297,11 +3354,17 @@ window.bridge = {
   expect(!покаВидно.нетЗаголовка && покаВидно.низ > 0 && покаВидно.on === false,
     'МЕНЮ: пока блок My Collection виден — плавающей шапки НЕТ (' + JSON.stringify(покаВидно) + ')');
   // ...а как только ушёл за верх — шапка на месте и по геометрии ноды
-  await menuPage.evaluate(async () => {
+  await menuPage.evaluate(() => {
     const ms = document.getElementById('mainScreen'), t = document.querySelector('.ms-coll-title');
     ms.scrollTop += t.getBoundingClientRect().bottom + 40;
-    await new Promise(r => setTimeout(r, 500));
   });
+  // ⚠️ ОСАДКА ВЫЕЗДА ФАКТОМ, не фикс-паузой (патч диспетчера v218: пауза 500
+  // изредка ловила середину перехода 0.22s — узелTop −6 на исправной сборке;
+  // тот самый подвид «момент, а не состояние»). Ждём top===0 с потолком.
+  await menuPage.waitForFunction(() => {
+    const sk = document.getElementById('msSticky');
+    return sk.classList.contains('on') && Math.round(sk.getBoundingClientRect().top) === 0;
+  }, null, { timeout: 4000 });
   const menuOn = await снимок();
   expect(!menuOn.нетУзлов && menuOn.on === true && menuOn.заголовокНиз <= 0 &&
     menuOn.узелTop === 0 && menuOn.пилюляTop === 8 && menuOn.пилюляH === 48 &&
@@ -3496,6 +3559,26 @@ window.bridge = {
     'МЕНЮ: фон плавающей шапки резолвится и совпадает с фоном меню (' +
     JSON.stringify(stickyBg) + ')');
   await menuPage.close();
+
+  // ===== ГРОМКОСТЬ ПРИМЕНЯЕТСЯ СРАЗУ (жалоба владельца 2026-07-31: музыка
+  // при загрузке выше настроек, падала после интро). Механика была: volume
+  // ставил только жестовый unlock, а на портале трек заводила разморозка
+  // после рекламы БЕЗ установки громкости. Инвариант: bgm.volume = настройке
+  // СРАЗУ после загрузки, ДО всякого жеста и play.
+  const volPage = await browser.newPage({ viewport: { width: 393, height: 761 } });
+  await volPage.addInitScript(() => {
+    localStorage.setItem('mixer_music', '20');
+    localStorage.setItem('mixer_sound', '30');
+  });
+  await volPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await volPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  const vol0 = await volPage.evaluate(() => ({
+    bgmVol: +document.getElementById('bgm').volume.toFixed(2),
+    sfxOn: window.__game.cfg.sound,
+  }));
+  expect(vol0.bgmVol === 0.2 && vol0.sfxOn === true,
+    'ГРОМКОСТЬ: настройки применены СРАЗУ после загрузки, до жеста (' + JSON.stringify(vol0) + ')');
+  await volPage.close();
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
