@@ -3294,222 +3294,6 @@ window.bridge = {
     JSON.stringify(hoursSeen.map(x => x.h + ':' + x.sky + '/' + (x.night ? 'n' : 'd'))) + ')');
   await hourPage.close();
 
-  // ===== ПОЛ КОНТРАСТА HUD К НЕБУ (заказ диспетчера 2026-07-31) =====
-  // ⚠️ ЗАЧЕМ: белый HUD читается на небе только за счёт яркости самого неба, и
-  // сторожить это было нечем. Риск не гипотетический — он срабатывал дважды: на
-  // белом поле глаза пропадали (жалоба владельца), а откат дневного декора
-  // 2026-07-31 уронил контраст, и заметили это лишь ручным замером.
-  // ⚠️ ПОЛ, А НЕ ПЛАНКА: цель — поймать ТИХУЮ деградацию, поэтому пол ставится
-  // чуть ниже наблюдаемого, а НАСКОЛЬКО ниже — написано явно: что страж
-  // сознательно пропускает, должно быть видно.
-  //   глаза  день 3.08 -> пол 3.00 (терпим просадку 2.6%), ночь 13.48 -> 12.5 (7%)
-  //   пауза  день 4.68 -> пол 3.50 (терпим 25%),           ночь 13.38 -> 11.0 (18%)
-  // ⚠️ У КНОПКИ ЗАПАС ШИРЕ НАМЕРЕННО: её пол ловит не дрейф, а осмысленное
-  // затемнение верха неба (замер: −15% роняет её до 3.47, −30% до 2.53 — ниже
-  // 3:1). Ставить ей узкий пол значит красить сьют на каждой правке палитры.
-  // ⚠️⚠️ ЧИСЛА ЭТОГО СТРАЖА И ЧИСЛА КАНОНА — РАЗНЫЕ ЛИНЕЙКИ И РАЗНЫЕ РАСКЛАДКИ,
-  // НЕ ПУТАТЬ. В CLAUDE.md записан замер ПРОФИЛЕМ СТРОКИ через центр глаз на
-  // ДЕСКТОПЕ 900×640: день 2.96. Здесь — максимум внутри рамки против МЕДИАНЫ
-  // боковых полос, на вьюпорте сьюта 390×780: день 3.08. Сборка одна и та же,
-  // контраст никуда не «вырос» — линейка другая (на одном вьюпорте метрики
-  // расходятся на 1.4-2.2%, остальное даёт раскладка: на десктопе конструкция
-  // глаз крупнее и стоит ниже, а небо ниже по экрану светлее).
-  // ⚠️ СЛЕДСТВИЕ, о котором легко споткнуться: «порог 3:1 днём не берётся» —
-  // это про ДЕСКТОПНУЮ раскладку. На вьюпорте сьюта он берётся обеими линейками
-  // (3.03-3.08), и лог стража это показывает. Отсюда и пол 3.00, а не 2.9,
-  // который предлагался по десктопному числу: на здешней линейке 2.9 разрешил
-  // бы просадку 5.4% — то есть почти повтор того самого инцидента, ради которого
-  // страж и ставится (откат декора стоил 6.9% на своей линейке).
-  // ⚠️ ПОЧЕМУ ОБА ЭЛЕМЕНТА, А НЕ ОДНИ ГЛАЗА: они защищают ПРОТИВОПОЛОЖНЫЕ
-  // направления. Белок гаснет, когда небо СВЕТЛЕЕТ; кнопка паузы днём ТЁМНАЯ и
-  // гаснет, когда небо ТЕМНЕЕТ. А действующий рецепт канона для любого будущего
-  // дневного декора — «сдвиг чтения рампы В МИНУС», то есть ровно затемнение:
-  // без второго пола охраняемой осталась бы та сторона, по которой не бьют.
-  const HUD_FLOOR = { day: 3.00, night: 12.5 };   // белок глаза против неба
-  const BTN_FLOOR = { day: 3.50, night: 11.0 };   // диск кнопки паузы против неба
-  // Оставить видимым ТОЛЬКО цель и её предков (visibility, а не display — чтобы
-  // раскладка не поехала и цель не сдвинулась под собственным замером).
-  // ⚠️ ЗАЧЕМ ПРЯТАТЬ СОСЕДЕЙ: полосы неба ловили правый стек (очки к 3-му уровню
-  // пятизначные и лезут влево), и замер гулял 2.83-3.10 по раскладкам — ровно тот
-  // разброс, на котором страж бы флейкал. Отношение «элемент к небу» от соседей
-  // не зависит, поэтому сокрытие ничего не подменяет.
-  const hudProbe = async (pg, sel, mode) => {
-    // ⚠️ ПРИШПИЛИВАЕМ ПОКОЙ ПЕРЕД КАЖДЫМ КАДРОМ. Угроза помола (uGrind) наливает
-    // ВЕРХ кадра красным по таймеру простоя — там же, где и глаза, и полосы неба.
-    // Небо темнеет, контраст к белку РАСТЁТ: страж прошёл бы на слишком светлой
-    // палитре. Это СЛЕПОЕ ПЯТНО, а не флейк, и разбросом выборки оно не ловится
-    // (краснеет вся строка разом, горизонтальный разброс остаётся нулевым).
-    // Замер дрейфа: простой 2.8 c -> ratio 3.08, 8.4 c -> 3.57, 13.6 c -> 4.01.
-    // Один кадр этого замера стоит 0.5-1.4 c, так что цикл сам себе и создавал
-    // дрейф. Сбрасываем таймер простоя (stats().lastAction — живой объект).
-    await pg.evaluate(() => { window.__game.stats().lastAction = performance.now(); });
-    const geo = await pg.evaluate((s) => {
-      // ⚠️ СНАЧАЛА СНЯТЬ ПРЕЖНЮЮ МАСКУ, И СНИМАТЬ ТОЛЬКО СВОЮ. Без этого второй
-      // замер на той же странице мерит элемент, спрятанный ПЕРВЫМ: кнопка паузы
-      // выходила ровно цветом неба (диск 0.2933 при небе 0.2933, отношение 1.000)
-      // — страж честно краснел, но на собственном дефекте. Метку ставим своим
-      // data-атрибутом, чтобы не тронуть то, что прячет сама игра.
-      document.querySelectorAll('[data-hudmask]').forEach(n => {
-        n.style.visibility = ''; delete n.dataset.hudmask;
-      });
-      const el = document.querySelector(s);
-      const keep = new Set(); for (let n = el; n; n = n.parentElement) keep.add(n);
-      document.querySelectorAll('body *').forEach(n => {
-        if (!keep.has(n) && !el.contains(n) && n.tagName !== 'CANVAS'){
-          n.style.visibility = 'hidden'; n.dataset.hudmask = '1';
-        }
-      });
-      const r = el.getBoundingClientRect();
-      return { x: r.x, y: r.y, w: r.width, h: r.height };
-    }, sel);
-    const b64 = (await pg.screenshot()).toString('base64');
-    // ⚠️ РАМКА ПЕРЕЧИТЫВАЕТСЯ ПОСЛЕ СКРИНШОТА: между чтением коробки и съёмкой
-    // проходит до 1.4 c, а конструкция глаз умеет ЕЗЖАТЬ (#face.dropped смещает
-    // её на --fireLift перед помолом). Разъехались — кадр негоден, пересъём.
-    const moved = await pg.evaluate(([s, g]) => {
-      const r = document.querySelector(s).getBoundingClientRect();
-      return Math.max(Math.abs(r.x - g.x), Math.abs(r.y - g.y), Math.abs(r.width - g.w));
-    }, [sel, geo]);
-    const px = await pg.evaluate(async ([b64, g, mode]) => {
-      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
-      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
-      cv.getContext('2d').drawImage(img, 0, 0);
-      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
-      const k = img.width / window.innerWidth;
-      const sl = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-      const lum = i => 0.2126 * sl(d[i]) + 0.7152 * sl(d[i + 1]) + 0.0722 * sl(d[i + 2]);
-      const med = a => { const b = a.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
-      const X0 = Math.round(g.x * k), X1 = Math.round((g.x + g.w) * k);
-      const Y0 = Math.round(g.y * k);
-      // у глаз берём ВЕРХНИЕ 55% рамки (ниже живёт число отсчёта), у кнопки — всю
-      const Y1 = Math.round((g.y + g.h * (mode === 'max' ? 0.55 : 1)) * k);
-      const IN = Math.round(6 * k), OUT = Math.round(26 * k);
-      let mx = 0, spread = 0; const inner = [], rowMed = [];
-      for (let y = Y0; y < Y1; y++){
-        for (let x = X0; x < X1; x++){ const L = lum((y * W + x) * 4); inner.push(L); if (L > mx) mx = L; }
-        const row = [];
-        for (let x = Math.max(0, X0 - OUT); x < X0 - IN; x++) row.push(lum((y * W + x) * 4));
-        for (let x = X1 + IN; x < Math.min(W, X1 + OUT); x++) row.push(lum((y * W + x) * 4));
-        if (!row.length) continue;
-        rowMed.push(med(row));
-        // ⚠️ ДЕТЕКТОР ЗАГРЯЗНЕНИЯ ВЫБОРКИ: небо разложено ПО ЭКРАНУ, значит строка
-        // чистого неба горизонтально ПОСТОЯННА (замер: ровно 0). Заедет в полосу
-        // посторонний объект (стекло чаши на неосевшей сцене, будущий элемент
-        // HUD) — разброс скакнёт, и замер обязан честно провалиться, а не отдать
-        // правдоподобное неверное число.
-        const s = Math.max.apply(null, row) - Math.min.apply(null, row);
-        if (s > spread) spread = s;
-      }
-      const sky = med(rowMed);
-      // ⚠️ У ГЛАЗ БЕРЁМ МАКСИМУМ (белок), У КНОПКИ — МЕДИАНУ (диск). Медиана по
-      // ЦЕНТРУ кнопки не годится: там белый глиф «II», и он утягивает число
-      // (замер: по центру 0.167 против 0.0234 по всей кнопке, контраст 1.43
-      // против 4.23 — я на этом сама ошиблась раз).
-      const own = mode === 'max' ? mx : med(inner);
-      // ⚠️ ДЕТЕКТОР УГРОЗЫ ПОМОЛА (см. выше): верх кадра обязан РОВНО совпадать с
-      // первым стопом палитры — приём из канона, «кромку меряют, пока угроза на
-      // нуле». Это ассерт-факт поверх пришпиленного покоя, а не вместо него.
-      const tv = getComputedStyle(document.documentElement)
-        .getPropertyValue('--sky-top-rgb').trim().split(',').map(Number);
-      const ti = (2 * W + Math.round(W / 2)) * 4;
-      const topDelta = tv.length === 3
-        ? Math.max(Math.abs(d[ti] - tv[0]), Math.abs(d[ti + 1] - tv[1]), Math.abs(d[ti + 2] - tv[2]))
-        : 999;
-      return { own: +own.toFixed(4), max: +mx.toFixed(4), sky: +sky.toFixed(4),
-               spread: +spread.toFixed(4), topDelta: topDelta,
-               ratio: +(((Math.max(own, sky) + 0.05) / (Math.min(own, sky) + 0.05)).toFixed(3)) };
-    }, [b64, geo, mode]);
-    return { ...px, moved: +moved.toFixed(2) };
-  };
-  // ⚠️ ЖДЁМ СОСТОЯНИЯ, А НЕ ЧАСОВ (правило канона): опрашиваем, пока замер не
-  // УСТОИТСЯ (два подряд сходятся), с потолком-страховкой. Фикс-пауза тут уже
-  // подводила: после подмены палитры рампа доезжает не в тот же кадр (замер
-  // ловил 2.40 вместо 1.11), а на нагруженном стенде это растянется сильнее.
-  // ⚠️ ОТБРАКОВКА КАДРА ≠ ПРОВАЛ ЗАМЕРА: причину возвращаем отдельным полем why,
-  // иначе сообщения ассертов врут диагнозом (тусклый элемент отчитывался бы как
-  // «не устоялся» и «выборка грязная»).
-  const settledProbe = async (pg, sel, mode) => {
-    let prev = null, why = 'ok', dropped = 0;
-    for (let i = 0; i < 14; i++){
-      const r = await hudProbe(pg, sel, mode);
-      // элемент ещё не проявился: у #face есть входная анимация uiIn на защёлке
-      // uiready, и первые кадры после skipIntro он полупрозрачный.
-      // ⛔ ЭТО НЕ ПРО МОРГАНИЕ: при моргании #eyes.blink жмёт веко scaleY(.06),
-      // от белка остаётся сплющенная, но ЧИСТО БЕЛАЯ полоска — максимум по окну
-      // не сдвигается (проверено принудительным классом: white 1 и там, и там).
-      if (mode === 'max' && r.max < 0.9){ why = 'элемент не проявился'; prev = null; dropped++; continue; }
-      if (r.moved > 1){ why = 'рамка уехала между чтением и съёмкой'; prev = null; dropped++; continue; }
-      if (prev && Math.abs(r.ratio - prev.ratio) < 0.02) return { ...r, settled: true, why: 'ok', dropped };
-      prev = r;
-    }
-    return { ...(prev || { own: 0, max: 0, sky: 0, spread: 9, topDelta: 999, ratio: 0, moved: 0 }),
-             settled: false, why: prev ? 'не сошлось за 14 кадров' : why, dropped };
-  };
-  const hudPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  hudPage.on('pageerror', e => errors.push('PAGEERROR(hud): ' + e.message));
-  hudPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(hud): ' + m.text()); });
-  const hudSeen = {};
-  for (const [tema, h] of [['day', 12], ['night', 22]]){
-    await hudPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
-    await hudPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
-    await hudPage.evaluate(() => window.__game.skipIntro());
-    // ⚠️ ПРОВЕРКА РАСКЛАДКИ ДО СОКРЫТИЯ СОСЕДЕЙ: сам замер гасит всё лишнее и
-    // потому слеп к тому, что глаза кто-то ЗАКРЫЛ новым элементом. Дешёвый
-    // ассерт по elementFromPoint возвращает эту слепую зону обратно.
-    const onTop = await hudPage.evaluate(() => {
-      const f = document.getElementById('face'), r = f.getBoundingClientRect();
-      const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height * 0.25);
-      return { внутриFace: !!el && f.contains(el), кто: el ? (el.id || el.tagName) : 'нет' };
-    });
-    expect(onTop.внутриFace, 'глаза не закрыты чужим элементом (' + tema + '): сверху ' + onTop.кто);
-    const r = await settledProbe(hudPage, '#face', 'max');
-    const btn = await settledProbe(hudPage, '#pauseBtn', 'med');
-    hudSeen[tema] = { eyes: r, btn };
-    expect(r.settled, 'контраст глаз (' + tema + ') устоялся: ' + r.why);
-    expect(r.spread < 0.02,
-      'выборка неба чистая (' + tema + '): горизонтальный разброс ' + r.spread + ' < 0.02');
-    expect(r.topDelta <= 6,
-      'замер вне угрозы помола (' + tema + '): верх кадра = первый стоп, Δ' + r.topDelta + ' <= 6');
-    expect(r.ratio >= HUD_FLOOR[tema],
-      'ПОЛ КОНТРАСТА ГЛАЗ (' + tema + '): ' + r.ratio + ' >= ' + HUD_FLOOR[tema] +
-      ' (белок ' + r.own + ', небо ' + r.sky + ')');
-    expect(btn.settled && btn.ratio >= BTN_FLOOR[tema],
-      'ПОЛ КОНТРАСТА КНОПКИ ПАУЗЫ (' + tema + '): ' + btn.ratio + ' >= ' + BTN_FLOOR[tema] +
-      ' (диск ' + btn.own + ', небо ' + btn.sky + ', ' + btn.why + ')');
-  }
-  await hudPage.close();
-  // ⚠️ ДВУСТОРОННИЙ ПРОГОН ВНУТРИ КАЖДОГО ПРОГОНА: страж не сдан, пока не
-  // показано, что он КРАСНЕЕТ на сломанном. Здесь это проверяется всегда —
-  // подменяем палитру на светлую и убеждаемся, что метрика проваливает свой пол.
-  // ⚠️ ОДНОГО АССЕРТА «ratio упал» МАЛО: фолбэк несостоявшегося замера отдаёт
-  // ratio 0, то есть ОСЛЕПШАЯ метрика «подтверждала» бы собственную исправность
-  // (проверено: спрятал глаза — ratio 0, ассерт зелен). Поэтому рядом стоят
-  // санитары «замер состоялся» и «белок на месте»: они превращают «упало» в
-  // «упало ПОТОМУ ЧТО небо стало светлым, а элемент никуда не делся».
-  // ⚠️ ДИВЕРСИЯ ТОЛЬКО НА СВОЕЙ СТРАНИЦЕ: у setSkyStops НЕТ геттера и НЕТ отката
-  // (вызов без списка возвращает null и ничего не восстанавливает) — единственный
-  // честный откат это новая загрузка.
-  const sabPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  sabPage.on('pageerror', e => errors.push('PAGEERROR(sab): ' + e.message));
-  sabPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(sab): ' + m.text()); });
-  await sabPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=12');
-  await sabPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
-  const sabApplied = await sabPage.evaluate(() => {
-    window.__game.skipIntro();
-    // светлый верх — ровно та регрессия, от которой ставится пол глаз
-    return !!window.__game.skyStops(['#eaf4ff', '#e7f2ff', '#e4f0ff', '#e1eeff',
-                                     '#deecff', '#dbeaff', '#d8e8ff']);
-  });
-  expect(sabApplied, 'САНИТАР: диверсионная палитра принята (иначе «сломанного» прогона не было)');
-  const sab = await settledProbe(sabPage, '#face', 'max');
-  expect(sab.settled && sab.max >= 0.9,
-    'САНИТАР: на диверсии замер СОСТОЯЛСЯ и белок на месте (' + sab.why +
-    ', белок ' + sab.max + ') — иначе «упало» означало бы ослепшую метрику');
-  expect(sab.ratio < HUD_FLOOR.day,
-    '⚠️ ДВУСТОРОННЕ: на светлом небе метрика ПАДАЕТ ниже пола — ' + sab.ratio +
-    ' < ' + HUD_FLOOR.day + ' (на исправной палитре было ' + hudSeen.day.eyes.ratio + ')');
-  await sabPage.close();
-
   // ===== МОБИЛЬНОЕ МЕНЮ: ПЛАВАЮЩАЯ ШАПКА + ПЛАВАЮЩИЙ RESUME =====
   // Спека владельца 2026-07-31: «плавающая шапка появляется ТОЛЬКО когда блок
   // My Collection уходит за границу верхнего вью. Появляется сверху быстро, но
@@ -3795,7 +3579,226 @@ window.bridge = {
   expect(vol0.bgmVol === 0.2 && vol0.sfxOn === true,
     'ГРОМКОСТЬ: настройки применены СРАЗУ после загрузки, до жеста (' + JSON.stringify(vol0) + ')');
   await volPage.close();
-
+  // ⚠️ СЕКЦИЯ В САМОМ КОНЦЕ НАМЕРЕННО (как камни и меню): она делает до
+  // полутора десятков скриншотов на своих страницах, и стоя ПЕРЕД соседом,
+  // который сэмплит кадры CSS-перехода, отнимала у него rAF — «МЕНЮ: шапка
+  // выезжает переходом» ловило 0 промежуточных кадров. Своей странице это не
+  // мешает (замер ждёт устоявшегося состояния), чужой — мешало.
+  // ===== ПОЛ КОНТРАСТА HUD К НЕБУ (заказ диспетчера 2026-07-31) =====
+  // ⚠️ ЗАЧЕМ: белый HUD читается на небе только за счёт яркости самого неба, и
+  // сторожить это было нечем. Риск не гипотетический — он срабатывал дважды: на
+  // белом поле глаза пропадали (жалоба владельца), а откат дневного декора
+  // 2026-07-31 уронил контраст, и заметили это лишь ручным замером.
+  // ⚠️ ПОЛ, А НЕ ПЛАНКА: цель — поймать ТИХУЮ деградацию, поэтому пол ставится
+  // чуть ниже наблюдаемого, а НАСКОЛЬКО ниже — написано явно: что страж
+  // сознательно пропускает, должно быть видно.
+  //   глаза  день 3.08 -> пол 3.00 (терпим просадку 2.6%), ночь 13.48 -> 12.5 (7%)
+  //   пауза  день 4.68 -> пол 3.50 (терпим 25%),           ночь 13.38 -> 11.0 (18%)
+  // ⚠️ У КНОПКИ ЗАПАС ШИРЕ НАМЕРЕННО: её пол ловит не дрейф, а осмысленное
+  // затемнение верха неба (замер: −15% роняет её до 3.47, −30% до 2.53 — ниже
+  // 3:1). Ставить ей узкий пол значит красить сьют на каждой правке палитры.
+  // ⚠️⚠️ ЧИСЛА ЭТОГО СТРАЖА И ЧИСЛА КАНОНА — РАЗНЫЕ ЛИНЕЙКИ И РАЗНЫЕ РАСКЛАДКИ,
+  // НЕ ПУТАТЬ. В CLAUDE.md записан замер ПРОФИЛЕМ СТРОКИ через центр глаз на
+  // ДЕСКТОПЕ 900×640: день 2.96. Здесь — максимум внутри рамки против МЕДИАНЫ
+  // боковых полос, на вьюпорте сьюта 390×780: день 3.08. Сборка одна и та же,
+  // контраст никуда не «вырос» — линейка другая (на одном вьюпорте метрики
+  // расходятся на 1.4-2.2%, остальное даёт раскладка: на десктопе конструкция
+  // глаз крупнее и стоит ниже, а небо ниже по экрану светлее).
+  // ⚠️ СЛЕДСТВИЕ, о котором легко споткнуться: «порог 3:1 днём не берётся» —
+  // это про ДЕСКТОПНУЮ раскладку. На вьюпорте сьюта он берётся обеими линейками
+  // (3.03-3.08), и лог стража это показывает. Отсюда и пол 3.00, а не 2.9,
+  // который предлагался по десктопному числу: на здешней линейке 2.9 разрешил
+  // бы просадку 5.4% — то есть почти повтор того самого инцидента, ради которого
+  // страж и ставится (откат декора стоил 6.9% на своей линейке).
+  // ⚠️ ПОЧЕМУ ОБА ЭЛЕМЕНТА, А НЕ ОДНИ ГЛАЗА: они защищают ПРОТИВОПОЛОЖНЫЕ
+  // направления. Белок гаснет, когда небо СВЕТЛЕЕТ; кнопка паузы днём ТЁМНАЯ и
+  // гаснет, когда небо ТЕМНЕЕТ. А действующий рецепт канона для любого будущего
+  // дневного декора — «сдвиг чтения рампы В МИНУС», то есть ровно затемнение:
+  // без второго пола охраняемой осталась бы та сторона, по которой не бьют.
+  const HUD_FLOOR = { day: 3.00, night: 12.5 };   // белок глаза против неба
+  const BTN_FLOOR = { day: 3.50, night: 11.0 };   // диск кнопки паузы против неба
+  // Оставить видимым ТОЛЬКО цель и её предков (visibility, а не display — чтобы
+  // раскладка не поехала и цель не сдвинулась под собственным замером).
+  // ⚠️ ЗАЧЕМ ПРЯТАТЬ СОСЕДЕЙ: полосы неба ловили правый стек (очки к 3-му уровню
+  // пятизначные и лезут влево), и замер гулял 2.83-3.10 по раскладкам — ровно тот
+  // разброс, на котором страж бы флейкал. Отношение «элемент к небу» от соседей
+  // не зависит, поэтому сокрытие ничего не подменяет.
+  const hudProbe = async (pg, sel, mode) => {
+    // ⚠️ ПРИШПИЛИВАЕМ ПОКОЙ ПЕРЕД КАЖДЫМ КАДРОМ. Угроза помола (uGrind) наливает
+    // ВЕРХ кадра красным по таймеру простоя — там же, где и глаза, и полосы неба.
+    // Небо темнеет, контраст к белку РАСТЁТ: страж прошёл бы на слишком светлой
+    // палитре. Это СЛЕПОЕ ПЯТНО, а не флейк, и разбросом выборки оно не ловится
+    // (краснеет вся строка разом, горизонтальный разброс остаётся нулевым).
+    // Замер дрейфа: простой 2.8 c -> ratio 3.08, 8.4 c -> 3.57, 13.6 c -> 4.01.
+    // Один кадр этого замера стоит 0.5-1.4 c, так что цикл сам себе и создавал
+    // дрейф. Сбрасываем таймер простоя (stats().lastAction — живой объект).
+    await pg.evaluate(() => { window.__game.stats().lastAction = performance.now(); });
+    const geo = await pg.evaluate((s) => {
+      // ⚠️ СНАЧАЛА СНЯТЬ ПРЕЖНЮЮ МАСКУ, И СНИМАТЬ ТОЛЬКО СВОЮ. Без этого второй
+      // замер на той же странице мерит элемент, спрятанный ПЕРВЫМ: кнопка паузы
+      // выходила ровно цветом неба (диск 0.2933 при небе 0.2933, отношение 1.000)
+      // — страж честно краснел, но на собственном дефекте. Метку ставим своим
+      // data-атрибутом, чтобы не тронуть то, что прячет сама игра.
+      document.querySelectorAll('[data-hudmask]').forEach(n => {
+        n.style.visibility = ''; delete n.dataset.hudmask;
+      });
+      const el = document.querySelector(s);
+      const keep = new Set(); for (let n = el; n; n = n.parentElement) keep.add(n);
+      document.querySelectorAll('body *').forEach(n => {
+        if (!keep.has(n) && !el.contains(n) && n.tagName !== 'CANVAS'){
+          n.style.visibility = 'hidden'; n.dataset.hudmask = '1';
+        }
+      });
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    }, sel);
+    const b64 = (await pg.screenshot()).toString('base64');
+    // ⚠️ РАМКА ПЕРЕЧИТЫВАЕТСЯ ПОСЛЕ СКРИНШОТА: между чтением коробки и съёмкой
+    // проходит до 1.4 c, а конструкция глаз умеет ЕЗЖАТЬ (#face.dropped смещает
+    // её на --fireLift перед помолом). Разъехались — кадр негоден, пересъём.
+    const moved = await pg.evaluate(([s, g]) => {
+      const r = document.querySelector(s).getBoundingClientRect();
+      return Math.max(Math.abs(r.x - g.x), Math.abs(r.y - g.y), Math.abs(r.width - g.w));
+    }, [sel, geo]);
+    const px = await pg.evaluate(async ([b64, g, mode]) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
+      const k = img.width / window.innerWidth;
+      const sl = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const lum = i => 0.2126 * sl(d[i]) + 0.7152 * sl(d[i + 1]) + 0.0722 * sl(d[i + 2]);
+      const med = a => { const b = a.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
+      const X0 = Math.round(g.x * k), X1 = Math.round((g.x + g.w) * k);
+      const Y0 = Math.round(g.y * k);
+      // у глаз берём ВЕРХНИЕ 55% рамки (ниже живёт число отсчёта), у кнопки — всю
+      const Y1 = Math.round((g.y + g.h * (mode === 'max' ? 0.55 : 1)) * k);
+      const IN = Math.round(6 * k), OUT = Math.round(26 * k);
+      let mx = 0, spread = 0; const inner = [], rowMed = [];
+      for (let y = Y0; y < Y1; y++){
+        for (let x = X0; x < X1; x++){ const L = lum((y * W + x) * 4); inner.push(L); if (L > mx) mx = L; }
+        const row = [];
+        for (let x = Math.max(0, X0 - OUT); x < X0 - IN; x++) row.push(lum((y * W + x) * 4));
+        for (let x = X1 + IN; x < Math.min(W, X1 + OUT); x++) row.push(lum((y * W + x) * 4));
+        if (!row.length) continue;
+        rowMed.push(med(row));
+        // ⚠️ ДЕТЕКТОР ЗАГРЯЗНЕНИЯ ВЫБОРКИ: небо разложено ПО ЭКРАНУ, значит строка
+        // чистого неба горизонтально ПОСТОЯННА (замер: ровно 0). Заедет в полосу
+        // посторонний объект (стекло чаши на неосевшей сцене, будущий элемент
+        // HUD) — разброс скакнёт, и замер обязан честно провалиться, а не отдать
+        // правдоподобное неверное число.
+        const s = Math.max.apply(null, row) - Math.min.apply(null, row);
+        if (s > spread) spread = s;
+      }
+      const sky = med(rowMed);
+      // ⚠️ У ГЛАЗ БЕРЁМ МАКСИМУМ (белок), У КНОПКИ — МЕДИАНУ (диск). Медиана по
+      // ЦЕНТРУ кнопки не годится: там белый глиф «II», и он утягивает число
+      // (замер: по центру 0.167 против 0.0234 по всей кнопке, контраст 1.43
+      // против 4.23 — я на этом сама ошиблась раз).
+      const own = mode === 'max' ? mx : med(inner);
+      // ⚠️ ДЕТЕКТОР УГРОЗЫ ПОМОЛА (см. выше): верх кадра обязан РОВНО совпадать с
+      // первым стопом палитры — приём из канона, «кромку меряют, пока угроза на
+      // нуле». Это ассерт-факт поверх пришпиленного покоя, а не вместо него.
+      const tv = getComputedStyle(document.documentElement)
+        .getPropertyValue('--sky-top-rgb').trim().split(',').map(Number);
+      const ti = (2 * W + Math.round(W / 2)) * 4;
+      const topDelta = tv.length === 3
+        ? Math.max(Math.abs(d[ti] - tv[0]), Math.abs(d[ti + 1] - tv[1]), Math.abs(d[ti + 2] - tv[2]))
+        : 999;
+      return { own: +own.toFixed(4), max: +mx.toFixed(4), sky: +sky.toFixed(4),
+               spread: +spread.toFixed(4), topDelta: topDelta,
+               ratio: +(((Math.max(own, sky) + 0.05) / (Math.min(own, sky) + 0.05)).toFixed(3)) };
+    }, [b64, geo, mode]);
+    return { ...px, moved: +moved.toFixed(2) };
+  };
+  // ⚠️ ЖДЁМ СОСТОЯНИЯ, А НЕ ЧАСОВ (правило канона): опрашиваем, пока замер не
+  // УСТОИТСЯ (два подряд сходятся), с потолком-страховкой. Фикс-пауза тут уже
+  // подводила: после подмены палитры рампа доезжает не в тот же кадр (замер
+  // ловил 2.40 вместо 1.11), а на нагруженном стенде это растянется сильнее.
+  // ⚠️ ОТБРАКОВКА КАДРА ≠ ПРОВАЛ ЗАМЕРА: причину возвращаем отдельным полем why,
+  // иначе сообщения ассертов врут диагнозом (тусклый элемент отчитывался бы как
+  // «не устоялся» и «выборка грязная»).
+  const settledProbe = async (pg, sel, mode) => {
+    let prev = null, why = 'ok', dropped = 0;
+    for (let i = 0; i < 14; i++){
+      const r = await hudProbe(pg, sel, mode);
+      // элемент ещё не проявился: у #face есть входная анимация uiIn на защёлке
+      // uiready, и первые кадры после skipIntro он полупрозрачный.
+      // ⛔ ЭТО НЕ ПРО МОРГАНИЕ: при моргании #eyes.blink жмёт веко scaleY(.06),
+      // от белка остаётся сплющенная, но ЧИСТО БЕЛАЯ полоска — максимум по окну
+      // не сдвигается (проверено принудительным классом: white 1 и там, и там).
+      if (mode === 'max' && r.max < 0.9){ why = 'элемент не проявился'; prev = null; dropped++; continue; }
+      if (r.moved > 1){ why = 'рамка уехала между чтением и съёмкой'; prev = null; dropped++; continue; }
+      if (prev && Math.abs(r.ratio - prev.ratio) < 0.02) return { ...r, settled: true, why: 'ok', dropped };
+      prev = r;
+    }
+    return { ...(prev || { own: 0, max: 0, sky: 0, spread: 9, topDelta: 999, ratio: 0, moved: 0 }),
+             settled: false, why: prev ? 'не сошлось за 14 кадров' : why, dropped };
+  };
+  const hudPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  hudPage.on('pageerror', e => errors.push('PAGEERROR(hud): ' + e.message));
+  hudPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(hud): ' + m.text()); });
+  const hudSeen = {};
+  for (const [tema, h] of [['day', 12], ['night', 22]]){
+    await hudPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
+    await hudPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await hudPage.evaluate(() => window.__game.skipIntro());
+    // ⚠️ ПРОВЕРКА РАСКЛАДКИ ДО СОКРЫТИЯ СОСЕДЕЙ: сам замер гасит всё лишнее и
+    // потому слеп к тому, что глаза кто-то ЗАКРЫЛ новым элементом. Дешёвый
+    // ассерт по elementFromPoint возвращает эту слепую зону обратно.
+    const onTop = await hudPage.evaluate(() => {
+      const f = document.getElementById('face'), r = f.getBoundingClientRect();
+      const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height * 0.25);
+      return { внутриFace: !!el && f.contains(el), кто: el ? (el.id || el.tagName) : 'нет' };
+    });
+    expect(onTop.внутриFace, 'глаза не закрыты чужим элементом (' + tema + '): сверху ' + onTop.кто);
+    const r = await settledProbe(hudPage, '#face', 'max');
+    const btn = await settledProbe(hudPage, '#pauseBtn', 'med');
+    hudSeen[tema] = { eyes: r, btn };
+    expect(r.settled, 'контраст глаз (' + tema + ') устоялся: ' + r.why);
+    expect(r.spread < 0.02,
+      'выборка неба чистая (' + tema + '): горизонтальный разброс ' + r.spread + ' < 0.02');
+    expect(r.topDelta <= 6,
+      'замер вне угрозы помола (' + tema + '): верх кадра = первый стоп, Δ' + r.topDelta + ' <= 6');
+    expect(r.ratio >= HUD_FLOOR[tema],
+      'ПОЛ КОНТРАСТА ГЛАЗ (' + tema + '): ' + r.ratio + ' >= ' + HUD_FLOOR[tema] +
+      ' (белок ' + r.own + ', небо ' + r.sky + ')');
+    expect(btn.settled && btn.ratio >= BTN_FLOOR[tema],
+      'ПОЛ КОНТРАСТА КНОПКИ ПАУЗЫ (' + tema + '): ' + btn.ratio + ' >= ' + BTN_FLOOR[tema] +
+      ' (диск ' + btn.own + ', небо ' + btn.sky + ', ' + btn.why + ')');
+  }
+  await hudPage.close();
+  // ⚠️ ДВУСТОРОННИЙ ПРОГОН ВНУТРИ КАЖДОГО ПРОГОНА: страж не сдан, пока не
+  // показано, что он КРАСНЕЕТ на сломанном. Здесь это проверяется всегда —
+  // подменяем палитру на светлую и убеждаемся, что метрика проваливает свой пол.
+  // ⚠️ ОДНОГО АССЕРТА «ratio упал» МАЛО: фолбэк несостоявшегося замера отдаёт
+  // ratio 0, то есть ОСЛЕПШАЯ метрика «подтверждала» бы собственную исправность
+  // (проверено: спрятал глаза — ratio 0, ассерт зелен). Поэтому рядом стоят
+  // санитары «замер состоялся» и «белок на месте»: они превращают «упало» в
+  // «упало ПОТОМУ ЧТО небо стало светлым, а элемент никуда не делся».
+  // ⚠️ ДИВЕРСИЯ ТОЛЬКО НА СВОЕЙ СТРАНИЦЕ: у setSkyStops НЕТ геттера и НЕТ отката
+  // (вызов без списка возвращает null и ничего не восстанавливает) — единственный
+  // честный откат это новая загрузка.
+  const sabPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  sabPage.on('pageerror', e => errors.push('PAGEERROR(sab): ' + e.message));
+  sabPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(sab): ' + m.text()); });
+  await sabPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=12');
+  await sabPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  const sabApplied = await sabPage.evaluate(() => {
+    window.__game.skipIntro();
+    // светлый верх — ровно та регрессия, от которой ставится пол глаз
+    return !!window.__game.skyStops(['#eaf4ff', '#e7f2ff', '#e4f0ff', '#e1eeff',
+                                     '#deecff', '#dbeaff', '#d8e8ff']);
+  });
+  expect(sabApplied, 'САНИТАР: диверсионная палитра принята (иначе «сломанного» прогона не было)');
+  const sab = await settledProbe(sabPage, '#face', 'max');
+  expect(sab.settled && sab.max >= 0.9,
+    'САНИТАР: на диверсии замер СОСТОЯЛСЯ и белок на месте (' + sab.why +
+    ', белок ' + sab.max + ') — иначе «упало» означало бы ослепшую метрику');
+  expect(sab.ratio < HUD_FLOOR.day,
+    '⚠️ ДВУСТОРОННЕ: на светлом небе метрика ПАДАЕТ ниже пола — ' + sab.ratio +
+    ' < ' + HUD_FLOOR.day + ' (на исправной палитре было ' + hudSeen.day.eyes.ratio + ')');
+  await sabPage.close();
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
