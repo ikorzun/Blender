@@ -1530,6 +1530,56 @@ window.bridge = {
   expect(hang.progress === 100,
     'занавес: страховка сняла его ПУБЛИЧНЫМ setGameLoadingProgress(100) (прогресс ' + hang.progress + ')');
 
+  // === ЗАНАВЕС: sendMessage БРОСИЛ (латч не должен «съесть» неотправленное) ===
+  // Раньше gameReadySent взводился ДО вызова: синхронный бросок оставлял
+  // «уже отправлено» при неотправленном сообщении, страховка (её условие —
+  // `!gameReadySent`) не взводилась, и занавес висел до жёсткого предела.
+  // ⚠️ Ассертим ИМЕННО 'снят страховкой': 'по пределу' значит, что латч
+  // снова съел отправку и спас только грубый таймаут.
+  const MOCK_THROW = `
+window.__probe = { progress:null, tries:0 };
+window.bridge = {
+  PLATFORM_MESSAGE: { GAME_READY: 'game_ready' },
+  EVENT_NAME: {}, REWARDED_STATE: {},
+  platform: { id:'mocktest', language:'en',
+              sendMessage(){ window.__probe.tries++; throw new Error('площадка отвергла сообщение'); } },
+  advertisement: { isRewardedSupported:false, isInterstitialSupported:false, on(){}, showRewarded(){}, showInterstitial(){} },
+  storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
+  setGameLoadingProgress(v){ window.__probe.progress = v; },
+  initialize(){ return Promise.resolve(); },
+};
+`;
+  const srvT = http.createServer((req, res) => {
+    const u = req.url.split('?')[0];
+    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_THROW); }
+    if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(r => srvT.listen(0, '127.0.0.1', r));
+  const tpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  await tpage.goto('http://127.0.0.1:' + srvT.address().port + '/index.html');
+  await tpage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  await tpage.evaluate(() => window.__game.skipIntro());
+  // ⚠️ МЕРИМ ИМЕННО ТО, ЧТО ОПРЕДЕЛЯЕТ ЛАТЧ: пустил ли он ПОВТОРНУЮ попытку.
+  // Первая версия этого стража ассертила «занавес снят страховкой» — и была
+  // ПУСТОЙ: страховку успевает взвести более ранний вызов gameReady (когда
+  // sdkReady ещё false), поэтому ассерт зелен и при сломанном порядке латча.
+  // Поймано зубами, оставляю как напоминание: сперва спроси, что именно
+  // ломается от правки, и меряй ровно это.
+  const thr = await tpage.evaluate(async () => {
+    const before = window.__probe.tries;      // попытка при готовности игры (бросила)
+    window.__ads.gameReady();                 // ещё один заход (следующий уровень/повтор)
+    return { before, after: window.__probe.tries };
+  });
+  await tpage.close(); await new Promise(r => srvT.close(r));
+  expect(thr.before >= 1, 'занавес: отправка вообще пробовалась — тест не меряет пустоту ('
+    + thr.before + ')');
+  expect(thr.after > thr.before,
+    'занавес: бросок НЕ съеден латчем — повторная отправка пробуется снова ('
+    + thr.before + ' -> ' + thr.after + ')');
+
+
 
   // ВУАЛЬ НЕДОСТУПНЫХ В HARD (спека владельца 2026-07-23): обесцвечивание
   // идёт ЧЕРЕЗ ШЕЙДЕР — у текстурных моделей material.color белый, и старый
@@ -1721,6 +1771,46 @@ window.bridge = {
   expect(cad.seq[2] === 1, 'каденция: переход без победы не дублирует ролик (' + cad.seq[2] + ')');
   expect(cad.seq[3] === 2, 'каденция: следующие ' + INTER_EVERY + ' побед дают ещё один ролик (' + cad.seq[3] + ')');
   expect(cad.winsLeft === 0, 'каденция: окно сброшено после показа (' + cad.winsLeft + ')');
+
+  // === ТИХАЯ ПАУЗА ПОД РОЛИКОМ, ПРИЛЕТЕВШИМ ПОВЕРХ ИНТРО ===
+  // Боевой путь againBtn: `Ads.maybeInterstitial(); genLevel();` — интро
+  // встаёт СИНХРОННО, а OPENED приходит асинхронно уже поверх него, и
+  // pauseGame во время интро отказывает. Без дожима pausedByAd оставался
+  // false навсегда: интро кончалось, игра оживала ПОД непрозрачным роликом,
+  // и миксер начинал есть предметы игрока.
+  // ⚠️ Проверяем СОСТОЯНИЕ ПОСЛЕ ИНТРО, а не «пауза встала мгновенно»:
+  // мгновенно она и не должна вставать — интро её законно не пускает.
+  const adp = await apage.evaluate(async () => {
+    const G = window.__game, M = window.__mock;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    G.regen();                                   // новый уровень -> интро живо
+    M.msgs.length = 0;
+    M.emit('inter', 'opened');                   // ролик поверх интро (имя события — как в моке)
+    const duringIntro = G.pauseState().paused;   // ожидаемо false — гвард интро
+    const adReached = G.pauseState().muted;      // ⚠️ инструмент дошёл? mutedByAd ставится
+                                                 // в том же adBlockOn — если false, тест
+                                                 // мерит пустоту (уже поймал себя на этом)
+    G.skipIntro();                               // интро кончилось: игра ЖИВАЯ под роликом
+    await wait(600);                             // время на дожим
+    const afterIntro = G.pauseState().paused;
+    const toldPlatform = M.msgs.some(m => String(m.n).indexOf('level_paused') >= 0
+                                       || String(m.n).indexOf('LEVEL_PAUSED') >= 0);
+    M.emit('inter', 'closed');
+    await wait(300);
+    return { duringIntro, adReached, afterIntro, toldPlatform, afterClose: G.pauseState().paused };
+  });
+  expect(adp.adReached === true,
+    'реклама: событие ролика дошло до блокировки — тест меряет не пустоту (' + adp.adReached + ')');
+  expect(adp.afterIntro === true,
+    'реклама: игра ВСТАЛА на паузу, когда интро кончилось под роликом (' + adp.afterIntro + ')');
+  expect(adp.toldPlatform === true,
+    'реклама: площадка получила LEVEL_PAUSED дожатой паузой (' + adp.toldPlatform + ')');
+  // ⚠️ ИМЕННО ПЕРЕХОД, а не «afterClose === false»: последнее зелено и когда
+  // паузы не было вовсе (false === false) — пустой ассерт, поймал на зубах.
+  expect(adp.afterIntro === true && adp.afterClose === false,
+    'реклама: дожатая пауза СНЯТА закрытием ролика, игра не заморожена (была '
+    + adp.afterIntro + ' -> стала ' + adp.afterClose + ')');
+
   expect(cad.deferredNoShow === 0 && cad.deferredFired === 1,
     'каденция: показ, отложенный не-рекламным выходом, выходит на ПОБЕДНОМ переходе (' +
     cad.deferredNoShow + '->' + cad.deferredFired + ')');

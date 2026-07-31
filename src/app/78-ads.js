@@ -94,11 +94,16 @@ const Ads = (function(){
   // (в бандле: второй GAME_READY уходит в `Promise.reject()`).
   function sendGameReady(){
     if (gameReadySent || !sdkReady) return;
-    gameReadySent = true;
     try {
       const br = window.bridge;
       const p = br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY);
       if (p && p.catch) p.catch(()=>{}); // промис — синхронный try его не поймает
+      // ⚠️ ЛАТЧ ВЗВОДИТСЯ ПОСЛЕ ОТПРАВКИ, А НЕ ДО (найдено ревью диспетчера).
+      // Раньше синхронный бросок sendMessage оставлял gameReadySent=true при
+      // НЕотправленном сообщении: повтора нет, страховка занавеса не взводится
+      // (её условие — именно `!gameReadySent`), и занавес висел до жёсткого
+      // предела. Теперь бросок = «не отправили», и оба механизма живут дальше.
+      gameReadySent = true;
       // Узел занавеса удаляется СИНХРОННО внутри sendMessage — к этой строке
       // его уже нет, поэтому ждать нечего.
       curtainDone('снят game_ready');
@@ -133,11 +138,35 @@ const Ads = (function(){
     try { Sound.setMuted(m); } catch(e){}
     try { musicSuspend(m); } catch(e){} // 85-hud; своя среда, musicVol не трогает
   }
+  // ⚠️⚠️ ПАУЗУ НАДО ДОЖИМАТЬ, А НЕ «попробовать один раз» (найдено адверсарным
+  // ревью диспетчера, v211; на единственном пути показа межстраничной тихая
+  // пауза НЕ ВСТАВАЛА НИКОГДА).
+  // МЕХАНИЗМ: показ идёт из againBtn (90-input) — `Ads.maybeInterstitial();
+  // genLevel();`. genLevel ставит интро СИНХРОННО, а OPENED прилетает
+  // асинхронно уже поверх живого интро; `pauseGame` во время интро отдаёт
+  // false (гвард в 99-main). Одной попытки не хватало никогда: pausedByAd
+  // оставался false, и КОГДА ИНТРО КОНЧАЛОСЬ, игра оказывалась ЖИВОЙ под
+  // непрозрачным роликом — миксер по idleLimit начинал ЕСТЬ ПРЕДМЕТЫ игрока
+  // (−20 за помол), а площадка не получала LEVEL_PAUSED.
+  // ⚠️ ПОЧЕМУ НЕ «применить в finishIntro»: этот вызов вот-вот переедет в
+  // третью точку (занавес площадки), то есть внутрь интро — привязка к нему
+  // сломалась бы молча. Дожим самодостаточен и от чужого порядка не зависит.
+  // ⚠️ ГАСИТЬ ОБЯЗАТЕЛЬНО в adBlockOff: поздняя удачная пауза заморозила бы
+  // игру уже БЕЗ рекламы на экране.
+  let adPauseRetry = 0;
+  function tryAdPause(){
+    if (pausedByAd) return true;
+    pausedByAd = pauseGame(true); // true — тихая, без попапа; LEVEL_PAUSED шлёт сам pauseGame
+    return pausedByAd;
+  }
+  function stopAdPauseRetry(){ if (adPauseRetry){ clearInterval(adPauseRetry); adPauseRetry = 0; } }
   function adBlockOn(){
-    if (!pausedByAd) pausedByAd = pauseGame(true); // true — тихая, без попапа
+    if (!tryAdPause() && !adPauseRetry)
+      adPauseRetry = setInterval(()=>{ if (tryAdPause()) stopAdPauseRetry(); }, AD_PAUSE_RETRY_MS);
     mutedByAd = true; applyMute();
   }
   function adBlockOff(){
+    stopAdPauseRetry();
     mutedByAd = false; applyMute();
     if (pausedByAd){ pausedByAd = false; resumeGame(); }
   }

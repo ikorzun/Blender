@@ -1478,7 +1478,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-215 · 2026-07-31</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-216 · 2026-07-31</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -2025,6 +2025,12 @@ const LEVEL_TIME_IN_HUD = false;
 // GRACE — пауза перед страховкой, если игра готова, а GAME_READY уйти не смог
 // (даём initialize шанс дорезолвиться); MAX — жёсткий предел, чтобы игра
 // НИКОГДА не ждала занавес вечно (замер: на живой площадке он уходит к ~4 с).
+// Дожим тихой паузы под рекламой (78-ads): pauseGame отказывает во время
+// интро, а ролик прилетает ровно поверх него. Шаг мелкий и дешёвый — это
+// пустой вызов с гвардом; ограничитель не нужен, попытки гасит adBlockOff
+// (а в аварии — 60-секундный сторож межстраничной).
+const AD_PAUSE_RETRY_MS = 120;
+
 const CURTAIN_FADE_MS  = 1500;
 const CURTAIN_SELF_MS  = 2400;
 const CURTAIN_GRACE_MS = 1200;
@@ -7428,11 +7434,16 @@ const Ads = (function(){
   // (в бандле: второй GAME_READY уходит в `Promise.reject()`).
   function sendGameReady(){
     if (gameReadySent || !sdkReady) return;
-    gameReadySent = true;
     try {
       const br = window.bridge;
       const p = br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY);
       if (p && p.catch) p.catch(()=>{}); // промис — синхронный try его не поймает
+      // ⚠️ ЛАТЧ ВЗВОДИТСЯ ПОСЛЕ ОТПРАВКИ, А НЕ ДО (найдено ревью диспетчера).
+      // Раньше синхронный бросок sendMessage оставлял gameReadySent=true при
+      // НЕотправленном сообщении: повтора нет, страховка занавеса не взводится
+      // (её условие — именно `!gameReadySent`), и занавес висел до жёсткого
+      // предела. Теперь бросок = «не отправили», и оба механизма живут дальше.
+      gameReadySent = true;
       // Узел занавеса удаляется СИНХРОННО внутри sendMessage — к этой строке
       // его уже нет, поэтому ждать нечего.
       curtainDone('снят game_ready');
@@ -7467,11 +7478,35 @@ const Ads = (function(){
     try { Sound.setMuted(m); } catch(e){}
     try { musicSuspend(m); } catch(e){} // 85-hud; своя среда, musicVol не трогает
   }
+  // ⚠️⚠️ ПАУЗУ НАДО ДОЖИМАТЬ, А НЕ «попробовать один раз» (найдено адверсарным
+  // ревью диспетчера, v211; на единственном пути показа межстраничной тихая
+  // пауза НЕ ВСТАВАЛА НИКОГДА).
+  // МЕХАНИЗМ: показ идёт из againBtn (90-input) — `Ads.maybeInterstitial();
+  // genLevel();`. genLevel ставит интро СИНХРОННО, а OPENED прилетает
+  // асинхронно уже поверх живого интро; `pauseGame` во время интро отдаёт
+  // false (гвард в 99-main). Одной попытки не хватало никогда: pausedByAd
+  // оставался false, и КОГДА ИНТРО КОНЧАЛОСЬ, игра оказывалась ЖИВОЙ под
+  // непрозрачным роликом — миксер по idleLimit начинал ЕСТЬ ПРЕДМЕТЫ игрока
+  // (−20 за помол), а площадка не получала LEVEL_PAUSED.
+  // ⚠️ ПОЧЕМУ НЕ «применить в finishIntro»: этот вызов вот-вот переедет в
+  // третью точку (занавес площадки), то есть внутрь интро — привязка к нему
+  // сломалась бы молча. Дожим самодостаточен и от чужого порядка не зависит.
+  // ⚠️ ГАСИТЬ ОБЯЗАТЕЛЬНО в adBlockOff: поздняя удачная пауза заморозила бы
+  // игру уже БЕЗ рекламы на экране.
+  let adPauseRetry = 0;
+  function tryAdPause(){
+    if (pausedByAd) return true;
+    pausedByAd = pauseGame(true); // true — тихая, без попапа; LEVEL_PAUSED шлёт сам pauseGame
+    return pausedByAd;
+  }
+  function stopAdPauseRetry(){ if (adPauseRetry){ clearInterval(adPauseRetry); adPauseRetry = 0; } }
   function adBlockOn(){
-    if (!pausedByAd) pausedByAd = pauseGame(true); // true — тихая, без попапа
+    if (!tryAdPause() && !adPauseRetry)
+      adPauseRetry = setInterval(()=>{ if (tryAdPause()) stopAdPauseRetry(); }, AD_PAUSE_RETRY_MS);
     mutedByAd = true; applyMute();
   }
   function adBlockOff(){
+    stopAdPauseRetry();
     mutedByAd = false; applyMute();
     if (pausedByAd){ pausedByAd = false; resumeGame(); }
   }
