@@ -3242,19 +3242,30 @@ window.bridge = {
   // обрезала свой же выезд назад), поэтому сразу после снятия класса кнопка
   // ЕЩЁ фокусируема — и это нормально: шапка в этот момент физически на экране.
   // Первая версия стража ждать забыла и краснела на исправной сборке.
+  // ⚠️⚠️ ШАПКУ ПРЯЧЕМ НАСТОЯЩИМ ПУТЁМ (прокрутка в верх), НЕ classList.remove:
+  // ручное снятие класса ВОЮЕТ с живым scroll-слушателем — событие прокрутки
+  // от предыдущего присваивания долетает с лагом (замер пробой: 65 мс, под
+  // нагрузкой больше), и один поздний ивент на дне ВОЗВРАЩАЛ `.on` после
+  // снятия — шапка законно видима, фокус проходит, страж красный на исправной
+  // сборке (флейк первого прогона v210). Прокрутка в верх решает по построению:
+  // слушатель сам снимает класс И САМ ДЕРЖИТ его снятым при любых поздних
+  // ивентах. Осадку ждём ОПРОСОМ (паттерн 0b2de04), а не фикс-таймером.
   const a11y = await menuPage.evaluate(async () => {
+    const ms = document.getElementById('mainScreen');
     const sk = document.getElementById('msSticky'), b2 = document.getElementById('msGetMore2');
     if (!sk || !b2) return { нетУзлов: true };
-    const было = sk.classList.contains('on');
-    sk.classList.remove('on');
-    await new Promise(r => setTimeout(r, 320));        // дать видимости переключиться
+    ms.scrollTop = 0;
+    for (let i = 0; i < 30 && (sk.classList.contains('on') ||
+         getComputedStyle(sk).visibility !== 'hidden'); i++)
+      await new Promise(r => setTimeout(r, 60));
     b2.focus();
     const приСкрытой = document.activeElement === b2;
-    sk.classList.add('on');
-    await new Promise(r => setTimeout(r, 60));
+    ms.scrollTop = ms.scrollHeight;
+    for (let i = 0; i < 30 && !sk.classList.contains('on'); i++)
+      await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 60));         // кадр на включение видимости
     b2.focus();
     const приВидимой = document.activeElement === b2;
-    if (!было) sk.classList.remove('on');
     return { приСкрытой, приВидимой, ариа: sk.getAttribute('aria-hidden'),
              видимость: getComputedStyle(sk).visibility };
   });
