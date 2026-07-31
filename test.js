@@ -3254,23 +3254,31 @@ window.bridge = {
     const ms = document.getElementById('mainScreen');
     const sk = document.getElementById('msSticky'), b2 = document.getElementById('msGetMore2');
     if (!sk || !b2) return { нетУзлов: true };
+    // ⚠️ ФАКТ ДОЖДАЛИСЬ/НЕТ КЛАДЁМ В ОТЧЁТ. Опрос выходит и по достижению
+    // состояния, и по потолку — без этой отметки «шапка так и не спряталась»
+    // и «спряталась, но фокус пролез» дают ОДИНАКОВОЕ сообщение, и следующий
+    // читатель красного будет искать не там.
+    const ждать = async (усл) => {
+      for (let i = 0; i < 30; i++){ if (усл()) return true;
+        await new Promise(r => setTimeout(r, 60)); }
+      return усл();
+    };
     ms.scrollTop = 0;
-    for (let i = 0; i < 30 && (sk.classList.contains('on') ||
-         getComputedStyle(sk).visibility !== 'hidden'); i++)
-      await new Promise(r => setTimeout(r, 60));
+    const дождалисьСкрытия = await ждать(() => !sk.classList.contains('on') &&
+      getComputedStyle(sk).visibility === 'hidden');
     b2.focus();
     const приСкрытой = document.activeElement === b2;
     ms.scrollTop = ms.scrollHeight;
-    for (let i = 0; i < 30 && !sk.classList.contains('on'); i++)
-      await new Promise(r => setTimeout(r, 60));
+    const дождалисьПоказа = await ждать(() => sk.classList.contains('on'));
     await new Promise(r => setTimeout(r, 60));         // кадр на включение видимости
     b2.focus();
     const приВидимой = document.activeElement === b2;
     return { приСкрытой, приВидимой, ариа: sk.getAttribute('aria-hidden'),
+             дождалисьСкрытия, дождалисьПоказа,
              видимость: getComputedStyle(sk).visibility };
   });
-  expect(!a11y.нетУзлов && a11y.приСкрытой === false && a11y.приВидимой === true &&
-    a11y.ариа === null,
+  expect(!a11y.нетУзлов && a11y.дождалисьСкрытия && a11y.дождалисьПоказа &&
+    a11y.приСкрытой === false && a11y.приВидимой === true && a11y.ариа === null,
     'МЕНЮ: скрытая шапка не ловит фокус, видимая ловит, статического aria-hidden нет (' +
     JSON.stringify(a11y) + ')');
   // ⚠️⚠️ СБРОС ПРОКРУТКИ: у `openMainScreen` ДВА пути с РАЗНЫМИ ожиданиями
