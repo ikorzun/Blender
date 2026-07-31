@@ -3232,6 +3232,36 @@ window.bridge = {
   });
   expect(narrow.гориз === 0 && narrow.ряд <= narrow.пилюля,
     'МЕНЮ на 320: горизонтальной прокрутки нет и ряд не вылез из пилюли (' + JSON.stringify(narrow) + ')');
+  // ⚠️ КЛАВИАТУРА: скрытая шапка не должна ловить фокус. Один `transform` её из
+  // Tab-порядка НЕ выводит — уехавшая за экран кнопка «Get More» оставалась
+  // фокусируемой (замер до правки: focus() проходил). Лечит `visibility:hidden`,
+  // она же убирает узел из дерева доступности, поэтому статический `aria-hidden`
+  // снят: он врал в обратную сторону, пряча шапку от скринридера, когда та ВИДНА.
+  // ⚠️ МЕРИМ УСТОЯВШЕЕСЯ СОСТОЯНИЕ, А НЕ ПЕРЕХОД. Видимость при уходе
+  // переключается С ЗАДЕРЖКОЙ в 220 мс (иначе шапка пропадала бы мгновенно и
+  // обрезала свой же выезд назад), поэтому сразу после снятия класса кнопка
+  // ЕЩЁ фокусируема — и это нормально: шапка в этот момент физически на экране.
+  // Первая версия стража ждать забыла и краснела на исправной сборке.
+  const a11y = await menuPage.evaluate(async () => {
+    const sk = document.getElementById('msSticky'), b2 = document.getElementById('msGetMore2');
+    if (!sk || !b2) return { нетУзлов: true };
+    const было = sk.classList.contains('on');
+    sk.classList.remove('on');
+    await new Promise(r => setTimeout(r, 320));        // дать видимости переключиться
+    b2.focus();
+    const приСкрытой = document.activeElement === b2;
+    sk.classList.add('on');
+    await new Promise(r => setTimeout(r, 60));
+    b2.focus();
+    const приВидимой = document.activeElement === b2;
+    if (!было) sk.classList.remove('on');
+    return { приСкрытой, приВидимой, ариа: sk.getAttribute('aria-hidden'),
+             видимость: getComputedStyle(sk).visibility };
+  });
+  expect(!a11y.нетУзлов && a11y.приСкрытой === false && a11y.приВидимой === true &&
+    a11y.ариа === null,
+    'МЕНЮ: скрытая шапка не ловит фокус, видимая ловит, статического aria-hidden нет (' +
+    JSON.stringify(a11y) + ')');
   // ⚠️⚠️ СБРОС ПРОКРУТКИ: у `openMainScreen` ДВА пути с РАЗНЫМИ ожиданиями
   // (страж диспетчера v207, адаптирован под #msSticky в v208). Вызов НА
   // ОТКРЫТОМ меню (так его зовёт visibilitychange из 90-input) прокрутку
