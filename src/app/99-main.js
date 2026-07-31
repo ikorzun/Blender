@@ -714,6 +714,11 @@ window.__game = {
   // Контактный лист вариантов снимается одним прогоном, как у палитр.
   starSpark(v){ if (skyMat && v != null) skyMat.uniforms.uStarSpark.value = v;
     return skyMat ? skyMat.uniforms.uStarSpark.value : null; },
+  // ДЕБАГ ГРАФИКИ: сила слоистости дневного неба на живой сцене (0 — выключена).
+  // ⚠️ Знак внутри шейдера фиксирован в минус, ручка меняет только амплитуду —
+  // осветлить HUD ею нельзя даже случайно.
+  cirrus(a){ if (skyMat && a != null) skyMat.uniforms.uCirrus.value = Math.min(CIRRUS_MAX, Math.max(0, a));
+    return skyMat ? skyMat.uniforms.uCirrus.value : null; },
   // срез вуали для сьюта: сколько материалов реально получили uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;

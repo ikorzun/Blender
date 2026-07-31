@@ -604,6 +604,21 @@ function buildSkyRamp(rgb){
 // полуячейку, срезается гранью соседней. Первый вариант звёзд v2 нарушил это
 // ореолом и дал светлый ПРЯМОУГОЛЬНИК вокруг каждой звезды. Дешевле орать
 // в консоль при загрузке, чем ловить это скриншотом раз в месяц.
+// ⚠️ СТРАЖ МОНОТОННОСТИ ДНЕВНОЙ ПАЛИТРЫ. Вся безопасность слоистости для белого
+// HUD держится на одном: дневная рампа монотонна по ЯРКОСТИ и первый стоп —
+// самый тёмный. Тогда сдвиг «в минус» физически не может осветлить верх кадра.
+// Стопы правит владелец руками, и просевший стоп молча уронил бы контраст под
+// порог — поэтому проверяем при загрузке, а не надеемся на память.
+(function checkDayRampMonotonic(){
+  const lin = c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const lum = h => { const p = hexRGB(h); return 0.2126*lin(p[0]) + 0.7152*lin(p[1]) + 0.0722*lin(p[2]); };
+  const L = (SKY_STOPS.day || []).map(lum);
+  for (let i = 1; i < L.length; i++) if (L[i] < L[i-1] - 1e-4){
+    console.warn('[sky] дневная палитра НЕ монотонна по яркости: стоп ' + i +
+      ' темнее предыдущего — слоистость может осветлить верх кадра и уронить контраст HUD');
+    break;
+  }
+})();
 (function checkStarBudget(){
   const sum = STAR_JIT / 2 + STAR_HALO * STAR_R * STAR_GRID;
   if (sum >= 0.5) console.warn('[stars] бюджет ячейки превышен: ' + sum.toFixed(3) +
@@ -620,11 +635,14 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
         // «небо копит звёзды» (плотность от доли открытых типов). Так фича ляжет
         // поверх без переделки шейдера — достаточно двигать порог.
         uStarDens: { value: STAR_DENS },
+        // слоистость — ТОЛЬКО ДНЁМ (ночь оживлена звёздами)
+        uCirrus: { value: skyTimeNow() === 'night' ? 0 : CIRRUS_A },
         uStarSpark: { value: STAR_SPARK },
         uTime: { value: 0 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
        'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
+       'uniform float uCirrus;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -647,6 +665,25 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       '  float tView = clamp((1.0 - d.y) * 0.5, 0.0, 1.0);',
       '  float tScreen = clamp(1.0 - gl_FragCoord.y / uResY, 0.0, 1.0);',
       '  float t = mix(tView, tScreen, uSkyMap);',
+      // СЛОИСТОСТЬ (день): смещаем координату чтения рампы суммой трёх волн по
+      // НАПРАВЛЕНИЮ взгляда — страты привязаны к миру и честно едут при драге
+      // камеры, а от uTime медленно плывут сами. Цвет берётся из ТОЙ ЖЕ рампы,
+      // поэтому новых оттенков на экране не появляется по построению.
+      // ⚠️ СДВИГ ТОЛЬКО В МИНУС (в тёмную сторону) — см. CIRRUS_A в 00-config:
+      // на этом держится безопасность контраста белого HUD.
+      // ⚠️ ОГИБАЮЩАЯ ГАСИТ СДВИГ У ОБЕИХ КРОМОК: иначе верхний и нижний пиксель
+      // кадра перестанут совпадать с первым/последним стопом, а на этом стоит
+      // рецепт тинта полос Safari.
+      '  if (uCirrus > 0.0){',
+      '    float cw = ' + CIRRUS_LAYERS.map(L =>
+          'sin(d.y * ' + L.fy.toFixed(2) + ' + d.x * ' + L.fx.toFixed(2) +
+          ' + d.z * ' + L.fz.toFixed(2) + ' + uTime * ' + L.spd.toFixed(4) + ')'
+        ).join(' + ') + ';',
+      '    cw = cw * ' + (1 / (2 * CIRRUS_LAYERS.length)).toFixed(6) + ' + 0.5;',
+      '    float env = smoothstep(0.0, ' + CIRRUS_EDGE.toFixed(3) + ', t)',
+      '              * smoothstep(1.0, ' + (1 - CIRRUS_EDGE).toFixed(3) + ', t);',
+      '    t = clamp(t - uCirrus * env * cw, 0.0, 1.0);',
+      '  }',
       // полтекселя внутрь: край рампы иначе размывается фильтром о ClampToEdge
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
