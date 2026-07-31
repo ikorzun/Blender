@@ -2445,17 +2445,32 @@ const FEVER_SPAN = 0.75;  // доля высоты СНИЗУ, на которо
 // ЛЕЧЕНИЕ: джиттер СЖАТ к центру ячейки (STAR_JIT), смещение + радиус < 0.5 —
 // звезда физически не может дотянуться до грани. Соседние ячейки не опрашиваем:
 // 3×3×3 = 27 выборок на пиксель, а это полноэкранный проход.
-// ⚠️⚠️ БЮДЖЕТ ЯЧЕЙКИ — ГЛАВНОЕ ЧИСЛО ЭТОГО БЛОКА, ПРОВЕРЯЙ ПРИ ЛЮБОЙ ПРАВКЕ:
-//        STAR_JIT/2 + STAR_HALO · STAR_R · STAR_GRID  <  0.5
+// ⚠️⚠️ БЮДЖЕТ ЯЧЕЙКИ: STAR_JIT/2 + STAR_HALO · STAR_R · STAR_GRID < 0.5.
+// ⛔ ЭТО УСЛОВИЕ НЕОБХОДИМОЕ, НО НЕ ДОСТАТОЧНОЕ — на этом я и обжёгся: оно
+// молчит про то, как сфера пересекает ячейку (см. STAR_BAND ниже). ЕДИНСТВЕННЫЙ
+// НАСТОЯЩИЙ ГАРАНТ — ПЕРЕБОР: `node tools/star-cells-check.js`. Тронул любую
+// STAR_* — прогони его, формуле не верь.
 // Всё, что вылезает за полуячейку, срезается гранью. Ядро я защитил сразу, а
 // ОРЕОЛ — нет, и первый вариант дал сумму 0.97 при пределе 0.5: вокруг каждой
 // звезды появился светлый ПРЯМОУГОЛЬНИК (поймано кропом ×8, не глазом на общем
 // плане). Инвариант считается в 10-stage при загрузке и орёт в консоль.
 // Действующий набор: 0.15 + 2.4·0.0038·34 = 0.46.
 const STAR_GRID = 34;     // ячеек на единицу направления (плотность сетки)
-const STAR_DENS = 0.9735; // порог хеша: выше — в ячейке есть звезда
-                          // (пересчитан под GRID 34, чтобы звёзд осталось столько же)
-const STAR_JIT  = 0.30;   // ⚠️ доля ячейки под джиттер; больше — вернётся срез
+const STAR_DENS = 0.9295; // порог хеша: выше — в ячейке есть звезда
+                          // (пересчитан под STAR_BAND, чтобы звёзд осталось столько же)
+const STAR_JIT  = 0.26;   // ⚠️ доля ячейки под джиттер; больше — вернётся срез
+// ⚠️⚠️ РАДИАЛЬНАЯ ПОЛОСА — ВТОРАЯ ПОЛОВИНА ЛЕЧЕНИЯ СРЕЗОВ, НАЙДЕНА РЕВЬЮ ПО main.
+// Первый фикс сжал джиттер ВНУТРИ ячейки и на этом остановился — но ячейку сфера
+// может задеть УГЛОМ, и тогда её угловое пятно крошечное независимо от джиттера.
+// Формула бюджета этого члена не содержала и давала ЛОЖНУЮ ГАРАНТИЮ.
+// ЗАМЕР (полный перебор 21824 ячеек, лучи от центра до выхода из ячейки):
+//   было — ядро целое 69.6%, ядро срезано 9.3%, звезды нет вовсе 21.1%,
+//          ореол задет 31.1%;
+//   стало — ядро целое 100%, срезано 0%, пропавших 0%, ореол задет 0%.
+// Звезда живёт только в ячейке, которую сфера пересекает БЛИЗКО К ЦЕНТРУ:
+// |длина(центр ячейки) − STAR_GRID| < STAR_BAND. Цена — часть ячеек пустует,
+// поэтому порог плотности опущен, и звёзд осталось столько же (593 против 570).
+const STAR_BAND = 0.30;   // ⚠️ ширина радиальной полосы, в единицах ячейки
 const STAR_R    = 0.0038; // угловой радиус ядра, рад (~3 px на телефоне)
 const STAR_HALO = 2.4;    // ⚠️ внешний радиус ореола И лучей, в долях STAR_R
 const STAR_SIZE_MIN = 0.55; // разброс размера: множитель радиуса от … до 1.0
@@ -3303,6 +3318,11 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       '  if (uStars > 0.0){',
       '    vec3 ip = floor(d * ' + STAR_GRID.toFixed(1) + ');',
       '    float has = step(uStarDens, hs(ip));',
+      // ⚠️ РАДИАЛЬНАЯ ПОЛОСА: звезда только в ячейке, которую сфера пересекает
+      // БЛИЗКО К ЦЕНТРУ. Задетую углом ячейку видно на сфере крошечным пятном —
+      // звезда в ней срезалась гранью или пропадала целиком (замер: 9.3% и 21.1%).
+      '    has *= step(abs(length(ip + 0.5) - ' + STAR_GRID.toFixed(1) + '), ' +
+        STAR_BAND.toFixed(3) + ');',
       // ⚠️ ДЖИТТЕР СЖАТ К ЦЕНТРУ ЯЧЕЙКИ — это и есть лечение «формы режется»:
       // смещение <= JIT/2 плюс радиус остаётся внутри полуячейки, поэтому диск
       // никогда не дотягивается до грани и не срезается соседней ячейкой.
@@ -3316,7 +3336,10 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       '    float R = ' + STAR_R.toFixed(5) + ' * sz;',
       // ВЕКТОРНЫЙ КРАЙ: ширина сглаживания = РАЗМЕР ПИКСЕЛЯ (fwidth), поэтому
       // кромка ровно в один пиксель на любом DPR — не мылится и не лесенит.
-      '    float w = max(fwidth(s), 1.0e-8);',
+      // ⚠️ КЛАМП СВЕРХУ РАДИУСОМ: s разрывна на границе ячеек, и в квадах на грани
+      // fwidth подскакивает до размера ячейки — smoothstep зажигал слабые
+      // мерцающие точки вдоль граней (minor из ревью по main).
+      '    float w = clamp(fwidth(s), 1.0e-8, R);',
       '    float core = smoothstep(R + w, R - w, s);',
       '    float glow = ' + STAR_GLOW.toFixed(3) + ' * smoothstep(R * ' + STAR_HALO.toFixed(2) + ', R * 0.6, s);',
       // ЧЕТЫРЁХЛУЧЕВАЯ ИСКРА: координаты в касательной плоскости звезды.
@@ -6440,6 +6463,20 @@ function wiggle(item){
   pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(pg, new THREE.PointsMaterial({ size:0.001, vertexColors:true, transparent:true, opacity:0, depthWrite:false })));
+  // ⚠️ ДОБАВЛЕНО ПО РЕВЬЮ main: этих программ в якорях не было, а эффекты
+  // появились позже. После полного дренажа fx первый сок/искра/звёздочка/скол
+  // компилировали шейдер ПРЯМО В КАДРЕ — ровно тот джанк, ради которого якоря
+  // и заведены. Ключ программы у Points с картой и alphaTest свой, у
+  // MeshBasicMaterial с вершинными цветами — тоже свой.
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
+    transparent:true, opacity:0, depthWrite:false, alphaTest:0.02 })));  // juiceFX/sparkFX/starPopFX
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+  sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
+  g.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true,
+    transparent:true, opacity:0, depthWrite:false })));                  // shardFX
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();
