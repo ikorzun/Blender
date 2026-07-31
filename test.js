@@ -3250,33 +3250,35 @@ window.bridge = {
   // сборке (флейк первого прогона v210). Прокрутка в верх решает по построению:
   // слушатель сам снимает класс И САМ ДЕРЖИТ его снятым при любых поздних
   // ивентах. Осадку ждём ОПРОСОМ (паттерн 0b2de04), а не фикс-таймером.
-  // ⚠️ «Дождались» кладётся В ОТЧЁТ И В АССЕРТ (усиление Интерфейса, 5cf40e1):
-  // таймаут опроса должен отличаться от честного «дождались, но фокус пролез».
   const a11y = await menuPage.evaluate(async () => {
     const ms = document.getElementById('mainScreen');
     const sk = document.getElementById('msSticky'), b2 = document.getElementById('msGetMore2');
     if (!sk || !b2) return { нетУзлов: true };
+    // ⚠️ ФАКТ ДОЖДАЛИСЬ/НЕТ КЛАДЁМ В ОТЧЁТ. Опрос выходит и по достижению
+    // состояния, и по потолку — без этой отметки «шапка так и не спряталась»
+    // и «спряталась, но фокус пролез» дают ОДИНАКОВОЕ сообщение, и следующий
+    // читатель красного будет искать не там.
+    const ждать = async (усл) => {
+      for (let i = 0; i < 30; i++){ if (усл()) return true;
+        await new Promise(r => setTimeout(r, 60)); }
+      return усл();
+    };
     ms.scrollTop = 0;
-    for (let i = 0; i < 30 && (sk.classList.contains('on') ||
-         getComputedStyle(sk).visibility !== 'hidden'); i++)
-      await new Promise(r => setTimeout(r, 60));
-    const скрытаДождались = !sk.classList.contains('on') &&
-      getComputedStyle(sk).visibility === 'hidden';
+    const дождалисьСкрытия = await ждать(() => !sk.classList.contains('on') &&
+      getComputedStyle(sk).visibility === 'hidden');
     b2.focus();
     const приСкрытой = document.activeElement === b2;
     ms.scrollTop = ms.scrollHeight;
-    for (let i = 0; i < 30 && !sk.classList.contains('on'); i++)
-      await new Promise(r => setTimeout(r, 60));
+    const дождалисьПоказа = await ждать(() => sk.classList.contains('on'));
     await new Promise(r => setTimeout(r, 60));         // кадр на включение видимости
-    const виднаДождались = sk.classList.contains('on');
     b2.focus();
     const приВидимой = document.activeElement === b2;
-    return { скрытаДождались, приСкрытой, виднаДождались, приВидимой,
-             ариа: sk.getAttribute('aria-hidden'),
+    return { приСкрытой, приВидимой, ариа: sk.getAttribute('aria-hidden'),
+             дождалисьСкрытия, дождалисьПоказа,
              видимость: getComputedStyle(sk).visibility };
   });
-  expect(!a11y.нетУзлов && a11y.скрытаДождались && a11y.приСкрытой === false &&
-    a11y.виднаДождались && a11y.приВидимой === true && a11y.ариа === null,
+  expect(!a11y.нетУзлов && a11y.дождалисьСкрытия && a11y.дождалисьПоказа &&
+    a11y.приСкрытой === false && a11y.приВидимой === true && a11y.ариа === null,
     'МЕНЮ: скрытая шапка не ловит фокус, видимая ловит, статического aria-hidden нет (' +
     JSON.stringify(a11y) + ')');
   // ⚠️⚠️ СБРОС ПРОКРУТКИ: у `openMainScreen` ДВА пути с РАЗНЫМИ ожиданиями
