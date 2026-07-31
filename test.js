@@ -3265,10 +3265,18 @@ window.bridge = {
     b2.focus();
     const приСкрытой = document.activeElement === b2;
     ms.scrollTop = ms.scrollHeight;
-    for (let i = 0; i < 30 && !sk.classList.contains('on'); i++)
+    // ⚠️ СИММЕТРИЧНО СКРЫТИЮ: ждём И класс, И видимость. Раньше показ ждал
+    // только класс, а фикс-пауза «кадр на включение видимости» ничего не
+    // гарантировала — при отказе видимости отчёт сказал бы `виднаДождались:
+    // true` при `приВидимой:false` и увёл бы читателя не туда. Замер: сейчас
+    // видимость включается ВМЕСТЕ с классом (переход показа без задержки),
+    // то есть пауза была ненесущей — и тем опаснее: смени кто-то переход на
+    // задержку, она молча стала бы единственной и флейкующей опорой.
+    for (let i = 0; i < 30 && !(sk.classList.contains('on') &&
+         getComputedStyle(sk).visibility === 'visible'); i++)
       await new Promise(r => setTimeout(r, 60));
-    await new Promise(r => setTimeout(r, 60));         // кадр на включение видимости
-    const виднаДождались = sk.classList.contains('on');
+    const виднаДождались = sk.classList.contains('on') &&
+      getComputedStyle(sk).visibility === 'visible';
     b2.focus();
     const приВидимой = document.activeElement === b2;
     return { скрытаДождались, приСкрытой, виднаДождались, приВидимой,
