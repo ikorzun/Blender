@@ -544,6 +544,20 @@ function wiggle(item){
   pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(pg, new THREE.PointsMaterial({ size:0.001, vertexColors:true, transparent:true, opacity:0, depthWrite:false })));
+  // ⚠️ ДОБАВЛЕНО ПО РЕВЬЮ main: этих программ в якорях не было, а эффекты
+  // появились позже. После полного дренажа fx первый сок/искра/звёздочка/скол
+  // компилировали шейдер ПРЯМО В КАДРЕ — ровно тот джанк, ради которого якоря
+  // и заведены. Ключ программы у Points с картой и alphaTest свой, у
+  // MeshBasicMaterial с вершинными цветами — тоже свой.
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
+    transparent:true, opacity:0, depthWrite:false, alphaTest:0.02 })));  // juiceFX/sparkFX/starPopFX
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+  sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
+  g.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true,
+    transparent:true, opacity:0, depthWrite:false })));                  // shardFX
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();
