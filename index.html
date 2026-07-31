@@ -922,11 +922,22 @@
   /* ⚠️ ПРЯЧЕТСЯ СДВИГОМ, А НЕ display: узел всегда в раскладке, просто уехал
      за верх экрана. Через display переход бы не проигрался — с display:none
      анимировать нечего, шапка появлялась бы скачком. */
+  /* ⚠️⚠️ СКРЫТА `visibility`, А НЕ ТОЛЬКО СДВИГОМ. Одного `transform` мало:
+     уехавший за экран узел остаётся В TAB-ПОРЯДКЕ, и клавиатурный игрок
+     попадал фокусом в НЕВИДИМУЮ кнопку «Get More» (замер: focus() на скрытой
+     шапке проходил). `visibility:hidden` убирает узел и из Tab, и из дерева
+     доступности — поэтому статический `aria-hidden` СНЯТ С РАЗМЕТКИ: он был
+     ещё и вреден, пряча шапку от скринридера в момент, когда она ВИДНА.
+     ⚠️ ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ С ЗАДЕРЖКОЙ: при уходе она ждёт конца сдвига
+     (иначе шапка пропадала бы мгновенно, обрезая свой же выезд назад), при
+     появлении включается сразу. Это штатный приём, а не хитрость. */
   #msSticky { position:fixed; top:0; left:0; right:0; z-index:31;
     padding:calc(8px + env(safe-area-inset-top,0)) 16px 8px;
     background:var(--ms-bg); pointer-events:none;
-    transform:translateY(-100%); transition:transform .22s ease-out; }
-  #msSticky.on { transform:translateY(0); }
+    visibility:hidden; transform:translateY(-100%);
+    transition:transform .22s ease-out, visibility 0s .22s; }
+  #msSticky.on { visibility:visible; transform:translateY(0);
+    transition:transform .22s ease-out, visibility 0s 0s; }
   #msSticky .ms-sticky-in { max-width:700px; margin:0 auto; box-sizing:border-box;
     display:flex; align-items:center; justify-content:space-between; gap:8px;
     background:#fff; border-radius:1000px; padding:4px 4px 4px 12px;
@@ -1454,7 +1465,7 @@
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-209 · 2026-07-31</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-210 · 2026-07-31</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1687,7 +1698,7 @@
      ПИСАТЕЛЬ ОСТАЁТСЯ ОДИН — та же строка refreshMainScreen пишет оба.
      ⚠️ Кнопка тоже зеркало: её клик уходит в НАСТОЯЩИЙ `#msGetMore`, чтобы
      обработчик и все его гварды жили в одном месте. -->
-<div id="msSticky" aria-hidden="true">
+<div id="msSticky">
   <div class="ms-sticky-in">
     <span class="ms-sticky-t">My collection</span>
     <div class="ms-sticky-r">
@@ -9777,7 +9788,7 @@ function openMainScreen(){
   ms.classList.add('open');
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
-  // залипшей шапкой и плавающей кнопкой поверх видимой карточки Play.
+  // плавающей шапкой и кнопкой поверх видимой карточки Play.
   // ⚠️ НО НЕ БЕЗУСЛОВНО: `openMainScreen` зовётся ещё и по visibilitychange
   // (90-input) — при уходе вкладки в фон НА УЖЕ ОТКРЫТОМ меню. Безусловный
   // сброс выбрасывал игрока из середины коллекции в самый верх (замер: 3000 →
