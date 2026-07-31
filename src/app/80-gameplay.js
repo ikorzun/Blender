@@ -530,6 +530,15 @@ function reachGhostFX(item, color){
 // в профиле висели ~40 мс «ничьих». Копим сюда, loop забирает раз в кадр.
 let tapMs = 0;
 const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
+// ⚠️ РАЗБОРКА САМОГО ТАПА (2026-07-31). Спор с ГРАФИКОЙ: их гипотеза —
+// «9.6 мс это логика (рейкаст/GJK/доступность)», моя первая версия говорила
+// «аллокации». Ни одна НЕ БЫЛА ИЗМЕРЕНА: у меня счётчик постройки видел
+// только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
+// Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
+// призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
+let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0;
+const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs };
+  tapPickMs = tapCandMs = tapGhostMs = 0; return v; };
 function handleTap(x, y){
   const _tap0 = performance.now();
   try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
@@ -541,6 +550,7 @@ function handleTapInner(x, y){
   // тап по раскопанному сюрпризу остаётся рабочим
   const finale = !hasAnyPair();
   stats.taps++;
+  const _tp0 = performance.now();
   const rect = canvas.getBoundingClientRect();
   const ndc = new THREE.Vector2(((x-rect.left)/rect.width)*2-1, -((y-rect.top)/rect.height)*2+1);
   raycaster.setFromCamera(ndc, camera);
@@ -559,6 +569,7 @@ function handleTapInner(x, y){
     }
     item = best;
   }
+  tapPickMs += performance.now() - _tp0;   // выбор предмета лучом + фолбэк-проекция
   if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
   if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
 
@@ -575,6 +586,7 @@ function handleTapInner(x, y){
     if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
+  const _tc0 = performance.now();
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   let eligible = accessible.filter(i => pairMatch(i, item));
@@ -592,7 +604,10 @@ function handleTapInner(x, y){
   }
 
   // ореол досягаемости: белый — матч есть, красный — промах
+  tapCandMs += performance.now() - _tc0;   // отбор кандидатов, внутри GJK pairMatch
+  const _tg0 = performance.now();
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
+  tapGhostMs += performance.now() - _tg0;   // ореол-призрак: КЛОН геометрии предмета
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;

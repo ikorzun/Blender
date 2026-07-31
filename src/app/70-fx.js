@@ -18,7 +18,22 @@ function fxParticleCount(){
 // физикой, ни stepFX, ни рендером. Здесь копится время конструирования
 // (Float32Array на 1280 точек, BufferGeometry, материал, возможная компиляция
 // шейдера); loop забирает и обнуляет раз в кадр.
+// ⚠️⚠️ ИСПРАВЛЕНО ПО ЛОВЛЕ ГРАФИКИ (2026-07-31). ПЕРВАЯ ВЕРСИЯ СЧИТАЛА ТОЛЬКО
+// ПЫЛЕВЫЕ ОБЛАКА — единственная точка прибавки сидела внутри dustCloud, а
+// колонка в отчёте называлась «постройка эффекта». Слепа она была ровно к
+// тому, куда едет редизайн Графики: у ОСКОЛКОВ каждый кусок это своя
+// геометрия и свой материал (9-23 за бурст), и в счётчике они давали НОЛЬ.
+// Классика «метрика правдоподобна, но меряет не то, что названо вслух».
+// Теперь считается ВСЯ постройка эффектов. Пара in/out УСТОЙЧИВА К ВЛОЖЕННОСТИ
+// (dissolveFX зовёт dustCloud трижды): копит только внешняя пара, иначе одно
+// облако считалось бы дважды.
 let fxBuildMs = 0;
+const _fxBStack = [];
+function fxBuildIn(){ _fxBStack.push(performance.now()); }
+function fxBuildOut(){
+  const t0 = _fxBStack.pop();
+  if (t0 !== undefined && _fxBStack.length === 0) fxBuildMs += performance.now() - t0;
+}
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
@@ -102,7 +117,7 @@ const DUST_FRACTIONS = [
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
-  const _b0 = performance.now();
+  fxBuildIn();
   const life = 1.0;
   const start = new Float32Array(COUNT*3), vel = new Float32Array(COUNT*3), cols = new Float32Array(COUNT*3);
   for (let i=0;i<COUNT;i++){
@@ -128,7 +143,7 @@ function dustCloud(item, radial, COUNT, size, base){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
   const pts = new THREE.Points(geo, m);
-  fxBuildMs += performance.now() - _b0;   // цена конструирования облака (см. fxBuildMs)
+  fxBuildOut();   // цена конструирования облака (см. fxBuildMs)
   addFX(pts, life, (o,k)=>{
     const t = k*life, a = o.geometry.attributes.position.array;
     for (let i=0;i<COUNT;i++){
@@ -199,7 +214,8 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-function juiceFX(it){
+function juiceFX(it){ fxBuildIn(); try { return _juiceFX_impl(it) } finally { fxBuildOut(); } }
+function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -227,7 +243,8 @@ function juiceFX(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-function sparkFX(it){
+function sparkFX(it){ fxBuildIn(); try { return _sparkFX_impl(it) } finally { fxBuildOut(); } }
+function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -267,7 +284,8 @@ function sparkFX(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-function starPopFX(it){
+function starPopFX(it){ fxBuildIn(); try { return _starPopFX_impl(it) } finally { fxBuildOut(); } }
+function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -338,7 +356,8 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-function shardFX(pos, color, opts){
+function shardFX(pos, color, opts){ fxBuildIn(); try { return _shardFX_impl(pos, color, opts) } finally { fxBuildOut(); } }
+function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
   const spread = opts.spread || 3.2, sz = opts.size || 0.15;

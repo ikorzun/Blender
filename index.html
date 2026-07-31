@@ -5915,7 +5915,22 @@ function fxParticleCount(){
 // физикой, ни stepFX, ни рендером. Здесь копится время конструирования
 // (Float32Array на 1280 точек, BufferGeometry, материал, возможная компиляция
 // шейдера); loop забирает и обнуляет раз в кадр.
+// ⚠️⚠️ ИСПРАВЛЕНО ПО ЛОВЛЕ ГРАФИКИ (2026-07-31). ПЕРВАЯ ВЕРСИЯ СЧИТАЛА ТОЛЬКО
+// ПЫЛЕВЫЕ ОБЛАКА — единственная точка прибавки сидела внутри dustCloud, а
+// колонка в отчёте называлась «постройка эффекта». Слепа она была ровно к
+// тому, куда едет редизайн Графики: у ОСКОЛКОВ каждый кусок это своя
+// геометрия и свой материал (9-23 за бурст), и в счётчике они давали НОЛЬ.
+// Классика «метрика правдоподобна, но меряет не то, что названо вслух».
+// Теперь считается ВСЯ постройка эффектов. Пара in/out УСТОЙЧИВА К ВЛОЖЕННОСТИ
+// (dissolveFX зовёт dustCloud трижды): копит только внешняя пара, иначе одно
+// облако считалось бы дважды.
 let fxBuildMs = 0;
+const _fxBStack = [];
+function fxBuildIn(){ _fxBStack.push(performance.now()); }
+function fxBuildOut(){
+  const t0 = _fxBStack.pop();
+  if (t0 !== undefined && _fxBStack.length === 0) fxBuildMs += performance.now() - t0;
+}
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
@@ -5999,7 +6014,7 @@ const DUST_FRACTIONS = [
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
-  const _b0 = performance.now();
+  fxBuildIn();
   const life = 1.0;
   const start = new Float32Array(COUNT*3), vel = new Float32Array(COUNT*3), cols = new Float32Array(COUNT*3);
   for (let i=0;i<COUNT;i++){
@@ -6025,7 +6040,7 @@ function dustCloud(item, radial, COUNT, size, base){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
   const pts = new THREE.Points(geo, m);
-  fxBuildMs += performance.now() - _b0;   // цена конструирования облака (см. fxBuildMs)
+  fxBuildOut();   // цена конструирования облака (см. fxBuildMs)
   addFX(pts, life, (o,k)=>{
     const t = k*life, a = o.geometry.attributes.position.array;
     for (let i=0;i<COUNT;i++){
@@ -6096,7 +6111,8 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-function juiceFX(it){
+function juiceFX(it){ fxBuildIn(); try { return _juiceFX_impl(it) } finally { fxBuildOut(); } }
+function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6124,7 +6140,8 @@ function juiceFX(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-function sparkFX(it){
+function sparkFX(it){ fxBuildIn(); try { return _sparkFX_impl(it) } finally { fxBuildOut(); } }
+function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6164,7 +6181,8 @@ function sparkFX(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-function starPopFX(it){
+function starPopFX(it){ fxBuildIn(); try { return _starPopFX_impl(it) } finally { fxBuildOut(); } }
+function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -6235,7 +6253,8 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-function shardFX(pos, color, opts){
+function shardFX(pos, color, opts){ fxBuildIn(); try { return _shardFX_impl(pos, color, opts) } finally { fxBuildOut(); } }
+function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
   const spread = opts.spread || 3.2, sz = opts.size || 0.15;
@@ -8448,6 +8467,15 @@ function reachGhostFX(item, color){
 // в профиле висели ~40 мс «ничьих». Копим сюда, loop забирает раз в кадр.
 let tapMs = 0;
 const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
+// ⚠️ РАЗБОРКА САМОГО ТАПА (2026-07-31). Спор с ГРАФИКОЙ: их гипотеза —
+// «9.6 мс это логика (рейкаст/GJK/доступность)», моя первая версия говорила
+// «аллокации». Ни одна НЕ БЫЛА ИЗМЕРЕНА: у меня счётчик постройки видел
+// только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
+// Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
+// призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
+let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0;
+const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs };
+  tapPickMs = tapCandMs = tapGhostMs = 0; return v; };
 function handleTap(x, y){
   const _tap0 = performance.now();
   try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
@@ -8459,6 +8487,7 @@ function handleTapInner(x, y){
   // тап по раскопанному сюрпризу остаётся рабочим
   const finale = !hasAnyPair();
   stats.taps++;
+  const _tp0 = performance.now();
   const rect = canvas.getBoundingClientRect();
   const ndc = new THREE.Vector2(((x-rect.left)/rect.width)*2-1, -((y-rect.top)/rect.height)*2+1);
   raycaster.setFromCamera(ndc, camera);
@@ -8477,6 +8506,7 @@ function handleTapInner(x, y){
     }
     item = best;
   }
+  tapPickMs += performance.now() - _tp0;   // выбор предмета лучом + фолбэк-проекция
   if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
   if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
 
@@ -8493,6 +8523,7 @@ function handleTapInner(x, y){
     if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
+  const _tc0 = performance.now();
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   let eligible = accessible.filter(i => pairMatch(i, item));
@@ -8510,7 +8541,10 @@ function handleTapInner(x, y){
   }
 
   // ореол досягаемости: белый — матч есть, красный — промах
+  tapCandMs += performance.now() - _tc0;   // отбор кандидатов, внутри GJK pairMatch
+  const _tg0 = performance.now();
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
+  tapGhostMs += performance.now() - _tg0;   // ореол-призрак: КЛОН геометрии предмета
 
   if (eligible.length){
     // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
@@ -11106,6 +11140,7 @@ let seriesNextTick = 0; // троттлинг тревожного тика ок
 const fxRing = [], renRing = [], uiRing = [];
 // разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
 const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
+let _tapPh = { pick:0, cand:0, ghost:0 };  // фазы последнего тапа (профилировка)
 const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
@@ -11500,7 +11535,11 @@ function loop(){
   const _tFx = performance.now();
   stepFX(dt);
   const _tUi = performance.now();
-  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); _pushRing(tapRing, tapMsTake()); }
+  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); const _tm = tapMsTake(); _pushRing(tapRing, _tm);
+    // ⚠️ фазы держим от ПОСЛЕДНЕГО НАСТОЯЩЕГО тапа: перезапись каждым
+    // кадром затирала их нулями с кадров без тапа, и разборка читалась
+    // как «выбор 0 + кандидаты 0 + призрак 0» при ненулевом итоге
+    const _ph = tapPhasesTake(); if (_tm > 0) _tapPh = _ph; }
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
@@ -12344,7 +12383,7 @@ window.__game = {
     };
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
-      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing),
+      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
       frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
