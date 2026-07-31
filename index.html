@@ -5173,14 +5173,20 @@ function initPhysicsWorld(){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
     const y1 = LOW + (FUNNEL.H - LOW)*(ring + 1)/RINGS;
     const midY = (y0 + y1)/2;
-    const faceR = radiusAt(midY) - WALL_GAP;
+    // ⚠️ ГРАНЬ КОЛЬЦА — ПО ЕГО НИЖНЕЙ КРОМКЕ, А НЕ ПО СЕРЕДИНЕ (замер 2026-07-31).
+    // Ступенька кольца 0.725 по высоте, конус за неё расширяется на 0.134.
+    // При грани по midY стена у НИЗА кольца оказывается ШИРЕ конуса на этой
+    // высоте — предмет, лежащий на ней, честно торчит за radiusAt(его y), и
+    // спасатель считает это вылетом: после снятия π/2 телепортов стало вдвое
+    // больше (24 -> 47 на ур.40). По y0 стена ВСЕГДА внутри конуса.
+    const faceR = radiusAt(y0) - WALL_GAP;
     const chord = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
     for (let i = 0; i < WALL_SEG; i++){
       const a = (i + 0.5)/WALL_SEG*Math.PI*2;
       const cd = RAPIER.ColliderDesc.cuboid(0.30, (y1 - y0)/2 + 0.09, chord/2)
         .setFriction(FRICTION).setRestitution(RESTIT)
         .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
-      _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+      _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
       world.createCollider(cd, shellB);
     }
@@ -5194,7 +5200,7 @@ function initPhysicsWorld(){
     const cd2 = RAPIER.ColliderDesc.cuboid(0.30, 2.1, chord2/2)
       .setFriction(0.02).setRestitution(RESTIT)
       .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
-    _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
     world.createCollider(cd2, shellB);
   }
@@ -5222,7 +5228,7 @@ function buildTempTallWall(){
     const chord = 2*(FUNNEL.R1 - WALL_GAP)*Math.tan(Math.PI/WALL_SEG) + 0.08;
     const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02)
       .setTranslation(Math.cos(a)*(FUNNEL.R1 - WALL_GAP + 0.15), 24, Math.sin(a)*(FUNNEL.R1 - WALL_GAP + 0.15));
-    _pq.setFromEuler(_pe.set(0, -a + Math.PI/2, 0));
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
     world.createCollider(cd, tmpWallBody);
   }
