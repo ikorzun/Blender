@@ -11335,8 +11335,14 @@ $('perfCopyBtn').addEventListener('click', ()=>{
   catch(e){ txt = 'perfReport error: ' + (e && e.message); }
   const out = $('perfOut');
   out.style.display = 'block'; out.value = txt;
-  const done = () => toast('Perf report copied — paste it in chat');
-  const manual = () => { out.select(); toast('Select all in the box and copy'); };
+  // ⚠️ ФОРМУЛИРОВКА ТОСТА — НЕ КОСМЕТИКА. `execCommand('copy')` умеет вернуть
+  // true, ничего не положив (замер на незащищённом origin: `navigator.clipboard`
+  // отсутствует, execCommand отчитался успехом, буфер пуст). Скажи мы «скопировано»
+  // — владелец нажмёт «вставить», получит пустоту и бросит: попытка у него одна.
+  // Поэтому текст ВСЕГДА остаётся в видимом поле и выделен, а тост говорит про
+  // ОБА пути. Ничего не обещаем сверх того, что можем гарантировать.
+  const done = () => { out.select(); toast('Perf report ready — paste in chat (or copy from the box)'); };
+  const manual = () => { out.select(); toast('Copy the text from the box below'); };
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(txt).then(done, () => {
       out.select();
