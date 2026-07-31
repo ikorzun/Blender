@@ -112,7 +112,12 @@ function doMatch(list){
   if (chainUntil > performance.now() && list.length > 1){
     for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
   }
+  // ⚠️ ЗАМЕР ХВОСТА doMatch (передан Графикой: попы и сейв они сняли, 0.34 мс
+  // из 4.1). Снос тел — их главный подозреваемый: удаление коллайдера
+  // перестраивает широкую фазу, а прокси у нас 599.
+  const _td0 = performance.now();
   list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // тела сразу из мира; метка — для спасателя зависших удалений (99-main)
+  tapDestroyMs += performance.now() - _td0;
   wakePhysics('gameplay:L7'); // соседи начинают оседать
   stats.matches++;
   stats.lastAction = performance.now();
@@ -536,9 +541,9 @@ const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
 // только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
 // Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
 // призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
-let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0;
-const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs };
-  tapPickMs = tapCandMs = tapGhostMs = 0; return v; };
+let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0, tapDestroyMs = 0;
+const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs, destroy: tapDestroyMs };
+  tapPickMs = tapCandMs = tapGhostMs = tapDestroyMs = 0; return v; };
 function handleTap(x, y){
   const _tap0 = performance.now();
   try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
