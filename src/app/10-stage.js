@@ -600,15 +600,31 @@ function buildSkyRamp(rgb){
   tex.needsUpdate = true;
   return tex;
 }
+// ⚠️ САМОПРОВЕРКА БЮДЖЕТА ЯЧЕЙКИ ЗВЁЗД (см. 00-config): всё, что выходит за
+// полуячейку, срезается гранью соседней. Первый вариант звёзд v2 нарушил это
+// ореолом и дал светлый ПРЯМОУГОЛЬНИК вокруг каждой звезды. Дешевле орать
+// в консоль при загрузке, чем ловить это скриншотом раз в месяц.
+(function checkStarBudget(){
+  const sum = STAR_JIT / 2 + STAR_HALO * STAR_R * STAR_GRID;
+  if (sum >= 0.5) console.warn('[stars] бюджет ячейки превышен: ' + sum.toFixed(3) +
+    ' >= 0.5 — ореол будет срезан гранью ячейки (см. STAR_* в 00-config)');
+})();
 let skyMat = null; // экранные слои: uCombo красит НИЗ, uGrind — ВЕРХ (оба из 99-main)
 (function buildSky(){
   // Лихорадка, лесенка помола и затемнение верха идут ПОВЕРХ базы.
   const baseUni =
       { uRamp: { value: buildSkyRamp(skyRGB) },
         uSkyMap: { value: SKY_MAP === 'view' ? 0 : 1 },
-        uStars: { value: skyTimeNow() === 'night' ? 1 : 0 } };
+        uStars: { value: skyTimeNow() === 'night' ? 1 : 0 },
+        // ПЛОТНОСТЬ — ЮНИФОРМА, а не литерал: пакет «Живое окружение» планирует
+        // «небо копит звёзды» (плотность от доли открытых типов). Так фича ляжет
+        // поверх без переделки шейдера — достаточно двигать порог.
+        uStarDens: { value: STAR_DENS },
+        uStarSpark: { value: STAR_SPARK },
+        uTime: { value: 0 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
+       'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -643,15 +659,53 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       // UV — у надира ШТРИХИ, сверху КВАДРАТЫ; (2) 3D-расстояние до центра
       // ячейки — центры лежат вне тонкой сферы, звёзд почти нет; (3) отсечка
       // ниже горизонта убрала ИМЕННО видимое небо: камера смотрит сверху вниз.
+      // ЗВЁЗДЫ v2 (спека владельца 2026-07-31 «сделать вектором + слабое моргание»).
+      // Каркас прежний и НАМЕРЕННО: 3D-сетка по НАПРАВЛЕНИЮ — равномерна на сфере,
+      // полюсов нет, точки круглые и не плывут при повороте камеры. Три провальных
+      // подхода (UV-сетка, расстояние до центра ячейки, отсечка ниже горизонта)
+      // остаются отвергнутыми, см. канон.
       '  if (uStars > 0.0){',
-      '    vec3 ip = floor(d * 60.0);',
-      '    vec3 sdir = normalize(ip + vec3(hs(ip + 1.7), hs(ip + 3.3), hs(ip + 5.9)));',
-      '    float ang = 1.0 - dot(d, sdir);',
-      '    col += uStars * step(0.9915, hs(ip)) * smoothstep(8.0e-6, 0.0, ang) * 0.6;',
+      '    vec3 ip = floor(d * ' + STAR_GRID.toFixed(1) + ');',
+      '    float has = step(uStarDens, hs(ip));',
+      // ⚠️ ДЖИТТЕР СЖАТ К ЦЕНТРУ ЯЧЕЙКИ — это и есть лечение «формы режется»:
+      // смещение <= JIT/2 плюс радиус остаётся внутри полуячейки, поэтому диск
+      // никогда не дотягивается до грани и не срезается соседней ячейкой.
+      '    vec3 jit = vec3(hs(ip + 1.7), hs(ip + 3.3), hs(ip + 5.9)) - 0.5;',
+      '    vec3 sdir = normalize(ip + 0.5 + jit * ' + STAR_JIT.toFixed(3) + ');',
+      // ⚠️ МЕТРИКА — sin угла (|cross|), а НЕ 1−cos: последняя КВАДРАТИЧНА у центра,
+      // из-за чего край размывался тем сильнее, чем мельче звезда («кляксы»).
+      // |cross| линейна по углу, поэтому ведёт себя как обычный радиус на плоскости.
+      '    float s = length(cross(d, sdir));',
+      '    float sz = mix(' + STAR_SIZE_MIN.toFixed(2) + ', 1.0, hs(ip + 9.1));',
+      '    float R = ' + STAR_R.toFixed(5) + ' * sz;',
+      // ВЕКТОРНЫЙ КРАЙ: ширина сглаживания = РАЗМЕР ПИКСЕЛЯ (fwidth), поэтому
+      // кромка ровно в один пиксель на любом DPR — не мылится и не лесенит.
+      '    float w = max(fwidth(s), 1.0e-8);',
+      '    float core = smoothstep(R + w, R - w, s);',
+      '    float glow = ' + STAR_GLOW.toFixed(3) + ' * smoothstep(R * ' + STAR_HALO.toFixed(2) + ', R * 0.6, s);',
+      // ЧЕТЫРЁХЛУЧЕВАЯ ИСКРА: координаты в касательной плоскости звезды.
+      // База выбирается от наименее коллинеарной оси — на полюсах не вырождается.
+      '    vec3 up = abs(sdir.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
+      '    vec3 t1 = normalize(cross(sdir, up));',
+      '    vec3 t2 = cross(sdir, t1);',
+      '    vec2 q = vec2(dot(d, t1), dot(d, t2)) / (R * ' + STAR_HALO.toFixed(2) + ');',
+      '    float ray = uStarSpark * (smoothstep(1.0, 0.0, abs(q.x) + abs(q.y) * 7.0)',
+      '                            + smoothstep(1.0, 0.0, abs(q.y) + abs(q.x) * 7.0)) * 0.5;',
+      // МОРГАНИЕ: фаза и скорость СВОИ у каждой звезды (хеш ячейки), поэтому небо
+      // не пульсирует хором. Медленно и слабо — правило «периферия не суетится».
+      '    float ph = hs(ip + 13.7) * 6.2832;',
+      '    float spd = ' + STAR_TW_SPD.toFixed(3) + ' * (0.6 + 0.8 * hs(ip + 17.3));',
+      '    float tw = 1.0 - ' + STAR_TW_AMP.toFixed(3) + ' * (0.5 + 0.5 * sin(uTime * spd + ph));',
+      '    col += uStars * has * tw * (core + glow + ray) * 0.6;',
       '  }',
     ];
   const skyM = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
+    // ⚠️ fwidth В WebGL1 ТРЕБУЕТ РАСШИРЕНИЯ — без этой строки шейдер не
+    // скомпилируется на WebGL1-устройствах (в WebGL2 производные в ядре и флаг
+    // игнорируется). GL_OES_standard_derivatives поддержан повсеместно; это
+    // штатный путь three, а не экзотика (правило 9: берём обкатанное).
+    extensions: { derivatives: true },
     uniforms: Object.assign({
       uCombo: { value: 0 }, // 0 — обычное небо, 0.3..0.8 — комбо, 1 — цепная реакция
       uGrind: { value: 0 }, // 0 — покой, 1 — работают лопасти (помол)
