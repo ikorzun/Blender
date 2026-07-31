@@ -1477,6 +1477,8 @@
   <div class="row"><span>Pairs available</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
+  <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
+  <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
   <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-227 · 2026-08-01</div>
 </div>
@@ -6051,21 +6053,44 @@ function fxBuildOut(){
 }
 // обёртка конструктора: имя вида + сама функция. try/finally обязателен —
 // исключение внутри эффекта не должно оставить стек перекошенным навсегда.
+// ⚠️⚠️ РЕЕСТР МЕТОК ЛОВИТ КОЛЛИЗИЮ — ПОЙМАНО ГРАФИКОЙ НА ЖИВОМ ПРИМЕРЕ.
+// Метка `'spark'` была занята ДВАЖДЫ (старый sparkFX и новый sparkRicochetFX),
+// а `fxBuildBy` ключуется меткой — две разные функции складывались в ОДНУ
+// строку отчёта, и число «искры 0.62» было суммой непонятно чего. Спасло
+// только то, что старый эффект мёртв (вызовов ноль), то есть верным оно было
+// СЛУЧАЙНО. Коллизия — это ровно «метрика правдоподобна, но меряет не то»,
+// и полагаться на внимательность тут нельзя: реестр запоминает первый занятый
+// вид, а страж в сьюте требует, чтобы дублей не было.
+const fxKindOwner = {};
+let fxKindDup = null;
 function fxBuilt(kind, fn){
-  return function(){ fxBuildIn(kind); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
+  const k = kind || 'прочее';
+  if (fxKindOwner[k] && !fxKindDup) fxKindDup = k;
+  fxKindOwner[k] = true;
+  return function(){ fxBuildIn(k); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
 }
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 // ⚠️ ВСЕ конструкторы эффектов — ОДНИМ СПИСКОМ, чтобы «а этот посчитан?» был
 // вопросом на один взгляд, а не поиском по файлу. `_x_impl` — объявления
 // функций, они хойстятся, поэтому список стоит здесь, а не в конце.
 // Добавил эффект — добавь строку сюда, иначе он невидим для профиля.
+// ⚠️ ПЕРВАЯ ВЕРСИЯ ЭТОГО СПИСКА СВОЁ ЖЕ ОБЕЩАНИЕ НЕ ДЕРЖАЛА (поймала ГРАФИКА):
+// одиннадцать обёрток стояли здесь, а четыре — врассыпную по файлу. Всё было
+// обёрнуто, но «на один взгляд» не работало, а правило держится ровно на этом.
+// Список полный: число обёрток ниже обязано совпадать с числом функций
+// `_имя_impl` в файле (сегодня их 15). Страж сверяет это сам.
+// ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
+const juiceFX          = fxBuilt('juice',    _juiceFX_impl);
+const sparkFX          = fxBuilt('spark',    _sparkFX_impl);
+const starPopFX        = fxBuilt('star',     _starPopFX_impl);
+const shardFX          = fxBuilt('shard',    _shardFX_impl);
 const popFX            = fxBuilt('pop',      _popFX_impl);
 const markerFX         = fxBuilt('marker',   _markerFX_impl);
 const lineFX           = fxBuilt('line',     _lineFX_impl);
 const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
 const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
 const screenDripsFX    = fxBuilt('drips',    _screenDripsFX_impl);
-const sparkRicochetFX  = fxBuilt('spark',    _sparkRicochetFX_impl);
+const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
 const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
@@ -6264,7 +6289,6 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-const juiceFX = fxBuilt('juice', _juiceFX_impl);
 function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -6293,7 +6317,6 @@ function _juiceFX_impl(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-const sparkFX = fxBuilt('spark', _sparkFX_impl);
 function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -6334,7 +6357,6 @@ function _sparkFX_impl(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-const starPopFX = fxBuilt('star', _starPopFX_impl);
 function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -6406,7 +6428,6 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-const shardFX = fxBuilt('shard', _shardFX_impl);
 function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
@@ -11343,6 +11364,33 @@ $('hardToggle').addEventListener('change', e => applyHard(e.target.checked));
 $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.target.value); updateMatchRadius(); $('radiusVal').textContent = CFG.matchRadius.toFixed(2); updateHUD(); });
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => applySound(e.target.checked));
+// ЗАМЕР НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): владелец играет уровень и
+// нажимает одну кнопку — отчёт уходит в буфер обмена.
+// ⚠️ ТРИ ПУТИ, И ВСЕ ТРИ НУЖНЫ: `navigator.clipboard` требует защищённого
+// контекста (на портале https есть, на file:// нет), старый execCommand просит
+// РЕАЛЬНОГО выделения, а если не сработало и это — текст обязан остаться на
+// экране, чтобы владелец скопировал руками. Молча ничего не сделать нельзя:
+// он не программист и второй попытки не будет.
+$('perfCopyBtn').addEventListener('click', ()=>{
+  let txt = '';
+  try { txt = JSON.stringify(__game.perfReport(), null, 1); }
+  catch(e){ txt = 'perfReport error: ' + (e && e.message); }
+  const out = $('perfOut');
+  out.style.display = 'block'; out.value = txt;
+  const done = () => toast('Perf report copied — paste it in chat');
+  const manual = () => { out.select(); toast('Select all in the box and copy'); };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done, () => {
+      out.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+      ok ? done() : manual();
+    });
+  } else {
+    out.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+    ok ? done() : manual();
+  }
+});
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
 
 // ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
@@ -12979,6 +13027,41 @@ window.__game = {
   // события. ⚠️ Виды, которых нет в списке обёрток 70-fx, здесь НЕ ПОЯВЯТСЯ:
   // молчание — это «не обёрнут», а не «бесплатно».
   fxBreak(reset){ return fxBuildBreak(reset); },
+  // Метки видов: список зарегистрированных + первая коллизия, если она есть.
+  // ⚠️ Коллизия метки — НЕ косметика: `fxBuildBy` ключуется меткой, и две
+  // разные функции под одним именем складываются в одну строку отчёта. Ровно
+  // это и случилось с `'spark'` (поймала ГРАФИКА): число было суммой двух
+  // эффектов и оказалось верным лишь потому, что один из них мёртв.
+  fxKinds(){ return { kinds: Object.keys(fxKindOwner).sort(), dup: fxKindDup }; },
+  // ОТЧЁТ ДЛЯ ЗАМЕРА НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): всё, что нужно для
+  // разбора лага, ОДНИМ объектом — владельцу достаточно нажать кнопку.
+  // ⚠️ Счётчики НЕ сбрасываются: worstFrame копится с загрузки страницы, и это
+  // ровно то, что нужно — «худший момент за партию», а не за последнюю секунду.
+  perfReport(){
+    const p = this.perfStats();
+    return {
+      когда: new Date().toISOString(),
+      сборка: (document.getElementById('buildVer') || {}).textContent || '?',
+      устройство: {
+        ua: navigator.userAgent,
+        экран: screen.width + '×' + screen.height + ' @' + (window.devicePixelRatio || 1),
+        окно: innerWidth + '×' + innerHeight,
+        ядер: navigator.hardwareConcurrency || '?',
+        памятиГБ: navigator.deviceMemory || '?',
+      },
+      партия: { уровень: levelNum, живых: items.filter(i => i.alive).length,
+        сложность: CFG.hard ? 'Hard' : 'Easy', тир: CFG.perfTier,
+        dpr: renderer.getPixelRatio(), fxScale: CFG.fxScale, подшагов: maxSubsteps() },
+      кадр: { p95: p.frame.p95, max: p.frame.max, кадров: p.frames },
+      фазы_p95: { шаг: p.step.p95, солвер: p.solve.p95, синк: p.sync.p95,
+        постройка: p.build.p95, тап: p.tap.p95, эффекты: p.fx.p95, ui: p.ui.p95, рендер: p.ren.p95 },
+      худший_кадр: p.worstFrame,
+      кадр_с_постройкой: p.worstBuildFrame,
+      эффекты_по_видам: fxBuildBreak(false),
+      сцена: { тел: p.bodies, коллайдеров: p.colliders, геометрий: p.geoms,
+        drawCalls: p.drawCalls, треугольников: p.tris, частиц: p.parts, кучаМБ: p.heapMB },
+    };
+  },
   // отладка: телепорт предмета (постановка сцен доступности в тестах)
   place(i, x, y, z){
     const it = items[i];

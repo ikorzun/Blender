@@ -2195,6 +2195,18 @@ window.bridge = {
     return { before, by, kinds: Object.keys(by) };
   });
   expect(fxb.before === 0, 'профиль эффектов: reset обнуляет разбивку (' + fxb.before + ' видов после сброса)');
+  // ⚠️ КОЛЛИЗИЯ МЕТКИ — НЕ КОСМЕТИКА (поймала ГРАФИКА на живом примере):
+  // `fxBuildBy` ключуется меткой, и две разные функции под одним именем
+  // складываются в ОДНУ строку отчёта. Так было с 'spark' (старый sparkFX и
+  // новый sparkRicochetFX), и число оказалось верным лишь потому, что один из
+  // эффектов мёртв. Реестр в 70-fx запоминает первую коллизию — здесь она
+  // обязана быть пустой. Плюс сверка «обёрток столько же, сколько видов»:
+  // список, обещающий «один взгляд», должен это обещание держать.
+  const kinds = await page.evaluate(() => window.__game.fxKinds());
+  expect(kinds.dup === null,
+    'профиль эффектов: метки видов уникальны (коллизия: ' + kinds.dup + ')');
+  expect(kinds.kinds.length === 15,
+    'профиль эффектов: обёрнуты ВСЕ 15 конструкторов (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
   expect(fxb.kinds.indexOf('shard') >= 0 && fxb.by.shard && fxb.by.shard.n >= 1,
     'профиль эффектов: осколки отчитываются отдельным видом (' + JSON.stringify(fxb.by.shard) + ')');
   expect(fxb.kinds.indexOf('dust') >= 0 && fxb.by.dust && fxb.by.dust.n >= 3,

@@ -231,6 +231,33 @@ $('hardToggle').addEventListener('change', e => applyHard(e.target.checked));
 $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.target.value); updateMatchRadius(); $('radiusVal').textContent = CFG.matchRadius.toFixed(2); updateHUD(); });
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => applySound(e.target.checked));
+// ЗАМЕР НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): владелец играет уровень и
+// нажимает одну кнопку — отчёт уходит в буфер обмена.
+// ⚠️ ТРИ ПУТИ, И ВСЕ ТРИ НУЖНЫ: `navigator.clipboard` требует защищённого
+// контекста (на портале https есть, на file:// нет), старый execCommand просит
+// РЕАЛЬНОГО выделения, а если не сработало и это — текст обязан остаться на
+// экране, чтобы владелец скопировал руками. Молча ничего не сделать нельзя:
+// он не программист и второй попытки не будет.
+$('perfCopyBtn').addEventListener('click', ()=>{
+  let txt = '';
+  try { txt = JSON.stringify(__game.perfReport(), null, 1); }
+  catch(e){ txt = 'perfReport error: ' + (e && e.message); }
+  const out = $('perfOut');
+  out.style.display = 'block'; out.value = txt;
+  const done = () => toast('Perf report copied — paste it in chat');
+  const manual = () => { out.select(); toast('Select all in the box and copy'); };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done, () => {
+      out.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+      ok ? done() : manual();
+    });
+  } else {
+    out.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+    ok ? done() : manual();
+  }
+});
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
 
 // ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
