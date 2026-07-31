@@ -10,6 +10,8 @@ if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 // кольца последних 600 кадров — сырое время кадра и время шага физики
 const frameRing = [], stepRing = [];
 let perfFrames = 0, perfWorstMs = 0;
+// фазы ТЕКУЩЕГО кадра — копятся по ходу loop и складываются в _lastPh в конце
+let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
 // ⚠️ РАЗБОРКА КАДРА ПО ПОДСИСТЕМАМ (2026-07-31, задача владельца «игра
 // подтупливает на мобиле»). Прежний перф-метр давал кадр ОДНИМ КОМКОМ и
@@ -21,6 +23,14 @@ let seriesNextTick = 0; // троттлинг тревожного тика ок
 const fxRing = [], renRing = [], uiRing = [];
 // разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
 const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
+// снимок ОДНОГО худшего кадра (см. разбор в loop): фазы прошлого кадра + outside
+let _worstFrame = null, _wfRaw = 0, _lastPh = null;
+// ⚠️ ВТОРОЙ СНИМОК — КАДР С МАКСИМАЛЬНОЙ ПОСТРОЙКОЙ ЭФФЕКТОВ, и он нужен
+// отдельно от худшего. Замер показал, что это РАЗНЫЕ кадры: пик держит солвер,
+// а постройка садится на соседний. Вопрос «стоит ли пул эффектов» решается не
+// тоталом постройки, а тем, насколько тяжёл кадр, который её несёт: 11 мс
+// поверх 38 мс солвера — это одно, 11 мс поверх пустого кадра — совсем другое.
+let _worstBuildFrame = null, _wbBuild = 0;
 let _tapPh = { pick:0, cand:0, ghost:0 };  // фазы последнего тапа (профилировка)
 const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
@@ -351,6 +361,21 @@ function loop(){
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
     if (rawMs > perfWorstMs) perfWorstMs = rawMs;
+    // ⚠️⚠️ РАЗБОР ХУДШЕГО КАДРА ЦЕЛИКОМ (A2). p95/max отдельных колец — это
+    // максимумы РАЗНЫХ кадров, и по ним нельзя сказать, из чего сложился один
+    // плохой. Здесь снимок ОДНОГО кадра: все фазы плюс `outside` — время,
+    // которого нет НИ В ОДНОЙ моей фазе. Это не остаток от округления: туда
+    // попадают работа браузера (стиль/лейаут/композит — у нас есть DOM-капли
+    // сока с CSS-переходами), сборка мусора и планировщик rAF. Без этой
+    // колонки «кадр 107 мс» неотличим: у меня дорого или снаружи.
+    // ⚠️ Фазы берутся от ПРЕДЫДУЩЕГО кадра, и это не приблизительность:
+    // rawMs = (старт этого кадра) − (старт прошлого) = работа ПРОШЛОГО кадра
+    // + браузер + простой. Складывать его с фазами ТЕКУЩЕГО было бы враньём.
+    if (_lastPh && rawMs > _wfRaw){
+      _wfRaw = rawMs;
+      _worstFrame = Object.assign({ raw: +rawMs.toFixed(1),
+        outside: +(rawMs - _lastPh.work).toFixed(1) }, _lastPh);
+    }
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
@@ -393,6 +418,7 @@ function loop(){
     if (perfFrames > 5){
       _pushRing(stepRing, stepMsLast);
       _pushRing(solveRing, stepSolveMs); _pushRing(syncRing, stepSyncMs); _pushRing(subRing, stepSubsteps);
+      _phStep = stepMsLast; _phSolve = stepSolveMs; _phSync = stepSyncMs; _phSub = stepSubsteps;
     }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
@@ -417,7 +443,8 @@ function loop(){
   const _tFx = performance.now();
   stepFX(dt);
   const _tUi = performance.now();
-  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); const _tm = tapMsTake(); _pushRing(tapRing, _tm);
+  if (perfFrames > 5){ _phFx = _tUi - _tFx; _phBuild = fxBuildTake(); const _tm = tapMsTake();
+    _phTap = _tm; _pushRing(fxRing, _phFx); _pushRing(buildRing, _phBuild); _pushRing(tapRing, _tm);
     // ⚠️ фазы держим от ПОСЛЕДНЕГО НАСТОЯЩЕГО тапа: перезапись каждым
     // кадром затирала их нулями с кадров без тапа, и разборка читалась
     // как «выбор 0 + кандидаты 0 + призрак 0» при ненулевом итоге
@@ -660,7 +687,7 @@ function loop(){
   // ⚠️ ui = ВСЁ между stepFX и рендером (вуаль/тонировка/глаза/камера/HUD).
   // Меряем здесь, а не по кускам: цель разборки — найти ГЛАВНОГО едока, а не
   // расписать тик глаз до микросекунды. Понадобится дробить — дробить тогда.
-  if (perfFrames > 5) _pushRing(uiRing, performance.now() - _tUi);
+  if (perfFrames > 5){ _phUi = performance.now() - _tUi; _pushRing(uiRing, _phUi); }
   const _tRen = performance.now();
   renderer.render(scene, camera);
   // ⚠️ ЭТО НЕ ВРЕМЯ GPU. renderer.render отдаёт команды и возвращается; настоящая
@@ -668,7 +695,17 @@ function loop(){
   // СЦЕНЫ И ДРАЙВЕРНЫЕ ВЫЗОВЫ (draw calls, загрузку буферов частиц) — на мобиле
   // это и есть основной CPU-налог рендера. Настоящий GPU-таймлайн headless не
   // отдаёт; для него нужен реальный телефон.
-  if (perfFrames > 5) _pushRing(renRing, performance.now() - _tRen);
+  if (perfFrames > 5){
+    _phRen = performance.now() - _tRen;
+    _pushRing(renRing, _phRen);
+    // фазы ЭТОГО кадра — их прочтёт следующий, когда узнает свой rawMs
+    _lastPh = { work: +(performance.now() - now).toFixed(1), step: +_phStep.toFixed(1),
+      solve: +_phSolve.toFixed(1), sync: +_phSync.toFixed(1), sub: _phSub,
+      fx: +_phFx.toFixed(1), build: +_phBuild.toFixed(1), tap: +_phTap.toFixed(1),
+      ui: +_phUi.toFixed(1), ren: +_phRen.toFixed(1) };
+    if (_lastPh.build > _wbBuild){ _wbBuild = _lastPh.build; _worstBuildFrame = Object.assign({}, _lastPh); }
+    _phStep = _phSolve = _phSync = _phSub = _phFx = _phBuild = _phTap = _phUi = _phRen = 0;
+  }
 }
 
 // ---------- Отладочный API ----------
@@ -1310,7 +1347,8 @@ window.__game = {
     return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps, maxSub: maxSubsteps() };
   },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
-    fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0; },
+    fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;
+    _worstFrame = null; _wfRaw = 0; _worstBuildFrame = null; _wbBuild = 0; },
   perfStats(){
     const q = a => {
       if (!a.length) return { avg: 0, p95: 0, max: 0 };
@@ -1322,7 +1360,7 @@ window.__game = {
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
       solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
-      frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
+      frames: perfFrames, worstMs: +perfWorstMs.toFixed(1), worstFrame: _worstFrame, worstBuildFrame: _worstBuildFrame,
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
       sceneChildren: scene.children.length, fxN: fx.length,
@@ -1331,6 +1369,13 @@ window.__game = {
       domNodes: document.getElementsByTagName('*').length,
       heapMB: performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : -1 };
   },
+  // Постройка эффектов ПО ВИДАМ (A2): собственное время конструктора и число
+  // вызовов. `build` в perfStats даёт только тотал, а он складывается из
+  // очень разных статей (облако трухи против 15 осколков), и по тоталу нельзя
+  // сказать, куда целить пул. reset=true обнуляет — замер идёт окном вокруг
+  // события. ⚠️ Виды, которых нет в списке обёрток 70-fx, здесь НЕ ПОЯВЯТСЯ:
+  // молчание — это «не обёрнут», а не «бесплатно».
+  fxBreak(reset){ return fxBuildBreak(reset); },
   // отладка: телепорт предмета (постановка сцен доступности в тестах)
   place(i, x, y, z){
     const it = items[i];

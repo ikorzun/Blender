@@ -27,14 +27,61 @@ function fxParticleCount(){
 // Теперь считается ВСЯ постройка эффектов. Пара in/out УСТОЙЧИВА К ВЛОЖЕННОСТИ
 // (dissolveFX зовёт dustCloud трижды): копит только внешняя пара, иначе одно
 // облако считалось бы дважды.
+// ⚠️⚠️ РАЗБОРКА ПО ВИДАМ ЭФФЕКТА (A2, 2026-08-01) — И ЭТО ТРЕТИЙ ЗАХОД НА ОДНИ
+// И ТЕ ЖЕ ГРАБЛИ. Первая версия счётчика видела только пылевые облака; Графика
+// поймала, что осколки дают в нём НОЛЬ. Теперь то же самое случилось СНОВА:
+// с переносом набора владельца (схлопывание/распил/огонь/рикошет/колесо)
+// приехало семь новых конструкторов, и НИ ОДИН из них в счётчик не попал —
+// «постройка эффектов» опять мерила меньше, чем называла.
+// ⛔ ПРАВИЛО ОТСЮДА: НОВЫЙ КОНСТРУКТОР ЭФФЕКТА ОБЯЗАН БЫТЬ ОБЁРНУТ. Счётчик,
+// который молчит про новичка, хуже отсутствующего — он выглядит как измерение.
+// Тотал считается по ВЕРХНЕМУ уровню (двойного счёта нет), а по видам копится
+// СОБСТВЕННОЕ время: вложенные конструкторы (sparkRicochetFX -> wheelFX,
+// juiceBigFX -> screenDripsFX, dissolveFX -> dustCloud×3) вычитаются из
+// родителя. Иначе «искры 6 мс» прятали бы внутри себя цену колеса, и пул
+// поехал бы лечить не ту статью.
 let fxBuildMs = 0;
-const _fxBStack = [];
-function fxBuildIn(){ _fxBStack.push(performance.now()); }
+const fxBuildBy = {};         // вид -> { ms: собственное время, n: вызовов }
+const _fxBStack = [];         // { kind, t0, child }
+function fxBuildIn(kind){
+  _fxBStack.push({ kind: kind || 'прочее', t0: performance.now(), child: 0 });
+}
 function fxBuildOut(){
-  const t0 = _fxBStack.pop();
-  if (t0 !== undefined && _fxBStack.length === 0) fxBuildMs += performance.now() - t0;
+  const f = _fxBStack.pop();
+  if (!f) return;
+  const d = performance.now() - f.t0;
+  const parent = _fxBStack[_fxBStack.length - 1];
+  if (parent) parent.child += d; else fxBuildMs += d;
+  const b = fxBuildBy[f.kind] || (fxBuildBy[f.kind] = { ms: 0, n: 0 });
+  b.ms += d - f.child; b.n++;
+}
+// обёртка конструктора: имя вида + сама функция. try/finally обязателен —
+// исключение внутри эффекта не должно оставить стек перекошенным навсегда.
+function fxBuilt(kind, fn){
+  return function(){ fxBuildIn(kind); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
 }
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
+// ⚠️ ВСЕ конструкторы эффектов — ОДНИМ СПИСКОМ, чтобы «а этот посчитан?» был
+// вопросом на один взгляд, а не поиском по файлу. `_x_impl` — объявления
+// функций, они хойстятся, поэтому список стоит здесь, а не в конце.
+// Добавил эффект — добавь строку сюда, иначе он невидим для профиля.
+const popFX            = fxBuilt('pop',      _popFX_impl);
+const markerFX         = fxBuilt('marker',   _markerFX_impl);
+const lineFX           = fxBuilt('line',     _lineFX_impl);
+const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
+const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
+const screenDripsFX    = fxBuilt('drips',    _screenDripsFX_impl);
+const sparkRicochetFX  = fxBuilt('spark',    _sparkRicochetFX_impl);
+const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
+const sawFX            = fxBuilt('saw',      _sawFX_impl);
+const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
+const boltFX           = fxBuilt('bolt',     _boltFX_impl);
+function fxBuildBreak(reset){
+  const out = {};
+  for (const k in fxBuildBy) out[k] = { ms: +fxBuildBy[k].ms.toFixed(2), n: fxBuildBy[k].n };
+  if (reset) for (const k in fxBuildBy) delete fxBuildBy[k];
+  return out;
+}
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
 }
@@ -89,13 +136,13 @@ function fresnelGhostMat(color, base, edge, fpow){
     ].join('\n'),
   });
 }
-function popFX(pos){
+function _popFX_impl(pos){
   const g = new THREE.SphereGeometry(0.2, 10, 8);
   const m = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.9 });
   const mesh = new THREE.Mesh(g, m); mesh.position.copy(pos);
   addFX(mesh, 0.35, (o,k)=>{ o.scale.setScalar(1+k*6); o.material.opacity = 0.9*(1-k); });
 }
-function markerFX(pos, color){
+function _markerFX_impl(pos, color){
   // мягкая пульсирующая сфера-призрак — указывает на скрытую пару
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 18), fresnelGhostMat(color, 0.1, 0.5));
   mesh.position.copy(pos); mesh.renderOrder = 11;
@@ -104,7 +151,7 @@ function markerFX(pos, color){
     o.material.uniforms.op.value = 1-k;
   });
 }
-function lineFX(a, b, color){
+function _lineFX_impl(a, b, color){
   const g = new THREE.BufferGeometry().setFromPoints([a.clone(), b.clone()]);
   const m = new THREE.LineDashedMaterial({ color, transparent:true, opacity:0.95, depthTest:false, dashSize:0.3, gapSize:0.15 });
   const line = new THREE.Line(g, m); line.computeLineDistances(); line.renderOrder = 11;
@@ -126,7 +173,7 @@ const DUST_FRACTIONS = [
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
-  fxBuildIn();
+  fxBuildIn('dust');
   const life = 1.0;
   const start = new Float32Array(COUNT*3), vel = new Float32Array(COUNT*3), cols = new Float32Array(COUNT*3);
   for (let i=0;i<COUNT;i++){
@@ -223,7 +270,7 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-function juiceFX(it){ fxBuildIn(); try { return _juiceFX_impl(it) } finally { fxBuildOut(); } }
+const juiceFX = fxBuilt('juice', _juiceFX_impl);
 function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -252,7 +299,7 @@ function _juiceFX_impl(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-function sparkFX(it){ fxBuildIn(); try { return _sparkFX_impl(it) } finally { fxBuildOut(); } }
+const sparkFX = fxBuilt('spark', _sparkFX_impl);
 function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -293,7 +340,7 @@ function _sparkFX_impl(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-function starPopFX(it){ fxBuildIn(); try { return _starPopFX_impl(it) } finally { fxBuildOut(); } }
+const starPopFX = fxBuilt('star', _starPopFX_impl);
 function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -365,7 +412,7 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-function shardFX(pos, color, opts){ fxBuildIn(); try { return _shardFX_impl(pos, color, opts) } finally { fxBuildOut(); } }
+const shardFX = fxBuilt('shard', _shardFX_impl);
 function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
@@ -407,7 +454,7 @@ function _shardFX_impl(pos, color, opts){
 // часы на «предметы исчезли» и «бабахнуло» — единственный устойчивый вариант.
 // ⚠️ Тела к этому моменту УЖЕ снесены (destroyItemBody в начале doMatch), так
 // что анимации мешей не с кем спорить; глушить нечего.
-function collapseFX(list, at){
+function _collapseFX_impl(list, at){
   const P = at.clone();
   const src = [];
   for (const it of list){
@@ -428,7 +475,7 @@ function collapseFX(list, at){
 
 // ЕДА: меньше капель, но КРУПНЫХ, плюс несколько попадают «на стекло экрана».
 // Именно это читается как сочность: игрок видит, что брызнуло В НЕГО.
-function juiceBigFX(it){
+function _juiceBigFX_impl(it){
   const N = Math.max(8, Math.round(JUICE_N * CFG.fxScale)), LIFE = 0.85;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -463,7 +510,7 @@ function juiceBigFX(it){
 // трактуется как прозрачный ЧЁРНЫЙ. Полоса капель на весь экран отравила бы
 // тинт кромок. Держим её в СРЕДНЕЙ трети, кромок кадра она не касается.
 let _dripBox = null;
-function screenDripsFX(color, n){
+function _screenDripsFX_impl(color, n){
   if (!_dripBox){
     _dripBox = document.createElement('div');
     _dripBox.id = 'juiceDrips';
@@ -494,7 +541,7 @@ function screenDripsFX(color, n){
 // мира. Отскок привязывает эффект к чаше.
 // ⚠️ ОТСКОК АНАЛИТИЧЕСКИЙ, по radiusAt(y) — никаких коллайдеров и тел:
 // правило пакета «куски эффектов остаются анимацией» (00-config).
-function sparkRicochetFX(it){
+function _sparkRicochetFX_impl(it){
   const N = Math.max(10, Math.round(SPARK_N * CFG.fxScale)), LIFE = 0.6, S0 = 0.24;
   const pos = new Float32Array(N*3), st = [];
   for (let i = 0; i < N; i++){
@@ -530,7 +577,7 @@ function sparkRicochetFX(it){
 }
 // Колесо: отлетает, падает, ложится и УКАТЫВАЕТСЯ, теряя ход. Мелочь, которая
 // превращает «искры» в «что-то отвалилось».
-function wheelFX(it){
+function _wheelFX_impl(it){
   const R = 0.13, LIFE = 1.5;
   const w = new THREE.Mesh(new THREE.CylinderGeometry(R, R, R*0.55, 14),
     new THREE.MeshBasicMaterial({ color: 0x2c3038, transparent: true, opacity: 1 }));
@@ -579,7 +626,7 @@ function sawVisualMat(src){
   if (src.isMeshMatcapMaterial){ o.matcap = src.matcap || null; return new THREE.MeshMatcapMaterial(o); }
   return new THREE.MeshBasicMaterial(o);
 }
-function sawFX(item){
+function _sawFX_impl(item){
   const mesh = item.mesh, p0 = mesh.position.clone();
   const a = Math.random()*Math.PI;
   const nrm = new THREE.Vector3(Math.cos(a), SAW_TILT, Math.sin(a)).normalize();
@@ -613,7 +660,7 @@ function sawFX(item){
 // ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
 // свой список fires и свой тик из 99-main. Возвращает функцию тушения.
 const fires = [];
-function fireSilhouetteFX(item){
+function _fireSilhouetteFX_impl(item){
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { t: { value: 0 }, op: { value: 1 } },
@@ -747,7 +794,7 @@ function boltMat(color, opacity){
   if (m){ m.color.setHex(color); m.opacity = opacity; return m; }
   return new THREE.MeshBasicMaterial({ color, transparent:true, opacity, depthTest:false });
 }
-function boltFX(a, b){
+function _boltFX_impl(a, b){
   // ⚠️ СКРЫТО ФЛАГОМ, НЕ УДАЛЕНО (спека владельца 2026-07-28): вход в турбо
   // теперь отмечается ПОДБРОСОМ кучи, а не разрядами. Весь механизм молний
   // (ветвление, слияние филаментов, free-list материалов) остаётся рабочим —
