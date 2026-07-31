@@ -129,7 +129,9 @@ function doMatch(list){
   // (ап ступени и жирные очки приходят одним моментом); событие всплывашки
   // (onAccTierUp) кидает accAdd в момент пересечения (спека владельца).
   const typeName = list[0].type.name;
+  const _ta0 = performance.now();
   accAdd(typeName, n, list[0]);
+  tapAccMs += performance.now() - _ta0;      // накопление типа + запись сейва
   // ⚠️ Купленный бустер — ПОСЛЕДНИЙ множитель стека (комбо ×2 × накопление до
   // ×3.25 × бустер до ×5). ⚠️ ШТРАФЫ ОН ТОЖЕ МНОЖИТ (решение владельца
   // 2026-07-28, единая точка scorePenalty выше) — прежняя оговорка «наказание
@@ -143,6 +145,7 @@ function doMatch(list){
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
+  const _tf0 = performance.now();
   popFX(mid);
   // «ПУНКТ 5» (спека владельца 2026-07-21): разнообразие эффектов ПРАВИЛОМ.
   // Пара/тройка — труха как раньше; группа >= BURST_MIN_N ЛОПАЕТСЯ эффектом
@@ -159,14 +162,18 @@ function doMatch(list){
   const boomGhost = { p: boomAt, r: list[0].r * 1.25, type: list[0].type,
                       fxColor: list[0].fxColor, baseColor: list[0].baseColor };
   collapseFX(list, boomAt);
-  if (burst) blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
+  if (burst){ const _tw0 = performance.now(); blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
+    tapWaveMs += performance.now() - _tw0; }
   // цифра — деноминированный прирост чипа (#10: «понятно и в процессе»);
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
+  tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков
   // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
+  const _ts0 = performance.now();
   Sound.play('match', { n, k: comboHot ? comboCount : 0 });
   vibrate(15);
+  tapSndMs += performance.now() - _ts0;      // синтез «буля» + вибро
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
   setTimeout(()=>afterPause(()=>{
     // ⚠️ ХЛОПОК ЗДЕСЬ, НА ТЕХ ЖЕ ЧАСАХ, ЧТО И УДАЛЕНИЕ. Стягивание идёт по
@@ -558,9 +565,22 @@ const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
 // только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
 // Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
 // призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
-let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0, tapDestroyMs = 0;
-const tapPhasesTake = () => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs, destroy: tapDestroyMs };
-  tapPickMs = tapCandMs = tapGhostMs = tapDestroyMs = 0; return v; };
+let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0, tapDestroyMs = 0, tapWaveMs = 0;
+let tapAccMs = 0, tapFxMs = 0, tapSndMs = 0;
+// ⚠️ `rest` СЧИТАЕТСЯ, А НЕ ЗАМЕРЯЕТСЯ, и это не лень: он ловит ВСЁ, чего нет
+// в названных фазах (очки, звук, вибро, накопление, сейв, попы). Пока он мал —
+// искать там нечего; вырастет — значит появилась новая статья, и вот тогда её
+// и разбирать. Именованные фазы без остатка всегда врут на новом коде.
+// ⚠️ ИТОГ ПЕРЕДАЁТСЯ АРГУМЕНТОМ, А НЕ ЧИТАЕТСЯ ИЗ tapMs: в loop сначала идёт
+// `tapMsTake()`, и он ОБНУЛЯЕТ tapMs — читая его здесь, остаток всегда выходил
+// бы нулём. Ровно тот класс, где страж зелен, потому что меряет пустоту.
+const tapPhasesTake = (total) => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs,
+    destroy: tapDestroyMs, wave: tapWaveMs, acc: tapAccMs, fx: tapFxMs, snd: tapSndMs };
+  v.rest = +Math.max(0, (total || 0) - (tapPickMs + tapCandMs + tapGhostMs + tapDestroyMs
+    + tapWaveMs + tapAccMs + tapFxMs + tapSndMs)).toFixed(2);
+  for (const k in v) v[k] = +(+v[k]).toFixed(2);
+  tapPickMs = tapCandMs = tapGhostMs = tapDestroyMs = tapWaveMs = 0;
+  tapAccMs = tapFxMs = tapSndMs = 0; return v; };
 function handleTap(x, y){
   const _tap0 = performance.now();
   try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
