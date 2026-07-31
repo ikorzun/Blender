@@ -493,6 +493,13 @@
   .vmult { font-family:var(--font-round); font-size:16px; font-weight:900;
     color:#3a4068; flex:none; margin-left:4px; padding:8px 6px;
     box-sizing:border-box; text-align:center;
+    /* ⚠️ КРАЯ ВЫРОВНЕНЫ (вердикт владельца 2026-07-31 «края выровняй»):
+       min-width, а НЕ фикс-ширина. Короткие значения («×1») встают в общую
+       ширину и правые края совпадают, длинные («×3.25») её перерастают —
+       обрезки, из-за которой владелец и написал «множитель не влезает», не
+       случится ни при каком значении. 56 = прежняя фикс-ширина: на ней края
+       и были выровнены, теперь это ПОЛ, а не потолок. */
+    min-width:56px;
     background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ⚠️ ВЕЧЕР/НОЧЬ = ТЁМНАЯ ТЕМА (макеты 776:649/776:701). Сигнал html.night —
      тот же, что у Shake и выбора неба (updateHUD по часам). День оставлен
@@ -542,7 +549,12 @@
   html.night #tierToast { background:rgba(0,0,0,.2); box-shadow:none; }
   .ttRow { display:flex; align-items:center; gap:12px; }
   #ttImg { width:44px; height:44px; object-fit:cover; flex:none; }
-  #ttMult { width:87px; padding:8px 12px; border-radius:32px; background:#c0ff47;
+  /* ⚠️ ФИКС-ШИРИНЫ 87 БОЛЬШЕ НЕТ (вердикт владельца «тост правь» — та же
+     правка, что чипсе витрины; расхождение с макетом 776:701 санкционировано
+     его словом). Замер до правки: «×1.25» шире внутренней коробки на 1px,
+     «×3.25» на 4.5px — при text-align:center вылезало в обе стороны.
+     Паддинги фикс, ширина по содержимому, min-width держит общий край. */
+  #ttMult { min-width:87px; padding:8px 12px; border-radius:32px; background:#c0ff47;
     font-family:var(--font-round); font-size:23px; font-weight:900; color:#000;
     /* line-height ЯВНО 27: в макете строка 27 (бейдж 43 = 8+27+8), но
        normal у шрифта-фолбэка (ui-rounded/system-ui) даёт 30 и высота
@@ -744,9 +756,6 @@
   /* хедер */
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
-  /* заголовок залипшей шапки — по умолчанию скрыт (см. мобильный блок ниже) */
-  .ms-head-title { display:none; font-size:20px; font-weight:900; color:#000;
-    white-space:nowrap; padding-left:4px; }
   /* слот профиля: аватар + имя (под будущий Google-профиль) */
   .ms-prof { display:flex; align-items:center; gap:10px; min-width:0; }
   .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
@@ -769,7 +778,11 @@
      переполняло ряд, а ЛОМАЛО «Get More» на две строки — ряд формально
      «влезал», фит-чек не срабатывал. Теперь не влезающее число даёт честное
      переполнение, и setWalletNumber откатывается в сокращение. */
-  .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#000; color:#fff;
+  /* ⚠️ ЛАЙМ С ЧЁРНЫМ ТЕКСТОМ — нода 815:1512, И НА ДЕСКТОПЕ ТОЖЕ (вердикт
+     владельца 2026-07-31 «лайм и на десктопе»). Была чёрная с белым из более
+     старой ноды; сперва лайм стоял только в мобильном медиазапросе, теперь
+     правило одно на обе раскладки — отдельного десктопного цвета больше нет. */
+  .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#c0ff47; color:#000;
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
   /* баннер No more AD */
@@ -877,63 +890,12 @@
     .ms-coll-title { order:4; }
     .ms-coll { order:5; }
     .ms-dev { order:6; }
-    /* ⚠️⚠️ ЗАЛИПАЮЩАЯ ШАПКА (спека владельца 2026-07-31 «при прокрутке шапка
-       должна залипать сверху и выглядеть вот так», нода 815:1506).
-       Само залипание делает ОДНО свойство `position:sticky` — класса для него
-       не нужно; класс `.stuck` меняет только ВИД (нода показывает шапку уже
-       прокрученной: вместо аватара с именем — заголовок).
-       ⚠️ `top` с safe-area: под чёлкой iOS иначе прилипало бы под вырез.
-       ⚠️ Прокручивается `#mainScreen` (у него overflow-y:auto), а `.ms-wrap` —
-       обычная колонка; sticky работает от неё как от контейнера. */
-    .ms-head { position:sticky; top:calc(8px + env(safe-area-inset-top,0)); z-index:3; }
-    /* ЧИСЛА ЗАЛИПШЕГО СОСТОЯНИЯ — из ноды 815:1506: пилюля 48 высотой,
-       падинги 12/4/4, заголовок 20/900, ★ 16 и баланс 18/900. */
-    /* ⚠️⚠️⚠️ ВЫСОТА В ПОТОКЕ НЕ МЕНЯЕТСЯ — ЭТО НЕСУЩЕЕ, А НЕ КОСМЕТИКА.
-       Первая версия ужимала шапку 72→48 прямо в потоке, и МЕНЮ ПЕРЕСТАВАЛО
-       ПРОКРУЧИВАТЬСЯ В BLINK: Chrome компенсирует усадку своим scroll
-       anchoring (вычитает те же 24px из scrollTop), scrollTop падает ниже
-       порога класса, класс снимается, шапка отрастает — и так по кругу.
-       ЗАМЕР: колесо 8px ×10 давало scrollTop [0,0,0,0,0,0,0,0,0,0] против
-       [8,16,…,72] на базе; настоящим пальцем ход 0 против 225. В WebKit
-       такого механизма нет — на iOS дефект НЕ ВИДЕН, ловится только в Chrome.
-       Поэтому коробка остаётся 72 в ОБОИХ состояниях, а меняется лишь то, что
-       ВНУТРИ: пилюля 48 по центру (`::before` с inset 12) и падинги под неё.
-       ⚠️ `top` уезжает на −4, чтобы ПИЛЮЛЯ встала ровно на 8, как в макете:
-       коробка выше пилюли на 12 сверху. Заодно её фон закрывает полосу над
-       пилюлей — отдельная тень для зазора больше не нужна. */
-    #mainScreen.stuck .ms-head { padding:16px 4px 16px 12px; min-height:72px;
-      top:calc(-4px + env(safe-area-inset-top,0));
-      /* сам узел — подложка цвета экрана: у пилюли радиус 1000, и уезжающий
-         контент просвечивал СКВОЗЬ ВЫРЕЗЫ СКРУГЛЁННЫХ УГЛОВ (поймано скрином).
-         Одним фоном не лечится — фон один и обрезан тем же радиусом. */
-      background:var(--ms-bg); border-radius:0; }
-    /* белая пилюля ноды 815:1506 — 48 по центру коробки 72; z-index:-1 кладёт
-       её ПОД содержимое шапки, но НАД её собственным фоном */
-    #mainScreen.stuck .ms-head::before { content:''; position:absolute; z-index:-1;
-      inset:12px 0; background:#fff; border-radius:1000px; }
-    /* ⚠️ ОТДЕЛЬНОЙ ПОЛОСЫ НАД ШАПКОЙ БОЛЬШЕ НЕТ: коробка сама выше пилюли на
-       12px и закрашена цветом экрана, поэтому зазор закрыт ею. Прежние версии
-       (псевдоэлемент, затем тень) снялись вместе с усадкой. ⚠️ Псевдоэлемент
-       ТУДА НЕ ВОЗВРАЩАТЬ: торчащий вправо ребёнок добавляет `.ms-head`
-       переполнение, а по нему `setWalletNumber` решает, сокращать ли баланс —
-       точное число молча схлопывалось в «12.5K». */
-    #mainScreen.stuck .ms-prof { display:none; }
-    /* ⚠️ min-width:0 + обрезка: без них заголовок с `white-space:nowrap` не
-       ужимался, ряд переполнялся и на 320px ★-баланс с «Get More» уезжали за
-       край экрана — у меню появлялась ГОРИЗОНТАЛЬНАЯ прокрутка (замер: правый
-       край на 47px за экраном при балансе 166500). Ужимается ЗАГОЛОВОК, а не
-       числа: терять цифры кошелька нельзя. */
-    #mainScreen.stuck .ms-head-title { display:block; min-width:0;
-      overflow:hidden; text-overflow:ellipsis; }
-    #mainScreen.stuck .ms-stars span { font-size:18px; }
-    #mainScreen.stuck .ms-stars svg { width:16px; height:16px; }
-    /* высота кнопки ровно 40 — иначе пилюля 48 при падингах 4 не сходится */
-    #mainScreen.stuck .ms-getmore { height:40px; padding:0 16px; }
-    /* ⚠️ «Get More» ЛАЙМОВАЯ С ЧЁРНЫМ ТЕКСТОМ — нода 815:1512. Была чёрная с
-       белым (из более старой ноды); действует правило «новая нода побеждает».
-       Ставим в ОБОИХ состояниях шапки: если красить только залипшую, кнопка
-       меняла бы цвет на прокрутке. Десктоп пока не трогаем — нода мобильная. */
-    .ms-getmore { background:#c0ff47; color:#000; }
+    /* ⛔ ЗАЛИПАНИЕ `.ms-head` ОТМЕНЕНО СПЕКОЙ ВЛАДЕЛЬЦА 2026-07-31: «плавающая
+       шапка появляется ТОЛЬКО когда блок My Collection уходит за границу
+       верхнего вью». Профильная пилюля снова едет с потоком, а компактную
+       шапку ноды 815:1506 рисует ОТДЕЛЬНЫЙ узел `#msSticky` (см. ниже).
+       ⚠️ Заодно ушёл весь риск scroll anchoring: в потоке больше ничего не
+       меняет высоту, а именно это ломало прокрутку в Blink. */
     /* ПЛАВАЮЩАЯ КНОПКА показывается, только когда карточка Play уехала вверх */
     #mainScreen.playoff .ms-float { display:block; animation:msFloatIn .28s ease-out both; }
     /* ⚠️ И ПОД НЕЙ ОСВОБОЖДАЕМ ПОЛОСУ: кнопка `fixed`, поэтому места в потоке
@@ -942,6 +904,43 @@
        76 = 60 высоты кнопки + 8 её отступа + 8 базовых. */
     #mainScreen.playoff .ms-wrap { padding-bottom:calc(76px + env(safe-area-inset-bottom,0)); }
   }
+  /* ===== ПЛАВАЮЩАЯ ШАПКА (нода 815:1506) — спека владельца 2026-07-31:
+     «появляется ТОЛЬКО когда блок My Collection уходит за границу верхнего
+     вью. Появляется сверху быстро, но плавно».
+     ⚠️ ОТДЕЛЬНЫЙ УЗЕЛ, А НЕ ЗАЛИПАНИЕ `.ms-head`. Липкая шапка по построению
+     прилипает СРАЗУ, как только доедет до своего `top` — «только когда» ею не
+     выражается. Плюс прошлая попытка ужимала шапку в потоке и ломала прокрутку
+     в Blink (scroll anchoring); отдельный `fixed`-узел потока не касается
+     вовсе, поэтому тот класс дефектов закрыт по построению.
+     ⚠️ ФОН УЗЛА — ЦВЕТ ЭКРАНА, а не прозрачный: у пилюли радиус 1000, и сквозь
+     ВЫРЕЗЫ её скруглённых углов был бы виден уезжающий контент (уже ловила
+     скрином). Он же даёт Safari честный тинт верхней полосы.
+     ⚠️ ВХОД ПЕРЕХОДОМ, А НЕ АНИМАЦИЕЙ: перехват на полпути должен разворачивать
+     движение, а не доигрывать кадр — шапка появляется и прячется по прокрутке
+     в обе стороны. 0.22s — «быстро, но плавно». */
+  /* ⚠️ ПРЯЧЕТСЯ СДВИГОМ, А НЕ display: узел всегда в раскладке, просто уехал
+     за верх экрана. Через display переход бы не проигрался — с display:none
+     анимировать нечего, шапка появлялась бы скачком. */
+  #msSticky { position:fixed; top:0; left:0; right:0; z-index:31;
+    padding:calc(8px + env(safe-area-inset-top,0)) 16px 8px;
+    background:var(--ms-bg); pointer-events:none;
+    transform:translateY(-100%); transition:transform .22s ease-out; }
+  #msSticky.on { transform:translateY(0); }
+  #msSticky .ms-sticky-in { max-width:700px; margin:0 auto; box-sizing:border-box;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#fff; border-radius:1000px; padding:4px 4px 4px 12px;
+    min-height:48px; pointer-events:auto; }
+  #msSticky .ms-sticky-t { font-family:var(--font-round); font-size:20px;
+    font-weight:900; color:#000; white-space:nowrap;
+    /* ужимается ЗАГОЛОВОК, а не цифры кошелька — см. историю с 320px */
+    min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  #msSticky .ms-sticky-r { display:flex; align-items:center; gap:12px; flex:none; }
+  #msSticky .ms-stars span { font-size:18px; }
+  #msSticky .ms-stars svg { width:16px; height:16px; }
+  #msSticky .ms-getmore { height:40px; padding:0 16px; }
+  @media (prefers-reduced-motion:reduce){ #msSticky { transition:none; } }
+  /* десктопная раскладка бенто плавающей шапки не знает */
+  @media (min-width:1080px){ #msSticky { display:none !important; } }
   /* ПЛАВАЮЩАЯ КНОПКА — нода 815:1521: чёрная пилюля, радиус 1500, поля 24,
      высота 60, подпись 24/900 белым. Поле снизу 8 (в макете 761−693−60=8).
      ⚠️ Отступ считается ОТ safe-area: кнопка не должна залезать в полосу
@@ -1608,12 +1607,6 @@
     <div class="ms-collhead">
       <h2 class="ms-coll-title">My collection</h2>
       <header class="ms-head">
-      <!-- ЗАГОЛОВОК ДЛЯ ЗАЛИПШЕЙ ШАПКИ (нода 815:1506). Виден ТОЛЬКО когда
-           шапка залипла: в ноде на её месте стоит «My collection», а аватар с
-           именем не показаны. Отдельный узел, а не перенос `.ms-coll-title`:
-           тот живёт в потоке над сеткой и на десктопе стоит в ряду профиля —
-           таскать его скроллом значило бы дёргать раскладку. -->
-      <span class="ms-head-title">My collection</span>
       <!-- МЕСТО ПОД GOOGLE-ПРОФИЛЬ (решение владельца 2026-07-23: «нужна
            авторизация через гугл для сохранения прогресса»). Пока плейсхолдер
            аватар+имя; саму авторизацию исследует ИНТЕГРАЦИЯ (на портале Google
@@ -1683,6 +1676,27 @@
        кнопка на месте и дубль был бы шумом. Подпись ведёт тот же писатель,
        что и у `#msPlayBtn` (refreshMainScreen) — источник роли один. -->
   <button class="ms-float" id="msFloatResume">Resume</button>
+</div>
+<!-- ПЛАВАЮЩАЯ ШАПКА (нода 815:1506, спека владельца «появляется ТОЛЬКО когда
+     блок My Collection уходит за границу верхнего вью»). Отдельный узел, а не
+     залипание профильной пилюли: «только когда» липкостью не выражается — та
+     прилипает сразу, как доедет до своего top.
+     ⚠️ БАЛАНС ЗДЕСЬ — ЗЕРКАЛО. Живой узел `#msStars` один (его пишет
+     `setWalletNumber`), дублировать id нельзя, поэтому у зеркала свой id, а
+     ПИСАТЕЛЬ ОСТАЁТСЯ ОДИН — та же строка refreshMainScreen пишет оба.
+     ⚠️ Кнопка тоже зеркало: её клик уходит в НАСТОЯЩИЙ `#msGetMore`, чтобы
+     обработчик и все его гварды жили в одном месте. -->
+<div id="msSticky" aria-hidden="true">
+  <div class="ms-sticky-in">
+    <span class="ms-sticky-t">My collection</span>
+    <div class="ms-sticky-r">
+      <div class="ms-stars">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2.4l2.9 5.88 6.5.94-4.7 4.58 1.11 6.46L12 17.7l-5.81 3.06 1.11-6.46-4.7-4.58 6.5-.94z" fill="#ffc300"/></svg>
+        <span id="msStars2">0</span>
+      </div>
+      <button class="ms-getmore" id="msGetMore2">Get More</button>
+    </div>
+  </div>
 </div>
 
 <div id="fatal" style="display:none; position:fixed; inset:0; z-index:99; background:#171c26; padding:40px 24px; font-size:14px; line-height:1.5; overflow:auto;"></div>

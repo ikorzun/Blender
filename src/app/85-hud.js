@@ -1194,8 +1194,13 @@ function refreshMainScreen(){
   // ⚠️ НЕ totalStars: сумма рейтинга уровней живёт отдельно и не тратится —
   // показывать её как валюту было бы враньём.
   const st = $('msStars');
-  setWalletNumber(st, typeof liveBalance === 'function' ? liveBalance()
-                    : (typeof starBalance === 'function' ? starBalance() : 0));
+  const бал = typeof liveBalance === 'function' ? liveBalance()
+              : (typeof starBalance === 'function' ? starBalance() : 0);
+  setWalletNumber(st, бал);
+  // ЗЕРКАЛО В ПЛАВАЮЩЕЙ ШАПКЕ — ТОТ ЖЕ ПИСАТЕЛЬ. Отдельный расчёт завёл бы
+  // второй источник одного числа: они разъезжаются на первом же начислении.
+  const st2 = $('msStars2');
+  if (st2) setWalletNumber(st2, бал);
   // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
   const btn = $('msPlayBtn');
   const роль = (!level || level.over) ? 'Play Game' : 'Resume';
@@ -1231,7 +1236,8 @@ function openMainScreen(){
   // 0). Классы снимаем ЯВНО: scrollTop=0 события scroll не рождает.
   if (!ms.classList.contains('open')){
     ms.scrollTop = 0;
-    ms.classList.remove('stuck', 'playoff');
+    ms.classList.remove('playoff');
+    const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
