@@ -3824,6 +3824,72 @@ window.bridge = {
     '⚠️ ДВУСТОРОННЕ: на светлом небе метрика ПАДАЕТ ниже пола — ' + sab.ratio +
     ' < ' + HUD_FLOOR.day + ' (на исправной палитре было ' + hudSeen.day.eyes.ratio + ')');
   await sabPage.close();
+  // ===== ЭФФЕКТЫ ВЫБОРА ВЛАДЕЛЬЦА 2026-08-01: СХЛОПЫВАНИЕ / РАСПИЛ / ОГОНЬ =====
+  // ⚠️ ГЛАВНЫЙ СТРАЖ ЗДЕСЬ — ПРО КАТАСТРОФУ, А НЕ ПРО КРАСОТУ. У половин распила
+  // и у накладки огня геометрия ОБЩАЯ с предметом, а у предметов она общая НА
+  // ТИП (кэш 30-shapes). stepFX диспозит геометрию догоревшего эффекта — если
+  // флаг keepGeo потеряется, первый же помол погасит ВСЕ предметы этого типа в
+  // куче, и заметить это можно только глазами на живой игре.
+  const fxPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  fxPage.on('pageerror', e => errors.push('PAGEERROR(fx): ' + e.message));
+  await fxPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await fxPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await fxPage.evaluate(() => window.__game.skipIntro());
+  await new Promise(r => setTimeout(r, 700));
+  const fx0 = await fxPage.evaluate(() => { const s = window.__game.perfStats();
+    return { ...window.__game.fxProbe(), geoms: s.geoms, sceneChildren: s.sceneChildren }; });
+  // ПОМОЛ: гоним несколько раз и смотрим, целы ли геометрии ОСТАВШИХСЯ предметов
+  await fxPage.evaluate(() => { for (let i = 0; i < 3; i++) window.__game.grindNow(); });
+  await new Promise(r => setTimeout(r, 2600));
+  const fx1 = await fxPage.evaluate(() => { const s = window.__game.perfStats();
+    return { ...window.__game.fxProbe(), geoms: s.geoms, sceneChildren: s.sceneChildren }; });
+  // ⛔ ЗДЕСЬ БЫЛ АССЕРТ «распил не убил общую геометрию типа» — СНЯТ КАК
+  // ТАВТОЛОГИЧНЫЙ. Двусторонний прогон показал, что он НЕ КРАСНЕЕТ на сломанной
+  // сборке: со снятым keepGeo кадр отличается от исправного на те же 6.2%, а
+  // attributes.position.count цел — three не стирает атрибуты при dispose.
+  // Проверять надо то, что действительно ломается: половины не должны оставаться
+  // в сцене, а накладка огня — на предмете.
+  // ⚠️ ОСТАНАВЛИВАЕМ МИКСЕР ДЕЙСТВИЕМ ПЕРЕД ЗАМЕРОМ, иначе меряем МОМЕНТ, а не
+  // состояние: помол продолжается сам каждые 2 с, половины живут SAW_LIFE=0.75 с,
+  // и в кадре замера всегда может лететь свежая пара. Этот ассерт дважды прошёл
+  // по везению и упал на третьем прогоне — ровно та ошибка, которую канон
+  // называет «поймал момент, а не состояние». Встряска сбрасывает lastAction.
+  await fxPage.evaluate(() => window.__game.shake());
+  await new Promise(r => setTimeout(r, 1800));
+  const halves = await fxPage.evaluate(() => window.__game.fxProbe().halves);
+  expect(halves === 0,
+    'РАСПИЛ: половины ушли из сцены, сирот нет (осталось ' + halves + ')');
+  // ⚠️ УТЕЧКУ МЕРИМ РОСТОМ МЕЖДУ ДВУМЯ ЗАМЕРАМИ, А НЕ ПОТОЛКОМ. Две прежние
+  // версии этого ассерта падали на ИСПРАВНОЙ сборке: миксер, начав молоть,
+  // продолжает сам, и в сцене всегда живёт пыль очередного помола — сколько
+  // именно, зависит от того, насколько он занят. Это не утечка, а работа.
+  // Настоящий признак утечки — НАКОПЛЕНИЕ: если геометрии текут, второй замер
+  // будет заметно больше первого при той же нагрузке.
+  await new Promise(r => setTimeout(r, 3000));
+  const fx1b = await fxPage.evaluate(() => window.__game.perfStats().geoms);
+  expect(fx1b <= fx1.geoms + 6,
+    'РАСПИЛ не копит геометрии: за 3 с непрерывного помола ' + fx1.geoms + ' -> ' + fx1b);
+  // ОГОНЬ: накладка-ребёнок, материал предмета не тронут, тушение дренирует
+  const ign = await fxPage.evaluate(() => window.__game.ignite());
+  expect(!!ign && ign.fires === 1, 'ОГОНЬ: зажёгся (' + JSON.stringify(ign) + ')');
+  await new Promise(r => setTimeout(r, 300));
+  const burn = await fxPage.evaluate(() => {
+    const p = window.__game.fxProbe();
+    return { fires: p.fires, детей: p.kidsTotal, макс: p.kidsMax };
+  });
+  expect(burn.fires === 1 && burn.детей === 1 && burn.макс === 1,
+    '⚠️ ОГОНЬ — НАКЛАДКА-РЕБЁНОК, А НЕ ПРАВКА МАТЕРИАЛА (иначе просочится в портреты ' +
+    'коллекции — грабля двух потребителей uVeil): горит ' + burn.fires + ', предметов с детьми ' + burn.детей);
+  await fxPage.evaluate(() => window.__game.extinguish());
+  await new Promise(r => setTimeout(r, 900));
+  const fx2 = await fxPage.evaluate(() => { const s = window.__game.perfStats();
+    return { ...window.__game.fxProbe(), geoms: s.geoms, sceneChildren: s.sceneChildren }; });
+  expect(fx2.fires === 0 && fx2.kidsTotal === 0,
+    'ОГОНЬ: потушен и накладка снята (горит ' + fx2.fires + ')');
+  expect(fx2.geoms <= fx1b + 6,
+    'ОГОНЬ: тушение не оставило геометрий (' + fx1b + ' -> ' + fx2.geoms + ')');
+  await fxPage.close();
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

@@ -48,7 +48,16 @@ function stepFX(dt){
       // Скомпилированные ПРОГРАММЫ при этом не умирают: их держат вечные
       // якоря fxProgramAnchors (низ файла) — без них three пересобирал шейдер
       // на каждом первом тапе/молнии после простоя (джанк на слабых)
-      if (f.obj.geometry) f.obj.geometry.dispose();
+      // ⚠️ keepGeo — у половин распила и у накладки огня геометрия ОБЩАЯ с
+      // предметом (кэш типа в 30-shapes). Диспозить чужое нельзя: владелец
+      // геометрии — тот, кто её создал.
+      // ⛔ ЧЕСТНАЯ ЦЕНА ОШИБКИ, ЗАМЕРЕНА ДИВЕРСИЕЙ, А НЕ ВЫВЕДЕНА: я написала
+      // здесь «иначе погаснут все предметы типа» — ЭТО НЕВЕРНО. Прогон со снятым
+      // keepGeo дал кадр, отличающийся от исправного на те же 6.2%: three не
+      // стирает атрибуты при dispose и просто перезаливает буфер. Цена — ЛИШНЯЯ
+      // ПЕРЕЗАЛИВКА В GPU, а не исчезновение предметов. Флаг оставлен как
+      // гигиена владения, но пугать им не надо.
+      if (f.obj.geometry && !(f.obj.userData && f.obj.userData.keepGeo)) f.obj.geometry.dispose();
       // молнии отдают материал в free-list (boltMat) — в турбо их много, и
       // пересоздавать одинаковые MeshBasicMaterial на каждый разряд незачем;
       // ВСЕ остальные эффекты освобождают материал как раньше
@@ -382,6 +391,283 @@ function _shardFX_impl(pos, color, opts){
     });
   }
 }
+
+// ===== ЭФФЕКТЫ ВЫБОРА ВЛАДЕЛЬЦА 2026-08-01 (перенос со стенда) =====
+// Стенд из девяти вариантов показан владельцу, выбраны три: СХЛОПЫВАНИЕ группы
+// в точку тапа, РАСПИЛ предмета на половины под ножами, огонь ЯЗЫКАМИ ПО
+// СИЛУЭТУ; сила ×1.7 вшита в константы (00-config), отдельной ручки в бою нет.
+// Правило выбора живёт в 80-gameplay (doMatch/grindShred) — здесь только визуал.
+
+// СХЛОПЫВАНИЕ: группа слетается в точку тапа за COLLAPSE_MS, сжимаясь по ходу.
+// Смысл правки — дать матчу АДРЕСАТА: раньше предметы просто уменьшались на
+// месте, и пыль читалась как «эффект вместо предмета», а не как следствие удара.
+// ⚠️ ХЛОПОК ЗДЕСЬ НЕ ЖИВЁТ. Он вешается вызывающим на ТЕ ЖЕ РЕАЛЬНЫЕ ЧАСЫ, что
+// и removeItem (setTimeout в doMatch): анимация идёт по ИГРОВОМУ времени, и на
+// просевшем FPS тик до конца не доходит — хлопок бы не наступил вовсе. Одни
+// часы на «предметы исчезли» и «бабахнуло» — единственный устойчивый вариант.
+// ⚠️ Тела к этому моменту УЖЕ снесены (destroyItemBody в начале doMatch), так
+// что анимации мешей не с кем спорить; глушить нечего.
+function collapseFX(list, at){
+  const P = at.clone();
+  const src = [];
+  for (const it of list){
+    if (!it.mesh) continue;
+    src.push({ mesh: it.mesh, p0: it.mesh.position.clone(), s0: it.mesh.scale.x });
+  }
+  if (!src.length) return;
+  addFX(new THREE.Object3D(), COLLAPSE_MS / 1000, (o, k) => {
+    const e = k * k * (3 - 2 * k);        // плавный старт, резкий приход
+    for (const s of src){
+      s.mesh.position.lerpVectors(s.p0, P, e);
+      const sq = s.s0 * (1 - COLLAPSE_SQUASH * e);
+      s.mesh.scale.set(sq * (1 + 0.5 * e), sq, sq * (1 + 0.5 * e));
+      s.mesh.rotation.y += 0.25 * (1 + e);
+    }
+  });
+}
+
+// ЕДА: меньше капель, но КРУПНЫХ, плюс несколько попадают «на стекло экрана».
+// Именно это читается как сочность: игрок видит, что брызнуло В НЕГО.
+function juiceBigFX(it){
+  const N = Math.max(8, Math.round(JUICE_N * CFG.fxScale)), LIFE = 0.85;
+  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, sp = 1.2 + Math.random()*3.2;
+    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
+    vx.push(Math.cos(a)*sp); vy.push(2.4 + Math.random()*4.2); vz.push(Math.sin(a)*sp);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const c = (it.fxColor || it.baseColor || new THREE.Color(0xff5a6e)).clone()
+    .lerp(new THREE.Color(1, 1, 1), 0.14);
+  const m = new THREE.PointsMaterial({ color: c, map: fxDotTex(), size: JUICE_SIZE,
+    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*LIFE;
+    for (let i = 0; i < N; i++){
+      p[i*3]   = ox[i] + vx[i]*t;
+      p[i*3+1] = oy[i] + vy[i]*t - 11*t*t;   // ½·G·t², G=22
+      p[i*3+2] = oz[i] + vz[i]*t;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - k*k*k;
+    o.material.size = JUICE_SIZE*(1 - k*0.25);  // капля почти не мельчает
+  });
+  screenDripsFX(c, JUICE_DRIPS);
+}
+// Капли на «стекле экрана»: DOM поверх канваса, сползают и тают.
+// ⚠️ ИМЕННО DOM, а не спрайты сцены: капля обязана жить в ЭКРАННЫХ координатах
+// и не зависеть от камеры — иначе при повороте она «прилипнет» к миру.
+// ⚠️⚠️ КОНТЕЙНЕР НЕ ПОЛНОЭКРАННЫЙ, И ЭТО НЕ КОСМЕТИКА: по рецепту iOS Safari 26
+// каждый fixed-элемент красит бары браузера своим фоном, а `transparent` там
+// трактуется как прозрачный ЧЁРНЫЙ. Полоса капель на весь экран отравила бы
+// тинт кромок. Держим её в СРЕДНЕЙ трети, кромок кадра она не касается.
+let _dripBox = null;
+function screenDripsFX(color, n){
+  if (!_dripBox){
+    _dripBox = document.createElement('div');
+    _dripBox.id = 'juiceDrips';
+    _dripBox.style.cssText = 'position:fixed;left:0;right:0;top:18%;height:52%;' +
+      'pointer-events:none;z-index:6;overflow:hidden';
+    document.body.appendChild(_dripBox);
+  }
+  const hex = '#' + new THREE.Color(color).getHexString();
+  for (let i = 0; i < n; i++){
+    const d = document.createElement('div');
+    const w = 14 + Math.random()*22, h = w * (1.1 + Math.random()*0.7);
+    d.style.cssText = 'position:absolute;left:' + (10 + Math.random()*78) + '%;' +
+      'top:' + (6 + Math.random()*54) + '%;width:' + w + 'px;height:' + h + 'px;' +
+      'background:' + hex + ';opacity:.55;filter:blur(.4px);' +
+      'border-radius:48% 52% 44% 56% / 60% 58% 42% 40%;' +
+      'transition:transform .75s cubic-bezier(.3,.1,.6,1),opacity .75s ease-in';
+    _dripBox.appendChild(d);
+    requestAnimationFrame(() => {
+      d.style.transform = 'translateY(' + (40 + Math.random()*70) + 'px) scaleY(1.5)';
+      d.style.opacity = '0';
+    });
+    setTimeout(() => d.remove(), 900);
+  }
+}
+
+// МАШИНЫ: искры ОТСКАКИВАЮТ от стенок чаши + отлетает колесо-деталька.
+// Рикошет — то, чего не было: искры просто улетали, и глаз не считал их частью
+// мира. Отскок привязывает эффект к чаше.
+// ⚠️ ОТСКОК АНАЛИТИЧЕСКИЙ, по radiusAt(y) — никаких коллайдеров и тел:
+// правило пакета «куски эффектов остаются анимацией» (00-config).
+function sparkRicochetFX(it){
+  const N = Math.max(10, Math.round(SPARK_N * CFG.fxScale)), LIFE = 0.6, S0 = 0.24;
+  const pos = new Float32Array(N*3), st = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, e = Math.random()*Math.PI*0.5, sp = 5 + Math.random()*6;
+    st.push({ x: it.p.x, y: it.p.y + 0.2, z: it.p.z, bounced: 0,
+              vx: Math.cos(a)*Math.cos(e)*sp, vy: Math.sin(e)*sp, vz: Math.sin(a)*Math.cos(e)*sp });
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: 0xffe08a, map: fxDotTex(), size: S0,
+    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
+  let prev = 0;
+  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
+    const t = k*LIFE, dt = Math.max(0.0001, t - prev); prev = t;
+    const p = o.geometry.attributes.position.array;
+    for (let i = 0; i < N; i++){
+      const s = st[i];
+      s.vy -= 9*dt;
+      s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
+      const R = radiusAt(s.y) - 0.15, d = Math.hypot(s.x, s.z);
+      if (d > R && s.bounced < SPARK_BOUNCE_MAX){
+        const nx = s.x/d, nz = s.z/d, vn = s.vx*nx + s.vz*nz;
+        s.vx -= 2*vn*nx*SPARK_BOUNCE; s.vz -= 2*vn*nz*SPARK_BOUNCE;
+        s.x = nx*R; s.z = nz*R; s.bounced++;
+      }
+      p[i*3] = s.x; p[i*3+1] = s.y; p[i*3+2] = s.z;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - k*k;
+    o.material.size = S0*(1 - k*0.25);
+  });
+  wheelFX(it);
+}
+// Колесо: отлетает, падает, ложится и УКАТЫВАЕТСЯ, теряя ход. Мелочь, которая
+// превращает «искры» в «что-то отвалилось».
+function wheelFX(it){
+  const R = 0.13, LIFE = 1.5;
+  const w = new THREE.Mesh(new THREE.CylinderGeometry(R, R, R*0.55, 14),
+    new THREE.MeshBasicMaterial({ color: 0x2c3038, transparent: true, opacity: 1 }));
+  const a = Math.random()*Math.PI*2, sp = 2.2 + Math.random()*1.6;
+  const vx = Math.cos(a)*sp, vz = Math.sin(a)*sp, o0 = it.p.clone();
+  const floor = FLOOR_REST + R*0.3;
+  addFX(w, LIFE, (o, k) => {
+    const t = k*LIFE;
+    let y = o0.y + 3.0*t - 11*t*t;
+    const rolling = y <= floor;
+    if (rolling) y = floor;
+    const damp = rolling ? Math.max(0, 1 - (t - 0.35)*0.8) : 1;
+    o.position.set(o0.x + vx*t*damp, y, o0.z + vz*t*damp);
+    o.rotation.set(Math.PI/2, -a, 0);
+    o.rotateY(rolling ? -t*sp/R*damp : t*7);
+    if (k > 0.8) o.material.opacity = (1 - k)/0.2;
+  });
+}
+
+// РАСПИЛ: предмет разваливается НА ДВЕ ПОЛОВИНЫ по плоскости реза, каждая
+// съезжает со среза и падает под ножи. Половины НАСТОЯЩИЕ — режем плоскостью
+// отсечения по той же модели, поэтому срез честный и приём работает на ЛЮБОМ
+// предмете пула без препроцессинга геометрии.
+// ⚠️ ТРЕБУЕТ renderer.localClippingEnabled (ставится в 10-stage при старте).
+// ⚠️ НИ mesh.clone(), НИ material.clone(): three копирует userData через
+// JSON.parse(JSON.stringify), а у предметов там ссылки на тело Rapier и на
+// объект шейдера matcap-патча — «Converting circular structure to JSON», и
+// эффект падал целиком. Собираем половину напрямую.
+// ⚠️ ГЕОМЕТРИЯ ОБЩАЯ С ПРЕДМЕТОМ, половины помечены keepGeo — stepFX диспозит
+// geometry догоревшего эффекта, а у предметов она общая НА ТИП (кэш 30-shapes).
+// Цена ошибки — лишняя перезаливка буфера в GPU (замерено диверсией; предметы
+// НЕ исчезают, three держит атрибуты и заливает заново).
+// ⚠️⚠️ КЛОНА ГЕОМЕТРИИ ЗДЕСЬ НЕТ, И ЭТО НЕ УПУЩЕНИЕ. На стенде половины
+// клонировали геометрию предмета — это стоило 3.20 мс под CPU ×4 и было самой
+// дорогой конструкцией набора; под неё планировался кэш по типу. При переносе
+// оказалось, что клон не нужен ВООБЩЕ: флаг keepGeo (см. stepFX) уже запрещает
+// диспозить чужую геометрию, а больше клон ни для чего не был нужен —
+// плоскость реза живёт в МАТЕРИАЛЕ, он у каждой половины свой.
+// Итог: 3.20 мс -> 0, кэш и его память не понадобились.
+// ⛔ Не «оптимизировать» это обратно в clone(): диспоз общей геометрии типа
+// погасил бы все предметы этого типа в куче.
+function sawVisualMat(src){
+  const o = { color: src.color ? src.color.clone() : undefined, map: src.map || null,
+              vertexColors: !!src.vertexColors, transparent: true, opacity: 1,
+              side: THREE.DoubleSide };   // срез не должен быть дырой
+  if (src.isMeshMatcapMaterial){ o.matcap = src.matcap || null; return new THREE.MeshMatcapMaterial(o); }
+  return new THREE.MeshBasicMaterial(o);
+}
+function sawFX(item){
+  const mesh = item.mesh, p0 = mesh.position.clone();
+  const a = Math.random()*Math.PI;
+  const nrm = new THREE.Vector3(Math.cos(a), SAW_TILT, Math.sin(a)).normalize();
+  const geo = mesh.geometry;          // ОБЩАЯ с предметом — половины помечены keepGeo
+  Sound.play('crunch', 6);
+  for (const sgn of [1, -1]){
+    // ⚠️ геометрия ОБЩАЯ с предметом и с другой половиной — помечаем keepGeo,
+    // иначе stepFX диспознет её и погасит все предметы этого типа.
+    const m = new THREE.Mesh(geo, sawVisualMat(mesh.material));
+    m.position.copy(p0); m.quaternion.copy(mesh.quaternion); m.scale.copy(mesh.scale);
+    m.userData.keepGeo = true;
+    m.material.clippingPlanes = [new THREE.Plane(nrm.clone().multiplyScalar(-sgn), nrm.dot(p0)*sgn)];
+    const off = nrm.clone().multiplyScalar(sgn);
+    const spin = (Math.random()-0.5)*6 + sgn*3;
+    addFX(m, SAW_LIFE, (o, k) => {
+      const t = k*SAW_LIFE;
+      o.position.set(p0.x + off.x*t*1.6, p0.y + off.y*t*0.6 - 9*t*t, p0.z + off.z*t*1.6);
+      o.rotation.z = spin*t*0.5; o.rotation.x = spin*t*0.3;
+      o.material.clippingPlanes[0].constant = nrm.dot(o.position)*sgn; // срез едет с половиной
+      if (k > 0.7) o.material.opacity = (1-k)/0.3;
+    });
+  }
+}
+
+// ОГОНЬ ПО СИЛУЭТУ: раздутая копия меша с френель-шейдером — пламя облизывает
+// форму предмета и живёт по его силуэту, а не рядом с ним. Родня ореолу-призраку
+// доступности, поэтому в стиль ложится по построению.
+// ⚠️⚠️ МАТЕРИАЛ ПРЕДМЕТА НЕ ТРОГАЕМ НИ НА КАДР: портреты коллекции рендерятся
+// тем же классом материала, и «горячее» просочилось бы в музей — тот же класс
+// граблей, что у двух потребителей uVeil. Огонь только НАКЛАДКОЙ поверх меша.
+// ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
+// свой список fires и свой тик из 99-main. Возвращает функцию тушения.
+const fires = [];
+function fireSilhouetteFX(item){
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { t: { value: 0 }, op: { value: 1 } },
+    vertexShader: [
+      'uniform float t; varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      '  vN = normalize(normalMatrix*normal); vP = position;',
+      '  float puff = ' + FIRE_PUFF.toFixed(3) + ' + 0.10*sin(t*7.0 + position.y*9.0) + 0.07*sin(t*11.0 + position.x*7.0);',
+      '  vec3 p = position + normal*puff;',
+      '  p.y += 0.16 + 0.12*sin(t*6.0 + position.x*5.0);',
+      '  vec4 mv = modelViewMatrix*vec4(p,1.0); vV = mv.xyz;',
+      '  gl_Position = projectionMatrix*mv; }',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float t; uniform float op; varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
+      '  float fres = pow(1.0 - ndv, 1.35);',
+      '  float tongue = 0.55 + 0.45*sin(vP.y*16.0 - t*13.0 + sin(vP.x*11.0)*2.0);',
+      '  float a = op*(0.30 + 0.70*fres)*tongue*1.9;',
+      '  if (a < 0.02) discard;',
+      '  vec3 c = mix(vec3(1.0,0.85,0.25), vec3(1.0,0.28,0.06), clamp(tongue*0.9, 0.0, 1.0));',
+      '  c = mix(c, vec3(1.0,0.97,0.8), pow(fres,3.0)*0.6);',
+      '  gl_FragColor = vec4(c, a); }',
+    ].join('\n'),
+  });
+  const m = new THREE.Mesh(item.mesh.geometry, mat);
+  m.userData.keepGeo = true;         // геометрия ОБЩАЯ с предметом — не диспозить
+  m.renderOrder = 9;
+  item.mesh.add(m);                  // едет вместе с предметом
+  const st = { item, obj: m, mat, t0: performance.now(), dying: 0 };
+  fires.push(st);
+  return () => { if (!st.dying) st.dying = performance.now(); };
+}
+function tickFires(){
+  if (!fires.length) return;
+  const now = performance.now();
+  for (let i = fires.length - 1; i >= 0; i--){
+    const f = fires[i];
+    f.mat.uniforms.t.value = (now - f.t0)/1000;
+    // предмет исчез (совмещён/перемолот) — гасим вместе с ним
+    if (!f.item.alive && !f.dying) f.dying = now;
+    if (f.dying){
+      const k = (now - f.dying)/FIRE_FADE_MS;
+      f.mat.uniforms.op.value = Math.max(0, 1 - k);
+      if (k >= 1){
+        if (f.obj.parent) f.obj.parent.remove(f.obj);
+        f.mat.dispose();
+        fires.splice(i, 1);
+      }
+    }
+  }
+}
+function extinguishAll(){ for (const f of fires) if (!f.dying) f.dying = performance.now(); }
 
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и

@@ -355,6 +355,7 @@ function loop(){
   }
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
+  tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
   // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
   // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
@@ -1141,6 +1142,56 @@ window.__game = {
     return top.length;
   },
   psLog(){ return psLog.slice(); },
+  // ⚙️ ЭФФЕКТЫ ВЫБОРА ВЛАДЕЛЬЦА 2026-08-01 — отладка и стражи.
+  // ⚠️ У ОГНЯ ПОКА НЕТ ИГРОВОГО ТРИГГЕРА: владелец одобрил ВИД («покажи, как он
+  // может прям гореть»), но когда именно предмет загорается — отдельная спека,
+  // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
+  ignite(i){
+    // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь
+    // на нём не виден вовсе (поймано первым же скрином при переносе)
+    let it = i != null ? items[i] : null;
+    if (!it){
+      for (const c of items) if (c.alive && !c.surprise && (!it || c.p.y > it.p.y)) it = c;
+    }
+    if (!it || !it.alive) return null;
+    fireSilhouetteFX(it);
+    return { type: it.type && it.type.name, fires: fires.length };
+  },
+  extinguish(){ extinguishAll(); return fires.length; },
+  firesN(){ return fires.length; },
+  // срез для стражей переноса: жива ли ОБЩАЯ геометрия типа после распила и
+  // не оброс ли предмет чужими детьми (огонь обязан быть накладкой-ребёнком,
+  // а не правкой материала — иначе просочится в портреты коллекции)
+  fxProbe(){
+    // ⚠️ ДЕТИ СЧИТАЮТСЯ ПО ПРЕДМЕТАМ, А ГЕОМЕТРИЯ — ПО ТИПАМ, И ЭТО РАЗНЫЕ
+    // ВЫБОРКИ. Первая версия складывала всё в карту по имени типа — и предмет
+    // с накладкой огня ЗАТИРАЛСЯ другим предметом того же типа: страж честно
+    // печатал «предметов с детьми 0» при горящем предмете. Классика «метрика
+    // правдоподобна, но меряет не то».
+    const byType = {};
+    let kidsTotal = 0, kidsMax = 0;
+    for (const it of items){
+      if (!it.alive || !it.mesh) continue;
+      const k = it.mesh.children.length;
+      kidsTotal += k; if (k > kidsMax) kidsMax = k;
+      if (!it.type) continue;
+      const g = it.mesh.geometry, a = g && g.attributes && g.attributes.position;
+      const v = a ? a.count : 0;
+      // по типу держим ХУДШЕЕ: если хоть у одного предмета типа геометрия
+      // умерла, тип обязан считаться мёртвым
+      if (!(it.type.name in byType) || v < byType[it.type.name]) byType[it.type.name] = v;
+    }
+    // ⚠️ СЧИТАЕМ САМИ ПОЛОВИНЫ ПО МЕТКЕ, А НЕ КОСВЕННЫЙ ИТОГ. Страж «объектов
+    // сцены не стало больше» дважды оказался тавтологичным: при диверсии
+    // (половины не убираются) число случайно совпадало с исправным, потому что
+    // одновременно уходили перемолотые предметы. Метка keepGeo есть ТОЛЬКО у
+    // половин распила — их и считаем поимённо.
+    let halves = 0;
+    for (const o of scene.children) if (o.userData && o.userData.keepGeo) halves++;
+    return { types: Object.keys(byType).length, byType, kidsTotal, kidsMax, halves,
+             fires: fires.length, fxN: fx.length };
+  },
+  grindNow(){ mixerGrind(); return true; },
   // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)
   rocks(){ return items.filter(i => i.alive && i.rock).length; },
   rockIndex(){ return items.findIndex(i => i.alive && i.rock); },

@@ -148,13 +148,18 @@ function doMatch(list){
   // Пара/тройка — труха как раньше; группа >= BURST_MIN_N ЛОПАЕТСЯ эффектом
   // своей пачки (burstFX) + физическая волна вздрагивает соседей от
   // тапнутого (list[0]); в комбо/цепи поверх остаются молнии — как были.
+  // ⚙️ СХЛОПЫВАНИЕ (выбор владельца 2026-08-01): группа СЛЕТАЕТСЯ в точку тапа и
+  // лопается ОДНИМ событием оттуда. Раньше каждый предмет уменьшался на месте и
+  // выдавал своё облачко — эффект читался как «замена предмету», а не как удар.
+  // ⚠️ ПРАВИЛО ПАЧКИ (BURST_MIN_N) СОХРАНЕНО как было: группа >= 4 лопается
+  // эффектом своей пачки, пара/тройка — трухой. Изменилось только МЕСТО (точка
+  // тапа вместо N позиций) и КОЛИЧЕСТВО (одно событие вместо N).
   const burst = n >= BURST_MIN_N;
-  if (burst){
-    list.forEach(it => burstFX(it));
-    blastWave(list[0].p, BURST_WAVE_R, BURST_WAVE_V);
-  } else {
-    list.forEach(it => dissolveFX(it));
-  }
+  const boomAt = list[0].p.clone();   // точка тапа: list[0] — тапнутый предмет
+  const boomGhost = { p: boomAt, r: list[0].r * 1.25, type: list[0].type,
+                      fxColor: list[0].fxColor, baseColor: list[0].baseColor };
+  collapseFX(list, boomAt);
+  if (burst) blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
   // цифра — деноминированный прирост чипа (#10: «понятно и в процессе»);
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
@@ -163,14 +168,14 @@ function doMatch(list){
   Sound.play('match', { n, k: comboHot ? comboCount : 0 });
   vibrate(15);
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
-  const scales = list.map(it => it.mesh.scale.x);
-  // бурст: короткое НАДУВАНИЕ (до ×1.22 к 45% времени), потом схлопывание —
-  // читается как «лопнул»; обычный матч — прежнее плавное исчезновение
-  addFX(new THREE.Object3D(), burst ? 0.16 : 0.14, (o,k)=>{
-    const s = burst ? (k < 0.45 ? 1 + 0.5*k : 1.22 * (1 - (k - 0.45)/0.55)) : (1 - k);
-    list.forEach((it,i) => { it.mesh.scale.setScalar(scales[i]*Math.max(0, s)); });
-  });
   setTimeout(()=>afterPause(()=>{
+    // ⚠️ ХЛОПОК ЗДЕСЬ, НА ТЕХ ЖЕ ЧАСАХ, ЧТО И УДАЛЕНИЕ. Стягивание идёт по
+    // ИГРОВОМУ времени (тик addFX), удаление — по РЕАЛЬНЫМ (этот setTimeout).
+    // На просевшем FPS тик до конца не доходит, и хлопок, повешенный на него,
+    // не наступил бы вовсе. Одни часы на «предметы исчезли» и «бабахнуло».
+    if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
+    popFX(boomAt);
+    camShake = Math.max(camShake, COLLAPSE_SHAKE);
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
@@ -322,14 +327,20 @@ function detonateCharge(){
 }
 
 function burstFX(it){
-  const tex = it.type.tex;
-  if (tex === 'food') juiceFX(it);
-  else if (tex === 'car') sparkFX(it);
+  const tex = it.type && it.type.tex;
+  // ⚙️ КРУПНЫЕ ВАРИАНТЫ (выбор владельца 2026-08-01): у еды и машин эффекты
+  // заменены — меньше частиц, но жирнее, и у кусков поведение (рикошет искр от
+  // стенок, укатывающееся колесо, капли сока на стекле экрана). Звери и твёрдые
+  // пачки оставлены прежними: звёзды владелец принял как есть, осколкам подняли
+  // только количество (SHARD_BURST_N).
+  if (tex === 'food') juiceBigFX(it);
+  else if (tex === 'car') sparkRicochetFX(it);
   else if (tex === 'animal') starPopFX(it);
   // ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки —
   // кладка/пиратское/камни — не в труху, а КОЛЮТСЯ на угловатые куски
-  else if (tex === 'brick' || tex === 'pirate' || tex === 'rock') shardFX(it.p, it.fxColor || it.baseColor, { count: 7 });
-  else dissolveFX(it); // стейк/без пачки — прежняя труха
+  else if (tex === 'brick' || tex === 'pirate' || tex === 'rock')
+    shardFX(it.p, it.fxColor || it.baseColor, { count: SHARD_BURST_N, size: 0.2, up: 4.2 });
+  else dissolveFX(it); // без пачки — прежняя труха
 }
 // ⚠️ ВИЗУАЛ пак-эффектов (juiceFX/sparkFX/starPopFX) ПЕРЕЕХАЛ В 70-fx
 // (просьба ФИЗИКИ в WORKSTREAMS, сделано ГРАФИКОЙ 2026-07-22): там они
@@ -371,8 +382,11 @@ function grindShred(item, dur, shake){
   setTimeout(() => {
     if (!item.alive) return;                      // перестраховка: не стрелять по трупу
     const gp = mesh.position.clone();
-    mesh.scale.setScalar(0.0001);                 // меш исчез — дальше только осколки
-    shardFX(gp, item.fxColor || item.baseColor, { count: 10, up: 5, spread: 2.0, size: 0.16, life: 0.5 });
+    // ⚙️ РАСПИЛ (выбор владельца 2026-08-01): предмет не рассыпается фонтаном
+    // осколков, а РАЗВАЛИВАЕТСЯ НА ДВЕ ПОЛОВИНЫ по плоскости реза — виден срез
+    // настоящей модели. Фаза захвата (сплющивание) осталась как была.
+    sawFX(item);
+    mesh.scale.setScalar(0.0001);                 // оригинал исчез — дальше половины
     bladeDustFX(gp, item.fxColor || item.baseColor);
     if (shake) camShake = Math.max(camShake, shake);
   }, grab * 1000);
