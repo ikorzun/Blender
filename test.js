@@ -2993,7 +2993,14 @@ window.bridge = {
     await new Promise(r => setTimeout(r, 500));
     const cb = document.getElementById('chargeBtn'), img = document.getElementById('chargeImg');
     const c = getComputedStyle(cb), w = [];
-    for (let i = 0; i < 80; i++){
+    // ⚠️ СЭМПЛИМ СТЕННЫМИ ЧАСАМИ, НЕ ЧИСЛОМ КАДРОВ (диагноз ГРАФИКИ v218):
+    // 80 rAF-кадров на медленной машине = 10+ секунд (замер: headless даёт
+    // 7.8 fps) — заряд с TTL 7 с успевал раствориться ПОД замером, слот
+    // схлопывался, «ход» ловил его исчезновение (58 при ожидаемых ~4-5).
+    // Полный период пульса 1.1 с → окно 1.4 с ловит пик и провал при любом
+    // fps, оставаясь глубоко внутри TTL.
+    const t0 = Date.now();
+    while (Date.now() - t0 < 1400){
       w.push(img.getBoundingClientRect().width);
       await new Promise(r => requestAnimationFrame(r));
     }
