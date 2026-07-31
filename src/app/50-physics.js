@@ -307,25 +307,43 @@ const MAX_FALL = 16; // терминальная скорость падения
 // за интро) — на время досыпки терминальная скорость ниже (энергия ∝ v²)
 let fallCap = MAX_FALL;
 function setFallCap(v){ fallCap = v || MAX_FALL; }
+// РАЗБОРКА ШАГА (профилировка мобильного тира 2026-07-31): в одном stepMsLast
+// сидят четыре разные работы, и на слабом CPU они не в равных долях.
+// substeps особенно важен: аккумулятор фиксированного шага при МЕДЛЕННОМ кадре
+// прогоняет world.step ДО ТРЁХ РАЗ — то есть цена растёт ровно там, где кадр
+// и так не успевает. Числа отдаёт __game.physBreak().
+let stepSolveMs = 0, stepSyncMs = 0, stepCapMs = 0, stepRescueMs = 0, stepSubsteps = 0;
+// потолок подшагов за кадр — ручка ТОЛЬКО для замера чувствительности
+// (__game.physKnobs), боевое значение 3 не трогаем без слова владельца
+let SUBSTEP_CAP = 3;
+function setMaxSubsteps(n){ SUBSTEP_CAP = Math.max(1, n | 0); }
+function maxSubsteps(){ return SUBSTEP_CAP; }
 function stepPhysics(dt){
   const _t0 = performance.now();
-  physAcc = Math.min(physAcc + dt, 3/60);
+  physAcc = Math.min(physAcc + dt, SUBSTEP_CAP/60);
+  let n = 0;
   while (physAcc >= 1/60){
     world.step();
     physAcc -= 1/60;
+    n++;
   }
+  stepSubsteps = n;
+  const _t1 = performance.now(); stepSolveMs = _t1 - _t0;
   for (const it of items){
     if (!it.alive || !it.body) continue;
     const v = it.body.linvel();
     if (v.y < -fallCap) it.body.setLinvel({ x: v.x, y: -fallCap, z: v.z }, false);
   }
+  const _t2 = performance.now(); stepCapMs = _t2 - _t1;
   syncMeshes();
+  const _t3 = performance.now(); stepSyncMs = _t3 - _t2;
   // страховка (раз в 0.5 с): предмет за пределами чаши возвращается внутрь
   const now = performance.now();
   if (now - rescueMs > 500){
     rescueMs = now;
     rescueSweep();
   }
+  stepRescueMs = performance.now() - _t3;
   stepMsLast = performance.now() - _t0;
 }
 // Возврат «сбежавших»: край предмета глубже 0.18 в стекле (вдавлен в стену/

@@ -1,6 +1,25 @@
 // ===== 70-fx: визуальные эффекты и всплывающий текст =====
 
 const fx = [];
+// Перепись ЖИВЫХ частиц: сколько точек сейчас в облаках эффектов. Нужна
+// профилировке мобильного тира — «fx: 12 объектов» ничего не говорит, когда
+// один dissolveFX это 1280 точек, чьи позиции переписываются и заливаются в
+// GPU КАЖДЫЙ кадр. Зовётся только из perfStats, не из тика.
+function fxParticleCount(){
+  let pts = 0, clouds = 0;
+  for (const f of fx){
+    const g = f.obj && f.obj.geometry, p = g && g.attributes && g.attributes.position;
+    if (p && f.obj.isPoints){ pts += p.count; clouds++; }
+  }
+  return { pts, clouds };
+}
+// ⚠️ ЦЕНА СОЗДАНИЯ ЭФФЕКТА — ОТДЕЛЬНАЯ ОТ ЦЕНЫ ТИКА, и в профиле мобильного
+// тира именно она оказалась пиком: на кадре тапа ~40 мс не объяснялись НИ
+// физикой, ни stepFX, ни рендером. Здесь копится время конструирования
+// (Float32Array на 1280 точек, BufferGeometry, материал, возможная компиляция
+// шейдера); loop забирает и обнуляет раз в кадр.
+let fxBuildMs = 0;
+const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
 }
@@ -83,6 +102,7 @@ const DUST_FRACTIONS = [
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
+  const _b0 = performance.now();
   const life = 1.0;
   const start = new Float32Array(COUNT*3), vel = new Float32Array(COUNT*3), cols = new Float32Array(COUNT*3);
   for (let i=0;i<COUNT;i++){
@@ -108,6 +128,7 @@ function dustCloud(item, radial, COUNT, size, base){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
   const pts = new THREE.Points(geo, m);
+  fxBuildMs += performance.now() - _b0;   // цена конструирования облака (см. fxBuildMs)
   addFX(pts, life, (o,k)=>{
     const t = k*life, a = o.geometry.attributes.position.array;
     for (let i=0;i<COUNT;i++){

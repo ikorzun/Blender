@@ -497,7 +497,16 @@ function reachGhostFX(item, color){
   addFX(ghost, 0.9, (o, k) => { o.material.uniforms.op.value = 1 - k; });
 }
 
+// ⚠️ ПРОФИЛИРОВКА (2026-07-31): вся работа тапа идёт в ОБРАБОТЧИКЕ СОБЫТИЯ,
+// то есть ВНЕ кадрового цикла — кольца loop её не видят, и на кадре тапа
+// в профиле висели ~40 мс «ничьих». Копим сюда, loop забирает раз в кадр.
+let tapMs = 0;
+const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
 function handleTap(x, y){
+  const _tap0 = performance.now();
+  try { return handleTapInner(x, y); } finally { tapMs += performance.now() - _tap0; }
+}
+function handleTapInner(x, y){
   if (level.over) return;
   // финал миксера (пар по типам не осталось): очки не тратятся и не
   // начисляются — промахи по сиротам/пустоте БЕЗ штрафа (спека владельца);

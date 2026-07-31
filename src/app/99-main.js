@@ -10,6 +10,17 @@ if (FIRE_DROP_MODE === 'always') $('face').classList.add('dropped');
 // кольца последних 600 кадров — сырое время кадра и время шага физики
 const frameRing = [], stepRing = [];
 let perfFrames = 0, perfWorstMs = 0;
+// ⚠️ РАЗБОРКА КАДРА ПО ПОДСИСТЕМАМ (2026-07-31, задача владельца «игра
+// подтупливает на мобиле»). Прежний перф-метр давал кадр ОДНИМ КОМКОМ и
+// шаг физики отдельно — по такой паре нельзя сказать, кто ест кадр: остаток
+// сваливался в «всё остальное» и молча включал рендер, частицы и тики HUD.
+// Кольца: fx — stepFX (частицы), ren — renderer.render, ui — прочие тики
+// (вуаль/тонировка/глаза/камера/HUD). Цена инструментовки — 4 замера
+// performance.now на кадр, вынесена в отчёт отдельным замером.
+const fxRing = [], renRing = [], uiRing = [];
+// разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
+const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
+const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
 // ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
 // в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
@@ -347,7 +358,10 @@ function loop(){
     // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
     // владельца), камера при этом идёт по реальному времени — облёт прежний
     stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
-    if (perfFrames > 5){ stepRing.push(stepMsLast); if (stepRing.length > 600) stepRing.shift(); }
+    if (perfFrames > 5){
+      _pushRing(stepRing, stepMsLast);
+      _pushRing(solveRing, stepSolveMs); _pushRing(syncRing, stepSyncMs); _pushRing(subRing, stepSubsteps);
+    }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
     // штиль: скорости тел малы, анимаций нет — замораживаем до следующего
@@ -368,7 +382,10 @@ function loop(){
     pendingTrim = false;
     finalizeFill();
   }
+  const _tFx = performance.now();
   stepFX(dt);
+  const _tUi = performance.now();
+  if (perfFrames > 5){ _pushRing(fxRing, _tUi - _tFx); _pushRing(buildRing, fxBuildTake()); _pushRing(tapRing, tapMsTake()); }
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
@@ -598,7 +615,18 @@ function loop(){
     camera.position.x += (Math.random()-0.5)*camShake*0.8;
     camera.position.y += (Math.random()-0.5)*camShake*0.8;
   }
+  // ⚠️ ui = ВСЁ между stepFX и рендером (вуаль/тонировка/глаза/камера/HUD).
+  // Меряем здесь, а не по кускам: цель разборки — найти ГЛАВНОГО едока, а не
+  // расписать тик глаз до микросекунды. Понадобится дробить — дробить тогда.
+  if (perfFrames > 5) _pushRing(uiRing, performance.now() - _tUi);
+  const _tRen = performance.now();
   renderer.render(scene, camera);
+  // ⚠️ ЭТО НЕ ВРЕМЯ GPU. renderer.render отдаёт команды и возвращается; настоящая
+  // работа видеочипа асинхронна и сюда не попадает. Число честно ловит ОБХОД
+  // СЦЕНЫ И ДРАЙВЕРНЫЕ ВЫЗОВЫ (draw calls, загрузку буферов частиц) — на мобиле
+  // это и есть основной CPU-налог рендера. Настоящий GPU-таймлайн headless не
+  // отдаёт; для него нужен реальный телефон.
+  if (perfFrames > 5) _pushRing(renRing, performance.now() - _tRen);
 }
 
 // ---------- Отладочный API ----------
@@ -1135,6 +1163,49 @@ window.__game = {
   // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
   // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
   // по которым ловятся утечки (тела/коллайдеры/меши/геометрии/DOM/куча)
+  // Обнулить кольца перф-метра: профилировка меряет ОКНО СЦЕНАРИЯ (взрыв,
+  // осыпание), а не всю сессию — иначе кадры старта и skipIntro тянут
+  // статистику и «взрыв» выходит дороже, чем он есть.
+  // Тест-хук профилировки: перевести качество вниз РУКАМИ. Боевая автоматика
+  // решает один раз за сессию по медиане кадра и НЕ РАБОТАЕТ В ИНТРО (см.
+  // tickPerfTier) — а профилировать «слабый» тир на осыпании надо.
+  perfTierSet(t){ const ok = applyPerfTier(t); if (ok) resize(); return CFG.perfTier; },
+  // ⚠️ ТОЛЬКО ДЛЯ ЗАМЕРА ЧУВСТВИТЕЛЬНОСТИ, НЕ ДЛЯ БОЯ. Крутит числовые ручки
+  // солвера на живом мире, чтобы понять ЦЕНУ каждой, прежде чем что-то менять.
+  // Менять их всерьёз нельзя без слова владельца: итерации и подшаги держат
+  // плотную кучу от взаимного проваливания, то есть это ПОВЕДЕНИЕ, а не
+  // качество картинки (см. комментарий у applyPerfTier).
+  // Перепись СЛОЖНОСТИ физической сцены: сколько тел и коллайдеров стоит
+  // контейнер против предметов, и из скольких вершин строятся выпуклые
+  // оболочки. Цена узкой фазы растёт с вершинами, цена широкой — с числом
+  // прокси, а геймплей ни от того, ни от другого не зависит.
+  colliderCensus(){
+    let itemBodies = 0, itemCols = 0, hullVerts = [], compounds = 0;
+    for (const it of items){
+      if (!it.alive || !it.body) continue;
+      itemBodies++;
+      const n = it.body.numColliders(); itemCols += n;
+      if (n > 1) compounds++;
+      const g = it.geo || (it.mesh && it.mesh.geometry);
+      if (g && g.attributes && g.attributes.position) hullVerts.push(g.attributes.position.count);
+    }
+    hullVerts.sort((a, b) => b - a);
+    const total = world.bodies.len ? world.bodies.len() : -1;
+    return { total, itemBodies, itemCols, staticBodies: total - itemBodies,
+      compounds, hullMax: hullVerts[0] || 0,
+      hullMed: hullVerts[hullVerts.length >> 1] || 0,
+      hullSum: hullVerts.reduce((s, v) => s + v, 0) };
+  },
+  physKnobs(o){
+    o = o || {};
+    if (o.iters != null) try { world.numSolverIterations = o.iters; } catch(e){}
+    if (o.ccdSub != null) try { world.maxCcdSubsteps = o.ccdSub; } catch(e){}
+    if (o.ccd != null) for (const it of items) if (it.alive && it.body) it.body.enableCcd(!!o.ccd);
+    if (o.maxSub != null) setMaxSubsteps(o.maxSub);
+    return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps, maxSub: maxSubsteps() };
+  },
+  perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
+    fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0; },
   perfStats(){
     const q = a => {
       if (!a.length) return { avg: 0, p95: 0, max: 0 };
@@ -1143,7 +1214,10 @@ window.__game = {
         p95: +s[Math.min(s.length-1, Math.floor(s.length*0.95))].toFixed(2),
         max: +s[s.length-1].toFixed(2) };
     };
-    return { frame: q(frameRing), step: q(stepRing), frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
+    return { frame: q(frameRing), step: q(stepRing),
+      fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
+      solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing),
+      frames: perfFrames, worstMs: +perfWorstMs.toFixed(1),
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,
       sceneChildren: scene.children.length, fxN: fx.length,
