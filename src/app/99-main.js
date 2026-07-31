@@ -1404,6 +1404,41 @@ window.__game = {
   // события. ⚠️ Виды, которых нет в списке обёрток 70-fx, здесь НЕ ПОЯВЯТСЯ:
   // молчание — это «не обёрнут», а не «бесплатно».
   fxBreak(reset){ return fxBuildBreak(reset); },
+  // Метки видов: список зарегистрированных + первая коллизия, если она есть.
+  // ⚠️ Коллизия метки — НЕ косметика: `fxBuildBy` ключуется меткой, и две
+  // разные функции под одним именем складываются в одну строку отчёта. Ровно
+  // это и случилось с `'spark'` (поймала ГРАФИКА): число было суммой двух
+  // эффектов и оказалось верным лишь потому, что один из них мёртв.
+  fxKinds(){ return { kinds: Object.keys(fxKindOwner).sort(), dup: fxKindDup }; },
+  // ОТЧЁТ ДЛЯ ЗАМЕРА НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): всё, что нужно для
+  // разбора лага, ОДНИМ объектом — владельцу достаточно нажать кнопку.
+  // ⚠️ Счётчики НЕ сбрасываются: worstFrame копится с загрузки страницы, и это
+  // ровно то, что нужно — «худший момент за партию», а не за последнюю секунду.
+  perfReport(){
+    const p = this.perfStats();
+    return {
+      когда: new Date().toISOString(),
+      сборка: (document.getElementById('buildVer') || {}).textContent || '?',
+      устройство: {
+        ua: navigator.userAgent,
+        экран: screen.width + '×' + screen.height + ' @' + (window.devicePixelRatio || 1),
+        окно: innerWidth + '×' + innerHeight,
+        ядер: navigator.hardwareConcurrency || '?',
+        памятиГБ: navigator.deviceMemory || '?',
+      },
+      партия: { уровень: levelNum, живых: items.filter(i => i.alive).length,
+        сложность: CFG.hard ? 'Hard' : 'Easy', тир: CFG.perfTier,
+        dpr: renderer.getPixelRatio(), fxScale: CFG.fxScale, подшагов: maxSubsteps() },
+      кадр: { p95: p.frame.p95, max: p.frame.max, кадров: p.frames },
+      фазы_p95: { шаг: p.step.p95, солвер: p.solve.p95, синк: p.sync.p95,
+        постройка: p.build.p95, тап: p.tap.p95, эффекты: p.fx.p95, ui: p.ui.p95, рендер: p.ren.p95 },
+      худший_кадр: p.worstFrame,
+      кадр_с_постройкой: p.worstBuildFrame,
+      эффекты_по_видам: fxBuildBreak(false),
+      сцена: { тел: p.bodies, коллайдеров: p.colliders, геометрий: p.geoms,
+        drawCalls: p.drawCalls, треугольников: p.tris, частиц: p.parts, кучаМБ: p.heapMB },
+    };
+  },
   // отладка: телепорт предмета (постановка сцен доступности в тестах)
   place(i, x, y, z){
     const it = items[i];

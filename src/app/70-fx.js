@@ -57,21 +57,44 @@ function fxBuildOut(){
 }
 // обёртка конструктора: имя вида + сама функция. try/finally обязателен —
 // исключение внутри эффекта не должно оставить стек перекошенным навсегда.
+// ⚠️⚠️ РЕЕСТР МЕТОК ЛОВИТ КОЛЛИЗИЮ — ПОЙМАНО ГРАФИКОЙ НА ЖИВОМ ПРИМЕРЕ.
+// Метка `'spark'` была занята ДВАЖДЫ (старый sparkFX и новый sparkRicochetFX),
+// а `fxBuildBy` ключуется меткой — две разные функции складывались в ОДНУ
+// строку отчёта, и число «искры 0.62» было суммой непонятно чего. Спасло
+// только то, что старый эффект мёртв (вызовов ноль), то есть верным оно было
+// СЛУЧАЙНО. Коллизия — это ровно «метрика правдоподобна, но меряет не то»,
+// и полагаться на внимательность тут нельзя: реестр запоминает первый занятый
+// вид, а страж в сьюте требует, чтобы дублей не было.
+const fxKindOwner = {};
+let fxKindDup = null;
 function fxBuilt(kind, fn){
-  return function(){ fxBuildIn(kind); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
+  const k = kind || 'прочее';
+  if (fxKindOwner[k] && !fxKindDup) fxKindDup = k;
+  fxKindOwner[k] = true;
+  return function(){ fxBuildIn(k); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
 }
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 // ⚠️ ВСЕ конструкторы эффектов — ОДНИМ СПИСКОМ, чтобы «а этот посчитан?» был
 // вопросом на один взгляд, а не поиском по файлу. `_x_impl` — объявления
 // функций, они хойстятся, поэтому список стоит здесь, а не в конце.
 // Добавил эффект — добавь строку сюда, иначе он невидим для профиля.
+// ⚠️ ПЕРВАЯ ВЕРСИЯ ЭТОГО СПИСКА СВОЁ ЖЕ ОБЕЩАНИЕ НЕ ДЕРЖАЛА (поймала ГРАФИКА):
+// одиннадцать обёрток стояли здесь, а четыре — врассыпную по файлу. Всё было
+// обёрнуто, но «на один взгляд» не работало, а правило держится ровно на этом.
+// Список полный: число обёрток ниже обязано совпадать с числом функций
+// `_имя_impl` в файле (сегодня их 15). Страж сверяет это сам.
+// ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
+const juiceFX          = fxBuilt('juice',    _juiceFX_impl);
+const sparkFX          = fxBuilt('spark',    _sparkFX_impl);
+const starPopFX        = fxBuilt('star',     _starPopFX_impl);
+const shardFX          = fxBuilt('shard',    _shardFX_impl);
 const popFX            = fxBuilt('pop',      _popFX_impl);
 const markerFX         = fxBuilt('marker',   _markerFX_impl);
 const lineFX           = fxBuilt('line',     _lineFX_impl);
 const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
 const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
 const screenDripsFX    = fxBuilt('drips',    _screenDripsFX_impl);
-const sparkRicochetFX  = fxBuilt('spark',    _sparkRicochetFX_impl);
+const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
 const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
@@ -270,7 +293,6 @@ function fxStarTex(){
 }
 // сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
 // ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-const juiceFX = fxBuilt('juice', _juiceFX_impl);
 function _juiceFX_impl(it){
   const N = 46, LIFE = 0.8, S0 = 0.40;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -299,7 +321,6 @@ function _juiceFX_impl(it){
   });
 }
 // искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-const sparkFX = fxBuilt('spark', _sparkFX_impl);
 function _sparkFX_impl(it){
   const N = 36, LIFE = 0.45, S0 = 0.20;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -340,7 +361,6 @@ function _sparkFX_impl(it){
   }
 }
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
-const starPopFX = fxBuilt('star', _starPopFX_impl);
 function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -412,7 +432,6 @@ function makeShardGeo(size){
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-const shardFX = fxBuilt('shard', _shardFX_impl);
 function _shardFX_impl(pos, color, opts){
   opts = opts || {};
   const N = opts.count || 8, LIFE = opts.life || 0.6, up = opts.up || 3.2;
