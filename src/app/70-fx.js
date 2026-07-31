@@ -425,6 +425,7 @@ function _shardFX_impl(pos, color, opts){
     const mat = new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
       transparent: true, opacity: 1, depthWrite: false });
     const m = new THREE.Mesh(geo, mat);
+    m.userData.shard = true;   // метка для стража уникальности формы (__game.shardShapes)
     const a = Math.random()*Math.PI*2, e = (0.15 + Math.random()*0.6)*Math.PI*0.5, sp = spread*(0.5 + Math.random());
     const vx = Math.cos(a)*Math.cos(e)*sp, vy = up*(0.5 + Math.random()*0.7) + Math.sin(e)*sp*0.3, vz = Math.sin(a)*Math.cos(e)*sp;
     const rx = (Math.random()-0.5)*16, ry = (Math.random()-0.5)*16, rz = (Math.random()-0.5)*16;
