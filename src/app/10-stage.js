@@ -637,12 +637,16 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
         uStarDens: { value: STAR_DENS },
         // слоистость — ТОЛЬКО ДНЁМ (ночь оживлена звёздами)
         uCirrus: { value: skyTimeNow() === 'night' ? 0 : CIRRUS_A },
+        // облака — тоже только днём; вращение приходит готовой парой cos/sin,
+        // чтобы не считать тригонометрию на КАЖДЫЙ пиксель
+        uCloud: { value: skyTimeNow() === 'night' ? 0 : CLOUD_K },
+        uCloudRot: { value: new THREE.Vector2(1, 0) },
         uStarSpark: { value: STAR_SPARK },
         uTime: { value: 0 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
        'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
-       'uniform float uCirrus;',
+       'uniform float uCirrus; uniform float uCloud; uniform vec2 uCloudRot;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -688,6 +692,78 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
       '  vec3 col = texture2D(uRamp, vec2(u, 0.5)).rgb;',
+      // ОБЛАЧНЫЕ ПЯТНА (день). Цвет НЕ ДОБАВЛЯЕТСЯ: берём ту же рампу, сдвинутую
+      // в тёмную сторону, поэтому новых оттенков на экране не появляется, а
+      // осветлить HUD пятно не может по построению (см. CLOUD_D в 00-config).
+      '  if (uCloud > 0.0){',
+      // мир вращаем поворотом ВЗГЛЯДА вокруг Y — пара cos/sin приходит юниформой
+      '    vec3 dr = vec3(d.x * uCloudRot.x - d.z * uCloudRot.y, d.y,',
+      '                   d.x * uCloudRot.y + d.z * uCloudRot.x);',
+      '    float f = 0.0;',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[0][0].toFixed(4) + ', ' + CLOUD_DIRS[0][1].toFixed(4) + ', ' + CLOUD_DIRS[0][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.x * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[1][0].toFixed(4) + ', ' + CLOUD_DIRS[1][1].toFixed(4) + ', ' + CLOUD_DIRS[1][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.y * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[2][0].toFixed(4) + ', ' + CLOUD_DIRS[2][1].toFixed(4) + ', ' + CLOUD_DIRS[2][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.z * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[3][0].toFixed(4) + ', ' + CLOUD_DIRS[3][1].toFixed(4) + ', ' + CLOUD_DIRS[3][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.x * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[4][0].toFixed(4) + ', ' + CLOUD_DIRS[4][1].toFixed(4) + ', ' + CLOUD_DIRS[4][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.y * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[5][0].toFixed(4) + ', ' + CLOUD_DIRS[5][1].toFixed(4) + ', ' + CLOUD_DIRS[5][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.z * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[6][0].toFixed(4) + ', ' + CLOUD_DIRS[6][1].toFixed(4) + ', ' + CLOUD_DIRS[6][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.x * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      '    {',
+      '      vec3 cv = cross(dr, vec3(' + CLOUD_DIRS[7][0].toFixed(4) + ', ' + CLOUD_DIRS[7][1].toFixed(4) + ', ' + CLOUD_DIRS[7][2].toFixed(4) + '));',
+      '      float sd = length(cv);',
+      '      float rr = ' + CLOUD_R.toFixed(4) + ' * (1.0 + ' + CLOUD_WOB.toFixed(3) +
+      '        * sin(cv.y * ' + CLOUD_WOB_F.toFixed(2) + '));',
+      '      f = max(f, smoothstep(rr, rr * ' + CLOUD_CORE.toFixed(3) + ', sd));',
+      '    }',
+      // огибающая у кромок кадра — как у слоистости, ради полос Safari
+      '    float cenv = smoothstep(0.0, ' + CLOUD_EDGE.toFixed(3) + ', t)',
+      '               * smoothstep(1.0, ' + (1 - CLOUD_EDGE).toFixed(3) + ', t);',
+      '    float ct = clamp(t - ' + CLOUD_D.toFixed(3) + ', 0.0, 1.0);',
+      '    float cu = ct * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
+      '      + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
+      '    col = mix(col, texture2D(uRamp, vec2(cu, 0.5)).rgb, f * uCloud * cenv);',
+      '  }',
       // ЗВЁЗДЫ (только ночью): у ночной ПАНОРАМЫ они были, чистый градиент их
       // терял — тон совпадал, а небо становилось пустым. Сетка ТРЁХМЕРНАЯ по
       // направлению: на сфере равномерна, полюсов нет. Звезда = случайное
