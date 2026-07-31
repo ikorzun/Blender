@@ -84,8 +84,6 @@ const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 // Список полный: число обёрток ниже обязано совпадать с числом функций
 // `_имя_impl` в файле (сегодня их 15). Страж сверяет это сам.
 // ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
-const juiceFX          = fxBuilt('juice',    _juiceFX_impl);
-const sparkFX          = fxBuilt('spark',    _sparkFX_impl);
 const starPopFX        = fxBuilt('star',     _starPopFX_impl);
 const shardFX          = fxBuilt('shard',    _shardFX_impl);
 const popFX            = fxBuilt('pop',      _popFX_impl);
@@ -291,75 +289,14 @@ function fxStarTex(){
   _fxStar.needsUpdate = true;
   return _fxStar;
 }
-// сок (food): крупные круглые капли цвета типа, «мокрый» баллистический разлёт.
-// ⚠️ Баллистика ПАРАМЕТРИЧЕСКАЯ от t=k·life — не зависит от FPS.
-function _juiceFX_impl(it){
-  const N = 46, LIFE = 0.8, S0 = 0.40;
-  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
-  for (let i = 0; i < N; i++){
-    const a = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*3.5;
-    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
-    vx.push(Math.cos(a)*sp); vy.push(2 + Math.random()*4.5); vz.push(Math.sin(a)*sp);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  // цвет типа, чуть высветленный: сок читается сочнее самого предмета
-  const c = (it.fxColor || it.baseColor || new THREE.Color(0xff5a6e)).clone()
-    .lerp(new THREE.Color(1, 1, 1), 0.18);
-  const m = new THREE.PointsMaterial({ color: c, map: fxDotTex(), size: S0,
-    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
-  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
-    const p = o.geometry.attributes.position.array, t = k*LIFE;
-    for (let i = 0; i < N; i++){
-      p[i*3]   = ox[i] + vx[i]*t;
-      p[i*3+1] = oy[i] + vy[i]*t - 11*t*t; // ½·G·t², G=22
-      p[i*3+2] = oz[i] + vz[i]*t;
-    }
-    o.geometry.attributes.position.needsUpdate = true;
-    o.material.opacity = 1 - k*k;         // держится дольше, гаснет резче
-    o.material.size = S0*(1 - k*0.45);
-  });
-}
-// искры (car): круглые яркие точки веером + 3 тёмных кубика-детальки кувырком
-function _sparkFX_impl(it){
-  const N = 36, LIFE = 0.45, S0 = 0.20;
-  const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
-  for (let i = 0; i < N; i++){
-    const a = Math.random()*Math.PI*2, e = Math.random()*Math.PI*0.5, sp = 4 + Math.random()*5;
-    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
-    vx.push(Math.cos(a)*Math.cos(e)*sp); vy.push(Math.sin(e)*sp); vz.push(Math.sin(a)*Math.cos(e)*sp);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  // ⚠️ normal blending: additive на светлой панораме невидим (грабля ГРАФИКИ)
-  const m = new THREE.PointsMaterial({ color: 0xffe08a, map: fxDotTex(), size: S0,
-    transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
-  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
-    const p = o.geometry.attributes.position.array, t = k*LIFE;
-    for (let i = 0; i < N; i++){
-      p[i*3]   = ox[i] + vx[i]*t;
-      p[i*3+1] = oy[i] + vy[i]*t - 6*t*t; // искры почти не падают
-      p[i*3+2] = oz[i] + vz[i]*t;
-    }
-    o.geometry.attributes.position.needsUpdate = true;
-    o.material.opacity = 1 - k*k;
-    o.material.size = S0*(1 - k*0.3);
-  });
-  for (let j = 0; j < 3; j++){
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09),
-      new THREE.MeshBasicMaterial({ color: 0x3a4048, transparent: true, opacity: 1 }));
-    const a = Math.random()*Math.PI*2, sp = 1.2 + Math.random()*2;
-    const bvx = Math.cos(a)*sp, bvy = 3 + Math.random()*2.5, bvz = Math.sin(a)*sp;
-    const rx = (Math.random()-0.5)*14, rz = (Math.random()-0.5)*14;
-    const o0 = it.p.clone();
-    addFX(box, 0.7, (o, k) => {
-      const t = k*0.7;
-      o.position.set(o0.x + bvx*t, o0.y + bvy*t - 11*t*t, o0.z + bvz*t);
-      o.rotation.x = rx*t; o.rotation.z = rz*t;
-      o.material.opacity = 1 - k;
-    });
-  }
-}
+// ⛔ СТАРЫЕ juiceFX (сок) И sparkFX (искры) УДАЛЕНЫ 2026-08-01 — их заменили
+// juiceBigFX и sparkRicochetFX по выбору владельца (крупные капли + капли на
+// стекле экрана; искры с рикошетом от стенок + укатывающееся колесо).
+// Вызовов у них не осталось ни одного — это был МОЙ мусор после переноса, и
+// один из них ещё и держал метку 'spark', в которую писался живой рикошет:
+// строка отчёта склеивалась из двух функций и была верна лишь потому, что
+// старый эффект мёртв. Реестр меток (fxKindDup) теперь такое ловит прогоном.
+// Вернуть при надобности: git show <до 2026-08-01>:src/app/70-fx.js.
 // мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
 function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
@@ -945,7 +882,7 @@ function wiggle(item){
   const dg = new THREE.BufferGeometry();
   dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
-    transparent:true, opacity:0, depthWrite:false, alphaTest:0.02 })));  // juiceFX/sparkFX/starPopFX
+    transparent:true, opacity:0, depthWrite:false, alphaTest:0.02 })));  // juiceBigFX/sparkRicochetFX/starPopFX
   const sg = new THREE.BufferGeometry();
   sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
   sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
