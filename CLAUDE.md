@@ -1602,7 +1602,7 @@ level.over` -> `genLevel()`). Вход в отладочную панель пе
   - `75-audio.js` — процедурный звук (Sound) + сэмплы (playBuf) + vibrate.
   - `78-ads.js` — rewarded-реклама: Playgama Bridge (github.com/playgama/bridge)
     с фолбэком-заглушкой. На http/https динамически грузит лежащий рядом
-    `playgama-bridge.js` (релиз v2.0.0, LGPL — потому НЕ инлайнится в
+    `playgama-bridge.js` (релиз v2.0.2, LGPL — потому НЕ инлайнится в
     index.html), `bridge.initialize()` читает `playgama-bridge-config.json`;
     если платформа поддерживает rewarded (`isRewardedSupported`) — режим
     'bridge': награда строго по состоянию REWARDED, CLOSED до награды = без
