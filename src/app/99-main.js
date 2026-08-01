@@ -1193,6 +1193,14 @@ window.__game = {
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
   },
+  // индекс живого предмета типа — для адресных ручек (ignite и т.п.)
+  indexByType(name){
+    for (let i = 0; i < items.length; i++){
+      const it = items[i];
+      if (it.alive && !it.animating && it.type && it.type.name === name) return i;
+    }
+    return -1;
+  },
   // живые по типам (независимая проверка пар-скора в тестах)
   aliveByType(){
     const m = {};

@@ -141,7 +141,14 @@ function doMatch(list){
   // зажигания, ×3 с SERIES_X3_AT-го матча серии, ×4 в турбо. Единая точка —
   // seriesMult; comboCount к этой строке уже инкрементирован (матч,
   // пересёкший порог, идёт по новому множителю — как у ступеней накопления).
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult());
+  // 🔥 БОНУС ОГНЯ (механика «горячего предмета», слово владельца 2026-08-01):
+  // собрал группу ГОРЯЩЕГО типа, пока горит, — очки группы ×FIRE_BONUS_MULT.
+  // Сверка по ТИПУ через burningName (стык Графики); сбор ГАСИТ огонь —
+  // бонус одноразовый, следующая вспышка идёт своим расписанием
+  // (tickFireSpawn отсчитывает от момента вспышки, не от гашения).
+  const fireHot = typeName === burningName();
+  if (fireHot) extinguishAll();
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * (fireHot ? FIRE_BONUS_MULT : 1));
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -168,6 +175,7 @@ function doMatch(list){
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
+  if (fireHot) scorePop('Fire ×' + FIRE_BONUS_MULT + '!', mid.clone().add(new THREE.Vector3(0, 1.8, 0)), '#ff5a3c', true);
   tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков
   // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
   const _ts0 = performance.now();

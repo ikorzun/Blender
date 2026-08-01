@@ -4037,6 +4037,47 @@ window.bridge = {
   const после = await firePage.evaluate(() => ({ горит: window.__game.burning(), огней: window.__game.firesN() }));
   expect(после.горит === null && после.огней === 0,
     'ОГОНЬ: новый уровень гасит старое пламя (' + JSON.stringify(после) + ')');
+  // 🔥 БОНУС (зона диспетчера): сбор группы горящего типа платит
+  // ×FIRE_BONUS_MULT и ГАСИТ огонь. Метод — A/B на ОДНОЙ раскладке: два
+  // последовательных «холодных» матча одного типа (пауза > COMBO_CHAIN_MS
+  // гасит склейку; окно серии от первого не зажигается — пара без огня и
+  // без hot), второй — с поджогом предмета этого типа. Тир накопления
+  // между замерами не пересекается (страж выбирает тип с запасом до
+  // порога), бусты чистятся.
+  const fireBonus = await firePage.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    g.boostClear();
+    // тип: >=4 живых и счётчик накопления далеко от порога ступени
+    const sn = g.typesSnapshot(), acc = g.accSnapshot();
+    let name = null;
+    for (const [k, v] of Object.entries(sn)){
+      if (k === 'surprise' || v.alive < 4) continue;
+      const a = acc.find(x => x.key === k);
+      if (!a || (a.next - a.count) > 10){ name = k; break; }
+    }
+    if (!name) return { нетТипа: true };
+    const s0 = g.stats().score;
+    g.matchType(name);                       // холодный матч без огня
+    await new Promise(r => setTimeout(r, 1700));   // > COMBO_CHAIN_MS — склейка погасла
+    const d0 = g.stats().score - s0;
+    // поджигаем ЖИВОЙ предмет этого типа по индексу (хук indexByType)
+    const idx = g.indexByType(name);
+    if (idx < 0) return { нетЖивых: true, name };
+    g.ignite(idx);
+    const горелоДо = g.burning();
+    const s1 = g.stats().score;
+    g.matchType(name);                       // горящий матч
+    await new Promise(r => setTimeout(r, 150));
+    const d1 = g.stats().score - s1;
+    return { name, d0, d1, горелоДо, послеСбора: g.burning() };
+  });
+  expect(!fireBonus.нетТипа && !fireBonus.нетЖивых && fireBonus.горелоДо === fireBonus.name &&
+    fireBonus.d1 === 2 * fireBonus.d0 && fireBonus.d0 > 0,
+    '🔥 БОНУС: группа горящего типа платит ровно ×2 (' + JSON.stringify(fireBonus) + ')');
+  expect(fireBonus.послеСбора === null,
+    '🔥 БОНУС: сбор группы ГАСИТ огонь — одноразовый (' + JSON.stringify(fireBonus.послеСбора) + ')');
   await firePage.close();
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');

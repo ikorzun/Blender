@@ -1480,7 +1480,7 @@
   <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
   <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-231 · 2026-08-01</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-232 · 2026-08-01</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -2232,6 +2232,10 @@ const FIRE_BURN_MS = 6000;    // сколько горит, если не соб
 // игрок про бонус просто не узнает. Верхний срез решает видимость, гейт
 // доступности — справедливость на Hard. Нужны оба.
 const FIRE_TOP_N = 12;        // из скольких верхних доступных выбираем
+const FIRE_BONUS_MULT = 2;    // бонус за сбор группы ГОРЯЩЕГО типа: очки
+                              // группы ×2 (дефолт диспетчера, одобренный
+                              // словом владельца «делай» на рекомендацию
+                              // «собери группу горящего — бонус»)
 
 // КАП РАЗМЕРА ГРУППЫ (спека владельца 2026-07-27: «поставь кап на 8»).
 // До этого капа НЕ БЫЛО вовсе: тап уносил ВСЕ доступные однотипные в
@@ -8515,7 +8519,14 @@ function doMatch(list){
   // зажигания, ×3 с SERIES_X3_AT-го матча серии, ×4 в турбо. Единая точка —
   // seriesMult; comboCount к этой строке уже инкрементирован (матч,
   // пересёкший порог, идёт по новому множителю — как у ступеней накопления).
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult());
+  // 🔥 БОНУС ОГНЯ (механика «горячего предмета», слово владельца 2026-08-01):
+  // собрал группу ГОРЯЩЕГО типа, пока горит, — очки группы ×FIRE_BONUS_MULT.
+  // Сверка по ТИПУ через burningName (стык Графики); сбор ГАСИТ огонь —
+  // бонус одноразовый, следующая вспышка идёт своим расписанием
+  // (tickFireSpawn отсчитывает от момента вспышки, не от гашения).
+  const fireHot = typeName === burningName();
+  if (fireHot) extinguishAll();
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * (fireHot ? FIRE_BONUS_MULT : 1));
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -8542,6 +8553,7 @@ function doMatch(list){
   // множитель ×(n−1) остаётся как ярлык (не очки)
   scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
+  if (fireHot) scorePop('Fire ×' + FIRE_BONUS_MULT + '!', mid.clone().add(new THREE.Vector3(0, 1.8, 0)), '#ff5a3c', true);
   tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков
   // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
   const _ts0 = performance.now();
@@ -12823,6 +12835,14 @@ window.__game = {
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
+  },
+  // индекс живого предмета типа — для адресных ручек (ignite и т.п.)
+  indexByType(name){
+    for (let i = 0; i < items.length; i++){
+      const it = items[i];
+      if (it.alive && !it.animating && it.type && it.type.name === name) return i;
+    }
+    return -1;
   },
   // живые по типам (независимая проверка пар-скора в тестах)
   aliveByType(){
