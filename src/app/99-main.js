@@ -351,6 +351,35 @@ function tickPerfTier(ms){
   perfWin = [];
 }
 
+// ГОРЯЩИЙ ПРЕДМЕТ (спека владельца 2026-08-01: «1 предмет за 30 секунд может
+// загореться»). Раз в FIRE_EVERY_MS вспыхивает ОДИН предмет; горит FIRE_BURN_MS
+// и гаснет сам. Собрал группу этого типа — бонус (начисление за диспетчером,
+// стык — burningName в 70-fx).
+// ⚠️ ЧАСЫ ИДУТ ТОЛЬКО В ЖИВОЙ ПАРТИИ: в интро, на паузе и после конца уровня
+// окно не копится — иначе игрок вернулся бы с рекламы к мгновенной вспышке,
+// а за длинную паузу накопился бы «долг» из нескольких.
+// ⚠️ ГОРИТ РОВНО ОДИН: igniteItem сам тушит предыдущего, а следующая вспышка
+// назначается от МОМЕНТА ЭТОЙ, а не от момента, когда прошлый догорел.
+let fireNextMs = 0;
+function tickFireSpawn(now){
+  if (intro || paused || !level || level.over){ fireNextMs = 0; return; }
+  if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // первый отсчёт с начала партии
+  if (now < fireNextMs || burningName()) return;
+  const cand = [];
+  for (const it of items){
+    if (!it.alive || !it.mesh || !it.type) continue;
+    if (it.surprise || it.bomb || it.rock) continue;     // спецпредметы не горят
+    if (!isAccessible(it)) continue;                     // справедливость (работает на Hard)
+    cand.push(it);
+  }
+  if (!cand.length){ fireNextMs = now + 2000; return; }  // нечего поджечь — пробуем позже
+  // ВИДИМОСТЬ: берём из верхних, иначе пламя утонет в куче (см. FIRE_TOP_N)
+  cand.sort((a, b) => b.p.y - a.p.y);
+  const top = cand.slice(0, Math.min(FIRE_TOP_N, cand.length));
+  igniteItem(top[Math.floor(Math.random() * top.length)]);
+  fireNextMs = now + FIRE_EVERY_MS;
+}
+
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
@@ -381,6 +410,7 @@ function loop(){
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
   tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
+  tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
   // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
   // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
@@ -1211,6 +1241,9 @@ window.__game = {
   // ⚠️ У ОГНЯ ПОКА НЕТ ИГРОВОГО ТРИГГЕРА: владелец одобрил ВИД («покажи, как он
   // может прям гореть»), но когда именно предмет загорается — отдельная спека,
   // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
+  // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
+  burning(){ return burningName(); },
+  fireDue(ms){ if (ms != null) fireNextMs = performance.now() + ms; return fireNextMs; },
   ignite(i){
     // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь
     // на нём не виден вовсе (поймано первым же скрином при переносе)

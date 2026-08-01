@@ -2220,6 +2220,18 @@ const SAW_LIFE = 0.75;        // сколько живут половины ра
 const SAW_TILT = 0.18;        // наклон плоскости реза от вертикали
 const FIRE_PUFF = 0.26;       // на сколько раздут силуэт пламени (доля модели)
 const FIRE_FADE_MS = 450;     // затухание при тушении
+// ГОРЯЩИЙ ПРЕДМЕТ — МЕХАНИКА (спека владельца 2026-08-01: «ДЕЛАЙ, только
+// 1 предмет за 30 секунд может загореться»). Предмет вспыхивает сам, горит
+// несколько секунд и гаснет; собрать группу горящего типа — бонус (начисление
+// за ДИСПЕТЧЕРОМ, стык — burningName в 70-fx).
+const FIRE_EVERY_MS = 30000;  // ⚠️ ЧИСЛО ВЛАДЕЛЬЦА, не тюнить без его слова
+const FIRE_BURN_MS = 6000;    // сколько горит, если не собрали
+// ⚠️ ВЫБИРАЕМ ИЗ ВЕРХНИХ, А НЕ ИЗ ЛЮБЫХ ДОСТУПНЫХ. isAccessible на лёгкой
+// сложности пропускает ВСЁ (там перекрытия не проверяются) — то есть по
+// справедливости закопанный предмет тапается, но ПЛАМЕНИ НА НЁМ НЕ ВИДНО, и
+// игрок про бонус просто не узнает. Верхний срез решает видимость, гейт
+// доступности — справедливость на Hard. Нужны оба.
+const FIRE_TOP_N = 12;        // из скольких верхних доступных выбираем
 
 // КАП РАЗМЕРА ГРУППЫ (спека владельца 2026-07-27: «поставь кап на 8»).
 // До этого капа НЕ БЫЛО вовсе: тап уносил ВСЕ доступные однотипные в
@@ -5011,6 +5023,9 @@ function makeRock(i){
 
 function genLevel(){
   Ads.cancel(); // висящий rewarded-показ замкнут на СТАРЫЙ level — награду глушим
+  // ГОРЯЩИЙ ПРЕДМЕТ: гасим и обнуляем окно — предметы старого уровня сейчас
+  // уйдут, а накладка огня висит НА МЕШЕ и уехала бы вместе с ним в никуда
+  extinguishAll();
   // тени существуют только в MeshStandard-ветке: рантайм-флип CFG.matcap в ⚙️
   // без этого оставлял полусостояние (теневой пасс на матах, которые его не видят)
   renderer.shadowMap.enabled = !CFG.matcap;
@@ -6613,6 +6628,21 @@ function _sawFX_impl(item){
 // ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
 // свой список fires и свой тик из 99-main. Возвращает функцию тушения.
 const fires = [];
+// ГОРЯЩИЙ ПРЕДМЕТ: состояние механики. Держим ЗДЕСЬ, рядом с огнём, а не в
+// геймплее — гореть умеет ровно этот модуль. Наружу отдаём только имя типа:
+// на нём диспетчер вешает бонус за сбор группы (стык, зона его).
+let burningItem = null, burnUntil = 0;
+function burningName(){
+  return (burningItem && burningItem.alive && burningItem.type) ? burningItem.type.name : null;
+}
+function igniteItem(it, ms){
+  if (!it || !it.alive) return null;
+  extinguishAll();                       // одновременно горит не больше одного
+  fireSilhouetteFX(it);
+  burningItem = it;
+  burnUntil = performance.now() + (ms || FIRE_BURN_MS);
+  return it;
+}
 function _fireSilhouetteFX_impl(item){
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -6649,8 +6679,13 @@ function _fireSilhouetteFX_impl(item){
   return () => { if (!st.dying) st.dying = performance.now(); };
 }
 function tickFires(){
-  if (!fires.length) return;
   const now = performance.now();
+  // догорел по времени ИЛИ предмет уже собрали/перемололи — гасим и отпускаем
+  if (burningItem && (!burningItem.alive || now > burnUntil)){
+    burningItem = null; burnUntil = 0;
+    extinguishAll();
+  }
+  if (!fires.length) return;
   for (let i = fires.length - 1; i >= 0; i--){
     const f = fires[i];
     f.mat.uniforms.t.value = (now - f.t0)/1000;
@@ -6667,7 +6702,16 @@ function tickFires(){
     }
   }
 }
-function extinguishAll(){ for (const f of fires) if (!f.dying) f.dying = performance.now(); }
+// ⚠️ ГАСИТ И СОСТОЯНИЕ, А НЕ ТОЛЬКО ПЛАМЯ. Первая версия трогала только fires,
+// а burningItem оставляла жить — и планировщик вспышек, который проверяет
+// «уже горит?», больше НИКОГДА не поджигал новый предмет. Наружу это выглядело
+// как «огонь работает» (первая вспышка была), и страж «спецпредметы не горят»
+// честно печатал пять срабатываний, читая ОДНО И ТО ЖЕ имя пять раз.
+// Поймано замером разнообразия: 14 вспышек — 1 тип при 129 доступных.
+function extinguishAll(){
+  for (const f of fires) if (!f.dying) f.dying = performance.now();
+  burningItem = null; burnUntil = 0;
+}
 
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
@@ -11938,6 +11982,35 @@ function tickPerfTier(ms){
   perfWin = [];
 }
 
+// ГОРЯЩИЙ ПРЕДМЕТ (спека владельца 2026-08-01: «1 предмет за 30 секунд может
+// загореться»). Раз в FIRE_EVERY_MS вспыхивает ОДИН предмет; горит FIRE_BURN_MS
+// и гаснет сам. Собрал группу этого типа — бонус (начисление за диспетчером,
+// стык — burningName в 70-fx).
+// ⚠️ ЧАСЫ ИДУТ ТОЛЬКО В ЖИВОЙ ПАРТИИ: в интро, на паузе и после конца уровня
+// окно не копится — иначе игрок вернулся бы с рекламы к мгновенной вспышке,
+// а за длинную паузу накопился бы «долг» из нескольких.
+// ⚠️ ГОРИТ РОВНО ОДИН: igniteItem сам тушит предыдущего, а следующая вспышка
+// назначается от МОМЕНТА ЭТОЙ, а не от момента, когда прошлый догорел.
+let fireNextMs = 0;
+function tickFireSpawn(now){
+  if (intro || paused || !level || level.over){ fireNextMs = 0; return; }
+  if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // первый отсчёт с начала партии
+  if (now < fireNextMs || burningName()) return;
+  const cand = [];
+  for (const it of items){
+    if (!it.alive || !it.mesh || !it.type) continue;
+    if (it.surprise || it.bomb || it.rock) continue;     // спецпредметы не горят
+    if (!isAccessible(it)) continue;                     // справедливость (работает на Hard)
+    cand.push(it);
+  }
+  if (!cand.length){ fireNextMs = now + 2000; return; }  // нечего поджечь — пробуем позже
+  // ВИДИМОСТЬ: берём из верхних, иначе пламя утонет в куче (см. FIRE_TOP_N)
+  cand.sort((a, b) => b.p.y - a.p.y);
+  const top = cand.slice(0, Math.min(FIRE_TOP_N, cand.length));
+  igniteItem(top[Math.floor(Math.random() * top.length)]);
+  fireNextMs = now + FIRE_EVERY_MS;
+}
+
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
@@ -11968,6 +12041,7 @@ function loop(){
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
   tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
+  tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
   // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
   // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
@@ -12798,6 +12872,9 @@ window.__game = {
   // ⚠️ У ОГНЯ ПОКА НЕТ ИГРОВОГО ТРИГГЕРА: владелец одобрил ВИД («покажи, как он
   // может прям гореть»), но когда именно предмет загорается — отдельная спека,
   // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
+  // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
+  burning(){ return burningName(); },
+  fireDue(ms){ if (ms != null) fireNextMs = performance.now() + ms; return fireNextMs; },
   ignite(i){
     // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь
     // на нём не виден вовсе (поймано первым же скрином при переносе)
