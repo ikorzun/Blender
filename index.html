@@ -3569,24 +3569,43 @@ function setBowlCracks(k, total){
     bowlMat.opacity = Math.min(0.30, bowlBaseOpacity + 0.035*k); // стекло мутнеет
   if (k <= 0) return;
   bowlCrackGroup = new THREE.Group();
-  // k ломаных: каждая — зигзаг от кромки вниз по поверхности (чуть снаружи
-  // стекла, radiusAt+0.03), длиннее с каждым номером — прогресс читается
+  // ⚠️ ТРУБКИ, НЕ ЛИНИИ (грабля молний из канона: WebGL рисует line в 1px).
+  // Контраст на ЛЮБОМ фоне двойной трубкой: тёмное ядро (чернильный
+  // #1d1c26 — трещина на просвет ТЁМНАЯ) + белый блик тоньше, чуть снаружи.
+  // В точке рождения — «паутинка» удара (5 коротких лучей): мгновенно
+  // читается «стекло бьётся». Толщина и длина растут с номером трещины.
+  const inkMat = () => new THREE.MeshBasicMaterial({ color: 0x1d1c26, transparent: true, opacity: 0.85, depthWrite: false });
+  const hiMat  = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false });
+  const onCone = (a, y, out) => new THREE.Vector3(
+    Math.cos(a)*(radiusAt(y) + out), y, Math.sin(a)*(radiusAt(y) + out));
   for (let c = 0; c < k; c++){
     const a0 = (c*2.399963) % (Math.PI*2);            // золотой угол — без решётки
-    const depth = 0.35 + 0.5*Math.min(1, (c+1)/Math.max(1,total||5)); // доля высоты
+    const prog = Math.min(1, (c+1)/Math.max(1, total||5));
+    const depth = 0.4 + 0.5*prog;                      // доля высоты конуса
+    const yTop = FUNNEL.H*0.97;
     const pts = [];
-    let a = a0, y = FUNNEL.H*0.98;
-    const steps = 7 + c;
+    let a = a0, y = yTop;
+    const steps = 8 + c*2;
     for (let i = 0; i <= steps; i++){
-      const t = i/steps;
-      const r = radiusAt(y) + 0.03;
-      pts.push(new THREE.Vector3(Math.cos(a)*r, y, Math.sin(a)*r));
-      y = FUNNEL.H*0.98*(1 - depth*t) ;
-      a += (Math.sin(c*7.1 + i*3.3) * 0.22);           // детерминированный зигзаг
+      pts.push(onCone(a, y, 0.05));
+      y = yTop*(1 - depth*(i+1)/steps);
+      a += Math.sin(c*7.1 + i*3.3)*0.20;               // детерминированный зигзаг
     }
-    const g = new THREE.BufferGeometry().setFromPoints(pts);
-    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
-    bowlCrackGroup.add(new THREE.Line(g, m));
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const rCore = 0.055 + 0.03*prog;
+    const core = new THREE.Mesh(new THREE.TubeGeometry(curve, steps*3, rCore, 5, false), inkMat());
+    bowlCrackGroup.add(core);
+    // блик — тоньше, чуть дальше от стекла и со сдвигом вдоль кривой
+    const hiPts = pts.map(pnt => pnt.clone().multiplyScalar(1.004));
+    const hi = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hiPts), steps*3, rCore*0.4, 5, false), hiMat());
+    bowlCrackGroup.add(hi);
+    // паутинка удара: 5 коротких лучей-трубок из точки рождения
+    for (let rN = 0; rN < 5; rN++){
+      const ra = a0 + (rN - 2)*0.5 + 0.15*Math.sin(c*3 + rN*5);
+      const rp = [ onCone(a0, yTop, 0.05), onCone(ra, yTop - (0.35 + 0.25*(rN%3)), 0.05) ];
+      const ray = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp), 4, 0.03, 4, false), inkMat());
+      bowlCrackGroup.add(ray);
+    }
   }
   bowlCrackGroup.userData.telegraph = (total != null && k >= total - 1); // пульс при N-1
   scene.add(bowlCrackGroup);
@@ -3594,8 +3613,8 @@ function setBowlCracks(k, total){
 // пульс телеграфа (зовёт loop): мигание трещин при k = N-1
 function tickBowlCracks(nowMs){
   if (!bowlCrackGroup || !bowlCrackGroup.userData.telegraph) return;
-  const o = 0.55 + 0.4*Math.sin(nowMs*0.012);
-  bowlCrackGroup.children.forEach(l => { l.material.opacity = o; });
+  const o = 0.45 + 0.5*(0.5 + 0.5*Math.sin(nowMs*0.012));
+  bowlCrackGroup.children.forEach(m => { m.material.opacity = o * (m.material.color.r > 0.5 ? 1.0 : 0.94); });
 }
 // разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
 function shatterBowlVis(){
