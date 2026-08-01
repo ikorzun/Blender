@@ -4049,6 +4049,12 @@ window.bridge = {
     g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     g.boostClear();
+    // одинаковый ПОДНЯТЫЙ радиус обоим замерам: вторая пара типа на боевом
+    // радиусе может не сойтись (первый матч съедает ближайшую) — d1 был 0
+    // не из-за бонуса, а из-за несостоявшегося матча (ловля первого прогона)
+    const radSave = g.cfg.baseRadius;
+    g.cfg.baseRadius = 3.0;
+    await new Promise(r => setTimeout(r, 600));   // updateMatchRadius тикает 300 мс
     // тип: >=4 живых и счётчик накопления далеко от порога ступени
     const sn = g.typesSnapshot(), acc = g.accSnapshot();
     let name = null;
@@ -4071,6 +4077,7 @@ window.bridge = {
     g.matchType(name);                       // горящий матч
     await new Promise(r => setTimeout(r, 150));
     const d1 = g.stats().score - s1;
+    g.cfg.baseRadius = radSave;
     return { name, d0, d1, горелоДо, послеСбора: g.burning() };
   });
   expect(!fireBonus.нетТипа && !fireBonus.нетЖивых && fireBonus.горелоДо === fireBonus.name &&
