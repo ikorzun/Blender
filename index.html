@@ -12903,7 +12903,10 @@ window.__game = {
       for (const c of items) if (c.alive && !c.surprise && (!it || c.p.y > it.p.y)) it = c;
     }
     if (!it || !it.alive) return null;
-    fireSilhouetteFX(it);
+    // ⚠️ ЧЕРЕЗ МЕХАНИКУ, не голым эффектом (ловля стража бонуса v232): ручка
+    // осталась от переноса эффектов и звала fireSilhouetteFX напрямую —
+    // burningItem не ставился, бонус и «горит ровно один» её не видели.
+    igniteItem(it);
     return { type: it.type && it.type.name, fires: fires.length };
   },
   extinguish(){ extinguishAll(); return fires.length; },
