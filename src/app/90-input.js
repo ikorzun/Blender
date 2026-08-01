@@ -265,6 +265,13 @@ $('perfCopyBtn').addEventListener('click', ()=>{
   }
 });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// ЧАША-РАЗЛЁТ (прототип v2): стендовые кнопки — та же точка, что у турбо
+if ($('bowlCrackBtn')) $('bowlCrackBtn').addEventListener('click', ()=>{ bowlCrackAdd(); });
+if ($('bowlShatterBtn')) $('bowlShatterBtn').addEventListener('click', ()=>{
+  if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); }
+  $('debugPanel').style.display='none';
+});
+if ($('bowlNInp')) $('bowlNInp').addEventListener('change', (e)=>{ bowlNRuntime = Math.max(0, parseInt(e.target.value,10)||0); });
 
 // ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
 // Сложность и звук управляются ИЗ ДВУХ МЕСТ (чекбоксы паузы + контролы

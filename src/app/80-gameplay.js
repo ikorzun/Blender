@@ -96,6 +96,9 @@ function doMatch(list){
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
         scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
+        // ЧАША-РАЗЛЁТ (прототип v2): каждый вход в турбо = трещина; серия
+        // турбо (again) — тоже честный буст, считается. N трещин => разлёт.
+        bowlCrackAdd();
         // ⚠️ ПОДБРОС КУЧИ НА ВХОДЕ В ТУРБО (спека владельца 2026-07-28
         // «подкидывать все вещи, словно это шейк на старте») — заменил
         // молнии как маркер входа. performShake() НЕ списывает зарядов
@@ -290,6 +293,89 @@ let chargeName = '', chargeUntil = 0;
 function seriesMult(nowMs){
   if (chainUntil > nowMs) return SERIES_MULT_CHAIN;
   return comboCount >= SERIES_X3_AT ? SERIES_MULT_X3 : COMBO_SCORE_MULT;
+}
+// ===== ЧАША-РАЗЛЁТ (прототип v2) — механика =====
+// Единая точка трещины: её зовут И вход в турбо, И ручка стенда/тестов —
+// поведение одно (урок «ручка мимо механики» из огня v232).
+let bowlShattering = false;
+let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
+function bowlN(){ return bowlNRuntime || BOWL_SHATTER_N; }
+function bowlCrackAdd(){
+  if (!level || level.over || bowlShattering) return;
+  level.bowlCracks = (level.bowlCracks || 0) + 1;
+  try { setBowlCracks(level.bowlCracks, bowlN()); } catch(e){}
+  Sound.play('crunch', 9); vibrate([15, 30, 25]);
+  camShake = Math.max(camShake, 0.18);
+  if (level.bowlCracks >= bowlN()){
+    // отложенно на РЕАЛЬНЫХ часах: дать попу Power chain и подбросу прожить
+    setTimeout(shatterBowl, 650);
+  }
+}
+function shatterBowl(){
+  if (!level || level.over || bowlShattering || intro) return;
+  bowlShattering = true;
+  slowmoUntil = performance.now() + BOWL_SLOWMO_MS; // «да!» владельца: слоу-мо
+  try { dropWalls(); } catch(e){}
+  try { shatterBowlVis(); } catch(e){}
+  wakePhysics('bowl:shatter');
+  blastWave(new THREE.Vector3(0, 3.5, 0), 9, 3.2, 2.0); // куче — наружу, зрелищно
+  Sound.play('chain'); Sound.play('crunch', 12);
+  vibrate([40, 60, 40, 60, 80]);
+  camShake = Math.max(camShake, 0.6);
+  stats.lastAction = performance.now(); // миксер молчит на празднике
+  // волна сбора — после разлёта, РЕАЛЬНЫЕ часы (канонный паттерн grindShred)
+  setTimeout(bowlCollectAll, BOWL_COLLECT_DELAY);
+}
+function bowlCollectAll(){
+  if (!level || level.over) { bowlShattering = false; return; }
+  // «засчитываются как соединённые»: по каждому типу k живых — очки группы
+  // с капом, ×накопление ×платный бустер, БЕЗ серийных множителей (иначе
+  // стак с турбо); accAdd на все k — это СПАСЕНИЕ, музей честен.
+  const byType = {};
+  const extras = []; // камни/бомба — уносятся без очков (решение №2 владельца)
+  let surprise = null;
+  for (const it of items){
+    if (!it.alive || it.animating) continue;
+    if (it.surprise){ surprise = it; continue; }
+    if (it.bomb || it.rock){ extras.push(it); continue; }
+    if (!it.type) continue;
+    (byType[it.type.name] = byType[it.type.name] || []).push(it);
+  }
+  let gainedTotal = 0;
+  const scoreBefore = stats.score;
+  for (const [name, list] of Object.entries(byType)){
+    const k = list.length;
+    const kk = Math.min(k, MATCH_MAX_N);
+    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * scoreBoostMult());
+    accAdd(name, k, list[0]);
+  }
+  stats.score += gainedTotal;
+  const shown = scoreShownDelta(scoreBefore, stats.score);
+  if (surprise){ try { collectSurprise(surprise); } catch(e){} }
+  // волна исчезновения от центра: fade+scale, задержка по расстоянию —
+  // дёшево (без пер-предметной трухи), читается как «собраны разом»
+  const all = Object.values(byType).flat().concat(extras);
+  for (const it of all){
+    it.animating = true; it.animStartMs = performance.now();
+    destroyItemBody(it);
+    const d = Math.min(1, it.p.length()/10);
+    const s0 = it.mesh.scale.x;
+    addFX(new THREE.Object3D(), 0.3 + d*0.4, (o, k2) => {
+      const t = Math.max(0, (k2 - d*0.5) / (1 - d*0.5 || 1));
+      it.mesh.scale.setScalar(s0 * Math.max(0, 1 - t));
+    });
+  }
+  scorePop('Bowl Shatter! +' + shown, new THREE.Vector3(0, 5.5, 0), '#ff5a3c', true);
+  Sound.play('win');
+  setTimeout(() => afterPause(() => {
+    all.forEach(removeItem);
+    bowlShattering = false;
+    refreshAccessibility(); updateHUD(); checkEnd(); // живых нет -> победа
+  }), 750);
+}
+function bowlState(){
+  return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
+           shattering: bowlShattering };
 }
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };

@@ -492,6 +492,11 @@ function genLevel(){
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   chargeName = ''; chargeUntil = 0; // ревью v212: заряд типа тоже не переживает
+  // ЧАША-РАЗЛЁТ (прототип v2): чаша НОВАЯ каждый уровень (решение №1
+  // владельца) — трещины в ноль, стекло и стены восстановлены
+  level.bowlCracks = 0; bowlShattering = false;
+  try { restoreBowlVis(); } catch(e){}
+  try { ensureWalls(); } catch(e){}
   // уровень — иначе чип чужого типа в новом уровне, детонация по новой куче
   // после быстрого рестарта и ВТОРОЙ заряд поверх (chargeGiven у уровня свежий)
   Telemetry.ev('level_start', { lv: levelNum });

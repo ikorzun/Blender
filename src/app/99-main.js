@@ -13,6 +13,7 @@ let perfFrames = 0, perfWorstMs = 0;
 // фазы ТЕКУЩЕГО кадра — копятся по ходу loop и складываются в _lastPh в конце
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
+let slowmoUntil = 0;    // слоу-мо разлёта чаши (прототип v2): dt множится на K
 // ⚠️ РАЗБОРКА КАДРА ПО ПОДСИСТЕМАМ (2026-07-31, задача владельца «игра
 // подтупливает на мобиле»). Прежний перф-метр давал кадр ОДНИМ КОМКОМ и
 // шаг физики отдельно — по такой паре нельзя сказать, кто ест кадр: остаток
@@ -385,6 +386,9 @@ function loop(){
   const now = performance.now();
   const rawMs = now - lastT;
   let dt = Math.min(0.033, rawMs/1000); lastT = now;
+  // ЧАША-РАЗЛЁТ: слоу-мо («да!» владельца) — замедляем ИГРОВОЕ время (физика,
+  // fx, тики на dt); реальные часы (тосты, сбор, HUD) не трогаем
+  if (now < slowmoUntil) dt *= BOWL_SLOWMO_K;
   if (paused){ renderer.render(scene, camera); return; } // стоп-кадр (до перф-метра — пауза не портит статистику кадров)
   perfFrames++;
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
@@ -409,6 +413,7 @@ function loop(){
   }
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
+  try { tickBowlCracks(now); } catch(e){} // пульс телеграфа трещин при N-1
   tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
   tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
@@ -1251,6 +1256,13 @@ window.__game = {
   // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
   // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
   burning(){ return burningName(); },
+  // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
+  bowl(){ return bowlState(); },
+  bowlCrack(){ bowlCrackAdd(); return bowlState(); },   // та же точка, что у турбо
+  bowlShatterNow(){ if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); } return bowlState(); },
+  bowlSetN(n){ bowlNRuntime = Math.max(0, n|0); return bowlN(); },
+  walls(){ return wallsCount(); },
+  slowmoLeft(){ return Math.max(0, Math.round(slowmoUntil - performance.now())); },
   fireDue(ms){ if (ms != null) fireNextMs = performance.now() + ms; return fireNextMs; },
   ignite(i){
     // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь

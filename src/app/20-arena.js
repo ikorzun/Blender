@@ -87,3 +87,81 @@ function radiusAt(y){
   const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
   return FUNNEL.R0 + SLOPE*yy;
 }
+
+// ===== ЧАША-РАЗЛЁТ (прототип v2): трещины + черепки =====
+// Трещины — ПРОТОТИПНЫЙ визуал (ломаные линии по поверхности конуса + лёгкое
+// беление стекла); боевой шейдерный вариант — Графике при переносе в процесс.
+let bowlCrackGroup = null, bowlCrackN = 0, bowlBaseOpacity = null;
+function setBowlCracks(k, total){
+  bowlCrackN = k;
+  if (bowlBaseOpacity == null && bowlMat) bowlBaseOpacity = bowlMat.opacity;
+  if (bowlCrackGroup){ scene.remove(bowlCrackGroup);
+    bowlCrackGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    bowlCrackGroup = null; }
+  if (bowlMat && bowlBaseOpacity != null)
+    bowlMat.opacity = Math.min(0.30, bowlBaseOpacity + 0.035*k); // стекло мутнеет
+  if (k <= 0) return;
+  bowlCrackGroup = new THREE.Group();
+  // k ломаных: каждая — зигзаг от кромки вниз по поверхности (чуть снаружи
+  // стекла, radiusAt+0.03), длиннее с каждым номером — прогресс читается
+  for (let c = 0; c < k; c++){
+    const a0 = (c*2.399963) % (Math.PI*2);            // золотой угол — без решётки
+    const depth = 0.35 + 0.5*Math.min(1, (c+1)/Math.max(1,total||5)); // доля высоты
+    const pts = [];
+    let a = a0, y = FUNNEL.H*0.98;
+    const steps = 7 + c;
+    for (let i = 0; i <= steps; i++){
+      const t = i/steps;
+      const r = radiusAt(y) + 0.03;
+      pts.push(new THREE.Vector3(Math.cos(a)*r, y, Math.sin(a)*r));
+      y = FUNNEL.H*0.98*(1 - depth*t) ;
+      a += (Math.sin(c*7.1 + i*3.3) * 0.22);           // детерминированный зигзаг
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+    bowlCrackGroup.add(new THREE.Line(g, m));
+  }
+  bowlCrackGroup.userData.telegraph = (total != null && k >= total - 1); // пульс при N-1
+  scene.add(bowlCrackGroup);
+}
+// пульс телеграфа (зовёт loop): мигание трещин при k = N-1
+function tickBowlCracks(nowMs){
+  if (!bowlCrackGroup || !bowlCrackGroup.userData.telegraph) return;
+  const o = 0.55 + 0.4*Math.sin(nowMs*0.012);
+  bowlCrackGroup.children.forEach(l => { l.material.opacity = o; });
+}
+// разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
+function shatterBowlVis(){
+  if (bowlMesh) bowlMesh.visible = false;
+  setBowlCracks(0);
+  const rows = BOWL_SHARD_ROWS, seg = BOWL_SHARD_SEG;
+  for (let r = 0; r < rows; r++){
+    const y0 = FUNNEL.H*r/rows, y1 = FUNNEL.H*(r+1)/rows;
+    for (let i = 0; i < seg; i++){
+      const th0 = i/seg*Math.PI*2, dth = Math.PI*2/seg*0.92;
+      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 5, 1, true, th0, dth);
+      g.translate(0, (y0+y1)/2, 0);
+      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, transparent: true,
+        opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      const mesh = new THREE.Mesh(g, m);
+      const midA = th0 + dth/2;
+      const dir = new THREE.Vector3(Math.cos(midA), 0.55 + Math.random()*0.4, Math.sin(midA)).normalize();
+      const spin = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).multiplyScalar(6);
+      const v0 = 7 + Math.random()*4;
+      const p0 = mesh.position.clone();
+      addFX(mesh, 1.4, (o, k) => {
+        // параметрическая баллистика (канон: позиция от t, FPS-независимо)
+        const t = k*1.4;
+        o.position.set(p0.x + dir.x*v0*t, p0.y + dir.y*v0*t - 0.5*9.5*t*t, p0.z + dir.z*v0*t);
+        o.rotation.set(spin.x*t, spin.y*t, spin.z*t);
+        o.material.opacity = 0.5*(1 - k);
+      });
+    }
+  }
+}
+// восстановление к новому уровню
+function restoreBowlVis(){
+  if (bowlMesh) bowlMesh.visible = true;
+  if (bowlMat && bowlBaseOpacity != null) bowlMat.opacity = bowlBaseOpacity;
+  setBowlCracks(0);
+}

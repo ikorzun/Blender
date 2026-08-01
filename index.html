@@ -1476,6 +1476,12 @@
   <div class="row"><span>Highlight available</span><input type="checkbox" id="hlToggle" checked></div>
   <div class="row"><span>Pairs available</span><b id="apCount">–</b></div>
   <button id="restartBtn">New level</button>
+  <div style="margin-top:6px; display:flex; gap:6px; align-items:center">
+    <span style="font-size:12px; opacity:.7">Bowl</span>
+    <button id="bowlCrackBtn" style="flex:1">Crack</button>
+    <button id="bowlShatterBtn" style="flex:1">Shatter</button>
+    <input id="bowlNInp" type="number" min="1" max="20" value="5" style="width:52px">
+  </div>
   <button id="tierDemoBtn" style="margin-top:6px">Tier-up demo</button>
   <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
   <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
@@ -2237,6 +2243,19 @@ const FIRE_BONUS_MULT = 2;    // бонус за сбор группы ГОРЯ�
                               // словом владельца «делай» на рекомендацию
                               // «собери группу горящего — бонус»)
 
+
+// ===== ЧАША-РАЗЛЁТ (идея владельца 2026-08-01, ПРОТОТИП v2; его решения:
+// чаша новая каждый уровень; камни/бомба уносятся без очков; слоу-мо ДА).
+// Каждый вход в турбо = трещина; N трещин => чаша разлетается, все предметы
+// засчитываются КАК СОЕДИНЁННЫЕ (спасение accAdd, очки группами по типам
+// БЕЗ серийных множителей — иначе стак с турбо; платный бустер множит),
+// мгновенная победа. Камни/бомба/сюрприз: сюрприз собирается с бонусом,
+// камни и бомба уносятся без очков (решение №2 владельца).
+const BOWL_SHATTER_N = 5;       // стартовое N (калибровка ботом + плейтест)
+const BOWL_SLOWMO_MS = 600;     // слоу-мо разлёта («да!» владельца, №3)
+const BOWL_SLOWMO_K = 0.45;     // множитель времени в слоу-мо
+const BOWL_COLLECT_DELAY = 900; // мс РЕАЛЬНЫХ от разлёта до волны сбора
+const BOWL_SHARD_ROWS = 2, BOWL_SHARD_SEG = 7; // черепки прототипа: 2x7
 // КАП РАЗМЕРА ГРУППЫ (спека владельца 2026-07-27: «поставь кап на 8»).
 // До этого капа НЕ БЫЛО вовсе: тап уносил ВСЕ доступные однотипные в
 // радиусе. Замер потолка по доступности: ур.1 (9 типов) до 16 штук,
@@ -3534,6 +3553,84 @@ let mixerSpeed = 0; // рад/с; лопасти крутятся ТОЛЬКО �
 function radiusAt(y){
   const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
   return FUNNEL.R0 + SLOPE*yy;
+}
+
+// ===== ЧАША-РАЗЛЁТ (прототип v2): трещины + черепки =====
+// Трещины — ПРОТОТИПНЫЙ визуал (ломаные линии по поверхности конуса + лёгкое
+// беление стекла); боевой шейдерный вариант — Графике при переносе в процесс.
+let bowlCrackGroup = null, bowlCrackN = 0, bowlBaseOpacity = null;
+function setBowlCracks(k, total){
+  bowlCrackN = k;
+  if (bowlBaseOpacity == null && bowlMat) bowlBaseOpacity = bowlMat.opacity;
+  if (bowlCrackGroup){ scene.remove(bowlCrackGroup);
+    bowlCrackGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    bowlCrackGroup = null; }
+  if (bowlMat && bowlBaseOpacity != null)
+    bowlMat.opacity = Math.min(0.30, bowlBaseOpacity + 0.035*k); // стекло мутнеет
+  if (k <= 0) return;
+  bowlCrackGroup = new THREE.Group();
+  // k ломаных: каждая — зигзаг от кромки вниз по поверхности (чуть снаружи
+  // стекла, radiusAt+0.03), длиннее с каждым номером — прогресс читается
+  for (let c = 0; c < k; c++){
+    const a0 = (c*2.399963) % (Math.PI*2);            // золотой угол — без решётки
+    const depth = 0.35 + 0.5*Math.min(1, (c+1)/Math.max(1,total||5)); // доля высоты
+    const pts = [];
+    let a = a0, y = FUNNEL.H*0.98;
+    const steps = 7 + c;
+    for (let i = 0; i <= steps; i++){
+      const t = i/steps;
+      const r = radiusAt(y) + 0.03;
+      pts.push(new THREE.Vector3(Math.cos(a)*r, y, Math.sin(a)*r));
+      y = FUNNEL.H*0.98*(1 - depth*t) ;
+      a += (Math.sin(c*7.1 + i*3.3) * 0.22);           // детерминированный зигзаг
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+    bowlCrackGroup.add(new THREE.Line(g, m));
+  }
+  bowlCrackGroup.userData.telegraph = (total != null && k >= total - 1); // пульс при N-1
+  scene.add(bowlCrackGroup);
+}
+// пульс телеграфа (зовёт loop): мигание трещин при k = N-1
+function tickBowlCracks(nowMs){
+  if (!bowlCrackGroup || !bowlCrackGroup.userData.telegraph) return;
+  const o = 0.55 + 0.4*Math.sin(nowMs*0.012);
+  bowlCrackGroup.children.forEach(l => { l.material.opacity = o; });
+}
+// разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
+function shatterBowlVis(){
+  if (bowlMesh) bowlMesh.visible = false;
+  setBowlCracks(0);
+  const rows = BOWL_SHARD_ROWS, seg = BOWL_SHARD_SEG;
+  for (let r = 0; r < rows; r++){
+    const y0 = FUNNEL.H*r/rows, y1 = FUNNEL.H*(r+1)/rows;
+    for (let i = 0; i < seg; i++){
+      const th0 = i/seg*Math.PI*2, dth = Math.PI*2/seg*0.92;
+      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 5, 1, true, th0, dth);
+      g.translate(0, (y0+y1)/2, 0);
+      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, transparent: true,
+        opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      const mesh = new THREE.Mesh(g, m);
+      const midA = th0 + dth/2;
+      const dir = new THREE.Vector3(Math.cos(midA), 0.55 + Math.random()*0.4, Math.sin(midA)).normalize();
+      const spin = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).multiplyScalar(6);
+      const v0 = 7 + Math.random()*4;
+      const p0 = mesh.position.clone();
+      addFX(mesh, 1.4, (o, k) => {
+        // параметрическая баллистика (канон: позиция от t, FPS-независимо)
+        const t = k*1.4;
+        o.position.set(p0.x + dir.x*v0*t, p0.y + dir.y*v0*t - 0.5*9.5*t*t, p0.z + dir.z*v0*t);
+        o.rotation.set(spin.x*t, spin.y*t, spin.z*t);
+        o.material.opacity = 0.5*(1 - k);
+      });
+    }
+  }
+}
+// восстановление к новому уровню
+function restoreBowlVis(){
+  if (bowlMesh) bowlMesh.visible = true;
+  if (bowlMat && bowlBaseOpacity != null) bowlMat.opacity = bowlBaseOpacity;
+  setBowlCracks(0);
 }
 
 // ===== 30-shapes: геометрии типов, палитра, материалы предметов =====
@@ -5141,6 +5238,11 @@ function genLevel(){
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   chargeName = ''; chargeUntil = 0; // ревью v212: заряд типа тоже не переживает
+  // ЧАША-РАЗЛЁТ (прототип v2): чаша НОВАЯ каждый уровень (решение №1
+  // владельца) — трещины в ноль, стекло и стены восстановлены
+  level.bowlCracks = 0; bowlShattering = false;
+  try { restoreBowlVis(); } catch(e){}
+  try { ensureWalls(); } catch(e){}
   // уровень — иначе чип чужого типа в новом уровне, детонация по новой куче
   // после быстрого рестарта и ВТОРОЙ заряд поверх (chargeGiven у уровня свежий)
   Telemetry.ev('level_start', { lv: levelNum });
@@ -5228,6 +5330,7 @@ function initPhysicsWorld(){
   // Порядок контактов в солвере меняется, куча из 182 тел хаотична, траектории
   // расходятся. Статистика цела (живых 182/182, верх 7.65 -> 7.54, под полом 0).
   const shellB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  shellBody = shellB; // ЧАША-РАЗЛЁТ (прототип v2): доступ для пересборки стен
   const RINGS = 12, LOW = 0.5;
   for (let ring = 0; ring < RINGS; ring++){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
@@ -5248,7 +5351,7 @@ function initPhysicsWorld(){
         .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
       _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-      world.createCollider(cd, shellB);
+      wallColliders.push(world.createCollider(cd, shellB)); // съёмные (разлёт чаши)
     }
   }
   // вертикальное продолжение над кромкой: скользкое, БЕЗ наклона (наклон
@@ -5262,7 +5365,7 @@ function initPhysicsWorld(){
       .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
     _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd2, shellB);
+    wallColliders.push(world.createCollider(cd2, shellB)); // съёмные (разлёт чаши)
   }
   // ⚠️ ПЛИТА ТОНКАЯ (полутолщина 0.3, то есть [0.55..1.15]) И ПОД НЕЙ ПУСТО.
   // Замер 2026-07-30: максимум просадки на летящей куче 0.28 — до середины
@@ -5276,6 +5379,25 @@ function initPhysicsWorld(){
   floorCol = world.createCollider(
     RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2)
       .setFriction(FRICTION).setTranslation(0, FLOOR_REST - 0.3, 0), shellB);
+}
+
+// ===== ЧАША-РАЗЛЁТ (прототип v2): стены-призраки =====
+// ⚠️ НЕ removeCollider: первая версия удаляла и пересоздавала стены на
+// genLevel — WASM Rapier падал «unreachable» в первом же step после
+// пересоздания (краш пойман стражем сброса). Сенсор — канонически
+// безопасный путь: коллайдер остаётся в мире,但 перестаёт толкаться;
+// восстановление = один флаг, ноль созданий/удалений.
+let wallColliders = [], shellBody = null;
+function dropWalls(){
+  for (const c of wallColliders){ try { c.setSensor(true); } catch(e){} }
+}
+function ensureWalls(){
+  for (const c of wallColliders){ try { if (c.isSensor()) c.setSensor(false); } catch(e){} }
+}
+function wallsCount(){ // число ТВЁРДЫХ стенных коллайдеров (для стражей)
+  let n = 0;
+  for (const c of wallColliders){ try { if (!c.isSensor()) n++; } catch(e){} }
+  return n;
 }
 
 // временная стена — тоже ОДНО тело (A1): она строится и сносится КАЖДЫЙ
@@ -8474,6 +8596,9 @@ function doMatch(list){
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
         scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
+        // ЧАША-РАЗЛЁТ (прототип v2): каждый вход в турбо = трещина; серия
+        // турбо (again) — тоже честный буст, считается. N трещин => разлёт.
+        bowlCrackAdd();
         // ⚠️ ПОДБРОС КУЧИ НА ВХОДЕ В ТУРБО (спека владельца 2026-07-28
         // «подкидывать все вещи, словно это шейк на старте») — заменил
         // молнии как маркер входа. performShake() НЕ списывает зарядов
@@ -8668,6 +8793,89 @@ let chargeName = '', chargeUntil = 0;
 function seriesMult(nowMs){
   if (chainUntil > nowMs) return SERIES_MULT_CHAIN;
   return comboCount >= SERIES_X3_AT ? SERIES_MULT_X3 : COMBO_SCORE_MULT;
+}
+// ===== ЧАША-РАЗЛЁТ (прототип v2) — механика =====
+// Единая точка трещины: её зовут И вход в турбо, И ручка стенда/тестов —
+// поведение одно (урок «ручка мимо механики» из огня v232).
+let bowlShattering = false;
+let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
+function bowlN(){ return bowlNRuntime || BOWL_SHATTER_N; }
+function bowlCrackAdd(){
+  if (!level || level.over || bowlShattering) return;
+  level.bowlCracks = (level.bowlCracks || 0) + 1;
+  try { setBowlCracks(level.bowlCracks, bowlN()); } catch(e){}
+  Sound.play('crunch', 9); vibrate([15, 30, 25]);
+  camShake = Math.max(camShake, 0.18);
+  if (level.bowlCracks >= bowlN()){
+    // отложенно на РЕАЛЬНЫХ часах: дать попу Power chain и подбросу прожить
+    setTimeout(shatterBowl, 650);
+  }
+}
+function shatterBowl(){
+  if (!level || level.over || bowlShattering || intro) return;
+  bowlShattering = true;
+  slowmoUntil = performance.now() + BOWL_SLOWMO_MS; // «да!» владельца: слоу-мо
+  try { dropWalls(); } catch(e){}
+  try { shatterBowlVis(); } catch(e){}
+  wakePhysics('bowl:shatter');
+  blastWave(new THREE.Vector3(0, 3.5, 0), 9, 3.2, 2.0); // куче — наружу, зрелищно
+  Sound.play('chain'); Sound.play('crunch', 12);
+  vibrate([40, 60, 40, 60, 80]);
+  camShake = Math.max(camShake, 0.6);
+  stats.lastAction = performance.now(); // миксер молчит на празднике
+  // волна сбора — после разлёта, РЕАЛЬНЫЕ часы (канонный паттерн grindShred)
+  setTimeout(bowlCollectAll, BOWL_COLLECT_DELAY);
+}
+function bowlCollectAll(){
+  if (!level || level.over) { bowlShattering = false; return; }
+  // «засчитываются как соединённые»: по каждому типу k живых — очки группы
+  // с капом, ×накопление ×платный бустер, БЕЗ серийных множителей (иначе
+  // стак с турбо); accAdd на все k — это СПАСЕНИЕ, музей честен.
+  const byType = {};
+  const extras = []; // камни/бомба — уносятся без очков (решение №2 владельца)
+  let surprise = null;
+  for (const it of items){
+    if (!it.alive || it.animating) continue;
+    if (it.surprise){ surprise = it; continue; }
+    if (it.bomb || it.rock){ extras.push(it); continue; }
+    if (!it.type) continue;
+    (byType[it.type.name] = byType[it.type.name] || []).push(it);
+  }
+  let gainedTotal = 0;
+  const scoreBefore = stats.score;
+  for (const [name, list] of Object.entries(byType)){
+    const k = list.length;
+    const kk = Math.min(k, MATCH_MAX_N);
+    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * scoreBoostMult());
+    accAdd(name, k, list[0]);
+  }
+  stats.score += gainedTotal;
+  const shown = scoreShownDelta(scoreBefore, stats.score);
+  if (surprise){ try { collectSurprise(surprise); } catch(e){} }
+  // волна исчезновения от центра: fade+scale, задержка по расстоянию —
+  // дёшево (без пер-предметной трухи), читается как «собраны разом»
+  const all = Object.values(byType).flat().concat(extras);
+  for (const it of all){
+    it.animating = true; it.animStartMs = performance.now();
+    destroyItemBody(it);
+    const d = Math.min(1, it.p.length()/10);
+    const s0 = it.mesh.scale.x;
+    addFX(new THREE.Object3D(), 0.3 + d*0.4, (o, k2) => {
+      const t = Math.max(0, (k2 - d*0.5) / (1 - d*0.5 || 1));
+      it.mesh.scale.setScalar(s0 * Math.max(0, 1 - t));
+    });
+  }
+  scorePop('Bowl Shatter! +' + shown, new THREE.Vector3(0, 5.5, 0), '#ff5a3c', true);
+  Sound.play('win');
+  setTimeout(() => afterPause(() => {
+    all.forEach(removeItem);
+    bowlShattering = false;
+    refreshAccessibility(); updateHUD(); checkEnd(); // живых нет -> победа
+  }), 750);
+}
+function bowlState(){
+  return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
+           shattering: bowlShattering };
 }
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
@@ -11412,6 +11620,13 @@ $('perfCopyBtn').addEventListener('click', ()=>{
   }
 });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// ЧАША-РАЗЛЁТ (прототип v2): стендовые кнопки — та же точка, что у турбо
+if ($('bowlCrackBtn')) $('bowlCrackBtn').addEventListener('click', ()=>{ bowlCrackAdd(); });
+if ($('bowlShatterBtn')) $('bowlShatterBtn').addEventListener('click', ()=>{
+  if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); }
+  $('debugPanel').style.display='none';
+});
+if ($('bowlNInp')) $('bowlNInp').addEventListener('change', (e)=>{ bowlNRuntime = Math.max(0, parseInt(e.target.value,10)||0); });
 
 // ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
 // Сложность и звук управляются ИЗ ДВУХ МЕСТ (чекбоксы паузы + контролы
@@ -11656,6 +11871,7 @@ let perfFrames = 0, perfWorstMs = 0;
 // фазы ТЕКУЩЕГО кадра — копятся по ходу loop и складываются в _lastPh в конце
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
+let slowmoUntil = 0;    // слоу-мо разлёта чаши (прототип v2): dt множится на K
 // ⚠️ РАЗБОРКА КАДРА ПО ПОДСИСТЕМАМ (2026-07-31, задача владельца «игра
 // подтупливает на мобиле»). Прежний перф-метр давал кадр ОДНИМ КОМКОМ и
 // шаг физики отдельно — по такой паре нельзя сказать, кто ест кадр: остаток
@@ -12028,6 +12244,9 @@ function loop(){
   const now = performance.now();
   const rawMs = now - lastT;
   let dt = Math.min(0.033, rawMs/1000); lastT = now;
+  // ЧАША-РАЗЛЁТ: слоу-мо («да!» владельца) — замедляем ИГРОВОЕ время (физика,
+  // fx, тики на dt); реальные часы (тосты, сбор, HUD) не трогаем
+  if (now < slowmoUntil) dt *= BOWL_SLOWMO_K;
   if (paused){ renderer.render(scene, camera); return; } // стоп-кадр (до перф-метра — пауза не портит статистику кадров)
   perfFrames++;
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
@@ -12052,6 +12271,7 @@ function loop(){
   }
   if (intro) tickIntro(dt);
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
+  try { tickBowlCracks(now); } catch(e){} // пульс телеграфа трещин при N-1
   tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
   tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
@@ -12894,6 +13114,13 @@ window.__game = {
   // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
   // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
   burning(){ return burningName(); },
+  // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
+  bowl(){ return bowlState(); },
+  bowlCrack(){ bowlCrackAdd(); return bowlState(); },   // та же точка, что у турбо
+  bowlShatterNow(){ if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); } return bowlState(); },
+  bowlSetN(n){ bowlNRuntime = Math.max(0, n|0); return bowlN(); },
+  walls(){ return wallsCount(); },
+  slowmoLeft(){ return Math.max(0, Math.round(slowmoUntil - performance.now())); },
   fireDue(ms){ if (ms != null) fireNextMs = performance.now() + ms; return fireNextMs; },
   ignite(i){
     // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь

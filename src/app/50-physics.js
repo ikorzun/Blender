@@ -76,6 +76,7 @@ function initPhysicsWorld(){
   // Порядок контактов в солвере меняется, куча из 182 тел хаотична, траектории
   // расходятся. Статистика цела (живых 182/182, верх 7.65 -> 7.54, под полом 0).
   const shellB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  shellBody = shellB; // ЧАША-РАЗЛЁТ (прототип v2): доступ для пересборки стен
   const RINGS = 12, LOW = 0.5;
   for (let ring = 0; ring < RINGS; ring++){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
@@ -96,7 +97,7 @@ function initPhysicsWorld(){
         .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
       _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-      world.createCollider(cd, shellB);
+      wallColliders.push(world.createCollider(cd, shellB)); // съёмные (разлёт чаши)
     }
   }
   // вертикальное продолжение над кромкой: скользкое, БЕЗ наклона (наклон
@@ -110,7 +111,7 @@ function initPhysicsWorld(){
       .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
     _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    world.createCollider(cd2, shellB);
+    wallColliders.push(world.createCollider(cd2, shellB)); // съёмные (разлёт чаши)
   }
   // ⚠️ ПЛИТА ТОНКАЯ (полутолщина 0.3, то есть [0.55..1.15]) И ПОД НЕЙ ПУСТО.
   // Замер 2026-07-30: максимум просадки на летящей куче 0.28 — до середины
@@ -124,6 +125,25 @@ function initPhysicsWorld(){
   floorCol = world.createCollider(
     RAPIER.ColliderDesc.cylinder(0.3, radiusAt(FLOOR_REST) + 0.2)
       .setFriction(FRICTION).setTranslation(0, FLOOR_REST - 0.3, 0), shellB);
+}
+
+// ===== ЧАША-РАЗЛЁТ (прототип v2): стены-призраки =====
+// ⚠️ НЕ removeCollider: первая версия удаляла и пересоздавала стены на
+// genLevel — WASM Rapier падал «unreachable» в первом же step после
+// пересоздания (краш пойман стражем сброса). Сенсор — канонически
+// безопасный путь: коллайдер остаётся в мире,但 перестаёт толкаться;
+// восстановление = один флаг, ноль созданий/удалений.
+let wallColliders = [], shellBody = null;
+function dropWalls(){
+  for (const c of wallColliders){ try { c.setSensor(true); } catch(e){} }
+}
+function ensureWalls(){
+  for (const c of wallColliders){ try { if (c.isSensor()) c.setSensor(false); } catch(e){} }
+}
+function wallsCount(){ // число ТВЁРДЫХ стенных коллайдеров (для стражей)
+  let n = 0;
+  for (const c of wallColliders){ try { if (!c.isSensor()) n++; } catch(e){} }
+  return n;
 }
 
 // временная стена — тоже ОДНО тело (A1): она строится и сносится КАЖДЫЙ

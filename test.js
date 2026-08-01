@@ -4087,6 +4087,76 @@ window.bridge = {
     '🔥 БОНУС: сбор группы ГАСИТ огонь — одноразовый (' + JSON.stringify(fireBonus.послеСбора) + ')');
   await firePage.close();
 
+  // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
+  // уровень / камни-бомба без очков / слоу-мо да) =====
+  const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
+  await bowlPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await bowlPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await bowlPage.evaluate(() => { window.__game.setLevel(5); window.__game.regen(); window.__game.skipIntro(); });
+  await bowlPage.waitForTimeout(400);
+  // 1) трещина растёт от ВХОДА В ТУРБО (реальная серия, не ручка):
+  const bowlChain = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    const c0 = g.bowl().cracks;
+    for (let i = 0; i < 14 && !g.combo().chain; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
+    return { c0, chain: g.combo().chain, c1: g.bowl().cracks };
+  });
+  expect(bowlChain.c0 === 0 && bowlChain.chain === true && bowlChain.c1 === 1,
+    'ЧАША: вход в турбо даёт ровно одну трещину (' + JSON.stringify(bowlChain) + ')');
+  // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
+  //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
+  const bowlShatter = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    g.bowlSetN(2);
+    // эталон для «спасения»: тип с k живых и его счётчик ДО
+    const sn = g.typesSnapshot();
+    let name = null, k = 0;
+    for (const [key, v] of Object.entries(sn)) if (key !== 'surprise' && v.alive > k){ name = key; k = v.alive; }
+    const acc0 = (g.accSnapshot().find(x => x.key === name) || { count: 0 }).count;
+    const walls0 = g.walls(), score0 = g.stats().score, alive0 = g.alive();
+    g.bowlCrack();                       // 1-я трещина (та же точка, что у турбо)
+    await new Promise(r => setTimeout(r, 120));
+    g.bowlCrack();                       // 2-я = N -> отложенный разлёт (650 мс)
+    await new Promise(r => setTimeout(r, 900));
+    const вРазлёте = { slowmo: g.slowmoLeft(), walls: g.walls(), shattering: g.bowl().shattering };
+    // осадка-опрос: сбор + удаление + победа (потолок-страховка 8 с)
+    const t0 = Date.now();
+    while (Date.now() - t0 < 8000){
+      const st = { alive: g.alive(), over: !!(g.level() && g.level().over) };
+      if (st.alive === 0 && st.over) break;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    const acc1 = (g.accSnapshot().find(x => x.key === name) || { count: 0 }).count;
+    return { name, k, walls0, вРазлёте, alive: g.alive(),
+             over: !!(g.level() && g.level().over),
+             очки: g.stats().score - score0, alive0,
+             спасено: acc1 - acc0 };
+  });
+  expect(bowlShatter.walls0 > 0 && bowlShatter.вРазлёте.walls === 0,
+    'ЧАША: разлёт СНЯЛ стены (' + bowlShatter.walls0 + ' -> ' + bowlShatter.вРазлёте.walls + ')');
+  expect(bowlShatter.вРазлёте.slowmo > 0,
+    'ЧАША: слоу-мо идёт в момент разлёта («да!» владельца) (' + bowlShatter.вРазлёте.slowmo + ' мс)');
+  expect(bowlShatter.alive === 0 && bowlShatter.over === true,
+    'ЧАША: все предметы собраны, уровень выигран (' + JSON.stringify({ alive: bowlShatter.alive, over: bowlShatter.over }) + ')');
+  expect(bowlShatter.очки > 0,
+    'ЧАША: сбор «как соединённые» дал очки (' + bowlShatter.очки + ')');
+  expect(bowlShatter.спасено === bowlShatter.k,
+    'ЧАША: накопление типа выросло на ВСЕХ живых — это спасение (' +
+    bowlShatter.спасено + ' == ' + bowlShatter.k + ')');
+  // 3) новый уровень: чаша НОВАЯ (решение №1) — трещины 0, стены на месте
+  const bowlReset = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    return { cracks: g.bowl().cracks, walls: g.walls(), shattering: g.bowl().shattering };
+  });
+  expect(bowlReset.cracks === 0 && bowlReset.walls > 0 && bowlReset.shattering === false,
+    'ЧАША: новый уровень = новая чаша, трещины 0, стены восстановлены (' + JSON.stringify(bowlReset) + ')');
+  await bowlPage.close();
+
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
