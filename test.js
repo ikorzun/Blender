@@ -3970,6 +3970,75 @@ window.bridge = {
     'ОГОНЬ: тушение не оставило геометрий (' + fx1b + ' -> ' + fx2.geoms + ')');
   await fxPage.close();
 
+  // ===== ГОРЯЩИЙ ПРЕДМЕТ: МЕХАНИКА (спека владельца 2026-08-01) =====
+  // Дословно: «ДЕЛАЙ, только 1 предмет за 30 секунд может загореться» + мой
+  // гейт «поджигать только доступные, иначе награда издевательская».
+  // ⚠️ 30 СЕКУНД — ЧИСЛО ВЛАДЕЛЬЦА. Страж сверяет именно его: если кто-то
+  // «оптимизирует» частоту, прогон обязан покраснеть.
+  const firePage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  firePage.on('pageerror', e => errors.push('PAGEERROR(fire): ' + e.message));
+  await firePage.goto('file://' + path.join(__dirname, 'index.html'));
+  await firePage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await firePage.evaluate(() => window.__game.skipIntro());
+  await new Promise(r => setTimeout(r, 700));
+  expect((await firePage.evaluate(() => window.__game.burning())) === null,
+    'ОГОНЬ: в начале партии никто не горит');
+  // вспышка по сроку — окно двигаем ручкой, чтобы не ждать полминуты
+  await firePage.evaluate(() => window.__game.fireDue(200));
+  await new Promise(r => setTimeout(r, 1100));
+  const fire1 = await firePage.evaluate(() => ({ горит: window.__game.burning(),
+    огней: window.__game.firesN(), срок: window.__game.fireDue(), t: performance.now() }));
+  expect(!!fire1.горит && fire1.огней === 1,
+    'ОГОНЬ: по сроку загорелся ровно один (' + fire1.горит + ', огней ' + fire1.огней + ')');
+  // ⚠️ ЧИСЛО ВЛАДЕЛЬЦА: следующая вспышка назначена НЕ РАНЬШЕ чем через 30 с
+  // от момента ЭТОЙ (а не от момента, когда она догорит).
+  const gap = (fire1.срок - fire1.t) / 1000;
+  expect(gap > 28 && gap <= 30.5,
+    'ОГОНЬ: следующая вспышка не раньше 30 с (назначена через ' + gap.toFixed(1) + ' с)');
+  // гаснет САМ (FIRE_BURN_MS = 6 с), окно при этом не сбрасывается
+  await new Promise(r => setTimeout(r, 6600));
+  const fire2 = await firePage.evaluate(() => ({ горит: window.__game.burning(),
+    огней: window.__game.firesN(), срок: window.__game.fireDue(), t: performance.now() }));
+  expect(fire2.горит === null && fire2.огней === 0,
+    'ОГОНЬ: догорел и погас сам (' + JSON.stringify(fire2.горит) + ', огней ' + fire2.огней + ')');
+  expect((fire2.срок - fire2.t) / 1000 > 20,
+    'ОГОНЬ: после догорания второй вспышки НЕ случилось раньше срока (осталось ' +
+    ((fire2.срок - fire2.t) / 1000).toFixed(1) + ' с)');
+  // кого поджигает: спецпредметы нельзя, и на Hard — только доступные
+  await firePage.evaluate(() => { window.__game.cfg.hard = true; window.__game.forceRefresh(); });
+  const выбор = [];
+  for (let i = 0; i < 5; i++){
+    await firePage.evaluate(() => { window.__game.extinguish(); window.__game.fireDue(60); });
+    await new Promise(r => setTimeout(r, 420));
+    выбор.push(await firePage.evaluate(() => {
+      const n = window.__game.burning();
+      if (!n) return null;
+      // сверяем, что горящий — ДОСТУПНЫЙ: список доступных отдаёт ядро
+      return { name: n, доступных: window.__game.accessibleList().length };
+    }));
+  }
+  const зажглось = выбор.filter(Boolean);
+  expect(зажглось.length >= 3,
+    'ОГОНЬ: вспышка воспроизводится (зажглось ' + зажглось.length + ' из 5)');
+  expect(зажглось.every(v => v.name !== 'surprise' && v.name !== 'bomb' && v.name !== 'rock'),
+    'ОГОНЬ: спецпредметы не горят (' + зажглось.map(v => v.name).join(',') + ')');
+  // ⚠️ РАЗНООБРАЗИЕ — НЕ ПРИДИРКА, А ЛОВУШКА, В КОТОРУЮ Я УЖЕ ПОПАЛА: пока
+  // extinguishAll не чистил состояние, планировщик больше не поджигал никого,
+  // а страж выше читал ОДНО И ТО ЖЕ имя пять раз и был зелёным. Замер дал
+  // 14 вспышек — 1 тип при 129 доступных. Требуем, чтобы выбор реально менялся.
+  expect(new Set(зажглось.map(v => v.name)).size >= 2,
+    'ОГОНЬ: выбор жертвы реально меняется (' + new Set(зажглось.map(v => v.name)).size +
+    ' разных из ' + зажглось.length + ')');
+  // смена уровня гасит: накладка висит на МЕШЕ, который сейчас уедет
+  await firePage.evaluate(() => { window.__game.extinguish(); window.__game.fireDue(60); });
+  await new Promise(r => setTimeout(r, 400));
+  await firePage.evaluate(() => window.__game.regen());
+  await new Promise(r => setTimeout(r, 900));
+  const после = await firePage.evaluate(() => ({ горит: window.__game.burning(), огней: window.__game.firesN() }));
+  expect(после.горит === null && после.огней === 0,
+    'ОГОНЬ: новый уровень гасит старое пламя (' + JSON.stringify(после) + ')');
+  await firePage.close();
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

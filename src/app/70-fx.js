@@ -617,6 +617,21 @@ function _sawFX_impl(item){
 // ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
 // свой список fires и свой тик из 99-main. Возвращает функцию тушения.
 const fires = [];
+// ГОРЯЩИЙ ПРЕДМЕТ: состояние механики. Держим ЗДЕСЬ, рядом с огнём, а не в
+// геймплее — гореть умеет ровно этот модуль. Наружу отдаём только имя типа:
+// на нём диспетчер вешает бонус за сбор группы (стык, зона его).
+let burningItem = null, burnUntil = 0;
+function burningName(){
+  return (burningItem && burningItem.alive && burningItem.type) ? burningItem.type.name : null;
+}
+function igniteItem(it, ms){
+  if (!it || !it.alive) return null;
+  extinguishAll();                       // одновременно горит не больше одного
+  fireSilhouetteFX(it);
+  burningItem = it;
+  burnUntil = performance.now() + (ms || FIRE_BURN_MS);
+  return it;
+}
 function _fireSilhouetteFX_impl(item){
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -653,8 +668,13 @@ function _fireSilhouetteFX_impl(item){
   return () => { if (!st.dying) st.dying = performance.now(); };
 }
 function tickFires(){
-  if (!fires.length) return;
   const now = performance.now();
+  // догорел по времени ИЛИ предмет уже собрали/перемололи — гасим и отпускаем
+  if (burningItem && (!burningItem.alive || now > burnUntil)){
+    burningItem = null; burnUntil = 0;
+    extinguishAll();
+  }
+  if (!fires.length) return;
   for (let i = fires.length - 1; i >= 0; i--){
     const f = fires[i];
     f.mat.uniforms.t.value = (now - f.t0)/1000;
@@ -671,7 +691,16 @@ function tickFires(){
     }
   }
 }
-function extinguishAll(){ for (const f of fires) if (!f.dying) f.dying = performance.now(); }
+// ⚠️ ГАСИТ И СОСТОЯНИЕ, А НЕ ТОЛЬКО ПЛАМЯ. Первая версия трогала только fires,
+// а burningItem оставляла жить — и планировщик вспышек, который проверяет
+// «уже горит?», больше НИКОГДА не поджигал новый предмет. Наружу это выглядело
+// как «огонь работает» (первая вспышка была), и страж «спецпредметы не горят»
+// честно печатал пять срабатываний, читая ОДНО И ТО ЖЕ имя пять раз.
+// Поймано замером разнообразия: 14 вспышек — 1 тип при 129 доступных.
+function extinguishAll(){
+  for (const f of fires) if (!f.dying) f.dying = performance.now();
+  burningItem = null; burnUntil = 0;
+}
 
 // Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
 // + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
