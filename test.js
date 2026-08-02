@@ -4140,22 +4140,23 @@ window.bridge = {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     g.bowlSetN(999); // порог не должен сработать посреди стража
     g.regen(); g.skipIntro(); await sleep(600);
+    const L = g.bowl().len; // зачётная длина из ручки — L меняется калибровкой
     const c0 = g.bowl().cracks;
     let calls1 = 0;
     { const t0 = Date.now();
       while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls1++; await sleep(90); } }
     const c1 = g.bowl().cracks;
     await sleep(4400);                     // обрыв: > seriesWindowMs — цепь гаснет
-    for (let i = 0; i < 4; i++){ g.autoMatch(); await sleep(90); }  // 4 < 6 — не зачёт
+    for (let i = 0; i < L - 2; i++){ g.autoMatch(); await sleep(90); }  // < L — не зачёт
     const c2 = g.bowl().cracks;
     let c3 = c2;
     { const t0 = Date.now();               // та же живая цепь: добить до зачёта
       while (g.bowl().cracks < c2 + 1 && Date.now() - t0 < 8000){ g.autoMatch(); await sleep(90); }
       c3 = g.bowl().cracks; }
-    return { c0, calls1, c1, c2, c3 };
+    return { c0, calls1, c1, c2, c3, L };
   });
-  expect(bowlSeries.c0 === 0 && bowlSeries.c1 === 1 && bowlSeries.calls1 >= 6,
-    'ЧАША: зачёт серии не раньше 6 непрерывных матчей (' + JSON.stringify(bowlSeries) + ')');
+  expect(bowlSeries.c0 === 0 && bowlSeries.c1 === 1 && bowlSeries.calls1 >= bowlSeries.L,
+    'ЧАША: зачёт серии не раньше L непрерывных матчей (' + JSON.stringify(bowlSeries) + ')');
   expect(bowlSeries.c2 === 1 && bowlSeries.c3 === 2,
     'ЧАША: обрыв цепи сбрасывает прогресс к зачёту, но не зачёты; живая цепь добивает следующий (' + JSON.stringify(bowlSeries) + ')');
 
@@ -4185,10 +4186,10 @@ window.bridge = {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     let calls = 0; const t0 = Date.now();
     while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls++; await sleep(90); }
-    return { calls, cracks: g.bowl().cracks };
+    return { calls, cracks: g.bowl().cracks, L: g.bowl().len };
   });
-  expect(bowlMiss1.cracks === 0 && missGrew && bowlMiss2.cracks === 1 && bowlMiss2.calls >= 6,
-    'ЧАША: промах РВЁТ цепь — после ошибки зачёт только за 6 НОВЫХ непрерывных (' +
+  expect(bowlMiss1.cracks === 0 && missGrew && bowlMiss2.cracks === 1 && bowlMiss2.calls >= bowlMiss2.L,
+    'ЧАША: промах РВЁТ цепь — после ошибки зачёт только за L НОВЫХ непрерывных (' +
     JSON.stringify({ до: bowlMiss1, промах: missGrew, после: bowlMiss2 }) + ')');
 
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»

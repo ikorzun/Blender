@@ -389,7 +389,7 @@ function bowlCollectAll(){
 }
 function bowlState(){
   return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
-           shattering: bowlShattering };
+           len: BOWL_SERIES_LEN, shattering: bowlShattering };
 }
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
