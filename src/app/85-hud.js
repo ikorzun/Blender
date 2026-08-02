@@ -176,8 +176,13 @@ function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'
 // и eyes-5 (подмигивание). Несводимые формы — отдельными слоями SVG.
 // Дуги eyes-4-4 УДАЛЕНЫ (спека владельца 2026-07-21): «добрые» показываем
 // не формой, а РАЗМЕРОМ зрачков — асимметрией eyes-5 (741:1357).
+// ⚠️ `spent`/`out` — ЛИЦА УСТАЛОСТИ ПО НОДАМ ВЛАДЕЛЬЦА (741:1302 и 741:1281):
+// «выдохся» (щёлочки) на предпоследнем зачёте и «вырубился» (✕✕) на N-м.
+// `out` делит слой `fX` с поражением: слой один, поводов два — конфликта нет,
+// они взаимоисключающие по построению (в норме уровень непроигрываем).
 const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fRound',
-  closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', sad:'fSad' };
+  closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', sad:'fSad',
+  spent:'fSlit', out:'fX' };
 // Геометрия из ассетов (viewBox 240×120): белок r60, зрачок r29.
 const EYE_R = 60, PUP_MIN = 15, PUP_WIDE = 50;
 // eyes-5 (асимметрия из ассета: левый зрачок 40 в белке 60; правый белок 44
@@ -200,6 +205,7 @@ const PUP_BASE = 29;                   // радиус зрачка в поко�
 // скрином). Закрытые глаза в проекте уже есть, берём их; накладку на сламе
 // гасим, иначе поверх схлопнутой щели висели бы два купола.
 const TIRED_PUP_K = 0.28;   // насколько усталость роняет БАЗУ зрачка (0..1)
+const TIRED_SPENT_AT = 1;   // за сколько зачётов ДО разлёта миксер «выдыхается» (щёлочки)
 const TIRED_STUN_MS = 180;  // «оглушение» в момент зачёта
 const TIRED_STUN_D  = 0.35; // доп. просадка век на этот миг
 let bowlSeen = 0, tiredStunUntil = 0, tiredSlam = false;
@@ -208,6 +214,12 @@ function bowlFatigue(){
   if (!level || level.over) return 0;
   const n = (typeof bowlN === 'function') ? bowlN() : 6;
   return Math.min(1, (level.bowlCracks || 0) / Math.max(1, n));
+}
+// сколько зачётов ОСТАЛОСЬ до разлёта (по нему решается «выдохся»)
+function bowlLeft(){
+  if (!level || level.over) return 99;
+  const n = (typeof bowlN === 'function') ? bowlN() : 6;
+  return n - (level.bowlCracks || 0);
 }
 let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0, faceHoldFrom = 0;
 let lookVec = null, lookUntil = 0, wander = [0,0], wanderAt = 0, dart = [0,0], dartAt = 0;
@@ -341,16 +353,24 @@ function tickFace(now){
   // помол перебивает всё, включая короткие реакции и моргание;
   // faceHoldFrom задерживает включение hold-состояния (нырок зрачков)
   const holdOn = faceHoldUntil > now && now >= faceHoldFrom;
-  const st = lastGrind ? 'angry' : (holdOn ? faceHold : faceState);
-  // СЛАМ: на N-м зачёте глаза захлопываются и ДЕРЖАТСЯ закрытыми до разлёта —
-  // тем же `.blink`, что и моргание. Помол перебивает и его: лесенка
-  // приоритетов у усталости ОДНА, слам из неё не выпадает.
-  // ⚠️ И `level.over` ТОЖЕ: `tiredSlam` живёт до genLevel (bowlCracks обнуляет
-  // только он, shatterBowl — нет), а уровень кончается РАНЬШЕ, на волне сбора.
-  // Без этого гейта победное лицо ('kind') и поражение ('lose') рисовались бы
-  // с зажмуренными глазами — нашло адверсарное перечитывание своего же дифа.
-  const shut = tiredSlam && !lastGrind && !!level && !level.over;
-  setFace(st, now, shut || (blinkUntil > now && st !== 'lose' && !lastGrind));
+  // ЛИЦА УСТАЛОСТИ — ЛЕСЕНКА ВЛАДЕЛЬЦА: веки копятся -> ЩЁЛОЧКИ (выдохся) ->
+  // ✕✕ (вырубился) -> разлёт чаши. ⚠️ Обе формы взяты из его нод, а не
+  // придуманы: 741:1302 и 741:1281.
+  // ⚠️ ЖИВОЙ ГЕЙТ `level.over`: `tiredSlam` живёт до genLevel (bowlCracks
+  // обнуляет только он, shatterBowl — НЕТ), а уровень кончается РАНЬШЕ, на
+  // волне сбора. Без гейта победное лицо рисовалось бы вырубленным.
+  const живая = !lastGrind && !!level && !level.over;
+  const вырубился = tiredSlam && живая;                       // ТЕРМИНАЛЬНОЕ: бьёт и реакции
+  const выдохся = !вырубился && живая && bowlLeft() <= TIRED_SPENT_AT;
+  // ⚠️ ПОРЯДОК ЗДЕСЬ И ЕСТЬ ЛЕСЕНКА ПРИОРИТЕТОВ (рамка ГРАФИКИ, п.3):
+  // помол > вырубился > короткие реакции > выдохся > покой. «Выдохся» стоит
+  // НИЖЕ реакций намеренно — иначе щёлочки съедали бы грусть на промахе,
+  // а это сигнал о другом событии.
+  const st = lastGrind ? 'angry'
+           : вырубился ? 'out'
+           : holdOn ? faceHold
+           : выдохся ? 'spent' : faceState;
+  setFace(st, now, blinkUntil > now && st !== 'lose' && st !== 'out' && st !== 'spent' && !lastGrind);
 }
 // ВЕКИ УСТАЛОСТИ — ЕДИНСТВЕННЫЙ ПИСАТЕЛЬ `--tired`.
 // ⚠️ ЛЕСЕНКА ПРИОРИТЕТОВ (рамка ГРАФИКИ, пункт 3): усталость НИЖЕ помола,
@@ -359,10 +379,12 @@ function tickFace(now){
 // требует показывать всегда.
 function applyTired(state, now){
   const ov = $('fTired'); if (!ov) return;
+  // ⚠️ `spent`/`out` В СПИСКЕ ОБЯЗАТЕЛЬНО: у щёлочек и ✕✕ нет ни белка, ни
+  // зрачков, и веко-накладка висела бы поверх них отдельной чёрной дугой.
   const off = lastGrind || state === 'angry' || state === 'lose' ||
-              state === 'surprised' || state === 'sad' || chainUntil > now;
+              state === 'surprised' || state === 'sad' ||
+              state === 'spent' || state === 'out' || chainUntil > now;
   let d = 0;
-  // на сламе накладка ГАСНЕТ — закрытые глаза рисует `.blink` (см. tickFace)
   if (!off && !tiredSlam){
     d = bowlFatigue();
     if (d > 0 && tiredStunUntil > now) d = Math.min(1, d + TIRED_STUN_D);
@@ -371,7 +393,7 @@ function applyTired(state, now){
 }
 function setFace(state, now, blinking){
   const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
-  for (const id of ['fRound','fAngry','fX','fSad'])
+  for (const id of ['fRound','fAngry','fX','fSad','fSlit'])
     $(id).classList.toggle('on', id === layer);
   // ⚠️ НАКЛАДКА — ОТДЕЛЬНОЙ СТРОКОЙ, НЕ В СПИСКЕ ВЫШЕ. Тот список
   // ВЗАИМОИСКЛЮЧАЮЩИЙ: попади `fTired` в него — он погасил бы `fRound` вместе
