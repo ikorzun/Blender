@@ -322,6 +322,37 @@ function matcapTuner(){
   prev.append(cb, document.createTextNode('показать на всех'));
   p.appendChild(prev);
 
+  // ЯРКОСТЬ И КОНТРАСТ ТЕКСТУРНЫХ МОДЕЛЕЙ + ГЛУБИНА КУЧИ (просьба владельца
+  // 2026-08-02 «сделать объекты чуть светлее»). ⚠️ ЭТО ГЛАВНЫЕ РУЧКИ ЯРКОСТИ,
+  // и до сих пор их в панели НЕ БЫЛО: владелец крутил бы пресеты, у которых
+  // совсем другая роль. `tex.amb` поднимать нельзя выше ~0.9 — шейдер МНОЖИТ
+  // matcap на атлас, и авторские цвета выцветают; яркость поднимается
+  // УМНОЖЕНИЕМ через gain, оно сохраняет отношение тёмного к светлому
+  // (аддитивный lift владелец уже забраковал: «всё сильно светлое»).
+  // ⚠️ uTune — юниформа ПО МАТЕРИАЛУ (у каждого предмета своя), поэтому
+  // ползунок обходит живые материалы, а не пишет в общий объект. Правим только
+  // те, у кого gain отличается от 1: это и есть текстурные модели.
+  head('яркость', '(текстурные модели + глубина)');
+  const eachTune = (fn) => {
+    for (const it of items){
+      const sh = it.mesh && it.mesh.material && it.mesh.material.userData
+        && it.mesh.material.userData.shader;
+      if (sh && sh.uniforms && sh.uniforms.uTune) fn(sh.uniforms.uTune.value);
+    }
+  };
+  let texGain = TEX_GAIN, texContrast = TEX_CONTRAST;
+  row('gain', { id: 'tex.gain', min: 0.85, max: 1.30, step: 0.01,
+    get: () => texGain, txt: () => texGain,
+    set: v => { texGain = Math.round(v * 100) / 100;
+      eachTune(t => { if (t.x !== 1) t.x = texGain; }); } });
+  row('contr', { id: 'tex.contrast', min: 1.00, max: 1.30, step: 0.01,
+    get: () => texContrast, txt: () => texContrast,
+    set: v => { texContrast = Math.round(v * 100) / 100;
+      eachTune(t => { if (t.y !== 1) t.y = texContrast; }); } });
+  row('низ', { id: 'depth.min', min: 0.40, max: 1.00, step: 0.01,
+    get: () => uDepthTint.value.x, txt: () => uDepthTint.value.x,
+    set: v => { uDepthTint.value.x = Math.round(v * 100) / 100; } });
+
   for (const kind of MATCAP_KINDS){
     const tex = matcapCache.get(kind);
     let used = 0;
@@ -358,6 +389,8 @@ function matcapTuner(){
   copy.onclick = () => {
     const s = '{\n  "light": ' + JSON.stringify(MATCAP_LIGHT)
       + ',\n  "veil": { "light": ' + uVeilTune.value.x + ', "lift": ' + uVeilTune.value.y + ' }'
+      + ',\n  "tex": { "gain": ' + texGain + ', "contrast": ' + texContrast
+        + ' }, "depthMin": ' + uDepthTint.value.x
       + ',\n  "presets": {\n'
       + MATCAP_KINDS.map(k => '    "' + k + '": ' + JSON.stringify(MATCAP_PRESETS[k])).join(',\n')
       + '\n  }\n}';
