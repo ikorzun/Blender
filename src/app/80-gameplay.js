@@ -48,6 +48,8 @@ function doMatch(list){
         // спека владельца: без эмодзи; «Combo ×2» тает — и СРАЗУ с того же
         // места тем же эффектом вылетает «Radius Up»
         scorePop('Combo ×' + COMBO_SCORE_MULT, mid0, '#ff9d2e', true);
+        // ЧАША-РАЗЛЁТ: режим 'combo' — трещина на КАЖДОМ зажигании серии
+        if (BOWL_CRACK_ON === 'combo') bowlCrackAdd();
         const mid1 = mid0.clone();
         setTimeout(()=>{ scorePop('Radius Up', mid1, '#ff9d2e', true); }, 800);
         Sound.play('combo');
@@ -96,9 +98,10 @@ function doMatch(list){
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
         scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
-        // ЧАША-РАЗЛЁТ (прототип v2): каждый вход в турбо = трещина; серия
-        // турбо (again) — тоже честный буст, считается. N трещин => разлёт.
-        bowlCrackAdd();
+        // ЧАША-РАЗЛЁТ: режим 'chain' — трещина на входе в турбо (исходный
+        // дизайн; серия турбо again — тоже буст). В режиме 'combo' здесь
+        // НЕ добавляем — иначе двойной счёт за одну серию.
+        if (BOWL_CRACK_ON === 'chain') bowlCrackAdd();
         // ⚠️ ПОДБРОС КУЧИ НА ВХОДЕ В ТУРБО (спека владельца 2026-07-28
         // «подкидывать все вещи, словно это шейк на старте») — заменил
         // молнии как маркер входа. performShake() НЕ списывает зарядов

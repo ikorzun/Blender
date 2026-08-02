@@ -50,6 +50,11 @@ const path = require('path');
   // съедала бы координатные клики (своя секция включает его обратно)
   await page.evaluate(() => window.__game.storyEnable(false));
   await page.evaluate(() => window.__game.skipIntro());
+  // ЧАША-РАЗЛЁТ: для СТАРЫХ длинных секций разлёт глушится (N=999) — в
+  // режиме combo любой бот-прогон набирает трещины и чаша разлеталась
+  // ПОСРЕДИ чужого стража (ловля: «защёлка 20% — ty null», уровень кончился
+  // победой раньше камеры). Секция чаши живёт на СВОЕЙ странице со своим N.
+  await page.evaluate(() => window.__game.bowlSetN(999));
   const latchedAfter = await page.evaluate(() => document.documentElement.classList.contains('uiready'));
   expect(latchedAfter, 'ЗАНАВЕС: introdone открыл защёлку uiready');
 
@@ -4102,7 +4107,7 @@ window.bridge = {
     return { c0, chain: g.combo().chain, c1: g.bowl().cracks };
   });
   expect(bowlChain.c0 === 0 && bowlChain.chain === true && bowlChain.c1 === 1,
-    'ЧАША: вход в турбо даёт ровно одну трещину (' + JSON.stringify(bowlChain) + ')');
+    'ЧАША: одна непрерывная серия до цепи = одна трещина (режим combo: зажигание) (' + JSON.stringify(bowlChain) + ')');
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
   const bowlShatter = await bowlPage.evaluate(async () => {
