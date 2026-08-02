@@ -500,3 +500,79 @@ $('resetBtn').addEventListener('click', ()=>{
   toast('Progress reset');
   genLevel(); updateHUD();
 });
+
+// ═══ НАЖАТИЕ КУРСОРА ═══ (слово владельца 2026-08-02 дословно: «когда я
+// кликаю на кнопку мыши, на 3-5% уменьшай курсор на долю секунды и потом
+// возвращай. Делай это быстро, но не дергано, чтобы было ощущение нажатия»)
+// PNG-курсор нельзя масштабировать CSS'ом — на старте генерим 96%-копии
+// ОБЕИХ картинок (рука и захват) canvas'ом вокруг их hotspot (иначе кончик
+// пальца сместился бы и клик «поехал») и на 140 мс вешаем html.cursorpress.
+// Только мышь: у тача курсора нет. 140 мс фиксированно — быстро, но целиком
+// видимо глазу; возврат таймером, не mouseup (при удержании курсор
+// возвращается сам — «на долю секунды» по спеке).
+let cursorPressTimer = 0, cursorPressReady = false;
+(function buildPressedCursors(){
+  const found = { point: null, grab: null }; // {uris:[1x,2x], hot:[x,y], fall}
+  const walk = (rules) => {
+    for (const rule of rules){
+      // ⚠️ БЕЗ continue по cssRules: в свежем Chromium (вложенный CSS)
+      // .cssRules есть у КАЖДОГО правила — «сначала дети» пропускало бы всё
+      if (rule.cssRules && rule.cssRules.length) walk(rule.cssRules);
+      const cur = rule.style && rule.style.cursor;
+      if (!cur || cur.indexOf('image-set') < 0 || cur.indexOf('data:image') < 0) continue;
+      const uris = [...cur.matchAll(/url\("?(data:image\/png;base64,[^")\s]+)"?\)/g)].map(m => m[1]);
+      const tail = cur.match(/\)\s+(\d+)\s+(\d+)\s*,\s*([a-z-]+)/);
+      if (uris.length < 2 || !tail) continue;
+      const rec = { uris: uris.slice(0, 2), hot: [+tail[1], +tail[2]], fall: tail[3] };
+      if (tail[3] === 'grabbing') found.grab = rec;
+      else if (!found.point) found.point = rec; // рука: первое base-правило
+    }
+  };
+  try{
+    for (const sheet of document.styleSheets){
+      try{ walk(sheet.cssRules); }catch(e){}
+    }
+  }catch(e){}
+  if (!found.point || !found.grab) return; // курсоры не наши — тихо без эффекта
+  const SHRINK = 0.96; // −4%, середина спеки «3-5%»
+  const shrinkOne = (uri, hx, hy) => new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext('2d');
+      ctx.translate(hx, hy); ctx.scale(SHRINK, SHRINK); ctx.translate(-hx, -hy);
+      ctx.drawImage(img, 0, 0);
+      res(cv.toDataURL('image/png'));
+    };
+    img.onerror = rej;
+    img.src = uri;
+  });
+  const shrinkPair = (rec) => Promise.all([
+    shrinkOne(rec.uris[0], rec.hot[0], rec.hot[1]),          // 1x: hotspot как есть
+    shrinkOne(rec.uris[1], rec.hot[0]*2, rec.hot[1]*2),      // 2x: hotspot ×2 в пикселях
+  ]);
+  Promise.all([shrinkPair(found.point), shrinkPair(found.grab)]).then(([p, g]) => {
+    const set = (pair, rec) =>
+      `image-set(url(${pair[0]}) 1x, url(${pair[1]}) 2x) ${rec.hot[0]} ${rec.hot[1]}, ${rec.fall} !important`;
+    const st = document.createElement('style');
+    st.id = 'cursorPressStyle';
+    // селекторы повторяют боевые: база+кнопки — рука, grabbing — захват;
+    // правило grabbing НИЖЕ и специфичнее, чтобы во время драга сжимался
+    // именно захват, без подмены картинки (иначе было бы «дёргано»)
+    st.textContent =
+      'html.cursorpress, html.cursorpress body, html.cursorpress #c, html.cursorpress button,' +
+      ' html.cursorpress input[type=range], html.cursorpress input[type=checkbox],' +
+      ' html.cursorpress .ms-play, html.cursorpress .devlink, html.cursorpress .ms-sub,' +
+      ' html.cursorpress .st-buy { cursor: ' + set(p, found.point) + '; }\n' +
+      'html.grabbing.cursorpress, html.grabbing.cursorpress #c { cursor: ' + set(g, found.grab) + '; }';
+    document.head.appendChild(st);
+    cursorPressReady = true;
+  }).catch(() => {});
+})();
+window.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || !cursorPressReady) return;
+  document.documentElement.classList.add('cursorpress');
+  clearTimeout(cursorPressTimer);
+  cursorPressTimer = setTimeout(() => document.documentElement.classList.remove('cursorpress'), 140);
+}, true); // capture: срабатывает и на кнопках, чей клик мог бы не всплыть

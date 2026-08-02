@@ -4092,6 +4092,33 @@ window.bridge = {
     '🔥 БОНУС: сбор группы ГАСИТ огонь — одноразовый (' + JSON.stringify(fireBonus.послеСбора) + ')');
   await firePage.close();
 
+  // ===== КУРСОР-НАЖАТИЕ (спека владельца 2026-08-02: клик мыши сжимает
+  // курсор на 4% на 140 мс — «ощущение нажатия»). Стражи: стиль сжатых
+  // копий сгенерирован на старте (внутри — обход CSS-правил: в свежем
+  // Chromium .cssRules есть у КАЖДОГО правила, ловля «сначала дети»
+  // пропускала всё); класс на mousedown ставится, computed-курсор МЕНЯЕТСЯ
+  // (боевое правило на body бьётся только прямым селектором, наследование
+  // от html проигрывало — ловля пробой), возврат сам, осадка-опросом.
+  {
+    const cp = await page.evaluate(async () => {
+      const sleep = ms => new Promise(res => setTimeout(res, ms));
+      for (let i = 0; i < 60 && !document.getElementById('cursorPressStyle'); i++) await sleep(100);
+      const styleReady = !!document.getElementById('cursorPressStyle');
+      const cur0 = getComputedStyle(document.body).cursor;
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse' }));
+      const during = document.documentElement.classList.contains('cursorpress');
+      const curPress = getComputedStyle(document.body).cursor;
+      let gone = false;
+      for (let i = 0; i < 40 && !gone; i++) { await sleep(50); gone = !document.documentElement.classList.contains('cursorpress'); }
+      return { styleReady, during, changed: curPress !== cur0, hotspotKept: curPress.includes(' 8 2, auto'),
+               restored: gone && getComputedStyle(document.body).cursor === cur0 };
+    });
+    expect(cp.styleReady, 'КУРСОР-НАЖАТИЕ: сжатые копии курсоров сгенерированы на старте');
+    expect(cp.during && cp.changed && cp.hotspotKept,
+      'КУРСОР-НАЖАТИЕ: на mousedown курсор подменяется сжатым с тем же hotspot (' + JSON.stringify(cp) + ')');
+    expect(cp.restored, 'КУРСОР-НАЖАТИЕ: через 140 мс курсор вернулся точно к исходному (' + JSON.stringify(cp) + ')');
+  }
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
