@@ -4127,14 +4127,38 @@ window.bridge = {
   await bowlPage.evaluate(() => { window.__game.setLevel(5); window.__game.regen(); window.__game.skipIntro(); });
   await bowlPage.waitForTimeout(400);
   // 1) трещина растёт от ВХОДА В ТУРБО (реальная серия, не ручка):
-  const bowlChain = await bowlPage.evaluate(async () => {
+  // Единица «набранные серии» (слово владельца после игры: «5-7 серий за
+  // уровень... должно быть не так легко»): каждые BOWL_SERIES_LEN=6
+  // НЕПРЕРЫВНЫХ матчей цепи = 1 зачёт. Стражи ловят три свойства:
+  // (а) первый зачёт не раньше 6 матчей (вызовов >= 6 — вызовов не меньше,
+  //     чем матчей, флейк «вызов не сматчил» ассерт не валит);
+  // (б) обрыв цепи обнуляет ПРОГРЕСС К зачёту (4 матча после паузы зачёта
+  //     не дают), но полученные зачёты не отнимает;
+  // (в) продолжение непрерывной цепи добивает следующий зачёт.
+  const bowlSeries = await bowlPage.evaluate(async () => {
     const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.bowlSetN(999); // порог не должен сработать посреди стража
+    g.regen(); g.skipIntro(); await sleep(600);
     const c0 = g.bowl().cracks;
-    for (let i = 0; i < 14 && !g.combo().chain; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
-    return { c0, chain: g.combo().chain, c1: g.bowl().cracks };
+    let calls1 = 0;
+    { const t0 = Date.now();
+      while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls1++; await sleep(90); } }
+    const c1 = g.bowl().cracks;
+    await sleep(4400);                     // обрыв: > seriesWindowMs — цепь гаснет
+    for (let i = 0; i < 4; i++){ g.autoMatch(); await sleep(90); }  // 4 < 6 — не зачёт
+    const c2 = g.bowl().cracks;
+    let c3 = c2;
+    { const t0 = Date.now();               // та же живая цепь: добить до зачёта
+      while (g.bowl().cracks < c2 + 1 && Date.now() - t0 < 8000){ g.autoMatch(); await sleep(90); }
+      c3 = g.bowl().cracks; }
+    return { c0, calls1, c1, c2, c3 };
   });
-  expect(bowlChain.c0 === 0 && bowlChain.chain === true && bowlChain.c1 === 1,
-    'ЧАША: одна непрерывная серия до цепи = одна трещина (режим combo: зажигание) (' + JSON.stringify(bowlChain) + ')');
+  expect(bowlSeries.c0 === 0 && bowlSeries.c1 === 1 && bowlSeries.calls1 >= 6,
+    'ЧАША: зачёт серии не раньше 6 непрерывных матчей (' + JSON.stringify(bowlSeries) + ')');
+  expect(bowlSeries.c2 === 1 && bowlSeries.c3 === 2,
+    'ЧАША: обрыв цепи сбрасывает прогресс к зачёту, но не зачёты; живая цепь добивает следующий (' + JSON.stringify(bowlSeries) + ')');
+
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
   const bowlShatter = await bowlPage.evaluate(async () => {

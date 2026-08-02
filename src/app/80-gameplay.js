@@ -38,6 +38,15 @@ function doMatch(list){
       // сквозь паузы (турбо собиралось за несколько вялых серий, а лесенка
       // ×3 стартовала бы мгновенно). Теперь серия = непрерывный темп.
       comboCount = wasHot ? comboCount + 1 : 1;
+      // ЧАША-РАЗЛЁТ, боевая единица «набранные серии» (5-7 за уровень —
+      // слово владельца): каждые BOWL_SERIES_LEN НЕПРЕРЫВНЫХ матчей цепи =
+      // 1 зачёт. Снимаем в момент роста comboCount — вход в турбо ниже по
+      // файлу серию «тратит» (comboCount = 0), полученные зачёты не трогая.
+      // Зачёт ЗВУЧНЫЙ (без silent): редкое событие (5-7 раз за уровень),
+      // кранч+вибро — «удар по чаше»; тонкую индикацию возьмут глаза.
+      if (BOWL_CRACK_ON === 'series' && comboCount > 0 && comboCount % BOWL_SERIES_LEN === 0) bowlCrackAdd();
+      // исторический режим стенда: 'peak' — рекорд цепи (отменён владельцем)
+      else if (BOWL_CRACK_ON === 'peak' && comboCount > ((level && level.bowlCracks) || 0)) bowlCrackAdd(true);
       // окно УТЕКАЕТ и сжимается с длиной серии (было плоское COMBO_MS)
       comboUntil = nowMs + seriesWindowMs(comboCount);
       comboLevel = Math.min(COMBO_STEPS, comboLevel + 1); // +ступень радиуса за матч серии
@@ -303,12 +312,14 @@ function seriesMult(nowMs){
 let bowlShattering = false;
 let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
 function bowlN(){ return bowlNRuntime || BOWL_SHATTER_N; }
-function bowlCrackAdd(){
+function bowlCrackAdd(silent){
   if (!level || level.over || bowlShattering) return;
   level.bowlCracks = (level.bowlCracks || 0) + 1;
   try { setBowlCracks(level.bowlCracks, bowlN()); } catch(e){}
-  Sound.play('crunch', 9); vibrate([15, 30, 25]);
-  camShake = Math.max(camShake, 0.18);
+  if (!silent){
+    Sound.play('crunch', 9); vibrate([15, 30, 25]);
+    camShake = Math.max(camShake, 0.18);
+  }
   if (level.bowlCracks >= bowlN()){
     // отложенно на РЕАЛЬНЫХ часах: дать попу Power chain и подбросу прожить
     setTimeout(shatterBowl, 650);
