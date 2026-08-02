@@ -4159,6 +4159,38 @@ window.bridge = {
   expect(bowlSeries.c2 === 1 && bowlSeries.c3 === 2,
     'ЧАША: обрыв цепи сбрасывает прогресс к зачёту, но не зачёты; живая цепь добивает следующий (' + JSON.stringify(bowlSeries) + ')');
 
+  // «Цепь рвётся от ошибки» — для чаши свойство НЕСУЩЕЕ (прогресс = 6
+  // непрерывных БЕЗ промаха). Страж: 3 звена -> промах НАСТОЯЩИМ путём
+  // (клик в пустую точку канвы; точка подбирается по факту роста misses) ->
+  // зачёт приходит не раньше 6 НОВЫХ вызовов. Если бы промах не рвал,
+  // зачёт пришёл бы на ~3-м (3 старых + 3 новых); вызовов >= матчей, так
+  // что порог >= 6 ложно не валится (глотки вызовов только УВЕЛИЧИВАЮТ
+  // счёт). Ложный проход требует >= 3 глотков подряд — принято.
+  const bowlMiss1 = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.bowlSetN(999); g.regen(); g.skipIntro(); await sleep(600);
+    for (let i = 0; i < 3; i++){ g.autoMatch(); await sleep(90); }
+    return { cracks: g.bowl().cracks, misses: g.stats().misses };
+  });
+  let missGrew = false;
+  for (const [mx, my] of [[875, 320], [30, 180], [875, 180]]){
+    await bowlPage.mouse.click(mx, my);
+    await bowlPage.waitForTimeout(180);
+    const m = await bowlPage.evaluate(() => window.__game.stats().misses);
+    if (m > bowlMiss1.misses){ missGrew = true; break; }
+  }
+  const bowlMiss2 = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    let calls = 0; const t0 = Date.now();
+    while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls++; await sleep(90); }
+    return { calls, cracks: g.bowl().cracks };
+  });
+  expect(bowlMiss1.cracks === 0 && missGrew && bowlMiss2.cracks === 1 && bowlMiss2.calls >= 6,
+    'ЧАША: промах РВЁТ цепь — после ошибки зачёт только за 6 НОВЫХ непрерывных (' +
+    JSON.stringify({ до: bowlMiss1, промах: missGrew, после: bowlMiss2 }) + ')');
+
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
   const bowlShatter = await bowlPage.evaluate(async () => {
