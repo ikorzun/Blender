@@ -37,7 +37,7 @@ function fxParticleCount(){
 // который молчит про новичка, хуже отсутствующего — он выглядит как измерение.
 // Тотал считается по ВЕРХНЕМУ уровню (двойного счёта нет), а по видам копится
 // СОБСТВЕННОЕ время: вложенные конструкторы (sparkRicochetFX -> wheelFX,
-// juiceBigFX -> screenDripsFX, dissolveFX -> dustCloud×3) вычитаются из
+// sparkRicochetFX -> wheelFX, dissolveFX -> dustCloud×3) вычитаются из
 // родителя. Иначе «искры 6 мс» прятали бы внутри себя цену колеса, и пул
 // поехал бы лечить не ту статью.
 let fxBuildMs = 0;
@@ -91,7 +91,6 @@ const markerFX         = fxBuilt('marker',   _markerFX_impl);
 const lineFX           = fxBuilt('line',     _lineFX_impl);
 const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
 const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
-const screenDripsFX    = fxBuilt('drips',    _screenDripsFX_impl);
 const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
@@ -433,12 +432,25 @@ function _collapseFX_impl(list, at){
 // ЕДА: меньше капель, но КРУПНЫХ, плюс несколько попадают «на стекло экрана».
 // Именно это читается как сочность: игрок видит, что брызнуло В НЕГО.
 function _juiceBigFX_impl(it){
-  const N = Math.max(8, Math.round(JUICE_N * CFG.fxScale)), LIFE = 0.85;
+  // МЕЛКИЕ БРЫЗГИ (правка владельца 2026-08-02): спрей в плоскости сцены —
+  // много мелких точек коротким веером от точки схлопывания, гаснут быстро.
+  // ⚠️ БОЛЬШЕ ЧИСЛОМ, МЕНЬШЕ РАЗМЕРОМ — и это НЕ откат к старому juiceFX:
+  // тот сыпал 46 точек размером 0.40 столбом вверх. Здесь размер класса крошки
+  // (0.075 против 0.0225-0.05 у трухи), разлёт ВЕЕРОМ и вдвое короче жизнь.
+  // ⚠️ Перф-канон: тик частиц дёшев, дорога ПОСТРОЙКА — у сока она была
+  // 0.62 мс, и рост числа точек её почти не двигает (одна геометрия, один
+  // материал независимо от N).
+  const N = Math.max(12, Math.round(JUICE_N * CFG.fxScale));
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
-    const a = Math.random()*Math.PI*2, sp = 1.2 + Math.random()*3.2;
-    ox.push(it.p.x); oy.push(it.p.y + 0.2); oz.push(it.p.z);
-    vx.push(Math.cos(a)*sp); vy.push(2.4 + Math.random()*4.2); vz.push(Math.sin(a)*sp);
+    // веер: азимут равномерно, подъём НИЗКИЙ — брызги расходятся вширь
+    const a = Math.random()*Math.PI*2;
+    const e = Math.random()*Math.PI*0.42;            // до ~38° над горизонтом
+    const sp = JUICE_SPREAD*(0.45 + Math.random()*0.75);
+    ox.push(it.p.x); oy.push(it.p.y + 0.15); oz.push(it.p.z);
+    vx.push(Math.cos(a)*Math.cos(e)*sp);
+    vy.push(Math.sin(e)*sp + 0.8);
+    vz.push(Math.sin(a)*Math.cos(e)*sp);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -446,52 +458,24 @@ function _juiceBigFX_impl(it){
     .lerp(new THREE.Color(1, 1, 1), 0.14);
   const m = new THREE.PointsMaterial({ color: c, map: fxDotTex(), size: JUICE_SIZE,
     transparent: true, opacity: 1, depthWrite: false, alphaTest: 0.02 });
-  addFX(new THREE.Points(g, m), LIFE, (o, k) => {
-    const p = o.geometry.attributes.position.array, t = k*LIFE;
+  addFX(new THREE.Points(g, m), JUICE_LIFE, (o, k) => {
+    const p = o.geometry.attributes.position.array, t = k*JUICE_LIFE;
     for (let i = 0; i < N; i++){
       p[i*3]   = ox[i] + vx[i]*t;
       p[i*3+1] = oy[i] + vy[i]*t - 11*t*t;   // ½·G·t², G=22
       p[i*3+2] = oz[i] + vz[i]*t;
     }
     o.geometry.attributes.position.needsUpdate = true;
-    o.material.opacity = 1 - k*k*k;
-    o.material.size = JUICE_SIZE*(1 - k*0.25);  // капля почти не мельчает
+    o.material.opacity = 1 - k*k;
+    o.material.size = JUICE_SIZE*(1 - k*0.35);
   });
-  screenDripsFX(c, JUICE_DRIPS);
 }
-// Капли на «стекле экрана»: DOM поверх канваса, сползают и тают.
-// ⚠️ ИМЕННО DOM, а не спрайты сцены: капля обязана жить в ЭКРАННЫХ координатах
-// и не зависеть от камеры — иначе при повороте она «прилипнет» к миру.
-// ⚠️⚠️ КОНТЕЙНЕР НЕ ПОЛНОЭКРАННЫЙ, И ЭТО НЕ КОСМЕТИКА: по рецепту iOS Safari 26
-// каждый fixed-элемент красит бары браузера своим фоном, а `transparent` там
-// трактуется как прозрачный ЧЁРНЫЙ. Полоса капель на весь экран отравила бы
-// тинт кромок. Держим её в СРЕДНЕЙ трети, кромок кадра она не касается.
-let _dripBox = null;
-function _screenDripsFX_impl(color, n){
-  if (!_dripBox){
-    _dripBox = document.createElement('div');
-    _dripBox.id = 'juiceDrips';
-    _dripBox.style.cssText = 'position:fixed;left:0;right:0;top:18%;height:52%;' +
-      'pointer-events:none;z-index:6;overflow:hidden';
-    document.body.appendChild(_dripBox);
-  }
-  const hex = '#' + new THREE.Color(color).getHexString();
-  for (let i = 0; i < n; i++){
-    const d = document.createElement('div');
-    const w = 14 + Math.random()*22, h = w * (1.1 + Math.random()*0.7);
-    d.style.cssText = 'position:absolute;left:' + (10 + Math.random()*78) + '%;' +
-      'top:' + (6 + Math.random()*54) + '%;width:' + w + 'px;height:' + h + 'px;' +
-      'background:' + hex + ';opacity:.55;filter:blur(.4px);' +
-      'border-radius:48% 52% 44% 56% / 60% 58% 42% 40%;' +
-      'transition:transform .75s cubic-bezier(.3,.1,.6,1),opacity .75s ease-in';
-    _dripBox.appendChild(d);
-    requestAnimationFrame(() => {
-      d.style.transform = 'translateY(' + (40 + Math.random()*70) + 'px) scaleY(1.5)';
-      d.style.opacity = '0';
-    });
-    setTimeout(() => d.remove(), 900);
-  }
-}
+// ⛔ КАПЛИ «НА СТЕКЛЕ ЭКРАНА» (screenDripsFX) УДАЛЕНЫ 2026-08-02 по слову
+// владельца: «они не в плоскости блендера». Это был DOM-слой поверх канваса —
+// капли жили в ЭКРАННЫХ координатах и не зависели от камеры, что и делало их
+// чужеродными в игре, где всё происходит внутри чаши. Вместе с ними ушли
+// контейнер #juiceDrips и оговорка про рецепт полос Safari (фон fixed-элемента).
+// Вернуть = git show <до 2026-08-02>:src/app/70-fx.js.
 
 // МАШИНЫ: искры ОТСКАКИВАЮТ от стенок чаши + отлетает колесо-деталька.
 // Рикошет — то, чего не было: искры просто улетали, и глаз не считал их частью
