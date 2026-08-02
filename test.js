@@ -2206,11 +2206,11 @@ window.bridge = {
   expect(kinds.dup === null,
     'профиль эффектов: метки видов уникальны (коллизия: ' + kinds.dup + ')');
   // ⚠️ ЧИСЛО ДЕРЖАТЬ В СИНХРОНЕ СО СПИСКОМ в 70-fx: было 15, стало 13 —
-  // удалены мёртвые juiceFX и sparkFX (их заменили juiceBigFX/sparkRicochetFX
-  // по выбору владельца, вызовов не осталось). Меняешь список конструкторов —
+  // удалены мёртвые juiceFX и sparkFX, затем screenDripsFX (капли на стекле
+  // экрана сняты по слову владельца 2026-08-02). Меняешь список конструкторов —
   // меняй и это число, иначе страж покраснеет на исправной сборке.
-  expect(kinds.kinds.length === 13,
-    'профиль эффектов: обёрнуты ВСЕ 13 конструкторов (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
+  expect(kinds.kinds.length === 12,
+    'профиль эффектов: обёрнуты ВСЕ 12 конструкторов (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
   expect(fxb.kinds.indexOf('shard') >= 0 && fxb.by.shard && fxb.by.shard.n >= 1,
     'профиль эффектов: осколки отчитываются отдельным видом (' + JSON.stringify(fxb.by.shard) + ')');
   expect(fxb.kinds.indexOf('dust') >= 0 && fxb.by.dust && fxb.by.dust.n >= 3,
