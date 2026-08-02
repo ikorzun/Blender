@@ -4242,6 +4242,102 @@ window.bridge = {
   });
   expect(bowlReset.cracks === 0 && bowlReset.walls > 0 && bowlReset.shattering === false,
     'ЧАША: новый уровень = новая чаша, трещины 0, стены восстановлены (' + JSON.stringify(bowlReset) + ')');
+
+  // ===== ГЛАЗА: «МИКСЕР ВЫДЫХАЕТСЯ» (владелец отверг трещины: «беру глаза») =====
+  // ⚠️ МЕТРИКА ОДНА НА ВСЕ ЧЕТЫРЕ СТРАЖА — ЗАЗОР от низа века до верха белка:
+  // >= 0 веко ВНЕ глаза (миксер свеж), < 0 наползло (устал). Она двусторонняя ПО
+  // ПОСТРОЕНИЮ: сравнивает два НАБЛЮДЁННЫХ состояния, а не число с константой,
+  // поэтому «механики нет вовсе» даёт равенство и валит ассерт (грабля
+  // `false === false` истинно и на пустом месте).
+  const лицо = () => bowlPage.evaluate(() => {
+    const ov = document.getElementById('fTired'), lid = ov.querySelector('.lid');
+    const eye = document.getElementById('wL');
+    return { зазор: +(eye.getBoundingClientRect().top - lid.getBoundingClientRect().bottom).toFixed(2),
+             tired: +getComputedStyle(ov).getPropertyValue('--tired'),
+             зрачок: +document.getElementById('pupL').getBoundingClientRect().width.toFixed(1),
+             закрыты: document.getElementById('eyes').classList.contains('blink'),
+             злые: document.getElementById('fAngry').classList.contains('on'),
+             cracks: window.__game.bowl().cracks };
+  });
+  // ⚠️ ОСАДКА, А НЕ ПАУЗА: у века переход 0.22 с, и фикс-пауза мерила бы часы
+  // стенда, а не состояние страницы (канон «страж ждёт факта»). Ждём, пока
+  // зазор перестанет меняться; потолок — страховка, и он ОТЛИЧИМ от провала.
+  const осадкаЛица = async (мс = 2500) => {
+    const t0 = Date.now(); let a = await лицо();
+    while (Date.now() - t0 < мс){
+      await bowlPage.waitForTimeout(90);
+      const b = await лицо();
+      if (Math.abs(b.зазор - a.зазор) < 0.05) return b;
+      a = b;
+    }
+    return Object.assign(a, { неУстоялось: true });
+  };
+  await bowlPage.evaluate(() => { const g = window.__game; g.bowlSetN(6); g.regen(); g.skipIntro(); });
+  await bowlPage.waitForTimeout(400);
+  const глазСвеж = await осадкаЛица();
+  await bowlPage.evaluate(() => { for (let i = 0; i < 3; i++) window.__game.bowlCrack(); });
+  const глазУстал = await осадкаЛица();
+  expect(глазСвеж.зазор >= 0 && глазУстал.зазор < -4 && глазУстал.зрачок < глазСвеж.зрачок &&
+         !глазСвеж.неУстоялось && !глазУстал.неУстоялось,
+    'ГЛАЗА: зачёты выматывают миксер — веко наползает на глаз, зрачок оседает; на нуле веко ВНЕ глаза (' +
+    JSON.stringify(глазСвеж) + ' -> ' + JSON.stringify(глазУстал) + ')');
+
+  // ЛЕСЕНКА ПРИОРИТЕТОВ: помол ВЫШЕ усталости. Гоним помол НАСТОЯЩИМ путём —
+  // исчерпанным терпением миксера. ⚠️ level и stats в __game это ФУНКЦИИ:
+  // запись в `g.stats.lastAction` уходит в объект-функцию и не делает НИЧЕГО
+  // (на этом потеряны две пробы — помол «не включался», а виноват был доступ).
+  await bowlPage.evaluate(() => { const g = window.__game, lv = g.level();
+    g.stats().lastAction = performance.now() - (lv.idleLimit + 1) * 1000; });
+  const помолПришёл = await bowlPage.waitForFunction(
+    () => document.getElementById('fAngry').classList.contains('on'), null, { timeout: 9000 })
+    .then(() => true).catch(() => false);
+  const глазПомол = await осадкаЛица();
+  expect(помолПришёл && глазПомол.злые === true && глазПомол.tired === 0 &&
+         глазПомол.зазор >= 0 && глазПомол.cracks === 3 && глазУстал.tired > 0,
+    'ГЛАЗА: помол ПЕРЕБИВАЕТ усталость — злые, веки сняты, зачёты целы (' +
+    JSON.stringify(глазПомол) + ', до помола tired ' + глазУстал.tired + ')');
+
+  // СЛАМ на N-м зачёте: глаза захлопываются и ДЕРЖАТСЯ закрытыми.
+  // ⚠️ «`.blink` включён» САМО ПО СЕБЕ ничего не доказывает: обычное моргание
+  // ставит тот же класс на 120 мс. Доказательство — что он ДЕРЖИТСЯ дольше
+  // моргания; поэтому две выборки с разносом 400 мс.
+  await bowlPage.evaluate(() => { const g = window.__game;
+    g.stats().lastAction = performance.now();                 // снять помол, он выше по лесенке
+    while (g.bowl().cracks < g.bowl().n) g.bowlCrack(); });
+  const слам1 = await bowlPage.evaluate(() => document.getElementById('eyes').classList.contains('blink'));
+  await bowlPage.waitForTimeout(400);
+  const слам2 = await bowlPage.evaluate(() => document.getElementById('eyes').classList.contains('blink'));
+  expect(слам1 === true && слам2 === true && глазСвеж.закрыты === false,
+    'ГЛАЗА: на N-м зачёте глаза ЗАХЛОПЫВАЮТСЯ и держатся (дольше моргания 120 мс): ' +
+    слам1 + '/' + слам2 + ', на свежем миксере ' + глазСвеж.закрыты);
+
+  // КОНЕЦ УРОВНЯ ОТКРЫВАЕТ ГЛАЗА. `tiredSlam` живёт до genLevel, а уровень
+  // кончается раньше (волна сбора после разлёта) — без гейта `level.over`
+  // победное лицо рисовалось бы зажмуренным. Гоним НАСТОЯЩИМ путём: разлёт.
+  const концовка = await bowlPage.evaluate(async () => {
+    const g = window.__game; g.bowlShatterNow();
+    const t0 = Date.now();
+    while (!g.level().over && Date.now() - t0 < 15000) await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 300));
+    return { over: g.level().over,
+             закрыты: document.getElementById('eyes').classList.contains('blink'),
+             лицо: ['fRound','fAngry','fX','fSad'].find(id => document.getElementById(id).classList.contains('on')) };
+  });
+  expect(концовка.over === true && концовка.закрыты === false && слам2 === true,
+    'ГЛАЗА: конец уровня ОТКРЫВАЕТ захлопнутые глаза — победное лицо не зажмурено (' +
+    JSON.stringify(концовка) + ', до конца держались ' + слам2 + ')');
+
+  const глазСброс = await bowlPage.evaluate(async () => {
+    const g = window.__game; g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 500));
+    const ov = document.getElementById('fTired'), lid = ov.querySelector('.lid');
+    return { cracks: g.bowl().cracks, tired: +getComputedStyle(ov).getPropertyValue('--tired'),
+             зазор: +(document.getElementById('wL').getBoundingClientRect().top -
+                      lid.getBoundingClientRect().bottom).toFixed(2),
+             закрыты: document.getElementById('eyes').classList.contains('blink') };
+  });
+  expect(глазСброс.cracks === 0 && глазСброс.tired === 0 && глазСброс.зазор >= 0 && глазСброс.закрыты === false,
+    'ГЛАЗА: новый уровень снимает и усталость, и слам (' + JSON.stringify(глазСброс) + ')');
   await bowlPage.close();
 
 

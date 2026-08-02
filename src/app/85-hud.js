@@ -189,6 +189,26 @@ const FACE_GAZE = {                    // смещения зрачков [ле�
   sly:    [[-16,-16],[16,16]],         // eyes-2: один вверх-влево, другой вниз-вправо
 };
 const PUP_BASE = 29;                   // радиус зрачка в покое (eyes-0)
+// ===== «МИКСЕР ВЫДЫХАЕТСЯ» (спека владельца v2: индикация зачётов чаши) =====
+// Владелец отверг трещины и сказал «беру глаза»: каждый зачёт БЬЁТ миксер,
+// усталость копится, на N-м глаза захлопываются и это переходит в разлёт.
+// ⚠️ ИРОНИЯ, А НЕ ЖАЛОСТЬ: миксер «держится из последних сил», поэтому на
+// серии он всё равно распахивается — просто от просевшей базы (см. eyeSizes).
+// ⚠️ СЛАМ РИСУЕТ НЕ НАКЛАДКА, А КАНОННОЕ `.blink` (#eyes.blink .eye scaleY .06).
+// Веко fTired — ДУГА в полглаза: сколько его ни двигай, оно НЕ СМЫКАЕТСЯ
+// (проба со сдвигом «за центр»: зрачок остаётся торчать под куполом — снято
+// скрином). Закрытые глаза в проекте уже есть, берём их; накладку на сламе
+// гасим, иначе поверх схлопнутой щели висели бы два купола.
+const TIRED_PUP_K = 0.28;   // насколько усталость роняет БАЗУ зрачка (0..1)
+const TIRED_STUN_MS = 180;  // «оглушение» в момент зачёта
+const TIRED_STUN_D  = 0.35; // доп. просадка век на этот миг
+let bowlSeen = 0, tiredStunUntil = 0, tiredSlam = false;
+// доля усталости 0..1 по ЗАЧЁТАМ (cracks/N). Механику не трогаем — только читаем.
+function bowlFatigue(){
+  if (!level || level.over) return 0;
+  const n = (typeof bowlN === 'function') ? bowlN() : 6;
+  return Math.min(1, (level.bowlCracks || 0) / Math.max(1, n));
+}
 let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0, faceHoldFrom = 0;
 let lookVec = null, lookUntil = 0, wander = [0,0], wanderAt = 0, dart = [0,0], dartAt = 0;
 let pupPulseUntil = 0, lastScoreSeen = null;
@@ -224,7 +244,12 @@ function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ах!» н
 // Драматургия буста (спека владельца): копится — зрачки РАСТУТ 29->50;
 // как только буст набран — резко СЖИМАЮТСЯ до 15 (eyes-0-1) и катаются.
 function eyeSizes(now, state){
-  const s = { pl: PUP_BASE, pr: PUP_BASE, wl: EYE_R, wr: EYE_R };
+  // ⚠️ УСТАЛОСТЬ — ВТОРАЯ ФАЗА ТОГО ЖЕ КАНАЛА РАЗМЕРА (рамка ГРАФИКИ: не
+  // заводить новую визуальную переменную). Она роняет БАЗУ, а набор серии
+  // по-прежнему тянет зрачок вверх ОТ ЭТОЙ просевшей базы — читается как
+  // «устал, но на серии всё равно распахивается, просто уже не так широко».
+  const base = PUP_BASE * (1 - TIRED_PUP_K * bowlFatigue());
+  const s = { pl: base, pr: base, wl: EYE_R, wr: EYE_R };
   if (chainUntil > now){
     if (chainSeries >= 2){                       // СЕРИЯ турбо: асимметрия eyes-5
       s.pl = EYE5_PL; s.pr = EYE5_PR; s.wr = EYE5_WR; return s;
@@ -236,10 +261,10 @@ function eyeSizes(now, state){
     // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
     // Дуги eyes-4-4 этим и заменены — размером, а не формой.
     const t = Math.min(1, comboCount / chainComboAt()); // порог растёт с уровнем (00-config)
-    s.pl = s.pr = PUP_BASE + (PUP_WIDE - PUP_BASE) * t;
+    s.pl = s.pr = base + (PUP_WIDE - base) * t;          // тянем ОТ просевшей базы
     return s;
   }
-  if (pupPulseUntil > now){ s.pl = s.pr = PUP_BASE * 1.25; }   // «ах!» на матче
+  if (pupPulseUntil > now){ s.pl = s.pr = base * 1.25; }   // «ах!» на матче
   return s;
 }
 // КУДА СМОТРЯТ. Вектор задаётся с запасом — реальную амплитуду обрежет
@@ -290,23 +315,69 @@ function tickFace(now){
   // время меняет ширину раз в секунду — обжимаем рамку по факту смены
   const tmStr = $('timer').textContent;
   if (tmStr !== tmStrLast){ tmStrLast = tmStr; fitStat('timer'); }
+  // ЗАЧЁТ ЧАШИ ловим ДИФФОМ счётчика — механику (bowlCrackAdd) не трогаем.
+  // ⚠️ Тот же дифф ловит и СБРОС уровня (cracks обнулился) — отдельного
+  // обработчика смены уровня не нужно, и рассинхрона между ними не будет.
+  const _cr = (level && level.bowlCracks) || 0;
+  if (_cr !== bowlSeen){
+    if (_cr > bowlSeen && level && !level.over){
+      tiredStunUntil = now + TIRED_STUN_MS;          // удар: миг оглушения
+      const _n = (typeof bowlN === 'function') ? bowlN() : 6;
+      if (_cr >= _n) tiredSlam = true;               // N-й: глаза захлопнулись
+    }
+    if (_cr === 0) tiredSlam = false;                // новый уровень — с чистого лица
+    bowlSeen = _cr;
+  }
   if (!nextBlinkAt) nextBlinkAt = now + 4000;
   // моргание 120 мс раз в 4-7 с; в турбо и на помоле не моргаем
   const canBlink = faceState === 'calm' || faceState === 'kind' || faceState === 'rolled';
   if (now > nextBlinkAt && canBlink){
     blinkUntil = now + 120;
-    nextBlinkAt = now + 4000 + Math.random() * 3000;
+    // ⚠️ РЕЖЕ МОРГАЕТ ПО МЕРЕ УСТАЛОСТИ (рамка ГРАФИКИ): интервал растёт
+    // вдвое к последнему зачёту. Не «чаще» — уставший моргает медленно и
+    // тяжело, частое моргание читалось бы как тревога, а это чужой сигнал.
+    nextBlinkAt = now + (4000 + Math.random() * 3000) * (1 + bowlFatigue());
   }
   // помол перебивает всё, включая короткие реакции и моргание;
   // faceHoldFrom задерживает включение hold-состояния (нырок зрачков)
   const holdOn = faceHoldUntil > now && now >= faceHoldFrom;
   const st = lastGrind ? 'angry' : (holdOn ? faceHold : faceState);
-  setFace(st, now, blinkUntil > now && st !== 'lose' && !lastGrind);
+  // СЛАМ: на N-м зачёте глаза захлопываются и ДЕРЖАТСЯ закрытыми до разлёта —
+  // тем же `.blink`, что и моргание. Помол перебивает и его: лесенка
+  // приоритетов у усталости ОДНА, слам из неё не выпадает.
+  // ⚠️ И `level.over` ТОЖЕ: `tiredSlam` живёт до genLevel (bowlCracks обнуляет
+  // только он, shatterBowl — нет), а уровень кончается РАНЬШЕ, на волне сбора.
+  // Без этого гейта победное лицо ('kind') и поражение ('lose') рисовались бы
+  // с зажмуренными глазами — нашло адверсарное перечитывание своего же дифа.
+  const shut = tiredSlam && !lastGrind && !!level && !level.over;
+  setFace(st, now, shut || (blinkUntil > now && st !== 'lose' && !lastGrind));
+}
+// ВЕКИ УСТАЛОСТИ — ЕДИНСТВЕННЫЙ ПИСАТЕЛЬ `--tired`.
+// ⚠️ ЛЕСЕНКА ПРИОРИТЕТОВ (рамка ГРАФИКИ, пункт 3): усталость НИЖЕ помола,
+// поражения/победы, турбо и коротких реакций — они её гасят целиком; ВЫШЕ
+// покоя. Иначе усталые веки спорили бы со «злыми при помоле», которые владелец
+// требует показывать всегда.
+function applyTired(state, now){
+  const ov = $('fTired'); if (!ov) return;
+  const off = lastGrind || state === 'angry' || state === 'lose' ||
+              state === 'surprised' || state === 'sad' || chainUntil > now;
+  let d = 0;
+  // на сламе накладка ГАСНЕТ — закрытые глаза рисует `.blink` (см. tickFace)
+  if (!off && !tiredSlam){
+    d = bowlFatigue();
+    if (d > 0 && tiredStunUntil > now) d = Math.min(1, d + TIRED_STUN_D);
+  }
+  ov.style.setProperty('--tired', d.toFixed(3));
 }
 function setFace(state, now, blinking){
   const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
   for (const id of ['fRound','fAngry','fX','fSad'])
     $(id).classList.toggle('on', id === layer);
+  // ⚠️ НАКЛАДКА — ОТДЕЛЬНОЙ СТРОКОЙ, НЕ В СПИСКЕ ВЫШЕ. Тот список
+  // ВЗАИМОИСКЛЮЧАЮЩИЙ: попади `fTired` в него — он погасил бы `fRound` вместе
+  // со зрачками. Правило канона «каждый узел разметки обработан в setFace»
+  // соблюдено, просто списков два: исключающий и накладки.
+  applyTired(state, now);
   svg.classList.toggle('blink', !!blinking);
   if (layer === 'fAngry'){
     // злые СЛЕДЯТ ЗА ЧАШЕЙ (спека владельца): влево -> вправо -> вниз,
