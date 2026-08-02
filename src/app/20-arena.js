@@ -102,42 +102,48 @@ function setBowlCracks(k, total){
     bowlMat.opacity = Math.min(0.30, bowlBaseOpacity + 0.035*k); // стекло мутнеет
   if (k <= 0) return;
   bowlCrackGroup = new THREE.Group();
-  // ⚠️ ТРУБКИ, НЕ ЛИНИИ (грабля молний из канона: WebGL рисует line в 1px).
-  // Контраст на ЛЮБОМ фоне двойной трубкой: тёмное ядро (чернильный
-  // #1d1c26 — трещина на просвет ТЁМНАЯ) + белый блик тоньше, чуть снаружи.
-  // В точке рождения — «паутинка» удара (5 коротких лучей): мгновенно
-  // читается «стекло бьётся». Толщина и длина растут с номером трещины.
-  const inkMat = () => new THREE.MeshBasicMaterial({ color: 0x1d1c26, transparent: true, opacity: 0.85, depthWrite: false });
-  const hiMat  = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false });
-  const onCone = (a, y, out) => new THREE.Vector3(
-    Math.cos(a)*(radiusAt(y) + out), y, Math.sin(a)*(radiusAt(y) + out));
+  // СПЕКА ВЛАДЕЛЬЦА (2026-08-02, дословно): «трещины должны соответствовать
+  // поверхности чаши, повторять её поверхность; белого цвета и толщиной 1px».
+  // Реализация: БЕЛЫЕ Line (WebGL и рисует их в 1px — тут это спека, а не
+  // грабля), путь — МЕЛКИМИ шагами строго по конусу: каждая точка на
+  // radiusAt(y)+0.012, шаг ~0.12 по высоте — хорды прилегают к кривизне,
+  // линия ЛЕЖИТ на стекле (прежние редкие точки давали хорды, парящие над
+  // поверхностью — «проволока рядом с чашей», поправка владельца).
+  // Заметность при 1px берётся РИСУНКОМ: ствол + ветки + паутинка удара.
+  const lineMat = () => new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+  const onCone = (a, y) => new THREE.Vector3(
+    Math.cos(a)*(radiusAt(y) + 0.012), y, Math.sin(a)*(radiusAt(y) + 0.012));
+  const rng = (seed) => { let x = seed; return () => (x = (x*16807) % 2147483647) / 2147483647; };
+  const addPath = (a0, y0, len, kink, seed) => {
+    const r = rng(seed*2654435761 % 2147483647 + 1);
+    const pts = []; let a = a0, y = y0;
+    const step = 0.12;
+    for (let i = 0; i <= len; i++){
+      pts.push(onCone(a, y));
+      y -= step*(0.7 + 0.6*r());
+      a += (r() - 0.5)*kink;
+      if (y < 0.3) break;
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    bowlCrackGroup.add(new THREE.Line(g, lineMat()));
+    return pts;
+  };
   for (let c = 0; c < k; c++){
     const a0 = (c*2.399963) % (Math.PI*2);            // золотой угол — без решётки
     const prog = Math.min(1, (c+1)/Math.max(1, total||5));
-    const depth = 0.4 + 0.5*prog;                      // доля высоты конуса
     const yTop = FUNNEL.H*0.97;
-    const pts = [];
-    let a = a0, y = yTop;
-    const steps = 8 + c*2;
-    for (let i = 0; i <= steps; i++){
-      pts.push(onCone(a, y, 0.05));
-      y = yTop*(1 - depth*(i+1)/steps);
-      a += Math.sin(c*7.1 + i*3.3)*0.20;               // детерминированный зигзаг
+    // ствол: вниз по конусу мелким изломом; длиннее с номером трещины
+    const trunk = addPath(a0, yTop, Math.round(28 + 30*prog), 0.16, c*7 + 1);
+    // ветки: 2-4 форка из точек ствола, короче и с сильнее изломом
+    const forks = 2 + (c % 3);
+    for (let f = 0; f < forks; f++){
+      const at = trunk[Math.min(trunk.length - 1, 4 + f*Math.floor(trunk.length/(forks+1)))];
+      const aAt = Math.atan2(at.z, at.x);
+      addPath(aAt, at.y, 8 + f*4, 0.34, c*31 + f*13 + 5);
     }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const rCore = 0.055 + 0.03*prog;
-    const core = new THREE.Mesh(new THREE.TubeGeometry(curve, steps*3, rCore, 5, false), inkMat());
-    bowlCrackGroup.add(core);
-    // блик — тоньше, чуть дальше от стекла и со сдвигом вдоль кривой
-    const hiPts = pts.map(pnt => pnt.clone().multiplyScalar(1.004));
-    const hi = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hiPts), steps*3, rCore*0.4, 5, false), hiMat());
-    bowlCrackGroup.add(hi);
-    // паутинка удара: 5 коротких лучей-трубок из точки рождения
+    // паутинка удара у кромки: 5 коротких лучей тем же 1px-белым
     for (let rN = 0; rN < 5; rN++){
-      const ra = a0 + (rN - 2)*0.5 + 0.15*Math.sin(c*3 + rN*5);
-      const rp = [ onCone(a0, yTop, 0.05), onCone(ra, yTop - (0.35 + 0.25*(rN%3)), 0.05) ];
-      const ray = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp), 4, 0.03, 4, false), inkMat());
-      bowlCrackGroup.add(ray);
+      addPath(a0 + (rN - 2)*0.16, yTop, 3 + (rN % 3)*2, 0.4, c*57 + rN*3 + 2);
     }
   }
   bowlCrackGroup.userData.telegraph = (total != null && k >= total - 1); // пульс при N-1
@@ -146,8 +152,8 @@ function setBowlCracks(k, total){
 // пульс телеграфа (зовёт loop): мигание трещин при k = N-1
 function tickBowlCracks(nowMs){
   if (!bowlCrackGroup || !bowlCrackGroup.userData.telegraph) return;
-  const o = 0.45 + 0.5*(0.5 + 0.5*Math.sin(nowMs*0.012));
-  bowlCrackGroup.children.forEach(m => { m.material.opacity = o * (m.material.color.r > 0.5 ? 1.0 : 0.94); });
+  const o = 0.5 + 0.45*(0.5 + 0.5*Math.sin(nowMs*0.012));
+  bowlCrackGroup.children.forEach(l => { l.material.opacity = o; });
 }
 // разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
 function shatterBowlVis(){
