@@ -148,7 +148,11 @@ function doMatch(list){
   // (tickFireSpawn отсчитывает от момента вспышки, не от гашения).
   const fireHot = typeName === burningName();
   if (fireHot) extinguishAll();
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * (fireHot ? FIRE_BONUS_MULT : 1));
+  // Пара из ФИНАЛЬНОЙ ДОКИДКИ (метка refill, 40-items): только базовая
+  // цена — серийные и огненный множители не работают (обещание владельцу);
+  // прокачка типа и купленный бустер остаются — они не серийные.
+  const hasRefill = list.some(i => i.refill);
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
