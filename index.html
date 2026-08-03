@@ -2341,7 +2341,18 @@ const BOWL_SHATTER_N = 6;
 const BOWL_SLOWMO_MS = 600;     // слоу-мо разлёта («да!» владельца, №3)
 const BOWL_SLOWMO_K = 0.45;     // множитель времени в слоу-мо
 const BOWL_COLLECT_DELAY = 900; // мс РЕАЛЬНЫХ от разлёта до волны сбора
-const BOWL_SHARD_ROWS = 2, BOWL_SHARD_SEG = 7; // черепки прототипа: 2x7
+// ЧЕРЕПКИ РАЗЛЁТА. ⚠️ 3×10 вместо прототипных 2×7: «победил миксер» — редчайшее
+// событие партии, и 14 кусков на всю чашу читались скупо. Цена — единицы draw
+// calls (замер дренажа в сдаче), то есть считаться тут не на чем.
+const BOWL_SHARD_ROWS = 3, BOWL_SHARD_SEG = 10;
+// ⚠️ ТИНТ ПО КРИВИЗНЕ, А НЕ ПЛОСКИЙ ЦВЕТ. У прототипа черепки были
+// MeshBasicMaterial одного цвета — на плоском материале света нет, и кусок
+// читается СИЛУЭТОМ-ПЯТНОМ, а не обломком (та же беда, что канон описывает у
+// shardFX). Объём печём в ВЕРШИННЫЕ ЦВЕТА по нормали к ключевому свету — тому
+// же SHARD_LIGHT, что у осколков предметов, иначе стекло освещалось бы иначе,
+// чем всё остальное. Диапазон уже, чем у осколков: у чаши мягкая кривизна, и
+// широкий разброс дал бы полосатость.
+const BOWL_SHARD_TINT_LO = 0.72, BOWL_SHARD_TINT_HI = 1.26;
 // КАП РАЗМЕРА ГРУППЫ (спека владельца 2026-07-27: «поставь кап на 8»).
 // До этого капа НЕ БЫЛО вовсе: тап уносил ВСЕ доступные однотипные в
 // радиусе. Замер потолка по доступности: ур.1 (9 типов) до 16 штук,
@@ -3658,7 +3669,27 @@ function setBowlCracks(k, total){
     bowlCrackGroup = null; }
 }
 function tickBowlCracks(){ /* пульс ушёл вместе с визуалом */ }
-// разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
+// ⚠️ ТИНТ ПО ВЕРШИННЫМ НОРМАЛЯМ, А НЕ ПО ГРАНЯМ — и это отличие от shardFX
+// осознанное: у осколков предмета грани плоские и резкие, там объём даёт
+// пофасеточный тинт; сектор чаши — ГЛАДКАЯ кривая поверхность, и пофасеточный
+// тинт разбил бы её на полосы. По вершинным нормалям кривизна читается ровно.
+// ⚠️ Геометрия остаётся ИНДЕКСИРОВАННОЙ (toNonIndexed не нужен): пишем цвет
+// на вершину, а не на грань.
+// ⚠️ transmission НЕ используем нигде (канон: двойной рендер мира, ~55% кадра);
+// «стеклянность» несут тинт кривизны + прозрачность.
+const _bshN = new THREE.Vector3();
+function bakeShardTint(g){
+  const nrm = g.attributes.normal, n = nrm.count;
+  const col = new Float32Array(n*3);
+  for (let i = 0; i < n; i++){
+    _bshN.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
+    const t = Math.max(BOWL_SHARD_TINT_LO,
+              Math.min(BOWL_SHARD_TINT_HI, 0.9 + 0.42*_bshN.dot(SHARD_LIGHT)));
+    col[i*3] = col[i*3+1] = col[i*3+2] = t;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+}
+// разлёт: чаша скрывается, черепки-секторы конуса уходят баллистикой
 function shatterBowlVis(){
   if (bowlMesh) bowlMesh.visible = false;
   setBowlCracks(0);
@@ -3667,10 +3698,11 @@ function shatterBowlVis(){
     const y0 = FUNNEL.H*r/rows, y1 = FUNNEL.H*(r+1)/rows;
     for (let i = 0; i < seg; i++){
       const th0 = i/seg*Math.PI*2, dth = Math.PI*2/seg*0.92;
-      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 5, 1, true, th0, dth);
+      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 6, 1, true, th0, dth);
       g.translate(0, (y0+y1)/2, 0);
-      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, transparent: true,
-        opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      bakeShardTint(g);            // объём в вершинные цвета — см. 00-config
+      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, vertexColors: true,
+        transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
       const mesh = new THREE.Mesh(g, m);
       const midA = th0 + dth/2;
       const dir = new THREE.Vector3(Math.cos(midA), 0.55 + Math.random()*0.4, Math.sin(midA)).normalize();

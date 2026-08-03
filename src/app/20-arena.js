@@ -105,7 +105,27 @@ function setBowlCracks(k, total){
     bowlCrackGroup = null; }
 }
 function tickBowlCracks(){ /* пульс ушёл вместе с визуалом */ }
-// разлёт: чаша скрывается, 2x7 черепков-секторов конуса уходят баллистикой
+// ⚠️ ТИНТ ПО ВЕРШИННЫМ НОРМАЛЯМ, А НЕ ПО ГРАНЯМ — и это отличие от shardFX
+// осознанное: у осколков предмета грани плоские и резкие, там объём даёт
+// пофасеточный тинт; сектор чаши — ГЛАДКАЯ кривая поверхность, и пофасеточный
+// тинт разбил бы её на полосы. По вершинным нормалям кривизна читается ровно.
+// ⚠️ Геометрия остаётся ИНДЕКСИРОВАННОЙ (toNonIndexed не нужен): пишем цвет
+// на вершину, а не на грань.
+// ⚠️ transmission НЕ используем нигде (канон: двойной рендер мира, ~55% кадра);
+// «стеклянность» несут тинт кривизны + прозрачность.
+const _bshN = new THREE.Vector3();
+function bakeShardTint(g){
+  const nrm = g.attributes.normal, n = nrm.count;
+  const col = new Float32Array(n*3);
+  for (let i = 0; i < n; i++){
+    _bshN.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
+    const t = Math.max(BOWL_SHARD_TINT_LO,
+              Math.min(BOWL_SHARD_TINT_HI, 0.9 + 0.42*_bshN.dot(SHARD_LIGHT)));
+    col[i*3] = col[i*3+1] = col[i*3+2] = t;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+}
+// разлёт: чаша скрывается, черепки-секторы конуса уходят баллистикой
 function shatterBowlVis(){
   if (bowlMesh) bowlMesh.visible = false;
   setBowlCracks(0);
@@ -114,10 +134,11 @@ function shatterBowlVis(){
     const y0 = FUNNEL.H*r/rows, y1 = FUNNEL.H*(r+1)/rows;
     for (let i = 0; i < seg; i++){
       const th0 = i/seg*Math.PI*2, dth = Math.PI*2/seg*0.92;
-      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 5, 1, true, th0, dth);
+      const g = new THREE.CylinderGeometry(radiusAt(y1), radiusAt(y0), y1-y0, 6, 1, true, th0, dth);
       g.translate(0, (y0+y1)/2, 0);
-      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, transparent: true,
-        opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      bakeShardTint(g);            // объём в вершинные цвета — см. 00-config
+      const m = new THREE.MeshBasicMaterial({ color: 0xdfeaff, vertexColors: true,
+        transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
       const mesh = new THREE.Mesh(g, m);
       const midA = th0 + dth/2;
       const dir = new THREE.Vector3(Math.cos(midA), 0.55 + Math.random()*0.4, Math.sin(midA)).normalize();
