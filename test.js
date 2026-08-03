@@ -384,6 +384,9 @@ const path = require('path');
     // при простое разбирает обычный idle-помол; активно тапающий в тупике
     // игрок направляется в рекламу — осознанный дизайн владельца.
     lv.shakes = 0; lv.adShakes = 0;
+    // авто-встряска (v234) в этом сценарии считается уже потраченной —
+    // здесь проверяется РЕЗЕРВНАЯ ветка deadlock, а не выручалки до неё
+    lv.autoShakeUsed = true;
   });
   // и обратная сторона слова владельца: при ЖИВОЙ рекламе тупика НЕТ
   const adAgency = await page.evaluate(async () => {
@@ -554,7 +557,7 @@ const path = require('path');
   // финал: остались одиночки без пар — миксер зачищает их, собирает сюрприз (+150)
   // и наступает победа с апом уровня
   const lvlBefore = await page.evaluate(() => window.__game.levelNum());
-  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); window.__game.leaveSingles(); });
+  await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); window.__game.level().finalRefillDone = true; /* докидка (v234) здесь чужая: сценарий ждёт финал-помола одиночек */ window.__game.leaveSingles(); });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
   await page.waitForTimeout(600);
   const fin2 = await page.evaluate(() => ({
@@ -1473,6 +1476,117 @@ window.bridge = {
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   const bport = srv.address().port;
+  // ===== ПАКЕТ ТЕСТИРОВЩИКОВ (спека владельца 2026-08-02: «Делай») =====
+  // Секции САМОДОСТАТОЧНЫ (свой regen) и стоят В КОНЦЕ page-блока: первая
+  // вставка посреди потока сломала 4 чужих стража, питавшихся состоянием
+  // предыдущих секций (урок «строительные леса переживают сдачу»).
+  // 1) БЕСПЛАТНАЯ АВТО-ВСТРЯСКА: «объекты далеко и их невозможно соединить»
+  // (radius=-9 — приём deadlock-стража), бесплатные потрачены, РЕКЛАМНЫЕ
+  // ЖИВЫ (суть жалобы «вымогают») -> в ~2 c приходит ровно ОДНА бесплатная
+  // встряска (stats.autoShakes 0->1), второй нет.
+  await page.evaluate(() => { window.__game.setLevel(1); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForFunction(() => {
+    if (window.__game.awake().physAwake) { window.__calm = 0; return false; }
+    window.__calm = (window.__calm || 0) + 1;
+    return window.__calm >= 8;
+  }, null, { timeout: 30000, polling: 100 });
+  const autoShakeRes = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const radSave = { base: g.cfg.baseRadius, match: g.cfg.matchRadius };
+    g.cfg.baseRadius = -9; g.cfg.matchRadius = -9;
+    const lv = g.level();
+    lv.shakes = 0;                    // бесплатные кончились; adShakes НЕ трогаем
+    const a0 = (g.stats().autoShakes || 0);
+    let a1 = a0;
+    { const t0 = Date.now();          // осадка: 2 тика по 600 мс + допуск
+      while (a1 === a0 && Date.now() - t0 < 6000){ await sleep(150); a1 = (g.stats().autoShakes || 0); } }
+    await sleep(2500);                // ещё окно — второй прийти НЕ должна
+    const a2 = (g.stats().autoShakes || 0);
+    const usedFlag = g.level().autoShakeUsed;
+    g.cfg.baseRadius = radSave.base; g.cfg.matchRadius = radSave.match;
+    return { a0, a1, a2, usedFlag };
+  });
+  console.log('auto-shake:', JSON.stringify(autoShakeRes));
+  expect(autoShakeRes.a0 === 0 && autoShakeRes.a1 === 1,
+    'АВТО-ВСТРЯСКА: пришла сама при «не соединить» и живой рекламе (' + JSON.stringify(autoShakeRes) + ')');
+  expect(autoShakeRes.a2 === 1 && autoShakeRes.usedFlag === true,
+    'АВТО-ВСТРЯСКА: ровно одна за уровень (' + JSON.stringify(autoShakeRes) + ')');
+
+  // 2) ФИНАЛЬНАЯ ДОКИДКА ПАР. Сирот честным геймплеем в стенде не сделать:
+  // deadlock-помол ест топ-пару ЦЕЛИКОМ ([top, twin] в 99-main) — нечёт в
+  // бою создаёт только бомба. Факт сироты даёт ручка killOneTest (обёртка
+  // removeItem по прецеденту penalizeTest); страж меряет ПОВЕДЕНИЕ ПОСЛЕ:
+  // finale -> партнёр докинут (alive 1->2, флаг), сбор -> победа с пустой
+  // чашей. Помол докидку опередить не должен.
+  // Сценарий с РЕТРАЯМИ: doMatch сливает и ГРУППЫ ПО 3 одного типа, поэтому
+  // «чёт обычных = пары» — ложная посылка (пойман пробой: killOne из
+  // {Y,Y,Y,X} давал тройку, она слилась одним тапом, сироты не было).
+  // Каждая попытка честная: если сирота не сложился — новый уровень.
+  const refill = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (let attempt = 1; attempt <= 4; attempt++){
+      g.setLevel(1); g.regen(); g.skipIntro(); await sleep(700);
+      { const t0 = Date.now(); let rest = 0;               // доиграть до хвоста
+        while (g.alive() > 6 && Date.now() - t0 < 90000){
+          const ok = g.autoMatch();
+          if (!ok){ g.shake(); await sleep(1200); }
+          else if (++rest >= 10){ rest = 0; await sleep(4300); }
+          else await sleep(90);
+        } }
+      if (g.alive() > 6) continue;
+      // ⚠️ ДАТЬ ДОЗРЕТЬ ОТЛОЖЕННЫМ ПОМОЛАМ (пойман хронометражем [kill]):
+      // mixerGrind фиксирует [low, twin] и удаляет их setTimeout'ом через
+      // 560 мс — «хвостовой» помол, схваченный в конце доигрыша, созревал
+      // ПОСЛЕ ручек и сносил свежесозданного сироту (в бою гонки нет: помол
+      // ест парой, чётность цела — сирот делает только бомба). Ждём
+      // стабильного alive двумя замерами.
+      { const t0 = Date.now(); let prev = -1;
+        while (Date.now() - t0 < 8000){
+          const a = g.alive();
+          if (a === prev) break;
+          prev = a; await sleep(800);
+        } }
+      const clearKind = (kind) => { let c = g.alive();     // бомб бывает несколько
+        for (;;){ const c2 = g.killOneTest(kind); if (c2 === c) return; c = c2; } };
+      clearKind('surprise'); clearKind('bomb');
+      if (g.alive() === 0) continue;                        // хвост был из мусора
+      if (g.alive() % 2 === 0) g.killOneTest();             // попытка сироты
+      { const t0 = Date.now();                              // собрать пары хвоста
+        while (Date.now() - t0 < 30000){
+          if (g.alive() <= 1 || g.level().finalRefillDone) break;
+          const ok = g.autoMatch();
+          if (!ok){ g.shake(); await sleep(1200); } else await sleep(150);
+        } }
+      if (g.alive() === 0 && !g.level().finalRefillDone) continue; // тройка съела сироту — заново
+      // осадка: finale -> докинут партнёр (alive 2, флаг стоит)
+      let refilled = false;
+      { const t0 = Date.now();
+        while (Date.now() - t0 < 8000){
+          if (g.level().finalRefillDone && g.alive() === 2){ refilled = true; break; }
+          await sleep(150);
+        } }
+      if (!refilled) continue;
+      await sleep(1200);                                    // партнёру — осесть
+      { const t0 = Date.now();                              // финальный сбор
+        while (g.alive() > 0 && Date.now() - t0 < 15000){
+          const ok = g.autoMatch();
+          if (!ok){ g.shake(); await sleep(1200); } else await sleep(150);
+        } }
+      let over = false;
+      { const t0 = Date.now();
+        while (Date.now() - t0 < 5000){ if (g.level().over){ over = true; break; } await sleep(150); } }
+      return { attempt, refilled, aliveEnd: g.alive(), over };
+    }
+    return { fail: 'сирота не сложился за 4 попытки' };
+  });
+  console.log('final refill:', JSON.stringify(refill));
+  expect(!refill.fail && refill.refilled === true,
+    'ДОКИДКА: сироте докинут партнёр его типа, ровно раз (' + JSON.stringify(refill) + ')');
+  expect(refill.aliveEnd === 0 && refill.over === true,
+    'ДОКИДКА: хэппиэнд — чаша пуста, уровень выигран сбором (' + JSON.stringify(refill) + ')');
+
   const bpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const bErrors = [];
   bpage.on('pageerror', e => bErrors.push('PAGEERROR: ' + e.message));
@@ -2548,7 +2662,8 @@ window.bridge = {
   const sbExact = await page.evaluate(async () => {
     const g = window.__game;
     g.boostSetClock(0); g.boostClear();
-    g.regen(); g.skipIntro(); g.leaveSingles();
+    g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
+    g.leaveSingles();
     return { lv: g.levelNum() };
   });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
@@ -2558,7 +2673,8 @@ window.bridge = {
   const sbBoosted = await page.evaluate(async () => {
     const g = window.__game;
     g.buyBundle('bundle2');                        // x2
-    g.regen(); g.skipIntro(); g.leaveSingles();
+    g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
+    g.leaveSingles();
     return { lv: g.levelNum(), mult: g.scoreBoostMult() };
   });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });

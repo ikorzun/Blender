@@ -550,10 +550,30 @@ function loop(){
   if (!level.over && !intro){
     const anyAlive = items.some(i=>i.alive);
     const idle = (now - stats.lastAction)/1000;
-    if (anyAlive && !hasAnyPair()){
+    // ФИНАЛЬНАЯ ДОКИДКА ПАР — ПЕРЕД помолом остатков (см. 40-items): в
+    // первый кадр НАСТОЯЩЕГО finale сироты получают партнёров, hasAnyPair
+    // оживает, и ветка помола ниже не включается.
+    // ⚠️ БЕЗ АНИМАЦИЙ В КАДРЕ — обязательное условие (пойман прогоном):
+    // у слияния предметы «живы, но в анимации», и когда последняя пара типа
+    // сливается, на миг «пар нет» при живых прочих — рефилл срабатывал
+    // ПОСРЕДИ уровня, сжигая единственный заряд и досыпая лишнее; на
+    // настоящем finale сироту потом молча съедал finaleGrind.
+    const finaleAnimBusy = items.some(i => i.alive && i.animating);
+    if (anyAlive && !hasAnyPair() && !level.finalRefillDone && !finaleAnimBusy) finalPairsRefill();
+    // ⚠️ ПОМОЛ НЕ ОПЕРЕЖАЕТ РЕФИЛЛ (пойман стражем): в «грязный» кадр
+    // (последняя пара ещё в анимации слияния) рефилл пасует по своему
+    // anim-гейту, а помол без гейта съедал сироту до докидки. Пока рефилл
+    // не потрачен — финальный помол ждёт того же чистого кадра; после
+    // траты (или пустой докидки) ест как раньше, в любые кадры.
+    if (anyAlive && !hasAnyPair() && (level.finalRefillDone || !finaleAnimBusy)){
       grinding = true;
       if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
-    } else if (anyAlive && (idle > level.idleLimit || level.deadlock)){
+    } else if (anyAlive && hasAnyPair() && (idle > level.idleLimit || level.deadlock)){
+      // ⚠️ hasAnyPair() в условии — закрытая БОКОВАЯ ДВЕРЬ (пойман стражем
+      // докидки): в finale «грязного» кадра первая ветка пасовала, и сироту
+      // съедал ЭТОТ помол — хотя его смысл (наказание простоя / разбор кучи
+      // до пары) существует только ПРИ живых парах; finale целиком ведёт
+      // ветка выше (рефилл, потом finaleGrind).
       // idle>idleLimit — наказание за простой; level.deadlock — ТУПИК-ВЫРУЧАЛКА
       // (нет достижимых пар + нет встрясок, выставляется в 600-мс тике ниже):
       // помол разбирает кучу, пока не появится достижимая пара, ВМЕСТО экрана
@@ -679,6 +699,25 @@ function loop(){
     // объявляется. Сейчас adShakes=∞ → deadlock-ветка фактически в резерве
     // (на случай площадок без rewarded/отключения рекламы); кучу при простое
     // всё равно разбирает обычный idle-помол — вечного стояния нет.
+    // БЕСПЛАТНАЯ АВТО-ВСТРЯСКА (просьба тестировщиков «иначе ощущение, что
+    // вымогают шейки за рекламу» + условие владельца 2026-08-02 дословно:
+    // «только при условии, что объекты далеко друг от друга и их невозможно
+    // соединить»): пары по типам ЕСТЬ (не finale), соединимых НЕТ (noMoves),
+    // бесплатные и купленные встряски кончились — раньше здесь игрока ждала
+    // только кнопка «за рекламу» (adShakes безлимитны и НЕ проверяются —
+    // в этом суть жалобы). Один раз за уровень, 2 стабильных тика (~1.2 с)
+    // на оседание массы — как у детектора тупика ниже.
+    if (noMoves && !finale && !level.autoShakeUsed && level.shakes === 0 &&
+        purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
+      level.autoStuck = (level.autoStuck || 0) + 1;
+      if (level.autoStuck >= 2){
+        level.autoShakeUsed = true; level.autoStuck = 0;
+        stats.autoShakes = (stats.autoShakes || 0) + 1;
+        toast('Free shake');
+        performShake(); updateHUD();
+        Telemetry.ev('auto_shake', { lv: levelNum });
+      }
+    } else if (level.autoStuck) level.autoStuck = 0;
     if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 &&
         !(level.adShakes > 0) && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
@@ -781,6 +820,9 @@ window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
   availablePairs,
   autoMatch(){
+    stats.lastAction = performance.now(); // стендовый матч = действие игрока:
+    // иначе долгие бот-прогоны «простаивали» для idle-помола, и он параллельно
+    // выедал кучу (в бою тап обновляет lastAction сам)
     refreshAccessibility();
     const byKey = {};
     for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key]=byKey[it.key]||[]).push(it);
@@ -794,6 +836,18 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+
+  // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
+  // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит
+  // ФАКТ сироты, а страж проверяет ПОВЕДЕНИЕ после факта — саму докидку.
+  killOneTest(kind){
+    const pred = kind === 'surprise' ? (i => i.alive && i.surprise)
+               : kind === 'bomb'     ? (i => i.alive && i.bomb)
+                                     : (i => i.alive && !i.rock && !i.bomb && !i.surprise);
+    const it = items.find(pred);
+    if (it) removeItem(it);
+    return items.filter(i => i.alive).length;
+  },
   requestShake: requestShake, // тест: РЕАЛЬНЫЙ путь встряски с учётом (бесплатные -> купленные -> реклама)
   cfg: CFG,
   regen: genLevel,

@@ -1486,7 +1486,7 @@
   <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
   <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-233 · 2026-08-01</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-234 · 2026-08-01</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -5039,8 +5039,10 @@ function chainRefill(){
   if (dropped){ wakePhysics('chainDrop'); updateHUD(); }
 }
 // Спавн одного СЛУЧАЙНОГО предмета над чашей (живое падение)
-function dropOneFromSky(k){
-  const typeIdx = Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN));
+function dropOneFromSky(k, forcedTypeIdx){
+  const typeIdx = (forcedTypeIdx == null)
+    ? Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN))
+    : forcedTypeIdx;
   const it = makeItem(typeIdx, levelSize());
   const maxD = Math.max(0.1, radiusAt(FUNNEL.H) * 0.7 - it.r);
   const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
@@ -5049,6 +5051,41 @@ function dropOneFromSky(k){
   createItemBody(it, TYPES[typeIdx].name, it.geo);
   items.push(it);
   return it;
+}
+// ФИНАЛЬНАЯ ДОКИДКА ПАР (просьба тестировщиков, «Делай» владельца
+// 2026-08-02: «люди хотят хэппиэнд и завершение с удовлетворением и
+// победой. Сейчас они видят, как оставшиеся вещи перемалывает блендер»):
+// в момент «остались одни сироты» (finale) каждому живому ОБЫЧНОМУ
+// предмету докидывается партнёр ЕГО типа — уровень завершается сбором
+// всего в пары, а не зрелищем помола. Камни/бомбы/сюрпризы не в счёт и не
+// докидываются (слово владельца: «камни и бомбы мелим»). Один раз за
+// уровень. Метка refill на докинутых: doMatch по ней даёт только БАЗОВУЮ
+// цену матча (обещание владельцу «без серийных множителей, чтобы не было
+// выгодно нарочно оставлять сирот»; прокачка типа и купленный бустер
+// очков остаются — они не серийные).
+function finalPairsRefill(){
+  if (level.finalRefillDone) return false;
+  level.finalRefillDone = true; // и «только камни» второй раз не проверяем
+  const orphans = [];
+  for (const it of items)
+    if (it.alive && !it.rock && !it.bomb && !it.surprise) orphans.push(it);
+  if (!orphans.length) return false; // остались камни/бомбы — мелем как мусор
+  let k = 0;
+  for (const o of orphans){
+    const idx = parseInt(String(o.key).slice(1), 10); // key обычных = 'T'+typeIdx
+    if (!(idx >= 0)) continue;
+    const p = dropOneFromSky(k++, idx);
+    p.refill = true;
+  }
+  if (k){
+    wakePhysics('finalRefill');
+    toast('Final pairs');
+    stats.lastAction = performance.now(); // помол отложен — дать собрать
+    level.stuck = -4;                     // фора детекторам, пока досыпка оседает
+    Telemetry.ev('final_refill', { lv: levelNum, n: k });
+    setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+  }
+  return k > 0;
 }
 // Continue после поражения: досыпка n предметов (без гварда полноты —
 // проигранный уровень частично пуст, задача — вернуть игру к жизни)
@@ -5246,7 +5283,7 @@ function genLevel(){
   // встряски растут с уровнем (freeShakesFor в 00-config; лесенка возвращена
   // спекой владельца 2026-07-30 «подними встряски»),
   // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
-  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
+  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
@@ -8660,7 +8697,11 @@ function doMatch(list){
   // (tickFireSpawn отсчитывает от момента вспышки, не от гашения).
   const fireHot = typeName === burningName();
   if (fireHot) extinguishAll();
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * (comboHot ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * (fireHot ? FIRE_BONUS_MULT : 1));
+  // Пара из ФИНАЛЬНОЙ ДОКИДКИ (метка refill, 40-items): только базовая
+  // цена — серийные и огненный множители не работают (обещание владельцу);
+  // прокачка типа и купленный бустер остаются — они не серийные.
+  const hasRefill = list.some(i => i.refill);
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -12495,10 +12536,30 @@ function loop(){
   if (!level.over && !intro){
     const anyAlive = items.some(i=>i.alive);
     const idle = (now - stats.lastAction)/1000;
-    if (anyAlive && !hasAnyPair()){
+    // ФИНАЛЬНАЯ ДОКИДКА ПАР — ПЕРЕД помолом остатков (см. 40-items): в
+    // первый кадр НАСТОЯЩЕГО finale сироты получают партнёров, hasAnyPair
+    // оживает, и ветка помола ниже не включается.
+    // ⚠️ БЕЗ АНИМАЦИЙ В КАДРЕ — обязательное условие (пойман прогоном):
+    // у слияния предметы «живы, но в анимации», и когда последняя пара типа
+    // сливается, на миг «пар нет» при живых прочих — рефилл срабатывал
+    // ПОСРЕДИ уровня, сжигая единственный заряд и досыпая лишнее; на
+    // настоящем finale сироту потом молча съедал finaleGrind.
+    const finaleAnimBusy = items.some(i => i.alive && i.animating);
+    if (anyAlive && !hasAnyPair() && !level.finalRefillDone && !finaleAnimBusy) finalPairsRefill();
+    // ⚠️ ПОМОЛ НЕ ОПЕРЕЖАЕТ РЕФИЛЛ (пойман стражем): в «грязный» кадр
+    // (последняя пара ещё в анимации слияния) рефилл пасует по своему
+    // anim-гейту, а помол без гейта съедал сироту до докидки. Пока рефилл
+    // не потрачен — финальный помол ждёт того же чистого кадра; после
+    // траты (или пустой докидки) ест как раньше, в любые кадры.
+    if (anyAlive && !hasAnyPair() && (level.finalRefillDone || !finaleAnimBusy)){
       grinding = true;
       if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
-    } else if (anyAlive && (idle > level.idleLimit || level.deadlock)){
+    } else if (anyAlive && hasAnyPair() && (idle > level.idleLimit || level.deadlock)){
+      // ⚠️ hasAnyPair() в условии — закрытая БОКОВАЯ ДВЕРЬ (пойман стражем
+      // докидки): в finale «грязного» кадра первая ветка пасовала, и сироту
+      // съедал ЭТОТ помол — хотя его смысл (наказание простоя / разбор кучи
+      // до пары) существует только ПРИ живых парах; finale целиком ведёт
+      // ветка выше (рефилл, потом finaleGrind).
       // idle>idleLimit — наказание за простой; level.deadlock — ТУПИК-ВЫРУЧАЛКА
       // (нет достижимых пар + нет встрясок, выставляется в 600-мс тике ниже):
       // помол разбирает кучу, пока не появится достижимая пара, ВМЕСТО экрана
@@ -12624,6 +12685,25 @@ function loop(){
     // объявляется. Сейчас adShakes=∞ → deadlock-ветка фактически в резерве
     // (на случай площадок без rewarded/отключения рекламы); кучу при простое
     // всё равно разбирает обычный idle-помол — вечного стояния нет.
+    // БЕСПЛАТНАЯ АВТО-ВСТРЯСКА (просьба тестировщиков «иначе ощущение, что
+    // вымогают шейки за рекламу» + условие владельца 2026-08-02 дословно:
+    // «только при условии, что объекты далеко друг от друга и их невозможно
+    // соединить»): пары по типам ЕСТЬ (не finale), соединимых НЕТ (noMoves),
+    // бесплатные и купленные встряски кончились — раньше здесь игрока ждала
+    // только кнопка «за рекламу» (adShakes безлимитны и НЕ проверяются —
+    // в этом суть жалобы). Один раз за уровень, 2 стабильных тика (~1.2 с)
+    // на оседание массы — как у детектора тупика ниже.
+    if (noMoves && !finale && !level.autoShakeUsed && level.shakes === 0 &&
+        purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
+      level.autoStuck = (level.autoStuck || 0) + 1;
+      if (level.autoStuck >= 2){
+        level.autoShakeUsed = true; level.autoStuck = 0;
+        stats.autoShakes = (stats.autoShakes || 0) + 1;
+        toast('Free shake');
+        performShake(); updateHUD();
+        Telemetry.ev('auto_shake', { lv: levelNum });
+      }
+    } else if (level.autoStuck) level.autoStuck = 0;
     if (noMoves && !finale && level.shakes === 0 && purchasedShakes() === 0 &&
         !(level.adShakes > 0) && !items.some(i=>i.alive && i.animating)){
       level.stuck++;
@@ -12726,6 +12806,9 @@ window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
   availablePairs,
   autoMatch(){
+    stats.lastAction = performance.now(); // стендовый матч = действие игрока:
+    // иначе долгие бот-прогоны «простаивали» для idle-помола, и он параллельно
+    // выедал кучу (в бою тап обновляет lastAction сам)
     refreshAccessibility();
     const byKey = {};
     for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key]=byKey[it.key]||[]).push(it);
@@ -12739,6 +12822,18 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+
+  // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
+  // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит
+  // ФАКТ сироты, а страж проверяет ПОВЕДЕНИЕ после факта — саму докидку.
+  killOneTest(kind){
+    const pred = kind === 'surprise' ? (i => i.alive && i.surprise)
+               : kind === 'bomb'     ? (i => i.alive && i.bomb)
+                                     : (i => i.alive && !i.rock && !i.bomb && !i.surprise);
+    const it = items.find(pred);
+    if (it) removeItem(it);
+    return items.filter(i => i.alive).length;
+  },
   requestShake: requestShake, // тест: РЕАЛЬНЫЙ путь встряски с учётом (бесплатные -> купленные -> реклама)
   cfg: CFG,
   regen: genLevel,

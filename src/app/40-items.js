@@ -280,8 +280,10 @@ function chainRefill(){
   if (dropped){ wakePhysics('chainDrop'); updateHUD(); }
 }
 // Спавн одного СЛУЧАЙНОГО предмета над чашей (живое падение)
-function dropOneFromSky(k){
-  const typeIdx = Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN));
+function dropOneFromSky(k, forcedTypeIdx){
+  const typeIdx = (forcedTypeIdx == null)
+    ? Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN))
+    : forcedTypeIdx;
   const it = makeItem(typeIdx, levelSize());
   const maxD = Math.max(0.1, radiusAt(FUNNEL.H) * 0.7 - it.r);
   const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
@@ -290,6 +292,41 @@ function dropOneFromSky(k){
   createItemBody(it, TYPES[typeIdx].name, it.geo);
   items.push(it);
   return it;
+}
+// ФИНАЛЬНАЯ ДОКИДКА ПАР (просьба тестировщиков, «Делай» владельца
+// 2026-08-02: «люди хотят хэппиэнд и завершение с удовлетворением и
+// победой. Сейчас они видят, как оставшиеся вещи перемалывает блендер»):
+// в момент «остались одни сироты» (finale) каждому живому ОБЫЧНОМУ
+// предмету докидывается партнёр ЕГО типа — уровень завершается сбором
+// всего в пары, а не зрелищем помола. Камни/бомбы/сюрпризы не в счёт и не
+// докидываются (слово владельца: «камни и бомбы мелим»). Один раз за
+// уровень. Метка refill на докинутых: doMatch по ней даёт только БАЗОВУЮ
+// цену матча (обещание владельцу «без серийных множителей, чтобы не было
+// выгодно нарочно оставлять сирот»; прокачка типа и купленный бустер
+// очков остаются — они не серийные).
+function finalPairsRefill(){
+  if (level.finalRefillDone) return false;
+  level.finalRefillDone = true; // и «только камни» второй раз не проверяем
+  const orphans = [];
+  for (const it of items)
+    if (it.alive && !it.rock && !it.bomb && !it.surprise) orphans.push(it);
+  if (!orphans.length) return false; // остались камни/бомбы — мелем как мусор
+  let k = 0;
+  for (const o of orphans){
+    const idx = parseInt(String(o.key).slice(1), 10); // key обычных = 'T'+typeIdx
+    if (!(idx >= 0)) continue;
+    const p = dropOneFromSky(k++, idx);
+    p.refill = true;
+  }
+  if (k){
+    wakePhysics('finalRefill');
+    toast('Final pairs');
+    stats.lastAction = performance.now(); // помол отложен — дать собрать
+    level.stuck = -4;                     // фора детекторам, пока досыпка оседает
+    Telemetry.ev('final_refill', { lv: levelNum, n: k });
+    setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+  }
+  return k > 0;
 }
 // Continue после поражения: досыпка n предметов (без гварда полноты —
 // проигранный уровень частично пуст, задача — вернуть игру к жизни)
@@ -487,7 +524,7 @@ function genLevel(){
   // встряски растут с уровнем (freeShakesFor в 00-config; лесенка возвращена
   // спекой владельца 2026-07-30 «подними встряски»),
   // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
-  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
+  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
