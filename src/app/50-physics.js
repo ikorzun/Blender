@@ -136,9 +136,16 @@ function initPhysicsWorld(){
 let wallColliders = [], shellBody = null;
 function dropWalls(){
   for (const c of wallColliders){ try { c.setSensor(true); } catch(e){} }
+  // И ДНО-ПЛИТА ТОЖЕ (слово владельца 2026-08-03: «если чаша разбивается,
+  // то не должно оставаться её силуэта») — твёрдая плита держала кучу
+  // невидимым диском в форме дна, предметы «лежали по чаше». Призрачное дно:
+  // при разлёте всё честно сыплется в белую пустоту (слоу-мо придерживает),
+  // сбор-волна догоняет предметы в полёте.
+  try { floorCol.setSensor(true); } catch(e){}
 }
 function ensureWalls(){
   for (const c of wallColliders){ try { if (c.isSensor()) c.setSensor(false); } catch(e){} }
+  try { if (floorCol.isSensor()) floorCol.setSensor(false); } catch(e){}
 }
 function wallsCount(){ // число ТВЁРДЫХ стенных коллайдеров (для стражей)
   let n = 0;

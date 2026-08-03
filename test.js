@@ -4325,7 +4325,7 @@ window.bridge = {
     await new Promise(r => setTimeout(r, 120));
     g.bowlCrack();                       // 2-я = N -> отложенный разлёт (650 мс)
     await new Promise(r => setTimeout(r, 900));
-    const вРазлёте = { slowmo: g.slowmoLeft(), walls: g.walls(), shattering: g.bowl().shattering };
+    const вРазлёте = { slowmo: g.slowmoLeft(), walls: g.walls(), shattering: g.bowl().shattering, floorGhost: g.bowl().floorGhost };
     // осадка-опрос: сбор + удаление + победа (потолок-страховка 8 с)
     const t0 = Date.now();
     while (Date.now() - t0 < 8000){
@@ -4341,6 +4341,8 @@ window.bridge = {
   });
   expect(bowlShatter.walls0 > 0 && bowlShatter.вРазлёте.walls === 0,
     'ЧАША: разлёт СНЯЛ стены (' + bowlShatter.walls0 + ' -> ' + bowlShatter.вРазлёте.walls + ')');
+  expect(bowlShatter.вРазлёте.floorGhost === true,
+    'ЧАША: дно-плита призрачное в разлёте — силуэта не остаётся (слово владельца 2026-08-03) (' + JSON.stringify(bowlShatter.вРазлёте) + ')');
   expect(bowlShatter.вРазлёте.slowmo > 0,
     'ЧАША: слоу-мо идёт в момент разлёта («да!» владельца) (' + bowlShatter.вРазлёте.slowmo + ' мс)');
   expect(bowlShatter.alive === 0 && bowlShatter.over === true,
@@ -4355,8 +4357,10 @@ window.bridge = {
     const g = window.__game;
     g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
-    return { cracks: g.bowl().cracks, walls: g.walls(), shattering: g.bowl().shattering };
+    return { cracks: g.bowl().cracks, walls: g.walls(), shattering: g.bowl().shattering, floorGhost: g.bowl().floorGhost };
   });
+  expect(bowlReset.floorGhost === false,
+    'ЧАША: новый уровень вернул твёрдое дно (' + JSON.stringify(bowlReset) + ')');
   expect(bowlReset.cracks === 0 && bowlReset.walls > 0 && bowlReset.shattering === false,
     'ЧАША: новый уровень = новая чаша, трещины 0, стены восстановлены (' + JSON.stringify(bowlReset) + ')');
   await bowlPage.close();
