@@ -4247,71 +4247,43 @@ window.bridge = {
   await bowlPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await bowlPage.evaluate(() => { window.__game.setLevel(5); window.__game.regen(); window.__game.skipIntro(); });
   await bowlPage.waitForTimeout(400);
-  // 1) трещина растёт от ВХОДА В ТУРБО (реальная серия, не ручка):
-  // Единица «набранные серии» (слово владельца после игры: «5-7 серий за
-  // уровень... должно быть не так легко»): каждые BOWL_SERIES_LEN=6
-  // НЕПРЕРЫВНЫХ матчей цепи = 1 зачёт. Стражи ловят три свойства:
-  // (а) первый зачёт не раньше 6 матчей (вызовов >= 6 — вызовов не меньше,
-  //     чем матчей, флейк «вызов не сматчил» ассерт не валит);
-  // (б) обрыв цепи обнуляет ПРОГРЕСС К зачёту (4 матча после паузы зачёта
-  //     не дают), но полученные зачёты не отнимает;
-  // (в) продолжение непрерывной цепи добивает следующий зачёт.
-  const bowlSeries = await bowlPage.evaluate(async () => {
+  // 1) ЕДИНИЦА «3 ТУРБО ПОДРЯД БЕЗ ОШИБОК» (слово владельца 2026-08-03,
+  // сменило «серии по 4»: «всё остальное слишком просто»). Стражи ловят:
+  // (а) вход в турбо честной цепью = +1 зачёт; (б) ЛЮБОЙ промах обнуляет
+  // накопленное (клик в пустоту настоящим путём); (в) после сброса стрик
+  // копится заново. Паузы стрик НЕ рвут (уже взятые турбо живут).
+  const bowlStreak1 = await bowlPage.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     g.bowlSetN(999); // порог не должен сработать посреди стража
     g.regen(); g.skipIntro(); await sleep(600);
-    const L = g.bowl().len; // зачётная длина из ручки — L меняется калибровкой
     const c0 = g.bowl().cracks;
-    let calls1 = 0;
-    { const t0 = Date.now();
-      while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls1++; await sleep(90); } }
-    const c1 = g.bowl().cracks;
-    await sleep(4400);                     // обрыв: > seriesWindowMs — цепь гаснет
-    for (let i = 0; i < L - 2; i++){ g.autoMatch(); await sleep(90); }  // < L — не зачёт
-    const c2 = g.bowl().cracks;
-    let c3 = c2;
-    { const t0 = Date.now();               // та же живая цепь: добить до зачёта
-      while (g.bowl().cracks < c2 + 1 && Date.now() - t0 < 8000){ g.autoMatch(); await sleep(90); }
-      c3 = g.bowl().cracks; }
-    return { c0, calls1, c1, c2, c3, L };
+    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    return { c0, chain: g.combo().chain, c1: g.bowl().cracks, misses: g.stats().misses };
   });
-  expect(bowlSeries.c0 === 0 && bowlSeries.c1 === 1 && bowlSeries.calls1 >= bowlSeries.L,
-    'ЧАША: зачёт серии не раньше L непрерывных матчей (' + JSON.stringify(bowlSeries) + ')');
-  expect(bowlSeries.c2 === 1 && bowlSeries.c3 === 2,
-    'ЧАША: обрыв цепи сбрасывает прогресс к зачёту, но не зачёты; живая цепь добивает следующий (' + JSON.stringify(bowlSeries) + ')');
-
-  // «Цепь рвётся от ошибки» — для чаши свойство НЕСУЩЕЕ (прогресс = 6
-  // непрерывных БЕЗ промаха). Страж: 3 звена -> промах НАСТОЯЩИМ путём
-  // (клик в пустую точку канвы; точка подбирается по факту роста misses) ->
-  // зачёт приходит не раньше 6 НОВЫХ вызовов. Если бы промах не рвал,
-  // зачёт пришёл бы на ~3-м (3 старых + 3 новых); вызовов >= матчей, так
-  // что порог >= 6 ложно не валится (глотки вызовов только УВЕЛИЧИВАЮТ
-  // счёт). Ложный проход требует >= 3 глотков подряд — принято.
-  const bowlMiss1 = await bowlPage.evaluate(async () => {
-    const g = window.__game;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    g.bowlSetN(999); g.regen(); g.skipIntro(); await sleep(600);
-    for (let i = 0; i < 3; i++){ g.autoMatch(); await sleep(90); }
-    return { cracks: g.bowl().cracks, misses: g.stats().misses };
-  });
-  let missGrew = false;
+  expect(bowlStreak1.c0 === 0 && bowlStreak1.chain === true && bowlStreak1.c1 === 1,
+    'ЧАША: вход в турбо честной цепью = +1 зачёт стрика (' + JSON.stringify(bowlStreak1) + ')');
+  let streakMissGrew = false;
   for (const [mx, my] of [[875, 320], [30, 180], [875, 180]]){
     await bowlPage.mouse.click(mx, my);
     await bowlPage.waitForTimeout(180);
     const m = await bowlPage.evaluate(() => window.__game.stats().misses);
-    if (m > bowlMiss1.misses){ missGrew = true; break; }
+    if (m > bowlStreak1.misses){ streakMissGrew = true; break; }
   }
-  const bowlMiss2 = await bowlPage.evaluate(async () => {
+  const bowlStreak2 = await bowlPage.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    let calls = 0; const t0 = Date.now();
-    while (g.bowl().cracks < 1 && Date.now() - t0 < 8000){ g.autoMatch(); calls++; await sleep(90); }
-    return { calls, cracks: g.bowl().cracks, L: g.bowl().len };
+    const cAfterMiss = g.bowl().cracks;              // промах обнулил стрик
+    // пауза > окна серии: стрик (0) ждать обязан, паузы его не трогают
+    await sleep(4400);
+    const cAfterPause = g.bowl().cracks;
+    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    return { cAfterMiss, cAfterPause, c2: g.bowl().cracks };
   });
-  expect(bowlMiss1.cracks === 0 && missGrew && bowlMiss2.cracks === 1 && bowlMiss2.calls >= bowlMiss2.L,
-    'ЧАША: промах РВЁТ цепь — после ошибки зачёт только за L НОВЫХ непрерывных (' +
-    JSON.stringify({ до: bowlMiss1, промах: missGrew, после: bowlMiss2 }) + ')');
+  expect(streakMissGrew && bowlStreak2.cAfterMiss === 0,
+    'ЧАША: промах ОБНУЛЯЕТ накопленные турбо-зачёты («без ошибок») (' + JSON.stringify(bowlStreak2) + ')');
+  expect(bowlStreak2.cAfterPause === 0 && bowlStreak2.c2 === 1,
+    'ЧАША: после сброса стрик копится заново честной цепью (' + JSON.stringify(bowlStreak2) + ')');
 
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков

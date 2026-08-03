@@ -855,6 +855,7 @@ function penalize(worldPos, sx, sy){
     comboCount = 0; // набор турбо — с нуля
     updateMatchRadius(); updateHUD();
   }
+  try { bowlStreakReset(); } catch(e){} // стрик чаши: промах = ошибка (слово владельца)
   if (charged && shown > 0){
     if (worldPos) scorePop('-' + shown, worldPos, '#e5484d', false);
     else scorePopScreen('-' + shown, sx, sy, '#e5484d', false);

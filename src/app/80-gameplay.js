@@ -238,6 +238,7 @@ function penalizeRock(item){
     comboCount = 0; // набор турбо — с нуля
     updateMatchRadius(); updateHUD();
   }
+  try { bowlStreakReset(); } catch(e){} // стрик чаши: камень = ошибка
   if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
   Sound.play('miss');
   vibrate(20);
@@ -316,6 +317,17 @@ function seriesMult(nowMs){
 let bowlShattering = false;
 let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
 function bowlN(){ return bowlNRuntime || BOWL_SHATTER_N; }
+// «БЕЗ ОШИБОК» (слово владельца 2026-08-03): любой промах обнуляет
+// накопленные турбо-зачёты чаши. Зовут penalize (70-fx) и penalizeRock —
+// ВСЕГДА, не только при горячем окне. Бомба сюда не заходит (не ошибка).
+// Глаза отыграют сброс сами: bowlLeft() читает cracks каждый тик.
+function bowlStreakReset(){
+  if (BOWL_CRACK_ON !== 'chain') return;
+  if (!level || level.over || bowlShattering) return;
+  if (!level.bowlCracks) return;
+  level.bowlCracks = 0;
+  try { setBowlCracks(0, bowlN()); } catch(e){}
+}
 function bowlCrackAdd(silent){
   if (!level || level.over || bowlShattering) return;
   level.bowlCracks = (level.bowlCracks || 0) + 1;
