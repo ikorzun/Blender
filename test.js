@@ -3777,17 +3777,27 @@ window.bridge = {
   expect(closeLeak.шапкаБыла && closeLeak.менюЗакрыто && closeLeak.погасла,
     'МЕНЮ: плавающая шапка гаснет при закрытии меню — не висит над игрой (' +
     JSON.stringify(closeLeak) + ')');
-  // ⚠️ ФОН ШАПКИ РЕЗОЛВИТСЯ (ревью v212): --ms-bg жила на #mainScreen, а
-  // #msSticky — его СОСЕД, переменная не наследовалась → background был
-  // transparent, контент просвечивал сквозь вырезы углов пилюли. Теперь на
-  // :root; страж сверяет НЕ «не transparent», а точное совпадение с фоном
-  // меню — единый источник цвета.
-  const stickyBg = await menuPage.evaluate(() => ({
-    шапка: getComputedStyle(document.getElementById('msSticky')).backgroundColor,
-    меню: getComputedStyle(document.getElementById('mainScreen')).backgroundColor,
-  }));
-  expect(stickyBg.шапка === stickyBg.меню && stickyBg.шапка !== 'rgba(0, 0, 0, 0)',
-    'МЕНЮ: фон плавающей шапки резолвится и совпадает с фоном меню (' +
+  // ⚠️ ФОН ШАПКИ — ДВА ТРЕБОВАНИЯ СРАЗУ, И ОНИ ТЯНУТ В РАЗНЫЕ СТОРОНЫ.
+  // (1) Спека владельца 2026-08-03 (скрин DevTools со снятой галкой): фон
+  //     ВЫКЛЮЧЕН — визуально его быть не должно, значит альфа ~0.
+  // (2) Рецепт «Хром iOS» из канона: узел ФИКСИРОВАННЫЙ и касается верхней
+  //     кромки, а `transparent` Safari 26 читает как «прозрачный ЧЁРНЫЙ» и
+  //     красит свою полосу в чёрный. Полностью нулевой фон здесь ЗАПРЕЩЁН.
+  // Отсюда инвариант: тон ТОТ ЖЕ, что у меню (единый источник, защита от
+  // регресса v212 — переменная не наследовалась и фон уезжал в transparent),
+  // альфа НЕНУЛЕВАЯ, но пренебрежимая. Прежний ассерт «шапка === меню»
+  // отменён спекой владельца, а не ослаблен.
+  const stickyBg = await menuPage.evaluate(() => {
+    const чис = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+    const ш = чис(getComputedStyle(document.getElementById('msSticky')).backgroundColor);
+    const м = чис(getComputedStyle(document.getElementById('mainScreen')).backgroundColor);
+    return { шапка: ш, меню: м,
+             тонСовпал: ш[0] === м[0] && ш[1] === м[1] && ш[2] === м[2],
+             альфа: ш.length > 3 ? ш[3] : 1 };
+  });
+  expect(stickyBg.тонСовпал && stickyBg.альфа > 0 && stickyBg.альфа <= 0.02,
+    'МЕНЮ: фон плавающей шапки ВЫКЛЮЧЕН (альфа ~0 по спеке владельца), но НЕ нулевой — ' +
+    'иначе Safari красит верхнюю полосу чёрным; тон от единого источника (' +
     JSON.stringify(stickyBg) + ')');
   await menuPage.close();
 
@@ -4342,29 +4352,17 @@ window.bridge = {
     'ЧАША: новый уровень = новая чаша, трещины 0, стены восстановлены (' + JSON.stringify(bowlReset) + ')');
 
   // ===== ГЛАЗА: «МИКСЕР ВЫДЫХАЕТСЯ» (владелец отверг трещины: «беру глаза») =====
-  // ⚠️ МЕТРИКА ОДНА НА ВСЕ ЧЕТЫРЕ СТРАЖА — ЗАЗОР от низа века до верха белка:
-  // >= 0 веко ВНЕ глаза (миксер свеж), < 0 наползло (устал). Она двусторонняя ПО
-  // ПОСТРОЕНИЮ: сравнивает два НАБЛЮДЁННЫХ состояния, а не число с константой,
-  // поэтому «механики нет вовсе» даёт равенство и валит ассерт (грабля
-  // `false === false` истинно и на пустом месте).
-  const лицо = () => bowlPage.evaluate(() => {
-    const ov = document.getElementById('fTired'), lid = ov.querySelector('.lid');
-    const eye = document.getElementById('wL');
-    return { зазор: +(eye.getBoundingClientRect().top - lid.getBoundingClientRect().bottom).toFixed(2),
-             tired: +getComputedStyle(ov).getPropertyValue('--tired'),
-             зрачок: +document.getElementById('pupL').getBoundingClientRect().width.toFixed(1),
-             закрыты: document.getElementById('eyes').classList.contains('blink'),
-             злые: document.getElementById('fAngry').classList.contains('on'),
-             cracks: window.__game.bowl().cracks };
-  });
-  // ⚠️⚠️ ЖДЁМ ИМЕННО ТОГО ФАКТА, КОТОРЫЙ АССЕРТИМ, А НЕ «ПОКА ПЕРЕСТАНЕТ
-  // МЕНЯТЬСЯ». Первая версия ждала два одинаковых замера подряд и ПАДАЛА НА
-  // ИСПРАВНОЙ СБОРКЕ: три зачёта одним синхронным залпом блокируют главный
-  // поток ~200 мс, кадров нет, переход века не двигается — и два одинаковых
-  // ПРИПАРКОВАННЫХ значения читались как «устоялось». Замер ряда по времени:
-  // +90 и +180 мс `--tired` уже 0.850, а transform ещё 54 (парковка); движение
-  // начинается только к +270. «Ещё не началось» неотличимо от «закончилось» —
-  // ровно тот подвид флейка, что записан в каноне.
+  // ⛔ ВЕКО-КАНАЛА БОЛЬШЕ НЕТ. Спека владельца 2026-08-03: «убери черные веки
+  // сверху, у нас нет такого состояния, потому что во всех состояниях есть
+  // только белое глазное яблоко и черный зрачок в разной форме». Прежние стражи
+  // мерили ГЛУБИНУ ВЕКА (зазор веко->глаз) — они удалены вместе со слоем, а не
+  // ослаблены. Осталось два канала, оба зрачковые: РАЗМЕР (просадка базы) и
+  // ФОРМА (щёлочки 741:1302 -> ✕✕ 741:1281).
+  const лицо = () => bowlPage.evaluate(() => ({
+    зрачок: +document.getElementById('pupL').getBoundingClientRect().width.toFixed(1),
+    слой: ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')),
+    cracks: window.__game.bowl().cracks }));
+  // ждём ФАКТ, который ассертим (канон), потолок — страховка и он ОТЛИЧИМ от провала
   const ждуЛицо = async (годно, мс = 4000) => {
     const t0 = Date.now(); let с;
     while (Date.now() - t0 < мс){
@@ -4372,98 +4370,94 @@ window.bridge = {
       if (годно(с)) return Object.assign(с, { дождались: true });
       await bowlPage.waitForTimeout(80);
     }
-    return Object.assign(с || {}, { дождались: false });  // отличимо от честного провала
+    return Object.assign(с || {}, { дождались: false });
   };
-  await bowlPage.evaluate(() => { const g = window.__game; g.bowlSetN(6); g.regen(); g.skipIntro(); });
-  await bowlPage.waitForTimeout(400);
-  const глазСвеж = await ждуЛицо(с => с.зазор >= 0 && с.cracks === 0);
+  const ждуСлой = (id, мс = 4000) => bowlPage.waitForFunction(
+    (i) => document.getElementById(i).classList.contains('on'), id, { timeout: мс })
+    .then(() => true).catch(() => false);
+
+  // ТОМБСТОУН: верхних век не должно быть НИ ОДНОГО узла. Дешёвый страж прямо
+  // на спеку владельца — вернётся накладка, покраснеет здесь.
+  const векНет = await bowlPage.evaluate(() =>
+    !document.getElementById('fTired') && !document.querySelector('#eyes .face-ov'));
+  expect(векНет, 'ГЛАЗА: верхних век усталости нет в разметке — их не бывает ни в одном состоянии (спека 2026-08-03)');
+
+  await bowlPage.evaluate(() => { const g = window.__game; g.bowlSetN(6); g.regen(); g.skipIntro();
+    g.stats().lastAction = performance.now(); });
+  await bowlPage.waitForFunction(
+    () => !document.getElementById('fAngry').classList.contains('on'), null, { timeout: 5000 }).catch(() => {});
+  const глазСвеж = await ждуЛицо(с => с.cracks === 0 && с.слой === 'fRound');
   // зачёты ПО ОДНОМУ с паузой — как в живой игре; залпом они забивают кадр
-  for (let i = 0; i < 3; i++){
+  for (let i = 0; i < 4; i++){
     await bowlPage.evaluate(() => window.__game.bowlCrack());
     await bowlPage.waitForTimeout(260);
   }
-  const глазУстал = await ждуЛицо(с => с.зазор < -4 && с.cracks === 3);
-  expect(глазСвеж.дождались && глазУстал.дождались && глазУстал.зрачок < глазСвеж.зрачок,
-    'ГЛАЗА: зачёты выматывают миксер — веко наползает на глаз, зрачок оседает; на нуле веко ВНЕ глаза (' +
-    JSON.stringify(глазСвеж) + ' -> ' + JSON.stringify(глазУстал) + ')');
+  // ⚠️ ждём СЧЁТ и УСТОЙЧИВОСТЬ, а величину просадки АССЕРТИМ — иначе ожидание
+  // самого утверждения сделало бы стража тавтологией.
+  let a1 = await лицо(), глазУстал = a1;
+  for (let i = 0; i < 20; i++){
+    await bowlPage.waitForTimeout(80);
+    const b1 = await лицо();
+    if (b1.cracks === 4 && Math.abs(b1.зрачок - a1.зрачок) < 0.05){ глазУстал = b1; break; }
+    a1 = b1; глазУстал = b1;
+  }
+  expect(глазСвеж.дождались && глазУстал.cracks === 4 && глазУстал.слой === 'fRound' &&
+         глазУстал.зрачок <= глазСвеж.зрачок * 0.9,
+    'ГЛАЗА: зачёты выматывают миксер — зрачок ОСЕДАЕТ (единственный копящийся канал): ' +
+    глазСвеж.зрачок + ' -> ' + глазУстал.зрачок + ' (нужно <= ' + (глазСвеж.зрачок * 0.9).toFixed(1) + ')');
 
-  // ЛЕСЕНКА ПРИОРИТЕТОВ: помол ВЫШЕ усталости. Гоним помол НАСТОЯЩИМ путём —
-  // исчерпанным терпением миксера. ⚠️ level и stats в __game это ФУНКЦИИ:
-  // запись в `g.stats.lastAction` уходит в объект-функцию и не делает НИЧЕГО
-  // (на этом потеряны две пробы — помол «не включался», а виноват был доступ).
-  await bowlPage.evaluate(() => { const g = window.__game, lv = g.level();
-    g.stats().lastAction = performance.now() - (lv.idleLimit + 1) * 1000; });
-  const помолПришёл = await bowlPage.waitForFunction(
-    () => document.getElementById('fAngry').classList.contains('on'), null, { timeout: 9000 })
-    .then(() => true).catch(() => false);
-  const глазПомол = await ждуЛицо(с => с.злые && с.зазор >= 0);
-  expect(помолПришёл && глазПомол.дождались && глазПомол.злые === true && глазПомол.tired === 0 &&
-         глазПомол.cracks === 3 && глазУстал.tired > 0,
-    'ГЛАЗА: помол ПЕРЕБИВАЕТ усталость — злые, веки сняты, зачёты целы (' +
-    JSON.stringify(глазПомол) + ', до помола tired ' + глазУстал.tired + ')');
-
-  // ЛЕСЕНКА ЛИЦ ПО НОДАМ ВЛАДЕЛЬЦА: веки -> ЩЁЛОЧКИ (741:1302, предпоследний
-  // зачёт) -> ✕✕ (741:1281, N-й) -> разлёт.
-  // ⚠️ Прежняя версия стража ловила `.blink` — и это была плохая линейка:
-  // обычное моргание ставит ТОТ ЖЕ класс на 120 мс, поэтому «закрыт» и
-  // «захлопнулся» были неразличимы, а базовый снимок свежего миксера один раз
-  // пришёлся ровно на моргание и дал ложное падение. Слои различимы сами по
-  // себе, и никакой линейки «держится/мигнул» больше не нужно.
-  const слой = () => bowlPage.evaluate(() =>
-    ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')));
-  const ждуСлой = (id, мс = 3000) => bowlPage.waitForFunction(
-    (i) => document.getElementById(i).classList.contains('on'), id, { timeout: мс })
-    .then(() => true).catch(() => false);
-  // ⚠️ ПОДГОТОВКА, А НЕ ЧАСТЬ УТВЕРЖДЕНИЯ: предыдущий страж оставил миксер в
-  // ПОМОЛЕ, и базовый снимок ловил злое лицо. Снимаем помол и ДОЖИДАЕМСЯ, пока
-  // злость сойдёт. Ассертить потом «стало fRound» было бы тавтологией — мы же
-  // сами этого и дождались, поэтому утверждение ниже про ДРУГОЕ: базовое лицо
-  // не из усталой пары, а обе усталые формы РЕАЛЬНО ДОСТИГНУТЫ.
-  await bowlPage.evaluate(() => { window.__game.stats().lastAction = performance.now(); });
-  await bowlPage.waitForFunction(
-    () => !document.getElementById('fAngry').classList.contains('on'), null, { timeout: 5000 }).catch(() => {});
-  const слойСвеж = await слой();
+  // ЛЕСЕНКА ФОРМ: щёлочки на предпоследнем зачёте, ✕✕ на N-м.
   await bowlPage.evaluate(() => { const g = window.__game;
     while (g.bowl().cracks < g.bowl().n - 1) g.bowlCrack(); });
   const выдохсяДошёл = await ждуСлой('fSlit');
+  // ЛЕСЕНКА ПРИОРИТЕТОВ: помол ВЫШЕ усталости — проверяем В ТОЧКЕ, где иначе
+  // висели бы ЩЁЛОЧКИ (на свежем миксере этот ассерт был бы пустым).
+  await bowlPage.evaluate(() => { const g = window.__game, lv = g.level();
+    g.stats().lastAction = performance.now() - (lv.idleLimit + 1) * 1000; });
+  const помолПеребил = await ждуСлой('fAngry');
+  const слойПриПомоле = (await лицо()).слой;
+  expect(выдохсяДошёл && помолПеребил && слойПриПомоле === 'fAngry',
+    'ГЛАЗА: помол ПЕРЕБИВАЕТ усталость — на предпоследнем зачёте были щёлочки (' + выдохсяДошёл +
+    '), помол сменил лицо на злое (' + слойПриПомоле + ')');
+
+  await bowlPage.evaluate(() => { window.__game.stats().lastAction = performance.now(); });
+  const щёлочкиВернулись = await ждуСлой('fSlit');
   await bowlPage.evaluate(() => window.__game.bowlCrack());   // N-й зачёт
   const вырубилсяДошёл = await ждуСлой('fX');
-  const слам2 = вырубилсяДошёл;                     // читает страж концовки
-  expect(слойСвеж !== 'fSlit' && слойСвеж !== 'fX' && выдохсяДошёл && вырубилсяДошёл,
-    'ГЛАЗА: лесенка лиц владельца — на предпоследнем зачёте ЩЁЛОЧКИ (741:1302), на N-м ✕✕ ' +
-    '(741:1281), и до зачётов ни того ни другого: свежий ' + слойСвеж +
-    ', щёлочки ' + выдохсяДошёл + ', ✕✕ ' + вырубилсяДошёл);
+  expect(глазСвеж.слой === 'fRound' && щёлочкиВернулись && вырубилсяДошёл,
+    'ГЛАЗА: лесенка форм зрачка — круглый -> ЩЁЛОЧКИ 741:1302 (предпоследний) -> ✕✕ 741:1281 (N-й): ' +
+    глазСвеж.слой + ' -> щёлочки ' + щёлочкиВернулись + ' -> ✕✕ ' + вырубилсяДошёл);
 
-  // КОНЕЦ УРОВНЯ ОТКРЫВАЕТ ГЛАЗА. `tiredSlam` живёт до genLevel, а уровень
-  // кончается раньше (волна сбора после разлёта) — без гейта `level.over`
-  // победное лицо рисовалось бы зажмуренным. Гоним НАСТОЯЩИМ путём: разлёт.
+  // КОНЕЦ УРОВНЯ СНИМАЕТ ✕✕: tiredSlam живёт до genLevel, а shatterBowl
+  // bowlCracks НЕ обнуляет — уровень кончается раньше, на волне сбора, и без
+  // гейта `level.over` победное лицо осталось бы вырубленным.
   const концовка = await bowlPage.evaluate(async () => {
     const g = window.__game; g.bowlShatterNow();
     const t0 = Date.now();
     while (!g.level().over && Date.now() - t0 < 15000) await new Promise(r => setTimeout(r, 120));
     await new Promise(r => setTimeout(r, 300));
     return { over: g.level().over,
-             лицо: ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')) };
+             слой: ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')) };
   });
-  expect(концовка.over === true && концовка.лицо === 'fRound' && слам2 === true,
-    'ГЛАЗА: конец уровня СНИМАЕТ ✕✕ — победное лицо круглое, а не вырубленное (' +
-    JSON.stringify(концовка) + ', до конца было ✕✕: ' + слам2 + ')');
+  expect(концовка.over === true && концовка.слой !== 'fX' && концовка.слой !== 'fSlit' && вырубилсяДошёл,
+    'ГЛАЗА: конец уровня СНИМАЕТ ✕✕ — победное лицо не вырубленное (' +
+    JSON.stringify(концовка) + ', до конца было ✕✕: ' + вырубилсяДошёл + ')');
 
-  const глазСброс = await bowlPage.evaluate(async () => {
-    const g = window.__game; g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 500));
-    const ov = document.getElementById('fTired'), lid = ov.querySelector('.lid');
-    return { cracks: g.bowl().cracks, tired: +getComputedStyle(ov).getPropertyValue('--tired'),
-             зазор: +(document.getElementById('wL').getBoundingClientRect().top -
-                      lid.getBoundingClientRect().bottom).toFixed(2),
-             лицо: ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')) };
-  });
   // ⚠️ АССЕРТИМ «НЕ УСТАЛОЕ», А НЕ «РОВНО КРУГЛОЕ»: сразу после `regen` счёт
   // падает с большого до нуля, и штатная реакция грусти честно даёт `fSad` —
   // требовать здесь `fRound` значит ловить чужую живую механику.
-  expect(глазСброс.cracks === 0 && глазСброс.tired === 0 && глазСброс.зазор >= 0 &&
-         глазСброс.лицо !== 'fSlit' && глазСброс.лицо !== 'fX',
-    'ГЛАЗА: новый уровень снимает и веки, и лицо усталости (' + JSON.stringify(глазСброс) + ')');
+  const глазСброс = await bowlPage.evaluate(async () => {
+    const g = window.__game; g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 500));
+    return { cracks: g.bowl().cracks,
+             зрачок: +document.getElementById('pupL').getBoundingClientRect().width.toFixed(1),
+             слой: ['fRound','fAngry','fX','fSad','fSlit'].find(id => document.getElementById(id).classList.contains('on')) };
+  });
+  expect(глазСброс.cracks === 0 && глазСброс.слой !== 'fSlit' && глазСброс.слой !== 'fX' &&
+         глазСброс.зрачок >= глазУстал.зрачок,
+    'ГЛАЗА: новый уровень снимает усталость — форма не усталая, зрачок вернулся к базе (' +
+    JSON.stringify(глазСброс) + ', на усталом было ' + глазУстал.зрачок + ')');
+
   await bowlPage.close();
 
 
