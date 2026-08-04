@@ -4,7 +4,7 @@
 // батчами через sendBeacon. Схема события: {t, s: session, n: name, ...поля}.
 // Набор метрик и что каким решением закрывается — docs/METRICS.md.
 const Telemetry = (function(){
-  const URL = ''; // например 'https://mixer-telemetry.<аккаунт>.workers.dev/e'
+  let URL = ''; // например 'https://mixer-telemetry.<аккаунт>.workers.dev/e'
   let buf = [];
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const t0 = Date.now();
@@ -14,8 +14,15 @@ const Telemetry = (function(){
   // в кольце (кап RING), отправки по-прежнему нет: __game.telemetry() их
   // показывает, ассерты сьюта проверяют по нему.
   const RING = 200;
-  function ev(name, data){
+  const sentAlready = new WeakSet();   // записи, уже ушедшие поштучно
+  // ⚠️ ТРЕТИЙ ПАРАМЕТР `now` — «эту запись отправят поштучно, в батч её не
+  // класть». Пометить НУЖНО ДО `buf.push`: строкой ниже стоит АВТОФЛАШ по
+  // 12 событиям, и он может унести запись батчем ПРЯМО ЗДЕСЬ — раньше, чем
+  // `sendNow` успеет её пометить. Именно так дубль креша и выжил после
+  // первой версии фикса (поймано стражем: две копии вместо одной).
+  function ev(name, data, now){
     const e = Object.assign({ t: Date.now(), s: sid, n: name }, data || {});
+    if (now) sentAlready.add(e);
     buf.push(e);
     if (buf.length > RING) buf.splice(0, buf.length - RING);
     if (URL && buf.length >= 12) flush();
@@ -23,12 +30,23 @@ const Telemetry = (function(){
   }
   function flush(){
     if (!URL || !buf.length) return;
-    try { navigator.sendBeacon(URL, JSON.stringify(buf)); } catch(e){}
+    const batch = buf.filter((e) => !sentAlready.has(e)); // креши уже ушли поштучно
     buf = [];
+    if (!batch.length) return;
+    try { navigator.sendBeacon(URL, JSON.stringify(batch)); } catch(e){}
   }
   // ⚠️ КРЕШ ШЛЁТСЯ НЕМЕДЛЕННО, не по батчу: следующая строка кода может убить
   // страницу, и накопленное уйдёт в никуда вместе с причиной.
+  // ⚠️⚠️ И РОВНО ПОЭТОМУ ОН УХОДИЛ ДВАЖДЫ (ревью диспетчера): `err()` кладёт
+  // запись в буфер через `ev()`, а потом эта же запись уходит `sendNow` —
+  // при живом URL приёмник получал КАЖДЫЙ креш два раза (сразу и следом
+  // батчем). Чинить «не класть в буфер» нельзя: буфер — ещё и отладочное
+  // кольцо, по нему смотрит `__game.telemetry()` и ассертит сьют. Поэтому
+  // отправленное помечается и ИСКЛЮЧАЕТСЯ ИЗ БАТЧА, оставаясь в кольце.
+  // ⚠️ Пометка идёт ДО проверки URL — иначе с пустым URL (сьют, разработка)
+  // семантика отличалась бы от боевой.
   function sendNow(e){
+    sentAlready.add(e);
     if (!URL) return;
     try { navigator.sendBeacon(URL, JSON.stringify([e])); } catch(_){}
   }
@@ -58,7 +76,7 @@ const Telemetry = (function(){
       m: String(msg || '').slice(0, 200),
       f: String(file || '').slice(0, 120),
       st: String(stack || '').split('\n').slice(0, 3).join(' | ').slice(0, 300),
-    }), {});
+    }, true), {});
     Object.assign(e, ctx());
     sendNow(e);
     return e;
@@ -101,8 +119,19 @@ const Telemetry = (function(){
   }
 
   // уход со вкладки = отвал: фиксируем ГДЕ и В КАКОМ состоянии бросили
+  // ⚠️ ТРЕКИНГ ЭКРАНОВ УМИРАЛ ПОСЛЕ ПЕРВОГО УХОДА ВКЛАДКИ (ревью диспетчера):
+  // на `hidden` звался `Screen.leave()` (обнуляет текущий экран), а обработчика
+  // на ВОЗВРАТ не было вовсе — `current()` навсегда оставался null. Следствия
+  // тише, чем кажется: пропадали не только события `screen`, но и поле `v` в
+  // контексте крешей и в `quit`. Запоминаем покинутый экран и возвращаемся в
+  // него, когда вкладка снова видима.
+  let screenBeforeHide = null;
   addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'hidden') return;
+    if (document.visibilityState !== 'hidden'){
+      if (screenBeforeHide){ Screen.enter(screenBeforeHide); screenBeforeHide = null; }
+      return;
+    }
+    screenBeforeHide = Screen.current();
     let st = 'playing';
     try {
       if (typeof level !== 'undefined' && level){
@@ -118,5 +147,14 @@ const Telemetry = (function(){
     flush();
   });
 
-  return { ev, flush, err, tap, screen: Screen, buffer: () => buf.slice(), sid };
+  return { ev, flush, err, tap, screen: Screen, buffer: () => buf.slice(), sid,
+    // ⚠️ ТЕСТ-РУЧКА (только DEV). Без неё дубль креша НЕЧЕМ НАБЛЮДАТЬ: при
+    // пустом URL sendBeacon не зовётся вовсе, и страж мерил бы пустоту —
+    // ровно тот класс ошибки, на котором мы уже обжигались.
+    setUrl(u){ if (typeof DEV !== 'undefined' && DEV) URL = u || ''; } };
 })();
+
+// Наружу ТОЛЬКО в разработке — образец window.__ads (78-ads): в боевой сборке
+// хука нет. Нужен стражам телеметрии: err/flush/setUrl/screen внутри IIFE,
+// а __game отдаёт лишь буфер и текущий экран (чтение, не управление).
+if (typeof window !== 'undefined' && typeof DEV !== 'undefined' && DEV) window.__tel = Telemetry;

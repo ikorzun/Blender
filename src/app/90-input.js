@@ -426,8 +426,24 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     // режима, чтобы смотреть бустер на экране. Поэтому выдача осталась, но
     // ТОЛЬКО в разработке (DEV: file://, localhost, ?dev=1) — там же, где живёт
     // весь служебный интерфейс. В бою — честное «скоро».
-    // ⚠️ СНИМАТЬ ЭТОТ ГЕЙТ ТОЛЬКО ВМЕСТЕ С ВВОДОМ bridge.payments, не раньше.
-    if (!DEV){ toast('Coming soon'); return; }
+    // ГЕЙТ СНЯТ ВМЕСТЕ С ВВОДОМ bridge.payments (пакет Интеграции
+    // 2026-08-03, как и предписывал прежний комментарий): в бою покупка
+    // идёт ЧЕРЕЗ ПЛАТЁЖ — Ads.purchase(tier) сам проводит оплату и выдачу
+    // (внутри порядок «выдать -> закрыть»); мы читаем {ok}. Где платежей
+    // нет (площадка без payments) — прежнее честное «скоро».
+    if (!DEV){
+      if (!(typeof Ads === 'object' && Ads.purchase)){ toast('Coming soon'); return; }
+      Ads.purchase(tier).then((res) => {
+        if (!res || !res.ok){
+          console.warn('[stars] покупка не прошла:', tier, res);
+          toast(res && (res.reason === 'unsupported' || res.reason === 'unavailable') ? 'Coming soon' : 'Purchase failed');
+          return;
+        }
+        Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
+        hide('starsOverlay'); refreshMainScreen();
+      });
+      return;
+    }
     const res = buyBundle(tier);
     // ⚠️ РЕЗУЛЬТАТ ЧИТАЕМ ОБЯЗАТЕЛЬНО: молчаливый отказ — это ровно то, из-за
     // чего дыра прожила незамеченной. Любое будущее расхождение имени теперь
