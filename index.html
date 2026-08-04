@@ -5560,7 +5560,15 @@ function initPhysicsWorld(){
 // безопасный путь: коллайдер остаётся в мире,但 перестаёт толкаться;
 // восстановление = один флаг, ноль созданий/удалений.
 let wallColliders = [], shellBody = null;
+// ⚠️⚠️ ЧАША ОТКРЫТА — ЛОКАЛЬНЫЙ ИСТОЧНИК ПРАВДЫ ФИЗИКИ, НЕ ИМПОРТ ИЗ ГЕЙМПЛЕЯ.
+// Ставится и снимается РОВНО ТАМ, где сенсорятся стены и дно, поэтому «стены
+// призрачные» и «спасатель выключен» физически не могут разъехаться. Тащить
+// сюда `bowlShattering` из 80-gameplay было бы вторым состоянием о том же
+// факте — а два источника правды рано или поздно расходятся.
+let bowlOpen = false;
+function bowlIsOpen(){ return bowlOpen; }
 function dropWalls(){
+  bowlOpen = true;   // и спасатель замолкает (см. гейт в rescueSweep)
   for (const c of wallColliders){ try { c.setSensor(true); } catch(e){} }
   // И ДНО-ПЛИТА ТОЖЕ (слово владельца 2026-08-03: «если чаша разбивается,
   // то не должно оставаться её силуэта») — твёрдая плита держала кучу
@@ -5570,6 +5578,7 @@ function dropWalls(){
   try { floorCol.setSensor(true); } catch(e){}
 }
 function ensureWalls(){
+  bowlOpen = false;  // стены снова твёрдые — спасателю опять есть что стеречь
   for (const c of wallColliders){ try { if (c.isSensor()) c.setSensor(false); } catch(e){} }
   try { if (floorCol.isSensor()) floorCol.setSensor(false); } catch(e){}
 }
@@ -5927,6 +5936,17 @@ function floorPenetration(it){
 // гейт покоя снимается: «предмет ещё движется, сам выйдет» верно только пока
 // физика шагает, а здесь она через мгновение остановится совсем.
 function rescueSweep(beforeSleep){
+  // ⚠️⚠️ ПРИ РАЗЛЁТЕ ЧАШИ СПАСАТЕЛЬ МОЛЧИТ. Он считает предмет «сбежавшим» по
+  // `radiusAt(y)` — радиусу чаши, которой в этот момент УЖЕ НЕТ, — и возвращал
+  // бы разлетающиеся предметы внутрь, обнуляя им скорости. Наглядно: окно от
+  // разлёта до волны сбора 900 мс, развёртка ходит раз в 500 — попадание
+  // ГАРАНТИРОВАНО, а `blastWave(центр, R=9)` в shatterBowl специально швыряет
+  // кучу наружу. Игрок увидел бы, как предметы прыгают обратно и замирают ПО
+  // ФОРМЕ ЧАШИ — ровно тот силуэт, ради устранения которого дно и делали
+  // призрачным; плюс волне сбора стало бы некого догонять в полёте.
+  // ⚠️ ГЕЙТ ВНУТРИ ФУНКЦИИ, А НЕ У ВЫЗЫВАЮЩИХ: их уже два (шаг физики раз в
+  // 0.5 с и пред-сонный из 99-main), и третий появится молча.
+  if (bowlOpen) return 0;
   let rescued = 0;
   for (const it of items){
     if (!it.alive || !it.body) continue;
@@ -9307,7 +9327,8 @@ function bowlCollectAll(){
 function bowlState(){
   return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
            len: BOWL_SERIES_LEN, shattering: bowlShattering,
-           floorGhost: (() => { try { return floorCol.isSensor(); } catch(e){ return false; } })() };
+           floorGhost: (() => { try { return floorCol.isSensor(); } catch(e){ return false; } })(),
+           rescuerOff: bowlIsOpen() };
 }
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };

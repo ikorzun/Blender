@@ -4443,6 +4443,12 @@ window.bridge = {
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
+  // ⚠️ СПАСЕНИЯ СЧИТАЕМ ПО КОНСОЛИ: rescueSweep пишет `[rescue]` на каждый
+  // телепорт, и это ЕДИНСТВЕННЫЙ наблюдаемый снаружи след — ассерты он не
+  // роняет (предметы живы, счётчики целы), поэтому баг «спасатель воюет с
+  // разлётом» был бы виден только глазами.
+  let bowlRescues = 0;
+  bowlPage.on('console', m => { if (m.text().startsWith('[rescue]')) bowlRescues++; });
   await bowlPage.goto('file://' + path.join(__dirname, 'index.html'));
   await bowlPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await bowlPage.evaluate(() => { window.__game.setLevel(5); window.__game.regen(); window.__game.skipIntro(); });
@@ -4487,6 +4493,7 @@ window.bridge = {
 
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
+  bowlRescues = 0;   // считаем ТОЛЬКО то, что случилось в этом блоке
   const bowlShatter = await bowlPage.evaluate(async () => {
     const g = window.__game;
     g.regen(); g.skipIntro();
@@ -4502,7 +4509,8 @@ window.bridge = {
     await new Promise(r => setTimeout(r, 120));
     g.bowlCrack();                       // 2-я = N -> отложенный разлёт (650 мс)
     await new Promise(r => setTimeout(r, 900));
-    const вРазлёте = { slowmo: g.slowmoLeft(), walls: g.walls(), shattering: g.bowl().shattering, floorGhost: g.bowl().floorGhost };
+    const вРазлёте = { slowmo: g.slowmoLeft(), walls: g.walls(), shattering: g.bowl().shattering,
+                       floorGhost: g.bowl().floorGhost, rescuerOff: g.bowl().rescuerOff };
     // осадка-опрос: сбор + удаление + победа (потолок-страховка 8 с)
     const t0 = Date.now();
     while (Date.now() - t0 < 8000){
@@ -4522,6 +4530,19 @@ window.bridge = {
     'ЧАША: дно-плита призрачное в разлёте — силуэта не остаётся (слово владельца 2026-08-03) (' + JSON.stringify(bowlShatter.вРазлёте) + ')');
   expect(bowlShatter.вРазлёте.slowmo > 0,
     'ЧАША: слоу-мо идёт в момент разлёта («да!» владельца) (' + bowlShatter.вРазлёте.slowmo + ' мс)');
+  // ⚠️⚠️ СПАСАТЕЛЬ НЕ ВОЮЕТ С РАЗЛЁТОМ (ФИЗИКА 2026-08-04). rescueSweep меряет
+  // «сбежал ли предмет» по radiusAt(y) — радиусу чаши, которой в этот момент
+  // УЖЕ НЕТ, — и без гейта возвращал бы разлетающиеся предметы внутрь, обнуляя
+  // скорости: окно 900 мс, развёртка раз в 500 — попадание гарантировано, а
+  // blastWave в shatterBowl специально швыряет кучу наружу. Игрок увидел бы,
+  // как предметы прыгают обратно и замирают ПО ФОРМЕ ЧАШИ.
+  // ⚠️ Ассерт НЕ тавтологичен: со снятым гейтом (`if (bowlOpen) return 0`)
+  // прогон даёт спасения десятками — проверено диверсией.
+  expect(bowlShatter.вРазлёте.rescuerOff === true,
+    'ЧАША: спасатель выключен на время разлёта (' + JSON.stringify(bowlShatter.вРазлёте) + ')');
+  expect(bowlRescues === 0,
+    'ЧАША: за окно разлёта НИ ОДНОГО спасения — предметы не прыгают обратно в несуществующую чашу ('
+    + bowlRescues + ')');
   expect(bowlShatter.alive === 0 && bowlShatter.over === true,
     'ЧАША: все предметы собраны, уровень выигран (' + JSON.stringify({ alive: bowlShatter.alive, over: bowlShatter.over }) + ')');
   expect(bowlShatter.очки > 0,
@@ -4534,10 +4555,13 @@ window.bridge = {
     const g = window.__game;
     g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
-    return { cracks: g.bowl().cracks, walls: g.walls(), shattering: g.bowl().shattering, floorGhost: g.bowl().floorGhost };
+    return { cracks: g.bowl().cracks, walls: g.walls(), shattering: g.bowl().shattering,
+             floorGhost: g.bowl().floorGhost, rescuerOff: g.bowl().rescuerOff };
   });
   expect(bowlReset.floorGhost === false,
     'ЧАША: новый уровень вернул твёрдое дно (' + JSON.stringify(bowlReset) + ')');
+  expect(bowlReset.rescuerOff === false,
+    'ЧАША: новый уровень ВЕРНУЛ спасателя (' + JSON.stringify(bowlReset) + ')');
   expect(bowlReset.cracks === 0 && bowlReset.walls > 0 && bowlReset.shattering === false,
     'ЧАША: новый уровень = новая чаша, трещины 0, стены восстановлены (' + JSON.stringify(bowlReset) + ')');
 
