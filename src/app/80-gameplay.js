@@ -406,7 +406,8 @@ function bowlCollectAll(){
 function bowlState(){
   return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
            len: BOWL_SERIES_LEN, shattering: bowlShattering,
-           floorGhost: (() => { try { return floorCol.isSensor(); } catch(e){ return false; } })() };
+           floorGhost: (() => { try { return floorCol.isSensor(); } catch(e){ return false; } })(),
+           rescuerOff: bowlIsOpen() };
 }
 function chargeState(){
   return { name: chargeName, leftMs: chargeName ? Math.max(0, chargeUntil - performance.now()) : 0 };
