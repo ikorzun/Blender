@@ -1619,10 +1619,12 @@ window.bridge = {
     await sleep(250);                    // полёт в разгоне (ease 900 мс)
     return g.cam();
   });
-  await page.keyboard.down('Shift');
+  // жест = ПРАВЫЙ драг (rdrag -> noteManualPan на pointerdown): shift+колесо
+  // в headless доносит модификатор нестабильно — полёт жил, страж флейкал
   await page.mouse.move(195, 400);
-  await page.mouse.wheel(0, 120);        // настоящий жест пана
-  await page.keyboard.up('Shift');
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(195, 340);
+  await page.mouse.up({ button: 'right' });
   await page.waitForTimeout(450);
   const hb1 = await page.evaluate(() => window.__game.cam());
   await page.waitForTimeout(450);
