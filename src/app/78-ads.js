@@ -164,15 +164,41 @@ const Ads = (function(){
     return pausedByAd;
   }
   function stopAdPauseRetry(){ if (adPauseRetry){ clearInterval(adPauseRetry); adPauseRetry = 0; } }
+  // ⚠️ ЭКРАН «РЕКЛАМА» В ТЕЛЕМЕТРИИ ВЁЛСЯ ТОЛЬКО В ЗАГЛУШКЕ. `show('adOverlay')`
+  // живёт ровно в showStub, а карта SCREEN_OF (85-hud) вешает экран на показ
+  // оверлея — значит в БОЮ, где ролик рисует площадка, экран 'ad' не входил
+  // никогда: событие `screen` про рекламу отсутствовало, а ветка `st:'on_ad'`
+  // в обработчике ухода вкладки была недостижима. Ведём экран сами — здесь,
+  // потому что adBlockOn/Off накрывают И rewarded, И межстраничную.
+  let screenBeforeAd = null;
+  function adScreenOn(){
+    try {
+      if (Telemetry.screen.current() === 'ad') return;   // заглушка уже вошла
+      screenBeforeAd = Telemetry.screen.current();
+      Telemetry.screen.enter('ad');
+    } catch(e){}
+  }
+  function adScreenOff(){
+    try {
+      if (Telemetry.screen.current() !== 'ad') return;
+      // возвращаемся туда, откуда пришли; правило запасного пути — как у hide()
+      const back = screenBeforeAd
+        || ((typeof level !== 'undefined' && level && !level.over) ? 'game' : 'menu');
+      screenBeforeAd = null;
+      Telemetry.screen.enter(back);
+    } catch(e){}
+  }
   function adBlockOn(){
     if (!tryAdPause() && !adPauseRetry)
       adPauseRetry = setInterval(()=>{ if (tryAdPause()) stopAdPauseRetry(); }, AD_PAUSE_RETRY_MS);
     mutedByAd = true; applyMute();
+    adScreenOn();
   }
   function adBlockOff(){
     stopAdPauseRetry();
     mutedByAd = false; applyMute();
     if (pausedByAd){ pausedByAd = false; resumeGame(); }
+    adScreenOff();
   }
 
   // Ролик может идти десятки секунд (и стаб — 3 с): всё это время простой
@@ -249,6 +275,10 @@ const Ads = (function(){
         // storage, но без rewarded, прогресс уезжал в облако в один конец и
         // не поднимался никогда (потеря прогресса между сессиями/устройствами).
         bridgeSyncSave();
+        // ВОССТАНОВЛЕНИЕ ПОКУПОК — здесь же и по той же причине, что и синк
+        // сейва: платежи от rewarded не зависят, а на площадке со storage и
+        // платежами, но без rewarded, игрок иначе не вернул бы оплаченное.
+        try { restorePurchases(); } catch(e){}
         // ЗВУК ПЛОЩАДКИ (тоже вне гейта rewarded — к рекламе отношения не
         // имеет): игрок мог выключить звук в плеере портала. Bridge отдаёт
         // событие со значением «звук РАЗРЕШЁН», отсюда инверсия. Стартовое
@@ -290,10 +320,8 @@ const Ads = (function(){
         // иначе не получала бы живую цену никогда).
         try {
           if (br.payments && br.payments.getCatalog){
-            br.payments.getCatalog().then((items)=>{
-              const it = (items || []).find(x => x && x.id === 'noads_forever');
-              const price = it && (it.price ||
-                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
+            catalog().then(()=>{
+              const price = priceOf('noads_forever');
               const btn = document.getElementById('msSubscribe');
               if (price && btn) btn.textContent = 'Forever for ' + price;
             }).catch(()=>{});
@@ -506,9 +534,160 @@ const Ads = (function(){
       Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
     } catch(e){}
   }
+  // ===== ПЛАТЕЖИ (bridge.payments, v2.0.2) =====
+  // Контракт площадки playgama (разобран по исходнику PlaygamaPlatformBridge):
+  // purchase() РЕЗОЛВИТСЯ ТОЛЬКО при status==='PAID' (иначе reject), доставку
+  // SDK подтверждает сам (confirmDelivery), а getPurchases() отдаёт список,
+  // где `id` — наш идентификатор товара.
+  //
+  // ⚠️⚠️ РАСХОДУЕМЫЕ И НЕТ — ГЛАВНОЕ РЕШЕНИЕ РАЗДЕЛА, из него растёт всё
+  // остальное. БАНДЛЫ расходуемые: их ОБЯЗАТЕЛЬНО consume после выдачи, иначе
+  // getPurchases() возвращал бы их вечно и КАЖДЫЙ СТАРТ выдавал бы бустер
+  // заново — бесконечный бесплатный буст. NOADS_FOREVER не расходуемый: сама
+  // покупка и ЕСТЬ доказательство владения, consume стёр бы возможность
+  // восстановления.
+  const isConsumable = (id) => id !== 'noads_forever';
+
+  // Локальный реестр закрытых заказов — СВОЙ ключ, в Save не лезем (чужая зона).
+  // Нужен на случай «выдали, а consume не прошёл»: без него следующий старт
+  // увидел бы покупку в списке и выдал ВТОРОЙ раз.
+  // ⚠️ Ключ — orderId, а НЕ id товара: бандлы можно покупать повторно, и ключ
+  // по id заблокировал бы законную вторую покупку.
+  const IAP_LEDGER = 'mixer_iap_done';
+  function ledger(){
+    try { return JSON.parse(localStorage.getItem(IAP_LEDGER) || '[]') || []; } catch(e){ return []; }
+  }
+  function ledgerAdd(orderId){
+    if (!orderId) return;                       // нет заказа — не блокируем ничего
+    try {
+      const l = ledger(); if (l.indexOf(orderId) >= 0) return;
+      l.push(orderId);
+      localStorage.setItem(IAP_LEDGER, JSON.stringify(l.slice(-100)));
+    } catch(e){}
+  }
+  const ledgerHas = (orderId) => !!orderId && ledger().indexOf(orderId) >= 0;
+
+  function paymentsOn(){
+    try { return !!(window.bridge && window.bridge.payments
+                    && window.bridge.payments.isPaymentsSupported); } catch(e){ return false; }
+  }
+
+  // КАТАЛОГ — кэш на сессию. Наружу отдаём, чтобы ИНТЕРФЕЙС брал ЖИВЫЕ цены,
+  // а не зашитые доллары: на площадке playgama мост отдаёт `price: "49 Gam"`,
+  // `priceCurrencyCode: 'Gam'`, `priceValue` и картинку монетки (проверено по
+  // исходнику PlaygamaPlatformBridge, не по доке). Игрок платит В GAM —
+  // ценник «$4.99» на карточке будет просто неправдой.
+  let catalogCache = null, catalogPromise = null;
+  function catalog(){
+    if (catalogCache) return Promise.resolve(catalogCache);
+    if (catalogPromise) return catalogPromise;
+    if (!paymentsOn()) return Promise.resolve([]);
+    let p; try { p = window.bridge.payments.getCatalog(); } catch(e){ p = Promise.reject(e); }
+    catalogPromise = Promise.resolve(p).then((items)=>{
+      catalogCache = Array.isArray(items) ? items : [];
+      return catalogCache;
+    }).catch(()=>{ catalogPromise = null; return []; });
+    return catalogPromise;
+  }
+  function priceOf(id){
+    const it = (catalogCache || []).find(x => x && x.id === id);
+    if (!it) return null;
+    return it.price || (it.priceValue != null && it.priceCurrencyCode
+      ? it.priceValue + ' ' + it.priceCurrencyCode : null);
+  }
+
+  // ВЫДАЧА. Бандлы уходят в существующую ручку МЕТЫ buyBundle (77-save).
+  // ⚠️ NOADS_FOREVER ВЫДАТЬ НЕЧЕМ: `Save.na` — ВРЕМЕННОЕ окно, и ставится оно
+  // только внутри buyBundle для трёх бандлов; постоянного признака в сейве нет
+  // вовсе (проверено по 77-save). Поэтому здесь — вызов ручки, которой пока не
+  // существует, и ГРОМКИЙ отказ вместо тихого «ок»: молча «купить навсегда» и
+  // ничего не выдать — худшее, что можно сделать с платной покупкой.
+  function grantPurchase(id){
+    if (id === 'noads_forever'){
+      if (typeof grantNoAdsForever === 'function'){
+        try { grantNoAdsForever(); return { ok: true }; } catch(e){ return { ok: false, reason: 'grant_threw' }; }
+      }
+      console.warn('[iap] noads_forever оплачен, но выдать нечем: нет ручки МЕТЫ grantNoAdsForever');
+      return { ok: false, reason: 'no_grant_handle' };
+    }
+    if (typeof buyBundle !== 'function') return { ok: false, reason: 'no_grant_handle' };
+    const r = buyBundle(id);
+    return r && r.ok ? { ok: true } : { ok: false, reason: (r && r.reason) || 'grant_failed' };
+  }
+
+  // ВЫДАТЬ, ПОТОМ ЗАКРЫТЬ. Порядок принципиален: закрой мы сперва, а выдача
+  // упади — игрок заплатил и не получил ничего, и восстановить уже нечем.
+  // Обратный порядок в худшем случае даёт лишнюю выдачу, и её ловит реестр.
+  function settlePurchase(id, purchase){
+    const orderId = purchase && (purchase.orderId || purchase.id_order || null);
+    const g = grantPurchase(id);
+    if (!g.ok){
+      Telemetry.ev('iap', { ph: 'grant_fail', id: id, r: g.reason });
+      return { ok: false, reason: g.reason };
+    }
+    ledgerAdd(orderId);
+    if (isConsumable(id)){
+      try {
+        const p = window.bridge.payments.consumePurchase(id);
+        if (p && p.catch) p.catch(()=>{ console.warn('[iap] consume не прошёл:', id); });
+      } catch(e){}
+    }
+    Telemetry.ev('iap', { ph: 'granted', id: id });
+    return { ok: true, id: id };
+  }
+
+  // ПОКУПКА. Отдаёт ВСЕГДА resolve с {ok}, чтобы вызывающий не строил свой
+  // catch: отказ игрока — это не ошибка программы.
+  function purchase(id){
+    if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    Telemetry.ev('iap', { ph: 'start', id: id });
+    let p;
+    try { p = window.bridge.payments.purchase(id); } catch(e){ p = Promise.reject(e); }
+    return Promise.resolve(p)
+      .then((res) => settlePurchase(id, res))
+      .catch((e) => {
+        Telemetry.ev('iap', { ph: 'fail', id: id, r: String((e && e.message) || e || '').slice(0, 60) });
+        return { ok: false, reason: 'failed' };
+      });
+  }
+
+  // ВОССТАНОВЛЕНИЕ НА СТАРТЕ. Две задачи сразу:
+  //  (1) вернуть noads_forever — он не расходуемый и живёт в списке всегда;
+  //  (2) ДОВЫДАТЬ оплаченное, но не выданное: вкладку могли закрыть между
+  //      оплатой и выдачей, тогда бандл остался НЕзакрытым и висит в списке.
+  function restorePurchases(){
+    if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    let p;
+    try { p = window.bridge.payments.getPurchases(); } catch(e){ p = Promise.reject(e); }
+    return Promise.resolve(p).then((list) => {
+      const items = Array.isArray(list) ? list : [];
+      let restored = 0, skipped = 0;
+      items.forEach((it) => {
+        const id = it && it.id; if (!id) return;
+        const orderId = it.orderId || null;
+        if (ledgerHas(orderId)){ skipped++; return; }   // уже закрывали — не выдавать снова
+        const r = settlePurchase(id, it);
+        if (r.ok) restored++;
+      });
+      Telemetry.ev('iap', { ph: 'restore', n: items.length, ok: restored, skip: skipped });
+      return { ok: true, total: items.length, restored: restored, skipped: skipped };
+    }).catch((e) => {
+      Telemetry.ev('iap', { ph: 'restore_fail', r: String((e && e.message) || e || '').slice(0, 60) });
+      return { ok: false, reason: 'failed' };
+    });
+  }
+
   return {
     init,
     noteWin,
+    // ПЛАТЕЖИ. purchase отдаёт {ok, reason} и НИКОГДА не реджектится.
+    // ⚠️ noads_forever сейчас вернёт ok:false / 'no_grant_handle' — ручки
+    // выдачи «навсегда без рекламы» в МЕТЕ ещё нет (запрос диспетчеру).
+    purchase,
+    restorePurchases,
+    catalog,          // промис со списком товаров (кэш на сессию)
+    priceOf,          // строка цены товара из каталога или null (нужен фетч)
+    get paymentsOn(){ return paymentsOn(); },
     maybeInterstitial,
     cancel, // genLevel гасит висящий показ (колбэки замкнуты на старый level)
     get mode(){ return mode; },
