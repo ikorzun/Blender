@@ -316,7 +316,10 @@ function seriesMult(nowMs){
 // поведение одно (урок «ручка мимо механики» из огня v232).
 let bowlShattering = false;
 let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
-function bowlN(){ return bowlNRuntime || BOWL_SHATTER_N; }
+function bowlN(){
+  // лесенка сложности (слово владельца 2026-08-04): +1 турбо каждый десяток
+  return bowlNRuntime || (BOWL_SHATTER_N + Math.floor((levelNum || 1) / 10));
+}
 // «БЕЗ ОШИБОК» (слово владельца 2026-08-03): любой промах обнуляет
 // накопленные турбо-зачёты чаши. Зовут penalize (70-fx) и penalizeRock —
 // ВСЕГДА, не только при горячем окне. Бомба сюда не заходит (не ошибка).
@@ -344,6 +347,12 @@ function bowlCrackAdd(silent){
 function shatterBowl(){
   if (!level || level.over || bowlShattering || intro) return;
   bowlShattering = true;
+  // РАЗЛЁТ ИСПОЛНЯЕТ ЦЕПЬ (баг владельца 2026-08-04, скрин «чаша разбилась
+  // во время серии, всё сломалось»): живое турбо продолжало ДОСЫПАТЬ
+  // предметы все 900 мс до сбора — опоздавшие к снапшоту сборщика падали
+  // сквозь ПРИЗРАЧНОЕ дно в вечное падение, alive не достигал нуля, победа
+  // не наступала, уровень зависал. Цепь гасим сразу: серия своё отыграла.
+  chainUntil = 0;
   slowmoUntil = performance.now() + BOWL_SLOWMO_MS; // «да!» владельца: слоу-мо
   try { dropWalls(); } catch(e){}
   try { shatterBowlVis(); } catch(e){}
@@ -399,6 +408,11 @@ function bowlCollectAll(){
   Sound.play('win');
   setTimeout(() => afterPause(() => {
     all.forEach(removeItem);
+    // СТРАХОВКА-ДОБОР (баг владельца 2026-08-04): всё, что заспавнилось
+    // ПОСЛЕ снапшота сборщика (досыпка живого турбо и любой будущий спавн),
+    // тихо убирается без очков — иначе «опоздавший» вечно падал под
+    // призрачным дном, alive не достигал нуля и уровень зависал без победы.
+    for (const it of items){ if (it.alive){ try { removeItem(it); } catch(e){} } }
     bowlShattering = false;
     refreshAccessibility(); updateHUD(); checkEnd(); // живых нет -> победа
   }), 750);

@@ -4526,6 +4526,47 @@ window.bridge = {
   expect(bowlStreak2.cAfterPause === 0 && bowlStreak2.c2 === 1,
     'ЧАША: после сброса стрик копится заново честной цепью (' + JSON.stringify(bowlStreak2) + ')');
 
+  // ЛЕСЕНКА N (слово владельца 2026-08-04: «5 турбо... каждый 10 уровень
+  // +1»): ур.1 -> 5, ур.10 -> 6, ур.25 -> 7. bowlSetN(0) снимает runtime.
+  const bowlLadder = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.bowlSetN(0);
+    const out = [];
+    for (const lv of [1, 10, 25]){ g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(250); out.push(g.bowl().n); }
+    return out;
+  });
+  expect(bowlLadder[0] === 5 && bowlLadder[1] === 6 && bowlLadder[2] === 7,
+    'ЧАША: N растёт лесенкой 5 +1/десяток уровней (' + JSON.stringify(bowlLadder) + ')');
+
+  // РАЗЛЁТ В ЖИВОМ ТУРБО (баг владельца 2026-08-04: досыпка цепи кидала
+  // предметы сквозь призрачное дно, победа не наступала, уровень зависал).
+  // Сценарий: N=3, 2 зачёта ручкой, вход в турбо честной цепью = 3-й ->
+  // разлёт при ЖИВОЙ цепи с досыпкой. Ловим: победа наступает, следующий
+  // уровень рождается ЖИВЫМ (предметы не проваливаются сквозь дно).
+  const bowlTurboShatter = await bowlPage.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(2); g.regen(); g.skipIntro(); await sleep(700);
+    g.bowlSetN(3);
+    g.bowlCrack(); g.bowlCrack();
+    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    const cracked = g.bowl().cracks;
+    let over = false;
+    { const t0 = Date.now();                       // осадка: победа разлёта
+      while (Date.now() - t0 < 12000){ if (g.level().over){ over = true; break; } await sleep(250); } }
+    const lv0 = g.levelNum();
+    // следующий уровень: дно вернулось, предметы живут
+    g.regen(); g.skipIntro(); await sleep(1200);
+    const brief = g.itemsBrief();
+    const below = brief.filter(it => it.y < -1).length;
+    return { cracked, over, lv0, aliveNext: g.alive(), below, floorGhost: g.bowl().floorGhost };
+  });
+  expect(bowlTurboShatter.cracked >= 3 && bowlTurboShatter.over === true,
+    'ЧАША: разлёт в ЖИВОМ турбо завершается победой — цепь гасится, опоздавшие добраны (' + JSON.stringify(bowlTurboShatter) + ')');
+  expect(bowlTurboShatter.aliveNext > 30 && bowlTurboShatter.below === 0 && bowlTurboShatter.floorGhost === false,
+    'ЧАША: следующий уровень рождается живым — дно твёрдое, никто не под ним (' + JSON.stringify(bowlTurboShatter) + ')');
+
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
   bowlRescues = 0;   // считаем ТОЛЬКО то, что случилось в этом блоке
