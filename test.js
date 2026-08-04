@@ -1425,6 +1425,41 @@ const path = require('path');
   expect(tuner.back === tuner.was && tuner.sumBack === tuner.sum0, 'тюнер откатывается ровно назад');
   expect(tuner.closed, 'тюнер закрывается повторным вызовом');
 
+  // ⚠️⚠️ СВЕТ ОДИН НА ИГРУ: осколки берут направление из MATCAP_LIGHT, а не из
+  // своей копии. До 2026-08-04 констант было ДВЕ, равными их держали руками —
+  // и первая же правка владельца через эту самую панель (она правит только
+  // MATCAP_LIGHT) развела бы освещение надвое: куча по новому свету, её
+  // обломки по старому, причём в кадре взрыва они рядом. Проверяем ЧЕЛОВЕЧЕСКИМ
+  // путём — ползунком панели, как это делает владелец.
+  // ⚠️ shardLight() читается ПОСЛЕ shardBurst: тогда это свет, которым скол
+  // УЖЕ запечён, а не тот, которым запёкся бы.
+  const lightSrc = await page.evaluate(() => {
+    const g = window.__game;
+    g.matcapTuner();
+    const inp = a => document.querySelector('#matcapTuner input[data-mc="light.' + a + '"]');
+    const read = () => ['x', 'y', 'z'].map(a => +inp(a).value);
+    const norm = v => { const L = Math.hypot(v[0], v[1], v[2]) || 1; return v.map(c => +(c / L).toFixed(3)); };
+    const drag = v => { const el = inp('x'); el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+    const was = +inp('x').value;
+    const probe = () => { g.shardBurst(2); return g.shardLight(); };   // сперва печём, потом читаем
+    const base = { want: norm(read()), got: probe() };
+    drag(-0.90);
+    const moved = { want: norm(read()), got: probe() };
+    drag(was);                                                          // вернуть как было
+    const back = { want: norm(read()), got: probe() };
+    g.matcapTuner();                                                    // и закрыть панель
+    return { base, moved, back, was, closed: !document.getElementById('matcapTuner') };
+  });
+  const sameVec = (a, b) => a.length === 3 && b.length === 3 && a.every((v, i) => Math.abs(v - b[i]) < 0.002);
+  expect(sameVec(lightSrc.base.got, lightSrc.base.want),
+    'свет осколков = MATCAP_LIGHT (' + lightSrc.base.got.join(',') + ' против ' + lightSrc.base.want.join(',') + ')');
+  expect(!sameVec(lightSrc.moved.got, lightSrc.base.got),
+    'ползунок панели ДВИНУЛ свет осколков (' + lightSrc.base.got.join(',') + ' -> ' + lightSrc.moved.got.join(',') + ')');
+  expect(sameVec(lightSrc.moved.got, lightSrc.moved.want),
+    'свет осколков следует за источником живьём (' + lightSrc.moved.got.join(',') + ' против ' + lightSrc.moved.want.join(',') + ')');
+  expect(sameVec(lightSrc.back.got, lightSrc.base.got) && lightSrc.closed,
+    'свет вернулся на владельческий x=' + lightSrc.was + ', панель закрыта');
+
   // ── BRIDGE: облачный сейв НЕ зависит от поддержки rewarded ───────────────
   // Регрессия 2026-07-23: bridgeSyncSave() стоял ПОСЛЕ гейта isRewardedSupported,
   // а commitSave (77-save) пишет в bridge.storage всегда, когда storage есть.
