@@ -921,9 +921,11 @@ function hintPulse(item){
   const mat = item.mesh.material;
   mat.emissive.setHex(0xffb020);
   mat.emissiveIntensity = 0;
-  addFX(new THREE.Object3D(), 2.2, (o,k)=>{
+  // 3.2с и множитель 9 (слово владельца 2026-08-04 «моргание подсказки
+  // увеличь на 1 секунду»; было 2.2/6 — частота полуволн сохранена)
+  addFX(new THREE.Object3D(), 3.2, (o,k)=>{
     if (!item.alive || k > 0.95){ mat.emissiveIntensity = 0; return; }
-    mat.emissiveIntensity = Math.max(0, Math.sin(k*Math.PI*6)) * 0.8 * (1-k);
+    mat.emissiveIntensity = Math.max(0, Math.sin(k*Math.PI*9)) * 0.8 * (1-k);
   });
 }
 

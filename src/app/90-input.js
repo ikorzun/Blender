@@ -58,8 +58,14 @@ function hintCamFly(item){
   const az2 = Math.atan2(item.p.x, item.p.z); // формула позиции: x=sin(az), z=cos(az)
   let dAz = az2 - camAz;
   dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // кратчайшая дуга
+  // И ВЕРТИКАЛЬНАЯ ПОДКРУТКА (слово владельца 2026-08-04: «подсказка должна
+  // подкручивать не только по горизонтали но и по вертикали, иначе предметов
+  // может быть не видно»): низкий якорь прячется за кромкой при верхнем
+  // взгляде — наклоняем орбиту (phi) тем сильнее, чем глубже предмет.
+  const phiTo = Math.max(0.45, Math.min(0.95, 0.45 + (1 - item.p.y / FUNNEL.H) * 0.4));
   hintFly = { t0: performance.now(), dur: 900,
     az0: camAz, az1: camAz + dAz,
+    phi0: camPhi, phi1: phiTo,
     y0: camTarget.y, y1: Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, item.p.y)),
     r0: camR, r1: Math.min(camR, 13) };
   panManualUntil = performance.now() + 4500;
@@ -69,6 +75,7 @@ function tickHintFly(){
   const k = (performance.now() - hintFly.t0) / hintFly.dur;
   const e = k >= 1 ? 1 : 1 - Math.pow(1 - k, 3);
   camAz = hintFly.az0 + (hintFly.az1 - hintFly.az0) * e;
+  camPhi = hintFly.phi0 + (hintFly.phi1 - hintFly.phi0) * e;
   camR = hintFly.r0 + (hintFly.r1 - hintFly.r0) * e;
   camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, hintFly.y0 + (hintFly.y1 - hintFly.y0) * e));
   updateCamera();
