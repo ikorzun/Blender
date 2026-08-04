@@ -168,6 +168,8 @@ function doMatch(list){
   // прокачка типа и купленный бустер остаются — они не серийные.
   const hasRefill = list.some(i => i.refill);
   const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  // тост множителя под глазами (нода 829:1242): только у прокачанных типов
+  try { const am = accMult(typeName); if (am > 1) showMultToast(typeName, am); } catch(e){}
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)

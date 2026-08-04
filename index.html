@@ -1350,6 +1350,13 @@
     }
   }
   }
+  #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85); top:calc(var(--eyeTop, 8px) + var(--eyeW, 133px) * .55 + 14px);
+    width:169px; height:60px; border-radius:1000px; background:rgba(255,255,255,.92);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
+  #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
+  #multToast img { width:44px; height:44px; object-fit:contain; }
+  #multToastVal { font-size:22px; font-weight:800; color:#a8e10c; }
 </style>
 </head>
 <body>
@@ -1501,6 +1508,8 @@
     <text id="mixerTimer" x="120" y="58" text-anchor="middle">30</text>
   </svg>
 </div>
+<!-- ТОСТ МНОЖИТЕЛЯ (нода 829:1242): под глазами, 169×60, портрет 44, лайм -->
+<div id="multToast" aria-hidden="true"><img id="multToastImg" alt=""><span id="multToastVal">×1</span></div>
 
 <div id="toast"></div>
 
@@ -2194,7 +2203,7 @@ const CHARGE_MIN_COPIES = 6;
 // ЧИСТО РАНТАЙМОВЫМ (переменные в 80-gameplay) — хранение в сейве, мерж и
 // «агентность для тупика» умерли вместе с «оставить на потом»; НЕ возвращать
 // сейв-поле oc, оно жило меньше часа и снято ровно этой поправкой.
-const CHARGE_TTL_MS = 7000;
+const CHARGE_TTL_MS = 10000; // 10с — слово владельца 2026-08-04 («исчезает в течение 10 секунд», HUD-нода 829:1242); было 7000
 
 // ===== ВХОД В ТУРБО ДОРОЖАЕТ С УРОВНЯМИ (спека владельца 2026-07-31:
 // «увеличивать количество вещей для входа в этот режим… аккуратно, по мере
@@ -9170,6 +9179,8 @@ function doMatch(list){
   // прокачка типа и купленный бустер остаются — они не серийные.
   const hasRefill = list.some(i => i.refill);
   const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  // тост множителя под глазами (нода 829:1242): только у прокачанных типов
+  try { const am = accMult(typeName); if (am > 1) showMultToast(typeName, am); } catch(e){}
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
@@ -10532,6 +10543,23 @@ function chargeFadeTick(){
   cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
   chargeRAF = requestAnimationFrame(chargeFadeTick);
 }
+// ТОСТ МНОЖИТЕЛЯ ПОД ГЛАЗАМИ (нода 829:1242, слово владельца «множитель
+// набранной вещи показывается под глазами»): плашка 169×60, портрет 44,
+// «×N.NN» лаймом. Показывается на сборе прокачанного типа (accMult > 1),
+// повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
+let multToastT = 0;
+function showMultToast(typeName, mult){
+  const el = $('multToast');
+  if (!el) return;
+  const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(typeName) : null;
+  const url = it ? itemThumb(it) : '';
+  const img = $('multToastImg');
+  if (url) img.src = url; else img.removeAttribute('src');
+  $('multToastVal').textContent = '×' + (Math.round(mult * 100) / 100);
+  el.classList.add('on');
+  if (multToastT) clearTimeout(multToastT);
+  multToastT = setTimeout(() => { el.classList.remove('on'); multToastT = 0; }, 1400);
+}
 function updateHUD(){
   // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
   // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
@@ -10567,7 +10595,22 @@ function updateHUD(){
           if (url){ $('chargeImg').src = url; cb.dataset.img = cs.name; }
           else $('chargeImg').removeAttribute('src');
         }
-      } else { cb.style.display = 'none'; cb.dataset.oc = ''; cb.dataset.img = ''; }
+        // ВРАЩЕНИЕ ЗАРЯДА (нода 829:1242 «крутится»; хвост сдачи Интерфейса,
+        // их же выбор носителя): общий спин портретов. Канвас ОДИН на игру —
+        // меню при открытии заберёт его под коллекцию, а этот добор вернёт
+        // спин заряду, как только слот снова обновится. img остаётся под
+        // канвасом фолбэком.
+        if (cb.dataset.img === cs.name &&
+            !(typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb && cb.dataset.spin === cs.name)){
+          const sit = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
+          if (sit && sit.mesh){ try { thumbSpinStart(sit, cb); cb.dataset.spin = cs.name; } catch(e){} }
+        }
+      } else {
+        if (cb.style.display !== 'none'){
+          try { if (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb) thumbSpinStop(); } catch(e){}
+        }
+        cb.style.display = 'none'; cb.dataset.oc = ''; cb.dataset.img = ''; cb.dataset.spin = '';
+      }
     }
   } catch(e){}
   document.documentElement.classList.toggle('night', isNightSky());
@@ -11378,7 +11421,23 @@ function refreshMainScreen(){
 // меню (а) ставит паузу ТИХО (silent — своя карточка вместо pauseOverlay),
 // (б) над чужой паузой НЕ открывается вовсе, (в) снимает только свою.
 let menuPaused = false;
+// ЦЕННИКИ БАНДЛОВ ЖИВЫМИ (находка Интеграции 2026-08-03: на карточках были
+// зашиты ДОЛЛАРЫ, а игрок платит в GAM — «неправда на экране»). Каталог
+// асинхронный: до его прихода стоят зашитые лейблы-фолбэки, после — цена
+// площадки (Ads.priceOf). Зовётся при каждом открытии магазина звёзд.
+function refreshBundlePrices(){
+  try {
+    if (!(typeof Ads === 'object' && Ads.priceOf)) return;
+    document.querySelectorAll('.st-buy[data-tier]').forEach(btn => {
+      const price = Ads.priceOf('bundle' + btn.dataset.tier);
+      if (price) btn.textContent = 'Upgrade ' + price;
+    });
+  } catch(e){}
+}
 function openMainScreen(){
+  // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
+  // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
+  try { Telemetry.screen.enter('menu'); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
@@ -12420,7 +12479,7 @@ $('msDiff').addEventListener('click', e => {
 // «MORE STARS» (Get More) — экран бандлов бустера (макеты 783:95 / 785:112).
 // Открывается ПОВЕРХ меню; игра уже на паузе меню, своей паузы НЕ ставим
 // (владение паузой — у openMainScreen, лезть туда нельзя, см. CLAUDE.md).
-$('msGetMore').addEventListener('click', ()=> show('starsOverlay'));
+$('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
 $('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
 // ПОКУПКА — через ручку МЕТЫ buyBundle(tier). Ручки может ещё не быть:
 // тогда НИЧЕГО НЕ НАЧИСЛЯЕМ (мок-начисление запрещено — это валюта), а ведём
@@ -12959,6 +13018,7 @@ function pauseGame(silent){
   return true;
 }
 function resumeGame(){
+  try { Telemetry.screen.enter('game'); } catch(e){} // выход из меню — пара к enter('menu') в openMainScreen
   if (!paused) return;
   const d = performance.now() - pausedAt;
   stats.t0 += d; stats.lastAction += d;
@@ -13490,6 +13550,7 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+  multToastTest(name, mult){ showMultToast(name || 'T0', mult || 2); }, // тест: тост множителя через единую точку
   hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
   hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
   itemsBrief(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), acc: !!i.accessible })); },

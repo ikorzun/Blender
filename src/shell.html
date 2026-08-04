@@ -1350,6 +1350,13 @@
     }
   }
   }
+  #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85); top:calc(var(--eyeTop, 8px) + var(--eyeW, 133px) * .55 + 14px);
+    width:169px; height:60px; border-radius:1000px; background:rgba(255,255,255,.92);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
+  #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
+  #multToast img { width:44px; height:44px; object-fit:contain; }
+  #multToastVal { font-size:22px; font-weight:800; color:#a8e10c; }
 </style>
 </head>
 <body>
@@ -1501,6 +1508,8 @@
     <text id="mixerTimer" x="120" y="58" text-anchor="middle">30</text>
   </svg>
 </div>
+<!-- ТОСТ МНОЖИТЕЛЯ (нода 829:1242): под глазами, 169×60, портрет 44, лайм -->
+<div id="multToast" aria-hidden="true"><img id="multToastImg" alt=""><span id="multToastVal">×1</span></div>
 
 <div id="toast"></div>
 

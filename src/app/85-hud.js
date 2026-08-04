@@ -468,6 +468,23 @@ function chargeFadeTick(){
   cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
   chargeRAF = requestAnimationFrame(chargeFadeTick);
 }
+// ТОСТ МНОЖИТЕЛЯ ПОД ГЛАЗАМИ (нода 829:1242, слово владельца «множитель
+// набранной вещи показывается под глазами»): плашка 169×60, портрет 44,
+// «×N.NN» лаймом. Показывается на сборе прокачанного типа (accMult > 1),
+// повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
+let multToastT = 0;
+function showMultToast(typeName, mult){
+  const el = $('multToast');
+  if (!el) return;
+  const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(typeName) : null;
+  const url = it ? itemThumb(it) : '';
+  const img = $('multToastImg');
+  if (url) img.src = url; else img.removeAttribute('src');
+  $('multToastVal').textContent = '×' + (Math.round(mult * 100) / 100);
+  el.classList.add('on');
+  if (multToastT) clearTimeout(multToastT);
+  multToastT = setTimeout(() => { el.classList.remove('on'); multToastT = 0; }, 1400);
+}
 function updateHUD(){
   // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
   // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
@@ -503,7 +520,22 @@ function updateHUD(){
           if (url){ $('chargeImg').src = url; cb.dataset.img = cs.name; }
           else $('chargeImg').removeAttribute('src');
         }
-      } else { cb.style.display = 'none'; cb.dataset.oc = ''; cb.dataset.img = ''; }
+        // ВРАЩЕНИЕ ЗАРЯДА (нода 829:1242 «крутится»; хвост сдачи Интерфейса,
+        // их же выбор носителя): общий спин портретов. Канвас ОДИН на игру —
+        // меню при открытии заберёт его под коллекцию, а этот добор вернёт
+        // спин заряду, как только слот снова обновится. img остаётся под
+        // канвасом фолбэком.
+        if (cb.dataset.img === cs.name &&
+            !(typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb && cb.dataset.spin === cs.name)){
+          const sit = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
+          if (sit && sit.mesh){ try { thumbSpinStart(sit, cb); cb.dataset.spin = cs.name; } catch(e){} }
+        }
+      } else {
+        if (cb.style.display !== 'none'){
+          try { if (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb) thumbSpinStop(); } catch(e){}
+        }
+        cb.style.display = 'none'; cb.dataset.oc = ''; cb.dataset.img = ''; cb.dataset.spin = '';
+      }
     }
   } catch(e){}
   document.documentElement.classList.toggle('night', isNightSky());
@@ -1314,7 +1346,23 @@ function refreshMainScreen(){
 // меню (а) ставит паузу ТИХО (silent — своя карточка вместо pauseOverlay),
 // (б) над чужой паузой НЕ открывается вовсе, (в) снимает только свою.
 let menuPaused = false;
+// ЦЕННИКИ БАНДЛОВ ЖИВЫМИ (находка Интеграции 2026-08-03: на карточках были
+// зашиты ДОЛЛАРЫ, а игрок платит в GAM — «неправда на экране»). Каталог
+// асинхронный: до его прихода стоят зашитые лейблы-фолбэки, после — цена
+// площадки (Ads.priceOf). Зовётся при каждом открытии магазина звёзд.
+function refreshBundlePrices(){
+  try {
+    if (!(typeof Ads === 'object' && Ads.priceOf)) return;
+    document.querySelectorAll('.st-buy[data-tier]').forEach(btn => {
+      const price = Ads.priceOf('bundle' + btn.dataset.tier);
+      if (price) btn.textContent = 'Upgrade ' + price;
+    });
+  } catch(e){}
+}
 function openMainScreen(){
+  // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
+  // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
+  try { Telemetry.screen.enter('menu'); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();

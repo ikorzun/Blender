@@ -306,6 +306,7 @@ function pauseGame(silent){
   return true;
 }
 function resumeGame(){
+  try { Telemetry.screen.enter('game'); } catch(e){} // выход из меню — пара к enter('menu') в openMainScreen
   if (!paused) return;
   const d = performance.now() - pausedAt;
   stats.t0 += d; stats.lastAction += d;
@@ -837,6 +838,7 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+  multToastTest(name, mult){ showMultToast(name || 'T0', mult || 2); }, // тест: тост множителя через единую точку
   hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
   hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
   itemsBrief(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), acc: !!i.accessible })); },

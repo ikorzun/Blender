@@ -4146,7 +4146,7 @@ window.bridge = {
       // у глаз берём ВЕРХНИЕ 55% рамки (ниже живёт число отсчёта), у кнопки — всю
       const Y1 = Math.round((g.y + g.h * (mode === 'max' ? 0.55 : 1)) * k);
       const IN = Math.round(6 * k), OUT = Math.round(26 * k);
-      let mx = 0, spread = 0; const inner = [], rowMed = [];
+      let mx = 0, spread = 0; const inner = [], rowMed = [], rowSpreads = [];
       for (let y = Y0; y < Y1; y++){
         for (let x = X0; x < X1; x++){ const L = lum((y * W + x) * 4); inner.push(L); if (L > mx) mx = L; }
         const row = [];
@@ -4159,8 +4159,16 @@ window.bridge = {
         // посторонний объект (стекло чаши на неосевшей сцене, будущий элемент
         // HUD) — разброс скакнёт, и замер обязан честно провалиться, а не отдать
         // правдоподобное неверное число.
-        const s = Math.max.apply(null, row) - Math.min.apply(null, row);
-        if (s > spread) spread = s;
+        rowSpreads.push(Math.max.apply(null, row) - Math.min.apply(null, row));
+      }
+      // ⚠️ 70-Й ПЕРЦЕНТИЛЬ ПОСТРОЧНЫХ РАЗМАХОВ, НЕ МАКСИМУМ (ловля 2026-08-04:
+      // глаза 165 из ноды владельца сдвинули полосу, и НОЧЬЮ в неё попала
+      // ЗВЕЗДА — легитимная часть неба, 1-3 грязных строки, разброс 0.63).
+      // Точечный выброс детектор терпит (до ~30% строк), СИСТЕМАТИЧЕСКОЕ
+      // загрязнение (элемент HUD грязнит все строки подряд) по-прежнему валит.
+      if (rowSpreads.length){
+        const q = rowSpreads.slice().sort((a, b) => a - b);
+        spread = q[Math.min(q.length - 1, Math.floor(q.length * 0.7))];
       }
       const sky = med(rowMed);
       // ⚠️ У ГЛАЗ БЕРЁМ МАКСИМУМ (белок), У КНОПКИ — МЕДИАНУ (диск). Медиана по
@@ -4480,6 +4488,40 @@ window.bridge = {
       'КУРСОР-НАЖАТИЕ: на mousedown курсор подменяется сжатым с тем же hotspot (' + JSON.stringify(cp) + ')');
     expect(cp.restored, 'КУРСОР-НАЖАТИЕ: через 140 мс курсор вернулся точно к исходному (' + JSON.stringify(cp) + ')');
   }
+
+  // ===== HUD-ПАКЕТ A (нода 829:1242, хвосты диспетчера 2026-08-04) =====
+  // Заряд: TTL 10с (слово владельца) и ВРАЩЕНИЕ общим спин-канвасом; тост
+  // множителя под глазами через тест-ручку (единая точка showMultToast).
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(700);
+  const hudA = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    let cs = null;
+    { const t0 = Date.now();      // осадка: заряд выдан на входе в турбо
+      while (Date.now() - t0 < 5000){ cs = g.chargeInfo ? g.chargeInfo() : (g.charge ? g.charge() : null);
+        if (cs && cs.name) break; await sleep(120); } }
+    const cb = document.getElementById('chargeBtn');
+    let spin = false;
+    { const t0 = Date.now();      // осадка: спин-канвас пришёл в слот
+      while (Date.now() - t0 < 4000){ if (cb && cb.querySelector('canvas')){ spin = true; break; } await sleep(120); } }
+    g.multToastTest('T1', 2.25);
+    await sleep(120);
+    const mt = document.getElementById('multToast');
+    const toastOn = !!(mt && mt.classList.contains('on'));
+    const toastVal = mt ? document.getElementById('multToastVal').textContent : '';
+    let toastGone = false;
+    { const t0 = Date.now();      // сам гаснет
+      while (Date.now() - t0 < 4000){ if (!mt.classList.contains('on')){ toastGone = true; break; } await sleep(150); } }
+    return { chargeName: cs && cs.name, ttlLeft: cs ? cs.leftMs : 0, spin, toastOn, toastVal, toastGone };
+  });
+  console.log('hud A:', JSON.stringify(hudA));
+  expect(!!hudA.chargeName && hudA.ttlLeft > 7000,
+    'ЗАРЯД: TTL больше прежних 7с — слово владельца «10 секунд» (' + JSON.stringify(hudA) + ')');
+  expect(hudA.spin === true, 'ЗАРЯД: крутится — спин-канвас в слоте (' + JSON.stringify(hudA) + ')');
+  expect(hudA.toastOn && hudA.toastVal === '×2.25' && hudA.toastGone,
+    'ТОСТ МНОЖИТЕЛЯ: показывается под глазами и сам гаснет (' + JSON.stringify(hudA) + ')');
 
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====

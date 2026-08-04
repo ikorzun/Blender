@@ -410,7 +410,7 @@ $('msDiff').addEventListener('click', e => {
 // «MORE STARS» (Get More) — экран бандлов бустера (макеты 783:95 / 785:112).
 // Открывается ПОВЕРХ меню; игра уже на паузе меню, своей паузы НЕ ставим
 // (владение паузой — у openMainScreen, лезть туда нельзя, см. CLAUDE.md).
-$('msGetMore').addEventListener('click', ()=> show('starsOverlay'));
+$('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
 $('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
 // ПОКУПКА — через ручку МЕТЫ buyBundle(tier). Ручки может ещё не быть:
 // тогда НИЧЕГО НЕ НАЧИСЛЯЕМ (мок-начисление запрещено — это валюта), а ведём
