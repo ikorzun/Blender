@@ -4523,6 +4523,32 @@ window.bridge = {
   expect(hudA.toastOn && hudA.toastVal === '×2.25' && hudA.toastGone,
     'ТОСТ МНОЖИТЕЛЯ: показывается под глазами и сам гаснет (' + JSON.stringify(hudA) + ')');
 
+  // ===== HUD-ПАКЕТ C: гостевое имя-животное + цветной аватар =====
+  const guestC = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    document.getElementById('pauseBtn').click();      // меню — честным путём
+    await sleep(400);
+    const name1 = document.getElementById('msUser').textContent;
+    const av = document.querySelector('.ms-av');
+    const bg1 = getComputedStyle(av).backgroundColor;
+    const emojiGone = av.textContent.trim() === '';
+    document.getElementById('resumeBtn').click();
+    await sleep(300);
+    document.getElementById('pauseBtn').click();      // повторный вход: имя стабильно
+    await sleep(300);
+    const name2 = document.getElementById('msUser').textContent;
+    document.getElementById('resumeBtn').click();
+    await sleep(200);
+    return { name1, name2, bg1, emojiGone };
+  });
+  console.log('guest:', JSON.stringify(guestC));
+  expect(guestC.name1 && guestC.name1 !== 'Guest' && /^[A-Z][A-Za-z-]+$/.test(guestC.name1),
+    'ГОСТЬ: имя-животное вместо Guest (' + guestC.name1 + ')');
+  expect(guestC.name2 === guestC.name1, 'ГОСТЬ: имя стабильно между входами в меню');
+  expect(guestC.emojiGone && /rgb\(/.test(guestC.bg1),
+    'ГОСТЬ: аватар — чистый цвет, плейсхолдер ушёл (' + guestC.bg1 + ')');
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });

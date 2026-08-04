@@ -1359,10 +1359,29 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
+// ПРОФИЛЬ ГОСТЯ: имя-животное + аватар чистым цветом из хеша имени
+// (слово владельца 2026-08-04; 🫐-плейсхолдер уходит). HSL: тон из хеша,
+// сочность фиксированная — любое имя даёт читаемый кружок.
+function refreshGuestProfile(){
+  try {
+    const name = (typeof guestName === 'function') ? guestName() : 'Guest';
+    const u = document.getElementById('msUser');
+    if (u && u.textContent !== name) u.textContent = name;
+    const av = document.querySelector('.ms-av');
+    if (av && av.dataset.gn !== name){
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+      av.dataset.gn = name;
+      av.textContent = '';                        // 🫐-плейсхолдер уходит
+      av.style.background = 'hsl(' + (h % 360) + ', 62%, 55%)';
+    }
+  } catch(e){}
+}
 function openMainScreen(){
   // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
   // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
   try { Telemetry.screen.enter('menu'); } catch(e){}
+  try { refreshGuestProfile(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();

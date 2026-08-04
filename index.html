@@ -7588,6 +7588,7 @@ function mergeSave(into, from){
     // naf — ПОКУПКА НАВСЕГДА: переживает даже смену поколения (сброс
     // прогресса не отменяет оплаченного товара) — OR с ОБЕИХ сторон
     into.naf = (from.naf || into.naf) ? 1 : 0;
+    into.gn = into.gn || from.gn || ''; // имя: непустое своё, иначе чужое
     into.st = from.st || 0; into.sv = from.sv || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
@@ -7614,6 +7615,7 @@ function mergeSave(into, from){
   into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
   into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
   into.naf = (into.naf || from.naf) ? 1 : 0; // «навсегда без рекламы» — OR: покупка не отменяется отставшей копией
+  into.gn = into.gn || from.gn || ''; // гостевое имя: непустое своё побеждает
   into.pe = Math.max(into.pe || 0, from.pe || 0); // купленные встряски: пара как he/hs,
   into.ps = Math.max(into.ps || 0, from.ps || 0); // отставшая копия не воскрешает потраченное
   // ⚠️ ОКНА МНОЖИТЕЛЯ — max ПО КЛЮЧУ-МНОЖИТЕЛЮ. Ключ несёт сам множитель,
@@ -7716,6 +7718,36 @@ function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // naf НЕ т
 // Save.na у бандлов. Зовёт платёжный слой (78-ads purchase/restore) по
 // контракту typeof grantNoAdsForever. Идемпотентно: restore дергает её на
 // КАЖДОМ старте, пока покупка висит в getPurchases (non-consumable).
+// ГОСТЕВОЕ ИМЯ (слово владельца 2026-08-04: «используй имена животных и
+// птиц, должно хватить на огромное количество. Аватарки пока просто
+// цветом»). Поле Save.gn: генерится один раз на устройство, при мерже
+// непустое имя НЕ перетирается чужим (при равных — текущее устройство).
+// Фундамент под блок лидербордов; аватар — цвет из хеша имени (85-hud).
+const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
+  'Finch Wren Heron Stork Eagle Falcon Kestrel Osprey Puffin Pelican ' +
+  'Otter Beaver Badger Marten Stoat Weasel Hare Rabbit Squirrel Chipmunk ' +
+  'Moose Elk Deer Bison Ibex Chamois Boar Hedgehog Mole Shrew ' +
+  'Seal Walrus Dolphin Orca Narwhal Beluga Manatee Turtle Gecko Iguana ' +
+  'Panda Koala Wombat Quokka Kiwi Emu Ostrich Rhea Cassowary Peacock ' +
+  'Lion Tiger Leopard Cheetah Jaguar Cougar Caracal Serval Ocelot Margay ' +
+  'Zebra Giraffe Okapi Gazelle Impala Oryx Kudu Eland Tapir Capybara ' +
+  'Toucan Parrot Macaw Cockatoo Lorikeet Hummingbird Sunbird Kingfisher Bee-eater Hoopoe ' +
+  'Magpie Jay Nutcracker Starling Thrush Blackbird Skylark Swallow Swift Martin ' +
+  'Pigeon Dove Quail Partridge Pheasant Grouse Ptarmigan Lapwing Plover Sandpiper ' +
+  'Curlew Godwit Avocet Oystercatcher Tern Gull Skua Gannet Cormorant Shag ' +
+  'Loon Grebe Teal Wigeon Pintail Shoveler Pochard Eider Goldeneye Merganser ' +
+  'Gadwall Mallard Goose Brant Crake Rail Coot Moorhen Bittern Egret ' +
+  'Spoonbill Ibis Flamingo Crab Lobster Shrimp Krill Urchin Seahorse Marlin ' +
+  'Tuna Salmon Trout Perch Pike Carp Bream Tench Rudd Roach ' +
+  'Lemur Loris Tarsier Gibbon Mandrill Baboon Macaque Langur Colobus Sifaka ' +
+  'Dingo Jackal Coyote Fennec Corsac Raccoon Coati Kinkajou Olingo Tanuki').split(' ');
+function guestName(){
+  if (!Save.gn){
+    Save.gn = GUEST_NAMES[Math.floor(Math.random() * GUEST_NAMES.length)];
+    commitSave();
+  }
+  return Save.gn;
+}
 function grantNoAdsForever(){
   if (Save.naf) return;
   Save.naf = 1;
@@ -11434,10 +11466,29 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
+// ПРОФИЛЬ ГОСТЯ: имя-животное + аватар чистым цветом из хеша имени
+// (слово владельца 2026-08-04; 🫐-плейсхолдер уходит). HSL: тон из хеша,
+// сочность фиксированная — любое имя даёт читаемый кружок.
+function refreshGuestProfile(){
+  try {
+    const name = (typeof guestName === 'function') ? guestName() : 'Guest';
+    const u = document.getElementById('msUser');
+    if (u && u.textContent !== name) u.textContent = name;
+    const av = document.querySelector('.ms-av');
+    if (av && av.dataset.gn !== name){
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+      av.dataset.gn = name;
+      av.textContent = '';                        // 🫐-плейсхолдер уходит
+      av.style.background = 'hsl(' + (h % 360) + ', 62%, 55%)';
+    }
+  } catch(e){}
+}
 function openMainScreen(){
   // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
   // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
   try { Telemetry.screen.enter('menu'); } catch(e){}
+  try { refreshGuestProfile(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
