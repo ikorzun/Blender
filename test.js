@@ -1810,7 +1810,7 @@ window.bridge = {
   // и даёт из теста слать состояния. Показ запускаем БОЕВЫМ путём: клик по
   // кнопке «Watch» -> startAd -> Ads.showRewarded.
   const MOCK_RW = `
-window.__mock = { h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); },
+window.__mock = { iapTried:[], h:{}, emit(ev,st){ (this.h[ev]||[]).forEach(f=>{ try{ f(st); }catch(e){} }); },
   rwShown:0, interShown:0, msgs:[], rwPlace:null, interPlace:null, lb:[] };
 function reg(ev,cb){ (window.__mock.h[ev] = window.__mock.h[ev] || []).push(cb); }
 window.bridge = {
@@ -1835,6 +1835,22 @@ window.bridge = {
                    showRewarded(pl){ window.__mock.rwShown++; window.__mock.rwPlace = pl === undefined ? null : pl; },
                    showInterstitial(pl){ window.__mock.interShown++; window.__mock.interPlace = pl === undefined ? null : pl; } },
   storage: { get(){ return Promise.resolve(null); }, set(){ return Promise.resolve(); } },
+  payments: { isPaymentsSupported:true,
+    _list: [], _consumed: [], _fail: false,
+    purchase(id){
+      window.__mock.iapTried.push(id);
+      if (this._fail) return Promise.reject(new Error('игрок отменил'));
+      const p = { id: id, orderId: 'ord_' + id + '_' + window.__mock.iapTried.length, status:'PAID' };
+      this._list.push(p);
+      return Promise.resolve(p);
+    },
+    getPurchases(){ return Promise.resolve(this._list.slice()); },
+    consumePurchase(id){
+      this._consumed.push(id);
+      this._list = this._list.filter(x => x.id !== id);   // закрытая покупка уходит из списка
+      return Promise.resolve({ id: id });
+    },
+    getCatalog(){ return Promise.resolve([{ id:'noads_forever', price:'49 Gam' }]); } },
   initialize(){ return Promise.resolve(); },
 };
 `;
@@ -1962,6 +1978,7 @@ window.bridge = {
   expect(cad.seq[2] === 1, 'каденция: переход без победы не дублирует ролик (' + cad.seq[2] + ')');
   expect(cad.seq[3] === 2, 'каденция: следующие ' + INTER_EVERY + ' побед дают ещё один ролик (' + cad.seq[3] + ')');
   expect(cad.winsLeft === 0, 'каденция: окно сброшено после показа (' + cad.winsLeft + ')');
+
 
   // === ТИХАЯ ПАУЗА ПОД РОЛИКОМ, ПРИЛЕТЕВШИМ ПОВЕРХ ИНТРО ===
   // Боевой путь againBtn: `Ads.maybeInterstitial(); genLevel();` — интро
@@ -2234,6 +2251,104 @@ window.bridge = {
   expect(lbp.lo.accepted === false && lbp.lo.stored !== lbp.lo.sent,
     'разбор: счёт ниже пика — распознан как ПРОИГНОРИРОВАННЫЙ, хотя ответ «успех» ('
     + JSON.stringify(lbp.lo) + ')');
+
+
+  // ⚠️⚠️ ЭТОТ БЛОК СТОИТ В КОНЦЕ СТРАНИЦЫ НАМЕРЕННО (та же причина, что у секции
+  // камней): покупка бандла ВКЛЮЧАЕТ ОКНО «БЕЗ РЕКЛАМЫ», а `maybeInterstitial`
+  // с него и начинается — стоя выше, блок глушил межстраничную во ВСЕХ
+  // последующих ассертах каденции (три падения: 0 показов, placement null).
+  // Это верное поведение игры и неверная постановка теста. Плюс уборка ниже.
+
+  // === ПЛАТЕЖИ (bridge.payments) ===
+  // Проверяем ровно то, что определяет наш код: выдачу, ЗАКРЫТИЕ расходуемых
+  // и защиту от повторной выдачи при восстановлении.
+  const iap = await apage.evaluate(async () => {
+    const A = window.__ads, P = window.bridge.payments;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    try { localStorage.removeItem('mixer_iap_done'); } catch(e){}
+    P._list = []; P._consumed = []; P._fail = false;
+    const out = {};
+    // 1) БАНДЛ: покупка -> выдача -> закрытие (иначе он выдавался бы КАЖДЫЙ старт)
+    const before = window.__game.bundleState().noAdLeftMs;
+    out.buy = await A.purchase('bundle5');
+    await wait(120);
+    out.granted = window.__game.bundleState().noAdLeftMs > before;  // бандл реально выдан
+    out.consumed = P._consumed.indexOf('bundle5') >= 0;
+    // 2) NOADS_FOREVER: выдать нечем (ручки МЕТЫ нет) — отказ ГРОМКИЙ,
+    //    и покупка НЕ закрывается: она и есть доказательство владения
+    P._consumed = [];
+    out.noads = await A.purchase('noads_forever');
+    await wait(120);
+    out.noadsConsumed = P._consumed.indexOf('noads_forever') >= 0;
+    // 3) ВОССТАНОВЛЕНИЕ: незакрытая покупка довыдаётся...
+    P._list = [{ id:'bundle3', orderId:'ord_restore_1', status:'PAID' }];
+    P._consumed = [];
+    const b2 = window.__game.bundleState().noAdLeftMs;
+    out.rest1 = await A.restorePurchases();
+    await wait(120);
+    out.restGranted = window.__game.bundleState().noAdLeftMs > b2;
+    // 4) ...а ВТОРОЙ раз — нет (реестр закрытых заказов). Возвращаем ту же
+    //    покупку в список, будто consume не дошёл: выдать ещё раз нельзя.
+    P._list = [{ id:'bundle3', orderId:'ord_restore_1', status:'PAID' }];
+    const b3 = window.__game.bundleState().noAdLeftMs;
+    out.rest2 = await A.restorePurchases();
+    await wait(120);
+    out.restTwice = window.__game.bundleState().noAdLeftMs > b3;   // ожидаем false
+    return out;
+  });
+  expect(iap.buy && iap.buy.ok === true, 'платежи: покупка бандла прошла (' + JSON.stringify(iap.buy) + ')');
+  expect(iap.granted === true, 'платежи: бандл РЕАЛЬНО выдан (окно без рекламы выросло)');
+  expect(iap.consumed === true,
+    'платежи: расходуемый бандл ЗАКРЫТ (без этого он выдавался бы каждый старт)');
+  expect(iap.noads && iap.noads.ok === false && iap.noads.reason === 'no_grant_handle',
+    'платежи: noads_forever отказан ГРОМКО — ручки выдачи в МЕТЕ нет (' + JSON.stringify(iap.noads) + ')');
+  expect(iap.noadsConsumed === false,
+    'платежи: noads_forever НЕ закрывается — покупка и есть доказательство владения');
+  expect(iap.restGranted === true, 'платежи: восстановление ДОВЫДАЛО незакрытую покупку');
+  expect(iap.restTwice === false,
+    'платежи: повторное восстановление НЕ выдало второй раз (реестр заказов)');
+
+  // === ТЕЛЕМЕТРИЯ: креш уходит ОДИН раз ===
+  // ⚠️ Нужен непустой URL — иначе sendBeacon не зовётся вовсе и страж мерит
+  // пустоту. Считаем, в скольких отправках встретился ЭТОТ креш.
+  const tel = await apage.evaluate(async () => {
+    const sent = [];
+    const real = navigator.sendBeacon;
+    navigator.sendBeacon = function(u, body){ sent.push(String(body)); return true; };
+    window.__tel.setUrl('https://example.invalid/e');
+    const mark = 'МЕТКА_КРЕША_' + Date.now();
+    window.__tel.err('js', mark, 'f.js', 'stack');
+    window.__tel.ev('после_креша', {});          // чтобы батч был непустым
+    window.__tel.flush();
+    window.__tel.setUrl('');
+    navigator.sendBeacon = real;
+    return { копий: sent.filter(b => b.indexOf(mark) >= 0).length, отправок: sent.length };
+  });
+  expect(tel.отправок >= 2, 'телеметрия: инструмент видит отправки — мерим не пустоту ('
+    + tel.отправок + ')');
+  expect(tel.копий === 1, 'телеметрия: креш ушёл РОВНО ОДИН раз (был дубль: сразу + батчем) ('
+    + tel.копий + ')');
+
+  // === ТЕЛЕМЕТРИЯ: экраны переживают уход вкладки ===
+  const scrLife = await apage.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    window.__tel.screen.enter('game');
+    const before = window.__tel.screen.current();
+    Object.defineProperty(document, 'visibilityState', { value:'hidden', configurable:true });
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+    await wait(30);
+    const hidden = window.__tel.screen.current();
+    Object.defineProperty(document, 'visibilityState', { value:'visible', configurable:true });
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+    await wait(30);
+    return { before: before, hidden: hidden, back: window.__tel.screen.current() };
+  });
+  expect(scrLife.before === 'game' && scrLife.hidden === null,
+    'телеметрия: уход вкладки закрывает экран — инструмент работает (' + scrLife.before + '->' + scrLife.hidden + ')');
+  expect(scrLife.back === 'game',
+    'телеметрия: ПОСЛЕ ВОЗВРАТА экран восстановлен (раньше трекинг умирал навсегда) (' + scrLife.back + ')');
+  // убираем за собой купленное: окно «без рекламы» пережило бы страницу
+  await apage.evaluate(() => { try { window.__game.clearBought(); } catch(e){} });
 
   await apage.close();
   await new Promise(r => srv2.close(r));
