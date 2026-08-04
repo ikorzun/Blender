@@ -1635,11 +1635,15 @@ window.bridge = {
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(195, 340);
   await page.mouse.up({ button: 'right' });
-  await page.waitForTimeout(450);
+  // осадка по ФАКТУ обрыва (cam().fly), затем два стоп-кадра
+  await page.waitForFunction(() => window.__game.cam().fly === false, null, { timeout: 3000 });
+  await page.waitForTimeout(300);
   const hb1 = await page.evaluate(() => window.__game.cam());
   await page.waitForTimeout(450);
   const hb2 = await page.evaluate(() => window.__game.cam());
-  expect(hb1.az === hb2.az && hb1.r === hb2.r,
+  // r — с эпсилоном: после обрыва демпфер зума дотягивает сотые (13.01 -> 13),
+  // это не полёт (az при живом полёте шёл бы дугой и не совпал бы точно)
+  expect(hb1.az === hb2.az && Math.abs(hb1.r - hb2.r) < 0.02,
     'ПОДСКАЗКА: жест игрока обрывает полёт — камера больше не движется сама (' + JSON.stringify({ hb1, hb2 }) + ')');
 
   const bpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
@@ -1706,15 +1710,24 @@ window.bridge = {
 `;
   const srvH = http.createServer((req, res) => {
     const u = req.url.split('?')[0];
-    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_HANG); }
+    if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end('/* мок предзагружен addInitScript — сервер отдаёт пустышку, гонка загрузки исключена по построению */'); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
     if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
     res.writeHead(404); res.end();
   });
   await new Promise(r => srvH.listen(0, '127.0.0.1', r));
   const hpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  // мок — ДО любого скрипта страницы: под нагрузкой сервер сьюта отдавал
+  // bridge.js ПОЗЖЕ страховки/предела (finishIntro сам шлёт GAME_READY, не
+  // дожидаясь нашего skipIntro), и публичный вызов бил в несуществующий bridge
+  await hpage.addInitScript({ content: MOCK_HANG });
   await hpage.goto('http://127.0.0.1:' + srvH.address().port + '/index.html');
   await hpage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  // ⚠️ ЖДЁМ ИСПОЛНЕНИЯ МОКА (window.__probe): под нагрузкой полного прогона
+  // сервер сьюта отдаёт playgama-bridge.js ПОЗЖЕ выстрела страховки — та
+  // звала setGameLoadingProgress у НЕСУЩЕСТВУЮЩЕГО bridge (try глотал), и
+  // progress оставался null. В бою SDK — локальный файл площадки, гонки нет.
+  await hpage.waitForFunction(() => !!window.__probe, null, { timeout: 30000 });
   await hpage.evaluate(() => window.__game.skipIntro());   // игра готова -> Ads.gameReady()
   const hang = await hpage.evaluate(async () => {
     const why = await Promise.race([ window.__ads.curtainGone,

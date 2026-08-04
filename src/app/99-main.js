@@ -1667,7 +1667,7 @@ window.__game = {
     });
     return m;
   },
-  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro }; },
+  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro, fly: !!hintFly }; },
   // отладка: постановка дистанции камеры (тесты зума: стекло чаши, витрина)
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
