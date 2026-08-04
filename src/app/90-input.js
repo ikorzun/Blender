@@ -27,7 +27,10 @@ function setTargetY(y){
 const AUTO_FOLLOW_MIN = TARGET_Y_DEF - (TARGET_Y_DEF - TARGET_Y_MIN) / 3; // 3.2
 const CAM_FOLLOW_FRAC = 0.2;
 let panManualUntil = 0, camFollowAt = 0;
-function noteManualPan(){ panManualUntil = performance.now() + 4000; }
+function noteManualPan(){
+  panManualUntil = performance.now() + 4000;
+  hintFly = null; // жест игрока обрывает полёт подсказки
+}
 function tickCamFollow(dt){
   if (intro || !level || !level.aliveN0 || paused) return;
   const now = performance.now();
@@ -42,6 +45,34 @@ function tickCamFollow(dt){
   }
   const d = AUTO_FOLLOW_MIN - camTarget.y;
   if (Math.abs(d) > 0.005) setTargetY(camTarget.y + d * Math.min(1, dt * 1.5));
+}
+// ===== ПОЛЁТ КАМЕРЫ К ПОДСКАЗКЕ ===== (просьба тестеров, слово владельца
+// 2026-08-03: «при клике на подсказку камера подъезжает к объекту, который
+// можно совместить»). Ease-out 900 мс: азимут кратчайшей дугой к предмету,
+// target.y к его высоте (в клампе пана), радиус до <=13 (если дальше).
+// Любой ЖЕСТ игрока обрывает полёт мгновенно (обрыв в noteManualPan и в
+// начале орбиты/щипка); автопан эндшпиля придержан той же panManualUntil —
+// иначе он тут же утаскивал бы target назад к 3.2.
+let hintFly = null;
+function hintCamFly(item){
+  const az2 = Math.atan2(item.p.x, item.p.z); // формула позиции: x=sin(az), z=cos(az)
+  let dAz = az2 - camAz;
+  dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // кратчайшая дуга
+  hintFly = { t0: performance.now(), dur: 900,
+    az0: camAz, az1: camAz + dAz,
+    y0: camTarget.y, y1: Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, item.p.y)),
+    r0: camR, r1: Math.min(camR, 13) };
+  panManualUntil = performance.now() + 4500;
+}
+function tickHintFly(){
+  if (!hintFly) return;
+  const k = (performance.now() - hintFly.t0) / hintFly.dur;
+  const e = k >= 1 ? 1 : 1 - Math.pow(1 - k, 3);
+  camAz = hintFly.az0 + (hintFly.az1 - hintFly.az0) * e;
+  camR = hintFly.r0 + (hintFly.r1 - hintFly.r0) * e;
+  camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, hintFly.y0 + (hintFly.y1 - hintFly.y0) * e));
+  updateCamera();
+  if (k >= 1) hintFly = null;
 }
 let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
 let pDown = null, dragging = false, pinch = null;

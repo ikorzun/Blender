@@ -1480,7 +1480,7 @@
   <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
   <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-234 · 2026-08-01</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-235 · 2026-08-01</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1902,6 +1902,12 @@ const SHAKES_BASE = 3;
 // ⚠️ ЧИСЛО ПОДОБРАНО ПО ЗАМЕРУ ПОТРЕБНОСТИ, НО САМА ЛЕСЕНКА БОТОМ НЕ
 // ПРОВЕРЯЛАСЬ — если владелец захочет точности, нужен A/B терпеливым ботом на
 // ур.15/20/40, как делали для экономики встрясок раньше.
+// ПОДСКАЗКА-ПОВЕРХНОСТНОСТЬ (просьба тестеров через владельца 2026-08-03:
+// «точно не выбирала объекты глубоко внутри чаши, только в крайнем случае»):
+// группа считается «верхним слоем», если ВСЕ её предметы не глубже этого
+// расстояния от вершины кучи; верхние соревнуются как раньше (размер,
+// близость), глубокие — отдельным эшелоном ниже (крайний случай).
+const HINT_SURFACE_DEPTH = 1.6;
 const SHAKES_STEP = 6, SHAKES_CAP = 8;
 function freeShakesFor(lv){
   const n = (typeof lv === 'number' && lv > 0) ? lv : 1;
@@ -9119,7 +9125,11 @@ function handleTapInner(x, y){
 function findHintGroup(){
   refreshAccessibility();
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
-  let best = null;
+  // вершина кучи — по НЕлетящим, чтобы свежая досыпка не задирала планку
+  let pileTop = 0;
+  for (const it of items) if (it.alive && it.p.y < FUNNEL.H) pileTop = Math.max(pileTop, it.p.y);
+  const surfaceY = pileTop - HINT_SURFACE_DEPTH;
+  let best = null, bestScore = null;
   for (const it of acc){
     let grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
     // тот же кап, что и в тапе (спека владельца 2026-07-27): подсказка не
@@ -9128,10 +9138,26 @@ function findHintGroup(){
       grp = grp.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
                .slice(0, MATCH_MAX_N - 1).map(v => v.o);
     }
-    if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
+    if (!grp.length) continue;
+    const full = [it].concat(grp);
+    // ПОВЕРХНОСТНЫЙ ЭШЕЛОН (просьба тестеров, слово владельца 2026-08-03):
+    // группы, целиком лежащие в верхнем слое кучи, всегда бьют глубокие —
+    // глубина «только в крайнем случае». Внутри эшелона — прежний порядок:
+    // больше группа, при равенстве ближе пара.
+    const surface = full.every(o => o.p.y >= surfaceY) ? 1 : 0;
+    const score = { surface, len: full.length, d: pairDist(grp[0], it) };
+    if (!bestScore ||
+        score.surface > bestScore.surface ||
+        (score.surface === bestScore.surface && (score.len > bestScore.len ||
+         (score.len === bestScore.len && score.d < bestScore.d)))){
+      best = full; bestScore = score;
+    }
   }
+  hintLastPick = best ? { keys: best.map(o => String(o.key)), anchorY: +best[0].p.y.toFixed(2),
+                          pileTop: +pileTop.toFixed(2), surface: bestScore.surface === 1 } : null;
   return best;
 }
+let hintLastPick = null; // самоотчёт ПОСЛЕДНЕГО выбора — только для стражей/стенда
 // ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) — зеркало ad-встряски:
 // заряды кончились → предлагаем ролик → +1 заряд. Доступна ТОЛЬКО при нуле
 // зарядов (как ad-встряска открывается лишь после бесплатных) и в пределах
@@ -9174,6 +9200,9 @@ function showHint(){
   Telemetry.ev('spend', { item: 'hint' });
   reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
+  // КАМЕРА ПОДЪЕЗЖАЕТ к якорю подсказки (просьба тестеров, слово владельца
+  // 2026-08-03) — мягкий полёт, любой жест игрока его обрывает (90-input)
+  try { hintCamFly(grp[0]); } catch(e){}
   updateHUD();
 }
 function hintPulse(item){
@@ -11210,7 +11239,10 @@ function setTargetY(y){
 const AUTO_FOLLOW_MIN = TARGET_Y_DEF - (TARGET_Y_DEF - TARGET_Y_MIN) / 3; // 3.2
 const CAM_FOLLOW_FRAC = 0.2;
 let panManualUntil = 0, camFollowAt = 0;
-function noteManualPan(){ panManualUntil = performance.now() + 4000; }
+function noteManualPan(){
+  panManualUntil = performance.now() + 4000;
+  hintFly = null; // жест игрока обрывает полёт подсказки
+}
 function tickCamFollow(dt){
   if (intro || !level || !level.aliveN0 || paused) return;
   const now = performance.now();
@@ -11225,6 +11257,34 @@ function tickCamFollow(dt){
   }
   const d = AUTO_FOLLOW_MIN - camTarget.y;
   if (Math.abs(d) > 0.005) setTargetY(camTarget.y + d * Math.min(1, dt * 1.5));
+}
+// ===== ПОЛЁТ КАМЕРЫ К ПОДСКАЗКЕ ===== (просьба тестеров, слово владельца
+// 2026-08-03: «при клике на подсказку камера подъезжает к объекту, который
+// можно совместить»). Ease-out 900 мс: азимут кратчайшей дугой к предмету,
+// target.y к его высоте (в клампе пана), радиус до <=13 (если дальше).
+// Любой ЖЕСТ игрока обрывает полёт мгновенно (обрыв в noteManualPan и в
+// начале орбиты/щипка); автопан эндшпиля придержан той же panManualUntil —
+// иначе он тут же утаскивал бы target назад к 3.2.
+let hintFly = null;
+function hintCamFly(item){
+  const az2 = Math.atan2(item.p.x, item.p.z); // формула позиции: x=sin(az), z=cos(az)
+  let dAz = az2 - camAz;
+  dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // кратчайшая дуга
+  hintFly = { t0: performance.now(), dur: 900,
+    az0: camAz, az1: camAz + dAz,
+    y0: camTarget.y, y1: Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, item.p.y)),
+    r0: camR, r1: Math.min(camR, 13) };
+  panManualUntil = performance.now() + 4500;
+}
+function tickHintFly(){
+  if (!hintFly) return;
+  const k = (performance.now() - hintFly.t0) / hintFly.dur;
+  const e = k >= 1 ? 1 : 1 - Math.pow(1 - k, 3);
+  camAz = hintFly.az0 + (hintFly.az1 - hintFly.az0) * e;
+  camR = hintFly.r0 + (hintFly.r1 - hintFly.r0) * e;
+  camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, hintFly.y0 + (hintFly.y1 - hintFly.y0) * e));
+  updateCamera();
+  if (k >= 1) hintFly = null;
 }
 let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
 let pDown = null, dragging = false, pinch = null;
@@ -12161,7 +12221,8 @@ function loop(){
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
-  tickCamFollow(dt); // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickCamFollow(dt);
+  tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -12510,6 +12571,9 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+  hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
+  hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
+  itemsBrief(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), acc: !!i.accessible })); },
 
   // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
   // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит

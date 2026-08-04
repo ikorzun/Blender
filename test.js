@@ -1582,6 +1582,54 @@ window.bridge = {
   expect(refill.aliveEnd === 0 && refill.over === true,
     'ДОКИДКА: хэппиэнд — чаша пуста, уровень выигран сбором (' + JSON.stringify(refill) + ')');
 
+  // ===== ПОДСКАЗКА: ПОВЕРХНОСТНЫЙ ВЫБОР + ПОЛЁТ КАМЕРЫ (просьба тестеров,
+  // слово владельца 2026-08-03) =====
+  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(1200);
+  const hintCam = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const cam0 = g.cam();
+    g.hintShow();                       // честный путь кнопки (заряды стартовые)
+    const pick = g.hintLast();
+    // осадка: камера ДОЛЕТЕЛА (два неподвижных снапшота), потолок 3 c
+    let prev = null, cam1 = null;
+    { const t0 = Date.now();
+      while (Date.now() - t0 < 3000){
+        const c = g.cam();
+        if (prev && c.az === prev.az && c.ty === prev.ty && c.r === prev.r){ cam1 = c; break; }
+        prev = c; await sleep(150);
+      } }
+    cam1 = cam1 || g.cam();
+    return { cam0: { az: cam0.az, ty: cam0.ty, r: cam0.r },
+             cam1: { az: cam1.az, ty: cam1.ty, r: cam1.r }, pick };
+  });
+  console.log('hint cam:', JSON.stringify(hintCam));
+  expect(hintCam.pick && hintCam.pick.surface === true,
+    'ПОДСКАЗКА: на свежей куче выбор из ВЕРХНЕГО слоя (глубина — крайний случай) (' + JSON.stringify(hintCam.pick) + ')');
+  expect(hintCam.cam1.r <= 13.01 && (hintCam.cam1.az !== hintCam.cam0.az || hintCam.cam1.ty !== hintCam.cam0.ty),
+    'ПОДСКАЗКА: камера подъехала к якорю (наезд + разворот/подъём) (' + JSON.stringify(hintCam) + ')');
+  // жест игрока ОБРЫВАЕТ полёт: старт второй подсказки -> Shift+колесо в
+  // середине -> камера замерла и к цели не доехала бы сама
+  const hintBreak = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.regen(); g.skipIntro(); await sleep(1100);
+    g.hintShow();
+    await sleep(250);                    // полёт в разгоне (ease 900 мс)
+    return g.cam();
+  });
+  await page.keyboard.down('Shift');
+  await page.mouse.move(195, 400);
+  await page.mouse.wheel(0, 120);        // настоящий жест пана
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(450);
+  const hb1 = await page.evaluate(() => window.__game.cam());
+  await page.waitForTimeout(450);
+  const hb2 = await page.evaluate(() => window.__game.cam());
+  expect(hb1.az === hb2.az && hb1.r === hb2.r,
+    'ПОДСКАЗКА: жест игрока обрывает полёт — камера больше не движется сама (' + JSON.stringify({ hb1, hb2 }) + ')');
+
   const bpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const bErrors = [];
   bpage.on('pageerror', e => bErrors.push('PAGEERROR: ' + e.message));
