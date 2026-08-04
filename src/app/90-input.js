@@ -441,7 +441,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     hide('starsOverlay'); refreshMainScreen();
   });
 });
-$('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
+// msSubscribe удалён вместе с баннером меню (слово владельца 2026-08-03)
 $('msGrid').addEventListener('click', e => {
   const btn = e.target.closest('.msc-boost');
   if (btn){

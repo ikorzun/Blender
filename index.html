@@ -810,13 +810,6 @@
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
   /* баннер No more AD */
-  .ms-banner { background:#c0ff47; border-radius:32px; padding:8px; min-height:160px;
-    display:flex; flex-direction:column; }
-  .ms-banner-t { flex:1; display:grid; place-items:center; font-size:21px;
-    font-weight:900; color:#000; }
-  .ms-sub { border:none; cursor:pointer; background:#fff; color:#000; width:100%;
-    height:56px; border-radius:1000px; font-family:var(--font-round);
-    font-size:20px; font-weight:700; }
   /* Play */
   /* заливка = градиент времени суток (--sky-grad ставит 10-stage из SKY_GRAD);
      #d8bbff — фолбэк, если сцена ещё не поднялась */
@@ -908,7 +901,6 @@
      встают прямыми детьми .ms-wrap и раскладываются этим order. */
   @media (max-width:1079px){
     .ms-head { order:-1; }
-    .ms-banner { order:1; }
     .ms-play { order:2; }
     .ms-settings { order:3; }
     .ms-coll-title { order:4; }
@@ -1086,7 +1078,7 @@
       grid-template-rows:auto 1fr auto auto; height:100vh; overflow:hidden;
       grid-template-areas:"play play chead"
                           "play play grid "
-                          "sets bann grid "
+                          "sets sets grid "
                           "dev  dev  grid "; }
     /* ПРАВАЯ КОЛОНКА (макет 763:1031): шапка = заголовок слева + профиль
        справа, над сеткой. Профиль сюда переносит одна перемена display у
@@ -1115,7 +1107,6 @@
     .ms-eyes { flex:1 1 auto; min-height:0; }
     .ms-playbtn { flex:none; }
     .ms-settings { grid-area:sets; border-radius:40px; }
-    .ms-banner { grid-area:bann; min-height:0; }
     /* ⚠️ КОЛЛЕКЦИЯ СКРОЛЛИТСЯ ВНУТРИ СЕБЯ: в ней ВСЕ 93 типа. Высоту задаёт
        ГРИД-ЯЧЕЙКА (min-height:0 позволяет ужаться ниже контента), overflow-y
        доедает остаток. max-height НЕ нужен — bento-wrap уже ровно 100vh. */
@@ -1534,7 +1525,7 @@
   <button id="perfCopyBtn" style="margin-top:6px">Copy perf report</button>
   <textarea id="perfOut" readonly style="display:none;width:100%;height:90px;margin-top:6px;font-size:10px"></textarea>
   <button id="resetBtn" style="margin-top:6px; background:rgba(230,72,77,.18); color:#ff8a8f">Reset progress</button>
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-235 · 2026-08-01</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build v1-test-236 · 2026-08-01</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -1706,15 +1697,12 @@
       </div>
     </header>
     </div>
-    <!-- БАННЕР No more AD (лайм) + Subscribe $1.99 -->
-    <section class="ms-banner">
-      <div class="ms-banner-t">No more AD</div>
-      <!-- «БЕЗ РЕКЛАМЫ НАВСЕГДА» вместо подписки (спека владельца 2026-07-30:
-     разовая покупка noads_forever за $4.90, подписок в веб-версии нет).
-     $4.90 здесь — ФОЛБЭК: живую цену (локальная валюта площадки) подтягивает
-     78-ads из bridge.payments.getCatalog, когда платежи доступны. -->
-    <button class="ms-sub" id="msSubscribe">Forever for $4.90</button>
-    </section>
+    <!-- ⛔ БАННЕР «No more AD» УДАЛЁН ИЗ МЕНЮ (слово владельца 2026-08-03
+     дословно: «убери этот блок из меню, вместо него будет блок лидербордов,
+     но позже. В десктопе настройки растянуться во всю колонку»). Продукт
+     noads_forever ЖИВ в каталоге платежей (playgama-bridge-config.json) —
+     ушла только точка входа из меню; вернётся с блоком лидербордов, где —
+     решит владелец. -->
     <!-- PLAY: лиловая панель, спокойные глаза eyes-0 + большая кнопка -->
     <section class="ms-play">
       <svg class="ms-eyes" viewBox="0 0 240 120" fill="none" aria-hidden="true">
@@ -8256,15 +8244,9 @@ const Ads = (function(){
         // bridgeSyncSave вынесен выше (площадка с платежами, но без rewarded,
         // иначе не получала бы живую цену никогда).
         try {
-          if (br.payments && br.payments.getCatalog){
-            br.payments.getCatalog().then((items)=>{
-              const it = (items || []).find(x => x && x.id === 'noads_forever');
-              const price = it && (it.price ||
-                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
-              const btn = document.getElementById('msSubscribe');
-              if (price && btn) btn.textContent = 'Forever for ' + price;
-            }).catch(()=>{});
-          }
+          // ⛔ Подтяжка живой цены noads_forever на кнопку меню удалена
+          // вместе с баннером (слово владельца 2026-08-03); сам продукт в
+          // каталоге жив. Вернуть при блоке лидербордов/новой точке входа.
         } catch(e){}
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
@@ -12122,7 +12104,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     hide('starsOverlay'); refreshMainScreen();
   });
 });
-$('msSubscribe').addEventListener('click', ()=> toast('Coming soon'));
+// msSubscribe удалён вместе с баннером меню (слово владельца 2026-08-03)
 $('msGrid').addEventListener('click', e => {
   const btn = e.target.closest('.msc-boost');
   if (btn){

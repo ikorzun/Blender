@@ -289,15 +289,9 @@ const Ads = (function(){
         // bridgeSyncSave вынесен выше (площадка с платежами, но без rewarded,
         // иначе не получала бы живую цену никогда).
         try {
-          if (br.payments && br.payments.getCatalog){
-            br.payments.getCatalog().then((items)=>{
-              const it = (items || []).find(x => x && x.id === 'noads_forever');
-              const price = it && (it.price ||
-                (it.priceValue != null && it.priceCurrencyCode ? it.priceValue + ' ' + it.priceCurrencyCode : null));
-              const btn = document.getElementById('msSubscribe');
-              if (price && btn) btn.textContent = 'Forever for ' + price;
-            }).catch(()=>{});
-          }
+          // ⛔ Подтяжка живой цены noads_forever на кнопку меню удалена
+          // вместе с баннером (слово владельца 2026-08-03); сам продукт в
+          // каталоге жив. Вернуть при блоке лидербордов/новой точке входа.
         } catch(e){}
         if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
