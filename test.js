@@ -2274,11 +2274,12 @@ window.bridge = {
     await wait(120);
     out.granted = window.__game.bundleState().noAdLeftMs > before;  // бандл реально выдан
     out.consumed = P._consumed.indexOf('bundle5') >= 0;
-    // 2) NOADS_FOREVER: выдать нечем (ручки МЕТЫ нет) — отказ ГРОМКИЙ,
-    //    и покупка НЕ закрывается: она и есть доказательство владения
+    // 2) NOADS_FOREVER: мета выдаёт НАВСЕГДА (grantNoAdsForever -> Save.naf,
+    //    v237), и покупка НЕ закрывается: она и есть доказательство владения
     P._consumed = [];
     out.noads = await A.purchase('noads_forever');
     await wait(120);
+    out.noadsForever = window.__game.noAdActive() === true; // включён флагом, окна na тут нет
     out.noadsConsumed = P._consumed.indexOf('noads_forever') >= 0;
     // 3) ВОССТАНОВЛЕНИЕ: незакрытая покупка довыдаётся...
     P._list = [{ id:'bundle3', orderId:'ord_restore_1', status:'PAID' }];
@@ -2300,8 +2301,14 @@ window.bridge = {
   expect(iap.granted === true, 'платежи: бандл РЕАЛЬНО выдан (окно без рекламы выросло)');
   expect(iap.consumed === true,
     'платежи: расходуемый бандл ЗАКРЫТ (без этого он выдавался бы каждый старт)');
-  expect(iap.noads && iap.noads.ok === false && iap.noads.reason === 'no_grant_handle',
-    'платежи: noads_forever отказан ГРОМКО — ручки выдачи в МЕТЕ нет (' + JSON.stringify(iap.noads) + ')');
+  // Страж эволюционировал ВМЕСТЕ с ручкой (v237): раньше фиксировал громкий
+  // отказ 'no_grant_handle' — теперь мета выдаёт (grantNoAdsForever ->
+  // Save.naf), и правильный ассерт — успех покупки И включённый навсегда
+  // noAdActive (без временного окна: чистый профиль страницы).
+  expect(iap.noads && iap.noads.ok === true,
+    'платежи: noads_forever ВЫДАН метой (grantNoAdsForever) (' + JSON.stringify(iap.noads) + ')');
+  expect(iap.noadsForever === true,
+    'платежи: «без рекламы» включён НАВСЕГДА (Save.naf, не окно) (' + JSON.stringify(iap.noadsForever) + ')');
   expect(iap.noadsConsumed === false,
     'платежи: noads_forever НЕ закрывается — покупка и есть доказательство владения');
   expect(iap.restGranted === true, 'платежи: восстановление ДОВЫДАЛО незакрытую покупку');

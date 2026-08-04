@@ -57,6 +57,9 @@ function mergeSave(into, from){
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
     into.se = from.se || 0; into.ss = from.ss || 0; into.tu = from.tu || 0; into.sm = from.sm || 0;
     into.na = from.na || 0; into.pe = from.pe || 0; into.ps = from.ps || 0; into.iw = from.iw || 0;
+    // naf — ПОКУПКА НАВСЕГДА: переживает даже смену поколения (сброс
+    // прогресса не отменяет оплаченного товара) — OR с ОБЕИХ сторон
+    into.naf = (from.naf || into.naf) ? 1 : 0;
     into.st = from.st || 0; into.sv = from.sv || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
@@ -82,6 +85,7 @@ function mergeSave(into, from){
   into.iw = Math.max(into.iw || 0, from.iw || 0); // каденция, не валюта: max = максимум один лишний показ
   into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
   into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
+  into.naf = (into.naf || from.naf) ? 1 : 0; // «навсегда без рекламы» — OR: покупка не отменяется отставшей копией
   into.pe = Math.max(into.pe || 0, from.pe || 0); // купленные встряски: пара как he/hs,
   into.ps = Math.max(into.ps || 0, from.ps || 0); // отставшая копия не воскрешает потраченное
   // ⚠️ ОКНА МНОЖИТЕЛЯ — max ПО КЛЮЧУ-МНОЖИТЕЛЮ. Ключ несёт сам множитель,
@@ -178,10 +182,22 @@ function scoreBoostLeftMs(){
   const m = scoreBoostMult();
   return m > 1 ? Math.max(0, (w[m] || 0) - t.now) : 0;
 }
-function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); }
+function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // naf НЕ трогает: это покупка, не буст
+// ВЫДАЧА «НАВСЕГДА БЕЗ РЕКЛАМЫ» (стоп-вопрос Интеграции при вводе платежей
+// 2026-08-03): ПОСТОЯННЫЙ флаг Save.naf — в отличие от временного окна
+// Save.na у бандлов. Зовёт платёжный слой (78-ads purchase/restore) по
+// контракту typeof grantNoAdsForever. Идемпотентно: restore дергает её на
+// КАЖДОМ старте, пока покупка висит в getPurchases (non-consumable).
+function grantNoAdsForever(){
+  if (Save.naf) return;
+  Save.naf = 1;
+  commitSave();
+  try { updateHUD(); } catch(e){}
+  try { Telemetry.ev('iap', { ph: 'grant', id: 'noads_forever' }); } catch(e){}
+}
 // ОКНО БЕЗ РЕКЛАМЫ: гасит ТОЛЬКО межстраничные; rewarded живут — их игрок
 // просит сам (решение диспетчера), и они же несут заряды подсказок/встрясок.
-function noAdActive(){ const t = boostNow(); return (Save.na || 0) > t.now; }
+function noAdActive(){ if (Save.naf) return true; const t = boostNow(); return (Save.na || 0) > t.now; }
 function noAdLeftMs(){ const t = boostNow(); return Math.max(0, (Save.na || 0) - t.now); }
 // КУПЛЕННЫЕ ВСТРЯСКИ — ПОСТОЯННЫЙ кошелёк монотонной парой (образец he/hs):
 // анти-дюп по построению, облачный max-мерж не воскрешает потраченное.
