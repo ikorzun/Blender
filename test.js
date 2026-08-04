@@ -1680,7 +1680,8 @@ window.bridge = {
   // страховка НЕ отработала и спас только жёсткий предел — обещание-то
   // разрешилось, но занавес остался бы висеть. Ассерт на первое.
   const MOCK_HANG = `
-window.__probe = { progress:null };
+window.__probe = window.__probe || { progress:null, boots:0 };
+window.__probe.boots = (window.__probe.boots || 0) + 1; // диагностика двойной загрузки мока
 window.bridge = {
   PLATFORM_MESSAGE: { GAME_READY: 'game_ready' },
   EVENT_NAME: {}, REWARDED_STATE: {},
@@ -1706,7 +1707,11 @@ window.bridge = {
   const hang = await hpage.evaluate(async () => {
     const why = await Promise.race([ window.__ads.curtainGone,
       new Promise(r => setTimeout(()=>r('НЕ РАЗРЕШИЛОСЬ'), 6000)) ]);
-    return { why, progress: window.__probe.progress };
+    // осадка-опрос ФАКТА вызова: под нагрузкой полного прогона чтение
+    // сразу после резолва ловило момент, а не состояние (класс из канона)
+    let pg = window.__probe.progress;
+    for (let i = 0; i < 20 && pg == null; i++){ await new Promise(r => setTimeout(r, 100)); pg = window.__probe.progress; }
+    return { why, progress: pg, boots: window.__probe.boots };
   });
   await hpage.close(); await new Promise(r => srvH.close(r));
   expect(hang.why === 'снят страховкой',
