@@ -487,7 +487,8 @@ function loop(){
   tickVeil(dt);
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
-  tickCamFollow(dt); // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickCamFollow(dt);
+  tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -836,6 +837,9 @@ window.__game = {
   },
   shake: performShake,
   penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
+  hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
+  hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
+  itemsBrief(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), acc: !!i.accessible })); },
 
   // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
   // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит

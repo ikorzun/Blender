@@ -822,7 +822,11 @@ function handleTapInner(x, y){
 function findHintGroup(){
   refreshAccessibility();
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
-  let best = null;
+  // вершина кучи — по НЕлетящим, чтобы свежая досыпка не задирала планку
+  let pileTop = 0;
+  for (const it of items) if (it.alive && it.p.y < FUNNEL.H) pileTop = Math.max(pileTop, it.p.y);
+  const surfaceY = pileTop - HINT_SURFACE_DEPTH;
+  let best = null, bestScore = null;
   for (const it of acc){
     let grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
     // тот же кап, что и в тапе (спека владельца 2026-07-27): подсказка не
@@ -831,10 +835,26 @@ function findHintGroup(){
       grp = grp.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
                .slice(0, MATCH_MAX_N - 1).map(v => v.o);
     }
-    if (grp.length && (!best || grp.length + 1 > best.length)) best = [it].concat(grp);
+    if (!grp.length) continue;
+    const full = [it].concat(grp);
+    // ПОВЕРХНОСТНЫЙ ЭШЕЛОН (просьба тестеров, слово владельца 2026-08-03):
+    // группы, целиком лежащие в верхнем слое кучи, всегда бьют глубокие —
+    // глубина «только в крайнем случае». Внутри эшелона — прежний порядок:
+    // больше группа, при равенстве ближе пара.
+    const surface = full.every(o => o.p.y >= surfaceY) ? 1 : 0;
+    const score = { surface, len: full.length, d: pairDist(grp[0], it) };
+    if (!bestScore ||
+        score.surface > bestScore.surface ||
+        (score.surface === bestScore.surface && (score.len > bestScore.len ||
+         (score.len === bestScore.len && score.d < bestScore.d)))){
+      best = full; bestScore = score;
+    }
   }
+  hintLastPick = best ? { keys: best.map(o => String(o.key)), anchorY: +best[0].p.y.toFixed(2),
+                          pileTop: +pileTop.toFixed(2), surface: bestScore.surface === 1 } : null;
   return best;
 }
+let hintLastPick = null; // самоотчёт ПОСЛЕДНЕГО выбора — только для стражей/стенда
 // ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) — зеркало ad-встряски:
 // заряды кончились → предлагаем ролик → +1 заряд. Доступна ТОЛЬКО при нуле
 // зарядов (как ad-встряска открывается лишь после бесплатных) и в пределах
@@ -877,6 +897,9 @@ function showHint(){
   Telemetry.ev('spend', { item: 'hint' });
   reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
+  // КАМЕРА ПОДЪЕЗЖАЕТ к якорю подсказки (просьба тестеров, слово владельца
+  // 2026-08-03) — мягкий полёт, любой жест игрока его обрывает (90-input)
+  try { hintCamFly(grp[0]); } catch(e){}
   updateHUD();
 }
 function hintPulse(item){
