@@ -166,6 +166,16 @@ canvas.addEventListener('wheel', e => {
   if (e.shiftKey){ noteManualPan(); setTargetY(camTarget.y - e.deltaY * 0.004); }
   else setCamR(camR + e.deltaY * 0.012);
 }, { passive:false });
+// ЗУМ КНОПКАМИ (нода 829:1242, спека владельца «добавил зум по просьбе
+// тестировщиков»). ⚠️ Ведём ТУ ЖЕ `setCamR`, что колесо и щипок: пределы
+// CAM_R_MIN/MAX и `updateCamera` живут внутри неё, поэтому кнопки не могут
+// увести камеру туда, куда не пускают жесты. Шаг 1.6 — примерно щелчок колеса
+// (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
+// ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
+const ZOOM_STEP = 1.6;
+function zoomBy(d){ if (intro) return; setCamR(camR + d); }
+$('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
+$('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 
