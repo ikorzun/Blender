@@ -4428,6 +4428,66 @@ window.bridge = {
     '🔥 БОНУС: сбор группы ГАСИТ огонь — одноразовый (' + JSON.stringify(fireBonus.послеСбора) + ')');
   await firePage.close();
 
+  // ── ТЕКСТЫ ДОЛГОЙ МЕТЫ НА ТЕЛЕФОНЕ (план §1.3) ──────────────────────────
+  // Проблема: витрина загейтована min-width:813px и на телефоне не строится,
+  // а тост апа показывал голое «×1.25». Правило «спасённые НАВСЕГДА растят
+  // множитель вида» игрок не узнавал нигде.
+  const mtText = await page.evaluate(() => {
+    const g = window.__game;
+    g.metaRuleReset(); g.storyClearAcc();
+    const key = g.storyTypeNames()[0];
+    const zero = g.metaTexts(key);
+    g.accGrant(key, 120);                       // первая ступень (порог 100)
+    const tier1 = g.metaTexts(key);
+    g.accGrant(key, 100000);                    // за кап ступеней
+    const capped = g.metaTexts(key);
+    return { key, zero, tier1, capped };
+  });
+  expect(/^\S.* · 0 saved$/.test(mtText.zero.line),
+    'строка тоста: имя вида + счётчик спасённых (' + mtText.zero.line + ')');
+  expect(mtText.tier1.line.endsWith('· 120 saved'),
+    'счётчик в строке живой (' + mtText.tier1.line + ')');
+  expect(/^next ×[\d.]+ at \d+$/.test(mtText.tier1.next),
+    'строка прогресса обещает СЛЕДУЮЩУЮ ступень и порог (' + mtText.tier1.next + ')');
+  expect(mtText.capped.next === 'max level',
+    '⚠️ НА КАПЕ строка «next …» НЕ ВРЁТ, а честно говорит про потолок (' + mtText.capped.next + ')');
+
+  // ПРАВИЛО ОБЪЯСНЯЕТСЯ РОВНО ОДИН РАЗ и переживает мерж
+  const mtRule = await page.evaluate(() => {
+    const g = window.__game;
+    g.metaRuleReset();
+    const before = g.metaRuleState().due;
+    g.metaRuleMark();
+    const after = g.metaRuleState().due;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, mt: 0 });      // отставшая копия
+    const afterOldMerge = g.metaRuleState().due;
+    return { before, after, afterOldMerge, text: g.metaTexts(g.storyTypeNames()[0]).rule };
+  });
+  expect(mtRule.before === true && mtRule.after === false,
+    'правило накопления объясняется один раз (' + JSON.stringify(mtRule) + ')');
+  expect(mtRule.afterOldMerge === false,
+    '⚠️ МЕРЖ: старая копия НЕ заставит объяснять правило заново');
+  expect(mtRule.text.length > 0 && mtRule.text.length <= 40,
+    'текст правила короткий — тост живёт 1.6 с (' + mtRule.text.length + ' знаков: «' + mtRule.text + '»)');
+
+  // ПОДПИСЬ РЕАЛЬНО ПОЯВЛЯЕТСЯ В ТОСТЕ (а не только в хелпере)
+  const mtToast = await page.evaluate(async () => {
+    const g = window.__game;
+    g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
+    g.setLevel(20); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    const live = g.accSnapshot().find(r => r._item);
+    if (!live) return { skipped: true };
+    g.accGrant(live.key, 120);                  // пересечение порога -> событие
+    await new Promise(r => setTimeout(r, 200));
+    const el = document.getElementById('ttLine');
+    return { text: el ? el.textContent : null, key: live.key };
+  });
+  if (!mtToast.skipped){
+    expect(mtToast.text && mtToast.text.indexOf('saved') > 0,
+      'подпись «имя · N saved» реально отрисована в тосте (' + mtToast.text + ')');
+  }
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

@@ -803,6 +803,27 @@ function nextTierToast(){
   if (url) $('ttImg').src = url;
   // имени предмета в макете 769:56 нет — показываем портрет и множитель
   $('ttMult').textContent = fmtMult(ev.mult || 1);
+  // ⚠️ ПОДПИСЬ ПОД ПОРТРЕТОМ (пункт плана 1.3, тексты — ПОВЕСТВОВАНИЕ): голое
+  // «×1.25» на телефоне не значило НИЧЕГО — витрина там не строится вовсе, и
+  // связать множитель с конкретным видом было негде. Имя + счётчик спасённых
+  // делают число величиной: «Tiger · 300 saved».
+  // Узел создаётся из JS и не трогает разметку: макет 769:56 имени не
+  // предусматривал, поэтому изменение адресное и снимается одной строкой.
+  let ttLine = $('ttLine');
+  if (!ttLine){
+    ttLine = document.createElement('div');
+    ttLine.id = 'ttLine';
+    ttLine.setAttribute('style', 'font:600 12px/1.2 var(--font-round); opacity:.75; margin-top:2px; white-space:nowrap;');
+    t.querySelector('.ttRow').insertAdjacentElement('afterend', ttLine);
+  }
+  ttLine.textContent = typeof accToastLine === 'function' ? accToastLine(ev.key || ev.name) : '';
+  // ПРАВИЛО — РОВНО ОДИН РАЗ, в момент ПЕРВОЙ ступени: раньше игрок не понял бы,
+  // о чём речь, позже — уже привык к цифре без смысла. Отдельным тостом, а не
+  // строкой в пилюле: за 1.9 с две мысли не читаются.
+  if (typeof accRuleDue === 'function' && accRuleDue()){
+    accRuleMark();
+    setTimeout(()=>{ toast(accRuleText()); }, 700);
+  }
   t.classList.remove('bye'); void t.offsetWidth;
   t.classList.add('show');
   Sound.play('surprise', 0.6); vibrate([15, 30, 15]);
