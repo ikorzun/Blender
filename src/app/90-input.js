@@ -1,7 +1,10 @@
 // ===== 90-input: тап, вращение, пинч-зум, колесо, кнопки =====
 
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
-function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
+function setCamR(r){
+  zoomAnim = null; // жест (колесо/щипок) главнее кнопки — анимация гаснет
+  camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera();
+}
 // ВЕРТИКАЛЬНЫЙ ПАН ВЗГЛЯДА (спека владельца 2026-07-21: «чуть сместить
 // камеру по вертикали, чтобы приподнять и рассмотреть остатки»): target
 // камеры ездит по Y в узких пределах — вниз до дна (остатки в центре
@@ -173,7 +176,27 @@ canvas.addEventListener('wheel', e => {
 // (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
 // ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
 const ZOOM_STEP = 1.6;
-function zoomBy(d){ if (intro) return; setCamR(camR + d); }
+// ПЛАВНЫЙ ЗУМ КНОПКАМИ (слово владельца 2026-08-04: «клик и тап на зум
+// увеличивает плавнее, а не так резко»): ease-out 260 мс тикером; серия
+// кликов складывается от ЦЕЛИ прошлого клика, пределы те же CAM_R_MIN/MAX.
+// Жест через setCamR гасит анимацию; кнопка зума, как любой жест, обрывает
+// полёт подсказки.
+let zoomAnim = null;
+function zoomBy(d){
+  if (intro) return;
+  hintFly = null;
+  const from = (zoomAnim ? zoomAnim.r1 : camR);
+  const to = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, from + d));
+  zoomAnim = { t0: performance.now(), dur: 260, r0: camR, r1: to };
+}
+function tickZoomAnim(){
+  if (!zoomAnim) return;
+  const k = (performance.now() - zoomAnim.t0) / zoomAnim.dur;
+  const e = k >= 1 ? 1 : 1 - Math.pow(1 - k, 3);
+  camR = zoomAnim.r0 + (zoomAnim.r1 - zoomAnim.r0) * e;
+  updateCamera();
+  if (k >= 1) zoomAnim = null;
+}
 $('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
 $('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
 document.addEventListener('contextmenu', e => e.preventDefault());

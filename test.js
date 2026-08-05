@@ -4549,6 +4549,57 @@ window.bridge = {
   expect(guestC.emojiGone && /rgb\(/.test(guestC.bg1),
     'ГОСТЬ: аватар — чистый цвет, плейсхолдер ушёл (' + guestC.bg1 + ')');
 
+  // ===== ЗУМ-КНОПКИ: чёрный глиф в обе темы + плавный ход (слова владельца
+  // 2026-08-04: «всегда черного цвета», «увеличивает плавнее, а не так резко»)
+  const zoomSmooth = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.regen(); g.skipIntro(); await sleep(500);
+    const glyphDay = getComputedStyle(document.querySelector('#zoomInBtn svg path')).fill;
+    document.documentElement.classList.add('night');
+    const glyphNight = getComputedStyle(document.querySelector('#zoomInBtn svg path')).fill;
+    document.documentElement.classList.remove('night');
+    const r0 = g.cam().r;
+    document.getElementById('zoomInBtn').click();
+    await sleep(80);                                  // середина хода: ещё едем
+    const rMid = g.cam().r;
+    let rEnd = rMid;
+    { const t0 = Date.now();                          // осадка: доехали и встали
+      let prev = -1;
+      while (Date.now() - t0 < 2000){ const r = g.cam().r; if (r === prev) { rEnd = r; break; } prev = r; await sleep(120); } }
+    return { glyphDay, glyphNight, r0, rMid, rEnd };
+  });
+  console.log('zoom:', JSON.stringify(zoomSmooth));
+  // ДЕСКТОПНАЯ РАСКЛАДКА ЗУМА (нода 741:1497): РЯД по центру внизу, 48×48,
+  // минус ЛЕВЕЕ плюса. Мобильная колонка 56×56 слева при этом цела.
+  const zoomDesk = await (async () => {
+    const dp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    await dp.goto('file://' + path.join(__dirname, 'index.html'));
+    await dp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await dp.evaluate(() => window.__game.skipIntro());
+    await dp.waitForTimeout(600);
+    const r = await dp.evaluate(() => {
+      const g = (id) => { const b = document.getElementById(id).getBoundingClientRect();
+        return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const plus = g('zoomInBtn'), minus = g('zoomOutBtn');
+      return { plus, minus, cx: Math.round((Math.min(plus.x, minus.x) + Math.max(plus.x + plus.w, minus.x + minus.w)) / 2),
+               bottom: Math.round(innerHeight - Math.max(plus.y + plus.h, minus.y + minus.h)) };
+    });
+    await dp.close();
+    return r;
+  })();
+  console.log('zoom desktop:', JSON.stringify(zoomDesk));
+  expect(zoomDesk.plus.w === 48 && zoomDesk.minus.w === 48 && zoomDesk.plus.y === zoomDesk.minus.y,
+    'ЗУМ-ДЕСКТОП: ряд 48×48 на одной высоте (нода 741:1497) (' + JSON.stringify(zoomDesk) + ')');
+  expect(zoomDesk.minus.x < zoomDesk.plus.x && Math.abs(zoomDesk.cx - 640) <= 2 && Math.abs(zoomDesk.bottom - 20) <= 2,
+    'ЗУМ-ДЕСКТОП: минус слева, группа по центру, 20px от низа (' + JSON.stringify(zoomDesk) + ')');
+  expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
+    'ЗУМ: глиф чёрный в ОБЕ темы (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
+  expect(zoomSmooth.rMid < zoomSmooth.r0 && zoomSmooth.rMid > zoomSmooth.r0 - 1.6 + 0.05,
+    'ЗУМ: ход ПЛАВНЫЙ — на 80мс камера ещё в пути, не ступенька (' + JSON.stringify(zoomSmooth) + ')');
+  expect(Math.abs(zoomSmooth.rEnd - (zoomSmooth.r0 - 1.6)) < 0.05,
+    'ЗУМ: доехал ровно на шаг и встал (' + JSON.stringify(zoomSmooth) + ')');
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });

@@ -474,6 +474,12 @@ function chargeFadeTick(){
 // повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
 let multToastT = 0;
 function showMultToast(typeName, mult){
+  // десктоп ставит тост НАД витриной (нода 741:1497): её высота зависит от
+  // числа типов уровня, поэтому отдаём измеренную высоту в CSS-переменную
+  try {
+    const v = document.getElementById('vitrine');
+    if (v && v.offsetHeight) document.documentElement.style.setProperty('--vitrineH', v.offsetHeight + 'px');
+  } catch(e){}
   const el = $('multToast');
   if (!el) return;
   const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(typeName) : null;

@@ -289,6 +289,11 @@
   .zoomBtn, html.night .zoomBtn {
     background:rgba(255,255,255,.4); color:#000;
     box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55); }
+  /* ⚠️ ГЛИФ КРАСИТ НЕ color, а правило «.iconBtn svg path { fill:var(--btn-fg) }»
+     — тема ночью давала БЕЛЫЙ плюс/минус на светлой подложке (скрин владельца
+     2026-08-04, слово: «всегда черного цвета»). Точечный пере-краситель ниже
+     того правила, обе темы разом. */
+  .zoomBtn svg path, html.night .zoomBtn svg path { fill:#000; }
   /* КОНСТРУКЦИЯ ПЕРСОНАЖА (мобильный макет 741:1772 «Eye+score»): глаза
      210×105 и число отсчёта, налезающее на их низ. Полоски турбо НЕТ —
      накопление показывают сами зрачки (спека владельца 2026-07-21).
@@ -1357,6 +1362,28 @@
   #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
   #multToast img { width:44px; height:44px; object-fit:contain; }
   #multToastVal { font-size:22px; font-weight:800; color:#a8e10c; }
+  /* ===== ДЕСКТОП: ЗУМ И ТОСТ ПО НОДЕ 741:1497 (слово владельца 2026-08-04
+     «в десктопной версии контролы + и − расположены иначе») =====
+     Нода (кадр 1280×832): Zoom x588 y764 104×48 — РЯД, минус слева (48×48),
+     плюс справа (56 от левого края группы, зазор 8); группа отцентрована
+     по горизонтали (588+52=640=центр) и стоит в 20px от низа. На мобиле
+     (нода 829:1242) остаётся колонка 56×56 в левом нижнем углу — поэтому
+     переопределяем ТОЛЬКО в десктопной медиа, мобильные правила целы.
+     Тост множителя там же переезжает: нода даёт x16 y564 169×60 — левый
+     край как у витрины, НАД её панелью (у витрины низ 8, высота меняется
+     с числом типов, поэтому привязываемся к её верху через переменную). */
+  @media (min-width:768px){
+    #zoomGrp { position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
+      flex-direction:row; gap:8px; }
+    #zoomGrp .zoomBtn { width:48px; height:48px; }
+    #zoomGrp .zoomBtn svg { width:28px; height:28px; }
+    /* порядок ноды: минус ЛЕВЕЕ плюса (в разметке плюс идёт первым) */
+    #zoomInBtn { order:2; }
+    #zoomOutBtn { order:1; }
+    #multToast { left:16px; top:auto; bottom:calc(env(safe-area-inset-bottom, 0px) + 8px + var(--vitrineH, 180px) + 12px);
+      transform:none; }
+    #multToast.on { transform:none; }
+  }
 </style>
 </head>
 <body>
@@ -1519,11 +1546,13 @@
        Ведут ту же ручку, что колесо и щипок (zoomBy в 90-input) — отдельной
        механики зума не заводим, иначе разъедутся пределы camR. -->
   <div class="grp" id="zoomGrp">
-    <button class="iconBtn zoomBtn" id="zoomInBtn" aria-label="Zoom in"><svg viewBox="0 0 32 32" fill="none">
-      <path d="M14.333 5.333a1.667 1.667 0 0 1 3.334 0v9h9a1.667 1.667 0 0 1 0 3.334h-9v9a1.667 1.667 0 0 1-3.334 0v-9h-9a1.667 1.667 0 0 1 0-3.334h9v-9Z" fill="currentColor"/>
+    <button class="iconBtn zoomBtn" id="zoomInBtn" aria-label="Zoom in"><svg viewBox="0 0 28 28" fill="none">
+      <!-- геометрия из Interface/zoom-plus.svg (ассет владельца 2026-08-04) -->
+      <path d="M5.85439 12.5417C5.04897 12.5417 4.39605 13.1946 4.39605 14C4.39605 14.8054 5.04897 15.4583 5.85439 15.4583L12.6456 15.4583L12.6456 22.2496C12.6456 23.055 13.2985 23.7079 14.104 23.7079C14.9094 23.7079 15.5623 23.055 15.5623 22.2496L15.5623 15.4583L22.3535 15.4583C23.159 15.4583 23.8119 14.8054 23.8119 14C23.8119 13.1946 23.159 12.5417 22.3535 12.5417L15.5623 12.5417L15.5623 5.75042C15.5623 4.94501 14.9094 4.29209 14.104 4.29209C13.2985 4.29209 12.6456 4.94501 12.6456 5.75042L12.6456 12.5417L5.85439 12.5417Z" fill="currentColor"/>
     </svg></button>
-    <button class="iconBtn zoomBtn" id="zoomOutBtn" aria-label="Zoom out"><svg viewBox="0 0 32 32" fill="none">
-      <path d="M3.667 16c0-.92.746-1.667 1.666-1.667h21.334a1.667 1.667 0 0 1 0 3.334H5.333A1.667 1.667 0 0 1 3.667 16Z" fill="currentColor"/>
+    <button class="iconBtn zoomBtn" id="zoomOutBtn" aria-label="Zoom out"><svg viewBox="0 0 28 28" fill="none">
+      <!-- геометрия из Interface/zoom-minus.svg (ассет владельца 2026-08-04) -->
+      <path d="M20.895 12.5414C21.7004 12.5414 22.353 13.195 22.353 14.0004C22.3529 14.8056 21.7003 15.4584 20.895 15.4584C11.2332 15.4584 17.8686 15.4584 7.31299 15.4584C6.50768 15.4584 5.85418 14.8056 5.854 14.0004C5.854 13.195 6.50757 12.5414 7.31299 12.5414H20.895Z" fill="currentColor"/>
     </svg></button>
   </div>
   <!-- Hint ПЕРЕЕХАЛ ВПРАВО к Shake (спека владельца 2026-07-23): низ-лево
@@ -10581,6 +10610,12 @@ function chargeFadeTick(){
 // повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
 let multToastT = 0;
 function showMultToast(typeName, mult){
+  // десктоп ставит тост НАД витриной (нода 741:1497): её высота зависит от
+  // числа типов уровня, поэтому отдаём измеренную высоту в CSS-переменную
+  try {
+    const v = document.getElementById('vitrine');
+    if (v && v.offsetHeight) document.documentElement.style.setProperty('--vitrineH', v.offsetHeight + 'px');
+  } catch(e){}
   const el = $('multToast');
   if (!el) return;
   const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(typeName) : null;
@@ -12121,7 +12156,10 @@ function storyForceClose(){ if (storyDismiss) storyDismiss(); return !document.g
 // ===== 90-input: тап, вращение, пинч-зум, колесо, кнопки =====
 
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
-function setCamR(r){ camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera(); }
+function setCamR(r){
+  zoomAnim = null; // жест (колесо/щипок) главнее кнопки — анимация гаснет
+  camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera();
+}
 // ВЕРТИКАЛЬНЫЙ ПАН ВЗГЛЯДА (спека владельца 2026-07-21: «чуть сместить
 // камеру по вертикали, чтобы приподнять и рассмотреть остатки»): target
 // камеры ездит по Y в узких пределах — вниз до дна (остатки в центре
@@ -12293,7 +12331,27 @@ canvas.addEventListener('wheel', e => {
 // (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
 // ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
 const ZOOM_STEP = 1.6;
-function zoomBy(d){ if (intro) return; setCamR(camR + d); }
+// ПЛАВНЫЙ ЗУМ КНОПКАМИ (слово владельца 2026-08-04: «клик и тап на зум
+// увеличивает плавнее, а не так резко»): ease-out 260 мс тикером; серия
+// кликов складывается от ЦЕЛИ прошлого клика, пределы те же CAM_R_MIN/MAX.
+// Жест через setCamR гасит анимацию; кнопка зума, как любой жест, обрывает
+// полёт подсказки.
+let zoomAnim = null;
+function zoomBy(d){
+  if (intro) return;
+  hintFly = null;
+  const from = (zoomAnim ? zoomAnim.r1 : camR);
+  const to = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, from + d));
+  zoomAnim = { t0: performance.now(), dur: 260, r0: camR, r1: to };
+}
+function tickZoomAnim(){
+  if (!zoomAnim) return;
+  const k = (performance.now() - zoomAnim.t0) / zoomAnim.dur;
+  const e = k >= 1 ? 1 : 1 - Math.pow(1 - k, 3);
+  camR = zoomAnim.r0 + (zoomAnim.r1 - zoomAnim.r0) * e;
+  updateCamera();
+  if (k >= 1) zoomAnim = null;
+}
 $('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
 $('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -13252,7 +13310,8 @@ function loop(){
   tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
   tickCamFollow(dt);
-  tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом
+  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
