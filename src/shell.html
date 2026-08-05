@@ -1383,6 +1383,18 @@
     #multToast { left:16px; top:auto; bottom:calc(env(safe-area-inset-bottom, 0px) + 8px + var(--vitrineH, 180px) + 12px);
       transform:none; }
     #multToast.on { transform:none; }
+    /* ⚠️ ПОДСКАЗКА И SHAKE — ВПРАВО (нода 741:1497: hint x1074, shake x1142
+       при кадре 1280, то есть 16 от правого края). Пойман живым замером:
+       после переезда зума в центр (absolute) группа осталась ЕДИНСТВЕННЫМ
+       флекс-ребёнком бара и по space-between уехала ВЛЕВО — прямо на
+       витрину предметов (жалоба владельца со скрином). На мобиле зум
+       остаётся в потоке слева, поэтому правило только десктопное. */
+    #bottomBar { justify-content:flex-end; padding:16px; } /* поля 16 по ноде 741:1497 (мобильные 8 целы) */
+    /* БОНУСНАЯ ВЕЩЬ — правый край, по вертикали центр (нода: x1162 y376
+       80×80 при 1280×832 → right 38, центр по высоте). На мобиле она над
+       Shake — там своё правило в потоке бара. */
+    #chargeBtn { position:fixed; right:38px; left:auto; top:50%; bottom:auto;
+      transform:translateY(-50%); width:80px; height:80px; }
   }
 </style>
 </head>

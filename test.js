@@ -4582,8 +4582,13 @@ window.bridge = {
       const g = (id) => { const b = document.getElementById(id).getBoundingClientRect();
         return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) }; };
       const plus = g('zoomInBtn'), minus = g('zoomOutBtn');
+      const hint = g('hintBtn'), shake = g('shakeBtn'), vit = g('vitrine');
+      const over = (r) => !(r.x + r.w < vit.x || r.x > vit.x + vit.w || r.y + r.h < vit.y || r.y > vit.y + vit.h);
       return { plus, minus, cx: Math.round((Math.min(plus.x, minus.x) + Math.max(plus.x + plus.w, minus.x + minus.w)) / 2),
-               bottom: Math.round(innerHeight - Math.max(plus.y + plus.h, minus.y + minus.h)) };
+               bottom: Math.round(innerHeight - Math.max(plus.y + plus.h, minus.y + minus.h)),
+               hintRight: Math.round(innerWidth - (hint.x + hint.w)),
+               shakeRight: Math.round(innerWidth - (shake.x + shake.w)),
+               overVit: over(hint) || over(shake) };
     });
     await dp.close();
     return r;
@@ -4593,6 +4598,14 @@ window.bridge = {
     'ЗУМ-ДЕСКТОП: ряд 48×48 на одной высоте (нода 741:1497) (' + JSON.stringify(zoomDesk) + ')');
   expect(zoomDesk.minus.x < zoomDesk.plus.x && Math.abs(zoomDesk.cx - 640) <= 2 && Math.abs(zoomDesk.bottom - 20) <= 2,
     'ЗУМ-ДЕСКТОП: минус слева, группа по центру, 20px от низа (' + JSON.stringify(zoomDesk) + ')');
+  // ⚠️ Прямая жалоба владельца со скрином: контролы лезли на список предметов.
+  // Корень: зум ушёл в absolute, и единственный оставшийся флекс-ребёнок бара
+  // по space-between уехал влево, на витрину. Ассерт двусторонний — и место
+  // по ноде (hint right 150, shake right 16), и факт «не наезжает».
+  expect(zoomDesk.overVit === false,
+    'ДЕСКТОП: подсказка и Shake НЕ наезжают на список предметов (' + JSON.stringify(zoomDesk) + ')');
+  expect(Math.abs(zoomDesk.shakeRight - 16) <= 4 && zoomDesk.hintRight > zoomDesk.shakeRight,
+    'ДЕСКТОП: подсказка и Shake справа по ноде 741:1497 (' + JSON.stringify(zoomDesk) + ')');
   expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
     'ЗУМ: глиф чёрный в ОБЕ темы (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
   expect(zoomSmooth.rMid < zoomSmooth.r0 && zoomSmooth.rMid > zoomSmooth.r0 - 1.6 + 0.05,
