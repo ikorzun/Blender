@@ -561,6 +561,14 @@ function checkEnd(){
     // кошелёк — то же число в чипе, меню и лидерборде. Рейтинг stars[lv]
     // остаётся как индикатор качества (setStars), валюту больше не несёт.
     setStars(levelNum, stars);
+    // +1 ВСТРЯСКА ЗА КАЖДЫЕ 5 ПРОЙДЕННЫХ УРОВНЕЙ (слово владельца 2026-08-04:
+    // «нужно будет давать +1 шейк за прохождение 5 уровней»). Кладём в
+    // ПОСТОЯННЫЙ запас (пара pe/ps — тот же, что у бандлов): переживает
+    // уровень и устройство, дюп-безопасен по монотонной паре. Срабатывает
+    // на 5/10/15..., то есть по номеру ЗАВЕРШЁННОГО уровня.
+    if (levelNum % 5 === 0){
+      try { Save.pe = (Save.pe || 0) + 1; commitSave(); level.shakeBonus = 1; toast('+1 Shake'); } catch(e){}
+    }
     level.starsWon = bankLevelScore(stats.score);
     addHints(1); // +1 подсказка за успешный уровень (спека владельца)
     Telemetry.ev('win', { lv: levelNum, st: stars, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });

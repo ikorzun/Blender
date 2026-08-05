@@ -4523,6 +4523,32 @@ window.bridge = {
   expect(hudA.toastOn && hudA.toastVal === '×2.25' && hudA.toastGone,
     'ТОСТ МНОЖИТЕЛЯ: показывается под глазами и сам гаснет (' + JSON.stringify(hudA) + ')');
 
+  // +1 ВСТРЯСКА ЗА 5 УРОВНЕЙ (слово владельца 2026-08-04). Проверяем на
+  // ГРАНИЦАХ: ур.4 -> запас не растёт, ур.5 -> +1. Победа настоящим путём
+  // (leaveSingles + финальный помол), докидка чужая — глушим её флагом.
+  const shakeBonus = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const winAt = async (lv) => {
+      g.setLevel(lv); g.regen(); g.skipIntro();
+      g.level().finalRefillDone = true;               // докидка тут чужая
+      g.leaveSingles();
+      const t0 = Date.now();
+      while (g.alive() > 0 && Date.now() - t0 < 40000) await sleep(200);
+      await sleep(600);
+      return g.bundleState().shakes;
+    };
+    const before4 = g.bundleState().shakes;
+    const after4 = await winAt(4);
+    const after5 = await winAt(5);
+    return { before4, after4, after5 };
+  });
+  console.log('shake bonus:', JSON.stringify(shakeBonus));
+  expect(shakeBonus.after4 === shakeBonus.before4,
+    'БОНУС-ВСТРЯСКА: на 4-м уровне запас НЕ растёт (' + JSON.stringify(shakeBonus) + ')');
+  expect(shakeBonus.after5 === shakeBonus.after4 + 1,
+    'БОНУС-ВСТРЯСКА: +1 за прохождение 5-го уровня (' + JSON.stringify(shakeBonus) + ')');
+
   // ===== HUD-ПАКЕТ C: гостевое имя-животное + цветной аватар =====
   const guestC = await page.evaluate(async () => {
     const g = window.__game;
