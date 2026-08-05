@@ -3448,15 +3448,27 @@ window.bridge = {
     // схлопывался, «ход» ловил его исчезновение (58 при ожидаемых ~4-5).
     // Полный период пульса 1.1 с → окно 1.4 с ловит пик и провал при любом
     // fps, оставаясь глубоко внутри TTL.
+    // ⚠️ НОСИТЕЛЬ ПУЛЬСА — ВИДИМЫЙ УЗЕЛ: по правилу владельца «модель +
+    // вращение = 3D без картинки» картинка скрыта, и мерить её ширину значит
+    // мерить ноль (ровно это страж и поймал). Берём канвас модели, если он
+    // жив, иначе картинку-фолбэк.
+    const beat = () => cb.querySelector('canvas') || img;
     const t0 = Date.now();
     while (Date.now() - t0 < 1400){
-      w.push(img.getBoundingClientRect().width);
+      w.push(beat().getBoundingClientRect().width);
       await new Promise(r => requestAnimationFrame(r));
     }
     const res = { фон: c.backgroundColor, кольцо: c.boxShadow,
       слот: cb.getBoundingClientRect().width,
       подсказка: document.getElementById('hintBtn').getBoundingClientRect().width,
       ход: +(Math.max(...w) - Math.min(...w)).toFixed(2) };
+    res.картинка = getComputedStyle(img).display;
+    res.канвас = !!cb.querySelector('canvas');
+    // обратный ход: отнимаем канвас — добор обязан вернуть спин в слот
+    const cv = cb.querySelector('canvas');
+    if (cv) document.body.appendChild(cv);
+    await new Promise(r => setTimeout(r, 900));
+    res.канвасВернулся = !!cb.querySelector('canvas');
     g.detonateCharge();
     return res;
   });
@@ -3465,6 +3477,10 @@ window.bridge = {
   // «размером с кнопку подсказки», 2026-07-31). Проверка не ослаблена, а
   // переведена на новое число: слот ОБЯЗАН быть КРУПНЕЕ подсказки — так страж
   // по-прежнему краснеет, если слот схлопнется к размеру кнопки или к нулю.
+  expect(slot.канвас === true && slot.картинка === 'none',
+    'ЗАРЯД: только 3D-модель, картинки-подложки НЕТ (правило владельца 2026-08-05) (' + JSON.stringify(slot) + ')');
+  expect(slot.канвасВернулся === true,
+    'ЗАРЯД: отняли канвас — добор вернул спин в слот (' + JSON.stringify(slot) + ')');
   expect(/rgba\(0, 0, 0, 0\)|transparent/.test(slot.фон) && slot.кольцо === 'none' &&
     slot.слот === 64 && slot.слот > slot.подсказка && slot.ход > 1 && slot.ход < 6,
     'ЗАРЯД: не кнопка, а модель 64 (нода 829:1242, крупнее подсказки), и она пульсирует (' +

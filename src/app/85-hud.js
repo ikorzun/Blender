@@ -466,6 +466,22 @@ function chargeFadeTick(){
   const cs = (typeof chargeState === 'function') ? chargeState() : null;
   if (!cs || !cs.name) return;                    // заряд ушёл — тик умирает сам
   cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
+  // САМОЛЕЧЕНИЕ СПИНА (Интерфейс поймал дыру и честно её не закрыл): канвас
+  // ОДИН на игру — меню/коллекция забирают его в любой момент, а добор жил
+  // только в updateHUD, то есть возвращался лишь со следующим игровым
+  // событием. В простое слот оставался мёртвой картинкой (а по правилу
+  // владельца картинка ещё и скрыта — то есть пустым). Возвращаем покадрово:
+  // проверка дешёвая (сравнение parentNode), thumbSpinStart зовётся только
+  // когда канваса в слоте реально нет.
+  try {
+    const live = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb);
+    if (!live && cb.dataset.img === cs.name){
+      const sit = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
+      if (sit && sit.mesh){ thumbSpinStart(sit, cb); cb.dataset.spin = cs.name; }
+    }
+    const img = $('chargeImg');
+    if (img) img.style.display = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb) ? 'none' : '';
+  } catch(e){}
   chargeRAF = requestAnimationFrame(chargeFadeTick);
 }
 // ТОСТ МНОЖИТЕЛЯ ПОД ГЛАЗАМИ (нода 829:1242, слово владельца «множитель
