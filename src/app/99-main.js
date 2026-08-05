@@ -1059,6 +1059,12 @@ window.__game = {
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),
                          due: (storyDue() || {}).id || null, busy: storyBusy, on: storyOn }; },
   storyOnWin(){ return storyOnWin(); },
+  // ТЕКСТЫ ДОЛГОЙ МЕТЫ (пункт 1.3): строки и одноразовость правила
+  metaTexts(key){ return { line: accToastLine(key), saved: accSavedText(key),
+                           next: accNextText(key), rule: accRuleText() }; },
+  metaRuleState(){ return { due: accRuleDue(), mt: Save.mt || 0 }; },
+  metaRuleMark(){ accRuleMark(); return Save.mt; },
+  metaRuleReset(){ Save.mt = 0; commitSave(); },
   storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
   storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // тест: считать главу показанной
   storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
