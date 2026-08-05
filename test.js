@@ -4930,6 +4930,86 @@ window.bridge = {
 
   await bowlPage.close();
 
+  // ── ТЕКСТЫ ДОЛГОЙ МЕТЫ НА ТЕЛЕФОНЕ (план §1.3) ──────────────────────────
+  // СЕКЦИЯ В КОНЦЕ НАМЕРЕННО (правило камней): она гонит setLevel/regen и
+  // трогает Save.mt — в середине сдвинула бы контекст соседям.
+  // Проблема: витрина загейтована min-width:813px и на телефоне не строится,
+  // а под глазами с v2 висит «×1.25» на КАЖДОМ сборе прокачанного вида.
+  // Правило «спасённые НАВСЕГДА растят множитель» игрок не узнавал нигде.
+  const mtText = await page.evaluate(() => {
+    const g = window.__game;
+    g.metaRuleReset(); g.storyClearAcc();
+    const key = g.storyTypeNames()[0];
+    const zero = g.metaTexts(key);
+    g.accGrant(key, 120);                       // первая ступень (порог 100)
+    const tier1 = g.metaTexts(key);
+    g.accGrant(key, 100000);                    // за кап ступеней
+    const capped = g.metaTexts(key);
+    return { key, zero, tier1, capped };
+  });
+  expect(/^\S.* · 0 saved$/.test(mtText.zero.line),
+    'МЕТА-ТЕКСТ: строка тоста = имя вида + счётчик спасённых (' + mtText.zero.line + ')');
+  expect(mtText.tier1.line.endsWith('· 120 saved'),
+    'МЕТА-ТЕКСТ: счётчик в строке живой (' + mtText.tier1.line + ')');
+  expect(/^next ×[\d.]+ at \d+$/.test(mtText.tier1.next),
+    'МЕТА-ТЕКСТ: строка прогресса обещает СЛЕДУЮЩУЮ ступень и порог (' + mtText.tier1.next + ')');
+  expect(mtText.capped.next === 'max level',
+    '⚠️ НА КАПЕ строка «next …» НЕ ВРЁТ, а честно говорит про потолок (' + mtText.capped.next + ')');
+
+  // ПРАВИЛО ОБЪЯСНЯЕТСЯ РОВНО ОДИН РАЗ и переживает мерж отставшей копии
+  const mtRule = await page.evaluate(() => {
+    const g = window.__game;
+    g.metaRuleReset();
+    const before = g.metaRuleState().due;
+    g.metaRuleMark();
+    const after = g.metaRuleState().due;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, mt: 0 });      // отставшая копия
+    const afterOldMerge = g.metaRuleState().due;
+    // ⚠️⚠️ НЕСУЩЕЕ НАПРАВЛЕНИЕ МЕРЖА — ИМЕННО ОНО ПРОВЕРЯЕТ OR-СТРОКУ.
+    // Обратное («старая копия не разпоказывает») ТАВТОЛОГИЧНО: mergeSave пишет
+    // В ЖИВОЙ Save, поле, которого мерж не касается, остаётся как было, и тот
+    // ассерт зелен даже если строки в mergeSave нет вовсе. Здесь наоборот:
+    // локально правило НЕ показывали, а копия с другого устройства говорит
+    // «показывали» — без OR игрок получил бы объяснялку повторно.
+    g.metaRuleReset();
+    const dueFresh = g.metaRuleState().due;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, mt: 1 });
+    const afterForeign = g.metaRuleState().due;
+    return { before, after, afterOldMerge, dueFresh, afterForeign,
+             text: g.metaTexts(g.storyTypeNames()[0]).rule };
+  });
+  expect(mtRule.before === true && mtRule.after === false,
+    'МЕТА-ТЕКСТ: правило накопления объясняется ОДИН раз (' + JSON.stringify(mtRule) + ')');
+  expect(mtRule.afterOldMerge === false,
+    'МЕРЖ: старая копия НЕ заставит объяснять правило заново (санитар, слабый)');
+  expect(mtRule.dueFresh === true && mtRule.afterForeign === false,
+    '⚠️ МЕРЖ (несущий): правило, показанное НА ДРУГОМ устройстве, здесь уже не показывается — ' +
+    'объяснялка одна на игрока, а не на устройство (' + JSON.stringify(mtRule) + ')');
+  expect(mtRule.text.length > 0 && mtRule.text.length <= 40,
+    'МЕТА-ТЕКСТ: правило короткое — тост живёт секунды (' + mtRule.text.length + ' знаков: «' + mtRule.text + '»)');
+
+  // ПОДПИСЬ РЕАЛЬНО ОТРИСОВАНА В ТОСТЕ (а не только возвращается хелпером)
+  const mtToast = await page.evaluate(async () => {
+    const g = window.__game;
+    g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
+    g.setLevel(20); g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 400));
+    const live = g.accSnapshot().find(r => r._item);
+    if (!live) return { skipped: true };
+    g.accGrant(live.key, 120);                  // пересечение порога -> событие
+    await new Promise(r => setTimeout(r, 200));
+    const el = document.getElementById('ttLine');
+    return { text: el ? el.textContent : null, key: live.key,
+             вПилюле: !!(el && el.closest('#tierToast')) };
+  });
+  expect(!mtToast.skipped, 'МЕТА-ТЕКСТ: нашёлся живой прокачиваемый вид для проверки тоста');
+  if (!mtToast.skipped){
+    expect(mtToast.text && mtToast.text.indexOf('saved') > 0 && mtToast.вПилюле,
+      'МЕТА-ТЕКСТ: подпись «имя · N saved» реально отрисована ВНУТРИ пилюли тоста (' +
+      JSON.stringify(mtToast) + ')');
+  }
+
+
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
