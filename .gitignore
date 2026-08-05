@@ -1,9 +1,8 @@
 node_modules/
 node_modules
-release/*.zip
+*.zip
 release/Mixer.html
-shot_*.png
-до-мержа/
+/shot_*.png
 .DS_Store
 
 # ⚠️ СТЕНД РЕКЛАМЫ, НЕ РЕЛИЗ. Файл несёт forciblySetPlatformId — он ЗАСТАВЛЯЕТ
@@ -13,4 +12,9 @@ shot_*.png
 # площадке и игрокам. Поэтому: закоммитить его нельзя ФИЗИЧЕСКИ, а не по
 # договорённости. Как пользоваться — WORKSTREAMS, блок ИНТЕГРАЦИИ.
 playgama-bridge-config.local.json
-.claude/
+.claude/worktrees/
+*.log
+__pycache__/
+*.pyc
+Thumbs.db
+*.pdf
