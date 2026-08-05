@@ -224,8 +224,23 @@
      Пульс «совсем немного» = ±4% (1.0 -> 1.04): на 56px это 2.2px хода —
      заметно боковым зрением и не дёргает нижний бар. Овершут даёт кривая
      cubic-bezier(.34,1.56,.64,1) — тот же bounce, что у входа, язык один. */
-  #chargeBtn.in { animation:chargePop .3s cubic-bezier(.34,1.56,.64,1); }
-  @keyframes chargePop { from { transform:scale(.55); } to { transform:scale(1); } }
+  /* ВЫЕЗД СПРАВА (спека владельца 2026-08-05: «появление бонусного объекта
+     сделай с плавной и быстрой анимацией, словно он выезжает из правого края
+     вью»). Было — поп-масштаб `chargePop`.
+     ⚠️⚠️ ЦЕНТРИРОВАНИЕ ЖИВЁТ В ТОМ ЖЕ `transform`, поэтому смещение обязано
+     идти ВНУТРИ кадров вместе с ним. Прежний `chargePop` этого не делал —
+     `transform:scale()` затирал `translateX(-50%)`, и слот на входе прыгал
+     вбок на полширины. Отсюда ДВА набора кадров: мобильный несёт `-50%`,
+     десктопный — свой `translateY(-50%)` (там узел fixed у правого края).
+     ⚠️ opacity НЕ ТРОГАЕМ: растворение заряда пишет её ПОКАДРОВО из 85-hud по
+     живому остатку TTL — анимация поверх спорила бы с ним каждый кадр.
+     160px гарантированно уводит за кромку в обеих раскладках (мобиле нужно
+     ~100, десктопу 118). Кривая без овершута — «плавно», а не «пружинит». */
+  #chargeBtn.in { animation:chargeSlide .28s cubic-bezier(.16,1,.3,1); }
+  @keyframes chargeSlide {
+    from { transform:translateX(calc(-50% + 160px)); }
+    to   { transform:translateX(-50%); }
+  }
   #chargeBtn img { animation:chargePulse 1.1s cubic-bezier(.34,1.56,.64,1) infinite; }
   @keyframes chargePulse { 0%, 100% { transform:scale(1); } 50% { transform:scale(1.04); } }
   @media (prefers-reduced-motion:reduce) {
@@ -1395,6 +1410,13 @@
        Shake — там своё правило в потоке бара. */
     #chargeBtn { position:fixed; right:38px; left:auto; top:50%; bottom:auto;
       transform:translateY(-50%); width:80px; height:80px; }
+    /* выезд справа — СВОИ кадры: тут центрирование вертикальное, и мобильный
+       `-50%` по X здесь дал бы сдвиг на полширины (см. разбор у chargeSlide) */
+    #chargeBtn.in { animation:chargeSlideD .28s cubic-bezier(.16,1,.3,1); }
+    @keyframes chargeSlideD {
+      from { transform:translateY(-50%) translateX(160px); }
+      to   { transform:translateY(-50%) translateX(0); }
+    }
   }
 </style>
 </head>
