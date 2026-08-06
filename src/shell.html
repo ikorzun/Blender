@@ -1460,6 +1460,12 @@
     display:flex; align-items:center; justify-content:center; gap:12px;
     padding:8px 10px 8px 16px; box-sizing:border-box;
     opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
+  /* НОЧНОЙ ВАРИАНТ (нода 776:701 «Item toast black», слово владельца
+     2026-08-07): пилюля rgba(0,0,0,.2) и БЕЗ внутреннего свечения — днём
+     оно нужно, чтобы светлая плашка не сливалась с небом, ночью то же
+     свечение делало бы из тёмной пилюли мутное пятно. Лаймовый чип и
+     чёрное число в обеих темах одинаковы (нода не меняет их). */
+  html.night #multToast { background:rgba(0,0,0,.2); box-shadow:none; }
   #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
   #multToast img { width:44px; height:44px; object-fit:contain; }
   #multToastVal { font-size:23px; font-weight:800; color:#000; background:#c0ff47;

@@ -1460,6 +1460,12 @@
     display:flex; align-items:center; justify-content:center; gap:12px;
     padding:8px 10px 8px 16px; box-sizing:border-box;
     opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
+  /* НОЧНОЙ ВАРИАНТ (нода 776:701 «Item toast black», слово владельца
+     2026-08-07): пилюля rgba(0,0,0,.2) и БЕЗ внутреннего свечения — днём
+     оно нужно, чтобы светлая плашка не сливалась с небом, ночью то же
+     свечение делало бы из тёмной пилюли мутное пятно. Лаймовый чип и
+     чёрное число в обеих темах одинаковы (нода не меняет их). */
+  html.night #multToast { background:rgba(0,0,0,.2); box-shadow:none; }
   #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
   #multToast img { width:44px; height:44px; object-fit:contain; }
   #multToastVal { font-size:23px; font-weight:800; color:#000; background:#c0ff47;
@@ -10395,7 +10401,13 @@ function detonateCharge(){
   const mid = new THREE.Vector3();
   victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
   scorePop('+' + gained, mid, '#ffffff', true);
-  try { faceEvent('angry', 1400); } catch(e){}   // канон глаз: злость поверх — он ЗАМЕТИЛ
+  // ⛔ РЕАКЦИЯ ГЛАЗ НА ЗАРЯД СНЯТА (слово владельца 2026-08-07: «клик на
+  // бонусную вещь не должен сбивать счётчик турбо, сейчас сбивает, по крайней
+  // мере меняются глаза»). Замер показал: СЧЁТЧИК ЦЕЛ (4 -> 4, промахов 0) —
+  // сбивались именно ГЛАЗА: 'angry' на 1.4 с перебивал распахнутые зрачки
+  // горящей серии, и это читалось как потеря турбо. Заряд — награда, а не
+  // происшествие: пусть глаза продолжают показывать серию.
+  // (Звук и вибро остаются: обратная связь о самом сборе нужна.)
   Sound.play('match', N); vibrate([30, 60, 40]);
   // ⚠️ БЕЗ 150 мс ожидания (жалоба «задержка по уничтожению»): труха уже
   // прячет меши, удаление сразу — паттерн бомбы держал паузу ради надувания,
@@ -10772,7 +10784,12 @@ function handleTapInner(x, y){
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
-    lineFX(item.p, accessible[0].p, 0xffb224);
+    // ⛔ ПУНКТИРНАЯ ЛИНИЯ К ДАЛЬНЕЙ ПАРЕ СНЯТА (слово владельца 2026-08-07:
+    // «убери пунктирную линию от объекта к объекту, которая указывает на
+    // расстояние»). Вместе с ней ранее снят и тост «Pair is too far» — то
+    // есть подсказка о недостижимой паре теперь молчит целиком; вернётся,
+    // если он попросит новую форму. Функция lineFX жива (70-fx) и может
+    // понадобиться другим механикам — удалять её не надо.
     // ⛔ ТОСТ СНЯТ (слово владельца 2026-08-05: «убери нижний тост сообщение,
     // который говорит, что пары слишком далеко. Его нужно визуально переделать
     // и поменять позицию, займемся этим потом»). Подсказку НЕСЁТ ЛИНИЯ выше —
@@ -15297,6 +15314,7 @@ window.__game = {
   // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
   burning(){ return burningName(); },
   fireSoon(){ fireNextMs = performance.now() + 120; }, // тест: не ждать FIRE_EVERY_MS
+  faceState(){ return faceHold || faceState; }, // тест: какое лицо ДЕРЖИТСЯ (реакция поверх состояния)
   refreshAcc(){ refreshAccessibility(); }, // тест: свежий пересчёт доступности (кэш живёт только при движении)
   // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
   bowl(){ return bowlState(); },

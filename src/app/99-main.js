@@ -1361,6 +1361,7 @@ window.__game = {
   // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
   burning(){ return burningName(); },
   fireSoon(){ fireNextMs = performance.now() + 120; }, // тест: не ждать FIRE_EVERY_MS
+  faceState(){ return faceHold || faceState; }, // тест: какое лицо ДЕРЖИТСЯ (реакция поверх состояния)
   refreshAcc(){ refreshAccessibility(); }, // тест: свежий пересчёт доступности (кэш живёт только при движении)
   // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
   bowl(){ return bowlState(); },

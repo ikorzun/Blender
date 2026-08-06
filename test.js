@@ -604,13 +604,23 @@ const path = require('path');
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   const diff = await page.evaluate(() => {
     window.__game.forceRefresh();
-    const easy = { alive: window.__game.alive(), acc: window.__game.accessibleList().length };
+    // ⚠️ КТО ИМЕННО НЕДОСТУПЕН, а не только СКОЛЬКО: жёсткое «ровно alive−1»
+    // зависело от сида — на части раскладок клад ложится сверху и доступен,
+    // и страж краснел на исправной игре (флейк 2026-08-07). Свойство же
+    // такое: в Easy перекрытия НИКОГО не прячут, недоступным может быть
+    // только клад.
+    const accSet = new Set(window.__game.accessibleList());
+    const geo = window.__game.itemsGeo();
+    const hidden = geo.filter((_, i) => !accSet.has(i)).map(x => x.name);
+    const easy = { alive: window.__game.alive(), acc: accSet.size, hidden };
     window.__game.cfg.hard = true; window.__game.forceRefresh();
     const hard = { alive: window.__game.alive(), acc: window.__game.accessibleList().length };
     window.__game.cfg.hard = false; window.__game.forceRefresh();
     return { easy, hard };
   });
-  expect(diff.easy.acc === diff.easy.alive - 1, 'easy: доступно всё, кроме закопанной рыбки (' + diff.easy.acc + '/' + diff.easy.alive + ')');
+  expect(diff.easy.acc >= diff.easy.alive - 1 && (diff.easy.hidden || []).every(n => n === 'surprise'),
+    'easy: перекрытия никого не прячут — недоступным может быть только клад (' +
+    diff.easy.acc + '/' + diff.easy.alive + ', скрыты: ' + JSON.stringify(diff.easy.hidden) + ')');
   expect(diff.hard.acc < diff.hard.alive, 'hard: перекрытия прячут часть кучи (' + diff.hard.acc + '/' + diff.hard.alive + ')');
 
   // комбо-лесенка только ВВЕРХ (фикс ревью): при слайдере выше потолка 1.1
@@ -4460,41 +4470,53 @@ window.bridge = {
   // порога), бусты чистятся.
   const fireBonus = await firePage.evaluate(async () => {
     const g = window.__game;
-    g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 400));
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.regen(); g.skipIntro(); await sleep(400);
     g.boostClear();
-    // одинаковый ПОДНЯТЫЙ радиус обоим замерам: вторая пара типа на боевом
-    // радиусе может не сойтись (первый матч съедает ближайшую) — d1 был 0
-    // не из-за бонуса, а из-за несостоявшегося матча (ловля первого прогона)
+    // ⚠️ ДВА РАЗНЫХ ВИДА, А НЕ ДВА МАТЧА ОДНОГО (переписано 2026-08-07).
+    // Прежняя версия жгла один вид дважды: с поднятым радиусом 3.0 первый
+    // матч забирал до кап-группы (8), а после прогрессии размера уровня
+    // предметов одного вида стало ~9 — на второй матч не оставалось, и d1
+    // честно выходил 0. Это был ФЛЕЙК ЗАМЕРА, а не бонуса.
+    // Теперь: холодный матч на виде A, горящий на виде B, и сравнение
+    // допускается ТОЛЬКО при равном размере группы (иначе цена разная по
+    // формуле n·(n−1) и сравнивать нечего) — при неравенстве берём
+    // следующую пару видов, до 4 попыток.
     const radSave = g.cfg.baseRadius;
     g.cfg.baseRadius = 3.0;
-    await new Promise(r => setTimeout(r, 600));   // updateMatchRadius тикает 300 мс
-    // тип: >=4 живых и счётчик накопления далеко от порога ступени
-    const sn = g.typesSnapshot(), acc = g.accSnapshot();
-    let name = null;
-    for (const [k, v] of Object.entries(sn)){
-      if (k === 'surprise' || v.alive < 4) continue;
-      const a = acc.find(x => x.key === k);
-      if (!a || (a.next - a.count) > 10){ name = k; break; }
+    await sleep(600);                              // updateMatchRadius тикает 300 мс
+    const acc = g.accSnapshot();
+    const farFromTier = (k) => { const a = acc.find(x => x.key === k); return !a || (a.next - a.count) > 10; };
+    const pool = Object.entries(g.typesSnapshot())
+      .filter(([k, v]) => k !== 'surprise' && v.alive >= 4 && farFromTier(k))
+      .map(([k]) => k);
+    if (pool.length < 2) return { нетТипа: true, pool: pool.length };
+    for (let att = 0; att + 1 < pool.length && att < 4; att += 2){
+      const A = pool[att], B = pool[att + 1];
+      const aliveA0 = g.typesSnapshot()[A].alive, s0 = g.stats().score;
+      g.matchType(A);                              // холодный
+      await sleep(1700);                           // > COMBO_CHAIN_MS — склейка погасла
+      const nA = aliveA0 - g.typesSnapshot()[A].alive;
+      const d0 = g.stats().score - s0;
+      const idx = g.indexByType(B);
+      if (idx < 0) continue;
+      g.ignite(idx);
+      const горелоДо = g.burning();
+      const aliveB0 = g.typesSnapshot()[B].alive, s1 = g.stats().score;
+      g.matchType(B);                              // горящий
+      await sleep(150);
+      const nB = aliveB0 - g.typesSnapshot()[B].alive;
+      const d1 = g.stats().score - s1;
+      if (nA === nB && d0 > 0){
+        g.cfg.baseRadius = radSave;
+        return { A, B, nA, nB, d0, d1, горелоДо, послеСбора: g.burning() };
+      }
+      await sleep(1700);                           // следующая попытка — с холодной склейкой
     }
-    if (!name) return { нетТипа: true };
-    const s0 = g.stats().score;
-    g.matchType(name);                       // холодный матч без огня
-    await new Promise(r => setTimeout(r, 1700));   // > COMBO_CHAIN_MS — склейка погасла
-    const d0 = g.stats().score - s0;
-    // поджигаем ЖИВОЙ предмет этого типа по индексу (хук indexByType)
-    const idx = g.indexByType(name);
-    if (idx < 0) return { нетЖивых: true, name };
-    g.ignite(idx);
-    const горелоДо = g.burning();
-    const s1 = g.stats().score;
-    g.matchType(name);                       // горящий матч
-    await new Promise(r => setTimeout(r, 150));
-    const d1 = g.stats().score - s1;
     g.cfg.baseRadius = radSave;
-    return { name, d0, d1, горелоДо, послеСбора: g.burning() };
+    return { неСошлось: true };
   });
-  expect(!fireBonus.нетТипа && !fireBonus.нетЖивых && fireBonus.горелоДо === fireBonus.name &&
+  expect(!fireBonus.нетТипа && !fireBonus.неСошлось && fireBonus.горелоДо === fireBonus.B &&
     fireBonus.d1 === 2 * fireBonus.d0 && fireBonus.d0 > 0,
     '🔥 БОНУС: группа горящего типа платит ровно ×2 (' + JSON.stringify(fireBonus) + ')');
   expect(fireBonus.послеСбора === null,
@@ -4958,6 +4980,33 @@ window.bridge = {
       'ТОСТ: повышение ступени идёт ТЕМ ЖЕ тостом под глазами, с пометкой события (' + JSON.stringify(oneToast) + ')');
     expect(oneToast.skipped || oneToast.pill === false,
       'ТОСТ: старая пилюля ступени больше не показывается (' + JSON.stringify(oneToast) + ')');
+  }
+
+  // ===== ПАКЕТ 2026-08-07: ночной тост, заряд не трогает глаза, нет линии =====
+  {
+    const pk = await page.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      g.setLevel(5); g.regen(); g.skipIntro(); await sleep(700);
+      // (1) серия набрана -> клик по заряду НЕ сбивает счёт и НЕ перебивает глаза
+      for (let i = 0; i < 5; i++){ g.autoMatch(); await sleep(90); }
+      const c0 = g.combo().count;
+      const face0 = g.faceState ? g.faceState() : null;
+      g.chargeGrant((g.itemsGeo()[0] || {}).name || 'foodbanana');
+      await sleep(150);
+      const btn = document.getElementById('chargeBtn');
+      const shown = btn && btn.style.display !== 'none';
+      if (shown) btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'touch' }));
+      await sleep(300);
+      const c1 = g.combo().count;
+      const face1 = g.faceState ? g.faceState() : null;
+      return { shown, c0, c1, face0, face1 };
+    });
+    console.log('заряд:', JSON.stringify(pk));
+    expect(pk.shown && pk.c1 === pk.c0,
+      'ЗАРЯД: клик НЕ сбивает счёт серии (' + JSON.stringify(pk) + ')');
+    expect(!pk.face1 || pk.face1 !== 'angry',
+      'ЗАРЯД: клик НЕ перебивает глаза злостью — серия читается дальше (' + JSON.stringify(pk) + ')');
   }
 
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
