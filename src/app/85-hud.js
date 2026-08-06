@@ -628,7 +628,13 @@ function updateHUD(){
   // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
   // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
   $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
-  $('apCount').textContent = availablePairs();
+  // ⚠️ ТОЧНЫЙ СЧЁТ ПАР УБРАН ИЗ updateHUD (ревью 2026-08-05): availablePairs
+  // — O(k²) с GJK-запросом Rapier, а updateHUD зовётся из 48 мест, включая
+  // хвост doMatch и досыпку турбо каждые 125 мс. Замер: ~11 лишних вызовов
+  // в секунду активной игры (0.13-0.16 мс каждый) в САМЫХ горячих кадрах.
+  // Поле #apCount живёт в дев-панели и обновляется 600-мс тиком (99-main),
+  // где ap всё равно считается для детекта тупика — визуально ничего не
+  // теряем.
   $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // динамический; ∞ = эндшпиль
 }
 
@@ -958,14 +964,12 @@ function nextTierToast(){
   // Узел создаётся ИЗ JS и не трогает разметку макета 769:56 (имени он не
   // предусматривал) — правка адресная и снимается одной строкой. Пилюля уже
   // flex-column, поэтому строка встаёт под .ttRow без правки раскладки.
-  let ttLine = $('ttLine');
-  if (!ttLine){
-    ttLine = document.createElement('div');
-    ttLine.id = 'ttLine';
-    ttLine.setAttribute('style', 'font:600 12px/1.2 var(--font-round); opacity:.75; margin-top:2px; white-space:nowrap;');
-    t.querySelector('.ttRow').insertAdjacentElement('afterend', ttLine);
-  }
-  ttLine.textContent = typeof accToastLine === 'function' ? accToastLine(ev.key || ev.name) : '';
+  // ⛔ СТРОКА «Name · N saved» В ПИЛЮЛЕ СНЯТА (слово владельца 2026-08-05:
+  // «в тосте появился какой-то лишний белый текст, убери его»). Тексты
+  // Повествования (accToastLine/accSavedText) ЖИВЫ в 77-save и переиспользуются
+  // разовым правилом ниже и экраном победы — снята только эта строка.
+  const ttLineOld = $('ttLine');
+  if (ttLineOld) ttLineOld.remove();
   // ПРАВИЛО — РОВНО ОДИН РАЗ, в момент ПЕРВОЙ ступени: раньше игрок не понял бы,
   // о чём речь, позже — уже привык к цифре без смысла. Отдельным тостом, а не
   // строкой в пилюле: за 1.9 с две мысли не читаются.

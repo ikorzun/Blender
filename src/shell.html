@@ -329,6 +329,14 @@
   .zoomBtn, html.night .zoomBtn {
     background:rgba(255,255,255,.4); color:#000;
     box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55); }
+  /* ПОЛУПРОЗРАЧНЫ В ПОКОЕ (слово владельца 2026-08-05: «50% прозрачности в
+     спокойном состоянии и 100% при ховере»). Гасим ВЕСЬ узел, а не только
+     фон: иначе глиф остался бы плотным и кнопка читалась бы «сломанной».
+     ⚠️ На тач-экранах ховера нет — там же держим :active, иначе на телефоне
+     кнопка навсегда осталась бы полупрозрачной даже под пальцем. */
+  .zoomBtn { opacity:.5; transition:opacity .18s ease-out; }
+  .zoomBtn:active { opacity:1; }
+  @media (hover:hover){ .zoomBtn:hover { opacity:1; } }
   /* ⚠️ ГЛИФ КРАСИТ НЕ color, а правило «.iconBtn svg path { fill:var(--btn-fg) }»
      — тема ночью давала БЕЛЫЙ плюс/минус на светлой подложке (скрин владельца
      2026-08-04, слово: «всегда черного цвета»). Точечный пере-краситель ниже
@@ -1394,12 +1402,16 @@
       cursor: image-set(url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADTklEQVR4nOyXXUiTURjHH2dZTs2vizIpNSRNGRoTbV5NiEFYF0JtIUYUQ6Qr7yMELzToMoTAhBFs0IUMhMiLMJv4lVquNlxjtJWjrWWbW+m2yq3/8d1AX7a5uYE3/uH3vmfv+Xo45znPcyagA5aADliHBhyh1FUKFKAVlIHP4BWYBXdBC8gGVjAOtIkGy6LUVAimgCiFPi/BNbAVq3KvLcgHD4AJ/AIf2eQSieTTxMTEG5fL9R5vXXV1tZ017u/vn7JarfMmk2mms7NzSSAQhPH5Crgfb4JEK3AVPAUnd37MyckJ+v1+NwYvi34Lh8Mes9m8UlNT07qzrVqtft3V1dWGog1UpWKAHDxnhfb2dr1KpQqXlpZWjo6OLodCobBcLm+jJATD1ouKirJ9Pl8Bcdtm4LfJjtP3MbO4p6dnTqPRNAmFwlNZWVnH6+rqKuvr66soSbE+drv93cLCwhn8nCZuC3cpng+wDtTX13eU0lRzc3MgUrwQqz6eAT/ZIxAI/KM0JZVKhZGijFIwwMweOp1uk9JURUWFCI77B8UmUElJGHAZKLB/bA8pAxL29va+jcx1nV/Jn4Et03hBQcGmw+FYzcvLq6UMyOPx6EtKShpQnAeXdtbxV+AWMwrBZSlTkzMVFxefxysExPw6vgHl7IHIVkSZVS6O8Ffick9+IgO2PXZjYyNAmVco8i5MZMAyewwODm5RZuVHfmABjOUGbyIDNKzR0NCQRKlUziPs/qAMyGaz6TEWc3gWin8nMkAH7oHQyMhICzz3GDo6KU0NDAxEixp+Xaw48ASwIzPr9XpPdHR0OFD+S/sUln56eHiYHT0WjJ4lYwATWyoWE4xjY2MXFQrFB9qH3G63vrGxMXr02DJ847fJTtCfWfwC3DYajefKy8snxWLxWUryFmUwGGZwP2gIBoPHiMuEd4hzwl3a60b0BdxgHbu7u6UymcxosVjmiOfJEfnX1tb0Wq12EnFkVSQStWLyHOKiHxsjFGuCZIO9FKjB6e1OyBFYEVdtbe133BVCTqdTuLi4WB3x9Kh84BF4COJm1VSyDYuOSnCTYoRU4pbXQlwsmQQqsGc23W+6yyUubLP7Iru0rIMVEKQUlZF8m44O/5oduAH/AQAA//8C0RpyAAAABklEQVQDAApEBeKdP9kHAAAAAElFTkSuQmCC) 1x, url(data:image/png;base64,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) 2x) 14 12, grabbing;
     }
   }
-  }
   /* ТОСТ МНОЖИТЕЛЯ — ПО НОДЕ 829:1618 «Item toast black»: пилюля
      rgba(255,255,255,.16) с внутренним свечением 28px/.7, портрет 44,
      число в ЛАЙМОВОМ чипе (#c0ff47, радиус 32) ЧЁРНЫМ 23px. Прежняя моя
      версия была белой плашкой с лаймовым ТЕКСТОМ — расхождение с макетом. */
-  #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85); top:calc(var(--eyeTop, 8px) + var(--eyeW, 133px) * .55 + 14px);
+  /* ⚠️ ПОД ГЛАЗАМИ ПО ЦЕНТРУ, ЗАЗОР 32 (слово владельца 2026-08-05). Низ
+     конструкции = верх #face + её высота: top у #face — safe-area + 8, а
+     высота — --eyeW*.667 (см. правило #face). Прежняя формула брала .55 и
+     14 px — тост наезжал на низ глаз. */
+  #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85);
+    top:calc(env(safe-area-inset-top, 0px) + 8px + var(--eyeW, 133px) * 0.667 + 32px);
     min-width:169px; height:60px; border-radius:1000px; background:rgba(255,255,255,.16);
     box-shadow:inset 0 0 28px 0 rgba(255,255,255,.7);
     display:flex; align-items:center; justify-content:center; gap:12px;
@@ -1858,7 +1870,8 @@
       </div>
       <div class="ms-head-r">
         <div class="ms-stars">
-          <svg viewBox="0 0 24 24" width="25" height="24" aria-hidden="true"><path d="M12 2.4l2.9 5.88 6.5.94-4.7 4.58 1.11 6.46L12 17.7l-5.81 3.06 1.11-6.46-4.7-4.58 6.5-.94z" fill="#ffc300"/></svg>
+          <!-- звезда — ассет владельца Interface/Star.svg (2026-08-05, «замени везде»);
+           viewBox 32x30 из файла, цвет #FFE730 оттуда же --><svg viewBox="0 0 32 30" width="25" height="24" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
           <span id="msStars">0</span>
         </div>
         <button class="ms-getmore" id="msGetMore">Get More</button>
@@ -1928,7 +1941,8 @@
     <span class="ms-sticky-t">My collection</span>
     <div class="ms-sticky-r">
       <div class="ms-stars">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2.4l2.9 5.88 6.5.94-4.7 4.58 1.11 6.46L12 17.7l-5.81 3.06 1.11-6.46-4.7-4.58 6.5-.94z" fill="#ffc300"/></svg>
+        <!-- звезда — ассет владельца Interface/Star.svg (2026-08-05, «замени везде»);
+           viewBox 32x30 из файла, цвет #FFE730 оттуда же --><svg viewBox="0 0 32 30" width="16" height="16" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
         <span id="msStars2">0</span>
       </div>
       <button class="ms-getmore" id="msGetMore2">Get More</button>

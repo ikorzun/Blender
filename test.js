@@ -4662,6 +4662,21 @@ window.bridge = {
     'ДЕСКТОП: подсказка и Shake справа по ноде 741:1497 (' + JSON.stringify(zoomDesk) + ')');
   expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
     'ЗУМ: глиф чёрный в ОБЕ темы (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
+  // 50% в покое / 100% под пальцем и на ховере (слово владельца 2026-08-05)
+  const zoomOpacity = await page.evaluate(async () => {
+    const b = document.getElementById('zoomInBtn');
+    const rest = getComputedStyle(b).opacity;
+    b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'touch' }));
+    await new Promise(r => setTimeout(r, 120)); // ⚠️ КОРОЧЕ ПОРОГА УДЕРЖАНИЯ (260 мс):
+    // 250 мс попадали в его край, кнопка отмечалась как «держали», и СЛЕДУЮЩИЙ
+    // страж шага клика получал подавленный клик (шагКлика 0) — красное на
+    // исправной сборке. Строительные леса не должны менять состояние соседям.
+    const act = getComputedStyle(b).opacity;
+    b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'touch' }));
+    return { rest, act };
+  });
+  expect(Math.abs(parseFloat(zoomOpacity.rest) - 0.5) < 0.02,
+    'ЗУМ: в покое полупрозрачный 50% (' + JSON.stringify(zoomOpacity) + ')');
   // ⚠️ ШАГ УДВОЕН СЛОВОМ ВЛАДЕЛЬЦА 2026-08-05 (было 1.6, стало ZOOM_STEP=3.2);
   // кламп CAM_R_MIN может укоротить ход, поэтому конец сверяем с ожидаемым
   // радиусом, а не с разностью «ровно шаг».
@@ -4829,6 +4844,26 @@ window.bridge = {
     console.log('огонь:', JSON.stringify(fireCheck));
     expect(fireCheck.skip || (fireCheck.живыхВида >= 2 && fireCheck.зазор <= fireCheck.радиус),
       'ОГОНЬ: загорается только предмет с ДОСТИЖИМОЙ парой — есть второй доступный того же вида в пределах боевого радиуса (' + JSON.stringify(fireCheck) + ')');
+  }
+
+  // ТОСТ МНОЖИТЕЛЯ: под глазами, по центру, зазор 32 (слово владельца
+  // 2026-08-05). Мерим ПОКАЗАННЫЙ тост: в покое он scale(.85), и рамка
+  // отличается на 5 px — замер до конца перехода дал бы 37.
+  {
+    const mt = await page.evaluate(async () => {
+      const g = window.__game;
+      g.multToastTest('T1', 2.25);
+      await new Promise(r => setTimeout(r, 350));
+      const f = document.getElementById('face').getBoundingClientRect();
+      const t = document.getElementById('multToast').getBoundingClientRect();
+      return { зазор: Math.round(t.top - f.bottom), центр: Math.round(t.left + t.width / 2),
+               экран: Math.round(innerWidth / 2), позиция: getComputedStyle(document.getElementById('multToast')).position,
+               строка: !!document.getElementById('ttLine') };
+    });
+    expect(mt.позиция === 'fixed' && Math.abs(mt.зазор - 32) <= 2 && Math.abs(mt.центр - mt.экран) <= 2,
+      'ТОСТ: под глазами по центру, зазор 32 (' + JSON.stringify(mt) + ')');
+    expect(mt.строка === false,
+      'ТОСТ: лишней белой строки в пилюле нет (слово владельца) (' + JSON.stringify(mt) + ')');
   }
 
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
@@ -5180,9 +5215,12 @@ window.bridge = {
   });
   expect(!mtToast.skipped, 'МЕТА-ТЕКСТ: нашёлся живой прокачиваемый вид для проверки тоста');
   if (!mtToast.skipped){
-    expect(mtToast.text && mtToast.text.indexOf('saved') > 0 && mtToast.вПилюле,
-      'МЕТА-ТЕКСТ: подпись «имя · N saved» реально отрисована ВНУТРИ пилюли тоста (' +
-      JSON.stringify(mtToast) + ')');
+    // ⛔ ОТМЕНЁН СЛОВОМ ВЛАДЕЛЬЦА 2026-08-05 («в тосте появился какой-то лишний
+  // белый текст, убери его»): подпись «имя · N saved» снята из пилюли. Тексты
+  // Повествования живы в 77-save и работают в разовом правиле; страж на их
+  // ОТРИСОВКУ В ТОСТЕ противоречит спеке, обратное свойство проверяет
+  // «ТОСТ: лишней белой строки в пилюле нет».
+  expect(true, 'МЕТА-ТЕКСТ: подпись в пилюле снята по слову владельца (страж отменён)');
   }
 
 
