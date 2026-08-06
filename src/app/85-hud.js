@@ -1480,7 +1480,13 @@ function refreshGuestProfile(){
       const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
       const img = document.createElement('img');
       img.src = file; img.alt = ''; img.decoding = 'async';
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;border-radius:50%';
+      // ⚠️ БЕЗ border-radius НА КАРТИНКЕ (жалоба владельца 2026-08-06 «рваные
+      // пиксели по контуру»): аватар УЖЕ круглый и со сглаженной альфой
+      // (замер исходника: 48 градаций, 199 полупрозрачных пикселей по краю).
+      // Наша круглая обрезка резала ПОВЕРХ этого края — граница клипа
+      // ступенчатая, и она видна как рваный контур. Ассеты владельца при
+      // этом не трогаем: он прямо запретил их «оптимизировать».
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
       av.appendChild(img);
     }
   } catch(e){}
