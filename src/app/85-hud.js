@@ -1433,7 +1433,21 @@ function refreshGuestProfile(){
       for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
       av.dataset.gn = name;
       av.textContent = '';                        // 🫐-плейсхолдер уходит
-      av.style.background = 'hsl(' + (h % 360) + ', 62%, 55%)';
+      // АВАТАРЫ ВЛАДЕЛЬЦА (папка avatars/, слово 2026-08-05: «они должны быть
+      // вписаны в текущий размер окружности, но быть все без фона, поэтому и
+      // png»). Файл выбирается ДЕТЕРМИНИРОВАННО по имени: один гость — один
+      // аватар навсегда, как и его имя. Цветной круг остаётся ПОДЛОЖКОЙ:
+      // картинки прозрачные, и без него они висели бы в пустоте.
+      // ⚠️ БЕЗ ПОДЛОЖКИ (слово владельца 2026-08-05: «под картинкой не должно
+      // быть никакого фона»). Прежняя цветная заливка отменена — аватары
+      // владельца сами несут форму и цвет, круг под ними давал второй ободок.
+      av.style.background = 'transparent';
+      const idx = (h % AVATAR_COUNT) + 1;
+      const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
+      const img = document.createElement('img');
+      img.src = file; img.alt = ''; img.decoding = 'async';
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;border-radius:50%';
+      av.appendChild(img);
     }
   } catch(e){}
 }

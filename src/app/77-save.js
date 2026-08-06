@@ -196,6 +196,7 @@ function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // naf НЕ т
 // цветом»). Поле Save.gn: генерится один раз на устройство, при мерже
 // непустое имя НЕ перетирается чужим (при равных — текущее устройство).
 // Фундамент под блок лидербордов; аватар — цвет из хеша имени (85-hud).
+const AVATAR_COUNT = 49; // файлов в avatars/ (Avatar01..Avatar49) — ассеты владельца
 const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
   'Finch Wren Heron Stork Eagle Falcon Kestrel Osprey Puffin Pelican ' +
   'Otter Beaver Badger Marten Stoat Weasel Hare Rabbit Squirrel Chipmunk ' +

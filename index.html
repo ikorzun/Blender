@@ -8060,6 +8060,7 @@ function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // naf НЕ т
 // цветом»). Поле Save.gn: генерится один раз на устройство, при мерже
 // непустое имя НЕ перетирается чужим (при равных — текущее устройство).
 // Фундамент под блок лидербордов; аватар — цвет из хеша имени (85-hud).
+const AVATAR_COUNT = 49; // файлов в avatars/ (Avatar01..Avatar49) — ассеты владельца
 const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
   'Finch Wren Heron Stork Eagle Falcon Kestrel Osprey Puffin Pelican ' +
   'Otter Beaver Badger Marten Stoat Weasel Hare Rabbit Squirrel Chipmunk ' +
@@ -10261,7 +10262,11 @@ function handleTapInner(x, y){
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
-    toast('Pair is too far — shake!');
+    // ⛔ ТОСТ СНЯТ (слово владельца 2026-08-05: «убери нижний тост сообщение,
+    // который говорит, что пары слишком далеко. Его нужно визуально переделать
+    // и поменять позицию, займемся этим потом»). Подсказку НЕСЁТ ЛИНИЯ выше —
+    // она показывает, КУДА тянуться, и остаётся. Текст вернётся с новой
+    // формой и местом по его слову; строку не изобретать заново.
   } else if (nearBuried.length){
     nearBuried.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     markerFX(nearBuried[0].p, 0xffb224);
@@ -11960,7 +11965,21 @@ function refreshGuestProfile(){
       for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
       av.dataset.gn = name;
       av.textContent = '';                        // 🫐-плейсхолдер уходит
-      av.style.background = 'hsl(' + (h % 360) + ', 62%, 55%)';
+      // АВАТАРЫ ВЛАДЕЛЬЦА (папка avatars/, слово 2026-08-05: «они должны быть
+      // вписаны в текущий размер окружности, но быть все без фона, поэтому и
+      // png»). Файл выбирается ДЕТЕРМИНИРОВАННО по имени: один гость — один
+      // аватар навсегда, как и его имя. Цветной круг остаётся ПОДЛОЖКОЙ:
+      // картинки прозрачные, и без него они висели бы в пустоте.
+      // ⚠️ БЕЗ ПОДЛОЖКИ (слово владельца 2026-08-05: «под картинкой не должно
+      // быть никакого фона»). Прежняя цветная заливка отменена — аватары
+      // владельца сами несут форму и цвет, круг под ними давал второй ободок.
+      av.style.background = 'transparent';
+      const idx = (h % AVATAR_COUNT) + 1;
+      const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
+      const img = document.createElement('img');
+      img.src = file; img.alt = ''; img.decoding = 'async';
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;border-radius:50%';
+      av.appendChild(img);
     }
   } catch(e){}
 }

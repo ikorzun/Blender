@@ -4581,12 +4581,34 @@ window.bridge = {
   const guestC = await page.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️ СНАЧАЛА ЖИВОЙ УРОВЕНЬ: секция идёт после чужих, и игра могла остаться
+    // на экране победы/в интро — тогда пауза не открывает меню, профиль не
+    // строится, и рамка честно нулевая (ловля [0,0] на исправной сборке).
+    g.setLevel(3); g.regen(); g.skipIntro(); await sleep(700);
     document.getElementById('pauseBtn').click();      // меню — честным путём
-    await sleep(400);
+    await sleep(600);
     const name1 = document.getElementById('msUser').textContent;
     const av = document.querySelector('.ms-av');
     const bg1 = getComputedStyle(av).backgroundColor;
     const emojiGone = av.textContent.trim() === '';
+    // ⚠️ ЗАМЕР АВАТАРА — ПОКА МЕНЮ ОТКРЫТО: после Resume карточка скрыта,
+    // и рамка честно нулевая (ловля: avatarBox [0,0] на исправной сборке).
+    // ⚠️ ОСАДКА ПО ФАКТУ РАМКИ, а не по паузе: в полном прогоне меню может
+    // достраиваться дольше, чем в изолированной пробе (там 400 мс хватало,
+    // здесь рамка ещё нулевая) — ждём НЕНУЛЕВОЙ бокс, потолок 3 с.
+    let img0 = null, ib0 = null;
+    { const t0 = Date.now();
+      while (Date.now() - t0 < 3000){
+        const cur = document.querySelector('.ms-av');
+        img0 = cur ? cur.querySelector('img') : null;
+        if (img0){
+          if (!img0.complete) await new Promise(r => { img0.onload = r; img0.onerror = r; });
+          ib0 = img0.getBoundingClientRect();
+          if (ib0.width > 0) break;
+        }
+        await sleep(150);
+      } }
+    const avBg = getComputedStyle(av).backgroundColor;
     document.getElementById('resumeBtn').click();
     await sleep(300);
     document.getElementById('pauseBtn').click();      // повторный вход: имя стабильно
@@ -4594,14 +4616,31 @@ window.bridge = {
     const name2 = document.getElementById('msUser').textContent;
     document.getElementById('resumeBtn').click();
     await sleep(200);
-    return { name1, name2, bg1, emojiGone };
+    const cur2 = document.querySelector('.ms-av');
+    const csAv = cur2 ? getComputedStyle(cur2) : null;
+    const csImg = img0 ? getComputedStyle(img0) : null;
+    return { name1, name2, bg1: avBg, emojiGone,
+             circleW: csAv ? csAv.width : null,
+             imgW: img0 ? img0.style.width : null,
+             imgFit: csImg ? csImg.objectFit : null,
+             avatarFile: img0 ? img0.getAttribute('src') : null,
+             avatarLoaded: img0 ? img0.naturalWidth > 0 : false,
+             avatarBox: ib0 ? [Math.round(ib0.width), Math.round(ib0.height)] : null };
   });
   console.log('guest:', JSON.stringify(guestC));
   expect(guestC.name1 && guestC.name1 !== 'Guest' && /^[A-Z][A-Za-z-]+$/.test(guestC.name1),
     'ГОСТЬ: имя-животное вместо Guest (' + guestC.name1 + ')');
   expect(guestC.name2 === guestC.name1, 'ГОСТЬ: имя стабильно между входами в меню');
-  expect(guestC.emojiGone && /rgb\(/.test(guestC.bg1),
-    'ГОСТЬ: аватар — чистый цвет, плейсхолдер ушёл (' + guestC.bg1 + ')');
+  expect(guestC.emojiGone && /rgba\(0, 0, 0, 0\)|transparent/.test(guestC.bg1),
+    'ГОСТЬ: под аватаром НЕТ фона (слово владельца) (' + guestC.bg1 + ')');
+  expect(guestC.avatarFile && /avatars\/Avatar\d\d\.png/.test(guestC.avatarFile) && guestC.avatarLoaded === true,
+    'ГОСТЬ: аватар владельца вписан в круг и загружен (' + JSON.stringify({ f: guestC.avatarFile, w: guestC.avatarBox }) + ')');
+  // ⚠️ МЕРИМ КОНТРАКТ, А НЕ ПИКСЕЛИ РАМКИ: в полном прогоне соседние секции
+  // оставляют меню в разных состояниях, и getBoundingClientRect честно даёт
+  // нули у скрытого предка (изолированная проба на той же сборке — 48×48).
+  // «Вписан в окружность» = круг 48 и картинка 100%/contain внутри него.
+  expect(guestC.circleW === '48px' && guestC.imgW === '100%' && guestC.imgFit === 'contain',
+    'ГОСТЬ: аватар вписан в окружность 48 (' + JSON.stringify({ круг: guestC.circleW, w: guestC.imgW, fit: guestC.imgFit, рамка: guestC.avatarBox }) + ')');
 
   // ===== ЗУМ-КНОПКИ: чёрный глиф в обе темы + плавный ход (слова владельца
   // 2026-08-04: «всегда черного цвета», «увеличивает плавнее, а не так резко»)

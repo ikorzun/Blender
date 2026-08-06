@@ -848,7 +848,11 @@ function handleTapInner(x, y){
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     lineFX(item.p, accessible[0].p, 0xffb224);
-    toast('Pair is too far — shake!');
+    // ⛔ ТОСТ СНЯТ (слово владельца 2026-08-05: «убери нижний тост сообщение,
+    // который говорит, что пары слишком далеко. Его нужно визуально переделать
+    // и поменять позицию, займемся этим потом»). Подсказку НЕСЁТ ЛИНИЯ выше —
+    // она показывает, КУДА тянуться, и остаётся. Текст вернётся с новой
+    // формой и местом по его слову; строку не изобретать заново.
   } else if (nearBuried.length){
     nearBuried.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     markerFX(nearBuried[0].p, 0xffb224);
