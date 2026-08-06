@@ -407,7 +407,11 @@ function bowlCollectAll(){
   }
   stats.score += gainedTotal;
   const shown = scoreShownDelta(scoreBefore, stats.score);
-  if (surprise){ try { collectSurprise(surprise); } catch(e){} }
+  // ⚠️ КЛАД БОЛЬШЕ НЕ СОБИРАЕТСЯ ЗДЕСЬ: он летит в центр ВМЕСТЕ СО ВСЕМИ
+  // (слово владельца — «ВСЕ объекты, которые были в чаше»), а начисление и его
+  // эффекты уходят в момент хлопка, уже в точке сбора. Раньше он лопался на
+  // месте, пока остальные ещё летели, — и обещание «все сливаются» ломалось
+  // ровно на самом заметном предмете.
   // ⚙️ СЛЁТ В ЦЕНТР И ХЛОПОК (слово владельца 2026-08-06: «все объекты, которые
   // были в чаше на момент взрыва, сливаются друг с другом в центре и исчезают,
   // как сейчас сделано слияние объектов»). Было: каждый таял на месте волной от
@@ -423,12 +427,24 @@ function bowlCollectAll(){
   }
   // ⚠️ РЕАЛЬНЫЕ ЧАСЫ (4-й аргумент): удаление ниже висит на setTimeout, и на
   // просевшем FPS игровой тик отставал — куча исчезала, не долетев до центра.
-  collapseFX(all, центр, BOWL_MERGE_MS, true);
+  const летят = surprise ? all.concat([surprise]) : all;
+  if (surprise){ surprise.animating = true; destroyItemBody(surprise); }
+  collapseFX(летят, центр, BOWL_MERGE_MS, true);
   const тон = (all[0] && (all[0].fxColor || all[0].baseColor)) || null;
   setTimeout(() => {
     if (!level) return;
     impactFX(центр, MATCH_MAX_N, тон, all[0] || null);   // удар как у крупной группы
     dissolveFX({ p: центр, r: 1.6, fxColor: тон, baseColor: тон });
+    popFX(центр);          // ⚠️ был у обычного матча и не был здесь — язык хлопка один
+    // клад забирается ЗДЕСЬ, в точке сбора: сдвигаем его якорь эффектов на
+    // центр, иначе его поп и труха ушли бы туда, где он лежал до слёта
+    // ⚠️ ДВИГАЕМ ТОЛЬКО ЯКОРЬ ЭФФЕКТОВ (`p`), А НЕ МЕШ. Меш к этому моменту уже
+    // САМ прилетел в центр вместе со всеми — в этом вся правка. Первая версия
+    // копировала и mesh.position, то есть ТЕЛЕПОРТИРОВАЛА клад, и страж «клад
+    // летит со всеми» проходил зелёным даже когда клад вынут из слёта: он мерил
+    // телепорт, а не полёт (диверсия это и показала).
+    if (surprise && surprise.alive){ surprise.p.copy(центр);
+      try { collectSurprise(surprise); } catch(e){} }
     camShake = Math.max(camShake, COLLAPSE_SHAKE * 2);
     Sound.play('match', { n: Math.min(all.length, MATCH_MAX_N), k: 0 });
   }, BOWL_MERGE_MS);

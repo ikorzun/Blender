@@ -1588,7 +1588,16 @@ window.__game = {
                for (const it of items) if (it.alive && it.mesh)
                  m = Math.max(m, Math.hypot(it.mesh.position.x, it.mesh.position.z));
                return +m.toFixed(2); })(),
-             живыхМешей: items.filter(i => i.alive).length };
+             живыхМешей: items.filter(i => i.alive).length,
+             // ⚠️ КЛАД ОТДЕЛЬНО: он лежит на ДНЕ, и общий «радиус кучи» его не
+             // видит — максимум берут предметы с краёв. Без своего числа страж
+             // «клад летит со всеми» был бы слеп ровно к тому, что проверяет.
+             кладДоЦентра: (() => {
+               const s = items.find(i => i.alive && i.surprise && i.mesh);
+               if (!s) return null;
+               const p = s.mesh.position;
+               return +Math.hypot(p.x, p.y - BOWL_MERGE_AT_Y, p.z).toFixed(2);
+             })() };
   },
   // ⚠️ ХУК НЕСУЩИЙ: на нём страж «три семейства колец живы и детерминированы».
   // Отдаёт РАСКЛАД ПО ВСЕМУ ПУЛУ, а не по текущему уровню: семейство считается
