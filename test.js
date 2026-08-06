@@ -4909,6 +4909,43 @@ window.bridge = {
       'ТОСТ: лишней белой строки в пилюле нет (слово владельца) (' + JSON.stringify(mt) + ')');
   }
 
+  // ===== ОДИН ТОСТ НА ДВА СОБЫТИЯ (слово владельца 2026-08-05 «своди в один»)
+  {
+    const oneToast = await page.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      // ⚠️ ТА ЖЕ ПОДГОТОВКА, ЧТО У СОСЕДНЕЙ МЕТА-СЕКЦИИ: без сброса накопления
+      // порог ступени мог быть уже пройден в прошлых секциях, событие не
+      // приходило, и страж читал «не показан» на исправной сборке.
+      g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
+      g.setLevel(20); g.regen(); g.skipIntro(); await sleep(500);
+      const mt = document.getElementById('multToast');
+      const tt = document.getElementById('tierToast');
+      mt.classList.remove('on', 'up');
+      const live = g.accSnapshot().find(r => r._item);
+      if (!live) return { skipped: true };
+      // ⚠️ ГРАНТИМ ДО СЛЕДУЮЩЕЙ СТУПЕНИ ПО ФАКТУ, а не фиксированные 120:
+      // соседняя мета-секция уже поднимала ступень этому виду, и повторный
+      // грант того же размера событие НЕ рождал — страж читал «не показан»
+      // на исправной сборке (ловля 2026-08-05).
+      const t0tier = g.accGrant(live.key, 0).tier;
+      let guard = 0;
+      while (g.accGrant(live.key, 60).tier === t0tier && guard++ < 40){ /* добираем */ }
+      // осадка по ФАКТУ показа
+      let shown = false;
+      { const t0 = Date.now();
+        while (Date.now() - t0 < 4000){ if (mt.classList.contains('on')){ shown = true; break; } await sleep(80); } }
+      const up = mt.classList.contains('up');
+      const pill = tt ? (getComputedStyle(tt).opacity !== '0' && tt.classList.contains('show')) : false;
+      return { shown, up, pill, val: document.getElementById('multToastVal').textContent };
+    });
+    console.log('один тост:', JSON.stringify(oneToast));
+    expect(oneToast.skipped || (oneToast.shown && oneToast.up),
+      'ТОСТ: повышение ступени идёт ТЕМ ЖЕ тостом под глазами, с пометкой события (' + JSON.stringify(oneToast) + ')');
+    expect(oneToast.skipped || oneToast.pill === false,
+      'ТОСТ: старая пилюля ступени больше не показывается (' + JSON.stringify(oneToast) + ')');
+  }
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });

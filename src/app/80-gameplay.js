@@ -169,7 +169,19 @@ function doMatch(list){
   const hasRefill = list.some(i => i.refill);
   const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   // тост множителя под глазами (нода 829:1242): только у прокачанных типов
-  try { const am = accMult(typeName); if (am > 1) showMultToast(typeName, am); } catch(e){}
+  // ⚠️ ТОЛЬКО ПРИ РОСТЕ МНОЖИТЕЛЯ В ЭТОЙ ПАРТИИ (слово владельца 2026-08-05:
+  // «тост под глазами показывается, если только множитель вещи увеличен во
+  // время игры»). Раньше он всплывал на КАЖДОМ сборе прокачанного вида — то
+  // есть на давно купленной прокачке тоже, и превращался в шум. Событие
+  // роста приходит из accAdd (повышение ступени) и из покупки бустера —
+  // оба идут через showTierUp -> showMultToast(..., true).
+  // Здесь оставлен только СЛУЧАЙ РОСТА В БОЮ: множитель вида стал больше,
+  // чем был на старте уровня.
+  try {
+    const am = accMult(typeName);
+    const base = (level && level.multAtStart && level.multAtStart[typeName]) || 1;
+    if (am > base + 1e-6) showMultToast(typeName, am);
+  } catch(e){}
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)

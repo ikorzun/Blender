@@ -552,6 +552,10 @@ function genLevel(){
   chargeName = ''; chargeUntil = 0; // ревью v212: заряд типа тоже не переживает
   // ЧАША-РАЗЛЁТ (прототип v2): чаша НОВАЯ каждый уровень (решение №1
   // владельца) — трещины в ноль, стекло и стены восстановлены
+  // снимок множителей на старте уровня — по нему тост решает, ВЫРОС ли
+  // множитель в этой партии (слово владельца 2026-08-05)
+  level.multAtStart = {};
+  try { for (const t of TYPES) level.multAtStart[t.name] = accMult(t.name); } catch(e){}
   level.bowlCracks = 0; bowlShattering = false;
   try { restoreBowlVis(); } catch(e){}
   try { ensureWalls(); } catch(e){}

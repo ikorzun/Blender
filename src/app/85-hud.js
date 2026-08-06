@@ -488,8 +488,8 @@ function chargeFadeTick(){
 // набранной вещи показывается под глазами»): плашка 169×60, портрет 44,
 // «×N.NN» лаймом. Показывается на сборе прокачанного типа (accMult > 1),
 // повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
-let multToastT = 0;
-function showMultToast(typeName, mult){
+let multToastT = 0, multTween = 0, multLastShown = null; // multLastShown — с какого числа крутить счётчик
+function showMultToast(typeName, mult, isTierUp){
   // десктоп ставит тост НАД витриной (нода 741:1497): её высота зависит от
   // числа типов уровня, поэтому отдаём измеренную высоту в CSS-переменную
   try {
@@ -502,10 +502,36 @@ function showMultToast(typeName, mult){
   const url = it ? itemThumb(it) : '';
   const img = $('multToastImg');
   if (url) img.src = url; else img.removeAttribute('src');
-  $('multToastVal').textContent = '×' + (Math.round(mult * 100) / 100);
+  // ЧИСЛО ПЕРЕЕЗЖАЕТ ПЛАВНО (слово владельца 2026-08-05: «добавить плавное,
+  // но быстрое изменение множителя с предыдущего значения на новое»): на
+  // повышении ступени крутим счётчик от прошлого множителя к новому за 420 мс
+  // на РЕАЛЬНЫХ часах (тост живёт вне игрового времени; слоу-мо разлёта не
+  // должно его растягивать). Обычный показ ставит число сразу.
+  const valEl = $('multToastVal');
+  const target = Math.round(mult * 100) / 100;
+  if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
+  if (isTierUp && multLastShown != null && multLastShown < target){
+    const from = multLastShown, t0 = performance.now();
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / 420);
+      const e = 1 - Math.pow(1 - k, 3);
+      valEl.textContent = '×' + (Math.round((from + (target - from) * e) * 100) / 100);
+      multTween = k < 1 ? requestAnimationFrame(step) : 0;
+    };
+    step();
+  } else {
+    valEl.textContent = '×' + target;
+  }
+  multLastShown = target;
+  // ПОВЫШЕНИЕ СТУПЕНИ — тот же тост, но заметное СОБЫТИЕ: вспышка чипа и
+  // вдвое дольше на экране (слово владельца 2026-08-05 «своди в один»).
+  // Класс снимаем таймером — иначе разовая анимация висела бы на узле и
+  // перебивала следующий показ (грабля слота заряда).
+  el.classList.toggle('up', !!isTierUp);
   el.classList.add('on');
   if (multToastT) clearTimeout(multToastT);
-  multToastT = setTimeout(() => { el.classList.remove('on'); multToastT = 0; }, 1400);
+  multToastT = setTimeout(() => { el.classList.remove('on'); el.classList.remove('up'); multToastT = 0; },
+                          isTierUp ? 2600 : 1400);
 }
 function updateHUD(){
   // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
@@ -932,7 +958,15 @@ function spinTick(now){
 const tierQueue = [];
 let tierBusy = false;
 function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
-function showTierUp(ev){ tierQueue.push(ev); if (!tierBusy) nextTierToast(); }
+// ⚠️ ОДИН ТОСТ НА ДВА СОБЫТИЯ (слово владельца 2026-08-05 «своди в один»):
+// сбор прокачанного вида и ПОВЫШЕНИЕ ступени показывает один и тот же тост
+// под глазами; раньше ступень уходила в отдельную пилюлю у нижнего края и
+// читалась как дубль. Пилюля #tierToast и очередь nextTierToast остаются
+// мёртвым кодом до уборки — снимать вместе с разметкой и CSS.
+function showTierUp(ev){
+  try { showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true); } catch(e){}
+}
+function showTierUpLegacy(ev){ tierQueue.push(ev); if (!tierBusy) nextTierToast(); }
 function nextTierToast(){
   const ev = tierQueue.shift();
   if (!ev){ tierBusy = false; return; }
