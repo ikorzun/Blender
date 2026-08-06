@@ -5474,15 +5474,15 @@ window.bridge = {
         return getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/).length;
       });
     };
-    const r = { w359: await n(359), w360: await n(360), w430: await n(430), w600: await n(600) };
+    const r = { w380: await n(380), w381: await n(381), w430: await n(430), w600: await n(600) };
     await cp.close(); return r;
   })();
   console.log('колонки:', JSON.stringify(cols));
-  expect(cols.w359 === 2,
-    '⚠️ КОЛЛЕКЦИЯ: уже 360 — ровно 2 столбца (порог владельца, ' + cols.w359 + ')');
-  expect(cols.w360 >= 3,
-    '⚠️ КОЛЛЕКЦИЯ: с 360 столбцов больше двух — переход ровно на названном числе (' + cols.w360 + ')');
-  expect(cols.w430 >= cols.w360 && cols.w600 > cols.w360,
+  expect(cols.w380 === 2,
+    '⚠️ КОЛЛЕКЦИЯ: НА 380 — ровно 2 столбца (уточнённый порог владельца, ' + cols.w380 + ')');
+  expect(cols.w381 >= 3,
+    '⚠️ КОЛЛЕКЦИЯ: ШИРЕ 380 — уже 3 столбца, переход ровно на названном числе (' + cols.w381 + ')');
+  expect(cols.w430 >= cols.w381 && cols.w600 > cols.w381,
     '⚠️ КОЛЛЕКЦИЯ: дальше число столбцов РАСТЁТ с шириной, а не залипает (' + JSON.stringify(cols) + ')');
 
   // (4) ГЛАЗА ЗА КУРСОРОМ НА ГЕЙМПЛЕЕ. Меряем СМЕЩЕНИЕ ЗРАЧКА, а не факт
