@@ -199,6 +199,12 @@ const path = require('path');
   // `matchRadius > 10` заодно сохраняет прежнюю защиту от раннего чтения —
   // сэмпл берётся только когда радиус УЖЕ пересчитан refresh-тиком.
   await page.evaluate(() => {
+    window.__camFollowSample = null;
+    window.__camFollowTimer = setInterval(() => {
+      const g = window.__game; if (!g) return;
+      const l = g.level();
+      if (window.__camFollowSample === null && l && l.camFollowOn) window.__camFollowSample = g.cam().ty;
+    }, 50);
     window.__egSample = null;
     window.__egTimer = setInterval(() => {
       const g = window.__game; if (!g) return;
@@ -214,7 +220,8 @@ const path = require('path');
       // последний шанс: окно могло закрыться, пока мы ждали снаружи —
       // наблюдатель его всё равно записал
       if (endgameRadius === null) endgameRadius = await page.evaluate(() => window.__egSample);
-      await page.evaluate(() => clearInterval(window.__egTimer));
+      await page.evaluate(() => { clearInterval(window.__egTimer); clearInterval(window.__camFollowTimer); });
+      if (endgameTy === null) endgameTy = await page.evaluate(() => window.__camFollowSample);
       break;
     }
     if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
@@ -222,10 +229,10 @@ const path = require('path');
     // ⚠️ ПО ФАКТУ ЗАЩЁЛКИ, А НЕ ПО ЧИСЛУ 20: порог — 20% от СТАРТОВОГО размера
     // уровня, а он теперь растёт с прогрессией (ур.1 = 82 -> порог 16, и на
     // «alive<=20» защёлка ещё не щёлкала — страж краснел на исправной игре).
-    if (endgameTy === null){
-      const on = await page.evaluate(() => { const l = window.__game.level(); return !!(l && l.camFollowOn); });
-      if (on) endgameTy = st.ty;
-    }
+    // ⚠️ НАБЛЮДАТЕЛЬ ВНУТРИ СТРАНИЦЫ, А НЕ ОПРОС СНАРУЖИ (тот же приём, что у
+    // эндшпильного радиуса): между опросами уровень успевает кончиться, и
+    // момент защёлки проскакивает целиком — страж краснел на исправной игре.
+    if (endgameTy === null) endgameTy = await page.evaluate(() => window.__camFollowSample);
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
