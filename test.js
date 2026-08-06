@@ -451,7 +451,11 @@ const path = require('path');
   expect(aliveAfterRestart > 0, 'regen пересоздал уровень (' + aliveAfterRestart + ')');
 
   // заполнение доверху + очки за групповой матч + миксер за простой
-  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; window.__game.regen(); window.__game.skipIntro(); });
+  // ⚠️ УРОВЕНЬ ЗАДАЁМ ЯВНО (прогрессия 2026-08-05): страж мерит «ПОЛНАЯ чаша
+  // заполнена до красной линии», а размер уровня теперь растёт с номером —
+  // на ур.1 (40 пар) куча законно ниже, и порог 5.5 краснел на исправной
+  // игре (topY 5.49). Берём уровень с потолком пар (>=11).
+  await page.evaluate(() => { window.__game.setLevel(12); window.__game.cfg.baseRadius = 0.9; window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(1000);
   const fill = await page.evaluate(() => ({ topY: window.__game.topY(), alive: window.__game.alive() }));
   console.log('fill: topY', fill.topY.toFixed(2), '(rim 9.2) | alive:', fill.alive);
