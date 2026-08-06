@@ -5373,6 +5373,144 @@ window.bridge = {
     '⚠️ МЕНЮ ЗАКРЫТО ОБРАТНО: кромка вернулась к небу — тон меню не залипает на игровом экране (' +
     bgSeams.back.body.col + ')');
 
+  // ===== ПАКЕТ 2026-08-06: ПОРЯДОК АНОНСА / КОЛОНКИ КОЛЛЕКЦИИ / ГЛАЗА ЗА КУРСОРОМ =====
+  // ⚠️ В КОНЦЕ ФАЙЛА: секция гоняет победу и открывает меню — долгоживущее
+  // состояние, правило «как камни».
+
+  // (1) АНОНС: колбэк отдаёт управление уровню на ВСЕХ ветках, включая отказные.
+  // Это несущий ассерт правки: `genLevel` теперь живёт В КОЛБЭКЕ, и потерянный
+  // вызов означал бы, что кнопка «Next» перестала начинать уровень — в самом
+  // частом случае, когда анонса нет вовсе.
+  // (2) АНОНС: ПЕРЕХОД. Пока висит статистика — виньетки нет; она приходит
+  // только по «Next». Ассертится именно ПОРЯДОК, а не наличие: сравнение
+  // «нет-нет» было бы истинно и на сборке, где анонса нет вовсе, поэтому
+  // вторая фаза обязана дать СЛЕД.
+  const stAnn06 = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const есть = () => !!document.getElementById('storyOverlay');
+    { const so = document.getElementById('storyOverlay'); if (so) so.click(); } g.storyEnable(true);
+    g.setLevel(3); g.regen(); g.skipIntro(); await sleep(400);
+    g.stats().taps = 5;                          // §6.1: без тапов виньетки нет
+    g.leaveSingles(); await sleep(2500);          // доводим до победы финалом
+    // ⚠️ НАБЛЮДАЕМ НЕПРЕРЫВНО, А НЕ В ТОЧКЕ: виньетка живёт 4 с и ГАСНЕТ САМА.
+    // Разовый замер после ожидания победы её просто не заставал — диверсия
+    // «вернуть storyOnWin в checkEnd» оставалась зелёной. Копим ФАКТ появления
+    // за весь отрезок «победа -> до нажатия Next».
+    let приСтатистике = false, статистика = false;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 9000){
+      if (есть()) приСтатистике = true;
+      if (getComputedStyle(document.getElementById('winOverlay')).display !== 'none'){
+        статистика = true;
+        if (Date.now() - t0 > 5200) break;   // пересидели автогашение 4 с
+      }
+      await sleep(100);
+    }
+    document.getElementById('againBtn').click();
+    let послеNext = false;
+    for (let i = 0; i < 20 && !послеNext; i++){ await sleep(100); послеNext = есть(); }
+    { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
+    return { статистика, приСтатистике, послеNext };
+  });
+  console.log('анонс:', JSON.stringify(stAnn06));
+  expect(stAnn06.статистика === true,
+    'САНИТАР: экран статистики дошёл (иначе следующие два ассерта мерят пустоту)');
+  expect(stAnn06.приСтатистике === false,
+    '⚠️ АНОНС: пока показана СТАТИСТИКА, виньетки поверх неё НЕТ (жалоба владельца «сразу же после уровня»)');
+  expect(stAnn06.послеNext === true,
+    '⚠️ АНОНС: по «Next» виньетка приходит — проверен ПЕРЕХОД, а не «нигде нет» (' +
+    JSON.stringify(stAnn06) + ')');
+
+  // ⚠️ ПОРЯДОК ДВУХ СЕКЦИЙ НЕСУЩИЙ: страж колбэка помечает ВСЕ главы
+  // виденными (иначе ветку «главы нет» не поставить детерминированно) —
+  // и после него виньетка не выпадет уже никому. Поэтому он идёт ПОСЛЕ
+  // стража порядка, а не перед ним. Поймано на себе: страж порядка
+  // покраснел на ИСПРАВНОЙ сборке, потому что сосед забрал у него главу.
+  // ⚠️ ВЕТОК ОТКАЗА ТРИ, И СТРАЖ ОБЯЗАН ПРОЙТИ ПО ВСЕМ: «сюжет выключен»,
+  // «уровень без тапов», «главы нет». Первая версия щупала только первую —
+  // и диверсия, снявшая `else fin()` (ветка «главы нет»), осталась ЗЕЛЁНОЙ.
+  // Ровно тот случай, о котором канон говорит «ломай всех держателей»: тут
+  // наоборот, страж обязан ДЕРЖАТЬ всех, иначе ломать нечего.
+  const stCb = await page.evaluate(async () => {
+    const g = window.__game;
+    const зов = () => new Promise(r => {
+      let ok = false;
+      g.storyOnWin(() => { ok = true; r('вернулся'); });
+      setTimeout(() => r(ok ? 'вернулся' : 'ПОТЕРЯН'), 1200);
+    });
+    { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
+    g.storyEnable(false); const выкл = await зов(); g.storyEnable(true);
+    const t = g.stats(); const было = t.taps; t.taps = 0;
+    const безТапов = await зов(); t.taps = было || 5;
+    // «ГЛАВЫ НЕТ» — ДЕТЕРМИНИРОВАННО, БИТАМИ СЕЙВА. Прежняя постановка («две
+    // победы подряд, гейт по уровням») главу всё-таки давала, и диверсия,
+    // снявшая `else fin()`, оставалась зелёной — страж мерил не ту ветку.
+    // Помечаем ВСЕ главы виденными: storyDue гарантированно отдаёт null.
+    g.mergeRaw({ gen: (g.saveRaw().gen || 0), st: 0xffff });
+    const главыНет = await зов();
+    { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
+    return { выкл, безТапов, главыНет };
+  });
+  console.log('колбэк:', JSON.stringify(stCb));
+  expect(stCb.выкл === 'вернулся' && stCb.безТапов === 'вернулся' && stCb.главыНет === 'вернулся',
+    '⚠️ АНОНС: колбэк зовётся на ВСЕХ ТРЁХ отказных ветках — «Next» начинает уровень и когда анонса нет (' +
+    JSON.stringify(stCb) + ')');
+
+  // (3) КОЛОНКИ КОЛЛЕКЦИИ: 2 только ниже 360, дальше растут.
+  const cols = await (async () => {
+    const cp = await browser.newPage({ viewport: { width: 359, height: 780 } });
+    await cp.goto('file://' + path.join(__dirname, 'index.html'));
+    await cp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await cp.evaluate(() => window.__game.skipIntro());
+    const n = async (w) => {
+      await cp.setViewportSize({ width: w, height: 780 });
+      return await cp.evaluate(async () => {
+        document.getElementById('pauseBtn').click();
+        await new Promise(r => setTimeout(r, 250));
+        const g = document.querySelector('.ms-grid');
+        // ЧИСЛО КОЛОНОК — ПО РЕАЛЬНОЙ РАСКЛАДКЕ, а не по строке шаблона:
+        // `repeat(auto-fill, …)` в computed уже развёрнут в список треков.
+        return getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/).length;
+      });
+    };
+    const r = { w359: await n(359), w360: await n(360), w430: await n(430), w600: await n(600) };
+    await cp.close(); return r;
+  })();
+  console.log('колонки:', JSON.stringify(cols));
+  expect(cols.w359 === 2,
+    '⚠️ КОЛЛЕКЦИЯ: уже 360 — ровно 2 столбца (порог владельца, ' + cols.w359 + ')');
+  expect(cols.w360 >= 3,
+    '⚠️ КОЛЛЕКЦИЯ: с 360 столбцов больше двух — переход ровно на названном числе (' + cols.w360 + ')');
+  expect(cols.w430 >= cols.w360 && cols.w600 > cols.w360,
+    '⚠️ КОЛЛЕКЦИЯ: дальше число столбцов РАСТЁТ с шириной, а не залипает (' + JSON.stringify(cols) + ')');
+
+  // (4) ГЛАЗА ЗА КУРСОРОМ НА ГЕЙМПЛЕЕ. Меряем СМЕЩЕНИЕ ЗРАЧКА, а не факт
+  // события: «слушатель повешен» зелено и на сборке, где зрачок стоит.
+  const gaze = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
+    document.querySelector('.ms-play').click(); await sleep(200); // меню закрыть
+    g.setLevel(2); g.regen(); g.skipIntro(); await sleep(500);
+    // ⚠️ ЧИТАЕМ TRANSFORM, А НЕ `cx`: атрибут центра у зрачка СТАТИЧЕН (60),
+    // взгляд едет `style.transform` (85-hud). Линейка по `cx` дала бы вечный
+    // ноль сдвига — то есть «зрачок не движется» на ИСПРАВНОЙ сборке.
+    const зрачок = () => { const c = document.getElementById('pupL');
+      if (!c) return null; const m = new DOMMatrixReadOnly(getComputedStyle(c).transform);
+      return [m.e, m.f]; };
+    const шли = (x, y) => window.dispatchEvent(
+      Object.assign(new MouseEvent('mousemove', { clientX: x, clientY: y }), {}));
+    шли(20, 700); await sleep(260); const слева = зрачок();
+    await sleep(120);
+    шли(window.innerWidth - 20, 700); await sleep(260); const справа = зрачок();
+    return { слева, справа, сдвиг: (слева && справа) ? +(справа[0] - слева[0]).toFixed(2) : null };
+  });
+  console.log('взгляд:', JSON.stringify(gaze));
+  expect(gaze.слева && gaze.справа, 'САНИТАР: зрачок найден в разметке (иначе сдвиг мерит null)');
+  expect(gaze.сдвиг !== null && gaze.сдвиг > 4,
+    '⚠️ ГЛАЗА: на ГЕЙМПЛЕЕ зрачок едет за курсором слева направо (сдвиг ' + gaze.сдвиг + ' единиц viewBox)');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
 
   // ===== УДАР ПРИ СОЕДИНЕНИИ (задача тестеров 2026-08-06 «больше драйва») =====
