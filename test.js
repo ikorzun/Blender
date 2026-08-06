@@ -63,8 +63,10 @@ const path = require('path');
     pairsAvail: window.__game.availablePairs(),
   }));
   console.log('start:', JSON.stringify(t0));
-  // уровень 1: 64 пары + рыбка + бомба = 130; трим на рыхлом сиде может тихо изъять пары
-  expect(t0.alive >= 111 && t0.alive <= 130, 'старт: предметов 111-130 (' + t0.alive + ')');
+  // ⚠️ ЧИСЛО СМЕНИЛОСЬ ПРОГРЕССИЕЙ 2026-08-05 (отзыв тестеров «лёгкий уровень
+  // должен быть меньше»): ур.1 = pairsForLevel(1)=40 пар + рыбка + бомба ≈ 82
+  // (было 130). Вилка широкая: трим на рыхлом сиде тихо изымает пары.
+  expect(t0.alive >= 70 && t0.alive <= 95, 'старт: предметов 70-95 по новой прогрессии (' + t0.alive + ')');
   expect(t0.pairsAvail > 0, 'старт: есть доступные пары (' + t0.pairsAvail + ')');
   // первые 15 уровней — предметы одного размера (спека владельца 2026-07-21)
   const sizes0 = await page.evaluate(() => window.__game.sizes());
@@ -217,7 +219,13 @@ const path = require('path');
     }
     if (st.alive > 45 && st.ty < midTyMin) midTyMin = st.ty; // до порога 20% камера обязана СТОЯТЬ
     if (endgameRadius === null) endgameRadius = await page.evaluate(() => window.__egSample);
-    if (st.alive <= 20 && endgameTy === null) endgameTy = st.ty; // защёлка уже щёлкнула — камера в пути вниз
+    // ⚠️ ПО ФАКТУ ЗАЩЁЛКИ, А НЕ ПО ЧИСЛУ 20: порог — 20% от СТАРТОВОГО размера
+    // уровня, а он теперь растёт с прогрессией (ур.1 = 82 -> порог 16, и на
+    // «alive<=20» защёлка ещё не щёлкала — страж краснел на исправной игре).
+    if (endgameTy === null){
+      const on = await page.evaluate(() => { const l = window.__game.level(); return !!(l && l.camFollowOn); });
+      if (on) endgameTy = st.ty;
+    }
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
@@ -4650,10 +4658,95 @@ window.bridge = {
     'ДЕСКТОП: подсказка и Shake справа по ноде 741:1497 (' + JSON.stringify(zoomDesk) + ')');
   expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
     'ЗУМ: глиф чёрный в ОБЕ темы (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
-  expect(zoomSmooth.rMid < zoomSmooth.r0 && zoomSmooth.rMid > zoomSmooth.r0 - 1.6 + 0.05,
+  // ⚠️ ШАГ УДВОЕН СЛОВОМ ВЛАДЕЛЬЦА 2026-08-05 (было 1.6, стало ZOOM_STEP=3.2);
+  // кламп CAM_R_MIN может укоротить ход, поэтому конец сверяем с ожидаемым
+  // радиусом, а не с разностью «ровно шаг».
+  const ZS = 3.2;
+  expect(zoomSmooth.rMid < zoomSmooth.r0 && zoomSmooth.rMid > zoomSmooth.r0 - ZS + 0.05,
     'ЗУМ: ход ПЛАВНЫЙ — на 80мс камера ещё в пути, не ступенька (' + JSON.stringify(zoomSmooth) + ')');
-  expect(Math.abs(zoomSmooth.rEnd - (zoomSmooth.r0 - 1.6)) < 0.05,
-    'ЗУМ: доехал ровно на шаг и встал (' + JSON.stringify(zoomSmooth) + ')');
+  expect(Math.abs(zoomSmooth.rEnd - Math.max(9, zoomSmooth.r0 - ZS)) < 0.15,
+    'ЗУМ: доехал на удвоенный шаг и встал (' + JSON.stringify(zoomSmooth) + ')');
+
+  // ===== ПАКЕТ ТЕСТЕРОВ 2026-08-05 (прогрессия, зум, финал, no-fill) =====
+  // 1) ПРОГРЕССИЯ РАЗМЕРА: ур.1 заметно легче прежних 130, счёт РАСТЁТ по
+  // уровням и упирается в потолок ~180. Числа с допуском ±6 (сюрприз, камни
+  // с ур.16, округление досыпки), важна МОНОТОННОСТЬ и падение старта.
+  const sizes = await page.evaluate(async () => {
+    const g = window.__game, out = [];
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (const lv of [1, 5, 11, 20]){
+      g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(900);
+      out.push({ lv, n: g.alive() });
+    }
+    return out;
+  });
+  console.log('размер уровней:', JSON.stringify(sizes));
+  expect(sizes[0].n <= 90 && sizes[0].n >= 70,
+    'ПРОГРЕССИЯ: ур.1 стал лёгким — ~80 предметов вместо 130 (' + JSON.stringify(sizes) + ')');
+  expect(sizes[0].n < sizes[1].n && sizes[1].n < sizes[2].n,
+    'ПРОГРЕССИЯ: число предметов РАСТЁТ с уровнем (' + JSON.stringify(sizes) + ')');
+  expect(Math.abs(sizes[3].n - sizes[2].n) <= 8 && sizes[3].n <= 190,
+    'ПРОГРЕССИЯ: с 11-го уровня потолок ~180, дальше плато (' + JSON.stringify(sizes) + ')');
+
+  // 2) ЗУМ: шаг ×2 (был 1.6) и УДЕРЖАНИЕ едет плавно, пока палец на кнопке
+  const zoomRes = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(3); g.regen(); g.skipIntro(); await sleep(600);
+    g.setCamR(16.2);
+    const r0 = g.cam().r;
+    document.getElementById('zoomInBtn').click();
+    await sleep(500);                                  // ease 260 мс + запас
+    const rClick = g.cam().r;
+    // удержание: pointerdown без up — камера обязана ехать САМА
+    g.setCamR(16.2); await sleep(60);
+    const b = document.getElementById('zoomInBtn');
+    b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'touch' }));
+    await sleep(400); const rHold1 = g.cam().r;
+    await sleep(500); const rHold2 = g.cam().r;
+    b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'touch' }));
+    await sleep(300); const rAfter = g.cam().r;
+    return { r0, rClick, шагКлика: +(r0 - rClick).toFixed(2), rHold1, rHold2, rAfter };
+  });
+  console.log('зум:', JSON.stringify(zoomRes));
+  expect(zoomRes.шагКлика > 2.4,
+    'ЗУМ: шаг клика удвоен (было 1.6, стало ~3.2) (' + JSON.stringify(zoomRes) + ')');
+  expect(zoomRes.rHold2 < zoomRes.rHold1 - 0.5,
+    'ЗУМ: удержание едет НЕПРЕРЫВНО, пока палец на кнопке (' + JSON.stringify(zoomRes) + ')');
+  expect(Math.abs(zoomRes.rAfter - zoomRes.rHold2) < 0.6,
+    'ЗУМ: отпустил — камера встала (' + JSON.stringify(zoomRes) + ')');
+
+  // 3) NO-FILL: ролик не подобрался -> встряска ВСЁ РАВНО даётся; закрыл сам
+  // -> НЕ даётся. Моки: showRewarded вызывает переданный onFail с причиной.
+  const noFill = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(3); g.regen(); g.skipIntro(); await sleep(600);
+    const lv = g.level(); lv.shakes = 0;               // бесплатные кончились
+    const real = window.Ads ? null : null;
+    const alive0 = g.alive();
+    // подменяем показ рекламы: сперва «не подобралась»
+    const AdsRef = window.__ads;
+    if (!AdsRef) return { skip: 'нет ручки __ads' };
+    const orig = AdsRef.showRewarded;
+    AdsRef.showRewarded = (onReward, onFail) => { if (onFail) onFail('unavailable'); };
+    const before = g.stats().shakesUsed + (g.stats().adShakesUsed || 0);
+    g.requestShake();
+    await sleep(400);
+    const afterNoFill = g.stats().shakesUsed + (g.stats().adShakesUsed || 0);
+    // теперь «закрыл сам»
+    AdsRef.showRewarded = (onReward, onFail) => { if (onFail) onFail('closed'); };
+    g.requestShake();
+    await sleep(400);
+    const afterClosed = g.stats().shakesUsed + (g.stats().adShakesUsed || 0);
+    AdsRef.showRewarded = orig;
+    return { before, afterNoFill, afterClosed };
+  });
+  console.log('no-fill:', JSON.stringify(noFill));
+  expect(noFill.skip || noFill.afterNoFill > noFill.before,
+    'NO-FILL: ролик не подобрался — встряску всё равно дали (' + JSON.stringify(noFill) + ')');
+  expect(noFill.skip || noFill.afterClosed === noFill.afterNoFill,
+    'NO-FILL: закрыл ролик сам — встряски НЕТ (' + JSON.stringify(noFill) + ')');
 
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====

@@ -490,7 +490,8 @@ function loop(){
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
   tickCamFollow(dt);
   tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом
-  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит
+  tickZoomHold(); // непрерывный зум удержанием (90-input) // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -570,7 +571,11 @@ function loop(){
     // траты (или пустой докидки) ест как раньше, в любые кадры.
     if (anyAlive && !hasAnyPair() && (level.finalRefillDone || !finaleAnimBusy)){
       grinding = true;
-      if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
+      // ФИНАЛ БЫСТРЕЕ (слово владельца 2026-08-05: «блендер должен быстрее
+      // измельчать оставшиеся объекты»): период 500 -> 220 мс. Это ХВОСТ
+      // уровня без очков — ускорение сокращает ожидание вдвое с лишним и не
+      // трогает НАКАЗАТЕЛЬНЫЙ помол (MIXER_PERIOD), у которого своя цена.
+      if (now >= level.nextGrind){ level.nextGrind = now + FINALE_GRIND_MS; finaleGrind(); }
     } else if (anyAlive && hasAnyPair() && (idle > level.idleLimit || level.deadlock)){
       // ⚠️ hasAnyPair() в условии — закрытая БОКОВАЯ ДВЕРЬ (пойман стражем
       // докидки): в finale «грязного» кадра первая ветка пасовала, и сироту

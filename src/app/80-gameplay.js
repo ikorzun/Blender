@@ -904,6 +904,15 @@ function requestAdHint(){
     Telemetry.ev('rw', { p: 'hint' });
     updateHUD();
     if (!level.over && !intro) showHint(); // свежий заряд тратим сразу — игрок жал «подсказку»
+  }, (reason) => {
+    if (reason !== 'unavailable') return;              // закрыл сам — без подсказки
+    // ролик не подобрался: заряд ВЫДАЁМ (слово владельца 2026-08-05), но
+    // пер-уровневый кап рекламных подсказок не трогаем — он про показы
+    addHints(1);
+    stats.adHintsUsed++;
+    Telemetry.ev('rw_nofill', { p: 'hint' });
+    updateHUD();
+    if (level && !level.over && !intro) showHint();
   });
   return true;
 }
@@ -1060,12 +1069,26 @@ function useFreeShake(){
   performShake(); updateHUD();
 }
 function startAd(){
+  // ⚠️ ОТМЕНА МОЕЙ ЖЕ СПЕКИ 2026-07-29 «нет ролика — нет награды» (слово
+  // владельца 2026-08-05: «если реклама не подобралась, всё равно разрешать
+  // шейк и типс»). Это НЕ дыра экономики: дыра была в ПОДДЕЛЬНОМ рекламном
+  // экране, который делал вид, что ролик идёт. Здесь показа не было, игрок
+  // видит честный тост, а действие ему всё равно дают — площадка просто не
+  // подобрала ролик, и наказывать за это игрока владелец не хочет.
+  // ⚠️ Только на 'unavailable': закрыл ролик сам — награды нет (78-ads).
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
     // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
     // уровня, наставший за время ролика (встряске некого трясти)
     if (level.over) return;
     level.adShakes--; stats.adShakesUsed++;
     Telemetry.ev('rw', { p: 'shake' });
+    performShake(); updateHUD();
+  }, (reason) => {
+    if (reason !== 'unavailable') return;              // закрыл сам — без встряски
+    if (!level || level.over || intro) return;
+    stats.adShakesUsed++;
+    Telemetry.ev('rw_nofill', { p: 'shake' });
+    toast('Free shake');
     performShake(); updateHUD();
   });
 }

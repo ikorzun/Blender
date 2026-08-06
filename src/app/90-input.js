@@ -175,7 +175,13 @@ canvas.addEventListener('wheel', e => {
 // увести камеру туда, куда не пускают жесты. Шаг 1.6 — примерно щелчок колеса
 // (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
 // ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
-const ZOOM_STEP = 1.6;
+// ×2 к прежнему шагу (слово владельца 2026-08-05: «увеличить зум при клике
+// на контрол — х2 к текущей реализации»); было 1.6.
+const ZOOM_STEP = 3.2;
+// УДЕРЖАНИЕ (его же слово): «при клике и удержании на = или - плавно и
+// медленно увеличивать, пока игрок не уберет палец». Единиц радиуса в
+// секунду; старт после HOLD_DELAY, чтобы обычный клик оставался шагом.
+const ZOOM_HOLD_RATE = 2.4, ZOOM_HOLD_DELAY = 260;
 // ПЛАВНЫЙ ЗУМ КНОПКАМИ (слово владельца 2026-08-04: «клик и тап на зум
 // увеличивает плавнее, а не так резко»): ease-out 260 мс тикером; серия
 // кликов складывается от ЦЕЛИ прошлого клика, пределы те же CAM_R_MIN/MAX.
@@ -199,6 +205,45 @@ function tickZoomAnim(){
 }
 $('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
 $('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
+// ⚠️ УДЕРЖАНИЕ — ОТДЕЛЬНЫЙ РЕЖИМ, НЕ ПОВТОР КЛИКА: непрерывный ход по
+// реальному времени (rate × dt), поэтому скорость одинакова при любом fps;
+// анимация ease-out на это время гасится, иначе два источника дёргали бы
+// камеру. Клик остаётся кликом: удержание включается только после паузы
+// ZOOM_HOLD_DELAY, и тогда click-обработчик уже не даёт лишнего шага.
+let zoomHold = null;
+function zoomHoldStart(dir, btn){
+  const t0 = performance.now();
+  zoomHold = { dir, startAt: t0 + ZOOM_HOLD_DELAY, last: t0, moved: false, btn };
+}
+function zoomHoldStop(){
+  const wasMoved = !!(zoomHold && zoomHold.moved);
+  if (wasMoved && zoomHold.btn) zoomHold.btn.dataset.held = '1';
+  zoomHold = null;
+  return wasMoved;
+}
+function tickZoomHold(){
+  if (!zoomHold) return;
+  const now = performance.now();
+  if (now < zoomHold.startAt){ zoomHold.last = now; return; }
+  const dt = Math.min(0.1, (now - zoomHold.last) / 1000);
+  zoomHold.last = now;
+  if (dt <= 0) return;
+  zoomHold.moved = true;
+  zoomAnim = null;                       // ход удержания главнее ease-кадра
+  hintFly = null;
+  camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, camR + zoomHold.dir * ZOOM_HOLD_RATE * dt));
+  updateCamera();
+}
+for (const [id, dir] of [['zoomInBtn', -1], ['zoomOutBtn', +1]]){
+  const b = $(id);
+  b.addEventListener('pointerdown', (e) => { if (e.button === 0 || e.pointerType !== 'mouse') zoomHoldStart(dir, b); });
+  b.addEventListener('pointerup', () => zoomHoldStop());
+  b.addEventListener('pointercancel', () => zoomHoldStop());
+  b.addEventListener('pointerleave', () => zoomHoldStop());
+  // клик после удержания глушим: ход уже сделан пальцем
+  b.addEventListener('click', (e) => { if (b.dataset.held === '1'){ b.dataset.held = '0'; e.stopImmediatePropagation(); } }, true);
+}
+
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 

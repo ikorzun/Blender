@@ -1962,7 +1962,19 @@ if (typeof THREE === 'undefined') window.__fatal('Failed to load the 3D engine (
 const FUNNEL = { R0: 2.4, R1: 4.1, H: 9.2 }; // ×1.15 к радиусам (спека владельца: «блендер больше»)
 const SLOPE = (FUNNEL.R1 - FUNNEL.R0) / FUNNEL.H;
 const FLOOR_REST = 1.15; // предметы лежат выше зоны лопастей (лопасти у самого дна, видны сквозь стекло)
-const PAIRS = 90;            // подобрано так, чтобы масса заполняла стакан ~на 85%
+const PAIRS = 90;            // ПОТОЛОК: масса заполняет стакан ~на 85%
+// ПРОГРЕССИЯ РАЗМЕРА УРОВНЯ (отзыв тестеров через владельца 2026-08-05:
+// «для лёгкого уровня нужно уменьшить количество объектов, сделать
+// прогрессию по уровням»). Замер ДО правки показал, что прогрессии не было
+// вовсе: ур.1-3 по укороченной таблице 64/71/78 пар, а с ур.4 — сразу
+// потолок 90 пар (182 предмета) и дальше плато до 40-го уровня.
+// Теперь: старт 40 пар (80 предметов), +5 пар за уровень, потолок 90 пар
+// (180) на 11-м уровне. Первый уровень легче прежнего на 38%.
+const PAIRS_START = 40, PAIRS_STEP = 5;
+function pairsForLevel(lv){
+  const n = (typeof lv === 'number' && lv > 0) ? lv : 1;
+  return Math.min(PAIRS, PAIRS_START + (n - 1) * PAIRS_STEP);
+}
 const G = 22;
 const MATCH_SCORE = 10;      // очки: 10 * N * (N-1) за группу из N
 // НОВАЯ БАЛАНС-ТАБЛИЦА (спека владельца 2026-07-22, через диспетчера):
@@ -1973,7 +1985,9 @@ const MATCH_SCORE = 10;      // очки: 10 * N * (N-1) за группу из 
 const MISS_PENALTY = 10;
 const SCORE_NO_PENALTY_LEVELS = 1; // уровни <= N: штрафы очков выключены
 const SCORE_CLAMP_LEVELS = 5;      // уровни <= N: счёт не уходит ниже нуля
-const MIXER_PERIOD = 2.0;    // сек между «перемолотыми» парами
+const MIXER_PERIOD = 2.0;    // сек между «перемолотыми» парами (НАКАЗАНИЕ)
+const FINALE_GRIND_MS = 220; // мс между остатками в ФИНАЛЕ (было 500; слово
+// владельца 2026-08-05 «блендер должен быстрее измельчать оставшиеся»)
 const MIXER_PENALTY = 20;    // штраф очков за пару
 const SURPRISE_BONUS = 150;  // золотая рыбка со дна: +150 + 5×уровень
 const SURPRISE_LEVEL_BONUS = 5;
@@ -2201,7 +2215,10 @@ const PRICE_SCOPE = 15;      // «Прицел»: подсветить все д
 // автоматом. Калибровка ботом 2026-07-22 (профили: пары без комбо ~1.0,
 // комбо без серий, серийный) — финальные значения см. отчёт в WORKSTREAMS.
 const STAR2_K = 1.5, STAR3_K = 2.1; // пороги 2★/3★ от пар-скора
-const PAIRS_EARLY = [64, 71, 78];   // укороченные уровни 1-3 (пропорция под чашу ×1.15)
+// ⛔ PAIRS_EARLY ОТМЕНЁН прогрессией pairsForLevel (2026-08-05): три
+// «укороченных» уровня были единственной вариацией размера, дальше шло
+// плато. Таблица оставлена в истории, чтобы не изобретать её заново.
+// const PAIRS_EARLY = [64, 71, 78];
 const CONTINUE_DROP = 10;    // Continue после поражения: досыпать предметов
 const INTRO_TIME_SCALE = 1.7; // физика в интро ×1.7 (владелец дважды просил +30%); камера-облёт по real-time
 // Разброс размеров предметов (спека владельца 2026-07-21): первые
@@ -5473,7 +5490,7 @@ function genLevel(){
   const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1));
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
-  const pairsCnt = levelNum <= PAIRS_EARLY.length ? PAIRS_EARLY[levelNum - 1] : PAIRS;
+  const pairsCnt = pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
 
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
@@ -8475,7 +8492,12 @@ const Ads = (function(){
     const fb = failCb; rewardCb = null; failCb = null;
     endPending();
     if (!silent) toast('Ad unavailable');
-    if (fb) fb();
+    // ⚠️ ПРИЧИНА ПЕРЕДАЁТСЯ В КОЛБЭК: 'unavailable' — ролик НЕ ПОДОБРАЛСЯ
+    // (нет заполнения, исключение SDK, площадка без роликов, тишина);
+    // 'closed' — игрок сам закрыл до награды. Слово владельца 2026-08-05
+    // «если реклама не подобралась, всё равно разрешать шейк и типс»
+    // распространяется ТОЛЬКО на первое: закрыл сам — награды нет.
+    if (fb) fb(silent ? 'closed' : 'unavailable');
   }
   // Смена контекста (genLevel): висящий показ никого не должен наградить —
   // колбэки замкнуты на СТАРЫЙ level, награда пришла бы новому уровню
@@ -10073,6 +10095,15 @@ function requestAdHint(){
     Telemetry.ev('rw', { p: 'hint' });
     updateHUD();
     if (!level.over && !intro) showHint(); // свежий заряд тратим сразу — игрок жал «подсказку»
+  }, (reason) => {
+    if (reason !== 'unavailable') return;              // закрыл сам — без подсказки
+    // ролик не подобрался: заряд ВЫДАЁМ (слово владельца 2026-08-05), но
+    // пер-уровневый кап рекламных подсказок не трогаем — он про показы
+    addHints(1);
+    stats.adHintsUsed++;
+    Telemetry.ev('rw_nofill', { p: 'hint' });
+    updateHUD();
+    if (level && !level.over && !intro) showHint();
   });
   return true;
 }
@@ -10229,12 +10260,26 @@ function useFreeShake(){
   performShake(); updateHUD();
 }
 function startAd(){
+  // ⚠️ ОТМЕНА МОЕЙ ЖЕ СПЕКИ 2026-07-29 «нет ролика — нет награды» (слово
+  // владельца 2026-08-05: «если реклама не подобралась, всё равно разрешать
+  // шейк и типс»). Это НЕ дыра экономики: дыра была в ПОДДЕЛЬНОМ рекламном
+  // экране, который делал вид, что ролик идёт. Здесь показа не было, игрок
+  // видит честный тост, а действие ему всё равно дают — площадка просто не
+  // подобрала ролик, и наказывать за это игрока владелец не хочет.
+  // ⚠️ Только на 'unavailable': закрыл ролик сам — награды нет (78-ads).
   Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
     // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
     // уровня, наставший за время ролика (встряске некого трясти)
     if (level.over) return;
     level.adShakes--; stats.adShakesUsed++;
     Telemetry.ev('rw', { p: 'shake' });
+    performShake(); updateHUD();
+  }, (reason) => {
+    if (reason !== 'unavailable') return;              // закрыл сам — без встряски
+    if (!level || level.over || intro) return;
+    stats.adShakesUsed++;
+    Telemetry.ev('rw_nofill', { p: 'shake' });
+    toast('Free shake');
     performShake(); updateHUD();
   });
 }
@@ -12485,7 +12530,13 @@ canvas.addEventListener('wheel', e => {
 // увести камеру туда, куда не пускают жесты. Шаг 1.6 — примерно щелчок колеса
 // (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
 // ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
-const ZOOM_STEP = 1.6;
+// ×2 к прежнему шагу (слово владельца 2026-08-05: «увеличить зум при клике
+// на контрол — х2 к текущей реализации»); было 1.6.
+const ZOOM_STEP = 3.2;
+// УДЕРЖАНИЕ (его же слово): «при клике и удержании на = или - плавно и
+// медленно увеличивать, пока игрок не уберет палец». Единиц радиуса в
+// секунду; старт после HOLD_DELAY, чтобы обычный клик оставался шагом.
+const ZOOM_HOLD_RATE = 2.4, ZOOM_HOLD_DELAY = 260;
 // ПЛАВНЫЙ ЗУМ КНОПКАМИ (слово владельца 2026-08-04: «клик и тап на зум
 // увеличивает плавнее, а не так резко»): ease-out 260 мс тикером; серия
 // кликов складывается от ЦЕЛИ прошлого клика, пределы те же CAM_R_MIN/MAX.
@@ -12509,6 +12560,45 @@ function tickZoomAnim(){
 }
 $('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
 $('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
+// ⚠️ УДЕРЖАНИЕ — ОТДЕЛЬНЫЙ РЕЖИМ, НЕ ПОВТОР КЛИКА: непрерывный ход по
+// реальному времени (rate × dt), поэтому скорость одинакова при любом fps;
+// анимация ease-out на это время гасится, иначе два источника дёргали бы
+// камеру. Клик остаётся кликом: удержание включается только после паузы
+// ZOOM_HOLD_DELAY, и тогда click-обработчик уже не даёт лишнего шага.
+let zoomHold = null;
+function zoomHoldStart(dir, btn){
+  const t0 = performance.now();
+  zoomHold = { dir, startAt: t0 + ZOOM_HOLD_DELAY, last: t0, moved: false, btn };
+}
+function zoomHoldStop(){
+  const wasMoved = !!(zoomHold && zoomHold.moved);
+  if (wasMoved && zoomHold.btn) zoomHold.btn.dataset.held = '1';
+  zoomHold = null;
+  return wasMoved;
+}
+function tickZoomHold(){
+  if (!zoomHold) return;
+  const now = performance.now();
+  if (now < zoomHold.startAt){ zoomHold.last = now; return; }
+  const dt = Math.min(0.1, (now - zoomHold.last) / 1000);
+  zoomHold.last = now;
+  if (dt <= 0) return;
+  zoomHold.moved = true;
+  zoomAnim = null;                       // ход удержания главнее ease-кадра
+  hintFly = null;
+  camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, camR + zoomHold.dir * ZOOM_HOLD_RATE * dt));
+  updateCamera();
+}
+for (const [id, dir] of [['zoomInBtn', -1], ['zoomOutBtn', +1]]){
+  const b = $(id);
+  b.addEventListener('pointerdown', (e) => { if (e.button === 0 || e.pointerType !== 'mouse') zoomHoldStart(dir, b); });
+  b.addEventListener('pointerup', () => zoomHoldStop());
+  b.addEventListener('pointercancel', () => zoomHoldStop());
+  b.addEventListener('pointerleave', () => zoomHoldStop());
+  // клик после удержания глушим: ход уже сделан пальцем
+  b.addEventListener('click', (e) => { if (b.dataset.held === '1'){ b.dataset.held = '0'; e.stopImmediatePropagation(); } }, true);
+}
+
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
 
@@ -13466,7 +13556,8 @@ function loop(){
   tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
   tickCamFollow(dt);
   tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом
-  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
+  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит
+  tickZoomHold(); // непрерывный зум удержанием (90-input) // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
   // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
   // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
   if (comboUntil && now > comboUntil){
@@ -13546,7 +13637,11 @@ function loop(){
     // траты (или пустой докидки) ест как раньше, в любые кадры.
     if (anyAlive && !hasAnyPair() && (level.finalRefillDone || !finaleAnimBusy)){
       grinding = true;
-      if (now >= level.nextGrind){ level.nextGrind = now + 500; finaleGrind(); }
+      // ФИНАЛ БЫСТРЕЕ (слово владельца 2026-08-05: «блендер должен быстрее
+      // измельчать оставшиеся объекты»): период 500 -> 220 мс. Это ХВОСТ
+      // уровня без очков — ускорение сокращает ожидание вдвое с лишним и не
+      // трогает НАКАЗАТЕЛЬНЫЙ помол (MIXER_PERIOD), у которого своя цена.
+      if (now >= level.nextGrind){ level.nextGrind = now + FINALE_GRIND_MS; finaleGrind(); }
     } else if (anyAlive && hasAnyPair() && (idle > level.idleLimit || level.deadlock)){
       // ⚠️ hasAnyPair() в условии — закрытая БОКОВАЯ ДВЕРЬ (пойман стражем
       // докидки): в finale «грязного» кадра первая ветка пасовала, и сироту

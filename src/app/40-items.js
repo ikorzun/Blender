@@ -433,7 +433,7 @@ function genLevel(){
   const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1));
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
-  const pairsCnt = levelNum <= PAIRS_EARLY.length ? PAIRS_EARLY[levelNum - 1] : PAIRS;
+  const pairsCnt = pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
 
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
