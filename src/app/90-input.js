@@ -268,7 +268,43 @@ $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
 });
-$('againBtn').addEventListener('click', ()=>{ hide('winOverlay'); Ads.maybeInterstitial(); genLevel(); });
+// ГЛАЗА СЛЕДЯТ ЗА КУРСОРОМ И НА ГЕЙМПЛЕЕ (слово владельца 2026-08-06:
+// «доработай глаза миксера в спокойном состоянии, чтобы на геймплее они так же
+// следили за курсором, как в меню паузы»). Отдельной механики НЕ ЗАВОДИМ: тот
+// же `faceLook`, которым персонаж уже провожает палец на тапе — просто теперь
+// у него есть второй источник, движение мыши.
+// ⚠️ ЛЕСЕНКА ПРИОРИТЕТОВ НЕ ТРОНУТА ПО ПОСТРОЕНИЮ: `gazeFor` читает `lookVec`
+// ТОЛЬКО после `FACE_GAZE[state]`, поэтому помол/усталость/поражение
+// перебивают слежение сами, без единого гварда здесь.
+// ⚠️ ТОЛЬКО НАСТОЯЩИЙ КУРСОР (`pointer:fine`): на тач-экранах mousemove
+// синтезируется из тапа, и зрачки дёргались бы к пальцу поверх собственной
+// реакции на матч.
+// ⚠️ ДРОССЕЛЬ 50 мс НЕСУЩИЙ, А НЕ КОСМЕТИКА: `faceLook` читает
+// getBoundingClientRect() конструкции — на каждом mousemove это принудительный
+// пересчёт раскладки в кадре, где и так идёт солвер.
+if (window.matchMedia && matchMedia('(pointer:fine)').matches){
+  let lastLook = 0;
+  window.addEventListener('mousemove', (e)=>{
+    if (intro || paused) return;            // интро и пауза глаза не ведут
+    if ($('mainScreen').classList.contains('open')) return; // в меню свои глаза
+    const t = performance.now();
+    if (t - lastLook < 50) return;
+    lastLook = t;
+    faceLook(e.clientX, e.clientY);
+  }, { passive: true });
+}
+
+// ЦЕПОЧКА ПО СЛОВУ ВЛАДЕЛЬЦА 2026-08-06: конец уровня -> СТАТИСТИКА -> анонс
+// нового вида -> следующий уровень. Раньше анонс падал поверх статистики сразу
+// после уровня («это не логично»). ⚠️ genLevel — В КОЛБЭКЕ анонса, а не рядом:
+// иначе новый уровень сгенерился бы ПОД открытой виньеткой и игрок вышел бы
+// из неё в уже идущее интро. Отказные ветки storyOnWin зовут колбэк сами.
+// ⚠️ Межстраничная — ПОСЛЕ анонса, тем же порядком «сначала показать, потом
+// грузить»: два полноэкранных слоя (виньетка и ролик) не должны совпасть.
+$('againBtn').addEventListener('click', ()=>{
+  hide('winOverlay');
+  storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); });
+});
 $('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
 $('winX2Btn').addEventListener('click', ()=>{

@@ -1087,7 +1087,9 @@ window.__game = {
   // СЮЖЕТ (86-story): состояние глав и ручной показ для тестов
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),
                          due: (storyDue() || {}).id || null, busy: storyBusy, on: storyOn }; },
-  storyOnWin(){ return storyOnWin(); },
+  // ⚠️ АРГУМЕНТ ПРОКИНУТ (2026-08-06): без него хук ронял колбэк, и страж
+  // «анонс всегда отдаёт управление уровню» мерил бы пустоту.
+  storyOnWin(done){ return storyOnWin(done); },
   // ТЕКСТЫ ДОЛГОЙ МЕТЫ (пункт 1.3): строки и одноразовость правила
   metaTexts(key){ return { line: accToastLine(key), saved: accSavedText(key),
                            next: accNextText(key), rule: accRuleText() }; },
