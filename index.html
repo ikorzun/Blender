@@ -2470,6 +2470,32 @@ const IMPACT_W_OVAL  = 0.68;  // овал — вытянутым (уже, ина
 const IMPACT_POLY_SEG = 7;    // граней у многоугольного обода
 const IMPACT_OVAL_K = 1.42;   // во сколько овал шире по длинной оси
 const IMPACT_ELONG_AT = 1.45; // с какого отношения габаритов предмет «вытянутый»
+// 🔥 ВСПЛЕСК ОГНЯ ПРИ СОВМЕЩЕНИИ ГОРЯЩЕГО (слово владельца 2026-08-06:
+// «когда огненный объект совмещается, при совмещении сделай визуальный
+// всплеск огня»). Слой ДОПОЛНИТЕЛЬНЫЙ: удар, кольцо и труха остаются.
+// ⚠️ Палитра и характер — те же, что у пламени на предмете (fireSilhouetteFX):
+// жёлтый -> глубокий оранжевый, почти-белый подсвет, языки. Иначе всплеск
+// читался бы как ДРУГОЙ эффект, а не как «этот же огонь рванул».
+// ⚠️ Огонь ПОДНИМАЕТСЯ, а не разлетается радиально (этим он и отличается от
+// удара, который лежит рядом в том же кадре): плюм всплывает с ускорением,
+// угли летят баллистикой и падают.
+// ⚠️⚠️ ВСПЛЕСК РАСКРЫВАЕТСЯ ВШИРЬ, А НЕ СТОЛБОМ — ЭТО ТРЕБОВАНИЕ РАКУРСА.
+// Камера смотрит В ЧАШУ СВЕРХУ, и вертикальное движение на экране сжато
+// перспективой: первая версия поднималась узким плюмом и на кадре читалась
+// тугим комком у точки тапа (диагностика красным показала, что эффект
+// рендерится — не виден был именно ПОДЪЁМ). Тот же закон, из-за которого
+// кольцо удара сделано билбордом, а не лежит в плоскости чаши.
+const FIREB_PLUME_N = 84;     // языков в плюме
+const FIREB_PLUME_UP = 3.0;   // подъём остался, но он больше не главный
+const FIREB_PLUME_ACC = 4.0;  // ПОДЪЁМНАЯ сила (у трухи и стрел — падение вниз)
+const FIREB_PLUME_SPREAD = 3.4; // ГЛАВНОЕ: огонь раскрывается вширь
+const FIREB_PLUME_SIZE = 0.58; // крупно: это языки, а не пыль
+const FIREB_PLUME_LIFE = 0.62;
+const FIREB_EMBER_N = 30;     // угли — искры, что летят и падают
+const FIREB_EMBER_V = 5.6;
+const FIREB_EMBER_SIZE = 0.12;
+const FIREB_EMBER_LIFE = 0.9;
+const FIREB_RING_SEG = 18;    // граней у РВАНОГО кольца горящего матча
 // Плотности УЖЕ СОДЕРЖАТ выбранную силу ×1.7 — отдельного множителя в бою нет
 // (ручка силы жила только в стенде, вместе с ним и удалена).
 // ⚙️ ПРАВКА ВЛАДЕЛЬЦА 2026-08-02, дословно: «после совмещения фруктов от них
@@ -2983,6 +3009,7 @@ const PERF_LOW_FX = 0.4;         // доля частиц от полной (т�
 const CFG = {
   perfTier: 'high',   // 'high' | 'low' — ставит applyPerfTier (10-stage)
   fxScale: 1,         // множитель числа частиц; 70-fx читает его при каждом эффекте
+  fxSlow: 1,          // делитель часов эффектов — ТОЛЬКО для съёмки/отладки (см. stepFX)
   // Сложность (спека владельца 2026-07): по умолчанию ЛЮБАЯ пара матчится
   // (перекрытия не проверяются, вуали нет); Hard включает механику
   // физической доступности (веер лучей + серая вуаль). ⚙️ + localStorage.
@@ -6677,7 +6704,7 @@ const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 // одиннадцать обёрток стояли здесь, а четыре — врассыпную по файлу. Всё было
 // обёрнуто, но «на один взгляд» не работало, а правило держится ровно на этом.
 // Список полный: число обёрток ниже обязано совпадать с числом функций
-// `_имя_impl` в файле (сегодня их 13). Страж сверяет это сам.
+// `_имя_impl` в файле (сегодня их 14). Страж сверяет это сам.
 // ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
 const starPopFX        = fxBuilt('star',     _starPopFX_impl);
 const shardFX          = fxBuilt('shard',    _shardFX_impl);
@@ -6686,6 +6713,7 @@ const markerFX         = fxBuilt('marker',   _markerFX_impl);
 const lineFX           = fxBuilt('line',     _lineFX_impl);
 const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
 const impactFX         = fxBuilt('impact',   _impactFX_impl);
+const fireBurstFX      = fxBuilt('fireBurst', _fireBurstFX_impl);
 const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
 const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
@@ -6702,6 +6730,13 @@ function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
 }
 function stepFX(dt){
+  // ⚠️ ЗАМЕДЛЕНИЕ ЧАСОВ ЭФФЕКТОВ (`CFG.fxSlow`, боевое значение 1) — ОТЛАДОЧНАЯ
+  // РУЧКА, и она несущая для показа владельцу: боевой эффект живёт 150-600 мс,
+  // а headless-скриншот стоит около секунды — на кадре его нет ВООБЩЕ. Растянуть
+  // жизнь константой нельзя: движение параметрическое от t=k·life, и при большей
+  // жизни куски улетают в другую точку (искажается ровно то, что показываем).
+  // Деление ЧАСОВ сохраняет траектории бит-в-бит: та же t — та же позиция.
+  if (CFG.fxSlow > 1) dt /= CFG.fxSlow;
   for (let i=fx.length-1;i>=0;i--){
     const f = fx[i]; f.age += dt;
     const k = f.age / f.life;
@@ -7059,6 +7094,33 @@ function _shardFX_impl(pos, color, opts){
 // геометрии и из пачки. Хеш дал бы разнообразие, но не смысл: у вытянутого
 // банана оказалось бы круглое кольцо, а у кирпича — овал.
 // Семейств ТРИ, больше не нужно (и владелец просил «попробуй», а не «все 120»).
+// 🔥 ПАЛИТРА ОГНЯ — ОДНА НА ПЛАМЯ И НА ВСПЛЕСК. Числа взяты из шейдера
+// fireSilhouetteFX: жёлтый / глубокий оранжевый / почти-белый подсвет. Держать
+// вместе: всплеск обязан читаться как «тот же огонь рванул», а не как новый
+// эффект (та же логика, что у SHARD_LIGHT — общий источник вместо копий).
+const FIRE_HOT  = new THREE.Color(1.0, 0.85, 0.25);
+const FIRE_DEEP = new THREE.Color(1.0, 0.28, 0.06);
+const FIRE_CORE = new THREE.Color(1.0, 0.97, 0.80);
+// РВАНОЕ кольцо для горящего матча: внешний радиус пляшет языками. Профиль
+// ДЕТЕРМИНИРОВАННЫЙ (синусы от индекса, без Math.random) — иначе кольцо
+// мерцало бы формой от матча к матчу, а это читается как глитч.
+function makeTornRingGeo(inner, seg){
+  const pos = [], idx = [];
+  for (let i = 0; i <= seg; i++){
+    const a = i / seg * Math.PI * 2;
+    const язык = 1.0 + 0.20 * Math.sin(i * 2.7) + 0.12 * Math.sin(i * 5.3 + 1.1);
+    pos.push(Math.cos(a) * inner, Math.sin(a) * inner, 0);
+    pos.push(Math.cos(a) * язык,  Math.sin(a) * язык,  0);
+  }
+  for (let i = 0; i < seg; i++){
+    const a0 = i * 2, b0 = a0 + 1, a1 = a0 + 2, b1 = a0 + 3;
+    idx.push(a0, b0, b1, a0, b1, a1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return g;
+}
 const RING_FAM = new Map();      // имя типа -> {fam, w, seg, kx}
 function ringFamFor(type, geo){
   const key = (type && type.name) || 'нет';
@@ -7085,15 +7147,105 @@ function ringFamFor(type, geo){
   RING_FAM.set(key, v);
   return v;
 }
+// 🔥 ВСПЛЕСК ОГНЯ при совмещении ГОРЯЩЕГО вида (слово владельца 2026-08-06).
+// Два носителя, оба — Points (цена живёт в объекте, не в частице):
+//   ПЛЮМ — языки, всплывают С УСКОРЕНИЕМ ВВЕРХ и остывают из белого в глубокий
+//          оранжевый (у трухи и стрел движение противоположное — падение);
+//   УГЛИ — редкие яркие искры баллистикой, живут дольше плюма и гаснут в полёте.
+// ⚠️ БЕЗ ТЕСТА ГЛУБИНЫ, как и удар: всплеск рождается в точке тапа, ВНУТРИ
+// плотной кучи — с depthTest он был бы закрыт предметами целиком (мой урок
+// 2026-08-06, стоил замера с замедлением ×10).
+let lastFireBurst = null;   // ⚠️ НЕСУЩЕЕ: на этом страж «всплеск только у горящего»
+function _fireBurstFX_impl(pos, n){
+  const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
+  const N = Math.max(24, Math.round(FIREB_PLUME_N * (0.75 + 0.5 * k) * CFG.fxScale));
+  const M = Math.max(10, Math.round(FIREB_EMBER_N * (0.75 + 0.5 * k) * CFG.fxScale));
+  // --- ПЛЮМ
+  const pp = new Float32Array(N * 3), pc = new Float32Array(N * 3);
+  const vx = [], vy = [], vz = [], ph = [];
+  const c = new THREE.Color();
+  for (let i = 0; i < N; i++){
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random());
+    vx.push(Math.cos(a) * r * FIREB_PLUME_SPREAD);
+    vz.push(Math.sin(a) * r * FIREB_PLUME_SPREAD);
+    vy.push(FIREB_PLUME_UP * (0.55 + Math.random() * 0.8));
+    ph.push(Math.random() * 6.28);
+    c.copy(FIRE_CORE).lerp(FIRE_HOT, Math.random());
+    pc[i*3] = c.r; pc[i*3+1] = c.g; pc[i*3+2] = c.b;
+  }
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+  pg.setAttribute('color', new THREE.BufferAttribute(pc, 3));
+  const pm = new THREE.PointsMaterial({ vertexColors: true, map: fxDotTex(),
+    size: FIREB_PLUME_SIZE * (0.85 + 0.4 * k), transparent: true, opacity: 1,
+    depthWrite: false, depthTest: false, alphaTest: 0.02 });
+  const plume = new THREE.Points(pg, pm); plume.renderOrder = IMPACT_ORDER;
+  const psize = pm.size;
+  addFX(plume, FIREB_PLUME_LIFE, (o, t) => {
+    const arr = o.geometry.attributes.position.array;
+    const col = o.geometry.attributes.color.array;
+    const tt = t * FIREB_PLUME_LIFE;
+    for (let i = 0; i < N; i++){
+      // ⚠️ ускорение ВВЕРХ: огонь всплывает. Плюс боковое качание — язык, а не столб
+      arr[i*3]   = pos.x + vx[i] * tt + Math.sin(ph[i] + tt * 7) * 0.18 * tt;
+      arr[i*3+1] = pos.y + vy[i] * tt + 0.5 * FIREB_PLUME_ACC * tt * tt;
+      arr[i*3+2] = pos.z + vz[i] * tt + Math.cos(ph[i] + tt * 6) * 0.18 * tt;
+      // остывание: белое ядро -> жёлтый -> глубокий оранжевый
+      c.copy(FIRE_HOT).lerp(FIRE_DEEP, Math.min(1, t * 1.4));
+      col[i*3] = col[i*3] * 0.72 + c.r * 0.28;
+      col[i*3+1] = col[i*3+1] * 0.72 + c.g * 0.28;
+      col[i*3+2] = col[i*3+2] * 0.72 + c.b * 0.28;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.geometry.attributes.color.needsUpdate = true;
+    o.material.opacity = 1 - t * t;
+    o.material.size = psize * (1 + 0.55 * t);   // язык раздувается, поднимаясь
+  });
+  // --- УГЛИ
+  const ep = new Float32Array(M * 3), evx = [], evy = [], evz = [];
+  for (let i = 0; i < M; i++){
+    const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.2) * Math.PI * 0.6;
+    const sp = FIREB_EMBER_V * (0.5 + Math.random() * 0.8);
+    evx.push(Math.cos(a) * Math.cos(e) * sp);
+    evy.push(Math.sin(e) * sp + 2.6);
+    evz.push(Math.sin(a) * Math.cos(e) * sp);
+  }
+  const eg = new THREE.BufferGeometry();
+  eg.setAttribute('position', new THREE.BufferAttribute(ep, 3));
+  const em = new THREE.PointsMaterial({ color: FIRE_CORE, map: fxDotTex(),
+    size: FIREB_EMBER_SIZE, transparent: true, opacity: 1,
+    depthWrite: false, depthTest: false, alphaTest: 0.02 });
+  const embers = new THREE.Points(eg, em); embers.renderOrder = IMPACT_ORDER;
+  addFX(embers, FIREB_EMBER_LIFE, (o, t) => {
+    const arr = o.geometry.attributes.position.array, tt = t * FIREB_EMBER_LIFE;
+    for (let i = 0; i < M; i++){
+      arr[i*3]   = pos.x + evx[i] * tt;
+      arr[i*3+1] = pos.y + evy[i] * tt - 11 * tt * tt;   // ½·G·t², G=22
+      arr[i*3+2] = pos.z + evz[i] * tt;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - t * t * t;
+    o.material.size = FIREB_EMBER_SIZE * (1 - t * 0.5);
+  });
+  lastFireBurst = { n, k: +k.toFixed(3), плюм: N, угли: M,
+                    over: pm.depthTest === false && em.depthTest === false,
+                    ms: performance.now() };
+}
 let lastImpact = null;      // ⚠️ НЕСУЩЕЕ: на этом стоит страж «удар растёт с группой»
-function _impactFX_impl(pos, n, tint, ghost){
+function _impactFX_impl(pos, n, tint, ghost, hot){
   const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
   const base = (tint || new THREE.Color(0xffffff)).clone();
   // ⚠️ ЦВЕТ УДАРА — НАСЫЩЕННЫЙ, А НЕ БЕЛЁСЫЙ. Первая версия уводила тон к белому
   // на 55%, и на светлой куче под светлым небом кольцо ПРОПАДАЛО вовсе (поймано
   // съёмкой ×10: диагностическое красное кольцо в кадре было, боевое — нет).
   // Тот же закон, что у молний: на светлом фоне читается НАСЫЩЕННОЕ, а не яркое.
-  const hot = base.clone().offsetHSL(0, 0.35, 0.02).lerp(new THREE.Color(1, 1, 1), 0.12);
+  // 🔥 У ГОРЯЩЕГО МАТЧА КОЛЬЦО ОГНЕННОЕ И РВАНОЕ (слово владельца 2026-08-06):
+  // тон берётся из палитры пламени, профиль — языками. Это ЧЕТВЁРТОЕ семейство,
+  // но по СОСТОЯНИЮ, а не по типу: горит сегодня один предмет, завтра другой,
+  // и кольцо обязано принадлежать СОБЫТИЮ. Детерминизм цел — профиль рваного
+  // кольца считается синусами от индекса, без случайности.
+  const hotCol = hot ? FIRE_HOT.clone().lerp(FIRE_CORE, 0.25)
+                     : base.clone().offsetHSL(0, 0.35, 0.02).lerp(new THREE.Color(1, 1, 1), 0.12);
   // (1) КОЛЬЦО
   const R = IMPACT_R0 * (1 + IMPACT_R_K * k);
   // ⚠️ ШИРИНА И ФОРМА — ПО ХАРАКТЕРУ ПРЕДМЕТА (ringFamFor выше), прозрачность
@@ -7102,8 +7254,8 @@ function _impactFX_impl(pos, n, tint, ghost){
   // масса добирается ШИРИНОЙ при СНИЖЕННОЙ плотности, а не белым.
   const fam = ringFamFor(ghost && ghost.type, ghost && ghost.geo);
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(fam.w, 1.0, fam.seg),
-    new THREE.MeshBasicMaterial({ color: hot, transparent: true, opacity: IMPACT_ALPHA,
+    hot ? makeTornRingGeo(fam.w, FIREB_RING_SEG) : new THREE.RingGeometry(fam.w, 1.0, fam.seg),
+    new THREE.MeshBasicMaterial({ color: hotCol, transparent: true, opacity: IMPACT_ALPHA,
       depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
   ring.renderOrder = IMPACT_ORDER;
   ring.position.copy(pos);
@@ -7111,14 +7263,14 @@ function _impactFX_impl(pos, n, tint, ghost){
     o.quaternion.copy(camera.quaternion);
     const e = 1 - (1 - t) * (1 - t);             // резкий старт, мягкий выход
     const sc = 0.22 + (R - 0.22) * e;
-    o.scale.set(sc * fam.kx, sc, sc);            // kx>1 у овала — растяжка по длинной оси
+    o.scale.set(sc * (hot ? 1 : fam.kx), sc, sc); // kx>1 у овала; у рваного растяжки нет
     o.material.opacity = IMPACT_ALPHA * (1 - t * t);
   });
   // (2) ВСПЫШКА-ЯДРО
   const fg = new THREE.BufferGeometry();
   fg.setAttribute('position', new THREE.BufferAttribute(
     new Float32Array([pos.x, pos.y, pos.z]), 3));
-  const fm = new THREE.PointsMaterial({ color: hot, map: fxDotTex(),
+  const fm = new THREE.PointsMaterial({ color: hotCol, map: fxDotTex(),
     size: IMPACT_FLASH_SIZE * (0.7 + 0.6 * k), transparent: true, opacity: 1,
     depthWrite: false, depthTest: false, alphaTest: 0.02 });
   const flashSize = fm.size;
@@ -7161,7 +7313,8 @@ function _impactFX_impl(pos, n, tint, ghost){
   // именно этот флаг, потому что дефект был бесшумным.
   lastImpact = { n, k: +k.toFixed(3), ringR: +R.toFixed(3), arrows: N,
                  flash: +fm.size.toFixed(3),
-                 fam: fam.fam, w: +(1 - fam.w).toFixed(3), seg: fam.seg, kx: fam.kx,
+                 fam: hot ? 'рваное' : fam.fam, w: +(1 - fam.w).toFixed(3),
+                 seg: hot ? FIREB_RING_SEG : fam.seg, kx: hot ? 1 : fam.kx, hot: !!hot,
                  elong: fam.elong, alpha: IMPACT_ALPHA,
                  over: ring.material.depthTest === false && fm.depthTest === false };
 }
@@ -9616,7 +9769,12 @@ function doMatch(list){
     // же часах, что и хлопок с удалением, — по той же причине, что абзацем
     // выше. Пачечный эффект достаётся только группам >= BURST_MIN_N, а удар —
     // КАЖДОМУ соединению; его размер растёт с n (у пары самый скромный).
-    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost);
+    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost, fireHot);
+    // 🔥 ВСПЛЕСК ОГНЯ (слово владельца 2026-08-06 «когда огненный объект
+    // совмещается, при совмещении сделай визуальный всплеск огня»). Слой
+    // ДОПОЛНИТЕЛЬНЫЙ: удар, кольцо и труха остаются, огонь ложится сверху —
+    // иначе момент бонуса ×2 визуально не отличался бы от рядового матча.
+    if (fireHot) fireBurstFX(boomAt, n);
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
     // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое
@@ -14848,6 +15006,10 @@ window.__game = {
   // ⚠️ ХУК НЕСУЩИЙ: на нём единственный страж «удар растёт с группой» (кольцо,
   // стрелы и вспышка обязаны быть больше у крупной группы, чем у пары).
   lastImpact(){ return lastImpact; },
+  // ⚠️ ХУК НЕСУЩИЙ: на нём страж «всплеск огня — ТОЛЬКО у горящего вида».
+  // Отдаёт метку времени, чтобы отличить свежий всплеск от прошлого: без неё
+  // страж читал бы один и тот же снимок дважды и «два из двух» значило бы одно.
+  lastFireBurst(){ return lastFireBurst; },
   // ⚠️ ХУК НЕСУЩИЙ: на нём страж «три семейства колец живы и детерминированы».
   // Отдаёт РАСКЛАД ПО ВСЕМУ ПУЛУ, а не по текущему уровню: семейство считается
   // от габаритов геометрии типа, и проверять его надо на всех, а не на девятке.

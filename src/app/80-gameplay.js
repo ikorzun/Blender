@@ -217,7 +217,12 @@ function doMatch(list){
     // же часах, что и хлопок с удалением, — по той же причине, что абзацем
     // выше. Пачечный эффект достаётся только группам >= BURST_MIN_N, а удар —
     // КАЖДОМУ соединению; его размер растёт с n (у пары самый скромный).
-    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost);
+    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost, fireHot);
+    // 🔥 ВСПЛЕСК ОГНЯ (слово владельца 2026-08-06 «когда огненный объект
+    // совмещается, при совмещении сделай визуальный всплеск огня»). Слой
+    // ДОПОЛНИТЕЛЬНЫЙ: удар, кольцо и труха остаются, огонь ложится сверху —
+    // иначе момент бонуса ×2 визуально не отличался бы от рядового матча.
+    if (fireHot) fireBurstFX(boomAt, n);
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
     // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое
