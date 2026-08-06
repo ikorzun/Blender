@@ -4752,6 +4752,43 @@ window.bridge = {
   expect(noFill.skip || noFill.afterClosed === noFill.afterNoFill,
     'NO-FILL: закрыл ролик сам — встряски НЕТ (' + JSON.stringify(noFill) + ')');
 
+  // ===== ЗАГРУЗКА: БЕЛЫЙ -> ЗАЛИВКА СНИЗУ -> ИНТРО (скрин владельца 2026-08-05
+  // «мелькает лишний экран и лишние элементы»; лишним был мой #multToast с
+  // пустой картинкой мимо занавеса). Своя страница: ловим РАННИЕ кадры.
+  {
+    const lpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await lpage.goto('file://' + path.join(__dirname, 'index.html'));
+    // сразу, ДО готовности игры: ни один элемент HUD не показан
+    const early = await lpage.evaluate(() => {
+      const vis = (id) => { const e = document.getElementById(id); return e ? getComputedStyle(e).visibility : 'нет'; };
+      return { ready: document.documentElement.classList.contains('uiready'),
+               toast: vis('multToast'), charge: vis('chargeBtn'), face: vis('face'),
+               fill: !!document.getElementById('skyFill') };
+    });
+    expect(early.toast !== 'visible' && early.charge !== 'visible' && early.face !== 'visible',
+      'ЗАГРУЗКА: HUD не мелькает до готовности — тост множителя и заряд под занавесом (' + JSON.stringify(early) + ')');
+    expect(early.fill === true, 'ЗАГРУЗКА: слой заливки неба есть в разметке');
+    // заливка снизу вверх: класс поставлен, слой дорос до полного экрана
+    await lpage.waitForFunction(() => document.documentElement.classList.contains('skyfill'), null, { timeout: 5000 });
+    await lpage.waitForFunction(() => {
+      const e = document.getElementById('skyFill');
+      return e && e.getBoundingClientRect().height > innerHeight * 0.95;
+    }, null, { timeout: 5000 });
+    // после готовности слой уходит — дальше небо рисует сам движок
+    await lpage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await lpage.evaluate(() => window.__game.skipIntro());
+    await lpage.waitForFunction(() => {
+      const e = document.getElementById('skyFill');
+      return e && parseFloat(getComputedStyle(e).opacity) < 0.05;
+    }, null, { timeout: 8000 });
+    const late = await lpage.evaluate(() => ({
+      toast: getComputedStyle(document.getElementById('multToast')).visibility,
+      face: getComputedStyle(document.getElementById('face')).visibility }));
+    expect(late.face === 'visible' && late.toast === 'visible',
+      'ЗАГРУЗКА: после готовности занавес снят, HUD доступен (' + JSON.stringify(late) + ')');
+    await lpage.close();
+  }
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });

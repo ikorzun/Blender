@@ -28,6 +28,19 @@
           --btn-bg:#2a2935; --btn-fg:#ffffff; }
   html.night { --btn-bg:#ffffff; --btn-fg:#2a2935; }
   /* фон — зона ГРАФИКИ (поле рисует шейдер неба), здесь не трогаем */
+  /* ЗАГРУЗКА: БЕЛЫЙ -> ЗАЛИВКА ГРАДИЕНТОМ СНИЗУ ВВЕРХ -> интро (слово
+     владельца 2026-08-05: «Если нужен белый экран, то показывай его белым,
+     потом снизу вверх быстро заполняй градиентом и уже основная анимация»).
+     Слой #skyFill лежит НАД белым фоном и ПОД канвасом: его высота едет
+     0 -> 100% за 420 мс, затем он гаснет — дальше небо рисует сам three.
+     ⚠️ Отдельный слой, а не анимация background у body: у body фон меняет
+     JS-локстеп темы Safari (канон «Safari 26 chrome tint»), и анимация
+     дралась бы с ним каждый кадр. */
+  #skyFill { position:fixed; left:0; right:0; bottom:0; height:0; z-index:0; pointer-events:none;
+    background:linear-gradient(180deg, rgb(var(--sky-top-rgb, 206,228,254)) 0%, rgb(var(--sky-bot-rgb, 190,199,254)) 100%);
+    transition:height .42s cubic-bezier(.22,.9,.3,1), opacity .25s ease-out .30s; }
+  html.skyfill #skyFill { height:100%; }
+  html.uiready #skyFill { opacity:0; }
   html, body { height:100%; overflow:hidden; background:#ffffff; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
@@ -73,6 +86,12 @@
   html:not(.uiready) #toast,
   html:not(.uiready) #tierToast,
   html:not(.uiready) #vitrine,
+  /* ⚠️ НОВЫЕ УЗЛЫ ОБЯЗАНЫ ПОПАДАТЬ В ЭТОТ СПИСОК. Скрин владельца 2026-08-05:
+     при загрузке мелькали лаймовый «×1» и белый квадрат — это #multToast с
+     пустой картинкой, добавленный мной мимо занавеса. Правило прежнее и
+     теперь названо явно: любой новый элемент HUD — в список гейта. */
+  html:not(.uiready) #multToast,
+  html:not(.uiready) #chargeBtn,
   html:not(.uiready) .pop { visibility:hidden; }
   html.uiready #topBar,
   html.uiready #bottomBar,
@@ -1434,6 +1453,16 @@
 </style>
 </head>
 <body>
+<div id="skyFill" aria-hidden="true"></div>
+<script>
+  // Заливка стартует на СЛЕДУЮЩЕМ кадре: сначала браузер показывает белый
+  // (как просил владелец), затем полоса неба едет снизу вверх за 420 мс.
+  // Отдельным кадром — иначе height:100% применился бы вместе с исходным 0
+  // и перехода не было бы вовсе.
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    document.documentElement.classList.add('skyfill');
+  }); });
+</script>
 <canvas id="c" tabindex="-1" style="outline:none"></canvas>
 <!-- ⚠️⚠️ ЗАЛИВКА ВНУТРЕННИХ ПРОГАЛОВ ГЛИФОВ (спека владельца 2026-07-31 со
      скрина «8»: «внутри 8 и подобных цифр должно быть полностью залито цветом
