@@ -82,7 +82,7 @@ const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
 // одиннадцать обёрток стояли здесь, а четыре — врассыпную по файлу. Всё было
 // обёрнуто, но «на один взгляд» не работало, а правило держится ровно на этом.
 // Список полный: число обёрток ниже обязано совпадать с числом функций
-// `_имя_impl` в файле (сегодня их 15). Страж сверяет это сам.
+// `_имя_impl` в файле (сегодня их 13). Страж сверяет это сам.
 // ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
 const starPopFX        = fxBuilt('star',     _starPopFX_impl);
 const shardFX          = fxBuilt('shard',    _shardFX_impl);
@@ -90,6 +90,7 @@ const popFX            = fxBuilt('pop',      _popFX_impl);
 const markerFX         = fxBuilt('marker',   _markerFX_impl);
 const lineFX           = fxBuilt('line',     _lineFX_impl);
 const collapseFX       = fxBuilt('collapse', _collapseFX_impl);
+const impactFX         = fxBuilt('impact',   _impactFX_impl);
 const juiceBigFX       = fxBuilt('juiceBig', _juiceBigFX_impl);
 const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
@@ -185,11 +186,20 @@ function _lineFX_impl(a, b, color){
 // radial=true — плоский разлёт кольцом (пыль из-под лопастей миксера).
 const DUST_FRACTIONS = [
   // ⚠️ ЧИСЛО УМНОЖАЕТСЯ НА CFG.fxScale В МОМЕНТ ЭФФЕКТА (не здесь): на слабом
-  // устройстве труха режется втрое, на обычном идёт полной. Размеры фракций
-  // НЕ трогаем — мельче спека владельца уже не просила.
-  { n: 640, size: 0.0225 }, // мука
-  { n: 400, size: 0.035 },  // крошка
-  { n: 240, size: 0.05 },   // крупные обломки
+  // устройстве труха режется втрое, на обычном идёт полной.
+  // ⚡ КРУПНЕЕ И ГУЩЕ (задача тестеров 2026-08-06, дословно «крупнее и гуще
+  // частицы»). Спека владельца 2026-07-22 просила ОБРАТНОГО («вдвое мельче,
+  // вдвое больше»), и это не противоречие: тогда труха была из 70 КОМЬЕВ и
+  // читалась как обломки мебели, сейчас — из пыли, и пыль читается как дым.
+  // Мельчить дальше некуда, поэтому растим и размер, и число, добавляя
+  // четвёртую фракцию — КУСКИ. Она и несёт «крупнее»: 0.115 против прежнего
+  // потолка 0.05.
+  // ⚠️ ФРАКЦИЯ = ОДИН Points (одна геометрия, один материал, один draw call),
+  // поэтому +1 строка тут стоит ОДНУ постройку, а не 90 объектов.
+  { n: 640, size: 0.028 },  // мука
+  { n: 520, size: 0.048 },  // крошка
+  { n: 320, size: 0.075 },  // обломки
+  { n: 90,  size: 0.115 },  // КУСКИ — новая фракция, ради «крупнее»
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
@@ -424,6 +434,101 @@ function _shardFX_impl(pos, color, opts){
 // часы на «предметы исчезли» и «бабахнуло» — единственный устойчивый вариант.
 // ⚠️ Тела к этому моменту УЖЕ снесены (destroyItemBody в начале doMatch), так
 // что анимации мешей не с кем спорить; глушить нечего.
+// ⚡ УДАР В ТОЧКЕ СХЛОПЫВАНИЯ (задача тестеров 2026-08-06 «больше драйва при
+// соединении объектов, больше эффектов»). ТРИ СЛОЯ поверх прежнего носителя:
+//   (1) КОЛЬЦО ударной волны — билборд к камере, разлетается и гаснет;
+//   (2) ВСПЫШКА-ядро — короткая, вдвое короче кольца: это удар, не свечение;
+//   (3) СТРЕЛЫ — крупные искры радиально, размер 0.13 (класс «кусков», не пыли).
+// ⚠️ ПОЧЕМУ ОБЩИЙ СЛОЙ, А НЕ УСИЛЕНИЕ ПАЧЕК: пачечные эффекты (сок/искры/
+// звёзды/осколки) достаются только группам >= BURST_MIN_N, а «мало драйва»
+// тестеры видят и на ПАРАХ — там до сих пор была одна труха. Удар даётся
+// КАЖДОМУ соединению, а его размер растёт с группой.
+// ⚠️ БИЛБОРД ЧЕРЕЗ camera.quaternion В ТИКЕ, а не единожды при постройке:
+// игрок крутит камеру драгом, и кольцо, ориентированное на старте, показало бы
+// ребро (та же грабля, из-за которой звёзды пачки — точки, а не меши).
+// ⚠️ НЕ additive: на светлом дневном небе аддитивное свечение невидимо
+// (правило пакета молний, 2026-07-21).
+// ⚠️⚠️ БЕЗ ТЕСТА ГЛУБИНЫ (depthTest:false + renderOrder) — ИНАЧЕ УДАРА НЕ ВИДНО
+// ВОВСЕ. Хлопок происходит в точке ТАПА, то есть ВНУТРИ плотной кучи, и кольцо
+// радиусом до 2.5 целиком закрыто предметами перед ним. Поймано съёмкой
+// с замедлением ×10: снимок `lastImpact` честно показывал построенное кольцо,
+// а в кадре не было ничего. Пачечные эффекты этим не болеют — их частицы
+// вылетают из кучи за десятки миллисекунд. Пробить глубину — не «читерство»,
+// а суть удара: он должен читаться сквозь массу, как вспышка.
+let lastImpact = null;      // ⚠️ НЕСУЩЕЕ: на этом стоит страж «удар растёт с группой»
+function _impactFX_impl(pos, n, tint){
+  const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
+  const base = (tint || new THREE.Color(0xffffff)).clone();
+  // ⚠️ ЦВЕТ УДАРА — НАСЫЩЕННЫЙ, А НЕ БЕЛЁСЫЙ. Первая версия уводила тон к белому
+  // на 55%, и на светлой куче под светлым небом кольцо ПРОПАДАЛО вовсе (поймано
+  // съёмкой ×10: диагностическое красное кольцо в кадре было, боевое — нет).
+  // Тот же закон, что у молний: на светлом фоне читается НАСЫЩЕННОЕ, а не яркое.
+  const hot = base.clone().offsetHSL(0, 0.35, 0.02).lerp(new THREE.Color(1, 1, 1), 0.12);
+  // (1) КОЛЬЦО
+  const R = IMPACT_R0 * (1 + IMPACT_R_K * k);
+  // ⚠️ КОЛЬЦО ТОНКОЕ (0.86..1.0), а не бублик 0.66..1.0: толстое кольцо на
+  // полупрозрачности читается пятном-мутью поверх кучи, тонкое — волной.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.86, 1.0, 48),
+    new THREE.MeshBasicMaterial({ color: hot, transparent: true, opacity: 1,
+      depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+  ring.renderOrder = IMPACT_ORDER;
+  ring.position.copy(pos);
+  addFX(ring, IMPACT_MS / 1000, (o, t) => {
+    o.quaternion.copy(camera.quaternion);
+    const e = 1 - (1 - t) * (1 - t);             // резкий старт, мягкий выход
+    o.scale.setScalar(0.22 + (R - 0.22) * e);
+    o.material.opacity = 1 - t * t;      // держится ярким и гаснет на выходе
+  });
+  // (2) ВСПЫШКА-ЯДРО
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute('position', new THREE.BufferAttribute(
+    new Float32Array([pos.x, pos.y, pos.z]), 3));
+  const fm = new THREE.PointsMaterial({ color: hot, map: fxDotTex(),
+    size: IMPACT_FLASH_SIZE * (0.7 + 0.6 * k), transparent: true, opacity: 1,
+    depthWrite: false, depthTest: false, alphaTest: 0.02 });
+  const flashSize = fm.size;
+  const flash = new THREE.Points(fg, fm); flash.renderOrder = IMPACT_ORDER;
+  addFX(flash, IMPACT_FLASH_MS / 1000, (o, t) => {
+    o.material.size = flashSize * (1 + 0.9 * t);
+    o.material.opacity = 1 - t * t;
+  });
+  // (3) СТРЕЛЫ
+  const N = Math.max(8, Math.round(IMPACT_ARROW_N * (1 + k) * CFG.fxScale));
+  const ap = new Float32Array(N * 3), vx = [], vy = [], vz = [];
+  for (let i = 0; i < N; i++){
+    const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.35) * Math.PI * 0.7;
+    const sp = IMPACT_ARROW_V * (0.55 + Math.random() * 0.75) * (0.8 + 0.5 * k);
+    vx.push(Math.cos(a) * Math.cos(e) * sp);
+    vy.push(Math.sin(e) * sp + 1.4);
+    vz.push(Math.sin(a) * Math.cos(e) * sp);
+  }
+  const am = new THREE.PointsMaterial({ color: base.clone().lerp(new THREE.Color(1,1,1), 0.25),
+    map: fxDotTex(), size: IMPACT_ARROW_SIZE, transparent: true, opacity: 1,
+    depthWrite: false, depthTest: false, alphaTest: 0.02 });
+  const ag = new THREE.BufferGeometry();
+  ag.setAttribute('position', new THREE.BufferAttribute(ap, 3));
+  const arrows = new THREE.Points(ag, am); arrows.renderOrder = IMPACT_ORDER;
+  addFX(arrows, 0.42, (o, t) => {
+    const arr = o.geometry.attributes.position.array, tt = t * 0.42;
+    for (let i = 0; i < N; i++){
+      arr[i*3]   = pos.x + vx[i] * tt;
+      arr[i*3+1] = pos.y + vy[i] * tt - 11 * tt * tt;   // ½·G·t², G=22
+      arr[i*3+2] = pos.z + vz[i] * tt;
+    }
+    o.geometry.attributes.position.needsUpdate = true;
+    o.material.opacity = 1 - t * t;
+    o.material.size = IMPACT_ARROW_SIZE * (1 - t * 0.45);
+  });
+  // снимок ПОСЛЕДНЕГО удара для стража: размер группы, целевой радиус кольца,
+  // число стрел. Читается сразу после матча — все три растут с n.
+  // ⚠️ `over` — НЕ косметика отчёта: удар рождается внутри кучи, и без пробоя
+  // глубины его не видно ВООБЩЕ (см. большой комментарий выше). Страж читает
+  // именно этот флаг, потому что дефект был бесшумным.
+  lastImpact = { n, k: +k.toFixed(3), ringR: +R.toFixed(3), arrows: N,
+                 flash: +fm.size.toFixed(3),
+                 over: ring.material.depthTest === false && fm.depthTest === false };
+}
 function _collapseFX_impl(list, at){
   const P = at.clone();
   const src = [];

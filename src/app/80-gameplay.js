@@ -209,9 +209,16 @@ function doMatch(list){
     // ИГРОВОМУ времени (тик addFX), удаление — по РЕАЛЬНЫМ (этот setTimeout).
     // На просевшем FPS тик до конца не доходит, и хлопок, повешенный на него,
     // не наступил бы вовсе. Одни часы на «предметы исчезли» и «бабахнуло».
+    // ⚡ УДАР (задача тестеров 2026-08-06 «больше драйва при соединении»):
+    // кольцо + вспышка + стрелы поверх прежнего носителя. Стоит ЗДЕСЬ, на тех
+    // же часах, что и хлопок с удалением, — по той же причине, что абзацем
+    // выше. Пачечный эффект достаётся только группам >= BURST_MIN_N, а удар —
+    // КАЖДОМУ соединению; его размер растёт с n (у пары самый скромный).
+    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor);
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
-    camShake = Math.max(camShake, COLLAPSE_SHAKE);
+    // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое
+    camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();

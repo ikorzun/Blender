@@ -2562,16 +2562,16 @@ window.bridge = {
   const kinds = await page.evaluate(() => window.__game.fxKinds());
   expect(kinds.dup === null,
     'профиль эффектов: метки видов уникальны (коллизия: ' + kinds.dup + ')');
-  // ⚠️ ЧИСЛО ДЕРЖАТЬ В СИНХРОНЕ СО СПИСКОМ в 70-fx: было 15, стало 13 —
+  // ⚠️ ЧИСЛО ДЕРЖАТЬ В СИНХРОНЕ СО СПИСКОМ в 70-fx: 15 -> 13 -> +impactFX —
   // удалены мёртвые juiceFX и sparkFX, затем screenDripsFX (капли на стекле
   // экрана сняты по слову владельца 2026-08-02). Меняешь список конструкторов —
   // меняй и это число, иначе страж покраснеет на исправной сборке.
-  expect(kinds.kinds.length === 12,
-    'профиль эффектов: обёрнуты ВСЕ 12 конструкторов (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
+  expect(kinds.kinds.length === 13,
+    'профиль эффектов: обёрнуты ВСЕ 13 конструкторов (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
   expect(fxb.kinds.indexOf('shard') >= 0 && fxb.by.shard && fxb.by.shard.n >= 1,
     'профиль эффектов: осколки отчитываются отдельным видом (' + JSON.stringify(fxb.by.shard) + ')');
-  expect(fxb.kinds.indexOf('dust') >= 0 && fxb.by.dust && fxb.by.dust.n >= 3,
-    'профиль эффектов: труха отчитывается тремя фракциями (' + JSON.stringify(fxb.by.dust) + ')');
+  expect(fxb.kinds.indexOf('dust') >= 0 && fxb.by.dust && fxb.by.dust.n >= 4,
+    'профиль эффектов: труха отчитывается ЧЕТЫРЬМЯ фракциями (' + JSON.stringify(fxb.by.dust) + ')');
 
   // ⛔ СТРАЖА НА РАЗБОР ТАПА ЗДЕСЬ НЕТ, И ЭТО РЕШЕНИЕ, А НЕ ПРОПУСК (ФИЗИКА
   // 2026-08-01). Пробовала два, оба провалили двустороннюю проверку и оба
@@ -5105,6 +5105,64 @@ window.bridge = {
 
 
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
+
+  // ===== УДАР ПРИ СОЕДИНЕНИИ (задача тестеров 2026-08-06 «больше драйва») =====
+  // ⚠️ СЕКЦИЯ СТОИТ В КОНЦЕ И НА СВОЕЙ СТРАНИЦЕ НАМЕРЕННО: она делает реген,
+  // осадку и НАСТОЯЩИЙ тап — это секунды синхронной работы. Первая версия
+  // стояла в середине, у эффектов, и обокрала соседа по кадрам: «🔥 БОНУС за
+  // горящий тип» с его фиксированными паузами упал (d1=0) на ИСПРАВНОЙ сборке,
+  // а тот же сценарий в изоляции дал 6/6 на обеих сборках. Тот же приём, что
+  // у камней и меню.
+  // Четыре обещания пакета, и каждое ломалось бы БЕСШУМНО:
+  //  (1) удар достаётся КАЖДОМУ соединению, включая пару (в этом весь смысл —
+  //      у пар до сих пор была только труха);
+  //  (2) удар РАСТЁТ с размером группы;
+  //  (3) ударный слой ПРОБИВАЕТ ГЛУБИНУ. Не косметика: хлопок происходит
+  //      в точке тапа, то есть ВНУТРИ плотной кучи, и с тестом глубины кольцо
+  //      закрыто предметами ЦЕЛИКОМ — эффект строится, тратит время и не виден
+  //      вовсе. Поймано съёмкой с замедлением ×10, чтением кода не заметно;
+  //  (4) труха стала гуще на ЧЕТВЁРТУЮ фракцию (крупные куски).
+  const impPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  impPage.on('pageerror', e => errors.push('PAGEERROR(impact): ' + e.message));
+  await impPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await impPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await impPage.evaluate(() => window.__game.skipIntro());
+  await new Promise(r => setTimeout(r, 900));
+  // ПАРА — детерминированно: matchType матчит РОВНО двоих
+  const ударПара = await impPage.evaluate(async () => {
+    const g = window.__game;
+    g.fxBreak(true);
+    const s = g.typesSnapshot();
+    const names = Array.isArray(s) ? s.map(t => t.name) : Object.keys(s);
+    let ok = false;
+    for (const nm of names) if (g.matchType(nm)) { ok = true; break; }
+    await new Promise(r => setTimeout(r, 500));
+    return { ok, br: g.fxBreak(false), удар: g.lastImpact() };
+  });
+  expect(ударПара.ok && ударПара.br.impact && ударПара.br.impact.n === 1,
+    'УДАР: есть на ПАРЕ — по одному на соединение (' + JSON.stringify(ударПара.br.impact) + ')');
+  expect(ударПара.br.dust && ударПара.br.dust.n === 4,
+    'ТРУХА: четыре фракции, включая КУСКИ (вызовов dustCloud ' +
+    (ударПара.br.dust ? ударПара.br.dust.n : 0) + ', было 3)');
+  expect(ударПара.удар && ударПара.удар.over === true,
+    '⚠️ УДАР ПРОБИВАЕТ ГЛУБИНУ — иначе он рождается внутри кучи и НЕ ВИДЕН вовсе (' +
+    JSON.stringify(ударПара.удар) + ')');
+  // ГРУППА — настоящим тапом по пикселю, где предмет первое пересечение луча
+  const ударЦель = await impPage.evaluate(() => window.__game.bestTapTarget());
+  let ударГруппа = null;
+  if (ударЦель && ударЦель.n >= 4 && !ударЦель.occluded){
+    await impPage.mouse.click(ударЦель.px, ударЦель.py);
+    await new Promise(r => setTimeout(r, 520));
+    ударГруппа = await impPage.evaluate(() => window.__game.lastImpact());
+  }
+  expect(ударГруппа && ударГруппа.n > ударПара.удар.n &&
+         ударГруппа.ringR > ударПара.удар.ringR &&
+         ударГруппа.arrows > ударПара.удар.arrows &&
+         ударГруппа.flash > ударПара.удар.flash,
+    'УДАР РАСТЁТ С ГРУППОЙ: пара ' + JSON.stringify(ударПара.удар) +
+    ' против группы ' + JSON.stringify(ударГруппа));
+  await impPage.close();
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();
