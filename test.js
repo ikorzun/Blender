@@ -5155,6 +5155,51 @@ window.bridge = {
     await new Promise(r => setTimeout(r, 520));
     ударГруппа = await impPage.evaluate(() => window.__game.lastImpact());
   }
+  // 🔵 КОЛЬЦО: ШИРЕ, ПРОЗРАЧНЕЕ, РАЗНОЙ ФОРМЫ (слово владельца 2026-08-06).
+  // ⚠️ Три обещания, и все три ломаются молча: ширина/прозрачность — числа,
+  // которые легко «поправить обратно» соседней правкой; семейство формы обязано
+  // быть ДЕТЕРМИНИРОВАННЫМ (случайная форма читается как глитч, а не как
+  // свойство предмета) и обязано РАЗЛИЧАТЬСЯ, иначе фича есть только на бумаге.
+  expect(ударПара.удар.w >= 0.30 && ударПара.удар.alpha <= 0.7,
+    'КОЛЬЦО: шире и прозрачнее прежнего (обод ' + ударПара.удар.w +
+    ' при прежних 0.14, плотность ' + ударПара.удар.alpha + ' при прежней 1.0)');
+  const семьи = await impPage.evaluate(() => window.__game.ringFams());
+  const родов = Object.keys(семьи).filter(k => семьи[k].length > 0);
+  expect(родов.length === 3,
+    'КОЛЬЦО: живы ВСЕ ТРИ семейства формы (' + родов.map(k => k + ' ' + семьи[k].length).join(', ') + ')');
+  // формы обязаны РАЗЛИЧАТЬСЯ — иначе «разная форма» пустой звук
+  const образцы = await impPage.evaluate(async (имена) => {
+    const g = window.__game, out = {};
+    for (const [fam, name] of имена){
+      for (let i = 0; i < 12 && !out[fam]; i++){
+        const sn = g.typesSnapshot();
+        const есть = Array.isArray(sn) ? sn.some(t => t.name === name) : !!sn[name];
+        if (есть && g.matchType(name)){ await new Promise(r => setTimeout(r, 260)); out[fam] = g.lastImpact(); break; }
+        g.regen(); g.skipIntro();
+        await new Promise(r => setTimeout(r, 420));
+      }
+    }
+    return out;
+  }, родов.map(k => [k, семьи[k][0].name]));
+  const подписи = Object.values(образцы).map(v => v && (v.fam + ':' + v.w + '/' + v.seg + '/' + v.kx));
+  expect(подписи.length === 3 && new Set(подписи).size === 3,
+    'КОЛЬЦО: у семейств РАЗНЫЕ обод/грани/растяжка (' + подписи.join(' | ') + ')');
+  // ДЕТЕРМИНИЗМ: тот же тип — то же кольцо (а не случайное при каждом матче)
+  const повтор = await impPage.evaluate(async (name) => {
+    const g = window.__game, было = [];
+    for (let i = 0; i < 6 && было.length < 2; i++){
+      const sn = g.typesSnapshot();
+      const есть = Array.isArray(sn) ? sn.some(t => t.name === name) : !!sn[name];
+      if (есть && g.matchType(name)){ await new Promise(r => setTimeout(r, 260)); было.push(g.lastImpact()); continue; }
+      g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 420));
+    }
+    return было;
+  }, семьи[родов[0]][0].name);
+  expect(повтор.length === 2 && повтор[0].fam === повтор[1].fam &&
+         повтор[0].w === повтор[1].w && повтор[0].kx === повтор[1].kx,
+    'КОЛЬЦО: форма ДЕТЕРМИНИРОВАНА типом — один предмет даёт одно кольцо (' +
+    JSON.stringify(повтор.map(v => v && v.fam + ':' + v.w)) + ')');
   expect(ударГруппа && ударГруппа.n > ударПара.удар.n &&
          ударГруппа.ringR > ударПара.удар.ringR &&
          ударГруппа.arrows > ударПара.удар.arrows &&

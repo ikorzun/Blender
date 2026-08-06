@@ -188,6 +188,9 @@ function doMatch(list){
   const burst = n >= BURST_MIN_N;
   const boomAt = list[0].p.clone();   // точка тапа: list[0] — тапнутый предмет
   const boomGhost = { p: boomAt, r: list[0].r * 1.25, type: list[0].type,
+                      // geo — для ФОРМЫ кольца удара: она берётся из габаритов
+                      // самого предмета (ringFamFor в 70-fx), а не из хеша имени
+                      geo: list[0].geo,
                       fxColor: list[0].fxColor, baseColor: list[0].baseColor };
   collapseFX(list, boomAt);
   if (burst){ const _tw0 = performance.now(); blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
@@ -214,7 +217,7 @@ function doMatch(list){
     // же часах, что и хлопок с удалением, — по той же причине, что абзацем
     // выше. Пачечный эффект достаётся только группам >= BURST_MIN_N, а удар —
     // КАЖДОМУ соединению; его размер растёт с n (у пары самый скромный).
-    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor);
+    impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost);
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
     // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое

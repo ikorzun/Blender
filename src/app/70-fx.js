@@ -455,8 +455,43 @@ function _shardFX_impl(pos, color, opts){
 // а в кадре не было ничего. Пачечные эффекты этим не болеют — их частицы
 // вылетают из кучи за десятки миллисекунд. Пробить глубину — не «читерство»,
 // а суть удара: он должен читаться сквозь массу, как вспышка.
+// 🔵 СЕМЕЙСТВО КОЛЬЦА ПО ХАРАКТЕРУ ПРЕДМЕТА (слово владельца 2026-08-06
+// «попробуй для разных объектов разную ширину и форму кольца»).
+// ⚠️⚠️ ДЕТЕРМИНИРОВАННО ОТ ТИПА, А НЕ СЛУЧАЙНО: один и тот же предмет обязан
+// давать ОДНО И ТО ЖЕ кольцо — тогда это читается как СВОЙСТВО предмета.
+// Случайная форма читалась бы как глитч (тот же принцип, что у fxColor).
+// ⚠️ И НЕ ОТ ХЕША ИМЕНИ: форма взята из САМОГО предмета — из габаритов его
+// геометрии и из пачки. Хеш дал бы разнообразие, но не смысл: у вытянутого
+// банана оказалось бы круглое кольцо, а у кирпича — овал.
+// Семейств ТРИ, больше не нужно (и владелец просил «попробуй», а не «все 120»).
+const RING_FAM = new Map();      // имя типа -> {fam, w, seg, kx}
+function ringFamFor(type, geo){
+  const key = (type && type.name) || 'нет';
+  if (RING_FAM.has(key)) return RING_FAM.get(key);
+  let elong = 1;
+  const g = geo || (type && type.geo);
+  if (g){
+    if (!g.boundingBox) g.computeBoundingBox();
+    const b = g.boundingBox, d = [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z]
+      .map(v => Math.abs(v)).sort((a, c) => c - a);
+    if (d[2] > 1e-4) elong = d[0] / ((d[1] + d[2]) / 2);
+  }
+  const tex = type && type.tex;
+  const hard = tex === 'brick' || tex === 'pirate' || tex === 'rock';
+  let fam;
+  if (elong >= IMPACT_ELONG_AT) fam = 'овал';      // вытянутые — овал по силуэту
+  else if (hard) fam = 'многоугольник';            // те же пачки, что колются осколками
+  else fam = 'круг';
+  const v = fam === 'овал'
+      ? { fam, w: IMPACT_W_OVAL, seg: 44, kx: IMPACT_OVAL_K, elong: +elong.toFixed(2) }
+    : fam === 'многоугольник'
+      ? { fam, w: IMPACT_W_POLY, seg: IMPACT_POLY_SEG, kx: 1, elong: +elong.toFixed(2) }
+      : { fam, w: IMPACT_W_ROUND, seg: 48, kx: 1, elong: +elong.toFixed(2) };
+  RING_FAM.set(key, v);
+  return v;
+}
 let lastImpact = null;      // ⚠️ НЕСУЩЕЕ: на этом стоит страж «удар растёт с группой»
-function _impactFX_impl(pos, n, tint){
+function _impactFX_impl(pos, n, tint, ghost){
   const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
   const base = (tint || new THREE.Color(0xffffff)).clone();
   // ⚠️ ЦВЕТ УДАРА — НАСЫЩЕННЫЙ, А НЕ БЕЛЁСЫЙ. Первая версия уводила тон к белому
@@ -466,19 +501,23 @@ function _impactFX_impl(pos, n, tint){
   const hot = base.clone().offsetHSL(0, 0.35, 0.02).lerp(new THREE.Color(1, 1, 1), 0.12);
   // (1) КОЛЬЦО
   const R = IMPACT_R0 * (1 + IMPACT_R_K * k);
-  // ⚠️ КОЛЬЦО ТОНКОЕ (0.86..1.0), а не бублик 0.66..1.0: толстое кольцо на
-  // полупрозрачности читается пятном-мутью поверх кучи, тонкое — волной.
+  // ⚠️ ШИРИНА И ФОРМА — ПО ХАРАКТЕРУ ПРЕДМЕТА (ringFamFor выше), прозрачность
+  // общая IMPACT_ALPHA. Прежнее «кольцо обязано быть тонким» ОТМЕНЕНО словом
+  // владельца: тонкое он увидел и попросил массы. Условие живо в другой форме —
+  // масса добирается ШИРИНОЙ при СНИЖЕННОЙ плотности, а не белым.
+  const fam = ringFamFor(ghost && ghost.type, ghost && ghost.geo);
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.86, 1.0, 48),
-    new THREE.MeshBasicMaterial({ color: hot, transparent: true, opacity: 1,
+    new THREE.RingGeometry(fam.w, 1.0, fam.seg),
+    new THREE.MeshBasicMaterial({ color: hot, transparent: true, opacity: IMPACT_ALPHA,
       depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
   ring.renderOrder = IMPACT_ORDER;
   ring.position.copy(pos);
   addFX(ring, IMPACT_MS / 1000, (o, t) => {
     o.quaternion.copy(camera.quaternion);
     const e = 1 - (1 - t) * (1 - t);             // резкий старт, мягкий выход
-    o.scale.setScalar(0.22 + (R - 0.22) * e);
-    o.material.opacity = 1 - t * t;      // держится ярким и гаснет на выходе
+    const sc = 0.22 + (R - 0.22) * e;
+    o.scale.set(sc * fam.kx, sc, sc);            // kx>1 у овала — растяжка по длинной оси
+    o.material.opacity = IMPACT_ALPHA * (1 - t * t);
   });
   // (2) ВСПЫШКА-ЯДРО
   const fg = new THREE.BufferGeometry();
@@ -527,6 +566,8 @@ function _impactFX_impl(pos, n, tint){
   // именно этот флаг, потому что дефект был бесшумным.
   lastImpact = { n, k: +k.toFixed(3), ringR: +R.toFixed(3), arrows: N,
                  flash: +fm.size.toFixed(3),
+                 fam: fam.fam, w: +(1 - fam.w).toFixed(3), seg: fam.seg, kx: fam.kx,
+                 elong: fam.elong, alpha: IMPACT_ALPHA,
                  over: ring.material.depthTest === false && fm.depthTest === false };
 }
 function _collapseFX_impl(list, at){
