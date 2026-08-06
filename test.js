@@ -4636,6 +4636,7 @@ window.bridge = {
              imgFit: csImg ? csImg.objectFit : null,
              avatarFile: img0 ? img0.getAttribute('src') : null,
              avatarLoaded: img0 ? img0.naturalWidth > 0 : false,
+             avatarNatural: img0 ? img0.naturalWidth : 0,
              avatarBox: ib0 ? [Math.round(ib0.width), Math.round(ib0.height)] : null };
   });
   console.log('guest:', JSON.stringify(guestC));
@@ -4644,6 +4645,12 @@ window.bridge = {
   expect(guestC.name2 === guestC.name1, 'ГОСТЬ: имя стабильно между входами в меню');
   expect(guestC.emojiGone && /rgba\(0, 0, 0, 0\)|transparent/.test(guestC.bg1),
     'ГОСТЬ: под аватаром НЕТ фона (слово владельца) (' + guestC.bg1 + ')');
+  // ⚠️ ИСХОДНИК КРУПНЕЕ ЭКРАННОГО РАЗМЕРА (обновление владельца 2026-08-06:
+  // 96 -> 192 px): кружок 48 CSS при плотности 2.75 = 132 физических, и
+  // растяжение исчезло — теперь всегда уменьшение. Страж держит это число:
+  // если однажды подложат мелкие файлы, край снова начнёт рваться.
+  expect(guestC.avatarNatural >= 132,
+    'ГОСТЬ: исходник аватара не мельче экранного размера (' + guestC.avatarNatural + ' px)');
   expect(guestC.avatarFile && /avatars\/Avatar\d\d\.png/.test(guestC.avatarFile) && guestC.avatarLoaded === true,
     'ГОСТЬ: аватар владельца вписан в круг и загружен (' + JSON.stringify({ f: guestC.avatarFile, w: guestC.avatarBox }) + ')');
   // ⚠️ МЕРИМ КОНТРАКТ, А НЕ ПИКСЕЛИ РАМКИ: в полном прогоне соседние секции
