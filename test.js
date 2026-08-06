@@ -5003,12 +5003,26 @@ window.bridge = {
 
   // 2) разлёт на N: стены сняты, слоу-мо идёт, ВСЕ собраны «как соединённые»
   //    (счётчик накопления типа вырос на всех живых), победа; камни без очков
-  bowlRescues = 0;   // считаем ТОЛЬКО то, что случилось в этом блоке
+  // ⚠️ ОКНО СЧЁТА — ТОЛЬКО РАЗЛЁТ, А НЕ ВЕСЬ БЛОК (флейк, замечен Графикой,
+  // корень подтверждён независимой проверкой): обнуление стояло ПЕРЕД
+  // evaluate, который начинается с regen + skipIntro — в счёт попадали
+  // спасения ОСЕДАЮЩЕЙ КУЧИ нового уровня, законные и к разлёту не
+  // относящиеся (1 из 3 прогонов). Теперь считаем от метки, которая ставится
+  // прямо перед взрывом.
+  bowlRescues = 0;
+  let bowlRescuesAtMark = 0;
+  const markWatcher = setInterval(async () => {
+    try {
+      const marked = await bowlPage.evaluate(() => !!window.__rescueMark).catch(() => false);
+      if (marked && !bowlRescuesAtMark){ bowlRescuesAtMark = bowlRescues + 1; }  // +1: 0 значит «ещё не отмечено»
+    } catch(e){}
+  }, 50);
   const bowlShatter = await bowlPage.evaluate(async () => {
     const g = window.__game;
     g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     g.bowlSetN(2);
+    window.__rescueMark = true;   // ⚠️ ОКНО СЧЁТА НАЧИНАЕТСЯ ЗДЕСЬ (см. ниже)
     // эталон для «спасения»: тип с k живых и его счётчик ДО
     const sn = g.typesSnapshot();
     let name = null, k = 0;
@@ -5050,9 +5064,11 @@ window.bridge = {
   // прогон даёт спасения десятками — проверено диверсией.
   expect(bowlShatter.вРазлёте.rescuerOff === true,
     'ЧАША: спасатель выключен на время разлёта (' + JSON.stringify(bowlShatter.вРазлёте) + ')');
-  expect(bowlRescues === 0,
+  clearInterval(markWatcher);
+  const rescuesInWindow = bowlRescuesAtMark ? (bowlRescues - (bowlRescuesAtMark - 1)) : bowlRescues;
+  expect(rescuesInWindow === 0,
     'ЧАША: за окно разлёта НИ ОДНОГО спасения — предметы не прыгают обратно в несуществующую чашу ('
-    + bowlRescues + ')');
+    + rescuesInWindow + ' в окне разлёта, ' + bowlRescues + ' за блок)');
   expect(bowlShatter.alive === 0 && bowlShatter.over === true,
     'ЧАША: все предметы собраны, уровень выигран (' + JSON.stringify({ alive: bowlShatter.alive, over: bowlShatter.over }) + ')');
   expect(bowlShatter.очки > 0,
