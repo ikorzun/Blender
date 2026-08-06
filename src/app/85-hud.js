@@ -1498,6 +1498,13 @@ function openMainScreen(){
   // ложна, и сброс превращался в мёртвый код (поймано стражем переоткрытия).
   const wasOpen = ms.classList.contains('open');
   ms.classList.add('open');
+  // КРОМКА ЭКРАНА В ТОНЕ МЕНЮ (жалоба владельца «в меню паузы сверху
+  // прокидывается фон игры»). Сам `#mainScreen` стоит inset:0 и закрывает
+  // весь вьюпорт — «фон игры» протекал ПОЛОСОЙ ХРОМА, которую Safari красит
+  // по background-color html/body (там цвет неба от tintChrome). Правило —
+  // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
+  // при отказе открыться кромка перекрасилась бы под невидимое меню.
+  document.documentElement.classList.add('menuopen');
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -1518,6 +1525,7 @@ function closeMainScreen(){
   // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
+  document.documentElement.classList.remove('menuopen'); // кромку — обратно небу
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал

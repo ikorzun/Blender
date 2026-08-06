@@ -5321,6 +5321,58 @@ window.bridge = {
 
 
 
+  // ===== ФОН ДОЕЗЖАЕТ ДО КРОМКИ: ГРАДИЕНТ ПРИ ЗАГРУЗКЕ + ТОН МЕНЮ =====
+  // Две жалобы владельца 2026-08-06, ОДИН класс дефекта — «фон не доезжает до
+  // кромки экрана»: (2) «при загрузке появляется первый экран, а должен быть
+  // сразу градиент» — подложка html/body была `#ffffff`; (3) «в меню паузы
+  // сверху прокидывается фон игры» — под меню в html/body оставался цвет НЕБА
+  // (его пишет tintChrome), а полосу хрома Safari красит именно оттуда.
+  // ⚠️ СЕКЦИЯ В САМОМ КОНЦЕ: она открывает и закрывает меню (тихая пауза),
+  // то есть трогает долгоживущее состояние — правило «как камни».
+  const bgSeams = await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const norm = s => String(s).replace(/\s+/g, '');
+    const rootVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const bg = el => { const c = getComputedStyle(el); return { col: norm(c.backgroundColor), img: norm(c.backgroundImage) }; };
+    const skyTop = norm('rgb(' + rootVar('--sky-top-rgb') + ')');
+    const skyBot = norm('rgb(' + rootVar('--sky-bot-rgb') + ')');
+    const menuBg = rootVar('--ms-bg');
+    // МЕНЮ ЗАКРЫТО. Меряем ровно то, что называем: опоры градиента обязаны
+    // БЫТЬ кромками неба (те же переменные, что у полос Safari), а не просто
+    // «каким-то нежёлтым цветом» — иначе страж зелен на любом хардкоде.
+    document.querySelector('.ms-play').click(); await sleep(200); // на случай открытого
+    const closed = { html: bg(document.documentElement), body: bg(document.body) };
+    // ЖИВОЙ ПУТЬ ОТКРЫТИЯ (не classList руками): класс держит openMainScreen,
+    // и поздние события не должны его снять — приводим состояние как игрок.
+    document.getElementById('pauseBtn').click(); await sleep(250);
+    const open = { html: bg(document.documentElement), body: bg(document.body),
+                   меню: document.getElementById('mainScreen').classList.contains('open') };
+    document.querySelector('.ms-play').click(); await sleep(250);
+    const back = { html: bg(document.documentElement), body: bg(document.body) };
+    // menuBg в переменной — hex; переводим в тот же вид, что отдаёт computed
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = menuBg; document.body.appendChild(probe);
+    const menuRGB = norm(getComputedStyle(probe).backgroundColor); probe.remove();
+    return { closed, open, back, skyTop, skyBot, menuRGB };
+  });
+  console.log('bgSeams:', JSON.stringify(bgSeams));
+  // ⚠️ АССЕРТЫ ПРО ГРАДИЕНТ ПОДЛОЖКИ СНЯТЫ ВМЕСТЕ С ПРАВКОЙ (2026-08-06):
+  // в v2 живёт `#skyFill` — «белый экран, потом заливка снизу вверх» по слову
+  // владельца 05.08. Его жалоба 06.08 «должен быть сразу градиент» это слово
+  // ОТМЕНЯЕТ, но реверс чужой принятой механики — решение диспетчера, а не моё.
+  // Здесь остаётся только ТОН МЕНЮ (жалоба «сверху прокидывается фон игры»).
+  // (3) МЕНЮ: ПЕРЕХОД состояния, а не значение — до/во время/после
+  expect(bgSeams.closed.body.col === bgSeams.skyTop && bgSeams.closed.body.col !== bgSeams.menuRGB,
+    'МЕНЮ ЗАКРЫТО: кромка в тоне НЕБА (' + bgSeams.closed.body.col + ' против неба ' + bgSeams.skyTop + ')');
+  expect(bgSeams.open.меню === true,
+    'САНИТАР: меню действительно открылось кликом по паузе (иначе следующий ассерт мерит пустоту)');
+  expect(bgSeams.open.body.col === bgSeams.menuRGB && bgSeams.open.html.col === bgSeams.menuRGB,
+    '⚠️ МЕНЮ ОТКРЫТО: кромка экрана перекрашена в ТОН МЕНЮ — фон игры сверху не прокидывается (' +
+    JSON.stringify(bgSeams.open) + ' против меню ' + bgSeams.menuRGB + ')');
+  expect(bgSeams.back.body.col === bgSeams.skyTop,
+    '⚠️ МЕНЮ ЗАКРЫТО ОБРАТНО: кромка вернулась к небу — тон меню не залипает на игровом экране (' +
+    bgSeams.back.body.col + ')');
+
   console.log('ERRORS:', errors.length ? errors.join('\n') : 'none');
 
   // ===== УДАР ПРИ СОЕДИНЕНИИ (задача тестеров 2026-08-06 «больше драйва») =====
