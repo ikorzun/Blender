@@ -5546,6 +5546,109 @@ window.bridge = {
     ', сэмплов ' + чаша.сэмплов + ')');
   await bowlVisPage.close();
 
+
+  // ===== НОЧНЫЕ ЗВЁЗДЫ: БОЛЬШЕ МЕЛКИХ + ПУЛЬС МЕНЬШИНСТВА =====
+  // Слово владельца 2026-08-06: «больше мелких звёзд НЕ МЕНЯЯ их текущее
+  // количество» и «некоторые, например 1 из 10, совсем аккуратно пульсируют,
+  // плавно меняя прозрачность».
+  // ⚠️⚠️ ПОЧЕМУ ПУЛЬС ПРОВЕРЯЕТСЯ РУЧКОЙ, А НЕ «КАК ЕСТЬ»: 10% пульсирующих на
+  // фоне моргания ВСЕХ пиксельный замер НЕ РАЗЛИЧАЕТ — размах яркости 0.41
+  // против 0.41 у базы, разница тонет в шуме порога на 40 пятнах. При доле 1.0
+  // тот же замер даёт 0.93. Поэтому страж гоняет ДОЛЮ и проверяет, что тракт
+  // «доля -> пиксели» жив; сама доля 0.10 — это константа, а не поведение.
+  const starPage = await browser.newPage({ viewport: { width: 900, height: 760 } });
+  starPage.on('pageerror', e => errors.push('PAGEERROR(stars): ' + e.message));
+  await starPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=1');
+  await starPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await starPage.evaluate(() => { window.__game.skipIntro();
+    for (const id of ['topBar', 'bottomBar', 'face', 'vitrine', 'mainScreen']){
+      const e = document.getElementById(id); if (e) e.style.display = 'none'; } });
+  await new Promise(r => setTimeout(r, 900));
+  // общий разборЗвёзд кадра: пятна ярче фона СТРОКИ (небо плавно светлеет книзу —
+  // глобальный порог ловил бы градиент: первое измерение дало «звезду» в 5057 px)
+  const снимокЗвёзд = async () => (await starPage.screenshot()).toString('base64');
+  const разборЗвёзд = async (кадры) => starPage.evaluate(async (кадры) => {
+    const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = 'data:image/png;base64,' + src; });
+    const imgs = await Promise.all(кадры.map(load));
+    const W = imgs[0].width, H = Math.floor(imgs[0].height * 0.45);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d');
+    const поле = [];
+    for (const im of imgs){
+      cx.clearRect(0, 0, W, H); cx.drawImage(im, 0, 0);
+      const d = cx.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
+      for (let i = 0; i < W * H; i++) L[i] = 0.299*d[i*4] + 0.587*d[i*4+1] + 0.114*d[i*4+2];
+      const V = new Float32Array(W * H);
+      for (let y = 0; y < H; y++){
+        const row = Array.from(L.subarray(y*W, (y+1)*W)).sort((a, b) => a - b), md = row[W >> 1];
+        for (let x = 0; x < W; x++) V[y*W + x] = L[y*W + x] - md;
+      }
+      поле.push(V);
+    }
+    const MX = new Float32Array(W * H);
+    for (const V of поле) for (let i = 0; i < W * H; i++) if (V[i] > MX[i]) MX[i] = V[i];
+    const seen = new Uint8Array(W * H), площади = [], размах = [], сырые = [];
+    for (let i = 0; i < W * H; i++){
+      if (seen[i] || MX[i] < 12) continue;
+      const пикс = [], стек = [i]; seen[i] = 1;
+      while (стек.length){
+        const j = стек.pop(); пикс.push(j);
+        const x = j % W, y = (j - x) / W;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+          const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const k = ny*W + nx; if (!seen[k] && MX[k] >= 12){ seen[k] = 1; стек.push(k); }
+        }
+      }
+      if (пикс.length > 200) continue;           // > 200 px — это не звезда
+      площади.push(пикс.length);
+      сырые.push(поле.map(V => { let s = 0; for (const j of пикс) s += V[j]; return s / пикс.length; }));
+    }
+    // ⚠️⚠️ НОРМИРОВКА КАДРА. Без неё замер меряет не пульс звезды, а ГЛОБАЛЬНУЮ
+    // яркость неба: за время съёмки наливается красная угроза помола, и все
+    // пятна ходят хором. Первый прогон дал перевёрнутый результат — «без
+    // пульса» размах БОЛЬШЕ, чем «пульс у всех». Делим яркость каждого пятна
+    // на медиану пятен ЭТОГО кадра — общий множитель уходит, остаётся личное.
+    const масштаб = поле.map((_, f) => {
+      const v = сырые.map(r => r[f]).filter(x => x > 0).sort((a, b) => a - b);
+      return v[v.length >> 1] || 1;
+    });
+    for (const r of сырые){
+      const н = r.map((v, f) => v / масштаб[f]);
+      const mx = Math.max(...н), mn = Math.min(...н);
+      if (mx > 0) размах.push((mx - mn) / mx);
+    }
+    площади.sort((a, b) => a - b); размах.sort((a, b) => a - b);
+    return { звёзд: площади.length, медианаПлощади: площади[площади.length >> 1] || 0,
+             медианаРазмаха: +(размах[размах.length >> 1] || 0).toFixed(3),
+             // ⚠️ ДОЛЯ ГЛУБОКО ГУЛЯЮЩИХ, А НЕ МЕДИАНА: моргание есть у ВСЕХ и
+             // даёт размах ~0.31, поэтому медиана к доле пульса почти глуха
+             // (лесенка: 0.306 при доле 0 против 0.569 при доле 1). А вот доля
+             // выше 0.45 разделяет начисто: 0% против 77.5%.
+             глубоких: +(размах.filter(v => v > 0.45).length / Math.max(1, размах.length) * 100).toFixed(1) };
+  }, кадры);
+  const звёзды = await разборЗвёзд([await снимокЗвёзд()]);
+  expect(звёзды.звёзд >= 25 && звёзды.медианаПлощади <= 16,
+    '⚠️ ЗВЁЗДЫ: мелких стало больше при том же количестве (пятен ' + звёзды.звёзд +
+    ', медиана площади ' + звёзды.медианаПлощади + ' px; у прежнего ровного разброса было 29)');
+  // ПУЛЬС: гоняем ДОЛЮ и смотрим, доезжает ли она до пикселей
+  // ⚠️ МИКСЕР ДЕРЖИМ СПОКОЙНЫМ: за 9 с простоя наливается угроза помола, а
+  // потом он начинает есть предметы — сцена меняется, и замер поедет.
+  const кадрыПульсаЗвёзд = async () => { const k = []; for (let i = 0; i < 5; i++){
+      await starPage.evaluate(() => { window.__game.stats().lastAction = performance.now(); });
+      k.push(await снимокЗвёзд()); await new Promise(r => setTimeout(r, 1800)); } return k; };
+  await starPage.evaluate(() => window.__game.starPulse(1.0, 0.95));
+  const всеПульсируют = await разборЗвёзд(await кадрыПульсаЗвёзд());
+  await starPage.evaluate(() => window.__game.starPulse(0, 0.55));
+  const безПульса = await разборЗвёзд(await кадрыПульсаЗвёзд());
+  await starPage.evaluate(() => window.__game.starPulse(0.10, 0.55));
+  expect(безПульса.глубоких <= 10 && всеПульсируют.глубоких >= 40,
+    '⚠️ ЗВЁЗДЫ: пульс ДОЕЗЖАЕТ ДО ПИКСЕЛЕЙ — доля 1.0 против 0 (глубоко гуляющих ' +
+    безПульса.глубоких + '% -> ' + всеПульсируют.глубоких + '%; лесенка на боевой 0.10 даёт 2.5%)');
+  const ручка = await starPage.evaluate(() => window.__game.starPulse());
+  expect(ручка && Math.abs(ручка.frac - 0.10) < 1e-6,
+    'ЗВЁЗДЫ: боевая доля пульса — 1 из 10, как просил владелец (' + JSON.stringify(ручка) + ')');
+  await starPage.close();
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();

@@ -666,10 +666,18 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
         // поверх без переделки шейдера — достаточно двигать порог.
         uStarDens: { value: STAR_DENS },
         uStarSpark: { value: STAR_SPARK },
+        // ⚠️ ПУЛЬС — ЮНИФОРМЫ, А НЕ ВШИТЫЕ ЧИСЛА. Две причины: (1) ручка живого
+        // тюнинга («1 из 10» владелец может захотеть сделать «1 из 20»);
+        // (2) ЕДИНСТВЕННЫЙ честный способ проверить механизм — пиксельный замер
+        // не различает 10% пульсирующих на фоне моргания ВСЕХ (замер: размах
+        // 0.41 против 0.41 у базы), а с долей 1.0 отличие видно сразу (0.93).
+        uStarPulseFrac: { value: STAR_PULSE_FRAC },
+        uStarPulseAmp:  { value: STAR_PULSE_AMP },
         uTime: { value: 0 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
        'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
+       'uniform float uStarPulseFrac; uniform float uStarPulseAmp;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -726,7 +734,12 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       // из-за чего край размывался тем сильнее, чем мельче звезда («кляксы»).
       // |cross| линейна по углу, поэтому ведёт себя как обычный радиус на плоскости.
       '    float s = length(cross(d, sdir));',
-      '    float sz = mix(' + STAR_SIZE_MIN.toFixed(2) + ', 1.0, hs(ip + 9.1));',
+      // ⚠️ СТЕПЕНЬ НА ХЕШЕ, А НЕ ДРУГОЙ ХЕШ: тот же hs(ip+9.1) остаётся источником,
+      // меняется только ФОРМА распределения — pow(h, BIAS) при BIAS>1 сдвигает
+      // выборку к нижней границе. Так мелких становится больше, а ЧИСЛО звёзд не
+      // меняется вовсе (за него отвечает uStarDens, он не тронут).
+      '    float sz = mix(' + STAR_SIZE_MIN.toFixed(2) + ', 1.0, pow(hs(ip + 9.1), ' +
+        STAR_SIZE_BIAS.toFixed(2) + '));',
       '    float R = ' + STAR_R.toFixed(5) + ' * sz;',
       // ВЕКТОРНЫЙ КРАЙ: ширина сглаживания = РАЗМЕР ПИКСЕЛЯ (fwidth), поэтому
       // кромка ровно в один пиксель на любом DPR — не мылится и не лесенит.
@@ -749,7 +762,14 @@ let skyMat = null; // экранные слои: uCombo красит НИЗ, uGr
       '    float ph = hs(ip + 13.7) * 6.2832;',
       '    float spd = ' + STAR_TW_SPD.toFixed(3) + ' * (0.6 + 0.8 * hs(ip + 17.3));',
       '    float tw = 1.0 - ' + STAR_TW_AMP.toFixed(3) + ' * (0.5 + 0.5 * sin(uTime * spd + ph));',
-      '    col += uStars * has * tw * (core + glow + ray) * 0.6;',
+      // ПУЛЬС МЕНЬШИНСТВА: своя фаза и своя, втрое более медленная волна поверх
+      // моргания. Отбор — отдельный хеш ячейки, поэтому «пульсирующая» звезда
+      // всегда одна и та же, а не мигает случайными по кадрам.
+      '    float pls = step(1.0 - uStarPulseFrac, hs(ip + 23.1));',
+      '    float ph2 = hs(ip + 29.3) * 6.2832;',
+      '    float pl = 1.0 - pls * uStarPulseAmp' +
+        ' * (0.5 + 0.5 * sin(uTime * ' + STAR_PULSE_SPD.toFixed(3) + ' + ph2));',
+      '    col += uStars * has * tw * pl * (core + glow + ray) * 0.6;',
       '  }',
     ];
   const skyM = new THREE.ShaderMaterial({

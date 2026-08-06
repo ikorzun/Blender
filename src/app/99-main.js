@@ -1575,6 +1575,17 @@ window.__game = {
   // «геометрия печётся заранее и переиспользуется», «куски РАЗНОГО размера».
   // Последнее — прямо на жалобу владельца («сетка стерильная и равномерная»):
   // без него возврат к правильной решётке прошёл бы молча.
+  // ⚠️ РУЧКА ПУЛЬСА ЗВЁЗД — и тюнинг («1 из 10» может стать «1 из 20»), и
+  // ЕДИНСТВЕННЫЙ честный способ проверить механизм: 10% пульсирующих на фоне
+  // моргания ВСЕХ пиксельный замер не различает (размах 0.41 против 0.41 базы),
+  // а при доле 1.0 отличие видно сразу (0.93). Страж гоняет именно долю.
+  starPulse(frac, amp){
+    const u = skyMat && skyMat.uniforms;
+    if (!u || !u.uStarPulseFrac) return null;
+    if (frac != null) u.uStarPulseFrac.value = frac;
+    if (amp != null) u.uStarPulseAmp.value = amp;
+    return { frac: u.uStarPulseFrac.value, amp: u.uStarPulseAmp.value };
+  },
   bowlShardsInfo(){
     return { разбита: bowlBroken, кусков: _shatterN, испечена: !!_shatterGeo,
              geoId: _shatterGeo ? _shatterGeo.id : null,
