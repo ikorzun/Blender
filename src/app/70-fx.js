@@ -133,11 +133,16 @@ function stepFX(dt){
       // стирает атрибуты при dispose и просто перезаливает буфер. Цена — ЛИШНЯЯ
       // ПЕРЕЗАЛИВКА В GPU, а не исчезновение предметов. Флаг оставлен как
       // гигиена владения, но пугать им не надо.
-      if (f.obj.geometry && !(f.obj.userData && f.obj.userData.keepGeo)) f.obj.geometry.dispose();
+      // ⚠️ ДВА РАЗНЫХ ФЛАГА, И ЭТО НАМЕРЕННО. `keepGeo` — метка ПОЛОВИН РАСПИЛА,
+      // по ней страж сьюта считает половины поимённо; вешать её на что-то ещё
+      // значит тихо испортить чужой счётчик. `sharedFx` — «геометрия и материал
+      // живут ДОЛЬШЕ эффекта» (кэш разлёта чаши: печём один раз, гоняем много).
+      const общее = f.obj.userData && (f.obj.userData.keepGeo || f.obj.userData.sharedFx);
+      if (f.obj.geometry && !общее) f.obj.geometry.dispose();
       // молнии отдают материал в free-list (boltMat) — в турбо их много, и
       // пересоздавать одинаковые MeshBasicMaterial на каждый разряд незачем;
       // ВСЕ остальные эффекты освобождают материал как раньше
-      if (f.obj.material){
+      if (f.obj.material && !(f.obj.userData && f.obj.userData.sharedFx)){
         if (f.obj.userData && f.obj.userData.poolBolt && boltMatPool.length < BOLT_POOL_MAX) boltMatPool.push(f.obj.material);
         else f.obj.material.dispose();
       }
@@ -696,7 +701,17 @@ function _impactFX_impl(pos, n, tint, ghost, hot){
                  elong: fam.elong, alpha: IMPACT_ALPHA,
                  over: ring.material.depthTest === false && fm.depthTest === false };
 }
-function _collapseFX_impl(list, at){
+// ⚠️ ДЛИТЕЛЬНОСТЬ — ПАРАМЕТР (по умолчанию COLLAPSE_MS): матч стягивает
+// горстку за 150 мс, а разлёт чаши — ВСЮ кучу к центру, и на таком расстоянии
+// 150 мс читаются как телепорт, а не как слёт.
+// ⚠️⚠️ РЕЖИМ РЕАЛЬНЫХ ЧАСОВ (`real`) — НЕ УКРАШЕНИЕ, А ПОЧИНКА. Тик addFX идёт
+// по ИГРОВОМУ времени, а удаление предметов после слёта — по setTimeout, то
+// есть по РЕАЛЬНОМУ. На 150 мс матча разница незаметна, а на 620 мс сбора после
+// разлёта часы расходятся: под нагрузкой куча НЕ УСПЕВАЕТ долететь до центра и
+// исчезает на полпути. Поймано стражем в сьюте (радиус встал на 1.73 вместо 0,
+// пять сэмплов вместо восемнадцати), в изоляции не воспроизводилось.
+// Это тот же закон, по которому хлопок матча висит на часах removeItem.
+function _collapseFX_impl(list, at, ms, real){
   const P = at.clone();
   const src = [];
   for (const it of list){
@@ -704,7 +719,9 @@ function _collapseFX_impl(list, at){
     src.push({ mesh: it.mesh, p0: it.mesh.position.clone(), s0: it.mesh.scale.x });
   }
   if (!src.length) return;
-  addFX(new THREE.Object3D(), COLLAPSE_MS / 1000, (o, k) => {
+  const LIFE = ms || COLLAPSE_MS, t0 = performance.now();
+  addFX(new THREE.Object3D(), LIFE / 1000, (o, k) => {
+    if (real) k = Math.min(1, (performance.now() - t0) / LIFE);
     const e = k * k * (3 - 2 * k);        // плавный старт, резкий приход
     for (const s of src){
       s.mesh.position.lerpVectors(s.p0, P, e);

@@ -304,7 +304,7 @@ function detonateBomb(bomb){
     all.forEach((it, i) => { it.mesh.scale.setScalar(scales[i]*Math.max(0, s)); });
   });
   setTimeout(() => afterPause(() => {
-    all.forEach(removeItem);
+    all.forEach(removeItem);   // ⚠️ после хлопка: BOWL_MERGE_MS + пауза
     wakePhysics('gameplay:L28'); // масса над воронкой взрыва должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 150);
@@ -408,19 +408,30 @@ function bowlCollectAll(){
   stats.score += gainedTotal;
   const shown = scoreShownDelta(scoreBefore, stats.score);
   if (surprise){ try { collectSurprise(surprise); } catch(e){} }
-  // волна исчезновения от центра: fade+scale, задержка по расстоянию —
-  // дёшево (без пер-предметной трухи), читается как «собраны разом»
+  // ⚙️ СЛЁТ В ЦЕНТР И ХЛОПОК (слово владельца 2026-08-06: «все объекты, которые
+  // были в чаше на момент взрыва, сливаются друг с другом в центре и исчезают,
+  // как сейчас сделано слияние объектов»). Было: каждый таял на месте волной от
+  // центра — это читалось как «растворились», а не как «собрались».
+  // ⚠️ Тот же collapseFX, что у обычного матча, только длиннее: лететь через
+  // всю чашу. Хлопок — на РЕАЛЬНЫХ часах, как в doMatch (тик анимации на
+  // просевшем FPS до конца не доходит, и хлопок бы не наступил).
   const all = Object.values(byType).flat().concat(extras);
+  const центр = new THREE.Vector3(0, BOWL_MERGE_AT_Y, 0);
   for (const it of all){
     it.animating = true; it.animStartMs = performance.now();
-    destroyItemBody(it);
-    const d = Math.min(1, it.p.length()/10);
-    const s0 = it.mesh.scale.x;
-    addFX(new THREE.Object3D(), 0.3 + d*0.4, (o, k2) => {
-      const t = Math.max(0, (k2 - d*0.5) / (1 - d*0.5 || 1));
-      it.mesh.scale.setScalar(s0 * Math.max(0, 1 - t));
-    });
+    destroyItemBody(it);   // тела нет — меш ведёт анимация, физика не спорит
   }
+  // ⚠️ РЕАЛЬНЫЕ ЧАСЫ (4-й аргумент): удаление ниже висит на setTimeout, и на
+  // просевшем FPS игровой тик отставал — куча исчезала, не долетев до центра.
+  collapseFX(all, центр, BOWL_MERGE_MS, true);
+  const тон = (all[0] && (all[0].fxColor || all[0].baseColor)) || null;
+  setTimeout(() => {
+    if (!level) return;
+    impactFX(центр, MATCH_MAX_N, тон, all[0] || null);   // удар как у крупной группы
+    dissolveFX({ p: центр, r: 1.6, fxColor: тон, baseColor: тон });
+    camShake = Math.max(camShake, COLLAPSE_SHAKE * 2);
+    Sound.play('match', { n: Math.min(all.length, MATCH_MAX_N), k: 0 });
+  }, BOWL_MERGE_MS);
   scorePop('Bowl Shatter! +' + shown, new THREE.Vector3(0, 5.5, 0), '#ff5a3c', true);
   Sound.play('win');
   setTimeout(() => afterPause(() => {
@@ -432,7 +443,7 @@ function bowlCollectAll(){
     for (const it of items){ if (it.alive){ try { removeItem(it); } catch(e){} } }
     bowlShattering = false;
     refreshAccessibility(); updateHUD(); checkEnd(); // живых нет -> победа
-  }), 750);
+  }), BOWL_MERGE_MS + 260);
 }
 function bowlState(){
   return { cracks: (level && level.bowlCracks) || 0, n: bowlN(),
