@@ -367,12 +367,29 @@ function tickFireSpawn(now){
   if (intro || paused || !level || level.over){ fireNextMs = 0; return; }
   if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // первый отсчёт с начала партии
   if (now < fireNextMs || burningName()) return;
+  // ⚠️ ГОРИТ ТОЛЬКО СОБИРАЕМОЕ (слово владельца 2026-08-05: «объект
+  // загорается только если у него есть хотя бы одна пара и он находится в
+  // зоне досягаемости для совмещения»). Два условия, оба обязательны:
+  //  (1) ДОСТУПНОСТЬ — isAccessible (как было);
+  //  (2) РЕАЛЬНАЯ ПАРА — есть ДРУГОЙ живой доступный предмет того же вида,
+  //      до которого дотягивается боевой радиус (pairMatch — та же функция,
+  //      что решает настоящий тап, поэтому обещание совпадает с игрой).
+  // Иначе горел бы одиночка, которого нельзя собрать: бонус ×2 недостижим,
+  // а игрок видит приглашение и тратит на него ходы.
   const cand = [];
+  const byKey = {};
   for (const it of items){
     if (!it.alive || !it.mesh || !it.type) continue;
     if (it.surprise || it.bomb || it.rock) continue;     // спецпредметы не горят
-    if (!isAccessible(it)) continue;                     // справедливость (работает на Hard)
-    cand.push(it);
+    if (it.animating || !isAccessible(it)) continue;     // справедливость (работает на Hard)
+    (byKey[it.key] = byKey[it.key] || []).push(it);
+  }
+  for (const k in byKey){
+    const arr = byKey[k];
+    if (arr.length < 2) continue;                        // одиночка не горит
+    for (const a of arr){
+      if (arr.some(b => b !== a && pairMatch(a, b))) cand.push(a);
+    }
   }
   if (!cand.length){ fireNextMs = now + 2000; return; }  // нечего поджечь — пробуем позже
   // ВИДИМОСТЬ: берём из верхних, иначе пламя утонет в куче (см. FIRE_TOP_N)
@@ -847,7 +864,11 @@ window.__game = {
   multToastTest(name, mult){ showMultToast(name || 'T0', mult || 2); }, // тест: тост множителя через единую точку
   hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
   hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
-  itemsBrief(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), acc: !!i.accessible })); },
+  // ⚠️ ИМЯ РАЗВЕДЕНО С ФИЗИКИНЫМ itemsBrief (ловля 2026-08-05): в объекте
+  // __game были ДВА ключа itemsBrief, побеждало последнее определение —
+  // мои поля (x/z/acc/key) молча не существовали, страж читал undefined и
+  // выдавал правдоподобные нули. Геометрия — здесь, физдиагностика — там.
+  itemsGeo(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), name: (i.type && i.type.name) || '', x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), r: +i.r.toFixed(3), acc: !!i.accessible })); },
 
   // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
   // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит
@@ -1334,6 +1355,8 @@ window.__game = {
   // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
   // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
   burning(){ return burningName(); },
+  fireSoon(){ fireNextMs = performance.now() + 120; }, // тест: не ждать FIRE_EVERY_MS
+  refreshAcc(){ refreshAccessibility(); }, // тест: свежий пересчёт доступности (кэш живёт только при движении)
   // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
   bowl(){ return bowlState(); },
   bowlCrack(){ bowlCrackAdd(); return bowlState(); },   // та же точка, что у турбо

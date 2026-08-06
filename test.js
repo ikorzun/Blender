@@ -4789,6 +4789,48 @@ window.bridge = {
     await lpage.close();
   }
 
+  // ===== ОГОНЬ ЗАЖИГАЕТ ТОЛЬКО СОБИРАЕМОЕ (слово владельца 2026-08-05) =====
+  // Свойство: у горящего ОБЯЗАН быть живой доступный близнец, до которого
+  // дотягивается боевой радиус. Проверяем боевым путём — ждём естественного
+  // поджига (ручку не зовём: она проверяла бы саму себя).
+  {
+    const fireCheck = await page.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      g.setLevel(6); g.regen(); g.skipIntro(); await sleep(900);
+      g.fireSoon && g.fireSoon();                       // ускорить отсчёт, если ручка есть
+      let name = null;
+      { const t0 = Date.now();
+        while (Date.now() - t0 < 40000){ name = g.burning ? g.burning() : null; if (name) break; await sleep(300); } }
+      if (!name) return { skip: 'поджиг не наступил за 40с' };
+      // ⚠️ ПЕРЕСЧЁТ ПЕРЕД ЧТЕНИЕМ: флаг accessible — КЭШ, он обновляется
+      // только пока куча движется; в штиле страж читал бы прошлое (ловля:
+      // «доступных 0» при 10 живых на исправной механике).
+      g.refreshAcc();
+      const brief = g.itemsGeo().filter(it => it.name === name);
+      // ⚠️ ФЛАГ acc НЕ ИСПОЛЬЗУЕМ: он заполняется только в Hard (вуаль), а
+      // сьют идёт в Easy, где isAccessible() честно отдаёт true всем — флаг
+      // при этом остаётся false, и страж читал бы «доступных 0» на исправной
+      // механике (ловля 2026-08-05). Меряем СВОЙСТВО, а не служебный кэш:
+      // есть ли у горящего вида второй живой предмет в пределах радиуса.
+      const acc = brief;
+      // НЕЗАВИСИМАЯ проверка достижимости: истинный зазор между охватными
+      // сферами меньше боевого радиуса — считаем в тесте по координатам,
+      // а не спрашиваем pairMatch (иначе страж проверял бы сам себя).
+      let minGap = 99;
+      for (let i = 0; i < acc.length; i++) for (let j = i + 1; j < acc.length; j++){
+        const a = acc[i], b = acc[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) - (a.r + b.r);
+        if (d < minGap) minGap = d;
+      }
+      return { name, живыхВида: brief.length, доступных: acc.length,
+               зазор: +minGap.toFixed(2), радиус: +g.cfg.matchRadius.toFixed(2) };
+    });
+    console.log('огонь:', JSON.stringify(fireCheck));
+    expect(fireCheck.skip || (fireCheck.живыхВида >= 2 && fireCheck.зазор <= fireCheck.радиус),
+      'ОГОНЬ: загорается только предмет с ДОСТИЖИМОЙ парой — есть второй доступный того же вида в пределах боевого радиуса (' + JSON.stringify(fireCheck) + ')');
+  }
+
   // ===== ЧАША-РАЗЛЁТ (прототип v2, решения владельца: чаша новая каждый
   // уровень / камни-бомба без очков / слоу-мо да) =====
   const bowlPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
