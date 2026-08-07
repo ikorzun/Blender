@@ -1945,7 +1945,14 @@ window.bridge = {
   // ⚠️ МОК ВЕДЁТ СЕБЯ КАК НАСТОЯЩИЙ СЕРВЕР (форма и семантика сняты живым
   // прогоном 2026-07-29): хранит МАКСИМУМ и в ответе отдаёт СОХРАНЁННЫЙ счёт,
   // а не присланный; статус «normal» одинаков и при приёме, и при игноре.
-  leaderboards: { type:'in_game', _best:0,
+  leaderboards: { type:'in_game', _best:0, _gets:0, _rows:null, _fail:false, _popup:0,
+    getEntries(id){
+      window.__mock.lbGets = (window.__mock.lbGets||0) + 1;
+      if (this._fail) return Promise.reject(new Error('сеть'));
+      return Promise.resolve(this._rows || []);
+    },
+    showNativePopup(id){ this._popup++; return this.type === 'native_popup'
+      ? Promise.resolve() : Promise.reject(new Error('нет попапа')); },
     setScore(id, sc){ window.__mock.lb.push({ id, sc });
       this._best = Math.max(this._best, sc);
       return Promise.resolve({ uuid:'u', score:this._best, platformId:'mocktest',
@@ -2370,6 +2377,67 @@ window.bridge = {
   expect(lbp.lo.accepted === false && lbp.lo.stored !== lbp.lo.sent,
     'разбор: счёт ниже пика — распознан как ПРОИГНОРИРОВАННЫЙ, хотя ответ «успех» ('
     + JSON.stringify(lbp.lo) + ')');
+
+  // === ЧТЕНИЕ ТАБЛИЦЫ (контракт экрана ИНТЕРФЕЙСА) ===
+  const lbr = await apage.evaluate(async () => {
+    const A = window.__ads, L = window.bridge.leaderboards, out = {};
+    A.setBoardId('top_score');
+    L.type = 'in_game'; L._fail = false;
+    window.bridge.player.id = 'me-42';
+    // сервер отдаёт НЕ по порядку и с готовым rank — проверим, что не пересчитываем
+    L._rows = [
+      { id:'x', name:'Икс',   score:300, rank:2, photo:null },
+      { id:'me-42', name:'Я', score:500, rank:1, photo:'p.png' },
+      { id:'z', name:'Зет',   score:100, rank:3, photo:null },
+    ];
+    window.__mock.lbGets = 0;
+    // ⚠️ ЧТЕНИЕ НЕ ТРЕБУЕТ АВТОРИЗАЦИИ (в отличие от записи): гость смотрит.
+    window.bridge.player.isAuthorized = false;
+    const r1 = await A.lbEntries({ force: true });
+    out.guestOk = r1.ok;
+    // ⚠️ БЕЗ ОПТИМИЗМА: при сломанной сборке r1 приходит пустым, и обращение
+    // к найденной строке роняло ВСЮ пробу исключением — прогон падал целиком
+    // вместо честных FAIL по каждому инварианту (поймано на своих же зубах).
+    out.order = (r1.entries || []).map(e => e.rank).join(',');
+    out.meFlag = !!(r1.me && r1.me.id === 'me-42' && r1.me.rank === 1);
+    const mine = (r1.entries || []).find(e => e.id === 'me-42');
+    out.photo = mine ? mine.photo : '(строки нет)';
+    // страница РЕЖЕТСЯ ЛОКАЛЬНО: total остаётся полным, второй запрос НЕ уходит
+    const r2 = await A.lbEntries({ limit: 1, offset: 1 });
+    out.page = (r2.entries || []).map(e => e.id).join(',');
+    out.total = r2.total;
+    out.gets = window.__mock.lbGets;         // ожидаем 1: постраничности у моста нет
+    // площадка не поддерживает
+    L.type = 'not_available';
+    const r3 = await A.lbEntries({ force: true });
+    out.na = r3.ok === false && r3.why === 'площадка не поддерживает';
+    // таблицу рисует площадка
+    L.type = 'native_popup';
+    const r4 = await A.lbEntries({ force: true });
+    out.native = r4.ok === false && r4.why === 'таблицу рисует площадка';
+    out.popupOk = (await A.lbShowNative()).ok;          // на native_popup — можно
+    L.type = 'native';
+    out.popupNo = (await A.lbShowNative()).ok;          // на native — мост откажет
+    // сеть отвалилась
+    L.type = 'in_game'; L._fail = true;
+    const r5 = await A.lbEntries({ force: true });
+    out.net = r5.ok === false && r5.why === 'сеть';
+    L._fail = false;
+    return out;
+  });
+  expect(lbr.guestOk === true,
+    'таблица: ГОСТЬ ЧИТАЕТ (авторизация нужна для ЗАПИСИ, не для просмотра)');
+  expect(lbr.order === '1,2,3' && lbr.meFlag === true,
+    'таблица: строки по месту с сервера, своя помечена (' + lbr.order + ')');
+  expect(lbr.photo === 'p.png', 'таблица: аватар доезжает до экрана (' + lbr.photo + ')');
+  expect(lbr.page === 'x' && lbr.total === 3 && lbr.gets === 1,
+    'таблица: страница режется ЛОКАЛЬНО, повторного запроса нет — постраничности у моста НЕТ ('
+    + lbr.page + ', total ' + lbr.total + ', запросов ' + lbr.gets + ')');
+  expect(lbr.na === true, 'таблица: площадка без лидерборда — честный отказ, не пустой список');
+  expect(lbr.native === true && lbr.popupOk === true && lbr.popupNo === false,
+    'таблица: native_popup — свой экран не рисуем, зовём платформенный (' + lbr.native + '/'
+    + lbr.popupOk + '/' + lbr.popupNo + ')');
+  expect(lbr.net === true, 'таблица: офлайн — «сеть», а не тишина');
 
 
   // ⚠️⚠️ ЭТОТ БЛОК СТОИТ В КОНЦЕ СТРАНИЦЫ НАМЕРЕННО (та же причина, что у секции
