@@ -2424,7 +2424,11 @@ function chainComboAt(){
 // что в playgama-bridge-config.json стоят его же id и публичный токен.
 // Всё остальное готово и покрыто ассертами: три предусловия, гейт гостей,
 // разбор тела ответа. Контракт — docs/SAAS-LEADERBOARDS-CONTRACT.md.
-const LEADERBOARD_ID = '';
+// ВКЛЮЧЁН (задание диспетчера 2026-08-07). Пустая строка = выключатель.
+// ⚠️ id сверен НЕ с кабинетом (доступа нет), а ЖИВЫМ ПРОГОНОМ: запись на
+// борд 'Blendo' этим токеном прошла (201) и вернулась чтением — см.
+// docs/SAAS-LEADERBOARDS-CONTRACT.md. Совпадение с конфигом ниже проверено.
+const LEADERBOARD_ID = 'Blendo';
 // Досыпка турбо (спека владельца 2026-07-21: «вещи в турбо должны сыпаться
 // на 20% быстрее и их количество на 30% больше»): интервал 500 -> 417
 // (темп ×1.2), объём за тик 2 -> 2.6 (дробь копится аккумулятором chainCarry)
@@ -9466,6 +9470,97 @@ const Ads = (function(){
     // естественной точке, а не к каждому шевелению баланса.
     submitLeaderboardScore();
   }
+
+  // ===== ЛИДЕРБОРД: ЧТЕНИЕ (контракт для экрана ИНТЕРФЕЙСА) =====
+  // Разобрано ПО ИСХОДНИКУ `LeaderboardsModule.ts` v2.0.2, не по доке.
+  //
+  // ⚠️⚠️ ТИП ТАБЛИЦЫ ПЕРЕБИВАЕТСЯ SaaS, И ЭТО МЕНЯЕТ ПОСТАНОВКУ ЗАДАЧИ:
+  //   `get type(){ return this.#saas ? IN_GAME : platformBridge.leaderboardsType }`
+  // У нас SaaS включён в конфиге для playgama/poki/y8/yandex/crazy_games,
+  // значит на этих площадках тип ВСЕГДА `in_game`, и ветка «нарисует
+  // площадка, наш экран не нужен» там НЕ СРАБОТАЕТ НИКОГДА. Рисуем свой
+  // экран; `native`/`native_popup` остаются только для площадок вне списка.
+  //
+  // ⚠️ ПОСТРАНИЧНОСТИ У МОСТА НЕТ. `getEntries(id)` зовётся БЕЗ параметров
+  // (`saas.get('leaderboards/'+id)`) и отдаёт один список целиком. Поэтому
+  // `limit/offset` ниже режут УЖЕ ПОЛУЧЕННЫЙ массив на нашей стороне —
+  // это НЕ серверная страница, и обещать «подгрузим ещё» экрану нельзя.
+  //
+  // ⚠️ ЧТЕНИЕ НЕ ТРЕБУЕТ АВТОРИЗАЦИИ, в отличие от ЗАПИСИ. Гейт
+  // `isAcquired`/`isAuthorized` в `lbBlockedWhy` — про отправку своего
+  // результата (решение владельца «чтобы ПОПАСТЬ в таблицу, нужно
+  // залогиниться»). Таблицу СМОТРЕТЬ может кто угодно, включая гостя;
+  // держать эти два правила порознь обязательно.
+  const LB_ENTRY_TTL = 30000;         // экран открывают часто, сервер жалеть
+  let lbCache = null, lbCacheAt = 0;
+
+  function lbType(){
+    try {
+      const t = window.bridge && window.bridge.leaderboards && window.bridge.leaderboards.type;
+      return t || null;
+    } catch(e){ return null; }
+  }
+  // Почему не может быть прочитано — одной причиной, ЯЗЫКОМ ЭКРАНА.
+  function lbReadWhy(){
+    if (!lbBoardId) return 'выключено';                   // наш выключатель
+    if (mode !== 'bridge' || !sdkReady) return 'нет sdk';
+    const t = lbType();
+    if (!t || t === 'not_available') return 'площадка не поддерживает';
+    if (t !== 'in_game') return 'таблицу рисует площадка';  // native / native_popup
+    return null;
+  }
+  function lbNormalize(list){
+    const meId = (()=>{ try { return String(window.bridge.player.id || ''); } catch(e){ return ''; } })();
+    const rows = (Array.isArray(list) ? list : []).map((e, i) => ({
+      id: String((e && e.id) || ''),
+      name: (e && e.name) || '',
+      score: Number((e && e.score) || 0),
+      // ⚠️ `rank` берём с сервера, а СВОЙ считаем только когда его нет:
+      // у SaaS место приходит готовым, и пересчёт по индексу молча
+      // разошёлся бы с сервером при равных счётах.
+      rank: (e && typeof e.rank === 'number') ? e.rank : (i + 1),
+      photo: (e && e.photo) || null,
+      me: !!meId && String((e && e.id) || '') === meId,
+    }));
+    rows.sort((a, b) => a.rank - b.rank);
+    return rows;
+  }
+  // Отдаёт ВСЕГДА resolve: отказ — это состояние экрана, а не исключение.
+  // {ok, why, type, total, entries, me}
+  // ⚠️ `me === null` значит «моей строки в выдаче нет» — а НЕ «я вне таблицы»:
+  // список приходит срезом, и за его пределами место неизвестно. Экран обязан
+  // различать эти два случая, иначе покажет игроку неправду.
+  function lbEntries(opts){
+    const o = opts || {};
+    const why = lbReadWhy();
+    if (why) return Promise.resolve({ ok: false, why: why, type: lbType(), entries: [], me: null, total: 0 });
+    const fresh = lbCache && !o.force && (Date.now() - lbCacheAt) < LB_ENTRY_TTL;
+    const src = fresh ? Promise.resolve(lbCache) : (function(){
+      let p; try { p = window.bridge.leaderboards.getEntries(lbBoardId); } catch(e){ p = Promise.reject(e); }
+      return Promise.resolve(p).then((list)=>{ lbCache = lbNormalize(list); lbCacheAt = Date.now(); return lbCache; });
+    })();
+    return src.then((rows)=>{
+      const from = Math.max(0, o.offset || 0);
+      const to = o.limit ? from + o.limit : rows.length;
+      return { ok: true, why: null, type: lbType(), total: rows.length,
+               entries: rows.slice(from, to), me: rows.find(r => r.me) || null };
+    }).catch((e)=>{
+      Telemetry.ev('lb', { ph: 'read_fail', r: String((e && e.message) || e || '').slice(0, 60) });
+      return { ok: false, why: 'сеть', type: lbType(), entries: [], me: null, total: 0 };
+    });
+  }
+  // ПЛАТФОРМЕННЫЙ ПОПАП. ⚠️ Заранее узнать, есть ли он, НЕЛЬЗЯ: модуль сверяет
+  // СЫРОЙ тип площадки (`_platformBridge.leaderboardsType`), а наружу отдаёт
+  // тип, перебитый SaaS. Поэтому — пробуем и честно отдаём отказ.
+  function lbShowNative(){
+    if (!lbBoardId) return Promise.resolve({ ok: false, why: 'выключено' });
+    let p;
+    try { p = window.bridge.leaderboards.showNativePopup(lbBoardId); }
+    catch(e){ p = Promise.reject(e); }
+    return Promise.resolve(p).then(()=>({ ok: true, why: null }))
+      .catch(()=>({ ok: false, why: 'площадка не умеет попап' }));
+  }
+
   function maybeInterstitial(){
     // ОКНО БЕЗ РЕКЛАМЫ из бандла (77-save): гасит ТОЛЬКО межстраничные.
     // Rewarded НЕ трогаем — их игрок просит сам, и они несут заряды.
@@ -9678,6 +9773,11 @@ const Ads = (function(){
     // пика», сервер хранит максимум; null — ответ без поля score (сбой).
     get lbAccepted(){ return lbAccepted; },
     setBoardId(id){ if (DEV) lbBoardId = id || ''; },  // тест-хук: id боевой из 00-config
+    // ЧТЕНИЕ ТАБЛИЦЫ — контракт экрана. Подробности и границы — у функций.
+    lbType,                 // 'in_game' | 'native' | 'native_popup' | 'not_available' | null
+    lbReadWhy,              // почему читать нельзя (null = можно)
+    lbEntries,              // {ok, why, type, total, entries[{rank,name,score,photo,id,me}], me}
+    lbShowNative,           // платформенный попап; узнать заранее нельзя — только попробовать
     // onFail (опционален) зовётся на FAILED/CLOSED/исключении — например,
     // вернуть кнопку «×2», которую спрятали на время показа
     // placement — имя рекламного места ('shake'/'continue'/'x2'/'magnet'),
