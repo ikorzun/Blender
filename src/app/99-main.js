@@ -1703,6 +1703,49 @@ window.__game = {
   // Нужен стражу докидки — он сверяет ПИК СПАВНА с этим числом, а не с
   // литералом: иначе страж и код разъедутся при первой же правке потолка.
   rescueCeil(){ return RESCUE_CEIL; },
+  // ⚠️⚠️ ЗОНД ОХВАТА: НАСКОЛЬКО МЕТРИКА СТЕН ПЕРЕОЦЕНИВАЕТ ФОРМУ. `radialReach`
+  // берёт min(охватная сфера, ориентированная коробка) — обе честные оценки
+  // СВЕРХУ, но у изогнутых и вытянутых моделей коробка может быть заметно
+  // шире реального силуэта, и тогда «выступ за стену» покажет протискивание
+  // там, где предмет стены не касается. Сравниваем оценку с ИСТИНОЙ: опорной
+  // функцией по вершинам геометрии в том же направлении.
+  // ⚠️ Поворот задаём САМИ и перебираем — иначе число пляшет по позе (та же
+  // грабля, что у порога просадки). Предмет живёт вне кучи и сносится.
+  reachProbe(name, n){
+    const idx = TYPES.findIndex(t => t.name === name);
+    if (idx < 0) return null;
+    const N = n || 24, out = [];
+    for (let k = 0; k < N; k++){
+      const it = makeItem(idx, 1);
+      it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
+      // детерминированный перебор поз: три угла из индекса, без Math.random
+      it.mesh.rotation.set(k * 0.7, k * 1.3, k * 2.1); it.mesh.updateMatrixWorld();
+      createItemBody(it, TYPES[idx].name, it.geo);
+      const ux = 1, uz = 0;                      // радиаль — вдоль X, предмет в центре
+      const оценка = radialReach(it, ux, uz);
+      // истина: максимум проекции вершин на ту же ось, с учётом поворота и масштаба
+      const P = it.geo.attributes.position.array, q = it.mesh.quaternion;
+      const v = new THREE.Vector3(); let истина = 0;
+      for (let i = 0; i < P.length; i += 3){
+        // ⚠️ ТОЛЬКО `it.scl` — он УЖЕ включает MESH_SCALE (40-items: scl = s·MESH_SCALE),
+        // ровно как и в radialReach. Первая версия домножала ещё раз, и «истина»
+        // выходила в 0.62 меньше: у апельсина 0.381 вместо 0.62, то есть зонд
+        // приписывал метрике запас, которого нет. Ловится сравнением с r круглой
+        // модели — у неё оценка и истина обязаны совпасть.
+        v.set(P[i], P[i+1], P[i+2]).applyQuaternion(q).multiplyScalar(it.scl);
+        const pr = v.x * ux + v.z * uz;
+        if (pr > истина) истина = pr;
+      }
+      out.push({ оценка: +оценка.toFixed(3), истина: +истина.toFixed(3),
+                 запас: +(оценка - истина).toFixed(3) });
+      destroyItemBody(it);
+      if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
+    }
+    const z = out.map(x => x.запас).sort((a, b) => a - b);
+    return { поз: N, запасМед: z[Math.floor(N/2)], запасМакс: z[N-1],
+             оценкаМакс: Math.max(...out.map(x => x.оценка)),
+             истинаМакс: Math.max(...out.map(x => x.истина)) };
+  },
   // ⚠️⚠️ ЗОНД ПОРОГА ПРОСАДКИ. Порог спасателя относительный — доля
   // ВЕРТИКАЛЬНОЙ толщины предмета в текущей позе, — и на живой куче он пляшет:
   // `makeItem` крутит меш `Math.random()` по трём осям (40-items), а тело
@@ -1892,7 +1935,9 @@ window.__game = {
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      out.push(+((d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y)).toFixed(3));
+      // ТОЧНЫЙ охват: у вытянутых моделей оценка сверху завышает больше, чем
+      // сам порог тревоги (см. radialReachExact в 50-physics)
+      out.push(+((d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y)).toFixed(3));
     }
     return out;
   },
@@ -1913,7 +1958,7 @@ window.__game = {
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      const ex = (d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
+      const ex = (d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
       if (ex > worst){ worst = ex; wy = it.p.y; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
         + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
     }

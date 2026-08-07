@@ -6063,10 +6063,20 @@ const FRICTION = 0.5, RESTIT = 0.12;
 // не доходя до стеклянной поверхности, — визуального проникновения нет
 const WALL_GAP = 0.12;
 const WALL_SEG = 32;
-// Верх ФИЗИЧЕСКИХ стен: пояс над кромкой стоит центром на FUNNEL.H + 2.0 с
-// полувысотой 2.1, то есть кончается здесь. Выше — открытый воздух, и
-// сравнивать там «выступ за стену» не с чем (см. maxWallExcess в 99-main).
-const WALL_TOP_Y = 9.2 + 2.0 + 2.1;
+// Пояс скользких стен НАД КРОМКОЙ: смещение центра и полувысота. Вынесены в
+// константы, потому что ими пользуются ДВОЕ — построение коллайдеров и метрика
+// «где кончаются стены».
+const BELT_DY = 2.0, BELT_HALF_H = 2.1;
+// Верх ФИЗИЧЕСКИХ стен. Выше — открытый воздух, и сравнивать там «выступ за
+// стену» не с чем (см. maxWallExcess в 99-main).
+// ⚠️⚠️ СЧИТАЕТСЯ ИЗ ТЕХ ЖЕ ВЕЛИЧИН, ЧТО СТРОЯТ ПОЯС, а не из их копий. Первая
+// версия была `9.2 + 2.0 + 2.1` — три литерала, из которых 9.2 это `FUNNEL.H`.
+// Владелец УЖЕ менял геометрию чаши (нынешние радиусы — ×1.15 по его спеке
+// «блендер больше»); тронь он высоту — стены переехали бы, а метрика осталась
+// на 13.3, и слепое пятно вернулось бы молча, да ещё с комментарием,
+// утверждающим обратное. То же правило, что у порога просадки: читать ТУ ЖЕ
+// величину, которой пользуется бой, а не число, из которого она получилась.
+const WALL_TOP_Y = FUNNEL.H + BELT_DY + BELT_HALF_H;
 // ⚠️⚠️ КОРЕНЬ ПРОВАЛА, ЗАМЕР 2026-07-30: солвер ТЕРПИТ ГЛУБОКОЕ ПРОНИКНОВЕНИЕ
 // ПЛОСКИХ ФОРМ под нагрузкой кучи, а наш глобальный сон выключает интегратор —
 // и то, что утонуло к моменту сна, остаётся утопленным ДО КОНЦА УРОВНЯ.
@@ -6207,9 +6217,9 @@ function initPhysicsWorld(){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const faceR = FUNNEL.R1 - WALL_GAP;
     const chord2 = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
-    const cd2 = RAPIER.ColliderDesc.cuboid(0.30, 2.1, chord2/2)
+    const cd2 = RAPIER.ColliderDesc.cuboid(0.30, BELT_HALF_H, chord2/2)
       .setFriction(0.02).setRestitution(RESTIT)
-      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + 2.0, Math.sin(a)*(faceR + 0.30));
+      .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + BELT_DY, Math.sin(a)*(faceR + 0.30));
     _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
     wallColliders.push(world.createCollider(cd2, shellB)); // съёмные (разлёт чаши)
@@ -6599,6 +6609,32 @@ function stepPhysics(dt){
 // Здесь берётся ориентированная коробка: проекция её полуразмеров на
 // радиальное направление. Для шара результат прежний, для плоского — честный.
 const _rq = new THREE.Quaternion(), _rm = new THREE.Matrix4();
+// ⚠️⚠️ ТОЧНЫЙ РАДИАЛЬНЫЙ ОХВАТ — опорная функция по вершинам, БЕЗ оценок сверху.
+// Заведён для ДИАГНОСТИКИ, и вот почему: `radialReach` берёт min(сфера, коробка),
+// обе — честные верхние границы, но у изогнутых и вытянутых моделей запас
+// доходит до величины БОЛЬШЕЙ, чем сам порог тревоги. Замер (24 позы, ось +X,
+// запас = оценка − истина): банан медиана 0.087 / максимум 0.360, пальма
+// 0.109 / 0.328, свинья 0.062 / 0.193, арбуз 0.051 / 0.071, плашка 0.001 / 0.035.
+// При пороге 0.20 это значит: тревога 0.22-0.29 на банане МОЖЕТ БЫТЬ ЦЕЛИКОМ
+// запасом метрики, и отличить «вжало в стену» от «форма такая» она не умеет.
+// ⛔ СПАСАТЕЛЬ ОСТАВЛЕН НА ОЦЕНКЕ СВЕРХУ НАМЕРЕННО: там консерватизм полезен
+// (лучше вернуть невылетевшего, чем упустить вылетевшего), и цена важнее —
+// он ходит по всей куче дважды в секунду, а перебор вершин это ~90 тысяч
+// поворотов на развёртку. Диагностика зовётся раз в 5 секунд, ей можно точно.
+const _rrV = new THREE.Vector3();
+function radialReachExact(it, ux, uz){
+  const g = it.geo, P = g && g.attributes && g.attributes.position && g.attributes.position.array;
+  if (!P || !it.body) return radialReach(it, ux, uz);
+  const r = it.body.rotation();
+  _rq.set(r.x, r.y, r.z, r.w);
+  let best = 0;
+  for (let i = 0; i < P.length; i += 3){
+    _rrV.set(P[i], P[i+1], P[i+2]).applyQuaternion(_rq);
+    const pr = (_rrV.x * ux + _rrV.z * uz) * it.scl;
+    if (pr > best) best = pr;
+  }
+  return best;
+}
 function radialReach(it, ux, uz){
   const h = it.half;
   if (!h || !it.body) return it.wallR || it.r;
@@ -15926,6 +15962,49 @@ window.__game = {
   // Нужен стражу докидки — он сверяет ПИК СПАВНА с этим числом, а не с
   // литералом: иначе страж и код разъедутся при первой же правке потолка.
   rescueCeil(){ return RESCUE_CEIL; },
+  // ⚠️⚠️ ЗОНД ОХВАТА: НАСКОЛЬКО МЕТРИКА СТЕН ПЕРЕОЦЕНИВАЕТ ФОРМУ. `radialReach`
+  // берёт min(охватная сфера, ориентированная коробка) — обе честные оценки
+  // СВЕРХУ, но у изогнутых и вытянутых моделей коробка может быть заметно
+  // шире реального силуэта, и тогда «выступ за стену» покажет протискивание
+  // там, где предмет стены не касается. Сравниваем оценку с ИСТИНОЙ: опорной
+  // функцией по вершинам геометрии в том же направлении.
+  // ⚠️ Поворот задаём САМИ и перебираем — иначе число пляшет по позе (та же
+  // грабля, что у порога просадки). Предмет живёт вне кучи и сносится.
+  reachProbe(name, n){
+    const idx = TYPES.findIndex(t => t.name === name);
+    if (idx < 0) return null;
+    const N = n || 24, out = [];
+    for (let k = 0; k < N; k++){
+      const it = makeItem(idx, 1);
+      it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
+      // детерминированный перебор поз: три угла из индекса, без Math.random
+      it.mesh.rotation.set(k * 0.7, k * 1.3, k * 2.1); it.mesh.updateMatrixWorld();
+      createItemBody(it, TYPES[idx].name, it.geo);
+      const ux = 1, uz = 0;                      // радиаль — вдоль X, предмет в центре
+      const оценка = radialReach(it, ux, uz);
+      // истина: максимум проекции вершин на ту же ось, с учётом поворота и масштаба
+      const P = it.geo.attributes.position.array, q = it.mesh.quaternion;
+      const v = new THREE.Vector3(); let истина = 0;
+      for (let i = 0; i < P.length; i += 3){
+        // ⚠️ ТОЛЬКО `it.scl` — он УЖЕ включает MESH_SCALE (40-items: scl = s·MESH_SCALE),
+        // ровно как и в radialReach. Первая версия домножала ещё раз, и «истина»
+        // выходила в 0.62 меньше: у апельсина 0.381 вместо 0.62, то есть зонд
+        // приписывал метрике запас, которого нет. Ловится сравнением с r круглой
+        // модели — у неё оценка и истина обязаны совпасть.
+        v.set(P[i], P[i+1], P[i+2]).applyQuaternion(q).multiplyScalar(it.scl);
+        const pr = v.x * ux + v.z * uz;
+        if (pr > истина) истина = pr;
+      }
+      out.push({ оценка: +оценка.toFixed(3), истина: +истина.toFixed(3),
+                 запас: +(оценка - истина).toFixed(3) });
+      destroyItemBody(it);
+      if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
+    }
+    const z = out.map(x => x.запас).sort((a, b) => a - b);
+    return { поз: N, запасМед: z[Math.floor(N/2)], запасМакс: z[N-1],
+             оценкаМакс: Math.max(...out.map(x => x.оценка)),
+             истинаМакс: Math.max(...out.map(x => x.истина)) };
+  },
   // ⚠️⚠️ ЗОНД ПОРОГА ПРОСАДКИ. Порог спасателя относительный — доля
   // ВЕРТИКАЛЬНОЙ толщины предмета в текущей позе, — и на живой куче он пляшет:
   // `makeItem` крутит меш `Math.random()` по трём осям (40-items), а тело
@@ -16115,7 +16194,9 @@ window.__game = {
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      out.push(+((d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y)).toFixed(3));
+      // ТОЧНЫЙ охват: у вытянутых моделей оценка сверху завышает больше, чем
+      // сам порог тревоги (см. radialReachExact в 50-physics)
+      out.push(+((d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y)).toFixed(3));
     }
     return out;
   },
@@ -16136,7 +16217,7 @@ window.__game = {
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      const ex = (d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
+      const ex = (d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
       if (ex > worst){ worst = ex; wy = it.p.y; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
         + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
     }
