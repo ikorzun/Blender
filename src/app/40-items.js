@@ -9,7 +9,16 @@ let levelNum = 1;
 // объекту level): переживает Restart той же партии, обнуляется только на
 // НОВОМ уровне. Подробности и почему так — у места использования в genLevel.
 let adHintLevelNo = -1, adHintCarry = AD_HINTS_PER_LEVEL;
-try { levelNum = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1', 10) || 1); } catch(e){}
+// ⚠️ УРОВЕНЬ ЖИВЁТ И В СЕЙВЕ (слово владельца 2026-08-07: «синхронизация
+// между устройствами нужна... как по очкам и покупкам, так и по прогрессу»).
+// Раньше он лежал ТОЛЬКО в localStorage мимо Save — игрок переносил баланс и
+// покупки, но начинал с 1-го уровня. Берём МАКСИМУМ из двух источников:
+// сейв мог приехать из облака свежее, localStorage — быть новее оффлайн.
+try {
+  const fromLs = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1', 10) || 1);
+  const fromSave = Math.max(1, (typeof Save === 'object' && Save && Save.lv) || 1);
+  levelNum = Math.max(fromLs, fromSave);
+} catch(e){}
 
 // size — НЕПРЕРЫВНЫЙ множитель (спека владельца: разброс ±10% на старте,
 // до ±50% с уровнями). Геометрия от размера не зависит (масштаб на меше) —

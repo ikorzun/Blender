@@ -654,6 +654,7 @@ function checkEnd(){
     $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
+    try { Save.lv = Math.max(Save.lv || 1, levelNum); commitSave(); } catch(e){} // прогресс — в облако
     Ads.noteWin();
     // площадке: уровень пройден (у Poki/CrazyGames — нативный gameplayStop,
     // естественная точка, где площадка вправе показать свою рекламу)

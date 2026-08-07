@@ -1035,6 +1035,8 @@ window.__game = {
   // выключенной отправке — иначе метрики нельзя было бы проверить до прода)
   telemetry(n){ const b = Telemetry.buffer(); return n ? b.slice(-n) : b; },
   telemetryScreen(){ return Telemetry.screen.current(); },
+  guestId(){ return guestId(); },        // ключ игрока для своей таблицы
+  guestAvatar(){ return guestAvatar(); }, // номер аватара, выведенный из ключа
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок
@@ -1135,7 +1137,7 @@ window.__game = {
   accGrant(name, n){ accAdd(name, n, null); return { count: accCount(name), tier: accTier(name), mult: accMult(name), next: accNext(name) }; },
   onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
   // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
-  setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} },
+  setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} }, // Save.lv тут НЕ трогаем: это тестовая ручка, а не прогресс игрока
   // ⚠️ ТЕСТ-ХУК, НЕ ВРЕМЕННЫЙ — НЕ УДАЛЯТЬ (метка «ВРЕМЕННО, удалю после
   // бейка» висела здесь ошибочно и чуть не привела к сносу 2026-07-27).
   // На нём стоит ЕДИНСТВЕННЫЙ страж инварианта «поза статики и спина — ОДИН

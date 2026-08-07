@@ -61,6 +61,8 @@ function mergeSave(into, from){
     // прогресса не отменяет оплаченного товара) — OR с ОБЕИХ сторон
     into.naf = (from.naf || into.naf) ? 1 : 0;
     into.gn = into.gn || from.gn || ''; // имя: непустое своё, иначе чужое
+    into.gid = pickGid(into.gid, from.gid);   // ключ игрока — см. pickGid
+    into.lv = Math.max(into.lv || 1, from.lv || 1); // уровень — max (слово владельца: синхронизировать прогресс)
     into.st = from.st || 0; into.sv = from.sv || 0; into.mt = from.mt || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
@@ -89,6 +91,8 @@ function mergeSave(into, from){
   into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
   into.naf = (into.naf || from.naf) ? 1 : 0; // «навсегда без рекламы» — OR: покупка не отменяется отставшей копией
   into.gn = into.gn || from.gn || ''; // гостевое имя: непустое своё побеждает
+  into.gid = pickGid(into.gid, from.gid);       // ключ игрока — см. pickGid
+  into.lv = Math.max(into.lv || 1, from.lv || 1); // уровень: max — прогресс не откатывается отставшей копией
   into.pe = Math.max(into.pe || 0, from.pe || 0); // купленные встряски: пара как he/hs,
   into.ps = Math.max(into.ps || 0, from.ps || 0); // отставшая копия не воскрешает потраченное
   // ⚠️ ОКНА МНОЖИТЕЛЯ — max ПО КЛЮЧУ-МНОЖИТЕЛЮ. Ключ несёт сам множитель,
@@ -215,13 +219,41 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
   'Tuna Salmon Trout Perch Pike Carp Bream Tench Rudd Roach ' +
   'Lemur Loris Tarsier Gibbon Mandrill Baboon Macaque Langur Colobus Sifaka ' +
   'Dingo Jackal Coyote Fennec Corsac Raccoon Coati Kinkajou Olingo Tanuki').split(' ');
-function guestName(){
-  if (!Save.gn){
-    Save.gn = GUEST_NAMES[Math.floor(Math.random() * GUEST_NAMES.length)];
+// КЛЮЧ ИГРОКА для СВОЕЙ таблицы лидеров (решение владельца 2026-08-07:
+// «гостю нужно присваивать уникальный id и всегда показывать, условно
+// автологин в игре, но не гугловый»). Формат — как у sid телеметрии.
+// ⚠️ МЕРЖ = МИНИМУМ СТРОКИ, а не «своё побеждает» (правило gn НЕ копировать:
+// оно по построению не сходится, и человек с двух устройств получил бы две
+// строки в таблице). base36-метка времени 8-символьная до 2059 года, поэтому
+// лексикографический минимум = САМЫЙ СТАРЫЙ id; правило идемпотентно и
+// коммутативно — обе копии сходятся к одному значению.
+function pickGid(a, b){
+  if (!a) return b || '';
+  if (!b) return a;
+  return a < b ? a : b;
+}
+function guestId(){
+  if (!Save.gid){
+    Save.gid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     commitSave();
   }
+  return Save.gid;
+}
+// ⚠️ ЛИЧНОСТЬ ВЫВОДИТСЯ ИЗ КЛЮЧА (слово владельца 2026-08-07 «лучше свести к
+// одному»): имя и аватар считаются из gid, поэтому на двух устройствах игрок
+// выглядит ОДИНАКОВО. Цена, названная владельцу: у части игроков имя один раз
+// сменится при первом слиянии — это принято сознательно.
+function gidHash(){
+  const g = guestId(); let h = 0;
+  for (let i = 0; i < g.length; i++) h = (h * 31 + g.charCodeAt(i)) >>> 0;
+  return h;
+}
+function guestName(){
+  const want = GUEST_NAMES[gidHash() % GUEST_NAMES.length];
+  if (Save.gn !== want){ Save.gn = want; commitSave(); }
   return Save.gn;
 }
+function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // номер файла avatars/AvatarNN.png
 function grantNoAdsForever(){
   if (Save.naf) return;
   Save.naf = 1;
@@ -421,6 +453,7 @@ function resetProgress(){
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
+  Save.lv = 1;   // уровень живёт и в сейве (синхронизация между устройствами)
 }
 
 // ===== НАКОПЛЕНИЕ ПО ТИПАМ: API (контракт для ИНТЕРФЕЙСА, см. WORKSTREAMS).

@@ -1476,7 +1476,10 @@ function refreshGuestProfile(){
       // быть никакого фона»). Прежняя цветная заливка отменена — аватары
       // владельца сами несут форму и цвет, круг под ними давал второй ободок.
       av.style.background = 'transparent';
-      const idx = (h % AVATAR_COUNT) + 1;
+      // ⚠️ АВАТАР ИЗ КЛЮЧА ИГРОКА, а не из хеша имени (слово владельца
+      // 2026-08-07 «лучше свести к одному»): личность одинакова на всех
+      // устройствах, потому что ключ сходится мержем, а имя выводится из него.
+      const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
       const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
       const img = document.createElement('img');
       img.src = file; img.alt = ''; img.decoding = 'async';
