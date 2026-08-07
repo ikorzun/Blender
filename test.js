@@ -203,7 +203,20 @@ const path = require('path');
     window.__camFollowTimer = setInterval(() => {
       const g = window.__game; if (!g) return;
       const l = g.level();
-      if (window.__camFollowSample === null && l && l.camFollowOn) window.__camFollowSample = g.cam().ty;
+      // ⚠️⚠️ МИНИМУМ ПОСЛЕ ЗАЩЁЛКИ, А НЕ ЗНАЧЕНИЕ В МОМЕНТ ЗАЩЁЛКИ. Прежняя
+      // версия писала ty на ПЕРВОМ же тике с camFollowOn — то есть ловила кадр,
+      // когда защёлка встала, но лерп ещё не сдвинул камеру. Ассерт при этом
+      // утверждает «камера ПОШЛА вниз», а сравнивается с 4.19 при старте 4.2:
+      // зазор 0.01, и попадание в него решает случай. Прогон 1 дал 4.13
+      // (зелёный), прогон 2 — ровно 4.19 (красный), при том что в ОБОИХ соседние
+      // ассерты зелены: до порога min ty 4.2, финал ровно 3.2 — механика цела,
+      // врал способ наблюдения. Минимум — это ФАКТ движения, который ассерт и
+      // называет; на сборке, где камера не поехала, он остаётся 4.2 и краснеет
+      // ровно как прежде, а «защёлка не встала вовсе» ловится проверкой на null.
+      if (l && l.camFollowOn){
+        const ty = g.cam().ty;
+        if (window.__camFollowSample === null || ty < window.__camFollowSample) window.__camFollowSample = ty;
+      }
     }, 50);
     window.__egSample = null;
     window.__egTimer = setInterval(() => {
@@ -232,7 +245,12 @@ const path = require('path');
     // ⚠️ НАБЛЮДАТЕЛЬ ВНУТРИ СТРАНИЦЫ, А НЕ ОПРОС СНАРУЖИ (тот же приём, что у
     // эндшпильного радиуса): между опросами уровень успевает кончиться, и
     // момент защёлки проскакивает целиком — страж краснел на исправной игре.
-    if (endgameTy === null) endgameTy = await page.evaluate(() => window.__camFollowSample);
+    // ⚠️⚠️ И ЧИТАЕМ ЕГО ТОЛЬКО ПОСЛЕ ЦИКЛА, а не здесь: раньше стояло
+    // `if (endgameTy === null) endgameTy = …`, и это ЗАМОРАЖИВАЛО значение на
+    // первом же ненулевом чтении — то есть на минимуме за первые миллисекунды
+    // после защёлки, когда камера едва тронулась (замер: 4.11 при пороге 4.19,
+    // запас 0.08 вместо полного хода до 3.2). Наблюдатель внутри страницы и так
+    // не даёт окну проскочить — внешнее раннее чтение ему только мешало.
     const ok = await page.evaluate(() => window.__game.autoMatch());
     if (!ok) {
       shakes++;
@@ -247,6 +265,8 @@ const path = require('path');
       else await page.waitForTimeout(300);
     }
   }
+  // страховка на выход по исчерпанию guard (ветка alive===0 читает сама, стр. выше)
+  if (endgameTy === null) endgameTy = await page.evaluate(() => window.__camFollowSample);
   const fin = await page.evaluate(() => window.__game.alive());
   const winShown = await page.evaluate(() => document.getElementById('winOverlay').style.display);
   console.log('final alive:', fin, '| deadlock shakes needed:', shakes, '| win overlay:', winShown, '| endgame radius:', endgameRadius);
