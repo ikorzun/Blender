@@ -42,6 +42,7 @@ function mulberry32(a){
   const problems = [], errors = [];
   let rescues = 0, floorLifts = 0;
   let bowlSkipped = 0;   // сэмплов пропущено из-за разлёта чаши (см. гейт ниже)
+  let flyAbove = 0;      // выступ за стену у предметов ВЫШЕ всех стен — не дефект
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
     const t = m.text();
@@ -169,8 +170,17 @@ function mulberry32(a){
         // разлёт. Появится третий — гейтить и его.
         const bowlOpen = !!(s.bowl && (s.bowl.floorGhost || s.bowl.shattering));
         if (bowlOpen) bowlSkipped++;
-        if (!bowlOpen && s.wall.excess > 0.20)
-          problems.push(`WALL EXCESS ${s.wall.excess} (${s.wall.who}) t=+${tSec}s`);
+        // ⚠️⚠️ ТОЛЬКО ТАМ, ГДЕ СТЕНА ЕСТЬ. Физические стены кончаются на 13.3
+        // (конус до 9.2 + пояс полувысотой 2.1 над кромкой), а `radiusAt` выше
+        // кромки отдаёт R1 НАВСЕГДА — предмет, летящий над чашей, сравнивался с
+        // несуществующей стеной. Замер по всем журналам: из 19 тревог 11 были
+        // с y > 13.3 и НОЛЬ из самого пояса, то есть больше половины сигнала —
+        // шум метрики. Летящие считаем отдельно (`flyAbove`), чтобы не потерять
+        // их вовсе: вырастет число — значит что-то и правда швыряет кучу вверх.
+        if (!bowlOpen && s.wall.excess > 0.20){
+          if (s.wall.walled) problems.push(`WALL EXCESS ${s.wall.excess} (${s.wall.who}) t=+${tSec}s`);
+          else flyAbove++;
+        }
         // ПОЛ. ⚠️ ОДИНОЧНЫЙ СЭМПЛ — НЕ ДЕФЕКТ, и это не смягчение ради
         // зелёного: спасатель ПО ЗАМЫСЛУ ждёт до 1.5 с у ДВИЖУЩЕГОСЯ предмета
         // (гейт покоя, иначе шторм телепортов на встряске). Замер длительностей
@@ -224,7 +234,7 @@ function mulberry32(a){
   // провал, а нормальную осадку — и это регрессия, а не защита.
   if (floorLifts > MINUTES)
     problems.push(`FLOOR LIFT STORM: ${floorLifts} подъёмов за ${MINUTES} мин (норма <= ${MINUTES})`);
-  const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, bowlSkipped, wins, loses, shakes, rescues,
+  const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, bowlSkipped, flyAbove, wins, loses, shakes, rescues,
     blasts, floorLifts, underHits, heap: heapVerdict, problems: problems.length, errors: errors.length };
   outStream.write(JSON.stringify({ summary, problems, errors: errors.slice(0, 20) }) + '\n');
   outStream.end();

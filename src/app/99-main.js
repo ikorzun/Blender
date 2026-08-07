@@ -1896,16 +1896,28 @@ window.__game = {
     }
     return out;
   },
+  // ⚠️⚠️ ВЫСОТА И «ЕСТЬ ЛИ ТАМ СТЕНА» — НЕСУЩИЕ ПОЛЯ, А НЕ УКРАШЕНИЕ.
+  // `radiusAt(y)` выше кромки возвращает R1 НАВСЕГДА, а физические стены
+  // кончаются на `WALL_TOP_Y`: конус до 9.2, пояс верхних стен до 13.3, выше —
+  // открытый воздух. Поэтому «выступ за стену» у предмета на y=17 сравнивает
+  // его с несуществующей стеной: он не протискивается сквозь стекло, он просто
+  // ЛЕТИТ над чашей (докидка, досыпка цепи, взрыв).
+  // ⚠️ ЗАМЕР, ради которого это заведено: из 19 тревог соака по всем журналам
+  // ОДИННАДЦАТЬ пришли с y > 13.3 и НОЛЬ — из самого пояса стен. То есть
+  // больше половины сигнала инварианта была шумом метрики.
+  // ⛔ СПАСАТЕЛЬ ЭТИМ НЕ ЛЕЧИТСЯ И НЕ ТРОГАЕТСЯ: у него та же формула означает
+  // другое — предмет выше чаши и снаружи R1 упадёт МИМО чаши, и вернуть его
+  // внутрь правильно. Слепое пятно у ДИАГНОСТИКИ, не у механики.
   maxWallExcess(){
-    let worst = -99, who = '';
+    let worst = -99, who = '', wy = 0;
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
       const ex = (d + (d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
-      if (ex > worst){ worst = ex; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
+      if (ex > worst){ worst = ex; wy = it.p.y; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
         + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
     }
-    return { excess: +worst.toFixed(3), who };
+    return { excess: +worst.toFixed(3), who, y: +wy.toFixed(2), walled: wy <= WALL_TOP_Y };
   },
   topItem(){ let best = null; for (const it of items) if (it.alive && (!best || it.p.y + it.r > best.p.y + best.r)) best = it;
     return best ? { name: best.type.name, y: +(best.p.y + best.r).toFixed(2), meshY: +best.mesh.position.y.toFixed(2), sleeping: best.body ? best.body.isSleeping() : null } : null; },
