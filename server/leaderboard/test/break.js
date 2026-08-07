@@ -1,0 +1,131 @@
+// ДВУСТОРОННЯЯ ПРОВЕРКА СТРАЖЕЙ: `node server/leaderboard/test/break.js`
+// ⚠️ По канону проекта страж НЕ СДАН, пока не показано, что он КРАСНЕЕТ на
+// сломанной сборке и ЗЕЛЁН на исправной. Односторонний прогон «зелено на
+// исправной» не защищает от тавтологии, «красно на сломанной» — от флейка.
+//
+// Здесь каждая диверсия бьёт в ОДНО свойство и обязана уронить ИМЕННО тот
+// ассерт, который это свойство утверждает. Если диверсия роняет чужой
+// ассерт — страж меряет не то, что называет.
+//
+// ⚠️ Патч проверяется на ПРИМЕНИМОСТЬ (строка найдена): диверсии протухают
+// вместе с боевой строкой, и молча разошедшийся regex дал бы прогон по
+// ЗДОРОВОЙ сборке — то есть пять уверенных зелёных ни о чём.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const DIR = path.join(__dirname, '..');
+const SRC = fs.readFileSync(path.join(DIR, 'src', 'index.js'), 'utf8');
+const RUN = path.join(__dirname, 'run.js');
+
+const SABOTAGE = [
+  { name: 'сервер хранит МАКСИМУМ (как у площадки)',
+    find: 'UPDATE p SET n=?, a=?, s=?, u=?',
+    repl: 'UPDATE p SET n=?, a=?, s=MAX(s,?), u=?',
+    expect: 'ПАДЕНИЕ СОХРАНЕНО' },
+  { name: 'снят потолок прироста',
+    find: 'if (val > cap) { val = cap; cl = cl + 1; }',
+    repl: 'if (false) { val = cap; cl = cl + 1; }',
+    expect: 'РОСТ КЛАМПИТСЯ МОЛЧА' },
+  { name: 'принимаем присланный ключ у существующей строки',
+    find: 'if (!sameSig(await hmacHex(row.k, msg), body.sig))',
+    repl: 'if (!sameSig(await hmacHex(body.k || row.k, msg), body.sig))',
+    expect: 'ЧУЖОЙ КЛЮЧ ОТВЕРГНУТ' },
+  { name: 'снято ограничение частоты',
+    find: 'if (now - row.u < RATE_SEC)',
+    repl: 'if (false)',
+    expect: 'ЧАСТОТА: чаще 20 с' },
+  { name: 'снята проверка монотонности q',
+    find: 'if (q <= row.q)',
+    repl: 'if (false)',
+    expect: 'ПОВТОР q' },
+  { name: 'новорождённый с миллиардом не прячется',
+    find: 'if (val > ageCap) { val = ageCap; f = Math.max(f, 1); }',
+    repl: 'if (val > ageCap) { val = ageCap; }',
+    expect: 'ВОЗРАСТНОЙ ПОТОЛОК' },
+  { name: 'снимок не фильтрует скрытых',
+    find: "'SELECT n,a,s FROM p WHERE f=0 AND s>0 ORDER BY s DESC, u ASC LIMIT ?'",
+    repl: "'SELECT n,a,s FROM p WHERE s>0 ORDER BY s DESC, u ASC LIMIT ?'",
+    expect: 'СКРЫТОГО НЕТ' },
+  { name: 'флаг липкий — честный не возвращается',
+    find: 'if (clean) { cl = 0; if (f === 1) f = 0; }',
+    repl: 'if (false) { cl = 0; f = 0; }',
+    expect: 'ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ' },
+  { name: 'граница корзины считается дважды (сдвиг места на 1)',
+    find: '- (bound === null ? 0 : 1)',
+    repl: '- (bound === null ? 0 : 0)',
+    expect: 'ТОЧНОЕ МЕСТО' },
+  { name: 'чистая отправка снимает и РУЧНОЕ скрытие',
+    find: 'if (clean) { cl = 0; if (f === 1) f = 0; }',
+    repl: 'if (clean) { cl = 0; f = 0; }',
+    expect: 'РУЧНОЕ СКРЫТИЕ' },
+  { name: '/top падает вместе с базой',
+    find: 'catch (e) { snap = null; }',
+    repl: 'catch (e) { throw e; }',
+    expect: '/top при упавшей базе' },
+];
+
+function runSuite(srcPath) {
+  try {
+    const out = execFileSync('node', [RUN], {
+      env: Object.assign({}, process.env, srcPath ? { LB_SRC: srcPath } : {}),
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { ok: true, out };
+  } catch (e) {
+    return { ok: false, out: (e.stdout || '') + (e.stderr || '') };
+  }
+}
+const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL: '))
+  .map((l) => l.slice(6));
+
+let bad = 0;
+
+// 1) ИСПРАВНАЯ сборка обязана быть зелёной — иначе всё ниже бессмысленно.
+const base = runSuite(null);
+const baseFails = failedNames(base.out);
+if (!base.ok || baseFails.length) {
+  console.log('⛔ ИСПРАВНАЯ СБОРКА НЕ ЗЕЛЕНА — диверсии не имеют смысла:');
+  console.log(baseFails.join('\n') || base.out.slice(-800));
+  process.exit(1);
+}
+const baseCount = (base.out.match(/^PASS:/gm) || []).length;
+console.log('исправная сборка: ' + baseCount + ' PASS, 0 FAIL\n');
+
+// 2) Каждая диверсия — свой ассерт красный, соседи целы.
+for (let i = 0; i < SABOTAGE.length; i++) {
+  const sb = SABOTAGE[i];
+  if (SRC.indexOf(sb.find) < 0) {
+    console.log('⛔ ДИВЕРСИЯ ПРОТУХЛА (строка не найдена): ' + sb.name);
+    bad++; continue;
+  }
+  const patched = SRC.replace(sb.find, sb.repl);
+  if (patched === SRC) { console.log('⛔ ПАТЧ НЕ ИЗМЕНИЛ ФАЙЛ: ' + sb.name); bad++; continue; }
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lb-')), 'index.js');
+  fs.writeFileSync(tmp, patched);
+
+  const res = runSuite(tmp);
+  const fails = failedNames(res.out);
+  const hit = fails.filter((f) => f.indexOf(sb.expect) >= 0);
+  const collateral = fails.filter((f) => f.indexOf(sb.expect) < 0);
+
+  if (!hit.length && !fails.length && !res.ok) {
+    console.log('⛔ ДИВЕРСИЯ РАЗВАЛИЛА СБОРКУ (это НЕ слепой страж): ' + sb.name);
+    console.log('   ' + res.out.trim().split('\n').slice(-2).join(' / '));
+    bad++;
+  } else if (!hit.length) {
+    console.log('⛔ СТРАЖ СЛЕП: «' + sb.name + '» не уронил «' + sb.expect + '»');
+    console.log('   упало: ' + (fails.join(' | ') || 'ничего'));
+    bad++;
+  } else {
+    console.log('✅ «' + sb.name + '»\n   -> красный: ' + hit.join(' | ')
+      + (collateral.length ? '\n   ⚠️ задело соседей: ' + collateral.join(' | ') : ''));
+  }
+  fs.rmSync(path.dirname(tmp), { recursive: true, force: true });
+}
+
+console.log('\n' + (bad ? 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОВАЛ (' + bad + ')'
+  : 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОЙДЕНА — все ' + SABOTAGE.length
+    + ' диверсий пойманы, исправная сборка зелена'));
+process.exit(bad ? 1 : 0);
