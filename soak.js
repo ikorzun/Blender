@@ -41,6 +41,7 @@ function mulberry32(a){
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const problems = [], errors = [];
   let rescues = 0, floorLifts = 0;
+  let bowlSkipped = 0;   // сэмплов пропущено из-за разлёта чаши (см. гейт ниже)
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
     const t = m.text();
@@ -130,6 +131,12 @@ function mulberry32(a){
                    score: g.stats().score, misses: g.stats().misses, awake: g.awake(), combo: g.combo(),
                    floaters: fl.filter(f => f.contacts <= 0), bridges: fl.filter(f => f.contacts > 0).length,
                    under: g.underFloor(), // провал сквозь пол: центр ниже верха плиты
+                   // ⚠️⚠️ СОСТОЯНИЕ ЧАШИ — НЕСУЩЕЕ ПОЛЕ, А НЕ СПРАВКА. В разлёте
+                   // стены и дно ПРИЗРАЧНЫЕ (сенсоры) по замыслу: предметы честно
+                   // сыплются в пустоту. Инварианты «под полом» и «за стеной»
+                   // меряют расстояние до чаши, КОТОРОЙ В ЭТОТ МОМЕНТ НЕТ, и
+                   // сообщают о разлёте как о дефекте.
+                   bowl: g.bowl(),
                    wall: g.maxWallExcess(), nan: g.scanNaN().length,
                    flips: g.accFlips(), ps: g.psLog(), perf: g.perfStats() };
         });
@@ -152,7 +159,17 @@ function mulberry32(a){
         // 0.181 и заметно ниже 0.226, то есть прежнюю геометрию он бы поймал.
         // ⚠️ ЧИСЛО ЗАВИСИТ ОТ ФОРМЫ ПРЕДМЕТОВ (radialReach — оценка сверху):
         // сменится партия моделей — перемерить `__game.wallExcessAll()`.
-        if (s.wall.excess > 0.20)
+        // ⚠️⚠️ РАЗЛЁТ ЧАШИ ПРОПУСКАЕМ — ЭТО НЕ СМЯГЧЕНИЕ РАДИ ЗЕЛЁНОГО.
+        // Пойман первым же прогоном на актуальном коде: 7 тревог «за стеной»
+        // и 21 «под полом», и все — снимки РАЗЛЁТА (у всех `pen: null` и
+        // `touching: 0`, то есть контактов нет вовсе: дно и стены сенсоры).
+        // Мерить выступ за стену, когда стены нет, бессмысленно по построению.
+        // ⚠️ Тот же класс, что и у спасателя (ему гейт поставлен в 50-physics):
+        // КАЖДЫЙ потребитель, считающий чашу существующей, обязан знать про
+        // разлёт. Появится третий — гейтить и его.
+        const bowlOpen = !!(s.bowl && (s.bowl.floorGhost || s.bowl.shattering));
+        if (bowlOpen) bowlSkipped++;
+        if (!bowlOpen && s.wall.excess > 0.20)
           problems.push(`WALL EXCESS ${s.wall.excess} (${s.wall.who}) t=+${tSec}s`);
         // ПОЛ. ⚠️ ОДИНОЧНЫЙ СЭМПЛ — НЕ ДЕФЕКТ, и это не смягчение ради
         // зелёного: спасатель ПО ЗАМЫСЛУ ждёт до 1.5 с у ДВИЖУЩЕГОСЯ предмета
@@ -164,12 +181,12 @@ function mulberry32(a){
         //       выше проектного потолка; исходный баг жил 30 с и дольше);
         //   (2) под полом на СПЯЩЕМ теле — это и есть «навсегда», интегратор
         //       выключен и само оно уже не выйдет.
-        const underNow = s.under.map(u => u.name + '@' + Math.round(u.y * 5));
-        underHits += s.under.length;
-        const stuck = s.under.filter((u, i) => underPrev.includes(underNow[i]));
+        const underNow = bowlOpen ? [] : s.under.map(u => u.name + '@' + Math.round(u.y * 5));
+        if (!bowlOpen) underHits += s.under.length;
+        const stuck = bowlOpen ? [] : s.under.filter((u, i) => underPrev.includes(underNow[i]));
         if (stuck.length)
           problems.push(`UNDER FLOOR ЗАЛИПАНИЕ (2 сэмпла подряд) t=+${tSec}s: ${JSON.stringify(stuck)}`);
-        const frozen = s.under.filter(u => u.sleeping);
+        const frozen = bowlOpen ? [] : s.under.filter(u => u.sleeping);
         if (frozen.length)
           problems.push(`UNDER FLOOR НА СПЯЩЕЙ КУЧЕ t=+${tSec}s: ${JSON.stringify(frozen)}`);
         underPrev = underNow;
@@ -207,7 +224,7 @@ function mulberry32(a){
   // провал, а нормальную осадку — и это регрессия, а не защита.
   if (floorLifts > MINUTES)
     problems.push(`FLOOR LIFT STORM: ${floorLifts} подъёмов за ${MINUTES} мин (норма <= ${MINUTES})`);
-  const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, wins, loses, shakes, rescues,
+  const summary = { seed: SEED, hard: HARD, minutes: MINUTES, samples, bowlSkipped, wins, loses, shakes, rescues,
     blasts, floorLifts, underHits, heap: heapVerdict, problems: problems.length, errors: errors.length };
   outStream.write(JSON.stringify({ summary, problems, errors: errors.slice(0, 20) }) + '\n');
   outStream.end();
