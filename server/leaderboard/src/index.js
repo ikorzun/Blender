@@ -170,9 +170,15 @@ async function postScore(req, env) {
     // ещё сорок лет, а честный догоняет за полчаса игры и возвращается сам.
     const clean = (s <= cap && s <= ageCap);
     if (val > cap) { val = cap; cl = cl + 1; }
-    if (val > ageCap) { val = ageCap; f = 1; }   // новорождённый не может быть первым
-    if (cl >= CLAMP_HIDE) f = 1;
-    if (clean) { cl = 0; f = 0; }
+    if (val > ageCap) { val = ageCap; f = Math.max(f, 1); }  // новорождённый не первый
+    if (cl >= CLAMP_HIDE) f = Math.max(f, 1);
+    // ⚠️⚠️ ЧИСТАЯ ОТПРАВКА СНИМАЕТ ТОЛЬКО АВТОМАТИЧЕСКОЕ СКРЫТИЕ (f=1).
+    // Ручное (f=2) — ПОСЛЕДНЯЯ ступень и единственное средство против
+    // гриферства: имя приходит с клиента как есть, и накрутчик со своим
+    // ключом пишет в топ что угодно. Снимай мы и его — спрятанный руками
+    // возвращал бы себя сам первой же победой. Все выборки фильтруют по
+    // `f=0`, поэтому двойка исключается везде бесплатно.
+    if (clean) { cl = 0; if (f === 1) f = 0; }
   }
   // ⚠️ ПАДЕНИЕ ФЛАГ НЕ ТРОГАЕТ: иначе пойманный «обелялся» бы одной тратой.
   await env.DB.prepare('UPDATE p SET n=?, a=?, s=?, u=?, q=?, cl=?, f=? WHERE id=?')
@@ -188,7 +194,12 @@ async function postScore(req, env) {
 // Читается ИЗ СНИМКА, а не из `p`: ноль сканов боевой таблицы и кэш на краю.
 async function getTop(env, url) {
   const page = Math.max(1, Math.min(2, intOr(Number(url.searchParams.get('p')), 1)));
-  const snap = await readSnap(env, 'top');
+  // ⚠️ Постановка, раздел ДЕГРАДАЦИЯ: «если D1 не отвечает, /top отдаёт
+  // последний снимок». Обрыв базы НЕ должен превращаться в 503 — таблица
+  // украшение и игру не блокирует никогда.
+  let snap = null;
+  try { snap = await readSnap(env, 'top'); }
+  catch (e) { snap = null; }
   if (!snap) return reply({ t: 0, n: 0, p: page, r: [], stale: 1 }, 200,
     { 'cache-control': 'public, max-age=30' });
   const from = (page - 1) * PAGE_N;
@@ -222,7 +233,11 @@ async function getMe(env, url) {
     'SELECT COUNT(*) AS c FROM p WHERE f=0 AND s>0 AND (s > ? OR (s = ? AND u < ?))'
     + (bound === null ? '' : ' AND s <= ?'))
     .bind(...(bound === null ? [row.s, row.s, row.u] : [row.s, row.s, row.u, bound])).first();
-  const exactRank = base + 1 + ((cnt && cnt.c) || 0) - (bound === null ? 0 : 0);
+  // ⚠️⚠️ МИНУС ЕДИНИЦА — НЕ КОСМЕТИКА. Игрок, стоящий РОВНО на границе
+  // корзины (место (i+1)·100), попадает в счёт ДВАЖДЫ: он уже учтён в `base`
+  // и снова проходит по условию `s <= bound`. Без вычета все, кто ниже
+  // сотого места, видели место на единицу хуже настоящего.
+  const exactRank = base + 1 + ((cnt && cnt.c) || 0) - (bound === null ? 0 : 1);
 
   const above = await env.DB.prepare(
     'SELECT n,a,s FROM p WHERE f=0 AND s>0 AND (s > ? OR (s = ? AND u < ?)) ORDER BY s ASC, u DESC LIMIT ?')
@@ -259,7 +274,7 @@ async function adminHide(req, env) {
   if (!env.ADMIN_TOKEN || auth !== 'Bearer ' + env.ADMIN_TOKEN) return reply({ err: 'auth' }, 401);
   let b; try { b = JSON.parse(await req.text()); } catch (e) { return reply({ err: 'form' }, 400); }
   if (!b || typeof b.id !== 'string') return reply({ err: 'form' }, 400);
-  const f = b.show ? 0 : 1;
+  const f = b.show ? 0 : 2;   // 2 = РУЧНОЕ, чистой отправкой не снимается
   await env.DB.prepare('UPDATE p SET f=? WHERE id=?').bind(f, b.id).run();
   return reply({ ok: 1, id: b.id, f: f });
 }

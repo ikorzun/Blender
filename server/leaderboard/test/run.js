@@ -213,6 +213,68 @@ async function score(worker, env, id, s, q, opts) {
       && (topRes.headers.get('content-type') || '').startsWith('text/plain'),
     'CORS: text/plain + ACAO:* — запрос «простой», preflight не нужен');
 
+  // ===== 16. РУЧНОЕ СКРЫТИЕ ПЕРЕЖИВАЕТ ЧИСТУЮ ОТПРАВКУ =====
+  // Ручной тир — последняя ступень и единственное средство против гриферства
+  // (имя приходит с клиента). Если бы чистая отправка снимала и его, спрятанный
+  // руками возвращал бы себя сам первой же победой.
+  const envA = { DB: makeDB(SCHEMA), ADMIN_TOKEN: 'secret' };
+  envA.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)')
+    .run('gid1grief001', KEY, 'Grief', 1, 5000, now() - 600, 1, now() - 100000);
+  const hid = await worker.fetch(new Request('https://x/admin/hide', { method: 'POST',
+    headers: { authorization: 'Bearer secret' }, body: JSON.stringify({ id: 'gid1grief001' }) }), envA);
+  const afterHide = await envA.DB.prepare('SELECT f FROM p WHERE id=?').bind('gid1grief001').first();
+  await score(worker, envA, 'gid1grief001', 5200, 2, { n: 'Grief' });   // честный рост в потолках
+  const afterClean = await envA.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1grief001').first();
+  expect(hid.status === 200 && afterHide.f > 0 && afterClean.f > 0 && afterClean.s === 5200,
+    'РУЧНОЕ СКРЫТИЕ переживает чистую отправку (f ' + afterHide.f + ' -> ' + afterClean.f + ')');
+  await worker.fetch(new Request('https://x/admin/hide', { method: 'POST',
+    headers: { authorization: 'Bearer secret' }, body: JSON.stringify({ id: 'gid1grief001', show: 1 }) }), envA);
+  const back = await envA.DB.prepare('SELECT f FROM p WHERE id=?').bind('gid1grief001').first();
+  expect(back.f === 0, 'РУЧНОЙ ВОЗВРАТ работает (f=' + back.f + ')');
+  const noAuth = await worker.fetch(new Request('https://x/admin/hide', { method: 'POST',
+    body: JSON.stringify({ id: 'gid1grief001' }) }), envA);
+  expect(noAuth.status === 401, 'admin/hide без токена — 401');
+
+  // ===== 17. ГЛУБОКОЕ МЕСТО НА 50 000 СТРОК =====
+  // ⚠️ Сид из постановки, и он же — ЕДИНСТВЕННЫЙ страж лесенки: путь «через
+  // корзину» на маленькой базе не исполняется вовсе (снимка нет, bound=null),
+  // а именно там жил сдвиг на единицу — игрок ровно на границе корзины
+  // считался дважды, и все ниже сотого места видели место на 1 хуже.
+  const envB = { DB: makeDB(SCHEMA) };
+  const N = 50000, base0 = now() - 200000;
+  envB.DB._raw.exec('BEGIN');
+  const st = envB.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)');
+  for (let i = 0; i < N; i++) st.run('gidseed' + String(i).padStart(6, '0'), KEY, 'P' + i, 1,
+    N - i, base0 + i, 1, base0);          // счёт уникален: истинное место = i+1
+  envB.DB._raw.exec('COMMIT');
+  const t0 = Date.now();
+  const snapB = await worker._internals.buildSnapshot(envB);
+  const ladderB = JSON.parse((await envB.DB.prepare('SELECT v FROM snap WHERE k=?').bind('ladder').first()).v);
+  expect(ladderB.length === N / 100 && snapB.top === 100,
+    'ЛЕСЕНКА на 50 000: ' + ladderB.length + ' ступеней, топ ' + snapB.top
+    + ', снимок за ' + (Date.now() - t0) + ' мс');
+
+  const probes = [1, 100, 101, 25037, 49999];
+  const got = [];
+  for (const rank of probes) {
+    const id = 'gidseed' + String(rank - 1).padStart(6, '0');
+    const tq = now();
+    const r = await worker.fetch(new Request('https://x/v1/me?id=' + id + '&t=' + tq
+      + '&sig=' + await sign(KEY, id + '.me.' + tq)), envB);
+    got.push(JSON.parse(await r.text()).rank);
+  }
+  expect(JSON.stringify(got) === JSON.stringify(probes),
+    'ТОЧНОЕ МЕСТО совпадает с истинным на всех глубинах (' + got.join(',') + ' против '
+    + probes.join(',') + ')');
+
+  // ===== 18. /top НЕ ПАДАЕТ, КОГДА БАЗА МОЛЧИТ =====
+  // Правило номер один постановки: таблица — украшение, игру не блокирует.
+  const envDead = { DB: { prepare() { throw new Error('D1 недоступна'); } } };
+  const deadRes = await worker.fetch(new Request('https://x/v1/top?p=1'), envDead);
+  const dead = JSON.parse(await deadRes.text());
+  expect(deadRes.status === 200 && dead.stale === 1,
+    '/top при упавшей базе: 200 с пометкой, не 503 (' + deadRes.status + ')');
+
   console.log('\nВСЕГО PASS: ' + pass + (fails.length ? ' | FAIL: ' + fails.length : ''));
   if (fails.length) { console.log('SUITE: FAIL — ' + fails.join(' || ')); process.exit(1); }
   console.log('SUITE: PASS');

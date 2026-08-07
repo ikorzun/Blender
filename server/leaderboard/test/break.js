@@ -41,7 +41,7 @@ const SABOTAGE = [
     repl: 'if (false)',
     expect: 'ПОВТОР q' },
   { name: 'новорождённый с миллиардом не прячется',
-    find: 'if (val > ageCap) { val = ageCap; f = 1; }',
+    find: 'if (val > ageCap) { val = ageCap; f = Math.max(f, 1); }',
     repl: 'if (val > ageCap) { val = ageCap; }',
     expect: 'ВОЗРАСТНОЙ ПОТОЛОК' },
   { name: 'снимок не фильтрует скрытых',
@@ -49,9 +49,21 @@ const SABOTAGE = [
     repl: "'SELECT n,a,s FROM p WHERE s>0 ORDER BY s DESC, u ASC LIMIT ?'",
     expect: 'СКРЫТОГО НЕТ' },
   { name: 'флаг липкий — честный не возвращается',
-    find: 'if (clean) { cl = 0; f = 0; }',
+    find: 'if (clean) { cl = 0; if (f === 1) f = 0; }',
     repl: 'if (false) { cl = 0; f = 0; }',
     expect: 'ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ' },
+  { name: 'граница корзины считается дважды (сдвиг места на 1)',
+    find: '- (bound === null ? 0 : 1)',
+    repl: '- (bound === null ? 0 : 0)',
+    expect: 'ТОЧНОЕ МЕСТО' },
+  { name: 'чистая отправка снимает и РУЧНОЕ скрытие',
+    find: 'if (clean) { cl = 0; if (f === 1) f = 0; }',
+    repl: 'if (clean) { cl = 0; f = 0; }',
+    expect: 'РУЧНОЕ СКРЫТИЕ' },
+  { name: '/top падает вместе с базой',
+    find: 'catch (e) { snap = null; }',
+    repl: 'catch (e) { throw e; }',
+    expect: '/top при упавшей базе' },
 ];
 
 function runSuite(srcPath) {
@@ -98,7 +110,11 @@ for (let i = 0; i < SABOTAGE.length; i++) {
   const hit = fails.filter((f) => f.indexOf(sb.expect) >= 0);
   const collateral = fails.filter((f) => f.indexOf(sb.expect) < 0);
 
-  if (!hit.length) {
+  if (!hit.length && !fails.length && !res.ok) {
+    console.log('⛔ ДИВЕРСИЯ РАЗВАЛИЛА СБОРКУ (это НЕ слепой страж): ' + sb.name);
+    console.log('   ' + res.out.trim().split('\n').slice(-2).join(' / '));
+    bad++;
+  } else if (!hit.length) {
     console.log('⛔ СТРАЖ СЛЕП: «' + sb.name + '» не уронил «' + sb.expect + '»');
     console.log('   упало: ' + (fails.join(' | ') || 'ничего'));
     bad++;
