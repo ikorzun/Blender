@@ -125,7 +125,75 @@ for (let i = 0; i < SABOTAGE.length; i++) {
   fs.rmSync(path.dirname(tmp), { recursive: true, force: true });
 }
 
+// ===== ФАЗА 2: СМОУК ТОЖЕ СДАЁТСЯ КАК СТРАЖ =====
+// ⚠️ Его новые проверки (сохранённый счёт, путь UPDATE, предполёт, свежесть
+// снимка) обязаны краснеть на сломанной сборке — иначе они не стражи, а
+// описание. Прогон идёт через `--local`, каждый ~25 с (внутри честное
+// ожидание окна частоты 21 с — без него путь UPDATE не исполняется).
+const SMOKE = path.join(__dirname, 'smoke.js');
+const SMOKE_SABOTAGE = [
+  { name: 'в базу пишется 0 вместо счёта',
+    find: '.bind(id, body.k, n, Math.min(49, Math.max(1, a)), s0, now, q, born).run();',
+    repl: '.bind(id, body.k, n, Math.min(49, Math.max(1, a)), 0, now, q, born).run();',
+    expect: 'своё место и соседи' },
+  { name: 'путь UPDATE сломан (несуществующая колонка)',
+    find: "'UPDATE p SET n=?, a=?, s=?, u=?, q=?, cl=?, f=? WHERE id=?'",
+    repl: "'UPDATE p SET n=?, a=?, s=?, u=?, q=?, cl=?, zz=? WHERE id=?'",
+    expect: 'вторая отправка меняет счёт' },
+  { name: 'предполёт не обслуживается',
+    find: "if (req.method === 'OPTIONS') return preflight();",
+    repl: "if (false) return preflight();",
+    expect: 'предполёт для DELETE' },
+  { name: 'пустой снимок выдаёт себя за свежий',
+    find: "return reply({ t: 0, n: 0, p: page, r: [], stale: 1 }, 200,",
+    repl: "return reply({ t: nowSec(), n: 0, p: page, r: [] }, 200,",
+    expect: 'локально: без снимка честно ЖЁЛТЫЙ' },
+];
+
+function runSmoke(srcPath) {
+  try {
+    const out = execFileSync('node', [SMOKE, '--local'], {
+      env: Object.assign({}, process.env, srcPath ? { LB_SRC: srcPath } : {}),
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { ok: true, out };
+  } catch (e) { return { ok: false, out: (e.stdout || '') + (e.stderr || '') }; }
+}
+const smokeFails = (out) => out.split('\n').filter((l) => l.indexOf('❌') >= 0)
+  .map((l) => l.replace(/^\s*❌\s*/, '').split('  —')[0].trim());
+
+console.log('\n--- фаза 2: смоук ---');
+const sBase = runSmoke(null);
+if (!sBase.ok || smokeFails(sBase.out).length) {
+  console.log('⛔ СМОУК НЕ ЗЕЛЁН НА ИСПРАВНОЙ СБОРКЕ:');
+  console.log(smokeFails(sBase.out).join(' | ') || sBase.out.slice(-600));
+  bad++;
+} else {
+  console.log('исправная сборка: смоук зелёный\n');
+  for (const sb of SMOKE_SABOTAGE) {
+    if (SRC.indexOf(sb.find) < 0) {
+      console.log('⛔ ДИВЕРСИЯ ПРОТУХЛА (строка не найдена): ' + sb.name); bad++; continue;
+    }
+    const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lbs-')), 'index.js');
+    fs.writeFileSync(tmp, SRC.replace(sb.find, sb.repl));
+    const res = runSmoke(tmp);
+    const f = smokeFails(res.out);
+    const hit = f.filter((x) => x.indexOf(sb.expect) >= 0);
+    if (!hit.length && !f.length && !res.ok) {
+      console.log('⛔ ДИВЕРСИЯ РАЗВАЛИЛА СБОРКУ (это НЕ слепой страж): ' + sb.name); bad++;
+    } else if (!hit.length) {
+      console.log('⛔ СМОУК СЛЕП: «' + sb.name + '» не уронил «' + sb.expect + '»');
+      console.log('   упало: ' + (f.join(' | ') || 'ничего')); bad++;
+    } else {
+      const other = f.filter((x) => x.indexOf(sb.expect) < 0);
+      console.log('✅ «' + sb.name + '»\n   -> красный: ' + hit.join(' | ')
+        + (other.length ? '\n   ⚠️ задело соседей: ' + other.join(' | ') : ''));
+    }
+    fs.rmSync(path.dirname(tmp), { recursive: true, force: true });
+  }
+}
+
 console.log('\n' + (bad ? 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОВАЛ (' + bad + ')'
   : 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОЙДЕНА — все ' + SABOTAGE.length
-    + ' диверсий пойманы, исправная сборка зелена'));
+    + ' диверсий сьюта + ' + SMOKE_SABOTAGE.length + ' смоука пойманы, обе сборки зелены'));
 process.exit(bad ? 1 : 0);
