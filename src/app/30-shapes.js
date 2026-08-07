@@ -220,7 +220,9 @@ const TYPES = [
   { name:'foodcakebirthday', color:0xffc044, rc:1.0, tex:'food', mat:'soft', geo:foodcakebirthdayGeo },
   { name:'marketshoppingbasket', color:0xe05a5a, rc:1.0, tex:'market', mat:'soft', geo:marketshoppingbasketGeo },
   { name:'foodicecreamscoopmint', color:0x2b9571, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamscoopmintGeo },
-  { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', geo:fooddonutsprinklesGeo },
+  // phys:'ring' — дырка НАСТОЯЩАЯ: физика строит кольцо капсул по геометрии,
+  // иначе convex hull затягивает середину невидимой перепонкой (см. 50-physics)
+  { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', phys:'ring', geo:fooddonutsprinklesGeo },
   { name:'arcadeclawmachine', color:0x6f7ad0, rc:1.0, tex:'arcade', mat:'soft', geo:arcadeclawmachineGeo },
   { name:'forestplant', color:0x5fb562, rc:1.0, tex:'forest', mat:'soft', geo:forestplantGeo },
 ];

@@ -196,6 +196,44 @@ function removeTempTallWall(){
 }
 
 // Физическая форма по типу: примитив / convex hull из рендер-геометрии / компаунд
+// ⚠️⚠️ КОЛЬЦО ПО САМОЙ ГЕОМЕТРИИ (пончик, 2026-08-07). Модель-бублик уходила
+// в ветку `default` — convex hull, а он ЗАКРЫВАЕТ ДЫРКУ: физически посреди
+// пончика появляется невидимая перепонка, и предмет ложится на пустоту.
+// ⚠️ ЧИСЛА НЕ ВПИСЫВАЕМ РУКАМИ, а меряем по вершинам: сменится модель или её
+// масштаб — кольцо переедет само. Плоскость определяется тем, где есть ДЫРКА:
+// у нашего пончика это XZ (ось Y), а НЕ XY, как у процедурного тора из three
+// (тот случай — `torus` ниже, и путать их нельзя: компаунд, стоящий
+// перпендикулярно мешу, «впаивает» предметы в видимое кольцо — грабля 2026-07).
+// Возвращает false, если дырки нет — тогда вызывающий честно падает в hull.
+function ringFromGeometry(add, geo, s){
+  const P = geo.attributes.position.array, n = P.length / 3;
+  if (!n) return false;
+  // радиус вокруг каждой из трёх осей; дырка там, где МИНИМУМ заметно > 0
+  const axes = [[0, 2, 1], [0, 1, 2], [1, 2, 0]];   // [u, v, ось]
+  let best = null;
+  for (const [u, v, ax] of axes){
+    let rmin = 1e9, rmax = 0;
+    for (let i = 0; i < n; i++){
+      const r = Math.hypot(P[i*3+u], P[i*3+v]);
+      if (r < rmin) rmin = r; if (r > rmax) rmax = r;
+    }
+    if (rmax > 1e-4 && (!best || rmin / rmax > best.ratio)) best = { u, v, ax, rmin, rmax, ratio: rmin / rmax };
+  }
+  // дырка считается настоящей, если внутренний радиус >= четверти внешнего:
+  // у пончика 0.338/1.000 = 0.34, у сплошных моделей это сотые доли
+  if (!best || best.ratio < 0.25) return false;
+  const R = (best.rmin + best.rmax) / 2 * s;        // осевая линия трубки
+  const tube = (best.rmax - best.rmin) / 2 * s;     // её радиус
+  const SEG = 12, pts = [];
+  for (let k = 0; k <= SEG; k++){
+    const a = k / SEG * Math.PI * 2, p = { x: 0, y: 0, z: 0 };
+    p[['x','y','z'][best.u]] = Math.cos(a) * R;
+    p[['x','y','z'][best.v]] = Math.sin(a) * R;
+    pts.push(p);
+  }
+  addCapsuleChain(add, pts, tube);
+  return true;
+}
 function hullFromGeometry(geo, s){
   const src = geo.attributes.position.array;
   const pts = new Float32Array(src.length);
@@ -343,6 +381,8 @@ function createItemBody(item, typeName, geo){
       add(RAPIER.ColliderDesc.ball(0.28*s), -0.7*s, 0.05*s, 0);
       break;
     default: { // cone, octa, dode, tetra, star, heart — convex hull из реальной геометрии
+      // ⚠️ КОЛЬЦЕВЫЕ МОДЕЛИ — ДО hull: у них дырка настоящая, и hull её закроет
+      if (item.type && item.type.phys === 'ring' && ringFromGeometry(add, geo, s)) break;
       const cd = hullFromGeometry(geo, s);
       if (cd) add(cd);
       else add(RAPIER.ColliderDesc.ball(item.r)); // страховка на вырожденный hull

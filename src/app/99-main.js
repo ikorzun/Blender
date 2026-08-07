@@ -1700,6 +1700,46 @@ window.__game = {
   // Нужен стражу докидки — он сверяет ПИК СПАВНА с этим числом, а не с
   // литералом: иначе страж и код разъедутся при первой же правке потолка.
   rescueCeil(){ return RESCUE_CEIL; },
+  // ⚠️⚠️ ЗОНД ДЫРКИ: проходит ли ЛУЧ сквозь середину предмета вдоль оси кольца.
+  // Единственный честный способ спросить «дырка настоящая или её затянуло»:
+  // считать коллайдеры мало — их число говорит, какая ВЕТКА отработала, а не
+  // проходим ли центр. Тело строится в стороне (y=500), сразу сносится, на
+  // уровень не влияет.
+  // ⚠️ Луч пускаем ВДОЛЬ ОСИ, которую нашла та же логика, что строит кольцо
+  // (плоскость с наибольшим отношением rmin/rmax) — иначе зонд мерил бы не то.
+  holeProbe(name){
+    const idx = TYPES.findIndex(t => t.name === name);
+    if (idx < 0) return null;
+    const it = makeItem(idx, 1);
+    it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
+    createItemBody(it, TYPES[idx].name, it.geo);
+    if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
+    // ось дырки — та же, что у ringFromGeometry: ищем по вершинам
+    const P = it.geo.attributes.position.array, n = P.length / 3;
+    const axes = [[0, 2, 1], [0, 1, 2], [1, 2, 0]];
+    let best = null;
+    for (const [u, v, ax] of axes){
+      let rmin = 1e9, rmax = 0;
+      for (let i = 0; i < n; i++){ const r = Math.hypot(P[i*3+u], P[i*3+v]);
+        if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
+      if (rmax > 1e-4 && (!best || rmin/rmax > best.ratio)) best = { ax, ratio: rmin/rmax };
+    }
+    // ⚠️⚠️ НЕ РЕЙКАСТОМ. Первая версия зонда пускала луч вдоль оси и объявила
+    // «дырка есть» У ВСЕХ, включая заведомо сплошные модели: свежесозданный
+    // коллайдер ещё не попал в query-конвейер Rapier (он обновляется шагом
+    // мира), и луч не встречал НИКОГО. Классический зелёный-на-всём зонд.
+    // `containsPoint` спрашивает саму ФОРМУ и конвейера не требует.
+    const colliders = it.body ? it.body.numColliders() : 0;
+    let inside = false;
+    for (let i = 0; i < colliders; i++){
+      const c = it.body.collider(i);
+      if (c.containsPoint({ x: it.p.x, y: it.p.y, z: it.p.z })){ inside = true; break; }
+    }
+    destroyItemBody(it);
+    if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
+    return { дырка: !inside, коллайдеров: colliders, ось: ['x','y','z'][best.ax],
+             отношение: +best.ratio.toFixed(3) };
+  },
   underFloor(){
     return items.filter(i => i.alive && i.body && i.p.y < FLOOR_REST)
       .map(i => ({ name: i.type.name, y: +i.p.y.toFixed(3),
