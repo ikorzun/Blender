@@ -99,6 +99,16 @@ async function score(worker, env, id, s, q, opts) {
   expect(okWrite.status === 200, 'ЧАСТОТА: подготовительная запись прошла (санитар)');
   expect(rate.status === 429 && rate.json && typeof rate.json.s === 'number',
     'ЧАСТОТА: чаще 20 с — 429, тело непустое (' + rate.status + ')');
+  // ⚠️ `retry` НЕСУЩЕЕ: по нему клиент откладывает отправку и НЕ держит копию
+  // нашего `RATE_SEC` у себя. Ассертим ГРАНИЦЫ, а не число: подготовительная
+  // запись прошла мгновением раньше, поэтому ждать осталось почти всё окно, но
+  // сравнивать с литералом 20 нельзя — это была бы та же копия константы,
+  // только в страже (закон, на котором проект обжёгся четыре раза за сессию).
+  expect(typeof rate.json.retry === 'number' && rate.json.retry > 0
+    && rate.json.retry <= worker._internals.RATE_SEC
+    && rate.json.retry >= worker._internals.RATE_SEC - 2,
+    'ЧАСТОТА: 429 говорит, СКОЛЬКО ждать (retry ' + rate.json.retry
+    + ' при окне ' + worker._internals.RATE_SEC + ')');
 
   // ===== 6. Часы клиента =====
   const skew = await score(worker, env, 'gid1aaaaaa02', 100, 1, { t: now() - 4000 });

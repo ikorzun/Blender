@@ -173,8 +173,19 @@ async function postScore(req, env) {
     return reply({ ok: 1, dup: 1, s: row.s, rank: estimateRank(snap && snap.v, row.s), exact: 0, n: row.n }, 409);
   }
   if (now - row.u < RATE_SEC) {
+    // ⚠️⚠️ `retry` — СКОЛЬКО СЕКУНД ЖДАТЬ, И ЭТО НЕСУЩЕЕ ПОЛЕ, А НЕ УДОБСТВО.
+    // Без него клиент вынужден ЗНАТЬ наш `RATE_SEC`, то есть держать копию
+    // серверной константы у себя — а копия совпадает в момент написания и
+    // расходится потом (за сессию 2026-08-07/09 проект поймал этот закон
+    // четырежды). Здесь величина едет ОТ ТОГО, КТО ЕЮ ВЛАДЕЕТ.
+    // ⚠️ Зачем вообще ждать, а не выбрасывать: типичный путь владельца —
+    // победа, а сразу за ней покупка множителя на экране победы. Вторая
+    // отправка попадает внутрь окна, и если её потерять, «трата опускает в
+    // таблице сразу» не случится ровно в том сценарии, ради которого всё
+    // и делалось.
     const snap = await readSnap(env, 'ladder');
-    return reply({ ok: 0, err: 'rate', s: row.s, rank: estimateRank(snap && snap.v, row.s), n: row.n }, 429);
+    return reply({ ok: 0, err: 'rate', retry: RATE_SEC - (now - row.u),
+      s: row.s, rank: estimateRank(snap && snap.v, row.s), n: row.n }, 429);
   }
 
   // ===== СЧЁТ ПИШЕТСЯ КАК ПРИСЛАН =====
@@ -334,5 +345,5 @@ export default {
     await buildSnapshot(env);
   },
   // экспорт для тестов — боевой путь их не использует
-  _internals: { estimateRank, hmacHex, buildSnapshot, retention, sameSig },
+  _internals: { estimateRank, hmacHex, buildSnapshot, retention, sameSig, RATE_SEC },
 };

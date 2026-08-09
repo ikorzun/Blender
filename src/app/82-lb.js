@@ -57,6 +57,11 @@ function lbKey() {
 
 // Была ли строка уже создана (ключ отправляется РОВНО в первой отправке).
 const LB_REG_LS = 'mixer_lb_reg';
+// ⚠️ ПОСЛЕДНЕЕ ОТПРАВЛЕННОЕ ЗНАЧЕНИЕ ЖИВЁТ МЕЖДУ ЗАПУСКАМИ, и это не роскошь.
+// Замер (headless, полная победа): при пустой памяти КАЖДЫЙ старт игры давал
+// лишнюю отправку — облачный синк `bridgeSyncSave` дёргает `onStarsChange` на
+// инициализации, и подписка честно слала уже лежащее на сервере число.
+const LB_SENT_LS = 'mixer_lb_sent';
 function lbRegistered() { try { return localStorage.getItem(LB_REG_LS) === '1'; } catch (e) { return false; } }
 function lbMarkRegistered() { try { localStorage.setItem(LB_REG_LS, '1'); } catch (e) {} }
 
@@ -154,10 +159,12 @@ async function lbMe() {
   const r = await lbFetch('/v1/me?id=' + encodeURIComponent(id) + '&t=' + t + '&sig=' + sig + lbBustQ(), { method: 'GET' });
   let out;
   if (r.state !== 'ok') out = { state: r.state };
-  else if (r.code === 404) out = { state: 'ok', me: null, rank: 0, up: [], dn: [] };
+  else if (r.code === 404) out = { state: 'ok', me: null, rank: null, up: [], dn: [] };
   else out = {
     state: 'ok',
-    rank: r.body.rank || 0,
+    // ⚠️ У `/v1/me` место ТОЧНОЕ, но `null` возможен как признак «строки нет» —
+    // отдаём как есть, чтобы экран отличал «не знаю» от «первое место».
+    rank: (typeof r.body.rank === 'number') ? r.body.rank : null,
     exact: !!r.body.exact,
     score: r.body.s,
     up: (r.body.up || []).map(lbRow).filter(Boolean),
@@ -171,6 +178,46 @@ async function lbMe() {
 
 let lbSending = false;
 let lbLastQ = 0;
+// Что уже лежит на сервере — одно и то же дважды не шлём (см. LB_SENT_LS).
+let lbSentScore = (function () {
+  try { const v = localStorage.getItem(LB_SENT_LS); return v === null ? null : Number(v); }
+  catch (e) { return null; }
+})();
+let lbTimer = 0;          // отложенная отправка: окно частоты или коалесцинг
+let lbAgain = false;      // баланс изменился, пока прошлая отправка была в полёте
+
+// ⚠️ ФОЛБЭК НА СЛУЧАЙ СТАРОГО ВОРКЕРА БЕЗ ПОЛЯ `retry`. Это ОСОЗНАННАЯ копия,
+// и она намеренно БОЛЬШЕ любого разумного окна: промахнуться в большую сторону
+// значит подождать лишнее, в меньшую — долбить сервер отказами. Боевое число
+// приходит от того, кто им владеет, — из тела 429.
+const LB_RETRY_FALLBACK_S = 30;
+
+// ⚠️⚠️ ЗАДЕРЖКА КОАЛЕСЦИНГА — НЕ ЗАЩИТА ОТ ПОТОКА СОБЫТИЙ. Предпосылка «баланс
+// меняется на каждом начислении» ПРОВЕРЕНА ГРЕПОМ И НЕВЕРНА: `fireStarsChange`
+// зовут семь мест (облачный синк, досрочный банк, банк победы, пополнение,
+// трата, буст, анлок), за матч он не дёргается вовсе. Значит собирать поток
+// не от чего, и задержка нужна ровно для двух вещей:
+//   1) склеить пачку изменений одного жеста (купил два буста подряд);
+//   2) пропустить вперёд немедленную отправку победы — она уходит в том же
+//      тике, что и банк, а этот таймер приходит позже и видит уже отправленное
+//      значение (гасится проверкой `s === lbSentScore`).
+// ⚠️ ЗАМЕР (headless на живом стенде, полная победа ботом): на одну победу
+// уходит РОВНО ОДНА отправка — немедленная; отложенная её не дублирует.
+// ⚠️⚠️ И ГЛАВНЫЙ ЗАМЕР, СЦЕНАРИЙ ВЛАДЕЛЬЦА «победа, сразу трата на множитель»
+// (тот же стенд, ранг-счёт 5000 -> трата 2000 -> 3000):
+//     #1 200 (5000) -> #2 429 err=rate retry=18с -> #3 200 (3000)
+//     в базе стенда 3000, то есть совпало с игрой.
+// Без отложенной посылки шаг #3 не случился бы вовсе, и место обновилось бы
+// только после СЛЕДУЮЩЕЙ победы — ровно та потеря, ради которой всё делалось.
+const LB_CHANGE_DELAY_S = 0.5;
+
+// Отложить отправку на `sec` секунд. Повторный вызов ПЕРЕНАЗНАЧАЕТ таймер —
+// в этом и состоит склейка: уходит ОДНА отправка с последним значением.
+function lbSchedule(sec) {
+  const ms = Math.max(0, Math.min(120, Number(sec) || 0)) * 1000;
+  if (lbTimer) clearTimeout(lbTimer);
+  lbTimer = setTimeout(function () { lbTimer = 0; lbSubmit(); }, ms);
+}
 
 // ⚠️⚠️ ЗВАТЬ ТОЛЬКО ПОСЛЕ `bankLevelScore` — иначе место отстанет РОВНО НА ОДИН
 // УРОВЕНЬ. Симптом коварный: число правдоподобное, просто вчерашнее, и на глаз
@@ -189,12 +236,27 @@ let lbLastQ = 0;
 // что сыгранной партии, то есть тот же «отстало на уровень», только теперь уже
 // не из-за банка. Кэш этому не мешает: `lbSubmit` сбрасывает его сам.
 async function lbSubmit() {
-  if (!LB_BASE || lbSending) return { state: 'offline' };
+  if (!LB_BASE) return { state: 'offline' };
+  // ⚠️ Занятость — НЕ повод потерять изменение: помечаем и дошлём в хвосте.
+  if (lbSending) { lbAgain = true; return { state: 'busy' }; }
   const id = (typeof guestId === 'function') ? guestId() : '';
   const nm = (typeof guestName === 'function') ? guestName() : '';
   const av = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
   const s = (typeof leaderboardScore === 'function') ? leaderboardScore() : 0;
   if (!id || !nm) return { state: 'offline' };
+  // ⚠️ Одно и то же значение второй раз не шлём: победа отправляет счёт сама,
+  // и подписка на изменение баланса пришла бы следом с тем же числом — вторая
+  // отправка ничего не меняет, но СЪЕДАЕТ окно частоты, и настоящая трата,
+  // случившаяся через секунду, упёрлась бы в 429 на ровном месте.
+  if (s === lbSentScore) return { state: 'ok', skipped: true, sent: s, score: s,
+    rank: null, exact: false, dup: false };
+  // ⚠️⚠️ НОЛЬ НЕ ОТПРАВЛЯЕМ, И ЭТО НЕ МИКРООПТИМИЗАЦИЯ. Сервер намеренно создаёт
+  // строку при ПЕРВОЙ ПОБЕДЕ — «зашедший на десять секунд гость строку не
+  // плодит». Подписка на изменение баланса это свойство ЛОМАЛА: облачный синк
+  // на старте дёргает `onStarsChange`, и у не игравшего гостя уходила отправка
+  // с нулём, заводя строку. Найдено замером, а не рассуждением.
+  if (!(s > 0)) return { state: 'ok', skipped: true, sent: s, score: s,
+    rank: null, exact: false, dup: false };
   lbSending = true;
   try {
     const t = Math.floor(Date.now() / 1000);
@@ -209,13 +271,31 @@ async function lbSubmit() {
     // сервер его не примет — и это не наша ошибка, а его защита.
     if (!lbRegistered()) payload.k = lbKey();
     const r = await lbFetch('/v1/score', { method: 'POST', body: JSON.stringify(payload) });
+    // ⚠️⚠️ 429 — ЭТО «ПОДОЖДИ», А НЕ «ВЫБРОСЬ». Типичный путь владельца: победа
+    // отправила счёт, игрок тут же на экране победы покупает множитель — вторая
+    // отправка попадает внутрь окна частоты. Потеряй мы её, «трата опускает в
+    // таблице сразу» не случилось бы ровно в том сценарии, ради которого всё и
+    // делалось; следующая отправка ушла бы только после СЛЕДУЮЩЕЙ победы.
+    // ⚠️ Сколько ждать, говорит СЕРВЕР (поле `retry`): свою копию его `RATE_SEC`
+    // здесь держать нельзя — она совпадёт сегодня и разойдётся при первой же
+    // правке окна, о которой этот файл не узнает.
+    if (r.state === 'refused' && r.err === 'rate') {
+      const wait = Number(r.body && r.body.retry) || LB_RETRY_FALLBACK_S;
+      lbSchedule(wait);
+      return { state: 'deferred', retryIn: wait };
+    }
     if (r.state !== 'ok') return { state: r.state };
     if (r.body.ok) lbMarkRegistered();
+    lbSentScore = s;
+    try { localStorage.setItem(LB_SENT_LS, String(s)); } catch (e) {}
     lbInvalidate();
     return {
       state: 'ok',
       dup: !!r.body.dup,
-      rank: r.body.rank || 0,
+      // ⚠️ `null` ПРОПУСКАЕМ НАРУЖУ КАК ЕСТЬ. Прежнее `|| 0` превращало «сказать
+      // нечего» в число, а экран не смог бы отличить его от настоящего места.
+      // Оценка в ответе на отправку вообще не место — см. контракт клиента.
+      rank: (typeof r.body.rank === 'number') ? r.body.rank : null,
       exact: !!r.body.exact,
       // ⚠️ ОБА ЧИСЛА НАРУЖУ, И ЭТО НЕСУЩЕЕ: `sent` — что мы отправили,
       // `score` — что сервер записал. Сегодня они совпадают, но экран обязан
@@ -224,12 +304,26 @@ async function lbSubmit() {
       sent: s,
       score: r.body.s,
     };
-  } finally { lbSending = false; }
+  } finally {
+    lbSending = false;
+    // Изменение, пришедшее во время полёта, не теряем — дошлём следом.
+    if (lbAgain) { lbAgain = false; lbSchedule(LB_CHANGE_DELAY_S); }
+  }
 }
 
-// Трата на множитель меняет место — сбрасываем кэш, чтобы врезка и экран
-// показали свежее число, а не прошлую партию (прямое слово владельца).
-try { if (typeof onStarsChange === 'function') onStarsChange(function () { lbInvalidate(); }); } catch (e) {}
+// ⚠️⚠️ ТРАТА ОБЯЗАНА ОПУСКАТЬ В ТАБЛИЦЕ СРАЗУ (прямое слово владельца
+// 2026-08-09), а для этого мало забыть свой кэш — надо ОТПРАВИТЬ новое число.
+// Здесь стоял только `lbInvalidate()`: экран перечитывал таблицу и видел в ней
+// СТАРЫЙ счёт, потому что на сервере он и лежал старым до следующей победы.
+// ⛔ И почему это нельзя было решить платформенной отправкой: сервер площадки
+// хранит МАКСИМУМ и молча игнорирует меньшее значение (замер 2026-07-29) —
+// опускать умеет только наша таблица.
+try {
+  if (typeof onStarsChange === 'function') onStarsChange(function () {
+    lbInvalidate();
+    lbSchedule(LB_CHANGE_DELAY_S);
+  });
+} catch (e) {}
 
 // ⚠️ ТЕСТОВАЯ ПОВЕРХНОСТЬ — СВОЙ ОБЪЕКТ, А НЕ `__game`. Причина не в
 // брезгливости: `__game` — ОДИН литерал в 99-main (чужая зона), и два
@@ -240,4 +334,8 @@ try { if (typeof onStarsChange === 'function') onStarsChange(function () { lbInv
 window.__lb = {
   top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate,
   base: function () { return LB_BASE; },
+  // ⚠️ Наружу — СОСТОЯНИЕ ОТПРАВКИ, а не флаг «всё хорошо»: страж обязан
+  // видеть, что отложенная посылка ЖИВА (таймер назначен), иначе «429 не
+  // потерян» проверялось бы по возвращённому слову, а не по факту.
+  pending: function () { return { timer: !!lbTimer, again: lbAgain, sent: lbSentScore }; },
 };
