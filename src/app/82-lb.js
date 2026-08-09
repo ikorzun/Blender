@@ -84,6 +84,15 @@ async function lbFetch(path, opts) {
     let body = null;
     try { body = JSON.parse(await res.text()); } catch (e) { return { state: 'broken', code: res.status }; }
     if (!body || typeof body !== 'object') return { state: 'broken', code: res.status };
+    // ⚠️⚠️ РАЗОБРАЛСЯ JSON — ЕЩЁ НЕ УСПЕХ. Поймано ЖИВЫМ ПРОГОНОМ против стенда
+    // 2026-08-07, до него код считал успехом ЛЮБОЕ разобранное тело: повторная
+    // отправка возвращала `state:'ok'`, хотя сервер отвечал ошибкой. То есть
+    // клиент бодро рапортовал «приняли» на 400/401/429 — ровно тот класс, что
+    // мы ловим в стражах, только в боевом коде.
+    // Ошибка у сервера — ПОЛЕ `err` (замер: битая подпись → 400 `{"err":"nokey"}`),
+    // и она не зависит от кода ответа: он деградирует мягко и на упавшей базе
+    // отвечает 200. Поэтому судим ПО ТЕЛУ.
+    if (body.err) return { state: 'refused', code: res.status, err: String(body.err), body: body };
     return { state: 'ok', code: res.status, body: body };
   } catch (e) {
     clearTimeout(timer);
@@ -99,13 +108,24 @@ let lbMeCache = null;
 // ⚠️ ОДНА ТОЧКА ПОЛУЧЕНИЯ НА ДВУХ ПОТРЕБИТЕЛЕЙ (врезка на победе + экран
 // таблицы). Две копии логики разъехались бы ровно на ТРАТЕ множителя — то есть
 // в единственном месте, где владелец и просил числам сходиться.
-function lbInvalidate() { lbTopCache = null; lbMeCache = null; }
+// ⚠️⚠️ СБРОСИТЬ СВОЙ КЭШ НЕ ЗНАЧИТ ПОЛУЧИТЬ СВЕЖЕЕ. Поймано живым прогоном:
+// после очистки таблицы на стенде клиент честно перезапросил `/v1/top` и снова
+// получил СТАРЫЕ 24 строки с тем же `t` — ответ отдал HTTP-кэш браузера, у
+// сервера на этом маршруте `max-age` 60 с. Своя память была сброшена, а число
+// на экране не менялось бы ещё минуту — ровно там, где оно и обязано меняться
+// (после победы и после траты на множитель).
+// ⛔ ЛЕЧИТЬ ПОСТОЯННЫМ ОБХОДОМ КЭША НЕЛЬЗЯ: те 60 секунд у сервера НАМЕРЕННЫЕ,
+// топ отдаётся из снимка и держит нагрузку. Поэтому обход РАЗОВЫЙ — метка
+// живёт до следующего успешного чтения и тратится на него.
+let lbBust = 0;
+function lbInvalidate() { lbTopCache = null; lbMeCache = null; lbBust = Date.now(); }
+function lbBustQ() { return lbBust ? '&_=' + lbBust : ''; }
 
 async function lbTop(page) {
   const p = page || 1;
   if (lbTopCache && lbTopCache.p === p && Date.now() - lbTopCache.at < LB_TTL_MS) return lbTopCache.data;
   if (!LB_BASE) return { state: 'offline', rows: [] };
-  const r = await lbFetch('/v1/top?p=' + p, { method: 'GET' });
+  const r = await lbFetch('/v1/top?p=' + p + lbBustQ(), { method: 'GET' });
   let out;
   if (r.state !== 'ok') out = { state: r.state, rows: [] };
   else if (!Array.isArray(r.body.r)) out = { state: 'broken', rows: [] };
@@ -114,6 +134,7 @@ async function lbTop(page) {
     // СЛОМАЛОСЬ». Признак берём из ТЕЛА (`stale`/`t`), а не из кода ответа.
     out = { state: 'early', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: 0 };
   } else out = { state: 'ok', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: r.body.t };
+  if (out.state === 'ok' || out.state === 'early') lbBust = 0;  // метка потрачена
   lbTopCache = { p: p, at: Date.now(), data: out };
   return out;
 }
@@ -130,7 +151,7 @@ async function lbMe() {
   const t = Math.floor(Date.now() / 1000);
   const sig = await lbSign(id + '.me.' + t);
   if (!sig) return { state: 'offline' };
-  const r = await lbFetch('/v1/me?id=' + encodeURIComponent(id) + '&t=' + t + '&sig=' + sig, { method: 'GET' });
+  const r = await lbFetch('/v1/me?id=' + encodeURIComponent(id) + '&t=' + t + '&sig=' + sig + lbBustQ(), { method: 'GET' });
   let out;
   if (r.state !== 'ok') out = { state: r.state };
   else if (r.code === 404) out = { state: 'ok', me: null, rank: 0, up: [], dn: [] };
@@ -209,3 +230,14 @@ async function lbSubmit() {
 // Трата на множитель меняет место — сбрасываем кэш, чтобы врезка и экран
 // показали свежее число, а не прошлую партию (прямое слово владельца).
 try { if (typeof onStarsChange === 'function') onStarsChange(function () { lbInvalidate(); }); } catch (e) {}
+
+// ⚠️ ТЕСТОВАЯ ПОВЕРХНОСТЬ — СВОЙ ОБЪЕКТ, А НЕ `__game`. Причина не в
+// брезгливости: `__game` — ОДИН литерал в 99-main (чужая зона), и два
+// определения одного имени там не конфликтуют, а молча затирают друг друга —
+// хук начинает отдавать `undefined`, то есть правдоподобные нули. Проект на
+// этом уже обжигался (`itemsBrief`). Своё пространство имён такой встречи
+// исключает ПО ПОСТРОЕНИЮ.
+window.__lb = {
+  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate,
+  base: function () { return LB_BASE; },
+};
