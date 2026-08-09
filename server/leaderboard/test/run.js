@@ -59,13 +59,19 @@ async function score(worker, env, id, s, q, opts) {
   expect(row1.s === 300 && down.json.ok === 1,
     'ПАДЕНИЕ СОХРАНЕНО: пишем ПОСЛЕДНЕЕ, а не максимум (' + row0.s + ' -> ' + row1.s + ')');
 
-  // ===== 2. Рост сверх потолка КЛАМПИТСЯ МОЛЧА =====
+  // ===== 2. СЧЁТ ПИШЕТСЯ КАК ПРИСЛАН, СТРОКА ОСТАЁТСЯ ВИДИМОЙ =====
+  // ⚠️ Раньше здесь стоял обратный страж («рост сверх потолка клампится молча»).
+  // Потолок снят решением владельца 2026-08-09, и этот ассерт утверждает НОВОЕ
+  // поведение: сервер не спорит с клиентом о числе и никого не прячет сам.
+  // ⚠️ ДВА ПРИЗНАКА, А НЕ ОДИН: «значение сохранено» ловит возврат обрезки,
+  // «f === 0» — возврат автоскрытия. Это разные механизмы, и умерли они
+  // порознь: вернуть можно любой из них по отдельности.
   env.DB._raw.exec('UPDATE p SET u = u - 60');
   const grow = await score(worker, env, 'gid1aaaaaa01', 999999999, 3);
-  const row2 = await env.DB.prepare('SELECT s,cl FROM p WHERE id=?').bind('gid1aaaaaa01').first();
-  expect(grow.json.ok === 1 && row2.s < 999999999 && row2.cl === 1,
-    'РОСТ КЛАМПИТСЯ МОЛЧА: ответ успешный, значение срезано, счётчик вырос (s '
-    + row2.s + ', cl ' + row2.cl + ')');
+  const row2 = await env.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1aaaaaa01').first();
+  expect(grow.json.ok === 1 && row2.s === 999999999 && grow.json.s === 999999999 && row2.f === 0,
+    'СЧЁТ КАК ЕСТЬ: миллиард сохранён без обрезки и строка не скрыта (s '
+    + row2.s + ', f ' + row2.f + ')');
 
   // ===== 3. Ключ существующей строки НЕ перезаписывается =====
   // Иначе любой желающий прислал бы свой k и забрал чужую строку.
@@ -105,27 +111,31 @@ async function score(worker, env, id, s, q, opts) {
   expect(nokey.status === 400 && nokey.json.err === 'nokey',
     'НОВАЯ СТРОКА БЕЗ КЛЮЧА не создаётся');
 
-  // ===== 8-9. Накрутчик скрыт, честный виден, флаг СНИМАЕТСЯ =====
-  // ⚠️ Отдельная база с ЧЕСТНЫМИ метками времени. В общей я двигал `u` назад,
-  // не трогая `c`, и обычный игрок сам угодил под возрастной потолок — из-за
-  // чего страж «скрытого нет в таблице» смотрел в ПУСТУЮ таблицу и был бы
-  // зелен при любом поведении. Классическая тавтология, поймана прогоном.
-  const env3 = { DB: makeDB(SCHEMA) };
+  // ===== 8-9. Скрытая РУКАМИ строка не попадает в общую таблицу =====
+  // ⚠️ Автоматического скрытия больше нет — единственный источник флага `f`
+  // это `/admin/hide` (решение владельца 2026-08-09). Поэтому прячем строку
+  // НАСТОЯЩИМ путём, через эндпоинт, а не подсовывая `f` прямо в INSERT:
+  // иначе страж проверял бы выборку снимка, а не механику скрытия.
+  const env3 = { DB: makeDB(SCHEMA), ADMIN_TOKEN: 'secret' };
   const ins = (id, name, sc, ageSec, lastSec) => env3.DB._raw
-    .prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)')
+    .prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
     .run(id, KEY, name, 1, sc, now() - lastSec, 1, now() - ageSec);
   ins('gid1honest01', 'Honest', 5000, 100000, 100);   // играет давно, строка старая
-  ins('gid1cheat001', 'Cheater', 1000, 30, 30);       // строка родилась 30 с назад
-  await score(worker, env3, 'gid1cheat001', 1e9, 2, { n: 'Cheater' });
+  ins('gid1cheat001', 'Cheater', 1000, 30, 30);       // его спрячет модератор
+  const hidReq = await worker.fetch(new Request('https://x/admin/hide', { method: 'POST',
+    headers: { authorization: 'Bearer secret' }, body: JSON.stringify({ id: 'gid1cheat001' }) }), env3);
   const ch = await env3.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1cheat001').first();
-  expect(ch.f === 1, 'ВОЗРАСТНОЙ ПОТОЛОК: свежая строка с миллиардом СКРЫТА (f=' + ch.f + ')');
+  expect(hidReq.status === 200 && ch.f > 0,
+    'РУЧНОЕ СКРЫТИЕ пометило строку (HTTP ' + hidReq.status + ', f=' + ch.f + ')');
 
   await worker._internals.buildSnapshot(env3);
   const top3 = JSON.parse((await env3.DB.prepare('SELECT v FROM snap WHERE k=?').bind('top').first()).v);
   const names3 = (top3.r || []).map((r) => r[0]);
-  // ⚠️ САНИТАР: имя накрутчика обязано ДОЖИТЬ до снимка. Без него страж ниже
-  // был тавтологией — тест сам переименовывал строку своей же отправкой
-  // (UPDATE пишет присланное имя), и «Cheater» не нашёлся бы никогда.
+  // ⚠️ САНИТАР: имя скрытого обязано ДОЖИТЬ до снимка. Однажды страж ниже уже
+  // был тавтологией по этой причине — тест сам переименовывал строку своей же
+  // отправкой (UPDATE пишет присланное имя), и «Cheater» не нашёлся бы никогда.
+  // Отправки до снимка теперь нет, но санитар оставлен: он стережёт ассерт от
+  // повторного превращения в пустой.
   expect((await env3.DB.prepare('SELECT n FROM p WHERE id=?').bind('gid1cheat001').first()).n === 'Cheater',
     'САНИТАР: строка накрутчика всё ещё зовётся Cheater');
   expect(names3.includes('Honest') && !names3.includes('Cheater'),
@@ -136,20 +146,12 @@ async function score(worker, env, id, s, q, opts) {
   expect(seen.status === 200 && seen.json && typeof seen.json.rank === 'number',
     'СКРЫТОМУ МЕСТО ВСЁ РАВНО ОТДАЁТСЯ (он не должен узнать, что пойман)');
 
-  // ⚠️ ВОЗВРАТ ЧЕСТНОГО. Возрастной потолок меряет возраст СТРОКИ, а не игрока:
-  // у вернувшегося после чистки кэша строка новая, а баланс накоплен за недели.
-  // Он честно прячется на первой отправке — и обязан вернуться, как только
-  // значение снова укладывается в потолки. Без снятия флага он исчезал бы
-  // из таблицы НАВСЕГДА.
-  ins('gid1return01', 'Returner', 500, 40, 40);
-  await score(worker, env3, 'gid1return01', 50000, 2, { n: 'Returner' });
-  const r1 = await env3.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1return01').first();
-  env3.DB._raw.exec("UPDATE p SET c = c - 9000, u = u - 60 WHERE id='gid1return01'");
-  await score(worker, env3, 'gid1return01', 6000, 3, { n: 'Returner' });
-  const r2 = await env3.DB.prepare('SELECT s,f,cl FROM p WHERE id=?').bind('gid1return01').first();
-  expect(r1.f === 1 && r2.f === 0 && r2.cl === 0,
-    'ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ: скрыт (f=' + r1.f + ') -> чистая отправка вернула (f='
-    + r2.f + ', клампов ' + r2.cl + ')');
+  // ⚠️ СТРАЖ «ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ» УДАЛЁН ВМЕСТЕ С МЕХАНИКОЙ, а не ослаблен.
+  // Он проверял, что чистая отправка СНИМАЕТ автоматический флаг: возрастной
+  // потолок мерял возраст СТРОКИ, а не игрока, и вернувшийся после чистки кэша
+  // прятался ни за что. Снят весь тракт — и болезнь, и лекарство.
+  // ⛔ Не восстанавливать «под новое поведение»: снятие флага отправкой теперь
+  // означало бы, что спрятанный РУКАМИ возвращает себя сам первой же победой.
 
   // ===== 10. Лесенка и оценка места =====
   const est = worker._internals.estimateRank;
@@ -173,7 +175,7 @@ async function score(worker, env, id, s, q, opts) {
   const env2 = { DB: makeDB(SCHEMA) };
   const base = now() - 10000;
   for (let i = 1; i <= 12; i++) {
-    env2.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)')
+    env2.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
       .run('gid1user' + String(i).padStart(4,'0'), KEY, 'N' + i, 1, 1000 - i * 10, base + i, 1, base);
   }
   const tMe = now();
@@ -218,12 +220,12 @@ async function score(worker, env, id, s, q, opts) {
   // (имя приходит с клиента). Если бы чистая отправка снимала и его, спрятанный
   // руками возвращал бы себя сам первой же победой.
   const envA = { DB: makeDB(SCHEMA), ADMIN_TOKEN: 'secret' };
-  envA.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)')
+  envA.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
     .run('gid1grief001', KEY, 'Grief', 1, 5000, now() - 600, 1, now() - 100000);
   const hid = await worker.fetch(new Request('https://x/admin/hide', { method: 'POST',
     headers: { authorization: 'Bearer secret' }, body: JSON.stringify({ id: 'gid1grief001' }) }), envA);
   const afterHide = await envA.DB.prepare('SELECT f FROM p WHERE id=?').bind('gid1grief001').first();
-  await score(worker, envA, 'gid1grief001', 5200, 2, { n: 'Grief' });   // честный рост в потолках
+  await score(worker, envA, 'gid1grief001', 5200, 2, { n: 'Grief' });   // обычный рост
   const afterClean = await envA.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1grief001').first();
   expect(hid.status === 200 && afterHide.f > 0 && afterClean.f > 0 && afterClean.s === 5200,
     'РУЧНОЕ СКРЫТИЕ переживает чистую отправку (f ' + afterHide.f + ' -> ' + afterClean.f + ')');
@@ -243,7 +245,7 @@ async function score(worker, env, id, s, q, opts) {
   const envB = { DB: makeDB(SCHEMA) };
   const N = 50000, base0 = now() - 200000;
   envB.DB._raw.exec('BEGIN');
-  const st = envB.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)');
+  const st = envB.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)');
   for (let i = 0; i < N; i++) st.run('gidseed' + String(i).padStart(6, '0'), KEY, 'P' + i, 1,
     N - i, base0 + i, 1, base0);          // счёт уникален: истинное место = i+1
   envB.DB._raw.exec('COMMIT');
