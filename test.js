@@ -6083,6 +6083,111 @@ window.bridge = {
     'ЗВЁЗДЫ: боевая доля пульса — 1 из 10, как просил владелец (' + JSON.stringify(ручка) + ')');
   await starPage.close();
 
+  // ===== ТАБЛИЦА ЛИДЕРОВ: ОТПРАВКА СЧЁТА (зона ИНТЕГРАЦИИ) =====
+  // ⚠️ СЕКЦИЯ В КОНЦЕ И НА СВОЕЙ СТРАНИЦЕ: она чистит localStorage (нужен игрок
+  // с НУЛЕВЫМ балансом) и доигрывает уровень до победы — такой контекст соседям
+  // ломать нельзя. Тот же приём, что у камней и меню.
+  // ⚠️⚠️ СЕТИ ЗДЕСЬ НЕТ ВОВСЕ: `fetch` подменён ДО загрузки страницы
+  // (addInitScript), поэтому стенд не нужен, гонки загрузки нет по построению, а
+  // ответы сервера мы задаём сами — включая отказ по частоте.
+  {
+    const lbPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await lbPage.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test'); } catch (e) {}
+      window.__lbMock = { posts: [], rateOnce: false, retry: 1 };
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        if (String(u).indexOf('/v1/score') >= 0) {
+          let b = null; try { b = JSON.parse(o && o.body); } catch (e) {}
+          window.__lbMock.posts.push({ at: performance.now(), s: b && b.s });
+          if (window.__lbMock.rateOnce) {
+            window.__lbMock.rateOnce = false;
+            return Promise.resolve(new Response(JSON.stringify({ ok: 0, err: 'rate',
+              retry: window.__lbMock.retry, s: 0, rank: null }), { status: 429 }));
+          }
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: b && b.s,
+            rank: null, exact: 0, n: b && b.n }), { status: 200 }));
+        }
+        return of.apply(this, arguments);
+      };
+    });
+    await lbPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await lbPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await lbPage.evaluate(() => window.__game.skipIntro());
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // (1) НОЛЬ НЕ ОТПРАВЛЯЕТСЯ
+    // ⚠️ САНИТАР В ТОМ ЖЕ АССЕРТЕ ОБЯЗАТЕЛЕН: без проверки, что таблица ВКЛЮЧЕНА
+    // (`base` непустой), «ноль отправок» было бы истинно и на выключенной —
+    // то есть страж-тавтология. Он же ловит регрессию в разборе признака `?lb`.
+    // ⚠️⚠️ СТРАЖ ОБЯЗАН ИСПОЛНИТЬ ПРОВЕРЯЕМЫЙ ПУТЬ, А НЕ ЖДАТЬ ЕГО. Первая версия
+    // просто смотрела «после загрузки отправок ноль» — и была зелена по ПУСТОЙ
+    // причине: на `file://` облачный синк не запускается, событие баланса не
+    // приходит вовсе, и диверсия «ноль снова отправляется» ничего не ломала
+    // (двусторонний прогон показал «покраснели: НИЧЕГО»). Поэтому событие с
+    // нулевым балансом мы вызываем САМИ — банк нуля дёргает `fireStarsChange`
+    // безусловно, ровно как облачный синк у настоящего игрока.
+    await lbPage.evaluate(() => window.__game.bankScore(0));
+    await new Promise((r) => setTimeout(r, 1500));   // больше окна склейки 0.5 с
+    const приСтарте = await lbPage.evaluate(() => ({ n: window.__lbMock.posts.length,
+      bal: window.__game.leaderboardScore(), base: window.__lb.base() }));
+    expect(приСтарте.base === 'http://lb.test' && приСтарте.bal === 0 && приСтарте.n === 0,
+      'ТАБЛИЦА: НОЛЬ НЕ ОТПРАВЛЯЕТСЯ — событие баланса при нуле строку не заводит (адрес '
+      + JSON.stringify(приСтарте.base) + ', баланс ' + приСтарте.bal + ', отправок ' + приСтарте.n + ')');
+
+    // (2) ОДНА ОТПРАВКА НА ПОБЕДУ
+    // Сперва зарабатываем очки матчами: финальная зачистка очков НЕ начисляет,
+    // и на чистом `leaveSingles` баланс остался бы нулём — страж проверял бы
+    // пустоту (проверено замером до постановки стража).
+    await lbPage.evaluate(() => { for (let i = 0; i < 12; i++) window.__game.autoMatch(); });
+    await new Promise((r) => setTimeout(r, 700));
+    // ⚠️⚠️ ЖДЁМ ФАКТ, А НЕ ЧАСЫ, И ВЫИГРЫВАЕМ КАК ИГРОК. Первая версия звала
+    // `leaveSingles` и крутила фиксированные 300×60 мс: одиночки доедает ФИНАЛ
+    // по предмету за 0.5 с, на восьми десятках это минуты — замер приходил ДО
+    // банка, баланс был нулём, и страж краснел на ИСПРАВНОЙ сборке.
+    // Теперь матчим пары, при тупике встряхиваем, а выходим по СОБЫТИЮ:
+    // уровень закончен И счёт забанкован.
+    let дождались = false;
+    for (let i = 0; i < 600; i++) {
+      const st = await lbPage.evaluate(() => { const g = window.__game;
+        const over = !!(g.level() && g.level().over);
+        if (!over) { if (g.availablePairs() === 0) g.shake(); else g.autoMatch(); }
+        return { over: over, bal: g.leaderboardScore() }; });
+      if (st.over && st.bal > 0) { дождались = true; break; }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    await new Promise((r) => setTimeout(r, 1800));   // пусть отработает отложенный таймер
+    const победа = await lbPage.evaluate(() => ({ posts: window.__lbMock.posts.slice(),
+      bal: window.__game.leaderboardScore() }));
+    expect(дождались && победа.bal > 0 && победа.posts.length === 1 && победа.posts[0].s === победа.bal,
+      'ТАБЛИЦА: ОДНА ОТПРАВКА НА ПОБЕДУ — банк и подписка не дублируют друг друга (отправок '
+      + победа.posts.length + ', ушло ' + JSON.stringify(победа.posts.map((x) => x.s))
+      + ', баланс ' + победа.bal + ', победа дождалась: ' + дождались + ')');
+
+    // (3) 429 НЕ ТЕРЯЕТСЯ, И ЗАДЕРЖКУ КЛИЕНТ БЕРЁТ ИЗ ТЕЛА
+    // ⚠️ РАЗЛИЧАЮЩИЙ ПРИЗНАК: мок говорит `retry: 1`, а собственный фолбэк
+    // клиента — 30 с. Ждём три секунды: успел повторить — значит прочитал ТЕЛО;
+    // держит свою константу — страж краснеет.
+    await lbPage.evaluate(() => { window.__lbMock.rateOnce = true; window.__lbMock.posts.length = 0; });
+    await lbPage.evaluate((n) => window.__game.spendStars(n), Math.max(1, Math.floor(победа.bal / 2)));
+    // ждём ФАКТ повторной отправки, потолок 5 с — он и различает: своя константа
+    // клиента 30 с, значит уложиться можно ТОЛЬКО прочитав `retry` из тела.
+    let отказ = null;
+    for (let i = 0; i < 50; i++) {
+      отказ = await lbPage.evaluate(() => ({ posts: window.__lbMock.posts.slice(),
+        bal: window.__game.leaderboardScore(), lb: window.__lb.pending() }));
+      if (отказ.posts.length >= 2 && !отказ.lb.timer) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const последняя = отказ.posts[отказ.posts.length - 1];
+    expect(отказ.bal < победа.bal && отказ.posts.length >= 2 && !!последняя
+      && последняя.s === отказ.bal && !отказ.lb.timer,
+      'ТАБЛИЦА: 429 НЕ ТЕРЯЕТСЯ — после отказа отправка повторилась с новым числом (отправок '
+      + отказ.posts.length + ', ушло ' + JSON.stringify(отказ.posts.map((x) => x.s))
+      + ', баланс ' + отказ.bal + ')');
+    await lbPage.close();
+  }
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();
