@@ -143,8 +143,13 @@ async function score(worker, env, id, s, q, opts) {
 
   env3.DB._raw.exec("UPDATE p SET u = u - 60 WHERE id='gid1cheat001'");
   const seen = await score(worker, env3, 'gid1cheat001', 900, 3, { n: 'Cheater' });
-  expect(seen.status === 200 && seen.json && typeof seen.json.rank === 'number',
-    'СКРЫТОМУ МЕСТО ВСЁ РАВНО ОТДАЁТСЯ (он не должен узнать, что пойман)');
+  // ⚠️ Ассертим ФОРМУ, а не тип `rank`: на базе меньше сотни игроков честная
+  // оценка — `null` (см. estimateRank), и «typeof number» краснел бы на
+  // ИСПРАВНОЙ сборке. Свойство здесь другое: скрытому отвечают ровно как всем.
+  expect(seen.status === 200 && seen.json && seen.json.ok === 1
+    && 'rank' in seen.json && seen.json.exact === 0,
+    'СКРЫТОМУ ОТВЕЧАЮТ КАК ВСЕМ (он не должен узнать, что пойман; rank '
+    + JSON.stringify(seen.json.rank) + ')');
 
   // ⚠️ СТРАЖ «ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ» УДАЛЁН ВМЕСТЕ С МЕХАНИКОЙ, а не ослаблен.
   // Он проверял, что чистая отправка СНИМАЕТ автоматический флаг: возрастной
@@ -154,10 +159,24 @@ async function score(worker, env, id, s, q, opts) {
   // означало бы, что спрятанный РУКАМИ возвращает себя сам первой же победой.
 
   // ===== 10. Лесенка и оценка места =====
+  // ⚠️⚠️ ОЦЕНКА — ГРАНИЦА «НЕ ЛУЧШЕ N», А НЕ МЕСТО, и `null` тут законный ответ.
+  // ДВА случая, где границы нет, и оба РАНЬШЕ отдавали уверенную единицу:
+  //   • лесенка пуста (в таблице меньше сотни игроков — то есть первые недели
+  //     после запуска, ровно когда на таблицу и смотрят);
+  //   • счёт выше первой ступени: известно лишь «где-то в первой сотне».
+  // Первый нашёл живой прогон клиента, второй пережил бы починку первого.
   const est = worker._internals.estimateRank;
-  expect(est([900, 800, 700], 1000) === 1 && est([900, 800, 700], 850) === 100
+  expect(est([], 1000) === null && est(null, 1000) === null,
+    'ОЦЕНКА: пустая лесенка отвечает null, а не «место 1» каждому');
+  expect(est([900, 800, 700], 1000) === null && est([900, 800, 700], 850) === 100
       && est([900, 800, 700], 650) === 300,
-    'ЛЕСЕНКА: оценка места монотонна и без обращений к базе');
+    'ОЦЕНКА: выше первой ступени — null, ниже — монотонная граница (100/300)');
+  // ⚠️ И ЖИВОЙ ЗАМЕР, а не только чистая функция: настоящий ответ сервера на
+  // маленькой базе обязан нести `null`. Без него страж проверял бы формулу, а
+  // не то, что уезжает клиенту.
+  expect(grow.json.rank === null && grow.json.exact === 0,
+    'ЖИВОЙ ОТВЕТ на базе меньше сотни: rank ' + JSON.stringify(grow.json.rank)
+    + ' при exact ' + grow.json.exact);
 
   // ===== 11. /top — из снимка, с кэшем =====
   const topRes = await worker.fetch(new Request('https://x/v1/top?p=1'), env3);
@@ -178,12 +197,22 @@ async function score(worker, env, id, s, q, opts) {
     env2.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
       .run('gid1user' + String(i).padStart(4,'0'), KEY, 'N' + i, 1, 1000 - i * 10, base + i, 1, base);
   }
+  // ⚠️⚠️ СНИМОК СТРОИМ НАСТОЯЩИМ СТРОИТЕЛЕМ, а не подсовываем пустой массив:
+  // диспетчер просил подтвердить ЗАМЕРОМ, что при базе меньше сотни игроков
+  // лесенка выходит ПУСТОЙ (она берёт каждое сотое место), и что точное место
+  // в этой ветке (`bound === null`, полный пересчёт по живой таблице) считается
+  // верно. Порядок как в бою: сперва крон собрал снимок, потом пришёл игрок.
+  await worker._internals.buildSnapshot(env2);
+  const ladSteps = JSON.parse((await env2.DB.prepare('SELECT v FROM snap WHERE k=?')
+    .bind('ladder').first()).v);
   const tMe = now();
   const meRes = await worker.fetch(new Request('https://x/v1/me?id=gid1user0005&t=' + tMe
     + '&sig=' + await sign(KEY, 'gid1user0005.me.' + tMe)), env2);
   const me = JSON.parse(await meRes.text());
-  expect(me.ok === 1 && me.rank === 5 && me.exact === 1 && me.up.length === 4 + 1 - 1 + 1 - 1,
-    '/me: точное место посчитано (rank ' + me.rank + ')');
+  expect(me.ok === 1 && me.rank === 5 && me.exact === 1 && ladSteps.length === 0
+    && me.up.length === 4 + 1 - 1 + 1 - 1,
+    '/me: точное место верно ПРИ ПУСТОЙ ЛЕСЕНКЕ — 12 игроков дают 0 ступеней '
+    + '(rank ' + me.rank + ', ступеней ' + ladSteps.length + ')');
   expect(me.up.length === 4 && me.dn.length === 5,
     '/me: соседи выше/ниже (' + me.up.length + ' / ' + me.dn.length + ')');
   expect(me.up[me.up.length - 1][2] === 1000 - 4 * 10,
