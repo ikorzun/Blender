@@ -133,7 +133,13 @@ function winLbSource(){
     // место по последнему записанному результату, молча.
     const s = await lb.submit().catch(()=>null);
     const m = await lb.me();
-    return { state:m && m.state, rank:m && m.rank, score:m && m.score,
+    // ⚠️⚠️ МЕСТО БЕРЁМ ТОЛЬКО ИЗ /me И ТОЛЬКО ТОЧНОЕ. У ответа на ОТПРАВКУ тоже
+    // есть поле `rank`, и брать его нельзя: это ПРИКИДКА по лесенке снимка, а
+    // лесенка строится по каждому сотому игроку — пока в таблице меньше сотни
+    // строк, ступеней в ней нет ВООБЩЕ, и быстрый ответ отвечает «место 1»
+    // КАЖДОМУ (замер диспетчера 2026-08-09). Меньше сотни — это состояние
+    // таблицы в первые недели после запуска, то есть врал бы он всем и сразу.
+    return { state:m && m.state, rank:m && m.rank, exact:m && m.exact, score:m && m.score,
              up:m && m.up, dn:m && m.dn,
              sent:s && s.sent, server:(s && s.score != null) ? s.score : (m && m.score) };
   };
@@ -141,7 +147,12 @@ function winLbSource(){
 // АДАПТЕР: ответ протокола -> вью-модель экрана. Отдаёт null = врезка молчит.
 function winLbAdapt(raw){
   if (!raw || raw.state !== 'ok') return null;      // early/offline/broken — молча
+  // МОЕЙ СТРОКИ В ВЫДАЧЕ НЕТ (ещё не отправлялся, строку скрыли) — тоже молча.
   const rank = raw.rank | 0; if (rank < 1) return null;
+  // ⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО. Прикидку сервер помечает сам; показать её как место
+  // значит соврать числом, которое выглядит настоящим. Экран держит это сам и
+  // не зависит от того, поправят ли прикидку на сервере (указание диспетчера).
+  if (raw.exact === false || raw.exact === 0) return null;
   const num = (v)=> (typeof v === 'number' && isFinite(v)) ? v : null;
   // ⚠️⚠️ СОСЕДИ БЕРУТСЯ ПО СЧЁТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ. Порядок внутри
   // up/dn — часть чужого контракта (nearest-first или best-first), и угадывать
@@ -152,7 +163,13 @@ function winLbAdapt(raw){
   const clean = (a)=> (Array.isArray(a) ? a : []).filter(e => e && num(e.score) !== null);
   const up = clean(raw.up).slice().sort((a,b)=> a.score - b.score);   // ближайший сверху первым
   const dn = clean(raw.dn).slice().sort((a,b)=> b.score - a.score);   // ближайший снизу первым
-  const sent = num(raw.sent), server = num(raw.server);
+  // ⚠️⚠️ В СВОЕЙ СТРОКЕ — ТО, ЧТО ЗАПИСАЛ СЕРВЕР, А НЕ ТО, ЧТО МЫ ПОСЛАЛИ.
+  // Отдельного ЭКРАНА под расхождение больше нет (владелец 2026-08-09 снял
+  // потолок доверия целиком), но САМО РАЗДЕЛЕНИЕ несущее и остаётся: сервер
+  // отказывает по частоте, по подписи, мягко деградирует на упавшей базе — и
+  // «тело разобралось» успехом не является. Клиент, рисующий ОТПРАВЛЕННОЕ
+  // число, показывал бы несуществующий результат в каждом таком случае.
+  const server = num(raw.server);
   const me = { pos:rank, name:'You', av:(typeof guestAvatar === 'function' ? guestAvatar() : ''),
                score:(server !== null ? server : num(raw.score) || 0), me:true };
   // ⚠️ СТРОК ВСЕГДА ТРИ — на этом стоит зарезервированная высота слота
@@ -164,18 +181,12 @@ function winLbAdapt(raw){
   if (dn[0]) rows.push({ pos:rank + 1, name:dn[0].name, av:dn[0].av, score:dn[0].score });
   if (rows.length < 3 && dn[1]) rows.push({ pos:rank + 2, name:dn[1].name, av:dn[1].av, score:dn[1].score });
   if (rows.length < 3 && up[1]) rows.unshift({ pos:rank - 2, name:up[1].name, av:up[1].av, score:up[1].score });
-  // ⚠️⚠️ ЗАНИЖЕННОЕ ЧИСЛО ПОКАЗЫВАЕМ (решение владельца 2026-08-09: вариант
-  // «не показывать, пока сервер не догнал» ОТКЛОНЁН). Сервер режет счёт новой
-  // строки потолком доверия — в игре может быть 50 000, а в таблице 2 000.
-  // Значит в строке стоит то, что записал СЕРВЕР, а не то, что мы послали,
-  // и расхождение объясняется словами, а не прячется.
-  const clipped = (sent !== null && server !== null && server < sent);
-  return { rows, clipped, rank };
+  return { rows, rank };
 }
 function winLbRender(v){
-  const box = $('winLb'), list = $('winLbList'), note = $('winLbNote');
+  const box = $('winLb'), list = $('winLbList');
   if (!box || !list) return;
-  if (!v){ box.classList.remove('on'); list.innerHTML = ''; if (note) note.textContent = ''; return; }
+  if (!v){ box.classList.remove('on'); list.innerHTML = ''; return; }
   list.innerHTML = '';
   v.rows.forEach(r => {
     const row = document.createElement('div');
@@ -196,7 +207,6 @@ function winLbRender(v){
     row.append(pos, av, nm, sc);
     list.appendChild(row);
   });
-  if (note) note.textContent = v.clipped ? 'Score still being verified' : '';
   box.classList.add('on');
 }
 function renderWinLb(){

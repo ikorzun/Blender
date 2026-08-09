@@ -803,9 +803,9 @@
      свой размер во ВСЕХ состояниях: три строки всегда, примечание всегда
      занимает строку, а «нет данных» гасится `visibility` (она сохраняет
      раскладку), НЕ `display`. Меняешь состав строк — пересчитай число.
-     19 (метка) + 10 + 132 (3×40 + 2×6) + 10 + 16 (примечание) = 187. */
+     19 (метка) + 10 (зазор) + 132 (3×40 + 2×6) = 161. */
   .win-lb { width:100%; display:flex; flex-direction:column; gap:10px;
-    min-height:187px; margin-bottom:26px; }
+    min-height:161px; margin-bottom:26px; }
   .win-lb > * { visibility:hidden; }
   .win-lb.on > * { visibility:visible; }
   .win-lb-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; line-height:19px; }
@@ -827,11 +827,6 @@
     text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
   .wl-row.me .wl-name { opacity:1; }
   .wl-score { flex:none; font-weight:900; font-size:17px; }
-  /* ПРИМЕЧАНИЕ — строка ВСЕГДА на месте (пустая, если сказать нечего): её
-     появление иначе двигало бы карточку, ради чего и затевался min-height. */
-  .win-lb-note { height:16px; line-height:16px; color:#fff; opacity:.7;
-    font-size:13px; font-weight:700; padding-left:2px;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
   .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
   .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
@@ -1861,13 +1856,14 @@
          НАД врезкой стоит Next: приход ответа не смеет сдвинуть кнопку из-под
          пальца (у .win-wrap margin:auto, рост карточки двигает и то, что выше).
          Поэтому же строк ВСЕГДА три и строка примечания всегда занимает место.
-         ⚠️ Нет данных (нет сети / снимок ещё не построен / мусор в ответе) —
-         врезка МОЛЧИТ, пустой слот невидим. Текста ошибки тут не будет:
-         таблица украшение, экран победы она не ломает. -->
+         ⚠️ СОСТОЯНИЙ ЧЕТЫРЕ: список пришёл · пусто-но-рано (снимок ещё не
+         построен) · нет сети или мусор в ответе · моей строки в выдаче нет.
+         Видимое из них ОДНО — список; три остальных МОЛЧАТ, пустой слот
+         невидим. Текста ошибки тут нет и не будет: таблица украшение, экран
+         победы она не ломает. -->
     <div class="win-lb" id="winLb">
       <div class="win-lb-label">LEADERBOARD</div>
       <div class="win-lb-list" id="winLbList"></div>
-      <div class="win-lb-note" id="winLbNote"></div>
     </div>
     <div class="win-top">
       <div class="win-top-label">TOP ITEMS</div>
@@ -11546,7 +11542,13 @@ function winLbSource(){
     // место по последнему записанному результату, молча.
     const s = await lb.submit().catch(()=>null);
     const m = await lb.me();
-    return { state:m && m.state, rank:m && m.rank, score:m && m.score,
+    // ⚠️⚠️ МЕСТО БЕРЁМ ТОЛЬКО ИЗ /me И ТОЛЬКО ТОЧНОЕ. У ответа на ОТПРАВКУ тоже
+    // есть поле `rank`, и брать его нельзя: это ПРИКИДКА по лесенке снимка, а
+    // лесенка строится по каждому сотому игроку — пока в таблице меньше сотни
+    // строк, ступеней в ней нет ВООБЩЕ, и быстрый ответ отвечает «место 1»
+    // КАЖДОМУ (замер диспетчера 2026-08-09). Меньше сотни — это состояние
+    // таблицы в первые недели после запуска, то есть врал бы он всем и сразу.
+    return { state:m && m.state, rank:m && m.rank, exact:m && m.exact, score:m && m.score,
              up:m && m.up, dn:m && m.dn,
              sent:s && s.sent, server:(s && s.score != null) ? s.score : (m && m.score) };
   };
@@ -11554,7 +11556,12 @@ function winLbSource(){
 // АДАПТЕР: ответ протокола -> вью-модель экрана. Отдаёт null = врезка молчит.
 function winLbAdapt(raw){
   if (!raw || raw.state !== 'ok') return null;      // early/offline/broken — молча
+  // МОЕЙ СТРОКИ В ВЫДАЧЕ НЕТ (ещё не отправлялся, строку скрыли) — тоже молча.
   const rank = raw.rank | 0; if (rank < 1) return null;
+  // ⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО. Прикидку сервер помечает сам; показать её как место
+  // значит соврать числом, которое выглядит настоящим. Экран держит это сам и
+  // не зависит от того, поправят ли прикидку на сервере (указание диспетчера).
+  if (raw.exact === false || raw.exact === 0) return null;
   const num = (v)=> (typeof v === 'number' && isFinite(v)) ? v : null;
   // ⚠️⚠️ СОСЕДИ БЕРУТСЯ ПО СЧЁТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ. Порядок внутри
   // up/dn — часть чужого контракта (nearest-first или best-first), и угадывать
@@ -11565,7 +11572,13 @@ function winLbAdapt(raw){
   const clean = (a)=> (Array.isArray(a) ? a : []).filter(e => e && num(e.score) !== null);
   const up = clean(raw.up).slice().sort((a,b)=> a.score - b.score);   // ближайший сверху первым
   const dn = clean(raw.dn).slice().sort((a,b)=> b.score - a.score);   // ближайший снизу первым
-  const sent = num(raw.sent), server = num(raw.server);
+  // ⚠️⚠️ В СВОЕЙ СТРОКЕ — ТО, ЧТО ЗАПИСАЛ СЕРВЕР, А НЕ ТО, ЧТО МЫ ПОСЛАЛИ.
+  // Отдельного ЭКРАНА под расхождение больше нет (владелец 2026-08-09 снял
+  // потолок доверия целиком), но САМО РАЗДЕЛЕНИЕ несущее и остаётся: сервер
+  // отказывает по частоте, по подписи, мягко деградирует на упавшей базе — и
+  // «тело разобралось» успехом не является. Клиент, рисующий ОТПРАВЛЕННОЕ
+  // число, показывал бы несуществующий результат в каждом таком случае.
+  const server = num(raw.server);
   const me = { pos:rank, name:'You', av:(typeof guestAvatar === 'function' ? guestAvatar() : ''),
                score:(server !== null ? server : num(raw.score) || 0), me:true };
   // ⚠️ СТРОК ВСЕГДА ТРИ — на этом стоит зарезервированная высота слота
@@ -11577,18 +11590,12 @@ function winLbAdapt(raw){
   if (dn[0]) rows.push({ pos:rank + 1, name:dn[0].name, av:dn[0].av, score:dn[0].score });
   if (rows.length < 3 && dn[1]) rows.push({ pos:rank + 2, name:dn[1].name, av:dn[1].av, score:dn[1].score });
   if (rows.length < 3 && up[1]) rows.unshift({ pos:rank - 2, name:up[1].name, av:up[1].av, score:up[1].score });
-  // ⚠️⚠️ ЗАНИЖЕННОЕ ЧИСЛО ПОКАЗЫВАЕМ (решение владельца 2026-08-09: вариант
-  // «не показывать, пока сервер не догнал» ОТКЛОНЁН). Сервер режет счёт новой
-  // строки потолком доверия — в игре может быть 50 000, а в таблице 2 000.
-  // Значит в строке стоит то, что записал СЕРВЕР, а не то, что мы послали,
-  // и расхождение объясняется словами, а не прячется.
-  const clipped = (sent !== null && server !== null && server < sent);
-  return { rows, clipped, rank };
+  return { rows, rank };
 }
 function winLbRender(v){
-  const box = $('winLb'), list = $('winLbList'), note = $('winLbNote');
+  const box = $('winLb'), list = $('winLbList');
   if (!box || !list) return;
-  if (!v){ box.classList.remove('on'); list.innerHTML = ''; if (note) note.textContent = ''; return; }
+  if (!v){ box.classList.remove('on'); list.innerHTML = ''; return; }
   list.innerHTML = '';
   v.rows.forEach(r => {
     const row = document.createElement('div');
@@ -11609,7 +11616,6 @@ function winLbRender(v){
     row.append(pos, av, nm, sc);
     list.appendChild(row);
   });
-  if (note) note.textContent = v.clipped ? 'Score still being verified' : '';
   box.classList.add('on');
 }
 function renderWinLb(){
@@ -15473,8 +15479,7 @@ window.__game = {
   // «страж наблюдает свойство, а не его подделку»). Высота — из живого rect:
   // на ней стоит инвариант «слот не меняет размер между состояниями».
   winLbInfo(){
-    const box = document.getElementById('winLb'), list = document.getElementById('winLbList'),
-          note = document.getElementById('winLbNote');
+    const box = document.getElementById('winLb'), list = document.getElementById('winLbList');
     if (!box || !list) return null;
     const rows = Array.prototype.map.call(list.querySelectorAll('.wl-row'), r => {
       const q = (s)=> r.querySelector(s), t = (s)=> { const e = q(s); return e ? e.textContent : ''; };
@@ -15482,7 +15487,7 @@ window.__game = {
       return { pos:t('.wl-pos'), name:t('.wl-name'), score:t('.wl-score'),
                me:r.classList.contains('me'), av:img ? img.getAttribute('src') : null };
     });
-    return { on:box.classList.contains('on'), rows, note:note ? note.textContent : '',
+    return { on:box.classList.contains('on'), rows,
              h:Math.round(box.getBoundingClientRect().height) };
   },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋

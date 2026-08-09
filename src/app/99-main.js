@@ -1055,8 +1055,7 @@ window.__game = {
   // «страж наблюдает свойство, а не его подделку»). Высота — из живого rect:
   // на ней стоит инвариант «слот не меняет размер между состояниями».
   winLbInfo(){
-    const box = document.getElementById('winLb'), list = document.getElementById('winLbList'),
-          note = document.getElementById('winLbNote');
+    const box = document.getElementById('winLb'), list = document.getElementById('winLbList');
     if (!box || !list) return null;
     const rows = Array.prototype.map.call(list.querySelectorAll('.wl-row'), r => {
       const q = (s)=> r.querySelector(s), t = (s)=> { const e = q(s); return e ? e.textContent : ''; };
@@ -1064,7 +1063,7 @@ window.__game = {
       return { pos:t('.wl-pos'), name:t('.wl-name'), score:t('.wl-score'),
                me:r.classList.contains('me'), av:img ? img.getAttribute('src') : null };
     });
-    return { on:box.classList.contains('on'), rows, note:note ? note.textContent : '',
+    return { on:box.classList.contains('on'), rows,
              h:Math.round(box.getBoundingClientRect().height) };
   },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
