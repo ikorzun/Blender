@@ -145,7 +145,15 @@ async function score(worker, env, id, s, q, opts) {
   await score(worker, env3, 'gid1return01', 50000, 2, { n: 'Returner' });
   const r1 = await env3.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1return01').first();
   env3.DB._raw.exec("UPDATE p SET c = c - 9000, u = u - 60 WHERE id='gid1return01'");
-  await score(worker, env3, 'gid1return01', 6000, 3, { n: 'Returner' });
+  // ⚠️ Шлём «сохранённое + 500», а НЕ фиксированное число: этот страж про
+  // СНЯТИЕ ФЛАГА, и он не должен быть вторым детектором `GROW_PER_S`.
+  // На литерале он ломался при смене потолка (25 → 125 подняла обрезанное
+  // значение выше литерала, и «чистый рост» стал ПАДЕНИЕМ — ветка снятия
+  // флага не исполнялась вовсе, ассерт краснел на исправной сборке).
+  // Прирост 500 укладывается в потолок при любом GROW_PER_S: `cap` не
+  // меньше `s + GROW_BASE`.
+  const backCur = (await env3.DB.prepare('SELECT s FROM p WHERE id=?').bind('gid1return01').first()).s;
+  await score(worker, env3, 'gid1return01', backCur + 500, 3, { n: 'Returner' });
   const r2 = await env3.DB.prepare('SELECT s,f,cl FROM p WHERE id=?').bind('gid1return01').first();
   expect(r1.f === 1 && r2.f === 0 && r2.cl === 0,
     'ЧЕСТНЫЙ ВОЗВРАЩЕНЕЦ: скрыт (f=' + r1.f + ') -> чистая отправка вернула (f='
@@ -274,6 +282,33 @@ async function score(worker, env, id, s, q, opts) {
   const dead = JSON.parse(await deadRes.text());
   expect(deadRes.status === 200 && dead.stale === 1,
     '/top при упавшей базе: 200 с пометкой, не 503 (' + deadRes.status + ')');
+
+  // ===== 19. ПОТОЛОК ДОВЕРИЯ — ДВА АССЕРТА ПО ОБЕ СТОРОНЫ ЧИСЛА =====
+  // ⚠️ Решение владельца 2026-08-09: `GROW_PER_S` 25 → 125. Страж утверждает
+  // ИМЕННО НОВОЕ значение, поэтому на сборке со старым он ОБЯЗАН краснеть
+  // (диверсия в break.js это показывает).
+  // ⚠️⚠️ ДВА АССЕРТА, А НЕ ОДИН: «принимает 9 000» в одиночку зелен и при
+  // 625/с, и при 6250/с — то есть проверял бы ПОТОЛОК, а не ГРАНИЦУ.
+  // Пара «принимает 9 000 / режет 20 000» зажимает 125 с обеих сторон
+  // (при 60 с возрасте потолок ровно 125·60 + 2000 = 9 500).
+  const envC = { DB: makeDB(SCHEMA) };
+  const aged = (id, sc) => envC.DB._raw
+    .prepare('INSERT INTO p (id,k,n,a,s,u,q,c,cl,f) VALUES (?,?,?,?,?,?,?,?,0,0)')
+    .run(id, KEY, 'Trust', 1, sc, now() - 60, 1, now() - 60);   // строке ровно минута
+  aged('gid1trust001', 100);
+  aged('gid1trust002', 100);
+
+  const okSend = await score(worker, envC, 'gid1trust001', 9000, 2, { n: 'Trust' });
+  const okRow = await envC.DB.prepare('SELECT s,f,cl FROM p WHERE id=?').bind('gid1trust001').first();
+  expect(okSend.status === 200 && okRow.s === 9000 && okRow.f === 0 && okRow.cl === 0,
+    'ПОТОЛОК ДОВЕРИЯ: строка возрастом 60 с ПРИНИМАЕТ 9 000 без клампа (s '
+    + okRow.s + ', f ' + okRow.f + ')');
+
+  const bigSend = await score(worker, envC, 'gid1trust002', 20000, 2, { n: 'Trust' });
+  const bigRow = await envC.DB.prepare('SELECT s,f FROM p WHERE id=?').bind('gid1trust002').first();
+  expect(bigSend.status === 200 && bigRow.s < 20000 && bigRow.f === 1,
+    'ПОТОЛОК ДОВЕРИЯ: та же строка РЕЖЕТ 20 000 и прячет (s ' + bigRow.s
+    + ', f ' + bigRow.f + ')');
 
   console.log('\nВСЕГО PASS: ' + pass + (fails.length ? ' | FAIL: ' + fails.length : ''));
   if (fails.length) { console.log('SUITE: FAIL — ' + fails.join(' || ')); process.exit(1); }

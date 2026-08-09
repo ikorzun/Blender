@@ -64,6 +64,10 @@ const SABOTAGE = [
     find: 'catch (e) { snap = null; }',
     repl: 'catch (e) { throw e; }',
     expect: '/top при упавшей базе' },
+  { name: 'потолок доверия откачен на старые 25/с',
+    find: 'const GROW_PER_S = 125;',
+    repl: 'const GROW_PER_S = 25;',
+    expect: 'ПОТОЛОК ДОВЕРИЯ: строка возрастом 60 с ПРИНИМАЕТ' },
 ];
 
 function runSuite(srcPath) {
