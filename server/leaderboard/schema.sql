@@ -11,8 +11,7 @@ CREATE TABLE IF NOT EXISTS p (
   s  INTEGER NOT NULL,            -- позиция = leaderboardScore(), ПОСЛЕДНЕЕ
   u  INTEGER NOT NULL,            -- unix-сек последней записи: тай-брейк + rate-limit
   q  INTEGER NOT NULL DEFAULT 0,  -- seq клиента, монотонный (анти-реплей)
-  c  INTEGER NOT NULL,            -- создано: потолок правдоподобия по возрасту
-  cl INTEGER NOT NULL DEFAULT 0,  -- сколько раз клампили прирост
+  c  INTEGER NOT NULL,            -- создано (для ручной модерации; механикой не читается)
   f  INTEGER NOT NULL DEFAULT 0   -- 1 = скрыт из общей таблицы
 );
 
