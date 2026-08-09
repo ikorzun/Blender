@@ -796,6 +796,42 @@
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer; transition:background-color .15s;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
+  /* --- ВРЕЗКА ТАБЛИЦЫ: место игрока + соседи (после каждого уровня) ---
+     ⚠️⚠️ `min-height` — НЕСУЩЕЕ, А НЕ КОСМЕТИКА. Данные приезжают асинхронно,
+     а над врезкой стоит Next; при `margin:auto` у .win-wrap рост карточки
+     двигает и то, что ВЫШЕ неё, то есть кнопку под пальцем игрока. Слот держит
+     свой размер во ВСЕХ состояниях: три строки всегда, примечание всегда
+     занимает строку, а «нет данных» гасится `visibility` (она сохраняет
+     раскладку), НЕ `display`. Меняешь состав строк — пересчитай число.
+     19 (метка) + 10 + 132 (3×40 + 2×6) + 10 + 16 (примечание) = 187. */
+  .win-lb { width:100%; display:flex; flex-direction:column; gap:10px;
+    min-height:187px; margin-bottom:26px; }
+  .win-lb > * { visibility:hidden; }
+  .win-lb.on > * { visibility:visible; }
+  .win-lb-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; line-height:19px; }
+  .win-lb-list { display:flex; flex-direction:column; gap:6px; }
+  .wl-row { display:flex; align-items:center; gap:8px; height:40px; box-sizing:border-box;
+    padding:0 12px 0 8px; border-radius:1000px; color:#fff; }
+  /* СВОЯ строка — той же пилюлей, что награда рядом (fon .16 + лаймовое
+     свечение внутрь): язык экрана уже задан, свой цвет тут был бы чужим. */
+  .wl-row.me { background:rgba(255,255,255,.16); box-shadow:inset 0 0 28px 0 #c0ff47; }
+  .wl-pos { flex:none; min-width:34px; font-weight:900; font-size:17px; opacity:.75; }
+  .wl-row.me .wl-pos { opacity:1; }
+  /* ⚠️ БЕЗ ПОДЛОЖКИ И БЕЗ border-radius — оба запрещены прямым словом владельца
+     (2026-08-05 «под картинкой не должно быть никакого фона», 2026-08-06 про
+     «рваные пиксели по контуру»): аватары уже круглые, со сглаженной альфой,
+     и наша обрезка резала бы поверх их края. Тот же рецепт, что у профиля. */
+  .wl-av { flex:none; width:28px; height:28px; background:transparent; }
+  .wl-av img { width:100%; height:100%; object-fit:contain; display:block; }
+  .wl-name { flex:1; min-width:0; font-weight:800; font-size:17px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
+  .wl-row.me .wl-name { opacity:1; }
+  .wl-score { flex:none; font-weight:900; font-size:17px; }
+  /* ПРИМЕЧАНИЕ — строка ВСЕГДА на месте (пустая, если сказать нечего): её
+     появление иначе двигало бы карточку, ради чего и затевался min-height. */
+  .win-lb-note { height:16px; line-height:16px; color:#fff; opacity:.7;
+    font-size:13px; font-weight:700; padding-left:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* --- TOP ITEMS (та же строка, что у витрины: портрет+имя+лайм-прогресс+×множитель) --- */
   .win-top { width:100%; display:flex; flex-direction:column; gap:10px; }
   .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
@@ -1818,6 +1854,20 @@
         <span class="win-reward-n">+1</span>
       </div>
       <button class="win-next" id="againBtn">Next</button>
+    </div>
+    <!-- ВРЕЗКА ТАБЛИЦЫ: место игрока + соседи сверху/снизу после каждого уровня.
+         ⚠️⚠️ ВЫСОТА ЗАРЕЗЕРВИРОВАНА С ПЕРВОГО КАДРА (.win-lb min-height) И НЕ
+         МЕНЯЕТСЯ НИ В ОДНОМ СОСТОЯНИИ — данные приезжают асинхронно, а прямо
+         НАД врезкой стоит Next: приход ответа не смеет сдвинуть кнопку из-под
+         пальца (у .win-wrap margin:auto, рост карточки двигает и то, что выше).
+         Поэтому же строк ВСЕГДА три и строка примечания всегда занимает место.
+         ⚠️ Нет данных (нет сети / снимок ещё не построен / мусор в ответе) —
+         врезка МОЛЧИТ, пустой слот невидим. Текста ошибки тут не будет:
+         таблица украшение, экран победы она не ломает. -->
+    <div class="win-lb" id="winLb">
+      <div class="win-lb-label">LEADERBOARD</div>
+      <div class="win-lb-list" id="winLbList"></div>
+      <div class="win-lb-note" id="winLbNote"></div>
     </div>
     <div class="win-top">
       <div class="win-top-label">TOP ITEMS</div>

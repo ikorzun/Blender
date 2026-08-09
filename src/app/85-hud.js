@@ -44,7 +44,7 @@ function hide(id){
   $(id).style.display = 'none';
   // вернулись в игру — экран снова 'game' (если партия жива)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
-  if (id === 'winOverlay') winStopScore();
+  if (id === 'winOverlay'){ winStopScore(); winLbStop(); }
 }
 
 // ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
@@ -84,6 +84,7 @@ function renderWinScreen(){
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
   renderWinTop(reduce);
+  renderWinLb();
   // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
   winStopScore();
   const st = $('winScore');
@@ -105,6 +106,114 @@ function renderWinScreen(){
   // ПЕРЕЗАПУСК ВХОДНОЙ АНИМАЦИИ: reflow-трюк — CSS-анимации детей отыгрывают
   // заново при каждом показе (быстрый Next→win не «съедает» анимацию)
   wrap.classList.remove('win-in'); void wrap.offsetWidth; wrap.classList.add('win-in');
+}
+// ===== ВРЕЗКА ТАБЛИЦЫ НА ЭКРАНЕ ПОБЕДЫ (место + соседи) =====
+// ⚠️⚠️ ШОВ С МОДУЛЕМ ТАБЛИЦЫ ЖИВЁТ РОВНО ЗДЕСЬ, В ОДНОЙ ФУНКЦИИ. Протокол
+// (подпись, коды, частота) — зона ИНТЕГРАЦИИ; экран — моя. Переименуют поля
+// ответа — правка в `winLbAdapt`, а вёрстка, состояния и стражи не двигаются.
+const WIN_LB_MS = 2500;      // ⚠️ ПРОДУКТОВЫЙ СРОК, А НЕ ПАУЗА ЗАМЕРА: не дождались —
+                             // врезка молчит навсегда (offline может висеть секундами).
+let winLbEpoch = 0, winLbTO = 0, winLbSrc = null, winLbLast = null;
+// ⚠️ ЭПОХА — НА ВЫБРОСЕ ОТВЕТА. Растёт на КАЖДОМ показе и скрытии победы: игрок
+// жмёт Next быстрее, чем отвечает сеть, и ответ прошлого уровня не смеет
+// дорисоваться в свежий экран. Сверка — в колбэке, до единого касания DOM.
+function winLbStop(){ if (winLbTO) clearTimeout(winLbTO); winLbTO = 0; winLbEpoch++; }
+// ИСТОЧНИК. Боевой — window.__lb (модуль Интеграции), пока его нет — стенд
+// `__game.winLbStub()`. Порядок именно такой: появится модуль — врезка
+// переключится на него сама, без правки экрана.
+function winLbSource(){
+  if (winLbSrc) return winLbSrc;
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  if (!lb || !lb.submit || !lb.me) return null;
+  return async ()=>{
+    // ПОРЯДОК ОБЯЗАТЕЛЕН: банк (его делает checkEnd) -> отправка -> ДОЖДАТЬСЯ ->
+    // точное место. Ответ отправки несёт лишь ПРИКИДКУ (exact:0), точное место
+    // и соседей отдаёт только /me. ⚠️ Отказ отправки (частота, 20-секундное
+    // окно — обычное дело при быстром Next) НЕ отменяет врезку: показываем
+    // место по последнему записанному результату, молча.
+    const s = await lb.submit().catch(()=>null);
+    const m = await lb.me();
+    return { state:m && m.state, rank:m && m.rank, score:m && m.score,
+             up:m && m.up, dn:m && m.dn,
+             sent:s && s.sent, server:(s && s.score != null) ? s.score : (m && m.score) };
+  };
+}
+// АДАПТЕР: ответ протокола -> вью-модель экрана. Отдаёт null = врезка молчит.
+function winLbAdapt(raw){
+  if (!raw || raw.state !== 'ok') return null;      // early/offline/broken — молча
+  const rank = raw.rank | 0; if (rank < 1) return null;
+  const num = (v)=> (typeof v === 'number' && isFinite(v)) ? v : null;
+  // ⚠️⚠️ СОСЕДИ БЕРУТСЯ ПО СЧЁТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ. Порядок внутри
+  // up/dn — часть чужого контракта (nearest-first или best-first), и угадывать
+  // его нельзя: ошибка тихая, врезка покажет не тех соседей и будет выглядеть
+  // правдоподобно. Ближайший СВЕРХУ — с наименьшим счётом среди тех, кто выше;
+  // ближайший СНИЗУ — с наибольшим среди тех, кто ниже. Это верно при любом
+  // порядке и переживёт переименование полей.
+  const clean = (a)=> (Array.isArray(a) ? a : []).filter(e => e && num(e.score) !== null);
+  const up = clean(raw.up).slice().sort((a,b)=> a.score - b.score);   // ближайший сверху первым
+  const dn = clean(raw.dn).slice().sort((a,b)=> b.score - a.score);   // ближайший снизу первым
+  const sent = num(raw.sent), server = num(raw.server);
+  const me = { pos:rank, name:'You', av:(typeof guestAvatar === 'function' ? guestAvatar() : ''),
+               score:(server !== null ? server : num(raw.score) || 0), me:true };
+  // ⚠️ СТРОК ВСЕГДА ТРИ — на этом стоит зарезервированная высота слота
+  // (см. min-height у .win-lb): «то две, то три» двигало бы Next под пальцем.
+  // Первого места сосед сверху не бывает — добираем вторым снизу.
+  const rows = [];
+  if (up[0]) rows.push({ pos:rank - 1, name:up[0].name, av:up[0].av, score:up[0].score });
+  rows.push(me);
+  if (dn[0]) rows.push({ pos:rank + 1, name:dn[0].name, av:dn[0].av, score:dn[0].score });
+  if (rows.length < 3 && dn[1]) rows.push({ pos:rank + 2, name:dn[1].name, av:dn[1].av, score:dn[1].score });
+  if (rows.length < 3 && up[1]) rows.unshift({ pos:rank - 2, name:up[1].name, av:up[1].av, score:up[1].score });
+  // ⚠️⚠️ ЗАНИЖЕННОЕ ЧИСЛО ПОКАЗЫВАЕМ (решение владельца 2026-08-09: вариант
+  // «не показывать, пока сервер не догнал» ОТКЛОНЁН). Сервер режет счёт новой
+  // строки потолком доверия — в игре может быть 50 000, а в таблице 2 000.
+  // Значит в строке стоит то, что записал СЕРВЕР, а не то, что мы послали,
+  // и расхождение объясняется словами, а не прячется.
+  const clipped = (sent !== null && server !== null && server < sent);
+  return { rows, clipped, rank };
+}
+function winLbRender(v){
+  const box = $('winLb'), list = $('winLbList'), note = $('winLbNote');
+  if (!box || !list) return;
+  if (!v){ box.classList.remove('on'); list.innerHTML = ''; if (note) note.textContent = ''; return; }
+  list.innerHTML = '';
+  v.rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'wl-row' + (r.me ? ' me' : '');
+    const pos = document.createElement('div'); pos.className = 'wl-pos'; pos.textContent = '#' + r.pos;
+    // АВАТАР — ТОТ ЖЕ ФАЙЛОВЫЙ РЕЦЕПТ, ЧТО У ПРОФИЛЯ (avatars/AvatarNN.png,
+    // ассеты владельца): и своя строка, и соседи приходят НОМЕРОМ файла.
+    const av = document.createElement('div'); av.className = 'wl-av';
+    const ai = r.av | 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async';
+      av.appendChild(img);
+    }
+    const nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = r.name || '';
+    const sc = document.createElement('div'); sc.className = 'wl-score'; sc.textContent = winFmtScore(r.score);
+    row.append(pos, av, nm, sc);
+    list.appendChild(row);
+  });
+  if (note) note.textContent = v.clipped ? 'Score still being verified' : '';
+  box.classList.add('on');
+}
+function renderWinLb(){
+  const box = $('winLb'); if (!box) return;
+  // СИНХРОННЫЙ СБРОС В ПУСТОТУ на каждом показе: без него быстрый Next -> победа
+  // мигнул бы врезкой ПРОШЛОГО уровня, пока не приедет свежая.
+  winLbRender(null); winLbLast = null;
+  if (winLbTO) clearTimeout(winLbTO);
+  const src = winLbSource(); if (!src) return;
+  const my = ++winLbEpoch;
+  let done = false;
+  winLbTO = setTimeout(()=>{ done = true; }, WIN_LB_MS);
+  Promise.resolve().then(src).then(raw => {
+    if (my !== winLbEpoch || done) return;   // экран сменился или срок вышел — молча в мусор   // экран сменился или срок вышел — молча в мусор
+    const v = winLbAdapt(raw); winLbLast = v;
+    winLbRender(v);
+  }).catch(()=>{});
 }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
