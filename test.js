@@ -64,6 +64,41 @@ const fs = require('fs');
   };
 
   const browser = await chromium.launch();
+
+  // ⚠️⚠️ СЬЮТ НЕ ХОДИТ В БОЕВОЙ СЕРВЕР ТАБЛИЦЫ. Найдено прогоном 2026-08-10:
+  // открытие меню зовёт `/v1/me`, тот для игрока БЕЗ строки честно отвечает
+  // 404 (`err:"none"`, это документированная норма) — а Chromium пишет любой
+  // 4xx в консоль, и гейт ошибок валил ВЕСЬ прогон на штатном поведении.
+  // ⛔ Гасить сам гейт или фильтровать «404» из него НЕЛЬЗЯ: он ловит
+  // настоящие поломки, а текст сообщения в консоли не несёт адреса — отличить
+  // наш законный 404 от чужой пропавшей картинки было бы нечем.
+  // ⚠️ И ЭТО НЕ ТОЛЬКО ПРО ЛОГ: до правки КАЖДЫЙ прогон сьюта стучался в
+  // боевой воркер владельца. Чтение безвредно (пишет только `submit`, он
+  // загейчен), но это внешняя зависимость: сервер лёг или включил ограничение
+  // частоты — и «сьют покраснел» без единой правки в игре.
+  // ⚠️ Заглушка ставится ПЕРВОЙ, поэтому секции со своими моками (стражи
+  // отправки, экран таблицы) заворачивают её сверху и остаются главнее.
+  const лбЗаглушка = () => {
+    const of = window.fetch;
+    window.fetch = function (u, o) {
+      const s = String(u);
+      if (s.indexOf('/v1/top') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ r: [], t: 0, n: 0 }), { status: 200 }));
+      // Форма взята у настоящего сервера: строки нет — 404 с `err:"none"`.
+      if (s.indexOf('/v1/me') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ err: 'none' }), { status: 404 }));
+      if (s.indexOf('/v1/score') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: 0, rank: null, exact: 0 }), { status: 200 }));
+      return of.apply(this, arguments);
+    };
+  };
+  const _newPage = browser.newPage.bind(browser);
+  browser.newPage = async function (...a) {
+    const pg = await _newPage(...a);
+    await pg.addInitScript(лбЗаглушка);
+    return pg;
+  };
+
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors = [];
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
