@@ -965,15 +965,24 @@
   /* ПИЛЮЛЯ СЧЁТА. ⚠️ ФОН ТОЛЬКО У ПЕРВЫХ ТРЁХ — с четвёртого её нет вовсе, и
      число становится белым. Это не «выделение призёров цветом поверх общего
      стиля», а два РАЗНЫХ состояния строки. */
-  .lb-score { flex:none; display:flex; align-items:center; justify-content:flex-end; gap:2px;
-    padding:4px 8px 4px 4px; border-radius:64px; font-weight:900; font-size:18px; color:#fff; }
+  /* ⚠️⚠️ ПОРЯДОК: ЧИСЛО, ПОТОМ ЗВЕЗДА, зазор 8 (слово владельца 2026-08-10).
+     Перестановка сделана В РАЗМЕТКЕ (`lbRowsRender`), а не `flex-direction:
+     row-reverse`: реверс меняет только ПОКАЗ, а порядок чтения экранным
+     диктором остался бы прежним — число читалось бы после звезды. */
+  .lb-score { flex:none; display:flex; align-items:center; justify-content:flex-end; gap:8px;
+    padding:4px 8px; border-radius:64px; font-weight:900; font-size:18px; color:#fff; }
   .lb-score svg { display:block; width:20px; height:20px; flex:none; }
-  .lb-score svg path { fill:#fff; }
-  .lb-row.p1 .lb-score { background:#ffe627; color:var(--carbon-400); }
-  .lb-row.p2 .lb-score { background:#b8c9c9; color:var(--carbon-400); }
-  .lb-row.p3 .lb-score { background:#e8bb95; color:var(--carbon-400); }
-  .lb-row.p1 .lb-score svg path, .lb-row.p2 .lb-score svg path,
-  .lb-row.p3 .lb-score svg path { fill:var(--carbon-400); }
+  /* ⚠️⚠️ ЗВЕЗДА ВСЕГДА ЖЁЛТАЯ, ЧИСЛО БЕЛОЕ; У ПЕРВОГО МЕСТА ЖЁЛТОЕ И ЧИСЛО
+     (слово владельца 2026-08-10: «цвет звезды и текста у первого места
+     FFE730; остальные все места: очки белые, звезда FFE730»).
+     ⛔ ЭТИМ ОТМЕНЕНЫ ЦВЕТНЫЕ ПИЛЮЛИ ПРИЗЁРОВ из макета (`#ffe627`/`#b8c9c9`/
+     `#e8bb95` с тёмным текстом) — они были несущей частью прежней спеки
+     экрана, и снимаю я их не по вкусу, а потому что жёлтый текст на жёлтой
+     пилюле не читался бы вовсе. Захочет вернуть — это три строки.
+     ⚠️ Строка «YOU» — БЕЛАЯ пилюля, и там число обязано остаться тёмным:
+     правило ниже перебивает общее «очки белые» по специфичности. */
+  .lb-score svg path { fill:#FFE730; }
+  .lb-row.p1 .lb-score { color:#FFE730; }
   /* ⚠️⚠️ СТРОКА «YOU» — НА СВОЁМ МЕСТЕ В ТАБЛИЦЕ, А НЕ В КОНЦЕ (слово владельца
      2026-08-10: «игрок должен занимать правильное место в таблице, а не быть в
      самом конце; если он не попадает на экран — он стики внизу до момента
@@ -1158,7 +1167,9 @@
      ⛔ Не `mask-image` и не подмена файла — оба приёма в этом проекте уже
      ломались; правило на `fill` у инлайнового SVG безопасно везде. */
   .ms-stars svg { display:block; width:21px; height:20px; }
-  .ms-stars svg path { fill:#000; }
+  /* ⚠️ Жёлтая — слово владельца 2026-08-10 («FFE730 цвет» про эту звезду).
+     Инлайновый `fill` в разметке уже FFE730, но CSS его перебивал чёрным. */
+  .ms-stars svg path { fill:#FFE730; }
   .ms-stars span { font-size:22px; font-weight:900; color:#000; line-height:1; }
   /* nowrap: без него длинное ТОЧНОЕ число кошелька (спека 2026-07-28) не
      переполняло ряд, а ЛОМАЛО «Get More» на две строки — ряд формально
@@ -1659,7 +1670,13 @@
        ⚠️ `align-self:center` обязателен вместе с высотой: без него бокс в 88px
        растянулся бы обратно по строке грида (`stretch` по умолчанию), и
        вертикальный центр снова уехал бы. */
-    .ms-coll-title { grid-area:chead; align-self:center; margin:0; font-size:34px;
+    /* ⚠️ `start`, А НЕ `center` (слово владельца 2026-08-10: «у этого блока не
+       должно быть отступа от верхнего края»). ⛔ Центрирование по строке грида
+       было МОЕЙ трактовкой его же «по центру по вертикали»: текст внутри бокса
+       и правда встал по центру, но САМ БОКС в 88px повис посреди высокой
+       строки, и сверху образовалась пустая полоса. Центр текста живёт в
+       `place-items` ниже и от этого не зависит. */
+    .ms-coll-title { grid-area:chead; align-self:start; margin:0; font-size:34px;
       height:88px; padding:0 16px; display:grid; place-items:center; text-align:center; }
     /* ⚠️ ПРОФИЛЬ — ПЕРВЫЙ РЯД КАРТОЧКИ: своей пилюли и паддингов нет, их даёт
        карточка. ⛔ ПОРЯДОК БОЛЬШЕ НЕ ПЕРЕВЁРНУТ и ИМЯ ВИДНО — прежнее правило
@@ -1670,7 +1687,7 @@
     .ms-prof { gap:6px; }
     .ms-uname { display:block; font-size:22px; font-weight:900; }
     .ms-stars svg { width:25px; height:24px; }
-    .ms-stars svg path { fill:#ffc800; }
+    /* ⛔ десктопный `#ffc800` снят — цвет один на обе раскладки (см. базу) */
     .ms-stars span { font-size:32px; }
     /* ⛔ ДЕСКТОПНОЕ ПЕРЕОПРЕДЕЛЕНИЕ ЦВЕТА СНЯТО (слово владельца 2026-08-10:
        «FFE730 цвет», сказано ПРО ЭТУ, десктопную кнопку). Оно ставило
@@ -13085,7 +13102,11 @@ function lbRowsRender(rows){
     const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pth.setAttribute('d', LB_STAR_D); svg.appendChild(pth);
     const num = document.createElement('span'); num.textContent = lbFmt(r.score);
-    sc.append(svg, num);
+    // ⚠️ ЧИСЛО ПЕРВЫМ, ЗВЕЗДА ВТОРОЙ (слово владельца 2026-08-10). Меняем
+    // ПОРЯДОК В РАЗМЕТКЕ, а не `row-reverse` в стилях: реверс переставил бы
+    // только картинку, а диктор продолжил бы читать «звезда, четырнадцать
+    // тысяч» вместо «четырнадцать тысяч, звезда».
+    sc.append(num, svg);
     row.append(left, sc);
     host.appendChild(row);
   });

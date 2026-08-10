@@ -372,7 +372,11 @@ function lbRowsRender(rows){
     const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pth.setAttribute('d', LB_STAR_D); svg.appendChild(pth);
     const num = document.createElement('span'); num.textContent = lbFmt(r.score);
-    sc.append(svg, num);
+    // ⚠️ ЧИСЛО ПЕРВЫМ, ЗВЕЗДА ВТОРОЙ (слово владельца 2026-08-10). Меняем
+    // ПОРЯДОК В РАЗМЕТКЕ, а не `row-reverse` в стилях: реверс переставил бы
+    // только картинку, а диктор продолжил бы читать «звезда, четырнадцать
+    // тысяч» вместо «четырнадцать тысяч, звезда».
+    sc.append(num, svg);
     row.append(left, sc);
     host.appendChild(row);
   });
