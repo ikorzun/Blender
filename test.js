@@ -13,6 +13,30 @@ const path = require('path');
   };
 
   const browser = await chromium.launch();
+  // ⚠️⚠️ СЬЮТ НЕ СМЕЕТ ПИСАТЬ В БОЕВУЮ ТАБЛИЦУ. С 2026-08-10 `LB_URL` задан, то
+  // есть на КАЖДОЙ странице без проб адрес непустой, а банк уровня дёргает
+  // `fireStarsChange` — полный прогон насыпал бы в живую таблицу десятки
+  // тестовых строк (побед в сьюте много). Глушим ОДИН хост и ТОЛЬКО его, на
+  // всех страницах разом: запрос не уходит вовсе, поэтому нет и сетевой ошибки
+  // в консоли — а гейт ошибок у сьюта строгий.
+  // ⛔ НЕ через DNS/`route`-abort: там запрос всё-таки происходит и Chromium
+  // печатает `net::ERR_*` в консоль, то есть лечение уронило бы гейт ошибок.
+  // ⚠️ Мок секции таблицы не задет: он подменяет `fetch` СВОЕЙ страницы поверх
+  // этого и целится в `lb.test`.
+  const newPageRaw = browser.newPage.bind(browser);
+  browser.newPage = async function (opts) {
+    const p = await newPageRaw(opts);
+    await p.addInitScript(() => {
+      const of = window.fetch;
+      window.fetch = function (u) {
+        if (String(u).indexOf('lb.blendo.monster') >= 0) {
+          return Promise.reject(new Error('сьют: боевая таблица заглушена'));
+        }
+        return of.apply(this, arguments);
+      };
+    });
+    return p;
+  };
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors = [];
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
@@ -6215,6 +6239,38 @@ window.bridge = {
       + ', state ' + JSON.stringify(мс.state) + ', me ' + JSON.stringify(мс.me)
       + ', rank ' + JSON.stringify(мс.rank) + ', exact ' + JSON.stringify(мс.exact) + ')');
     await lbPage.close();
+  }
+
+  // ===== ТАБЛИЦА ЛИДЕРОВ: БОЕВОЙ АДРЕС ВКЛЮЧЁН (зона ИНТЕГРАЦИИ) =====
+  // ⚠️ СТРАЖ ПРИВОДИТ ПРЕДПОСЫЛКУ САМ: ему нужна страница БЕЗ проб, а соседняя
+  // секция ставит `mixer_lb_url`. Сегодня это не наследуется (`browser.newPage`
+  // заводит СВОЙ контекст, localStorage у каждой страницы свой), но предпосылку
+  // «проб нет» страж утверждает явно — иначе переход на общий контекст молча
+  // увёл бы его мерить адрес стенда.
+  {
+    const prodPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await prodPage.addInitScript(() => { try { localStorage.removeItem('mixer_lb_url'); } catch (e) {} });
+    await prodPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await prodPage.waitForFunction(() => window.__lb && typeof window.__lb.base === 'function',
+      { timeout: 60000 });
+    const боевой = await prodPage.evaluate(() => ({ base: window.__lb.base(),
+      проба: (new URLSearchParams(location.search)).get('lb'),
+      ls: localStorage.getItem('mixer_lb_url') }));
+    expect(боевой.base === 'https://lb.blendo.monster' && !боевой.проба && !боевой.ls,
+      'ТАБЛИЦА: БОЕВОЙ АДРЕС ВКЛЮЧЁН — без проб игра целится в свой поддомен (адрес '
+      + JSON.stringify(боевой.base) + ', ?lb=' + JSON.stringify(боевой.проба)
+      + ', localStorage ' + JSON.stringify(боевой.ls) + ')');
+    // ⚠️⚠️ ВТОРОЙ АССЕРТ НЕ ДУБЛЬ ПЕРВОГО, ХОТЯ СЕГОДНЯ ИЗ НЕГО И СЛЕДУЕТ. Первый
+    // ПРИБИВАЕТ ЗНАЧЕНИЕ и умрёт при любой законной смене адреса (стейдж, новый
+    // домен) — вместе с ним ушёл бы и запрет, если бы он жил только там. Второй
+    // держит ПРАВИЛО: служебный `workers.dev` режут школьные и корпоративные
+    // сети, у сервиса он выключен намеренно, и возврат на него обязан краснеть
+    // при ЛЮБОМ будущем адресе. Цена честная: диверсия «подставить workers.dev»
+    // роняет оба, и это сказано вслух, а не спрятано.
+    expect(боевой.base.indexOf('workers.dev') < 0,
+      'ТАБЛИЦА: АДРЕС НЕ СЛУЖЕБНЫЙ — workers.dev режут школьные и корпоративные сети (адрес '
+      + JSON.stringify(боевой.base) + ')');
+    await prodPage.close();
   }
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
