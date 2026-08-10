@@ -76,7 +76,7 @@
      ночного варианта у меню нет — оно светлое в обеих темах (замер). Появится
      тёмное меню — разводить здесь же, вместе с `MENU_CHROME` в 85-hud. */
   html.menuopen, html.menuopen body {
-    background-color:#ffffff !important; background-image:none !important; }
+    background-color:var(--ms-bg) !important; background-image:none !important; }
   #topBar { top:env(safe-area-inset-top, 0); }
   /* ⚠️⚠️ ЗАНАВЕС ЗАГРУЗКИ (спека владельца 2026-07-30: «во время загрузки
      бриджа не должно быть никаких элементов интерфейса. Они появляются плавно
@@ -802,6 +802,45 @@
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer; transition:background-color .15s;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
+  /* ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
+     ⚠️⚠️ ЧИСЛА ВКЛАДОК РАСХОДЯТСЯ ПО ПОСТРОЕНИЮ, И ЭТО ЗАДУМАНО: платформенная
+     хранит МАКСИМУМ («рекорд за всё время»), наша считает ТЕКУЩИЙ баланс и
+     падает при тратах. Прятать расхождение нельзя (решение владельца
+     2026-07-24) — его обязан ОБЪЯСНИТЬ экран. Текст пишет владелец сам;
+     до тех пор в `#lbNote` стоит ПОМЕЧЕННАЯ заглушка (см. страж в сьюте). */
+  #lbOverlay { align-items:flex-start; overflow-y:auto; }
+  .lb-card { margin:auto; width:min(448px, calc(100vw - 32px)); font-family:var(--font-round);
+    display:flex; flex-direction:column; gap:12px; padding:16px 0; }
+  .lb-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .lb-title { color:#fff; font-weight:900; font-size:22px; }
+  .lb-close { width:44px; height:44px; border:none; border-radius:1000px; cursor:pointer;
+    background:#fff; color:#000; font-size:22px; font-weight:900; line-height:1; }
+  .lb-tabs { display:flex; gap:8px; }
+  .lb-tab { flex:1; height:48px; border:none; border-radius:1000px; cursor:pointer;
+    font-family:var(--font-round); font-weight:800; font-size:17px;
+    background:rgba(255,255,255,.16); color:#fff; }
+  .lb-tab.on { background:#c0ff47; color:#000; }
+  /* ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА — ВИДИМО ПОМЕЧЕНА, не «пустая строка»: молчаливая
+     заглушка уехала бы в релиз незамеченной. */
+  .lb-note { min-height:18px; line-height:18px; font-size:13px; font-weight:700;
+    color:#fff; opacity:.75; padding-left:2px; }
+  .lb-note.todo { color:#ffd34d; opacity:1; }
+  .lb-list { display:flex; flex-direction:column; gap:6px; min-height:120px; }
+  .lb-row { display:flex; align-items:center; gap:8px; height:44px; box-sizing:border-box;
+    padding:0 12px 0 8px; border-radius:1000px; color:#fff; }
+  .lb-row.me { background:rgba(255,255,255,.16); box-shadow:inset 0 0 28px 0 #c0ff47; }
+  .lb-pos { flex:none; min-width:38px; font-weight:900; font-size:17px; opacity:.75; }
+  .lb-row.me .lb-pos { opacity:1; }
+  .lb-av { flex:none; width:30px; height:30px; background:transparent; }
+  .lb-av img { width:100%; height:100%; object-fit:contain; display:block; }
+  .lb-name { flex:1; min-width:0; font-weight:800; font-size:17px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
+  .lb-row.me .lb-name { opacity:1; }
+  .lb-score { flex:none; font-weight:900; font-size:17px; }
+  /* СЛУЖЕБНОЕ СОСТОЯНИЕ — одной строкой, без картинок: четыре случая
+     («пусто, но рано» / нет сети / меня нет в таблице / вкладка выключена)
+     звучат по-разному, но выглядят одинаково спокойно. */
+  .lb-serv { color:#fff; opacity:.7; font-size:15px; font-weight:700; padding:8px 2px; }
   /* --- ВРЕЗКА ТАБЛИЦЫ: место игрока + соседи (после каждого уровня) ---
      ⚠️⚠️ `min-height` — НЕСУЩЕЕ, А НЕ КОСМЕТИКА. Данные приезжают асинхронно,
      а над врезкой стоит Next; при `margin:auto` у .win-wrap рост карточки
@@ -1878,6 +1917,22 @@
   </div>
 </div>
 
+<!-- ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ (две вкладки). Открывается из меню. -->
+<div class="overlay" id="lbOverlay">
+  <div class="lb-card">
+    <div class="lb-head">
+      <div class="lb-title">LEADERBOARD</div>
+      <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="lb-tabs">
+      <button class="lb-tab on" id="lbTabOurs">Balance</button>
+      <button class="lb-tab" id="lbTabPlat">All-time</button>
+    </div>
+    <div class="lb-note" id="lbNote"></div>
+    <div class="lb-list" id="lbList"></div>
+  </div>
+</div>
+
 <!-- ВИТРИНА УРОВНЯ (спека владельца 2026-07-22: «на больших мониторах
      мало жизни»): объекты уровня как в музее + реалтайм полоски накопления
      до следующего множителя. Видимость — ПРАВИЛО 2/3 (спека 2026-07-27):
@@ -2008,6 +2063,14 @@
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
       </div>
       <!-- MUSIC: регулятор громкости фонового трека (спека владельца 2026-07-24) -->
+      <!-- ⚠️ ВХОД В ТАБЛИЦУ — ОТДЕЛЬНОЙ СТРОКОЙ, А НЕ В РЯДУ ПРОФИЛЯ.
+           Первая версия стояла рядом с «Get More»: на 320 ряд вылез из
+           пилюли на 29px, поймал существующий страж узкого меню. Ряд
+           профиля измерен и тесен — второй элемент туда не ставить. -->
+      <div class="ms-set" id="msBoardRow">
+        <span>Leaderboard</span>
+        <button class="ms-getmore" id="lbOpen">Open</button>
+      </div>
       <div class="ms-set" id="msMusicRow">
         <span>Music</span>
         <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
@@ -12058,6 +12121,92 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
+// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
+// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
+// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
+// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
+// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
+// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
+const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
+let lbTab = 'ours', lbEpoch = 0;
+// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
+// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+function lbScreenStop(){ lbEpoch++; }
+function lbServ(text){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = ''; const d = document.createElement('div');
+  d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
+}
+function lbRowsRender(rows){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = '';
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (r.me ? ' me' : '');
+    const pos = document.createElement('div'); pos.className = 'lb-pos';
+    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+    const av = document.createElement('div'); av.className = 'lb-av';
+    const ai = r.av | 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; av.appendChild(img);
+    }
+    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
+    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
+    row.append(pos, av, nm, sc);
+    host.appendChild(row);
+  });
+}
+// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
+// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
+// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
+async function lbLoadOurs(my){
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
+  const t = await lb.top(1).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
+  if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
+  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const m = await lb.me().catch(()=>null);
+  if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
+  const host = $('lbList'); if (!host) return;
+  const mine = document.createElement('div');
+  mine.className = 'lb-row me';
+  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
+  const av = document.createElement('div'); av.className = 'lb-av';
+  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
+  if (ai > 0){ const img = document.createElement('img');
+    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
+  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
+  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
+  mine.append(p, av, nm, sc);
+  host.appendChild(mine);
+}
+// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
+// и он не ошибка: площадка может не поддерживать таблицы вовсе.
+async function lbLoadPlat(my){
+  if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
+  const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!r || !r.ok){ lbServ('Not available right now.'); return; }
+  if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
+  lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
+}
+function lbScreenRender(){
+  const note = $('lbNote');
+  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
+  const to = $('lbTabOurs'), tp = $('lbTabPlat');
+  if (to) to.classList.toggle('on', lbTab === 'ours');
+  if (tp) tp.classList.toggle('on', lbTab === 'plat');
+  lbServ('Loading…');
+  const my = ++lbEpoch;
+  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+}
+function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
+function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
+function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
@@ -13483,7 +13632,7 @@ function openMainScreen(){
   // rgb(217,244,255), мета осталась `#031d83`. То есть системе сообщался цвет,
   // которого на экране нет, — и это единственная найденная замером причина,
   // по которой полосы в меню могут остаться тёмными. Возврат — в closeMainScreen.
-  chromeMeta(MENU_CHROME);
+  chromeMeta(menuChrome());
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -13501,21 +13650,19 @@ function openMainScreen(){
 // ЕДИНАЯ ТОЧКА ЗАПИСИ ВТОРОГО КАНАЛА КРОМКИ (мета `theme-color`). Отдельная
 // функция, а не строка в двух местах: копия признака рядом с рабочей величиной
 // расходится с ней при первой же правке (закон канона, четыре случая за неделю).
-// ⚠️⚠️ В МЕНЮ — ЧИСТАЯ НЕЙТРАЛЬ, А НЕ ТОН МЕНЮ (слово владельца 2026-08-10:
-// «можешь убрать заливку цветом под островом?»). Попасть в тон там НЕЛЬЗЯ ПО
-// ПОСТРОЕНИЮ: меню ПРОКРУЧИВАЕТСЯ, и под островом оказывается то шапка, то
-// карточка, то низ списка, а цвет один. Нейтраль снимает саму задачу совпадения
-// — полоса перестаёт читаться как неудачно подобранный фон и читается как хром
-// браузера. Правило его же, с лендинга About Us: «никакого зеленого и грязных
-// цветов».
-// ⚠️ БЕЛЫЙ ВСЕГДА, А НЕ «белый днём / чёрный ночью»: замер — `--ms-bg` объявлен
-// РОВНО ОДИН РАЗ и ночного переопределения не имеет, меню светлое в ОБЕИХ темах.
-// Появится тёмная тема меню — здесь же и разводить.
-// ⛔ ИГРОВОГО ЭКРАНА ЭТО НЕ КАСАЕТСЯ: там содержимое не прокручивается, небо у
-// кромки предсказуемо, попадание в тон возможно и работает — а белая полоса над
-// сине-фиолетовым небом бросалась бы в глаза сильнее нынешнего.
-let hudWasNight = null;   // прошлое состояние темы — для перекраски полос ТОЛЬКО на переходе
-const MENU_CHROME = '#ffffff';
+// ⚠️ В МЕНЮ ОБА КАНАЛА НЕСУТ ФОН МЕНЮ (слово владельца 2026-08-10, отмена
+// нейтрали). Меню прокручивается, но его СТРАНИЧНЫЙ фон постоянен — карточки
+// плавают ПОВЕРХ него, поэтому попадание в тон здесь возможно.
+// ⚠️ Читается из `--ms-bg`, а не литералом: фон меню объявлен один раз, и
+// копия рядом с ним разошлась бы при первой же правке палитры меню.
+// ⚠️ Прошлое состояние темы — для перекраски кромки ТОЛЬКО на переходе.
+// ⚠️ ОБЪЯВЛЕНИЕ ЧУТЬ НЕ ПОГИБЛО: оно стояло вплотную к снятому блоку
+// нейтрали, и правка «вырезать блок» унесла его заодно — сьют поймал
+// ошибкой страницы. Режешь диапазон — проверь, что на его краях.
+let hudWasNight = null;
+function menuChrome(){
+  return getComputedStyle(document.documentElement).getPropertyValue('--ms-bg').trim() || '#d9f4ff';
+}
 function chromeMeta(col){
   try {
     const m = document.querySelector('meta[name="theme-color"]');
@@ -14636,6 +14783,13 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   }, { passive: true });
 })();
 // отладочная панель — из меню (раньше вход был в карточке паузы)
+// ЭКРАН ТАБЛИЦЫ: открывается из меню, закрывается крестиком. ⚠️ Вкладки —
+// НАСТОЯЩИЕ кнопки, а не переключение класса руками: страж обязан ходить тем
+// же путём, что игрок.
+{ const b = $('lbOpen');    if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
+{ const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
+{ const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
+{ const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
 // порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).
@@ -15153,37 +15307,37 @@ addEventListener('resize', resize);
 // остров iOS красится ТОЛЬКО через meta theme-color (фон страницы там
 // игнорируется), жестовая зона снизу и Android-тулбар — фоном html/body.
 // Без этого тёмная тема телефона рисует чёрные поля вокруг канваса.
-// Красим всё в тон ВЕРХА панорамы неба (сэмпл её верхней полоски 2D-канвасом);
-// панорама выбирается раз за сессию (день/ночь в 10-stage) — одного прогона
-// с ретраем до декодировки data:uri достаточно.
+// Красим ЧИСТОЙ НЕЙТРАЛЬЮ ПО ТЕМЕ: светлая — белый, тёмная — чёрный.
+// ⛔ ТОМБСТОН, ДВЕ ОТМЕНЫ ПОДРЯД — шапку читают первой, и она успела соврать
+// дважды: (1) «тон ВЕРХА ПАНОРАМЫ» — панорам нет с 2026-07-30, `05-sky.js`
+// удалён вместе с фоновой картинкой; (2) «тон верхнего стопа неба» — подбор
+// под палитру ОТМЕНЁН владельцем 2026-08-10 («на игровом тоже сделай
+// нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
+// ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
+// стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
+const CHROME_SWAP = false;
 function tintChrome(){
-  // ПАНОРАМ БОЛЬШЕ НЕТ (спека владельца 2026-07-22 — небо стало градиентом),
-  // сэмплить нечего: берём ВЕРХНИЙ цвет градиента напрямую из 10-stage.
-  // Он же — то, что видно у верхней кромки экрана, ради чего сэмпл и делался.
-  // ⚠️ Ждать/ретраить больше НЕ надо: цвет известен сразу, без декода картинки.
   try {
-    // ⚠️⚠️ ПОЛОСЫ — ЧИСТАЯ НЕЙТРАЛЬ ПО ТЕМЕ (слово владельца 2026-08-10: «на
-    // игровом тоже сделай нейтральной»). ОТМЕНЯЕТ подбор под цвет неба целиком.
-    // ⚠️ ОБА КАНАЛА НЕСУТ ОДНО ЗНАЧЕНИЕ намеренно: мы так и не знаем наверняка,
-    // какой из них Safari читает в каком случае, — а при одинаковой нейтрали
-    // ответ перестаёт иметь значение. Это и была цель правки, а не экономия.
-    // ⚠️ ТЕМА — ЧЕРЕЗ `isNightSky()`, А НЕ ЧЕРЕЗ КЛАСС `html.night`: класс
-    // ставит `updateHUD`, а `tintChrome` зовётся РАНЬШЕ (99-main:306 против
-    // первого тика HUD) — по классу ночью вышел бы БЕЛЫЙ. Ровно тот случай,
-    // где копия признака расходится с источником.
-    // ⛔ КРАСНАЯ УГРОЗА ПОМОЛА ПОЛОС БОЛЬШЕ НЕ КАСАЕТСЯ — нейтраль от палитры
-    // не зависит вовсе. Прежняя оговорка про мигание снята; не «чинить» связь,
-    // которой нет.
-    const тёмная = (typeof isNightSky === 'function') ? isNightSky() : false;
-    const col = тёмная ? '#000000' : '#ffffff';
+    // ⚠️⚠️ ФОН ДОХОДИТ ДО ОБЕИХ КРОМОК (слово владельца 2026-08-10: «если у нас
+    // под островом ничего нет, то фоновый градиент должен заполнять всё от
+    // самого верха до самого низа»). ОТМЕНЯЕТ нейтраль по теме, прожившую день.
+    // ⚠️ КАНАЛОВ ДВА, И ОНИ РАБОТАЮТ — доказано снимком владельца: полоса в
+    // меню сменилась после правки ТОЛЬКО меты. Что именно красит верх, а что
+    // низ, мы так и не выяснили: игровой экран после той правки не снимали.
+    // ⚠️⚠️ ПОЭТОМУ ОБМЕН КАНАЛОВ — ОДНА СТРОКА. Окажется наоборот (мета красит
+    // ВЕРХ) — переставить `CHROME_SWAP`, и всё; переписывать нечего.
+    const cs = getComputedStyle(document.documentElement);
+    const верх = cs.getPropertyValue('--sky-top-rgb').trim();
+    const низ  = cs.getPropertyValue('--sky-bot-rgb').trim();
+    const hex = (t)=>{ const q = String(t).split(',').map(n => Math.max(0, Math.min(255, parseInt(n, 10) | 0)));
+      return q.length === 3 ? '#' + q.map(n => n.toString(16).padStart(2, '0')).join('') : null; };
+    const фонRGB  = CHROME_SWAP ? низ : верх;
+    const метаRGB = CHROME_SWAP ? верх : низ;
     const d = document.documentElement;
-    d.style.backgroundColor = col;
-    document.body.style.backgroundColor = col;
-    // ⚠️ ГРАДИЕНТ НЕБА НА ПОДЛОЖКЕ СНЯТ вместе с подбором под палитру: он
-    // существовал ради попадания в тон кромки, а нейтраль в этом не нуждается.
+    if (фонRGB){ const c = 'rgb(' + фонRGB + ')';
+      d.style.backgroundColor = c; document.body.style.backgroundColor = c; }
     d.style.backgroundImage = '';
-    // ОБА КАНАЛА — ОДНО ЗНАЧЕНИЕ (см. верх функции).
-    chromeMeta(col);
+    chromeMeta(hex(метаRGB) || skyChromeCSS);
   } catch(e){}
 }
 tintChrome();

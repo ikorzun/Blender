@@ -491,6 +491,13 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   }, { passive: true });
 })();
 // отладочная панель — из меню (раньше вход был в карточке паузы)
+// ЭКРАН ТАБЛИЦЫ: открывается из меню, закрывается крестиком. ⚠️ Вкладки —
+// НАСТОЯЩИЕ кнопки, а не переключение класса руками: страж обязан ходить тем
+// же путём, что игрок.
+{ const b = $('lbOpen');    if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
+{ const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
+{ const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
+{ const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
 // порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).

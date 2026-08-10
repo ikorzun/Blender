@@ -245,6 +245,92 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
+// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
+// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
+// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
+// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
+// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
+// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
+const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
+let lbTab = 'ours', lbEpoch = 0;
+// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
+// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+function lbScreenStop(){ lbEpoch++; }
+function lbServ(text){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = ''; const d = document.createElement('div');
+  d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
+}
+function lbRowsRender(rows){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = '';
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (r.me ? ' me' : '');
+    const pos = document.createElement('div'); pos.className = 'lb-pos';
+    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+    const av = document.createElement('div'); av.className = 'lb-av';
+    const ai = r.av | 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; av.appendChild(img);
+    }
+    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
+    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
+    row.append(pos, av, nm, sc);
+    host.appendChild(row);
+  });
+}
+// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
+// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
+// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
+async function lbLoadOurs(my){
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
+  const t = await lb.top(1).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
+  if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
+  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const m = await lb.me().catch(()=>null);
+  if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
+  const host = $('lbList'); if (!host) return;
+  const mine = document.createElement('div');
+  mine.className = 'lb-row me';
+  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
+  const av = document.createElement('div'); av.className = 'lb-av';
+  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
+  if (ai > 0){ const img = document.createElement('img');
+    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
+  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
+  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
+  mine.append(p, av, nm, sc);
+  host.appendChild(mine);
+}
+// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
+// и он не ошибка: площадка может не поддерживать таблицы вовсе.
+async function lbLoadPlat(my){
+  if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
+  const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!r || !r.ok){ lbServ('Not available right now.'); return; }
+  if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
+  lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
+}
+function lbScreenRender(){
+  const note = $('lbNote');
+  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
+  const to = $('lbTabOurs'), tp = $('lbTabPlat');
+  if (to) to.classList.toggle('on', lbTab === 'ours');
+  if (tp) tp.classList.toggle('on', lbTab === 'plat');
+  lbServ('Loading…');
+  const my = ++lbEpoch;
+  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+}
+function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
+function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
+function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
@@ -1670,7 +1756,7 @@ function openMainScreen(){
   // rgb(217,244,255), мета осталась `#031d83`. То есть системе сообщался цвет,
   // которого на экране нет, — и это единственная найденная замером причина,
   // по которой полосы в меню могут остаться тёмными. Возврат — в closeMainScreen.
-  chromeMeta(MENU_CHROME);
+  chromeMeta(menuChrome());
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -1688,21 +1774,19 @@ function openMainScreen(){
 // ЕДИНАЯ ТОЧКА ЗАПИСИ ВТОРОГО КАНАЛА КРОМКИ (мета `theme-color`). Отдельная
 // функция, а не строка в двух местах: копия признака рядом с рабочей величиной
 // расходится с ней при первой же правке (закон канона, четыре случая за неделю).
-// ⚠️⚠️ В МЕНЮ — ЧИСТАЯ НЕЙТРАЛЬ, А НЕ ТОН МЕНЮ (слово владельца 2026-08-10:
-// «можешь убрать заливку цветом под островом?»). Попасть в тон там НЕЛЬЗЯ ПО
-// ПОСТРОЕНИЮ: меню ПРОКРУЧИВАЕТСЯ, и под островом оказывается то шапка, то
-// карточка, то низ списка, а цвет один. Нейтраль снимает саму задачу совпадения
-// — полоса перестаёт читаться как неудачно подобранный фон и читается как хром
-// браузера. Правило его же, с лендинга About Us: «никакого зеленого и грязных
-// цветов».
-// ⚠️ БЕЛЫЙ ВСЕГДА, А НЕ «белый днём / чёрный ночью»: замер — `--ms-bg` объявлен
-// РОВНО ОДИН РАЗ и ночного переопределения не имеет, меню светлое в ОБЕИХ темах.
-// Появится тёмная тема меню — здесь же и разводить.
-// ⛔ ИГРОВОГО ЭКРАНА ЭТО НЕ КАСАЕТСЯ: там содержимое не прокручивается, небо у
-// кромки предсказуемо, попадание в тон возможно и работает — а белая полоса над
-// сине-фиолетовым небом бросалась бы в глаза сильнее нынешнего.
-let hudWasNight = null;   // прошлое состояние темы — для перекраски полос ТОЛЬКО на переходе
-const MENU_CHROME = '#ffffff';
+// ⚠️ В МЕНЮ ОБА КАНАЛА НЕСУТ ФОН МЕНЮ (слово владельца 2026-08-10, отмена
+// нейтрали). Меню прокручивается, но его СТРАНИЧНЫЙ фон постоянен — карточки
+// плавают ПОВЕРХ него, поэтому попадание в тон здесь возможно.
+// ⚠️ Читается из `--ms-bg`, а не литералом: фон меню объявлен один раз, и
+// копия рядом с ним разошлась бы при первой же правке палитры меню.
+// ⚠️ Прошлое состояние темы — для перекраски кромки ТОЛЬКО на переходе.
+// ⚠️ ОБЪЯВЛЕНИЕ ЧУТЬ НЕ ПОГИБЛО: оно стояло вплотную к снятому блоку
+// нейтрали, и правка «вырезать блок» унесла его заодно — сьют поймал
+// ошибкой страницы. Режешь диапазон — проверь, что на его краях.
+let hudWasNight = null;
+function menuChrome(){
+  return getComputedStyle(document.documentElement).getPropertyValue('--ms-bg').trim() || '#d9f4ff';
+}
 function chromeMeta(col){
   try {
     const m = document.querySelector('meta[name="theme-color"]');
