@@ -6274,6 +6274,57 @@ window.bridge = {
   expect(!!лбЭпоха.чужая && лбЭпоха.чужая.on === false && лбЭпоха.чужая.rows.length === 0,
     '⚠️ ВРЕЗКА: ответ ПРОШЛОГО экрана победы отброшен, а не дорисован в свежий: ' +
     JSON.stringify(лбЭпоха.чужая));
+  // ===== КРОМКА ЭКРАНА: ВТОРОЙ КАНАЛ ЦВЕТА СЛЕДУЕТ ЗА МЕНЮ =====
+  // ⚠️ У кромки ДВА канала: фон html/body (его перекрашивает правило
+  // `html.menuopen`) и мета `theme-color`. Замер 2026-08-10 показал, что второй
+  // за меню НЕ шёл: фон становился светлым, а мета оставалась цветом НОЧНОГО
+  // неба — системе сообщался цвет, которого на экране нет.
+  // ⚠️ Меню открываем и закрываем НАСТОЯЩИМ путём (кнопка паузы / клик по
+  // карточке Play), а не выставляя класс руками: классом владеет живой код.
+  const кромка = await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const мета = () => { const m = document.querySelector('meta[name="theme-color"]'); return m ? m.getAttribute('content') : null; };
+    const пер = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const hex2rgb = (h)=>{ const s = String(h||'').replace('#',''); if (s.length !== 6) return null;
+      return [0,2,4].map(i => parseInt(s.slice(i,i+2),16)).join(','); };
+    window.__game.winScreen(false);
+    const доМеню = мета();
+    document.getElementById('pauseBtn').click();
+    await sleep(400);
+    const вМеню = { мета:мета(), msbg:пер('--ms-bg'), класс:document.documentElement.classList.contains('menuopen') };
+    const play = document.querySelector('.ms-play'); if (play) play.click();
+    await sleep(400);
+    const после = { мета:мета(), класс:document.documentElement.classList.contains('menuopen') };
+    return { доМеню, вМеню, после, msRgb:hex2rgb(вМеню.msbg), метаRgb:hex2rgb(вМеню.мета),
+             верх:пер('--sky-top-rgb') };
+  });
+  console.log('кромка/каналы:', JSON.stringify(кромка));
+  expect(кромка.вМеню.класс === true && кромка.после.класс === false,
+    'САНИТАР КРОМКИ: меню реально открылось и закрылось настоящим путём (иначе ассерты ниже мерят пустоту)');
+  expect(!!кромка.метаRgb && кромка.метаRgb === кромка.msRgb,
+    '⚠️ КРОМКА: пока меню открыто, мета `theme-color` = фону МЕНЮ, а не неба (' +
+    кромка.вМеню.мета + ' против ' + кромка.вМеню.msbg + ')');
+  expect(кромка.после.мета === кромка.доМеню && кромка.доМеню !== кромка.вМеню.мета,
+    '⚠️ КРОМКА: по закрытию мета ВЕРНУЛАСЬ к небу — проверен ПЕРЕХОД в обе стороны (' +
+    кромка.доМеню + ' -> ' + кромка.вМеню.мета + ' -> ' + кромка.после.мета + ')');
+
+  // ⚠️⚠️ ОДНИМ ЦВЕТОМ ДВЕ КРОМКИ НЕ ПОКРАСИТЬ — подложка обязана нести ГРАДИЕНТ
+  // от верхнего стопа неба к нижнему. Замер 2026-08-10 (ночь): отдавали верхний
+  // тёмно-синий при малиновом низе кадра, и это ровно жалоба владельца про iOS 26.
+  const подложка = await lbPage.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    return { картинка:cs.backgroundImage, цвет:cs.backgroundColor,
+             верх:cs.getPropertyValue('--sky-top-rgb').trim(), низ:cs.getPropertyValue('--sky-bot-rgb').trim() };
+  });
+  console.log('кромка/подложка:', JSON.stringify(подложка));
+  expect(подложка.картинка.indexOf('gradient') >= 0 &&
+         подложка.картинка.indexOf(подложка.верх.replace(/,/g, ', ')) >= 0 &&
+         подложка.картинка.indexOf(подложка.низ.replace(/,/g, ', ')) >= 0,
+    '⚠️ КРОМКА: подложка несёт градиент ОТ верхнего стопа неба К нижнему — иначе ' +
+    'нижняя полоса получает цвет верха (' + подложка.картинка.slice(0, 90) + ')');
+  expect(подложка.цвет !== 'rgba(0, 0, 0, 0)',
+    'КРОМКА: плоский цвет подложки СОХРАНЁН как запасной — правка не может быть хуже прежней');
+
   await lbPage.close();
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');

@@ -1653,6 +1653,13 @@ function openMainScreen(){
   // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
   // при отказе открыться кромка перекрасилась бы под невидимое меню.
   document.documentElement.classList.add('menuopen');
+  // ⚠️⚠️ У КРОМКИ ДВА КАНАЛА, И ВТОРОЙ ПРАВИЛО `html.menuopen` НЕ ТРОГАЕТ.
+  // Оно перекрашивает фон html/body, а мета `theme-color` оставалась цветом
+  // НЕБА: замер 2026-08-10 (ночь, меню открыто) — фон стал светлым
+  // rgb(217,244,255), мета осталась `#031d83`. То есть системе сообщался цвет,
+  // которого на экране нет, — и это единственная найденная замером причина,
+  // по которой полосы в меню могут остаться тёмными. Возврат — в closeMainScreen.
+  chromeMeta(getComputedStyle(document.documentElement).getPropertyValue('--ms-bg').trim());
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -1667,6 +1674,15 @@ function openMainScreen(){
   }
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
+// ЕДИНАЯ ТОЧКА ЗАПИСИ ВТОРОГО КАНАЛА КРОМКИ (мета `theme-color`). Отдельная
+// функция, а не строка в двух местах: копия признака рядом с рабочей величиной
+// расходится с ней при первой же правке (закон канона, четыре случая за неделю).
+function chromeMeta(col){
+  try {
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m && col) m.setAttribute('content', col);
+  } catch(e){}
+}
 function closeMainScreen(){
   // #4: тап-спин крутит offscreen-WebGL rAF; без mouseleave он бы жил ВЕСЬ
   // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
@@ -1674,6 +1690,8 @@ function closeMainScreen(){
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen'); // кромку — обратно небу
+  // ...и ВТОРОЙ КАНАЛ тоже: tintChrome возвращает мете и фону цвет неба.
+  if (typeof tintChrome === 'function') tintChrome();
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал

@@ -271,10 +271,25 @@ function tintChrome(){
   // ⚠️ Ждать/ретраить больше НЕ надо: цвет известен сразу, без декода картинки.
   try {
     const col = skyChromeCSS;
-    document.documentElement.style.backgroundColor = col;
+    const d = document.documentElement;
+    d.style.backgroundColor = col;
     document.body.style.backgroundColor = col;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', col);
+    // ⚠️⚠️ ОДНИМ ЦВЕТОМ ДВЕ КРОМКИ НЕ ПОКРАСИТЬ. Небо — вертикальный градиент, а
+    // сюда шёл только ВЕРХНИЙ стоп: нижняя полоса получала цвет ВЕРХА. Днём это
+    // почти незаметно (стопы близки), ночью расходится максимально — замер
+    // 2026-08-10: отдавали тёмно-синий rgb(3,29,131) при МАЛИНОВОМ низе кадра
+    // rgb(215,38,185). Ровно это владелец и видел на iOS 26.
+    // ⚠️ ГРАДИЕНТ ДОБАВЛЕН ПОВЕРХ, А ЦВЕТ ОСТАВЛЕН: если Safari сэмплит
+    // отрисованную подложку — кромки совпадут обе; если он читает только
+    // `background-color` — поведение ровно прежнее. Правка НЕ МОЖЕТ быть хуже
+    // текущего состояния, поэтому и сделана до проверки на устройстве.
+    // ⚠️ Проверить можно ТОЛЬКО на телефоне (канон: headless не воспроизводит).
+    const cs = getComputedStyle(d);
+    const t = cs.getPropertyValue('--sky-top-rgb').trim();
+    const b = cs.getPropertyValue('--sky-bot-rgb').trim();
+    d.style.backgroundImage = (t && b)
+      ? 'linear-gradient(180deg, rgb(' + t + ') 0%, rgb(' + b + ') 100%)' : '';
+    chromeMeta(col);
   } catch(e){}
 }
 tintChrome();

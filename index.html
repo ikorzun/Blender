@@ -13062,6 +13062,13 @@ function openMainScreen(){
   // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
   // при отказе открыться кромка перекрасилась бы под невидимое меню.
   document.documentElement.classList.add('menuopen');
+  // ⚠️⚠️ У КРОМКИ ДВА КАНАЛА, И ВТОРОЙ ПРАВИЛО `html.menuopen` НЕ ТРОГАЕТ.
+  // Оно перекрашивает фон html/body, а мета `theme-color` оставалась цветом
+  // НЕБА: замер 2026-08-10 (ночь, меню открыто) — фон стал светлым
+  // rgb(217,244,255), мета осталась `#031d83`. То есть системе сообщался цвет,
+  // которого на экране нет, — и это единственная найденная замером причина,
+  // по которой полосы в меню могут остаться тёмными. Возврат — в closeMainScreen.
+  chromeMeta(getComputedStyle(document.documentElement).getPropertyValue('--ms-bg').trim());
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -13076,6 +13083,15 @@ function openMainScreen(){
   }
   menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
 }
+// ЕДИНАЯ ТОЧКА ЗАПИСИ ВТОРОГО КАНАЛА КРОМКИ (мета `theme-color`). Отдельная
+// функция, а не строка в двух местах: копия признака рядом с рабочей величиной
+// расходится с ней при первой же правке (закон канона, четыре случая за неделю).
+function chromeMeta(col){
+  try {
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m && col) m.setAttribute('content', col);
+  } catch(e){}
+}
 function closeMainScreen(){
   // #4: тап-спин крутит offscreen-WebGL rAF; без mouseleave он бы жил ВЕСЬ
   // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
@@ -13083,6 +13099,8 @@ function closeMainScreen(){
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen'); // кромку — обратно небу
+  // ...и ВТОРОЙ КАНАЛ тоже: tintChrome возвращает мете и фону цвет неба.
+  if (typeof tintChrome === 'function') tintChrome();
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
@@ -14715,10 +14733,25 @@ function tintChrome(){
   // ⚠️ Ждать/ретраить больше НЕ надо: цвет известен сразу, без декода картинки.
   try {
     const col = skyChromeCSS;
-    document.documentElement.style.backgroundColor = col;
+    const d = document.documentElement;
+    d.style.backgroundColor = col;
     document.body.style.backgroundColor = col;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', col);
+    // ⚠️⚠️ ОДНИМ ЦВЕТОМ ДВЕ КРОМКИ НЕ ПОКРАСИТЬ. Небо — вертикальный градиент, а
+    // сюда шёл только ВЕРХНИЙ стоп: нижняя полоса получала цвет ВЕРХА. Днём это
+    // почти незаметно (стопы близки), ночью расходится максимально — замер
+    // 2026-08-10: отдавали тёмно-синий rgb(3,29,131) при МАЛИНОВОМ низе кадра
+    // rgb(215,38,185). Ровно это владелец и видел на iOS 26.
+    // ⚠️ ГРАДИЕНТ ДОБАВЛЕН ПОВЕРХ, А ЦВЕТ ОСТАВЛЕН: если Safari сэмплит
+    // отрисованную подложку — кромки совпадут обе; если он читает только
+    // `background-color` — поведение ровно прежнее. Правка НЕ МОЖЕТ быть хуже
+    // текущего состояния, поэтому и сделана до проверки на устройстве.
+    // ⚠️ Проверить можно ТОЛЬКО на телефоне (канон: headless не воспроизводит).
+    const cs = getComputedStyle(d);
+    const t = cs.getPropertyValue('--sky-top-rgb').trim();
+    const b = cs.getPropertyValue('--sky-bot-rgb').trim();
+    d.style.backgroundImage = (t && b)
+      ? 'linear-gradient(180deg, rgb(' + t + ') 0%, rgb(' + b + ') 100%)' : '';
+    chromeMeta(col);
   } catch(e){}
 }
 tintChrome();
