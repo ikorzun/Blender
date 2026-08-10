@@ -737,7 +737,18 @@ function updateHUD(){
       }
     }
   } catch(e){}
-  document.documentElement.classList.toggle('night', isNightSky());
+  // ⚠️ ТЕМА МОЖЕТ СМЕНИТЬСЯ В ЖИВОЙ СЕССИИ (граница 20:00), а нейтраль полос
+  // зависит ровно от неё — значит тинт обязан переехать вместе с темой, иначе
+  // после заката полосы останутся белыми. Перекрашиваем ТОЛЬКО на переходе,
+  // не каждый тик: `tintChrome` трогает html/body и мету.
+  // ⛔ Под меню НЕ вмешиваемся — там своя нейтраль, и её ставит openMainScreen.
+  const ночьТеперь = isNightSky();
+  if (ночьТеперь !== hudWasNight){
+    hudWasNight = ночьТеперь;
+    if (!document.documentElement.classList.contains('menuopen') &&
+        typeof tintChrome === 'function') tintChrome();
+  }
+  document.documentElement.classList.toggle('night', ночьТеперь);
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
   // #11 (спека владельца): УРОВЕНЬ показываем на десктопе (левая группа) И на
   // мобайле — над очками (тот же #lvlSvg переносит в стек layoutHUD). Время
@@ -1690,6 +1701,7 @@ function openMainScreen(){
 // ⛔ ИГРОВОГО ЭКРАНА ЭТО НЕ КАСАЕТСЯ: там содержимое не прокручивается, небо у
 // кромки предсказуемо, попадание в тон возможно и работает — а белая полоса над
 // сине-фиолетовым небом бросалась бы в глаза сильнее нынешнего.
+let hudWasNight = null;   // прошлое состояние темы — для перекраски полос ТОЛЬКО на переходе
 const MENU_CHROME = '#ffffff';
 function chromeMeta(col){
   try {
