@@ -2039,7 +2039,6 @@
           <span id="msStars">0</span>
         </div>
         <button class="ms-getmore" id="msGetMore">Get More</button>
-        <button class="ms-getmore" id="lbOpen">Board</button>
       </div>
     </header>
     </div>
@@ -2064,6 +2063,14 @@
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
       </div>
       <!-- MUSIC: регулятор громкости фонового трека (спека владельца 2026-07-24) -->
+      <!-- ⚠️ ВХОД В ТАБЛИЦУ — ОТДЕЛЬНОЙ СТРОКОЙ, А НЕ В РЯДУ ПРОФИЛЯ.
+           Первая версия стояла рядом с «Get More»: на 320 ряд вылез из
+           пилюли на 29px, поймал существующий страж узкого меню. Ряд
+           профиля измерен и тесен — второй элемент туда не ставить. -->
+      <div class="ms-set" id="msBoardRow">
+        <span>Leaderboard</span>
+        <button class="ms-getmore" id="lbOpen">Open</button>
+      </div>
       <div class="ms-set" id="msMusicRow">
         <span>Music</span>
         <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
