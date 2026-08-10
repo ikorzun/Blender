@@ -157,8 +157,13 @@
      Числа взяты Dev Mode'ом: фон #2d2d2d, карточка 295 шириной, кнопка 84
      высотой радиусом 1500 на лайме #c0ff47, подпись Semibold, свечение —
      радиальный лайм #cbff68 с размытием. */
-  #newObj { display:none; position:fixed; inset:0; z-index:46; background:#2d2d2d;
-    align-items:center; justify-content:center; padding:0 16px;
+  /* ⚠️⚠️ ПОДЛОЖКА — ОБЩАЯ С ОСТАЛЬНЫМИ ПОПАПАМИ, И БЕРЁТСЯ КЛАССОМ `.overlay`,
+     А НЕ КОПИЕЙ ЗНАЧЕНИЙ. Слово владельца: «подложка должна быть такого же
+     стиля как во всех попапах». ⛔ Прежний сплошной `#2d2d2d` был взят из
+     ЗАЛИВКИ ФРЕЙМА в макете — а фрейм в Figma это холст экрана, а не стиль
+     попапа; ровно та же ошибка была у экрана таблицы. Копия значений прошла бы
+     «выглядит так же» и разъехалась при первой правке общего стиля. */
+  #newObj { z-index:46; align-items:center; justify-content:center; padding:0 16px;
     -webkit-tap-highlight-color:transparent; }
   #newObj.on { display:flex; }
   .no-card { width:295px; max-width:100%; display:flex; flex-direction:column;
@@ -2099,7 +2104,7 @@
      тот же, что крутит карточки коллекции.
      ⚠️ НАДПИСЬ — SVG `.otext`, единый механизм контура проекта: у неё лаймовая
      обводка, а `-webkit-text-stroke` в проекте запрещён (срезает углы). -->
-<div id="newObj" aria-hidden="true">
+<div id="newObj" class="overlay" aria-hidden="true">
   <div class="no-card">
     <div class="no-title">
       <svg class="otext no-new" viewBox="0 0 200 60" aria-hidden="true"><text x="100" y="46" text-anchor="middle">new</text></svg>
@@ -2162,10 +2167,16 @@
          Видимое из них ОДНО — список; три остальных МОЛЧАТ, пустой слот
          невидим. Текста ошибки тут нет и не будет: таблица украшение, экран
          победы она не ломает. -->
-    <div class="win-lb" id="winLb">
-      <div class="win-lb-label">LEADERBOARD</div>
-      <div class="win-lb-list" id="winLbList"></div>
-    </div>
+    <!-- ⛔ ВРЕЗКА ТАБЛИЦЫ СНЯТА С ЭКРАНА ПОБЕДЫ (слово владельца 2026-08-10,
+         дословно: «не должно быть этого блока на финальном экране»). Он выбрал
+         сам узел `#winLb` на живом экране, поэтому речь именно о нём, а не о
+         тексте или месте.
+         ⚠️ ОТПРАВКА РЕЗУЛЬТАТА ЖИВА И К ЭТОМУ БЛОКУ НЕ ПРИВЯЗАНА: счёт уходит
+         по подписке на изменение баланса (`onStarsChange`, 85-hud), а не из
+         врезки — иначе вместе с блоком пропало бы и попадание в таблицу.
+         Место игрока по-прежнему видно в меню и на экране таблицы.
+         Разметка и стили удалены; механика показа сохранена мёртвой в истории
+         git — вернуть = откат этого коммита. -->
     <div class="win-top">
       <div class="win-top-label">TOP ITEMS</div>
       <div class="win-top-list" id="winTopList"></div>

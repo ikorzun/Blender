@@ -84,7 +84,10 @@ function renderWinScreen(){
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
   renderWinTop(reduce);
-  renderWinLb();
+  // ⛔ `renderWinLb()` СНЯТ — врезки на экране победы больше нет (слово
+  // владельца). Функция и её эпоха оставлены НИЖЕ живыми: на них висят хуки
+  // `winLbStub`/`winLbInfo`, а сама она безвредна без узла (первой же строкой
+  // выходит по `if (!box) return`).
   // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
   winStopScore();
   const st = $('winScore');
