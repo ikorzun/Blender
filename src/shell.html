@@ -1162,7 +1162,22 @@
     line-height:1; white-space:nowrap; }
   /* «You on 845» — ТОЛЬКО из точного места (см. lbEntryRefresh). Нет точного —
      строки нет вовсе, и пилюля живёт без неё: пустую строку не резервируем. */
-  .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+  /* ⚠️⚠️ МАКЕТ 840:4344 ОБНОВЛЁН ВЛАДЕЛЬЦЕМ и прочитан Dev Mode'ом: первая
+     строка мобильного — САМО МЕСТО («3 place»), вторая — подпись
+     («on leaderboard»), ОБЕ Bold 18px, цвета `#2a2935` / `#b0bcd0`. Прежние
+     «Leaderboard» 22px + «You on N» 14px ОТМЕНЕНЫ его словом «поменяй по
+     макету» — это НЕ косметика: первая строка сменила смысл, она больше не
+     название блока.
+     ⚠️⚠️ СЛЕДСТВИЕ, КОТОРОГО В МАКЕТЕ НЕТ: у новичка строки в таблице ещё
+     нет, место взять неоткуда, а «on leaderboard» в одиночку не говорит
+     ничего. Тогда показываем прежний заголовок — блок сохраняет личность.
+     Владелец решение подтвердил: «с новичком ок». */
+  .ms-lbe-rank { font-size:18px; font-weight:700; color:var(--carbon-400);
+    line-height:1; white-space:nowrap; }
+  .ms-lbentry.has-rank .ms-lbe-title { display:none; }
+  .ms-lbentry:not(.has-rank) .ms-lbe-rank,
+  .ms-lbentry:not(.has-rank) .ms-lbe-sub { display:none; }
+  .ms-lbe-sub { font-size:18px; font-weight:700; color:#b0bcd0; line-height:1;
     white-space:nowrap; }
   .ms-lbe-sub:empty { display:none; }
   /* ⚠️ ЗАЗОР 2 НА ВСЮ ПРАВУЮ ГРУППУ, а не 12: по макету (840:4348) аватары И
@@ -1546,7 +1561,10 @@
     .ms-lbe-dot { display:inline; color:#b0bcd0; }
     .ms-lbe-dot:empty { display:none; }
     /* на десктопе место живёт В ЗАГОЛОВКЕ (через `•`), второй строки нет */
-    .ms-lbe-sub { display:none; }
+    /* десктоп (840:4633): место в ЗАГОЛОВКЕ через «•» — мобильные строки там
+       не участвуют, и заголовок виден ВСЕГДА, даже при `has-rank`. */
+    .ms-lbe-sub, .ms-lbe-rank { display:none; }
+    .ms-lbentry.has-rank .ms-lbe-title { display:block; }
     .ms-lbe-arrow { display:none; }
     .ms-lbe-open { display:inline; font-family:var(--font-round); font-size:16px;
       font-weight:700; color:#000; }
@@ -2366,6 +2384,7 @@
     <section class="ms-lbentry" id="msLbEntry" hidden>
       <div class="ms-lbe-txt">
         <div class="ms-lbe-title">Leaderboard<span class="ms-lbe-dot" id="msLbeDot"></span></div>
+        <div class="ms-lbe-rank" id="msLbeRank"></div>
         <div class="ms-lbe-sub" id="msLbeSub"></div>
       </div>
       <div class="ms-lbe-right">
