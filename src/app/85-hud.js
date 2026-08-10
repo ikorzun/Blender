@@ -287,12 +287,23 @@ function lbEntryRefresh(){
     // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
     // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
     // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    t.rows.slice(0, 3).forEach(r => {
-      const ai = r ? (r.av | 0) : 0; if (ai <= 0) return;
+    // ⚠️⚠️ СЛОТОВ ВСЕГДА ТРИ (слово владельца «всегда показывай 3 аватарки»), и
+    // ПУСТОЙ СЛОТ — НЕЙТРАЛЬНЫЙ КРУЖОК, а не чужой аватар. Подставить туда
+    // картинку живого игрока значило бы придумать участника таблицы; на старте,
+    // когда строк меньше трёх, это прямая ложь на самом видном месте.
+    for (let i = 0; i < 3; i++){
+      const r = t.rows[i];
+      const ai = r ? (r.av | 0) : 0;
+      if (ai <= 0){
+        const пусто = document.createElement('i');
+        пусто.className = 'ms-lbe-slot';
+        host.appendChild(пусто);
+        continue;
+      }
       const img = document.createElement('img');
       img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
       img.alt = ''; img.decoding = 'async'; host.appendChild(img);
-    });
+    }
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;
