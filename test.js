@@ -7038,6 +7038,40 @@ window.bridge = {
     await noPage.close();
   }
 
+  // ===== ГОЛОСА МАТЕРИАЛОВ (звук совмещения) =====
+  {
+    const mp = await browser.newPage();
+    mp.on('pageerror', e => errors.push('PAGEERROR(mat): ' + e.message));
+    await mp.goto('file://' + path.join(__dirname, 'index.html'));
+    await mp.waitForFunction(() => window.__game && window.__game.typeNameAt, { timeout: 60000 });
+    const мат = await mp.evaluate(() => {
+      const g = window.__game; const без = []; let всего = 0;
+      for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break; всего++; if (!g.materialOf(n)) без.push(n); }
+      return { всего, безГолоса:без.slice(0, 8), нехваток:без.length, голоса:g.sfxVoices(),
+        фрукт:g.materialOf('foodapple'), металл:g.materialOf('piratecannon'),
+        стекло:g.materialOf('survivalbottle'), чужой:g.materialOf('нетТакого') };
+    });
+    await mp.close();
+    console.log('голоса материалов:', JSON.stringify(мат));
+    // ⚠️ РАЗМЕТКА ПОЛНАЯ: тип без голоса — это тип, который молча зазвучит
+    // «как все», и заметить это можно только на слух. Новая партия моделей
+    // попадёт сюда автоматически.
+    expect(мат.нехваток === 0 && мат.всего > 100,
+      '⚠️ МАТЕРИАЛЫ: у КАЖДОГО типа есть голос (' + мат.всего + ' типов, без голоса ' +
+      мат.нехваток + (мат.нехваток ? ': ' + мат.безГолоса.join(', ') : '') + ')');
+    // ⚠️⚠️ ВТОРАЯ СТОРОНА: неизвестный тип обязан дать `null`, а не первый
+    // попавшийся голос. Без этого ассерта карта вида «всё сочное» была бы
+    // зелёной по первому — и новая модель чавкала бы как фрукт.
+    expect(мат.чужой === null && мат.фрукт === 'juicy' && мат.металл === 'metal' && мат.стекло === 'glass',
+      '⚠️ МАТЕРИАЛЫ: голос берётся ПО ТИПУ, неизвестный даёт null (' +
+      JSON.stringify({ фрукт:мат.фрукт, металл:мат.металл, стекло:мат.стекло, чужой:мат.чужой }) + ')');
+    // ⚠️ И ОТДЕЛЬНО — ЧТО ЗАПИСИ ВЛАДЕЛЬЦА ДОЕХАЛИ ДО СБОРКИ. Разметка есть у
+    // всех 120, сэмплов пока три; страж обязан различать «размечен» и
+    // «озвучен», иначе зазеленеет на сборке без единого звука.
+    expect(['juicy','metal','glass'].every(v => мат.голоса.indexOf(v) >= 0),
+      'МАТЕРИАЛЫ: записи владельца в сборке — фрукты, металл, стекло (' + мат.голоса.join(', ') + ')');
+  }
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();

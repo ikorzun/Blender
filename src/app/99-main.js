@@ -1101,6 +1101,13 @@ window.__game = {
   // не с литералом. Порядок массива — рычаг сложности, его правят по спеке
   // владельца; литерал в тесте разъехался бы с ним молча.
   typeNameAt(i){ return (i >= 0 && i < TYPES.length) ? TYPES[i].name : null; },
+  // ⚠️ НЕСУЩИЙ ХУК: на нём страж «у каждого типа есть голос материала». Без
+  // него связку «предмет -> звук» проверить нечем — она вся внутри IIFE.
+  materialOf(name){ return materialOf(name); },
+  // ⚠️ И ОТДЕЛЬНО — КАКИЕ ГОЛОСА ОЗВУЧЕНЫ НА САМОМ ДЕЛЕ: разметка есть у всех
+  // 120, а сэмплов пока три. Страж обязан различать «тип размечен» и «звук
+  // записан», иначе он зазеленеет на сборке без единого сэмпла.
+  sfxVoices(){ return Object.keys(SFX_B64).filter(k => k.indexOf('mat_') === 0).map(k => k.slice(4)); },
   newObjShow(key, done){ return newObjShow(key, done); },
   newObjHide(){ return newObjHide(); },
   newObjInfo(){

@@ -215,7 +215,11 @@ function doMatch(list){
   tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков
   // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
   const _ts0 = performance.now();
-  Sound.play('match', { n, k: comboHot ? comboCount : 0 });
+  // ⚠️ МАТЕРИАЛ БЕРЁТСЯ ПО ИМЕНИ ТИПА (`typeName` выше — он же решает матч),
+  // а не по пачке `tex`: пачка это атлас картинок, и в одной пачке `food`
+  // лежат и сочные фрукты, и выпечка, и мороженое — звучать одинаково они не
+  // должны. Разбор — docs/MATERIAL-SOUND-MAP.md.
+  Sound.play('match', { n, k: comboHot ? comboCount : 0, m: materialOf(typeName) });
   vibrate(15);
   tapSndMs += performance.now() - _ts0;      // синтез «буля» + вибро
   if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
