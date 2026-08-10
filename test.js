@@ -6108,6 +6108,14 @@ window.bridge = {
           return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: b && b.s,
             rank: null, exact: 0, n: b && b.n }), { status: 200 }));
         }
+        // ⚠️ ФОРМА ОТВЕТА ВЗЯТА У НАСТОЯЩЕГО СЕРВЕРА, а не придумана: `/v1/me`
+        // на отсутствующую строку отдаёт `404 {"err":"none"}` (index.js:238,
+        // сверено запросом к стенду 2026-08-10). Мок с «пустым 404» проверял бы
+        // путь, которого в бою нет.
+        if (String(u).indexOf('/v1/me') >= 0) {
+          window.__lbMock.me = (window.__lbMock.me || 0) + 1;
+          return Promise.resolve(new Response(JSON.stringify({ err: 'none' }), { status: 404 }));
+        }
         return of.apply(this, arguments);
       };
     });
@@ -6185,6 +6193,27 @@ window.bridge = {
       'ТАБЛИЦА: 429 НЕ ТЕРЯЕТСЯ — после отказа отправка повторилась с новым числом (отправок '
       + отказ.posts.length + ', ушло ' + JSON.stringify(отказ.posts.map((x) => x.s))
       + ', баланс ' + отказ.bal + ')');
+
+    // (4) «СТРОКИ ЕЩЁ НЕТ» — ЭТО `ok`, А НЕ ОТКАЗ
+    // ⚠️⚠️ ЭТОТ СТРАЖ СТОИТ НА МЕСТЕ НЕДОСТИЖИМОЙ ВЕТКИ. Сервер отвечает
+    // `404 {"err":"none"}`, а `lbFetch` любое `err` в теле объявляет `refused` —
+    // прежнее условие `r.code === 404` стояло ПОСЛЕ общего выхода и не
+    // исполнялось никогда (замер против стенда). То есть КАЖДЫЙ игрок до первой
+    // победы получал `refused`, и экран прятал блок молча: новичок был
+    // неотличим от мёртвого сервера.
+    // ⚠️ Санитар `запросов` в том же ассерте: без него «состояние ok» было бы
+    // истинно и на сборке, где `me()` вовсе не ходит в сеть.
+    const нетСтроки = await lbPage.evaluate(async () => {
+      window.__lb.invalidate();
+      const r = await window.__lb.me();
+      return { r: r, запросов: window.__lbMock.me || 0 };
+    });
+    const мс = нетСтроки.r || {};
+    expect(нетСтроки.запросов >= 1 && мс.state === 'ok' && мс.me === null
+      && мс.rank === null && мс.exact === false,
+      'ТАБЛИЦА: НЕТ СТРОКИ — НЕ ОТКАЗ (запросов ' + нетСтроки.запросов
+      + ', state ' + JSON.stringify(мс.state) + ', me ' + JSON.stringify(мс.me)
+      + ', rank ' + JSON.stringify(мс.rank) + ', exact ' + JSON.stringify(мс.exact) + ')');
     await lbPage.close();
   }
 
