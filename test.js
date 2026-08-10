@@ -6196,6 +6196,10 @@ window.bridge = {
   // камней, меню и звёзд.
   const lbPage = await browser.newPage({ viewport: { width: 393, height: 852 } });
   lbPage.on('pageerror', e => errors.push('PAGEERROR(winlb): ' + e.message));
+  // ⚠️ АДРЕС ТАБЛИЦЫ ЧИТАЕТСЯ ОДИН РАЗ, ПРИ ЗАГРУЗКЕ МОДУЛЯ — значит ставить его
+  // надо ДО скриптов страницы. Без него модуль уходит в ранний выход, и страж
+  // контракта ниже мерил бы не контракт, а собственную неподготовленность.
+  await lbPage.addInitScript(() => { try { localStorage.setItem('mixer_lb_url', 'http://127.0.0.1:8788'); } catch(e){} });
   await lbPage.goto('file://' + path.join(__dirname, 'index.html'));
   await lbPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await lbPage.evaluate(() => window.__game.skipIntro());
@@ -6332,15 +6336,39 @@ window.bridge = {
   // `exact` закрытый: переименуй поле — и врезка погаснет у игрока МОЛЧА.
   // Страж переводит эту тишину в красный тест. Пока модуля нет — говорим об
   // этом ВСЛУХ отдельной строкой, а не молчим (иначе это выключенный страж).
+  // ⚠️⚠️ СТРАЖ ОБЯЗАН ИСПОЛНИТЬ ПРОВЕРЯЕМЫЙ ПУТЬ, А НЕ ЖДАТЬ ЕГО — мой же закон,
+  // на котором я тут и ошибся. Первая версия просто звала `me()` на странице,
+  // где адрес таблицы не задан: модуль уходил в ранний выход `state:'offline'`,
+  // поля `exact` там нет ЗАКОННО, и ассерт краснел на ИСПРАВНОЙ сборке.
+  // Успех надо ОРГАНИЗОВАТЬ: задать адрес и подменить сеть так, чтобы `/v1/me`
+  // ответил телом с полем. ⚠️ Адрес читается ОДИН РАЗ при загрузке модуля —
+  // потому ставится через addInitScript ДО скриптов страницы, а не после.
+  // ⚠️ И утверждение сужено до «на успешном ответе С МЕСТОМ»: у честного 404
+  // («строки ещё нет») поля тоже нет, и это не поломка контракта.
   const лбКонтракт = await lbPage.evaluate(async () => {
     const lb = window.__lb;
     if (!lb || !lb.me) return { модуль:false };
-    try { const m = await lb.me(); return { модуль:true, поле:!!(m && 'exact' in m) }; }
-    catch (e){ return { модуль:true, поле:false, err:String(e).slice(0, 80) }; }
+    const родной = window.fetch;
+    window.fetch = (u, o) => (String(u).indexOf('/v1/me') >= 0)
+      ? Promise.resolve(new Response(JSON.stringify({ rank:25, exact:1, s:11200, up:[], dn:[] }),
+          { status:200, headers:{ 'Content-Type':'application/json' } }))
+      : родной(u, o);
+    try {
+      if (lb.invalidate) lb.invalidate();
+      const m = await lb.me();
+      return { модуль:true, состояние:m && m.state, место:m && m.rank,
+               поле:!!(m && 'exact' in m), значение:m && m.exact };
+    } catch (e){ return { модуль:true, поле:false, err:String(e).slice(0, 80) }; }
+    finally { window.fetch = родной; }
   });
   if (!лбКонтракт.модуль){
     console.log('TODO(ждёт модуля таблицы): страж «/me несёт exact» ХОЛОСТ — window.__lb в сборке нет');
   } else {
+    // САНИТАР: успех ДЕЙСТВИТЕЛЬНО организован. Без него «поля нет» неотличимо
+    // от «мы до успешного ответа не дошли» — на этом страж и покраснел впервые.
+    expect(лбКонтракт.состояние === 'ok' && лбКонтракт.место === 25,
+      'САНИТАР КОНТРАКТА: успешный ответ /me с местом организован (' +
+      JSON.stringify(лбКонтракт) + ')');
     expect(лбКонтракт.поле === true,
       '⚠️ КОНТРАКТ: /me несёт поле `exact` — без него врезка гаснет у игрока МОЛЧА: ' +
       JSON.stringify(лбКонтракт));
