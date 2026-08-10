@@ -3413,13 +3413,48 @@ const FIRE_AFTER_GRIND_MS = 3000;
 // `http://localhost:8781/index.html?lb=https://lb.blendo.monster` — параметр
 // приоритетнее константы. Это осознанный размен: молчание на локальном стенде
 // лечится одной ссылкой, а засорённая ботами таблица — только руками в базе.
+// ⚠️⚠️ ЧИСТАЯ ФУНКЦИЯ, А НЕ ТЕЛО IIFE — И ЭТО НЕСУЩЕЕ ДЛЯ ПРОВЕРКИ. Гейт уже
+// дважды пропускал случай, о котором не вспомнили (сначала http со своего
+// сервера сьюта, потом `.local` и локальная сеть). Проверить перечисление можно
+// только ТАБЛИЦЕЙ ХОСТОВ, а таблицу нельзя прогнать через `location`: браузер
+// не даст произвольное имя. Поэтому решение вынесено в функцию, страж гоняет по
+// ней список, а отдельный сквозной ассерт доказывает, что функция ДЕЙСТВИТЕЛЬНО
+// подключена к `location` (иначе таблица проверяла бы мёртвый код).
+// ⚠️ БЕЛЫЙ СПИСОК НЕВОЗМОЖЕН: боевых хостов у игры много (порталы), заранее они
+// неизвестны. Значит перечисляем ЛОКАЛЬНОЕ — и обязаны держать список полным.
+function lbHostIsLocal(protocol, hostname) {
+  if (protocol === 'file:') return true;
+  const h = String(hostname || '').toLowerCase();
+  if (h === '') return true;                                  // file:// и прочее без хоста
+  if (h === 'localhost' || /\.localhost$/.test(h)) return true;
+  if (h === '127.0.0.1' || /^127\./.test(h)) return true;     // вся петля 127/8
+  // ⚠️⚠️ IPv6 ПРИХОДИТ В СКОБКАХ: `location.hostname` даёт `[fe80::1]`, а не
+  // `fe80::1`. Проверять префикс ДО снятия скобок бессмысленно — ни одна
+  // строка не совпадёт. Прежняя версия закрывала `::1` только потому, что
+  // рядом стоял литерал `[::1]`; на `fe80:` этот приём уже не работал.
+  // ⚠️ И условие «это вообще IPv6» (есть двоеточие) обязательно: без него
+  // `/^f[cd]/` объявил бы локальным любой хост вида `fd-server.example.com`.
+  const h6 = h.replace(/^\[|\]$/g, '');
+  if (h6.indexOf(':') >= 0) {
+    if (h6 === '::1') return true;                            // петля
+    if (/^fe[89ab]/.test(h6)) return true;                    // fe80::/10 link-local
+    if (/^f[cd]/.test(h6)) return true;                       // fc00::/7 ULA
+  }
+  // ⚠️ BONJOUR `<имя>.local` — ИМЕННО ТАК ТЕЛЕФОН ХОДИТ НА MAC. Это открытый
+  // пункт «плейтест на телефоне»: без этой строки первый же телефонный прогон
+  // сыпал бы в боевую таблицу. Регулярка `.localhost` его НЕ ловит.
+  if (/\.local$/.test(h)) return true;
+  // Частные сети RFC1918 и link-local — превью по IP в домашней сети.
+  if (/^10\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  return false;
+}
 const LB_LOCAL = (function () {
   try {
     if (typeof location === 'undefined') return true;
-    if (location.protocol === 'file:') return true;
-    const h = String(location.hostname || '').toLowerCase();
-    return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' ||
-           h === '::1' || /\.localhost$/.test(h);
+    return lbHostIsLocal(location.protocol, location.hostname);
   } catch (e) { return true; }
 })();
 const LB_URL = LB_LOCAL ? '' : 'https://lb.blendo.monster';
@@ -16339,6 +16374,11 @@ window.__game = {
   // меню нет». Без него страж ЖДАЛ БЫ, что кто-то откроет меню при снятом
   // модуле, — то есть наследовал бы обстановку вместо того, чтобы её ПРИВЕСТИ.
   lbEntryRefresh(){ lbEntryRefresh(); },
+  // ⚠️ НЕСУЩИЙ ХУК: на нём страж «гейт боевой таблицы» гоняет ТАБЛИЦУ ХОСТОВ.
+  // Через `location` её не прогнать — браузер не даст произвольное имя, а гейт
+  // уже дважды пропускал случай, о котором не вспомнили. Отдельный сквозной
+  // ассерт доказывает, что эта же функция подключена к `location`.
+  lbHostIsLocal(protocol, hostname){ return lbHostIsLocal(protocol, hostname); },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок
