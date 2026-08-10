@@ -6253,11 +6253,17 @@ window.bridge = {
   const экран = await lbPage.evaluate(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const вид = () => {
-      const o = document.getElementById('lbOverlay'), n = document.getElementById('lbNote');
+      // ⛔ ВКЛАДОК И ЗАГЛУШКИ БОЛЬШЕ НЕТ (решение владельца «только наша
+      // таблица»), поэтому и полей о них тут нет. Заголовок с подзаголовком —
+      // из макета, их и снимаем.
+      const o = document.getElementById('lbOverlay');
+      const t = document.querySelector('#lbOverlay .lb-title');
+      const sb = document.querySelector('#lbOverlay .lb-sub');
       return { открыт:getComputedStyle(o).display !== 'none',
-               заметка:n ? n.textContent : '', метка:!!(n && n.classList.contains('todo')),
-               своя:document.getElementById('lbTabOurs').classList.contains('on'),
-               плат:document.getElementById('lbTabPlat').classList.contains('on'),
+               вкладок:document.querySelectorAll('#lbOverlay .lb-tab').length,
+               заглушка:document.querySelectorAll('#lbOverlay .lb-note').length,
+               заголовок:t ? t.textContent.trim() : '',
+               подзаголовок:sb ? sb.textContent.trim().slice(0, 24) : '',
                строк:document.querySelectorAll('#lbList .lb-row').length,
                служебных:document.querySelectorAll('#lbList .lb-serv').length };
     };
@@ -6294,13 +6300,11 @@ window.bridge = {
     })();
     document.getElementById('msLbEntry').click(); await sleep(500);
     const открыт = вид();
-    document.getElementById('lbTabPlat').click(); await sleep(500);
-    const платформа = вид();
     document.getElementById('lbClose').click(); await sleep(200);
     const закрыт = вид();
     { const p = document.querySelector('.ms-play'); if (p) p.click(); }
     await sleep(300);
-    return { доОткрытия, открыт, платформа, закрыт, вход, выкл, вкл };
+    return { доОткрытия, открыт, закрыт, вход, выкл, вкл };
   });
   console.log('экран таблицы:', JSON.stringify(экран));
   console.log('точка входа:', JSON.stringify(экран.вход));
@@ -6382,17 +6386,33 @@ window.bridge = {
     await p.goto('http://127.0.0.1:' + порт + '/index.html');
     await p.waitForFunction(() => window.__lb && typeof window.__lb.base === 'function',
       { timeout: 30000 });
-    const локально = await p.evaluate(() => ({ база: window.__lb.base(),
-      протокол: location.protocol, хост: location.hostname }));
+    // ⚠️⚠️ ПРОВЕРЯЕМ ЗАПРЕТ ОТПРАВКИ, А НЕ ПУСТОЙ АДРЕС. Прежняя редакция
+    // зануляла адрес на локальном хосте — и владелец на своём стенде не нашёл
+    // входа в таблицу ВООБЩЕ (живая жалоба). Засоряет базу только ЗАПИСЬ, а
+    // чтение безвредно, поэтому гейт переехал с адреса на `lbSubmit`.
+    // Ловим ФАКТ: считаем POST'ы своим перехватчиком и зовём отправку явно.
+    const локально = await p.evaluate(async () => {
+      const прежний = window.fetch; const посты = [];
+      window.fetch = function (u, o) {
+        if (String(u).indexOf('/v1/score') >= 0 && o && o.method === 'POST') посты.push(String(u));
+        return прежний.apply(this, arguments);
+      };
+      try {
+        const r = await window.__lb.submit();
+        return { база: window.__lb.base(), протокол: location.protocol, хост: location.hostname,
+                 постов: посты.length, состояние: r && r.state, признак: r && r.err };
+      } finally { window.fetch = прежний; }
+    });
     // ⚠️ СЕРВЕР ЖИВЁТ ДО КОНЦА БЛОКА: им пользуются ещё таблица хостов и
     // сквозная проверка `.local` ниже. Закрытие здесь (как было в первой
     // редакции) роняло бы их на «connection refused» — то есть страж падал бы
     // не на проверяемом свойстве, а на своей же уборке.
     await p.close();
     console.log('гейт локального хоста:', JSON.stringify(локально));
-    expect(локально.база === '' && локально.протокол === 'http:',
-      '⚠️ ПОСТАВКА: по http с ЛОКАЛЬНОГО хоста адрес таблицы пуст — прогоны сьюта ' +
-      'и превью направлений не пишут в боевую базу (' + JSON.stringify(локально) + ')');
+    expect(локально.постов === 0 && локально.признак === 'bot' && локально.база !== '',
+      '⚠️ ПОСТАВКА: с ЛОКАЛЬНОГО хоста таблица ЧИТАЕТСЯ (адрес задан), но отправка ' +
+      'НЕ уходит — прогоны сьюта и превью направлений в боевую базу не пишут (' +
+      JSON.stringify(локально) + ')');
     // ⚠️ ВТОРАЯ ПОЛОВИНА: «пусто» истинно и на сборке, где адреса нет ВООБЩЕ.
     // Утверждаем, что подмена через `?lb=` тот же клиент читает — то есть тракт
     // «адрес → база» жив, и ноль выше получен ГЕЙТОМ, а не поломкой.
@@ -6468,12 +6488,21 @@ window.bridge = {
         await pl.goto('http://ivans-macbook.local:' + порт + '/index.html');
         await pl.waitForFunction(() => window.__lb && typeof window.__lb.base === 'function',
           { timeout: 30000 });
-        const бонжур = await pl.evaluate(() => ({ база: window.__lb.base(),
-          хост: location.hostname }));
+        const бонжур = await pl.evaluate(async () => {
+          const прежний = window.fetch; const посты = [];
+          window.fetch = function (u, o) {
+            if (String(u).indexOf('/v1/score') >= 0 && o && o.method === 'POST') посты.push(1);
+            return прежний.apply(this, arguments);
+          };
+          try {
+            const r = await window.__lb.submit();
+            return { хост: location.hostname, постов: посты.length, признак: r && r.err };
+          } finally { window.fetch = прежний; }
+        });
         console.log('гейт .local:', JSON.stringify(бонжур));
-        expect(бонжур.база === '' && /\.local$/.test(бонжур.хост),
-          '⚠️ ГЕЙТ: по `<имя>.local` (Bonjour — так ТЕЛЕФОН ходит на Mac) адрес таблицы ' +
-          'пуст — плейтест с телефона не пишет в боевую базу (' + JSON.stringify(бонжур) + ')');
+        expect(бонжур.постов === 0 && бонжур.признак === 'bot' && /\.local$/.test(бонжур.хост),
+          '⚠️ ГЕЙТ: с `<имя>.local` (Bonjour — так ТЕЛЕФОН ходит на Mac) отправка НЕ ' +
+          'уходит — плейтест с телефона не пишет в боевую базу (' + JSON.stringify(бонжур) + ')');
       } finally { await bl.close(); }
     }
     srvLB.close();
@@ -6539,21 +6568,20 @@ window.bridge = {
   expect(узкий.видимыхАватаров === 3 && тесно.видимыхАватаров < 3,
     '⚠️ ТОЧКА ВХОДА: аватары уступают место тексту (390 → ' + узкий.видимыхАватаров +
     ', 320 → ' + тесно.видимыхАватаров + ')');
-  expect(экран.открыт.своя === true && экран.открыт.плат === false &&
-         экран.платформа.плат === true && экран.платформа.своя === false,
-    '⚠️ ЭКРАН ТАБЛИЦЫ: вкладки переключаются НАСТОЯЩЕЙ кнопкой, активна ровно одна (' +
-    JSON.stringify({ было:экран.открыт.своя, стало:экран.платформа.плат }) + ')');
+  // ⛔ ВКЛАДОК НЕТ — решение владельца «только наша таблица, вкладки
+  // отменяются». Прежний страж утверждал, что они переключаются; правило
+  // сменилось, и он ПЕРЕЕХАЛ за ним с ОБРАТНЫМ утверждением, а не удалён:
+  // иначе возврат вкладок прошёл бы молча. Там же — снятая заглушка текста.
+  expect(экран.открыт.вкладок === 0 && экран.открыт.заглушка === 0,
+    '⛔ ЭКРАН ТАБЛИЦЫ: вкладок и заглушки текста НЕТ — только наша таблица (' +
+    JSON.stringify({ вкладок:экран.открыт.вкладок, заглушек:экран.открыт.заглушка }) + ')');
+  // Заголовок и подзаголовок — из макета (840:1273/840:1274), а не выдуманные.
+  expect(экран.открыт.заголовок === 'Leaderboard' && /^Switch on a booster/.test(экран.открыт.подзаголовок),
+    'ЭКРАН ТАБЛИЦЫ: заголовок и подзаголовок взяты из макета (' +
+    JSON.stringify({ з:экран.открыт.заголовок, п:экран.открыт.подзаголовок }) + ')');
   expect(экран.открыт.строк + экран.открыт.служебных > 0,
     'ЭКРАН ТАБЛИЦЫ: список не пуст молча — либо строки, либо ЧЕСТНОЕ служебное состояние (' +
     экран.открыт.строк + ' строк, ' + экран.открыт.служебных + ' служебных)');
-  // ⚠️⚠️ ТРИПВАЙЕР, А НЕ ОБЫЧНЫЙ СТРАЖ: текст про расхождение чисел вкладок
-  // пишет ВЛАДЕЛЕЦ. Пока его нет, заглушка ВИДИМО помечена, и этот ассерт
-  // утверждает, что метка ЕЩЁ НА МЕСТЕ. Придёт настоящий текст — ассерт
-  // ПОКРАСНЕЕТ и заставит снять метку осознанно. Молчаливая заглушка («пустая
-  // строка») уехала бы в релиз незамеченной.
-  expect(экран.открыт.метка === true && /TEXT PENDING/.test(экран.открыт.заметка),
-    '⚠️ ЭКРАН ТАБЛИЦЫ: заглушка текста владельца ПОМЕЧЕНА и не может уехать молча ' +
-    '(придёт его текст — этот ассерт покраснеет, это ЗАДУМАНО): «' + экран.открыт.заметка + '»');
 
   await lbPage.close();
   }
@@ -6845,6 +6873,119 @@ window.bridge = {
     подложка.цвет + ' / верх ' + подложка.верх + ')');
 
   await lbPage.close();
+
+  // ===== ЭКРАН НОВОЙ ВЕЩИ (макеты 846:4814 моб. / 846:4763 деск.) =====
+  // ⚠️ СВОЯ СТРАНИЦА И КОНЕЦ ФАЙЛА: экран — ПОЛНОЭКРАННЫЙ слой, и открытым он
+  // глотает координатные клики соседних секций (та же грабля, что у виньетки
+  // сюжета и у меню). Закрываем за собой явно.
+  {
+    const noPage = await browser.newPage({ viewport: { width: 393, height: 852 } });
+    noPage.on('pageerror', e => errors.push('PAGEERROR(newobj): ' + e.message));
+    await noPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await noPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await noPage.evaluate(() => window.__game.skipIntro());
+    await noPage.waitForTimeout(1200);
+
+    // ПОВОД ВЫВЕДЕН ИЗ ПРОГРЕССИИ, А НЕ ИЗ ОТДЕЛЬНОГО СПИСКА. Правило одно с
+    // genLevel: 9 типов на ур.1 и ровно один новый за каждый следующий, по
+    // порядку массива. Страж сверяет КЛЮЧ с этим правилом, а не с литералом —
+    // сменится порядок типов, и он поедет за ним (копия числа рядом с рабочей
+    // величиной — закон, на котором проект обжигался пять раз).
+    const повод = await noPage.evaluate(() => {
+      const g = window.__game, out = {};
+      const ключ = (lv) => { g.setLevel(lv); return g.newObjDue(); };
+      out.ур1 = ключ(1);                       // стартовая девятка — новой ОДНОЙ нет
+      out.ур2 = ключ(2); out.ур5 = ключ(5); out.ур20 = ключ(20);
+      out.заПулом = ключ(400);                 // пул исчерпан — экрана нет
+      out.ожид2 = g.typeNameAt(9);             // LEVEL_TYPES_MIN + 2 − 2 = 9
+      out.ожид5 = g.typeNameAt(12);
+      out.ожид20 = g.typeNameAt(27);
+      return out;
+    });
+    console.log('новая вещь/повод:', JSON.stringify(повод));
+    expect(повод.ур1 === null && повод.заПулом === null,
+      '⚠️ НОВАЯ ВЕЩЬ: на первом уровне и за пределами пула повода НЕТ — там открывается ' +
+      'вся стартовая девятка либо не открывается ничего (' + JSON.stringify(повод) + ')');
+    expect(повод.ур2 === повод.ожид2 && повод.ур5 === повод.ожид5 && повод.ур20 === повод.ожид20,
+      '⚠️ НОВАЯ ВЕЩЬ: повод = тип, который открывает ПРОГРЕССИЯ (правило одно с genLevel), ' +
+      'а не отдельный список (' + JSON.stringify(повод) + ')');
+
+    // ⚠️⚠️ МОДЕЛЬ КРУТИТСЯ, А НЕ КАРТИНКА. Это НЕ придирка: владелец ловил меня
+    // на подложке-картинке ДВАЖДЫ («моделька, которая крутится» = чистый 3D).
+    // Проверяем ДВУМЯ признаками сразу: в боксе живой `canvas` (а не `img`) И
+    // два снимка того же бокса с паузой РАЗЛИЧАЮТСЯ. Одного мало: канвас может
+    // стоять неподвижно, а различие кадров дал бы и подменённый gif.
+    await noPage.evaluate(() => { const g = window.__game; g.setLevel(5); g.newObjShow(g.newObjDue(), () => {}); });
+    await noPage.waitForTimeout(900);
+    const узел = await noPage.$('#newObjModel');
+    const кадр1 = await узел.screenshot();
+    await noPage.waitForTimeout(700);
+    const кадр2 = await узел.screenshot();
+    const модель = await noPage.evaluate(() => ({ инфо: window.__game.newObjInfo(),
+      картинок: document.querySelectorAll('#newObjModel img').length }));
+    console.log('новая вещь/модель:', JSON.stringify(модель), 'кадры', кадр1.length, кадр2.length);
+    expect(модель.инфо && модель.инфо.канвас && модель.картинок === 0 &&
+           Buffer.compare(кадр1, кадр2) !== 0,
+      '⚠️⚠️ НОВАЯ ВЕЩЬ: модель ЖИВАЯ И ВРАЩАЕТСЯ — в боксе canvas без картинки-подложки, ' +
+      'и два кадра подряд различаются (' + JSON.stringify(модель) + ')');
+
+    // ЦЕПОЧКА НЕ РВЁТСЯ. Колбэк обязан прийти РОВНО ОДИН раз и на показе, и на
+    // отказной ветке: иначе «Next» молча перестанет начинать уровень — ровно та
+    // грабля, что уже была у анонса сюжета.
+    const цепь = await noPage.evaluate(async () => {
+      const g = window.__game; const out = {};
+      let n = 0; g.setLevel(5); g.newObjShow(g.newObjDue(), () => { n++; });
+      await new Promise(r => setTimeout(r, 350));
+      out.открыт = g.newObjInfo().on;
+      document.getElementById('newObjBtn').click();
+      await new Promise(r => setTimeout(r, 350));
+      out.закрыт = !g.newObjInfo().on; out.колбэков = n;
+      out.канвасСнят = !document.querySelector('#newObjModel canvas');
+      let m = 0; g.setLevel(1);                    // повода нет
+      await new Promise(r => { g.newObjShow(g.newObjDue(), () => { m++; r(); }); setTimeout(r, 400); });
+      out.колбэкБезПовода = m;
+      return out;
+    });
+    console.log('новая вещь/цепочка:', JSON.stringify(цепь));
+    expect(цепь.открыт && цепь.закрыт && цепь.колбэков === 1 && цепь.колбэкБезПовода === 1,
+      '⚠️ НОВАЯ ВЕЩЬ: кнопка закрывает экран и отдаёт управление РОВНО ОДИН раз, ' +
+      'и на ветке «повода нет» колбэк тоже приходит (' + JSON.stringify(цепь) + ')');
+    // ⚠️ КАНВАС СНИМАЕТСЯ — он ОБЩИЙ с карточками коллекции: оставленный в
+    // закрытом экране, он увёл бы спин у музея (та же природа, что «один общий
+    // канвас» у thumbSpinStart).
+    expect(цепь.канвасСнят,
+      '⚠️ НОВАЯ ВЕЩЬ: общий спин-канвас возвращён — закрытый экран не держит его у себя');
+
+    // АНИМАЦИЯ ПОЯВЛЕНИЯ (заказ владельца). ⚠️ Проверяем НАБЛЮДАЕМЫЙ ПЕРЕХОД, а
+    // не имя `animation` в стилях: страж на формулировку был бы зелен и на
+    // сборке, где анимация объявлена, но не проигрывается. Берём МИНИМУМ
+    // непрозрачности за раннее окно (должен быть заметно меньше единицы) и
+    // ждём ФАКТА устоявшегося состояния (opacity === 1), а не фикс-паузы.
+    const анимация = await noPage.evaluate(async () => {
+      const g = window.__game;
+      g.newObjHide(); await new Promise(r => setTimeout(r, 60));
+      g.setLevel(5); g.newObjShow(g.newObjDue(), () => {});
+      const t = document.querySelector('#newObj .no-title');
+      let мин = 1;
+      for (let i = 0; i < 12; i++){
+        мин = Math.min(мин, parseFloat(getComputedStyle(t).opacity) || 0);
+        await new Promise(r => setTimeout(r, 20));
+      }
+      for (let i = 0; i < 60; i++){
+        if (parseFloat(getComputedStyle(t).opacity) >= 0.99) break;
+        await new Promise(r => setTimeout(r, 40));
+      }
+      const итог = parseFloat(getComputedStyle(t).opacity);
+      g.newObjHide();
+      return { мин: +мин.toFixed(3), итог: +итог.toFixed(3) };
+    });
+    console.log('новая вещь/анимация:', JSON.stringify(анимация));
+    expect(анимация.мин < 0.5 && анимация.итог >= 0.99,
+      '⚠️ НОВАЯ ВЕЩЬ: заголовок ПОЯВЛЯЕТСЯ — начинается прозрачным и доходит до полной ' +
+      'видимости (мин ' + анимация.мин + ' -> ' + анимация.итог + ')');
+
+    await noPage.close();
+  }
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;

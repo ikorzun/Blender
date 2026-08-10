@@ -1092,6 +1092,25 @@ window.__game = {
   // уже дважды пропускал случай, о котором не вспомнили. Отдельный сквозной
   // ассерт доказывает, что эта же функция подключена к `location`.
   lbHostIsLocal(protocol, hostname){ return lbHostIsLocal(protocol, hostname); },
+  // ЭКРАН НОВОЙ ВЕЩИ: повод, показ и слепок состояния для стражей.
+  // ⚠️ `newObjInfo` отдаёт ЖИВОЙ КАНВАС (`canvas:true`), а не факт вызова: без
+  // этого страж «модель крутится» проверял бы намерение, а не картинку —
+  // владелец дважды ловил подложку вместо 3D.
+  newObjDue(){ return newObjDue(); },
+  // ⚠️ ХУК ДЛЯ СТРАЖА ПОВОДА: он обязан сверять ключ с ЖИВЫМ порядком типов, а
+  // не с литералом. Порядок массива — рычаг сложности, его правят по спеке
+  // владельца; литерал в тесте разъехался бы с ним молча.
+  typeNameAt(i){ return (i >= 0 && i < TYPES.length) ? TYPES[i].name : null; },
+  newObjShow(key, done){ return newObjShow(key, done); },
+  newObjHide(){ return newObjHide(); },
+  newObjInfo(){
+    const b = document.getElementById('newObj'), h = document.getElementById('newObjModel');
+    if (!b) return null;
+    const c = h ? h.querySelector('canvas') : null;
+    return { on: b.classList.contains('on'), канвас: !!c,
+      ширина: c ? Math.round(c.getBoundingClientRect().width) : 0,
+      имя: (document.getElementById('newObjName') || {}).textContent || '' };
+  },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок

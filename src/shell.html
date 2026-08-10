@@ -153,6 +153,79 @@
     stroke-linejoin:round; stroke-linecap:round;
     paint-order:stroke; font-variant-numeric:tabular-nums; }
   .otext.stat text { font-size:22px; --otl:2; }
+  /* ═══ ЭКРАН НОВОЙ ВЕЩИ (макеты 846:4814 моб. / 846:4763 деск.) ═══════════
+     Числа взяты Dev Mode'ом: фон #2d2d2d, карточка 295 шириной, кнопка 84
+     высотой радиусом 1500 на лайме #c0ff47, подпись Semibold, свечение —
+     радиальный лайм #cbff68 с размытием. */
+  #newObj { display:none; position:fixed; inset:0; z-index:46; background:#2d2d2d;
+    align-items:center; justify-content:center; padding:0 16px;
+    -webkit-tap-highlight-color:transparent; }
+  #newObj.on { display:flex; }
+  .no-card { width:295px; max-width:100%; display:flex; flex-direction:column;
+    align-items:center; }
+  /* ЗАГОЛОВОК: «new» чёрным поверх «OBJECT» белым с наклоном −10.61°, обе с
+     лаймовой обводкой. Наложение как в макете — второй строкой, с подъёмом. */
+  .no-title { position:relative; display:flex; flex-direction:column;
+    align-items:center; pointer-events:none; }
+  .no-title .otext text { --otl-color:#c0ff47; }
+  .no-new { width:200px; height:60px; }
+  .no-new text { font-size:43px; fill:#000; --otl:7; }
+  .no-obj-w { width:260px; height:70px; margin-top:-26px; transform:rotate(-10.61deg); }
+  .no-obj-w text { font-size:38px; fill:#fff; --otl:7; }
+  /* СЦЕНА: свечение под моделью, модель поверх. Размеры макета — 361 сцена /
+     250 модель на мобильном; на десктопе мельче (289 / 200), см. медиазапрос. */
+  .no-stage { position:relative; width:361px; max-width:100%; aspect-ratio:1;
+    display:grid; place-items:center; margin-top:8px; }
+  /* ⚠️ СВЕЧЕНИЕ — РАДИАЛЬНЫЙ ГРАДИЕНТ С РАЗМЫТИЕМ, а не тень: в макете это
+     отдельный слой `shine` (blur 27.5), и хвост у него длинный. `filter:blur`
+     на пустом div дешевле и предсказуемее, чем box-shadow такого радиуса. */
+  .no-shine { position:absolute; width:100%; height:100%; border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, #cbff68 0%, #cbff68 35%, rgba(153,153,153,0) 100%);
+    filter:blur(27px); opacity:.85; }
+  .no-model { position:relative; width:250px; height:250px; display:grid; place-items:center; }
+  /* спин-канвас общий (256²) — вписываем его в бокс модели */
+  .no-model canvas { width:100%; height:100%; display:block; }
+  .no-name { margin-top:6px; font-size:20px; font-weight:600; color:#fff; }
+  .no-btn { margin-top:24px; width:100%; height:84px; border:none; cursor:pointer;
+    background:#c0ff47; color:#000; border-radius:1500px;
+    font-family:var(--font-round); font-size:34px; font-weight:900; }
+  .no-btn-d { display:none; }
+  /* ⚠️ АНИМАЦИЯ ПОЯВЛЕНИЯ (заказ владельца). Три волны, чтобы читалось как
+     «нашлась вещь», а не как выезд панели: сначала наливается фон, затем
+     ВЫПРЫГИВАЕТ надпись, следом раскрывается свечение и всплывает модель.
+     ⚠️ Всё на transform/opacity — они не вызывают перерасчёт раскладки, и
+     кадр на слабом телефоне не проседает (то же правило, что у витрины). */
+  @keyframes noFade { from { opacity:0; } to { opacity:1; } }
+  @keyframes noPop { 0% { opacity:0; transform:scale(.4) rotate(-14deg); }
+                     60% { opacity:1; transform:scale(1.12) rotate(2deg); }
+                     100% { opacity:1; transform:scale(1) rotate(0deg); } }
+  @keyframes noBloom { 0% { opacity:0; transform:scale(.2); }
+                       100% { opacity:.85; transform:scale(1); } }
+  @keyframes noRise { 0% { opacity:0; transform:translateY(26px) scale(.72); }
+                      100% { opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes noUp { from { opacity:0; transform:translateY(18px); }
+                    to { opacity:1; transform:translateY(0); } }
+  #newObj.on { animation:noFade .22s ease-out both; }
+  #newObj.on .no-title { animation:noPop .46s cubic-bezier(.2,1.5,.4,1) .1s both; }
+  #newObj.on .no-shine { animation:noBloom .6s ease-out .22s both; }
+  #newObj.on .no-model { animation:noRise .52s cubic-bezier(.2,1.2,.4,1) .28s both; }
+  #newObj.on .no-name  { animation:noUp .3s ease-out .5s both; }
+  #newObj.on .no-btn   { animation:noUp .3s ease-out .58s both; }
+  @media (prefers-reduced-motion: reduce){
+    #newObj.on, #newObj.on * { animation:none !important; }
+  }
+  /* ДЕСКТОП (макет 846:4763): та же композиция мельче — сцена 289, модель 200,
+     заголовок 36.5/32, подпись 16; кнопка называется «Got it!». */
+  @media (min-width:1080px){
+    .no-stage { width:289px; }
+    .no-model { width:200px; height:200px; }
+    .no-shine { filter:blur(22px); }
+    .no-new text { font-size:36.5px; }
+    .no-obj-w text { font-size:32px; }
+    .no-name { font-size:16px; }
+    .no-btn-m { display:none; }
+    .no-btn-d { display:inline; }
+  }
   /* ЗАЛИВКА ПРОГАЛОВ — РОВНО ДВУМ ПОТРЕБИТЕЛЯМ, У КОТОРЫХ ЗАМЕР ДАЛ ЩЕЛЬ:
      счёт победы и «×N» карточек. Отсчёту и мелким НЕ ставим — щели у них нет,
      а на мелком приём склеивает соседние глифы («LV 8» — две компоненты силуэта
@@ -818,35 +891,70 @@
      падает при тратах. Прятать расхождение нельзя (решение владельца
      2026-07-24) — его обязан ОБЪЯСНИТЬ экран. Текст пишет владелец сам;
      до тех пор в `#lbNote` стоит ПОМЕЧЕННАЯ заглушка (см. страж в сьюте). */
-  #lbOverlay { align-items:flex-start; overflow-y:auto; }
-  .lb-card { margin:auto; width:min(448px, calc(100vw - 32px)); font-family:var(--font-round);
-    display:flex; flex-direction:column; gap:12px; padding:16px 0; }
-  .lb-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .lb-title { color:#fff; font-weight:900; font-size:22px; }
-  .lb-close { width:44px; height:44px; border:none; border-radius:1000px; cursor:pointer;
-    background:#fff; color:#000; font-size:22px; font-weight:900; line-height:1; }
-  .lb-tabs { display:flex; gap:8px; }
-  .lb-tab { flex:1; height:48px; border:none; border-radius:1000px; cursor:pointer;
-    font-family:var(--font-round); font-weight:800; font-size:17px;
-    background:rgba(255,255,255,.16); color:#fff; }
-  .lb-tab.on { background:#c0ff47; color:#000; }
-  /* ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА — ВИДИМО ПОМЕЧЕНА, не «пустая строка»: молчаливая
-     заглушка уехала бы в релиз незамеченной. */
-  .lb-note { min-height:18px; line-height:18px; font-size:13px; font-weight:700;
-    color:#fff; opacity:.75; padding-left:2px; }
-  .lb-note.todo { color:#ffd34d; opacity:1; }
-  .lb-list { display:flex; flex-direction:column; gap:6px; min-height:120px; }
-  .lb-row { display:flex; align-items:center; gap:8px; height:44px; box-sizing:border-box;
-    padding:0 12px 0 8px; border-radius:1000px; color:#fff; }
-  .lb-row.me { background:rgba(255,255,255,.16); box-shadow:inset 0 0 28px 0 #c0ff47; }
-  .lb-pos { flex:none; min-width:38px; font-weight:900; font-size:17px; opacity:.75; }
-  .lb-row.me .lb-pos { opacity:1; }
-  .lb-av { flex:none; width:30px; height:30px; background:transparent; }
+  /* Числа — из макетов Dev Mode'ом: строка 56 без зазора, левый блок ФИКС 196,
+     пилюля счёта цветная только у первых трёх, «YOU» прибита к низу списка. */
+  /* ⚠️⚠️ ВЫШЕ МЕНЮ ПАУЗЫ, И ЭТО НЕ КОСМЕТИКА: экран открывается ИЗ меню, а у
+     `#mainScreen` z-index 30 против 20 у обычного оверлея — таблица честно
+     показывалась, но ПОД меню, и игрок видел прежний экран. Поймано снимком:
+     сам список при этом рисовался (9 строк), то есть по коду всё «работало».
+     40 — между меню (30) и виньеткой сюжета (45): сюжет и экран новой вещи
+     обязаны перекрывать таблицу, а не наоборот. */
+  #lbOverlay { align-items:flex-start; overflow-y:auto; background:#2d2d2d; z-index:40;
+    -webkit-backdrop-filter:none; backdrop-filter:none; }
+  .lb-card { margin:auto; width:min(362px, calc(100vw - 32px)); font-family:var(--font-round);
+    display:flex; flex-direction:column; gap:24px; padding:88px 0 24px; }
+  .lb-head { display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; }
+  .lb-title { color:#fff; font-weight:900; font-size:36px; line-height:1.2; }
+  .lb-sub { color:rgba(255,255,255,.8); font-weight:700; font-size:18px; line-height:1.17; }
+  /* ⚠️ КРЕСТИК ВЫНЕСЕН ИЗ КАРТОЧКИ: на мобильном он стоит по ЦЕНТРУ над
+     заголовком, на десктопе — в левом верхнем углу. Внутри карточки ни то, ни
+     другое не выражается без распорок. */
+  .lb-close { position:absolute; top:16px; left:50%; transform:translateX(-50%);
+    width:56px; height:56px; border:none; border-radius:1000px; cursor:pointer;
+    background:#fff; color:#000; font-size:26px; font-weight:900; line-height:1; z-index:2; }
+  /* СПИСОК: строки ВПЛОТНУЮ (56px, без зазора) — так в макете; «YOU» ложится
+     поверх последней позиции, поэтому у списка есть место снизу. */
+  .lb-list { position:relative; display:flex; flex-direction:column; min-height:120px;
+    padding-bottom:56px; }
+  .lb-row { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    height:56px; box-sizing:border-box; padding:0 8px; border-radius:48px; color:#fff; }
+  /* ⚠️ ЛЕВЫЙ БЛОК ФИКСИРОВАН 196: в макете позиция+аватар+имя занимают ровно
+     столько, и пилюли счёта у всех строк выстраиваются по одной вертикали.
+     `flex:none` обязателен — иначе длинное имя растянуло бы блок и колонка
+     чисел поехала бы у одной строки из десяти. */
+  .lb-left { display:flex; align-items:center; gap:12px; width:196px; flex:none; min-width:0; }
+  .lb-pos { flex:none; width:28px; height:28px; display:grid; place-items:center;
+    border-radius:48px; font-weight:700; font-size:18px; color:#fff; }
+  .lb-ava { display:flex; align-items:center; gap:6px; min-width:0; }
+  .lb-av { flex:none; width:48px; height:48px; background:transparent; }
   .lb-av img { width:100%; height:100%; object-fit:contain; display:block; }
-  .lb-name { flex:1; min-width:0; font-weight:800; font-size:17px; overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
-  .lb-row.me .lb-name { opacity:1; }
-  .lb-score { flex:none; font-weight:900; font-size:17px; }
+  .lb-name { min-width:0; font-weight:700; font-size:18px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  /* ПИЛЮЛЯ СЧЁТА. ⚠️ ФОН ТОЛЬКО У ПЕРВЫХ ТРЁХ — с четвёртого её нет вовсе, и
+     число становится белым. Это не «выделение призёров цветом поверх общего
+     стиля», а два РАЗНЫХ состояния строки. */
+  .lb-score { flex:none; display:flex; align-items:center; justify-content:flex-end; gap:2px;
+    padding:4px 8px 4px 4px; border-radius:64px; font-weight:900; font-size:18px; color:#fff; }
+  .lb-score svg { display:block; width:20px; height:20px; flex:none; }
+  .lb-score svg path { fill:#fff; }
+  .lb-row.p1 .lb-score { background:#ffe627; color:var(--carbon-400); }
+  .lb-row.p2 .lb-score { background:#b8c9c9; color:var(--carbon-400); }
+  .lb-row.p3 .lb-score { background:#e8bb95; color:var(--carbon-400); }
+  .lb-row.p1 .lb-score svg path, .lb-row.p2 .lb-score svg path,
+  .lb-row.p3 .lb-score svg path { fill:var(--carbon-400); }
+  /* СТРОКА «YOU» — белая пилюля, ПРИБИТА К НИЗУ СПИСКА (в макете `absolute`):
+     она всегда на виду, сколько бы строк ни было выше. Кружок позиции белый,
+     число в нём мельче — туда влезает четырёхзначное место. */
+  .lb-row.me { position:absolute; left:0; right:0; bottom:0; background:#fff;
+    color:var(--carbon-400); }
+  .lb-row.me .lb-pos { background:#fff; color:var(--carbon-400); font-size:10px; }
+  .lb-row.me .lb-name { color:var(--carbon-400); }
+  .lb-row.me .lb-score { background:#fff; color:var(--carbon-400); }
+  .lb-row.me .lb-score svg path { fill:#FFE730; }
+  /* ДЕСКТОП (макет 840:1230): крестик слева, а не по центру. */
+  @media (min-width:1080px){
+    .lb-close { left:24px; transform:none; }
+  }
   /* СЛУЖЕБНОЕ СОСТОЯНИЕ — одной строкой, без картинок: четыре случая
      («пусто, но рано» / нет сети / меня нет в таблице / вкладка выключена)
      звучат по-разному, но выглядят одинаково спокойно. */
@@ -973,10 +1081,12 @@
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
   /* слот профиля: аватар + имя (под будущий Google-профиль) */
-  .ms-prof { display:flex; align-items:center; gap:10px; min-width:0; }
+  /* gap 4 и имя Bold 18 `--carbon-400` — числа макета 840:4331/840:4334
+     (было 10 и 16px «на глаз») */
+  .ms-prof { display:flex; align-items:center; gap:4px; min-width:0; }
   .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
     display:grid; place-items:center; font-size:22px; }
-  .ms-uname { font-size:16px; font-weight:700; color:#000; overflow:hidden;
+  .ms-uname { font-size:18px; font-weight:700; color:var(--carbon-400); overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
   /* ⚠️ вход в отладку виден только в разработке — класс ставит 90-input */
   /* ⚠️ БЕЗ !important: `html.dev .ms-dev` (специфичность 0,2,1) и так перебивает
@@ -988,17 +1098,27 @@
     color:rgba(0,0,0,.35); cursor:pointer; }
   .ms-head-r { display:flex; align-items:center; gap:12px; }
   .ms-stars { display:flex; align-items:center; gap:6px; }
-  .ms-stars svg { display:block; }
-  .ms-stars span { font-size:26px; font-weight:900; color:#000; line-height:1; }
+  /* ⚠️ ЗВЕЗДА КРАСИТСЯ CSS-ПРАВИЛОМ, А НЕ АТРИБУТОМ В ФАЙЛЕ: в макетах она
+     РАЗНАЯ — на мобильном ЧЁРНАЯ (840:4337), на десктопе `#ffc800`
+     (840:4685), а сам ассет владельца `Interface/Star.svg` жёлтый `#FFE730`.
+     Правило CSS перебивает презентационный атрибут `fill` в разметке, поэтому
+     один инлайновый ассет обслуживает обе раскладки без второй копии.
+     ⛔ Не `mask-image` и не подмена файла — оба приёма в этом проекте уже
+     ломались; правило на `fill` у инлайнового SVG безопасно везде. */
+  .ms-stars svg { display:block; width:21px; height:20px; }
+  .ms-stars svg path { fill:#000; }
+  .ms-stars span { font-size:22px; font-weight:900; color:#000; line-height:1; }
   /* nowrap: без него длинное ТОЧНОЕ число кошелька (спека 2026-07-28) не
      переполняло ряд, а ЛОМАЛО «Get More» на две строки — ряд формально
      «влезал», фит-чек не срабатывал. Теперь не влезающее число даёт честное
      переполнение, и setWalletNumber откатывается в сокращение. */
-  /* ⚠️ ЛАЙМ С ЧЁРНЫМ ТЕКСТОМ — нода 815:1512, И НА ДЕСКТОПЕ ТОЖЕ (вердикт
-     владельца 2026-07-31 «лайм и на десктопе»). Была чёрная с белым из более
-     старой ноды; сперва лайм стоял только в мобильном медиазапросе, теперь
-     правило одно на обе раскладки — отдельного десктопного цвета больше нет. */
-  .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#c0ff47; color:#000;
+  /* ⛔ ЛАЙМ `#c0ff47` С ТЕКСТОМ «Get More» ОТМЕНЁН МАКЕТАМИ 2026-08-10.
+     Надгробие прежнему правилу: там стояло «лайм и на десктопе тоже» (вердикт
+     владельца 2026-07-31) — это было верно для ноды 815:1512, но новые макеты
+     заменили и цвет, и надпись. Теперь кнопка называется «More» и жёлтая, а
+     оттенок РАЗНЫЙ по раскладкам: мобильный `#ffe627` (840:4339), десктопный
+     `#ffc800` (840:4687). Разницу не «причёсывать» — она в обоих макетах. */
+  .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#ffe627; color:#000;
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
   /* ТОЧКА ВХОДА В ТАБЛИЦУ ЛИДЕРОВ — МОБИЛЬНЫЙ ВАРИАНТ (макет 840:4344).
@@ -1009,18 +1129,21 @@
      ПЕРЕВОРАЧИВАЕТСЯ в тёмной теме и ночью выкрасил бы текст в белый на
      светлой пилюле). Меню светлое в обеих темах — токен не переворачивается. */
   .ms-lbentry { display:flex; align-items:center; justify-content:space-between;
-    gap:12px; background:rgba(239,251,255,.6); border:1px solid #fff;
-    border-radius:1000px; padding:16px 12px 16px 20px; cursor:pointer; }
+    gap:12px; background:#fff; border-radius:1000px;
+    padding:16px 12px 16px 20px; cursor:pointer; }
   .ms-lbentry[hidden] { display:none; }
   .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; min-width:0; }
-  .ms-lbe-title { font-size:22px; font-weight:900; color:var(--carbon-400);
+  .ms-lbe-title { font-size:22px; font-weight:900; color:#000;
     line-height:1; white-space:nowrap; }
   /* «You on 845» — ТОЛЬКО из точного места (см. lbEntryRefresh). Нет точного —
      строки нет вовсе, и пилюля живёт без неё: пустую строку не резервируем. */
   .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
     white-space:nowrap; }
   .ms-lbe-sub:empty { display:none; }
-  .ms-lbe-right { display:flex; align-items:center; gap:12px; }
+  /* ⚠️ ЗАЗОР 2 НА ВСЮ ПРАВУЮ ГРУППУ, а не 12: по макету (840:4348) аватары И
+     стрелка лежат в ОДНОМ флексе с gap 2 — стрелка стоит вплотную к третьему
+     аватару, а не отдельным блоком. На десктопе группа делится (см. ниже). */
+  .ms-lbe-right { display:flex; align-items:center; gap:2px; }
   .ms-lbe-avs { display:flex; align-items:center; gap:2px; }
   .ms-lbe-avs img { display:block; width:40px; height:40px; border-radius:50%; }
   /* ⚠️⚠️ НА УЗКИХ ЭКРАНАХ АВАТАРЫ УСТУПАЮТ ТЕКСТУ, И ЭТО ЗАМЕР, А НЕ ВКУС.
@@ -1125,7 +1248,11 @@
   /* МОБАЙЛ: обёртка растворяется — профиль и заголовок встают прямыми детьми
      .ms-wrap и раскладываются по order (профиль пилюлей наверх, заголовок к
      сетке). На десктопе обёртка станет реальным флекс-рядом (см. медиазапрос). */
-  .ms-collhead { display:contents; }
+  /* МОБАЙЛ: карточка растворяется — профиль и вход становятся двумя отдельными
+     пилюлями и раскладываются по `order` прямыми детьми `.ms-wrap`. Разделитель
+     карточки там не нужен: делить нечего, между пилюлями обычный зазор. */
+  .ms-card { display:contents; }
+  .ms-card-sep { display:none; }
   /* СТАКЕД-ПОРЯДОК <1080 (спека владельца 2026-07-24: бок-о-бок только ≥1080):
      профиль-пилюля наверх → баннер → Play → настройки → «My collection» →
      сетка → dev. .ms-collhead растворён (display:contents), профиль/заголовок
@@ -1355,27 +1482,29 @@
     .ms-wrap { max-width:none; display:grid; align-content:stretch;
       grid-template-columns:292px minmax(160px,260px) minmax(220px,1fr);
       grid-template-rows:auto 1fr auto auto; height:100vh; overflow:hidden;
-      grid-template-areas:"play play chead"
+      grid-template-areas:"prof prof chead"
                           "play play grid "
                           "sets sets grid "
                           "dev  dev  grid "; }
-    /* ПРАВАЯ КОЛОНКА (макет 763:1031): шапка = заголовок слева + профиль
-       справа, над сеткой. Профиль сюда переносит одна перемена display у
-       .ms-collhead (на мобайле она contents, тут — реальный флекс-ряд). */
-    /* flex-wrap: на узком десктопе (700-1040, колонка ~220-460) заголовок +
-       профиль (★/Get More/аватар) не влезали в строку и профиль уезжал за
-       вьюпорт (обрезался overflow:hidden обёртки). wrap роняет профиль под
-       заголовок; на широких (≥~1080) всё умещается в строку как было. */
-    .ms-collhead { grid-area:chead; display:flex; align-items:center;
-      justify-content:space-between; gap:8px 16px; padding:8px 16px 0; flex-wrap:wrap; }
+    /* ⚠️⚠️ КАРТОЧКА ПРОФИЛЯ — В ВЕРХЕ ЛЕВОЙ КОЛОНКИ, НАД PLAY (макет 763:1031,
+       карточка 840:4679). ⛔ ЭТО ОТМЕНЯЕТ прежнюю раскладку, где профиль стоял
+       в ШАПКЕ ПРАВОЙ КОЛОНКИ рядом с заголовком «My collection»: он переехал
+       налево, а заголовок встал ПО ЦЕНТРУ правой колонки.
+       Числа макета: белая, радиус 32, паддинг 16, колонка, зазор 16. */
+    .ms-card { grid-area:prof; display:flex; flex-direction:column; gap:16px;
+      background:#fff; border-radius:32px; padding:16px; }
+    /* разделитель 840:4688 — линия во всю ширину карточки между рядами */
+    .ms-card-sep { display:block; height:1px; background:rgba(0,0,0,.08); }
     /* ⚠️ ТОЧКА ВХОДА, ДЕСКТОПНЫЙ ВАРИАНТ (макет 840:4633) — НЕ АДАПТИВ
        МОБИЛЬНОГО, а второе решение того же узла: фон БЕЛЫЙ без рамки, текст
        ОДНОЙ строкой («Leaderboard • 678», место цветом #b0bcd0), действие —
-       ПИЛЮЛЯ «Open» на #d9f4ff вместо круглой стрелки.
-       `flex-basis:100%` роняет блок на свою строку под ряд «заголовок+профиль»:
-       по макету он отдельной полосой, а не третьим элементом того же ряда. */
-    .ms-lbentry { flex:0 0 100%; background:#fff; border:none;
-      padding:8px 8px 8px 20px; }
+       ПИЛЮЛЯ «Open» на #d9f4ff вместо серой стрелки.
+       ⚠️ Блок — ВТОРОЙ РЯД БЕЛОЙ КАРТОЧКИ, поэтому своей заливки и паддингов
+       по краям у него нет: `padding-left:8` из макета 840:4689 и всё. */
+    .ms-lbentry { background:none; border:none; padding:0 0 0 8px; }
+    /* на десктопе аватары и кнопка — ДВЕ группы через 12 (840:4692), а не
+       сплошная лента с зазором 2, как на мобильном */
+    .ms-lbe-right { gap:12px; }
     .ms-lbe-txt { flex-direction:row; align-items:baseline; gap:0; }
     .ms-lbe-dot { display:inline; color:#b0bcd0; }
     .ms-lbe-dot:empty { display:none; }
@@ -1386,15 +1515,22 @@
       font-weight:700; color:#000; }
     .ms-lbe-act { background:#d9f4ff; border-radius:1000px; padding:13px 16px;
       line-height:1; }
-    .ms-coll-title { margin:0; font-size:34px; text-align:left; }
-    /* профиль БЕЗ пилюли; порядок как в макете: звёзды, Get More, аватар
-       (имя на десктопе прячем — справа в макете только аватар) */
-    .ms-head { background:none; padding:0; border-radius:0; gap:16px;
-      justify-content:flex-end; }
-    .ms-head-r { order:1; }
-    .ms-prof { order:2; }
-    .ms-uname { display:none; }
-    .ms-stars span { font-size:34px; }
+    /* заголовок коллекции — ПО ЦЕНТРУ правой колонки (макет 840:4585), было
+       слева в ряду с профилем; ряд распался, профиль уехал в левую колонку */
+    .ms-coll-title { grid-area:chead; margin:0; font-size:34px; text-align:center;
+      padding:8px 16px 0; }
+    /* ⚠️ ПРОФИЛЬ — ПЕРВЫЙ РЯД КАРТОЧКИ: своей пилюли и паддингов нет, их даёт
+       карточка. ⛔ ПОРЯДОК БОЛЬШЕ НЕ ПЕРЕВЁРНУТ и ИМЯ ВИДНО — прежнее правило
+       («звёзды, кнопка, аватар; имя прячем») пришло из старой ноды, где справа
+       был только аватар. В новом макете 840:4680 слева аватар+имя, справа
+       звезда+счёт+кнопка, то есть тот же порядок, что на мобильном. */
+    .ms-head { background:none; padding:0; border-radius:0; }
+    .ms-prof { gap:6px; }
+    .ms-uname { display:block; font-size:22px; font-weight:900; }
+    .ms-stars svg { width:25px; height:24px; }
+    .ms-stars svg path { fill:#ffc800; }
+    .ms-stars span { font-size:32px; }
+    .ms-getmore { background:#ffc800; }
     .ms-play { grid-area:play; min-height:423px; border-radius:56px; }
     /* ⚠️ ГЛАЗА ЗАПОЛНЯЮТ карточку Play по вертикали (спека владельца «не
        оставляя дыр, заполняй пространство блоком с глазами»): карточка растёт
@@ -1419,7 +1555,7 @@
        ⚠️ НИЗ НЕ ДВИГАЕТСЯ: в гриде stretch подгоняет МАРЖИН-бокс, высота
        растёт вверх — вьюпорт (bento ровно 100vh, overflow:hidden) не
        переполняется. Сменится высота шапки — поменять оба числа вместе. */
-    .ms-collhead { position:relative; z-index:2; background:transparent; }
+    .ms-coll-title { position:relative; z-index:2; background:transparent; }
     /* ⚠️ ПЕРЕКРЫТИЕ = ПОЛНОЕ РАССТОЯНИЕ ОТ ВЕРХА ШАПКИ ДО ВЕРХА СЕТКИ (64).
        История: 64 → 24 (жалоба «лишний отступ сверху при скроле») → снова 64
        (жалоба владельца 2026-07-29 «странно режется шапка, словно наполовину
@@ -1930,6 +2066,34 @@
   </div>
 </div>
 
+<!-- ⚠️⚠️ ЭКРАН НОВОЙ ВЕЩИ (макеты владельца 2026-08-10: деск. `846:4763`,
+     моб. `846:4814`). Слово владельца: «идёт сразу бесшовно за экраном
+     окончания уровня». Место в цепочке: победа → статистика → ЭТОТ ЭКРАН →
+     анонс сюжета → следующий уровень (см. 90-input, кнопка «Next»).
+     ⚠️ МОДЕЛЬ ЖИВАЯ, А НЕ КАРТИНКА. В макете на её месте PNG-выгрузка, но
+     владелец дважды ловил меня на подложке-картинке («моделька, которая
+     крутится» = чистый 3D). Сюда встаёт ОБЩИЙ спин-канвас `thumbSpinStart`,
+     тот же, что крутит карточки коллекции.
+     ⚠️ НАДПИСЬ — SVG `.otext`, единый механизм контура проекта: у неё лаймовая
+     обводка, а `-webkit-text-stroke` в проекте запрещён (срезает углы). -->
+<div id="newObj" aria-hidden="true">
+  <div class="no-card">
+    <div class="no-title">
+      <svg class="otext no-new" viewBox="0 0 200 60" aria-hidden="true"><text x="100" y="46" text-anchor="middle">new</text></svg>
+      <svg class="otext no-obj-w" viewBox="0 0 260 70" aria-hidden="true"><text x="130" y="54" text-anchor="middle">OBJECT</text></svg>
+    </div>
+    <div class="no-stage">
+      <div class="no-shine" aria-hidden="true"></div>
+      <div class="no-model" id="newObjModel"></div>
+    </div>
+    <div class="no-name" id="newObjName"></div>
+    <!-- ⚠️ ДВЕ ПОДПИСИ — ТАК В МАКЕТАХ: мобильный `846:4893` «Save it!»,
+         десктопный `846:4812` «Got it!». Не сводил к одной: расхождение
+         в самих макетах, а не моя вольность. -->
+    <button class="no-btn" id="newObjBtn" type="button"><span class="no-btn-m">Save it!</span><span class="no-btn-d">Got it!</span></button>
+  </div>
+</div>
+
 <div class="overlay" id="winOverlay">
   <!-- ⚠️ СКРЫТЫЕ ДЕРЖАТЕЛИ: checkEnd (80-gameplay — ВНЕ зоны интерфейса) пишет
        строки в winTitle/winStars/winStats/winCoins и дёргает winX2Btn.display.
@@ -1986,18 +2150,23 @@
   </div>
 </div>
 
-<!-- ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ (две вкладки). Открывается из меню. -->
+<!-- ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ (макеты владельца: моб. `840:1269`, деск. `840:1230`).
+     ⛔ ВКЛАДОК НЕТ — решение владельца «только наша таблица, вкладки
+     отменяются». Платформенная отправка при этом ОСТАЁТСЯ в коде и работает
+     (она бесплатна и даёт видимость на площадке) — игроку просто не
+     показывается; пометка стоит и у `setScore` в 78-ads, иначе следующий
+     увидит отправку без экрана и решит, что это забытый хвост.
+     ⛔ ЗАГЛУШКА «TEXT PENDING» СНЯТА ВМЕСТЕ СО ВКЛАДКАМИ: она объясняла
+     расхождение чисел ДВУХ вкладок, а объяснять больше нечего.
+     ⚠️ КРЕСТИК: на мобильном — по ЦЕНТРУ сверху, на десктопе — СЛЕВА (так в
+     обоих макетах; это не адаптив, а два решения одного узла). -->
 <div class="overlay" id="lbOverlay">
+  <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
   <div class="lb-card">
     <div class="lb-head">
-      <div class="lb-title">LEADERBOARD</div>
-      <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+      <div class="lb-title">Leaderboard</div>
+      <div class="lb-sub">Switch on a booster and every match you make earns extra stars — x2, x3 or x5.</div>
     </div>
-    <div class="lb-tabs">
-      <button class="lb-tab on" id="lbTabOurs">Balance</button>
-      <button class="lb-tab" id="lbTabPlat">All-time</button>
-    </div>
-    <div class="lb-note" id="lbNote"></div>
     <div class="lb-list" id="lbList"></div>
   </div>
 </div>
@@ -2089,8 +2258,19 @@
          (order -1), заголовок опускается к сетке (order 4). Профиль — ЕДИНЫЙ
          узел (в нём id msStars/msGetMore/msUser), поэтому НЕ дублируется, а
          переносится раскладкой; заголовок тоже один. -->
-    <div class="ms-collhead">
-      <h2 class="ms-coll-title">My collection</h2>
+    <!-- ⚠️⚠️ КАРТОЧКА ПРОФИЛЯ + ВХОДА (макеты 2026-08-10: моб. `840:4328`,
+         деск. `763:1031` / карточка `840:4679`). ЗАГОЛОВОК «My collection» СЮДА
+         БОЛЬШЕ НЕ ВХОДИТ — он ниже, отдельным узлом.
+         ⛔ ЭТО ОТМЕНЯЕТ ПРЕЖНЮЮ ДЕСКТОПНУЮ РАСКЛАДКУ, где профиль стоял в ШАПКЕ
+         ПРАВОЙ КОЛОНКИ рядом с заголовком: по новому макету он ПЕРЕЕХАЛ В ВЕРХ
+         ЛЕВОЙ КОЛОНКИ, над карточкой Play, а заголовок коллекции встал ПО
+         ЦЕНТРУ правой. Прежний страж «заголовок и профиль в одном ряду»
+         переехал вместе с правилом, а не «починен».
+         ⚠️ Обёртка растворяется на мобайле (`display:contents`) — там это две
+         независимые пилюли; на десктопе она и есть белая карточка с
+         разделителем между рядами. Профиль — ЕДИНЫЙ узел (в нём id), поэтому
+         переносится РАСКЛАДКОЙ, а не копией. -->
+    <div class="ms-card">
       <header class="ms-head">
       <!-- МЕСТО ПОД GOOGLE-ПРОФИЛЬ (решение владельца 2026-07-23: «нужна
            авторизация через гугл для сохранения прогресса»). Пока плейсхолдер
@@ -2107,22 +2287,26 @@
            viewBox 32x30 из файла, цвет #FFE730 оттуда же --><svg viewBox="0 0 32 30" width="25" height="24" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
           <span id="msStars">0</span>
         </div>
-        <button class="ms-getmore" id="msGetMore">Get More</button>
+        <button class="ms-getmore" id="msGetMore">More</button>
       </div>
     </header>
+    <!-- разделитель карточки — только десктоп (в макете 840:4688 линия во всю
+         ширину между рядом профиля и входом; на мобайле это две отдельные
+         пилюли, делить нечего) -->
+    <div class="ms-card-sep" aria-hidden="true"></div>
     <!-- ⚠️ ТОЧКА ВХОДА В ТАБЛИЦУ ЛИДЕРОВ (макеты владельца 2026-08-10:
          мобильный `840:4344`, десктоп `840:4633`).
          ⚠️ МЕСТО НЕ СЛУЧАЙНОЕ, И ПРЕЖНЕЕ УКАЗАНИЕ ОТМЕНЕНО МАКЕТОМ: блок стоит
          СРАЗУ ПОД РЯДОМ ПРОФИЛЯ и ВЫШЕ карточки Play, а НЕ на месте снятого
          баннера «No more AD» (тот в макете скрыт и лежит внизу).
-         ⚠️⚠️ ЖИВЁТ ВНУТРИ `.ms-collhead` ПО ПОСТРОЕНИЮ, а не для красоты. На
+         ⚠️⚠️ ЖИВЁТ ВНУТРИ `.ms-card` ПО ПОСТРОЕНИЮ, а не для красоты. На
          мобайле обёртка `display:contents` растворяется, и блок встаёт прямым
          ребёнком `.ms-wrap` со своим `order` — ровно между профилем (−1) и
          Play (2). На десктопе `.ms-wrap` — ГРИД С ИМЕНОВАННЫМИ ОБЛАСТЯМИ, и
          блок-сирота без `grid-area` встал бы автоплейсментом, ломая раскладку;
-         внутри обёртки он наследует её область `chead` даром.
+         внутри карточки он наследует её область `prof` даром.
          ⚠️ ОДИН УЗЕЛ, ДВА ПРЕДСТАВЛЕНИЯ (в нём id — дублировать нельзя):
-         мобильный — две строки и стрелка, десктопный — одна строка и кнопка
+         мобильный — две строки и СТРЕЛКА, десктопный — одна строка и КНОПКА
          «Open». Переключает медиазапрос, разметка одна.
          ⚠️ БЛОК ПОКАЗЫВАЕТСЯ, ТОЛЬКО КОГДА ФИЧА ВКЛЮЧЕНА (задан адрес сервиса):
          резервировать место под данные, которых в этой сборке быть НЕ МОЖЕТ, —
@@ -2140,16 +2324,17 @@
              меняется только показ детей. Ряд целиком тоже кликабелен (по
              макету нажимается вся пилюля), но фокусируемый узел ровно один. -->
         <button class="ms-lbe-act" id="msLbeOpen" type="button" aria-label="Open leaderboard">
-          <svg class="ms-lbe-arrow" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
-            <circle cx="16" cy="16" r="16" fill="#ffffff"/>
-            <path d="M13.5 9.5L20 16l-6.5 6.5" fill="none" stroke="#2a2935" stroke-width="2.6"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <!-- ⚠️ СТРЕЛКА — АССЕТ МАКЕТА `Interface/Arrow.svg` (нода 840:4352,
+               32×32, заливка #B5BDD0), а не нарисованный мной шеврон в белом
+               круге: в макете это ПЛОСКИЙ СЕРЫЙ ГЛИФ без подложки. Путь сверен
+               с выгрузкой Dev Mode побайтово. -->
+          <svg class="ms-lbe-arrow" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><path d="M17.6061 24.7698C17.2687 24.7698 16.9461 24.6671 16.6381 24.4618C16.3301 24.2711 16.0734 24.0218 15.8681 23.7138C15.6774 23.4058 15.5821 23.0978 15.5821 22.7898C15.5821 22.4378 15.7287 22.0638 16.0221 21.6678C16.3154 21.2718 16.6601 20.8831 17.0561 20.5018C17.4667 20.1058 17.8261 19.7685 18.1341 19.4898H9.04812C8.21212 19.4898 7.55679 19.2698 7.08212 18.8298C6.62212 18.3898 6.39212 17.8178 6.39212 17.1138C6.39212 16.4098 6.62212 15.8378 7.08212 15.3978C7.55679 14.9578 8.21212 14.7378 9.04812 14.7378H18.1341C17.8261 14.4591 17.4667 14.1291 17.0561 13.7478C16.6601 13.3518 16.3154 12.9558 16.0221 12.5598C15.7287 12.1638 15.5821 11.7898 15.5821 11.4378C15.5821 11.1298 15.6774 10.8218 15.8681 10.5138C16.0734 10.2058 16.3301 9.95646 16.6381 9.76579C16.9461 9.56046 17.2687 9.45779 17.6061 9.45779C17.9581 9.45779 18.3027 9.60446 18.6401 9.89779C18.9774 10.1911 19.3661 10.5798 19.8061 11.0638L24.9541 16.1898C25.1447 16.3805 25.2841 16.5565 25.3721 16.7178C25.4747 16.8791 25.5261 17.0111 25.5261 17.1138C25.5261 17.2165 25.4747 17.3485 25.3721 17.5098C25.2841 17.6711 25.1447 17.8471 24.9541 18.0378L19.8061 23.1638C19.3661 23.6478 18.9774 24.0365 18.6401 24.3298C18.3027 24.6231 17.9581 24.7698 17.6061 24.7698Z" fill="#B5BDD0"/></svg>
           <span class="ms-lbe-open">Open</span>
         </button>
       </div>
     </section>
     </div>
+    <h2 class="ms-coll-title">My collection</h2>
     <!-- ⛔ БАННЕР «No more AD» УДАЛЁН ИЗ МЕНЮ (слово владельца 2026-08-03
      дословно: «убери этот блок из меню, вместо него будет блок лидербордов,
      но позже. В десктопе настройки растянуться во всю колонку»). Продукт
@@ -2225,7 +2410,7 @@
            viewBox 32x30 из файла, цвет #FFE730 оттуда же --><svg viewBox="0 0 32 30" width="16" height="16" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
         <span id="msStars2">0</span>
       </div>
-      <button class="ms-getmore" id="msGetMore2">Get More</button>
+      <button class="ms-getmore" id="msGetMore2">More</button>
     </div>
   </div>
 </div>

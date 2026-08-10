@@ -251,8 +251,10 @@ function renderWinLb(){
 // НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
 // метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
 // незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
-const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
-let lbTab = 'ours', lbEpoch = 0;
+// ⛔ ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА СНЯТА ВМЕСТЕ СО ВКЛАДКАМИ: она объясняла
+// расхождение чисел ДВУХ вкладок, а вкладки отменены — объяснять нечего.
+// Подзаголовок экрана теперь берётся из макета (846:1274).
+let lbEpoch = 0;
 // ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
 // отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
 function lbScreenStop(){ lbEpoch++; }
@@ -309,14 +311,28 @@ function lbServ(text){
   host.innerHTML = ''; const d = document.createElement('div');
   d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
 }
+// ⚠️ ЗВЕЗДА В ПИЛЮЛЕ СЧЁТА — фигура ассета `Star-box` (20×20). В макете три
+// выгрузки с разной заливкой (тёмная у призёров, белая дальше, жёлтая у своей
+// строки), но КОНТУР один — поэтому файл один, а цвет задаёт CSS по классу
+// строки. Копировать три файла значило бы держать три копии одной фигуры.
+const LB_STAR_D = 'M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z';
+// ⚠️ ЧИСЛО ГРУППАМИ ПО ТРИ, КАК В МАКЕТЕ («123 900»). ⛔ НЕ `winFmtScore`: тот
+// сжимает от 10 000 в «12.5k», а таблица — про ТОЧНЫЕ результаты, и сжатие
+// скрывает как раз разницу между соседями, ради которой в неё и смотрят.
+function lbFmt(n){ return String(Math.max(0, n | 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 function lbRowsRender(rows){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = '';
   rows.forEach(r => {
     const row = document.createElement('div');
-    row.className = 'lb-row' + (r.me ? ' me' : '');
+    // ⚠️ ЦВЕТ ПИЛЮЛИ — ПО МЕСТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ: строки экрана могут
+    // начинаться не с первого места, и «первые три сверху» ≠ «призёры».
+    const p = r.pos | 0;
+    row.className = 'lb-row' + (r.me ? ' me' : (p >= 1 && p <= 3 ? ' p' + p : ''));
+    const left = document.createElement('div'); left.className = 'lb-left';
     const pos = document.createElement('div'); pos.className = 'lb-pos';
-    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+    pos.textContent = (p > 0) ? String(p) : '';
+    const ava = document.createElement('div'); ava.className = 'lb-ava';
     const av = document.createElement('div'); av.className = 'lb-av';
     const ai = r.av | 0;
     if (ai > 0){
@@ -324,9 +340,18 @@ function lbRowsRender(rows){
       img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
       img.alt = ''; img.decoding = 'async'; av.appendChild(img);
     }
-    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
-    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
-    row.append(pos, av, nm, sc);
+    const nm = document.createElement('div'); nm.className = 'lb-name';
+    // «Name • You» — так в макете: своя строка ПОДПИСАНА, а не только выделена
+    nm.textContent = (r.name || '') + (r.me ? ' • You' : '');
+    ava.append(av, nm); left.append(pos, ava);
+    const sc = document.createElement('div'); sc.className = 'lb-score';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 32 30'); svg.setAttribute('aria-hidden', 'true');
+    const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pth.setAttribute('d', LB_STAR_D); svg.appendChild(pth);
+    const num = document.createElement('span'); num.textContent = lbFmt(r.score);
+    sc.append(svg, num);
+    row.append(left, sc);
     host.appendChild(row);
   });
 }
@@ -340,21 +365,21 @@ async function lbLoadOurs(my){
   if (my !== lbEpoch) return;
   if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
   if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const строки = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
   const m = await lb.me().catch(()=>null);
-  if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
-  const host = $('lbList'); if (!host) return;
-  const mine = document.createElement('div');
-  mine.className = 'lb-row me';
-  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
-  const av = document.createElement('div'); av.className = 'lb-av';
-  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
-  if (ai > 0){ const img = document.createElement('img');
-    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
-  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
-  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
-  mine.append(p, av, nm, sc);
-  host.appendChild(mine);
+  if (my !== lbEpoch) return;
+  // ⚠️⚠️ СВОЯ СТРОКА ИДЁТ ЧЕРЕЗ ТОТ ЖЕ РЕНДЕР, что и все прочие. Раньше она
+  // собиралась ОТДЕЛЬНЫМ куском кода — и разъехалась с макетом сразу в трёх
+  // местах (место с решёткой, имя «You» вместо «Имя • You», сжатый счёт). Это
+  // ровно тот закон, на котором проект обжигался: копия рядом с рабочей
+  // величиной совпадает в момент написания и расходится потом.
+  // ⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО (`exact`) — отказ закрытый: нет признака
+  // достоверности, значит своей строки на экране нет вовсе.
+  if (m && m.state === 'ok' && m.exact && m.rank > 0){
+    строки.push({ pos:m.rank, name:(typeof guestName === 'function') ? guestName() : '',
+      av:(typeof guestAvatar === 'function') ? guestAvatar() : 0, score:m.score, me:true });
+  }
+  lbRowsRender(строки);
 }
 // ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
 // и он не ошибка: площадка может не поддерживать таблицы вовсе.
@@ -366,19 +391,17 @@ async function lbLoadPlat(my){
   if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
   lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
 }
+// ⛔ ВКЛАДОК НЕТ (решение владельца «только наша таблица, вкладки отменяются»),
+// поэтому и переключателя, и заглушки текста здесь больше нет. `lbLoadPlat`
+// оставлен ЖИВЫМ намеренно: платформенная отправка работает и даёт видимость на
+// площадке — вернуть показ можно одной строкой, если владелец передумает.
 function lbScreenRender(){
-  const note = $('lbNote');
-  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
-  const to = $('lbTabOurs'), tp = $('lbTabPlat');
-  if (to) to.classList.toggle('on', lbTab === 'ours');
-  if (tp) tp.classList.toggle('on', lbTab === 'plat');
   lbServ('Loading…');
   const my = ++lbEpoch;
-  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+  lbLoadOurs(my).catch(()=>{});
 }
 function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
 function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
-function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
@@ -2046,4 +2069,63 @@ function tickVitrine(now){
   vitAt = now;
   // vitReconcile сам зовёт vitUpdateCell для неизменившихся слотов (полоски/пульс)
   if (!intro && level && !level.over) vitReconcile();
+}
+
+// ═══ ЭКРАН НОВОЙ ВЕЩИ (макеты владельца 2026-08-10: 846:4814 моб. / 846:4763
+// деск.). Слово владельца: «идёт сразу бесшовно за экраном окончания уровня».
+//
+// ⚠️⚠️ ЧТО СЧИТАЕТСЯ «НОВОЙ ВЕЩЬЮ» — ВЫВЕДЕНО ИЗ ПРОГРЕССИИ, А НЕ ПРИДУМАНО.
+// Типы открываются ПО ПОРЯДКУ массива: 9 штук на первом уровне и РОВНО ОДИН
+// новый за каждый следующий (`LEVEL_TYPES_MIN + (уровень − 1)`, единое правило
+// genLevel и `isTypeUnlocked`). Значит у экрана есть естественный и
+// детерминированный повод: показать ту единственную вещь, которая откроется на
+// уровне, к которому игрок только что перешёл.
+// ⛔ ПОЭТОМУ ЖЕ ЕГО НЕТ ПЕРЕД ПЕРВЫМ УРОВНЕМ (там открывается сразу девятка —
+// «новая вещь» одна не выделяется) И КОГДА ПУЛ ИСЧЕРПАН (с ур.112 новых типов
+// больше не появляется). Обе ветки обязаны отдавать управление дальше, иначе
+// кнопка «Next» молча перестанет начинать уровень — та же грабля, что была у
+// анонса сюжета.
+function newObjDue(){
+  const lv = (typeof levelNum === 'number') ? levelNum : 0;   // уровень, который вот-вот начнётся
+  if (lv < 2) return null;
+  const idx = LEVEL_TYPES_MIN + lv - 2;
+  if (idx < 0 || idx >= TYPES.length) return null;
+  return TYPES[idx].name;
+}
+let newObjDone = null;
+// Показ. `done` зовётся по нажатию кнопки — ровно один раз.
+// ⚠️ МОДЕЛЬ ЖИВАЯ: общий спин-канвас `thumbSpinStart`, тот же, что крутит
+// карточки коллекции. Картинку-подложку сюда НЕ ставить (слово владельца
+// «моделька, которая крутится» — про чистый 3D без подложки).
+function newObjShow(key, done){
+  const box = $('newObj'), host = $('newObjModel'), nm = $('newObjName');
+  if (!box || !host || !key){ if (done) done(); return; }
+  const item = (typeof thumbItemForKey === 'function') ? thumbItemForKey(key) : null;
+  // ⚠️ НЕТ МОДЕЛИ — НЕТ ЭКРАНА. Пустая сцена с надписью «new object» и дыркой
+  // посередине хуже, чем отсутствие экрана: игрок решит, что вещь не выдали.
+  if (!item){ if (done) done(); return; }
+  newObjDone = done || null;
+  if (nm) nm.textContent = (typeof accLabel === 'function') ? accLabel(key) : key;
+  host.innerHTML = '';
+  box.setAttribute('aria-hidden', 'false');
+  box.classList.add('on');
+  // ⚠️ СПИН ЗАВОДИМ ПОСЛЕ ПОКАЗА: `frameCylinder` внутри старта считает кадр по
+  // размерам узла, а у скрытого блока они нулевые (та же природа, что у
+  // «страж мерил высоту на закрытом меню» — скрытый узел не имеет геометрии).
+  try { thumbSpinStart(item, host); } catch (e) {}
+  Telemetry.ev('newobj', { k: key });
+}
+function newObjHide(){
+  const box = $('newObj');
+  if (box){ box.classList.remove('on'); box.setAttribute('aria-hidden', 'true'); }
+  try { thumbSpinStop(); } catch (e) {}
+  const d = newObjDone; newObjDone = null;
+  if (d) d();
+}
+// Точка входа для цепочки победы: сам решает, есть ли повод, и ВСЕГДА отдаёт
+// управление дальше.
+function newObjOnWin(done){
+  const key = newObjDue();
+  if (!key){ if (done) done(); return; }
+  newObjShow(key, done);
 }

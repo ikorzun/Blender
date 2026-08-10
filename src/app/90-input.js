@@ -301,10 +301,18 @@ if (window.matchMedia && matchMedia('(pointer:fine)').matches){
 // из неё в уже идущее интро. Отказные ветки storyOnWin зовут колбэк сами.
 // ⚠️ Межстраничная — ПОСЛЕ анонса, тем же порядком «сначала показать, потом
 // грузить»: два полноэкранных слоя (виньетка и ролик) не должны совпасть.
+// ⚠️ ЗВЕНО ДОБАВЛЕНО 2026-08-10 (слово владельца: экран новой вещи «идёт сразу
+// бесшовно за экраном окончания уровня»): статистика → НОВАЯ ВЕЩЬ → анонс →
+// уровень. Экран новой вещи стоит ПЕРЕД анонсом сюжета намеренно: он про
+// награду только что закрытого уровня, а анонс — про следующий.
+// ⚠️ `newObjOnWin` сам решает, есть ли повод, и ВСЕГДА зовёт колбэк — иначе
+// «Next» молча перестал бы начинать уровень там, где новой вещи нет (ровно та
+// грабля, что уже была у анонса: отказные ветки обязаны отдавать управление).
 $('againBtn').addEventListener('click', ()=>{
   hide('winOverlay');
-  storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); });
+  newObjOnWin(()=> storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); }));
 });
+{ const b = $('newObjBtn'); if (b) b.addEventListener('click', ()=> newObjHide()); }
 $('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
 // ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
 $('winX2Btn').addEventListener('click', ()=>{
@@ -500,8 +508,8 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
 // ДВА открытия на одно нажатие — то есть два сетевых захода.
 { const b = $('msLbEntry');  if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
-{ const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
-{ const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
+
+
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
 // порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).
