@@ -245,6 +245,46 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
+function lbEntryRefresh(){
+  const box = $('msLbEntry'); if (!box) return;
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
+  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
+  // может, значит без причины двигать меню (то же правило, что у врезки).
+  const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
+  box.hidden = !on;
+  if (!on) return;
+  const my = ++lbEntryEpoch;
+  lb.top(1).then(t => {
+    if (my !== lbEntryEpoch) return;
+    const host = $('msLbeAvs'); if (!host) return;
+    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
+    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
+    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
+    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
+    lbEntryAvatars(host, (t && t.state === 'ok' && t.rows) ? t.rows : []);
+  }).catch(()=>{});
+  lb.me().then(m => {
+    if (my !== lbEntryEpoch) return;
+    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
+          box = $('msLbEntry');
+    if (!sub || !dot || !rk || !box) return;
+    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
+    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
+    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
+    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
+    const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
+    // МОБИЛЬНЫЙ по макету 840:4344: первая строка — САМО МЕСТО, вторая —
+    // подпись. Нет точного места — обе строки прячутся классом, и остаётся
+    // прежний заголовок «Leaderboard» (см. комментарий у `.has-rank`).
+    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
+    sub.textContent = ok ? 'on leaderboard' : '';
+    box.classList.toggle('has-rank', ok);
+    // ДЕСКТОП: место живёт в заголовке через «•» — раскладка своя, не адаптив.
+    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
+  }).catch(()=>{});
+}
+
 // ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ =====
 // ⛔ ВКЛАДОК НЕТ (решение владельца 2026-08-10: «только наша таблица, вкладки
 // отменяются»). ⚠️ ПЛАТФОРМЕННАЯ ОТПРАВКА ПРИ ЭТОМ ЖИВА И РАБОТАЕТ (`setScore`
