@@ -183,9 +183,18 @@
     display:grid; place-items:center; margin-top:8px; }
   /* ⚠️ СВЕЧЕНИЕ — РАДИАЛЬНЫЙ ГРАДИЕНТ С РАЗМЫТИЕМ, а не тень: в макете это
      отдельный слой `shine` (blur 27.5), и хвост у него длинный. `filter:blur`
-     на пустом div дешевле и предсказуемее, чем box-shadow такого радиуса. */
+     на пустом div дешевле и предсказуемее, чем box-shadow такого радиуса.
+     ⚠️ ЦВЕТ — ПЕРЕМЕННАЯ, её ставит `newObjShow` из основного цвета вещи (слово
+     владельца 2026-08-10). Тройкой «r,g,b», как `--sky-top-rgb`: одно значение
+     обслуживает и непрозрачные стопы, и прозрачный хвост.
+     ⚠️ Хвост — ТОТ ЖЕ тон с нулевой альфой, а не серый: в премультиплированной
+     интерполяции разницы нет, но при любом ином движке серый хвост пачкал бы
+     цветное свечение. Лаймовый дефолт — цвет макета, на случай вещи без тона. */
   .no-shine { position:absolute; width:100%; height:100%; border-radius:50%;
-    background:radial-gradient(circle at 50% 50%, #cbff68 0%, #cbff68 35%, rgba(153,153,153,0) 100%);
+    background:radial-gradient(circle at 50% 50%,
+      rgb(var(--no-glow-rgb, 203,255,104)) 0%,
+      rgb(var(--no-glow-rgb, 203,255,104)) 35%,
+      rgba(var(--no-glow-rgb, 203,255,104), 0) 100%);
     filter:blur(27px); opacity:.85; }
   .no-model { position:relative; width:250px; height:250px; display:grid; place-items:center; }
   /* спин-канвас общий (256²) — вписываем его в бокс модели */

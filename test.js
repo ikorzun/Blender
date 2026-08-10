@@ -13,6 +13,27 @@ const fs = require('fs');
     if (!cond) failures.push(msg);
   };
 
+  // ⚠️⚠️ ПОСЛЕ «Next» ЦЕПОЧКА ПОБЕДЫ СТАЛА ДЛИННЕЕ: статистика → НОВАЯ ВЕЩЬ →
+  // анонс → уровень (звено добавлено 2026-08-10 по слову владельца). Экран
+  // новой вещи — полноэкранный `.overlay`, и пока его не закрыли, ЛЮБОЙ клик по
+  // игре перехватывается им. Без этого шага прогон умирал на 31-м ассерте с
+  // «#newObj intercepts pointer events», причём выглядело это как зависание.
+  // ⚠️ Закрываем НАСТОЯЩИМ путём — кнопкой, а не `newObjHide()`: иначе страж
+  // проверял бы обход механики, а не саму цепочку (канон «приводить состояние
+  // настоящим путём»). Условно: на уровнях без новой вещи экрана нет вовсе.
+  const passNewObj = async (pg) => {
+    const был = await pg.evaluate(() => {
+      const b = document.getElementById('newObj');
+      if (!b || !b.classList.contains('on')) return false;
+      document.getElementById('newObjBtn').click();
+      return true;
+    });
+    if (был) await pg.waitForFunction(
+      () => { const b = document.getElementById('newObj'); return !b || !b.classList.contains('on'); },
+      null, { timeout: 5000 });
+    return был;
+  };
+
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors = [];
@@ -361,6 +382,13 @@ const fs = require('fs');
   // тап по кнопке встряски после рестарта — мгновенно, без подтверждения
   await page.click('#againBtn');
   await page.waitForTimeout(300);
+  // ⚠️ САНИТАР ЦЕПОЧКИ: победа на ур.1 открывает ПЕРВУЮ новую вещь, и её экран
+  // держит клики. Пропускаем его настоящей кнопкой и УТВЕРЖДАЕМ, что звено
+  // сработало, — иначе исчезновение экрана из цепочки прошло бы молча.
+  const noSeen1 = await passNewObj(page);
+  expect(noSeen1 === true,
+    'ЦЕПОЧКА ПОБЕДЫ: после Next показан экран новой вещи и закрыт кнопкой (' + noSeen1 + ')');
+  await page.waitForTimeout(200);
   await page.evaluate(() => window.__game.skipIntro());
   await page.waitForTimeout(300);
   await page.click('#shakeBtn');
@@ -5642,10 +5670,19 @@ window.bridge = {
       await sleep(100);
     }
     document.getElementById('againBtn').click();
+    // ⚠️ МЕЖДУ «Next» И АНОНСОМ СТОИТ ЭКРАН НОВОЙ ВЕЩИ (звено 2026-08-10):
+    // анонс не появится, пока его не закрыли. Ждём ФАКТ его показа и жмём
+    // настоящую кнопку — фиксированной паузой это ловилось бы через раз.
+    let новВещь = false;
+    for (let i = 0; i < 20 && !новВещь; i++){
+      await sleep(100);
+      новВещь = document.getElementById('newObj').classList.contains('on');
+    }
+    if (новВещь) document.getElementById('newObjBtn').click();
     let послеNext = false;
     for (let i = 0; i < 20 && !послеNext; i++){ await sleep(100); послеNext = есть(); }
     { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
-    return { статистика, приСтатистике, послеNext };
+    return { статистика, приСтатистике, послеNext, новВещь };
   });
   console.log('анонс:', JSON.stringify(stAnn06));
   expect(stAnn06.статистика === true,
@@ -6799,6 +6836,42 @@ window.bridge = {
            Buffer.compare(кадр1, кадр2) !== 0,
       '⚠️⚠️ НОВАЯ ВЕЩЬ: модель ЖИВАЯ И ВРАЩАЕТСЯ — в боксе canvas без картинки-подложки, ' +
       'и два кадра подряд различаются (' + JSON.stringify(модель) + ')');
+
+    // ⚠️⚠️ ЦВЕТ СВЕЧЕНИЯ = ОСНОВНОЙ ЦВЕТ ВЕЩИ (слово владельца 2026-08-10).
+    // Читаем ВЫЧИСЛЕННЫЙ градиент `.no-shine`, а не переменную, которую ставит
+    // сам код: переменная — пересказ намерения, правило могло до неё не дойти.
+    // ⚠️ ДВА ПРИЗНАКА, И ВТОРОЙ НЕСУЩИЙ: (1) у каждой вещи в градиенте её тон,
+    // (2) тоны РАЗНЫХ вещей РАЗЛИЧАЮТСЯ. Без (2) ассерт остался бы зелёным на
+    // сборке, где свечение прибито одним цветом, случайно совпавшим с первым
+    // проверенным типом, — и вся правка проверялась бы вхолостую.
+    // ⚠️ Уровни ищем перебором по ЖИВОМУ пулу, а не литералами: порядок типов —
+    // рычаг сложности, его правят по спеке, и вписанные номера разъехались бы.
+    const свеч = await noPage.evaluate(async () => {
+      const g = window.__game, out = [];
+      for (let lv = 2; lv <= 30 && out.length < 4; lv++){
+        g.setLevel(lv);
+        const k = g.newObjDue(); if (!k) continue;
+        g.newObjShow(k, () => {});
+        await new Promise(r => setTimeout(r, 120));
+        const i = g.newObjInfo();
+        out.push({ lv, ключ: k, тон: i.тонВещи, вГрадиенте: !!(i.тонВещи && i.свечение.indexOf('rgb(' + i.тонВещи + ')') >= 0),
+          лаймДефолт: i.свечение.indexOf('rgb(203, 255, 104)') >= 0 });
+        g.newObjHide(); await new Promise(r => setTimeout(r, 60));
+      }
+      return out;
+    });
+    console.log('новая вещь/свечение:', JSON.stringify(свеч));
+    const тоновРазных = new Set(свеч.map(x => x.тон)).size;
+    expect(свеч.length >= 2 && свеч.every(x => x.вГрадиенте) && тоновРазных >= 2,
+      '⚠️ НОВАЯ ВЕЩЬ: свечение красится ОСНОВНЫМ ЦВЕТОМ ВЕЩИ и следует за ней ' +
+      '(проверено ' + свеч.length + ' вещей, разных тонов ' + тоновРазных + ': ' +
+      свеч.map(x => x.ключ + '→' + x.тон).join(' | ') + ')');
+    // Отдельно и намеренно: лаймовый цвет макета остаётся ТОЛЬКО дефолтом CSS.
+    // Если он всплыл у настоящей вещи — значит переменная не доехала, и первый
+    // ассерт мог бы это пропустить у типа, чей тон близок к лайму.
+    expect(свеч.every(x => !x.лаймДефолт),
+      'НОВАЯ ВЕЩЬ: лаймовый дефолт макета не подменяет тон вещи (' +
+      свеч.filter(x => x.лаймДефолт).length + ' подмен)');
 
     // ЦЕПОЧКА НЕ РВЁТСЯ. Колбэк обязан прийти РОВНО ОДИН раз и на показе, и на
     // отказной ветке: иначе «Next» молча перестанет начинать уровень — ровно та

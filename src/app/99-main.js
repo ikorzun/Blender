@@ -1114,8 +1114,19 @@ window.__game = {
     const b = document.getElementById('newObj'), h = document.getElementById('newObjModel');
     if (!b) return null;
     const c = h ? h.querySelector('canvas') : null;
+    // ⚠️ СВЕЧЕНИЕ ОТДАЁМ ВЫЧИСЛЕННЫМ ГРАДИЕНТОМ, а не значением переменной,
+    // которую сами же и записали: последнее — пересказ намерения, а страж
+    // обязан видеть СЛЕДСТВИЕ (переменная может не дойти до правила, если у
+    // `.no-shine` сменится background). Рядом — ожидаемый тон типа, чтобы
+    // сверять было с чем, не вписывая литерал в тест.
+    const sh = b.querySelector('.no-shine');
+    const t = (function (){ const k = newObjLastKey; if (!k) return null;
+      for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === k) return TYPES[i].color; return null; })();
     return { on: b.classList.contains('on'), канвас: !!c,
       ширина: c ? Math.round(c.getBoundingClientRect().width) : 0,
+      свечение: sh ? getComputedStyle(sh).backgroundImage : '',
+      тонВещи: (typeof t === 'number')
+        ? ((t >> 16) & 255) + ', ' + ((t >> 8) & 255) + ', ' + (t & 255) : null,
       имя: (document.getElementById('newObjName') || {}).textContent || '' };
   },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋

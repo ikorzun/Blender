@@ -183,9 +183,18 @@
     display:grid; place-items:center; margin-top:8px; }
   /* ⚠️ СВЕЧЕНИЕ — РАДИАЛЬНЫЙ ГРАДИЕНТ С РАЗМЫТИЕМ, а не тень: в макете это
      отдельный слой `shine` (blur 27.5), и хвост у него длинный. `filter:blur`
-     на пустом div дешевле и предсказуемее, чем box-shadow такого радиуса. */
+     на пустом div дешевле и предсказуемее, чем box-shadow такого радиуса.
+     ⚠️ ЦВЕТ — ПЕРЕМЕННАЯ, её ставит `newObjShow` из основного цвета вещи (слово
+     владельца 2026-08-10). Тройкой «r,g,b», как `--sky-top-rgb`: одно значение
+     обслуживает и непрозрачные стопы, и прозрачный хвост.
+     ⚠️ Хвост — ТОТ ЖЕ тон с нулевой альфой, а не серый: в премультиплированной
+     интерполяции разницы нет, но при любом ином движке серый хвост пачкал бы
+     цветное свечение. Лаймовый дефолт — цвет макета, на случай вещи без тона. */
   .no-shine { position:absolute; width:100%; height:100%; border-radius:50%;
-    background:radial-gradient(circle at 50% 50%, #cbff68 0%, #cbff68 35%, rgba(153,153,153,0) 100%);
+    background:radial-gradient(circle at 50% 50%,
+      rgb(var(--no-glow-rgb, 203,255,104)) 0%,
+      rgb(var(--no-glow-rgb, 203,255,104)) 35%,
+      rgba(var(--no-glow-rgb, 203,255,104), 0) 100%);
     filter:blur(27px); opacity:.85; }
   .no-model { position:relative; width:250px; height:250px; display:grid; place-items:center; }
   /* спин-канвас общий (256²) — вписываем его в бокс модели */
@@ -14613,6 +14622,11 @@ function newObjDue(){
   return TYPES[idx].name;
 }
 let newObjDone = null;
+// ⚠️ Ключ показанной вещи держим отдельно — по нему `newObjInfo` отдаёт стражу
+// ОЖИДАЕМЫЙ тон. Иначе тест сверял бы вычисленный градиент с литералом, а тот
+// разъедется с палитрой при первой же правке цвета типа (закон «копия рядом с
+// рабочей величиной всегда расходится»).
+let newObjLastKey = null;
 // Показ. `done` зовётся по нажатию кнопки — ровно один раз.
 // ⚠️ МОДЕЛЬ ЖИВАЯ: общий спин-канвас `thumbSpinStart`, тот же, что крутит
 // карточки коллекции. Картинку-подложку сюда НЕ ставить (слово владельца
@@ -14625,7 +14639,19 @@ function newObjShow(key, done){
   // посередине хуже, чем отсутствие экрана: игрок решит, что вещь не выдали.
   if (!item){ if (done) done(); return; }
   newObjDone = done || null;
+  newObjLastKey = key;
   if (nm) nm.textContent = (typeof accLabel === 'function') ? accLabel(key) : key;
+  // ⚠️⚠️ ЦВЕТ СВЕЧЕНИЯ — ОСНОВНОЙ ЦВЕТ ВЕЩИ (слово владельца 2026-08-10). Берём
+  // `type.color`: это тот же авторский тон, которым сыплется труха ЭТОГО типа
+  // (`fxColor` — он же, только переведённый в linear), то есть цвет у игрока
+  // уже связан с предметом, а не назначен экрану заново.
+  // ⛔ НЕ `baseColor` и не пиксели портрета: у всех 120 моделей цвет несёт
+  // АТЛАС, а `material.color` белый — свечение вышло бы белым у всего пула
+  // (та же грабля, из-за которой вуаль недоступных пришлось увести в шейдер).
+  const тон = item.type && item.type.color;
+  box.style.setProperty('--no-glow-rgb', (typeof тон === 'number')
+    ? ((тон >> 16) & 255) + ',' + ((тон >> 8) & 255) + ',' + (тон & 255)
+    : '203,255,104');
   host.innerHTML = '';
   box.setAttribute('aria-hidden', 'false');
   box.classList.add('on');
@@ -16950,8 +16976,19 @@ window.__game = {
     const b = document.getElementById('newObj'), h = document.getElementById('newObjModel');
     if (!b) return null;
     const c = h ? h.querySelector('canvas') : null;
+    // ⚠️ СВЕЧЕНИЕ ОТДАЁМ ВЫЧИСЛЕННЫМ ГРАДИЕНТОМ, а не значением переменной,
+    // которую сами же и записали: последнее — пересказ намерения, а страж
+    // обязан видеть СЛЕДСТВИЕ (переменная может не дойти до правила, если у
+    // `.no-shine` сменится background). Рядом — ожидаемый тон типа, чтобы
+    // сверять было с чем, не вписывая литерал в тест.
+    const sh = b.querySelector('.no-shine');
+    const t = (function (){ const k = newObjLastKey; if (!k) return null;
+      for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === k) return TYPES[i].color; return null; })();
     return { on: b.classList.contains('on'), канвас: !!c,
       ширина: c ? Math.round(c.getBoundingClientRect().width) : 0,
+      свечение: sh ? getComputedStyle(sh).backgroundImage : '',
+      тонВещи: (typeof t === 'number')
+        ? ((t >> 16) & 255) + ', ' + ((t >> 8) & 255) + ', ' + (t & 255) : null,
       имя: (document.getElementById('newObjName') || {}).textContent || '' };
   },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
