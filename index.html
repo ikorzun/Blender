@@ -812,43 +812,37 @@
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer; transition:background-color .15s;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
-  /* ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
-     ⚠️⚠️ ЧИСЛА ВКЛАДОК РАСХОДЯТСЯ ПО ПОСТРОЕНИЮ, И ЭТО ЗАДУМАНО: платформенная
-     хранит МАКСИМУМ («рекорд за всё время»), наша считает ТЕКУЩИЙ баланс и
-     падает при тратах. Прятать расхождение нельзя (решение владельца
-     2026-07-24) — его обязан ОБЪЯСНИТЬ экран. Текст пишет владелец сам;
-     до тех пор в `#lbNote` стоит ПОМЕЧЕННАЯ заглушка (см. страж в сьюте). */
-  #lbOverlay { align-items:flex-start; overflow-y:auto; }
-  .lb-card { margin:auto; width:min(448px, calc(100vw - 32px)); font-family:var(--font-round);
-    display:flex; flex-direction:column; gap:12px; padding:16px 0; }
-  .lb-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .lb-title { color:#fff; font-weight:900; font-size:22px; }
-  .lb-close { width:44px; height:44px; border:none; border-radius:1000px; cursor:pointer;
-    background:#fff; color:#000; font-size:22px; font-weight:900; line-height:1; }
-  .lb-tabs { display:flex; gap:8px; }
-  .lb-tab { flex:1; height:48px; border:none; border-radius:1000px; cursor:pointer;
-    font-family:var(--font-round); font-weight:800; font-size:17px;
-    background:rgba(255,255,255,.16); color:#fff; }
-  .lb-tab.on { background:#c0ff47; color:#000; }
-  /* ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА — ВИДИМО ПОМЕЧЕНА, не «пустая строка»: молчаливая
-     заглушка уехала бы в релиз незамеченной. */
-  .lb-note { min-height:18px; line-height:18px; font-size:13px; font-weight:700;
-    color:#fff; opacity:.75; padding-left:2px; }
-  .lb-note.todo { color:#ffd34d; opacity:1; }
-  .lb-list { display:flex; flex-direction:column; gap:6px; min-height:120px; }
-  .lb-row { display:flex; align-items:center; gap:8px; height:44px; box-sizing:border-box;
+  /* ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ =====
+     ⚠️ СТИЛЬ ПОПАПА — ОБЩИЙ С «More Stars» (слово владельца 2026-08-10: «стиль
+     подложки и кнопка закрыть такая же как на экране More. Все попапы будут
+     идти в этом стиле»). Значит подложка `.overlay` как есть, крестик — ТЕ ЖЕ
+     классы `.iconBtn.st-close` (белый круг, чёрный крест, НЕ зависит от темы),
+     обёртка — колонка с `margin:auto`. Своих правил на эти вещи НЕ заводим:
+     появится третий попап — он возьмёт то же самое, а не третью копию.
+     ⚠️ ШИРИНА 560 — слово владельца («ширина таблицы 560 px максимальная»).
+     У More она 742: числа РАЗНЫЕ намеренно, это не опечатка. */
+  #lbOverlay { z-index:40; overflow-y:auto; align-items:flex-start; }
+  #lbOverlay .lb-wrap { margin:auto; width:min(560px, 100vw - 32px);
+    display:flex; flex-direction:column; align-items:center; gap:16px;
+    padding:24px 0 32px; font-family:var(--font-round); }
+  .lb-head { display:flex; flex-direction:column; align-items:center; gap:5px;
+    text-align:center; color:#fff; width:100%; }
+  .lb-title { font-size:36px; font-weight:900; line-height:normal; }
+  .lb-sub { font-size:18px; font-weight:700; color:rgba(255,255,255,.8); }
+  .lb-sub:empty { display:none; }
+  .lb-list { display:flex; flex-direction:column; width:100%; min-height:120px; }
+  /* строки 56px БЕЗ зазора — спека экрана */
+  .lb-row { display:flex; align-items:center; gap:8px; height:56px; box-sizing:border-box;
     padding:0 12px 0 8px; border-radius:1000px; color:#fff; }
-  .lb-row.me { background:rgba(255,255,255,.16); box-shadow:inset 0 0 28px 0 #c0ff47; }
-  .lb-pos { flex:none; min-width:38px; font-weight:900; font-size:17px; opacity:.75; }
+  .lb-row.me { background:#fff; color:var(--carbon-400); }
+  .lb-pos { flex:none; min-width:38px; font-weight:900; font-size:18px; opacity:.75; }
   .lb-row.me .lb-pos { opacity:1; }
-  .lb-av { flex:none; width:30px; height:30px; background:transparent; }
+  .lb-av { flex:none; width:48px; height:48px; background:transparent; }
   .lb-av img { width:100%; height:100%; object-fit:contain; display:block; }
-  .lb-name { flex:1; min-width:0; font-weight:800; font-size:17px; overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
-  .lb-row.me .lb-name { opacity:1; }
-  .lb-score { flex:none; font-weight:900; font-size:17px; }
-  /* СЛУЖЕБНОЕ СОСТОЯНИЕ — одной строкой, без картинок: четыре случая
-     («пусто, но рано» / нет сети / меня нет в таблице / вкладка выключена)
+  .lb-name { flex:1; min-width:0; font-weight:700; font-size:18px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .lb-score { flex:none; font-weight:900; font-size:18px; }
+  /* СЛУЖЕБНОЕ СОСТОЯНИЕ одной строкой: «пусто, но рано» / нет сети / выключено
      звучат по-разному, но выглядят одинаково спокойно. */
   .lb-serv { color:#fff; opacity:.7; font-size:15px; font-weight:700; padding:8px 2px; }
   /* --- ВРЕЗКА ТАБЛИЦЫ: место игрока + соседи (после каждого уровня) ---
@@ -2023,17 +2017,17 @@
 
 <!-- ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ (две вкладки). Открывается из меню. -->
 <div class="overlay" id="lbOverlay">
-  <div class="lb-card">
+  <div class="lb-wrap">
+    <button class="iconBtn st-close" id="lbClose" aria-label="Close"><svg viewBox="0 0 32 32" fill="none">
+      <path d="M8.94 8.94a1.667 1.667 0 0 1 2.357 0L16 13.643l4.703-4.703a1.667 1.667 0 1 1 2.357 2.357L18.357 16l4.703 4.703a1.667 1.667 0 1 1-2.357 2.357L16 18.357l-4.703 4.703a1.667 1.667 0 0 1-2.357-2.357L13.643 16 8.94 11.297a1.667 1.667 0 0 1 0-2.357Z" fill="#000"/>
+    </svg></button>
     <div class="lb-head">
-      <div class="lb-title">LEADERBOARD</div>
-      <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+      <div class="lb-title">Leaderboard</div>
+      <div class="lb-sub" id="lbSub"></div>
     </div>
-    <div class="lb-tabs">
-      <button class="lb-tab on" id="lbTabOurs">Balance</button>
-      <button class="lb-tab" id="lbTabPlat">All-time</button>
-    </div>
-    <div class="lb-note" id="lbNote"></div>
     <div class="lb-list" id="lbList"></div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -12342,162 +12336,64 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
-// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
-// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
-// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
-// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
-// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
-// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
-const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
-let lbTab = 'ours', lbEpoch = 0;
-// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
-// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ =====
+// ⛔ ВКЛАДОК НЕТ (решение владельца 2026-08-10: «только наша таблица, вкладки
+// отменяются»). ⚠️ ПЛАТФОРМЕННАЯ ОТПРАВКА ПРИ ЭТОМ ЖИВА И РАБОТАЕТ (`setScore`
+// в 78-ads) — она бесплатна и даёт видимость на площадке, игроку её просто не
+// показываем. Кто увидит отправку без экрана, не должен принять её за
+// забытый хвост.
+// ⚠️ Заглушка про расхождение чисел снята вместе со вкладками: объяснять
+// больше нечего, вкладка с «рекордом за всё время» игроку не видна.
+let lbEpoch = 0;
+// ⚠️ ЭПОХА НА ВЫБРОС: игрок закрывает экран быстрее, чем отвечает сеть, и
+// ответ закрытого экрана не смеет дорисоваться в следующий.
 function lbScreenStop(){ lbEpoch++; }
-// ─── ТОЧКА ВХОДА В ТАБЛИЦУ (меню, макеты 840:4344 моб. / 840:4633 деск.) ───
-// ⚠️ ОБА ЧИСЛА ИДУТ ЧЕРЕЗ `window.__lb` И ТОЛЬКО ЧЕРЕЗ НЕГО: он один держит
-// кэш `top()`/`me()` и умеет РАЗОВЫЙ обход HTTP-кэша браузера после сброса
-// (без этого место не менялось бы минуту ровно после победы и после траты —
-// найдено живым прогоном). Меню открывается часто, второй сетевой путь завёл
-// бы запрос на каждое открытие.
-let lbEntryEpoch = 0;
-// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
-// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
-// дорисоваться в следующее. Сверка — ДО единого касания DOM.
-// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
-// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
-// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
-// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
-// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
-// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
-// раскладку и честно говорит «здесь пока никого».
-function lbEntryAvatars(host, rows){
-  host.innerHTML = '';
-  for (let i = 0; i < 3; i++){
-    const r = rows[i], ai = r ? (r.av | 0) : 0;
-    if (ai > 0){
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
-    } else {
-      const d = document.createElement('div');
-      d.className = 'ms-lbe-av0'; host.appendChild(d);
-    }
-  }
-}
-function lbEntryRefresh(){
-  const box = $('msLbEntry'); if (!box) return;
-  const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
-  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
-  // может, значит без причины двигать меню (то же правило, что у врезки).
-  const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
-  box.hidden = !on;
-  if (!on) return;
-  const my = ++lbEntryEpoch;
-  lb.top(1).then(t => {
-    if (my !== lbEntryEpoch) return;
-    const host = $('msLbeAvs'); if (!host) return;
-    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
-    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
-    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
-    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    lbEntryAvatars(host, (t && t.state === 'ok' && t.rows) ? t.rows : []);
-  }).catch(()=>{});
-  lb.me().then(m => {
-    if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
-          box = $('msLbEntry');
-    if (!sub || !dot || !rk || !box) return;
-    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
-    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
-    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
-    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
-    const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
-    // МОБИЛЬНЫЙ по макету 840:4344: первая строка — САМО МЕСТО, вторая —
-    // подпись. Нет точного места — обе строки прячутся классом, и остаётся
-    // прежний заголовок «Leaderboard» (см. комментарий у `.has-rank`).
-    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
-    sub.textContent = ok ? 'on leaderboard' : '';
-    box.classList.toggle('has-rank', ok);
-    // ДЕСКТОП: место живёт в заголовке через «•» — раскладка своя, не адаптив.
-    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
-  }).catch(()=>{});
-}
 function lbServ(text){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = ''; const d = document.createElement('div');
   d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
 }
-function lbRowsRender(rows){
-  const host = $('lbList'); if (!host) return;
-  host.innerHTML = '';
-  rows.forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'lb-row' + (r.me ? ' me' : '');
-    const pos = document.createElement('div'); pos.className = 'lb-pos';
-    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
-    const av = document.createElement('div'); av.className = 'lb-av';
-    const ai = r.av | 0;
-    if (ai > 0){
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; av.appendChild(img);
-    }
-    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
-    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
-    row.append(pos, av, nm, sc);
-    host.appendChild(row);
-  });
+function lbRowNode(r){
+  const row = document.createElement('div');
+  row.className = 'lb-row' + (r.me ? ' me' : '');
+  const pos = document.createElement('div'); pos.className = 'lb-pos';
+  pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+  const av = document.createElement('div'); av.className = 'lb-av';
+  const ai = r.av | 0;
+  if (ai > 0){
+    const img = document.createElement('img');
+    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+    img.alt = ''; img.decoding = 'async'; av.appendChild(img);
+  }
+  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
+  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
+  row.append(pos, av, nm, sc);
+  return row;
 }
-// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
-// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
-// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
-async function lbLoadOurs(my){
+async function lbScreenLoad(my){
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
+  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){
+    lbServ('Leaderboard is off in this build.'); return; }
   const t = await lb.top(1).catch(()=>null);
   if (my !== lbEpoch) return;
   if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
   if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = '';
+  t.rows.forEach((r, i) => host.appendChild(lbRowNode({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  // ⚠️ СВОЁ МЕСТО — ТОЛЬКО ТОЧНОЕ (`exact`). Прикидку из ответа на отправку не
+  // показываем нигде: на маленькой базе лесенка пуста и она врёт «место 1».
   const m = await lb.me().catch(()=>null);
   if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
-  const host = $('lbList'); if (!host) return;
-  const mine = document.createElement('div');
-  mine.className = 'lb-row me';
-  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
-  const av = document.createElement('div'); av.className = 'lb-av';
-  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
-  if (ai > 0){ const img = document.createElement('img');
-    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
-  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
-  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
-  mine.append(p, av, nm, sc);
-  host.appendChild(mine);
-}
-// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
-// и он не ошибка: площадка может не поддерживать таблицы вовсе.
-async function lbLoadPlat(my){
-  if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
-  const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
-  if (my !== lbEpoch) return;
-  if (!r || !r.ok){ lbServ('Not available right now.'); return; }
-  if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
-  lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
+  host.appendChild(lbRowNode({ pos:m.rank, name:'You', av:(typeof guestAvatar === 'function') ? guestAvatar() : 0,
+                              score:m.score | 0, me:true }));
 }
 function lbScreenRender(){
-  const note = $('lbNote');
-  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
-  const to = $('lbTabOurs'), tp = $('lbTabPlat');
-  if (to) to.classList.toggle('on', lbTab === 'ours');
-  if (tp) tp.classList.toggle('on', lbTab === 'plat');
   lbServ('Loading…');
-  const my = ++lbEpoch;
-  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+  lbScreenLoad(++lbEpoch).catch(()=>{});
 }
 function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
 function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
-function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
@@ -15087,8 +14983,6 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
 // ДВА открытия на одно нажатие — то есть два сетевых захода.
 { const b = $('msLbEntry');  if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
-{ const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
-{ const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
 // порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).

@@ -245,162 +245,64 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
-// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
-// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
-// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
-// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
-// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
-// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
-const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
-let lbTab = 'ours', lbEpoch = 0;
-// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
-// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ =====
+// ⛔ ВКЛАДОК НЕТ (решение владельца 2026-08-10: «только наша таблица, вкладки
+// отменяются»). ⚠️ ПЛАТФОРМЕННАЯ ОТПРАВКА ПРИ ЭТОМ ЖИВА И РАБОТАЕТ (`setScore`
+// в 78-ads) — она бесплатна и даёт видимость на площадке, игроку её просто не
+// показываем. Кто увидит отправку без экрана, не должен принять её за
+// забытый хвост.
+// ⚠️ Заглушка про расхождение чисел снята вместе со вкладками: объяснять
+// больше нечего, вкладка с «рекордом за всё время» игроку не видна.
+let lbEpoch = 0;
+// ⚠️ ЭПОХА НА ВЫБРОС: игрок закрывает экран быстрее, чем отвечает сеть, и
+// ответ закрытого экрана не смеет дорисоваться в следующий.
 function lbScreenStop(){ lbEpoch++; }
-// ─── ТОЧКА ВХОДА В ТАБЛИЦУ (меню, макеты 840:4344 моб. / 840:4633 деск.) ───
-// ⚠️ ОБА ЧИСЛА ИДУТ ЧЕРЕЗ `window.__lb` И ТОЛЬКО ЧЕРЕЗ НЕГО: он один держит
-// кэш `top()`/`me()` и умеет РАЗОВЫЙ обход HTTP-кэша браузера после сброса
-// (без этого место не менялось бы минуту ровно после победы и после траты —
-// найдено живым прогоном). Меню открывается часто, второй сетевой путь завёл
-// бы запрос на каждое открытие.
-let lbEntryEpoch = 0;
-// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
-// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
-// дорисоваться в следующее. Сверка — ДО единого касания DOM.
-// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
-// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
-// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
-// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
-// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
-// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
-// раскладку и честно говорит «здесь пока никого».
-function lbEntryAvatars(host, rows){
-  host.innerHTML = '';
-  for (let i = 0; i < 3; i++){
-    const r = rows[i], ai = r ? (r.av | 0) : 0;
-    if (ai > 0){
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
-    } else {
-      const d = document.createElement('div');
-      d.className = 'ms-lbe-av0'; host.appendChild(d);
-    }
-  }
-}
-function lbEntryRefresh(){
-  const box = $('msLbEntry'); if (!box) return;
-  const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
-  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
-  // может, значит без причины двигать меню (то же правило, что у врезки).
-  const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
-  box.hidden = !on;
-  if (!on) return;
-  const my = ++lbEntryEpoch;
-  lb.top(1).then(t => {
-    if (my !== lbEntryEpoch) return;
-    const host = $('msLbeAvs'); if (!host) return;
-    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
-    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
-    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
-    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    lbEntryAvatars(host, (t && t.state === 'ok' && t.rows) ? t.rows : []);
-  }).catch(()=>{});
-  lb.me().then(m => {
-    if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
-          box = $('msLbEntry');
-    if (!sub || !dot || !rk || !box) return;
-    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
-    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
-    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
-    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
-    const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
-    // МОБИЛЬНЫЙ по макету 840:4344: первая строка — САМО МЕСТО, вторая —
-    // подпись. Нет точного места — обе строки прячутся классом, и остаётся
-    // прежний заголовок «Leaderboard» (см. комментарий у `.has-rank`).
-    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
-    sub.textContent = ok ? 'on leaderboard' : '';
-    box.classList.toggle('has-rank', ok);
-    // ДЕСКТОП: место живёт в заголовке через «•» — раскладка своя, не адаптив.
-    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
-  }).catch(()=>{});
-}
 function lbServ(text){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = ''; const d = document.createElement('div');
   d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
 }
-function lbRowsRender(rows){
-  const host = $('lbList'); if (!host) return;
-  host.innerHTML = '';
-  rows.forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'lb-row' + (r.me ? ' me' : '');
-    const pos = document.createElement('div'); pos.className = 'lb-pos';
-    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
-    const av = document.createElement('div'); av.className = 'lb-av';
-    const ai = r.av | 0;
-    if (ai > 0){
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; av.appendChild(img);
-    }
-    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
-    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
-    row.append(pos, av, nm, sc);
-    host.appendChild(row);
-  });
+function lbRowNode(r){
+  const row = document.createElement('div');
+  row.className = 'lb-row' + (r.me ? ' me' : '');
+  const pos = document.createElement('div'); pos.className = 'lb-pos';
+  pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+  const av = document.createElement('div'); av.className = 'lb-av';
+  const ai = r.av | 0;
+  if (ai > 0){
+    const img = document.createElement('img');
+    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+    img.alt = ''; img.decoding = 'async'; av.appendChild(img);
+  }
+  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
+  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
+  row.append(pos, av, nm, sc);
+  return row;
 }
-// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
-// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
-// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
-async function lbLoadOurs(my){
+async function lbScreenLoad(my){
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
+  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){
+    lbServ('Leaderboard is off in this build.'); return; }
   const t = await lb.top(1).catch(()=>null);
   if (my !== lbEpoch) return;
   if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
   if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = '';
+  t.rows.forEach((r, i) => host.appendChild(lbRowNode({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  // ⚠️ СВОЁ МЕСТО — ТОЛЬКО ТОЧНОЕ (`exact`). Прикидку из ответа на отправку не
+  // показываем нигде: на маленькой базе лесенка пуста и она врёт «место 1».
   const m = await lb.me().catch(()=>null);
   if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
-  const host = $('lbList'); if (!host) return;
-  const mine = document.createElement('div');
-  mine.className = 'lb-row me';
-  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
-  const av = document.createElement('div'); av.className = 'lb-av';
-  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
-  if (ai > 0){ const img = document.createElement('img');
-    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
-  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
-  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
-  mine.append(p, av, nm, sc);
-  host.appendChild(mine);
-}
-// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
-// и он не ошибка: площадка может не поддерживать таблицы вовсе.
-async function lbLoadPlat(my){
-  if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
-  const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
-  if (my !== lbEpoch) return;
-  if (!r || !r.ok){ lbServ('Not available right now.'); return; }
-  if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
-  lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
+  host.appendChild(lbRowNode({ pos:m.rank, name:'You', av:(typeof guestAvatar === 'function') ? guestAvatar() : 0,
+                              score:m.score | 0, me:true }));
 }
 function lbScreenRender(){
-  const note = $('lbNote');
-  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
-  const to = $('lbTabOurs'), tp = $('lbTabPlat');
-  if (to) to.classList.toggle('on', lbTab === 'ours');
-  if (tp) tp.classList.toggle('on', lbTab === 'plat');
   lbServ('Loading…');
-  const my = ++lbEpoch;
-  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+  lbScreenLoad(++lbEpoch).catch(()=>{});
 }
 function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
 function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
-function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
