@@ -34,6 +34,35 @@ const fs = require('fs');
     return был;
   };
 
+  // ⚠️⚠️ СТЕНД ДЛЯ СТРАЖЕЙ ОТПРАВКИ. `LB_NOSEND` глушит отправку по ДВУМ
+  // признакам: `file:` и `navigator.webdriver`. Сьют попадает под ОБА, поэтому
+  // страж, проверяющий САМУ отправку, обязан привести обстановку игрока:
+  // страницу отдать по http и погасить признак автоматизации. Иначе он мерит
+  // гейт, а не отправку, — и краснеет на ИСПРАВНОЙ сборке (ровно это и вышло:
+  // три ассерта отправки написаны при прежнем гейте и НИ РАЗУ не исполнялись,
+  // потому что до них прогон не доходил).
+  // ⛔ СЕТИ ОТСЮДА ВСЁ РАВНО НЕТ: `fetch` у этих страниц подменён своим моком,
+  // ни один запрос наружу не уходит. Гейт снимается ТОЛЬКО в паре с моком.
+  // ⚠️ Сервер отдаёт РОВНО index.html, на прочие пути — 404: иначе мост
+  // площадки получил бы HTML вместо своего скрипта и насыпал ошибок в общий
+  // гейт (страж падал бы не на проверяемом свойстве).
+  const httpStand = async () => {
+    const http = require('http');
+    const srv = http.createServer((req, res) => {
+      if (String(req.url).split('?')[0] !== '/index.html'){ res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
+    });
+    await new Promise(r => srv.listen(0, '127.0.0.1', r));
+    return { url: 'http://127.0.0.1:' + srv.address().port + '/index.html',
+             close(){ try { srv.close(); } catch (e) {} } };
+  };
+  // Гасим признак автоматизации — ставится в addInitScript ДО скриптов страницы,
+  // потому что `LB_NOSEND` вычисляется в момент разбора модуля конфига.
+  const маскаБота = () => {
+    try { Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true }); } catch (e) {}
+  };
+
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors = [];
@@ -6153,7 +6182,13 @@ window.bridge = {
   // (addInitScript), поэтому стенд не нужен, гонки загрузки нет по построению, а
   // ответы сервера мы задаём сами — включая отказ по частоте.
   {
+    // ⚠️⚠️ СТРАНИЦА ПО HTTP И БЕЗ ПРИЗНАКА БОТА — иначе `LB_NOSEND` глушит
+    // отправку по обоим признакам (`file:` и `navigator.webdriver`), и стражи
+    // ниже мерили бы ГЕЙТ вместо отправки: «отправок 0» было бы истинно и на
+    // сборке, где отправки нет вовсе. Сеть при этом всё равно замокана.
+    const стенд = await httpStand();
     const lbPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await lbPage.addInitScript(маскаБота);
     await lbPage.addInitScript(() => {
       try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test'); } catch (e) {}
       window.__lbMock = { posts: [], rateOnce: false, retry: 1 };
@@ -6181,10 +6216,19 @@ window.bridge = {
         return of.apply(this, arguments);
       };
     });
-    await lbPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await lbPage.goto(стенд.url);
     await lbPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     await lbPage.evaluate(() => window.__game.skipIntro());
     await new Promise((r) => setTimeout(r, 1500));
+    // ⚠️ САНИТАР ОБСТАНОВКИ: без него «отправок 0» ниже неотличимо от «гейт всё
+    // ещё держит». Утверждаем именно ПРЕДПОСЫЛКУ, отдельной строкой, чтобы по
+    // красному было видно, что сломалось — стенд или сама отправка.
+    const обстановка = await lbPage.evaluate(() => ({
+      протокол: location.protocol, бот: navigator.webdriver,
+      база: window.__lb ? window.__lb.base() : null }));
+    expect(обстановка.протокол === 'http:' && обстановка.бот === false && !!обстановка.база,
+      'САНИТАР ОТПРАВКИ: стенд поднят по http, признак бота погашен, адрес задан (' +
+      JSON.stringify(обстановка) + ')');
 
     // (1) НОЛЬ НЕ ОТПРАВЛЯЕТСЯ
     // ⚠️ САНИТАР В ТОМ ЖЕ АССЕРТЕ ОБЯЗАТЕЛЕН: без проверки, что таблица ВКЛЮЧЕНА
@@ -6672,6 +6716,7 @@ window.bridge = {
     экран.открыт.строк + ' строк, ' + экран.открыт.служебных + ' служебных)');
 
   await lbPage.close();
+  стенд.close();
   }
 
 
@@ -6685,8 +6730,14 @@ window.bridge = {
   // утащи её кто-то следом — место игрока молча исчезло бы и из меню, и с
   // экрана таблицы, а заметить это можно было бы только по пустому серверу.
   {
+    // ⚠️ ТОТ ЖЕ СТЕНД, ЧТО У СТРАЖЕЙ ОТПРАВКИ ВЫШЕ: на `file://` отправка
+    // загейчена ВТОРЫМ признаком, и одного гашения `navigator.webdriver` мало —
+    // страж краснел бы на исправной сборке. Проверено пробой: маска снимает
+    // только признак бота, протокол остаётся.
+    const стендW = await httpStand();
     const wp = await browser.newPage({ viewport: { width: 390, height: 780 } });
     wp.on('pageerror', e => errors.push('PAGEERROR(nowinlb): ' + e.message));
+    await wp.addInitScript(маскаБота);
     await wp.addInitScript(() => {
       try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test'); } catch (e) {}
       // ⚠️ Гасим признак автоматизации: иначе отправка законно загейчена как
@@ -6704,7 +6755,7 @@ window.bridge = {
         return of.apply(this, arguments);
       };
     });
-    await wp.goto('file://' + path.join(__dirname, 'index.html'));
+    await wp.goto(стендW.url);
     await wp.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     await wp.evaluate(() => window.__game.skipIntro());
     await wp.waitForTimeout(900);
@@ -6713,12 +6764,17 @@ window.bridge = {
       g.winScreen(true); await new Promise(r => setTimeout(r, 400));
       const узел = !!document.getElementById('winLb');
       g.bankScore(1500); await new Promise(r => setTimeout(r, 900));
-      return { узел, отправок: window.__posts.length };
+      return { узел, отправок: window.__posts.length,
+               протокол: location.protocol, бот: navigator.webdriver };
     });
     await wp.close();
+    стендW.close();
     console.log('финальный экран:', JSON.stringify(финал));
     expect(финал.узел === false,
       '⛔ ЭКРАН ПОБЕДЫ: врезки таблицы НЕТ — узел `#winLb` снят (слово владельца)');
+    expect(финал.протокол === 'http:' && финал.бот === false,
+      'САНИТАР: обстановка игрока приведена (http, признак бота погашен) — иначе ' +
+      'ассерт ниже мерит гейт, а не отправку (' + JSON.stringify(финал) + ')');
     expect(финал.отправок >= 1,
       '⚠️ ЭКРАН ПОБЕДЫ: отправка счёта ЖИВА и к снятой врезке не привязана (отправок ' +
       финал.отправок + ')');
@@ -6730,7 +6786,18 @@ window.bridge = {
   // неба — системе сообщался цвет, которого на экране нет.
   // ⚠️ Меню открываем и закрываем НАСТОЯЩИМ путём (кнопка паузы / клик по
   // карточке Play), а не выставляя класс руками: классом владеет живой код.
-  const кромка = await lbPage.evaluate(async () => {
+  // ⚠️⚠️ СВОЯ СТРАНИЦА, А НЕ ЧУЖАЯ. Прежняя редакция читала `lbPage` соседнего
+  // блока — тот её закрывает у себя в конце, и после склейки двух ПРАВИЛЬНЫХ
+  // по отдельности блоков прогон падал здесь на `lbPage is not defined`, БЕЗ
+  // вердикта, то есть неотличимо от внешнего обрыва. Канон: страж приводит
+  // нужное состояние сам и не наследует ресурс от соседа.
+  const chPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  await chPage.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  await chPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await chPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+  await chPage.evaluate(() => window.__game.skipIntro());
+  await chPage.waitForTimeout(600);
+  const кромка = await chPage.evaluate(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const мета = () => { const m = document.querySelector('meta[name="theme-color"]'); return m ? m.getAttribute('content') : null; };
     const пер = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -6770,7 +6837,7 @@ window.bridge = {
 
   // ПОДЛОЖКА — ПЛОСКИЙ верхний стоп (градиент на ней не нужен: две кромки
   // красят два канала). ⚠️ И НЕ нейтраль.
-  const подложка = await lbPage.evaluate(() => {
+  const подложка = await chPage.evaluate(() => {
     const cs = getComputedStyle(document.documentElement);
     return { картинка:cs.backgroundImage, цвет:cs.backgroundColor,
              верх:cs.getPropertyValue('--sky-top-rgb').trim() };
@@ -6780,7 +6847,7 @@ window.bridge = {
     '⚠️ КРОМКА: подложка — плоский ВЕРХНИЙ стоп неба, без градиента и не нейтраль (' +
     подложка.цвет + ' / верх ' + подложка.верх + ')');
 
-  await lbPage.close();
+  await chPage.close();
 
   // ===== ЭКРАН НОВОЙ ВЕЩИ (макеты 846:4814 моб. / 846:4763 деск.) =====
   // ⚠️ СВОЯ СТРАНИЦА И КОНЕЦ ФАЙЛА: экран — ПОЛНОЭКРАННЫЙ слой, и открытым он
@@ -6963,6 +7030,103 @@ window.bridge = {
     // «озвучен», иначе зазеленеет на сборке без единого звука.
     expect(['juicy','metal','glass'].every(v => мат.голоса.indexOf(v) >= 0),
       'МАТЕРИАЛЫ: записи владельца в сборке — фрукты, металл, стекло (' + мат.голоса.join(', ') + ')');
+  }
+
+  // ===== РАЗНООБРАЗИЕ ЗВУКА — ТОЛЬКО У ТРЁХ ЗАПИСЕЙ ВЛАДЕЛЬЦА =====
+  // Слово владельца 2026-08-10: «сделай web audio разнообразным только для 3
+  // добавленных новых звуков». Проверяем СЛЕДСТВИЕ на настоящих нодах: перехват
+  // ставится ДО скриптов страницы и пишет `playbackRate`, который реально
+  // выставлен на `AudioBufferSourceNode` перед `start()`.
+  // ⚠️⚠️ КОНТРОЛЬ ВСТРОЕН В ТУ ЖЕ СЕКЦИЮ И ОН НЕСУЩИЙ: `grind` — ТОЖЕ сэмпл и
+  // идёт через ТОТ ЖЕ `playBuf`. Если разнообразие уедет в общий путь (самая
+  // вероятная будущая правка — «а давайте всем»), у помола поедет rate, и
+  // ассерт про «только для трёх» покраснеет. Без контроля вся секция была бы
+  // зелена и на сборке, где варьируется ВЕСЬ звук.
+  {
+    const ap = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    ap.on('pageerror', e => errors.push('PAGEERROR(sfx): ' + e.message));
+    await ap.addInitScript(() => {
+      window.__sfx = { src: [], pan: [] };
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const cbs = AC.prototype.createBufferSource;
+      AC.prototype.createBufferSource = function (){
+        const n = cbs.call(this);
+        const st = n.start.bind(n);
+        n.start = function (){
+          try { window.__sfx.src.push(+n.playbackRate.value.toFixed(4)); } catch (e) {}
+          return st.apply(n, arguments);
+        };
+        return n;
+      };
+      const csp = AC.prototype.createStereoPanner;
+      if (csp) AC.prototype.createStereoPanner = function (){
+        const n = csp.call(this); window.__sfx.pan.push(n); return n;
+      };
+    });
+    await ap.goto('file://' + path.join(__dirname, 'index.html'));
+    await ap.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    // ⚠️ РАЗБЛОКИРОВКУ ЗОВЁМ ЯВНО, А НЕ КЛИКОМ: в интро ВЕСЬ ввод глушится на
+    // входе, и `pointerdown` до `Sound.unlock` не доходит. Первая проба на
+    // клике получила пустой список сэмплов и едва не родила ложный вывод
+    // «в headless сэмплы не декодятся» — они декодятся, все семь.
+    await ap.evaluate(() => { window.__game.skipIntro(); window.__game.sound.unlock(); });
+    await ap.waitForTimeout(1200);
+    const звук = await ap.evaluate(async () => {
+      const S = window.__game.sound, sleep = ms => new Promise(r => setTimeout(r, ms));
+      const out = { декодировано: S.loaded().slice() };
+      const срез = () => window.__sfx.src.length;
+      let a = срез();
+      for (let i = 0; i < 12; i++){ S.play('match', { n: 3, m: 'metal', r: 1.0, pan: 0.3 }); await sleep(25); }
+      out.одинРазмер = window.__sfx.src.slice(a);
+      a = срез();
+      for (const r of [0.6, 1.0, 1.4]){ S.play('match', { n: 2, m: 'juicy', r, pan: 0 }); await sleep(35); }
+      out.поРазмеру = window.__sfx.src.slice(a);
+      a = срез();
+      for (let i = 0; i < 8; i++){ S.play('grind'); await sleep(25); }
+      out.помол = window.__sfx.src.slice(a);
+      out.панорам = window.__sfx.pan.length;
+      out.панЗначение = window.__sfx.pan.length ? +window.__sfx.pan[0].pan.value.toFixed(3) : null;
+      return out;
+    });
+    await ap.close();
+    console.log('разнообразие звука:', JSON.stringify(звук));
+    // САНИТАР: без декодированных записей вся секция мерила бы пустоту —
+    // `playBuf` возвращает false и до нод дело не доходит вовсе.
+    expect(['mat_juicy','mat_metal','mat_glass'].every(k => звук.декодировано.indexOf(k) >= 0) &&
+           звук.одинРазмер.length === 12,
+      'САНИТАР ЗВУКА: три записи декодированы и сыграли 12 раз (' +
+      звук.декодировано.length + ' сэмплов, нод ' + звук.одинРазмер.length + ')');
+    // (1) ДЖИТТЕР: при ОДИНАКОВОМ размере высота всё равно каждый раз своя.
+    // ⚠️ Порог 8 из 12, а не «все 12»: совпадение двух случайных значений
+    // законно, и ассерт «все разные» флейковал бы на исправной сборке.
+    const разных = new Set(звук.одинРазмер).size;
+    expect(разных >= 8,
+      '⚠️ ЗВУК МАТЕРИАЛА: при ОДНОМ размере высота всё равно гуляет — запись не ' +
+      'читается как зацикленная (' + разных + ' разных из 12)');
+    // (2) КОРИДОР: разнообразие не должно уводить запись в «ускоренную плёнку».
+    expect(звук.одинРазмер.every(v => v >= 0.72 && v <= 1.38),
+      'ЗВУК МАТЕРИАЛА: высота держится в коридоре 0.72..1.38 — материал остаётся ' +
+      'узнаваемым (' + Math.min.apply(null, звук.одинРазмер) + '..' +
+      Math.max.apply(null, звук.одинРазмер) + ')');
+    // (3) РАЗМЕР: формула владельца 1/√размер — крупная вещь звучит НИЖЕ.
+    // ⚠️ Строгий порядок безопасен: коридоры трёх размеров с джиттером ±5% не
+    // пересекаются (1.226..1.356 / 0.95..1.05 / 0.803..0.887) — посчитано, а
+    // не понадеялось.
+    expect(звук.поРазмеру.length === 3 && звук.поРазмеру[0] > звук.поРазмеру[1] &&
+           звук.поРазмеру[1] > звук.поРазмеру[2],
+      '⚠️ ЗВУК МАТЕРИАЛА: крупная вещь звучит НИЖЕ мелкой (0.6 → ' + звук.поРазмеру[0] +
+      ', 1.0 → ' + звук.поРазмеру[1] + ', 1.4 → ' + звук.поРазмеру[2] + ')');
+    // (4) ⚠️⚠️ КОНТРОЛЬ «ТОЛЬКО ДЛЯ ТРЁХ»: помол — тоже сэмпл, тот же playBuf,
+    // и его высота обязана остаться РОВНО 1. Это единственный ассерт секции,
+    // который краснеет, если разнообразие расползётся на весь звук.
+    expect(звук.помол.length === 8 && звук.помол.every(v => v === 1),
+      '⛔ ТОЛЬКО ДЛЯ ТРЁХ: помол — тоже сэмпл через тот же playBuf — остался с ' +
+      'высотой ровно 1 (' + JSON.stringify(звук.помол) + ')');
+    // (5) ПАНОРАМА доехала до ноды и несёт переданное значение.
+    expect(звук.панорам >= 12 && звук.панЗначение === 0.3,
+      'ЗВУК МАТЕРИАЛА: панорама создаётся и несёт переданное место (' +
+      звук.панорам + ' нод, первая ' + звук.панЗначение + ')');
   }
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
