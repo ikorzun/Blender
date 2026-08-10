@@ -899,9 +899,15 @@
      сам список при этом рисовался (9 строк), то есть по коду всё «работало».
      40 — между меню (30) и виньеткой сюжета (45): сюжет и экран новой вещи
      обязаны перекрывать таблицу, а не наоборот. */
-  #lbOverlay { align-items:flex-start; overflow-y:auto; background:#2d2d2d; z-index:40;
-    -webkit-backdrop-filter:none; backdrop-filter:none; }
-  .lb-card { margin:auto; width:min(362px, calc(100vw - 32px)); font-family:var(--font-round);
+  /* ⚠️⚠️ ПОДЛОЖКА И КРЕСТИК — ОБЩИЕ С «More Stars» (слово владельца
+     2026-08-10: «стиль подложки и кнопка закрыть такая же как и на экране
+     More. Все попапы будут идти в этом стиле»). Значит НИ своего фона, НИ
+     снятого размытия: берём `.overlay` как есть. Прежние `#2d2d2d` и
+     `backdrop-filter:none` отменены этим словом. */
+  #lbOverlay { align-items:flex-start; overflow-y:auto; z-index:40; }
+  /* ⚠️ 560 — слово владельца («ширина таблицы 560 px максимальная»). У More
+     742: числа РАЗНЫЕ намеренно, это не опечатка и не «выровнять бы». */
+  .lb-card { margin:auto; width:min(560px, calc(100vw - 32px)); font-family:var(--font-round);
     display:flex; flex-direction:column; gap:24px; padding:88px 0 24px; }
   .lb-head { display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; }
   .lb-title { color:#fff; font-weight:900; font-size:36px; line-height:1.2; }
@@ -909,9 +915,11 @@
   /* ⚠️ КРЕСТИК ВЫНЕСЕН ИЗ КАРТОЧКИ: на мобильном он стоит по ЦЕНТРУ над
      заголовком, на десктопе — в левом верхнем углу. Внутри карточки ни то, ни
      другое не выражается без распорок. */
-  .lb-close { position:absolute; top:16px; left:50%; transform:translateX(-50%);
-    width:56px; height:56px; border:none; border-radius:1000px; cursor:pointer;
-    background:#fff; color:#000; font-size:26px; font-weight:900; line-height:1; z-index:2; }
+  /* ⚠️ РАЗМЕР И МЕСТО — свои (макет), а ВИД — общий: цвета и форма приходят
+     из `.iconBtn.st-close`, поэтому правка More доедет сюда сама. Копия
+     стилей выглядела бы так же сегодня и разъехалась бы завтра. */
+  #lbOverlay .st-close { position:absolute; top:16px; left:50%;
+    transform:translateX(-50%); z-index:2; }
   /* СПИСОК: строки ВПЛОТНУЮ (56px, без зазора) — так в макете; «YOU» ложится
      поверх последней позиции, поэтому у списка есть место снизу. */
   .lb-list { position:relative; display:flex; flex-direction:column; min-height:120px;
@@ -953,7 +961,7 @@
   .lb-row.me .lb-score svg path { fill:#FFE730; }
   /* ДЕСКТОП (макет 840:1230): крестик слева, а не по центру. */
   @media (min-width:1080px){
-    .lb-close { left:24px; transform:none; }
+    #lbOverlay .st-close { left:24px; transform:none; }
   }
   /* СЛУЖЕБНОЕ СОСТОЯНИЕ — одной строкой, без картинок: четыре случая
      («пусто, но рано» / нет сети / меня нет в таблице / вкладка выключена)
@@ -1137,7 +1145,20 @@
     line-height:1; white-space:nowrap; }
   /* «You on 845» — ТОЛЬКО из точного места (см. lbEntryRefresh). Нет точного —
      строки нет вовсе, и пилюля живёт без неё: пустую строку не резервируем. */
-  .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+  /* ⚠️ МАКЕТ 840:4344 ОБНОВЛЁН ВЛАДЕЛЬЦЕМ (прочитан Dev Mode'ом): первая
+     строка мобильного — САМО МЕСТО «3 place», вторая — подпись «on
+     leaderboard», обе Bold 18px. Прежние «Leaderboard» 22px + «You on 845»
+     14px отменены.
+     ⚠️⚠️ НЕТ ТОЧНОГО МЕСТА — БЛОК НЕ ОСТАЁТСЯ БЕЗ ИМЕНИ: у новичка строки в
+     таблице ещё нет, и первую строку заполнить нечем, а «on leaderboard» в
+     одиночку не говорит ничего. Тогда показываем прежний заголовок —
+     владелец решение подтвердил («с новичком ок»). */
+  .ms-lbe-rank { font-size:18px; font-weight:700; color:#000;
+    line-height:1; white-space:nowrap; }
+  .ms-lbentry.has-rank .ms-lbe-title { display:none; }
+  .ms-lbentry:not(.has-rank) .ms-lbe-rank,
+  .ms-lbentry:not(.has-rank) .ms-lbe-sub { display:none; }
+  .ms-lbe-sub { font-size:18px; font-weight:700; color:#b0bcd0; line-height:1;
     white-space:nowrap; }
   .ms-lbe-sub:empty { display:none; }
   /* ⚠️ ЗАЗОР 2 НА ВСЮ ПРАВУЮ ГРУППУ, а не 12: по макету (840:4348) аватары И
@@ -1157,8 +1178,26 @@
      Аватары помечены `aria-hidden` и несут украшение, а место — смысл; поэтому
      уступают именно они, поштучно. Пороги выведены из чисел выше: с 390 три
      влезают, 360-389 — два, ниже — один. */
-  @media (max-width:389px){ .ms-lbe-avs img:nth-child(3){ display:none; } }
-  @media (max-width:359px){ .ms-lbe-avs img:nth-child(2){ display:none; } }
+  /* пустой слот: держит раскладку и НЕ выдаёт себя за игрока */
+  .ms-lbe-av0 { flex:none; width:40px; height:40px; border-radius:50%;
+    background:rgba(42,41,53,.10); }
+  /* ⚠️⚠️ ПРЕЖДЕ УЗКИЕ ЭКРАНЫ ПРЯТАЛИ ТРЕТИЙ И ВТОРОЙ АВАТАР — отменено словом
+     владельца «всегда показывай 3 аватарки». ⛔ Но ЗАМЕР, из-за которого их
+     прятали, НИКУДА НЕ ДЕЛСЯ: правая группа 3×40+2+12+32 = 168px против
+     «Leaderboard» 139px, и на 320 не хватало 65px — заголовок наезжал.
+     Место освобождаем иначе: аватары ПЕРЕКРЫВАЮТСЯ стопкой и ужимаются.
+     ⚠️ Числа замерены, не подобраны: на 320 не хватало РОВНО 7px
+     (`Range.getBoundingClientRect` 139 против 132) — отсюда −15, а не −11.
+     Проверено на 320/359/375/393/430: три видимы, заголовок целиком,
+     горизонтальной прокрутки нет. */
+  .ms-lbe-avs > * + * { margin-left:-10px; }
+  .ms-lbe-avs > * { box-shadow:0 0 0 2px #fff; }
+  @media (max-width:389px){
+    .ms-lbe-avs img, .ms-lbe-av0 { width:34px; height:34px; }
+    .ms-lbe-avs > * + * { margin-left:-12px; } }
+  @media (max-width:359px){
+    .ms-lbe-avs img, .ms-lbe-av0 { width:28px; height:28px; }
+    .ms-lbe-avs > * + * { margin-left:-15px; } }
   .ms-lbe-act { flex:none; border:none; padding:0; background:none; cursor:pointer;
     display:flex; align-items:center; line-height:0; }
   .ms-lbe-arrow { display:block; }
@@ -1509,7 +1548,9 @@
     .ms-lbe-dot { display:inline; color:#b0bcd0; }
     .ms-lbe-dot:empty { display:none; }
     /* на десктопе место живёт В ЗАГОЛОВКЕ (через `•`), второй строки нет */
-    .ms-lbe-sub { display:none; }
+    /* десктоп: место живёт в заголовке через «•», мобильные строки не участвуют */
+    .ms-lbe-sub, .ms-lbe-rank { display:none; }
+    .ms-lbentry.has-rank .ms-lbe-title { display:block; }
     .ms-lbe-arrow { display:none; }
     .ms-lbe-open { display:inline; font-family:var(--font-round); font-size:16px;
       font-weight:700; color:#000; }
@@ -2161,7 +2202,9 @@
      ⚠️ КРЕСТИК: на мобильном — по ЦЕНТРУ сверху, на десктопе — СЛЕВА (так в
      обоих макетах; это не адаптив, а два решения одного узла). -->
 <div class="overlay" id="lbOverlay">
-  <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+  <button class="iconBtn st-close" id="lbClose" aria-label="Close"><svg viewBox="0 0 32 32" fill="none">
+    <path d="M8.94 8.94a1.667 1.667 0 0 1 2.357 0L16 13.643l4.703-4.703a1.667 1.667 0 1 1 2.357 2.357L18.357 16l4.703 4.703a1.667 1.667 0 1 1-2.357 2.357L16 18.357l-4.703 4.703a1.667 1.667 0 0 1-2.357-2.357L13.643 16 8.94 11.297a1.667 1.667 0 0 1 0-2.357Z" fill="#000"/>
+  </svg></button>
   <div class="lb-card">
     <div class="lb-head">
       <div class="lb-title">Leaderboard</div>
@@ -2314,6 +2357,7 @@
     <section class="ms-lbentry" id="msLbEntry" hidden>
       <div class="ms-lbe-txt">
         <div class="ms-lbe-title">Leaderboard<span class="ms-lbe-dot" id="msLbeDot"></span></div>
+        <div class="ms-lbe-rank" id="msLbeRank"></div>
         <div class="ms-lbe-sub" id="msLbeSub"></div>
       </div>
       <div class="ms-lbe-right">
