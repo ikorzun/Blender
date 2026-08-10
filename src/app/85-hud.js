@@ -245,6 +245,52 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
+let lbEntryEpoch = 0;
+// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
+// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
+// дорисоваться в следующее. Сверка — ДО единого касания DOM.
+// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
+// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
+// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
+// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
+// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
+// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
+// раскладку и честно говорит «здесь пока никого».
+function lbEntryAvatars(host, rows){
+  host.innerHTML = '';
+  for (let i = 0; i < 3; i++){
+    const r = rows[i], ai = r ? (r.av | 0) : 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'ms-lbe-av0'; host.appendChild(d);
+    }
+  }
+}
+// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
+// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
+// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
+// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
+// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
+// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
+// раскладку и честно говорит «здесь пока никого».
+function lbEntryAvatars(host, rows){
+  host.innerHTML = '';
+  for (let i = 0; i < 3; i++){
+    const r = rows[i], ai = r ? (r.av | 0) : 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'ms-lbe-av0'; host.appendChild(d);
+    }
+  }
+}
 function lbEntryRefresh(){
   const box = $('msLbEntry'); if (!box) return;
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
