@@ -7,9 +7,9 @@ const G={
  meat:['foodburger','foodcheese','foodfish','foodhotdog','foodturkey','foodwholeham','survivalfish'],
  cream:['foodicecream','foodicecreamscoopmint','foodsundae'],
  plush:['animalbeaver','animalbee','animalbunny','animalcat','animalcaterpillar','animalchick','animalcow','animalcrab','animaldeer','animaldog','animalelephant','animalfish','animalfox','animalgiraffe','animalhog','animalkoala','animallion','animalmonkey','animalpanda','animalparrot','animalpenguin','animalpig','animalpolar','animaltiger','holidayreindeer','holidaysnowman'],
- plastic:['brickbar','brickclassic','brickcorner','brickduo','brickround','bricksquare','brickstud','toycaritemcoingold','toycaritemcone','toycarvehiclemonstertruck','toycarvehiclespeedster','toycarvehiclevintageracer','carambulance','carbox','carcone','carfiretruck','cargarbagetruck','carkartoobi','carpolice','carrace','cartaxi','cartractor','cartruck','carvan','holidayhanukkahdreidel'],
+ plastic:['brickbar','brickclassic','brickcorner','brickduo','brickround','bricksquare','brickstud','toycaritemcone','carcone','holidayhanukkahdreidel'],
  wood:['piratebarrel','piratecrate','piratechest','piratedoor','piratepalm','survivalbarrel','survivalchest','survivaltoolaxe','survivaltoolhammer','survivaltoolpickaxe','holidaynutcracker'],
- metal:['pirateball','piratecannon','piratetower','factoryboxsmall','factorycoga','factorycogc','factorypistonround','marketcashregister','arcadeclawmachine','survivalbucket'],
+ metal:['carambulance','carbox','carfiretruck','cargarbagetruck','carkartoobi','carpolice','carrace','cartaxi','cartractor','cartruck','carvan','toycarvehiclemonstertruck','toycarvehiclespeedster','toycarvehiclevintageracer','toycaritemcoingold','pirateball','piratecannon','piratetower','factoryboxsmall','factorycoga','factorycogc','factorypistonround','marketcashregister','arcadeclawmachine','survivalbucket'],
  glass:['survivalbottle'],
  paper:['holidaypresentacube','holidaypresentaround','marketshoppingbasket'],
 };

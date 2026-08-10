@@ -12,6 +12,12 @@
 // покрытие проверяется `tools/material-map-check.js` (120 из 120, без
 // пропусков и дублей). Придёт новая партия моделей — прогнать проверку, иначе
 // новые типы молча останутся без своего звука.
+// ⚠️ МАШИНКИ — В МЕТАЛЛЕ (слово владельца 2026-08-10: «отнеси все модели
+// машинок к группе металла по звуку»). Переехали 15 моделей: 11 из пачки `car`,
+// три кузова из `toycar` и золотая монета.
+// ⛔ ДВА ДОРОЖНЫХ КОНУСА (`carcone`, `toycaritemcone`) ОСТАЛИСЬ В ПЛАСТИКЕ — они
+// лежат в тех же пачках, но машинками не являются, а конус звучит пластиком.
+// Скажет владелец «всю пачку целиком» — переедут двумя строками.
 const MATERIAL_OF = {
   animalbeaver: 'plush',
   animalbee: 'plush',
@@ -45,18 +51,18 @@ const MATERIAL_OF = {
   brickround: 'plastic',
   bricksquare: 'plastic',
   brickstud: 'plastic',
-  carambulance: 'plastic',
-  carbox: 'plastic',
+  carambulance: 'metal',
+  carbox: 'metal',
   carcone: 'plastic',
-  carfiretruck: 'plastic',
-  cargarbagetruck: 'plastic',
-  carkartoobi: 'plastic',
-  carpolice: 'plastic',
-  carrace: 'plastic',
-  cartaxi: 'plastic',
-  cartractor: 'plastic',
-  cartruck: 'plastic',
-  carvan: 'plastic',
+  carfiretruck: 'metal',
+  cargarbagetruck: 'metal',
+  carkartoobi: 'metal',
+  carpolice: 'metal',
+  carrace: 'metal',
+  cartaxi: 'metal',
+  cartractor: 'metal',
+  cartruck: 'metal',
+  carvan: 'metal',
   factoryboxsmall: 'metal',
   factorycoga: 'metal',
   factorycogc: 'metal',
@@ -128,11 +134,11 @@ const MATERIAL_OF = {
   survivaltoolaxe: 'wood',
   survivaltoolhammer: 'wood',
   survivaltoolpickaxe: 'wood',
-  toycaritemcoingold: 'plastic',
+  toycaritemcoingold: 'metal',
   toycaritemcone: 'plastic',
-  toycarvehiclemonstertruck: 'plastic',
-  toycarvehiclespeedster: 'plastic',
-  toycarvehiclevintageracer: 'plastic',
+  toycarvehiclemonstertruck: 'metal',
+  toycarvehiclespeedster: 'metal',
+  toycarvehiclevintageracer: 'metal',
 };
 // ⚠️ ФОЛБЭК НЕ 'juicy' И НЕ ПЕРВЫЙ ПОПАВШИЙСЯ: неизвестный тип обязан звучать
 // НЕЙТРАЛЬНО, иначе новая модель без разметки будет чавкать как фрукт и это

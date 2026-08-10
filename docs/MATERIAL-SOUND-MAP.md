@@ -18,8 +18,10 @@
 
 Восемь основных плюс два маленьких. Считать «типом материала» стоит именно
 голос: игрок различает звуки на слух, а не по пачке ассетов — поэтому пачки
-`food`, `holiday`, `survival` РАЗОБРАНЫ между голосами, а `car`+`brick`+`toycar`
-наоборот слиты в один.
+`food`, `holiday`, `survival`, `car`, `toycar` РАЗОБРАНЫ между голосами, а
+`brick` целиком лежит в одном.
+⚠️ Пачка ассетов голосу НЕ РАВНА ни в одну сторону: `brick`+конусы из `car` и
+`toycar` дают `plastic`, а кузова тех же двух пачек — `metal`.
 
 | голос | шт | что это звучит | характер записи |
 |---|---:|---|---|
@@ -28,9 +30,9 @@
 | `meat` | 7 | мясо, рыба, сыр, бургер | плотный влажный удар |
 | `cream` | 3 | мороженое | холодный «плюх», липкий хвост |
 | `plush` | 26 | звери и мягкие игрушки | пуховый пуф, лёгкий писк |
-| `plastic` | 25 | кубики, машинки, игрушки | сухой щелчок, клац |
+| `plastic` | 10 | кубики, волчок, дорожные конусы | сухой щелчок, клац |
 | `wood` | 11 | бочки, ящики, сундуки, инструмент | деревянный стук, скрип |
-| `metal` | 10 | ядра, шестерни, поршни, ведро | звон, лязг |
+| `metal` | 25 | МАШИНКИ, ядра, шестерни, поршни, ведро | звон, лязг |
 | `glass` | 1 | бутылка | звяк (можно не записывать — см. ниже) |
 | `paper` | 3 | подарки, корзина | шорох картона (можно не записывать) |
 
@@ -38,46 +40,34 @@
 отдельно не хочется, `glass` уходит в `metal`, `paper` — в `plastic`, и ничего
 не ломается. Восемь голосов — рабочий минимум, десять — потолок.
 
+⚠️ **МАШИНКИ ПЕРЕЕХАЛИ В `metal`** (слово владельца 2026-08-10: «отнеси все
+модели машинок к группе металла по звуку»): 11 моделей из пачки `car`, три
+кузова из `toycar` и золотая монета — всего 15. `plastic` уменьшился с 25 до 10.
+⛔ **ДВА ДОРОЖНЫХ КОНУСА ОСТАЛИСЬ В ПЛАСТИКЕ** (`carcone`, `toycaritemcone`):
+они лежат в тех же пачках, но машинками не являются. Скажете «всю пачку
+целиком» — переедут двумя строками.
+
 ## Полная разметка
 
-**juicy (26)** — foodapple, foodavocado, foodbanana, foodbeet, foodbroccoli,
-foodcabbage, foodcarrot, foodcauliflower, foodcherries, foodcoconut, foodcorn,
-foodeggplant, foodgrapes, foodleek, foodlemon, foodmushroom, foodonion,
-foodorange, foodpaprika, foodpear, foodpineapple, foodpumpkin, foodstrawberry,
-foodtomato, foodwatermelon, forestplant
+**juicy (26)** — foodapple, foodavocado, foodbanana, foodbeet, foodbroccoli, foodcabbage, foodcarrot, foodcauliflower, foodcherries, foodcoconut, foodcorn, foodeggplant, foodgrapes, foodleek, foodlemon, foodmushroom, foodonion, foodorange, foodpaprika, foodpear, foodpineapple, foodpumpkin, foodstrawberry, foodtomato, foodwatermelon, forestplant
 
-**dough (8)** — foodcakebirthday, foodchinese, foodcookie, foodcroissant,
-foodcupcake, fooddonutsprinkles, foodtaco, holidaygingerbreadman
+**dough (8)** — foodcakebirthday, foodchinese, foodcookie, foodcroissant, foodcupcake, fooddonutsprinkles, foodtaco, holidaygingerbreadman
 
-**meat (7)** — foodburger, foodcheese, foodfish, foodhotdog, foodturkey,
-foodwholeham, survivalfish
+**meat (7)** — foodburger, foodcheese, foodfish, foodhotdog, foodturkey, foodwholeham, survivalfish
 
 **cream (3)** — foodicecream, foodicecreamscoopmint, foodsundae
 
-**plush (26)** — animalbeaver, animalbee, animalbunny, animalcat,
-animalcaterpillar, animalchick, animalcow, animalcrab, animaldeer, animaldog,
-animalelephant, animalfish, animalfox, animalgiraffe, animalhog, animalkoala,
-animallion, animalmonkey, animalpanda, animalparrot, animalpenguin, animalpig,
-animalpolar, animaltiger, holidayreindeer, holidaysnowman
+**plush (26)** — animalbeaver, animalbee, animalbunny, animalcat, animalcaterpillar, animalchick, animalcow, animalcrab, animaldeer, animaldog, animalelephant, animalfish, animalfox, animalgiraffe, animalhog, animalkoala, animallion, animalmonkey, animalpanda, animalparrot, animalpenguin, animalpig, animalpolar, animaltiger, holidayreindeer, holidaysnowman
 
-**plastic (25)** — brickbar, brickclassic, brickcorner, brickduo, brickround,
-bricksquare, brickstud, carambulance, carbox, carcone, carfiretruck,
-cargarbagetruck, carkartoobi, carpolice, carrace, cartaxi, cartractor, cartruck,
-carvan, holidayhanukkahdreidel, toycaritemcoingold, toycaritemcone,
-toycarvehiclemonstertruck, toycarvehiclespeedster, toycarvehiclevintageracer
+**plastic (10)** — brickbar, brickclassic, brickcorner, brickduo, brickround, bricksquare, brickstud, carcone, holidayhanukkahdreidel, toycaritemcone
 
-**wood (11)** — holidaynutcracker, piratebarrel, piratechest, piratecrate,
-piratedoor, piratepalm, survivalbarrel, survivalchest, survivaltoolaxe,
-survivaltoolhammer, survivaltoolpickaxe
+**wood (11)** — holidaynutcracker, piratebarrel, piratechest, piratecrate, piratedoor, piratepalm, survivalbarrel, survivalchest, survivaltoolaxe, survivaltoolhammer, survivaltoolpickaxe
 
-**metal (10)** — arcadeclawmachine, factoryboxsmall, factorycoga, factorycogc,
-factorypistonround, marketcashregister, pirateball, piratecannon, piratetower,
-survivalbucket
+**metal (25)** — arcadeclawmachine, carambulance, carbox, carfiretruck, cargarbagetruck, carkartoobi, carpolice, carrace, cartaxi, cartractor, cartruck, carvan, factoryboxsmall, factorycoga, factorycogc, factorypistonround, marketcashregister, pirateball, piratecannon, piratetower, survivalbucket, toycaritemcoingold, toycarvehiclemonstertruck, toycarvehiclespeedster, toycarvehiclevintageracer
 
 **glass (1)** — survivalbottle
 
-**paper (3)** — holidaypresentacube, holidaypresentaround,
-marketshoppingbasket
+**paper (3)** — holidaypresentacube, holidaypresentaround, marketshoppingbasket
 
 ## Спорные, которые я решил сам — скажите, если иначе
 
