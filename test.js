@@ -7300,6 +7300,216 @@ window.bridge = {
       звук.панорам + ' нод, первая ' + звук.панЗначение + ')');
   }
 
+  // ===== ПРАВКИ ВЛАДЕЛЬЦА 2026-08-10-в: экран таблицы и меню =====
+  // Своя страница и свои данные: секция ПРИВОДИТ обстановку сама (длинный
+  // список, заданное место), а не наследует от соседей.
+  {
+    const up = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    up.on('pageerror', e => errors.push('PAGEERROR(ui810): ' + e.message));
+    await up.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test'); } catch (e) {}
+      const строки = [];
+      for (let i = 0; i < 60; i++) строки.push(['Bot' + i, (i % 12) + 1, 20000 - i * 137]);
+      const of = window.fetch;
+      window.fetch = function (u) {
+        const s = String(u);
+        if (s.indexOf('/v1/top') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ r: строки, t: 1, n: 60 }), { status: 200 }));
+        if (s.indexOf('/v1/me') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, rank: 45, exact: 1, s: 13972 }), { status: 200 }));
+        return of.apply(this, arguments);
+      };
+    });
+    await up.goto('file://' + path.join(__dirname, 'index.html'));
+    await up.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await up.evaluate(() => window.__game.skipIntro());
+    await up.waitForTimeout(400);
+    const лб = await up.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sleep(400);
+      document.getElementById('msLbEntry').click(); await sleep(1200);
+      const о = document.getElementById('lbOverlay');
+      const строки = document.querySelectorAll('#lbList .lb-row');
+      const я = document.querySelector('#lbList .lb-row.me');
+      const x = document.getElementById('lbClose');
+      const rx = x.getBoundingClientRect();
+      const заг = document.querySelector('.lb-title').getBoundingClientRect();
+      const верх = я ? Math.round(window.innerHeight - я.getBoundingClientRect().bottom) : null;
+      о.scrollTop = 1200; await sleep(400);
+      const серед = я ? Math.round(window.innerHeight - я.getBoundingClientRect().bottom) : null;
+      о.scrollTop = 0; await sleep(200);
+      return { строк: строки.length,
+        мойИндекс: я ? Array.prototype.indexOf.call(строки, я) : -1,
+        мояПозиция: я ? (я.querySelector('.lb-pos') || {}).textContent : null,
+        липнет: я ? getComputedStyle(я).position : null,
+        снизуВверху: верх, снизуВСередине: серед,
+        крестикЦентр: Math.round(rx.left + rx.width / 2), экранЦентр: Math.round(window.innerWidth / 2),
+        крестикНизВышеЗаголовка: Math.round(заг.top - rx.bottom),
+        прокрутка: о.scrollHeight - о.clientHeight };
+    });
+    console.log('таблица/правки владельца:', JSON.stringify(лб));
+    // (1) СВОЯ СТРОКА НА СВОЁМ МЕСТЕ. ⚠️ Утверждаем ИНДЕКС, а не «не последняя»:
+    // прежний дефект ставил её 61-й при месте 45, и «не последняя» было бы
+    // зелёным у любой вставки не на своё место.
+    expect(лб.строк === 60 && лб.мойИндекс === 44 && лб.мояПозиция === '45',
+      '⚠️⚠️ ТАБЛИЦА: своя строка стоит НА СВОЁМ МЕСТЕ (индекс 44 при месте 45), ' +
+      'а не в конце списка (' + JSON.stringify({ строк:лб.строк, индекс:лб.мойИндекс, место:лб.мояПозиция }) + ')');
+    // (2) ЛИПНЕТ СНИЗУ НА 32, ПОКА СВОЁ МЕСТО НИЖЕ ЭКРАНА. Два замера при
+    // РАЗНОЙ прокрутке — иначе «32» могло бы совпасть случайно на одной.
+    expect(лб.липнет === 'sticky' && лб.снизуВверху === 32 && лб.снизуВСередине === 32,
+      '⚠️⚠️ ТАБЛИЦА: своя строка подпёрта снизу на 32px, пока её место ниже экрана ' +
+      '(' + JSON.stringify({ поз:лб.липнет, вверху:лб.снизуВверху, всередине:лб.снизуВСередине }) + ')');
+    // (3) КРЕСТИК ПО ЦЕНТРУ НАД ЗАГОЛОВКОМ (мобильный).
+    expect(Math.abs(лб.крестикЦентр - лб.экранЦентр) <= 1 && лб.крестикНизВышеЗаголовка > 0,
+      '⚠️ ТАБЛИЦА: крестик по ЦЕНТРУ и НАД заголовком (центр ' + лб.крестикЦентр +
+      ' против ' + лб.экранЦентр + ', до заголовка ' + лб.крестикНизВышеЗаголовка + 'px)');
+
+    // (4) МЕНЮ: зазор аватаров 16 на ДЕСКТОПЕ, стопка на мобильном.
+    // ⚠️ Мобильную половину держим ЯВНО: 16px там сжимает «Leaderboard»
+    // (замер: чернила 139 против бокса 128 уже на 390), и без этого ассерта
+    // «поправить и на телефоне» прошло бы молча.
+    const меню = await up.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('lbClose').click(); await sleep(300);
+      const зазор = () => { const a = document.querySelectorAll('#msLbeAvs > *');
+        return a.length >= 2 ? Math.round(a[1].getBoundingClientRect().left - a[0].getBoundingClientRect().right) : null; };
+      const моб = зазор();
+      return { моб, more: getComputedStyle(document.getElementById('msGetMore')).backgroundColor };
+    });
+    await up.setViewportSize({ width: 1440, height: 900 });
+    await up.waitForTimeout(400);
+    const деск = await up.evaluate(() => {
+      const a = document.querySelectorAll('#msLbeAvs > *');
+      const t = document.querySelector('.ms-coll-title');
+      const rt = t.getBoundingClientRect();
+      const rg = document.createRange(); rg.selectNodeContents(t);
+      const ri = rg.getBoundingClientRect();
+      return { зазор: a.length >= 2 ? Math.round(a[1].getBoundingClientRect().left - a[0].getBoundingClientRect().right) : null,
+        аватаров: a.length,
+        more: getComputedStyle(document.getElementById('msGetMore')).backgroundColor,
+        строка1: (document.getElementById('msLbeRank') || {}).textContent,
+        строка2: (document.getElementById('msLbeSub') || {}).textContent,
+        заголовокВиден: getComputedStyle(document.querySelector('.ms-lbe-title')).display !== 'none',
+        точка: getComputedStyle(document.getElementById('msLbeDot')).display,
+        высотаЗаголовка: Math.round(rt.height),
+        сверху: Math.round(ri.top - rt.top), снизу: Math.round(rt.bottom - ri.bottom),
+        слева: Math.round(ri.left - rt.left), справа: Math.round(rt.right - ri.right) };
+    });
+    console.log('меню/правки владельца:', JSON.stringify({ моб:меню.моб, деск }));
+    // ⚠️ 6, А НЕ 16: владелец посмотрел вживую и уменьшил. Страж ПЕРЕЕХАЛ за
+    // правилом — прежнее число тут же покраснело бы, и это правильная работа.
+    expect(деск.зазор === 6 && деск.аватаров === 3,
+      '⚠️ ТОЧКА ВХОДА, ДЕСКТОП: зазор между аватарами 6 и их ТРИ (' +
+      деск.зазор + 'px, ' + деск.аватаров + ' шт)');
+    // ⚠️⚠️ НАПИСАНИЕ И МЕСТО НА ДЕСКТОПЕ — КАК НА МОБИЛЬНОМ (слово владельца).
+    // Утверждаем ТРИ признака сразу: две строки показаны, заголовок скрыт,
+    // точка с местом НЕ показана. Без третьего место дублировалось бы в двух
+    // местах, а ассерт «две строки есть» этого не увидел бы.
+    expect(деск.строка1 && /place/.test(деск.строка1) && деск.строка2 === 'on leaderboard' &&
+           !деск.заголовокВиден && деск.точка === 'none',
+      '⚠️⚠️ ТОЧКА ВХОДА, ДЕСКТОП: место двумя строками, как на мобильном, и НЕ ' +
+      'дублируется в заголовке (' + JSON.stringify({ строка1:деск.строка1,
+        строка2:деск.строка2, заголовок:деск.заголовокВиден, точка:деск.точка }) + ')');
+    // ⚠️ ЦВЕТ КНОПКИ — ОДИН НА ОБЕ РАСКЛАДКИ. Проверяем ОБЕ: правка только базы
+    // выглядела бы сделанной, а десктопное переопределение молча её перебивало.
+    expect(деск.more === 'rgb(255, 231, 48)' && меню.more === 'rgb(255, 231, 48)',
+      '⚠️ КНОПКА More: цвет #FFE730 на ОБЕИХ раскладках, переопределения нет (' +
+      JSON.stringify({ десктоп:деск.more, мобильный:меню.more }) + ')');
+    expect(меню.моб !== null && меню.моб < 16,
+      '⛔ ТОЧКА ВХОДА, МОБИЛЬНЫЙ: стопка сохранена — 16px там сжимает заголовок ' +
+      '(замерено: чернила 139 против бокса 128 на 390); зазор ' + меню.моб + 'px');
+    // (5) ЗАГОЛОВОК КОЛЛЕКЦИИ: высота 88 и центр по обеим осям.
+    // ⚠️ Центр проверяем РАВЕНСТВОМ ОТСТУПОВ вокруг текста (Range), а не
+    // наличием `place-items` в стилях: последнее — пересказ намерения.
+    expect(деск.высотаЗаголовка === 88 &&
+           Math.abs(деск.сверху - деск.снизу) <= 1 && Math.abs(деск.слева - деск.справа) <= 1,
+      '⚠️ КОЛЛЕКЦИЯ: заголовок высотой 88 и текст по центру по обеим осям (' +
+      JSON.stringify(деск) + ')');
+
+    // (6) БЕЙДЖ: покой 1 / ховер по карточке .4 / ховер по ОБЪЕКТУ 0.
+    // ⚠️ ТРИ СОСТОЯНИЯ, А НЕ ДВА: без «покоя» ассерт был бы зелен и на сборке,
+    // где бейдж всегда полупрозрачный.
+    const покой = await up.evaluate(() => {
+      const b = document.querySelector('#msGrid .msc .msc-badge');
+      return b ? +getComputedStyle(b).opacity : null;
+    });
+    const имя = await up.$('#msGrid .msc .msc-name');
+    if (имя) await имя.hover();
+    await up.waitForTimeout(250);
+    const поКарточке = await up.evaluate(() => {
+      const b = document.querySelector('#msGrid .msc .msc-badge');
+      return b ? +getComputedStyle(b).opacity : null;
+    });
+    const обёртка = await up.$('#msGrid .msc .msc-imgwrap');
+    if (обёртка) await обёртка.hover();
+    await up.waitForTimeout(250);
+    const поОбъекту = await up.evaluate(() => {
+      const b = document.querySelector('#msGrid .msc .msc-badge');
+      return b ? +getComputedStyle(b).opacity : null;
+    });
+    await up.close();
+    console.log('бейдж коллекции:', JSON.stringify({ покой, поКарточке, поОбъекту }));
+    expect(покой === 1 && поКарточке === 0.4 && поОбъекту === 0,
+      '⚠️⚠️ БЕЙДЖ ×N: на ОБЪЕКТЕ исчезает совсем, на карточке — полупрозрачный, ' +
+      'в покое непрозрачный (' + JSON.stringify({ покой, карточка:поКарточке, объект:поОбъекту }) + ')');
+  }
+
+  // ===== ЗВЁЗДЫ НА КАРТОЧКЕ PLAY (слово владельца 2026-08-10) =====
+  // ⚠️ ДВЕ РУКИ, И ОБЕ НЕСУЩИЕ: ночью звёзды ЕСТЬ и они РИСУЮТСЯ (пиксели, а не
+  // факт вызова), днём слоя нет вовсе. Одна рука была бы зелена и на сборке,
+  // где звёзды горят круглосуточно.
+  // ⚠️ Час задаётся форс-хуком `?hour=` — тем же, которым проверяются прочие
+  // темовые фичи; подменять Date не нужно.
+  {
+    const проба = async (hour) => {
+      const sp = await browser.newPage({ viewport: { width: 900, height: 800 } });
+      sp.on('pageerror', e => errors.push('PAGEERROR(sky' + hour + '): ' + e.message));
+      await sp.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+      await sp.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + hour);
+      await sp.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+      await sp.evaluate(() => window.__game.skipIntro());
+      await sp.waitForTimeout(400);
+      await sp.evaluate(() => document.getElementById('pauseBtn').click());
+      await sp.waitForTimeout(900);
+      const r = await sp.evaluate(() => {
+        const c = document.getElementById('msNightSky');
+        if (!c) return { есть:false };
+        const cs = getComputedStyle(c);
+        const out = { есть:true, показан:cs.display !== 'none', ночь:document.documentElement.classList.contains('night'),
+                      w:c.width, h:c.height, ярких:0 };
+        if (out.показан && c.width && c.height){
+          const g = c.getContext('2d');
+          const d = g.getImageData(0, 0, c.width, c.height).data;
+          let n = 0;
+          for (let i = 3; i < d.length; i += 4) if (d[i] > 40) n++;
+          out.ярких = n;
+        }
+        return out;
+      });
+      // цикл обязан остановиться при закрытии меню — иначе он жил бы весь геймплей
+      await sp.evaluate(() => { const p = document.querySelector('.ms-play'); if (p) p.click(); });
+      await sp.waitForTimeout(500);
+      r.послеЗакрытия = await sp.evaluate(() => {
+        const c = document.getElementById('msNightSky');
+        return c ? getComputedStyle(c).display : null;
+      });
+      await sp.close();
+      return r;
+    };
+    const ночью = await проба(23);
+    const днём = await проба(12);
+    console.log('звёзды на Play:', JSON.stringify({ ночью, днём }));
+    expect(ночью.есть && ночью.показан && ночью.ярких > 50,
+      '⚠️⚠️ КАРТОЧКА PLAY: НОЧЬЮ звёзды не просто заведены, а НАРИСОВАНЫ — ' +
+      'считаны пиксели, а не факт вызова (ярких точек ' + ночью.ярких + ')');
+    expect(днём.есть && !днём.показан,
+      '⚠️ КАРТОЧКА PLAY: ДНЁМ слоя звёзд нет — у неба днём их тоже нет (' +
+      JSON.stringify({ показан:днём.показан, ночь:днём.ночь }) + ')');
+    expect(ночью.послеЗакрытия === 'none',
+      'КАРТОЧКА PLAY: при закрытии меню слой гаснет — цикл не живёт весь геймплей (' +
+      ночью.послеЗакрытия + ')');
+  }
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();

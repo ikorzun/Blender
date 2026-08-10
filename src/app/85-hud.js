@@ -398,8 +398,21 @@ async function lbLoadOurs(my){
   // ⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО (`exact`) — отказ закрытый: нет признака
   // достоверности, значит своей строки на экране нет вовсе.
   if (m && m.state === 'ok' && m.exact && m.rank > 0){
-    строки.push({ pos:m.rank, name:(typeof guestName === 'function') ? guestName() : '',
-      av:(typeof guestAvatar === 'function') ? guestAvatar() : 0, score:m.score, me:true });
+    const своя = { pos:m.rank, name:(typeof guestName === 'function') ? guestName() : '',
+      av:(typeof guestAvatar === 'function') ? guestAvatar() : 0, score:m.score, me:true };
+    // ⚠️⚠️ СВОЯ СТРОКА ВСТАЁТ НА СВОЁ МЕСТО, А НЕ В КОНЕЦ (слово владельца
+    // 2026-08-10: «игрок должен занимать правильное место в таблице»). Прежний
+    // `push` ставил её последней ВСЕГДА: при месте 7 из 60 она была
+    // шестьдесят первой, то есть экран врал о положении игрока.
+    // ⚠️ Место в снимке и место из `me()` — РАЗНЫЕ ИСТОЧНИКИ: топ приходит из
+    // снимка крона, своё место живое. Пока ранг попадает в присланный отрезок,
+    // строка под этим номером и есть наша, поэтому её ЗАМЕЩАЕМ (имя, аватар и
+    // свежий счёт — наши), а не вставляем рядом: вставка сдвинула бы всех ниже
+    // и в таблице появились бы два игрока с одним номером.
+    // ⚠️ Ранг ВНЕ отрезка — строка идёт в конец, и это не «в конце списка», а
+    // честное «ниже показанного»: подпирать её снизу будет `sticky`.
+    const i = m.rank - 1;
+    if (i >= 0 && i < строки.length) строки[i] = своя; else строки.push(своя);
   }
   lbRowsRender(строки);
 }
@@ -1823,6 +1836,89 @@ function refreshGuestProfile(){
     }
   } catch(e){}
 }
+// ===== ЗВЁЗДЫ НА КАРТОЧКЕ PLAY (слово владельца 2026-08-10) =====
+// «Добавь сюда звёзды в ночной теме, как на экране игры». Карточка УЖЕ носит
+// градиент неба (`--sky-grad` в shell.html), поэтому ночью она и выглядит
+// ночным небом — не хватало только звёзд.
+// ⚠️⚠️ ЧИСЛА БЕРУТСЯ ИЗ ТЕХ ЖЕ КОНСТАНТ, ЧТО У ШЕЙДЕРА НЕБА (`STAR_*`,
+// 00-config): распределение размера (`STAR_SIZE_MIN`/`STAR_SIZE_BIAS`), обе
+// скорости и амплитуды моргания и пульса, доля пульсирующих. Копия чисел
+// «на глаз» разошлась бы с небом при первой же правке палитры — ровно тот
+// закон, на котором проект обжигался не раз.
+// ⛔ ПОЧЕМУ КАНВАС, А НЕ НАБОР `radial-gradient`: у неба звёзды МОРГАЮТ, и
+// каждая десятая ещё и пульсирует (спека владельца) — CSS-градиентами это не
+// выражается, а статичная россыпь читается как текстура, а не как небо.
+const MS_SKY_PER_KPX = 0.55;   // звёзд на 1000 px² карточки — плотность подобрана к небу
+let msSkyRaf = 0, msSkyStars = null, msSkyW = 0, msSkyH = 0;
+// хеш из индекса — детерминированный, как у ячеек неба: одна и та же карточка
+// даёт одно и то же небо, а не мерцающую кашу при каждом открытии меню
+function msSkyHash(i, k){ const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }
+function msSkyBuild(w, h){
+  const n = Math.max(24, Math.round(w * h / 1000 * MS_SKY_PER_KPX));
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const hs = msSkyHash(i, 3);
+    out.push({
+      x: msSkyHash(i, 1) * w, y: msSkyHash(i, 2) * h,
+      // ⚠️ ТА ЖЕ ФОРМУЛА РАЗМЕРА, ЧТО В ШЕЙДЕРЕ: смещение выборки к мелким
+      // (спека владельца «больше мелких звёзд, не меняя их количество»).
+      r: (STAR_SIZE_MIN + (1 - STAR_SIZE_MIN) * Math.pow(hs, STAR_SIZE_BIAS)) * 1.6,
+      ph: msSkyHash(i, 4) * Math.PI * 2,
+      // ⚠️ ОТБОР ПУЛЬСИРУЮЩИХ — ОТДЕЛЬНЫМ хешем, как у неба: иначе пульс
+      // коррелировал бы с размером и «одна из десяти» превратилась бы
+      // в «самые крупные».
+      pulse: msSkyHash(i, 5) < STAR_PULSE_FRAC, pph: msSkyHash(i, 6) * Math.PI * 2,
+    });
+  }
+  return out;
+}
+function msSkyDraw(t){
+  const c = $('msNightSky'); if (!c) return;
+  const g = c.getContext('2d'); if (!g) return;
+  g.clearRect(0, 0, msSkyW, msSkyH);
+  for (let i = 0; i < msSkyStars.length; i++){
+    const s = msSkyStars[i];
+    let a = 1 - STAR_TW_AMP * 0.5 * (1 - Math.cos(t * STAR_TW_SPD + s.ph));
+    if (s.pulse) a *= 1 - STAR_PULSE_AMP * 0.5 * (1 - Math.cos(t * STAR_PULSE_SPD + s.pph));
+    g.globalAlpha = Math.max(0, Math.min(1, a));
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+}
+// ⚠️ ГЕЙТ ДВОЙНОЙ: ночь И открытое меню. Днём слоя нет вовсе (у неба днём
+// звёзд тоже нет), а при закрытом меню rAF не крутится — карточка живёт в
+// поддереве, которое просто скрыто, и без явной остановки цикл жил бы ВЕСЬ
+// геймплей (та же грабля, что уже ловили у тап-спина коллекции).
+function msSkyStart(){
+  const c = $('msNightSky'), host = c && c.parentNode; if (!c || !host) return;
+  const ночь = (typeof isNightSky === 'function') ? isNightSky() : false;
+  if (!ночь){ msSkyStop(); c.style.display = 'none'; return; }
+  const r = host.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  if (!w || !h) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (w !== msSkyW || h !== msSkyH || !msSkyStars){
+    msSkyW = w; msSkyH = h;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    const g = c.getContext('2d'); if (g){ g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    msSkyStars = msSkyBuild(w, h);
+  }
+  c.style.display = 'block';
+  if (msSkyRaf) return;
+  const t0 = performance.now();
+  const тик = () => {
+    msSkyRaf = 0;
+    if (!$('mainScreen') || !$('mainScreen').classList.contains('open')){ return; }
+    msSkyDraw((performance.now() - t0) / 1000);
+    msSkyRaf = requestAnimationFrame(тик);
+  };
+  msSkyRaf = requestAnimationFrame(тик);
+}
+function msSkyStop(){
+  if (msSkyRaf){ cancelAnimationFrame(msSkyRaf); msSkyRaf = 0; }
+  const c = $('msNightSky'); if (c) c.style.display = 'none';
+}
 function openMainScreen(){
   // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
   // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
@@ -1831,6 +1927,10 @@ function openMainScreen(){
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
+  // ⚠️ ПОСЛЕ гварда чужой паузы: при отказе открыться ни канваса, ни цикла
+  // заводиться не должно. Размер берём отложенно — у только что показанной
+  // карточки rect ещё нулевой (та же природа, что у спина в коллекции).
+  setTimeout(()=>{ try { msSkyStart(); } catch(e){} }, 0);
   // ⚠️ ПОСЛЕ ГВАРДА ЧУЖОЙ ПАУЗЫ: при отказе открыться сетевого захода быть не
   // должно. Сам вызов ничего не ждёт — числа приезжают асинхронно из кэша
   // `__lb`, а до их прихода блок стоит с прежними (или пустыми) значениями.
@@ -1895,6 +1995,7 @@ function closeMainScreen(){
   // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
   // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
+  try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen'); // кромку — обратно небу
   // ...и ВТОРОЙ КАНАЛ тоже: tintChrome возвращает мете и фону цвет неба.
