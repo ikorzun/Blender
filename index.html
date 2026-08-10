@@ -18,7 +18,17 @@
             "Segoe UI", Roboto, sans-serif;
           --ms-bg:#d9f4ff;        /* фон меню; на :root, т.к. читают И #mainScreen,
                                      И его СОСЕД #msSticky (ревью v212) */
-          --ink:#1d1c26;          /* carbon-purple из макета */
+          /* ⚠️ НАДГРОБИЕ ПРЕЖНЕМУ КОММЕНТАРИЮ: тут было написано «carbon-purple
+             из макета», и это НЕВЕРНО — `Carbon-Purple-400` в макетах равен
+             #2a2935, он ниже отдельным токеном. Совпадение имён увело бы
+             следующего в неправильный цвет; #1d1c26 — просто наши чернила. */
+          --ink:#1d1c26;
+          /* Carbon-Purple-400 из макетов владельца. ⚠️ ОТДЕЛЬНЫЙ ТОКЕН, ХОТЯ
+             ЗНАЧЕНИЕ СОВПАДАЕТ С `--btn-bg`: тот ПЕРЕВОРАЧИВАЕТСЯ в тёмной
+             теме (`html.night { --btn-bg:#ffffff }`) по правилу цвета кнопок
+             ИГРОВОГО экрана. Меню живёт на собственной светлой подложке в обеих
+             темах, и текст на его пилюлях обязан оставаться тёмным. */
+          --carbon-400:#2a2935;
   /* ⚠️ СИСТЕМНОЕ ПРАВИЛО ЦВЕТА КНОПОК (спека владельца 2026-07-28):
      СВЕТЛАЯ тема — кнопки ТЁМНЫЕ, ТЁМНАЯ (html.night) — СВЕТЛЫЕ. Все
      кнопки игрового экрана ходят через эту пару, новые наследуют её
@@ -991,6 +1001,45 @@
   .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#c0ff47; color:#000;
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
+  /* ТОЧКА ВХОДА В ТАБЛИЦУ ЛИДЕРОВ — МОБИЛЬНЫЙ ВАРИАНТ (макет 840:4344).
+     Пилюля на полупрозрачном холодном фоне с белой рамкой; слева две строки,
+     справа три аватара и круглая стрелка.
+     ⚠️ ЦВЕТ ТЕКСТА — `--carbon-400`, СВОЙ ТОКЕН, И ЭТО НЕСУЩЕЕ. Ни `--ink`
+     (он #1d1c26, другой), ни `--btn-bg` (значение совпадает, но он
+     ПЕРЕВОРАЧИВАЕТСЯ в тёмной теме и ночью выкрасил бы текст в белый на
+     светлой пилюле). Меню светлое в обеих темах — токен не переворачивается. */
+  .ms-lbentry { display:flex; align-items:center; justify-content:space-between;
+    gap:12px; background:rgba(239,251,255,.6); border:1px solid #fff;
+    border-radius:1000px; padding:16px 12px 16px 20px; cursor:pointer; }
+  .ms-lbentry[hidden] { display:none; }
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .ms-lbe-title { font-size:22px; font-weight:900; color:var(--carbon-400);
+    line-height:1; white-space:nowrap; }
+  /* «You on 845» — ТОЛЬКО из точного места (см. lbEntryRefresh). Нет точного —
+     строки нет вовсе, и пилюля живёт без неё: пустую строку не резервируем. */
+  .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+    white-space:nowrap; }
+  .ms-lbe-sub:empty { display:none; }
+  .ms-lbe-right { display:flex; align-items:center; gap:12px; }
+  .ms-lbe-avs { display:flex; align-items:center; gap:2px; }
+  .ms-lbe-avs img { display:block; width:40px; height:40px; border-radius:50%; }
+  /* ⚠️⚠️ НА УЗКИХ ЭКРАНАХ АВАТАРЫ УСТУПАЮТ ТЕКСТУ, И ЭТО ЗАМЕР, А НЕ ВКУС.
+     Правая группа фиксирована (3×40 + 2 зазора + 12 + стрелка 32 = 168px), а
+     «Leaderboard» стоит `nowrap` и требует 139px. На 393 (ширина макета) они
+     сходятся с запасом 20px, на 375 не хватает 8, на 320 — 65: флекс ужимал
+     текстовый бокс до 74px, и заголовок НАЕЗЖАЛ на аватары. ⚠️ Горизонтальной
+     прокрутки при этом НЕ появлялось (`scrollWidth − clientWidth` = 0 на всех
+     ширинах) — то есть существующий страж «МЕНЮ на 320» этот дефект не видит
+     ПО ПОСТРОЕНИЮ, на него полагаться нельзя.
+     Аватары помечены `aria-hidden` и несут украшение, а место — смысл; поэтому
+     уступают именно они, поштучно. Пороги выведены из чисел выше: с 390 три
+     влезают, 360-389 — два, ниже — один. */
+  @media (max-width:389px){ .ms-lbe-avs img:nth-child(3){ display:none; } }
+  @media (max-width:359px){ .ms-lbe-avs img:nth-child(2){ display:none; } }
+  .ms-lbe-act { flex:none; border:none; padding:0; background:none; cursor:pointer;
+    display:flex; align-items:center; line-height:0; }
+  .ms-lbe-arrow { display:block; }
+  .ms-lbe-open, .ms-lbe-dot { display:none; }
   /* баннер No more AD */
   /* Play */
   /* заливка = градиент времени суток (--sky-grad ставит 10-stage из SKY_GRAD);
@@ -1083,6 +1132,8 @@
      встают прямыми детьми .ms-wrap и раскладываются этим order. */
   @media (max-width:1079px){
     .ms-head { order:-1; }
+    /* точка входа в таблицу — сразу под профилем и ВЫШЕ Play (макет 840:4344) */
+    .ms-lbentry { order:1; }
     .ms-play { order:2; }
     .ms-settings { order:3; }
     .ms-coll-title { order:4; }
@@ -1317,6 +1368,24 @@
        заголовок; на широких (≥~1080) всё умещается в строку как было. */
     .ms-collhead { grid-area:chead; display:flex; align-items:center;
       justify-content:space-between; gap:8px 16px; padding:8px 16px 0; flex-wrap:wrap; }
+    /* ⚠️ ТОЧКА ВХОДА, ДЕСКТОПНЫЙ ВАРИАНТ (макет 840:4633) — НЕ АДАПТИВ
+       МОБИЛЬНОГО, а второе решение того же узла: фон БЕЛЫЙ без рамки, текст
+       ОДНОЙ строкой («Leaderboard • 678», место цветом #b0bcd0), действие —
+       ПИЛЮЛЯ «Open» на #d9f4ff вместо круглой стрелки.
+       `flex-basis:100%` роняет блок на свою строку под ряд «заголовок+профиль»:
+       по макету он отдельной полосой, а не третьим элементом того же ряда. */
+    .ms-lbentry { flex:0 0 100%; background:#fff; border:none;
+      padding:8px 8px 8px 20px; }
+    .ms-lbe-txt { flex-direction:row; align-items:baseline; gap:0; }
+    .ms-lbe-dot { display:inline; color:#b0bcd0; }
+    .ms-lbe-dot:empty { display:none; }
+    /* на десктопе место живёт В ЗАГОЛОВКЕ (через `•`), второй строки нет */
+    .ms-lbe-sub { display:none; }
+    .ms-lbe-arrow { display:none; }
+    .ms-lbe-open { display:inline; font-family:var(--font-round); font-size:16px;
+      font-weight:700; color:#000; }
+    .ms-lbe-act { background:#d9f4ff; border-radius:1000px; padding:13px 16px;
+      line-height:1; }
     .ms-coll-title { margin:0; font-size:34px; text-align:left; }
     /* профиль БЕЗ пилюли; порядок как в макете: звёзды, Get More, аватар
        (имя на десктопе прячем — справа в макете только аватар) */
@@ -2041,6 +2110,45 @@
         <button class="ms-getmore" id="msGetMore">Get More</button>
       </div>
     </header>
+    <!-- ⚠️ ТОЧКА ВХОДА В ТАБЛИЦУ ЛИДЕРОВ (макеты владельца 2026-08-10:
+         мобильный `840:4344`, десктоп `840:4633`).
+         ⚠️ МЕСТО НЕ СЛУЧАЙНОЕ, И ПРЕЖНЕЕ УКАЗАНИЕ ОТМЕНЕНО МАКЕТОМ: блок стоит
+         СРАЗУ ПОД РЯДОМ ПРОФИЛЯ и ВЫШЕ карточки Play, а НЕ на месте снятого
+         баннера «No more AD» (тот в макете скрыт и лежит внизу).
+         ⚠️⚠️ ЖИВЁТ ВНУТРИ `.ms-collhead` ПО ПОСТРОЕНИЮ, а не для красоты. На
+         мобайле обёртка `display:contents` растворяется, и блок встаёт прямым
+         ребёнком `.ms-wrap` со своим `order` — ровно между профилем (−1) и
+         Play (2). На десктопе `.ms-wrap` — ГРИД С ИМЕНОВАННЫМИ ОБЛАСТЯМИ, и
+         блок-сирота без `grid-area` встал бы автоплейсментом, ломая раскладку;
+         внутри обёртки он наследует её область `chead` даром.
+         ⚠️ ОДИН УЗЕЛ, ДВА ПРЕДСТАВЛЕНИЯ (в нём id — дублировать нельзя):
+         мобильный — две строки и стрелка, десктопный — одна строка и кнопка
+         «Open». Переключает медиазапрос, разметка одна.
+         ⚠️ БЛОК ПОКАЗЫВАЕТСЯ, ТОЛЬКО КОГДА ФИЧА ВКЛЮЧЕНА (задан адрес сервиса):
+         резервировать место под данные, которых в этой сборке быть НЕ МОЖЕТ, —
+         значит без причины двигать раскладку меню (правило слота врезки). -->
+    <section class="ms-lbentry" id="msLbEntry" hidden>
+      <div class="ms-lbe-txt">
+        <div class="ms-lbe-title">Leaderboard<span class="ms-lbe-dot" id="msLbeDot"></span></div>
+        <div class="ms-lbe-sub" id="msLbeSub"></div>
+      </div>
+      <div class="ms-lbe-right">
+        <div class="ms-lbe-avs" id="msLbeAvs" aria-hidden="true"></div>
+        <!-- ⚠️ ДЕЙСТВИЕ — ОДНА НАСТОЯЩАЯ КНОПКА НА ОБЕ РАСКЛАДКИ, а не строка с
+             обработчиком: клавиатура и озвучка получают её даром. На мобильном
+             она круглая со стрелкой, на десктопе — пилюля со словом «Open»;
+             меняется только показ детей. Ряд целиком тоже кликабелен (по
+             макету нажимается вся пилюля), но фокусируемый узел ровно один. -->
+        <button class="ms-lbe-act" id="msLbeOpen" type="button" aria-label="Open leaderboard">
+          <svg class="ms-lbe-arrow" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+            <circle cx="16" cy="16" r="16" fill="#ffffff"/>
+            <path d="M13.5 9.5L20 16l-6.5 6.5" fill="none" stroke="#2a2935" stroke-width="2.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="ms-lbe-open">Open</span>
+        </button>
+      </div>
+    </section>
     </div>
     <!-- ⛔ БАННЕР «No more AD» УДАЛЁН ИЗ МЕНЮ (слово владельца 2026-08-03
      дословно: «убери этот блок из меню, вместо него будет блок лидербордов,
@@ -2063,14 +2171,14 @@
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
       </div>
       <!-- MUSIC: регулятор громкости фонового трека (спека владельца 2026-07-24) -->
-      <!-- ⚠️ ВХОД В ТАБЛИЦУ — ОТДЕЛЬНОЙ СТРОКОЙ, А НЕ В РЯДУ ПРОФИЛЯ.
-           Первая версия стояла рядом с «Get More»: на 320 ряд вылез из
-           пилюли на 29px, поймал существующий страж узкого меню. Ряд
-           профиля измерен и тесен — второй элемент туда не ставить. -->
-      <div class="ms-set" id="msBoardRow">
-        <span>Leaderboard</span>
-        <button class="ms-getmore" id="lbOpen">Open</button>
-      </div>
+      <!-- ⛔ ВРЕМЕННАЯ СТРОКА «Leaderboard [Open]» ОТСЮДА УБРАНА (2026-08-10):
+           она была заглушкой, пока не пришли макеты точки входа. Настоящий вход
+           живёт наверху, под рядом профиля (`#msLbEntry`, макеты 840:4344 моб. /
+           840:4633 деск.). Настройки снова содержат ТОЛЬКО настройки.
+           ⚠️ ЗАПРЕТ, КОТОРЫЙ ОСТАЁТСЯ В СИЛЕ И НЕ ОТМЕНЁН ПЕРЕЕЗДОМ: в САМ РЯД
+           профиля второй элемент не ставить — на ширине 320 он вылезал из
+           пилюли на 29px и ронял существующий страж узкого меню. Новый блок
+           стоит ПОД рядом, отдельной полосой, и в этот замер не входит. -->
       <div class="ms-set" id="msMusicRow">
         <span>Music</span>
         <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
@@ -3273,6 +3381,36 @@ const FIRE_DROP_MODE = 'fire';
 // приближения несёт красная лесенка неба); позиция глаз (лифт) меняется
 // в тот же миг, до этого конструкция на привычном месте.
 const FIRE_AFTER_GRIND_MS = 3000;
+
+// ═══ БОЕВОЙ АДРЕС СВОЕЙ ТАБЛИЦЫ ЛИДЕРОВ ═══════════════════════════════════
+// Воркер Cloudflare + D1, развёрнут 2026-08-10 (`server/leaderboard/`),
+// живой смоук 11/11 зелёных. ⚠️ ДО ЭТОЙ СТРОКИ ФИЧА БЫЛА ВЫКЛЮЧЕНА ЦЕЛИКОМ И
+// МОЛЧА: `LB_BASE` (82-lb.js) падает в пустую строку, если `LB_URL` не
+// объявлен, а на пустом адресе и врезка победы, и точка входа в меню, и сам
+// экран честно ничего не показывают. То есть сервер работал, экран был
+// свёрстан, а игрок не видел таблицы вовсе — ровно тот случай, когда «ничего
+// не сломано» и «ничего не работает» выглядят одинаково.
+// ⚠️ СОБСТВЕННЫЙ ДОМЕН, А НЕ `*.workers.dev`, И ЭТО НЕСУЩЕЕ: поддомен
+// workers.dev у нас выключен (`workers_dev = false` в wrangler.toml), то есть
+// такой адрес отвечал бы отказом. Страж в сьюте держит оба признака — адрес
+// задан И не ведёт на workers.dev.
+// ⚠️ ПЕРЕОПРЕДЕЛЯЕТСЯ ДЛЯ РАЗРАБОТКИ, не трогая эту строку: `?lb=1` (стенд на
+// 127.0.0.1:8788), `?lb=<адрес>` или `localStorage.mixer_lb_url`.
+// ⚠️⚠️ ГЕЙТ `file://` — НЕСУЩИЙ, И ОН ПОЙМАН НА СЕБЕ В ПЕРВЫЕ ЖЕ МИНУТЫ.
+// Сьют и соак открывают сборку РОВНО ТАК (`file://.../index.html`) и играют до
+// победы; победа банкует счёт, тот дёргает `onStarsChange`, и без гейта КАЖДЫЙ
+// прогон каждого из пяти направлений слал бы в БОЕВУЮ таблицу настоящую строку.
+// Отправка бы прошла: CORS у воркера открыт намеренно (`ACAO: *`), гость в
+// нашей таблице полноправен (решение владельца), а `localStorage.clear()` в
+// тестовых секциях выдаёт свежий id — то есть НОВУЮ строку на каждый прогон.
+// Таблица засорилась бы ботами быстрее, чем в неё придёт первый живой игрок.
+// ⛔ ГЕЙТ ИМЕННО ПО `file://`, А НЕ ПО `localhost`: на localhost владелец
+// смотрит игру (порт 8781), и погасить там таблицу значило бы повторить ровно
+// тот молчаливый дефект, который этой правкой и лечится. Ручные победы
+// направлений на их превью-портах остаются остаточным шумом — у них есть
+// `?lb=1` со стендом, и это отмечено в каноне.
+const LB_URL = (typeof location !== 'undefined' && location.protocol === 'file:')
+  ? '' : 'https://lb.blendo.monster';
 
 // ===== 10-stage: рендерер, камера, свет, IBL-окружение, небо =====
 // Эталон владельца: threejs.org webgl_batch_lod_bvh (RoomEnvironment + ACES 0.8)
@@ -12132,6 +12270,54 @@ let lbTab = 'ours', lbEpoch = 0;
 // ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
 // отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
 function lbScreenStop(){ lbEpoch++; }
+// ─── ТОЧКА ВХОДА В ТАБЛИЦУ (меню, макеты 840:4344 моб. / 840:4633 деск.) ───
+// ⚠️ ОБА ЧИСЛА ИДУТ ЧЕРЕЗ `window.__lb` И ТОЛЬКО ЧЕРЕЗ НЕГО: он один держит
+// кэш `top()`/`me()` и умеет РАЗОВЫЙ обход HTTP-кэша браузера после сброса
+// (без этого место не менялось бы минуту ровно после победы и после траты —
+// найдено живым прогоном). Меню открывается часто, второй сетевой путь завёл
+// бы запрос на каждое открытие.
+let lbEntryEpoch = 0;
+// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
+// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
+// дорисоваться в следующее. Сверка — ДО единого касания DOM.
+function lbEntryRefresh(){
+  const box = $('msLbEntry'); if (!box) return;
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
+  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
+  // может, значит без причины двигать меню (то же правило, что у врезки).
+  const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
+  box.hidden = !on;
+  if (!on) return;
+  const my = ++lbEntryEpoch;
+  lb.top(1).then(t => {
+    if (my !== lbEntryEpoch) return;
+    const host = $('msLbeAvs'); if (!host) return;
+    host.innerHTML = '';
+    if (!t || t.state !== 'ok' || !t.rows) return;
+    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
+    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
+    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
+    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
+    t.rows.slice(0, 3).forEach(r => {
+      const ai = r ? (r.av | 0) : 0; if (ai <= 0) return;
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    });
+  }).catch(()=>{});
+  lb.me().then(m => {
+    if (my !== lbEntryEpoch) return;
+    const sub = $('msLbeSub'), dot = $('msLbeDot'); if (!sub || !dot) return;
+    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
+    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
+    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
+    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
+    const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
+    sub.textContent = ok ? ('You on ' + winFmtScore(m.rank | 0)) : '';
+    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
+  }).catch(()=>{});
+}
 function lbServ(text){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = ''; const d = document.createElement('div');
@@ -13614,6 +13800,10 @@ function openMainScreen(){
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
+  // ⚠️ ПОСЛЕ ГВАРДА ЧУЖОЙ ПАУЗЫ: при отказе открыться сетевого захода быть не
+  // должно. Сам вызов ничего не ждёт — числа приезжают асинхронно из кэша
+  // `__lb`, а до их прихода блок стоит с прежними (или пустыми) значениями.
+  try { lbEntryRefresh(); } catch(e){}
   const ms = $('mainScreen');
   // «Было ли открыто» снимается ДО add('open') — проверка после него всегда
   // ложна, и сброс превращался в мёртвый код (поймано стражем переоткрытия).
@@ -14786,7 +14976,11 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
 // ЭКРАН ТАБЛИЦЫ: открывается из меню, закрывается крестиком. ⚠️ Вкладки —
 // НАСТОЯЩИЕ кнопки, а не переключение класса руками: страж обязан ходить тем
 // же путём, что игрок.
-{ const b = $('lbOpen');    if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
+// ⚠️ СЛУШАТЕЛЬ ОДИН, И ВИСИТ НА РЯДЕ, А НЕ НА КНОПКЕ. По макету нажимается ВСЯ
+// пилюля; клик по кнопке (мышью или Enter'ом с клавиатуры) ВСПЛЫВАЕТ сюда сам,
+// поэтому оба пути закрыты одной строкой. Второй слушатель на кнопке дал бы
+// ДВА открытия на одно нажатие — то есть два сетевых захода.
+{ const b = $('msLbEntry');  if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
 { const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
 { const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
@@ -16129,6 +16323,10 @@ window.__game = {
     return { on:box.classList.contains('on'), rows,
              h:Math.round(box.getBoundingClientRect().height) };
   },
+  // ⚠️ НЕСУЩИЙ ХУК, А НЕ УДОБСТВО: на нём страж «фича выключена — точки входа в
+  // меню нет». Без него страж ЖДАЛ БЫ, что кто-то откроет меню при снятом
+  // модуле, — то есть наследовал бы обстановку вместо того, чтобы её ПРИВЕСТИ.
+  lbEntryRefresh(){ lbEntryRefresh(); },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок

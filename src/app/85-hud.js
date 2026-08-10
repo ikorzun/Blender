@@ -256,6 +256,54 @@ let lbTab = 'ours', lbEpoch = 0;
 // ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
 // отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
 function lbScreenStop(){ lbEpoch++; }
+// ─── ТОЧКА ВХОДА В ТАБЛИЦУ (меню, макеты 840:4344 моб. / 840:4633 деск.) ───
+// ⚠️ ОБА ЧИСЛА ИДУТ ЧЕРЕЗ `window.__lb` И ТОЛЬКО ЧЕРЕЗ НЕГО: он один держит
+// кэш `top()`/`me()` и умеет РАЗОВЫЙ обход HTTP-кэша браузера после сброса
+// (без этого место не менялось бы минуту ровно после победы и после траты —
+// найдено живым прогоном). Меню открывается часто, второй сетевой путь завёл
+// бы запрос на каждое открытие.
+let lbEntryEpoch = 0;
+// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
+// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
+// дорисоваться в следующее. Сверка — ДО единого касания DOM.
+function lbEntryRefresh(){
+  const box = $('msLbEntry'); if (!box) return;
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
+  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
+  // может, значит без причины двигать меню (то же правило, что у врезки).
+  const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
+  box.hidden = !on;
+  if (!on) return;
+  const my = ++lbEntryEpoch;
+  lb.top(1).then(t => {
+    if (my !== lbEntryEpoch) return;
+    const host = $('msLbeAvs'); if (!host) return;
+    host.innerHTML = '';
+    if (!t || t.state !== 'ok' || !t.rows) return;
+    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
+    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
+    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
+    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
+    t.rows.slice(0, 3).forEach(r => {
+      const ai = r ? (r.av | 0) : 0; if (ai <= 0) return;
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    });
+  }).catch(()=>{});
+  lb.me().then(m => {
+    if (my !== lbEntryEpoch) return;
+    const sub = $('msLbeSub'), dot = $('msLbeDot'); if (!sub || !dot) return;
+    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
+    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
+    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
+    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
+    const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
+    sub.textContent = ok ? ('You on ' + winFmtScore(m.rank | 0)) : '';
+    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
+  }).catch(()=>{});
+}
 function lbServ(text){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = ''; const d = document.createElement('div');
@@ -1738,6 +1786,10 @@ function openMainScreen(){
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
   refreshMainScreen();
+  // ⚠️ ПОСЛЕ ГВАРДА ЧУЖОЙ ПАУЗЫ: при отказе открыться сетевого захода быть не
+  // должно. Сам вызов ничего не ждёт — числа приезжают асинхронно из кэша
+  // `__lb`, а до их прихода блок стоит с прежними (или пустыми) значениями.
+  try { lbEntryRefresh(); } catch(e){}
   const ms = $('mainScreen');
   // «Было ли открыто» снимается ДО add('open') — проверка после него всегда
   // ложна, и сброс превращался в мёртвый код (поймано стражем переоткрытия).

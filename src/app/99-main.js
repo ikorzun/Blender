@@ -1083,6 +1083,10 @@ window.__game = {
     return { on:box.classList.contains('on'), rows,
              h:Math.round(box.getBoundingClientRect().height) };
   },
+  // ⚠️ НЕСУЩИЙ ХУК, А НЕ УДОБСТВО: на нём страж «фича выключена — точки входа в
+  // меню нет». Без него страж ЖДАЛ БЫ, что кто-то откроет меню при снятом
+  // модуле, — то есть наследовал бы обстановку вместо того, чтобы её ПРИВЕСТИ.
+  lbEntryRefresh(){ lbEntryRefresh(); },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
   adsMode(){ return Ads.mode; },
   // отладка/тесты: принудительный пересчёт доступности и её слепок

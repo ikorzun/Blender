@@ -494,7 +494,11 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
 // ЭКРАН ТАБЛИЦЫ: открывается из меню, закрывается крестиком. ⚠️ Вкладки —
 // НАСТОЯЩИЕ кнопки, а не переключение класса руками: страж обязан ходить тем
 // же путём, что игрок.
-{ const b = $('lbOpen');    if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
+// ⚠️ СЛУШАТЕЛЬ ОДИН, И ВИСИТ НА РЯДЕ, А НЕ НА КНОПКЕ. По макету нажимается ВСЯ
+// пилюля; клик по кнопке (мышью или Enter'ом с клавиатуры) ВСПЛЫВАЕТ сюда сам,
+// поэтому оба пути закрыты одной строкой. Второй слушатель на кнопке дал бы
+// ДВА открытия на одно нажатие — то есть два сетевых захода.
+{ const b = $('msLbEntry');  if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
 { const b = $('lbTabOurs'); if (b) b.addEventListener('click', ()=> lbScreenTab('ours')); }
 { const b = $('lbTabPlat'); if (b) b.addEventListener('click', ()=> lbScreenTab('plat')); }
