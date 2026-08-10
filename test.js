@@ -6349,10 +6349,19 @@ window.bridge = {
   // фичей выше дал ненулевую высоту — значит ноль здесь не «ничего не работает».
   const лбВыкл = await lbPage.evaluate(async () => {
     const g = window.__game, sleep = ms => new Promise(r => setTimeout(r, ms));
-    g.winScreen(false); g.winLbStub(null); g.winScreen(true);
-    await sleep(150);
-    const i = g.winLbInfo();
-    return { h:i && i.h, on:i && i.on, поток:getComputedStyle(document.getElementById('winLb')).display };
+    // ⚠️ ФИЧУ НАДО ВЫКЛЮЧИТЬ ПО-НАСТОЯЩЕМУ, А НЕ ТОЛЬКО СНЯТЬ СТЕНД. На этой
+    // странице адрес таблицы задан (его ставит соседний страж контракта), и
+    // модуль `__lb` живой — значит фича ВКЛЮЧЕНА, слот держит высоту законно.
+    // Прежняя версия снимала только подмену источника и краснела на исправной
+    // сборке: страж проверял состояние, которого не создал.
+    const модуль = window.__lb;
+    try {
+      window.__lb = undefined;
+      g.winScreen(false); g.winLbStub(null); g.winScreen(true);
+      await sleep(150);
+      const i = g.winLbInfo();
+      return { h:i && i.h, on:i && i.on, поток:getComputedStyle(document.getElementById('winLb')).display };
+    } finally { window.__lb = модуль; }
   });
   console.log('врезка/фича выключена:', JSON.stringify(лбВыкл));
   expect(лбВыкл.h === 0 && лбВыкл.поток === 'none' && лбОк.h > 0,
