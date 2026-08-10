@@ -6301,7 +6301,7 @@ window.bridge = {
     const закрыт = вид();
     { const p = document.querySelector('.ms-play'); if (p) p.click(); }
     await sleep(300);
-    return { доОткрытия, открыт, платформа, закрыт, вход, выкл, вкл };
+    return { доОткрытия, открыт, закрыт, вход, выкл, вкл };
   });
   console.log('экран таблицы:', JSON.stringify(экран));
   console.log('точка входа:', JSON.stringify(экран.вход));
