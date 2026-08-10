@@ -1,0 +1,20 @@
+# СТАРТОВЫЕ БОТЫ ТАБЛИЦЫ — заведены 2026-08-10 через публичный API.
+# ⚠️⚠️ КЛЮЧИ HMAC НЕ СОХРАНЕНЫ (моя недоработка, см. комментарий в скрипте):
+# значит изменить или удалить эти строки ПРОТОКОЛОМ уже нельзя. Убрать их
+# можно только `/admin/hide` (ADMIN_TOKEN у Интеграции) или прямой правкой D1.
+# Поэтому id ниже — ЕДИНСТВЕННЫЙ способ их найти. Не терять.
+bot-57d34e961179  Otter     240
+bot-dc847798a8ef  Falcon    480
+bot-df5f573913cc  Lynx      760
+bot-8de2f43dab35  Heron    1120
+bot-4ecbc289b102  Marten   1560
+bot-be43ba564e95  Puffin   2080
+bot-c214d9d0b5b5  Ibex     2700
+bot-9a7fa7c094da  Quokka   3450
+bot-1ba39e688395  Serval   4300
+bot-6751be2301d2  Narwhal  5300
+bot-b76b0f66f306  Kestrel  6500
+bot-3be03fb3eb81  Wombat   7900
+bot-d34ec2ed79a9  Caracal  9600
+bot-2264948b73cc  Stoat   11800
+bot-c38677b1ddcf  Osprey  14500
