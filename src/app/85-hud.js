@@ -266,6 +266,27 @@ let lbEntryEpoch = 0;
 // ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
 // закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
 // дорисоваться в следующее. Сверка — ДО единого касания DOM.
+// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
+// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
+// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
+// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
+// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
+// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
+// раскладку и честно говорит «здесь пока никого».
+function lbEntryAvatars(host, rows){
+  host.innerHTML = '';
+  for (let i = 0; i < 3; i++){
+    const r = rows[i], ai = r ? (r.av | 0) : 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'ms-lbe-av0'; host.appendChild(d);
+    }
+  }
+}
 function lbEntryRefresh(){
   const box = $('msLbEntry'); if (!box) return;
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
@@ -279,18 +300,11 @@ function lbEntryRefresh(){
   lb.top(1).then(t => {
     if (my !== lbEntryEpoch) return;
     const host = $('msLbeAvs'); if (!host) return;
-    host.innerHTML = '';
-    if (!t || t.state !== 'ok' || !t.rows) return;
     // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
     // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
     // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
     // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    t.rows.slice(0, 3).forEach(r => {
-      const ai = r ? (r.av | 0) : 0; if (ai <= 0) return;
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
-    });
+    lbEntryAvatars(host, (t && t.state === 'ok' && t.rows) ? t.rows : []);
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;

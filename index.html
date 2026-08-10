@@ -1023,6 +1023,9 @@
   .ms-lbe-right { display:flex; align-items:center; gap:12px; }
   .ms-lbe-avs { display:flex; align-items:center; gap:2px; }
   .ms-lbe-avs img { display:block; width:40px; height:40px; border-radius:50%; }
+  /* пустой слот: держит раскладку и НЕ выдаёт себя за игрока */
+  .ms-lbe-av0 { flex:none; width:40px; height:40px; border-radius:50%;
+    background:rgba(42,41,53,.10); }
   /* ⚠️⚠️ НА УЗКИХ ЭКРАНАХ АВАТАРЫ УСТУПАЮТ ТЕКСТУ, И ЭТО ЗАМЕР, А НЕ ВКУС.
      Правая группа фиксирована (3×40 + 2 зазора + 12 + стрелка 32 = 168px), а
      «Leaderboard» стоит `nowrap` и требует 139px. На 393 (ширина макета) они
@@ -1034,8 +1037,24 @@
      Аватары помечены `aria-hidden` и несут украшение, а место — смысл; поэтому
      уступают именно они, поштучно. Пороги выведены из чисел выше: с 390 три
      влезают, 360-389 — два, ниже — один. */
-  @media (max-width:389px){ .ms-lbe-avs img:nth-child(3){ display:none; } }
-  @media (max-width:359px){ .ms-lbe-avs img:nth-child(2){ display:none; } }
+  /* ⚠️⚠️ ПРЕЖДЕ УЗКИЕ ЭКРАНЫ ПРОСТО ПРЯТАЛИ ТРЕТИЙ И ВТОРОЙ АВАТАР — отменено
+     словом владельца 2026-08-10 «всегда показывай 3 аватарки». ⛔ Но ЗАМЕР, из-за
+     которого их прятали, НИКУДА НЕ ДЕЛСЯ: правая группа 3×40+2+12+32 = 168px
+     против «Leaderboard» 139px, и на 320 не хватало 65px — флекс ужимал текст,
+     заголовок НАЕЗЖАЛ на аватары. Поэтому место освобождаем иначе: аватары
+     ПЕРЕКРЫВАЮТСЯ стопкой и ужимаются. Числа подобраны замером на 320/359/375/
+     393 (сходятся без наезда и без горизонтальной прокрутки), а не на глаз. */
+  .ms-lbe-avs > * + * { margin-left:-10px; }   /* стопка вместо ряда, −20px */
+  .ms-lbe-avs > * { box-shadow:0 0 0 2px #eaf6fb; }  /* разделяет перекрытые круги */
+  @media (max-width:389px){
+    .ms-lbe-avs img, .ms-lbe-av0 { width:34px; height:34px; }
+    .ms-lbe-avs > * + * { margin-left:-12px; } }
+  @media (max-width:359px){
+    .ms-lbe-avs img, .ms-lbe-av0 { width:28px; height:28px; }
+    /* ⚠️ −15, а не −11: на 320 заголовку не хватало РОВНО 7px (замер
+       Range.getBoundingClientRect 139 против 132). Плотнее стопка — текст
+       целиком, без обрезки; проверено на 320/359/375/393/430. */
+    .ms-lbe-avs > * + * { margin-left:-15px; } }
   .ms-lbe-act { flex:none; border:none; padding:0; background:none; cursor:pointer;
     display:flex; align-items:center; line-height:0; }
   .ms-lbe-arrow { display:block; }
@@ -12327,6 +12346,27 @@ let lbEntryEpoch = 0;
 // ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
 // закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
 // дорисоваться в следующее. Сверка — ДО единого касания DOM.
+// ⚠️⚠️ ТРИ АВАТАРА ВСЕГДА (слово владельца 2026-08-10: «всегда показывай
+// 3 автарки справа в блоке»). До этого рисовалось СТОЛЬКО, сколько пришло из
+// `top()`, и при пустой/недоступной таблице справа не было НИЧЕГО — блок
+// выглядел сломанным ровно в первые недели, когда таблица ещё мала.
+// ⚠️ ПУСТЫЕ СЛОТЫ — НЕЙТРАЛЬНЫЕ КРУЖКИ, А НЕ ЧУЖИЕ АВАТАРЫ: подставить
+// картинку живого игрока значило бы ПРИДУМАТЬ участника таблицы. Слот держит
+// раскладку и честно говорит «здесь пока никого».
+function lbEntryAvatars(host, rows){
+  host.innerHTML = '';
+  for (let i = 0; i < 3; i++){
+    const r = rows[i], ai = r ? (r.av | 0) : 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'ms-lbe-av0'; host.appendChild(d);
+    }
+  }
+}
 function lbEntryRefresh(){
   const box = $('msLbEntry'); if (!box) return;
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
@@ -12340,18 +12380,11 @@ function lbEntryRefresh(){
   lb.top(1).then(t => {
     if (my !== lbEntryEpoch) return;
     const host = $('msLbeAvs'); if (!host) return;
-    host.innerHTML = '';
-    if (!t || t.state !== 'ok' || !t.rows) return;
     // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
     // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
     // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
     // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    t.rows.slice(0, 3).forEach(r => {
-      const ai = r ? (r.av | 0) : 0; if (ai <= 0) return;
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
-    });
+    lbEntryAvatars(host, (t && t.state === 'ok' && t.rows) ? t.rows : []);
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;
