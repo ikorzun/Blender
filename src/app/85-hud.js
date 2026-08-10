@@ -245,6 +245,92 @@ function renderWinLb(){
     winLbRender(v);
   }).catch(()=>{});
 }
+// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
+// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
+// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
+// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
+// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
+// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
+const LB_NOTE_TODO = '⚠️ TEXT PENDING: why the two numbers differ';
+let lbTab = 'ours', lbEpoch = 0;
+// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
+// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+function lbScreenStop(){ lbEpoch++; }
+function lbServ(text){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = ''; const d = document.createElement('div');
+  d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
+}
+function lbRowsRender(rows){
+  const host = $('lbList'); if (!host) return;
+  host.innerHTML = '';
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (r.me ? ' me' : '');
+    const pos = document.createElement('div'); pos.className = 'lb-pos';
+    pos.textContent = (r.pos > 0) ? ('#' + r.pos) : '';
+    const av = document.createElement('div'); av.className = 'lb-av';
+    const ai = r.av | 0;
+    if (ai > 0){
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; av.appendChild(img);
+    }
+    const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = r.name || '';
+    const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(r.score | 0);
+    row.append(pos, av, nm, sc);
+    host.appendChild(row);
+  });
+}
+// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
+// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
+// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
+async function lbLoadOurs(my){
+  const lb = (typeof window !== 'undefined') ? window.__lb : null;
+  if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
+  const t = await lb.top(1).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
+  if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
+  lbRowsRender(t.rows.map((r, i) => ({ pos:i + 1, name:r.name, av:r.av, score:r.score })));
+  const m = await lb.me().catch(()=>null);
+  if (my !== lbEpoch || !m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return;
+  const host = $('lbList'); if (!host) return;
+  const mine = document.createElement('div');
+  mine.className = 'lb-row me';
+  const p = document.createElement('div'); p.className = 'lb-pos'; p.textContent = '#' + m.rank;
+  const av = document.createElement('div'); av.className = 'lb-av';
+  const ai = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
+  if (ai > 0){ const img = document.createElement('img');
+    img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png'; img.alt = ''; av.appendChild(img); }
+  const nm = document.createElement('div'); nm.className = 'lb-name'; nm.textContent = 'You';
+  const sc = document.createElement('div'); sc.className = 'lb-score'; sc.textContent = winFmtScore(m.score | 0);
+  mine.append(p, av, nm, sc);
+  host.appendChild(mine);
+}
+// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
+// и он не ошибка: площадка может не поддерживать таблицы вовсе.
+async function lbLoadPlat(my){
+  if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
+  const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
+  if (my !== lbEpoch) return;
+  if (!r || !r.ok){ lbServ('Not available right now.'); return; }
+  if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
+  lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
+}
+function lbScreenRender(){
+  const note = $('lbNote');
+  if (note){ note.textContent = LB_NOTE_TODO; note.classList.add('todo'); }
+  const to = $('lbTabOurs'), tp = $('lbTabPlat');
+  if (to) to.classList.toggle('on', lbTab === 'ours');
+  if (tp) tp.classList.toggle('on', lbTab === 'plat');
+  lbServ('Loading…');
+  const my = ++lbEpoch;
+  (lbTab === 'ours' ? lbLoadOurs(my) : lbLoadPlat(my)).catch(()=>{});
+}
+function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
+function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
+function lbScreenTab(which){ if (which === lbTab) return; lbTab = which; lbScreenRender(); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
 // ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.

@@ -6194,7 +6194,53 @@ window.bridge = {
       'ТАБЛИЦА: 429 НЕ ТЕРЯЕТСЯ — после отказа отправка повторилась с новым числом (отправок '
       + отказ.posts.length + ', ушло ' + JSON.stringify(отказ.posts.map((x) => x.s))
       + ', баланс ' + отказ.bal + ')');
-    await lbPage.close();
+    // ===== ЭКРАН ТАБЛИЦЫ: ДВЕ ВКЛАДКИ =====
+  // ⚠️ Ходим НАСТОЯЩИМ путём — кнопка в меню, кнопки вкладок, крестик: страж
+  // обязан идти той же дорогой, что игрок, иначе проверит путь, которого нет.
+  const экран = await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const вид = () => {
+      const o = document.getElementById('lbOverlay'), n = document.getElementById('lbNote');
+      return { открыт:getComputedStyle(o).display !== 'none',
+               заметка:n ? n.textContent : '', метка:!!(n && n.classList.contains('todo')),
+               своя:document.getElementById('lbTabOurs').classList.contains('on'),
+               плат:document.getElementById('lbTabPlat').classList.contains('on'),
+               строк:document.querySelectorAll('#lbList .lb-row').length,
+               служебных:document.querySelectorAll('#lbList .lb-serv').length };
+    };
+    document.getElementById('pauseBtn').click(); await sleep(300);
+    const доОткрытия = вид();
+    document.getElementById('lbOpen').click(); await sleep(500);
+    const открыт = вид();
+    document.getElementById('lbTabPlat').click(); await sleep(500);
+    const платформа = вид();
+    document.getElementById('lbClose').click(); await sleep(200);
+    const закрыт = вид();
+    { const p = document.querySelector('.ms-play'); if (p) p.click(); }
+    await sleep(300);
+    return { доОткрытия, открыт, платформа, закрыт };
+  });
+  console.log('экран таблицы:', JSON.stringify(экран));
+  expect(экран.доОткрытия.открыт === false && экран.открыт.открыт === true &&
+         экран.закрыт.открыт === false,
+    '⚠️ ЭКРАН ТАБЛИЦЫ: открывается кнопкой из меню и закрывается крестиком — проверен ПЕРЕХОД в обе стороны');
+  expect(экран.открыт.своя === true && экран.открыт.плат === false &&
+         экран.платформа.плат === true && экран.платформа.своя === false,
+    '⚠️ ЭКРАН ТАБЛИЦЫ: вкладки переключаются НАСТОЯЩЕЙ кнопкой, активна ровно одна (' +
+    JSON.stringify({ было:экран.открыт.своя, стало:экран.платформа.плат }) + ')');
+  expect(экран.открыт.строк + экран.открыт.служебных > 0,
+    'ЭКРАН ТАБЛИЦЫ: список не пуст молча — либо строки, либо ЧЕСТНОЕ служебное состояние (' +
+    экран.открыт.строк + ' строк, ' + экран.открыт.служебных + ' служебных)');
+  // ⚠️⚠️ ТРИПВАЙЕР, А НЕ ОБЫЧНЫЙ СТРАЖ: текст про расхождение чисел вкладок
+  // пишет ВЛАДЕЛЕЦ. Пока его нет, заглушка ВИДИМО помечена, и этот ассерт
+  // утверждает, что метка ЕЩЁ НА МЕСТЕ. Придёт настоящий текст — ассерт
+  // ПОКРАСНЕЕТ и заставит снять метку осознанно. Молчаливая заглушка («пустая
+  // строка») уехала бы в релиз незамеченной.
+  expect(экран.открыт.метка === true && /TEXT PENDING/.test(экран.открыт.заметка),
+    '⚠️ ЭКРАН ТАБЛИЦЫ: заглушка текста владельца ПОМЕЧЕНА и не может уехать молча ' +
+    '(придёт его текст — этот ассерт покраснеет, это ЗАДУМАНО): «' + экран.открыт.заметка + '»');
+
+  await lbPage.close();
   }
 
 

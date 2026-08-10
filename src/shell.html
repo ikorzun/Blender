@@ -802,6 +802,45 @@
   .win-reward-n { color:#c0ff47; font-weight:800; font-size:39px; line-height:1; width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer; transition:background-color .15s;  /* 1500 по ноде 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
+  /* ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
+     ⚠️⚠️ ЧИСЛА ВКЛАДОК РАСХОДЯТСЯ ПО ПОСТРОЕНИЮ, И ЭТО ЗАДУМАНО: платформенная
+     хранит МАКСИМУМ («рекорд за всё время»), наша считает ТЕКУЩИЙ баланс и
+     падает при тратах. Прятать расхождение нельзя (решение владельца
+     2026-07-24) — его обязан ОБЪЯСНИТЬ экран. Текст пишет владелец сам;
+     до тех пор в `#lbNote` стоит ПОМЕЧЕННАЯ заглушка (см. страж в сьюте). */
+  #lbOverlay { align-items:flex-start; overflow-y:auto; }
+  .lb-card { margin:auto; width:min(448px, calc(100vw - 32px)); font-family:var(--font-round);
+    display:flex; flex-direction:column; gap:12px; padding:16px 0; }
+  .lb-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .lb-title { color:#fff; font-weight:900; font-size:22px; }
+  .lb-close { width:44px; height:44px; border:none; border-radius:1000px; cursor:pointer;
+    background:#fff; color:#000; font-size:22px; font-weight:900; line-height:1; }
+  .lb-tabs { display:flex; gap:8px; }
+  .lb-tab { flex:1; height:48px; border:none; border-radius:1000px; cursor:pointer;
+    font-family:var(--font-round); font-weight:800; font-size:17px;
+    background:rgba(255,255,255,.16); color:#fff; }
+  .lb-tab.on { background:#c0ff47; color:#000; }
+  /* ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА — ВИДИМО ПОМЕЧЕНА, не «пустая строка»: молчаливая
+     заглушка уехала бы в релиз незамеченной. */
+  .lb-note { min-height:18px; line-height:18px; font-size:13px; font-weight:700;
+    color:#fff; opacity:.75; padding-left:2px; }
+  .lb-note.todo { color:#ffd34d; opacity:1; }
+  .lb-list { display:flex; flex-direction:column; gap:6px; min-height:120px; }
+  .lb-row { display:flex; align-items:center; gap:8px; height:44px; box-sizing:border-box;
+    padding:0 12px 0 8px; border-radius:1000px; color:#fff; }
+  .lb-row.me { background:rgba(255,255,255,.16); box-shadow:inset 0 0 28px 0 #c0ff47; }
+  .lb-pos { flex:none; min-width:38px; font-weight:900; font-size:17px; opacity:.75; }
+  .lb-row.me .lb-pos { opacity:1; }
+  .lb-av { flex:none; width:30px; height:30px; background:transparent; }
+  .lb-av img { width:100%; height:100%; object-fit:contain; display:block; }
+  .lb-name { flex:1; min-width:0; font-weight:800; font-size:17px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
+  .lb-row.me .lb-name { opacity:1; }
+  .lb-score { flex:none; font-weight:900; font-size:17px; }
+  /* СЛУЖЕБНОЕ СОСТОЯНИЕ — одной строкой, без картинок: четыре случая
+     («пусто, но рано» / нет сети / меня нет в таблице / вкладка выключена)
+     звучат по-разному, но выглядят одинаково спокойно. */
+  .lb-serv { color:#fff; opacity:.7; font-size:15px; font-weight:700; padding:8px 2px; }
   /* --- ВРЕЗКА ТАБЛИЦЫ: место игрока + соседи (после каждого уровня) ---
      ⚠️⚠️ `min-height` — НЕСУЩЕЕ, А НЕ КОСМЕТИКА. Данные приезжают асинхронно,
      а над врезкой стоит Next; при `margin:auto` у .win-wrap рост карточки
@@ -1878,6 +1917,22 @@
   </div>
 </div>
 
+<!-- ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ (две вкладки). Открывается из меню. -->
+<div class="overlay" id="lbOverlay">
+  <div class="lb-card">
+    <div class="lb-head">
+      <div class="lb-title">LEADERBOARD</div>
+      <button class="lb-close" id="lbClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="lb-tabs">
+      <button class="lb-tab on" id="lbTabOurs">Balance</button>
+      <button class="lb-tab" id="lbTabPlat">All-time</button>
+    </div>
+    <div class="lb-note" id="lbNote"></div>
+    <div class="lb-list" id="lbList"></div>
+  </div>
+</div>
+
 <!-- ВИТРИНА УРОВНЯ (спека владельца 2026-07-22: «на больших мониторах
      мало жизни»): объекты уровня как в музее + реалтайм полоски накопления
      до следующего множителя. Видимость — ПРАВИЛО 2/3 (спека 2026-07-27):
@@ -1984,6 +2039,7 @@
           <span id="msStars">0</span>
         </div>
         <button class="ms-getmore" id="msGetMore">Get More</button>
+        <button class="ms-getmore" id="lbOpen">Board</button>
       </div>
     </header>
     </div>
