@@ -310,13 +310,21 @@ function lbEntryRefresh(){
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), dot = $('msLbeDot'); if (!sub || !dot) return;
+    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
+          box = $('msLbEntry');
+    if (!sub || !dot || !rk || !box) return;
     // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
     // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
     // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
     // пуста и прикидка отвечает «место 1» КАЖДОМУ.
     const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
-    sub.textContent = ok ? ('You on ' + winFmtScore(m.rank | 0)) : '';
+    // ⚠️ ОБЕ мобильные строки и класс идут от ТОГО ЖЕ `ok`, что и раньше, —
+    // то есть место в ПЕРВОЙ строке слушается правила `exact` ровно так же,
+    // как слушалась «You on N». Прикидка из ответа на отправку сюда не
+    // попадает ни при каком состоянии.
+    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
+    sub.textContent = ok ? 'on leaderboard' : '';
+    box.classList.toggle('has-rank', ok);
     dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
   }).catch(()=>{});
 }

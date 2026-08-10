@@ -6372,6 +6372,10 @@ window.bridge = {
       const r = e.getBoundingClientRect();
       return { есть:true, виден:!e.hidden && r.height > 0,
                место:(document.getElementById('msLbeSub') || {}).textContent || '',
+               // ⚠️ ПОСЛЕ ПРАВКИ МАКЕТА МЕСТО ЖИВЁТ В ПЕРВОЙ СТРОКЕ. Страж,
+               // читающий только `msLbeSub`, пережил бы правку ЗЕЛЁНЫМ и
+               // перестал бы стеречь ровно то, ради чего написан.
+               перваяСтрока:(document.getElementById('msLbeRank') || {}).textContent || '',
                точка:(document.getElementById('msLbeDot') || {}).textContent || '',
                аватаров:document.querySelectorAll('#msLbeAvs img').length,
                кнопок:document.querySelectorAll('#msLbEntry button').length,
@@ -6416,9 +6420,11 @@ window.bridge = {
   // из двух представлений. Это ровно тот дефект, который стоил нам молчащего
   // блока у каждого игрока до первой победы: прикидка из ответа на отправку
   // («место 1» всем подряд) здесь не показывается по построению.
-  expect(экран.вход.место === '' && экран.вход.точка === '',
-    '⚠️ ТОЧКА ВХОДА: без ТОЧНОГО места число не показывается ни строкой, ни в заголовке (' +
-    JSON.stringify({ строка:экран.вход.место, заголовок:экран.вход.точка }) + ')');
+  expect(экран.вход.место === '' && экран.вход.точка === '' && экран.вход.перваяСтрока === '',
+    '⚠️ ТОЧКА ВХОДА: без ТОЧНОГО места числа нет НИ В ОДНОЙ из трёх точек показа — ' +
+    'первая строка, вторая строка, заголовок десктопа (' +
+    JSON.stringify({ первая:экран.вход.перваяСтрока, вторая:экран.вход.место,
+                     заголовок:экран.вход.точка }) + ')');
   // ⚠️⚠️ ШИРИНА ЭКРАНА ТАБЛИЦЫ — ПОТОЛОК С ОБЕИХ СТОРОН (прямое слово владельца
   // «ширина таблицы 560 px максимальная»). Один потолок `<=560` зелен и у
   // экрана шириной 200 — то есть у сборки, где карточка схлопнулась; нижняя
@@ -6460,6 +6466,27 @@ window.bridge = {
   // разъехалась при первой правке More; на `.st-close` висит своя спека.
   expect(/\biconBtn\b/.test(попап.крестикКлассы) && /\bst-close\b/.test(попап.крестикКлассы),
     '⚠️ ЭКРАН ТАБЛИЦЫ: крестик несёт ТЕ ЖЕ классы, что у More («' + попап.крестикКлассы + '»)');
+  // ⚠️⚠️ ВТОРАЯ ПОЛОВИНА ПОТОЛКА (ловля ИНТЕРФЕЙСА): проверка «<=560 и >=520»
+  // на ШИРОКОМ вьюпорте зелена и у сборки с жёстким `width:560px` — а такая
+  // карточка на 393 вылезала бы за край экрана. Меряем ТУ ЖЕ карточку на
+  // узком: ширина обязана идти ПО ВЬЮПОРТУ, а не залипнуть на потолке.
+  await lbPage.setViewportSize({ width: 393, height: 852 });
+  await lbPage.waitForTimeout(250);
+  const попапУзкий = await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    document.getElementById('pauseBtn').click(); await sleep(300);
+    document.getElementById('msLbEntry').click(); await sleep(600);
+    const c = document.querySelector('#lbOverlay .lb-card');
+    const из = c ? Math.round(c.getBoundingClientRect().width) : 0;
+    document.getElementById('lbClose').click(); await sleep(200);
+    { const p = document.querySelector('.ms-play'); if (p) p.click(); }
+    await sleep(250);
+    return из;
+  });
+  console.log('попап на узком:', попапУзкий);
+  expect(попапУзкий > 0 && попапУзкий <= 361 && попапУзкий >= 330,
+    '⚠️ ЭКРАН ТАБЛИЦЫ: на узком экране ширина идёт ПО ВЬЮПОРТУ, а не залипла ' +
+    'на потолке 560 (' + попапУзкий + 'px при вьюпорте 393; потолок даёт 361)');
   await lbPage.setViewportSize({ width: 390, height: 780 });
   await lbPage.waitForTimeout(250);
   // ⚠️⚠️ БОЕВОЙ АДРЕС ЗАДАН — СТРАЖ ПРОТИВ САМОГО ТИХОГО ОТКАЗА, КАКОЙ У НАС
