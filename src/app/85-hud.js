@@ -308,13 +308,21 @@ function lbEntryRefresh(){
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), dot = $('msLbeDot'); if (!sub || !dot) return;
+    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
+          box = $('msLbEntry');
+    if (!sub || !dot || !rk || !box) return;
     // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
     // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
     // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
     // пуста и прикидка отвечает «место 1» КАЖДОМУ.
     const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
-    sub.textContent = ok ? ('You on ' + winFmtScore(m.rank | 0)) : '';
+    // МОБИЛЬНЫЙ по макету 840:4344: первая строка — САМО МЕСТО, вторая —
+    // подпись. Нет точного места — обе строки прячутся классом, и остаётся
+    // прежний заголовок «Leaderboard» (см. комментарий у `.has-rank`).
+    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
+    sub.textContent = ok ? 'on leaderboard' : '';
+    box.classList.toggle('has-rank', ok);
+    // ДЕСКТОП: место живёт в заголовке через «•» — раскладка своя, не адаптив.
     dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
   }).catch(()=>{});
 }

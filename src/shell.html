@@ -1008,18 +1008,32 @@
      (он #1d1c26, другой), ни `--btn-bg` (значение совпадает, но он
      ПЕРЕВОРАЧИВАЕТСЯ в тёмной теме и ночью выкрасил бы текст в белый на
      светлой пилюле). Меню светлое в обеих темах — токен не переворачивается. */
+  /* ⚠️ МАКЕТ ОБНОВЛЁН ВЛАДЕЛЬЦЕМ 2026-08-10 (прочитан Dev Mode'ом, узел
+     840:4344): фон стал БЕЛЫМ без рамки, а текст — «3 place» / «on leaderboard»
+     обе строки Bold 18px. Прежний вид (голубая пилюля с рамкой, «Leaderboard»
+     Heavy 22px + «You on 845» 14px) ОТМЕНЁН — не возвращать по старой спеке. */
   .ms-lbentry { display:flex; align-items:center; justify-content:space-between;
-    gap:12px; background:rgba(239,251,255,.6); border:1px solid #fff;
+    gap:12px; background:#fff; border:none;
     border-radius:1000px; padding:16px 12px 16px 20px; cursor:pointer; }
   .ms-lbentry[hidden] { display:none; }
-  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:6px; min-width:0; }
   .ms-lbe-title { font-size:22px; font-weight:900; color:var(--carbon-400);
     line-height:1; white-space:nowrap; }
   /* «You on 845» — ТОЛЬКО из точного места (см. lbEntryRefresh). Нет точного —
      строки нет вовсе, и пилюля живёт без неё: пустую строку не резервируем. */
-  .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+  /* ПЕРВАЯ строка мобильного — МЕСТО игрока («3 place»), только точное. */
+  .ms-lbe-rank { font-size:18px; font-weight:700; color:var(--carbon-400);
+    line-height:1; white-space:nowrap; }
+  .ms-lbe-sub { font-size:18px; font-weight:700; color:#b0bcd0; line-height:1;
     white-space:nowrap; }
-  .ms-lbe-sub:empty { display:none; }
+  /* ⚠️⚠️ НЕТ ТОЧНОГО МЕСТА — БЛОК НЕ ОСТАЁТСЯ БЕЗ ИМЕНИ. В макете первая строка
+     это САМО МЕСТО, и у новичка (строки в таблице ещё нет) её просто нечем
+     заполнить: «on leaderboard» в одиночку не говорит ничего. Поэтому без
+     места показываем прежний заголовок «Leaderboard» — блок сохраняет
+     личность, а числа, которому нельзя верить, по-прежнему нет. */
+  .ms-lbentry.has-rank .ms-lbe-title { display:none; }
+  .ms-lbentry:not(.has-rank) .ms-lbe-rank,
+  .ms-lbentry:not(.has-rank) .ms-lbe-sub { display:none; }
   .ms-lbe-right { display:flex; align-items:center; gap:12px; }
   .ms-lbe-avs { display:flex; align-items:center; gap:2px; }
   .ms-lbe-avs img { display:block; width:40px; height:40px; border-radius:50%; }
@@ -1398,8 +1412,10 @@
     .ms-lbe-txt { flex-direction:row; align-items:baseline; gap:0; }
     .ms-lbe-dot { display:inline; color:#b0bcd0; }
     .ms-lbe-dot:empty { display:none; }
-    /* на десктопе место живёт В ЗАГОЛОВКЕ (через `•`), второй строки нет */
-    .ms-lbe-sub { display:none; }
+    /* на десктопе место живёт В ЗАГОЛОВКЕ (через `•`) — две мобильные строки
+       там не участвуют, и заголовок виден ВСЕГДА, даже при `has-rank`. */
+    .ms-lbe-sub, .ms-lbe-rank { display:none; }
+    .ms-lbentry.has-rank .ms-lbe-title { display:block; }
     .ms-lbe-arrow { display:none; }
     .ms-lbe-open { display:inline; font-family:var(--font-round); font-size:16px;
       font-weight:700; color:#000; }
@@ -2149,6 +2165,7 @@
     <section class="ms-lbentry" id="msLbEntry" hidden>
       <div class="ms-lbe-txt">
         <div class="ms-lbe-title">Leaderboard<span class="ms-lbe-dot" id="msLbeDot"></span></div>
+        <div class="ms-lbe-rank" id="msLbeRank"></div>
         <div class="ms-lbe-sub" id="msLbeSub"></div>
       </div>
       <div class="ms-lbe-right">

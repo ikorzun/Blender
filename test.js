@@ -6261,9 +6261,13 @@ window.bridge = {
     await lbPage.waitForTimeout(260);
     аватары.push(await lbPage.evaluate((ширина) => {
       const avs = [...document.querySelectorAll('#msLbeAvs > *')];
-      const t = document.querySelector('.ms-lbe-title');
+      // ⚠️ Мерим ВИДИМУЮ строку, а не `.ms-lbe-title` поимённо: по макету
+      // 840:4344 при известном месте заголовок скрыт, и первая строка — «N place».
+      // Ассерт, прибитый к одному узлу, молча мерил бы нулевой rect.
+      const t = [...document.querySelectorAll('.ms-lbe-txt > *')]
+        .find(e => e.getBoundingClientRect().width > 0);
       const r = document.createRange(); r.selectNodeContents(t);
-      return { ширина,
+      return { ширина, строка: t.className,
         видимых: avs.filter(e => e.getBoundingClientRect().width > 0).length,
         текстЦеликом: Math.round(r.getBoundingClientRect().width) <= Math.round(t.clientWidth) + 1,
         гориз: document.documentElement.scrollWidth - document.documentElement.clientWidth };
