@@ -7449,10 +7449,15 @@ window.bridge = {
           return c ? Math.round(c.getBoundingClientRect().top - t.bottom) : null;
         })(),
         паддингСетки: parseInt(getComputedStyle(document.querySelector('.ms-coll')).paddingTop, 10),
+        // ⚠️ БЕРЁМ НАИБОЛЬШЕЕ ЧИСЛО, А НЕ ПЕРВОЕ. Вычисленный градиент выглядит
+        // как «rgba(0,0,0,0) 0px, rgb(0,0,0) 88px», и первое совпадение — это
+        // НОЛЬ начальной точки: страж честно краснел на исправной сборке,
+        // потому что мерил не ту величину. Конец растворения — максимум.
         маскаСетки: (function (){
           const cs = getComputedStyle(document.querySelector('.ms-coll'));
-          const m = String(cs.maskImage || cs.webkitMaskImage || '').match(/(\d+)px/);
-          return m ? +m[1] : null;
+          const str = String(cs.maskImage || cs.webkitMaskImage || '');
+          const все = Array.prototype.map.call(str.match(/\d+px/g) || [], x => parseInt(x, 10));
+          return все.length ? Math.max.apply(null, все) : null;
         })(),
         высотаЗаголовка: Math.round(rt.height),
         сверху: Math.round(ri.top - rt.top), снизу: Math.round(rt.bottom - ri.bottom),
