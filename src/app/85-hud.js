@@ -310,9 +310,8 @@ function lbEntryRefresh(){
   }).catch(()=>{});
   lb.me().then(m => {
     if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), dot = $('msLbeDot'), rk = $('msLbeRank'),
-          box = $('msLbEntry');
-    if (!sub || !dot || !rk || !box) return;
+    const sub = $('msLbeSub'), rk = $('msLbeRank'), box = $('msLbEntry');
+    if (!sub || !rk || !box) return;
     // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
     // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
     // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
@@ -322,10 +321,35 @@ function lbEntryRefresh(){
     // то есть место в ПЕРВОЙ строке слушается правила `exact` ровно так же,
     // как слушалась «You on N». Прикидка из ответа на отправку сюда не
     // попадает ни при каком состоянии.
-    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : '';
+    // ⚠️⚠️ У НОВИЧКА МЕСТА НЕТ, А БЛОК ОСТАЁТСЯ — И ЭТОГО СЛУЧАЯ В МАКЕТЕ НЕТ.
+    // Решение диспетчера, названо владельцу: показываем прежнее слово
+    // «Leaderboard» одной строкой, подпись и значок направления гасим. Так блок
+    // сохраняет личность и ничего не утверждает: «on leaderboard» в одиночку не
+    // говорит ничего, а стрелка утверждала бы движение, которого не было.
+    rk.textContent  = ok ? (winFmtScore(m.rank | 0) + ' place') : 'Leaderboard';
     sub.textContent = ok ? 'on leaderboard' : '';
     box.classList.toggle('has-rank', ok);
-    dot.textContent = ok ? (' • ' + winFmtScore(m.rank | 0)) : '';
+    // ⚠️⚠️ НАПРАВЛЕНИЕ — ПО СРАВНЕНИЮ С ПРОШЛЫМ ВИДЕННЫМ МЕСТОМ, а не по знаку
+    // счёта: владелец дал ДВА значка (вверх/вниз), значит оба состояния обязаны
+    // случаться, а единственная величина, которая тут растёт и падает, — само
+    // место. Меньше номер = поднялся.
+    // ⚠️ Память живёт в localStorage и НЕ в сейве: это подсказка интерфейса, а
+    // не прогресс; переносить её между устройствами незачем, а мержить —
+    // тем более (два устройства дали бы стрелку по чужому движению).
+    // ⚠️ ПЕРВЫЙ РАЗ — БЕЗ ЗНАЧКА: сравнивать не с чем, и «вверх» было бы
+    // выдумкой. Значок появится со второго открытия, когда движение реально.
+    let dir = '';
+    if (ok){
+      const key = 'mixer_lb_seen_rank';
+      let prev = null;
+      try { const v = localStorage.getItem(key); prev = v === null ? null : (v | 0); } catch(e){}
+      const now = m.rank | 0;
+      if (prev !== null && prev !== now) dir = (now < prev) ? 'dir-up' : 'dir-dn';
+      else if (prev !== null) dir = box.classList.contains('dir-dn') ? 'dir-dn' : 'dir-up';
+      try { localStorage.setItem(key, String(now)); } catch(e){}
+    }
+    box.classList.remove('dir-up', 'dir-dn');
+    if (dir) box.classList.add(dir);
   }).catch(()=>{});
 }
 function lbServ(text){

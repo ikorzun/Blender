@@ -1157,6 +1157,8 @@ window.__game = {
   // `CFG.matchRadius` — по нему «упал из-за промаха» неотличимо от «упал из-за
   // сжатия кучи». `missRadius()` отдаёт СОСТОЯНИЕ, а не пересказ.
   missRadius(){ return { активен: missRadiusActive(), потолок: missRadiusCap(),
+                         счётных: aliveCountForRadius(),   // то же число, по которому решают ОБЕ ступени эндшпиля
+                         своихВстрясок: (level ? level.shakes : 0) + purchasedShakes(),
                          радиус: +CFG.matchRadius.toFixed(3), база: CFG.baseRadius,
                          пол: MATCH_R_MIN, потолокКомбо: COMBO_RADIUS,
                          дно: MATCH_R_MISS, окно: MATCH_R_MISS_MS }; },
@@ -2146,6 +2148,22 @@ window.__game = {
   topItem(){ let best = null; for (const it of items) if (it.alive && (!best || it.p.y + it.r > best.p.y + best.r)) best = it;
     return best ? { name: best.type.name, y: +(best.p.y + best.r).toFixed(2), meshY: +best.mesh.position.y.toFixed(2), sleeping: best.body ? best.body.isSleeping() : null } : null; },
   // отладка: оставить по одному предмету каждого типа (для теста финала миксера)
+  // ⚠️ ТЕСТОВЫЙ РЫЧАГ: снять РОВНО n обычных предметов, не трогая клад, бомбу и
+  // камни и не запуская эффекты. Заведён потому, что окно мягкой ступени
+  // эндшпиля — ОДНО ЗНАЧЕНИЕ счётчика (9), а матч снимает ПАРУ: «доиграть до
+  // окна» проскакивает его через раз, а на попытках доиграть финал успевает
+  // доесть кучу (замерено трижды, каждый раз приезжали к нулю). Ставить сцену
+  // надо прямо, а не пытаться попасть в неё игрой.
+  cull(n){
+    let k = 0;
+    for (const it of items){
+      if (k >= n) break;
+      if (!it.alive || it.surprise || it.rock || it.bomb || it.animating) continue;
+      removeItem(it); k++;
+    }
+    refreshAccessibility(); updateHUD();
+    return k;
+  },
   leaveSingles(){
     const seen = new Set();
     for (const it of items){
