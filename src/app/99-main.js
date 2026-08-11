@@ -1127,6 +1127,9 @@ window.__game = {
       свечение: sh ? getComputedStyle(sh).backgroundImage : '',
       тонВещи: (typeof t === 'number')
         ? ((t >> 16) & 255) + ', ' + ((t >> 8) & 255) + ', ' + (t & 255) : null,
+      // ⛔ Узла названия больше нет (слово владельца 2026-08-11). Поле остаётся
+      // и обязано быть ПУСТЫМ — на нём страж «имени на экране нет»: без него
+      // возврат подписи прошёл бы молча.
       имя: (document.getElementById('newObjName') || {}).textContent || '' };
   },
   freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
