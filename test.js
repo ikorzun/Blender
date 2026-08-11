@@ -1569,14 +1569,34 @@ page.on('response', (r) => {
     await page.waitForTimeout(1700);
   }
   expect(!!rockT && !rockT.occluded, 'камень имеет видимую точку (' + JSON.stringify(rockT) + ')');
-  const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
-    misses: window.__game.stats().misses }));
-  await page.mouse.click(rockT.px, rockT.py);
-  await page.waitForTimeout(300);
-  const rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
-    misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
-  expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
-  expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
+  // ⚠️⚠️ КРАСНЫЙ АССЕРТ НЕ ИМЕЕТ ПРАВА УБИВАТЬ ПРОГОН. Так и было: при закрытом
+  // камне следующая строка звала `mouse.click(undefined, undefined)`, Playwright
+  // бросал `x: expected float, got undefined`, и прогон умирал на 154-м ассерте
+  // из 649 — то есть один невезучий расклад тихо выключал ВЕСЬ хвост сьюта
+  // (ровно закон «блокер в начале прогона — тихое выключение хвоста»).
+  // ⚠️ ЧТО ЭТО ЗА СОБЫТИЕ, ВЫЯСНЕНО ЗАМЕРОМ, А НЕ ДОГАДКОЙ (приёмка новой
+  // пчелы 2026-08-11): на СВЕЖЕЙ странице камень виден с первой попытки
+  // 20 раз из 20 — по 10 раскладок на старой и на новой модели, то есть к
+  // замене модели событие отношения не имеет. Ловится оно только здесь, в
+  // середине прогона, и виновата УНАСЛЕДОВАННАЯ КАМЕРА: `findByTex` бьёт лучом
+  // ОТ КАМЕРЫ, а к этому месту её уже двигали соседние секции.
+  // ⛔ Поэтому НЕ глушим ассерт и НЕ повышаем число встрясок «на всякий
+  // случай» — красное обязано остаться красным. Гасим только КРУШЕНИЕ.
+  if (rockT && !rockT.occluded){
+    const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
+      misses: window.__game.stats().misses }));
+    await page.mouse.click(rockT.px, rockT.py);
+    await page.waitForTimeout(300);
+    const rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
+      misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
+    expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
+    expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
+  } else {
+    // ⚠️ ЖЁЛТЫЙ ИСХОД НАЗЫВАЕТСЯ ВСЛУХ: два ассерта НЕ ИСПОЛНЯЛИСЬ. Молчаливый
+    // пропуск дал бы прогон с 647 зелёными вместо 649 и вопрос «что упало?»
+    // без ответа — у состояния «не проверено» должен быть свой голос.
+    console.log('ПРОПУЩЕНО: тап по камню (камень закрыт кучей после 5 встрясок) — 2 ассерта не исполнены');
+  }
 
   // ── МЕТРИКИ (docs/METRICS.md) — СЕКЦИЯ В КОНЦЕ НАМЕРЕННО:
   // она регенерит уровень и бросает синтетический креш, т.е. портит контекст
