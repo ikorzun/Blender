@@ -1582,12 +1582,16 @@ page.on('response', (r) => {
   // ОТ КАМЕРЫ, а к этому месту её уже двигали соседние секции.
   // ⛔ Поэтому НЕ глушим ассерт и НЕ повышаем число встрясок «на всякий
   // случай» — красное обязано остаться красным. Гасим только КРУШЕНИЕ.
+  // ⚠️ ОБЪЯВЛЕНИЕ ВЫШЕ БЛОКА, И ЭТО НЕ СТИЛЬ: `rockTap1` читает ещё один ассерт
+  // ДАЛЕКО НИЖЕ («камень тапом не убирается»), через целую секцию телеметрии.
+  // Спрятав его в блок, я уронил прогон второй раз подряд, уже своей правкой.
+  let rockTap1 = null;
   if (rockT && !rockT.occluded){
     const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
       misses: window.__game.stats().misses }));
     await page.mouse.click(rockT.px, rockT.py);
     await page.waitForTimeout(300);
-    const rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
+    rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
       misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
     expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
     expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
@@ -1640,7 +1644,8 @@ page.on('response', (r) => {
     'экран закрыт с длительностью (' + (scr ? scr.v + ' ' + scr.ms + 'мс' : 'нет') + ')');
 
 
-  expect(rockTap1.rocks === 1, 'камень тапом не убирается');
+  if (rockTap1) expect(rockTap1.rocks === 1, 'камень тапом не убирается');
+  else console.log('ПРОПУЩЕНО: камень тапом не убирается (замер не состоялся) — 1 ассерт не исполнен');
   // бомба убирает камень: телепортируем обоих в воздух рядом и детонируем —
   // камень в радиусе, прочая куча далеко внизу (кап не мешает)
   // ⚠️ БОМБУ ПРОВЕРЯЕМ ЯВНО (флейк 2026-07-29 «1 -> 1»): если её израсходовала
