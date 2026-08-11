@@ -1159,6 +1159,11 @@ function penalize(worldPos, sx, sy){
     updateMatchRadius(); updateHUD();
   }
   try { bowlStreakReset(); } catch(e){} // стрик чаши: промах = ошибка (слово владельца)
+  // ⚠️⚠️ ШТРАФ РАДИУСА (спека владельца 2026-08-11) — ВНЕ гейта `comboUntil`
+  // выше: он обязан срабатывать на КАЖДОМ промахе, а не только в горящей
+  // серии. Место выбрано рядом со стриком чаши намеренно — это единственная
+  // строка функции, которая уже стоит «на каждый промах».
+  try { noteMissRadius(); } catch(e){}
   if (charged && shown > 0){
     if (worldPos) scorePop('-' + shown, worldPos, '#e5484d', false);
     else scorePopScreen('-' + shown, sx, sy, '#e5484d', false);

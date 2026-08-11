@@ -168,17 +168,22 @@
   #newObj.on { display:flex; }
   .no-card { width:295px; max-width:100%; display:flex; flex-direction:column;
     align-items:center; }
-  /* ЗАГОЛОВОК: «new» чёрным поверх «OBJECT» белым с наклоном −10.61°, обе с
-     лаймовой обводкой. Наложение как в макете — второй строкой, с подъёмом. */
+  /* ЗАГОЛОВОК: «new» и «OBJECT» чёрной заливкой, с наклоном −10.61° у второй
+     строки. Наложение как в макете — второй строкой, с подъёмом.
+     ⚠️⚠️ ОБВОДКИ У СТРОК РАЗНЫЕ (слово владельца 2026-08-11: «New C7FF71,
+     Object 96FFE1»), поэтому ОБЩЕГО правила `--otl-color` тут больше НЕТ.
+     ⛔ И его нельзя было просто оставить рядом: у `.no-title .otext text`
+     специфичность (0,2,1) против (0,1,1) у `.no-new text` — общее правило
+     ПЕРЕБИЛО БЫ обе персональные строки, и цвет молча не сменился бы.
+     Это ровно та ловушка каскада, на которой проект уже стоял. */
   .no-title { position:relative; display:flex; flex-direction:column;
     align-items:center; pointer-events:none; }
-  .no-title .otext text { --otl-color:#c0ff47; }
   .no-new { width:200px; height:60px; }
-  .no-new text { font-size:43px; fill:#000; --otl:7; }
+  .no-new text { font-size:43px; fill:#000; --otl:7; --otl-color:#c7ff71; }
   .no-obj-w { width:260px; height:70px; margin-top:-26px; transform:rotate(-10.61deg); }
-  /* ⚠️ ЗАЛИВКА ЧЁРНАЯ, КАК У «new» (слово владельца 2026-08-11). Лаймовой
-     остаётся ОБВОДКА — она общая у обеих строк и задана выше. */
-  .no-obj-w text { font-size:38px; fill:#000; --otl:7; }
+  /* ⚠️ ЗАЛИВКА ЧЁРНАЯ, КАК У «new» (слово владельца 2026-08-11). Обводка —
+     СВОЯ, мятная `#96ffe1` (его же слово того же дня); у «new» она лаймовая. */
+  .no-obj-w text { font-size:38px; fill:#000; --otl:7; --otl-color:#96ffe1; }
   /* СЦЕНА: свечение под моделью, модель поверх. Размеры макета — 361 сцена /
      250 модель на мобильном; на десктопе мельче (289 / 200), см. медиазапрос. */
   .no-stage { position:relative; width:361px; max-width:100%; aspect-ratio:1;

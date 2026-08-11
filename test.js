@@ -571,7 +571,7 @@ page.on('response', (r) => {
   await page.screenshot({ path: 'shot_deadlock_mill.png' });
 
   // восстановление агентности (вернули встряски) -> тупик снят, помол встал
-  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; window.__game.cfg.matchRadius = 2.0; window.__game.level().shakes = 3; });
+  await page.evaluate(() => { window.__game.cfg.baseRadius = window.__game.baseRadiusDefault(); window.__game.cfg.matchRadius = 2.0; window.__game.level().shakes = 3; });
   await page.waitForTimeout(1200);
   const clr = await page.evaluate(() => ({ deadlock: window.__game.level().deadlock,
     grinding: document.getElementById('mixerTimer').textContent }));
@@ -599,7 +599,7 @@ page.on('response', (r) => {
   // заполнена до красной линии», а размер уровня теперь растёт с номером —
   // на ур.1 (40 пар) куча законно ниже, и порог 5.5 краснел на исправной
   // игре (topY 5.49). Берём уровень с потолком пар (>=11).
-  await page.evaluate(() => { window.__game.setLevel(12); window.__game.cfg.baseRadius = 0.9; window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(12); window.__game.cfg.baseRadius = window.__game.baseRadiusDefault(); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(1000);
   const fill = await page.evaluate(() => ({ topY: window.__game.topY(), alive: window.__game.alive() }));
   console.log('fill: topY', fill.topY.toFixed(2), '(rim 9.2) | alive:', fill.alive);
@@ -686,6 +686,116 @@ page.on('response', (r) => {
     void turboReset;
   }
 
+  // ═══ ШТРАФ РАДИУСА ЗА ПРОМАХ (спека владельца 2026-08-11) ═══
+  // «при ошибке на какое-то время сильно сбрасывать этот параметр до 0.3
+  // условно, но через несколько секунд возвращать до 0.4-0.5 и увеличивать при
+  // метчах максимум до 0.8».
+  // ⚠️ ЧЕТЫРЕ СВОЙСТВА, И ЛОМАЮТСЯ ОНИ ПОРОЗНЬ, поэтому ассерта тоже четыре:
+  // падение, ВОЗВРАТ, потолок серии, и «штраф не выдаёт себя за тупик».
+  // ⚠️ ПРОМАХ — НАСТОЯЩИМ КЛИКОМ В ПУСТОТУ, а не хуком `missRadiusNow`: хук
+  // проверял бы, что механика умеет включаться, а не что её включает ИГРА.
+  const штраф = await (async () => {
+    await page.evaluate(async () => {
+      const g = window.__game;
+      g.cfg.baseRadius = g.baseRadiusDefault();
+      g.setLevel(5); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 600));
+    });
+    const снять = () => page.evaluate(() => {
+      const m = window.__game.missRadius();
+      return { r: m.радиус, активен: m.активен, база: m.база, дно: m.дно,
+               потолокКомбо: m.потолокКомбо, окно: m.окно,
+               промахов: window.__game.stats().misses };
+    });
+    const покой = await снять();
+    await page.mouse.click(25, 560);            // промах: в пустоту
+    await page.waitForTimeout(120);
+    const сразу = await снять();
+    await page.waitForTimeout(1500);
+    const середина = await снять();
+    await page.waitForTimeout(1800);
+    const восстановился = await снять();
+    // ⚠️⚠️ ТУПИК — ПРОВЕРЯЕТСЯ ПЕРЕХОДОМ, А НЕ ОДНИМ ЗАМЕРОМ, и первая версия
+    // этого стража была ТАВТОЛОГИЧНОЙ: она просто промахивалась на живой куче и
+    // ждала «deadlock === false», а он там false ПРИ ЛЮБОМ поведении — пар на
+    // полном уровне хватает даже при радиусе 0.3. Двусторонний прогон это и
+    // показал: диверсия «снять гейт» осталась зелёной.
+    // Верная постановка — ДЕТЕРМИНИРОВАННО обнулить пары каноническим рецептом
+    // (`baseRadius = -9`) и сравнить ДВА состояния: со штрафом тупик НЕ
+    // объявляется, без штрафа — объявляется. Второе плечо обязательно: без
+    // него «тупика нет» снова было бы истинно на сборке, где детектор мёртв.
+    const тупик = await page.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      const сцена = () => {                     // предпосылки ветки тупика — как в её штатной секции
+        const l = g.level();
+        l.shakes = 0; l.adShakes = 0; l.autoShakeUsed = true; l.deadlock = false; l.stuck = 0;
+        g.cfg.baseRadius = -9; g.cfg.matchRadius = -9;   // гарантированно ноль достижимых пар
+      };
+      сцена(); g.missRadiusNow();               // ШТРАФ ЖИВ (3 с) — тупик обязан молчать
+      await sl(2000);
+      const подШтрафом = !!g.level().deadlock;
+      сцена(); g.missRadiusClearTest();         // тот же ноль пар, но БЕЗ штрафа
+      await sl(2000);
+      const безШтрафа = !!g.level().deadlock;
+      g.cfg.baseRadius = g.baseRadiusDefault(); g.cfg.matchRadius = 2.0;
+      const l = g.level(); l.deadlock = false; l.stuck = 0; l.shakes = 3;
+      return { подШтрафом, безШтрафа, deadlock: подШтрафом, автоВстряска: false };
+    });
+    return { покой, сразу, середина, восстановился, тупик };
+  })();
+  console.log('штраф радиуса:', JSON.stringify(штраф));
+  // (1) ПАДЕНИЕ. Санитар в том же ассерте: промах ЗАСЧИТАН (счётчик вырос) —
+  // иначе «радиус упал» было бы истинно и на сборке, где клик просто не дошёл.
+  expect(штраф.сразу.промахов === штраф.покой.промахов + 1 &&
+         Math.abs(штраф.сразу.r - штраф.сразу.дно) < 0.02 && штраф.сразу.активен === true,
+    '⚠️⚠️ РАДИУС: промах роняет его к ' + штраф.сразу.дно + ' (' + JSON.stringify(штраф.сразу) + ')');
+  // (2) ВОЗВРАТ. Утверждаем ПРОМЕЖУТОЧНОЕ состояние тоже: без него «вернулся»
+  // было бы истинно и на сборке, где штраф гаснет мгновенно, — то есть где
+  // «на какое-то время» не выполнено вовсе.
+  expect(штраф.середина.r > штраф.сразу.r && штраф.середина.r < штраф.покой.база &&
+         Math.abs(штраф.восстановился.r - штраф.покой.r) < 0.02 &&
+         штраф.восстановился.активен === false,
+    '⚠️⚠️ РАДИУС: ползёт обратно к базе за ' + штраф.покой.окно + ' мс, а не гаснет рывком (' +
+    JSON.stringify({ сразу: штраф.сразу.r, середина: штраф.середина.r,
+                     потом: штраф.восстановился.r, база: штраф.покой.база }) + ')');
+  // (3) ШТРАФ — НЕ ТУПИК. Ровно та ловушка, которую разведка нашла ДО правки:
+  // `availablePairs` кормит детектор тупика и бесплатную авто-встряску, обоим
+  // хватает двух тиков (~1.2 с), а штраф живёт 3 с — без гейта игра сама
+  // объявила бы тупик и начала молоть кучу ЗА ОЧКИ в наказание за промах.
+  expect(штраф.тупик.подШтрафом === false && штраф.тупик.безШтрафа === true,
+    '⚠️⚠️ РАДИУС: провал после промаха НЕ выдаётся за тупик — проверен ПЕРЕХОД: ' +
+    'со штрафом помол-выручалка молчит, без штрафа на той же сцене включается (' +
+    JSON.stringify(штраф.тупик) + ')');
+  // (4) ПОТОЛОК СЕРИИ. Серия обязана поднимать радиус, но не выше COMBO_RADIUS.
+  // ⚠️ Проверяем ОБА конца: вырос относительно базы И упёрся в потолок. Только
+  // «не выше потолка» было бы зелено и на сборке, где серия не растит вовсе.
+  const потолокСерии = await page.evaluate(async () => {
+    const g = window.__game;
+    g.regen(); g.skipIntro();
+    await new Promise(r => setTimeout(r, 500));
+    let пик = 0;
+    for (let i = 0; i < 7; i++){
+      g.autoMatch(); await new Promise(r => setTimeout(r, 200));
+      g.forceRefresh(); пик = Math.max(пик, g.cfg.matchRadius);
+    }
+    const m = g.missRadius();
+    return { пик: +пик.toFixed(3), потолок: m.потолокКомбо, база: m.база };
+  });
+  expect(потолокСерии.пик > потолокСерии.база &&
+         потолокСерии.пик <= потолокСерии.потолок + 1e-6,
+    '⚠️ РАДИУС: серия матчей растит его ВЫШЕ базы, но не выше потолка ' +
+    потолокСерии.потолок + ' (' + JSON.stringify(потолокСерии) + ')');
+  // (5) САМИ ЧИСЛА — ДВОЙНИК СПЕКИ, И ЭТО ОБЯЗАТЕЛЬНО. Ассерты выше читают
+  // потолок и дно ИЗ ИГРЫ, поэтому против «кто-то поменял число» они
+  // тавтологичны: поедут обе стороны сравнения. Спека владельца названа
+  // цифрами — цифры и пиним, чтобы правка была осознанной, а не молчаливой.
+  expect(штраф.покой.база === 0.45 && штраф.покой.дно === 0.3 &&
+         штраф.покой.окно === 3000 && потолокСерии.потолок === 0.8,
+    '⚠️⚠️ РАДИУС, ЧИСЛА ВЛАДЕЛЬЦА 2026-08-11: покой 0.45, дно промаха 0.3, ' +
+    'окно возврата 3000 мс, потолок серии 0.8 (' +
+    JSON.stringify({ база: штраф.покой.база, дно: штраф.покой.дно,
+                     окно: штраф.покой.окно, потолок: потолокСерии.потолок }) + ')');
+
   // #10 ДЕНОМИНАЦИЯ В ПРОЦЕССЕ (спека владельца 2026-07-27): всплывающие
   // поп-числа матча = деноминир. прирост чипа (÷10), «понятно и в процессе».
   const denomShownProbe = await page.evaluate(() => window.__game.scoreShownDenom(1234)
@@ -770,7 +880,7 @@ page.on('response', (r) => {
   });
   expect(comboProbe.hot, 'две быстрые склейки зажгли серию');
   expect(comboProbe.r >= 1.5, 'серия не понижает радиус при базе 1.6 выше потолка (' + comboProbe.r.toFixed(2) + ')');
-  await page.evaluate(() => { window.__game.cfg.baseRadius = 0.9; });
+  await page.evaluate(() => { window.__game.cfg.baseRadius = window.__game.baseRadiusDefault(); });
 
   // подсказка: числимый ресурс списывается, подсветка не роняет matcap-ветку
   // (у MeshMatcapMaterial нет emissive — регрессия ловилась только руками)
@@ -899,7 +1009,7 @@ page.on('response', (r) => {
     g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;
     const before = g.stats().score;
     const ok = g.matchType(g.accSnapshot()[0].key);
-    g.cfg.baseRadius = 0.9;
+    g.cfg.baseRadius = g.baseRadiusDefault();
     return { ok, delta: g.stats().score - before };
   });
   expect(multProbe.ok, 'нашлась пара прокачанного типа для матча');
@@ -3979,6 +4089,12 @@ window.bridge = {
   const stMile = await page.evaluate(async () => {
     const g = window.__game;
     g.storyEnable(true); g.storyReset();
+    // ⚠️⚠️ ВИНЬЕТКА МЕЖДУ УРОВНЯМИ ВЫКЛЮЧЕНА В ПОСТАВКЕ (слово владельца
+    // 2026-08-11 «убери экран-плейсхолдер»), поэтому механику страж включает
+    // СЕБЕ явным рычагом. Это не обход правила, а его условие: пока фича
+    // ждёт материал владельца, вехи/разрыв/отказные ветки обязаны остаться
+    // под стражами — иначе к возврату они будут непроверенными.
+    g.storyWinForce(true);
     // ⚠️ ОБНУЛЯЕМ НАКОПЛЕНИЯ: за прогон сьюта счётчики типов давно перешагнули
     // порог ступени, и веха К2 была бы «уже выполнена» до всякого гранта —
     // тест мерил бы не триггер, а историю прогона.
@@ -5747,6 +5863,7 @@ window.bridge = {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const есть = () => !!document.getElementById('storyOverlay');
     { const so = document.getElementById('storyOverlay'); if (so) so.click(); } g.storyEnable(true);
+    g.storyWinForce(true);   // виньетка выключена в поставке — включаем механику себе
     g.setLevel(3); g.regen(); g.skipIntro(); await sleep(400);
     g.stats().taps = 5;                          // §6.1: без тапов виньетки нет
     g.leaveSingles(); await sleep(2500);          // доводим до победы финалом
@@ -5806,6 +5923,7 @@ window.bridge = {
       setTimeout(() => r(ok ? 'вернулся' : 'ПОТЕРЯН'), 1200);
     });
     { const so = document.getElementById('storyOverlay'); if (so) so.click(); }
+    g.storyWinForce(true);   // проверяем ОТКАЗНЫЕ ветки самой виньетки, а не её выключатель
     g.storyEnable(false); const выкл = await зов(); g.storyEnable(true);
     const t = g.stats(); const было = t.taps; t.taps = 0;
     const безТапов = await зов(); t.taps = было || 5;
@@ -5822,6 +5940,50 @@ window.bridge = {
   expect(stCb.выкл === 'вернулся' && stCb.безТапов === 'вернулся' && stCb.главыНет === 'вернулся',
     '⚠️ АНОНС: колбэк зовётся на ВСЕХ ТРЁХ отказных ветках — «Next» начинает уровень и когда анонса нет (' +
     JSON.stringify(stCb) + ')');
+
+  // ⚠️⚠️ ЧЕТВЁРТАЯ ОТКАЗНАЯ ВЕТКА — СЛОВО ВЛАДЕЛЬЦА 2026-08-11 «убери
+  // экран-плейсхолдер, который появляется после экрана с новым объектом».
+  // ⛔ ПОЧЕМУ ОТДЕЛЬНЫМ СТРАЖЕМ, А НЕ СТРОКОЙ В ПРЕДЫДУЩЕМ: те три ветки
+  // проверяют МЕХАНИКУ (её сьют включает себе рычагом), а эта — ПОСТАВКУ.
+  // Урок адреса таблицы лидеров дословно: «страж, который сам создаёт
+  // предпосылку, никогда не проверит её наличие в поставке». Поэтому здесь
+  // читается БОЕВАЯ константа, а не то, что выставил сьют.
+  // ⚠️ ДВА ПРИЗНАКА СРАЗУ, и второй несущий: константа выключена И при
+  // выключенной виньетка ПОСЛЕ ПОБЕДЫ действительно не приходит, а колбэк
+  // возвращается. Без поведенческой половины страж был бы проверкой значения,
+  // а не поведения, — и пережил бы зелёным возврат показа мимо константы.
+  const stOff = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️⚠️ ПРИВОДИМ СОСТОЯНИЕ САМИ, А НЕ НАСЛЕДУЕМ. Первая версия начиналась с
+    // ОДНОГО клика по оверлею — а клик по виньетке ЛИСТАЕТ панель, а не
+    // закрывает её: страж унаследовал открытую виньетку соседней секции и
+    // покраснел на ИСПРАВНОЙ сборке («виньетка: true» при выключенной поставке).
+    // Закрываем штатным путём и ДО замера.
+    while (document.getElementById('storyOverlay')) g.storyClose();
+    await sleep(80);
+    g.storyEnable(true); g.storyReset(); g.storyWinForce(false);
+    const t = g.stats(); t.taps = 5;
+    let вернулся = false;
+    g.storyOnWin(() => { вернулся = true; });
+    await sleep(600);
+    const итог = { поставка: g.storyWinShipped(), виньетка: !!document.getElementById('storyOverlay'),
+                   вернулся: вернулся };
+    // ⚠️ Контроль В ТОМ ЖЕ ЗАМЕРЕ: с поднятым рычагом виньетка обязана прийти —
+    // иначе «её нет» было бы истинно и на сборке, где механика сломана вовсе.
+    g.storyWinForce(true); g.storyReset(); t.taps = 5;
+    g.storyOnWin(() => {});
+    await sleep(600);
+    итог.сРычагом = !!document.getElementById('storyOverlay');
+    while (document.getElementById('storyOverlay')) g.storyClose();
+    g.storyWinForce(false);
+    return итог;
+  });
+  console.log('виньетка/поставка:', JSON.stringify(stOff));
+  expect(stOff.поставка === false && stOff.виньетка === false && stOff.вернулся === true &&
+         stOff.сРычагом === true,
+    '⛔ АНОНС: в ПОСТАВКЕ виньетка между уровнями выключена (слово владельца), «Next» ' +
+    'при этом работает, а сама механика жива под рычагом (' + JSON.stringify(stOff) + ')');
 
   // (3) КОЛОНКИ КОЛЛЕКЦИИ: 2 только ниже 360, дальше растут.
   const cols = await (async () => {

@@ -330,6 +330,7 @@ function resumeGame(){
   if (level.nextGrind) level.nextGrind += d;
   wakeAtMs += d;
   if (comboUntil) comboUntil += d;
+  if (missRadiusAt) missRadiusAt += d;   // штраф за промах — такой же якорь реального времени
   if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
   if (lastMatchMs) lastMatchMs += d;
   if (grindStartMs) grindStartMs += d; // огонь помола — тоже якорь на часах
@@ -532,6 +533,11 @@ function loop(){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
+  // ШТРАФ РАДИУСА ЗА ПРОМАХ ПОЛЗЁТ ОБРАТНО ПО РЕАЛЬНЫМ ЧАСАМ — тикаем здесь по
+  // той же причине, по которой здесь гаснет комбо-буст: `refreshAccessibility`
+  // в штиле не работает, а тап читает `CFG.matchRadius` напрямую. Промахнулся,
+  // замер на пять секунд, тапнул — радиус обязан быть уже восстановленным.
+  if (missRadiusTick(now)) updateHUD();
   // цепная реакция: досыпка по тику; гаснет по таймеру / chainMissesLimit() (Easy 4, Hard 3)
   // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
   if (chainUntil){
@@ -717,7 +723,15 @@ function loop(){
     const ap = availablePairs();
     $('apCount').textContent = ap;
     const alive = items.some(i=>i.alive);
-    const noMoves = alive && ap === 0 && !level.over;
+    // ⚠️⚠️ ПОД ШТРАФОМ РАДИУСА «ПАР НЕТ» НИЧЕГО НЕ ЗНАЧИТ. Найдено разведкой
+    // ДО правки, а не прогоном: `ap` кормит детектор тупика и бесплатную
+    // авто-встряску, обоим хватает ДВУХ стабильных тиков (~1.2 с) — а штраф за
+    // промах живёт 3 с. То есть игрок промахнулся бы, радиус упал, пары
+    // «исчезли», и игра сама объявила бы тупик и начала молоть кучу за очки —
+    // наказание за промах превратилось бы в списание очков помолом.
+    // Штраф — ВРЕМЕННЫЙ и САМОПРОХОДЯЩИЙ, тупиком он быть не может по смыслу.
+    const штрафРадиуса = missRadiusActive(now);
+    const noMoves = alive && ap === 0 && !level.over && !штрафРадиуса;
     const idle = (now - stats.lastAction)/1000;
     // Красный баннер УДАЛЁН (спека владельца 2026-07-19): всю коммуникацию
     // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
@@ -1110,6 +1124,18 @@ window.__game = {
   // страж «повода новой вещи», державший копию, покраснел на ИСПРАВНОЙ сборке —
   // тот самый закон про копию рядом с рабочей величиной.
   levelTypesMin(){ return LEVEL_TYPES_MIN; },
+  // ⚠️ НЕСУЩИЕ ХУКИ ШТРАФА РАДИУСА (спека владельца 2026-08-11). Без них
+  // механику не проверить: она вся внутри IIFE, а снаружи видно только
+  // `CFG.matchRadius` — по нему «упал из-за промаха» неотличимо от «упал из-за
+  // сжатия кучи». `missRadius()` отдаёт СОСТОЯНИЕ, а не пересказ.
+  missRadius(){ return { активен: missRadiusActive(), потолок: missRadiusCap(),
+                         радиус: +CFG.matchRadius.toFixed(3), база: CFG.baseRadius,
+                         пол: MATCH_R_MIN, потолокКомбо: COMBO_RADIUS,
+                         дно: MATCH_R_MISS, окно: MATCH_R_MISS_MS }; },
+  missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
+  baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // стражам — вернуть боевое, а не литерал
+  missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // страж перехода: та же сцена БЕЗ штрафа
+
   // ⚠️⚠️ НЕСУЩИЙ ХУК: доля полоски прогресса. Её показывают ДВА экрана (витрина
   // и TOP ITEMS на победе) одной и той же функцией, а сам дефект был
   // АРИФМЕТИЧЕСКИЙ — смешение купленной ступени с заработанной. Первый страж
@@ -1214,6 +1240,14 @@ window.__game = {
   storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
   storyClearAcc(){ Save.ac = {}; commitSave(); },  // тест: обнулить накопления — вехи К2-К4 считаются по ним
   storyPrologueDue(){ return storyPrologueDue(); },
+  // ⚠️ ДВА РАЗНЫХ ХУКА, И РАЗНИЦА НЕСУЩАЯ: `storyWinShipped` отдаёт БОЕВУЮ
+  // константу (её утверждает страж «в поставке виньетка между уровнями
+  // выключена по слову владельца»), `storyWinForce` — рычаг автопрогона,
+  // которым секции сюжета включают механику себе, чтобы она осталась под
+  // стражами до возврата фичи. Свести их в одно значило бы дать стражу читать
+  // то, что сам сьют и выставил.
+  storyWinShipped(){ return STORY_WIN_VIGNETTE; },
+  storyWinForce(v){ return storyWinForceSet(v); },
   storyPrologueSpy(cb){ return storyPrologue(cb); }, // тест: проверить, что колбэк зовётся
   storyPrologueNow(){ Save.st = 0; commitSave(); return new Promise(r => storyPrologue(() => r(true))); },
   storyClose(){ const b = document.getElementById('storyOverlay');

@@ -286,6 +286,7 @@ function penalizeRock(item){
     updateMatchRadius(); updateHUD();
   }
   try { bowlStreakReset(); } catch(e){} // стрик чаши: камень = ошибка
+  try { noteMissRadius(); } catch(e){} // штраф радиуса — как у обычного промаха (2026-08-11)
   if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
   Sound.play('miss');
   vibrate(20);
