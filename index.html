@@ -16760,7 +16760,35 @@ function trimOverfill(){
   }
   return removed;
 }
+// ⚠️⚠️ ЗАМОРОЖЕННЫЙ СРЕЗ НАСЫПАНИЯ — ПРИБОР ДЛЯ ЖИВОГО УСТРОЙСТВА (жалоба
+// владельца 2026-08-11 «на айфоне 17 есть падение фремрейта при насыпании»).
+// ⛔ БЕЗ НЕГО ОТЧЁТ О ПЕРФЕ ЭТОТ МОМЕНТ НЕ ВИДИТ ВОВСЕ: `frameRing` — скользящее
+// окно на 600 кадров (~10 с), а игрок доберётся до панели разработчика через
+// паузу и меню, то есть кадры насыпания к тому времени ВЫТЕСНЕНЫ. Мерить надо
+// там, где событие происходит, и держать снимок до востребования.
+// ⚠️ Своих счётчиков не заводим: срез снимается ТЕМ ЖЕ `perfStats()`, что и
+// всё остальное. Копия метрики рядом с работающей разошлась бы с ней при первой
+// же правке — закон, на котором проект обжигался пять раз.
+let _introPerf = null, _introT0 = 0;
+function introPerfStart(){
+  _introT0 = performance.now();
+  try { __game.perfReset(); } catch(e){}
+}
+function introPerfStop(){
+  if (!_introT0) return;
+  try {
+    const p = __game.perfStats();
+    _introPerf = { мс: Math.round(performance.now() - _introT0), уровень: levelNum,
+      живых: items.filter(i => i.alive).length,
+      кадр: p.frame, шаг: p.step, солвер: p.solve, синк: p.sync,
+      рендер: p.ren, ui: p.ui, эффекты: p.fx, подшагов: p.sub,
+      кадров: p.frames, худший: p.worstFrame,
+      dpr: renderer.getPixelRatio(), тир: CFG.perfTier };
+  } catch(e){}
+  _introT0 = 0;
+}
 function finishIntro(){
+  introPerfStop();                                     // срез насыпания — ДО всего прочего
   try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
   // ПЛОЩАДКЕ: первый ИГРАБЕЛЬНЫЙ кадр + старт уровня. GAME_READY раньше
   // уходил из Ads.init (до genLevel и интро) — площадка снимала свой лоадер
@@ -16840,9 +16868,9 @@ function tickIntro(dt){
           // ПРОЛОГ-КОМИКС новому игроку — ровно здесь: занавес убран, чаша
           // пустая, предметы ещё не тронулись (86-story). Если пролог не нужен,
           // колбэк зовётся сразу и падение начинается как раньше.
-          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; } });
+          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; introPerfStart(); } });
         });
-      } catch(_){ intro.phase = 'drop'; intro.t = 0; }
+      } catch(_){ intro.phase = 'drop'; intro.t = 0; introPerfStart(); }
     }
     return;
   }
@@ -18470,6 +18498,9 @@ window.__game = {
       партия: { уровень: levelNum, живых: items.filter(i => i.alive).length,
         сложность: CFG.hard ? 'Hard' : 'Easy', тир: CFG.perfTier,
         dpr: renderer.getPixelRatio(), fxScale: CFG.fxScale, подшагов: maxSubsteps() },
+      // ⚠️ НАСЫПАНИЕ ИДЁТ ОТДЕЛЬНЫМ ПОЛЕМ И ПЕРВЫМ: именно на него жалоба, а
+      // общие `кадр`/`фазы` к моменту нажатия кнопки описывают уже спокойную игру.
+      насыпание: _introPerf,
       кадр: { p95: p.frame.p95, max: p.frame.max, кадров: p.frames },
       фазы_p95: { шаг: p.step.p95, солвер: p.solve.p95, синк: p.sync.p95,
         постройка: p.build.p95, тап: p.tap.p95, эффекты: p.fx.p95, ui: p.ui.p95, рендер: p.ren.p95 },

@@ -24,6 +24,12 @@ const SEED = parseInt(arg('seed', '1'), 10);
 const HARD = arg('hard', '0') === '1';
 const IDLE_SHARE = parseFloat(arg('idle', '0.25')); // доля фаз «простоя» (миксер-помол)
 const OUT = arg('out', 'soak-' + SEED + '.jsonl');
+// ⚠️ ИССЛЕДОВАТЕЛЬСКАЯ РУЧКА (2026-08-11, разбор просадки кадра при насыпании):
+// число CCD-подшагов. Боевое — 4; замер показал, что 1 срезает ХУДШИЙ кадр
+// насыпания с 44 до 29 мс. CCD — часть анти-туннельного комплекса, поэтому
+// цену надо мерить СОАКОМ (сотни сэмплов), а не тремя прогонами.
+// -1 = не трогать (боевое поведение).
+const CCDSUB = parseInt(arg('ccdsub', '-1'), 10);
 
 // mulberry32: детерминированные решения бота И Math.random страницы (сид уровня)
 function mulberry32(a){
@@ -91,9 +97,13 @@ const WALL_EXCESS_NORM = 0.45;
     try { localStorage.setItem('mixer_hard', hard ? '1' : '0'); } catch (e) {}
   }, [SEED, HARD]);
 
+  // ⚠️ --ccdsub=N: ручка ДЛЯ ИССЛЕДОВАНИЯ анти-туннельной цены (2026-08-11).
+  // Ставится ПОСЛЕ загрузки и заново после каждого регена — тела пересоздаются,
+  // и знание о ручке иначе теряется молча.
   await page.goto('file://' + path.join(__dirname, 'index.html'));
   await page.waitForFunction(() => window.__game && window.__game.alive() > 30, null, { timeout: 40000 });
   await page.waitForFunction(() => !window.__game.cam().intro, null, { timeout: 40000 });
+  if (CCDSUB >= 0) await page.evaluate((n) => window.__game.physKnobs({ ccdSub: n }), CCDSUB);
 
   const outStream = fs.createWriteStream(OUT);
   const t0 = Date.now();
@@ -109,9 +119,18 @@ const WALL_EXCESS_NORM = 0.45;
       const st = await page.evaluate(() => {
         const vis = id => { const el = document.getElementById(id); return el && getComputedStyle(el).display !== 'none'; };
         return { intro: !!window.__game.cam().intro, win: vis('winOverlay'), lose: vis('loseOverlay'),
-                 adAsk: vis('adAskOverlay'), ad: vis('adOverlay') };
+                 adAsk: vis('adAskOverlay'), ad: vis('adOverlay'),
+                 // ⚠️⚠️ ЭКРАН НОВОЙ ВЕЩИ ВСТАЛ В ЦЕПОЧКУ ПОБЕДЫ 2026-08-10 — и
+                 // МОЛЧА ОСТАНОВИЛ СОАК: он полноэкранный, ждёт кнопки, а бот
+                 // про него не знал. Симптом обманчив: в журнале ровные строки
+                 // `alive=0 rescues=0 problems=0`, то есть прогон выглядит
+                 // ЗДОРОВЫМ и просто ничего не проверяет (замер 2026-08-11 —
+                 // соак стоял на экране победы вторую минуту). Тот же класс,
+                 // что «блокер в начале прогона — тихое выключение хвоста».
+                 newObj: vis('newObj') };
       });
       if (st.intro){ await page.waitForTimeout(400); continue; }
+      if (st.newObj){ await page.click('#newObjBtn'); await page.waitForTimeout(300); continue; }
       if (st.win){ wins++; await page.click('#againBtn'); await page.waitForTimeout(400); continue; }
       if (st.lose){ loses++; await page.click('#loseAgainBtn'); await page.waitForTimeout(400); continue; }
       if (st.adAsk){ await page.click('#adNo'); await page.waitForTimeout(200); continue; }
@@ -153,8 +172,11 @@ const WALL_EXCESS_NORM = 0.45;
         nextSample = now + 5000;
         const doGc = now - lastGc > 30000;
         if (doGc){ lastGc = now; await page.evaluate(() => { if (typeof gc === 'function') gc(); }); }
-        const s = await page.evaluate(() => {
+        const s = await page.evaluate((ccdsub) => {
           const g = window.__game;
+          // ручка подтверждается на каждом сэмпле: тела пересоздаются регеном,
+          // и «поставил один раз» — ровно тот случай, когда замер тихо уезжает
+          if (ccdsub >= 0) g.physKnobs({ ccdSub: ccdsub });
           // «мосты» (gap>0.35, но опора есть) — норма рыхлой кучи, в журнал
           // идёт только их ЧИСЛО; полные записи — лишь у нулевых контактов
           const fl = g.floaters();
@@ -170,7 +192,7 @@ const WALL_EXCESS_NORM = 0.45;
                    bowl: g.bowl(),
                    wall: g.maxWallExcess(), nan: g.scanNaN().length,
                    flips: g.accFlips(), ps: g.psLog(), perf: g.perfStats() };
-        });
+        }, CCDSUB);
         const tSec = Math.round((now - t0) / 1000);
         const freshPs = s.ps.filter(e => e.t > lastPsT);
         if (freshPs.length) lastPsT = freshPs[freshPs.length - 1].t;
