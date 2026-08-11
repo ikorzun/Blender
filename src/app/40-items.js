@@ -292,6 +292,39 @@ function chainRefill(){
   }
   if (dropped){ wakePhysics('chainDrop'); updateHUD(); }
 }
+// ═══ БОМБА: КОГДА ОНА ЕСТЬ (спека владельца 2026-08-12) ═══
+// Разрыв живёт В ПАМЯТИ СЕССИИ, а не в сейве: это не прогресс и не валюта, а
+// ритм подачи. Поле сейва потребовало бы мержа между устройствами (чек-лист в
+// 77-save), и два устройства спорили бы о том, чей разрыв правильный.
+let bombNextLevel = BOMB_FROM_LEVEL;
+function bombAlive(){ for (const it of items) if (it.alive && it.bomb) return true; return false; }
+function bombDueThisLevel(){
+  if (levelNum < BOMB_FROM_LEVEL) return false;
+  return levelNum >= bombNextLevel;
+}
+// Разрыв назначается ТОЛЬКО когда бомба реально выдана — иначе пропущенный
+// уровень сдвигал бы очередь молча.
+function bombNoteGiven(){
+  const шаг = BOMB_GAP_MIN + Math.floor(Math.random() * (BOMB_GAP_MAX - BOMB_GAP_MIN + 1));
+  bombNextLevel = levelNum + шаг;
+}
+// НАГРАДА ЗА СЕРИИ: бомба падает с неба тем же путём, что досыпка турбо.
+// ⚠️ Гварды: не раньше пятого уровня, не в финале/конце, и НЕ ВТОРАЯ — если
+// бомба уже в чаше, награда пропускается (инвариант «одна бомба» цел).
+function bombDropReward(){
+  if (!level || level.over || levelNum < BOMB_FROM_LEVEL) return false;
+  if (level.bombReward || bombAlive()) return false;
+  level.bombReward = true;
+  const b = makeBomb();
+  const maxD = Math.max(0.1, radiusAt(FUNNEL.H) * 0.7 - b.r);
+  const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
+  b.p.set(Math.cos(th) * d, FUNNEL.H + 2, Math.sin(th) * d);
+  b.mesh.position.copy(b.p);
+  createItemBody(b, 'ball', geoCache.get('B'));
+  items.push(b);
+  wakePhysics('bombReward'); updateHUD();
+  return true;
+}
 // Спавн одного СЛУЧАЙНОГО предмета над чашей (живое падение)
 function dropOneFromSky(k, forcedTypeIdx){
   const typeIdx = (forcedTypeIdx == null)
@@ -500,7 +533,10 @@ function genLevel(){
       items.push(it); n++;
       // бомба — в СЕРЕДИНУ столба заполнения (спека 2026-07-22): ровно на
       // половине предметов, слоем выше текущего — осядет в середину кучи
-      if (n === pairsCnt){
+      // ⚠️ БОМБА ТЕПЕРЬ НЕ КАЖДЫЙ УРОВЕНЬ (спека владельца 2026-08-12): с 5-го и
+      // с разрывом 1-3. Решение спрашивается ЗДЕСЬ, в единственной точке спавна.
+      if (n === pairsCnt && bombDueThisLevel()){
+        bombNoteGiven();
         const b = makeBomb();
         b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
         b.mesh.position.copy(b.p);

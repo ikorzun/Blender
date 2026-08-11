@@ -382,6 +382,13 @@ function bowlStreakReset(){
 function bowlCrackAdd(silent){
   if (!level || level.over || bowlShattering) return;
   level.bowlCracks = (level.bowlCracks || 0) + 1;
+  // ⚠️⚠️ НАГРАДА ЗА СЕРИИ (спека владельца 2026-08-12: «а так же если игрок
+  // выбьет 3 серии»). Считаем ЕГО ЖЕ единицу — `bowlCracks`, ту самую, которой
+  // он мерил «5-7 серий за уровень» при вводе разлёта чаши; второй счётчик
+  // рядом с работающим завёл бы расхождение при первой правке.
+  // ⚠️ Ровно НА ТРЕТЬЕЙ (`===`), а не «>= 3»: иначе бомба сыпалась бы на
+  // каждой следующей серии. Прочие гварды — внутри `bombDropReward`.
+  if (level.bowlCracks === BOMB_SERIES_REWARD){ try { bombDropReward(); } catch(e){} }
   try { setBowlCracks(level.bowlCracks, bowlN()); } catch(e){}
   if (!silent){
     Sound.play('crunch', 9); vibrate([15, 30, 25]);
