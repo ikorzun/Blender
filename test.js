@@ -6505,12 +6505,10 @@ window.bridge = {
     const so = document.getElementById('starsOverlay');
     const cs = getComputedStyle(o), ss = getComputedStyle(so);
     const x = document.getElementById('lbClose');
-    // ⚠️ ИМЯ МЕРИМ ЗДЕСЬ, НА ШИРОКОМ: только тут «места хватает» — истина, а
-    // не пожелание. `свояОбрезана` на узкой странице ничего не утверждает.
-    const мояСтрока = document.querySelector('#lbList .lb-row.me .lb-name');
-    const out = { свояОбрезана: мояСтрока ? (мояСтрока.scrollWidth > мояСтрока.clientWidth + 1) : null,
-      имяСвоей: мояСтрока ? мояСтрока.textContent : null,
-      ширина:Math.round(c.getBoundingClientRect().width),
+    // ⛔ ИМЯ ЗДЕСЬ НЕ МЕРИМ: на ЭТОЙ странице мок отвечает «строки нет»
+    // (`/v1/me` → 404), то есть своей строки нет ПО ПОСТРОЕНИЮ и замер вернул
+    // бы null. Он живёт в секции правок владельца, где место задано.
+    const out = { ширина:Math.round(c.getBoundingClientRect().width),
       фон:cs.backgroundColor, фонMore:ss.backgroundColor,
       размытие:cs.backdropFilter || cs.webkitBackdropFilter,
       размытиеMore:ss.backdropFilter || ss.webkitBackdropFilter,
@@ -6521,14 +6519,6 @@ window.bridge = {
     return out;
   });
   console.log('попап таблицы:', JSON.stringify(попап));
-  // ⚠️⚠️ ВТОРАЯ ПОЛОВИНА ПРАВКИ «имя не режется, пока есть место»: на ШИРОКОМ
-  // экране места заведомо хватает, и обрезка там — настоящий дефект (до правки
-  // левый блок был фиксирован 196, и «Goldeneye • You» резалось при трёхстах
-  // свободных пикселях справа). Пара к ассерту выравнивания колонки выше:
-  // одно без другого куплено ценой другого.
-  expect(попап.свояОбрезана === false,
-    '⚠️⚠️ ТАБЛИЦА: на широком экране имя НЕ сокращается — места хватает («' +
-    попап.имяСвоей + '»)');
   expect(попап.ширина <= 560 && попап.ширина >= 520,
     '⚠️ ЭКРАН ТАБЛИЦЫ: ширина по слову владельца — не шире 560 И не уже 520 ' +
     '(один потолок зелен и у схлопнутой карточки): ' + попап.ширина + 'px');
@@ -7442,6 +7432,31 @@ window.bridge = {
     });
     await up.setViewportSize({ width: 1440, height: 900 });
     await up.waitForTimeout(400);
+    // ⚠️⚠️ ВТОРАЯ ПОЛОВИНА ПРАВКИ «имя не режется, пока есть место». Меряем на
+    // ШИРОКОМ и на странице, где своё место ЗАДАНО (мок отдаёт rank 45): на
+    // узкой обрезка законна, а на странице новичка своей строки нет вовсе —
+    // обе прежние попытки краснели на ИСПРАВНОЙ сборке именно поэтому.
+    const имяШирокое = await up.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sleep(400);
+      document.getElementById('msLbEntry').click(); await sleep(1200);
+      const n = document.querySelector('#lbList .lb-row.me .lb-name');
+      const out = { есть: !!n, текст: n ? n.textContent : null,
+        обрезано: n ? (n.scrollWidth > n.clientWidth + 1) : null,
+        ширинаКарточки: Math.round((document.querySelector('#lbOverlay .lb-card') || {})
+          .getBoundingClientRect ? document.querySelector('#lbOverlay .lb-card').getBoundingClientRect().width : 0) };
+      document.getElementById('lbClose').click(); await sleep(300);
+      { const p = document.querySelector('.ms-play'); if (p) p.click(); }
+      await sleep(300);
+      document.getElementById('pauseBtn').click(); await sleep(500);
+      return out;
+    });
+    console.log('имя на широком:', JSON.stringify(имяШирокое));
+    // САНИТАР ОБЯЗАТЕЛЕН: без него «обрезано !== true» истинно и при null,
+    // то есть на странице, где своей строки нет вовсе.
+    expect(имяШирокое.есть === true && имяШирокое.обрезано === false,
+      '⚠️⚠️ ТАБЛИЦА: на широком экране имя НЕ сокращается — места хватает («' +
+      имяШирокое.текст + '», карточка ' + имяШирокое.ширинаКарточки + 'px)');
     const деск = await up.evaluate(() => {
       const a = document.querySelectorAll('#msLbeAvs > *');
       const t = document.querySelector('.ms-coll-title');
