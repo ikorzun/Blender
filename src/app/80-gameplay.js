@@ -236,7 +236,7 @@ function doMatch(list){
                         r: list[0].r, pan: _pan });
   vibrate(15);
   tapSndMs += performance.now() - _ts0;      // синтез «буля» + вибро
-  if (n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
+  if (MATCH_CAM_SHAKE && n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
   setTimeout(()=>afterPause(()=>{
     // ⚠️ ХЛОПОК ЗДЕСЬ, НА ТЕХ ЖЕ ЧАСАХ, ЧТО И УДАЛЕНИЕ. Стягивание идёт по
     // ИГРОВОМУ времени (тик addFX), удаление — по РЕАЛЬНЫМ (этот setTimeout).
@@ -256,7 +256,7 @@ function doMatch(list){
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
     // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое
-    camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
+    if (MATCH_CAM_SHAKE) camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
     refreshAccessibility(); updateHUD(); checkEnd();

@@ -67,6 +67,14 @@ function updateMatchRadius(){
   // СОХРАНЁН» — цепная реакция (потолок 1.1) не имеет права его душить,
   // иначе последние пары в цепи снова не совмещаются (анти-фрустрация).
   if (aliveCnt <= 8){ CFG.matchRadius = 99; return; }
+  // МЯГКАЯ СТУПЕНЬ: предметов меньше десяти И встрясок почти нет — снимаем
+  // радиусную проверку так же, как в жёсткой ступени (слово владельца
+  // 2026-08-11). Стоит СРАЗУ за ней и до всех прочих веток по той же причине:
+  // это анти-фрустрация, её не должны душить ни сжатие кучи, ни штраф промаха.
+  if (aliveCnt < ENDGAME_SOFT_ALIVE &&
+      (level.shakes + (typeof purchasedShakes === 'function' ? purchasedShakes() : 0)) <= ENDGAME_SOFT_SHAKES){
+    CFG.matchRadius = 99; return;
+  }
   const k = level.topY0 > 0 ? radiusAt(top) / radiusAt(level.topY0) : 1;
   const base = CFG.baseRadius;
   let r = Math.max(Math.min(MATCH_R_MIN, base), Math.min(base, base * k));

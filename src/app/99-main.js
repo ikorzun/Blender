@@ -2067,7 +2067,10 @@ window.__game = {
     });
     return m;
   },
-  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), intro: !!intro, fly: !!hintFly }; },
+  // ⚠️ `shake` В СНИМКЕ КАМЕРЫ — НЕСУЩЕЕ ПОЛЕ (2026-08-11): без него «тряски
+  // на совмещении нет» проверялось бы по дрожанию ЦЕЛИ камеры, а трясётся
+  // ПОЗИЦИЯ — страж мерил бы соседнее свойство и был бы зелен при любой силе.
+  cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), shake: +camShake.toFixed(3), intro: !!intro, fly: !!hintFly }; },
   // отладка: постановка дистанции камеры (тесты зума: стекло чаши, витрина)
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
   // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
