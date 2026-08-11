@@ -865,7 +865,7 @@
      нехватке места автомаржины схлопываются и ВЕРХ не срезается (у голого
      align-items:center с overflow верх карточки уходит под край и не
      доскроливается). */
-  #winOverlay { overflow-y:auto; align-items:flex-start; }
+  #winOverlay { overflow-y:auto; touch-action:pan-y; align-items:flex-start; }
   #winOverlay .win-wrap { margin:auto; }
   .win-wrap { display:flex; flex-direction:column; align-items:center;
     width:min(448px, calc(100vw - 32px)); font-family:var(--font-round); }
@@ -960,7 +960,7 @@
      ⚠️ z-index 40 остаётся: у `#mainScreen` 30, и без подъёма таблица честно
      показывалась ПОД меню паузы (поймано снимком; тот же 40 стоит у
      `#starsOverlay` ровно по этой причине). */
-  #lbOverlay { align-items:flex-start; overflow-y:auto; z-index:40; }
+  #lbOverlay { align-items:flex-start; overflow-y:auto; touch-action:pan-y; z-index:40; }
   /* ⚠️ ШИРИНА 560 — ПРЯМОЕ СЛОВО ВЛАДЕЛЬЦА («ширина таблицы 560 px
      максимальная»), а не 362 из мобильного макета: 362 — ширина МОБИЛЬНОГО
      фрейма, и на десктопе она делала список неоправданно узким. */
@@ -1186,7 +1186,9 @@
      Токены: BW/White #fff, Carbon-Purple #1d1c26, Salad #9ce52e; литералы
      макета — #d9f4ff (фон экрана), #d8bbff (Play), #c0ff47 (лайм-баннер),
      #3a4068 (текст карточек), #6e659d (аватар), #e7edf8 (трек сегмента). */
-  #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto;
+  /* ⚠️ `touch-action:pan-y` — см. разбор у `.ms-slider`: без него меню на iOS
+     не прокручивается вовсе, потому что жесты глушит `body`. */
+  #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto; touch-action:pan-y;
     -webkit-overflow-scrolling:touch; background:var(--ms-bg); color:#000;
     font-family:var(--font-round);
     /* ⚠️ ФОН ЭКРАНА — ПЕРЕМЕННОЙ `--ms-bg`, а не литералом: его же берёт
@@ -1297,7 +1299,7 @@
      2026-08-11). ⛔ ОТМЕНЯЕТ прежние 2 из макета 840:4348: там аватары и
      стрелка шли сплошной лентой, владелец посмотрел вживую и развёл их. */
   .ms-lbe-right { display:flex; align-items:center; gap:10px; }
-  .ms-lbe-avs { display:flex; align-items:center; gap:2px; }
+  .ms-lbe-avs { display:flex; align-items:center; gap:8px; }
   /* ⚠️ 32 И 10 — прямое слово владельца 2026-08-11 (смотрел на МОБИЛЬНОМ:
      стрелка есть только там, на десктопе вместо неё кнопка «Open»). */
   .ms-lbe-avs img, .ms-lbe-slot { display:block; width:32px; height:32px; border-radius:50%; }
@@ -1323,11 +1325,38 @@
      аватары, ровно как в исходном дефекте. ⛔ Проверять надо на НОВИЧКЕ: при
      показанном месте заголовок скрыт классом `has-rank`, и замер выходит
      ложно-зелёным — на этом я сам едва не сделал вывод «влезает». */
-  .ms-lbe-avs > * + * { margin-left:-10px; }
   @media (max-width:389px){
     /* ⚠️ РАЗМЕР БОЛЬШЕ НЕ МЕЛЬЧАЕТ: владелец задал 32 как ЕДИНЫЙ. Место под
        узкие экраны отыгрываем перекрытием, а не уменьшением. */
-    .ms-lbe-avs > * + * { margin-left:-12px; }
+  }
+  /* ⚠️⚠️ НА УЗКИХ СТРЕЛКИ НЕТ (слово владельца 2026-08-11: «на 320 убери
+     стрелку, оставь только 3 аватара»). ⛔ Кнопка при этом НЕ УДАЛЯЕТСЯ, а
+     прячется приёмом «visually hidden»: строка кликабельна целиком, но без
+     кнопки блок стал бы недостижим с клавиатуры, а страж «ровно одна кнопка»
+     замолчал бы. Ноль-размерная кнопка — не решение, это ловушка для пальца. */
+  @media (max-width:389px){
+    /* ⚠️⚠️ ГРАНИЦА 389, А НЕ 320, И ЭТО ОТСТУПЛЕНИЕ ОТ БУКВЫ ПРОСЬБЫ — назову
+       вслух. Владелец сказал «на 320 убери стрелку»; арифметика та же и на
+       360, и на 375: три аватара по 32 с зазором 8 занимают 112px, заголовку
+       нужно 139, и на 360 ему не хватает 9px — то есть на этих ширинах он
+       обрезался бы точно так же. Стрелка при этом не несёт действия: строка
+       кликабельна целиком. Оставить её ради буквы значило бы знать о дефекте
+       и отгрузить его.
+       ⚠️ На 390 (iPhone 12-14) стрелка ОСТАЁТСЯ и всё сходится ровно в ноль —
+       замерено, поэтому граница именно тут. */
+    .ms-lbe-act { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .ms-lbe-right { gap:0; }
+  }
+  /* ⚠️⚠️ НА САМЫХ УЗКИХ (≤330) ЗАЗОР 8 НЕ ВЛЕЗАЕТ — НАЗЫВАЮ ЧЕСТНО. Даже без
+     стрелки три аватара по 32 с зазором 8 занимают 112px, а заголовку нужно
+     139: не хватает РОВНО 7px. Из четырёх чисел владельца (аватар 32, зазор 8,
+     три штуки, целый заголовок) на 320 одновременно держатся только ТРИ.
+     Выбран наименее заметный размен: зазор ужимается до 4 и только здесь.
+     ⛔ Альтернатива — уменьшать сам аватар на этой ширине; это его решение,
+     ему сказано числами. Не «причёсывать» молча в любую сторону. */
+  @media (max-width:330px){
+    .ms-lbe-avs > * + * { margin-left:-4px; }
   }
   @media (max-width:359px){
     /* ⚠️⚠️ ПЕРЕКРЫТИЕ УВЕЛИЧЕНО ДО 19 — ЭТО ЦЕНА ЕГО ЖЕ ТРЁХ УКАЗАНИЙ РАЗОМ.
@@ -1339,7 +1368,6 @@
        ⚠️ Владельцу сказано: на 320 три аватара по 32 помещаются ТОЛЬКО такой
        стопкой. Не понравится плотность — уменьшать там аватар или укорачивать
        заголовок; третьего пути нет, это арифметика ширины. */
-    .ms-lbe-avs > * + * { margin-left:-19px; }
   }
   .ms-lbe-act { flex:none; border:none; padding:0; background:none; cursor:pointer;
     display:flex; align-items:center; line-height:0; }
@@ -1422,7 +1450,17 @@
      --fill (в %, JS ставит по value); у Firefox — ::-moz-range-progress.
      Трек 17 и бегунок 30 — из макета (у растрового 763:1428 чисел не было,
      прежние 12/26 были прикидкой по картинке). */
-  .ms-slider { -webkit-appearance:none; appearance:none; width:100%;
+  /* ⚠️⚠️ БЕЗ `touch-action` ПОЛЗУНОК НА iOS НЕ ТЯНЕТСЯ (жалоба владельца
+     2026-08-11 «в мобильной версии контролы звука и музыки не работают»).
+     У `html, body` стоит `touch-action:none` — он нужен игре (канвас ловит
+     драг и пинч сам), но заодно глушит НАТИВНЫЕ контролы и прокрутку.
+     ⛔ Снимать его с `body` нельзя: вернётся резинка и зум прямо в партии.
+     Лечится ИСКЛЮЧЕНИЯМИ, и прецедент в файле уже был — `#museumList`
+     получил `pan-y` ровно по этой причине. Я не заметил, что таких мест
+     ШЕСТЬ, а исключение стояло у ОДНОГО.
+     ⚠️ Проверяется это ТОЛЬКО НА УСТРОЙСТВЕ: в эмуляции тача тап по ползунку
+     срабатывает и без правки — моя проба честно позеленела на сломанном. */
+  .ms-slider { touch-action:pan-x; -webkit-appearance:none; appearance:none; width:100%;
     height:30px; background:transparent; cursor:pointer; --fill:100%; }
   .ms-slider::-webkit-slider-runnable-track { height:17px; border-radius:40px;
     background:linear-gradient(90deg, #9ce52e 0 var(--fill), #e7edf8 var(--fill) 100%); }
@@ -1731,8 +1769,8 @@
        то есть не хватает трёх пикселей даже на самом широком телефоне; на 320
        разрыв кратный. Выбор между «зазор 16» и «всегда три аватара» (тоже его
        прямое слово) — за владельцем, ему сказано числами. */
-    .ms-lbe-avs { gap:6px; }
-    .ms-lbe-avs > * + * { margin-left:0; }
+    .ms-lbe-avs { gap:8px; }
+
     /* ⚠️⚠️ НАПИСАНИЕ И МЕСТО — КАК В МОБИЛЬНОЙ ВЕРСИИ (слово владельца
        2026-08-10). ⛔ ОТМЕНЯЕТ прежнее десктопное «Leaderboard • 9»: место
        больше не живёт в заголовке через «•», а идёт двумя строками
@@ -1793,7 +1831,7 @@
     /* ⚠️ КОЛЛЕКЦИЯ СКРОЛЛИТСЯ ВНУТРИ СЕБЯ: в ней ВСЕ 93 типа. Высоту задаёт
        ГРИД-ЯЧЕЙКА (min-height:0 позволяет ужаться ниже контента), overflow-y
        доедает остаток. max-height НЕ нужен — bento-wrap уже ровно 100vh. */
-    .ms-coll { grid-area:grid; padding:0 16px 8px; min-height:0; overflow-y:auto; }
+    .ms-coll { grid-area:grid; padding:0 16px 8px; min-height:0; overflow-y:auto; touch-action:pan-y; }
     /* ПРОЗРАЧНАЯ ШАПКА КОЛЛЕКЦИИ (спека владельца 2026-07-28 «подложку при
        скроле сделать прозрачной»): раньше шапка была отдельным рядом грида,
        а .ms-coll обрезал контент по своей рамке — карточки/Open рубились об
@@ -1877,7 +1915,7 @@
      автомаржины схлопываются и ВЕРХ не срезается, как было бы у голого
      align-items:center с overflow. Общий .overlay (пауза/победа/реклама)
      не трогаем — правила только под #starsOverlay. */
-  #starsOverlay { z-index:40; overflow-y:auto; align-items:flex-start; }
+  #starsOverlay { z-index:40; overflow-y:auto; touch-action:pan-y; align-items:flex-start; }
   /* БАЗА = МОБАЙЛ (макет 785:112): колонка, поля 16, кнопка закрытия сверху */
   #starsOverlay .st-wrap { margin:auto; width:min(742px, 100vw - 32px);
     display:flex; flex-direction:column; align-items:center; gap:16px;
@@ -1990,7 +2028,14 @@
     /* та же рука на интерактиве: !important бьёт cursor:pointer на ID
        (журнал v198); правило оставлено отдельным, чтобы захоти владелец
        ДРУГУЮ руку на кнопках — менялась одна декларация */
-    button, input[type=range], input[type=checkbox], .ms-play, .devlink, .ms-sub, .st-buy {
+    /* ⚠️ `.ms-lbentry` ДОБАВЛЕН (слово владельца 2026-08-11: на входе в таблицу
+       курсор был системный). Строка кликабельна ЦЕЛИКОМ — обработчик висит на
+       ней, а не только на кнопке, — поэтому и рука нужна на всей строке.
+       ⛔ Списком, а не `*`: игровой курсор задан всей странице, а ЭТА рука —
+       признак «сюда можно нажать», и раздавать её всему подряд значит стереть
+       различие. */
+    button, input[type=range], input[type=checkbox], .ms-play, .devlink, .ms-sub, .st-buy,
+    .ms-lbentry {
       cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD50lEQVR4nMSXW0xTSRjHv16glJbVElfZbXc3brohuwYXN1lFxduLgAmQaAgkeI1PhktCxBgQQgh98IEQ9YEnARWjgRgDJAo+GLxGTQQreMdblKhQCgKtVLHU/9fTY07wFJFTwj/5ncx8p3Pmm29mvpmqaY6lpjnWVA78BPaCc8AJ3oDTYDmFUKog9p3gEJgn8+4z2AJaKASSiwCP8Ch3npube3NkZOSBz+dzDw0N3cvLy7sBuxacBIsoBNLI2A6DJU1NTe0FBQVrdDrdz6iHR0RELExJSbH09PTc7u7uXgxbJDhPCiU3BYPANDExMaxSqb6ZAq/X+y4sLCyGo4LqQvCBFEhuChz8QAdjcg00Gk1MWlraHRQNIIvkZQIrgJFm4MBtftjt9ifBGpWVlbkCxX3gCGgElwG3GSEhijfBKGgKOCMruSnYBk7wKJubm5cFaefS6/VhHo9HR9OTl4RonZmOAxy2fsy/fnx8/DVC/pvMb6ihoaG9q6tLFxsbO261WtUWi0UXHR1tiIyMXKRWq+djDTnHxsaGamtr+/Lz89ehyUfwD3j+PQdY9WBrS0vLpdTU1PWkUDab7UppaelaFI+TkGO+68BGcCEuLu4FRrmYFAo7pxc7x4KF7UP1F9AnvguWii8CB+93l8v1gBQK02jJyMjoIGHA26XvgjnAi+YEF+rq6hwUApWXl3sCxd1Su2qKNv8Cu8lkGh4cHOSFqSFl8hiNRq/b7eb8kQBusVEuAmkkpNjrXMEZMK+3t7eDlCuiuLhY/M4m0TjZAd6rZ0EKCZnOr8rKSi+FQNnZ2WLeiBNt0in4HTxmT1tbWy8lJSUtkzsLlAh55VV4eDj38wxY2aaVvD9IQpiuJicnr6dZkFar1QeKX88IaQRegj+QXp/iCLbSLAjf7kEK/wvFbrDU75TkPR+thM4tNEtyOp3vA8V+0SZdhPf54XA4FCeeYKqvrxfvDndEm3QKDgBbfHz8087OzgVYgPMphMLh9BY5xYgrXhSqS4B/oNII8LnegXuA1Ww2f2pra7uMaNgHBgbuMqOjoxyhCZqZfOnp6X2Bzo+LnbMmZ8JoEi4Qa+S+EhUV5c7JybGXlJQsMBgMsTRNNTY2tmdmZm4gYZv/R5JrnFwqZtsuwGc43wXEKP0ZqPuVlZV1q7q6Wo+wLg3WMd8nioqKXldVVa3CQchnwf/g3uTOfkSrwdaAg/6slpiY+LCioqI/ISHBjJszO6lGvn9UU1PjKCwsXAkneKddA3smdz4TB0T9CmxgB03974q3235wLNgPZuqAKDPYTMLh8jeIAa9AFwl3ilNgeKoPKHVAseb83/EXAAAA//9Rd/3VAAAABklEQVQDACzVPT3lRIicAAAAAElFTkSuQmCC) 8 2, pointer !important;
       cursor: -webkit-image-set(url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD50lEQVR4nMSXW0xTSRjHv16glJbVElfZbXc3brohuwYXN1lFxduLgAmQaAgkeI1PhktCxBgQQgh98IEQ9YEnARWjgRgDJAo+GLxGTQQreMdblKhQCgKtVLHU/9fTY07wFJFTwj/5ncx8p3Pmm29mvpmqaY6lpjnWVA78BPaCc8AJ3oDTYDmFUKog9p3gEJgn8+4z2AJaKASSiwCP8Ch3npube3NkZOSBz+dzDw0N3cvLy7sBuxacBIsoBNLI2A6DJU1NTe0FBQVrdDrdz6iHR0RELExJSbH09PTc7u7uXgxbJDhPCiU3BYPANDExMaxSqb6ZAq/X+y4sLCyGo4LqQvCBFEhuChz8QAdjcg00Gk1MWlraHRQNIIvkZQIrgJFm4MBtftjt9ifBGpWVlbkCxX3gCGgElwG3GSEhijfBKGgKOCMruSnYBk7wKJubm5cFaefS6/VhHo9HR9OTl4RonZmOAxy2fsy/fnx8/DVC/pvMb6ihoaG9q6tLFxsbO261WtUWi0UXHR1tiIyMXKRWq+djDTnHxsaGamtr+/Lz89ehyUfwD3j+PQdY9WBrS0vLpdTU1PWkUDab7UppaelaFI+TkGO+68BGcCEuLu4FRrmYFAo7pxc7x4KF7UP1F9AnvguWii8CB+93l8v1gBQK02jJyMjoIGHA26XvgjnAi+YEF+rq6hwUApWXl3sCxd1Su2qKNv8Cu8lkGh4cHOSFqSFl8hiNRq/b7eb8kQBusVEuAmkkpNjrXMEZMK+3t7eDlCuiuLhY/M4m0TjZAd6rZ0EKCZnOr8rKSi+FQNnZ2WLeiBNt0in4HTxmT1tbWy8lJSUtkzsLlAh55VV4eDj38wxY2aaVvD9IQpiuJicnr6dZkFar1QeKX88IaQRegj+QXp/iCLbSLAjf7kEK/wvFbrDU75TkPR+thM4tNEtyOp3vA8V+0SZdhPf54XA4FCeeYKqvrxfvDndEm3QKDgBbfHz8087OzgVYgPMphMLh9BY5xYgrXhSqS4B/oNII8LnegXuA1Ww2f2pra7uMaNgHBgbuMqOjoxyhCZqZfOnp6X2Bzo+LnbMmZ8JoEi4Qa+S+EhUV5c7JybGXlJQsMBgMsTRNNTY2tmdmZm4gYZv/R5JrnFwqZtsuwGc43wXEKP0ZqPuVlZV1q7q6Wo+wLg3WMd8nioqKXldVVa3CQchnwf/g3uTOfkSrwdaAg/6slpiY+LCioqI/ISHBjJszO6lGvn9UU1PjKCwsXAkneKddA3smdz4TB0T9CmxgB03974q3235wLNgPZuqAKDPYTMLh8jeIAa9AFwl3ilNgeKoPKHVAseb83/EXAAAA//9Rd/3VAAAABklEQVQDACzVPT3lRIicAAAAAElFTkSuQmCC) 1x, url(data:image/png;base64,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) 2x) 8 2, pointer !important;
       cursor: image-set(url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD50lEQVR4nMSXW0xTSRjHv16glJbVElfZbXc3brohuwYXN1lFxduLgAmQaAgkeI1PhktCxBgQQgh98IEQ9YEnARWjgRgDJAo+GLxGTQQreMdblKhQCgKtVLHU/9fTY07wFJFTwj/5ncx8p3Pmm29mvpmqaY6lpjnWVA78BPaCc8AJ3oDTYDmFUKog9p3gEJgn8+4z2AJaKASSiwCP8Ch3npube3NkZOSBz+dzDw0N3cvLy7sBuxacBIsoBNLI2A6DJU1NTe0FBQVrdDrdz6iHR0RELExJSbH09PTc7u7uXgxbJDhPCiU3BYPANDExMaxSqb6ZAq/X+y4sLCyGo4LqQvCBFEhuChz8QAdjcg00Gk1MWlraHRQNIIvkZQIrgJFm4MBtftjt9ifBGpWVlbkCxX3gCGgElwG3GSEhijfBKGgKOCMruSnYBk7wKJubm5cFaefS6/VhHo9HR9OTl4RonZmOAxy2fsy/fnx8/DVC/pvMb6ihoaG9q6tLFxsbO261WtUWi0UXHR1tiIyMXKRWq+djDTnHxsaGamtr+/Lz89ehyUfwD3j+PQdY9WBrS0vLpdTU1PWkUDab7UppaelaFI+TkGO+68BGcCEuLu4FRrmYFAo7pxc7x4KF7UP1F9AnvguWii8CB+93l8v1gBQK02jJyMjoIGHA26XvgjnAi+YEF+rq6hwUApWXl3sCxd1Su2qKNv8Cu8lkGh4cHOSFqSFl8hiNRq/b7eb8kQBusVEuAmkkpNjrXMEZMK+3t7eDlCuiuLhY/M4m0TjZAd6rZ0EKCZnOr8rKSi+FQNnZ2WLeiBNt0in4HTxmT1tbWy8lJSUtkzsLlAh55VV4eDj38wxY2aaVvD9IQpiuJicnr6dZkFar1QeKX88IaQRegj+QXp/iCLbSLAjf7kEK/wvFbrDU75TkPR+thM4tNEtyOp3vA8V+0SZdhPf54XA4FCeeYKqvrxfvDndEm3QKDgBbfHz8087OzgVYgPMphMLh9BY5xYgrXhSqS4B/oNII8LnegXuA1Ww2f2pra7uMaNgHBgbuMqOjoxyhCZqZfOnp6X2Bzo+LnbMmZ8JoEi4Qa+S+EhUV5c7JybGXlJQsMBgMsTRNNTY2tmdmZm4gYZv/R5JrnFwqZtsuwGc43wXEKP0ZqPuVlZV1q7q6Wo+wLg3WMd8nioqKXldVVa3CQchnwf/g3uTOfkSrwdaAg/6slpiY+LCioqI/ISHBjJszO6lGvn9UU1PjKCwsXAkneKddA3smdz4TB0T9CmxgB03974q3235wLNgPZuqAKDPYTMLh8jeIAa9AFwl3ilNgeKoPKHVAseb83/EXAAAA//9Rd/3VAAAABklEQVQDACzVPT3lRIicAAAAAElFTkSuQmCC) 1x, url(data:image/png;base64,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) 2x) 8 2, pointer !important;
@@ -2861,7 +2906,16 @@ const ACC_TIER_CAP = 9;      // потолок ступеней (×3.25; пор�
 // Прогрессия сложности по уровням. Эмпирика: тупики зависят от ЧИСЛА ТИПОВ
 // (меньше типов = больше копий = больше матчей на поверхности), радиус
 // влияет слабо (замер ботом: 4-9 встрясок при любом радиусе 2.5-3.2).
-const LEVEL_TYPES_MIN = 9;                          // типов на 1-м уровне (+1 за уровень, потолок TYPES.length)
+// ⚠️⚠️ 3, А НЕ 9 (слово владельца 2026-08-11: «на первом уровне хочу всего
+// 3 первые вещи, каждый новый уровень +1 вещь»). Правило прежнее —
+// `LEVEL_TYPES_MIN + (уровень − 1)`, сменилось только начало.
+// ⛔ ЭТО РЫЧАГ СЛОЖНОСТИ, А НЕ КОСМЕТИКА: число типов — ГЛАВНЫЙ регулятор
+// (замер ботом: тупики зависят от него, радиус влияет слабо). Первые уровни
+// станут заметно легче, весь пул откроется на 6 уровней позже (117 вместо 111).
+// ⚠️ Витрина требует минимум VIT_MAX=3 слотов — ровно столько на 1-м уровне и
+// есть, впритык. Опустится ниже — у панели поедет высота, а её rect читает
+// якорь тоста.
+const LEVEL_TYPES_MIN = 3;                          // типов на 1-м уровне (+1 за уровень, потолок TYPES.length)
 // простой до включения миксера — по СЛОЖНОСТИ (спека владельца 2026-07),
 // рампа по уровням убрана: прогрессию сложности несёт число типов.
 // ⚡ 2026-07-27 (спека владельца после плейтеста, ПЕРЕТЮН прежнего ÷3): Easy 15,
@@ -14953,7 +15007,7 @@ window.hideMainScreen = closeMainScreen;
 // «весь замес» (2026-07-23) и авторотацию «собрал→ушёл» (v77): механизм — РАНГ.
 // Ручной скролл невозможен (pointer-events:none). Реалтайм: пересчёт vitFrac
 // ВСЕХ типов раз в 150 мс (число, дёшево — не DOM).
-// ⚠️ РОВНО 5 СЛОТОВ ВСЕГДА (LEVEL_TYPES_MIN=9 ≥ 5) → высота #vGrid постоянна →
+// ⚠️ ЧИСЛО СЛОТОВ ПОСТОЯННО (VIT_MAX=3, а типов на 1-м уровне ровно 3) → высота #vGrid постоянна →
 // rect #vitrine бит-в-бит: его читает якорь тоста
 // (85-hud). Смена типа в слоте — уезд/въезд ВНУТРИ слота (.out/.in на ДЕТЯХ
 // раскладки нет — на самой ячейке, но число ячеек не меняется), НЕ add/remove.
@@ -15153,17 +15207,35 @@ function newObjShow(key, done){
   // ⚠️ ЧИСЛА ВЫВЕДЕНЫ ЗАМЕРОМ ПО ВСЕМУ ПУЛУ, а не подобраны: при L<0.40 и
   // S<0.14 попадают РОВНО эти три из 120; ближайший непопавший — рыба (L 0.410),
   // ближайший по насыщенности — она же (S 0.118). Коридор с обеих сторон пуст.
-  const ЧЁРНЫЙ_L = 0.40;   // светлота Rec.709 по сырым каналам sRGB
-  const ЧЁРНЫЙ_S = 0.14;   // насыщенность как (max−min)/255
+  // ⚠️⚠️ УТОЧНЕНИЕ ВЛАДЕЛЬЦА 2026-08-11: «чёрный ИЛИ ТЁМНЫЙ — БЛИЗКИЙ К
+  // ФОНОВОМУ ЦВЕТУ». То есть признак не «мало света вообще», а «не отличить
+  // от подложки» — и это ровно то, что видит игрок. Считаем РАССТОЯНИЕ до
+  // фона попапа; всё, что ближе порога, светит белым.
+  // ⚠️ ФОН БЕРЁМ ИЗ ЖИВОГО СТИЛЯ, А НЕ ЛИТЕРАЛОМ: подложка задана у `.overlay`
+  // одним правилом на все попапы, и копия числа тут разъехалась бы при первой
+  // же его правке — закон, на котором проект обжигался не раз.
+  const фон = (function (){
+    try {
+      const m = String(getComputedStyle(box).backgroundColor).match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+      return m ? [+m[1], +m[2], +m[3]] : [10, 14, 22];
+    } catch (e) { return [10, 14, 22]; }
+  })();
+  // ⚠️ ПОРОГ 140 ВЫВЕДЕН ЗАМЕРОМ ПО ПУЛУ И СТОИТ В ПУСТОМ КОРИДОРЕ: расстояния
+  // до фона — пингвин 85.5, ядро 119.6, шар 124.2, а следующий за ними кабан
+  // уже 161.8. Между 124 и 162 нет никого, туда порог и поставлен.
+  // ⚠️ Насыщенность больше НЕ участвует: свёкла и баклажан далеки от фона сами
+  // по себе (они тёмные, но цветные), их отсекает уже расстояние — признак
+  // владельца «близкий к фоновому цвету» оказался и точнее, и проще прежнего.
+  const БЛИЗКО_К_ФОНУ = 140;
   let rgb = '203,255,104';
   if (typeof тон === 'number'){
     const r = (тон >> 16) & 255, g = (тон >> 8) & 255, b = тон & 255;
-    const св = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    const нас = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    const d = Math.sqrt((r - фон[0]) * (r - фон[0]) + (g - фон[1]) * (g - фон[1]) +
+                        (b - фон[2]) * (b - фон[2]));
     // ⚠️ Не чистый белый, а тон, ПОДТЯНУТЫЙ к белому: вещь остаётся «своей»,
     // просто её свет становится виден. Чистый белый стёр бы разницу между
     // тремя тёмными предметами.
-    rgb = (св < ЧЁРНЫЙ_L && нас < ЧЁРНЫЙ_S)
+    rgb = (d < БЛИЗКО_К_ФОНУ)
       ? Math.round(r + (255 - r) * 0.82) + ',' + Math.round(g + (255 - g) * 0.82) + ',' +
         Math.round(b + (255 - b) * 0.82)
       : r + ',' + g + ',' + b;

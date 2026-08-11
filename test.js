@@ -1314,7 +1314,7 @@ page.on('response', (r) => {
     g.setLevel(1);
     const snap1 = g.accSnapshot();
     const u1 = g.unlockedTypes();
-    const first = snap1[0].key, at20 = snap1[20] ? snap1[20].key : null;
+    const first = snap1[0].key, at20 = snap1[20] ? snap1[20].key : null; // 20-й закрыт и при 3, и при 9
     g.setLevel(15);
     const u15 = g.unlockedTypes().length;
     g.setLevel(1);
@@ -1322,11 +1322,14 @@ page.on('response', (r) => {
       firstUnlocked: g.isTypeUnlocked(first), at20Unlocked: at20 ? g.isTypeUnlocked(at20) : null,
       n15: u15, bogus: g.isTypeUnlocked('nope') };
   });
-  expect(unlockProbe.n1 === 9 && unlockProbe.snapUnlocked1 === 9,
-    'ур.1: открыто ровно 9 типов, поле unlocked согласовано (' + unlockProbe.n1 + '/' + unlockProbe.snapUnlocked1 + ')');
+  // ⚠️ 3, А НЕ 9 (слово владельца 2026-08-11: «на первом уровне всего 3 первые
+  // вещи»). Стражи ПЕРЕЕХАЛИ за константой — оба, и первый уровень, и
+  // пятнадцатый: правило «+1 за уровень» не менялось, сменилось начало.
+  expect(unlockProbe.n1 === 3 && unlockProbe.snapUnlocked1 === 3,
+    'ур.1: открыто ровно 3 типа, поле unlocked согласовано (' + unlockProbe.n1 + '/' + unlockProbe.snapUnlocked1 + ')');
   expect(unlockProbe.firstUnlocked === true && unlockProbe.at20Unlocked === false,
     'TYPES[0] открыт, TYPES[20] закрыт на ур.1 (' + unlockProbe.firstUnlocked + '/' + unlockProbe.at20Unlocked + ')');
-  expect(unlockProbe.n15 === 23, 'ур.15: открыто 9+14=23 типа (' + unlockProbe.n15 + ')');
+  expect(unlockProbe.n15 === 17, 'ур.15: открыто 3+14=17 типов (' + unlockProbe.n15 + ')');
   expect(unlockProbe.bogus === false, 'несуществующий тип не открыт (' + unlockProbe.bogus + ')');
 
   // адаптер рекламы: на file:// SDK не грузится — режим заглушки
