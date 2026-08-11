@@ -523,7 +523,20 @@ function unlockBgm(){
   if (bgmUnlocked) return; bgmUnlocked = true;
   const bgm = $('bgm'); if (bgm){ bgm.volume = musicVol; if (musicVol > 0) bgm.play().catch(()=>{}); }
 }
-window.addEventListener('pointerdown', unlockBgm, { passive: true });
+// ⚠️⚠️ ЖЕСТ — ЛЮБОЙ, А НЕ ТОЛЬКО КАСАНИЕ (жалоба владельца «музыка начинает
+// играть с задержкой», разобрана замером 2026-08-11). Замер трёх сценариев:
+// тап во время интро музыку ЗАВОДИТ (интро его не съедает — проверено),
+// а КЛАВИША не заводила ВООБЩЕ: на десктопе игрок, жмущий пробел (встряска),
+// оставался без музыки навсегда. Отсюда весь список типов.
+// ⚠️ `capture:true` — чтобы никакой обработчик выше не смог проглотить событие
+// раньше нас: разблокировка не должна зависеть от чужого `stopPropagation`.
+['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach(t =>
+  window.addEventListener(t, unlockBgm, { passive: true, capture: true }));
+// ⚠️ И ОДНА ПОПЫТКА БЕЗ ЖЕСТА, СРАЗУ. Политика автоплея её обычно отклоняет —
+// тогда `catch` молчит и всё решает первый жест. Но в части сред (портал уже
+// получил жест, десктоп с прежним взаимодействием) она проходит, и музыка
+// начинается СРАЗУ, а не когда игрок впервые тронет экран. Стоит это ноль.
+try { const _b = $('bgm'); if (_b && musicVol > 0) _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{}); } catch(e){}
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyHard(b.dataset.hard === '1');
