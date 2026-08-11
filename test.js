@@ -7450,9 +7450,15 @@ window.bridge = {
         })(),
         паддингСетки: parseInt(getComputedStyle(document.querySelector('.ms-coll')).paddingTop, 10),
         маскаСетки: (function (){
+          // ⚠️⚠️ БЕРЁМ ПОСЛЕДНЮЮ ОПОРУ, А НЕ ПЕРВУЮ. Браузер печатает вычисленный
+          // градиент как `linear-gradient(rgba(0,0,0,0) 0px, rgb(0,0,0) 88px)`, то
+          // есть ПЕРВОЕ число в строке — нулевая опора прозрачности. Прежняя
+          // регулярка брала её и отдавала 0 при исправной маске 88: страж краснел
+          // на ЗДОРОВОЙ сборке и не мог позеленеть НИКОГДА (кроме шапки нулевой
+          // высоты). Длину маски задаёт ПОСЛЕДНЯЯ опора. Замер строки — в отчёте.
           const cs = getComputedStyle(document.querySelector('.ms-coll'));
-          const m = String(cs.maskImage || cs.webkitMaskImage || '').match(/(\d+)px/);
-          return m ? +m[1] : null;
+          const все = String(cs.maskImage || cs.webkitMaskImage || '').match(/(\d+)px/g);
+          return все && все.length ? parseInt(все[все.length - 1], 10) : null;
         })(),
         высотаЗаголовка: Math.round(rt.height),
         сверху: Math.round(ri.top - rt.top), снизу: Math.round(rt.bottom - ri.bottom),
