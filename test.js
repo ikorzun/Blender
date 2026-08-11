@@ -6230,8 +6230,12 @@ window.bridge = {
     (всеПульсируют.глубоких - безПульса.глубоких).toFixed(1) + ' при пороге 20; ' +
     'здоровый минимум по 8 замерам — 37.7, сломанное даёт 0)');
   const ручка = await starPage.evaluate(() => window.__game.starPulse());
-  expect(ручка && Math.abs(ручка.frac - 0.10) < 1e-6,
-    'ЗВЁЗДЫ: боевая доля пульса — 1 из 10, как просил владелец (' + JSON.stringify(ручка) + ')');
+  // ⚠️ 3 ИЗ 10, А НЕ 1 (слово владельца 2026-08-11 после живого просмотра).
+  // ⛔ Отменяет его же «совсем аккуратно»; страж переехал за числом, а не
+  // «починен». Тракт «доля → пиксели» проверяется ассертом выше и от боевого
+  // значения не зависит — эти два ассерта не пересекаются намеренно.
+  expect(ручка && Math.abs(ручка.frac - 0.30) < 1e-6,
+    'ЗВЁЗДЫ: боевая доля пульса — 3 из 10, как просил владелец (' + JSON.stringify(ручка) + ')');
   await starPage.close();
 
   // ===== ТАБЛИЦА ЛИДЕРОВ: ОТПРАВКА СЧЁТА (зона ИНТЕГРАЦИИ) =====
@@ -6811,8 +6815,14 @@ window.bridge = {
       const txt = document.querySelector('.ms-lbe-txt').getBoundingClientRect();
       const right = document.querySelector('.ms-lbe-right').getBoundingClientRect();
       const ms = document.getElementById('mainScreen');
+      const av0 = document.querySelector('#msLbeAvs > *');
+      const стрелка = document.querySelector('.ms-lbe-act');
+      const avs = document.getElementById('msLbeAvs');
       const out = { чернила:Math.round(ink.width), бокс:Math.round(box.width),
                     зазор:Math.round(right.left - txt.right), гориз:ms.scrollWidth - ms.clientWidth,
+                    аватар: av0 ? Math.round(av0.getBoundingClientRect().width) : null,
+                    доСтрелки: (avs && стрелка)
+                      ? Math.round(стрелка.getBoundingClientRect().left - avs.getBoundingClientRect().right) : null,
                     видимыхАватаров:Array.prototype.filter.call(
                       document.querySelectorAll('#msLbeAvs > *'),
                       i => i.getBoundingClientRect().width > 0).length };
@@ -6828,6 +6838,15 @@ window.bridge = {
   const тесно = await промер();
   await lbPage.setViewportSize({ width: 390, height: 780 });
   console.log('точка входа на 390/320:', JSON.stringify(узкий), JSON.stringify(тесно));
+  // ⚠️ 32 И 10 — прямое слово владельца 2026-08-11. Аватар теперь ЕДИНОГО
+  // размера на всех ширинах (мельчание снято), место под узкие отыгрывается
+  // перекрытием. Оба числа держим НА ОБЕИХ ширинах: 320 — самая тесная живая.
+  expect(узкий.аватар === 32 && тесно.аватар === 32,
+    '⚠️ ТОЧКА ВХОДА: аватар 32px на ОБЕИХ ширинах (390 → ' + узкий.аватар +
+    ', 320 → ' + тесно.аватар + ')');
+  expect(узкий.доСтрелки === 10 && тесно.доСтрелки === 10,
+    '⚠️ ТОЧКА ВХОДА: зазор между аватарами и стрелкой 10px (390 → ' + узкий.доСтрелки +
+    ', 320 → ' + тесно.доСтрелки + ')');
   expect(узкий.чернила <= узкий.бокс + 1 && узкий.зазор >= 0 && узкий.гориз === 0,
     'ТОЧКА ВХОДА на 390: заголовок влезает в свой бокс и не наезжает на аватары (' +
     JSON.stringify(узкий) + ')');
@@ -7602,6 +7621,58 @@ window.bridge = {
     expect(деск.заголовокСмещение === 0,
       '⚠️ КОЛЛЕКЦИЯ: верх заголовка вровень с карточкой профиля, полосы сверху ' +
       'нет (смещение ' + деск.заголовокСмещение + 'px)');
+    // (5г) ⚠️⚠️ СВЕЧЕНИЕ ЭКРАНА НОВОЙ ВЕЩИ — ЧЕТЫРЕ СВОЙСТВА СРАЗУ (слово
+    // владельца 2026-08-11). Каждое утверждается ОТДЕЛЬНО, потому что ломаются
+    // они порознь: сила, неоднородность, пульс и «не режется краем».
+    const свеч = await up.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const g = window.__game;
+      const снять = async (key) => {
+        g.newObjHide(); await sleep(120);
+        g.newObjShow(key, () => {}); await sleep(900);
+        const box = document.getElementById('newObj');
+        const sh = document.querySelector('.no-shine');
+        const cs = getComputedStyle(sh), r = sh.getBoundingClientRect();
+        const st = document.querySelector('.no-stage').getBoundingClientRect();
+        const obj = document.querySelector('.no-obj-w text');
+        return { тон: box.style.getPropertyValue('--no-glow-rgb'),
+          прозрачность: +cs.opacity,
+          пятен: (cs.backgroundImage.match(/radial-gradient/g) || []).length,
+          доБлижайшейСтороны: cs.backgroundImage.indexOf('closest-side') >= 0,
+          анимации: cs.animationName,
+          шире: Math.round(r.width) > Math.round(st.width),
+          заливкаOBJECT: getComputedStyle(obj).fill };
+      };
+      const ягода = await снять('foodstrawberry');
+      const тёмный = await снять('animalpenguin');
+      g.newObjHide(); await sleep(120);
+      return { ягода, тёмный };
+    });
+    console.log('свечение новой вещи:', JSON.stringify(свеч));
+    // ⚠️ СИЛА ВДВОЕ НИЖЕ. Значение гуляет пульсом, поэтому коридор, а не число.
+    expect(свеч.ягода.прозрачность >= 0.40 && свеч.ягода.прозрачность <= 0.55,
+      '⚠️ СВЕЧЕНИЕ: сила вдвое ниже прежней (' + свеч.ягода.прозрачность + ', было 0.85)');
+    // ⚠️⚠️ НЕ РЕЖЕТСЯ КРАЕМ — ГЛАВНОЕ ИЗ ЧЕТЫРЁХ, и проверяется ПРИЧИНОЙ, а не
+    // следствием: `closest-side` гасит цвет к ближайшей стороне, поэтому углы
+    // прозрачны по построению. Плюс слой ШИРЕ сцены — владелец разрешил
+    // выходить за границы телефона, но не обрезаться.
+    expect(свеч.ягода.доБлижайшейСтороны === true && свеч.ягода.шире === true,
+      '⚠️⚠️ СВЕЧЕНИЕ: гаснет к ближайшей стороне (углы прозрачны) и слой шире ' +
+      'сцены — прямой обрезки краем нет (' +
+      JSON.stringify({ closestSide:свеч.ягода.доБлижайшейСтороны, шире:свеч.ягода.шире }) + ')');
+    // ⚠️ НЕОДНОРОДНОСТЬ И ПУЛЬС: три пятна и вторая анимация поверх раскрытия.
+    expect(свеч.ягода.пятен >= 3 && /noGlowPulse/.test(свеч.ягода.анимации),
+      '⚠️ СВЕЧЕНИЕ: форма неоднородная (' + свеч.ягода.пятен + ' пятна) и пульсирует (' +
+      свеч.ягода.анимации + ')');
+    // ⚠️⚠️ ТЁМНЫЙ ПРЕДМЕТ СВЕТИТ БЕЛЫМ, ЦВЕТНОЙ — СВОИМ. Пара обязательна:
+    // «пингвин белый» в одиночку зелено и на сборке, где ВСЁ побелело.
+    const ярк = (t) => { const v = String(t).split(',').map(Number); return Math.min.apply(null, v); };
+    expect(ярк(свеч.тёмный.тон) > 180 && ярк(свеч.ягода.тон) < 120,
+      '⚠️⚠️ СВЕЧЕНИЕ: у ЧЁРНОЙ вещи основа белая, у цветной — своя (' +
+      JSON.stringify({ пингвин:свеч.тёмный.тон, клубника:свеч.ягода.тон }) + ')');
+    expect(свеч.ягода.заливкаOBJECT === 'rgb(0, 0, 0)',
+      'ЭКРАН НОВОЙ ВЕЩИ: «OBJECT» залит чёрным, как «new» (' + свеч.ягода.заливкаOBJECT + ')');
+
     // (5в) ЗВЕЗДА В ПРОФИЛЕ — FFE730 (слово владельца). ⚠️ Читаем ВЫЧИСЛЕННЫЙ
     // fill: в разметке инлайновый атрибут уже был жёлтым, а CSS перебивал его
     // чёрным — проверка по разметке дала бы ложно-зелёный.
