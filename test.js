@@ -1,5 +1,11 @@
+// ⚠️ ПУТЬ К СБОРКЕ — ОДНА ПЕРЕМЕННАЯ И ЕЁ МОЖНО ПОДМЕНИТЬ (MIXER_PAGE).
+// Нужно ровно затем, чтобы прогон диверсий патчил КОПИЮ артефакта, а не
+// боевой index.html: однажды убитый по SIGPIPE прогон не дошёл до уборки и
+// оставил боевую сборку изувеченной, а следующая диверсия отчиталась
+// «строка не найдена» — инструмент создал поломку и назвал её чужой ошибкой.
 const { chromium } = require('playwright');
 const path = require('path');
+const PAGE_FILE = process.env.MIXER_PAGE || path.join(__dirname, 'index.html');
 const fs = require('fs');
 
 // ⚠️ РЕВЬЮ 2026-07-21: сьют раньше только ПЕЧАТАЛ значения и всегда выходил
@@ -57,7 +63,7 @@ const fs = require('fs');
     const srv = http.createServer((req, res) => {
       if (String(req.url).split('?')[0] !== '/index.html'){ res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
+      res.end(fs.readFileSync(PAGE_FILE));
     });
     await new Promise(r => srv.listen(0, '127.0.0.1', r));
     return { url: 'http://127.0.0.1:' + srv.address().port + '/index.html',
@@ -134,7 +140,7 @@ page.on('response', (r) => {
   errors.push('HTTP ' + r.status() + ' ' + r.url());
 });
 
-  await page.goto('file://' + path.join(__dirname, 'index.html'));
+  await page.goto('file://' + PAGE_FILE);
   // не слепые 2.5 с, а честное ожидание: RAPIER.init асинхронный, __game
   // появляется после старта игры (флейк на холодной машине)
   await page.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
@@ -1296,7 +1302,7 @@ page.on('response', (r) => {
     // ⚠️ ФОРМАТ ХРАНЕНИЯ — ПРОЦЕНТЫ ('40'), не доля ('0.4'): первый прогон этого
     // стража я завалил СВОИМ входом — движок честно сыграл 0.4% как ~тишину.
     await spage.addInitScript(() => { try { localStorage.setItem('mixer_sound', '40'); } catch(e){} });
-    await spage.goto('file://' + path.join(__dirname, 'index.html'));
+    await spage.goto('file://' + PAGE_FILE);
     await spage.waitForFunction(() => window.__game, null, { timeout: 30000 });
     await spage.mouse.click(200, 400); // первый жест: unlock -> ensure -> master
     await spage.waitForTimeout(250);
@@ -2004,7 +2010,7 @@ window.bridge = {
     const u = req.url.split('?')[0];
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_SDK); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
-    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
     res.writeHead(404); res.end();
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
@@ -2314,7 +2320,7 @@ window.bridge = {
     const u = req.url.split('?')[0];
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end('/* мок предзагружен addInitScript — сервер отдаёт пустышку, гонка загрузки исключена по построению */'); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
-    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
     res.writeHead(404); res.end();
   });
   await new Promise(r => srvH.listen(0, '127.0.0.1', r));
@@ -2369,7 +2375,7 @@ window.bridge = {
     const u = req.url.split('?')[0];
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_THROW); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
-    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
     res.writeHead(404); res.end();
   });
   await new Promise(r => srvT.listen(0, '127.0.0.1', r));
@@ -2490,7 +2496,7 @@ window.bridge = {
     const u = req.url.split('?')[0];
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_RW); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
-    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
     res.writeHead(404); res.end();
   });
   await new Promise(r => srv2.listen(0, '127.0.0.1', r));
@@ -4402,7 +4408,7 @@ window.bridge = {
   const hourPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const hoursSeen = [];
   for (const [h, wantNight] of [[4, true], [5, false], [19, false], [20, true], [23, true]]){
-    await hourPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
+    await hourPage.goto('file://' + PAGE_FILE + '?hour=' + h);
     await hourPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     const got = await hourPage.evaluate(() => {
       const s = window.__game.skyHour();
@@ -4428,7 +4434,7 @@ window.bridge = {
   // ⚠️ СЕКЦИЯ НА ОТДЕЛЬНОЙ СТРАНИЦЕ И В КОНЦЕ: открытие меню ставит ТИХУЮ паузу
   // и крутит глаза меню — в середине сьюта это меняло бы контекст соседям.
   const menuPage = await browser.newPage({ viewport: { width: 393, height: 761 } });
-  await menuPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await menuPage.goto('file://' + PAGE_FILE);
   await menuPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await menuPage.evaluate(() => window.__game.skipIntro());
   await menuPage.waitForTimeout(400);
@@ -4707,7 +4713,7 @@ window.bridge = {
     localStorage.setItem('mixer_music', '20');
     localStorage.setItem('mixer_sound', '30');
   });
-  await volPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await volPage.goto('file://' + PAGE_FILE);
   await volPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   const vol0 = await volPage.evaluate(() => ({
     bgmVol: +document.getElementById('bgm').volume.toFixed(2),
@@ -4885,7 +4891,7 @@ window.bridge = {
   hudPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(hud): ' + m.text()); });
   const hudSeen = {};
   for (const [tema, h] of [['day', 12], ['night', 22]]){
-    await hudPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + h);
+    await hudPage.goto('file://' + PAGE_FILE + '?hour=' + h);
     await hudPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     await hudPage.evaluate(() => window.__game.skipIntro());
     // ⚠️ ПРОВЕРКА РАСКЛАДКИ ДО СОКРЫТИЯ СОСЕДЕЙ: сам замер гасит всё лишнее и
@@ -4927,7 +4933,7 @@ window.bridge = {
   const sabPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   sabPage.on('pageerror', e => errors.push('PAGEERROR(sab): ' + e.message));
   sabPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(sab): ' + m.text()); });
-  await sabPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=12');
+  await sabPage.goto('file://' + PAGE_FILE + '?hour=12');
   await sabPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   const sabApplied = await sabPage.evaluate(() => {
     window.__game.skipIntro();
@@ -4952,7 +4958,7 @@ window.bridge = {
   // куче, и заметить это можно только глазами на живой игре.
   const fxPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   fxPage.on('pageerror', e => errors.push('PAGEERROR(fx): ' + e.message));
-  await fxPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await fxPage.goto('file://' + PAGE_FILE);
   await fxPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await fxPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 700));
@@ -5017,7 +5023,7 @@ window.bridge = {
   // «оптимизирует» частоту, прогон обязан покраснеть.
   const firePage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   firePage.on('pageerror', e => errors.push('PAGEERROR(fire): ' + e.message));
-  await firePage.goto('file://' + path.join(__dirname, 'index.html'));
+  await firePage.goto('file://' + PAGE_FILE);
   await firePage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await firePage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 700));
@@ -5323,7 +5329,7 @@ window.bridge = {
   // минус ЛЕВЕЕ плюса. Мобильная колонка 56×56 слева при этом цела.
   const zoomDesk = await (async () => {
     const dp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
-    await dp.goto('file://' + path.join(__dirname, 'index.html'));
+    await dp.goto('file://' + PAGE_FILE);
     await dp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     await dp.evaluate(() => window.__game.skipIntro());
     await dp.waitForTimeout(600);
@@ -5467,7 +5473,7 @@ window.bridge = {
   // пустой картинкой мимо занавеса). Своя страница: ловим РАННИЕ кадры.
   {
     const lpage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-    await lpage.goto('file://' + path.join(__dirname, 'index.html'));
+    await lpage.goto('file://' + PAGE_FILE);
     // сразу, ДО готовности игры: ни один элемент HUD не показан
     const early = await lpage.evaluate(() => {
       const vis = (id) => { const e = document.getElementById(id); return e ? getComputedStyle(e).visibility : 'нет'; };
@@ -5634,7 +5640,7 @@ window.bridge = {
   // разлётом» был бы виден только глазами.
   let bowlRescues = 0;
   bowlPage.on('console', m => { if (m.text().startsWith('[rescue]')) bowlRescues++; });
-  await bowlPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await bowlPage.goto('file://' + PAGE_FILE);
   await bowlPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await bowlPage.evaluate(() => { window.__game.setLevel(5); window.__game.regen(); window.__game.skipIntro(); });
   await bowlPage.waitForTimeout(400);
@@ -6202,7 +6208,7 @@ window.bridge = {
   // (3) КОЛОНКИ КОЛЛЕКЦИИ: 2 только ниже 360, дальше растут.
   const cols = await (async () => {
     const cp = await browser.newPage({ viewport: { width: 359, height: 780 } });
-    await cp.goto('file://' + path.join(__dirname, 'index.html'));
+    await cp.goto('file://' + PAGE_FILE);
     await cp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     await cp.evaluate(() => window.__game.skipIntro());
     const n = async (w) => {
@@ -6292,7 +6298,7 @@ window.bridge = {
   //  (4) труха стала гуще на ЧЕТВЁРТУЮ фракцию (крупные куски).
   const impPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   impPage.on('pageerror', e => errors.push('PAGEERROR(impact): ' + e.message));
-  await impPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await impPage.goto('file://' + PAGE_FILE);
   await impPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await impPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 900));
@@ -6448,7 +6454,7 @@ window.bridge = {
   //    и заметит его ТОЛЬКО разброс площадей.
   const bowlVisPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   bowlVisPage.on('pageerror', e => errors.push('PAGEERROR(bowl): ' + e.message));
-  await bowlVisPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await bowlVisPage.goto('file://' + PAGE_FILE);
   await bowlVisPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await bowlVisPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 900));
@@ -6519,7 +6525,7 @@ window.bridge = {
   // «доля -> пиксели» жив; сама доля 0.10 — это константа, а не поведение.
   const starPage = await browser.newPage({ viewport: { width: 900, height: 760 } });
   starPage.on('pageerror', e => errors.push('PAGEERROR(stars): ' + e.message));
-  await starPage.goto('file://' + path.join(__dirname, 'index.html') + '?hour=1');
+  await starPage.goto('file://' + PAGE_FILE + '?hour=1');
   await starPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
   await starPage.evaluate(() => { window.__game.skipIntro();
     for (const id of ['topBar', 'bottomBar', 'face', 'vitrine', 'mainScreen']){
@@ -7034,7 +7040,7 @@ window.bridge = {
   // ЗАДАННОМ адресе и слепы к тому, что в поставке его нет.
   // Читаем СБОРКУ, а не исходник: в игрока едет именно она.
   {
-    const сборка = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    const сборка = fs.readFileSync(PAGE_FILE, 'utf8');
     // ⚠️ ЧИТАЕМ ВЫРАЖЕНИЕ ЦЕЛИКОМ, А НЕ ЛИТЕРАЛ: у константы стоит гейт `file:`,
     // и regex «= '…'» на ней умер бы молча, отдав пустой адрес на ИСПРАВНОЙ
     // сборке. Страж переезжает за правкой, а не ломается об неё.
@@ -7061,7 +7067,7 @@ window.bridge = {
     // проверяемом свойстве — то есть врал бы о причине).
     const http = require('http');
     const srvLB = http.createServer((req, res) => {
-      const f = path.join(__dirname, 'index.html');
+      const f = PAGE_FILE;
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end(fs.readFileSync(f));
     });
@@ -7108,7 +7114,7 @@ window.bridge = {
     await p2.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
     const srvLB2 = http.createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
+      res.end(fs.readFileSync(PAGE_FILE));
     });
     await new Promise((r) => srvLB2.listen(0, '127.0.0.1', r));
     await p2.goto('http://127.0.0.1:' + srvLB2.address().port + '/index.html?lb=http://lb.probe');
@@ -7434,7 +7440,7 @@ window.bridge = {
   // нужное состояние сам и не наследует ресурс от соседа.
   const chPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   await chPage.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-  await chPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await chPage.goto('file://' + PAGE_FILE);
   await chPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await chPage.evaluate(() => window.__game.skipIntro());
   await chPage.waitForTimeout(600);
@@ -7497,7 +7503,7 @@ window.bridge = {
   {
     const noPage = await browser.newPage({ viewport: { width: 393, height: 852 } });
     noPage.on('pageerror', e => errors.push('PAGEERROR(newobj): ' + e.message));
-    await noPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await noPage.goto('file://' + PAGE_FILE);
     await noPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     await noPage.evaluate(() => window.__game.skipIntro());
     await noPage.waitForTimeout(1200);
@@ -7662,7 +7668,7 @@ window.bridge = {
   {
     const mp = await browser.newPage();
     mp.on('pageerror', e => errors.push('PAGEERROR(mat): ' + e.message));
-    await mp.goto('file://' + path.join(__dirname, 'index.html'));
+    await mp.goto('file://' + PAGE_FILE);
     await mp.waitForFunction(() => window.__game && window.__game.typeNameAt, { timeout: 60000 });
     const мат = await mp.evaluate(() => {
       const g = window.__game; const без = []; let всего = 0;
@@ -7731,7 +7737,7 @@ window.bridge = {
       const cg = AC.prototype.createGain;
       AC.prototype.createGain = function (){ const n = cg.call(this); window.__sfx.gain.push(n); return n; };
     });
-    await ap.goto('file://' + path.join(__dirname, 'index.html'));
+    await ap.goto('file://' + PAGE_FILE);
     await ap.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     // ⚠️ РАЗБЛОКИРОВКУ ЗОВЁМ ЯВНО, А НЕ КЛИКОМ: в интро ВЕСЬ ввод глушится на
     // входе, и `pointerdown` до `Sound.unlock` не доходит. Первая проба на
@@ -7905,7 +7911,7 @@ window.bridge = {
         return of.apply(this, arguments);
       };
     });
-    await up.goto('file://' + path.join(__dirname, 'index.html'));
+    await up.goto('file://' + PAGE_FILE);
     await up.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     await up.evaluate(() => window.__game.skipIntro());
     await up.waitForTimeout(400);
@@ -8306,7 +8312,7 @@ window.bridge = {
       const sp = await browser.newPage({ viewport: { width: 900, height: 800 } });
       sp.on('pageerror', e => errors.push('PAGEERROR(sky' + hour + '): ' + e.message));
       await sp.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-      await sp.goto('file://' + path.join(__dirname, 'index.html') + '?hour=' + hour);
+      await sp.goto('file://' + PAGE_FILE + '?hour=' + hour);
       await sp.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
       await sp.evaluate(() => window.__game.skipIntro());
       await sp.waitForTimeout(400);
@@ -8349,6 +8355,74 @@ window.bridge = {
     expect(ночью.послеЗакрытия === 'none',
       'КАРТОЧКА PLAY: при закрытии меню слой гаснет — цикл не живёт весь геймплей (' +
       ночью.послеЗакрытия + ')');
+  }
+
+  // ===== ПРИБОР РАЗБОРА world.step(): БОЕВЫЕ УМОЛЧАНИЯ + ЧЕСТНОСТЬ ЛИНЕЙКИ =====
+  // ⚠️ Секция В КОНЦЕ и на СВОЕЙ странице: она включает профайлер Rapier и
+  // крутит CCD — долгоживущее состояние, которое исказило бы соседей
+  // (тот же приём, что у камней и удара).
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await page.goto('file://' + PAGE_FILE);
+    await page.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+
+    // (1) ИЗМЕРИТЕЛЬНЫЕ РУЧКИ НЕ УЕХАЛИ В БОЙ. Профайлер стоит ~20 переходов
+    // WASM↔JS на шаг, а избирательный CCD МЕНЯЕТ ПОВЕДЕНИЕ анти-туннеля —
+    // включённым в поставке любой из них это тихая регрессия.
+    const бой = await page.evaluate(() => ({
+      профайлер: window.__game.stepProf().шагов,
+      ccdSel: window.__game.ccdSel().режим,
+      ccdУмолчание: window.__game.physKnobs({}).ccdDefault }));
+    expect(бой.профайлер === 0 && бой.ccdSel === false && бой.ccdУмолчание === true,
+      '⚠️⚠️ ПРИБОР ШАГА: боевые умолчания целы — профайлер выключен, избирательный ' +
+      'CCD выключен, защита от туннелирования ВКЛЮЧЕНА всем телам (' +
+      JSON.stringify(бой) + ')');
+
+    // (2) ЛИНЕЙКА ЧЕСТНА: две НЕЗАВИСИМЫЕ величины обязаны сойтись — счётчик
+    // самого Rapier (timing_step) и наши часы вокруг world.step(). Это ловит
+    // ровно то, что нельзя поймать чтением кода: профайлер, собранный без
+    // фичи (вернёт нули), и смену ЕДИНИЦ счётчиков при обновлении движка.
+    // ⚠️ ПОСТАНОВКА НЕСУЩАЯ, И ПЕРВАЯ ВЕРСИЯ ДАЛА ЛОЖНЫЙ КРАСНЫЙ: профайлер
+    // включался сразу после загрузки, когда интро ещё в фазе ожидания и физика
+    // НЕ ШАГАЕТ вовсе, а замер брался по фиксированной паузе — выходило
+    // «шагов 0» на исправной сборке. Верно: сперва привести кучу в живое
+    // состояние (skipIntro + встряска), потом ждать ФАКТ накопления шагов
+    // опросом, с потолком времени как страховкой.
+    const л = await page.evaluate(async () => {
+      window.__game.skipIntro();
+      const вкл = window.__game.stepProfOn(true);
+      window.__game.shake();
+      const t0 = Date.now();
+      while (window.__game.stepProf().шагов < 20 && Date.now() - t0 < 8000){
+        await new Promise(r => setTimeout(r, 100));
+      }
+      const p = window.__game.stepProf();
+      p.включение = вкл;
+      p.ждали = Date.now() - t0;
+      window.__game.stepProfOn(false);
+      return p;
+    });
+    const сумма = (л.collision_detection || 0) + (л.island_construction || 0)
+      + (л.solver || 0) + (л.ccd || 0) + (л.user_changes || 0);
+    const отн = л.step > 0 ? л.часыJS / л.step : 0;
+    console.log('прибор шага:', JSON.stringify({ включение: л.включение, ждали: л.ждали,
+      шагов: л.шагов, step: л.step,
+      часыJS: л.часыJS, отношение: +отн.toFixed(3), narrow: л.narrow_phase,
+      сумма: +сумма.toFixed(1), остаток: л.остаток }));
+    expect(л.шагов > 0 && л.step > 0 && л.narrow_phase > 0,
+      'ПРИБОР ШАГА: профайлер Rapier отдаёт НЕНУЛЕВЫЕ фазы — иначе он собран ' +
+      'без фичи и разбирать шаг нечем (шагов ' + л.шагов + ', step ' + л.step +
+      ', narrow ' + л.narrow_phase + ')');
+    expect(отн > 0.8 && отн < 1.25,
+      '⚠️ ПРИБОР ШАГА: счётчики Rapier и НАШИ часы сходятся — значит единицы ' +
+      'миллисекунды, как принято в разборе (часы/step = ' + отн.toFixed(3) + ')');
+    // ⚠️ Остаток НЕ ассертим малым: он законно велик (работа CCD не попадает
+    // в названные колонки — замер 2026-08-07). Ассертим, что он СЧИТАЕТСЯ,
+    // иначе новая дорогая фаза молча припишется соседу по таблице.
+    expect(typeof л.остаток === 'number' && Math.abs((сумма + л.остаток) - л.step) < 0.5,
+      'ПРИБОР ШАГА: колонка остатка сходится с итогом (сумма ' + сумма.toFixed(1) +
+      ' + остаток ' + л.остаток + ' = step ' + л.step + ')');
+    await page.close();
   }
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');

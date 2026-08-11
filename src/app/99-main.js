@@ -100,6 +100,9 @@ let _introPerf = null, _introT0 = 0;
 function introPerfStart(){
   _introT0 = performance.now();
   try { __game.perfReset(); } catch(e){}
+  // ⚠️ Разбор фаз шага вешаем на ТО ЖЕ ОКНО, что и срез насыпания: иначе числа
+  // фаз и числа кадра нельзя класть в одну таблицу — они про разные отрезки.
+  try { if (profActive()) profReset(); } catch(e){}
 }
 function introPerfStop(){
   if (!_introT0) return;
@@ -110,7 +113,10 @@ function introPerfStop(){
       кадр: p.frame, шаг: p.step, солвер: p.solve, синк: p.sync,
       рендер: p.ren, ui: p.ui, эффекты: p.fx, подшагов: p.sub,
       кадров: p.frames, худший: p.worstFrame,
+      рывков33: p.jank33, рывков50: p.jank50,
       dpr: renderer.getPixelRatio(), тир: CFG.perfTier };
+    // фазы шага — только когда профайлер включён ручкой (в бою его нет)
+    try { if (profActive()) _introPerf.фазы = profTake(); } catch(e){}
   } catch(e){}
   _introT0 = 0;
 }
@@ -1706,13 +1712,20 @@ window.__game = {
       hullMed: hullVerts[hullVerts.length >> 1] || 0,
       hullSum: hullVerts.reduce((s, v) => s + v, 0) };
   },
+  // Разбор world.step() на фазы (профайлер Rapier). ТОЛЬКО ЗАМЕР, не бой.
+  stepProfOn: (on) => profEnable(on),
+  stepProf: () => profTake(),
+  shapeCensus: () => shapeCensus(),
+  ccdSel: (on, vOn, vOff) => (on === undefined ? ccdSelInfo() : setCcdSel(on, vOn, vOff)),
   physKnobs(o){
     o = o || {};
     if (o.iters != null) try { world.numSolverIterations = o.iters; } catch(e){}
     if (o.ccdSub != null) try { world.maxCcdSubsteps = o.ccdSub; } catch(e){}
     if (o.ccd != null) for (const it of items) if (it.alive && it.body) it.body.enableCcd(!!o.ccd);
+    if (o.ccdDefault != null) setCcdDefault(o.ccdDefault);
     if (o.maxSub != null) setMaxSubsteps(o.maxSub);
-    return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps, maxSub: maxSubsteps() };
+    return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps,
+      maxSub: maxSubsteps(), ccdDefault: getCcdDefault() };
   },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
     fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;
@@ -1728,6 +1741,13 @@ window.__game = {
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
       solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
+      // ⚠️ РЫВКИ — ЭТО РАСПРЕДЕЛЕНИЕ, А НЕ ОДИН ХУДШИЙ КАДР. «Худший за окно» —
+      // ОДИН сэмпл на прогон, и по правилу проекта редкое событие им не
+      // сертифицируется. Жалоба «подтупливает» — про то, СКОЛЬКО кадров
+      // просело, поэтому считаем их: 33 мс = пропущен кадр при 30 к/с,
+      // 50 мс = видимый рывок.
+      jank33: frameRing.reduce((n, v) => n + (v > 33 ? 1 : 0), 0),
+      jank50: frameRing.reduce((n, v) => n + (v > 50 ? 1 : 0), 0),
       frames: perfFrames, worstMs: +perfWorstMs.toFixed(1), worstFrame: _worstFrame, worstBuildFrame: _worstBuildFrame,
       bodies: world.bodies && world.bodies.len ? world.bodies.len() : -1,
       colliders: world.colliders && world.colliders.len ? world.colliders.len() : -1,

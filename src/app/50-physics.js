@@ -385,7 +385,10 @@ function createItemBody(item, typeName, geo){
   const bd = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(item.p.x, item.p.y, item.p.z)
     .setRotation({ x:q.x, y:q.y, z:q.z, w:q.w })
-    .setCcdEnabled(true) // против туннелирования на скорости (интро/встряска)
+    // ⚠️ УМОЛЧАНИЕ, А НЕ ЛИТЕРАЛ: ручка `physKnobs({ccd:…})` красит только УЖЕ
+    // созданные тела, а regen() делает новые — рука замера «без CCD» молча
+    // мерила бы боевую конфигурацию. Боевое значение — true, не менялось.
+    .setCcdEnabled(ccdDefault) // против туннелирования на скорости (интро/встряска)
     .setLinearDamping(0.3)
     .setAngularDamping(ROLLY[typeName] ? 2.5 : 1.2);
   const body = world.createRigidBody(bd);
@@ -518,15 +521,148 @@ let stepSolveMs = 0, stepSyncMs = 0, stepCapMs = 0, stepRescueMs = 0, stepSubste
 // выше нормы 0.20 НОЛЬ у обоих; спасений на равной работе 66 (≤3) против
 // 42 (≤2). ⛔ ПРАВИЛО: тотал редких событий за прогон сравним ТОЛЬКО при
 // равном объёме сыгранного — иначе меряется прогресс бота, а не физика.
+// ⚠️⚠️ ПРОФАЙЛЕР RAPIER — ЕДИНСТВЕННЫЙ СПОСОБ РАЗОБРАТЬ `world.step()` НА ФАЗЫ.
+// Снаружи шаг физики — ОДНА колонка, и любой разговор «дорого в солвере»
+// упирается в неё. В нашей сборке профайлер есть (`world.profilerEnabled`) и
+// отдаёт broad/narrow/острова/солвер (4 подфазы) + ОТДЕЛЬНО CCD (4 подфазы).
+// ⛔ ТОЛЬКО ПО РУЧКЕ, НИКОГДА В БОЮ: около двадцати переходов WASM↔JS за шаг.
+// ⚠️ СЧЁТЧИКИ СБРАСЫВАЮТСЯ КАЖДЫМ `step()`, а степпер делает до SUBSTEP_CAP
+// шагов за кадр — читать НАДО ВНУТРИ ЦИКЛА, иначе виден только последний
+// подшаг, а на насыпании их ровно два (то есть половина работы пропала бы).
+const PROF_KEYS = ['step','collision_detection','broad_phase','narrow_phase',
+  'island_construction','solver','velocity_assembly','velocity_resolution',
+  'velocity_update','velocity_writeback','ccd','ccd_broad_phase',
+  'ccd_narrow_phase','ccd_solver','ccd_toi_computation','user_changes'];
+let profOn = false, profAcc = null, profWallMs = 0, profSteps = 0;
+let ccdDefault = true;                 // боевое; крутится ТОЛЬКО замером
+// ИЗБИРАТЕЛЬНЫЙ CCD: включать защиту от туннелирования ТОЛЬКО быстрым телам.
+// ⚠️ ОСНОВАНИЕ — ЗАМЕР, А НЕ ИДЕЯ: разбор `world.step()` профайлером Rapier
+// показал, что CCD стоит 41% шага в насыпании, и платят его ВСЕ тела — даже
+// почти улёгшаяся куча отдаёт 12.6% (замер на осевшей куче после встряски).
+// То есть цена НЕ гейтится движком по скорости, и её можно вернуть.
+// ⛔ БОЕВОЕ ЗНАЧЕНИЕ — ВЫКЛЮЧЕНО: включение меняет ПОВЕДЕНИЕ (анти-туннель),
+// а поведение — слово владельца, не моё.
+let ccdSelOn = false, CCD_V_ON = 8, CCD_V_OFF = 4;
+let ccdSelFlips = 0;                   // сколько раз переключали (цена ручки)
+function setCcdSel(on, vOn, vOff){
+  ccdSelOn = !!on;
+  if (vOn != null) CCD_V_ON = +vOn;
+  if (vOff != null) CCD_V_OFF = +vOff;
+  ccdSelFlips = 0;
+  // при выключении возвращаем всем умолчание — иначе часть тел осталась бы
+  // без защиты, и следующий замер мерил бы смесь двух конфигураций
+  if (!ccdSelOn) for (const it of items) if (it.alive && it.body){
+    it._ccd = ccdDefault; it.body.enableCcd(ccdDefault);
+  }
+  return { ccdSel: ccdSelOn, vOn: CCD_V_ON, vOff: CCD_V_OFF };
+}
+// ⚠️ ГИСТЕРЕЗИС ОБЯЗАТЕЛЕН: у порога без него тело дёргало бы флаг каждый шаг,
+// а сам вызов enableCcd будит соседей и стоит дороже проверки.
+function tickCcdSel(){
+  if (!ccdSelOn) return;
+  const on2 = CCD_V_ON * CCD_V_ON, off2 = CCD_V_OFF * CCD_V_OFF;
+  for (const it of items){
+    if (!it.alive || !it.body) continue;
+    const v = it.body.linvel();
+    const s2 = v.x*v.x + v.y*v.y + v.z*v.z;
+    const было = it._ccd === undefined ? ccdDefault : !!it._ccd;
+    const надо = было ? (s2 > off2) : (s2 > on2);
+    if (надо !== было){ it._ccd = надо; it.body.enableCcd(надо); ccdSelFlips++; }
+  }
+}
+function ccdSelInfo(){
+  let сCcd = 0, живых = 0;
+  for (const it of items){ if (!it.alive || !it.body) continue; живых++;
+    if (it._ccd === undefined ? ccdDefault : it._ccd) сCcd++; }
+  return { режим: ccdSelOn, vOn: CCD_V_ON, vOff: CCD_V_OFF, живых, сCcd,
+    доля: живых ? +(сCcd / живых).toFixed(3) : 0, переключений: ccdSelFlips };
+}
+function setCcdDefault(v){ ccdDefault = !!v; }
+function getCcdDefault(){ return ccdDefault; }
+function profReset(){ profAcc = {}; for (const k of PROF_KEYS) profAcc[k] = 0;
+  profWallMs = 0; profSteps = 0; }
+function profEnable(on){
+  profOn = !!on; profReset();
+  try { world.profilerEnabled = profOn; } catch(e){ return { ok:false, why:String(e) }; }
+  let has = false;
+  try { has = typeof world.physicsPipeline.raw.timing_step === 'function'; } catch(e){}
+  return { ok: has, профайлер: profOn };
+}
+function profActive(){ return profOn; }
+function profTake(){
+  const o = { шагов: profSteps, часыJS: +profWallMs.toFixed(2) };
+  if (!profSteps) return o;
+  for (const k of PROF_KEYS) o[k] = +profAcc[k].toFixed(4);
+  // ⚠️⚠️ ОСТАТОК ОБЯЗАТЕЛЕН (правило про именованные фазы): без него новая
+  // дорогая строка молча припишется тому, кто в таблице уже есть — ровно так
+  // `blastWave` полгода числился подозреваемым.
+  o.остаток = +(o.step - (o.collision_detection + o.island_construction
+    + o.solver + o.ccd + o.user_changes)).toFixed(4);
+  // ⚠️ ВТОРОЙ ШОВ: сам `timing_step` против НАШИХ часов вокруг `world.step()`.
+  // Он же калибрует ЕДИНИЦЫ: единицы счётчиков Rapier мы не знаем заранее и
+  // НЕ принимаем за миллисекунды — сверяем с часами.
+  o.шовЧасы = +(profWallMs - o.step).toFixed(2);
+  return o;
+}
+
+// ПЕРЕПИСЬ ФОРМ В ЖИВОЙ КУЧЕ — чем на самом деле занят наррофаза.
+// ⚠️ Нужна потому, что «дорого держат компаунды» — ГИПОТЕЗА о составе пула, а
+// состав менялся: процедурные примитивы (тор/узел/спираль) из пула убраны
+// 2026-07-21, кольцо пончика открывается только с ур.110. Перепись отвечает
+// на вопрос ЗАМЕРОМ, а не пересказом канона.
+function shapeCensus(){
+  const T = ['Ball','Cuboid','Capsule','Segment','Polyline','Triangle','TriMesh',
+    'HeightField','?8','ConvexPolyhedron','Cylinder','Cone','RoundCuboid',
+    'RoundTriangle','RoundCylinder','RoundCone','RoundConvexPolyhedron',
+    'HalfSpace','Voxels'];
+  const поФормам = {}, поПачкам = {}, компаунды = [];
+  let тел = 0, коллайдеров = 0, вершинВсего = 0;
+  for (const it of items){
+    if (!it.alive || !it.body) continue;
+    тел++;
+    const n = it.body.numColliders();
+    коллайдеров += n;
+    const виды = {};
+    for (let i = 0; i < n; i++){
+      const c = it.body.collider(i);
+      let t = -1; try { t = c.shapeType(); } catch(e){}
+      const имя = T[t] || ('тип' + t);
+      виды[имя] = (виды[имя] || 0) + 1;
+      поФормам[имя] = (поФормам[имя] || 0) + 1;
+      if (имя === 'ConvexPolyhedron'){
+        try { const v = c.vertices(); if (v) вершинВсего += v.length / 3; } catch(e){}
+      }
+    }
+    const пачка = (it.type && it.type.tex) || (it.rock ? 'rock' : (it.surprise ? 'surprise'
+      : (it.bomb ? 'bomb' : 'прочее')));
+    поПачкам[пачка] = (поПачкам[пачка] || 0) + 1;
+    // компаунд = больше одного коллайдера на теле (цепочки капсул, кольцо)
+    if (n > 1) компаунды.push({ имя: (it.type && it.type.name) || пачка, коллайдеров: n, виды });
+  }
+  return { тел, коллайдеров, наТело: тел ? +(коллайдеров / тел).toFixed(2) : 0,
+    поФормам, поПачкам, компаундовТел: компаунды.length,
+    компаунды: компаунды.slice(0, 12),
+    вершинHull: вершинВсего, вершинНаHull: поФормам.ConvexPolyhedron
+      ? +(вершинВсего / поФормам.ConvexPolyhedron).toFixed(1) : 0 };
+}
+
 let SUBSTEP_CAP = 2;
 function setMaxSubsteps(n){ SUBSTEP_CAP = Math.max(1, n | 0); }
 function maxSubsteps(){ return SUBSTEP_CAP; }
 function stepPhysics(dt){
   const _t0 = performance.now();
+  tickCcdSel();                       // ручка замера; в боевом режиме выходит сразу
   physAcc = Math.min(physAcc + dt, SUBSTEP_CAP/60);
   let n = 0;
   while (physAcc >= 1/60){
-    world.step();
+    if (profOn){
+      const w0 = performance.now();
+      world.step();
+      profWallMs += performance.now() - w0;
+      const raw = world.physicsPipeline.raw;
+      for (const k of PROF_KEYS) profAcc[k] += raw['timing_' + k]();
+      profSteps++;
+    } else world.step();
     physAcc -= 1/60;
     n++;
   }
