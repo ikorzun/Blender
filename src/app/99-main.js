@@ -309,9 +309,9 @@ addEventListener('resize', resize);
 // нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
 // ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
 // стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
-// ⛔ tintChrome вырезан уборкой 2026-08-12 (три пустых вызова + пустое тело):
-// 4-я редакция кромок статическая, красить из JS больше нечего. История трёх
-// прежних редакций — в CLAUDE.md, раздел «КРОМКИ SAFARI».
+// 5-я редакция кромок: единственный водитель — chromeSync (85-hud), здесь
+// только загрузочный вызов ПОСЛЕ построения неба (--sky-*-rgb уже стоят).
+try { chromeSync(); } catch(e){}
 
 // ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
@@ -1146,6 +1146,14 @@ window.__game = {
   // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
   // себе, разъедется с боем при первой же правке владельца.
   pausedNow(){ return paused; },
+  chromeInfo(){ const cs = getComputedStyle(document.documentElement);
+    return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
+             низ: cs.getPropertyValue('--edge-bot-rgb').trim(),
+             небоВерх: cs.getPropertyValue('--sky-top-rgb').trim(),
+             небоНиз: cs.getPropertyValue('--sky-bot-rgb').trim(),
+             оверлеев: chromeOverlaysNow(),
+             фон: cs.backgroundColor,
+             мета: (document.querySelector('meta[name=theme-color]') || {}).content }; },
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
                            вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
@@ -1750,6 +1758,9 @@ window.__game = {
       maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol() };
   },
   fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
+  // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —
+  // нагрузка делает кадры ДЛИННЕЕ, минимум ниже порога от неё не появится
+  frameMin(){ return frameRing.length ? +Math.min.apply(null, frameRing).toFixed(1) : null; },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
     fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;
     _worstFrame = null; _wfRaw = 0; _worstBuildFrame = null; _wbBuild = 0; },

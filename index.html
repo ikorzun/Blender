@@ -3,30 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<!-- ⚠️⚠️ КРОМКИ ПО ТЕМЕ УСТРОЙСТВА (решение владельца 2026-08-12, ТРЕТЬЯ и
-     действующая редакция): «сделаем скругление вью по 40 px для мобильного.
-     Фон при этом под островом и строкой поиска будет зависеть от темы
-     устройства». То есть мы БОЛЬШЕ НЕ ПОДБИРАЕМ цвет полос под небо и под
-     меню — полосы просто берут системную тему, а вью отделён от них
-     скруглением.
-     ⛔ ОТМЕНЯЕТ подбор под палитру (2026-08-10, `e962931`) и вместе с ним
-     `CHROME_SWAP`. Историю обеих прежних редакций держит CLAUDE.md.
-     ⚠️ ДВЕ МЕТЫ С `media`, А НЕ ОДНА, КОТОРУЮ КРАСИТ JS: у системной темы уже
-     есть готовый носитель, и статические меты переключаются САМИ, в том числе
-     когда игрок меняет тему при открытой игре. Прежний JS-путь (`chromeMeta`)
-     этого не умел и требовал слушателя. -->
-<!-- ⛔⛔ ЧЕТВЁРТАЯ И ТЕРМИНАЛЬНАЯ РЕДАКЦИЯ КРОМОК (слово владельца 2026-08-12
-     «МНЕ НУЖНО РЕШЕНИЕ» + «убирай вариант скругления»): ПОЛОСЫ ЧЁРНЫЕ ВСЕГДА,
-     оба канала, СТАТИЧЕСКИ. Основание — закон, доказанный его же скриншотом:
-     Safari 26 фиксирует цвет полос НА ЗАГРУЗКЕ, рантайм-перекраска не
-     применяется (сборка a771543 перекрашивала ОБА канала при открытии меню —
-     полоса осталась цвета неба). Значит полоса держит ОДИН цвет за сессию, и
-     чёрный — единственный, согласованный со ВСЕМИ экранами: сверху он
-     сливается с самим островом (тот физически чёрный), тёмному фейду попапов
-     он родной, тёмный Safari его не перекрашивает, и он же — режим ОТКАЗА
-     Safari («отравленный» тинт = чёрный): даже если Safari проигнорирует всё,
-     полосы будут те же. День/ночь/меню не тронуты. -->
-<meta name="theme-color" content="#000000">
+<!-- ⚠️⚠️ ПЯТАЯ РЕДАКЦИЯ КРОМОК (слово владельца 2026-08-12: «мне не нужны
+     чёрные полосы, мне нужен цвет каждого экрана от верхнего края до
+     нижнего»). МЕХАНИЗМ УСТАНОВЛЕН ЭКСПЕРИМЕНТОМ, а не подбором: Safari 26
+     тонирует полосы ЖИВЫМ СЕМПЛИНГОМ fixed-элементов у кромок (финальный
+     ресёрч About-Us «ОСТРОВ, ФИНАЛ — ПО ФОРУМАМ» + «РАУНД 2»), и чёрная
+     редакция это ДОКАЗАЛА на устройстве: перекрашены были ТОЛЬКО фикс-бары —
+     полосы стали чёрными на всех экранах разом, включая меню и попап, где
+     body под ними другой. Канал = фон #topBar/#bottomBar/#face в альфе .01.
+     Ведёт его chromeSync (85-hud) через --edge-top-rgb/--edge-bot-rgb: игра —
+     живые стопы неба (верх и низ РАЗНЫЕ — градиент, день/ночь сами), меню —
+     фон меню, тёмный фейд попапов — тёмный. Мета игнорируется Safari 26,
+     держится в локстепе для Android/macOS. -->
+<meta name="theme-color" content="#6e86ff">
 <title>BLENDO</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -70,7 +59,7 @@
     transition:height .42s cubic-bezier(.22,.9,.3,1), opacity .25s ease-out .30s; }
   html.skyfill #skyFill { height:100%; }
   html.uiready #skyFill { opacity:0; }
-  html, body { height:100%; overflow:hidden; background:#000000; touch-action:none; overscroll-behavior:none;
+  html, body { height:100%; overflow:hidden; background:#6e86ff; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ ЗДЕСЬ СТОЯЛИ: фон по теме устройства (3-я редакция) и скругление вью
      (clip-path 40px / формула --view-r). ОБА СНЯТЫ словом владельца 2026-08-12
@@ -89,12 +78,13 @@
      достаточно. ⚠️ Верх и низ РАЗНЫЕ: небо градиентное, у кромок свой цвет
      (переменные ставит 10-stage из того же SKY_GRAD). ⚠️ НЕ заменять на
      transparent «для чистоты» — вернутся чёрные поля. */
-  /* ⚠️ 4-я редакция: «отрава» тинта прозрачным = ЧЁРНЫЙ — теперь это и есть
-     целевой цвет, рецепт About-Us совпал с решением. Цвет полос менять только
-     вместе с метой и html/body — тройка обязана быть одноцветной. */
-  #topBar    { background:rgba(0,0,0,.01); }
-  #bottomBar { background:rgba(0,0,0,.01); }
-  #face      { background:rgba(0,0,0,.01); }
+  /* ⚠️⚠️ ЭТИ ФОНЫ В АЛЬФЕ .01 — И ЕСТЬ КАНАЛ ЦВЕТА ПОЛОС SAFARI (доказано
+     чёрной редакцией: перекрасили только их — полосы сменились на всех
+     экранах). Переменные --edge-*-rgb пишет ТОЛЬКО chromeSync (85-hud);
+     руками их не ставить и вторых писателей не заводить. */
+  #topBar    { background:rgba(var(--edge-top-rgb, 110,134,255), .01); }
+  #bottomBar { background:rgba(var(--edge-bot-rgb, 190,199,254), .01); }
+  #face      { background:rgba(var(--edge-top-rgb, 110,134,255), .01); }
   /* ⚠️ ПОКА ОТКРЫТО МЕНЮ — КРОМКА ЭКРАНА В ТОНЕ МЕНЮ (жалоба владельца
      2026-08-06: «в меню паузы сверху прокидывается фон игры, а должен быть
      фон меню»). Тот же рецепт, третий случай: `#mainScreen` стоит `inset:0`
@@ -13434,13 +13424,61 @@ else {
 // новый восьмой молча выпал бы из статистики.
 const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
   starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
+// ═══ КРОМКИ, 5-Я РЕДАКЦИЯ: цвет каждого экрана от верхнего края до нижнего ═══
+// Механизм ДОКАЗАН устройством (чёрная редакция как контрольный эксперимент):
+// Safari 26 тонирует полосы живым семплингом ФИКС-БАРОВ у кромок — их фон в
+// альфе .01 и есть канал. chromeSync — ЕДИНСТВЕННЫЙ водитель: пишет
+// --edge-top-rgb/--edge-bot-rgb (бары читают их из CSS), фон html/body и мету
+// в локстепе (About-Us: мета для Android/macOS, Safari 26 её игнорирует).
+// ⚠️ ПРИОРИТЕТ СЛОЁВ: тёмный оверлей > меню > небо.
+// ⚠️⚠️ ВИДИМОСТЬ ОВЕРЛЕЕВ — ЖИВЫМ ОПРОСОМ DOM, А НЕ СЧЁТЧИКОМ. Первая версия
+// держала счётчик в show/hide и он ДРЕЙФОВАЛ: часть кода (и тестов) прячет
+// оверлеи прямой записью style.display мимо hide() — счётчик застревал, кромки
+// залипали тёмными. Классика канона «копия состояния расходится с рабочим»:
+// у видимости уже есть первоисточник — сам DOM, его и читаем. Прямая запись
+// display всё ещё не дёргает sync, но ближайший же вызов самоисцеляет.
+// ⚠️ День/ночь приезжают сами: игра ссылается на ЖИВЫЕ --sky-*-rgb, которые
+// ставит 10-stage; при смене палитры chromeSync зовётся из updateHUD.
+const CHROME_DARK = '10,14,22';          // тон фейда .overlay (rgba(10,14,22,.88))
+const CHROME_MENU = '217,244,255';       // --ms-bg #d9f4ff
+function chromeOverlaysNow(){
+  let n = 0;
+  const все = document.querySelectorAll('.overlay');
+  for (let i = 0; i < все.length; i++)
+    if (getComputedStyle(все[i]).display !== 'none') n++;
+  return n;
+}
+function chromeSync(){
+  try {
+    const d = document.documentElement, cs = getComputedStyle(d);
+    let top, bot;
+    if (chromeOverlaysNow() > 0){ top = CHROME_DARK; bot = CHROME_DARK; }
+    else if (d.classList.contains('menuopen')){ top = CHROME_MENU; bot = CHROME_MENU; }
+    else {
+      top = cs.getPropertyValue('--sky-top-rgb').trim() || '110,134,255';
+      bot = cs.getPropertyValue('--sky-bot-rgb').trim() || '190,199,254';
+    }
+    d.style.setProperty('--edge-top-rgb', top);
+    d.style.setProperty('--edge-bot-rgb', bot);
+    const c = 'rgb(' + top + ')';
+    d.style.backgroundColor = c; document.body.style.backgroundColor = c;
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', '#' + top.split(',').map(n =>
+      (Math.max(0, Math.min(255, parseInt(n, 10) | 0))).toString(16).padStart(2, '0')).join(''));
+  } catch(e){}
+}
 function show(id){
-  $(id).style.display = 'flex';
+  const el = $(id);
+  el.style.display = 'flex';
+  // кромки: любой полноэкранный фейд темнит полосы (5-я редакция)
+  if (el.classList.contains('overlay')) chromeSync();
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
 function hide(id){
-  $(id).style.display = 'none';
+  const el = $(id);
+  el.style.display = 'none';
+  if (el.classList.contains('overlay')) chromeSync();
   // вернулись в игру — экран снова 'game' (если партия жива)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -14299,6 +14337,9 @@ function updateHUD(){
   const ночьТеперь = isNightSky();
   if (ночьТеперь !== hudWasNight){
     hudWasNight = ночьТеперь;
+    // смена палитры в живой сессии (граница 20:00): кромки едут за небом.
+    // 10-stage к этому моменту уже переписал --sky-*-rgb.
+    try { chromeSync(); } catch(e){}
   }
   document.documentElement.classList.toggle('night', ночьТеперь);
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
@@ -15290,6 +15331,7 @@ function openMainScreen(){
   // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
   // при отказе открыться кромка перекрасилась бы под невидимое меню.
   document.documentElement.classList.add('menuopen');
+  chromeSync(); // кромки в тон меню (5-я редакция)
   // ⛔⛔ ПЕРЕКРАСКА КРОМКИ ПОД МЕНЮ СНЯТА (решение владельца 2026-08-12): полосы
   // берут ТЕМУ УСТРОЙСТВА, а вью отделён от них скруглением 40px. Здесь стоял
   // `chromeMeta(menuChrome())` — второй канал кромки, заведённый 2026-08-10,
@@ -15334,6 +15376,7 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
+  chromeSync(); // кромки обратно небу
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
@@ -17206,9 +17249,9 @@ addEventListener('resize', resize);
 // нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
 // ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
 // стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
-// ⛔ tintChrome вырезан уборкой 2026-08-12 (три пустых вызова + пустое тело):
-// 4-я редакция кромок статическая, красить из JS больше нечего. История трёх
-// прежних редакций — в CLAUDE.md, раздел «КРОМКИ SAFARI».
+// 5-я редакция кромок: единственный водитель — chromeSync (85-hud), здесь
+// только загрузочный вызов ПОСЛЕ построения неба (--sky-*-rgb уже стоят).
+try { chromeSync(); } catch(e){}
 
 // ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
@@ -18043,6 +18086,14 @@ window.__game = {
   // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
   // себе, разъедется с боем при первой же правке владельца.
   pausedNow(){ return paused; },
+  chromeInfo(){ const cs = getComputedStyle(document.documentElement);
+    return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
+             низ: cs.getPropertyValue('--edge-bot-rgb').trim(),
+             небоВерх: cs.getPropertyValue('--sky-top-rgb').trim(),
+             небоНиз: cs.getPropertyValue('--sky-bot-rgb').trim(),
+             оверлеев: chromeOverlaysNow(),
+             фон: cs.backgroundColor,
+             мета: (document.querySelector('meta[name=theme-color]') || {}).content }; },
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
                            вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
@@ -18647,6 +18698,9 @@ window.__game = {
       maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol() };
   },
   fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
+  // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —
+  // нагрузка делает кадры ДЛИННЕЕ, минимум ниже порога от неё не появится
+  frameMin(){ return frameRing.length ? +Math.min.apply(null, frameRing).toFixed(1) : null; },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
     fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;
     _worstFrame = null; _wfRaw = 0; _worstBuildFrame = null; _wbBuild = 0; },

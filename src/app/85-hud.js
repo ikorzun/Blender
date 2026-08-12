@@ -35,13 +35,61 @@ else {
 // новый восьмой молча выпал бы из статистики.
 const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
   starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
+// ═══ КРОМКИ, 5-Я РЕДАКЦИЯ: цвет каждого экрана от верхнего края до нижнего ═══
+// Механизм ДОКАЗАН устройством (чёрная редакция как контрольный эксперимент):
+// Safari 26 тонирует полосы живым семплингом ФИКС-БАРОВ у кромок — их фон в
+// альфе .01 и есть канал. chromeSync — ЕДИНСТВЕННЫЙ водитель: пишет
+// --edge-top-rgb/--edge-bot-rgb (бары читают их из CSS), фон html/body и мету
+// в локстепе (About-Us: мета для Android/macOS, Safari 26 её игнорирует).
+// ⚠️ ПРИОРИТЕТ СЛОЁВ: тёмный оверлей > меню > небо.
+// ⚠️⚠️ ВИДИМОСТЬ ОВЕРЛЕЕВ — ЖИВЫМ ОПРОСОМ DOM, А НЕ СЧЁТЧИКОМ. Первая версия
+// держала счётчик в show/hide и он ДРЕЙФОВАЛ: часть кода (и тестов) прячет
+// оверлеи прямой записью style.display мимо hide() — счётчик застревал, кромки
+// залипали тёмными. Классика канона «копия состояния расходится с рабочим»:
+// у видимости уже есть первоисточник — сам DOM, его и читаем. Прямая запись
+// display всё ещё не дёргает sync, но ближайший же вызов самоисцеляет.
+// ⚠️ День/ночь приезжают сами: игра ссылается на ЖИВЫЕ --sky-*-rgb, которые
+// ставит 10-stage; при смене палитры chromeSync зовётся из updateHUD.
+const CHROME_DARK = '10,14,22';          // тон фейда .overlay (rgba(10,14,22,.88))
+const CHROME_MENU = '217,244,255';       // --ms-bg #d9f4ff
+function chromeOverlaysNow(){
+  let n = 0;
+  const все = document.querySelectorAll('.overlay');
+  for (let i = 0; i < все.length; i++)
+    if (getComputedStyle(все[i]).display !== 'none') n++;
+  return n;
+}
+function chromeSync(){
+  try {
+    const d = document.documentElement, cs = getComputedStyle(d);
+    let top, bot;
+    if (chromeOverlaysNow() > 0){ top = CHROME_DARK; bot = CHROME_DARK; }
+    else if (d.classList.contains('menuopen')){ top = CHROME_MENU; bot = CHROME_MENU; }
+    else {
+      top = cs.getPropertyValue('--sky-top-rgb').trim() || '110,134,255';
+      bot = cs.getPropertyValue('--sky-bot-rgb').trim() || '190,199,254';
+    }
+    d.style.setProperty('--edge-top-rgb', top);
+    d.style.setProperty('--edge-bot-rgb', bot);
+    const c = 'rgb(' + top + ')';
+    d.style.backgroundColor = c; document.body.style.backgroundColor = c;
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', '#' + top.split(',').map(n =>
+      (Math.max(0, Math.min(255, parseInt(n, 10) | 0))).toString(16).padStart(2, '0')).join(''));
+  } catch(e){}
+}
 function show(id){
-  $(id).style.display = 'flex';
+  const el = $(id);
+  el.style.display = 'flex';
+  // кромки: любой полноэкранный фейд темнит полосы (5-я редакция)
+  if (el.classList.contains('overlay')) chromeSync();
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
 function hide(id){
-  $(id).style.display = 'none';
+  const el = $(id);
+  el.style.display = 'none';
+  if (el.classList.contains('overlay')) chromeSync();
   // вернулись в игру — экран снова 'game' (если партия жива)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -900,6 +948,9 @@ function updateHUD(){
   const ночьТеперь = isNightSky();
   if (ночьТеперь !== hudWasNight){
     hudWasNight = ночьТеперь;
+    // смена палитры в живой сессии (граница 20:00): кромки едут за небом.
+    // 10-stage к этому моменту уже переписал --sky-*-rgb.
+    try { chromeSync(); } catch(e){}
   }
   document.documentElement.classList.toggle('night', ночьТеперь);
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
@@ -1891,6 +1942,7 @@ function openMainScreen(){
   // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
   // при отказе открыться кромка перекрасилась бы под невидимое меню.
   document.documentElement.classList.add('menuopen');
+  chromeSync(); // кромки в тон меню (5-я редакция)
   // ⛔⛔ ПЕРЕКРАСКА КРОМКИ ПОД МЕНЮ СНЯТА (решение владельца 2026-08-12): полосы
   // берут ТЕМУ УСТРОЙСТВА, а вью отделён от них скруглением 40px. Здесь стоял
   // `chromeMeta(menuChrome())` — второй канал кромки, заведённый 2026-08-10,
@@ -1935,6 +1987,7 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
+  chromeSync(); // кромки обратно небу
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
