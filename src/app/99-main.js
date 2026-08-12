@@ -274,51 +274,14 @@ function sleepPhysics(src){
 // ⚠️ ПОЧЕМУ ПРАВКА ЗДЕСЬ, А НЕ ВНУТРИ applyPerfTier: та объявлена в 10-stage и
 // зовётся там же на старте (deviceLooksWeak) РАНЬШЕ инициализации skyMat —
 // обращение к нему изнутри упало бы в TDZ. Поэтому resize() зовут вызывающие.
-// ⚠️⚠️ РАДИУС СКРУГЛЕНИЯ ВЬЮ — ОТ ДОЛИ ЭКРАНА, А НЕ ОТ МОДЕЛИ УСТРОЙСТВА
-// (решение владельца 2026-08-12). Он спросил, нельзя ли считать радиус по
-// модели телефона. ⛔ НЕЛЬЗЯ И НЕ БУДЕТ: модель браузер не отдаёт намеренно —
-// на iOS `userAgent` говорит только «iPhone» без поколения, `userAgentData` в
-// Safari нет, WebGL отдаёт «Apple GPU». `env(device-corner-radius)` тоже нет:
-// проверено честно, с заметным фолбэком — возвращается ровно фолбэк, то есть
-// переменной у браузера не существует. ⚠️ И `CSS.supports('...', 'env(что
-// угодно)')` отвечает ДА на любое имя: это проверка синтаксиса, а не поддержки;
-// на этом я едва не сделал ложный вывод.
-// ⚠️⚠️ И ГЛАВНОЕ ВОЗРАЖЕНИЕ ПО СУЩЕСТВУ: наш вью скруглён КАК СТРАНИЦА, а она
-// в Safari не доходит до физических углов телефона — сверху адресная строка,
-// снизу панель; на портале игра вообще живёт в айфрейме. Подставив радиус
-// корпуса, мы получили бы скругление в неправильном месте.
-// ПОЭТОМУ СЧИТАЕМ ОТ ТОГО, СКОЛЬКО МЕСТА ВЬЮ РЕАЛЬНО ЗАНИМАЕТ: вью почти во
-// весь экран — радиус ближе к физическому (VIEW_R_MAX), вью зажат полосами или
-// айфреймом — меньше (VIEW_R_MIN). Одна формула, без таблицы моделей, и она не
-// врёт ни в браузере, ни в айфрейме.
-// ⚠️ ГРАНИЦЫ РАМПЫ ВЫВЕДЕНЫ АРИФМЕТИКОЙ, А НЕ ЗАМЕРОМ, И ЭТО СКАЗАНО ВСЛУХ:
-// у iPhone 15 Pro экран 393×852, в Safari видимая часть ≈393×745, то есть доля
-// ≈0.87; в standalone — 1.0. Отсюда рампа 0.84…1.0. ⛔ Свериться можно ТОЛЬКО
-// по скриншотам с устройства — стенд покажет лишь, что число подставляется.
-const VIEW_R_MIN = 36, VIEW_R_MAX = 50;
-const VIEW_R_FROM = 0.84;          // доля экрана, ниже которой вью «зажат»
-// доля от МЕНЬШЕЙ стороны — страховка от абсурда на крошечном вью: в айфрейме
-// 200px шириной радиус 36 съел бы больше трети кадра.
-const VIEW_R_CAP_K = 0.15;
-function viewRadius(){
-  try {
-    const w = innerWidth, h = innerHeight;
-    const sw = (typeof screen !== 'undefined' && screen.width) || w;
-    const sh = (typeof screen !== 'undefined' && screen.height) || h;
-    const доля = Math.max(0, Math.min(1, (w * h) / Math.max(1, sw * sh)));
-    const t = Math.max(0, Math.min(1, (доля - VIEW_R_FROM) / (1 - VIEW_R_FROM)));
-    let r = VIEW_R_MIN + (VIEW_R_MAX - VIEW_R_MIN) * t;
-    r = Math.min(r, Math.min(w, h) * VIEW_R_CAP_K);
-    return Math.round(r);
-  } catch (e){ return VIEW_R_MIN; }
-}
-function applyViewRadius(){
-  try { document.documentElement.style.setProperty('--view-r', viewRadius() + 'px'); } catch (e){}
-}
-applyViewRadius();
+// ⛔⛔ ЗДЕСЬ ЖИЛА ФОРМУЛА РАДИУСА СКРУГЛЕНИЯ ВЬЮ (viewRadius, --view-r) —
+// СНЯТА ЦЕЛИКОМ словом владельца 2026-08-12 («убирай вариант скругления вью»).
+// Прожила меньше суток; вместе с ней снята и 3-я редакция кромок (тема
+// устройства). Действующая 4-я — ЧЁРНЫЙ ВСЕГДА, статически, см. shell.html.
+// Формула была честной (замер: 50/39/36/30 по доле экрана) — не решение
+// оказалось кривым, а сама идея «вью как карточка» отклонена владельцем.
 function resize(){
   const w = innerWidth, h = innerHeight;
-  applyViewRadius();
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
   if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // база неба + слои лихорадки
@@ -1212,10 +1175,6 @@ window.__game = {
   // следствие, а не правило.
   // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
   // себе, разъедется с боем при первой же правке владельца.
-  viewRadius(){ const w = innerWidth, h = innerHeight;
-    const sw = (screen && screen.width) || w, sh = (screen && screen.height) || h;
-    return { радиус: viewRadius(), доля: +((w*h)/Math.max(1,sw*sh)).toFixed(3),
-             вью: [w, h], экран: [sw, sh], мин: VIEW_R_MIN, макс: VIEW_R_MAX }; },
   pausedNow(){ return paused; },
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
