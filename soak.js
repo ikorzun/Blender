@@ -30,6 +30,12 @@ const OUT = arg('out', 'soak-' + SEED + '.jsonl');
 // цену надо мерить СОАКОМ (сотни сэмплов), а не тремя прогонами.
 // -1 = не трогать (боевое поведение).
 const CCDSUB = parseInt(arg('ccdsub', '-1'), 10);
+// ⚠️ --walltol=N|off: ручка ДЛЯ ЗАМЕРА, боевое значение 0.18 (2026-08-12).
+// Ослабляет ДОПУСК СПАСАТЕЛЯ ПО СТЕНЕ и только его — геометрия чаши та же,
+// просто настоящий выступ доживает до сэмпла. Нужна затем, что норме
+// wallExcess не хватало ДЕФЕКТНОЙ ОПОРЫ, а её нельзя дождаться: настоящее
+// застревание может не случиться никогда, если механика здорова.
+const WALLTOL = arg('walltol', '');
 
 // mulberry32: детерминированные решения бота И Math.random страницы (сид уровня)
 function mulberry32(a){
@@ -75,9 +81,24 @@ const FLOOR_LIFT_PER_MIN = 2.5;
 // 0.45 — выше здорового максимума с запасом ~18%. Прежние 0.20 остались от
 // ЗАВЫШАВШЕЙ метрики и после перевода на точный охват срабатывали на четырёх
 // здоровых прогонах из пяти.
-// ⚠️ ЧЕСТНАЯ ОГОВОРКА: у этого порога, в отличие от подъёмов, НЕТ дефектной
-// опоры — под новой линейкой я не наблюдала ни одного настоящего застревания.
-// Он поставлен только по здоровому распределению; появится случай — перемерить.
+// ✅ ДЕФЕКТНАЯ ОПОРА ПОЛУЧЕНА 2026-08-12 — ОГОВОРКА «ПОТОЛОК» СНЯТА.
+// Ждать настоящего застревания было нельзя: если механика здорова, оно может
+// не случиться НИКОГДА, то есть «появится случай — перемерим» на деле значило
+// «останется потолком навсегда». Опору добыли НАМЕРЕННОЙ поломкой — ослаблением
+// допуска спасателя по стене (ручка --walltol), которое НЕ трогает геометрию:
+// стены и radiusAt те же, просто настоящий выступ доживает до сэмпла.
+// 3 руки × 4 сида × 12 мин, руки чередуются внутри сида, сид 707 ПОСТОРОННИЙ:
+//   здоровая (0.18):     0 срабатываний из 500 сэмплов, максимум 0.407
+//   лёгкая  (0.85):      1 из 502,  максимум 0.519
+//   грубая  (снят):     10 из 502,  максимум 13.562 (+4 провала под пол)
+// Коридор 0.407 .. 0.519, порог 0.45 стоит в нём.
+// ⚠️ ЧЕСТНО О ПРОЧНОСТИ: грубый отказ порог ловит уверенно, ЛЁГКИЙ — только
+// хвостом (1 сэмпл из 502, и лишь на одном сиде из четырёх). Опускать ниже
+// нельзя: здоровый максимум 0.407, запас стал 10%, а не 18% — прежнее число
+// считалось против устаревшего здорового максимума 0.382.
+// ⚠️ И побочное наблюдение, объясняющее узость коридора: удержание у стены
+// держит СОЛВЕР, а не спасатель. Ослабление допуска впятеро (0.18 -> 0.85)
+// срезало спасения 161 -> 102, но распределение выступов почти не сдвинуло.
 const WALL_EXCESS_NORM = 0.45;
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
@@ -104,6 +125,7 @@ const WALL_EXCESS_NORM = 0.45;
   await page.waitForFunction(() => window.__game && window.__game.alive() > 30, null, { timeout: 40000 });
   await page.waitForFunction(() => !window.__game.cam().intro, null, { timeout: 40000 });
   if (CCDSUB >= 0) await page.evaluate((n) => window.__game.physKnobs({ ccdSub: n }), CCDSUB);
+  if (WALLTOL) await page.evaluate((v) => window.__game.physKnobs({ wallTol: v === 'off' ? 'off' : +v }), WALLTOL);
 
   const outStream = fs.createWriteStream(OUT);
   const t0 = Date.now();
@@ -172,14 +194,16 @@ const WALL_EXCESS_NORM = 0.45;
         nextSample = now + 5000;
         const doGc = now - lastGc > 30000;
         if (doGc){ lastGc = now; await page.evaluate(() => { if (typeof gc === 'function') gc(); }); }
-        const s = await page.evaluate((ccdsub) => {
+        const s = await page.evaluate(([ccdsub, walltol]) => {
           const g = window.__game;
           // ручка подтверждается на каждом сэмпле: тела пересоздаются регеном,
           // и «поставил один раз» — ровно тот случай, когда замер тихо уезжает
           if (ccdsub >= 0) g.physKnobs({ ccdSub: ccdsub });
+          if (walltol) g.physKnobs({ wallTol: walltol === 'off' ? 'off' : +walltol });
           // «мосты» (gap>0.35, но опора есть) — норма рыхлой кучи, в журнал
           // идёт только их ЧИСЛО; полные записи — лишь у нулевых контактов
-          const fl = g.floaters();
+          const kn = g.physKnobs({});          // допуск ПИШЕМ в сэмпл: рука
+          const fl = g.floaters();             // обязана быть видна в журнале
           return { alive: g.alive(), ap: g.availablePairs(), topY: +g.topY().toFixed(2), lvl: g.levelNum(),
                    score: g.stats().score, misses: g.stats().misses, awake: g.awake(), combo: g.combo(),
                    floaters: fl.filter(f => f.contacts <= 0), bridges: fl.filter(f => f.contacts > 0).length,
@@ -191,8 +215,10 @@ const WALL_EXCESS_NORM = 0.45;
                    // сообщают о разлёте как о дефекте.
                    bowl: g.bowl(),
                    wall: g.maxWallExcess(), nan: g.scanNaN().length,
+                   допуск: kn.wallTol,        // рука видна в КАЖДОМ сэмпле
+                   выступы: g.wallExcessAll(),// РАСПРЕДЕЛЕНИЕ, а не максимум
                    flips: g.accFlips(), ps: g.psLog(), perf: g.perfStats() };
-        }, CCDSUB);
+        }, [CCDSUB, WALLTOL]);
         const tSec = Math.round((now - t0) / 1000);
         const freshPs = s.ps.filter(e => e.t > lastPsT);
         if (freshPs.length) lastPsT = freshPs[freshPs.length - 1].t;

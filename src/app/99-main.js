@@ -1745,9 +1745,10 @@ window.__game = {
     if (o.ccdSub != null) try { world.maxCcdSubsteps = o.ccdSub; } catch(e){}
     if (o.ccd != null) for (const it of items) if (it.alive && it.body) it.body.enableCcd(!!o.ccd);
     if (o.ccdDefault != null) setCcdDefault(o.ccdDefault);
+    if (o.wallTol != null) setRescueWallTol(o.wallTol === 'off' ? 1e9 : o.wallTol);
     if (o.maxSub != null) setMaxSubsteps(o.maxSub);
     return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps,
-      maxSub: maxSubsteps(), ccdDefault: getCcdDefault() };
+      maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol() };
   },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
     fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;

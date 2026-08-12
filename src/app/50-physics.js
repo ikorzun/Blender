@@ -534,6 +534,10 @@ const PROF_KEYS = ['step','collision_detection','broad_phase','narrow_phase',
   'velocity_update','velocity_writeback','ccd','ccd_broad_phase',
   'ccd_narrow_phase','ccd_solver','ccd_toi_computation','user_changes'];
 let profOn = false, profAcc = null, profWallMs = 0, profSteps = 0;
+const RESCUE_WALL_TOL = 0.18;          // БОЕВОЕ. Ручка ниже — только замер.
+let rescueWallTol = RESCUE_WALL_TOL;
+function setRescueWallTol(v){ rescueWallTol = (v == null ? RESCUE_WALL_TOL : +v); }
+function getRescueWallTol(){ return rescueWallTol; }
 let ccdDefault = true;                 // боевое; крутится ТОЛЬКО замером
 // ИЗБИРАТЕЛЬНЫЙ CCD: включать защиту от туннелирования ТОЛЬКО быстрым телам.
 // ⚠️ ОСНОВАНИЕ — ЗАМЕР, А НЕ ИДЕЯ: разбор `world.step()` профайлером Rapier
@@ -810,7 +814,16 @@ function rescueSweep(beforeSleep){
     // TYPES обязателен любой модели с одной осью много меньше остальных)
     const legalR = tmpWallBody ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
     const reach = d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r);
-    const out = (d + reach) > legalR + 0.18 || it.p.y < FLOOR_REST - 0.8 || it.p.y > RESCUE_CEIL;
+    // ⚠️ ДОПУСК ВЫНЕСЕН РУЧКОЙ РАДИ ЗАМЕРА (боевое значение 0.18 не менялось):
+    // норме `wallExcess` в соаке не хватало ДЕФЕКТНОЙ ОПОРЫ, а её нельзя
+    // дождаться — настоящее застревание может не случиться никогда, если
+    // механика здорова. Ослабление ЭТОГО допуска даёт градуированный дефект,
+    // не трогая опорную геометрию: стены и `radiusAt` те же, просто настоящий
+    // выступ доживает до сэмпла. ⛔ Ветки ПОЛА и ПОТОЛКА ручке не подчиняются
+    // намеренно — иначе дефект двигал бы заодно тревогу подъёмов пола, и
+    // приписать наблюдение было бы нечему (диверсия бьёт в СВОЙСТВО, не в
+    // соседа).
+    const out = (d + reach) > legalR + rescueWallTol || it.p.y < FLOOR_REST - 0.8 || it.p.y > RESCUE_CEIL;
     if (out){
       rescued++;
       console.warn('[rescue]', it.type.name, 'd=' + d.toFixed(2), 'y=' + it.p.y.toFixed(2), 'r=' + it.r.toFixed(2));
