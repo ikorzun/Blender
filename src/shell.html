@@ -82,7 +82,10 @@
      Shake стоят в 8px от угла, но они круглые — в срез попадают только пустые
      углы их прямоугольников. ⛔ Мерить это габаритом НЕЛЬЗЯ: два первых замера
      так и соврали «срезано», считая пустоту внутри bounding box. */
-  @media (max-width:1079px){ body { clip-path:inset(0 round 40px); } }
+  /* ⚠️ ЧИСЛО СЧИТАЕТ JS (`viewRadius` в 99-main) и кладёт в `--view-r`: оно
+     зависит от ДОЛИ ЭКРАНА, которую вью реально занимает, а CSS про экран не
+     знает. Фолбэк 40px — на случай, если скрипт не отработал. */
+  @media (max-width:1079px){ body { clip-path:inset(0 round var(--view-r, 40px)); } }
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
   .bar { position:fixed; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between;
     padding:8px; pointer-events:none; z-index:5; } /* поля 8 — как в макете */

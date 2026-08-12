@@ -7815,9 +7815,44 @@ window.bridge = {
   await chPage.waitForTimeout(200);
   const скруглД = await chPage.evaluate(() => getComputedStyle(document.body).clipPath);
   console.log('скругление вью:', JSON.stringify({ моб: скругл, деск: скруглД }));
-  expect(/inset\(.*40px/.test(скругл) && скруглД === 'none',
-    '⚠️⚠️ СКРУГЛЕНИЕ ВЬЮ 40px: есть на мобильном и НЕТ на десктопе (моб «' +
+  expect(/inset\(.*\d+px/.test(скругл) && скруглД === 'none',
+    '⚠️⚠️ СКРУГЛЕНИЕ ВЬЮ: есть на мобильном и НЕТ на десктопе (моб «' +
     скругл + '», деск «' + скруглД + '»)');
+  // ⚠️⚠️ РАДИУС СЧИТАЕТСЯ ОТ ДОЛИ ЭКРАНА, А НЕ ЖЁСТКИМ ЧИСЛОМ (решение
+  // владельца 2026-08-12). Утверждаем ПОВЕДЕНИЕ, а не значение: зажатый вью
+  // обязан дать МЕНЬШИЙ радиус, чем просторный, и оба — внутри вилки.
+  // ⛔ Литерал «40» здесь стоял и был бы зелен при ЛЮБОЙ формуле, дающей 40, —
+  // в том числе при вернувшейся константе. Проверяем РАЗНИЦУ двух режимов.
+  // ⚠️ Модель устройства тут ни при чём и взяться ей неоткуда: браузер её не
+  // отдаёт, `env(device-corner-radius)` не существует (проверено фолбэком).
+  // ⚠️⚠️ ЭКРАН ЗАДАЁМ САМИ, И БЕЗ ЭТОГО СТРАЖ ПУСТ. В headless `screen`
+  // ПОВТОРЯЕТ вьюпорт, доля всегда 1.0, и радиус выходит одинаковым при любом
+  // размере окна — первая версия так и покраснела, утверждая разницу, которой
+  // в этой среде быть НЕ МОЖЕТ. Канон: страж ПРИВОДИТ нужное состояние сам, а
+  // не наследует его от стенда.
+  await chPage.setViewportSize({ width: 390, height: 844 });
+  await chPage.waitForTimeout(200);
+  const рПросторно = await chPage.evaluate(() => {
+    Object.defineProperty(window.screen, 'width',  { configurable:true, get:()=>390 });
+    Object.defineProperty(window.screen, 'height', { configurable:true, get:()=>852 });
+    window.dispatchEvent(new Event('resize'));
+    return window.__game.viewRadius(); });
+  const рЗажато = await chPage.evaluate(() => {
+    // тот же ЭКРАН, но вью занимает вдвое меньше — как под толстыми полосами
+    Object.defineProperty(window.screen, 'height', { configurable:true, get:()=>1700 });
+    window.dispatchEvent(new Event('resize'));
+    return window.__game.viewRadius(); });
+  console.log('радиус вью:', JSON.stringify({ просторно: рПросторно, зажато: рЗажато }));
+  expect(рПросторно.радиус >= рЗажато.радиус &&
+         рЗажато.радиус >= 1 && рПросторно.радиус <= рПросторно.макс &&
+         рПросторно.доля > рЗажато.доля,
+    '⚠️⚠️ РАДИУС ВЬЮ ЕДЕТ ЗА ДОЛЕЙ ЭКРАНА: просторный вью даёт не меньше зажатого, ' +
+    'оба в вилке (' + JSON.stringify({ просторно: рПросторно, зажато: рЗажато }) + ')');
+  const переменнаяПосле = parseInt(await chPage.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--view-r')), 10);
+  expect(переменнаяПосле === рЗажато.радиус,
+    'САНИТАР: посчитанный радиус доезжает до CSS-переменной, а не живёт в хуке (' +
+    переменнаяПосле + ' = ' + рЗажато.радиус + ')');
 
   await chPage.close();
 
