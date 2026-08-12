@@ -6258,14 +6258,20 @@ window.bridge = {
     // БЫТЬ кромками неба (те же переменные, что у полос Safari), а не просто
     // «каким-то нежёлтым цветом» — иначе страж зелен на любом хардкоде.
     document.querySelector('.ms-play').click(); await sleep(200); // на случай открытого
-    const closed = { html: bg(document.documentElement), body: bg(document.body) };
+    // ⚠️ ОБЪЯВЛЕНО ДО ПЕРВОГО ЗАМЕРА: мета читается уже у `closed`, и
+    // объявление ниже давало бы ReferenceError по временной мёртвой зоне.
+    const вЦвет = (v) => { const d = document.createElement('div');
+      d.style.backgroundColor = v; document.body.appendChild(d);
+      const c = getComputedStyle(d).backgroundColor; d.remove(); return c; };
+    const мета = () => norm(вЦвет((document.querySelector('meta[name=theme-color]') || {}).content || ''));
+    const closed = { html: bg(document.documentElement), body: bg(document.body), мета: мета() };
     // ЖИВОЙ ПУТЬ ОТКРЫТИЯ (не classList руками): класс держит openMainScreen,
     // и поздние события не должны его снять — приводим состояние как игрок.
     document.getElementById('pauseBtn').click(); await sleep(250);
-    const open = { html: bg(document.documentElement), body: bg(document.body),
+    const open = { html: bg(document.documentElement), body: bg(document.body), мета: мета(),
                    меню: document.getElementById('mainScreen').classList.contains('open') };
     document.querySelector('.ms-play').click(); await sleep(250);
-    const back = { html: bg(document.documentElement), body: bg(document.body) };
+    const back = { html: bg(document.documentElement), body: bg(document.body), мета: мета() };
     // menuBg в переменной — hex; переводим в тот же вид, что отдаёт computed
     const probe = document.createElement('div');
     probe.style.backgroundColor = menuBg; document.body.appendChild(probe);
@@ -6297,6 +6303,34 @@ window.bridge = {
   expect(bgSeams.back.body.col === bgSeams.skyTop,
     '⚠️ КРОМКА ПОСЛЕ МЕНЮ: вернулась к небу — тон меню не залипает (' +
     bgSeams.closed.body.col + ' -> ' + bgSeams.open.body.col + ' -> ' + bgSeams.back.body.col + ')');
+  // ⚠️⚠️ ВТОРОЙ КАНАЛ КРОМКИ, И ДО СЕГО ДНЯ ЕГО НЕ СТЕРЁГ НИКТО. Три ассерта
+  // выше читают ТОЛЬКО фон html/body, а у кромки каналов ДВА — фон и мета
+  // `theme-color`; канон требует, чтобы они несли ОДНО значение, иначе вопрос
+  // «какой из них читает Safari» снова становится открытым.
+  // ⛔ Держатели у каналов РАЗНЫЕ, и это корень дыры: фон меню ставит ПРАВИЛО
+  // `html.menuopen` (shell.html), а мету — вызов `tintChrome()` при закрытии
+  // (85-hud). Значит снятие этого вызова НЕ ТРОГАЕТ фон: класс уходит сам,
+  // все три ассерта остаются ЗЕЛЁНЫМИ, а мета залипает на тоне меню — на
+  // устройстве это полоса цвета меню над игровым экраном.
+  // ⚠️ ЭТО НАЙДЕНО ДИВЕРСИЕЙ, А НЕ ЧТЕНИЕМ: патч «убрать tintChrome при
+  // закрытии» прошёл ПОЛНОСТЬЮ ЗЕЛЁНЫМ — то есть дыру предъявил сам прогон.
+  // Утверждается ПЕРЕХОД (в меню — тон меню, после — небо): одно значение было
+  // бы истинно и на сборке, где мета не меняется вовсе.
+  // ⛔ СРАВНИВАЕМ С НИЖНИМ СТОПОМ, А НЕ С ВЕРХНИМ, И ЭТО НЕ ОПЕЧАТКА. Каналы
+  // несут РАЗНОЕ по построению: `tintChrome` (99-main) при `CHROME_SWAP=false`
+  // отдаёт фону ВЕРХНИЙ стоп, а мете — НИЖНИЙ (замер: фон rgb(3,29,131), мета
+  // rgb(216,38,186) — это верх и низ ночной палитры). Прежнее «оба канала несут
+  // ОДНО значение» верно было для НЕЙТРАЛИ, а она отменена словом владельца
+  // 2026-08-10 — правило пережило свою механику.
+  // ⚠️ МОЯ ОШИБКА, ПОЙМАННАЯ ПРОГОНОМ: первая версия требовала `skyTop` и
+  // краснела на ЗДОРОВОЙ сборке. Записываю, потому что она была построена на
+  // абзаце канона, а не на коде, — а расходятся они в пользу кода.
+  expect(bgSeams.open.мета === bgSeams.menuRGB && bgSeams.back.мета === bgSeams.skyBot &&
+         bgSeams.back.мета !== bgSeams.menuRGB,
+    '⚠️⚠️ КРОМКА, ВТОРОЙ КАНАЛ (мета theme-color): в меню — тон МЕНЮ, после ' +
+    'закрытия — снова НИЖНИЙ стоп неба, залипания нет (' + bgSeams.closed.мета + ' -> ' +
+    bgSeams.open.мета + ' -> ' + bgSeams.back.мета + ', меню ' + bgSeams.menuRGB +
+    ', низ неба ' + bgSeams.skyBot + ')');
 
   // ===== ПАКЕТ 2026-08-06: ПОРЯДОК АНОНСА / КОЛОНКИ КОЛЛЕКЦИИ / ГЛАЗА ЗА КУРСОРОМ =====
   // ⚠️ В КОНЦЕ ФАЙЛА: секция гоняет победу и открывает меню — долгоживущее
