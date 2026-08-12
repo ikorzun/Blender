@@ -154,7 +154,8 @@ page.on('response', (r) => {
   // безусловная проверка стала бы флейком. Регрессию (снесли CSS-правило) он
   // ловит всё равно — при живой защёлке узлы обязаны быть скрыты.
   const curtain = await page.evaluate(() => {
-    const ids = ['topBar', 'bottomBar', 'face', 'toast', 'tierToast', 'vitrine'];
+    // ⚠️ tierToast снят из списка вместе с узлом (уборка 2026-08-12)
+    const ids = ['topBar', 'bottomBar', 'face', 'toast', 'vitrine'];
     const shown = ids.filter(id => getComputedStyle(document.getElementById(id)).visibility !== 'hidden');
     const btn = document.getElementById('shakeBtn').getBoundingClientRect();
     const under = document.elementFromPoint(btn.left + btn.width / 2, btn.top + btn.height / 2);
@@ -7818,6 +7819,38 @@ window.bridge = {
   expect(скругл === 'none' && скруглД === 'none',
     '⛔ СКРУГЛЕНИЯ ВЬЮ НЕТ ни на одной ширине — снято словом владельца 2026-08-12 ' +
     '(моб «' + скругл + '», деск «' + скруглД + '»)');
+
+  // ===== КАП КАДРОВ 60 FPS (перф-заход 2026-08-12) =====
+  // iPhone Pro гонит rAF на 120 Гц — игра рисовала вдвое чаще, чем задумана;
+  // кап чисто презентационный (фикс-шаг цел, dt копится на пропуске).
+  // ⚠️ ХЕДЛЕС НЕ ОТПУСКАЕТ VSYNC — 120 Гц на стенде не создать, поэтому порог
+  // выводится из капа (840/cap) и механика доказывается ЖЁСТКИМ капом на
+  // обычных 60 Гц: кадры обязаны потяжелеть до порога и вернуться.
+  // ⚠️⚠️ КАП ДЛЯ ПРОВЕРКИ — 12 (порог 70 мс), А НЕ 30 (порог 28): первая
+  // версия с капом 30 ПОКРАСНЕЛА ПОД ПОЛНЫМ СЬЮТОМ — базовые кадры стенда под
+  // нагрузкой уже 34.7 мс, порог 28 не связывал НИЧЕГО, и страж мерил
+  // нагрузку, а не механику (изолированная проба при этом проходила: 19.5 →
+  // 44.8). Порог проверки обязан лежать ВЫШЕ любой реальной нагрузки стенда.
+  await chPage.setViewportSize({ width: 390, height: 780 });
+  await chPage.waitForTimeout(200);
+  const капЗамер = async (cap) => {
+    await chPage.evaluate((c) => { window.__game.cfg.fpsCap = c;
+      window.__game.perfReset(); window.__game.shake(); }, cap);
+    await chPage.waitForTimeout(2500);
+    return chPage.evaluate(() => window.__game.perfStats().frame.p95);
+  };
+  const кап60а = await капЗамер(60);
+  const кап12  = await капЗамер(12);
+  const кап60б = await капЗамер(60);
+  const капИнфо = await chPage.evaluate(() => window.__game.fpsCapInfo());
+  console.log('кап кадров:', JSON.stringify({ кап60а, кап12, кап60б, капИнфо }));
+  expect(капИнфо.кап === 60 && капИнфо.порогМс === 14,
+    '⚠️⚠️ КАП КАДРОВ: боевые умолчания целы — cfg.fpsCap 60, порог 840/60 = 14 мс (' +
+    JSON.stringify(капИнфо) + ')');
+  expect(кап12 > 55 && кап12 > кап60а * 1.4 && кап60б < кап12 * 0.7,
+    '⚠️⚠️ КАП КАДРОВ ЖИВОЙ: кап 12 гонит кадры к порогу 70 мс и кап 60 ' +
+    'возвращает обратно — механика пропуска работает (' +
+    JSON.stringify({ кап60а, кап12, кап60б }) + ')');
 
   await chPage.close();
 

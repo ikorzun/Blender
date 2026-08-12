@@ -44,7 +44,7 @@ function hide(id){
   $(id).style.display = 'none';
   // вернулись в игру — экран снова 'game' (если партия жива)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
-  if (id === 'winOverlay'){ winStopScore(); winLbStop(); }
+  if (id === 'winOverlay'){ winStopScore(); }
 }
 
 // ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
@@ -84,10 +84,9 @@ function renderWinScreen(){
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
   renderWinTop(reduce);
-  // ⛔ `renderWinLb()` СНЯТ — врезки на экране победы больше нет (слово
-  // владельца). Функция и её эпоха оставлены НИЖЕ живыми: на них висят хуки
-  // `winLbStub`/`winLbInfo`, а сама она безвредна без узла (первой же строкой
-  // выходит по `if (!box) return`).
+  // ⛔ Врезки таблицы здесь нет (слово владельца); её кластер вырезан уборкой
+  // 2026-08-12 — прежнее «оставлены живыми: на них висят хуки» протухло, хуки
+  // не читал никто, включая тесты (перепись употреблений).
   // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
   winStopScore();
   const st = $('winScore');
@@ -110,144 +109,12 @@ function renderWinScreen(){
   // заново при каждом показе (быстрый Next→win не «съедает» анимацию)
   wrap.classList.remove('win-in'); void wrap.offsetWidth; wrap.classList.add('win-in');
 }
-// ===== ВРЕЗКА ТАБЛИЦЫ НА ЭКРАНЕ ПОБЕДЫ (место + соседи) =====
-// ⚠️⚠️ ШОВ С МОДУЛЕМ ТАБЛИЦЫ ЖИВЁТ РОВНО ЗДЕСЬ, В ОДНОЙ ФУНКЦИИ. Протокол
-// (подпись, коды, частота) — зона ИНТЕГРАЦИИ; экран — моя. Переименуют поля
-// ответа — правка в `winLbAdapt`, а вёрстка, состояния и стражи не двигаются.
-// ⚠️ ПРОДУКТОВЫЙ СРОК, А НЕ ПАУЗА ЗАМЕРА: не дождались — врезка молчит, число
-// обновится на следующей победе. ⚠️⚠️ ЧИСЛО ВЫВЕДЕНО ИЗ ОКНА ЧАСТОТЫ СЕРВЕРА,
-// А НЕ ВЫБРАНО НА ГЛАЗ: трата сразу после победы откладывает отправку до
-// открытия окна (~20 с), и это НЕ ошибка и не «нет сети» — своего состояния у
-// неё нет, но срок обязан её пережить, иначе врезка молчала бы в самом
-// типичном сценарии («победа -> покупка множителя»). Прежние 2500 его резали.
-const WIN_LB_MS = 25000;
-let winLbEpoch = 0, winLbTO = 0, winLbSrc = null, winLbLast = null;
-// ⚠️ ЭПОХА — НА ВЫБРОСЕ ОТВЕТА. Растёт на КАЖДОМ показе и скрытии победы: игрок
-// жмёт Next быстрее, чем отвечает сеть, и ответ прошлого уровня не смеет
-// дорисоваться в свежий экран. Сверка — в колбэке, до единого касания DOM.
-function winLbStop(){ if (winLbTO) clearTimeout(winLbTO); winLbTO = 0; winLbEpoch++; }
-// ИСТОЧНИК. Боевой — window.__lb (модуль Интеграции), пока его нет — стенд
-// `__game.winLbStub()`. Порядок именно такой: появится модуль — врезка
-// переключится на него сама, без правки экрана.
-function winLbSource(){
-  if (winLbSrc) return winLbSrc;
-  const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  if (!lb || !lb.submit || !lb.me) return null;
-  // Модуль есть, но НЕ НАСТРОЕН (пустой адрес сервиса) — это та же «фича
-  // выключена», и врезки в раскладке быть не должно.
-  if (typeof lb.base === 'function' && !lb.base()) return null;
-  return async ()=>{
-    // ПОРЯДОК ОБЯЗАТЕЛЕН: банк (его делает checkEnd) -> отправка -> ДОЖДАТЬСЯ ->
-    // точное место. Ответ отправки несёт лишь ПРИКИДКУ (exact:0), точное место
-    // и соседей отдаёт только /me. ⚠️ Отказ отправки (частота, 20-секундное
-    // окно — обычное дело при быстром Next) НЕ отменяет врезку: показываем
-    // место по последнему записанному результату, молча.
-    const s = await lb.submit().catch(()=>null);
-    const m = await lb.me();
-    // ⚠️⚠️ МЕСТО БЕРЁМ ТОЛЬКО ИЗ /me И ТОЛЬКО ТОЧНОЕ. У ответа на ОТПРАВКУ тоже
-    // есть поле `rank`, и брать его нельзя: это ПРИКИДКА по лесенке снимка, а
-    // лесенка строится по каждому сотому игроку — пока в таблице меньше сотни
-    // строк, ступеней в ней нет ВООБЩЕ, и быстрый ответ отвечает «место 1»
-    // КАЖДОМУ (замер диспетчера 2026-08-09). Меньше сотни — это состояние
-    // таблицы в первые недели после запуска, то есть врал бы он всем и сразу.
-    return { state:m && m.state, rank:m && m.rank, exact:m && m.exact, score:m && m.score,
-             up:m && m.up, dn:m && m.dn,
-             sent:s && s.sent, server:(s && s.score != null) ? s.score : (m && m.score) };
-  };
-}
-// АДАПТЕР: ответ протокола -> вью-модель экрана. Отдаёт null = врезка молчит.
-function winLbAdapt(raw){
-  if (!raw || raw.state !== 'ok') return null;      // early/offline/broken — молча
-  // МОЕЙ СТРОКИ В ВЫДАЧЕ НЕТ (ещё не отправлялся, строку скрыли) — тоже молча.
-  const rank = raw.rank | 0; if (rank < 1) return null;
-  // ⚠️⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО, И ОТКАЗ ЗДЕСЬ ЗАКРЫТЫЙ: нет поля — не показываем.
-  // Прикидку сервер помечает сам; показать её как место значит соврать числом,
-  // которое выглядит настоящим. ⚠️ Прежняя версия трактовала ОТСУТСТВИЕ поля
-  // как «можно» (боялся, что переименование погасит экран). Решение диспетчера
-  // 2026-08-09: на вопросе доверия отказ обязан быть закрытым — цена молчания
-  // это пустой виджет, цена ложного «можно» — показанное неверное место.
-  // Тихое молчание при переименовании лечится СТРАЖЕМ («/me несёт exact»),
-  // а не доверием по умолчанию: тогда ломается тест, а не экран у игрока.
-  if (!raw.exact) return null;
-  const num = (v)=> (typeof v === 'number' && isFinite(v)) ? v : null;
-  // ⚠️⚠️ СОСЕДИ БЕРУТСЯ ПО СЧЁТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ. Порядок внутри
-  // up/dn — часть чужого контракта (nearest-first или best-first), и угадывать
-  // его нельзя: ошибка тихая, врезка покажет не тех соседей и будет выглядеть
-  // правдоподобно. Ближайший СВЕРХУ — с наименьшим счётом среди тех, кто выше;
-  // ближайший СНИЗУ — с наибольшим среди тех, кто ниже. Это верно при любом
-  // порядке и переживёт переименование полей.
-  const clean = (a)=> (Array.isArray(a) ? a : []).filter(e => e && num(e.score) !== null);
-  const up = clean(raw.up).slice().sort((a,b)=> a.score - b.score);   // ближайший сверху первым
-  const dn = clean(raw.dn).slice().sort((a,b)=> b.score - a.score);   // ближайший снизу первым
-  // ⚠️⚠️ В СВОЕЙ СТРОКЕ — ТО, ЧТО ЗАПИСАЛ СЕРВЕР, А НЕ ТО, ЧТО МЫ ПОСЛАЛИ.
-  // Отдельного ЭКРАНА под расхождение больше нет (владелец 2026-08-09 снял
-  // потолок доверия целиком), но САМО РАЗДЕЛЕНИЕ несущее и остаётся: сервер
-  // отказывает по частоте, по подписи, мягко деградирует на упавшей базе — и
-  // «тело разобралось» успехом не является. Клиент, рисующий ОТПРАВЛЕННОЕ
-  // число, показывал бы несуществующий результат в каждом таком случае.
-  const server = num(raw.server);
-  const me = { pos:rank, name:'You', av:(typeof guestAvatar === 'function' ? guestAvatar() : ''),
-               score:(server !== null ? server : num(raw.score) || 0), me:true };
-  // ⚠️ СТРОК ВСЕГДА ТРИ — на этом стоит зарезервированная высота слота
-  // (см. min-height у .win-lb): «то две, то три» двигало бы Next под пальцем.
-  // Первого места сосед сверху не бывает — добираем вторым снизу.
-  const rows = [];
-  if (up[0]) rows.push({ pos:rank - 1, name:up[0].name, av:up[0].av, score:up[0].score });
-  rows.push(me);
-  if (dn[0]) rows.push({ pos:rank + 1, name:dn[0].name, av:dn[0].av, score:dn[0].score });
-  if (rows.length < 3 && dn[1]) rows.push({ pos:rank + 2, name:dn[1].name, av:dn[1].av, score:dn[1].score });
-  if (rows.length < 3 && up[1]) rows.unshift({ pos:rank - 2, name:up[1].name, av:up[1].av, score:up[1].score });
-  return { rows, rank };
-}
-function winLbRender(v){
-  const box = $('winLb'), list = $('winLbList');
-  if (!box || !list) return;
-  if (!v){ box.classList.remove('on'); list.innerHTML = ''; return; }
-  list.innerHTML = '';
-  v.rows.forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'wl-row' + (r.me ? ' me' : '');
-    const pos = document.createElement('div'); pos.className = 'wl-pos'; pos.textContent = '#' + r.pos;
-    // АВАТАР — ТОТ ЖЕ ФАЙЛОВЫЙ РЕЦЕПТ, ЧТО У ПРОФИЛЯ (avatars/AvatarNN.png,
-    // ассеты владельца): и своя строка, и соседи приходят НОМЕРОМ файла.
-    const av = document.createElement('div'); av.className = 'wl-av';
-    const ai = r.av | 0;
-    if (ai > 0){
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async';
-      av.appendChild(img);
-    }
-    const nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = r.name || '';
-    const sc = document.createElement('div'); sc.className = 'wl-score'; sc.textContent = winFmtScore(r.score);
-    row.append(pos, av, nm, sc);
-    list.appendChild(row);
-  });
-  box.classList.add('on');
-}
-function renderWinLb(){
-  const box = $('winLb'); if (!box) return;
-  // СИНХРОННЫЙ СБРОС В ПУСТОТУ на каждом показе: без него быстрый Next -> победа
-  // мигнул бы врезкой ПРОШЛОГО уровня, пока не приедет свежая.
-  winLbRender(null); winLbLast = null;
-  if (winLbTO) clearTimeout(winLbTO);
-  const src = winLbSource();
-  // ⚠️⚠️ ФИЧА ВЫКЛЮЧЕНА — ВРЕЗКИ НЕТ В РАСКЛАДКЕ ВОВСЕ, НОЛЬ ПИКСЕЛЕЙ.
-  // Резерв высоты нужен, только пока данные ОЖИДАЮТСЯ; держать пустой слот
-  // «на будущее» значит отодвигать TOP ITEMS у игрока, которому таблица не
-  // показывается никогда (указание диспетчера 2026-08-09). `display:none`, а
-  // не `visibility`: нужен именно выход из потока, иначе место останется.
-  box.style.display = src ? '' : 'none';
-  if (!src) return;
-  const my = ++winLbEpoch;
-  let done = false;
-  winLbTO = setTimeout(()=>{ done = true; }, WIN_LB_MS);
-  Promise.resolve().then(src).then(raw => {
-    if (my !== winLbEpoch || done) return;   // экран сменился или срок вышел — молча в мусор   // экран сменился или срок вышел — молча в мусор
-    const v = winLbAdapt(raw); winLbLast = v;
-    winLbRender(v);
-  }).catch(()=>{});
-}
+// ⛔ ЗДЕСЬ ЖИЛА ВРЕЗКА ТАБЛИЦЫ НА ЭКРАНЕ ПОБЕДЫ (WIN_LB_MS, winLbStop/Source/
+// Adapt/Render, renderWinLb) — снята словом владельца («врезки больше нет»),
+// кластер ВЫРЕЗАН уборкой 2026-08-12 по его же приказу «удали старое и
+// неиспользуемое»: не читал никто, включая тесты. Возврат — из истории git;
+// требование «место после победы» закрывают плашка меню и экран таблицы
+// (мгновенный пересчёт lbOnSent). Страж «врезки НЕТ» жив и остался.
 // ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
 // ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
 // ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
@@ -676,7 +543,7 @@ function eyesMood(now, grinding){
 }
 // Диск заряда у курсора (tickChainBar) УДАЛЁН: индикатор турбо теперь
 // РАЗМЕР ЗРАЧКА персонажа (спека владельца в чате ИНТЕРФЕЙСА: «полоски
-// нет, копит глаз») — см. eyeSizes ниже. CHAIN_RING_ENABLED в 00-config
+// нет, копит глаз») — см. eyeSizes ниже. (Флаг диска-заряда вырезан уборкой)
 // остался мёртвым флагом истории.
 // короткая реакция поверх состояния (тап по глазам, промах, сюрприз)
 function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; faceHoldFrom = 0; }
@@ -1028,13 +895,11 @@ function updateHUD(){
   // ⚠️ ТЕМА МОЖЕТ СМЕНИТЬСЯ В ЖИВОЙ СЕССИИ (граница 20:00), а нейтраль полос
   // зависит ровно от неё — значит тинт обязан переехать вместе с темой, иначе
   // после заката полосы останутся белыми. Перекрашиваем ТОЛЬКО на переходе,
-  // не каждый тик: `tintChrome` трогает html/body и мету.
+  // не каждый тик. (Покраска кромок снята 4-й редакцией — тик остался дешёвым.)
   // ⛔ Под меню НЕ вмешиваемся — там своя нейтраль, и её ставит openMainScreen.
   const ночьТеперь = isNightSky();
   if (ночьТеперь !== hudWasNight){
     hudWasNight = ночьТеперь;
-    if (!document.documentElement.classList.contains('menuopen') &&
-        typeof tintChrome === 'function') tintChrome();
   }
   document.documentElement.classList.toggle('night', ночьТеперь);
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
@@ -1393,67 +1258,14 @@ function spinTick(now){
 }
 
 // --- всплывашка: очередь, показываем по одной ~2.2 с ---
-const tierQueue = [];
-let tierBusy = false;
 function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // ⚠️ ОДИН ТОСТ НА ДВА СОБЫТИЯ (слово владельца 2026-08-05 «своди в один»):
 // сбор прокачанного вида и ПОВЫШЕНИЕ ступени показывает один и тот же тост
 // под глазами; раньше ступень уходила в отдельную пилюлю у нижнего края и
-// читалась как дубль. Пилюля #tierToast и очередь nextTierToast остаются
-// мёртвым кодом до уборки — снимать вместе с разметкой и CSS.
+// читалась как дубль. ✅ Пилюля #tierToast, её очередь и CSS ВЫРЕЗАНЫ уборкой
+// 2026-08-12 — этот комментарий сам просил снять их «вместе с разметкой».
 function showTierUp(ev){
   try { showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true); } catch(e){}
-}
-function showTierUpLegacy(ev){ tierQueue.push(ev); if (!tierBusy) nextTierToast(); }
-function nextTierToast(){
-  const ev = tierQueue.shift();
-  if (!ev){ tierBusy = false; return; }
-  tierBusy = true;
-  const t = $('tierToast');
-  // СОСЕДСТВО С ВИТРИНОЙ (десктоп, витрина теперь СЛЕВА, v1-test-74):
-  // при видимой витрине всплывашка ПОДНИМАЕТСЯ над её верхом — читается
-  // как «выпрыгнула из карточки». Глушить тост не стали: он прямая спека
-  // владельца («красивый эффект»), а витрина показывает ап лишь тихой
-  // полоской. При скрытой витрине (узко/мобайл) — прежний угол.
-  const vit = $('vitrine');
-  // панель считается видимой, только если она НЕ погашена своим состоянием
-  // vempty (всё собрано). (camnear отменён 2026-07-27 — правило ширины.)
-  const vitShown = vit && getComputedStyle(vit).display !== 'none' &&
-    !vit.classList.contains('vempty');
-  if (vitShown){
-    t.style.bottom = (innerHeight - vit.getBoundingClientRect().top + 12) + 'px';
-    t.style.left = '8px'; // в ЛИНИЮ с витриной и кнопкой подсказки (обе на 8)
-  } else { t.style.bottom = ''; t.style.left = ''; }
-  const url = itemThumb(ev.item);
-  $('ttImg').style.display = url ? '' : 'none';
-  if (url) $('ttImg').src = url;
-  // имени предмета в макете 769:56 нет — показываем портрет и множитель
-  $('ttMult').textContent = fmtMult(ev.mult || 1);
-  // ⚠️ ПОДПИСЬ ПОД ПОРТРЕТОМ (пункт плана 1.3, тексты — ПОВЕСТВОВАНИЕ; место —
-  // зона ИНТЕРФЕЙСА, помечено в сдаче). Голое «×1.25» на телефоне не значит
-  // НИЧЕГО: витрина там не строится вовсе, и связать множитель с конкретным
-  // видом негде. Имя + счётчик спасённых делают число величиной.
-  // Узел создаётся ИЗ JS и не трогает разметку макета 769:56 (имени он не
-  // предусматривал) — правка адресная и снимается одной строкой. Пилюля уже
-  // flex-column, поэтому строка встаёт под .ttRow без правки раскладки.
-  // ⛔ СТРОКА «Name · N saved» В ПИЛЮЛЕ СНЯТА (слово владельца 2026-08-05:
-  // «в тосте появился какой-то лишний белый текст, убери его»). Тексты
-  // Повествования (accToastLine/accSavedText) ЖИВЫ в 77-save и переиспользуются
-  // разовым правилом ниже и экраном победы — снята только эта строка.
-  const ttLineOld = $('ttLine');
-  if (ttLineOld) ttLineOld.remove();
-  // ПРАВИЛО — РОВНО ОДИН РАЗ, в момент ПЕРВОЙ ступени: раньше игрок не понял бы,
-  // о чём речь, позже — уже привык к цифре без смысла. Отдельным тостом, а не
-  // строкой в пилюле: за 1.9 с две мысли не читаются.
-  if (typeof accRuleDue === 'function' && accRuleDue()){
-    accRuleMark();
-    setTimeout(()=>{ toast(accRuleText()); }, 700);
-  }
-  t.classList.remove('bye'); void t.offsetWidth;
-  t.classList.add('show');
-  Sound.play('surprise', 0.6); vibrate([15, 30, 15]);
-  setTimeout(()=>{ t.classList.remove('show'); t.classList.add('bye'); }, 1900);
-  setTimeout(()=>{ t.classList.remove('bye'); nextTierToast(); }, 2250);
 }
 
 // --- музей: открывается ИЗ ПАУЗЫ (paused держится), закрытие — обратно ---
@@ -2084,8 +1896,7 @@ function openMainScreen(){
   // `chromeMeta(menuChrome())` — второй канал кромки, заведённый 2026-08-10,
   // когда цвет полосы ещё подбирался под экран.
   // ⚠️ КЛАСС `menuopen` СТАВИТСЯ ПО-ПРЕЖНЕМУ — на нём висят другие правила;
-  // снята только покраска. И `menuChrome()` жива: её читает страж, проверяющий,
-  // что фон САМОГО меню не разъехался с `--ms-bg`.
+  // снята только покраска.
   // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
   // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
   // плавающей шапкой и кнопкой поверх видимой карточки Play.
@@ -2113,15 +1924,9 @@ function openMainScreen(){
 // нейтрали, и правка «вырезать блок» унесла его заодно — сьют поймал
 // ошибкой страницы. Режешь диапазон — проверь, что на его краях.
 let hudWasNight = null;
-function menuChrome(){
-  return getComputedStyle(document.documentElement).getPropertyValue('--ms-bg').trim() || '#d9f4ff';
-}
-function chromeMeta(col){
-  try {
-    const m = document.querySelector('meta[name="theme-color"]');
-    if (m && col) m.setAttribute('content', col);
-  } catch(e){}
-}
+// ⛔ menuChrome/chromeMeta вырезаны уборкой 2026-08-12: 4-я редакция кромок
+// (чёрный всегда, статически) оставила их без единого читателя. Моё же
+// «menuChrome жива — её читает страж» оказалось неправдой по переписи.
 function closeMainScreen(){
   // #4: тап-спин крутит offscreen-WebGL rAF; без mouseleave он бы жил ВЕСЬ
   // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
@@ -2130,11 +1935,6 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
-  // ⛔ Здесь стоял возврат кромки к небу (`tintChrome`). Возвращать больше
-  // нечего: полосы держит система, а не мы. Вызов оставлен — функция пуста
-  // намеренно (надгробие в 99-main), и снос трёх её вызовов ради нулевого
-  // эффекта только размазал бы правку по файлам.
-  if (typeof tintChrome === 'function') tintChrome();
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
