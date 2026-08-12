@@ -570,9 +570,18 @@ function genLevel(){
     // летит в первой волне и честно оказывается в глубине, как раньше.
     // первая волна столба: виден в полёте вместе с прочими и честно уходит
     // в глубину кучи (страж «закопанная рыбка» и высота заполнения целы)
-    const th = Math.random() * Math.PI * 2, d = Math.random() * 1.8;
-    const spawn = new THREE.Vector3(Math.cos(th) * d, FUNNEL.H + 1.6 + 0.5, Math.sin(th) * d);
-    items.push(makeSurprise(spawn));
+    // ⚠️⚠️ ГЕЙТ (спека владельца 2026-08-12): с 10-го уровня И только если
+    // куплена хоть одна ступень буста. Ниже — клада в чаше нет вовсе.
+    // ⚠️ ВСЕ ПОТРЕБИТЕЛИ СЮРПРИЗА УЖЕ ТЕРПЯТ ЕГО ОТСУТСТВИЕ ПО ПОСТРОЕНИЮ:
+    // они либо фильтруют `!it.surprise`, либо ищут `find(...)` и выходят по
+    // `if (!sp) return`. Проверено перечислением всех 20 мест перед правкой —
+    // ни одно не полагается на то, что клад ЕСТЬ.
+    if (levelNum >= SURPRISE_FROM_LEVEL &&
+        (typeof anyBoostBought !== 'function' || anyBoostBought())){
+      const th = Math.random() * Math.PI * 2, d = Math.random() * 1.8;
+      const spawn = new THREE.Vector3(Math.cos(th) * d, FUNNEL.H + 1.6 + 0.5, Math.sin(th) * d);
+      items.push(makeSurprise(spawn));
+    }
   }
   // БЕЗ предварительной осадки: падение происходит ЖИВЬЁМ на экране
   // (интро: вид сбоку -> облёт -> вид сверху); утряска и трим — в интро

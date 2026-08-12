@@ -1153,6 +1153,11 @@ window.__game = {
   // только «есть бомба в куче или нет», а правило состоит из трёх величин —
   // порога уровня, разрыва и награды за серии. Без них страж проверял бы
   // следствие, а не правило.
+  // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
+  // себе, разъедется с боем при первой же правке владельца.
+  surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
+                           естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
+                           вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
   bombRule(){ return { сУровня: BOMB_FROM_LEVEL, разрывМин: BOMB_GAP_MIN, разрывМакс: BOMB_GAP_MAX,
                        заСерии: BOMB_SERIES_REWARD, следующийУровень: bombNextLevel,
                        вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.bomb) n++; return n; })(),
@@ -1302,6 +1307,18 @@ window.__game = {
   bankScore(n){ return bankLevelScore(n); },
   addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
   scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
+  // ⚠️⚠️ ТЕСТ-ХУК ПРЕДПОСЫЛКИ КЛАДА, И ОН ЗАВЕДЁН ПО ЗАМЕРУ, А НЕ ДЛЯ УДОБСТВА.
+  // Гейт рыбки требует «прокачена хоть одна вещь». Честный путь (заработать →
+  // `buyBoost`) СЛОМАЛ ДЕВЯТЬ соседних стражей: покупка НАВСЕГДА поднимает
+  // ступень типа, который они меряют поимённо, а пополнение баланса ломает
+  // формат чипа (`88.2k` против `88208`). Это ровно канонный случай «страж,
+  // приводя состояние, ломает соседей по странице».
+  // ⛔ Поэтому ставим РОВНО названное владельцем условие и ничего больше: одна
+  // купленная ступень на ПОСЛЕДНЕМ типе пула — его не меряет ни один страж.
+  // Баланс не трогается, чужие ступени не трогаются.
+  boostGrantForSurprise(){ const t = TYPES[TYPES.length - 1];
+    Save.bo = Save.bo || {}; Save.bo[t.name] = Math.max(1, Save.bo[t.name] | 0);
+    commitSave(); return { тип: t.name, естьБуст: anyBoostBought() }; },
   clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
   starMigrate(){ return migrateStarsToWallet(); },
   saveRaw(){ return JSON.parse(JSON.stringify(Save)); },

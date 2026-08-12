@@ -416,6 +416,15 @@ function migrateStarsToWallet(){
 // «сколько спасено» (витрина/музей показывают честную цифру), bo — «сколько
 // докуплено». Итоговая ступень = сумма, с общим капом.
 function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
+// ⚠️ «ПРОКАЧЕН ХОТЬ ОДИН ПРЕДМЕТ» — про КУПЛЕННЫЕ ступени (`Save.bo`), а не про
+// заработанные накоплением (`Save.ac`). Заработанные приходят сами от игры, и
+// условие на них выполнялось бы почти сразу — то есть гейт был бы декоративным.
+// Купленная ступень — осознанная трата, ровно её владелец и назвал «прокачкой».
+function anyBoostBought(){
+  if (!Save.bo) return false;
+  for (const k in Save.bo) if ((Save.bo[k] | 0) > 0) return true;
+  return false;
+}
 function boostPrice(name){
   if (!isTypeUnlocked(name)) return null;          // буст только ОТКРЫТОГО типа (гейт)
   if (accTier(name) >= ACC_TIER_CAP) return null;  // множитель уже на потолке — нечего давать

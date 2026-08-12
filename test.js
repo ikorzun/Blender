@@ -1201,6 +1201,17 @@ page.on('response', (r) => {
 
   // финал: остались одиночки без пар — миксер зачищает их, собирает сюрприз (+150)
   // и наступает победа с апом уровня
+  const урДоКлада = await page.evaluate(() => window.__game.levelNum());
+  await page.evaluate(() => { const g = window.__game;
+      // ⚠️⚠️ ПРЕДПОСЫЛКА КЛАДА ПРИВОДИТСЯ САМИМ СТРАЖЕМ (спека владельца
+      // 2026-08-12): рыбка есть ТОЛЬКО с 10-го уровня и ТОЛЬКО при купленной
+      // ступени буста. Раньше она была на каждом уровне, и все стражи клада
+      // получали её даром — после гейта пять из них покраснели РОВНО на этом.
+      // ⛔ Ослаблять ассерты нельзя: они про НАЧИСЛЕНИЕ и про СЛЁТ, а не про
+      // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
+      // не подсовыванием поля в сейв.
+    g.boostGrantForSurprise();
+    if (g.levelNum() < 10) g.setLevel(10); });
   const lvlBefore = await page.evaluate(() => window.__game.levelNum());
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); window.__game.level().finalRefillDone = true; /* докидка (v234) здесь чужая: сценарий ждёт финал-помола одиночек */ window.__game.leaveSingles(); });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
@@ -1224,6 +1235,13 @@ page.on('response', (r) => {
   // дальше уровни пересоздаются через evaluate-regen (мимо кнопки «Дальше») —
   // победный оверлей надо спрятать руками, иначе он перехватит реальные клики
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
+  // ⚠️⚠️ ВОЗВРАЩАЕМ УРОВЕНЬ, КОТОРЫЙ ПОДНЯЛИ РАДИ КЛАДА. Правило записано в
+  // каноне после секции бомбы: «секция, поднявшая уровень, обязана вернуть его
+  // на месте, а не надеяться, что соседи переживут». Здесь оно сработало
+  // ровно так: `setLevel(10)` протёк дальше, и соседний страж бесплатных
+  // встрясок увидел уровень чужой партии. Ставим то, чем он и был бы: исходный
+  // + 1 за победу.
+  await page.evaluate((ур) => { window.__game.setLevel(ур + 1); }, урДоКлада);
 
   // сложность: по умолчанию (easy) доступно всё живое, кроме сюрприза;
   // Hard включает перекрытия (веер лучей + вуаль)
@@ -3751,6 +3769,15 @@ window.bridge = {
   const sbExact = await page.evaluate(async () => {
     const g = window.__game;
     g.boostSetClock(0); g.boostClear();
+      // ⚠️⚠️ ПРЕДПОСЫЛКА КЛАДА ПРИВОДИТСЯ САМИМ СТРАЖЕМ (спека владельца
+      // 2026-08-12): рыбка есть ТОЛЬКО с 10-го уровня и ТОЛЬКО при купленной
+      // ступени буста. Раньше она была на каждом уровне, и все стражи клада
+      // получали её даром — после гейта пять из них покраснели РОВНО на этом.
+      // ⛔ Ослаблять ассерты нельзя: они про НАЧИСЛЕНИЕ и про СЛЁТ, а не про
+      // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
+      // не подсовыванием поля в сейв.
+    g.boostGrantForSurprise();
+    if (g.levelNum() < 10) g.setLevel(10);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum() };
@@ -3762,6 +3789,8 @@ window.bridge = {
   const sbBoosted = await page.evaluate(async () => {
     const g = window.__game;
     g.buyBundle('bundle2');                        // x2
+    g.boostGrantForSurprise();                     // предпосылка клада
+    if (g.levelNum() < 10) g.setLevel(10);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum(), mult: g.scoreBoostMult() };
@@ -6731,6 +6760,10 @@ window.bridge = {
   bowlVisPage.on('pageerror', e => errors.push('PAGEERROR(bowl): ' + e.message));
   await bowlVisPage.goto('file://' + PAGE_FILE);
   await bowlVisPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  await bowlVisPage.evaluate(() => { const g = window.__game;
+    // предпосылка клада (см. выше): без неё «клад летит со всеми» мерил бы пустоту
+    g.boostGrantForSurprise();
+    if (g.levelNum() < 10) g.setLevel(10); g.regen(); });
   await bowlVisPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 900));
   const чаша = await bowlVisPage.evaluate(async () => {
