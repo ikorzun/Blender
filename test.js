@@ -926,6 +926,70 @@ page.on('response', (r) => {
       'меню (' + JSON.stringify(мгн) + ')');
     await пп.close(); стендП.close();
   }
+  // ═══ ОДНО ЧИСЛО В ШАПКЕ И В ТАБЛИЦЕ (жалоба владельца 2026-08-12) ═══
+  // «разные значения»: в шапке меню 9445, в строке таблицы 9 367. Замер объяснил
+  // разницу ровно — 78 это счёт текущей партии, ещё не забанкованный: шапка
+  // читает liveBalance (банк + партия), а на сервере лежит только банк.
+  // Канон 2026-07-24 требует ОДНО число везде, значит открытие меню банкует.
+  // ⚠️ СТРАЖ УТВЕРЖДАЕТ ПЕРЕХОД, А НЕ РАВЕНСТВО: сперва показывает, что
+  // расхождение РЕАЛЬНО (иначе «равны» было бы истинно и на сборке, где банка
+  // нет, а заработка не случилось вовсе), и только потом — что оно ушло.
+  // ⚠️ ТРЕТИЙ ПРИЗНАК — КОНТРОЛЬ ХОЛОСТОГО ХОДА: переоткрытие меню без нового
+  // заработка не шлёт НИЧЕГО. Без него зелёным был бы и вариант «шлём при
+  // каждом открытии», то есть сеть на каждый тап паузы.
+  {
+    const стендД = await httpStand();
+    const пд = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await пд.addInitScript(маскаБота);
+    await пд.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test');
+            localStorage.setItem('mixer_lb_sent', '1'); localStorage.setItem('mixer_lb_reg', '1'); } catch (e) {}
+      // ⚠️ СЕРВЕР ЭХОМ ОТДАЁТ РОВНО ТО, ЧТО ЕМУ ПРИСЛАЛИ, — как настоящий.
+      // Захардкоженное число в /v1/me проверяло бы мою фантазию, а не тракт.
+      window.__наСервере = 1; window.__отпр = 0;
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        const s = String(u);
+        if (s.indexOf('/v1/top') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ r: [['Bot', 1, 99999]], t: 1, n: 1 }), { status: 200 }));
+        if (s.indexOf('/v1/me') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, rank: 5, exact: 1, s: window.__наСервере }), { status: 200 }));
+        if (s.indexOf('/v1/score') >= 0){
+          window.__отпр++;
+          try { const b = JSON.parse(o && o.body); if (typeof b.s === 'number') window.__наСервере = b.s; } catch (e) {}
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: 0, rank: null, exact: 0 }), { status: 200 }));
+        }
+        return of.apply(this, arguments);
+      };
+    });
+    await пд.goto(стендД.url);
+    await пд.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await пд.evaluate(() => window.__game.skipIntro());
+    const два = await пд.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      g.bankScore(93670);                                   // победа: 9367 уехали в банк
+      for (let i = 0; i < 80 && window.__наСервере !== 9367; i++) await sl(100);
+      // ⚠️ НОВЫЙ УРОВЕНЬ: водяной знак банка обнулился, и заработок партии
+      // снова живёт вне сервера — ровно то состояние скриншота владельца.
+      g.regen(); g.skipIntro(); await sl(500);
+      g.stats().score = 780;                                // 78 в деноминированных
+      const до = { кошелёк: g.liveBalance(), наСервере: window.__наСервере, отпр: window.__отпр };
+      document.getElementById('pauseBtn').click();          // НАСТОЯЩИЙ путь, не хук
+      for (let i = 0; i < 80 && window.__наСервере === до.наСервере; i++) await sl(100);
+      const после = { кошелёк: g.liveBalance(), наСервере: window.__наСервере, отпр: window.__отпр };
+      // ХОЛОСТОЙ ХОД: закрыть Resume'ом и открыть снова, ничего не заработав
+      document.querySelector('.ms-play').click(); await sl(400);
+      document.getElementById('pauseBtn').click(); await sl(900);
+      return { до, после, вхолостую: window.__отпр - после.отпр };
+    });
+    console.log('одно число:', JSON.stringify(два));
+    expect(два.до.кошелёк - два.до.наСервере === 78 &&
+           два.после.кошелёк === два.после.наСервере && два.после.наСервере === 9445 &&
+           два.вхолостую === 0,
+      '⚠️⚠️ ТАБЛИЦА: расхождение кошелька и строки (счёт партии) снимается при ' +
+      'открытии меню, а холостое переоткрытие сеть не дёргает (' + JSON.stringify(два) + ')');
+    await пд.close(); стендД.close();
+  }
 
   // ═══ ПОДАЧА БОМБЫ (спека владельца 2026-08-12) ═══
   // «добавляй бомбу с 5 уровня, но через каждый 1-3 уровня по умолчанию, а так
