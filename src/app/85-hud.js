@@ -513,6 +513,25 @@ function lbScreenRender(){
   lbLoadOurs(my).catch(()=>{});
 }
 function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
+// ⚠️⚠️ МГНОВЕННЫЙ ПЕРЕСЧЁТ ПОСЛЕ ОТПРАВКИ (жалоба владельца 2026-08-12).
+// Раньше показ обновлялся только на ОТКРЫТИИ меню и экрана; игрок же покупает
+// буст, УЖЕ стоя в меню, и смотрит на прежнее место. Теперь клиент таблицы
+// говорит «счёт доехал», и мы перечитываем ровно то, что видно СЕЙЧАС.
+// ⚠️ ПЕРЕЧИТЫВАЕМ, А НЕ ДОРИСОВЫВАЕМ ЧИСЛО ОТ СЕБЯ: место по-прежнему берётся
+// только из `/v1/me` и только точное — правило закрытого отказа не тронуто.
+// ⚠️ Экран трогаем ТОЛЬКО когда он открыт: иначе `lbScreenRender` показал бы
+// «Loading…» в невидимом слое и сжёг запрос на каждой отправке.
+try {
+  if (typeof window !== 'undefined' && window.__lb && window.__lb.onSent){
+    window.__lb.onSent(function (){
+      try { lbEntryRefresh(); } catch (e) {}
+      try {
+        const o = document.getElementById('lbOverlay');
+        if (o && getComputedStyle(o).display !== 'none') lbScreenRender();
+      } catch (e) {}
+    });
+  }
+} catch (e) {}
 function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
 // ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
 // мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает

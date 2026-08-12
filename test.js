@@ -853,6 +853,80 @@ page.on('response', (r) => {
          потолокСерии.пик <= потолокСерии.потолок + 1e-6,
     '⚠️ РАДИУС: серия матчей растит его ВЫШЕ базы, но не выше потолка ' +
     потолокСерии.потолок + ' (' + JSON.stringify(потолокСерии) + ')');
+  // ═══ МГНОВЕННЫЙ ПЕРЕСЧЁТ МЕСТА ПОСЛЕ ТРАТЫ (спека владельца 2026-08-12) ═══
+  // «мне нужен мгновенный пересчёт рейтинга и позиции, если я закончил уровень
+  // или потратил очки на прокачку вещи в меню паузы». Разбор его же жалобы про
+  // «разные значения» (9445 в кошельке против 9367 в строке): отправка забывала
+  // кэш, но НИКОМУ не говорила, что число уже новое, — плашка перечитывала
+  // таблицу только при ОТКРЫТИИ меню, а игрок покупает буст, уже стоя в нём.
+  // ⚠️ СВОЯ СТРАНИЦА И СВОЙ СТЕНД ПО HTTP: на `file:` гейт `LB_NOSEND` глушит
+  // отправку, и страж мерил бы её отсутствие (проба так и обманулась).
+  // ⚠️ ТРАТИМ ЗАРАБОТАННОЕ (`bankScore`), А НЕ ПОПОЛНЕНИЕ (`starGrant`): трата
+  // сперва ест пополнение, и ранг тогда не меняется ПО ЗАМЫСЛУ — страж проверял
+  // бы отсутствие события. Вторая ловля той же пробы.
+  {
+    const стендП = await httpStand();
+    const пп = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await пп.addInitScript(маскаБота);
+    await пп.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test');
+            localStorage.setItem('mixer_lb_sent', '5000'); localStorage.setItem('mixer_lb_reg', '1'); } catch (e) {}
+      const строки = []; for (let i = 0; i < 12; i++) строки.push(['Bot' + i, (i % 12) + 1, 9000 - i * 137]);
+      window.__ранг = 5; window.__отправок = 0;
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        const s = String(u);
+        if (s.indexOf('/v1/top') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ r: строки, t: 1, n: 12 }), { status: 200 }));
+        if (s.indexOf('/v1/me') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, rank: window.__ранг, exact: 1, s: 9445 }), { status: 200 }));
+        if (s.indexOf('/v1/score') >= 0){
+          window.__отправок++;
+          // ⚠️⚠️ МЕСТО МЕНЯЕМ ПО САМОМУ СЧЁТУ, А НЕ ПО НОМЕРУ ПОПЫТКИ. Первая
+          // версия ждала ВТОРОЙ отправки, считая первой стартовую (облачный
+          // синк) — и в полном прогоне её не оказалось: там мост живёт по
+          // своему сценарию. Страж краснел не на механике, а на своей же
+          // догадке о числе запросов. Ноль на старте место не двигает.
+          let b = null; try { b = JSON.parse(o && o.body); } catch (e) {}
+          if (b && b.s > 0) window.__ранг = 9;
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: 0, rank: null, exact: 0 }), { status: 200 }));
+        }
+        return of.apply(this, arguments);
+      };
+    });
+    await пп.goto(стендП.url);
+    await пп.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await пп.evaluate(() => window.__game.skipIntro());
+    const мгн = await пп.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sl(900);
+      const до = (document.getElementById('msLbeRank') || {}).textContent;
+      g.bankScore(300000);
+      g.buyBoost(g.accSnapshot()[0].key);
+      // ⚠️⚠️ ЖДЁМ ФАКТ, А НЕ ЧАСЫ. Первая версия стояла на паузе 2.5 с и
+      // краснела ТОЛЬКО в полном прогоне: отдельная проба на свободной машине
+      // укладывалась, а под сьютом (десяток страниц, занятый процессор) окно
+      // склейки 0.5 с + ответ сервера в него не влезали. Ровно тот канонный
+      // случай — «фиксированная пауза меряет часы стенда, а не состояние».
+      for (let i = 0; i < 80 && window.__отправок < 1; i++) await sl(100);
+      for (let i = 0; i < 40 &&
+           (document.getElementById('msLbeRank') || {}).textContent === до; i++) await sl(100);
+      return { до, после: (document.getElementById('msLbeRank') || {}).textContent,
+               отправок: window.__отправок,
+               менюОткрыто: getComputedStyle(document.getElementById('mainScreen')).display !== 'none' };
+    });
+    console.log('мгновенный пересчёт:', JSON.stringify(мгн));
+    // ⚠️ ТРИ ПРИЗНАКА СРАЗУ: меню НЕ переоткрывали, отправка была, и место
+    // ПЕРЕМЕНИЛОСЬ. Без первого страж прошёл бы и на сборке, где показ
+    // обновляется только открытием; без второго — на сборке, где трата вообще
+    // не доезжает до сервера.
+    expect(мгн.менюОткрыто === true && мгн.отправок >= 1 &&
+           мгн.до === '5 place' && мгн.после === '9 place',
+      '⚠️⚠️ ТАБЛИЦА: место пересчитывается СРАЗУ после траты, без переоткрытия ' +
+      'меню (' + JSON.stringify(мгн) + ')');
+    await пп.close(); стендП.close();
+  }
+
   // ═══ ПОДАЧА БОМБЫ (спека владельца 2026-08-12) ═══
   // «добавляй бомбу с 5 уровня, но через каждый 1-3 уровня по умолчанию, а так
   // же если игрок выбьет 3 серии». ТРИ свойства, и ломаются они порознь.

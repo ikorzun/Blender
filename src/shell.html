@@ -953,7 +953,12 @@
      Dev Mode каноном запрещён (preserveAspectRatio="none" + 100% габариты). */
   .win-reward { flex:none; display:flex; align-items:center; gap:7px; height:84px;
     box-sizing:border-box; background:rgba(255,255,255,.16); border-radius:1000px;
-    box-shadow:inset 0 0 28px 0 #c0ff47; padding:8px 20px 8px 8px; }
+    /* ⚠️ СВЕЧЕНИЕ СЛАБЕЕ НА 30% (слово владельца 2026-08-12). Гасим ПЛОТНОСТЬ
+       (альфа 1 → 0.7), а не радиус: «уменьшить свечение» — про силу, а сужение
+       размытия дало бы вместо мягкого ореола чёткое кольцо по краю пилюли,
+       то есть сменило бы характер, а не громкость.
+       ⛔ Тон НЕ трогаем: `#c0ff47` — тот же лайм, что у кнопки и полосок. */
+    box-shadow:inset 0 0 28px 0 rgba(192,255,71,.7); padding:8px 20px 8px 8px; }
   .win-reward-ic { flex:none; width:64px; height:64px; border-radius:1000px; background:#fff;
     display:grid; place-items:center; }
   .win-reward-ic svg { width:32px; height:32px; display:block; }

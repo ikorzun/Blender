@@ -135,6 +135,17 @@ let lbMeCache = null;
 // живёт до следующего успешного чтения и тратится на него.
 let lbBust = 0;
 function lbInvalidate() { lbTopCache = null; lbMeCache = null; lbBust = Date.now(); }
+// ⚠️⚠️ ПОДПИСКА «СЧЁТ ДОЕХАЛ» — ТОЧКА, КОТОРОЙ НЕ ХВАТАЛО (жалоба владельца
+// 2026-08-12: «мне нужен мгновенный пересчёт рейтинга и позиции, если я
+// закончил уровень или потратил очки на прокачку»). Отправка ЗАБЫВАЛА КЭШ, но
+// НИКОМУ НЕ ГОВОРИЛА, что число на сервере уже новое: плашка в меню перечитывала
+// таблицу только при ОТКРЫТИИ меню, а игрок в этот момент уже стоит в нём и
+// смотрит на старую цифру. Отсюда его же «разные значения»: 9445 в кошельке
+// против 9367 в строке — это не разные формулы, а отставший показ.
+// ⚠️ Зовём ПОСЛЕ `lbInvalidate`, иначе подписчик перечитает старый кэш.
+const lbSentCbs = [];
+function lbOnSent(cb){ if (typeof cb === 'function') lbSentCbs.push(cb); }
+function lbFireSent(info){ for (const cb of lbSentCbs){ try { cb(info); } catch (e) {} } }
 function lbBustQ() { return lbBust ? '&_=' + lbBust : ''; }
 
 async function lbTop(page) {
@@ -341,6 +352,7 @@ async function lbSubmit() {
     lbSentScore = s;
     try { localStorage.setItem(LB_SENT_LS, String(s)); } catch (e) {}
     lbInvalidate();
+    lbFireSent({ score: s, rank: (typeof r.body.rank === 'number') ? r.body.rank : null });
     return {
       state: 'ok',
       dup: !!r.body.dup,
@@ -384,7 +396,7 @@ try {
 // этом уже обжигался (`itemsBrief`). Своё пространство имён такой встречи
 // исключает ПО ПОСТРОЕНИЮ.
 window.__lb = {
-  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate,
+  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent,
   base: function () { return LB_BASE; },
   // ⚠️ Наружу — СОСТОЯНИЕ ОТПРАВКИ, а не флаг «всё хорошо»: страж обязан
   // видеть, что отложенная посылка ЖИВА (таймер назначен), иначе «429 не
