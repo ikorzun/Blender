@@ -908,6 +908,7 @@ const fires = [];
 // геймплее — гореть умеет ровно этот модуль. Наружу отдаём только имя типа:
 // на нём диспетчер вешает бонус за сбор группы (стык, зона его).
 let burningItem = null, burnUntil = 0;
+function burningItemRef(){ return (burningItem && burningItem.alive) ? burningItem : null; }
 function burningName(){
   return (burningItem && burningItem.alive && burningItem.type) ? burningItem.type.name : null;
 }
