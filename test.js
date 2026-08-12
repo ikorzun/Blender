@@ -7856,6 +7856,64 @@ window.bridge = {
 
   await chPage.close();
 
+  // ===== ПАУЗА ВО ВРЕМЯ ИНТРО (жалоба владельца 2026-08-12) =====
+  // «на паузе таймер игры не останавливается и через какое-то время миксер
+  // начинает работать». Механика: pauseGame в интро ОТКАЗЫВАЛ, а меню при
+  // отказе всё равно открывалось (его гвард умеет отступить только перед
+  // ЧУЖОЙ паузой). Входа два: кнопка паузы в интро и уход вкладки в фон.
+  // Замер до фикса: меню открыто, куча 80 → 68 за 30 секунд.
+  // ⚠️ СВОЯ СТРАНИЦА И НАСТОЯЩЕЕ ИНТРО: skipIntro здесь запрещён до самого
+  // конца — страж живёт ровно в том окне, где жил баг.
+  // ⚠️ ДИВЕРСИЯ: вернуть `intro` в гейт pauseGame — красным станет ассерт
+  // «пауза ПОСТАВЛЕНА», остальные не заденет.
+  {
+    const ipPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await ipPage.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+    await ipPage.goto('file://' + PAGE_FILE);
+    await ipPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    // ЖДЁМ ФАЗУ ПАДЕНИЯ ОПРОСОМ ФАКТА (верх кучи ДВИЖЕТСЯ): пауза в фазе
+    // ожидания заморозила бы и так неподвижную сцену — ассерт заморозки был
+    // бы тавтологией. Потолок времени — страховкой.
+    await ipPage.waitForFunction(() => {
+      const y = window.__game.topY();
+      const был = window.__ipPrevY; window.__ipPrevY = y;
+      return был !== undefined && Math.abs(y - был) > 0.05;
+    }, null, { timeout: 30000, polling: 250 });
+    const ip = await ipPage.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sl(250);
+      const пауза = g.pausedNow(), меню = document.getElementById('mainScreen').classList.contains('open');
+      const y1 = g.topY(); await sl(500); const y2 = g.topY();
+      // резюме НАСТОЯЩИМ путём — карточкой Play
+      document.querySelector('.ms-play').click(); await sl(250);
+      const после = g.pausedNow();
+      return { пауза, меню, y1: +y1.toFixed(3), y2: +y2.toFixed(3), после };
+    });
+    console.log('пауза в интро:', JSON.stringify(ip));
+    expect(ip.меню === true && ip.пауза === true,
+      '⚠️⚠️ ПАУЗА В ИНТРО: меню открылось И пауза ПОСТАВЛЕНА — прежний отказ ' +
+      'оставлял игру жить под меню, и миксер ел кучу (' + JSON.stringify(ip) + ')');
+    expect(ip.y1 === ip.y2,
+      '⚠️ ПАУЗА В ИНТРО: падение ЗАМОРОЖЕНО — верх кучи не сдвинулся за 500 мс (' +
+      ip.y1 + ' = ' + ip.y2 + ')');
+    expect(ip.после === false,
+      'ПАУЗА В ИНТРО: резюме карточкой Play снимает паузу, интро продолжается');
+    // добиваем интро и убеждаемся, что партия ЖИВА после цикла пауза/резюме
+    await ipPage.evaluate(() => window.__game.skipIntro());
+    const ipAfter = await ipPage.evaluate(async () => {
+      const g = window.__game; await new Promise(r => setTimeout(r, 400));
+      const до = g.alive(); g.autoMatch();
+      await new Promise(r => setTimeout(r, 500));
+      return { до, после: g.alive() };
+    });
+    expect(ipAfter.после === ipAfter.до - 2,
+      'ПАУЗА В ИНТРО: после резюме партия играется — матч снимает пару (' +
+      ipAfter.до + ' -> ' + ipAfter.после + ')');
+    await ipPage.close();
+  }
+
+
+
   // ===== ЭКРАН НОВОЙ ВЕЩИ (макеты 846:4814 моб. / 846:4763 деск.) =====
   // ⚠️ СВОЯ СТРАНИЦА И КОНЕЦ ФАЙЛА: экран — ПОЛНОЭКРАННЫЙ слой, и открытым он
   // глотает координатные клики соседних секций (та же грабля, что у виньетки

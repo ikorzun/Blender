@@ -382,7 +382,21 @@ function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
 // ТОЛЬКО игрок кнопкой Continue. Автоматический resume поверх чужой паузы
 // вернул бы игрока в живую игру, которую он не возобновлял.
 function pauseGame(silent){
-  if (paused || intro || !level || level.over) return false;
+  // ⚠️⚠️ ИНТРО БОЛЬШЕ НЕ ОТКАЗ (жалоба владельца 2026-08-12: «на паузе таймер
+  // не останавливается и через какое-то время миксер начинает работать»).
+  // Механика бага: меню при отказе паузы ВСЁ РАВНО открывалось — его гвард
+  // умеет отступить только перед ЧУЖОЙ паузой (реклама), а случай «поставить
+  // не смог вовсе» не был предусмотрен. Игрок смотрит в меню, игра под ним
+  // идёт, простой тикает, и миксер начинает есть кучу. Замер (Hard):
+  // пауза нажата в интро → меню открыто, куча 80 → 68 за 30 секунд.
+  // ⚠️ ВХОДА В ДЫРУ БЫЛО ДВА, и второй объясняет «иногда» владельца: кнопка
+  // паузы в интро (окно ~9 с) И уход вкладки в фон (90-input зовёт
+  // openMainScreen по visibilitychange) — свернул телефон во время насыпания.
+  // ⚠️ ПАУЗА ЗАМОРАЖИВАЕТ ИНТРО ЧИСТО ПО ПОСТРОЕНИЮ: гейт `if (paused)` в
+  // loop стоит РАНЬШЕ вызова tickIntro, а интро тикает игровым временем
+  // (intro.t += dt) — на резюме продолжится с того же места. Якоря
+  // resumeGame интро не трогают: level.nextGrind в интро равен 0 и пропущен.
+  if (paused || !level || level.over) return false;
   paused = true; pausedAt = performance.now();
   // ⚠️ НЕ писать textContent в #eyes: это SVG-конструкция персонажа
   // (85-hud) — текст уничтожил бы слои. Лицо просто застывает стоп-кадром.
@@ -1202,6 +1216,7 @@ window.__game = {
     const sw = (screen && screen.width) || w, sh = (screen && screen.height) || h;
     return { радиус: viewRadius(), доля: +((w*h)/Math.max(1,sw*sh)).toFixed(3),
              вью: [w, h], экран: [sw, sh], мин: VIEW_R_MIN, макс: VIEW_R_MAX }; },
+  pausedNow(){ return paused; },
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
                            вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
