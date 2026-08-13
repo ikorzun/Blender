@@ -438,140 +438,167 @@ function freezeItem(it){
 // рендерятся тем же классом материала, «морозное» просочилось бы в музей).
 // Полупрозрачность — opacity, transmission запрещён каноном. Трещины —
 // РОСТ ВЕРШИННОГО ШУМА по ступеням зачёта (базовые позиции хранятся).
-// ⚠️ СТЕНД ВИЗУАЛА ЛЬДА (жалоба владельца 2026-08-13 «визуально шумно и не
-// похоже на лёд»): стиль 0 — прежний боевой вид, 1..5 — варианты на выбор.
-// Переключение: ?ice=N в адресе либо __game.iceStyle(N). После выбора
-// владельца лишние стили срезать, победителя сделать нулевым.
-let ICE_STYLE = 0;
-try {
-  const _q = new URLSearchParams(location.search).get('ice');
-  if (_q != null) ICE_STYLE = Math.max(0, Math.min(5, +_q || 0));
-} catch (e) {}
-// Френель: прозрачный в лоб, плотный ободок по краю — им читается «стекло/лёд»
-// без transmission (тот запрещён перфом). Свой мелкий шейдер, как у призраков.
-function iceFresnelMat(col, rim, a0, a1, p){
+// ⚠️⚠️ ЛЁД = «ИНЕЙ-КОРКА», ВЫБОР ВЛАДЕЛЬЦА 2026-08-13 из стенда пяти вариантов
+// + его же доводки: «чуть толще (больше отступ от объекта)», «немного
+// внутреннего свечения, словно лёд», «трескается и ломается как чаша — разные
+// куски». ⛔ СТЕНД (?ice=N, __game.iceStyle) СРЕЗАН — победитель стал
+// единственным боевым видом; варианты — в истории git (коммит 358fb4c).
+// УСТРОЙСТВО: раздутая копия МЕША ПРЕДМЕТА (приём накладки огня — материал
+// предмета не трогается), порезанная на КУСКИ Вороного по треугольникам —
+// техника разлёта чаши: принадлежность куску записана В ВЕРШИНЫ (aCen/aDir/
+// aSpin), щели и разлёт гонит вершинный шейдер по юниформам. Один меш, один
+// draw call на глыбу; ⚠️ имя атрибута aCen, НЕ centroid (зарезервировано GLSL).
+const ICE_SCALE = 1.14;     // «чуть толще»: на стенде было 1.07
+const ICE_CHUNKS = 12;      // кусков корки
+const ICE_BOOM_MS = 700;    // разлёт по РЕАЛЬНЫМ часам (tickIceBooms в 99-main)
+function iceCrustMat(){
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { uCol: { value: new THREE.Color(col) }, uRim: { value: new THREE.Color(rim) },
-                uA0: { value: a0 }, uA1: { value: a1 }, uP: { value: p } },
-    vertexShader: 'varying vec3 vN; varying vec3 vV;\n' +
-      'void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0);\n' +
-      '  vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'varying vec3 vN; varying vec3 vV;\n' +
-      'uniform vec3 uCol; uniform vec3 uRim; uniform float uA0; uniform float uA1; uniform float uP;\n' +
-      'void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), uP);\n' +
-      '  gl_FragColor = vec4(mix(uCol, uRim, f), mix(uA0, uA1, f)); }'
+    uniforms: {
+      uCol:  { value: new THREE.Color(0x8fd4ff) },   // тело инея
+      uRim:  { value: new THREE.Color(0xdff4ff) },   // ободок по краю
+      uGlow: { value: new THREE.Color(0xbfeaff) },   // внутреннее свечение
+      uGlowK:{ value: 0.38 },
+      uGap:  { value: 0 },   // щели между кусками — ступени трещин
+      uBoom: { value: 0 },   // разлёт 0..1
+    },
+    vertexShader: [
+      'attribute vec3 aCen; attribute vec3 aDir; attribute vec3 aSpin;',
+      'uniform float uGap; uniform float uBoom;',
+      'varying vec3 vN; varying vec3 vV;',
+      'void main(){',
+      '  vec3 p = position + normalize(aCen + vec3(1e-4)) * uGap;',
+      '  vec3 n = normal;',
+      '  if (uBoom > 0.0){',
+      '    vec3 lp = p - aCen;',
+      '    float a = uBoom * (2.0 + aSpin.y * 3.0);',
+      '    vec3 ax = normalize(aSpin);',
+      '    lp = lp*cos(a) + cross(ax, lp)*sin(a) + ax*dot(ax, lp)*(1.0-cos(a));',
+      '    n  = n*cos(a)  + cross(ax, n)*sin(a)  + ax*dot(ax, n)*(1.0-cos(a));',
+      '    p = aCen + lp + aDir * uBoom * 1.6;',
+      '    p.y -= uBoom * uBoom * 1.1;',
+      '  }',
+      '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+      '  vN = normalMatrix * n; vV = -mv.xyz;',
+      '  gl_Position = projectionMatrix * mv;',
+      '}'].join('\n'),
+    fragmentShader: [
+      'varying vec3 vN; varying vec3 vV;',
+      'uniform vec3 uCol; uniform vec3 uRim; uniform vec3 uGlow;',
+      'uniform float uGlowK; uniform float uBoom;',
+      'void main(){',
+      '  vec3 N = normalize(vN); vec3 V = normalize(vV);',
+      '  float d = abs(dot(N, V));',
+      '  float f = pow(1.0 - d, 1.6);',
+      // свечение — В ЛОБ камере (анти-френель): середина корки мягко светится
+      // холодным, «словно лёд»; НЕ additive — на светлом небе additive тонет
+      '  vec3 c = mix(uCol, uRim, f) + uGlow * (pow(d, 2.0) * uGlowK);',
+      '  float a = mix(0.18, 0.9, f) * (1.0 - uBoom * 0.85);',
+      '  gl_FragColor = vec4(c, a);',
+      '}'].join('\n'),
   });
 }
-// Холодный маткап льда: хотспот мал и НЕ белый купол, обод тёмный — иначе
-// полупрозрачная глыба над пастельной кучей уходит в молоко
-let _iceMatcap = null;
-function iceMatcapTex(){
-  if (_iceMatcap) return _iceMatcap;
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const x = c.getContext('2d');
-  const g = x.createRadialGradient(46, 42, 6, 64, 64, 88);
-  g.addColorStop(0, '#cff0ff'); g.addColorStop(0.12, '#9adcf8');
-  g.addColorStop(0.55, '#5bc0f2'); g.addColorStop(1, '#1565c0');
-  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
-  _iceMatcap = new THREE.CanvasTexture(c);
-  _iceMatcap.encoding = THREE.sRGBEncoding;
-  return _iceMatcap;
+// Выпечка корки: копия геометрии предмета -> non-indexed, каждый ТРЕУГОЛЬНИК
+// приписан ближайшему из ICE_CHUNKS сидов (Вороной по поверхности), центроид
+// куска и его полёт — в вершинные атрибуты. Всё детерминировано хешем
+// (Math.sin(i*127.1)*43758.5453 — тот же приём, что у прежних трещин): у одной
+// глыбы всегда один узор, куски не мигают между кадрами.
+function bakeIceCrust(g0){
+  const src = g0.index ? g0.toNonIndexed() : g0.clone();
+  const pos = src.attributes.position;
+  const triN = Math.floor(pos.count / 3);
+  const h01 = (i) => { const h = Math.sin(i * 127.1) * 43758.5453; return h - Math.floor(h); };
+  const seeds = [];
+  for (let s = 0; s < ICE_CHUNKS; s++){
+    const vi = Math.floor(Math.abs(h01(s + 7)) * pos.count);
+    seeds.push(new THREE.Vector3().fromBufferAttribute(pos, Math.min(vi, pos.count - 1)));
+  }
+  const chunkOf = new Int32Array(triN);
+  const csum = []; const ccnt = new Int32Array(ICE_CHUNKS);
+  for (let s = 0; s < ICE_CHUNKS; s++) csum.push(new THREE.Vector3());
+  const c = new THREE.Vector3(), v = new THREE.Vector3();
+  for (let t = 0; t < triN; t++){
+    c.set(0, 0, 0);
+    for (let k = 0; k < 3; k++){ v.fromBufferAttribute(pos, t * 3 + k); c.add(v); }
+    c.multiplyScalar(1 / 3);
+    let best = 0, bd = Infinity;
+    for (let s = 0; s < ICE_CHUNKS; s++){
+      const d = c.distanceToSquared(seeds[s]);
+      if (d < bd){ bd = d; best = s; }
+    }
+    chunkOf[t] = best;
+    csum[best].add(c); ccnt[best]++;
+  }
+  const cen = csum.map((sm, s) => ccnt[s] ? sm.multiplyScalar(1 / ccnt[s]) : sm.set(0, 0, 0));
+  const aCen = new Float32Array(pos.count * 3);
+  const aDir = new Float32Array(pos.count * 3);
+  const aSpin = new Float32Array(pos.count * 3);
+  const dir = new THREE.Vector3(), ax = new THREE.Vector3();
+  for (let t = 0; t < triN; t++){
+    const s = chunkOf[t], cc = cen[s];
+    // полёт: от центра предмета наружу + подброс вверх + джиттер куска
+    dir.copy(cc).normalize();
+    dir.x += (h01(s * 3 + 1) - 0.5) * 0.7;
+    dir.z += (h01(s * 3 + 2) - 0.5) * 0.7;
+    dir.y = Math.abs(dir.y) * 0.4 + 0.55;
+    dir.normalize();
+    ax.set(h01(s * 5 + 1) - 0.5, h01(s * 5 + 2) - 0.5, h01(s * 5 + 3) - 0.5).normalize();
+    for (let k = 0; k < 3; k++){
+      const i = t * 3 + k;
+      aCen[i * 3] = cc.x; aCen[i * 3 + 1] = cc.y; aCen[i * 3 + 2] = cc.z;
+      aDir[i * 3] = dir.x; aDir[i * 3 + 1] = dir.y; aDir[i * 3 + 2] = dir.z;
+      aSpin[i * 3] = ax.x; aSpin[i * 3 + 1] = ax.y; aSpin[i * 3 + 2] = ax.z;
+    }
+  }
+  src.setAttribute('aCen', new THREE.BufferAttribute(aCen, 3));
+  src.setAttribute('aDir', new THREE.BufferAttribute(aDir, 3));
+  src.setAttribute('aSpin', new THREE.BufferAttribute(aSpin, 3));
+  return src;
 }
 function makeIceShell(it){
-  const g0 = it.mesh.geometry;
-  if (!g0.boundingSphere) g0.computeBoundingSphere();
-  const r0 = g0.boundingSphere ? g0.boundingSphere.radius : 1;
-  const R = r0 * 1.32;
   const shell = new THREE.Group();
-
-  if (ICE_STYLE === 1){
-    // «Френель-лёд»: ободок по ПЛОСКИМ нормалям — рим квантуется по граням,
-    // читается лёд, а не мыльный пузырь (панель: гладкий френель = пузырь);
-    // рим НАСЫЩЕННЫЙ тёмно-синий — светлое на светлом фоне тонет
-    const geo = new THREE.IcosahedronGeometry(R, 1).toNonIndexed();
-    geo.computeVertexNormals();
-    shell.add(new THREE.Mesh(geo, iceFresnelMat(0x7fd4f5, 0x1565c0, 0.28, 0.85, 2.2)));
-  } else if (ICE_STYLE === 2){
-    // «Кристалл»: 20 крупных граней под ХОЛОДНЫМ маткапом — маленький хотспот,
-    // середина циан, ТЁМНЫЙ обод (бесплатный псевдо-френель на скользящих
-    // гранях); рёбра-линии сняты — «сетку» владелец уже браковал
-    const geo = new THREE.IcosahedronGeometry(R, 0).toNonIndexed();
-    geo.computeVertexNormals();
-    shell.add(new THREE.Mesh(geo, new THREE.MeshMatcapMaterial({
-      matcap: iceMatcapTex(), color: 0xffffff, transparent: true, opacity: 0.48,
-      flatShading: true, depthWrite: false })));
-  } else if (ICE_STYLE === 3){
-    // «Иней-корка»: раздутая копия САМОГО предмета с холодным френелем —
-    // силуэт кучи не меняется вовсе (приём накладки огня)
-    const крк = new THREE.Mesh(g0.clone(), iceFresnelMat(0x8fd4ff, 0xdff4ff, 0.18, 0.9, 1.6));
-    крк.scale.setScalar(1.07);
-    shell.add(крк);
-  } else if (ICE_STYLE === 4){
-    // «Ледяной куб»: мультяшная классика «вморожен в кубик», углы торчат
-    const s = r0 * 1.9;
-    const geo = new THREE.BoxGeometry(s, s, s);
-    shell.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      color: 0xcfeaff, metalness: 0, roughness: 0.08, envMapIntensity: 0.9,
-      transparent: true, opacity: 0.5, depthWrite: false })));
-    shell.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })));
-  } else if (ICE_STYLE === 5){
-    // «Молочный мороз»: плотнее и матовее, предмет читается тенью сквозь иней
-    shell.add(new THREE.Mesh(new THREE.IcosahedronGeometry(R * 0.98, 1),
-      new THREE.MeshStandardMaterial({ color: 0xeaf6ff, metalness: 0, roughness: 0.3,
-        envMapIntensity: 0.7, transparent: true, opacity: 0.62, flatShading: true,
-        depthWrite: false })));
-  } else {
-    // стиль 0 — БОЕВОЙ вид (нынешний), бит-в-бит как был
-    const geo = new THREE.IcosahedronGeometry(R, 1);
-    const тело = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: 0xcfeeff, transparent: true, opacity: 0.34, depthWrite: false }));
-    const кайма = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
-      color: 0x86c8f0, transparent: true, opacity: 0.5, side: THREE.BackSide, depthWrite: false }));
-    кайма.scale.setScalar(1.045);
-    shell.add(кайма); shell.add(тело);
-    shell.userData.iceBase = Float32Array.from(geo.attributes.position.array);
-  }
+  const крк = new THREE.Mesh(bakeIceCrust(it.mesh.geometry), iceCrustMat());
+  крк.scale.setScalar(ICE_SCALE);
+  крк.renderOrder = 3;
+  shell.add(крк);
+  shell.userData.iceMat = крк.material;
   shell.renderOrder = 3;
-  shell.traverse(o => { o.renderOrder = 3; });
   it.mesh.add(shell);
   it.iceShell = shell;
-  iceCracks(it); // нулевая ступень шума — глыба сразу «колотая», не идеальная сфера
+  iceCracks(it); // нулевая ступень: волосяные швы — корка сразу «колотая»
 }
-// Переключатель стенда: перестроить скорлупы у живых глыб на новый стиль
-function iceStyleSet(n){
-  ICE_STYLE = Math.max(0, Math.min(5, +n || 0));
-  for (const it of items)
-    if (it.alive && it.frozen){ removeIceShell(it); makeIceShell(it); }
-  return ICE_STYLE;
-}
-// ступень трещин = собрано/нужно: шум вершин растёт с прогрессом
+// Ступени трещин = щели между кусками: юниформа, вершины не трогаются.
+// Узор детерминирован выпечкой — трещины УГЛУБЛЯЮТСЯ, а не мигают.
 function iceCracks(it){
+  const shell = it.iceShell; if (!shell || !shell.userData.iceMat) return;
+  const k = Math.min(1, it.frozenGotItems / it.frozenNeedItems);
+  shell.userData.iceMat.uniforms.uGap.value = 0.012 + 0.06 * k;
+}
+// Разлёт корки «как чаша»: скорлупа отцепляется от предмета В МИР (предмет
+// остаётся жить и двигаться), куски летят шейдером по РЕАЛЬНЫМ часам —
+// тик tickIceBooms зовётся из loop (99-main).
+const iceBooms = [];
+function iceBoomStart(it){
   const shell = it.iceShell; if (!shell) return;
-  // стили стенда (1..5) вершинного шума не носят — трещины у них будут своим
-  // языком после выбора владельца; без iceBase выходим, иначе base[i*3] упадёт
-  if (!shell.userData.iceBase) return;
-  const amp = 0.05 + 0.13 * Math.min(1, it.frozenGotItems / it.frozenNeedItems);
-  for (const m of shell.children){
-    const pos = m.geometry.attributes.position, base = shell.userData.iceBase;
-    for (let i = 0; i < pos.count; i++){
-      // детерминированный «хеш» вершины — трещины не мигают между вызовами,
-      // а УГЛУБЛЯЮТСЯ: тот же узор, больший размах
-      const h = Math.sin(i * 127.1) * 43758.5453;
-      const k = 1 + amp * ((h - Math.floor(h)) * 2 - 1);
-      pos.setXYZ(i, base[i*3] * k, base[i*3+1] * k, base[i*3+2] * k);
+  it.iceShell = null;
+  try { scene.attach(shell); } catch (e) { it.mesh.remove(shell); return; }
+  iceBooms.push({ shell, mat: shell.userData.iceMat, t0: performance.now() });
+}
+function tickIceBooms(now){
+  for (let i = iceBooms.length - 1; i >= 0; i--){
+    const b = iceBooms[i];
+    const k = (now - b.t0) / ICE_BOOM_MS;
+    if (k >= 1){
+      scene.remove(b.shell);
+      for (const m of b.shell.children){ m.geometry.dispose(); m.material.dispose(); }
+      iceBooms.splice(i, 1);
+      continue;
     }
-    pos.needsUpdate = true;
-    m.geometry.computeVertexNormals();
+    if (b.mat) b.mat.uniforms.uBoom.value = k;
   }
 }
-function removeIceShell(it){
-  const shell = it.iceShell; if (!shell) return;
-  it.mesh.remove(shell);
-  for (const m of shell.children){ m.geometry.dispose(); m.material.dispose(); }
-  it.iceShell = null;
-}
+// ⛔ removeIceShell СРЕЗАН вместе со стендом: единственный вызыватель (breakIce)
+// перешёл на iceBoomStart (разлёт кусками). Вернуть — из истории git.
 function makeRock(i){
   const t = ROCK_TYPES[i % ROCK_TYPES.length];
   const gkey = 'R' + (i % ROCK_TYPES.length);

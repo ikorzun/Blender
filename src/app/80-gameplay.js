@@ -318,9 +318,11 @@ function breakIce(it, поБомбе){
   wakePhysics('frozen');
   stats.lastAction = performance.now();
   try { Sound.play && Sound.play('crunch'); } catch(e){}
-  // ледяные осколки — бело-голубые, тем же механизмом, что скол кирпича
-  try { shardFX(it.p.clone(), 0xbfe8ff, { count: 20, size: 0.09, life: 0.7 }); } catch(e){}
-  removeIceShell(it);
+  // РАЗЛОМ «КАК ЧАША» (слово владельца 2026-08-13): корка отцепляется в мир и
+  // разлетается СВОИМИ кусками Вороного (iceBoomStart, вершинный шейдер);
+  // осколки shardFX остаются мелкой крошкой ПОВЕРХ кусков, как у чаши
+  iceBoomStart(it);
+  try { shardFX(it.p.clone(), 0xbfe8ff, { count: 12, size: 0.07, life: 0.6 }); } catch(e){}
   it.frozen = false; it.frozenReady = false;
   it.key = it.frozenKey;                             // предмет снова ПАРНЫЙ
   // «чистые очки предмета ×3» — MATCH_SCORE × 3 × множитель типа × бустер.

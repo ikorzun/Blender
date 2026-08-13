@@ -494,6 +494,7 @@ function loop(){
   // масштабом оболочки; сам предмет и его материал не трогаются
   for (const it of items) if (it.alive && it.frozen && it.iceShell)
     it.iceShell.scale.setScalar(it.frozenReady ? 1 + 0.06 * Math.sin(now * 0.008) : 1);
+  tickIceBooms(now); // разлёт корки по реальным часам (куски — вершинный шейдер)
   tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
   // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
@@ -1158,9 +1159,13 @@ window.__game = {
   frozenInfo(){ return items.filter(i => i.alive && i.frozen).map(i => ({
     тип: i.frozenType, собрано: i.frozenGotItems, нужно: i.frozenNeedItems,
     готова: !!i.frozenReady, индекс: items.indexOf(i),
-    пульс: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null })); },
+    пульс: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null,
+    щель: (i.iceShell && i.iceShell.userData.iceMat)
+      ? +i.iceShell.userData.iceMat.uniforms.uGap.value.toFixed(4) : null })); },
   frozenNextAt(){ return frozenNextLevel; },
-  iceStyle(n){ return iceStyleSet(n); }, // стенд визуала льда: 0 боевой, 1..5 варианты (?ice=N)
+  // ⛔ хук iceStyle СРЕЗАН вместе со стендом (владелец выбрал иней-корку);
+  // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
+  iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
   frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
   chromeInfo(){ const cs = getComputedStyle(document.documentElement);
     return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
