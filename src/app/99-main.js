@@ -79,7 +79,7 @@ function trimOverfill(){
     for (const it of items){
       // сюрприз/бомба/камень триму не кандидаты: непарные спецпредметы,
       // изъятие «топ-пары» для них вырождается в одиночное удаление
-      if (it.alive && !it.surprise && !it.bomb && !it.rock && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+      if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
     const twin = items.find(i => i !== top && i.alive && i.key === top.key);
@@ -157,7 +157,7 @@ function finalizeFill(){
   let top0 = 0, aliveN = 0;
   // камни не в счёте (спека 2026-07-22): пар-скор и порог автопана (20%)
   // считаются по совмещаемой массе
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.rock) aliveN++; }
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.rock && !it.frozen) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
   // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
@@ -173,7 +173,7 @@ function finalizeFill(){
   // Правка МЕТА в физическом файле — санкционирована задачей диспетчера
   // (баланс-таблица).
   const accPerType = {};
-  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.rock)
+  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
   let accPar = 0;
   for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
@@ -429,7 +429,7 @@ function tickFireSpawn(now){
   const byKey = {};
   for (const it of items){
     if (!it.alive || !it.mesh || !it.type) continue;
-    if (it.surprise || it.bomb || it.rock) continue;     // спецпредметы не горят
+    if (it.surprise || it.bomb || it.rock || it.frozen) continue;     // спецпредметы не горят
     if (it.animating || !isAccessible(it)) continue;     // справедливость (работает на Hard)
     (byKey[it.key] = byKey[it.key] || []).push(it);
   }
@@ -490,6 +490,10 @@ function loop(){
   try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
   try { tickBowlCracks(now); } catch(e){} // пульс телеграфа трещин при N-1
   tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
+  // пульс ГОТОВОЙ глыбы (слово владельца «пульсирует, нужен тап»): дышит
+  // масштабом оболочки; сам предмет и его материал не трогаются
+  for (const it of items) if (it.alive && it.frozen && it.iceShell)
+    it.iceShell.scale.setScalar(it.frozenReady ? 1 + 0.06 * Math.sin(now * 0.008) : 1);
   tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
   // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
   // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
@@ -949,7 +953,7 @@ window.__game = {
   killOneTest(kind){
     const pred = kind === 'surprise' ? (i => i.alive && i.surprise)
                : kind === 'bomb'     ? (i => i.alive && i.bomb)
-                                     : (i => i.alive && !i.rock && !i.bomb && !i.surprise);
+                                     : (i => i.alive && !i.rock && !i.bomb && !i.surprise && !i.frozen);
     const it = items.find(pred);
     if (it) removeItem(it);
     return items.filter(i => i.alive).length;
@@ -1146,6 +1150,17 @@ window.__game = {
   // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
   // себе, разъедется с боем при первой же правке владельца.
   pausedNow(){ return paused; },
+  // пиксель КОНКРЕТНОГО предмета для боевого клика стража (findByTex отдаёт
+  // любой предмет пачки, а глыбу надо тапнуть именно её)
+  pixelOf(i){ const it = items[i];
+    if (!it || !it.alive) return null;
+    return visiblePixel(it, pickCtx()) || { occluded: true }; },
+  frozenInfo(){ return items.filter(i => i.alive && i.frozen).map(i => ({
+    тип: i.frozenType, собрано: i.frozenGotItems, нужно: i.frozenNeedItems,
+    готова: !!i.frozenReady, индекс: items.indexOf(i),
+    пульс: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null })); },
+  frozenNextAt(){ return frozenNextLevel; },
+  frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
   chromeInfo(){ const cs = getComputedStyle(document.documentElement);
     return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
              низ: cs.getPropertyValue('--edge-bot-rgb').trim(),
@@ -1379,7 +1394,12 @@ window.__game = {
   // крутится ли карточка после вызова.
   thumbSpinToggleKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; return (it && host) ? thumbSpinToggle(it, host) : false; },
   thumbSpinStop, thumbSpinToggle, thumbItemForKey,
+  // ⚠️ 2026-08-13: сюда добавлены auto/px для стражей экрана новой вещи.
+  // Я успел завести ВТОРОЙ spinState и наступить на записанную граблю «дубль
+  // ключа в __game молча съедает хук» (победил этот, дальний по файлу) —
+  // проба показала чужие поля вместо моих. Грепать имя ПЕРЕД добавлением.
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
+    auto: spinAuto, px: (spinR ? spinR.domElement.width : 0),
     mounted: !!(spinR && spinR.domElement.parentNode),
     // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
     // весь спин (пересчёт = «дыхание»). Округляю грубо, чтобы не ловить эпсилон.
@@ -1496,7 +1516,7 @@ window.__game = {
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.rock && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.rock && !i.frozen && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
@@ -2212,7 +2232,7 @@ window.__game = {
     let k = 0;
     for (const it of items){
       if (k >= n) break;
-      if (!it.alive || it.surprise || it.rock || it.bomb || it.animating) continue;
+      if (!it.alive || it.surprise || it.rock || it.bomb || it.frozen || it.animating) continue;
       removeItem(it); k++;
     }
     refreshAccessibility(); updateHUD();

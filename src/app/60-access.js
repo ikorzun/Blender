@@ -61,7 +61,7 @@ function isAccessible(item){
 // представление о правиле, а не правило (закон проекта, пойманный пять раз).
 function aliveCountForRadius(){
   let n = 0;
-  for (const it of items) if (it.alive && !it.surprise && !it.rock) n++;
+  for (const it of items) if (it.alive && !it.surprise && !it.rock && !it.frozen) n++;
   return n;
 }
 function updateMatchRadius(){
@@ -172,7 +172,7 @@ function refreshAccessibility(){
     // ⚠️ ПИН ТЮНЕРА выше доступности: без него превью «вуаль на всех» жило
     // максимум до следующего тика refresh (300 мс) и молча растворялось —
     // ползунки силы вуали были бы неподкручиваемы.
-    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.accessible) ? VEIL_TARGET : 0;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 // Плавное затухание/снятие вуали (~0.25 с), из главного цикла каждый кадр.

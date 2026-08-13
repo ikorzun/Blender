@@ -1258,10 +1258,22 @@ function thumbSpinStop(){
   if (spinR && spinR.domElement.parentNode) spinR.domElement.parentNode.removeChild(spinR.domElement);
   spinItem = null; spinPrev = 0;
 }
-function thumbSpinStart(item, host){
+// авто-вращение спина: экран новой вещи глушит его на время драга пальцем
+let spinAuto = true;
+function thumbSpinNudge(d){ spinAngle += d; }
+function thumbSpinAuto(on){ spinAuto = !!on; }
+function thumbSpinStart(item, host, px){
   if (!item || !item.mesh || !host) return;
   ensureSpinR();
   thumbSpinStop();                       // один общий канвас: снять предыдущий
+  // ⚠️ РАЗМЕР БУФЕРА — ПАРАМЕТР (слово владельца 2026-08-13 «качество выше»):
+  // коллекция остаётся на SPIN_PX=256 (инвариант рамки с статикой цел — рамку
+  // держит единый frameCylinder, буфер на неё не влияет), а экран новой вещи
+  // просит буфер ПОД СВОЙ РАЗМЕР × DPR — прежние 256 растягивались втрое и
+  // мылились. Каждый start выставляет размер заново — общий канвас не
+  // наследует чужой.
+  spinR.setSize(px || SPIN_PX, px || SPIN_PX, false);
+  spinAuto = true;
   spinItem = item; spinAngle = PORTRAIT_YAW0;
   // ⚠️ НЕ mesh.clone() (JSON userData с телом Rapier — throw): обёртка на общих
   // geometry+material, как в itemThumb
@@ -1291,7 +1303,7 @@ function spinTick(now){
   // не крутить впустую в отцепленный канвас
   if (!spinR.domElement.parentNode){ thumbSpinStop(); return; }
   const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
-  spinAngle += dt * SPIN_SPEED;
+  if (spinAuto) spinAngle += dt * SPIN_SPEED;
   spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
   // вуаль/matcap-затемнение и прозрачность OFF на кадр (портрет не сереет) —
   // материал ОБЩИЙ с боевым, восстанавливаем сразу (как itemThumb)
@@ -2305,8 +2317,33 @@ function newObjShow(key, done){
   // ⚠️ СПИН ЗАВОДИМ ПОСЛЕ ПОКАЗА: `frameCylinder` внутри старта считает кадр по
   // размерам узла, а у скрытого блока они нулевые (та же природа, что у
   // «страж мерил высоту на закрытом меню» — скрытый узел не имеет геометрии).
-  try { thumbSpinStart(item, host); } catch (e) {}
+  // КАЧЕСТВО (слово владельца): буфер = размер узла × DPR, кап 768 — выше
+  // на телефонных диагоналях уже неотличимо, а буфер квадратичен по цене.
+  const px = Math.min(768, Math.max(SPIN_PX,
+    Math.round((host.clientWidth || 256) * (window.devicePixelRatio || 1))));
+  try { thumbSpinStart(item, host, px); } catch (e) {}
+  newObjDragWire(host);
   Telemetry.ev('newobj', { k: key });
+}
+// ВРАЩЕНИЕ ПАЛЬЦЕМ/КУРСОРОМ (слово владельца 2026-08-13). Драг глушит
+// авто-вращение и ведёт угол рукой; отпустил — авто продолжается с этого
+// места. Обработчики вешаются ОДИН раз (гвард-флаг): host — постоянный узел.
+let newObjDragOn = false;
+function newObjDragWire(host){
+  if (newObjDragOn) return; newObjDragOn = true;
+  let вести = false, x0 = 0;
+  host.addEventListener('pointerdown', (e) => {
+    вести = true; x0 = e.clientX; thumbSpinAuto(false);
+    try { host.setPointerCapture(e.pointerId); } catch(err){}
+    e.preventDefault();
+  });
+  host.addEventListener('pointermove', (e) => {
+    if (!вести) return;
+    thumbSpinNudge((e.clientX - x0) * 0.012); x0 = e.clientX;
+  });
+  const отпустил = () => { вести = false; thumbSpinAuto(true); };
+  host.addEventListener('pointerup', отпустил);
+  host.addEventListener('pointercancel', отпустил);
 }
 function newObjHide(){
   const box = $('newObj');

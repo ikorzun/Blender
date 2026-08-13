@@ -93,7 +93,7 @@ function doMatch(list){
         if (!level.chargeGiven && !chargeName){
           const cnt = {};
           for (const it of items)
-            if (it.alive && !it.surprise && !it.bomb && !it.rock && it.type)
+            if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen && it.type)
               cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
           const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
           if (pool.length){
@@ -146,6 +146,7 @@ function doMatch(list){
   const typeName = list[0].type.name;
   const _ta0 = performance.now();
   accAdd(typeName, n, list[0]);
+  frozenCredit(typeName, n);                 // зачёт пар в глыбы этого типа
   tapAccMs += performance.now() - _ta0;      // накопление типа + запись сейва
   // ⚠️ Купленный бустер — ПОСЛЕДНИЙ множитель стека (комбо ×2 × накопление до
   // ×3.25 × бустер до ×5). ⚠️ ШТРАФЫ ОН ТОЖЕ МНОЖИТ (решение владельца
@@ -300,13 +301,53 @@ function penalizeRock(item){
 // «пункта 5» (сок/искры/звёзды — взрыв бесплатно разнообразен), сама бомба —
 // тёмной трухой; волна сильнее бурстовой (BOMB_WAVE_V) — куча вздрагивает.
 // Комбо/серии взрыв НЕ трогает (не матч); сюрприз и другие бомбы не задевает.
+// ЗАЧЁТ ПАР В ГЛЫБЫ — ЕДИНСТВЕННАЯ ТОЧКА (копия счёта рядом с рабочим —
+// канонный источник расхождений). Считаем ШТУКАМИ: 2 собранные штуки типа =
+// пара; нечётные группы не теряют половинку. Готовность даёт пульс (тик в
+// 99-main), разбитие — за игроком (слово владельца «нужен тап»).
+function frozenCredit(typeName, n){
+  for (const it of items){
+    if (!it.alive || !it.frozen || it.frozenReady || it.frozenType !== typeName) continue;
+    it.frozenGotItems = Math.min(it.frozenNeedItems, it.frozenGotItems + n);
+    iceCracks(it);                                   // трещины углубляются
+    try { Sound.play && Sound.play('crunch'); } catch(e){}
+    if (it.frozenGotItems >= it.frozenNeedItems){ it.frozenReady = true; }
+  }
+}
+function breakIce(it, поБомбе){
+  wakePhysics('frozen');
+  stats.lastAction = performance.now();
+  try { Sound.play && Sound.play('crunch'); } catch(e){}
+  // ледяные осколки — бело-голубые, тем же механизмом, что скол кирпича
+  try { shardFX(it.p.clone(), 0xbfe8ff, { count: 20, size: 0.09, life: 0.7 }); } catch(e){}
+  removeIceShell(it);
+  it.frozen = false; it.frozenReady = false;
+  it.key = it.frozenKey;                             // предмет снова ПАРНЫЙ
+  // «чистые очки предмета ×3» — MATCH_SCORE × 3 × множитель типа × бустер.
+  // ⚠️ ПО БОМБЕ — БЕЗ ОЧКОВ (умолчание, названо владельцу): досрочная
+  // разморозка без выполнения условия не оплачивается.
+  if (!поБомбе){
+    const before = stats.score;
+    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.key) * scoreBoostMult());
+    stats.score += gained;
+    const shown = scoreShownDelta(before, stats.score);
+    try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
+  }
+  try { popFX(it.p); } catch(e){}
+  try { refreshAccessibility(); } catch(e){}
+  try { updateHUD(); } catch(e){}
+}
 function detonateBomb(bomb){
   bomb.animating = true;
   destroyItemBody(bomb);
   wakePhysics('bomb');
   stats.lastAction = performance.now(); // тап = действие, миксер откладывается
+  // ⚠️ ГЛЫБЫ В ЗОНЕ: бомба лёд РАЗБИВАЕТ (слово владельца), но предмет ЖИВ —
+  // из жертв исключаем, размораживаем отдельно и БЕЗ очков ×3.
+  items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= BOMB_RADIUS)
+       .forEach(i => { try { breakIce(i, true); } catch(e){} });
   const victims = items
-    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb)
+    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen)
     .map(i => ({ i, d: pairDist(i, bomb) }))
     .filter(v => v.d <= BOMB_RADIUS)
     .sort((a, b) => a.d - b.d)
@@ -431,7 +472,7 @@ function bowlCollectAll(){
   for (const it of items){
     if (!it.alive || it.animating) continue;
     if (it.surprise){ surprise = it; continue; }
-    if (it.bomb || it.rock){ extras.push(it); continue; }
+    if (it.bomb || it.rock || it.frozen){ extras.push(it); continue; }
     if (!it.type) continue;
     (byType[it.type.name] = byType[it.type.name] || []).push(it);
   }
@@ -518,8 +559,10 @@ function detonateCharge(){
   if (intro || paused || !level || level.over) return false;
   if (!chargeName || performance.now() > chargeUntil) return false;
   const name = chargeName;
+  // ⚠️ !i.frozen: заряд бьёт по ИМЕНИ ТИПА (не по ключу), и без исключения
+  // снял бы глыбу мимо её условия; собранные же штуки в зачёт ИДУТ (владелец).
   const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock
-                                    && i.type && i.type.name === name);
+                                    && !i.frozen && i.type && i.type.name === name);
   chargeName = ''; chargeUntil = 0;
   if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // тип кончился раньше клика
   wakePhysics('charge');
@@ -531,6 +574,7 @@ function detonateCharge(){
   const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
+  frozenCredit(name, n);                         // пары заряда идут в зачёт глыб (владелец: «идут»)
   lastMatchMs = performance.now();               // окно серии продлевается (действие),
                                                  // comboCount НЕ трогаем — заряд серию не копит
   victims.forEach(it => { it.animating = true; destroyItemBody(it); });
@@ -871,6 +915,18 @@ function handleTapInner(x, y){
   }
   if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
   if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
+  if (item.frozen){
+    // ГЛЫБА (спека 2026-08-13): готова — тап РАЗБИВАЕТ; рано — штраф КАК У
+    // КАМНЯ (слово владельца) + подсказка, сколько пар осталось.
+    Telemetry.tap(x, y, 'frozen');
+    if (item.frozenReady){ breakIce(item); }
+    else {
+      penalizeRock(item);
+      const осталось = Math.ceil((item.frozenNeedItems - item.frozenGotItems) / 2);
+      try { toast('Frozen! Collect ' + осталось + ' more pair' + (осталось > 1 ? 's' : '') + ' of this item'); } catch(e){}
+    }
+    return;
+  }
   if (item.rock){ // камень несовмещаем: двойной штраф-обучение (в финале штрафов нет)
     Telemetry.tap(x, y, 'rock');
     if (!finale) penalizeRock(item); else wiggle(item);
@@ -1060,7 +1116,7 @@ function hintPulse(item){
 // затягивает в лопасти (тонет с вращением), его пара расщепляется вместе с ним,
 // за пару отнимаются очки.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock); // сюрприз/бомбу/камни миксер-наказание не ест (их доедает финал)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rock); // сюрприз/бомбу/камни миксер-наказание не ест (их доедает финал)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];

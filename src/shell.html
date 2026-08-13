@@ -246,7 +246,10 @@
         rgba(var(--no-glow-rgb, 203,255,104), .42) 0%,
         rgba(var(--no-glow-rgb, 203,255,104), 0) 68%);
     filter:blur(27px); opacity:.42; }
-  .no-model { position:relative; width:250px; height:250px; display:grid; place-items:center; }
+  /* ⚠️ touch-action:none — драг вращения (слово владельца 2026-08-13) должен
+     получать pointermove, а не отдавать жест прокрутке страницы */
+  .no-model { position:relative; width:250px; height:250px; display:grid; place-items:center;
+    touch-action:none; cursor:grab; }
   /* спин-канвас общий (256²) — вписываем его в бокс модели */
   .no-model canvas { width:100%; height:100%; display:block; }
   .no-btn { margin-top:24px; width:100%; height:84px; border:none; cursor:pointer;

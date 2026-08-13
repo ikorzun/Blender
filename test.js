@@ -7955,6 +7955,131 @@ window.bridge = {
     await ipPage.close();
   }
 
+  // ===== ЗАМОРОЖЕННАЯ ГЛЫБА (спека владельца 2026-08-13) + ЭКРАН НОВОЙ ВЕЩИ =====
+  // ⚠️ СВОЯ СТРАНИЦА (секция живёт на 11+ и открывает полноэкранные слои).
+  // ⚠️ КЛИКИ — НАСТОЯЩЕЙ МЫШЬЮ Playwright по пикселю СВОЕГО предмета
+  // (pixelOf): первая версия слала MouseEvent('click') из evaluate — игра
+  // слушает pointer-события, клик не доходил ВОВСЕ, и четыре ассерта
+  // каскадом мерили пустоту. Канонное правило про visiblePixel — буквально.
+  // ⚠️ deviceScaleFactor 2 НЕСУЩИЙ для стража буфера (формула множит на DPR).
+  {
+    const fz = await browser.newPage({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2 });
+    await fz.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+    await fz.goto('file://' + PAGE_FILE);
+    await fz.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    const фаза1 = await fz.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      const шаги = {};
+      g.setLevel(9); g.regen(); g.skipIntro(); await sl(300);
+      шаги.доПорога = g.frozenInfo().length;
+      g.setLevel(11); g.regen(); g.skipIntro(); await sl(400);
+      const инфо = g.frozenInfo();
+      шаги.наПороге = инфо.length;
+      if (!инфо.length) return { шаги };
+      const гл = инфо[0];
+      шаги.тип = гл.тип; шаги.индекс = гл.индекс;
+      шаги.копийТипа = (g.typesSnapshot()[гл.тип] || {}).alive || 0;
+      шаги.счётныеБезГлыбы = g.missRadius().счётных < g.alive();
+      // глыбу наверх — пиксель будет свой, ничем не закрытый
+      g.place(гл.индекс, 0, g.topY() + 1.2, 0); await sl(700);
+      шаги.пиксель = g.pixelOf(гл.индекс);
+      шаги.до = { счёт: g.stats().score, промахов: g.stats().misses };
+      return { шаги };
+    });
+    const ш = фаза1.шаги;
+    expect(ш.доПорога === 0 && ш.наПороге >= 1 && ш.наПороге <= 2,
+      '⚠️⚠️ ГЛЫБА: до 11-го уровня нет, на 11-м 1-2 (' + JSON.stringify({ до: ш.доПорога, на: ш.наПороге }) + ')');
+    expect(ш.копийТипа >= 8 && ш.счётныеБезГлыбы === true,
+      '⚠️ ГЛЫБА: тип с запасом пар (копий ' + ш.копийТипа + ' ≥ 2N+2), из счётных эндшпиля исключена');
+    // ── ТАП ДО СРОКА: настоящий клик → двойной штраф, промах учтён
+    if (ш.пиксель && !ш.пиксель.occluded){
+      // ⚠️ visiblePixel отдаёт поля px/py, не x/y — первая версия крешила клик
+      await fz.mouse.click(ш.пиксель.px, ш.пиксель.py);
+      await fz.waitForTimeout(350);
+      const штраф = await fz.evaluate((до) => ({
+        дельта: window.__game.stats().score - до.счёт,
+        промах: window.__game.stats().misses - до.промахов }), ш.до);
+      console.log('глыба/штраф:', JSON.stringify(штраф));
+      // ⚠️ −20, а не −40: двойной штраф камня = 2×MISS_PENALTY = 2×10 (канон,
+      // таблица 2026-07-22). Первая версия ассерта удвоила УЖЕ двойное число
+      // по памяти — механика была права, врало ожидание.
+      expect(штраф.дельта === -20 && штраф.промах === 1,
+        '⚠️ ГЛЫБА: тап до срока — штраф КАК У КАМНЯ (двойной, 2×10 = −20 сырых), промах учтён (' +
+        JSON.stringify(штраф) + ')');
+    }
+    // ── ЗАЧЁТ ДО ФАКТА готовности (опрос, не счёт вызовов) + пульс
+    const фаза2 = await fz.evaluate(async (арг) => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      for (let i = 0; i < 12 && !(g.frozenInfo()[0] || {}).готова; i++){ g.matchType(арг.тип); await sl(400); }
+      const инфо = g.frozenInfo()[0] || {};
+      const п1 = инфо.пульс; await sl(300);
+      const п2 = (g.frozenInfo()[0] || {}).пульс;
+      const пиксель = g.pixelOf(арг.индекс);
+      return { собрано: инфо.собрано, готова: !!инфо.готова, пульсЖивой: п1 !== п2,
+               пиксель, счёт: g.stats().score };
+    }, { тип: ш.тип, индекс: ш.индекс });
+    console.log('глыба/зачёт:', JSON.stringify({ собрано: фаза2.собрано, готова: фаза2.готова, пульс: фаза2.пульсЖивой }));
+    expect(фаза2.готова === true && фаза2.пульсЖивой === true,
+      '⚠️⚠️ ГЛЫБА: N пар собраны — ГОТОВА и ПУЛЬСИРУЕТ («пульсирует, нужен тап») (' +
+      JSON.stringify({ собрано: фаза2.собрано, готова: фаза2.готова, пульс: фаза2.пульсЖивой }) + ')');
+    // ── ТАП ПО ГОТОВОЙ: настоящий клик → разбита, очки ×3, партнёр матчится
+    if (фаза2.пиксель && !фаза2.пиксель.occluded){
+      await fz.mouse.click(фаза2.пиксель.px, фаза2.пиксель.py);
+    } else {
+      await fz.evaluate((i) => window.__game.frozenBreak(i), ш.индекс);
+    }
+    await fz.waitForTimeout(450);
+    const фаза3 = await fz.evaluate(async (арг) => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      const разбита = g.frozenInfo().length === арг.было - 1;
+      const очки = g.stats().score - арг.счёт;
+      const жив = g.alive(); g.matchType(арг.тип); await sl(450);
+      return { разбита, очки, параПосле: g.alive() === жив - 2 };
+    }, { тип: ш.тип, было: ш.наПороге, счёт: фаза2.счёт });
+    console.log('глыба/разбитие:', JSON.stringify(фаза3));
+    expect(фаза3.разбита === true && фаза3.очки >= 30,
+      '⚠️⚠️ ГЛЫБА: тап разбивает, очки «предмета ×3» начислены (' + JSON.stringify(фаза3) + ')');
+    expect(фаза3.параПосле === true,
+      '⚠️⚠️ ГЛЫБА: предмету «всё равно нужна пара» — после разбития матчится партнёром');
+
+    // ── ЭКРАН НОВОЙ ВЕЩИ: КАЧЕСТВО + ВРАЩЕНИЕ (слово владельца 2026-08-13)
+    const но = await fz.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      const key = g.accSnapshot()[0].key;
+      g.newObjShow(key, function(){}); await sl(500);
+      const host = document.getElementById('newObjModel');
+      const до = g.spinState();
+      host.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, pointerId: 7, bubbles: true }));
+      host.dispatchEvent(new PointerEvent('pointermove', { clientX: 180, pointerId: 7, bubbles: true }));
+      const вДраге = g.spinState();
+      host.dispatchEvent(new PointerEvent('pointerup', { clientX: 180, pointerId: 7, bubbles: true }));
+      const после = g.spinState();
+      g.newObjHide(); await sl(250);
+      // ОБЩИЙ КАНВАС: спин КОЛЛЕКЦИИ обязан вернуть буфер 256. Хост — живая
+      // карточка сетки; toggle без хоста молча не стартует (прошлая версия
+      // стража на этом и мерила ЧУЖОЙ буфер — её же красный это показал).
+      document.getElementById('pauseBtn').click(); await sl(600);
+      let коллекция = null;
+      const карточка = document.querySelector('#msGrid > *');
+      if (карточка && g.thumbSpinToggleKey(key, '#msGrid > *')){
+        await sl(300); коллекция = g.spinState().px;
+        g.thumbSpinToggleKey(key, '#msGrid > *');
+      }
+      { const p = document.querySelector('.ms-play'); if (p) p.click(); } await sl(250);
+      return { буфер: до.px, сдвиг: +(вДраге.angle - до.angle).toFixed(3),
+               автоВДраге: вДраге.auto, автоПосле: после.auto, коллекция };
+    });
+    console.log('новая вещь:', JSON.stringify(но));
+    expect(но.буфер >= 450 && но.буфер <= 768,
+      '⚠️⚠️ НОВАЯ ВЕЩЬ: буфер под размер узла × DPR (' + но.буфер + ' при DPR 2), а не прежние 256');
+    expect(Math.abs(но.сдвиг - 0.96) < 0.06 && но.автоВДраге === false && но.автоПосле === true,
+      '⚠️⚠️ НОВАЯ ВЕЩЬ: крутится пальцем — драг ведёт угол, авто глушится и возвращается (' +
+      JSON.stringify(но) + ')');
+    expect(но.коллекция === 256,
+      '⚠️ НОВАЯ ВЕЩЬ: общий канвас ВЕРНУЛСЯ к 256 в коллекции (' + но.коллекция + ')');
+    await fz.close();
+  }
+
 
 
   // ===== ЭКРАН НОВОЙ ВЕЩИ (макеты 846:4814 моб. / 846:4763 деск.) =====

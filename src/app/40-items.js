@@ -355,7 +355,7 @@ function finalPairsRefill(){
   level.finalRefillDone = true; // и «только камни» второй раз не проверяем
   const orphans = [];
   for (const it of items)
-    if (it.alive && !it.rock && !it.bomb && !it.surprise) orphans.push(it);
+    if (it.alive && !it.rock && !it.bomb && !it.surprise && !it.frozen) orphans.push(it);
   if (!orphans.length) return false; // остались камни/бомбы — мелем как мусор
   let k = 0;
   for (const o of orphans){
@@ -418,6 +418,66 @@ const ROCK_TYPES = [
 function rocksForLevel(lvl){
   if (lvl < ROCK_FROM_LEVEL) return 0;
   return Math.min(ROCK_CAP, 1 + Math.floor((lvl - ROCK_FROM_LEVEL) / ROCK_EVERY));
+}
+// очередь глыб — В ПАМЯТИ СЕССИИ, как у бомбы: это ритм подачи, не прогресс
+let frozenNextLevel = FROZEN_FROM_LEVEL;
+function freezeItem(it){
+  it.frozen = true; it.frozenReady = false;
+  it.frozenKey = it.key;              // для ВОЗВРАТА в парные механики
+  // ⚠️ КЛЮЧ ≠ ИМЯ ТИПА (ключи вида «T5», зачёт идёт по type.name из doMatch) —
+  // первая версия сравнивала разные пространства имён, и зачёт молчал.
+  // Поймано пробой, а не чтением. Тип храним ОТДЕЛЬНО.
+  it.frozenType = it.type.name;
+  it.key = 'FROZEN#' + Math.floor(Math.random() * 1e9);   // уникален — вне парных механик
+  it.frozenNeedItems = FROZEN_PAIRS_N * 2;                // зачёт ШТУКАМИ: 2 штуки = пара
+  it.frozenGotItems = 0;
+  makeIceShell(it);
+}
+// ГЛЫБА — ДВА НИЗКОПОЛИГОНАЛЬНЫХ СЛОЯ ПОВЕРХ МЕША (приём накладки огня:
+// материал самого предмета НЕ трогается ни на кадр — портреты коллекции
+// рендерятся тем же классом материала, «морозное» просочилось бы в музей).
+// Полупрозрачность — opacity, transmission запрещён каноном. Трещины —
+// РОСТ ВЕРШИННОГО ШУМА по ступеням зачёта (базовые позиции хранятся).
+function makeIceShell(it){
+  const g0 = it.mesh.geometry;
+  if (!g0.boundingSphere) g0.computeBoundingSphere();
+  const R = (g0.boundingSphere ? g0.boundingSphere.radius : 1) * 1.32;
+  const geo = new THREE.IcosahedronGeometry(R, 1);
+  const shell = new THREE.Group();
+  const тело = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    color: 0xcfeeff, transparent: true, opacity: 0.34, depthWrite: false }));
+  const кайма = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
+    color: 0x86c8f0, transparent: true, opacity: 0.5, side: THREE.BackSide, depthWrite: false }));
+  кайма.scale.setScalar(1.045);
+  shell.add(кайма); shell.add(тело);
+  shell.userData.iceBase = Float32Array.from(geo.attributes.position.array);
+  shell.renderOrder = 3;
+  it.mesh.add(shell);
+  it.iceShell = shell;
+  iceCracks(it); // нулевая ступень шума — глыба сразу «колотая», не идеальная сфера
+}
+// ступень трещин = собрано/нужно: шум вершин растёт с прогрессом
+function iceCracks(it){
+  const shell = it.iceShell; if (!shell) return;
+  const amp = 0.05 + 0.13 * Math.min(1, it.frozenGotItems / it.frozenNeedItems);
+  for (const m of shell.children){
+    const pos = m.geometry.attributes.position, base = shell.userData.iceBase;
+    for (let i = 0; i < pos.count; i++){
+      // детерминированный «хеш» вершины — трещины не мигают между вызовами,
+      // а УГЛУБЛЯЮТСЯ: тот же узор, больший размах
+      const h = Math.sin(i * 127.1) * 43758.5453;
+      const k = 1 + amp * ((h - Math.floor(h)) * 2 - 1);
+      pos.setXYZ(i, base[i*3] * k, base[i*3+1] * k, base[i*3+2] * k);
+    }
+    pos.needsUpdate = true;
+    m.geometry.computeVertexNormals();
+  }
+}
+function removeIceShell(it){
+  const shell = it.iceShell; if (!shell) return;
+  it.mesh.remove(shell);
+  for (const m of shell.children){ m.geometry.dispose(); m.material.dispose(); }
+  it.iceShell = null;
 }
 function makeRock(i){
   const t = ROCK_TYPES[i % ROCK_TYPES.length];
@@ -582,6 +642,37 @@ function genLevel(){
       const spawn = new THREE.Vector3(Math.cos(th) * d, FUNNEL.H + 1.6 + 0.5, Math.sin(th) * d);
       items.push(makeSurprise(spawn));
     }
+
+  // ═══ ЗАМОРОЖЕННЫЕ ГЛЫБЫ (спека владельца 2026-08-13; константы в 00-config).
+  // Морозим ОДНОГО ИЗ ПАРЫ уже созданного типа: состав уровня и чётность не
+  // трогаются вовсе. Ключ подменяется (приём камней) — все парные механики,
+  // подсказка, докидка и заряд исключают глыбу АВТОМАТИЧЕСКИ; исходный ключ
+  // хранится в frozenKey и возвращается при разбитии.
+  if (levelNum >= FROZEN_FROM_LEVEL && levelNum >= frozenNextLevel){
+    if (items.some(i => i.surprise)){
+      // «разведи на следующие уровни»: с кладом в одной куче не живёт
+      frozenNextLevel = levelNum + 1;
+    } else {
+      const поТипу = {};
+      for (const it of items)
+        if (it.alive !== false && !it.surprise && !it.bomb && !it.rock && it.type)
+          (поТипу[it.type.name] = поТипу[it.type.name] || []).push(it);
+      // тип годен, если копий хватает на N свободных пар + партнёра глыбы
+      const годные = Object.keys(поТипу).filter(k => поТипу[k].length >= FROZEN_PAIRS_N * 2 + 2);
+      if (годные.length){
+        const сколько = Math.min(FROZEN_MAX_PER_LEVEL, 1 + (Math.random() < 0.5 ? 1 : 0), годные.length);
+        for (let g = 0; g < сколько; g++){
+          const k = годные.splice(Math.floor(Math.random() * годные.length), 1)[0];
+          const жертвы = поТипу[k];
+          freezeItem(жертвы[Math.floor(Math.random() * жертвы.length)]);
+        }
+        frozenNextLevel = levelNum +
+          (FROZEN_GAP_MIN + Math.floor(Math.random() * (FROZEN_GAP_MAX - FROZEN_GAP_MIN + 1)));
+      } else {
+        frozenNextLevel = levelNum + 1;  // пула не хватило — пробуем следующий
+      }
+    }
+  }
   }
   // БЕЗ предварительной осадки: падение происходит ЖИВЬЁМ на экране
   // (интро: вид сбоку -> облёт -> вид сверху); утряска и трим — в интро
