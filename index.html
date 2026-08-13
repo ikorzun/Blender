@@ -7254,6 +7254,8 @@ function genLevel(){
       it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[pr.type].name, it.geo);
+      it.wave = layer;            // волна = тот же слой, что у спавна (по 8)
+      waveHold(it);               // тело создано, но выключено до своей очереди
       items.push(it); n++;
       // бомба — в СЕРЕДИНУ столба заполнения (спека 2026-07-22): ровно на
       // половине предметов, слоем выше текущего — осядет в середину кучи
@@ -7265,6 +7267,7 @@ function genLevel(){
         b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
         b.mesh.position.copy(b.p);
         createItemBody(b, 'ball', geoCache.get('B'));
+        b.wave = Math.floor(n/8); waveHold(b);
         items.push(b);
       }
     }
@@ -7277,6 +7280,7 @@ function genLevel(){
     rk.p.set((Math.random()-0.5)*3, FUNNEL.H + 1.6 + (Math.floor(n/8) + 1)*1.35 + ri*0.6, (Math.random()-0.5)*3);
     rk.mesh.position.copy(rk.p);
     createItemBody(rk, 'rock', rk.geo);
+    rk.wave = Math.floor(n/8); waveHold(rk);
     items.push(rk);
   }
   // ЗОЛОТОЙ ОБЪЕКТ ЗАБРАСЫВАЕТСЯ СО ВСЕМИ (слово владельца 2026-08-04:
@@ -7914,6 +7918,69 @@ const PROF_KEYS = ['step','collision_detection','broad_phase','narrow_phase',
   'velocity_update','velocity_writeback','ccd','ccd_broad_phase',
   'ccd_narrow_phase','ccd_solver','ccd_toi_computation','user_changes'];
 let profOn = false, profAcc = null, profWallMs = 0, profSteps = 0;
+// ВОЛНЫ ТЕЛ НА НАСЫПАНИИ (задание диспетчера #51 по заказу владельца).
+// ⚠️ ЗАЧЕМ: genLevel создаёт ~180 тел разом, и весь столб считается с ПЕРВОГО
+// шага, хотя верхние слои ещё никого не касаются. Волна = тело создано, но
+// ВЫКЛЮЧЕНО (`setEnabled(false)` — выходит из симуляции целиком, не «спит»),
+// и включается, когда до его слоя дошла очередь. Одновременно активных
+// падающих тел становится меньше, а картинка — «наливание», а не «сброс».
+// ⚠️ ЧАСЫ РЕАЛЬНЫЕ, А НЕ ИГРОВЫЕ: спека владельца названа в миллисекундах
+// («слой каждые 50-80 мс»), а игровое время в интро ещё и множится на
+// INTRO_TIME_SCALE. На просевшем кадре игровые часы растянули бы наливание.
+// ⚠️ 80 — ВЕРХ коридора спеки владельца (50-80), выбран ЗАМЕРОМ: перф растёт
+// монотонно с замедлением подачи (шаг p95 11.3 / 9.6 / 8.5 при 50 / 65 / 80),
+// а число спасений от темпа НЕ зависит вовсе (20 / 20 / 17) — значит берём
+// лучший перф внутри спеки. Дальше 80 не идём: это уже вне слова владельца.
+let WAVE_MS = 80;                      // ручка --waveMs только для A/B
+let wavesOn = true;                    // боевое; ручка — только для A/B замера
+let waveNext = 0, waveAcc = 0, waveLast = 0;
+function setWaves(v, ms){ wavesOn = !!v; if (ms != null) WAVE_MS = +ms; }
+function getWaves(){ return wavesOn; }
+// ⚠️ СЮРПРИЗ НЕ ВОЛНИТСЯ: он прибит ко дну fixed-телом до finishIntro (иначе
+// вибро-утряска выталкивает его наверх — эффект бразильского ореха). Волна
+// его бы «включила» и сняла бы прибитие не вовремя.
+function waveHold(it){
+  if (!wavesOn || !it || !it.body || it.surprise) return;
+  it.body.setEnabled(false);
+}
+function waveArm(){ waveNext = 0; waveAcc = 0; waveLast = 0; }
+function waveReleaseAll(){
+  for (const it of items) if (it.body && !it.body.isEnabled()) it.body.setEnabled(true);
+  waveNext = 1e9;
+}
+// ⚠️ ЧАСЫ СВОИ, ВНУТРЕННИЕ: тик интро получает ИГРОВОЕ dt (оно ещё и множится
+// на INTRO_TIME_SCALE), а волны обязаны идти по реальным миллисекундам.
+function waveTick(){
+  if (!wavesOn || waveNext >= 1e9) return 0;
+  const now = performance.now();
+  if (!waveLast){ waveLast = now; return 0; }   // первый тик — только якорь
+  // ⚠️ КЛАМП: после просевшего кадра без него высыпался бы разом весь столб —
+  // ровно то «наливание», ради которого волны и делались, пропало бы на самом
+  // слабом устройстве, где оно нужнее всего.
+  const dtMs = Math.min(now - waveLast, WAVE_MS * 4);
+  waveLast = now;
+  waveAcc += dtMs;
+  let открыто = 0;
+  while (waveAcc >= WAVE_MS){
+    waveAcc -= WAVE_MS;
+    let есть = false;
+    for (const it of items){
+      if (!it.body || (it.wave | 0) !== waveNext) continue;
+      есть = true;
+      if (!it.body.isEnabled()){ it.body.setEnabled(true); открыто++; }
+    }
+    waveNext++;
+    // очередь кончилась — больше волн нет, дальше тик бесплатный
+    if (!есть && waveNext > 64){ waveNext = 1e9; break; }
+  }
+  return открыто;
+}
+function waveInfo(){
+  let выкл = 0, всего = 0;
+  for (const it of items){ if (!it.body) continue; всего++; if (!it.body.isEnabled()) выкл++; }
+  return { волны: wavesOn, шагМс: WAVE_MS, следующая: waveNext, выключено: выкл, тел: всего };
+}
+
 const RESCUE_WALL_TOL = 0.18;          // БОЕВОЕ. Ручка ниже — только замер.
 let rescueWallTol = RESCUE_WALL_TOL;
 function setRescueWallTol(v){ rescueWallTol = (v == null ? RESCUE_WALL_TOL : +v); }
@@ -8203,6 +8270,13 @@ function rescueSweep(beforeSleep){
     // намеренно — иначе дефект двигал бы заодно тревогу подъёмов пола, и
     // приписать наблюдение было бы нечему (диверсия бьёт в СВОЙСТВО, не в
     // соседа).
+    // ⛔ ПРОБОВАЛИ И ОТКЛОНИЛИ ЗАМЕРОМ (2026-08-13, задание #51): гейт «не
+    // трогать предметы выше кромки, пока стоит временная стена» — против роста
+    // спасений от волн. НЕ ПОМОГ: 20 против 18, выше кромки те же 18. Причина в
+    // ошибочном допущении, а не в идее: временная стена снимается на переходе
+    // drop -> orbit, а спасения случаются ПОЗЖЕ, когда её уже нет, — гейт почти
+    // никогда не истинен. Идею можно вернуть, но условием ДОЛЖНА быть не стена,
+    // а что-то живое на момент срабатывания. Не изобретать заново в прежнем виде.
     const out = (d + reach) > legalR + rescueWallTol || it.p.y < FLOOR_REST - 0.8 || it.p.y > RESCUE_CEIL;
     if (out){
       rescued++;
@@ -17423,6 +17497,7 @@ function startIntro(){
   // неопределённое время. Здесь пауза до ПЕРВОГО шага физики, под занавесом,
   // и снимается гарантированно (Ads.curtainGone всегда резолвится, предел 12 с).
   intro = { phase:'wait', t: 0, shakes: 0, readySent: false };
+  waveArm();                    // очередь волн — с нуля на каждый уровень
   resetPointers();
   setFallCap(11); // мягче терминальная скорость на время досыпки
   camAz = 0.35; camPhi = 1.25; camR = 17.8;
@@ -17480,7 +17555,8 @@ function introPerfStop(){
   _introT0 = 0;
 }
 function finishIntro(){
-  introPerfStop();                                     // срез насыпания — ДО всего прочего
+  introPerfStop();
+  waveReleaseAll();              // страховка: облёт мог начаться раньше очереди                                     // срез насыпания — ДО всего прочего
   try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
   // ПЛОЩАДКЕ: первый ИГРАБЕЛЬНЫЙ кадр + старт уровня. GAME_READY раньше
   // уходил из Ads.init (до genLevel и интро) — площадка снимала свой лоадер
@@ -17567,6 +17643,10 @@ function tickIntro(dt){
     return;
   }
   if (intro.phase === 'drop'){
+    // ВОЛНЫ: открываем следующий слой по РЕАЛЬНЫМ часам (см. 50-physics).
+    // ⚠️ Тик стоит ВНУТРИ фазы drop: в 'wait' физика не шагает вовсе, и
+    // выпускать тела туда значило бы копить их над чашей за занавесом.
+    waveTick();
     // К ОБЛЁТУ ПОРАНЬШЕ (спека владельца: «ускорь переход»): не ждём
     // почти-штиля — куча доседает уже во время облёта (утряска в орбите
     // гейтится maxV<3, трим всё равно ждёт штиля через pendingTrim)
@@ -18431,6 +18511,10 @@ window.__game = {
     // облёта, которого в тестах/пробах не будет) — и те же сообщения площадке
     document.documentElement.classList.add('introdone');
     try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
+    // ⚠️ ВОЛНЫ ОБЯЗАНЫ ДОЗРЕТЬ МГНОВЕННО: на skipIntro стоит весь сьют, а
+    // 300 синхронных шагов не двигают реальные часы — без этой строки
+    // выключенные тела остались бы висеть над чашей и уровень был бы пуст.
+    waveReleaseAll();
     for (let s=0; s<300; s++){
       world.step();
       // терминальная скорость и тут: столб падает с ~40 юнитов, v>20
@@ -19130,6 +19214,7 @@ window.__game = {
   stepProfOn: (on) => profEnable(on),
   stepProf: () => profTake(),
   shapeCensus: () => shapeCensus(),
+  waveInfo: () => waveInfo(),
   ccdSel: (on, vOn, vOff) => (on === undefined ? ccdSelInfo() : setCcdSel(on, vOn, vOff)),
   physKnobs(o){
     o = o || {};
@@ -19138,9 +19223,11 @@ window.__game = {
     if (o.ccd != null) for (const it of items) if (it.alive && it.body) it.body.enableCcd(!!o.ccd);
     if (o.ccdDefault != null) setCcdDefault(o.ccdDefault);
     if (o.wallTol != null) setRescueWallTol(o.wallTol === 'off' ? 1e9 : o.wallTol);
+    if (o.waves != null) setWaves(o.waves, o.waveMs);
     if (o.maxSub != null) setMaxSubsteps(o.maxSub);
     return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps,
-      maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol() };
+      maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol(),
+      waves: getWaves() };
   },
   fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
   // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —

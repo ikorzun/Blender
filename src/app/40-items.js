@@ -709,6 +709,8 @@ function genLevel(){
       it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[pr.type].name, it.geo);
+      it.wave = layer;            // волна = тот же слой, что у спавна (по 8)
+      waveHold(it);               // тело создано, но выключено до своей очереди
       items.push(it); n++;
       // бомба — в СЕРЕДИНУ столба заполнения (спека 2026-07-22): ровно на
       // половине предметов, слоем выше текущего — осядет в середину кучи
@@ -720,6 +722,7 @@ function genLevel(){
         b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
         b.mesh.position.copy(b.p);
         createItemBody(b, 'ball', geoCache.get('B'));
+        b.wave = Math.floor(n/8); waveHold(b);
         items.push(b);
       }
     }
@@ -732,6 +735,7 @@ function genLevel(){
     rk.p.set((Math.random()-0.5)*3, FUNNEL.H + 1.6 + (Math.floor(n/8) + 1)*1.35 + ri*0.6, (Math.random()-0.5)*3);
     rk.mesh.position.copy(rk.p);
     createItemBody(rk, 'rock', rk.geo);
+    rk.wave = Math.floor(n/8); waveHold(rk);
     items.push(rk);
   }
   // ЗОЛОТОЙ ОБЪЕКТ ЗАБРАСЫВАЕТСЯ СО ВСЕМИ (слово владельца 2026-08-04:

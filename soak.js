@@ -36,6 +36,8 @@ const CCDSUB = parseInt(arg('ccdsub', '-1'), 10);
 // wallExcess не хватало ДЕФЕКТНОЙ ОПОРЫ, а её нельзя дождаться: настоящее
 // застревание может не случиться никогда, если механика здорова.
 const WALLTOL = arg('walltol', '');
+// --waves=0 — рука БЕЗ волн для A/B (боевое: волны включены, задание #51)
+const WAVES = arg('waves', '');
 
 // mulberry32: детерминированные решения бота И Math.random страницы (сид уровня)
 function mulberry32(a){
@@ -126,6 +128,7 @@ const WALL_EXCESS_NORM = 0.45;
   await page.waitForFunction(() => !window.__game.cam().intro, null, { timeout: 40000 });
   if (CCDSUB >= 0) await page.evaluate((n) => window.__game.physKnobs({ ccdSub: n }), CCDSUB);
   if (WALLTOL) await page.evaluate((v) => window.__game.physKnobs({ wallTol: v === 'off' ? 'off' : +v }), WALLTOL);
+  if (WAVES !== '') await page.evaluate((v) => window.__game.physKnobs({ waves: v !== '0' }), WAVES);
 
   const outStream = fs.createWriteStream(OUT);
   const t0 = Date.now();
@@ -194,12 +197,13 @@ const WALL_EXCESS_NORM = 0.45;
         nextSample = now + 5000;
         const doGc = now - lastGc > 30000;
         if (doGc){ lastGc = now; await page.evaluate(() => { if (typeof gc === 'function') gc(); }); }
-        const s = await page.evaluate(([ccdsub, walltol]) => {
+        const s = await page.evaluate(([ccdsub, walltol, waves]) => {
           const g = window.__game;
           // ручка подтверждается на каждом сэмпле: тела пересоздаются регеном,
           // и «поставил один раз» — ровно тот случай, когда замер тихо уезжает
           if (ccdsub >= 0) g.physKnobs({ ccdSub: ccdsub });
           if (walltol) g.physKnobs({ wallTol: walltol === 'off' ? 'off' : +walltol });
+          if (waves !== '') g.physKnobs({ waves: waves !== '0' });
           // «мосты» (gap>0.35, но опора есть) — норма рыхлой кучи, в журнал
           // идёт только их ЧИСЛО; полные записи — лишь у нулевых контактов
           const kn = g.physKnobs({});          // допуск ПИШЕМ в сэмпл: рука
@@ -218,7 +222,7 @@ const WALL_EXCESS_NORM = 0.45;
                    допуск: kn.wallTol,        // рука видна в КАЖДОМ сэмпле
                    выступы: g.wallExcessAll(),// РАСПРЕДЕЛЕНИЕ, а не максимум
                    flips: g.accFlips(), ps: g.psLog(), perf: g.perfStats() };
-        }, [CCDSUB, WALLTOL]);
+        }, [CCDSUB, WALLTOL, WAVES]);
         const tSec = Math.round((now - t0) / 1000);
         const freshPs = s.ps.filter(e => e.t > lastPsT);
         if (freshPs.length) lastPsT = freshPs[freshPs.length - 1].t;
