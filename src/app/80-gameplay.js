@@ -344,9 +344,12 @@ function detonateBomb(bomb){
   destroyItemBody(bomb);
   wakePhysics('bomb');
   stats.lastAction = performance.now(); // тап = действие, миксер откладывается
-  // ⚠️ ГЛЫБЫ В ЗОНЕ: бомба лёд РАЗБИВАЕТ (слово владельца), но предмет ЖИВ —
-  // из жертв исключаем, размораживаем отдельно и БЕЗ очков ×3.
-  items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= BOMB_RADIUS)
+  // ⚠️ ГЛЫБЫ: бомба лёд разбивает только ВПЛОТНУЮ (FROZEN_BOMB_RADIUS =
+  // старая зона 2.86; выбор владельца «2», 2026-08-13). На полной зоне 5.72
+  // при чаше ~8 бомба доставала глыбу отовсюду (замер 10/10) и обесценивала
+  // условие сбора пар одним тапом. Предмет жив — из жертв исключаем,
+  // размораживаем отдельно и БЕЗ очков ×3.
+  items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= FROZEN_BOMB_RADIUS)
        .forEach(i => { try { breakIce(i, true); } catch(e){} });
   const victims = items
     .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen)
