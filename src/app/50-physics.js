@@ -534,6 +534,69 @@ const PROF_KEYS = ['step','collision_detection','broad_phase','narrow_phase',
   'velocity_update','velocity_writeback','ccd','ccd_broad_phase',
   'ccd_narrow_phase','ccd_solver','ccd_toi_computation','user_changes'];
 let profOn = false, profAcc = null, profWallMs = 0, profSteps = 0;
+// ВОЛНЫ ТЕЛ НА НАСЫПАНИИ (задание диспетчера #51 по заказу владельца).
+// ⚠️ ЗАЧЕМ: genLevel создаёт ~180 тел разом, и весь столб считается с ПЕРВОГО
+// шага, хотя верхние слои ещё никого не касаются. Волна = тело создано, но
+// ВЫКЛЮЧЕНО (`setEnabled(false)` — выходит из симуляции целиком, не «спит»),
+// и включается, когда до его слоя дошла очередь. Одновременно активных
+// падающих тел становится меньше, а картинка — «наливание», а не «сброс».
+// ⚠️ ЧАСЫ РЕАЛЬНЫЕ, А НЕ ИГРОВЫЕ: спека владельца названа в миллисекундах
+// («слой каждые 50-80 мс»), а игровое время в интро ещё и множится на
+// INTRO_TIME_SCALE. На просевшем кадре игровые часы растянули бы наливание.
+// ⚠️ 80 — ВЕРХ коридора спеки владельца (50-80), выбран ЗАМЕРОМ: перф растёт
+// монотонно с замедлением подачи (шаг p95 11.3 / 9.6 / 8.5 при 50 / 65 / 80),
+// а число спасений от темпа НЕ зависит вовсе (20 / 20 / 17) — значит берём
+// лучший перф внутри спеки. Дальше 80 не идём: это уже вне слова владельца.
+let WAVE_MS = 80;                      // ручка --waveMs только для A/B
+let wavesOn = true;                    // боевое; ручка — только для A/B замера
+let waveNext = 0, waveAcc = 0, waveLast = 0;
+function setWaves(v, ms){ wavesOn = !!v; if (ms != null) WAVE_MS = +ms; }
+function getWaves(){ return wavesOn; }
+// ⚠️ СЮРПРИЗ НЕ ВОЛНИТСЯ: он прибит ко дну fixed-телом до finishIntro (иначе
+// вибро-утряска выталкивает его наверх — эффект бразильского ореха). Волна
+// его бы «включила» и сняла бы прибитие не вовремя.
+function waveHold(it){
+  if (!wavesOn || !it || !it.body || it.surprise) return;
+  it.body.setEnabled(false);
+}
+function waveArm(){ waveNext = 0; waveAcc = 0; waveLast = 0; }
+function waveReleaseAll(){
+  for (const it of items) if (it.body && !it.body.isEnabled()) it.body.setEnabled(true);
+  waveNext = 1e9;
+}
+// ⚠️ ЧАСЫ СВОИ, ВНУТРЕННИЕ: тик интро получает ИГРОВОЕ dt (оно ещё и множится
+// на INTRO_TIME_SCALE), а волны обязаны идти по реальным миллисекундам.
+function waveTick(){
+  if (!wavesOn || waveNext >= 1e9) return 0;
+  const now = performance.now();
+  if (!waveLast){ waveLast = now; return 0; }   // первый тик — только якорь
+  // ⚠️ КЛАМП: после просевшего кадра без него высыпался бы разом весь столб —
+  // ровно то «наливание», ради которого волны и делались, пропало бы на самом
+  // слабом устройстве, где оно нужнее всего.
+  const dtMs = Math.min(now - waveLast, WAVE_MS * 4);
+  waveLast = now;
+  waveAcc += dtMs;
+  let открыто = 0;
+  while (waveAcc >= WAVE_MS){
+    waveAcc -= WAVE_MS;
+    let есть = false;
+    for (const it of items){
+      if (!it.body || (it.wave | 0) !== waveNext) continue;
+      есть = true;
+      if (!it.body.isEnabled()){ it.body.setEnabled(true); открыто++; }
+    }
+    waveNext++;
+    // очередь кончилась — больше волн нет, дальше тик бесплатный
+    if (!есть && waveNext > 64){ waveNext = 1e9; break; }
+  }
+  return открыто;
+}
+function waveInfo(){
+  let выкл = 0, всего = 0;
+  for (const it of items){ if (!it.body) continue; всего++; if (!it.body.isEnabled()) выкл++; }
+  return { волны: wavesOn, шагМс: WAVE_MS, следующая: waveNext, выключено: выкл, тел: всего };
+}
+
 const RESCUE_WALL_TOL = 0.18;          // БОЕВОЕ. Ручка ниже — только замер.
 let rescueWallTol = RESCUE_WALL_TOL;
 function setRescueWallTol(v){ rescueWallTol = (v == null ? RESCUE_WALL_TOL : +v); }
@@ -823,6 +886,13 @@ function rescueSweep(beforeSleep){
     // намеренно — иначе дефект двигал бы заодно тревогу подъёмов пола, и
     // приписать наблюдение было бы нечему (диверсия бьёт в СВОЙСТВО, не в
     // соседа).
+    // ⛔ ПРОБОВАЛИ И ОТКЛОНИЛИ ЗАМЕРОМ (2026-08-13, задание #51): гейт «не
+    // трогать предметы выше кромки, пока стоит временная стена» — против роста
+    // спасений от волн. НЕ ПОМОГ: 20 против 18, выше кромки те же 18. Причина в
+    // ошибочном допущении, а не в идее: временная стена снимается на переходе
+    // drop -> orbit, а спасения случаются ПОЗЖЕ, когда её уже нет, — гейт почти
+    // никогда не истинен. Идею можно вернуть, но условием ДОЛЖНА быть не стена,
+    // а что-то живое на момент срабатывания. Не изобретать заново в прежнем виде.
     const out = (d + reach) > legalR + rescueWallTol || it.p.y < FLOOR_REST - 0.8 || it.p.y > RESCUE_CEIL;
     if (out){
       rescued++;

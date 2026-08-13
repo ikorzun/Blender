@@ -64,6 +64,7 @@ function startIntro(){
   // неопределённое время. Здесь пауза до ПЕРВОГО шага физики, под занавесом,
   // и снимается гарантированно (Ads.curtainGone всегда резолвится, предел 12 с).
   intro = { phase:'wait', t: 0, shakes: 0, readySent: false };
+  waveArm();                    // очередь волн — с нуля на каждый уровень
   resetPointers();
   setFallCap(11); // мягче терминальная скорость на время досыпки
   camAz = 0.35; camPhi = 1.25; camR = 17.8;
@@ -121,7 +122,8 @@ function introPerfStop(){
   _introT0 = 0;
 }
 function finishIntro(){
-  introPerfStop();                                     // срез насыпания — ДО всего прочего
+  introPerfStop();
+  waveReleaseAll();              // страховка: облёт мог начаться раньше очереди                                     // срез насыпания — ДО всего прочего
   try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
   // ПЛОЩАДКЕ: первый ИГРАБЕЛЬНЫЙ кадр + старт уровня. GAME_READY раньше
   // уходил из Ads.init (до genLevel и интро) — площадка снимала свой лоадер
@@ -208,6 +210,10 @@ function tickIntro(dt){
     return;
   }
   if (intro.phase === 'drop'){
+    // ВОЛНЫ: открываем следующий слой по РЕАЛЬНЫМ часам (см. 50-physics).
+    // ⚠️ Тик стоит ВНУТРИ фазы drop: в 'wait' физика не шагает вовсе, и
+    // выпускать тела туда значило бы копить их над чашей за занавесом.
+    waveTick();
     // К ОБЛЁТУ ПОРАНЬШЕ (спека владельца: «ускорь переход»): не ждём
     // почти-штиля — куча доседает уже во время облёта (утряска в орбите
     // гейтится maxV<3, трим всё равно ждёт штиля через pendingTrim)
@@ -1072,6 +1078,10 @@ window.__game = {
     // облёта, которого в тестах/пробах не будет) — и те же сообщения площадке
     document.documentElement.classList.add('introdone');
     try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
+    // ⚠️ ВОЛНЫ ОБЯЗАНЫ ДОЗРЕТЬ МГНОВЕННО: на skipIntro стоит весь сьют, а
+    // 300 синхронных шагов не двигают реальные часы — без этой строки
+    // выключенные тела остались бы висеть над чашей и уровень был бы пуст.
+    waveReleaseAll();
     for (let s=0; s<300; s++){
       world.step();
       // терминальная скорость и тут: столб падает с ~40 юнитов, v>20
@@ -1771,6 +1781,7 @@ window.__game = {
   stepProfOn: (on) => profEnable(on),
   stepProf: () => profTake(),
   shapeCensus: () => shapeCensus(),
+  waveInfo: () => waveInfo(),
   ccdSel: (on, vOn, vOff) => (on === undefined ? ccdSelInfo() : setCcdSel(on, vOn, vOff)),
   physKnobs(o){
     o = o || {};
@@ -1779,9 +1790,11 @@ window.__game = {
     if (o.ccd != null) for (const it of items) if (it.alive && it.body) it.body.enableCcd(!!o.ccd);
     if (o.ccdDefault != null) setCcdDefault(o.ccdDefault);
     if (o.wallTol != null) setRescueWallTol(o.wallTol === 'off' ? 1e9 : o.wallTol);
+    if (o.waves != null) setWaves(o.waves, o.waveMs);
     if (o.maxSub != null) setMaxSubsteps(o.maxSub);
     return { iters: world.numSolverIterations, ccdSub: world.maxCcdSubsteps,
-      maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol() };
+      maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol(),
+      waves: getWaves() };
   },
   fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
   // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —
