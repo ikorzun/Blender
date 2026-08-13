@@ -1177,6 +1177,30 @@ page.on('response', (r) => {
     JSON.stringify({счётных17: мягкий.счётных17, с17при0: мягкий.с17при0,
       счётных15: мягкий.счётных15, с15при1: мягкий.с15при1, с15при3: мягкий.с15при3}) + ')');
 
+  // ===== СЕЙВ УРОВНЯ ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ (дефект внешнего ревью 2026-08-13)
+  // «typeof Save» в 40-items падал в TDZ (склейка сортирует модули, 40 < 77),
+  // пустой catch глотал ReferenceError, и холодный старт ТЕРЯЛ уровень:
+  // mixer_level=11 грузил кучу ур.1 (80 предметов). Восстановление переехало в
+  // 77-save ПОСЛЕ loadSave(). Страж ходит ХОЛОДНЫМ СТАРТОМ и меряет ФАКТ двумя
+  // независимыми признаками уровня: размер кучи и наличие глыбы (ур.11 — её
+  // первый уровень). ⚠️ localStorage у страниц сьюта ОБЩИЙ — ключ прибирается.
+  const хс = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  await хс.addInitScript(() => { try { localStorage.setItem('mixer_level', '11'); } catch (e) {} });
+  await хс.goto('file://' + path.join(__dirname, 'index.html'));
+  await хс.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+  const холод = await хс.evaluate(async () => {
+    const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+    g.skipIntro(); await sl(700);
+    const r = { живых: g.alive(), глыб: g.frozenInfo().length };
+    try { localStorage.removeItem('mixer_level'); } catch (e) {}
+    return r;
+  });
+  await хс.close();
+  console.log('холодный старт ур.11:', JSON.stringify(холод));
+  expect(холод.живых > 150 && холод.глыб >= 1,
+    '⚠️⚠️ СЕЙВ УРОВНЯ ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ: холодный старт с mixer_level=11 ' +
+    'грузит 11-й уровень (куча и глыба на месте), а не первый (' + JSON.stringify(холод) + ')');
+
   // (5) САМИ ЧИСЛА — ДВОЙНИК СПЕКИ, И ЭТО ОБЯЗАТЕЛЬНО. Ассерты выше читают
   // потолок и дно ИЗ ИГРЫ, поэтому против «кто-то поменял число» они
   // тавтологичны: поедут обе стороны сравнения. Спека владельца названа
