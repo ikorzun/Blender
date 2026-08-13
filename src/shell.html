@@ -786,7 +786,10 @@
      вылет ВЛЕВО, и на обрезанном бейдже честно отдавал scrollWidth===clientWidth.
      ⚠️ margin-left:auto по-прежнему ЗАПРЕЩЁН — он уводил бейдж вправо на ~58px
      и ломал зазор прогресс↔множитель (12px = gap ячейки 8 + margin-left 4). */
-  .vmult { font-family:var(--font-round); font-size:16px; font-weight:900;
+  /* ⚠️ ВЕС 700, КАК У ИМЕНИ (слово владельца 2026-08-13 «стиль шрифта
+     множителя такой же как стиль названия объекта») — прежний 900 был
+     единственным отличием: семья/кегль/цвет и так общие с .vname. */
+  .vmult { font-family:var(--font-round); font-size:16px; font-weight:700;
     color:#3a4068; flex:none; margin-left:4px; padding:8px 6px;
     box-sizing:border-box; text-align:center;
     /* ⚠️ КРАЯ ВЫРОВНЕНЫ (вердикт владельца 2026-07-31 «края выровняй»):

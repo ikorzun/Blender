@@ -1258,9 +1258,12 @@ function thumbSpinStop(){
   if (spinR && spinR.domElement.parentNode) spinR.domElement.parentNode.removeChild(spinR.domElement);
   spinItem = null; spinPrev = 0;
 }
-// авто-вращение спина: экран новой вещи глушит его на время драга пальцем
+// авто-вращение спина: экран новой вещи глушит его на время драга пальцем.
+// spinTilt — ВТОРАЯ ось (слово владельца 2026-08-13 «крутить по всем осям»):
+// вертикальный драг наклоняет, горизонтальный вертит — турнтейбл двумя углами.
 let spinAuto = true;
-function thumbSpinNudge(d){ spinAngle += d; }
+let spinTilt = PORTRAIT_TILT_X;
+function thumbSpinNudge(dYaw, dTilt){ spinAngle += dYaw; if (dTilt) spinTilt += dTilt; }
 function thumbSpinAuto(on){ spinAuto = !!on; }
 function thumbSpinStart(item, host, px){
   if (!item || !item.mesh || !host) return;
@@ -1274,15 +1277,23 @@ function thumbSpinStart(item, host, px){
   // наследует чужой.
   spinR.setSize(px || SPIN_PX, px || SPIN_PX, false);
   spinAuto = true;
-  spinItem = item; spinAngle = PORTRAIT_YAW0;
+  spinItem = item; spinAngle = PORTRAIT_YAW0; spinTilt = PORTRAIT_TILT_X;
   // ⚠️ НЕ mesh.clone() (JSON userData с телом Rapier — throw): обёртка на общих
   // geometry+material, как в itemThumb
   spinMesh = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
   spinMesh.scale.copy(item.mesh.scale);
   spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
-  spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
+  spinMesh.rotation.set(spinTilt, spinAngle, 0);
   spinScene.add(spinMesh);
   frameCylinder(spinCam, spinMesh);
+  // ⚠️ ЗАПАС КАДРА ПОД СВОБОДНОЕ ВРАЩЕНИЕ (только экран вещи, px задан):
+  // рамка по цилиндру Y-инвариантна, но наклон по ВТОРОЙ оси выводит
+  // диагональ модели за неё — расширяем ортокамеру, чтобы не срезало углы.
+  // Коллекция (px нет) вертит только по Y — ей запас не нужен, размер карточек
+  // не трогаем (инвариант рамки со статикой).
+  if (px){ spinCam.left *= 1.22; spinCam.right *= 1.22;
+           spinCam.top *= 1.22; spinCam.bottom *= 1.22;
+           spinCam.updateProjectionMatrix(); }
   host.appendChild(spinR.domElement);
   spinRAF = requestAnimationFrame(spinTick);
 }
@@ -1304,7 +1315,7 @@ function spinTick(now){
   if (!spinR.domElement.parentNode){ thumbSpinStop(); return; }
   const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
   if (spinAuto) spinAngle += dt * SPIN_SPEED;
-  spinMesh.rotation.set(PORTRAIT_TILT_X, spinAngle, 0);
+  spinMesh.rotation.set(spinTilt, spinAngle, 0);
   // вуаль/matcap-затемнение и прозрачность OFF на кадр (портрет не сереет) —
   // материал ОБЩИЙ с боевым, восстанавливаем сразу (как itemThumb)
   const mat = spinMesh.material;
@@ -2332,14 +2343,17 @@ let newObjDragOn = false;
 function newObjDragWire(host){
   if (newObjDragOn) return; newObjDragOn = true;
   let вести = false, x0 = 0;
+  let y0 = 0;
   host.addEventListener('pointerdown', (e) => {
-    вести = true; x0 = e.clientX; thumbSpinAuto(false);
+    вести = true; x0 = e.clientX; y0 = e.clientY; thumbSpinAuto(false);
     try { host.setPointerCapture(e.pointerId); } catch(err){}
     e.preventDefault();
   });
   host.addEventListener('pointermove', (e) => {
     if (!вести) return;
-    thumbSpinNudge((e.clientX - x0) * 0.012); x0 = e.clientX;
+    // обе оси: горизонталь вертит, вертикаль наклоняет («по всем осям»)
+    thumbSpinNudge((e.clientX - x0) * 0.012, (e.clientY - y0) * 0.012);
+    x0 = e.clientX; y0 = e.clientY;
   });
   const отпустил = () => { вести = false; thumbSpinAuto(true); };
   host.addEventListener('pointerup', отпустил);

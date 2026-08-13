@@ -8010,6 +8010,11 @@ window.bridge = {
     // ── ЗАЧЁТ ДО ФАКТА готовности (опрос, не счёт вызовов) + пульс
     const фаза2 = await fz.evaluate(async (арг) => {
       const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      // ⚠️ РАДИУС ПОДНИМАЕМ НА ВРЕМЯ ЗАЧЁТА (канонический стенд-приём): на
+      // боевых 0.45 оставшиеся пары типа бывают дальше зазора, и matchType
+      // ЧЕСТНО стопорился на 4/6 — флейк ловил радиус, а не зачёт. Страж
+      // проверяет ЗАЧЁТ; радиус вернём в конце.
+      window.__r0 = g.cfg.baseRadius; g.cfg.baseRadius = 2.2;
       for (let i = 0; i < 12 && !(g.frozenInfo()[0] || {}).готова; i++){ g.matchType(арг.тип); await sl(400); }
       const инфо = g.frozenInfo()[0] || {};
       const п1 = инфо.пульс; await sl(300);
@@ -8034,7 +8039,9 @@ window.bridge = {
       const разбита = g.frozenInfo().length === арг.было - 1;
       const очки = g.stats().score - арг.счёт;
       const жив = g.alive(); g.matchType(арг.тип); await sl(450);
-      return { разбита, очки, параПосле: g.alive() === жив - 2 };
+      const параПосле = g.alive() === жив - 2;
+      g.cfg.baseRadius = window.__r0;              // радиус — обратно боевому
+      return { разбита, очки, параПосле };
     }, { тип: ш.тип, было: ш.наПороге, счёт: фаза2.счёт });
     console.log('глыба/разбитие:', JSON.stringify(фаза3));
     expect(фаза3.разбита === true && фаза3.очки >= 30,
@@ -8049,10 +8056,10 @@ window.bridge = {
       g.newObjShow(key, function(){}); await sl(500);
       const host = document.getElementById('newObjModel');
       const до = g.spinState();
-      host.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, pointerId: 7, bubbles: true }));
-      host.dispatchEvent(new PointerEvent('pointermove', { clientX: 180, pointerId: 7, bubbles: true }));
+      host.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, pointerId: 7, bubbles: true }));
+      host.dispatchEvent(new PointerEvent('pointermove', { clientX: 180, clientY: 150, pointerId: 7, bubbles: true }));
       const вДраге = g.spinState();
-      host.dispatchEvent(new PointerEvent('pointerup', { clientX: 180, pointerId: 7, bubbles: true }));
+      host.dispatchEvent(new PointerEvent('pointerup', { clientX: 180, clientY: 150, pointerId: 7, bubbles: true }));
       const после = g.spinState();
       g.newObjHide(); await sl(250);
       // ОБЩИЙ КАНВАС: спин КОЛЛЕКЦИИ обязан вернуть буфер 256. Хост — живая
@@ -8067,14 +8074,16 @@ window.bridge = {
       }
       { const p = document.querySelector('.ms-play'); if (p) p.click(); } await sl(250);
       return { буфер: до.px, сдвиг: +(вДраге.angle - до.angle).toFixed(3),
+               наклон: +(вДраге.tilt - до.tilt).toFixed(3),
                автоВДраге: вДраге.auto, автоПосле: после.auto, коллекция };
     });
     console.log('новая вещь:', JSON.stringify(но));
     expect(но.буфер >= 450 && но.буфер <= 768,
       '⚠️⚠️ НОВАЯ ВЕЩЬ: буфер под размер узла × DPR (' + но.буфер + ' при DPR 2), а не прежние 256');
-    expect(Math.abs(но.сдвиг - 0.96) < 0.06 && но.автоВДраге === false && но.автоПосле === true,
-      '⚠️⚠️ НОВАЯ ВЕЩЬ: крутится пальцем — драг ведёт угол, авто глушится и возвращается (' +
-      JSON.stringify(но) + ')');
+    expect(Math.abs(но.сдвиг - 0.96) < 0.06 && Math.abs(но.наклон - 0.6) < 0.06 &&
+           но.автоВДраге === false && но.автоПосле === true,
+      '⚠️⚠️ НОВАЯ ВЕЩЬ: крутится ПО ВСЕМ ОСЯМ — горизонталь вертит, вертикаль ' +
+      'наклоняет, авто глушится и возвращается (' + JSON.stringify(но) + ')');
     expect(но.коллекция === 256,
       '⚠️ НОВАЯ ВЕЩЬ: общий канвас ВЕРНУЛСЯ к 256 в коллекции (' + но.коллекция + ')');
     await fz.close();

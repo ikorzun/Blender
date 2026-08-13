@@ -1399,7 +1399,7 @@ window.__game = {
   // ключа в __game молча съедает хук» (победил этот, дальний по файлу) —
   // проба показала чужие поля вместо моих. Грепать имя ПЕРЕД добавлением.
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
-    auto: spinAuto, px: (spinR ? spinR.domElement.width : 0),
+    auto: spinAuto, px: (spinR ? spinR.domElement.width : 0), tilt: +spinTilt.toFixed(3),
     mounted: !!(spinR && spinR.domElement.parentNode),
     // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
     // весь спин (пересчёт = «дыхание»). Округляю грубо, чтобы не ловить эпсилон.
