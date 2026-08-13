@@ -1160,6 +1160,7 @@ window.__game = {
     готова: !!i.frozenReady, индекс: items.indexOf(i),
     пульс: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null })); },
   frozenNextAt(){ return frozenNextLevel; },
+  iceStyle(n){ return iceStyleSet(n); }, // стенд визуала льда: 0 боевой, 1..5 варианты (?ice=N)
   frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
   chromeInfo(){ const cs = getComputedStyle(document.documentElement);
     return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
