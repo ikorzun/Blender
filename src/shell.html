@@ -2391,6 +2391,16 @@
   <div class="row"><span>Gap: <b id="radiusVal">0.90</b></span><input type="range" id="radiusRange" min="0.3" max="2.2" step="0.05" value="0.9"></div>
   <div class="row"><span>Highlight available</span><input type="checkbox" id="hlToggle" checked></div>
   <div class="row"><span>Pairs available</span><b id="apCount">–</b></div>
+  <!-- Выбор уровня (слово владельца 2026-08-13: «чтобы я мог быстро
+       переключаться»). Пишет через __game.setLevel — ту же тестовую ручку,
+       что сьют: уровень сессии меняется, ПРОГРЕСС (Save.lv) не трогается —
+       после перезагрузки чтение возьмёт максимум сейва, как всегда. -->
+  <div class="row"><span>Level</span>
+    <div style="display:flex; gap:6px; align-items:center">
+      <input id="lvlJumpInp" type="number" min="1" max="200" value="1" style="width:64px">
+      <button id="lvlJumpBtn" style="width:auto; margin:0; padding:8px 14px">Go</button>
+    </div>
+  </div>
   <button id="restartBtn">New level</button>
   <div style="margin-top:6px; display:flex; gap:6px; align-items:center">
     <span style="font-size:12px; opacity:.7">Bowl</span>

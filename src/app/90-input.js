@@ -425,6 +425,15 @@ $('perfCopyBtn').addEventListener('click', ()=>{
   }
 });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// ВЫБОР УРОВНЯ (владелец 2026-08-13). Через __game.setLevel НАМЕРЕННО — одна
+// точка записи уровня на панель и сьют, копий логики не заводим.
+$('lvlJumpBtn').addEventListener('click', ()=>{
+  const n = parseInt($('lvlJumpInp').value, 10);
+  if (!(n >= 1)) return;
+  try { window.__game.setLevel(n); } catch(e){}
+  $('debugPanel').style.display = 'none';
+  genLevel();
+});
 // ЧАША-РАЗЛЁТ (прототип v2): стендовые кнопки — та же точка, что у турбо
 if ($('bowlCrackBtn')) $('bowlCrackBtn').addEventListener('click', ()=>{ bowlCrackAdd(); });
 if ($('bowlShatterBtn')) $('bowlShatterBtn').addEventListener('click', ()=>{
@@ -510,7 +519,9 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
 
 
-if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen(); $('debugPanel').style.display = 'block'; });
+if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen();
+  $('lvlJumpInp').value = levelNum; // поле показывает ТЕКУЩИЙ уровень при открытии
+  $('debugPanel').style.display = 'block'; });
 // Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
 // порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).
 $('msSound').addEventListener('input', e => { applySoundVol(parseInt(e.target.value, 10) / 100); msFill(e.target); });
