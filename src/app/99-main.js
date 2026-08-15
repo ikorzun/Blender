@@ -366,9 +366,7 @@ addEventListener('resize', resize);
 // нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
 // ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
 // стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
-// 5-я редакция кромок: единственный водитель — chromeSync (85-hud), здесь
-// только загрузочный вызов ПОСЛЕ построения неба (--sky-*-rgb уже стоят).
-try { chromeSync(); } catch(e){}
+// ⛔ Стартовый вызов chromeSync снят вместе со всей машинерией кромок (2026-08-14).
 
 // ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
@@ -690,7 +688,11 @@ function loop(){
   // тики по реальным часам (не по dt): при низком FPS детект тупика/миксера
   // не растягивается. В ШТИЛЕ доступность не пересчитывается вовсе —
   // предметы неподвижны, она не может измениться (перф: refresh ~десятки мс)
-  if (physAwake && now - lastAccMs > 300){ lastAccMs = now; refreshAccessibility(); }
+  // ⚠️ ЧАЩЕ, НО МЕЛЬЧЕ: 100 мс по 1/8 кучи вместо 300 мс по всей — суммарная
+  // работа та же, полный цикл 0.8 с, но кадр больше не застревает на 80-90 мс
+  // (замер Hard: p95 104.6 -> см. раздел канона). Полный обход остаётся на
+  // событиях игрока, здесь — фоновая переоценка осевшей кучи.
+  if (physAwake && now - lastAccMs > 100){ lastAccMs = now; refreshAccessibility(true); }
   // миксер: финальная зачистка остатков без пар; иначе — наказание за простой
   let grinding = false;
   if (!level.over && !intro){
@@ -1229,14 +1231,7 @@ window.__game = {
   // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
   iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
   frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
-  chromeInfo(){ const cs = getComputedStyle(document.documentElement);
-    return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
-             низ: cs.getPropertyValue('--edge-bot-rgb').trim(),
-             небоВерх: cs.getPropertyValue('--sky-top-rgb').trim(),
-             небоНиз: cs.getPropertyValue('--sky-bot-rgb').trim(),
-             оверлеев: chromeOverlaysNow(),
-             фон: cs.backgroundColor,
-             мета: (document.querySelector('meta[name=theme-color]') || {}).content }; },
+  // ⛔ chromeInfo СНЯТ 2026-08-14 вместе с машинерией кромок: читать стало нечего
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
                            вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },

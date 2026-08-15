@@ -154,9 +154,39 @@ let chainUntil = 0, chainStartMisses = 0, chainNextDrop = 0, chainNextBolt = 0;
 let chainSeries = 0, chainCarry = 0;
 let veilPinned = false; // тюнер держит вуаль на всех — refresh её не перебивает
 let accFlips = 0; // диагностика: сколько предметов сменили доступность за последний refresh
-function refreshAccessibility(){
+// ⚠️⚠️ ЧАСТИЧНЫЙ ОБХОД — ЛЕЧЕНИЕ ДЖАНКА НА HARD (замер 2026-08-14, ревизия по
+// жалобе владельца «стало тупить больше»). ОДИН вызов веера лучей по всей куче
+// стоит 79-86 мс (CPU ×4, ур.11/20), а тик шёл КАЖДЫЕ 300 мс, пока куча
+// бодрствует, — то есть каждые 300 мс кадр застревал почти на 0.1 с. Замер
+// кадра: Easy p95 33.5/33.8 против HARD 93.0/104.6, худший кадр 76 против 180.
+// ⛔ МЕХАНИКА НЕ ТРОНУТА: тот же веер, те же лучи, тот же результат на предмет.
+// Меняется только РАСПРЕДЕЛЕНИЕ работы: периодический тик обходит 1/ACC_SLICES
+// кучи по кругу, полный цикл — 8 тиков. События (матч, встряска, регены, финал)
+// по-прежнему зовут ПОЛНЫЙ обход, поэтому реакция на действие игрока мгновенна,
+// как была; частичный — только фоновая переоценка осевшей кучи.
+// ⚠️ Курсор ЖИВЁТ МЕЖДУ ВЫЗОВАМИ и обходит по живым: удаление предметов его не
+// ломает (индекс берётся по модулю живой длины на каждом шаге).
+const ACC_SLICES = 8;
+let accCursor = 0;
+function refreshAccessibility(частично){
   updateMatchRadius();
   accFlips = 0;
+  if (частично){
+    const живые = [];
+    for (const it of items) if (it.alive) живые.push(it);
+    if (!живые.length) return;
+    const доля = Math.max(1, Math.ceil(живые.length / ACC_SLICES));
+    for (let k = 0; k < доля; k++){
+      const it = живые[(accCursor + k) % живые.length];
+      const was = it.accessible;
+      it.accessible = !it.animating && isAccessible(it);
+      if (it.accessible !== was) accFlips++;
+      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    }
+    accCursor = (accCursor + доля) % живые.length;
+    return;
+  }
+  accCursor = 0;
   for (const it of items){
     if (!it.alive) continue;
     const was = it.accessible;

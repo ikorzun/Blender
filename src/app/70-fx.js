@@ -1211,6 +1211,26 @@ function wiggle(item){
   sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
   g.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true,
     transparent:true, opacity:0, depthWrite:false })));                  // shardFX
+  // ⚠️⚠️ КОЛЬЦО УДАРА И ЕГО ВСПЫШКА — ДОБАВЛЕНЫ ПО РЕВИЗИИ 2026-08-14. Их
+  // якорей здесь НЕ БЫЛО, а `impactFX` создаёт материалы с ключом программы,
+  // которого нет ни у одного соседа: `depthTest:false` + `side:DoubleSide`
+  // (кольцо) и Points с картой + `depthTest:false` (вспышка). Ключ уникален,
+  // значит после дренажа fx первая же СБОРКА ПАРЫ компилировала шейдер прямо
+  // в кадре — а удар даётся КАЖДОМУ совмещению, то есть джанк ловил игрок на
+  // самом частом действии в игре. Ровно та болезнь, ради которой якоря заведены.
+  g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0,
+    depthWrite:false, depthTest:false, side: THREE.DoubleSide })));       // impactFX: кольцо
+  const ig = new THREE.BufferGeometry();
+  ig.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  g.add(new THREE.Points(ig, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
+    transparent:true, opacity:0, depthWrite:false, depthTest:false, alphaTest:0.02 }))); // impactFX: вспышка
+  // ⚠️ ЛЕДЯНАЯ КОРКА — свой ShaderMaterial (`iceCrustMat`, 40-items), то есть
+  // ключ программы у неё уникален по построению. Без якоря первая глыба уровня
+  // компилировала шейдер В КАДРЕ старта уровня (найдено ревизией 2026-08-14).
+  // ⚠️ Материал якоря — ТОТ ЖЕ вызов, что в бою: копия рядом с рабочей разошлась
+  // бы при первой правке шейдера, и якорь молча перестал бы прогревать нужное.
+  try { const im = iceCrustMat(); im.uniforms.uGlowK.value = 0; im.opacity = 0;
+        g.add(new THREE.Mesh(tiny, im)); } catch (e) {}
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();

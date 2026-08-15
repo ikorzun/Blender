@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- ⛔ viewport-fit=cover СНЯТ 2026-08-14 (слово владельца: «убери все попытки
+     скрыть или расширить поля сверху и снизу... исключить все проблемы с
+     дополнительным кодом поверх или костылями»). Без cover страница живёт в
+     безопасной зоне, полосы у кромок рисует САМА система своим цветом, и
+     канал тинта не нужен вовсе. Возврат cover БЕЗ канала = чёрные полосы. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <!-- ⚠️⚠️ ПЯТАЯ РЕДАКЦИЯ КРОМОК (слово владельца 2026-08-12: «мне не нужны
      чёрные полосы, мне нужен цвет каждого экрана от верхнего края до
      нижнего»). МЕХАНИЗМ УСТАНОВЛЕН ЭКСПЕРИМЕНТОМ, а не подбором: Safari 26
@@ -15,7 +20,7 @@
      живые стопы неба (верх и низ РАЗНЫЕ — градиент, день/ночь сами), меню —
      фон меню, тёмный фейд попапов — тёмный. Мета игнорируется Safari 26,
      держится в локстепе для Android/macOS. -->
-<meta name="theme-color" content="#6e86ff">
+<!-- ⛔ theme-color СНЯТА 2026-08-14 вместе со всей машинерией кромок -->
 <title>BLENDO</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -82,9 +87,9 @@
      чёрной редакцией: перекрасили только их — полосы сменились на всех
      экранах). Переменные --edge-*-rgb пишет ТОЛЬКО chromeSync (85-hud);
      руками их не ставить и вторых писателей не заводить. */
-  #topBar    { background:rgba(var(--edge-top-rgb, 110,134,255), .01); }
-  #bottomBar { background:rgba(var(--edge-bot-rgb, 190,199,254), .01); }
-  #face      { background:rgba(var(--edge-top-rgb, 110,134,255), .01); }
+  /* ⛔ ФОНЫ-КАНАЛ СНЯТЫ 2026-08-14 (слово владельца). Бары снова без фона —
+     полосы у кромок красит система, страница под них не заходит (см. мету
+     viewport выше). Возвращать альфу .01 только ВМЕСТЕ с viewport-fit=cover. */
   /* ⚠️ ПОКА ОТКРЫТО МЕНЮ — КРОМКА ЭКРАНА В ТОНЕ МЕНЮ (жалоба владельца
      2026-08-06: «в меню паузы сверху прокидывается фон игры, а должен быть
      фон меню»). Тот же рецепт, третий случай: `#mainScreen` стоит `inset:0`
@@ -8644,9 +8649,39 @@ let chainUntil = 0, chainStartMisses = 0, chainNextDrop = 0, chainNextBolt = 0;
 let chainSeries = 0, chainCarry = 0;
 let veilPinned = false; // тюнер держит вуаль на всех — refresh её не перебивает
 let accFlips = 0; // диагностика: сколько предметов сменили доступность за последний refresh
-function refreshAccessibility(){
+// ⚠️⚠️ ЧАСТИЧНЫЙ ОБХОД — ЛЕЧЕНИЕ ДЖАНКА НА HARD (замер 2026-08-14, ревизия по
+// жалобе владельца «стало тупить больше»). ОДИН вызов веера лучей по всей куче
+// стоит 79-86 мс (CPU ×4, ур.11/20), а тик шёл КАЖДЫЕ 300 мс, пока куча
+// бодрствует, — то есть каждые 300 мс кадр застревал почти на 0.1 с. Замер
+// кадра: Easy p95 33.5/33.8 против HARD 93.0/104.6, худший кадр 76 против 180.
+// ⛔ МЕХАНИКА НЕ ТРОНУТА: тот же веер, те же лучи, тот же результат на предмет.
+// Меняется только РАСПРЕДЕЛЕНИЕ работы: периодический тик обходит 1/ACC_SLICES
+// кучи по кругу, полный цикл — 8 тиков. События (матч, встряска, регены, финал)
+// по-прежнему зовут ПОЛНЫЙ обход, поэтому реакция на действие игрока мгновенна,
+// как была; частичный — только фоновая переоценка осевшей кучи.
+// ⚠️ Курсор ЖИВЁТ МЕЖДУ ВЫЗОВАМИ и обходит по живым: удаление предметов его не
+// ломает (индекс берётся по модулю живой длины на каждом шаге).
+const ACC_SLICES = 8;
+let accCursor = 0;
+function refreshAccessibility(частично){
   updateMatchRadius();
   accFlips = 0;
+  if (частично){
+    const живые = [];
+    for (const it of items) if (it.alive) живые.push(it);
+    if (!живые.length) return;
+    const доля = Math.max(1, Math.ceil(живые.length / ACC_SLICES));
+    for (let k = 0; k < доля; k++){
+      const it = живые[(accCursor + k) % живые.length];
+      const was = it.accessible;
+      it.accessible = !it.animating && isAccessible(it);
+      if (it.accessible !== was) accFlips++;
+      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    }
+    accCursor = (accCursor + доля) % живые.length;
+    return;
+  }
+  accCursor = 0;
   for (const it of items){
     if (!it.alive) continue;
     const was = it.accessible;
@@ -9981,6 +10016,26 @@ function wiggle(item){
   sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
   g.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true,
     transparent:true, opacity:0, depthWrite:false })));                  // shardFX
+  // ⚠️⚠️ КОЛЬЦО УДАРА И ЕГО ВСПЫШКА — ДОБАВЛЕНЫ ПО РЕВИЗИИ 2026-08-14. Их
+  // якорей здесь НЕ БЫЛО, а `impactFX` создаёт материалы с ключом программы,
+  // которого нет ни у одного соседа: `depthTest:false` + `side:DoubleSide`
+  // (кольцо) и Points с картой + `depthTest:false` (вспышка). Ключ уникален,
+  // значит после дренажа fx первая же СБОРКА ПАРЫ компилировала шейдер прямо
+  // в кадре — а удар даётся КАЖДОМУ совмещению, то есть джанк ловил игрок на
+  // самом частом действии в игре. Ровно та болезнь, ради которой якоря заведены.
+  g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0,
+    depthWrite:false, depthTest:false, side: THREE.DoubleSide })));       // impactFX: кольцо
+  const ig = new THREE.BufferGeometry();
+  ig.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  g.add(new THREE.Points(ig, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
+    transparent:true, opacity:0, depthWrite:false, depthTest:false, alphaTest:0.02 }))); // impactFX: вспышка
+  // ⚠️ ЛЕДЯНАЯ КОРКА — свой ShaderMaterial (`iceCrustMat`, 40-items), то есть
+  // ключ программы у неё уникален по построению. Без якоря первая глыба уровня
+  // компилировала шейдер В КАДРЕ старта уровня (найдено ревизией 2026-08-14).
+  // ⚠️ Материал якоря — ТОТ ЖЕ вызов, что в бою: копия рядом с рабочей разошлась
+  // бы при первой правке шейдера, и якорь молча перестал бы прогревать нужное.
+  try { const im = iceCrustMat(); im.uniforms.uGlowK.value = 0; im.opacity = 0;
+        g.add(new THREE.Mesh(tiny, im)); } catch (e) {}
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();
@@ -13876,61 +13931,26 @@ else {
 // новый восьмой молча выпал бы из статистики.
 const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
   starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
-// ═══ КРОМКИ, 5-Я РЕДАКЦИЯ: цвет каждого экрана от верхнего края до нижнего ═══
-// Механизм ДОКАЗАН устройством (чёрная редакция как контрольный эксперимент):
-// Safari 26 тонирует полосы живым семплингом ФИКС-БАРОВ у кромок — их фон в
-// альфе .01 и есть канал. chromeSync — ЕДИНСТВЕННЫЙ водитель: пишет
-// --edge-top-rgb/--edge-bot-rgb (бары читают их из CSS), фон html/body и мету
-// в локстепе (About-Us: мета для Android/macOS, Safari 26 её игнорирует).
-// ⚠️ ПРИОРИТЕТ СЛОЁВ: тёмный оверлей > меню > небо.
-// ⚠️⚠️ ВИДИМОСТЬ ОВЕРЛЕЕВ — ЖИВЫМ ОПРОСОМ DOM, А НЕ СЧЁТЧИКОМ. Первая версия
-// держала счётчик в show/hide и он ДРЕЙФОВАЛ: часть кода (и тестов) прячет
-// оверлеи прямой записью style.display мимо hide() — счётчик застревал, кромки
-// залипали тёмными. Классика канона «копия состояния расходится с рабочим»:
-// у видимости уже есть первоисточник — сам DOM, его и читаем. Прямая запись
-// display всё ещё не дёргает sync, но ближайший же вызов самоисцеляет.
-// ⚠️ День/ночь приезжают сами: игра ссылается на ЖИВЫЕ --sky-*-rgb, которые
-// ставит 10-stage; при смене палитры chromeSync зовётся из updateHUD.
-const CHROME_DARK = '10,14,22';          // тон фейда .overlay (rgba(10,14,22,.88))
-const CHROME_MENU = '217,244,255';       // --ms-bg #d9f4ff
-function chromeOverlaysNow(){
-  let n = 0;
-  const все = document.querySelectorAll('.overlay');
-  for (let i = 0; i < все.length; i++)
-    if (getComputedStyle(все[i]).display !== 'none') n++;
-  return n;
-}
-function chromeSync(){
-  try {
-    const d = document.documentElement, cs = getComputedStyle(d);
-    let top, bot;
-    if (chromeOverlaysNow() > 0){ top = CHROME_DARK; bot = CHROME_DARK; }
-    else if (d.classList.contains('menuopen')){ top = CHROME_MENU; bot = CHROME_MENU; }
-    else {
-      top = cs.getPropertyValue('--sky-top-rgb').trim() || '110,134,255';
-      bot = cs.getPropertyValue('--sky-bot-rgb').trim() || '190,199,254';
-    }
-    d.style.setProperty('--edge-top-rgb', top);
-    d.style.setProperty('--edge-bot-rgb', bot);
-    const c = 'rgb(' + top + ')';
-    d.style.backgroundColor = c; document.body.style.backgroundColor = c;
-    const m = document.querySelector('meta[name="theme-color"]');
-    if (m) m.setAttribute('content', '#' + top.split(',').map(n =>
-      (Math.max(0, Math.min(255, parseInt(n, 10) | 0))).toString(16).padStart(2, '0')).join(''));
-  } catch(e){}
-}
+// ⛔⛔ МАШИНЕРИЯ КРОМОК СНЯТА ЦЕЛИКОМ 2026-08-14 — слово владельца: «убери все
+// попытки скрыть или расширить поля сверху и снизу, как я просил для ios 26 —
+// нужно исключить все проблемы с дополнительным кодом поверх или костылями».
+// Было: chromeSync (единственный водитель) писал --edge-top-rgb/--edge-bot-rgb,
+// фон html/body и мету theme-color в локстепе; бары носили фон в альфе .01 как
+// канал живого семплинга Safari 26. Снято ВМЕСТЕ с viewport-fit=cover — иначе
+// вернулись бы чёрные полосы (Safari читает `transparent` фикс-бара как
+// «прозрачный чёрный»). Теперь страница живёт в безопасной зоне, полосы у
+// кромок рисует система. Пять редакций саги — в CLAUDE.md; возвращать что-то
+// одно из этого набора НЕЛЬЗЯ, только весь комплект разом.
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
   // кромки: любой полноэкранный фейд темнит полосы (5-я редакция)
-  if (el.classList.contains('overlay')) chromeSync();
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
-  if (el.classList.contains('overlay')) chromeSync();
   // вернулись в игру — экран снова 'game' (если партия жива)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -14813,7 +14833,6 @@ function updateHUD(){
     hudWasNight = ночьТеперь;
     // смена палитры в живой сессии (граница 20:00): кромки едут за небом.
     // 10-stage к этому моменту уже переписал --sky-*-rgb.
-    try { chromeSync(); } catch(e){}
   }
   document.documentElement.classList.toggle('night', ночьТеперь);
   captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
@@ -15828,7 +15847,6 @@ function openMainScreen(){
   // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
   // при отказе открыться кромка перекрасилась бы под невидимое меню.
   document.documentElement.classList.add('menuopen');
-  chromeSync(); // кромки в тон меню (5-я редакция)
   // ⛔⛔ ПЕРЕКРАСКА КРОМКИ ПОД МЕНЮ СНЯТА (решение владельца 2026-08-12): полосы
   // берут ТЕМУ УСТРОЙСТВА, а вью отделён от них скруглением 40px. Здесь стоял
   // `chromeMeta(menuChrome())` — второй канал кромки, заведённый 2026-08-10,
@@ -15873,7 +15891,6 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
-  chromeSync(); // кромки обратно небу
   // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
   // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
   // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
@@ -17849,9 +17866,7 @@ addEventListener('resize', resize);
 // нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
 // ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
 // стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
-// 5-я редакция кромок: единственный водитель — chromeSync (85-hud), здесь
-// только загрузочный вызов ПОСЛЕ построения неба (--sky-*-rgb уже стоят).
-try { chromeSync(); } catch(e){}
+// ⛔ Стартовый вызов chromeSync снят вместе со всей машинерией кромок (2026-08-14).
 
 // ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
 // окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
@@ -18173,7 +18188,11 @@ function loop(){
   // тики по реальным часам (не по dt): при низком FPS детект тупика/миксера
   // не растягивается. В ШТИЛЕ доступность не пересчитывается вовсе —
   // предметы неподвижны, она не может измениться (перф: refresh ~десятки мс)
-  if (physAwake && now - lastAccMs > 300){ lastAccMs = now; refreshAccessibility(); }
+  // ⚠️ ЧАЩЕ, НО МЕЛЬЧЕ: 100 мс по 1/8 кучи вместо 300 мс по всей — суммарная
+  // работа та же, полный цикл 0.8 с, но кадр больше не застревает на 80-90 мс
+  // (замер Hard: p95 104.6 -> см. раздел канона). Полный обход остаётся на
+  // событиях игрока, здесь — фоновая переоценка осевшей кучи.
+  if (physAwake && now - lastAccMs > 100){ lastAccMs = now; refreshAccessibility(true); }
   // миксер: финальная зачистка остатков без пар; иначе — наказание за простой
   let grinding = false;
   if (!level.over && !intro){
@@ -18712,14 +18731,7 @@ window.__game = {
   // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
   iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
   frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
-  chromeInfo(){ const cs = getComputedStyle(document.documentElement);
-    return { верх: cs.getPropertyValue('--edge-top-rgb').trim(),
-             низ: cs.getPropertyValue('--edge-bot-rgb').trim(),
-             небоВерх: cs.getPropertyValue('--sky-top-rgb').trim(),
-             небоНиз: cs.getPropertyValue('--sky-bot-rgb').trim(),
-             оверлеев: chromeOverlaysNow(),
-             фон: cs.backgroundColor,
-             мета: (document.querySelector('meta[name=theme-color]') || {}).content }; },
+  // ⛔ chromeInfo СНЯТ 2026-08-14 вместе с машинерией кромок: читать стало нечего
   surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
                            естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
                            вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
