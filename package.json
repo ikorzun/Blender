@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.19.3",
+    "@dimforge/rapier3d-compat": "^0.20.0",
     "esbuild": "^0.28.1",
     "playwright": "^1.61.1",
     "three": "^0.149.0"
