@@ -121,6 +121,45 @@ function introPerfStop(){
   } catch(e){}
   _introT0 = 0;
 }
+// ⚠️⚠️ СЧЁТЧИК НА ЭКРАН — ЧТОБЫ ЗАМЕР ШЁЛ С ТЕЛЕФОНА ВЛАДЕЛЬЦА, А НЕ СО СТЕНДА
+// (заведён 2026-08-13, жалоба «стало тупить больше»: A/B по трём сборкам на
+// стенде — и в Chromium, и в WebKit 26 — регрессии НЕ показал, то есть спор
+// нельзя решить моим железом; нужны ЕГО числа). Включается `?fps=1`, живёт
+// поверх всего, обновляется раз в 500 мс. Показывает: текущий FPS, ХУДШИЙ за
+// последние 3 секунды (именно он и есть «тупит»), шаг физики, предметов на
+// сцене, DPR и уровень.
+// ⚠️ БЕЗ ФЛАГА НЕ СТОИТ НИЧЕГО: одна проверка булева в кадре, DOM не создаётся.
+let fpsBadgeOn = false, fpsBadgeEl = null, fpsBadgeNext = 0, fpsBadgeRing = [];
+try { fpsBadgeOn = new URLSearchParams(location.search).get('fps') === '1'; } catch(e){}
+function fpsBadgeTick(now){
+  if (!fpsBadgeOn) return;
+  fpsBadgeRing.push(now);
+  while (fpsBadgeRing.length && now - fpsBadgeRing[0] > 3000) fpsBadgeRing.shift();
+  if (now < fpsBadgeNext) return;
+  fpsBadgeNext = now + 500;
+  if (!fpsBadgeEl){
+    fpsBadgeEl = document.createElement('div');
+    fpsBadgeEl.style.cssText = 'position:fixed;left:8px;top:calc(env(safe-area-inset-top,0px) + 8px);' +
+      'z-index:99999;background:rgba(0,0,0,.72);color:#fff;font:700 15px/1.35 ui-monospace,monospace;' +
+      'padding:8px 10px;border-radius:10px;pointer-events:none;white-space:pre;letter-spacing:.2px';
+    document.body.appendChild(fpsBadgeEl);
+  }
+  // ХУДШИЙ КАДР ЗА ОКНО — то, что человек и называет «тупит»: средний FPS может
+  // быть отличным, а один кадр в 200 мс уже виден рывком
+  let худший = 0;
+  for (let i = 1; i < fpsBadgeRing.length; i++){
+    const d = fpsBadgeRing[i] - fpsBadgeRing[i-1];
+    if (d > худший) худший = d;
+  }
+  const fps = fpsBadgeRing.length > 1
+    ? Math.round(1000 * (fpsBadgeRing.length - 1) / (fpsBadgeRing[fpsBadgeRing.length-1] - fpsBadgeRing[0])) : 0;
+  const шаг = stepRing.length ? (stepRing.reduce((a,b)=>a+b,0) / stepRing.length) : 0;
+  fpsBadgeEl.textContent =
+    'FPS ' + fps + '   худший кадр ' + Math.round(худший) + ' мс\n' +
+    'физика ' + шаг.toFixed(1) + ' мс   вещей ' + items.filter(i=>i.alive).length + '\n' +
+    'ур.' + levelNum + '   DPR ' + (+renderer.getPixelRatio().toFixed(2)) +
+    (intro ? '   (интро)' : '');
+}
 function finishIntro(){
   introPerfStop();
   waveReleaseAll();              // страховка: облёт мог начаться раньше очереди                                     // срез насыпания — ДО всего прочего
@@ -486,6 +525,7 @@ function loop(){
   perfFrames++;
   if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
+    fpsBadgeTick(now);          // счётчик на экран по ?fps=1 (замер С ТЕЛЕФОНА)
     if (rawMs > perfWorstMs) perfWorstMs = rawMs;
     // ⚠️⚠️ РАЗБОР ХУДШЕГО КАДРА ЦЕЛИКОМ (A2). p95/max отдельных колец — это
     // максимумы РАЗНЫХ кадров, и по ним нельзя сказать, из чего сложился один
@@ -1809,6 +1849,7 @@ window.__game = {
       waves: getWaves() };
   },
   fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
+  fpsBadge(v){ fpsBadgeOn = !!v; if (!fpsBadgeOn && fpsBadgeEl){ fpsBadgeEl.remove(); fpsBadgeEl = null; } return fpsBadgeOn; },
   // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —
   // нагрузка делает кадры ДЛИННЕЕ, минимум ниже порога от неё не появится
   frameMin(){ return frameRing.length ? +Math.min.apply(null, frameRing).toFixed(1) : null; },
