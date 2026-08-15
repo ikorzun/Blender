@@ -8663,6 +8663,38 @@ let accFlips = 0; // диагностика: сколько предметов �
 // ломает (индекс берётся по модулю живой длины на каждом шаге).
 const ACC_SLICES = 8;
 let accCursor = 0;
+// ⚠️⚠️ ЛОКАЛЬНЫЙ ПЕРЕСЧЁТ ВОКРУГ СОБЫТИЯ (2026-08-14, владелец подтвердил: у
+// него включён HARD, то есть веер работает на полную). Полный обход стоит
+// 79-86 мс (CPU ×4) и вызывался ПОСЛЕ КАЖДОГО СОВМЕЩЕНИЯ — то есть рывок
+// садился на самое частое действие игрока.
+// ФИЗИЧЕСКОЕ ОБОСНОВАНИЕ ЛОКАЛЬНОСТИ: лучи идут ВВЕРХ, к небу. Удаление группы
+// открывает небо тем, кто лежал ПОД ней и рядом, — то есть внутри столба над
+// точкой события. Далёкий предмет своей доступности от этого не меняет.
+// ⚠️ РАДИУС ЩЕДРЫЙ (ACC_NEAR_R), а не «по размеру группы»: цена ошибки
+// несимметрична — лишний предмет в выборке стоит доли миллисекунды, а
+// пропущенный живёт с устаревшей вуалью до фонового круга.
+// ⚠️ И ГЛАВНАЯ СТРАХОВКА: фоновый порционный обход всё равно проходит ВСЮ кучу
+// за ~0.8 с, поэтому любая промашка локальности самоисцеляется — точность
+// держит фон, скорость держит локальность.
+// ⛔ ЦИЛИНДР, А НЕ СФЕРА: сравниваем по XZ и берём всех, кто ВЫШЕ точки минус
+// запас. Предмет строго над удалённым может быть далеко по высоте, и сфера
+// его бы не поймала — а он как раз тот, кто теперь видит небо.
+const ACC_NEAR_R = 4.2;
+function refreshAccessibilityNear(p, доп){
+  updateMatchRadius();
+  accFlips = 0;
+  const R = ACC_NEAR_R + (доп || 0), R2 = R * R;
+  for (const it of items){
+    if (!it.alive) continue;
+    const dx = it.p.x - p.x, dz = it.p.z - p.z;
+    if (dx*dx + dz*dz > R2) continue;
+    if (it.p.y < p.y - 2.0) continue;          // строго ниже события — не затронут
+    const was = it.accessible;
+    it.accessible = !it.animating && isAccessible(it);
+    if (it.accessible !== was) accFlips++;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.rock && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+  }
+}
 function refreshAccessibility(частично){
   updateMatchRadius();
   accFlips = 0;
@@ -12487,7 +12519,9 @@ function doMatch(list){
     if (MATCH_CAM_SHAKE) camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
-    refreshAccessibility(); updateHUD(); checkEnd();
+    // ⚠️ ЛОКАЛЬНО ВОКРУГ ТОЧКИ СХЛОПЫВАНИЯ (79-86 мс полного обхода садились
+    // на КАЖДЫЙ матч; фон досчитает остальное за 0.8 с) — см. 60-access
+    refreshAccessibilityNear(boomAt); updateHUD(); checkEnd();
   }), 150);
 }
 // ===== Эффекты лопанья по пачкам («пункт 5», спека владельца 2026-07-21).

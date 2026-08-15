@@ -260,7 +260,9 @@ function doMatch(list){
     if (MATCH_CAM_SHAKE) camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
     list.forEach(removeItem);
     wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
-    refreshAccessibility(); updateHUD(); checkEnd();
+    // ⚠️ ЛОКАЛЬНО ВОКРУГ ТОЧКИ СХЛОПЫВАНИЯ (79-86 мс полного обхода садились
+    // на КАЖДЫЙ матч; фон досчитает остальное за 0.8 с) — см. 60-access
+    refreshAccessibilityNear(boomAt); updateHUD(); checkEnd();
   }), 150);
 }
 // ===== Эффекты лопанья по пачкам («пункт 5», спека владельца 2026-07-21).
