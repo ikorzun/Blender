@@ -13,8 +13,18 @@ function setCamR(r){
 // расстоянием), вертикальный драг ПРАВОЙ кнопкой, Shift+колесо.
 // Сбрасывается на границах интро (resetPointers).
 const TARGET_Y_MIN = 1.2, TARGET_Y_MAX = 5.2, TARGET_Y_DEF = 4.2;
+// ⚠️⚠️ НА БОНУСЕ КОРИДОР ПАНА ЕДЕТ ВВЕРХ ЗА КОВРОМ, И БЕЗ ЭТОГО КАДР
+// РАЗРУШАЕТСЯ НАВСЕГДА: ковёр лежит на BONUS_FLOOR=6.4, то есть ВЫШЕ боевого
+// потолка 5.2 — первый же щипок/правый драг зажал бы взгляд в 5.2, и вернуть
+// его игроку было бы нечем (клампу всё равно, кто просит).
+function panLimits(){
+  return isBonusLevel(levelNum)
+    ? { lo: BONUS_CAM_TY - 1.6, hi: BONUS_CAM_TY + 1.6 }
+    : { lo: TARGET_Y_MIN, hi: TARGET_Y_MAX };
+}
 function setTargetY(y){
-  camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, y));
+  const л = panLimits();
+  camTarget.y = Math.max(л.lo, Math.min(л.hi, y));
   updateCamera();
 }
 // АВТОПАН — ОДИН ШАГ В ЭНДШПИЛЕ (правки владельца 2026-07-21, финальная:
@@ -36,6 +46,11 @@ function noteManualPan(){
 }
 function tickCamFollow(dt){
   if (intro || !level || !level.aliveN0 || paused) return;
+  // ⚠️⚠️ НА БОНУСЕ АВТОПАН ВЫКЛЮЧЕН, И ЭТО НЕ ПЕРЕСТРАХОВКА: его порог
+  // CAM_FOLLOW_FRAC=0.2 СОВПАДАЕТ с порогом пополнения BONUS_REFILL_AT — то
+  // есть защёлка срабатывала бы РОВНО в момент первого пополнения и уводила
+  // взгляд к 3.2, под ковёр, из которого как раз посыпались новые предметы.
+  if (isBonusLevel(levelNum)) return;
   const now = performance.now();
   if (now < panManualUntil) return;
   if (!level.camFollowOn){
@@ -69,7 +84,9 @@ function hintCamFly(item){
   hintFly = { t0: performance.now(), dur: 900,
     az0: camAz, az1: camAz + dAz,
     phi0: camPhi, phi1: phiTo,
-    y0: camTarget.y, y1: Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, item.p.y)),
+    // ⚠️ полёт подсказки живёт в ТОМ ЖЕ коридоре, что и ручной пан (panLimits):
+    // на бонусе он выше боевого, иначе камера ныряла бы под ковёр
+    y0: camTarget.y, y1: Math.max(panLimits().lo, Math.min(panLimits().hi, item.p.y)),
     r0: camR, r1: Math.min(camR, 13) };
   panManualUntil = performance.now() + 4500;
 }
@@ -80,7 +97,7 @@ function tickHintFly(){
   camAz = hintFly.az0 + (hintFly.az1 - hintFly.az0) * e;
   camPhi = hintFly.phi0 + (hintFly.phi1 - hintFly.phi0) * e;
   camR = hintFly.r0 + (hintFly.r1 - hintFly.r0) * e;
-  camTarget.y = Math.max(TARGET_Y_MIN, Math.min(TARGET_Y_MAX, hintFly.y0 + (hintFly.y1 - hintFly.y0) * e));
+  camTarget.y = Math.max(panLimits().lo, Math.min(panLimits().hi, hintFly.y0 + (hintFly.y1 - hintFly.y0) * e));
   updateCamera();
   if (k >= 1) hintFly = null;
 }

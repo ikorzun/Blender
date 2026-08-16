@@ -181,10 +181,18 @@ function finishIntro(){
   // отпустить сюрприз (был прибит ко дну на время осадки)
   const sp = items.find(i => i.surprise && i.body);
   if (sp) sp.body.setBodyType(RAPIER.RigidBodyType.Dynamic, false);
-  camAz = 0; camPhi = 0.45; camR = 16.2;
+  // ⚠️ БОНУС СТАВИТ СВОЙ КАДР ЗДЕСЬ ЖЕ, А НЕ ОТДЕЛЬНЫМ ВЫЗОВОМ: эти три строки —
+  // единственное место, где камера возвращается к боевому виду после облёта.
+  camAz = 0;
+  if (isBonusLevel(levelNum)){ camPhi = BONUS_CAM_PHI; camR = BONUS_CAM_R; camTarget.y = BONUS_CAM_TY; }
+  else { camPhi = 0.45; camR = 16.2; }
   updateCamera();
   stats.t0 = performance.now();
   stats.lastAction = performance.now();
+  // ⚠️ ЧАСЫ БОНУСА ЗАВОДЯТСЯ ЗДЕСЬ, А НЕ В genLevel: интро с наливом и облётом
+  // идёт две секунды, и отсчёт из genLevel съел бы их у игрока. Тот же
+  // принцип, что у `stats.t0` строкой выше — время партии считается с конца интро.
+  if (level.bonus) level.bonusEndAt = performance.now() + BONUS_TIME_S*1000;
   // свежий 3-секундный бюджет форс-сна ПОСЛЕ интро: wakeAtMs стоял с genLevel,
   // и бюджет истекал к концу интро — форс-сон бил на первом же кадре игры
   wakeAtMs = performance.now(); calmT = 0;
@@ -424,6 +432,12 @@ function resumeGame(){
   const d = performance.now() - pausedAt;
   stats.t0 += d; stats.lastAction += d;
   if (level.nextGrind) level.nextGrind += d;
+  // ⚠️⚠️ ЧАСЫ БОНУСА — ТАКОЙ ЖЕ ЯКОРЬ РЕАЛЬНОГО ВРЕМЕНИ, И ЗАБЫТЬ ИХ ЗДЕСЬ
+  // ЗНАЧИТ ПОВТОРИТЬ БАГ 2026-08-12 («на паузе таймер игры не останавливается»):
+  // 60 секунд бонуса истекли бы, пока игрок читает меню, и он вернулся бы
+  // прямо в сток. Ставится рядом с nextGrind намеренно — тот же класс.
+  if (level.bonusEndAt) level.bonusEndAt += d;
+  if (level.bonusDrainAt) level.bonusDrainAt += d;
   wakeAtMs += d;
   if (comboUntil) comboUntil += d;
   if (missRadiusAt) missRadiusAt += d;   // штраф за промах — такой же якорь реального времени
@@ -717,6 +731,13 @@ function loop(){
     // ПОСРЕДИ уровня, сжигая единственный заряд и досыпая лишнее; на
     // настоящем finale сироту потом молча съедал finaleGrind.
     const finaleAnimBusy = items.some(i => i.alive && i.animating);
+    // ⚠️⚠️ БОНУС ВЕДЁТ СВОИ ЧАСЫ И ЗАБИРАЕТ ВЕСЬ ЭТОТ БЛОК СЕБЕ. Ни наказание
+    // за простой, ни финальная докидка, ни зачистка остатков на нём не идут:
+    // конец уровня там назначает ТАЙМЕР, а не отсутствие пар. Оставь мы общую
+    // ветку — при первом же «пар не видно» финал доел бы кучу до срока.
+    if (level.bonus){
+      grinding = tickBonus(now);   // лопасти крутятся ровно на стоке
+    } else {
     if (anyAlive && !hasAnyPair() && !level.finalRefillDone && !finaleAnimBusy) finalPairsRefill();
     // ⚠️ ПОМОЛ НЕ ОПЕРЕЖАЕТ РЕФИЛЛ (пойман стражем): в «грязный» кадр
     // (последняя пара ещё в анимации слияния) рефилл пасует по своему
@@ -746,6 +767,7 @@ function loop(){
         mixerGrind();
       }
     }
+    }
   }
   // фон-помол: ВЕРХ неба наливается красным — ЛЕСЕНКА УГРОЗЫ (спека владельца
   // 2026-07-21-г). Работают лопасти -> цель 1.0; иначе за <GRIND_LEAD с до помола
@@ -757,6 +779,10 @@ function loop(){
   if (skyMat){
     let gTgt = 0;
     if (grinding) gTgt = 1;
+    // ⚠️ НА БОНУСЕ КРАСНОЙ УГРОЗЫ НЕТ: она телеграфирует наказание за простой,
+    // а простоя там не наказывают вовсе. Красным наливается только САМ сток
+    // (ветка `grinding` выше) — то есть сигнал остаётся честным.
+    else if (level.bonus){ /* угроза простоя выключена */ }
     else if (!level.over && !intro && items.some(i=>i.alive)){
       // телеграф не длиннее самого таймера: после ÷3 (idleLimit 10/3.3) на Hard
       // GRIND_LEAD=10 > idleLimit → небо было всегда ≥67% красным. Кап lead под
@@ -795,6 +821,14 @@ function loop(){
   // трогаем только при СМЕНЕ текста — перерисовка SVG-обводки не бесплатна.
   {
     let txt = '', fireOn = false;
+    // ⚠️ БОНУС ЗАНИМАЕТ ЭТО ЖЕ МЕСТО ПОД ГЛАЗАМИ, А НЕ ЗАВОДИТ СВОЁ. Владелец
+    // просил «все элементы интерфейса остаются» — а отсчёт до помола на бонусе
+    // не тикает вовсе, то есть узел иначе просто стоял бы пустым. Тот же CSS
+    // красит ≤3 с красным, и это верно и здесь.
+    if (level.bonus){
+      if (!intro && !level.over && level.bonusEndAt)
+        txt = String(Math.max(0, Math.ceil((level.bonusEndAt - now) / 1000)));
+    } else
     if (!intro && !level.over && items.some(i => i.alive)){
       const idleS = (now - stats.lastAction) / 1000;
       // при работе лопастей — ПУСТО (спека владельца 2026-07-31 со скрина:
@@ -845,7 +879,12 @@ function loop(){
     // наказание за промах превратилось бы в списание очков помолом.
     // Штраф — ВРЕМЕННЫЙ и САМОПРОХОДЯЩИЙ, тупиком он быть не может по смыслу.
     const штрафРадиуса = missRadiusActive(now);
-    const noMoves = alive && ap === 0 && !level.over && !штрафРадиуса;
+    // ⚠️⚠️ НА БОНУСЕ ТУПИКА НЕ БЫВАЕТ ПО ПОСТРОЕНИЮ, И БЕЗ ЭТОГО ГЕЙТА ОН
+    // ОБЪЯВЛЯЛСЯ БЫ ПРЯМО В СТОКЕ: под конец пар остаётся мало, `ap` честно
+    // падает в ноль — и помол-выручалка пошла бы разбирать кучу ПАРАЛЛЕЛЬНО
+    // стоку, списывая очки дважды. Выход у игрока на бонусе всегда есть:
+    // время само доведёт уровень до конца.
+    const noMoves = alive && ap === 0 && !level.over && !штрафРадиуса && !level.bonus;
     const idle = (now - stats.lastAction)/1000;
     // Красный баннер УДАЛЁН (спека владельца 2026-07-19): всю коммуникацию
     // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
@@ -920,7 +959,7 @@ function loop(){
     // ⚠️ И НЕ ПОКАЗЫВАЕМ РАЗБИТУЮ: после разлёта от чаши остаются ТОЛЬКО
     // осколки (слово владельца). Видимостью владеет этот цикл, поэтому гейт
     // стоит здесь, а не в 20-arena — иначе он живёт один кадр.
-    bowlMesh.visible = k > 0.02 && !bowlBroken;
+    bowlMesh.visible = isBonusLevel(levelNum) ? false : (k > 0.02 && !bowlBroken)
   }
   // тени перерисовываем только когда что-то движется (свет статичен; в штиле
   // экономим ~150 теневых draw calls каждый кадр)
@@ -1237,6 +1276,36 @@ window.__game = {
     щель: (i.iceShell && i.iceShell.userData.iceMat)
       ? +i.iceShell.userData.iceMat.uniforms.uGap.value.toFixed(4) : null })); },
   frozenNextAt(){ return frozenNextLevel; },
+  // ===== БОНУСНЫЙ УРОВЕНЬ (спека владельца 2026-08-15) =====
+  // Хук НЕСУЩИЙ: на нём стражи таймера, пополнения и стока. `осталось` — в
+  // секундах, отрицательным не бывает (после нуля идёт сток).
+  bonusInfo(){ return {
+    бонус: !!(level && level.bonus), уровень: levelNum,
+    осталось: (level && level.bonusEndAt)
+      ? Math.max(0, +((level.bonusEndAt - performance.now())/1000).toFixed(2)) : null,
+    пополнений: (level && level.bonusRefills) || 0,
+    старт: (level && level.aliveN0) || 0,
+    живых: items.filter(i => i.alive).length,
+    сток: !!(level && level.bonusEndAt && performance.now() >= level.bonusEndAt) }; },
+  // тест-рычаг: «время вышло» прямо сейчас (иначе страж ждал бы минуту).
+  // ⚠️ Двигает ТОЛЬКО якорь: сток дальше идёт боевым путём из loop.
+  bonusExpire(){ if (!level || !level.bonus) return false;
+    level.bonusEndAt = performance.now(); level.bonusDrainAt = 0; return true; },
+  // тест-рычаг: подвинуть якорь на N секунд вперёд (проверка паузы)
+  bonusSetLeft(s){ if (!level || !level.bonus) return false;
+    level.bonusEndAt = performance.now() + (+s || 0)*1000; return true; },
+  // Перепись спецпредметов в куче. НЕСУЩИЙ: на нём страж «на бонусе их нет»
+  // ВМЕСТЕ С КОНТРОЛЕМ на обычном уровне — без контроля тот же ассерт был бы
+  // зелен и на сборке, где спецпредметов не бывает вовсе.
+  specialsCount(){
+    let клад = 0, бомб = 0, камней = 0, глыб = 0;
+    for (const it of items){
+      if (!it.alive) continue;
+      if (it.surprise) клад++; else if (it.bomb) бомб++;
+      else if (it.rock) камней++; else if (it.frozen) глыб++;
+    }
+    return { клад, бомб, камней, глыб, всего: клад + бомб + камней + глыб };
+  },
   // ⛔ хук iceStyle СРЕЗАН вместе со стендом (владелец выбрал иней-корку);
   // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
   iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
@@ -2174,7 +2243,11 @@ window.__game = {
       if (!it.alive || !it.body) continue;
       ray.origin.x = it.p.x; ray.origin.y = it.p.y - it.r - 0.02; ray.origin.z = it.p.z;
       if (ray.origin.y <= FLOOR_REST + 0.05) continue; // лежит на дне
-      const hit = world.castRay(ray, 30, true, null, null, null, it.body);
+      // ⚠️ СЕНСОРЫ НЕ ОПОРА: призрачное дно (неактивный контейнер, разлёт чаши)
+      // иначе засчиталось бы как поддержка и ПРЯТАЛО бы висунов — см. тот же
+      // разбор у луча доступности в 60-access.
+      const hit = world.castRay(ray, 30, true,
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, it.body);
       // Rapier 0.12+ переименовал toi -> timeOfImpact: с hit.toi зазор был
       // undefined, и floaters видел ТОЛЬКО случаи «луч не попал вовсе»
       // (gap=30) — конечные зависания молчали (нашлось соаком 2026-07-20)

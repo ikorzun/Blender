@@ -1282,7 +1282,7 @@ page.on('response', (r) => {
       // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
       // не подсовыванием поля в сейв.
     g.boostGrantForSurprise();
-    if (g.levelNum() < 10) g.setLevel(10); });
+    if (g.levelNum() < 11) g.setLevel(11); });
   const lvlBefore = await page.evaluate(() => window.__game.levelNum());
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); window.__game.level().finalRefillDone = true; /* докидка (v234) здесь чужая: сценарий ждёт финал-помола одиночек */ window.__game.leaveSingles(); });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
@@ -1797,17 +1797,20 @@ page.on('response', (r) => {
   });
   expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 1000,
     'ур.1: цена открытия 1000 = BASE 800 + PER_LEVEL 200·1 (' + unlockBuyProbe.price + ')');
-  // #9 МАТРИЦА: цена ЗАВИСИТ от уровня (не флэт). Проверяем L1/L10/L50.
+  // #9 МАТРИЦА: цена ЗАВИСИТ от уровня (не флэт). Проверяем L1/L11/L51.
+  // ⚠️ ТОЧКИ ПЕРЕЕХАЛИ С 10/50 НА 11/51 (2026-08-17): кратные десяти уровни
+  // стали БОНУСНЫМИ, а `regen()` на них строит другую кучу. Числа пересчитаны
+  // по той же формуле BASE 800 + 200·уровень, само утверждение не тронуто.
   const unlockMatrixProbe = await page.evaluate(() => {
     const g = window.__game;
     const pick = () => { const s = g.accSnapshot(); const c = s.find((r, i) => i >= 20 && !r.unlocked); return c ? c.key : null; };
     g.setLevel(1);  g.regen(); g.skipIntro(); const p1  = g.typeUnlockPrice(pick());
-    g.setLevel(10); g.regen(); g.skipIntro(); const p10 = g.typeUnlockPrice(pick());
-    g.setLevel(50); g.regen(); g.skipIntro(); const p50 = g.typeUnlockPrice(pick());
-    return { p1, p10, p50 };
+    g.setLevel(11); g.regen(); g.skipIntro(); const p11 = g.typeUnlockPrice(pick());
+    g.setLevel(51); g.regen(); g.skipIntro(); const p51 = g.typeUnlockPrice(pick());
+    return { p1, p11, p51 };
   });
-  expect(unlockMatrixProbe.p1 === 1000 && unlockMatrixProbe.p10 === 2800 && unlockMatrixProbe.p50 === 10800,
-    'матрица цены по уровню: L1=1000 L10=2800 L50=10800 (' + JSON.stringify(unlockMatrixProbe) + ')');
+  expect(unlockMatrixProbe.p1 === 1000 && unlockMatrixProbe.p11 === 3000 && unlockMatrixProbe.p51 === 11000,
+    'матрица цены по уровню: L1=1000 L11=3000 L51=11000 (' + JSON.stringify(unlockMatrixProbe) + ')');
   expect(unlockBuyProbe.buy.ok && unlockBuyProbe.nowUnlocked === true,
     'покупка открыла тип (' + unlockBuyProbe.key + ')');
   expect(unlockBuyProbe.bought === true && unlockBuyProbe.snapUnlocked === true,
@@ -2449,7 +2452,7 @@ window.bridge = {
   // страж и код разъедутся при следующей правке потолка.
   const refillTop = await page.evaluate(async () => {
     const g = window.__game;
-    g.setLevel(40); g.regen(); g.skipIntro();
+    g.setLevel(41); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 700));
     const before = g.alive();
     g.leaveSingles();
@@ -3852,7 +3855,7 @@ window.bridge = {
       // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
       // не подсовыванием поля в сейв.
     g.boostGrantForSurprise();
-    if (g.levelNum() < 10) g.setLevel(10);
+    if (g.levelNum() < 11) g.setLevel(11);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum() };
@@ -3865,7 +3868,7 @@ window.bridge = {
     const g = window.__game;
     g.buyBundle('bundle2');                        // x2
     g.boostGrantForSurprise();                     // предпосылка клада
-    if (g.levelNum() < 10) g.setLevel(10);
+    if (g.levelNum() < 11) g.setLevel(11);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum(), mult: g.scoreBoostMult() };
@@ -4065,7 +4068,7 @@ window.bridge = {
   // Радиус загоняем в −9 (документированный приём форса «пар нет»), уровень
   // берём 10-й: на 1-м штрафов нет вовсе, на 2-5 счёт клампится нулём — там
   // ассерт был бы зелёным по чужой причине.
-  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
   const npRad = await page.evaluate(() => window.__game.cfg.baseRadius);
   await page.evaluate(() => { window.__game.cfg.baseRadius = -9; });
@@ -4131,9 +4134,9 @@ window.bridge = {
   // — берутся все открытые), поэтому проверка без регенов честная.
   const mixProbe = await page.evaluate(() => {
     const g = window.__game;
-    g.setLevel(20); g.regen(); g.skipIntro();
+    g.setLevel(21); g.regen(); g.skipIntro();
     const n20 = Object.keys(g.typesSnapshot());
-    g.setLevel(10); g.regen(); g.skipIntro();
+    g.setLevel(11); g.regen(); g.skipIntro();
     const n10 = Object.keys(g.typesSnapshot());
     // ⚠️⚠️ СЕНТИНЕЛЫ ПЕРЕСМОТРЕНЫ 2026-08-15 ПО ФАКТИЧЕСКОМУ СОСТАВУ. Прежний
     // `holidayhanukkahdreidel` вырезан владельцем (партия из 32 типов), а моя
@@ -4166,7 +4169,7 @@ window.bridge = {
   // ⚠️ СТРАЖ ДЕТЕРМИНИРОВАННЫЙ, и иначе нельзя: сам провал стохастичен (в
   // стрессе он выпадал в 2 циклах из 28), ассерт «после взрыва никто не под
   // полом» на чистой базе зелен в 26 прогонах из 28 и механику НЕ проверяет.
-  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
   const floorGuard = await page.evaluate(() => {
     const g = window.__game;
@@ -4651,7 +4654,7 @@ window.bridge = {
     // порог ступени, и веха К2 была бы «уже выполнена» до всякого гранта —
     // тест мерил бы не триггер, а историю прогона.
     g.storyClearAcc(); g.clearBought();   // и накопления, и КУПЛЕННЫЕ ступени
-    g.setLevel(20); g.regen(); g.skipIntro();
+    g.setLevel(21); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     // ⚠️ Закрывать панель ТОЛЬКО штатным путём: снос узла напрямую оставлял
     // внутренний флаг занятости взведённым, и следующая глава не открывалась.
@@ -5737,7 +5740,10 @@ window.bridge = {
   const sizes = await page.evaluate(async () => {
     const g = window.__game, out = [];
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    for (const lv of [1, 5, 11, 20]){
+    // ⚠️ 20-й ЗАМЕНЁН НА 21-й (2026-08-17): кратные десяти уровни стали
+    // БОНУСНЫМИ, там 260 предметов вместо 183, и «плато с 11-го» на них
+    // не про эту механику. Утверждение не тронуто, сместилась только точка.
+    for (const lv of [1, 5, 11, 21]){
       g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(900);
       out.push({ lv, n: g.alive() });
     }
@@ -5947,7 +5953,7 @@ window.bridge = {
       // порог ступени мог быть уже пройден в прошлых секциях, событие не
       // приходило, и страж читал «не показан» на исправной сборке.
       g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
-      g.setLevel(20); g.regen(); g.skipIntro(); await sleep(500);
+      g.setLevel(21); g.regen(); g.skipIntro(); await sleep(500);
       const mt = document.getElementById('multToast');
       const tt = document.getElementById('tierToast');
       mt.classList.remove('on', 'up');
@@ -6355,7 +6361,7 @@ window.bridge = {
   const mtToast = await page.evaluate(async () => {
     const g = window.__game;
     g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
-    g.setLevel(20); g.regen(); g.skipIntro();
+    g.setLevel(21); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     const live = g.accSnapshot().find(r => r._item);
     if (!live) return { skipped: true };
@@ -6788,7 +6794,7 @@ window.bridge = {
   await bowlVisPage.evaluate(() => { const g = window.__game;
     // предпосылка клада (см. выше): без неё «клад летит со всеми» мерил бы пустоту
     g.boostGrantForSurprise();
-    if (g.levelNum() < 10) g.setLevel(10); g.regen(); });
+    if (g.levelNum() < 11) g.setLevel(11); g.regen(); });
   await bowlVisPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 900));
   const чаша = await bowlVisPage.evaluate(async () => {
@@ -9120,6 +9126,198 @@ window.bridge = {
     expect(typeof л.остаток === 'number' && Math.abs((сумма + л.остаток) - л.step) < 0.5,
       'ПРИБОР ШАГА: колонка остатка сходится с итогом (сумма ' + сумма.toFixed(1) +
       ' + остаток ' + л.остаток + ' = step ' + л.step + ')');
+    await page.close();
+  }
+
+
+  // ===== БОНУСНЫЙ УРОВЕНЬ (спека владельца 2026-08-15) =====
+  // ⚠️ СВОЯ СТРАНИЦА И КОНЕЦ ФАЙЛА — как у камней и меню: секция гоняет уровни
+  // 10/11/20/21, ставит сцены `cull`-ом и двигает часы, то есть меняет контекст
+  // для любого соседа. Уровень возвращается в конце (правило секции бомбы).
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    await page.goto('file://' + PAGE_FILE);
+    await page.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    const инфо = () => page.evaluate(() => window.__game.bonusInfo());
+    const наУровень = async (l) => {
+      await page.evaluate(l => { window.__game.setLevel(l); window.__game.regen(); window.__game.skipIntro(); }, l);
+      await page.waitForFunction(() => window.__game.level().aliveN0 > 0, null, { timeout: 30000 });
+    };
+    // ⚠️ НОРМА ВЫСТУПА ЗА СТЕНУ — та же 0.45, что у соака (канон); на Rapier
+    // 0.20 здоровый максимум 0.33, запас двукратный. Литерал НЕ заводим своим
+    // правилом: это чужое откалиброванное число, и здесь оно только читается.
+    const НОРМА_ВЫСТУПА = 0.45;
+
+    // (1) ПЕРИОД — ДВУСТОРОННЕ, по ОБЕ стороны границы: ассерт «на 10-м бонус»
+    // одинаково зелен и у правила «каждый десятый», и у «начиная с десятого —
+    // всегда»; различает их только соседний обычный уровень.
+    await наУровень(10); const б10 = await инфо();
+    await наУровень(11); const б11 = await инфо();
+    await наУровень(20); const б20 = await инфо();
+    expect(б10.бонус === true && б11.бонус === false && б20.бонус === true,
+      'БОНУС ПО ПЕРИОДУ: 10 и 20 бонусные, 11 — обычный (10:' + б10.бонус +
+      ' 11:' + б11.бонус + ' 20:' + б20.бонус + ')');
+
+    // (2) ⚠️⚠️ СПЕЦПРЕДМЕТОВ НА БОНУСЕ НЕТ, И ЭТО НЕ КОСМЕТИКА: пункт 5 требует,
+    // чтобы куча ушла ПАРАМИ до нуля, а сток (как и помол) спецпредметы не
+    // трогает — один клад повесил бы уровень навсегда. КОНТРОЛЬ в соседнем
+    // ассерте обязателен: без него проверка зелена и на сборке, где
+    // спецпредметов нет вовсе.
+    await наУровень(20);
+    const сп20 = await page.evaluate(() => window.__game.specialsCount());
+    await наУровень(21);
+    const сп21 = await page.evaluate(() => window.__game.specialsCount());
+    expect(сп20.всего === 0,
+      'БОНУС БЕЗ СПЕЦПРЕДМЕТОВ (пункт 5: пары обязаны уйти до нуля): ' + JSON.stringify(сп20));
+    expect(сп21.всего > 0,
+      'КОНТРОЛЬ: на обычном 21-м спецпредметы ЕСТЬ — значит ассерт выше проверяет ' +
+      'гейт, а не пустой пул (' + JSON.stringify(сп21) + ')');
+
+    // (3) КОНТЕЙНЕР ПЕРЕКЛЮЧАЕТСЯ В ОБЕ СТОРОНЫ. ⚠️ Стены НЕ пересоздаются
+    // (WASM Rapier валился «unreachable» — канон), а сенсорятся; значит
+    // проверять надо ФАКТ удержания кучи на своей ширине, а не число
+    // коллайдеров. `walled:true` доказывает, что стена на этой высоте ЕСТЬ.
+    await наУровень(10);
+    const ст10 = await page.evaluate(() => ({ w: window.__game.maxWallExcess(),
+      чаша: window.__game.bowlShardsInfo().стеклоВидно }));
+    await наУровень(11);
+    const ст11 = await page.evaluate(() => ({ w: window.__game.maxWallExcess(),
+      чаша: window.__game.bowlShardsInfo().стеклоВидно }));
+    console.log('бонус-контейнер:', JSON.stringify({ бонус: ст10, обычный: ст11 }));
+    expect(ст10.w.walled === true && ст10.w.excess < НОРМА_ВЫСТУПА,
+      'БОНУС: куча удержана бонусными стенами (выступ ' + ст10.w.excess + ')');
+    expect(ст11.w.walled === true && ст11.w.excess < НОРМА_ВЫСТУПА,
+      'ОБРАТНО: на 11-м держат стены ЧАШИ (выступ ' + ст11.w.excess + ')');
+    expect(ст10.чаша === false && ст11.чаша === true,
+      'ЧАШИ НА БОНУСЕ НЕТ, А НА СЛЕДУЮЩЕМ УРОВНЕ ОНА ВЕРНУЛАСЬ (10:' +
+      ст10.чаша + ' 11:' + ст11.чаша + ')');
+
+    // (3-бис) ⚠️⚠️ ПРИЗРАЧНЫЙ КОНТЕЙНЕР НЕ ДЕРЖИТ НЕБО. Самый дорогой дефект
+    // этой правки, и бил он по ОБЫЧНЫМ уровням: Rapier по умолчанию отдаёт
+    // попадания в СЕНСОРЫ, а неактивный контейнер именно сенсор — бонусное дно
+    // радиуса 7.8 на высоте 6.1 встало куполом ровно над чашей, каждый луч
+    // доступности упирался в него, и на Hard вся куча уходила под вуаль.
+    // ⚠️ ПОЧЕМУ ОТДЕЛЬНЫЙ СТРАЖ, ХОТЯ ДЕФЕКТ ПОЙМАЛ СОСЕД (страж вуали): тот
+    // ловит ПОСЛЕДСТВИЕ; здесь утверждается ПРИЧИНА — призрак прозрачен для луча.
+    // ⚠️⚠️ УРОВЕНЬ 3 И ПОРОГ 20% — НЕ НА ГЛАЗ, А ПО ПУСТОМУ КОРИДОРУ. Первая
+    // редакция стояла на ур.11 с порогом 5% и ДИВЕРСИЮ НЕ ПОЙМАЛА: там куча
+    // торчит выше 6.1, часть предметов видит небо мимо купола, и урон лишь
+    // частичный (63 -> 30 доступных, то есть «зелено» при сломанной сборке).
+    // Замер обеих рук (доля доступных, Hard): ур.2 52.2% против 0, ур.3 44.0%
+    // против 0, ур.5 42.1% против 0, ур.7 39.7% против 2.1%. Полным дефект
+    // становится там, где куча ЦЕЛИКОМ под куполом — это ранние уровни.
+    // ⚠️ И мерить надо на HARD: на Easy `isAccessible` выходит первой строкой
+    // и лучей не пускает вовсе — на умолчании страж был бы тавтологией.
+    {
+      await page.evaluate(() => { window.__game.cfg.hard = true; });
+      await наУровень(3);
+      await page.evaluate(() => window.__game.forceRefresh());
+      await sleep(700);
+      const об = await page.evaluate(() => ({ живых: window.__game.alive(),
+        доступных: window.__game.accessibleList().length, верх: +window.__game.topY().toFixed(2) }));
+      await наУровень(10);
+      await page.evaluate(() => window.__game.forceRefresh());
+      await sleep(700);
+      const бн = await page.evaluate(() => ({ живых: window.__game.alive(),
+        доступных: window.__game.accessibleList().length }));
+      await page.evaluate(() => { window.__game.cfg.hard = false; });
+      console.log('доступность сквозь призрак:', JSON.stringify({ обычный: об, бонус: бн }));
+      // ⚠️⚠️ САНИТАР СТОЯЛ НА 6.1 И УПАЛ НА ИСПРАВНОЙ СБОРКЕ (верх 6.1 при
+      // условии «< 6.1»). Ровно записанная в каноне грабля «ассерт на
+      // ГЛАДЯЩЕЙСЯ величине»: верх кучи ур.3 гуляет по раскладкам, замер 10
+      // штук дал 5.48..6.04, а под нагрузкой сьюта — 6.10. Порог 7.0 взят
+      // между наблюдённым максимумом и НАЧАЛОМ ЧАСТИЧНОГО РЕЖИМА: на ур.5
+      // (верх 6.5-6.7) сломанная сборка всё ещё даёт 0% доступных, частичной
+      // она становится к ур.7 (верх 7.4, 2.1%). Санитар тут ВТОРИЧЕН —
+      // основную защиту несёт порог 20% при здоровом полу 43%.
+      expect(об.верх < 7.0,
+        'САНИТАР: на ур.3 куча под призрачным дном (верх ' + об.верх +
+        ' < 7.0) — выше начинается частичный режим, где дефект стражу не виден');
+      expect(об.доступных > об.живых * 0.20,
+        '⚠️⚠️ ПРИЗРАК НЕ ДЕРЖИТ НЕБО: на обычном ур.3 под Hard доступна нормальная ' +
+        'доля кучи (' + об.доступных + ' из ' + об.живых + ' = ' +
+        (об.доступных/об.живых*100).toFixed(1) + '%, здоровые 42-52%, сломанные 0%)');
+      expect(бн.доступных > 0,
+        'и на самом бонусе доступность жива (' + бн.доступных + ' из ' + бн.живых + ')');
+    }
+
+    // (4) ⚠️⚠️ ЧАСЫ БОНУСА ПЕРЕЖИВАЮТ ПАУЗУ. Без этого повторяется баг
+    // 2026-08-12 («на паузе таймер не останавливается»): 60 секунд истекли бы,
+    // пока игрок читает меню, и он вернулся бы прямо в сток.
+    await наУровень(10);
+    await page.evaluate(() => { window.__game.bonusSetLeft(30); window.__game.pause(true); });
+    await sleep(2200);
+    // ⚠️⚠️ ЧИТАЕМ ПОСЛЕ resume, А НЕ ДО. Первая редакция снимала остаток ВНУТРИ
+    // паузы — а якорь сдвигается именно в `resumeGame`, поэтому она честно
+    // показывала «съедено 2.2 с» на ИСПРАВНОЙ сборке. Классика «страж мерит
+    // свою постановку, а не механику».
+    await page.evaluate(() => { window.__game.resume(); });
+    const пОст = await page.evaluate(() => window.__game.bonusInfo().осталось);
+    expect(пОст > 29,
+      '⚠️⚠️ ПАУЗА НЕ ЕСТ ВРЕМЯ БОНУСА: после 2.2 с паузы осталось ' + пОст + ' с из 30');
+
+    // (5) ПРОСТОЙ НА БОНУСЕ НЕ НАКАЗЫВАЕТСЯ: наказание за простой — механика
+    // ЧАШИ, а здесь конец назначает таймер. Ждём 6 с — втрое дольше периода
+    // помола (MIXER_PERIOD=2 с), то есть он успел бы сработать трижды.
+    await наУровень(10);
+    const жив0 = await page.evaluate(() => window.__game.alive());
+    await sleep(6000);
+    const жив1 = await page.evaluate(() => window.__game.alive());
+    expect(жив1 === жив0,
+      'БОНУС: простой не съедает кучу (было ' + жив0 + ', стало ' + жив1 + ')');
+
+    // (6) ПОПОЛНЕНИЕ (пункт 4): при <20% от старта доводит до 50%, и РОВНО
+    // ДВА раза. ⚠️ Третий срез обязателен — «не больше двух» без него зелено
+    // и у реализации, которая пополняет бесконечно.
+    await наУровень(10);
+    const срезать = async (доля) => {
+      const s = await инфо();
+      await page.evaluate(n => window.__game.cull(n), Math.round(s.живых - s.старт*доля));
+      await sleep(2500);
+      return инфо();
+    };
+    const п1 = await срезать(0.15);
+    const п2 = await срезать(0.15);
+    const п3 = await срезать(0.15);
+    console.log('бонус-пополнения:', JSON.stringify([п1, п2, п3]));
+    const цель = Math.round(п1.старт * 0.5);
+    expect(п1.пополнений === 1 && Math.abs(п1.живых - цель) <= 2,
+      'ПОПОЛНЕНИЕ №1 довело кучу до 50% старта (' + п1.живых + ' при цели ' + цель + ')');
+    expect(п2.пополнений === 2 && Math.abs(п2.живых - цель) <= 2,
+      'ПОПОЛНЕНИЕ №2 — тоже до 50% (' + п2.живых + ')');
+    expect(п3.пополнений === 2 && п3.живых < цель / 2,
+      '⚠️⚠️ ТРЕТЬЕГО ПОПОЛНЕНИЯ НЕТ (счётчик ' + п3.пополнений + ', живых ' + п3.живых + ')');
+
+    // (7) СТОК (пункт 5): пара в секунду, очки списываются, уровень кончается.
+    // ⚠️ Сцену СТАВИМ (`cull`), а не доигрываем: полный сток — 130 секунд.
+    await наУровень(10);
+    // ⚠️⚠️ ПОРЯДОК НЕСУЩИЙ: СНАЧАЛА истекает время, ПОТОМ срезаем кучу. Первая
+    // редакция резала до 12 при живом таймере — и падала ниже порога 20%, то
+    // есть САМА вызывала пополнение (куча возвращалась к 127, сток не успевал
+    // за отведённые 25 с, страж краснел на исправной механике). После истечения
+    // ветка пополнения недостижима по построению.
+    await page.evaluate(() => window.__game.bonusExpire());
+    await page.evaluate(() => { window.__game.cull(window.__game.alive() - 12); });
+    await sleep(600);
+    const до = await page.evaluate(() => ({ живых: window.__game.alive(), очки: window.__game.stats().score }));
+    await sleep(3400);
+    const серед = await page.evaluate(() => window.__game.alive());
+    const кончился = await page.waitForFunction(() => window.__game.level().over === true, null, { timeout: 25000 })
+      .then(() => true).catch(() => false);
+    const после = await page.evaluate(() => ({ живых: window.__game.alive(), очки: window.__game.stats().score }));
+    console.log('бонус-сток:', JSON.stringify({ до, серед, после, кончился }));
+    expect(до.живых - серед >= 4 && до.живых - серед <= 8,
+      'СТОК ИДЁТ ПАРОЙ В СЕКУНДУ: за 3.4 с ушло ' + (до.живых - серед) + ' из ' + до.живых);
+    expect(кончился === true && после.живых === 0,
+      '⚠️⚠️ «ПОКА НЕ ИСЧЕЗНУТ ВСЕ»: сток довёл кучу до нуля и закрыл уровень (' +
+      после.живых + ' живых, over=' + кончился + ')');
+    expect(после.очки < до.очки,
+      'СТОК СПИСЫВАЕТ ОЧКИ, как помол (' + до.очки + ' -> ' + после.очки + ')');
+
+    // ⚠️ ВОЗВРАЩАЕМ УРОВЕНЬ (правило секции бомбы: секция, поднявшая уровень,
+    // обязана вернуть его на месте, а не надеяться, что соседи переживут).
+    await page.evaluate(() => { window.__game.setLevel(1); });
     await page.close();
   }
 
