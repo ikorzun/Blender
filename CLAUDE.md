@@ -233,6 +233,31 @@ Heavy 22px чёрный + «You on 845» Bold 14px `#a2a2a8`; справа тр�
 делается, показано в хронологии ниже (`__game.accSnapshot()` на уровне 200
 отдаёт весь пул, поле `tex` даёт пачку).
 
+**⚠️⚠️ ПУЛ СОКРАЩЁН 120 → 88 ТИПОВ (слово владельца 2026-08-15, «убирай из
+моделей совсем» + два пакета скриншотов).** Вырезаны 32 типа: `brickcorner`,
+`brickstud`, `bricksquare`, `brickduo`; `piratecannon`, `piratecrate`,
+`pirateball`, `piratetower`, `piratedoor`; `survivalbarrel`, `survivalbottle`,
+`survivalbucket`, `survivalchest`, `survivaltoolaxe`, `survivaltoolhammer`,
+`survivaltoolpickaxe`; `holidayhanukkahdreidel`, `holidaypresentaround`;
+`foodcabbage`, `foodbeet`, `foodcoconut`, `foodcookie`, `foodleek`, `foodtaco`;
+`factoryboxsmall`, `factorycogc`, `factorypistonround`; `toycaritemcoingold`,
+`toycaritemcone`; `marketcashregister`, `marketshoppingbasket`;
+`arcadeclawmachine`.
+⚠️ РАЗВИЛКИ ЗАКРЫТЫ ЕГО ЖЕ СЛОВОМ, НЕ УГАДЫВАНИЕМ: «Chest» — их в игре было
+ДВА, он выбрал `survivalchest` (пиратский остался); `brickbar` он ОСТАВИЛ,
+узнав, что на нём калиброван порог просадки тонких предметов в пол.
+⚠️ ЧТО ЭТО СДВИНУЛО: весь пул открыт с ~88-го уровня вместо 112-го (типов
+9+уровень); `index.html` 10.34 → 10.34 МБ (геометрии остались в генерённых
+модулях — вырезаны только строки TYPES, вернуть тип = одна строка).
+⛔ **ГОЛОС «СТЕКЛО» ОСТАЛСЯ БЕЗ НОСИТЕЛЯ:** его нёс ЕДИНСТВЕННЫЙ `survivalbottle`.
+Звук жив, предметов у него нет; ассерт стекла снят, а не подменён (страж
+умирает вместе с механикой). Появится стеклянный предмет — вернуть и проверку.
+⚠️ ТРИ СТРАЖА ПЕРЕЕХАЛИ, И ДВА ИЗ НИХ КРАСНЕЛИ НЕ ПО ДЕЛУ: порог «карточек
+> 100» и «типов > 100» протухли от самого сокращения (проверяют размер пула, а
+не своё свойство) — опущены до 80; сентинелы перемешивания взяты ЗАМЕРОМ
+фактического состава (`piratepalm`/`cartaxi`/`foodeggplant`), а не по памяти —
+моя первая замена промахнулась, снеговик к ур.20 ещё не открыт.
+
 **Пул: `TYPES` = 120 типов, 12 атласов** (по полю `tex`):
 
 | пачка | шт | пачка | шт | пачка | шт |
