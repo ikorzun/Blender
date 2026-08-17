@@ -89,7 +89,90 @@ const mixerBlades = new THREE.Group();
 })();
 let mixerSpeed = 0; // рад/с; лопасти крутятся ТОЛЬКО когда миксер работает (в покое нервируют)
 
+// ═══ ГЕОМЕТРИЯ ВИТРИНЫ: ЯЩИК = ВЬЮПОРТ ═══
+// ⚠️⚠️ ШИРИНА ЗАМОРОЖЕНА НА УРОВЕНЬ, КАМЕРА ЖИВАЯ. Это несущее решение, а не
+// оптимизация: физические стены ставятся ОДИН РАЗ на genLevel, и если бы
+// потребители ширины (спасатель, спавн, метрика, зонд) читали ЖИВОЙ аспект,
+// ресайз посреди партии развёл бы формулу с фактическими стенами — спасатель
+// начал бы телепортировать здоровую кучу. Ровно этот класс дефекта в витрине
+// ловился уже дважды. Поэтому: `bonusFreezeBox()` на genLevel, все читают
+// `bonusHalfX()`, а на ресайз реагирует ТОЛЬКО камера (`bonusCamR`).
+let _bonusHX = 3.7;
+function bonusHalfX(){ return _bonusHX; }
+// только для пробы безопасности мутации коллайдеров (см. хук boxProbe)
+function setBonusHalfXForProbe(v){ _bonusHX = v; }
+// tan половины ВЕРТИКАЛЬНОГО fov × аспект = tan половины горизонтального
+function bonusFitK(){ return Math.tan(camera.fov * Math.PI / 360) * camera.aspect; }
+function bonusFreezeBox(){
+  const hz = BONUS_D/2;
+  // ширина, при которой ЗАДНЯЯ грань (самая дальняя, а значит самая широкая в
+  // кадре) проецируется ровно на кромку экрана
+  const хочу = (BONUS_CAM_R_NOM + hz) * bonusFitK() * BONUS_EDGE_MARGIN;
+  _bonusHX = Math.max(BONUS_HX_MIN, Math.min(BONUS_HX_MAX, хочу));
+  return _bonusHX;
+}
+// ЖИВАЯ дистанция камеры: обратная к той же формуле. При неклампнутой ширине
+// возвращает ровно BONUS_CAM_R_NOM; при упёршейся в кап — подтягивает камеру
+// ближе, чтобы кадр всё равно был закрыт ящиком целиком.
+function bonusCamR(){
+  const k = bonusFitK();
+  if (!(k > 1e-4)) return BONUS_CAM_R_NOM;
+  return Math.max(3.0, _bonusHX / (k * BONUS_EDGE_MARGIN) - BONUS_D/2);
+}
+function bonusVisHalfH(){ return (bonusCamR() + BONUS_D/2) * Math.tan(camera.fov * Math.PI / 360); }
+// взгляд ставится так, чтобы ДНО ящика село на нижнюю кромку кадра
+function bonusCamTY(){ return BONUS_FLOOR - 0.5 + bonusVisHalfH(); }
+// ВЕРХ СТОЛБА — ДОЛЯ ВЬЮПОРТА ОТ ЕГО НИЗА (слово владельца: «на 2/3 по высоте»).
+// ⚠️ Считаем от НИЖНЕЙ КРОМКИ КАДРА, а не от взгляда: «две трети экрана» — это
+// про то, что видит игрок, и привязка к `ty` дала бы другую долю при смене
+// пропорций окна.
+function bonusPileTop(){
+  const низКадра = bonusCamTY() - bonusVisHalfH();
+  return Math.min(BONUS_H - 2, низКадра + 2 * bonusVisHalfH() * BONUS_FILL_VIEW);
+}
+// число пар — ИЗ ОБЪЁМА, который надо заполнить, а не константой: иначе на
+// широком кадре столб не дорос бы до глаз, а на узком перелился бы через верх
+function bonusPairs(){
+  const объём = (2*bonusHalfX()) * BONUS_D * Math.max(1, bonusPileTop() - BONUS_FLOOR);
+  const пар = Math.round(объём * BONUS_DENSITY / 2);
+  return Math.max(BONUS_PAIRS_MIN, Math.min(BONUS_PAIRS_MAX, пар));
+}
+// ⚠️⚠️ ЕДИНАЯ ТОЧКА ШИРИНЫ СТЕНЫ ПО НАПРАВЛЕНИЮ. Обобщение `radiusAt` с тела
+// вращения на любой контейнер: сколько от оси до стены в сторону (nx, nz).
+// Для чаши это тот же радиус (направление не важно), для ящика — ближайшая из
+// двух пар граней. Через неё ОБЯЗАНЫ ходить все, кто спрашивает «где стена»:
+// спасатель, метрика выступа, отскок искр. Раздельные формулы у них гарантируют
+// расхождение — спасатель считал бы вылетом то, что стена держит.
+function wallDistAt(y, nx, nz){
+  if (typeof levelNum !== 'undefined' && isBonusLevel(levelNum)){
+    const ax = Math.abs(nx), az = Math.abs(nz);
+    // расстояние до границы прямоугольника вдоль единичного направления
+    const dx = ax > 1e-6 ? bonusHalfX() / ax : Infinity;
+    const dz = az > 1e-6 ? (BONUS_D/2) / az : Infinity;
+    return Math.min(dx, dz);
+  }
+  return radiusAt(y);
+}
+// Прижать точку внутрь контейнера (спасатель ставит предмет обратно).
+// Для ящика — по каждой оси отдельно: радиальная посадка вернула бы предмет
+// ЗА тонкую грань, и спасатель зациклился бы на нём.
+function clampIntoContainer(x, z, margin){
+  if (typeof levelNum !== 'undefined' && isBonusLevel(levelNum)){
+    const hx = Math.max(0.1, bonusHalfX() - margin), hz = Math.max(0.1, BONUS_D/2 - margin);
+    return { x: Math.max(-hx, Math.min(hx, x)), z: Math.max(-hz, Math.min(hz, z)) };
+  }
+  return null; // чаша — радиальная посадка на месте вызова
+}
 function radiusAt(y){
+  // ⚠️⚠️ НА БОНУСЕ КОНТЕЙНЕР — ЯЩИК-ВИТРИНА, У НЕГО РАДИУСА НЕТ. Отдаём
+  // ОПИСАННУЮ окружность (половина диагонали): она заведомо БОЛЬШЕ настоящей
+  // стены, поэтому ни один потребитель не решит, что предмет вылетел, когда он
+  // внутри. ⛔ Мерить стену этим числом НЕЛЬЗЯ — для этого есть `wallDistAt`.
+  // Кто читает `radiusAt` на бонусе сегодня: отношение сжатия радиуса совпадения
+  // (60-access — там важна ПОСТОЯННОСТЬ, ящик по высоте не сужается, отношение
+  // выходит 1) и выпечка стекла чаши (её на бонусе не видно).
+  if (typeof levelNum !== 'undefined' && isBonusLevel(levelNum))
+    return Math.hypot(2*bonusHalfX(), BONUS_D) / 2;
   const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
   return FUNNEL.R0 + SLOPE*yy;
 }

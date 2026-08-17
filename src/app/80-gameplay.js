@@ -438,6 +438,11 @@ function bowlStreakReset(){
 }
 function bowlCrackAdd(silent){
   if (!level || level.over || bowlShattering) return;
+  // ⚠️⚠️ НА БОНУСЕ ЧАШИ НЕТ — ЗНАЧИТ НЕТ И ТРЕЩИН. Без этого гейта серии
+  // игрока копили бы трещины НЕВИДИМОЙ чаши, а на пятой `shatterBowl` уронил
+  // бы стены (`dropWalls`) и собрал ВСЮ кучу разом: бонус кончался бы сам
+  // собой в середине, мимо таймера, стока и пунктов 4-5 владельца.
+  if (level.bonus) return;
   level.bowlCracks = (level.bowlCracks || 0) + 1;
   // ⚠️⚠️ НАГРАДА ЗА СЕРИИ (спека владельца 2026-08-12: «а так же если игрок
   // выбьет 3 серии»). Считаем ЕГО ЖЕ единицу — `bowlCracks`, ту самую, которой
@@ -1150,6 +1155,87 @@ function mixerGrind(){
     wakePhysics('gameplay:L198');
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 560);
+}
+// ЧАСЫ БОНУСНОГО УРОВНЯ: пополнение (пункт 4) до истечения, сток (пункт 5)
+// после. Зовётся из loop КАЖДЫЙ КАДР по реальным часам — как весь остальной
+// планировщик миксера (при низком FPS детекты не растягиваются).
+function bonusAliveCount(){
+  let n = 0;
+  for (const it of items) if (it.alive) n++;
+  return n;                    // спецпредметов на бонусе нет — фильтровать нечего
+}
+function tickBonus(now){
+  if (!level || !level.bonus || level.over || intro || !level.bonusEndAt) return false;
+  const живых = bonusAliveCount();
+  if (now < level.bonusEndAt){
+    // ⚠️ ПОРОГ И ЦЕЛЬ — ОТ `aliveN0` (снимок ПОСЛЕ осадки и трима, finalizeFill),
+    // а не от BONUS_PAIRS×2: трим тихо срезает пары, и «20% от начальных» по
+    // задуманному числу означало бы не то, что игрок видел на старте.
+    if (level.bonusRefills < BONUS_REFILLS && level.aliveN0 &&
+        живых <= level.aliveN0 * BONUS_REFILL_AT &&
+        // тот же anim-гейт, что у финальной докидки: в «грязный» кадр (пара в
+        // анимации слияния) живых на миг меньше, чем на самом деле
+        !items.some(i => i.alive && i.animating)){
+      level.bonusRefills++;
+      bonusRefill(Math.round(level.aliveN0 * BONUS_REFILL_TO) - живых);
+    }
+    return false;
+  }
+  // ВРЕМЯ ВЫШЛО. Пары уходят по одной в секунду, «пока не исчезнут все»;
+  // победу объявит checkEnd из хвоста стока, общим путём.
+  if (!живых) return false;
+  if (now < level.bonusDrainAt) return true;
+  level.bonusDrainAt = now + BONUS_DRAIN_MS;
+  bonusDrain();
+  return true;
+}
+// СТОК БОНУСНОГО УРОВНЯ (пункт 5 владельца дословно: «если время выходит, то
+// объекты исчезают парами каждую секунду, очки от этого так же множителями
+// отнимаются»; его же выбор из предложенных — цена «как у помола», конец
+// «пока не исчезнут все»).
+// ⚠️⚠️ ЦЕНА БЕРЁТСЯ ТЕМ ЖЕ `scorePenalty(MIXER_PENALTY)`, ЧТО И У ПОМОЛА, А НЕ
+// СВОЕЙ ФОРМУЛОЙ: «как у помола» — это ТРЕБОВАНИЕ СОВПАДЕНИЯ, и копия формулы
+// рядом с работающей разошлась бы с ней при первой правке (закон канона про
+// литерал в страже). Оттуда же бесплатно приезжают льготы новичка и бустер.
+// ⚠️ ЧЕМ ОТЛИЧАЕТСЯ ОТ mixerGrind, И ПОЧЕМУ НЕ ПЕРЕИСПОЛЬЗУЕМ ЕГО ЦЕЛИКОМ:
+// (1) он берёт НИЖНИЙ предмет и тянет его в лопасти — на бонусе лопасти
+// далеко под кадром (дно поднято к камере), игрок увидел бы, как предметы
+// уезжают в никуда; расщепляем НА МЕСТЕ, в кадре;
+// (2) ему близнец необязателен (`twin ? [low, twin] : [low]`), а здесь пара
+// обязательна: нечётный съём оставил бы сироту, и «пока не исчезнут все» не
+// наступило бы никогда.
+function bonusDrain(){
+  const cand = items.filter(i => i.alive && !i.animating);
+  if (cand.length < 2) return false;
+  // пара — ближайшие сверху (в кадре), а не со дна: сток должно быть ВИДНО
+  cand.sort((a,b) => b.p.y - a.p.y);
+  let low = null, twin = null;
+  for (const it of cand){
+    const t = cand.find(o => o !== it && o.key === it.key);
+    if (t){ low = it; twin = t; break; }
+  }
+  // ⚠️ ПАРЫ МОГЛО НЕ ОСТАТЬСЯ (игрок домёл кучу до сирот разных типов) —
+  // тогда сток берёт двух любых: цель пункта 5 «исчезнут все», а не чистота
+  // пар. Без этой ветки хвост из двух разнотипных висел бы вечно.
+  if (!low){ low = cand[0]; twin = cand[1]; }
+  const group = [low, twin];
+  group.forEach(it => { it.animating = true; destroyItemBody(it); });
+  wakePhysics('bonusDrain');
+  const before = stats.score;
+  if (scorePenalty(MIXER_PENALTY)){
+    const shown = scoreShownDelta(stats.score, before);
+    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+  }
+  Sound.play('grind');
+  vibrate(40);
+  group.forEach(dissolveFX);   // расщепление НА МЕСТЕ — лопасти вне кадра
+  camShake = Math.max(camShake, 0.18);
+  setTimeout(()=>afterPause(()=>{
+    group.forEach(removeItem);
+    wakePhysics('bonusDrain:after');
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 260);
+  return true;
 }
 // Финальная зачистка: парных не осталось — миксер уничтожает остатки (без штрафа)
 function finaleGrind(){
