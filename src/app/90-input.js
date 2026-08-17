@@ -3,6 +3,14 @@
 const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
 function setCamR(r){
   zoomAnim = null; // жест (колесо/щипок) главнее кнопки — анимация гаснет
+  // ⚠️⚠️ НА ВИТРИНЕ ОТДАЛЯТЬСЯ ДАЛЬШЕ ПОДГОНКИ НЕЛЬЗЯ ПО ОПРЕДЕЛЕНИЮ: ящик
+  // закрывает кадр ровно на дистанции `bonusCamR()`, шаг назад — и по бокам
+  // полезет фон. Приближение остаётся. И боевой пол CAM_R_MIN=9 тут не годится:
+  // на широком экране подгонка даёт ~6, и клампом кадр бы сломало.
+  if (isBonusLevel(levelNum)){
+    const fit = bonusCamR();
+    camR = Math.max(3.0, Math.min(fit, r)); updateCamera(); return;
+  }
   camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera();
 }
 // ВЕРТИКАЛЬНЫЙ ПАН ВЗГЛЯДА (спека владельца 2026-07-21: «чуть сместить
@@ -20,8 +28,10 @@ const TARGET_Y_MIN = 1.2, TARGET_Y_MAX = 5.2, TARGET_Y_DEF = 4.2;
 function panLimits(){
   // на витрине коридор ездит вокруг её центра: боевой потолок 5.2 ниже
   // середины столба, и первый же щипок утащил бы кадр под низ ящика
+  // ⚠️ читаем ТОТ ЖЕ вычисляемый источник, что и камера: литерал отвязал бы
+  // коридор пана от кадра, и на широком экране он ушёл бы под дно ящика
   return isBonusLevel(levelNum)
-    ? { lo: BONUS_CAM_TY - 3.0, hi: BONUS_CAM_TY + 3.0 }
+    ? { lo: bonusCamTY() - 3.0, hi: bonusCamTY() + 3.0 }
     : { lo: TARGET_Y_MIN, hi: TARGET_Y_MAX };
 }
 function setTargetY(y){

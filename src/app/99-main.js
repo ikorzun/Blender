@@ -193,7 +193,7 @@ function finishIntro(){
   // ⚠️ БОНУС СТАВИТ СВОЙ КАДР ЗДЕСЬ ЖЕ, А НЕ ОТДЕЛЬНЫМ ВЫЗОВОМ: эти три строки —
   // единственное место, где камера возвращается к боевому виду после облёта.
   camAz = 0;
-  if (isBonusLevel(levelNum)){ camPhi = BONUS_CAM_PHI; camR = BONUS_CAM_R; camTarget.y = BONUS_CAM_TY; }
+  if (isBonusLevel(levelNum)){ camPhi = BONUS_CAM_PHI; camR = bonusCamR(); camTarget.y = bonusCamTY(); }
   else { camPhi = 0.45; camR = 16.2; }
   updateCamera();
   stats.t0 = performance.now();
@@ -325,8 +325,9 @@ function tickIntro(dt){
     if (level && level.bonus){
       camAz = 0;
       camPhi = BONUS_CAM_PHI;
-      camR = (BONUS_CAM_R + 4.5) + (BONUS_CAM_R - (BONUS_CAM_R + 4.5))*e;
-      camTarget.y = BONUS_CAM_TY;
+      const цель = bonusCamR();
+      camR = (цель + 4.5) + (цель - (цель + 4.5))*e;
+      camTarget.y = bonusCamTY();
     } else {
       camAz = 0.35 + e*(Math.PI*2 - 0.35);
       camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
@@ -381,6 +382,13 @@ function resize(){
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
   if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // база неба + слои лихорадки
+  // ⚠️⚠️ ВИТРИНА ОТВЕЧАЕТ НА СМЕНУ ШИРИНЫ КАМЕРОЙ, А НЕ СТЕНАМИ. Ящик заморожен
+  // на уровень (иначе формула разъедется с фактическими стенами — см. 20-arena);
+  // покрытие кадра держит обратная формула `bonusCamR`: стало шире — камера
+  // подъехала. Куча при этом не шелохнулась, депенетрации нет.
+  if (!intro && level && level.bonus){
+    camR = bonusCamR(); camTarget.y = bonusCamTY(); updateCamera();
+  }
 }
 addEventListener('resize', resize);
 
@@ -1338,8 +1346,40 @@ window.__game = {
   // упрётся в крышу призрака вместо настоящей геометрии чаши.
   // ⚠️ Отдаём и КОНТРОЛЬНЫЙ каст (без исключения сенсоров): без него нельзя
   // отличить «флаг работает» от «призрака тут вовсе нет».
+  // тест-рычаг: погонять ширину ящика мутацией коллайдеров (проверка, что
+  // setHalfExtents не валит WASM — канонный запрет был про remove+create)
+  boxProbe(hx){ if (hx != null) setBonusHalfXForProbe(hx); else bonusFreezeBox();
+    syncBonusContainer(); return bonusHalfX(); },
+  // ГЕОМЕТРИЯ ВИТРИНЫ НАРУЖУ + ПРОВЕРКА ПОКРЫТИЯ КАДРА ПРОЕКЦИЕЙ.
+  // ⚠️ Покрытие проверяем ПРОЕКЦИЕЙ угла стены, а не пикселями: пиксельная
+  // проба спорит с фоном неба того же тона, а проекция отвечает на прямой
+  // вопрос «кромка ящика за краем кадра или внутри него».
+  boxInfo(){
+    const кНДС = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return +v.x.toFixed(3); };
+    const бонус = !!(level && level.bonus);
+    if (!бонус){
+      // КОНТРОЛЬ для стража покрытия: у ЧАШИ бока кадра не закрыты — её кромка
+      // проецируется ВНУТРЬ экрана. Без этой руки ассерт «ящик закрывает кадр»
+      // был бы зелен и у реализации, которая закрывает кадр всегда и всем.
+      const y = FUNNEL.H * 0.5, R = radiusAt(y);
+      const прав = кНДС(R, y, 0), лев = кНДС(-R, y, 0);
+      return { бонус: false, кромкаПрав: прав, кромкаЛев: лев,
+        закрытКадр: прав >= 1 && лев <= -1, аспект: +camera.aspect.toFixed(3) };
+    }
+    const hx = bonusHalfX(), hz = BONUS_D/2;
+    const yMid = (BONUS_FLOOR + bonusPileTop())/2;
+    // задняя грань — самая дальняя, а значит самая узкая в кадре: её и проверяем
+    const прав = кНДС( hx, yMid, -hz), лев = кНДС(-hx, yMid, -hz);
+    return { бонус: true, hx: +hx.toFixed(3), hz, пар: bonusPairs(), camR: +bonusCamR().toFixed(2),
+      ty: +bonusCamTY().toFixed(2), верхЦель: +bonusPileTop().toFixed(2),
+      аспект: +camera.aspect.toFixed(3),
+      кромкаПрав: прав, кромкаЛев: лев,
+      закрытКадр: прав >= 1 && лев <= -1 };
+  },
   sensorProbe(){
-    const луч = new RAPIER.Ray({ x: BONUS_W/2 + 0.3, y: 25, z: 0 }, { x: 0, y: -1, z: 0 });
+    // ⚠️ ЦЕЛИМСЯ ИЗ ТОГО ЖЕ ЗАМОРОЖЕННОГО ИСТОЧНИКА, что и стены: литерал
+    // промахнулся бы мимо призрака при другой ширине, и санитар зонда покраснел бы
+    const луч = new RAPIER.Ray({ x: bonusHalfX() + 0.3, y: 25, z: 0 }, { x: 0, y: -1, z: 0 });
     const скв = skyCast(луч, 40, null);
     const сВидимыми = world.castRay(луч, 40, true, null, null, null, null);
     const t = h => h ? +( (h.timeOfImpact !== undefined ? h.timeOfImpact : h.toi) ).toFixed(2) : null;
@@ -2414,7 +2454,7 @@ window.__game = {
     let best = -9, who = '';
     for (const it of items){
       if (!it.alive) continue;
-      const ex = Math.max(Math.abs(it.p.x) - BONUS_W/2, Math.abs(it.p.z) - BONUS_D/2);
+      const ex = Math.max(Math.abs(it.p.x) - bonusHalfX(), Math.abs(it.p.z) - BONUS_D/2);
       if (ex > best){ best = ex; who = it.type.name + ' x=' + it.p.x.toFixed(2) + ' z=' + it.p.z.toFixed(2); }
     }
     return { excess: +best.toFixed(3), who, walled: true };

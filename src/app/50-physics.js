@@ -208,7 +208,7 @@ function initPhysicsWorld(){
 let bonusWallColliders = [], bonusFloorCol = null;
 function buildBonusContainer(shellB){
   bonusWallColliders = [];
-  const hx = BONUS_W/2, hz = BONUS_D/2;
+  const hx = bonusHalfX(), hz = BONUS_D/2;
   const y0 = BONUS_FLOOR, y1 = BONUS_H;
   const midY = (y0 + y1)/2, half = (y1 - y0)/2, T = 0.3; // T — полутолщина стены
   // ⚠️ СТЕНЫ СТОЯТ СНАРУЖИ рабочего объёма (центр смещён на +T): внутренняя
@@ -262,9 +262,40 @@ function dropWalls(){
 // ⚠️ ensureWalls ЗОВЁТСЯ ИЗ genLevel — то есть это и есть точка, где контейнер
 // переключается между чашей и бонусным цилиндром. Второй раз ту же мысль в
 // коде не выражаем: кто твёрдый, решает РОВНО эта функция.
+// ⚠️⚠️ СТЕНЫ ЯЩИКА ПОДГОНЯЮТСЯ ПОД ЗАМОРОЖЕННУЮ ШИРИНУ **МУТАЦИЕЙ**, А НЕ
+// ПЕРЕСОЗДАНИЕМ. Канонный запрет («WASM Rapier падал unreachable») касается
+// removeCollider+create; смена полуразмеров и переноса — другой путь, и он
+// проверен отдельной пробой (100 мутаций со `step` между ними, ноль ошибок).
+// ⚠️ Зовётся ТОЛЬКО из `ensureWalls`, то есть на genLevel: посреди партии
+// двигать стены нельзя — куча уже лежит, и депенетрация вышвырнула бы её.
+// На ресайз отвечает КАМЕРА (`bonusCamR`), а не стены.
+function syncBonusContainer(){
+  if (!bonusWallColliders.length) return;
+  const hx = bonusHalfX(), hz = BONUS_D/2, T = 0.3;
+  const half = (BONUS_H - BONUS_FLOOR)/2, midY = (BONUS_FLOOR + BONUS_H)/2;
+  const план = [
+    { x:  hx + T, z: 0, sx: T,        sz: hz + T*2 },
+    { x: -(hx + T), z: 0, sx: T,      sz: hz + T*2 },
+    { x: 0, z:  hz + T, sx: hx + T*2, sz: T },
+    { x: 0, z: -(hz + T), sx: hx + T*2, sz: T },
+  ];
+  for (let i = 0; i < план.length && i < bonusWallColliders.length; i++){
+    const c = bonusWallColliders[i], q = план[i];
+    try { c.setHalfExtents({ x: q.sx, y: half, z: q.sz }); } catch(e){}
+    try { c.setTranslation({ x: q.x, y: midY, z: q.z }); } catch(e){}
+  }
+  try { bonusFloorCol.setHalfExtents({ x: hx + T*2, y: 0.3, z: hz + T*2 }); } catch(e){}
+  try { bonusFloorCol.setTranslation({ x: 0, y: BONUS_FLOOR - 0.3, z: 0 }); } catch(e){}
+  // ⚠️ ПОСЛЕ МУТАЦИИ QUERY-КОНВЕЙЕР ВИДИТ СТАРЫЕ ПОЗИЦИИ до шага мира — тот же
+  // класс, что канонная грабля `place()`. Зонд призрака и лучи доступности
+  // ходят кастами, поэтому прокачиваем конвейер сразу.
+  try { world.propagateModifiedBodyPositionsToColliders(); } catch(e){}
+  try { world.updateSceneQueries ? world.updateSceneQueries() : null; } catch(e){}
+}
 function ensureWalls(){
   bowlOpen = false;  // стены снова твёрдые — спасателю опять есть что стеречь
-  const БОНУС = (typeof level !== 'undefined') && !!(level && level.bonus);
+  const БОНУС = isBonusLevel(levelNum);
+  if (БОНУС) syncBonusContainer();   // ящик под замороженную ширину этого уровня
   floorCol = БОНУС ? bonusFloorCol : baseFloorCol;
   for (const c of wallColliders){ try { c.setSensor(БОНУС); } catch(e){} }
   for (const c of bonusWallColliders){ try { c.setSensor(!БОНУС); } catch(e){} }
@@ -289,8 +320,12 @@ function buildTempTallWall(){
   // ⚠️ НА ВИТРИНЕ ВРЕМЕННАЯ СТЕНА — ПРОДОЛЖЕНИЕ ЯЩИКА ВВЕРХ, а не кольцо:
   // кольцо радиуса R охватило бы столб спавна лишь частично (ящик шире по X,
   // чем по Z), и падающие у боковых граней считались бы вылетевшими.
-  if (typeof level !== 'undefined' && level && level.bonus){
-    const hx = BONUS_W/2, hz = BONUS_D/2, T = 0.15;
+  // ⚠️⚠️ РЕШАЕМ ПО `levelNum`, А НЕ ПО `level.bonus`. `buildTempTallWall`
+  // зовётся из genLevel ДО создания нового `level` — там он ещё ПРЕДЫДУЩИЙ.
+  // Следствие было настоящим дефектом: на переходе «витрина → обычный» стена
+  // осадки строилась ЯЩИКОМ поверх круглого спавна чаши.
+  if (isBonusLevel(levelNum)){
+    const hx = bonusHalfX(), hz = BONUS_D/2, T = 0.15;
     const пара = (x, z, sx, sz) => world.createCollider(
       RAPIER.ColliderDesc.cuboid(sx, 24, sz).setFriction(0.02)
         .setTranslation(x, 24, z), tmpWallBody);
@@ -1027,7 +1062,7 @@ function rescueSweep(beforeSleep){
     const BONUS_ESCAPE_PAD = 0.25;
     const боксОut = (typeof level !== 'undefined' && level && level.bonus) ? (
       !tmpWallBody &&   // при стоящей стене осадки столб широк намеренно
-      (Math.abs(it.p.x) > BONUS_W/2 + BONUS_ESCAPE_PAD ||
+      (Math.abs(it.p.x) > bonusHalfX() + BONUS_ESCAPE_PAD ||
        Math.abs(it.p.z) > BONUS_D/2 + BONUS_ESCAPE_PAD)
     ) : null;
     // ⚠️ ДОПУСК ВЫНЕСЕН РУЧКОЙ РАДИ ЗАМЕРА (боевое значение 0.18 не менялось):

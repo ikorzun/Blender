@@ -398,7 +398,7 @@ function bonusRefill(нужно){
     for (let half = 0; half < 2; half++){
       const it = makeItem(typeIdx, size);
       const слой = Math.floor(n / 10);         // столько же на слой, что и у спавна витрины
-      const hx = Math.max(0.1, BONUS_W/2 - it.r - 0.1);
+      const hx = Math.max(0.1, bonusHalfX() - it.r - 0.1);
       const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
       it.p.set((Math.random()*2-1)*hx, верх + 1.6 + слой * 1.35 + Math.random() * 0.25,
                (Math.random()*2-1)*hz);
@@ -692,15 +692,27 @@ function genLevel(){
   renderer.shadowMap.enabled = !CFG.matcap;
   items.forEach(removeItem);
   items = [];
+  // ⚠️⚠️ ШИРИНУ ВИТРИНЫ ЗАМОРАЖИВАЕМ ЗДЕСЬ — ДО ВСЕГО ОСТАЛЬНОГО. Дальше её
+  // читают временная стена, спавн, число пар, стены контейнера и спасатель;
+  // возьми кто-нибудь «живой» аспект позже — и они разъедутся между собой.
+  if (isBonusLevel(levelNum)) bonusFreezeBox();
   buildTempTallWall(); // столб спавна выше кромки — держим высокой стеной
   // прогрессия по уровню: число типов (главный рычаг против тупиков);
   // терпение миксера — по сложности, радиус — динамический (updateMatchRadius)
-  const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1));
+  const БОНУС = isBonusLevel(levelNum);
+  // ⚠️⚠️ НА ВИТРИНЕ ВИДОВ НЕ БОЛЬШЕ BONUS_TYPES_MAX (слово владельца: «иначе
+  // очень сложно»). Число типов — главный рычаг сложности, и на стене из 260
+  // предметов он решает всё: при 12-22 видах пара теряется в шуме.
+  // ⛔ ПОТОЛОК, А НЕ ФИКСАЦИЯ: `Math.min` с обычной прогрессией — на ранних
+  // уровнях открыто меньше пяти типов, и выдумывать недостающие нельзя.
+  // ⚠️ ОТСЮДА ЖЕ ПИТАЕТСЯ ПОПОЛНЕНИЕ: оно берёт `level.typesCount`, то есть
+  // досыпает из ТЕХ ЖЕ пяти видов, а не из всего открытого пула.
+  const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1),
+    БОНУС ? BONUS_TYPES_MAX : Infinity);
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
   // ⚠️ БОНУСНЫЙ УРОВЕНЬ: пар больше — заполняем не чашу, а весь кадр
-  const БОНУС = isBonusLevel(levelNum);
-  const pairsCnt = БОНУС ? BONUS_PAIRS : pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
+  const pairsCnt = БОНУС ? bonusPairs() : pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
 
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
@@ -758,7 +770,7 @@ function genLevel(){
       const y = низ + 1.6 + layer*1.35 + Math.random()*0.25;
       if (БОНУС){
         // равномерно по прямоугольнику, с полем на габарит предмета
-        const hx = Math.max(0.1, BONUS_W/2 - it.r - 0.1);
+        const hx = Math.max(0.1, bonusHalfX() - it.r - 0.1);
         const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
         it.p.set((Math.random()*2-1)*hx, y, (Math.random()*2-1)*hz);
       } else {
