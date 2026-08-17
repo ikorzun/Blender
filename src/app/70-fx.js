@@ -346,7 +346,7 @@ function _starPopFX_impl(it){
 }
 
 // ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки
-// brick/pirate/rock при бурсте и предмет под ножами при помоле КОЛЮТСЯ на
+// brick/pirate при бурсте и предмет под ножами при помоле КОЛЮТСЯ на
 // угловатые куски. Перенос из 80-gameplay + полировка (запрос ФИЗИКИ,
 // WORKSTREAMS 2026-07-23). Правило выбора (burstFX) и тайминги grindShred
 // остаются в 80-gameplay — их зона поведения.
@@ -517,7 +517,7 @@ function ringFamFor(type, geo){
     if (d[2] > 1e-4) elong = d[0] / ((d[1] + d[2]) / 2);
   }
   const tex = type && type.tex;
-  const hard = tex === 'brick' || tex === 'pirate' || tex === 'rock';
+  const hard = tex === 'brick' || tex === 'pirate'; // ⛔ 'rock' снят с камнями (2026-08-17)
   let fam;
   if (elong >= IMPACT_ELONG_AT) fam = 'овал';      // вытянутые — овал по силуэту
   else if (hard) fam = 'многоугольник';            // те же пачки, что колются осколками

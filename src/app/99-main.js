@@ -84,7 +84,7 @@ function trimOverfill(){
     for (const it of items){
       // сюрприз/бомба/камень триму не кандидаты: непарные спецпредметы,
       // изъятие «топ-пары» для них вырождается в одиночное удаление
-      if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
+      if (it.alive && !it.surprise && !it.bomb && !it.frozen && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
     const twin = items.find(i => i !== top && i.alive && i.key === top.key);
@@ -202,7 +202,7 @@ function finalizeFill(){
   let top0 = 0, aliveN = 0;
   // камни не в счёте (спека 2026-07-22): пар-скор и порог автопана (20%)
   // считаются по совмещаемой массе
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.rock && !it.frozen) aliveN++; }
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
   // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
@@ -211,14 +211,13 @@ function finalizeFill(){
   // растёт вместе с ценой матчей, пороги остаются скилловыми). Сюрприз,
   // бомба и КАМНИ в пары не входят (не матчатся; заодно ушёл старый перекос
   // базы на пол-пары от бомбы). ⚠️ Камни добавлены 2026-07-22 вслед за их
-  // вводом в main: они НЕСОВМЕЩАЕМЫ (key 'ROCK#i' уникален), но их type.name
-  // общий ('rocksa'/'rockssandc'), поэтому пара камней одного вида раздувала
+  // ⛔ Абзац про камни снят вместе с ними (2026-08-17).
   // базу на 20 очков, которые игрок не может заработать НИКАК. С 16-го
   // уровня 1 камень, +1 каждые 5, кап 6 — до 3 фантомных пар (60 очков).
   // Правка МЕТА в физическом файле — санкционирована задачей диспетчера
   // (баланс-таблица).
   const accPerType = {};
-  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen)
+  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
   let accPar = 0;
   for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
@@ -494,7 +493,7 @@ function tickFireSpawn(now){
   const byKey = {};
   for (const it of items){
     if (!it.alive || !it.mesh || !it.type) continue;
-    if (it.surprise || it.bomb || it.rock || it.frozen) continue;     // спецпредметы не горят
+    if (it.surprise || it.bomb || it.frozen) continue;     // спецпредметы не горят
     if (it.animating || !isAccessible(it)) continue;     // справедливость (работает на Hard)
     (byKey[it.key] = byKey[it.key] || []).push(it);
   }
@@ -1024,7 +1023,7 @@ window.__game = {
   killOneTest(kind){
     const pred = kind === 'surprise' ? (i => i.alive && i.surprise)
                : kind === 'bomb'     ? (i => i.alive && i.bomb)
-                                     : (i => i.alive && !i.rock && !i.bomb && !i.surprise && !i.frozen);
+                                     : (i => i.alive && !i.bomb && !i.surprise && !i.frozen);
     const it = items.find(pred);
     if (it) removeItem(it);
     return items.filter(i => i.alive).length;
@@ -1589,7 +1588,7 @@ window.__game = {
   // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.rock && !i.frozen && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
@@ -1726,8 +1725,6 @@ window.__game = {
   },
   grindNow(){ mixerGrind(); return true; },
   // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)
-  rocks(){ return items.filter(i => i.alive && i.rock).length; },
-  rockIndex(){ return items.findIndex(i => i.alive && i.rock); },
   // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
   // РЕГРЕССИЯ #2 (спека владельца 2026-07-23 «переливающаяся бомба»): материал
@@ -2022,7 +2019,7 @@ window.__game = {
       // плашки он ниже абсолютного, у толстых равен ему
       penLim: +floorPenLimit(i).toFixed(4),
       d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
-      sleeping: i.body.isSleeping(), rock: !!i.rock, bomb: !!i.bomb
+      sleeping: i.body.isSleeping(), bomb: !!i.bomb
     }));
   },
   // диагностика провала: кто сидит ЦЕНТРОМ ниже пола. У выпуклого предмета,
@@ -2146,7 +2143,7 @@ window.__game = {
         low: +lowestPoint(i).toFixed(3), pen: floorPenetration(i),
         d: +Math.hypot(i.p.x, i.p.z).toFixed(2), sleeping: i.body.isSleeping(),
         touching: this.contacts(items.indexOf(i)).touching,
-        rock: !!i.rock, bomb: !!i.bomb }));
+        bomb: !!i.bomb }));
   },
   // ТЕСТ-ХУК СПАСАТЕЛЯ, НЕСУЩИЙ: прогнать sweep СИНХРОННО. Без него страж
   // пола был бы гонкой — place() физику НЕ будит, а на спящей куче sweep не
@@ -2309,7 +2306,7 @@ window.__game = {
     let k = 0;
     for (const it of items){
       if (k >= n) break;
-      if (!it.alive || it.surprise || it.rock || it.bomb || it.frozen || it.animating) continue;
+      if (!it.alive || it.surprise || it.bomb || it.frozen || it.animating) continue;
       removeItem(it); k++;
     }
     refreshAccessibility(); updateHUD();

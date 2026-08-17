@@ -93,7 +93,7 @@ function doMatch(list){
         if (!level.chargeGiven && !chargeName){
           const cnt = {};
           for (const it of items)
-            if (it.alive && !it.surprise && !it.bomb && !it.rock && !it.frozen && it.type)
+            if (it.alive && !it.surprise && !it.bomb && !it.frozen && it.type)
               cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
           const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
           if (pool.length){
@@ -276,19 +276,25 @@ function doMatch(list){
 // суммой 2×MISS_PENALTY: «уровень 1 без штрафов» и кламп нуля ур.2..5
 // несёт единая точка scorePenalty; misses и срез комбо-ступеней — как у
 // стандартного промаха.
-function penalizeRock(item){
+
+// ДВОЙНОЙ ШТРАФ ЗА ТАП ПО НЕСОВМЕЩАЕМОМУ (2×MISS_PENALTY).
+// ⚠️⚠️ РОДОМ ОТ КАМНЕЙ (`penalizeRock`), но КАМНИ УДАЛЕНЫ 2026-08-17, а функция
+// ЖИВА — её зовёт ГЛЫБА при раннем тапе: спека владельца по льду дословно
+// говорит «штраф КАК У КАМНЯ». Снести её вместе с камнями значило бы тихо
+// изменить механику льда, поэтому переименована, а не удалена.
+function penalizeDouble(item){
   stats.misses++;
   const before = stats.score;
   const charged = scorePenalty(2 * MISS_PENALTY);
   const shown = scoreShownDelta(stats.score, before); // положительная величина падения чипа (#10)
-  // тап по камню — тоже промах: набор турбо обнуляется (спека владельца
+  // тап по несовмещаемому — тоже промах: набор турбо обнуляется (спека владельца
   // 2026-07-27), радиус-лесенка теряет свои 2 шага. Симметрично registerMiss.
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
     comboCount = 0; // набор турбо — с нуля
     updateMatchRadius(); updateHUD();
   }
-  try { bowlStreakReset(); } catch(e){} // стрик чаши: камень = ошибка
+  try { bowlStreakReset(); } catch(e){} // стрик чаши: промах по несовмещаемому = ошибка
   try { noteMissRadius(); } catch(e){} // штраф радиуса — как у обычного промаха (2026-08-11)
   if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
   Sound.play('miss');
@@ -417,7 +423,7 @@ function bowlN(){
   return bowlNRuntime || (BOWL_SHATTER_N + Math.floor((levelNum || 1) / 10));
 }
 // «БЕЗ ОШИБОК» (слово владельца 2026-08-03): любой промах обнуляет
-// накопленные турбо-зачёты чаши. Зовут penalize (70-fx) и penalizeRock —
+// накопленные турбо-зачёты чаши. Зовёт penalize (70-fx) —
 // ВСЕГДА, не только при горячем окне. Бомба сюда не заходит (не ошибка).
 // Глаза отыграют сброс сами: bowlLeft() читает cracks каждый тик.
 function bowlStreakReset(){
@@ -479,7 +485,7 @@ function bowlCollectAll(){
   for (const it of items){
     if (!it.alive || it.animating) continue;
     if (it.surprise){ surprise = it; continue; }
-    if (it.bomb || it.rock || it.frozen){ extras.push(it); continue; }
+    if (it.bomb || it.frozen){ extras.push(it); continue; }
     if (!it.type) continue;
     (byType[it.type.name] = byType[it.type.name] || []).push(it);
   }
@@ -568,7 +574,7 @@ function detonateCharge(){
   const name = chargeName;
   // ⚠️ !i.frozen: заряд бьёт по ИМЕНИ ТИПА (не по ключу), и без исключения
   // снял бы глыбу мимо её условия; собранные же штуки в зачёт ИДУТ (владелец).
-  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rock
+  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb
                                     && !i.frozen && i.type && i.type.name === name);
   chargeName = ''; chargeUntil = 0;
   if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // тип кончился раньше клика
@@ -624,7 +630,7 @@ function burstFX(it){
   else if (tex === 'animal') starPopFX(it);
   // ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки —
   // кладка/пиратское/камни — не в труху, а КОЛЮТСЯ на угловатые куски
-  else if (tex === 'brick' || tex === 'pirate' || tex === 'rock')
+  else if (tex === 'brick' || tex === 'pirate')
     shardFX(it.p, it.fxColor || it.baseColor, { count: SHARD_BURST_N, size: 0.2, up: 4.2 });
   else dissolveFX(it); // без пачки — прежняя труха
 }
@@ -928,15 +934,10 @@ function handleTapInner(x, y){
     Telemetry.tap(x, y, 'frozen');
     if (item.frozenReady){ breakIce(item); }
     else {
-      penalizeRock(item);
+      penalizeDouble(item);
       const осталось = Math.ceil((item.frozenNeedItems - item.frozenGotItems) / 2);
       try { toast('Frozen! Collect ' + осталось + ' more pair' + (осталось > 1 ? 's' : '') + ' of this item'); } catch(e){}
     }
-    return;
-  }
-  if (item.rock){ // камень несовмещаем: двойной штраф-обучение (в финале штрафов нет)
-    Telemetry.tap(x, y, 'rock');
-    if (!finale) penalizeRock(item); else wiggle(item);
     return;
   }
   const _tc0 = performance.now();
@@ -1123,7 +1124,7 @@ function hintPulse(item){
 // затягивает в лопасти (тонет с вращением), его пара расщепляется вместе с ним,
 // за пару отнимаются очки.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rock); // сюрприз/бомбу/камни миксер-наказание не ест (их доедает финал)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen); // сюрприз и бомбу миксер-наказание не ест (их доедает финал)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];

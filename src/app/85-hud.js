@@ -445,7 +445,7 @@ function captureLevelTypes(){
   const seen = new Set(), keys = [];
   try {
     for (const it of items){
-      if (!it || it.surprise || it.bomb || it.rock || !it.type) continue;
+      if (!it || it.surprise || it.bomb || !it.type) continue;
       const k = String(it.type.name);
       if (!seen.has(k)){ seen.add(k); keys.push(k); }
     }
@@ -2152,7 +2152,7 @@ function buildVitrine(){
   $('vitrine').classList.remove('vempty');
   const seen = new Set(); vitAll = [];
   for (const it of items){
-    if (it.surprise || it.bomb || it.rock || !it.type) continue;
+    if (it.surprise || it.bomb || !it.type) continue;
     const k = String(it.type.name);
     if (!seen.has(k)){ seen.add(k); vitAll.push({ k, it }); }
   }

@@ -354,7 +354,7 @@ function finalPairsRefill(){
   level.finalRefillDone = true; // и «только камни» второй раз не проверяем
   const orphans = [];
   for (const it of items)
-    if (it.alive && !it.rock && !it.bomb && !it.surprise && !it.frozen) orphans.push(it);
+    if (it.alive && !it.bomb && !it.surprise && !it.frozen) orphans.push(it);
   if (!orphans.length) return false; // остались камни/бомбы — мелем как мусор
   let k = 0;
   for (const o of orphans){
@@ -406,21 +406,6 @@ function levelSize(){
   return 1 + (Math.random() * 2 - 1) * spread;
 }
 
-// НЕСОВМЕЩАЕМЫЕ КАМНИ (спека владельца 2026-07-22): спецпредметы ВНЕ
-// TYPES-пула, модели 37-rocks («3d assets/Pirate», конвертированы точечно).
-// Не матчатся (key уникальны — hasAnyPair/подсказка/прицел/бот их парой не
-// видят), убираются только бомбой, миксер-наказание не ест, финал доедает.
-// ⚠️ Рецепт материала — КОПИЯ matcap-ветки makeItem: камни вне пула, а
-// makeItem жёстко индексирован по TYPES; при правке материалов моделей
-// СИНХРОНИЗИРОВАТЬ обе точки (FYI ГРАФИКЕ в WORKSTREAMS).
-const ROCK_TYPES = [
-  { name:'rocksa',     color:0x8a8f98, rc:1.0, tex:'rock', mat:'soft', geo:rocksaGeo },
-  { name:'rockssandc', color:0x9a917e, rc:1.0, tex:'rock', mat:'soft', geo:rockssandcGeo },
-];
-function rocksForLevel(lvl){
-  if (lvl < ROCK_FROM_LEVEL) return 0;
-  return Math.min(ROCK_CAP, 1 + Math.floor((lvl - ROCK_FROM_LEVEL) / ROCK_EVERY));
-}
 // очередь глыб — В ПАМЯТИ СЕССИИ, как у бомбы: это ритм подачи, не прогресс
 let frozenNextLevel = FROZEN_FROM_LEVEL;
 function freezeItem(it){
@@ -601,45 +586,6 @@ function tickIceBooms(now){
 }
 // ⛔ removeIceShell СРЕЗАН вместе со стендом: единственный вызыватель (breakIce)
 // перешёл на iceBoomStart (разлёт кусками). Вернуть — из истории git.
-function makeRock(i){
-  const t = ROCK_TYPES[i % ROCK_TYPES.length];
-  const gkey = 'R' + (i % ROCK_TYPES.length);
-  if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
-  const geo = geoCache.get(gkey);
-  let mat;
-  if (CFG.matcap){
-    mat = new THREE.MeshMatcapMaterial({ color: 0xffffff, map: modelColormap(t.tex),
-      matcap: makeMatcap('tex') });
-    mat.userData.texTune = 1;
-    addMatcapEmissive(mat);
-    mat.onBeforeCompile = matcapSpecPatch;
-  } else {
-    mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: modelColormap(t.tex),
-      metalness: 0, roughness: 0.18 });
-    mat.envMapIntensity = 0.5;
-  }
-  if (!geo.boundingBox) geo.computeBoundingBox();
-  const bb = geo.boundingBox;
-  const half = { x: Math.max(Math.abs(bb.min.x), Math.abs(bb.max.x)),
-                 y: Math.max(Math.abs(bb.min.y), Math.abs(bb.max.y)),
-                 z: Math.max(Math.abs(bb.min.z), Math.abs(bb.max.z)) };
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.castShadow = mesh.receiveShadow = true;
-  mesh.scale.setScalar(MESH_SCALE); // камни базового размера, без разброса
-  const item = {
-    key: 'ROCK#' + i, rock: true, type: t, baseColor: mat.color.clone(),
-    fxColor: new THREE.Color(t.color).convertSRGBToLinear(), // серая труха
-    r: t.rc * MESH_SCALE, p: new THREE.Vector3(),
-    wallR: t.rc * MESH_SCALE, half,
-    scl: MESH_SCALE, geo, body: null,
-    mesh, alive: true, animating: false, accessible: false,
-    veilK: 0, veilTarget: 0,
-  };
-  mesh.userData.item = item;
-  mesh.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
-  scene.add(mesh);
-  return item;
-}
 
 function genLevel(){
   Ads.cancel(); // висящий rewarded-показ замкнут на СТАРЫЙ level — награду глушим
@@ -730,17 +676,7 @@ function genLevel(){
       }
     }
   }
-  // несовмещаемые камни: рампа по уровню, спавн в общий столб верхними
-  // слоями — тяжёлые (плотность камня), при живой осадке уходят в глубину
-  const rocksCnt = rocksForLevel(levelNum);
-  for (let ri = 0; ri < rocksCnt; ri++){
-    const rk = makeRock(ri);
-    rk.p.set((Math.random()-0.5)*3, FUNNEL.H + 1.6 + (Math.floor(n/8) + 1)*1.35 + ri*0.6, (Math.random()-0.5)*3);
-    rk.mesh.position.copy(rk.p);
-    createItemBody(rk, 'rock', rk.geo);
-    rk.wave = Math.floor(n/8); waveHold(rk);
-    items.push(rk);
-  }
+  // ⛔ СПАВН КАМНЕЙ СНЯТ 2026-08-17 вместе с самими камнями (слово владельца).
   // ЗОЛОТОЙ ОБЪЕКТ ЗАБРАСЫВАЕТСЯ СО ВСЕМИ (слово владельца 2026-08-04:
   // «изначально этого объекта нет и он забрасывается с остальными объектами
   // при наполнении чаши»; прежняя спека «ложится на дно первым» отменена им
@@ -781,7 +717,7 @@ function genLevel(){
     } else {
       const поТипу = {};
       for (const it of items)
-        if (it.alive !== false && !it.surprise && !it.bomb && !it.rock && it.type)
+        if (it.alive !== false && !it.surprise && !it.bomb && it.type)
           (поТипу[it.type.name] = поТипу[it.type.name] || []).push(it);
       // тип годен, если копий хватает на N свободных пар + партнёра глыбы
       const годные = Object.keys(поТипу).filter(k => поТипу[k].length >= FROZEN_PAIRS_N * 2 + 2);

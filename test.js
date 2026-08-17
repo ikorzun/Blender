@@ -1154,7 +1154,7 @@ page.on('response', (r) => {
     // границы»): при 17 счётных радиус ОБЫЧНЫЙ даже без встрясок, при 15 — ∞,
     // когда встрясок <= 1. Откат порога к прежним 10 роняет ровно с15при1.
     // ⚠️ Считаем ТЕМ ЖЕ числом, которым решает код (`missRadius().счётных`), а
-    // не своим подсчётом живых: клад и камни в него не входят.
+    // не своим подсчётом живых: клад в него не входит (камни удалены 2026-08-17).
     g.setLevel(5); g.regen(); g.skipIntro(); await sl(700);
     const счёт = () => g.missRadius().счётных;
     const снять = (встрясок) => { const l = g.level();
@@ -2048,169 +2048,14 @@ page.on('response', (r) => {
   await page.evaluate(() => window.__game.skipIntro());
   await page.evaluate(() => window.__game.setCamR(16.2)); // вернуть камеру сценарию
 
-  // === НЕСОВМЕЩАЕМЫЕ КАМНИ: блок В КОНЦЕ сьюта НАМЕРЕННО — секции меняют
-  // уровень (setLevel 15/16 + regen), и в середине они ломали контекст
-  // «полного прогона» (он рассчитан на ур.1: бюджет встрясок, камера) ===
-  // НЕСОВМЕЩАЕМЫЕ КАМНИ (спека владельца 2026-07-22): рампа спавна,
-  // двойной штраф тапа, съём бомбой, ∞-порог эндшпиля без учёта камней
-  await page.evaluate(() => { window.__game.setLevel(15); window.__game.regen(); window.__game.skipIntro(); });
-  const r15 = await page.evaluate(() => window.__game.rocks());
-  expect(r15 === 0, 'ур.15: камней нет (' + r15 + ')');
-  await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
-  const r16 = await page.evaluate(() => window.__game.rocks());
-  expect(r16 === 1, 'ур.16: один камень (' + r16 + ')');
-  // тап по камню: −2×MISS_PENALTY (на ур.16 штрафы полные), misses растёт.
-  // findByTex v2 отдаёт ВИДИМУЮ точку (рейкаст с камеры) — если камень
-  // целиком закрыт кучей, {occluded:true}: встряхиваем и повторяем (флейк
-  // v76: клик по проекции центра попадал в загораживающий предмет, +120)
-  let rockT = null;
-  for (let att = 0; att < 5; att++){
-    rockT = await page.evaluate(() => window.__game.findByTex('rock'));
-    if (rockT && !rockT.occluded) break;
-    await page.evaluate(() => window.__game.shake());
-    await page.waitForTimeout(1700);
-  }
-  expect(!!rockT && !rockT.occluded, 'камень имеет видимую точку (' + JSON.stringify(rockT) + ')');
-  // ⚠️⚠️ КРАСНЫЙ АССЕРТ НЕ ИМЕЕТ ПРАВА УБИВАТЬ ПРОГОН. Так и было: при закрытом
-  // камне следующая строка звала `mouse.click(undefined, undefined)`, Playwright
-  // бросал `x: expected float, got undefined`, и прогон умирал на 154-м ассерте
-  // из 649 — то есть один невезучий расклад тихо выключал ВЕСЬ хвост сьюта
-  // (ровно закон «блокер в начале прогона — тихое выключение хвоста»).
-  // ⚠️ ЧТО ЭТО ЗА СОБЫТИЕ, ВЫЯСНЕНО ЗАМЕРОМ, А НЕ ДОГАДКОЙ (приёмка новой
-  // пчелы 2026-08-11): на СВЕЖЕЙ странице камень виден с первой попытки
-  // 20 раз из 20 — по 10 раскладок на старой и на новой модели, то есть к
-  // замене модели событие отношения не имеет. Ловится оно только здесь, в
-  // середине прогона, и виновата УНАСЛЕДОВАННАЯ КАМЕРА: `findByTex` бьёт лучом
-  // ОТ КАМЕРЫ, а к этому месту её уже двигали соседние секции.
-  // ⛔ Поэтому НЕ глушим ассерт и НЕ повышаем число встрясок «на всякий
-  // случай» — красное обязано остаться красным. Гасим только КРУШЕНИЕ.
-  // ⚠️ ОБЪЯВЛЕНИЕ ВЫШЕ БЛОКА, И ЭТО НЕ СТИЛЬ: `rockTap1` читает ещё один ассерт
-  // ДАЛЕКО НИЖЕ («камень тапом не убирается»), через целую секцию телеметрии.
-  // Спрятав его в блок, я уронил прогон второй раз подряд, уже своей правкой.
-  let rockTap1 = null;
-  if (rockT && !rockT.occluded){
-    const rockTap0 = await page.evaluate(() => ({ score: window.__game.stats().score,
-      misses: window.__game.stats().misses }));
-    await page.mouse.click(rockT.px, rockT.py);
-    await page.waitForTimeout(300);
-    rockTap1 = await page.evaluate(() => ({ score: window.__game.stats().score,
-      misses: window.__game.stats().misses, rocks: window.__game.rocks() }));
-    expect(rockTap1.score === rockTap0.score - 20, 'тап по камню: −20 (' + rockTap0.score + ' -> ' + rockTap1.score + ')');
-    expect(rockTap1.misses === rockTap0.misses + 1, 'тап по камню засчитан промахом');
-  } else {
-    // ⚠️ ЖЁЛТЫЙ ИСХОД НАЗЫВАЕТСЯ ВСЛУХ: два ассерта НЕ ИСПОЛНЯЛИСЬ. Молчаливый
-    // пропуск дал бы прогон с 647 зелёными вместо 649 и вопрос «что упало?»
-    // без ответа — у состояния «не проверено» должен быть свой голос.
-    console.log('ПРОПУЩЕНО: тап по камню (камень закрыт кучей после 5 встрясок) — 2 ассерта не исполнены');
-  }
-
-  // ── МЕТРИКИ (docs/METRICS.md) — СЕКЦИЯ В КОНЦЕ НАМЕРЕННО:
-  // она регенерит уровень и бросает синтетический креш, т.е. портит контекст
-  // соседям (поймал на себе: следующий тест ждал ур.1 и промах, а получил 0).
-  // ⚠️ Буфер телеметрии копится ДАЖЕ при выключенной отправке (URL пуст) —
-  // иначе «работает ли сбор» выяснялось бы только на проде.
-  const tm = await page.evaluate(async () => {
-    const g = window.__game;
-    g.regen(); g.skipIntro();
-    await new Promise(r => setTimeout(r, 700));
-    const scrInGame = g.telemetryScreen();
-    setTimeout(() => { null.boom(); }, 0);          // синтетический креш
-    await new Promise(r => setTimeout(r, 300));
-    return { scrInGame, evs: g.telemetry(60) };
-  });
-  {
-    const err = tm.evs.filter(e => e.n === 'err').pop();
-    expect(tm.scrInGame === 'game', 'экран партии помечен как game (' + tm.scrInGame + ')');
-    expect(!!err && /boom/.test(err.m) && !!err.st,
-      'креш пойман с сообщением и стеком (' + (err ? err.m.slice(0, 40) : 'нет') + ')');
-    expect(!!err && err.v === 'game' && err.lv >= 1,
-      'у креша есть контекст: экран и уровень (' + (err ? err.v + '/' + err.lv : '—') + ')');
-  }
-  // тап пишет СЕКТОР и ИСХОД (а не координаты — см. METRICS §4)
-  // ⚠️ кликаем по ЭКРАННОЙ позиции живого предмета, а не в наугад выбранную
-  // точку: первая версия била в пустоту мимо кучи и ассерт «нет тапа» врал
-  const pt = await page.evaluate(() => {
-    const g = window.__game, t = g.topItem();
-    if (!t) return null;
-    const r = document.querySelector('canvas').getBoundingClientRect();
-    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-  });
-  if (pt) await page.mouse.click(pt.x, pt.y);
-  await page.waitForTimeout(300);
-  const tap = await page.evaluate(() => window.__game.telemetry(20).filter(e => e.n === 'tap').pop());
-  expect(!!tap && /^(t|m|b)(l|c|r)$/.test(tap.z) && !!tap.r,
-    'тап записан сектором и исходом (' + (tap ? tap.z + '/' + tap.r : 'нет') + ')');
-  // экран закрывается с длительностью
-  const scr = await page.evaluate(() => window.__game.telemetry(60).filter(e => e.n === 'screen').pop());
-  expect(!!scr && scr.ms > 0 && !!scr.v,
-    'экран закрыт с длительностью (' + (scr ? scr.v + ' ' + scr.ms + 'мс' : 'нет') + ')');
-
-
-  if (rockTap1) expect(rockTap1.rocks === 1, 'камень тапом не убирается');
-  else console.log('ПРОПУЩЕНО: камень тапом не убирается (замер не состоялся) — 1 ассерт не исполнен');
-  // бомба убирает камень: телепортируем обоих в воздух рядом и детонируем —
-  // камень в радиусе, прочая куча далеко внизу (кап не мешает)
-  // ⚠️ БОМБУ ПРОВЕРЯЕМ ЯВНО (флейк 2026-07-29 «1 -> 1»): если её израсходовала
-  // предыдущая секция, bombIndex()=-1, place(-1,…) молча ничего не делает и
-  // detonate() тоже — камень остаётся, а сообщение винит бомбу в том, что её
-  // просто нет. Теперь индекс попадает в текст ассерта: следующий отказ сразу
-  // назовёт настоящую причину, а не заставит гадать.
-  // ⚠️⚠️ СЕКЦИЯ ИЗОЛИРОВАНА 2026-07-31 (сигнал ПОВЕСТВОВАНИЯ: два красных
-  // прогона за два дня на СОСЕДНИХ контекстно-зависимых секциях — вчера
-  // камни occluded, сегодня бомба −1; оба раза чужие ребейзы теряли время на
-  // атрибуцию ЧУЖОЙ хрупкости). Если бомбы нет — реген до состояния «есть
-  // бомба и есть камень», а не молитва на предыдущую секцию. Кап 3 регена:
-  // бомба и камень кладутся genLevel-ом всегда (ур.16+), не пришли за три
-  // регена — это настоящий дефект генерации, и падение будет честным.
-  await page.evaluate(async () => {
-    // ⚠️ Очередь бомбы ставим на ТЕКУЩИЙ уровень: с 2026-08-12 она приходит с
-    // разрывом 1-3, и «три регена подряд» больше не гарантируют её появления.
-    window.__game.bombNextAt(window.__game.levelNum());
-    for (let k = 0; k < 3; k++){
-      if (window.__game.bombIndex() >= 0 && window.__game.rockIndex() >= 0) break;
-      window.__game.regen(); window.__game.skipIntro();
-      window.__game.bombNextAt(window.__game.levelNum());
-      await new Promise(r => setTimeout(r, 250));
-    }
-  });
-  const bombPre = await page.evaluate(() => {
-    const g = window.__game;
-    const bi = g.bombIndex();
-    if (bi >= 0) g.place(bi, 0, 13, 0);
-    g.place(g.rockIndex(), 0.9, 13.2, 0);
-    return { rocks: g.rocks(), bomb: bi };
-  });
-  await page.evaluate(() => window.__game.detonate());
-  await page.waitForTimeout(450);
-  const rocksAfterBomb = await page.evaluate(() => window.__game.rocks());
-  expect(bombPre.rocks === 1 && bombPre.bomb >= 0 && rocksAfterBomb === 0,
-    'бомба убирает камень (камней ' + bombPre.rocks + ' -> ' + rocksAfterBomb +
-    ', бомба index ' + bombPre.bomb + ')');
-  // ∞-порог эндшпиля: камни не в счёте — при <=8 совмещаемых радиус 99
-  await page.evaluate(() => { window.__game.setLevel(16); window.__game.regen(); window.__game.skipIntro(); });
-  let guardR = 0, sinceRestR = 0;
-  while (guardR++ < 500){
-    const st = await page.evaluate(() => ({ alive: window.__game.alive(), r: window.__game.cfg.matchRadius, rocks: window.__game.rocks(),
-      over: window.__game.level().over }));
-    if (st.over || st.alive === 0){ // финал доел всё раньше сэмпла ≤8 — тоже валидный исход
-      console.log('эндшпиль-с-камнем: уровень закрыт до сэмпла ≤8 (валидно)');
-      break;
-    }
-    if (st.alive - st.rocks - 1 <= 8){ // −сюрприз −камни
-      // ждём refresh-тик — мгновенное чтение радиуса ловит старое значение
-      await page.waitForFunction(() => window.__game.cfg.matchRadius > 10, null, { timeout: 900 }).catch(() => {});
-      const rFin = await page.evaluate(() => window.__game.cfg.matchRadius);
-      expect(rFin > 10, '∞-радиус при <=8 совмещаемых, камни не мешают (r=' + rFin + ', rocks=' + st.rocks + ')');
-      break;
-    }
-    const ok = await page.evaluate(() => window.__game.autoMatch());
-    if (!ok){ await page.evaluate(() => window.__game.shake()); await page.waitForTimeout(1100); }
-    // та же передышка, что в полном прогоне: непрерывный темп держит серию
-    // турбо вечно (досыпка не даёт чаше опустеть до ∞-порога)
-    else if (++sinceRestR >= 10){ sinceRestR = 0; await page.waitForTimeout(4300); }
-    else await page.waitForTimeout(120);
-  }
-  expect(guardR < 500, 'эндшпиль с камнем достигнут ботом');
+  // ⛔⛔ СЕКЦИЯ НЕСОВМЕЩАЕМЫХ КАМНЕЙ УДАЛЕНА 2026-08-17 ВМЕСТЕ С МЕХАНИКОЙ
+  // (слово владельца: «модели плохие, они не нужны, удали их полностью из
+  // игры»). По канону страж УМИРАЕТ вместе с фичей, а не переписывается под
+  // новое поведение: переписанный сохранил бы счётчик PASS ценой проверки,
+  // которая ничего не стережёт. Падение числа ассертов здесь — ПРАВИЛЬНЫЙ
+  // признак. Вернуть камни — `git revert`, вместе с ними вернётся и секция.
+  // ⚠️ Двойной штраф тапа при этом ЖИВ и проверяется секцией ГЛЫБЫ: спека льда
+  // дословно «штраф как у камня», функция переименована в `penalizeDouble`.
 
   // matcap-тюнер (дебаг-инструмент владельца): открывается из консоли, живьём
   // пересматривает пресет, закрывается повторным вызовом. Секция В КОНЦЕ и
@@ -7635,6 +7480,11 @@ window.bridge = {
                         вкл: c.backgroundColor,
                         // Sound и Music ОДНОЙ строкой — половинками
                         однойСтрокой: Math.abs(рЗ.top - рМ.top) < 2 && рЗ.right <= рМ.left + 1,
+                        // ⚠️ МЕРИМ ОТ СВИТЧЕРА ДО ПОДПИСИ, как сказал владелец
+                        // («отступ от свитчера Sound»), а не между боксами рядов.
+                        зазорГрупп: Math.round(document.getElementById('msMusicRow')
+                          .querySelector('span').getBoundingClientRect().left -
+                          sw.getBoundingClientRect().right),
                         подписьСложности: getComputedStyle(рС.querySelector('span')).display,
                         сегмент: Math.round(рС.getBoundingClientRect().width),
                         хвостGame: getComputedStyle(document.querySelector('.ms-seg-long')).display };
@@ -7687,15 +7537,30 @@ window.bridge = {
   // свитчеры везде» прошло бы зелёным.
   // ⚠️ ЧИСЛА — ИЗ DEV MODE, не с картинки: дорожка 52×32, ручка 28, ход ровно 20
   // (эллипс x 2 -> 22), включённая дорожка Experimental/Salad #9ce52e.
-  for (const [имя, м] of [['390', узкий], ['320', тесно]]) {
+  // ⚠️ РАЗМЕР СВИТЧЕРА РАЗНЫЙ ПО ШИРИНАМ, И ЭТО НАМЕРЕННО: на 390 он макетный
+  // 52×32 с ходом 20, а на 320 УЖАТ (44×28, ход 16) — иначе две группы не
+  // влезают в ОДНУ строку, которую потребовал владелец («на узких ужимай
+  // зазор, оставь одну строку»). Содержимому там не хватает 11px САМОМУ,
+  // никаким зазором это не лечится — замер в комментарии у стилей.
+  for (const [имя, м, ш, в, ручка, ход] of [['390', узкий, 52, 32, 28, 20],
+                                            ['320', тесно, 44, 28, 24, 16]]) {
     const н = м.настройки;
     expect(!!н && н.ползунок === 'none' && н.свитчер !== 'none' &&
-           н.ш === 52 && н.в === 32 && н.ручка === 28 && н.ход === 20 &&
+           н.ш === ш && н.в === в && н.ручка === ручка && н.ход === ход &&
            н.вкл === 'rgb(156, 229, 46)' && н.однойСтрокой &&
            н.подписьСложности === 'none' && н.хвостGame !== 'none',
-      '⚠️⚠️ НАСТРОЙКИ ' + имя + ': ползунков нет, свитчер 52×32 с ходом 20 и лаймом, ' +
-      'Sound+Music одной строкой, подписи Difficult нет (' + JSON.stringify(н) + ')');
+      '⚠️⚠️ НАСТРОЙКИ ' + имя + ': ползунков нет, свитчер ' + ш + '×' + в + ' с ходом ' +
+      ход + ' и лаймом, Sound+Music ОДНОЙ строкой, подписи Difficult нет (' +
+      JSON.stringify(н) + ')');
   }
+  // ⚠️ ЗАЗОР МЕЖДУ ГРУППАМИ — ОТДЕЛЬНЫЙ АССЕРТ: «одна строка» держится и при
+  // нулевом зазоре, поэтому без него правка «сжать всё в кашу» прошла бы молча.
+  // На 390 требуем МАКЕТНЫЕ 48, на 320 — только «положительный и не больше 48».
+  expect(узкий.настройки.зазорГрупп === 48,
+    '⚠️⚠️ ЗАЗОР Sound→Music на 390 равен 48 по слову владельца (' +
+    узкий.настройки.зазорГрупп + ')');
+  expect(тесно.настройки.зазорГрупп > 0 && тесно.настройки.зазорГрупп <= 48,
+    '⚠️ ЗАЗОР на 320 ужат, но не схлопнут (' + тесно.настройки.зазорГрупп + ')');
   // ── ВТОРАЯ ПОЛОВИНА СТРАЖА: НА ДЕСКТОПЕ ВСЁ КАК БЫЛО ──
   // Без неё «мобильная правка» неотличима от правки, снёсшей ползунки везде.
   await lbPage.setViewportSize({ width: 1280, height: 800 });
