@@ -805,10 +805,7 @@ function _sparkRicochetFX_impl(it){
       const s = st[i];
       s.vy -= 9*dt;
       s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
-      // ⚠️ ширина по НАПРАВЛЕНИЮ: на витрине контейнер прямоугольный, и
-      // отскок по среднему радиусу пускал бы искры сквозь тонкие грани
-      const d = Math.hypot(s.x, s.z);
-      const R = wallDistAt(s.y, d > 1e-3 ? s.x/d : 1, d > 1e-3 ? s.z/d : 0) - 0.15;
+      const R = radiusAt(s.y) - 0.15, d = Math.hypot(s.x, s.z);
       if (d > R && s.bounced < SPARK_BOUNCE_MAX){
         const nx = s.x/d, nz = s.z/d, vn = s.vx*nx + s.vz*nz;
         s.vx -= 2*vn*nx*SPARK_BOUNCE; s.vz -= 2*vn*nz*SPARK_BOUNCE;

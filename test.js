@@ -1282,7 +1282,7 @@ page.on('response', (r) => {
       // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
       // не подсовыванием поля в сейв.
     g.boostGrantForSurprise();
-    if (g.levelNum() < 11) g.setLevel(11); });
+    if (g.levelNum() < 10) g.setLevel(10); });
   const lvlBefore = await page.evaluate(() => window.__game.levelNum());
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); window.__game.level().finalRefillDone = true; /* докидка (v234) здесь чужая: сценарий ждёт финал-помола одиночек */ window.__game.leaveSingles(); });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
@@ -1797,20 +1797,17 @@ page.on('response', (r) => {
   });
   expect(unlockBuyProbe.wasUnlocked === false && unlockBuyProbe.price === 1000,
     'ур.1: цена открытия 1000 = BASE 800 + PER_LEVEL 200·1 (' + unlockBuyProbe.price + ')');
-  // #9 МАТРИЦА: цена ЗАВИСИТ от уровня (не флэт). Проверяем L1/L11/L51.
-  // ⚠️ ТОЧКИ ПЕРЕЕХАЛИ С 10/50 НА 11/51 (2026-08-17): кратные десяти уровни
-  // стали БОНУСНЫМИ, а `regen()` на них строит другую кучу. Числа пересчитаны
-  // по той же формуле BASE 800 + 200·уровень, само утверждение не тронуто.
+  // #9 МАТРИЦА: цена ЗАВИСИТ от уровня (не флэт). Проверяем L1/L10/L50.
   const unlockMatrixProbe = await page.evaluate(() => {
     const g = window.__game;
     const pick = () => { const s = g.accSnapshot(); const c = s.find((r, i) => i >= 20 && !r.unlocked); return c ? c.key : null; };
     g.setLevel(1);  g.regen(); g.skipIntro(); const p1  = g.typeUnlockPrice(pick());
-    g.setLevel(11); g.regen(); g.skipIntro(); const p11 = g.typeUnlockPrice(pick());
-    g.setLevel(51); g.regen(); g.skipIntro(); const p51 = g.typeUnlockPrice(pick());
-    return { p1, p11, p51 };
+    g.setLevel(10); g.regen(); g.skipIntro(); const p10 = g.typeUnlockPrice(pick());
+    g.setLevel(50); g.regen(); g.skipIntro(); const p50 = g.typeUnlockPrice(pick());
+    return { p1, p10, p50 };
   });
-  expect(unlockMatrixProbe.p1 === 1000 && unlockMatrixProbe.p11 === 3000 && unlockMatrixProbe.p51 === 11000,
-    'матрица цены по уровню: L1=1000 L11=3000 L51=11000 (' + JSON.stringify(unlockMatrixProbe) + ')');
+  expect(unlockMatrixProbe.p1 === 1000 && unlockMatrixProbe.p10 === 2800 && unlockMatrixProbe.p50 === 10800,
+    'матрица цены по уровню: L1=1000 L10=2800 L50=10800 (' + JSON.stringify(unlockMatrixProbe) + ')');
   expect(unlockBuyProbe.buy.ok && unlockBuyProbe.nowUnlocked === true,
     'покупка открыла тип (' + unlockBuyProbe.key + ')');
   expect(unlockBuyProbe.bought === true && unlockBuyProbe.snapUnlocked === true,
@@ -2452,7 +2449,7 @@ window.bridge = {
   // страж и код разъедутся при следующей правке потолка.
   const refillTop = await page.evaluate(async () => {
     const g = window.__game;
-    g.setLevel(41); g.regen(); g.skipIntro();
+    g.setLevel(40); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 700));
     const before = g.alive();
     g.leaveSingles();
@@ -3855,7 +3852,7 @@ window.bridge = {
       // наличие рыбки. Даём предпосылку ЧЕСТНЫМ путём (заработок → покупка), а
       // не подсовыванием поля в сейв.
     g.boostGrantForSurprise();
-    if (g.levelNum() < 11) g.setLevel(11);
+    if (g.levelNum() < 10) g.setLevel(10);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum() };
@@ -3868,7 +3865,7 @@ window.bridge = {
     const g = window.__game;
     g.buyBundle('bundle2');                        // x2
     g.boostGrantForSurprise();                     // предпосылка клада
-    if (g.levelNum() < 11) g.setLevel(11);
+    if (g.levelNum() < 10) g.setLevel(10);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // докидка чужая (v234)
     g.leaveSingles();
     return { lv: g.levelNum(), mult: g.scoreBoostMult() };
@@ -4068,7 +4065,7 @@ window.bridge = {
   // Радиус загоняем в −9 (документированный приём форса «пар нет»), уровень
   // берём 10-й: на 1-м штрафов нет вовсе, на 2-5 счёт клампится нулём — там
   // ассерт был бы зелёным по чужой причине.
-  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
   const npRad = await page.evaluate(() => window.__game.cfg.baseRadius);
   await page.evaluate(() => { window.__game.cfg.baseRadius = -9; });
@@ -4097,12 +4094,7 @@ window.bridge = {
     const g = window.__game;
     const at = (lv) => { g.setLevel(lv); g.regen(); g.skipIntro();
                          return Object.keys(g.typesSnapshot()); };
-    // ⚠️ 20 -> 21 и 160 -> 161 (2026-08-17): кратные десяти уровни стали
-    // ВИТРИНОЙ, а там потолок в 5 видов — последний тип не спавнится ПО
-    // ПОТОЛКУ, и страж хвоста падал бы на исправной сборке. Заодно `tail20`
-    // перестал бы что-либо утверждать: на витрине его типа нет при любой
-    // реализации. Утверждения не тронуты, сместились только точки.
-    const lv20 = at(21);
+    const lv20 = at(20);
     // ⚠️ УРОВЕНЬ ПОЛНОГО ОТКРЫТИЯ ПЛАВАЕТ С ЧИСЛОМ ТИПОВ (берём 160 с запасом),
     // а с v181 состав кучи на высоких уровнях ещё и СЛУЧАЕН: спавн выбирает
     // 90 из ~122 открытых Фишер-Йетсом. Один реген содержит конкретный тип с
@@ -4114,7 +4106,7 @@ window.bridge = {
     const seen = new Set(); let regens = 0;
     for (let k = 0; k < 6; k++){
       regens++;
-      for (const n of at(161)) seen.add(n);
+      for (const n of at(160)) seen.add(n);
       if (seen.has('forestplant') && seen.has('survivalfish')) break;
     }
     return {
@@ -4139,9 +4131,9 @@ window.bridge = {
   // — берутся все открытые), поэтому проверка без регенов честная.
   const mixProbe = await page.evaluate(() => {
     const g = window.__game;
-    g.setLevel(21); g.regen(); g.skipIntro();
+    g.setLevel(20); g.regen(); g.skipIntro();
     const n20 = Object.keys(g.typesSnapshot());
-    g.setLevel(11); g.regen(); g.skipIntro();
+    g.setLevel(10); g.regen(); g.skipIntro();
     const n10 = Object.keys(g.typesSnapshot());
     // ⚠️⚠️ СЕНТИНЕЛЫ ПЕРЕСМОТРЕНЫ 2026-08-15 ПО ФАКТИЧЕСКОМУ СОСТАВУ. Прежний
     // `holidayhanukkahdreidel` вырезан владельцем (партия из 32 типов), а моя
@@ -4174,7 +4166,7 @@ window.bridge = {
   // ⚠️ СТРАЖ ДЕТЕРМИНИРОВАННЫЙ, и иначе нельзя: сам провал стохастичен (в
   // стрессе он выпадал в 2 циклах из 28), ассерт «после взрыва никто не под
   // полом» на чистой базе зелен в 26 прогонах из 28 и механику НЕ проверяет.
-  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(10); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
   const floorGuard = await page.evaluate(() => {
     const g = window.__game;
@@ -4659,7 +4651,7 @@ window.bridge = {
     // порог ступени, и веха К2 была бы «уже выполнена» до всякого гранта —
     // тест мерил бы не триггер, а историю прогона.
     g.storyClearAcc(); g.clearBought();   // и накопления, и КУПЛЕННЫЕ ступени
-    g.setLevel(21); g.regen(); g.skipIntro();
+    g.setLevel(20); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     // ⚠️ Закрывать панель ТОЛЬКО штатным путём: снос узла напрямую оставлял
     // внутренний флаг занятости взведённым, и следующая глава не открывалась.
@@ -5745,10 +5737,7 @@ window.bridge = {
   const sizes = await page.evaluate(async () => {
     const g = window.__game, out = [];
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    // ⚠️ 20-й ЗАМЕНЁН НА 21-й (2026-08-17): кратные десяти уровни стали
-    // БОНУСНЫМИ, там 260 предметов вместо 183, и «плато с 11-го» на них
-    // не про эту механику. Утверждение не тронуто, сместилась только точка.
-    for (const lv of [1, 5, 11, 21]){
+    for (const lv of [1, 5, 11, 20]){
       g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(900);
       out.push({ lv, n: g.alive() });
     }
@@ -5958,7 +5947,7 @@ window.bridge = {
       // порог ступени мог быть уже пройден в прошлых секциях, событие не
       // приходило, и страж читал «не показан» на исправной сборке.
       g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
-      g.setLevel(21); g.regen(); g.skipIntro(); await sleep(500);
+      g.setLevel(20); g.regen(); g.skipIntro(); await sleep(500);
       const mt = document.getElementById('multToast');
       const tt = document.getElementById('tierToast');
       mt.classList.remove('on', 'up');
@@ -6366,7 +6355,7 @@ window.bridge = {
   const mtToast = await page.evaluate(async () => {
     const g = window.__game;
     g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
-    g.setLevel(21); g.regen(); g.skipIntro();
+    g.setLevel(20); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
     const live = g.accSnapshot().find(r => r._item);
     if (!live) return { skipped: true };
@@ -6799,7 +6788,7 @@ window.bridge = {
   await bowlVisPage.evaluate(() => { const g = window.__game;
     // предпосылка клада (см. выше): без неё «клад летит со всеми» мерил бы пустоту
     g.boostGrantForSurprise();
-    if (g.levelNum() < 11) g.setLevel(11); g.regen(); });
+    if (g.levelNum() < 10) g.setLevel(10); g.regen(); });
   await bowlVisPage.evaluate(() => window.__game.skipIntro());
   await new Promise(r => setTimeout(r, 900));
   const чаша = await bowlVisPage.evaluate(async () => {
@@ -9131,307 +9120,6 @@ window.bridge = {
     expect(typeof л.остаток === 'number' && Math.abs((сумма + л.остаток) - л.step) < 0.5,
       'ПРИБОР ШАГА: колонка остатка сходится с итогом (сумма ' + сумма.toFixed(1) +
       ' + остаток ' + л.остаток + ' = step ' + л.step + ')');
-    await page.close();
-  }
-
-
-  // ===== БОНУСНЫЙ УРОВЕНЬ — ВИТРИНА (спека 2026-08-15 + переделка 2026-08-17) =====
-  // ⚠️ СВОЯ СТРАНИЦА И КОНЕЦ ФАЙЛА — как у камней и меню: секция гоняет уровни
-  // 10/11/20/21, ставит сцены `cull`-ом и двигает часы, то есть меняет контекст
-  // для любого соседа. Уровень возвращается в конце (правило секции бомбы).
-  // ⚠️⚠️ ВСЯ СЕКЦИЯ ИДЁТ НА HARD. Доступность на витрине — ЦЕНТРАЛЬНАЯ механика
-  // раскладки (перекрытие спереди), а на Easy `isAccessible` выходит первой
-  // строкой и не исполняет её вовсе. Ровно на этом слепом пятне был пропущен
-  // сенсорный дефект: три зелёные пробы подряд не трогали сломанную ветку.
-  {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    await page.goto('file://' + PAGE_FILE);
-    await page.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
-    await page.evaluate(() => { window.__game.cfg.hard = true; });
-    const инфо = () => page.evaluate(() => window.__game.bonusInfo());
-    const наУровень = async (l) => {
-      await page.evaluate(l => { window.__game.setLevel(l); window.__game.regen(); window.__game.skipIntro(); }, l);
-      await page.waitForFunction(() => window.__game.level().aliveN0 > 0, null, { timeout: 40000 });
-      await page.evaluate(() => window.__game.forceRefresh());
-      await sleep(700);
-    };
-
-    // (1) ПЕРИОД — ДВУСТОРОННЕ, по ОБЕ стороны границы: ассерт «на 10-м бонус»
-    // одинаково зелен и у правила «каждый десятый», и у «начиная с десятого —
-    // всегда»; различает их только соседний обычный уровень.
-    await наУровень(10); const б10 = await инфо();
-    await наУровень(11); const б11 = await инфо();
-    await наУровень(20); const б20 = await инфо();
-    expect(б10.бонус === true && б11.бонус === false && б20.бонус === true,
-      'БОНУС ПО ПЕРИОДУ: 10 и 20 бонусные, 11 — обычный (10:' + б10.бонус +
-      ' 11:' + б11.бонус + ' 20:' + б20.бонус + ')');
-
-    // (2) ⚠️⚠️ СПЕЦПРЕДМЕТОВ НА ВИТРИНЕ НЕТ: пункт 5 требует, чтобы куча ушла
-    // ПАРАМИ до нуля, а сток (как и помол) спецпредметы не трогает — один клад
-    // повесил бы уровень навсегда. КОНТРОЛЬ в соседнем ассерте обязателен: без
-    // него проверка зелена и на сборке, где спецпредметов нет вовсе.
-    await наУровень(20);
-    const сп20 = await page.evaluate(() => window.__game.specialsCount());
-    await наУровень(21);
-    const сп21 = await page.evaluate(() => window.__game.specialsCount());
-    expect(сп20.всего === 0,
-      'ВИТРИНА БЕЗ СПЕЦПРЕДМЕТОВ (пункт 5: пары обязаны уйти до нуля): ' + JSON.stringify(сп20));
-    expect(сп21.всего > 0,
-      'КОНТРОЛЬ: на обычном 21-м спецпредметы ЕСТЬ — значит ассерт выше проверяет ' +
-      'гейт, а не пустой пул (' + JSON.stringify(сп21) + ')');
-
-    // (2-бис) ⚠️⚠️ ВИДОВ НА ВИТРИНЕ НЕ БОЛЬШЕ ПЯТИ (слово владельца 2026-08-17-в:
-    // «предметов на бонусном уровне должно быть не более 5, иначе очень сложно»).
-    // Число типов — главный рычаг сложности, и на стене из 260 предметов пара
-    // среди двух десятков видов теряется в шуме.
-    // ⚠️ КОНТРОЛЬ на соседнем обычном уровне обязателен: «видов <= 5» зелено и у
-    // сборки, где пул схлопнулся целиком. Плюс мерим СЛЕДСТВИЕ — доступные пары.
-    await наУровень(10);
-    const в10т = await page.evaluate(() => {
-      const g = window.__game.itemsGeo();
-      return { видов: new Set(g.map(i => i.name)).size, живых: g.length,
-               пар: window.__game.availablePairs() };
-    });
-    await наУровень(21);
-    const в21т = await page.evaluate(() => {
-      const g = window.__game.itemsGeo();
-      return { видов: new Set(g.map(i => i.name)).size, живых: g.length,
-               пар: window.__game.availablePairs() };
-    });
-    console.log('виды:', JSON.stringify({ витрина: в10т, обычный21: в21т }));
-    expect(в10т.видов > 0 && в10т.видов <= 5,
-      '⚠️⚠️ ВИТРИНА: видов не больше пяти (' + в10т.видов + ' на ' + в10т.живых + ' предметов)');
-    expect(в21т.видов > 5,
-      'КОНТРОЛЬ: на обычном 21-м видов БОЛЬШЕ пяти (' + в21т.видов + ') — значит ' +
-      'ассерт выше проверяет потолок витрины, а не схлопнувшийся пул');
-    expect(в10т.пар > в21т.пар,
-      'и СЛЕДСТВИЕ на месте: на витрине доступных пар больше, чем на обычном ' +
-      'уровне (' + в10т.пар + ' против ' + в21т.пар + ') — ради этого потолок и введён');
-    // ⚠️ ПОПОЛНЕНИЕ ОБЯЗАНО ДЕРЖАТЬ ТОТ ЖЕ ПОТОЛОК: оно читает level.typesCount,
-    // и если бы брало из всего открытого пула, витрина к середине партии
-    // расползлась бы обратно в два десятка видов.
-    await наУровень(10);
-    {
-      const s0 = await инфо();
-      await page.evaluate(n => window.__game.cull(n), Math.round(s0.живых - s0.старт*0.15));
-      await sleep(2500);
-      const п = await page.evaluate(() => ({ видов: new Set(window.__game.itemsGeo().map(i => i.name)).size,
-        живых: window.__game.alive(), n: window.__game.bonusInfo().пополнений }));
-      expect(п.n === 1 && п.видов > 0 && п.видов <= 5,
-        'ПОПОЛНЕНИЕ ДЕРЖИТ ПОТОЛОК ВИДОВ (' + п.видов + ' видов после досыпки, ' +
-        'живых ' + п.живых + ')');
-    }
-
-    // (3) ТРИ ПУНКТА ПЕРЕДЕЛКИ РАЗОМ, и каждый с обратной стороной на ур.11:
-    // 1) нет отсчёта до измельчения, 2) нет лопастей, 3) камера в профиль.
-    await наУровень(10); const в10 = await инфо();
-    await наУровень(11); const в11 = await инфо();
-    console.log('витрина:', JSON.stringify(в10), '| обычный:', JSON.stringify(в11));
-    expect(в10.таймерПоказан === false && в11.таймерПоказан === true,
-      '⚠️ ПУНКТ 1: на витрине отсчёта НЕТ, на обычном уровне он ЕСТЬ (' +
-      в10.таймерПоказан + ' / ' + в11.таймерПоказан + ')');
-    expect(в10.лопасти === false && в11.лопасти === true,
-      '⚠️ ПУНКТ 2: лопастей на витрине нет, на обычном уровне они есть (' +
-      в10.лопасти + ' / ' + в11.лопасти + ')');
-    expect(Math.abs(в10.камера.phi - Math.PI/2) < 0.01 && в11.камера.phi < 1.0,
-      '⚠️ ПУНКТ 3: камера витрины смотрит В ПРОФИЛЬ (phi ' + в10.камера.phi +
-      ' ≈ π/2), у обычного уровня — сверху (' + в11.камера.phi + ')');
-
-    // (3-бис) ⚠️⚠️ УРОВЕНЬ НЕ ВРАЩАЕТСЯ. Драг ведём НАСТОЯЩЕЙ мышью — снятие
-    // гейта проверяется поведением, а не флагом. Контроль на ур.11 обязателен:
-    // «камера не поехала» истинно и на сборке, где драг сломан вовсе.
-    const драг = async () => {
-      const до = (await инфо()).камера;
-      await page.mouse.move(195, 500); await page.mouse.down();
-      for (let k = 1; k <= 6; k++){ await page.mouse.move(195 + k*22, 500 - k*8); await sleep(16); }
-      await page.mouse.up(); await sleep(120);
-      const после = (await инфо()).камера;
-      return { дельтаAz: +Math.abs(после.az - до.az).toFixed(3),
-               дельтаPhi: +Math.abs(после.phi - до.phi).toFixed(3) };
-    };
-    await наУровень(10); const дрБонус = await драг();
-    await наУровень(11); const дрОбычн = await драг();
-    console.log('драг:', JSON.stringify({ витрина: дрБонус, обычный: дрОбычн }));
-    expect(дрБонус.дельтаAz < 0.005 && дрБонус.дельтаPhi < 0.005,
-      '⚠️⚠️ ПУНКТ 3: витрину НЕ ПОВЕРНУТЬ пальцем (' + JSON.stringify(дрБонус) + ')');
-    expect(дрОбычн.дельтаAz > 0.05,
-      'КОНТРОЛЬ: обычный уровень тем же драгом ПОВОРАЧИВАЕТСЯ — значит ассерт ' +
-      'выше проверяет гейт, а не сломанный ввод (' + JSON.stringify(дрОбычн) + ')');
-
-    // (3-тер) ⚠️⚠️ ЯЩИК = ВЬЮПОРТ (слово владельца 2026-08-17-б). Проверяем
-    // ПРОЕКЦИЕЙ, а не пикселями: пиксельная проба спорит с небом того же тона,
-    // а проекция отвечает на прямой вопрос «кромка ящика за краем кадра или
-    // внутри него». Берём ЗАДНЮЮ грань — она дальше всех, значит в кадре уже
-    // передней: закрыта она — закрыто всё.
-    // ⚠️ КОНТРОЛЬ обязателен: у ЧАШИ бока кадра НЕ закрыты, и без этой руки
-    // ассерт был бы зелен у реализации, которая «закрывает» всегда.
-    await наУровень(10); const кр10 = await page.evaluate(() => window.__game.boxInfo());
-    await наУровень(11); const кр11 = await page.evaluate(() => window.__game.boxInfo());
-    console.log('покрытие кадра:', JSON.stringify({ витрина: кр10, обычный: кр11 }));
-    expect(кр10.закрытКадр === true,
-      '⚠️⚠️ ЯЩИК ЗАКРЫВАЕТ КАДР: кромки задней грани уходят за края экрана (' +
-      кр10.кромкаЛев + ' .. ' + кр10.кромкаПрав + ', нужно <=-1 и >=1)');
-    expect(кр11.закрытКадр === false,
-      'КОНТРОЛЬ: у ЧАШИ бока кадра не закрыты (' + кр11.кромкаЛев + ' .. ' +
-      кр11.кромкаПрав + ') — значит ассерт выше проверяет подгонку, а не тавтологию');
-
-    // (3-кватер) ⚠️⚠️ РЕАКЦИЯ НА СМЕНУ ШИРИНЫ. Несущее правило: ЯЩИК ЗАМОРОЖЕН
-    // НА УРОВЕНЬ, отвечает ТОЛЬКО КАМЕРА. Поедь ширина ящика вслед за окном —
-    // формула разъехалась бы с ФАКТИЧЕСКИМИ стенами (их ставят на genLevel), и
-    // спасатель начал бы телепортировать здоровую кучу. Стережём оба признака:
-    // ширина НЕ изменилась, покрытие СОХРАНИЛОСЬ, спасатель молчит.
-    await наУровень(10);
-    const рДо = await page.evaluate(() => ({ б: window.__game.boxInfo(),
-      живых: window.__game.alive(), в: window.__game.maxWallExcess().excess }));
-    const ширины = [];
-    for (const w of [300, 520, 800]){
-      await page.setViewportSize({ width: w, height: 844 });
-      await sleep(600);
-      ширины.push(await page.evaluate(() => ({ w: innerWidth, б: window.__game.boxInfo(),
-        живых: window.__game.alive(), в: window.__game.maxWallExcess().excess })));
-    }
-    await page.setViewportSize({ width: 390, height: 844 });
-    await sleep(400);
-    console.log('ресайз:', JSON.stringify(ширины.map(r => ({ w: r.w, hx: r.б.hx,
-      camR: r.б.camR, закрыт: r.б.закрытКадр, живых: r.живых, в: r.в }))));
-    expect(ширины.every(r => Math.abs(r.б.hx - рДо.б.hx) < 0.001),
-      '⚠️⚠️ ЯЩИК ЗАМОРОЖЕН НА УРОВЕНЬ: ширина не поехала за окном (' +
-      рДо.б.hx + ' -> ' + ширины.map(r => r.б.hx).join('/') + ')');
-    expect(ширины.every(r => r.б.закрытКадр === true),
-      '⚠️ ПОКРЫТИЕ ДЕРЖИТСЯ ПРИ ЛЮБОЙ ШИРИНЕ — камера подъезжает (camR ' +
-      ширины.map(r => r.б.camR).join('/') + ')');
-    expect(ширины.every(r => r.живых === рДо.живых && Math.abs(r.в - рДо.в) < 0.05),
-      'и КУЧА НЕ ШЕЛОХНУЛАСЬ: ни предметов, ни выступа (' + рДо.живых + '/' +
-      рДо.в + ' -> ' + ширины.map(r => r.живых + '/' + r.в).join(' ') + ')');
-
-    // (4) ⚠️⚠️ ПРИЗРАК ПРОЗРАЧЕН ДЛЯ ЛУЧА ДОСТУПНОСТИ. Неактивный контейнер —
-    // СЕНСОР, а Rapier по умолчанию отдаёт попадания в сенсоры: без
-    // EXCLUDE_SENSORS призрачная стена «держит небо», и на Hard вся куча уходит
-    // под вуаль НА ОБЫЧНЫХ УРОВНЯХ. Это стоило шести красных в прошлом прогоне.
-    // ⚠️ ЗОНД ИДЁТ БОЕВОЙ ФУНКЦИЕЙ `skyCast` — свой каст со своим флагом
-    // проверял бы Rapier, а не нас. Контрольный каст (с видимыми сенсорами)
-    // в том же ассерте: без него «луч прошёл» истинно и там, где призрака нет.
-    // ⛔ ПРЕЖНЯЯ РЕДАКЦИЯ (доля доступных на ур.3) УМЕРЛА ВМЕСТЕ С КОВРОМ: её
-    // коридор был измерен против круглого «купола» на высоте 6.1; у ящика
-    // призрак другой формы, и замер дал перекрытие (здоровые 39.7-53.3% против
-    // сломанных 29.8-43.1%) — то есть страж молча ослеп бы.
-    await наУровень(11);
-    const зонд = await page.evaluate(() => window.__game.sensorProbe());
-    console.log('зонд призрака:', JSON.stringify(зонд));
-    expect(зонд.сПризраком < 8,
-      'САНИТАР: призрак ЕСТЬ на пути луча — контрольный каст упирается в него ' +
-      'на ' + зонд.сПризраком + ' (иначе зонд мерил бы пустоту)');
-    expect(зонд.сквозьПризрак > 8,
-      '⚠️⚠️ ПРИЗРАК ПРОЗРАЧЕН: боевой луч проходит сквозь него до настоящей ' +
-      'геометрии (' + зонд.сквозьПризрак + ' против ' + зонд.сПризраком + ' у контроля)');
-
-    // (5) ДОСТУПНОСТЬ НА ВИТРИНЕ ЖИВА И НЕ ВЫРОЖДЕНА. Перекрытие спереди должно
-    // давать ИГРАБЕЛЬНУЮ долю: не ноль (иначе серая витрина, ради чего лучи и
-    // заменены) и не всё подряд (иначе механика Hard выключена молча).
-    await наУровень(10);
-    const дост = await page.evaluate(() => ({ живых: window.__game.alive(),
-      доступных: window.__game.accessibleList().length, пар: window.__game.availablePairs() }));
-    const доля = дост.доступных / дост.живых;
-    console.log('доступность витрины (Hard):', JSON.stringify(дост), 'доля', (доля*100).toFixed(1)+'%');
-    expect(доля > 0.05 && доля < 0.75,
-      '⚠️ ВИТРИНА НА HARD ИГРАБЕЛЬНА: доступна осмысленная доля кучи, а не ноль ' +
-      'и не всё (' + дост.доступных + ' из ' + дост.живых + ' = ' + (доля*100).toFixed(1) + '%)');
-    expect(дост.пар > 0,
-      'и пары на витрине есть — уровень можно начать играть (' + дост.пар + ')');
-
-    // (6) КУЧУ ДЕРЖИТ ЯЩИК: центры внутри граней. ⚠️ Мерим ТУ ЖЕ величину, на
-    // которую реагирует спасатель (выход ЦЕНТРА за грань) — радиальная формула
-    // на ящике мешает оси и печатает бессмыслицу вроде `wall=1.49` для предмета
-    // в двух метрах от боковой стены.
-    await наУровень(10);
-    await page.evaluate(() => window.__game.shake());
-    await sleep(2500);
-    const ст10 = await page.evaluate(() => ({ w: window.__game.maxWallExcess(),
-      чаша: window.__game.bowlShardsInfo().стеклоВидно }));
-    await наУровень(11);
-    const ст11 = await page.evaluate(() => ({ w: window.__game.maxWallExcess(),
-      чаша: window.__game.bowlShardsInfo().стеклоВидно }));
-    console.log('контейнер:', JSON.stringify({ витрина: ст10, обычный: ст11 }));
-    expect(ст10.w.excess < 0,
-      'ВИТРИНА ДЕРЖИТ: центры предметов внутри граней ящика (выступ ' + ст10.w.excess + ')');
-    expect(ст11.w.walled === true && ст11.w.excess < 0.45,
-      'ОБРАТНО: на 11-м держат стены ЧАШИ (выступ ' + ст11.w.excess + ')');
-    expect(ст10.чаша === false && ст11.чаша === true,
-      'ЧАШИ НА ВИТРИНЕ НЕТ, А НА СЛЕДУЮЩЕМ УРОВНЕ ОНА ВЕРНУЛАСЬ (10:' +
-      ст10.чаша + ' 11:' + ст11.чаша + ')');
-
-    // (7) ⚠️⚠️ ЧАСЫ ПЕРЕЖИВАЮТ ПАУЗУ. Без этого повторяется баг 2026-08-12
-    // («на паузе таймер игры не останавливается»): 60 секунд истекли бы, пока
-    // игрок читает меню, и он вернулся бы прямо в сток. Показа таймера больше
-    // нет, но МЕХАНИКА жива — её и стережём.
-    // ⚠️ Читаем ПОСЛЕ resume: якорь сдвигается именно в `resumeGame`, и первая
-    // редакция, снимавшая остаток внутри паузы, краснела на ИСПРАВНОЙ сборке.
-    await наУровень(10);
-    await page.evaluate(() => { window.__game.bonusSetLeft(30); window.__game.pause(true); });
-    await sleep(2200);
-    await page.evaluate(() => { window.__game.resume(); });
-    const пОст = await page.evaluate(() => window.__game.bonusInfo().осталось);
-    expect(пОст > 29,
-      '⚠️⚠️ ПАУЗА НЕ ЕСТ ВРЕМЯ ВИТРИНЫ: после 2.2 с паузы осталось ' + пОст + ' с из 30');
-
-    // (8) ПРОСТОЙ НЕ НАКАЗЫВАЕТСЯ: наказание за простой — механика ЧАШИ, а
-    // здесь конец назначает таймер. Ждём 6 с — втрое дольше периода помола.
-    await наУровень(10);
-    const жив0 = await page.evaluate(() => window.__game.alive());
-    await sleep(6000);
-    const жив1 = await page.evaluate(() => window.__game.alive());
-    expect(жив1 === жив0,
-      'ВИТРИНА: простой не съедает кучу (было ' + жив0 + ', стало ' + жив1 + ')');
-
-    // (9) ПОПОЛНЕНИЕ (пункт 4): при <20% от старта доводит до 50%, РОВНО ДВА
-    // раза. ⚠️ Третий срез обязателен — «не больше двух» без него зелено и у
-    // реализации, которая пополняет бесконечно.
-    await наУровень(10);
-    const срезать = async (доля) => {
-      const s = await инфо();
-      await page.evaluate(n => window.__game.cull(n), Math.round(s.живых - s.старт*доля));
-      await sleep(2500);
-      return инфо();
-    };
-    const п1 = await срезать(0.15);
-    const п2 = await срезать(0.15);
-    const п3 = await срезать(0.15);
-    console.log('пополнения:', JSON.stringify([п1, п2, п3].map(x => ({ n: x.пополнений, ж: x.живых }))));
-    const цель = Math.round(п1.старт * 0.5);
-    expect(п1.пополнений === 1 && Math.abs(п1.живых - цель) <= 2,
-      'ПОПОЛНЕНИЕ №1 довело кучу до 50% старта (' + п1.живых + ' при цели ' + цель + ')');
-    expect(п2.пополнений === 2 && Math.abs(п2.живых - цель) <= 2,
-      'ПОПОЛНЕНИЕ №2 — тоже до 50% (' + п2.живых + ')');
-    expect(п3.пополнений === 2 && п3.живых < цель / 2,
-      '⚠️⚠️ ТРЕТЬЕГО ПОПОЛНЕНИЯ НЕТ (счётчик ' + п3.пополнений + ', живых ' + п3.живых + ')');
-
-    // (10) СТОК (пункт 5): пара в секунду, очки списываются, уровень кончается.
-    // ⚠️ ПОРЯДОК НЕСУЩИЙ: СНАЧАЛА истекает время, ПОТОМ срезаем кучу. Первая
-    // редакция резала при живом таймере и САМА вызывала пополнение — сток не
-    // успевал, и страж краснел на исправной механике.
-    await наУровень(10);
-    await page.evaluate(() => window.__game.bonusExpire());
-    await page.evaluate(() => { window.__game.cull(window.__game.alive() - 12); });
-    await sleep(600);
-    const до = await page.evaluate(() => ({ живых: window.__game.alive(), очки: window.__game.stats().score }));
-    await sleep(3400);
-    const серед = await page.evaluate(() => window.__game.alive());
-    const кончился = await page.waitForFunction(() => window.__game.level().over === true, null, { timeout: 25000 })
-      .then(() => true).catch(() => false);
-    const после = await page.evaluate(() => ({ живых: window.__game.alive(), очки: window.__game.stats().score }));
-    console.log('сток:', JSON.stringify({ до, серед, после, кончился }));
-    expect(до.живых - серед >= 4 && до.живых - серед <= 8,
-      'СТОК ИДЁТ ПАРОЙ В СЕКУНДУ: за 3.4 с ушло ' + (до.живых - серед) + ' из ' + до.живых);
-    expect(кончился === true && после.живых === 0,
-      '⚠️⚠️ «ПОКА НЕ ИСЧЕЗНУТ ВСЕ»: сток довёл кучу до нуля и закрыл уровень (' +
-      после.живых + ' живых, over=' + кончился + ')');
-    expect(после.очки < до.очки,
-      'СТОК СПИСЫВАЕТ ОЧКИ, как помол (' + до.очки + ' -> ' + после.очки + ')');
-
-    // ⚠️ ВОЗВРАЩАЕМ УРОВЕНЬ И СЛОЖНОСТЬ (правило секции бомбы: секция, поднявшая
-    // уровень, обязана вернуть его на месте, а не надеяться, что соседи переживут).
-    await page.evaluate(() => { window.__game.cfg.hard = false; window.__game.setLevel(1); });
     await page.close();
   }
 
