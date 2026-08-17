@@ -7589,7 +7589,32 @@ window.bridge = {
                       ? Math.round(стрелка.getBoundingClientRect().left - avs.getBoundingClientRect().right) : null,
                     видимыхАватаров:Array.prototype.filter.call(
                       document.querySelectorAll('#msLbeAvs > *'),
-                      i => i.getBoundingClientRect().width > 0).length };
+                      i => i.getBoundingClientRect().width > 0).length,
+                    // ⚠️ ОБЪЕДИНЁННАЯ КАРТОЧКА (слово владельца 2026-08-17):
+                    // профиль и вход — ОДИН блок с разделителем, как на десктопе.
+                    карточка: (function (){
+                      const к = document.querySelector('.ms-card');
+                      if (!к) return null;
+                      const c = getComputedStyle(к), rк = к.getBoundingClientRect();
+                      const ш = document.querySelector('.ms-head').getBoundingClientRect();
+                      const в = document.getElementById('msLbEntry').getBoundingClientRect();
+                      const сеп = document.querySelector('.ms-card-sep');
+                      const rс = сеп ? сеп.getBoundingClientRect() : null;
+                      const и = document.querySelector('.ms-play').getBoundingClientRect();
+                      return { показ:c.display, фон:c.backgroundColor,
+                        // ⚠️ ОБА РЯДА ВНУТРИ — это и есть «объединены»; геометрия,
+                        // а не наличие класса: класс есть и у растворённой обёртки.
+                        обаВнутри: ш.top >= rк.top - 1 && ш.bottom <= rк.bottom + 1 &&
+                                   в.top >= rк.top - 1 && в.bottom <= rк.bottom + 1,
+                        профильВышеВхода: ш.bottom <= в.top + 1,
+                        надИгрой: rк.bottom <= и.top + 1,
+                        разделитель: (сеп && getComputedStyle(сеп).display !== 'none')
+                          ? Math.round(rс.width) : 0,
+                        // своя пилюля у рядов снята — иначе белое на белом с двойным паддингом
+                        фонРядов: getComputedStyle(document.querySelector('.ms-head')).backgroundColor +
+                                  '|' + getComputedStyle(document.getElementById('msLbEntry')).backgroundColor,
+                        внутрШирина: Math.round(rк.width - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight)) };
+                    })() };
       { const p = document.querySelector('.ms-play'); if (p) p.click(); }
       await sleep(250);
       return out;
@@ -7613,6 +7638,24 @@ window.bridge = {
   // и 4, и это не разнобой, а арифметика: макетные 40/2 там не помещаются, не
   // хватает СЕМИ пикселей (замер в комментарии у медиазапроса). Утверждаем ОБЕ
   // ширины сразу — иначе правка одной прошла бы молча.
+  // ⚠️⚠️ ОБЪЕДИНЁННАЯ КАРТОЧКА НА МОБИЛЬНОМ (слово владельца 2026-08-17:
+  // «объедини блок с очками и блок с лидербордом так же, как на десктопе»).
+  // ⛔ Прежде `.ms-card` на мобильном была РАСТВОРЕНА (`display:contents`), и
+  // профиль с входом жили ДВУМЯ отдельными пилюлями. Возврат к этому — ровно
+  // отмена просьбы владельца, и без стража он прошёл бы молча.
+  // ⚠️ МЕРИМ ГЕОМЕТРИЮ, А НЕ НАЛИЧИЕ КЛАССА: класс `.ms-card` есть и у
+  // растворённой обёртки, поэтому «карточка есть» по классу — тавтология.
+  // Признак объединения — оба ряда ВНУТРИ её рамки и видимый разделитель.
+  // ⚠️ И «свои пилюли сняты»: без этого вышло бы белое на белом с двойным
+  // паддингом, то есть две пилюли внутри третьей.
+  for (const [имя, м] of [['390', узкий], ['320', тесно]]) {
+    expect(!!м.карточка && м.карточка.показ !== 'contents' && м.карточка.обаВнутри &&
+           м.карточка.профильВышеВхода && м.карточка.надИгрой &&
+           м.карточка.разделитель === м.карточка.внутрШирина &&
+           м.карточка.фонРядов === 'rgba(0, 0, 0, 0)|rgba(0, 0, 0, 0)',
+      '⚠️⚠️ МЕНЮ ' + имя + ': профиль и таблица В ОДНОЙ карточке с разделителем ' +
+      'во всю её ширину, свои пилюли сняты (' + JSON.stringify(м.карточка) + ')');
+  }
   expect(узкий.зазорАв === 2 && тесно.зазорАв === 4,
     '⚠️ ТОЧКА ВХОДА: зазор аватаров 2 по макету на 390 и 4 на тесной 320 (390 → ' +
     узкий.зазорАв + ', 320 → ' + тесно.зазорАв + ')');
