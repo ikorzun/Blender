@@ -1118,8 +1118,13 @@ function scorePopScreen(text, px, py, color, big){
   // ЕДИНЫЙ МЕХАНИЗМ КОНТУРА (правка ИНТЕРФЕЙСА по прямому указанию
   // владельца 2026-07-21-в): текст — SVG-<text> класса .otext, как весь
   // обведённый текст HUD; div остаётся ради позиции и анимации полёта.
-  // Параметр color сохранён в API, но не применяется: попы всегда белые
-  // с чёрной обводкой (спека владельца).
+  // ⚠️⚠️ ПАРАМЕТР `color` СНОВА РАБОТАЕТ (слово владельца 2026-08-17: «сделай у
+  // очков при совмещении разные яркие обводки, а не только чёрную»). ⛔ ЭТО
+  // ОТМЕНЯЕТ спеку 2026-07-19 «попы всегда белые с ЧЁРНОЙ обводкой»: заливка
+  // осталась белой, чёрной осталась только ДЕФОЛТНАЯ обводка в CSS.
+  // ⚠️ Проводка не заводилась заново — цвета уже передавались КАЖДЫМ вызовом и
+  // уже подобраны по смыслу события (комбо оранжевый, огонь алый, штраф
+  // красный); всё это время они просто не доезжали до пикселей.
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'otext');
   // ⚠️ ХОЛСТ УДВОЕН ВМЕСТЕ С КЕГЛЕМ (слово владельца 2026-08-17 «×2»): при
@@ -1129,11 +1134,49 @@ function scorePopScreen(text, px, py, color, big){
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
   t.setAttribute('x', '260'); t.setAttribute('y', '60');
   t.setAttribute('text-anchor', 'middle');
+  if (color) t.style.setProperty('--otl-color', color);
   t.textContent = text;
   svg.appendChild(t); el.appendChild(svg);
   document.body.appendChild(el);
   requestAnimationFrame(()=>el.classList.add('fly'));
   setTimeout(()=>el.remove(), 1100);
+}
+// ЦВЕТ ОБВОДКИ ПОПА ИЗ САМОГО ПРЕДМЕТА (слово владельца «разные яркие»).
+// ⚠️⚠️ ДЕТЕРМИНИРОВАННО ОТ ТИПА, А НЕ СЛУЧАЙНО — правило канона: один предмет
+// обязан давать ОДНУ обводку, тогда это читается его СВОЙСТВОМ; случайный цвет
+// читается глитчем (на этом уже обжигались с семейством кольца удара).
+// Берём `fxColor` — тот же цвет, которым сыплется труха этого типа.
+// ⚠️⚠️ «ЯРКО» ЗДЕСЬ ЗНАЧИТ НАСЫЩЕННО, А НЕ СВЕТЛО: заливка цифры БЕЛАЯ, и
+// светлая обводка перестала бы её отделять — тот же закон, по которому кольцо
+// удара и молнии обязаны быть насыщенными, а не белёсыми.
+// ⚠️⚠️ ЗАЖИМ ПО ИЗМЕРЕННОЙ ЯРКОСТИ, А НЕ ПО СВЕТЛОТЕ HSL — И ЭТО НЕСУЩЕЕ.
+// Первая версия капала `l <= 0.45` и дала у ЖЁЛТЫХ (лимон, банан, пчела)
+// контраст белой цифры 1.64:1 при медиане 4.01: при равной светлоте HSL жёлтый
+// физически ярче синего почти впятеро (веса 0.2126/0.7152/0.0722). Светлота —
+// не яркость, и подгонять надо ту величину, которую видит глаз.
+// Порог 3:1 — тот же пол, что у контраста HUD к небу (текст крупный, 38px).
+const POP_OTL_MIN_RATIO = 3.0;
+const POP_OTL_S_MIN = 0.75;
+const POP_OTL_L_MIN = 0.10;      // ниже уже чёрное, оттенок перестаёт читаться
+const _popOtl = new THREE.Color();
+function popOtlLum(c){ // относительная яркость sRGB (WCAG)
+  const f = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+function popOutlineColor(item){
+  if (item && item.fxColor) _popOtl.copy(item.fxColor).convertLinearToSRGB();
+  else _popOtl.set('#3e63dd');                       // прежний цвет обычного слияния
+  const hsl = {}; _popOtl.getHSL(hsl);
+  let l = hsl.l, s = Math.max(POP_OTL_S_MIN, hsl.s);
+  // цель: (1.05) / (яркость + 0.05) >= 3  =>  яркость <= 0.30
+  const цель = 1.05 / POP_OTL_MIN_RATIO - 0.05;
+  for (let i = 0; i < 24 && l > POP_OTL_L_MIN; i++){
+    _popOtl.setHSL(hsl.h, s, l);
+    if (popOtlLum(_popOtl) <= цель) break;
+    l -= 0.02;
+  }
+  _popOtl.setHSL(hsl.h, s, Math.max(POP_OTL_L_MIN, l));
+  return '#' + _popOtl.getHexString();
 }
 function scorePop(text, worldPos, color, big){
   const rect = canvas.getBoundingClientRect();

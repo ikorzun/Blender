@@ -210,7 +210,10 @@ function doMatch(list){
     tapWaveMs += performance.now() - _tw0; }
   // цифра — деноминированный прирост чипа (#10: «понятно и в процессе»);
   // множитель ×(n−1) остаётся как ярлык (не очки)
-  scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : '#3e63dd', false);
+  // ⚠️ ОБВОДКА ЦИФРЫ — ЦВЕТ САМОГО СОВМЕЩЁННОГО ПРЕДМЕТА (слово владельца
+  // 2026-08-17 «разные яркие обводки»). В комбо остаётся оранжевая: это
+  // существующий сигнал состояния, и он важнее разнообразия.
+  scorePop('+' + shownGain, mid, comboHot ? '#ff9d2e' : popOutlineColor(list[0]), false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
   if (fireHot) scorePop('Fire ×' + FIRE_BONUS_MULT + '!', mid.clone().add(new THREE.Vector3(0, 1.8, 0)), '#ff5a3c', true);
   tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков

@@ -61,7 +61,13 @@ const GLASS_T = 0.26; // толщина стекла
 // Лопасти миксера на дне (визуальные; предметы лежат выше FLOOR_REST)
 const mixerBlades = new THREE.Group();
 (function buildBlades(){
-  const metal = new THREE.MeshStandardMaterial({ color:0x6f7884, metalness:1, roughness:0.25 });
+  // ⚠️ ЛОПАСТИ — МАТЧЕП ВЛАДЕЛЬЦА «metall.png» (слово 2026-08-17 «примерь этот
+  // материал на лопасти миксера»). Прежний MeshStandard c metalness:1 отражал
+  // софтбокс-окружение и на светлом фоне читался плоско-серым; матчеп даёт
+  // металл, не зависящий ни от света, ни от ракурса, — тот же довод, по
+  // которому на матчепы переведены все предметы (решение владельца 2026-07-20).
+  // ⚠️ СТУПИЦА ОСТАЛАСЬ ТЁМНОЙ (`dark`): владелец сказал «на лопасти».
+  const metal = new THREE.MeshMatcapMaterial({ color:0xffffff, matcap: metalMatcapTex() });
   const dark = new THREE.MeshStandardMaterial({ color:0x2c313a, metalness:0.6, roughness:0.5 });
   const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.42, 16), dark);
   hub.position.y = 0.21; mixerBlades.add(hub);
