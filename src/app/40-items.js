@@ -197,59 +197,22 @@ function makeSurprise(spawn){
 // поведение — зона ФИЗИКИ по правилу 9, здесь только фабрика). Тело — живая
 // ветка 'ball' в 50-physics (как сюрприз ходит через 'surprisehull').
 // ПЕРЕЛИВАЮЩАЯСЯ БОМБА (спека владельца 2026-07-23 «сделай переливающейся»).
-// three r149 не умеет MeshPhysicalMaterial.iridescence (r150+, а UMD-сборку
-// выше r160 не поднять) — печём СОБСТВЕННЫЙ радужный matcap и вешаем плоский
-// MeshMatcapMaterial. Matcap = лукап по нормали В ПРОСТРАНСТВЕ КАМЕРЫ: пока шар
-// катается/крутится в чаше, нормали скользят по текстуре и радужные полосы
-// «переливаются» сами, без света и без onBeforeCompile-патча. Тёмная жемчужная
-// сердцевина + тонкоплёночная радуга к кромке + узкая искра. Своя текстура
-// (не makeMatcap — тот печёт СЕРУЮ шкалу «яркость+спек-в-альфе», а тут нужен
-// ЦВЕТ прямо в текселях); кэш один на все бомбы.
-let _bombMatcap = null;
-function bombMatcap(){
-  if (_bombMatcap) return _bombMatcap;
-  const S = 128, data = new Uint8Array(S * S * 4);
-  // ключевой свет — тот же верх-слева-спереди, что у matcap (10-stage), чтобы
-  // искра бомбы легла согласованно с бликами остальной кучи
-  const Lx = -0.36, Ly = 0.60, Lz = 0.72, hl = Math.hypot(Lx, Ly, Lz + 1);
-  const Hx = Lx / hl, Hy = Ly / hl, Hz = (Lz + 1) / hl;
-  const col = new THREE.Color();
-  for (let y = 0; y < S; y++){
-    for (let x = 0; x < S; x++){
-      let nx = (x + 0.5) / S * 2 - 1, ny = 1 - (y + 0.5) / S * 2;
-      const r2 = nx * nx + ny * ny;
-      if (r2 > 1){ const k = 1 / Math.sqrt(r2); nx *= k; ny *= k; }
-      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, r2)));
-      const f = 1 - nz;                          // френель: 0 в центре, 1 к кромке
-      const ang = Math.atan2(ny, nx);            // угол вокруг диска
-      // тонкоплёночный hue бежит и по радиусу, и по углу — двойной градиент
-      // даёт «масляные разводы», а не ровные кольца
-      let hue = (f * 2.15 + ang / (Math.PI * 2) + 0.03) % 1; if (hue < 0) hue += 1;
-      col.setHSL(hue, 0.9, 0.53);               // сочная полоса цвета (sRGB, текстура помечена sRGB)
-      // конверт яркости: тёмная сердцевина, перелив крепнет к силуэту
-      const band = 0.16 + 0.84 * Math.pow(f, 1.35);
-      const base = 0.04;                         // почти-чёрная жемчужная база
-      const sp = Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), 70) * 0.7; // узкая резкая искра
-      const i = (y * S + x) * 4;
-      data[i]     = Math.min(255, (base + col.r * band * 0.85 + sp) * 255) | 0;
-      data[i + 1] = Math.min(255, (base + col.g * band * 0.85 + sp) * 255) | 0;
-      data[i + 2] = Math.min(255, (base + col.b * band * 0.92 + sp) * 255) | 0;
-      data[i + 3] = 255;
-    }
-  }
-  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
-  tex.encoding = THREE.sRGBEncoding;
-  tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
-  tex.needsUpdate = true;
-  _bombMatcap = tex;
-  return tex;
-}
+// ⛔⛔ ЗДЕСЬ ПЁКСЯ ПРОЦЕДУРНЫЙ РАДУЖНЫЙ МАТЧЕП БОМБЫ (`bombMatcap`, ~40 строк:
+// френель + тонкоплёночный hue по радиусу и углу + узкая искра). СНЯТ 2026-08-17
+// по слову владельца «возьми для бомбы» вместе с его картинкой — теперь матчеп
+// приезжает из `07-matcap-bomb.js` (`bombMatcapTex`).
+// ⚠️ ПРИЧИНА, ПО КОТОРОЙ ОН ВООБЩЕ БЫЛ, НЕ ИСЧЕЗЛА: three r149 не умеет
+// `MeshPhysicalMaterial.iridescence` (r150+, а UMD выше r160 не поднять), и
+// перелив по-прежнему живёт ТЕКСТУРОЙ, а не материалом. Захочется вернуть
+// процедурный — `git revert`, код цел в истории.
+// ⚠️ Сам приём не изменился: matcap = лукап по нормали В ПРОСТРАНСТВЕ КАМЕРЫ,
+// поэтому при качении шара картинка «плывёт» сама, без света и без патча.
 function makeBomb(){
   if (!geoCache.has('B')) geoCache.set('B', new THREE.SphereGeometry(0.95, 28, 20));
   // переливающийся: радужный matcap (bombMatcap), лукап по нормали в
   // пространстве камеры — при качении шара разводы «плывут». Плоский
   // MeshMatcapMaterial (без нашего spec-патча): свет не нужен, всё в текстуре.
-  const mat = new THREE.MeshMatcapMaterial({ matcap: bombMatcap() });
+  const mat = new THREE.MeshMatcapMaterial({ matcap: bombMatcapTex() });
   const mesh = new THREE.Mesh(geoCache.get('B'), mat);
   mesh.scale.setScalar(1.0 * MESH_SCALE); // «средний размер»: охват 0.95·MESH_SCALE
   const item = {

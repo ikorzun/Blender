@@ -68,7 +68,10 @@ const mixerBlades = new THREE.Group();
   // которому на матчепы переведены все предметы (решение владельца 2026-07-20).
   // ⚠️ СТУПИЦА ОСТАЛАСЬ ТЁМНОЙ (`dark`): владелец сказал «на лопасти».
   const metal = new THREE.MeshMatcapMaterial({ color:0xffffff, matcap: metalMatcapTex() });
-  const dark = new THREE.MeshStandardMaterial({ color:0x2c313a, metalness:0.6, roughness:0.5 });
+  // ⚠️ СТУПИЦА — ТОТ ЖЕ МАТЧЕП (слово владельца 2026-08-17-в «накрывай»),
+  // но ПРИТЕМНЁННАЯ множителем: она и раньше была темнее лопастей, и без
+  // разницы тона винт читался бы одной сплошной железкой без центра.
+  const dark = new THREE.MeshMatcapMaterial({ color:0x8b93a0, matcap: metalMatcapTex() });
   const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.42, 16), dark);
   hub.position.y = 0.21; mixerBlades.add(hub);
   for (let i=0;i<4;i++){
