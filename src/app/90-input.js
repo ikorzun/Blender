@@ -466,6 +466,9 @@ $('perfCopyBtn').addEventListener('click', ()=>{
   }
 });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
+// СКРЫТАЯ ВИТРИНА из панели разработчика — тот же путь, что у консоли
+// (`armBonus` + `genLevel`), второго тракта не заводим.
+$('bonusBtn').addEventListener('click', () => { armBonus(true); genLevel(); });
 // ВЫБОР УРОВНЯ (владелец 2026-08-13). Через __game.setLevel НАМЕРЕННО — одна
 // точка записи уровня на панель и сьют, копий логики не заводим.
 $('lvlJumpBtn').addEventListener('click', ()=>{
