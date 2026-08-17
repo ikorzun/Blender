@@ -40,6 +40,22 @@ const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 // с плавным переходом на игровой вид сверху. Ввод и миксер заблокированы.
 let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
+// ⚠️⚠️ ВИТРИНА ПРОПУСКАЕТ 'drop' И 'orbit' ЦЕЛИКОМ: куча уже уложена в genLevel,
+// сыпаться и облетать нечему. Занавес при этом снимается ТЕМ ЖЕ путём (фаза
+// 'wait' цела), и часы раунда заводятся ТАМ ЖЕ, ГДЕ ВСЕГДА — в finishIntro,
+// то есть не горят под занавесом.
+// ⚠️ Хвост повторяет skipIntro: трима на витрине нет, но finalizeFill нужен
+// СРАЗУ — от его `aliveN0` считаются пороги пополнения.
+function bonusOrDrop(){
+  if (level && level.bonus){
+    finishIntro();
+    pendingTrim = false;
+    finalizeFill();
+    sleepPhysics('bonus:готово');
+    return;
+  }
+  intro.phase = 'drop'; intro.t = 0; introPerfStart();
+}
 function startIntro(){
   // экран 'intro' — облёт; закрывается finishIntro/skipIntro (docs/METRICS.md §3)
   try { Telemetry.screen.enter('intro'); } catch(_){}
@@ -71,7 +87,15 @@ function startIntro(){
   // (максимум выступа за стену в соаке 2.415 -> 0.330), поэтому запас есть.
   // Боевая MAX_FALL 16 всё равно выше — это по-прежнему «мягче», просто ближе.
   setFallCap(Math.min(MAX_FALL, 14 * INTRO_SPEED)); // мягче терминальной, но едет за скоростью
-  camAz = 0.35; camPhi = 1.25; camR = 17.8;
+  // ⚠️⚠️ НА ВИТРИНЕ КАДР СТАВИТСЯ СРАЗУ, А НЕ ПОСЛЕ ИНТРО. Стартовый вид сбоку
+  // (0.35/1.25/17.8) существует ради облёта, которого здесь нет: первый же
+  // нарисованный кадр показал бы ящик С ТОРЦА — то есть ровно ту «анимацию»,
+  // от которой владелец и отказался.
+  if (isBonusLevel(levelNum)){
+    camAz = 0; camPhi = BONUS_CAM_PHI; camR = bonusCamR(); camTarget.y = bonusCamTY();
+  } else {
+    camAz = 0.35; camPhi = 1.25; camR = 17.8;
+  }
   updateCamera();
 }
 // Страховка от рыхлых сидов: всё, что торчит выше линии заполнения после
@@ -262,9 +286,9 @@ function tickIntro(dt){
           // ПРОЛОГ-КОМИКС новому игроку — ровно здесь: занавес убран, чаша
           // пустая, предметы ещё не тронулись (86-story). Если пролог не нужен,
           // колбэк зовётся сразу и падение начинается как раньше.
-          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ intro.phase = 'drop'; intro.t = 0; introPerfStart(); } });
+          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ bonusOrDrop(); } });
         });
-      } catch(_){ intro.phase = 'drop'; intro.t = 0; introPerfStart(); }
+      } catch(_){ bonusOrDrop(); }
     }
     return;
   }
@@ -321,17 +345,13 @@ function tickIntro(dt){
     // в этом окне живёт подача волн тел (см. разбор строкой выше), а работа,
     // уехавшая за край окна, уже стоила нам ложного вывода. Меняем только ПУТЬ
     // КАМЕРЫ: вместо оборота — плавный наезд спереди на конечный кадр.
-    if (level && level.bonus){
-      camAz = 0;
-      camPhi = BONUS_CAM_PHI;
-      const цель = bonusCamR();
-      camR = (цель + 4.5) + (цель - (цель + 4.5))*e;
-      camTarget.y = bonusCamTY();
-    } else {
-      camAz = 0.35 + e*(Math.PI*2 - 0.35);
-      camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
-      camR = 17.8 + (16.2 - 17.8)*e;
-    }
+    // ⛔ НАДГРОБИЕ: здесь была ветка НАЕЗДА КАМЕРЫ для витрины (2026-08-17-б).
+    // Она умерла со словом владельца «анимации на 10 уровне быть не должно»:
+    // витрина заканчивает интро прямо из фазы 'wait' (`bonusOrDrop`) и в облёт
+    // не заходит ВОВСЕ. Оставлять её живой на вид — врать следующему читателю.
+    camAz = 0.35 + e*(Math.PI*2 - 0.35);
+    camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
+    camR = 17.8 + (16.2 - 17.8)*e;
     updateCamera();
     if (k >= 1) finishIntro();
   }
@@ -1317,6 +1337,10 @@ window.__game = {
   // ===== БОНУСНЫЙ УРОВЕНЬ (спека владельца 2026-08-15) =====
   // Хук НЕСУЩИЙ: на нём стражи таймера, пополнения и стока. `осталось` — в
   // секундах, отрицательным не бывает (после нуля идёт сток).
+  // фаза интро наружу: на ней стоит страж «на витрине анимации нет»
+  introPhase(){ return intro ? intro.phase : null; },
+  // проекция мировой высоты на экран (NDC Y) — для стража «столб на 2/3 кадра»
+  projectY(y){ return +new THREE.Vector3(0, y, 0).project(camera).y.toFixed(4); },
   bonusInfo(){ return {
     бонус: !!(level && level.bonus), уровень: levelNum,
     осталось: (level && level.bonusEndAt)
@@ -1325,6 +1349,7 @@ window.__game = {
     старт: (level && level.aliveN0) || 0,
     живых: items.filter(i => i.alive).length,
     сток: !!(level && level.bonusEndAt && performance.now() >= level.bonusEndAt),
+    осадкаШагов: bonusSettleSteps,   // сколько шагов ушло на укладку без анимации
     // видимое состояние витрины — на нём стражи пунктов 1-3 владельца
     лопасти: !!mixerBlades.visible,
     таймерПоказан: $('mixerTimerSvg') ? getComputedStyle($('mixerTimerSvg')).display !== 'none' : null,
