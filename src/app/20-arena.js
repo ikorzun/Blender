@@ -116,7 +116,14 @@ function bonusCamR(){
 function bonusVisHalfH(){ return (bonusCamR() + BONUS_D/2) * Math.tan(camera.fov * Math.PI / 360); }
 // взгляд ставится так, чтобы ДНО ящика село на нижнюю кромку кадра
 function bonusCamTY(){ return BONUS_FLOOR - 0.5 + bonusVisHalfH(); }
-function bonusPileTop(){ return Math.min(BONUS_H - 2, bonusCamTY() + bonusVisHalfH() * BONUS_FILL); }
+// ВЕРХ СТОЛБА — ДОЛЯ ВЬЮПОРТА ОТ ЕГО НИЗА (слово владельца: «на 2/3 по высоте»).
+// ⚠️ Считаем от НИЖНЕЙ КРОМКИ КАДРА, а не от взгляда: «две трети экрана» — это
+// про то, что видит игрок, и привязка к `ty` дала бы другую долю при смене
+// пропорций окна.
+function bonusPileTop(){
+  const низКадра = bonusCamTY() - bonusVisHalfH();
+  return Math.min(BONUS_H - 2, низКадра + 2 * bonusVisHalfH() * BONUS_FILL_VIEW);
+}
 // число пар — ИЗ ОБЪЁМА, который надо заполнить, а не константой: иначе на
 // широком кадре столб не дорос бы до глаз, а на узком перелился бы через верх
 function bonusPairs(){
