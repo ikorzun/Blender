@@ -373,6 +373,47 @@ function finalPairsRefill(){
   }
   return k > 0;
 }
+// ПОПОЛНЕНИЕ БОНУСНОГО УРОВНЯ (пункт 4 владельца дословно: «пополнение
+// происходит 2 раза, когда вещей становится меньше 20% от начальных,
+// пополняются каждый раз до отметки 50% от количества на старте уровня»).
+// ⚠️⚠️ СЫПЛЕМ ПАРАМИ, А НЕ ПООДИНОЧКЕ, И ЭТО НЕСУЩЕЕ. Досыпка турбо
+// (`dropOneFromSky` россыпью) сирот плодит легально — их доедает финал. На
+// бонусе финала нет: пункт 5 требует, чтобы куча ушла ПАРАМИ до нуля, и
+// одна нечётная сирота повесила бы уровень навсегда.
+function bonusRefill(нужно){
+  const пар = Math.floor(Math.max(0, нужно) / 2);
+  if (!пар) return 0;
+  // ⚠️ СПАВН НАД ЖИВОЙ КУЧЕЙ, А НЕ НАД ЧАШЕЙ: `dropOneFromSky` метит в
+  // FUNNEL.H+2, то есть на бонусе ВНУТРЬ ковра (он лежит на BONUS_FLOOR
+  // много выше) — предметы рождались бы внутри соседей.
+  // ⚠️ `topY` — это ТЕСТ-ХУК в 99-main, а не функция игры (грепом проверено):
+  // считаем верх кучи здесь. Первая версия звала хук и падала ReferenceError
+  // внутри тика — пополнение молча не приходило, а счётчик его тратил.
+  let верх = BONUS_FLOOR;
+  for (const it of items) if (it.alive) верх = Math.max(верх, it.p.y + it.r);
+  let n = 0;
+  for (let i = 0; i < пар; i++){
+    const typeIdx = Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN));
+    const size = levelSize();                 // близнецы пары — ОДНОГО размера (канон)
+    for (let half = 0; half < 2; half++){
+      const it = makeItem(typeIdx, size);
+      const слой = Math.floor(n / 10);         // столько же на слой, что и у спавна витрины
+      const hx = Math.max(0.1, bonusHalfX() - it.r - 0.1);
+      const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
+      it.p.set((Math.random()*2-1)*hx, верх + 1.6 + слой * 1.35 + Math.random() * 0.25,
+               (Math.random()*2-1)*hz);
+      it.mesh.position.copy(it.p);
+      createItemBody(it, TYPES[typeIdx].name, it.geo);
+      items.push(it); n++;
+    }
+  }
+  wakePhysics('bonusRefill');
+  stats.lastAction = performance.now();
+  toast('Refill +' + n);
+  Telemetry.ev('bonus_refill', { lv: levelNum, n, r: level.bonusRefills });
+  setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+  return n;
+}
 // Continue после поражения: досыпка n предметов (без гварда полноты —
 // проигранный уровень частично пуст, задача — вернуть игру к жизни)
 function dropExtra(n){
@@ -597,13 +638,27 @@ function genLevel(){
   renderer.shadowMap.enabled = !CFG.matcap;
   items.forEach(removeItem);
   items = [];
+  // ⚠️⚠️ ШИРИНУ ВИТРИНЫ ЗАМОРАЖИВАЕМ ЗДЕСЬ — ДО ВСЕГО ОСТАЛЬНОГО. Дальше её
+  // читают временная стена, спавн, число пар, стены контейнера и спасатель;
+  // возьми кто-нибудь «живой» аспект позже — и они разъедутся между собой.
+  if (isBonusLevel(levelNum)) bonusFreezeBox();
   buildTempTallWall(); // столб спавна выше кромки — держим высокой стеной
   // прогрессия по уровню: число типов (главный рычаг против тупиков);
   // терпение миксера — по сложности, радиус — динамический (updateMatchRadius)
-  const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1));
+  const БОНУС = isBonusLevel(levelNum);
+  // ⚠️⚠️ НА ВИТРИНЕ ВИДОВ НЕ БОЛЬШЕ BONUS_TYPES_MAX (слово владельца: «иначе
+  // очень сложно»). Число типов — главный рычаг сложности, и на стене из 260
+  // предметов он решает всё: при 12-22 видах пара теряется в шуме.
+  // ⛔ ПОТОЛОК, А НЕ ФИКСАЦИЯ: `Math.min` с обычной прогрессией — на ранних
+  // уровнях открыто меньше пяти типов, и выдумывать недостающие нельзя.
+  // ⚠️ ОТСЮДА ЖЕ ПИТАЕТСЯ ПОПОЛНЕНИЕ: оно берёт `level.typesCount`, то есть
+  // досыпает из ТЕХ ЖЕ пяти видов, а не из всего открытого пула.
+  const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1),
+    БОНУС ? BONUS_TYPES_MAX : Infinity);
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // терпение миксера по сложности
   // укороченные уровни 1-3 (план v1): первая победа к 3-й минуте
-  const pairsCnt = pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
+  // ⚠️ БОНУСНЫЙ УРОВЕНЬ: пар больше — заполняем не чашу, а весь кадр
+  const pairsCnt = БОНУС ? bonusPairs() : pairsForLevel(levelNum); // прогрессия 40 -> 90 пар (00-config)
 
   // пары: тип + размер; мелкие вниз, крупные наверх
   const pairs = [];
@@ -651,11 +706,24 @@ function genLevel(){
       const it = makeItem(pr.type, pr.size);
       // столб НАД чашей СЛОЯМИ (по 8 — чаша шире, шаг 1.35): без стартовых
       // перекрытий — они взрывали столб и закидывали предметы на торцы стен
-      const layer = Math.floor(n/8);
-      const y = FUNNEL.H + 1.6 + layer*1.35 + Math.random()*0.25;
-      const maxD = Math.max(0.1, radiusAt(FUNNEL.H)*0.85 - it.r);
-      const th = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*maxD;
-      it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
+      // ⚠️⚠️ НА ВИТРИНЕ СТОЛБ ПРЯМОУГОЛЬНЫЙ, А ЧИСЛО НА СЛОЙ — ПО ЕЁ ПЛОЩАДИ.
+      // Прежние 24 были посчитаны под широкий круглый ковёр R=7.6; в footprint
+      // ящика 7.4×4.2 столько не помещается, и слой рождался бы С ПЕРЕКРЫТИЯМИ —
+      // ровно та грабля, что записана строкой выше про «взрывали столб».
+      const наСлой = БОНУС ? 10 : 8;
+      const layer = Math.floor(n/наСлой);
+      const низ = БОНУС ? BONUS_FLOOR : FUNNEL.H;
+      const y = низ + 1.6 + layer*1.35 + Math.random()*0.25;
+      if (БОНУС){
+        // равномерно по прямоугольнику, с полем на габарит предмета
+        const hx = Math.max(0.1, bonusHalfX() - it.r - 0.1);
+        const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
+        it.p.set((Math.random()*2-1)*hx, y, (Math.random()*2-1)*hz);
+      } else {
+        const maxD = Math.max(0.1, radiusAt(низ)*0.85 - it.r);
+        const th = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*maxD;
+        it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
+      }
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[pr.type].name, it.geo);
       it.wave = layer;            // волна = тот же слой, что у спавна (по 8)
@@ -665,7 +733,12 @@ function genLevel(){
       // половине предметов, слоем выше текущего — осядет в середину кучи
       // ⚠️ БОМБА ТЕПЕРЬ НЕ КАЖДЫЙ УРОВЕНЬ (спека владельца 2026-08-12): с 5-го и
       // с разрывом 1-3. Решение спрашивается ЗДЕСЬ, в единственной точке спавна.
-      if (n === pairsCnt && bombDueThisLevel()){
+      // ⚠️⚠️ НА БОНУСЕ СПЕЦПРЕДМЕТОВ НЕТ ВОВСЕ (бомба, камни, клад, глыба) — и
+      // это НЕ вкусовое упрощение, а ТРЕБОВАНИЕ ПУНКТА 5 владельца: по истечении
+      // времени куча уходит ПАРАМИ «пока не исчезнут все». Спецпредмет пары не
+      // имеет, а сток (как и помол) их не трогает — уровень не закончился бы
+      // НИКОГДА. Замер, показавший это: живых 261 = 130 пар × 2 + ОДИН клад.
+      if (n === pairsCnt && !БОНУС && bombDueThisLevel()){
         bombNoteGiven();
         const b = makeBomb();
         b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
@@ -698,7 +771,7 @@ function genLevel(){
     // они либо фильтруют `!it.surprise`, либо ищут `find(...)` и выходят по
     // `if (!sp) return`. Проверено перечислением всех 20 мест перед правкой —
     // ни одно не полагается на то, что клад ЕСТЬ.
-    if (levelNum >= SURPRISE_FROM_LEVEL &&
+    if (!БОНУС && levelNum >= SURPRISE_FROM_LEVEL &&
         (typeof anyBoostBought !== 'function' || anyBoostBought())){
       const th = Math.random() * Math.PI * 2, d = Math.random() * 1.8;
       const spawn = new THREE.Vector3(Math.cos(th) * d, FUNNEL.H + 1.6 + 0.5, Math.sin(th) * d);
@@ -710,7 +783,9 @@ function genLevel(){
   // трогаются вовсе. Ключ подменяется (приём камней) — все парные механики,
   // подсказка, докидка и заряд исключают глыбу АВТОМАТИЧЕСКИ; исходный ключ
   // хранится в frozenKey и возвращается при разбитии.
-  if (levelNum >= FROZEN_FROM_LEVEL && levelNum >= frozenNextLevel){
+  // ⚠️ Очередь глыбы на бонусе НЕ СДВИГАЕТСЯ: пропущенный уровень тихо
+  // отодвинул бы её, а бонус — это пауза в обычной прогрессии, а не её шаг.
+  if (!БОНУС && levelNum >= FROZEN_FROM_LEVEL && levelNum >= frozenNextLevel){
     if (items.some(i => i.surprise)){
       // «разведи на следующие уровни»: с кладом в одной куче не живёт
       frozenNextLevel = levelNum + 1;
@@ -754,7 +829,15 @@ function genLevel(){
   // раньше был флэт 3 и с ~15 ур. запаса не хватало на «сухие» эпизоды
   level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — досрочно забанкованные единицы уровня (водяной знак)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
-            aliveN0: 0, camFollowOn: false, deadlock: false }; // deadlock: тупик → помол-выручалка (99-main)
+            aliveN0: 0, camFollowOn: false, deadlock: false, // deadlock: тупик → помол-выручалка (99-main)
+            // БОНУСНЫЙ УРОВЕНЬ (спека владельца 2026-08-15). Флаг снимается с
+            // levelNum ОДИН РАЗ и живёт в уровне: все потребители читают
+            // `level.bonus`, а не пересчитывают условие у себя — иначе смена
+            // периода развела бы их между собой посреди партии.
+            bonus: isBonusLevel(levelNum),
+            bonusEndAt: 0,      // ставится в finishIntro: отсчёт с конца интро
+            bonusDrainAt: 0,    // следующая пара стока
+            bonusRefills: 0 };
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // комбо/цепная реакция не переживают уровень
   missRadiusClear();   // и штраф за промах: новый уровень начинается с полного радиуса
   chargeName = ''; chargeUntil = 0; // ревью v212: заряд типа тоже не переживает
