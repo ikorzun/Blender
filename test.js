@@ -7614,6 +7614,30 @@ window.bridge = {
                         фонРядов: getComputedStyle(document.querySelector('.ms-head')).backgroundColor +
                                   '|' + getComputedStyle(document.getElementById('msLbEntry')).backgroundColor,
                         внутрШирина: Math.round(rк.width - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight)) };
+                    })(),
+                    // ⚠️ НАСТРОЙКИ ПО МОБИЛЬНОМУ МАКЕТУ 870:1544 (слово владельца
+                    // 2026-08-17: «в мобильной изменение звука происходит физическими
+                    // кнопками, поэтому оставляем только свитчеры»).
+                    настройки: (function (){
+                      const sw = document.getElementById('msSoundSw');
+                      const sl = document.getElementById('msSound');
+                      const seg = document.getElementById('msDiff');
+                      if (!sw || !sl || !seg) return null;
+                      const c = getComputedStyle(sw), после = getComputedStyle(sw, '::after');
+                      const рЗ = sl.closest('.ms-set').getBoundingClientRect();
+                      const рМ = document.getElementById('msMusicRow').getBoundingClientRect();
+                      const рС = seg.closest('.ms-set');
+                      return { ползунок: getComputedStyle(sl).display, свитчер: c.display,
+                        ш: Math.round(parseFloat(c.width)), в: Math.round(parseFloat(c.height)),
+                        ручка: Math.round(parseFloat(после.width)),
+                        // ход ручки: перевод из матрицы ::after, 20px по макету
+                        ход: Math.round(new DOMMatrix(после.transform).m41),
+                        вкл: c.backgroundColor,
+                        // Sound и Music ОДНОЙ строкой — половинками
+                        однойСтрокой: Math.abs(рЗ.top - рМ.top) < 2 && рЗ.right <= рМ.left + 1,
+                        подписьСложности: getComputedStyle(рС.querySelector('span')).display,
+                        сегмент: Math.round(рС.getBoundingClientRect().width),
+                        хвостGame: getComputedStyle(document.querySelector('.ms-seg-long')).display };
                     })() };
       { const p = document.querySelector('.ms-play'); if (p) p.click(); }
       await sleep(250);
@@ -7656,6 +7680,80 @@ window.bridge = {
       '⚠️⚠️ МЕНЮ ' + имя + ': профиль и таблица В ОДНОЙ карточке с разделителем ' +
       'во всю её ширину, свои пилюли сняты (' + JSON.stringify(м.карточка) + ')');
   }
+  // ═══ НАСТРОЙКИ: НА МОБИЛЬНОМ ТОЛЬКО СВИТЧЕРЫ (макеты 870:1544 / 870:1536-1539) ═══
+  // ⚠️⚠️ СТРАЖ ДВУСТОРОННИЙ ПО ПОСТРОЕНИЮ: одного «на мобильном свитчеры есть»
+  // мало — правка обязана быть ТОЛЬКО мобильной, и десктопная половина ниже
+  // утверждает обратное (ползунки живы, свитчер спрятан). Без неё «оставили
+  // свитчеры везде» прошло бы зелёным.
+  // ⚠️ ЧИСЛА — ИЗ DEV MODE, не с картинки: дорожка 52×32, ручка 28, ход ровно 20
+  // (эллипс x 2 -> 22), включённая дорожка Experimental/Salad #9ce52e.
+  for (const [имя, м] of [['390', узкий], ['320', тесно]]) {
+    const н = м.настройки;
+    expect(!!н && н.ползунок === 'none' && н.свитчер !== 'none' &&
+           н.ш === 52 && н.в === 32 && н.ручка === 28 && н.ход === 20 &&
+           н.вкл === 'rgb(156, 229, 46)' && н.однойСтрокой &&
+           н.подписьСложности === 'none' && н.хвостGame !== 'none',
+      '⚠️⚠️ НАСТРОЙКИ ' + имя + ': ползунков нет, свитчер 52×32 с ходом 20 и лаймом, ' +
+      'Sound+Music одной строкой, подписи Difficult нет (' + JSON.stringify(н) + ')');
+  }
+  // ── ВТОРАЯ ПОЛОВИНА СТРАЖА: НА ДЕСКТОПЕ ВСЁ КАК БЫЛО ──
+  // Без неё «мобильная правка» неотличима от правки, снёсшей ползунки везде.
+  await lbPage.setViewportSize({ width: 1280, height: 800 });
+  await lbPage.waitForTimeout(250);
+  const деск = await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    document.getElementById('pauseBtn').click(); await sleep(400);
+    const sl = document.getElementById('msSound');
+    const рС = document.getElementById('msDiff').closest('.ms-set');
+    const o = { ползунок: getComputedStyle(sl).display,
+      свитчер: getComputedStyle(document.getElementById('msSoundSw')).display,
+      подписьСложности: getComputedStyle(рС.querySelector('span')).display,
+      хвостGame: getComputedStyle(document.querySelector('.ms-seg-long')).display };
+    { const p = document.querySelector('.ms-play'); if (p) p.click(); }
+    await sleep(250); return o;
+  });
+  expect(деск.ползунок !== 'none' && деск.свитчер === 'none' &&
+         деск.подписьСложности !== 'none' && деск.хвостGame === 'none',
+    '⚠️⚠️ НАСТРОЙКИ ДЕСКТОП НЕ ТРОНУТЫ: ползунки на месте, свитчера нет, подпись ' +
+    'Difficult и «Easy» без хвоста (' + JSON.stringify(деск) + ')');
+  await lbPage.setViewportSize({ width: 390, height: 780 });
+  await lbPage.waitForTimeout(250);
+
+  // ── ПОВЕДЕНИЕ СВИТЧЕРА: ВКЛЮЧЕНИЕ ВОЗВРАЩАЕТ ЕГО ГРОМКОСТЬ, А НЕ 100 ──
+  // ⚠️ Это НЕ косметика: свитчер знает только ВКЛ/ВЫКЛ, и наивная реализация
+  // затирала бы выбор, сделанный ползунком. Ставим 40 ПОЛЗУНКОМ (боевой путь),
+  // гасим свитчером, включаем обратно — обязано вернуться 40.
+  // ⚠️ Клик — НАСТОЯЩЕЙ мышью: MouseEvent из evaluate игра не слышит (канон).
+  await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    document.getElementById('pauseBtn').click(); await sleep(400);
+    const sl = document.getElementById('msSound');
+    sl.value = 40; sl.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(80);
+  });
+  const бокс = await lbPage.locator('#msSoundSw').boundingBox();
+  const снять = () => lbPage.evaluate(() => ({
+    aria: document.getElementById('msSoundSw').getAttribute('aria-checked'),
+    ползунок: document.getElementById('msSound').value }));
+  const свДо = await снять();
+  await lbPage.mouse.click(бокс.x + бокс.width / 2, бокс.y + бокс.height / 2);
+  await lbPage.waitForTimeout(150);
+  const свВыкл = await снять();
+  await lbPage.mouse.click(бокс.x + бокс.width / 2, бокс.y + бокс.height / 2);
+  await lbPage.waitForTimeout(150);
+  const свВкл = await снять();
+  await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const sl = document.getElementById('msSound');
+    sl.value = 100; sl.dispatchEvent(new Event('input', { bubbles: true })); await sleep(60);
+    const p = document.querySelector('.ms-play'); if (p) p.click(); await sleep(200);
+  });
+  expect(свДо.aria === 'true' && свДо.ползунок === '40' &&
+         свВыкл.aria === 'false' && свВыкл.ползунок === '0' &&
+         свВкл.aria === 'true' && свВкл.ползунок === '40',
+    '⚠️⚠️ СВИТЧЕР ЗВУКА: выкл→вкл вернул ЕГО 40, а не 100 (' +
+    JSON.stringify({ до: свДо, выкл: свВыкл, вкл: свВкл }) + ')');
+
   expect(узкий.зазорАв === 2 && тесно.зазорАв === 4,
     '⚠️ ТОЧКА ВХОДА: зазор аватаров 2 по макету на 390 и 4 на тесной 320 (390 → ' +
     узкий.зазорАв + ', 320 → ' + тесно.зазорАв + ')');

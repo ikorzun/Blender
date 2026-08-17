@@ -1520,6 +1520,26 @@
   /* свитчер сложности тянется так же, как ползунок (в макете обе 500 — спека
      «ползунок не длиннее свитчера» соблюдена равенством); кнопки flex:1
      делят его пополам, высота 40 = 48 минус padding 4 сверху и снизу */
+  /* ═══ СВИТЧЕР (макеты 870:1536 вкл / 870:1539 выкл) ═══
+     ⚠️ ВСЕ ЧИСЛА СНЯТЫ DEV MODE'ОМ, А НЕ С КАРТИНКИ: дорожка 52×32, ручка —
+     эллипс 28×28 с отступом 2, то есть ход ровно 20px (x 2 -> 22). Цвет
+     включённой дорожки — токен Experimental/Salad #9ce52e; выключенной токена
+     НЕТ, он литерал — прочитал его из самого SVG-экспорта (#E7EDF8), а не
+     подобрал по скриншоту. Тень ручки — Shadow/BottomDay/Close.
+     ⛔ САМ SVG-ЭКСПОРТ НЕ ИСПОЛЬЗУЕМ (канон: у них preserveAspectRatio="none"
+     и они рендерятся искажёнными) — из него взяты только ЗНАЧЕНИЯ.
+     ⚠️ Скрыт по умолчанию: он ТОЛЬКО мобильный, включается в media-блоке. */
+  .ms-sw { display:none; position:relative; flex:none; width:52px; height:32px;
+    padding:0; border:none; cursor:pointer; border-radius:1000px;
+    background:#e7edf8; touch-action:manipulation;
+    transition:background .18s ease; }
+  .ms-sw::after { content:''; position:absolute; top:2px; left:2px;
+    width:28px; height:28px; border-radius:50%; background:#fff;
+    box-shadow:0 2px 5px rgba(0,0,0,.1); transition:transform .18s ease; }
+  .ms-sw[aria-checked="true"] { background:#9ce52e; }
+  .ms-sw[aria-checked="true"]::after { transform:translateX(20px); }
+  /* хвост «Easy game» из мобильного макета; на десктопе кнопка остаётся «Easy» */
+  .ms-seg-long { display:none; }
   .ms-seg { display:flex; width:100%; height:48px; background:#e7edf8;
     border-radius:72px; padding:4px; }
   .ms-seg button { flex:1; border:none; cursor:pointer; background:transparent; color:#1d1c26;
@@ -1560,6 +1580,34 @@
      а тот посчитал ТРИ КОММЕНТАРИЯ — ровно грабля из канона «сверять КОД, а
      не счётчик вхождений». Проверять селектором и классом в разметке. */
   @media (max-width:1079px){
+    /* ═══ НАСТРОЙКИ ПО МОБИЛЬНОМУ МАКЕТУ 870:1544 ═══
+       Слово владельца: «переделай этот блок, только для мобильной версии… в
+       мобильной изменение звука происходит физическими кнопками, поэтому
+       оставляем только свитчеры».
+       ⚠️⚠️ ВСЯ ПРАВКА ЖИВЁТ В ЭТОМ МЕДИАБЛОКЕ НАМЕРЕННО: базовые стили и
+       десктопный `min-width:1080px` её физически не видят, то есть «только для
+       мобильной» выполняется ПО ПОСТРОЕНИЮ, а не аккуратностью.
+       ⚠️ Паддинг карточки НЕ ТРОГАЕМ: в макете 12 у карточки + 8 у внутренней
+       колонки = 20 по горизонтали, и это ровно то, что уже стоит (12px 20px). */
+    .ms-settings { display:flex; flex-wrap:wrap; align-items:center;
+      column-gap:12px; row-gap:8px; }
+    /* Sound и Music — ОДНОЙ строкой, пополам; Difficult — своей строкой.
+       Раскладка держится на flex-basis, а не на обёртке: заводить обёртку
+       значило бы менять разметку ради одной раскладки. */
+    .ms-set { display:flex; align-items:center; gap:12px; height:48px;
+      flex:1 1 0; min-width:0; }
+    .ms-set > span { font-size:22px; font-weight:800; }
+    #msMusicRow { justify-content:flex-end; }
+    /* ПОЛЗУНКОВ НА МОБИЛЬНОМ НЕТ — громкость там задают физические кнопки */
+    .ms-settings .ms-slider { display:none; }
+    .ms-sw { display:block; }
+    /* строка сложности во всю ширину и БЕЗ подписи — в макете её нет,
+       сегмент занимает строку целиком */
+    /* ⚠️ КЛАССОМ, А НЕ `:has()`: он Safari 15.4+, и в своде правил проекта
+       стоит в списке «избегать по умолчанию». Класс работает везде. */
+    .ms-set-diff { flex:1 0 100%; gap:0; }
+    .ms-set-diff > span { display:none; }
+    .ms-seg-long { display:inline; }
     /* ⚠️ ПОРЯДОК ТЕПЕРЬ ДВУХУРОВНЕВЫЙ: `order` у карточки ставит её первой
        среди детей `.ms-wrap`, а `order` у рядов сортирует их ВНУТРИ карточки
        (профиль −1, разделитель 0 по умолчанию, вход 1). Раньше все трое были
@@ -2793,6 +2841,12 @@
       <div class="ms-set">
         <span>Sound</span>
         <input type="range" class="ms-slider" id="msSound" min="0" max="100" value="100">
+        <!-- ⚠️ СВИТЧЕР — ТОЛЬКО МОБИЛЬНЫЙ (слово владельца 2026-08-17: «в
+             мобильной изменение звука происходит физическими кнопками, поэтому
+             оставляем только свитчеры»). На десктопе он скрыт, там живёт
+             ползунок. Разметка ОДНА на обе раскладки: дублировать секцию
+             значило бы дублировать и id, и обработчики. -->
+        <button type="button" class="ms-sw" id="msSoundSw" role="switch" aria-checked="true" aria-label="Sound"></button>
       </div>
       <!-- MUSIC: регулятор громкости фонового трека (спека владельца 2026-07-24) -->
       <!-- ⛔ ВРЕМЕННАЯ СТРОКА «Leaderboard [Open]» ОТСЮДА УБРАНА (2026-08-10):
@@ -2806,11 +2860,12 @@
       <div class="ms-set" id="msMusicRow">
         <span>Music</span>
         <input type="range" class="ms-slider" id="msMusic" min="0" max="100" value="70">
+        <button type="button" class="ms-sw" id="msMusicSw" role="switch" aria-checked="true" aria-label="Music"></button>
       </div>
-      <div class="ms-set">
+      <div class="ms-set ms-set-diff">
         <span>Difficult</span>
         <div class="ms-seg" id="msDiff">
-          <button data-hard="0">Easy</button><button data-hard="1">Hard</button>
+          <button data-hard="0">Easy<span class="ms-seg-long"> game</span></button><button data-hard="1">Hard</button>
         </div>
       </div>
     </section>

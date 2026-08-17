@@ -527,6 +527,18 @@ if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen();
 $('msSound').addEventListener('input', e => { applySoundVol(parseInt(e.target.value, 10) / 100); msFill(e.target); });
 // Music-ползунок = ГРОМКОСТЬ фонового трека (0..1); applyMusic сам заводит/глушит
 $('msMusic').addEventListener('input', e => { applyMusic(parseInt(e.target.value, 10) / 100); msFill(e.target); });
+// СВИТЧЕРЫ МОБИЛЬНОГО МАКЕТА (870:1536/1539). ⚠️ Ходят через ТЕ ЖЕ applySoundVol/
+// applyMusic, что и ползунки: у контролов одно состояние, второй тракт разошёлся
+// бы с первым. Включение возвращает ПОСЛЕДНЮЮ ненулевую громкость — иначе
+// свитчер стирал бы выбор, сделанный ползунком.
+$('msSoundSw').addEventListener('click', () => {
+  applySoundVol(soundVol > 0 ? 0 : soundVolPrev);
+  refreshMainSettings();
+});
+$('msMusicSw').addEventListener('click', () => {
+  applyMusic(musicVol > 0 ? 0 : musicVolPrev);
+  refreshMainSettings();
+});
 // ПЕРВЫЙ ЖЕСТ страницы разблокирует автоплей (audio.play() до жеста браузер
 // блокирует). Один раз, пассивно — игровые pointerdown-хендлеры не задеты.
 let bgmUnlocked = false;

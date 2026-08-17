@@ -1668,6 +1668,11 @@ applySoundVol(soundVol);   // боевое восстановление на с�
 let musicVol = 0.7;
 try { const _mv = localStorage.getItem('mixer_music');
   if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
+// ⚠️ ПОСЛЕДНЯЯ НЕНУЛЕВАЯ ГРОМКОСТЬ МУЗЫКИ — ровно та же пара, что у звука
+// (`soundVolPrev`), и заведена по той же причине: мобильный свитчер знает
+// только ВКЛ/ВЫКЛ, и включение обязано вернуть игроку ЕГО громкость, а не 100.
+// Без этого свитчер тихо стирал бы выбор, сделанный ползунком на десктопе.
+let musicVolPrev = musicVol > 0 ? musicVol : 0.7;
 // ⚠️⚠️ ГРОМКОСТЬ ПРИМЕНЯЕТСЯ К ЭЛЕМЕНТУ СРАЗУ, НЕ ПРИ ПЕРВОМ ЖЕСТЕ (жалоба
 // владельца 2026-07-31: «при загрузке музыка выше, падает до настроек после
 // анимации ведра»). МЕХАНИКА, доказана пробой: volume ставил только жестовый
@@ -1678,6 +1683,7 @@ try { const _mv = localStorage.getItem('mixer_music');
 { const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicVol; }
 function applyMusic(v01){
   musicVol = Math.max(0, Math.min(1, v01));
+  if (musicVol > 0) musicVolPrev = musicVol;
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
   const bgm = $('bgm'); if (!bgm) return;
   bgm.volume = musicVol;
@@ -1718,6 +1724,11 @@ function refreshMainSettings(){
   // промежуточное положение ползунка (жалоба владельца, см. applySoundVol).
   const snd = $('msSound'); if (snd){ snd.value = Math.round(soundVol * 100); msFill(snd); }
   const mus = $('msMusic'); if (mus){ mus.value = Math.round(musicVol * 100); msFill(mus); }
+  // ⚠️ СВИТЧЕРЫ СИНХРОНИЗИРУЮТСЯ ЗДЕСЬ ЖЕ, а не своим тиком: у ползунка и
+  // свитчера ОДНО состояние (громкость), и две точки обновления разошлись бы —
+  // игрок двинул ползунок на планшете, повернул экран, а свитчер показывает старое.
+  const sSw = $('msSoundSw'); if (sSw) sSw.setAttribute('aria-checked', soundVol > 0 ? 'true' : 'false');
+  const mSw = $('msMusicSw'); if (mSw) mSw.setAttribute('aria-checked', musicVol > 0 ? 'true' : 'false');
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
