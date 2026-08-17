@@ -195,38 +195,39 @@ function initPhysicsWorld(){
   buildBonusContainer(shellB);
 }
 
-// ═══ КОНТЕЙНЕР БОНУСНОГО УРОВНЯ ═══
+// ═══ КОНТЕЙНЕР БОНУСНОГО УРОВНЯ — ЯЩИК-ВИТРИНА ═══
 // ⚠️⚠️ СТРОИТСЯ ОДИН РАЗ НА СТАРТЕ И ПЕРЕКЛЮЧАЕТСЯ СЕНСОРОМ, А НЕ
-// ПЕРЕСОЗДАЁТСЯ НА genLevel. Это прямое следствие грабли, записанной абзацем
-// ниже у `dropWalls`: удаление и пересоздание стен на смене уровня валило
-// WASM Rapier «unreachable» в первом же шаге. Сенсор — уже проверенный в
-// проекте безопасный путь (им живёт разлёт чаши), поэтому бонус получает
-// СВОЙ набор коллайдеров рядом с боевым, а `ensureWalls` выбирает, чей
-// набор твёрдый.
-// ⚠️ ЦЕНА НАЗВАНА ЧЕСТНО: +33 коллайдера к 599 боевым (~5%), и они висят
-// прокси в широкой фазе на ВСЕХ уровнях, а не только на бонусных. Почему это
-// дёшево: бонусный контейнер — ПРЯМОЙ цилиндр, ему не нужны 12 ступенчатых
-// колец конуса, хватает ОДНОГО пояса из 32 сегментов и дна.
+// ПЕРЕСОЗДАЁТСЯ НА genLevel. Прямое следствие грабли, записанной у `dropWalls`:
+// удаление и пересоздание стен на смене уровня валило WASM Rapier «unreachable»
+// в первом же шаге. Сенсор — уже проверенный в проекте безопасный путь (им
+// живёт разлёт чаши), поэтому витрина получает СВОЙ набор коллайдеров рядом с
+// боевым, а `ensureWalls` выбирает, чей набор твёрдый.
+// ⚠️ ЦЕНА ТЕПЕРЬ КОПЕЕЧНАЯ: ящику нужны 4 стены + дно = 5 коллайдеров против
+// 599 боевых. Прежняя круглая витрина стоила 33 — ящик дешевле именно потому,
+// что у него нет ступенчатых колец конуса.
 let bonusWallColliders = [], bonusFloorCol = null;
 function buildBonusContainer(shellB){
   bonusWallColliders = [];
+  const hx = BONUS_W/2, hz = BONUS_D/2;
   const y0 = BONUS_FLOOR, y1 = BONUS_H;
-  const midY = (y0 + y1)/2, half = (y1 - y0)/2;
-  const faceR = BONUS_R - WALL_GAP;
-  for (let i = 0; i < WALL_SEG; i++){
-    const a = (i + 0.5)/WALL_SEG*Math.PI*2;
-    const chord = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;   // ВСТЫК, без нахлёста (канон)
-    const cd = RAPIER.ColliderDesc.cuboid(0.3, half, chord/2)
-      .setFriction(FRICTION).setRestitution(RESTIT)
-      .setTranslation(Math.cos(a)*(faceR + 0.3), midY, Math.sin(a)*(faceR + 0.3));
-    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X — РАДИАЛЬ (канон)
-    cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    const c = world.createCollider(cd, shellB);
+  const midY = (y0 + y1)/2, half = (y1 - y0)/2, T = 0.3; // T — полутолщина стены
+  // ⚠️ СТЕНЫ СТОЯТ СНАРУЖИ рабочего объёма (центр смещён на +T): внутренняя
+  // грань обязана лежать ровно на ±hx/±hz, иначе `wallDistAt` и настоящая
+  // стена разъедутся — ровно то расхождение, ради которого заведена общая точка.
+  const стена = (x, z, sx, sz) => {
+    const c = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(sx, half, sz)
+        .setFriction(FRICTION).setRestitution(RESTIT)
+        .setTranslation(x, midY, z), shellB);
     try { c.setSensor(true); } catch(e){}   // на обычном уровне — призрак
     bonusWallColliders.push(c);
-  }
+  };
+  стена(  hx + T, 0, T, hz + T*2);   // правая
+  стена(-(hx + T), 0, T, hz + T*2);  // левая
+  стена(0,   hz + T, hx + T*2, T);   // задняя
+  стена(0, -(hz + T), hx + T*2, T);  // передняя (её игрок не видит — камера снаружи)
   bonusFloorCol = world.createCollider(
-    RAPIER.ColliderDesc.cylinder(0.3, BONUS_R + 0.2)
+    RAPIER.ColliderDesc.cuboid(hx + T*2, 0.3, hz + T*2)
       .setFriction(FRICTION).setTranslation(0, BONUS_FLOOR - 0.3, 0), shellB);
   try { bonusFloorCol.setSensor(true); } catch(e){}
 }
@@ -285,6 +286,20 @@ function wallsCount(){ // число ТВЁРДЫХ стенных коллай�
 function buildTempTallWall(){
   removeTempTallWall();
   tmpWallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  // ⚠️ НА ВИТРИНЕ ВРЕМЕННАЯ СТЕНА — ПРОДОЛЖЕНИЕ ЯЩИКА ВВЕРХ, а не кольцо:
+  // кольцо радиуса R охватило бы столб спавна лишь частично (ящик шире по X,
+  // чем по Z), и падающие у боковых граней считались бы вылетевшими.
+  if (typeof level !== 'undefined' && level && level.bonus){
+    const hx = BONUS_W/2, hz = BONUS_D/2, T = 0.15;
+    const пара = (x, z, sx, sz) => world.createCollider(
+      RAPIER.ColliderDesc.cuboid(sx, 24, sz).setFriction(0.02)
+        .setTranslation(x, 24, z), tmpWallBody);
+    пара(  hx + T, 0, T, hz + T*2);
+    пара(-(hx + T), 0, T, hz + T*2);
+    пара(0,   hz + T, hx + T*2, T);
+    пара(0, -(hz + T), hx + T*2, T);
+    return;
+  }
   // ⚠️⚠️ ВРЕМЕННАЯ СТЕНА ОСАДКИ ОБЯЗАНА ИДТИ ЗА ШИРИНОЙ УРОВНЯ. Литерал
   // `FUNNEL.R1` держал бы её на 4.1 и на бонусе, где спавн раскидан до 6.5:
   // столб падал бы СНАРУЖИ временной стены, а спасатель считал бы это вылетом.
@@ -990,8 +1005,31 @@ function rescueSweep(beforeSleep){
     // переоценивает ширину и давал шторм ложных спасений (грабля найдена на
     // стейке — тип удалён в v187, но правило про КЛАСС плоских живо: wr в
     // TYPES обязателен любой модели с одной осью много меньше остальных)
-    const legalR = tmpWallBody ? Math.max(radiusAt(it.p.y), FUNNEL.R1) : radiusAt(it.p.y);
-    const reach = d > 1e-3 ? radialReach(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r);
+    const nx = d > 1e-3 ? it.p.x / d : 1, nz = d > 1e-3 ? it.p.z / d : 0;
+    const legalR = tmpWallBody ? Math.max(wallDistAt(it.p.y, nx, nz), FUNNEL.R1)
+                               : wallDistAt(it.p.y, nx, nz);
+    const reach = d > 1e-3 ? radialReach(it, nx, nz) : (it.wallR || it.r);
+    // ⚠️⚠️ НА ВИТРИНЕ СМОТРИМ НА ЦЕНТР, А НЕ НА ОХВАТ, И ЭТО ВЫВЕДЕНО ЗАМЕРОМ,
+    // А НЕ ВКУСОМ. Две предыдущие редакции штормили телепортами на ЗДОРОВОЙ
+    // куче:
+    //   (1) радиальная — СМЕШИВАЕТ оси: у ящика полуглубина 1.4, и предмет у
+    //       центра (|x|≈0, |z|≈1.1, охват 0.62) давал d+reach = 1.74 против
+    //       «стены» 1.4, хотя по X до стены ещё два метра;
+    //   (2) пооосевая ПО ОХВАТУ — упёрлась в канонное «запас метрики больше
+    //       порога тревоги»: `radialReach` переоценивает габарит (у банана до
+    //       0.36), а половина глубины всего 1.4 — переоценка съедает допуск
+    //       целиком, и тревога перестаёт нести информацию.
+    // ЦЕНТР от переоценки не зависит вовсе: у предмета, который ПРОШЁЛ сквозь
+    // стену, центр заведомо снаружи, у лежащего вплотную — внутри.
+    // ЗАМЕР ЗДОРОВОЙ КУЧИ (4 раскладки × 3 встряски, 240 предметов): |x| max
+    // 3.56 при грани 3.70, |z| max 1.27 при грани 1.40. Порог = грань + 0.25
+    // стоит в пустом коридоре с запасом 0.39 и 0.38 соответственно.
+    const BONUS_ESCAPE_PAD = 0.25;
+    const боксОut = (typeof level !== 'undefined' && level && level.bonus) ? (
+      !tmpWallBody &&   // при стоящей стене осадки столб широк намеренно
+      (Math.abs(it.p.x) > BONUS_W/2 + BONUS_ESCAPE_PAD ||
+       Math.abs(it.p.z) > BONUS_D/2 + BONUS_ESCAPE_PAD)
+    ) : null;
     // ⚠️ ДОПУСК ВЫНЕСЕН РУЧКОЙ РАДИ ЗАМЕРА (боевое значение 0.18 не менялось):
     // норме `wallExcess` в соаке не хватало ДЕФЕКТНОЙ ОПОРЫ, а её нельзя
     // дождаться — настоящее застревание может не случиться никогда, если
@@ -1008,16 +1046,27 @@ function rescueSweep(beforeSleep){
     // drop -> orbit, а спасения случаются ПОЗЖЕ, когда её уже нет, — гейт почти
     // никогда не истинен. Идею можно вернуть, но условием ДОЛЖНА быть не стена,
     // а что-то живое на момент срабатывания. Не изобретать заново в прежнем виде.
-    const out = (d + reach) > legalR + rescueWallTol || it.p.y < FLOOR_REST - 0.8 || it.p.y > RESCUE_CEIL;
+    const дно = (typeof level !== 'undefined' && level && level.bonus) ? BONUS_FLOOR : FLOOR_REST;
+    const out = (боксОut === null ? (d + reach) > legalR + rescueWallTol : боксОut)
+      || it.p.y < дно - 0.8 || it.p.y > RESCUE_CEIL;
     if (out){
       rescued++;
       console.warn('[rescue]', it.type.name, 'd=' + d.toFixed(2), 'y=' + it.p.y.toFixed(2), 'r=' + it.r.toFixed(2));
       // ЛОКАЛЬНО внутрь на той же высоте: телепорт на верх чаши был виден
       // игроку как «прыжок» и затягивал осадку (предмет падал заново)
-      const ry = Math.min(Math.max(it.p.y, FLOOR_REST + 0.6), FUNNEL.H);
-      const fit = Math.max(0, radiusAt(ry) - it.r - 0.25);
-      const len = Math.hypot(it.p.x, it.p.z) || 1;
-      it.body.setTranslation({ x: it.p.x/len*fit, y: ry, z: it.p.z/len*fit }, true);
+      const верхЗоны = (typeof level !== 'undefined' && level && level.bonus) ? BONUS_H - 1 : FUNNEL.H;
+      const ry = Math.min(Math.max(it.p.y, дно + 0.6), верхЗоны);
+      // ⚠️ ПОСАДКА ПО ОСЯМ, А НЕ ПО РАДИУСУ. Радиальная («укоротить вектор до
+      // fit») на ящике возвращает предмет ЗА тонкую грань — он снова «снаружи»,
+      // спасатель бьёт его каждые полсекунды, и получается шторм телепортов.
+      const вБокс = clampIntoContainer(it.p.x, it.p.z, it.r + 0.25);
+      if (вБокс){
+        it.body.setTranslation({ x: вБокс.x, y: ry, z: вБокс.z }, true);
+      } else {
+        const fit = Math.max(0, radiusAt(ry) - it.r - 0.25);
+        const len = Math.hypot(it.p.x, it.p.z) || 1;
+        it.body.setTranslation({ x: it.p.x/len*fit, y: ry, z: it.p.z/len*fit }, true);
+      }
       it.body.setLinvel({ x:0, y:0, z:0 }, true);
       it.body.setAngvel({ x:0, y:0, z:0 }, true);
       wakePhysics('rescue'); // пусть доосядет

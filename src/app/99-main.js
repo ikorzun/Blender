@@ -78,6 +78,15 @@ function startIntro(){
 // утряски, тихо изымается ПАРАМИ (верхний + его близнец) — чётность типов
 // цела, переполнения не бывает никогда
 function trimOverfill(){
+  // ⚠️⚠️ НА ВИТРИНЕ ТРИМА НЕТ, И БЕЗ ЭТОГО ГЕЙТА ОН СЪЕЛ БЫ ПОЛУРОВНЯ МОЛЧА.
+  // Он изымает пары, торчащие выше «красной линии» чаши (FUNNEL.H − 0.2 ≈ 9.0),
+  // а столб витрины по замыслу стоит до ~15: под нож пошла бы вся верхняя
+  // половина, тихо и парами — то есть без единого симптома, кроме «уровень
+  // почему-то короткий». На чаше он нужен (заполнение калибровано под кромку),
+  // на витрине заполнение задано ТОЧНЫМ числом пар, обрезать нечего.
+  // ⚠️ Следствие, на которое опирается пополнение: `aliveN0` на бонусе равен
+  // полному числу выданных предметов, а не «сколько осталось после трима».
+  if (level && level.bonus) return 0;
   let removed = 0;
   for (let guard=0; guard<8; guard++){
     let top = null;
@@ -308,9 +317,21 @@ function tickIntro(dt){
     const e = k*k*(3 - 2*k); // smoothstep
     // финиш РОВНО в 2π (≡ 0): раньше облёт кончался на 0.35+2π, а finishIntro
     // ставил 0 — скачок ~20° в последний кадр («дёргается» — баг владельца)
-    camAz = 0.35 + e*(Math.PI*2 - 0.35);
-    camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
-    camR = 17.8 + (16.2 - 17.8)*e;
+    // ⚠️⚠️ НА ВИТРИНЕ ОБЛЁТА НЕТ — УРОВЕНЬ НЕ ВРАЩАЕТСЯ (пункт 3 владельца), и
+    // облёт показал бы ящик с торца и с изнанки. ФАЗЫ И ИХ ТАЙМИНГ НЕ ТРОГАЕМ:
+    // в этом окне живёт подача волн тел (см. разбор строкой выше), а работа,
+    // уехавшая за край окна, уже стоила нам ложного вывода. Меняем только ПУТЬ
+    // КАМЕРЫ: вместо оборота — плавный наезд спереди на конечный кадр.
+    if (level && level.bonus){
+      camAz = 0;
+      camPhi = BONUS_CAM_PHI;
+      camR = (BONUS_CAM_R + 4.5) + (BONUS_CAM_R - (BONUS_CAM_R + 4.5))*e;
+      camTarget.y = BONUS_CAM_TY;
+    } else {
+      camAz = 0.35 + e*(Math.PI*2 - 0.35);
+      camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
+      camR = 17.8 + (16.2 - 17.8)*e;
+    }
     updateCamera();
     if (k >= 1) finishIntro();
   }
@@ -797,6 +818,11 @@ function loop(){
     skyMat.uniforms.uGrind.value = gCur < gTgt ? Math.min(gTgt, gCur + gStep) : Math.max(gTgt, gCur - gStep);
   }
   // лопасти: стоят, пока миксер не работает (владельца нервировало холостое вращение)
+  // ⚠️ ЛОПАСТЕЙ НА ВИТРИНЕ НЕТ (пункт 2 владельца): блендера там нет вовсе —
+  // ни отсчёта до измельчения, ни ножей. Видимостью владеет ЭТОТ цикл, как и у
+  // стекла чаши, поэтому гейт стоит здесь: снятие `visible` в 20-arena прожило
+  // бы один кадр (та же грабля, что была у `bowlBroken`).
+  mixerBlades.visible = !(level && level.bonus);
   mixerSpeed += ((grinding ? 14 : 0) - mixerSpeed) * Math.min(1, dt*3);
   mixerBlades.rotation.y += mixerSpeed * dt;
   // работающий миксер ВИБРИРУЕТ массу: нижним слоям лёгкие импульсы
@@ -825,9 +851,14 @@ function loop(){
     // просил «все элементы интерфейса остаются» — а отсчёт до помола на бонусе
     // не тикает вовсе, то есть узел иначе просто стоял бы пустым. Тот же CSS
     // красит ≤3 с красным, и это верно и здесь.
+    // ⚠️⚠️ НА ВИТРИНЕ ЧИСЛА НЕТ ВОВСЕ (пункт 1 владельца «нет времени до
+    // измельчения» + его же выбор «не показывать вовсе»). Механика 60 секунд
+    // ЖИВА — уходит только показ; `txt` остаётся пустым, узел прячется.
+    // ⚠️ СЛЕДСТВИЕ, КОТОРОЕ НАДО ЗНАТЬ: единственным телеграфом стока остаётся
+    // красная заливка неба (ветка `grinding` ниже). Снимут её — сток станет
+    // наступать без предупреждения вовсе.
     if (level.bonus){
-      if (!intro && !level.over && level.bonusEndAt)
-        txt = String(Math.max(0, Math.ceil((level.bonusEndAt - now) / 1000)));
+      /* показа таймера на витрине нет */
     } else
     if (!intro && !level.over && items.some(i => i.alive)){
       const idleS = (now - stats.lastAction) / 1000;
@@ -1286,7 +1317,11 @@ window.__game = {
     пополнений: (level && level.bonusRefills) || 0,
     старт: (level && level.aliveN0) || 0,
     живых: items.filter(i => i.alive).length,
-    сток: !!(level && level.bonusEndAt && performance.now() >= level.bonusEndAt) }; },
+    сток: !!(level && level.bonusEndAt && performance.now() >= level.bonusEndAt),
+    // видимое состояние витрины — на нём стражи пунктов 1-3 владельца
+    лопасти: !!mixerBlades.visible,
+    таймерПоказан: $('mixerTimerSvg') ? getComputedStyle($('mixerTimerSvg')).display !== 'none' : null,
+    камера: { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2) } }; },
   // тест-рычаг: «время вышло» прямо сейчас (иначе страж ждал бы минуту).
   // ⚠️ Двигает ТОЛЬКО якорь: сток дальше идёт боевым путём из loop.
   bonusExpire(){ if (!level || !level.bonus) return false;
@@ -1297,6 +1332,19 @@ window.__game = {
   // Перепись спецпредметов в куче. НЕСУЩИЙ: на нём страж «на бонусе их нет»
   // ВМЕСТЕ С КОНТРОЛЕМ на обычном уровне — без контроля тот же ассерт был бы
   // зелен и на сборке, где спецпредметов не бывает вовсе.
+  // ЗОНД ПРОЗРАЧНОСТИ ПРИЗРАКА. Луч ВНИЗ вдоль колонны призрачной боковой
+  // стены витрины (она стоит и на обычных уровнях, выключенная сенсором).
+  // Идёт БОЕВОЙ функцией `skyCast` — снимут из неё EXCLUDE_SENSORS, и зонд
+  // упрётся в крышу призрака вместо настоящей геометрии чаши.
+  // ⚠️ Отдаём и КОНТРОЛЬНЫЙ каст (без исключения сенсоров): без него нельзя
+  // отличить «флаг работает» от «призрака тут вовсе нет».
+  sensorProbe(){
+    const луч = new RAPIER.Ray({ x: BONUS_W/2 + 0.3, y: 25, z: 0 }, { x: 0, y: -1, z: 0 });
+    const скв = skyCast(луч, 40, null);
+    const сВидимыми = world.castRay(луч, 40, true, null, null, null, null);
+    const t = h => h ? +( (h.timeOfImpact !== undefined ? h.timeOfImpact : h.toi) ).toFixed(2) : null;
+    return { сквозьПризрак: t(скв), сПризраком: t(сВидимыми) };
+  },
   specialsCount(){
     let клад = 0, бомб = 0, камней = 0, глыб = 0;
     for (const it of items){
@@ -2342,7 +2390,7 @@ window.__game = {
       const d = Math.hypot(it.p.x, it.p.z);
       // ТОЧНЫЙ охват: у вытянутых моделей оценка сверху завышает больше, чем
       // сам порог тревоги (см. radialReachExact в 50-physics)
-      out.push(+((d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y)).toFixed(3));
+      out.push(+((d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - wallDistAt(it.p.y, d > 1e-3 ? it.p.x/d : 1, d > 1e-3 ? it.p.z/d : 0)).toFixed(3));
     }
     return out;
   },
@@ -2358,14 +2406,31 @@ window.__game = {
   // ⛔ СПАСАТЕЛЬ ЭТИМ НЕ ЛЕЧИТСЯ И НЕ ТРОГАЕТСЯ: у него та же формула означает
   // другое — предмет выше чаши и снаружи R1 упадёт МИМО чаши, и вернуть его
   // внутрь правильно. Слепое пятно у ДИАГНОСТИКИ, не у механики.
+  // ⚠️ НА ВИТРИНЕ «ВЫСТУП» — ЭТО ВЫХОД ЦЕНТРА ЗА ГРАНЬ ЯЩИКА, ровно та величина,
+  // на которую реагирует спасатель. Радиальная формула ниже на ящике мешает оси
+  // и печатает бессмысленное `wall=1.49` для предмета, стоящего в двух метрах
+  // от боковой стены — на этом уже потерян один разбор.
+  bonusWallExcess(){
+    let best = -9, who = '';
+    for (const it of items){
+      if (!it.alive) continue;
+      const ex = Math.max(Math.abs(it.p.x) - BONUS_W/2, Math.abs(it.p.z) - BONUS_D/2);
+      if (ex > best){ best = ex; who = it.type.name + ' x=' + it.p.x.toFixed(2) + ' z=' + it.p.z.toFixed(2); }
+    }
+    return { excess: +best.toFixed(3), who, walled: true };
+  },
   maxWallExcess(){
+    // ⚠️ ДЕЛЕГИРУЕМ, А НЕ ПРОСИМ КАЖДОГО ПОТРЕБИТЕЛЯ ЗНАТЬ ПРО ЯЩИК. Эту ручку
+    // читают соак, стражи и пробы; развести их значило бы гарантировать, что
+    // кто-то останется на радиальной формуле и напечатает бессмыслицу.
+    if (level && level.bonus) return this.bonusWallExcess();
     let worst = -99, who = '', wy = 0;
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      const ex = (d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - radiusAt(it.p.y);
+      const ex = (d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - wallDistAt(it.p.y, d > 1e-3 ? it.p.x/d : 1, d > 1e-3 ? it.p.z/d : 0);
       if (ex > worst){ worst = ex; wy = it.p.y; who = it.type.name + ' y=' + it.p.y.toFixed(2) + ' d=' + d.toFixed(2)
-        + ' wall=' + radiusAt(it.p.y).toFixed(2) + ' r=' + it.r.toFixed(2); }
+        + ' wall=' + wallDistAt(it.p.y, d > 1e-3 ? it.p.x/d : 1, d > 1e-3 ? it.p.z/d : 0).toFixed(2) + ' r=' + it.r.toFixed(2); }
     }
     return { excess: +worst.toFixed(3), who, y: +wy.toFixed(2), walled: wy <= WALL_TOP_Y };
   },

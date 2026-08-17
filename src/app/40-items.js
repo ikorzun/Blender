@@ -397,10 +397,11 @@ function bonusRefill(нужно){
     const size = levelSize();                 // близнецы пары — ОДНОГО размера (канон)
     for (let half = 0; half < 2; half++){
       const it = makeItem(typeIdx, size);
-      const слой = Math.floor(n / 24);         // 24 в слой — как на бонусном спавне
-      const maxD = Math.max(0.1, radiusAt(верх) * 0.85 - it.r);
-      const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
-      it.p.set(Math.cos(th) * d, верх + 1.6 + слой * 1.35 + Math.random() * 0.25, Math.sin(th) * d);
+      const слой = Math.floor(n / 10);         // столько же на слой, что и у спавна витрины
+      const hx = Math.max(0.1, BONUS_W/2 - it.r - 0.1);
+      const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
+      it.p.set((Math.random()*2-1)*hx, верх + 1.6 + слой * 1.35 + Math.random() * 0.25,
+               (Math.random()*2-1)*hz);
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[typeIdx].name, it.geo);
       items.push(it); n++;
@@ -747,15 +748,24 @@ function genLevel(){
       const it = makeItem(pr.type, pr.size);
       // столб НАД чашей СЛОЯМИ (по 8 — чаша шире, шаг 1.35): без стартовых
       // перекрытий — они взрывали столб и закидывали предметы на торцы стен
-      // ⚠️ НА БОНУСЕ СЛОЙ ШИРЕ (радиус втрое больше — в слое помещается втрое
-      // больше предметов), и столб начинается ВЫШЕ ПОДНЯТОГО ДНА, а не над чашей
-      const наСлой = БОНУС ? 24 : 8;
+      // ⚠️⚠️ НА ВИТРИНЕ СТОЛБ ПРЯМОУГОЛЬНЫЙ, А ЧИСЛО НА СЛОЙ — ПО ЕЁ ПЛОЩАДИ.
+      // Прежние 24 были посчитаны под широкий круглый ковёр R=7.6; в footprint
+      // ящика 7.4×4.2 столько не помещается, и слой рождался бы С ПЕРЕКРЫТИЯМИ —
+      // ровно та грабля, что записана строкой выше про «взрывали столб».
+      const наСлой = БОНУС ? 10 : 8;
       const layer = Math.floor(n/наСлой);
       const низ = БОНУС ? BONUS_FLOOR : FUNNEL.H;
       const y = низ + 1.6 + layer*1.35 + Math.random()*0.25;
-      const maxD = Math.max(0.1, radiusAt(низ)*0.85 - it.r);
-      const th = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*maxD;
-      it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
+      if (БОНУС){
+        // равномерно по прямоугольнику, с полем на габарит предмета
+        const hx = Math.max(0.1, BONUS_W/2 - it.r - 0.1);
+        const hz = Math.max(0.1, BONUS_D/2 - it.r - 0.1);
+        it.p.set((Math.random()*2-1)*hx, y, (Math.random()*2-1)*hz);
+      } else {
+        const maxD = Math.max(0.1, radiusAt(низ)*0.85 - it.r);
+        const th = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*maxD;
+        it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
+      }
       it.mesh.position.copy(it.p);
       createItemBody(it, TYPES[pr.type].name, it.geo);
       it.wave = layer;            // волна = тот же слой, что у спавна (по 8)

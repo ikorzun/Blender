@@ -18,8 +18,10 @@ const TARGET_Y_MIN = 1.2, TARGET_Y_MAX = 5.2, TARGET_Y_DEF = 4.2;
 // потолка 5.2 — первый же щипок/правый драг зажал бы взгляд в 5.2, и вернуть
 // его игроку было бы нечем (клампу всё равно, кто просит).
 function panLimits(){
+  // на витрине коридор ездит вокруг её центра: боевой потолок 5.2 ниже
+  // середины столба, и первый же щипок утащил бы кадр под низ ящика
   return isBonusLevel(levelNum)
-    ? { lo: BONUS_CAM_TY - 1.6, hi: BONUS_CAM_TY + 1.6 }
+    ? { lo: BONUS_CAM_TY - 3.0, hi: BONUS_CAM_TY + 3.0 }
     : { lo: TARGET_Y_MIN, hi: TARGET_Y_MAX };
 }
 function setTargetY(y){
@@ -73,6 +75,11 @@ function tickCamFollow(dt){
 // иначе он тут же утаскивал бы target назад к 3.2.
 let hintFly = null;
 function hintCamFly(item){
+  // ⚠️⚠️ ПОЛЁТ ПОДСКАЗКИ — ЭТО ВРАЩЕНИЕ КАМЕРЫ (азимут к предмету + наклон phi),
+  // то есть прямое нарушение пункта 3. На витрине его нет; сама ПОДСВЕТКА
+  // группы остаётся — она и есть польза подсказки, а лететь на витрине некуда:
+  // весь уровень и так в кадре.
+  if (level && level.bonus) return;
   const az2 = Math.atan2(item.p.x, item.p.z); // формула позиции: x=sin(az), z=cos(az)
   let dAz = az2 - camAz;
   dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // кратчайшая дуга
@@ -148,9 +155,16 @@ canvas.addEventListener('pointermove', e => {
     document.documentElement.classList.add('grabbing');
   }
   if (dragging){
-    camAz = pDown.az - dx*0.006;
-    camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // до ~77° — вид сбоку на миксер
-    updateCamera();
+    // ⚠️⚠️ НА ВИТРИНЕ УРОВЕНЬ НЕ ВРАЩАЕТСЯ (пункт 3 владельца, дословно
+    // «уровень нельзя вращать, игрок смотрит на вещи в профиль»). Гейт стоит
+    // ЗДЕСЬ, в единственной точке орбиты: кадр витрины живёт ВНЕ коридора
+    // драга (phi = π/2 при потолке 1.35), и один поворот защёлкнул бы его в
+    // 1.35 навсегда — вернуть игроку было бы нечем.
+    if (!(level && level.bonus)){
+      camAz = pDown.az - dx*0.006;
+      camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // до ~77° — вид сбоку на миксер
+      updateCamera();
+    }
   }
 });
 function endPointer(e){
