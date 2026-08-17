@@ -1122,9 +1122,12 @@ function scorePopScreen(text, px, py, color, big){
   // с чёрной обводкой (спека владельца).
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'otext');
-  svg.setAttribute('width', '260'); svg.setAttribute('height', '40');
+  // ⚠️ ХОЛСТ УДВОЕН ВМЕСТЕ С КЕГЛЕМ (слово владельца 2026-08-17 «×2»): при
+  // прежних 260×40 текст в 38-56px обрезался бы рамкой SVG сверху и по бокам.
+  // Центрирование не трогаем — див позиционируется translate(-50%,-50%).
+  svg.setAttribute('width', '520'); svg.setAttribute('height', '80');
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  t.setAttribute('x', '130'); t.setAttribute('y', '30');
+  t.setAttribute('x', '260'); t.setAttribute('y', '60');
   t.setAttribute('text-anchor', 'middle');
   t.textContent = text;
   svg.appendChild(t); el.appendChild(svg);
