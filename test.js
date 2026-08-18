@@ -7363,7 +7363,28 @@ window.bridge = {
     '⚠️ ВИТРИНА: и самый нижний предмет не прижат к кромке (' +
     отступы[0].нижнийПредметОтНизаPx + ' / ' + отступы[1].нижнийПредметОтНизаPx + ' px)');
 
-  console.log('панель множителей:', JSON.stringify({ витОбычный, витБонус, витНазад }));
+  // ⚠️⚠️ ЧЕТВЁРТОЕ СОСТОЯНИЕ, НАЙДЕННОЕ НА ЖИВОЙ ССЫЛКЕ УЖЕ ПОСЛЕ ЗАЛИВКИ:
+  // ХОЛОДНЫЙ СТАРТ ПРЯМО НА ВИТРИНЕ. Первая редакция гейта гасила панель только
+  // если та была ПОСТРОЕНА, а при старте на кратном десяти её никто не строит —
+  // на десктопе оставалась пустая карточка 24×24 с фоном .16. Три состояния выше
+  // этот путь не исполняют ПО ПОСТРОЕНИЮ: они все идут с обычного уровня.
+  const хсПанель = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await хсПанель.addInitScript(() => { try { localStorage.clear(); localStorage.setItem('mixer_level','10'); } catch(e){} });
+  await хсПанель.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await хсПанель.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+  await хсПанель.waitForFunction(() => document.documentElement.classList.contains('introdone'), { timeout: 60000 });
+  await хсПанель.waitForTimeout(600);
+  const витХолодный = await хсПанель.evaluate(() => {
+    const v = document.getElementById('vitrine');
+    return { бонус: !!(window.__game.level()||{}).bonus,
+      строк: v.querySelectorAll('.vcell').length, прозрачность: +getComputedStyle(v).opacity };
+  });
+  await хсПанель.evaluate(() => { try { localStorage.removeItem('mixer_level'); } catch(e){} });
+  await хсПанель.close();
+  expect(витХолодный.бонус === true && витХолодный.строк === 0 && витХолодный.прозрачность < 0.05,
+    '⚠️⚠️ ВИТРИНА С ХОЛОДНОГО СТАРТА: панели множителей нет и там, где её никто ' +
+    'не строил (' + JSON.stringify(витХолодный) + ')');
+  console.log('панель множителей:', JSON.stringify({ витОбычный, витБонус, витНазад, витХолодный }));
   expect(!витОбычный.бонус && витОбычный.строк > 0 && витОбычный.прозрачность > 0.5,
     'САНИТАР ПАНЕЛИ: на ОБЫЧНОМ уровне панель множителей есть и видна (' +
     JSON.stringify(витОбычный) + ')');
@@ -9600,17 +9621,31 @@ window.bridge = {
     // ⚠️ КОНТРОЛЬ на соседнем обычном уровне обязателен: «видов <= 5» зелено и у
     // сборки, где пул схлопнулся целиком. Плюс мерим СЛЕДСТВИЕ — доступные пары.
     await наУровень(10, true);
+    // ⚠️⚠️ ПАРЫ ЧИТАЮТСЯ ПОСЛЕ ПОЛНОГО КРУГА ДОСТУПНОСТИ, А НЕ ЧЕРЕЗ 0.7 с.
+    // Периодический обход ЧАСТИЧНЫЙ (1/8 кучи каждые 100 мс, полный круг 0.8 с —
+    // правка перфа Hard 2026-08-14), и под нагрузкой сьюта он ещё медленнее.
+    // Замер в изоляции даёт отношение 3.1× / 4.0× / 2.9× на уровнях 10/20/30, а
+    // прогон под нагрузкой выдал 1.43× — читалась НЕДОБРАННАЯ доступность, то
+    // есть страж мерил свой момент, а не свойство уровня. Берём МАКСИМУМ двух
+    // проб через 700 мс: доступность только НАБИРАЕТСЯ по мере обхода.
+    const парыУстоявшиеся = async () => page.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      g.forceRefresh(); await sl(700);
+      const a = g.availablePairs();
+      await sl(700);
+      return Math.max(a, g.availablePairs());
+    });
     const в10т = await page.evaluate(() => {
       const g = window.__game.itemsGeo();
-      return { видов: new Set(g.map(i => i.name)).size, живых: g.length,
-               пар: window.__game.availablePairs() };
+      return { видов: new Set(g.map(i => i.name)).size, живых: g.length };
     });
+    в10т.пар = await парыУстоявшиеся();
     await наУровень(21);
     const в21т = await page.evaluate(() => {
       const g = window.__game.itemsGeo();
-      return { видов: new Set(g.map(i => i.name)).size, живых: g.length,
-               пар: window.__game.availablePairs() };
+      return { видов: new Set(g.map(i => i.name)).size, живых: g.length };
     });
+    в21т.пар = await парыУстоявшиеся();
     console.log('виды:', JSON.stringify({ витрина: в10т, обычный21: в21т }));
     expect(в10т.видов > 0 && в10т.видов <= 5,
       '⚠️⚠️ ВИТРИНА: видов не больше пяти (' + в10т.видов + ' на ' + в10т.живых + ' предметов)');
