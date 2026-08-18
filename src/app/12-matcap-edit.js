@@ -25,18 +25,40 @@ const mceBackup = new Map();
 
 // ЦЕЛИ: наши четыре независимых носителя матчепа. Имена — те же ключи, что
 // у `makeMatcap`, плюс лопасти (у них своя текстура из PNG владельца).
+// ⚠️⚠️ ПАЧКИ БЕРУТСЯ ИЗ ЖИВОГО ПУЛА, А НЕ СПИСКОМ. Владелец режет и добавляет
+// типы (120 → 88 за одну сессию), и переписанный от руки список разошёлся бы с
+// игрой при первой же партии моделей — канонная грабля «копия признака рядом с
+// рабочей величиной». Имя пачки это поле `tex` у типа, оно же ключ атласа.
+function mcePacks(){
+  const из = new Set();
+  try { for (const t of TYPES) if (t && t.tex) из.add(t.tex); } catch (e) {}
+  return [...из].sort();
+}
+// РУССКИЕ ЯРЛЫКИ ПАЧЕК — для панели; незнакомая пачка показывается как есть,
+// а не выпадает из списка (появится новая партия — она сразу видна).
+const MCE_PACK_RU = { food:'еда', animal:'звери', car:'машины', brick:'кирпичи',
+  pirate:'пиратское', holiday:'праздник', toycar:'машинки', factory:'завод',
+  survival:'выживание', forest:'лес' };
 function mceTargets(){
+  const пачки = mcePacks().map(p => ({ id:'pack:' + p, имя:'пачка: ' + (MCE_PACK_RU[p] || p) }));
   return [
-    { id:'tex',   имя:'предметы с текстурой (большинство)' },
+    { id:'tex',   имя:'все текстурные разом' },
+    ...пачки,
     { id:'soft',  имя:'крашеные предметы' },
     { id:'metal', имя:'хром' },
     { id:'blades',имя:'лопасти миксера' },
     { id:'bomb',  имя:'бомба' },
   ];
 }
+// ⚠️ У ПАЧКИ ТЕКСТУРА ПОЯВЛЯЕТСЯ ТОЛЬКО В МОМЕНТ ПРИМЕНЕНИЯ (копирование по
+// требованию): до этого она делит общую с остальными, и `mceTexOf` честно
+// отдаёт `null` — «своей ещё нет». Создаёт её `mceApply`.
+function mcePackOf(id){ return (id && id.indexOf('pack:') === 0) ? id.slice(5) : null; }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
   if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
+  const пачка = mcePackOf(id);
+  if (пачка) return (typeof packMatcaps !== 'undefined') ? (packMatcaps.get(пачка) || null) : null;
   return makeMatcap(id);
 }
 // ⚠️⚠️ ПРИМЕНЕНИЕ ИДЁТ ЧЕРЕЗ УМЕНЬШЕНИЕ ДО РАЗМЕРА ЖИВОЙ ТЕКСТУРЫ, А НЕ
@@ -44,6 +66,23 @@ function mceTexOf(id){
 // показать в игре 512 значило бы показать НЕ ТО, что будет в бою. Экспорт при
 // этом остаётся 512 — вшивать в сборку надо полное разрешение.
 function mceApply(id){
+  const пачка = mcePackOf(id);
+  if (пачка && !mceTexOf(id)){
+    // ⚠️ ПЕРВОЕ ПРИМЕНЕНИЕ К ПАЧКЕ = РОЖДЕНИЕ ЕЁ СОБСТВЕННОЙ ТЕКСТУРЫ. До него
+    // пачка делила общую, и правка растеклась бы на ВСЕ текстурные предметы —
+    // ровно то, чего владелец и просил избежать («по пачке»).
+    const S = MATCAP_SIZE;
+    const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+    const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
+    g0.drawImage(mcePost, 0, 0, S, S);
+    const свой = new THREE.DataTexture(new Uint8Array(g0.getImageData(0,0,S,S).data), S, S, THREE.RGBAFormat);
+    свой.encoding = THREE.sRGBEncoding;
+    свой.magFilter = свой.minFilter = THREE.LinearFilter;
+    свой.needsUpdate = true;
+    const n = setPackMatcap(пачка, свой);
+    mceBackup.set(id, null);          // «Сброс» вернёт пачку на общую текстуру
+    return 'пачка ' + пачка + ': своя текстура ' + S + '×' + S + ', предметов ' + n;
+  }
   const tex = mceTexOf(id);
   if (!tex) return 'нет такой цели';
   const S = (tex.image && tex.image.width) ? tex.image.width : MATCAP_SIZE;
@@ -67,6 +106,8 @@ function mceApply(id){
   return 'применено: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
+  const пачка = mcePackOf(id);
+  if (пачка){ setPackMatcap(пачка, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
   const b = mceBackup.get(id);
   if (b && tex.image && tex.image.data && tex.image.data.length === b.length){

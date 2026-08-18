@@ -4868,6 +4868,41 @@ function makeMatcap(kind){
   matcapCache.set(kind, tex);
   return tex;
 }
+// ═══ МАТЧЕП ПО ПАЧКЕ (слово владельца 2026-08-17-к: «маткапы по пачке») ═══
+// ⚠️⚠️ КОПИРОВАНИЕ ПО ТРЕБОВАНИЮ, И ЭТО НЕСУЩЕЕ. Пока пачке не задали СВОЮ
+// картинку, она возвращает ОБЩУЮ текстуру пресета — тот же объект, что и
+// раньше. Значит по умолчанию не меняется ни один пиксель, ни один байт
+// сборки и ни один вызов отрисовки: разделение стоит ровно столько, сколько
+// картинок владелец реально принесёт.
+// ⚠️ ПОЧЕМУ ЭТО ДЁШЕВО: материал предмета и так создаётся ПОД ТИП
+// (`itemMaterial`), а геометрия у каждого типа своя — то есть пары
+// «геометрия+материал» и без нас различались, и лишних вызовов отрисовки
+// per-pack матчеп не добавляет. Проверено замером, а не рассуждением.
+const packMatcaps = new Map();   // имя пачки → её собственная текстура
+function packMatcap(pack, base){
+  const own = pack && packMatcaps.get(pack);
+  return own || base;
+}
+// Регистрация своей картинки пачке + ЖИВОЕ переключение уже созданных
+// материалов: они держат ССЫЛКУ на текстуру, поэтому одной подменой пикселей
+// (приём `retuneMatcap`) тут не обойтись — нужен новый объект в поле `matcap`.
+function setPackMatcap(pack, tex){
+  if (!pack) return false;
+  if (tex) packMatcaps.set(pack, tex); else packMatcaps.delete(pack);
+  const базовая = makeMatcap('tex');
+  let тронуто = 0;
+  try {
+    for (const it of items){
+      if (!it || !it.type || it.type.tex !== pack || !it.mesh) continue;
+      const m = it.mesh.material;
+      if (!m || !('matcap' in m)) continue;
+      m.matcap = tex || базовая; тронуто++;
+    }
+  } catch (e) {}
+  // портреты коллекции кэшируются картинкой — их снимки протухли
+  try { if (typeof thumbCache !== 'undefined') thumbCache.clear(); } catch (e) {}
+  return тронуто;
+}
 // Пересъёмка уже выданных текстур (тюнер). kind не задан — все сразу: свет
 // общий, его сдвиг меняет каждый пресет. Материалы трогать НЕ НАДО — они
 // ссылаются на тот же объект текстуры, needsUpdate заливает новые пиксели
@@ -5516,18 +5551,40 @@ const mceBackup = new Map();
 
 // ЦЕЛИ: наши четыре независимых носителя матчепа. Имена — те же ключи, что
 // у `makeMatcap`, плюс лопасти (у них своя текстура из PNG владельца).
+// ⚠️⚠️ ПАЧКИ БЕРУТСЯ ИЗ ЖИВОГО ПУЛА, А НЕ СПИСКОМ. Владелец режет и добавляет
+// типы (120 → 88 за одну сессию), и переписанный от руки список разошёлся бы с
+// игрой при первой же партии моделей — канонная грабля «копия признака рядом с
+// рабочей величиной». Имя пачки это поле `tex` у типа, оно же ключ атласа.
+function mcePacks(){
+  const из = new Set();
+  try { for (const t of TYPES) if (t && t.tex) из.add(t.tex); } catch (e) {}
+  return [...из].sort();
+}
+// РУССКИЕ ЯРЛЫКИ ПАЧЕК — для панели; незнакомая пачка показывается как есть,
+// а не выпадает из списка (появится новая партия — она сразу видна).
+const MCE_PACK_RU = { food:'еда', animal:'звери', car:'машины', brick:'кирпичи',
+  pirate:'пиратское', holiday:'праздник', toycar:'машинки', factory:'завод',
+  survival:'выживание', forest:'лес' };
 function mceTargets(){
+  const пачки = mcePacks().map(p => ({ id:'pack:' + p, имя:'пачка: ' + (MCE_PACK_RU[p] || p) }));
   return [
-    { id:'tex',   имя:'предметы с текстурой (большинство)' },
+    { id:'tex',   имя:'все текстурные разом' },
+    ...пачки,
     { id:'soft',  имя:'крашеные предметы' },
     { id:'metal', имя:'хром' },
     { id:'blades',имя:'лопасти миксера' },
     { id:'bomb',  имя:'бомба' },
   ];
 }
+// ⚠️ У ПАЧКИ ТЕКСТУРА ПОЯВЛЯЕТСЯ ТОЛЬКО В МОМЕНТ ПРИМЕНЕНИЯ (копирование по
+// требованию): до этого она делит общую с остальными, и `mceTexOf` честно
+// отдаёт `null` — «своей ещё нет». Создаёт её `mceApply`.
+function mcePackOf(id){ return (id && id.indexOf('pack:') === 0) ? id.slice(5) : null; }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
   if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
+  const пачка = mcePackOf(id);
+  if (пачка) return (typeof packMatcaps !== 'undefined') ? (packMatcaps.get(пачка) || null) : null;
   return makeMatcap(id);
 }
 // ⚠️⚠️ ПРИМЕНЕНИЕ ИДЁТ ЧЕРЕЗ УМЕНЬШЕНИЕ ДО РАЗМЕРА ЖИВОЙ ТЕКСТУРЫ, А НЕ
@@ -5535,6 +5592,23 @@ function mceTexOf(id){
 // показать в игре 512 значило бы показать НЕ ТО, что будет в бою. Экспорт при
 // этом остаётся 512 — вшивать в сборку надо полное разрешение.
 function mceApply(id){
+  const пачка = mcePackOf(id);
+  if (пачка && !mceTexOf(id)){
+    // ⚠️ ПЕРВОЕ ПРИМЕНЕНИЕ К ПАЧКЕ = РОЖДЕНИЕ ЕЁ СОБСТВЕННОЙ ТЕКСТУРЫ. До него
+    // пачка делила общую, и правка растеклась бы на ВСЕ текстурные предметы —
+    // ровно то, чего владелец и просил избежать («по пачке»).
+    const S = MATCAP_SIZE;
+    const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+    const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
+    g0.drawImage(mcePost, 0, 0, S, S);
+    const свой = new THREE.DataTexture(new Uint8Array(g0.getImageData(0,0,S,S).data), S, S, THREE.RGBAFormat);
+    свой.encoding = THREE.sRGBEncoding;
+    свой.magFilter = свой.minFilter = THREE.LinearFilter;
+    свой.needsUpdate = true;
+    const n = setPackMatcap(пачка, свой);
+    mceBackup.set(id, null);          // «Сброс» вернёт пачку на общую текстуру
+    return 'пачка ' + пачка + ': своя текстура ' + S + '×' + S + ', предметов ' + n;
+  }
   const tex = mceTexOf(id);
   if (!tex) return 'нет такой цели';
   const S = (tex.image && tex.image.width) ? tex.image.width : MATCAP_SIZE;
@@ -5558,6 +5632,8 @@ function mceApply(id){
   return 'применено: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
+  const пачка = mcePackOf(id);
+  if (пачка){ setPackMatcap(пачка, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
   const b = mceBackup.get(id);
   if (b && tex.image && tex.image.data && tex.image.data.length === b.length){
@@ -7321,7 +7397,11 @@ function itemMaterial(t){
       // у текстурных — почти белый matcap, иначе он пережимает авторские цвета.
       // ПОКРАШЕННЫМ он не нужен: их цвет несёт material.color, а не атлас,
       // значит им идёт обычный 'soft' — с ним форма читается объёмнее.
-      matcap: makeMatcap(t.tex && !t.paint ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
+      // ⚠️ У ТЕКСТУРНЫХ МАТЧЕП БЕРЁТСЯ ПО ПАЧКЕ (слово владельца 2026-08-17-к).
+      // Пачке без своей картинки `packMatcap` отдаёт ТУ ЖЕ общую текстуру, что
+      // и раньше, — по умолчанию не меняется ничего.
+      matcap: (t.tex && !t.paint) ? packMatcap(t.tex, makeMatcap('tex'))
+            : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
       vertexColors: t.mat === 'model',
     });
     // ручки яркости/контраста калиброваны под АВТОРСКИЕ атласы; покрашенным
@@ -20237,17 +20317,42 @@ window.__game = {
   // описанную окружность ящика, и «предмет внутри чаши» стало бы истинным
   // всегда, то есть страж молчал бы ровно про тот дефект, что ловит.
   funnelR(y){ return funnelRadiusAt(y); },
+  // ⚠️ НЕСУЩИЙ: на нём страж «по умолчанию все пачки делят ОДНУ текстуру, а
+  // заданная пачка меняет ТОЛЬКО свои предметы». Отдаёт не флаги, а тождество
+  // объектов — иначе проверялось бы моё представление, а не сцена.
+  packMatcapInfo(){
+    // ⚠️⚠️ «СВОЯ» ОПРЕДЕЛЯЕТСЯ ПО РЕЕСТРУ ПАЧЕК, А НЕ ПО «НЕ РАВНА ОБЩЕЙ».
+    // Первая редакция считала своей любую текстуру, отличную от `tex`, и
+    // записала в свои КИРПИЧИ: они крашеные, у них законный пресет `soft`.
+    // То есть метрика правдоподобно врала ровно про тот случай, который
+    // проверяет («пачке задали своё»).
+    const базовая = makeMatcap('tex'), пачки = {};
+    for (const it of items){
+      if (!it || !it.alive || !it.type || !it.type.tex || !it.mesh) continue;
+      const p = it.type.tex, m = it.mesh.material, свояТек = packMatcaps.get(p);
+      const о = пачки[p] || (пачки[p] = { предметов: 0, наСвоей: 0, наОбщей: 0 });
+      о.предметов++;
+      if (m && свояТек && m.matcap === свояТек) о.наСвоей++;
+      else if (m && m.matcap === базовая) о.наОбщей++;
+    }
+    return { пачки, зарегистрировано: [...packMatcaps.keys()] };
+  },
   bonusFrame(){
     const hpx = (renderer.domElement && renderer.domElement.clientHeight) || 0;
     const pad = bonusBottomPad();
     const v = new THREE.Vector3(0, BONUS_FLOOR, BONUS_D/2).project(camera);
     const дноPx = (1 - v.y) / 2 * hpx;          // экранный y дна ящика
-    // самый нижний ЖИВОЙ предмет — его НИЗ на экране
+    // ⚠️⚠️ ЦЕНТР НИЖНЕГО ПРЕДМЕТА, А НЕ НИЗ ЕГО ОХВАТНОЙ СФЕРЫ. Прежняя версия
+    // проецировала `центр − r`, а охватный радиус у крупных моделей уходит
+    // НИЖЕ видимых пикселей (у банана запас до 0.36 — канон замерял его зондом
+    // `reachProbe`). На десктопе камера ближе, и та же величина съедает втрое
+    // больше пикселей: замер давал 22 px там, где дно стоит на 100. То есть
+    // число было правдоподобным и мерило не то, что названо.
     let низПред = -1;
     for (const it of items){
       if (!it.alive || !it.mesh) continue;
-      const c = it.mesh.position, r = it.r || 0.6;
-      const q = new THREE.Vector3(c.x, c.y - r, c.z).project(camera);
+      const c = it.mesh.position;
+      const q = new THREE.Vector3(c.x, c.y, c.z).project(camera);
       низПред = Math.max(низПред, (1 - q.y) / 2 * hpx);
     }
     // ⛔ ЗДЕСЬ БЫЛО ПОЛЕ «отступРасчётныйPx» (юниты обратно в пиксели ПО ЗАДНЕЙ
@@ -20255,7 +20360,7 @@ window.__game = {
     // исправлено: у стража остаётся ОДИН честный якорь — проекция дна.
     return { высотаPx: hpx, отступЮнитов: +pad.toFixed(3),
       дноОтНизаPx: Math.round(hpx - дноPx),
-      нижнийПредметОтНизаPx: низПред < 0 ? -1 : Math.round(hpx - низПред) };
+      центрНижнегоОтНизаPx: низПред < 0 ? -1 : Math.round(hpx - низПред) };
   },
   // ⚠️ НЕСУЩИЙ: на нём страж «бомба одета в картинку владельца». Проверять это
   // грепом по сборке нельзя — инлайн base64 присутствует и тогда, когда его
