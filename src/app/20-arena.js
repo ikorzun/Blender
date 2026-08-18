@@ -189,6 +189,22 @@ function clampIntoContainer(x, z, margin){
   }
   return null; // чаша — радиальная посадка на месте вызова
 }
+// ⚠️⚠️ ЧИСТАЯ ГЕОМЕТРИЯ ЧАШИ — БЕЗ ЕДИНОЙ ВЕТКИ ПО УРОВНЮ. Её зовёт всё, что
+// строится ОДИН РАЗ и живёт до конца сессии; `radiusAt` ниже — игровая, ей
+// ветка по бонусу нужна и разрешена.
+// ⛔⛔ РАЗДЕЛЕНИЕ ПОЯВИЛОСЬ ПОТОМУ, ЧТО ИНЦИДЕНТ 2026-08-17 БЫЛ РОВНО ЗДЕСЬ:
+// `radiusAt` стал отвечать по-разному на бонусе, а его читала одноразовая
+// инициализация — чаша собиралась ЦИЛИНДРОМ и оставалась такой до конца
+// сессии, на всех последующих обычных уровнях. Тогда вылечили `initPhysicsWorld`
+// точечно; при включении периода нашлись ЕЩЁ ДВА таких потребителя (выпечка
+// ячеек Вороного и геометрии разлёта чаши — они кэшируются и переживают
+// уровень). Правило канона «функция, которую читает одноразовое построение, не
+// имеет права зависеть от изменчивого состояния» исполнено по существу, а не
+// заплаткой на одного вызывающего.
+function funnelRadiusAt(y){
+  const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
+  return FUNNEL.R0 + SLOPE*yy;
+}
 function radiusAt(y){
   // ⚠️⚠️ НА БОНУСЕ КОНТЕЙНЕР — ЯЩИК-ВИТРИНА, У НЕГО РАДИУСА НЕТ. Отдаём
   // ОПИСАННУЮ окружность (половина диагонали): она заведомо БОЛЬШЕ настоящей
@@ -199,8 +215,7 @@ function radiusAt(y){
   // выходит 1) и выпечка стекла чаши (её на бонусе не видно).
   if (typeof levelNum !== 'undefined' && isBonusLevel(levelNum))
     return Math.hypot(2*bonusHalfX(), BONUS_D) / 2;
-  const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
-  return FUNNEL.R0 + SLOPE*yy;
+  return funnelRadiusAt(y);
 }
 
 // ===== ЧАША-РАЗЛЁТ (прототип v2): трещины + черепки =====
@@ -274,7 +289,8 @@ function clipHalf(poly, ax, ay, bx, by){
   return out;
 }
 function bowlVoronoiCells(){
-  const R = (radiusAt(0) + radiusAt(FUNNEL.H)) / 2;   // средний радиус для развёртки
+  const R = (funnelRadiusAt(0) + funnelRadiusAt(FUNNEL.H)) / 2; // средний радиус развёртки
+  // ⚠️ ЧИСТАЯ, А НЕ ИГРОВАЯ: ячейки кэшируются и переживают уровень (см. надгробие выше)
   const U = 2*Math.PI*R, V = FUNNEL.H;
   const seeds = [];
   // ПЛАСТИНЫ: немного и врозь — отбрасываем центр, если он ближе
@@ -340,7 +356,7 @@ function buildShatterGeo(){
   const P = new THREE.Vector3(), NRM = new THREE.Vector3(), C = new THREE.Vector3();
   const A = new THREE.Vector3(), D = new THREE.Vector3();
   const toXYZ = (u, v, out) => {                            // развёртка -> поверхность вращения
-    const th = u / R, y = Math.max(0, Math.min(FUNNEL.H, v)), r = radiusAt(y);
+    const th = u / R, y = Math.max(0, Math.min(FUNNEL.H, v)), r = funnelRadiusAt(y); // ЧИСТАЯ
     out.set(Math.cos(th)*r, y, Math.sin(th)*r);
   };
   let o = 0;
