@@ -51,7 +51,11 @@ function itemMaterial(t){
       // у текстурных — почти белый matcap, иначе он пережимает авторские цвета.
       // ПОКРАШЕННЫМ он не нужен: их цвет несёт material.color, а не атлас,
       // значит им идёт обычный 'soft' — с ним форма читается объёмнее.
-      matcap: makeMatcap(t.tex && !t.paint ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
+      // ⚠️ У ПАЧКИ МОЖЕТ БЫТЬ СВОЙ МАТЧЕП (08-matcap-car, слово владельца
+      // 2026-08-18). Он ПЕРЕБИВАЕТ пресет, но только для своей пачки;
+      // остальные текстурные модели по-прежнему берут почти белый 'tex'.
+      matcap: (typeof packMatcapTex === 'function' && !t.paint && packMatcapTex(t.tex))
+           || makeMatcap(t.tex && !t.paint ? 'tex' : (t.mat === 'chrome' ? 'metal' : 'soft')),
       vertexColors: t.mat === 'model',
     });
     // ручки яркости/контраста калиброваны под АВТОРСКИЕ атласы; покрашенным

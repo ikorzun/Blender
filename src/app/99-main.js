@@ -1151,6 +1151,18 @@ window.__game = {
   // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
   matcapTuner,
   matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
+  // сила матчепа пачки: 0 — как было, 1 — библиотечный в полную силу
+  packMatcapLoad(pack, src, opts){ return packMatcapLoad(pack, src, opts); },
+  packMatcapGain(pack, g){
+    if (g == null) return JSON.parse(JSON.stringify(PACK_MATCAP_GAIN));
+    PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  packMatcapContrast(pack, c){
+    if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
+    PACK_MATCAP_CONTRAST[pack] = c; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  packMatcapMix(pack, k){
+    if (k == null) return JSON.parse(JSON.stringify(PACK_MATCAP_MIX));
+    return packMatcapApply(pack, Math.max(0, Math.min(1, k)));
+  },
   // замер вуали: выставить её ВСЕМ живым разом. Нужна именно так — чтобы
   // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
   // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)

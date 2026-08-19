@@ -9994,6 +9994,83 @@ window.bridge = {
     await page.close();
   }
 
+  // ===== МАТЧЕП ПАЧКИ: МАШИНКИ (слово владельца 2026-08-18) =====
+  // ⚠️ СЕКЦИЯ НА СВОЕЙ СТРАНИЦЕ И В КОНЦЕ: она крутит материал целой пачки,
+  // а портреты коллекции кэшируются — соседям это состояние не нужно.
+  {
+    const mcPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
+    mcPage.on('pageerror', e => errors.push('PAGEERROR(matcap): ' + e.message));
+    await mcPage.goto('file://' + PAGE_FILE);
+    await mcPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await mcPage.evaluate(async () => {
+      const g = window.__game; g.setLevel(30); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 1600));
+    });
+    // ⚠️⚠️ МЕРИМ ОТНОШЕНИЕ ДВУХ ЗАМЕРОВ ПОДРЯД, А НЕ АБСОЛЮТ. На стенде яркость
+    // портретов ПЛЫВЁТ по ходу прогона (замер: тождество 149.2 в начале и 47.2
+    // в конце того же прогона), поэтому абсолютный порог краснел бы случайно.
+    // Отношение «с матчепом / без матчепа», снятое подряд, дрейф уносит.
+    const яркость = () => mcPage.evaluate(async () => {
+      const g = window.__game; let S = 0;
+      for (const k of ['cartaxi', 'carpolice', 'carfiretruck']){
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.src = g.thumbURL(k); });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, s = 0;
+        for (let i = 0; i < d.length; i += 4){ if (d[i + 3] < 200) continue;
+          s += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+        S += s / n;
+      }
+      return +(S / 3).toFixed(1);
+    });
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('car', 0);
+      await new Promise(r => setTimeout(r, 300)); });
+    const без = await яркость();
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('car', 0.6);
+      await new Promise(r => setTimeout(r, 300)); });
+    const с = await яркость();
+    const отн = +(с / без).toFixed(3);
+    console.log('матчеп пачки:', JSON.stringify({ без, с, отн,
+      ручки: await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix(),
+        gain: window.__game.packMatcapGain(), contrast: window.__game.packMatcapContrast() })) }));
+    // (1) МАТЧЕП ДОЕЗЖАЕТ ДО ПРЕДМЕТА. Диверсия — снять `packMatcapTex` из
+    // itemMaterial: отношение станет ровно 1.000, картинка не изменится.
+    expect(отн < 0.99,
+      'МАТЧЕП ПАЧКИ: у машинок он ДЕЙСТВУЕТ — портрет отличается от режима без ' +
+      'матчепа (отношение ' + отн + ', без ' + без + ', с ' + с + ')');
+    // (2) ⚠️⚠️ И НЕ ВЫБЕЛИВАЕТ, И НЕ ТОПИТ. Оба конца несущие: сверху ловится
+    // возврат грабли «альфа = блик» (у библиотечного PNG она 255 везде, и
+    // предмет уходит в чистый белый, отношение улетает вверх), снизу — потеря
+    // экспозиции, которую владелец забраковал дважды («слишком темно»).
+    // Коридор снят замером принятой ступени: 1.8 даёт ×0.93.
+    expect(отн >= 0.85 && отн <= 0.99,
+      '⚠️⚠️ МАТЧЕП ПАЧКИ: экспозиция машинок в коридоре 0.85..0.99 (' + отн + '). ' +
+      'Выше — вернулась альфа-блик и предмет выбеливается; ниже — «слишком темно»');
+    // (3) ЧИСЛА ВЛАДЕЛЬЦА. Ступень контраста 1.8 выбрана им из лесенки; усиление
+    // пересчитано ПОД НЕЁ, поэтому пара держится вместе.
+    const ручки = await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix().car,
+      gain: window.__game.packMatcapGain().car, contrast: window.__game.packMatcapContrast().car }));
+    expect(Math.abs(ручки.contrast - 1.8) < 1e-6 && Math.abs(ручки.gain - 2.002) < 1e-6,
+      'МАТЧЕП ПАЧКИ: ступень владельца — контраст 1.8 при усилении 2.002 (' +
+      JSON.stringify(ручки) + ')');
+    // (4) ЕДА ОСТАЁТСЯ БЕЗ СВОЕГО МАТЧЕПА — её вариант владельцем отклонён.
+    // Без этого ассерта возврат красного «660505…» прошёл бы молча.
+    const еда = await mcPage.evaluate(() => window.__game.packMatcapLoad ?
+      (window.__game.packMatcapMix().food != null) : null);
+    const естьЕда = await mcPage.evaluate(() => {
+      const t = window.__game.packMatcapGain(); return t && t.food != null; });
+    expect(еда && естьЕда && (await mcPage.evaluate(async () => {
+      const g = window.__game; const до = g.thumbURL('foodorange');
+      g.packMatcapMix('food', 1); await new Promise(r => setTimeout(r, 300));
+      const после = g.thumbURL('foodorange');
+      return до === после;              // источника нет -> сила ничего не меняет
+    })), 'МАТЧЕП ПАЧКИ: у еды своего матчепа НЕТ (её вариант владелец отклонил) — ' +
+      'сила на ней ничего не меняет');
+    await mcPage.close();
+  }
+
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
   process.exitCode = failures.length ? 1 : 0;
   await browser.close();
