@@ -5686,6 +5686,45 @@ function mceTexOf(id){
 // ПОДМЕНОЙ ОБЪЕКТА: процедурные матчепы у нас 128×128 (`MATCAP_SIZE`), и
 // показать в игре 512 значило бы показать НЕ ТО, что будет в бою. Экспорт при
 // этом остаётся 512 — вшивать в сборку надо полное разрешение.
+// ⚠️⚠️ АЛЬФА МАТЧЕПА — ЭТО БЛИК, И ВЛАДЕЕТ ЕЮ ДВИЖОК, А НЕ ХОЛСТ.
+// В `matcapSpecPatch` (10-stage) стоит `... + vec3( matcapColor.a )`, то есть
+// альфа ПРИБАВЛЯЕТСЯ к поверхности; у процедурных пресетов блик запечён именно
+// в неё (`data[i+3] = (sp*255)|0`). Холст же внутри круглой маски НЕПРОЗРАЧЕН
+// (заливка шестизначным hex), поэтому копирование RGBA «как есть» ставило
+// альфу 255 ВЕЗДЕ и прибавляло единицу ко всей поверхности.
+// ⛔ ЗАМЕР ДЕФЕКТА (A/B на ПУСТОМ холсте, без единого мазка, портрет
+// `animalbee`): яркость 144.9 → 255.0, насыщенность 0.400 → 0. То есть одно
+// применение в редакторе молча выбеливало цель — включая матчепы пачек,
+// принятые владельцем по числам (2026-08-18).
+// ⚠️ ПРАВИЛО ОДНО И ОНО УЖЕ БЫЛО В ПРОЕКТЕ, я лишь распространил его на
+// редактор: у Графики в `08-matcap-packs` библиотечная картинка кладётся с
+// `d[i+3] = 0` — «альфа = блик, у библиотечного его нет». Здесь то же самое,
+// только сохраняем блик ЦЕЛИ, а не обнуляем: редактор правит ЦВЕТ.
+// ⛔ Обнулять альфу В КАНВАСЕ по-прежнему нельзя (канвас premultiplied, при
+// альфе 0 браузер отдаёт нулевой RGB) — мы трогаем только сырые байты
+// DataTexture, а они про премножение не знают.
+function mceAlphaИзДвижка(данные, S, база){
+  const b = база && база.image && база.image.data;
+  if (!b){                      // блика у базы нет (или это PNG без массива)
+    for (let i = 3; i < данные.length; i += 4) данные[i] = 0;
+    return 'нет';
+  }
+  const BS = (база.image.width || S) | 0;
+  if (BS === S){
+    for (let i = 3; i < данные.length && i < b.length; i += 4) данные[i] = b[i];
+    return 'один-в-один';
+  }
+  // ⚠️ РАЗМЕРЫ РАСХОДЯТСЯ (пресеты 128, картинки пачек 256) — берём ближайший
+  // пиксель. Блик у нас крупное мягкое пятно, интерполяция ему не нужна.
+  for (let y = 0; y < S; y++){
+    const by = Math.min(BS - 1, (y * BS / S) | 0);
+    for (let x = 0; x < S; x++){
+      const bx = Math.min(BS - 1, (x * BS / S) | 0);
+      данные[(y * S + x) * 4 + 3] = b[(by * BS + bx) * 4 + 3];
+    }
+  }
+  return 'ближайший ' + BS + '->' + S;
+}
 function mceApply(id){
   const пачка = mcePackOf(id);
   if (пачка && !mceTexOf(id)){
@@ -5696,7 +5735,12 @@ function mceApply(id){
     const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
     const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
     g0.drawImage(mcePost, 0, 0, S, S);
-    const свой = new THREE.DataTexture(new Uint8Array(g0.getImageData(0,0,S,S).data), S, S, THREE.RGBAFormat);
+    const данные = new Uint8Array(g0.getImageData(0,0,S,S).data);
+    // блик берём у ТОЙ текстуры, которую пачка носила до правки: у пачки с
+    // картинкой это её альфа (у Графики она 0), у прочих — пресет `tex`
+    const базаПачки = ((typeof packMatcapTex === 'function' && packMatcapTex(пачка)) || makeMatcap('tex'));
+    mceAlphaИзДвижка(данные, S, базаПачки);
+    const свой = new THREE.DataTexture(данные, S, S, THREE.RGBAFormat);
     свой.encoding = THREE.sRGBEncoding;
     свой.magFilter = свой.minFilter = THREE.LinearFilter;
     свой.needsUpdate = true;
@@ -5718,7 +5762,12 @@ function mceApply(id){
     mceBackup.set(id, d ? new Uint8Array(d) : null);
   }
   const dst = tex.image && tex.image.data;
-  if (dst && dst.length === src.length){ dst.set(src); }
+  if (dst && dst.length === src.length){
+    // ⚠️ ТОЛЬКО RGB: альфа цели — её собственный блик, он остаётся как был
+    for (let i = 0; i < src.length; i += 4){
+      dst[i] = src[i]; dst[i + 1] = src[i + 1]; dst[i + 2] = src[i + 2];
+    }
+  }
   else {
     // у PNG-матчепа лопастей data-массива нет — там подменяем сам источник
     tex.image = tmp;
@@ -5785,7 +5834,10 @@ function matcapEdit(){
     if (тип === 'range'){ vv.style.cssText='width:34px; text-align:right; opacity:.7;';
       vv.textContent = знач; el.addEventListener('input', () => { vv.textContent = el.value; репост(); });
       row.appendChild(vv); }
-    else el.addEventListener('input', репост);
+    // ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: `репост` принимает `тихо`, и голым обработчиком
+    // сюда прилетал бы Event — истинный, то есть цвета фона и кисти перестали
+    // бы применяться сразу, молча
+    else el.addEventListener('input', () => репост());
     p.appendChild(row); return el;
   };
   ctrl.base  = мк('фон',     'color', '#8a8f98');
@@ -5796,7 +5848,17 @@ function matcapEdit(){
   // ⚠️ ПОСТ-ОБРАБОТКА КАЖДЫЙ РАЗ РИСУЕТ С НУЛЯ: фон, затем размытый слой кисти.
   // Референс накладывает блюр НА СЕБЯ и копит его от кадра к кадру — у нас это
   // давало бы «расползание» при каждом движении ползунка.
-  function репост(){
+  // ⚠️⚠️ `тихо` — ЭТО НЕ УДОБСТВО, А ЗАПРЕТ ПРИМЕНЯТЬ БЕЗ ПРОСЬБЫ.
+  // Панель строится с ВКЛЮЧЁННЫМИ «применять сразу» и целью №0 «все текстурные
+  // разом» (`cb.checked = (i === 0)`), а холст на старте — плоская заливка
+  // `ctrl.base`. Без этого флага финальный `репост()` в конце сборки клал серую
+  // заливку на общий пресет `tex` В МОМЕНТ ОТКРЫТИЯ РЕДАКТОРА: владелец видел
+  // порчу, не сделав ни одного клика. ЗАМЕР (портрет `animalcow`, сборка с уже
+  // починенной альфой): без панели 209.4/0.106 → после одного лишь открытия
+  // 114.3/0.239. Вторая половина дефекта «выбеливание» (2026-08-19).
+  // ⚠️ Тихий он ТОЛЬКО на открытии: мазок, ползунок, «Очистить» и брошенный PNG
+  // зовут `репост()` без аргумента и применяются сразу — это просил владелец.
+  function репост(тихо){
     const g = mcePost.getContext('2d');
     g.setTransform(1,0,0,1,0,0); g.filter = 'none';
     g.fillStyle = ctrl.base.value; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
@@ -5809,7 +5871,7 @@ function matcapEdit(){
     g.globalCompositeOperation = 'destination-in';
     g.beginPath(); g.arc(MCE_CANVAS/2, MCE_CANVAS/2, MCE_CANVAS/2, 0, Math.PI*2); g.fill();
     g.globalCompositeOperation = 'source-over';
-    if (авто.checked) mceTargets().forEach(t => { if (цели[t.id].checked) mceApply(t.id); });
+    if (авто.checked && !тихо) mceTargets().forEach(t => { if (цели[t.id].checked) mceApply(t.id); });
   }
   // ── рисование
   const точка = e => { const r = mcePost.getBoundingClientRect();
@@ -5912,7 +5974,7 @@ function matcapEdit(){
   p.appendChild(хвост);
 
   document.body.appendChild(p);
-  репост();
+  репост(true);          // ОТКРЫТИЕ НИЧЕГО НЕ ПРИМЕНЯЕТ (см. `тихо` выше)
   return 'matcap editor: open';
 }
 

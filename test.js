@@ -7381,6 +7381,150 @@ window.bridge = {
     зв.предметов + ' предметов, у остальных пачек — ни у одного (' +
     JSON.stringify(пмПосле) + ')');
 
+  // ═══ РЕДАКТОР НЕ ПОРТИТ ЦЕЛЬ БЕЗ ПРОСЬБЫ (дефект 2026-08-19, ОБЕ ПОЛОВИНЫ) ═══
+  // ⚠️⚠️ АЛЬФА МАТЧЕПА — ЭТО БЛИК: шейдер ПРИБАВЛЯЕТ `vec3(matcapColor.a)`.
+  // Холст редактора внутри круглой маски непрозрачен, и копирование RGBA «как
+  // есть» ставило альфу 255 ВЕЗДЕ — единица прибавлялась ко всей поверхности.
+  // ⚠️⚠️ ВТОРАЯ ПОЛОВИНА, И ОНА БЫЛА ГЛАВНОЙ: панель строится с ВКЛЮЧЁННЫМИ
+  // «применять сразу» и целью №0 «все текстурные разом», а финальный `репост()`
+  // в конце сборки применял серую заливку холста В МОМЕНТ ОТКРЫТИЯ. Владелец
+  // видел порчу, НЕ СДЕЛАВ НИ ОДНОГО КЛИКА. Чинится флагом `тихо` (12-matcap-edit).
+  // ⚠️⚠️ ПОРТРЕТЫ БЕРЁМ КЛЮЧАМИ, КОТОРЫЕ В ЭТОЙ СТРАНИЦЕ ЕЩЁ НЕ СТРОИЛИСЬ.
+  // `thumbItemForKey` кэширует портретный предмет ВМЕСТЕ С МАТЕРИАЛОМ, а
+  // `thumbCache` — готовый PNG (85-hud). Замер «до/после» на ОДНОМ ключе внутри
+  // одной страницы показывает старую картинку и врёт «ничего не изменилось» —
+  // на этом я и споткнулся, пока не развёл ключи и страницы.
+  // ⚠️ Ассертим ОТСУТСТВИЕ ВЫБЕЛИВАНИЯ, а не «ничего не поменялось»: холст
+  // стартует заливкой `#8a8f98`, и ЯВНОЕ применение честно темнит — это
+  // содержимое холста, а не дефект.
+  // ЗАМЕРЫ (по 2–3 прогона каждый, бит-в-бит одинаковые):
+  //   чистая страница     animalcow 209.4/0.106   animalbee 144.8/0.401
+  //   после ОТКРЫТИЯ      animalcow 209.4/0.106  (до правки — 114.3/0.239)
+  //   после «Применить»   animalbee  67.6/0.730  (до правки альфы — 255.0/0)
+  //   свинья без мазка 98.0 → с мазком 121.5 (кисть белая, ширина 200)
+  {
+    const мерялка = () => { window.__мера = (url) => new Promise(res => {
+      if (!url) return res(null);
+      const im = new Image();
+      im.onload = () => { const c = document.createElement('canvas');
+        c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, я = 0, нас = 0;
+        for (let i = 0; i < d.length; i += 4){
+          if (d[i + 3] < 200) continue;               // фон портрета не мерим
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          я += (r + g + b) / 3; нас += mx ? (mx - mn) / mx : 0; n++;
+        }
+        res(n ? { я: +(я / n).toFixed(1), нас: +(нас / n).toFixed(3), n } : null); };
+      im.onerror = () => res(null); im.src = url; }); };
+    const открыть = async () => {
+      const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await p.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+      await p.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+      await p.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+      await p.waitForTimeout(1200);
+      await p.evaluate(мерялка);
+      return p;
+    };
+    const снять = (p, ключ) => p.evaluate(async k => await window.__мера(window.__game.thumbURL(k)), ключ);
+
+    // ── страница А: редактор НЕ открывался, это правда о матчепах
+    const a = await открыть();
+    const базКоу = await снять(a, 'animalcow');
+    const базБи  = await снять(a, 'animalbee');
+    await a.close();
+
+    // ── страница Б: открыть (ничего не трогая!) → применить к одной пачке
+    const b = await открыть();
+    await b.evaluate(() => window.__game.matcapEdit());
+    await b.waitForTimeout(600);
+    const открКоу = await снять(b, 'animalcow');     // ⚠️ ДО единого клика по панели
+    const отм = await b.evaluate(() => {
+      const пан = document.getElementById('matcapEdit'); if (!пан) return -1;
+      let n = 0;
+      for (const l of [...пан.querySelectorAll('label')]){
+        const c = l.querySelector('input[type=checkbox]'); if (!c) continue;
+        // цель — только «звери»; «применять сразу» оставляем включённым
+        const надо = /пачка: звери|применять сразу/.test(l.textContent);
+        if (c.checked !== надо) c.click();
+        if (/пачка: звери/.test(l.textContent)) n++;
+      }
+      return n;
+    });
+    let нажато = false;
+    for (const к of await b.$$('#matcapEdit button')){
+      const t = await к.textContent(); if (/Применить/.test(t)){ await к.click(); нажато = true; break; }
+    }
+    await b.waitForTimeout(500);
+    const примБи  = await снять(b, 'animalbee');
+    const свинБез = await снять(b, 'animalpig');
+    const реестр  = await b.evaluate(() => window.__game.packMatcapInfo().зарегистрировано);
+    await b.close();
+
+    // ── страница В: тот же путь + МАЗОК КИСТЬЮ (проверяем «применять сразу»)
+    const c = await открыть();
+    await c.evaluate(() => window.__game.matcapEdit());
+    await c.waitForTimeout(600);
+    await c.evaluate(() => {
+      const пан = document.getElementById('matcapEdit');
+      for (const l of [...пан.querySelectorAll('label')]){
+        const cb = l.querySelector('input[type=checkbox]'); if (!cb) continue;
+        const надо = /пачка: звери|применять сразу/.test(l.textContent);
+        if (cb.checked !== надо) cb.click();
+      }
+    });
+    for (const к of await c.$$('#matcapEdit button')){
+      const t = await к.textContent(); if (/Применить/.test(t)){ await к.click(); break; }
+    }
+    await c.waitForTimeout(400);
+    await c.evaluate(() => { const r = [...document.querySelectorAll('#matcapEdit input[type=range]')][0];
+      r.value = 200; r.dispatchEvent(new Event('input')); });   // ширина кисти — шире мазок, чище замер
+    await c.waitForTimeout(200);
+    const бокс = await (await c.$('#matcapEdit canvas')).boundingBox();
+    await c.mouse.move(бокс.x + бокс.width * 0.35, бокс.y + бокс.height * 0.35);
+    await c.mouse.down();
+    await c.mouse.move(бокс.x + бокс.width * 0.62, бокс.y + бокс.height * 0.55, { steps: 8 });
+    await c.mouse.up();
+    await c.waitForTimeout(500);
+    const свинМаз = await снять(c, 'animalpig');
+    await c.close();
+
+    console.log('редактор:', JSON.stringify({ базКоу, открКоу, отм, нажато, реестр, базБи, примБи, свинБез, свинМаз }));
+
+    expect(отм === 1 && нажато && реестр.join() === 'animal'
+        && базКоу && базКоу.n > 500 && базБи && базБи.n > 500 && свинБез && свинМаз,
+      'САНИТАР РЕДАКТОРА: цель «звери» одна, «Применить» нажато, у пачки появилась ' +
+      'своя текстура, все четыре портрета построились (' +
+      JSON.stringify({ отм, нажато, реестр, базКоу, свинБез, свинМаз }) + ')');
+
+    expect(открКоу && Math.abs(открКоу.я - базКоу.я) < 1 && Math.abs(открКоу.нас - базКоу.нас) < 0.01,
+      '⚠️⚠️ ОТКРЫТИЕ РЕДАКТОРА НИЧЕГО НЕ ПРИМЕНЯЕТ: портрет после открытия панели ' +
+      'совпадает с портретом страницы, где её не открывали (' +
+      JSON.stringify({ базКоу, открКоу }) + '). До правки 2026-08-19 одно лишь ' +
+      'открытие клало серую заливку холста на общий пресет `tex`: 209.4/0.106 → ' +
+      '114.3/0.239. Диверсия — снять `тихо` у финального `репост()` в `matcapEdit`');
+
+    expect(примБи && примБи.я < 250 && примБи.нас > 0.1,
+      '⚠️⚠️ ПРИМЕНЕНИЕ НЕ ВЫБЕЛИВАЕТ ЦЕЛЬ: после «Применить» портрет сохраняет ' +
+      'цвет (' + JSON.stringify(примБи) + '). До правки альфы 2026-08-19 здесь было ' +
+      'ровно 255.0 при насыщенности 0 — альфа холста прибавлялась ко всей ' +
+      'поверхности. Диверсия — вернуть в `mceApply` копирование RGBA целиком ' +
+      '(`dst.set(src)` и `getImageData` без `mceAlphaИзДвижка`)');
+
+    expect(примБи && Math.abs(примБи.я - базБи.я) > 5,
+      'ПРИМЕНЕНИЕ ВООБЩЕ ДОШЛО ДО ПАЧКИ: портрет после «Применить» отличается от ' +
+      'чистого (' + JSON.stringify({ базБи, примБи }) + '). Без этой строки страж ' +
+      'выше зеленел бы и на редакторе, который не делает НИЧЕГО');
+
+    expect(свинМаз.я > свинБез.я + 8,
+      '⚠️ «ПРИМЕНЯТЬ СРАЗУ» ЖИВО: мазок белой кистью светлит цель без нажатия ' +
+      '«Применить» (' + JSON.stringify({ свинБез, свинМаз }) + ', замер 98.0 → 121.5). ' +
+      'Это ВТОРАЯ СТОРОНА флага `тихо`: сделай тихими ВСЕ вызовы `репост`, и ' +
+      'страж открытия выше останется зелёным, а этот покраснеет');
+  }
+
   // ═══ СБРОС В РЕДАКТОРЕ НЕ РАСЩЕПЛЯЕТ ПАЧКУ (мина СЛИЯНИЯ 2026-08-18) ═══
   // ⚠️⚠️ ЭТО СОСТОЯНИЕ, КОТОРОГО НЕ МОГ СОЗДАТЬ НИ ОДИН ИЗ ДВУХ ДВИЖКОВ
   // ПООДИНОЧКЕ, И ПОТОМУ ЕГО НЕ БЫЛО НИ В ОДНОЙ ИЗ ДВУХ РЕАЛИЗАЦИЙ. `setPackMatcap`
