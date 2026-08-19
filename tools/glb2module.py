@@ -27,7 +27,11 @@
 Печатает готовые строки для TYPES в 30-shapes.js — цвет проставляется руками
 (у моделей с текстурой поле color красит НЕ модель, а труху при распаде).
 """
-import json, os, re, struct, sys
+import json, math, os, re, struct, sys
+
+# счётчик выправленных нормалей: NaN в data-модуле валит ВЕСЬ IIFE, поэтому
+# отказ обязан быть громким, а не тихой заменой
+BAD_NRM = [0]
 
 # Целевой охватный радиус. Больше, чем у примитивов (0.70-0.95), НАМЕРЕННО:
 # модели тонкие и вытянутые, при равном охвате их объём вдвое меньше шара —
@@ -112,7 +116,16 @@ def xform_dir(m, v):
     y = m[1] * v[0] + m[5] * v[1] + m[9] * v[2]
     z = m[2] * v[0] + m[6] * v[1] + m[10] * v[2]
     ln = (x * x + y * y + z * z) ** 0.5 or 1.0
-    return (x / ln, y / ln, z / ln)
+    o = (x / ln, y / ln, z / ln)
+    # ⚠️⚠️ ВЫРОЖДЕННАЯ НОРМАЛЬ ИЗ ИСХОДНИКА. `or 1.0` ловит НОЛЬ, но не NaN:
+    # NaN истинен, деление на него даёт NaN, и он уезжает в модуль строкой
+    # «nan» — а это не число JS, весь IIFE падает с «nan is not defined».
+    # Ровно так пришла обновлённая пожарная машина 2026-08-19: девять NaN в
+    # нормалях, сборка не поднималась вовсе. Подменяем на «вверх» и СЧИТАЕМ.
+    if not all(map(math.isfinite, o)):
+        BAD_NRM[0] += 1
+        return (0.0, 1.0, 0.0)
+    return o
 
 
 def xform(m, p):
@@ -191,11 +204,15 @@ def convert(path):
 
 def nrm3(x):
     # UV палитрового атласа: полосы шириной ~1/16, три знака с запасом
+    # ⚠️ ПОСЛЕДНИЙ РУБЕЖ ПРОТИВ NaN/inf: в модуле они становятся голым `nan`,
+    # то есть неизвестным идентификатором, и роняют весь IIFE.
+    if not math.isfinite(x): return '0'
     s = f'{x:.4f}'.rstrip('0').rstrip('.')
     return '0' if s in ('', '-0') else s
 
 
 def nrm2(x):
+    if not math.isfinite(x): return '0'
     s = f'{x:.2f}'.rstrip('0').rstrip('.')
     return '0' if s in ('', '-0') else s
 
@@ -250,7 +267,12 @@ def find_colormap(src_dir, explicit):
     """Общий палитровый атлас набора. Ищем рядом с моделями и на уровень выше:
     Blender-проход копирует только .glb, папку Textures не тащит."""
     cands = [explicit] if explicit else []
-    cands += [os.path.join(src_dir, 'Textures', 'colormap.png'),
+    # ⚠️ ТРЕТИЙ КАНДИДАТ — РЯДОМ С МОДЕЛЯМИ, БЕЗ Textures/. Так устроена выгрузка
+    # владельца «3d assets/InGame/<Пачка>/colormap.png» (2026-08-19): атлас лежит
+    # прямо в папке пачки. Без этой строки генератор молча пишет модуль БЕЗ
+    # атласа, и вся пачка выходит белой — отказ тихий, ошибки нет.
+    cands += [os.path.join(src_dir, 'colormap.png'),
+              os.path.join(src_dir, 'Textures', 'colormap.png'),
               os.path.join(os.path.dirname(src_dir.rstrip('/')), 'Textures', 'colormap.png')]
     for c in cands:
         if c and os.path.isfile(c):
@@ -282,7 +304,11 @@ def main(out_path, packs):
             # (animal-fish и fish), без префикса функции перетёрли бы друг друга
             name = raw if raw.startswith(prefix) else prefix + raw
             try:
+                было_плохих = BAD_NRM[0]
                 fpos, fnrm, fuv, has_uv, idx, ntri, half, smooth, over = convert(os.path.join(src_dir, f))
+                if BAD_NRM[0] > было_плохих:
+                    print(f'  ⚠️ {name}: выправлено вырожденных нормалей — '
+                          f'{BAD_NRM[0] - было_плохих} (в исходнике NaN)', file=sys.stderr)
             except Exception as e:
                 skipped.append((f, str(e)))
                 continue
