@@ -1156,6 +1156,19 @@ window.__game = {
   packMatcapGain(pack, g){
     if (g == null) return JSON.parse(JSON.stringify(PACK_MATCAP_GAIN));
     PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  // ВРЕМЕННЫЙ ЗОНД ПРИМЕРКИ (в поставку не идёт)
+  packMatcapDebug(pack, имяТипа){
+    const t = packMatcapTex(pack);
+    const тип = TYPES.find(x => x.name === имяТипа);
+    const мат = тип ? itemMaterial(тип) : null;
+    const im = t && t.image;
+    return { естьТекстура: !!t, размер: im ? (im.width + 'x' + im.height) : null,
+             первые: im && im.data ? Array.from(im.data.slice(0, 8)) : null,
+             типНайден: !!тип, texТипа: тип && тип.tex,
+             материалБерётПачку: !!(мат && t && мат.matcap === t),
+             матчепМатериала: мат && мат.matcap ? (мат.matcap.image ?
+               (мат.matcap.image.width + 'x' + мат.matcap.image.height) : 'без image') : null };
+  },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
     PACK_MATCAP_CONTRAST[pack] = c; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
