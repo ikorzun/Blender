@@ -1051,6 +1051,18 @@ window.__game = {
   // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
   matcapTuner,
   matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
+  // сила матчепа пачки: 0 — как было, 1 — библиотечный в полную силу
+  packMatcapLoad(pack, src, opts){ return packMatcapLoad(pack, src, opts); },
+  packMatcapGain(pack, g){
+    if (g == null) return JSON.parse(JSON.stringify(PACK_MATCAP_GAIN));
+    PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  packMatcapContrast(pack, c){
+    if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
+    PACK_MATCAP_CONTRAST[pack] = c; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  packMatcapMix(pack, k){
+    if (k == null) return JSON.parse(JSON.stringify(PACK_MATCAP_MIX));
+    return packMatcapApply(pack, Math.max(0, Math.min(1, k)));
+  },
   // замер вуали: выставить её ВСЕМ живым разом. Нужна именно так — чтобы
   // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
   // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)
@@ -1227,16 +1239,26 @@ window.__game = {
     // записала в свои КИРПИЧИ: они крашеные, у них законный пресет `soft`.
     // То есть метрика правдоподобно врала ровно про тот случай, который
     // проверяет («пачке задали своё»).
+    // ⚠️⚠️ ТРИ СЧЁТЧИКА, А НЕ ДВА, И ТРЕТИЙ ПОЯВИЛСЯ ОТ ЗАМЕРА, А НЕ ОТ ВКУСА.
+    // С 2026-08-18 у машин и еды есть СВОЯ КАРТИНКА (08-matcap-packs), и на
+    // двух счётчиках они не попадали НИ В ОДИН: в реестре их нет (`наСвоей`
+    // мимо), общей текстуре они не равны (`наОбщей` мимо). Метрика молча
+    // теряла ровно те две пачки, ради которых её и читают — тот же жанр, что
+    // записан абзацем выше, только в другую сторону.
     const базовая = makeMatcap('tex'), пачки = {};
     for (const it of items){
       if (!it || !it.alive || !it.type || !it.type.tex || !it.mesh) continue;
       const p = it.type.tex, m = it.mesh.material, свояТек = packMatcaps.get(p);
-      const о = пачки[p] || (пачки[p] = { предметов: 0, наСвоей: 0, наОбщей: 0 });
+      const картинка = (typeof packMatcapTex === 'function') ? packMatcapTex(p) : null;
+      const о = пачки[p] || (пачки[p] = { предметов: 0, наСвоей: 0, наКартинке: 0, наОбщей: 0 });
       о.предметов++;
       if (m && свояТек && m.matcap === свояТек) о.наСвоей++;
+      else if (m && картинка && m.matcap === картинка) о.наКартинке++;
       else if (m && m.matcap === базовая) о.наОбщей++;
     }
-    return { пачки, зарегистрировано: [...packMatcaps.keys()] };
+    return { пачки, зарегистрировано: [...packMatcaps.keys()],
+             сКартинкой: (typeof PACK_MATCAP_SRC !== 'undefined')
+               ? Object.keys(PACK_MATCAP_SRC).filter(k => PACK_MATCAP_SRC[k]) : [] };
   },
   // ⚠️ НЕСУЩИЙ: на нём страж «бомба одета в картинку владельца». Проверять это
   // грепом по сборке нельзя — инлайн base64 присутствует и тогда, когда его

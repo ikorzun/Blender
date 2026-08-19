@@ -240,7 +240,16 @@ function packMatcap(pack, base){
 function setPackMatcap(pack, tex){
   if (!pack) return false;
   if (tex) packMatcaps.set(pack, tex); else packMatcaps.delete(pack);
-  const базовая = makeMatcap('tex');
+  // ⚠️⚠️ УМОЛЧАНИЕ ПАЧКИ — ЕЁ КАРТИНКА, А НЕ ОБЩИЙ ПРЕСЕТ, И ЭТО НЕ КОСМЕТИКА.
+  // Сюда приходит и СБРОС из редактора (`mceReset`), а с 2026-08-18 у машин и
+  // еды есть СВОЙ матчеп (08-matcap-packs). Отдай мы им общий пресет — живые
+  // предметы вернулись бы на него, а заново заспавненные брали бы картинку
+  // из `itemMaterial`: ОДНА ПАЧКА РАСЩЕПИЛАСЬ БЫ НАДВОЕ В ОДНОЙ СЦЕНЕ.
+  // Замер на слитом билде БЕЗ этой строки: после сброса совпадали с новым
+  // спавном 0 машин из 14; с ней — 14 из 14 на всех трёх замерах.
+  // ⚠️ Состояние merge-only: ни реестр, ни слой картинок поодиночке его создать
+  // не могут — потому его и не было ни в одной из двух реализаций.
+  const базовая = packMatcapTex(pack) || makeMatcap('tex');
   let тронуто = 0;
   try {
     for (const it of items){
@@ -250,8 +259,13 @@ function setPackMatcap(pack, tex){
       m.matcap = tex || базовая; тронуто++;
     }
   } catch (e) {}
-  // портреты коллекции кэшируются картинкой — их снимки протухли
-  try { if (typeof thumbCache !== 'undefined') thumbCache.clear(); } catch (e) {}
+  // ⚠️⚠️ ПОРТРЕТЫ КЭШИРУЮТСЯ КАРТИНКОЙ — ИХ СНИМКИ ПРОТУХЛИ. Прежняя строка
+  // звала `thumbCache.clear()`, а `thumbCache` — ОБЪЕКТ (`const thumbCache = {}`
+  // в 85-hud), не Map: вызов бросал TypeError, который глотал этот же
+  // `try/catch`, и редактор портреты не сбрасывал НИКОГДА. Найдено разбором
+  // слияния 2026-08-18; чинится подстановкой `thumbCacheDrop` (85-hud), который
+  // приехал из ветки Графики — им же пользуется `packMatcapApply`.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
   return тронуто;
 }
 // Пересъёмка уже выданных текстур (тюнер). kind не задан — все сразу: свет

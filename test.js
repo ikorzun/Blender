@@ -7352,17 +7352,98 @@ window.bridge = {
   // (1) ПО УМОЛЧАНИЮ ВСЕ ДЕЛЯТ ОДНУ — это и есть «ничего не изменилось»
   const своих = о => Object.values(о.пачки).reduce((s, x) => s + x.наСвоей, 0);
   expect(Object.values(пмДо.пачки).reduce((s, x) => s + x.наОбщей, 0) > 0 && своих(пмДо) === 0 && пмДо.зарегистрировано.length === 0,
-    '⚠️⚠️ МАТЧЕПЫ ПО ПАЧКЕ: по умолчанию НИ У ОДНОЙ пачки своей текстуры нет — ' +
-    'все делят общую, значит вид и вес сборки прежние (' + JSON.stringify(пмДо) + ')');
+    '⚠️⚠️ МАТЧЕПЫ ПО ПАЧКЕ: по умолчанию НИ У ОДНОЙ пачки нет своей текстуры В ' +
+    'РЕЕСТРЕ — правок редактора не было, значит копирование по требованию не ' +
+    'сработало ни разу (' + JSON.stringify(пмДо) + '). ⚠️ Это НЕ значит «все на ' +
+    'общем пресете»: с 2026-08-18 у машин и еды есть своя КАРТИНКА, её считает ' +
+    'третий счётчик `наКартинке` и отдельный ассерт ниже');
   // (2) ЗАДАННАЯ ПАЧКА МЕНЯЕТ ТОЛЬКО СВОИ ПРЕДМЕТЫ
   const зв = пмПосле.пачки.animal || { предметов: 0, наСвоей: 0 };
   const чужиеПодвинулись = Object.keys(пмПосле.пачки)
     .filter(k => k !== 'animal').some(k => пмПосле.пачки[k].наСвоей > 0);
+  // (2-бис) ⚠️⚠️ КАРТИНКИ ПАЧЕК ДОЕХАЛИ ДО БОЕВЫХ МАТЕРИАЛОВ (слово владельца
+  // 2026-08-18 «картинки берём»). Без этого ассерта «по умолчанию все делят
+  // общую» выше зелено и у сборки, где картинок нет ВОВСЕ: у зверей их и не
+  // должно быть, а машины и еда в тот счётчик не попадают по построению.
+  // ⚠️ Считаем ТРЕТЬИМ счётчиком `наКартинке`: на двух прежних машины и еда
+  // не попадали ни в один — ни в реестр, ни в «равна общей».
+  const скарт = о => Object.keys(о.пачки).filter(k => о.пачки[k].наКартинке > 0);
+  expect(пмДо.сКартинкой.slice().sort().join() === 'car,food' &&
+         скарт(пмДо).sort().join() === 'car,food' &&
+         пмДо.пачки.car.наКартинке === пмДо.пачки.car.предметов &&
+         пмДо.пачки.food.наКартинке === пмДо.пачки.food.предметов,
+    '⚠️⚠️ КАРТИНКИ ПАЧЕК В БОЮ: у машин и еды матчеп — их СОБСТВЕННАЯ картинка ' +
+    'на ВСЕХ предметах, у прочих пачек — общий пресет (' + JSON.stringify(пмДо.пачки) +
+    ', с картинкой ' + JSON.stringify(пмДо.сКартинкой) + ')');
   expect(зв.предметов > 0 && зв.наСвоей === зв.предметов && !чужиеПодвинулись &&
          пмПосле.зарегистрировано.join() === 'animal',
     '⚠️⚠️ ПАЧКА МЕНЯЕТСЯ ЦЕЛИКОМ И В ОДИНОЧКУ: у зверей своя текстура у всех ' +
     зв.предметов + ' предметов, у остальных пачек — ни у одного (' +
     JSON.stringify(пмПосле) + ')');
+
+  // ═══ СБРОС В РЕДАКТОРЕ НЕ РАСЩЕПЛЯЕТ ПАЧКУ (мина СЛИЯНИЯ 2026-08-18) ═══
+  // ⚠️⚠️ ЭТО СОСТОЯНИЕ, КОТОРОГО НЕ МОГ СОЗДАТЬ НИ ОДИН ИЗ ДВУХ ДВИЖКОВ
+  // ПООДИНОЧКЕ, И ПОТОМУ ЕГО НЕ БЫЛО НИ В ОДНОЙ ИЗ ДВУХ РЕАЛИЗАЦИЙ. `setPackMatcap`
+  // при сбросе раздавал ЖИВЫМ предметам общий пресет, а новый спавн брал в
+  // `itemMaterial` картинку пачки: одна пачка расщеплялась надвое в одной сцене.
+  // Замер на слитом билде ДО правки: после сброса совпадали с новым спавном
+  // 0 машин из 14; после правки (`базовая = packMatcapTex(pack) || …`) — 14 из 14.
+  // ⚠️ ПУТЬ ВЛАДЕЛЬЦА ЦЕЛИКОМ: панель → галочка «пачка: машины» → мазок
+  // НАСТОЯЩЕЙ мышью → «Применить» → «Сброс». Через внутренние функции страж
+  // проверял бы реестр, а не тракт, которым пользуется владелец.
+  const пс = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await пс.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await пс.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+  await пс.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+  await пс.waitForTimeout(1500);   // картинкам пачек нужно декодироваться
+  const псМашины = () => пс.evaluate(() => {
+    const п = window.__game.packMatcapInfo();
+    return п.пачки.car || { предметов: 0, наСвоей: 0, наКартинке: 0, наОбщей: 0 };
+  });
+  const псДо = await псМашины();
+  await пс.evaluate(() => window.__game.matcapEdit());
+  await пс.waitForTimeout(300);
+  const псОтмечено = await пс.evaluate(() => {
+    const пан = document.getElementById('matcapEdit'); if (!пан) return false;
+    const цель = [...пан.querySelectorAll('label')].find(l => /пачка: машины/.test(l.textContent));
+    const ч = цель && цель.querySelector('input[type=checkbox]');
+    if (ч && !ч.checked) ч.click();
+    return !!(ч && ч.checked);
+  });
+  const псХолст = await пс.$('#matcapEdit canvas');
+  const псБокс = псХолст && await псХолст.boundingBox();
+  if (псБокс){
+    await пс.mouse.move(псБокс.x + псБокс.width * 0.35, псБокс.y + псБокс.height * 0.35);
+    await пс.mouse.down();
+    await пс.mouse.move(псБокс.x + псБокс.width * 0.65, псБокс.y + псБокс.height * 0.65, { steps: 6 });
+    await пс.mouse.up();
+  }
+  const жать = async (имя) => {
+    for (const к of await пс.$$('#matcapEdit button')){
+      const t = await к.textContent(); if (new RegExp(имя).test(t)){ await к.click(); return true; }
+    }
+    return false;
+  };
+  const былоПрименить = await жать('Применить');
+  await пс.waitForTimeout(400);
+  const псПрименено = await псМашины();
+  const былоСброс = await жать('Сброс');
+  await пс.waitForTimeout(400);
+  const псСброшено = await псМашины();
+  await пс.close();
+  console.log('сброс пачки:', JSON.stringify({ псОтмечено, былоПрименить, былоСброс, псДо, псПрименено, псСброшено }));
+  // САНИТАР: путь владельца ДЕЙСТВИТЕЛЬНО пройден — иначе «после сброса всё
+  // как до» истинно и у сборки, где кнопки не нажались вовсе.
+  expect(псОтмечено && былоПрименить && былоСброс &&
+         псПрименено.наСвоей === псПрименено.предметов && псПрименено.предметов > 0,
+    'САНИТАР СБРОСА: пачка «машины» отмечена, «Применить» и «Сброс» нажаты, ' +
+    'после применения все машины на СВОЕЙ текстуре (' + JSON.stringify(псПрименено) + ')');
+  expect(псСброшено.предметов > 0 && псСброшено.наКартинке === псСброшено.предметов &&
+         псСброшено.наСвоей === 0,
+    '⚠️⚠️ СБРОС ВОЗВРАЩАЕТ ПАЧКУ НА ЕЁ КАРТИНКУ, А НЕ НА ОБЩИЙ ПРЕСЕТ: иначе ' +
+    'живые предметы и новый спавн разъедутся, и одна пачка будет выглядеть ' +
+    'двумя (' + JSON.stringify(псСброшено) + '). Диверсия — вернуть в ' +
+    '`setPackMatcap` строку `const базовая = makeMatcap(\'tex\')`');
 
   // ═══ ЖИВОЕ МЕСТО ПРИ ТРАТЕ ОЧКОВ (жалоба владельца 2026-08-17-д) ═══
   // «с лидербордом всё такая же задержка при трате очков, нужно быстрее
@@ -9728,6 +9809,108 @@ window.bridge = {
       '⛔⛔ ХОЛОДНЫЙ СТАРТ НА КРАТНОМ ДЕСЯТИ НЕ ЛОМАЕТ ЧАШУ НА ВСЮ СЕССИЮ (' +
       JSON.stringify(с20) + '). Диверсия — вернуть `radiusAt(y0)` в ' +
       'initPhysicsWorld и ветку по уровню в `radiusAt`: было 33 снаружи, 6 ниже дна');
+  }
+
+  // ===== МАТЧЕП ПАЧКИ: МАШИНКИ (слово владельца 2026-08-18) =====
+  // ⚠️ СЕКЦИЯ НА СВОЕЙ СТРАНИЦЕ И В КОНЦЕ: она крутит материал целой пачки,
+  // а портреты коллекции кэшируются — соседям это состояние не нужно.
+  {
+    const mcPage = await browser.newPage({ viewport: { width: 900, height: 640 } });
+    mcPage.on('pageerror', e => errors.push('PAGEERROR(matcap): ' + e.message));
+    await mcPage.goto('file://' + PAGE_FILE);
+    await mcPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await mcPage.evaluate(async () => {
+      const g = window.__game; g.setLevel(30); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 1600));
+    });
+    // ⚠️⚠️ МЕРИМ ОТНОШЕНИЕ ДВУХ ЗАМЕРОВ ПОДРЯД, А НЕ АБСОЛЮТ. На стенде яркость
+    // портретов ПЛЫВЁТ по ходу прогона (замер: тождество 149.2 в начале и 47.2
+    // в конце того же прогона), поэтому абсолютный порог краснел бы случайно.
+    // Отношение «с матчепом / без матчепа», снятое подряд, дрейф уносит.
+    const яркость = () => mcPage.evaluate(async () => {
+      const g = window.__game; let S = 0;
+      for (const k of ['cartaxi', 'carpolice', 'carfiretruck']){
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.src = g.thumbURL(k); });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, s = 0;
+        for (let i = 0; i < d.length; i += 4){ if (d[i + 3] < 200) continue;
+          s += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+        S += s / n;
+      }
+      return +(S / 3).toFixed(1);
+    });
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('car', 0);
+      await new Promise(r => setTimeout(r, 300)); });
+    const без = await яркость();
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('car', 0.6);
+      await new Promise(r => setTimeout(r, 300)); });
+    const с = await яркость();
+    const отн = +(с / без).toFixed(3);
+    console.log('матчеп пачки:', JSON.stringify({ без, с, отн,
+      ручки: await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix(),
+        gain: window.__game.packMatcapGain(), contrast: window.__game.packMatcapContrast() })) }));
+    // (1) МАТЧЕП ДОЕЗЖАЕТ ДО ПРЕДМЕТА. Диверсия — снять `packMatcapTex` из
+    // itemMaterial: отношение станет ровно 1.000, картинка не изменится.
+    expect(отн < 0.99,
+      'МАТЧЕП ПАЧКИ: у машинок он ДЕЙСТВУЕТ — портрет отличается от режима без ' +
+      'матчепа (отношение ' + отн + ', без ' + без + ', с ' + с + ')');
+    // (2) ⚠️⚠️ И НЕ ВЫБЕЛИВАЕТ, И НЕ ТОПИТ. Оба конца несущие: сверху ловится
+    // возврат грабли «альфа = блик» (у библиотечного PNG она 255 везде, и
+    // предмет уходит в чистый белый, отношение улетает вверх), снизу — потеря
+    // экспозиции, которую владелец забраковал дважды («слишком темно»).
+    // Коридор снят замером принятой ступени: 1.8 даёт ×0.93.
+    expect(отн >= 0.85 && отн <= 0.99,
+      '⚠️⚠️ МАТЧЕП ПАЧКИ: экспозиция машинок в коридоре 0.85..0.99 (' + отн + '). ' +
+      'Выше — вернулась альфа-блик и предмет выбеливается; ниже — «слишком темно»');
+    // (3) ЧИСЛА ВЛАДЕЛЬЦА. Ступень контраста 1.8 выбрана им из лесенки; усиление
+    // пересчитано ПОД НЕЁ, поэтому пара держится вместе.
+    const ручки = await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix().car,
+      gain: window.__game.packMatcapGain().car, contrast: window.__game.packMatcapContrast().car }));
+    expect(Math.abs(ручки.contrast - 1.8) < 1e-6 && Math.abs(ручки.gain - 2.002) < 1e-6,
+      'МАТЧЕП ПАЧКИ: ступень владельца — контраст 1.8 при усилении 2.002 (' +
+      JSON.stringify(ручки) + ')');
+    // (4) ЕДА — ВТОРАЯ ПАЧКА СО СВОИМ МАТЧЕПОМ (выбор владельца из пяти).
+    // ⚠️ СТРАЖ ПЕРЕЕХАЛ ЗА ПРАВИЛОМ: пока вариант еды был отклонён, здесь
+    // стояло обратное утверждение («матчепа НЕТ»). Правило сменилось —
+    // утверждение переехало, а не «починилось».
+    const яркостьЕды = () => mcPage.evaluate(async () => {
+      const g = window.__game; let S = 0;
+      for (const k of ['foodorange', 'foodstrawberry', 'foodcarrot']){
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.src = g.thumbURL(k); });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, s = 0;
+        for (let i = 0; i < d.length; i += 4){ if (d[i + 3] < 200) continue;
+          s += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+        S += s / n;
+      }
+      return +(S / 3).toFixed(1);
+    });
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('food', 0);
+      await new Promise(r => setTimeout(r, 300)); });
+    const едаБез = await яркостьЕды();
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('food', 0.6);
+      await new Promise(r => setTimeout(r, 300)); });
+    const едаС = await яркостьЕды();
+    const едаОтн = +(едаС / едаБез).toFixed(3);
+    const ручкиЕды = await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix().food,
+      gain: window.__game.packMatcapGain().food, contrast: window.__game.packMatcapContrast().food }));
+    console.log('матчеп еды:', JSON.stringify({ без: едаБез, с: едаС, отн: едаОтн, ручкиЕды }));
+    // ⚠️ КОРИДОР ТОТ ЖЕ, ЧТО У МАШИНОК, И ПО ТОЙ ЖЕ ПРИЧИНЕ: сверху ловится
+    // возврат грабли «альфа = блик» (предмет выбеливается), снизу — потеря
+    // экспозиции, которую владелец забраковал. Замер принятой ступени: ×0.93.
+    expect(едаОтн >= 0.85 && едаОтн <= 0.99,
+      '⚠️⚠️ МАТЧЕП ПАЧКИ: экспозиция еды в коридоре 0.85..0.99 (' + едаОтн + ', без ' +
+      едаБез + ', с ' + едаС + ')');
+    expect(Math.abs(ручкиЕды.contrast - 1.8) < 1e-6 && Math.abs(ручкиЕды.gain - 1.556) < 1e-6,
+      'МАТЧЕП ПАЧКИ: числа еды — контраст 1.8 при усилении 1.556 (' +
+      JSON.stringify(ручкиЕды) + ')');
+    await mcPage.close();
   }
 
   console.log(failures.length ? 'SUITE: FAIL (' + failures.length + '): ' + failures.join(' || ') : 'SUITE: PASS');
