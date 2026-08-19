@@ -9,4 +9,10 @@
 # ⚠️ НЕ УБИРАТЬ эту строку «чтобы мержилось без конфликтов»: конфликт здесь и
 # есть защита.
 index.html -merge
+# ⚠️ bonus.html — ТАКОЙ ЖЕ СОБРАННЫЙ ОДНОФАЙЛОВЫЙ БИЛД (снимок ветки
+# claude/bonus-standalone со снятым бонусным уровнем, 2026-08-18). Мина у него
+# та же самая, и молчит она так же: без `-merge` git склеит два разных снимка
+# без конфликта. Разрешение другое, чем у index.html — не пересборка, а
+# `git show claude/bonus-standalone:index.html > bonus.html`.
+bonus.html -merge
 release/Mixer.html -merge

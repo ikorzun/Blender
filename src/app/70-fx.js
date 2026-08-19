@@ -805,8 +805,9 @@ function _sparkRicochetFX_impl(it){
       const s = st[i];
       s.vy -= 9*dt;
       s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
-      // ⚠️ ширина по НАПРАВЛЕНИЮ: на витрине контейнер прямоугольный, и
-      // отскок по среднему радиусу пускал бы искры сквозь тонкие грани
+      // ⚠️ ширина по НАПРАВЛЕНИЮ (`wallDistAt`), а не своя формула: где стена —
+      // отвечает ОДНА точка на всю игру (20-arena), иначе искры и спасатель
+      // разъедутся между собой
       const d = Math.hypot(s.x, s.z);
       const R = wallDistAt(s.y, d > 1e-3 ? s.x/d : 1, d > 1e-3 ? s.z/d : 0) - 0.15;
       if (d > R && s.bounced < SPARK_BOUNCE_MAX){

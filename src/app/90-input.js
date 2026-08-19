@@ -73,8 +73,8 @@ function hintCamFly(item){
   hintFly = { t0: performance.now(), dur: 900,
     az0: camAz, az1: camAz + dAz,
     phi0: camPhi, phi1: phiTo,
-    // ⚠️ полёт подсказки живёт в ТОМ ЖЕ коридоре, что и ручной пан (panLimits):
-    // на бонусе он выше боевого, иначе камера ныряла бы под ковёр
+    // ⚠️ полёт подсказки живёт в ТОМ ЖЕ коридоре, что и ручной пан (panLimits) —
+    // одна функция на оба пути, иначе они разъедутся при первой правке границ
     y0: camTarget.y, y1: Math.max(panLimits().lo, Math.min(panLimits().hi, item.p.y)),
     r0: camR, r1: Math.min(camR, 13) };
   panManualUntil = performance.now() + 4500;

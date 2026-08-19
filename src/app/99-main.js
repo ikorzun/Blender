@@ -1285,6 +1285,22 @@ window.__game = {
     щель: (i.iceShell && i.iceShell.userData.iceMat)
       ? +i.iceShell.userData.iceMat.uniforms.uGap.value.toFixed(4) : null })); },
   frozenNextAt(){ return frozenNextLevel; },
+  // ⚠️ ХУКИ ВЕРНУЛИСЬ ПОСЛЕ СНЯТИЯ БОНУСНОГО УРОВНЯ (2026-08-18). Их сняли
+  // вместе с его секцией сьюта — и вместе с ними умерли КОНТРОЛЬНЫЕ ПЛЕЧИ,
+  // утверждавшие свойства ОБЫЧНОЙ игры: «спецпредметы вообще спавнятся» и
+  // «фаза падения в интро случается». Канонное «страж умирает вместе с
+  // механикой» про стражей СНЯТОЙ механики, а не про контроли, которые просто
+  // жили в том же блоке.
+  introPhase(){ return intro ? intro.phase : null; },
+  specialsCount(){
+    let клад = 0, бомб = 0, глыб = 0;   // ⛔ камней в игре нет (2026-08-17)
+    for (const it of items){
+      if (!it.alive) continue;
+      if (it.surprise) клад++; else if (it.bomb) бомб++;
+      else if (it.frozen) глыб++;
+    }
+    return { клад, бомб, глыб, всего: клад + бомб + глыб };
+  },
   // ⛔ хук iceStyle СРЕЗАН вместе со стендом (владелец выбрал иней-корку);
   // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
   iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
