@@ -10055,19 +10055,44 @@ window.bridge = {
     expect(Math.abs(ручки.contrast - 1.8) < 1e-6 && Math.abs(ручки.gain - 2.002) < 1e-6,
       'МАТЧЕП ПАЧКИ: ступень владельца — контраст 1.8 при усилении 2.002 (' +
       JSON.stringify(ручки) + ')');
-    // (4) ЕДА ОСТАЁТСЯ БЕЗ СВОЕГО МАТЧЕПА — её вариант владельцем отклонён.
-    // Без этого ассерта возврат красного «660505…» прошёл бы молча.
-    const еда = await mcPage.evaluate(() => window.__game.packMatcapLoad ?
-      (window.__game.packMatcapMix().food != null) : null);
-    const естьЕда = await mcPage.evaluate(() => {
-      const t = window.__game.packMatcapGain(); return t && t.food != null; });
-    expect(еда && естьЕда && (await mcPage.evaluate(async () => {
-      const g = window.__game; const до = g.thumbURL('foodorange');
-      g.packMatcapMix('food', 1); await new Promise(r => setTimeout(r, 300));
-      const после = g.thumbURL('foodorange');
-      return до === после;              // источника нет -> сила ничего не меняет
-    })), 'МАТЧЕП ПАЧКИ: у еды своего матчепа НЕТ (её вариант владелец отклонил) — ' +
-      'сила на ней ничего не меняет');
+    // (4) ЕДА — ВТОРАЯ ПАЧКА СО СВОИМ МАТЧЕПОМ (выбор владельца из пяти).
+    // ⚠️ СТРАЖ ПЕРЕЕХАЛ ЗА ПРАВИЛОМ: пока вариант еды был отклонён, здесь
+    // стояло обратное утверждение («матчепа НЕТ»). Правило сменилось —
+    // утверждение переехало, а не «починилось».
+    const яркостьЕды = () => mcPage.evaluate(async () => {
+      const g = window.__game; let S = 0;
+      for (const k of ['foodorange', 'foodstrawberry', 'foodcarrot']){
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.src = g.thumbURL(k); });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, s = 0;
+        for (let i = 0; i < d.length; i += 4){ if (d[i + 3] < 200) continue;
+          s += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+        S += s / n;
+      }
+      return +(S / 3).toFixed(1);
+    });
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('food', 0);
+      await new Promise(r => setTimeout(r, 300)); });
+    const едаБез = await яркостьЕды();
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('food', 0.6);
+      await new Promise(r => setTimeout(r, 300)); });
+    const едаС = await яркостьЕды();
+    const едаОтн = +(едаС / едаБез).toFixed(3);
+    const ручкиЕды = await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix().food,
+      gain: window.__game.packMatcapGain().food, contrast: window.__game.packMatcapContrast().food }));
+    console.log('матчеп еды:', JSON.stringify({ без: едаБез, с: едаС, отн: едаОтн, ручкиЕды }));
+    // ⚠️ КОРИДОР ТОТ ЖЕ, ЧТО У МАШИНОК, И ПО ТОЙ ЖЕ ПРИЧИНЕ: сверху ловится
+    // возврат грабли «альфа = блик» (предмет выбеливается), снизу — потеря
+    // экспозиции, которую владелец забраковал. Замер принятой ступени: ×0.93.
+    expect(едаОтн >= 0.85 && едаОтн <= 0.99,
+      '⚠️⚠️ МАТЧЕП ПАЧКИ: экспозиция еды в коридоре 0.85..0.99 (' + едаОтн + ', без ' +
+      едаБез + ', с ' + едаС + ')');
+    expect(Math.abs(ручкиЕды.contrast - 1.8) < 1e-6 && Math.abs(ручкиЕды.gain - 1.556) < 1e-6,
+      'МАТЧЕП ПАЧКИ: числа еды — контраст 1.8 при усилении 1.556 (' +
+      JSON.stringify(ручкиЕды) + ')');
     await mcPage.close();
   }
 
