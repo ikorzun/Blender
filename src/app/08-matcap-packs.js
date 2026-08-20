@@ -123,7 +123,23 @@ function packMatcapLoad(tex, src, opts){
     PACK_MATCAP_SRC[tex] = src;
     delete _packMatcapRaw[tex];
     const t = _packMatcapTex[tex];
-    if (!t) { packMatcapTex(tex); return true; }
+    if (!t) {
+      // ⚠️⚠️ У ПАЧКИ РОЖДАЕТСЯ ЕЁ ПЕРВАЯ ТЕКСТУРА — И ЕЁ НИКТО НЕ ПОЛУЧИТ САМ.
+      // Материалы, созданные ДО этой секунды, держат общий пресет `makeMatcap
+      // ('tex')`, а всякий новый спавн возьмёт уже картинку: ОДНА ПАЧКА
+      // РАСЩЕПИТСЯ НАДВОЕ В ОДНОЙ СЦЕНЕ, и карточка коллекции будет врать
+      // против свежих предметов до перезагрузки. Болеют только пачки БЕЗ
+      // вшитой картинки (у car/food/animal объект уже есть, и загрузка идёт
+      // нижней веткой — правкой байтов в том же объекте). Найдено разбором
+      // 2026-08-19.
+      // ⚠️ Переставляем СРАЗУ, хотя пиксели приедут после декода: `packMatcapTex`
+      // отдаёт заглушку и дополняет ТОТ ЖЕ объект, а `packMatcapApply` в конце
+      // декода сбросит снимки. Ждать декода нельзя — расщепление живёт всё это
+      // время.
+      packMatcapTex(tex);
+      try { if (typeof packMatcapRepoint === 'function') packMatcapRepoint(tex); } catch (e) {}
+      return true;
+    }
     const img = new Image();
     img.onload = () => {
       const c = document.createElement('canvas');
