@@ -660,7 +660,34 @@ function skyTimeNow(){
 }
 // Небо БЕЗ КАРТИНКИ: многостопная палитра текущего времени суток (SKY_STOPS).
 // Считается РАЗ при загрузке — как раньше выбор панорамы.
-const skyStops = SKY_STOPS[skyTimeNow()];
+// ⚠️⚠️ РАЗБОР СТОПОВ — ОДИН НА ВСЕХ ПОТРЕБИТЕЛЕЙ. Стоп приходит либо голым
+// хексом (`'#ccfff8'`), либо С ПОЗИЦИЕЙ в форме владельца (`'#85dcff 0%'`).
+// Наружу отдаём РАЗДЕЛЬНО: `hex` — чистые цвета (их читает дюжина мест, от
+// `hexRGB` до тинта полос Safari, и им про позиции знать незачем) и `pos` —
+// доли 0..1 (их читают ровно двое: рампа шейдера и строка CSS).
+// ⛔ ПРАВИЛО «ВСЕ ИЛИ НИ ОДНОЙ» (см. 00-config): смесь — это громкий warn и
+// РАВНОМЕРНАЯ раскладка. Доопределять частичные позиции «как CSS» мы не
+// беремся: разойтись с браузером втихую хуже, чем отказаться вслух.
+function parseSkyStops(list){
+  const hex = [], сыр = [];
+  for (const it of list){
+    const m = String(it).trim().split(/\s+/);
+    hex.push(m[0]);
+    сыр.push(m.length > 1 ? parseFloat(m[1]) / 100 : null);
+  }
+  const сколько = сыр.filter(v => v !== null).length;
+  const свои = сколько === сыр.length;
+  if (сколько && !свои) console.warn('[sky] позиции заданы не у всех стопов (' +
+    сколько + ' из ' + сыр.length + ') — раскладка равномерная, см. SKY_STOPS');
+  const last = hex.length - 1;
+  const pos = свои ? сыр : hex.map((_, i) => last ? i / last : 0);
+  return { hex, pos, свои };
+}
+const skyParsed = parseSkyStops(SKY_STOPS[skyTimeNow()]);
+// ⚠️ `skyStops` ОСТАЁТСЯ СПИСКОМ ЧИСТЫХ ХЕКСОВ — так все прежние потребители
+// (включая `skyStops[0]` для тинта верхней полосы) работают без правок.
+const skyStops = skyParsed.hex;
+const skyPos = skyParsed.pos;
 const v3 = a => new THREE.Vector3(a[0], a[1], a[2]);
 // '#rrggbb' -> [0..1, 0..1, 0..1] СЫРОГО sRGB. Никакого convertSRGBToLinear:
 // шейдер неба минует конвертацию рендерера (см. 00-config у SKY_STOPS).
@@ -675,7 +702,12 @@ const skyRGB = skyStops.map(hexRGB);
 // (`#mainScreen::before`). Переменная и правило одни и те же — сменился адресат. Считается раз при загрузке, как и небо —
 // время суток в пределах сессии не меняется, а тик updateHUD ставил бы одну и
 // ту же строку впустую. Строка выходит ДОСЛОВНО такой, какую дал владелец.
-const skyGradCSS = 'linear-gradient(180deg,' + skyStops.join(',') + ')';
+// ⚠️ ПОЗИЦИИ ПОПАДАЮТ В CSS ДОСЛОВНО, если заданы: иначе браузер разложил бы
+// стопы равномерно, а шейдер — по позициям, и один градиент стал бы двумя.
+const skyGradList = (hex, pos, свои) => hex
+  .map((c, i) => свои ? c + ' ' + +(pos[i] * 100).toFixed(4) + '%' : c).join(',');
+const skyGradCSS = 'linear-gradient(180deg,' +
+  skyGradList(skyStops, skyPos, skyParsed.свои) + ')';
 // ⚠️ ЦВЕТА ВЕРХНЕЙ И НИЖНЕЙ КРОМКИ — ОТДЕЛЬНЫМИ ПЕРЕМЕННЫМИ (рецепт Safari 26,
 // см. CLAUDE.md «хром iOS»): Safari 26 ИГНОРИРУЕТ theme-color и берёт тинт своих
 // баров из background-color самих html/body, а fixed-элемент с ПРОЗРАЧНЫМ фоном
@@ -722,11 +754,21 @@ function feverColorNow(){
 // ⚠️ encoding = LinearEncoding НАМЕРЕННО (наследие панорамы): шейдер неба
 // минует конвертацию рендерера, байты идут на экран как есть.
 const SKY_RAMP_W = 256;
-function buildSkyRamp(rgb){
+// ⚠️⚠️ ЛЕРП ИДЁТ ПО ПОЗИЦИЯМ СТОПОВ, А НЕ ПО ИХ НОМЕРАМ. Прежняя редакция
+// считала `t = last * i / (W-1)`, то есть молча раскладывала стопы РАВНОМЕРНО —
+// с палитрой владельца 2026-08-20-б (0/36/65/100) это сдвинуло бы средние
+// стопы на 2.7% и 1.7% высоты кадра, и небо в игре разошлось бы с той же
+// строкой в CSS, где браузер позиции уважает. Расхождение мелкое и оттого
+// особенно противное: на глаз незаметно, а кромки и замеры уже врут.
+function buildSkyRamp(rgb, pos){
   const px = new Uint8Array(SKY_RAMP_W * 4), last = rgb.length - 1;
+  const p = (pos && pos.length === rgb.length)
+    ? pos : rgb.map((_, i) => last ? i / last : 0);
   for (let i = 0; i < SKY_RAMP_W; i++){
-    const t = last * i / (SKY_RAMP_W - 1);     // позиция в стопах: 0..last
-    const k = Math.min(last - 1, Math.floor(t)), f = last ? t - k : 0;
+    const t = i / (SKY_RAMP_W - 1);            // доля высоты рампы: 0..1
+    let k = 0; while (k < last - 1 && t >= p[k + 1]) k++;
+    const шаг = p[k + 1] - p[k];
+    const f = last ? Math.max(0, Math.min(1, шаг > 0 ? (t - p[k]) / шаг : 0)) : 0;
     const a = rgb[last ? k : 0], b = rgb[last ? k + 1 : 0];
     for (let c = 0; c < 3; c++) px[i*4 + c] = Math.round((a[c] + (b[c] - a[c]) * f) * 255);
     px[i*4 + 3] = 255;
@@ -753,7 +795,7 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
 (function buildSky(){
   // Лихорадка, лесенка помола и затемнение верха идут ПОВЕРХ базы.
   const baseUni =
-      { uRamp: { value: buildSkyRamp(skyRGB) },
+      { uRamp: { value: buildSkyRamp(skyRGB, skyPos) },
         uSkyMap: { value: SKY_MAP === 'view' ? 0 : 1 },
         uStars: { value: skyTimeNow() === 'night' ? 1 : 0 },
         // ПЛОТНОСТЬ — ЮНИФОРМА, а не литерал: пакет «Живое окружение» планирует
@@ -927,13 +969,17 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
 // живой подменой не двигается: верх ночи спека не трогает.
 function setSkyStops(list){
   if (!skyMat || !Array.isArray(list) || list.length < 2) return null;
-  const rgb = list.map(hexRGB);
+  // ⚠️ ЖИВАЯ ПОДМЕНА ХОДИТ ЧЕРЕЗ ТОТ ЖЕ РАЗБОР, что и загрузка: свой парсинг
+  // рядом с работающим разошёлся бы с ним при первой же правке формы стопа.
+  const раз = parseSkyStops(list);
+  const rgb = раз.hex.map(hexRGB);
   const old = skyMat.uniforms.uRamp.value;
-  skyMat.uniforms.uRamp.value = buildSkyRamp(rgb);
+  skyMat.uniforms.uRamp.value = buildSkyRamp(rgb, раз.pos);
   if (old && old.dispose) old.dispose();
   try {
     const d = document.documentElement.style;
-    d.setProperty('--sky-grad', 'linear-gradient(180deg,' + list.join(',') + ')');
+    d.setProperty('--sky-grad', 'linear-gradient(180deg,' +
+      skyGradList(раз.hex, раз.pos, раз.свои) + ')');
     d.setProperty('--sky-top-rgb', rgbTriple(rgb[0]));
     d.setProperty('--sky-bot-rgb', rgbTriple(rgb[rgb.length - 1]));
   } catch(e){}

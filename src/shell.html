@@ -97,8 +97,8 @@
      а не на красном; палитра неба сама даёт верху и низу разные цвета.
      ⚠️ Ни один экран не показывает эти фоны глазу: у каждого свой непрозрачный
      фон поверх (небо-канвас в игре, градиент у меню, заливка у оверлеев). */
-  html { background:rgb(var(--sky-top-rgb, 110,134,255)); }
-  body { background:rgb(var(--sky-bot-rgb, 203,254,245)); }
+  html { background:rgb(var(--sky-top-rgb, 133,220,255)); }
+  body { background:rgb(var(--sky-bot-rgb, 204,255,248)); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ ЗДЕСЬ СТОЯЛИ: фон по теме устройства (3-я редакция) и скругление вью
@@ -131,9 +131,9 @@
      копии стопов здесь нет и быть не должно.
      ⛔ НЕ заменять на `transparent` «для чистоты»: у фикс-элемента у кромки это
      читается как «прозрачный ЧЁРНЫЙ». */
-  #topBar { background:rgba(var(--sky-top-rgb, 110,134,255), .01); }
-  #bottomBar { background:rgba(var(--sky-bot-rgb, 203,254,245), .01); }
-  #face { background:rgba(var(--sky-top-rgb, 110,134,255), .01); }
+  #topBar { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
+  #bottomBar { background:rgba(var(--sky-bot-rgb, 204,255,248), .01); }
+  #face { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
   /* ⚠️ ПОКА ОТКРЫТО МЕНЮ — КРОМКА ЭКРАНА В ТОНЕ МЕНЮ (жалоба владельца
      2026-08-06: «в меню паузы сверху прокидывается фон игры, а должен быть
      фон меню»). Тот же рецепт, третий случай: `#mainScreen` стоит `inset:0`
@@ -746,7 +746,7 @@
   /* ⚠️ ЦВЕТ ФОНА ЗДЕСЬ ОБЯЗАТЕЛЕН ОТДЕЛЬНО ОТ ГРАДИЕНТА — по той же причине,
      что у слоя меню: градиент это background-IMAGE, а канал тинта Safari 26
      читает background-COLOR, и один градиент сошёл бы за «прозрачный чёрный». */
-  #pauseOverlay { background-color:rgb(var(--sky-bot-rgb, 203,254,245));
+  #pauseOverlay { background-color:rgb(var(--sky-bot-rgb, 204,255,248));
     background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe));
     -webkit-backdrop-filter:none; backdrop-filter:none; }
   /* ⚠️ ВЕРХНИЙ КАНАЛ ЭТОГО ЭКРАНА. Цвет фона у оверлея может быть только ОДИН, и
@@ -755,7 +755,7 @@
      что рисует здесь градиент, невидима по построению (тот же приём, что у
      нижней полоски меню). */
   #pauseOverlay::before { content:''; position:fixed; left:0; right:0; top:0; height:1px;
-    pointer-events:none; background:rgb(var(--sky-top-rgb, 110,134,255)); }
+    pointer-events:none; background:rgb(var(--sky-top-rgb, 133,220,255)); }
   .card { background:#1d2432; border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:26px 24px;
     width:min(320px, 86vw); text-align:center; }
   .card h2 { font-size:20px; margin-bottom:10px; }
@@ -1320,7 +1320,7 @@
      бы за «прозрачный чёрный». Цвет берём нижний стоп — ровно то, что видно на
      этой кромке. Глазу цвет не показывается: непрозрачный градиент поверх. */
   #mainScreen::before { content:''; position:fixed; inset:0; z-index:-1;
-    pointer-events:none; background-color:rgb(var(--sky-bot-rgb, 203,254,245));
+    pointer-events:none; background-color:rgb(var(--sky-bot-rgb, 204,255,248));
     background-image:var(--sky-grad, none); }
   /* ⚠️⚠️ НИЖНИЙ КАНАЛ МЕНЮ. Сам `#mainScreen` фиксированный, касается ОБЕИХ
      кромок и обязан оставаться ПРОЗРАЧНЫМ (иначе спрячет свой же градиент-слой
@@ -1333,7 +1333,7 @@
      градиентом — невидима по построению, а каналу даёт честный цвет.
      ⚠️ `::after`, а не отдельный узел: разметку меню это не трогает. */
   #mainScreen::after { content:''; position:fixed; left:0; right:0; bottom:0; height:1px;
-    pointer-events:none; background:rgb(var(--sky-bot-rgb, 203,254,245)); }
+    pointer-events:none; background:rgb(var(--sky-bot-rgb, 204,255,248)); }
   #mainScreen { display:none; position:fixed; inset:0; z-index:30; overflow-y:auto; touch-action:pan-y;
     -webkit-overflow-scrolling:touch; background:transparent; color:#000;
     font-family:var(--font-round);
@@ -1859,7 +1859,7 @@
        градиентом, и у самой верхней кромки теперь верхний стоп палитры, а не
        прежняя ровная заливка меню. Оставь здесь `--ms-bg` — шапка объявляла бы
        полосе цвет, которого на экране в этом месте больше нет. */
-    background:rgba(var(--sky-top-rgb, 110,134,255), .01); pointer-events:none;
+    background:rgba(var(--sky-top-rgb, 133,220,255), .01); pointer-events:none;
     visibility:hidden; transform:translateY(-100%);
     transition:transform .22s ease-out, visibility 0s .22s; }
   #msSticky.on { visibility:visible; transform:translateY(0);
@@ -2047,13 +2047,13 @@
        оставалось ~132px. При 700: 292+~166+~226 ≈ вьюпорт, коллекция под 2 карт. */
     .ms-wrap { max-width:none; display:grid; align-content:stretch;
       grid-template-columns:292px minmax(160px,260px) minmax(220px,1fr);
-      grid-template-rows:auto auto 1fr auto; height:100vh; overflow:hidden;
+      grid-template-rows:1fr auto auto auto; height:100vh; overflow:hidden;
       /* ⚠️ НАСТРОЙКИ НАД ГЛАЗАМИ и на десктопе (слово владельца 2026-08-20):
          иначе на широком экране остался бы прежний порядок, и два вида одного
          меню разошлись бы. */
-      grid-template-areas:"prof prof chead"
+      grid-template-areas:"play play chead"
+                          "prof prof grid "
                           "sets sets grid "
-                          "play play grid "
                           "dev  dev  grid "; }
     /* ⚠️⚠️ КАРТОЧКА ПРОФИЛЯ — В ВЕРХЕ ЛЕВОЙ КОЛОНКИ, НАД PLAY (макет 763:1031,
        карточка 840:4679). ⛔ ЭТО ОТМЕНЯЕТ прежнюю раскладку, где профиль стоял
@@ -2332,9 +2332,53 @@
      вид <700 не трогаем (спека). ⚠️ Слежение зрачков переживает масштаб ПО
      ПОСТРОЕНИЮ: сдвиг зрачка задан в единицах viewBox (MAXOFF 29 из 240),
      поэтому амплитуда растёт вместе с SVG; менять JS не требуется. */
-  @media (min-width:700px){
+  @media (min-width:701px){
     .ms-play { justify-content:flex-start; }
     .ms-eyes { flex:0 0 auto; width:min(88%, 480px); height:auto; margin-bottom:auto; }
+  }
+  /* ⚠️⚠️ УЗКИЕ ЭКРАНЫ ≤700: ГЛАЗА ЗАПОЛНЯЮТ КАРТОЧКУ ПО ВЫСОТЕ, ФОН БЛОКА 16% БЕЛОГО
+     (слово владельца 2026-08-20-в: «на размере 700 и меньше, глаза занимают все
+     область по высоте, цвет фона блока 16% белого», через минуту — уточнение по
+     живому экрану: «100% белая подложка»).
+     ⛔ 16% ПРОЖИЛИ ОДНУ ПРАВКУ И ОТМЕНЕНЫ ИМ ЖЕ — не возвращать без его слова.
+     ⚠️⚠️ ЦЕНА НАЗВАНА ВЛАДЕЛЬЦУ: белки глаз ТОЖЕ белые и на белой подложке
+     сливаются с ней — видимыми остаются только чёрные зрачки. Это его прямое
+     решение по картинке, которую он смотрел; менять сами глаза он не просил.
+     ⛔ ЭТИМ ОТМЕНЕНА ПРЕЖНЯЯ СПЕКА «мобильный вид <700 не трогаем», записанная
+     в комментарии выше, — читать её теперь как историю.
+     ⛔ И ЭТИМ ЖЕ ЧАСТИЧНО ОТМЕНЁН «100% прозрачный фон» ТОГО ЖЕ ДНЯ: прозрачным
+     блок остаётся ТОЛЬКО шире 700. Владелец назвал ширину — ширину и слушаем.
+     ⚠️ ГРАНИЦА РОВНО ТАКАЯ, КАК ОН СКАЗАЛ: «700 и меньше» — значит 700 в УЗКОЙ
+     ветке, поэтому соседнее правило подняли с `min-width:700` на `701`. Один
+     пиксель, но иначе на 700 действовало бы обратное тому, что он назвал.
+     ⚠️ ПОЧЕМУ ГЛАЗА РАСТУТ ИМЕННО ШИРИНОЙ, А НЕ ВЫСОТОЙ: бокс глаз и так тянется
+     флексом (`flex:1 1 auto` в базе), но SVG с `viewBox 240×120` вписывается в
+     него с сохранением пропорций — при жёстких `width:240px` графика вставала
+     240×120 по центру бокса 240×192, то есть 72px пустоты. Отдаём боксу ВСЮ
+     ширину — и высота становится ограничителем: замер 390×844 даёт 358×179 в
+     боксе 192 (было 240×120), пустоты 13px вместо 72.
+     ⛔ ВЫБРАТЬ ВЫСОТУ РОВНО В НОЛЬ НЕЛЬЗЯ БЕЗ ИСКАЖЕНИЯ: у конструкции глаз
+     пропорция 2:1, и «впритык по высоте» потребовало бы ширины больше карточки
+     либо обрезки (`preserveAspectRatio: slice`) — то есть срезанных белков. */
+  @media (max-width:700px){
+    .ms-play { background:#fff; }
+    .ms-eyes { width:100%; }
+    /* ⚠️⚠️ ОБЪЁМ БЕЛКОВ ВМЕСТО ОБВОДКИ (решение владельца 2026-08-20-д:
+       «обводка у глаз плохо, добавь им простого объёма радиальным градиентом,
+       где самый тёмный цвет E7EDF8»).
+       ⛔ ОБВОДКА ПРОЖИЛА ОДНУ ПРАВКУ. Здесь стояло `stroke:#000; stroke-width:2`
+       — она решала ту же задачу (белый белок на белой подложке исчезает), но
+       владелец забраковал вид. Не возвращать без его слова.
+       ⚠️ ЗАДАЧА У ГРАДИЕНТА ТА ЖЕ: отделить белок от подложки. Поэтому он живёт
+       ровно в том же блоке ≤700 — шире 700 подложки нет, глаза стоят на небе и
+       читаются сами.
+       ⚠️ САМЫЙ ТЁМНЫЙ ЦВЕТ НАЗВАН ВЛАДЕЛЬЦЕМ И ЭТО ПОТОЛОК, А НЕ ОРИЕНТИР:
+       кромка ровно `#e7edf8`, темнее не уводить. Тот же токен, что у
+       выключенной дорожки свитчера — цвет в системе уже есть.
+       ⚠️ ГРАДИЕНТ ЖИВЁТ В РАЗМЕТКЕ (`defs`), А ЗДЕСЬ ТОЛЬКО ССЫЛКА: `fill` через
+       CSS перебивает презентационный атрибут `fill="#fff"`, поэтому шире 700
+       белок остаётся плоско-белым сам собой, без второго правила. */
+    .ms-eyes .ms-eye-w { fill:url(#msEyeVol); }
   }
   /* ⚠️ БЛОК КУРСОРОВ СТОИТ ПОСЛЕДНИМ В CSS НАМЕРЕННО: у кнопок по файлу
      рассыпаны cursor:pointer на ID-селекторах — порядок + !important несущие
@@ -3063,8 +3107,21 @@
     <section class="ms-play">
       <canvas class="ms-nightsky" id="msNightSky" aria-hidden="true"></canvas>
       <svg class="ms-eyes" viewBox="0 0 240 120" fill="none" aria-hidden="true">
-        <circle cx="60" cy="60" r="60" fill="#fff"/><circle id="msPupL" cx="60" cy="60" r="29" fill="#000"/>
-        <circle cx="180" cy="60" r="60" fill="#fff"/><circle id="msPupR" cx="180" cy="60" r="29" fill="#000"/>
+        <!-- ⚠️ ОБЪЁМ БЕЛКА (решение владельца 2026-08-20-д: «обводка у глаз плохо,
+             добавь им простого объёма радиальным градиентом, где самый тёмный
+             цвет E7EDF8»). Единицы по умолчанию objectBoundingBox — значит ОДИН
+             градиент обслуживает ОБА белка, каждый центрируется на себе.
+             ⚠️ Белый держится до середины радиуса и темнеет только к кромке —
+             двухстоповый ramp от центра давал плоскую заливку, а не шар. -->
+        <defs>
+          <radialGradient id="msEyeVol" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#ffffff"/>
+            <stop offset="0.55" stop-color="#ffffff"/>
+            <stop offset="1" stop-color="#e7edf8"/>
+          </radialGradient>
+        </defs>
+        <circle class="ms-eye-w" cx="60" cy="60" r="60" fill="#fff"/><circle id="msPupL" cx="60" cy="60" r="29" fill="#000"/>
+        <circle class="ms-eye-w" cx="180" cy="60" r="60" fill="#fff"/><circle id="msPupR" cx="180" cy="60" r="29" fill="#000"/>
       </svg>
       <button class="ms-playbtn" id="msPlayBtn">Play Game</button>
     </section>
