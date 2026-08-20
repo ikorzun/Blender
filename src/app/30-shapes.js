@@ -140,7 +140,10 @@ const TYPES = [
   { name:'animalparrot',          color:0xe2453a, rc:1.0, tex:'animal', mat:'soft', geo:animalparrotGeo },
   { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
   { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
-  { name:'piratechest', color:0xa4abcd, rc:1.0, tex:'pirate', mat:'soft', geo:piratechestGeo },
+  // ⛔ `piratechest` УДАЛЁН 2026-08-20 (слово владельца: «сундук удали и
+  // открытый и закрытый»). Художник прислал ОТКРЫТЫЙ вариант вместо прежнего
+  // закрытого — владелец не захотел ни того, ни другого. Модель убрана и из
+  // исходника, и из модуля: типов в пуле стало 87.
   { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
   { name:'foodavocado',           color:0x6b8f3a, rc:1.0, tex:'food', mat:'soft', geo:foodavocadoGeo },
