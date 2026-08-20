@@ -151,8 +151,19 @@ function mceApply(id){
   const src = g.getImageData(0, 0, S, S).data;
   if (!mceBackup.has(id)){
     // копия ДО первой правки — «Сброс» возвращает ровно её
+    // ⚠️⚠️ У ЦЕЛЕЙ-КАРТИНОК (лопасти, бомба) БАЙТОВ НЕТ ВОВСЕ: их текстура —
+    // `THREE.Texture` поверх `HTMLImageElement` (06-matcap-metal / 07-matcap-bomb,
+    // PNG владельца), у неё `image.data === undefined`. Прежняя строка клала им
+    // в бэкап `null`, а ниже `tex.image = tmp` затирал ЕДИНСТВЕННУЮ ссылку на
+    // декодированный PNG — и «Сброс» становился МОЛЧАЛИВЫМ NO-OP: обе его ветки
+    // отпадали, возвращать было нечего, лечилось только перезагрузкой страницы.
+    // Найдено состязательным разбором 2026-08-19, снято словом владельца
+    // 2026-08-20 («остальное почини»).
+    // ЛЕЧЕНИЕ: у кого есть байты — храним КОПИЮ БАЙТОВ (как было), у кого нет —
+    // храним САМ ОБЪЕКТ-ИСТОЧНИК. Он никуда не девается: мы его лишь отцепляем
+    // от текстуры, а не портим.
     const d = tex.image && tex.image.data;
-    mceBackup.set(id, d ? new Uint8Array(d) : null);
+    mceBackup.set(id, d ? new Uint8Array(d) : (tex.image || null));
   }
   const dst = tex.image && tex.image.data;
   if (dst && dst.length === src.length){
@@ -180,9 +191,20 @@ function mceReset(id){
   if (пачка){ setPackMatcap(пачка, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
   const b = mceBackup.get(id);
-  if (b && tex.image && tex.image.data && tex.image.data.length === b.length){
-    tex.image.data.set(b); tex.needsUpdate = true;
+  if (b instanceof Uint8Array){
+    // процедурные пресеты и текстуры пачек: возвращаем байты на место
+    if (tex.image && tex.image.data && tex.image.data.length === b.length){
+      tex.image.data.set(b); tex.needsUpdate = true;
+    }
+  } else if (b && (b.width || b.nodeName)){
+    // ⚠️ ЦЕЛЬ-КАРТИНКА (лопасти, бомба): подменяем ИСТОЧНИК обратно. Это ровно
+    // обратная операция к `tex.image = tmp` в `mceApply` — тем же способом, что
+    // и порча, иначе восстановление врало бы про свой охват.
+    tex.image = b; tex.needsUpdate = true;
   } else if (typeof retuneMatcap === 'function' && id !== 'blades' && id !== 'bomb'){
+    // ⚠️ Гейт `blades`/`bomb` ОСТАЁТСЯ и после починки: `retuneMatcap` ходит по
+    // `matcapCache` (ключи soft/metal/tex) и до этих двух не достаёт вовсе —
+    // вызов был бы пустым, а выглядел бы как запасной путь.
     retuneMatcap(id);   // тоже правка НА МЕСТЕ: `bakeMatcap` пишет в `tex.image.data`
   }
   // ⚠️ ОБЕ ветки выше — правка на месте, поэтому снимки портретов надо сбросить

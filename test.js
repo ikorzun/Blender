@@ -705,21 +705,38 @@ page.on('response', (r) => {
   expect(idleDef === 15, 'таймер помола Easy = 15с (спека владельца 2026-07-27) (' + idleDef + ')');
   await page.evaluate(() => { window.__game.level().idleLimit = 5; window.__game.stats().lastAction = performance.now() - 20000; }); // укорачиваем лимит до 5 для скорости теста
   await page.waitForTimeout(1000);
-  // огонь — эскалация помола (правка владельца 2026-07-22): на 1-й секунде
-  // Grinding его ещё НЕТ, появляется вместе со спуском глаз после 3 с
+  // ⛔⛔ СТРАЖ ПЕРЕЕХАЛ ЗА ПРАВИЛОМ 2026-08-20 («убери огонь у глаз»). Прежде
+  // здесь утверждалось «на 1-й секунде помола огня ещё нет, после 3 с горит» —
+  // то есть ЛЕСЕНКА. Огня больше нет вовсе, значит проверяется ОТСУТСТВИЕ, и
+  // проверять его надо ИМЕННО ПОСЛЕ трёх секунд непрерывного помола: раньше
+  // корона не загоралась и на исправной сборке, то есть ранний замер был бы
+  // тавтологией («нет того, чего и не должно было быть в этот момент»).
   const fireEarly = await page.evaluate(() => ({
-    fire: document.getElementById('fFire').classList.contains('on'),
-    dropped: document.getElementById('face').classList.contains('dropped') }));
-  expect(!fireEarly.fire && !fireEarly.dropped, 'на 1-й секунде помола огня и спуска глаз ещё нет');
+    узел: !!document.getElementById('fFire'),
+    dropped: document.getElementById('face').classList.contains('dropped'),
+    верхЛица: Math.round(document.getElementById('face').getBoundingClientRect().top) }));
   await page.waitForTimeout(2600);
   const mixer = await page.evaluate(() => ({ alive: window.__game.alive(), score: window.__game.stats().score,
     mt: document.getElementById('mixerTimer').textContent,
-    fire: document.getElementById('fFire').classList.contains('on'),
-    dropped: document.getElementById('face').classList.contains('dropped') }));
+    узел: !!document.getElementById('fFire'),
+    dropped: document.getElementById('face').classList.contains('dropped'),
+    верхЛица: Math.round(document.getElementById('face').getBoundingClientRect().top),
+    злые: !!document.getElementById('fAngry') &&
+          getComputedStyle(document.getElementById('fAngry')).display !== 'none' }));
   console.log('after idle: alive', mixer.alive, '| score', mixer.score, '| таймер-чип:', mixer.mt);
   expect(mixer.alive < preMixerAlive, 'миксер за простой съел предметы (' + preMixerAlive + ' -> ' + mixer.alive + ')');
   expect(mixer.score < sc, 'миксер снял очки за пару (' + sc + ' -> ' + mixer.score + ')');
-  expect(mixer.fire && mixer.dropped, 'после 3 с помола огонь горит и глаза опустились');
+  expect(!mixer.узел && !mixer.dropped && mixer.верхЛица === fireEarly.верхЛица,
+    '⚠️⚠️ ОГНЯ У ГЛАЗ НЕТ ДАЖЕ ПОСЛЕ 3+ СЕКУНД ПОМОЛА, и конструкция НЕ СЪЕХАЛА (' +
+    JSON.stringify({ узел: mixer.узел, dropped: mixer.dropped,
+                     верх: fireEarly.верхЛица + ' -> ' + mixer.верхЛица }) + '). ' +
+    'Слово владельца 2026-08-20. Диверсия — вернуть блок `#fFire` в разметку и ' +
+    'лесенку `FIRE_AFTER_GRIND_MS` в `loop` (99-main): узел появится, класс ' +
+    '`dropped` встанет, и верх лица уедет вниз на `--fireLift`');
+  expect(mixer.злые,
+    '⚠️ ЭСКАЛАЦИЯ ПОМОЛА НЕ ОСИРОТЕЛА: злые глаза при работающих лопастях на ' +
+    'месте (' + mixer.злые + '). Без этой руки страж выше зеленел бы и на ' +
+    'сборке, где вместе с огнём потерялся весь сигнал помола');
 
   // БАЛАНС-ТАБЛИЦА (спека владельца 2026-07-22): промах −10; уровень 1 —
   // БЕЗ очковых штрафов вовсе; уровни 2-5 — кламп счёта снизу нулём;
@@ -7751,6 +7768,84 @@ window.bridge = {
       '`thumbCacheDrop()` из второй ветки `mceApply` (12-matcap-edit): замер ' +
       'замрёт на 54.5/0.443, а страж «применять сразу» ниже останется зелёным ' +
       '(он на СВЕЖИХ ключах и от этой правки не зависит)');
+  }
+
+  // ═══ «СБРОС» ВОЗВРАЩАЕТ КАРТИНКУ ЛОПАСТЕЙ И БОМБЫ (дефект найден разбором
+  // 2026-08-19, снят словом владельца 2026-08-20 «остальное почини») ═══
+  // ⚠️⚠️ У ЭТИХ ДВУХ ЦЕЛЕЙ БАЙТОВ НЕТ: их текстура — `THREE.Texture` поверх
+  // `HTMLImageElement` (PNG владельца, 06-matcap-metal / 07-matcap-bomb).
+  // «Применить» подменял `tex.image` холстом редактора, а в бэкап клал `null`
+  // (там искали `image.data`) — и «Сброс» становился МОЛЧАЛИВЫМ NO-OP: обе его
+  // ветки отпадали, вернуть было нечего, лечилось только перезагрузкой.
+  // ⚠️ НАБЛЮДАЕМ ЧЕРЕЗ `mceTexInfo` — он читает ТУ ЖЕ `mceTexOf`, что и сам
+  // редактор. Признак — ЧЕМ является `image`: `IMG` (картинка владельца) или
+  // `CANVAS` (холст редактора). Ни один прежний хук этого не отдавал, потому
+  // дефект и жил незамеченным.
+  // ЗАМЕР: до — лопасти IMG 512, после «Применить» — CANVAS 512, после
+  // «Сброс» — снова IMG 512 (обе цели).
+  {
+    const рп = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    рп.on('pageerror', e => errors.push('PAGEERROR(сброс): ' + e.message));
+    await рп.goto('file://' + PAGE_FILE + '?dev=1');
+    await рп.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await рп.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
+    // ⚠️ ЖДЁМ ФАКТ ДЕКОДА, А НЕ ЧАСЫ: обе картинки приезжают асинхронно и до
+    // декода `image` это заглушка 1×1. Замер на заглушке проверял бы гонку.
+    await рп.waitForFunction(() => {
+      const a = window.__game.mceTexInfo('blades'), b = window.__game.mceTexInfo('bomb');
+      return a.w > 1 && b.w > 1;
+    }, { timeout: 30000 });
+    const цели = () => рп.evaluate(() => ({ лопасти: window.__game.mceTexInfo('blades'),
+                                            бомба: window.__game.mceTexInfo('bomb') }));
+    const до = await цели();
+    await рп.evaluate(() => window.__game.matcapEdit());
+    await рп.waitForTimeout(400);
+    const отм = await рп.evaluate(() => {
+      const пан = document.getElementById('matcapEdit'); if (!пан) return -1;
+      let n = 0;
+      for (const l of [...пан.querySelectorAll('label')]){
+        const c = l.querySelector('input[type=checkbox]'); if (!c) continue;
+        const надо = /лопасти миксера|бомба|применять сразу/.test(l.textContent);
+        if (c.checked !== надо) c.click();
+        if (/лопасти миксера|бомба/.test(l.textContent)) n++;
+      }
+      return n;
+    });
+    const жать = async (имя) => {
+      for (const к of await рп.$$('#matcapEdit button')){
+        const t = await к.textContent();
+        if (имя.test(t)){ await к.click(); return true; }
+      }
+      return false;
+    };
+    const нажатоПрим = await жать(/Применить/);
+    await рп.waitForTimeout(500);
+    const после = await цели();
+    const нажатоСброс = await жать(/^Сброс/);
+    await рп.waitForTimeout(500);
+    const сброс = await цели();
+    await рп.close();
+    console.log('сброс лопастей/бомбы:', JSON.stringify({ отм, нажатоПрим, нажатоСброс, до, после, сброс }));
+
+    expect(отм === 2 && нажатоПрим && нажатоСброс
+        && до.лопасти.источник === 'IMG' && до.бомба.источник === 'IMG',
+      'САНИТАР СБРОСА: обе цели-картинки отмечены, обе кнопки нажаты, и ДО правки ' +
+      'у обеих стоит картинка владельца (' + JSON.stringify({ отм, нажатоПрим, нажатоСброс, до }) + ')');
+
+    expect(после.лопасти.источник === 'CANVAS' && после.бомба.источник === 'CANVAS',
+      'ПРИМЕНЕНИЕ ВООБЩЕ ДОШЛО ДО ЦЕЛЕЙ-КАРТИНОК: у обеих источник стал холстом ' +
+      'редактора (' + JSON.stringify(после) + '). Без этой руки страж ниже зеленел ' +
+      'бы и на редакторе, который вовсе ничего не делает');
+
+    expect(сброс.лопасти.источник === 'IMG' && сброс.бомба.источник === 'IMG'
+        && сброс.лопасти.w === до.лопасти.w && сброс.бомба.w === до.бомба.w,
+      '⚠️⚠️ «СБРОС» ВОЗВРАЩАЕТ КАРТИНКУ ВЛАДЕЛЬЦА ЛОПАСТЯМ И БОМБЕ (' +
+      JSON.stringify({ до, после, сброс }) + '). До правки 2026-08-20 он был ' +
+      'МОЛЧАЛИВЫМ NO-OP: в бэкапе лежал `null`, единственная ссылка на ' +
+      'декодированный PNG была затёрта холстом, и вернуть картинку могла только ' +
+      'перезагрузка страницы. Диверсия — вернуть в `mceApply` строку ' +
+      '`mceBackup.set(id, d ? new Uint8Array(d) : null)`: источник останется ' +
+      'CANVAS и после «Сброса»');
   }
 
   // ═══ СБРОС В РЕДАКТОРЕ НЕ РАСЩЕПЛЯЕТ ПАЧКУ (мина СЛИЯНИЯ 2026-08-18) ═══
