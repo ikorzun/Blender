@@ -4995,6 +4995,21 @@ function setPackMatcap(pack, tex){
       m.matcap = tex || базовая; тронуто++;
     }
   } catch (e) {}
+  // ⚠️⚠️ ПОРТРЕТЫ ПАЧКИ — ОТДЕЛЬНЫЕ ПРЕДМЕТЫ СО СВОИМ МАТЕРИАЛОМ, И БЕЗ ЭТОГО
+  // ЦИКЛА СБРОС СНИМКОВ НИЖЕ БЕССМЫСЛЕН. `thumbItemForKey` (85-hud) держит
+  // готовый портретный предмет вечно, а `itemMaterial` дал ему СВОЙ материал —
+  // в `items` его нет, цикл выше до него не достаёт. Пересняли бы тем же старым
+  // материалом: карточка коллекции врала бы до перезагрузки (дефект
+  // «протухающие портреты», слово владельца 2026-08-19 «почини»).
+  // ⚠️ Правило то же, что у живых: `tex` или БАЗОВАЯ ПАЧКИ, не общий пресет.
+  try {
+    const портреты = (typeof thumbItemsOfPack === 'function') ? thumbItemsOfPack(pack) : [];
+    for (const it of портреты){
+      const m = it.mesh && it.mesh.material;
+      if (!m || !('matcap' in m)) continue;
+      m.matcap = tex || базовая;
+    }
+  } catch (e) {}
   // ⚠️⚠️ ПОРТРЕТЫ КЭШИРУЮТСЯ КАРТИНКОЙ — ИХ СНИМКИ ПРОТУХЛИ. Прежняя строка
   // звала `thumbCache.clear()`, а `thumbCache` — ОБЪЕКТ (`const thumbCache = {}`
   // в 85-hud), не Map: вызов бросал TypeError, который глотал этот же
@@ -5793,6 +5808,13 @@ function mceApply(id){
     tex.image = tmp;
   }
   tex.needsUpdate = true;
+  // ⚠️⚠️ ПРАВКА НА МЕСТЕ — И СНИМКИ ПОРТРЕТОВ ПРОТУХЛИ. Объект текстуры тот же,
+  // переставлять материалам ничего не надо, но `itemThumb` (85-hud) держит
+  // ГОТОВЫЙ PNG вечно. `setPackMatcap` сюда не заходит — он про СМЕНУ объекта,
+  // а здесь мы пишем в существующие байты, — поэтому сбрасываем сами. Без этого
+  // мазок кистью не двигал карточку коллекции ВООБЩЕ (замер: 67.6/0.730 до и
+  // после мазка, один в один). Дефект «протухающие портреты», 2026-08-19.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
   return 'применено: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
@@ -5803,8 +5825,12 @@ function mceReset(id){
   if (b && tex.image && tex.image.data && tex.image.data.length === b.length){
     tex.image.data.set(b); tex.needsUpdate = true;
   } else if (typeof retuneMatcap === 'function' && id !== 'blades' && id !== 'bomb'){
-    retuneMatcap(id);
+    retuneMatcap(id);   // тоже правка НА МЕСТЕ: `bakeMatcap` пишет в `tex.image.data`
   }
+  // ⚠️ ОБЕ ветки выше — правка на месте, поэтому снимки портретов надо сбросить
+  // ровно так же, как в `mceApply`. Пачечная ветка вышла раньше через
+  // `setPackMatcap`, он это делает сам.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
 }
 
 // ═══ ПАНЕЛЬ ═══ Стиль и приёмы взяты у `matcapTuner` (10-stage): фиксированная
@@ -16007,6 +16033,26 @@ function thumbItemForKey(key, ghost){
   };
   thumbItemCache[ck] = it;
   return it;
+}
+// ⚠️⚠️ ПОРТРЕТЫ — ТОЖЕ ПРЕДМЕТЫ ПАЧКИ, И МАТЕРИАЛ У НИХ СВОЙ. `itemMaterial`
+// строит НОВЫЙ материал на каждый портрет (`new THREE.MeshMatcapMaterial`), а
+// `thumbItemCache` держит готовый предмет вечно. Значит всякий, кто МЕНЯЕТ САМ
+// ОБЪЕКТ текстуры у пачки, обязан пройтись и по портретам: сброса `thumbCache`
+// мало — снимок переснимут, но со СТАРЫМ материалом, и карточка врёт до
+// перезагрузки. Ровно это и был дефект «протухающие портреты» (2026-08-19).
+// ⚠️ Правку ПИКСЕЛЕЙ на месте (`packMatcapApply`, `mceApply` по существующей
+// текстуре, `mceReset`) сюда звать НЕ НАДО: объект тот же, материалы и так
+// смотрят куда следует — там хватает `thumbCacheDrop`.
+// ⚠️ Гхост-варианты попадают сюда наравне: у них свой ключ кэша ('@g'), но тот
+// же `type`, и матчеп им нужен такой же — иначе закрытая карточка осталась бы
+// на старом материале, а открытая обновилась.
+function thumbItemsOfPack(pack){
+  const из = [];
+  for (const k in thumbItemCache){
+    const it = thumbItemCache[k];
+    if (it && it.type && it.type.tex === pack && it.mesh) из.push(it);
+  }
+  return из;
 }
 function itemThumb(item){
   if (!item || !item.mesh) return null;

@@ -1168,6 +1168,26 @@ function thumbItemForKey(key, ghost){
   thumbItemCache[ck] = it;
   return it;
 }
+// ⚠️⚠️ ПОРТРЕТЫ — ТОЖЕ ПРЕДМЕТЫ ПАЧКИ, И МАТЕРИАЛ У НИХ СВОЙ. `itemMaterial`
+// строит НОВЫЙ материал на каждый портрет (`new THREE.MeshMatcapMaterial`), а
+// `thumbItemCache` держит готовый предмет вечно. Значит всякий, кто МЕНЯЕТ САМ
+// ОБЪЕКТ текстуры у пачки, обязан пройтись и по портретам: сброса `thumbCache`
+// мало — снимок переснимут, но со СТАРЫМ материалом, и карточка врёт до
+// перезагрузки. Ровно это и был дефект «протухающие портреты» (2026-08-19).
+// ⚠️ Правку ПИКСЕЛЕЙ на месте (`packMatcapApply`, `mceApply` по существующей
+// текстуре, `mceReset`) сюда звать НЕ НАДО: объект тот же, материалы и так
+// смотрят куда следует — там хватает `thumbCacheDrop`.
+// ⚠️ Гхост-варианты попадают сюда наравне: у них свой ключ кэша ('@g'), но тот
+// же `type`, и матчеп им нужен такой же — иначе закрытая карточка осталась бы
+// на старом материале, а открытая обновилась.
+function thumbItemsOfPack(pack){
+  const из = [];
+  for (const k in thumbItemCache){
+    const it = thumbItemCache[k];
+    if (it && it.type && it.type.tex === pack && it.mesh) из.push(it);
+  }
+  return из;
+}
 function itemThumb(item){
   if (!item || !item.mesh) return null;
   const key = String(item.key);

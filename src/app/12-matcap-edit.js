@@ -166,6 +166,13 @@ function mceApply(id){
     tex.image = tmp;
   }
   tex.needsUpdate = true;
+  // ⚠️⚠️ ПРАВКА НА МЕСТЕ — И СНИМКИ ПОРТРЕТОВ ПРОТУХЛИ. Объект текстуры тот же,
+  // переставлять материалам ничего не надо, но `itemThumb` (85-hud) держит
+  // ГОТОВЫЙ PNG вечно. `setPackMatcap` сюда не заходит — он про СМЕНУ объекта,
+  // а здесь мы пишем в существующие байты, — поэтому сбрасываем сами. Без этого
+  // мазок кистью не двигал карточку коллекции ВООБЩЕ (замер: 67.6/0.730 до и
+  // после мазка, один в один). Дефект «протухающие портреты», 2026-08-19.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
   return 'применено: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
@@ -176,8 +183,12 @@ function mceReset(id){
   if (b && tex.image && tex.image.data && tex.image.data.length === b.length){
     tex.image.data.set(b); tex.needsUpdate = true;
   } else if (typeof retuneMatcap === 'function' && id !== 'blades' && id !== 'bomb'){
-    retuneMatcap(id);
+    retuneMatcap(id);   // тоже правка НА МЕСТЕ: `bakeMatcap` пишет в `tex.image.data`
   }
+  // ⚠️ ОБЕ ветки выше — правка на месте, поэтому снимки портретов надо сбросить
+  // ровно так же, как в `mceApply`. Пачечная ветка вышла раньше через
+  // `setPackMatcap`, он это делает сам.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
 }
 
 // ═══ ПАНЕЛЬ ═══ Стиль и приёмы взяты у `matcapTuner` (10-stage): фиксированная
