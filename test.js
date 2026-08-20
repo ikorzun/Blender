@@ -10054,6 +10054,53 @@ window.bridge = {
     expect(Math.abs(ручкиЕды.contrast - 1.8) < 1e-6 && Math.abs(ручкиЕды.gain - 1.556) < 1e-6,
       'МАТЧЕП ПАЧКИ: числа еды — контраст 1.8 при усилении 1.556 (' +
       JSON.stringify(ручкиЕды) + ')');
+
+    // (5) ЗВЕРИ — ТРЕТЬЯ ПАЧКА, «тёплый сатин» (выбор владельца из пяти
+    // материалов). ⚠️ КАРТИНКА У НИХ ТА ЖЕ, ЧТО У ЕДЫ, но усиление СВОЁ
+    // (1.503 против 1.556): множитель зависит от того, какие нормали у
+    // предметов пачки попадают в кадр, поэтому он замеряется на каждой
+    // пачке отдельно, а не переносится по аналогии.
+    const яркостьЗверей = () => mcPage.evaluate(async () => {
+      const g = window.__game; let S = 0;
+      for (const k of ['animaltiger', 'animalpanda', 'animalcow']){
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.src = g.thumbURL(k); });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, s = 0;
+        for (let i = 0; i < d.length; i += 4){ if (d[i + 3] < 200) continue;
+          s += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+        S += s / n;
+      }
+      return +(S / 3).toFixed(1);
+    });
+    // ⚠️ РУЧКИ ЧИТАЕМ ДО ОБНУЛЕНИЯ СИЛЫ: обратный порядок даёт mix 0, «возврат»
+    // в ноль и честные ×1.000 у всех пачек — зонд меряет сам себя (поймано на
+    // своей же пробе).
+    const ручкиЗверей = await mcPage.evaluate(() => ({ mix: window.__game.packMatcapMix().animal,
+      gain: window.__game.packMatcapGain().animal, contrast: window.__game.packMatcapContrast().animal }));
+    await mcPage.evaluate(async () => { window.__game.packMatcapMix('animal', 0);
+      await new Promise(r => setTimeout(r, 300)); });
+    const звериБез = await яркостьЗверей();
+    await mcPage.evaluate(async (m) => { window.__game.packMatcapMix('animal', m);
+      await new Promise(r => setTimeout(r, 300)); }, ручкиЗверей.mix);
+    const звериС = await яркостьЗверей();
+    const звериОтн = +(звериС / звериБез).toFixed(3);
+    console.log('матчеп зверей:', JSON.stringify({ без: звериБез, с: звериС, отн: звериОтн, ручкиЗверей }));
+    expect(звериОтн >= 0.85 && звериОтн <= 0.99,
+      '⚠️⚠️ МАТЧЕП ПАЧКИ: экспозиция зверей в коридоре 0.85..0.99 (' + звериОтн + ', без ' +
+      звериБез + ', с ' + звериС + ')');
+    expect(Math.abs(ручкиЗверей.contrast - 1.8) < 1e-6 && Math.abs(ручкиЗверей.gain - 1.503) < 1e-6,
+      'МАТЧЕП ПАЧКИ: числа зверей — контраст 1.8 при усилении 1.503 (' +
+      JSON.stringify(ручкиЗверей) + ')');
+    // ⚠️ И ЧТО КАРТИНКА ОДНА НА ДВЕ ПАЧКИ — БЕЗ ВТОРОГО БЛОБА В СБОРКЕ.
+    // Диверсия «вписать base64 зверям отдельно» этот ассерт роняет, а на глаз
+    // не видна вовсе: игра выглядит одинаково, сборка тяжелее на 54 КБ.
+    const общийИсточник = await mcPage.evaluate(() => window.__game.packMatcapSrcShared ?
+      window.__game.packMatcapSrcShared('animal', 'food') : null);
+    expect(общийИсточник === true,
+      'МАТЧЕП ПАЧКИ: звери и еда делят ОДНУ картинку (второй такой же base64 стоил бы 54 КБ)');
     await mcPage.close();
   }
 

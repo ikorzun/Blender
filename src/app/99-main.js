@@ -1056,6 +1056,9 @@ window.__game = {
   packMatcapGain(pack, g){
     if (g == null) return JSON.parse(JSON.stringify(PACK_MATCAP_GAIN));
     PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
+  // одна ли КАРТИНКА у двух пачек: на неё стоит ассерт веса (второй такой же
+  // base64 в сборке невидим на глаз и стоит 54 КБ)
+  packMatcapSrcShared(a, b){ return PACK_MATCAP_SRC[a] === PACK_MATCAP_SRC[b] && !!PACK_MATCAP_SRC[a]; },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
     PACK_MATCAP_CONTRAST[pack] = c; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
