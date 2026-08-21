@@ -173,6 +173,37 @@ function fpsBadgeTick(now){
     'ур.' + levelNum + '   DPR ' + (+renderer.getPixelRatio().toFixed(2)) +
     (intro ? '   (интро)' : '');
 }
+// ⚠️⚠️ АВТОМАТИЧЕСКИЙ ДОЕЗД ПОСЛЕ ОБЛЁТА (слово владельца 2026-08-21-р: «в
+// анимации поворота чаши после приближения добавь автоматический плавный зум
+// равный градации одного нажатия на кнопку +»).
+// ⚠️ ВЕЛИЧИНА БЕРЁТСЯ У САМОЙ КНОПКИ (`ZOOM_STEP`), А НЕ ПИШЕТСЯ ЧИСЛОМ:
+// «равный градации одного нажатия» — это требование СОВПАДЕНИЯ с шагом кнопки,
+// и копия числа разошлась бы с ней при первой правке шага.
+// ⚠️ ДОЕЗД ИДЁТ ПО РЕАЛЬНЫМ ЧАСАМ И ЧЕРЕЗ rAF, а не по игровому времени: сразу
+// после интро куча ещё оседает, кадр тяжёлый, и привязка к игровым часам
+// растянула бы движение ровно там, где оно заметнее всего.
+// ⚠️ ЛЮБОЙ ЖЕСТ ИГРОКА ОТМЕНЯЕТ ДОЕЗД: перехватывать камеру у пальца нельзя.
+// Признак — изменение `camR` кем-то ещё; сверяем с тем, что поставили сами.
+let introZoomRAF = 0, introZoomWant = 0;
+function introZoomStop(){ if (introZoomRAF) cancelAnimationFrame(introZoomRAF); introZoomRAF = 0; }
+function introZoomStart(){
+  introZoomStop();
+  const шаг = (typeof ZOOM_STEP === 'number') ? ZOOM_STEP : 3.2;
+  const от = camR, до = Math.max(CAM_R_MIN, от - шаг), t0 = performance.now(), дл = 420;
+  if (!(до < от)) return;
+  let прошлый = от;
+  const тик = () => {
+    // камеру тронули снаружи (драг, пинч, кнопка) — уступаем
+    if (Math.abs(camR - прошлый) > 1e-4){ introZoomRAF = 0; return; }
+    const k = Math.min(1, (performance.now() - t0) / дл);
+    const e = 1 - Math.pow(1 - k, 3);           // тот же ease-out, что у count-up счёта
+    camR = от + (до - от) * e; прошлый = camR;
+    updateCamera();
+    introZoomRAF = k < 1 ? requestAnimationFrame(тик) : 0;
+  };
+  introZoomRAF = requestAnimationFrame(тик);
+}
+
 function finishIntro(){
   introPerfStop();
   waveReleaseAll();              // страховка: облёт мог начаться раньше очереди                                     // срез насыпания — ДО всего прочего
@@ -192,6 +223,7 @@ function finishIntro(){
   if (sp) sp.body.setBodyType(RAPIER.RigidBodyType.Dynamic, false);
   camAz = 0; camPhi = 0.45; camR = 16.2;
   updateCamera();
+  introZoomStart();   // плавный доезд на одно нажатие «+» (слово владельца 2026-08-21-р)
   stats.t0 = performance.now();
   stats.lastAction = performance.now();
   // свежий 3-секундный бюджет форс-сна ПОСЛЕ интро: wakeAtMs стоял с genLevel,

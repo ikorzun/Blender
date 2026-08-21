@@ -83,6 +83,14 @@ function winFmtScore(n){
   return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
 }
 function renderWinScreen(){
+  // ⚠️⚠️ СТРОКУ ТАБЛИЦЫ ОБНОВЛЯЕМ СИНХРОННО И ПЕРВОЙ, ДО СЧЁТА: она сама
+  // ставит/снимает `hidden` без сети, поэтому её высота (12+48+12 = 72) есть
+  // уже в ПЕРВОМ кадре экрана. Данные приезжают позже и МЕНЯЮТ ТОЛЬКО ТЕКСТ —
+  // кнопка Next под списком не уедет из-под пальца. То же правило, по которому
+  // жила прежняя врезка `#winLb`.
+  // ⚠️ Обёрнуто в try: экран победы важнее строки таблицы, и отказ сети,
+  // выключенная фича или отсутствующий модуль не смеют уронить показ.
+  try { lbEntryRefresh(); } catch (e) {}
   const wrap = $('winWrap'); if (!wrap) return;
   const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   // levelNum уже инкрементнут в checkEnd → только что пройденный = levelNum-1
@@ -102,7 +110,13 @@ function renderWinScreen(){
   // не читал никто, включая тесты (перепись употреблений).
   // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
   winStopScore();
-  const st = $('winScore');
+  // ⚠️⚠️ СЧЁТ ПИШЕТСЯ В ОБА СЛОЯ ОБВОДКИ ОДНИМ КОДОМ (2026-08-21-р). Текст
+  // рисуется дважды — белая 12 снизу, чёрная 6 сверху; второй писатель
+  // разошёлся бы с первым на count-up, и обводка отставала бы от цифры.
+  // ⚠️ Обёртка-сеттер, а не список: ниже четыре присваивания `st.textContent`,
+  // и переписывать каждое значило бы завести четыре места вместо одного.
+  const слои = Array.prototype.slice.call(document.querySelectorAll('.win-score text'));
+  const st = слои.length ? { set textContent(v){ слои.forEach(n => { n.textContent = v; }); } } : null;
   if (st){
     if (reduce || bal <= 0){ st.textContent = '★ ' + winFmtScore(bal); }
     else {
@@ -211,20 +225,61 @@ function lbRankNow(m, живой, топ){
   }
   return null;
 }
+// ⚠️⚠️ ЭКЗЕМПЛЯРОВ СТРОКИ ТЕПЕРЬ ДВА: в меню (`#msLbEntry`) и на экране победы
+// (`#winLbEntry`, нода 891:4297, слово владельца 2026-08-21-н). Функция стала
+// писать во ВСЕ найденные, а не в узел по id.
+// ⚠️ ПОЧЕМУ НЕ ВТОРАЯ ФУНКЦИЯ: место считается формулой `lbRankNow` со своим
+// стражем и своей памятью прошлого места в localStorage. Две копии этой логики
+// разошлись бы при первой правке, и экраны показывали бы РАЗНОЕ место игрока —
+// худший вид расхождения, потому что оба числа выглядят правдой.
+const lbEntryВсе = сел => Array.prototype.slice.call(document.querySelectorAll(сел));
+// ⚠️ ЗНАЧОК НАПРАВЛЕНИЯ ШТАМПУЕТСЯ ИЗ МЕНЮ, А НЕ ДУБЛИРУЕТСЯ В РАЗМЕТКЕ: три
+// SVG (вверх/вниз/новичок) весят почти 5 КБ путей, и вторая их копия в файле
+// была бы ровно тем дублем, который расходится при первой перерисовке значка.
+// Берём разметку у первого экземпляра, у которого она есть.
+function lbEntryШтампЗначка(){
+  const источник = document.querySelector('#msLbeBadge');
+  if (!источник || !источник.firstElementChild) return;
+  lbEntryВсе('.ms-lbe-badge').forEach(з => {
+    if (з !== источник && !з.firstElementChild) з.innerHTML = источник.innerHTML;
+  });
+}
 function lbEntryRefresh(){
-  const box = $('msLbEntry'); if (!box) return;
+  lbEntryШтампЗначка();
+  const боксы = lbEntryВсе('.ms-lbentry'); if (!боксы.length) return;
+  const box = боксы[0];
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
   // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
   // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
   // может, значит без причины двигать меню (то же правило, что у врезки).
   const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
-  box.hidden = !on;
+  боксы.forEach(б => { б.hidden = !on; });
   if (!on) return;
   const my = ++lbEntryEpoch;
   lb.top(1).then(t => {
     if (my !== lbEntryEpoch) return;
-    const host = $('msLbeAvs'); if (!host) return;
-    host.innerHTML = '';
+    const хосты = lbEntryВсе('.ms-lbe-avs'); if (!хосты.length) return;
+    хосты.forEach(h => { h.innerHTML = ''; });
+    // ⛔⛔ НА ЭКРАНЕ ПОБЕДЫ АВАТАР ОДИН, И ЭТО АВАТАР ИГРОКА, А НЕ ПЕРВОГО ИЗ
+    // ТОПА (слово владельца 2026-08-21-р: «вместо трёх аватарок показываем
+    // только аватарку игрока», нода 891:4307 — один кружок 56).
+    // ⚠️ ЕГО ЖЕ ПРАВИЛО «всегда показывай 3 аватарки» (2026-08-05) ОСТАЁТСЯ В
+    // СИЛЕ ДЛЯ МЕНЮ: там три аватара показывают ТОП, здесь один показывает
+    // ТЕБЯ — это разные утверждения, а не разная плотность одного и того же.
+    // ⚠️ ЭТА ВЕТКА НЕ ЖДЁТ СЕТИ: номер аватара выводится из ключа игрока
+    // (`guestAvatar`), поэтому строка победы рисуется целиком в первом кадре,
+    // даже если топ не придёт вовсе.
+    const свой = lbEntryВсе('#winLbeAvs');
+    свой.forEach(h => {
+      const ai = (typeof guestAvatar === 'function') ? (guestAvatar() | 0) : 0;
+      if (ai <= 0){ const пусто = document.createElement('i');
+        пусто.className = 'ms-lbe-slot'; h.appendChild(пусто); return; }
+      const img = document.createElement('img');
+      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+      img.alt = ''; img.decoding = 'async'; h.appendChild(img);
+    });
+    const топХосты = хосты.filter(h => h.id !== 'winLbeAvs');
+    if (!топХосты.length) return;
     if (!t || t.state !== 'ok' || !t.rows) return;
     // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
     // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
@@ -238,14 +293,18 @@ function lbEntryRefresh(){
       const r = t.rows[i];
       const ai = r ? (r.av | 0) : 0;
       if (ai <= 0){
-        const пусто = document.createElement('i');
-        пусто.className = 'ms-lbe-slot';
-        host.appendChild(пусто);
+        топХосты.forEach(h => {
+          const пусто = document.createElement('i');
+          пусто.className = 'ms-lbe-slot';
+          h.appendChild(пусто);
+        });
         continue;
       }
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; host.appendChild(img);
+      топХосты.forEach(h => {
+        const img = document.createElement('img');
+        img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
+        img.alt = ''; img.decoding = 'async'; h.appendChild(img);
+      });
     }
   }).catch(()=>{});
   lb.me().then(async m => {
@@ -258,8 +317,10 @@ function lbEntryRefresh(){
     try { const t = await lb.top(1); if (t && t.state === 'ok' && Array.isArray(t.rows))
       lbEntryTop = t.rows.filter(Boolean); } catch(e){}
     if (my !== lbEntryEpoch) return;
-    const sub = $('msLbeSub'), rk = $('msLbeRank'), box = $('msLbEntry');
-    if (!sub || !rk || !box) return;
+    const подписи = lbEntryВсе('.ms-lbe-sub'), места = lbEntryВсе('.ms-lbe-rank');
+    const боксы = lbEntryВсе('.ms-lbentry');
+    if (!подписи.length || !места.length || !боксы.length) return;
+    const box = боксы[0];
     // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
     // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
     // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
@@ -293,9 +354,9 @@ function lbEntryRefresh(){
     // «Leaderboard» одной строкой, подпись и значок направления гасим. Так блок
     // сохраняет личность и ничего не утверждает: «on leaderboard» в одиночку не
     // говорит ничего, а стрелка утверждала бы движение, которого не было.
-    rk.textContent  = ok ? (winFmtScore(место) + ' place') : 'Leaderboard';
-    sub.textContent = ok ? 'on leaderboard' : '';
-    box.classList.toggle('has-rank', ok);
+    места.forEach(rk => { rk.textContent = ok ? (winFmtScore(место) + ' place') : 'Leaderboard'; });
+    подписи.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
+    боксы.forEach(б => { б.classList.toggle('has-rank', ok); });
     // ⚠️⚠️ НАПРАВЛЕНИЕ — ПО СРАВНЕНИЮ С ПРОШЛЫМ ВИДЕННЫМ МЕСТОМ, а не по знаку
     // счёта: владелец дал ДВА значка (вверх/вниз), значит оба состояния обязаны
     // случаться, а единственная величина, которая тут растёт и падает, — само
@@ -319,8 +380,10 @@ function lbEntryRefresh(){
       else if (prev !== null) dir = box.classList.contains('dir-dn') ? 'dir-dn' : 'dir-up';
       try { localStorage.setItem(key, String(now)); } catch(e){}
     }
-    box.classList.remove('dir-up', 'dir-dn');
-    if (dir) box.classList.add(dir);
+    боксы.forEach(б => {
+      б.classList.remove('dir-up', 'dir-dn');
+      if (dir) б.classList.add(dir);
+    });
   }).catch(()=>{});
 }
 function lbServ(text){
@@ -1542,7 +1605,11 @@ if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 // CFG. ⚠️ ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ на плейсхолдерах (владельцу в отчёт,
 // междузонные запросы МЕТЕ/ИНТЕГРАЦИИ): звёзды-как-валюта + Boost (МЕТА),
 // Subscribe $1.99 (ИНТЕГРАЦИЯ), Music-слайдер и аватар (ассетов/фичи нет).
-let msSelKey = null;
+// ⛔ `msSelKey` УДАЛЁН 2026-08-21-н вместе с выбором по клику: вид выбранной
+// карточки переехал на CSS-ховер (слово владельца «сейчас это вид клика, а
+// нужно сделать ховером, десктоп»). Переменная жила дольше открытия меню и
+// восстанавливала подсветку при повторном входе — у ховера восстанавливать
+// нечего, он идёт за курсором. Возврат = откат этого коммита.
 function fmtStars(n){
   n = n | 0;
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
@@ -1681,7 +1748,10 @@ function buildMainCollection(){
   rows.forEach((r, i) => {
     const locked = i >= open;
     const card = document.createElement('div');
-    card.className = 'msc' + (locked ? ' lock' : '') + (r.key === msSelKey ? ' sel' : '');
+    // ⛔ Здесь к классам добавлялся `sel` по совпадению с `msSelKey`. Снято
+    //    2026-08-21-н: подсветку даёт `:hover` в стилях, класса `sel` больше
+    //    нет ни в одном файле.
+    card.className = 'msc' + (locked ? ' lock' : '');
     card.dataset.key = r.key;
     // портрет: живой предмет типа -> офскрин-рендер; иначе буква (как музей).
     // ⚠️ портрет есть только у типов, живых в ТЕКУЩЕЙ партии (мешей вне
