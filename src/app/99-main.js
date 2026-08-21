@@ -1016,7 +1016,12 @@ window.__game = {
   // __game были ДВА ключа itemsBrief, побеждало последнее определение —
   // мои поля (x/z/acc/key) молча не существовали, страж читал undefined и
   // выдавал правдоподобные нули. Геометрия — здесь, физдиагностика — там.
-  itemsGeo(){ return items.filter(i => i.alive).map(i => ({ key: String(i.key), name: (i.type && i.type.name) || '', x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), r: +i.r.toFixed(3), acc: !!i.accessible })); },
+  // ⚠️ ПОЛЕ `vy` ДОБАВЛЕНО 2026-08-21-д РАДИ СТРАЖА ДОСЫПКИ: без него
+  // «предмет стартует со скоростью вниз» ненаблюдаемо ничем — `awake().maxV`
+  // отдаёт МАКСИМУМ по всей куче и загрязняется чужим движением, а per-item
+  // скорости наружу не отдавал никто. Читается прямо у тела, копии нет.
+  itemsGeo(){ return items.filter(i => i.alive).map(i => { const v = i.body && i.body.linvel && i.body.linvel();
+    return { key: String(i.key), name: (i.type && i.type.name) || '', x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), r: +i.r.toFixed(3), acc: !!i.accessible, vy: v ? +v.y.toFixed(2) : null }; }); },
 
   // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
   // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит
