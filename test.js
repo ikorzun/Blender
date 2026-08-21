@@ -7453,7 +7453,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // белок глаза про�
   // ⚠️ И ПРАВДИВОСТЬ БЕЙДЖА тоже не стерегло ничто: экономика встрясок
   // проверяется через API (`level().shakes`), а показывает число DOM.
   {
-    const стр = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    // ⚠️ ТАЧ-КОНТЕКСТ, А НЕ ПРОСТО УЗКИЙ ВЬЮПОРТ: на нём стоит плечо «ховера на
+    // тапе НЕТ». Ширина/цвета/бейдж от типа указателя не зависят, так что
+    // остальные замеры секции это не двигает.
+    const ктх = await browser.newContext({ viewport: { width: 390, height: 844 },
+      hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
+    const стр = await ктх.newPage();
     стр.on('pageerror', e => errors.push('PAGEERROR(shake-кисть): ' + e.message));
     await стр.goto('file://' + PAGE_FILE + '?dev=1');
     await стр.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
@@ -7672,7 +7677,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // белок глаза про�
                правПодсказки: Math.round(h.right), левКнопки: Math.round(b.left),
                справаОтКромки: Math.round(innerWidth - b.right) };
     });
-    await дескШ.close();
+    // ⚠️ СТРАНИЦУ ЗДЕСЬ НЕ ЗАКРЫВАЕМ: ниже на ней стоит плечо ховера. Первая
+    // редакция закрывала её тут же, и добавленный позже блок упал на
+    // `addStyleTag: Target page has been closed` — ПРОГОН УМЕР БЕЗ ВЕРДИКТА при
+    // 594 зелёных, снаружи неотличимо от благополучного лога. Канонная грабля
+    // «склейка двух правильных блоков»: проверяй не только содержимое сторон,
+    // но и КРАЯ — что каждая ожидает до себя и что оставляет после.
     console.log('shake-сосед:', JSON.stringify({ моб: { низК: ш0.низКнопки, низП: ш0.низПодсказки,
       правП: ш0.правПодсказки, левК: ш0.левКнопки }, деск: дШ }));
     expect(Math.abs(ш0.низПодсказки - ш0.низКнопки) <= 1 &&
@@ -7695,7 +7705,122 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // белок глаза про�
       'группах 12px»), и он от ширины кнопки не зависит: разъедется — значит ' +
       'кто-то тронул раскладку бара, а не саму кисть');
 
+    // ── ХОВЕР И ПОДБРОС (слово владельца 2026-08-21-г) ────────────────────
+    // ⚠️⚠️ ЗАМЕР С ВЫКЛЮЧЕННЫМ ПЕРЕХОДОМ, А НЕ ЧЕРЕЗ ПАУЗУ: с живым переходом
+    // computed-стиль отдаёт СЕРЕДИНУ ПОЛЁТА, и ассерт мерил бы, насколько
+    // быстро успел стенд, а не объявленное состояние. Канон проекта прямо
+    // требует «class/state reads + transitions-disabled computed styles».
+    await дескШ.addStyleTag({ content: '#shakeBtn .shake-art{transition:none !important}' });
+    const хов = await дескШ.evaluate(() => ({
+      без: getComputedStyle(document.querySelector('.shake-art')).transform,
+      рамкаДо: JSON.stringify(document.getElementById('shakeBtn').getBoundingClientRect()) }));
+    await дескШ.hover('#shakeBtn');
+    const хов2 = await дескШ.evaluate(() => ({
+      сХовером: getComputedStyle(document.querySelector('.shake-art')).transform,
+      рамкаПосле: JSON.stringify(document.getElementById('shakeBtn').getBoundingClientRect()) }));
+    await дескШ.close();
+    const тY = m => { const n = (m || '').match(/matrix\(([^)]+)\)/); return n ? +n[1].split(',')[5] : null; };
+    console.log('shake-ховер:', JSON.stringify({ без: хов.без, ty: тY(хов2.сХовером),
+      рамкаЦела: хов.рамкаДо === хов2.рамкаПосле }));
+    expect(хов.без === 'none' && тY(хов2.сХовером) === -4 &&
+           хов.рамкаДо === хов2.рамкаПосле,
+      '⚠️⚠️ ХОВЕР ПОДНИМАЕТ ИКОНКУ, А КОРОБКА КНОПКИ НЕ ДВИГАЕТСЯ (' +
+      JSON.stringify({ покоя: хов.без, ховер: хов2.сХовером,
+                       рамкаЦела: хов.рамкаДо === хов2.рамкаПосле }) + '). ' +
+      'Слово владельца 2026-08-21-г «приятная и быстрая анимация при ховере и ' +
+      'клике — иконку чуть подбрасывает вверх». ' +
+      '⚠️⚠️ ВТОРАЯ ПОЛОВИНА АССЕРТА НЕСУЩАЯ, И БЕЗ НЕЁ ПРАВКА БЫЛА БЫ МИНОЙ: ' +
+      '`getBoundingClientRect()` кнопки читают семь мест сьюта, а `:hover` в ' +
+      'headless ЗАЛИПАЕТ после `page.click` — мышь остаётся над кнопкой до ' +
+      'конца жизни страницы. Двигай мы саму кнопку, соседи начали бы мерить ' +
+      'то 836, то 832 в зависимости от того, где курсор. Поэтому кадры висят ' +
+      'на внутренней обёртке `.shake-art`. Диверсия — перенести transform на ' +
+      '`#shakeBtn`: подъём останется верным, красной станет ровно рамка. ' +
+      '⚠️ Замер с ВЫКЛЮЧЕННЫМ переходом: живой отдал бы середину полёта');
+
+    // ⚠️ ТАП НЕ ОСТАВЛЯЕТ ИКОНКУ ПОДНЯТОЙ. Мобильные браузеры держат `:hover`
+    // после тапа — без гейта `pointer:fine` иконка залипала бы поднятой до
+    // касания в другом месте. Проверяется на ТАЧ-контексте (см. выше).
+    await стр.addStyleTag({ content: '#shakeBtn .shake-art{transition:none !important}' });
+    await стр.hover('#shakeBtn');
+    const ховТач = await стр.evaluate(() =>
+      getComputedStyle(document.querySelector('.shake-art')).transform);
+    console.log('shake-ховер(тач):', ховТач);
+    expect(ховТач === 'none',
+      '⚠️⚠️ НА ТАЧЕ ХОВЕРА НЕТ — ИКОНКА НЕ ЗАЛИПАЕТ ПОДНЯТОЙ (transform ' +
+      ховТач + ', ждём none). Гейт `@media (pointer:fine)`. ⚠️ Плечо ' +
+      'ОБЯЗАТЕЛЬНОЕ: снимут гейт — на десктопе не изменится НИЧЕГО, а на ' +
+      'телефоне иконка после каждого тапа останется висеть на 4px выше до ' +
+      'касания в другом месте. Диверсия — снять медиазапрос: краснеет ровно это');
+
+    // ⚠️⚠️ ПОДБРОС СНИМАЕТСЯ ДЕТЕРМИНИРОВАННО ЧЕРЕЗ Web Animations, А НЕ
+    // СЭМПЛОМ ПО ЧАСАМ: анимация живёт 280 мс, и «поймать пик» паузой значило
+    // бы мерить загрузку стенда. Ставим анимацию на паузу и САМИ двигаем
+    // `currentTime` по долям длительности — кадры читаются точно.
+    await стр.click('#shakeBtn');
+    const тосс = await стр.evaluate(() => {
+      const b = document.getElementById('shakeBtn'), art = b.querySelector('.shake-art');
+      const a = art.getAnimations().find(x => x.animationName === 'shakeToss');
+      if (!a) return { есть: false, класс: b.className };
+      const d = a.effect.getComputedTiming().duration;
+      a.pause();
+      const проба = t => { a.currentTime = t; return getComputedStyle(art).transform; };
+      const о = { есть: true, класс: b.className, длит: d,
+                  старт: проба(0), пик: проба(d * 0.30), посадка: проба(d * 0.60) };
+      a.play();
+      return о;
+    });
+    const классСнят = await стр.waitForFunction(
+      () => !document.getElementById('shakeBtn').classList.contains('toss'), { timeout: 5000 })
+      .then(() => true).catch(() => false);
+    console.log('shake-подброс:', JSON.stringify({ есть: тосс.есть, длит: тосс.длит,
+      ty: [тY(тосс.старт), тY(тосс.пик), тY(тосс.посадка)], классСнят }));
+    expect(тосс.есть && тосс.класс.includes('toss') && тосс.длит === 280 &&
+           тY(тосс.старт) === 0 && тY(тосс.пик) <= -8 && тY(тосс.посадка) > 0 &&
+           классСнят,
+      '⚠️⚠️ КЛИК ПОДБРАСЫВАЕТ ИКОНКУ ВВЕРХ И КЛАСС СНИМАЕТСЯ САМ (' +
+      JSON.stringify({ есть: тосс.есть, длит: тосс.длит,
+                       ty: [тY(тосс.старт), тY(тосс.пик), тY(тосс.посадка)],
+                       классСнят }) + '). Слово владельца 2026-08-21-г. ' +
+      '⚠️ ПРОВЕРЯЕТСЯ ФОРМА ДВИЖЕНИЯ, А НЕ ФАКТ АНИМАЦИИ: «анимация есть» ' +
+      'истинно и у кадров, которые никуда не двигают. Пик обязан быть ВВЕРХ ' +
+      '(ty ≤ −8), а на 60% — НИЖЕ нуля покоя (посадка), иначе хвост читается ' +
+      'как «залипло». ⚠️ КЛАСС ОБЯЗАН СНИМАТЬСЯ ПО `animationend`: не снимется — ' +
+      'второй клик подряд не перезапустит кадры, и подброс сработает ОДИН раз ' +
+      'за жизнь страницы. ⚠️ Кадры сняты паузой и ручным `currentTime`, а не ' +
+      'сэмплом по часам — иначе мерили бы загрузку стенда');
+
     await стр.close();
+    await ктх.close();
+
+    // ── reduced-motion: ни перехода, ни кадров ────────────────────────────
+    // ⚠️ У проекта это правило уже стоит на всех новых анимациях (занавес,
+    // выезд слота, блик пилюли) — новая моторика обязана его уважать, иначе
+    // она станет ЕДИНСТВЕННОЙ, которая его игнорирует.
+    const ктхRM = await browser.newContext({ viewport: { width: 1280, height: 832 },
+      reducedMotion: 'reduce', deviceScaleFactor: 1 });
+    const стрRM = await ктхRM.newPage();
+    стрRM.on('pageerror', e => errors.push('PAGEERROR(shake-reduced): ' + e.message));
+    await стрRM.goto('file://' + PAGE_FILE + '?dev=1');
+    await стрRM.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await стрRM.evaluate(() => { window.__game.skipIntro(); });
+    await стрRM.hover('#shakeBtn');
+    const рм = await стрRM.evaluate(() => {
+      const art = document.querySelector('.shake-art'), cs = getComputedStyle(art);
+      return { transform: cs.transform, переход: cs.transitionDuration };
+    });
+    await стрRM.click('#shakeBtn');
+    const рмКадров = await стрRM.evaluate(() => document.querySelector('.shake-art')
+      .getAnimations().filter(x => x.animationName === 'shakeToss').length);
+    await стрRM.close(); await ктхRM.close();
+    console.log('shake-reduced:', JSON.stringify({ ...рм, кадров: рмКадров }));
+    expect(рм.transform === 'none' && рм.переход === '0s' && рмКадров === 0,
+      '⚠️⚠️ ПРИ `prefers-reduced-motion` ИКОНКА НЕ ДВИЖЕТСЯ ВОВСЕ (' +
+      JSON.stringify({ ...рм, кадров: рмКадров }) + '). Проверяются ВСЕ ТРИ ' +
+      'носителя движения: подъём на ховере, сам переход и кадры подброса — ' +
+      'снять можно любой из них по отдельности, и двух ассертов не хватило бы. ' +
+      '⚠️ Санитар внутри: клик здесь РЕАЛЬНЫЙ, то есть путь исполнен, а не ' +
+      'просто «кадров не нашли, потому что и не кликали»');
   }
 
   // ===== ТАБЛИЦА ЛИДЕРОВ: ОТПРАВКА СЧЁТА (зона ИНТЕГРАЦИИ) =====
