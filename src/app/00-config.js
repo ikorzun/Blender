@@ -1150,7 +1150,7 @@ const SKY_MAP = 'screen';
 // of them (then the layout is even, as it used to be). A mixture means a loud warn and
 // an even layout: partial positions are completed in CSS in a tricky way, and
 // diverging from the browser on the quiet is worse than refusing.
-// ⚠️⚠️ THE SKY FADE — 40% WHITE OVER THE GRADIENT (the owner's word 2026-08-22-d:
+// ⚠️⚠️ THE SKY FADE — 40% WHITE OVER THE GRADIENT (the owner's word 2026-08-22-g:
 // "on the screen put a fade of 40% white over the gradient across the whole area").
 // ⛔ IT IS APPLIED NOT AS A LAYER BUT TO THE STOPS THEMSELVES, AND THAT IS LOAD-BEARING. A separate white
 //    layer over the sky would give EXACTLY THE SAME pixel (over(white@.4, c) =
@@ -1178,7 +1178,7 @@ const SKY_STOPS = {
   // ⚠️ THERE ARE EXACTLY FOUR STOPS, AS HE SENT THEM — do not "simplify" and do not add
   //    intermediate ones: the owner has his own gradient generator, and all his stops
   //    are preserved as they are.
-  // ⛔⛔ THE DAYTIME PALETTE WAS CHANGED ONCE MORE (the owner's word 2026-08-22-d, a screenshot
+  // ⛔⛔ THE DAYTIME PALETTE WAS CHANGED ONCE MORE (the owner's word 2026-08-22-g, a screenshot
   //    of the stops panel): #869EFF 0% / #81CAFF 36% / #BCFBFF 65% / #CCFFF8 100%.
   //    THE POSITIONS ARE THE SAME, three colours out of four changed — the top moved from light blue into
   //    blue-violet. The previous one (2026-08-20-b) is a tombstone in the paragraph below.

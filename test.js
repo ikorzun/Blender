@@ -550,7 +550,7 @@ page.on('response', (r) => {
                         textMatches: elLow.textContent === elUp.textContent }; })(),
              boxLvl: boxOf('.win-level'), boxTime: boxOf('.win-time'),
              // ⚠️⚠️ THE GAPS OF THE ROW AND THE WIDTHS OF THE FRAMES (the owner's word
-             // 2026-08-22-e: «between the level, the dot and the time — a single space
+             // 2026-08-22-d: «between the level, the dot and the time — a single space
              // each»). The two gaps are measured BETWEEN THE BOXES, because that is what
              // a space is here: the row is an inline flow and the whitespace of the
              // markup renders as one space of the row's own font.
@@ -567,7 +567,7 @@ page.on('response', (r) => {
                         widths: [+rl.width.toFixed(1), +rd.width.toFixed(1), +rt.width.toFixed(1)] };
              })(),
              // ⚠️ THE MAGNIFIER OF THE REWARD IS NOT CLIPPED BY ITS OWN VIEWBOX (the owner's
-             // word 2026-08-22-e «the icon is being cut off»): a root <svg> clips by default,
+             // word 2026-08-22-d «the icon is being cut off»): a root <svg> clips by default,
              // and this artwork's stroke sticks out of the node's box by ~1.2 px per side.
              mag: (() => { const m = document.querySelector('.win-mag');
                if (!m) return null;
@@ -620,7 +620,7 @@ page.on('response', (r) => {
     'to the caption. The sabotage is to return `.win-cleanrow`: the counter of the old ' +
     'rows goes red (' + JSON.stringify(winHeadProbe) + ')');
   // ══ A SINGLE SPACE IN THE ROW, THE FITTED FRAMES, THE UNCLIPPED MAGNIFIER AND THE
-  //    ENTRANCE OF THE LEADERBOARD ROW (the owner's word 2026-08-22-e) ══
+  //    ENTRANCE OF THE LEADERBOARD ROW (the owner's word 2026-08-22-d) ══
   // ⚠️⚠️ THE TWO GAPS ARE COMPARED WITH EACH OTHER AND NOT WITH A NUMBER: a space is a
   // GLYPH, its width comes from the font, and `SF Pro Rounded` exists only on Apple —
   // a literal would go red in headless on a sound build. What is guarded is that both
@@ -644,7 +644,7 @@ page.on('response', (r) => {
     '⚠️⚠️ VICTORY: ONE SPACE BETWEEN THE LEVEL, THE DOT AND THE TIME; THE FRAMES ARE FITTED ' +
     'TO THE TEXT; THE MAGNIFIER IS NOT CLIPPED; THE LEADERBOARD ROW ENTERS WITH THE REST (' +
     JSON.stringify({ gaps: winHeadProbe.gaps, mag: winHeadProbe.mag,
-                     lb: winHeadProbe.lbAnim }) + '). The owner\'s word 2026-08-22-e. ' +
+                     lb: winHeadProbe.lbAnim }) + '). The owner\'s word 2026-08-22-d. ' +
     '⛔ IT CANCELS the flex `gap:11` of 2026-08-21-r — a gap in pixels cannot BE a space: ' +
     'it has to be guessed and it stops matching at the first change of the type size. ' +
     '⚠️ THE GAPS ARE COMPARED WITH EACH OTHER: the width of a space is the font\'s, and ' +
@@ -825,6 +825,84 @@ page.on('response', (r) => {
     '⚠️ VICTORY: the «×N» plate is DARK rgba(0,0,0,.4) with WHITE text (' +
     JSON.stringify({ plate: winLayout.multBg, strip: winLayout.barBg,
                      text: winLayout.multText }) + ')');
+
+  // ═══ TOP ITEMS: THREE ROWS, AND THEY ARE THE TOP THREE (the owner's word 2026-08-22-e) ═══
+  // ⚠️⚠️ THIS GUARD HAS ITS OWN PAGE, AND BOTH REASONS ARE LOAD-BEARING. Everything above
+  // runs on the suite's main page — 390 wide and level 1 — and THERE «three rows» is a
+  // TAUTOLOGY twice over: `winTopN()` returned 3 on the mobile arm even BEFORE the owner's
+  // word, and level 1 carries only `LEVEL_TYPES_MIN` types, so the slice has nothing to cut.
+  // An assert dropped into the block above would have been green on the FIVE-row build too —
+  // that is, it would have stated nothing at all.
+  // ⚠️ THE VIEWPORT IS SET BEFORE THE SCREEN IS SHOWN: the list is built only inside
+  // `renderWinScreen` on show (85-hud), and no resize re-renders it — a page resized after
+  // the overlay is already up would be measured on a stale DOM.
+  // ⚠️⚠️ «THE TOP 3» IS TWO STATEMENTS, AND THE COUNT IS ONLY HALF OF IT: a build that shows
+  // the three WORST types shows three rows just the same. The second half is stated as an
+  // INEQUALITY — the weakest progress among those SHOWN is not below the strongest among
+  // those DROPPED — and that outlives a change of the tie-break, unlike a copy of the sort.
+  // ⚠️ THE PROGRESS IS MADE UNEQUAL ON PURPOSE (accGrant 7, 14, … against a first threshold
+  // of 100 — a spread of seven points, so that a count already lying in the save cannot
+  // accidentally close the gap at the cut): on an untouched save every type has a fraction of 0, and against six zeroes the
+  // «top» half of the statement would be vacuously true — a guard that is green because it
+  // asks nothing. `strictCut` pins that the cut itself has a gap.
+  // ⚠️ THE POOL IS READ FROM THE LIVE GAME (`itemsGeo()`, the distinct type names in the
+  // bowl) and is NOT computed as `LEVEL_TYPES_MIN + level − 1`: a copy of the progression
+  // formula standing next to the working one goes red at the owner's first move of the lever.
+  // ⚠️ LEVEL 4 IS CHOSEN AND NOT A DEEPER ONE: six types is already more than the cap (that
+  // is the whole control), while bombs start at 5 and surprises at 10 — `captureLevelTypes`
+  // skips those, and read from the bowl they would leak into the pool and make it lie.
+  // ⚠️ THE FRACTIONS ARE READ FROM THE INLINE `style.width` OF THE STRIPS, and that is not a
+  // race: the transition animates the RENDERED width, while the declaration itself is written
+  // by the second rAF. What must NOT be read here is the computed width — it travels for
+  // another second and a half after the screen appears.
+  {
+    const topPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    topPage.on('pageerror', e => errors.push('PAGEERROR(win-top-3): ' + e.message));
+    topPage.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE(win-top-3): ' + m.text()); });
+    await topPage.goto('file://' + PAGE_FILE);
+    await topPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    const winTop3 = await topPage.evaluate(async () => {
+      const g = window.__game;
+      g.skipIntro();
+      g.setLevel(4); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 600));   // updateHUD ticks → captureLevelTypes refires
+      const pool = Array.from(new Set(g.itemsGeo().map(o => o.name).filter(Boolean)));
+      pool.forEach((k, i) => { try { g.accGrant(k, (i + 1) * 7); } catch (e) {} });
+      const poolFrac = pool.map(k => +(((g.vitFrac(k) || 0)) * 100).toFixed(1)).sort((a, b) => b - a);
+      g.winScreen(true);
+      await new Promise(r => setTimeout(r, 150));
+      const rows = Array.prototype.map.call(document.querySelectorAll('.wt-row'), r => ({
+        name: (r.querySelector('.wt-name') || {}).textContent,
+        frac: parseFloat(((r.querySelector('.wt-bar i') || {}).style || {}).width) }));
+      return { vw: innerWidth, level: g.levelNum(), pool: pool.length, poolFrac,
+               names: rows.map(r => r.name), frac: rows.map(r => r.frac) };
+    });
+    await topPage.close();
+    console.log('victory/TOP ITEMS on the desktop:', JSON.stringify(winTop3));
+    const shown = winTop3.frac, want = winTop3.poolFrac, EPS = 0.06;
+    const strictCut = want.length > 3 && want[2] > want[3] + EPS;
+    expect(winTop3.vw >= 768 && winTop3.pool > 3 && shown.length === 3 && strictCut &&
+      shown.every(v => Number.isFinite(v)) &&
+      shown.every((v, i) => i === 0 || v <= shown[i - 1] + EPS) &&
+      shown.every((v, i) => Math.abs(v - want[i]) < EPS) &&
+      shown[2] > want[3] + EPS,
+      '⚠️⚠️ VICTORY: the TOP ITEMS list carries EXACTLY THREE rows ON THE DESKTOP TOO, and ' +
+      'they are the top three by progress (the owner\'s word 2026-08-22-e «show only the ' +
+      'top 3», sent with a screenshot of the desktop screen carrying five rows). ' +
+      '⛔ IT CANCELS spec #124 of 2026-07-27, which raised this list 3 → 5 on the desktop; ' +
+      'the five lived 26 days. Mobile has been three since his spec of 2026-07-28, and the ' +
+      'showcase panel took the same three that same day — now the two lists agree in full. ' +
+      '⚠️⚠️ THE CONTROL `pool > 3` IS THE WHOLE POINT OF THIS GUARD: a level with three ' +
+      'types gives three rows at ANY cap, which is exactly why this assert does not live in ' +
+      'the block above, on a 390px page at level 1 — there it would be a tautology. ' +
+      '⚠️ `strictCut` KEEPS THE «TOP» HALF FROM GOING VACUOUS: without a gap at the cut, ' +
+      'any three of six equals «the top three» and the inequality asks nothing. ' +
+      '⚠️ THE INEQUALITY GUARDS THE «TOP» AND NOT ONLY THE «THREE»: the weakest of those ' +
+      'shown stands above the strongest of those dropped, so a build that kept three rows ' +
+      'but lost the sort goes red. ' +
+      '⚠️ THE SABOTAGE THAT TURNS IT RED: WIN_TOP_N back to 5 in 85-hud, or the removal of ' +
+      'the `keys.sort` line right above the slice (' + JSON.stringify(winTop3) + ')');
+  }
 
   // THE GAPS OF THE GLYPHS ARE FILLED WITH THE COLOUR OF THE OUTLINE (the owner's spec «inside the 8 and similar
   // digits it must be completely filled with the colour of the outline»).

@@ -1420,8 +1420,16 @@
      outlined is the .otext mechanism (a vector stroke); the lime/gradient are the mock-up's
      tokens (#c0ff47, #ff70b5→#f2ff00). A fluid centred column. */
   #winHolders[hidden] { display:none; }
-  /* 5 rows of TOP ITEMS (+112px against three) on low screens (measurement 360×640:
-     the bottom drove off to 644 at a viewport of 640) — we give scrolling ONLY to the victory screen.
+  /* ⚠️⚠️ THE SCROLL STAYS, ITS OLD REASON HAS EXPIRED — DO NOT DELETE THE RULE. It was
+     written for FIVE rows of TOP ITEMS (+112px against three) on low screens (measurement
+     360×640: the bottom drove off to 644 at a viewport of 640). Since 2026-08-22-e the list
+     is three rows on BOTH layouts (the owner's word «show only the top 3», WIN_TOP_N in
+     85-hud), so that exact configuration exists on no viewport any more.
+     ⛔ THE RULE IS STILL LOAD-BEARING AT THREE ROWS: the column is header + the leaderboard
+     row + three rows + the buttons, and it does not fit a short window — a landscape phone
+     (844×390, 812×375) and 1024×600 are DESKTOP by this breakpoint. Measure before touching:
+     a card that fits today fits at ONE font size and ONE language.
+     ⚠️ THE SCROLL IS GIVEN ONLY TO THE VICTORY SCREEN.
      ⚠️ We do not touch the common .overlay: the pause/defeat/advert sit on it.
      ⚠️ align-items:flex-start + margin:auto is safe centring: when there is
      not enough room the auto margins collapse and the TOP is not cut off (with a bare
@@ -1453,7 +1461,7 @@
      891:4314): it was `space-between` across the whole width at a type size of 28, it became three nodes
      in a row with a gap of 11 and a type size of 24. The svg widths are for the longest string:
      «Level 100» at 24px is ~120, «12:34» ~80. */
-  /* ⛔⛔ THE ROW IS INLINE, AND NOT A FLEX WITH A GAP (the owner's word 2026-08-22-e:
+  /* ⛔⛔ THE ROW IS INLINE, AND NOT A FLEX WITH A GAP (the owner's word 2026-08-22-d:
      «between the level, the dot and the time — a single space each»). A flex `gap`
      cannot BE a space: it is a number of pixels that has to be guessed and that stops
      matching the type size at the first change of it. In an inline flow the whitespace
@@ -1674,7 +1682,7 @@
   .win-reward-ic { position:relative; flex:none; width:54px; height:54px;
     display:block; }
   /* ⛔⛔ `overflow:visible` — THE FIX FOR «the icon is being cut off» (the owner's word
-     2026-08-22-e with a frame). A ROOT `<svg>` CLIPS BY ITS VIEWBOX BY DEFAULT
+     2026-08-22-d with a frame). A ROOT `<svg>` CLIPS BY ITS VIEWBOX BY DEFAULT
      (`overflow:hidden` in the UA sheet), and the viewBox here was cropped to the
      DRAWING box from node 891:4317 — while the artwork's own outer stroke sticks out
      of that box by ~1.2 px on every side (measured: the ink is 45×48.8 inside a
@@ -1921,7 +1929,7 @@
   .win-in .win-time { animation:winTimeIn .4s cubic-bezier(.34,1.56,.64,1) .72s both; }
   .win-in .win-score { animation:winPop .5s cubic-bezier(.34,1.56,.64,1) .52s both; }
   /* ⛔ THE LEADERBOARD ROW WAS THE ONLY BLOCK OF THE SCREEN WITHOUT AN ENTRANCE
-     (the owner's word 2026-08-22-e: «animate it like the rest of the elements, make it
+     (the owner's word 2026-08-22-d: «animate it like the rest of the elements, make it
      consistent»). It arrived on 2026-08-21-r and was left out of the sequence.
      ⚠️ THE DELAY IS TAKEN FROM ITS PLACE IN THE COLUMN, and not invented: the row sits
      between the top row (.72) and the reward (.86), so it enters at .79 — the sequence
@@ -1935,12 +1943,18 @@
   .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
   .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
   /* ===== THE MOBILE COMPLETION SCREEN — mock-up 783:711 =====
-     The differences from desktop (778:732) are exactly the ones the owner named: THE ORDER
-     OF THE BLOCKS and the number of rows. In the mock-up the column goes header → TOP ITEMS → the buttons
-     (on desktop the buttons are ABOVE the list), the side insets are 16, the block gap 32.
-     The buttons: Next stretches (flex 1 0 0) and is LOWER — 72 instead of 84; the reward plate is
-     NOT of a fixed width, but by the content (paddings 4/14/4/6), «+1» 34px.
-     The number of rows is WIN_TOP_N by breakpoint in renderWinTop (mobile 3).
+     ⛔⛔ BOTH DIFFERENCES THIS BLOCK WAS BUILT FOR ARE GONE, AND THE BLOCK IS STILL NEEDED.
+     It used to open: «the differences from desktop (778:732) are exactly the ones the owner
+     named: THE ORDER OF THE BLOCKS and the number of rows». Neither holds any more:
+     — THE ORDER was unified in the MARKUP itself 2026-08-11 (see the note about `order` below);
+     — THE NUMBER OF ROWS stopped differing 2026-08-22-e (the owner's word «show only the top
+       3»): WIN_TOP_N and WIN_TOP_N_MOB in renderWinTop are both 3, so `winTopN()` returns the
+       same number on both sides of 768. ⛔ Do not read «WIN_TOP_N by breakpoint» here any
+       more — it is by breakpoint only in shape.
+     WHAT ACTUALLY SURVIVES INSIDE THE QUERY is the geometry of the buttons: Next stretches
+     (flex 1 0 0) and is LOWER — 72 instead of 84 — plus the two zeroed insets. That is the
+     whole reason this media query exists today; should it empty out completely, remove it
+     rather than leave a block whose name promises differences it no longer carries.
      ⚠️ We do NOT reinvent desktop — the rules live only in this media query. */
   @media (max-width:767px){
     /* ⛔ IT USED TO BE 32 — a mobile override from the epoch when the column rested

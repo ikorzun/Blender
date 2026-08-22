@@ -9766,3 +9766,104 @@ screen that simply appeared. It got the shared `winRise .4s ease-out` at `.79s`
 ⚠️ ADDED TO THE `prefers-reduced-motion` LIST IN THE SAME EDIT. Every other
 entrance is listed there; a new animation that is not is a regression against an
 accessibility rule the canon holds, and nothing on screen would show it.
+
+## BATCH 2026-08-22-e: TOP ITEMS — THREE ROWS ON THE DESKTOP TOO
+
+His word, with a screenshot of the desktop win screen carrying five rows
+(Crab / Watermelon / Orange / Banana / Bee): «show only the top 3».
+
+**WHAT IT IS.** `WIN_TOP_N = 5, WIN_TOP_N_MOB = 3` in `85-hud`, read by
+`winTopN()` through the 768 breakpoint and applied as `keys.slice(0, winTopN())`.
+The desktop five became three; mobile was already three.
+⛔ **THIS CANCELS SPEC #124 of 2026-07-27**, which raised this list 3 → 5 on the
+desktop — it lived 26 days. It is a RETURN and not a new number: mobile has been
+three since his spec of 2026-07-28, and the showcase panel took the same three
+that day (`VIT_MAX = 3`, his words «let us have three rows here after all»). The
+two lists already ranked by an identical key (`vitFrac` desc, then `accCount`);
+only the cap differed. Now they agree in full.
+⛔ **THE SHOWCASE PANEL WAS NOT TOUCHED** — it was already three. What is left
+lying in `shell.html` next to it is a comment from the old epoch («5 rows of 44
+with a gap of 12»); it describes a different component and a different decision,
+so it was NOT repaired inside this batch. Named to him.
+
+⚠️⚠️ **THE TWO CONSTANTS AND THE 768 BRANCH ARE KEPT, WITH THE PRICE NAMED.**
+`winTopN()` now returns the same number on both sides of the breakpoint. That is
+deliberate: the per-breakpoint split is his own idea, it has been switched on
+once already, and bringing it back must cost ONE literal instead of rebuilding
+the mechanism (the same reasoning that keeps `.win-top-label` alive). The cost is
+written into the code: while the arms match, the breakpoint decides nothing and
+NOTHING on screen can prove it is still 768 — the ternary must not be read as
+evidence that the win screen adapts by width.
+
+⚠️⚠️ **THE SUITE WAS STRUCTURALLY BLIND TO THIS RULE, IN BOTH DIRECTIONS.** The
+whole win-screen guard block runs on the suite's main page — 390 wide, level 1 —
+and there «three rows» is a TAUTOLOGY twice over: `winTopN()` returned 3 on the
+mobile arm before this batch too, and level 1 carries only `LEVEL_TYPES_MIN = 3`
+types, so the slice has nothing to cut. **An assert dropped into that block would
+have been green on the FIVE-row build as well.** That is why the new guard has its
+own page: 1280 wide, level 4 (six types).
+✅ **THE NEW GUARD STATES BOTH HALVES OF HIS WORD.** «The top 3» is a count AND an
+ordering: a build showing the three WORST types shows three rows just the same.
+The ordering is pinned as an INEQUALITY — the weakest progress among those shown
+stands above the strongest among those dropped — which outlives a change of the
+tie-break, unlike a copy of the sort.
+⚠️ **THE PROGRESS IS MADE UNEQUAL ON PURPOSE.** On an untouched save every type
+has a fraction of 0, and against six zeroes the «top» half is vacuously true — a
+guard that is green because it asks nothing. The guard grants 7, 14, … against a
+first threshold of 100 and pins `strictCut`: there must be a real gap at the cut.
+⚠️ **THE POOL IS READ FROM THE LIVE GAME** (`itemsGeo()` — the distinct type names
+in the bowl), not computed as `LEVEL_TYPES_MIN + level − 1`: a copy of the
+progression formula standing next to the working one goes red at his first move
+of the difficulty lever.
+⚠️ **LEVEL 4, NOT A DEEPER ONE:** six types is already more than the cap (that is
+the whole control), while bombs start at 5 and surprises at 10 —
+`captureLevelTypes` skips those, and read from the bowl they would leak into the
+pool and make the comparison lie.
+⚠️ **THE VIEWPORT IS SET BEFORE THE SCREEN IS SHOWN.** The list is built only
+inside `renderWinScreen` on show, and no resize re-renders it — a page resized
+after the overlay is up is measured on a stale DOM.
+⚠️ **THE FRACTIONS ARE READ FROM THE INLINE `style.width`**, not the computed one:
+the transition animates the RENDERED width for another second and a half, while
+the declaration itself is written by the second rAF.
+
+**TWO WRITTEN JUSTIFICATIONS EXPIRED WITH THE NUMBER, AND BOTH RULES STAY.**
+⛔ `#winOverlay { overflow-y:auto }` was justified by «5 rows (+112px against
+three) on low screens, measurement 360×640». That configuration now exists on no
+viewport — but the rule is still load-bearing at three rows: a landscape phone
+(844×390) and 1024×600 are DESKTOP by this breakpoint, and `margin:auto` centring
+depends on the scroll. The comment says so now, so that the next reader does not
+delete a live rule together with its dead reason.
+⛔ The mobile media query announced «the differences from desktop are exactly the
+ones the owner named: THE ORDER OF THE BLOCKS and the number of rows». Both are
+gone — the order was unified in the markup itself on 2026-08-11, and the row count
+stops differing here. What actually survives inside the query is the geometry of
+the buttons; the header now says that instead of promising differences it no
+longer carries.
+
+**MEASURED after the edit — TWO ROWS OF NUMBERS, AND THEY DIFFER FOR A REASON.**
+On the FRESH context of the suite (the deterministic reference, this is what a
+replay must reproduce): at 1280, level 4, a pool of 6 types →
+`poolFrac [42, 35, 28, 21, 14, 7]` — the granted 7·n exactly — rendered
+`[Orange 42, Banana 35, Watermelon 28]`.
+In the browser on a PLAYED save (progress already lying in localStorage, so the
+grants land on top of it): `poolFrac [50, 31, 25, 17.5, 4, 3.5]`, rendered
+`[Crab 50, Watermelon 31, Orange 25]`, delays `1s / 1.09s / 1.18s`.
+⚠️ The guard compares the shown fractions against the pool's OWN top three, never
+against literals — that is exactly why both runs are green while neither set of
+numbers is reproducible from the other. At 390 the same three rows, card 559px,
+fits without scrolling.
+
+## THE BATCH-OF-THE-DAY SUFFIXES WERE OFF BY ONE IN THE CODE (repaired 2026-08-22-e)
+
+The canon and the code had drifted apart on WHICH batch a tombstone belonged to.
+Verified against `git log -S`, not against memory:
+- the sky fade and the new day palette (`00-config`) were signed `-d`, while the
+  commit that introduced them (`a07198e`) is the batch the canon calls `-g`;
+- the inline win row, the unclipped magnifier, the leaderboard row's entrance
+  (`shell.html`, `85-hud`, `test.js`) were signed `-e`, while their commit
+  (`5cf2695`) is the batch the canon calls `-d`.
+Ten references were corrected, comment-only, no behaviour touched.
+⚠️ **THE LESSON:** the suffix is written by hand at the moment of the edit, and a
+batch that arrives in two messages tempts you to advance the letter mid-way. The
+letter belongs to the COMMIT, not to the message. When in doubt, `git log -S` on
+the line answers it in one command.

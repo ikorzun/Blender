@@ -609,14 +609,27 @@ function captureLevelTypes(){
   // would lock the previous types forever and the level would not be re-captured
   if (keys.length){ winLevelTypes = keys; winLevelRef = level; }
 }
-// TOP ITEMS: the top 5 types of the level by progress (the same metric/portraits as in
-// the showcase; it used to be 3 — the owner's spec 2026-07-28). The source is winLevelTypes
-// (captureLevelTypes); the fallback is vitAll. If the level has fewer types — there are
-// as many rows as there are (slice does not pad with blanks).
-// On the DESKTOP there are 5 rows (spec #124), on MOBILE 3 (mockup 783:711, the owner's
-// spec 2026-07-28). The breakpoint is the same 768 as the HUD's and the mobile
-// layout of the win screen in shell.html — they must not be split apart.
-const WIN_TOP_N = 5, WIN_TOP_N_MOB = 3;
+// TOP ITEMS: the top 3 types of the level by progress (the same metric and the same
+// portraits as at the showcase panel). The source is winLevelTypes (captureLevelTypes); the
+// fallback is vitAll. If the level has fewer types — there are as many rows as there are
+// (slice does not pad with blanks), which is why level 1 gives three rows at ANY cap.
+// ⛔⛔ THREE ON BOTH LAYOUTS (the owner's word 2026-08-22-e, with a screenshot of the
+// DESKTOP screen carrying five rows: «show only the top 3»). ⛔ BY THIS THE DESKTOP FIVE IS
+// CANCELLED — spec #124 of 2026-07-27 raised this list 3 → 5 (WORKSTREAMS.md, batch124),
+// and it lived 26 days. This is a RETURN and not a new number: mobile has been three since
+// the owner's spec of 2026-07-28, and the showcase panel took the same three that day
+// (VIT_MAX below). Now the two lists agree in full — they already ranked by an identical
+// key (vitFrac desc, then accCount), only the cap differed.
+// ⚠️⚠️ THE TWO ARMS ARE DELIBERATELY EQUAL, AND THAT IS NOT AN OVERSIGHT. The pair of
+// constants and the 768 branch are kept because the per-breakpoint split is the owner's own
+// idea, it has already been switched on once, and bringing it back must cost ONE literal
+// instead of rebuilding the mechanism. The price is named honestly: while the arms match,
+// the breakpoint decides nothing and NOTHING on the screen can prove it is still 768 — do
+// not read this ternary as evidence that the win screen adapts by width.
+// ⚠️ SHOULD THE ARMS DIVERGE AGAIN, the breakpoint stays the same 768 as the HUD's and as
+// the mobile layout of the win screen in shell.html (@media max-width:767px) — they must
+// not be split apart.
+const WIN_TOP_N = 3, WIN_TOP_N_MOB = 3;
 function winTopN(){ return innerWidth < 768 ? WIN_TOP_N_MOB : WIN_TOP_N; }
 function renderWinTop(reduce){
   const host = $('winTopList'); if (!host) return;
@@ -944,7 +957,7 @@ function fitStat(id){
 // Squeeze the three frames of the win screen's top row to their text, the same way
 // `fitStat` does it for the HUD. Without this the frames stay at their fixed 150/14/100
 // viewBox units, and a fixed frame around short text IS the hole the owner is pointing
-// at («between the level, the dot and the time — a single space each», 2026-08-22-e):
+// at («between the level, the dot and the time — a single space each», 2026-08-22-d):
 // the gap he sees is not a gap at all, it is empty frame.
 // ⚠️ THE HEIGHT OF THE VIEWBOX STAYS 34, NOT 27 AS IN `fitStat`: these texts sit at
 // y=26 of a 34-unit box, and rewriting the height would move the baseline.

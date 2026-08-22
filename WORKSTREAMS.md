@@ -1,5 +1,37 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-22-e: TOP ITEMS — THREE ROWS ON THE DESKTOP TOO — the dispatcher
+
+One item, sent with a screenshot of the desktop win screen carrying five rows:
+«show only the top 3». `WIN_TOP_N` 5 → 3 in `85-hud`; mobile was already three.
+⛔ It cancels spec #124 of 2026-07-27 (the 3 → 5 raise), which lived 26 days, and
+brings the win list into line with the showcase panel, which took three back on
+2026-07-28 by the same owner's word.
+
+⚠️⚠️ THE EDIT IS ONE LITERAL; THE WORK WAS EVERYTHING AROUND IT. A five-lens
+recon found nothing that goes red and four things that go SILENT — and the most
+expensive of them is that the SUITE COULD NOT SEE THIS RULE AT ALL, in either
+direction: its win-screen block runs at 390 wide (the mobile arm, already 3) on
+level 1 (only 3 types exist, so the slice cuts nothing). A `rows === 3` assert
+added there would have been green on the unfixed five-row build.
+
+✅ THE NEW GUARD HAS ITS OWN PAGE (1280, level 4, six types) and states BOTH
+halves of his word: the count, and that the three shown are the top three — the
+latter as an inequality (the weakest shown above the strongest dropped), which
+survives a change of the tie-break. It also grants unequal progress on purpose:
+against six zero fractions the «top» half would be vacuously true.
+
+⚠️ TWO WRITTEN JUSTIFICATIONS EXPIRED WITH THE NUMBER AND BOTH RULES STAY: the
+win overlay's scroll (justified by «5 rows +112px») and the mobile media query
+(which announced the row count as a desktop/mobile difference). Comments
+repaired, rules untouched — a live rule whose reason has died is exactly what the
+next reader deletes.
+
+⚠️ AND A CANON REPAIR: the batch-of-the-day suffixes had drifted between the code
+and the canon. Checked with `git log -S` rather than from memory — ten references
+corrected. The letter belongs to the COMMIT, not to the message that started it.
+
+
 ### ACCEPTANCE 2026-08-22-d: NO HUD OUTLINE, THE MAGNIFIER UNCLIPPED, ONE SPACE IN THE WIN ROW — the dispatcher
 
 Five items across three messages, all on text and icons; gameplay untouched.
