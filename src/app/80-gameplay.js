@@ -766,6 +766,11 @@ function checkEnd(){
     // the natural point where the platform is entitled to show its own ad)
     try { Ads.msg('LEVEL_COMPLETED', { level: String(levelNum - 1) }); } catch(_){}
     show('winOverlay');
+    // ⚠️ THE FRAMES OF THE TOP ROW ARE FITTED AFTER THE SHOW, AND NOT ONLY WHERE THE TEXT
+    // IS WRITTEN: `getComputedTextLength()` returns 0 on a hidden node, so a fit done
+    // while the overlay was still `display:none` would silently do nothing and leave the
+    // fixed frames — that is, the very hole the owner asked to remove.
+    try { fitWinTopRow(); } catch (e) {}
     // ⚠️ THERE IS NO storyOnWin() HERE ANY MORE — the owner's word 2026-08-06: the announcement
     // of a new item goes AFTER the statistics, and not on top of them. It is called by the
     // «Next» button (90-input), and the level starts from that button's callback already.

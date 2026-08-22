@@ -9683,3 +9683,86 @@ payloads, 42 buttons, 108 closing divs, 140 ids) and all 27 inline SVG blocks
 byte-for-byte. The suite is the real gate, and it caught exactly what static
 checks cannot: one cross-chunk key mismatch (`penalty.rest` read as
 `penalty.idle`).
+
+## BATCH 2026-08-22-d: NO OUTLINE ON THE HUD, THE MAGNIFIER UNCLIPPED, ONE SPACE IN THE WIN ROW
+
+Five items across three messages, all of them on text and icons — no gameplay
+was touched.
+
+**THE OUTLINE IS GONE FROM THE LEVEL AND THE SCORE.** His word: «remove the
+outline from the level and the score». Both are `.otext`, i.e. they are painted
+twice: the `paint-order:stroke` copy under the fill. Turning it off is
+`--otl:0` on the text nodes — NOT deleting the mechanism: `--otl` is the VISIBLE
+half-width and the rule multiplies it by two internally, so a bare
+`stroke-width:0` in one place would fight the variable in another.
+⚠️ THREE DECLARATIONS, NOT ONE: `#scSvg text`, the base `#lvlSvg text` and the
+MOBILE `#lvlSvg text` (the mobile arm restates `font-size` and `fill`, so it
+would have re-inherited the default `--otl:2` and left the outline on the phone
+only — the layout where he actually looks).
+⚠️ **THE CONTRAST COST, NAMED RATHER THAN HIDDEN:** on mobile the level is WHITE
+and the sky under it is now the faded `#b6c5ff` — that is **1.69:1**, below the
+3.0 the canon holds for HUD text; the outline was exactly what bought that
+margin. The score keeps its yellow (`#ffe730`) but that is **1.35:1** on the same sky —
+LOWER than the white; what carries it is the star beside it and the size, not
+the contrast. This is his explicit aesthetic call, so it
+stands; the cure, if he ever wants it back, is a darker fill rather than the
+outline returning.
+⚠️ THE DESKTOP LEVEL IS BLACK on a light sky and loses nothing.
+**MEASURED after the edit:** mobile `LV` → `stroke-width:0%`, fill white; the
+score → `0%`, fill `rgb(255,231,48)`; desktop `LV` → `0%`, black; the score →
+`0%`, `url(#gScore)`. The fills survived — the sabotage this guard must catch is
+«someone zeroed the paint together with the stroke».
+⚠️ **`stroke-width` SERIALISES AS `0%`, NOT `0px`** (the property is
+percentage-resolvable, so the computed value keeps the author unit through
+`calc(var(--otl)*2)`). A guard pinning the STRING `'0px'` would have gone red on
+a sound build; it compares `parseFloat(v) === 0`.
+
+**«SHAKE ON MOBILE TOO» — NOTHING TO DO, AND THAT IS THE ANSWER.** The pill was
+built without a media-query arm, so the phone already had it. **Measured at
+390:** `120×56`, radius 16, background `rgba(255,255,255,.40)`, the inset shadow,
+the label on the axis 84 at 18px/700 `#484472`, the hand box `[5,3,50,50]`, the
+accessible name «Shake 3». Reported as a measurement, not as «already fine».
+
+**THE MAGNIFIER ON THE WIN SCREEN WAS CLIPPED BY ITS OWN viewBox.** His word:
+«update the icon, it is getting cut off». The cause is not a size: the root
+`<svg>` gets `overflow:hidden` from the UA sheet, and its viewBox is the node's
+frame `42.602×46.406` while the drawing inside measures `45×48.8` — the handle
+and the rim stuck out and were sliced off flat.
+✅ THE FIX IS `overflow:visible` ON THAT ONE `<svg>`, the frame untouched. The
+alternative — widening the viewBox — would have shrunk the drawing inside the
+same box and quietly broken his node's geometry. The ink now overhangs `1.2` px
+on each side and is whole.
+⚠️ The same trap applies to every icon whose art was drawn past its frame; the
+guard pins BOTH `overflow === 'visible'` AND an overhang above `0.3` px, so
+re-cropping the art to the frame also goes red — the point is the drawing, not
+the property.
+
+**ONE SPACE BETWEEN THE LEVEL, THE DOT AND THE TIME.** His word: «between the
+level the dot and the time a single space». The row is three separate `<svg>`
+elements, so the visible gap was not a space at all — it was the leftover EMPTY
+WIDTH inside each `<svg>` frame after the text was drawn, and it differed left
+and right (`4.9` vs `14.3`).
+✅ THE FIX MAKES THE SPACE A REAL GLYPH: the row became inline flow
+(`display:block; text-align:center` on the container, `inline-block` on the
+`<svg>`s), the markup carries one ordinary space between them, and the new
+`fitWinTopRow()` shrinks each viewBox to the width its own text actually
+occupies. So the gap is the row font's own space, once on each side.
+**MEASURED after settling:** boxes `[86, 15, 59.8]`, gaps `[4.9, 4.9]`,
+viewBoxes `0 0 86.1 34` / `0 0 15.0 34` / `0 0 59.9 34`.
+⚠️⚠️ **`getComputedTextLength()` RETURNS 0 ON A HIDDEN NODE** — the fit must run
+AFTER the overlay is shown, which is why it is called from `renderWinScreen`,
+from `winScreen(on)` and right after `show('winOverlay')` in the win path, each
+inside its own `try`. Measure it a frame too early and every box collapses to
+zero width.
+⚠️ THE GAPS ARE MEASURED ON A SETTLED SCREEN. Mid-animation the row is still
+moving and the right gap reads `14.3` — a measurement taken during the entrance
+is a flake, not a finding.
+
+**THE LEADERBOARD ROW NOW ENTERS LIKE EVERYTHING ELSE.** His word: «animate it
+like the other elements, make it consistent». It was the only block on the win
+screen that simply appeared. It got the shared `winRise .4s ease-out` at `.79s`
+— the slot the cascade already left for it, between the score (`.52`), the time
+(`.72`) and the reward (`.86`), because that is its place in the layout.
+⚠️ ADDED TO THE `prefers-reduced-motion` LIST IN THE SAME EDIT. Every other
+entrance is listed there; a new animation that is not is a regression against an
+accessibility rule the canon holds, and nothing on screen would show it.

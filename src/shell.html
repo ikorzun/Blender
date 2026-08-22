@@ -445,11 +445,32 @@
      an outline there too — first his word on what the level itself will become (white, as on
      the phone, or an outline of a different colour).
      ⚠️ Desktop does not hinder the score: there the fill is a gradient, it is light. */
-  #scSvg text { --otl:4; --otl-color:#113444; }
+  /* ⛔⛔ THE STROKE IS REMOVED FROM THE LEVEL AND THE SCORE (the owner's word
+     2026-08-22-d: «remove the stroke from the level and the score», with a frame of
+     the HUD attached). It lived one day at `#113444` and three days before that in
+     black; the paragraph above is now history — read it for the reasons, not for the
+     numbers.
+     ⚠️ `--otl:0`, AND NOT A REMOVAL OF THE DECLARATION: the base `.otext text` gives
+     `--otl:2` with a WHITE colour, so simply deleting these lines would bring back a
+     white stroke of 2 instead of removing it. Zero is the only way to say «none» in
+     this mechanism.
+     ⚠️ THE PRICE, NAMED TO THE OWNER BY THE NUMBER: without a stroke the white «LV 3»
+     is left on the light sky one on one — the contrast of white against the top stop
+     `#b6c5ff` is 1.69:1, that is below any readability threshold. The score keeps its
+     own yellow fill and holds better. Should the level become hard to read on the
+     phone — the way out is its FILL (a dark level, the way it is on the desktop), and
+     that is his separate word. */
+  #scSvg text { --otl:0; }
+  /* ⚠️ THE DESKTOP LEVEL LOSES ITS STROKE TOO. It never had the dark one — it carried
+     the default white 2 from `.otext text`, and that default is exactly what «remove the
+     stroke» has to reach: he named the ELEMENTS, not a layout, unlike his previous
+     asks where the layout was said out loud. The desktop fill is black, so on the light
+     sky the caption stays readable without any stroke at all. */
+  #lvlSvg text { --otl:0; }
   @media (max-width:767px){
-    #lvlSvg text { font-size:18px; --otl:4; --otl-color:#113444; fill:#fff; }
+    #lvlSvg text { font-size:18px; --otl:0; fill:#fff; }
     #score { fill:#ffe730; }
-    #scSvg text { --otl:4; --otl-color:#113444; }
+    #scSvg text { --otl:0; }
   }
   /* The countdown number and the word Grinding — SVG text with a REAL outline.
      viewBox units (240 in width), therefore everything scales together with the
@@ -1432,7 +1453,20 @@
      891:4314): it was `space-between` across the whole width at a type size of 28, it became three nodes
      in a row with a gap of 11 and a type size of 24. The svg widths are for the longest string:
      «Level 100» at 24px is ~120, «12:34» ~80. */
-  .win-toprow { display:flex; align-items:center; justify-content:center; gap:11px; }
+  /* ⛔⛔ THE ROW IS INLINE, AND NOT A FLEX WITH A GAP (the owner's word 2026-08-22-e:
+     «between the level, the dot and the time — a single space each»). A flex `gap`
+     cannot BE a space: it is a number of pixels that has to be guessed and that stops
+     matching the type size at the first change of it. In an inline flow the whitespace
+     of the MARKUP itself renders as exactly one space of the current font — that is
+     literally what he asked for, and it scales with the type size by construction.
+     ⚠️ THE FONT IS SET ON THE ROW: the space is a glyph, and without an explicit family
+     and size it would come from the page's default, not from the row's own type.
+     ⚠️ THE THREE BOXES ARE FITTED TO THEIR TEXT BY `fitWinTopRow` (85-hud): the frames
+     used to be fixed (150/14/100 units of viewBox), and a fixed frame is a hole around
+     short text — the very defect the owner is pointing at. */
+  .win-toprow { display:block; text-align:center; line-height:1;
+    font-family:var(--font-round); font-size:24px; }
+  .win-toprow > svg { display:inline-block; vertical-align:middle; }
   /* ⚠️ THE WIDTHS ARE TIGHTENED TO THE LONGEST STRING: the svg has a fixed box, while
      the text in it is centred — extra width is seen as an extra gap. */
   .win-level { flex:none; width:120px; height:34px; }
@@ -1639,8 +1673,18 @@
      891:4317. `position:static` IS LOAD-BEARING: `.tip-mag` in the bar had `absolute`. */
   .win-reward-ic { position:relative; flex:none; width:54px; height:54px;
     display:block; }
+  /* ⛔⛔ `overflow:visible` — THE FIX FOR «the icon is being cut off» (the owner's word
+     2026-08-22-e with a frame). A ROOT `<svg>` CLIPS BY ITS VIEWBOX BY DEFAULT
+     (`overflow:hidden` in the UA sheet), and the viewBox here was cropped to the
+     DRAWING box from node 891:4317 — while the artwork's own outer stroke sticks out
+     of that box by ~1.2 px on every side (measured: the ink is 45×48.8 inside a
+     42.6×46.4 frame). Result: a straight rectangular cut across the magnifier's
+     top-left, exactly as on his frame.
+     ⚠️ THE GEOMETRY IS NOT TOUCHED — neither the point nor the size: the numbers stay
+     the node's, only the clipping goes. Widening the viewBox instead would have moved
+     the drawing away from the node's figures for the sake of the same pixels. */
   .win-reward-ic .win-mag { position:absolute; left:5.7px; top:3.38px;
-    width:42.602px; height:46.406px; display:block; }
+    width:42.602px; height:46.406px; display:block; overflow:visible; }
   /* ⛔ «+1» WAS LIME `#c0ff47` (node 779:1114) — it became WHITE by the owner's word
      2026-08-21-m. The lime stayed at the Next button and at the progress strips. */
   /* ⚠️ The type size 34 and the width 45 are the numbers of node 779:1118; it used to be 39. */
@@ -1876,6 +1920,13 @@
   .win-in .win-cleaned { animation:winStamp .42s cubic-bezier(.34,1.56,.64,1) .34s both; }
   .win-in .win-time { animation:winTimeIn .4s cubic-bezier(.34,1.56,.64,1) .72s both; }
   .win-in .win-score { animation:winPop .5s cubic-bezier(.34,1.56,.64,1) .52s both; }
+  /* ⛔ THE LEADERBOARD ROW WAS THE ONLY BLOCK OF THE SCREEN WITHOUT AN ENTRANCE
+     (the owner's word 2026-08-22-e: «animate it like the rest of the elements, make it
+     consistent»). It arrived on 2026-08-21-r and was left out of the sequence.
+     ⚠️ THE DELAY IS TAKEN FROM ITS PLACE IN THE COLUMN, and not invented: the row sits
+     between the top row (.72) and the reward (.86), so it enters at .79 — the sequence
+     stays a top-to-bottom wave and does not jump over a block. */
+  .win-in .win-lbslot { animation:winRise .4s ease-out .79s both; }
   .win-in .win-reward { animation:winRise .4s ease-out .86s both; }
   /* HOVER (the owner's spec): THE SAME lime, a little lighter. Under @media(hover) —
      on touch :hover sticks after a tap. */
@@ -1908,7 +1959,8 @@
   }
   @media (prefers-reduced-motion: reduce){
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
-    .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row { animation:none; }
+    .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
+    .win-in .win-lbslot { animation:none; }
     /* ⚠️ HERE THEY RESTORE THE STATIC ROTATION, WHICH OTHERWISE WOULD BE REMOVED BY
        the switched-off entry animation (`animation:none` returns the element to the
        base transform, and the sticker's base one is rotated).

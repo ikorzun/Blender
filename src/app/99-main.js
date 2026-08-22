@@ -1255,7 +1255,8 @@ window.__game = {
   // winScreen — showing/hiding the victory screen by the LIVE path (the same show/hide
   // that checkEnd calls) — the guards of the victory chain stand on it.
   // ⛔ The winLbStub/winLbInfo hooks were cut out together with the inset cluster (85-hud).
-  winScreen(on){ if (on) show('winOverlay'); else hide('winOverlay'); },
+  winScreen(on){ if (on){ show('winOverlay'); try { fitWinTopRow(); } catch (e) {} }
+    else hide('winOverlay'); },
   // ⚠️ A LOAD-BEARING HOOK, NOT A CONVENIENCE: the guard «the feature is off — there is no entry point to
   // the menu» stands on it. Without it the guard WOULD WAIT for somebody to open the menu with the module
   // removed — that is, it would inherit the situation instead of BRINGING IT ABOUT.

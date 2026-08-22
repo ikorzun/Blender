@@ -549,6 +549,38 @@ page.on('response', (r) => {
                return { bottom: [co.stroke, co.strokeWidth], top: [cv.stroke, cv.strokeWidth],
                         textMatches: elLow.textContent === elUp.textContent }; })(),
              boxLvl: boxOf('.win-level'), boxTime: boxOf('.win-time'),
+             // ⚠️⚠️ THE GAPS OF THE ROW AND THE WIDTHS OF THE FRAMES (the owner's word
+             // 2026-08-22-e: «between the level, the dot and the time — a single space
+             // each»). The two gaps are measured BETWEEN THE BOXES, because that is what
+             // a space is here: the row is an inline flow and the whitespace of the
+             // markup renders as one space of the row's own font.
+             // ⚠️ The widths matter as much: a fixed frame around short text LOOKS like a
+             // gap even when the gap itself is one space — that was exactly the defect.
+             gaps: (() => { const l = document.querySelector('.win-level'),
+                             d = document.querySelector('.win-dot'),
+                             t = document.querySelector('.win-time');
+               if (!l || !d || !t) return null;
+               const rl = l.getBoundingClientRect(), rd = d.getBoundingClientRect(),
+                     rt = t.getBoundingClientRect();
+               return { one: +(rd.left - rl.right).toFixed(1),
+                        two: +(rt.left - rd.right).toFixed(1),
+                        widths: [+rl.width.toFixed(1), +rd.width.toFixed(1), +rt.width.toFixed(1)] };
+             })(),
+             // ⚠️ THE MAGNIFIER OF THE REWARD IS NOT CLIPPED BY ITS OWN VIEWBOX (the owner's
+             // word 2026-08-22-e «the icon is being cut off»): a root <svg> clips by default,
+             // and this artwork's stroke sticks out of the node's box by ~1.2 px per side.
+             mag: (() => { const m = document.querySelector('.win-mag');
+               if (!m) return null;
+               const cs = getComputedStyle(m), r = m.getBoundingClientRect();
+               const g = m.querySelector('g') || m, rg = g.getBoundingClientRect();
+               return { overflow: cs.overflow,
+                        outLeft: +(r.left - rg.left).toFixed(1),
+                        outTop: +(r.top - rg.top).toFixed(1) };
+             })(),
+             // ⚠️ THE LEADERBOARD ROW ENTERS LIKE THE REST (his «make it consistent»).
+             lbAnim: (() => { const e = document.querySelector('.win-lbslot');
+               if (!e) return null; const cs = getComputedStyle(e);
+               return { name: cs.animationName, delay: cs.animationDelay }; })(),
              stickerXTime: overlap('winCleaned', 'winTime'),
              rows: document.querySelectorAll('.win-toprow').length,
              oldRows: document.querySelectorAll('.win-cleanrow').length };
@@ -587,6 +619,39 @@ page.on('response', (r) => {
     'the former layout: the level 50px centred + the time 28px tilted next ' +
     'to the caption. The sabotage is to return `.win-cleanrow`: the counter of the old ' +
     'rows goes red (' + JSON.stringify(winHeadProbe) + ')');
+  // ══ A SINGLE SPACE IN THE ROW, THE FITTED FRAMES, THE UNCLIPPED MAGNIFIER AND THE
+  //    ENTRANCE OF THE LEADERBOARD ROW (the owner's word 2026-08-22-e) ══
+  // ⚠️⚠️ THE TWO GAPS ARE COMPARED WITH EACH OTHER AND NOT WITH A NUMBER: a space is a
+  // GLYPH, its width comes from the font, and `SF Pro Rounded` exists only on Apple —
+  // a literal would go red in headless on a sound build. What is guarded is that both
+  // gaps are THE SAME and that they are of the order of a space, not of a hole.
+  // ⚠️⚠️ THE WIDTHS ARE THE SECOND HALF AND WITHOUT THEM THE FIRST IS EMPTY: the old
+  // frames were fixed (120 / 14 / 80 px), and around short text a fixed frame reads as a
+  // gap even when the real gap is one space. `Level N` at 24 px never reaches 120.
+  // ⚠️ THE MAGNIFIER: we read the OVERFLOW and the overhang of the ink beyond the svg box.
+  // The overhang is the proof that the clipping was real — the artwork does stick out.
+  // ⚠️ THE ROW'S ENTRANCE: the name of the animation AND its delay inside the wave
+  // (between the top row .72 and the reward .86), otherwise «it is animated» is true of
+  // any animation, including one that plays before the screen exists.
+  expect(winHeadProbe.gaps && winHeadProbe.mag && winHeadProbe.lbAnim &&
+    Math.abs(winHeadProbe.gaps.one - winHeadProbe.gaps.two) <= 1 &&
+    winHeadProbe.gaps.one > 1 && winHeadProbe.gaps.one < 12 &&
+    winHeadProbe.gaps.widths[0] < 110 && winHeadProbe.gaps.widths[2] < 75 &&
+    winHeadProbe.mag.overflow === 'visible' &&
+    winHeadProbe.mag.outLeft > 0.3 && winHeadProbe.mag.outTop > 0.3 &&
+    winHeadProbe.lbAnim.name === 'winRise' &&
+    parseFloat(winHeadProbe.lbAnim.delay) > 0.72 && parseFloat(winHeadProbe.lbAnim.delay) < 0.86,
+    '⚠️⚠️ VICTORY: ONE SPACE BETWEEN THE LEVEL, THE DOT AND THE TIME; THE FRAMES ARE FITTED ' +
+    'TO THE TEXT; THE MAGNIFIER IS NOT CLIPPED; THE LEADERBOARD ROW ENTERS WITH THE REST (' +
+    JSON.stringify({ gaps: winHeadProbe.gaps, mag: winHeadProbe.mag,
+                     lb: winHeadProbe.lbAnim }) + '). The owner\'s word 2026-08-22-e. ' +
+    '⛔ IT CANCELS the flex `gap:11` of 2026-08-21-r — a gap in pixels cannot BE a space: ' +
+    'it has to be guessed and it stops matching at the first change of the type size. ' +
+    '⚠️ THE GAPS ARE COMPARED WITH EACH OTHER: the width of a space is the font\'s, and ' +
+    'the font in headless is not the one on the phone. ⚠️ AND THE WIDTHS ARE GUARDED TOO — ' +
+    'the hole he pointed at was empty FRAME, not gap; return the fixed 120/14/80 and ' +
+    'the gaps stay one space while the row looks exactly as before');
+
   expect(winHeadProbe.sticker && winHeadProbe.sticker.text === 'SAVED' &&
     winHeadProbe.sticker.fill === 'rgb(255, 255, 255)' &&
     winHeadProbe.sticker.stroke === 'rgb(192, 255, 71)' &&
@@ -8396,24 +8461,41 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE «BLOB» SANITY CHECK BELOW MATTERS MORE NOW, NOT LESS: #113444 is almost
     // black, and on the black fill of the desktop level it would merge just the same — the colour
     // has changed, the trap has not.
-    const OTL = 'rgb(17, 52, 68)';   // #113444
-    expect(outMob.score.stroke === 'calc(8px)' && outMob.score.color === OTL &&
-           outDesk.score.stroke === 'calc(8px)' && outDesk.score.color === OTL &&
-           outMob.LV.stroke === 'calc(8px)' && outMob.LV.color === OTL &&
-           !outMob.LV.blob && !outMob.score.blob && !outDesk.LV.blob && !outDesk.score.blob,
-      '⚠️⚠️ A STROKE OF #113444 WITH A THICKNESS OF 4 px ON THE SCORE (both layouts) AND ON THE LEVEL (where it is ' +
-      'light) — ' + JSON.stringify({ mob: outMob, desk: outDesk }) + '. The owner\'s ' +
-      'word 2026-08-21-z, the thickness refined by him from the frame down to 4 ' +
-      '(2026-08-21-k; the six lived through one fix). ⚠️ A computed 8 at a declared 4 is NOT an error: ' +
-      'the doubling for the fill is hidden in `.otext text` (`--otl × 2`), on the outside ' +
-      'the VISIBLE thickness is written. Do not touch `stroke-width` by hand. ' +
-      '⚠️⚠️ THE «BLOB» SANITY CHECK (the fill !== the stroke) IS THE MAIN HALF OF THIS ' +
-      'ASSERT, AND IT IS WRITTEN BY THE FACT: the first edition of the fix hung the black ' +
-      'stroke on the DESKTOP level too, and there it is BLACK (the base ' +
-      '`.otext text { fill:#000 }`) — «LV 3» turned into a solid black ' +
-      'blob, taken off by a frame. That is why the desktop level is left with a white ' +
-      'stroke of 2, and this was named to the owner. The sabotage is to spread the black ' +
-      'stroke onto `#lvlSvg text` globally: exactly the sanity check goes red');
+    // ⛔⛔ THE STROKE IS GONE ENTIRELY (the owner's word 2026-08-22-d: «remove the stroke
+    // from the level and the score», with a frame of the HUD attached). It lived one day
+    // at `#113444` and three days in black before that; both pins would now go red on a
+    // sound build. What is guarded instead is ZERO on both captions and BOTH layouts.
+    // ⚠️⚠️ ZERO IS CHECKED, AND NOT THE ABSENCE OF THE DECLARATION, BECAUSE THE MECHANISM
+    // HAS A DEFAULT: `.otext text` gives `--otl:2` in WHITE, so deleting the lines would
+    // bring back a white stroke of 2 instead of removing it. `calc(0px)` is the only
+    // reading that means «none».
+    // ⚠️ THE «BLOB» SANITY CHECK IS RETIRED WITH THE STROKE — with a zero width the fill
+    // and the stroke can no longer merge, and a check that cannot fail is not a check.
+    // The trap it guarded (a dark stroke on the dark desktop level) has no stroke to be
+    // made of any more; should a stroke come back, this assert goes red first.
+    // ⚠️ THE WIDTH IS READ AS A NUMBER, NOT AS A STRING: at `--otl:0` the engine
+    // serialises `stroke-width` as `0%`, not as `calc(0px)` — a literal pin would have
+    // gone red on a sound build. Measured, not assumed.
+    const noStroke = v => parseFloat(v) === 0;
+    expect(noStroke(outMob.score.stroke) && noStroke(outDesk.score.stroke) &&
+           noStroke(outMob.LV.stroke) && noStroke(outDesk.LV.stroke) &&
+           outMob.LV.fill === 'rgb(255, 255, 255)' && outMob.score.fill !== outMob.LV.fill,
+      '⚠️⚠️ THERE IS NO STROKE ON THE LEVEL AND ON THE SCORE, IN EITHER LAYOUT (' +
+      JSON.stringify({ mob: outMob, desk: outDesk }) + '). The owner\'s word 2026-08-22-d ' +
+      '«remove the stroke from the level and the score», with a frame of the HUD attached. ' +
+      '⛔ IT CANCELS his own 2026-08-21-z/k: a stroke of 4 px, black at first and then ' +
+      '`#113444`. Both pins would now go red on a sound build — the guard moves with the ' +
+      'rule, it is not «repaired». ' +
+      '⚠️⚠️ ZERO IS PINNED, NOT THE ABSENCE OF THE DECLARATION: `.otext text` gives a ' +
+      'default of `--otl:2` in WHITE, so deleting the lines would bring a white stroke ' +
+      'BACK instead of removing it. In this mechanism `calc(0px)` is the only way to say ' +
+      '«none», and it is what the sabotage — restoring any `--otl` — turns red. ' +
+      '⚠️ THE FILLS ARE READ AS A CONTROL: the level stays white and the score keeps its ' +
+      'own colour. Without them «no stroke» is true of a build where the captions have ' +
+      'disappeared altogether. ' +
+      '⚠️ THE PRICE IS NAMED TO THE OWNER BY THE NUMBER: white «LV 3» against the top stop ' +
+      'of the sky `#b6c5ff` gives a contrast of 1.69:1. The readable way out is the FILL ' +
+      'of the level, and that is his separate word.');
 
     // ── THE WIN SCREEN: THE HAND GLYPH IS REPLACED BY THE MAGNIFIER (the owner's word 2026-08-21-z) ──
     // ⚠️ We read a HIDDEN node: the win overlay is `display:none`, but the attributes and the

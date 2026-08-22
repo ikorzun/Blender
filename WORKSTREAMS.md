@@ -1,5 +1,35 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-22-d: NO HUD OUTLINE, THE MAGNIFIER UNCLIPPED, ONE SPACE IN THE WIN ROW — the dispatcher
+
+Five items across three messages, all on text and icons; gameplay untouched.
+The outline left the level and the score (`--otl:0` in THREE declarations — the
+mobile arm restates `fill`/`font-size` and would have kept the outline on the
+phone alone); the magnifier on the win screen stopped being clipped
+(`overflow:visible` on that one `<svg>` — the art is drawn past its own viewBox);
+the win top row became inline flow with a REAL space glyph plus `fitWinTopRow()`,
+which shrinks each viewBox to its own text; the leaderboard row entered the
+shared cascade (`winRise .4s ease-out .79s`, and into the reduced-motion list).
+
+⚠️ THE OUTLINE HAS A PRICE AND IT WAS NAMED, NOT HIDDEN: white `LV` on the faded
+sky is 1.69:1 and the yellow score 1.35:1, both below the canon's 3.0 floor for
+HUD text. His aesthetic call
+stands; the cure, if wanted, is a darker fill, not the outline back.
+
+⚠️ «SHAKE ON MOBILE TOO» NEEDED NO EDIT — the pill has no media-query arm, so the
+phone already had it. Answered with a measurement at 390 (`120×56`, axis 84,
+hand `[5,3,50,50]`), not with «already fine».
+
+⚠️ TWO MEASUREMENT TRAPS, BOTH PAID FOR: `getComputedTextLength()` returns 0 on a
+HIDDEN node (the fit must run after `show('winOverlay')`), and the row's gaps
+read `14.3` mid-entrance versus `4.9` settled — a number taken during an
+animation is a flake.
+
+⚠️ `stroke-width` computes to `0%`, not `0px` — the guard compares
+`parseFloat(v) === 0` and pins the FILLS beside it, because the sabotage worth
+catching is «zeroed the paint together with the stroke».
+
+
 ### ACCEPTANCE 2026-08-22-g: THE PROJECT IS ENGLISH-ONLY + THE SKY, THE FADE, THE SHAKE PILL — the dispatcher
 
 Four items in one message. Three of view: the new day palette (his screenshot of

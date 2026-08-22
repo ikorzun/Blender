@@ -104,6 +104,7 @@ function renderWinScreen(){
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
+  fitWinTopRow();
   renderWinTop(reduce);
   // ⛔ There is no leaderboard inset here (the owner's word); its cluster was cut out by the cleanup
   // of 2026-08-12 — the former «left alive: hooks hang on them» went stale, nobody
@@ -939,6 +940,33 @@ function fitStat(id){
   if (t.getAttribute('text-anchor') === 'end') t.setAttribute('x', (u - 2).toFixed(1));
   const k = (svg.getBoundingClientRect().height || 27) / 27;
   svg.style.width = (u * k) + 'px';
+}
+// Squeeze the three frames of the win screen's top row to their text, the same way
+// `fitStat` does it for the HUD. Without this the frames stay at their fixed 150/14/100
+// viewBox units, and a fixed frame around short text IS the hole the owner is pointing
+// at («between the level, the dot and the time — a single space each», 2026-08-22-e):
+// the gap he sees is not a gap at all, it is empty frame.
+// ⚠️ THE HEIGHT OF THE VIEWBOX STAYS 34, NOT 27 AS IN `fitStat`: these texts sit at
+// y=26 of a 34-unit box, and rewriting the height would move the baseline.
+// ⚠️ THE ANCHOR IS `middle` HERE (in `fitStat` it is the left edge or `end`), so after
+// the squeeze x has to be re-centred — otherwise the text is drawn beside its own frame.
+// ⚠️ The row itself carries the font, and the single space between the boxes comes from
+// the MARKUP's whitespace in the inline flow — see `.win-toprow` in shell.html.
+function fitWinTopRow(){
+  const row = document.querySelector('.win-toprow');
+  if (!row) return;
+  row.querySelectorAll('svg').forEach(svg => {
+    const t = svg.querySelector('text');
+    if (!t) return;
+    let u = 0;
+    try { u = t.getComputedTextLength(); } catch (e) { u = 0; }
+    if (!u) return;                       // the screen is hidden — nothing to measure
+    u += 3;                               // the same padding as in fitStat
+    svg.setAttribute('viewBox', '0 0 ' + u.toFixed(1) + ' 34');
+    t.setAttribute('x', (u / 2).toFixed(1));
+    svg.style.width = (u * (34 / 34)) + 'px';
+    svg.style.height = '34px';
+  });
 }
 let tmStrLast = '';
 let chargeInT = 0, chargeRAF = 0;
