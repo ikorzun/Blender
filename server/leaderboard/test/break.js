@@ -1,15 +1,15 @@
-// ДВУСТОРОННЯЯ ПРОВЕРКА СТРАЖЕЙ: `node server/leaderboard/test/break.js`
-// ⚠️ По канону проекта страж НЕ СДАН, пока не показано, что он КРАСНЕЕТ на
-// сломанной сборке и ЗЕЛЁН на исправной. Односторонний прогон «зелено на
-// исправной» не защищает от тавтологии, «красно на сломанной» — от флейка.
+// TWO-WAY GUARD CHECK: `node server/leaderboard/test/break.js`
+// ⚠️ By the project canon a guard is NOT DELIVERED until it has been shown to GO RED on
+// a broken build and to be GREEN on a healthy one. A one-way run «green on the
+// healthy one» does not protect against tautology, «red on the broken one» — against a flake.
 //
-// Здесь каждая диверсия бьёт в ОДНО свойство и обязана уронить ИМЕННО тот
-// ассерт, который это свойство утверждает. Если диверсия роняет чужой
-// ассерт — страж меряет не то, что называет.
+// Here every sabotage test hits ONE property and must bring down EXACTLY that
+// assert which states this property. If a sabotage test brings down someone
+// else's assert — the guard measures not what it names.
 //
-// ⚠️ Патч проверяется на ПРИМЕНИМОСТЬ (строка найдена): диверсии протухают
-// вместе с боевой строкой, и молча разошедшийся regex дал бы прогон по
-// ЗДОРОВОЙ сборке — то есть пять уверенных зелёных ни о чём.
+// ⚠️ The patch is checked for APPLICABILITY (the line is found): sabotage tests go stale
+// together with the production line, and a silently diverged regex would give a run over
+// the HEALTHY build — that is, five confident greens about nothing.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -20,71 +20,71 @@ const SRC = fs.readFileSync(path.join(DIR, 'src', 'index.js'), 'utf8');
 const RUN = path.join(__dirname, 'run.js');
 
 const SABOTAGE = [
-  { name: 'сервер хранит МАКСИМУМ (как у площадки)',
+  { name: 'the server stores the MAXIMUM (as on the platform)',
     find: 'UPDATE p SET n=?, a=?, s=?, u=?',
     repl: 'UPDATE p SET n=?, a=?, s=MAX(s,?), u=?',
-    expect: 'ПАДЕНИЕ СОХРАНЕНО' },
-  { name: 'принимаем присланный ключ у существующей строки',
+    expect: 'DROP PRESERVED' },
+  { name: 'we accept the submitted key on an existing row',
     find: 'if (!sameSig(await hmacHex(row.k, msg), body.sig))',
     repl: 'if (!sameSig(await hmacHex(body.k || row.k, msg), body.sig))',
-    expect: 'ЧУЖОЙ КЛЮЧ ОТВЕРГНУТ' },
-  { name: 'снято ограничение частоты',
+    expect: 'FOREIGN KEY REJECTED' },
+  { name: 'the rate limit has been removed',
     find: 'if (now - row.u < RATE_SEC)',
     repl: 'if (false)',
-    expect: 'ЧАСТОТА: чаще 20 с' },
-  { name: 'снята проверка монотонности q',
+    expect: 'RATE: more often than 20 s' },
+  { name: 'the q monotonicity check has been removed',
     find: 'if (q <= row.q)',
     repl: 'if (false)',
-    expect: 'ПОВТОР q' },
-  { name: 'снимок не фильтрует скрытых',
+    expect: 'REPEATED q' },
+  { name: 'the snapshot does not filter out the hidden ones',
     find: "'SELECT n,a,s FROM p WHERE f=0 AND s>0 ORDER BY s DESC, u ASC LIMIT ?'",
     repl: "'SELECT n,a,s FROM p WHERE s>0 ORDER BY s DESC, u ASC LIMIT ?'",
-    expect: 'СКРЫТОГО НЕТ' },
-  { name: 'пустая лесенка снова отвечает «место 1»',
+    expect: 'THE HIDDEN ONE IS NOT' },
+  { name: 'the empty ladder answers «rank 1» again',
     find: 'if (!ladder || !ladder.length) return null;',
     repl: 'if (!ladder || !ladder.length) return 1;',
-    expect: 'ОЦЕНКА: пустая лесенка' },
-  { name: 'выше первой ступени снова «место 1»',
+    expect: 'ESTIMATE: an empty ladder' },
+  { name: 'above the first step it is «rank 1» again',
     find: 'return lo === 0 ? null : lo * LADDER_STEP;',
     repl: 'return lo === 0 ? 1 : lo * LADDER_STEP;',
-    expect: 'ОЦЕНКА: выше первой ступени' },
-  { name: '429 молчит, сколько ждать (клиент вынужден угадывать)',
+    expect: 'ESTIMATE: above the first step' },
+  { name: '429 keeps silent about how long to wait (the client is forced to guess)',
     find: "return reply({ ok: 0, err: 'rate', retry: RATE_SEC - (now - row.u),",
     repl: "return reply({ ok: 0, err: 'rate',",
-    expect: 'ЧАСТОТА: 429 говорит, СКОЛЬКО ждать' },
-  { name: 'граница корзины считается дважды (сдвиг места на 1)',
+    expect: 'RATE: the 429 says HOW LONG to wait' },
+  { name: 'the bucket boundary is counted twice (the rank is shifted by 1)',
     find: '- (bound === null ? 0 : 1)',
     repl: '- (bound === null ? 0 : 0)',
-    expect: 'ТОЧНОЕ МЕСТО' },
-  { name: 'отправка снимает РУЧНОЕ скрытие (спрятанный вернул себя сам)',
+    expect: 'THE EXACT RANK' },
+  { name: 'a submit clears the MANUAL hiding (the hidden one brought himself back)',
     find: "'UPDATE p SET n=?, a=?, s=?, u=?, q=? WHERE id=?'",
     repl: "'UPDATE p SET n=?, a=?, s=?, u=?, q=?, f=0 WHERE id=?'",
-    expect: 'РУЧНОЕ СКРЫТИЕ' },
-  // ⚠️ ДВЕ ДИВЕРСИИ НА СНЯТЫЙ ПОТОЛОК — ПО ОДНОЙ НА КАЖДЫЙ УМЕРШИЙ МЕХАНИЗМ.
-  // Обрезка и автоскрытие ушли вместе, но вернуть их можно ПОРОЗНЬ, и страж
-  // «счёт как есть» утверждает оба признака — значит каждый нужно уронить
-  // отдельно, иначе один из двух ассертов останется непроверенным.
-  { name: 'вернулась ОБРЕЗКА присланного счёта',
+    expect: 'MANUAL HIDE' },
+  // ⚠️ TWO SABOTAGE TESTS FOR THE REMOVED CEILING — ONE PER EACH DEAD MECHANISM.
+  // The clamping and the auto-hiding went away together, but they can be brought back
+  // SEPARATELY, and the guard «score as is» states both signs — which means each one has
+  // to be brought down separately, otherwise one of the two asserts stays unchecked.
+  { name: 'the CLAMPING of the submitted score is back',
     find: '.bind(n, Math.min(49, Math.max(1, a)), s, now, q, id).run();',
     repl: '.bind(n, Math.min(49, Math.max(1, a)), Math.min(s, 2000), now, q, id).run();',
-    expect: 'СЧЁТ КАК ЕСТЬ' },
-  { name: 'вернулось АВТОСКРЫТИЕ по величине счёта',
+    expect: 'SCORE AS IS' },
+  { name: 'the AUTO-HIDING by the size of the score is back',
     find: '.bind(n, Math.min(49, Math.max(1, a)), s, now, q, id).run();',
     repl: '.bind(n, Math.min(49, Math.max(1, a)), s, now, q, id).run();'
         + " if (s > 2000) await env.DB.prepare('UPDATE p SET f=1 WHERE id=?').bind(id).run();",
-    expect: 'СЧЁТ КАК ЕСТЬ' },
-  // ⚠️⚠️ САМОПРОВЕРКА САМОГО ИНСТРУМЕНТА, А НЕ БОЕВОГО КОДА. Правка КОММЕНТАРИЯ
-  // заведомо не меняет поведения — значит прогон обязан сказать «ДИВЕРСИЯ НЕ
-  // СРАБОТАЛА», а не «страж слеп». Без этой записи проверка поведения сама
-  // осталась бы непроверенной: она ведь тоже может замолчать.
-  { name: 'САМОПРОВЕРКА: правка комментария поведения не меняет',
-    find: '// ===== ЛЕСЕНКА РАНГОВ =====',
-    repl: '// ===== ЛЕСЕНКА РАНГОВ (метка самопроверки) =====',
-    expect: 'ОЦЕНКА: пустая лесенка', noop: true },
-  { name: '/top падает вместе с базой',
+    expect: 'SCORE AS IS' },
+  // ⚠️⚠️ A SELF-CHECK OF THE TOOL ITSELF, NOT OF THE PRODUCTION CODE. Editing a COMMENT
+  // knowingly does not change behavior — which means the run must say «THE SABOTAGE TEST
+  // DID NOT FIRE», and not «the guard is blind». Without this entry the behavior check
+  // itself would stay unchecked: it too can fall silent.
+  { name: 'SELF-CHECK: editing a comment does not change behavior',
+    find: '// ===== RANK LADDER =====',
+    repl: '// ===== RANK LADDER (self-check marker) =====',
+    expect: 'ESTIMATE: an empty ladder', noop: true },
+  { name: '/top falls together with the database',
     find: 'catch (e) { snap = null; }',
     repl: 'catch (e) { throw e; }',
-    expect: '/top при упавшей базе' },
+    expect: '/top with the database down' },
 ];
 
 function runSuite(srcPath) {
@@ -103,68 +103,68 @@ const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL: '
 
 let bad = 0;
 
-// 1) ИСПРАВНАЯ сборка обязана быть зелёной — иначе всё ниже бессмысленно.
+// 1) The HEALTHY build must be green — otherwise everything below is meaningless.
 const base = runSuite(null);
 const baseFails = failedNames(base.out);
 if (!base.ok || baseFails.length) {
-  console.log('⛔ ИСПРАВНАЯ СБОРКА НЕ ЗЕЛЕНА — диверсии не имеют смысла:');
+  console.log('⛔ THE HEALTHY BUILD IS NOT GREEN — the sabotage tests make no sense:');
   console.log(baseFails.join('\n') || base.out.slice(-800));
   process.exit(1);
 }
 const baseCount = (base.out.match(/^PASS:/gm) || []).length;
 
-// ⚠️⚠️ ВТОРОЙ ПРОГОН ИСПРАВНОЙ СБОРКИ — ЭТО НЕ ПЕРЕСТРАХОВКА, А ЛИНЕЙКА ШУМА.
-// Часть чисел в сообщениях зависит от часов (например `retry` у 429), и между
-// двумя ЗДОРОВЫМИ прогонами они законно расходятся. Без этой линейки любое
-// расхождение читалось бы как «поведение изменилось», и проверка ниже врала бы
-// в другую сторону.
+// ⚠️⚠️ THE SECOND RUN OF THE HEALTHY BUILD IS NOT OVER-INSURANCE, IT IS THE NOISE RULER.
+// Some of the numbers in the messages depend on the clock (for example `retry` on 429), and
+// between two HEALTHY runs they legitimately diverge. Without this ruler any
+// divergence would read as «the behavior changed», and the check below would lie
+// in the other direction.
 const base2 = runSuite(null);
-const шумныеСтроки = (function () {
+const noisyLines = (function () {
   const a = base.out.split('\n'), b = base2.out.split('\n'), n = new Set();
   const len = Math.max(a.length, b.length);
   for (let i = 0; i < len; i++) if (a[i] !== b[i]) n.add(i);
   return n;
 })();
 
-// ⚠️⚠️ ГЛАВНОЕ: ОТЛИЧИТЬ «СТРАЖ СЛЕП» ОТ «ДИВЕРСИЯ НЕ СРАБОТАЛА».
-// Протухшую диверсию видно сразу — «строка не найдена». А диверсию, которая
-// ПОДСТАВИЛАСЬ, но ничего не изменила, не видно НИЧЕМ: сьют зелен, отчёт пишет
-// «страж слеп», и вывод получается ложным. Живой случай (2026-08-09): патч
-// `f = (s > 2000)` в SET-выражении читает СТАРОЕ значение колонки, а не
-// присланное, и не срабатывал никогда — исправный страж час числился слепым.
-// Признак поведения: вывод сьюта на пропатченной сборке обязан ОТЛИЧАТЬСЯ от
-// вывода на исправной хоть чем-то за пределами шумных строк. Совпал дословно —
-// значит диверсия не состоялась, и о страже мы не узнали НИЧЕГО.
-function поведениеИзменилось(out) {
+// ⚠️⚠️ THE MAIN THING: TO TELL «THE GUARD IS BLIND» FROM «THE SABOTAGE TEST DID NOT FIRE».
+// A stale sabotage test is visible at once — «the line is not found». But a sabotage test that
+// WAS SUBSTITUTED IN yet changed nothing is visible by NOTHING: the suite is green, the report
+// writes «the guard is blind», and the conclusion comes out false. A live case (2026-08-09): the
+// patch `f = (s > 2000)` in the SET expression reads the OLD value of the column, and not the
+// submitted one, and never fired — a healthy guard was counted as blind for an hour.
+// The behavior sign: the suite output on the patched build must DIFFER from the output on the
+// healthy one by at least something outside the noisy lines. It matched word for word —
+// which means the sabotage test did not happen, and we have learned NOTHING about the guard.
+function behaviorChanged(out) {
   const a = base.out.split('\n'), b = out.split('\n');
   const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) if (a[i] !== b[i] && !шумныеСтроки.has(i)) return true;
+  for (let i = 0; i < len; i++) if (a[i] !== b[i] && !noisyLines.has(i)) return true;
   return false;
 }
 
-// ⚠️⚠️ ТОЧНЫЙ ПРИЗНАК, И ОН СИЛЬНЕЕ ПРЕДЫДУЩЕГО. «Поведение изменилось хоть
-// где-то» ловит только СОВСЕМ пустую диверсию. Настоящий случай 2026-08-09 был
-// хитрее: патч `f = (s > 2000)` менял флаг у ЧУЖИХ строк (их числа в отчёте
-// поехали), а строки, за которой следит страж «СЧЁТ КАК ЕСТЬ», не касался
-// вовсе — и отчёт снова писал «страж слеп».
-// Спрашиваем ровно то, что нужно: изменилось ли ТО, ЧТО ВИДИТ ЭТОТ СТРАЖ.
-// Строка ассерта печатает свои замеренные числа (правило проекта), поэтому
-// совпадение её текста бит-в-бит означает: диверсия прошла МИМО наблюдаемого.
-function строкаСтража(out, имя) {
-  return out.split('\n').filter((l) => l.indexOf(имя) >= 0).join(' ¦ ');
+// ⚠️⚠️ THE EXACT SIGN, AND IT IS STRONGER THAN THE PREVIOUS ONE. «The behavior changed at least
+// somewhere» catches only a COMPLETELY empty sabotage test. The real case of 2026-08-09 was
+// trickier: the patch `f = (s > 2000)` changed the flag on SOMEONE ELSE'S rows (their numbers in
+// the report moved), and did not touch the row watched by the guard «SCORE AS IS»
+// at all — and the report again wrote «the guard is blind».
+// We ask exactly what is needed: has WHAT THIS GUARD SEES changed.
+// The assert line prints its own measured numbers (a project rule), therefore
+// a bit-for-bit match of its text means: the sabotage test went PAST the observable.
+function guardLine(out, name) {
+  return out.split('\n').filter((l) => l.indexOf(name) >= 0).join(' ¦ ');
 }
-console.log('исправная сборка: ' + baseCount + ' PASS, 0 FAIL (шумных строк '
-  + шумныеСтроки.size + ')\n');
+console.log('healthy build: ' + baseCount + ' PASS, 0 FAIL (noisy lines '
+  + noisyLines.size + ')\n');
 
-// 2) Каждая диверсия — свой ассерт красный, соседи целы.
+// 2) Every sabotage test — its own assert red, the neighbours intact.
 for (let i = 0; i < SABOTAGE.length; i++) {
   const sb = SABOTAGE[i];
   if (SRC.indexOf(sb.find) < 0) {
-    console.log('⛔ ДИВЕРСИЯ ПРОТУХЛА (строка не найдена): ' + sb.name);
+    console.log('⛔ THE SABOTAGE TEST WENT STALE (the line is not found): ' + sb.name);
     bad++; continue;
   }
   const patched = SRC.replace(sb.find, sb.repl);
-  if (patched === SRC) { console.log('⛔ ПАТЧ НЕ ИЗМЕНИЛ ФАЙЛ: ' + sb.name); bad++; continue; }
+  if (patched === SRC) { console.log('⛔ THE PATCH DID NOT CHANGE THE FILE: ' + sb.name); bad++; continue; }
   const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lb-')), 'index.js');
   fs.writeFileSync(tmp, patched);
 
@@ -174,62 +174,62 @@ for (let i = 0; i < SABOTAGE.length; i++) {
   const collateral = fails.filter((f) => f.indexOf(sb.expect) < 0);
 
   if (!hit.length && !fails.length && !res.ok) {
-    console.log('⛔ ДИВЕРСИЯ РАЗВАЛИЛА СБОРКУ (это НЕ слепой страж): ' + sb.name);
+    console.log('⛔ THE SABOTAGE TEST BROKE THE BUILD (this is NOT a blind guard): ' + sb.name);
     console.log('   ' + res.out.trim().split('\n').slice(-2).join(' / '));
     bad++;
-  } else if (!hit.length && строкаСтража(res.out, sb.expect) === строкаСтража(base.out, sb.expect)) {
-    // Строка стража совпала дословно: он замерил ТО ЖЕ САМОЕ, то есть диверсия
-    // прошла мимо наблюдаемого. Про сам страж мы не узнали ничего.
+  } else if (!hit.length && guardLine(res.out, sb.expect) === guardLine(base.out, sb.expect)) {
+    // The guard line matched word for word: it measured THE VERY SAME thing, that is, the
+    // sabotage test went past the observable. About the guard itself we have learned nothing.
     if (sb.noop) {
-      console.log('✅ «' + sb.name + '»\n   -> инструмент верно назвал пустую диверсию пустой');
+      console.log('✅ «' + sb.name + '»\n   -> the tool correctly called the empty sabotage test empty');
     } else {
-      console.log('⛔ ДИВЕРСИЯ ПРОШЛА МИМО (это НЕ слепой страж): «' + sb.name + '»');
-      console.log('   страж замерил ТО ЖЕ, что на исправной сборке: '
-        + строкаСтража(base.out, sb.expect).slice(0, 120));
-      console.log('   остальная сборка ' + (поведениеИзменилось(res.out)
-        ? 'изменилась — значит патч применился, но бьёт не туда'
-        : 'не изменилась вовсе — патч не сработал нигде'));
-      console.log('   чинить ДИВЕРСИЮ, а не страж.');
+      console.log('⛔ THE SABOTAGE TEST WENT PAST (this is NOT a blind guard): «' + sb.name + '»');
+      console.log('   the guard measured THE SAME as on the healthy build: '
+        + guardLine(base.out, sb.expect).slice(0, 120));
+      console.log('   the rest of the build ' + (behaviorChanged(res.out)
+        ? 'changed — which means the patch applied, but hits the wrong place'
+        : 'did not change at all — the patch fired nowhere'));
+      console.log('   fix the SABOTAGE TEST, and not the guard.');
       bad++;
     }
   } else if (sb.noop) {
-    console.log('⛔ САМОПРОВЕРКА ПРОВАЛЕНА: пустая диверсия не опознана как пустая');
+    console.log('⛔ THE SELF-CHECK FAILED: the empty sabotage test was not recognized as empty');
     bad++;
   } else if (!hit.length) {
-    console.log('⛔ СТРАЖ СЛЕП: «' + sb.name + '» не уронил «' + sb.expect + '»');
-    console.log('   (поведение сборки изменилось — значит диверсия состоялась)');
-    console.log('   упало: ' + (fails.join(' | ') || 'ничего'));
+    console.log('⛔ THE GUARD IS BLIND: «' + sb.name + '» did not bring down «' + sb.expect + '»');
+    console.log('   (the behavior of the build changed — which means the sabotage test happened)');
+    console.log('   fell: ' + (fails.join(' | ') || 'nothing'));
     bad++;
   } else {
-    console.log('✅ «' + sb.name + '»\n   -> красный: ' + hit.join(' | ')
-      + (collateral.length ? '\n   ⚠️ задело соседей: ' + collateral.join(' | ') : ''));
+    console.log('✅ «' + sb.name + '»\n   -> red: ' + hit.join(' | ')
+      + (collateral.length ? '\n   ⚠️ hit the neighbours: ' + collateral.join(' | ') : ''));
   }
   fs.rmSync(path.dirname(tmp), { recursive: true, force: true });
 }
 
-// ===== ФАЗА 2: СМОУК ТОЖЕ СДАЁТСЯ КАК СТРАЖ =====
-// ⚠️ Его новые проверки (сохранённый счёт, путь UPDATE, предполёт, свежесть
-// снимка) обязаны краснеть на сломанной сборке — иначе они не стражи, а
-// описание. Прогон идёт через `--local`, каждый ~25 с (внутри честное
-// ожидание окна частоты 21 с — без него путь UPDATE не исполняется).
+// ===== PHASE 2: THE SMOKE TEST IS ALSO DELIVERED AS A GUARD =====
+// ⚠️ Its new checks (the saved score, the UPDATE path, the preflight, the freshness of the
+// snapshot) must go red on a broken build — otherwise they are not guards but a
+// description. The run goes through `--local`, each one ~25 s (inside there is an honest
+// wait for the 21 s rate window — without it the UPDATE path is not executed).
 const SMOKE = path.join(__dirname, 'smoke.js');
 const SMOKE_SABOTAGE = [
-  { name: 'в базу пишется 0 вместо счёта',
+  { name: 'a 0 is written to the database instead of the score',
     find: '.bind(id, body.k, n, Math.min(49, Math.max(1, a)), s, now, q, born).run();',
     repl: '.bind(id, body.k, n, Math.min(49, Math.max(1, a)), 0, now, q, born).run();',
-    expect: 'своё место и соседи' },
-  { name: 'путь UPDATE сломан (несуществующая колонка)',
+    expect: 'own place and neighbours' },
+  { name: 'the UPDATE path is broken (a nonexistent column)',
     find: "'UPDATE p SET n=?, a=?, s=?, u=?, q=? WHERE id=?'",
     repl: "'UPDATE p SET n=?, a=?, s=?, u=?, zz=? WHERE id=?'",
-    expect: 'вторая отправка меняет счёт' },
-  { name: 'предполёт не обслуживается',
+    expect: 'the second submit changes the score' },
+  { name: 'the preflight is not served',
     find: "if (req.method === 'OPTIONS') return preflight();",
     repl: "if (false) return preflight();",
-    expect: 'предполёт для DELETE' },
-  { name: 'пустой снимок выдаёт себя за свежий',
+    expect: 'preflight for DELETE' },
+  { name: 'an empty snapshot passes itself off as a fresh one',
     find: "return reply({ t: 0, n: 0, p: page, r: [], stale: 1 }, 200,",
     repl: "return reply({ t: nowSec(), n: 0, p: page, r: [] }, 200,",
-    expect: 'локально: без снимка честно ЖЁЛТЫЙ' },
+    expect: 'locally: without a snapshot honestly YELLOW' },
 ];
 
 function runSmoke(srcPath) {
@@ -244,17 +244,17 @@ function runSmoke(srcPath) {
 const smokeFails = (out) => out.split('\n').filter((l) => l.indexOf('❌') >= 0)
   .map((l) => l.replace(/^\s*❌\s*/, '').split('  —')[0].trim());
 
-console.log('\n--- фаза 2: смоук ---');
+console.log('\n--- phase 2: the smoke test ---');
 const sBase = runSmoke(null);
 if (!sBase.ok || smokeFails(sBase.out).length) {
-  console.log('⛔ СМОУК НЕ ЗЕЛЁН НА ИСПРАВНОЙ СБОРКЕ:');
+  console.log('⛔ THE SMOKE TEST IS NOT GREEN ON THE HEALTHY BUILD:');
   console.log(smokeFails(sBase.out).join(' | ') || sBase.out.slice(-600));
   bad++;
 } else {
-  console.log('исправная сборка: смоук зелёный\n');
+  console.log('healthy build: the smoke test is green\n');
   for (const sb of SMOKE_SABOTAGE) {
     if (SRC.indexOf(sb.find) < 0) {
-      console.log('⛔ ДИВЕРСИЯ ПРОТУХЛА (строка не найдена): ' + sb.name); bad++; continue;
+      console.log('⛔ THE SABOTAGE TEST WENT STALE (the line is not found): ' + sb.name); bad++; continue;
     }
     const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lbs-')), 'index.js');
     fs.writeFileSync(tmp, SRC.replace(sb.find, sb.repl));
@@ -262,20 +262,20 @@ if (!sBase.ok || smokeFails(sBase.out).length) {
     const f = smokeFails(res.out);
     const hit = f.filter((x) => x.indexOf(sb.expect) >= 0);
     if (!hit.length && !f.length && !res.ok) {
-      console.log('⛔ ДИВЕРСИЯ РАЗВАЛИЛА СБОРКУ (это НЕ слепой страж): ' + sb.name); bad++;
+      console.log('⛔ THE SABOTAGE TEST BROKE THE BUILD (this is NOT a blind guard): ' + sb.name); bad++;
     } else if (!hit.length) {
-      console.log('⛔ СМОУК СЛЕП: «' + sb.name + '» не уронил «' + sb.expect + '»');
-      console.log('   упало: ' + (f.join(' | ') || 'ничего')); bad++;
+      console.log('⛔ THE SMOKE TEST IS BLIND: «' + sb.name + '» did not bring down «' + sb.expect + '»');
+      console.log('   fell: ' + (f.join(' | ') || 'nothing')); bad++;
     } else {
       const other = f.filter((x) => x.indexOf(sb.expect) < 0);
-      console.log('✅ «' + sb.name + '»\n   -> красный: ' + hit.join(' | ')
-        + (other.length ? '\n   ⚠️ задело соседей: ' + other.join(' | ') : ''));
+      console.log('✅ «' + sb.name + '»\n   -> red: ' + hit.join(' | ')
+        + (other.length ? '\n   ⚠️ hit the neighbours: ' + other.join(' | ') : ''));
     }
     fs.rmSync(path.dirname(tmp), { recursive: true, force: true });
   }
 }
 
-console.log('\n' + (bad ? 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОВАЛ (' + bad + ')'
-  : 'ДВУСТОРОННЯЯ ПРОВЕРКА: ПРОЙДЕНА — все ' + SABOTAGE.length
-    + ' диверсий сьюта + ' + SMOKE_SABOTAGE.length + ' смоука пойманы, обе сборки зелены'));
+console.log('\n' + (bad ? 'TWO-WAY CHECK: FAILED (' + bad + ')'
+  : 'TWO-WAY CHECK: PASSED — all ' + SABOTAGE.length
+    + ' sabotage tests of the suite + ' + SMOKE_SABOTAGE.length + ' of the smoke test caught, both builds green'));
 process.exit(bad ? 1 : 0);

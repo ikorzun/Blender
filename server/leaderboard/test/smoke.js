@@ -1,28 +1,28 @@
-// ЖИВОЙ СМОУК развёрнутого воркера таблицы лидеров.
+// LIVE SMOKE TEST of the deployed leaderboard worker.
 //
-//   node server/leaderboard/test/smoke.js --local          — на локальной копии
-//   node server/leaderboard/test/smoke.js https://lb.…/    — на боевом воркере
+//   node server/leaderboard/test/smoke.js --local          — against a local copy
+//   node server/leaderboard/test/smoke.js https://lb.…/    — against the production worker
 //
-// Коды возврата: 0 — всё зелено; 1 — контракт нарушен; 2 — ЖЁЛТЫЙ исход,
-// снимок ещё не строился, нужен ПОВТОРНЫЙ прогон после часового тика.
+// Exit codes: 0 — all green; 1 — the contract is violated; 2 — a YELLOW outcome,
+// the snapshot has not been built yet, a REPEAT run after the hourly tick is needed.
 //
-// ⚠️ ЗАЧЕМ СКРИПТ, А НЕ СПИСОК В ДОКЕ: чек-лист прозой никто не исполняет, и
-// в день доступа выясняется, что половина шагов неисполнима. `--local`
-// поднимает воркер поверх `node:sqlite` и гоняет ТОТ ЖЕ сценарий.
+// ⚠️ WHY A SCRIPT AND NOT A LIST IN THE DOCS: nobody executes a prose checklist, and
+// on the day access is granted it turns out that half the steps are not executable. `--local`
+// brings the worker up on top of `node:sqlite` and runs THE SAME scenario.
 //
-// ⚠️⚠️ СМОУК ПИШЕТ В БОЕВУЮ ТАБЛИЦУ. Убирает за собой тремя путями (нормальный
-// финал, `finally`, перехват SIGINT/SIGTERM), но ГАРАНТИИ НЕТ: `finally` не
-// выполняется при жёстком убийстве процесса, обрыве питания и падении сети
-// на самом DELETE. Поэтому id печатается ПЕРВОЙ строкой ДО создания строки —
-// чтобы было чем убрать вручную (команда в README).
+// ⚠️⚠️ THE SMOKE TEST WRITES INTO THE PRODUCTION TABLE. It cleans up after itself in three ways (the normal
+// finish, `finally`, catching SIGINT/SIGTERM), but THERE IS NO GUARANTEE: `finally` does not
+// run on a hard kill of the process, on a power loss, or on a network failure
+// on the DELETE itself. That is why the id is printed as the FIRST line BEFORE the row is created —
+// so that there is something to clean it up with by hand (the command is in the README).
 const http = require('http');
 const path = require('path');
 
 const arg = process.argv[2] || '--local';
 const LOCAL = arg === '--local';
-const TIMEOUT_MS = 10000;      // ⚠️ без него undici ждёт до 300 с
-const SNAP_MAX_AGE = 7200;     // снимок строит крон раз в час; два часа — запас
-const RATE_WAIT_MS = 21000;    // окно частоты 20 с + секунда на дорогу
+const TIMEOUT_MS = 10000;      // ⚠️ without it undici waits up to 300 s
+const SNAP_MAX_AGE = 7200;     // the snapshot is built by cron once an hour; two hours — the margin
+const RATE_WAIT_MS = 21000;    // the rate window of 20 s + a second for the road
 
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 const rnd = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
@@ -44,12 +44,12 @@ function yellow(name, detail) {
   warns.push(name); console.log('  🟡 ' + name + (detail ? '  — ' + detail : ''));
 }
 
-// ===== локальный стенд: тот же воркер поверх node:sqlite =====
+// ===== the local stand: the same worker on top of node:sqlite =====
 async function startLocal() {
   const fs = require('fs');
   const { makeDB } = require('./d1.js');
   const dir = path.join(__dirname, '..');
-  // Путь к воркеру подменяем в диверсиях (break.js, фаза 2).
+  // The path to the worker is substituted in the sabotage tests (break.js, phase 2).
   const srcFile = process.env.LB_SRC || path.join(dir, 'src', 'index.js');
   const worker = (await import(require('url').pathToFileURL(srcFile).href)).default;
   const env = { DB: makeDB(fs.readFileSync(path.join(dir, 'schema.sql'), 'utf8')), ADMIN_TOKEN: 'smoke' };
@@ -64,9 +64,9 @@ async function startLocal() {
     rs.end(Buffer.from(await res.arrayBuffer()));
   });
   await new Promise((r) => srv.listen(0, r));
-  // ⚠️ СНИМОК ЗДЕСЬ НЕ СТРОИМ НАМЕРЕННО: локальный прогон обязан пройти через
-  // ЖЁЛТОЕ состояние «снимка ещё нет» — иначе новая проверка свежести
-  // локально не исполняется вовсе и сдана не как страж, а как описание.
+  // ⚠️ WE DELIBERATELY DO NOT BUILD THE SNAPSHOT HERE: the local run must pass through
+  // the YELLOW state «there is no snapshot yet» — otherwise the new freshness check
+  // is not executed locally at all and is delivered not as a guard, but as a description.
   return { base: 'http://127.0.0.1:' + srv.address().port, worker, env, stop: () => srv.close() };
 }
 
@@ -82,13 +82,13 @@ const jpost = async (u, body) => {
   return { status: r.status, j, t };
 };
 
-// ===== уборка: три пути, и ни один не даёт гарантии — потому id виден сразу =====
+// ===== the cleanup: three paths, and none of them gives a guarantee — that is why the id is visible right away =====
 let cleanup = null, cleaned = false;
 async function doCleanup(reason) {
   if (cleaned || !cleanup) return; cleaned = true;
-  try { await cleanup(); console.log('\n[уборка: строка удалена, ' + reason + ']'); }
-  catch (e) { console.log('\n⚠️ УБОРКА НЕ УДАЛАСЬ (' + reason + '): ' + (e && e.message)
-    + ' — удалите строку вручную, id напечатан выше'); }
+  try { await cleanup(); console.log('\n[cleanup: the row is deleted, ' + reason + ']'); }
+  catch (e) { console.log('\n⚠️ THE CLEANUP FAILED (' + reason + '): ' + (e && e.message)
+    + ' — delete the row by hand, the id is printed above'); }
 }
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => { await doCleanup(sig); process.exit(130); });
@@ -99,12 +99,12 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   if (LOCAL) { local = await startLocal(); base = local.base; }
   base = base.replace(/\/+$/, '');
 
-  const id = 'smoke' + rnd(5);            // 15 символов — формат боевого Save.gid
+  const id = 'smoke' + rnd(5);            // 15 characters — the format of the production Save.gid
   const key = rnd(32);
-  // ⚠️ ПЕРВОЙ СТРОКОЙ И ДО СОЗДАНИЯ СТРОКИ: если прогон убьют жёстко, это
-  // единственное, чем потом убрать за собой.
-  console.log('СМОУК ТАБЛИЦЫ ЛИДЕРОВ: ' + base);
-  console.log('id этого прогона: ' + id + '   (если оборвётся — см. ручную уборку в README)\n');
+  // ⚠️ AS THE FIRST LINE AND BEFORE THE ROW IS CREATED: if the run is killed hard, this is
+  // the only thing left to clean up after ourselves with.
+  console.log('LEADERBOARD SMOKE TEST: ' + base);
+  console.log('the id of this run: ' + id + '   (if it breaks off — see the manual cleanup in the README)\n');
 
   const send = async (s, q, opts) => {
     const t = (opts && opts.t) || nowSec();
@@ -125,135 +125,135 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 
   let snapshotYellow = false;
   try {
-    // 1. ПЕРВАЯ ОТПРАВКА — строка создаётся, ключ принят один раз (TOFU).
-    // ⚠️ Сверяем и СОХРАНЁННЫЙ СЧЁТ: без этого диверсия «пишем 0 вместо счёта»
-    // проходит зелёной, а строка с s=0 выпадает из частичного индекса —
-    // игрока нет ни в топе, ни у соседей, зато свой экран рисует «место 1».
+    // 1. THE FIRST SUBMIT — the row is created, the key is accepted once (TOFU).
+    // ⚠️ We also verify the STORED SCORE: without this the sabotage test «we write 0 instead of the score»
+    // passes green, while a row with s=0 drops out of the partial index —
+    // the player is neither in the top nor among the neighbours, yet their own screen draws «place 1».
     const r1 = await send(100, 1);
-    // ⚠️ `rank` тут ОЦЕНКА, и `null` — законный ответ (на базе меньше сотни
-    // игроков границы нет). Проверяем не тип, а ОТСУТСТВИЕ ЛЖИ: свежая строка
-    // со счётом 100 не может стоять первой. Условие держится и на пустой базе
-    // (null), и на боевой с тысячами игроков (число, заведомо не единица).
+    // ⚠️ `rank` here is an ESTIMATE, and `null` is a legitimate answer (on a base with fewer than a hundred
+    // players there is no boundary). We check not the type, but the ABSENCE OF A LIE: a fresh row
+    // with a score of 100 cannot stand first. The condition holds both on an empty base
+    // (null) and on the production one with thousands of players (a number, knowingly not one).
     check(r1.status === 200 && r1.j && r1.j.ok === 1 && r1.j.s === 100
       && (r1.j.rank === null || r1.j.rank >= 100),
-      'отправка результата создаёт строку', 'HTTP ' + r1.status + ', счёт ' + (r1.j && r1.j.s)
-      + ', место ' + (r1.j && r1.j.rank));
+      'submitting a result creates a row', 'HTTP ' + r1.status + ', score ' + (r1.j && r1.j.s)
+      + ', place ' + (r1.j && r1.j.rank));
 
-    // 2. ПОВТОР того же q — идемпотентно, 409 с СОХРАНЁННЫМ состоянием.
+    // 2. A REPEAT of the same q — idempotent, 409 with the STORED state.
     const r2 = await send(100, 1);
     check(r2.status === 409 && r2.j && r2.j.dup === 1 && r2.j.s === 100,
-      'повтор не создаёт вторую запись', 'HTTP ' + r2.status + ', счёт ' + (r2.j && r2.j.s));
+      'a repeat does not create a second record', 'HTTP ' + r2.status + ', score ' + (r2.j && r2.j.s));
 
-    // 3. ЧАСТОТА — вторая запись раньше 20 с отбивается.
+    // 3. THE RATE — a second write earlier than 20 s is rejected.
     const r3 = await send(150, 2);
     check(r3.status === 429 && r3.j && typeof r3.j.s === 'number',
-      'чаще 20 с — отказ по частоте', 'HTTP ' + r3.status);
+      'more often than 20 s — a rate refusal', 'HTTP ' + r3.status);
 
-    // 4. ПОДПИСЬ — чужая/битая не принимается.
+    // 4. THE SIGNATURE — someone else's / a broken one is not accepted.
     const r4 = await send(999999, 3, { badSig: true });
-    check(r4.status === 401, 'битая подпись отвергнута', 'HTTP ' + r4.status);
+    check(r4.status === 401, 'a broken signature is rejected', 'HTTP ' + r4.status);
 
-    // 5. ЧТЕНИЕ ТОПА — ТРИ ИСХОДА, и жёлтый здесь несущий.
-    // ⚠️ Прежняя версия проверяла только «200 и массив» и была ЗЕЛЁНОЙ на
-    // мёртвом снимке: сервер честно отдаёт stale:1 и t:0, а скрипт оба поля
-    // выбрасывал. Если крон не зарегистрировался, топ пуст НАВСЕГДА — и это
-    // неотличимо от «крон ещё не успел», пока не посмотреть на `t`.
+    // 5. READING THE TOP — THREE OUTCOMES, and the yellow one is load-bearing here.
+    // ⚠️ The previous version checked only «200 and an array» and was GREEN on
+    // a dead snapshot: the server honestly returns stale:1 and t:0, while the script threw both
+    // fields away. If cron did not register, the top is empty FOREVER — and that is
+    // indistinguishable from «cron has not made it yet» until you look at `t`.
     const r5 = await jget(base + '/v1/top?p=1');
     const fresh = r5.j && !r5.j.stale && r5.j.t > nowSec() - SNAP_MAX_AGE;
     const never = r5.j && (r5.j.stale === 1 || r5.j.t === 0);
-    const age = r5.j && r5.j.t ? Math.round((nowSec() - r5.j.t) / 60) + ' мин назад' : 'не строился';
+    const age = r5.j && r5.j.t ? Math.round((nowSec() - r5.j.t) / 60) + ' min ago' : 'was not built';
     if (r5.status !== 200 || !r5.j || !Array.isArray(r5.j.r)) {
-      check(false, 'чтение топа', 'HTTP ' + r5.status);
+      check(false, 'reading the top', 'HTTP ' + r5.status);
     } else if (fresh) {
-      // ⚠️ Число строк НЕ ассертим: в день деплоя игроков ноль, и пустой
-      // свежий снимок — здоровый ответ.
-      check(true, 'чтение топа: снимок свежий', 'строк ' + r5.j.r.length + ', снят ' + age
-        + ', кэш ' + (r5.headers.get('cache-control') || 'нет'));
+      // ⚠️ We do NOT assert the number of rows: on the day of the deploy there are zero players, and an empty
+      // fresh snapshot is a healthy answer.
+      check(true, 'reading the top: the snapshot is fresh', 'rows ' + r5.j.r.length + ', taken ' + age
+        + ', cache ' + (r5.headers.get('cache-control') || 'none'));
     } else if (never) {
       snapshotYellow = true;
-      yellow('снимок ещё НЕ СТРОИЛСЯ (stale)', 'крон печёт раз в час — дождаться тика и'
-        + ' прогнать смоук ПОВТОРНО; если и во второй раз stale — крон не работает');
+      yellow('the snapshot has NOT BEEN BUILT yet (stale)', 'cron bakes it once an hour — wait for the tick and'
+        + ' run the smoke test AGAIN; if it is stale the second time too — cron is not working');
     } else {
-      check(false, 'снимок ПРОТУХ', 'снят ' + age + ' при норме до 2 ч — крон встал');
+      check(false, 'the snapshot IS STALE', 'taken ' + age + ' against a norm of up to 2 h — cron has stopped');
     }
 
-    // 6. СВОЁ МЕСТО — точное, с соседями, и с тем же счётом.
+    // 6. OWN PLACE — exact, with the neighbours, and with the same score.
     const r6 = await me();
     check(r6.status === 200 && r6.j && r6.j.exact === 1 && Array.isArray(r6.j.dn) && r6.j.s === 100,
-      'своё место и соседи', 'HTTP ' + r6.status + ', счёт ' + (r6.j && r6.j.s)
-      + ', место ' + (r6.j && r6.j.rank));
+      'own place and neighbours', 'HTTP ' + r6.status + ', score ' + (r6.j && r6.j.s)
+      + ', place ' + (r6.j && r6.j.rank));
 
-    // 7. Заголовок ACAO на ЧТЕНИИ (игра живёт в iframe чужого домена).
+    // 7. The ACAO header on a READ (the game lives in an iframe of someone else's domain).
     check((r5.headers.get('access-control-allow-origin') || '') === '*',
-      'заголовок ACAO на чтении', r5.headers.get('access-control-allow-origin') || 'нет заголовка');
+      'the ACAO header on a read', r5.headers.get('access-control-allow-origin') || 'no header');
 
-    // 8. ПРЕДПОЛЁТ — единственный эндпоинт, которому он нужен: DELETE.
-    // ⚠️ ACAO тут НЕ ассертим: он висит на КАЖДОМ ответе, включая 404, —
-    // такой ассерт был бы тавтологией и прошёл бы при «OPTIONS → 404».
+    // 8. THE PREFLIGHT — the only endpoint that needs it: DELETE.
+    // ⚠️ We do NOT assert ACAO here: it hangs on EVERY response, including a 404 —
+    // such an assert would be a tautology and would pass on «OPTIONS → 404».
     const pre = await fetch(base + '/v1/me', withTimeout({ method: 'OPTIONS',
       headers: { 'access-control-request-method': 'DELETE', origin: 'https://games.playgama.com' } }));
     const allow = pre.headers.get('access-control-allow-methods') || '';
     check(pre.status === 204 && allow.indexOf('DELETE') >= 0,
-      'предполёт для DELETE обслужен', 'HTTP ' + pre.status + ', методы: ' + (allow || 'нет'));
+      'preflight for DELETE is served', 'HTTP ' + pre.status + ', methods: ' + (allow || 'none'));
 
-    // 9. ВТОРАЯ УСПЕШНАЯ ОТПРАВКА — путь UPDATE, ради которого таблица и своя.
-    // ⚠️ Шаги 2-4 отбиваются ДО записи, то есть проверяли только INSERT:
-    // диверсия «несуществующая колонка в UPDATE» проходила зелёной, а игрок
-    // при этом навсегда заморожен на первом результате — «Форбс»-модели нет.
-    process.stdout.write('  … ждём окно частоты (' + (RATE_WAIT_MS / 1000) + ' с)\r');
+    // 9. THE SECOND SUCCESSFUL SUBMIT — the UPDATE path, for the sake of which the table is our own.
+    // ⚠️ Steps 2-4 are rejected BEFORE the write, that is, they only checked INSERT:
+    // the sabotage test «a non-existent column in UPDATE» passed green, while the player
+    // is frozen on their first result forever — there is no «Forbes» model.
+    process.stdout.write('  … waiting for the rate window (' + (RATE_WAIT_MS / 1000) + ' s)\r');
     await sleep(RATE_WAIT_MS);
-    const r9 = await send(50, 4);                      // МЕНЬШИЙ счёт: падение легально
+    const r9 = await send(50, 4);                      // A SMALLER score: a drop is legitimate
     const after = await me();
-    // ⚠️ Сверяем ПЕРЕЧИТКОЙ, а не ответом POST: `reply()` считает число в JS,
-    // а подмена вроде `s=MAX(s,?)` живёт в SQL — ответ отдал бы 50 при 100 в базе.
+    // ⚠️ We verify by A RE-READ, not by the POST response: `reply()` computes the number in JS,
+    // while a substitution like `s=MAX(s,?)` lives in SQL — the response would have returned 50 with 100 in the base.
     check(r9.status === 200 && after.status === 200 && after.j && after.j.s === 50,
-      'вторая отправка меняет счёт (падение сохранено)', 'HTTP ' + r9.status
-      + ', в базе ' + (after.j && after.j.s));
+      'the second submit changes the score (the drop is stored)', 'HTTP ' + r9.status
+      + ', in the base ' + (after.j && after.j.s));
 
-    // 10. ЛОКАЛЬНО: показать переход жёлтый -> зелёный. Тем самым новая
-    // проверка свежести сдана КАК СТРАЖ (красна на сломанном, зелена на
-    // исправном), а не только описана в доке.
+    // 10. LOCALLY: show the yellow -> green transition. By this the new
+    // freshness check is delivered AS A GUARD (red on a broken build, green on
+    // a sound one), and not merely described in the docs.
     if (LOCAL) {
-      check(snapshotYellow, 'локально: без снимка честно ЖЁЛТЫЙ (сломанное состояние показано)');
+      check(snapshotYellow, 'locally: without a snapshot honestly YELLOW (the broken state is shown)');
       await local.worker._internals.buildSnapshot(local.env);
       const r10 = await jget(base + '/v1/top?p=1');
       const ok10 = r10.j && !r10.j.stale && r10.j.t > nowSec() - SNAP_MAX_AGE
         && (r10.j.r || []).some((row) => row[0] === 'SMOKE');
-      check(ok10, 'локально: после постройки снимка ЗЕЛЁНЫЙ и своя строка в топе',
-        'строк ' + (r10.j && r10.j.r ? r10.j.r.length : '?'));
-      snapshotYellow = false;                          // жёлтый был предъявлен намеренно
+      check(ok10, 'locally: after the snapshot is built GREEN and own row in the top',
+        'rows ' + (r10.j && r10.j.r ? r10.j.r.length : '?'));
+      snapshotYellow = false;                          // the yellow was presented deliberately
     }
   } catch (e) {
-    check(false, 'смоук дошёл до конца без исключений', String(e && e.message || e));
+    check(false, 'the smoke test reached the end without exceptions', String(e && e.message || e));
   } finally {
-    // 11. УДАЛЕНИЕ СВОИХ ДАННЫХ — и уборка за смоуком.
+    // 11. DELETING OWN DATA — and the cleanup after the smoke test.
     try {
       const t = nowSec();
       const rd = await fetch(base + '/v1/me?id=' + id + '&t=' + t
         + '&sig=' + await sign(key, id + '.del.' + t), withTimeout({ method: 'DELETE' }));
       const jd = JSON.parse(await rd.text());
       cleaned = true;
-      check(rd.status === 200 && jd.gone === 1, 'удаление своих данных (и уборка за смоуком)',
+      check(rd.status === 200 && jd.gone === 1, 'deleting own data (and the cleanup after the smoke test)',
         'HTTP ' + rd.status);
       const r12 = await me();
-      check(r12.status === 404, 'после удаления строки нет', 'HTTP ' + r12.status);
+      check(r12.status === 404, 'after the deletion there is no row', 'HTTP ' + r12.status);
     } catch (e) {
-      check(false, 'уборка за смоуком', String(e && e.message || e)
-        + ' — удалите строку вручную, id: ' + id);
+      check(false, 'the cleanup after the smoke test', String(e && e.message || e)
+        + ' — delete the row by hand, id: ' + id);
     }
     if (local) local.stop();
   }
 
-  console.log('\nИТОГ: ' + pass + ' зелёных'
-    + (warns.length ? ', жёлтых ' + warns.length : '')
-    + (fails.length ? ', КРАСНЫХ ' + fails.length + ': ' + fails.join(' | ') : ''));
+  console.log('\nTOTAL: ' + pass + ' green'
+    + (warns.length ? ', yellow ' + warns.length : '')
+    + (fails.length ? ', RED ' + fails.length + ': ' + fails.join(' | ') : ''));
   if (fails.length) process.exit(1);
   if (snapshotYellow) {
-    console.log('⚠️ НЕ ЗЕЛЁНЫЙ, А ЖЁЛТЫЙ: снимок ещё не строился. Дождитесь часового тика'
-      + ' и прогоните смоук ВТОРОЙ РАЗ — живость крона доказывает сдвинувшееся `t`.');
+    console.log('⚠️ NOT GREEN, BUT YELLOW: the snapshot has not been built yet. Wait for the hourly tick'
+      + ' and run the smoke test A SECOND TIME — a shifted `t` proves that cron is alive.');
     process.exit(2);
   }
   console.log(LOCAL
-    ? 'Локально сценарий исполним, переход жёлтый->зелёный показан — на боевом идти по этому же списку.'
-    : 'Боевой воркер отвечает по контракту.');
+    ? 'Locally the scenario is executable, the yellow->green transition is shown — on production go by this same list.'
+    : 'The production worker responds according to the contract.');
 })();

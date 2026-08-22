@@ -14,11 +14,11 @@ const G={
  paper:['holidaypresentacube','holidaypresentaround','marketshoppingbasket'],
 };
 const seen=new Map();
-for(const [g,list] of Object.entries(G)) for(const n of list){ if(seen.has(n)) console.log('ДУБЛЬ:',n,seen.get(n),g); seen.set(n,g); }
-const нет=all.filter(n=>!seen.has(n));
-const лишние=[...seen.keys()].filter(n=>!all.includes(n));
-console.log('в пуле:',all.length,'| размечено:',seen.size);
-console.log('НЕ РАЗМЕЧЕНЫ:',нет.length?нет.join(', '):'нет');
-console.log('НЕТ В ПУЛЕ:',лишние.length?лишние.join(', '):'нет');
+for(const [g,list] of Object.entries(G)) for(const n of list){ if(seen.has(n)) console.log('DUPLICATE:',n,seen.get(n),g); seen.set(n,g); }
+const missing=all.filter(n=>!seen.has(n));
+const extra=[...seen.keys()].filter(n=>!all.includes(n));
+console.log('in pool:',all.length,'| mapped:',seen.size);
+console.log('NOT MAPPED:',missing.length?missing.join(', '):'none');
+console.log('NOT IN POOL:',extra.length?extra.join(', '):'none');
 console.log('---');
 for(const [g,list] of Object.entries(G)) console.log(g.padEnd(8), String(list.length).padStart(3));

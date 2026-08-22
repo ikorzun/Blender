@@ -1,25 +1,26 @@
-// ===== 79-telemetry: beacon-каркас + ловля крешей + экраны/отвалы =====
-// Endpoint пуст — отправка ВЫКЛЮЧЕНА (no-op). Включение одной строкой:
-// URL воркера владельца (Cloudflare, как platform-landings) — события уйдут
-// батчами через sendBeacon. Схема события: {t, s: session, n: name, ...поля}.
-// Набор метрик и что каким решением закрывается — docs/METRICS.md.
+// ===== 79-telemetry: beacon scaffold + crash catching + screens/drop-offs =====
+// Endpoint is empty — sending is DISABLED (no-op). Enabling it takes one line:
+// the URL of the owner's worker (Cloudflare, like platform-landings) — events
+// will go out in batches via sendBeacon. Event schema: {t, s: session, n: name, ...fields}.
+// The set of metrics and which decision each one settles — docs/METRICS.md.
 const Telemetry = (function(){
-  let URL = ''; // например 'https://mixer-telemetry.<аккаунт>.workers.dev/e'
+  let URL = ''; // for example 'https://mixer-telemetry.<account>.workers.dev/e'
   let buf = [];
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const t0 = Date.now();
-  // ⚠️ БУФЕР КОПИТСЯ ДАЖЕ ПРИ ПУСТОМ URL. Раньше ev() выходил сразу, и до
-  // включения endpoint'а телеметрию нельзя было ни отладить, ни проверить
-  // тестом — «работает ли» выяснялось бы уже на проде. Теперь события живут
-  // в кольце (кап RING), отправки по-прежнему нет: __game.telemetry() их
-  // показывает, ассерты сьюта проверяют по нему.
+  // ⚠️ THE BUFFER ACCUMULATES EVEN WITH AN EMPTY URL. Previously ev() bailed out at
+  // once, and until the endpoint was switched on the telemetry could neither be
+  // debugged nor checked by a test — "does it work" would have been found out on
+  // production already. Now the events live in a ring (RING cap), there is still no
+  // sending: __game.telemetry() shows them, the suite's asserts check against it.
   const RING = 200;
-  const sentAlready = new WeakSet();   // записи, уже ушедшие поштучно
-  // ⚠️ ТРЕТИЙ ПАРАМЕТР `now` — «эту запись отправят поштучно, в батч её не
-  // класть». Пометить НУЖНО ДО `buf.push`: строкой ниже стоит АВТОФЛАШ по
-  // 12 событиям, и он может унести запись батчем ПРЯМО ЗДЕСЬ — раньше, чем
-  // `sendNow` успеет её пометить. Именно так дубль креша и выжил после
-  // первой версии фикса (поймано стражем: две копии вместо одной).
+  const sentAlready = new WeakSet();   // records that have already gone out one by one
+  // ⚠️ THE THIRD PARAMETER `now` means "this record will be sent one by one, do not
+  // put it in the batch". Marking it MUST happen BEFORE `buf.push`: one line below
+  // there is an AUTO-FLUSH every 12 events, and it can carry the record away in a
+  // batch RIGHT HERE — earlier than `sendNow` manages to mark it. That is exactly how
+  // the crash duplicate survived the first version of the fix (caught by a guard: two
+  // copies instead of one).
   function ev(name, data, now){
     const e = Object.assign({ t: Date.now(), s: sid, n: name }, data || {});
     if (now) sentAlready.add(e);
@@ -30,36 +31,37 @@ const Telemetry = (function(){
   }
   function flush(){
     if (!URL || !buf.length) return;
-    const batch = buf.filter((e) => !sentAlready.has(e)); // креши уже ушли поштучно
+    const batch = buf.filter((e) => !sentAlready.has(e)); // crashes have already gone out one by one
     buf = [];
     if (!batch.length) return;
     try { navigator.sendBeacon(URL, JSON.stringify(batch)); } catch(e){}
   }
-  // ⚠️ КРЕШ ШЛЁТСЯ НЕМЕДЛЕННО, не по батчу: следующая строка кода может убить
-  // страницу, и накопленное уйдёт в никуда вместе с причиной.
-  // ⚠️⚠️ И РОВНО ПОЭТОМУ ОН УХОДИЛ ДВАЖДЫ (ревью диспетчера): `err()` кладёт
-  // запись в буфер через `ev()`, а потом эта же запись уходит `sendNow` —
-  // при живом URL приёмник получал КАЖДЫЙ креш два раза (сразу и следом
-  // батчем). Чинить «не класть в буфер» нельзя: буфер — ещё и отладочное
-  // кольцо, по нему смотрит `__game.telemetry()` и ассертит сьют. Поэтому
-  // отправленное помечается и ИСКЛЮЧАЕТСЯ ИЗ БАТЧА, оставаясь в кольце.
-  // ⚠️ Пометка идёт ДО проверки URL — иначе с пустым URL (сьют, разработка)
-  // семантика отличалась бы от боевой.
+  // ⚠️ A CRASH IS SENT IMMEDIATELY, not with the batch: the next line of code may kill
+  // the page, and everything accumulated goes nowhere along with the cause.
+  // ⚠️⚠️ AND EXACTLY FOR THAT REASON IT WENT OUT TWICE (dispatcher review): `err()`
+  // puts the record into the buffer via `ev()`, and then that same record goes out via
+  // `sendNow` — with a live URL the receiver got EVERY crash twice (at once and then
+  // with the batch). Fixing it by "not putting it in the buffer" is not allowed: the
+  // buffer is also the debug ring, `__game.telemetry()` looks at it and the suite
+  // asserts on it. So what has been sent is marked and EXCLUDED FROM THE BATCH, while
+  // staying in the ring.
+  // ⚠️ The marking happens BEFORE the URL check — otherwise with an empty URL (the
+  // suite, development) the semantics would differ from the production ones.
   function sendNow(e){
     sentAlready.add(e);
     if (!URL) return;
     try { navigator.sendBeacon(URL, JSON.stringify([e])); } catch(_){}
   }
 
-  // ===== КРЕШИ (docs/METRICS.md §6) =====
-  // Три источника: синхронные ошибки, упавшие промисы и ПОТЕРЯ WEBGL-КОНТЕКСТА
-  // (в 3D на мобильных это самый частый «креш»: игра не падает, но экран
-  // чернеет — без своего события выглядело бы как обычный уход игрока).
-  const seen = new Set();      // дедуп по сигнатуре: одна и та же — раз за сессию
-  let errCount = 0;            // потолок: цикл ошибок не должен затопить приём
+  // ===== CRASHES (docs/METRICS.md §6) =====
+  // Three sources: synchronous errors, rejected promises and WEBGL CONTEXT LOSS (in 3D
+  // on mobile this is the most frequent "crash": the game does not fall over, but the
+  // screen goes black — without its own event it would look like an ordinary player exit).
+  const seen = new Set();      // dedup by signature: the same one — once per session
+  let errCount = 0;            // ceiling: an error loop must not flood the receiver
   const ERR_CAP = 5;
   function ctx(){
-    // где именно упало — без этого стек мало что даёт
+    // where exactly it fell over — without this the stack gives little
     let lv = null, scr = null, build = null;
     try { lv = typeof levelNum !== 'undefined' ? levelNum : null; } catch(_){}
     try { scr = Screen.current(); } catch(_){}
@@ -89,8 +91,8 @@ const Telemetry = (function(){
     err('promise', r && (r.message || r), '', r && r.stack);
   });
 
-  // ===== ЭКРАНЫ И ОТВАЛЫ (docs/METRICS.md §3 и §5) =====
-  // Время меряем по УХОДУ с экрана — только тогда известна длительность.
+  // ===== SCREENS AND DROP-OFFS (docs/METRICS.md §3 and §5) =====
+  // We measure the time on LEAVING the screen — only then is the duration known.
   const Screen = (function(){
     let cur = null, since = 0;
     function enter(name){
@@ -101,30 +103,30 @@ const Telemetry = (function(){
     function leave(){
       if (!cur) return;
       const ms = Date.now() - since;
-      // экраны-«моргания» (< 150 мс) не пишем: это переходы, а не просмотры
+      // "blink" screens (< 150 ms) are not written down: those are transitions, not views
       if (ms >= 150) ev('screen', { v: cur, ms: ms, lv: ctx().lv });
       cur = null;
     }
     return { enter, leave, current: () => cur };
   })();
 
-  // ===== КАРТА ТАПОВ (docs/METRICS.md §4) =====
-  // Сектор 3×3, а НЕ координаты: точный heat-map требует нормировки под сотни
-  // разрешений и хранит на порядок больше данных, а решения («палец закрывает
-  // низ-центр») читаются уже по секторам.
+  // ===== TAP MAP (docs/METRICS.md §4) =====
+  // A 3×3 sector, and NOT coordinates: a precise heat-map requires normalisation for
+  // hundreds of resolutions and stores an order of magnitude more data, while the
+  // decisions ("the finger covers the bottom-centre") are already read off the sectors.
   function tap(x, y, result){
     const col = x < innerWidth / 3 ? 'l' : x < innerWidth * 2 / 3 ? 'c' : 'r';
     const row = y < innerHeight / 3 ? 't' : y < innerHeight * 2 / 3 ? 'm' : 'b';
     ev('tap', { z: row + col, r: result, lv: ctx().lv });
   }
 
-  // уход со вкладки = отвал: фиксируем ГДЕ и В КАКОМ состоянии бросили
-  // ⚠️ ТРЕКИНГ ЭКРАНОВ УМИРАЛ ПОСЛЕ ПЕРВОГО УХОДА ВКЛАДКИ (ревью диспетчера):
-  // на `hidden` звался `Screen.leave()` (обнуляет текущий экран), а обработчика
-  // на ВОЗВРАТ не было вовсе — `current()` навсегда оставался null. Следствия
-  // тише, чем кажется: пропадали не только события `screen`, но и поле `v` в
-  // контексте крешей и в `quit`. Запоминаем покинутый экран и возвращаемся в
-  // него, когда вкладка снова видима.
+  // leaving the tab = a drop-off: we record WHERE and IN WHAT STATE it was abandoned
+  // ⚠️ SCREEN TRACKING DIED AFTER THE FIRST TAB EXIT (dispatcher review): on `hidden`
+  // `Screen.leave()` was called (it nulls the current screen), and there was no handler
+  // for the RETURN at all — `current()` stayed null forever. The consequences are
+  // quieter than they seem: not only the `screen` events went missing, but also the `v`
+  // field in the crash context and in `quit`. We remember the screen that was left and
+  // return into it when the tab is visible again.
   let screenBeforeHide = null;
   addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'hidden'){
@@ -148,13 +150,14 @@ const Telemetry = (function(){
   });
 
   return { ev, flush, err, tap, screen: Screen, buffer: () => buf.slice(), sid,
-    // ⚠️ ТЕСТ-РУЧКА (только DEV). Без неё дубль креша НЕЧЕМ НАБЛЮДАТЬ: при
-    // пустом URL sendBeacon не зовётся вовсе, и страж мерил бы пустоту —
-    // ровно тот класс ошибки, на котором мы уже обжигались.
+    // ⚠️ A TEST HANDLE (DEV only). Without it the crash duplicate is IMPOSSIBLE TO
+    // OBSERVE: with an empty URL sendBeacon is not called at all, and the guard would
+    // be measuring emptiness — exactly the class of bug we have already been burned by.
     setUrl(u){ if (typeof DEV !== 'undefined' && DEV) URL = u || ''; } };
 })();
 
-// Наружу ТОЛЬКО в разработке — образец window.__ads (78-ads): в боевой сборке
-// хука нет. Нужен стражам телеметрии: err/flush/setUrl/screen внутри IIFE,
-// а __game отдаёт лишь буфер и текущий экран (чтение, не управление).
+// Exposed ONLY in development — modelled on window.__ads (78-ads): the production
+// build has no hook. Needed by the telemetry guards: err/flush/setUrl/screen live
+// inside the IIFE, while __game gives out only the buffer and the current screen
+// (reading, not control).
 if (typeof window !== 'undefined' && typeof DEV !== 'undefined' && DEV) window.__tel = Telemetry;

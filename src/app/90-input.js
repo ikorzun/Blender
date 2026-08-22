@@ -1,42 +1,44 @@
-// ===== 90-input: тап, вращение, пинч-зум, колесо, кнопки =====
+// ===== 90-input: tap, rotation, pinch-zoom, wheel, buttons =====
 
-const CAM_R_MIN = 9, CAM_R_MAX = 21; // чаша шире
+const CAM_R_MIN = 9, CAM_R_MAX = 21; // the bowl is wider
 function setCamR(r){
-  zoomAnim = null; // жест (колесо/щипок) главнее кнопки — анимация гаснет
+  zoomAnim = null; // a gesture (wheel/pinch) outranks the button — the animation fades out
   camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, r)); updateCamera();
 }
-// ВЕРТИКАЛЬНЫЙ ПАН ВЗГЛЯДА (спека владельца 2026-07-21: «чуть сместить
-// камеру по вертикали, чтобы приподнять и рассмотреть остатки»): target
-// камеры ездит по Y в узких пределах — вниз до дна (остатки в центре
-// кадра), чуть вверх от дефолта. Основные жесты НЕ меняются; пан висит
-// на ДОПОЛНИТЕЛЬНЫХ: движение ЦЕНТРА двухпальцевого щипка (зум как был —
-// расстоянием), вертикальный драг ПРАВОЙ кнопкой, Shift+колесо.
-// Сбрасывается на границах интро (resetPointers).
+// VERTICAL VIEW PAN (the owner's spec 2026-07-21: «shift the camera
+// vertically a little, so the leftovers can be raised and examined»): the
+// camera target travels along Y within narrow limits — down to the bottom
+// (leftovers in the center of the frame), a little above the default. The
+// main gestures do NOT change; the pan hangs on the EXTRA ones: movement of
+// the CENTER of a two-finger pinch (zoom is as it was — by distance), a
+// vertical drag with the RIGHT button, Shift+wheel.
+// Reset at the intro boundaries (resetPointers).
 const TARGET_Y_MIN = 1.2, TARGET_Y_MAX = 5.2, TARGET_Y_DEF = 4.2;
 function panLimits(){
   return { lo: TARGET_Y_MIN, hi: TARGET_Y_MAX };
 }
 function setTargetY(y){
-  const л = panLimits();
-  camTarget.y = Math.max(л.lo, Math.min(л.hi, y));
+  const lim = panLimits();
+  camTarget.y = Math.max(lim.lo, Math.min(lim.hi, y));
   updateCamera();
 }
-// АВТОПАН — ОДИН ШАГ В ЭНДШПИЛЕ (правки владельца 2026-07-21, финальная:
-// «не поднимай ведро по вертикали в начале уровня... начни поднимать если
-// в корзине остаётся 20% вещей от первоначальной загрузки. Иначе ведро
-// плавает по вертикали, это неудобно»). Никакого непрерывного следования:
-// весь уровень камера СТОИТ на дефолтных 4.2; когда живых предметов
-// остаётся <= CAM_FOLLOW_FRAC от стартовой загрузки (level.aliveN0 из
-// finalizeFill) — защёлка level.camFollowOn, и target ОДИН РАЗ плавно
-// съезжает к полу автоматики (треть хода, «остальное игрок поднимет сам»)
-// и больше не двигается. Досыпки цепи защёлку не снимают — обратного
-// «плавания» нет. Ручной пан жестами перебивает автоматику на 4 с.
+// AUTO-PAN — ONE STEP IN THE ENDGAME (the owner's fixes 2026-07-21, the
+// final one: «don't raise the bucket vertically at the start of the level...
+// start raising it if 20% of the items from the initial load are left in the
+// basket. Otherwise the bucket floats vertically, that's inconvenient»). No
+// continuous following whatsoever: for the whole level the camera STANDS at
+// the default 4.2; when the number of live items left is <= CAM_FOLLOW_FRAC of
+// the starting load (level.aliveN0 from finalizeFill) — the level.camFollowOn
+// latch flips, and the target ONCE smoothly slides down to the automation floor
+// (a third of the travel, «the player will raise the rest himself») and moves
+// no more. Chain top-ups do not release the latch — there is no «floating»
+// back. A manual pan by gesture overrides the automation for 4 s.
 const AUTO_FOLLOW_MIN = TARGET_Y_DEF - (TARGET_Y_DEF - TARGET_Y_MIN) / 3; // 3.2
 const CAM_FOLLOW_FRAC = 0.2;
 let panManualUntil = 0, camFollowAt = 0;
 function noteManualPan(){
   panManualUntil = performance.now() + 4000;
-  hintFly = null; // жест игрока обрывает полёт подсказки
+  hintFly = null; // a player's gesture aborts the hint flight
 }
 function tickCamFollow(dt){
   if (intro || !level || !level.aliveN0 || paused) return;
@@ -44,37 +46,38 @@ function tickCamFollow(dt){
   if (now < panManualUntil) return;
   if (!level.camFollowOn){
     if (now < camFollowAt) return;
-    camFollowAt = now + 500; // подсчёт живых — не каждый кадр
+    camFollowAt = now + 500; // counting the live ones — not every frame
     let aliveCnt = 0;
     for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
-    if (aliveCnt > level.aliveN0 * CAM_FOLLOW_FRAC) return; // камера стоит
+    if (aliveCnt > level.aliveN0 * CAM_FOLLOW_FRAC) return; // the camera stands still
     level.camFollowOn = true;
   }
   const d = AUTO_FOLLOW_MIN - camTarget.y;
   if (Math.abs(d) > 0.005) setTargetY(camTarget.y + d * Math.min(1, dt * 1.5));
 }
-// ===== ПОЛЁТ КАМЕРЫ К ПОДСКАЗКЕ ===== (просьба тестеров, слово владельца
-// 2026-08-03: «при клике на подсказку камера подъезжает к объекту, который
-// можно совместить»). Ease-out 900 мс: азимут кратчайшей дугой к предмету,
-// target.y к его высоте (в клампе пана), радиус до <=13 (если дальше).
-// Любой ЖЕСТ игрока обрывает полёт мгновенно (обрыв в noteManualPan и в
-// начале орбиты/щипка); автопан эндшпиля придержан той же panManualUntil —
-// иначе он тут же утаскивал бы target назад к 3.2.
+// ===== CAMERA FLIGHT TO THE HINT ===== (the testers' request, the owner's
+// word 2026-08-03: «on a click on the hint the camera drives up to the object
+// that can be matched»). Ease-out 900 ms: the azimuth by the shortest arc to
+// the item, target.y to its height (inside the pan clamp), the radius down to
+// <=13 (if farther). Any player GESTURE aborts the flight instantly (the abort
+// is in noteManualPan and at the start of the orbit/pinch); the endgame auto-pan
+// is held back by the same panManualUntil — otherwise it would immediately drag
+// the target back to 3.2.
 let hintFly = null;
 function hintCamFly(item){
-  const az2 = Math.atan2(item.p.x, item.p.z); // формула позиции: x=sin(az), z=cos(az)
+  const az2 = Math.atan2(item.p.x, item.p.z); // the position formula: x=sin(az), z=cos(az)
   let dAz = az2 - camAz;
-  dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // кратчайшая дуга
-  // И ВЕРТИКАЛЬНАЯ ПОДКРУТКА (слово владельца 2026-08-04: «подсказка должна
-  // подкручивать не только по горизонтали но и по вертикали, иначе предметов
-  // может быть не видно»): низкий якорь прячется за кромкой при верхнем
-  // взгляде — наклоняем орбиту (phi) тем сильнее, чем глубже предмет.
+  dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // the shortest arc
+  // AND A VERTICAL TWIST (the owner's word 2026-08-04: «the hint must twist
+  // not only horizontally but vertically too, otherwise the items may not be
+  // visible»): a low anchor hides behind the rim when looking from above —
+  // we tilt the orbit (phi) the more, the deeper the item lies.
   const phiTo = Math.max(0.45, Math.min(0.95, 0.45 + (1 - item.p.y / FUNNEL.H) * 0.4));
   hintFly = { t0: performance.now(), dur: 900,
     az0: camAz, az1: camAz + dAz,
     phi0: camPhi, phi1: phiTo,
-    // ⚠️ полёт подсказки живёт в ТОМ ЖЕ коридоре, что и ручной пан (panLimits) —
-    // одна функция на оба пути, иначе они разъедутся при первой правке границ
+    // ⚠️ the hint flight lives in THE SAME corridor as the manual pan (panLimits) —
+    // one function for both paths, otherwise they would drift apart on the first edit of the limits
     y0: camTarget.y, y1: Math.max(panLimits().lo, Math.min(panLimits().hi, item.p.y)),
     r0: camR, r1: Math.min(camR, 13) };
   panManualUntil = performance.now() + 4500;
@@ -90,38 +93,38 @@ function tickHintFly(){
   updateCamera();
   if (k >= 1) hintFly = null;
 }
-let rdrag = null; // вертикальный пан правой кнопкой (контекст-меню и так отключено)
+let rdrag = null; // vertical pan with the right button (the context menu is disabled anyway)
 let pDown = null, dragging = false, pinch = null;
-// последняя позиция курсора/касания — к ней привязано кольцо заряда цепи
+// the last cursor/touch position — the chain charge ring is bound to it
 let lastPtrX = innerWidth / 2, lastPtrY = innerHeight / 2;
 const touches = new Map();
 canvas.addEventListener('pointerdown', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
-  if (intro) return; // во время интро камера скриптована — жесты не копим
-  if (e.button === 2){ rdrag = { y: e.clientY, ty0: camTarget.y }; noteManualPan(); return; } // правый драг = пан, в тап/орбиту не идёт
+  if (intro) return; // during the intro the camera is scripted — we don't accumulate gestures
+  if (e.button === 2){ rdrag = { y: e.clientY, ty0: camTarget.y }; noteManualPan(); return; } // a right drag = pan, it does not go into tap/orbit
   touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (touches.size === 2){
     const [a,b] = [...touches.values()];
     pinch = { d0: Math.hypot(a.x-b.x, a.y-b.y), r0: camR, cy: (a.y+b.y)/2 };
-    pDown = null; dragging = false; // пинч отменяет тап и вращение
+    pDown = null; dragging = false; // the pinch cancels the tap and the rotation
   } else if (touches.size === 1){
     pDown = { x:e.clientX, y:e.clientY, az:camAz, phi:camPhi };
     dragging = false;
-    faceLook(e.clientX, e.clientY); // персонаж провожает палец взглядом
+    faceLook(e.clientX, e.clientY); // the character follows the finger with his eyes
   } else {
     pDown = null;
   }
 });
 canvas.addEventListener('pointermove', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
-  if (intro) return; // во время интро камера скриптована
-  if (rdrag){ noteManualPan(); setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // контент следует за мышью
+  if (intro) return; // during the intro the camera is scripted
+  if (rdrag){ noteManualPan(); setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // the content follows the mouse
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
     const [a,b] = [...touches.values()];
     const d = Math.hypot(a.x-b.x, a.y-b.y);
-    if (d > 1) setCamR(pinch.r0 * pinch.d0 / d); // пальцы разводятся -> приближение
-    // движение ЦЕНТРА щипка по вертикали — пан взгляда (контент следует за пальцами)
+    if (d > 1) setCamR(pinch.r0 * pinch.d0 / d); // the fingers spread apart -> zoom in
+    // vertical movement of the pinch CENTER — the view pan (the content follows the fingers)
     const cy = (a.y + b.y) / 2;
     noteManualPan();
     setTargetY(camTarget.y + (cy - pinch.cy) * 0.012);
@@ -132,13 +135,13 @@ canvas.addEventListener('pointermove', e => {
   const dx = e.clientX - pDown.x, dy = e.clientY - pDown.y;
   if (!dragging && Math.hypot(dx,dy) > 9){
     dragging = true;
-    // курсор «сжатая рука» на время драга камеры (десктоп; CSS в shell по
-    // классу html.grabbing, тачам класс безвреден — курсоров у них нет)
+    // the «clenched hand» cursor for the duration of the camera drag (desktop; the CSS
+    // is in shell under the html.grabbing class, for touches the class is harmless — they have no cursors)
     document.documentElement.classList.add('grabbing');
   }
   if (dragging){
     camAz = pDown.az - dx*0.006;
-    camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // до ~77° — вид сбоку на миксер
+    camPhi = Math.max(0.32, Math.min(1.35, pDown.phi - dy*0.004)); // up to ~77° — a side view of the mixer
     updateCamera();
     
   }
@@ -147,20 +150,21 @@ function endPointer(e){
   touches.delete(e.pointerId);
   if (touches.size < 2) pinch = null;
   rdrag = null;
-  document.documentElement.classList.remove('grabbing'); // разжать руку-курсор
+  document.documentElement.classList.remove('grabbing'); // unclench the hand cursor
 }
-// сброс всех жестов (вызывается на границах интро: зажатый в интро палец
-// не должен превращаться в драг со старой базой камеры)
-// ⛔ ДРОЖЬ КУРСОРА НА ОШИБКЕ — ЖИЛА 20 МИНУТ И ОТВЕРГНУТА ВЛАДЕЛЬЦЕМ живым
-// тестом 2026-07-31 («убери дрожь курсора»; до этого он же успел ужать её с
-// 1 c до 0.5 c — не помогло). Была: чередование двух хотспотов ±2px, классы
-// cshake-a/b. НЕ ВОЗВРАЩАТЬ без его слова; реализация — в истории v200.
+// reset of all gestures (called at the intro boundaries: a finger held down
+// during the intro must not turn into a drag with a stale camera base)
+// ⛔ CURSOR SHAKE ON AN ERROR — LIVED 20 MINUTES AND WAS REJECTED BY THE OWNER in a
+// live test 2026-07-31 («remove the cursor shake»; before that he himself had managed
+// to squeeze it from 1 s down to 0.5 s — that didn't help). It was: alternating two
+// hotspots ±2px, classes cshake-a/b. DO NOT BRING BACK without his word; the
+// implementation is in the history of v200.
 function resetPointers(){
   document.documentElement.classList.remove('grabbing');
   touches.clear();
   pDown = null; dragging = false; pinch = null; rdrag = null;
-  panManualUntil = 0; camFollowAt = 0; // защёлка camFollowOn живёт в level — новую создаёт genLevel
-  setTargetY(TARGET_Y_DEF); // пан взгляда не переживает границы интро/уровня
+  panManualUntil = 0; camFollowAt = 0; // the camFollowOn latch lives in level — a new one is created by genLevel
+  setTargetY(TARGET_Y_DEF); // the view pan does not survive intro/level boundaries
 }
 canvas.addEventListener('pointerup', e => {
   if (pDown && !dragging && !pinch && !intro) handleTap(e.clientX, e.clientY);
@@ -171,29 +175,30 @@ canvas.addEventListener('pointercancel', e => { endPointer(e); pDown = null; dra
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   if (intro) return;
-  // Shift+колесо — вертикальный пан взгляда (скролл вниз = смотреть ниже);
-  // обычное колесо — зум, как было
+  // Shift+wheel — the vertical view pan (scrolling down = looking lower);
+  // the plain wheel — zoom, as it was
   if (e.shiftKey){ noteManualPan(); setTargetY(camTarget.y - e.deltaY * 0.004); }
   else setCamR(camR + e.deltaY * 0.012);
 }, { passive:false });
-// ЗУМ КНОПКАМИ (нода 829:1242, спека владельца «добавил зум по просьбе
-// тестировщиков»). ⚠️ Ведём ТУ ЖЕ `setCamR`, что колесо и щипок: пределы
-// CAM_R_MIN/MAX и `updateCamera` живут внутри неё, поэтому кнопки не могут
-// увести камеру туда, куда не пускают жесты. Шаг 1.6 — примерно щелчок колеса
-// (0.012 × ~133), то есть кнопка и колесо ощущаются одинаково.
-// ⚠️ Гейт `intro` — как у колеса: в интро ввод глушится целиком.
-// ×2 к прежнему шагу (слово владельца 2026-08-05: «увеличить зум при клике
-// на контрол — х2 к текущей реализации»); было 1.6.
+// ZOOM WITH BUTTONS (node 829:1242, the owner's spec «added zoom at the
+// testers' request»). ⚠️ We drive THE SAME `setCamR` as the wheel and the pinch:
+// the CAM_R_MIN/MAX limits and `updateCamera` live inside it, therefore the
+// buttons cannot take the camera where the gestures are not allowed to. The step
+// of 1.6 is roughly one wheel click (0.012 × ~133), that is, the button and the
+// wheel feel the same.
+// ⚠️ The `intro` gate — same as on the wheel: during the intro input is muted entirely.
+// ×2 to the former step (the owner's word 2026-08-05: «increase the zoom on a click
+// on the control — x2 to the current implementation»); it was 1.6.
 const ZOOM_STEP = 3.2;
-// УДЕРЖАНИЕ (его же слово): «при клике и удержании на = или - плавно и
-// медленно увеличивать, пока игрок не уберет палец». Единиц радиуса в
-// секунду; старт после HOLD_DELAY, чтобы обычный клик оставался шагом.
+// HOLDING (his word as well): «on a click and hold on = or - increase smoothly
+// and slowly, until the player lifts his finger». Radius units per second; it
+// starts after HOLD_DELAY, so that an ordinary click stays a step.
 const ZOOM_HOLD_RATE = 2.4, ZOOM_HOLD_DELAY = 260;
-// ПЛАВНЫЙ ЗУМ КНОПКАМИ (слово владельца 2026-08-04: «клик и тап на зум
-// увеличивает плавнее, а не так резко»): ease-out 260 мс тикером; серия
-// кликов складывается от ЦЕЛИ прошлого клика, пределы те же CAM_R_MIN/MAX.
-// Жест через setCamR гасит анимацию; кнопка зума, как любой жест, обрывает
-// полёт подсказки.
+// SMOOTH ZOOM WITH BUTTONS (the owner's word 2026-08-04: «a click and a tap on
+// zoom zooms more smoothly, not so abruptly»): ease-out 260 ms by a ticker; a
+// series of clicks adds up from the TARGET of the previous click, the limits are
+// the same CAM_R_MIN/MAX. A gesture through setCamR kills the animation; the zoom
+// button, like any gesture, aborts the hint flight.
 let zoomAnim = null;
 function zoomBy(d){
   if (intro) return;
@@ -210,13 +215,13 @@ function tickZoomAnim(){
   updateCamera();
   if (k >= 1) zoomAnim = null;
 }
-$('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // ближе = меньше радиус
+$('zoomInBtn').addEventListener('click', () => zoomBy(-ZOOM_STEP));   // closer = smaller radius
 $('zoomOutBtn').addEventListener('click', () => zoomBy(+ZOOM_STEP));
-// ⚠️ УДЕРЖАНИЕ — ОТДЕЛЬНЫЙ РЕЖИМ, НЕ ПОВТОР КЛИКА: непрерывный ход по
-// реальному времени (rate × dt), поэтому скорость одинакова при любом fps;
-// анимация ease-out на это время гасится, иначе два источника дёргали бы
-// камеру. Клик остаётся кликом: удержание включается только после паузы
-// ZOOM_HOLD_DELAY, и тогда click-обработчик уже не даёт лишнего шага.
+// ⚠️ HOLDING IS A SEPARATE MODE, NOT A REPEATED CLICK: a continuous travel by
+// real time (rate × dt), therefore the speed is the same at any fps; the ease-out
+// animation is killed for that time, otherwise two sources would jerk the
+// camera. A click stays a click: holding turns on only after the
+// ZOOM_HOLD_DELAY pause, and by then the click handler no longer adds an extra step.
 let zoomHold = null;
 function zoomHoldStart(dir, btn){
   const t0 = performance.now();
@@ -236,7 +241,7 @@ function tickZoomHold(){
   zoomHold.last = now;
   if (dt <= 0) return;
   zoomHold.moved = true;
-  zoomAnim = null;                       // ход удержания главнее ease-кадра
+  zoomAnim = null;                       // the hold travel outranks the ease frame
   hintFly = null;
   camR = Math.max(CAM_R_MIN, Math.min(CAM_R_MAX, camR + zoomHold.dir * ZOOM_HOLD_RATE * dt));
   updateCamera();
@@ -247,46 +252,48 @@ for (const [id, dir] of [['zoomInBtn', -1], ['zoomOutBtn', +1]]){
   b.addEventListener('pointerup', () => zoomHoldStop());
   b.addEventListener('pointercancel', () => zoomHoldStop());
   b.addEventListener('pointerleave', () => zoomHoldStop());
-  // клик после удержания глушим: ход уже сделан пальцем
+  // we mute the click after a hold: the travel has already been made by the finger
   b.addEventListener('click', (e) => { if (b.dataset.held === '1'){ b.dataset.held = '0'; e.stopImmediatePropagation(); } }, true);
 }
 
 document.addEventListener('contextmenu', e => e.preventDefault());
-document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio живёт только после жеста (iOS)
+document.addEventListener('pointerdown', ()=>Sound.unlock()); // WebAudio lives only after a gesture (iOS)
 
 $('shakeBtn').addEventListener('click', requestShake);
-// ⚠️⚠️ ПОДБРОС ИКОНКИ ПО КЛИКУ (слово владельца 2026-08-21-г: «добавь приятную
-// и быструю анимацию на иконку Shake при ховере и клике — иконку чуть
-// подбрасывает вверх»). Ховер целиком в CSS, здесь только клик: класс на
-// кнопке, кадры на внутренней обёртке `.shake-art` (почему на обёртке —
-// объяснено у самого правила в shell.html).
-// ⚠️ ОТДЕЛЬНЫМ СЛУШАТЕЛЕМ, А НЕ ВНУТРИ `requestShake`: тот молча выходит в
-// интро и после конца уровня, а иконка обязана отзываться на КАЖДЫЙ тап —
-// иначе игрок читает мёртвый тап как «кнопка сломалась». Это отклик ввода, а
-// не событие механики, и мешать их в одной функции не надо.
-// ⚠️ РЕСТАРТ ЧЕРЕЗ REFLOW: без снятия класса и принудительного пересчёта
-// повторный клик подряд НЕ перезапустит анимацию (тот же приём, что у `.hit`
-// витрины). Снимаем по `animationend`, а не по таймеру: таймер разъедется с
-// длительностью при первой же правке кадров.
-// ⛔⛔ СЛУШАТЕЛЬ ПОДБРОСА СНЯТ (слово владельца 2026-08-21-п: «другие анимации
-// удали»). Здесь висел отдельный `click` на `#shakeBtn`, который вешал класс
-// `.toss` (через reflow, чтобы второй клик подряд перезапускал кадры) и снимал
-// его по `animationend`. Отдельным он был НЕ СЛУЧАЙНО: внутри `requestShake`
-// подброс молчал бы во время интро и после конца уровня — функция там просто
-// возвращается. Класс, кадры `@keyframes shakeToss` и правило `.toss` удалены
-// из стилей той же правкой, сирот не осталось.
-// В AD-СОСТОЯНИИ ТАП = РОЛИК, а не обычная подсказка. Подтверждающего оверлея
-// НЕТ намеренно (решение МЕТЫ, диспетчер согласовал): слово «Ad» на кнопке уже
-// делает тап осознанным; исторический оверлей встряски сюда не копируем.
-// showHint() и сам перенаправил бы, но явная ветка читается честнее и не
-// зависит от порядка проверок внутри него.
-// ЗАРЯД ТИПА: клик = детонация, мгновенно, без подтверждения (попапы
-// отвергнуты канонично). Гварды внутри detonateCharge.
-// ⚠️ POINTERDOWN, НЕ CLICK (жалоба владельца с телефона: «приходится нажимать
-// дважды и есть задержка»): click синтезируется на up и глотается, если между
-// down и up узел моргнул (растворение пишет opacity покадрово) или палец чуть
-// уехал. pointerdown срабатывает МГНОВЕННО и не зависит от up.
-// stopPropagation — чтобы тот же down не утёк в жестыканваса/бара.
+// ⚠️⚠️ ICON TOSS ON A CLICK (the owner's word 2026-08-21-g: «add a pleasant and
+// fast animation to the Shake icon on hover and on click — the icon is tossed
+// up a little»). The hover is entirely in CSS, here only the click: the class on
+// the button, the keyframes on the inner wrapper `.shake-art` (why on the
+// wrapper — explained next to the rule itself in shell.html).
+// ⚠️ AS A SEPARATE LISTENER, AND NOT INSIDE `requestShake`: that one silently
+// returns during the intro and after the end of the level, while the icon must
+// respond to EVERY tap — otherwise the player reads a dead tap as «the button is
+// broken». This is an input response, not a mechanics event, and mixing them in
+// one function is not needed.
+// ⚠️ RESTART THROUGH A REFLOW: without removing the class and forcing a
+// recalculation a repeated click in a row will NOT restart the animation (the same
+// trick as with `.hit` in the showcase). We remove it on `animationend`, not by a
+// timer: a timer would drift from the duration on the very first edit of the keyframes.
+// ⛔⛔ THE TOSS LISTENER HAS BEEN REMOVED (the owner's word 2026-08-21-p: «delete
+// the other animations»). Here hung a separate `click` on `#shakeBtn`, which put on
+// the `.toss` class (through a reflow, so that a second click in a row restarted the
+// keyframes) and removed it on `animationend`. It was separate NOT BY ACCIDENT: inside
+// `requestShake` the toss would be silent during the intro and after the end of the
+// level — the function simply returns there. The class, the `@keyframes shakeToss`
+// keyframes and the `.toss` rule have been deleted from the styles by the same edit,
+// no orphans are left.
+// IN THE AD STATE A TAP = A VIDEO, not an ordinary hint. There is deliberately NO
+// confirming overlay (a META decision, the dispatcher agreed): the word «Ad» on the
+// button already makes the tap deliberate; the historical shake overlay is not
+// copied here. showHint() would have redirected on its own too, but an explicit
+// branch reads more honestly and does not depend on the order of the checks inside it.
+// TYPE CHARGE: a click = detonation, instantly, without confirmation (popups are
+// rejected by the canon). The guards are inside detonateCharge.
+// ⚠️ POINTERDOWN, NOT CLICK (the owner's complaint from his phone: «I have to press
+// twice and there is a lag»): click is synthesized on up and is swallowed if between
+// down and up the node blinked (dissolving writes opacity frame by frame) or the
+// finger drifted a little. pointerdown fires INSTANTLY and does not depend on up.
+// stopPropagation — so that the same down does not leak into the canvas/bar gestures.
 $('chargeBtn').addEventListener('pointerdown', (e)=>{
   e.stopPropagation(); e.preventDefault();
   try { detonateCharge(); } catch(err){}
@@ -295,25 +302,25 @@ $('hintBtn').addEventListener('click', ()=>{
   if (typeof adHintAvailable === 'function' && adHintAvailable()) requestAdHint();
   else showHint();
 });
-// ГЛАЗА СЛЕДЯТ ЗА КУРСОРОМ И НА ГЕЙМПЛЕЕ (слово владельца 2026-08-06:
-// «доработай глаза миксера в спокойном состоянии, чтобы на геймплее они так же
-// следили за курсором, как в меню паузы»). Отдельной механики НЕ ЗАВОДИМ: тот
-// же `faceLook`, которым персонаж уже провожает палец на тапе — просто теперь
-// у него есть второй источник, движение мыши.
-// ⚠️ ЛЕСЕНКА ПРИОРИТЕТОВ НЕ ТРОНУТА ПО ПОСТРОЕНИЮ: `gazeFor` читает `lookVec`
-// ТОЛЬКО после `FACE_GAZE[state]`, поэтому помол/усталость/поражение
-// перебивают слежение сами, без единого гварда здесь.
-// ⚠️ ТОЛЬКО НАСТОЯЩИЙ КУРСОР (`pointer:fine`): на тач-экранах mousemove
-// синтезируется из тапа, и зрачки дёргались бы к пальцу поверх собственной
-// реакции на матч.
-// ⚠️ ДРОССЕЛЬ 50 мс НЕСУЩИЙ, А НЕ КОСМЕТИКА: `faceLook` читает
-// getBoundingClientRect() конструкции — на каждом mousemove это принудительный
-// пересчёт раскладки в кадре, где и так идёт солвер.
+// THE EYES FOLLOW THE CURSOR DURING GAMEPLAY TOO (the owner's word 2026-08-06:
+// «refine the mixer's eyes in the calm state, so that during gameplay they follow
+// the cursor the same way as in the pause menu»). We do NOT introduce a separate
+// mechanic: the same `faceLook` with which the character already follows the finger
+// on a tap — it simply now has a second source, mouse movement.
+// ⚠️ THE PRIORITY LADDER IS UNTOUCHED BY CONSTRUCTION: `gazeFor` reads `lookVec`
+// ONLY after `FACE_GAZE[state]`, therefore grinding/tiredness/defeat override the
+// following by themselves, without a single guard here.
+// ⚠️ ONLY A REAL CURSOR (`pointer:fine`): on touch screens mousemove is synthesized
+// from a tap, and the pupils would jerk toward the finger on top of their own
+// reaction to a match.
+// ⚠️ THE 50 ms THROTTLE IS LOAD-BEARING, NOT COSMETIC: `faceLook` reads
+// getBoundingClientRect() of the construction — on every mousemove that is a forced
+// layout recalculation in a frame where the solver is already running.
 if (window.matchMedia && matchMedia('(pointer:fine)').matches){
   let lastLook = 0;
   window.addEventListener('mousemove', (e)=>{
-    if (intro || paused) return;            // интро и пауза глаза не ведут
-    if ($('mainScreen').classList.contains('open')) return; // в меню свои глаза
+    if (intro || paused) return;            // the intro and the pause do not drive the eyes
+    if ($('mainScreen').classList.contains('open')) return; // the menu has its own eyes
     const t = performance.now();
     if (t - lastLook < 50) return;
     lastLook = t;
@@ -321,84 +328,87 @@ if (window.matchMedia && matchMedia('(pointer:fine)').matches){
   }, { passive: true });
 }
 
-// ЦЕПОЧКА ПО СЛОВУ ВЛАДЕЛЬЦА 2026-08-06: конец уровня -> СТАТИСТИКА -> анонс
-// нового вида -> следующий уровень. Раньше анонс падал поверх статистики сразу
-// после уровня («это не логично»). ⚠️ genLevel — В КОЛБЭКЕ анонса, а не рядом:
-// иначе новый уровень сгенерился бы ПОД открытой виньеткой и игрок вышел бы
-// из неё в уже идущее интро. Отказные ветки storyOnWin зовут колбэк сами.
-// ⚠️ Межстраничная — ПОСЛЕ анонса, тем же порядком «сначала показать, потом
-// грузить»: два полноэкранных слоя (виньетка и ролик) не должны совпасть.
-// ⚠️ ЗВЕНО ДОБАВЛЕНО 2026-08-10 (слово владельца: экран новой вещи «идёт сразу
-// бесшовно за экраном окончания уровня»): статистика → НОВАЯ ВЕЩЬ → анонс →
-// уровень. Экран новой вещи стоит ПЕРЕД анонсом сюжета намеренно: он про
-// награду только что закрытого уровня, а анонс — про следующий.
-// ⚠️ `newObjOnWin` сам решает, есть ли повод, и ВСЕГДА зовёт колбэк — иначе
-// «Next» молча перестал бы начинать уровень там, где новой вещи нет (ровно та
-// грабля, что уже была у анонса: отказные ветки обязаны отдавать управление).
+// THE CHAIN BY THE OWNER'S WORD 2026-08-06: end of the level -> STATISTICS -> the
+// announcement of a new kind -> the next level. Previously the announcement fell on
+// top of the statistics right after the level («that is not logical»). ⚠️ genLevel is
+// IN THE CALLBACK of the announcement, and not next to it: otherwise a new level would
+// be generated UNDER the open vignette and the player would come out of it into an
+// already running intro. The refusal branches of storyOnWin call the callback themselves.
+// ⚠️ The interstitial goes AFTER the announcement, by the same order «first show, then
+// load»: two fullscreen layers (the vignette and the video) must not coincide.
+// ⚠️ A LINK WAS ADDED 2026-08-10 (the owner's word: the new-item screen «comes
+// seamlessly right after the level-end screen»): statistics → NEW ITEM → announcement →
+// level. The new-item screen stands BEFORE the story announcement deliberately: it is
+// about the reward of the level just closed, while the announcement is about the next one.
+// ⚠️ `newObjOnWin` decides for itself whether there is a reason, and ALWAYS calls the
+// callback — otherwise «Next» would silently stop starting a level where there is no new
+// item (exactly the rake the announcement already had: refusal branches are obliged to
+// hand over control).
 $('againBtn').addEventListener('click', ()=>{
   hide('winOverlay');
   newObjOnWin(()=> storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); }));
 });
 { const b = $('newObjBtn'); if (b) b.addEventListener('click', ()=> newObjHide()); }
-$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // БЕЗ maybeInterstitial: межстраничная только на ПОБЕДНОМ переходе (againBtn), не на Retry из тупика (там спасение — rewarded Continue) — спека владельца 2026-07-24
-// ×2 монет за rewarded на экране победы (второй по конверсии плейсмент)
+$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // WITHOUT maybeInterstitial: the interstitial only on the WINNING transition (againBtn), not on a Retry out of a dead end (there the rescue is the rewarded Continue) — the owner's spec 2026-07-24
+// ×2 coins for a rewarded on the victory screen (the second placement by conversion)
 $('winX2Btn').addEventListener('click', ()=>{
   $('winX2Btn').style.display = 'none';
-  // выигрыш захватываем В МОМЕНТ КЛИКА: к концу ролика level может смениться
-  // (checkEnd пересоздаёт coinsWon уже для нового уровня)
+  // we capture the winnings AT THE MOMENT OF THE CLICK: by the end of the video level may change
+  // (checkEnd recreates coinsWon already for the new level)
   const won = level.coinsWon;
   Ads.showRewarded(()=>{
     addCoins(won);
     $('winCoins').textContent = '+' + (won * 2) + ' 🪙 (×2)';
     Telemetry.ev('rw', { p: 'x2' });
     updateHUD();
-  }, ()=>{ $('winX2Btn').style.display = ''; }); // FAILED/CLOSED — кнопка возвращается
+  }, ()=>{ $('winX2Btn').style.display = ''; }); // FAILED/CLOSED — the button comes back
 });
-// Continue после поражения — 1 раз за уровень
+// Continue after a defeat — once per level
 $('loseAdContinue').addEventListener('click', ()=>{
   Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
 });
-// ⚠️ КНОПКИ «ПРИЦЕЛ» И «МЕТАЛЛОИСКАТЕЛЬ» УДАЛЕНЫ (спека владельца 2026-07-29:
-// «при загрузке в мобильном моргают старые кнопки магнита и ещё что-то в левом
-// нижнем углу — это всё нужно удалить»). Они лежали в разметке видимыми и
-// прятались лишь ПЕРВЫМ тиком updateHUD, то есть после запуска движка — отсюда
-// и моргание. ОТМЕНЯЕТ прежнее «не удаляй, скрой флагом» (2026-07-18/21).
-// Сама механика (scopeHighlight/detectorHighlight, PRICE_SCOPE, флаги
-// SCOPE_ENABLED/MAGNET_ENABLED) НЕ тронута — вернуть кнопки = вернуть эти
-// два обработчика и две строки разметки в bottomBar.
-// глаза миксера: ТАП = ПРОВОКАЦИЯ (спека владельца 2026-07-30 «клик или тап на
-// глаза сразу злит миксер и включает измельчение»; ОТМЕНЯЕТ «подмигивает»
-// 2026-07-19). Механика НЕ новая — тот же путь, что наказание за простой:
-// терпение объявляется исчерпанным (lastAction в прошлое), планировщик 99-main
-// начинает жевать нижние пары; глаза злеют САМИ — помол перебивает все
-// состояния (канон глаз). Первый укус НЕМЕДЛЕННО (nextGrind = now).
-// Останавливается как обычный помол: любой матч/встряска сбрасывают простой.
-// ⚠️ Звук 'match' УБРАН — он ВРАЛ «совместил» (AUDIO-PLAN §1 звал это прямой
-// ложью); свой звук даёт сам помол, отдельного не выдумываем.
-// ⚠️ Цена провокации = цена помола (−20/укус со 2-го уровня, ур.1 без штрафов
-// по общей таблице) — владелец просил именно «включает измельчение», смягчать
-// без его слова нельзя.
+// ⚠️ THE «SCOPE» AND «METAL DETECTOR» BUTTONS HAVE BEEN REMOVED (the owner's spec
+// 2026-07-29: «on loading on mobile the old magnet buttons and something else in the
+// lower left corner blink — all of that has to be removed»). They lay in the markup
+// visible and were hidden only by the FIRST tick of updateHUD, that is, after the
+// engine started — hence the blinking. This OVERRIDES the former «do not delete, hide
+// by a flag» (2026-07-18/21). The mechanic itself (scopeHighlight/detectorHighlight,
+// PRICE_SCOPE, the SCOPE_ENABLED/MAGNET_ENABLED flags) is NOT touched — bringing the
+// buttons back = bringing back these two handlers and two lines of markup in bottomBar.
+// the mixer's eyes: A TAP = A PROVOCATION (the owner's spec 2026-07-30 «a click or a
+// tap on the eyes immediately angers the mixer and turns the grinding on»; OVERRIDES
+// «it winks» 2026-07-19). The mechanic is NOT new — the same path as the punishment
+// for idling: the patience is declared exhausted (lastAction into the past), the
+// 99-main scheduler starts chewing the lower pairs; the eyes get angry BY THEMSELVES —
+// the grinding overrides all states (the canon of the eyes). The first bite is
+// IMMEDIATE (nextGrind = now).
+// It stops like an ordinary grinding: any match/shake resets the idling.
+// ⚠️ The 'match' sound has been REMOVED — it LIED «you matched» (AUDIO-PLAN §1 called
+// this an outright lie); the grinding gives its own sound, we do not invent a separate one.
+// ⚠️ The price of a provocation = the price of the grinding (−20/bite from level 2 on,
+// level 1 without penalties per the common table) — the owner asked for exactly «turns
+// the grinding on», and softening it without his word is not allowed.
 $('eyes').addEventListener('click', ()=>{
   const el = $('eyes');
   el.classList.remove('bounce'); void el.offsetWidth;
   el.classList.add('bounce');
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
   vibrate(25);
-  if (intro || paused || !level || level.over) return; // вне партии — только подскок
-  stats.lastAction = performance.now() - (level.idleLimit + 0.5)*1000; // терпение исчерпано
-  level.nextGrind = performance.now();                                 // укус сразу
+  if (intro || paused || !level || level.over) return; // outside a run — only the bounce
+  stats.lastAction = performance.now() - (level.idleLimit + 0.5)*1000; // the patience is exhausted
+  level.nextGrind = performance.now();                                 // the bite immediately
   Telemetry.ev('poke', { lv: levelNum });
 });
-// ПАУЗА (макет ИНТЕРФЕЙСА: кнопка слева сверху вместо ⚙️, оверлей с
-// Continue/Restart/Settings). Под капотом — НАСТОЯЩАЯ заморозка pauseGame/
-// resumeGame (99-main): стоп-кадр, сдвиг всех часовых якорей, afterPause-
-// очередь; хендлеры pauseBtn/resumeBtn ниже, у блока клавиатуры.
-// Выходы из паузы в genLevel/настройки обязаны резюмить (иначе loop стоит
-// стоп-кадром, а интро нового уровня не тикает).
+// PAUSE (the INTERFACE mockup: the button at the top left instead of ⚙️, an overlay
+// with Continue/Restart/Settings). Under the hood — a REAL freeze pauseGame/
+// resumeGame (99-main): a freeze frame, a shift of all the clock anchors, the
+// afterPause queue; the pauseBtn/resumeBtn handlers are below, next to the keyboard block.
+// The exits from the pause into genLevel/settings are obliged to resume (otherwise the
+// loop stands as a freeze frame, and the intro of the new level does not tick).
 $('pauseRestart').addEventListener('click', ()=>{ resumeGame(); genLevel(); });
 $('museumBtn').addEventListener('click', openMuseum);
 $('museumClose').addEventListener('click', closeMuseum);
-// демо-кнопка всплывашки (панель разработчика): случайный живой предмет
+// the popup demo button (the developer panel): a random live item
 $('tierDemoBtn').addEventListener('click', ()=>{
   const alive = items.filter(i => i.alive && !i.surprise);
   if (!alive.length) return;
@@ -408,35 +418,35 @@ $('tierDemoBtn').addEventListener('click', ()=>{
 $('pauseSettings').addEventListener('click', ()=>{
   resumeGame(); $('debugPanel').style.display = 'block';
 });
-$('loseContinue').addEventListener('click', ()=>{ hide('loseOverlay'); level.over = false; level.stuck = -8; }); // ~5 c форы, потом тупик покажется снова
-// ⚙️-панель открывается из паузы (кнопки ⚙️ на игровом экране больше нет)
+$('loseContinue').addEventListener('click', ()=>{ hide('loseOverlay'); level.over = false; level.stuck = -8; }); // ~5 s of grace, then the dead end will show up again
+// the ⚙️ panel is opened from the pause (there is no ⚙️ button on the game screen any more)
 $('radiusToggle').addEventListener('change', e => { CFG.radiusOn = e.target.checked; $('radiusVal').parentElement.style.opacity = CFG.radiusOn ? 1 : 0.4; updateHUD(); });
-// сложность живёт в localStorage — выбор переживает перезагрузку
+// the difficulty lives in localStorage — the choice survives a reload
 try { CFG.hard = localStorage.getItem('mixer_hard') === '1'; } catch(e){}
 $('hardToggle').checked = CFG.hard;
 $('hardToggle').addEventListener('change', e => applyHard(e.target.checked));
 $('radiusRange').addEventListener('input', e => { CFG.baseRadius = parseFloat(e.target.value); updateMatchRadius(); $('radiusVal').textContent = CFG.matchRadius.toFixed(2); updateHUD(); });
 $('hlToggle').addEventListener('change', e => { CFG.highlight = e.target.checked; refreshAccessibility(); });
 $('soundToggle').addEventListener('change', e => applySound(e.target.checked));
-// ЗАМЕР НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): владелец играет уровень и
-// нажимает одну кнопку — отчёт уходит в буфер обмена.
-// ⚠️ ТРИ ПУТИ, И ВСЕ ТРИ НУЖНЫ: `navigator.clipboard` требует защищённого
-// контекста (на портале https есть, на file:// нет), старый execCommand просит
-// РЕАЛЬНОГО выделения, а если не сработало и это — текст обязан остаться на
-// экране, чтобы владелец скопировал руками. Молча ничего не сделать нельзя:
-// он не программист и второй попытки не будет.
+// A MEASUREMENT ON A LIVE PHONE (the dispatcher's order): the owner plays a level
+// and presses one button — the report goes to the clipboard.
+// ⚠️ THREE PATHS, AND ALL THREE ARE NEEDED: `navigator.clipboard` requires a secure
+// context (on the portal over https there is one, on file:// there is not), the old
+// execCommand asks for a REAL selection, and if even that did not work — the text is
+// obliged to stay on the screen, so that the owner copies it by hand. Doing nothing
+// silently is not allowed: he is not a programmer and there will be no second attempt.
 $('perfCopyBtn').addEventListener('click', ()=>{
   let txt = '';
   try { txt = JSON.stringify(__game.perfReport(), null, 1); }
   catch(e){ txt = 'perfReport error: ' + (e && e.message); }
   const out = $('perfOut');
   out.style.display = 'block'; out.value = txt;
-  // ⚠️ ФОРМУЛИРОВКА ТОСТА — НЕ КОСМЕТИКА. `execCommand('copy')` умеет вернуть
-  // true, ничего не положив (замер на незащищённом origin: `navigator.clipboard`
-  // отсутствует, execCommand отчитался успехом, буфер пуст). Скажи мы «скопировано»
-  // — владелец нажмёт «вставить», получит пустоту и бросит: попытка у него одна.
-  // Поэтому текст ВСЕГДА остаётся в видимом поле и выделен, а тост говорит про
-  // ОБА пути. Ничего не обещаем сверх того, что можем гарантировать.
+  // ⚠️ THE WORDING OF THE TOAST IS NOT COSMETIC. `execCommand('copy')` can return
+  // true having put nothing in (a measurement on an insecure origin: `navigator.clipboard`
+  // is absent, execCommand reported success, the buffer is empty). Were we to say «copied»
+  // — the owner would press «paste», get emptiness and give up: he has one attempt.
+  // That is why the text ALWAYS stays in a visible field and is selected, and the toast
+  // speaks about BOTH paths. We promise nothing beyond what we can guarantee.
   const done = () => { out.select(); toast('Perf report ready — paste in chat (or copy from the box)'); };
   const manual = () => { out.select(); toast('Copy the text from the box below'); };
   if (navigator.clipboard && navigator.clipboard.writeText){
@@ -453,8 +463,8 @@ $('perfCopyBtn').addEventListener('click', ()=>{
 });
 $('restartBtn').addEventListener('click', ()=>{ $('debugPanel').style.display='none'; genLevel(); });
 $('mcEditBtn').addEventListener('click', () => { matcapEdit(); });
-// ВЫБОР УРОВНЯ (владелец 2026-08-13). Через __game.setLevel НАМЕРЕННО — одна
-// точка записи уровня на панель и сьют, копий логики не заводим.
+// LEVEL SELECTION (the owner 2026-08-13). Through __game.setLevel DELIBERATELY — one
+// point of writing the level for the panel and for the suite, we do not make copies of the logic.
 $('lvlJumpBtn').addEventListener('click', ()=>{
   const n = parseInt($('lvlJumpInp').value, 10);
   if (!(n >= 1)) return;
@@ -462,7 +472,7 @@ $('lvlJumpBtn').addEventListener('click', ()=>{
   $('debugPanel').style.display = 'none';
   genLevel();
 });
-// ЧАША-РАЗЛЁТ (прототип v2): стендовые кнопки — та же точка, что у турбо
+// THE BOWL BURST (the v2 prototype): the bench buttons — the same point as with the turbo
 if ($('bowlCrackBtn')) $('bowlCrackBtn').addEventListener('click', ()=>{ bowlCrackAdd(); });
 if ($('bowlShatterBtn')) $('bowlShatterBtn').addEventListener('click', ()=>{
   if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); }
@@ -470,95 +480,99 @@ if ($('bowlShatterBtn')) $('bowlShatterBtn').addEventListener('click', ()=>{
 });
 if ($('bowlNInp')) $('bowlNInp').addEventListener('change', (e)=>{ bowlNRuntime = Math.max(0, parseInt(e.target.value,10)||0); });
 
-// ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет 770:1271) — обработчики =====
-// Сложность и звук управляются ИЗ ДВУХ МЕСТ (чекбоксы паузы + контролы
-// главного экрана) — единые точки, чтобы состояния не разъезжались.
+// ===== THE MAIN SCREEN / PAUSE (mockup 770:1271) — the handlers =====
+// The difficulty and the sound are controlled FROM TWO PLACES (the pause checkboxes +
+// the main screen controls) — single points, so that the states do not drift apart.
 function applyHard(v){
   CFG.hard = !!v;
   try { localStorage.setItem('mixer_hard', CFG.hard ? '1' : '0'); } catch(e){}
-  if (level) level.idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // таймер миксера живо следует сложности
+  if (level) level.idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // the mixer's timer follows the difficulty live
   refreshAccessibility(); updateHUD();
   $('hardToggle').checked = CFG.hard;
   if (typeof refreshMainSettings === 'function') refreshMainSettings();
 }
-// ⚠️ ТОНКАЯ ОБЁРТКА над applySoundVol (85-hud) — держателю состояний паузы
-// (#soundToggle) нужен именно ВКЛ/ВЫКЛ. Включение возвращает ПОСЛЕДНЮЮ
-// ненулевую громкость (а не всегда 100): игрок, поставивший 40 и щёлкнувший
-// тумблером, должен получить свои 40, иначе тумблер тихо стирает его выбор.
+// ⚠️ A THIN WRAPPER over applySoundVol (85-hud) — the holder of the pause states
+// (#soundToggle) needs exactly ON/OFF. Turning it on returns the LAST non-zero
+// volume (and not always 100): a player who set 40 and then flicked the toggle must
+// get his 40 back, otherwise the toggle quietly erases his choice.
 function applySound(on){
   applySoundVol(on ? soundVolPrev : 0);
 }
-// ВЕСЬ Play-блок кликабелен → возврат в игру (спека владельца «всякая область
-// тапабельна»): хендлер на КАРТОЧКУ .ms-play, а не на кнопку — клик по кнопке
-// (внутри) доходит тем же всплытием, поэтому отдельный хендлер кнопки СНЯТ
-// (иначе двойной closeMainScreen/genLevel). Пустое поле карточки — тоже цель.
+// THE WHOLE Play block is clickable → a return into the game (the owner's spec «every
+// area is tappable»): the handler is on the .ms-play CARD, and not on the button — a
+// click on the button (inside) arrives by the same bubbling, therefore the separate
+// button handler has been REMOVED (otherwise a double closeMainScreen/genLevel). The
+// empty field of the card is a target too.
 function menuPlayResume(){
-  const fresh = !level || level.over; // нет живой партии — СТАРТ новой
-  closeMainScreen();                  // снимет ТОЛЬКО свою паузу (см. 85-hud)
+  const fresh = !level || level.over; // there is no live run — the START of a new one
+  closeMainScreen();                  // will lift ONLY its own pause (see 85-hud)
   if (fresh) genLevel();
 }
 document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
-// ПЛАВАЮЩАЯ КНОПКА ведёт туда же, что и карточка Play — одно действие, один
-// путь (иначе разошлись бы гварды паузы и старта новой партии).
+// THE FLOATING BUTTON leads to the same place as the Play card — one action, one
+// path (otherwise the guards of the pause and of starting a new run would diverge).
 $('msFloatResume').addEventListener('click', menuPlayResume);
-// ПРОКРУТКА МЕНЮ: два независимых показа (спеки владельца 2026-07-31).
-//  `#msSticky.on` — блок «My Collection» ушёл за верх вью → сверху ВЫЕЗЖАЕТ
-//                   компактная шапка ноды 815:1506;
-//  `.playoff`     — карточка Play ушла за верх → снизу всплывает кнопка 815:1521.
-// ⚠️ ПОРОГИ РАЗНЫЕ И ПРИВЯЗАНЫ К РАЗНЫМ БЛОКАМ — это прямая спека, а не вкус:
-// шапку владелец просил «ТОЛЬКО когда блок My Collection уходит», а кнопку —
-// когда не видно настоящей. Связать их одним порогом значило бы показывать
-// дубль поверх видимого оригинала (кнопка) или прятать шапку до срока.
-// ⚠️ Слушатель passive — иначе браузер ждёт обработчик перед прокруткой и на
-// телефоне скролл начинает подтормаживать.
-// Кнопка плавающей шапки — ЗЕРКАЛО: клик уходит в настоящую, чтобы обработчик
-// и его гварды жили в одном месте.
+// MENU SCROLLING: two independent appearances (the owner's specs 2026-07-31).
+//  `#msSticky.on` — the «My Collection» block has gone above the top of the view →
+//                   the compact header of node 815:1506 SLIDES OUT from the top;
+//  `.playoff`     — the Play card has gone above the top → the button 815:1521 pops up from below.
+// ⚠️ THE THRESHOLDS ARE DIFFERENT AND ARE BOUND TO DIFFERENT BLOCKS — this is a direct
+// spec, and not taste: the owner asked for the header «ONLY when the My Collection block
+// goes away», and for the button — when the real one is not visible. Tying them to one
+// threshold would mean showing a duplicate on top of the visible original (the button) or
+// hiding the header ahead of time.
+// ⚠️ The listener is passive — otherwise the browser waits for the handler before
+// scrolling and on a phone the scroll starts to stutter.
+// The button of the floating header is a MIRROR: the click goes into the real one, so that
+// the handler and its guards live in one place.
 if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMore').click());
 (function(){
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
   ms.addEventListener('scroll', () => {
-    // ⚠️ ПЛАВАЮЩАЯ ШАПКА — ПО УХОДУ БЛОКА «My Collection» ЗА ВЕРХ ВЬЮ (спека
-    // владельца 2026-07-31), а НЕ по факту прокрутки. Порог — НИЖНЯЯ кромка
-    // заголовка: пока он хоть частью виден, «My collection» читалось бы на
-    // экране дважды. Заголовок живёт в потоке над сеткой, его rect и есть
-    // граница блока.
+    // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
+    // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
+    // The threshold is the BOTTOM edge of the title: while it is visible even partly,
+    // «My collection» would be read on the screen twice. The title lives in the flow
+    // above the grid, its rect is the border of the block.
     if (sticky){
       const t = document.querySelector('.ms-coll-title');
       sticky.classList.toggle('on', !!t && t.getBoundingClientRect().bottom <= 0);
     }
-    // ⚠️ ПОРОГ КНОПКИ — ПРОСТО ВЕРХ ВЬЮ. Прежде он считался от низа ЗАЛИПШЕЙ
-    // шапки: та висела над карточкой Play и делала её ненажимаемой раньше, чем
-    // кнопка уходила за экран (мёртвое окно 78px). Залипания больше нет —
-    // шапка едет с потоком, ничего не перекрывает, и окно закрывается само.
+    // ⚠️ THE THRESHOLD OF THE BUTTON IS SIMPLY THE TOP OF THE VIEW. Previously it was
+    // counted from the bottom of the STICKY header: that one hung over the Play card and
+    // made it unclickable earlier than the button went off the screen (a dead window of
+    // 78px). There is no stickiness any more — the header travels with the flow, it does
+    // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
   }, { passive: true });
 })();
-// отладочная панель — из меню (раньше вход был в карточке паузы)
-// ЭКРАН ТАБЛИЦЫ: открывается из меню, закрывается крестиком. ⚠️ Вкладки —
-// НАСТОЯЩИЕ кнопки, а не переключение класса руками: страж обязан ходить тем
-// же путём, что игрок.
-// ⚠️ СЛУШАТЕЛЬ ОДИН, И ВИСИТ НА РЯДЕ, А НЕ НА КНОПКЕ. По макету нажимается ВСЯ
-// пилюля; клик по кнопке (мышью или Enter'ом с клавиатуры) ВСПЛЫВАЕТ сюда сам,
-// поэтому оба пути закрыты одной строкой. Второй слушатель на кнопке дал бы
-// ДВА открытия на одно нажатие — то есть два сетевых захода.
+// the debug panel — from the menu (previously the entrance was in the pause card)
+// THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The
+// tabs are REAL buttons, and not a switching of a class by hand: the guard is obliged to
+// walk the same path as the player.
+// ⚠️ THERE IS ONE LISTENER, AND IT HANGS ON THE ROW, AND NOT ON THE BUTTON. By the mockup
+// THE WHOLE pill is pressable; a click on the button (with the mouse or with Enter from
+// the keyboard) BUBBLES here by itself, therefore both paths are closed by one line. A
+// second listener on the button would give TWO openings for one press — that is, two
+// network round trips.
 { const b = $('msLbEntry');  if (b) b.addEventListener('click', ()=> lbScreenOpen()); }
 { const b = $('lbClose');   if (b) b.addEventListener('click', ()=> lbScreenClose()); }
 
 
 if (DEV) $('msDev').addEventListener('click', ()=>{ closeMainScreen();
-  $('lvlJumpInp').value = levelNum; // поле показывает ТЕКУЩИЙ уровень при открытии
+  $('lvlJumpInp').value = levelNum; // the field shows the CURRENT level when opened
   $('debugPanel').style.display = 'block'; });
-// Sound-ползунок = ГРОМКОСТЬ 0..1 (симметрично Music). Было «вкл/выкл по
-// порогу» — из-за этого положение ползунка не сохранялось (см. applySoundVol).
+// The Sound slider = the VOLUME 0..1 (symmetrically with Music). It used to be «on/off
+// by a threshold» — because of that the position of the slider was not saved (see applySoundVol).
 $('msSound').addEventListener('input', e => { applySoundVol(parseInt(e.target.value, 10) / 100); msFill(e.target); });
-// Music-ползунок = ГРОМКОСТЬ фонового трека (0..1); applyMusic сам заводит/глушит
+// The Music slider = the VOLUME of the background track (0..1); applyMusic itself starts/mutes it
 $('msMusic').addEventListener('input', e => { applyMusic(parseInt(e.target.value, 10) / 100); msFill(e.target); });
-// СВИТЧЕРЫ МОБИЛЬНОГО МАКЕТА (870:1536/1539). ⚠️ Ходят через ТЕ ЖЕ applySoundVol/
-// applyMusic, что и ползунки: у контролов одно состояние, второй тракт разошёлся
-// бы с первым. Включение возвращает ПОСЛЕДНЮЮ ненулевую громкость — иначе
-// свитчер стирал бы выбор, сделанный ползунком.
+// THE SWITCHES OF THE MOBILE MOCKUP (870:1536/1539). ⚠️ They go through THE SAME
+// applySoundVol/applyMusic as the sliders: the controls have one state, a second tract
+// would diverge from the first. Turning it on returns the LAST non-zero volume —
+// otherwise the switch would erase the choice made with the slider.
 $('msSoundSw').addEventListener('click', () => {
   applySoundVol(soundVol > 0 ? 0 : soundVolPrev);
   refreshMainSettings();
@@ -567,79 +581,81 @@ $('msMusicSw').addEventListener('click', () => {
   applyMusic(musicVol > 0 ? 0 : musicVolPrev);
   refreshMainSettings();
 });
-// ПЕРВЫЙ ЖЕСТ страницы разблокирует автоплей (audio.play() до жеста браузер
-// блокирует). Один раз, пассивно — игровые pointerdown-хендлеры не задеты.
+// THE FIRST GESTURE on the page unlocks autoplay (audio.play() before a gesture is
+// blocked by the browser). Once, passively — the game's pointerdown handlers are not touched.
 let bgmUnlocked = false;
 function unlockBgm(){
   if (bgmUnlocked) return; bgmUnlocked = true;
   const bgm = $('bgm'); if (bgm){ bgm.volume = musicVol; if (musicVol > 0) bgm.play().catch(()=>{}); }
 }
-// ⚠️⚠️ ЖЕСТ — ЛЮБОЙ, А НЕ ТОЛЬКО КАСАНИЕ (жалоба владельца «музыка начинает
-// играть с задержкой», разобрана замером 2026-08-11). Замер трёх сценариев:
-// тап во время интро музыку ЗАВОДИТ (интро его не съедает — проверено),
-// а КЛАВИША не заводила ВООБЩЕ: на десктопе игрок, жмущий пробел (встряска),
-// оставался без музыки навсегда. Отсюда весь список типов.
-// ⚠️ `capture:true` — чтобы никакой обработчик выше не смог проглотить событие
-// раньше нас: разблокировка не должна зависеть от чужого `stopPropagation`.
+// ⚠️⚠️ THE GESTURE IS ANY GESTURE, AND NOT ONLY A TOUCH (the owner's complaint «the
+// music starts playing with a delay», taken apart by the measurement 2026-08-11). A
+// measurement of three scenarios: a tap during the intro DOES start the music (the intro
+// does not eat it — verified), while a KEY did not start it AT ALL: on the desktop a
+// player who presses space (the shake) stayed without music forever. Hence the whole list of types.
+// ⚠️ `capture:true` — so that no handler above could swallow the event before us: the
+// unlocking must not depend on someone else's `stopPropagation`.
 ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach(t =>
   window.addEventListener(t, unlockBgm, { passive: true, capture: true }));
-// ⚠️ И ОДНА ПОПЫТКА БЕЗ ЖЕСТА, СРАЗУ. Политика автоплея её обычно отклоняет —
-// тогда `catch` молчит и всё решает первый жест. Но в части сред (портал уже
-// получил жест, десктоп с прежним взаимодействием) она проходит, и музыка
-// начинается СРАЗУ, а не когда игрок впервые тронет экран. Стоит это ноль.
+// ⚠️ AND ONE ATTEMPT WITHOUT A GESTURE, IMMEDIATELY. The autoplay policy usually
+// rejects it — then `catch` stays silent and everything is decided by the first gesture.
+// But in some environments (the portal has already got a gesture, a desktop with previous
+// interaction) it goes through, and the music starts IMMEDIATELY, and not when the player
+// first touches the screen. It costs zero.
 try { const _b = $('bgm'); if (_b && musicVol > 0) _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{}); } catch(e){}
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyHard(b.dataset.hard === '1');
 });
-// Get More / Subscribe / Boost / Open — ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ (МЕТА/ИНТЕГРАЦИЯ):
-// на плейсхолдере до решения владельца, действие — заметка «скоро»
-// «MORE STARS» (Get More) — экран бандлов бустера (макеты 783:95 / 785:112).
-// Открывается ПОВЕРХ меню; игра уже на паузе меню, своей паузы НЕ ставим
-// (владение паузой — у openMainScreen, лезть туда нельзя, см. CLAUDE.md).
+// Get More / Subscribe / Boost / Open — ECONOMIC FORKS (META/INTEGRATION):
+// on a placeholder until the owner's decision, the action is a «coming soon» note
+// «MORE STARS» (Get More) — the screen of the booster bundles (mockups 783:95 / 785:112).
+// It opens ON TOP of the menu; the game is already on the menu's pause, we do NOT set our
+// own pause (the ownership of the pause belongs to openMainScreen, going in there is not
+// allowed, see CLAUDE.md).
 $('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
 $('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
-// ПОКУПКА — через ручку МЕТЫ buyBundle(tier). Ручки может ещё не быть:
-// тогда НИЧЕГО НЕ НАЧИСЛЯЕМ (мок-начисление запрещено — это валюта), а ведём
-// себя как прежний Get More в тестбилде: тост «Coming soon» + console.warn.
-// КЛИК/ТАП ПО ВСЕЙ КАРТОЧКЕ = КЛИК ПО КНОПКЕ ПОКУПКИ (спека владельца
-// 2026-07-28). ⚠️ Клик по САМОЙ кнопке пропускаем — иначе покупка ушла бы
-// ДВАЖДЫ (обработчик кнопки + этот). Делегирование на оверлее: карточки
-// статичны, но так правило переживёт возможную пересборку разметки.
+// THE PURCHASE goes through the META handle buyBundle(tier). The handle may not exist
+// yet: then we CREDIT NOTHING (a mock crediting is forbidden — this is currency), and we
+// behave like the former Get More in a test build: the «Coming soon» toast + console.warn.
+// A CLICK/TAP ON THE WHOLE CARD = A CLICK ON THE PURCHASE BUTTON (the owner's spec
+// 2026-07-28). ⚠️ We skip a click on the BUTTON ITSELF — otherwise the purchase would go
+// TWICE (the button's handler + this one). The delegation is on the overlay: the cards are
+// static, but this way the rule will survive a possible rebuild of the markup.
 $('starsOverlay').addEventListener('click', (e) => {
-  if (e.target.closest('.st-buy')) return;      // кнопка отработает сама
+  if (e.target.closest('.st-buy')) return;      // the button will do the work itself
   const card = e.target.closest('.st-card'); if (!card) return;
   const btn = card.querySelector('.st-buy'); if (btn) btn.click();
 });
 document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
   btn.addEventListener('click', ()=>{
-    // ⚠️ ИМЯ ТИРА — СТРОКА, А НЕ ЧИСЛО. Здесь стоял `+btn.dataset.tier`, то есть
-    // в buyBundle уходило 5, а бандлы зовутся 'bundle5' — товар не находился,
-    // функция тихо возвращала отказ, и его никто не читал. Игрок жал
-    // «Upgrade $4.99» и не получал НИЧЕГО: ни покупки, ни ошибки. Сьют дыру не
-    // видел, потому что звал buyBundle строкой и кнопку не нажимал.
+    // ⚠️ THE NAME OF THE TIER IS A STRING, AND NOT A NUMBER. Here stood `+btn.dataset.tier`,
+    // that is, 5 went into buyBundle, while the bundles are named 'bundle5' — the product was
+    // not found, the function quietly returned a refusal, and nobody read it. The player
+    // pressed «Upgrade $4.99» and got NOTHING: neither the purchase, nor an error. The suite
+    // did not see the hole, because it called buyBundle with a string and did not press the button.
     const tier = 'bundle' + btn.dataset.tier;
     if (typeof buyBundle !== 'function'){ toast('Coming soon'); return; }
-    // ⚠️ 🔴 В БОЮ ТОВАР НЕ ВЫДАЁТСЯ, ПОКА НЕТ ПЛАТЕЖЕЙ (репорт ИНТЕГРАЦИИ
-    // 2026-07-29, дыра моя). История в две ступени: сперва кнопка не работала
-    // вовсе (число вместо строкового id), в v163 я это починил — и она стала
-    // начислять бандл БЕЗ ОПЛАТЫ, при живых ценниках $4.99/$9.99/$19.99 на
-    // раздаваемой сборке. Платёжного шлюза в проекте нет вообще: `payments`
-    // Bridge не используется ни разу.
-    // ⚠️ ПОЧЕМУ НЕ СНЯТЬ КНОПКУ СОВСЕМ: владельцу нужна ЭМУЛЯЦИЯ купленного
-    // режима, чтобы смотреть бустер на экране. Поэтому выдача осталась, но
-    // ТОЛЬКО в разработке (DEV: file://, localhost, ?dev=1) — там же, где живёт
-    // весь служебный интерфейс. В бою — честное «скоро».
-    // ГЕЙТ СНЯТ ВМЕСТЕ С ВВОДОМ bridge.payments (пакет Интеграции
-    // 2026-08-03, как и предписывал прежний комментарий): в бою покупка
-    // идёт ЧЕРЕЗ ПЛАТЁЖ — Ads.purchase(tier) сам проводит оплату и выдачу
-    // (внутри порядок «выдать -> закрыть»); мы читаем {ok}. Где платежей
-    // нет (площадка без payments) — прежнее честное «скоро».
+    // ⚠️ 🔴 IN PRODUCTION THE PRODUCT IS NOT HANDED OUT WHILE THERE ARE NO PAYMENTS (the
+    // INTEGRATION report 2026-07-29, the hole is mine). The story has two steps: at first the
+    // button did not work at all (a number instead of a string id), in v163 I fixed that — and
+    // it started crediting the bundle WITHOUT PAYMENT, with live price tags $4.99/$9.99/$19.99
+    // on the build being handed out. There is no payment gateway in the project at all: the
+    // `payments` Bridge is not used even once.
+    // ⚠️ WHY NOT REMOVE THE BUTTON ALTOGETHER: the owner needs an EMULATION of the purchased
+    // mode, in order to look at the booster on the screen. That is why the handing out stayed,
+    // but ONLY in development (DEV: file://, localhost, ?dev=1) — in the same place where the
+    // whole service interface lives. In production — an honest «soon».
+    // THE GATE HAS BEEN REMOVED TOGETHER WITH THE INTRODUCTION OF bridge.payments (the
+    // Integration package 2026-08-03, exactly as the former comment prescribed): in production
+    // the purchase goes THROUGH A PAYMENT — Ads.purchase(tier) itself carries out the payment
+    // and the handing out (inside, the order is «hand out -> close»); we read {ok}. Where there
+    // are no payments (a platform without payments) — the former honest «soon».
     if (!DEV){
       if (!(typeof Ads === 'object' && Ads.purchase)){ toast('Coming soon'); return; }
       Ads.purchase(tier).then((res) => {
         if (!res || !res.ok){
-          console.warn('[stars] покупка не прошла:', tier, res);
+          console.warn('[stars] purchase did not go through:', tier, res);
           toast(res && (res.reason === 'unsupported' || res.reason === 'unavailable') ? 'Coming soon' : 'Purchase failed');
           return;
         }
@@ -649,109 +665,110 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
       return;
     }
     const res = buyBundle(tier);
-    // ⚠️ РЕЗУЛЬТАТ ЧИТАЕМ ОБЯЗАТЕЛЬНО: молчаливый отказ — это ровно то, из-за
-    // чего дыра прожила незамеченной. Любое будущее расхождение имени теперь
-    // видно и игроку, и в консоли.
+    // ⚠️ WE READ THE RESULT WITHOUT FAIL: a silent refusal is exactly what made the hole
+    // live unnoticed. Any future divergence of the name is now visible both to the player
+    // and in the console.
     if (!res || !res.ok){
-      console.warn('[stars] покупка не прошла:', tier, res);
+      console.warn('[stars] purchase did not go through:', tier, res);
       toast('Purchase failed'); return;
     }
     Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
-    toast('TEST: booster activated');   // видно, что это эмуляция, а не покупка
+    toast('TEST: booster activated');   // it is visible that this is an emulation, and not a purchase
     hide('starsOverlay'); refreshMainScreen();
   });
 });
-// msSubscribe удалён вместе с баннером меню (слово владельца 2026-08-03)
+// msSubscribe has been removed together with the menu banner (the owner's word 2026-08-03)
 $('msGrid').addEventListener('click', e => {
   const btn = e.target.closest('.msc-boost');
   if (btn){
-    // «Open» у локнутых — ещё заглушка (открытие типа идёт прогрессией уровней)
+    // «Open» on the locked ones is still a stub (the unlocking of a kind goes by the level progression)
     if (btn.dataset.act !== 'boost'){ toast('Coming soon'); return; }
     const boostKey = btn.closest('.msc').dataset.key;
     const res = buyBoost(boostKey);
-    // refreshMainScreen пересобирает сетку (баланс/доступность прочих) — целебрацию
-    // вешаем ПОСЛЕ, на свежую карточку по ключу (зелёная доливка + частицы радости)
+    // refreshMainScreen rebuilds the grid (the balance/the availability of the others) — we hang
+    // the celebration AFTER, on the fresh card by key (the green top-up + the particles of joy)
     if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
     else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough stars');
     return;
   }
   const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;
-  // #4 (спека владельца): ТАП = СПИН портрета (как ховер на десктопе). На ТАЧе
-  // (нет hover) тап крутит портрет toggle БЕЗ смены размера; на десктопе спин
-  // даёт hover.
-  // ⛔⛔ ДЕСКТОПНАЯ ВЕТКА СНЯТА 2026-08-21-н (слово владельца «сейчас это вид
-  //    клика, а нужно сделать ховером, десктоп»). Здесь стояло
+  // #4 (the owner's spec): A TAP = A SPIN of the portrait (like the hover on the desktop). On
+  // TOUCH (there is no hover) a tap toggles the spin of the portrait WITHOUT a change of size;
+  // on the desktop the spin is given by the hover.
+  // ⛔⛔ THE DESKTOP BRANCH HAS BEEN REMOVED 2026-08-21-n (the owner's word «right now this is
+  //    a kind of click, and it has to be made a hover, desktop»). Here stood
   //    `msSelKey = (msSelKey === card.dataset.key) ? null : card.dataset.key;`
-  //    и следом `buildMainCollection()` — то есть КЛИК ЗАЩЁЛКИВАЛ подсветку.
-  //    Теперь её даёт `:hover` в стилях, а клик по самой карточке на десктопе
-  //    не делает ничего.
-  // ⚠️ ПОКУПКУ ЭТО НЕ ТРОГАЕТ: кнопка Boost перехвачена ВЫШЕ по этому же
-  //    обработчику и берёт ключ из `dataset.key` ближайшей карточки, а не из
-  //    снятой переменной — до этой строки нажатие на кнопку не доходит.
-  // ⚠️ ТАЧ НЕ ТРОГАЕТ ТОЖЕ: он уходит в тап-спин строкой выше и подсветку не
-  //    ставил никогда.
+  //    and after it `buildMainCollection()` — that is, THE CLICK LATCHED the highlight.
+  //    Now it is given by `:hover` in the styles, and a click on the card itself on the
+  //    desktop does nothing.
+  // ⚠️ THIS DOES NOT TOUCH THE PURCHASE: the Boost button is intercepted ABOVE in this same
+  //    handler and takes the key from the `dataset.key` of the nearest card, and not from the
+  //    removed variable — a press on the button does not reach this line.
+  // ⚠️ TOUCH IS NOT TOUCHED EITHER: it goes into the tap-spin a line above and never set
+  //    the highlight.
   if (!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches)){ msCardTapSpin(card); return; }
 });
-// ДЕСКТОП/ПЛАНШЕТ (макет 747:1048): #lvlSvg (LV) и #tmSvg (время) живут в левой
-// группе у паузы. МОБАЙЛ (#11, спека владельца 2026-07-27 «над очками — УРОВЕНЬ,
-// не время»): #lvlSvg переносим в правый стек перед #scSvg (LV над очками), а
-// #tmSvg остаётся СКРЫТЫМ (время — атавизм). Узлы физически переносятся — id не
-// дублируются. Время вернуть = флаг LEVEL_TIME_IN_HUD.
+// DESKTOP/TABLET (mockup 747:1048): #lvlSvg (LV) and #tmSvg (the time) live in the left
+// group next to the pause. MOBILE (#11, the owner's spec 2026-07-27 «above the score — the
+// LEVEL, not the time»): we move #lvlSvg into the right stack before #scSvg (LV above the
+// score), and #tmSvg stays HIDDEN (the time is a vestige). The nodes are physically moved —
+// the ids are not duplicated. To bring the time back = the LEVEL_TIME_IN_HUD flag.
 function layoutHUD(){
   const desk = innerWidth >= 768;
   const left = document.querySelector('#topBar .grp');
   if (desk){
-    left.appendChild($('lvlSvg'));       // LV у паузы (десктоп-макет)
-    left.appendChild($('tmSvg'));        // время тоже слева (скрыто флагом)
-    $('lvlSvg').style.display = '';       // управление отдаём CSS (media ≥768 → block)
+    left.appendChild($('lvlSvg'));       // LV next to the pause (the desktop mockup)
+    left.appendChild($('tmSvg'));        // the time is on the left too (hidden by the flag)
+    $('lvlSvg').style.display = '';       // we hand the control over to CSS (media ≥768 → block)
   } else {
-    $('statStack').insertBefore($('tmSvg'), $('scSvg'));   // время скрыто, но держим в стеке
-    $('statStack').insertBefore($('lvlSvg'), $('scSvg'));  // LV прямо над очками
-    $('lvlSvg').style.display = 'block';  // база CSS прячет #lvlSvg — показываем в стеке
+    $('statStack').insertBefore($('tmSvg'), $('scSvg'));   // the time is hidden, but we keep it in the stack
+    $('statStack').insertBefore($('lvlSvg'), $('scSvg'));  // LV right above the score
+    $('lvlSvg').style.display = 'block';  // the CSS base hides #lvlSvg — we show it in the stack
   }
-  $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none'; // время скрыто из HUD (флаг off)
-  // после смены раскладки масштаб рамок другой — пережать по контенту
+  $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none'; // the time is hidden from the HUD (the flag is off)
+  // after a change of the layout the scale of the frames is different — re-fit by the content
   if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
 }
 addEventListener('resize', layoutHUD);
 layoutHUD();
-// Звук интерфейса: один делегированный хук на ВСЕ кнопки (спека владельца)
+// The interface sound: one delegated hook on ALL the buttons (the owner's spec)
 document.addEventListener('click', e => {
   if (e.target && e.target.closest && e.target.closest('button')) Sound.play('ui');
 }, true);
-// Space = встряска (десктоп): гварды внутри requestShake (интро/конец)
+// Space = the shake (desktop): the guards are inside requestShake (the intro/the end)
 addEventListener('keydown', e => {
   if (e.code === 'Space' && !e.repeat){
     e.preventDefault();
     if (paused) return;
-    // под оверлеями рекламы Space чашу не трясёт (и не открывает второй
-    // вопрос о встряске поверх идущего ролика)
-    if ($('adOverlay').style.display === 'flex') return; // adAskOverlay удалён (ролик идёт сразу)
+    // under the ad overlays Space does not shake the bowl (and does not open a second
+    // question about the shake on top of a running video)
+    if ($('adOverlay').style.display === 'flex') return; // adAskOverlay has been removed (the video starts right away)
     requestShake();
   }
 });
-// Клавиатура должна работать СРАЗУ, без клика по чаше: во встраивании
-// (превью-панель, порталы) iframe глух к клавишам, пока не получит фокус —
-// забираем его программно при старте и при каждом возврате в окно
+// The keyboard must work IMMEDIATELY, without a click on the bowl: in an embedding
+// (the preview panel, the portals) the iframe is deaf to keys until it gets the focus —
+// we take it programmatically at the start and on every return into the window
 function grabKeyFocus(){ try { canvas.focus({ preventScroll: true }); } catch(e){} }
 addEventListener('focus', grabKeyFocus);
 document.addEventListener('visibilitychange', () => {
-  // свёрнутая вкладка = пауза: rAF в фоне не тикает, а часы миксера/комбо
-  // идут — игрок возвращался к съеденным предметам. Гварды (интро/конец/уже
-  // на паузе) внутри pauseGame; резюмится игрок сам кнопкой Continue.
-  // ⚠️ ЧЕРЕЗ МЕНЮ, а не голый pauseGame(): карточка pauseOverlay больше не
-  // показывается (её заменил главный экран) — НЕтихая пауза оставила бы
-  // игрока перед осиротевшим попапом. openMainScreen ставит паузу тихо и
-  // берёт владение на себя, снимет её кнопка Resume.
+  // a minimized tab = a pause: rAF does not tick in the background, while the clocks of
+  // the mixer/the combo run — the player used to come back to eaten items. The guards
+  // (the intro/the end/already on pause) are inside pauseGame; the player resumes himself
+  // with the Continue button.
+  // ⚠️ THROUGH THE MENU, and not a bare pauseGame(): the pauseOverlay card is no longer
+  // shown (the main screen has replaced it) — a NON-silent pause would have left the
+  // player in front of an orphaned popup. openMainScreen sets the pause silently and takes
+  // the ownership upon itself, the Resume button will lift it.
   if (document.hidden) openMainScreen();
   else grabKeyFocus();
 });
-// ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: pauseGame(silent) с 2026-07-23 принимает аргумент,
-// а слушатель передал бы в него объект события — MouseEvent truthy, и попап
-// паузы молча перестал бы показываться (поймано сьютом сразу же).
-// ПАУЗА = ГЛАВНЫЙ ЭКРАН (спека владельца «это и главный экран и пауза»):
-// вместо карточки pauseOverlay открывается меню. Пауза ставится ТИХО внутри
-// openMainScreen, и только своя — поверх рекламной меню не открывается.
+// ⚠️ THE WRAPPER IS MANDATORY: pauseGame(silent) has taken an argument since 2026-07-23,
+// and a listener would pass the event object into it — a MouseEvent is truthy, and the
+// pause popup would silently stop being shown (caught by the suite right away).
+// PAUSE = THE MAIN SCREEN (the owner's spec «it is both the main screen and the pause»):
+// instead of the pauseOverlay card the menu opens. The pause is set SILENTLY inside
+// openMainScreen, and only its own one — the menu does not open on top of an ad one.
 $('pauseBtn').addEventListener('click', openMainScreen);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('resetBtn').addEventListener('click', ()=>{
@@ -761,22 +778,22 @@ $('resetBtn').addEventListener('click', ()=>{
   genLevel(); updateHUD();
 });
 
-// ═══ НАЖАТИЕ КУРСОРА ═══ (слово владельца 2026-08-02 дословно: «когда я
-// кликаю на кнопку мыши, на 3-5% уменьшай курсор на долю секунды и потом
-// возвращай. Делай это быстро, но не дергано, чтобы было ощущение нажатия»)
-// PNG-курсор нельзя масштабировать CSS'ом — на старте генерим 96%-копии
-// ОБЕИХ картинок (рука и захват) canvas'ом вокруг их hotspot (иначе кончик
-// пальца сместился бы и клик «поехал») и на 140 мс вешаем html.cursorpress.
-// Только мышь: у тача курсора нет. 140 мс фиксированно — быстро, но целиком
-// видимо глазу; возврат таймером, не mouseup (при удержании курсор
-// возвращается сам — «на долю секунды» по спеке).
+// ═══ THE CURSOR PRESS ═══ (the owner's word 2026-08-02, verbatim: «when I click the
+// mouse button, shrink the cursor by 3-5% for a fraction of a second and then bring it
+// back. Do it fast, but not jerkily, so that there is a feeling of a press»)
+// A PNG cursor cannot be scaled with CSS — at the start we generate 96% copies of BOTH
+// images (the hand and the grab) with a canvas around their hotspot (otherwise the tip of
+// the finger would shift and the click would «drift») and for 140 ms we put html.cursorpress on.
+// The mouse only: touch has no cursor. The 140 ms is fixed — fast, but entirely visible to
+// the eye; the return is by a timer, not by mouseup (while holding, the cursor comes back
+// by itself — «for a fraction of a second» per the spec).
 let cursorPressTimer = 0, cursorPressReady = false;
 (function buildPressedCursors(){
   const found = { point: null, grab: null }; // {uris:[1x,2x], hot:[x,y], fall}
   const walk = (rules) => {
     for (const rule of rules){
-      // ⚠️ БЕЗ continue по cssRules: в свежем Chromium (вложенный CSS)
-      // .cssRules есть у КАЖДОГО правила — «сначала дети» пропускало бы всё
+      // ⚠️ WITHOUT a continue on cssRules: in a fresh Chromium (nested CSS)
+      // .cssRules exists on EVERY rule — «children first» would skip everything
       if (rule.cssRules && rule.cssRules.length) walk(rule.cssRules);
       const cur = rule.style && rule.style.cursor;
       if (!cur || cur.indexOf('image-set') < 0 || cur.indexOf('data:image') < 0) continue;
@@ -785,7 +802,7 @@ let cursorPressTimer = 0, cursorPressReady = false;
       if (uris.length < 2 || !tail) continue;
       const rec = { uris: uris.slice(0, 2), hot: [+tail[1], +tail[2]], fall: tail[3] };
       if (tail[3] === 'grabbing') found.grab = rec;
-      else if (!found.point) found.point = rec; // рука: первое base-правило
+      else if (!found.point) found.point = rec; // the hand: the first base rule
     }
   };
   try{
@@ -793,8 +810,8 @@ let cursorPressTimer = 0, cursorPressReady = false;
       try{ walk(sheet.cssRules); }catch(e){}
     }
   }catch(e){}
-  if (!found.point || !found.grab) return; // курсоры не наши — тихо без эффекта
-  const SHRINK = 0.96; // −4%, середина спеки «3-5%»
+  if (!found.point || !found.grab) return; // the cursors are not ours — quietly, without the effect
+  const SHRINK = 0.96; // −4%, the middle of the spec's «3-5%»
   const shrinkOne = (uri, hx, hy) => new Promise((res, rej) => {
     const img = new Image();
     img.onload = () => {
@@ -809,17 +826,17 @@ let cursorPressTimer = 0, cursorPressReady = false;
     img.src = uri;
   });
   const shrinkPair = (rec) => Promise.all([
-    shrinkOne(rec.uris[0], rec.hot[0], rec.hot[1]),          // 1x: hotspot как есть
-    shrinkOne(rec.uris[1], rec.hot[0]*2, rec.hot[1]*2),      // 2x: hotspot ×2 в пикселях
+    shrinkOne(rec.uris[0], rec.hot[0], rec.hot[1]),          // 1x: the hotspot as it is
+    shrinkOne(rec.uris[1], rec.hot[0]*2, rec.hot[1]*2),      // 2x: the hotspot ×2 in pixels
   ]);
   Promise.all([shrinkPair(found.point), shrinkPair(found.grab)]).then(([p, g]) => {
     const set = (pair, rec) =>
       `image-set(url(${pair[0]}) 1x, url(${pair[1]}) 2x) ${rec.hot[0]} ${rec.hot[1]}, ${rec.fall} !important`;
     const st = document.createElement('style');
     st.id = 'cursorPressStyle';
-    // селекторы повторяют боевые: база+кнопки — рука, grabbing — захват;
-    // правило grabbing НИЖЕ и специфичнее, чтобы во время драга сжимался
-    // именно захват, без подмены картинки (иначе было бы «дёргано»)
+    // the selectors repeat the production ones: the base+the buttons — the hand, grabbing —
+    // the grab; the grabbing rule is LOWER and more specific, so that during a drag it is
+    // exactly the grab that shrinks, without a substitution of the picture (otherwise it would be «jerky»)
     st.textContent =
       'html.cursorpress, html.cursorpress body, html.cursorpress #c, html.cursorpress button,' +
       ' html.cursorpress input[type=range], html.cursorpress input[type=checkbox],' +
@@ -835,4 +852,4 @@ window.addEventListener('pointerdown', (e) => {
   document.documentElement.classList.add('cursorpress');
   clearTimeout(cursorPressTimer);
   cursorPressTimer = setTimeout(() => document.documentElement.classList.remove('cursorpress'), 140);
-}, true); // capture: срабатывает и на кнопках, чей клик мог бы не всплыть
+}, true); // capture: it fires on the buttons too, whose click might not bubble

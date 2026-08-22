@@ -1,95 +1,101 @@
-// ===== 80-gameplay: матчи, тап, миксер, встряска, победа/поражение =====
+// ===== 80-gameplay: matches, tap, mixer, shake, win/lose =====
 
-// ЕДИНАЯ ТОЧКА ОЧКОВЫХ ШТРАФОВ (баланс-таблица владельца 2026-07-22).
-// Уровень 1 — штрафов нет вовсе (возврат false: поп «−N» не рисуем, чтобы
-// не врать); уровни 2..SCORE_CLAMP_LEVELS — кламп счёта снизу нулём
-// (штраф показывается, но в минус не уводит); дальше — полный минус.
-// Механика миксера (съедание предметов) от уровня НЕ зависит — только очки.
+// THE SINGLE POINT OF SCORE PENALTIES (the owner's balance table 2026-07-22).
+// Level 1 — no penalties at all (returns false: we don't draw the «−N» pop, so as
+// not to lie); levels 2..SCORE_CLAMP_LEVELS — the score is clamped at zero from
+// below (the penalty is shown, but it doesn't take you negative); beyond that —
+// the full minus.
+// The mixer's mechanic (eating items) does NOT depend on the level — only the score does.
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
-  // ⚠️ БУСТЕР МНОЖИТ И НАКАЗАНИЕ (решение владельца 2026-07-28): под x5 промах
-  // −50, помол −100. Симметрия с наградой: плоские −10/−20 на фоне «+700»
-  // превращали карательную сторону в шум ровно в оплаченном окне.
-  // Кламп нулём применяется ПОСЛЕ умножения — новичок (ур.<=SCORE_CLAMP_LEVELS)
-  // под бустером не улетает в минус быстрее, чем без него.
+  // ⚠️ THE BOOSTER MULTIPLIES THE PUNISHMENT TOO (the owner's decision 2026-07-28):
+  // under x5 a miss is −50, a grind −100. Symmetry with the reward: flat −10/−20
+  // against a «+700» backdrop turned the punitive side into noise exactly inside
+  // the paid window.
+  // The zero clamp is applied AFTER the multiplication — a newcomer
+  // (lv.<=SCORE_CLAMP_LEVELS) under the booster does not fly into the minus faster
+  // than without it.
   stats.score -= Math.round(n * scoreBoostMult());
   if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
   return true;
 }
 
-// Группа из N>=2 одинаковых по ТИПУ: все расщепляются на пиксели;
-// очки 10*N*(N-1) × комбо × МНОЖИТЕЛЬ НАКОПЛЕНИЯ типа (спека владельца
-// 2026-07-22: накопленные совмещения растят цену типа, accMult в 77-save)
+// A group of N>=2 items identical by TYPE: all of them split into pixels;
+// score 10*N*(N-1) × combo × the type's ACCUMULATION MULTIPLIER (the owner's spec
+// 2026-07-22: accumulated merges grow the type's price, accMult in 77-save)
 function doMatch(list){
-  if (level) level.stuck = 0; // успешный ход сжигает фору «Оглядеться»
-  // КОМБО: группа 3+ сразу, или вторая склейка за COMBO_CHAIN_MS, или матч
-  // при уже горящем бусте — радиус до COMBO_RADIUS и ОЧКИ ×COMBO_SCORE_MULT
-  // на COMBO_MS (окно продлевается каждым матчем — лихорадка живёт, пока
-  // игрок быстр; первый матч цепочки идёт по обычной цене)
+  if (level) level.stuck = 0; // a successful move burns the «Look around» grace period
+  // COMBO: a group of 3+ at once, or a second merge within COMBO_CHAIN_MS, or a match
+  // while the boost is already burning — radius up to COMBO_RADIUS and SCORE
+  // ×COMBO_SCORE_MULT for COMBO_MS (the window is extended by every match — the fever
+  // lives as long as the player is fast; the first match of the chain goes at the
+  // ordinary price)
   const nowMs = performance.now();
   const comboHot = list.length >= 3 || nowMs - lastMatchMs < COMBO_CHAIN_MS || comboUntil > nowMs;
-  // (лесенка темпа — seriesMult объявлен ниже doMatch, функции хойстятся)
+  // (the tempo ladder — seriesMult is declared below doMatch, functions are hoisted)
   {
     const wasHot = comboUntil > nowMs;
     lastMatchMs = nowMs;
     if (comboHot){
-      // ПАКЕТ ТЕМПА (спека владельца 2026-07-31): НОВОЕ зажигание начинает
-      // счёт серии с 1 — раньше comboCount переживал протухшее окно и копился
-      // сквозь паузы (турбо собиралось за несколько вялых серий, а лесенка
-      // ×3 стартовала бы мгновенно). Теперь серия = непрерывный темп.
+      // THE TEMPO PACKAGE (the owner's spec 2026-07-31): a NEW ignition starts the
+      // series count at 1 — comboCount used to survive a stale window and pile up
+      // across pauses (turbo got assembled out of several sluggish series, and the
+      // ×3 ladder would have started instantly). Now a series = continuous tempo.
       comboCount = wasHot ? comboCount + 1 : 1;
-      // ЧАША-РАЗЛЁТ, боевая единица «набранные серии» (5-7 за уровень —
-      // слово владельца): каждые BOWL_SERIES_LEN НЕПРЕРЫВНЫХ матчей цепи =
-      // 1 зачёт. Снимаем в момент роста comboCount — вход в турбо ниже по
-      // файлу серию «тратит» (comboCount = 0), полученные зачёты не трогая.
-      // Зачёт ЗВУЧНЫЙ (без silent): редкое событие (5-7 раз за уровень),
-      // кранч+вибро — «удар по чаше»; тонкую индикацию возьмут глаза.
+      // BOWL SHATTER, the combat unit «series collected» (5-7 per level — the
+      // owner's word): every BOWL_SERIES_LEN CONTINUOUS matches of the chain =
+      // 1 credit. We take it at the moment comboCount grows — entering turbo further
+      // down the file «spends» the series (comboCount = 0) without touching the
+      // credits already earned.
+      // The credit is LOUD (no silent): a rare event (5-7 times per level),
+      // crunch+vibro — «a blow to the bowl»; the eyes will take the subtle indication.
       if (BOWL_CRACK_ON === 'series' && comboCount > 0 && comboCount % BOWL_SERIES_LEN === 0) bowlCrackAdd();
-      // исторический режим стенда: 'peak' — рекорд цепи (отменён владельцем)
+      // historical bench mode: 'peak' — the chain record (cancelled by the owner)
       else if (BOWL_CRACK_ON === 'peak' && comboCount > ((level && level.bowlCracks) || 0)) bowlCrackAdd(true);
-      // окно УТЕКАЕТ и сжимается с длиной серии (было плоское COMBO_MS)
+      // the window LEAKS AWAY and shrinks with the series length (it used to be a flat COMBO_MS)
       comboUntil = nowMs + seriesWindowMs(comboCount);
-      comboLevel = Math.min(COMBO_STEPS, comboLevel + 1); // +ступень радиуса за матч серии
+      comboLevel = Math.min(COMBO_STEPS, comboLevel + 1); // +one radius tier per match of the series
       if (!wasHot){
         const mid0 = new THREE.Vector3();
         list.forEach(it => mid0.add(it.p));
         mid0.multiplyScalar(1/list.length).y += 0.9;
-        // спека владельца: без эмодзи; «Combo ×2» тает — и СРАЗУ с того же
-        // места тем же эффектом вылетает «Radius Up»
+        // the owner's spec: no emoji; «Combo ×2» melts away — and IMMEDIATELY from
+        // the same place, with the same effect, «Radius Up» flies out
         scorePop('Combo ×' + COMBO_SCORE_MULT, mid0, '#ff9d2e', true);
-        // ЧАША-РАЗЛЁТ: режим 'combo' — трещина на КАЖДОМ зажигании серии
+        // BOWL SHATTER: mode 'combo' — a crack on EVERY ignition of a series
         if (BOWL_CRACK_ON === 'combo') bowlCrackAdd();
         const mid1 = mid0.clone();
         setTimeout(()=>{ scorePop('Radius Up', mid1, '#ff9d2e', true); }, 800);
         Sound.play('combo');
-        vibrate([20, 40, 30]); // двойной пульс — отличим от одиночных 15/40 мс
+        vibrate([20, 40, 30]); // a double pulse — distinguishable from the single 15/40 ms ones
       }
-      // лесенка темпа: пересечение порога ×3 — короткий поп тем же стилем
-      // (это НЕ шкала — разовый момент, как «Combo ×2»; постоянный показ
-      // темпа несут ГЛАЗА, зона Интерфейса)
+      // the tempo ladder: crossing the ×3 threshold — a short pop in the same style
+      // (this is NOT a gauge — a one-off moment, like «Combo ×2»; the permanent
+      // display of tempo is carried by the EYES, the Interface zone)
       if (comboCount === SERIES_X3_AT){
         const mid3 = new THREE.Vector3();
         list.forEach(it => mid3.add(it.p));
         mid3.multiplyScalar(1/list.length).y += 0.9;
         scorePop('×' + SERIES_MULT_X3 + '!', mid3, '#ff9d2e', true);
       }
-      // серия дожата до цепной реакции. ВТОРОЕ турбо, собранное ВНУТРИ
-      // активного, — «СЕРИЯ ТУРБО» (спека владельца 2026-07-21): окно
-      // перезапускается, chainSeries растёт (интерфейс вешает на >=2
-      // глаза eyes-5). Раньше гейт !chainUntil делал это невозможным —
-      // вопрос ревью «comboCount копится, а зажечь следующую нельзя»
-      // закрыт этим решением владельца.
-      if (comboCount >= chainComboAt() && !level.over){ // порог входа в турбо растёт с уровнем
-        const again = chainUntil > nowMs; // собрал турбо, не выходя из турбо
+      // the series has been pushed all the way to the chain reaction. A SECOND turbo
+      // assembled INSIDE an active one is a «TURBO SERIES» (the owner's spec
+      // 2026-07-21): the window restarts, chainSeries grows (the interface hangs
+      // eyes-5 on >=2). The !chainUntil gate used to make this impossible — the
+      // review question «comboCount piles up, but the next one cannot be ignited»
+      // is closed by this decision of the owner's.
+      if (comboCount >= chainComboAt() && !level.over){ // the turbo entry threshold grows with the level
+        const again = chainUntil > nowMs; // assembled a turbo without leaving turbo
         chainSeries = again ? chainSeries + 1 : 1;
         chainUntil = nowMs + CHAIN_MS;
         chainStartMisses = stats.misses;
-        if (!again) chainNextDrop = nowMs + 600; // у активной цепи досыпка уже тикает
-        comboCount = 0; // серия «потрачена» на запуск — следующая копится заново
-        // ВЫПАДЕНИЕ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31, 00-config):
-        // 1/уровень (level.chargeGiven) и только в пустой слот. Тип — случайный
-        // из ЖИВЫХ с >= CHARGE_MIN_COPIES копий: ниже порога заряд взрывал бы
-        // 1-2 предмета и разочаровывал (замер: медиана копий 14 рано / 6 ур.25).
+        if (!again) chainNextDrop = nowMs + 600; // an active chain's refill is already ticking
+        comboCount = 0; // the series is «spent» on the launch — the next one piles up anew
+        // THE «TYPE CHARGE» DROP (the owner's spec 2026-07-31, 00-config):
+        // 1/level (level.chargeGiven) and only into an empty slot. The type is random
+        // among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold
+        // the charge would blow up 1-2 items and disappoint (measurement: median
+        // copies 14 early / 6 at lv.25).
         if (!level.chargeGiven && !chargeName){
           const cnt = {};
           for (const it of items)
@@ -99,7 +105,7 @@ function doMatch(list){
           if (pool.length){
             level.chargeGiven = true;
             chargeName = pool[Math.floor(Math.random() * pool.length)];
-            chargeUntil = performance.now() + CHARGE_TTL_MS; // ≤7 c, дальше растворяется
+            chargeUntil = performance.now() + CHARGE_TTL_MS; // ≤7 s, after that it dissolves
             try { updateHUD(); } catch(e){}
           }
         }
@@ -107,15 +113,15 @@ function doMatch(list){
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
         scorePop(again ? ('Power chain ×' + chainSeries + '!') : 'Power chain!', mid1, '#ff5a3c', true);
-        // ЧАША-РАЗЛЁТ: режим 'chain' — трещина на входе в турбо (исходный
-        // дизайн; серия турбо again — тоже буст). В режиме 'combo' здесь
-        // НЕ добавляем — иначе двойной счёт за одну серию.
+        // BOWL SHATTER: mode 'chain' — a crack on entering turbo (the original
+        // design; a turbo series, again, is a boost too). In mode 'combo' we do
+        // NOT add here — otherwise one series would be counted twice.
         if (BOWL_CRACK_ON === 'chain') bowlCrackAdd();
-        // ⚠️ ПОДБРОС КУЧИ НА ВХОДЕ В ТУРБО (спека владельца 2026-07-28
-        // «подкидывать все вещи, словно это шейк на старте») — заменил
-        // молнии как маркер входа. performShake() НЕ списывает зарядов
-        // (списание живёт у вызывающих: useFreeShake и др.), поэтому это
-        // чистый эффект, а не бесплатная встряска-ресурс.
+        // ⚠️ TOSSING THE PILE UP ON ENTERING TURBO (the owner's spec 2026-07-28
+        // «toss all the things up, as if it were a shake at the start») — it replaced
+        // the lightning as the entry marker. performShake() does NOT deduct charges
+        // (the deduction lives at the callers: useFreeShake and others), so this is
+        // a pure effect, not a free shake-resource.
         if (TURBO_SHAKE) performShake();
         Sound.play('chain');
         vibrate([30, 50, 30, 50, 60]);
@@ -123,61 +129,61 @@ function doMatch(list){
       }
     }
   }
-  // молнии цепной реакции: разряд от тапнутого к каждому предмету группы
+  // chain-reaction lightning: a discharge from the tapped item to every item of the group
   if (chainUntil > performance.now() && list.length > 1){
     for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
   }
-  // ⚠️ ЗАМЕР ХВОСТА doMatch (передан Графикой: попы и сейв они сняли, 0.34 мс
-  // из 4.1). Снос тел — их главный подозреваемый: удаление коллайдера
-  // перестраивает широкую фазу, а прокси у нас 599.
+  // ⚠️ MEASUREMENT OF THE doMatch TAIL (handed over by Graphics: they measured the pops
+  // and the save, 0.34 ms out of 4.1). Tearing down the bodies is their prime suspect:
+  // removing a collider rebuilds the broad phase, and we have 599 proxies.
   const _td0 = performance.now();
-  list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // тела сразу из мира; метка — для спасателя зависших удалений (99-main)
+  list.forEach(it => { it.animating = true; it.animStartMs = nowMs; destroyItemBody(it); }); // bodies leave the world at once; the mark is for the rescuer of stuck deletions (99-main)
   tapDestroyMs += performance.now() - _td0;
-  wakePhysics('gameplay:L7'); // соседи начинают оседать
+  wakePhysics('gameplay:L7'); // the neighbours start to settle
   stats.matches++;
   stats.lastAction = performance.now();
   const n = list.length;
   const mid = new THREE.Vector3();
   list.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n);
-  // НАКОПЛЕНИЕ: инкремент счётчика типа НА N предметов группы ДО подсчёта
-  // очков — матч, пересёкший порог ступени, уже идёт по новому множителю
-  // (ап ступени и жирные очки приходят одним моментом); событие всплывашки
-  // (onAccTierUp) кидает accAdd в момент пересечения (спека владельца).
+  // ACCUMULATION: the type's counter is incremented BY the group's N items BEFORE the
+  // score is computed — a match that crossed a tier threshold already goes at the new
+  // multiplier (the tier-up and the fat score arrive as one moment); the toast event
+  // (onAccTierUp) throws accAdd at the moment of the crossing (the owner's spec).
   const typeName = list[0].type.name;
   const _ta0 = performance.now();
   accAdd(typeName, n, list[0]);
-  frozenCredit(typeName, n);                 // зачёт пар в глыбы этого типа
-  tapAccMs += performance.now() - _ta0;      // накопление типа + запись сейва
-  // ⚠️ Купленный бустер — ПОСЛЕДНИЙ множитель стека (комбо ×2 × накопление до
-  // ×3.25 × бустер до ×5). ⚠️ ШТРАФЫ ОН ТОЖЕ МНОЖИТ (решение владельца
-  // 2026-07-28, единая точка scorePenalty выше) — прежняя оговорка «наказание
-  // не трогает» ОТМЕНЕНА: плоские −10/−20 на фоне «+700» делали карательную
-  // сторону шумом ровно в оплаченном окне.
-  // ЛЕСЕНКА ТЕМПА вместо плоского ×2 (спека владельца 2026-07-31): ×2 с
-  // зажигания, ×3 с SERIES_X3_AT-го матча серии, ×4 в турбо. Единая точка —
-  // seriesMult; comboCount к этой строке уже инкрементирован (матч,
-  // пересёкший порог, идёт по новому множителю — как у ступеней накопления).
-  // 🔥 БОНУС ОГНЯ (механика «горячего предмета», слово владельца 2026-08-01):
-  // собрал группу ГОРЯЩЕГО типа, пока горит, — очки группы ×FIRE_BONUS_MULT.
-  // Сверка по ТИПУ через burningName (стык Графики); сбор ГАСИТ огонь —
-  // бонус одноразовый, следующая вспышка идёт своим расписанием
-  // (tickFireSpawn отсчитывает от момента вспышки, не от гашения).
+  frozenCredit(typeName, n);                 // credit of pairs into the ice blocks of this type
+  tapAccMs += performance.now() - _ta0;      // the type's accumulation + writing the save
+  // ⚠️ The purchased booster is the LAST multiplier of the stack (combo ×2 × accumulation
+  // up to ×3.25 × booster up to ×5). ⚠️ IT MULTIPLIES THE PENALTIES TOO (the owner's
+  // decision 2026-07-28, the single point scorePenalty above) — the former caveat «the
+  // punishment is not touched» is CANCELLED: flat −10/−20 against a «+700» backdrop made
+  // the punitive side noise exactly inside the paid window.
+  // THE TEMPO LADDER instead of a flat ×2 (the owner's spec 2026-07-31): ×2 from the
+  // ignition, ×3 from the SERIES_X3_AT-th match of the series, ×4 in turbo. The single
+  // point is seriesMult; by this line comboCount is already incremented (a match that
+  // crossed the threshold goes at the new multiplier — as with the accumulation tiers).
+  // 🔥 THE FIRE BONUS (the «hot item» mechanic, the owner's word 2026-08-01):
+  // collect a group of the BURNING type while it burns — the group's score ×FIRE_BONUS_MULT.
+  // The check is by TYPE via burningName (the seam with Graphics); collecting PUTS OUT the
+  // fire — the bonus is one-off, the next flare-up goes by its own schedule
+  // (tickFireSpawn counts from the moment of the flare-up, not from the extinguishing).
   const fireHot = typeName === burningName();
   if (fireHot) extinguishAll();
-  // Пара из ФИНАЛЬНОЙ ДОКИДКИ (метка refill, 40-items): только базовая
-  // цена — серийные и огненный множители не работают (обещание владельцу);
-  // прокачка типа и купленный бустер остаются — они не серийные.
+  // A pair from the FINAL TOP-UP (the refill mark, 40-items): base price only — the series
+  // and fire multipliers do not work (a promise to the owner); the type's upgrade and the
+  // purchased booster stay — they are not series-based.
   const hasRefill = list.some(i => i.refill);
   const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
-  // тост множителя под глазами (нода 829:1242): только у прокачанных типов
-  // ⚠️ ТОЛЬКО ПРИ РОСТЕ МНОЖИТЕЛЯ В ЭТОЙ ПАРТИИ (слово владельца 2026-08-05:
-  // «тост под глазами показывается, если только множитель вещи увеличен во
-  // время игры»). Раньше он всплывал на КАЖДОМ сборе прокачанного вида — то
-  // есть на давно купленной прокачке тоже, и превращался в шум. Событие
-  // роста приходит из accAdd (повышение ступени) и из покупки бустера —
-  // оба идут через showTierUp -> showMultToast(..., true).
-  // Здесь оставлен только СЛУЧАЙ РОСТА В БОЮ: множитель вида стал больше,
-  // чем был на старте уровня.
+  // the multiplier toast under the eyes (node 829:1242): only for upgraded types
+  // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
+  // «the toast under the eyes is shown only if the item's multiplier was increased
+  // during play»). It used to pop up on EVERY collection of an upgraded kind — that
+  // is, on an upgrade bought long ago as well, and it turned into noise. The growth
+  // event comes from accAdd (a tier being raised) and from buying the booster —
+  // both go through showTierUp -> showMultToast(..., true).
+  // Only the CASE OF GROWTH IN COMBAT is left here: the kind's multiplier has become
+  // bigger than it was at the level's start.
   try {
     const am = accMult(typeName);
     const base = (level && level.multAtStart && level.multAtStart[typeName]) || 1;
@@ -185,60 +191,61 @@ function doMatch(list){
   } catch(e){}
   const scoreBefore = stats.score;
   stats.score += gained;
-  const shownGain = scoreShownDelta(scoreBefore, stats.score); // деноминир. прирост чипа (#10)
+  const shownGain = scoreShownDelta(scoreBefore, stats.score); // denom. gain of the chip (#10)
   const _tf0 = performance.now();
   popFX(mid);
-  // «ПУНКТ 5» (спека владельца 2026-07-21): разнообразие эффектов ПРАВИЛОМ.
-  // Пара/тройка — труха как раньше; группа >= BURST_MIN_N ЛОПАЕТСЯ эффектом
-  // своей пачки (burstFX) + физическая волна вздрагивает соседей от
-  // тапнутого (list[0]); в комбо/цепи поверх остаются молнии — как были.
-  // ⚙️ СХЛОПЫВАНИЕ (выбор владельца 2026-08-01): группа СЛЕТАЕТСЯ в точку тапа и
-  // лопается ОДНИМ событием оттуда. Раньше каждый предмет уменьшался на месте и
-  // выдавал своё облачко — эффект читался как «замена предмету», а не как удар.
-  // ⚠️ ПРАВИЛО ПАЧКИ (BURST_MIN_N) СОХРАНЕНО как было: группа >= 4 лопается
-  // эффектом своей пачки, пара/тройка — трухой. Изменилось только МЕСТО (точка
-  // тапа вместо N позиций) и КОЛИЧЕСТВО (одно событие вместо N).
+  // «POINT 5» (the owner's spec 2026-07-21): variety of effects BY RULE.
+  // A pair/triple — crumble as before; a group >= BURST_MIN_N BURSTS with the effect of
+  // its own pack (burstFX) + a physical wave makes the neighbours flinch, starting from
+  // the tapped one (list[0]); in a combo/chain the lightning stays on top — as it was.
+  // ⚙️ THE COLLAPSE (the owner's choice 2026-08-01): the group FLIES TOGETHER into the tap
+  // point and bursts with ONE event from there. Before, every item shrank in place and gave
+  // out its own little cloud — the effect read as «a replacement for the item», not as a blow.
+  // ⚠️ THE PACK RULE (BURST_MIN_N) IS PRESERVED as it was: a group >= 4 bursts with the
+  // effect of its own pack, a pair/triple — with crumble. Only the PLACE changed (the tap
+  // point instead of N positions) and the COUNT (one event instead of N).
   const burst = n >= BURST_MIN_N;
-  const boomAt = list[0].p.clone();   // точка тапа: list[0] — тапнутый предмет
+  const boomAt = list[0].p.clone();   // the tap point: list[0] is the tapped item
   const boomGhost = { p: boomAt, r: list[0].r * 1.25, type: list[0].type,
-                      // geo — для ФОРМЫ кольца удара: она берётся из габаритов
-                      // самого предмета (ringFamFor в 70-fx), а не из хеша имени
+                      // geo — for the SHAPE of the impact ring: it is taken from the item's
+                      // own bounds (ringFamFor in 70-fx), and not from a hash of the name
                       geo: list[0].geo,
                       fxColor: list[0].fxColor, baseColor: list[0].baseColor };
   collapseFX(list, boomAt);
   if (burst){ const _tw0 = performance.now(); blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
     tapWaveMs += performance.now() - _tw0; }
-  // цифра — деноминированный прирост чипа (#10: «понятно и в процессе»);
-  // множитель ×(n−1) остаётся как ярлык (не очки)
-  // ⚠️⚠️ ОБВОДКА ЦИФРЫ — ВСЕГДА ИЗ ПАЛИТРЫ, БЕЗ ИСКЛЮЧЕНИЙ (слово владельца
-  // 2026-08-17-г: «обводка у очков до сих пор оранжевая, а нужна разноцветная
-  // с контрастом к белому»).
-  // ⛔ ЗДЕСЬ СТОЯЛО `comboHot ? '#ff9d2e' : …`, и это была МОЯ НЕДОДЕЛКА, а не
-  // «до сих пор»: я оставил оранжевый как «сигнал состояния», не посчитав, ЧТО
-  // игрок почти всё время играет ВНУТРИ комбо (оно зажигается группой от трёх
-  // или вторым матчем за 1.5 с). То есть исключение съедало правило: цветными
-  // выходили только редкие одиночные матчи, а в бою цвет был один.
-  // ⚠️ СИГНАЛ КОМБО НЕ ПОТЕРЯН: его несут ОТДЕЛЬНЫЕ подписи — «Combo ×2»,
-  // «Radius Up», «Power chain!» — они остаются оранжевыми выше по функции.
+  // the number is the denominated gain of the chip (#10: «clear while it happens»);
+  // the ×(n−1) multiplier stays as a label (not score)
+  // ⚠️⚠️ THE NUMBER'S OUTLINE IS ALWAYS FROM THE PALETTE, NO EXCEPTIONS (the owner's word
+  // 2026-08-17-d: «the outline on the score is still orange, and it needs to be multi-coloured
+  // with contrast against white»).
+  // ⛔ WHAT STOOD HERE WAS `comboHot ? '#ff9d2e' : …`, and that was MY UNFINISHED WORK, and
+  // not a «still»: I left the orange as a «state signal» without reckoning THAT the player
+  // plays INSIDE a combo almost all of the time (it ignites on a group of three or on a
+  // second match within 1.5 s). That is, the exception ate the rule: only the rare single
+  // matches came out coloured, and in combat the colour was one.
+  // ⚠️ THE COMBO SIGNAL IS NOT LOST: it is carried by SEPARATE captions — «Combo ×2»,
+  // «Radius Up», «Power chain!» — they stay orange higher up in the function.
   scorePop('+' + shownGain, mid, popOutlineColor(), false);
   if (n > 2) scorePop('×' + (n-1), mid.clone().add(new THREE.Vector3(0, 1.2, 0)), '#f5a623', true);
   if (fireHot) scorePop('Fire ×' + FIRE_BONUS_MULT + '!', mid.clone().add(new THREE.Vector3(0, 1.8, 0)), '#ff5a3c', true);
-  tapFxMs += performance.now() - _tf0;       // popFX + схлопывание + волна + два попа очков
-  // питч «буля» растёт с длиной серии (пакет темпа) — звуковая лесенка
+  tapFxMs += performance.now() - _tf0;       // popFX + the collapse + the wave + two score pops
+  // the pitch of the «bloop» grows with the series length (the tempo package) — an audio ladder
   const _ts0 = performance.now();
-  // ⚠️ МАТЕРИАЛ БЕРЁТСЯ ПО ИМЕНИ ТИПА (`typeName` выше — он же решает матч),
-  // а не по пачке `tex`: пачка это атлас картинок, и в одной пачке `food`
-  // лежат и сочные фрукты, и выпечка, и мороженое — звучать одинаково они не
-  // должны. Разбор — docs/MATERIAL-SOUND-MAP.md.
-  // ⚠️ РАЗМЕР И ПАНОРАМА — ТОЛЬКО ДЛЯ ЗАПИСАННЫХ ГОЛОСОВ МАТЕРИАЛА (слово
-  // владельца 2026-08-10 «сделай web audio разнообразным только для 3 новых
-  // звуков»). Процедурный «буль» их игнорирует — он ниже по ветке в 75-audio.
-  // ⚠️ ПАНОРАМА СЧИТАЕТСЯ ЭКРАННОЙ ПРОЕКЦИЕЙ, а не мировым X: чашу вращают, и
-  // мировая координата при повороте камеры давала бы звук СЛЕВА у предмета,
-  // который игрок видит СПРАВА. Тот же приём, что у выбора пикселя для тестов
-  // (`visiblePixel`) и у попов очков — камера уже есть, изобретать нечего.
-  // ⚠️ 0.6 — НЕ ПОЛНЫЙ РАЗМАХ: чаша занимает середину экрана, и жёсткая
-  // панорама в наушниках читается как «звук уехал из игры». Достаточно намёка.
+  // ⚠️ THE MATERIAL IS TAKEN BY THE TYPE'S NAME (`typeName` above — the very thing that
+  // decides the match), and not by the pack `tex`: a pack is an atlas of pictures, and one
+  // `food` pack holds juicy fruit, and baked goods, and ice cream — they must not sound
+  // the same. The breakdown is docs/MATERIAL-SOUND-MAP.md.
+  // ⚠️ SIZE AND PANNING ARE ONLY FOR THE RECORDED VOICES OF THE MATERIAL (the owner's
+  // word 2026-08-10 «make web audio varied only for the 3 new sounds»). The procedural
+  // «bloop» ignores them — it is further down the branch in 75-audio.
+  // ⚠️ PANNING IS COMPUTED AS A SCREEN PROJECTION, and not as world X: the bowl gets
+  // rotated, and on a camera turn the world coordinate would give sound from the LEFT for
+  // an item the player sees on the RIGHT. The same trick as with picking a pixel for the
+  // tests (`visiblePixel`) and with the score pops — the camera is already there, there is
+  // nothing to invent.
+  // ⚠️ 0.6 IS NOT THE FULL SWING: the bowl occupies the middle of the screen, and hard
+  // panning in headphones reads as «the sound drove out of the game». A hint is enough.
   const _pan = (function (){
     try { const s = boomAt.clone().project(camera);
       return Math.max(-1, Math.min(1, s.x)) * 0.6; } catch (e) { return null; }
@@ -246,66 +253,66 @@ function doMatch(list){
   Sound.play('match', { n, k: comboHot ? comboCount : 0, m: materialOf(typeName),
                         r: list[0].r, pan: _pan });
   vibrate(15);
-  tapSndMs += performance.now() - _ts0;      // синтез «буля» + вибро
-  if (MATCH_CAM_SHAKE && n > 2) camShake = Math.max(camShake, 0.12); // джус на большие группы
+  tapSndMs += performance.now() - _ts0;      // synthesis of the «bloop» + vibro
+  if (MATCH_CAM_SHAKE && n > 2) camShake = Math.max(camShake, 0.12); // juice for the big groups
   setTimeout(()=>afterPause(()=>{
-    // ⚠️ ХЛОПОК ЗДЕСЬ, НА ТЕХ ЖЕ ЧАСАХ, ЧТО И УДАЛЕНИЕ. Стягивание идёт по
-    // ИГРОВОМУ времени (тик addFX), удаление — по РЕАЛЬНЫМ (этот setTimeout).
-    // На просевшем FPS тик до конца не доходит, и хлопок, повешенный на него,
-    // не наступил бы вовсе. Одни часы на «предметы исчезли» и «бабахнуло».
-    // ⚡ УДАР (задача тестеров 2026-08-06 «больше драйва при соединении»):
-    // кольцо + вспышка + стрелы поверх прежнего носителя. Стоит ЗДЕСЬ, на тех
-    // же часах, что и хлопок с удалением, — по той же причине, что абзацем
-    // выше. Пачечный эффект достаётся только группам >= BURST_MIN_N, а удар —
-    // КАЖДОМУ соединению; его размер растёт с n (у пары самый скромный).
+    // ⚠️ THE BANG IS HERE, ON THE SAME CLOCK AS THE DELETION. The drawing-together runs on
+    // GAME time (the addFX tick), the deletion — on REAL time (this setTimeout).
+    // On a sagging FPS the tick does not run to the end, and the bang, hung on it, would
+    // not have come at all. One clock for «the items disappeared» and «it went boom».
+    // ⚡ THE IMPACT (the testers' task 2026-08-06 «more drive when connecting»):
+    // a ring + a flash + arrows on top of the previous carrier. It stands HERE, on the same
+    // clock as the bang and the deletion — for the same reason as the paragraph above. The
+    // pack effect goes only to groups >= BURST_MIN_N, while the impact goes to EVERY
+    // connection; its size grows with n (a pair's is the most modest).
     impactFX(boomAt, n, boomGhost.fxColor || boomGhost.baseColor, boomGhost, fireHot);
-    // 🔥 ВСПЛЕСК ОГНЯ (слово владельца 2026-08-06 «когда огненный объект
-    // совмещается, при совмещении сделай визуальный всплеск огня»). Слой
-    // ДОПОЛНИТЕЛЬНЫЙ: удар, кольцо и труха остаются, огонь ложится сверху —
-    // иначе момент бонуса ×2 визуально не отличался бы от рядового матча.
+    // 🔥 THE FIRE SPLASH (the owner's word 2026-08-06 «when a fiery object is merged, on
+    // the merge make a visual splash of fire»). The layer is ADDITIONAL: the impact, the
+    // ring and the crumble stay, the fire lies on top — otherwise the moment of the ×2
+    // bonus would not visually differ from an ordinary match.
     if (fireHot) fireBurstFX(boomAt, n);
     if (burst) burstFX(boomGhost); else dissolveFX(boomGhost);
     popFX(boomAt);
-    // кик камеры тоже растёт с группой: у пары прежний, у группы в кап — вдвое
+    // the camera kick grows with the group too: a pair's is as before, a group at the cap — double
     if (MATCH_CAM_SHAKE) camShake = Math.max(camShake, COLLAPSE_SHAKE * (1 + Math.min(1, (n - 2) / Math.max(1, MATCH_MAX_N - 2))));
     list.forEach(removeItem);
-    wakePhysics('gameplay:L28'); // масса над удалёнными должна осесть
-    // ⚠️ ЛОКАЛЬНО ВОКРУГ ТОЧКИ СХЛОПЫВАНИЯ (79-86 мс полного обхода садились
-    // на КАЖДЫЙ матч; фон досчитает остальное за 0.8 с) — см. 60-access
+    wakePhysics('gameplay:L28'); // the mass above the deleted ones must settle
+    // ⚠️ LOCALLY AROUND THE COLLAPSE POINT (79-86 ms of a full pass used to land on EVERY
+    // match; the background will finish the rest within 0.8 s) — see 60-access
     refreshAccessibilityNear(boomAt); updateHUD(); checkEnd();
   }), 150);
 }
-// ===== Эффекты лопанья по пачкам («пункт 5», спека владельца 2026-07-21).
-// СТАРТОВЫЕ реализации зоны ФИЗИКИ через публичный addFX — 70-fx не тронут
-// (sphereFX-стиль жизненного цикла: материал/геометрия персональные,
-// stepFX сам их диспозит). Полировка/перенос в 70-fx — за ГРАФИКОЙ
-// (междузонный запрос в WORKSTREAMS). Баллистика ПАРАМЕТРИЧЕСКАЯ
-// (позиция от t=k·life, не по кадрам) — FPS-независимо.
-// Тап по КАМНЮ (спека владельца 2026-07-22): ДВОЙНОЙ штраф промаха как
-// обучение «камни не совмещаются». Механика — зеркало penalize (70-fx) с
-// суммой 2×MISS_PENALTY: «уровень 1 без штрафов» и кламп нуля ур.2..5
-// несёт единая точка scorePenalty; misses и срез комбо-ступеней — как у
-// стандартного промаха.
+// ===== Burst effects by pack («point 5», the owner's spec 2026-07-21).
+// The STARTING implementations of the PHYSICS zone via the public addFX — 70-fx is not
+// touched (sphereFX-style life cycle: material/geometry are personal, stepFX disposes
+// of them itself). Polishing/moving into 70-fx is up to GRAPHICS
+// (a cross-zone request in WORKSTREAMS). The ballistics are PARAMETRIC
+// (position from t=k·life, not per frame) — FPS-independent.
+// A tap on a STONE (the owner's spec 2026-07-22): a DOUBLE miss penalty as teaching
+// that «stones do not merge». The mechanic mirrors penalize (70-fx) with a sum of
+// 2×MISS_PENALTY: «level 1 without penalties» and the zero clamp for lv.2..5 are
+// carried by the single point scorePenalty; misses and the cut of combo tiers are as
+// with a standard miss.
 
-// ДВОЙНОЙ ШТРАФ ЗА ТАП ПО НЕСОВМЕЩАЕМОМУ (2×MISS_PENALTY).
-// ⚠️⚠️ РОДОМ ОТ КАМНЕЙ (`penalizeRock`), но КАМНИ УДАЛЕНЫ 2026-08-17, а функция
-// ЖИВА — её зовёт ГЛЫБА при раннем тапе: спека владельца по льду дословно
-// говорит «штраф КАК У КАМНЯ». Снести её вместе с камнями значило бы тихо
-// изменить механику льда, поэтому переименована, а не удалена.
+// A DOUBLE PENALTY FOR A TAP ON SOMETHING NON-MERGEABLE (2×MISS_PENALTY).
+// ⚠️⚠️ IT COMES FROM THE STONES (`penalizeRock`), but THE STONES WERE DELETED 2026-08-17
+// while the function is ALIVE — the ICE BLOCK calls it on an early tap: the owner's spec
+// on the ice says verbatim «the penalty is LIKE THE STONE'S». Tearing it down together with
+// the stones would have quietly changed the ice mechanic, so it was renamed, not deleted.
 function penalizeDouble(item){
   stats.misses++;
   const before = stats.score;
   const charged = scorePenalty(2 * MISS_PENALTY);
-  const shown = scoreShownDelta(stats.score, before); // положительная величина падения чипа (#10)
-  // тап по несовмещаемому — тоже промах: набор турбо обнуляется (спека владельца
-  // 2026-07-27), радиус-лесенка теряет свои 2 шага. Симметрично registerMiss.
+  const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
+  // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
+  // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
-    comboCount = 0; // набор турбо — с нуля
+    comboCount = 0; // the turbo build-up — from zero
     updateMatchRadius(); updateHUD();
   }
-  try { bowlStreakReset(); } catch(e){} // стрик чаши: промах по несовмещаемому = ошибка
-  try { noteMissRadius(); } catch(e){} // штраф радиуса — как у обычного промаха (2026-08-11)
+  try { bowlStreakReset(); } catch(e){} // the bowl streak: a miss on something non-mergeable = a mistake
+  try { noteMissRadius(); } catch(e){} // the radius penalty — as with an ordinary miss (2026-08-11)
   if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
   Sound.play('miss');
   vibrate(20);
@@ -313,40 +320,43 @@ function penalizeDouble(item){
   updateHUD();
 }
 
-// ЧЁРНЫЙ ШАР-БОМБА (спека владельца 2026-07-22): тап = взрыв БЛИЖАЙШИХ
-// соседей (зазор охватных сфер <= BOMB_RADIUS, кап BOMB_MAX), без очков.
-// Поведение объекта — зона ФИЗИКИ (правило 9). Жертвы уходят пак-эффектами
-// «пункта 5» (сок/искры/звёзды — взрыв бесплатно разнообразен), сама бомба —
-// тёмной трухой; волна сильнее бурстовой (BOMB_WAVE_V) — куча вздрагивает.
-// Комбо/серии взрыв НЕ трогает (не матч); сюрприз и другие бомбы не задевает.
-// ЗАЧЁТ ПАР В ГЛЫБЫ — ЕДИНСТВЕННАЯ ТОЧКА (копия счёта рядом с рабочим —
-// канонный источник расхождений). Считаем ШТУКАМИ: 2 собранные штуки типа =
-// пара; нечётные группы не теряют половинку. Готовность даёт пульс (тик в
-// 99-main), разбитие — за игроком (слово владельца «нужен тап»).
+// THE BLACK BOMB-BALL (the owner's spec 2026-07-22): a tap = an explosion of the NEAREST
+// neighbours (the gap between the enclosing spheres <= BOMB_RADIUS, cap BOMB_MAX), no score.
+// The object's behaviour is the PHYSICS zone (rule 9). The victims leave with the pack
+// effects of «point 5» (juice/sparks/stars — an explosion is varied for free), the bomb
+// itself — with a dark crumble; the wave is stronger than the burst one (BOMB_WAVE_V) —
+// the pile flinches.
+// The explosion does NOT touch combos/series (it is not a match); it does not affect the
+// surprise or the other bombs.
+// THE CREDIT OF PAIRS INTO ICE BLOCKS IS THE ONLY POINT (a copy of a count next to the
+// working one is the canonical source of divergences). We count in PIECES: 2 collected
+// pieces of a type = a pair; odd groups do not lose the half. Readiness is given by the
+// pulse (the tick in 99-main), the breaking is up to the player (the owner's word «a tap
+// is needed»).
 function frozenCredit(typeName, n){
   for (const it of items){
     if (!it.alive || !it.frozen || it.frozenReady || it.frozenType !== typeName) continue;
     it.frozenGotItems = Math.min(it.frozenNeedItems, it.frozenGotItems + n);
-    iceCracks(it);                                   // трещины углубляются
+    iceCracks(it);                                   // the cracks deepen
     try { Sound.play && Sound.play('crunch'); } catch(e){}
     if (it.frozenGotItems >= it.frozenNeedItems){ it.frozenReady = true; }
   }
 }
-function breakIce(it, поБомбе){
+function breakIce(it, byBomb){
   wakePhysics('frozen');
   stats.lastAction = performance.now();
   try { Sound.play && Sound.play('crunch'); } catch(e){}
-  // РАЗЛОМ «КАК ЧАША» (слово владельца 2026-08-13): корка отцепляется в мир и
-  // разлетается СВОИМИ кусками Вороного (iceBoomStart, вершинный шейдер);
-  // осколки shardFX остаются мелкой крошкой ПОВЕРХ кусков, как у чаши
+  // THE BREAK-UP «LIKE THE BOWL» (the owner's word 2026-08-13): the crust detaches into the
+  // world and flies apart in its OWN Voronoi pieces (iceBoomStart, a vertex shader);
+  // the shardFX shards stay as fine crumb ON TOP of the pieces, as with the bowl
   iceBoomStart(it);
   try { shardFX(it.p.clone(), 0xbfe8ff, { count: 12, size: 0.07, life: 0.6 }); } catch(e){}
   it.frozen = false; it.frozenReady = false;
-  it.key = it.frozenKey;                             // предмет снова ПАРНЫЙ
-  // «чистые очки предмета ×3» — MATCH_SCORE × 3 × множитель типа × бустер.
-  // ⚠️ ПО БОМБЕ — БЕЗ ОЧКОВ (умолчание, названо владельцу): досрочная
-  // разморозка без выполнения условия не оплачивается.
-  if (!поБомбе){
+  it.key = it.frozenKey;                             // the item is PAIRABLE again
+  // «the item's clean score ×3» — MATCH_SCORE × 3 × the type's multiplier × the booster.
+  // ⚠️ BY BOMB — NO SCORE (the default, stated to the owner): an early thaw without the
+  // condition being fulfilled is not paid for.
+  if (!byBomb){
     const before = stats.score;
     const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.key) * scoreBoostMult());
     stats.score += gained;
@@ -361,12 +371,12 @@ function detonateBomb(bomb){
   bomb.animating = true;
   destroyItemBody(bomb);
   wakePhysics('bomb');
-  stats.lastAction = performance.now(); // тап = действие, миксер откладывается
-  // ⚠️ ГЛЫБЫ: бомба лёд разбивает только ВПЛОТНУЮ (FROZEN_BOMB_RADIUS =
-  // старая зона 2.86; выбор владельца «2», 2026-08-13). На полной зоне 5.72
-  // при чаше ~8 бомба доставала глыбу отовсюду (замер 10/10) и обесценивала
-  // условие сбора пар одним тапом. Предмет жив — из жертв исключаем,
-  // размораживаем отдельно и БЕЗ очков ×3.
+  stats.lastAction = performance.now(); // a tap = an action, the mixer is postponed
+  // ⚠️ ICE BLOCKS: the bomb breaks the ice only POINT-BLANK (FROZEN_BOMB_RADIUS = the old
+  // zone 2.86; the owner's choice «2», 2026-08-13). On the full zone 5.72 with a bowl of
+  // ~8 the bomb reached an ice block from anywhere (measurement 10/10) and devalued the
+  // condition of collecting pairs with a single tap. The item stays alive — we exclude it
+  // from the victims, thaw it separately and WITHOUT the ×3 score.
   items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= FROZEN_BOMB_RADIUS)
        .forEach(i => { try { breakIce(i, true); } catch(e){} });
   const victims = items
@@ -380,17 +390,18 @@ function detonateBomb(bomb){
   popFX(bomb.p);
   dissolveFX(bomb);
   victims.forEach(it => burstFX(it));
-  // «ВЗРЫВ ПОХОЖ НА ЭФФЕКТ SHAKE» (спека владельца 2026-07-27-б): волна идёт
-  // ДВУМЯ слоями — радиальный ПАНЧ в зоне поражения (характер взрыва, чтобы
-  // он не стал неотличим от встряски) + ДЖОЛТ по ВСЕЙ куче, включая верх
-  // (вздрагивает весь миксер — то самое «как shake»). Радиус панча едет за
-  // BOMB_RADIUS через BOMB_WAVE_R_K, без хардкода: зону владелец уже менял.
+  // «THE EXPLOSION LOOKS LIKE THE SHAKE EFFECT» (the owner's spec 2026-07-27-b): the wave
+  // goes in TWO layers — a radial PUNCH inside the blast zone (the character of an explosion,
+  // so that it does not become indistinguishable from a shake) + a JOLT across the WHOLE
+  // pile, including the top (the entire mixer flinches — that very «like shake»). The punch
+  // radius rides on BOMB_RADIUS via BOMB_WAVE_R_K, without hardcoding: the owner has already
+  // changed that zone once.
   blastWave(bomb.p, BOMB_RADIUS + BOMB_WAVE_PAD, CFG.bombWaveV, CFG.bombJolt);
-  // camShake — ДЛИТЕЛЬНОСТЬ дрожания: держим НИЖЕ встряски (0.42), иначе
-  // взрыв дрожал бы дольше неё при вчетверо меньшем толчке (ревью 2026-07-27)
+  // camShake is the DURATION of the shaking: we keep it BELOW the shake's (0.42), otherwise
+  // the explosion would shake longer than it does at a four times smaller push (review 2026-07-27)
   camShake = Math.max(camShake, BOMB_CAM_SHAKE);
   Sound.play('shake');
-  vibrate([40, 80, 50]); // тактильная сила взрыва под усиленную волну (спека «усилить силу», 2026-07-27)
+  vibrate([40, 80, 50]); // the tactile force of the explosion to match the strengthened wave (the spec «strengthen the force», 2026-07-27)
   scorePop('BOOM', bomb.p.clone().setY(bomb.p.y + 0.9), '#1d1c26', true);
   const all = [bomb].concat(victims);
   const scales = all.map(it => it.mesh.scale.x);
@@ -399,43 +410,44 @@ function detonateBomb(bomb){
     all.forEach((it, i) => { it.mesh.scale.setScalar(scales[i]*Math.max(0, s)); });
   });
   setTimeout(() => afterPause(() => {
-    all.forEach(removeItem);   // ⚠️ после хлопка: BOWL_MERGE_MS + пауза
-    wakePhysics('gameplay:L28'); // масса над воронкой взрыва должна осесть
+    all.forEach(removeItem);   // ⚠️ after the bang: BOWL_MERGE_MS + the pause
+    wakePhysics('gameplay:L28'); // the mass above the explosion crater must settle
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 150);
 }
 
-// ===== ДЕТОНАЦИЯ «ЗАРЯДА ТИПА» (спека владельца 2026-07-31; 00-config) =====
-// СПАСЕНИЕ, не уничтожение (решение владельца): accAdd копит, музей и вехи
-// сюжета честны, а миксер ЗЛИТСЯ — игрок дерзко спас целый тип разом.
-// Снимает ВСЕХ живых этого типа, ВКЛЮЧАЯ недоступные — в этом сила заряда:
-// раскопка без встряски. Очки: формула группы с капом MATCH_MAX_N, ×множитель
-// типа, БЕЗ комбо-×2 (обоснование у CHARGE_MIN_COPIES). Паттерн удаления —
-// detonateBomb: animating → эффекты → afterPause → removeItem.
-// Состояние заряда — РАНТАЙМ, не сейв (поправка владельца «жить не больше 7
-// секунд»): chargeName/chargeUntil; истечение проверяет chargeTick из loop.
+// ===== DETONATION OF THE «TYPE CHARGE» (the owner's spec 2026-07-31; 00-config) =====
+// A RESCUE, not a destruction (the owner's decision): accAdd keeps accumulating, the museum
+// and the story milestones are honest, and the mixer IS ANGRY — the player has insolently
+// rescued a whole type at once.
+// It takes ALL the live ones of this type, INCLUDING the inaccessible ones — that is the
+// charge's power: digging without a shake. Score: the group formula with the MATCH_MAX_N cap,
+// ×the type's multiplier, WITHOUT the combo ×2 (the rationale is at CHARGE_MIN_COPIES). The
+// deletion pattern is detonateBomb: animating → effects → afterPause → removeItem.
+// The charge's state is RUNTIME, not the save (the owner's correction «it must not live
+// longer than 7 seconds»): chargeName/chargeUntil; the expiry is checked by chargeTick from the loop.
 let chargeName = '', chargeUntil = 0;
-// ЛЕСЕНКА ТЕМПА — единая точка множителя серии (пакет темпа 2026-07-31):
-// ×4 в турбо, ×3 с SERIES_X3_AT-го матча серии, иначе базовый ×2. Потребители:
-// начисление в doMatch и __game.series() (глаза Интерфейса читают его же —
-// показ и деньги не могут разойтись по построению).
+// THE TEMPO LADDER — the single point of the series multiplier (the tempo package 2026-07-31):
+// ×4 in turbo, ×3 from the SERIES_X3_AT-th match of the series, otherwise the base ×2. Consumers:
+// the crediting in doMatch and __game.series() (the Interface's eyes read the very same one —
+// the display and the money cannot diverge by construction).
 function seriesMult(nowMs){
   if (chainUntil > nowMs) return SERIES_MULT_CHAIN;
   return comboCount >= SERIES_X3_AT ? SERIES_MULT_X3 : COMBO_SCORE_MULT;
 }
-// ===== ЧАША-РАЗЛЁТ (прототип v2) — механика =====
-// Единая точка трещины: её зовут И вход в турбо, И ручка стенда/тестов —
-// поведение одно (урок «ручка мимо механики» из огня v232).
+// ===== BOWL SHATTER (prototype v2) — the mechanic =====
+// The single point of the crack: it is called BOTH by entering turbo AND by the bench/test
+// handle — the behaviour is one (the lesson «a handle that bypasses the mechanic» from the fire in v232).
 let bowlShattering = false;
-let bowlNRuntime = 0; // 0 = брать BOWL_SHATTER_N; ручка setN для стенда
+let bowlNRuntime = 0; // 0 = take BOWL_SHATTER_N; the setN handle for the bench
 function bowlN(){
-  // лесенка сложности (слово владельца 2026-08-04): +1 турбо каждый десяток
+  // the difficulty ladder (the owner's word 2026-08-04): +1 turbo every ten levels
   return bowlNRuntime || (BOWL_SHATTER_N + Math.floor((levelNum || 1) / 10));
 }
-// «БЕЗ ОШИБОК» (слово владельца 2026-08-03): любой промах обнуляет
-// накопленные турбо-зачёты чаши. Зовёт penalize (70-fx) —
-// ВСЕГДА, не только при горячем окне. Бомба сюда не заходит (не ошибка).
-// Глаза отыграют сброс сами: bowlLeft() читает cracks каждый тик.
+// «WITHOUT MISTAKES» (the owner's word 2026-08-03): any miss zeroes the accumulated
+// turbo credits of the bowl. It is called by penalize (70-fx) —
+// ALWAYS, not only during a hot window. The bomb does not come in here (it is not a mistake).
+// The eyes will play the reset themselves: bowlLeft() reads cracks every tick.
 function bowlStreakReset(){
   if (BOWL_CRACK_ON !== 'chain') return;
   if (!level || level.over || bowlShattering) return;
@@ -446,12 +458,12 @@ function bowlStreakReset(){
 function bowlCrackAdd(silent){
   if (!level || level.over || bowlShattering) return;
   level.bowlCracks = (level.bowlCracks || 0) + 1;
-  // ⚠️⚠️ НАГРАДА ЗА СЕРИИ (спека владельца 2026-08-12: «а так же если игрок
-  // выбьет 3 серии»). Считаем ЕГО ЖЕ единицу — `bowlCracks`, ту самую, которой
-  // он мерил «5-7 серий за уровень» при вводе разлёта чаши; второй счётчик
-  // рядом с работающим завёл бы расхождение при первой правке.
-  // ⚠️ Ровно НА ТРЕТЬЕЙ (`===`), а не «>= 3»: иначе бомба сыпалась бы на
-  // каждой следующей серии. Прочие гварды — внутри `bombDropReward`.
+  // ⚠️⚠️ THE REWARD FOR SERIES (the owner's spec 2026-08-12: «and also if the player knocks
+  // out 3 series»). We count HIS OWN unit — `bowlCracks`, the very one with which he measured
+  // «5-7 series per level» when the bowl shatter was introduced; a second counter next to a
+  // working one would breed a divergence at the first edit.
+  // ⚠️ Exactly ON THE THIRD (`===`), and not «>= 3»: otherwise a bomb would rain down on
+  // every following series. The other guards are inside `bombDropReward`.
   if (level.bowlCracks === BOMB_SERIES_REWARD){ try { bombDropReward(); } catch(e){} }
   try { setBowlCracks(level.bowlCracks, bowlN()); } catch(e){}
   if (!silent){
@@ -459,38 +471,38 @@ function bowlCrackAdd(silent){
     camShake = Math.max(camShake, 0.18);
   }
   if (level.bowlCracks >= bowlN()){
-    // отложенно на РЕАЛЬНЫХ часах: дать попу Power chain и подбросу прожить
+    // deferred on the REAL clock: to let the Power chain pop and the toss-up live out
     setTimeout(shatterBowl, 650);
   }
 }
 function shatterBowl(){
   if (!level || level.over || bowlShattering || intro) return;
   bowlShattering = true;
-  // РАЗЛЁТ ИСПОЛНЯЕТ ЦЕПЬ (баг владельца 2026-08-04, скрин «чаша разбилась
-  // во время серии, всё сломалось»): живое турбо продолжало ДОСЫПАТЬ
-  // предметы все 900 мс до сбора — опоздавшие к снапшоту сборщика падали
-  // сквозь ПРИЗРАЧНОЕ дно в вечное падение, alive не достигал нуля, победа
-  // не наступала, уровень зависал. Цепь гасим сразу: серия своё отыграла.
+  // THE SHATTER PUTS THE CHAIN OUT (the owner's bug 2026-08-04, the screenshot «the bowl broke
+  // during a series, everything went wrong»): a live turbo kept TOPPING UP items for all 900 ms
+  // until the collection — those late for the collector's snapshot fell through the GHOST floor
+  // into an eternal fall, alive never reached zero, the win never came, the level hung. We put
+  // the chain out at once: the series has played its part.
   chainUntil = 0;
-  slowmoUntil = performance.now() + BOWL_SLOWMO_MS; // «да!» владельца: слоу-мо
+  slowmoUntil = performance.now() + BOWL_SLOWMO_MS; // the owner's «yes!»: slow-mo
   try { dropWalls(); } catch(e){}
   try { shatterBowlVis(); } catch(e){}
   wakePhysics('bowl:shatter');
-  blastWave(new THREE.Vector3(0, 3.5, 0), 9, 3.2, 2.0); // куче — наружу, зрелищно
+  blastWave(new THREE.Vector3(0, 3.5, 0), 9, 3.2, 2.0); // the pile goes outwards, spectacularly
   Sound.play('chain'); Sound.play('crunch', 12);
   vibrate([40, 60, 40, 60, 80]);
   camShake = Math.max(camShake, 0.6);
-  stats.lastAction = performance.now(); // миксер молчит на празднике
-  // волна сбора — после разлёта, РЕАЛЬНЫЕ часы (канонный паттерн grindShred)
+  stats.lastAction = performance.now(); // the mixer stays silent during the celebration
+  // the collection wave comes after the shatter, the REAL clock (the canonical grindShred pattern)
   setTimeout(bowlCollectAll, BOWL_COLLECT_DELAY);
 }
 function bowlCollectAll(){
   if (!level || level.over) { bowlShattering = false; return; }
-  // «засчитываются как соединённые»: по каждому типу k живых — очки группы
-  // с капом, ×накопление ×платный бустер, БЕЗ серийных множителей (иначе
-  // стак с турбо); accAdd на все k — это СПАСЕНИЕ, музей честен.
+  // «they count as connected»: for each type with k live ones — the group score with the cap,
+  // ×accumulation ×the paid booster, WITHOUT the series multipliers (otherwise it would stack
+  // with turbo); accAdd for all k — this is a RESCUE, the museum is honest.
   const byType = {};
-  const extras = []; // камни/бомба — уносятся без очков (решение №2 владельца)
+  const extras = []; // stones/bomb — are carried away without score (the owner's decision No.2)
   let surprise = null;
   for (const it of items){
     if (!it.alive || it.animating) continue;
@@ -509,43 +521,43 @@ function bowlCollectAll(){
   }
   stats.score += gainedTotal;
   const shown = scoreShownDelta(scoreBefore, stats.score);
-  // ⚠️ КЛАД БОЛЬШЕ НЕ СОБИРАЕТСЯ ЗДЕСЬ: он летит в центр ВМЕСТЕ СО ВСЕМИ
-  // (слово владельца — «ВСЕ объекты, которые были в чаше»), а начисление и его
-  // эффекты уходят в момент хлопка, уже в точке сбора. Раньше он лопался на
-  // месте, пока остальные ещё летели, — и обещание «все сливаются» ломалось
-  // ровно на самом заметном предмете.
-  // ⚙️ СЛЁТ В ЦЕНТР И ХЛОПОК (слово владельца 2026-08-06: «все объекты, которые
-  // были в чаше на момент взрыва, сливаются друг с другом в центре и исчезают,
-  // как сейчас сделано слияние объектов»). Было: каждый таял на месте волной от
-  // центра — это читалось как «растворились», а не как «собрались».
-  // ⚠️ Тот же collapseFX, что у обычного матча, только длиннее: лететь через
-  // всю чашу. Хлопок — на РЕАЛЬНЫХ часах, как в doMatch (тик анимации на
-  // просевшем FPS до конца не доходит, и хлопок бы не наступил).
+  // ⚠️ THE TREASURE IS NO LONGER COLLECTED HERE: it flies to the centre TOGETHER WITH
+  // EVERYONE (the owner's word — «ALL the objects that were in the bowl»), while the
+  // crediting and its effects go off at the moment of the bang, already at the collection
+  // point. Before, it burst in place while the others were still flying — and the promise
+  // «everyone merges» broke on exactly the most noticeable item.
+  // ⚙️ THE FLIGHT INTO THE CENTRE AND THE BANG (the owner's word 2026-08-06: «all the objects
+  // that were in the bowl at the moment of the explosion merge with each other in the centre
+  // and disappear, the way the merging of objects is done now»). It used to be: each one melted
+  // in place in a wave from the centre — that read as «they dissolved», and not as «they gathered».
+  // ⚠️ The same collapseFX as with an ordinary match, only longer: it has to fly across the whole
+  // bowl. The bang is on the REAL clock, as in doMatch (on a sagging FPS the animation tick does
+  // not run to the end, and the bang would never come).
   const all = Object.values(byType).flat().concat(extras);
-  const центр = new THREE.Vector3(0, BOWL_MERGE_AT_Y, 0);
+  const centerPos = new THREE.Vector3(0, BOWL_MERGE_AT_Y, 0);
   for (const it of all){
     it.animating = true; it.animStartMs = performance.now();
-    destroyItemBody(it);   // тела нет — меш ведёт анимация, физика не спорит
+    destroyItemBody(it);   // there is no body — the animation drives the mesh, physics does not argue
   }
-  // ⚠️ РЕАЛЬНЫЕ ЧАСЫ (4-й аргумент): удаление ниже висит на setTimeout, и на
-  // просевшем FPS игровой тик отставал — куча исчезала, не долетев до центра.
-  const летят = surprise ? all.concat([surprise]) : all;
+  // ⚠️ THE REAL CLOCK (the 4th argument): the deletion below hangs on a setTimeout, and on a
+  // sagging FPS the game tick lagged — the pile disappeared before reaching the centre.
+  const flying = surprise ? all.concat([surprise]) : all;
   if (surprise){ surprise.animating = true; destroyItemBody(surprise); }
-  collapseFX(летят, центр, BOWL_MERGE_MS, true);
-  const тон = (all[0] && (all[0].fxColor || all[0].baseColor)) || null;
+  collapseFX(flying, centerPos, BOWL_MERGE_MS, true);
+  const tint = (all[0] && (all[0].fxColor || all[0].baseColor)) || null;
   setTimeout(() => {
     if (!level) return;
-    impactFX(центр, MATCH_MAX_N, тон, all[0] || null);   // удар как у крупной группы
-    dissolveFX({ p: центр, r: 1.6, fxColor: тон, baseColor: тон });
-    popFX(центр);          // ⚠️ был у обычного матча и не был здесь — язык хлопка один
-    // клад забирается ЗДЕСЬ, в точке сбора: сдвигаем его якорь эффектов на
-    // центр, иначе его поп и труха ушли бы туда, где он лежал до слёта
-    // ⚠️ ДВИГАЕМ ТОЛЬКО ЯКОРЬ ЭФФЕКТОВ (`p`), А НЕ МЕШ. Меш к этому моменту уже
-    // САМ прилетел в центр вместе со всеми — в этом вся правка. Первая версия
-    // копировала и mesh.position, то есть ТЕЛЕПОРТИРОВАЛА клад, и страж «клад
-    // летит со всеми» проходил зелёным даже когда клад вынут из слёта: он мерил
-    // телепорт, а не полёт (диверсия это и показала).
-    if (surprise && surprise.alive){ surprise.p.copy(центр);
+    impactFX(centerPos, MATCH_MAX_N, tint, all[0] || null);   // the impact as with a big group
+    dissolveFX({ p: centerPos, r: 1.6, fxColor: tint, baseColor: tint });
+    popFX(centerPos);          // ⚠️ it was in the ordinary match and was not here — the language of the bang is one
+    // the treasure is taken HERE, at the collection point: we shift its effects anchor to the
+    // centre, otherwise its pop and crumble would go to where it lay before the flight
+    // ⚠️ WE MOVE ONLY THE EFFECTS ANCHOR (`p`), AND NOT THE MESH. By this moment the mesh has
+    // ITSELF flown into the centre together with everyone — that is the whole fix. The first
+    // version copied mesh.position too, that is, it TELEPORTED the treasure, and the guard «the
+    // treasure flies with everyone» passed green even when the treasure was taken out of the
+    // flight: it measured the teleport, not the flight (the sabotage test showed exactly that).
+    if (surprise && surprise.alive){ surprise.p.copy(centerPos);
       try { collectSurprise(surprise); } catch(e){} }
     camShake = Math.max(camShake, COLLAPSE_SHAKE * 2);
     Sound.play('match', { n: Math.min(all.length, MATCH_MAX_N), k: 0 });
@@ -554,13 +566,13 @@ function bowlCollectAll(){
   Sound.play('win');
   setTimeout(() => afterPause(() => {
     all.forEach(removeItem);
-    // СТРАХОВКА-ДОБОР (баг владельца 2026-08-04): всё, что заспавнилось
-    // ПОСЛЕ снапшота сборщика (досыпка живого турбо и любой будущий спавн),
-    // тихо убирается без очков — иначе «опоздавший» вечно падал под
-    // призрачным дном, alive не достигал нуля и уровень зависал без победы.
+    // THE SWEEP-UP SAFETY NET (the owner's bug 2026-08-04): everything that spawned AFTER the
+    // collector's snapshot (the top-up of a live turbo and any future spawn) is quietly removed
+    // without score — otherwise the «latecomer» fell forever under the ghost floor, alive never
+    // reached zero and the level hung without a win.
     for (const it of items){ if (it.alive){ try { removeItem(it); } catch(e){} } }
     bowlShattering = false;
-    refreshAccessibility(); updateHUD(); checkEnd(); // живых нет -> победа
+    refreshAccessibility(); updateHUD(); checkEnd(); // no live ones -> the win
   }), BOWL_MERGE_MS + 260);
 }
 function bowlState(){
@@ -574,7 +586,7 @@ function chargeState(){
 }
 function chargeTick(){
   if (chargeName && performance.now() > chargeUntil){
-    chargeName = ''; chargeUntil = 0;              // растворился — момент упущен
+    chargeName = ''; chargeUntil = 0;              // dissolved — the moment is missed
     try { updateHUD(); } catch(e){}
   }
 }
@@ -582,44 +594,44 @@ function detonateCharge(){
   if (intro || paused || !level || level.over) return false;
   if (!chargeName || performance.now() > chargeUntil) return false;
   const name = chargeName;
-  // ⚠️ !i.frozen: заряд бьёт по ИМЕНИ ТИПА (не по ключу), и без исключения
-  // снял бы глыбу мимо её условия; собранные же штуки в зачёт ИДУТ (владелец).
+  // ⚠️ !i.frozen: the charge strikes by the TYPE'S NAME (not by the key), and without the
+  // exception it would take an ice block past its condition; the collected pieces, however, DO go into the credit (the owner).
   const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb
                                     && !i.frozen && i.type && i.type.name === name);
   chargeName = ''; chargeUntil = 0;
-  if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // тип кончился раньше клика
+  if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // the type ran out before the click
   wakePhysics('charge');
-  stats.lastAction = performance.now();          // клик = действие, миксер откладывается
+  stats.lastAction = performance.now();          // a click = an action, the mixer is postponed
   const n = victims.length;
-  const N = Math.min(n, MATCH_MAX_N);            // кап цены — как у группы
-  // ⚠️ БУСТЕР МНОЖИТ И ЗАРЯД (слово владельца 2026-08-01: «множит») — как все
-  // очковые точки; комбо-×2 по-прежнему НЕ участвует (обоснование у формулы).
+  const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
+  // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
+  // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
   const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
   stats.score += gained;
-  accAdd(name, n, victims[0]);                   // СПАСЕНИЕ: копит на все n
-  frozenCredit(name, n);                         // пары заряда идут в зачёт глыб (владелец: «идут»)
-  lastMatchMs = performance.now();               // окно серии продлевается (действие),
-                                                 // comboCount НЕ трогаем — заряд серию не копит
+  accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
+  frozenCredit(name, n);                         // the charge's pairs go into the ice blocks' credit (the owner: «they do»)
+  lastMatchMs = performance.now();               // the series window is extended (an action),
+                                                 // comboCount is NOT touched — the charge does not accumulate a series
   victims.forEach(it => { it.animating = true; destroyItemBody(it); });
-  // РАСТВОРЕНИЕ, а не пак-бурст (спека владельца 2026-07-31: «должны разлетаться
-  // сильнее, или просто растворяться, иначе не понятно что произошло»): выбрано
-  // растворение — труха dissolveFX на КАЖДОМ из 6-16 предметов читается как
-  // одновременное исчезновение типа, бурст на этом числе выглядел мелко.
+  // DISSOLVING, and not a pack burst (the owner's spec 2026-07-31: «they should fly apart harder,
+  // or simply dissolve, otherwise it is not clear what happened»): dissolving was chosen — the
+  // dissolveFX crumble on EACH of the 6-16 items reads as a simultaneous disappearance of the
+  // type, a burst at that number looked petty.
   victims.forEach(it => dissolveFX(it));
   const mid = new THREE.Vector3();
   victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
   scorePop('+' + gained, mid, '#ffffff', true);
-  // ⛔ РЕАКЦИЯ ГЛАЗ НА ЗАРЯД СНЯТА (слово владельца 2026-08-07: «клик на
-  // бонусную вещь не должен сбивать счётчик турбо, сейчас сбивает, по крайней
-  // мере меняются глаза»). Замер показал: СЧЁТЧИК ЦЕЛ (4 -> 4, промахов 0) —
-  // сбивались именно ГЛАЗА: 'angry' на 1.4 с перебивал распахнутые зрачки
-  // горящей серии, и это читалось как потеря турбо. Заряд — награда, а не
-  // происшествие: пусть глаза продолжают показывать серию.
-  // (Звук и вибро остаются: обратная связь о самом сборе нужна.)
+  // ⛔ THE EYES' REACTION TO THE CHARGE IS REMOVED (the owner's word 2026-08-07: «a click on a
+  // bonus thing must not knock down the turbo counter, right now it does, the eyes change at the
+  // very least»). The measurement showed: THE COUNTER IS INTACT (4 -> 4, 0 misses) — it was
+  // precisely the EYES that were knocked down: 'angry' for 1.4 s overrode the wide-open pupils of
+  // a burning series, and that read as a loss of turbo. The charge is a reward, and not an
+  // incident: let the eyes keep showing the series.
+  // (The sound and the vibro stay: feedback about the collection itself is needed.)
   Sound.play('match', N); vibrate([30, 60, 40]);
-  // ⚠️ БЕЗ 150 мс ожидания (жалоба «задержка по уничтожению»): труха уже
-  // прячет меши, удаление сразу — паттерн бомбы держал паузу ради надувания,
-  // которого у заряда больше нет.
+  // ⚠️ WITHOUT the 150 ms wait (the complaint «a delay on the destruction»): the crumble already
+  // hides the meshes, the deletion is immediate — the bomb's pattern held the pause for the sake
+  // of the inflation, which the charge no longer has.
   afterPause(() => {
     victims.forEach(removeItem);
     wakePhysics('charge:settle');
@@ -630,66 +642,67 @@ function detonateCharge(){
 
 function burstFX(it){
   const tex = it.type && it.type.tex;
-  // ⚙️ КРУПНЫЕ ВАРИАНТЫ (выбор владельца 2026-08-01): у еды и машин эффекты
-  // заменены — меньше частиц, но жирнее, и у кусков поведение (рикошет искр от
-  // стенок, укатывающееся колесо, капли сока на стекле экрана). Звери и твёрдые
-  // пачки оставлены прежними: звёзды владелец принял как есть, осколкам подняли
-  // только количество (SHARD_BURST_N).
+  // ⚙️ THE BIG VARIANTS (the owner's choice 2026-08-01): for food and cars the effects have been
+  // replaced — fewer particles, but fatter, and the pieces have behaviour (sparks ricocheting off
+  // the walls, a wheel rolling away, drops of juice on the screen's glass). The animals and the
+  // solid packs are left as they were: the owner accepted the stars as is, the shards only had
+  // their count raised (SHARD_BURST_N).
   if (tex === 'food') juiceBigFX(it);
   else if (tex === 'car') sparkRicochetFX(it);
   else if (tex === 'animal') starPopFX(it);
-  // ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки —
-  // кладка/пиратское/камни — не в труху, а КОЛЮТСЯ на угловатые куски
+  // SHARDS (the owner's spec 2026-07-23 «make it shards»): the solid packs —
+  // brickwork/pirate/stones — do not go into crumble, but SPLIT into angular pieces
   else if (tex === 'brick' || tex === 'pirate')
     shardFX(it.p, it.fxColor || it.baseColor, { count: SHARD_BURST_N, size: 0.2, up: 4.2 });
-  else dissolveFX(it); // без пачки — прежняя труха
+  else dissolveFX(it); // without a pack — the former crumble
 }
-// ⚠️ ВИЗУАЛ пак-эффектов ПЕРЕЕХАЛ В 70-fx (сок и искры с тех пор ЗАМЕНЕНЫ
-// на juiceBigFX/sparkRicochetFX по выбору владельца 2026-08-01, старые удалены)
-// (просьба ФИЗИКИ в WORKSTREAMS, сделано ГРАФИКОЙ 2026-07-22): там они
-// полированы — круглые точки вместо квадратных, звёзды билбордами.
-// Здесь остаётся только ПРАВИЛО выбора (burstFX выше) — оно ваше.
+// ⚠️ THE VISUALS of the pack effects HAVE MOVED INTO 70-fx (the juice and the sparks have since
+// been REPLACED by juiceBigFX/sparkRicochetFX by the owner's choice 2026-08-01, the old ones deleted)
+// (a request from PHYSICS in WORKSTREAMS, done by GRAPHICS 2026-07-22): there they are
+// polished — round dots instead of square ones, stars as billboards.
+// Only the RULE of the choice remains here (burstFX above) — that one is yours.
 
-// ⚠️ ВИЗУАЛ ОСКОЛКОВ (shardFX + makeShardGeo) ПЕРЕЕХАЛ В 70-fx (полировка
-// ГРАФИКОЙ 2026-07-23 по запросу ФИЗИКИ): нерегулярная форма скола, тинт
-// по граням (объём на плоском MeshBasicMaterial), звук «хруст». Сигнатура
-// та же — (pos, color, opts{count,life,up,spread,size}); здесь остаются
-// только ВЫЗОВЫ (правило burstFX выше и шинковка grindShred ниже) — ваша зона.
+// ⚠️ THE SHARD VISUALS (shardFX + makeShardGeo) HAVE MOVED INTO 70-fx (polished by
+// GRAPHICS 2026-07-23 at the request of PHYSICS): an irregular chip shape, a tint
+// across the facets (volume on a flat MeshBasicMaterial), the «crunch» sound. The signature
+// is the same — (pos, color, opts{count,life,up,spread,size}); what remains here is
+// only the CALLS (the burstFX rule above and the grindShred shredding below) — your zone.
 
-// «МОЛОТЬ ЭФФЕКТНО» (спека владельца 2026-07-23): двухфазная анимация помола,
-// общий помощник для mixerGrind и finaleGrind (чтобы не разъезжались).
-// Фаза 1 (захват): предмет РЫВКОМ утягивается к плоскости ножей с ускорением,
-// ДРОЖИТ и СПЛЮЩИВАЕТСЯ (сжатие по Y, распор по XZ) — «затянуло под ножи».
-// Фаза 2 (шинковка): меш гаснет, из-под лопастей ФОНТАНОМ бьют осколки +
-// пылевой взрыв (+ по вкусу тряска камеры). Удаление предмета остаётся в
-// afterPause вызывающего (гварды целы), меш прячется масштабом.
-// ⚠️ ШИНКОВКА — НА РЕАЛЬНЫХ ЧАСАХ (setTimeout), а НЕ в тике addFX: тик растёт
-// на КЛАМПНУТОМ dt (99-main), и на <~20 FPS шинковка по FX-часам наступала
-// ПОЗЖЕ removeItem по реальным (560/410 мс) — фонтан отрывался от исчезнувшего
-// меша. Реальные часы держат порядок «шинковка -> removeItem» при любом FPS.
-// shake — амплитуда тряски (наказание mixerGrind ярче; финал спокойнее).
+// «GRIND IT SPECTACULARLY» (the owner's spec 2026-07-23): a two-phase grinding animation,
+// a shared helper for mixerGrind and finaleGrind (so that they do not drift apart).
+// Phase 1 (the grab): the item is dragged towards the plane of the blades with a JERK and
+// acceleration, it SHAKES and is FLATTENED (compression along Y, spread along XZ) — «it got
+// pulled under the blades».
+// Phase 2 (the shredding): the mesh goes out, shards beat out from under the blades in a
+// FOUNTAIN + a dust explosion (+ camera shake to taste). The deletion of the item stays in
+// the caller's afterPause (the guards are intact), the mesh is hidden by scale.
+// ⚠️ THE SHREDDING IS ON THE REAL CLOCK (setTimeout), and NOT in the addFX tick: the tick grows
+// on a CLAMPED dt (99-main), and at <~20 FPS the shredding by the FX clock came LATER than
+// removeItem by the real one (560/410 ms) — the fountain tore away from a mesh that had already
+// vanished. The real clock keeps the order «shredding -> removeItem» at any FPS.
+// shake is the amplitude of the shaking (the mixerGrind punishment is brighter; the finale is calmer).
 function grindShred(item, dur, shake){
   const p0 = item.p.clone(), s0 = item.mesh.scale.x, mesh = item.mesh;
-  const drop = Math.max(0.6, p0.y - FLOOR_REST + 0.25); // дотянуть до ножей
-  const grab = dur * 0.7; // длительность фазы захвата
-  // фаза 1 — покадровое сплющивание (косметика, безопасна на любом FPS)
+  const drop = Math.max(0.6, p0.y - FLOOR_REST + 0.25); // reach down to the blades
+  const grab = dur * 0.7; // the duration of the grab phase
+  // phase 1 — per-frame flattening (cosmetics, safe at any FPS)
   addFX(new THREE.Object3D(), grab, (o, k) => {
-    const e = k*k;                                // ускорение вниз — «засасывает»
-    const jud = Math.sin(k*49)*0.05*k;            // дрожь захвата
+    const e = k*k;                                // acceleration downwards — «it sucks it in»
+    const jud = Math.sin(k*49)*0.05*k;            // the tremor of the grab
     mesh.position.set(p0.x + jud, p0.y - e*drop, p0.z - jud);
     mesh.rotation.y += 0.7;
-    const sq = s0*Math.max(0.05, 1 - 0.6*k);      // сплющивание
+    const sq = s0*Math.max(0.05, 1 - 0.6*k);      // flattening
     mesh.scale.set(s0*(1 + 0.4*k), sq, s0*(1 + 0.4*k));
   });
-  // фаза 2 — шинковка на реальных часах, ПЕРЕД removeItem вызывающего
+  // phase 2 — the shredding on the real clock, BEFORE the caller's removeItem
   setTimeout(() => {
-    if (!item.alive) return;                      // перестраховка: не стрелять по трупу
+    if (!item.alive) return;                      // extra caution: do not fire at a corpse
     const gp = mesh.position.clone();
-    // ⚙️ РАСПИЛ (выбор владельца 2026-08-01): предмет не рассыпается фонтаном
-    // осколков, а РАЗВАЛИВАЕТСЯ НА ДВЕ ПОЛОВИНЫ по плоскости реза — виден срез
-    // настоящей модели. Фаза захвата (сплющивание) осталась как была.
+    // ⚙️ THE SAWING (the owner's choice 2026-08-01): the item does not scatter in a fountain of
+    // shards but FALLS APART INTO TWO HALVES along the cut plane — the cross-section of the real
+    // model is visible. The grab phase (the flattening) stayed as it was.
     sawFX(item);
-    mesh.scale.setScalar(0.0001);                 // оригинал исчез — дальше половины
+    mesh.scale.setScalar(0.0001);                 // the original is gone — from here on, the halves
     bladeDustFX(gp, item.fxColor || item.baseColor);
     if (shake) camShake = Math.max(camShake, shake);
   }, grab * 1000);
@@ -701,34 +714,34 @@ function checkEnd(){
     level.over = true;
     Sound.play('win');
     const secs = Math.round((performance.now()-stats.t0)/1000);
-    // ЗВЁЗДЫ: 1★ пройден, 2★ очки >= пар-скор×1.3, 3★ >= ×1.7 (скилл в очках,
-    // НЕ в спецусловиях — «цепная реакция обязательна» отвергнута аудитом плана)
+    // STARS: 1★ cleared, 2★ score >= par-score×1.3, 3★ >= ×1.7 (the skill lives in the score,
+    // NOT in special conditions — «a chain reaction is mandatory» was rejected by the plan's audit)
     const base = level.parBase || 0;
     const stars = 1 + (base > 0 && stats.score >= base * STAR2_K ? 1 : 0)
                     + (base > 0 && stats.score >= base * STAR3_K ? 1 : 0);
-    // МОНЕТЫ: база + конверсия очков (комбо наконец экономически выгодны)
+    // COINS: the base + the conversion of score (combos are finally economically worthwhile)
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
-    // ЕДИНЫЙ БАЛАНС (финализация владельца 2026-07-24: «всё заработанное в
-    // уровне = баланс»): банкуем НАКОПЛЕННЫЙ СЧЁТ уровня (деноминир. ×10) в
-    // кошелёк — то же число в чипе, меню и лидерборде. Рейтинг stars[lv]
-    // остаётся как индикатор качества (setStars), валюту больше не несёт.
+    // A SINGLE BALANCE (the owner's finalisation 2026-07-24: «everything earned in the
+    // level = the balance»): we bank the level's ACCUMULATED SCORE (denom. ×10) into the
+    // wallet — the same number in the chip, in the menu and in the leaderboard. The stars[lv]
+    // rating stays as an indicator of quality (setStars), it no longer carries currency.
     setStars(levelNum, stars);
-    // +1 ВСТРЯСКА ЗА КАЖДЫЕ 5 ПРОЙДЕННЫХ УРОВНЕЙ (слово владельца 2026-08-04:
-    // «нужно будет давать +1 шейк за прохождение 5 уровней»). Кладём в
-    // ПОСТОЯННЫЙ запас (пара pe/ps — тот же, что у бандлов): переживает
-    // уровень и устройство, дюп-безопасен по монотонной паре. Срабатывает
-    // на 5/10/15..., то есть по номеру ЗАВЕРШЁННОГО уровня.
+    // +1 SHAKE FOR EVERY 5 LEVELS CLEARED (the owner's word 2026-08-04: «we will need to
+    // give +1 shake for clearing 5 levels»). We put it into the PERMANENT stock (the pe/ps
+    // pair — the same one the bundles use): it survives the level and the device, and is
+    // dup-safe by the monotonic pair. It fires on 5/10/15..., that is, by the number of the
+    // level that was COMPLETED.
     if (levelNum % 5 === 0){
       try { Save.pe = (Save.pe || 0) + 1; commitSave(); level.shakeBonus = 1; toast('+1 Shake'); } catch(e){}
     }
     level.starsWon = bankLevelScore(stats.score);
-    addHints(1); // +1 подсказка за успешный уровень (спека владельца)
+    addHints(1); // +1 hint for a successful level (the owner's spec)
     Telemetry.ev('win', { lv: levelNum, st: stars, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Level ' + levelNum + ' cleared!';
-    // ЗВЁЗДЫ ПОБЕДЫ — ассет владельца Interface/Star.svg (слово 2026-08-05
-    // «замени везде иконку звезды»): вместо текстовых ★/☆ рисуем ту же
-    // геометрию, что в HUD и меню; незаработанная — та же форма с opacity.
+    // THE VICTORY STARS — the owner's asset Interface/Star.svg (the word 2026-08-05
+    // «replace the star icon everywhere»): instead of the textual ★/☆ we draw the same
+    // geometry as in the HUD and the menu; an unearned one is the same shape with opacity.
     {
       const star = (on) => '<svg viewBox="0 0 32 30" width="34" height="32" aria-hidden="true" style="margin:0 3px' +
         (on ? '' : ';opacity:.28') + '"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>';
@@ -738,24 +751,24 @@ function checkEnd(){
     }
     $('winStats').textContent =
       'Score: ' + stats.score + (base ? ' / goal ' + Math.round(base * STAR2_K) : '') + '  ·  Time: ' + fmtTime(secs);
-    // монеты скрыты: награда уровня на экране — звёзды + подсказка;
-    // начисление выше живёт (вернётся вместе с COINS_ENABLED)
-    // награда уровня: заработанные звёзды-валюта + подсказка (монеты скрыты
-    // флагом; их начисление выше живёт и вернётся вместе с COINS_ENABLED)
+    // the coins are hidden: the level's on-screen reward is the stars + a hint;
+    // the crediting above lives on (it will come back together with COINS_ENABLED)
+    // the level's reward: the earned star-currency + a hint (the coins are hidden by a
+    // flag; their crediting above lives on and will come back together with COINS_ENABLED)
     $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')
       + (COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  ') : '') + '+1 💡';
     $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
-    try { Save.lv = Math.max(Save.lv || 1, levelNum); commitSave(); } catch(e){} // прогресс — в облако
+    try { Save.lv = Math.max(Save.lv || 1, levelNum); commitSave(); } catch(e){} // the progress goes to the cloud
     Ads.noteWin();
-    // площадке: уровень пройден (у Poki/CrazyGames — нативный gameplayStop,
-    // естественная точка, где площадка вправе показать свою рекламу)
+    // to the platform: the level is cleared (on Poki/CrazyGames it is the native gameplayStop,
+    // the natural point where the platform is entitled to show its own ad)
     try { Ads.msg('LEVEL_COMPLETED', { level: String(levelNum - 1) }); } catch(_){}
     show('winOverlay');
-    // ⚠️ ЗДЕСЬ БОЛЬШЕ НЕТ storyOnWin() — слово владельца 2026-08-06: анонс
-    // нового предмета идёт ПОСЛЕ статистики, а не поверх неё. Его зовёт кнопка
-    // «Next» (90-input), и уровень стартует уже из её колбэка.
+    // ⚠️ THERE IS NO storyOnWin() HERE ANY MORE — the owner's word 2026-08-06: the announcement
+    // of a new item goes AFTER the statistics, and not on top of them. It is called by the
+    // «Next» button (90-input), and the level starts from that button's callback already.
     updateHUD();
   }
 }
@@ -766,23 +779,23 @@ function showLose(){
   const secs = Math.round((performance.now()-stats.t0)/1000);
   $('loseStats').textContent = 'No pairs available and no shakes left. Items left: '
     + items.filter(i=>i.alive).length + '  ·  Time: ' + fmtTime(secs);
-  // Continue за рекламу — 1 раз за уровень (самый конвертящий плейсмент жанра)
+  // Continue for an ad — 1 time per level (the highest-converting placement of the genre)
   $('loseAdContinue').style.display = level.continueUsed ? 'none' : '';
   show('loseOverlay');
 }
-// Continue: реклама досмотрена — вернуть игру к жизни
+// Continue: the ad has been watched to the end — bring the game back to life
 function continueRun(){
   level.continueUsed = true;
   level.over = false;
   hide('loseOverlay');
-  level.shakes++;                 // +1 встряска
-  dropExtra(CONTINUE_DROP);       // +предметы сверху (появляются новые пары)
+  level.shakes++;                 // +1 shake
+  dropExtra(CONTINUE_DROP);       // +items from above (new pairs appear)
   stats.lastAction = performance.now();
-  level.stuck = -4;               // фора детектору тупика, пока досыпка оседает
+  level.stuck = -4;               // a grace period for the deadlock detector while the top-up settles
   Telemetry.ev('continue', { lv: levelNum });
   refreshAccessibility(); updateHUD();
 }
-// «Прицел» (магазин): подсветить ВСЕ доступные пары на 5 с
+// The «Scope» (the shop): highlight ALL the available pairs for 5 s
 function scopeHighlight(){
   const byKey = {};
   for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key] = byKey[it.key]||[]).push(it);
@@ -805,7 +818,7 @@ function scopePulse(item, dur){
     mat.emissiveIntensity = Math.max(0, Math.sin(k*Math.PI*10)) * 0.7 * (1-k*0.5);
   });
 }
-// «Металлоискатель» (rewarded): показать, ГДЕ копать до сюрприза
+// The «Metal detector» (rewarded): show WHERE to dig down to the surprise
 function detectorHighlight(){
   const sp = items.find(i => i.surprise && i.alive);
   if (!sp) return;
@@ -819,18 +832,18 @@ function detectorHighlight(){
   Telemetry.ev('rw', { p: 'detector' });
   updateHUD();
 }
-// Сюрприз раскопан и затапан: бонус и золотое расщепление
+// The surprise is dug out and tapped: a bonus and a golden split
 function collectSurprise(it){
   it.animating = true;
   destroyItemBody(it);
   wakePhysics('gameplay:L58');
-  faceEvent('surprised', 1000); // матрица эмоций ИНТЕРФЕЙСА: клад — «удивлённые» глаза (EYES-CHARACTER-SPEC §5)
+  faceEvent('surprised', 1000); // the INTERFACE's emotion matrix: the treasure — «surprised» eyes (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
-  // рыбка дорожает с уровнем: +150 + 5×уровень (баланс-таблица 2026-07-22)
-  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * scoreBoostMult()); // бустер работает и на клад
+  // the little fish gets dearer with the level: +150 + 5×level (the balance table 2026-07-22)
+  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * scoreBoostMult()); // the booster works on the treasure too
   const before = stats.score;
   stats.score += bonus;
-  const shown = scoreShownDelta(before, stats.score); // деноминир. прирост (#10)
+  const shown = scoreShownDelta(before, stats.score); // denom. gain (#10)
   scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#ffc84a', true);
   popFX(it.p);
   dissolveFX(it);
@@ -845,19 +858,19 @@ function collectSurprise(it){
   }), 200);
 }
 
-// Ореол-призрак досягаемости (метрика v3): САМА ФОРМА предмета, раздутая
-// на matchRadius по каждой локальной оси — честный образ зоны «истинный
-// зазор <= R» (сфера при неохватной метрике врала бы в обе стороны: у
-// стейка зона — плита, не шар). Геометрия ОБЯЗАТЕЛЬНО клонируется:
-// stepFX по завершении зовёт dispose — общий кэш геометрий типов трогать
-// нельзя (иначе все предметы типа теряют GPU-буферы).
+// The reach ghost-halo (metric v3): THE ITEM'S OWN SHAPE, inflated by matchRadius along
+// each local axis — an honest image of the zone «the true gap <= R» (a sphere, under a
+// non-enclosing metric, would lie in both directions: for a steak the zone is a slab, not
+// a ball). The geometry is cloned WITHOUT FAIL: on completion stepFX calls dispose — the
+// shared cache of type geometries must not be touched (otherwise all the items of the type
+// lose their GPU buffers).
 function reachGhostFX(item, color){
   if (!CFG.radiusOn) return;
   const geo = item.mesh.geometry;
   if (!geo.boundingBox) geo.computeBoundingBox();
   const bb = geo.boundingBox, s = item.mesh.scale.x;
-  const R = Math.min(CFG.matchRadius, 3.6); // в цепи/эндшпиле не больше чаши
-  // воздушный вариант (спека владельца): прозрачнее втрое, кромка мягкая и широкая
+  const R = Math.min(CFG.matchRadius, 3.6); // in a chain/endgame no bigger than the bowl
+  // the airy variant (the owner's spec): three times more transparent, the edge soft and wide
   const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.02, 0.16, 1.1));
   ghost.position.copy(item.mesh.position);
   ghost.quaternion.copy(item.mesh.quaternion);
@@ -869,26 +882,27 @@ function reachGhostFX(item, color){
   addFX(ghost, 0.9, (o, k) => { o.material.uniforms.op.value = 1 - k; });
 }
 
-// ⚠️ ПРОФИЛИРОВКА (2026-07-31): вся работа тапа идёт в ОБРАБОТЧИКЕ СОБЫТИЯ,
-// то есть ВНЕ кадрового цикла — кольца loop её не видят, и на кадре тапа
-// в профиле висели ~40 мс «ничьих». Копим сюда, loop забирает раз в кадр.
+// ⚠️ PROFILING (2026-07-31): all the tap's work happens in the EVENT HANDLER, that is,
+// OUTSIDE the frame cycle — the loop's rings do not see it, and on the tap's frame ~40 ms
+// of «nobody's» time hung in the profile. We accumulate it here, the loop takes it once a frame.
 let tapMs = 0;
 const tapMsTake = () => { const v = tapMs; tapMs = 0; return v; };
-// ⚠️ РАЗБОРКА САМОГО ТАПА (2026-07-31). Спор с ГРАФИКОЙ: их гипотеза —
-// «9.6 мс это логика (рейкаст/GJK/доступность)», моя первая версия говорила
-// «аллокации». Ни одна НЕ БЫЛА ИЗМЕРЕНА: у меня счётчик постройки видел
-// только пылевые облака, а в пути тапа есть ещё `geo.clone()` призрака.
-// Три фазы: выбор предмета лучом, отбор кандидатов (там GJK в pairMatch),
-// призрак-ореол (клон геометрии). Остаток тапа = хвост doMatch.
+// ⚠️ THE BREAKDOWN OF THE TAP ITSELF (2026-07-31). An argument with GRAPHICS: their hypothesis
+// was «the 9.6 ms is the logic (raycast/GJK/accessibility)», my first version said
+// «allocations». NEITHER WAS MEASURED: my construction counter only saw the dust clouds,
+// and the tap's path also has the ghost's `geo.clone()`.
+// Three phases: picking the item with the ray, selecting the candidates (that is where the GJK
+// in pairMatch lives), the ghost-halo (a clone of the geometry). The tap's remainder = the tail of doMatch.
 let tapPickMs = 0, tapCandMs = 0, tapGhostMs = 0, tapDestroyMs = 0, tapWaveMs = 0;
 let tapAccMs = 0, tapFxMs = 0, tapSndMs = 0;
-// ⚠️ `rest` СЧИТАЕТСЯ, А НЕ ЗАМЕРЯЕТСЯ, и это не лень: он ловит ВСЁ, чего нет
-// в названных фазах (очки, звук, вибро, накопление, сейв, попы). Пока он мал —
-// искать там нечего; вырастет — значит появилась новая статья, и вот тогда её
-// и разбирать. Именованные фазы без остатка всегда врут на новом коде.
-// ⚠️ ИТОГ ПЕРЕДАЁТСЯ АРГУМЕНТОМ, А НЕ ЧИТАЕТСЯ ИЗ tapMs: в loop сначала идёт
-// `tapMsTake()`, и он ОБНУЛЯЕТ tapMs — читая его здесь, остаток всегда выходил
-// бы нулём. Ровно тот класс, где страж зелен, потому что меряет пустоту.
+// ⚠️ `rest` IS COMPUTED, AND NOT MEASURED, and that is not laziness: it catches EVERYTHING that
+// is not in the named phases (the score, the sound, the vibro, the accumulation, the save, the
+// pops). While it is small there is nothing to look for there; when it grows it means a new item
+// has appeared, and that is exactly when to break it down. Named phases without a remainder
+// always lie on new code.
+// ⚠️ THE TOTAL IS PASSED AS AN ARGUMENT, AND NOT READ FROM tapMs: in the loop `tapMsTake()`
+// comes first, and it ZEROES tapMs — reading it here, the remainder would always have come out
+// zero. Exactly that class where a guard is green because it measures emptiness.
 const tapPhasesTake = (total) => { const v = { pick: tapPickMs, cand: tapCandMs, ghost: tapGhostMs,
     destroy: tapDestroyMs, wave: tapWaveMs, acc: tapAccMs, fx: tapFxMs, snd: tapSndMs };
   v.rest = +Math.max(0, (total || 0) - (tapPickMs + tapCandMs + tapGhostMs + tapDestroyMs
@@ -902,9 +916,9 @@ function handleTap(x, y){
 }
 function handleTapInner(x, y){
   if (level.over) return;
-  // финал миксера (пар по типам не осталось): очки не тратятся и не
-  // начисляются — промахи по сиротам/пустоте БЕЗ штрафа (спека владельца);
-  // тап по раскопанному сюрпризу остаётся рабочим
+  // the mixer's finale (no pairs by type are left): the score is neither spent nor
+  // credited — misses on orphans/empty space carry NO penalty (the owner's spec);
+  // a tap on a dug-out surprise stays working
   const finale = !hasAnyPair();
   stats.taps++;
   const _tp0 = performance.now();
@@ -915,7 +929,7 @@ function handleTapInner(x, y){
   let hits = raycaster.intersectObjects(meshes, false);
   let item = hits.length ? hits[0].object.userData.item : null;
   if (!item){
-    // мягкий подбор: ближайший к точке тапа в экранных координатах
+    // soft picking: the nearest one to the tap point in screen coordinates
     let best = null, bestD = 34; // px
     for (const it of items){
       if (!it.alive || it.animating) continue;
@@ -926,9 +940,9 @@ function handleTapInner(x, y){
     }
     item = best;
   }
-  tapPickMs += performance.now() - _tp0;   // выбор предмета лучом + фолбэк-проекция
+  tapPickMs += performance.now() - _tp0;   // picking the item with the ray + the fallback projection
   if (!item){ Telemetry.tap(x, y, 'dead'); if (!finale) penalize(null, x, y); return; }
-  if (item.animating) return; // растворяющийся: двойной тап давал двойные очки (+300 за сюрприз)
+  if (item.animating) return; // one that is dissolving: a double tap used to give double score (+300 for the surprise)
 
   if (!isAccessible(item)){
     wiggle(item);
@@ -936,17 +950,17 @@ function handleTapInner(x, y){
     if (!finale) penalize(item.p);
     return;
   }
-  if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // раскопанный сюрприз собирается тапом
-  if (item.bomb){ detonateBomb(item); return; } // бомба: взрыв вместо матча, очков нет
+  if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // a dug-out surprise is collected by a tap
+  if (item.bomb){ detonateBomb(item); return; } // the bomb: an explosion instead of a match, no score
   if (item.frozen){
-    // ГЛЫБА (спека 2026-08-13): готова — тап РАЗБИВАЕТ; рано — штраф КАК У
-    // КАМНЯ (слово владельца) + подсказка, сколько пар осталось.
+    // THE ICE BLOCK (the spec 2026-08-13): ready — the tap BREAKS it; too early — a penalty
+    // LIKE THE STONE'S (the owner's word) + a hint about how many pairs are left.
     Telemetry.tap(x, y, 'frozen');
     if (item.frozenReady){ breakIce(item); }
     else {
       penalizeDouble(item);
-      const осталось = Math.ceil((item.frozenNeedItems - item.frozenGotItems) / 2);
-      try { toast('Frozen! Collect ' + осталось + ' more pair' + (осталось > 1 ? 's' : '') + ' of this item'); } catch(e){}
+      const remaining = Math.ceil((item.frozenNeedItems - item.frozenGotItems) / 2);
+      try { toast('Frozen! Collect ' + remaining + ' more pair' + (remaining > 1 ? 's' : '') + ' of this item'); } catch(e){}
     }
     return;
   }
@@ -954,11 +968,11 @@ function handleTapInner(x, y){
   const copies = items.filter(i => i.alive && !i.animating && i !== item && i.key === item.key);
   const accessible = copies.filter(i => isAccessible(i));
   let eligible = accessible.filter(i => pairMatch(i, item));
-  // КАП ГРУППЫ (спека владельца 2026-07-27 «поставь кап на 8»): в матч уходит
-  // не больше MATCH_MAX_N предметов ВСЕГО, включая тапнутый. Лишние
-  // отсекаются по ДАЛЬНОСТИ — остаются ближайшие по истинному зазору (та же
-  // метрика, что у жертв бомбы): визуально «схлопнулось вокруг пальца».
-  // Отсечённые остаются жить и матчатся следующим тапом.
+  // THE GROUP CAP (the owner's spec 2026-07-27 «put a cap at 8»): no more than MATCH_MAX_N
+  // items IN TOTAL go into a match, including the tapped one. The extras are cut off by
+  // DISTANCE — the nearest ones by the true gap remain (the same metric as with the bomb's
+  // victims): visually «it collapsed around the finger».
+  // The cut-off ones stay alive and get matched by the next tap.
   if (eligible.length > MATCH_MAX_N - 1){
     eligible = eligible
       .map(i => ({ i, d: pairDist(i, item) }))
@@ -967,50 +981,51 @@ function handleTapInner(x, y){
       .map(v => v.i);
   }
 
-  // ореол досягаемости: белый — матч есть, красный — промах
-  tapCandMs += performance.now() - _tc0;   // отбор кандидатов, внутри GJK pairMatch
+  // the reach halo: white — there is a match, red — a miss
+  tapCandMs += performance.now() - _tc0;   // selecting the candidates, with the GJK inside pairMatch
   const _tg0 = performance.now();
   reachGhostFX(item, eligible.length ? 0xffffff : 0xff5a64);
-  tapGhostMs += performance.now() - _tg0;   // ореол-призрак: КЛОН геометрии предмета
+  tapGhostMs += performance.now() - _tg0;   // the ghost-halo: a CLONE of the item's geometry
 
   if (eligible.length){
-    // все одинаковые (тип, любой размер) в сфере — разом, даже нечётным числом;
-    // оставшихся без пары в конце уничтожит миксер
+    // all the identical ones (type, any size) inside the sphere go at once, even in an odd
+    // number; the ones left without a pair will be destroyed by the mixer at the end
     Telemetry.tap(x, y, 'match');
     doMatch([item].concat(eligible));
     return;
   }
   if (finale){ wiggle(item); return; }
-  // ⚠️ ТАП ПО ДОСТУПНОМУ ПРЕДМЕТУ БЕЗ ПАРЫ — НЕ ОШИБКА И НЕ ШТРАФУЕТСЯ
-  // (спека владельца 2026-07-29). Он потыкал в цветные предметы у дна чаши и
-  // получил штраф; замер объяснил почему: на ур.20 Hard доступных предметов 50,
-  // а доступных ПАР 11 — то есть больше половины «цветных» соединить не с чем
-  // в принципе. Вуаль отвечает на вопрос «ДОТЯНУСЬ ЛИ», а игрок читает её как
-  // «МОГУ ЛИ ИСПОЛЬЗОВАТЬ»; это разные множества, и разрыв огромный. Наказывать
-  // за то, что игра сама показала зелёный свет, нечестно.
-  // ⚠️ ОСТАЛЬНЫЕ ПРОМАХИ ШТРАФ СОХРАНЯЮТ: пустое место, ПЕРЕКРЫТЫЙ предмет
-  // (он завуалирован, игрок это видит) и камень (двойной штраф-обучение).
-  // ⚠️ НЕ ТРОГАЕМ stats.lastAction: иначе тапами по одинокому предмету можно
-  // было бы бесконечно откладывать помол — это была бы дыра, а не поблажка.
-  // ⚠️ ТУРБО ТОЖЕ НЕ СТРАДАЕТ: penalize сбрасывает набор цепи и роняет
-  // радиус-лесенку, а раз это не ошибка — ничего сбрасывать не за что.
-  // Обратная связь остаётся: красный ореол уже нарисован выше + дрожание.
-  Telemetry.tap(x, y, 'nopair');   // отдельно от 'miss' — в карте промахов это другой случай
+  // ⚠️ A TAP ON AN ACCESSIBLE ITEM WITHOUT A PAIR IS NOT A MISTAKE AND IS NOT PENALISED
+  // (the owner's spec 2026-07-29). He poked at the colourful items near the bottom of the
+  // bowl and got a penalty; the measurement explained why: on lv.20 Hard there are 50
+  // accessible items, but only 11 accessible PAIRS — that is, more than half of the
+  // «colourful» ones have nothing to be connected with in principle. The veil answers the
+  // question «CAN I REACH IT», while the player reads it as «CAN I USE IT»; these are
+  // different sets, and the gap is enormous. Punishing for what the game itself gave a green
+  // light to is dishonest.
+  // ⚠️ THE OTHER MISSES KEEP THE PENALTY: empty space, a COVERED item (it is veiled, the
+  // player sees that) and a stone (the double teaching penalty).
+  // ⚠️ WE DO NOT TOUCH stats.lastAction: otherwise, with taps on a lonely item, the grinding
+  // could be postponed forever — that would be a hole, and not an indulgence.
+  // ⚠️ TURBO DOES NOT SUFFER EITHER: penalize resets the chain build-up and drops the radius
+  // ladder, and since this is not a mistake there is nothing to reset.
+  // The feedback remains: the red halo has already been drawn above + the wiggle.
+  Telemetry.tap(x, y, 'nopair');   // separate from 'miss' — in the map of misses this is a different case
   wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
     accessible.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
-    // ⛔ ПУНКТИРНАЯ ЛИНИЯ К ДАЛЬНЕЙ ПАРЕ СНЯТА (слово владельца 2026-08-07:
-    // «убери пунктирную линию от объекта к объекту, которая указывает на
-    // расстояние»). Вместе с ней ранее снят и тост «Pair is too far» — то
-    // есть подсказка о недостижимой паре теперь молчит целиком; вернётся,
-    // если он попросит новую форму. Функция lineFX жива (70-fx) и может
-    // понадобиться другим механикам — удалять её не надо.
-    // ⛔ ТОСТ СНЯТ (слово владельца 2026-08-05: «убери нижний тост сообщение,
-    // который говорит, что пары слишком далеко. Его нужно визуально переделать
-    // и поменять позицию, займемся этим потом»). Подсказку НЕСЁТ ЛИНИЯ выше —
-    // она показывает, КУДА тянуться, и остаётся. Текст вернётся с новой
-    // формой и местом по его слову; строку не изобретать заново.
+    // ⛔ THE DASHED LINE TO A DISTANT PAIR IS REMOVED (the owner's word 2026-08-07:
+    // «remove the dashed line from object to object that points out the distance»).
+    // Together with it the toast «Pair is too far» had already been removed earlier — that
+    // is, the hint about an unreachable pair is now completely silent; it will come back if
+    // he asks for a new form. The lineFX function is alive (70-fx) and may be needed by
+    // other mechanics — it must not be deleted.
+    // ⛔ THE TOAST IS REMOVED (the owner's word 2026-08-05: «remove the bottom toast message
+    // that says the pairs are too far. It needs to be visually redone and its position
+    // changed, we will get to that later»). The hint IS CARRIED BY THE LINE above — it shows
+    // WHERE to reach, and it stays. The text will come back with a new form and place at his
+    // word; the string is not to be invented anew.
   } else if (nearBuried.length){
     nearBuried.sort((a,b)=>a.p.distanceTo(item.p)-b.p.distanceTo(item.p));
     markerFX(nearBuried[0].p, 0xffb224);
@@ -1023,30 +1038,30 @@ function handleTapInner(x, y){
   wiggle(item);
 }
 
-// ---------- Подсказка ----------
-// Находит лучшую доступную группу (максимум одинаковых в радиусе) и подсвечивает
+// ---------- The hint ----------
+// Finds the best accessible group (the maximum of identical ones within the radius) and highlights it
 function findHintGroup(){
   refreshAccessibility();
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
-  // вершина кучи — по НЕлетящим, чтобы свежая досыпка не задирала планку
+  // the top of the pile is taken over the NON-flying ones, so that a fresh top-up does not raise the bar
   let pileTop = 0;
   for (const it of items) if (it.alive && it.p.y < FUNNEL.H) pileTop = Math.max(pileTop, it.p.y);
   const surfaceY = pileTop - HINT_SURFACE_DEPTH;
   let best = null, bestScore = null;
   for (const it of acc){
     let grp = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
-    // тот же кап, что и в тапе (спека владельца 2026-07-27): подсказка не
-    // должна обещать группу больше той, что реально соединится
+    // the same cap as in the tap (the owner's spec 2026-07-27): the hint must not
+    // promise a group bigger than the one that will actually connect
     if (grp.length > MATCH_MAX_N - 1){
       grp = grp.map(o => ({ o, d: pairDist(o, it) })).sort((a, b) => a.d - b.d)
                .slice(0, MATCH_MAX_N - 1).map(v => v.o);
     }
     if (!grp.length) continue;
     const full = [it].concat(grp);
-    // ПОВЕРХНОСТНЫЙ ЭШЕЛОН (просьба тестеров, слово владельца 2026-08-03):
-    // группы, целиком лежащие в верхнем слое кучи, всегда бьют глубокие —
-    // глубина «только в крайнем случае». Внутри эшелона — прежний порядок:
-    // больше группа, при равенстве ближе пара.
+    // THE SURFACE ECHELON (the testers' request, the owner's word 2026-08-03):
+    // groups lying entirely in the pile's upper layer always beat the deep ones —
+    // depth is «only as a last resort». Inside the echelon — the former order:
+    // the bigger group, and on a tie the closer pair.
     const surface = full.every(o => o.p.y >= surfaceY) ? 1 : 0;
     const score = { surface, len: full.length, d: pairDist(grp[0], it) };
     if (!bestScore ||
@@ -1060,35 +1075,35 @@ function findHintGroup(){
                           pileTop: +pileTop.toFixed(2), surface: bestScore.surface === 1 } : null;
   return best;
 }
-let hintLastPick = null; // самоотчёт ПОСЛЕДНЕГО выбора — только для стражей/стенда
-// ПОДСКАЗКА ЗА РЕКЛАМУ (спека владельца 2026-07-28) — зеркало ad-встряски:
-// заряды кончились → предлагаем ролик → +1 заряд. Доступна ТОЛЬКО при нуле
-// зарядов (как ad-встряска открывается лишь после бесплатных) и в пределах
-// пер-уровневого капа. Контракт для ИНТЕРФЕЙСА: этой ручкой они решают,
-// показывать ли на кнопке лайм-бейдж «Ad».
+let hintLastPick = null; // a self-report of the LAST pick — only for the guards/bench
+// A HINT FOR AN AD (the owner's spec 2026-07-28) — a mirror of the ad shake:
+// the charges have run out → we offer a video → +1 charge. Available ONLY at zero
+// charges (just as the ad shake only opens up after the free ones) and within the
+// per-level cap. The contract for the INTERFACE: with this handle they decide whether
+// to show the lime «Ad» badge on the button.
 function adHintAvailable(){
   return !!(level && !level.over && !intro && hints() < 1 && level.adHints > 0);
 }
-// Ролик за заряд. Подтверждающего оверлея НЕТ намеренно: кнопка сама несёт
-// бейдж «Ad», тап по ней — уже осознанный выбор (у встряски оверлей остался
-// историческим, её поток не трогаю).
+// A video for a charge. There is deliberately NO confirmation overlay: the button itself
+// carries the «Ad» badge, so a tap on it is already a conscious choice (the shake's overlay
+// stayed for historical reasons, I am not touching its flow).
 function requestAdHint(){
   if (!adHintAvailable()) return false;
-  Ads.showRewarded(()=>{ // награда только после досмотра (78-ads)
-    // ⚠️ ЗАРЯД ДАЁМ ВСЕГДА, даже если уровень кончился за время ролика:
-    // игрок ролик ДОСМОТРЕЛ, а заряд пожизненный (he) и не пропадает —
-    // в отличие от встряски, которой на мёртвом уровне некого трясти.
+  Ads.showRewarded(()=>{ // the reward only after watching to the end (78-ads)
+    // ⚠️ WE ALWAYS GIVE THE CHARGE, even if the level ended while the video was playing:
+    // the player WATCHED the video to the end, and the charge is lifelong (he) and does not
+    // go to waste — unlike the shake, which on a dead level has nothing to shake.
     addHints(1);
     if (level) level.adHints--;
-    adHintCarry = Math.max(0, adHintCarry - 1); // кап переживает Restart той же партии
+    adHintCarry = Math.max(0, adHintCarry - 1); // the cap survives a Restart of the same run
     stats.adHintsUsed++;
     Telemetry.ev('rw', { p: 'hint' });
     updateHUD();
-    if (!level.over && !intro) showHint(); // свежий заряд тратим сразу — игрок жал «подсказку»
+    if (!level.over && !intro) showHint(); // we spend the fresh charge at once — the player pressed «hint»
   }, (reason) => {
-    if (reason !== 'unavailable') return;              // закрыл сам — без подсказки
-    // ролик не подобрался: заряд ВЫДАЁМ (слово владельца 2026-08-05), но
-    // пер-уровневый кап рекламных подсказок не трогаем — он про показы
+    if (reason !== 'unavailable') return;              // he closed it himself — no hint
+    // no video was matched: we DO give out the charge (the owner's word 2026-08-05), but we
+    // do not touch the per-level cap of ad hints — it is about impressions
     addHints(1);
     stats.adHintsUsed++;
     Telemetry.ev('rw_nofill', { p: 'hint' });
@@ -1100,20 +1115,20 @@ function requestAdHint(){
 function showHint(){
   if (level.over || intro) return;
   if (hints() < 1){
-    if (adHintAvailable()){ requestAdHint(); return; } // ролик вместо отказа
+    if (adHintAvailable()){ requestAdHint(); return; } // a video instead of a refusal
     toast('No hints left'); return;
   }
   const grp = findHintGroup();
   if (!grp){
-    toast('Доступных пар нет — встряхните!'); // группа не найдена — подсказку НЕ тратим
+    toast('No pairs available — shake!'); // no group found — we do NOT spend the hint
     return;
   }
-  spendHint(); // числимый ресурс (спека владельца: старт 3, +1 за уровень)
+  spendHint(); // a countable resource (the owner's spec: start with 3, +1 per level)
   Telemetry.ev('spend', { item: 'hint' });
   reachGhostFX(grp[0], 0xffe066);
   grp.forEach(it => hintPulse(it));
-  // КАМЕРА ПОДЪЕЗЖАЕТ к якорю подсказки (просьба тестеров, слово владельца
-  // 2026-08-03) — мягкий полёт, любой жест игрока его обрывает (90-input)
+  // THE CAMERA DRIVES UP to the hint's anchor (the testers' request, the owner's word
+  // 2026-08-03) — a soft flight, any gesture of the player cuts it short (90-input)
   try { hintCamFly(grp[0]); } catch(e){}
   updateHUD();
 }
@@ -1121,20 +1136,20 @@ function hintPulse(item){
   const mat = item.mesh.material;
   mat.emissive.setHex(0xffb020);
   mat.emissiveIntensity = 0;
-  // 3.2с и множитель 9 (слово владельца 2026-08-04 «моргание подсказки
-  // увеличь на 1 секунду»; было 2.2/6 — частота полуволн сохранена)
+  // 3.2 s and a multiplier of 9 (the owner's word 2026-08-04 «increase the hint's blinking
+  // by 1 second»; it was 2.2/6 — the frequency of the half-waves is preserved)
   addFX(new THREE.Object3D(), 3.2, (o,k)=>{
     if (!item.alive || k > 0.95){ mat.emissiveIntensity = 0; return; }
     mat.emissiveIntensity = Math.max(0, Math.sin(k*Math.PI*9)) * 0.8 * (1-k);
   });
 }
 
-// ---------- Миксер ----------
-// Режим наказания (простой > level.idleLimit): раз в MIXER_PERIOD нижний предмет
-// затягивает в лопасти (тонет с вращением), его пара расщепляется вместе с ним,
-// за пару отнимаются очки.
+// ---------- The mixer ----------
+// The punishment mode (idling > level.idleLimit): once every MIXER_PERIOD it drags the lowest
+// item into the blades (it sinks while spinning), its pair splits along with it, and score is
+// taken away for the pair.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen); // сюрприз и бомбу миксер-наказание не ест (их доедает финал)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen); // the punishment mixer does not eat the surprise or the bomb (the finale finishes those off)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];
@@ -1143,36 +1158,36 @@ function mixerGrind(){
   group.forEach(it => { it.animating = true; destroyItemBody(it); });
   wakePhysics('gameplay:L182');
   const grindBefore = stats.score;
-  if (scorePenalty(MIXER_PENALTY)){ // ур.1 без штрафов; ур.<=5 кламп нулём (баланс-таблица 2026-07-22)
-    const shown = scoreShownDelta(stats.score, grindBefore); // деноминир. падение чипа (#10)
+  if (scorePenalty(MIXER_PENALTY)){ // lv.1 without penalties; lv.<=5 clamped at zero (the balance table 2026-07-22)
+    const shown = scoreShownDelta(stats.score, grindBefore); // denom. drop of the chip (#10)
     if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
   }
   Sound.play('grind');
   vibrate(40);
-  grindShred(low, 0.5, 0.28); // двухфазный помол: захват -> шинковка в осколки (наказание — тряска ярче)
-  if (twin) dissolveFX(twin); // близнец не под ножами — уходит трухой (парность)
+  grindShred(low, 0.5, 0.28); // a two-phase grind: the grab -> shredding into shards (a punishment — the shaking is brighter)
+  if (twin) dissolveFX(twin); // the twin is not under the blades — it leaves as crumble (pairing)
   camShake = Math.max(camShake, 0.22);
   setTimeout(()=>afterPause(()=>{
-    group.forEach(removeItem); // осколки/пыль спавнит grindShred на шинковке
+    group.forEach(removeItem); // the shards/dust are spawned by grindShred at the shredding
     wakePhysics('gameplay:L198');
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 560);
 }
-// Финальная зачистка: парных не осталось — миксер уничтожает остатки (без штрафа)
+// The final clean-up: no pairable ones are left — the mixer destroys the remainder (without penalty)
 function finaleGrind(){
   const cand = items.filter(i => i.alive && !i.animating);
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];
-  if (low.surprise){ collectSurprise(low); return; } // сюрприз финал бережно собирает с бонусом
+  if (low.surprise){ collectSurprise(low); return; } // the finale carefully collects the surprise with a bonus
   low.animating = true;
   destroyItemBody(low);
   wakePhysics('gameplay:L211');
   Sound.play('grind');
-  // финал по канону СПОКОЙНЫЙ (автосбор без очков) — тряску помола делаем
-  // лёгкой (0.1), а не наказательной 0.28: иначе камера дёргалась бы каждые
-  // 0.5 с весь финал (~8-10 с). Ревью 2026-07-23.
-  grindShred(low, 0.4, 0.1); // тот же помол, чуть короче (каденция финала 0.5 с) + мягкая тряска
+  // by the canon the finale is CALM (auto-collection without score) — we make the grind's
+  // shaking light (0.1), and not the punitive 0.28: otherwise the camera would twitch every
+  // 0.5 s for the whole finale (~8-10 s). Review 2026-07-23.
+  grindShred(low, 0.4, 0.1); // the same grind, a bit shorter (the finale's cadence is 0.5 s) + soft shaking
   setTimeout(()=>afterPause(()=>{
     removeItem(low);
     wakePhysics('gameplay:L222');
@@ -1180,13 +1195,13 @@ function finaleGrind(){
   }), 410);
 }
 
-// ---------- Встряска ----------
+// ---------- The shake ----------
 function performShake(){
   wakePhysics('shake');
-  // К концу уровня встряска ПРИТЯГИВАЕТ пары друг к другу (спека владельца:
-  // «иначе игрок не может совместить последние пары и злится»). Доля
-  // притяжения растёт по мере опустошения: >=40 живых — чистое рыхление,
-  // <=12 — почти чистое притяжение к ближайшему близнецу по типу.
+  // Towards the end of the level the shake PULLS the pairs towards each other (the owner's
+  // spec: «otherwise the player cannot merge the last pairs and gets angry»). The share of
+  // the pull grows as things empty out: >=40 alive — pure loosening,
+  // <=12 — almost pure pull towards the nearest twin by type.
   let aliveCnt = 0;
   for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
   const pullK = Math.max(0, Math.min(1, (40 - aliveCnt) / 28));
@@ -1206,49 +1221,49 @@ function performShake(){
         ax = dx/len; az = dz/len;
       }
     }
-    // сила ×1.2 (спека владельца: «усиль эффект встряхивания на 20%»)
+    // the force ×1.2 (the owner's spec: «strengthen the shaking effect by 20%»)
     const pull = 7.8 * pullK, rnd = 1 - 0.75*pullK;
-    // вес (вариант 1, спека владельца 2026-07-21): множитель пачки ТОЛЬКО
-    // на случайное рыхление/подброс/вращение; притяжение к близнецу (pull)
-    // остаётся нормированным — оно функциональное, не «ощущенческое»
+    // the weight (variant 1, the owner's spec 2026-07-21): the pack's multiplier applies ONLY
+    // to the random loosening/toss-up/spin; the pull towards the twin (pull) stays
+    // normalised — it is functional, and not «about the feel»
     const wk = it.shakeK || 1;
     impulseBody(it, (Math.random()-0.5)*9*rnd*wk + ax*pull, (5.4 + Math.random()*6)*wk, (Math.random()-0.5)*9*rnd*wk + az*pull);
     spinBody(it, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk);
   }
-  camShake = 0.42; // +20% и на камеру
-  stats.lastAction = performance.now(); // встряска — тоже действие, миксер откладывается
+  camShake = 0.42; // +20% on the camera too
+  stats.lastAction = performance.now(); // a shake is an action too, the mixer is postponed
   Sound.play('shake');
   setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
 }
 function requestShake(){
   if (level.over || intro) return;
   if (level.shakes > 0){
-    useFreeShake(); // без подтверждения — сразу (по требованию владельца)
+    useFreeShake(); // without confirmation — immediately (at the owner's demand)
   } else if (purchasedShakes() > 0){
-    // КУПЛЕННЫЙ ЗАПАС (бандл) — между бесплатными и рекламой: уже оплачен,
-    // поэтому тратится так же молча, без оверлея-подтверждения.
+    // THE PURCHASED STOCK (a bundle) — between the free ones and the ad: it is already paid
+    // for, so it is spent just as silently, without a confirmation overlay.
     spendPurchasedShake(); stats.shakesUsed++;
     performShake(); updateHUD();
   } else if (level.adShakes > 0){
-    // РОЛИК СРАЗУ, БЕЗ ПОДТВЕРЖДЕНИЯ (спека владельца 2026-07-28: «Shake с
-    // рекламой работает по принципу подсказки — единое решение, сразу
-    // запускает рекламу»). Оверлей adAskOverlay (Cancel/Watch) УДАЛЁН: у
-    // подсказки его нет, «Ad» на кнопке само делает тап осознанным.
-    // ⚠️ С 2026-08-21 это ЛАЙМОВЫЙ БЕЙДЖ на иконке-кисти, а не слово внутри
-    // надписи: кнопка перестала быть пилюлей (макеты 886:3949 / 886:4017).
-    // Довод цел — состояние по-прежнему видно ДО тапа, поменялся носитель.
-    // ⚠️⚠️ И ЭТО ВЕРНО НЕ ТОЛЬКО ДЛЯ ГЛАЗА: доступное имя кнопки СОБИРАЕТСЯ
-    // ИЗ СОДЕРЖИМОГО (скрытое слово + бейдж), поэтому скринридер читает
-    // «Shake Ad» и тап остаётся осознанным. Первая редакция иконки задавала
-    // `aria-label="Shake"` — и обнуляла этот довод для незрячего игрока
-    // МОЛЧА; поймано разбором, лечение в shell.html у самой кнопки.
+    // THE VIDEO IMMEDIATELY, WITHOUT CONFIRMATION (the owner's spec 2026-07-28: «Shake with
+    // an ad works on the principle of the hint — a single decision, it starts the ad right
+    // away»). The adAskOverlay overlay (Cancel/Watch) IS DELETED: the hint does not have
+    // one, and the «Ad» on the button itself makes the tap a conscious one.
+    // ⚠️ Since 2026-08-21 this is a LIME BADGE on the brush icon, and not a word inside the
+    // caption: the button stopped being a pill (the mockups 886:3949 / 886:4017).
+    // The argument is intact — the state is still visible BEFORE the tap, the carrier changed.
+    // ⚠️⚠️ AND THIS IS TRUE NOT ONLY FOR THE EYE: the button's accessible name IS ASSEMBLED
+    // FROM ITS CONTENTS (the hidden word + the badge), so a screen reader reads
+    // «Shake Ad» and the tap stays conscious. The first edition of the icon set
+    // `aria-label="Shake"` — and it nullified this argument for a blind player
+    // SILENTLY; caught by a review, the cure is in shell.html at the button itself.
     startAd();
   } else {
     toast('No shakes left');
   }
 }
 function buyCoinShake(){
-  if (level.over || intro) return; // уровень успел кончиться — монеты не списываем
+  if (level.over || intro) return; // the level managed to end — we do not deduct the coins
   if (!spendCoins(PRICE_SHAKE)){ toast('Not enough coins'); return; }
   Telemetry.ev('spend', { item: 'shake' });
   performShake(); updateHUD();
@@ -1258,22 +1273,22 @@ function useFreeShake(){
   performShake(); updateHUD();
 }
 function startAd(){
-  // ⚠️ ОТМЕНА МОЕЙ ЖЕ СПЕКИ 2026-07-29 «нет ролика — нет награды» (слово
-  // владельца 2026-08-05: «если реклама не подобралась, всё равно разрешать
-  // шейк и типс»). Это НЕ дыра экономики: дыра была в ПОДДЕЛЬНОМ рекламном
-  // экране, который делал вид, что ролик идёт. Здесь показа не было, игрок
-  // видит честный тост, а действие ему всё равно дают — площадка просто не
-  // подобрала ролик, и наказывать за это игрока владелец не хочет.
-  // ⚠️ Только на 'unavailable': закрыл ролик сам — награды нет (78-ads).
-  Ads.showRewarded(()=>{ // награда только после досмотра (см. 78-ads)
-    // смену уровня закрывает Ads.cancel() в genLevel; здесь — конец ТОГО ЖЕ
-    // уровня, наставший за время ролика (встряске некого трясти)
+  // ⚠️ THE CANCELLATION OF MY OWN SPEC 2026-07-29 «no video — no reward» (the owner's word
+  // 2026-08-05: «if no ad was matched, still allow the shake and the tips»). This is NOT an
+  // economy hole: the hole was in the FAKE ad screen that pretended a video was playing.
+  // Here there was no impression at all, the player sees an honest toast, and the action is
+  // given to him anyway — the platform simply did not match a video, and the owner does not
+  // want the player to be punished for that.
+  // ⚠️ Only on 'unavailable': if he closed the video himself — there is no reward (78-ads).
+  Ads.showRewarded(()=>{ // the reward only after watching to the end (see 78-ads)
+    // the level change is closed by Ads.cancel() in genLevel; here it is the end of THE SAME
+    // level that came while the video was playing (the shake has nothing to shake)
     if (level.over) return;
     level.adShakes--; stats.adShakesUsed++;
     Telemetry.ev('rw', { p: 'shake' });
     performShake(); updateHUD();
   }, (reason) => {
-    if (reason !== 'unavailable') return;              // закрыл сам — без встряски
+    if (reason !== 'unavailable') return;              // he closed it himself — no shake
     if (!level || level.over || intro) return;
     stats.adShakesUsed++;
     Telemetry.ev('rw_nofill', { p: 'shake' });

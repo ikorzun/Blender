@@ -1,197 +1,203 @@
-# Музей спасённых вещей — дизайн-спека v1.1 (2026-07-20)
+# Museum of Rescued Things — design spec v1.1 (2026-07-20)
 
-## ⚠️ АДДЕНДУМ 2026-07-22 (ответ на запрос диспетчера; §1–§3 ниже устарели в деталях)
+## ⚠️ ADDENDUM 2026-07-22 (reply to the dispatcher's request; §1–§3 below are outdated in their details)
 
-Со времени спеки пул предметов сменился ЦЕЛИКОМ: процедурные 15 типов
-убраны, теперь **63 модели владельца** (24 зверя + 30 фруктов-овощей +
-8 машин + стейк), сюрприз — **золотая рыбка** (не чайник), **монеты
-скрыты** флагом COINS_ENABLED=false. Что это меняет (пересчёт — при
-реализации музея, после метрик v1):
+Since the spec was written, the item pool has changed ENTIRELY: the 15 procedural
+types are gone, now there are **63 models from the owner** (24 animals + 30 fruits
+and vegetables + 8 cars + steak), the surprise is a **golden fish** (not a teapot),
+**coins are hidden** by the COINS_ENABLED=false flag. What this changes
+(recalculation — when the museum is implemented, after the v1 metrics):
 
-1. **Сеты = паки моделей**, а не тематическая разбивка примитивов:
-   «Зверинец» (animal), «Урожай» (food + стейк), «Гараж» (car).
-   Классификация уже в коде (пачки SHAKE_RESP/бурст-эффектов) — сеты
-   получают её бесплатно. Паки больше 5 типов → экспонат = подмножество
-   пака, залы = главы внутри пака.
-2. **Первый экспонат музея — золотая рыбка** (заменяет чайник и в
-   роадмапе §1). Рифма сета «Чаепитие»→teapot умерла вместе с примитивами.
-3. **Калибровка «~13 предметов типа за уровень» устарела:** пул растёт
-   до 63 типов, выход на тип падает с уровнем (~20/тип на ур.1 → ~3/тип
-   при полном пуле). Пороги экспонатов пересчитать по фактическому
-   распределению; хвостовым типам — низкие пороги.
-4. **Награды без монет:** пока COINS_ENABLED=false, награды экспонатов —
-   расходники (подсказки — уже числимый ресурс he/hs, встряски);
-   дубликаты артефактов копят счётчик afDup (конвертация — когда владелец
-   включит монеты). Скин за полный сет — без изменений.
-5. **Артефакт = золотая версия модели**: материал поверх атласа —
-   механизм уже есть (золотая рыбка в makeSurprise), тиражирование на
-   другие модели — вопрос ГРАФИКЕ при реализации.
-6. Сюжетная рамка музея синхронизирована с docs/STORY-SPEC.md
-   (блендер-злодей «Великого Рецепта»; музей — тайна игрока от блендера).
+1. **Sets = model packs**, not a thematic breakdown of primitives:
+   "Menagerie" (animal), "Harvest" (food + steak), "Garage" (car).
+   The classification is already in the code (the SHAKE_RESP/burst-effect
+   packs) — the sets get it for free. Packs larger than 5 types → an exhibit =
+   a subset of the pack, halls = chapters inside the pack.
+2. **The museum's first exhibit is the golden fish** (it replaces the teapot in
+   roadmap §1 as well). The "Tea Party"→teapot set rhyme died with the primitives.
+3. **The "~13 items of a type per level" calibration is outdated:** the pool grows
+   to 63 types, the yield per type falls with the level (~20/type at lv.1 → ~3/type
+   at the full pool). Recalculate the exhibit thresholds against the actual
+   distribution; give the tail types low thresholds.
+4. **Rewards without coins:** while COINS_ENABLED=false, exhibit rewards are
+   consumables (hints — already a countable resource he/hs, shakes);
+   duplicate artifacts accumulate the afDup counter (conversion — when the owner
+   turns coins on). The skin for a full set is unchanged.
+5. **An artifact = the golden version of a model**: material on top of the atlas —
+   the mechanism already exists (the golden fish in makeSurprise), rolling it out
+   to other models is a question for GRAPHICS at implementation time.
+6. The museum's story frame is synchronized with docs/STORY-SPEC.md
+   (the blender-villain of the "Great Recipe"; the museum is the player's secret
+   kept from the blender).
 
-Принципы спеки (монотонные счётчики sv, битмаски OR, pity, зачёт только
-спасённого игроком, показ строкой на экране победы) — В СИЛЕ.
+The spec's principles (monotonic sv counters, OR bitmasks, pity, crediting only
+what the player rescued, display as a line on the win screen) — STILL IN FORCE.
 
-Направление ПОВЕСТВОВАНИЕ И МЕТА. Детализация §1–§3 DESIGN-ROADMAP.md с учётом
-корректировок защиты №3 (витрина → строка на экране победы), №4 (семантический
-мерж сейва), №7 (телеграф в эндшпиле, артефакт не в 100% уровней, редкостей 3),
-№9 (музей от 4–5 сессий). Реализация — СТРОГО ПОСЛЕ метрик v1 (гейт роадмапа).
-Все числа — стартовые значения для тюнинга, не догма.
+NARRATIVE AND META workstream. Detailing of §1–§3 of DESIGN-ROADMAP.md with the
+defense corrections No. 3 (showcase → a line on the win screen), No. 4 (semantic
+save merge), No. 7 (telegraph in the endgame, artifact not in 100% of levels,
+3 rarities), No. 9 (the museum takes 4–5 sessions). Implementation — STRICTLY AFTER
+the v1 metrics (roadmap gate). All numbers are starting values for tuning, not dogma.
 
-## 0. Рамки
+## 0. Bounds
 
-- Сюжетный инвариант: ноль сюжетного текста. Музей говорит визуалом + ~15
-  системных UI-строк (словарь в §7).
-- v1.1 музей НЕ меняет спавн-прогрессию «9+N типов» — он оверлей поверх неё.
-  Замена анлока на залы-сеты (роадмап §2) — отдельное решение владельца к v1.2,
-  трогает ЯДРО (genLevel) — см. открытый вопрос §8.1.
-- Считаем от факта кода: 15 типов (30-shapes TYPES), пул уровня = первые
-  9+(уровень−1) типов массива, выход ~12–14 предметов каждого типа пула
-  за уровень (PAIRS_EARLY 64/71/78, дальше 90 пар).
+- Story invariant: zero story text. The museum speaks through visuals + ~15
+  system UI strings (glossary in §7).
+- The v1.1 museum does NOT change the "9+N types" spawn progression — it is an
+  overlay on top of it. Replacing the unlock with set-halls (roadmap §2) is a
+  separate owner decision for v1.2, it touches the CORE (genLevel) — see open
+  question §8.1.
+- Counting from the code as it is: 15 types (30-shapes TYPES), the level pool = the
+  first 9+(level−1) types of the array, a yield of ~12–14 items of each pool type
+  per level (PAIRS_EARLY 64/71/78, 90 pairs beyond that).
 
-## 1. Сеты: разбивка 15 типов на 3 зала
+## 1. Sets: splitting the 15 types into 3 halls
 
-Критерий разбивки: тема + РАННЯЯ ДОСТУПНОСТЬ типов (база 9 доступна с ур.1,
-хвост открывается по одному на ур.2–7). Сеты намеренно разной «скорости»:
-Геометрия закрывается первой, Чаепитие — длинный арк до ~ур.9.
+Split criterion: theme + EARLY AVAILABILITY of the types (the base 9 are available
+from lv.1, the tail opens one at a time on lv.2–7). The sets are deliberately of
+different "speed": Geometry closes first, Tea Party is a long arc up to ~lv.9.
 
-| Сет | Типы (индекс TYPES) | Доступность |
+| Set | Types (TYPES index) | Availability |
 |---|---|---|
-| **Геометрия** | cube(0), ball(1), octa(6), dode(7), tetra(8) | все с ур.1 |
-| **Гриль** | steak(5), cyl(4), cone(2), knot(9)≈крендель, spiral(10)≈картошка-спираль | 3 с ур.1, knot ур.2, spiral ур.3 |
-| **Чаепитие** | torus(3)≈бублик, star(11)≈печенье, heart(12)≈пряник, pill(13)≈зефир, teapot(14) | torus с ур.1, хвост ур.4–7 |
+| **Geometry** | cube(0), ball(1), octa(6), dode(7), tetra(8) | all from lv.1 |
+| **Grill** | steak(5), cyl(4), cone(2), knot(9)≈pretzel, spiral(10)≈spiral potato | 3 from lv.1, knot lv.2, spiral lv.3 |
+| **Tea Party** | torus(3)≈bagel, star(11)≈cookie, heart(12)≈gingerbread, pill(13)≈marshmallow, teapot(14) | torus from lv.1, tail lv.4–7 |
 
-Нарративный бонус: сет «Чаепитие» венчает тип teapot — рифма с золотым
-чайником-сюрпризом (первым экспонатом музея по роадмапу).
+Narrative bonus: the "Tea Party" set is crowned by the teapot type — a rhyme with
+the golden teapot surprise (the museum's first exhibit per the roadmap).
 
-## 2. Экспонаты: пассивный прогресс от спасённых
+## 2. Exhibits: passive progress from rescued items
 
-**Правило зачёта (сюжетообразующее):** в счётчик идут только предметы,
-ЗАМАТЧЕННЫЕ ИГРОКОМ. Помол за простой и финальная зачистка — «не спасли»,
-не считаются. Рамка «спасай из-под лопастей» становится механикой, финал
-получает лёгкую цену (успей до конца), при этом очков финал по-прежнему
-не трогает (инвариант владельца).
+**Crediting rule (story-forming):** only items MATCHED BY THE PLAYER go into the
+counter. Grinding for idling and the final cleanup are "not rescued", they do not
+count. The "rescue them from under the blades" frame becomes a mechanic, the finale
+gains a light price (make it before the end), while the finale still does not touch
+the score (the owner's invariant).
 
-**Модель данных:** 15 пожизненных монотонных счётчиков `sv[typeName]`
-(спасено за всё время). Экспонат = порог по счётчикам своих типов; прогресс
-экспоната = min(sv[тип]/需, 1) по типам. Состояние экспонатов ВЫЧИСЛЯЕТСЯ из
-счётчиков, отдельно не хранится → мерж сейва тривиален (max), дюпов нет.
+**Data model:** 15 lifetime monotonic counters `sv[typeName]`
+(rescued all-time). An exhibit = a threshold over the counters of its own types; the
+exhibit's progress = min(sv[type]/需, 1) across the types. The exhibits' state is
+COMPUTED from the counters, it is not stored separately → the save merge is trivial
+(max), there are no dupes.
 
-**Таблица экспонатов (3 на сет, 9 всего):**
+**Exhibit table (3 per set, 9 in total):**
 
-| Экспонат | Требование | Закрывается (расчёт ~13/тип/уровень) |
+| Exhibit | Requirement | Closes at (estimate ~13/type/level) |
 |---|---|---|
-| Геометрия I | cube, ball, tetra × 8 | середина ур.1 — обучение петле |
-| Геометрия II | cube, ball, octa, dode × 20 | ур.2 |
-| Геометрия III | все 5 × 35 | ~ур.3 |
-| Гриль I | steak, cyl, cone × 8 | ур.1 (сразу за Геометрией I) |
-| Гриль II | 4 типа (+knot) × 20 | ~ур.3 (knot с ур.2) |
-| Гриль III | все 5 × 35 | ~ур.5 (spiral с ур.3) |
-| Чаепитие I | torus × 12 | ур.1 (одним типом — витринный «первый бублик») |
-| Чаепитие II | torus, star, heart × 20 | ~ур.6 (heart с ур.5) |
-| Чаепитие III | все 5 × 35 | ~ур.9–10 (teapot с ур.7) |
+| Geometry I | cube, ball, tetra × 8 | middle of lv.1 — teaching the loop |
+| Geometry II | cube, ball, octa, dode × 20 | lv.2 |
+| Geometry III | all 5 × 35 | ~lv.3 |
+| Grill I | steak, cyl, cone × 8 | lv.1 (right after Geometry I) |
+| Grill II | 4 types (+knot) × 20 | ~lv.3 (knot from lv.2) |
+| Grill III | all 5 × 35 | ~lv.5 (spiral from lv.3) |
+| Tea Party I | torus × 12 | lv.1 (a single type — the showcase "first bagel") |
+| Tea Party II | torus, star, heart × 20 | ~lv.6 (heart from lv.5) |
+| Tea Party III | all 5 × 35 | ~lv.9–10 (teapot from lv.7) |
 
-Первая сессия (2–3 уровня): закрыты Геометрия I, Гриль I, Чаепитие I (три
-ранних «дзынь» — обучение петле), выход с Геометрией II ~70% и Гриль II
-~50% — спроектированная незавершёнка. Все 9 экспонатов ≈ к ур.9–10; длинный
-хвост дальше несут артефакты (§3).
+First session (2–3 levels): Geometry I, Grill I, Tea Party I are closed (three
+early "dings" — teaching the loop), you exit with Geometry II at ~70% and Grill II
+at ~50% — designed incompleteness. All 9 exhibits ≈ by lv.9–10; the long
+tail beyond that is carried by artifacts (§3).
 
-**Награда за закрытый экспонат:** монеты (I — 15, II — 30, III — 60) +
-анимация на экране победы. За ПОЛНЫЙ сет (3/3): процедурный скин чаши
-(реализация v1.2, ГРАФИКА) + разовая пачка 3 встрясок. Единственный
-перманент — +1 базовая встряска за самый первый полный сет (кап, роадмап §3).
+**Reward for a closed exhibit:** coins (I — 15, II — 30, III — 60) +
+an animation on the win screen. For a FULL set (3/3): a procedural bowl skin
+(v1.2 implementation, GRAPHICS) + a one-off bundle of 3 shakes. The only
+permanent one is +1 base shake for the very first full set (capped, roadmap §3).
 
-## 3. Артефакты: генерализация золотого чайника
+## 3. Artifacts: generalizing the golden teapot
 
-Текущий сюрприз (золотой чайник, +150, закопан на дне) СТАНОВИТСЯ системой:
+The current surprise (golden teapot, +150, buried at the bottom) BECOMES a system:
 
-- В уровне закопан артефакт — золотая версия СЛУЧАЙНОГО типа из пула уровня
-  (смена материала, ноль байт арта). Поведение прежнее: не матчится,
-  не вуалится, миксер не ест, тап по раскопанному +150, в финале
-  автосбор с бонусом.
-- **Не в 100% уровней** (корректировка №7): 80% — один, 5% — два, 15% — ноль.
-  Уровень 1 — ВСЕГДА ровно один (первый экспонат гарантирован).
-- **Редкости — 3 ступени** (№7), материалом: обычный (золото, как сейчас) /
-  редкий (перламутр) / легендарный (свечение-пульс). Шансы 75 / 20 / 5.
-- **Pity:** нет редкого+ за 5 уровней подряд → гарантированный редкий;
-  нет легендарного за 25 уровней → гарантированный легендарный.
-  Счётчики pity в сейве (§5), мерж max (в пользу игрока, дюпа не создаёт).
-- **Коллекция:** 15 типов × 3 редкости = 45 слотов — длинный арк музея.
-  Дубликат (слот занят) → монеты 15 / 40 / 120 по редкости, звёзд НЕ даёт.
-- **Телеграф-блик — ТОЛЬКО в эндшпиле** (№7, снимает конфликт с комбо):
-  включается при живых ≤ 24 (тюнинг), золотой проблеск сквозь толщу раз
-  в ~8 с. До того артефакт — чистый сюрприз, как чайник сейчас.
-  Реализация блика — спрайт-глоу (корректировка №9), ГРАФИКА.
-- Помол артефакта миксером — ЗАПРЕЩЁН как сейчас (AB-идея «может быть смолот
-  с компенсацией» — только за флагом и не в v1.1, роадмап).
+- An artifact is buried in the level — the golden version of a RANDOM type from the
+  level pool (a material swap, zero bytes of art). Behavior as before: it does not
+  match, does not get veiled, the mixer does not eat it, a tap on the dug-out one
+  gives +150, in the finale it is auto-collected with a bonus.
+- **Not in 100% of levels** (correction No. 7): 80% — one, 5% — two, 15% — none.
+  Level 1 — ALWAYS exactly one (the first exhibit is guaranteed).
+- **Rarities — 3 tiers** (No. 7), by material: common (gold, as now) /
+  rare (mother-of-pearl) / legendary (a glow-pulse). Chances 75 / 20 / 5.
+- **Pity:** no rare+ for 5 levels in a row → a guaranteed rare;
+  no legendary for 25 levels → a guaranteed legendary.
+  The pity counters live in the save (§5), merged by max (in the player's favor, it
+  creates no dupe).
+- **Collection:** 15 types × 3 rarities = 45 slots — the museum's long arc.
+  A duplicate (the slot is taken) → coins 15 / 40 / 120 by rarity, gives NO stars.
+- **The telegraph glint — ONLY in the endgame** (No. 7, removes the conflict with
+  combo): turns on at alive ≤ 24 (to be tuned), a golden flicker through the mass
+  once every ~8 s. Before that the artifact is a pure surprise, like the teapot now.
+  Implementing the glint — a sprite glow (correction No. 9), GRAPHICS.
+- Grinding an artifact in the mixer is FORBIDDEN, as it is now (the AB idea "it may
+  be ground with compensation" — behind a flag only and not in v1.1, roadmap).
 
-## 4. Показ: без отдельного экрана витрины (корректировка №3)
+## 4. Display: no separate showcase screen (correction No. 3)
 
-- **Экран победы** получает одну анимированную строку: ближайший к закрытию
-  экспонат («Геометрия II ▓▓▓░ 78%», прирост подчёркнут) ИЛИ «новый экспонат»
-  при закрытии, ИЛИ карточку артефакта при находке (приоритет: артефакт >
-  закрытие > прогресс).
-- **Музей** — опциональная кнопка (экран победы + ⚙️-панель): полки трёх
-  залов, экспонаты = те же меши в масштабе, силуэты незакрытого, сетка 45
-  слотов артефактов. Рендер — вторая сцена по требованию на паузе физики
-  (№9). Разметка/экран — ИНТЕРФЕЙС, материалы редкостей — ГРАФИКА,
-  по межзонным запросам при старте реализации.
-- Тизер «завтра» и daily-слот — НЕ в v1.1-музее (идут с Daily-порцией).
+- **The win screen** gets one animated line: the exhibit closest to closing
+  ("Geometry II ▓▓▓░ 78%", the gain is underlined) OR "new exhibit" on a closure,
+  OR an artifact card on a find (priority: artifact > closure > progress).
+- **The museum** — an optional button (win screen + the ⚙️ panel): shelves of the
+  three halls, exhibits = the same meshes scaled, silhouettes of what is not closed,
+  a grid of 45 artifact slots. Rendering — a second scene on demand with physics
+  paused (No. 9). Markup/screen — INTERFACE, rarity materials — GRAPHICS,
+  by cross-zone requests when implementation starts.
+- The "tomorrow" teaser and the daily slot are NOT in the v1.1 museum (they come
+  with the Daily batch).
 
-## 5. Сейв v2 (расширение 77-save, мерж семантический — корректировка №4)
+## 5. Save v2 (extension of 77-save, semantic merge — correction No. 4)
 
 ```js
 Save = {
   v: 2,
-  ce, cs,            // монеты earned/spent — как сейчас (max/max)
-  stars: {lv: n},    // как сейчас (max по уровню)
-  sv: {type: n},     // 15 счётчиков «спасено за всё время» — мерж max
-  af: {type: mask},  // артефакты: битмаска редкостей (1|2|4) — мерж OR
-  afDup: n,          // дубликатов всего (статистика) — мерж max
-  pityR: n, pityL: n // уровней без редкого/легендарного — мерж max
+  ce, cs,            // coins earned/spent — as now (max/max)
+  stars: {lv: n},    // as now (max per level)
+  sv: {type: n},     // 15 "rescued all-time" counters — merged by max
+  af: {type: mask},  // artifacts: rarity bitmask (1|2|4) — merged by OR
+  afDup: n,          // duplicates in total (statistics) — merged by max
+  pityR: n, pityL: n // levels without a rare/legendary — merged by max
 }
 ```
 
-- Монотонность соблюдена всюду; немонотонного состояния нет → версия/LWW
-  не нужны в v1.1. Монеты за дубликаты идут через существующий addCoins.
-- Совместимость: сейв v1 читается как есть (новые поля от нуля), поле v
-  оставляем на будущее.
-- Размер: +~400 байт JSON — лимиты Bridge/CloudStorage не задевает.
+- Monotonicity is preserved everywhere; there is no non-monotonic state → a version
+  field / LWW is not needed in v1.1. Coins for duplicates go through the existing
+  addCoins.
+- Compatibility: a v1 save is read as is (new fields start from zero), we keep the
+  v field for the future.
+- Size: +~400 bytes of JSON — it does not touch the Bridge/CloudStorage limits.
 
-## 6. Персонаж (eyesMood, связка с музеем)
+## 6. Character (eyesMood, the link to the museum)
 
-Новая эмоция: 🤩→✨ «находка» на 2 с при раскопке артефакта редкий+
-(приоритет выше комбо, ниже победы). Дёшево: одна строка в таблице
-настроений 85-hud. Спрайты — по этапу визуала (ГРАФИКА).
+A new emotion: 🤩→✨ "a find" for 2 s when a rare+ artifact is dug out
+(priority above combo, below victory). Cheap: one line in the moods table
+of 85-hud. Sprites — at the visual stage (GRAPHICS).
 
-## 7. Словарь UI-строк музея (инвариант «ноль сюжетного текста», ~15 строк)
+## 7. Glossary of the museum's UI strings (the "zero story text" invariant, ~15 strings)
 
 Museum / Sets / Artifacts / New exhibit! / Set complete! / Rare find! /
 Legendary! / +N coins / Duplicate → +N / Next exhibit / Saved: N /
 Geometry / Grill / Tea Party / Progress N%.
-Язык — EN (как кнопки), полный словарь JSON — при общей локализации
-(ИНТЕРФЕЙС).
+The language is EN (like the buttons), the full JSON glossary — at the time of
+general localization (INTERFACE).
 
-## 8. Открытые вопросы владельцу
+## 8. Open questions for the owner
 
-1. **Залы как спавн-прогрессия** (замена «9+N», роадмап §2): в v1.1 НЕ делаем;
-   решить к v1.2 — меняет сложность (число типов = главный рычаг) и ЯДРО.
-2. **Финал не засчитывает спасения** (§2) — нарративно верно, но чуть
-   наказывает и без того слабого игрока. Альтернатива: финал считает с
-   коэффициентом 1/2. Нужен вердикт владельца.
-3. Названия сетов: «Геометрия / Гриль / Чаепитие» — ок? (Гриль собран вокруг
-   стейка владельца.)
-4. Шанс «уровень без артефакта» 15% — приемлемая жёсткость для v1.1?
+1. **Halls as the spawn progression** (replacing "9+N", roadmap §2): we do NOT do
+   it in v1.1; to be decided by v1.2 — it changes difficulty (the number of types =
+   the main lever) and the CORE.
+2. **The finale does not credit rescues** (§2) — narratively right, but it slightly
+   punishes an already weak player. Alternative: the finale counts with a factor
+   of 1/2. The owner's verdict is needed.
+3. Set names: "Geometry / Grill / Tea Party" — OK? (Grill is built around the
+   owner's steak.)
+4. The "level without an artifact" chance of 15% — an acceptable harshness for v1.1?
 
-## 9. Смета реализации (буфер ×2 уже включён, корректировка №9)
+## 9. Implementation estimate (the ×2 buffer is already included, correction No. 9)
 
-| Порция | Объём | Зоны |
+| Batch | Volume | Zones |
 |---|---|---|
-| Сейв v2 + счётчики sv в doMatch | 0.5 сессии | 77-save, точка в 80-gameplay (ЯДРО — по согласованию) |
-| Артефакты: редкости/pity/дубли | 1 сессия | 40-items makeSurprise (ЯДРО), 77-save |
-| Строка на экране победы + eyesMood | 0.5 сессии | 85-hud, shell (ИНТЕРФЕЙС — запрос) |
-| Экран музея (вторая сцена) | 2 сессии | ИНТЕРФЕЙС + ГРАФИКА (запросы) |
-| Телеграф-блик эндшпиля | 0.5 сессии | 70-fx (ГРАФИКА — запрос) |
-| Бот-прогон экономики + тесты | 0.5 сессии | тест-зона |
+| Save v2 + sv counters in doMatch | 0.5 session | 77-save, a point in 80-gameplay (CORE — by agreement) |
+| Artifacts: rarities/pity/duplicates | 1 session | 40-items makeSurprise (CORE), 77-save |
+| Line on the win screen + eyesMood | 0.5 session | 85-hud, shell (INTERFACE — request) |
+| Museum screen (a second scene) | 2 sessions | INTERFACE + GRAPHICS (requests) |
+| Endgame telegraph glint | 0.5 session | 70-fx (GRAPHICS — request) |
+| Economy bot run + tests | 0.5 session | test zone |
 
-Итого ~5 сессий — сходится с роадмапом (4–5 после буфера).
+Total ~5 sessions — this matches the roadmap (4–5 after the buffer).

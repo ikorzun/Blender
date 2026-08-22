@@ -2,31 +2,31 @@ name = "blendo-lb"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# ⛔ workers.dev ВЫКЛЮЧЕН НАМЕРЕННО: иначе у сервиса остаётся ВТОРОЙ публичный
-# адрес на *.workers.dev — тот самый, который режут школьные и корпоративные
-# сети. Один адрес = один путь, который проверяет смоук.
-# ⚠️⚠️ КЛЮЧ ВЕРХНЕГО УРОВНЯ И ОБЯЗАН СТОЯТЬ ДО ЛЮБОГО [заголовка]: в TOML всё,
-# что идёт после заголовка таблицы, принадлежит ЕЙ. Поставленный ниже, он
-# дважды уехал не туда — сперва в [[routes]], потом в [triggers], и Cloudflare
-# ругался на «неизвестное поле» совсем в другом месте, чем была ошибка.
+# ⛔ workers.dev IS OFF ON PURPOSE: otherwise the service keeps a SECOND public
+# address on *.workers.dev — the very one that school and corporate networks
+# block. One address = one path, the one the smoke test checks.
+# ⚠️⚠️ IT IS A TOP-LEVEL KEY AND MUST STAND BEFORE ANY [header]: in TOML
+# everything after a table header belongs TO IT. Placed lower, it went astray
+# twice — first into [[routes]], then into [triggers], and Cloudflare complained
+# about an "unknown field" in a place entirely different from where the error was.
 workers_dev = false
 
-# ⚠️ БИНДИНГ ОДИН — только D1. KV не заводим: бесплатный тариф даёт 1000
-# записей в сутки (при тысяче активных игроков выбирается за час), и порядка
-# в KV нет — позицию пришлось бы считать вычиткой всего списка в память.
+# ⚠️ ONE BINDING — only D1. No KV: the free plan gives 1000 writes a day (used
+# up in an hour with a thousand active players), and KV has no ordering — the
+# position would have to be computed by reading the whole list into memory.
 [[d1_databases]]
 binding = "DB"
 database_name = "blendo-lb"
-database_id = "62ffb3d5-70dd-4228-a1ea-440fe00a5532"   # создана 2026-08-10, регион WEUR
+database_id = "62ffb3d5-70dd-4228-a1ea-440fe00a5532"   # created 2026-08-10, region WEUR
 
-# Два триггера из пяти доступных: снимок с лесенкой раз в час, ретенция ночью.
+# Two triggers of the five allowed: hourly ladder snapshot, nightly retention.
 [triggers]
 crons = ["0 * * * *", "0 4 * * *"]
 
-# ⚠️ ВЕШАТЬ НА СВОЙ ПОДДОМЕН, НЕ НА *.workers.dev: часть корпоративных и
-# школьных сетей режет workers.dev целиком, а игра живёт в iframe чужих
-# порталов, где сетью мы не управляем.
-# Домен владельца заведён 2026-08-10, зона на Cloudflare (ainsley/randy.ns).
+# ⚠️ MOUNT IT ON OUR OWN SUBDOMAIN, NOT ON *.workers.dev: some corporate and
+# school networks block workers.dev entirely, and the game lives in iframes of
+# other people's portals, where we do not control the network.
+# The owner's domain was set up 2026-08-10, zone on Cloudflare (ainsley/randy.ns).
 [[routes]]
 pattern = "lb.blendo.monster"
 custom_domain = true

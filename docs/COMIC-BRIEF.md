@@ -1,59 +1,59 @@
-# BLENDO — бриф на отрисовку комикса нейросетью (v1, 2026-07-31)
+# BLENDO — brief for drawing the comic with a neural net (v1, 2026-07-31)
 
-Запрос владельца: «распиши историю, чтобы отдать нейронке для комикса».
-Замена моих плоских SVG-черновиков (86-story.js) на рисованные панели —
-опция, прямо предусмотренная docs/STORY-SPEC.md §3 («ПОВЕСТВОВАНИЕ черновик →
-ГРАФИКА полировка», рисованные/AI-панели при желании владельца).
+The owner's request: «write the story out so it can be handed to a neural net for a comic».
+Replacing my flat SVG drafts (86-story.js) with drawn panels is an
+option explicitly provided for by docs/STORY-SPEC.md §3 («NARRATIVE draft →
+GRAPHICS polish», drawn/AI panels at the owner's wish).
 
-⚠️ Панелей РОВНО ВОСЕМЬ, они уже живут в игре и привязаны к триггерам. Новый
-арт заменяет их один-в-один; менять состав = менять код. Соотношение сторон
-**3:2** (в игре viewBox 360×230, показ до 460px по ширине).
-
----
-
-## 1. История в двух абзацах
-
-Блендер одержим **Великим Рецептом** — смузи из всего сущего. Фрукты, звери,
-машины, в конце списка — Земля. Мир для него это ингредиенты, и он идёт по
-разделам, раздел за разделом.
-
-Главный ход — **драматическая ирония**. Он уверен, что игрок его лучший
-помощник: совмещение предметов на его глазах выглядит как уничтожение (вещи
-лопаются в труху, летят сок и искры), он в восторге от комбо и НЕ ЗНАЕТ, что
-предметы телепортируются в музей игрока. Игрок знает больше злодея с первой
-минуты. К середине пути блендер начинает что-то подозревать, а затем видит
-полку музея — целые, довольные, «смолотые» им вещи — и приходит в ярость.
-С этого места вся эскалация сложности читается как его контрмеры.
+⚠️ There are EXACTLY EIGHT panels, they already live in the game and are tied to triggers. The new
+art replaces them one-for-one; changing the set = changing the code. Aspect ratio
+**3:2** (in the game viewBox 360×230, shown up to 460px wide).
 
 ---
 
-## 2. Каноны комикса — что требовать от нейросети
+## 1. The story in two paragraphs
 
-1. **БЕССЛОВЕСНО.** Ни букв, ни реплик, ни звукоподражаний. Это инвариант:
-   игра не локализуется, и панель должна читаться в любой стране. Смысл несут
-   глаза, пузырь мысли и пиктограммы.
-2. **Одна панель = один бит.** Не собирать два события в кадр. Если хочется
-   «и то, и это» — значит нужны две панели, а их количество зафиксировано.
-3. **Панель читается за 1–2 секунды.** Проверка: прищурься — считывается ли
-   смысл по силуэтам? Если нет, панель перегружена.
-4. **Крупность меняется по арке.** Общий план (герой + объект) для установки,
-   средний для действия, КРУПНЫЙ на глаза — для эмоционального удара. Шок и
-   ярость обязаны быть крупными, иначе твист не сработает.
-5. **Правило 180°.** Герой во всех панелях смотрит В ОДНУ сторону (у нас —
-   слева направо, на объект своего внимания). Если он «перепрыгнет» на другую
-   сторону кадра, читатель решит, что это другой персонаж.
-6. **Пустое место — это пауза.** Фон простой, без деталей; вокруг ключевого
-   объекта воздух. Мобильный экран не прощает шума.
-7. **Силуэт решает.** Персонаж обязан узнаваться чёрным силуэтом: банка +
-   два круглых глаза. Никаких рук, ног, рта и бровей — их нет в игре.
-8. ⚠️ **ГЛАВНАЯ ПРОБЛЕМА AI-КОМИКСОВ — НЕПОСТОЯНСТВО ГЕРОЯ.** Лечится только
-   тем, что блок «character lock» (ниже) вставляется в КАЖДЫЙ промт дословно,
-   без переформулировок, и первая удачная панель используется как reference
-   для остальных.
+The Blender is obsessed with the **Great Recipe** — a smoothie of everything that exists. Fruit, animals,
+cars, and at the end of the list — the Earth. To him the world is ingredients, and he works through
+the sections, section by section.
+
+The main device is **dramatic irony**. He is certain that the player is his best
+helper: merging objects in front of his eyes looks like destruction (things
+burst into dust, juice and sparks fly), he is delighted by the combos and DOES NOT KNOW that
+the objects teleport into the player's museum. The player knows more than the villain from the very first
+minute. Midway through the journey the blender begins to suspect something, and then sees
+the museum shelf — intact, contented things he «ground up» — and flies into a rage.
+From this point on the whole difficulty escalation reads as his countermeasures.
 
 ---
 
-## 3. Блок стиля (вставлять в каждый промт, английский)
+## 2. The comic's canon — what to demand from the neural net
+
+1. **WORDLESS.** No letters, no lines, no onomatopoeia. This is an invariant:
+   the game is not localized, and a panel must read in any country. The meaning is carried by
+   the eyes, the thought bubble and pictograms.
+2. **One panel = one beat.** Do not pack two events into a frame. If you want
+   «both this and that» — then two panels are needed, and their number is fixed.
+3. **A panel reads in 1–2 seconds.** Check: squint — does the
+   meaning read from the silhouettes? If not, the panel is overloaded.
+4. **Shot size changes across the arc.** A wide shot (hero + object) for the setup,
+   a medium one for the action, a CLOSE-UP on the eyes — for the emotional hit. Shock and
+   rage must be close-ups, otherwise the twist will not work.
+5. **The 180° rule.** In every panel the hero looks in THE SAME direction (for us —
+   left to right, at the object of his attention). If he «jumps» to the other
+   side of the frame, the reader will decide it is a different character.
+6. **Empty space is a pause.** The background is simple, without details; there is air around the key
+   object. A mobile screen does not forgive noise.
+7. **The silhouette decides.** The character must be recognizable as a black silhouette: a jar +
+   two round eyes. No arms, legs, mouth or eyebrows — they do not exist in the game.
+8. ⚠️ **THE MAIN PROBLEM OF AI COMICS IS THE HERO'S INCONSISTENCY.** The only cure is
+   that the «character lock» block (below) is inserted into EVERY prompt verbatim,
+   without rewording, and the first successful panel is used as a reference
+   for the rest.
+
+---
+
+## 3. Style block (insert into every prompt, English)
 
 ```
 STYLE: casual mobile 3D game render, soft matcap-like shading, no textures,
@@ -68,7 +68,7 @@ MOOD: bright, playful, friendly-villain comedy. Silent comic panel, absolutely
 no text, no letters, no numbers, no speech bubbles with words.
 ```
 
-## 4. Character lock (дословно в каждый промт)
+## 4. Character lock (verbatim into every prompt)
 
 ```
 CHARACTER: "the Blender" — a chunky transparent glass blender jar, slightly
@@ -79,25 +79,25 @@ like googly eyes. The eyes are the character. Same jar proportions and same
 eye size in every panel.
 ```
 
-Настроения глаз (менять ТОЛЬКО зрачки и веки, форма белков постоянна):
-| Панель | Настроение | Как рисовать |
+Eye moods (change ONLY the pupils and the eyelids, the shape of the whites is constant):
+| Panel | Mood | How to draw it |
 |---|---|---|
-| P1 | спокойное, деловое | зрачки по центру, чуть вниз — сверяется со списком |
-| P2 | мечтательное | зрачки подняты вверх |
-| P3 | обожание | зрачки распахнуты на весь белок |
-| K2 | сомнение | зрачки уведены вбок, лёгкий наклон банки |
-| K3 | хитрое | зрачки вниз-вбок, верхние веки полуприкрыты |
-| K4a | нейтральное, ещё не понял | зрачки по центру |
-| K4b | шок | белки увеличены, зрачки крошечные |
-| K4c | ярость | «брови» срезают верх-внутренние углы белков клином |
+| P1 | calm, businesslike | pupils centered, slightly down — checking against the list |
+| P2 | dreamy | pupils raised upward |
+| P3 | adoration | pupils opened wide across the whole white |
+| K2 | doubt | pupils shifted to the side, the jar tilted slightly |
+| K3 | sly | pupils down-and-to-the-side, upper eyelids half closed |
+| K4a | neutral, has not understood yet | pupils centered |
+| K4b | shock | whites enlarged, pupils tiny |
+| K4c | rage | «eyebrows» cut the top-inner corners of the whites with a wedge |
 
 ---
 
-## 5. Раскадровка — 8 промтов
+## 5. Storyboard — 8 prompts
 
-### ПРОЛОГ (показывается ОДИН раз перед первой игрой)
+### PROLOGUE (shown ONCE before the first game)
 
-**P1 — «Рецепт».** Установка: он собирается смолоть всё на свете.
+**P1 — «The Recipe».** Setup: he is going to grind up everything in the world.
 ```
 [STYLE] [CHARACTER LOCK]
 The Blender stands at the left, calm businesslike eyes, looking right at a
@@ -108,7 +108,7 @@ small dots and, under them, a big planet Earth globe drawn as a simple line
 sphere. The order reads top to bottom, ending on the planet.
 ```
 
-**P2 — «Мечта».** Масштаб замысла: смузи из планеты.
+**P2 — «The Dream».** The scale of the plan: a smoothie made of the planet.
 ```
 [STYLE] [CHARACTER LOCK]
 The Blender at the lower left, eyes rolled upward, dreaming. A large rounded
@@ -117,7 +117,7 @@ jar by two small circles. Inside the bubble: a blender jar exactly like the
 character's, and inside that jar sits planet Earth. Nothing else in the bubble.
 ```
 
-**P3 — «Помощник».** Ирония установлена: он думает, что игрок ему помогает.
+**P3 — «The Helper».** The irony is established: he thinks the player is helping him.
 ```
 [STYLE] [CHARACTER LOCK]
 The Blender at the lower left, eyes wide with adoration (pupils huge), two
@@ -126,10 +126,10 @@ shows a simple sequence: a finger-tap ripple icon, an arrow pointing right,
 and a puff of scattered dust particles. The bubble reads left to right.
 ```
 
-### ВЕХИ (приходят по ходу игры)
+### MILESTONES (arrive during play)
 
-**K2 — «Куда?..».** Первое сомнение. Приходит, когда игрок впервые докопит
-первый тип до ступени накопления.
+**K2 — «Where to?..».** The first doubt. Arrives when the player first accumulates
+the first type up to an accumulation tier.
 ```
 [STYLE] [CHARACTER LOCK]
 The Blender at the lower left, eyes shifted to the side in suspicion, jar
@@ -139,7 +139,7 @@ right where the apple should have arrived. The question mark is a drawn
 symbol, not a typographic character.
 ```
 
-**K3 — «Раздел второй».** План идёт по плану — он ещё уверен, что побеждает.
+**K3 — «Section two».** The plan is going to plan — he is still sure he is winning.
 ```
 [STYLE] [CHARACTER LOCK]
 The Blender at the lower left, sly narrowed eyes (upper lids half closed,
@@ -148,7 +148,7 @@ a bright lime checkmark, a downward arrow below it, and at the bottom an
 animal head circled with a thin white ring as the next target.
 ```
 
-**K4a — «Полка».** Твист, панель 1: он видит то, чего не ожидал.
+**K4a — «The Shelf».** The twist, panel 1: he sees what he did not expect.
 ```
 [STYLE] [CHARACTER LOCK]
 Wide establishing shot. The Blender small at the lower left, neutral eyes,
@@ -158,7 +158,7 @@ believes he destroyed. Small lime sparkles float above them. Everything is
 calm and tidy, like a museum display.
 ```
 
-**K4b — «Шок».** Твист, панель 2: КРУПНО.
+**K4b — «Shock».** The twist, panel 2: CLOSE-UP.
 ```
 [STYLE] [CHARACTER LOCK]
 Close-up. The Blender fills the center of the panel, much larger than in
@@ -167,7 +167,7 @@ Behind it, blurred and small, the same shelf with the intact apple, animal and
 car. All attention is on the eyes.
 ```
 
-**K4c — «Ярость».** Твист, панель 3: он всё понял.
+**K4c — «Rage».** The twist, panel 3: he has understood everything.
 ```
 [STYLE] [CHARACTER LOCK]
 Close-up. The Blender centered, eyes narrowed into an angry wedge shape —
@@ -179,7 +179,7 @@ no debris, clean shapes.
 
 ---
 
-## 6. Негативный промт
+## 6. Negative prompt
 
 ```
 NEGATIVE: text, letters, words, numbers, captions, speech bubbles with
@@ -188,14 +188,14 @@ characters, hands, faces, mouth on the jar, eyebrows as hair, cluttered
 background, busy patterns, motion blur, heavy shadows, dark moody lighting.
 ```
 
-## 7. Практика: как получить постоянного героя
+## 7. Practice: how to get a consistent hero
 
-1. Сначала сгенерировать **P1** и итерировать, пока герой не понравится.
-2. Удачную панель отдать как **image reference / style reference** во все
-   остальные семь промтов — без этого банка и глаза «поплывут».
-3. Проверять серию ВМЕСТЕ, а не по одной: положить восемь панелей рядом и
-   искать, где герой изменил пропорции.
-4. Панели K4a → K4b → K4c обязаны читаться как ОДНА сцена: одна и та же полка,
-   один и тот же ракурс, меняется только крупность и эмоция.
-5. Готовые PNG отдать ГРАФИКЕ — подмена SVG на картинки в 86-story.js
-   тривиальна (панель это функция, возвращающая разметку).
+1. First generate **P1** and iterate until the hero looks right.
+2. Hand the successful panel in as an **image reference / style reference** to all
+   the other seven prompts — without this the jar and the eyes will «drift».
+3. Check the series TOGETHER, not one at a time: lay the eight panels side by side and
+   look for where the hero changed proportions.
+4. Panels K4a → K4b → K4c must read as ONE scene: the same shelf,
+   the same camera angle, only the shot size and the emotion change.
+5. Hand the finished PNGs to GRAPHICS — swapping the SVGs for images in 86-story.js
+   is trivial (a panel is a function that returns markup).

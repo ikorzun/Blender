@@ -1,187 +1,190 @@
-# Пополнение звёзд — экономика rewarded + IAP-паков (спека, 2026-07-24)
+# Star top-up — the economics of rewarded + IAP packs (spec, 2026-07-24)
 
-> ## ⚠️ СТАТУС ДОКУМЕНТА (2026-07-27/28) — ЧИТАТЬ ПЕРВЫМ
+> ## ⚠️ DOCUMENT STATUS (2026-07-27/28) — READ FIRST
 >
-> **ПАКИ ЗВЁЗД ОТМЕНЕНЫ ВЛАДЕЛЬЦЕМ** (дословно 2026-07-27: «у нас нет
-> понятия пака звёзд. Get More и множитель даёт умножение очков в игре на
-> заданное при продаже время»). Прямой покупки звёзд не существует и не
-> планируется. Константа `STAR_PACKS` из кода **удалена** (не «спит»).
-> Всё, что ниже про **IAP-паки** (§3.B, §4 каннибализация, пак-анкоры
-> 3000/19000/90000, «Mega=62000») — **ИСТОРИЯ РАСЧЁТОВ, не спека.**
+> **STAR PACKS CANCELLED BY THE OWNER** (verbatim 2026-07-27: "we have no
+> concept of a star pack. Get More and the multiplier give a multiplication of
+> in-game points for the time set at the point of sale"). A direct purchase of
+> stars does not exist and is not planned. The `STAR_PACKS` constant has been
+> **deleted** from the code (it does not "sleep").
+> Everything below about **IAP packs** (§3.B, §4 cannibalization, the pack
+> anchors 3000/19000/90000, "Mega=62000") is **THE HISTORY OF THE CALCULATIONS, not the spec.**
 >
-> **ЧТО ДЕЙСТВУЕТ ВМЕСТО:** единственная платная звёздная механика —
-> **ВРЕМЕННОЙ МНОЖИТЕЛЬ БАНДЛА** (`STAR_BUNDLES`, 00-config): он умножает
-> то, что игрок ЗАРАБАТЫВАЕТ ИГРОЙ, на время окна, плюс расходники
-> (встряски/подсказки) и окно без межстраничной рекламы. Тиры по макетам
-> владельца 783:95/785:112: `$4.99` ×5/30 мин + 10 встрясок + 15 подсказок +
-> 1 день без рекламы; `$9.99` ×3/1 ч + 15 + 20 + 3 дня; `$19.99` ×2/сутки +
-> 50 + 30 + месяц. Ценность тира считается как «сколько игрок НАИГРАЕТ за
-> окно» — `(множитель−1) × темп × время` + расходники + no-Ad, а НЕ как
-> «сколько звёзд куплено».
+> **WHAT IS IN FORCE INSTEAD:** the only paid star mechanic is the
+> **TIMED BUNDLE MULTIPLIER** (`STAR_BUNDLES`, 00-config): it multiplies what
+> the player EARNS BY PLAYING for the duration of the window, plus consumables
+> (shakes/hints) and a window with no interstitial ads. Tiers per the owner's
+> mockups 783:95/785:112: `$4.99` ×5/30 min + 10 shakes + 15 hints +
+> 1 day without ads; `$9.99` ×3/1 h + 15 + 20 + 3 days; `$19.99` ×2/24 h +
+> 50 + 30 + a month. The value of a tier is counted as "how much the player
+> WILL PLAY OUT during the window" — `(multiplier−1) × rate × time` + consumables
+> + no-Ad, and NOT as "how many stars were bought".
 >
-> **ЧТО ИЗ ДОКУМЕНТА ОСТАЁТСЯ ЖИВЫМ:** лестница Boost (2000/4000/8000/16000/
-> 32000, полный выкуп типа 62 000) и **§v3 — матрица цены досрочного
-> открытия** (`800 + 200·уровень`), она утверждена и в коде.
+> **WHAT STAYS ALIVE FROM THIS DOCUMENT:** the Boost ladder (2000/4000/8000/16000/
+> 32000, a full buy-out of a type at 62 000) and **§v3 — the matrix of the
+> early-unlock price** (`800 + 200·level`), it is approved and in the code.
 >
-> **ПОЛЕ `tu`** (фикс A: купленное не поднимает ранг) сохранено в сейве, но
-> **активных источников у него нет с 2026-07-27** — паков нет, а бустер по
-> решению «работает на всё» идёт через `se`. Поле не удалять: живые сейвы
-> и будущие топапы.
+> **THE `tu` FIELD** (fix A: what was purchased does not raise rank) is kept in
+> the save, but **it has had no active sources since 2026-07-27** — there are no
+> packs, and the booster, by the "works on everything" decision, goes through `se`.
+> Do not delete the field: live saves and future top-ups.
 >
-> **§3.A (rewarded → звёзды, 70/ролик, кап 5) — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ**
-> (2026-07-27, вслед за паками). Звёзды даёт **только игра**; платно —
-> **временной множитель бандла**, который умножает заработанное игрой.
-> Реклама за звёзды противоречила бы модели. Константы
-> `REWARD_STARS_PER_AD`/`REWARD_DAILY_CAP` **удалены** из кода (реализованы
-> они никогда и не были — вызовов не существовало).
-> ⚠️ **Rewarded-плейсменты ВСТРЯСКИ и ПОДСКАЗКИ живы** и этим решением не
-> затронуты: они выдают **ресурс**, а не звёзды; окно no-Ad бандла гасит
-> только межстраничную рекламу и их не трогает.
+> **§3.A (rewarded → stars, 70/video, cap 5) — CANCELLED BY THE OWNER**
+> (2026-07-27, following the packs). Stars are given **only by the game**; the
+> paid option is the **timed bundle multiplier**, which multiplies what was earned
+> by playing. Ads for stars would contradict the model. The constants
+> `REWARD_STARS_PER_AD`/`REWARD_DAILY_CAP` have been **deleted** from the code
+> (they were never implemented either — no call sites existed).
+> ⚠️ **The rewarded placements for SHAKE and HINTS are alive** and are not
+> affected by this decision: they hand out a **resource**, not stars; the bundle's
+> no-Ad window only suppresses interstitial ads and does not touch them.
 
 
-Направление ПОВЕСТВОВАНИЕ И МЕТА, трек [удержание]. Решение владельца
-(2026-07-24, дословно): «покупку очков, если не хватает сделаем развилку:
-либо нужно посмотреть N количество реклам, либо докупить паками: хочу три
-пака, посчитай экономику».
+Workstream NARRATIVE AND META, track [retention]. The owner's decision
+(2026-07-24, verbatim): "for buying points, if there aren't enough, let's make a
+fork: either you have to watch N number of ads, or top up with packs: I want
+three packs, work out the economics".
 
-⚠️ ЭТО СПЕКА С ЧИСЛАМИ ДО УТВЕРЖДЕНИЯ ВЛАДЕЛЬЦЕМ (как таблица звёзд).
-Реализация (начисление, API, IAP-хук) — ОТДЕЛЬНОЙ задачей после «да».
-Платёжный хук — зона ИНТЕГРАЦИИ; площадка ещё не выбрана.
+⚠️ THIS IS A SPEC WITH NUMBERS BEFORE THE OWNER'S APPROVAL (like the star table).
+Implementation (crediting, API, IAP hook) — a SEPARATE task after a "yes".
+The payment hook is the INTEGRATION zone; the platform has not been chosen yet.
 
-## 0. Что уже есть (база расчёта)
+## 0. What already exists (the calculation base)
 
-- **Звёзды-валюта** (v1-test-90): кошелёк `se/ss`, начисление за победу
-  ДЕЛЬТОЙ рейтинга — 1★=100 / 2★=250 / 3★=500 **+ 10×номер уровня**.
-- **Темп заработка игрой:** типичный уровень (2★–3★) ≈ **350★**; сессия
-  2–3 уровня ≈ **700–1050★** (~900★). Первый Boost (1500) — за ~4–5
-  уровней свободной игры (~2 сессии).
-- **Boost-лесенка** (цена ступени = `1500×2^ступень`):
-  1500 / 3000 / 6000 / 12000 / 24000. Сумма первых 5 ступеней ОДНОГО типа
-  = **46 500** (дальше 48k/96k/… — экспонента сама отсекает, «максить»
-  реально означает ~5 ступеней). Макет: Boost 11k ≈ 4-я ступень (12000),
-  баланс 166.5K = игрок с несколькими покупками + много игры.
+- **Stars as currency** (v1-test-90): the `se/ss` wallet, crediting for a win by
+  the DELTA of the rating — 1★=100 / 2★=250 / 3★=500 **+ 10×level number**.
+- **Earning rate from playing:** a typical level (2★–3★) ≈ **350★**; a session of
+  2–3 levels ≈ **700–1050★** (~900★). The first Boost (1500) — in ~4–5
+  levels of free play (~2 sessions).
+- **The Boost ladder** (price of a step = `1500×2^step`):
+  1500 / 3000 / 6000 / 12000 / 24000. The sum of the first 5 steps of ONE type
+  = **46 500** (further on 48k/96k/… — the exponent cuts it off by itself,
+  "maxing out" really means ~5 steps). Mockup: Boost 11k ≈ the 4th step (12000),
+  a balance of 166.5K = a player with several purchases + a lot of play.
 
-## 1. Развилка при нехватке (Get More)
+## 1. The fork when there is not enough (Get More)
 
-Когда баланса не хватает на Boost — два пути пополнения, РАЗНЫЕ ОСИ:
+When the balance is not enough for a Boost — two top-up paths, DIFFERENT AXES:
 
-| Путь | Цена | Скорость | Кап |
+| Path | Price | Speed | Cap |
 |---|---|---|---|
-| **Rewarded** (посмотреть ролики) | бесплатно | МЕДЛЕННО | дневной |
-| **IAP-паки** (три пака) | реал $ | МГНОВЕННО | нет |
+| **Rewarded** (watch videos) | free | SLOW | daily |
+| **IAP packs** (three packs) | real $ | INSTANT | none |
 
-Пути НЕ конкурируют по построению: rewarded — «бесплатно, но долго и с
-дневным потолком»; пак — «быстро и без потолка, но за деньги». Игрок-гриндер
-и игрок-плательщик обслуживаются разными путями (см. §4 — проверка
-каннибализации).
+The paths do NOT compete by construction: rewarded is "free, but slow and with a
+daily ceiling"; a pack is "fast and with no ceiling, but for money". The grinder
+player and the paying player are served by different paths (see §4 — the
+cannibalization check).
 
-## 2. A. REWARDED: номинал ролика
+## 2. A. REWARDED: the face value of a video
 
-- **1 ролик = 100★.** Обоснование: круглое число; = базе 1★-уровня;
-  = ~28% среднего уровня (350★) и ровно 1/5 отличного 3★-уровня (500★).
-- **Дневной софт-кап на этот плейсмент: 5 роликов/день → потолок 500★/день.**
-  Кап — ГЛАВНЫЙ рычаг: не даёт rewarded обесценить ни игру, ни паки.
-- **«N роликов за что» (честные ориентиры для UI):**
-  - 5 роликов = 500★ ≈ один отличный 3★-уровень.
-  - 15 роликов = 1500★ = наименьший Boost (но это **3 дня** при капе 5/день).
+- **1 video = 100★.** Rationale: a round number; = the base of a 1★ level;
+  = ~28% of an average level (350★) and exactly 1/5 of an excellent 3★ level (500★).
+- **Daily soft cap on this placement: 5 videos/day → a ceiling of 500★/day.**
+  The cap is the MAIN lever: it does not let rewarded devalue either the game or the packs.
+- **"N videos for what" (honest reference points for the UI):**
+  - 5 videos = 500★ ≈ one excellent 3★ level.
+  - 15 videos = 1500★ = the smallest Boost (but that is **3 days** at a cap of 5/day).
 
-⚠️ Rewarded НЕ обесценивает игру: 3★-уровень даёт 500★ за ~3–5 мин
-реальной игры; те же 500★ роликами = 5×~30 с ролик + загрузки ≈ 15 мин
-И невозможны за один присест из-за капа. **Игра втрое эффективнее роликов
-по времени** — ролики это клапан «устал играть хорошо, но хочу прогресс»,
-а не замена игре.
+⚠️ Rewarded does NOT devalue the game: a 3★ level gives 500★ for ~3–5 min of
+real play; the same 500★ via videos = 5×~30 s per video + loading ≈ 15 min
+AND are impossible in one sitting because of the cap. **The game is three times
+more efficient than videos in terms of time** — videos are a valve for "tired of
+playing well, but I want progress", not a replacement for the game.
 
-⚠️ Зависимость от площадки (вердикт аудита plt-4): на площадках БЕЗ
-rewarded этот путь исчезает — остаются паки (там, где есть IAP) или чистая
-игра. Наоборот, на чистых веб-порталах обычно нет IAP, но есть rewarded —
-поэтому двухпутёвая развилка ПОКРЫВАЕТ ОБА типа площадок (это довод ЗА
-дизайн, а не проблема). Открытый вопрос: на площадке без ОБОИХ путей
-(редкость) — рассмотреть «ежедневный бесплатный бонус», чтобы игрок не
-застрял; не в v1.
+⚠️ Platform dependency (audit verdict plt-4): on platforms WITHOUT rewarded this
+path disappears — what remains is the packs (where there is IAP) or pure play.
+Conversely, pure web portals usually have no IAP, but do have rewarded —
+therefore the two-path fork COVERS BOTH types of platform (this is an argument
+FOR the design, not a problem). Open question: on a platform with NEITHER path
+(a rarity) — consider a "daily free bonus" so that the player does not get
+stuck; not in v1.
 
-## 3. B. IAP: три пака
+## 3. B. IAP: three packs
 
-Цены — стандартные тиры сторов; выгода за звезду РАСТЁТ с размером пака
-(крупный выгоднее — норма жанра).
+Prices are the standard store tiers; the value per star GROWS with the size of
+the pack (the large one is the better deal — the genre norm).
 
-| Пак | Цена | Звёзд | ★ за $ | Выгода к мелкому | = роликов | На что хватает |
+| Pack | Price | Stars | ★ per $ | Value vs the small one | = videos | What it is enough for |
 |---|---|---|---|---|---|---|
-| **Handful** (горсть) | **$0.99** | **2 000** | 2 020 | — | 20 | Boost-1 (1500) + сдача |
-| **Jar** (банка) | **$4.99** | **12 000** | 2 405 | **+19%** | 120 | Boost 1+2+3 (10 500) ИЛИ один Boost-4 (12000) |
-| **Vault** (сейф) | **$19.99** | **60 000** | 3 001 | **+49%** | 600 | Полный буст типа 1–5 (46 500) + сдача; или несколько типов |
+| **Handful** (a handful) | **$0.99** | **2 000** | 2 020 | — | 20 | Boost-1 (1500) + change |
+| **Jar** (a jar) | **$4.99** | **12 000** | 2 405 | **+19%** | 120 | Boost 1+2+3 (10 500) OR one Boost-4 (12000) |
+| **Vault** (a safe) | **$19.99** | **60 000** | 3 001 | **+49%** | 600 | A full boost of a type 1–5 (46 500) + change; or several types |
 
-Проверки:
-- **★ за $:** 2020 → 2405 → 3001 — монотонный рост, крупный на +49%
-  выгоднее мелкого (стандартный «anchor» на средний/крупный).
-- **Привязка к Boost-лесенке:** мелкий покрывает ПЕРВЫЙ буст (проба),
-  средний — КОММИТ в тип (3 ступени), крупный — МАКС одного типа или
-  рывок по нескольким.
-- **Ни один пак не «дорешивает» экономику:** крупный 60K < 166.5K макета —
-  тот баланс = крупный пак + сотни уровней игры ИЛИ 2–3 крупных пака.
-  Экономику нельзя закрыть одной покупкой (здоровый признак).
-- **F2P не заблокирован:** $1 = ~6 уровней заработка (350★×6≈2100), на
-  дистанции в сотни уровней это мягкий толчок, а не стена.
+Checks:
+- **★ per $:** 2020 → 2405 → 3001 — monotonic growth, the large one is +49%
+  better value than the small one (the standard "anchor" on mid/large).
+- **Tie-in with the Boost ladder:** the small one covers the FIRST boost (a trial),
+  the mid one a COMMITMENT to a type (3 steps), the large one the MAX of one type
+  or a push across several.
+- **No pack "solves out" the economy:** the large 60K < the mockup's 166.5K —
+  that balance = a large pack + hundreds of levels of play OR 2–3 large packs.
+  The economy cannot be closed out with one purchase (a healthy sign).
+- **F2P is not blocked:** $1 = ~6 levels of earning (350★×6≈2100); over a
+  distance of hundreds of levels this is a soft nudge, not a wall.
 
-## 4. C. Каннибализация: rewarded ↔ мелкий пак
+## 4. C. Cannibalization: rewarded ↔ the small pack
 
-| | Мелкий пак | Rewarded до тех же 2000★ |
+| | The small pack | Rewarded up to the same 2000★ |
 |---|---|---|
-| Цена | $0.99 | $0 |
-| Время | мгновенно | 20 роликов |
-| Реально | сразу | **~4 дня** (кап 5/день) |
+| Price | $0.99 | $0 |
+| Time | instantly | 20 videos |
+| In practice | right away | **~4 days** (cap 5/day) |
 
-Пути на РАЗНЫХ осях (деньги×мгновенно против бесплатно×долго+кап) — не
-пожирают друг друга: кто платит — берёт пак ради скорости; кто гриндит —
-смотрит ролики ради нуля. Ключевой рычаг раздела — **дневной кап роликов**:
-без него 20 роликов подряд обнулили бы смысл мелкого пака.
+The paths lie on DIFFERENT axes (money×instant versus free×slow+cap) — they do
+not devour each other: whoever pays takes the pack for the speed; whoever grinds
+watches videos for the zero price. The key lever of this section is the **daily
+cap on videos**: without it, 20 videos in a row would nullify the point of the small pack.
 
-## 5. Сводка чисел (для утверждения)
+## 5. Summary of the numbers (for approval)
 
-- **Rewarded:** 1 ролик = **100★**; софт-кап **5/день** (потолок 500★/день).
-- **Паки:** Handful **$0.99 = 2 000★** · Jar **$4.99 = 12 000★** ·
+- **Rewarded:** 1 video = **100★**; soft cap **5/day** (a ceiling of 500★/day).
+- **Packs:** Handful **$0.99 = 2 000★** · Jar **$4.99 = 12 000★** ·
   Vault **$19.99 = 60 000★**.
-- **Единственное самое чувствительное число — 100★/ролик** (задаёт и
-  ценность игры, и защиту паков); страховка — дневной кап. Остальное
-  масштабируется от него.
+- **The single most sensitive number is 100★/video** (it sets both the value of
+  the game and the protection of the packs); the insurance is the daily cap. The
+  rest scales from it.
 
-## 6. Опциональные рычаги (не в базовой спеке, на выбор владельца)
+## 6. Optional levers (not in the base spec, for the owner to choose)
 
-- **×2 за первый ролик дня** (200★): мягкий крючок ежедневного возврата.
-- **Стартовый бандл новичка** (разовый $1.99 = 8 000★, только в первые
-  N дней): классический конвертер первой покупки; считать, если владелец
-  захочет 4-й «стартовый» слот.
-- **Ролик-бонус к паку** («+10% звёзд, если посмотришь ролик после
-  покупки») — сцепка путей, поднимает и IAP-ARPU, и rewarded-инвентарь.
+- **×2 for the first video of the day** (200★): a soft hook for a daily return.
+- **A newcomer's starter bundle** (one-time $1.99 = 8 000★, only in the first
+  N days): the classic first-purchase converter; work it out if the owner wants
+  a 4th "starter" slot.
+- **A video bonus on top of a pack** ("+10% stars if you watch a video after the
+  purchase") — a coupling of the paths, it raises both IAP ARPU and rewarded inventory.
 
-## 7. Реализация (когда владелец утвердит — отдельная задача)
+## 7. Implementation (when the owner approves — a separate task)
 
-| Кусок | Зона |
+| Piece | Zone |
 |---|---|
-| Начисление за ролик + дневной кап; `buyPack`/`grantStars` API | ПОВЕСТВОВАНИЕ (77-save, как spendStars/buyBoost) |
-| Rewarded-хук «звёзды за ролик» (новый плейсмент, свой софт-кап отдельно от shake/continue) | ИНТЕГРАЦИЯ (78-ads) |
-| IAP-хук (покупка пака) + выбор площадки | ИНТЕГРАЦИЯ (отложено до выбора площадки) |
-| Экран Get More / развилка в меню | ИНТЕРФЕЙС |
+| Crediting per video + the daily cap; `buyPack`/`grantStars` API | NARRATIVE (77-save, like spendStars/buyBoost) |
+| Rewarded hook "stars for a video" (a new placement, its own soft cap separate from shake/continue) | INTEGRATION (78-ads) |
+| IAP hook (buying a pack) + choosing the platform | INTEGRATION (deferred until the platform is chosen) |
+| The Get More screen / the fork in the menu | INTERFACE |
 
 ---
 
-# v3 — МАТРИЦА ЦЕНЫ ДОСРОЧНОГО ОТКРЫТИЯ (level-scaled, 2026-07-27, УТВЕРЖДЕНА диспетчером как дефолт, реализована)
+# v3 — THE EARLY-UNLOCK PRICE MATRIX (level-scaled, 2026-07-27, APPROVED by the dispatcher as the default, implemented)
 
-Задача владельца (#9): цена открытия типа заранее должна ЗАВИСЕТЬ от уровня
-игрока (матрица, не флэт 700); прогрессия открытия — ТРУДНАЯ, но ДОСТИЖИМАЯ;
-учесть, что рано игрок может купить и Boost. Прогнано через адверсариальную
-проверку (пауэр-спайк / F2P-стена). Единицы — деноминир. баланс (доход ~700/ур).
+The owner's task (#9): the price of unlocking a type ahead of time must DEPEND on
+the player's level (a matrix, not a flat 700); the unlock progression must be
+HARD but ACHIEVABLE; take into account that early on the player may buy a Boost
+too. Run through an adversarial check (power spike / F2P wall). Units are the
+denominated balance (income ~700/lvl).
 
-## Принцип
+## The principle
 
-Цена = f(ТЕКУЩЕГО уровня), линейно растёт вместе с доходом → держит
-постоянную «вмятину» ~29% банка на любом уровне: дороже, чем просто доиграть
-до типа, но всегда достижимо копанием за ~1.5–2 уровня. Осознанная инвестиция,
-не рутина. ЛИНЕЙНАЯ, а не геометрическая — доход тоже линеен (~700/ур, реплея
-нет); геометрия рано или поздно обогнала бы банк и стала «непреодолимой».
+Price = f(the CURRENT level), grows linearly together with income → it holds a
+constant "dent" of ~29% of the bank at any level: more expensive than simply
+playing on until the type, but always achievable by digging for ~1.5–2 levels. A
+deliberate investment, not a routine. LINEAR, not geometric — income is linear
+too (~700/lvl, there is no replay); geometry would sooner or later outrun the
+bank and become "insurmountable".
 
-## Матрица
+## The matrix
 
-| Уровень | Цена | Уровней дохода | Премия × над «доиграть 1 уровень» |
+| Level | Price | Levels of income | Premium × over "play out 1 level" |
 |---|---|---|---|
 | 1  | 1000  | 1.4  | 1.4× |
 | 5  | 1800  | 2.6  | 2.6× |
@@ -189,60 +192,62 @@ rewarded этот путь исчезает — остаются паки (та�
 | 20 | 4800  | 6.9  | 6.9× |
 | 30 | 6800  | 9.7  | 9.7× |
 | 50 | 10800 | 15.4 | 15.4× |
-| 85 (93-й тип) | 17800 | 25.4 | 25.4× |
+| 85 (the 93rd type) | 17800 | 25.4 | 25.4× |
 
-Без потолка. Растущая премия — фича: покупка всё считаннее, но НИКОГДА не
-превышает банк (доход обгоняет цену, см. стресс-тест).
+No ceiling. The growing premium is a feature: the purchase becomes ever more
+deliberate, but NEVER exceeds the bank (income outruns the price, see the stress test).
 
-## Формула
+## The formula
 
 ```
 UNLOCK_PRICE(level) = TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL · level
-TYPE_UNLOCK_BASE = 800   // ≈1.14·доход (пол «дороже одного уровня»: 1000 > 700 на L1)
-TYPE_UNLOCK_PER_LEVEL = 200  // ≈0.29·доход (держит вмятину ~29%)
+TYPE_UNLOCK_BASE = 800   // ≈1.14·income (the floor "more expensive than one level": 1000 > 700 at L1)
+TYPE_UNLOCK_PER_LEVEL = 200  // ≈0.29·income (holds the ~29% dent)
 ```
 
-## Согласование с Boost
+## Reconciliation with Boost
 
-Открытие — ПРЕДУСЛОВИЕ буста, поэтому реальная цена раннего спайка =
-открытие + 1-я ступень буста (2000):
+Unlocking is a PRECONDITION for a boost, therefore the real price of an early
+spike = the unlock + the 1st boost step (2000):
 
-| Уровень | Открытие | +Boost-1 | Итого спайка |
+| Level | Unlock | +Boost-1 | Spike total |
 |---|---|---|---|
-| 1  | 1000 | 2000 | 3000 (~4.3 ур.) |
-| 10 | 2800 | 2000 | 4800 (~6.9 ур.) |
-| 30 | 6800 | 2000 | 8800 (~12.6 ур.) |
+| 1  | 1000 | 2000 | 3000 (~4.3 lvl) |
+| 10 | 2800 | 2000 | 4800 (~6.9 lvl) |
+| 30 | 6800 | 2000 | 8800 (~12.6 lvl) |
 
-L1–9: открытие ДЕШЕВЛЕ 1-й ступени буста (2000) — новичок пробует ширину
-коллекции раньше, чем глубину. С L10 открытие перегоняет буст. Полный
-макс-буст типа = 62000 (~88 ур.) — комбо «открыл будущий тип + прокачал»
-экономически иррационально.
+L1–9: the unlock is CHEAPER than the 1st boost step (2000) — the newcomer tries
+the breadth of the collection before its depth. From L10 the unlock overtakes the
+boost. A full max-boost of a type = 62000 (~88 lvl) — the combo "unlocked a
+future type + upgraded it" is economically irrational.
 
-## STRESS-TEST PASSED (что адверсарий НЕ сломал)
+## STRESS-TEST PASSED (what the adversary did NOT break)
 
-- ⚠️ **ГЛАВНЫЙ ВЫВОД: цена — регулятор ОЩУЩЕНИЯ, не анти-эксплойт.** Пауэр-спайк
-  невозможен СТРУКТУРНО (три независимых гейта, каждый убивает спайк сам):
-  (1) СПАВН-ГЕЙТ — купленный тип не входит в пул genLevel до нормальной
-  прогрессии → прокачанный-но-неспавнящийся тип платит ровно 0; (2) НЕТ ЦЕННЫХ
-  ТИПОВ — accMult множит только матчи своего типа, снайпить нечего; (3)
-  самофинансируемо + минус к рангу + отложенный ROI. Любая цена тут безопасна —
-  владелец может выбирать числа СВОБОДНО, по ощущению.
-- F2P-СТЕНА не образуется: цена = 44%/33%/31% банка на L1/10/30, асимптота
-  ~28.6% навсегда (наклон дохода 700 > наклон цены 200). Единственный «не
-  хватает» — L1 при банке 0, и это корректно (никакого прыжка на 1-м уровне).
-- РАНГ-ЛАНДРОМАТ исключён по знаку: открытие пишет в ss, лидерборд только
-  падает от трат.
+- ⚠️ **THE MAIN CONCLUSION: the price is a regulator of FEEL, not an anti-exploit.**
+  A power spike is impossible STRUCTURALLY (three independent gates, each kills the
+  spike on its own): (1) THE SPAWN GATE — a purchased type does not enter the
+  genLevel pool until the normal progression → an upgraded-but-not-spawning type
+  pays exactly 0; (2) THERE ARE NO VALUABLE TYPES — accMult only multiplies matches
+  of its own type, there is nothing to snipe; (3) self-financing + a minus to rank
+  + deferred ROI. Any price here is safe — the owner may choose the numbers FREELY,
+  by feel.
+- NO F2P WALL forms: the price = 44%/33%/31% of the bank at L1/10/30, an asymptote
+  of ~28.6% forever (the income slope 700 > the price slope 200). The only "not
+  enough" is L1 with a bank of 0, and that is correct (no jump at the 1st level).
+- A RANK LAUNDROMAT is excluded by sign: the unlock writes into ss, the leaderboard
+  only falls from spending.
 
-## Code note (форма правки, код ПОСЛЕ sign-off владельца)
+## Code note (the shape of the edit, code AFTER the owner's sign-off)
 
-- `00-config.js`: флэт `TYPE_UNLOCK_PRICE = 700` → `TYPE_UNLOCK_BASE = 800`,
+- `00-config.js`: the flat `TYPE_UNLOCK_PRICE = 700` → `TYPE_UNLOCK_BASE = 800`,
   `TYPE_UNLOCK_PER_LEVEL = 200`.
-- `77-save.js` `typeUnlockPrice`: из константы стать функцией levelNum →
-  `TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum`. Путь траты (ss/мерж/
-  дуп-ассерт), purchaseUnlock, canUnlockType — НЕ трогать.
-- Миграция не нужна: uk монотонный, купленное сохраняется; возвратов нет.
-- ⚠️ **TRIPWIRE:** вся защита стоит на спавн-гейте (тип не спавнит досрочно).
-  ЕСЛИ когда-нибудь раннее открытие начнёт спавнить тип — цена «только от
-  уровня» станет эксплуатируемой; лечить ТОГДА: гейт раннего спавна близостью
-  (d≤1–2) ИЛИ перевод цены на дистанцию `base(L) + 150·(d−1)`. Сейчас —
-  мёртвый груз, не добавлять.
+- `77-save.js` `typeUnlockPrice`: goes from a constant to a function of levelNum →
+  `TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum`. The spending path (ss/merge/
+  dup-assert), purchaseUnlock, canUnlockType — do NOT touch.
+- No migration needed: uk is monotonic, what was purchased is preserved; there are
+  no refunds.
+- ⚠️ **TRIPWIRE:** the whole defence rests on the spawn gate (the type does not
+  spawn ahead of time). IF an early unlock ever starts spawning the type — a price
+  "based on level only" will become exploitable; cure it THEN: gate the early spawn
+  by proximity (d≤1–2) OR move the price onto distance `base(L) + 150·(d−1)`. For
+  now it is dead weight, do not add it.

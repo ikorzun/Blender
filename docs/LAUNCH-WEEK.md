@@ -1,127 +1,127 @@
-# Неделя запуска BLENDO
+# BLENDO launch week
 
-Цель владельца: **игра выходит на следующей неделе.** Целимся в пятницу 7 августа,
-запас — выходные. Сегодня четверг 30 июля, сборка v1-test-179 (270 проверок зелёные).
+The owner's goal: **the game ships next week.** We are aiming for Friday, August 7,
+the weekend is the buffer. Today is Thursday, July 30, build v1-test-179 (270 checks green).
 
-Это план для чтения человеком. Технические детали — в WEEK-PLAN.md и WORKSTREAMS.md.
-Здесь только: кто, что, когда.
+This is a plan for a human to read. Technical details are in WEEK-PLAN.md and WORKSTREAMS.md.
+Only this here: who, what, when.
 
 ---
 
-## ТВОЙ ЛИЧНЫЙ СПИСОК (всё остальное сделают чаты)
+## YOUR PERSONAL LIST (everything else the chats will do)
 
-Отсортирован так, что верхнее блокирует запуск, нижнее — решения по ходу.
+Sorted so that the top blocks the launch and the bottom is decisions along the way.
 
-| # | Что | Когда крайний срок |
+| # | What | Deadline |
 |---|---|---|
-| 1 | **Музыка** (ты помнишь): новый трек + лицензия. Экспортируй сразу в **m4a, 96–112 кбит/с** — иначе переделывать. Файл просто заменяет `music.mp3` рядом с игрой. *31.07 обещал прислать в пятницу 1.08 — вольём сразу, раньше плана* | до среды 5.08 |
-| 2 | **Кабинет Playgama — товары**: три бандла по шпаргалке ниже. Четвёртый (`noads_forever`) — если решишь убрать Subscribe | до вторника 4.08 |
-| 3 | **Материалы витрины**: иконка, обложка, скриншоты. Тексты УЖЕ готовы — `docs/STORE-LISTING.md`, только выбрать и подтвердить | до среды 5.08 |
-| 4 | **Тест на твоём iPhone**: я пришлю ссылку — посмотреть загрузку (занавес → засыпание), полосы Safari, звук после звонка | среда–четверг |
-| 5 | **Замер на Android** (если есть под рукой любой средний Android): открыть ссылку, сыграть уровень, нажать одну кнопку — числа улетят сами | когда угодно до четверга |
-| 6 | **Смоук на developer.playgama.com** после заливки: увидеть глазами настоящую рекламу (отличить от заглушки можно только на портале) | четверг 6.08 |
+| 1 | **Music** (you remember): a new track + license. Export it right away as **m4a, 96–112 kbps** — otherwise it will have to be redone. The file simply replaces `music.mp3` next to the game. *On 31.07 you promised to send it on Friday 1.08 — we will pour it in right away, ahead of plan* | by Wednesday 5.08 |
+| 2 | **Playgama dashboard — products**: three bundles per the cheat sheet below. The fourth (`noads_forever`) — if you decide to remove Subscribe | by Tuesday 4.08 |
+| 3 | **Store listing materials**: icon, cover, screenshots. The texts are ALREADY ready — `docs/STORE-LISTING.md`, only pick and confirm | by Wednesday 5.08 |
+| 4 | **Test on your iPhone**: I will send a link — look at the loading (curtain → items pouring in), the Safari bars, sound after a phone call | Wednesday–Thursday |
+| 5 | **Measurement on Android** (if any mid-range Android is at hand): open the link, play a level, press one button — the numbers will fly off by themselves | any time before Thursday |
+| 6 | **Smoke test on developer.playgama.com** after the upload: see real ads with your own eyes (you can tell them from a stub only on the portal) | Thursday 6.08 |
 
-### Шпаргалка для кабинета (пункт 2)
+### Cheat sheet for the dashboard (item 2)
 
 ```
 Product ID: bundle5        Consumable   4.90   Booster ×5 — 30 min
 Product ID: bundle3        Consumable   9.90   Booster ×3 — 1 hour
 Product ID: bundle2        Consumable  19.90   Booster ×2 — 1 day
-Product ID: noads_forever  ПОСТОЯННЫЙ   4.90   Remove Ads Forever   ← если решишь
+Product ID: noads_forever  PERMANENT    4.90   Remove Ads Forever   ← if you decide
 ```
-⚠️ `bundle5` — это дешёвый ($4.90), `bundle2` — дорогой ($19.90). ID по множителю.
-⚠️ У `noads_forever` тип обязательно НЕ Consumable — иначе игроку продадут дважды.
+⚠️ `bundle5` is the cheap one ($4.90), `bundle2` is the expensive one ($19.90). The ID goes by the multiplier.
+⚠️ For `noads_forever` the type must NOT be Consumable — otherwise the player will be sold it twice.
 
-### Решения, которые нужны от тебя по ходу недели (не блокеры)
+### Decisions needed from you during the week (not blockers)
 
-- ~~Subscribe → «навсегда»~~ ✅ СДЕЛАНО 30.07: кнопка «Forever for $4.90», живая
-  цена подтянется из каталога площадки. Товар `noads_forever` в кабинете НУЖЕН
-  (шпаргалка выше) — без него покупка не заработает в понедельник.
-- ~~28 новых типов~~ ✅ ПЕРЕМЕШАНЫ 30.07: первые новые видны с ~5 уровня, рыба
-  с 22-го (нарочно не раньше), пончик остался поздним до починки формы.
-- ~~Баннерная реклама~~ ✅ РЕШЕНО 30.07: не заводим.
-- **Перф взрыва**: усиленный взрыв съел запас производительности (осталось ×1.5).
-  Оставить как есть или смягчить — после замера на Android будет видно.
-- **Пончик**: снова в игре с ~84 уровня, а его физическая форма — без дырки
-  (предметы не проваливаются в кольцо, в Hard это видно). На запуск оставляем
-  поздним, чинится после (моё решение, скажи если против).
-
----
-
-## ПЛАН ПО ДНЯМ
-
-### Пятница 31.07 — геймплей виден игроку
-**Интерфейс:**
-- ~~Вернуть Музей~~ → **убрать мёртвый дубль** (поправка владельца 30.07: коллекция
-  живёт в меню паузы и работает; «Museum» — это СТАРАЯ копия того же экрана,
-  застрявшая в отключённом слое вместе с входом в отладку. Не чиним — убираем,
-  аккуратно: в том же слое живут переключатели звука/сложности, их не трогать).
-- ~~Показать рейтинг 1★–3★~~ → **ОТМЕНЕНО владельцем 30.07**: «звёзды не нужны,
-  есть только очки». Рейтинг остаётся внутренним, на экран не выводим.
-- Разморозить чип очков (число в правом верхнем углу; с ~15-го уровня оно
-  показывается сокращённо «12.5k» и перестаёт меняться от матчей — показывать
-  полное число).
-
-**Физика:** соак — 6 длинных прогонов на актуальном коде. Не гонялся 10 дней, за
-которые появились камни, бомба, осколки. Ловит утечки и даёт основание чинить стены.
-
-### Суббота–воскресенье 1–2.08 — рост и звук (без спешки, что успеем)
-- **Телеграф серии** (лучший ход по оценке всех судей, стоит часы): показать игроку,
-  сколько матчей до турбо и сколько промахов до срыва. Глубина в игре уже есть —
-  её просто не видно.
-- **Экран победы**: назвать новый предмет следующего уровня + показать его силуэт.
-  Превращает «Next» в «хочу увидеть».
-- **Звук, три поломки из четырёх** (четвёртую — шов петли — закроет твой новый трек):
-  музыка возвращается после звонка на iPhone; джинглы победы не орут поверх музыки;
-  тап по глазам перестаёт врать звуком «совместил».
-
-### Понедельник 3.08 — платежи
-**Интеграция:** подключить `bridge.payments` — покупка, восстановление `noads_forever`
-при заходе с другого устройства, снятие «Coming soon» с кнопок. Это самый рискованный
-пункт недели, поэтому он в понедельник, а не в четверг.
-**Интерфейс:** показ активного бустера на игровом экране и на More Stars (давно висит).
-
-### Вторник 4.08 — стены и контроль
-**Физика:** починить поворот панелей стен (сейчас чаша — частокол с щелями, из-за этого
-предметы заклинивает) + перезамер заполнения. Одним пакетом, после соака.
-**Ты:** товары в кабинете (пункт 2 списка).
-
-### Среда 5.08 — сборка кандидата
-- Замена музыки (твой трек), финальная сборка, полный прогон, зип пакета.
-- **Ты:** материалы витрины в кабинет (пункт 3), тест на iPhone (пункт 4).
-
-### Четверг 6.08 — заливка и смоук
-- Заливаю пакет на developer.playgama.com.
-- **Ты:** смоук на портале (пункт 6): загрузка, реклама настоящая, покупка проходит,
-  прогресс сохраняется. Нашли проблему — пятница на починку.
-
-### Пятница 7.08 — ЗАПУСК
-- Правки по смоуку, если были. Публикация.
-- После запуска первые дни смотрим: загрузки, жалобы, показы рекламы в кабинете.
+- ~~Subscribe → "forever"~~ ✅ DONE 30.07: the "Forever for $4.90" button, the live
+  price will be pulled from the platform's catalog. The `noads_forever` product in the dashboard IS NEEDED
+  (cheat sheet above) — without it the purchase will not work on Monday.
+- ~~28 new types~~ ✅ SHUFFLED IN 30.07: the first new ones are visible from level ~5, the fish
+  from level 22 (deliberately not earlier), the donut stayed late until its shape is fixed.
+- ~~Banner ads~~ ✅ DECIDED 30.07: we are not setting them up.
+- **Explosion perf**: the strengthened explosion ate the performance headroom (×1.5 left).
+  Leave as is or soften it — it will be clear after the measurement on Android.
+- **Donut**: back in the game from level ~84, and its physical shape has no hole
+  (items do not fall through into the ring, on Hard this is visible). For the launch we leave it
+  late, it gets fixed afterwards (my decision, say so if you are against it).
 
 ---
 
-## Что сознательно НЕ входит в запуск
+## DAY-BY-DAY PLAN
 
-Чтобы успеть за неделю, эти вещи едут после релиза — они улучшают игру, но не блокируют:
+### Friday 31.07 — the gameplay is visible to the player
+**Interface:**
+- ~~Bring the Museum back~~ → **remove the dead duplicate** (the owner's correction 30.07: the collection
+  lives in the pause menu and works; "Museum" is an OLD copy of the same screen,
+  stuck in a disabled layer together with the entry into debug. We do not fix it — we remove it,
+  carefully: the sound/difficulty toggles live in the same layer, do not touch them).
+- ~~Show the 1★–3★ rating~~ → **CANCELLED by the owner 30.07**: "stars are not needed,
+  there are only points". The rating stays internal, we do not put it on screen.
+- Unfreeze the points chip (the number in the top right corner; from level ~15 it
+  is shown abbreviated as "12.5k" and stops changing from matches — show
+  the full number).
 
-- **Лидерборды** — запаркованы твоим решением (сервер хранит максимум, твоя модель
-  падающая; вопрос к Playgama у тебя).
-- **Сюжет** (арка с виньетками) — спека готова, в коде ноль строк. Это главный ответ
-  на «что после 20-го уровня», но это следующая итерация.
-- **Локализация** — запуск на английском.
-- **Дейли-механики** («ингредиент дня», журнал раскопок) — вторая волна роста.
-- **Пакет «Живое окружение»** (мета-тройка: планета-мечты, звёзды коллекции,
-  память персонажа + дневная пара: жесты покоя, солнце по часу) — утверждён
-  владельцем 31.07, ПЕРВОЕ обновление после релиза. Спека: docs/AMBIENT-META-PLAN.md.
-- **Миграция в приложения** (iOS/iPad/Mac) — по готовому плану, после веба.
+**Physics:** the soak — 6 long runs on the current code. It has not been run for 10 days, during
+which the rocks, the bomb and the shards appeared. It catches leaks and gives grounds to fix the walls.
 
-## Известные риски недели
+### Saturday–Sunday 1–2.08 — growth and sound (without rushing, whatever we manage)
+- **Series telegraph** (the best move by the estimation of all the judges, costs hours): show the player
+  how many matches until turbo and how many misses until the breakdown. The depth is already in the game —
+  it is simply not visible.
+- **Victory screen**: name the new item of the next level + show its silhouette.
+  Turns "Next" into "I want to see it".
+- **Sound, three breakages out of four** (the fourth — the loop seam — will be closed by your new track):
+  the music comes back after a phone call on iPhone; the victory jingles do not yell over the music;
+  a tap on the eyes stops lying with the "matched" sound.
 
-1. **Платежи впервые встретятся с настоящим SDK только в четверг.** Если что-то не
-   так — запуск без покупок технически возможен (кнопки вернутся в «Coming soon»),
-   решение будет за тобой в пятницу утром.
-2. **Слабые Android.** Взрыв бомбы дорогой; замер с реального телефона (пункт 5)
-   покажет, надо ли смягчать.
-3. **Вес**: 9.03 МБ, зип ~6.8 из лимита 8. Запас есть, но новые паки моделей до
-   запуска больше не вливаем.
+### Monday 3.08 — payments
+**Integration:** hook up `bridge.payments` — the purchase, restoring `noads_forever`
+when coming in from another device, taking "Coming soon" off the buttons. This is the riskiest
+item of the week, which is why it is on Monday and not on Thursday.
+**Interface:** showing the active booster on the game screen and on More Stars (has been hanging for a long time).
+
+### Tuesday 4.08 — the walls and control
+**Physics:** fix the rotation of the wall panels (right now the bowl is a picket fence with gaps, because of this
+items get jammed) + a re-measurement of the fill. In one package, after the soak.
+**You:** the products in the dashboard (item 2 of the list).
+
+### Wednesday 5.08 — building the candidate
+- Replacing the music (your track), the final build, a full run, zipping the package.
+- **You:** the store listing materials into the dashboard (item 3), the test on iPhone (item 4).
+
+### Thursday 6.08 — the upload and the smoke test
+- I upload the package to developer.playgama.com.
+- **You:** the smoke test on the portal (item 6): loading, the ads are real, the purchase goes through,
+  the progress is saved. If a problem was found — Friday is for fixing it.
+
+### Friday 7.08 — LAUNCH
+- Fixes from the smoke test, if there were any. Publication.
+- After the launch, for the first days we watch: downloads, complaints, ad impressions in the dashboard.
+
+---
+
+## What deliberately does NOT go into the launch
+
+To make it in a week, these things go after the release — they improve the game but do not block it:
+
+- **Leaderboards** — parked by your decision (the server stores the maximum, your model is
+  a falling one; the question to Playgama is on you).
+- **Story** (the arc with vignettes) — the spec is ready, zero lines in the code. This is the main answer
+  to "what comes after level 20", but it is the next iteration.
+- **Localization** — the launch is in English.
+- **Daily mechanics** ("ingredient of the day", the excavation journal) — the second wave of growth.
+- **The "Living environment" package** (the meta trio: the dream planet, the collection stars,
+  the character's memory + the daily pair: idle gestures, the sun by the hour) — approved
+  by the owner 31.07, the FIRST update after the release. Spec: docs/AMBIENT-META-PLAN.md.
+- **Migration into apps** (iOS/iPad/Mac) — by the ready plan, after the web.
+
+## Known risks of the week
+
+1. **Payments will meet the real SDK for the first time only on Thursday.** If something is not
+   right — a launch without purchases is technically possible (the buttons will go back to "Coming soon"),
+   the decision will be yours on Friday morning.
+2. **Weak Androids.** The bomb explosion is expensive; the measurement from a real phone (item 5)
+   will show whether it needs softening.
+3. **Weight**: 9.03 MB, the zip ~6.8 out of the limit of 8. There is headroom, but we do not pour in
+   any more new model packs before the launch.

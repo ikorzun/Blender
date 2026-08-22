@@ -1,18 +1,19 @@
-# ⚠️ index.html — СОБРАННЫЙ ФАЙЛ (build.py склеивает src/shell.html + src/app/*.js).
-# Без этой строки git сливает его как обычный текст, и мерж двух веток может
-# дать СОГЛАСОВАННО ВЫГЛЯДЯЩИЙ, но несогласованный билд — куски двух разных
-# сборок без единого конфликта и без предупреждения. Мину нашёл ИНТЕРФЕЙС
-# 2026-07-29 (в тот раз автомерж случайно совпал с честной пересборкой
-# бит-в-бит, то есть повезло).
-# `-merge` заставляет git объявить КОНФЛИКТ вместо тихой склейки: разрешение
-# всегда одно и то же — `python3 build.py`, то есть пересобрать из исходников.
-# ⚠️ НЕ УБИРАТЬ эту строку «чтобы мержилось без конфликтов»: конфликт здесь и
-# есть защита.
+# ⚠️ index.html — A BUILT FILE (build.py glues src/shell.html + src/app/*.js).
+# Without this line git merges it as ordinary text, and a merge of two branches
+# can produce a CONSISTENT-LOOKING but inconsistent build — pieces of two
+# different builds with no conflict and no warning. The mine was found by
+# INTERFACE 2026-07-29 (that time the auto-merge happened to coincide with an
+# honest rebuild byte-for-byte, i.e. we got lucky).
+# `-merge` forces git to declare a CONFLICT instead of a silent glue-up: the
+# resolution is always the same — `python3 build.py`, i.e. rebuild from sources.
+# ⚠️ DO NOT REMOVE this line «so that it merges without conflicts»: the conflict
+# here IS the protection.
 index.html -merge
-# ⚠️ bonus.html — ТАКОЙ ЖЕ СОБРАННЫЙ ОДНОФАЙЛОВЫЙ БИЛД (снимок ветки
-# claude/bonus-standalone со снятым бонусным уровнем, 2026-08-18). Мина у него
-# та же самая, и молчит она так же: без `-merge` git склеит два разных снимка
-# без конфликта. Разрешение другое, чем у index.html — не пересборка, а
+# ⚠️ bonus.html — THE SAME KIND OF BUILT SINGLE-FILE BUNDLE (a snapshot of the
+# claude/bonus-standalone branch with the bonus level removed, 2026-08-18). Its
+# mine is the same one, and it stays just as silent: without `-merge` git glues
+# two different snapshots with no conflict. The resolution differs from
+# index.html — not a rebuild, but
 # `git show claude/bonus-standalone:index.html > bonus.html`.
 bonus.html -merge
 release/Mixer.html -merge

@@ -1,111 +1,125 @@
-// ===== 50-physics: Rapier (WASM) — честная твердотельная физика =====
-// Решение по docs/ADR-001: convex hull / примитивы / компаунды вместо
-// сферных кластеров, масса из ПЛОТНОСТИ материала (хром тяжёлый, пластик
-// лёгкий), честное вращение и трение, стабильные стеки без дребезга.
-// Rapier инлайнится в index.html (src/vendor/rapier.js, window.RAPIER).
-// Глобальный сон остаётся НАШ (99-main): авто-сон Rapier медленный из-за
-// докатывания круглых форм; в штиле world.step() не вызывается вовсе.
+// ===== 50-physics: Rapier (WASM) — honest rigid-body physics =====
+// Decision per docs/ADR-001: convex hull / primitives / compounds instead of
+// sphere clusters, mass from the material's DENSITY (chrome heavy, plastic
+// light), honest rotation and friction, stable stacks without jitter.
+// Rapier is inlined into index.html (src/vendor/rapier.js, window.RAPIER).
+// The global sleep stays OURS (99-main): Rapier's auto-sleep is slow because
+// round shapes keep rolling out; in the calm world.step() is not called at all.
 
 let world = null;
-const DENSITY = { chrome: 7.8, gold: 5.0, plastic: 1.2 }; // ⛔ ключ rock снят с камнями (2026-08-17)
+const DENSITY = { chrome: 7.8, gold: 5.0, plastic: 1.2 }; // ⛔ the rock key was removed along with the stones (2026-08-17)
 const FRICTION = 0.5, RESTIT = 0.12;
-// Внутренний отступ физических стен от СТЕКЛА: предметы останавливаются,
-// не доходя до стеклянной поверхности, — визуального проникновения нет
+// Inner inset of the physical walls from the GLASS: items come to rest before
+// reaching the glass surface — there is no visual penetration
 const WALL_GAP = 0.12;
 const WALL_SEG = 32;
-// Пояс скользких стен НАД КРОМКОЙ: смещение центра и полувысота. Вынесены в
-// константы, потому что ими пользуются ДВОЕ — построение коллайдеров и метрика
-// «где кончаются стены».
+// Belt of slippery walls ABOVE THE RIM: centre offset and half-height. Pulled
+// out into constants because TWO parties use them — building the colliders and
+// the "where the walls end" metric.
 const BELT_DY = 2.0, BELT_HALF_H = 2.1;
-// Верх ФИЗИЧЕСКИХ стен. Выше — открытый воздух, и сравнивать там «выступ за
-// стену» не с чем (см. maxWallExcess в 99-main).
-// ⚠️⚠️ СЧИТАЕТСЯ ИЗ ТЕХ ЖЕ ВЕЛИЧИН, ЧТО СТРОЯТ ПОЯС, а не из их копий. Первая
-// версия была `9.2 + 2.0 + 2.1` — три литерала, из которых 9.2 это `FUNNEL.H`.
-// Владелец УЖЕ менял геометрию чаши (нынешние радиусы — ×1.15 по его спеке
-// «блендер больше»); тронь он высоту — стены переехали бы, а метрика осталась
-// на 13.3, и слепое пятно вернулось бы молча, да ещё с комментарием,
-// утверждающим обратное. То же правило, что у порога просадки: читать ТУ ЖЕ
-// величину, которой пользуется бой, а не число, из которого она получилась.
+// Top of the PHYSICAL walls. Above it is open air, and there is nothing there
+// to compare "excess past the wall" against (see maxWallExcess in 99-main).
+// ⚠️⚠️ COMPUTED FROM THE SAME QUANTITIES THAT BUILD THE BELT, not from copies of
+// them. The first version was `9.2 + 2.0 + 2.1` — three literals, of which 9.2
+// is `FUNNEL.H`. The owner has ALREADY changed the bowl geometry (the current
+// radii are ×1.15 per his spec "the blender is bigger"); had he touched the
+// height, the walls would have moved while the metric stayed at 13.3, and the
+// blind spot would have come back silently — and with a comment claiming the
+// opposite, at that. The same rule as for the sinking threshold: read THE SAME
+// quantity the live code uses, not the number it was derived from.
 const WALL_TOP_Y = FUNNEL.H + BELT_DY + BELT_HALF_H;
-// ⚠️⚠️ КОРЕНЬ ПРОВАЛА, ЗАМЕР 2026-07-30: солвер ТЕРПИТ ГЛУБОКОЕ ПРОНИКНОВЕНИЕ
-// ПЛОСКИХ ФОРМ под нагрузкой кучи, а наш глобальный сон выключает интегратор —
-// и то, что утонуло к моменту сна, остаётся утопленным ДО КОНЦА УРОВНЯ.
-// Жертвы — почти всегда ПЛОСКИЕ модели, и взрыв для этого НЕ НУЖЕН: худший
-// замеренный случай выпал на чистой осадке, без единой встряски.
-// ⚠️ ИМЕНА ЖЕРТВ СМЕНИЛИСЬ, КЛАСС — НЕТ. Порог выводился на пуле, где были
-// стейк (13 случаев из 17) и леденец; обоих УДАЛИЛИ из игры в v1-test-187.
-// Перезамер на TYPES=120: первый в очереди теперь `brickbar`, за ним
-// пряничный человек. Не читать список типов как актуальный — читать «плоское
-// под нагрузкой кучи»; появится новая плоская модель — она будет следующей.
-// ⚠️ ПОРОГ ВЗЯТ ИЗ РАСПРЕДЕЛЕНИЯ, А НЕ НА ГЛАЗ, и распределение БИМОДАЛЬНО.
-// 60 снимков УСНУВШЕЙ кучи (только она и бывает «навсегда»): p50 0.024,
-// p90 0.061, p95 0.071, дальше 0.083 — и ПУСТОЙ КОРИДОР до 0.224, где сидит
-// ровно один случай, тот самый баг. 0.12 стоит посередине коридора: в 1.45
-// раза выше здорового максимума и в 1.87 раза ниже дефекта.
-// ⚠️ ПЕРЕЗАМЕРЕНО НА TYPES=120 (v1-test-187, после удаления стейка и леденца),
-// 66 снимков: p95 0.086, максимум 0.088, выше 0.10 — НОЛЬ. Порог остаётся
-// верен с запасом 1.36×. ⚠️ ПРИ СЛЕДУЮЩЕЙ СМЕНЕ ПАРТИИ МОДЕЛЕЙ ПЕРЕМЕРИТЬ:
-// число выведено из формы предметов, а не из физики вообще.
-// ⚠️ НА ЛЕТЯЩЕЙ КУЧЕ ЭТИ ЧИСЛА ДРУГИЕ (p95 0.13, max 0.28) и порогом НЕ
-// являются — там просадка расходится сама, см. гейт покоя в rescueSweep.
+// ⚠️⚠️ ROOT OF THE FAILURE, MEASUREMENT 2026-07-30: the solver TOLERATES DEEP
+// PENETRATION OF FLAT SHAPES under the load of the pile, while our global sleep
+// switches the integrator off — and whatever has sunk by the moment of sleep
+// stays sunk UNTIL THE END OF THE LEVEL.
+// The victims are almost always FLAT models, and an explosion is NOT needed for
+// this: the worst measured case fell on plain settling, without a single shake.
+// ⚠️ THE NAMES OF THE VICTIMS CHANGED, THE CLASS DID NOT. The threshold was
+// derived on a pool that had the steak (13 cases out of 17) and the lollipop;
+// both were REMOVED from the game in v1-test-187.
+// Re-measured on TYPES=120: first in line is now `brickbar`, behind it the
+// gingerbread man. Do not read the list of types as current — read "flat under
+// the load of the pile"; a new flat model appears — it will be the next one.
+// ⚠️ THE THRESHOLD IS TAKEN FROM THE DISTRIBUTION, NOT BY EYE, and the
+// distribution is BIMODAL. 60 snapshots of a SLEEPING pile (only that one is
+// ever "forever"): p50 0.024, p90 0.061, p95 0.071, then 0.083 — and an EMPTY
+// CORRIDOR up to 0.224, where exactly one case sits, that very bug. 0.12 stands
+// in the middle of the corridor: 1.45× above the healthy maximum and 1.87×
+// below the defect.
+// ⚠️ RE-MEASURED ON TYPES=120 (v1-test-187, after the steak and the lollipop
+// were removed), 66 snapshots: p95 0.086, maximum 0.088, above 0.10 — ZERO. The
+// threshold stays valid with a 1.36× margin. ⚠️ RE-MEASURE ON THE NEXT CHANGE
+// OF THE MODEL BATCH: the number is derived from the shape of the items, not
+// from physics in general.
+// ⚠️ ON A FLYING PILE THESE NUMBERS ARE DIFFERENT (p95 0.13, max 0.28) and are
+// NOT a threshold — there the sinking resolves itself, see the calm gate in
+// rescueSweep.
 const FLOOR_PEN_MAX = 0.12;
-// ⚠️⚠️ …НО У ТОНКИХ МОДЕЛЕЙ АБСОЛЮТНЫЙ ПОРОГ БЕССМЫСЛЕН, И ЭТО НАШЁЛ СОАК
-// 2026-08-07. `brickbar` — плашка с полутолщиной 0.121: при просадке 0.103 он
-// утоплен в плиту НА 85% и держится так дольше 5 с, но 0.12 не достигает
-// НИКОГДА, то есть спасатель к нему не приходит ПО ПОСТРОЕНИЮ. Тот же дефект,
-// с которого начинался спасатель («дыра в объектах»), просто для модели, что
-// тоньше самого порога.
-// Поэтому порог = МИНИМУМ из абсолютного и доли собственной полутолщины.
-// ⚠️ ДОЛЯ ВЫБРАНА ЛЕСЕНКОЙ, А НЕ НА ГЛАЗ (859 сэмплов, ур.20, 8 сидов, осадка
-// + 3 встряски). Своё распределение brickbar: p50 0.002, p75 0.02, p90 0.061,
-// max 0.091 — то есть в норме он лежит хорошо, глубоко уходит верхняя десятина.
-// Сколько его МГНОВЕННЫХ сэмплов попало бы под порог: доля 0.3 -> 17%,
-// 0.4 -> 13%, 0.5 -> 12%, 0.6 -> 6%, 0.8 -> 0%.
-// ⚠️⚠️ ДОЛЯ 0.9, И ЛЕСЕНКА ВЫШЕ СЧИТАЛАСЬ ПО НЕВЕРНОЙ ТОЛЩИНЕ — называю, чтобы
-// следующий не повторил. Проценты выше выведены от ГЕОМЕТРИЧЕСКОЙ полутолщины
-// 0.121, а спасатель берёт `downReach` = min(охватный r, проекция коробки) и у
-// плашки это 0.1085. При доле 0.8 эффективный порог выходил 0.0868 — НИЖЕ
-// здорового максимума самой плашки (0.091), и спасатель начал поднимать
-// НОРМАЛЬНО лежащие: страж «на осевшей куче спасателю нечего делать» покраснел.
-// 0.9 даёт 0.0977: выше здорового хвоста (0.091) и ниже наблюдённого дефекта
-// (0.103). Окно узкое, но таково и есть физическое положение дел у модели
-// толщиной с сам порог.
-// ⚠️⚠️ ПЕРВЫЕ ДВЕ ПОПЫТКИ БЫЛИ ХУЖЕ БАЗЫ — соак на сиде 101:
-//   база (абсолютные 0.12)          подъёмов 24, просадок 3
-//   доля 0.6 по МИНИМАЛЬНОЙ оси     подъёмов 115 (шторм), просадок 0
-//   доля 0.6 по вертикали           подъёмов 36, просадок 0
-//   доля 0.8 по вертикали           подъёмов  8, просадок 0   <- взято
-// То есть 0.8 лучше базы ПО ОБЕИМ осям сразу, а не разменивает одно на другое.
-// ⚠️ «Сэмпл под порогом» != телепорт: гейт покоя и счётчик FLOOR_SUNK_TICKS
-// всё равно требуют, чтобы просадка ДЕРЖАЛАСЬ; поэтому доля, отсекающая 0%
-// мгновенных сэмплов, всё равно ловит ЗАЛИПШИЙ случай (наблюдённый 0.103
-// против порога 0.097 у плашки).
-// ⚠️ ПРАВКА ХИРУРГИЧЕСКАЯ: у моделей с полутолщиной >= 0.2 доля даёт >= 0.12,
-// то есть для них порог не меняется вовсе. Тоньше 0.2 в пуле почти никого.
+// ⚠️⚠️ …BUT FOR THIN MODELS AN ABSOLUTE THRESHOLD IS MEANINGLESS, AND THE SOAK
+// OF 2026-08-07 FOUND THIS. `brickbar` is a slab with half-thickness 0.121: at
+// a sinking of 0.103 it is buried in the plate BY 85% and holds that way for
+// longer than 5 s, yet it NEVER reaches 0.12 — that is, the rescuer never comes
+// for it BY CONSTRUCTION. The same defect the rescuer started from ("a hole in
+// the objects"), just for a model that is thinner than the threshold itself.
+// Hence threshold = the MINIMUM of the absolute one and a fraction of the
+// item's own half-thickness.
+// ⚠️ THE FRACTION WAS CHOSEN BY A STAIRCASE, NOT BY EYE (859 samples, lvl 20,
+// 8 seeds, settling + 3 shakes). brickbar's own distribution: p50 0.002,
+// p75 0.02, p90 0.061, max 0.091 — that is, normally it lies well, it is the
+// top tenth that goes deep.
+// How many of its INSTANTANEOUS samples would fall under the threshold:
+// fraction 0.3 -> 17%, 0.4 -> 13%, 0.5 -> 12%, 0.6 -> 6%, 0.8 -> 0%.
+// ⚠️⚠️ THE FRACTION IS 0.9, AND THE STAIRCASE ABOVE WAS COMPUTED ON THE WRONG
+// THICKNESS — naming it so the next person does not repeat it. The percentages
+// above are derived from the GEOMETRIC half-thickness 0.121, whereas the
+// rescuer takes `downReach` = min(bounding r, box projection), and for the slab
+// that is 0.1085. At fraction 0.8 the effective threshold came out at 0.0868 —
+// BELOW the slab's own healthy maximum (0.091), and the rescuer started lifting
+// items lying NORMALLY: the guard "on a settled pile the rescuer has nothing to
+// do" went red. 0.9 gives 0.0977: above the healthy tail (0.091) and below the
+// observed defect (0.103). The window is narrow, but that is exactly the
+// physical state of affairs for a model as thick as the threshold itself.
+// ⚠️⚠️ THE FIRST TWO ATTEMPTS WERE WORSE THAN THE BASELINE — soak on seed 101:
+//   baseline (absolute 0.12)         lifts  24, sinkings 3
+//   fraction 0.6 on the MINIMAL axis lifts 115 (storm), sinkings 0
+//   fraction 0.6 on the vertical     lifts  36, sinkings 0
+//   fraction 0.8 on the vertical     lifts   8, sinkings 0   <- taken
+// That is, 0.8 beats the baseline ON BOTH axes at once, it does not trade one
+// for the other.
+// ⚠️ "A sample under the threshold" != a teleport: the calm gate and the
+// FLOOR_SUNK_TICKS counter still require the sinking to HOLD; therefore a
+// fraction that cuts off 0% of instantaneous samples still catches the STUCK
+// case (observed 0.103 against the slab's threshold of 0.097).
+// ⚠️ THE EDIT IS SURGICAL: for models with half-thickness >= 0.2 the fraction
+// yields >= 0.12, i.e. for them the threshold does not change at all. There is
+// almost nobody in the pool thinner than 0.2.
 const FLOOR_PEN_FRAC = 0.9;
-// «почти неподвижен» для гейта покоя (см. rescueSweep). Ориентир — наши же
-// пороги сна: штиль кучи maxV<0.25, форс-сон maxV<2.0.
+// "almost motionless" for the calm gate (see rescueSweep). The reference is our
+// own sleep thresholds: pile calm maxV<0.25, forced sleep maxV<2.0.
 const FLOOR_CALM_V = 0.5;
-// сколько проверок подряд (по 0.5 с) просадка должна держаться, чтобы её
-// подняли даже у ДВИЖУЩЕГОСЯ предмета. 3 = ~1.5 с: транзиент от встряски
-// столько не живёт, а вибрация помола держит предмет утопленным десятками
-// секунд (замер соака: 30 с подряд).
+// how many checks in a row (every 0.5 s) the sinking must hold for it to be
+// lifted even on a MOVING item. 3 = ~1.5 s: a transient from a shake does not
+// live that long, while the milling vibration keeps an item sunk for tens of
+// seconds (soak measurement: 30 s in a row).
 const FLOOR_SUNK_TICKS = 3;
-// ⚠️⚠️ ПОТОЛОК СПАСАТЕЛЯ: выше него предмет считается «улетевшим». Было 60 —
-// и это оказалось МАЛО для финальной докидки пар: она спавнит партнёра каждой
-// сироте лесенкой `FUNNEL.H + 2 + k*1.2` без капа на k, и на ур.40 (55 сирот)
-// пик спавна 67.4 — ВЫШЕ ПОТОЛКА. Спасатель телепортировал только что
-// докинутое: замер 23 телепорта на 4 прогона, при целых стенах
-// (wallExcess max 0.176 при норме 0.20) и нуле провалов в пол.
-// ⛔ ЛЕЧИТЬ СО СТОРОНЫ ДОКИДКИ ПРОБОВАЛА И ОТВЕРГЛА ЗАМЕРОМ — становится ХУЖЕ:
-// зажатая лесенка сгущает спавн, а решает именно ПЛОТНОСТЬ, не высота.
-// Спасений на ур.40: без капа 23, кап 30 слоёв — 37, кап 10 слоёв — 102.
-// Поэтому правится ПОТОЛОК (зона физики), а докидка остаётся как есть.
-// 90 = пик 67.4 плюс запас на разброс сидов; «улетевший» предмет по-прежнему
-// ловится — из чаши высотой 9.2 никакой импульс не забрасывает на 90.
+// ⚠️⚠️ THE RESCUER'S CEILING: above it an item counts as "flown away". It was
+// 60 — and that turned out to be TOO LITTLE for the final top-up of pairs: it
+// spawns a partner for every orphan on a staircase `FUNNEL.H + 2 + k*1.2` with
+// no cap on k, and on lvl 40 (55 orphans) the spawn peak is 67.4 — ABOVE THE
+// CEILING. The rescuer was teleporting what had just been topped up:
+// 23 teleports measured over 4 runs, with the walls intact
+// (wallExcess max 0.176 against a norm of 0.20) and zero falls through the floor.
+// ⛔ CURING IT FROM THE TOP-UP SIDE WAS TRIED AND REJECTED BY MEASUREMENT — it
+// gets WORSE: a clamped staircase thickens the spawn, and what decides it is
+// exactly the DENSITY, not the height.
+// Rescues on lvl 40: no cap 23, cap of 30 layers — 37, cap of 10 layers — 102.
+// Therefore it is the CEILING that is edited (physics' territory), and the
+// top-up stays as it is. 90 = the peak 67.4 plus a margin for seed spread; a
+// "flown away" item is still caught — out of a bowl 9.2 high no impulse throws
+// anything up to 90.
 const RESCUE_CEIL = 90;
 let floorCol = null, baseFloorCol = null;
-let tmpWallBody = null;  // высокая временная стена на время осадки genLevel (ОДНО тело, A1)
+let tmpWallBody = null;  // tall temporary wall for the duration of the genLevel settling (ONE body, A1)
 
 const _pq = new THREE.Quaternion();
 const _pe = new THREE.Euler();
@@ -113,53 +127,59 @@ const _pe = new THREE.Euler();
 function initPhysicsWorld(){
   world = new RAPIER.World({ x: 0, y: -G, z: 0 });
   world.timestep = 1/60;
-  // по доке/issues Rapier: плотные стеки стабильнее с большим числом итераций
+  // per Rapier's docs/issues: dense stacks are more stable with more iterations
   try { world.numSolverIterations = 8; } catch(e){}
   try { world.maxCcdSubsteps = 4; } catch(e){}
-  // Контейнер: СТУПЕНЧАТЫЙ конус из 12 колец вертикальных сегментов.
-  // История: одна длинная наклонная панель с кватернион-поворотом стояла
-  // не по конусу (у дна грань уезжала на ~0.3 наружу — предметы «в стекле»,
-  // спасатель штормил). Кольца без наклона: грань = radiusAt(midY)-WALL_GAP
-  // тривиально верна. Ступенька между кольцами 0.12 — внутрь не выступает.
-  // ⚠️ A1 (перф мобильного тира 2026-07-31): ВЕСЬ КОНТЕЙНЕР — ОДНО фикс-тело
-  // со многими коллайдерами. Было 417 отдельных тел (12 колец × 32 + 32
-  // верхних + дно) против 182 предметов. Геометрия не меняется: раньше
-  // смещение нёс body, поворот — коллайдер; теперь оба несёт коллайдер, а
-  // тело стоит в начале координат.
-  // ⛔⛔ ВЫИГРЫША ЭТО НЕ ДАЛО, И ПРИЧИНУ НАЗЫВАЮ ЧЕСТНО — Я ОПТИМИЗИРОВАЛ НЕ ТОТ
-  // СЧЁТЧИК. Замер: солвер p95 при CPU ×4 37.0 -> 35.7 (шум), без троттлинга
-  // 6.7 -> 6.7. ТЕЛ стало 599 -> 183, а КОЛЛАЙДЕРОВ как было 599, так и
-  // осталось — ШИРОКАЯ ФАЗА RAPIER РАБОТАЕТ ПО КОЛЛАЙДЕРАМ (прокси), а не по
-  // телам. 417 стенных прокси никуда не делись.
-  // ⚠️ СЛЕДСТВИЕ ДЛЯ БУДУЩЕЙ ПРАВКИ СТЕН: настоящий рычаг — ЧИСЛО СТЕННЫХ
-  // КОЛЛАЙДЕРОВ (меньше сегментов / одна форма на всю чашу), а не число тел.
-  // ⚠️ И оговорка к слову «тождественно»: геометрия — да, ПОВЕДЕНИЕ — нет.
-  // Порядок контактов в солвере меняется, куча из 182 тел хаотична, траектории
-  // расходятся. Статистика цела (живых 182/182, верх 7.65 -> 7.54, под полом 0).
+  // Container: a STEPPED cone of 12 rings of vertical segments.
+  // History: one long inclined panel with a quaternion rotation did not stand
+  // along the cone (near the bottom its face drifted ~0.3 outwards — items
+  // "inside the glass", the rescuer stormed). Rings without a tilt: the face =
+  // radiusAt(midY)-WALL_GAP is trivially correct. The step between the rings is
+  // 0.12 — it does not protrude inwards.
+  // ⚠️ A1 (mobile-tier perf 2026-07-31): THE WHOLE CONTAINER IS ONE fixed body
+  // with many colliders. There used to be 417 separate bodies (12 rings × 32 +
+  // 32 upper ones + the floor) against 182 items. The geometry does not change:
+  // previously the body carried the offset and the collider the rotation; now
+  // the collider carries both, and the body stands at the origin.
+  // ⛔⛔ THIS GAVE NO GAIN, AND I NAME THE REASON HONESTLY — I OPTIMIZED THE
+  // WRONG COUNTER. Measurement: solver p95 at CPU ×4 37.0 -> 35.7 (noise),
+  // without throttling 6.7 -> 6.7. BODIES went 599 -> 183, while COLLIDERS
+  // stayed at 599 just as they were — RAPIER'S BROAD PHASE WORKS ON COLLIDERS
+  // (proxies), not on bodies. The 417 wall proxies went nowhere.
+  // ⚠️ CONSEQUENCE FOR A FUTURE WALL EDIT: the real lever is the NUMBER OF WALL
+  // COLLIDERS (fewer segments / one shape for the whole bowl), not the number
+  // of bodies.
+  // ⚠️ And a caveat about the word "identical": the geometry — yes, the
+  // BEHAVIOUR — no. The order of contacts in the solver changes, a pile of 182
+  // bodies is chaotic, the trajectories diverge. The statistics hold (alive
+  // 182/182, top 7.65 -> 7.54, below the floor 0).
   const shellB = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-  shellBody = shellB; // ЧАША-РАЗЛЁТ (прототип v2): доступ для пересборки стен
+  shellBody = shellB; // SHATTERING BOWL (v2 prototype): access for wall rebuilds
   const RINGS = 12, LOW = 0.5;
   for (let ring = 0; ring < RINGS; ring++){
     const y0 = LOW + (FUNNEL.H - LOW)*ring/RINGS;
     const y1 = LOW + (FUNNEL.H - LOW)*(ring + 1)/RINGS;
     const midY = (y0 + y1)/2;
-    // ⚠️ ГРАНЬ КОЛЬЦА — ПО ЕГО НИЖНЕЙ КРОМКЕ, А НЕ ПО СЕРЕДИНЕ (замер 2026-07-31).
-    // Ступенька кольца 0.725 по высоте, конус за неё расширяется на 0.134.
-    // При грани по midY стена у НИЗА кольца оказывается ШИРЕ конуса на этой
-    // высоте — предмет, лежащий на ней, честно торчит за radiusAt(его y), и
-    // спасатель считает это вылетом: после снятия π/2 телепортов стало вдвое
-    // больше (24 -> 47 на ур.40). По y0 стена ВСЕГДА внутри конуса.
-    // ⛔⛔ ЗДЕСЬ НЕЛЬЗЯ ЗВАТЬ `radiusAt` — ЭТО И БЫЛ ИНЦИДЕНТ 2026-08-17.
-    // `initPhysicsWorld` строит ПОСТОЯННУЮ геометрию и выполняется РОВНО ОДИН
-    // РАЗ ЗА ЗАГРУЗКУ. Тогда `radiusAt` сделали зависящим от номера уровня, и
-    // при старте на особом уровне чаша собиралась ЦИЛИНДРОМ r≈3.96 вместо
-    // конуса 2.4→4.1 и оставалась такой ДО КОНЦА СЕССИИ, на всех обычных.
-    // Замер: старт на 200-м → на 201-м 33 предмета снаружи чаши, 6 ниже дна;
-    // старт на 201-м → ноль и ноль.
-    // ⚠️ ПРАВИЛО: входы одноразовой инициализации обязаны быть КОНСТАНТАМИ.
-    // Конус пишем формулой из FUNNEL явно — она по определению не зависит от
-    // уровня. Понадобится контейнер другой формы — ему полагается СВОЙ набор
-    // коллайдеров рядом, а не ветка здесь.
+    // ⚠️ A RING'S FACE GOES BY ITS LOWER EDGE, NOT BY ITS MIDDLE (measurement
+    // 2026-07-31). A ring's step is 0.725 in height, and the cone widens by
+    // 0.134 across it. With the face at midY the wall at the BOTTOM of the ring
+    // turns out WIDER than the cone at that height — an item lying on it
+    // honestly sticks out past radiusAt(its y), and the rescuer counts that as
+    // an escape: after π/2 was removed the number of teleports doubled
+    // (24 -> 47 on lvl 40). Taken at y0 the wall is ALWAYS inside the cone.
+    // ⛔⛔ `radiusAt` MUST NOT BE CALLED HERE — THAT WAS THE INCIDENT OF
+    // 2026-08-17. `initPhysicsWorld` builds PERMANENT geometry and runs EXACTLY
+    // ONCE PER LOAD. Back then `radiusAt` was made to depend on the level
+    // number, and on a start at a special level the bowl was assembled as a
+    // CYLINDER r≈3.96 instead of the cone 2.4→4.1 and stayed that way UNTIL THE
+    // END OF THE SESSION, on all the ordinary levels.
+    // Measurement: start on the 200th → on the 201st 33 items outside the bowl,
+    // 6 below the floor; start on the 201st → zero and zero.
+    // ⚠️ RULE: the inputs of a one-shot initialization must be CONSTANTS.
+    // The cone is written explicitly as a formula out of FUNNEL — by definition
+    // it does not depend on the level. Should a container of a different shape
+    // be needed, it is entitled to ITS OWN set of colliders alongside, not to a
+    // branch here.
     const faceR = (FUNNEL.R0 + SLOPE * Math.max(0, Math.min(y0, FUNNEL.H))) - WALL_GAP;
     const chord = 2*faceR*Math.tan(Math.PI/WALL_SEG) + 0.08;
     for (let i = 0; i < WALL_SEG; i++){
@@ -167,13 +187,13 @@ function initPhysicsWorld(){
       const cd = RAPIER.ColliderDesc.cuboid(0.30, (y1 - y0)/2 + 0.09, chord/2)
         .setFriction(FRICTION).setRestitution(RESTIT)
         .setTranslation(Math.cos(a)*(faceR + 0.30), midY, Math.sin(a)*(faceR + 0.30));
-      _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
+      _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ NO +π/2: the local X must go RADIAL (see the WALL_SEG header)
       cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-      wallColliders.push(world.createCollider(cd, shellB)); // съёмные (разлёт чаши)
+      wallColliders.push(world.createCollider(cd, shellB)); // detachable (bowl shatter)
     }
   }
-  // вертикальное продолжение над кромкой: скользкое, БЕЗ наклона (наклон
-  // тоже был источником геометрической ошибки)
+  // vertical continuation above the rim: slippery, WITHOUT a tilt (the tilt was
+  // a source of geometric error too)
   for (let i = 0; i < WALL_SEG; i++){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const faceR = FUNNEL.R1 - WALL_GAP;
@@ -181,79 +201,86 @@ function initPhysicsWorld(){
     const cd2 = RAPIER.ColliderDesc.cuboid(0.30, BELT_HALF_H, chord2/2)
       .setFriction(0.02).setRestitution(RESTIT)
       .setTranslation(Math.cos(a)*(faceR + 0.30), FUNNEL.H + BELT_DY, Math.sin(a)*(faceR + 0.30));
-    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ NO +π/2: the local X must go RADIAL (see the WALL_SEG header)
     cd2.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
-    wallColliders.push(world.createCollider(cd2, shellB)); // съёмные (разлёт чаши)
+    wallColliders.push(world.createCollider(cd2, shellB)); // detachable (bowl shatter)
   }
-  // ⚠️ ПЛИТА ТОНКАЯ (полутолщина 0.3, то есть [0.55..1.15]) И ПОД НЕЙ ПУСТО.
-  // Замер 2026-07-30: максимум просадки на летящей куче 0.28 — до середины
-  // плиты, где узкая фаза дала бы нормаль ВНИЗ и предмет выдавило бы в пустоту
-  // на лопасти, остаётся 7%. Утолщение вниз (полутолщина 2.4) ПРОБОВАЛИ: на
-  // распределение просадок и на перф не влияет (шаг физики на взрыве p95
-  // 7.9-10.9 против 7.7-9.1), ОТКЛОНЕНО владельцем 2026-07-30 — «откати
-  // толщину плиты, оставь только спасателя». Возврат = два числа в этих строках.
-  // плита — на том же теле контейнера; floorCol нужен спасателю пола (по нему
-  // берётся ИСТИННОЕ проникновение), и он остаётся отдельным КОЛЛАЙДЕРОМ
+  // ⚠️ THE PLATE IS THIN (half-thickness 0.3, i.e. [0.55..1.15]) AND THERE IS
+  // NOTHING UNDER IT. Measurement 2026-07-30: the maximum sinking on a flying
+  // pile is 0.28 — 7% is left to the middle of the plate, where the narrow
+  // phase would give a DOWNWARD normal and the item would be squeezed out into
+  // the void onto the blades. Thickening downwards (half-thickness 2.4) WAS
+  // TRIED: it affects neither the distribution of the sinkings nor the perf
+  // (physics step on an explosion p95 7.9-10.9 against 7.7-9.1), REJECTED by
+  // the owner on 2026-07-30 — "roll back the plate thickness, keep only the
+  // rescuer". Bringing it back = two numbers in these lines.
+  // the plate sits on the same container body; floorCol is needed by the floor
+  // rescuer (the TRUE penetration is taken through it), and it stays a separate
+  // COLLIDER
   baseFloorCol = world.createCollider(
     RAPIER.ColliderDesc.cylinder(0.3, FUNNEL.R0 + SLOPE*FLOOR_REST + 0.2)
       .setFriction(FRICTION).setTranslation(0, FLOOR_REST - 0.3, 0), shellB);
   floorCol = baseFloorCol;
 }
 
-// ===== ЧАША-РАЗЛЁТ (прототип v2): стены-призраки =====
-// ⚠️ НЕ removeCollider: первая версия удаляла и пересоздавала стены на
-// genLevel — WASM Rapier падал «unreachable» в первом же step после
-// пересоздания (краш пойман стражем сброса). Сенсор — канонически
-// безопасный путь: коллайдер остаётся в мире, но перестаёт толкаться;
-// восстановление = один флаг, ноль созданий/удалений.
+// ===== SHATTERING BOWL (v2 prototype): ghost walls =====
+// ⚠️ NOT removeCollider: the first version removed and re-created the walls on
+// genLevel — WASM Rapier crashed with "unreachable" on the very first step
+// after the re-creation (the crash was caught by the reset guard). A sensor is
+// the canonically safe path: the collider stays in the world but stops pushing;
+// restoring it = one flag, zero creations/removals.
 let wallColliders = [], shellBody = null;
-// ⚠️⚠️ ЧАША ОТКРЫТА — ЛОКАЛЬНЫЙ ИСТОЧНИК ПРАВДЫ ФИЗИКИ, НЕ ИМПОРТ ИЗ ГЕЙМПЛЕЯ.
-// Ставится и снимается РОВНО ТАМ, где сенсорятся стены и дно, поэтому «стены
-// призрачные» и «спасатель выключен» физически не могут разъехаться. Тащить
-// сюда `bowlShattering` из 80-gameplay было бы вторым состоянием о том же
-// факте — а два источника правды рано или поздно расходятся.
+// ⚠️⚠️ "THE BOWL IS OPEN" IS PHYSICS' LOCAL SOURCE OF TRUTH, NOT AN IMPORT FROM
+// GAMEPLAY. It is raised and cleared EXACTLY WHERE the walls and the floor are
+// switched to sensors, therefore "the walls are ghosts" and "the rescuer is
+// off" physically cannot drift apart. Dragging `bowlShattering` here from
+// 80-gameplay would be a second piece of state about the same fact — and two
+// sources of truth diverge sooner or later.
 let bowlOpen = false;
 function bowlIsOpen(){ return bowlOpen; }
 function dropWalls(){
-  bowlOpen = true;   // и спасатель замолкает (см. гейт в rescueSweep)
+  bowlOpen = true;   // and the rescuer falls silent (see the gate in rescueSweep)
   for (const c of wallColliders){ try { c.setSensor(true); } catch(e){} }
-  // И ДНО-ПЛИТА ТОЖЕ (слово владельца 2026-08-03: «если чаша разбивается,
-  // то не должно оставаться её силуэта») — твёрдая плита держала кучу
-  // невидимым диском в форме дна, предметы «лежали по чаше». Призрачное дно:
-  // при разлёте всё честно сыплется в белую пустоту (слоу-мо придерживает),
-  // сбор-волна догоняет предметы в полёте.
+  // AND THE FLOOR PLATE TOO (the owner's word 2026-08-03: "if the bowl breaks,
+  // then none of its silhouette should remain") — the solid plate held the pile
+  // on an invisible disc shaped like the floor, items "lay along the bowl".
+  // A ghost floor: on the shatter everything honestly spills into the white
+  // void (the slow-mo holds it back), and the collect wave catches up with the
+  // items in flight.
   try { floorCol.setSensor(true); } catch(e){}
 }
-// ⚠️ ensureWalls ЗОВЁТСЯ ИЗ genLevel — стены и дно возвращаются в твёрдое
-// состояние после разлёта чаши. Кто твёрдый, решает РОВНО эта функция.
+// ⚠️ ensureWalls IS CALLED FROM genLevel — the walls and the floor return to
+// the solid state after the bowl shatter. What is solid is decided by EXACTLY
+// this function.
 function ensureWalls(){
-  bowlOpen = false;  // стены снова твёрдые — спасателю опять есть что сторожить
+  bowlOpen = false;  // walls are solid again — the rescuer has something to guard
   floorCol = baseFloorCol;
   for (const c of wallColliders){ try { c.setSensor(false); } catch(e){} }
   try { baseFloorCol.setSensor(false); } catch(e){}
 }
-function wallsCount(){ // число ТВЁРДЫХ стенных коллайдеров (для стражей)
+function wallsCount(){ // number of SOLID wall colliders (for the guards)
   let n = 0;
   for (const c of wallColliders){ try { if (!c.isSensor()) n++; } catch(e){} }
   return n;
 }
 
-// временная стена — тоже ОДНО тело (A1): она строится и сносится КАЖДЫЙ
-// уровень, то есть прежние 32 тела создавались и удалялись на каждом genLevel
+// the temporary wall is ONE body too (A1): it is built and torn down EVERY
+// level, i.e. the former 32 bodies were created and destroyed on every genLevel
 function buildTempTallWall(){
   removeTempTallWall();
   tmpWallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-  // ⚠️ РАДИУС БЕРЁМ ИЗ `radiusAt` — ЕДИНСТВЕННОЙ ТОЧКИ ШИРИНЫ (20-arena), а не
-  // литералом `FUNNEL.R1`. Сегодня они тождественно равны (radiusAt(FUNNEL.H)
-  // ≡ R1), то есть это не оптимизация, а защита от расхождения: сменится
-  // геометрия чаши — стена осадки поедет за ней сама, без второй правки здесь.
+  // ⚠️ THE RADIUS IS TAKEN FROM `radiusAt` — THE SINGLE POINT OF WIDTH
+  // (20-arena), not as the literal `FUNNEL.R1`. Today they are identically
+  // equal (radiusAt(FUNNEL.H) ≡ R1), so this is not an optimization but a guard
+  // against divergence: change the bowl geometry and the settling wall will
+  // follow it by itself, without a second edit here.
   const R = radiusAt(FUNNEL.H);
   for (let i=0; i<WALL_SEG; i++){
     const a = (i + 0.5)/WALL_SEG*Math.PI*2;
     const chord = 2*(R - WALL_GAP)*Math.tan(Math.PI/WALL_SEG) + 0.08;
     const cd = RAPIER.ColliderDesc.cuboid(0.15, 24, chord/2).setFriction(0.02)
       .setTranslation(Math.cos(a)*(R - WALL_GAP + 0.15), 24, Math.sin(a)*(R - WALL_GAP + 0.15));
-    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ БЕЗ +π/2: локальная X обязана уйти в РАДИАЛЬ (см. шапку WALL_SEG)
+    _pq.setFromEuler(_pe.set(0, -a, 0));   // ⚠️ NO +π/2: the local X must go RADIAL (see the WALL_SEG header)
     cd.setRotation({ x:_pq.x, y:_pq.y, z:_pq.z, w:_pq.w });
     world.createCollider(cd, tmpWallBody);
   }
@@ -263,21 +290,24 @@ function removeTempTallWall(){
   tmpWallBody = null;
 }
 
-// Физическая форма по типу: примитив / convex hull из рендер-геометрии / компаунд
-// ⚠️⚠️ КОЛЬЦО ПО САМОЙ ГЕОМЕТРИИ (пончик, 2026-08-07). Модель-бублик уходила
-// в ветку `default` — convex hull, а он ЗАКРЫВАЕТ ДЫРКУ: физически посреди
-// пончика появляется невидимая перепонка, и предмет ложится на пустоту.
-// ⚠️ ЧИСЛА НЕ ВПИСЫВАЕМ РУКАМИ, а меряем по вершинам: сменится модель или её
-// масштаб — кольцо переедет само. Плоскость определяется тем, где есть ДЫРКА:
-// у нашего пончика это XZ (ось Y), а НЕ XY, как у процедурного тора из three
-// (тот случай — `torus` ниже, и путать их нельзя: компаунд, стоящий
-// перпендикулярно мешу, «впаивает» предметы в видимое кольцо — грабля 2026-07).
-// Возвращает false, если дырки нет — тогда вызывающий честно падает в hull.
+// Physical shape by type: primitive / convex hull from the render geometry /
+// compound
+// ⚠️⚠️ THE RING COMES FROM THE GEOMETRY ITSELF (the doughnut, 2026-08-07). The
+// doughnut model used to go into the `default` branch — convex hull, and that
+// CLOSES THE HOLE: physically an invisible membrane appears in the middle of
+// the doughnut, and an item comes to rest on empty space.
+// ⚠️ THE NUMBERS ARE NOT TYPED IN BY HAND, they are measured off the vertices:
+// change the model or its scale and the ring moves along by itself. The plane
+// is determined by where the HOLE is: for our doughnut that is XZ (the Y axis),
+// and NOT XY as for three's procedural torus (that case is `torus` below, and
+// the two must not be confused: a compound standing perpendicular to the mesh
+// "welds" items into the visible ring — the rake of 2026-07).
+// Returns false if there is no hole — then the caller honestly falls into hull.
 function ringFromGeometry(add, geo, s){
   const P = geo.attributes.position.array, n = P.length / 3;
   if (!n) return false;
-  // радиус вокруг каждой из трёх осей; дырка там, где МИНИМУМ заметно > 0
-  const axes = [[0, 2, 1], [0, 1, 2], [1, 2, 0]];   // [u, v, ось]
+  // radius about each of the three axes; the hole is where the MINIMUM is >> 0
+  const axes = [[0, 2, 1], [0, 1, 2], [1, 2, 0]];   // [u, v, axis]
   let best = null;
   for (const [u, v, ax] of axes){
     let rmin = 1e9, rmax = 0;
@@ -287,17 +317,20 @@ function ringFromGeometry(add, geo, s){
     }
     if (rmax > 1e-4 && (!best || rmin / rmax > best.ratio)) best = { u, v, ax, rmin, rmax, ratio: rmin / rmax };
   }
-  // ⚠️⚠️ ОТНОШЕНИЕ rmin/rmax — НЕ АВТОДЕТЕКТОР ДЫРКИ, и контрпример нашёлся в
-  // собственном контроле стража: у СПЛОШНОЙ свиньи `animalpig` оно 0.393, то
-  // есть ВЫШЕ этого порога. Высокое отношение бывает и от УЗОСТИ модели вдоль
-  // оси, а не от дырки. Поэтому ветка включается ЯВНЫМ флагом `phys:'ring'`,
-  // а порог здесь — лишь нижняя отсечка «на этой оси дырки точно нет».
+  // ⚠️⚠️ THE rmin/rmax RATIO IS NOT AN AUTO-DETECTOR OF A HOLE, and the
+  // counterexample turned up in the guard's own control: for the SOLID pig
+  // `animalpig` it is 0.393, that is ABOVE this threshold. A high ratio also
+  // comes from the model being NARROW along an axis, not from a hole. That is
+  // why the branch is switched on by the EXPLICIT flag `phys:'ring'`, and the
+  // threshold here is only the lower cut-off "on this axis there is certainly
+  // no hole".
   if (!best || best.ratio < 0.25) return false;
-  const R = (best.rmin + best.rmax) / 2 * s;        // осевая линия трубки
-  const tube = (best.rmax - best.rmin) / 2 * s;     // её радиус
-  // ⚠️ СТРАХОВКА ОТ ВЫРОЖДЕННОГО КОЛЬЦА (замечание диспетчера): поставь кто-то
-  // флаг узкой модели — трубка вышла бы почти нулевой, и предметы поехали бы
-  // СКВОЗЬ неё. Честный откат в hull лучше кольца из ниток.
+  const R = (best.rmin + best.rmax) / 2 * s;        // the tube's centre line
+  const tube = (best.rmax - best.rmin) / 2 * s;     // its radius
+  // ⚠️ INSURANCE AGAINST A DEGENERATE RING (the dispatcher's remark): were
+  // someone to set the flag on a narrow model, the tube would come out almost
+  // zero and items would travel THROUGH it. An honest fallback to the hull is
+  // better than a ring made of thread.
   if (!(tube > 0.12 * R) || !(tube > 0.02 * s)) return false;
   const SEG = 12, pts = [];
   for (let k = 0; k <= SEG; k++){
@@ -315,12 +348,13 @@ function hullFromGeometry(geo, s){
   for (let i=0; i<src.length; i++) pts[i] = src[i]*s;
   return RAPIER.ColliderDesc.convexHull(pts);
 }
-// «Катучие» формы глушим по вращению сильнее — в Rapier нет трения качения
+// "Rolly" shapes get heavier angular damping — Rapier has no rolling friction
 const ROLLY = { ball:1, torus:1, cyl:1, knot:1, spiral:1, pill:1, egg:1 };
 
-// Цепочка капсул по ломаной (точная физика трубчатых форм: тор, узел,
-// спираль). ВАЖНО: three строит тор/узел в плоскости XY — прежние
-// компаунды шаров стояли в XZ, перпендикулярно мешу, отсюда «впаивания».
+// A chain of capsules along a polyline (exact physics for tubular shapes:
+// torus, knot, spiral). IMPORTANT: three builds the torus/knot in the XY
+// plane — the former compounds of balls stood in XZ, perpendicular to the
+// mesh, hence the "weldings".
 const _capQ = new THREE.Quaternion(), _capUp = new THREE.Vector3(0,1,0), _capDir = new THREE.Vector3();
 function addCapsuleChain(add, pts, r){
   for (let i=0; i<pts.length-1; i++){
@@ -336,10 +370,11 @@ function addCapsuleChain(add, pts, r){
   }
 }
 
-// Сэмплы доступности строятся ИЗ ФИЗИЧЕСКИХ форм (точки строго внутри
-// коллайдеров): вертикальная колонка через внутреннюю точку гарантированно
-// пересекает свой коллайдер — ложный промах невозможен. Сэмплы с рендер-мешей
-// давали редкий рассинхрон с физикой (спираль/узел: 1 из ~70 одиночек).
+// The accessibility samples are built FROM THE PHYSICAL shapes (points strictly
+// inside the colliders): a vertical column through an interior point is
+// guaranteed to cross its own collider — a false miss is impossible. Samples
+// taken off the render meshes gave a rare desync with physics (spiral/knot:
+// 1 out of ~70 singles).
 function buildAccessSamples(item, typeName, geo){
   const s = item.scl;
   const pts = [];
@@ -375,8 +410,8 @@ function buildAccessSamples(item, typeName, geo){
     case 'surprise':
       push(0, 0, 0); push(0, 0.3*s, 0); push(0.62*s, 0.15*s, 0); push(-0.7*s, 0.05*s, 0);
       break;
-    default: { // hull-типы: центроиды граней рендера, стянутые к центру —
-               // выпуклая комбинация вершин => строго внутри convex hull
+    default: { // hull types: render face centroids pulled towards the centre —
+               // a convex combination of vertices => strictly inside the hull
       const pos = geo.attributes.position;
       const idx = geo.index ? geo.index.array : null;
       const triCount = Math.floor((idx ? idx.length : pos.count) / 3);
@@ -396,19 +431,21 @@ function buildAccessSamples(item, typeName, geo){
 function createItemBody(item, typeName, geo){
   const s = item.scl;
   const density = item.surprise ? DENSITY.gold : (item.type.mat === 'chrome' ? DENSITY.chrome : DENSITY.plastic);
-  // вес при встряске (вариант 1): отклик на рыхление по пачке модели;
-  // нет в карте (сюрприз/бомба/тип без tex) = 1.0. Раньше примером был стейк —
-  // тип удалён владельцем в v187, правило от этого не изменилось
+  // shake weight (variant 1): the response to loosening, per the model's pack;
+  // absent from the map (surprise/bomb/a type without tex) = 1.0. The steak used
+  // to be the example — the type was removed by the owner in v187, the rule has
+  // not changed because of that
   item.shakeK = SHAKE_RESP[item.type.tex] || 1;
   item.mesh.updateMatrixWorld();
   const q = item.mesh.quaternion;
   const bd = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(item.p.x, item.p.y, item.p.z)
     .setRotation({ x:q.x, y:q.y, z:q.z, w:q.w })
-    // ⚠️ УМОЛЧАНИЕ, А НЕ ЛИТЕРАЛ: ручка `physKnobs({ccd:…})` красит только УЖЕ
-    // созданные тела, а regen() делает новые — рука замера «без CCD» молча
-    // мерила бы боевую конфигурацию. Боевое значение — true, не менялось.
-    .setCcdEnabled(ccdDefault) // против туннелирования на скорости (интро/встряска)
+    // ⚠️ A DEFAULT, NOT A LITERAL: the knob `physKnobs({ccd:…})` paints only the
+    // ALREADY created bodies, while regen() makes new ones — a "without CCD"
+    // measurement arm would silently be measuring the live configuration. The
+    // live value is true, it has not been changed.
+    .setCcdEnabled(ccdDefault) // against tunnelling at speed (intro/shake)
     .setLinearDamping(0.3)
     .setAngularDamping(ROLLY[typeName] ? 2.5 : 1.2);
   const body = world.createRigidBody(bd);
@@ -422,17 +459,17 @@ function createItemBody(item, typeName, geo){
     case 'ball':   add(RAPIER.ColliderDesc.ball(0.95*s)); break;
     case 'cyl':    add(RAPIER.ColliderDesc.cylinder(0.8*s, 0.7*s)); break;
     case 'pill':   add(RAPIER.ColliderDesc.capsule(0.35*s, 0.5*s)); break;
-    case 'torus': { // кольцо в XY (как TorusGeometry), 12 капсул по кругу
+    case 'torus': { // a ring in XY (like TorusGeometry), 12 capsules round it
       const pts = [];
       for (let k=0;k<=12;k++){ const a = k/12*Math.PI*2;
         pts.push({ x: Math.cos(a)*0.68*s, y: Math.sin(a)*0.68*s, z: 0 }); }
       addCapsuleChain(add, pts, 0.32*s);
       break;
     }
-    case 'knot': { // параметрика TorusKnot(p=2,q=3) из three, 18 сегментов
+    case 'knot': { // three's TorusKnot(p=2,q=3) parametrics, 18 segments
       const R = 0.58*s, pts = [];
       for (let k=0;k<=18;k++){
-        const u = k/18 * Math.PI*4; // p=2 -> период 4π
+        const u = k/18 * Math.PI*4; // p=2 -> period 4π
         const cs = Math.cos(1.5*u);
         pts.push({
           x: R*(2+cs)*0.5*Math.cos(u),
@@ -443,7 +480,7 @@ function createItemBody(item, typeName, geo){
       addCapsuleChain(add, pts, 0.2*s);
       break;
     }
-    case 'spiral': { // хеликс как в spiralGeo, 12 сегментов
+    case 'spiral': { // a helix as in spiralGeo, 12 segments
       const pts = [];
       for (let k=0;k<=12;k++){
         const t = k/12, th = t*Math.PI*2*2.2;
@@ -458,12 +495,12 @@ function createItemBody(item, typeName, geo){
       add(RAPIER.ColliderDesc.ball(0.24*s), 0.62*s, 0.15*s, 0);
       add(RAPIER.ColliderDesc.ball(0.28*s), -0.7*s, 0.05*s, 0);
       break;
-    default: { // cone, octa, dode, tetra, star, heart — convex hull из реальной геометрии
-      // ⚠️ КОЛЬЦЕВЫЕ МОДЕЛИ — ДО hull: у них дырка настоящая, и hull её закроет
+    default: { // cone, octa, dode, tetra, star, heart — convex hull from real geometry
+      // ⚠️ RING MODELS COME BEFORE hull: their hole is real, and hull closes it
       if (item.type && item.type.phys === 'ring' && ringFromGeometry(add, geo, s)) break;
       const cd = hullFromGeometry(geo, s);
       if (cd) add(cd);
-      else add(RAPIER.ColliderDesc.ball(item.r)); // страховка на вырожденный hull
+      else add(RAPIER.ColliderDesc.ball(item.r)); // insurance for a degenerate hull
     }
   }
   item.body = body;
@@ -477,7 +514,8 @@ function destroyItemBody(item){
   }
 }
 
-// Синхронизация: позиция И ВРАЩЕНИЕ мешей теперь из тел (вращение честное)
+// Synchronization: the position AND ROTATION of the meshes now come from the
+// bodies (the rotation is honest)
 function syncMeshes(){
   for (const it of items){
     if (!it.alive || !it.body) continue;
@@ -489,116 +527,132 @@ function syncMeshes(){
   }
 }
 
-// Степпер с аккумулятором фиксированного шага (до SUBSTEP_CAP подшагов за кадр)
-let physAcc = 0, rescueMs = 0, stepMsLast = 0; // stepMsLast — перф-метр (см. soak.js)
-const MAX_FALL = 16; // терминальная скорость падения: CCD ненадёжен на мелких
-                     // сферах компаундов при v>20 (rapier.js issue #302)
-// в интро столб падает с 30+ единиц и на 16-18 пробивал стены (3-4 спасения
-// за интро) — на время досыпки терминальная скорость ниже (энергия ∝ v²)
+// Stepper with a fixed-step accumulator (up to SUBSTEP_CAP substeps per frame)
+let physAcc = 0, rescueMs = 0, stepMsLast = 0; // stepMsLast — perf meter (soak.js)
+const MAX_FALL = 16; // terminal velocity of a fall: CCD is unreliable on the
+                     // small spheres of compounds at v>20 (rapier.js issue #302)
+// in the intro the column falls from 30+ units and at 16-18 it punched through
+// the walls (3-4 rescues per intro) — during the top-up the terminal velocity
+// is lower (energy ∝ v²)
 let fallCap = MAX_FALL;
 function setFallCap(v){ fallCap = v || MAX_FALL; }
-// РАЗБОРКА ШАГА (профилировка мобильного тира 2026-07-31): в одном stepMsLast
-// сидят четыре разные работы, и на слабом CPU они не в равных долях.
-// substeps особенно важен: аккумулятор фиксированного шага при МЕДЛЕННОМ кадре
-// прогоняет world.step несколько раз — то есть цена растёт ровно там, где кадр
-// и так не успевает. Числа отдаёт __game.physBreak().
+// STEP BREAKDOWN (mobile-tier profiling 2026-07-31): four different jobs sit
+// inside a single stepMsLast, and on a weak CPU they are not in equal shares.
+// substeps matters especially: on a SLOW frame the fixed-step accumulator runs
+// world.step several times — that is, the cost grows exactly where the frame is
+// already not keeping up. The numbers are served by __game.physBreak().
 let stepSolveMs = 0, stepSyncMs = 0, stepCapMs = 0, stepRescueMs = 0, stepSubsteps = 0;
-// ⚠️⚠️ ПОТОЛОК ПОДШАГОВ ЗА КАДР = 2 (A3, перф мобильного тира 2026-08-01,
-// решение диспетчера по замерам). Было 3.
-// ЗАЧЕМ: аккумулятор фиксированного шага — УСИЛИТЕЛЬ, а не просто цена.
-// Медленный кадр -> больше dt -> больше вызовов world.step -> кадр ещё
-// медленнее. На осыпании p95 подшагов упирался ровно в потолок.
-// ЧТО ДАЁТ (осыпание, CPU ×4, 6 сидов, перезамер на базе С УЖЕ ИСПРАВЛЕННЫМИ
-// СТЕНАМИ и A1): солвер p95 36.7 -> 22.5, то есть −39%; кадр p95 41.4 -> 27.9.
-// ЧТО СТОИТ: середина полёта чуть отстаёт, к 2.6 с сходится (верх кучи
-// 8.65 -> 10.79 на отметке 2000 мс, но 7.70 -> 7.96 на 2600 мс). ДЛИТЕЛЬНОСТЬ
-// осыпания по стенным часам НЕ выросла (до сна 5538 -> 5391 мс, −3% = шум):
-// кламп аккумулятора отбрасывает время, но кадры при этом идут чаще.
-// ⚠️ ИТОГ ЗАПОЛНЕНИЯ СВЕРЕН ОТДЕЛЬНО (8 сидов): интро кончается по часам
-// КАМЕРЫ, а не по «куча улеглась», поэтому другой потолок мог бы застать
-// осадку в другой стадии и трим срезал бы другое число пар. Не срезал:
-// живых 182/182 в обоих, верх 7.73 -> 7.72, wallExcess max 0.141 -> 0.098,
-// провалов в пол 0, спасений 1.
-// ⛔ ПОЧЕМУ ГЛОБАЛЬНО, А НЕ СТУПЕНЬЮ ТИРА — ДОВОД СТРУКТУРНЫЙ: `tickPerfTier`
-// ПРОПУСКАЕТ ИНТРО (`if (intro …) return`), то есть ступень физически не может
-// сработать до конца ПЕРВОГО осыпания — ровно того момента, на который жаловался
-// владелец. Ступень тут не оптимизация, а дырка.
-// ⚠️ И «на быстрой машине кап не свяжет» — ПРОВЕРЕНО И НЕВЕРНО: без троттлинга
-// p95 подшагов тоже 3, потому что в интро dt множится на INTRO_TIME_SCALE (был
-// 1.7, с 2026-08-11 — 1.3; вывод не изменился, потолок подшагов упирается и так)
-// (16.7×1.7 = 28 мс). Осыпание меняется ОДИНАКОВО на всех устройствах, и это
-// сознательный выбор: однородное ощущение лучше двух разных.
-// ⛔ ≤1 ПРОБОВАЛИ И ОТВЕРГЛИ: −78% солвера, но к 2.6 с куча ещё в воздухе
-// (верх 16.2 против 7.7) — видимое замедленное кино. Это спека ощущения,
-// возвращать только словом владельца.
-// ⚠️⚠️ ЛОЖНАЯ ТРЕВОГА, ЗАПИСАНА ЧТОБЫ НЕ ПОВТОРИЛИ: соак A3 дал 41 телепорт
-// спасателя против 6 у контрольного прогона — и это НЕ регрессия, а РАЗНЫЙ
-// ОБЪЁМ РАБОТЫ. Прогон A3 прошёл ТРИ уровня и 2 победы, контроль все 12 минут
-// просидел на первом с нулём побед; сравнивались тоталы за разное количество
-// сыгранного. Нормировка развела: чистых интро 0/0 (32 прогона), смен уровня
-// 0 против 1 (48 смен), а РАСПРЕДЕЛЕНИЕ выступа за стену (8710/8856 сэмплов,
-// ур.10+40, осадка + 3 встряски) совпало — p99 0.078/0.076, max 0.173/0.180,
-// выше нормы 0.20 НОЛЬ у обоих; спасений на равной работе 66 (≤3) против
-// 42 (≤2). ⛔ ПРАВИЛО: тотал редких событий за прогон сравним ТОЛЬКО при
-// равном объёме сыгранного — иначе меряется прогресс бота, а не физика.
-// ⚠️⚠️ ПРОФАЙЛЕР RAPIER — ЕДИНСТВЕННЫЙ СПОСОБ РАЗОБРАТЬ `world.step()` НА ФАЗЫ.
-// Снаружи шаг физики — ОДНА колонка, и любой разговор «дорого в солвере»
-// упирается в неё. В нашей сборке профайлер есть (`world.profilerEnabled`) и
-// отдаёт broad/narrow/острова/солвер (4 подфазы) + ОТДЕЛЬНО CCD (4 подфазы).
-// ⛔ ТОЛЬКО ПО РУЧКЕ, НИКОГДА В БОЮ: около двадцати переходов WASM↔JS за шаг.
-// ⚠️ СЧЁТЧИКИ СБРАСЫВАЮТСЯ КАЖДЫМ `step()`, а степпер делает до SUBSTEP_CAP
-// шагов за кадр — читать НАДО ВНУТРИ ЦИКЛА, иначе виден только последний
-// подшаг, а на насыпании их ровно два (то есть половина работы пропала бы).
+// ⚠️⚠️ THE CAP ON SUBSTEPS PER FRAME = 2 (A3, mobile-tier perf 2026-08-01, the
+// dispatcher's decision on the measurements). It was 3.
+// WHY: the fixed-step accumulator is an AMPLIFIER, not merely a cost.
+// A slow frame -> a bigger dt -> more world.step calls -> an even slower frame.
+// On the pour-down the p95 of substeps hit exactly the cap.
+// WHAT IT GIVES (pour-down, CPU ×4, 6 seeds, re-measured on a baseline WITH THE
+// WALLS ALREADY FIXED and A1): solver p95 36.7 -> 22.5, i.e. −39%; frame p95
+// 41.4 -> 27.9.
+// WHAT IT COSTS: the middle of the flight lags a little, by 2.6 s it converges
+// (top of the pile 8.65 -> 10.79 at the 2000 ms mark, but 7.70 -> 7.96 at
+// 2600 ms). The DURATION of the pour-down by the wall clock did NOT grow (to
+// sleep 5538 -> 5391 ms, −3% = noise): the accumulator's clamp throws time away,
+// but the frames run more often as a result.
+// ⚠️ THE FILL RESULT WAS VERIFIED SEPARATELY (8 seeds): the intro ends by the
+// CAMERA's clock, not by "the pile has settled", so a different cap could have
+// caught the settling at a different stage and the trim would have cut a
+// different number of pairs. It did not: alive 182/182 in both, top 7.73 ->
+// 7.72, wallExcess max 0.141 -> 0.098, falls through the floor 0, rescues 1.
+// ⛔ WHY GLOBALLY AND NOT AS A TIER STEP — THE ARGUMENT IS STRUCTURAL:
+// `tickPerfTier` SKIPS THE INTRO (`if (intro …) return`), that is, the step
+// physically cannot fire before the end of the FIRST pour-down — exactly the
+// moment the owner complained about. A tier step here is not an optimization
+// but a hole.
+// ⚠️ And "on a fast machine the cap will not bind" — CHECKED AND WRONG: without
+// throttling the p95 of substeps is 3 as well, because in the intro dt is
+// multiplied by INTRO_TIME_SCALE (it was 1.7, since 2026-08-11 — 1.3; the
+// conclusion has not changed, the substep cap binds anyway)
+// (16.7×1.7 = 28 ms). The pour-down changes THE SAME WAY on all devices, and
+// that is a deliberate choice: a uniform feel is better than two different ones.
+// ⛔ ≤1 WAS TRIED AND REJECTED: −78% of the solver, but by 2.6 s the pile is
+// still in the air (top 16.2 against 7.7) — visible slow-motion cinema. This is
+// a spec of feel, to be brought back only by the owner's word.
+// ⚠️⚠️ A FALSE ALARM, WRITTEN DOWN SO THAT IT IS NOT REPEATED: the A3 soak gave
+// 41 rescuer teleports against 6 in the control run — and that is NOT a
+// regression but a DIFFERENT AMOUNT OF WORK. The A3 run went through THREE
+// levels and 2 wins, while the control sat on the first one for all 12 minutes
+// with zero wins; totals over different amounts of play were being compared.
+// Normalization separated them: clean intros 0/0 (32 runs), level changes 0
+// against 1 (48 changes), while the DISTRIBUTION of the excess past the wall
+// (8710/8856 samples, lvl 10+40, settling + 3 shakes) matched — p99 0.078/0.076,
+// max 0.173/0.180, above the norm of 0.20 ZERO for both; rescues at equal work
+// 66 (≤3) against 42 (≤2). ⛔ RULE: the total of rare events per run is
+// comparable ONLY at an equal amount of play — otherwise what gets measured is
+// the bot's progress, not the physics.
+// ⚠️⚠️ RAPIER'S PROFILER IS THE ONLY WAY TO BREAK `world.step()` INTO PHASES.
+// From the outside the physics step is ONE column, and any conversation about
+// "it is expensive in the solver" runs into it. Our build has the profiler
+// (`world.profilerEnabled`) and it serves broad/narrow/islands/solver (4
+// sub-phases) + CCD SEPARATELY (4 sub-phases).
+// ⛔ BY THE KNOB ONLY, NEVER IN THE LIVE BUILD: about twenty WASM↔JS crossings
+// per step.
+// ⚠️ THE COUNTERS ARE RESET BY EVERY `step()`, while the stepper does up to
+// SUBSTEP_CAP steps per frame — they MUST BE READ INSIDE THE LOOP, otherwise
+// only the last substep is visible, and during the pour there are exactly two
+// of them (that is, half the work would be lost).
 const PROF_KEYS = ['step','collision_detection','broad_phase','narrow_phase',
   'island_construction','solver','velocity_assembly','velocity_resolution',
   'velocity_update','velocity_writeback','ccd','ccd_broad_phase',
   'ccd_narrow_phase','ccd_solver','ccd_toi_computation','user_changes'];
 let profOn = false, profAcc = null, profWallMs = 0, profSteps = 0;
-// ВОЛНЫ ТЕЛ НА НАСЫПАНИИ (задание диспетчера #51 по заказу владельца).
-// ⚠️ ЗАЧЕМ: genLevel создаёт ~180 тел разом, и весь столб считается с ПЕРВОГО
-// шага, хотя верхние слои ещё никого не касаются. Волна = тело создано, но
-// ВЫКЛЮЧЕНО (`setEnabled(false)` — выходит из симуляции целиком, не «спит»),
-// и включается, когда до его слоя дошла очередь. Одновременно активных
-// падающих тел становится меньше, а картинка — «наливание», а не «сброс».
-// ⚠️ ЧАСЫ РЕАЛЬНЫЕ, А НЕ ИГРОВЫЕ: спека владельца названа в миллисекундах
-// («слой каждые 50-80 мс»), а игровое время в интро ещё и множится на
-// INTRO_TIME_SCALE. На просевшем кадре игровые часы растянули бы наливание.
-// ⚠️ 80 — ВЕРХ коридора спеки владельца (50-80), выбран ЗАМЕРОМ: перф растёт
-// монотонно с замедлением подачи (шаг p95 11.3 / 9.6 / 8.5 при 50 / 65 / 80),
-// а число спасений от темпа НЕ зависит вовсе (20 / 20 / 17) — значит берём
-// лучший перф внутри спеки. Дальше 80 не идём: это уже вне слова владельца.
-// ⚠️⚠️ 20 МС — «УПРОСТИ НАЛИВ, НЕ РАСТЯГИВАЙ ЕГО ТАК» (слово владельца
-// 2026-08-13, ОТМЕНЯЕТ его же коридор 50-80 из первой спеки). Замер, на
-// котором построено решение (ур.20, CPU ×4, GPU metal, 2 прохода):
-//   рука      шаг физики в интро p95   КАДР в интро p95   до штиля
-//   без волн        17.8 / 19.2            33.6 / 33.2     5.5 / 6.2 с
-//   20 мс           16.6 / 15.9            34.4 / 35.1     5.5 / 5.5 с
-//   35 мс           12.5 / 13.5            33.1 / 32.8     5.7 / 6.7 с
-//   55 мс           12.1 / 12.9            33.2 / 34.6     5.7 / 5.6 с
-// ⛔⛔ ГЛАВНОЕ ИЗ ЭТОЙ ТАБЛИЦЫ, И ОНО ВАЖНЕЕ САМОГО ТЕМПА: КАДР НЕ МЕНЯЕТСЯ
-// НИ В ОДНОЙ РУКЕ (33-35 мс везде), хотя шаг физики падает с 18 до 12. Значит
-// нагрузка кадра во время насыпания держится НЕ ФИЗИКОЙ, и «сэкономленные»
-// 6 мс солвера игроку не видны вовсе. Любой будущий заход «ускорить насыпание
-// через физику» обязан начинаться с этой строки: сперва докажи, что кадр
-// вообще следует за шагом.
-// ⚠️ Почему тогда волны остаются, а не выключены совсем: при 20 мс налив
-// визуально мгновенный (23 слоя × 20 мс = 0.46 с), время до штиля РОВНО как
-// без волн (5.5), а пик солвера всё же ниже (16 против 18) — то есть это
-// бесплатная страховка для слабых устройств, не меняющая ощущение.
-// ⚠️ Переключатель для проверки на живом телефоне: `?wave=0` выключает волны,
-// `?wave=N` ставит темп N мс (владелец сравнивает сам, без сборки).
+// WAVES OF BODIES DURING THE POUR (dispatcher's task #51 at the owner's order).
+// ⚠️ WHY: genLevel creates ~180 bodies at once, and the whole column is
+// simulated from the FIRST step, even though the upper layers are not touching
+// anyone yet. A wave = the body is created but DISABLED (`setEnabled(false)` —
+// it leaves the simulation entirely, it does not "sleep"), and is enabled when
+// the turn reaches its layer. The number of simultaneously active falling
+// bodies becomes smaller, and the picture is a "pouring in", not a "dump".
+// ⚠️ THE CLOCK IS REAL, NOT IN-GAME: the owner's spec is stated in milliseconds
+// ("a layer every 50-80 ms"), while in-game time in the intro is multiplied by
+// INTRO_TIME_SCALE on top of that. On a stalled frame the game clock would
+// stretch the pouring out.
+// ⚠️ 80 IS THE TOP of the owner's spec corridor (50-80), chosen BY MEASUREMENT:
+// the perf grows monotonically as the feed slows down (step p95 11.3 / 9.6 /
+// 8.5 at 50 / 65 / 80), while the number of rescues does NOT depend on the pace
+// at all (20 / 20 / 17) — which means we take the best perf inside the spec. We
+// do not go past 80: that is already outside the owner's word.
+// ⚠️⚠️ 20 MS — "SIMPLIFY THE POUR, DO NOT STRETCH IT OUT LIKE THAT" (the
+// owner's word 2026-08-13, it CANCELS his own 50-80 corridor from the first
+// spec). The measurement the decision is built on (lvl 20, CPU ×4, GPU metal,
+// 2 passes):
+//   arm         physics step in intro p95   FRAME in intro p95   to the calm
+//   no waves          17.8 / 19.2               33.6 / 33.2      5.5 / 6.2 s
+//   20 ms             16.6 / 15.9               34.4 / 35.1      5.5 / 5.5 s
+//   35 ms             12.5 / 13.5               33.1 / 32.8      5.7 / 6.7 s
+//   55 ms             12.1 / 12.9               33.2 / 34.6      5.7 / 5.6 s
+// ⛔⛔ THE MAIN THING FROM THIS TABLE, AND IT MATTERS MORE THAN THE PACE ITSELF:
+// THE FRAME DOES NOT CHANGE IN ANY ARM (33-35 ms everywhere), even though the
+// physics step drops from 18 to 12. That means the frame's load during the pour
+// is NOT held by PHYSICS, and the "saved" 6 ms of the solver are not visible to
+// the player at all. Any future attempt at "speeding the pour up through
+// physics" is obliged to begin from this line: first prove that the frame
+// follows the step at all.
+// ⚠️ Why the waves stay then instead of being switched off entirely: at 20 ms
+// the pour is visually instantaneous (23 layers × 20 ms = 0.46 s), the time to
+// the calm is EXACTLY as without the waves (5.5), yet the solver peak is still
+// lower (16 against 18) — that is, it is free insurance for weak devices that
+// does not change the feel.
+// ⚠️ A switch for checking on a live phone: `?wave=0` turns the waves off,
+// `?wave=N` sets the pace to N ms (the owner compares it himself, no build).
 let WAVE_MS = 20;
 let wavesOn = true;
 try {
   const _w = new URLSearchParams(location.search).get('wave');
   if (_w != null){ const n = +_w; if (n > 0) WAVE_MS = n; else wavesOn = false; }
-} catch (e) {}                    // боевое; ручка — только для A/B замера
+} catch (e) {}                    // live; the knob is only for A/B measurement
 let waveNext = 0, waveAcc = 0, waveLast = 0;
 function setWaves(v, ms){ wavesOn = !!v; if (ms != null) WAVE_MS = +ms; }
 function getWaves(){ return wavesOn; }
-// ⚠️ СЮРПРИЗ НЕ ВОЛНИТСЯ: он прибит ко дну fixed-телом до finishIntro (иначе
-// вибро-утряска выталкивает его наверх — эффект бразильского ореха). Волна
-// его бы «включила» и сняла бы прибитие не вовремя.
+// ⚠️ THE SURPRISE IS NOT WAVED: it is pinned to the floor by a fixed body until
+// finishIntro (otherwise the vibro-shaking pushes it up — the Brazil nut
+// effect). A wave would "enable" it and release the pinning at the wrong time.
 function waveHold(it){
   if (!wavesOn || !it || !it.body || it.surprise) return;
   it.body.setEnabled(false);
@@ -608,80 +662,85 @@ function waveReleaseAll(){
   for (const it of items) if (it.body && !it.body.isEnabled()) it.body.setEnabled(true);
   waveNext = 1e9;
 }
-// ⚠️ ЧАСЫ СВОИ, ВНУТРЕННИЕ: тик интро получает ИГРОВОЕ dt (оно ещё и множится
-// на INTRO_TIME_SCALE), а волны обязаны идти по реальным миллисекундам.
+// ⚠️ THE CLOCK IS OUR OWN, INTERNAL: the intro tick receives the IN-GAME dt (it
+// is multiplied by INTRO_TIME_SCALE on top of that), while the waves are
+// obliged to run on real milliseconds.
 function waveTick(){
   if (!wavesOn || waveNext >= 1e9) return 0;
   const now = performance.now();
-  if (!waveLast){ waveLast = now; return 0; }   // первый тик — только якорь
-  // ⚠️ КЛАМП: после просевшего кадра без него высыпался бы разом весь столб —
-  // ровно то «наливание», ради которого волны и делались, пропало бы на самом
-  // слабом устройстве, где оно нужнее всего.
+  if (!waveLast){ waveLast = now; return 0; }   // the first tick is only an anchor
+  // ⚠️ THE CLAMP: without it the whole column would spill out at once after a
+  // stalled frame — exactly the "pouring in" the waves were made for would be
+  // lost on the very weakest device, where it is needed most.
   const dtMs = Math.min(now - waveLast, WAVE_MS * 4);
   waveLast = now;
   waveAcc += dtMs;
-  let открыто = 0;
+  let opened = 0;
   while (waveAcc >= WAVE_MS){
     waveAcc -= WAVE_MS;
-    let есть = false;
+    let found = false;
     for (const it of items){
       if (!it.body || (it.wave | 0) !== waveNext) continue;
-      есть = true;
-      if (!it.body.isEnabled()){ it.body.setEnabled(true); открыто++; }
+      found = true;
+      if (!it.body.isEnabled()){ it.body.setEnabled(true); opened++; }
     }
     waveNext++;
-    // очередь кончилась — больше волн нет, дальше тик бесплатный
-    if (!есть && waveNext > 64){ waveNext = 1e9; break; }
+    // the queue has run out — no more waves, from here the tick is free
+    if (!found && waveNext > 64){ waveNext = 1e9; break; }
   }
-  return открыто;
+  return opened;
 }
 function waveInfo(){
-  let выкл = 0, всего = 0;
-  for (const it of items){ if (!it.body) continue; всего++; if (!it.body.isEnabled()) выкл++; }
-  return { волны: wavesOn, шагМс: WAVE_MS, следующая: waveNext, выключено: выкл, тел: всего };
+  let offCount = 0, total = 0;
+  for (const it of items){ if (!it.body) continue; total++; if (!it.body.isEnabled()) offCount++; }
+  return { waves: wavesOn, stepMs: WAVE_MS, next: waveNext, disabled: offCount, bodies: total };
 }
 
-const RESCUE_WALL_TOL = 0.18;          // БОЕВОЕ. Ручка ниже — только замер.
+const RESCUE_WALL_TOL = 0.18;          // LIVE. The knob below is measurement only.
 let rescueWallTol = RESCUE_WALL_TOL;
 function setRescueWallTol(v){ rescueWallTol = (v == null ? RESCUE_WALL_TOL : +v); }
 function getRescueWallTol(){ return rescueWallTol; }
-let ccdDefault = true;                 // боевое; крутится ТОЛЬКО замером
-// ИЗБИРАТЕЛЬНЫЙ CCD: включать защиту от туннелирования ТОЛЬКО быстрым телам.
-// ⚠️ ОСНОВАНИЕ — ЗАМЕР, А НЕ ИДЕЯ: разбор `world.step()` профайлером Rapier
-// показал, что CCD стоит 41% шага в насыпании, и платят его ВСЕ тела — даже
-// почти улёгшаяся куча отдаёт 12.6% (замер на осевшей куче после встряски).
-// То есть цена НЕ гейтится движком по скорости, и её можно вернуть.
-// ⛔ БОЕВОЕ ЗНАЧЕНИЕ — ВЫКЛЮЧЕНО: включение меняет ПОВЕДЕНИЕ (анти-туннель),
-// а поведение — слово владельца, не моё.
-// ⛔⛔ НАДГРОБИЕ 2026-08-14, ПОСЛЕ ПЕРЕХОДА НА RAPIER 0.20: ЭТОТ ПРИБОР БОЛЬШЕ
-// НЕ МЕРЯЕТ ТО, ЧТО ОБЕЩАЕТ. В 0.20 семантика CCD ИНВЕРТИРОВАНА: против
-// ФИКСИРОВАННЫХ коллайдеров (наши стены и дно!) он теперь работает
-// БЕЗУСЛОВНО, а `enableCcd(true)` означает «пуля» (свип и против кинематики с
-// динамикой); единственный полный выключатель — `maxCcdSubsteps = 0`.
-// Следствия, которые обязан знать следующий:
-//   • включение `setCcdSel` больше НЕ снимает цену CCD у медленных тел —
-//     ручка крутится, а поведение не меняется;
-//   • записанный замер «CCD off -> солвер 15.8» (2026-08-11) на 0.20
-//     НЕ ВОСПРОИЗВОДИТСЯ и как опора мёртв;
-//   • `physKnobs({ccd:false})` в 0.20 — тоже не полный выключатель.
-// ⚠️ Само по себе это НЕ регрессия игры: боевое значение выключено, а против
-// стен CCD и раньше был нужен. Опасность именно в приборе — не мерить им.
+let ccdDefault = true;                 // live; turned ONLY by a measurement
+// SELECTIVE CCD: switch the anti-tunnelling protection on for FAST bodies ONLY.
+// ⚠️ THE GROUNDS ARE A MEASUREMENT, NOT AN IDEA: breaking `world.step()` down
+// with Rapier's profiler showed that CCD costs 41% of the step during the pour,
+// and ALL bodies pay for it — even an almost settled pile gives up 12.6%
+// (measured on a settled pile after a shake). That is, the cost is NOT gated by
+// the engine on speed, and it can be reclaimed.
+// ⛔ THE LIVE VALUE IS OFF: switching it on changes BEHAVIOUR (anti-tunnel),
+// and behaviour is the owner's word, not mine.
+// ⛔⛔ TOMBSTONE 2026-08-14, AFTER THE MOVE TO RAPIER 0.20: THIS INSTRUMENT NO
+// LONGER MEASURES WHAT IT PROMISES. In 0.20 the semantics of CCD are INVERTED:
+// against FIXED colliders (our walls and floor!) it now works UNCONDITIONALLY,
+// while `enableCcd(true)` means "bullet" (a sweep against kinematic and dynamic
+// bodies too); the only full off-switch is `maxCcdSubsteps = 0`.
+// The consequences the next person is obliged to know:
+//   • switching `setCcdSel` on NO LONGER removes the CCD cost from slow bodies —
+//     the knob turns, but the behaviour does not change;
+//   • the recorded measurement "CCD off -> solver 15.8" (2026-08-11) DOES NOT
+//     REPRODUCE on 0.20 and is dead as a support;
+//   • `physKnobs({ccd:false})` in 0.20 is not a full off-switch either.
+// ⚠️ By itself this is NOT a regression of the game: the live value is off, and
+// against the walls CCD was needed before too. The danger is in the instrument
+// itself — do not measure with it.
 let ccdSelOn = false, CCD_V_ON = 8, CCD_V_OFF = 4;
-let ccdSelFlips = 0;                   // сколько раз переключали (цена ручки)
+let ccdSelFlips = 0;                   // how many times it was flipped (knob cost)
 function setCcdSel(on, vOn, vOff){
   ccdSelOn = !!on;
   if (vOn != null) CCD_V_ON = +vOn;
   if (vOff != null) CCD_V_OFF = +vOff;
   ccdSelFlips = 0;
-  // при выключении возвращаем всем умолчание — иначе часть тел осталась бы
-  // без защиты, и следующий замер мерил бы смесь двух конфигураций
+  // on switching off we hand the default back to everyone — otherwise some
+  // bodies would be left without protection and the next measurement would be
+  // measuring a mix of two configurations
   if (!ccdSelOn) for (const it of items) if (it.alive && it.body){
     it._ccd = ccdDefault; it.body.enableCcd(ccdDefault);
   }
   return { ccdSel: ccdSelOn, vOn: CCD_V_ON, vOff: CCD_V_OFF };
 }
-// ⚠️ ГИСТЕРЕЗИС ОБЯЗАТЕЛЕН: у порога без него тело дёргало бы флаг каждый шаг,
-// а сам вызов enableCcd будит соседей и стоит дороже проверки.
+// ⚠️ HYSTERESIS IS MANDATORY: without it a body sitting at the threshold would
+// jerk the flag every step, and the enableCcd call itself wakes the neighbours
+// and costs more than the check does.
 function tickCcdSel(){
   if (!ccdSelOn) return;
   const on2 = CCD_V_ON * CCD_V_ON, off2 = CCD_V_OFF * CCD_V_OFF;
@@ -689,17 +748,17 @@ function tickCcdSel(){
     if (!it.alive || !it.body) continue;
     const v = it.body.linvel();
     const s2 = v.x*v.x + v.y*v.y + v.z*v.z;
-    const было = it._ccd === undefined ? ccdDefault : !!it._ccd;
-    const надо = было ? (s2 > off2) : (s2 > on2);
-    if (надо !== было){ it._ccd = надо; it.body.enableCcd(надо); ccdSelFlips++; }
+    const was = it._ccd === undefined ? ccdDefault : !!it._ccd;
+    const want = was ? (s2 > off2) : (s2 > on2);
+    if (want !== was){ it._ccd = want; it.body.enableCcd(want); ccdSelFlips++; }
   }
 }
 function ccdSelInfo(){
-  let сCcd = 0, живых = 0;
-  for (const it of items){ if (!it.alive || !it.body) continue; живых++;
-    if (it._ccd === undefined ? ccdDefault : it._ccd) сCcd++; }
-  return { режим: ccdSelOn, vOn: CCD_V_ON, vOff: CCD_V_OFF, живых, сCcd,
-    доля: живых ? +(сCcd / живых).toFixed(3) : 0, переключений: ccdSelFlips };
+  let withCcd = 0, alive = 0;
+  for (const it of items){ if (!it.alive || !it.body) continue; alive++;
+    if (it._ccd === undefined ? ccdDefault : it._ccd) withCcd++; }
+  return { mode: ccdSelOn, vOn: CCD_V_ON, vOff: CCD_V_OFF, alive, withCcd,
+    share: alive ? +(withCcd / alive).toFixed(3) : 0, flips: ccdSelFlips };
 }
 function setCcdDefault(v){ ccdDefault = !!v; }
 function getCcdDefault(){ return ccdDefault; }
@@ -710,64 +769,67 @@ function profEnable(on){
   try { world.profilerEnabled = profOn; } catch(e){ return { ok:false, why:String(e) }; }
   let has = false;
   try { has = typeof world.physicsPipeline.raw.timing_step === 'function'; } catch(e){}
-  return { ok: has, профайлер: profOn };
+  return { ok: has, profiler: profOn };
 }
 function profActive(){ return profOn; }
 function profTake(){
-  const o = { шагов: profSteps, часыJS: +profWallMs.toFixed(2) };
+  const o = { steps: profSteps, jsClock: +profWallMs.toFixed(2) };
   if (!profSteps) return o;
   for (const k of PROF_KEYS) o[k] = +profAcc[k].toFixed(4);
-  // ⚠️⚠️ ОСТАТОК ОБЯЗАТЕЛЕН (правило про именованные фазы): без него новая
-  // дорогая строка молча припишется тому, кто в таблице уже есть — ровно так
-  // `blastWave` полгода числился подозреваемым.
-  o.остаток = +(o.step - (o.collision_detection + o.island_construction
+  // ⚠️⚠️ THE REMAINDER IS MANDATORY (the rule about named phases): without it a
+  // new expensive line would silently be attributed to someone already in the
+  // table — that is exactly how `blastWave` was a suspect for half a year.
+  o.remainder = +(o.step - (o.collision_detection + o.island_construction
     + o.solver + o.ccd + o.user_changes)).toFixed(4);
-  // ⚠️ ВТОРОЙ ШОВ: сам `timing_step` против НАШИХ часов вокруг `world.step()`.
-  // Он же калибрует ЕДИНИЦЫ: единицы счётчиков Rapier мы не знаем заранее и
-  // НЕ принимаем за миллисекунды — сверяем с часами.
-  o.шовЧасы = +(profWallMs - o.step).toFixed(2);
+  // ⚠️ THE SECOND SEAM: `timing_step` itself against OUR clock around
+  // `world.step()`. It also calibrates the UNITS: we do not know the units of
+  // Rapier's counters in advance and do NOT take them for milliseconds — we
+  // check them against the clock.
+  o.clockSeam = +(profWallMs - o.step).toFixed(2);
   return o;
 }
 
-// ПЕРЕПИСЬ ФОРМ В ЖИВОЙ КУЧЕ — чем на самом деле занят наррофаза.
-// ⚠️ Нужна потому, что «дорого держат компаунды» — ГИПОТЕЗА о составе пула, а
-// состав менялся: процедурные примитивы (тор/узел/спираль) из пула убраны
-// 2026-07-21, кольцо пончика открывается только с ур.110. Перепись отвечает
-// на вопрос ЗАМЕРОМ, а не пересказом канона.
+// A CENSUS OF THE SHAPES IN THE LIVE PILE — what the narrow phase is really
+// busy with.
+// ⚠️ It is needed because "the compounds are what costs" is a HYPOTHESIS about
+// the composition of the pool, and the composition kept changing: the
+// procedural primitives (torus/knot/spiral) were removed from the pool on
+// 2026-07-21, and the doughnut's ring only opens from lvl 110. The census
+// answers the question BY MEASUREMENT, not by retelling the canon.
 function shapeCensus(){
   const T = ['Ball','Cuboid','Capsule','Segment','Polyline','Triangle','TriMesh',
     'HeightField','?8','ConvexPolyhedron','Cylinder','Cone','RoundCuboid',
     'RoundTriangle','RoundCylinder','RoundCone','RoundConvexPolyhedron',
     'HalfSpace','Voxels'];
-  const поФормам = {}, поПачкам = {}, компаунды = [];
-  let тел = 0, коллайдеров = 0, вершинВсего = 0;
+  const byShape = {}, byPack = {}, compounds = [];
+  let bodies = 0, colliders = 0, vertsTotal = 0;
   for (const it of items){
     if (!it.alive || !it.body) continue;
-    тел++;
+    bodies++;
     const n = it.body.numColliders();
-    коллайдеров += n;
-    const виды = {};
+    colliders += n;
+    const kinds = {};
     for (let i = 0; i < n; i++){
       const c = it.body.collider(i);
       let t = -1; try { t = c.shapeType(); } catch(e){}
-      const имя = T[t] || ('тип' + t);
-      виды[имя] = (виды[имя] || 0) + 1;
-      поФормам[имя] = (поФормам[имя] || 0) + 1;
-      if (имя === 'ConvexPolyhedron'){
-        try { const v = c.vertices(); if (v) вершинВсего += v.length / 3; } catch(e){}
+      const name = T[t] || ('type' + t);
+      kinds[name] = (kinds[name] || 0) + 1;
+      byShape[name] = (byShape[name] || 0) + 1;
+      if (name === 'ConvexPolyhedron'){
+        try { const v = c.vertices(); if (v) vertsTotal += v.length / 3; } catch(e){}
       }
     }
-    const пачка = (it.type && it.type.tex) || ((it.surprise ? 'surprise'
-      : (it.bomb ? 'bomb' : 'прочее')));
-    поПачкам[пачка] = (поПачкам[пачка] || 0) + 1;
-    // компаунд = больше одного коллайдера на теле (цепочки капсул, кольцо)
-    if (n > 1) компаунды.push({ имя: (it.type && it.type.name) || пачка, коллайдеров: n, виды });
+    const pack = (it.type && it.type.tex) || ((it.surprise ? 'surprise'
+      : (it.bomb ? 'bomb' : 'other')));
+    byPack[pack] = (byPack[pack] || 0) + 1;
+    // a compound = more than one collider on a body (capsule chains, the ring)
+    if (n > 1) compounds.push({ name: (it.type && it.type.name) || pack, colliders: n, kinds });
   }
-  return { тел, коллайдеров, наТело: тел ? +(коллайдеров / тел).toFixed(2) : 0,
-    поФормам, поПачкам, компаундовТел: компаунды.length,
-    компаунды: компаунды.slice(0, 12),
-    вершинHull: вершинВсего, вершинНаHull: поФормам.ConvexPolyhedron
-      ? +(вершинВсего / поФормам.ConvexPolyhedron).toFixed(1) : 0 };
+  return { bodies, colliders, perBody: bodies ? +(colliders / bodies).toFixed(2) : 0,
+    byShape, byPack, compoundBodies: compounds.length,
+    compounds: compounds.slice(0, 12),
+    hullVerts: vertsTotal, vertsPerHull: byShape.ConvexPolyhedron
+      ? +(vertsTotal / byShape.ConvexPolyhedron).toFixed(1) : 0 };
 }
 
 let SUBSTEP_CAP = 2;
@@ -775,7 +837,7 @@ function setMaxSubsteps(n){ SUBSTEP_CAP = Math.max(1, n | 0); }
 function maxSubsteps(){ return SUBSTEP_CAP; }
 function stepPhysics(dt){
   const _t0 = performance.now();
-  tickCcdSel();                       // ручка замера; в боевом режиме выходит сразу
+  tickCcdSel();                       // measurement knob; in live mode it exits at once
   physAcc = Math.min(physAcc + dt, SUBSTEP_CAP/60);
   let n = 0;
   while (physAcc >= 1/60){
@@ -800,7 +862,7 @@ function stepPhysics(dt){
   const _t2 = performance.now(); stepCapMs = _t2 - _t1;
   syncMeshes();
   const _t3 = performance.now(); stepSyncMs = _t3 - _t2;
-  // страховка (раз в 0.5 с): предмет за пределами чаши возвращается внутрь
+  // insurance (once per 0.5 s): an item outside the bowl is returned inside
   const now = performance.now();
   if (now - rescueMs > 500){
     rescueMs = now;
@@ -809,29 +871,35 @@ function stepPhysics(dt){
   stepRescueMs = performance.now() - _t3;
   stepMsLast = performance.now() - _t0;
 }
-// Возврат «сбежавших»: край предмета глубже 0.18 в стекле (вдавлен в стену/
-// снаружи) или ниже дна — телепорт внутрь. ОБЯЗАТЕЛЬНО зовётся перед сном:
-// глобальный сон умел замораживать недовытолкнутые из стен тела.
-// ГОРИЗОНТАЛЬНЫЙ ВЫЛЕТ предмета В СТОРОНУ СТЕНЫ с учётом ТЕКУЩЕГО ПОВОРОТА.
-// ⚠️ Прежний wallR — ОДНО число на тип, то есть предмет считался шаром. Для
-// плоских моделей это врёт вдвое: у пиццы охват 1.0 при любом наклоне, хотя
-// ребром она занимает по горизонтали доли этого. Отсюда шторм ложных спасений
-// (8 за интро при норме 0) — а спасение это ТЕЛЕПОРТ, игрок видит рывок.
-// Здесь берётся ориентированная коробка: проекция её полуразмеров на
-// радиальное направление. Для шара результат прежний, для плоского — честный.
+// Returning the "escapees": the edge of an item deeper than 0.18 into the glass
+// (pressed into the wall / outside) or below the floor — a teleport inside. IT
+// IS MANDATORY to call this before sleep: the global sleep used to freeze
+// bodies that had not been fully pushed out of the walls.
+// The HORIZONTAL PROTRUSION of an item TOWARDS THE WALL, with the CURRENT
+// ROTATION taken into account.
+// ⚠️ The former wallR was ONE number per type, i.e. the item was treated as a
+// ball. For flat models that lies by a factor of two: the pizza's reach is 1.0
+// at any tilt, although on its edge it takes up a fraction of that
+// horizontally. Hence the storm of false rescues (8 per intro against a norm of
+// 0) — and a rescue is a TELEPORT, the player sees a jerk.
+// Here an oriented box is taken: the projection of its half-extents onto the
+// radial direction. For a ball the result is the same, for a flat one — honest.
 const _rq = new THREE.Quaternion(), _rm = new THREE.Matrix4();
-// ⚠️⚠️ ТОЧНЫЙ РАДИАЛЬНЫЙ ОХВАТ — опорная функция по вершинам, БЕЗ оценок сверху.
-// Заведён для ДИАГНОСТИКИ, и вот почему: `radialReach` берёт min(сфера, коробка),
-// обе — честные верхние границы, но у изогнутых и вытянутых моделей запас
-// доходит до величины БОЛЬШЕЙ, чем сам порог тревоги. Замер (24 позы, ось +X,
-// запас = оценка − истина): банан медиана 0.087 / максимум 0.360, пальма
-// 0.109 / 0.328, свинья 0.062 / 0.193, арбуз 0.051 / 0.071, плашка 0.001 / 0.035.
-// При пороге 0.20 это значит: тревога 0.22-0.29 на банане МОЖЕТ БЫТЬ ЦЕЛИКОМ
-// запасом метрики, и отличить «вжало в стену» от «форма такая» она не умеет.
-// ⛔ СПАСАТЕЛЬ ОСТАВЛЕН НА ОЦЕНКЕ СВЕРХУ НАМЕРЕННО: там консерватизм полезен
-// (лучше вернуть невылетевшего, чем упустить вылетевшего), и цена важнее —
-// он ходит по всей куче дважды в секунду, а перебор вершин это ~90 тысяч
-// поворотов на развёртку. Диагностика зовётся раз в 5 секунд, ей можно точно.
+// ⚠️⚠️ THE EXACT RADIAL REACH — a reference function over the vertices, WITHOUT
+// upper estimates. It was made for DIAGNOSTICS, and here is why: `radialReach`
+// takes min(sphere, box), both of which are honest upper bounds, but on curved
+// and elongated models the slack reaches a value LARGER than the alarm
+// threshold itself. Measurement (24 poses, the +X axis, slack = estimate −
+// truth): banana median 0.087 / maximum 0.360, palm 0.109 / 0.328, pig
+// 0.062 / 0.193, watermelon 0.051 / 0.071, slab 0.001 / 0.035.
+// At a threshold of 0.20 this means: an alarm of 0.22-0.29 on the banana MAY BE
+// ENTIRELY the metric's slack, and it cannot tell "pressed into the wall" from
+// "that is just its shape".
+// ⛔ THE RESCUER IS DELIBERATELY LEFT ON THE UPPER ESTIMATE: conservatism is
+// useful there (better to return one that did not escape than to miss one that
+// did), and the cost matters more — it walks the whole pile twice a second,
+// while iterating vertices is ~90 thousand rotations per sweep. The diagnostics
+// are called once per 5 seconds, they can afford to be exact.
 const _rrV = new THREE.Vector3();
 function radialReachExact(it, ux, uz){
   const g = it.geo, P = g && g.attributes && g.attributes.position && g.attributes.position.array;
@@ -852,40 +920,43 @@ function radialReach(it, ux, uz){
   const r = it.body.rotation();
   _rq.set(r.x, r.y, r.z, r.w);
   _rm.makeRotationFromQuaternion(_rq);
-  const m = _rm.elements; // столбцы — оси предмета в мире
+  const m = _rm.elements; // the columns are the item's axes in world space
   const obb = it.scl * (h.x * Math.abs(ux * m[0] + uz * m[2])
                       + h.y * Math.abs(ux * m[4] + uz * m[6])
                       + h.z * Math.abs(ux * m[8] + uz * m[10]));
-  // ⚠️ МИНИМУМ из коробки и ОХВАТНОЙ СФЕРЫ. Коробка тесна для плоских, но для
-  // КРУГЛЫХ она ХУЖЕ сферы: по диагонали даёт до 1.73 радиуса, и арбуз начал
-  // ложно спасаться там, где раньше проходил. Обе оценки — честные верхние
-  // границы, значит их минимум тоже честен и всегда не хуже каждой.
+  // ⚠️ THE MINIMUM of the box and the BOUNDING SPHERE. The box is tight for the
+  // flat ones, but for the ROUND ones it is WORSE than the sphere: along the
+  // diagonal it gives up to 1.73 radii, and the watermelon started being falsely
+  // rescued where it used to pass. Both estimates are honest upper bounds, so
+  // their minimum is honest too and is always no worse than either of them.
   return Math.min(it.r, obb);
 }
-// ВЕРТИКАЛЬНЫЙ ВЫЛЕТ ВНИЗ с учётом ТЕКУЩЕГО ПОВОРОТА — та же ориентированная
-// коробка, что у radialReach, только проекция на мировую вертикаль. Нужна
-// именно она, а не охватная сфера: у плоской модели охват под полметра, а
-// плашмя она занимает вниз считанные сотые. ⚠️ min(r, obb) — по той же
-// причине, что в radialReach.
-// ⚠️ ЭТО ВЕРХНЯЯ ГРАНИЦА, а не точный габарит: для выпуклой оболочки коробка
-// щедра (замер: у лежащей на полу кучи «нижняя точка» уходит под пол до 0.39
-// чистой арифметикой, без всякого проникновения). Поэтому НА НЕЙ НЕЛЬЗЯ
-// СТРОИТЬ ПОРОГ спасателя (он на истинном проникновении, см. rescueSweep) —
-// здесь она только для диагностики (itemsBrief.low).
+// THE DOWNWARD VERTICAL PROTRUSION with the CURRENT ROTATION taken into
+// account — the same oriented box as in radialReach, only projected onto the
+// world vertical. It is exactly this that is needed and not the bounding
+// sphere: a flat model's reach is close to half a metre, while lying flat it
+// takes up mere hundredths downwards. ⚠️ min(r, obb) — for the same reason as
+// in radialReach.
+// ⚠️ THIS IS AN UPPER BOUND, not an exact extent: for a convex hull the box is
+// generous (measurement: for a pile lying on the floor the "lowest point" goes
+// under the floor by up to 0.39 by pure arithmetic, without any penetration at
+// all). Therefore THE RESCUER'S THRESHOLD MUST NOT BE BUILT ON IT (it stands on
+// the true penetration, see rescueSweep) — here it is only for diagnostics
+// (itemsBrief.low).
 function downReach(it){
   const h = it.half;
   if (!h || !it.body) return it.r;
   const r = it.body.rotation();
   _rq.set(r.x, r.y, r.z, r.w);
   _rm.makeRotationFromQuaternion(_rq);
-  const m = _rm.elements; // столбцы — оси предмета в мире; вертикаль: m[1], m[5], m[9]
+  const m = _rm.elements; // columns are the item's axes in world; vertical: m[1], m[5], m[9]
   const obb = it.scl * (h.x * Math.abs(m[1]) + h.y * Math.abs(m[5]) + h.z * Math.abs(m[9]));
   return Math.min(it.r, obb);
 }
 function lowestPoint(it){ return it.p.y - downReach(it); }
-// ИСТИННОЕ проникновение в плиту пола по контактному манифолду Rapier
-// (contactDist < 0 = перекрытие) — ground truth для замеров, в отличие от
-// оценок по сфере/коробке. null = контакта с полом нет вовсе.
+// The TRUE penetration into the floor plate, taken from Rapier's contact
+// manifold (contactDist < 0 = an overlap) — ground truth for measurements, as
+// opposed to the sphere/box estimates. null = there is no floor contact at all.
 function floorPenetration(it){
   if (!floorCol || !it.body || !world.contactPair) return null;
   let deepest = null;
@@ -901,174 +972,201 @@ function floorPenetration(it){
   } catch (e){ return null; }
   return deepest;
 }
-// beforeSleep — вызов ИЗ sleepPhysics, перед самой заморозкой мира. Тогда
-// гейт покоя снимается: «предмет ещё движется, сам выйдет» верно только пока
-// физика шагает, а здесь она через мгновение остановится совсем.
-// Порог просадки ДЛЯ КОНКРЕТНОГО ПРЕДМЕТА. Вынесен отдельной функцией не ради
-// красоты: страж обязан читать ТУ ЖЕ величину, которой пользуется спасатель, —
-// иначе он проверяет свою копию формулы и разъедется с боем при первой правке.
+// beforeSleep — the call FROM sleepPhysics, right before the world is frozen.
+// The calm gate is then lifted: "the item is still moving, it will get out by
+// itself" is only true while physics keeps stepping, and here it is about to
+// stop altogether in an instant.
+// The sinking threshold FOR A SPECIFIC ITEM. It is pulled out into its own
+// function not for beauty: the guard is obliged to read THE SAME quantity the
+// rescuer uses — otherwise it checks its own copy of the formula and will drift
+// apart from the live code at the first edit.
 function floorPenLimit(it){
   return Math.min(FLOOR_PEN_MAX, FLOOR_PEN_FRAC * downReach(it));
 }
 function rescueSweep(beforeSleep){
-  // ⚠️⚠️ ПРИ РАЗЛЁТЕ ЧАШИ СПАСАТЕЛЬ МОЛЧИТ. Он считает предмет «сбежавшим» по
-  // `radiusAt(y)` — радиусу чаши, которой в этот момент УЖЕ НЕТ, — и возвращал
-  // бы разлетающиеся предметы внутрь, обнуляя им скорости. Наглядно: окно от
-  // разлёта до волны сбора 900 мс, развёртка ходит раз в 500 — попадание
-  // ГАРАНТИРОВАНО, а `blastWave(центр, R=9)` в shatterBowl специально швыряет
-  // кучу наружу. Игрок увидел бы, как предметы прыгают обратно и замирают ПО
-  // ФОРМЕ ЧАШИ — ровно тот силуэт, ради устранения которого дно и делали
-  // призрачным; плюс волне сбора стало бы некого догонять в полёте.
-  // ⚠️ ГЕЙТ ВНУТРИ ФУНКЦИИ, А НЕ У ВЫЗЫВАЮЩИХ: их уже два (шаг физики раз в
-  // 0.5 с и пред-сонный из 99-main), и третий появится молча.
+  // ⚠️⚠️ ON A BOWL SHATTER THE RESCUER STAYS SILENT. It judges an item to have
+  // "escaped" by `radiusAt(y)` — the radius of a bowl that AT THAT MOMENT NO
+  // LONGER EXISTS — and would return the scattering items inside, zeroing their
+  // velocities. Concretely: the window from the shatter to the collect wave is
+  // 900 ms and the sweep runs once per 500 — a hit is GUARANTEED, while
+  // `blastWave(centre, R=9)` in shatterBowl deliberately throws the pile
+  // outwards. The player would see the items jump back and freeze IN THE SHAPE
+  // OF THE BOWL — exactly the silhouette the floor was made ghostly to remove;
+  // plus the collect wave would have nobody left to catch up with in flight.
+  // ⚠️ THE GATE IS INSIDE THE FUNCTION, NOT AT THE CALLERS: there are already
+  // two of them (the physics step once per 0.5 s and the pre-sleep one from
+  // 99-main), and a third will appear silently.
   if (bowlOpen) return 0;
   let rescued = 0;
   for (const it of items){
     if (!it.alive || !it.body) continue;
-    // ⚠️⚠️ ТЕЛО, ЖДУЩЕЕ СВОЕЙ ВОЛНЫ, СПАСАТЬ НЕ ОТ ЧЕГО (диспетчер, приёмка
-    // волн #51, 2026-08-13). Оно ВЫКЛЮЧЕНО из симуляции и стоит там, где его
-    // поставил genLevel, — «уехать» само по себе не может по построению.
-    // ЗАМЕР, НАШЕДШИЙ ЭТО: все лишние спасения интро при волнах приходились на
-    // высоты 22.9 и 26.07 (ур.11 и 20) — заведомо выше кромки 9.2 и выше
-    // верха включённого столба, без волн их РОВНО НОЛЬ. Причина: спавн раскидан
-    // на всю ширину кромки, выше кромки `radiusAt` даёт R1, и стоящее тело у
-    // края проходит по условию выхода, как только снимается временная стена
-    // (без волн все успевали упасть раньше — потому дефекта и не было).
-    // ⛔ ЦЕНА БЫЛА НЕ КОСМЕТИЧЕСКОЙ: телепорт зажимает высоту к `FUNNEL.H`,
-    // то есть ждущее тело сбрасывалось в чашу ВНЕ ОЧЕРЕДИ — ровно то
-    // «наливание», ради которого волны и делались, для этих тел ломалось.
-    // ⚠️ Это и есть «ЖИВОЕ условие на момент срабатывания», которого не хватило
-    // отклонённому гейту по временной стене (надгробие ниже): состояние тела
-    // читается СЕЙЧАС, а не выводится из фазы интро.
+    // ⚠️⚠️ A BODY WAITING FOR ITS WAVE HAS NOTHING TO BE RESCUED FROM (the
+    // dispatcher, acceptance of the waves #51, 2026-08-13). It is DISABLED from
+    // the simulation and stands where genLevel put it — by construction it
+    // cannot "drift away" on its own.
+    // THE MEASUREMENT THAT FOUND THIS: all the surplus intro rescues under the
+    // waves fell at the heights 22.9 and 26.07 (lvl 11 and 20) — plainly above
+    // the rim of 9.2 and above the top of the enabled column; without the waves
+    // there are EXACTLY ZERO of them. The reason: the spawn is scattered over
+    // the full width of the rim, above the rim `radiusAt` returns R1, and a body
+    // standing at the edge satisfies the escape condition as soon as the
+    // temporary wall is removed (without the waves everybody managed to fall
+    // earlier — which is why there was no defect).
+    // ⛔ THE PRICE WAS NOT COSMETIC: a teleport clamps the height to `FUNNEL.H`,
+    // that is, a waiting body was dropped into the bowl OUT OF TURN — exactly
+    // the "pouring in" the waves were made for was broken for those bodies.
+    // ⚠️ This is precisely the "LIVE condition at the moment of firing" that the
+    // rejected gate on the temporary wall lacked (tombstone below): the body's
+    // state is read NOW, it is not inferred from the phase of the intro.
     if (!it.body.isEnabled()) continue;
     const d = Math.hypot(it.p.x, it.p.z);
-    // при стоящей временной стене спавна легальный радиус — R1 на любой высоте
-    // (падающие у края телепортировались ПРЯМО В ПОЛЁТЕ на глазах игрока);
-    // горизонтальный габарит — wallR: у ПЛОСКИХ моделей охватный r сильно
-    // переоценивает ширину и давал шторм ложных спасений (грабля найдена на
-    // стейке — тип удалён в v187, но правило про КЛАСС плоских живо: wr в
-    // TYPES обязателен любой модели с одной осью много меньше остальных)
+    // while the temporary spawn wall stands, the legal radius is R1 at any
+    // height (items falling near the edge were teleported RIGHT IN FLIGHT in
+    // front of the player); the horizontal extent is wallR: for FLAT models the
+    // bounding r badly overestimates the width and produced a storm of false
+    // rescues (the rake was found on the steak — the type was removed in v187,
+    // but the rule about the CLASS of flat ones is alive: wr in TYPES is
+    // mandatory for any model with one axis much smaller than the others)
     const nx = d > 1e-3 ? it.p.x / d : 1, nz = d > 1e-3 ? it.p.z / d : 0;
     const legalR = tmpWallBody ? Math.max(wallDistAt(it.p.y, nx, nz), FUNNEL.R1)
                                : wallDistAt(it.p.y, nx, nz);
     const reach = d > 1e-3 ? radialReach(it, nx, nz) : (it.wallR || it.r);
-    // ⚠️ ДОПУСК ВЫНЕСЕН РУЧКОЙ РАДИ ЗАМЕРА (боевое значение 0.18 не менялось):
-    // норме `wallExcess` в соаке не хватало ДЕФЕКТНОЙ ОПОРЫ, а её нельзя
-    // дождаться — настоящее застревание может не случиться никогда, если
-    // механика здорова. Ослабление ЭТОГО допуска даёт градуированный дефект,
-    // не трогая опорную геометрию: стены и `radiusAt` те же, просто настоящий
-    // выступ доживает до сэмпла. ⛔ Ветки ПОЛА и ПОТОЛКА ручке не подчиняются
-    // намеренно — иначе дефект двигал бы заодно тревогу подъёмов пола, и
-    // приписать наблюдение было бы нечему (диверсия бьёт в СВОЙСТВО, не в
-    // соседа).
-    // ⛔ ПРОБОВАЛИ И ОТКЛОНИЛИ ЗАМЕРОМ (2026-08-13, задание #51): гейт «не
-    // трогать предметы выше кромки, пока стоит временная стена» — против роста
-    // спасений от волн. НЕ ПОМОГ: 20 против 18, выше кромки те же 18. Причина в
-    // ошибочном допущении, а не в идее: временная стена снимается на переходе
-    // drop -> orbit, а спасения случаются ПОЗЖЕ, когда её уже нет, — гейт почти
-    // никогда не истинен. Идею можно вернуть, но условием ДОЛЖНА быть не стена,
-    // а что-то живое на момент срабатывания. Не изобретать заново в прежнем виде.
-    const дно = FLOOR_REST;
+    // ⚠️ THE TOLERANCE IS EXPOSED AS A KNOB FOR THE SAKE OF MEASUREMENT (the
+    // live value 0.18 has not changed): the `wallExcess` norm in the soak was
+    // missing a DEFECTIVE SUPPORT, and one cannot wait for it — a real jam may
+    // never happen at all if the mechanics are healthy. Loosening THIS tolerance
+    // gives a graduated defect without touching the supporting geometry: the
+    // walls and `radiusAt` are the same, it is just that a genuine protrusion
+    // survives until the sample. ⛔ The FLOOR and CEILING branches deliberately
+    // do not obey the knob — otherwise the defect would move the alarm for floor
+    // lifts along with it, and there would be nothing to attribute the
+    // observation to (a sabotage test strikes at a PROPERTY, not at its
+    // neighbour).
+    // ⛔ TRIED AND REJECTED BY MEASUREMENT (2026-08-13, task #51): a gate "do
+    // not touch items above the rim while the temporary wall stands" — against
+    // the growth of rescues caused by the waves. IT DID NOT HELP: 20 against 18,
+    // above the rim the same 18. The reason lies in a mistaken assumption, not
+    // in the idea: the temporary wall is removed at the drop -> orbit
+    // transition, while the rescues happen LATER, when it is already gone — so
+    // the gate is almost never true. The idea can be brought back, but the
+    // condition MUST be something live at the moment of firing, not the wall.
+    // Do not reinvent it in its former shape.
+    const bottom = FLOOR_REST;
     const out = (d + reach) > legalR + rescueWallTol
-      || it.p.y < дно - 0.8 || it.p.y > RESCUE_CEIL;
+      || it.p.y < bottom - 0.8 || it.p.y > RESCUE_CEIL;
     if (out){
       rescued++;
       console.warn('[rescue]', it.type.name, 'd=' + d.toFixed(2), 'y=' + it.p.y.toFixed(2), 'r=' + it.r.toFixed(2));
-      // ЛОКАЛЬНО внутрь на той же высоте: телепорт на верх чаши был виден
-      // игроку как «прыжок» и затягивал осадку (предмет падал заново)
-      const верхЗоны = FUNNEL.H;
-      const ry = Math.min(Math.max(it.p.y, дно + 0.6), верхЗоны);
+      // LOCALLY inwards at the same height: a teleport to the top of the bowl
+      // was visible to the player as a "jump" and dragged the settling out (the
+      // item fell all over again)
+      const zoneTop = FUNNEL.H;
+      const ry = Math.min(Math.max(it.p.y, bottom + 0.6), zoneTop);
       const fit = Math.max(0, radiusAt(ry) - it.r - 0.25);
       const len = Math.hypot(it.p.x, it.p.z) || 1;
       it.body.setTranslation({ x: it.p.x/len*fit, y: ry, z: it.p.z/len*fit }, true);
       it.body.setLinvel({ x:0, y:0, z:0 }, true);
       it.body.setAngvel({ x:0, y:0, z:0 }, true);
-      wakePhysics('rescue'); // пусть доосядет
+      wakePhysics('rescue'); // let it finish settling
       continue;
     }
-    // ПОЛ (жалоба владельца 2026-07-30 «дыра в объектах»): предмет, вдавленный
-    // В ПЛИТУ пола, оставался там навсегда — глобальный сон выключает
-    // интегратор, и утонувший предмет висел под кучей до конца уровня.
-    // ⚠️⚠️ ГЕЙТ ПО ПОКОЮ — БЕЗ НЕГО ЭТО ШТОРМ, А НЕ ЗАЩИТА. На ЛЕТЯЩЕЙ куче
-    // (встряска, взрыв) просадка 0.05..0.28 — НОРМА: замер распределения дал
-    // p95 0.13 при максимуме 0.28, и она расходится сама за доли секунды.
-    // Вечной, то есть видимой игроку, она становится ровно тогда, когда куча
-    // в этот момент замирает. Поэтому поднимаем только ПОЧТИ НЕПОДВИЖНЫХ, а
-    // пред-сонный вызов rescueSweep из sleepPhysics ловит именно тот момент,
-    // когда просадка вот-вот станет вечной.
-    // ⚠️⚠️ И ИМЕННО ПОЭТОМУ ПЕРЕД СНОМ ГЕЙТ СНИМАЕТСЯ. Форс-сон срабатывает
-    // при maxV<2.0, то есть куча ещё ползёт: с гейтом утонувший проскакивал
-    // проверку, а через мгновение sleepAllBodies обнулял скорости и замораживал
-    // его насовсем. Замером это стоило одного «провала» на 28 циклов ПОСЛЕ
-    // введения спасателя — дыра нашлась только стрессом, не рассуждением.
+    // THE FLOOR (the owner's complaint 2026-07-30 "a hole in the objects"): an
+    // item pressed INTO the floor PLATE stayed there forever — the global sleep
+    // switches the integrator off, and a sunken item hung under the pile until
+    // the end of the level.
+    // ⚠️⚠️ THE CALM GATE — WITHOUT IT THIS IS A STORM, NOT A PROTECTION. On a
+    // FLYING pile (a shake, an explosion) a sinking of 0.05..0.28 is the NORM:
+    // the distribution measurement gave p95 0.13 at a maximum of 0.28, and it
+    // resolves itself within fractions of a second. It becomes eternal, that is
+    // visible to the player, exactly when the pile freezes at that moment. That
+    // is why we lift only the ALMOST MOTIONLESS ones, while the pre-sleep call
+    // of rescueSweep from sleepPhysics catches precisely the moment when the
+    // sinking is about to become eternal.
+    // ⚠️⚠️ AND THAT IS EXACTLY WHY THE GATE IS LIFTED BEFORE SLEEP. The forced
+    // sleep fires at maxV<2.0, i.e. while the pile is still creeping: with the
+    // gate a sunken item slipped past the check, and an instant later
+    // sleepAllBodies zeroed the velocities and froze it for good. By measurement
+    // this cost one "fall-through" per 28 cycles AFTER the rescuer was
+    // introduced — the hole was found only by stress, not by reasoning.
     const pen = floorPenetration(it);
-    // порог по СОБСТВЕННОЙ толщине предмета (см. FLOOR_PEN_FRAC): у плашки
-    // абсолютные 0.12 недостижимы, и она сидела бы в плите вечно
-    // ⚠️⚠️ ТОЛЩИНА БЕРЁТСЯ ПО ВЕРТИКАЛИ В ТЕКУЩЕЙ ПОЗЕ (`downReach` — проекция
-    // ориентированной коробки на мировую вертикаль), а НЕ минимальный полуразмер.
-    // Первая версия брала минимум по осям — и это дало ШТОРМ: 115 подъёмов за
-    // 12 минут против 24 у базы. Минимум занижает порог ЛЮБОМУ предмету с одной
-    // тонкой осью, даже когда он лежит на толстом боку и утоплен на десятые доли
-    // своей высоты. Физически важно, насколько предмет утоплен ОТНОСИТЕЛЬНО ТОГО,
-    // ЧЕМ он стоит на плите: плашка плашмя -> 0.121, она же на ребре -> 0.977.
+    // the threshold by the item's OWN thickness (see FLOOR_PEN_FRAC): for the
+    // slab the absolute 0.12 is unreachable, and it would sit in the plate for
+    // ever
+    // ⚠️⚠️ THE THICKNESS IS TAKEN ALONG THE VERTICAL IN THE CURRENT POSE
+    // (`downReach` — the projection of the oriented box onto the world
+    // vertical), and NOT as the minimal half-extent. The first version took the
+    // minimum across the axes — and that gave a STORM: 115 lifts per 12 minutes
+    // against 24 for the baseline. The minimum understates the threshold for ANY
+    // item with one thin axis, even when it lies on a thick side and is sunk by
+    // tenths of its own height. What matters physically is how deep the item is
+    // sunk RELATIVE TO WHAT it stands on the plate with: the slab lying flat
+    // -> 0.121, the same slab on its edge -> 0.977.
     const penLim = floorPenLimit(it);
     const deep = pen !== null && pen < -penLim;
-    // ⚠️⚠️ ВТОРАЯ ДЫРА, НАЙДЕНА СОАКОМ: «сон» — не единственный способ застрять
-    // надолго. ПРИ ПОМОЛЕ куча не засыпает вовсе (wakeAtMs двигают каждый кадр),
-    // а нижние слои постоянно ВИБРИРУЮТ импульсами миксера — предмет никогда
-    // не «спокоен», гейт его отсекал, и плоская модель просидела в плите 30 с на
-    // глазах игрока (pen дошёл до 0.248). Поэтому есть и второй ключ: просадка,
-    // ДЕРЖАЩАЯСЯ подряд FLOOR_SUNK_TICKS проверок (~1.5 с), поднимается
-    // независимо от скорости. Транзиент от встряски столько не живёт.
-    // ⚠️ СЧЁТЧИК УБЫВАЕТ, А НЕ ОБНУЛЯЕТСЯ: под вибрацией помола просадка
-    // ДРОЖИТ около порога, и один тик «чуть выше 0.12» сбрасывал бы часы
-    // заново — предмет сидел бы в полу бесконечно, ни разу не набрав трёх
-    // подряд. Убывание требует РЕАЛЬНОГО выхода, а не мигания.
+    // ⚠️⚠️ THE SECOND HOLE, FOUND BY THE SOAK: "sleep" is not the only way to
+    // get stuck for a long time. DURING MILLING the pile does not fall asleep at
+    // all (wakeAtMs is pushed forward every frame), while the lower layers
+    // VIBRATE constantly under the mixer's impulses — an item is never "calm",
+    // the gate cut it off, and a flat model sat in the plate for 30 s in front
+    // of the player (pen reached 0.248). Hence there is a second key as well: a
+    // sinking that HOLDS for FLOOR_SUNK_TICKS checks in a row (~1.5 s) is lifted
+    // regardless of the speed. A transient from a shake does not live that long.
+    // ⚠️ THE COUNTER DECREASES, IT IS NOT ZEROED: under the milling vibration
+    // the sinking TREMBLES around the threshold, and a single tick of "a touch
+    // above 0.12" would reset the clock all over again — the item would sit in
+    // the floor endlessly, never once collecting three in a row. Decreasing
+    // demands a REAL exit, not a flicker.
     it.sunkN = Math.max(0, (it.sunkN || 0) + (deep ? 1 : -1));
     const lv = it.body.linvel();
     const calm = lv.x*lv.x + lv.y*lv.y + lv.z*lv.z < FLOOR_CALM_V*FLOOR_CALM_V;
     if (!beforeSleep && !calm && it.sunkN < FLOOR_SUNK_TICKS) continue;
-    // ДВА НЕЗАВИСИМЫХ ПРИЗНАКА «в плите», и второй не для красоты:
-    // (1) глубина по манифолду — ground truth, на ней стоит порог;
-    // (2) ЦЕНТР ниже верха плиты — у выпуклого предмета, лежащего на полу,
-    //     центр ВСЕГДА выше на свой полу-габарит, значит это уже провал.
-    // ⚠️ Одного (1) НЕ ХВАТАЕТ: узкая фаза обновляется только в world.step(),
-    // и сразу после телепорта (place, спасатель стены) манифолд ещё от старой
-    // позиции. На одном pen детерминированный страж сьюта молча зеленел —
-    // поймано им же. ⚠️ И НЕ СТРОИТЬ порог на «нижней точке» по коробке: у
-    // здоровой лежащей кучи она уходит под пол до 0.39 безо всякого
-    // проникновения (та же грабля, что была у wallR).
+    // TWO INDEPENDENT SIGNS of "in the plate", and the second is not for beauty:
+    // (1) the depth from the manifold — ground truth, the threshold rests on it;
+    // (2) the CENTRE below the top of the plate — for a convex item lying on the
+    //     floor the centre is ALWAYS higher by its own half-extent, so this is
+    //     already a fall-through.
+    // ⚠️ (1) ALONE IS NOT ENOUGH: the narrow phase is updated only inside
+    // world.step(), and right after a teleport (place, the wall rescuer) the
+    // manifold is still from the old position. On pen alone the suite's
+    // deterministic guard went silently green — caught by that same guard.
+    // ⚠️ AND DO NOT BUILD the threshold on the "lowest point" from the box: for
+    // a healthy pile lying down it goes under the floor by up to 0.39 without
+    // any penetration at all (the same rake wallR used to have).
     if (!deep && it.p.y >= FLOOR_REST) continue;
     rescued++;
     console.warn('[floor]', it.type.name, 'y=' + it.p.y.toFixed(2),
       'pen=' + (pen === null ? 'none' : pen.toFixed(3)));
-    // ПОДЪЁМ РОВНО НА ГЛУБИНУ ПОГРУЖЕНИЯ — по XZ предмет и так на своём месте,
-    // ему нужно только выйти из плиты. Полный телепорт как у стены был бы
-    // виден рывком там, где хватает миллиметров. Вторым слагаемым — гарантия
-    // прогресса, когда манифолда ещё нет: иначе подъём был бы нулевым и
-    // спасатель звал бы себя каждый sweep.
+    // A LIFT BY EXACTLY THE DEPTH OF THE IMMERSION — along XZ the item is
+    // already in its place, all it needs is to get out of the plate. A full
+    // teleport like the wall one would be seen as a jerk where millimetres are
+    // enough. The second addend is a guarantee of progress when there is no
+    // manifold yet: otherwise the lift would be zero and the rescuer would keep
+    // calling itself on every sweep.
     const lift = Math.max(pen !== null && pen < 0 ? -pen : 0, FLOOR_REST + 0.02 - it.p.y);
     it.body.setTranslation({ x: it.p.x, y: it.p.y + lift, z: it.p.z }, true);
-    // гасим ТОЛЬКО падение вниз: горизонталь и вращение оставляем, иначе
-    // подъём читался бы как заморозка предмета
+    // we damp ONLY the downward fall: the horizontal and the rotation are left
+    // alone, otherwise the lift would read as the item being frozen
     if (lv.y < 0) it.body.setLinvel({ x: lv.x, y: 0, z: lv.z }, true);
-    wakePhysics('floor'); // пусть сосед сверху доосядет на освободившееся место
+    wakePhysics('floor'); // let the neighbour above settle into the freed space
   }
   return rescued;
 }
 
-// Волна лопанья (пункт 5, спека владельца 2026-07-21): лёгкое радиальное
-// вздрагивание соседей при бурсте группы >= BURST_MIN_N. Косметика, не
-// рыхление: дельта скорости мала и гаснет квадратично к краю радиуса;
-// лёгкие пачки (shakeK) вздрагивают сильнее — консистентно с весом встряски
-// jolt (опционально, спека владельца 2026-07-27-б «взрыв бомбы похож на
-// эффект shake»): ВТОРОЙ слой волны — лёгкий толчок ВСЕЙ куче, включая тех,
-// кто вне радиуса R. Ближние получают радиальный ПАНЧ (характер взрыва),
-// дальние — вздрагивание в духе встряски (подброс + случайный разброс), из-за
-// чего «тряхнуло весь миксер», а не только эпицентр. ⚠️ jolt намеренно много
-// меньше настоящей встряски (там ~9 по XZ и 5.4-11.4 подброса): цель —
-// ОЩУЩЕНИЕ встряски, а не её механика; иначе бомба стала бы бесплатной
-// встряской и сломала экономику бюджета 5 (см. замер в сдаче).
+// The pop wave (item 5, the owner's spec 2026-07-21): a light radial flinch of
+// the neighbours on a burst of a group >= BURST_MIN_N. Cosmetics, not
+// loosening: the velocity delta is small and decays quadratically towards the
+// edge of the radius; light packs (shakeK) flinch harder — consistent with the
+// weight used for a shake.
+// jolt (optional, the owner's spec 2026-07-27-b "a bomb explosion is like the
+// shake effect"): a SECOND layer of the wave — a light push for the WHOLE pile,
+// including those outside the radius R. The near ones get a radial PUNCH (the
+// character of an explosion), the far ones a flinch in the spirit of a shake (a
+// toss up + a random spread), which makes it feel as if "the whole mixer was
+// shaken", not just the epicentre. ⚠️ jolt is deliberately far smaller than a
+// real shake (which has ~9 along XZ and 5.4-11.4 of toss): the goal is the
+// FEELING of a shake, not its mechanics; otherwise the bomb would become a free
+// shake and would break the economy of budget 5 (see the measurement in the
+// hand-off).
 function blastWave(pos, R, vmax, jolt){
   for (const it of items){
     if (!it.alive || !it.body || it.animating) continue;
@@ -1077,23 +1175,25 @@ function blastWave(pos, R, vmax, jolt){
     if (d < 1e-3) continue;
     const wk = it.shakeK || 1;
     let ix = 0, iy = 0, iz = 0;
-    if (d <= R){ // ПАНЧ: резкий радиальный, квадратичное затухание к краю зоны
+    if (d <= R){ // PUNCH: sharp radial, quadratic decay towards the zone's edge
       const f = vmax * (1 - d/R) * (1 - d/R) * wk;
       const inv = 1 / Math.max(Math.hypot(dx, dz), 0.3);
       ix += dx*inv*f; iy += f*0.3; iz += dz*inv*f;
     }
-    if (jolt){ // ДЖОЛТ: вся куча вздрагивает; спад мягкий (к дальним не в ноль)
-      // ⚠️ спад отсчитывается от ВЫСОТЫ ЧАШИ, а не от зоны поражения R:
-      // «вздрагивает весь миксер» — свойство чаши. При R-привязке возврат
-      // BOMB_RADIUS к прежним 2.2 молча сделал бы эффект локальным при той
-      // же константе силы (ревью 2026-07-27).
+    if (jolt){ // JOLT: the whole pile flinches; soft falloff (not zero far out)
+      // ⚠️ the falloff is measured from the HEIGHT OF THE BOWL, not from the
+      // damage zone R: "the whole mixer flinches" is a property of the bowl.
+      // With an R binding, returning BOMB_RADIUS to its former 2.2 would have
+      // silently made the effect local at the very same force constant
+      // (review 2026-07-27).
       const j = jolt * wk / (1 + d/FUNNEL.H);
-      // ⚠️ горизонталь НАМЕРЕННО вчетверо слабее вертикали (замер 2026-07-27):
-      // с симметричным разбросом ±0.5j джолт вжимал предметы в стены и
-      // УДВАИВАЛ работу спасателя (4 телепорта против 2 на базе). Подброс
-      // вверх даёт то же ощущение встряски и в стены не толкает.
+      // ⚠️ the horizontal is DELIBERATELY four times weaker than the vertical
+      // (measurement 2026-07-27): with a symmetric spread of ±0.5j the jolt
+      // pressed items into the walls and DOUBLED the rescuer's work (4 teleports
+      // against 2 on the baseline). A toss upwards gives the same feeling of a
+      // shake and does not push them into the walls.
       ix += (Math.random()-0.5)*0.5*j;
-      iy += (0.6 + Math.random()*0.5)*j; // подброс доминирует — читается как встряска
+      iy += (0.6 + Math.random()*0.5)*j; // the toss dominates — it reads as a shake
       iz += (Math.random()-0.5)*0.5*j;
     }
     if (ix || iy || iz) impulseBody(it, ix, iy, iz);
@@ -1101,7 +1201,7 @@ function blastWave(pos, R, vmax, jolt){
   wakePhysics('burst');
 }
 
-// Максимальная скорость среди живых тел — для глобального штиля
+// The maximum speed among the live bodies — for the global calm
 function maxBodySpeed(){
   let m = 0;
   for (const it of items){

@@ -1,68 +1,74 @@
-// ===== 77-save: живучий сейв v1 (localStorage + Bridge storage) =====
-// Монеты — ПАРА МОНОТОННЫХ счётчиков earned/spent (баланс = разность):
-// мерж расхождений через max НЕ дюпит валюту (наивный max по балансу
-// откатывал бы траты при сбое записи — вердикт аудита плана). Звёзды —
-// по-уровнево max. Bridge storage не на всех платформах реальный —
-// тогда честно остаёмся на localStorage.
+// ===== 77-save: resilient save v1 (localStorage + Bridge storage) =====
+// Coins — a PAIR OF MONOTONIC earned/spent counters (balance = difference):
+// merging divergences through max does NOT dupe the currency (a naive max
+// over the balance would roll spending back on a failed write — the verdict
+// of the plan audit). Stars — per-level max. Bridge storage is not real on
+// every platform — then we honestly stay on localStorage.
 const SAVE_KEY = 'mixer_save_v1';
-// gen — ПОКОЛЕНИЕ сейва: инкрементируется сбросом прогресса. Монотонный
-// max-мерж иначе воскрешал бы обнулённые монеты из отставшей облачной копии
-// (Bridge storage мог не принять нули, а мерж по max их «поднимал» обратно).
-// ⚠️ Чек-лист нового поля сейва: добавить в Save, в ОБЕ ветки mergeSave
-// (перенос при from.gen>gen и мерж при равных), в resetProgress.
-// ac — НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22): пожизненные
-// монотонные счётчики совмещённых предметов КАЖДОГО типа (ключ = имя типа
-// из ассетов, TYPES[].name). Ступень/множитель ВЫЧИСЛЯЮТСЯ из счётчика
-// (accTier/accMult) и в сейве не дублируются — нечему расходиться.
-// Мерж: max по ключу (образец he/hs), gen-эпоха уважается. При смене
-// партии моделей осиротевшие ключи НЕ теряются (лог в accAuditOrphans).
-// se/ss — ЕДИНЫЙ БАЛАНС (финализация владельцем 2026-07-24: «очки=звёзды=
-// баланс»). se = ПОЖИЗНЕННЫЙ накопленный игровой счёт (деноминированный,
-// score/SCORE_DENOM, банкуется на победе раз за уровень), ss = пожизненные
-// траты. balance = se−ss — ОДНО число: чип в игре, кошелёк в меню, лидерборд.
-// ⚠️ ПОЧЕМУ НЕ ОДНО ПОЛЕ-БАЛАНС с max-мержем: потраченное ВОССТАНАВЛИВАЛОСЬ
-// бы из отставшей облачной копии — дюп (вердикт аудита, грабля монет).
-// «Одно число» — это СЕМАНТИКА (разность), хранение остаётся двумя
-// монотонными счётчиками. Фарм не грозит: игра линейна, реплея пройденных
-// уровней нет (levelNum только растёт) — счёт банкуется раз за уровень.
-// ⚠️ ЕСЛИ появится level-select/реплей — вернуть «лучший счёт за уровень»
-// (Save.sc[lv], банк дельты), иначе переигровка лёгкого уровня = ферма.
-// stars[lv] — РЕЙТИНГ уровня (1..3), качество прохождения; НЕ кошелёк,
-// max-мерж, тратами не трогается. bo — купленные бустом ступени (max).
-// uk — купленные ЗАРАНЕЕ типы (открытие за баланс; мерж OR). sm — флаг
-// разовой миграции старых сейвов (монотонный 0->1).
-// ⚠️ tu — ПОПОЛНЕННЫЕ звёзды (монотонный, мерж max). ⚠️ АКТИВНЫХ ИСТОЧНИКОВ
-// НЕТ с 2026-07-27: паки звёзд удалены по слову владельца («нет понятия пака
-// звёзд»), а бустер бандла идёт через se («работает на всё»). Поле НЕ удаляем —
-// оно уже в живых сейвах (grandfather) и держит фикс A на будущее.
-// РАЗВЕДЕНЫ с se (сыгранным счётом), чтобы ЛИДЕРБОРД не был pay-to-win
-// (фикс A, таблица №2 2026-07-24): купленное наполняет КОШЕЛЁК, но ранг
-// растёт только СЫГРАННЫМ счётом. balance(кошелёк)=se+tu−ss;
-// leaderboard=se−max(0,ss−tu) (траты сперва съедают tu, потом сыгранное).
-// bx — ОКНА МНОЖИТЕЛЯ БАНДЛА: {множитель: момент истечения}. Ключ = сам
-// множитель, поэтому мерж — max ПО КЛЮЧУ (как ac/bo) и «апгрейд» чужим тиром
-// невозможен по построению. na — окно без межстраничной рекламы (epoch ms).
-// pe/ps — КУПЛЕННЫЕ ВСТРЯСКИ монотонной парой (образец he/hs), постоянный
-// кошелёк поверх 3 бесплатных на уровень. ls — «последнее виденное время»,
-// монотонная метка против отката часов.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0  }; // he/hs — подсказки (старт 3, спека владельца)
+// gen — the save's GENERATION: incremented by a progress reset. Otherwise the
+// monotonic max-merge would resurrect zeroed coins from a lagging cloud copy
+// (Bridge storage might not accept the zeros, and the max-merge «lifted» them
+// back). ⚠️ Checklist for a new save field: add it to Save, to BOTH mergeSave
+// branches (the carry-over when from.gen>gen and the merge when equal), and to
+// resetProgress.
+// ac — ACCUMULATION BY TYPE (the owner's spec 2026-07-22): lifetime
+// monotonic counters of merged items of EACH type (key = the type name
+// from the assets, TYPES[].name). The tier/multiplier are COMPUTED from the
+// counter (accTier/accMult) and are not duplicated in the save — there is
+// nothing to diverge. Merge: max by key (the he/hs pattern), the gen epoch is
+// respected. On a model batch change orphaned keys are NOT lost (logged in
+// accAuditOrphans).
+// se/ss — THE SINGLE BALANCE (finalized by the owner 2026-07-24: «points=stars=
+// balance»). se = the LIFETIME accumulated game score (denominated,
+// score/SCORE_DENOM, banked on a win once per level), ss = lifetime
+// spending. balance = se−ss — ONE number: the chip in game, the wallet in the
+// menu, the leaderboard.
+// ⚠️ WHY NOT A SINGLE BALANCE FIELD with a max-merge: what was spent WOULD BE
+// RESTORED from a lagging cloud copy — a dupe (the audit's verdict, the coin
+// rake). «One number» is SEMANTICS (a difference), storage stays two
+// monotonic counters. Farming is no threat: the game is linear, there is no
+// replay of finished levels (levelNum only grows) — the score is banked once
+// per level.
+// ⚠️ IF a level-select/replay appears — bring back «the best score per level»
+// (Save.sc[lv], banking the delta), otherwise replaying an easy level = a farm.
+// stars[lv] — the level's RATING (1..3), the quality of the run; NOT a wallet,
+// max-merge, untouched by spending. bo — tiers bought with boost (max).
+// uk — types bought IN ADVANCE (unlocking for balance; OR-merge). sm — the flag
+// of the one-off migration of old saves (monotonic 0->1).
+// ⚠️ tu — TOPPED-UP stars (monotonic, max-merge). ⚠️ THERE ARE NO ACTIVE
+// SOURCES since 2026-07-27: star packs were removed by the owner's word («there
+// is no such thing as a star pack»), and the bundle booster goes through se
+// («it works on everything»). We do NOT remove the field — it is already in
+// live saves (grandfather) and holds fix A for the future.
+// SEPARATED from se (the played score) so that the LEADERBOARD is not
+// pay-to-win (fix A, table №2 2026-07-24): what is bought fills the WALLET, but
+// the rank grows only from the PLAYED score. balance(wallet)=se+tu−ss;
+// leaderboard=se−max(0,ss−tu) (spending eats tu first, then the played score).
+// bx — THE BUNDLE MULTIPLIER WINDOWS: {multiplier: expiry moment}. The key is
+// the multiplier itself, so the merge is max BY KEY (like ac/bo) and an
+// «upgrade» by someone else's tier is impossible by construction. na — the
+// window without interstitial ads (epoch ms).
+// pe/ps — SHAKES BOUGHT as a monotonic pair (the he/hs pattern), a permanent
+// wallet on top of the 3 free ones per level. ls — «the last seen time», a
+// monotonic mark against a clock rollback.
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0  }; // he/hs — hints (start 3, the owner's spec)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
   if (!from) return;
   const gi = into.gen || 0, gf = from.gen || 0;
   if (gf > gi){
-    // чужая копия из БОЛЕЕ НОВОГО поколения (после сброса): берём её целиком
+    // a foreign copy from a NEWER generation (after a reset): take it whole
     into.ce = from.ce || 0; into.cs = from.cs || 0;
     into.he = from.he != null ? from.he : 3; into.hs = from.hs || 0;
     into.se = from.se || 0; into.ss = from.ss || 0; into.tu = from.tu || 0; into.sm = from.sm || 0;
     into.na = from.na || 0; into.pe = from.pe || 0; into.ps = from.ps || 0; into.iw = from.iw || 0;
-    // naf — ПОКУПКА НАВСЕГДА: переживает даже смену поколения (сброс
-    // прогресса не отменяет оплаченного товара) — OR с ОБЕИХ сторон
+    // naf — A FOREVER PURCHASE: survives even a generation change (a progress
+    // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
-    into.gn = into.gn || from.gn || ''; // имя: непустое своё, иначе чужое
-    into.gid = pickGid(into.gid, from.gid);   // ключ игрока — см. pickGid
-    into.lv = Math.max(into.lv || 1, from.lv || 1); // уровень — max (слово владельца: синхронизировать прогресс)
+    into.gn = into.gn || from.gn || ''; // name: our own non-empty one, else theirs
+    into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
+    into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
     into.st = from.st || 0; into.sv = from.sv || 0; into.mt = from.mt || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.stars = Object.assign({}, from.stars || {});
@@ -72,33 +78,33 @@ function mergeSave(into, from){
     into.gen = gf;
     return;
   }
-  if (gi > gf) return; // чужая копия из СТАРОГО поколения — игнор (не воскрешаем)
+  if (gi > gf) return; // a foreign copy from an OLD generation — ignore (we do not resurrect)
   into.ce = Math.max(into.ce || 0, from.ce || 0);
   into.cs = Math.max(into.cs || 0, from.cs || 0);
-  into.he = Math.max(into.he || 3, from.he || 3); // старые сейвы без he получают стартовые 3
+  into.he = Math.max(into.he || 3, from.he || 3); // old saves without he get the starting 3
   into.hs = Math.max(into.hs || 0, from.hs || 0);
-  // ⚠️ ЗВЁЗДЫ-ВАЛЮТА: max по ОБОИМ счётчикам. Потраченное (ss) не
-  // откатывается отставшей копией — это и есть защита от дюпа.
+  // ⚠️ STARS-AS-CURRENCY: max over BOTH counters. What was spent (ss) is not
+  // rolled back by a lagging copy — that is exactly the anti-dupe protection.
   into.se = Math.max(into.se || 0, from.se || 0);
   into.ss = Math.max(into.ss || 0, from.ss || 0);
-  into.tu = Math.max(into.tu || 0, from.tu || 0); // пополнения — монотонны, как se/ss
-  into.sm = Math.max(into.sm || 0, from.sm || 0); // миграция разовая на все устройства
-  into.mt = (into.mt || 0) | (from.mt || 0); // объяснялки меты — показанное не «разпоказывается»
-  into.st = (into.st || 0) | (from.st || 0); // главы сюжета — мерж OR, показанное не «разпоказывается»
+  into.tu = Math.max(into.tu || 0, from.tu || 0); // top-ups — monotonic, like se/ss
+  into.sm = Math.max(into.sm || 0, from.sm || 0); // the migration is one-off across all devices
+  into.mt = (into.mt || 0) | (from.mt || 0); // meta explainers — what was shown does not get «unshown»
+  into.st = (into.st || 0) | (from.st || 0); // story chapters — OR-merge, what was shown does not get «unshown»
   into.sv = Math.max(into.sv || 0, from.sv || 0);
-  into.iw = Math.max(into.iw || 0, from.iw || 0); // каденция, не валюта: max = максимум один лишний показ
-  into.ls = Math.max(into.ls || 0, from.ls || 0); // метка времени монотонна — откат часов не лечится сменой устройства
-  into.na = Math.max(into.na || 0, from.na || 0); // окно без рекламы — монотонно
-  into.naf = (into.naf || from.naf) ? 1 : 0; // «навсегда без рекламы» — OR: покупка не отменяется отставшей копией
-  into.gn = into.gn || from.gn || ''; // гостевое имя: непустое своё побеждает
-  into.gid = pickGid(into.gid, from.gid);       // ключ игрока — см. pickGid
-  into.lv = Math.max(into.lv || 1, from.lv || 1); // уровень: max — прогресс не откатывается отставшей копией
-  into.pe = Math.max(into.pe || 0, from.pe || 0); // купленные встряски: пара как he/hs,
-  into.ps = Math.max(into.ps || 0, from.ps || 0); // отставшая копия не воскрешает потраченное
-  // ⚠️ ОКНА МНОЖИТЕЛЯ — max ПО КЛЮЧУ-МНОЖИТЕЛЮ. Ключ несёт сам множитель,
-  // поэтому копия с коротким x5 НЕ может «поднять» действующий x2: она кладёт
-  // своё время в СВОЙ ключ. Прежняя схема (одна пара срок+множитель) такой
-  // апгрейд допускала — из-за неё и разведено по ключам.
+  into.iw = Math.max(into.iw || 0, from.iw || 0); // cadence, not currency: max = at most one extra show
+  into.ls = Math.max(into.ls || 0, from.ls || 0); // the time mark is monotonic — a clock rollback is not cured by switching devices
+  into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
+  into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
+  into.gn = into.gn || from.gn || ''; // guest name: our own non-empty one wins
+  into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
+  into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
+  into.pe = Math.max(into.pe || 0, from.pe || 0); // bought shakes: a pair like he/hs,
+  into.ps = Math.max(into.ps || 0, from.ps || 0); // a lagging copy does not resurrect what was spent
+  // ⚠️ THE MULTIPLIER WINDOWS — max BY THE MULTIPLIER KEY. The key carries the
+  // multiplier itself, so a copy with a short x5 can NOT «lift» an active x2: it
+  // puts its own time into ITS OWN key. The previous scheme (one deadline+
+  // multiplier pair) allowed such an upgrade — that is why it is split by keys.
   if (!into.bx || typeof into.bx !== 'object') into.bx = {};
   const bxf = (from.bx && typeof from.bx === 'object') ? from.bx : {};
   for (const k in bxf) into.bx[k] = Math.max(into.bx[k] || 0, bxf[k] || 0);
@@ -112,7 +118,7 @@ function mergeSave(into, from){
   for (const k in bo) into.bo[k] = Math.max(into.bo[k] || 0, bo[k] || 0);
   if (!into.uk) into.uk = {};
   const uk = from.uk || {};
-  for (const k in uk) if (uk[k]) into.uk[k] = 1; // купленные разлоки — мерж OR
+  for (const k in uk) if (uk[k]) into.uk[k] = 1; // bought unlocks — OR-merge
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
@@ -120,87 +126,91 @@ function loadSave(){
 function commitSave(){
   const json = JSON.stringify(Save);
   try { localStorage.setItem(SAVE_KEY, json); } catch(e){}
-  // Bridge — асинхронно, fire-and-forget: сбой не критичен (мерж монотонный)
+  // Bridge — asynchronous, fire-and-forget: a failure is not critical (the merge is monotonic)
   try {
     if (window.bridge && window.bridge.storage) window.bridge.storage.set(SAVE_KEY, json).catch(()=>{});
   } catch(e){}
 }
-// после инициализации Bridge (78-ads): подтянуть облачную копию и смержить
+// after Bridge initialization (78-ads): pull the cloud copy and merge it
 function bridgeSyncSave(){
   try {
     if (!(window.bridge && window.bridge.storage)) return;
     window.bridge.storage.get(SAVE_KEY).then(v => {
       if (!v) return;
       try { mergeSave(Save, typeof v === 'string' ? JSON.parse(v) : v); } catch(e){}
-      migrateStarsToWallet(); // облачная копия могла быть домиграционной
+      migrateStarsToWallet(); // the cloud copy could have been pre-migration
       commitSave(); updateHUD(); fireStarsChange();
     }).catch(()=>{});
   } catch(e){}
 }
-// ── БАНДЛЫ: множитель-окно + расходники + окно без рекламы ──────────────────
-// ⚠️ ЧАСЫ УСТРОЙСТВА — ЕДИНСТВЕННЫЙ ИСТОЧНИК ВРЕМЕНИ, и ему нельзя верить:
-// перевести часы назад = продлить оплаченное окно бесплатно. Защита —
-// МОНОТОННАЯ метка `ls` (мержится по max между устройствами, смена устройства
-// обхода не даёт). При откате остаток ПЕРЕАНКОРИВАЕТСЯ (см. boostNow):
-// выигранного времени ноль, потерянного тоже. ⚠️ ПОЛНАЯ защита — server-time,
-// зона ИНТЕГРАЦИИ (та же зависимость, что у дневного капа рекламы).
+// ── BUNDLES: multiplier window + consumables + the no-ad window ─────────────
+// ⚠️ THE DEVICE CLOCK IS THE ONLY SOURCE OF TIME, and it cannot be trusted:
+// setting the clock back = extending a paid window for free. The protection is
+// the MONOTONIC `ls` mark (max-merged between devices, switching devices gives
+// no way around it). On a rollback the remainder is RE-ANCHORED (see boostNow):
+// zero time gained, zero time lost either. ⚠️ FULL protection is server-time,
+// the zone of INTEGRATION (the same dependency as the daily ad cap).
 let lsDirty = 0;
-// Все временные окна разом: тиры множителя (bx по ключу-множителю) + no-Ad (na).
+// All time windows at once: multiplier tiers (bx by multiplier key) + no-Ad (na).
 function boostWindows(){ if (!Save.bx || typeof Save.bx !== 'object') Save.bx = {}; return Save.bx; }
 function boostNow(){
   const now = Date.now();
   const seen = Save.ls || 0;
   const back = seen - now;
   if (back > 0){
-    // ⚠️ ЧАСЫ ОТКАТИЛИ (на ЛЮБУЮ величину — порога нет намеренно, см. 00-config).
-    // ПЕРЕАНКОР: остаток берём НА МОМЕНТ ПОСЛЕДНЕГО ЧЕСТНОГО ЗАМЕРА (`seen`) и
-    // привязываем к текущему времени. Игрок не выигрывает ни секунды (время,
-    // реально прошедшее до отката, уже списано) и не теряет оплаченного.
-    // ⚠️ Метка ls СИНХРОНИЗИРУЕТСЯ на now: без этого один скачок часов ВПЕРЁД
-    // залипал бы навсегда и каждое следующее КУПЛЕННОЕ окно умирало мгновенно.
+    // ⚠️ THE CLOCK WAS ROLLED BACK (by ANY amount — there is deliberately no
+    // threshold, see 00-config). RE-ANCHOR: we take the remainder AS OF THE LAST
+    // HONEST MEASUREMENT (`seen`) and tie it to the current time. The player
+    // gains not a single second (the time that really passed before the rollback
+    // has already been written off) and loses nothing that was paid for.
+    // ⚠️ The ls mark IS SYNCHRONIZED to now: without that a single clock jump
+    // FORWARD would stick forever and every next PURCHASED window would die instantly.
     const w = boostWindows();
     for (const k in w){ const left = Math.max(0, (w[k] || 0) - seen); if (left > 0) w[k] = now + left; else delete w[k]; }
     const naLeft = Math.max(0, (Save.na || 0) - seen);
     Save.na = naLeft > 0 ? now + naLeft : 0;
     Save.ls = now;
-    if (back > 1000) commitSave(); // микродрожание часов не пишем на диск
+    if (back > 1000) commitSave(); // micro-jitter of the clock is not written to disk
     return { now, rolled: true };
   }
   if (now > seen){
     Save.ls = now;
-    if (now - lsDirty > 60000){ lsDirty = now; commitSave(); } // метка грубая — не пишем каждый кадр
+    if (now - lsDirty > 60000){ lsDirty = now; commitSave(); } // the mark is coarse — we do not write it every frame
   }
   return { now, rolled: false };
 }
-// ⚠️ МНОЖИТЕЛИ НЕ СТЕКУЮТСЯ — играет СИЛЬНЕЙШИЙ ЖИВОЙ тир, время копится
-// КАЖДОМУ тиру своё (дефолт диспетчера). Купив x5-на-30-минут поверх
-// x2-на-день, игрок получает 30 минут x5, после чего возвращается остаток x2 —
-// ничего не сгорает. ⚠️ Отклонять покупку, как в прежнем каркасе-бустере,
-// БОЛЬШЕ НЕЛЬЗЯ: в бандле едут расходники, отказ съел бы оплаченное.
+// ⚠️ MULTIPLIERS DO NOT STACK — the STRONGEST LIVE tier plays, and time is
+// accumulated PER TIER separately (the dispatcher's default). Buying x5-for-30-
+// minutes on top of x2-for-a-day, the player gets 30 minutes of x5, after which
+// the x2 remainder comes back — nothing burns. ⚠️ Rejecting a purchase, as the
+// former booster skeleton did, IS NO LONGER ALLOWED: a bundle carries
+// consumables, and a refusal would eat what was paid for.
 function scoreBoostMult(){
   const t = boostNow(); const w = boostWindows();
   let best = 1;
   for (const k in w) if (w[k] > t.now) best = Math.max(best, +k || 1);
   return best;
 }
-// Остаток ДЕЙСТВУЮЩЕГО (сильнейшего) тира — для таймера на экране.
+// The remainder of the ACTIVE (strongest) tier — for the on-screen timer.
 function scoreBoostLeftMs(){
   const t = boostNow(); const w = boostWindows();
   const m = scoreBoostMult();
   return m > 1 ? Math.max(0, (w[m] || 0) - t.now) : 0;
 }
-function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // naf НЕ трогает: это покупка, не буст
-// ВЫДАЧА «НАВСЕГДА БЕЗ РЕКЛАМЫ» (стоп-вопрос Интеграции при вводе платежей
-// 2026-08-03): ПОСТОЯННЫЙ флаг Save.naf — в отличие от временного окна
-// Save.na у бандлов. Зовёт платёжный слой (78-ads purchase/restore) по
-// контракту typeof grantNoAdsForever. Идемпотентно: restore дергает её на
-// КАЖДОМ старте, пока покупка висит в getPurchases (non-consumable).
-// ГОСТЕВОЕ ИМЯ (слово владельца 2026-08-04: «используй имена животных и
-// птиц, должно хватить на огромное количество. Аватарки пока просто
-// цветом»). Поле Save.gn: генерится один раз на устройство, при мерже
-// непустое имя НЕ перетирается чужим (при равных — текущее устройство).
-// Фундамент под блок лидербордов; аватар — цвет из хеша имени (85-hud).
-const AVATAR_COUNT = 49; // файлов в avatars/ (Avatar01..Avatar49) — ассеты владельца
+function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
+// GRANTING «NO ADS FOREVER» (Integration's stop-question when payments were
+// introduced 2026-08-03): the PERMANENT flag Save.naf — unlike the temporary
+// window Save.na of the bundles. It is called by the payment layer (78-ads
+// purchase/restore) under the typeof grantNoAdsForever contract. Idempotent:
+// restore calls it on EVERY start while the purchase hangs in getPurchases
+// (non-consumable).
+// THE GUEST NAME (the owner's word 2026-08-04: «use the names of animals and
+// birds, that should be enough for a huge number. Avatars just by colour for
+// now»). The Save.gn field: generated once per device, on a merge a non-empty
+// name is NOT overwritten by a foreign one (when equal — the current device).
+// The foundation for the leaderboards block; the avatar is a colour from the
+// hash of the name (85-hud).
+const AVATAR_COUNT = 49; // files in avatars/ (Avatar01..Avatar49) — the owner's assets
 const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
   'Finch Wren Heron Stork Eagle Falcon Kestrel Osprey Puffin Pelican ' +
   'Otter Beaver Badger Marten Stoat Weasel Hare Rabbit Squirrel Chipmunk ' +
@@ -219,14 +229,15 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
   'Tuna Salmon Trout Perch Pike Carp Bream Tench Rudd Roach ' +
   'Lemur Loris Tarsier Gibbon Mandrill Baboon Macaque Langur Colobus Sifaka ' +
   'Dingo Jackal Coyote Fennec Corsac Raccoon Coati Kinkajou Olingo Tanuki').split(' ');
-// КЛЮЧ ИГРОКА для СВОЕЙ таблицы лидеров (решение владельца 2026-08-07:
-// «гостю нужно присваивать уникальный id и всегда показывать, условно
-// автологин в игре, но не гугловый»). Формат — как у sid телеметрии.
-// ⚠️ МЕРЖ = МИНИМУМ СТРОКИ, а не «своё побеждает» (правило gn НЕ копировать:
-// оно по построению не сходится, и человек с двух устройств получил бы две
-// строки в таблице). base36-метка времени 8-символьная до 2059 года, поэтому
-// лексикографический минимум = САМЫЙ СТАРЫЙ id; правило идемпотентно и
-// коммутативно — обе копии сходятся к одному значению.
+// THE PLAYER KEY for OUR OWN leaderboard (the owner's decision 2026-08-07:
+// «a guest needs to be assigned a unique id and always shown, effectively an
+// auto-login in the game, but not a Google one»). The format is the same as the
+// telemetry sid.
+// ⚠️ MERGE = THE MINIMUM OF THE STRINGS, not «our own wins» (do NOT copy the gn
+// rule: by construction it does not converge, and a person on two devices would
+// get two rows in the table). The base36 timestamp is 8 characters long until
+// the year 2059, so the lexicographic minimum = THE OLDEST id; the rule is
+// idempotent and commutative — both copies converge to one value.
 function pickGid(a, b){
   if (!a) return b || '';
   if (!b) return a;
@@ -239,10 +250,10 @@ function guestId(){
   }
   return Save.gid;
 }
-// ⚠️ ЛИЧНОСТЬ ВЫВОДИТСЯ ИЗ КЛЮЧА (слово владельца 2026-08-07 «лучше свести к
-// одному»): имя и аватар считаются из gid, поэтому на двух устройствах игрок
-// выглядит ОДИНАКОВО. Цена, названная владельцу: у части игроков имя один раз
-// сменится при первом слиянии — это принято сознательно.
+// ⚠️ THE IDENTITY IS DERIVED FROM THE KEY (the owner's word 2026-08-07 «better
+// to reduce it to one»): the name and the avatar are computed from gid, so on
+// two devices the player looks THE SAME. The price, named to the owner: for some
+// players the name will change once on the first merge — accepted knowingly.
 function gidHash(){
   const g = guestId(); let h = 0;
   for (let i = 0; i < g.length; i++) h = (h * 31 + g.charCodeAt(i)) >>> 0;
@@ -253,7 +264,7 @@ function guestName(){
   if (Save.gn !== want){ Save.gn = want; commitSave(); }
   return Save.gn;
 }
-function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // номер файла avatars/AvatarNN.png
+function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // the file number avatars/AvatarNN.png
 function grantNoAdsForever(){
   if (Save.naf) return;
   Save.naf = 1;
@@ -261,29 +272,30 @@ function grantNoAdsForever(){
   try { updateHUD(); } catch(e){}
   try { Telemetry.ev('iap', { ph: 'grant', id: 'noads_forever' }); } catch(e){}
 }
-// ОКНО БЕЗ РЕКЛАМЫ: гасит ТОЛЬКО межстраничные; rewarded живут — их игрок
-// просит сам (решение диспетчера), и они же несут заряды подсказок/встрясок.
+// THE NO-AD WINDOW: it suppresses ONLY interstitials; rewarded ones live on —
+// the player asks for them himself (the dispatcher's decision), and they are the
+// ones carrying the charges of hints/shakes.
 function noAdActive(){ if (Save.naf) return true; const t = boostNow(); return (Save.na || 0) > t.now; }
 function noAdLeftMs(){ const t = boostNow(); return Math.max(0, (Save.na || 0) - t.now); }
-// КУПЛЕННЫЕ ВСТРЯСКИ — ПОСТОЯННЫЙ кошелёк монотонной парой (образец he/hs):
-// анти-дюп по построению, облачный max-мерж не воскрешает потраченное.
+// SHAKES BOUGHT — a PERMANENT wallet as a monotonic pair (the he/hs pattern):
+// anti-dupe by construction, the cloud max-merge does not resurrect what was spent.
 function purchasedShakes(){ return Math.max(0, (Save.pe || 0) - (Save.ps || 0)); }
 function spendPurchasedShake(){ if (purchasedShakes() < 1) return false; Save.ps = (Save.ps || 0) + 1; commitSave(); return true; }
-// ПОКУПКА БАНДЛА — точка входа ИНТЕГРАЦИИ (зовётся ПОСЛЕ подтверждённой оплаты).
+// BUYING A BUNDLE — INTEGRATION's entry point (called AFTER a confirmed payment).
 function buyBundle(id){
   const b = STAR_BUNDLES.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'unknown' };
   const t = boostNow(); const w = boostWindows();
-  w[b.mult] = Math.max(w[b.mult] || 0, t.now) + b.ms; // время копится СВОЕМУ тиру
-  Save.na = Math.max(Save.na || 0, t.now) + b.noAdMs; // окно без рекламы — просто плюсуется
+  w[b.mult] = Math.max(w[b.mult] || 0, t.now) + b.ms; // time accumulates for ITS OWN tier
+  Save.na = Math.max(Save.na || 0, t.now) + b.noAdMs; // the no-ad window — simply added up
   Save.pe = (Save.pe || 0) + b.shakes;
   Save.ls = Math.max(Save.ls || 0, t.now);
-  addHints(b.hints); // подсказки — в существующие заряды he, новой системы не надо
+  addHints(b.hints); // hints — into the existing he charges, no new system needed
   commitSave();
   Telemetry.ev('bundle_buy', { tier: b.id, usd: b.usd, mult: b.mult });
   return { ok: true, tier: b.id, mult: scoreBoostMult(), state: bundleState() };
 }
-// Снимок для ИНТЕРФЕЙСА (отрисовка активного бандла).
+// A snapshot for the INTERFACE (rendering the active bundle).
 function bundleState(){
   const t = boostNow(); const w = boostWindows();
   const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: Math.max(0, (w[b.mult] || 0) - t.now) }));
@@ -297,8 +309,8 @@ function addCoins(n){ if (n > 0){ Save.ce += n; commitSave(); } }
 function spendCoins(n){ if (coins() < n) return false; Save.cs += n; commitSave(); return true; }
 function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; commitSave(); } }
 
-// ===== ЗВЁЗДЫ-ВАЛЮТА: кошелёк (решение владельца 2026-07-23) =====
-// Подписка для интерфейса: баланс поменялся (награда/трата/миграция).
+// ===== STARS-AS-CURRENCY: the wallet (the owner's decision 2026-07-23) =====
+// A subscription for the interface: the balance changed (award/spending/migration).
 const starChangeCbs = [];
 function onStarsChange(cb){ if (typeof cb === 'function') starChangeCbs.push(cb); }
 function fireStarsChange(){
@@ -306,28 +318,31 @@ function fireStarsChange(){
   for (const cb of starChangeCbs){ try { cb(ev); } catch(e){} }
   try { updateHUD(); } catch(e){}
 }
-// КОШЕЛЁК = сыгранное + пополнения − траты (то, что можно ТРАТИТЬ).
+// THE WALLET = what was played + top-ups − spending (what can be SPENT).
 function starBalance(){ return Math.max(0, (Save.se || 0) + (Save.tu || 0) - (Save.ss || 0)); }
-// ЛИДЕРБОРД (финализация владельца 2026-07-24 + фикс A таблицы №2): ранг =
-// только СЫГРАННЫЙ счёт. Траты сперва съедают пополнения (tu), и лишь
-// избыток трат сверх пополнений роняет сыгранное — так покупка звёзд НЕ
-// поднимает ранг (не pay-to-win), а трата на буст/анлок сверх купленного
-// осознанно роняет позицию (размен владельца). Сам лидерборд-фича ждёт
-// площадки (Playgama/Yandex да, Poki нет) — пока число-хендл.
+// THE LEADERBOARD (the owner's finalization 2026-07-24 + fix A of table №2):
+// rank = only the PLAYED score. Spending first eats the top-ups (tu), and only
+// the excess of spending over top-ups drops the played score — this way buying
+// stars does NOT lift the rank (not pay-to-win), while spending on boost/unlock
+// beyond what was bought knowingly drops the position (the owner's trade-off).
+// The leaderboard feature itself is waiting for the platform (Playgama/Yandex
+// yes, Poki no) — for now it is a number-handle.
 function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0))); }
-// ДЕНОМИНИРОВАННЫЙ ПОКАЗ счёта: floor(max(0,score)/10). Единый источник для
-// чипа И для всплывающих поп-чисел (#10 владельца 2026-07-27: «числа понятны
-// и в процессе, и в подсчёте»). ⚠️ Поп считается как ДЕЛЬТА этой величины
-// (scoreShownDelta), а не floor(value/10) поштучно — иначе сумма попов
-// расходится с приростом чипа на перенос (±1 дрейф). Гарантия: Σ попов =
-// изменение чипа за уровень, бит-в-бит.
+// THE DENOMINATED DISPLAY of the score: floor(max(0,score)/10). A single source
+// for the chip AND for the floating pop numbers (the owner's #10 2026-07-27:
+// «the numbers are clear both during play and in the tally»). ⚠️ A pop is
+// computed as the DELTA of this value (scoreShownDelta), not floor(value/10)
+// piece by piece — otherwise the sum of the pops diverges from the chip's growth
+// by the carry (±1 drift). The guarantee: Σ of pops = the change of the chip
+// over the level, bit for bit.
 function scoreShownDenom(v){ return Math.floor(Math.max(0, v || 0) / SCORE_DENOM); }
 function scoreShownDelta(before, after){ return scoreShownDenom(after) - scoreShownDenom(before); }
-// ЖИВОЙ баланс для чипа в игре (запрос ИНТЕРФЕЙСУ: чип показывает balance,
-// а не per-level score): банкованный баланс + ещё НЕ забанкованный счёт
-// текущего уровня. На победе счёт уезжает в se, поэтому число непрерывно.
-// НЕЗАБАНКОВАННАЯ часть текущего уровня, за вычетом уже забанкованного
-// ДОСРОЧНО (level.banked — водяной знак партии, живёт в памяти уровня).
+// The LIVE balance for the in-game chip (a request to the INTERFACE: the chip
+// shows balance, not the per-level score): the banked balance + the still NOT
+// banked score of the current level. On a win the score goes into se, so the
+// number is continuous.
+// The UNBANKED part of the current level, minus what was already banked EARLY
+// (level.banked — the run's watermark, lives in the level's memory).
 function liveScoreDenom(){
   try {
     if (typeof level !== 'undefined' && level && !level.over &&
@@ -337,11 +352,11 @@ function liveScoreDenom(){
   return 0;
 }
 function liveBalance(){ return starBalance() + liveScoreDenom(); }
-// ⚠️ БАНК ПО ТРЕБОВАНИЮ (спека владельца 2026-07-28 «во время игры одно
-// число, а на пузе второе» → кошелёк ПОКАЗЫВАЕТ liveBalance). Показанное
-// обязано быть ТРАТИМЫМ: если забанкованного не хватает, но с учётом текущего
-// уровня хватает — банкуем накопленное сейчас и двигаем водяной знак, чтобы
-// победа НЕ забанковала это второй раз.
+// ⚠️ BANKING ON DEMAND (the owner's spec 2026-07-28 «during the game one number,
+// and on the pause screen another» → the wallet SHOWS liveBalance). What is
+// shown must be SPENDABLE: if the banked amount is not enough but with the
+// current level it is — we bank what has been accumulated now and move the
+// watermark so that the win does NOT bank it a second time.
 function bankLive(){
   const add = liveScoreDenom();
   if (add <= 0) return 0;
@@ -350,44 +365,47 @@ function bankLive(){
   commitSave(); fireStarsChange();
   return add;
 }
-// Единый гейт всех трат.
+// The single gate for all spending.
 function ensureBanked(price){
   price = Math.max(0, price | 0);
-  if (starBalance() >= price) return true;   // забанкованного и так довольно
-  if (liveBalance() < price) return false;   // не хватает даже с текущим уровнем
+  if (starBalance() >= price) return true;   // the banked amount is enough as it is
+  if (liveBalance() < price) return false;   // not enough even with the current level
   bankLive();
   return starBalance() >= price;
 }
-// БАНК СЧЁТА НА ПОБЕДЕ (финализация владельца: «всё заработанное в уровне =
-// баланс»). se += score/SCORE_DENOM (деноминация ×10, floor, клампится ≥0).
-// Раз за уровень — игра линейна, реплея нет, поэтому не фармится.
+// BANKING THE SCORE ON A WIN (the owner's finalization: «everything earned in a
+// level = balance»). se += score/SCORE_DENOM (denomination ×10, floor, clamped
+// ≥0). Once per level — the game is linear, there is no replay, so it cannot be
+// farmed.
 function bankLevelScore(score){
   const total = Math.floor(Math.max(0, score || 0) / SCORE_DENOM);
   const pre = (typeof level !== 'undefined' && level && level.banked) || 0;
   const rest = total - pre;
   if (rest > 0) Save.se = (Save.se || 0) + rest;
-  // ⚠️ СЧЁТ УПАЛ ПОСЛЕ ДОСРОЧНОГО БАНКА (штрафы/помол): забанковано больше,
-  // чем уровень стоил в итоге. Уменьшать se НЕЛЬЗЯ — он монотонный, и мерж по
-  // max с отставшей облачной копией вернул бы списанное (грабля монет).
-  // Коррекция идёт в ss (тоже монотонный): разность se−ss выходит РОВНО
-  // floor(score/10), и лидерборд se−max(0,ss−tu) сходится так же.
+  // ⚠️ THE SCORE FELL AFTER AN EARLY BANK (penalties/grinding): more was banked
+  // than the level ended up being worth. Decreasing se IS NOT ALLOWED — it is
+  // monotonic, and a max-merge with a lagging cloud copy would bring back what
+  // was written off (the coin rake). The correction goes into ss (also
+  // monotonic): the difference se−ss comes out EXACTLY floor(score/10), and the
+  // leaderboard se−max(0,ss−tu) converges the same way.
   else if (rest < 0) Save.ss = (Save.ss || 0) + (-rest);
   if (typeof level !== 'undefined' && level) level.banked = Math.max(pre, total);
   commitSave(); fireStarsChange();
-  return total; // «заработано за уровень» целиком, включая досрочно забанкованное
+  return total; // «earned in the level» in full, including what was banked early
 }
-// Номинал победы по РЕЙТИНГУ — остался ТОЛЬКО для grandfather-миграции
-// старых сейвов (у них нет истории счёта, сеем стартовый баланс из рейтинга;
-// магнитуда совпадает с новым банком ~сотни/уровень). Валюту за победу
-// больше НЕ считает — её несёт bankLevelScore.
+// The win's face value by RATING — kept ONLY for the grandfather migration of
+// old saves (they have no score history, so we seed the starting balance from
+// the rating; the magnitude matches the new banking, ~hundreds per level). It
+// no longer computes the currency for a win — that is carried by bankLevelScore.
 function starAward(lv, stars){
   if (!(stars > 0)) return 0;
   return (STAR_AWARD[Math.min(3, stars)] || 0) + STAR_LEVEL_BONUS * Math.max(1, lv | 0);
 }
-// ПОПОЛНЕНИЕ кошелька (реклама/IAP) — в tu, НЕ в se: не поднимает лидерборд
-// (фикс A). Кормит кошелёк, тратится наравне со сыгранным.
-// ⚠️ Живых вызовов нет с 2026-07-27 (паки удалены): остаётся точкой входа для
-// будущих топапов и тест-ручкой starGrant. Пишет в tu — ранг не поднимает.
+// TOPPING UP the wallet (ads/IAP) — into tu, NOT into se: it does not lift the
+// leaderboard (fix A). It feeds the wallet and is spent on par with the played score.
+// ⚠️ There are no live calls since 2026-07-27 (the packs were removed): it stays
+// an entry point for future top-ups and the starGrant test handle. It writes
+// into tu — it does not lift the rank.
 function addStars(n){ if (n > 0){ Save.tu = (Save.tu || 0) + n; commitSave(); fireStarsChange(); } }
 function spendStars(n){
   n = Math.max(0, n | 0);
@@ -396,10 +414,10 @@ function spendStars(n){
   commitSave(); fireStarsChange();
   return true;
 }
-// РАЗОВАЯ МИГРАЦИЯ существующих сейвов: у игроков уже накоплен рейтинг —
-// начисляем стартовый баланс по тому же номиналу, прогресс не обнуляем.
-// Идемпотентна: флаг sm монотонный и мержится по max, поэтому второе
-// устройство/второй запуск повторно не начислит.
+// THE ONE-OFF MIGRATION of existing saves: players have already accumulated a
+// rating — we credit a starting balance at the same face value, the progress is
+// not zeroed. It is idempotent: the sm flag is monotonic and max-merged, so a
+// second device / a second start will not credit it again.
 function migrateStarsToWallet(){
   if (Save.sm) return 0;
   let sum = 0;
@@ -411,102 +429,108 @@ function migrateStarsToWallet(){
   return sum;
 }
 
-// ===== BOOST: покупка ступени накопления за звёзды =====
-// Купленные ступени живут ОТДЕЛЬНО от счётчика совмещений (ac): ac — это
-// «сколько спасено» (витрина/музей показывают честную цифру), bo — «сколько
-// докуплено». Итоговая ступень = сумма, с общим капом.
+// ===== BOOST: buying an accumulation tier for stars =====
+// Bought tiers live SEPARATELY from the merge counter (ac): ac is «how many were
+// rescued» (the showcase/museum show the honest number), bo is «how many were
+// bought on top». The resulting tier = the sum, with a shared cap.
 function boostTier(name){ return (Save.bo && Save.bo[name]) || 0; }
-// ⚠️ «ПРОКАЧЕН ХОТЬ ОДИН ПРЕДМЕТ» — про КУПЛЕННЫЕ ступени (`Save.bo`), а не про
-// заработанные накоплением (`Save.ac`). Заработанные приходят сами от игры, и
-// условие на них выполнялось бы почти сразу — то есть гейт был бы декоративным.
-// Купленная ступень — осознанная трата, ровно её владелец и назвал «прокачкой».
+// ⚠️ «AT LEAST ONE ITEM IS UPGRADED» — this is about the BOUGHT tiers
+// (`Save.bo`), not about the ones earned by accumulation (`Save.ac`). The earned
+// ones come by themselves from playing, and a condition on them would be met
+// almost immediately — that is, the gate would be decorative. A bought tier is a
+// deliberate spend, and that is exactly what the owner called «upgrading».
 function anyBoostBought(){
   if (!Save.bo) return false;
   for (const k in Save.bo) if ((Save.bo[k] | 0) > 0) return true;
   return false;
 }
 function boostPrice(name){
-  if (!isTypeUnlocked(name)) return null;          // буст только ОТКРЫТОГО типа (гейт)
-  if (accTier(name) >= ACC_TIER_CAP) return null;  // множитель уже на потолке — нечего давать
-  if (boostTier(name) >= BOOST_TIER_CAP) return null; // купленный потолок (анкор 62000, фикс ревью)
-  // ⚠️ ЦЕНА от КУПЛЕННЫХ ступеней (boostTier), НЕ суммарных (accTier) —
-  // фикс B таблицы №2: иначе буст СЫГРАННОГО типа (у него есть заработанные
-  // ступени) стоил бы 2000·2^earned, «макс любимого» раздувался до 248k+,
-  // и пак-якорь «Mega=макс типа=62000» врал. Теперь каждая купленная
-  // ступень удваивается независимо от наигранности: 2000/4000/8000/16000/32000
-  // (кап BOOST_TIER_CAP=5 → сумма 62000, универсально для любого типа).
+  if (!isTypeUnlocked(name)) return null;          // boost only for an UNLOCKED type (the gate)
+  if (accTier(name) >= ACC_TIER_CAP) return null;  // the multiplier is already at the ceiling — nothing to give
+  if (boostTier(name) >= BOOST_TIER_CAP) return null; // the bought ceiling (anchor 62000, review fix)
+  // ⚠️ THE PRICE is based on the BOUGHT tiers (boostTier), NOT the total ones
+  // (accTier) — fix B of table №2: otherwise boosting a WELL-PLAYED type (it has
+  // earned tiers) would cost 2000·2^earned, «the max of a favourite» blew up to
+  // 248k+, and the pack anchor «Mega=the max of a type=62000» was lying. Now
+  // every bought tier doubles regardless of how much it was played:
+  // 2000/4000/8000/16000/32000 (cap BOOST_TIER_CAP=5 → the sum 62000,
+  // universal for any type).
   return Math.round(BOOST_PRICE_BASE * Math.pow(BOOST_PRICE_MULT, boostTier(name)));
 }
-function canBoost(name){ const p = boostPrice(name); return p != null && liveBalance() >= p; } // по ПОКАЗАННОМУ
+function canBoost(name){ const p = boostPrice(name); return p != null && liveBalance() >= p; } // by what is SHOWN
 function buyBoost(name){
-  if (!isTypeUnlocked(name)) return { ok: false, reason: 'locked' }; // сначала открыть тип
+  if (!isTypeUnlocked(name)) return { ok: false, reason: 'locked' }; // unlock the type first
   const p = boostPrice(name);
   if (p == null) return { ok: false, reason: 'capped', tier: accTier(name), boughtTier: boostTier(name) };
   if (!ensureBanked(p)) return { ok: false, reason: 'insufficient', price: p, balance: liveBalance() };
   if (!Save.bo) Save.bo = {};
-  Save.ss = (Save.ss || 0) + p;          // трата — через монотонный счётчик
+  Save.ss = (Save.ss || 0) + p;          // spending — via the monotonic counter
   Save.bo[name] = boostTier(name) + 1;
   commitSave(); fireStarsChange();
   try { Telemetry.ev('boost', { t: name, tier: accTier(name), price: p }); } catch(e){}
   return { ok: true, price: p, tier: accTier(name), mult: accMult(name),
     balance: starBalance(), next: boostPrice(name) };
 }
-// Полный сброс прогресса (кнопка в ⚙️): нули пишутся И в облако Bridge, а
-// gen++ делает новое поколение СТАРШЕ любой отставшей облачной копии — даже
-// если запись нулей в облако сорвётся, mergeSave старую копию не воскресит
+// A full progress reset (the button in ⚙️): the zeros are written to the Bridge
+// cloud TOO, and gen++ makes the new generation NEWER than any lagging cloud
+// copy — even if writing the zeros to the cloud fails, mergeSave will not
+// resurrect the old copy
 function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // окна бандла, купленные встряски, главы сюжета и объяснялки меты // sm=1: мигрировать нечего, рейтинг пуст
+  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
-  Save.lv = 1;   // уровень живёт и в сейве (синхронизация между устройствами)
-  // ⚠️⚠️ СБРОС ОБЯЗАН ДОЙТИ ДО ТАБЛИЦЫ ЛИДЕРОВ (жалоба владельца 2026-08-11:
-  // «сбросил прогресс, но остался в таблице лидеров на прошлом месте»).
-  // Механика уже есть и работает у траты: подписчик `onStarsChange` в 82-lb
-  // забывает кэш и шлёт новое число. Сброс был ЕДИНСТВЕННЫМ изменением баланса,
-  // которое никого не извещало, — то есть игра обнулялась молча, и сервер о
-  // ней не узнавал. Своего сетевого вызова здесь заводить НЕЛЬЗЯ: он был бы
-  // копией чужого тракта рядом с работающим (закон, на котором проект уже
-  // обжигался пять раз) и разошёлся бы с ним при первой правке.
-  // ⚠️ Ноль доедет до сервера только у того, у кого строка уже есть, — гейт
-  // стоит в `lbSubmit` и объяснён там же.
-  // ⛔⛔ ЧЕГО ЗДЕСЬ ТРОГАТЬ НЕЛЬЗЯ (ревью Интеграции 2026-08-11, разбор по коду).
-  // Сброс НЕ чистит `mixer_lb_sent` и НЕ трогает ключ подписи — и это несущее,
-  // а не случайность:
-  //   • сбрось он `mixer_lb_sent` — после перезагрузки память об отправке стала
-  //     бы пустой, ноль перестал бы уходить (гейт в `lbSubmit` смотрит именно
-  //     на неё), и жалоба владельца вернулась бы в виде «сбросил, перезагрузил,
-  //     всё равно в таблице»;
-  //   • сбрось он ключ подписи — игрок по TOFU НАВСЕГДА потерял бы право
-  //     обновлять свою строку, и она застыла бы со старым счётом.
+  Save.lv = 1;   // the level lives in the save too (sync between devices)
+  // ⚠️⚠️ THE RESET MUST REACH THE LEADERBOARD (the owner's complaint 2026-08-11:
+  // «I reset the progress, but stayed in the leaderboard at my old place»).
+  // The mechanism already exists and works for spending: the `onStarsChange`
+  // subscriber in 82-lb forgets the cache and sends the new number. The reset was
+  // the ONLY change of the balance that notified nobody — that is, the game was
+  // zeroed silently and the server never learned about it. Starting our own
+  // network call here IS NOT ALLOWED: it would be a copy of someone else's path
+  // next to a working one (the law the project has already been burned by five
+  // times) and would diverge from it at the first edit.
+  // ⚠️ The zero will reach the server only for someone who already has a row —
+  // the gate stands in `lbSubmit` and is explained there.
+  // ⛔⛔ WHAT MUST NOT BE TOUCHED HERE (Integration's review 2026-08-11, analysis
+  // by code). The reset does NOT clear `mixer_lb_sent` and does NOT touch the
+  // signing key — and that is load-bearing, not an accident:
+  //   • were it to clear `mixer_lb_sent` — after a reload the memory of the
+  //     submission would be empty, the zero would stop going out (the gate in
+  //     `lbSubmit` looks exactly at it), and the owner's complaint would come
+  //     back as «reset, reloaded, still in the table»;
+  //   • were it to clear the signing key — under TOFU the player would FOREVER
+  //     lose the right to update his row, and it would freeze with the old score.
   fireStarsChange();
 }
 
-// ===== НАКОПЛЕНИЕ ПО ТИПАМ: API (контракт для ИНТЕРФЕЙСА, см. WORKSTREAMS).
-// Пороги — ряд ×2+100 владельца: 100/300/700/1500/3100/6300... = 100·(2^n−1).
+// ===== ACCUMULATION BY TYPE: the API (the contract for the INTERFACE, see
+// WORKSTREAMS). The thresholds are the owner's ×2+100 series:
+// 100/300/700/1500/3100/6300... = 100·(2^n−1).
 function accThreshold(t){ return t <= 0 ? 0 : 100 * (Math.pow(2, t) - 1); }
 function accCount(name){ return (Save.ac && Save.ac[name]) || 0; }
-// Ступени, ЗАРАБОТАННЫЕ совмещениями (без учёта покупок) — по ним считается
-// прогресс-полоска витрины: игрок должен видеть честное «спасено N из M».
+// The tiers EARNED by merges (purchases not counted) — the showcase progress
+// bar is computed from them: the player must see an honest «N of M rescued».
 function accCountTier(name){
   const c = accCount(name);
   let t = 0;
   while (t < ACC_TIER_CAP && c >= accThreshold(t + 1)) t++;
   return t;
 }
-// ИТОГОВАЯ ступень = заработанные + купленные бустом (общий кап).
+// The RESULTING tier = earned + bought with boost (a shared cap).
 function accTier(name){ return Math.min(ACC_TIER_CAP, accCountTier(name) + boostTier(name)); }
 function accMult(name){ return 1 + ACC_MULT_STEP * accTier(name); }
-function accNext(name){ // порог следующей ЗАРАБАТЫВАЕМОЙ ступени или null на капе
+function accNext(name){ // the threshold of the next EARNABLE tier, or null at the cap
   const t = accCountTier(name);
   return t >= ACC_TIER_CAP ? null : accThreshold(t + 1);
 }
-// Событие апа ступени: интерфейс вешает всплывашку через onAccTierUp(cb);
-// колбэк получает { name, tier, mult, item } В МОМЕНТ пересечения порога
-// (из doMatch). Ошибка в чужом колбэке не роняет матч (try/catch).
+// The tier-up event: the interface hangs a popup on it via onAccTierUp(cb); the
+// callback receives { name, tier, mult, item } AT THE MOMENT the threshold is
+// crossed (from doMatch). An error in someone else's callback does not break the
+// match (try/catch).
 const accTierUpCbs = [];
 function onAccTierUp(cb){ if (typeof cb === 'function') accTierUpCbs.push(cb); }
 function accAdd(name, n, item){
@@ -518,25 +542,29 @@ function accAdd(name, n, item){
   commitSave();
   if (after > before){
     try { Telemetry.ev('acc_up', { t: name, tier: after }); } catch(e){}
-    // ev.name — ЧЕЛОВЕЧЕСКИЙ ярлык (его рендерит всплывашка ИНТЕРФЕЙСА),
-    // ev.key — ключ ассета; item ЖИВОЙ: mesh валиден, но тело Rapier уже
-    // уничтожено и растворение стартовало — портрет снимать сразу в колбэке
+    // ev.name — the HUMAN-READABLE label (rendered by the INTERFACE's popup),
+    // ev.key — the asset key; item is LIVE: the mesh is valid, but the Rapier
+    // body is already destroyed and the dissolve has started — take the portrait
+    // right away inside the callback
     const ev = { name: accLabel(name), key: name, tier: after, mult: accMult(name), item: item || null };
     for (const cb of accTierUpCbs){ try { cb(ev); } catch(e){} }
   }
 }
-// ЧЕЛОВЕЧЕСКИЕ ЯРЛЫКИ ТИПОВ (просьба ИНТЕРФЕЙСА 2026-07-22: витрина музея
-// показывала ключи ассетов). Правило: срезать префикс пачки + заглавная
-// буква; уродцев-склейки — в карте исключений. Ярлыки EN (как кнопки).
-// ⚠️ Список префиксов = ВСЕ пачки TYPES (запрос ИНТЕРФЕЙСА 2026-07-22: в
-// витрине выходило «Brickround»/«Piratebarrel»). Заводишь новую пачку —
-// добавь её префикс сюда, иначе ярлык поедет вместе с ключом ассета.
-// Кирпичам добавлено слово «brick»: их имена — голые формы (round/bar/duo/
-// stud...), и в списке музея «Round» без опоры не читается; пиратские
-// предметы самостоятельны (Barrel/Cannon/Chest) и идут как есть.
-// ⚠️ КЛЮЧИ КАРТЫ — ПОЛНЫЕ имена типов (не срез): срез у разных пачек
-// совпадает (animalfish и foodfish оба давали «Fish» — две неразличимые
-// строки в витрине), поэтому карта разводит их по исходному ключу.
+// HUMAN-READABLE TYPE LABELS (the INTERFACE's request 2026-07-22: the museum
+// showcase was showing asset keys). The rule: cut off the pack prefix + a capital
+// letter; the glued-together freaks go into the exceptions map. The labels are EN
+// (like the buttons).
+// ⚠️ The list of prefixes = ALL the TYPES packs (the INTERFACE's request
+// 2026-07-22: the showcase produced «Brickround»/«Piratebarrel»). Starting a new
+// pack — add its prefix here, otherwise the label will drift along with the
+// asset key.
+// The bricks got the word «brick» added: their names are bare shapes (round/bar/
+// duo/stud...), and in the museum list «Round» does not read without support;
+// the pirate items stand on their own (Barrel/Cannon/Chest) and go as they are.
+// ⚠️ THE MAP KEYS ARE the FULL type names (not the trimmed ones): the trimmed
+// form coincides across different packs (animalfish and foodfish both produced
+// «Fish» — two indistinguishable rows in the showcase), so the map separates
+// them by the original key.
 const ACC_LABELS = {
   animalpolar: 'Polar bear', animalfish: 'Fish',
   carpolice: 'Police car', carrace: 'Race car', carfiretruck: 'Fire truck',
@@ -546,40 +574,42 @@ const ACC_LABELS = {
   foodwholeham: 'Whole ham', foodcakebirthday: 'Birthday cake',
   foodicecreamscoopmint: 'Mint ice cream', foodhotdog: 'Hot dog',
   foodchinese: 'Takeout box',
-  // кирпичи: имена — голые формы (round/bar/duo/stud...), в списке музея
-  // «Round» без опоры не читается; пиратские предметы самостоятельны
-  // (Barrel/Cannon/Chest) и идут срезом как есть
+  // bricks: the names are bare shapes (round/bar/duo/stud...), in the museum
+  // list «Round» does not read without support; the pirate items stand on their
+  // own (Barrel/Cannon/Chest) and go as the trimmed form, as they are
   brickround: 'Round brick', brickbar: 'Bar brick', brickcorner: 'Corner brick',
   brickstud: 'Stud brick', brickclassic: 'Classic brick',
   bricksquare: 'Square brick', brickduo: 'Duo brick' };
-// ⚠️ Список префиксов = ВСЕ пачки TYPES (запрос ИНТЕРФЕЙСА 2026-07-22: в
-// витрине выходило «Brickround»/«Piratebarrel»). Заводишь новую пачку —
-// добавь её префикс сюда, иначе ярлык поедет вместе с ключом ассета.
-// ── ТЕКСТЫ ДОЛГОЙ МЕТЫ (пункт плана 1.3: на телефоне витрина не строится,
-// и правило «совмещения НАВСЕГДА растят множитель типа» игрок не узнаёт нигде.
-// В v2 это острее, чем было в v1: тост множителя под глазами (нода 829:1242)
-// показывает «×1.25» на КАЖДОМ сборе прокачанного вида — число мозолит глаз
-// постоянно и до сих пор ничем не объяснено).
-// ⚠️ Строки живут ЗДЕСЬ, а не на поверхностях: тост, музей и экран победы
-// обязаны говорить об одном и том же ОДНИМИ словами. Разъедутся формулировки —
-// игрок решит, что это разные механики.
-const META_TIP_RULE = 1; // бит Save.mt: правило накопления объяснено
-// «300 saved» — сколько спасено ИМЕННО этого вида. Число, а не проценты:
-// счётчик пожизненный и без верхней границы, доля была бы ложью.
+// ⚠️ The list of prefixes = ALL the TYPES packs (the INTERFACE's request
+// 2026-07-22: the showcase produced «Brickround»/«Piratebarrel»). Starting a new
+// pack — add its prefix here, otherwise the label will drift along with the key.
+// ── THE TEXTS OF THE LONG META (plan item 1.3: on a phone the showcase is not
+// built, and the rule «merges grow the type's multiplier FOREVER» the player
+// learns nowhere. In v2 this is sharper than it was in v1: the multiplier toast
+// under the eyes (node 829:1242) shows «×1.25» on EVERY collection of an upgraded
+// kind — the number keeps catching the eye constantly and is still explained by
+// nothing).
+// ⚠️ The strings live HERE, not on the surfaces: the toast, the museum and the
+// win screen must speak about one and the same thing in ONE set of words. Should
+// the wordings drift apart — the player will decide these are different mechanics.
+const META_TIP_RULE = 1; // the Save.mt bit: the accumulation rule has been explained
+// «300 saved» — how many of EXACTLY this kind were rescued. A number, not
+// percentages: the counter is lifetime and has no upper bound, a share would lie.
 function accSavedText(name){ return accCount(name) + ' saved'; }
-// «next ×1.5 at 700» — что и когда изменится. Показывать ТОЛЬКО когда есть
-// следующая ступень: на капе строка «next …» врала бы.
+// «next ×1.5 at 700» — what will change and when. Show it ONLY when there is a
+// next tier: at the cap the «next …» line would be lying.
 function accNextText(name){
   const n = accNext(name);
   if (!n) return 'max level';
   return 'next ' + accMultText(1 + ACC_MULT_STEP * (accCountTier(name) + 1)) + ' at ' + n;
 }
 function accMultText(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
-// Одна строка под портретом: «Tiger · 300 saved». Имя + счёт превращают
-// голое «×1.25» в понятную величину.
+// One line under the portrait: «Tiger · 300 saved». The name + the count turn a
+// bare «×1.25» into an understandable quantity.
 function accToastLine(name){ return accLabel(name) + ' · ' + accSavedText(name); }
-// ПРАВИЛО — объясняем РОВНО ОДИН РАЗ, в момент первой ступени: раньше игрок
-// не понял бы, о чём речь, позже — уже привык видеть цифру без смысла.
+// THE RULE — we explain it EXACTLY ONCE, at the moment of the first tier:
+// earlier the player would not understand what it is about, later he has already
+// got used to seeing the number without any meaning.
 function accRuleDue(){ return !((Save.mt || 0) & META_TIP_RULE); }
 function accRuleText(){ return 'This kind now pays more — forever'; }
 function accRuleMark(){ Save.mt = (Save.mt || 0) | META_TIP_RULE; commitSave(); }
@@ -589,56 +619,60 @@ function accLabel(key){
   const short = k.replace(/^(animal|food|car|brick|pirate)/, '');
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
-// ОТКРЫТОСТЬ ТИПОВ ПРОГРЕССИЕЙ (контракт для ГРАФИКИ — 3D-портрет только
-// открытым, иначе спойлер моделей). Правило ЕДИНОЕ с genLevel (40-items):
-// типы открываются ПО ПОРЯДКУ массива TYPES, 9 на ур.1, +1 за уровень,
-// потолок пула. levelNum монотонен в реальной игре (растёт на победе),
-// поэтому = ДОСТИГНУТЫЙ МАКСИМУМ. Интерфейс имеет СВОЮ unlockedTypeCount
-// (85-hud, его зона) — числа совпадают; converge позже, если захочет.
+// TYPE UNLOCKING BY PROGRESSION (the contract for GRAPHICS — a 3D portrait only
+// for the unlocked ones, otherwise it spoils the models). The rule is THE SAME as
+// in genLevel (40-items): types open IN THE ORDER of the TYPES array, 9 at lv.1,
+// +1 per level, the pool's ceiling. levelNum is monotonic in a real game (it
+// grows on a win), therefore = THE MAXIMUM REACHED. The interface has ITS OWN
+// unlockedTypeCount (85-hud, its zone) — the numbers coincide; converge later,
+// if it wants to.
 function typesUnlockedCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
   return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
 }
-// Открыт = прогрессией ИЛИ куплен заранее за баланс (uk). ⚠️ Покупной
-// разлок раскрывает тип в КОЛЛЕКЦИИ/портрете (и позволяет буст), но НЕ
-// меняет пул спавна genLevel (это была бы правка ядра/сложности) — тип
-// начнёт выпадать в игре по обычной прогрессии. Интерпретация помечена
-// диспетчеру; если владелец захочет ранний СПАВН — отдельная правка genLevel.
+// Unlocked = by progression OR bought in advance for balance (uk). ⚠️ A bought
+// unlock reveals the type in the COLLECTION/portrait (and allows a boost), but
+// does NOT change genLevel's spawn pool (that would be an edit of the core/
+// difficulty) — the type will start dropping in the game by the usual
+// progression. The interpretation has been flagged to the dispatcher; if the
+// owner wants an early SPAWN — that is a separate genLevel edit.
 function isTypeUnlocked(name){
   const idx = TYPES.findIndex(T => T.name === name);
   if (idx >= 0 && idx < typesUnlockedCount()) return true;
   return !!(Save.uk && Save.uk[name]);
 }
 function unlockedTypes(){ return TYPES.filter(T => isTypeUnlocked(T.name)).map(T => T.name); }
-// ОТКРЫТИЕ ТИПА ЗА БАЛАНС (финализация владельца 2026-07-24). Цена
-// LEVEL-SCALED (матрица #9, §v3): BASE + PER_LEVEL·levelNum — растёт с
-// доходом, держит вмятину ~29% банка на любом уровне. Трата через ss →
-// баланс и лидерборд падают (осознанный размен владельца). Уже открытые
-// не продаём. ⚠️ Цена от ТЕКУЩЕГО уровня, НЕ от дистанции до типа —
-// безопасность спайка структурна (спавн-гейт), см. §v3 TRIPWIRE.
+// UNLOCKING A TYPE FOR BALANCE (the owner's finalization 2026-07-24). The price
+// is LEVEL-SCALED (matrix #9, §v3): BASE + PER_LEVEL·levelNum — it grows with
+// income and keeps a dent of ~29% of the bank at any level. Spending goes
+// through ss → the balance and the leaderboard fall (the owner's deliberate
+// trade-off). Already unlocked ones are not sold. ⚠️ The price is based on the
+// CURRENT level, NOT on the distance to the type — spike safety is structural
+// (the spawn gate), see §v3 TRIPWIRE.
 function typeUnlockPrice(name){
-  if (isTypeUnlocked(name)) return null; // уже открыт (прогрессией или куплен)
+  if (isTypeUnlocked(name)) return null; // already unlocked (by progression or bought)
   const idx = TYPES.findIndex(T => T.name === name);
   return idx >= 0 ? (TYPE_UNLOCK_BASE + TYPE_UNLOCK_PER_LEVEL * levelNum) : null;
 }
-function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && liveBalance() >= p; } // по ПОКАЗАННОМУ
+function canUnlockType(name){ const p = typeUnlockPrice(name); return p != null && liveBalance() >= p; } // by what is SHOWN
 function purchaseUnlock(name){
   const p = typeUnlockPrice(name);
   if (p == null) return { ok: false, reason: isTypeUnlocked(name) ? 'already' : 'unknown' };
   if (!ensureBanked(p)) return { ok: false, reason: 'insufficient', price: p, balance: liveBalance() };
   if (!Save.uk) Save.uk = {};
-  Save.ss = (Save.ss || 0) + p; // трата — монотонный счётчик (лидерборд падает)
+  Save.ss = (Save.ss || 0) + p; // spending — a monotonic counter (the leaderboard falls)
   Save.uk[name] = 1;
   commitSave(); fireStarsChange();
   try { Telemetry.ev('unlock_buy', { t: name, price: p }); } catch(e){}
   return { ok: true, price: p, balance: starBalance() };
 }
 
-// Снапшот для витрины музея (контракт ИНТЕРФЕЙСА, 85-hud подхватывает по
-// typeof): name — ярлык для показа, key — ключ ассета (аргумент accCount и
-// др.), _item — живой предмет типа для офскрин-портрета (или null),
-// unlocked — открыт ли тип прогрессией (ГРАФИКА рендерит портрет только
-// открытым; поле аддитивное — старые потребители не задеты).
+// A snapshot for the museum showcase (the INTERFACE's contract, 85-hud picks it
+// up by typeof): name — the label for display, key — the asset key (the argument
+// of accCount and others), _item — a live item of the type for the offscreen
+// portrait (or null), unlocked — whether the type is open by progression
+// (GRAPHICS renders the portrait only for the unlocked ones; the field is
+// additive — the old consumers are untouched).
 function accSnapshot(){
   const openN = typesUnlockedCount();
   return TYPES.map((T, i) => {
@@ -651,20 +685,22 @@ function accSnapshot(){
     const prog = i < openN;
     return { name: accLabel(k), key: k, count: accCount(k), tier: accTier(k),
       mult: accMult(k), next: accNext(k),
-      // BOOST для меню владельца: сколько ступеней докуплено, цена следующей
-      // (null — упёрлись в кап) и хватает ли баланса прямо сейчас
+      // BOOST for the owner's menu: how many tiers were bought on top, the price
+      // of the next one (null — we hit the cap) and whether the balance is enough
+      // right now
       boost: boostTier(k), price: boostPrice(k), affordable: canBoost(k),
-      // ОТКРЫТИЕ: unlocked = прогрессией ИЛИ куплено; bought — именно куплено
-      // (интерфейс отличает «дошёл» от «купил заранее»); unlockPrice/canUnlock
-      // — для кнопки «открыть за баланс» на ЗАКРЫТЫХ карточках
+      // UNLOCKING: unlocked = by progression OR bought; bought — bought
+      // specifically (the interface tells «reached it» from «bought in advance»);
+      // unlockPrice/canUnlock — for the «unlock for balance» button on the
+      // LOCKED cards
       unlocked: prog || !!(Save.uk && Save.uk[k]), bought: !!(Save.uk && Save.uk[k]),
       unlockPrice: typeUnlockPrice(k), canUnlock: canUnlockType(k),
       _item: live };
   });
 }
-// Защита на смену партии моделей (обязательная связка (б) спеки): ключи
-// сейва, которых нет в текущих TYPES, НЕ удаляются — прогресс переживёт
-// возврат типа в пул; в консоль — предупреждение со списком.
+// Protection against a model batch change (the spec's mandatory link (b)): save
+// keys that are absent from the current TYPES are NOT deleted — the progress will
+// survive the type's return to the pool; a warning with the list goes to console.
 function accAuditOrphans(){
   try {
     if (!Save.ac) return;
@@ -672,25 +708,26 @@ function accAuditOrphans(){
     for (const T of TYPES) known[T.name] = 1;
     const orphans = Object.keys(Save.ac).filter(k => !known[k]);
     if (orphans.length)
-      console.warn('[acc] осиротевшие счётчики накопления (тип вне текущей партии, прогресс сохранён): ' + orphans.join(', '));
+      console.warn('[acc] orphaned accumulation counters (type outside the current batch, progress kept): ' + orphans.join(', '));
   } catch(e){}
 }
 loadSave();
-// ⚠️ УРОВЕНЬ ЖИВЁТ И В СЕЙВЕ (слово владельца 2026-08-07: «синхронизация
-// между устройствами нужна... как по очкам и покупкам, так и по прогрессу»).
-// Берём МАКСИМУМ из двух источников: сейв мог приехать из облака свежее,
-// localStorage — быть новее оффлайн.
-// ⚠️⚠️ БЛОК ЖИВЁТ ИМЕННО ЗДЕСЬ, ПОСЛЕ loadSave(), А НЕ В 40-items: склейка
-// сортирует модули по имени, и в 40-items «typeof Save» бросал ReferenceError
-// (TDZ у const), который глотал пустой catch — с 2026-08-07 холодный старт
-// ТЕРЯЛ сохранённый уровень, каждый перезапуск начинал игру с 1-го. Нашло
-// внешнее ревью 2026-08-13; страж «сейв уровня переживает перезагрузку» в
-// сьюте стоит ровно на этом. `levelNum` объявлен в 40-items (40 < 77) — к
-// этому моменту он давно жив, TDZ тут нет.
+// ⚠️ THE LEVEL LIVES IN THE SAVE TOO (the owner's word 2026-08-07: «the sync
+// between devices is needed... both for points and purchases and for progress»).
+// We take the MAXIMUM of the two sources: the save could have arrived fresher
+// from the cloud, localStorage could be newer offline.
+// ⚠️⚠️ THE BLOCK LIVES EXACTLY HERE, AFTER loadSave(), AND NOT IN 40-items: the
+// concatenation sorts the modules by name, and in 40-items «typeof Save» threw a
+// ReferenceError (the TDZ of a const), which an empty catch swallowed — since
+// 2026-08-07 a cold start LOST the saved level, every restart began the game from
+// the 1st. Found by an external review 2026-08-13; the guard «the level save
+// survives a reload» in the suite stands exactly on this. `levelNum` is declared
+// in 40-items (40 < 77) — by this moment it has long been alive, there is no TDZ
+// here.
 try {
   const fromLs = Math.max(1, parseInt(localStorage.getItem('mixer_level') || '1', 10) || 1);
   const fromSave = Math.max(1, (Save && Save.lv) || 1);
   levelNum = Math.max(levelNum, fromLs, fromSave);
 } catch (e) {}
-migrateStarsToWallet(); // разовая: рейтинг существующих сейвов -> стартовый баланс
+migrateStarsToWallet(); // one-off: the rating of existing saves -> the starting balance
 accAuditOrphans();

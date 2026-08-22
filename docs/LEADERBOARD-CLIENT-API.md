@@ -1,109 +1,113 @@
-# Контракт клиента своей таблицы (`window.__lb`) — шов ИНТЕГРАЦИЯ ↔ ИНТЕРФЕЙС
+# Own-leaderboard client contract (`window.__lb`) — the INTEGRATION ↔ INTERFACE seam
 
-Зоны (решение диспетчера 2026-08-09): **протокол — Интеграции** (`src/app/82-lb.js`:
-ключ, подпись, коды ответов, политика повторов), **экран — Интерфейсу** (врезка на
-победе и полный экран, поверх этого API). Контракт написан ДО правок модуля, чтобы
-экран верстался против согласованного, а не против догадки.
+Zones (dispatcher's decision 2026-08-09): **the protocol belongs to Integration**
+(`src/app/82-lb.js`: key, signature, response codes, retry policy), **the screen
+belongs to Interface** (the win inset and the full screen, on top of this API).
+The contract was written BEFORE the module was edited, so that the screen would be
+built against something agreed, not against a guess.
 
-⚠️ Модуль отдаёт **только данные**. Он ничего не рисует, не тостит и не знает про DOM.
+⚠️ The module returns **data only**. It draws nothing, raises no toasts and knows nothing about the DOM.
 
 ---
 
-## Три метода
+## Three methods
 
 ```js
-await __lb.top(page = 1)   // общий топ (из снимка, кэш сервера 60 с)
-await __lb.me()            // своё ТОЧНОЕ место + соседи сверху/снизу
-await __lb.submit()        // отправить текущий счёт (обычно не нужен экрану)
-__lb.invalidate()          // забыть кэш: следующий вызов пойдёт на сервер
-__lb.base()                // '' = таблица выключена (нет адреса), иначе URL
+await __lb.top(page = 1)   // the overall top (from the snapshot, server cache 60 s)
+await __lb.me()            // your EXACT place + neighbours above/below
+await __lb.submit()        // send the current score (the screen usually does not need it)
+__lb.invalidate()          // forget the cache: the next call goes to the server
+__lb.base()                // '' = the leaderboard is off (no address), otherwise the URL
 ```
 
-## Поле `state` есть ВСЕГДА, и три из четырёх значений — не ошибки
+## The `state` field is ALWAYS there, and three of the four values are not errors
 
-| `state` | что это | что показывать |
+| `state` | what it is | what to show |
 |---|---|---|
-| `'ok'` | данные пришли | таблицу |
-| `'early'` | сервер жив, снимок ещё не построен (крон раз в час) | «список появится позже», **не ошибку** |
-| `'offline'` | сети/сервера нет, либо таблица выключена | тихо скрыть блок |
-| `'broken'` | ответ не по контракту | тихо скрыть блок |
-| `'refused'` | сервер отказал по существу (поле `err` в теле) | тихо скрыть блок |
+| `'ok'` | the data arrived | the leaderboard |
+| `'early'` | the server is alive, the snapshot is not built yet (cron once an hour) | "the list will appear later", **not an error** |
+| `'offline'` | there is no network/server, or the leaderboard is switched off | hide the block silently |
+| `'broken'` | the response does not follow the contract | hide the block silently |
+| `'refused'` | the server refused on the merits (the `err` field in the body) | hide the block silently |
 
-⚠️ **`'early'` и `'broken'` разведены намеренно.** Сервер деградирует МЯГКО и на
-упавшей базе отвечает `200` — признак поломки живёт **в теле**, а не в коде ответа.
-Проверка по `res.ok` была бы зелёной на мёртвой таблице.
+⚠️ **`'early'` and `'broken'` are separated deliberately.** The server degrades SOFTLY and
+on a fallen database answers `200` — the sign of breakage lives **in the body**, not in the
+response code. A check on `res.ok` would be green on a dead leaderboard.
 
-## Что возвращает каждый метод
+## What each method returns
 
 ```js
 __lb.top()  → { state, rows: [{name, av, score}, …], total, at }
-__lb.me()   → { state, rank, exact, score, up: [строки], dn: [строки] }
+__lb.me()   → { state, rank, exact, score, up: [rows], dn: [rows] }
 __lb.submit() → { state, dup, rank, exact, sent, score }
 ```
 
-`av` — номер аватара (1..49), `at` — время снимка (сек), `total` — сколько всего
-игроков в таблице.
+`av` is the avatar number (1..49), `at` is the snapshot time (sec), `total` is how many
+players there are in the leaderboard altogether.
 
-⚠️⚠️ **ЛЮБОЙ ОТВЕТ `me()` И `submit()` СО `state:'ok'` НЕСЁТ `exact` — ПУСТЬ
-`false`.** Даже когда места нет вовсе: у `me()` есть законный случай «строки
-игрока в таблице ещё нет», и там едет `rank: null, exact: false`. Без поля этот
-случай неотличим от «поле переименовали на сервере», а отказ по `exact` у экрана
-закрытый — нет признака достоверности, место не показываем. Однородный контракт
-делает страж на стыке простым: **`ok` без `exact` = сломано**, без оговорок.
-⚠️ `top()` поля не несёт и нести не должен: это список, места в нём нет вовсе.
-Ранние выходы (`offline`, `broken`, `refused`) — тоже: там нет ни места, ни
-успеха, и экран показывает другое состояние.
+⚠️⚠️ **ANY `me()` AND `submit()` RESPONSE WITH `state:'ok'` CARRIES `exact` — EVEN IF
+`false`.** Even when there is no place at all: `me()` has a legitimate case "the player's
+row is not in the leaderboard yet", and there it carries `rank: null, exact: false`. Without
+the field that case is indistinguishable from "the field was renamed on the server", and the
+screen's refusal on `exact` is a closed one — no sign of trustworthiness, we do not show the
+place. A uniform contract makes the guard at the seam simple: **`ok` without `exact` =
+broken**, with no reservations.
+⚠️ `top()` does not carry the field and must not: it is a list, there is no place in it at
+all. The early exits (`offline`, `broken`, `refused`) likewise: there is neither a place nor
+a success there, and the screen shows a different state.
 
-⚠️⚠️ **«СТРОКИ ИГРОКА ЕЩЁ НЕТ» — ЭТО `ok`, А НЕ `refused`.** Маркер — `me: null`
-при `rank: null, exact: false`. Так выглядит КАЖДЫЙ игрок до первой победы, то
-есть самый частый путь первого запуска; складывать его в `refused` нельзя —
-экран перестал бы отличать новичка от мёртвого сервера. (Проверено замером
-2026-08-10: сервер отвечает `404 {"err":"none"}`, и до правки клиент честно
-переводил это в `refused` — ветка «нет строки» была недостижима.)
+⚠️⚠️ **"THE PLAYER'S ROW IS NOT THERE YET" IS `ok`, NOT `refused`.** The marker is `me: null`
+together with `rank: null, exact: false`. That is what EVERY player looks like before the
+first win, that is, the most frequent path of the first launch; putting it into `refused` is
+not allowed — the screen would stop telling a newcomer from a dead server. (Verified by a
+measurement 2026-08-10: the server answers `404 {"err":"none"}`, and before the fix the
+client honestly translated that into `refused` — the "no row" branch was unreachable.)
 
-## ⚠️⚠️ ГЛАВНОЕ ДЛЯ ВРЕЗКИ: место берут ИЗ `me()`, а не из ответа на отправку
+## ⚠️⚠️ THE MAIN THING FOR THE INSET: the place is taken FROM `me()`, not from the submit response
 
-* `me().rank` — **точное** место, при нём `exact: true`.
-* `submit().rank` — **оценка** по последнему снимку, при ней `exact: false`, и она
-  **может быть `null`**. `null` значит «сказать нечего», а не «первое место»:
-  оценка считается по лесенке (счёт на каждом сотом месте), и границы нет, когда
-  в таблице меньше сотни игроков либо когда счёт выше первой ступени.
+* `me().rank` is the **exact** place, it comes with `exact: true`.
+* `submit().rank` is an **estimate** from the latest snapshot, it comes with `exact: false`,
+  and it **can be `null`**. `null` means "there is nothing to say", not "first place": the
+  estimate is computed from the ladder (the score at every hundredth place), and there is no
+  boundary when the leaderboard has fewer than a hundred players or when the score is above
+  the first step.
 
-⛔ **Никогда не показывать `submit().rank` как место игрока.** Здесь сервер раньше
-отдавал уверенную `1` каждому, и первый же живой прогон прочёл её как настоящее
-место (починено 2026-08-09, `rank` теперь `null`).
+⛔ **Never show `submit().rank` as the player's place.** Here the server used to hand out a
+confident `1` to everyone, and the very first live run read it as a real place
+(fixed 2026-08-09, `rank` is now `null`).
 
-**Последовательность врезки на победе строго такая:**
+**The sequence of the win inset is strictly this:**
 
 ```
-банк счёта → submit() → дождаться ответа → me() → рисовать
+bank the score → submit() → wait for the response → me() → draw
 ```
 
-⛔ Звать `me()` параллельно с отправкой — получить место ДО учёта только что
-сыгранной партии, то есть «отстало на уровень». Кэш этому не мешает: `submit()`
-сбрасывает его сам.
+⛔ Calling `me()` in parallel with the submit means getting the place BEFORE the round just
+played has been counted, that is, "one level behind". The cache does not get in the way:
+`submit()` resets it itself.
 
-⚠️ **Врезка не смеет задерживать переход на следующий уровень** (слово владельца):
-данные асинхронные, не пришли за секунду — экран живёт без них.
+⚠️ **The inset must not dare delay the transition to the next level** (the owner's word):
+the data is asynchronous, it did not arrive within a second — the screen lives without it.
 
-## Трата на множитель
+## Spending on a multiplier
 
-Экрану **ничего делать не нужно**. Модуль сам подписан на изменение баланса и
-отправляет новое значение; после траты место падает без участия интерфейса. Экрану
-достаточно перерисоваться по своему событию и позвать `me()`.
+The screen **needs to do nothing**. The module is subscribed to balance changes itself and
+sends the new value; after a spend the place drops without the interface taking part. It is
+enough for the screen to redraw on its own event and to call `me()`.
 
-⚠️ У сервера окно частоты 20 секунд на игрока. Если трата случилась сразу после
-победы, отправка **откладывается** до открытия окна и уходит сама — потери не будет,
-но и мгновенного числа тоже. Экран обязан пережить задержку до ~20 секунд.
+⚠️ The server has a rate window of 20 seconds per player. If the spend happened right after
+a win, the submit is **postponed** until the window opens and goes out by itself — nothing
+will be lost, but there will be no instant number either. The screen must survive a delay of
+up to ~20 seconds.
 
-## Что экрану знать НЕ нужно
+## What the screen does NOT need to know
 
-Подпись, ключ игрока, коды `400/401/409/429/503`, повторы, лесенка рангов, кэш
-браузера. Всё это внутри модуля. Появится новое поведение протокола — меняется
-модуль, экран не трогается.
+The signature, the player key, the codes `400/401/409/429/503`, retries, the rank ladder, the
+browser cache. All of that is inside the module. New protocol behaviour appears — the module
+changes, the screen is not touched.
 
-## Выключенность
+## Being switched off
 
-`__lb.base() === ''` — адрес не задан, таблица выключена целиком (так она и едет до
-развёртывания воркера). Все методы отвечают `state: 'offline'`, ошибок в консоль не
-пишут. Экран в этом состоянии просто не показывает блок таблицы.
+`__lb.base() === ''` — the address is not set, the leaderboard is switched off entirely (that
+is how it ships until the worker is deployed). All methods answer `state: 'offline'` and write
+no errors to the console. In this state the screen simply does not show the leaderboard block.

@@ -1,140 +1,140 @@
-# Сюжет «Миксера» — библия блендера-злодея (v1, 2026-07-22)
+# «Mixer» story — the villain blender's bible (v1, 2026-07-22)
 
-Направление ПОВЕСТВОВАНИЕ, трек [сюжет]. Задание владельца (2026-07-22):
-«раскрывать детали блендера, который хочет уничтожить все объекты на земле,
-постепенно. Вероятно в виде комиксов. Простое, понятное и казуальное,
-не сильно сбивающее с темпа игры».
+Direction NARRATIVE, track [story]. The owner's task (2026-07-22):
+«reveal the details of the blender that wants to destroy all objects on earth,
+gradually. Probably in the form of comics. Simple, clear and casual,
+not knocking the game's pace off too much».
 
-## 0. Инварианты
+## 0. Invariants
 
-- **Бессловесно.** Ни одной реплики: пиктограммы, мысленные пузыри, эмоции.
-  Инвариант роадмапа «ноль сюжетного текста» соблюдён полностью, локализация
-  не нужна вовсе.
-- **Ноль правок геймплея.** Сюжет — слой поверх: существующее поведение
-  персонажа (EYES-CHARACTER-SPEC) не меняется, оно ПЕРЕЧИТЫВАЕТСЯ лором.
-- **Темп неприкосновенен:** виньетки только между уровнями, скип одним
-  тапом, авто-уход ≤4 с, никогда — до первого тапа сессии (козырь <20 с).
+- **Wordless.** Not a single line: pictograms, thought bubbles, emotions.
+  The roadmap invariant «zero story text» is fully observed, localization
+  is not needed at all.
+- **Zero gameplay edits.** The story is a layer on top: the character's existing
+  behavior (EYES-CHARACTER-SPEC) does not change, it is RE-READ through the lore.
+- **The pace is untouchable:** vignettes only between levels, skip with a single
+  tap, auto-dismiss ≤4 s, never — before the session's first tap (the <20 s trump card).
 
-## 1. Ядро сюжета: «Великий Рецепт» + обманутый злодей
+## 1. Story core: «The Great Recipe» + the deceived villain
 
-**Кто он.** Блендер одержим Великим Рецептом — смузи из ВСЕГО СУЩЕГО.
-Фрукты, овощи, звери, машины — по его книге всё на свете это ингредиент.
-План простой: перемолоть мир по разделам, раздел за разделом (постепенность
-владельца = главы рецепта = паки моделей = будущие залы музея).
+**Who he is.** The blender is obsessed with the Great Recipe — a smoothie of EVERYTHING THAT EXISTS.
+Fruit, vegetables, animals, cars — by his book everything in the world is an ingredient.
+The plan is simple: grind the world up section by section, section after section (the owner's
+gradualness = the recipe's chapters = model packs = the museum's future halls).
 
-**Драматическая ирония (главный ход).** Блендер уверен, что ИГРОК — его
-лучший помощник. Матч на его глазах выглядит как уничтожение: предметы
-лопаются в труху, сок и искры (наши же эффекты!). Он в восторге от твоих
-комбо — «как быстро ты их перемалываешь!». Он не знает, что вещи
-телепортируются в музей. Игрок с первых минут знает больше злодея —
-классическая казуальная ирония (кот Том, Гру, Уайл И. Койот), понятная
-без единого слова.
+**Dramatic irony (the main move).** The blender is certain that the PLAYER is his
+best helper. A match before his eyes looks like destruction: objects
+burst into dust, juice and sparks (our own effects!). He is delighted by your
+combos — «how fast you grind them up!». He does not know that things
+teleport into the museum. From the first minutes the player knows more than the villain —
+classic casual irony (Tom the cat, Gru, Wile E. Coyote), understandable
+without a single word.
 
-Этот ход БЕСПЛАТЕН: все реализованные эмоции глаз уже отыгрывают его (§2),
-финальная зачистка («то, что не спасли») — его законная добыча, помол —
-его нетерпение, огонь и красное небо — его гнев.
+This move is FREE: all the implemented eye emotions already play it out (§2),
+the final sweep («what was not saved») is his rightful prey, the grinding is
+his impatience, fire and the red sky are his rage.
 
-## 2. Существующие состояния глаз в лоре (правок кода НЕТ)
+## 2. Existing eye states in the lore (NO code edits)
 
-| Состояние (канон §3 EYES-SPEC) | Прочтение в лоре |
+| State (the canon, §3 EYES-SPEC) | Reading in the lore |
 |---|---|
-| спокойные, блуждающий взгляд | сверяется с Рецептом, выбирает следующий ингредиент |
-| закатанные (скука) | «помощник ленится» — раздражение пополам со скукой |
-| хитрые (≤3 с до помола) | предвкушает: сейчас смолотит сам |
-| злые + скан чаши (помол) | ОХОТИТСЯ — ищет, что сожрать |
-| огонь + красное небо | гнев голода: «медленно! Я хочу ВСЁ!» |
-| рост зрачков → турбо-качение → eyes-5 | экстаз разрушения: помощник превзошёл себя |
-| грусть на промахе (веки) | разочарован криворукостью помощника |
-| добрые на победе | блаженство: чаша пуста = «всё смолото» (он думает) |
-| распахнутые на кладе | «ЗОЛОТАЯ РЫБКА! Деликатес!» — а её уводят из-под носа |
-| подмигивание на тап | «мы с тобой команда, помощник» (ирония на пике) |
+| calm, wandering gaze | checking against the Recipe, choosing the next ingredient |
+| rolled back (boredom) | «the helper is slacking» — irritation half-and-half with boredom |
+| sly (≤3 s before the grinding) | anticipating: he is about to grind it himself |
+| angry + bowl scan (grinding) | HUNTING — looking for something to devour |
+| fire + red sky | the rage of hunger: «too slow! I want EVERYTHING!» |
+| pupil growth → turbo rolling → eyes-5 | the ecstasy of destruction: the helper outdid himself |
+| sadness on a miss (eyelids) | disappointed by the helper's clumsiness |
+| kind on a win | bliss: the bowl is empty = «everything is ground up» (he thinks) |
+| wide open on a treasure | «A GOLDFISH! A delicacy!» — and it is taken away from under his nose |
+| a wink on a tap | «you and I are a team, helper» (irony at its peak) |
 
-## 3. Формат: бессловесные комикс-виньетки
+## 3. Format: wordless comic vignettes
 
-- **Виньетка = 1 панель** (пролог и твист — до 2–3). Композиция: блендер
-  (его глаза = готовый выразительный язык) + мысленный пузырь с
-  пиктограммами + максимум одна стрелка/галочка. Читается за 1–2 секунды.
-- **Стиль:** плоские SVG-силуэты в языке существующего персонажа (белки/
-  зрачки как в игре); предметы — узнаваемые силуэты моделей паков.
-  Первая реализация — DOM/SVG-оверлей (килобайты, стилистически совпадает
-  с #face). Рисованные/AI-панели — опция этапа визуала (ГРАФИКА), если
-  владелец захочет богаче.
-- **Вес:** ≤3 КБ на панель, бюджет всего сюжета v1 ≤30 КБ (не трогает
-  козырь ~1 МБ).
-- **Показ:** оверлей на экране победы ПЕРЕД наградами (панель → тап →
-  звёзды/кнопка «Дальше» как обычно) или отдельной вставкой между
-  уровнями — решить с ИНТЕРФЕЙСОМ при реализации. Скип тапом в любой
-  момент; каденция ≤1 виньетки за 2 уровня; вехи важнее очереди.
+- **A vignette = 1 panel** (the prologue and the twist — up to 2–3). Composition: the blender
+  (his eyes = a ready-made expressive language) + a thought bubble with
+  pictograms + at most one arrow/check mark. Reads in 1–2 seconds.
+- **Style:** flat SVG silhouettes in the language of the existing character (whites/
+  pupils as in the game); objects — recognizable silhouettes of the packs' models.
+  The first implementation — a DOM/SVG overlay (kilobytes, stylistically matching
+  #face). Drawn/AI panels — an option of the visuals stage (GRAPHICS), if
+  the owner wants it richer.
+- **Weight:** ≤3 KB per panel, the budget of the whole v1 story ≤30 KB (does not touch
+  the ~1 MB trump card).
+- **Display:** an overlay on the win screen BEFORE the rewards (panel → tap →
+  stars/the «Next» button as usual) or as a separate insert between
+  levels — to be decided with INTERFACE at implementation time. Skip by tap at any
+  moment; cadence ≤1 vignette per 2 levels; milestones outrank the queue.
 
-## 4. Арка глав v1 (первые ~20 уровней)
+## 4. v1 chapter arc (the first ~20 levels)
 
-| # | Кодовое имя | Триггер-веха | Панели | Что раскрывает |
+| # | Code name | Trigger milestone | Panels | What it reveals |
 |---|---|---|---|---|
-| К0 | «Рецепт» | ПОСЛЕ первой победы | 2 | Книга-рецепт: пиктограммы фрукты→звери→машины→…→ЗЕМЛЯ; пузырь-мечта: стакан со ВСЕМ миром внутри. Установка: он хочет смолоть всё, по порядку |
-| К1 | «Помощник» | 2–3-я победа | 1 | Он смотрит на игрока с обожанием: пузырь «тап → труха → аплодисменты». Установка иронии |
-| К2 | «Куда?..» | первый закрытый экспонат музея | 1 | Пузырь: предмет исчезает →«?». Первое сомнение (сетап твиста) |
-| К3 | «Раздел второй» | смена доминирующего пака / новый зал | 1 | Чек-лист рецепта: сад ✓ → ЗВЕРИ. Хитрые глаза: план идёт |
-| К4 | «Музей?!» | первый ПОЛНЫЙ сет музея | 2–3 | Он ВИДИТ полку со «смолотыми» — целыми и довольными. Шок (распахнутые) → ЯРОСТЬ (злые + огонь). Дальше нарративно «его контрмеры» = эскалация сложности, Hard-испытания, будущие мутаторы v1.2 |
-| К5+ | «Контрмеры» | по залам/вехам после твиста | 1 | Его «схемы»: турбо-мотор, туман и пр. — каждый будущий мутатор получает панель-представление бесплатно |
+| C0 | «Recipe» | AFTER the first win | 2 | The recipe book: pictograms fruit→animals→cars→…→EARTH; a dream bubble: a glass with the WHOLE world inside. The setup: he wants to grind everything, in order |
+| C1 | «Helper» | 2nd–3rd win | 1 | He looks at the player with adoration: a bubble «tap → dust → applause». The setup of the irony |
+| C2 | «Where to?..» | the first closed museum exhibit | 1 | A bubble: the object disappears →«?». The first doubt (the twist's setup) |
+| C3 | «Section two» | a change of the dominant pack / a new hall | 1 | The recipe checklist: garden ✓ → ANIMALS. Sly eyes: the plan is on track |
+| C4 | «A museum?!» | the first FULL museum set | 2–3 | He SEES the shelf with the «ground up» ones — whole and content. Shock (wide open) → FURY (angry + fire). Onward, narratively, «his countermeasures» = difficulty escalation, Hard challenges, the future v1.2 mutators |
+| C5+ | «Countermeasures» | per halls/milestones after the twist | 1 | His «schemes»: a turbo motor, fog and so on — every future mutator gets an introduction panel for free |
 
-До К4 работает бегущая шутка «обманутый злодей»; твист поздний — первые
-сессии живут на иронии, не на конфликте. Если владелец предпочтёт
-НЕ раскрывать (вечная ирония) — К4/К5 заменяются циклом гэгов
-(см. §9, вопрос 2).
+Until C4 the running gag «the deceived villain» is at work; the twist is late — the first
+sessions live on the irony, not on the conflict. If the owner prefers
+NOT to reveal it (eternal irony) — C4/C5 are replaced by a cycle of gags
+(see §9, question 2).
 
-## 5. Микро-биты (реактивные, без панелей — кандидаты)
+## 5. Micro-beats (reactive, without panels — candidates)
 
-- Поражение игрока: на экране поражения блендер довольно облизывает
-  лопасти (одна поза). Дёшево, продаёт злодейство.
-- «Идеальный уровень» (всё спасено, ноль помолов): он растерянно
-  заглядывает в пустую чашу — «а где мой смузи?».
-- Чёрный шар-бомба: КАНДИДАТ в лор — «подарочек от блендера»: взорванное
-  бомбой считается УНИЧТОЖЕННЫМ (не спасено, в музей не идёт — согласуется
-  с механикой «без очков»). Искушение от злодея: быстро, но ценой
-  коллекции. Вопрос владельцу (§9.4).
+- The player's defeat: on the defeat screen the blender contentedly licks
+  its blades (one pose). Cheap, sells the villainy.
+- The «perfect level» (everything saved, zero grindings): bewildered, he peers
+  into the empty bowl — «and where is my smoothie?».
+- The black bomb ball: a CANDIDATE for the lore — «a little gift from the blender»: what is blown up
+  by the bomb counts as DESTROYED (not saved, does not go to the museum — consistent
+  with the «no points» mechanic). A temptation from the villain: fast, but at the cost of
+  the collection. A question for the owner (§9.4).
 
-## 6. Правила темпа (жёсткие)
+## 6. Pace rules (hard)
 
-1. Никогда не показывать до первого тапа сессии.
-2. Панель ≤4 с автономно, тап = мгновенный скип, скип не наказывается.
-3. ≤1 виньетки за 2 уровня; если веха и очередь совпали — веха, остальное
-   сгорает (не копить долг показов).
-4. Комикс не добавляет экранов в цикл «победа → Дальше»: он вкладывается
-   в существующий экран победы, interstitial с ним не стакается.
+1. Never show before the session's first tap.
+2. A panel ≤4 s on its own, a tap = an instant skip, a skip is not punished.
+3. ≤1 vignette per 2 levels; if a milestone and the queue coincide — the milestone, the rest
+   burns off (do not accumulate a debt of displays).
+4. The comic adds no screens to the «win → Next» loop: it is nested
+   into the existing win screen, an interstitial does not stack with it.
 
-## 7. Данные и сейв
+## 7. Data and the save
 
-Битмаска показанных глав `st` в сейве (v2, поле рядом с музейными):
-монотонная, мерж OR — глава не показывается дважды, потеря сейва =
-повтор с К0 (безвредно). Реактивные биты (§5) — без сейва, чистые
-функции состояния.
+A bitmask of shown chapters `st` in the save (v2, a field next to the museum ones):
+monotonic, OR merge — a chapter is not shown twice, losing the save =
+a repeat from C0 (harmless). The reactive beats (§5) — without a save, pure
+functions of state.
 
-## 8. Производство и зоны
+## 8. Production and zones
 
-| Кусок | Зона |
+| Piece | Zone |
 |---|---|
-| Сценарий панелей, вехи-триггеры, лор | ПОВЕСТВОВАНИЕ (этот чат) |
-| SVG-ассеты панелей (силуэты, пузыри) | ПОВЕСТВОВАНИЕ черновик → ГРАФИКА полировка |
-| Оверлей показа в shell.html + скип | ИНТЕРФЕЙС (междузонный запрос при реализации) |
-| Битмаска st в 77-save | ПОВЕСТВОВАНИЕ |
-| Спрайты поз блендера сверх глаз (облизывание лопастей и т.п.) | ГРАФИКА, по этапу визуала |
+| Panel script, trigger milestones, lore | NARRATIVE (this chat) |
+| Panel SVG assets (silhouettes, bubbles) | NARRATIVE draft → GRAPHICS polish |
+| The display overlay in shell.html + skip | INTERFACE (a cross-zone request at implementation time) |
+| The st bitmask in 77-save | NARRATIVE |
+| Sprites of blender poses beyond the eyes (licking the blades and the like) | GRAPHICS, at the visuals stage |
 
-Смета (буфер ×2): сценарий+раскадровка всех панелей К0–К4 — 1 сессия;
-SVG-прототип К0–К1 в сборке — 1 сессия; полный сет панелей + вехи +
-сейв-битмаска — 2 сессии. Реализация — ПОСЛЕ метрик v1 вместе с музеем
-(комикс и музей делят вехи).
+Estimate (buffer ×2): script + storyboard of all the C0–C4 panels — 1 session;
+an SVG prototype of C0–C1 in the build — 1 session; the full set of panels + milestones +
+the save bitmask — 2 sessions. Implementation — AFTER the v1 metrics, together with the museum
+(the comic and the museum share the milestones).
 
-## 9. Открытые вопросы владельцу
+## 9. Open questions for the owner
 
-1. **Мотивация «Великий Рецепт»** (смузи из всего сущего, мир = ингредиенты)
-   — утверждаем? Альтернатива: месть выброшенного прибора (драматичнее,
-   но требует больше панелей на объяснение).
-2. **Твист «он узнаёт про музей» (К4)** — делать? Варианты: (а) поздний
-   твист как в таблице — рекомендую; (б) никогда не узнаёт — вечная ирония.
-3. **Стиль панелей:** плоский SVG в языке глаз (дёшево, консистентно,
-   рекомендую для v1) или рисованные панели (богаче, вес + этап визуала)?
-4. **Бомба = «подарок блендера»** и её жертвы не идут в музей — принять?
-   (Механику не меняет: бомба уже без очков; это чисто правило зачёта
-   коллекции + одна панель-представление.)
-5. Показ виньетки: внутри экрана победы (рекомендую) или отдельной
-   вставкой перед ним?
+1. **The «Great Recipe» motivation** (a smoothie of everything that exists, the world = ingredients)
+   — do we approve it? An alternative: the revenge of a discarded appliance (more dramatic,
+   but requires more panels for the explanation).
+2. **The twist «he finds out about the museum» (C4)** — do it? Options: (a) a late
+   twist as in the table — I recommend it; (b) he never finds out — eternal irony.
+3. **Panel style:** flat SVG in the language of the eyes (cheap, consistent,
+   I recommend it for v1) or drawn panels (richer, weight + the visuals stage)?
+4. **The bomb = «a gift from the blender»** and its victims do not go to the museum — accept?
+   (Does not change the mechanic: the bomb is already without points; this is purely a rule for crediting
+   the collection + one introduction panel.)
+5. Vignette display: inside the win screen (I recommend it) or as a separate
+   insert before it?

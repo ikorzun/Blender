@@ -1,95 +1,95 @@
-# Карта экранов «Миксера» — что есть, чего не хватает (2026-07-20)
+# Screen map of «Mixer» — what exists, what is missing (2026-07-20)
 
-Направление ИНТЕРФЕЙС. Основание: `docs/DESIGN-ROADMAP.md` (мета v1/v1.1/v1.2),
-текущий `src/shell.html`. Кликабельный макет всех экранов — `src/ui-proto.html`
-(открывается двойным кликом, автономный, ничего не импортирует).
+INTERFACE workstream. Basis: `docs/DESIGN-ROADMAP.md` (meta v1/v1.1/v1.2),
+the current `src/shell.html`. A clickable mockup of all screens — `src/ui-proto.html`
+(opens on a double click, standalone, imports nothing).
 
-## 1. Что в игре уже есть
+## 1. What the game already has
 
-| # | Экран | Где | Состояние |
+| # | Screen | Where | State |
 |---|-------|-----|-----------|
-| 1 | Игровой HUD | `#topBar`, `#eyes`, `#chainBar`, `#bottomBar` | боевой |
-| 2 | ⚙️ Панель отладки | `#debugPanel` | **чинилась 2026-07-20** — в v1-ветке потерялся базовый CSS-селектор, панель не открывалась вовсе |
-| 3 | Запрос встряски (rewarded/монеты) | `#adAskOverlay` | боевой |
-| 4 | Заглушка рекламы | `#adOverlay` | боевой (stub 3 с) |
-| 5 | Поражение | `#loseOverlay` | боевой |
-| 6 | Победа (звёзды, монеты, ×2) | `#winOverlay` | боевой |
-| 7 | Фолбэк «нет WebGL» | `#fatal` | боевой |
+| 1 | In-game HUD | `#topBar`, `#eyes`, `#chainBar`, `#bottomBar` | live |
+| 2 | ⚙️ Debug panel | `#debugPanel` | **was repaired 2026-07-20** — in the v1 branch the base CSS selector went missing, the panel did not open at all |
+| 3 | Shake request (rewarded/coins) | `#adAskOverlay` | live |
+| 4 | Ad stub | `#adOverlay` | live (stub 3 s) |
+| 5 | Defeat | `#loseOverlay` | live |
+| 6 | Victory (stars, coins, ×2) | `#winOverlay` | live |
+| 7 | «No WebGL» fallback | `#fatal` | live |
 
-Итого: игра умеет **партию и её исходы**. Всё, что вокруг партии — отсутствует.
+Bottom line: the game can do **a round and its outcomes**. Everything around the round is missing.
 
-## 2. Чего не хватает
+## 2. What is missing
 
-Приоритет: **P0** — без этого путь игрока рвётся уже сейчас; **P1** — по роадмапу
-v1.1 (музей/дейли/магазин); **P2** — потом.
+Priority: **P0** — without it the player's path breaks already now; **P1** — per the
+v1.1 roadmap (museum/daily/shop); **P2** — later.
 
-| # | Экран | P | Зачем | Цена |
+| # | Screen | P | Why | Cost |
 |---|-------|---|-------|------|
-| 8 | **Загрузка** | P0 | сейчас первые секунды — пустой белый экран: 2.9 МБ + WASM + интро. Роадмап держит «время до первого тапа < 20 с» как козырь — его надо ПОКАЗЫВАТЬ, иначе игрок читает паузу как «сломалось» | низкая |
-| 9 | **Пауза** | P0 | выхода из партии нет вообще; таймер миксера тикает, отойти нельзя | низкая |
-| 10 | **Настройки** | P0 | сейчас настройки игрока (звук, сложность) смешаны с отладкой (радиус, «доступно пар») в одной ⚙️-панели. Тестеру-неразработчику её показывать нельзя | низкая |
-| 11 | **Обучение (3 шага)** | P0 | игрока бросают в полную чашу без единого слова: тап по группе, злость миксера, встряска. По роадмапу — пиктограммами, без переводимого текста | средняя |
-| 12 | **Главный экран (хаб)** | P1 | точка входа в музей/дейли/магазин; сейчас входить некуда. ⚠️ см. открытый вопрос §4 | средняя |
-| 13 | **Витрина после победы** | P1 | роадмап, «спроектированная незавершёнка»: полка ≤5 с между уровнями — главный рычаг D1 | средняя |
-| 14 | **Музей** | P1 | коллекция сетов и артефактов, залы как секции | высокая |
-| 15 | **Магазин** | P1 | сейчас ассортимент живёт в оверлее встряски; на 3 позиции (встряска/прицел/магнит) этого мало, плюс роадмап требует видимой цели «до Магнита 35 монет» | средняя |
-| 16 | **Daily Challenge + стрик** | P1 | роадмап: главный механизм возврата без бэкенда | средняя |
-| 17 | **Цель уровня (пре-левел)** | P2 | телеграф зала и условий 2★/3★; скипается тапом | низкая |
-| 18 | **Дни в игре / возвратный бонус** | P2 | попап на входе, роадмап v1.1 P1 | низкая |
-| 19 | **Лидерборды** | P2 | только где платформа даёт, за флагом | низкая |
+| 8 | **Loading** | P0 | right now the first seconds are an empty white screen: 2.9 MB + WASM + intro. The roadmap keeps «time to first tap < 20 s» as a trump card — it has to be SHOWN, otherwise the player reads the pause as «it broke» | low |
+| 9 | **Pause** | P0 | there is no way out of a round at all; the mixer timer keeps ticking, you cannot step away | low |
+| 10 | **Settings** | P0 | right now the player's settings (sound, difficulty) are mixed with debug ones (radius, «pairs available») in a single ⚙️ panel. It must not be shown to a non-developer tester | low |
+| 11 | **Tutorial (3 steps)** | P0 | the player is thrown into a full bowl without a single word: tap on a group, the mixer's anger, the shake. Per the roadmap — with pictograms, without translatable text | medium |
+| 12 | **Main screen (hub)** | P1 | the entry point into the museum/daily/shop; right now there is nowhere to enter. ⚠️ see the open question in §4 | medium |
+| 13 | **Showcase after a win** | P1 | the roadmap, «designed incompleteness»: a shelf ≤5 s between levels — the main D1 lever | medium |
+| 14 | **Museum** | P1 | a collection of sets and artifacts, halls as sections | high |
+| 15 | **Shop** | P1 | right now the assortment lives in the shake overlay; for 3 items (shake/aim/magnet) that is too little, plus the roadmap requires a visible goal «35 coins to the Magnet» | medium |
+| 16 | **Daily Challenge + streak** | P1 | the roadmap: the main return mechanism without a backend | medium |
+| 17 | **Level goal (pre-level)** | P2 | telegraphs the hall and the 2★/3★ conditions; skipped with a tap | low |
+| 18 | **Days in the game / return bonus** | P2 | a popup on entry, roadmap v1.1 P1 | low |
+| 19 | **Leaderboards** | P2 | only where the platform gives it, behind a flag | low |
 
-### Найдено попутно: верхний бар не держит «богатые» значения
+### Found along the way: the top bar does not hold «rich» values
 
-Замер headless (глаза 71px, значения уровня 12: `Ур.12 · 141`, `12:45`,
+Headless measurement (eyes 71px, level 12 values: `Lv.12 · 141`, `12:45`,
 `🪙 1240`, `★ 12480`):
 
-| ширина | нахлёст глаз слева | справа | что теряется |
+| width | eye overlap on the left | on the right | what is lost |
 |--------|--------------------|--------|--------------|
-| 320 px | 29 px | 42 px | таймер и монеты скрыты, чипы слева/справа сомкнулись |
-| 360 px | 32 px | 39 px | то же; «Ур.12 · 141» переносится на 2 строки |
-| 390 px | 31 px | 40 px | то же |
+| 320 px | 29 px | 42 px | the timer and coins are hidden, the left/right chips have closed together |
+| 360 px | 32 px | 39 px | same; «Lv.12 · 141» wraps onto 2 lines |
+| 390 px | 31 px | 40 px | same |
 
-То есть к 10-му уровню с парой сотен монет игрок перестаёт видеть таймер
-партии и счётчик монет. Сейчас незаметно только потому, что на 1-м уровне
-значения короткие. Геометрия HUD — спека владельца (глаза ×3, затем −30%),
-поэтому **не трогал**; варианты на выбор:
+That is, by level 10 with a couple hundred coins the player stops seeing the
+round timer and the coin counter. Right now it goes unnoticed only because on level 1
+the values are short. The HUD geometry is the owner's spec (eyes ×3, then −30%),
+therefore I **did not touch it**; options to choose from:
 
-1. глаза 56–60 px (минус ~20%) — дешевле всего, персонаж остаётся крупным;
-2. монеты и ★ объединить в один чип (`🪙 1240 · ★ 12k`) — освобождает ~90 px;
-3. глаза сдвинуть ниже чипов (top +46) — HUD цел, но персонаж лезет в чашу;
-4. сокращать числа (`12.5k`) — самый мелкий выигрыш, но и самый дешёвый.
+1. eyes 56–60 px (minus ~20%) — the cheapest of all, the character stays large;
+2. merge coins and ★ into one chip (`🪙 1240 · ★ 12k`) — frees up ~90 px;
+3. move the eyes below the chips (top +46) — the HUD is intact, but the character climbs into the bowl;
+4. shorten the numbers (`12.5k`) — the smallest gain, but also the cheapest.
 
-Отдельной **карты уровней не планируем**: прогрессия линейная, роль карты играют
-залы музея (роадмап §2) — иначе получаем экран, который нечем наполнить.
+A separate **level map is not planned**: the progression is linear, the role of the map is played by
+the museum halls (roadmap §2) — otherwise we get a screen there is nothing to fill.
 
-## 3. Порядок работ
+## 3. Order of work
 
-1. **Порция A (P0, до раздачи тестерам):** загрузка → пауза → настройки (расщепить
-   ⚙️: игрок отдельно, отладка под флагом) → обучение.
-2. **Порция B (P1, v1.1):** хаб → витрина → магазин → музей → daily.
-3. **Порция C (P2):** пре-левел, визиты, лидерборды.
+1. **Batch A (P0, before handing out to testers):** loading → pause → settings (split
+   the ⚙️: the player separately, debug behind a flag) → tutorial.
+2. **Batch B (P1, v1.1):** hub → showcase → shop → museum → daily.
+3. **Batch C (P2):** pre-level, visits, leaderboards.
 
-Локализация: заголовки оверлеев, тосты и ⚙️-панель ещё русские при английских
-кнопках. Полный EN-проход дешевле сделать ОДИН раз — после того, как состав
-экранов утверждён, иначе переводим дважды.
+Localization: overlay headings, toasts and the ⚙️ panel are still Russian while the buttons
+are English. A full EN pass is cheaper to do ONCE — after the set of
+screens is approved, otherwise we translate twice.
 
-## 4. Открытый вопрос владельцу (решение влияет на всю порцию B)
+## 4. Open question for the owner (the decision affects the whole of batch B)
 
-**Куда попадает игрок при запуске — сразу в уровень или на главный экран?**
+**Where does the player land on launch — straight into a level or on the main screen?**
 
-- «Сразу в уровень» (как сейчас) — козырь порталов: время до первого тапа
-  минимально, но хабу негде жить, и в музей/магазин не попасть.
-- «Главный экран» — мета видна, но каждый запуск += один тап до игры.
-- Компромисс, который заложен в макет: **первый запуск — сразу в уровень**
-  (время до первого тапа не растёт), а хаб открывается по кнопке «домой» — из
-  паузы и с витрины. Автоматически между уровнями хаб НЕ показываем: роадмап
-  требует «победа → витрина ≤5 с → один тап „Дальше“ → следующий уровень».
-  Меню находит тот, кто его ищет, темп сессии не ломается.
+- «Straight into a level» (as it is now) — the portals' trump card: time to first tap
+  is minimal, but the hub has nowhere to live, and there is no getting into the museum/shop.
+- «Main screen» — the meta is visible, but every launch += one tap before the game.
+- The compromise that is built into the mockup: **the first launch — straight into a level**
+  (time to first tap does not grow), and the hub opens via the «home» button — from
+  the pause and from the showcase. Between levels we do NOT show the hub automatically: the roadmap
+  requires «win → showcase ≤5 s → one tap on „Next“ → next level».
+  The menu is found by whoever looks for it, the session's tempo is not broken.
 
-## 5. Верификация макета
+## 5. Mockup verification
 
-`src/ui-proto.html` — 15 кадров 390×844, режимы «путь» (по одному) и «сетка»
-(все сразу, для развёртки в Figma). Стиль взят из боевого `shell.html`:
-карточки `#1d2432`, чипы `rgba(20,26,38,.75)`, плоские кнопки `#3e63dd` /
-`#2aa876` / `#8e4ec6`, золото `#ffc84a`, радиусы 12–20 px, белое поле.
-Каждый кадр помечен: «в игре» / «новый P0» / «новый P1» / «новый P2».
+`src/ui-proto.html` — 15 frames of 390×844, modes «path» (one at a time) and «grid»
+(all at once, for unfolding in Figma). The style is taken from the live `shell.html`:
+cards `#1d2432`, chips `rgba(20,26,38,.75)`, flat buttons `#3e63dd` /
+`#2aa876` / `#8e4ec6`, gold `#ffc84a`, radii 12–20 px, white field.
+Every frame is marked: «in the game» / «new P0» / «new P1» / «new P2».

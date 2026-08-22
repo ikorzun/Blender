@@ -1,37 +1,40 @@
-// ===== 20-arena: стеклянная чаша блендера, лопасти =====
-let bowlMesh = null, bowlMat = null; // стекло: тает при приближении камеры (99-main)
+// ===== 20-arena: the blender's glass bowl, the blades =====
+let bowlMesh = null, bowlMat = null; // glass: melts away as the camera comes close (99-main)
 
-// Стекло ВОЗВРАЩЕНО (запрос владельца) в последнем утверждённом виде —
-// «практически незаметное»: transmission 1, ior 1.0 (не гнёт лучи),
-// блики почти в ноль. Проникновение предметов В СТЕКЛО починено на стороне
-// физики: стены Rapier стоят ВНУТРИ стекла с зазором WALL_GAP (50-physics) —
-// предметы останавливаются, не доходя до стеклянной поверхности.
-const GLASS_T = 0.26; // толщина стекла
+// The glass is BACK (the owner's request) in its last approved form —
+// "practically invisible": transmission 1, ior 1.0 (does not bend rays),
+// highlights almost down to zero. Items penetrating INTO THE GLASS was fixed on
+// the physics side: the Rapier walls stand INSIDE the glass with a WALL_GAP
+// clearance (50-physics) — items stop short of the glass surface.
+const GLASS_T = 0.26; // glass thickness
 (function buildFunnel(){
   const pts = [];
   const N = 12;
   for (let i=0;i<=N;i++){ const y = FUNNEL.H*i/N; pts.push(new THREE.Vector2(FUNNEL.R0 + SLOPE*y, y)); }
-  pts.push(new THREE.Vector2(FUNNEL.R1 + GLASS_T*0.5, FUNNEL.H + 0.10)); // скруглённая губа
+  pts.push(new THREE.Vector2(FUNNEL.R1 + GLASS_T*0.5, FUNNEL.H + 0.10)); // rounded lip
   for (let i=N;i>=0;i--){ const y = FUNNEL.H*i/N; pts.push(new THREE.Vector2(FUNNEL.R0 + SLOPE*y + GLASS_T, y)); }
-  pts.push(new THREE.Vector2(FUNNEL.R0, 0));  // торец дна
-  pts.push(new THREE.Vector2(0.02, 0));       // стеклянное дно (чаша парит в белом)
+  pts.push(new THREE.Vector2(FUNNEL.R0, 0));  // end face of the bottom
+  pts.push(new THREE.Vector2(0.02, 0));       // glass bottom (the bowl floats in white)
   const lathe = new THREE.LatheGeometry(pts, 64);
-  // ⚠️ БЕЗ transmission: любой видимый transmission>0 заставляет three
-  // рендерить ВЕСЬ мир второй раз в FBO (замер аудита: ~55% КАЖДОГО кадра).
-  // При ior 1.0 стекло и так ничего не преломляло — прозрачность даёт тот же
-  // «практически незаметный» вид за долю цены. transmission НЕ возвращать.
-  // ПОЛНОСТЬЮ ПРОЗРАЧНОЕ СТЕКЛО (спека владельца 2026-07-21, обведено красным):
-  // в лоб чаша не видна ВООБЩЕ, проступает только мягкий край по касательной.
-  // Прежняя равномерная opacity 0.08 затягивала белёсой плёнкой всю площадь
-  // и глушила предметы; здесь плёнки нет — альфа берётся из ФРЕНЕЛЯ, то есть
-  // растёт лишь там, где поверхность уходит от взгляда ребром.
-  // GLASS_POW правит мягкость перехода: больше — уже и резче кромка.
+  // ⚠️ NO transmission: any visible transmission>0 makes three render the WHOLE
+  // world a second time into an FBO (audit measurement: ~55% of EVERY frame).
+  // At ior 1.0 the glass refracted nothing anyway — plain transparency gives the
+  // same "practically invisible" look for a fraction of the price. Do NOT bring
+  // transmission back.
+  // FULLY TRANSPARENT GLASS (the owner's spec 2026-07-21, circled in red):
+  // head-on the bowl is not visible AT ALL, only a soft edge shows at a tangent.
+  // The previous uniform opacity 0.08 draped a whitish film over the whole area
+  // and muffled the items; here there is no film — the alpha is taken from the
+  // FRESNEL term, that is, it rises only where the surface turns edge-on to the
+  // viewer.
+  // GLASS_POW governs the softness of the transition: larger — a narrower and
+  // sharper rim.
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
     uniforms: {
-      uEdge: { value: GLASS_EDGE },   // яркость кромки
-      uPow:  { value: GLASS_POW },    // мягкость перехода
-      uFade: { value: 1 },            // растворение при зуме (99-main)
+      uEdge: { value: GLASS_EDGE },   // rim brightness
+      uPow:  { value: GLASS_POW },    // transition softness
+      uFade: { value: 1 },            // dissolving on zoom (99-main)
     },
     vertexShader: [
       'varying vec3 vN; varying vec3 vV;',
@@ -46,7 +49,7 @@ const GLASS_T = 0.26; // толщина стекла
       'uniform float uEdge; uniform float uPow; uniform float uFade;',
       'varying vec3 vN; varying vec3 vV;',
       'void main(){',
-      // abs() — чтобы кромка читалась и на гранях, отвёрнутых от камеры
+      // abs() — so that the rim reads on faces turned away from the camera too
       '  float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));',
       '  f = pow(clamp(f, 0.0, 1.0), uPow);',
       '  gl_FragColor = vec4(1.0, 1.0, 1.0, f * uEdge * uFade);',
@@ -54,23 +57,25 @@ const GLASS_T = 0.26; // толщина стекла
     ].join('\n'),
   });
   const bowl = new THREE.Mesh(lathe, mat); scene.add(bowl);
-  bowlMesh = bowl; bowlMat = mat; // для растворения стекла при зуме (99-main)
-  // Подставки, воротника и земли НЕТ — чаша парит в белом пространстве.
+  bowlMesh = bowl; bowlMat = mat; // for dissolving the glass on zoom (99-main)
+  // There is NO stand, NO collar and NO ground — the bowl floats in white space.
 })();
 
-// Лопасти миксера на дне (визуальные; предметы лежат выше FLOOR_REST)
+// Mixer blades at the bottom (visual only; the items lie above FLOOR_REST)
 const mixerBlades = new THREE.Group();
 (function buildBlades(){
-  // ⚠️ ЛОПАСТИ — МАТЧЕП ВЛАДЕЛЬЦА «metall.png» (слово 2026-08-17 «примерь этот
-  // материал на лопасти миксера»). Прежний MeshStandard c metalness:1 отражал
-  // софтбокс-окружение и на светлом фоне читался плоско-серым; матчеп даёт
-  // металл, не зависящий ни от света, ни от ракурса, — тот же довод, по
-  // которому на матчепы переведены все предметы (решение владельца 2026-07-20).
-  // ⚠️ СТУПИЦА ОСТАЛАСЬ ТЁМНОЙ (`dark`): владелец сказал «на лопасти».
+  // ⚠️ THE BLADES USE THE OWNER'S MATCAP "metall.png" (his word 2026-08-17: "try
+  // this material on the mixer blades"). The previous MeshStandard with
+  // metalness:1 reflected the softbox environment and read as flat grey against a
+  // light background; a matcap gives metal that depends neither on the light nor
+  // on the viewing angle — the same argument by which all the items were moved to
+  // matcaps (the owner's decision 2026-07-20).
+  // ⚠️ THE HUB STAYED DARK (`dark`): the owner said "on the blades".
   const metal = new THREE.MeshMatcapMaterial({ color:0xffffff, matcap: metalMatcapTex() });
-  // ⚠️ СТУПИЦА — ТОТ ЖЕ МАТЧЕП (слово владельца 2026-08-17-в «накрывай»),
-  // но ПРИТЕМНЁННАЯ множителем: она и раньше была темнее лопастей, и без
-  // разницы тона винт читался бы одной сплошной железкой без центра.
+  // ⚠️ THE HUB — THE SAME MATCAP (the owner's word 2026-08-17-v, "cover it"),
+  // but DARKENED by a multiplier: it was darker than the blades before as well,
+  // and without the difference in tone the impeller would read as one solid lump
+  // of metal with no centre.
   const dark = new THREE.MeshMatcapMaterial({ color:0x8b93a0, matcap: metalMatcapTex() });
   const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.42, 16), dark);
   hub.position.y = 0.21; mixerBlades.add(hub);
@@ -78,114 +83,125 @@ const mixerBlades = new THREE.Group();
     const arm = new THREE.Group();
     arm.rotation.y = i*Math.PI/2;
     const g = new THREE.BoxGeometry(2.1, 0.09, 0.44);
-    g.translate(1.08, 0, 0); // размах 2.13 при дне 2.4 — почти во всю ширину
+    g.translate(1.08, 0, 0); // span 2.13 with a bottom of 2.4 — nearly the full width
     const blade = new THREE.Mesh(g, metal);
     blade.position.y = 0.24;
-    blade.rotation.x = (i % 2 ? 0.5 : -0.4); // пара лопастей вверх, пара вниз
+    blade.rotation.x = (i % 2 ? 0.5 : -0.4); // one pair of blades up, one pair down
     arm.add(blade);
     mixerBlades.add(arm);
   }
-  // у САМОГО дна (спека владельца: «не видно винт — ближе к нижнему краю
-  // и больше»); верх лопастей ~0.6 — предметы на FLOOR_REST=1.15 не задевают
+  // at the VERY bottom (the owner's spec: "the impeller isn't visible — closer to
+  // the lower edge and bigger"); the blade tops are at ~0.6 — items at
+  // FLOOR_REST=1.15 do not touch them
   mixerBlades.position.y = 0.28;
   scene.add(mixerBlades);
 })();
-let mixerSpeed = 0; // рад/с; лопасти крутятся ТОЛЬКО когда миксер работает (в покое нервируют)
+let mixerSpeed = 0; // rad/s; the blades spin ONLY while the mixer runs (at rest they are unnerving)
 
-// ⚠️⚠️ ЕДИНАЯ ТОЧКА ШИРИНЫ СТЕНЫ ПО НАПРАВЛЕНИЮ: сколько от оси до стены в
-// сторону (nx, nz). У чаши это тот же радиус — направление не важно; сигнатура
-// с направлением осталась от контейнера другой формы и держится намеренно (см.
-// тело функции). Через неё ОБЯЗАНЫ ходить все, кто спрашивает «где стена»:
-// спасатель, метрика выступа, отскок искр. Раздельные формулы у них гарантируют
-// расхождение — спасатель считал бы вылетом то, что стена держит.
+// ⚠️⚠️ THE SINGLE SOURCE OF WALL WIDTH ALONG A DIRECTION: how far it is from the
+// axis to the wall in the direction (nx, nz). For the bowl this is the same
+// radius — the direction does not matter; the signature with a direction is left
+// over from a container of a different shape and is kept deliberately (see the
+// function body). Everyone who asks "where is the wall" is OBLIGED to go through
+// it: the rescuer, the overhang metric, the spark bounce. Separate formulas in
+// each of them would guarantee divergence — the rescuer would count as an escape
+// what the wall actually holds.
 function wallDistAt(y, nx, nz){
-  // ⚠️ Функция ОСТАЛАСЬ, хотя контейнер снова один: через неё ходят спасатель,
-  // метрика выступа и отскок искр, и её единственность и была смыслом (две
-  // формулы расходились бы). Ветка прямоугольного ящика уехала в отдельную
-  // сборку вместе с бонусным уровнем.
+  // ⚠️ The function STAYED even though there is a single container again: the
+  // rescuer, the overhang metric and the spark bounce all go through it, and its
+  // being the only one was the whole point (two formulas would diverge). The
+  // rectangular-box branch moved away into a separate build together with the
+  // bonus level.
   return radiusAt(y);
 }
-// ⚠️⚠️ ЧИСТАЯ ГЕОМЕТРИЯ ЧАШИ — БЕЗ ЕДИНОЙ ВЕТКИ ПО УРОВНЮ. Её зовёт всё, что
-// строится ОДИН РАЗ и живёт до конца сессии.
-// ⛔ И `radiusAt` ниже СЕЙЧАС ТОЖЕ БЕЗ ВЕТОК — не считай её «игровой, которой
-// ветка разрешена»: прежняя редакция этой шапки так и говорила и противоречила
-// надгробию пятнадцатью строками ниже. Понадобится контейнер, зависящий от
-// уровня, — ему полагается СВОЙ набор коллайдеров, а не ветка в общей функции.
-// ⛔⛔ РАЗДЕЛЕНИЕ ПОЯВИЛОСЬ ПОТОМУ, ЧТО ИНЦИДЕНТ 2026-08-17 БЫЛ РОВНО ЗДЕСЬ:
-// `radiusAt` стал отвечать по-разному на особом уровне, а его читала одноразовая
-// инициализация — чаша собиралась ЦИЛИНДРОМ и оставалась такой до конца
-// сессии, на всех последующих обычных уровнях. Тогда вылечили `initPhysicsWorld`
-// точечно; при включении периода нашлись ЕЩЁ ДВА таких потребителя (выпечка
-// ячеек Вороного и геометрии разлёта чаши — они кэшируются и переживают
-// уровень). Правило канона «функция, которую читает одноразовое построение, не
-// имеет права зависеть от изменчивого состояния» исполнено по существу, а не
-// заплаткой на одного вызывающего.
+// ⚠️⚠️ THE PURE BOWL GEOMETRY — WITHOUT A SINGLE PER-LEVEL BRANCH. It is called by
+// everything that is built ONCE and lives until the end of the session.
+// ⛔ And `radiusAt` below is ALSO WITHOUT BRANCHES RIGHT NOW — do not treat it as
+// "the gameplay one, which is allowed a branch": the previous revision of this
+// header said exactly that and contradicted the tombstone fifteen lines below. If
+// a level-dependent container is ever needed, it is entitled to ITS OWN set of
+// colliders, not to a branch inside the shared function.
+// ⛔⛔ THE SPLIT APPEARED BECAUSE THE 2026-08-17 INCIDENT WAS EXACTLY HERE:
+// `radiusAt` started answering differently on a special level, while a one-time
+// initialization was reading it — the bowl was assembled as a CYLINDER and stayed
+// that way until the end of the session, on all the subsequent ordinary levels.
+// Back then `initPhysicsWorld` was cured pointwise; when the period was switched
+// on, TWO MORE such consumers turned up (baking the Voronoi cells and the bowl's
+// shatter geometry — they are cached and outlive the level). The canon's rule "a
+// function read by a one-time construction has no right to depend on mutable
+// state" is now honoured in substance, and not by a patch on a single caller.
 function funnelRadiusAt(y){
-  const yy = Math.max(0, Math.min(y, FUNNEL.H)); // над кромкой — цилиндр R1
+  const yy = Math.max(0, Math.min(y, FUNNEL.H)); // above the rim — cylinder R1
   return FUNNEL.R0 + SLOPE*yy;
 }
 function radiusAt(y){
-  // ⚠️ РАЗДЕЛЕНИЕ С `funnelRadiusAt` ОСТАВЛЕНО НАМЕРЕННО, хотя ветка по уровню
-  // снята: оно и есть лекарство от инцидента 2026-08-17 — одноразовое
-  // построение обязано читать функцию, которая НИКОГДА не зависит от состояния.
-  // Сольёшь обратно в одну — вернёшь ту же мину для следующей фичи.
+  // ⚠️ THE SPLIT FROM `funnelRadiusAt` IS KEPT DELIBERATELY, even though the
+  // per-level branch has been removed: it is precisely the cure for the
+  // 2026-08-17 incident — a one-time construction must read a function that NEVER
+  // depends on state. Merge them back into one and you bring back the same mine
+  // for the next feature.
   return funnelRadiusAt(y);
 }
 
-// ===== ЧАША-РАЗЛЁТ (прототип v2): трещины + черепки =====
-// Трещины — ПРОТОТИПНЫЙ визуал (ломаные линии по поверхности конуса + лёгкое
-// беление стекла); боевой шейдерный вариант — Графике при переносе в процесс.
+// ===== THE SHATTERING BOWL (v2 prototype): cracks + shards =====
+// The cracks are a PROTOTYPE visual (polylines across the surface of the cone +
+// slight whitening of the glass); the production shader variant goes to Graphics
+// when this moves into the process.
 let bowlCrackGroup = null, bowlCrackN = 0, bowlBaseOpacity = null;
-// ⛔ ВИЗУАЛ ТРЕЩИН УБРАН СОВСЕМ (слово владельца 2026-08-02 дословно:
-// «давай трещины уберем совсем — они выглядят неестественно и некрасиво»).
-// Пробовано и отвергнуто им: 1px-линии → трубки с бликом → белые 1px по
-// поверхности с ветвлением. МЕХАНИКА ЖИВА (счёт бустов + разлёт на N) —
-// прогресс к разлёту сейчас НЕВИДИМ; индикатор другим способом (глаза?
-// счётчик?) — только по его слову, не изобретать.
+// ⛔ THE CRACK VISUAL IS REMOVED COMPLETELY (the owner's word 2026-08-02,
+// verbatim: "let's remove the cracks completely — they look unnatural and ugly").
+// Tried and rejected by him: 1px lines → tubes with a highlight → white 1px lines
+// across the surface with branching. THE MECHANIC IS ALIVE (boost count + shatter
+// at N) — the progress toward the shatter is currently INVISIBLE; an indicator by
+// some other means (eyes? a counter?) — only on his word, do not invent one.
 function setBowlCracks(k, total){
   bowlCrackN = k;
   if (bowlCrackGroup){ scene.remove(bowlCrackGroup);
     bowlCrackGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
     bowlCrackGroup = null; }
 }
-function tickBowlCracks(){ /* пульс ушёл вместе с визуалом */ }
-// ⚠️ ТИНТ ПО ВЕРШИННЫМ НОРМАЛЯМ, А НЕ ПО ГРАНЯМ — и это отличие от shardFX
-// осознанное: у осколков предмета грани плоские и резкие, там объём даёт
-// ⛔ bakeShardTint и _bshN вырезаны уборкой 2026-08-12: пофасеточный тинт
-// осколков чаши остался от редакции ДО GPU-разлёта (aCen в вершинах) — его
-// не звал никто, включая тесты. Возврат — из истории git.
-// ⚡ РАЗЛЁТ ЧАШИ — ОДИН МЕШ, ДВИЖЕНИЕ В ВЕРШИННОМ ШЕЙДЕРЕ.
-// Техника из akella/ExplodingObjects (репозиторий показан владельцем 2026-08-06):
-// куски слиты в ОДНУ геометрию, а принадлежность к куску записана прямо в
-// вершины — центр куска, ось вращения, скорость, темп кувырка. Разлёт гонит
-// шейдер по одной юниформе времени.
-// ⚠️ ЧЕМ ЭТО ЛУЧШЕ ПРЕЖНЕГО (30 отдельных мешей с тиком на каждом): цена
-// перестаёт зависеть от числа кусков — один объект, один материал, один тик,
-// ноль работы процессора на кусок. Поэтому кусков стало 8×26 вместо 3×10.
-// ⚠️ ГЕОМЕТРИЯ ПЕЧЁТСЯ ОДИН РАЗ: чаша неизменна, поэтому расколотую версию
-// держим в кэше и переиспользуем — сам взрыв больше НИЧЕГО не строит (раньше
-// строил 30 геометрий и 30 материалов синхронно, в одном кадре).
+function tickBowlCracks(){ /* the pulse left together with the visual */ }
+// ⚠️ TINT BY VERTEX NORMALS, AND NOT BY FACES — and this difference from shardFX
+// is deliberate: an item's shards have flat and sharp faces, there the volume is
+// ⛔ bakeShardTint and _bshN were cut by the 2026-08-12 cleanup: the per-facet
+// tint of the bowl's shards was left over from the revision BEFORE the GPU
+// shatter (aCen in the vertices) — nobody called it, tests included. To bring it
+// back, take it from the git history.
+// ⚡ THE BOWL SHATTER — ONE MESH, THE MOTION LIVES IN THE VERTEX SHADER.
+// The technique comes from akella/ExplodingObjects (the repository was shown by
+// the owner 2026-08-06): the pieces are merged into ONE geometry, and the
+// membership of a piece is written straight into the vertices — the piece's
+// centre, rotation axis, velocity, tumble rate. The shader drives the shatter off
+// a single time uniform.
+// ⚠️ WHY THIS IS BETTER THAN THE PREVIOUS APPROACH (30 separate meshes with a
+// tick on each): the price stops depending on the number of pieces — one object,
+// one material, one tick, zero CPU work per piece. That is why there are now 8×26
+// pieces instead of 3×10.
+// ⚠️ THE GEOMETRY IS BAKED ONCE: the bowl never changes, so we keep the shattered
+// version in a cache and reuse it — the explosion itself builds NOTHING any more
+// (it used to build 30 geometries and 30 materials synchronously, in one frame).
 let _shatterGeo = null, _shatterMat = null, _shatterN = 0;
-// ⚠️⚠️ ФЛАГ «ЧАША РАЗБИТА» НУЖЕН ПОТОМУ, ЧТО ВИДИМОСТЬЮ СТЕКЛА ВЛАДЕЕТ ЦИКЛ.
-// В loop (99-main) каждый кадр стоит `bowlMesh.visible = k > 0.02` — растворение
-// стекла при приближении камеры. Наше `visible=false` в разлёте жило ровно ОДИН
-// кадр, и силуэт возвращался (жалоба владельца 2026-08-06: «после взрыва не
-// должно быть силуэта, только осколки»). Снимать чужое состояние руками нельзя —
-// его надо ГЕЙТИТЬ у владельца.
+// ⚠️⚠️ THE "BOWL IS BROKEN" FLAG IS NEEDED BECAUSE THE LOOP OWNS THE VISIBILITY
+// OF THE GLASS. In loop (99-main) every frame runs `bowlMesh.visible = k > 0.02` —
+// the glass dissolving as the camera comes close. Our `visible=false` in the
+// shatter lived for exactly ONE frame, and the silhouette came back (the owner's
+// complaint 2026-08-06: "after the explosion there must be no silhouette, only
+// shards"). You may not clear someone else's state by hand — it has to be GATED
+// at its owner.
 let bowlBroken = false, _shatterSizes = null;
-// ⚠️⚠️ КУСКИ — ЯЧЕЙКИ ВОРОНОГО, А НЕ СЕТКА. Первая версия резала оболочку
-// правильной решёткой ряды×секторы, и владелец забраковал её ровно за это:
-// «сетка слишком стерильная и равномерная, в жизни стекло так не трескается».
-// В обоих его примерах (bobbyroe, akella) модель расколота ЗАРАНЕЕ в редакторе
-// ячейками Вороного — мы того же добиваемся процедурно, потому что чаша у нас
-// не модель, а поверхность вращения, и лишний GLB в однофайловую сборку не
-// потащишь.
-// Считаем в развёртке (u = длина дуги, v = высота): ячейка = домен, обрезанный
-// полуплоскостями-биссектрисами до всех прочих центров (Сазерленд-Ходжмен).
-// Шов по кругу закрыт копиями центров на ±2πR — иначе ячейки у стыка выходят
-// прямоугольными и шов видно.
+// ⚠️⚠️ THE PIECES ARE VORONOI CELLS, AND NOT A GRID. The first version cut the
+// shell with a regular rows×sectors lattice, and the owner rejected it for
+// exactly that: "the grid is too sterile and even, in real life glass doesn't
+// crack like that". In both of his examples (bobbyroe, akella) the model is split
+// IN ADVANCE in an editor with Voronoi cells — we achieve the same procedurally,
+// because our bowl is not a model but a surface of revolution, and you can't drag
+// an extra GLB into a single-file build.
+// We compute in the unwrap (u = arc length, v = height): a cell = the domain
+// clipped by bisector half-planes toward every other seed (Sutherland-Hodgman).
+// The seam around the circle is closed with copies of the seeds at ±2πR —
+// otherwise the cells at the joint come out rectangular and the seam is visible.
 function clipHalf(poly, ax, ay, bx, by){
-  // оставляем часть многоугольника, которая БЛИЖЕ к a, чем к b
+  // keep the part of the polygon that is CLOSER to a than to b
   const mx = (ax+bx)/2, my = (ay+by)/2, nx = bx-ax, ny = by-ay;
   const inside = (px, py) => (px-mx)*nx + (py-my)*ny <= 0;
   const out = [];
@@ -203,27 +219,29 @@ function clipHalf(poly, ax, ay, bx, by){
   return out;
 }
 function bowlVoronoiCells(){
-  const R = (funnelRadiusAt(0) + funnelRadiusAt(FUNNEL.H)) / 2; // средний радиус развёртки
-  // ⚠️ ЧИСТАЯ, А НЕ ИГРОВАЯ: ячейки кэшируются и переживают уровень (см. надгробие выше)
+  const R = (funnelRadiusAt(0) + funnelRadiusAt(FUNNEL.H)) / 2; // mean radius of the unwrap
+  // ⚠️ THE PURE ONE, NOT THE GAMEPLAY ONE: the cells are cached and outlive the level (see the tombstone above)
   const U = 2*Math.PI*R, V = FUNNEL.H;
   const seeds = [];
-  // ПЛАСТИНЫ: немного и врозь — отбрасываем центр, если он ближе
-  // BOWL_PLATE_MIN_D к уже поставленному. Крупный кусок получается там, где
-  // рядом нет других центров, поэтому разрежённость и есть «пластина».
+  // PLATES: few and far apart — we discard a seed if it is closer than
+  // BOWL_PLATE_MIN_D to one already placed. A large piece comes out where there
+  // are no other seeds nearby, so sparseness is exactly what makes a "plate".
   const dist2 = (au, av, bu, bv) => {
-    let du = Math.abs(au - bu); if (du > U/2) du = U - du;   // шов по кругу
+    let du = Math.abs(au - bu); if (du > U/2) du = U - du;   // the seam around the circle
     const dv = av - bv; return du*du + dv*dv;
   };
   const minD2 = (BOWL_PLATE_MIN_D*U)*(BOWL_PLATE_MIN_D*U);
-  for (let попыток = 0, i = 0; i < BOWL_PLATE_N && попыток < BOWL_PLATE_N*60; попыток++){
+  for (let attempts = 0, i = 0; i < BOWL_PLATE_N && attempts < BOWL_PLATE_N*60; attempts++){
     const u = Math.random()*U, v = Math.random()*V;
-    let ок = true;
-    for (const [su, sv] of seeds) if (dist2(u, v, su, sv) < minD2){ ок = false; break; }
-    if (ок){ seeds.push([u, v]); i++; }
+    let ok = true;
+    for (const [su, sv] of seeds) if (dist2(u, v, su, sv) < minD2){ ok = false; break; }
+    if (ok){ seeds.push([u, v]); i++; }
   }
-  // ОБЛАКО КРОШКИ: плотность падает от точки удара. Радиус берём степенью
-  // ⚠️ 0.35 — это НЕ «просто число»: при 1.0 крошка легла бы кольцом по краю
-  // облака, а не сгустилась у центра, и «облако» читалось бы бубликом.
+  // THE CLOUD OF CRUMBS: the density falls off from the point of impact. We take
+  // the radius as a power
+  // ⚠️ 0.35 is NOT "just a number": at 1.0 the crumbs would lie in a ring along
+  // the edge of the cloud instead of clustering at the centre, and the "cloud"
+  // would read as a doughnut.
   for (let o = 0; o < BOWL_IMPACTS; o++){
     const cu = Math.random()*U, cv = 0.2*V + Math.random()*0.6*V;
     for (let i = 0; i < BOWL_FINE_N/BOWL_IMPACTS; i++){
@@ -241,14 +259,14 @@ function bowlVoronoiCells(){
     for (let j = 0; j < seeds.length && poly.length >= 6; j++){
       if (j === i) continue;
       const [qu, qv] = seeds[j];
-      // шов: соседом считается и копия центра через край развёртки
+      // seam: a copy of a seed across the edge of the unwrap also counts as a neighbour
       for (const d of [-U, 0, U]){
         poly = clipHalf(poly, su, sv, qu + d, qv);
         if (poly.length < 6) break;
       }
     }
     if (poly.length >= 6){
-      // площадь по шнуровке — она и есть «крупная пластина против крошки»
+      // the shoelace area — it is exactly what tells "a large plate" from "a crumb"
       let A = 0;
       for (let k = 0, n = poly.length/2; k < n; k++){
         const k2 = (k+1) % n;
@@ -263,14 +281,14 @@ function buildShatterGeo(){
   if (_shatterGeo) return _shatterGeo;
   const { cells, R } = bowlVoronoiCells();
   let vTotal = 0;
-  for (const c of cells) vTotal += (c.poly.length/2) * 3;   // веер от центра ячейки
+  for (const c of cells) vTotal += (c.poly.length/2) * 3;   // a fan from the cell centre
   const pos = new Float32Array(vTotal*3), col = new Float32Array(vTotal*3);
   const cen = new Float32Array(vTotal*3), axs = new Float32Array(vTotal*3);
   const vel = new Float32Array(vTotal*3), spn = new Float32Array(vTotal);
   const P = new THREE.Vector3(), NRM = new THREE.Vector3(), C = new THREE.Vector3();
   const A = new THREE.Vector3(), D = new THREE.Vector3();
-  const toXYZ = (u, v, out) => {                            // развёртка -> поверхность вращения
-    const th = u / R, y = Math.max(0, Math.min(FUNNEL.H, v)), r = funnelRadiusAt(y); // ЧИСТАЯ
+  const toXYZ = (u, v, out) => {                            // unwrap -> surface of revolution
+    const th = u / R, y = Math.max(0, Math.min(FUNNEL.H, v)), r = funnelRadiusAt(y); // THE PURE ONE
     out.set(Math.cos(th)*r, y, Math.sin(th)*r);
   };
   let o = 0;
@@ -279,7 +297,7 @@ function buildShatterGeo(){
     let cu = 0, cv = 0;
     for (let i = 0; i < n; i++){ cu += c.poly[i*2]; cv += c.poly[i*2+1]; }
     cu /= n; cv /= n;
-    toXYZ(cu, cv, C);                                       // центр куска: вокруг него кувырок
+    toXYZ(cu, cv, C);                                       // the piece's centre: it tumbles around it
     const th = cu / R;
     D.set(Math.cos(th), 0.55 + Math.random()*0.4, Math.sin(th)).normalize()
      .multiplyScalar(6.5 + Math.random()*4.5);
@@ -290,7 +308,7 @@ function buildShatterGeo(){
       const tri = [[cu, cv], [c.poly[i*2], c.poly[i*2+1]], [c.poly[i2*2], c.poly[i2*2+1]]];
       for (let t = 0; t < 3; t++){
         toXYZ(tri[t][0], tri[t][1], P);
-        NRM.set(P.x, 0, P.z).normalize();                   // наружу по радиусу — на тинт хватает
+        NRM.set(P.x, 0, P.z).normalize();                   // outward along the radius — enough for the tint
         const tint = Math.max(BOWL_SHARD_TINT_LO,
                      Math.min(BOWL_SHARD_TINT_HI, 0.9 + 0.42*NRM.dot(SHARD_LIGHT)));
         const k = o*3;
@@ -326,19 +344,21 @@ function shatterMat(){
                 uSeed: { value: 0 } },
     vertexShader: [
       'uniform float uT; uniform float uG; uniform float uSeed;',
-      // ⚠️ ИМЯ aCen, А НЕ centroid: `centroid` — ЗАРЕЗЕРВИРОВАННОЕ СЛОВО GLSL
-      // (квалификатор интерполяции). Шейдер с ним не собирается вовсе, а three
-      // печатает это как «syntax error» в чужой строке префикса — искать долго.
+      // ⚠️ THE NAME IS aCen, AND NOT centroid: `centroid` is a RESERVED GLSL WORD
+      // (an interpolation qualifier). A shader with it does not compile at all,
+      // and three prints this as a "syntax error" on someone else's prefix line —
+      // it takes a long time to hunt down.
       'attribute vec3 aCen; attribute vec3 axis; attribute vec3 vel; attribute float spin;',
       'varying vec3 vCol;',
-      // поворот вокруг произвольной оси — тот же приём, что в референсе
+      // rotation around an arbitrary axis — the same trick as in the reference
       'vec3 rot(vec3 v, vec3 ax, float ang){',
       '  float s = sin(ang), c = cos(ang);',
       '  return v*c + cross(ax, v)*s + ax*dot(ax, v)*(1.0 - c); }',
       'void main(){',
       '  vCol = color;',
-      // ⚠️ разброс НА КАЖДЫЙ ВЗРЫВ, а не на кусок: геометрия одна и печётся
-      // единожды, без этого каждый разлёт был бы покадрово одинаковым
+      // ⚠️ the scatter is PER EXPLOSION, and not per piece: the geometry is a
+      // single one and is baked once, without this every shatter would be
+      // frame-for-frame identical
       '  float j = 0.85 + 0.3*fract(sin(dot(aCen.xz, vec2(12.99, 78.23)) + uSeed)*43758.55);',
       '  vec3 local = rot(position - aCen, normalize(axis), spin*uT*j);',
       '  vec3 p = aCen + local + vel*uT*j;',
@@ -350,7 +370,7 @@ function shatterMat(){
       'void main(){ gl_FragColor = vec4(vCol*vec3(0.874,0.918,1.0), uOp); }',
     ].join('\n'),
   });
-  _shatterMat.vertexColors = true;      // атрибут `color` в шейдере
+  _shatterMat.vertexColors = true;      // the `color` attribute in the shader
   return _shatterMat;
 }
 function shatterBowlVis(){
@@ -358,8 +378,8 @@ function shatterBowlVis(){
   if (bowlMesh) bowlMesh.visible = false;
   setBowlCracks(0);
   const mesh = new THREE.Mesh(buildShatterGeo(), shatterMat());
-  mesh.frustumCulled = false;           // куски уезжают далеко за исходный bbox
-  mesh.userData.sharedFx = true;        // геометрия и материал живут в кэше
+  mesh.frustumCulled = false;           // the pieces travel far beyond the original bbox
+  mesh.userData.sharedFx = true;        // the geometry and the material live in the cache
   const mat = mesh.material, life = BOWL_FLY_MS/1000;
   mat.uniforms.uSeed.value = Math.random()*100;
   addFX(mesh, life, (o, k) => {
@@ -367,13 +387,14 @@ function shatterBowlVis(){
     o.material.uniforms.uOp.value = 0.5*(1 - k);
   });
 }
-// восстановление к новому уровню
+// restoration for a new level
 function restoreBowlVis(){
   bowlBroken = false;
-  // ⚠️ ПЕЧЁМ РАСКОЛОТУЮ ЧАШУ ЗАРАНЕЕ, НА СТАРТЕ УРОВНЯ. Выпечка стоит ~15 мс
-  // (208 кусков), и на кадре взрыва это была бы запинка ровно в самый эффектный
-  // момент. Здесь она невидима: уровень и так строится, а физика в фазе 'wait'
-  // ещё не шагает. Кэш вечный — чаша неизменна.
+  // ⚠️ WE BAKE THE SHATTERED BOWL IN ADVANCE, AT THE START OF THE LEVEL. The bake
+  // costs ~15 ms (208 pieces), and on the frame of the explosion that would be a
+  // stutter at exactly the most spectacular moment. Here it is invisible: the
+  // level is being built anyway, and the physics in the 'wait' phase is not
+  // stepping yet. The cache is eternal — the bowl never changes.
   try { buildShatterGeo(); } catch(e){}
   if (bowlMesh) bowlMesh.visible = true;
   if (bowlMat && bowlBaseOpacity != null) bowlMat.opacity = bowlBaseOpacity;

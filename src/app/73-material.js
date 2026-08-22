@@ -1,23 +1,23 @@
-// ===== 73-material: материал предмета -> ГОЛОС звука совмещения =====
-// Заказ владельца 2026-08-10: «классифицируй предметы по типу материала, чтобы
-// я смог записать для каждого типа свой звук совмещения предметов».
-// Разбор и обоснование голосов — docs/MATERIAL-SOUND-MAP.md.
+// ===== 73-material: item material -> the VOICE of the merge sound =====
+// The owner's order 2026-08-10: «classify the items by material type, so that
+// I can record its own item-merge sound for each type».
+// The breakdown and the rationale for the voices — docs/MATERIAL-SOUND-MAP.md.
 //
-// ⛔ ЭТО НЕ ПОЛЕ `mat` ИЗ TYPES. То рендерное: по нему 40-items выбирает matcap
-// и вершинные цвета, а 50-physics — ПЛОТНОСТЬ тела, и у всех 120 типов там
-// стоит одно значение 'soft'. Переписать его значениями голосов значило бы
-// молча сменить материалы и вес предметов в игре.
+// ⛔ THIS IS NOT THE `mat` FIELD FROM TYPES. That one is a render field: 40-items
+// picks the matcap and the vertex colors by it, and 50-physics — the body DENSITY,
+// and all 120 types have one single value 'soft' there. Overwriting it with the voice
+// values would mean silently changing the materials and the weight of the items in the game.
 //
-// ⚠️ ТАБЛИЦА ПОЛНАЯ ПО ПОСТРОЕНИЮ: сгенерирована из размеченного списка,
-// покрытие проверяется `tools/material-map-check.js` (120 из 120, без
-// пропусков и дублей). Придёт новая партия моделей — прогнать проверку, иначе
-// новые типы молча останутся без своего звука.
-// ⚠️ МАШИНКИ — В МЕТАЛЛЕ (слово владельца 2026-08-10: «отнеси все модели
-// машинок к группе металла по звуку»). Переехали 15 моделей: 11 из пачки `car`,
-// три кузова из `toycar` и золотая монета.
-// ⛔ ДВА ДОРОЖНЫХ КОНУСА (`carcone`, `toycaritemcone`) ОСТАЛИСЬ В ПЛАСТИКЕ — они
-// лежат в тех же пачках, но машинками не являются, а конус звучит пластиком.
-// Скажет владелец «всю пачку целиком» — переедут двумя строками.
+// ⚠️ THE TABLE IS COMPLETE BY CONSTRUCTION: generated from the labelled list,
+// the coverage is checked by `tools/material-map-check.js` (120 of 120, with no
+// gaps and no duplicates). A new batch of models arrives — run the check, otherwise
+// the new types will silently be left without their own sound.
+// ⚠️ THE CARS ARE IN METAL (the owner's word 2026-08-10: «assign all the car
+// models to the metal group by sound»). 15 models moved over: 11 from the `car` pack,
+// three bodies from `toycar` and the gold coin.
+// ⛔ THE TWO TRAFFIC CONES (`carcone`, `toycaritemcone`) STAYED IN PLASTIC — they
+// lie in the same packs, but they are not cars, and a cone sounds like plastic.
+// The owner says «the whole pack at once» — and they move over in two lines.
 const MATERIAL_OF = {
   animalbeaver: 'plush',
   animalbee: 'plush',
@@ -140,7 +140,7 @@ const MATERIAL_OF = {
   toycarvehiclespeedster: 'metal',
   toycarvehiclevintageracer: 'metal',
 };
-// ⚠️ ФОЛБЭК НЕ 'juicy' И НЕ ПЕРВЫЙ ПОПАВШИЙСЯ: неизвестный тип обязан звучать
-// НЕЙТРАЛЬНО, иначе новая модель без разметки будет чавкать как фрукт и это
-// сойдёт за фичу. `null` = играть прежний процедурный «буль».
+// ⚠️ THE FALLBACK IS NOT 'juicy' AND NOT THE FIRST ONE AT HAND: an unknown type is
+// obliged to sound NEUTRALLY, otherwise a new model without a label will squelch like a
+// fruit and that will pass as a feature. `null` = play the previous procedural «blub».
 function materialOf(name){ return MATERIAL_OF[name] || null; }

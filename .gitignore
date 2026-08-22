@@ -5,12 +5,13 @@ release/Mixer.html
 /shot_*.png
 .DS_Store
 
-# ⚠️ СТЕНД РЕКЛАМЫ, НЕ РЕЛИЗ. Файл несёт forciblySetPlatformId — он ЗАСТАВЛЯЕТ
-# SDK притвориться площадкой. Нужен, чтобы впервые прогнать боевую ветку
-# рекламы ДО заливки на портал (иначе первое в истории исполнение кода, который
-# приносит деньги, случится на живых игроках). Но уехав в релиз, он врал бы
-# площадке и игрокам. Поэтому: закоммитить его нельзя ФИЗИЧЕСКИ, а не по
-# договорённости. Как пользоваться — WORKSTREAMS, блок ИНТЕГРАЦИИ.
+# ⚠️ AN ADS TEST BENCH, NOT A RELEASE. The file carries forciblySetPlatformId —
+# it FORCES the SDK to pretend it is a platform. It is needed to run the live ads
+# branch for the first time BEFORE uploading to the portal (otherwise the first
+# execution in history of the code that brings money would happen on live
+# players). But shipped into a release it would lie to the platform and to the
+# players. Hence: committing it is impossible PHYSICALLY, not by agreement.
+# How to use it — WORKSTREAMS, the INTEGRATION block.
 playgama-bridge-config.local.json
 .claude/worktrees/
 *.log

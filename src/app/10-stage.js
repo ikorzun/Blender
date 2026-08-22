@@ -1,47 +1,47 @@
-// ===== 10-stage: рендерер, камера, свет, IBL-окружение, небо =====
-// Эталон владельца: threejs.org webgl_batch_lod_bvh (RoomEnvironment + ACES 0.8)
-// + webgl_loader_ldraw (RoomEnvironment как единственный источник «студийного» света).
+// ===== 10-stage: renderer, camera, light, IBL environment, sky =====
+// The owner's reference: threejs.org webgl_batch_lod_bvh (RoomEnvironment + ACES 0.8)
+// + webgl_loader_ldraw (RoomEnvironment as the only source of "studio" light).
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
-// РАСПИЛ ПОЛОВИНАМИ (выбор владельца 2026-08-01, sawFX в 70-fx) режет модель
-// ПЛОСКОСТЬЮ ОТСЕЧЕНИЯ — без этого флага three плоскости материала игнорирует
-// и половины выходят целыми предметами.
+// SAWING IN HALVES (the owner's choice 2026-08-01, sawFX in 70-fx) cuts the model
+// WITH A CLIPPING PLANE — without this flag three ignores the material's planes
+// and the halves come out as whole items.
 renderer.localClippingEnabled = true;
-// ⚠️ ПОТЕРЯ КОНТЕКСТА = «КРЕШ» БЕЗ ОШИБКИ (docs/METRICS.md §6): на мобильных
-// система отбирает GPU-контекст (фон, память, перегрев) — игра не падает, но
-// экран ЧЕРНЕЕТ, и в статистике это выглядело бы обычным уходом игрока.
-// Ловим отдельным событием, иначе самый частый 3D-сбой невидим.
+// ⚠️ CONTEXT LOSS = A "CRASH" WITHOUT AN ERROR (docs/METRICS.md §6): on mobile
+// the system takes the GPU context away (backgrounding, memory, overheating) — the game
+// does not crash, but the screen goes BLACK, and in the stats that would look like an ordinary player exit.
+// We catch it with a separate event, otherwise the most frequent 3D failure is invisible.
 canvas.addEventListener('webglcontextlost', (e) => {
-  e.preventDefault();                       // без этого контекст не восстановят
+  e.preventDefault();                       // without this the context will not be restored
   try { Telemetry.err('webgl', 'context lost', '', ''); } catch(_){}
 }, false);
 canvas.addEventListener('webglcontextrestored', () => {
   try { Telemetry.ev('webgl_restored', {}); } catch(_){}
 }, false);
-// на телефонах DPR-кап 1.5: кадр на DPR2 в ~1.8 раза дороже (замер аудита),
-// HUD — DOM и остаётся резким; на десктопе оставляем 2
+// on phones the DPR cap is 1.5: a frame at DPR2 is ~1.8 times more expensive (audit measurement),
+// the HUD is DOM and stays sharp; on desktop we keep 2
 const DPR_CAP_TOUCH = 1.5, DPR_CAP_DESK = 2;
 function dprCap(){
   if (CFG.perfTier === 'low') return PERF_LOW_DPR;
   return matchMedia('(pointer:coarse)').matches ? DPR_CAP_TOUCH : DPR_CAP_DESK;
 }
 renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
-// ⚠️ ПЕРЕХОД НА «СЛАБЫЙ» — ОДНОЙ ФУНКЦИЕЙ И ТОЛЬКО ВНИЗ (см. 00-config).
-// Что уменьшаем и почему именно это:
-//  • ПЛОТНОСТЬ ПИКСЕЛЕЙ 1.5 -> 1.0. Самый большой выигрыш на телефоне и самый
-//    честный: заливка растёт КВАДРАТОМ плотности, 1.5 против 1.0 — это 2.25×
-//    пикселей на тот же экран. Геймплей не меняется вовсе, только чёткость.
-//  • ЧАСТИЦ ВТРОЕ МЕНЬШЕ (CFG.fxScale). Труха матча — 1280 штук, это самый
-//    тяжёлый разовый всплеск в игре.
-// ⚠️ ТЕНИ В СПИСКЕ НЕ ЗНАЧАТСЯ НАМЕРЕННО: замер показал, что в matcap-режиме
-// теневой проход УЖЕ выключен (renderer.shadowMap.enabled=false и на «сильном»
-// устройстве). Выключать выключённое — ручка-пустышка, а такие однажды уже
-// пришлось выкидывать из проекта.
-// ⚠️ ФИЗИКУ НЕ ТРОГАЕМ. Число итераций солвера и подшагов держит плотную кучу
-// от проваливания друг в друга; ослабив их, мы поменяли бы ПОВЕДЕНИЕ кучи, то
-// есть геймплей — на слабом телефоне игра стала бы другой игрой. Это отдельное
-// решение владельца, а не тихая оптимизация.
+// ⚠️ SWITCHING TO "WEAK" — WITH A SINGLE FUNCTION AND ONLY DOWNWARDS (see 00-config).
+// What we reduce and why exactly this:
+//  • PIXEL DENSITY 1.5 -> 1.0. The biggest win on a phone and the most
+//    honest one: fill grows as the SQUARE of the density, 1.5 against 1.0 is 2.25×
+//    the pixels for the same screen. The gameplay does not change at all, only the sharpness.
+//  • THREE TIMES FEWER PARTICLES (CFG.fxScale). The match debris is 1280 pieces, this is the
+//    heaviest single burst in the game.
+// ⚠️ SHADOWS ARE DELIBERATELY ABSENT FROM THE LIST: the measurement showed that in matcap mode
+// the shadow pass is ALREADY off (renderer.shadowMap.enabled=false even on a "strong"
+// device). Turning off what is already off is a dummy knob, and such knobs already
+// had to be thrown out of the project once.
+// ⚠️ WE DO NOT TOUCH THE PHYSICS. The number of solver iterations and substeps keeps a dense pile
+// from sinking into itself; weakening them would change the BEHAVIOUR of the pile, that
+// is the gameplay — on a weak phone the game would become a different game. This is a separate
+// decision of the owner, not a silent optimization.
 function applyPerfTier(tier){
   if (tier !== 'low' || CFG.perfTier === 'low') return false;
   CFG.perfTier = 'low';
@@ -51,10 +51,10 @@ function applyPerfTier(tier){
   try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
   return true;
 }
-// ⚠️ ПОДСКАЗКА УСТРОЙСТВА — ТОЛЬКО КАК СТАРТОВАЯ ГИПОТЕЗА, решает всё равно
-// замер. Два ядра или 2 ГБ памяти — это заведомо слабая машина, и ждать
-// доказательств 3 секунды, роняя кадры, незачем. Оба поля есть не везде
-// (deviceMemory нет в Safari) — отсутствие трактуем как «не знаем», не как «слабый».
+// ⚠️ THE DEVICE HINT — ONLY AS A STARTING HYPOTHESIS, the measurement decides
+// anyway. Two cores or 2 GB of memory is a knowingly weak machine, and there is no point
+// waiting 3 seconds for proof while dropping frames. Both fields are not available everywhere
+// (deviceMemory is missing in Safari) — absence is treated as "we do not know", not as "weak".
 function deviceLooksWeak(){
   try {
     const cores = navigator.hardwareConcurrency || 0;
@@ -66,19 +66,19 @@ if (deviceLooksWeak()) applyPerfTier('low');
 renderer.setClearColor(0xffffff);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.8; // как в референсе webgl_batch_lod_bvh
+renderer.toneMappingExposure = 0.8; // as in the webgl_batch_lod_bvh reference
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-// карта теней перерисовывается ТОЛЬКО когда что-то движется (гейт в loop):
-// свет статичен, в штиле ~150 теневых draw calls каждый кадр — впустую
+// the shadow map is redrawn ONLY when something moves (gate in loop):
+// the light is static, in a calm scene ~150 shadow draw calls every frame go to waste
 renderer.shadowMap.autoUpdate = false;
 renderer.shadowMap.needsUpdate = true;
 const scene = new THREE.Scene();
-// туман к «сверхбелому» (цвет >1 компенсирует ACES-затемнение) — края земли тают в белом
+// fog towards "super white" (a colour >1 compensates the ACES darkening) — the edges of the ground melt into white
 scene.fog = new THREE.Fog(new THREE.Color(1.5, 1.52, 1.55), 24, 44);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
 const camTarget = new THREE.Vector3(0, 4.2, 0);
-let camAz = 0.0, camPhi = 0.45, camR = 16.2; // чаша ×1.15 — камера дальше
+let camAz = 0.0, camPhi = 0.45, camR = 16.2; // the bowl ×1.15 — the camera is further away
 function updateCamera(){
   camera.position.set(
     camTarget.x + camR*Math.sin(camPhi)*Math.sin(camAz),
@@ -88,8 +88,8 @@ function updateCamera(){
   camera.lookAt(camTarget);
 }
 
-// Освещение: почти всё делает IBL-окружение (RoomEnvironment), направленный
-// свет слабый и нужен только ради теней и рельефа на чёрном поле
+// Lighting: almost everything is done by the IBL environment (RoomEnvironment), the directional
+// light is weak and is needed only for the shadows and the relief on the black field
 const dl = new THREE.DirectionalLight(0xffffff, 0.55); dl.position.set(6,14,4);
 dl.castShadow = true;
 dl.shadow.mapSize.set(1024,1024);
@@ -99,12 +99,12 @@ dl.shadow.camera.near = 2; dl.shadow.camera.far = 38;
 dl.shadow.bias = -0.0004; dl.shadow.normalBias = 0.03;
 scene.add(dl);
 
-// Окружение v4 — «СОФТБОКС» (цикл материалов по жалобе владельца: свет
-// скакал при повороте камеры). Причина скачков: зеркальные материалы
-// отражали RoomEnvironment — тёмную комнату с ЯРКИМИ прямоугольными
-// «окнами»; отражение скользит по граням и то вспыхивает, то гаснет.
-// Софтбокс — сфера с ПЛАВНЫМ вертикальным градиентом без резких пятен:
-// блики стабильны под любым углом. RoomEnvironment НЕ возвращать.
+// Environment v4 — the "SOFTBOX" (a materials cycle following the owner's complaint: the light
+// jumped when the camera rotated). The reason for the jumps: mirror-like materials
+// reflected RoomEnvironment — a dark room with BRIGHT rectangular
+// "windows"; the reflection slides across the faces and flares up and dies down.
+// The softbox is a sphere with a SMOOTH vertical gradient without sharp spots:
+// the highlights are stable at any angle. Do NOT bring RoomEnvironment back.
 (function buildEnvironment(){
   const env = new THREE.Scene();
   const geo = new THREE.IcosahedronGeometry(30, 4);
@@ -112,11 +112,11 @@ scene.add(dl);
   const colors = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++){
     const ny = pos.getY(i) / 30; // -1..1
-    // низ — средне-серый, горизонт — светлый, зенит — яркий (мягкий верхний свет)
+    // bottom — mid grey, horizon — light, zenith — bright (soft overhead light)
     let b;
     if (ny < 0) b = 0.55 + 0.45*(1 + ny);   // -1 -> 0.55, 0 -> 1.0
     else b = 1.0 + 1.6*ny*ny;               // 0 -> 1.0, 1 -> 2.6
-    colors[i*3] = b; colors[i*3+1] = b; colors[i*3+2] = b*1.02; // едва холодный
+    colors[i*3] = b; colors[i*3+1] = b; colors[i*3+2] = b*1.02; // barely cold
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide });
@@ -124,60 +124,60 @@ scene.add(dl);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(env, 0.02).texture;
   pmrem.dispose();
-  geo.dispose(); mat.dispose(); // софтбокс запечён в PMREM — исходники GPU больше не нужны
+  geo.dispose(); mat.dispose(); // the softbox is baked into the PMREM — the GPU sources are no longer needed
 })();
 
-// ===== MATCAP — «запечённый свет» (прототип A/B, спека владельца 2026-07-20) =====
-// Нормаль во ВЬЮ-пространстве -> пиксель текстуры: свет и финиш материала
-// запечены заранее. Блик физически НЕ МОЖЕТ скакать при повороте камеры
-// (историческая жалоба владельца) — скакать больше нечему.
-// RGB — диффуз: шейдер УМНОЖАЕТ его на material.color, поэтому candyColor и
-// серая вуаль недоступности продолжают работать без единой правки.
-// ALPHA — белый блик, добавляется ПОВЕРХ (см. matcapSpecPatch): чисто
-// мультипликативный matcap красит блик в цвет предмета, и пластик матовеет.
-// ⚠️ DataTexture, а НЕ CanvasTexture: канвас премножает RGB на альфу, и
-// диффуз погас бы везде, кроме пятна блика.
-// ⚠️ КАЛИБРОВКА (итерация 2 по скринам): текстура помечена sRGBEncoding, и
-// середина шкалы уходит в linear ВДВОЕ темнее (0.5 sRGB ≈ 0.21 linear) —
-// первый подбор (amb 0.34) дал тёмную тяжёлую кучу, а широкий блик (shin 20,
-// spec 0.60) сидел на шарах белой кляксой. Тело держим в 0.66-0.94 sRGB,
-// блик — узкий и слабый (искра, не пятно).
+// ===== MATCAP — "baked light" (A/B prototype, the owner's spec 2026-07-20) =====
+// The normal in VIEW space -> a texture pixel: the light and the finish of the material
+// are baked in advance. The highlight physically CANNOT jump when the camera rotates
+// (a historical complaint of the owner) — there is nothing left to jump.
+// RGB is the diffuse: the shader MULTIPLIES it by material.color, so candyColor and
+// the grey veil of unavailability keep working without a single edit.
+// ALPHA is the white highlight, it is added ON TOP (see matcapSpecPatch): a purely
+// multiplicative matcap paints the highlight in the colour of the item, and the plastic goes matte.
+// ⚠️ DataTexture, and NOT CanvasTexture: the canvas premultiplies RGB by alpha, and
+// the diffuse would go out everywhere except the highlight spot.
+// ⚠️ CALIBRATION (iteration 2 from the screenshots): the texture is marked sRGBEncoding, and
+// the middle of the scale goes into linear TWICE as dark (0.5 sRGB ≈ 0.21 linear) —
+// the first tuning (amb 0.34) gave a dark heavy pile, and a wide highlight (shin 20,
+// spec 0.60) sat on the balls as a white blob. We keep the body in 0.66-0.94 sRGB,
+// the highlight narrow and weak (a spark, not a spot).
 const MATCAP_PRESETS = {
-  // мягкий глянец — характер v4-материалов (metalness 0, roughness 0.18)
+  // soft gloss — the character of the v4 materials (metalness 0, roughness 0.18)
   soft:  { amb: 0.66, sky: 0.28, diff: 0.20, shin: 60, spec: 0.22, rim: 0.14, rimP: 3 },
-  // металл для кубов: ниже тело, шире блик, сильный ободок. Цвет предмета в
-  // matcap-ветке ОСВЕТЛЁН (40-items): у MeshStandard кубы держались отражением
-  // окружения (metalness 1), а множитель тёмного графита ушёл бы в чёрный.
+  // metal for the cubes: a lower body, a wider highlight, a strong rim. The colour of the item in
+  // the matcap branch is LIGHTENED (40-items): with MeshStandard the cubes were held by the reflection
+  // of the environment (metalness 1), and a multiplier of dark graphite would have gone to black.
   metal: { amb: 0.44, sky: 0.34, diff: 0.30, shin: 34, spec: 0.50, rim: 0.42, rimP: 3 },
-  // ⚠️ ДЛЯ МОДЕЛЕЙ С РОДНОЙ ТЕКСТУРОЙ — почти белое тело. Шейдер МНОЖИТ
-  // matcap на текстуру, поэтому обычный пресет (тело 0.66-0.94) сажал
-  // авторские цвета: рядом с эталонным GLTFLoader тигр выходил тёмно-рыжим
-  // вместо палевого, свинья — малиновой вместо бледно-розовой. Здесь matcap
-  // отвечает только за мягкую подсветку формы, цвет полностью за атласом.
-  // ⚠️ БЫЛ аддитивный lift 0.20 — ЗАБРАКОВАН владельцем («всё сильно
-  // светлое»). Он прибавлял белое КО ВСЕМУ, включая тёмные места: чёрные
-  // полосы тигра и мех панды становились серыми, контраст умирал. Яркость
-  // текстурных моделей теперь поднимается УМНОЖЕНИЕМ (TEX_GAIN) — оно
-  // сохраняет отношение тёмного к светлому. Аддитив не возвращать.
+  // ⚠️ FOR MODELS WITH A NATIVE TEXTURE — an almost white body. The shader MULTIPLIES
+  // the matcap by the texture, so the usual preset (body 0.66-0.94) darkened
+  // the authored colours: next to the reference GLTFLoader the tiger came out dark ginger
+  // instead of fawn, the pig crimson instead of pale pink. Here the matcap
+  // is responsible only for a soft shaping of the form, the colour is entirely up to the atlas.
+  // ⚠️ THERE WAS an additive lift of 0.20 — REJECTED by the owner ("everything is far too
+  // light"). It added white TO EVERYTHING, including the dark places: the tiger's black
+  // stripes and the panda's fur became grey, the contrast died. The brightness of the
+  // textured models is now raised by MULTIPLICATION (TEX_GAIN) — it
+  // preserves the ratio of dark to light. Do not bring the additive back.
   tex:   { amb: 0.88, sky: 0.08, diff: 0.10, shin: 60, spec: 0.12, rim: 0.10, rimP: 3 },
 };
 const matcapCache = new Map();
-// ключевой свет; взгляд по +Z, полувектор для Блинна.
-// ОБЪЕКТ, а не три const: тюнер (matcapTuner) правит его на лету, и свет
-// ОБЩИЙ для всех пресетов — смена направления пересматривает их все.
-// ⚙️ Lx 0 — ВЫБОР ВЛАДЕЛЬЦА 2026-08-03 (крутил сам в панели, прислал её
-// скриншотом: «забери эти параметры matcap»). Свет был сверху-СЛЕВА-спереди,
-// стал сверху-ПО ЦЕНТРУ-спереди.
-// ⚠️⚠️ ЭТО ЕДИНСТВЕННЫЙ ИСТОЧНИК НАПРАВЛЕНИЯ КЛЮЧЕВОГО СВЕТА В ИГРЕ.
-// Осколки (70-fx) больше НЕ держат свою копию — они читают отсюда через
-// syncShardLight(). Прежде копий было две, и правка владельца в панели
-// разводила освещение надвое молча: куча светилась по-новому, её же обломки
-// по-старому. Меняешь свет — меняешь ЗДЕСЬ, остальное следует само.
+// the key light; the view is along +Z, the half vector for Blinn.
+// AN OBJECT, and not three consts: the tuner (matcapTuner) edits it on the fly, and the light
+// is SHARED by all presets — changing the direction re-bakes all of them.
+// ⚙️ Lx 0 — THE OWNER'S CHOICE 2026-08-03 (he turned the knobs in the panel himself and sent it
+// as a screenshot: "take these matcap parameters"). The light was from above-LEFT-front,
+// it became from above-IN THE CENTRE-front.
+// ⚠️⚠️ THIS IS THE ONLY SOURCE OF THE KEY LIGHT DIRECTION IN THE GAME.
+// The shards (70-fx) NO LONGER keep their own copy — they read from here through
+// syncShardLight(). There used to be two copies, and an edit by the owner in the panel
+// silently split the lighting in two: the pile was lit the new way, its own debris
+// the old way. You change the light — you change it HERE, the rest follows on its own.
 const MATCAP_LIGHT = { x: 0, y: 0.60, z: 0.72 };
 const MATCAP_SIZE = 128;
-// Съёмка пикселей пресета в готовый буфер. Вынесена из makeMatcap, чтобы
-// тюнер мог переснять пресет В ТУ ЖЕ DataTexture: материалы держат ссылку на
-// текстуру, менять её объект нельзя — только содержимое + needsUpdate.
+// Baking the pixels of a preset into a ready buffer. Extracted from makeMatcap so that
+// the tuner can re-bake a preset INTO THE SAME DataTexture: the materials hold a reference to
+// the texture, its object must not be swapped — only the contents + needsUpdate.
 function bakeMatcap(P, data){
   const S = MATCAP_SIZE;
   const Lx = MATCAP_LIGHT.x, Ly = MATCAP_LIGHT.y, Lz = MATCAP_LIGHT.z;
@@ -186,19 +186,19 @@ function bakeMatcap(P, data){
   for (let y = 0; y < S; y++){
     for (let x = 0; x < S; x++){
       let nx = (x + 0.5) / S * 2 - 1;
-      // ⚠️ Ревью 2026-07-21 сочло знак ny спорным (возможна V-инверсия против
-      // конвенции matcap). НЕ «исправлять» мимоходом: все пресеты ОТКАЛИБРОВАНЫ
-      // владельцем под текущий знак (свет сверху выглядит правильно) — менять
-      // только вместе с пересъёмкой пресетов и A/B-скринами.
-      let ny = 1 - (y + 0.5) / S * 2;          // v текстуры растёт вниз
+      // ⚠️ The review of 2026-07-21 found the sign of ny debatable (a V inversion against
+      // the matcap convention is possible). Do NOT "fix" it in passing: all the presets are CALIBRATED
+      // by the owner for the current sign (the light from above looks right) — change it
+      // only together with a re-bake of the presets and A/B screenshots.
+      let ny = 1 - (y + 0.5) / S * 2;          // the texture's v grows downwards
       const r2 = nx * nx + ny * ny;
-      // за кругом держим значение кромки — фильтрация не затягивает чёрное
+      // beyond the circle we keep the value of the edge — filtering does not drag the black in
       if (r2 > 1){ const k = 1 / Math.sqrt(r2); nx *= k; ny *= k; }
       const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, r2)));
-      // окружение = наш же софтбокс: снизу глуше, к зениту ярче
+      // the environment = our own softbox: duller at the bottom, brighter towards the zenith
       const amb = P.amb + P.sky * (ny * 0.5 + 0.5);
       const lam = Math.max(0, nx * Lx + ny * Ly + nz * Lz);
-      // френель-ободок: силуэт светлее — предметы не слипаются в плотной куче
+      // the fresnel rim: the silhouette is lighter — the items do not stick together in a dense pile
       const rim = P.rim * Math.pow(1 - nz, P.rimP);
       const v = Math.min(1, amb + P.diff * lam + rim);
       const sp = Math.min(1, Math.pow(Math.max(0, nx * Hx + ny * Hy + nz * Hz), P.shin) * P.spec);
@@ -214,115 +214,115 @@ function makeMatcap(kind){
   bakeMatcap(MATCAP_PRESETS[kind] || MATCAP_PRESETS.soft, data);
   const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
   tex.encoding = THREE.sRGBEncoding;
-  tex.magFilter = tex.minFilter = THREE.LinearFilter; // мипы не нужны — текстура экранного размера
+  tex.magFilter = tex.minFilter = THREE.LinearFilter; // mips are not needed — the texture is screen sized
   tex.needsUpdate = true;
   matcapCache.set(kind, tex);
   return tex;
 }
-// ═══ МАТЧЕП ПО ПАЧКЕ (слово владельца 2026-08-17-к: «маткапы по пачке») ═══
-// ⚠️⚠️ КОПИРОВАНИЕ ПО ТРЕБОВАНИЮ, И ЭТО НЕСУЩЕЕ. Пока пачке не задали СВОЮ
-// картинку, она возвращает ОБЩУЮ текстуру пресета — тот же объект, что и
-// раньше. Значит по умолчанию не меняется ни один пиксель, ни один байт
-// сборки и ни один вызов отрисовки: разделение стоит ровно столько, сколько
-// картинок владелец реально принесёт.
-// ⚠️ ПОЧЕМУ ЭТО ДЁШЕВО: материал предмета и так создаётся ПОД ТИП
-// (`itemMaterial`), а геометрия у каждого типа своя — то есть пары
-// «геометрия+материал» и без нас различались, и лишних вызовов отрисовки
-// per-pack матчеп не добавляет. Проверено замером, а не рассуждением.
-const packMatcaps = new Map();   // имя пачки → её собственная текстура
+// ═══ MATCAP PER PACK (the owner's word 2026-08-17-k: "matcaps per pack") ═══
+// ⚠️⚠️ COPYING ON DEMAND, AND THIS IS LOAD-BEARING. As long as a pack has not been given ITS OWN
+// image, it returns the SHARED texture of the preset — the same object as
+// before. That means by default not a single pixel changes, not a single byte
+// of the build and not a single draw call: the split costs exactly as much as the number of
+// images the owner actually brings.
+// ⚠️ WHY THIS IS CHEAP: the material of an item is created PER TYPE anyway
+// (`itemMaterial`), and every type has its own geometry — that is, the pairs
+// "geometry+material" differed even without us, and a per-pack matcap adds no extra
+// draw calls. Verified by measurement, not by reasoning.
+const packMatcaps = new Map();   // pack name → its own texture
 function packMatcap(pack, base){
   const own = pack && packMatcaps.get(pack);
   return own || base;
 }
-// Регистрация своей картинки пачке + ЖИВОЕ переключение уже созданных
-// материалов: они держат ССЫЛКУ на текстуру, поэтому одной подменой пикселей
-// (приём `retuneMatcap`) тут не обойтись — нужен новый объект в поле `matcap`.
+// Registering a pack's own image + a LIVE switch of the already created
+// materials: they hold a REFERENCE to the texture, so a mere pixel swap
+// (the `retuneMatcap` trick) is not enough here — a new object is needed in the `matcap` field.
 function setPackMatcap(pack, tex){
   if (!pack) return false;
   if (tex) packMatcaps.set(pack, tex); else packMatcaps.delete(pack);
-  // ⚠️⚠️ УМОЛЧАНИЕ ПАЧКИ — ЕЁ КАРТИНКА, А НЕ ОБЩИЙ ПРЕСЕТ, И ЭТО НЕ КОСМЕТИКА.
-  // Сюда приходит и СБРОС из редактора (`mceReset`), а с 2026-08-18 у машин и
-  // еды есть СВОЙ матчеп (08-matcap-packs). Отдай мы им общий пресет — живые
-  // предметы вернулись бы на него, а заново заспавненные брали бы картинку
-  // из `itemMaterial`: ОДНА ПАЧКА РАСЩЕПИЛАСЬ БЫ НАДВОЕ В ОДНОЙ СЦЕНЕ.
-  // Замер на слитом билде БЕЗ этой строки: после сброса совпадали с новым
-  // спавном 0 машин из 14; с ней — 14 из 14 на всех трёх замерах.
-  // ⚠️ Состояние merge-only: ни реестр, ни слой картинок поодиночке его создать
-  // не могут — потому его и не было ни в одной из двух реализаций.
+  // ⚠️⚠️ A PACK'S DEFAULT IS ITS OWN IMAGE, NOT THE SHARED PRESET, AND THIS IS NOT COSMETICS.
+  // The RESET from the editor (`mceReset`) also arrives here, and since 2026-08-18 the vehicles and
+  // the food have their OWN matcap (08-matcap-packs). Had we given them the shared preset — the live
+  // items would have gone back to it, while newly spawned ones would take the image
+  // from `itemMaterial`: ONE PACK WOULD HAVE SPLIT IN TWO WITHIN A SINGLE SCENE.
+  // A measurement on a merged build WITHOUT this line: after a reset 0 vehicles out of 14 matched a fresh
+  // spawn; with it — 14 out of 14 on all three measurements.
+  // ⚠️ A merge-only state: neither the registry nor the image layer could create it on their own —
+  // that is exactly why it was absent from both implementations.
   return packMatcapRepoint(pack);
 }
-// ⚠️⚠️ ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ЖИВЁТ ПРАВИЛО «ЧТО НОСИТ ПАЧКА». Раньше отбор был
-// переписан в двух циклах, и разбор 2026-08-19 показал цену: в живом цикле
-// забыли `paint`, и «Применить» на цели «пачка: кирпичи» переставляло матчеп
-// живым кирпичам, которым `itemMaterial` его НИКОГДА не давал (40-items: у
-// крашеных матчеп 'soft', атлас у них белый и цвет несёт `material.color`) —
-// старые кирпичи оказывались на нарисованном холсте, а новый спавн на 'soft'.
-// Один отбор на оба списка: разойтись больше нечему.
-// ⚠️ ЯРУСЫ ТЕ ЖЕ, ЧТО В `itemMaterial`: правка редактора (реестр) перебивает
-// картинку пачки, та — общий пресет. Отдать общий пресет пачке С КАРТИНКОЙ
-// значит расщепить её надвое в одной сцене (замер 2026-08-18: 0 машин из 14).
+// ⚠️⚠️ THE ONLY PLACE WHERE THE RULE "WHAT A PACK WEARS" LIVES. The selection used to be
+// written out in two loops, and the analysis of 2026-08-19 showed the price: in the live loop
+// `paint` was forgotten, and "Apply" on the target "pack: bricks" moved the matcap onto
+// live bricks, which `itemMaterial` NEVER gave it to (40-items: painted ones have matcap 'soft',
+// their atlas is white and the colour is carried by `material.color`) —
+// the old bricks ended up on the drawn canvas, and a fresh spawn on 'soft'.
+// One selection for both lists: there is nothing left to diverge.
+// ⚠️ THE TIERS ARE THE SAME AS IN `itemMaterial`: an editor edit (the registry) overrides
+// the pack's image, and that overrides the shared preset. Giving the shared preset to a pack WITH AN IMAGE
+// means splitting it in two within a single scene (measurement 2026-08-18: 0 vehicles out of 14).
 function packMatcapAim(pack){
   return packMatcaps.get(pack) || packMatcapTex(pack) || makeMatcap('tex');
 }
-// Переставить пачку на ту текстуру, которую она обязана носить СЕЙЧАС, и
-// сбросить снимки портретов. Зовётся отовсюду, где СМЕНИЛСЯ САМ ОБЪЕКТ
-// текстуры: `setPackMatcap` (реестр редактора) и `packMatcapLoad` (рождение
-// картинки у пачки, которой её не вшивали).
-// ⚠️⚠️ ПОРТРЕТЫ — ОТДЕЛЬНЫЕ ПРЕДМЕТЫ СО СВОИМ МАТЕРИАЛОМ, и без них сброс
-// снимков бессмысленен: `thumbItemForKey` (85-hud) держит портретный предмет
-// вечно, в `items` его нет. Пересняли бы тем же старым материалом — карточка
-// коллекции врала бы до перезагрузки (дефект «протухающие портреты», слово
-// владельца 2026-08-19 «почини»).
+// Move a pack onto the texture it is obliged to wear RIGHT NOW, and
+// drop the portrait snapshots. Called from everywhere the texture OBJECT ITSELF has
+// CHANGED: `setPackMatcap` (the editor's registry) and `packMatcapLoad` (the birth of an
+// image for a pack that did not have one built in).
+// ⚠️⚠️ PORTRAITS ARE SEPARATE ITEMS WITH THEIR OWN MATERIAL, and without them dropping the
+// snapshots is pointless: `thumbItemForKey` (85-hud) holds the portrait item
+// forever, it is not in `items`. We would have re-shot with the same old material — the collection
+// card would lie until a reload (the defect "stale portraits", the owner's word
+// 2026-08-19 "fix it").
 function packMatcapRepoint(pack){
   if (!pack) return 0;
-  const цель = packMatcapAim(pack);
-  const списки = [];
-  try { if (typeof items !== 'undefined' && items) списки.push(items); } catch (e) {}
-  try { if (typeof thumbItemsOfPack === 'function') списки.push(thumbItemsOfPack(pack)); } catch (e) {}
-  let тронуто = 0;
-  for (const список of списки){
-    for (const it of список){
-      // ⚠️ `paint` — это правило `itemMaterial` (40-items:72), а не придирка:
-      // крашеным матчеп пачки не положен вовсе
+  const aim = packMatcapAim(pack);
+  const lists = [];
+  try { if (typeof items !== 'undefined' && items) lists.push(items); } catch (e) {}
+  try { if (typeof thumbItemsOfPack === 'function') lists.push(thumbItemsOfPack(pack)); } catch (e) {}
+  let touched = 0;
+  for (const list of lists){
+    for (const it of list){
+      // ⚠️ `paint` is the rule of `itemMaterial` (40-items:72), not a nitpick:
+      // painted ones are not entitled to a pack matcap at all
       if (!it || !it.type || it.type.tex !== pack || it.type.paint || !it.mesh) continue;
       const m = it.mesh.material;
       if (!m || !('matcap' in m)) continue;
-      m.matcap = цель; тронуто++;
+      m.matcap = aim; touched++;
     }
   }
-  // ⚠️⚠️ СНИМКИ ПОРТРЕТОВ ПРОТУХЛИ. Прежняя строка звала `thumbCache.clear()`, а
-  // `thumbCache` — ОБЪЕКТ (`const thumbCache = {}` в 85-hud), не Map: вызов
-  // бросал TypeError, который глотал свой же `try/catch`, и редактор портреты
-  // не сбрасывал НИКОГДА. Найдено разбором слияния 2026-08-18.
+  // ⚠️⚠️ THE PORTRAIT SNAPSHOTS WENT STALE. The previous line called `thumbCache.clear()`, but
+  // `thumbCache` is an OBJECT (`const thumbCache = {}` in 85-hud), not a Map: the call
+  // threw a TypeError, which its own `try/catch` swallowed, and the editor NEVER reset the
+  // portraits. Found by the analysis of the merge on 2026-08-18.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
-  return тронуто;   // ⚠️ считаем И живых, И портреты: и те и другие — предметы пачки
+  return touched;   // ⚠️ we count BOTH the live ones AND the portraits: both are items of the pack
 }
-// Пересъёмка уже выданных текстур (тюнер). kind не задан — все сразу: свет
-// общий, его сдвиг меняет каждый пресет. Материалы трогать НЕ НАДО — они
-// ссылаются на тот же объект текстуры, needsUpdate заливает новые пиксели
-// в GPU. (material.needsUpdate — это перекомпиляция шейдера, здесь лишняя.)
+// Re-baking the already handed out textures (the tuner). kind not given — all at once: the light
+// is shared, moving it changes every preset. The materials do NOT need to be touched — they
+// reference the same texture object, needsUpdate uploads the new pixels
+// to the GPU. (material.needsUpdate is a shader recompile, superfluous here.)
 function retuneMatcap(kind){
   matcapCache.forEach((tex, k) => {
     if (kind && k !== kind) return;
     bakeMatcap(MATCAP_PRESETS[k] || MATCAP_PRESETS.soft, tex.image.data);
     tex.needsUpdate = true;
   });
-  // ⚠️⚠️ ПЯТЫЙ ПИСАТЕЛЬ ПИКСЕЛЕЙ — И ОН ТОЖЕ ОБЯЗАН СБРОСИТЬ СНИМКИ. Материалы
-  // тут переставлять НЕ надо (объект тот же), но `itemThumb` (85-hud) держит
-  // готовый PNG вечно: живая куча меняется в тот же кадр, а карточки коллекции
-  // остаются на старых снимках до перезагрузки. Болеют пресетные типы —
-  // крашеные ('soft'), хром ('metal') и пачки БЕЗ своей картинки ('tex').
-  // Найдено разбором 2026-08-19; пути сюда — ползунки тюнера (`matcapTuner`
-  // ниже) и `mceReset`.
+  // ⚠️⚠️ THE FIFTH WRITER OF PIXELS — AND IT TOO IS OBLIGED TO DROP THE SNAPSHOTS. The materials
+  // do NOT need to be moved here (the object is the same), but `itemThumb` (85-hud) holds the
+  // ready PNG forever: the live pile changes in the same frame, while the collection cards
+  // stay on the old snapshots until a reload. The preset-based types suffer —
+  // painted ('soft'), chrome ('metal') and packs WITHOUT their own image ('tex').
+  // Found by the analysis of 2026-08-19; the paths here are the tuner sliders (`matcapTuner`
+  // below) and `mceReset`.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
 }
-// ── ДЕБАГ-ТЮНЕР ПРЕСЕТОВ (запрос владельца 2026-07-22: «хочу ползунками
-// настроить значения визуально»). Открывается ТОЛЬКО из консоли —
-// __game.matcapTuner(); повторный вызов закрывает. В код и сейв не пишет
-// ничего: значения владелец забирает кнопкой Copy и присылает нам.
-// ⚠️ Тюнер меняет ТОЛЬКО числа пресетов и направление света в рамках текущей
-// конвенции. Знак ny (см. предупреждение в bakeMatcap) он не трогает.
-const MATCAP_TUNE = [                    // имя, min, max, шаг (0 = лог-шкала)
+// ── DEBUG TUNER OF THE PRESETS (the owner's request 2026-07-22: "I want to tune
+// the values visually with sliders"). It opens ONLY from the console —
+// __game.matcapTuner(); a repeated call closes it. It writes nothing into the code or the save:
+// the owner takes the values with the Copy button and sends them to us.
+// ⚠️ The tuner changes ONLY the numbers of the presets and the direction of the light within the current
+// convention. It does not touch the sign of ny (see the warning in bakeMatcap).
+const MATCAP_TUNE = [                    // name, min, max, step (0 = log scale)
   ['amb',  0,   1,    0.01],
   ['sky',  0,   0.8,  0.01],
   ['diff', 0,   1,    0.01],
@@ -337,18 +337,18 @@ function matcapTuner(){
   if (matcapPanel){ matcapPanel.remove(); matcapPanel = null; return 'matcap tuner: closed'; }
   const p = matcapPanel = document.createElement('div');
   p.id = 'matcapTuner';
-  // z 21 — ВЫШЕ оверлеев (20): дебаг-панель не должна становиться недоступной,
-  // если поверх открылась пауза. Ниже fatal (99).
+  // z 21 — ABOVE the overlays (20): a debug panel must not become unreachable
+  // if the pause opens on top of it. Below fatal (99).
   p.style.cssText = 'position:fixed; right:10px; top:10px; z-index:21; width:274px;'
     + ' max-height:calc(100vh - 20px); overflow:auto; pointer-events:auto;'
     + ' background:rgba(15,20,30,.96); color:#dfe6f2; border-radius:10px; padding:10px 12px;'
     + ' font:12px/1.35 ui-monospace,Menlo,monospace; box-shadow:0 6px 24px rgba(0,0,0,.45);';
-  // 90-input слушает keydown НА ОКНЕ (Space = встряска): без этого стрелки и
-  // пробел на сфокусированном ползунке улетали бы в игру.
+  // 90-input listens for keydown ON THE WINDOW (Space = shake): without this the arrows and
+  // the space bar on a focused slider would fly off into the game.
   p.addEventListener('keydown', e => e.stopPropagation());
 
-  // пересъёмка гейтована кадром: перетаскивание ползунка даёт десятки
-  // input-событий, а нам хватает одной съёмки на кадр (3 пресета ≈ 1-2 мс)
+  // the re-bake is gated by the frame: dragging a slider gives dozens of
+  // input events, while one bake per frame is enough for us (3 presets ≈ 1-2 ms)
   const pending = new Set(); let raf = 0;
   const queue = kind => {
     pending.add(kind);
@@ -372,7 +372,7 @@ function matcapTuner(){
     r.style.cssText = 'display:grid; grid-template-columns:36px 1fr 40px; gap:6px; align-items:center; margin:2px 0;';
     const lab = document.createElement('span'); lab.textContent = label; lab.style.opacity = '.7';
     const inp = document.createElement('input');
-    inp.dataset.mc = o.id;               // адрес ползунка для сьюта
+    inp.dataset.mc = o.id;               // the slider's address for the suite
     inp.type = 'range'; inp.min = o.min; inp.max = o.max; inp.step = o.step;
     inp.value = o.get(); inp.style.cssText = 'width:100%; accent-color:#7fd1ff;';
     const out = document.createElement('span'); out.style.textAlign = 'right';
@@ -391,18 +391,18 @@ function matcapTuner(){
   close.onclick = () => matcapTuner();
   title.appendChild(close); p.appendChild(title);
 
-  head('light', '(общий для всех пресетов)');
+  head('light', '(shared by all presets)');
   ['x', 'y', 'z'].forEach(ax => row('L' + ax, {
     id: 'light.' + ax, min: -1, max: 1, step: 0.01,
     get: () => MATCAP_LIGHT[ax], txt: () => MATCAP_LIGHT[ax],
     set: v => { MATCAP_LIGHT[ax] = Math.round(v * 100) / 100; queue(null); },
   }));
 
-  // ВУАЛЬ НЕДОСТУПНЫХ (Hard). Ползунки нужны именно живыми: «насколько гасить»
-  // — вопрос вкуса, а на статичном скрине его не решить. Галка показывает
-  // вуаль НА ВСЕЙ куче, иначе эффекта почти не видно: недоступные — это ровно
-  // те, кто НЕ видит небо, то есть они закрыты верхним слоем от самой камеры.
-  head('veil', '(недоступные в Hard)');
+  // THE VEIL OF THE UNAVAILABLE (Hard). The sliders are needed exactly live: "how much to dim"
+  // is a matter of taste, and it cannot be decided on a static screenshot. The checkbox shows the
+  // veil ON THE WHOLE PILE, otherwise the effect is barely visible: the unavailable ones are exactly
+  // those who do NOT see the sky, that is they are covered by an upper layer from the camera itself.
+  head('veil', '(the unavailable ones in Hard)');
   row('light', { id: 'veil.light', min: 0, max: 1, step: 0.01,
     get: () => uVeilTune.value.x, txt: () => uVeilTune.value.x,
     set: v => { uVeilTune.value.x = Math.round(v * 100) / 100; } });
@@ -413,20 +413,20 @@ function matcapTuner(){
   prev.style.cssText = 'display:flex; gap:6px; align-items:center; margin:2px 0 0; opacity:.75; cursor:pointer;';
   const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.mc = 'veil.preview';
   cb.onchange = () => veilAllItems(cb.checked ? 1 : null);
-  prev.append(cb, document.createTextNode('показать на всех'));
+  prev.append(cb, document.createTextNode('show on all'));
   p.appendChild(prev);
 
-  // ЯРКОСТЬ И КОНТРАСТ ТЕКСТУРНЫХ МОДЕЛЕЙ + ГЛУБИНА КУЧИ (просьба владельца
-  // 2026-08-02 «сделать объекты чуть светлее»). ⚠️ ЭТО ГЛАВНЫЕ РУЧКИ ЯРКОСТИ,
-  // и до сих пор их в панели НЕ БЫЛО: владелец крутил бы пресеты, у которых
-  // совсем другая роль. `tex.amb` поднимать нельзя выше ~0.9 — шейдер МНОЖИТ
-  // matcap на атлас, и авторские цвета выцветают; яркость поднимается
-  // УМНОЖЕНИЕМ через gain, оно сохраняет отношение тёмного к светлому
-  // (аддитивный lift владелец уже забраковал: «всё сильно светлое»).
-  // ⚠️ uTune — юниформа ПО МАТЕРИАЛУ (у каждого предмета своя), поэтому
-  // ползунок обходит живые материалы, а не пишет в общий объект. Правим только
-  // те, у кого gain отличается от 1: это и есть текстурные модели.
-  head('яркость', '(текстурные модели + глубина)');
+  // THE BRIGHTNESS AND CONTRAST OF THE TEXTURED MODELS + THE DEPTH OF THE PILE (the owner's request
+  // 2026-08-02 "make the objects a bit lighter"). ⚠️ THESE ARE THE MAIN BRIGHTNESS KNOBS,
+  // and until now they were NOT in the panel: the owner would have been turning presets, which have
+  // a completely different role. `tex.amb` must not be raised above ~0.9 — the shader MULTIPLIES
+  // the matcap by the atlas, and the authored colours wash out; the brightness is raised
+  // by MULTIPLICATION through gain, it preserves the ratio of dark to light
+  // (the additive lift has already been rejected by the owner: "everything is far too light").
+  // ⚠️ uTune is a PER-MATERIAL uniform (every item has its own), so the
+  // slider walks the live materials rather than writing into a shared object. We edit only
+  // those whose gain differs from 1: those are exactly the textured models.
+  head('brightness', '(textured models + depth)');
   const eachTune = (fn) => {
     for (const it of items){
       const sh = it.mesh && it.mesh.material && it.mesh.material.userData
@@ -443,7 +443,7 @@ function matcapTuner(){
     get: () => texContrast, txt: () => texContrast,
     set: v => { texContrast = Math.round(v * 100) / 100;
       eachTune(t => { if (t.y !== 1) t.y = texContrast; }); } });
-  row('низ', { id: 'depth.min', min: 0.40, max: 1.00, step: 0.01,
+  row('bottom', { id: 'depth.min', min: 0.40, max: 1.00, step: 0.01,
     get: () => uDepthTint.value.x, txt: () => uDepthTint.value.x,
     set: v => { uDepthTint.value.x = Math.round(v * 100) / 100; } });
 
@@ -451,10 +451,10 @@ function matcapTuner(){
     const tex = matcapCache.get(kind);
     let used = 0;
     if (tex) scene.traverse(o => { if (o.material && o.material.matcap === tex) used++; });
-    // счётчик честно говорит, что ползунок сдвинет: 'metal' сейчас без
-    // потребителей (хром-примитивы удалены из пула) — иначе владелец будет
-    // двигать его и думать, что инструмент сломан
-    head(kind, used ? '— ' + used + ' объектов' : '— НЕ используется сейчас');
+    // the counter honestly says what the slider will move: 'metal' currently has no
+    // consumers (the chrome primitives were removed from the pool) — otherwise the owner would
+    // move it and think the tool is broken
+    head(kind, used ? '— ' + used + ' objects' : '— NOT used right now');
     const P = MATCAP_PRESETS[kind];
     for (const [name, min, max, step] of MATCAP_TUNE){
       if (step) row(name, {
@@ -462,9 +462,9 @@ function matcapTuner(){
         get: () => P[name], txt: () => P[name],
         set: v => { P[name] = Math.round(v * 100) / 100; queue(kind); },
       });
-      // shin — показатель Блинна: на линейной шкале вся полезная часть
-      // (2..60) сидит в первой четверти ползунка, дальше визуально ничего
-      // не меняется. Поэтому ползунок ходит по логарифму.
+      // shin is the Blinn exponent: on a linear scale the whole useful part
+      // (2..60) sits in the first quarter of the slider, further along nothing
+      // visually changes. That is why the slider walks along a logarithm.
       else row(name, {
         id: kind + '.' + name, min: Math.log(min), max: Math.log(max), step: 0.001,
         get: () => Math.log(P[name]), txt: () => P[name],
@@ -479,7 +479,7 @@ function matcapTuner(){
   copy.textContent = 'Copy';
   copy.style.cssText = 'background:#2b6ea8; border:0; color:#fff; padding:5px 12px; border-radius:6px; cursor:pointer; font:inherit;';
   const note = document.createElement('span'); note.style.opacity = '.65';
-  note.textContent = 'reload = откат';
+  note.textContent = 'reload = rollback';
   copy.onclick = () => {
     const s = '{\n  "light": ' + JSON.stringify(MATCAP_LIGHT)
       + ',\n  "veil": { "light": ' + uVeilTune.value.x + ', "lift": ' + uVeilTune.value.y + ' }'
@@ -490,54 +490,54 @@ function matcapTuner(){
       + '\n  }\n}';
     console.log('[matcap]\n' + s);
     const done = t => { note.textContent = t; };
-    // clipboard может быть недоступен (file://, отказ в правах) — консоль есть всегда
-    if (navigator.clipboard) navigator.clipboard.writeText(s).then(() => done('скопировано'), () => done('только в консоли'));
-    else done('только в консоли');
+    // the clipboard may be unavailable (file://, permission denied) — the console is always there
+    if (navigator.clipboard) navigator.clipboard.writeText(s).then(() => done('copied'), () => done('console only'));
+    else done('console only');
   };
   foot.append(copy, note); p.appendChild(foot);
   document.body.appendChild(p);
-  return 'matcap tuner: открыт (повторный вызов закроет)';
+  return 'matcap tuner: opened (a repeated call will close it)';
 }
-// ⚠️ У MeshMatcapMaterial НЕТ emissive, а подсветка подсказки (hintPulse) и
-// «прицела» (scopePulse) в 80-gameplay пишут mat.emissive/emissiveIntensity
-// напрямую — без этих заглушек кнопка Hint падала с TypeError на setHex.
-// (test.js подсказку НЕ ПОКРЫВАЕТ — поймано отдельной пробой; если будете
-// править эту ветку, проверяйте Hint руками.)
-// Считать ничего не надо: как только у материала появляется .emissive, three
-// сам пишет emissive × emissiveIntensity в юниформу `emissive`
-// (refreshUniformsCommon). Наша задача — ЗАВЕСТИ эту юниформу в matcap-шейдере,
-// иначе three падает на undefined.value в первом же кадре (так и было).
+// ⚠️ MeshMatcapMaterial has NO emissive, while the highlight of the hint (hintPulse) and
+// of the "scope" (scopePulse) in 80-gameplay write mat.emissive/emissiveIntensity
+// directly — without these stubs the Hint button crashed with a TypeError on setHex.
+// (test.js does NOT COVER the hint — caught by a separate probe; if you are going to
+// edit this branch, check Hint by hand.)
+// Nothing needs to be computed: as soon as a material gets .emissive, three
+// itself writes emissive × emissiveIntensity into the `emissive` uniform
+// (refreshUniformsCommon). Our job is to DECLARE that uniform in the matcap shader,
+// otherwise three crashes on undefined.value in the very first frame (and it did).
 function addMatcapEmissive(mat){
   mat.emissive = new THREE.Color(0x000000);
   mat.emissiveIntensity = 0;
 }
-// Блик из альфы + emissive — поверх умножения. Функция ОДНА на все материалы,
-// поэтому кэш программ (по onBeforeCompile.toString()) даёт ОДИН
-// скомпилированный шейдер на все 181, а не 181.
+// The highlight from the alpha + emissive — on top of the multiplication. The function is ONE for all materials,
+// so the program cache (keyed by onBeforeCompile.toString()) gives ONE
+// compiled shader for all 181, not 181 of them.
 const matcapSpecPatch = function (sh) {
   sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
-  // ЯРКОСТЬ и КОНТРАСТ — ручки владельца, живут в 00-config. Юниформа своя
-  // на материал (three хранит uniforms per-material), но ИСХОДНИК шейдера
-  // одинаков, поэтому программа по-прежнему компилируется ОДНА на все.
-  // Обычные предметы получают (1,1) — это тождественное преобразование.
+  // BRIGHTNESS and CONTRAST are the owner's knobs, they live in 00-config. The uniform is per
+  // material (three stores uniforms per-material), but the shader SOURCE is
+  // identical, so the program is still compiled ONCE for all of them.
+  // Ordinary items get (1,1) — that is the identity transform.
   const tune = this.userData && this.userData.texTune;
   sh.uniforms.uTune = { value: new THREE.Vector2(
     tune ? TEX_GAIN : 1.0, tune ? TEX_CONTRAST : 1.0) };
-  // ВУАЛЬ НЕДОСТУПНОСТИ — своя юниформа на материал, её крутит tickVeil.
-  // ⚠️ Ссылку на шейдер кладём в userData: onBeforeCompile зовётся ОДИН раз,
-  // а вуаль меняется каждый кадр — иначе до юниформы не дотянуться.
+  // THE VEIL OF UNAVAILABILITY — its own uniform per material, tickVeil turns it.
+  // ⚠️ We put the reference to the shader into userData: onBeforeCompile is called ONCE,
+  // while the veil changes every frame — otherwise the uniform would be out of reach.
   sh.uniforms.uVeil = { value: 0 };
   this.userData.shader = sh;
-  // ГЛУБИНА КУЧИ вместо теней (шаг 2 пакета). Тени выключены — matcap их не
-  // принимает, — а объём чем-то показывать надо. Мировая высота здесь честнее
-  // экранной тени: она совпадает с геймплейным «насколько предмет закопан»,
-  // то есть работает на игру, а не только на картинку. Две инструкции в
-  // шейдере, ноль работы в JS за кадр.
-  // Константы вшиваются ЛИТЕРАЛАМИ, а не юниформами: исходник получается
-  // одинаковый для всех материалов -> кэш программ по onBeforeCompile.toString()
-  // по-прежнему даёт ОДИН скомпилированный шейдер на все 181.
+  // THE DEPTH OF THE PILE instead of shadows (step 2 of the package). The shadows are off — matcap does not
+  // receive them — and the volume still has to be shown somehow. World height is more honest here
+  // than a screen shadow: it coincides with the gameplay notion of "how deeply an item is buried",
+  // that is it works for the game, not only for the picture. Two instructions in
+  // the shader, zero work in JS per frame.
+  // The constants are baked in as LITERALS, not as uniforms: the source comes out
+  // identical for all materials -> the program cache keyed by onBeforeCompile.toString()
+  // still gives ONE compiled shader for all 181.
   const n = (x) => x.toFixed(3);
-  sh.uniforms.uPileTop = uPileTop;   // ОДИН объект на все материалы
+  sh.uniforms.uPileTop = uPileTop;   // ONE object for all materials
   sh.uniforms.uDepth = uDepthTint;
   sh.uniforms.uVeilTune = uVeilTune;
   sh.uniforms.uVeilCol = uVeilCol;
@@ -552,64 +552,64 @@ const matcapSpecPatch = function (sh) {
       'vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;',
       'float dk = clamp( ( vWorldY - uPileTop + uDepth.y ) / uDepth.y, 0.0, 1.0 );\n'
       + '\tdk = uDepth.x + ( 1.0 - uDepth.x ) * dk;\n'
-      // ⚠️ Глубиной гасится ТОЛЬКО диффуз. Блик и подсветку подсказки не
-      // трогаем: иначе низ кучи превращается в чёрную кашу, где не разобрать
-      // ни силуэтов, ни того, что подсвечено.
+      // ⚠️ Only the diffuse is dimmed by the depth. We do not touch the highlight and the hint
+      // glow: otherwise the bottom of the pile turns into a black mush where neither
+      // the silhouettes nor what is highlighted can be made out.
       + '\tvec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb * dk'
         + ' + vec3( matcapColor.a ) + emissive;\n'
-      // яркость — УМНОЖЕНИЕМ (контраст цел), затем контраст вокруг середины
+      // brightness — by MULTIPLICATION (the contrast is intact), then the contrast around the midpoint
       + '\toutgoingLight *= uTune.x;\n'
       + '\toutgoingLight = ( outgoingLight - ' + n(TEX_PIVOT) + ' ) * uTune.y + ' + n(TEX_PIVOT) + ';\n'
-      // вуаль — САМОЙ ПОСЛЕДНЕЙ, по уже готовому цвету: обесцвечиваем в
-      // яркость и поднимаем к светло-серому. Тремя инструкциями и без
-      // ветвления — при uVeil=0 это тождество, доступные ничего не платят.
+      // the veil — VERY LAST, over the already finished colour: we desaturate it into
+      // luminance and lift it towards a light grey. Three instructions and without
+      // branching — at uVeil=0 this is the identity, the available ones pay nothing.
       + '\tfloat vLum = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );\n'
-      // ⚠️ БЫЛО: обесцвечивание в СЕРЫЙ и подъём к серому же. Стало: обесцвеченная
-      // яркость КРАСИТСЯ в uVeilCol и поднимается к светлому тону того же цвета.
-      // Форма выражения та же — при uVeil=0 это по-прежнему тождество, доступные
-      // предметы не платят ничего.
-      // ⚠️ КОММЕНТАРИЙ ОБЯЗАН СТОЯТЬ НАД «+», А НЕ ПОСЛЕ НЕГО: `X + // …` даёт
-      // `X + (+'строка')`, унарный плюс на строке — это NaN, и в шейдер вместо
-      // кода уезжает «NaN». Предметы тогда просто перестают рисоваться, а
-      // консоль молчит — я на этом потерял два прогона.
+      // ⚠️ IT WAS: desaturation into GREY and a lift towards the same grey. It BECAME: the desaturated
+      // luminance is TINTED into uVeilCol and lifted towards a light tone of the same colour.
+      // The shape of the expression is the same — at uVeil=0 it is still the identity, the available
+      // items pay nothing.
+      // ⚠️ THE COMMENT MUST STAND ABOVE THE "+", AND NOT AFTER IT: `X + // …` gives
+      // `X + (+'string')`, a unary plus on a string is NaN, and instead of code
+      // the string "NaN" travels into the shader. The items then simply stop being drawn, and the
+      // console stays silent — I lost two runs on this.
       + '\toutgoingLight = mix( outgoingLight, mix( vec3( vLum ) * uVeilCol, uVeilCol * uVeilTune.x, uVeilTune.y ), uVeil );'
     );
-  // страж якорной строки: replace по несуществующему якорю МОЛЧА ничего не
-  // делает (смена версии three) — глубина/блик/подсказка отвалились бы тихо
+  // a guard for the anchor string: a replace on a non-existent anchor SILENTLY does
+  // nothing (a change of the three version) — the depth/highlight/hint would have fallen off quietly
   if (sh.fragmentShader.indexOf('uPileTop') < 0)
-    console.warn('matcap-патч НЕ применился: строка-якорь three изменилась (10-stage matcapSpecPatch)');
+    console.warn('the matcap patch was NOT applied: the three anchor string has changed (10-stage matcapSpecPatch)');
 };
-// Верх кучи для тонировки. ОДИН общий объект-юниформа: обновили .value —
-// обновились все 181 материал разом, без обхода сцены.
+// The top of the pile for the tinting. ONE shared uniform object: we updated .value —
+// all 181 materials updated at once, without traversing the scene.
 const uPileTop = { value: FUNNEL.H };
-// Глубина: x — во сколько раз темнеет дно, y — на сколько ниже верха кучи
-// достигается этот минимум. ОДИН объект на все материалы, поэтому крутится
-// на лету (и в игре, и в сравнительных прогонах) без пересборки.
+// Depth: x — how many times darker the bottom gets, y — how far below the top of the pile
+// that minimum is reached. ONE object for all materials, which is why it can be turned
+// on the fly (both in the game and in comparison runs) without a rebuild.
 const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) };
-// Сила вуали — ОДИН общий объект на все материалы (как uPileTop/uDepth):
-// исходник шейдера от этого не меняется, программа по-прежнему компилируется
-// одна на все 183. x = целевой светло-серый, y = доля подъёма к нему.
+// The strength of the veil — ONE shared object for all materials (like uPileTop/uDepth):
+// the shader source does not change because of it, the program is still compiled
+// once for all 183. x = the target light grey, y = the fraction of the lift towards it.
 const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
-// ⚠️ ЦВЕТ ВУАЛИ — В ЛИНЕЙНОМ ПРОСТРАНСТВЕ: патч правит outgoingLight ДО
-// тонмаппинга, поэтому сырой sRGB здесь дал бы пересветлённый тон.
+// ⚠️ THE COLOUR OF THE VEIL IS IN LINEAR SPACE: the patch edits outgoingLight BEFORE
+// the tone mapping, so raw sRGB here would give an over-lightened tone.
 const uVeilCol = { value: new THREE.Color(VEIL_TINT).convertSRGBToLinear() };
-// Тик глубины: верх кучи ползёт вниз по мере разбора, поэтому ведём его
-// ПЛАВНО (лерп) — скачок высоты перекрашивал бы всю кучу разом.
-// Вызывается из loop в 99-main (WORKSTREAMS разрешает добавлять свой тик).
+// The depth tick: the top of the pile creeps down as it is dismantled, so we drive it
+// SMOOTHLY (a lerp) — a jump in height would repaint the whole pile at once.
+// Called from loop in 99-main (WORKSTREAMS allows adding your own tick).
 function tickDepthTint(dt){
   if (!CFG.matcap || !items) return;
   let top = 0;
-  // ⚠️ ТОЛЬКО ПО КУЧЕ НИЖЕ КРОМКИ — летящие сверху НЕ СЧИТАЮТСЯ.
-  // Баг владельца 2026-07-21: «в турбо меняется освещение, модели темнеют».
-  // В турбо (лихорадке) chainRefill досыпает предметы с высоты ~13, и максимум
-  // по ВСЕМ живым скачком уезжал туда же — вся осевшая масса проваливалась
-  // ниже диапазона тонировки и гасла до DEPTH_TINT_MIN разом. То же самое
-  // било и в интро, где сверху падает весь столб.
-  // Тот же гвард стоит в chainRefill по той же причине (душил темп досыпки).
-  // ⚠️ НЕ МАКСИМУМ, А ПЕРЦЕНТИЛЬ. Максимум — величина хрупкая: один предмет,
-  // подскочивший выше прочих (досыпка в турбо, встряска, свежеупавший), уводил
-  // ОПОРУ вверх, и вся куча разом гасла до DEPTH_TINT_MIN. 85-й перцентиль
-  // на пару-тройку выскочивших не реагирует, а рост кучи по-настоящему ловит.
+  // ⚠️ ONLY OVER THE PILE BELOW THE RIM — the ones flying above are NOT COUNTED.
+  // The owner's bug 2026-07-21: "in turbo the lighting changes, the models get darker".
+  // In turbo (the fever) chainRefill tops the pile up with items from a height of ~13, and the maximum
+  // over ALL the live ones jumped up there too — the whole settled mass fell
+  // below the tinting range and went out to DEPTH_TINT_MIN all at once. The same thing
+  // hit in the intro too, where the entire column falls from above.
+  // The same guard stands in chainRefill for the same reason (it was choking the refill pace).
+  // ⚠️ NOT THE MAXIMUM, BUT A PERCENTILE. The maximum is a fragile quantity: a single item
+  // that bounced higher than the rest (a refill in turbo, a shake, a freshly fallen one) dragged
+  // the REFERENCE up, and the whole pile went out to DEPTH_TINT_MIN at once. The 85th percentile
+  // does not react to a couple of stragglers, yet it genuinely catches the growth of the pile.
   const tops = [];
   for (const it of items){
     if (it.alive && !it.surprise && it.p.y < FUNNEL.H) tops.push(it.p.y + it.r);
@@ -617,28 +617,28 @@ function tickDepthTint(dt){
   if (!tops.length) return;
   tops.sort((a, b) => a - b);
   top = tops[Math.min(tops.length - 1, Math.floor(tops.length * 0.85))];
-  // ЛЕРП МЕДЛЕННЫЙ (~1.2 с, было 0.25): короткая вспышка досыпки не должна
-  // успевать перекрасить кучу — за уровень опора всё равно доедет куда надо.
+  // THE LERP IS SLOW (~1.2 s, it was 0.25): a short burst of refilling must not
+  // manage to repaint the pile — over a level the reference will get where it needs to anyway.
   const k = Math.min(1, dt * 0.8);
   uPileTop.value += (top - uPileTop.value) * k;
 }
-// matcap-предметы тени НЕ ПРИНИМАЮТ (материал неосвещаемый) — значит теневой
-// пасс рисовал бы карту, которую некому показать. Замер: пасс УДВАИВАЕТ
-// draw calls (136 -> 265 на ур.1), поэтому в этом режиме он выключен.
+// matcap items do NOT RECEIVE shadows (the material is unlit) — which means the shadow
+// pass would draw a map with nobody to show it to. Measurement: the pass DOUBLES the
+// draw calls (136 -> 265 on level 1), so in this mode it is off.
 if (CFG.matcap) renderer.shadowMap.enabled = false;
 
-// ВРЕМЯ СУТОК — единая точка для неба и лихорадки.
-// ⚠️ ГРАНИЦЫ ПО СПЕКЕ ВЛАДЕЛЬЦА 2026-07-31: «день до 20:00, ночь с 20:00».
-// Утреннюю границу он не трогал — итог ДЕНЬ 5–20, НОЧЬ 20–5. Число вынесено
-// в SKY_NIGHT_FROM (00-config): его ОБЯЗАН читать и isNightSky в 85-hud, иначе
-// с 20 до 5 небо и тема кнопок разъедутся.
-// ⚠️ ФОРС-ХУК `?hour=N` (запрос ИНТЕРФЕЙСА через диспетчера): без него ТРИ
-// темовые фичи (тема витрины, ⛔ инверсия Shake — СНЯТА 2026-08-21 вместе с
-// подложкой кнопки, см. надгробие в 85-hud, правило цвета кнопок) в сьюте
-// непроверяемы — их приходилось тестировать подменой Date. Хук читает
-// location.search ДО первого кадра, потому что и небо, и рампа считаются РАЗ
-// при загрузке. Мусор и значения вне 0..23 игнорируются молча — это отладочная
-// ручка, падать из-за неё игра не должна.
+// TIME OF DAY — a single point for the sky and the fever.
+// ⚠️ THE BOUNDARIES FOLLOW THE OWNER'S SPEC 2026-07-31: "day until 20:00, night from 20:00".
+// He did not touch the morning boundary — the result is DAY 5–20, NIGHT 20–5. The number is moved
+// into SKY_NIGHT_FROM (00-config): isNightSky in 85-hud is OBLIGED to read it too, otherwise
+// from 20 to 5 the sky and the theme of the buttons will diverge.
+// ⚠️ THE FORCE HOOK `?hour=N` (a request from the INTERFACE through the dispatcher): without it THREE
+// theme features (the theme of the showcase, ⛔ the Shake inversion — REMOVED 2026-08-21 together with
+// the button's backplate, see the tombstone in 85-hud, the rule for the colour of the buttons) are
+// unverifiable in the suite — they had to be tested by substituting Date. The hook reads
+// location.search BEFORE the first frame, because both the sky and the ramp are computed ONCE
+// at load. Garbage and values outside 0..23 are ignored silently — this is a debug
+// knob, the game must not crash because of it.
 function skyHourNow(){
   let h = 12; try { h = new Date().getHours(); } catch(e){}
   try {
@@ -647,76 +647,90 @@ function skyHourNow(){
   } catch(e){}
   return h;
 }
-// ⛔⛔ ТОЛЬКО ДЕНЬ, ВСЕГДА — СЛОВО ВЛАДЕЛЬЦА 2026-08-20 («оставь только дневную
-// тему всегда»). Час по-прежнему считается честно (`skyHourNow` и форс-хук
-// `?hour=N` живы — на них стоит страж), но РЕШЕНИЕ здесь одно.
-// ⚠️ Ночная палитра `SKY_STOPS.night`, `FEVER_NIGHT` и все правила `html.night`
-// ОСТАВЛЕНЫ НА МЕСТЕ и не удалены: это вкусовое решение владельца, к таким он
-// возвращается. Недостижимы — да; сломаны — нет.
-// ⚠️ ВТОРАЯ ПОЛОВИНА ПРАВИЛА — `isNightSky` (85-hud). Разъедутся эти двое —
-// небо станет дневным при ночной теме кнопок; на совпадение стоит страж
-// «ТОЛЬКО ДЕНЬ» (он же прежний страж границы, переехавший за правилом).
+// ⛔⛔ DAY ONLY, ALWAYS — THE OWNER'S WORD 2026-08-20 ("leave only the day
+// theme always"). The hour is still computed honestly (`skyHourNow` and the force hook
+// `?hour=N` are alive — there is a guard on them), but the DECISION here is a single one.
+// ⚠️ The night palette `SKY_STOPS.night`, `FEVER_NIGHT` and all the `html.night` rules
+// ARE LEFT IN PLACE and not deleted: this is a matter of the owner's taste, and he comes back
+// to such things. Unreachable — yes; broken — no.
+// ⚠️ THE SECOND HALF OF THE RULE IS `isNightSky` (85-hud). If those two diverge —
+// the sky will become the day one while the buttons are on the night theme; the guard
+// "DAY ONLY" stands on their agreement (it is the former boundary guard, which moved together with the rule).
 function skyTimeNow(){
   return 'day';
 }
-// Небо БЕЗ КАРТИНКИ: многостопная палитра текущего времени суток (SKY_STOPS).
-// Считается РАЗ при загрузке — как раньше выбор панорамы.
-// ⚠️⚠️ РАЗБОР СТОПОВ — ОДИН НА ВСЕХ ПОТРЕБИТЕЛЕЙ. Стоп приходит либо голым
-// хексом (`'#ccfff8'`), либо С ПОЗИЦИЕЙ в форме владельца (`'#85dcff 0%'`).
-// Наружу отдаём РАЗДЕЛЬНО: `hex` — чистые цвета (их читает дюжина мест, от
-// `hexRGB` до тинта полос Safari, и им про позиции знать незачем) и `pos` —
-// доли 0..1 (их читают ровно двое: рампа шейдера и строка CSS).
-// ⛔ ПРАВИЛО «ВСЕ ИЛИ НИ ОДНОЙ» (см. 00-config): смесь — это громкий warn и
-// РАВНОМЕРНАЯ раскладка. Доопределять частичные позиции «как CSS» мы не
-// беремся: разойтись с браузером втихую хуже, чем отказаться вслух.
+// The sky WITHOUT A PICTURE: the multi-stop palette of the current time of day (SKY_STOPS).
+// Computed ONCE at load — as the choice of the panorama used to be.
+// ⚠️⚠️ THE PARSING OF THE STOPS IS ONE FOR ALL CONSUMERS. A stop arrives either as a bare
+// hex (`'#ccfff8'`), or WITH A POSITION in the owner's form (`'#85dcff 0%'`).
+// Outwards we hand them over SEPARATELY: `hex` — the pure colours (a dozen places read them, from
+// `hexRGB` to the tint of the Safari bars, and they have no need to know about positions) and `pos` —
+// the fractions 0..1 (exactly two read them: the shader ramp and the CSS string).
+// ⛔ THE RULE "ALL OR NONE" (see 00-config): a mixture is a loud warn and an
+// EVEN layout. We do not undertake to complete partial positions "the way CSS does":
+// diverging from the browser silently is worse than refusing out loud.
+// ⚠️⚠️ THE LIGHTENING WITH WHITE IS HERE, IN THE SINGLE PARSING POINT (the owner's word
+// 2026-08-22-g "throw a fade of 40% white over the whole area of the gradient"). BOTH paths
+// go through the parsing — the load and the live substitution `setSkyStops` — therefore the
+// lightening cannot fall to only one of them. What is handed outwards is ALREADY the displayed
+// colour: the shader, `--sky-grad` and the Safari edges all see one and the same thing.
+// ⛔ NOT AS A SEPARATE LAYER: the pixel is the same, but the edges would diverge from
+//    the variables (the analysis is in 00-config at `SKY_FADE_WHITE`).
+const fadeToWhite = (hex, k) => {
+  const n = parseInt(String(hex).slice(1), 16);
+  const toWhite = c => Math.round(c + (255 - c) * k);
+  const r = toWhite(n >> 16 & 255), g = toWhite(n >> 8 & 255), b = toWhite(n & 255);
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+};
 function parseSkyStops(list){
-  const hex = [], сыр = [];
+  const hex = [], raw = [];
+  const k = (typeof SKY_FADE_WHITE === 'number') ? SKY_FADE_WHITE : 0;
   for (const it of list){
     const m = String(it).trim().split(/\s+/);
-    hex.push(m[0]);
-    сыр.push(m.length > 1 ? parseFloat(m[1]) / 100 : null);
+    hex.push(k > 0 ? fadeToWhite(m[0], k) : m[0]);
+    raw.push(m.length > 1 ? parseFloat(m[1]) / 100 : null);
   }
-  const сколько = сыр.filter(v => v !== null).length;
-  const свои = сколько === сыр.length;
-  if (сколько && !свои) console.warn('[sky] позиции заданы не у всех стопов (' +
-    сколько + ' из ' + сыр.length + ') — раскладка равномерная, см. SKY_STOPS');
+  const count = raw.filter(v => v !== null).length;
+  const ownPos = count === raw.length;
+  if (count && !ownPos) console.warn('[sky] positions are not set on all the stops (' +
+    count + ' out of ' + raw.length + ') — the layout is even, see SKY_STOPS');
   const last = hex.length - 1;
-  const pos = свои ? сыр : hex.map((_, i) => last ? i / last : 0);
-  return { hex, pos, свои };
+  const pos = ownPos ? raw : hex.map((_, i) => last ? i / last : 0);
+  return { hex, pos, ownPos };
 }
 const skyParsed = parseSkyStops(SKY_STOPS[skyTimeNow()]);
-// ⚠️ `skyStops` ОСТАЁТСЯ СПИСКОМ ЧИСТЫХ ХЕКСОВ — так все прежние потребители
-// (включая `skyStops[0]` для тинта верхней полосы) работают без правок.
+// ⚠️ `skyStops` REMAINS A LIST OF PURE HEXES — that way all the previous consumers
+// (including `skyStops[0]` for the tint of the top bar) work without edits.
 const skyStops = skyParsed.hex;
 const skyPos = skyParsed.pos;
 const v3 = a => new THREE.Vector3(a[0], a[1], a[2]);
-// '#rrggbb' -> [0..1, 0..1, 0..1] СЫРОГО sRGB. Никакого convertSRGBToLinear:
-// шейдер неба минует конвертацию рендерера (см. 00-config у SKY_STOPS).
+// '#rrggbb' -> [0..1, 0..1, 0..1] of RAW sRGB. No convertSRGBToLinear:
+// the sky shader bypasses the renderer's conversion (see 00-config at SKY_STOPS).
 const hexRGB = s => { const n = parseInt(s.slice(1), 16);
   return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
 const skyRGB = skyStops.map(hexRGB);
-// ⚠️ ТОТ ЖЕ ГРАДИЕНТ — В CSS (спека владельца 2026-07-28: «заливка этого блока —
-// градиенты времени суток»). Один источник с небом: потребитель и фон игры
-// разъехаться не могут ПО ПОСТРОЕНИЮ.
-// ⛔ ПОТРЕБИТЕЛЬ СМЕНИЛСЯ 2026-08-20: это больше НЕ карточка Play (у неё
-// `background:transparent` словом владельца), а САМ ЭКРАН ПАУЗЫ
-// (`#mainScreen::before`). Переменная и правило одни и те же — сменился адресат. Считается раз при загрузке, как и небо —
-// время суток в пределах сессии не меняется, а тик updateHUD ставил бы одну и
-// ту же строку впустую. Строка выходит ДОСЛОВНО такой, какую дал владелец.
-// ⚠️ ПОЗИЦИИ ПОПАДАЮТ В CSS ДОСЛОВНО, если заданы: иначе браузер разложил бы
-// стопы равномерно, а шейдер — по позициям, и один градиент стал бы двумя.
-const skyGradList = (hex, pos, свои) => hex
-  .map((c, i) => свои ? c + ' ' + +(pos[i] * 100).toFixed(4) + '%' : c).join(',');
+// ⚠️ THE SAME GRADIENT — IN CSS (the owner's spec 2026-07-28: "the fill of this block is
+// the gradients of the time of day"). A single source together with the sky: the consumer and the game's
+// background cannot diverge BY CONSTRUCTION.
+// ⛔ THE CONSUMER CHANGED ON 2026-08-20: this is NO LONGER the Play card (it has
+// `background:transparent` by the owner's word), but the PAUSE SCREEN ITSELF
+// (`#mainScreen::before`). The variable and the rule are the same — the addressee changed. It is computed once at load, like the
+// sky — the time of day does not change within a session, and the updateHUD tick would set one and
+// the same string in vain. The string comes out LITERALLY the way the owner gave it.
+// ⚠️ THE POSITIONS GET INTO THE CSS LITERALLY, if they are set: otherwise the browser would lay the
+// stops out evenly while the shader would use the positions, and one gradient would become two.
+const skyGradList = (hex, pos, ownPos) => hex
+  .map((c, i) => ownPos ? c + ' ' + +(pos[i] * 100).toFixed(4) + '%' : c).join(',');
 const skyGradCSS = 'linear-gradient(180deg,' +
-  skyGradList(skyStops, skyPos, skyParsed.свои) + ')';
-// ⚠️ ЦВЕТА ВЕРХНЕЙ И НИЖНЕЙ КРОМКИ — ОТДЕЛЬНЫМИ ПЕРЕМЕННЫМИ (рецепт Safari 26,
-// см. CLAUDE.md «хром iOS»): Safari 26 ИГНОРИРУЕТ theme-color и берёт тинт своих
-// баров из background-color самих html/body, а fixed-элемент с ПРОЗРАЧНЫМ фоном
-// отравляет тинт — прозрачный читается как «прозрачный ЧЁРНЫЙ». Наши #topBar и
-// #bottomBar ровно такие, отсюда чёрные поля сверху и снизу на iPhone.
-// Лечение по рецепту: дать каждому бару фон цвета СВОЕЙ кромки с альфой 0.01 —
-// невидимо глазу, но тинт берётся правильный. Верх и низ разные, потому что
-// небо градиентное.
+  skyGradList(skyStops, skyPos, skyParsed.ownPos) + ')';
+// ⚠️ THE COLOURS OF THE TOP AND BOTTOM EDGES ARE SEPARATE VARIABLES (the Safari 26 recipe,
+// see CLAUDE.md "iOS chrome"): Safari 26 IGNORES theme-color and takes the tint of its
+// bars from the background-color of html/body themselves, while a fixed element with a TRANSPARENT background
+// poisons the tint — transparent is read as "transparent BLACK". Our #topBar and
+// #bottomBar are exactly like that, hence the black fields at the top and the bottom on an iPhone.
+// The cure according to the recipe: give every bar a background of the colour of ITS OWN edge with an alpha of 0.01 —
+// invisible to the eye, but the tint is taken correctly. The top and the bottom are different, because
+// the sky is a gradient.
 const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
 try {
   const d = document.documentElement.style;
@@ -725,51 +739,51 @@ try {
   d.setProperty('--sky-bot-rgb', rgbTriple(skyRGB[skyRGB.length - 1]));
 } catch(e){}
 
-// Небо. ShaderMaterial минует
-// тонмаппинг и sRGB-конвертацию рендерера, поэтому цвета задаются КАК ЕСТЬ
-// (без convertSRGBToLinear) — #ffffff даёт настоящий белый на экране.
-// Цвет ЛИХОРАДКИ комбо по времени суток (спека владельца 2026-07-21-г): голубой
-// в тёмное время (ночь 20..5 — та же граница, что у градиента неба), зелёный днём.
-// Считается РАЗ при загрузке — согласованно с панорамой (обе от new Date()).
+// The sky. A ShaderMaterial bypasses
+// the renderer's tone mapping and sRGB conversion, so the colours are given AS THEY ARE
+// (without convertSRGBToLinear) — #ffffff gives a true white on the screen.
+// The colour of the combo FEVER by the time of day (the owner's spec 2026-07-21-g): light blue
+// in the dark hours (night 20..5 — the same boundary as the sky gradient's), green during the day.
+// Computed ONCE at load — in agreement with the panorama (both come from new Date()).
 function feverColorNow(){
-  // час НЕ пересчитываем — берём ту же точку, что выбирает градиент неба
+  // we do NOT recompute the hour — we take the same point that the sky gradient picks
   return v3(skyTimeNow() === 'night' ? FEVER_NIGHT : FEVER_DAY);
 }
-// ГРАДИЕНТ ВЕЗДЕ (спека владельца 2026-07-30: «убери в десктопе на фоне
-// картинку, сделай так же как в мобиле: всегда градиент по времени суток»).
-// ⛔ ОТМЕНЯЕТ решение 2026-07-22 «панорама на десктопе, градиент на мобиле»:
-// флаг SKY_PANORAMA (критерий pointer:coarse), функция skyPanorama и ветка
-// равнопромежуточной развёртки в шейдере УДАЛЕНЫ, вместе с ними — модуль
-// 05-sky (три base64-JPEG 1536×768). Одна база на все устройства.
-// РАМПА ГРАДИЕНТА — 1D-текстура из стопов владельца (спека 2026-07-31).
-// ⚠️ ПОЧЕМУ ТЕКСТУРА, А НЕ ЮНИФОРМЫ: стопов 12 (ночь) и 7 (день), и владелец
-// правит их список — юниформами это пришлось бы объявлять под фиксированное
-// число и пересобирать шейдер при каждой правке. Рампа читает массив любой
-// длины и не трогает шейдер вовсе.
-// ⚠️ ШИРИНА 256 (степень двойки), а НЕ «по числу стопов»: NPOT-текстуры в
-// WebGL1 легальны только с CLAMP_TO_EDGE без мипов, и на этом уже обжигались
-// в вебе не раз — правило 9 велит брать обкатанное. 1 КБ памяти, интерполяцию
-// между стопами печём САМИ (см. ниже), чтобы не зависеть от фильтра железа.
-// ⚠️ Интерполяция в СЫРОМ sRGB — ровно то, что делает CSS linear-gradient:
-// иначе экранный градиент карточки Play и небо разъедутся по середине.
-// ⚠️ encoding = LinearEncoding НАМЕРЕННО (наследие панорамы): шейдер неба
-// минует конвертацию рендерера, байты идут на экран как есть.
+// A GRADIENT EVERYWHERE (the owner's spec 2026-07-30: "remove the picture in the background on
+// desktop, make it the same as on mobile: always the gradient by the time of day").
+// ⛔ THIS CANCELS the decision of 2026-07-22 "a panorama on desktop, a gradient on mobile":
+// the SKY_PANORAMA flag (the pointer:coarse criterion), the skyPanorama function and the branch of
+// the equirectangular unwrap in the shader ARE DELETED, and with them the module
+// 05-sky (three base64 JPEGs 1536×768). One base for all devices.
+// THE RAMP OF THE GRADIENT is a 1D texture built from the owner's stops (spec 2026-07-31).
+// ⚠️ WHY A TEXTURE AND NOT UNIFORMS: there are 12 stops (night) and 7 (day), and the owner
+// edits their list — with uniforms this would have to be declared for a fixed
+// number and the shader rebuilt on every edit. The ramp reads an array of any
+// length and does not touch the shader at all.
+// ⚠️ THE WIDTH IS 256 (a power of two), and NOT "by the number of stops": NPOT textures in
+// WebGL1 are legal only with CLAMP_TO_EDGE without mips, and we have been burned on this
+// on the web more than once — rule 9 tells us to take the well-tried option. 1 KB of memory, and the interpolation
+// between the stops we bake OURSELVES (see below), so as not to depend on the hardware's filter.
+// ⚠️ The interpolation is in RAW sRGB — exactly what CSS linear-gradient does:
+// otherwise the on-screen gradient of the Play card and the sky would diverge in the middle.
+// ⚠️ encoding = LinearEncoding DELIBERATELY (a legacy of the panorama): the sky shader
+// bypasses the renderer's conversion, the bytes go to the screen as they are.
 const SKY_RAMP_W = 256;
-// ⚠️⚠️ ЛЕРП ИДЁТ ПО ПОЗИЦИЯМ СТОПОВ, А НЕ ПО ИХ НОМЕРАМ. Прежняя редакция
-// считала `t = last * i / (W-1)`, то есть молча раскладывала стопы РАВНОМЕРНО —
-// с палитрой владельца 2026-08-20-б (0/36/65/100) это сдвинуло бы средние
-// стопы на 2.7% и 1.7% высоты кадра, и небо в игре разошлось бы с той же
-// строкой в CSS, где браузер позиции уважает. Расхождение мелкое и оттого
-// особенно противное: на глаз незаметно, а кромки и замеры уже врут.
+// ⚠️⚠️ THE LERP GOES BY THE POSITIONS OF THE STOPS, AND NOT BY THEIR INDICES. The previous edition
+// computed `t = last * i / (W-1)`, that is it silently laid the stops out EVENLY —
+// with the owner's palette of 2026-08-20-b (0/36/65/100) that would have shifted the middle
+// stops by 2.7% and 1.7% of the frame height, and the sky in the game would have diverged from the same
+// string in the CSS, where the browser respects the positions. The divergence is small and therefore
+// especially nasty: invisible to the eye, while the edges and the measurements are already lying.
 function buildSkyRamp(rgb, pos){
   const px = new Uint8Array(SKY_RAMP_W * 4), last = rgb.length - 1;
   const p = (pos && pos.length === rgb.length)
     ? pos : rgb.map((_, i) => last ? i / last : 0);
   for (let i = 0; i < SKY_RAMP_W; i++){
-    const t = i / (SKY_RAMP_W - 1);            // доля высоты рампы: 0..1
+    const t = i / (SKY_RAMP_W - 1);            // the fraction of the ramp's height: 0..1
     let k = 0; while (k < last - 1 && t >= p[k + 1]) k++;
-    const шаг = p[k + 1] - p[k];
-    const f = last ? Math.max(0, Math.min(1, шаг > 0 ? (t - p[k]) / шаг : 0)) : 0;
+    const step = p[k + 1] - p[k];
+    const f = last ? Math.max(0, Math.min(1, step > 0 ? (t - p[k]) / step : 0)) : 0;
     const a = rgb[last ? k : 0], b = rgb[last ? k + 1 : 0];
     for (let c = 0; c < 3; c++) px[i*4 + c] = Math.round((a[c] + (b[c] - a[c]) * f) * 255);
     px[i*4 + 3] = 255;
@@ -782,33 +796,33 @@ function buildSkyRamp(rgb, pos){
   tex.needsUpdate = true;
   return tex;
 }
-// ⚠️ САМОПРОВЕРКА БЮДЖЕТА ЯЧЕЙКИ ЗВЁЗД (см. 00-config): всё, что выходит за
-// полуячейку, срезается гранью соседней. Первый вариант звёзд v2 нарушил это
-// ореолом и дал светлый ПРЯМОУГОЛЬНИК вокруг каждой звезды. Дешевле орать
-// в консоль при загрузке, чем ловить это скриншотом раз в месяц.
+// ⚠️ A SELF-CHECK OF THE STAR CELL BUDGET (see 00-config): everything that goes beyond
+// the half-cell is cut off by the face of the neighbouring one. The first version of the v2 stars broke this
+// with a halo and gave a light RECTANGLE around every star. It is cheaper to shout
+// into the console at load than to catch this with a screenshot once a month.
 (function checkStarBudget(){
   const sum = STAR_JIT / 2 + STAR_HALO * STAR_R * STAR_GRID;
-  if (sum >= 0.5) console.warn('[stars] бюджет ячейки превышен: ' + sum.toFixed(3) +
-    ' >= 0.5 — ореол будет срезан гранью ячейки (см. STAR_* в 00-config)');
+  if (sum >= 0.5) console.warn('[stars] the cell budget is exceeded: ' + sum.toFixed(3) +
+    ' >= 0.5 — the halo will be cut off by the cell face (see STAR_* in 00-config)');
 })();
-let skyMat = null; // экранный слой: uCombo красит НИЗ (лихорадка комбо, из 99-main)
-// ⛔ Слой uGrind (красный верх при злости миксера) снят 2026-08-20 словом владельца.
+let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo fever, from 99-main)
+// ⛔ The uGrind layer (a red top when the mixer is angry) was removed on 2026-08-20 by the owner's word.
 (function buildSky(){
-  // Лихорадка, лесенка помола и затемнение верха идут ПОВЕРХ базы.
+  // The fever, the grind ladder and the darkening of the top go ON TOP of the base.
   const baseUni =
       { uRamp: { value: buildSkyRamp(skyRGB, skyPos) },
         uSkyMap: { value: SKY_MAP === 'view' ? 0 : 1 },
         uStars: { value: skyTimeNow() === 'night' ? 1 : 0 },
-        // ПЛОТНОСТЬ — ЮНИФОРМА, а не литерал: пакет «Живое окружение» планирует
-        // «небо копит звёзды» (плотность от доли открытых типов). Так фича ляжет
-        // поверх без переделки шейдера — достаточно двигать порог.
+        // THE DENSITY IS A UNIFORM, not a literal: the "Living environment" package plans
+        // "the sky accumulates stars" (the density from the share of unlocked types). That way the feature will land
+        // on top without reworking the shader — it is enough to move the threshold.
         uStarDens: { value: STAR_DENS },
         uStarSpark: { value: STAR_SPARK },
-        // ⚠️ ПУЛЬС — ЮНИФОРМЫ, А НЕ ВШИТЫЕ ЧИСЛА. Две причины: (1) ручка живого
-        // тюнинга («1 из 10» владелец может захотеть сделать «1 из 20»);
-        // (2) ЕДИНСТВЕННЫЙ честный способ проверить механизм — пиксельный замер
-        // не различает 10% пульсирующих на фоне моргания ВСЕХ (замер: размах
-        // 0.41 против 0.41 у базы), а с долей 1.0 отличие видно сразу (0.93).
+        // ⚠️ THE PULSE IS UNIFORMS, AND NOT HARD-WIRED NUMBERS. Two reasons: (1) a knob for live
+        // tuning (the owner may want to turn "1 in 10" into "1 in 20");
+        // (2) the ONLY honest way to verify the mechanism — a pixel measurement
+        // does not tell 10% pulsing apart from ALL of them blinking (measurement: a swing
+        // of 0.41 against 0.41 for the base), while with a share of 1.0 the difference is visible at once (0.93).
         uStarPulseFrac: { value: STAR_PULSE_FRAC },
         uStarPulseAmp:  { value: STAR_PULSE_AMP },
         uTime: { value: 0 } };
@@ -819,91 +833,91 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
-      // ДВА СПОСОБА РАЗЛОЖИТЬ СТОПЫ — переключатель SKY_MAP (00-config).
-      // (1) ПО ВЗГЛЯДУ: зенит (d.y=+1) — первый стоп, надир (d.y=−1) —
-      //     последний, горизонт ровно в середине. Небо ведёт себя как сфера.
-      // (2) ПО ЭКРАНУ: как CSS `linear-gradient(180deg,…)` владельца — верх
-      //     кадра первый стоп, низ последний. Экранная координата тут уже
-      //     используется соседним слоем (лихорадка uCombo), так что приём в
-      //     этом шейдере не новый. ⛔ Второй такой сосед — угроза помола
-      //     `uGrind` — снят 2026-08-20 словом владельца, не искать.
-      // ⚠️ ЗАМЕР, ИЗ-ЗА КОТОРОГО ПОЯВИЛСЯ ПЕРЕКЛЮЧАТЕЛЬ: камера смотрит СВЕРХУ
-      // В ЧАШУ, поэтому по взгляду на экран попадает лишь ХВОСТ рампы —
-      // позиции 70.6%..100% (день) и 70.5%..97.8% (ночь). Первые ~70% стопов
-      // владельца не видно НИКОГДА. По экрану видно все 100%.
-      // ⚠️ И ВТОРОЕ, НЕ КОСМЕТИЧЕСКОЕ: --sky-top-rgb/--sky-bot-rgb (тинт полос
-      // Safari) равны первому/последнему стопу. По взгляду они РАСХОДЯТСЯ
-      // с реальной кромкой кадра (замер: переменная 110,134,255 против пикселя
-      // 132,227,248) — полоса на айфоне получила бы чужой цвет. По экрану
-      // совпадение точное ПО ПОСТРОЕНИЮ.
+      // TWO WAYS TO LAY THE STOPS OUT — the SKY_MAP switch (00-config).
+      // (1) BY THE VIEW: the zenith (d.y=+1) is the first stop, the nadir (d.y=−1) is
+      //     the last, the horizon exactly in the middle. The sky behaves like a sphere.
+      // (2) BY THE SCREEN: like the owner's CSS `linear-gradient(180deg,…)` — the top
+      //     of the frame is the first stop, the bottom the last. The screen coordinate is already
+      //     used here by a neighbouring layer (the uCombo fever), so the trick is not new
+      //     in this shader. ⛔ The second such neighbour — the grind threat
+      //     `uGrind` — was removed on 2026-08-20 by the owner's word, do not look for it.
+      // ⚠️ THE MEASUREMENT BECAUSE OF WHICH THE SWITCH APPEARED: the camera looks FROM ABOVE
+      // INTO THE BOWL, so by the view only the TAIL of the ramp gets onto the screen —
+      // positions 70.6%..100% (day) and 70.5%..97.8% (night). The first ~70% of the owner's
+      // stops are NEVER visible. By the screen all 100% are visible.
+      // ⚠️ AND THE SECOND THING, NOT COSMETIC: --sky-top-rgb/--sky-bot-rgb (the tint of the Safari
+      // bars) equal the first/last stop. By the view they DIVERGE
+      // from the real edge of the frame (measurement: the variable 110,134,255 against the pixel
+      // 132,227,248) — the bar on an iPhone would get a foreign colour. By the screen the
+      // agreement is exact BY CONSTRUCTION.
       '  float tView = clamp((1.0 - d.y) * 0.5, 0.0, 1.0);',
       '  float tScreen = clamp(1.0 - gl_FragCoord.y / uResY, 0.0, 1.0);',
       '  float t = mix(tView, tScreen, uSkyMap);',
-      // полтекселя внутрь: край рампы иначе размывается фильтром о ClampToEdge
+      // half a texel inwards: otherwise the edge of the ramp is blurred by the filter against ClampToEdge
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
       '  vec3 col = texture2D(uRamp, vec2(u, 0.5)).rgb;',
-      // ЗВЁЗДЫ (только ночью): у ночной ПАНОРАМЫ они были, чистый градиент их
-      // терял — тон совпадал, а небо становилось пустым. Сетка ТРЁХМЕРНАЯ по
-      // направлению: на сфере равномерна, полюсов нет. Звезда = случайное
-      // НАПРАВЛЕНИЕ в ячейке, точка по УГЛУ до взгляда => всегда круглая.
-      // ⚠️ Три неудачных подхода (не повторять): (1) сетка по равнопромежуточным
-      // UV — у надира ШТРИХИ, сверху КВАДРАТЫ; (2) 3D-расстояние до центра
-      // ячейки — центры лежат вне тонкой сферы, звёзд почти нет; (3) отсечка
-      // ниже горизонта убрала ИМЕННО видимое небо: камера смотрит сверху вниз.
-      // ЗВЁЗДЫ v2 (спека владельца 2026-07-31 «сделать вектором + слабое моргание»).
-      // Каркас прежний и НАМЕРЕННО: 3D-сетка по НАПРАВЛЕНИЮ — равномерна на сфере,
-      // полюсов нет, точки круглые и не плывут при повороте камеры. Три провальных
-      // подхода (UV-сетка, расстояние до центра ячейки, отсечка ниже горизонта)
-      // остаются отвергнутыми, см. канон.
+      // THE STARS (only at night): the night PANORAMA had them, a pure gradient
+      // lost them — the tone matched, but the sky became empty. The grid is THREE-DIMENSIONAL by
+      // direction: it is even on a sphere, there are no poles. A star is a random
+      // DIRECTION within a cell, the dot is by the ANGLE to the view => always round.
+      // ⚠️ Three failed approaches (do not repeat): (1) a grid over equirectangular
+      // UVs — DASHES at the nadir, SQUARES above; (2) the 3D distance to the centre of the
+      // cell — the centres lie outside the thin sphere, there are almost no stars; (3) a cutoff
+      // below the horizon removed EXACTLY the visible sky: the camera looks from above downwards.
+      // THE STARS v2 (the owner's spec 2026-07-31 "make it vector-based + a weak twinkle").
+      // The frame is the previous one and DELIBERATELY so: a 3D grid by DIRECTION — it is even on a sphere,
+      // there are no poles, the dots are round and do not swim when the camera rotates. The three failed
+      // approaches (a UV grid, the distance to the cell centre, a cutoff below the horizon)
+      // remain rejected, see the canon.
       '  if (uStars > 0.0){',
       '    vec3 ip = floor(d * ' + STAR_GRID.toFixed(1) + ');',
       '    float has = step(uStarDens, hs(ip));',
-      // ⚠️ РАДИАЛЬНАЯ ПОЛОСА: звезда только в ячейке, которую сфера пересекает
-      // БЛИЗКО К ЦЕНТРУ. Задетую углом ячейку видно на сфере крошечным пятном —
-      // звезда в ней срезалась гранью или пропадала целиком (замер: 9.3% и 21.1%).
+      // ⚠️ A RADIAL BAND: a star only in a cell that the sphere crosses
+      // CLOSE TO THE CENTRE. A cell merely clipped by the corner is seen on the sphere as a tiny spot —
+      // the star in it was cut off by a face or disappeared entirely (measurement: 9.3% and 21.1%).
       '    has *= step(abs(length(ip + 0.5) - ' + STAR_GRID.toFixed(1) + '), ' +
         STAR_BAND.toFixed(3) + ');',
-      // ⚠️ ДЖИТТЕР СЖАТ К ЦЕНТРУ ЯЧЕЙКИ — это и есть лечение «формы режется»:
-      // смещение <= JIT/2 плюс радиус остаётся внутри полуячейки, поэтому диск
-      // никогда не дотягивается до грани и не срезается соседней ячейкой.
+      // ⚠️ THE JITTER IS SQUEEZED TOWARDS THE CENTRE OF THE CELL — and this is exactly the cure for "the shape gets cut":
+      // an offset <= JIT/2 plus the radius stays inside the half-cell, so the disc
+      // never reaches a face and is not cut off by the neighbouring cell.
       '    vec3 jit = vec3(hs(ip + 1.7), hs(ip + 3.3), hs(ip + 5.9)) - 0.5;',
       '    vec3 sdir = normalize(ip + 0.5 + jit * ' + STAR_JIT.toFixed(3) + ');',
-      // ⚠️ МЕТРИКА — sin угла (|cross|), а НЕ 1−cos: последняя КВАДРАТИЧНА у центра,
-      // из-за чего край размывался тем сильнее, чем мельче звезда («кляксы»).
-      // |cross| линейна по углу, поэтому ведёт себя как обычный радиус на плоскости.
+      // ⚠️ THE METRIC IS the sin of the angle (|cross|), and NOT 1−cos: the latter is QUADRATIC near the centre,
+      // because of which the edge blurred the more the smaller the star was ("blobs").
+      // |cross| is linear in the angle, so it behaves like an ordinary radius on a plane.
       '    float s = length(cross(d, sdir));',
-      // ⚠️ СТЕПЕНЬ НА ХЕШЕ, А НЕ ДРУГОЙ ХЕШ: тот же hs(ip+9.1) остаётся источником,
-      // меняется только ФОРМА распределения — pow(h, BIAS) при BIAS>1 сдвигает
-      // выборку к нижней границе. Так мелких становится больше, а ЧИСЛО звёзд не
-      // меняется вовсе (за него отвечает uStarDens, он не тронут).
+      // ⚠️ THE POWER IS ON THE HASH, AND NOT ANOTHER HASH: the same hs(ip+9.1) remains the source,
+      // only the SHAPE of the distribution changes — pow(h, BIAS) with BIAS>1 shifts
+      // the sampling towards the lower bound. That way there are more small ones, while the NUMBER of stars does not
+      // change at all (uStarDens is responsible for that, and it has not been touched).
       '    float sz = mix(' + STAR_SIZE_MIN.toFixed(2) + ', 1.0, pow(hs(ip + 9.1), ' +
         STAR_SIZE_BIAS.toFixed(2) + '));',
       '    float R = ' + STAR_R.toFixed(5) + ' * sz;',
-      // ВЕКТОРНЫЙ КРАЙ: ширина сглаживания = РАЗМЕР ПИКСЕЛЯ (fwidth), поэтому
-      // кромка ровно в один пиксель на любом DPR — не мылится и не лесенит.
-      // ⚠️ КЛАМП СВЕРХУ РАДИУСОМ: s разрывна на границе ячеек, и в квадах на грани
-      // fwidth подскакивает до размера ячейки — smoothstep зажигал слабые
-      // мерцающие точки вдоль граней (minor из ревью по main).
+      // A VECTOR EDGE: the width of the antialiasing = THE SIZE OF A PIXEL (fwidth), so
+      // the edge is exactly one pixel at any DPR — it neither blurs nor aliases.
+      // ⚠️ A CLAMP FROM ABOVE BY THE RADIUS: s is discontinuous at the cell boundary, and in the quads on a face
+      // fwidth jumps up to the size of a cell — smoothstep lit up weak
+      // flickering dots along the faces (a minor from the review on main).
       '    float w = clamp(fwidth(s), 1.0e-8, R);',
       '    float core = smoothstep(R + w, R - w, s);',
       '    float glow = ' + STAR_GLOW.toFixed(3) + ' * smoothstep(R * ' + STAR_HALO.toFixed(2) + ', R * 0.6, s);',
-      // ЧЕТЫРЁХЛУЧЕВАЯ ИСКРА: координаты в касательной плоскости звезды.
-      // База выбирается от наименее коллинеарной оси — на полюсах не вырождается.
+      // A FOUR-RAY SPARK: the coordinates are in the tangent plane of the star.
+      // The basis is chosen from the least collinear axis — it does not degenerate at the poles.
       '    vec3 up = abs(sdir.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
       '    vec3 t1 = normalize(cross(sdir, up));',
       '    vec3 t2 = cross(sdir, t1);',
       '    vec2 q = vec2(dot(d, t1), dot(d, t2)) / (R * ' + STAR_HALO.toFixed(2) + ');',
       '    float ray = uStarSpark * (smoothstep(1.0, 0.0, abs(q.x) + abs(q.y) * 7.0)',
       '                            + smoothstep(1.0, 0.0, abs(q.y) + abs(q.x) * 7.0)) * 0.5;',
-      // МОРГАНИЕ: фаза и скорость СВОИ у каждой звезды (хеш ячейки), поэтому небо
-      // не пульсирует хором. Медленно и слабо — правило «периферия не суетится».
+      // THE TWINKLE: the phase and the speed are THEIR OWN for every star (the hash of the cell), so the sky
+      // does not pulse in chorus. Slowly and weakly — the rule "the periphery does not fuss".
       '    float ph = hs(ip + 13.7) * 6.2832;',
       '    float spd = ' + STAR_TW_SPD.toFixed(3) + ' * (0.6 + 0.8 * hs(ip + 17.3));',
       '    float tw = 1.0 - ' + STAR_TW_AMP.toFixed(3) + ' * (0.5 + 0.5 * sin(uTime * spd + ph));',
-      // ПУЛЬС МЕНЬШИНСТВА: своя фаза и своя, втрое более медленная волна поверх
-      // моргания. Отбор — отдельный хеш ячейки, поэтому «пульсирующая» звезда
-      // всегда одна и та же, а не мигает случайными по кадрам.
+      // THE PULSE OF A MINORITY: its own phase and its own, three times slower wave on top of
+      // the twinkle. The selection is a separate hash of the cell, so a "pulsing" star
+      // is always the same one, rather than blinking at random from frame to frame.
       '    float pls = step(1.0 - uStarPulseFrac, hs(ip + 23.1));',
       '    float ph2 = hs(ip + 29.3) * 6.2832;',
       '    float pl = 1.0 - pls * uStarPulseAmp' +
@@ -913,15 +927,15 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
     ];
   const skyM = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
-    // ⚠️ fwidth В WebGL1 ТРЕБУЕТ РАСШИРЕНИЯ — без этой строки шейдер не
-    // скомпилируется на WebGL1-устройствах (в WebGL2 производные в ядре и флаг
-    // игнорируется). GL_OES_standard_derivatives поддержан повсеместно; это
-    // штатный путь three, а не экзотика (правило 9: берём обкатанное).
+    // ⚠️ fwidth IN WebGL1 REQUIRES AN EXTENSION — without this line the shader will not
+    // compile on WebGL1 devices (in WebGL2 the derivatives are in the core and the flag is
+    // ignored). GL_OES_standard_derivatives is supported everywhere; this is
+    // the regular three path, not an exotic one (rule 9: we take the well-tried option).
     extensions: { derivatives: true },
     uniforms: Object.assign({
-      uCombo: { value: 0 }, // 0 — обычное небо, 0.3..0.8 — комбо, 1 — цепная реакция
-      uResY:  { value: 1 },  // высота канваса в device px (для экранного градиента)
-      uFeverCol: { value: feverColorNow() }, // голубой ночью / зелёный днём
+      uCombo: { value: 0 }, // 0 — the ordinary sky, 0.3..0.8 — a combo, 1 — a chain reaction
+      uResY:  { value: 1 },  // the height of the canvas in device px (for the screen gradient)
+      uFeverCol: { value: feverColorNow() }, // light blue at night / green during the day
     }, baseUni),
     vertexShader: [
       'varying vec3 vDir;',
@@ -932,24 +946,24 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
       'uniform float uCombo; uniform float uResY;',
       'uniform vec3 uFeverCol;',
     ].concat(baseDecl, ['void main(){'], baseCol, [
-      '  float sy = gl_FragCoord.y / uResY;', // 0 — низ экрана, 1 — верх
-      // ЛИХОРАДКА КОМБО: мягкое свечение у нижней кромки (голубое ночью /
-      // зелёное днём), гаснет кверху и ограничено потолком FEVER_MAX.
+      '  float sy = gl_FragCoord.y / uResY;', // 0 — the bottom of the screen, 1 — the top
+      // THE COMBO FEVER: a soft glow near the bottom edge (light blue at night /
+      // green during the day), it fades upwards and is limited by the FEVER_MAX ceiling.
       '  float fever = uCombo * (1.0 - smoothstep(0.0, ' + FEVER_SPAN.toFixed(3) + ', sy)) * ' + FEVER_MAX.toFixed(3) + ';',
       '  col = mix(col, uFeverCol, fever);',
-      // ⛔⛔ КРАСНЫЙ СЛОЙ ПОМОЛА СНЯТ (слово владельца 2026-08-20: «убери вверху
-      // изменение фона (покраснение) когда миксер злится»). Здесь наливался
-      // зеркальный красный у ВЕРХНЕЙ кромки по лесенке угрозы `uGrind`.
-      // ⚠️ ЭТО СНИМАЕТ И ЦЕЛУЮ ОГОВОРКУ РЕЦЕПТА ПОЛОС SAFARI: верх кадра
-      // больше НИКОГДА не расходится с первым стопом палитры, а прежде
-      // расходился до Δ152 за семь секунд простоя, и кромку приходилось мерить
-      // «в первую секунду после действия».
-      // ⚠️ Сигнал угрозы не осиротел: его несут ЗЛЫЕ ГЛАЗА и сами лопасти.
-      // ⚠️ СТАТИЧНОГО затемнения верхней полосы НЕТ — УБРАНО приказом
-      // владельца 2026-07-22 («градиент сверху/снизу только при турбо или
-      // злости миксера»); действует для ОБЕИХ баз гибрида (панорама и
-      // градиент). НЕ возвращать ради контраста HUD: владелец знает, что
-      // белые глаза на светлом дневном небе дают ~1.6:1 (замер графики).
+      // ⛔⛔ THE RED GRIND LAYER HAS BEEN REMOVED (the owner's word 2026-08-20: "remove the
+      // change of the background at the top (the reddening) when the mixer gets angry"). Here a
+      // mirrored red was poured in at the TOP edge along the `uGrind` threat ladder.
+      // ⚠️ THIS ALSO REMOVES A WHOLE CAVEAT OF THE SAFARI BARS RECIPE: the top of the frame
+      // NEVER diverges from the first stop of the palette any more, whereas it used to
+      // diverge by up to Δ152 over seven seconds of idling, and the edge had to be measured
+      // "in the first second after an action".
+      // ⚠️ The threat signal has not been orphaned: it is carried by the ANGRY EYES and the blades themselves.
+      // ⚠️ THERE IS NO STATIC darkening of the top bar — IT WAS REMOVED by the owner's
+      // order 2026-07-22 ("a gradient at the top/bottom only during turbo or when the
+      // mixer is angry"); it applies to BOTH bases of the hybrid (the panorama and the
+      // gradient). Do NOT bring it back for the sake of HUD contrast: the owner knows that
+      // white eyes on a light day sky give ~1.6:1 (a graphics measurement).
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
     ]).join('\n'),
@@ -959,28 +973,28 @@ let skyMat = null; // экранный слой: uCombo красит НИЗ (л�
   skyMat = skyM;
 })();
 
-// ЖИВАЯ ПОДМЕНА ПАЛИТРЫ НЕБА — для подбора цветов владельцем без пересборки
-// (тот же смысл, что у veilTune: тон — вкусовое решение, и владелец к нему
-// возвращается; контактный лист вариантов снимается ОДНИМ прогоном).
-// ⚠️ Старая рампа ДИСПОЗИТСЯ: иначе контактный лист из десятка вариантов
-// оставил бы за собой десяток текстур в GPU.
-// ⚠️ CSS-переменные обновляются здесь же — иначе полоса Safari осталась бы
-// от прежней палитры, а её цвет и есть половина вопроса при подборе низа.
-// Тон хрома (html/body) берётся из ВЕРХНЕГО стопа один раз при загрузке и
-// живой подменой не двигается: верх ночи спека не трогает.
+// A LIVE SUBSTITUTION OF THE SKY PALETTE — for the owner to pick colours without a rebuild
+// (the same meaning as veilTune: the tone is a matter of taste, and the owner comes back
+// to it; a contact sheet of variants is shot in ONE run).
+// ⚠️ The old ramp IS DISPOSED: otherwise a contact sheet of a dozen variants
+// would leave a dozen textures behind in the GPU.
+// ⚠️ The CSS variables are updated right here — otherwise the Safari bar would stay
+// on the previous palette, and its colour is half of the question when picking the bottom.
+// The tone of the chrome (html/body) is taken from the TOP stop once at load and
+// is not moved by the live substitution: the spec does not touch the top of the night.
 function setSkyStops(list){
   if (!skyMat || !Array.isArray(list) || list.length < 2) return null;
-  // ⚠️ ЖИВАЯ ПОДМЕНА ХОДИТ ЧЕРЕЗ ТОТ ЖЕ РАЗБОР, что и загрузка: свой парсинг
-  // рядом с работающим разошёлся бы с ним при первой же правке формы стопа.
-  const раз = parseSkyStops(list);
-  const rgb = раз.hex.map(hexRGB);
+  // ⚠️ THE LIVE SUBSTITUTION GOES THROUGH THE SAME PARSING as the load: a parsing of its own
+  // next to a working one would diverge from it at the very first edit of the stop form.
+  const parsed = parseSkyStops(list);
+  const rgb = parsed.hex.map(hexRGB);
   const old = skyMat.uniforms.uRamp.value;
-  skyMat.uniforms.uRamp.value = buildSkyRamp(rgb, раз.pos);
+  skyMat.uniforms.uRamp.value = buildSkyRamp(rgb, parsed.pos);
   if (old && old.dispose) old.dispose();
   try {
     const d = document.documentElement.style;
     d.setProperty('--sky-grad', 'linear-gradient(180deg,' +
-      skyGradList(раз.hex, раз.pos, раз.свои) + ')');
+      skyGradList(parsed.hex, parsed.pos, parsed.ownPos) + ')');
     d.setProperty('--sky-top-rgb', rgbTriple(rgb[0]));
     d.setProperty('--sky-bot-rgb', rgbTriple(rgb[rgb.length - 1]));
   } catch(e){}

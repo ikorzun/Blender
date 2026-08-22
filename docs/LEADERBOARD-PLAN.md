@@ -1,269 +1,288 @@
-# Лидерборды: как работает, как выглядит, где вход
+# Leaderboards: how it works, how it looks, where the entry is
 
-Разбор от 2026-07-29 по коду SDK, коду игры и официальной доке Playgama
-(прочитана в тот же день). Ключевые факты я перепроверил лично — помечено.
-
----
-
-## Короткий ответ
-
-**Как работает.** Игра отправляет одно число, площадка хранит таблицу и
-возвращает её. Своего сервера не нужно. Всё, что умеет SDK: поставить
-результат, забрать таблицу, показать таблицу силами площадки. Ни удаления,
-ни периодов, ни фильтра «только друзья».
-
-**Как выглядит.** Свой экран-оверлей по образцу «More Stars»: топ-20 строк,
-своя позиция подсвечена. Нативную таблицу площадки показать нельзя — она есть
-ровно у одной площадки, которой в наших планах публикации нет.
-
-**Где вход.** Кнопка на главном экране (он же пауза), рядом с профилем. Плюс
-строка «твоё место» на экране победы — там уже есть звёзды и счёт.
-
-⚠️ **Но прежде чем это делать, три факта, которые меняют постановку.**
+An analysis from 2026-07-29 based on the SDK code, the game code and the official
+Playgama docs (read the same day). The key facts I rechecked personally — marked.
 
 ---
 
-## 1. ⛔ У самой Playgama лидербордов нет
+## Short answer
 
-Проверил лично в коде SDK: тип лидерборда переопределяют **8 площадок из 28**.
-Полноценная таблица внутри игры — только у **Яндекс.Игр и Y8**. У остальных
-семи — либо нативное окно площадки, либо ничего.
+**How it works.** The game sends one number, the platform stores the table and
+returns it. No server of our own is needed. Everything the SDK can do: set the
+result, fetch the table, show the table by the platform's own means. No deletion,
+no periods, no «friends only» filter.
 
-**Playgama, Poki, CrazyGames, VK, Telegram, TikTok — не умеют.**
+**How it looks.** Our own overlay screen modelled on «More Stars»: top-20 rows,
+your own position highlighted. The platform's native table cannot be shown — it
+exists at exactly one platform, and that one is not in our publishing plans.
 
-✅ **Подтверждено независимо и сильнее, чем чтением кода:** Интеграция сняла
-ЖИВОЙ замер на нашей странице — площадка отвечает «лидерборды недоступны».
-Это факт с работающей сборки, а не вывод из минифицированного файла.
+**Where the entry is.** A button on the main screen (which is also the pause),
+next to the profile. Plus a «your place» row on the win screen — the stars and
+the score are already there.
 
-⚠️ И их же поправка к себе, которую стоит знать: первый быстрый срез они сняли
-устаревшим способом (в прошлой версии SDK поддержку спрашивали флагом, в
-нынешней — типом) и получили «нет вообще ни у кого». Неверно: у Яндекса есть.
-Тот же класс ошибки, что с плагином, написанным под прошлую версию — приём
-помнится, а версия сменилась.
+⚠️ **But before doing this, three facts that change the problem statement.**
 
-У Playgama есть обходной путь: облачные лидерборды как отдельная услуга. Они
-включаются токеном, который берётся в кабинете разработчика, и это **действие
-владельца, а не программиста**. Без него на нашей главной площадке лидерборда
-не будет вовсе.
+---
 
-**Что это значит:** лидерборд — фича меньшинства площадок. Строить на нём
-удержание нельзя, игра обязана быть полноценной без него.
+## 1. ⛔ Playgama itself has no leaderboards
 
-## 2. ⛔ Место в таблице покупается за $4.99
+Checked personally in the SDK code: the leaderboard type is overridden by
+**8 platforms out of 28**. A full table inside the game — only at **Yandex Games
+and Y8**. The remaining seven have either the platform's native window or nothing.
 
-Это главное, и я проверил по коду сам.
+**Playgama, Poki, CrazyGames, VK, Telegram, TikTok — cannot do it.**
 
-Купленный бустер множит начисление очков за каждое совмещение. А база, от
-которой считаются звёзды, множителем **не** пользуется. Значит игрок с бустером
-×5 набивает пожизненный счёт впятеро быстрее — и любой рейтинг, растущий из
-счёта, у него растёт впятеро быстрее тоже.
+✅ **Confirmed independently and more strongly than by reading the code:**
+Integration took a LIVE measurement on our page — the platform answers
+«leaderboards unavailable». That is a fact from a working build, not a conclusion
+drawn from a minified file.
 
-⚠️ У нас есть защита от pay-to-win: купленная валюта учитывается отдельно и
-ранг не поднимает. Эта защита **не закрывает бустер**, потому что бустер не
-добавляет валюту — он ускоряет заработок.
+⚠️ And their own correction to themselves, which is worth knowing: the first quick
+slice they took in an outdated way (in the previous SDK version support was asked
+about with a flag, in the current one — with the type) and got «nobody has it at
+all». Wrong: Yandex has it. The same class of error as with a plugin written for
+the previous version — the trick is remembered, but the version has changed.
 
-✅ **РЕШЕНО ВЛАДЕЛЬЦЕМ 2026-07-29 — И ЭТО НЕ «а», НЕ «б» И НЕ «в».** Он снял саму
-постановку: «нет такого понятия, как покупается. Игрок может купить бустер и
-набрать много очков, за счёт этого подняться. Но может так же потратить свои
-очки и опуститься в самый низ таблицы. Как в рейтинге Форбс».
+Playgama has a workaround: cloud leaderboards as a separate service. They are
+switched on with a token that is taken in the developer dashboard, and that is
+**an action of the owner, not of the programmer**. Without it there will be no
+leaderboard on our main platform at all.
 
-Ранг — не пожизненное достижение, а **текущее состояние**: заработал —
-поднялся, потратил — упал. То, что я принёс как дыру, объявлено механикой.
+**What this means:** the leaderboard is a feature of a minority of platforms.
+Retention cannot be built on it, the game is obliged to be complete without it.
 
-⚠️ **ФОРМУЛУ МЕНЯТЬ НЕ НУЖНО — она уже так работает.** Проверено на числах:
+## 2. ⛔ A place in the table is bought for $4.99
 
-| Ситуация | Место в таблице | Кошелёк |
+This is the main thing, and I checked it in the code myself.
+
+A purchased booster multiplies the points awarded for every match. And the base
+from which the stars are counted does **not** use the multiplier. So a player with
+a ×5 booster racks up a lifetime score five times faster — and any rating that
+grows out of the score grows five times faster for him too.
+
+⚠️ We do have protection against pay-to-win: purchased currency is counted
+separately and does not raise the rank. This protection **does not cover the
+booster**, because the booster does not add currency — it speeds up earning.
+
+✅ **DECIDED BY THE OWNER 2026-07-29 — AND IT IS NOT «a», NOT «b» AND NOT «c».** He
+removed the problem statement itself: «there is no such notion as being bought. A
+player can buy a booster and rack up a lot of points, and rise because of that.
+But he can just as well spend his points and drop to the very bottom of the table.
+Like in the Forbes rating».
+
+The rank is not a lifetime achievement but a **current state**: earned — rose,
+spent — fell. What I brought in as a hole has been declared a mechanic.
+
+⚠️ **THE FORMULA DOES NOT NEED CHANGING — it already works that way.** Checked on
+numbers:
+
+| Situation | Place in the table | Wallet |
 |---|---|---|
-| Играл, не тратил | 5000 | 5000 |
-| Купил бустер ×5, наиграл впятеро | 25000 | 25000 |
-| Потратил половину на коллекцию | 12500 | 12500 |
-| Спустил всё | **0** | 0 |
-| Пополнился на 3000 и не тратил | **5000** | 8000 |
+| Played, did not spend | 5000 | 5000 |
+| Bought a ×5 booster, played five times as much | 25000 | 25000 |
+| Spent half on the collection | 12500 | 12500 |
+| Blew everything | **0** | 0 |
+| Topped up by 3000 and did not spend | **5000** | 8000 |
 
-⚠️ Последняя строка и есть причина, почему «покупается» — неверное слово:
-**само пополнение места не даёт**. Купить можно множитель к заработку, а не
-позицию; деньги надо отыграть.
+⚠️ The last row is exactly the reason why «bought» is the wrong word: **the top-up
+itself does not give a place**. What can be bought is a multiplier to earning, not
+a position; the money has to be played out.
 
-⚠️ Следствие для экрана: число в таблице и число в кошельке расходятся, пока
-есть непотраченное пополнение. Это надо объяснить игроку, а не прятать.
+⚠️ Consequence for the screen: the number in the table and the number in the wallet
+diverge as long as there is an unspent top-up. This has to be explained to the
+player, not hidden.
 
-## ⛔ ПРОВЕРЕНО ЖИВЫМ ПРОГОНОМ: механика «как в Форбс» НЕ РАБОТАЕТ
+## ⛔ VERIFIED BY A LIVE RUN: the «like in Forbes» mechanic DOES NOT WORK
 
-Проверено **дважды, независимо, на разных площадках** — я на Poki, Интеграция
-на Playgama. Совпало.
+Verified **twice, independently, on different platforms** — me on Poki,
+Integration on Playgama. It matched.
 
-**Мой прогон:**
+**My run:**
 
-1. отправили **90000** → в таблице 90000;
-2. отправили **1000** → сервер вернул в ответе **90000**, ту же запись и то же
-   время обновления; таблица не изменилась.
+1. we sent **90000** → 90000 in the table;
+2. we sent **1000** → the server returned **90000** in the response, the same
+   record and the same update time; the table did not change.
 
-**Сервер хранит ЛУЧШИЙ результат, а не последний.** Настройка «Score order:
-Higher is better» в кабинете управляет не только сортировкой, но и тем, что
-остаётся в таблице.
+**The server stores the BEST result, not the last one.** The «Score order:
+Higher is better» setting in the dashboard governs not only the sorting, but also
+what stays in the table.
 
-⚠️ Значит **место не может падать**. Утверждённая тобой модель «потратил очки
-и опустился в самый низ» на этой площадке не выражается: таблица покажет
-**пиковое** состояние игрока, а не текущее.
+⚠️ So **the place cannot fall**. The model you approved, «spent the points and
+dropped to the very bottom», cannot be expressed on this platform: the table will
+show the player's **peak** state, not the current one.
 
-**Прогон Интеграции (с контролем, которого у меня не было):**
+**Integration's run (with a control that I did not have):**
 
-1. послали 12345 → в таблице 12345;
-2. послали 500 → в ответе снова 12345, таблица не изменилась;
-3. **контроль:** послали 20000 → принято, в таблице 20000.
+1. they sent 12345 → 12345 in the table;
+2. they sent 500 → 12345 again in the response, the table did not change;
+3. **control:** they sent 20000 → accepted, 20000 in the table.
 
-Третий шаг доказывает, что дело не в сбое: бо́льшее принимается, меньшее молча
-игнорируется. Семантика — максимум за всё время.
+The third step proves it is not a failure: the bigger value is accepted, the
+smaller one is silently ignored. The semantics is the maximum over all time.
 
-⚠️ **Отказ невидим обычным способом:** проигнорированная запись возвращает тот
-же успешный статус и то же поле «попытка засчитана нормально», что и принятая.
-Отличить можно **только** сравнив число в ответе с отправленным.
+⚠️ **The refusal is invisible by the usual means:** an ignored record returns the
+same success status and the same «the attempt was counted normally» field as an
+accepted one. The **only** way to tell them apart is by comparing the number in
+the response with the sent one.
 
-### Что с этим делать — три варианта
+### What to do about it — three options
 
-| | Что получаем | Чем платим |
+| | What we get | What we pay with |
 |---|---|---|
-| **а)** Посмотреть в кабинете, есть ли в списке «Score order» вариант вроде «последний результат» | Форбс работает как задумано | Может не быть такого варианта вовсе |
-| **б)** Принять «пиковое богатство»: место только растёт | Работает уже сегодня, кода менять не надо | Падать нельзя — половина твоей задумки уходит |
-| **в)** Хранить ранг **у себя** | Механика работает полностью и на всех площадках | Нужен свой сервер — но это тот же воркер, который и так нужен под телеметрию |
-| ~~г) Слать другую величину~~ | — | Не решает: при хранении максимума ЛЮБАЯ величина покажет пик |
+| **a)** Look in the dashboard whether the «Score order» list has an option like «last result» | Forbes works as intended | There may be no such option at all |
+| **b)** Accept «peak wealth»: the place only grows | Works already today, no code to change | Falling is impossible — half of your idea goes away |
+| **c)** Store the rank **on our own side** | The mechanic works fully and on all platforms | Our own server is needed — but it is the same worker that is needed for telemetry anyway |
+| ~~d) Send a different value~~ | — | Does not solve it: when the maximum is stored, ANY value will show the peak |
 
-⚠️ Вариант «в» вычёркиваю честно: проблема не в том, ЧТО мы шлём, а в том, что
-сервер запоминает максимум. Любое число будет показано в своей высшей точке.
+⚠️ I honestly cross out option «c»: the problem is not WHAT we send, but that the
+server remembers the maximum. Any number will be shown at its highest point.
 
-## Что ещё дал этот прогон (закрыты прежние «неизвестно»)
+## What else this run gave (former «unknowns» closed)
 
-- ✅ **Форма успешного ответа**: `{uuid, leaderboardUuid, playerUuid, score,
-  platformId, updatedAt}`. ⚠️ И самое ценное: **сервер возвращает СОХРАНЁННОЕ
-  число, а не присланное**. Это даёт способ понять, легла ли наша запись —
-  сравнить отправленное с вернувшимся. Частично лечит прежнюю беду «по ответу
-  нельзя отличить успех от ошибки».
-- ✅ **Форма таблицы**: `{score, id, name, photo, rank, platformId, updatedAt}` —
-  приходит уже разобранной, вопреки опасению, что ответ отдаётся сырым.
-- ⚠️ **Сервер ПРИНИМАЕТ отправку от гостя.** В прогоне игрок был не
-  авторизован, запись прошла, имя площадка выдала сама («Lavender Leech»).
-  Значит **наш собственный гейт по авторизации — единственное, что не пускает
-  гостей в таблицу**. Хорошо, что мы его поставили: без него таблица набралась
-  бы случайными именами, по новому на каждую сессию.
-- ✅ Связка «наш токен + чужая площадка» работает: проверено на Poki.
+- ✅ **The shape of a successful response**: `{uuid, leaderboardUuid, playerUuid,
+  score, platformId, updatedAt}`. ⚠️ And the most valuable part: **the server
+  returns the SAVED number, not the sent one**. This gives a way to understand
+  whether our record landed — compare what was sent with what came back. It partly
+  cures the former trouble «by the response you cannot tell success from error».
+- ✅ **The shape of the table**: `{score, id, name, photo, rank, platformId,
+  updatedAt}` — it arrives already parsed, contrary to the fear that the response
+  is given raw.
+- ⚠️ **The server ACCEPTS a submission from a guest.** In the run the player was
+  not authorized, the record went through, the platform issued the name itself
+  («Lavender Leech»). So **our own gate on authorization is the only thing that
+  does not let guests into the table**. It is good that we put it in: without it
+  the table would have filled up with random names, a new one every session.
+- ✅ The bundle «our token + someone else's platform» works: checked on Poki.
 
-- ✅ **Лимита частоты** на трёх подряд записях не встретилось.
+- ✅ **No rate limit** was encountered on three consecutive records.
 
-⚠️ **В таблице остались ДВЕ тестовые строки:** 90000 «Lavender Leech» (мой
-прогон) и 20000 «Aquamarine Guppy» (прогон Интеграции). Удалить их из игры
-нечем, борд пересоздаётся в кабинете — и сейчас самое дешёвое время это
-сделать, пока настоящих игроков нет.
-⚠️ Интеграция сделала аккуратнее меня: заранее закрепила один идентификатор,
-поэтому её три записи легли в ОДНУ строку. Я этого не сделал.
+⚠️ **TWO TEST ROWS ARE LEFT IN THE TABLE:** 90000 «Lavender Leech» (my run) and
+20000 «Aquamarine Guppy» (Integration's run). There is nothing in the game to
+delete them with, the board is recreated in the dashboard — and right now is the
+cheapest time to do it, while there are no real players.
+⚠️ Integration did it more neatly than me: they pinned one identifier in advance,
+so their three records landed in ONE row. I did not do that.
 
-## Гости в таблицу не попадают
+## Guests do not get into the table
 
-Решение владельца: «чтобы попасть в лидерборд, нужно залогиниться».
+The owner's decision: «to get into the leaderboard you need to log in».
 
-⚠️ Это **строже, чем делает SDK сам**: его проверка пропускает по непустому
-идентификатору, а у гостя он непустой. Значит нашу проверку надо ставить
-отдельно, иначе гости поедут в таблицу.
-✅ Побочно закрывает риск засорения: гостевой идентификатор новый на каждую
-сессию, один человек плодил бы строки при каждом заходе, а удалять их нечем.
+⚠️ This is **stricter than what the SDK does itself**: its check lets you through
+on a non-empty identifier, and a guest's one is non-empty. So our check has to be
+put in separately, otherwise guests will go into the table.
+✅ As a side effect it closes the littering risk: the guest identifier is new every
+session, one person would breed rows on every visit, and there is nothing to
+delete them with.
 
-## 3. ⛔ Выбор делается один раз и навсегда
+## 3. ⛔ The choice is made once and for all
 
-Таблицу на площадке **нельзя ни обнулить, ни почистить** — в SDK нет метода
-удаления. Смена величины после запуска не перетасует места, а хуже: в одной
-таблице навсегда останутся две несовместимые шкалы.
+The table on the platform **can neither be reset nor cleaned** — the SDK has no
+deletion method. Changing the value after launch will not reshuffle the places,
+but worse: two incompatible scales will remain in one table forever.
 
-Поэтому вопрос из пункта 2 надо закрыть **до первой отправки**, а не после.
-
----
-
-## Что ещё всплыло и требует решения
-
-- ⚠️ **Про вход в аккаунт — МОЯ ЗАПИСЬ БЫЛА НЕТОЧНОЙ, поправлено замером
-  Интеграции.** Я написал «требует входа на всех трёх путях». На деле проверка
-  на нашей стороне смотрит не на «вошёл ли игрок», а на непустой идентификатор,
-  а у гостя он **непустой** — то есть запрос уходит на сервер и от гостя.
-  Отклонит ли его сервер — неизвестно и проверяется только с настоящим токеном.
-  ⚠️ ЗАТО ВСПЛЫЛ РИСК, КОТОРОГО НИКТО НЕ ЖДАЛ: гостевой идентификатор **новый
-  на каждую сессию** (замерено). Значит один и тот же человек может плодить
-  строки в таблице при каждом заходе, и таблица засорится. У Яндекса вход
-  действительно обязателен — там это подтверждено.
-- ⚠️ **Игра одноязычная**, а единственная площадка с полноценной таблицей —
-  русскоязычный Яндекс. «Сверстать экран» на деле означает «экран + завести
-  локализацию всей игры», и это недели, а не дни.
-- ⚠️ **Кнопка «Reset progress»** сбрасывает прогресс, а результат на площадке
-  останется навсегда. Игрок начнёт заново и увидит рекорд, который больше не
-  побьёт. Решить до первой отправки.
-- ⚠️ **Отладка открывается на живом сайте** через `?dev=1`, а там есть выдача
-  очков. Пока лидерборда нет — это чит в одиночной игре. С лидербордом — прямой
-  вход в топ. Закрывать надо **до**, а не вместе.
-- ⚠️ **Накрутка неустранима** без своего сервера: счёт считает клиент, сейв —
-  открытый текст в браузере. Подделанное число ещё и «липкое» — счётчики растут
-  только вверх и не понижаются синхронизацией.
+That is why the question from point 2 has to be closed **before the first
+submission**, not after.
 
 ---
 
-## ⚠️ Ещё одна находка, из-за которой «кусок 1» не так прост
+## What else surfaced and requires a decision
 
-Интеграция подняла свой сервер вместо настоящего и посмотрела, как ведёт себя
-отправка счёта при ошибках. Результат:
+- ⚠️ **About signing in to an account — MY NOTE WAS INACCURATE, corrected by
+  Integration's measurement.** I wrote «it requires signing in on all three
+  paths». In fact the check on our side looks not at «has the player signed in»
+  but at a non-empty identifier, and a guest's one is **non-empty** — that is, the
+  request goes to the server from a guest too. Whether the server will reject it
+  is unknown and can only be checked with a real token.
+  ⚠️ BUT A RISK SURFACED THAT NOBODY EXPECTED: the guest identifier is **new every
+  session** (measured). So one and the same person can breed rows in the table on
+  every visit, and the table will get littered. At Yandex signing in really is
+  mandatory — there it is confirmed.
+- ⚠️ **The game is single-language**, while the only platform with a full table is
+  Russian-language Yandex. «Lay out the screen» in fact means «the screen + set up
+  localization of the whole game», and that is weeks, not days.
+- ⚠️ **The «Reset progress» button** resets the progress, while the result on the
+  platform will remain forever. The player will start over and will see a record
+  he will never beat again. To be decided before the first submission.
+- ⚠️ **Debugging opens on the live site** via `?dev=1`, and there is a points grant
+  there. While there is no leaderboard, that is a cheat in a single-player game.
+  With a leaderboard it is a direct entrance into the top. It has to be closed
+  **before**, not together.
+- ⚠️ **Cheating cannot be eliminated** without our own server: the client counts
+  the score, the save is plain text in the browser. A forged number is also
+  «sticky» — the counters only grow upwards and are not lowered by syncing.
 
-| Ответ сервера | Что видит игра |
+---
+
+## ⚠️ One more finding that makes «piece 1» not so simple
+
+Integration raised a server of its own instead of the real one and looked at how
+score submission behaves on errors. The result:
+
+| Server response | What the game sees |
 |---|---|
-| «сохранено» | успех |
-| «нет токена» (403) | **успех** |
-| «внутренняя ошибка» (500) | **успех** |
-| не-текст ответа | ошибка |
+| «saved» | success |
+| «no token» (403) | **success** |
+| «internal error» (500) | **success** |
+| a non-text response | error |
 
-То есть **провалившаяся запись выглядит как успешная**. Нет токена, борд не
-заведён, токен протух, упёрлись в лимит — всё приезжает как «сохранено».
-Причина: транспорт вообще не смотрит на код ответа сервера.
+That is, **a failed record looks like a successful one**. There is no token, the
+board is not set up, the token has expired, we hit the limit — everything arrives
+as «saved». The reason: the transport does not look at the server's response code
+at all.
 
-⚠️ Отсюда два следствия для работы:
-1. Отправку нельзя писать как «вызвали и поехали» — ответ придётся **разбирать
-   руками**, а форму успешного ответа мы увидим только с настоящим токеном.
-2. Признак «площадка умеет лидерборды» после включения настроек становится
-   правдой **даже без токена** — запросы уйдут в никуда, и молча. Проверять
-   надо тремя условиями до вызова, а не по факту отсутствия ошибки.
+⚠️ Two consequences for the work follow from this:
+1. Submission cannot be written as «called it and off we go» — the response will
+   have to be **parsed by hand**, and we will see the shape of a successful
+   response only with a real token.
+2. The «the platform can do leaderboards» sign becomes true after the settings are
+   switched on **even without a token** — the requests will go nowhere, and
+   silently. It has to be checked by three conditions before the call, and not by
+   the fact that there is no error.
 
-Полный контракт с примерами — [docs/SAAS-LEADERBOARDS-CONTRACT.md](SAAS-LEADERBOARDS-CONTRACT.md).
+The full contract with examples — [docs/SAAS-LEADERBOARDS-CONTRACT.md](SAAS-LEADERBOARDS-CONTRACT.md).
 
-## Что делать: три куска, можно резать по частям
+## What to do: three pieces, can be cut in parts
 
-**Кусок 1 — отправка счёта, без экрана (меньше дня).**
-Дописать секцию лидербордов в конфиг, отправлять число на победе там, где
-площадка умеет, молча пропускать там, где нет. Игрок ничего не видит, но
-результаты начинают копиться. Это разумно выкатить даже без экрана.
+**Piece 1 — score submission, without a screen (less than a day).**
+Add a leaderboards section to the config, send the number on a win where the
+platform can do it, silently skip where it cannot. The player sees nothing, but
+results start accumulating. It is reasonable to roll this out even without a
+screen.
 
-**Кусок 2 — свой экран таблицы (дни).**
-Оверлей по образцу «More Stars», четыре состояния: таблица, «площадка не
-поддерживает», «войди, чтобы попасть в таблицу», «ты первый». Вход — кнопка на
-главном экране + строка «твоё место» на экране победы.
-⚠️ Проверять придётся на стенде площадки: наш автотест до лидербордов не
-дотягивается в принципе — он ходит по локальным файлам, а SDK там не грузится.
+**Piece 2 — our own table screen (days).**
+An overlay modelled on «More Stars», four states: the table, «the platform does
+not support it», «sign in to get into the table», «you are the first». The entry
+is a button on the main screen + a «your place» row on the win screen.
+⚠️ It will have to be checked on the platform's stand: our autotest does not reach
+leaderboards in principle — it walks over local files, and the SDK does not load
+there.
 
-**Кусок 3 — локализация (недели).**
-Нужен, только если целимся в Яндекс. Для англоязычных площадок не требуется.
-
----
-
-## Моя рекомендация
-
-**Делать кусок 1 сейчас, кусок 2 — после ответа на вопрос про бустер, кусок 3 —
-отдельным решением.**
-
-Причина: отправка счёта дёшева и обратима, а экран — нет. Пока не решён вопрос
-«покупается ли верх таблицы», верстать экран рано: если менять величину, всё
-равно переделывать, а таблицу уже не почистить.
-
-⚠️ **И честно: на наших основных площадках лидерборда не будет.** Если цель —
-дать игроку повод вернуться завтра, то ежедневные награды и серии дадут больше
-за меньшие деньги, и работают везде. Лидерборд стоит делать, если цель —
-именно соревнование, и ты готов к тому, что увидит его меньшинство.
+**Piece 3 — localization (weeks).**
+Needed only if we are aiming at Yandex. Not required for English-language
+platforms.
 
 ---
 
-## Первый шаг — за тобой
+## My recommendation
 
-Зайти в кабинет разработчика Playgama, создать борд и забрать его
-идентификатор с токеном. До этого любая наша работа делается вслепую и не
-проверяется ничем.
+**Do piece 1 now, piece 2 — after the answer to the question about the booster,
+piece 3 — as a separate decision.**
+
+The reason: score submission is cheap and reversible, and the screen is not. Until
+the question «is the top of the table bought» is settled, it is too early to lay
+out the screen: if the value has to change, it will all have to be redone anyway,
+and the table can no longer be cleaned.
+
+⚠️ **And honestly: there will be no leaderboard on our main platforms.** If the
+goal is to give the player a reason to come back tomorrow, then daily rewards and
+streaks will give more for less money, and they work everywhere. The leaderboard
+is worth doing if the goal is competition specifically, and you are ready for the
+fact that a minority will see it.
+
+---
+
+## The first step is yours
+
+Go into the Playgama developer dashboard, create a board and take its identifier
+together with the token. Until then any work of ours is done blindly and is not
+verified by anything.

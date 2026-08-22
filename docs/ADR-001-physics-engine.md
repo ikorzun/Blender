@@ -1,108 +1,108 @@
-# ADR-001: Основа физики для перехода от прототипа к разработке игры
+# ADR-001: Physics foundation for the move from prototype to game development
 
-Статус: ПРИНЯТО владельцем и РЕАЛИЗОВАНО (three.js + Rapier)
-Дата: 2026-07-17; миграция выполнена в тот же день
+Status: ACCEPTED by the owner and IMPLEMENTED (three.js + Rapier)
+Date: 2026-07-17; migration carried out the same day
 
-## Результаты (после миграции)
+## Results (after the migration)
 
-- Спайк: 185 тел, шаг мира ~0.7-1.1 мс (6% кадрового бюджета 60 FPS);
-  в штиле world.step() не вызывается вовсе (глобальный сон) -> 0 мс.
-- Бандл rapier3d-compat (wasm инлайном): 2.24 МБ; итоговый index.html 2.92 МБ.
-- Позы предметов честные (кубы на гранях, цилиндры на боку, конусы завалены),
-  видимых взаимопроникновений нет, неподвижность в покое — бит-в-бит.
-- Полный headless-прогон test.js зелёный без правок ожиданий (кроме PAIRS).
-- PAIRS перекалиброван 92 -> 70 (честные объёмы пакуются выше сфер-кластеров).
-- Авто-сон Rapier медленный из-за докатывания круглых форм (нет трения
-  качения) — поверх работает НАША глобальная схема сна (штиль по скоростям
-  тел / форс через 3 с; wake будит все тела). Форс-сон по-тельно ВРЕДЕН
-  (каскадные пробуждения) — не делать.
-Контекст: прототип подтверждён; владелец зафиксировал две фундаментальные
-проблемы и попросил выбрать технологическую основу (текущий стек vs Godot).
+- Spike: 185 bodies, world step ~0.7-1.1 ms (6% of the 60 FPS frame budget);
+  in calm, world.step() is not called at all (global sleep) -> 0 ms.
+- The rapier3d-compat bundle (wasm inlined): 2.24 MB; resulting index.html 2.92 MB.
+- Item poses are honest (cubes on their faces, cylinders on their sides, cones
+  toppled over), no visible interpenetration, stillness at rest — bit-for-bit.
+- Full headless run of test.js green with no edits to expectations (except PAIRS).
+- PAIRS recalibrated 92 -> 70 (honest volumes pack higher than sphere clusters).
+- Rapier's auto-sleep is slow because of round shapes rolling to a stop (there is
+  no rolling friction) — on top of it OUR global sleep scheme works (calm judged
+  by body velocities / force after 3 s; wake wakes all bodies). Per-body
+  force-sleep is HARMFUL (cascading wake-ups) — do not do it.
+Context: the prototype is confirmed; the owner recorded two fundamental
+problems and asked to choose a technology foundation (current stack vs Godot).
 
-## Проблема 1: физика объектов (границы, вес, скорость падения, сложность)
+## Problem 1: object physics (boundaries, weight, fall speed, complexity)
 
-Что есть сейчас (самописный движок, src/app/50-physics.js):
+What exists now (in-house engine, src/app/50-physics.js):
 
-| Аспект | Текущее состояние | Диагноз |
+| Aspect | Current state | Diagnosis |
 |---|---|---|
-| Границы | Кластеры сфер (8 углов куба, 6 сфер тора...) | Аппроксимация: нет плоских граней -> предметы качаются на «невидимых шарах», зазоры и утапливания до ~5-10% размера неустранимы |
-| Вес | МАССЫ НЕТ ВООБЩЕ: все толкаются 50/50 | Большой куб и маленькая пилюля равноправны -> «невесомость». Масса ∝ r³ добавляется в текущий движок за ~20 строк, но остального не лечит |
-| Скорость падения | G=22 юнит/с², dt-кламп 0.033 | Сама g на глаз норм; неестественность падения — из-за ОТСУТСТВИЯ ВРАЩАТЕЛЬНОЙ ДИНАМИКИ (см. ниже) |
-| Вращение | Чисто визуальное, затухающее (`ang`) | Ключевой дефект: предметы не докручиваются в устойчивые позы, не катятся, приземляются «как воткнутые» |
-| Полигоны | Рендер-меши нормальные; физика их не видит | «Грубость» в кадре — это грубость КОНТАКТОВ, не рендера |
+| Boundaries | Sphere clusters (8 corners of a cube, 6 spheres for a torus...) | An approximation: there are no flat faces -> items rock on «invisible balls», gaps and sinking of up to ~5-10% of the size cannot be eliminated |
+| Weight | THERE IS NO MASS AT ALL: everything pushes 50/50 | A big cube and a small pill are equals -> «weightlessness». Mass ∝ r³ can be added to the current engine in ~20 lines, but that does not cure the rest |
+| Fall speed | G=22 units/s², dt clamp 0.033 | g itself looks fine by eye; the unnaturalness of the fall — because of the ABSENCE OF ROTATIONAL DYNAMICS (see below) |
+| Rotation | Purely visual, damped (`ang`) | The key defect: items do not finish rotating into stable poses, do not roll, and land «as if stuck in place» |
+| Polygons | The render meshes are fine; physics does not see them | The «coarseness» in the frame — that is the coarseness of the CONTACTS, not of the render |
 
-## Проблема 2: взаимодействие (проникновение, дребезг, реализм)
+## Problem 2: interaction (penetration, jitter, realism)
 
-| Аспект | Текущее состояние | Диагноз |
+| Aspect | Current state | Diagnosis |
 |---|---|---|
-| Проникновение | Позиционная коррекция 1 проход/подшаг | В куче 185 тел (стеки 8+) коррекции конфликтуют -> остаточные пересечения. Наивный решатель, не лечится итерациями по-настоящему |
-| Дребезг | Вечная борьба «гравитация vs коррекция» | Мы его СПРЯТАЛИ глобальным сном (physAwake), но при оседании после матча он виден. Нужны warm starting / contact caching — то, что есть только в настоящих движках |
-| Трение | Грубое затухание скоростей | Нет модели трения -> предметы «плывут» по наклонной стенке |
-| Сон | Глобальный + принудительный по таймеру | Хак. Настоящие движки спят по-тельно |
-| «Отражать цвет» | — | Это РЕНДЕР, не физика: лак уже отражает окружение; отражения соседей = env-probes/SSR в three.js, отдельная задача, не блокер |
+| Penetration | Positional correction, 1 pass/substep | In a pile of 185 bodies (stacks of 8+) the corrections conflict -> residual overlaps. A naive solver, iterations do not really cure it |
+| Jitter | The eternal fight «gravity vs correction» | We HID it with global sleep (physAwake), but during the settling after a match it is visible. warm starting / contact caching are needed — the things that exist only in real engines |
+| Friction | Crude damping of velocities | There is no friction model -> items «drift» down the sloped wall |
+| Sleep | Global + forced by timer | A hack. Real engines sleep per body |
+| «Reflect color» | — | This is RENDER, not physics: the lacquer already reflects the environment; reflections of neighbors = env-probes/SSR in three.js, a separate task, not a blocker |
 
-Вердикт: потолок самописной технологии ДОСТИГНУТ. Честная угловая
-динамика + устойчивый решатель + конвекс-коллайдеры «с нуля» = месяцы
-работы с результатом хуже готовых движков.
+Verdict: the ceiling of the in-house technology is REACHED. Honest angular
+dynamics + a stable solver + convex colliders «from scratch» = months of
+work with a result worse than the off-the-shelf engines.
 
-## Варианты основы
+## Foundation options
 
-### A. three.js + Rapier (WASM) — РЕКОМЕНДУЮ
-- Rapier (Rust->WASM, dimforge): convex hull прямо из наших геометрий,
-  compound-коллайдеры, масса из плотности, честные трение/упругость,
-  по-тельный sleeping, CCD, стабильные стеки, живой проект, официальные
-  примеры интеграции с three.js.
-- Сохраняется ~90% кодовой базы: ВЕСЬ рендер (лак/хром/стекло/окружение —
-  всё, что утверждал владелец), HUD, звук, геймплей, Playgama Bridge,
-  Playwright-тесты, __game API. Меняется только 50-physics + слой
-  синхронизации тел с мешами.
-- Вес: ~1.5-2 МБ compat-сборка (wasm инлайном base64) — кладётся рядом,
-  как playgama-bridge.js, или инлайнится в index.html.
-- Бонус к «весу предметов»: плотности по материалам (хром-кубы ТЯЖЁЛЫЕ,
-  пластик лёгкий) — то самое «проработать вес».
-- Риски: +2 МБ к загрузке; перенастройка ощущений (масса/трение/подскок);
-  ~3-5 сессий до паритета с текущим поведением.
-- Альтернативы в той же ветке: cannon-es (чистый JS, 150 КБ, но решатель
-  слабее и проект заморожен — стеки из 185 тел будут дрожать),
-  Jolt-physics.js (топ-качество, движок Godot 4.4, но ~2.5 МБ и API
-  ниже уровнем). Rapier — золотая середина.
+### A. three.js + Rapier (WASM) — I RECOMMEND
+- Rapier (Rust->WASM, dimforge): convex hull straight from our geometries,
+  compound colliders, mass from density, honest friction/restitution,
+  per-body sleeping, CCD, stable stacks, a live project, official
+  examples of integration with three.js.
+- ~90% of the codebase is preserved: THE WHOLE render (lacquer/chrome/glass/
+  environment — everything the owner approved), HUD, sound, gameplay, Playgama
+  Bridge, Playwright tests, the __game API. Only 50-physics changes + the layer
+  that syncs bodies with meshes.
+- Weight: ~1.5-2 MB compat build (wasm inlined as base64) — laid alongside,
+  like playgama-bridge.js, or inlined into index.html.
+- A bonus for the «weight of the items»: densities per material (chrome cubes
+  are HEAVY, plastic is light) — exactly that «work out the weight».
+- Risks: +2 MB to the download; re-tuning the feel (mass/friction/bounce);
+  ~3-5 sessions until parity with the current behavior.
+- Alternatives in the same branch: cannon-es (pure JS, 150 KB, but the solver
+  is weaker and the project is frozen — stacks of 185 bodies will jitter),
+  Jolt-physics.js (top quality, the engine of Godot 4.4, but ~2.5 MB and a
+  lower-level API). Rapier — the golden mean.
 
-### B. Переезд в Godot (+ Godot MCP)
-- Плюсы: физика из коробки (Jolt в 4.4), редактор, официальный
-  Playgama Bridge плагин (bridge-godot), MCP для агентной разработки.
-- Минусы, критичные для НАШЕГО канала (веб-порталы, мобайл-веб):
-  - Web-экспорт Godot 4: 30-50 МБ против наших 0.7 МБ. Time-to-first-play
-    на мобильной сети — десятки секунд; порталы это наказывают.
-  - Многопоточный экспорт требует SharedArrayBuffer => COOP/COEP-заголовки,
-    которыми МЫ НЕ УПРАВЛЯЕМ на чужих порталах; однопоточный — медленный.
-    iOS Safari — исторически самая проблемная платформа Godot-web.
-  - Теряется вся написанная база (рендер со всеми утверждёнными решениями,
-    UI, звук, Bridge-интеграция, автотесты) и накопленные в CLAUDE.md
-    «не возвращать»-решения придётся переоткрывать.
-- Когда Godot оправдан: если игра перерастает в «большую» с нативными
-  сборками под сторы. Для казуалки на веб-порталах — оверкилл с реальными
-  рисками дистрибуции.
+### B. Moving to Godot (+ Godot MCP)
+- Pros: physics out of the box (Jolt in 4.4), an editor, the official
+  Playgama Bridge plugin (bridge-godot), MCP for agentic development.
+- Cons, critical for OUR channel (web portals, mobile web):
+  - Godot 4 web export: 30-50 MB against our 0.7 MB. Time-to-first-play
+    on a mobile network — tens of seconds; the portals penalize that.
+  - A multithreaded export requires SharedArrayBuffer => COOP/COEP headers
+    that WE DO NOT CONTROL on other people's portals; single-threaded — slow.
+    iOS Safari — historically the most problematic platform of Godot web.
+  - The whole written base is lost (the render with all the approved decisions,
+    UI, sound, Bridge integration, autotests) and the «do not bring back»
+    decisions accumulated in CLAUDE.md would have to be rediscovered.
+- When Godot is justified: if the game grows into a «big» one with native
+  builds for the stores. For a casual game on web portals — overkill with
+  real distribution risks.
 
-### C. Остаться на самописной физике + патчи (масса r³, больше итераций)
-- Дёшево, но потолок рядом: без угловой динамики «как в реальном мире»
-  не получить. Годится только как временная мера до миграции.
+### C. Stay on the in-house physics + patches (mass r³, more iterations)
+- Cheap, but the ceiling is close by: without angular dynamics you cannot get
+  «like in the real world». Only suitable as a temporary measure until the migration.
 
-## Решение (предлагаемое)
+## Decision (proposed)
 
-Основа: **three.js + Rapier**. Обе фундаментальные проблемы закрываются
-целиком; канал дистрибуции (порталы) сохраняет главное преимущество —
-мгновенную загрузку; вся дизайн-работа прототипа переезжает как есть.
+Foundation: **three.js + Rapier**. Both fundamental problems are closed
+entirely; the distribution channel (portals) keeps its main advantage —
+instant loading; all the design work of the prototype moves over as is.
 
-## План миграции (после «да» владельца)
+## Migration plan (after the owner's «yes»)
 
-1. Спайк (полдня): rapier3d-compat + 185 конвекс-тел из наших геометрий,
-   замер FPS десктоп/мобилка, замер размера сборки.
-2. 50-physics -> обёртка Rapier: тела, конвекс-халлы (упрощённые до
-   30-60 вершин), плотности по типам материалов, gravity, sleeping-события.
-3. Тюнинг ощущений: плотности (хром 4х пластика), трение 0.4-0.6,
-   restitution 0.05-0.15; встряска/вибрация лопастей через applyImpulse.
-4. genLevel-осадка степами Rapier; сон авто (по-тельный).
-5. Прогон существующего test.js (API __game не меняется) + скорректировать
-   PAIRS/FLOOR_REST под новую упаковку.
+1. Spike (half a day): rapier3d-compat + 185 convex bodies from our geometries,
+   an FPS measurement on desktop/mobile, a measurement of the build size.
+2. 50-physics -> a Rapier wrapper: bodies, convex hulls (simplified down to
+   30-60 vertices), densities by material type, gravity, sleeping events.
+3. Tuning the feel: densities (chrome 4x plastic), friction 0.4-0.6,
+   restitution 0.05-0.15; shake/blade vibration through applyImpulse.
+4. genLevel settling by Rapier steps; sleep automatic (per body).
+5. A run of the existing test.js (the __game API does not change) + adjust
+   PAIRS/FLOOR_REST for the new packing.
 
-Оценка: 3-5 рабочих сессий до паритета, дальше только тюнинг.
+Estimate: 3-5 working sessions until parity, then only tuning.

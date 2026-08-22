@@ -1,59 +1,59 @@
-МИКСЕР — тестовая сборка v1-test (2026-07-18)
+MIXER — test build v1-test (2026-07-18)
 ================================================
 
-Казуальная 3D-игра: чаша блендера заполнена предметами, тапайте по
-предмету — все такие же рядом с ним исчезают. Миксер на дне торопит.
-Игра — один файл, интернет не нужен.
+A casual 3D game: the blender bowl is filled with items, tap an item —
+all the identical ones next to it disappear. The mixer at the bottom hurries you.
+The game is a single file, no internet needed.
 
-КАК ОТКРЫТЬ
+HOW TO OPEN
 -----------
-• Компьютер (Windows/Mac): двойной клик по файлу «Mixer.html»
-  (или перетащите его в окно Chrome/Safari/Edge).
-• Android: скачайте файл на телефон, откройте через Chrome
-  (Загрузки → Mixer.html). Если открылся текстом — «Открыть с помощью
-  → Chrome».
-• iPhone/iPad: файл напрямую, к сожалению, не запускается (ограничение
-  iOS) — попросите у Ивана ссылку и открывайте её в Safari.
+• Computer (Windows/Mac): double-click the file "Mixer.html"
+  (or drag it into a Chrome/Safari/Edge window).
+• Android: download the file to your phone, open it via Chrome
+  (Downloads → Mixer.html). If it opens as text — "Open with
+  → Chrome".
+• iPhone/iPad: the file, unfortunately, does not launch directly (an iOS
+  limitation) — ask Ivan for a link and open it in Safari.
 
-ВАЖНО ЗНАТЬ
+IMPORTANT TO KNOW
 -----------
-• «Реклама» в этой сборке — заглушка с таймером 3 секунды. Это нормально:
-  на игровой площадке будет настоящая. Награда приходит после таймера.
-• Прогресс (уровень, монеты, звёзды) хранится в браузере на вашем
-  устройстве. Очистка данных браузера его сотрёт — это ок для теста.
-• Визуал предметов и интерфейс — черновые, настраиваются позже.
-  Сейчас проверяем ГЕЙМПЛЕЙ и ПЛАВНОСТЬ.
+• The "ad" in this build is a stub with a 3-second timer. That is normal:
+  on the game platform there will be a real one. The reward comes after the timer.
+• Progress (level, coins, stars) is stored in the browser on your
+  device. Clearing the browser data will erase it — that is OK for the test.
+• The visuals of the items and the interface are drafts, they are tuned later.
+  Right now we are checking the GAMEPLAY and the SMOOTHNESS.
 
-ЧТО ПРОВЕРИТЬ (чек-лист)
+WHAT TO CHECK (checklist)
 ------------------------
-1. Старт: предметы живо сыплются в чашу, камера облетает и встаёт сверху.
-   Ничего не должно висеть в воздухе и дёргаться.
-2. Плавность на вашем устройстве: тормозит ли, когда и где (при падении,
-   при сериях, при перемалывании).
-3. Матчи: тап по предмету собирает одинаковые ПО ТИПУ рядом (размер не
-   важен). Тап мимо/по одиночке — штраф −7.
-4. Комбо: несколько быстрых склеек подряд — оранжевое «⚡ Комбо ×2»,
-   очки удваиваются, зона совпадения растёт с каждым матчем серии.
-5. Серия из 10 быстрых матчей — «☄️ ЦЕПНАЯ РЕАКЦИЯ»: фон краснеет снизу,
-   молнии между предметами, сверху досыпаются новые. 10 секунд или до
-   2 промахов.
-6. Миксер: не трогайте экран 30 секунд — лопасти начнут перемалывать
-   предметы со штрафом (баннер снизу). В сложности Hard — уже через 10 с.
-7. Встряски: кнопка справа. 3 бесплатных, потом «реклама» (заглушка),
-   потом покупка за 25 монет.
-8. Прицел 🎯 (слева, 15 монет): подсвечивает зелёным все доступные пары.
-9. Победа: звёзды (1-3), монеты, кнопка «×2 монет» за рекламу-заглушку.
-10. Поражение (пары есть, но не достать, встрясок нет): экран с кнопками
-    «Оглядеться», «📺 Продолжить» (досыпает предметы) и «Заново».
-11. Зум: колесо мыши / щипок пальцами. При приближении стекло чаши
-    растворяется — так задумано.
-12. Настройки ⚙️: сложность Hard (недоступные предметы серые, таймер 10 с),
-    звук. Внизу панели — номер сборки.
+1. Start: items pour briskly into the bowl, the camera flies around and settles above.
+   Nothing should hang in the air or jerk.
+2. Smoothness on your device: does it lag, when and where (while items fall,
+   during series, during grinding).
+3. Matches: a tap on an item collects the identical ones BY TYPE nearby (size does
+   not matter). A tap that misses / on a lone item — a penalty of −7.
+4. Combo: several quick merges in a row — an orange "⚡ Combo ×2",
+   points are doubled, the match zone grows with every match of the series.
+5. A series of 10 quick matches — "☄️ CHAIN REACTION": the background reddens from below,
+   lightning between the items, new ones are poured in from above. 10 seconds or until
+   2 misses.
+6. Mixer: do not touch the screen for 30 seconds — the blades will start grinding
+   items with a penalty (banner at the bottom). On Hard difficulty — after just 10 s.
+7. Shakes: the button on the right. 3 free, then an "ad" (stub),
+   then a purchase for 25 coins.
+8. Scope 🎯 (on the left, 15 coins): highlights all available pairs in green.
+9. Victory: stars (1-3), coins, the "×2 coins" button for the stub ad.
+10. Defeat (there are pairs, but they cannot be reached, no shakes left): a screen with
+    the buttons "Look around", "📺 Continue" (pours in items) and "Retry".
+11. Zoom: mouse wheel / pinch with your fingers. On approach the bowl's glass
+    dissolves — that is intended.
+12. Settings ⚙️: Hard difficulty (unavailable items are grey, timer 10 s),
+    sound. At the bottom of the panel — the build number.
 
-КАК СООБЩИТЬ О ПРОБЛЕМЕ
+HOW TO REPORT A PROBLEM
 -----------------------
-Скриншот (или видео) + что делали перед этим + устройство и браузер
-(например «iPhone 14, Safari» или «Windows 11, Chrome») + номер сборки
-из ⚙️. Отправляйте Ивану.
+A screenshot (or video) + what you were doing before that + the device and browser
+(for example "iPhone 14, Safari" or "Windows 11, Chrome") + the build number
+from ⚙️. Send them to Ivan.
 
-Спасибо!
+Thank you!

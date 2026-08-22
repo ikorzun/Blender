@@ -1,10 +1,10 @@
-// ===== 70-fx: визуальные эффекты и всплывающий текст =====
+// ===== 70-fx: visual effects and floating text =====
 
 const fx = [];
-// Перепись ЖИВЫХ частиц: сколько точек сейчас в облаках эффектов. Нужна
-// профилировке мобильного тира — «fx: 12 объектов» ничего не говорит, когда
-// один dissolveFX это 1280 точек, чьи позиции переписываются и заливаются в
-// GPU КАЖДЫЙ кадр. Зовётся только из perfStats, не из тика.
+// Census of LIVE particles: how many points are in the effect clouds right now.
+// Needed by mobile-tier profiling — "fx: 12 objects" says nothing when a single
+// dissolveFX is 1280 points whose positions are rewritten and uploaded to the
+// GPU EVERY frame. Called only from perfStats, not from the tick.
 function fxParticleCount(){
   let pts = 0, clouds = 0;
   for (const f of fx){
@@ -13,38 +13,41 @@ function fxParticleCount(){
   }
   return { pts, clouds };
 }
-// ⚠️ ЦЕНА СОЗДАНИЯ ЭФФЕКТА — ОТДЕЛЬНАЯ ОТ ЦЕНЫ ТИКА, и в профиле мобильного
-// тира именно она оказалась пиком: на кадре тапа ~40 мс не объяснялись НИ
-// физикой, ни stepFX, ни рендером. Здесь копится время конструирования
-// (Float32Array на 1280 точек, BufferGeometry, материал, возможная компиляция
-// шейдера); loop забирает и обнуляет раз в кадр.
-// ⚠️⚠️ ИСПРАВЛЕНО ПО ЛОВЛЕ ГРАФИКИ (2026-07-31). ПЕРВАЯ ВЕРСИЯ СЧИТАЛА ТОЛЬКО
-// ПЫЛЕВЫЕ ОБЛАКА — единственная точка прибавки сидела внутри dustCloud, а
-// колонка в отчёте называлась «постройка эффекта». Слепа она была ровно к
-// тому, куда едет редизайн Графики: у ОСКОЛКОВ каждый кусок это своя
-// геометрия и свой материал (9-23 за бурст), и в счётчике они давали НОЛЬ.
-// Классика «метрика правдоподобна, но меряет не то, что названо вслух».
-// Теперь считается ВСЯ постройка эффектов. Пара in/out УСТОЙЧИВА К ВЛОЖЕННОСТИ
-// (dissolveFX зовёт dustCloud трижды): копит только внешняя пара, иначе одно
-// облако считалось бы дважды.
-// ⚠️⚠️ РАЗБОРКА ПО ВИДАМ ЭФФЕКТА (A2, 2026-08-01) — И ЭТО ТРЕТИЙ ЗАХОД НА ОДНИ
-// И ТЕ ЖЕ ГРАБЛИ. Первая версия счётчика видела только пылевые облака; Графика
-// поймала, что осколки дают в нём НОЛЬ. Теперь то же самое случилось СНОВА:
-// с переносом набора владельца (схлопывание/распил/огонь/рикошет/колесо)
-// приехало семь новых конструкторов, и НИ ОДИН из них в счётчик не попал —
-// «постройка эффектов» опять мерила меньше, чем называла.
-// ⛔ ПРАВИЛО ОТСЮДА: НОВЫЙ КОНСТРУКТОР ЭФФЕКТА ОБЯЗАН БЫТЬ ОБЁРНУТ. Счётчик,
-// который молчит про новичка, хуже отсутствующего — он выглядит как измерение.
-// Тотал считается по ВЕРХНЕМУ уровню (двойного счёта нет), а по видам копится
-// СОБСТВЕННОЕ время: вложенные конструкторы (sparkRicochetFX -> wheelFX,
-// sparkRicochetFX -> wheelFX, dissolveFX -> dustCloud×3) вычитаются из
-// родителя. Иначе «искры 6 мс» прятали бы внутри себя цену колеса, и пул
-// поехал бы лечить не ту статью.
+// ⚠️ THE COST OF CREATING AN EFFECT IS SEPARATE FROM THE COST OF THE TICK, and
+// in the mobile-tier profile it was exactly that which turned out to be the peak:
+// on the tap frame ~40 ms were explained NEITHER by physics, nor by stepFX, nor
+// by the render. Here the construction time accumulates (Float32Array for 1280
+// points, BufferGeometry, material, possible shader compilation); the loop takes
+// it and zeroes it once per frame.
+// ⚠️⚠️ FIXED AFTER A CATCH BY GRAPHICS (2026-07-31). THE FIRST VERSION COUNTED
+// ONLY DUST CLOUDS — the single accumulation point sat inside dustCloud, while
+// the report column was named "effect build". It was blind to exactly the
+// direction the Graphics redesign was moving in: with SHARDS every piece is its
+// own geometry and its own material (9-23 per burst), and in the counter they
+// gave ZERO. A classic "the metric is plausible, but it measures something other
+// than what it is called out loud".
+// Now the WHOLE effect build is counted. The in/out pair is RESILIENT TO NESTING
+// (dissolveFX calls dustCloud three times): only the outer pair accumulates,
+// otherwise one cloud would be counted twice.
+// ⚠️⚠️ BREAKDOWN BY EFFECT KIND (A2, 2026-08-01) — AND THIS IS THE THIRD RUN
+// INTO THE VERY SAME RAKE. The first version of the counter saw only dust clouds;
+// Graphics caught that shards gave ZERO in it. Now the same thing has happened
+// AGAIN: with the port of the owner's set (collapse/saw/fire/ricochet/wheel)
+// seven new constructors arrived, and NOT ONE of them made it into the counter —
+// "effect build" was again measuring less than it claimed.
+// ⛔ THE RULE FROM HERE ON: A NEW EFFECT CONSTRUCTOR MUST BE WRAPPED. A counter
+// that stays silent about a newcomer is worse than a missing one — it looks like
+// a measurement.
+// The total is counted at the TOP level (no double counting), while per kind the
+// OWN time accumulates: nested constructors (sparkRicochetFX -> wheelFX,
+// sparkRicochetFX -> wheelFX, dissolveFX -> dustCloud×3) are subtracted from the
+// parent. Otherwise "sparks 6 ms" would be hiding the cost of the wheel inside
+// itself, and the pool would go off treating the wrong line item.
 let fxBuildMs = 0;
-const fxBuildBy = {};         // вид -> { ms: собственное время, n: вызовов }
+const fxBuildBy = {};         // kind -> { ms: own time, n: calls }
 const _fxBStack = [];         // { kind, t0, child }
 function fxBuildIn(kind){
-  _fxBStack.push({ kind: kind || 'прочее', t0: performance.now(), child: 0 });
+  _fxBStack.push({ kind: kind || 'other', t0: performance.now(), child: 0 });
 }
 function fxBuildOut(){
   const f = _fxBStack.pop();
@@ -55,35 +58,40 @@ function fxBuildOut(){
   const b = fxBuildBy[f.kind] || (fxBuildBy[f.kind] = { ms: 0, n: 0 });
   b.ms += d - f.child; b.n++;
 }
-// обёртка конструктора: имя вида + сама функция. try/finally обязателен —
-// исключение внутри эффекта не должно оставить стек перекошенным навсегда.
-// ⚠️⚠️ РЕЕСТР МЕТОК ЛОВИТ КОЛЛИЗИЮ — ПОЙМАНО ГРАФИКОЙ НА ЖИВОМ ПРИМЕРЕ.
-// Метка `'spark'` была занята ДВАЖДЫ (старый sparkFX и новый sparkRicochetFX),
-// а `fxBuildBy` ключуется меткой — две разные функции складывались в ОДНУ
-// строку отчёта, и число «искры 0.62» было суммой непонятно чего. Спасло
-// только то, что старый эффект мёртв (вызовов ноль), то есть верным оно было
-// СЛУЧАЙНО. Коллизия — это ровно «метрика правдоподобна, но меряет не то»,
-// и полагаться на внимательность тут нельзя: реестр запоминает первый занятый
-// вид, а страж в сьюте требует, чтобы дублей не было.
+// constructor wrapper: the kind label + the function itself. try/finally is
+// mandatory — an exception inside an effect must not leave the stack skewed
+// forever.
+// ⚠️⚠️ THE LABEL REGISTRY CATCHES A COLLISION — CAUGHT BY GRAPHICS ON A LIVE CASE.
+// The label `'spark'` was taken TWICE (the old sparkFX and the new
+// sparkRicochetFX), while `fxBuildBy` is keyed by the label — two different
+// functions were adding up into ONE report row, and the number "sparks 0.62" was
+// a sum of who knows what. The only thing that saved it was that the old effect
+// is dead (zero calls), i.e. it was correct BY ACCIDENT. A collision is exactly
+// "the metric is plausible, but it measures the wrong thing", and one cannot rely
+// on attentiveness here: the registry remembers the first kind taken, and the
+// guard in the suite requires that there be no duplicates.
 const fxKindOwner = {};
 let fxKindDup = null;
 function fxBuilt(kind, fn){
-  const k = kind || 'прочее';
+  const k = kind || 'other';
   if (fxKindOwner[k] && !fxKindDup) fxKindDup = k;
   fxKindOwner[k] = true;
   return function(){ fxBuildIn(k); try { return fn.apply(null, arguments); } finally { fxBuildOut(); } };
 }
 const fxBuildTake = () => { const v = fxBuildMs; fxBuildMs = 0; return v; };
-// ⚠️ ВСЕ конструкторы эффектов — ОДНИМ СПИСКОМ, чтобы «а этот посчитан?» был
-// вопросом на один взгляд, а не поиском по файлу. `_x_impl` — объявления
-// функций, они хойстятся, поэтому список стоит здесь, а не в конце.
-// Добавил эффект — добавь строку сюда, иначе он невидим для профиля.
-// ⚠️ ПЕРВАЯ ВЕРСИЯ ЭТОГО СПИСКА СВОЁ ЖЕ ОБЕЩАНИЕ НЕ ДЕРЖАЛА (поймала ГРАФИКА):
-// одиннадцать обёрток стояли здесь, а четыре — врассыпную по файлу. Всё было
-// обёрнуто, но «на один взгляд» не работало, а правило держится ровно на этом.
-// Список полный: число обёрток ниже обязано совпадать с числом функций
-// `_имя_impl` в файле (сегодня их 14). Страж сверяет это сам.
-// ⚠️ МЕТКИ ОБЯЗАНЫ БЫТЬ РАЗНЫМИ — их коллизию ловит реестр выше и страж сьюта.
+// ⚠️ ALL effect constructors IN ONE LIST, so that "is this one counted?" is a
+// one-glance question and not a search through the file. `_x_impl` are function
+// declarations, they hoist, which is why the list stands here and not at the end.
+// Added an effect — add a line here, otherwise it is invisible to the profile.
+// ⚠️ THE FIRST VERSION OF THIS LIST DID NOT KEEP ITS OWN PROMISE (caught by
+// GRAPHICS): eleven wrappers stood here and four were scattered around the file.
+// Everything was wrapped, but "at one glance" did not work, and the rule rests on
+// exactly that.
+// The list is complete: the number of wrappers below must match the number of
+// `_name_impl` functions in the file (today there are 14). The guard checks this
+// itself.
+// ⚠️ THE LABELS MUST BE DIFFERENT — their collision is caught by the registry
+// above and by the suite's guard.
 const starPopFX        = fxBuilt('star',     _starPopFX_impl);
 const shardFX          = fxBuilt('shard',    _shardFX_impl);
 const popFX            = fxBuilt('pop',      _popFX_impl);
@@ -108,40 +116,46 @@ function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
 }
 function stepFX(dt){
-  // ⚠️ ЗАМЕДЛЕНИЕ ЧАСОВ ЭФФЕКТОВ (`CFG.fxSlow`, боевое значение 1) — ОТЛАДОЧНАЯ
-  // РУЧКА, и она несущая для показа владельцу: боевой эффект живёт 150-600 мс,
-  // а headless-скриншот стоит около секунды — на кадре его нет ВООБЩЕ. Растянуть
-  // жизнь константой нельзя: движение параметрическое от t=k·life, и при большей
-  // жизни куски улетают в другую точку (искажается ровно то, что показываем).
-  // Деление ЧАСОВ сохраняет траектории бит-в-бит: та же t — та же позиция.
+  // ⚠️ SLOWING DOWN THE EFFECT CLOCK (`CFG.fxSlow`, production value 1) IS A DEBUG
+  // KNOB, and it is load-bearing for showing things to the owner: a production
+  // effect lives 150-600 ms, while a headless screenshot costs about a second —
+  // it is not on the frame AT ALL. Stretching the life with a constant is not an
+  // option: the motion is parametric in t=k·life, and with a longer life the
+  // pieces fly off to a different point (distorting exactly what we are showing).
+  // Dividing the CLOCK preserves the trajectories bit-for-bit: the same t — the
+  // same position.
   if (CFG.fxSlow > 1) dt /= CFG.fxSlow;
   for (let i=fx.length-1;i>=0;i--){
     const f = fx[i]; f.age += dt;
     const k = f.age / f.life;
     if (k >= 1){
       scene.remove(f.obj);
-      // GPU-утечка: у эффектов геометрия/материал персональные — освобождать.
-      // Скомпилированные ПРОГРАММЫ при этом не умирают: их держат вечные
-      // якоря fxProgramAnchors (низ файла) — без них three пересобирал шейдер
-      // на каждом первом тапе/молнии после простоя (джанк на слабых)
-      // ⚠️ keepGeo — у половин распила и у накладки огня геометрия ОБЩАЯ с
-      // предметом (кэш типа в 30-shapes). Диспозить чужое нельзя: владелец
-      // геометрии — тот, кто её создал.
-      // ⛔ ЧЕСТНАЯ ЦЕНА ОШИБКИ, ЗАМЕРЕНА ДИВЕРСИЕЙ, А НЕ ВЫВЕДЕНА: я написала
-      // здесь «иначе погаснут все предметы типа» — ЭТО НЕВЕРНО. Прогон со снятым
-      // keepGeo дал кадр, отличающийся от исправного на те же 6.2%: three не
-      // стирает атрибуты при dispose и просто перезаливает буфер. Цена — ЛИШНЯЯ
-      // ПЕРЕЗАЛИВКА В GPU, а не исчезновение предметов. Флаг оставлен как
-      // гигиена владения, но пугать им не надо.
-      // ⚠️ ДВА РАЗНЫХ ФЛАГА, И ЭТО НАМЕРЕННО. `keepGeo` — метка ПОЛОВИН РАСПИЛА,
-      // по ней страж сьюта считает половины поимённо; вешать её на что-то ещё
-      // значит тихо испортить чужой счётчик. `sharedFx` — «геометрия и материал
-      // живут ДОЛЬШЕ эффекта» (кэш разлёта чаши: печём один раз, гоняем много).
-      const общее = f.obj.userData && (f.obj.userData.keepGeo || f.obj.userData.sharedFx);
-      if (f.obj.geometry && !общее) f.obj.geometry.dispose();
-      // молнии отдают материал в free-list (boltMat) — в турбо их много, и
-      // пересоздавать одинаковые MeshBasicMaterial на каждый разряд незачем;
-      // ВСЕ остальные эффекты освобождают материал как раньше
+      // GPU leak: effects have personal geometry/material — they must be freed.
+      // The compiled PROGRAMS do not die along with them: they are held by the
+      // eternal fxProgramAnchors (bottom of the file) — without them three would
+      // rebuild the shader on every first tap/bolt after an idle period (jank on
+      // weak devices)
+      // ⚠️ keepGeo — for the saw halves and for the fire overlay the geometry is
+      // SHARED with the item (per-type cache in 30-shapes). Disposing of someone
+      // else's is not allowed: the owner of the geometry is whoever created it.
+      // ⛔ THE HONEST COST OF THE MISTAKE, MEASURED BY A SABOTAGE TEST AND NOT
+      // DERIVED: I wrote here "otherwise all items of the type will go dark" —
+      // THAT IS WRONG. A run with keepGeo removed produced a frame differing from
+      // the healthy one by those same 6.2%: three does not erase the attributes on
+      // dispose and simply re-uploads the buffer. The cost is an EXTRA UPLOAD TO
+      // THE GPU, not the disappearance of items. The flag is kept as ownership
+      // hygiene, but there is no need to scare anyone with it.
+      // ⚠️ TWO DIFFERENT FLAGS, AND THAT IS DELIBERATE. `keepGeo` is the mark of
+      // the SAW HALVES; the suite's guard counts the halves by name through it,
+      // and hanging it on anything else means quietly spoiling someone else's
+      // counter. `sharedFx` means "the geometry and material live LONGER than the
+      // effect" (the bowl scatter cache: baked once, run many times).
+      const shared = f.obj.userData && (f.obj.userData.keepGeo || f.obj.userData.sharedFx);
+      if (f.obj.geometry && !shared) f.obj.geometry.dispose();
+      // bolts hand their material back to a free-list (boltMat) — in turbo there
+      // are many of them, and there is no point recreating identical
+      // MeshBasicMaterials for every discharge;
+      // ALL the other effects free their material as before
       if (f.obj.material && !(f.obj.userData && f.obj.userData.sharedFx)){
         if (f.obj.userData && f.obj.userData.poolBolt && boltMatPool.length < BOLT_POOL_MAX) boltMatPool.push(f.obj.material);
         else f.obj.material.dispose();
@@ -151,10 +165,11 @@ function stepFX(dt){
     f.tick && f.tick(f.obj, k);
   }
 }
-// Френель-«призрак»: прозрачная сфера, плотнее у силуэта (общий материал
-// для сферы радиуса и маркеров — никакого wireframe, он читался как артефакт)
+// Fresnel "ghost": a transparent sphere, denser at the silhouette (a shared
+// material for the radius sphere and the markers — no wireframe, it read as an
+// artifact)
 function fresnelGhostMat(color, base, edge, fpow){
-  const p = (fpow || 1.8); // меньше степень — шире и мягче кромка («размытые грани»)
+  const p = (fpow || 1.8); // a lower power — a wider and softer edge ("blurred faces")
   return new THREE.ShaderMaterial({
     transparent:true, depthTest:false, depthWrite:false,
     uniforms:{ c:{ value:new THREE.Color(color).convertSRGBToLinear() }, op:{ value:1 } },
@@ -177,7 +192,7 @@ function _popFX_impl(pos){
   addFX(mesh, 0.35, (o,k)=>{ o.scale.setScalar(1+k*6); o.material.opacity = 0.9*(1-k); });
 }
 function _markerFX_impl(pos, color){
-  // мягкая пульсирующая сфера-призрак — указывает на скрытую пару
+  // a soft pulsing ghost sphere — points at the hidden pair
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 18), fresnelGhostMat(color, 0.1, 0.5));
   mesh.position.copy(pos); mesh.renderOrder = 11;
   addFX(mesh, 1.1, (o,k)=>{
@@ -191,28 +206,29 @@ function _lineFX_impl(a, b, color){
   const line = new THREE.Line(g, m); line.computeLineDistances(); line.renderOrder = 11;
   addFX(line, 1.0, (o,k)=>{ o.material.opacity = 0.95*(1-k); });
 }
-// Расщепление «В ТРУХУ»: плотное облако пыли цвета предмета, ТРИ фракции
-// размеров (мелкая/средняя/крупная) и вершинный разброс оттенков.
-// История итераций владельца: 70 крупных -> 320 мелких -> 640 разнообразных
-// -> 1280 «размер вдвое меньше, количество вдвое больше» (спека 2026-07-22).
-// Труха ОБЩАЯ для матча и помола (bladeDustFX) — меняется вся.
-// radial=true — плоский разлёт кольцом (пыль из-под лопастей миксера).
+// Breakdown "INTO DUST": a dense dust cloud in the item's color, THREE size
+// fractions (fine/medium/coarse) and a per-vertex spread of shades.
+// The owner's iteration history: 70 coarse -> 320 fine -> 640 varied
+// -> 1280 "half the size, twice the count" (spec 2026-07-22).
+// The dust is SHARED between the match and the grind (bladeDustFX) — it all
+// changes together.
+// radial=true — a flat ring-shaped scatter (dust from under the mixer blades).
 const DUST_FRACTIONS = [
-  // ⚠️ ЧИСЛО УМНОЖАЕТСЯ НА CFG.fxScale В МОМЕНТ ЭФФЕКТА (не здесь): на слабом
-  // устройстве труха режется втрое, на обычном идёт полной.
-  // ⚡ КРУПНЕЕ И ГУЩЕ (задача тестеров 2026-08-06, дословно «крупнее и гуще
-  // частицы»). Спека владельца 2026-07-22 просила ОБРАТНОГО («вдвое мельче,
-  // вдвое больше»), и это не противоречие: тогда труха была из 70 КОМЬЕВ и
-  // читалась как обломки мебели, сейчас — из пыли, и пыль читается как дым.
-  // Мельчить дальше некуда, поэтому растим и размер, и число, добавляя
-  // четвёртую фракцию — КУСКИ. Она и несёт «крупнее»: 0.115 против прежнего
-  // потолка 0.05.
-  // ⚠️ ФРАКЦИЯ = ОДИН Points (одна геометрия, один материал, один draw call),
-  // поэтому +1 строка тут стоит ОДНУ постройку, а не 90 объектов.
-  { n: 640, size: 0.028 },  // мука
-  { n: 520, size: 0.048 },  // крошка
-  { n: 320, size: 0.075 },  // обломки
-  { n: 90,  size: 0.115 },  // КУСКИ — новая фракция, ради «крупнее»
+  // ⚠️ THE COUNT IS MULTIPLIED BY CFG.fxScale AT EFFECT TIME (not here): on a
+  // weak device the dust is cut threefold, on a normal one it goes at full.
+  // ⚡ COARSER AND DENSER (testers' task 2026-08-06, verbatim "coarser and denser
+  // particles"). The owner's spec of 2026-07-22 asked for the OPPOSITE ("half the
+  // size, twice the count"), and this is not a contradiction: back then the dust
+  // was 70 CLUMPS and read as furniture debris, now it is dust, and dust reads as
+  // smoke. There is nowhere finer to go, so we grow both the size and the count,
+  // adding a fourth fraction — CHUNKS. It is the one that carries "coarser":
+  // 0.115 against the previous ceiling of 0.05.
+  // ⚠️ A FRACTION = ONE Points (one geometry, one material, one draw call), so
+  // +1 line here costs ONE build, not 90 objects.
+  { n: 640, size: 0.028 },  // flour
+  { n: 520, size: 0.048 },  // crumbs
+  { n: 320, size: 0.075 },  // debris
+  { n: 90,  size: 0.115 },  // CHUNKS — the new fraction, for the sake of "coarser"
 ];
 const _dustC = new THREE.Color();
 function dustCloud(item, radial, COUNT, size, base){
@@ -224,7 +240,7 @@ function dustCloud(item, radial, COUNT, size, base){
     const ox = Math.sin(ph)*Math.cos(th)*rr, oy = Math.cos(ph)*rr, oz = Math.sin(ph)*Math.sin(th)*rr;
     start[i*3]   = item.p.x + ox; start[i*3+1] = item.p.y + oy; start[i*3+2] = item.p.z + oz;
     const sp = 1.5 + Math.random()*3.0;
-    if (radial){ // лопасти швыряют труху вширь
+    if (radial){ // the blades fling the dust outwards
       vel[i*3]   = ox/(rr||1)*sp*1.7;
       vel[i*3+1] = 0.5 + Math.random()*2.4;
       vel[i*3+2] = oz/(rr||1)*sp*1.7;
@@ -233,7 +249,7 @@ function dustCloud(item, radial, COUNT, size, base){
       vel[i*3+1] = Math.abs(oy/(rr||1))*sp + 1.2;
       vel[i*3+2] = oz/(rr||1)*sp;
     }
-    // разброс оттенков: чуть светлее/темнее и лёгкий сдвиг тона
+    // spread of shades: a touch lighter/darker and a slight hue shift
     _dustC.copy(base).offsetHSL((Math.random()-0.5)*0.04, 0, (Math.random()-0.5)*0.22);
     cols[i*3] = _dustC.r; cols[i*3+1] = _dustC.g; cols[i*3+2] = _dustC.b;
   }
@@ -242,7 +258,7 @@ function dustCloud(item, radial, COUNT, size, base){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
   const pts = new THREE.Points(geo, m);
-  fxBuildOut();   // цена конструирования облака (см. fxBuildMs)
+  fxBuildOut();   // the cost of constructing the cloud (see fxBuildMs)
   addFX(pts, life, (o,k)=>{
     const t = k*life, a = o.geometry.attributes.position.array;
     for (let i=0;i<COUNT;i++){
@@ -256,29 +272,35 @@ function dustCloud(item, radial, COUNT, size, base){
 }
 function dissolveFX(item, radial){
   const base = (item.fxColor || item.baseColor);
-  // ⚠️ fxScale читается ЗДЕСЬ, а не в таблице: ступень качества может смениться
-  // посреди партии, и следующий же эффект обязан пойти уже по новой.
+  // ⚠️ fxScale is read HERE and not in the table: the quality step can change in
+  // the middle of a round, and the very next effect must already follow the new one.
   for (const f of DUST_FRACTIONS) dustCloud(item, radial, Math.max(24, Math.round(f.n * CFG.fxScale)), f.size, base);
 }
-// Пылевой взрыв у лопастей: predмет домололся — труха летит из-под ножей
+// Dust explosion at the blades: the item has finished grinding — the dust flies
+// out from under the knives
 function bladeDustFX(pos, baseColor){
   dissolveFX({ p: pos, r: 0.55, baseColor }, true);
 }
-// ===== ПАК-ЭФФЕКТЫ ЛОПАНЬЯ ГРУПП (перенос из 80-gameplay по просьбе ФИЗИКИ,
-// WORKSTREAMS 2026-07-22). Здесь ТОЛЬКО ВИЗУАЛ: правило выбора (burstFX,
-// BURST_MIN_N) осталось в 80-gameplay, физволна blastWave — в 50-physics.
+// ===== PACK EFFECTS FOR POPPING GROUPS (ported from 80-gameplay at PHYSICS'
+// request, WORKSTREAMS 2026-07-22). ONLY THE VISUALS live here: the selection
+// rule (burstFX, BURST_MIN_N) stayed in 80-gameplay, the physics wave blastWave —
+// in 50-physics.
 //
-// Что полировано против стартовой версии:
-// 1) точки стали КРУГЛЫМИ: у PointsMaterial без карты точка рисуется
-//    КВАДРАТОМ — сок и искры читались как пиксели, а не как капли/искры;
-// 2) звёзды — не меши, а точки со звёздной картой: точка всегда лицом к
-//    камере, а плоский меш с игрового ракурса ловил ребро и почти пропадал.
-//    Бонусом 5 мешей (5 draw calls, 5 геометрий) свернулись в ОДИН Points.
-//    ⚠️ НЕ THREE.Sprite: в r149 ВСЕ спрайты делят ОДНУ геометрию, а stepFX
-//    диспозит geometry догоревшего эффекта — первый же убил бы все будущие.
-// 3) карты ОБЩИЕ и ленивые, живут вечно. stepFX диспозит material, но НЕ
-//    его map (three текстуры материала не трогает) — общий кэш безопасен.
-//    ⚠️ Только DataTexture: канвас премножает RGB на альфу (грабля matcap).
+// What was polished against the starting version:
+// 1) the points became ROUND: with a PointsMaterial without a map a point is
+//    drawn as a SQUARE — juice and sparks read as pixels rather than as
+//    drops/sparks;
+// 2) the stars are not meshes but points with a star map: a point always faces
+//    the camera, while a flat mesh caught its edge at the gameplay angle and
+//    almost disappeared. As a bonus 5 meshes (5 draw calls, 5 geometries)
+//    collapsed into ONE Points.
+//    ⚠️ NOT THREE.Sprite: in r149 ALL sprites share ONE geometry, and stepFX
+//    disposes the geometry of a burnt-out effect — the very first one would kill
+//    all future ones.
+// 3) the maps are SHARED and lazy, they live forever. stepFX disposes the
+//    material, but NOT its map (three does not touch a material's textures) —
+//    a shared cache is safe.
+//    ⚠️ DataTexture only: a canvas premultiplies RGB by alpha (the matcap rake).
 let _fxDot = null, _fxStar = null;
 function fxDotTex(){
   if (_fxDot) return _fxDot;
@@ -286,7 +308,7 @@ function fxDotTex(){
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
     const i = (y*S + x)*4;
     const r = Math.hypot((x + 0.5)/S*2 - 1, (y + 0.5)/S*2 - 1);
-    // плотное ядро + узкий мягкий ободок: капля, а не размытое пятно
+    // a dense core + a narrow soft rim: a drop, not a blurred blob
     const a = r >= 1 ? 0 : (r <= 0.72 ? 1 : 1 - (r - 0.72)/0.28);
     d[i] = d[i+1] = d[i+2] = 255; d[i+3] = Math.round(255*a);
   }
@@ -300,26 +322,28 @@ function fxStarTex(){
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
     const i = (y*S + x)*4;
     const dx = (x + 0.5)/S*2 - 1, dy = (y + 0.5)/S*2 - 1, r = Math.hypot(dx, dy);
-    // радиус звезды по углу: во впадине сектора IN, на луче 1
+    // the star radius by angle: IN in the valley of a sector, 1 on a ray
     let t = Math.atan2(dy, dx) + Math.PI/2;
     t = ((t % SEG) + SEG) % SEG;
     const R = IN + (1 - IN)*Math.abs(t - SEG/2)/(SEG/2);
-    const a = Math.max(0, Math.min(1, (R - r)/0.05)); // мягкая кромка
+    const a = Math.max(0, Math.min(1, (R - r)/0.05)); // soft edge
     d[i] = d[i+1] = d[i+2] = 255; d[i+3] = Math.round(255*a);
   }
   _fxStar = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
   _fxStar.needsUpdate = true;
   return _fxStar;
 }
-// ⛔ СТАРЫЕ juiceFX (сок) И sparkFX (искры) УДАЛЕНЫ 2026-08-01 — их заменили
-// juiceBigFX и sparkRicochetFX по выбору владельца (крупные капли + капли на
-// стекле экрана; искры с рикошетом от стенок + укатывающееся колесо).
-// Вызовов у них не осталось ни одного — это был МОЙ мусор после переноса, и
-// один из них ещё и держал метку 'spark', в которую писался живой рикошет:
-// строка отчёта склеивалась из двух функций и была верна лишь потому, что
-// старый эффект мёртв. Реестр меток (fxKindDup) теперь такое ловит прогоном.
-// Вернуть при надобности: git show <до 2026-08-01>:src/app/70-fx.js.
-// мультяшный pop (animal): звёздочки веером вверх, всегда лицом к камере
+// ⛔ THE OLD juiceFX (juice) AND sparkFX (sparks) WERE DELETED 2026-08-01 — they
+// were replaced by juiceBigFX and sparkRicochetFX at the owner's choice (large
+// drops + drops on the screen glass; sparks ricocheting off the walls + a wheel
+// rolling away).
+// Not a single call to them was left — this was MY garbage after the port, and
+// one of them also held the label 'spark', into which the live ricochet was
+// writing: the report row was glued together out of two functions and was correct
+// only because the old effect is dead. The label registry (fxKindDup) now catches
+// that on a run.
+// To bring them back if needed: git show <before 2026-08-01>:src/app/70-fx.js.
+// cartoon pop (animal): little stars in a fan upwards, always facing the camera
 function _starPopFX_impl(it){
   const N = 7, LIFE = 0.7, S0 = 0.34;
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
@@ -345,45 +369,50 @@ function _starPopFX_impl(it){
   });
 }
 
-// ОСКОЛКИ (спека владельца 2026-07-23 «сделай осколками»): твёрдые пачки
-// brick/pirate при бурсте и предмет под ножами при помоле КОЛЮТСЯ на
-// угловатые куски. Перенос из 80-gameplay + полировка (запрос ФИЗИКИ,
-// WORKSTREAMS 2026-07-23). Правило выбора (burstFX) и тайминги grindShred
-// остаются в 80-gameplay — их зона поведения.
+// SHARDS (the owner's spec 2026-07-23 "make it shards"): the hard brick/pirate
+// packs on a burst and the item under the knives during grinding SPLIT into
+// angular pieces. Ported from 80-gameplay + polish (PHYSICS' request,
+// WORKSTREAMS 2026-07-23). The selection rule (burstFX) and the grindShred
+// timings stay in 80-gameplay — that is their behavior zone.
 //
-// Что полировано против стартовой версии (регулярный TetrahedronGeometry +
-// плоский MeshBasicMaterial одного цвета):
-// 1) ФОРМА — НЕРЕГУЛЯРНЫЙ кусок: 4 угла правильного тетра сдвинуты в разные
-//    стороны, каждый скол уникален и читается как обломок, а не «кубик д4»;
-// 2) ТИНТ ПО ГРАНЯМ — на MeshBasicMaterial нет света, поэтому объём печём
-//    в ВЕРШИННЫЕ ЦВЕТА: грань светлее/темнее по своей нормали к ключевому
-//    свету (тому же, что у matcap: сверху-слева-спереди). Плоский кусок
-//    перестаёт быть силуэтом-пятном — грани разной яркости дают рельеф;
-// 3) ЗВУК — «хруст» раскола (75-audio 'crunch', спектр выше рокота grind).
-// ⚠️ КАЖДЫЙ осколок — СВОЯ геометрия+материал: stepFX диспозит и то и другое,
-// общий кэш отдавать нельзя (первый догоревший убил бы буфер остальным —
-// грабля Sprite/star). Баллистика параметрическая от t=k·life — FPS-независима.
-// ⚠️⚠️ СВЕТ ОСКОЛКОВ — ПРОИЗВОДНАЯ ОТ MATCAP_LIGHT (10-stage), А НЕ КОПИЯ.
-// Осколок несёт объём тинтом, ЗАПЕЧЁННЫМ по этому направлению, а сам предмет —
-// matcap по MATCAP_LIGHT. Пока это были две константы, их держали равными
-// РУКАМИ — и первая же правка владельца через панель (она правит только
-// MATCAP_LIGHT) развела бы освещение надвое: куча по одному свету, её обломки
-// по другому, причём в кадре взрыва они рядом.
-// ⚠️ Пересчёт НА КАЖДЫЙ ОСКОЛОК, а не один раз при загрузке: тюнер крутит
-// MATCAP_LIGHT НА ЖИВОЙ СЦЕНЕ, и снимок значения на старте отставал бы от
-// ползунка. Цена — три умножения и корень на скол, на фоне генерации геометрии
-// это ничто.
+// What was polished against the starting version (a regular TetrahedronGeometry +
+// a flat MeshBasicMaterial of a single color):
+// 1) THE SHAPE — an IRREGULAR piece: the 4 corners of a regular tetrahedron are
+//    shifted in different directions, every chip is unique and reads as debris
+//    and not as a "d4 die";
+// 2) PER-FACE TINT — a MeshBasicMaterial has no lighting, so we bake the volume
+//    into the VERTEX COLORS: a face is lighter/darker according to its normal
+//    relative to the key light (the same one as the matcap's:
+//    above-left-in-front). A flat piece stops being a silhouette blob — faces of
+//    differing brightness give relief;
+// 3) SOUND — the "crunch" of the split (75-audio 'crunch', a spectrum above the
+//    rumble of grind).
+// ⚠️ EVERY shard has ITS OWN geometry+material: stepFX disposes of both, and a
+// shared cache cannot be handed out (the first one to burn out would kill the
+// buffer for the rest — the Sprite/star rake). The ballistics are parametric in
+// t=k·life — FPS-independent.
+// ⚠️⚠️ THE SHARD LIGHT IS DERIVED FROM MATCAP_LIGHT (10-stage), NOT A COPY OF IT.
+// A shard carries volume through a tint BAKED along that direction, while the
+// item itself carries a matcap along MATCAP_LIGHT. As long as these were two
+// constants, they were kept equal BY HAND — and the owner's very first edit
+// through the panel (it edits only MATCAP_LIGHT) would have split the lighting in
+// two: the pile under one light, its debris under another, and in the explosion
+// frame they are right next to each other.
+// ⚠️ Recomputed FOR EVERY SHARD, not once at load: the tuner turns MATCAP_LIGHT
+// ON A LIVE SCENE, and a snapshot of the value taken at startup would lag behind
+// the slider. The cost is three multiplications and a square root per chip, which
+// is nothing next to generating the geometry.
 const SHARD_LIGHT = new THREE.Vector3();
 function syncShardLight(){
   SHARD_LIGHT.set(MATCAP_LIGHT.x, MATCAP_LIGHT.y, MATCAP_LIGHT.z).normalize();
 }
 const _shA = new THREE.Vector3(), _shB = new THREE.Vector3(), _shC = new THREE.Vector3(), _shN = new THREE.Vector3();
-// 4 угла правильного тетраэдра — тинтуем и джиттерим на месте
+// the 4 corners of a regular tetrahedron — we tint and jitter them in place
 const SHARD_CORNERS = [[1,1,1],[-1,-1,1],[-1,1,-1],[1,-1,-1]];
-const SHARD_FACES = [[0,1,2],[0,3,1],[0,2,3],[1,3,2]]; // грани наружу (CCW снаружи)
+const SHARD_FACES = [[0,1,2],[0,3,1],[0,2,3],[1,3,2]]; // faces outward (CCW from outside)
 function makeShardGeo(size){
-  syncShardLight();            // свет берём из единственного источника (10-stage)
-  // угол = единичный, сдвинут на ±38% — нерегулярный обломок
+  syncShardLight();            // the light comes from the single source (10-stage)
+  // a corner = unit, shifted by ±38% — an irregular fragment
   const c = SHARD_CORNERS.map(v => new THREE.Vector3(
     v[0] + (Math.random()-0.5)*0.75, v[1] + (Math.random()-0.5)*0.75, v[2] + (Math.random()-0.5)*0.75
   ).multiplyScalar(size*0.6));
@@ -391,13 +420,13 @@ function makeShardGeo(size){
   for (let f = 0; f < 4; f++){
     const [i0, i1, i2] = SHARD_FACES[f];
     _shA.copy(c[i0]); _shB.copy(c[i1]); _shC.copy(c[i2]);
-    // нормаль грани -> яркость по ключевому свету (0.62 тень … 1.30 блик)
+    // face normal -> brightness by the key light (0.62 shadow … 1.30 highlight)
     _shN.copy(_shB).sub(_shA).cross(_shC.clone().sub(_shA)).normalize();
     const tint = Math.max(0.55, Math.min(1.32, 0.9 + 0.42*_shN.dot(SHARD_LIGHT)));
     for (let v = 0; v < 3; v++){
       const src = v === 0 ? _shA : v === 1 ? _shB : _shC, o = (f*3 + v)*3;
       pos[o] = src.x; pos[o+1] = src.y; pos[o+2] = src.z;
-      col[o] = col[o+1] = col[o+2] = tint;   // серый множитель — цвет несёт material.color
+      col[o] = col[o+1] = col[o+2] = tint;   // a gray multiplier — the color is carried by material.color
     }
   }
   const g = new THREE.BufferGeometry();
@@ -413,11 +442,11 @@ function _shardFX_impl(pos, color, opts){
   if (opts.sound !== false) Sound.play('crunch', N);
   for (let i = 0; i < N; i++){
     const geo = makeShardGeo(sz*(0.7 + Math.random()*0.7));
-    // vertexColors: matcap-света нет, объём несёт запечённый в вершины тинт граней
+    // vertexColors: there is no matcap light, the volume is carried by the face tint baked into the vertices
     const mat = new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
       transparent: true, opacity: 1, depthWrite: false });
     const m = new THREE.Mesh(geo, mat);
-    m.userData.shard = true;   // метка для стража уникальности формы (__game.shardShapes)
+    m.userData.shard = true;   // mark for the shape-uniqueness guard (__game.shardShapes)
     const a = Math.random()*Math.PI*2, e = (0.15 + Math.random()*0.6)*Math.PI*0.5, sp = spread*(0.5 + Math.random());
     const vx = Math.cos(a)*Math.cos(e)*sp, vy = up*(0.5 + Math.random()*0.7) + Math.sin(e)*sp*0.3, vz = Math.sin(a)*Math.cos(e)*sp;
     const rx = (Math.random()-0.5)*16, ry = (Math.random()-0.5)*16, rz = (Math.random()-0.5)*16;
@@ -432,68 +461,81 @@ function _shardFX_impl(pos, color, opts){
   }
 }
 
-// ===== ЭФФЕКТЫ ВЫБОРА ВЛАДЕЛЬЦА 2026-08-01 (перенос со стенда) =====
-// Стенд из девяти вариантов показан владельцу, выбраны три: СХЛОПЫВАНИЕ группы
-// в точку тапа, РАСПИЛ предмета на половины под ножами, огонь ЯЗЫКАМИ ПО
-// СИЛУЭТУ; сила ×1.7 вшита в константы (00-config), отдельной ручки в бою нет.
-// Правило выбора живёт в 80-gameplay (doMatch/grindShred) — здесь только визуал.
+// ===== THE OWNER'S CHOICE OF EFFECTS 2026-08-01 (ported from the test bench) =====
+// A bench of nine variants was shown to the owner, three were chosen: the
+// COLLAPSE of a group into the tap point, the SAWING of an item into halves under
+// the knives, fire in TONGUES ALONG THE SILHOUETTE; the ×1.7 strength is wired
+// into the constants (00-config), there is no separate knob in the game.
+// The selection rule lives in 80-gameplay (doMatch/grindShred) — only the visuals
+// are here.
 
-// СХЛОПЫВАНИЕ: группа слетается в точку тапа за COLLAPSE_MS, сжимаясь по ходу.
-// Смысл правки — дать матчу АДРЕСАТА: раньше предметы просто уменьшались на
-// месте, и пыль читалась как «эффект вместо предмета», а не как следствие удара.
-// ⚠️ ХЛОПОК ЗДЕСЬ НЕ ЖИВЁТ. Он вешается вызывающим на ТЕ ЖЕ РЕАЛЬНЫЕ ЧАСЫ, что
-// и removeItem (setTimeout в doMatch): анимация идёт по ИГРОВОМУ времени, и на
-// просевшем FPS тик до конца не доходит — хлопок бы не наступил вовсе. Одни
-// часы на «предметы исчезли» и «бабахнуло» — единственный устойчивый вариант.
-// ⚠️ Тела к этому моменту УЖЕ снесены (destroyItemBody в начале doMatch), так
-// что анимации мешей не с кем спорить; глушить нечего.
-// ⚡ УДАР В ТОЧКЕ СХЛОПЫВАНИЯ (задача тестеров 2026-08-06 «больше драйва при
-// соединении объектов, больше эффектов»). ТРИ СЛОЯ поверх прежнего носителя:
-//   (1) КОЛЬЦО ударной волны — билборд к камере, разлетается и гаснет;
-//   (2) ВСПЫШКА-ядро — короткая, вдвое короче кольца: это удар, не свечение;
-//   (3) СТРЕЛЫ — крупные искры радиально, размер 0.13 (класс «кусков», не пыли).
-// ⚠️ ПОЧЕМУ ОБЩИЙ СЛОЙ, А НЕ УСИЛЕНИЕ ПАЧЕК: пачечные эффекты (сок/искры/
-// звёзды/осколки) достаются только группам >= BURST_MIN_N, а «мало драйва»
-// тестеры видят и на ПАРАХ — там до сих пор была одна труха. Удар даётся
-// КАЖДОМУ соединению, а его размер растёт с группой.
-// ⚠️ БИЛБОРД ЧЕРЕЗ camera.quaternion В ТИКЕ, а не единожды при постройке:
-// игрок крутит камеру драгом, и кольцо, ориентированное на старте, показало бы
-// ребро (та же грабля, из-за которой звёзды пачки — точки, а не меши).
-// ⚠️ НЕ additive: на светлом дневном небе аддитивное свечение невидимо
-// (правило пакета молний, 2026-07-21).
-// ⚠️⚠️ БЕЗ ТЕСТА ГЛУБИНЫ (depthTest:false + renderOrder) — ИНАЧЕ УДАРА НЕ ВИДНО
-// ВОВСЕ. Хлопок происходит в точке ТАПА, то есть ВНУТРИ плотной кучи, и кольцо
-// радиусом до 2.5 целиком закрыто предметами перед ним. Поймано съёмкой
-// с замедлением ×10: снимок `lastImpact` честно показывал построенное кольцо,
-// а в кадре не было ничего. Пачечные эффекты этим не болеют — их частицы
-// вылетают из кучи за десятки миллисекунд. Пробить глубину — не «читерство»,
-// а суть удара: он должен читаться сквозь массу, как вспышка.
-// 🔵 СЕМЕЙСТВО КОЛЬЦА ПО ХАРАКТЕРУ ПРЕДМЕТА (слово владельца 2026-08-06
-// «попробуй для разных объектов разную ширину и форму кольца»).
-// ⚠️⚠️ ДЕТЕРМИНИРОВАННО ОТ ТИПА, А НЕ СЛУЧАЙНО: один и тот же предмет обязан
-// давать ОДНО И ТО ЖЕ кольцо — тогда это читается как СВОЙСТВО предмета.
-// Случайная форма читалась бы как глитч (тот же принцип, что у fxColor).
-// ⚠️ И НЕ ОТ ХЕША ИМЕНИ: форма взята из САМОГО предмета — из габаритов его
-// геометрии и из пачки. Хеш дал бы разнообразие, но не смысл: у вытянутого
-// банана оказалось бы круглое кольцо, а у кирпича — овал.
-// Семейств ТРИ, больше не нужно (и владелец просил «попробуй», а не «все 120»).
-// 🔥 ПАЛИТРА ОГНЯ — ОДНА НА ПЛАМЯ И НА ВСПЛЕСК. Числа взяты из шейдера
-// fireSilhouetteFX: жёлтый / глубокий оранжевый / почти-белый подсвет. Держать
-// вместе: всплеск обязан читаться как «тот же огонь рванул», а не как новый
-// эффект (та же логика, что у SHARD_LIGHT — общий источник вместо копий).
+// COLLAPSE: the group flies together into the tap point over COLLAPSE_MS,
+// shrinking on the way. The point of the change is to give the match an
+// ADDRESSEE: previously the items simply shrank in place, and the dust read as
+// "an effect instead of an item" rather than as the consequence of a blow.
+// ⚠️ THE POP DOES NOT LIVE HERE. It is hung by the caller on THE SAME REAL CLOCK
+// as removeItem (setTimeout in doMatch): the animation runs on GAME time, and on
+// a sagging FPS the tick does not reach the end — the pop would never arrive at
+// all. One clock for "the items disappeared" and "it banged" is the only stable
+// option.
+// ⚠️ By this moment the bodies have ALREADY been torn down (destroyItemBody at the
+// start of doMatch), so the mesh animations have nobody to argue with; there is
+// nothing to silence.
+// ⚡ AN IMPACT AT THE COLLAPSE POINT (testers' task 2026-08-06 "more drive when
+// objects are joined, more effects"). THREE LAYERS on top of the previous carrier:
+//   (1) the shockwave RING — billboarded to the camera, it expands and fades;
+//   (2) the FLASH core — short, twice as short as the ring: this is a blow, not a
+//       glow;
+//   (3) the ARROWS — large sparks radially, size 0.13 (the "chunks" class, not
+//       dust).
+// ⚠️ WHY A COMMON LAYER AND NOT A REINFORCEMENT OF THE PACKS: the pack effects
+// (juice/sparks/stars/shards) only go to groups >= BURST_MIN_N, while the testers
+// see "not enough drive" on PAIRS too — and there until now there was only dust.
+// The impact is given to EVERY join, and its size grows with the group.
+// ⚠️ BILLBOARDING THROUGH camera.quaternion IN THE TICK, and not once at build
+// time: the player rotates the camera by dragging, and a ring oriented at the
+// start would show its edge (the same rake because of which the pack stars are
+// points and not meshes).
+// ⚠️ NOT additive: on a bright daytime sky an additive glow is invisible (the
+// bolt-pack rule, 2026-07-21).
+// ⚠️⚠️ WITHOUT A DEPTH TEST (depthTest:false + renderOrder) — OTHERWISE THE
+// IMPACT IS NOT VISIBLE AT ALL. The pop happens at the TAP point, i.e. INSIDE the
+// dense pile, and a ring with a radius of up to 2.5 is entirely covered by the
+// items in front of it. Caught by filming with a ×10 slowdown: the `lastImpact`
+// snapshot honestly showed the ring that had been built, yet there was nothing in
+// the frame. The pack effects do not suffer from this — their particles fly out
+// of the pile within tens of milliseconds. Punching through the depth is not
+// "cheating" but the essence of the blow: it must read through the mass, like a
+// flash.
+// 🔵 THE RING FAMILY BY THE CHARACTER OF THE ITEM (the owner's word 2026-08-06
+// "try a different width and shape of ring for different objects").
+// ⚠️⚠️ DETERMINISTIC FROM THE TYPE, NOT RANDOM: one and the same item must give
+// ONE AND THE SAME ring — then it reads as a PROPERTY of the item. A random shape
+// would read as a glitch (the same principle as with fxColor).
+// ⚠️ AND NOT FROM A HASH OF THE NAME: the shape is taken from the ITEM ITSELF —
+// from the bounds of its geometry and from the pack. A hash would give variety
+// but not meaning: an elongated banana would end up with a round ring, and a
+// brick with an oval.
+// There are THREE families, no more are needed (and the owner asked to "try", not
+// for "all 120").
+// 🔥 THE FIRE PALETTE IS ONE FOR THE FLAME AND FOR THE BURST. The numbers are
+// taken from the fireSilhouetteFX shader: yellow / deep orange / almost-white
+// highlight. Keep them together: the burst must read as "the same fire flared up"
+// and not as a new effect (the same logic as with SHARD_LIGHT — a shared source
+// instead of copies).
 const FIRE_HOT  = new THREE.Color(1.0, 0.85, 0.25);
 const FIRE_DEEP = new THREE.Color(1.0, 0.28, 0.06);
 const FIRE_CORE = new THREE.Color(1.0, 0.97, 0.80);
-// РВАНОЕ кольцо для горящего матча: внешний радиус пляшет языками. Профиль
-// ДЕТЕРМИНИРОВАННЫЙ (синусы от индекса, без Math.random) — иначе кольцо
-// мерцало бы формой от матча к матчу, а это читается как глитч.
+// A TORN ring for a burning match: the outer radius dances in tongues. The
+// profile is DETERMINISTIC (sines of the index, no Math.random) — otherwise the
+// ring would flicker in shape from match to match, and that reads as a glitch.
 function makeTornRingGeo(inner, seg){
   const pos = [], idx = [];
   for (let i = 0; i <= seg; i++){
     const a = i / seg * Math.PI * 2;
-    const язык = 1.0 + 0.20 * Math.sin(i * 2.7) + 0.12 * Math.sin(i * 5.3 + 1.1);
+    const tongue = 1.0 + 0.20 * Math.sin(i * 2.7) + 0.12 * Math.sin(i * 5.3 + 1.1);
     pos.push(Math.cos(a) * inner, Math.sin(a) * inner, 0);
-    pos.push(Math.cos(a) * язык,  Math.sin(a) * язык,  0);
+    pos.push(Math.cos(a) * tongue,  Math.sin(a) * tongue,  0);
   }
   for (let i = 0; i < seg; i++){
     const a0 = i * 2, b0 = a0 + 1, a1 = a0 + 2, b1 = a0 + 3;
@@ -504,9 +546,9 @@ function makeTornRingGeo(inner, seg){
   g.setIndex(idx);
   return g;
 }
-const RING_FAM = new Map();      // имя типа -> {fam, w, seg, kx}
+const RING_FAM = new Map();      // type name -> {fam, w, seg, kx}
 function ringFamFor(type, geo){
-  const key = (type && type.name) || 'нет';
+  const key = (type && type.name) || 'none';
   if (RING_FAM.has(key)) return RING_FAM.get(key);
   let elong = 1;
   const g = geo || (type && type.geo);
@@ -517,33 +559,35 @@ function ringFamFor(type, geo){
     if (d[2] > 1e-4) elong = d[0] / ((d[1] + d[2]) / 2);
   }
   const tex = type && type.tex;
-  const hard = tex === 'brick' || tex === 'pirate'; // ⛔ 'rock' снят с камнями (2026-08-17)
+  const hard = tex === 'brick' || tex === 'pirate'; // ⛔ 'rock' taken off the stones (2026-08-17)
   let fam;
-  if (elong >= IMPACT_ELONG_AT) fam = 'овал';      // вытянутые — овал по силуэту
-  else if (hard) fam = 'многоугольник';            // те же пачки, что колются осколками
-  else fam = 'круг';
-  const v = fam === 'овал'
+  if (elong >= IMPACT_ELONG_AT) fam = 'oval';      // elongated ones — an oval along the silhouette
+  else if (hard) fam = 'polygon';            // the same packs that split into shards
+  else fam = 'circle';
+  const v = fam === 'oval'
       ? { fam, w: IMPACT_W_OVAL, seg: 44, kx: IMPACT_OVAL_K, elong: +elong.toFixed(2) }
-    : fam === 'многоугольник'
+    : fam === 'polygon'
       ? { fam, w: IMPACT_W_POLY, seg: IMPACT_POLY_SEG, kx: 1, elong: +elong.toFixed(2) }
       : { fam, w: IMPACT_W_ROUND, seg: 48, kx: 1, elong: +elong.toFixed(2) };
   RING_FAM.set(key, v);
   return v;
 }
-// 🔥 ВСПЛЕСК ОГНЯ при совмещении ГОРЯЩЕГО вида (слово владельца 2026-08-06).
-// Два носителя, оба — Points (цена живёт в объекте, не в частице):
-//   ПЛЮМ — языки, всплывают С УСКОРЕНИЕМ ВВЕРХ и остывают из белого в глубокий
-//          оранжевый (у трухи и стрел движение противоположное — падение);
-//   УГЛИ — редкие яркие искры баллистикой, живут дольше плюма и гаснут в полёте.
-// ⚠️ БЕЗ ТЕСТА ГЛУБИНЫ, как и удар: всплеск рождается в точке тапа, ВНУТРИ
-// плотной кучи — с depthTest он был бы закрыт предметами целиком (мой урок
-// 2026-08-06, стоил замера с замедлением ×10).
-let lastFireBurst = null;   // ⚠️ НЕСУЩЕЕ: на этом страж «всплеск только у горящего»
+// 🔥 A FIRE BURST when a BURNING kind is joined (the owner's word 2026-08-06).
+// Two carriers, both Points (the cost lives in the object, not in the particle):
+//   THE PLUME — tongues, they rise WITH UPWARD ACCELERATION and cool from white
+//          into deep orange (the dust and the arrows move the opposite way — they
+//          fall);
+//   THE EMBERS — rare bright sparks on ballistics, they live longer than the plume
+//          and go out in flight.
+// ⚠️ WITHOUT A DEPTH TEST, just like the impact: the burst is born at the tap
+// point, INSIDE the dense pile — with depthTest it would be covered by the items
+// entirely (my lesson of 2026-08-06, it cost a measurement with a ×10 slowdown).
+let lastFireBurst = null;   // ⚠️ LOAD-BEARING: the guard "a burst only on a burning one" stands on this
 function _fireBurstFX_impl(pos, n){
   const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
   const N = Math.max(24, Math.round(FIREB_PLUME_N * (0.75 + 0.5 * k) * CFG.fxScale));
   const M = Math.max(10, Math.round(FIREB_EMBER_N * (0.75 + 0.5 * k) * CFG.fxScale));
-  // --- ПЛЮМ
+  // --- THE PLUME
   const pp = new Float32Array(N * 3), pc = new Float32Array(N * 3);
   const vx = [], vy = [], vz = [], ph = [];
   const c = new THREE.Color();
@@ -569,11 +613,11 @@ function _fireBurstFX_impl(pos, n){
     const col = o.geometry.attributes.color.array;
     const tt = t * FIREB_PLUME_LIFE;
     for (let i = 0; i < N; i++){
-      // ⚠️ ускорение ВВЕРХ: огонь всплывает. Плюс боковое качание — язык, а не столб
+      // ⚠️ acceleration UPWARDS: fire rises. Plus a sideways sway — a tongue, not a column
       arr[i*3]   = pos.x + vx[i] * tt + Math.sin(ph[i] + tt * 7) * 0.18 * tt;
       arr[i*3+1] = pos.y + vy[i] * tt + 0.5 * FIREB_PLUME_ACC * tt * tt;
       arr[i*3+2] = pos.z + vz[i] * tt + Math.cos(ph[i] + tt * 6) * 0.18 * tt;
-      // остывание: белое ядро -> жёлтый -> глубокий оранжевый
+      // cooling: white core -> yellow -> deep orange
       c.copy(FIRE_HOT).lerp(FIRE_DEEP, Math.min(1, t * 1.4));
       col[i*3] = col[i*3] * 0.72 + c.r * 0.28;
       col[i*3+1] = col[i*3+1] * 0.72 + c.g * 0.28;
@@ -582,9 +626,9 @@ function _fireBurstFX_impl(pos, n){
     o.geometry.attributes.position.needsUpdate = true;
     o.geometry.attributes.color.needsUpdate = true;
     o.material.opacity = 1 - t * t;
-    o.material.size = psize * (1 + 0.55 * t);   // язык раздувается, поднимаясь
+    o.material.size = psize * (1 + 0.55 * t);   // the tongue swells as it rises
   });
-  // --- УГЛИ
+  // --- THE EMBERS
   const ep = new Float32Array(M * 3), evx = [], evy = [], evz = [];
   for (let i = 0; i < M; i++){
     const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.2) * Math.PI * 0.6;
@@ -610,31 +654,35 @@ function _fireBurstFX_impl(pos, n){
     o.material.opacity = 1 - t * t * t;
     o.material.size = FIREB_EMBER_SIZE * (1 - t * 0.5);
   });
-  lastFireBurst = { n, k: +k.toFixed(3), плюм: N, угли: M,
+  lastFireBurst = { n, k: +k.toFixed(3), plume: N, embers: M,
                     over: pm.depthTest === false && em.depthTest === false,
                     ms: performance.now() };
 }
-let lastImpact = null;      // ⚠️ НЕСУЩЕЕ: на этом стоит страж «удар растёт с группой»
+let lastImpact = null;      // ⚠️ LOAD-BEARING: the guard "the impact grows with the group" stands on this
 function _impactFX_impl(pos, n, tint, ghost, hot){
   const k = Math.min(1, Math.max(0, (n - 2) / Math.max(1, MATCH_MAX_N - 2)));
   const base = (tint || new THREE.Color(0xffffff)).clone();
-  // ⚠️ ЦВЕТ УДАРА — НАСЫЩЕННЫЙ, А НЕ БЕЛЁСЫЙ. Первая версия уводила тон к белому
-  // на 55%, и на светлой куче под светлым небом кольцо ПРОПАДАЛО вовсе (поймано
-  // съёмкой ×10: диагностическое красное кольцо в кадре было, боевое — нет).
-  // Тот же закон, что у молний: на светлом фоне читается НАСЫЩЕННОЕ, а не яркое.
-  // 🔥 У ГОРЯЩЕГО МАТЧА КОЛЬЦО ОГНЕННОЕ И РВАНОЕ (слово владельца 2026-08-06):
-  // тон берётся из палитры пламени, профиль — языками. Это ЧЕТВЁРТОЕ семейство,
-  // но по СОСТОЯНИЮ, а не по типу: горит сегодня один предмет, завтра другой,
-  // и кольцо обязано принадлежать СОБЫТИЮ. Детерминизм цел — профиль рваного
-  // кольца считается синусами от индекса, без случайности.
+  // ⚠️ THE IMPACT COLOR IS SATURATED, NOT WHITISH. The first version pulled the
+  // hue 55% towards white, and on a light pile under a light sky the ring
+  // DISAPPEARED altogether (caught by ×10 filming: the diagnostic red ring was in
+  // the frame, the production one was not).
+  // The same law as with the bolts: on a light background it is the SATURATED
+  // that reads, not the bright.
+  // 🔥 A BURNING MATCH GETS A FIERY AND TORN RING (the owner's word 2026-08-06):
+  // the hue is taken from the flame palette, the profile is in tongues. This is a
+  // FOURTH family, but by STATE and not by type: today one item burns, tomorrow
+  // another, and the ring must belong to the EVENT. The determinism is intact —
+  // the profile of the torn ring is computed with sines of the index, without
+  // randomness.
   const hotCol = hot ? FIRE_HOT.clone().lerp(FIRE_CORE, 0.25)
                      : base.clone().offsetHSL(0, 0.35, 0.02).lerp(new THREE.Color(1, 1, 1), 0.12);
-  // (1) КОЛЬЦО
+  // (1) THE RING
   const R = IMPACT_R0 * (1 + IMPACT_R_K * k);
-  // ⚠️ ШИРИНА И ФОРМА — ПО ХАРАКТЕРУ ПРЕДМЕТА (ringFamFor выше), прозрачность
-  // общая IMPACT_ALPHA. Прежнее «кольцо обязано быть тонким» ОТМЕНЕНО словом
-  // владельца: тонкое он увидел и попросил массы. Условие живо в другой форме —
-  // масса добирается ШИРИНОЙ при СНИЖЕННОЙ плотности, а не белым.
+  // ⚠️ THE WIDTH AND SHAPE COME FROM THE CHARACTER OF THE ITEM (ringFamFor above),
+  // the transparency is common, IMPACT_ALPHA. The former "the ring must be thin"
+  // is CANCELLED by the owner's word: he saw the thin one and asked for mass. The
+  // condition lives on in another form — mass is gained through WIDTH at a REDUCED
+  // density, and not through white.
   const fam = ringFamFor(ghost && ghost.type, ghost && ghost.geo);
   const ring = new THREE.Mesh(
     hot ? makeTornRingGeo(fam.w, FIREB_RING_SEG) : new THREE.RingGeometry(fam.w, 1.0, fam.seg),
@@ -644,12 +692,12 @@ function _impactFX_impl(pos, n, tint, ghost, hot){
   ring.position.copy(pos);
   addFX(ring, IMPACT_MS / 1000, (o, t) => {
     o.quaternion.copy(camera.quaternion);
-    const e = 1 - (1 - t) * (1 - t);             // резкий старт, мягкий выход
+    const e = 1 - (1 - t) * (1 - t);             // sharp start, soft exit
     const sc = 0.22 + (R - 0.22) * e;
-    o.scale.set(sc * (hot ? 1 : fam.kx), sc, sc); // kx>1 у овала; у рваного растяжки нет
+    o.scale.set(sc * (hot ? 1 : fam.kx), sc, sc); // kx>1 for the oval; the torn one has no stretch
     o.material.opacity = IMPACT_ALPHA * (1 - t * t);
   });
-  // (2) ВСПЫШКА-ЯДРО
+  // (2) THE FLASH CORE
   const fg = new THREE.BufferGeometry();
   fg.setAttribute('position', new THREE.BufferAttribute(
     new Float32Array([pos.x, pos.y, pos.z]), 3));
@@ -662,7 +710,7 @@ function _impactFX_impl(pos, n, tint, ghost, hot){
     o.material.size = flashSize * (1 + 0.9 * t);
     o.material.opacity = 1 - t * t;
   });
-  // (3) СТРЕЛЫ
+  // (3) THE ARROWS
   const N = Math.max(8, Math.round(IMPACT_ARROW_N * (1 + k) * CFG.fxScale));
   const ap = new Float32Array(N * 3), vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
@@ -689,28 +737,32 @@ function _impactFX_impl(pos, n, tint, ghost, hot){
     o.material.opacity = 1 - t * t;
     o.material.size = IMPACT_ARROW_SIZE * (1 - t * 0.45);
   });
-  // снимок ПОСЛЕДНЕГО удара для стража: размер группы, целевой радиус кольца,
-  // число стрел. Читается сразу после матча — все три растут с n.
-  // ⚠️ `over` — НЕ косметика отчёта: удар рождается внутри кучи, и без пробоя
-  // глубины его не видно ВООБЩЕ (см. большой комментарий выше). Страж читает
-  // именно этот флаг, потому что дефект был бесшумным.
+  // a snapshot of the LAST impact for the guard: the group size, the target ring
+  // radius, the number of arrows. Read right after the match — all three grow
+  // with n.
+  // ⚠️ `over` is NOT report cosmetics: the impact is born inside the pile, and
+  // without punching through the depth it is not visible AT ALL (see the big
+  // comment above). The guard reads exactly this flag, because the defect was
+  // silent.
   lastImpact = { n, k: +k.toFixed(3), ringR: +R.toFixed(3), arrows: N,
                  flash: +fm.size.toFixed(3),
-                 fam: hot ? 'рваное' : fam.fam, w: +(1 - fam.w).toFixed(3),
+                 fam: hot ? 'torn' : fam.fam, w: +(1 - fam.w).toFixed(3),
                  seg: hot ? FIREB_RING_SEG : fam.seg, kx: hot ? 1 : fam.kx, hot: !!hot,
                  elong: fam.elong, alpha: IMPACT_ALPHA,
                  over: ring.material.depthTest === false && fm.depthTest === false };
 }
-// ⚠️ ДЛИТЕЛЬНОСТЬ — ПАРАМЕТР (по умолчанию COLLAPSE_MS): матч стягивает
-// горстку за 150 мс, а разлёт чаши — ВСЮ кучу к центру, и на таком расстоянии
-// 150 мс читаются как телепорт, а не как слёт.
-// ⚠️⚠️ РЕЖИМ РЕАЛЬНЫХ ЧАСОВ (`real`) — НЕ УКРАШЕНИЕ, А ПОЧИНКА. Тик addFX идёт
-// по ИГРОВОМУ времени, а удаление предметов после слёта — по setTimeout, то
-// есть по РЕАЛЬНОМУ. На 150 мс матча разница незаметна, а на 620 мс сбора после
-// разлёта часы расходятся: под нагрузкой куча НЕ УСПЕВАЕТ долететь до центра и
-// исчезает на полпути. Поймано стражем в сьюте (радиус встал на 1.73 вместо 0,
-// пять сэмплов вместо восемнадцати), в изоляции не воспроизводилось.
-// Это тот же закон, по которому хлопок матча висит на часах removeItem.
+// ⚠️ THE DURATION IS A PARAMETER (COLLAPSE_MS by default): a match pulls a
+// handful together in 150 ms, while the bowl scatter pulls the WHOLE pile to the
+// center, and over such a distance 150 ms reads as a teleport and not as a
+// flying-together.
+// ⚠️⚠️ THE REAL-CLOCK MODE (`real`) IS NOT DECORATION BUT A REPAIR. The addFX tick
+// runs on GAME time, while the removal of the items after they fly together runs
+// on setTimeout, i.e. on the REAL one. Over the 150 ms of a match the difference
+// is unnoticeable, but over the 620 ms of the gathering after a scatter the clocks
+// diverge: under load the pile DOES NOT MANAGE to reach the center and disappears
+// halfway. Caught by a guard in the suite (the radius settled at 1.73 instead of
+// 0, five samples instead of eighteen), it did not reproduce in isolation.
+// This is the same law by which the match pop hangs on removeItem's clock.
 function _collapseFX_impl(list, at, ms, real){
   const P = at.clone();
   const src = [];
@@ -722,7 +774,7 @@ function _collapseFX_impl(list, at, ms, real){
   const LIFE = ms || COLLAPSE_MS, t0 = performance.now();
   addFX(new THREE.Object3D(), LIFE / 1000, (o, k) => {
     if (real) k = Math.min(1, (performance.now() - t0) / LIFE);
-    const e = k * k * (3 - 2 * k);        // плавный старт, резкий приход
+    const e = k * k * (3 - 2 * k);        // smooth start, sharp arrival
     for (const s of src){
       s.mesh.position.lerpVectors(s.p0, P, e);
       const sq = s.s0 * (1 - COLLAPSE_SQUASH * e);
@@ -732,23 +784,25 @@ function _collapseFX_impl(list, at, ms, real){
   });
 }
 
-// ЕДА: меньше капель, но КРУПНЫХ, плюс несколько попадают «на стекло экрана».
-// Именно это читается как сочность: игрок видит, что брызнуло В НЕГО.
+// FOOD: fewer drops, but LARGE ones, plus a few land "on the screen glass".
+// That is exactly what reads as juiciness: the player sees that it splashed AT HIM.
 function _juiceBigFX_impl(it){
-  // МЕЛКИЕ БРЫЗГИ (правка владельца 2026-08-02): спрей в плоскости сцены —
-  // много мелких точек коротким веером от точки схлопывания, гаснут быстро.
-  // ⚠️ БОЛЬШЕ ЧИСЛОМ, МЕНЬШЕ РАЗМЕРОМ — и это НЕ откат к старому juiceFX:
-  // тот сыпал 46 точек размером 0.40 столбом вверх. Здесь размер класса крошки
-  // (0.075 против 0.0225-0.05 у трухи), разлёт ВЕЕРОМ и вдвое короче жизнь.
-  // ⚠️ Перф-канон: тик частиц дёшев, дорога ПОСТРОЙКА — у сока она была
-  // 0.62 мс, и рост числа точек её почти не двигает (одна геометрия, один
-  // материал независимо от N).
+  // FINE SPLASHES (the owner's edit 2026-08-02): a spray in the plane of the
+  // scene — many small points in a short fan from the collapse point, they fade
+  // fast.
+  // ⚠️ MORE IN NUMBER, SMALLER IN SIZE — and this is NOT a rollback to the old
+  // juiceFX: that one poured 46 points of size 0.40 in a column upwards. Here the
+  // size is of the crumb class (0.075 against the dust's 0.0225-0.05), the scatter
+  // is a FAN and the life is twice as short.
+  // ⚠️ Perf canon: the particle tick is cheap, it is the BUILD that is expensive —
+  // for the juice it was 0.62 ms, and growing the number of points barely moves it
+  // (one geometry, one material regardless of N).
   const N = Math.max(12, Math.round(JUICE_N * CFG.fxScale));
   const pos = new Float32Array(N*3), ox = [], oy = [], oz = [], vx = [], vy = [], vz = [];
   for (let i = 0; i < N; i++){
-    // веер: азимут равномерно, подъём НИЗКИЙ — брызги расходятся вширь
+    // fan: the azimuth is uniform, the elevation is LOW — the splashes spread outwards
     const a = Math.random()*Math.PI*2;
-    const e = Math.random()*Math.PI*0.42;            // до ~38° над горизонтом
+    const e = Math.random()*Math.PI*0.42;            // up to ~38° above the horizon
     const sp = JUICE_SPREAD*(0.45 + Math.random()*0.75);
     ox.push(it.p.x); oy.push(it.p.y + 0.15); oz.push(it.p.z);
     vx.push(Math.cos(a)*Math.cos(e)*sp);
@@ -773,18 +827,19 @@ function _juiceBigFX_impl(it){
     o.material.size = JUICE_SIZE*(1 - k*0.35);
   });
 }
-// ⛔ КАПЛИ «НА СТЕКЛЕ ЭКРАНА» (screenDripsFX) УДАЛЕНЫ 2026-08-02 по слову
-// владельца: «они не в плоскости блендера». Это был DOM-слой поверх канваса —
-// капли жили в ЭКРАННЫХ координатах и не зависели от камеры, что и делало их
-// чужеродными в игре, где всё происходит внутри чаши. Вместе с ними ушли
-// контейнер #juiceDrips и оговорка про рецепт полос Safari (фон fixed-элемента).
-// Вернуть = git show <до 2026-08-02>:src/app/70-fx.js.
+// ⛔ THE DROPS "ON THE SCREEN GLASS" (screenDripsFX) WERE DELETED 2026-08-02 at
+// the owner's word: "they are not in the plane of the blender". This was a DOM
+// layer on top of the canvas — the drops lived in SCREEN coordinates and did not
+// depend on the camera, which is what made them alien in a game where everything
+// happens inside the bowl. The #juiceDrips container and the note about the Safari
+// stripes recipe (the background of a fixed element) went away together with them.
+// To bring back = git show <before 2026-08-02>:src/app/70-fx.js.
 
-// МАШИНЫ: искры ОТСКАКИВАЮТ от стенок чаши + отлетает колесо-деталька.
-// Рикошет — то, чего не было: искры просто улетали, и глаз не считал их частью
-// мира. Отскок привязывает эффект к чаше.
-// ⚠️ ОТСКОК АНАЛИТИЧЕСКИЙ, по radiusAt(y) — никаких коллайдеров и тел:
-// правило пакета «куски эффектов остаются анимацией» (00-config).
+// VEHICLES: the sparks BOUNCE off the bowl walls + a wheel part flies off.
+// The ricochet is what was missing: the sparks simply flew away, and the eye did
+// not count them as part of the world. The bounce ties the effect to the bowl.
+// ⚠️ THE BOUNCE IS ANALYTICAL, by radiusAt(y) — no colliders and no bodies:
+// the pack's rule "effect pieces stay animation" (00-config).
 function _sparkRicochetFX_impl(it){
   const N = Math.max(10, Math.round(SPARK_N * CFG.fxScale)), LIFE = 0.6, S0 = 0.24;
   const pos = new Float32Array(N*3), st = [];
@@ -805,9 +860,9 @@ function _sparkRicochetFX_impl(it){
       const s = st[i];
       s.vy -= 9*dt;
       s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
-      // ⚠️ ширина по НАПРАВЛЕНИЮ (`wallDistAt`), а не своя формула: где стена —
-      // отвечает ОДНА точка на всю игру (20-arena), иначе искры и спасатель
-      // разъедутся между собой
+      // ⚠️ the width comes from the DIRECTION (`wallDistAt`) and not from an own
+      // formula: where the wall is, is answered by ONE point for the whole game
+      // (20-arena), otherwise the sparks and the rescuer would drift apart
       const d = Math.hypot(s.x, s.z);
       const R = wallDistAt(s.y, d > 1e-3 ? s.x/d : 1, d > 1e-3 ? s.z/d : 0) - 0.15;
       if (d > R && s.bounced < SPARK_BOUNCE_MAX){
@@ -823,8 +878,8 @@ function _sparkRicochetFX_impl(it){
   });
   wheelFX(it);
 }
-// Колесо: отлетает, падает, ложится и УКАТЫВАЕТСЯ, теряя ход. Мелочь, которая
-// превращает «искры» в «что-то отвалилось».
+// The wheel: it flies off, falls, settles and ROLLS AWAY, losing momentum. A
+// small thing that turns "sparks" into "something fell off".
 function _wheelFX_impl(it){
   const R = 0.13, LIFE = 1.5;
   const w = new THREE.Mesh(new THREE.CylinderGeometry(R, R, R*0.55, 14),
@@ -845,32 +900,35 @@ function _wheelFX_impl(it){
   });
 }
 
-// РАСПИЛ: предмет разваливается НА ДВЕ ПОЛОВИНЫ по плоскости реза, каждая
-// съезжает со среза и падает под ножи. Половины НАСТОЯЩИЕ — режем плоскостью
-// отсечения по той же модели, поэтому срез честный и приём работает на ЛЮБОМ
-// предмете пула без препроцессинга геометрии.
-// ⚠️ ТРЕБУЕТ renderer.localClippingEnabled (ставится в 10-stage при старте).
-// ⚠️ НИ mesh.clone(), НИ material.clone(): three копирует userData через
-// JSON.parse(JSON.stringify), а у предметов там ссылки на тело Rapier и на
-// объект шейдера matcap-патча — «Converting circular structure to JSON», и
-// эффект падал целиком. Собираем половину напрямую.
-// ⚠️ ГЕОМЕТРИЯ ОБЩАЯ С ПРЕДМЕТОМ, половины помечены keepGeo — stepFX диспозит
-// geometry догоревшего эффекта, а у предметов она общая НА ТИП (кэш 30-shapes).
-// Цена ошибки — лишняя перезаливка буфера в GPU (замерено диверсией; предметы
-// НЕ исчезают, three держит атрибуты и заливает заново).
-// ⚠️⚠️ КЛОНА ГЕОМЕТРИИ ЗДЕСЬ НЕТ, И ЭТО НЕ УПУЩЕНИЕ. На стенде половины
-// клонировали геометрию предмета — это стоило 3.20 мс под CPU ×4 и было самой
-// дорогой конструкцией набора; под неё планировался кэш по типу. При переносе
-// оказалось, что клон не нужен ВООБЩЕ: флаг keepGeo (см. stepFX) уже запрещает
-// диспозить чужую геометрию, а больше клон ни для чего не был нужен —
-// плоскость реза живёт в МАТЕРИАЛЕ, он у каждой половины свой.
-// Итог: 3.20 мс -> 0, кэш и его память не понадобились.
-// ⛔ Не «оптимизировать» это обратно в clone(): диспоз общей геометрии типа
-// погасил бы все предметы этого типа в куче.
+// SAWING: the item falls apart INTO TWO HALVES along the cut plane, each one
+// slides off the cut and falls under the knives. The halves are REAL — we cut with
+// a clipping plane along the same model, so the cut is honest and the trick works
+// on ANY item in the pool without preprocessing the geometry.
+// ⚠️ REQUIRES renderer.localClippingEnabled (set in 10-stage at startup).
+// ⚠️ NEITHER mesh.clone() NOR material.clone(): three copies userData through
+// JSON.parse(JSON.stringify), and the items have references there to the Rapier
+// body and to the matcap patch's shader object — "Converting circular structure to
+// JSON", and the effect fell over entirely. We assemble the half directly.
+// ⚠️ THE GEOMETRY IS SHARED WITH THE ITEM, the halves are marked keepGeo — stepFX
+// disposes the geometry of a burnt-out effect, while for items it is shared PER
+// TYPE (the 30-shapes cache).
+// The cost of the mistake is an extra re-upload of the buffer to the GPU (measured
+// by a sabotage test; the items DO NOT disappear, three keeps the attributes and
+// uploads them again).
+// ⚠️⚠️ THERE IS NO GEOMETRY CLONE HERE, AND THAT IS NOT AN OVERSIGHT. On the bench
+// the halves cloned the item's geometry — that cost 3.20 ms under CPU ×4 and was
+// the most expensive construction of the set; a per-type cache was planned for it.
+// During the port it turned out that the clone is not needed AT ALL: the keepGeo
+// flag (see stepFX) already forbids disposing of someone else's geometry, and the
+// clone was not needed for anything else — the cut plane lives in the MATERIAL,
+// and each half has its own.
+// Result: 3.20 ms -> 0, the cache and its memory were not needed.
+// ⛔ Do not "optimize" this back into clone(): disposing of the type's shared
+// geometry would black out every item of that type in the pile.
 function sawVisualMat(src){
   const o = { color: src.color ? src.color.clone() : undefined, map: src.map || null,
               vertexColors: !!src.vertexColors, transparent: true, opacity: 1,
-              side: THREE.DoubleSide };   // срез не должен быть дырой
+              side: THREE.DoubleSide };   // the cut must not be a hole
   if (src.isMeshMatcapMaterial){ o.matcap = src.matcap || null; return new THREE.MeshMatcapMaterial(o); }
   return new THREE.MeshBasicMaterial(o);
 }
@@ -878,11 +936,11 @@ function _sawFX_impl(item){
   const mesh = item.mesh, p0 = mesh.position.clone();
   const a = Math.random()*Math.PI;
   const nrm = new THREE.Vector3(Math.cos(a), SAW_TILT, Math.sin(a)).normalize();
-  const geo = mesh.geometry;          // ОБЩАЯ с предметом — половины помечены keepGeo
+  const geo = mesh.geometry;          // SHARED with the item — the halves are marked keepGeo
   Sound.play('crunch', 6);
   for (const sgn of [1, -1]){
-    // ⚠️ геометрия ОБЩАЯ с предметом и с другой половиной — помечаем keepGeo,
-    // иначе stepFX диспознет её и погасит все предметы этого типа.
+    // ⚠️ the geometry is SHARED with the item and with the other half — we mark it
+    // keepGeo, otherwise stepFX would dispose it and black out every item of this type.
     const m = new THREE.Mesh(geo, sawVisualMat(mesh.material));
     m.position.copy(p0); m.quaternion.copy(mesh.quaternion); m.scale.copy(mesh.scale);
     m.userData.keepGeo = true;
@@ -893,24 +951,28 @@ function _sawFX_impl(item){
       const t = k*SAW_LIFE;
       o.position.set(p0.x + off.x*t*1.6, p0.y + off.y*t*0.6 - 9*t*t, p0.z + off.z*t*1.6);
       o.rotation.z = spin*t*0.5; o.rotation.x = spin*t*0.3;
-      o.material.clippingPlanes[0].constant = nrm.dot(o.position)*sgn; // срез едет с половиной
+      o.material.clippingPlanes[0].constant = nrm.dot(o.position)*sgn; // the cut travels with the half
       if (k > 0.7) o.material.opacity = (1-k)/0.3;
     });
   }
 }
 
-// ОГОНЬ ПО СИЛУЭТУ: раздутая копия меша с френель-шейдером — пламя облизывает
-// форму предмета и живёт по его силуэту, а не рядом с ним. Родня ореолу-призраку
-// доступности, поэтому в стиль ложится по построению.
-// ⚠️⚠️ МАТЕРИАЛ ПРЕДМЕТА НЕ ТРОГАЕМ НИ НА КАДР: портреты коллекции рендерятся
-// тем же классом материала, и «горячее» просочилось бы в музей — тот же класс
-// граблей, что у двух потребителей uVeil. Огонь только НАКЛАДКОЙ поверх меша.
-// ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
-// свой список fires и свой тик из 99-main. Возвращает функцию тушения.
+// FIRE ALONG THE SILHOUETTE: an inflated copy of the mesh with a Fresnel shader —
+// the flame licks the item's shape and lives along its silhouette rather than next
+// to it. A relative of the reachability ghost halo, so it fits the style by
+// construction.
+// ⚠️⚠️ WE DO NOT TOUCH THE ITEM'S MATERIAL FOR EVEN ONE FRAME: the collection
+// portraits are rendered by the same material class, and "hot" would leak into the
+// museum — the same class of rake as with the two consumers of uVeil. Fire is only
+// an OVERLAY on top of the mesh.
+// ⚠️ IT LIVES INDEFINITELY LONG, which is why it does not go through addFX (that
+// one is about a finite life): its own fires list and its own tick from 99-main.
+// Returns an extinguishing function.
 const fires = [];
-// ГОРЯЩИЙ ПРЕДМЕТ: состояние механики. Держим ЗДЕСЬ, рядом с огнём, а не в
-// геймплее — гореть умеет ровно этот модуль. Наружу отдаём только имя типа:
-// на нём диспетчер вешает бонус за сбор группы (стык, зона его).
+// THE BURNING ITEM: mechanics state. We keep it HERE, next to the fire, and not in
+// the gameplay — burning is what exactly this module knows how to do. Outwards we
+// hand out only the type name: on it the dispatcher hangs the bonus for collecting
+// a group (a seam, his zone).
 let burningItem = null, burnUntil = 0;
 function burningItemRef(){ return (burningItem && burningItem.alive) ? burningItem : null; }
 function burningName(){
@@ -918,7 +980,7 @@ function burningName(){
 }
 function igniteItem(it, ms){
   if (!it || !it.alive) return null;
-  extinguishAll();                       // одновременно горит не больше одного
+  extinguishAll();                       // no more than one burns at a time
   fireSilhouetteFX(it);
   burningItem = it;
   burnUntil = performance.now() + (ms || FIRE_BURN_MS);
@@ -952,16 +1014,16 @@ function _fireSilhouetteFX_impl(item){
     ].join('\n'),
   });
   const m = new THREE.Mesh(item.mesh.geometry, mat);
-  m.userData.keepGeo = true;         // геометрия ОБЩАЯ с предметом — не диспозить
+  m.userData.keepGeo = true;         // the geometry is SHARED with the item — do not dispose
   m.renderOrder = 9;
-  item.mesh.add(m);                  // едет вместе с предметом
+  item.mesh.add(m);                  // it travels together with the item
   const st = { item, obj: m, mat, t0: performance.now(), dying: 0 };
   fires.push(st);
   return () => { if (!st.dying) st.dying = performance.now(); };
 }
 function tickFires(){
   const now = performance.now();
-  // догорел по времени ИЛИ предмет уже собрали/перемололи — гасим и отпускаем
+  // burnt out by time OR the item has already been collected/ground — extinguish and release
   if (burningItem && (!burningItem.alive || now > burnUntil)){
     burningItem = null; burnUntil = 0;
     extinguishAll();
@@ -970,7 +1032,7 @@ function tickFires(){
   for (let i = fires.length - 1; i >= 0; i--){
     const f = fires[i];
     f.mat.uniforms.t.value = (now - f.t0)/1000;
-    // предмет исчез (совмещён/перемолот) — гасим вместе с ним
+    // the item is gone (joined/ground) — we extinguish along with it
     if (!f.item.alive && !f.dying) f.dying = now;
     if (f.dying){
       const k = (now - f.dying)/FIRE_FADE_MS;
@@ -983,37 +1045,40 @@ function tickFires(){
     }
   }
 }
-// ⚠️ ГАСИТ И СОСТОЯНИЕ, А НЕ ТОЛЬКО ПЛАМЯ. Первая версия трогала только fires,
-// а burningItem оставляла жить — и планировщик вспышек, который проверяет
-// «уже горит?», больше НИКОГДА не поджигал новый предмет. Наружу это выглядело
-// как «огонь работает» (первая вспышка была), и страж «спецпредметы не горят»
-// честно печатал пять срабатываний, читая ОДНО И ТО ЖЕ имя пять раз.
-// Поймано замером разнообразия: 14 вспышек — 1 тип при 129 доступных.
+// ⚠️ IT EXTINGUISHES THE STATE TOO, NOT ONLY THE FLAME. The first version touched
+// only fires and left burningItem alive — and the flare scheduler, which checks
+// "is something already burning?", NEVER again set a new item on fire. From the
+// outside this looked like "the fire works" (the first flare did happen), and the
+// guard "special items do not burn" honestly printed five hits while reading ONE
+// AND THE SAME name five times.
+// Caught by a diversity measurement: 14 flares — 1 type out of 129 available.
 function extinguishAll(){
   for (const f of fires) if (!f.dying) f.dying = performance.now();
   burningItem = null; burnUntil = 0;
 }
 
-// Молния (цепная реакция): ломаная с дрожанием, два слоя — насыщенное ядро
-// + светлый ореол со сдвигом. ⚠️ Фон БЕЛЫЙ: только normal blending и
-// насыщенный цвет (additive-свечение на белом невидимо).
+// Bolt (chain reaction): a jagged polyline, two layers — a saturated core
+// + a light halo with an offset. ⚠️ The background is WHITE: normal blending only
+// and a saturated color (an additive glow on white is invisible).
 //
-// ⚠️ «БОЛЬШЕ МЕЛКИХ МОЛНИЙ» (спека владельца 2026-07-28): разряд теперь не
-// одна дуга, а дуга + BOLT_FORKS коротких ОТВЕТВЛЕНИЙ, и всё ТОНЬШЕ прежнего —
-// куча выглядит наэлектризованной, а не прошитой двумя толстыми жилами.
-// ⚠️ ЦЕНА ДЕРЖИТСЯ ПОСТОЯННОЙ: все филаменты слоя сливаются в ОДНУ геометрию,
-// поэтому на разряд по-прежнему РОВНО 2 объекта / 2 материала / 2 draw call —
-// столько же, сколько было у одиночной дуги. Наивный путь «звать boltFX в 6
-// раз чаще» дал бы ×6 объектов и мешей в кадре.
-const BOLT_SEG = 9;          // узлов основной дуги
-const BOLT_FORKS = 5;        // ответвлений на разряд
+// ⚠️ "MORE SMALL BOLTS" (the owner's spec 2026-07-28): a discharge is now not a
+// single arc but an arc + BOLT_FORKS short BRANCHES, and everything is THINNER
+// than before — the pile looks electrified rather than stitched with two thick
+// strands.
+// ⚠️ THE COST IS KEPT CONSTANT: all the filaments of a layer are merged into ONE
+// geometry, so a discharge still costs EXACTLY 2 objects / 2 materials / 2 draw
+// calls — the same as a single arc did. The naive path "call boltFX 6 times more
+// often" would have given ×6 objects and meshes in the frame.
+const BOLT_SEG = 9;          // nodes of the main arc
+const BOLT_FORKS = 5;        // branches per discharge
 const BOLT_LIFE = 0.16;
-// ⚠️ Общих временных векторов у молний БОЛЬШЕ НЕТ: boltPath заводит свой базис
-// на каждый вызов, иначе генерация ответвлений затирала бы базис основной дуги
-// (ветки ушли бы не в ту сторону). _bUp — константа, её переиспользовать можно.
+// ⚠️ The bolts NO LONGER HAVE shared temporary vectors: boltPath sets up its own
+// basis on every call, otherwise generating the branches would overwrite the basis
+// of the main arc (the branches would go the wrong way). _bUp is a constant, it can
+// be reused.
 const _bUp = new THREE.Vector3(0,1,0);
-// Ломаная с поперечным дрожанием между двумя точками -> кусочно-линейный путь
-// (CatmullRom сгладил бы изломы — молния перестала бы быть молнией).
+// A polyline with transverse jitter between two points -> a piecewise-linear path
+// (CatmullRom would smooth the kinks — the bolt would stop being a bolt).
 function boltPath(p0, p1, seg, jitter){
   const dir = new THREE.Vector3().subVectors(p1, p0);
   const len = dir.length();
@@ -1026,7 +1091,7 @@ function boltPath(p0, p1, seg, jitter){
     const t = i/seg;
     const p = p0.clone().lerp(p1, t);
     if (i>0 && i<seg){
-      const amp = len*jitter*Math.sin(Math.PI*t); // максимум дрожания посередине
+      const amp = len*jitter*Math.sin(Math.PI*t); // the jitter peaks in the middle
       p.addScaledVector(n1, (Math.random()-0.5)*2*amp).addScaledVector(n2, (Math.random()-0.5)*2*amp);
     }
     pts.push(p);
@@ -1035,11 +1100,12 @@ function boltPath(p0, p1, seg, jitter){
   for (let i=0;i<seg;i++) path.add(new THREE.LineCurve3(pts[i], pts[i+1]));
   return { path, pts, len, n1, n2, dir };
 }
-// ⚠️ РУЧНОЕ СЛИЯНИЕ: в UMD-сборке r149 BufferGeometryUtils НЕТ (в бандле от
-// него только строка в тексте ошибки BufferGeometry.merge). Материал молний —
-// MeshBasicMaterial без света и текстур, поэтому копируем ТОЛЬКО position
-// и index: normal/uv шейдером не читаются, их перенос был бы чистой тратой
-// (втрое меньше данных в GPU и меньше работы на слияние).
+// ⚠️ MANUAL MERGING: in the r149 UMD build there IS NO BufferGeometryUtils (all
+// that is left of it in the bundle is a string in the text of the
+// BufferGeometry.merge error). The bolt material is a MeshBasicMaterial without
+// lighting and textures, so we copy ONLY position and index: normal/uv are not
+// read by the shader, transferring them would be pure waste (three times less data
+// in the GPU and less work for the merge).
 function mergeTubeGeos(list){
   let vc = 0, ic = 0;
   for (const g of list){ vc += g.attributes.position.count; ic += g.index.count; }
@@ -1049,91 +1115,96 @@ function mergeTubeGeos(list){
   for (const g of list){
     const src = g.attributes.position.array, n = g.attributes.position.count, gi = g.index.array;
     pos.set(src, vo*3);
-    for (let i=0;i<gi.length;i++) idx[io+i] = gi[i] + vo; // индексы съезжают на уже уложенные вершины
+    for (let i=0;i<gi.length;i++) idx[io+i] = gi[i] + vo; // the indices shift by the vertices already laid down
     vo += n; io += gi.length;
-    g.dispose(); // временная геометрия филамента: в GPU не уезжала, но освобождаем честно
+    g.dispose(); // temporary filament geometry: it never went to the GPU, but we free it honestly
   }
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   out.setIndex(new THREE.BufferAttribute(idx, 1));
   return out;
 }
-// ПУЛ МАТЕРИАЛОВ (просьба диспетчера: не плодить материалы на каждый разряд).
-// ⚠️ Это FREE-LIST, а НЕ общий материал: у каждого ЖИВОГО разряда opacity
-// мерцает индивидуально, поэтому шарить один материал между одновременными
-// молниями нельзя — переиспользуем только ОСВОБОДИВШИЕСЯ (stepFX кладёт сюда
-// вместо dispose по флагу userData.poolBolt).
+// MATERIAL POOL (the dispatcher's request: do not breed materials for every
+// discharge).
+// ⚠️ This is a FREE-LIST and NOT a shared material: every LIVE discharge flickers
+// its opacity individually, so sharing one material between simultaneous bolts is
+// not allowed — we reuse only the ONES THAT HAVE BEEN FREED (stepFX puts them here
+// instead of dispose, by the userData.poolBolt flag).
 const boltMatPool = [];
 const BOLT_POOL_MAX = 24;
 function boltMat(color, opacity){
   const m = boltMatPool.pop();
-  // setHex повторяет поведение конструктора (в r149 без ColorManagement hex
-  // кладётся как есть) — тон переиспользованного материала бит-в-бит прежний
+  // setHex repeats the constructor's behavior (in r149, without ColorManagement, a
+  // hex is stored as is) — the hue of a reused material is bit-for-bit the same
   if (m){ m.color.setHex(color); m.opacity = opacity; return m; }
   return new THREE.MeshBasicMaterial({ color, transparent:true, opacity, depthTest:false });
 }
 function _boltFX_impl(a, b){
-  // ⚠️ СКРЫТО ФЛАГОМ, НЕ УДАЛЕНО (спека владельца 2026-07-28): вход в турбо
-  // теперь отмечается ПОДБРОСОМ кучи, а не разрядами. Весь механизм молний
-  // (ветвление, слияние филаментов, free-list материалов) остаётся рабочим —
-  // TURBO_BOLTS=true в 00-config включает обратно одним значением.
+  // ⚠️ HIDDEN BEHIND A FLAG, NOT DELETED (the owner's spec 2026-07-28): entering
+  // turbo is now marked by TOSSING the pile up, not by discharges. The whole bolt
+  // machinery (branching, filament merging, the material free-list) stays
+  // working — TURBO_BOLTS=true in 00-config turns it back on with a single value.
   if (!TURBO_BOLTS) return;
   const main = boltPath(a, b, BOLT_SEG, 0.13);
   if (!main || main.len < 0.2) return;
-  // ОТВЕТВЛЕНИЯ: короткие ветки от случайных узлов основной дуги, вбок и
-  // немного вдоль. Базис берём ИЗ main (boltPath заводит свой на каждый вызов —
-  // общие _bN1/_bN2 затёрлись бы при генерации веток).
+  // BRANCHES: short branches from random nodes of the main arc, sideways and a
+  // little along it. The basis is taken FROM main (boltPath sets up its own on
+  // every call — shared _bN1/_bN2 would be overwritten while generating branches).
   const forks = [];
   const axis = main.dir.clone().normalize();
   for (let i=0;i<BOLT_FORKS;i++){
-    const j = 1 + Math.floor(Math.random()*(BOLT_SEG-1)); // не от самых концов
+    const j = 1 + Math.floor(Math.random()*(BOLT_SEG-1)); // not from the very ends
     const from = main.pts[j];
     const to = from.clone()
       .addScaledVector(main.n1, (Math.random()-0.5)*2)
       .addScaledVector(main.n2, (Math.random()-0.5)*2)
       .addScaledVector(axis, (Math.random()-0.5)*0.8);
-    // нормируем смещение к доле длины основной дуги -> ветка всегда «мелкая»
+    // we normalize the offset to a fraction of the main arc's length -> the branch is always "small"
     to.sub(from).normalize().multiplyScalar(main.len*(0.12+Math.random()*0.20)).add(from);
     const f = boltPath(from, to, 3, 0.22);
     if (f) forks.push(f);
   }
   const layer = (color, rMain, rFork, opacity) => {
     const geos = [ new THREE.TubeGeometry(main.path, BOLT_SEG*2, rMain, 4, false) ];
-    // у веток грубее тесселяция: они мелкие, разницы не видно, а вершин втрое меньше
+    // the branches have coarser tessellation: they are small, the difference is invisible, and there are three times fewer vertices
     for (const f of forks) geos.push(new THREE.TubeGeometry(f.path, 6, rFork, 3, false));
     const mesh = new THREE.Mesh(mergeTubeGeos(geos), boltMat(color, opacity));
     mesh.renderOrder = 12;
-    mesh.userData.poolBolt = true; // stepFX вернёт материал в пул вместо dispose
-    addFX(mesh, BOLT_LIFE, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.55+0.45*Math.random()); }); // мерцание
+    mesh.userData.poolBolt = true; // stepFX will return the material to the pool instead of dispose
+    addFX(mesh, BOLT_LIFE, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.55+0.45*Math.random()); }); // flicker
   };
-  // ⚠️ ПРОПОРЦИЯ ОБОЛОЧКА:ЯДРО ~3:1, А НЕ 2.3:1 КАК У ТОЛСТОЙ ВЕРСИИ. При
-  // утоньшении филамента синий ореол первым уходит в субпиксель: на крупном
-  // плане проба дала БЕЛЫЕ нитки вместо электрических (ядро почти догнало
-  // оболочку по экранной ширине). Ореолу нужна доля ШИРЕ, чем при толстой дуге.
-  layer(0x2f6bff, 0.075, 0.038, 0.6);  // оболочка (было 0.09 — всё равно «мельче»)
-  layer(0xdceeff, 0.024, 0.012, 1.0);  // ядро (было 0.035)
+  // ⚠️ THE SHEATH:CORE PROPORTION IS ~3:1, AND NOT 2.3:1 AS IN THE THICK VERSION.
+  // As the filament is thinned, the blue halo is the first to go subpixel: in a
+  // close-up a test gave WHITE threads instead of electric ones (the core had
+  // almost caught up with the sheath in screen width). The halo needs a WIDER share
+  // than with a thick arc.
+  layer(0x2f6bff, 0.075, 0.038, 0.6);  // the sheath (was 0.09 — still "smaller")
+  layer(0xdceeff, 0.024, 0.012, 1.0);  // the core (was 0.035)
 }
-// Всплывающий текст (+очки, ×множитель, штрафы)
+// Floating text (+points, ×multiplier, penalties)
 function scorePopScreen(text, px, py, color, big){
   const el = document.createElement('div');
   el.className = 'pop' + (big ? ' big' : '');
   el.style.left = px + 'px';
   el.style.top  = py + 'px';
-  // ЕДИНЫЙ МЕХАНИЗМ КОНТУРА (правка ИНТЕРФЕЙСА по прямому указанию
-  // владельца 2026-07-21-в): текст — SVG-<text> класса .otext, как весь
-  // обведённый текст HUD; div остаётся ради позиции и анимации полёта.
-  // ⚠️⚠️ ПАРАМЕТР `color` СНОВА РАБОТАЕТ (слово владельца 2026-08-17: «сделай у
-  // очков при совмещении разные яркие обводки, а не только чёрную»). ⛔ ЭТО
-  // ОТМЕНЯЕТ спеку 2026-07-19 «попы всегда белые с ЧЁРНОЙ обводкой»: заливка
-  // осталась белой, чёрной осталась только ДЕФОЛТНАЯ обводка в CSS.
-  // ⚠️ Проводка не заводилась заново — цвета уже передавались КАЖДЫМ вызовом и
-  // уже подобраны по смыслу события (комбо оранжевый, огонь алый, штраф
-  // красный); всё это время они просто не доезжали до пикселей.
+  // A SINGLE OUTLINE MECHANISM (an INTERFACE edit on the owner's direct
+  // instruction 2026-07-21-v): the text is an SVG <text> of class .otext, like all
+  // the outlined text of the HUD; the div stays for the sake of the position and
+  // the flight animation.
+  // ⚠️⚠️ THE `color` PARAMETER WORKS AGAIN (the owner's word 2026-08-17: "give the
+  // points on a join different bright outlines, not just the black one"). ⛔ THIS
+  // CANCELS the spec of 2026-07-19 "pops are always white with a BLACK outline":
+  // the fill stayed white, only the DEFAULT outline in the CSS stayed black.
+  // ⚠️ The wiring was not set up anew — the colors were already being passed by
+  // EVERY call and were already chosen by the meaning of the event (combo orange,
+  // fire scarlet, penalty red); all that time they simply were not reaching the
+  // pixels.
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'otext');
-  // ⚠️ ХОЛСТ УДВОЕН ВМЕСТЕ С КЕГЛЕМ (слово владельца 2026-08-17 «×2»): при
-  // прежних 260×40 текст в 38-56px обрезался бы рамкой SVG сверху и по бокам.
-  // Центрирование не трогаем — див позиционируется translate(-50%,-50%).
+  // ⚠️ THE CANVAS WAS DOUBLED TOGETHER WITH THE TYPE SIZE (the owner's word
+  // 2026-08-17 "×2"): with the previous 260×40 the text at 38-56px would have been
+  // clipped by the SVG frame at the top and at the sides.
+  // We do not touch the centering — the div is positioned by translate(-50%,-50%).
   svg.setAttribute('width', '520'); svg.setAttribute('height', '80');
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
   t.setAttribute('x', '260'); t.setAttribute('y', '60');
@@ -1145,31 +1216,35 @@ function scorePopScreen(text, px, py, color, big){
   requestAnimationFrame(()=>el.classList.add('fly'));
   setTimeout(()=>el.remove(), 1100);
 }
-// ЦВЕТ ОБВОДКИ ПОПА ИЗ САМОГО ПРЕДМЕТА (слово владельца «разные яркие»).
-// ⚠️⚠️ ДЕТЕРМИНИРОВАННО ОТ ТИПА, А НЕ СЛУЧАЙНО — правило канона: один предмет
-// обязан давать ОДНУ обводку, тогда это читается его СВОЙСТВОМ; случайный цвет
-// читается глитчем (на этом уже обжигались с семейством кольца удара).
-// Берём `fxColor` — тот же цвет, которым сыплется труха этого типа.
-// ⚠️⚠️ СЕМЬ ЦВЕТОВ, СЛУЧАЙНО, БЕЗ ЖЁЛТОГО (слово владельца 2026-08-17-в:
-// «жёлтый не нужно использовать, используй яркие, но хорошо контрастные с
-// белым цвета. Используй РАНДОМНО, без какой либо системы, думаю 7 цветов
-// точно хватит, как радуга»).
-// ⛔⛔ ЭТО ОТМЕНЯЕТ ДВЕ МОИ ПРЕЖНИЕ РЕДАКЦИИ И ОДНО МОЁ ПРАВИЛО.
-//   (1) «затемнять цвет предмета до порога» — давало мутные полутона;
-//   (2) «выбирать сектор ПО ОТТЕНКУ предмета» — детерминированная привязка;
-//   (3) правило канона «цвет обязан выводиться из предмета, случайный читается
-//       глитчем» — оно выведено МНОЙ для семейств кольца удара и остаётся
-//       верным ДЛЯ НИХ; здесь владелец прямо просит случайность. Не «чинить».
-// ⚠️ ЖЁЛТОГО СЕКТОРА НЕТ СОВСЕМ, И ЭТО НЕ ПРОПУСК: при весах яркости
-// 0.2126/0.7152/0.0722 жёлтый не бывает одновременно ярким и контрастным к
-// белому — его предел это тёмно-оливковый, который владелец и забраковал.
-// ПАЛИТРА ПОСЧИТАНА: в каждом секторе самый СВЕТЛЫЙ насыщенный тон с
-// контрастом к белому >= 4.5:1 (AA). Разброс по палитре 4.50..5.30:1.
+// THE POP OUTLINE COLOR FROM THE ITEM ITSELF (the owner's word "different bright
+// ones").
+// ⚠️⚠️ DETERMINISTIC FROM THE TYPE, NOT RANDOM — the rule of the canon: one item
+// must give ONE outline, then it reads as its PROPERTY; a random color reads as a
+// glitch (we have already been burned by this with the impact ring families).
+// We take `fxColor` — the same color in which the dust of this type pours.
+// ⚠️⚠️ SEVEN COLORS, AT RANDOM, WITHOUT YELLOW (the owner's word 2026-08-17-v:
+// "yellow should not be used, use bright colors but ones that contrast well with
+// white. Use them AT RANDOM, without any kind of system, I think 7 colors will
+// definitely be enough, like a rainbow").
+// ⛔⛔ THIS CANCELS TWO OF MY PREVIOUS EDITIONS AND ONE OF MY RULES.
+//   (1) "darken the item's color down to a threshold" — it gave muddy half-tones;
+//   (2) "pick the sector BY THE HUE of the item" — a deterministic binding;
+//   (3) the rule of the canon "the color must be derived from the item, a random
+//       one reads as a glitch" — it was derived BY ME for the impact ring families
+//       and remains true FOR THEM; here the owner directly asks for randomness.
+//       Not to be "fixed".
+// ⚠️ THERE IS NO YELLOW SECTOR AT ALL, AND THAT IS NOT AN OMISSION: with the
+// luminance weights 0.2126/0.7152/0.0722 yellow is never bright and contrasting
+// against white at the same time — its limit is a dark olive, which is exactly
+// what the owner rejected.
+// THE PALETTE IS COMPUTED: in each sector the LIGHTEST saturated hue with a
+// contrast against white >= 4.5:1 (AA). The spread across the palette is
+// 4.50..5.30:1.
 const POP_OTL_PALETTE = ['#eb0000', '#c75300', '#168500', '#008573',
                          '#056dff', '#8833ff', '#e00096'];
-// ⚠️ ПОДРЯД ОДИН И ТОТ ЖЕ НЕ ВЫПАДАЕТ: чистый Math.random даёт повторы, и два
-// одинаковых попа подряд читаются как «цвет что-то значит» — ровно та ложная
-// система, которой владелец просил избежать.
+// ⚠️ THE SAME ONE DOES NOT COME UP TWICE IN A ROW: pure Math.random gives
+// repeats, and two identical pops in a row read as "the color means something" —
+// exactly the false system the owner asked to avoid.
 let _popOtlPrev = -1;
 function popOutlineColor(){
   let i = (Math.random() * POP_OTL_PALETTE.length) | 0;
@@ -1182,39 +1257,39 @@ function scorePop(text, worldPos, color, big){
   const sp = worldPos.clone().project(camera);
   scorePopScreen(text, (sp.x+1)/2*rect.width + rect.left, (-sp.y+1)/2*rect.height + rect.top, color, big);
 }
-// Ошибка: −MISS_PENALTY через единую точку штрафов scorePenalty
-// (80-gameplay, баланс-таблица 2026-07-22: ур.1 без штрафов — тогда и поп
-// «−10» не рисуем; ур.<=5 кламп нулём). Промах СЧИТАЕТСЯ всегда
-// (stats.misses нужен цепным правилам), санкция — только очковая.
+// A miss: −MISS_PENALTY through the single penalty point scorePenalty
+// (80-gameplay, balance table 2026-07-22: lvl.1 without penalties — then we do not
+// draw the "−10" pop either; lvl.<=5 clamped at zero). The miss IS ALWAYS COUNTED
+// (stats.misses is needed by the chain rules), the sanction is points only.
 function penalize(worldPos, sx, sy){
   stats.misses++;
   const before = stats.score;
   const charged = scorePenalty(MISS_PENALTY);
-  const shown = scoreShownDelta(stats.score, before); // деноминир. падение чипа (#10)
-  // ⚠️ ПРОМАХ ОБНУЛЯЕТ НАБОР ТУРБО (спека владельца 2026-07-27: «если при
-  // наборе турборежима игрок ошибается — счётчик режима сбрасывается»).
-  // ⚠️ ЭТО РАЗВОРОТ ЕГО ЖЕ ПРЕЖНЕГО ТЮНИНГА: раньше здесь стояло −2 шага
-  // вместо сброса, потому что он говорил «слишком резко сбрасываем power
-  // chain». Новая спека прямая и новее — берём её; РАДИУС-ЛЕСЕНКА (comboLevel)
-  // при этом по-прежнему теряет COMBO_MISS_DROP=2, а не обнуляется: владелец
-  // назвал «счётчик РЕЖИМА», это заряд цепи (comboCount), лесенка — отдельная
-  // механика, её он не трогал.
+  const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
+  // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
+  // makes a mistake while charging turbo mode — the mode's counter is reset").
+  // ⚠️ THIS IS A REVERSAL OF HIS OWN EARLIER TUNING: previously −2 steps stood here
+  // instead of a reset, because he said "we reset the power chain too abruptly".
+  // The new spec is direct and newer — we take it; the RADIUS LADDER (comboLevel)
+  // still loses COMBO_MISS_DROP=2 rather than being zeroed: the owner said "the
+  // MODE's counter", that is the chain charge (comboCount), while the ladder is a
+  // separate mechanic which he did not touch.
   if (comboUntil > performance.now()){
     comboLevel = Math.max(0, comboLevel - COMBO_MISS_DROP);
-    comboCount = 0; // набор турбо — с нуля
+    comboCount = 0; // the turbo charge — from zero
     updateMatchRadius(); updateHUD();
   }
-  try { bowlStreakReset(); } catch(e){} // стрик чаши: промах = ошибка (слово владельца)
-  // ⚠️⚠️ ШТРАФ РАДИУСА (спека владельца 2026-08-11) — ВНЕ гейта `comboUntil`
-  // выше: он обязан срабатывать на КАЖДОМ промахе, а не только в горящей
-  // серии. Место выбрано рядом со стриком чаши намеренно — это единственная
-  // строка функции, которая уже стоит «на каждый промах».
+  try { bowlStreakReset(); } catch(e){} // the bowl streak: a miss = a mistake (the owner's word)
+  // ⚠️⚠️ THE RADIUS PENALTY (the owner's spec 2026-08-11) IS OUTSIDE the
+  // `comboUntil` gate above: it must fire on EVERY miss, not only during a burning
+  // streak. The place was chosen next to the bowl streak deliberately — it is the
+  // only line of the function that already stands "on every miss".
   try { noteMissRadius(); } catch(e){}
   if (charged && shown > 0){
     if (worldPos) scorePop('-' + shown, worldPos, '#e5484d', false);
     else scorePopScreen('-' + shown, sx, sy, '#e5484d', false);
   }
-  Sound.play('miss'); // звук ошибки остаётся и на ур.1 — фидбек «не туда»
+  Sound.play('miss'); // the error sound stays even on lvl.1 — the "wrong place" feedback
   updateHUD();
 }
 function wiggle(item){
@@ -1222,31 +1297,31 @@ function wiggle(item){
   addFX(new THREE.Object3D(), 0.3, (o,k)=>{ item.mesh.rotation.z = startX + Math.sin(k*Math.PI*4)*0.2*(1-k); });
 }
 
-// ЯКОРЯ ШЕЙДЕРНЫХ ПРОГРАММ. stepFX диспозит материалы эффектов, а three
-// выбрасывает СКОМПИЛИРОВАННУЮ ПРОГРАММУ, как только умирает её последний
-// материал — следующий тап/маркер/молния компилировали шейдер заново прямо
-// в кадре (рывок, заметный на слабых устройствах). Держим по одному вечному
-// субпиксельному экземпляру каждого FX-рецепта на камере — программы живут
-// всю сессию. ⚠️ Числа френель-рецептов обязаны совпадать с боевыми вызовами
-// (они вшиваются в ТЕКСТ шейдера — другие числа = другая программа):
+// SHADER PROGRAM ANCHORS. stepFX disposes the effects' materials, and three throws
+// away the COMPILED PROGRAM as soon as its last material dies — the next
+// tap/marker/bolt would compile the shader anew right inside the frame (a hitch
+// noticeable on weak devices). We keep one eternal subpixel instance of every FX
+// recipe on the camera — the programs live for the whole session. ⚠️ The numbers of
+// the Fresnel recipes must match the production calls (they are baked into the
+// TEXT of the shader — different numbers = a different program):
 // sphereFX (0.05, 0.32), markerFX (0.1, 0.5), reachGhostFX (0.02, 0.16, 1.1).
 (function fxProgramAnchors(){
   const g = new THREE.Group();
   const tiny = new THREE.SphereGeometry(0.001, 4, 3);
-  [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // (запас: вариант удалённой sphereFX; массив НЕ трогаем — прогрев шейдеров)
+  [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // (spare: the variant of the deleted sphereFX; do NOT touch the array — shader warm-up)
     fresnelGhostMat(0xffffff, 0.1, 0.5),        // markerFX
-    fresnelGhostMat(0xffffff, 0.02, 0.16, 1.1), // reachGhostFX (ореол тапа/подсказки)
+    fresnelGhostMat(0xffffff, 0.02, 0.16, 1.1), // reachGhostFX (the tap/hint halo)
   ].forEach(m => { m.uniforms.op.value = 0; g.add(new THREE.Mesh(tiny, m)); });
   g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0 }))); // popFX/boltFX
   const pg = new THREE.BufferGeometry(); // dustCloud: Points + vertexColors
   pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(pg, new THREE.PointsMaterial({ size:0.001, vertexColors:true, transparent:true, opacity:0, depthWrite:false })));
-  // ⚠️ ДОБАВЛЕНО ПО РЕВЬЮ main: этих программ в якорях не было, а эффекты
-  // появились позже. После полного дренажа fx первый сок/искра/звёздочка/скол
-  // компилировали шейдер ПРЯМО В КАДРЕ — ровно тот джанк, ради которого якоря
-  // и заведены. Ключ программы у Points с картой и alphaTest свой, у
-  // MeshBasicMaterial с вершинными цветами — тоже свой.
+  // ⚠️ ADDED AFTER THE main REVIEW: these programs were not among the anchors,
+  // while the effects appeared later. After a full drain of fx the first
+  // juice/spark/star/chip would compile the shader RIGHT INSIDE THE FRAME — exactly
+  // the jank the anchors were set up for. Points with a map and alphaTest has its
+  // own program key, and MeshBasicMaterial with vertex colors has its own too.
   const dg = new THREE.BufferGeometry();
   dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
@@ -1256,46 +1331,52 @@ function wiggle(item){
   sg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
   g.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true,
     transparent:true, opacity:0, depthWrite:false })));                  // shardFX
-  // ⚠️⚠️ КОЛЬЦО УДАРА И ЕГО ВСПЫШКА — ДОБАВЛЕНЫ ПО РЕВИЗИИ 2026-08-14. Их
-  // якорей здесь НЕ БЫЛО, а `impactFX` создаёт материалы с ключом программы,
-  // которого нет ни у одного соседа: `depthTest:false` + `side:DoubleSide`
-  // (кольцо) и Points с картой + `depthTest:false` (вспышка). Ключ уникален,
-  // значит после дренажа fx первая же СБОРКА ПАРЫ компилировала шейдер прямо
-  // в кадре — а удар даётся КАЖДОМУ совмещению, то есть джанк ловил игрок на
-  // самом частом действии в игре. Ровно та болезнь, ради которой якоря заведены.
+  // ⚠️⚠️ THE IMPACT RING AND ITS FLASH WERE ADDED IN THE 2026-08-14 REVISION. Their
+  // anchors WERE NOT HERE, while `impactFX` creates materials with a program key
+  // that none of the neighbours has: `depthTest:false` + `side:DoubleSide` (the
+  // ring) and Points with a map + `depthTest:false` (the flash). The key is unique,
+  // which means that after a drain of fx the very first JOINING OF A PAIR compiled
+  // the shader right inside the frame — and the impact is given to EVERY join, i.e.
+  // the player caught the jank on the most frequent action in the game. Exactly the
+  // ailment the anchors were set up for.
   g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0,
-    depthWrite:false, depthTest:false, side: THREE.DoubleSide })));       // impactFX: кольцо
+    depthWrite:false, depthTest:false, side: THREE.DoubleSide })));       // impactFX: the ring
   const ig = new THREE.BufferGeometry();
   ig.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   g.add(new THREE.Points(ig, new THREE.PointsMaterial({ size:0.001, map: fxDotTex(),
-    transparent:true, opacity:0, depthWrite:false, depthTest:false, alphaTest:0.02 }))); // impactFX: вспышка
-  // ⚠️ ЛЕДЯНАЯ КОРКА — свой ShaderMaterial (`iceCrustMat`, 40-items), то есть
-  // ключ программы у неё уникален по построению. Без якоря первая глыба уровня
-  // компилировала шейдер В КАДРЕ старта уровня (найдено ревизией 2026-08-14).
-  // ⚠️ Материал якоря — ТОТ ЖЕ вызов, что в бою: копия рядом с рабочей разошлась
-  // бы при первой правке шейдера, и якорь молча перестал бы прогревать нужное.
-  // ⚠️⚠️ ЗДЕСЬ БЫЛА ТОЧКА В ЦЕНТРЕ ЭКРАНА (жалоба владельца 2026-08-20 «точки по
-  // центру чаши нет»). `im.opacity = 0` НИЧЕГО НЕ ДЕЛАЕТ: у `ShaderMaterial`
-  // three не подставляет `opacity` в шейдер — альфу `iceCrustMat` (40-items)
-  // считает сам (`a = mix(0.18, 0.9, f)`), и якорь честно рисовался. Диаметр
-  // субпиксельный, но френель даёт яркий ободок — на экране это серое колечко
-  // РОВНО в центре кадра (вся группа висит на камере).
-  // ⛔ Соседи гасятся `uniforms.op.value = 0` — у них такой юниформ ЕСТЬ; сюда
-  // его добавить НЕЛЬЗЯ: юниформы вшиты в текст шейдера, другой текст = другая
-  // программа, и якорь начал бы прогревать НЕ ТУ.
-  // ⛔ И `visible = false` нельзя: невидимый меш не рисуется, программа не
-  // компилируется — якорь перестал бы быть якорем.
-  // ЛЕЧЕНИЕ: `colorWrite = false` — отрисовка идёт, программа компилируется и
-  // прогревается, а в цветовой буфер не пишется ничего. В ключ программы это
-  // свойство не входит (three ставит им gl.colorMask), значит прогревается
-  // РОВНО боевая программа.
+    transparent:true, opacity:0, depthWrite:false, depthTest:false, alphaTest:0.02 }))); // impactFX: the flash
+  // ⚠️ THE ICE CRUST has its own ShaderMaterial (`iceCrustMat`, 40-items), i.e. its
+  // program key is unique by construction. Without an anchor the first block of a
+  // level compiled the shader IN THE FRAME of the level start (found by the
+  // 2026-08-14 revision).
+  // ⚠️ The anchor's material is THE SAME call as in the game: a copy standing next
+  // to the working one would diverge on the first shader edit, and the anchor would
+  // silently stop warming up the right thing.
+  // ⚠️⚠️ THERE WAS A DOT IN THE CENTER OF THE SCREEN HERE (the owner's complaint
+  // 2026-08-20 "there is no dot in the center of the bowl"). `im.opacity = 0` DOES
+  // NOTHING: for a `ShaderMaterial` three does not substitute `opacity` into the
+  // shader — `iceCrustMat` (40-items) computes the alpha itself
+  // (`a = mix(0.18, 0.9, f)`), and the anchor was honestly being drawn. The diameter
+  // is subpixel, but the Fresnel gives a bright rim — on screen that is a gray
+  // ringlet EXACTLY in the center of the frame (the whole group hangs on the
+  // camera).
+  // ⛔ The neighbours are quenched with `uniforms.op.value = 0` — they DO HAVE such
+  // a uniform; adding it here is NOT ALLOWED: uniforms are baked into the text of
+  // the shader, different text = a different program, and the anchor would start
+  // warming up THE WRONG ONE.
+  // ⛔ And `visible = false` is not allowed either: an invisible mesh is not drawn,
+  // the program is not compiled — the anchor would stop being an anchor.
+  // THE CURE: `colorWrite = false` — the draw happens, the program is compiled and
+  // warmed up, and nothing is written into the color buffer. This property is not
+  // part of the program key (three applies it with gl.colorMask), which means that
+  // EXACTLY the production program gets warmed up.
   try { const im = iceCrustMat(); im.uniforms.uGlowK.value = 0; im.colorWrite = false;
         g.add(new THREE.Mesh(tiny, im)); } catch (e) {}
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();
   g.add(ln);
-  g.position.set(0, 0, -0.5); // всегда в кадре перед камерой, глазу невидим
+  g.position.set(0, 0, -0.5); // always in frame in front of the camera, invisible to the eye
   camera.add(g);
-  scene.add(camera); // дети камеры рендерятся, только когда камера в графе сцены
+  scene.add(camera); // the camera's children are rendered only when the camera is in the scene graph
 })();

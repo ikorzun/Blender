@@ -1,71 +1,77 @@
-# Stripe для игры на собственном домене — инструкция владельцу (2026-07-31)
+# Stripe for a game on its own domain — instructions for the owner (2026-07-31)
 
-Проверено по docs.stripe.com / stripe.com, июль 2026. Продаём 4 разовых
-товара: $4.90 / $9.90 / $19.90 + «Remove Ads Forever» $4.90 (тоже разовый —
-«навсегда» помнит сама игра).
+Verified against docs.stripe.com / stripe.com, July 2026. We sell 4 one-time
+products: $4.90 / $9.90 / $19.90 + «Remove Ads Forever» $4.90 (also one-time —
+«forever» is remembered by the game itself).
 
-## 0. СТРАНА: ПОРТУГАЛИЯ (слово владельца 2026-08-01) — путь прямой
+## 0. COUNTRY: PORTUGAL (the owner's word 2026-08-01) — the path is direct
 
-Португалия в ЕС → Stripe напрямую, физлицо (Individual) допустимо; NIF —
-твой налоговый номер в анкете; банковский счёт в EUR на твоё имя. Раздел
-про СНГ/Atlas ниже НЕ НУЖЕН — оставлен справочно. Комиссии — ЕС-ветка
-(~1.5% + €0.25 карты EEA). VAT: порог трансграничных продаж потребителям
-ЕС €10,000/год, дальше OSS-регистрация (или включить Stripe Tax сбор
-раньше добровольно); включи мониторинг порогов с первого дня — бесплатно.
+Portugal is in the EU → Stripe directly, a natural person (Individual) is
+allowed; NIF is your tax number in the form; a bank account in EUR in your name.
+The section about the CIS/Atlas below is NOT NEEDED — it is kept for reference.
+Fees are the EU branch (~1.5% + €0.25 for EEA cards). VAT: the threshold for
+cross-border sales to EU consumers is €10,000/year, beyond that OSS registration
+(or turn on Stripe Tax collection earlier voluntarily); turn on threshold
+monitoring from day one — it is free.
 
-## 0-бис. Справочно: общий выбор по стране (исходная версия)
+## 0-bis. For reference: the general choice by country (the original version)
 
-- **ЕС (все 27), UK, Норвегия, Швейцария** → Stripe напрямую, регистрация
-  возможна как физлицо (Individual / Sole proprietor), юрлицо не обязательно.
-- **СНГ (РФ, Казахстан, Армения, Грузия и др.) → Stripe НЕ поддерживается.**
-  Варианты: (а) Merchant of Record — Xsolla (специализация игры), Paddle:
-  они юридический продавец, сами платят налоги по миру, берут ~5% вместо
-  ~1.5-3%; при малых оборотах это ДЕШЕВЛЕ бухгалтера; география продавцов
-  шире — проверить свою страну на их сайтах; (б) Stripe Atlas — компания США
-  за $500 + ежегодная налоговая отчётность США: для старта НЕ советую.
+- **The EU (all 27), the UK, Norway, Switzerland** → Stripe directly,
+  registration is possible as a natural person (Individual / Sole proprietor),
+  a legal entity is not required.
+- **The CIS (Russia, Kazakhstan, Armenia, Georgia and others) → Stripe is NOT
+  supported.** The options: (a) Merchant of Record — Xsolla (specializes in
+  games), Paddle: they are the legal seller, they pay the taxes worldwide
+  themselves, they take ~5% instead of ~1.5-3%; at small turnovers this is
+  CHEAPER than an accountant; the geography of sellers is wider — check your
+  own country on their sites; (b) Stripe Atlas — a US company for $500 + annual
+  US tax reporting: for a start I do NOT advise it.
 
-## 1. Что сделать руками (порядок важен)
+## 1. What to do by hand (the order matters)
 
-1. **Сайт ДО активации**: домен игры должен жить и нести — описание товаров
-   с ценами и валютой, Terms of Service, Privacy Policy, **Refund Policy**,
-   контакт поддержки (реальный email), HTTPS. Stripe проверяет сайт при
-   активации; «under construction» не пройдёт. Черновики страниц напишу я —
-   опубликовать до подачи.
-2. **Регистрация**: dashboard.stripe.com → аккаунт → «Activate payments».
-   Понадобятся: ФИО, дата рождения, адрес, налоговый/ID-номер (могут
-   попросить фото документа), описание бизнеса («virtual goods in an online
-   browser game»), URL сайта, **банковский счёт** для выплат (личный счёт на
-   твоё имя допустим для физлица), statement descriptor = название игры
-   (5-22 символа — что игрок увидит в выписке; невнятный = чарджбеки).
-   Включить 2FA (passkey, не SMS).
-3. **Товары**: Product catalog → 4 продукта, Pricing = Flat rate → **One
-   time** (НЕ subscription), USD 4.90/9.90/19.90/4.90; желательно добавить
-   EUR-цены тем же продуктам (европейцы без конверсии). Сначала в
-   sandbox, после проверки — кнопка «Copy to live mode».
-4. **Передать мне через менеджер паролей** (не в чат): ключи `pk_test_` /
-   `sk_test_` сразу; `pk_live_` / `sk_live_` после активации (live secret
-   показывается ОДИН раз); 4 Price ID (`price_…`) — тестовый и боевой
-   наборы.
-5. **Stripe Tax**: минимум — включить бесплатный мониторинг порогов; сбор
-   налога (0.5%/транзакция) — когда появится VAT-регистрация. Для ЕС:
-   виртуальные товары = electronically supplied services, порог
-   трансграничных продаж €10,000/год, дальше OSS. Точный момент — вопрос
-   налоговому консультанту.
-6. Знать заранее: комиссия ЕС-аккаунта ~1.5% + €0.25 (карты EEA; выше для
-   международных, +2% конверсия). Возврат — 2 клика, но комиссии платежа не
-   возвращаются. **Чарджбек = €20 фи** — по товару за $4.90 спорить
-   бессмысленно: подозрительное рефандить самому до эскалации.
+1. **The site BEFORE activation**: the game's domain must be live and carry — a
+   description of the products with prices and currency, Terms of Service,
+   Privacy Policy, **Refund Policy**, a support contact (a real email), HTTPS.
+   Stripe checks the site at activation; «under construction» will not pass.
+   I will write the drafts of the pages — publish them before applying.
+2. **Registration**: dashboard.stripe.com → account → «Activate payments».
+   You will need: full name, date of birth, address, tax/ID number (they may
+   ask for a photo of the document), a business description («virtual goods in
+   an online browser game»), the site URL, a **bank account** for payouts (a
+   personal account in your name is allowed for a natural person), statement
+   descriptor = the name of the game (5-22 characters — what the player will
+   see in the statement; an unclear one = chargebacks).
+   Turn on 2FA (passkey, not SMS).
+3. **Products**: Product catalog → 4 products, Pricing = Flat rate → **One
+   time** (NOT subscription), USD 4.90/9.90/19.90/4.90; it is desirable to add
+   EUR prices to the same products (Europeans without conversion). First in
+   sandbox, after checking — the «Copy to live mode» button.
+4. **Hand over to me through the password manager** (not into the chat): the
+   `pk_test_` / `sk_test_` keys right away; `pk_live_` / `sk_live_` after
+   activation (the live secret is shown ONCE); 4 Price IDs (`price_…`) — the
+   test and the live sets.
+5. **Stripe Tax**: at a minimum — turn on the free threshold monitoring; tax
+   collection (0.5%/transaction) — when a VAT registration appears. For the EU:
+   virtual goods = electronically supplied services, the threshold for
+   cross-border sales is €10,000/year, beyond that OSS. The exact moment is a
+   question for a tax consultant.
+6. To know in advance: the fee of an EU account is ~1.5% + €0.25 (EEA cards;
+   higher for international ones, +2% conversion). A refund is 2 clicks, but the
+   payment fees are not returned. **A chargeback = a €20 fee** — for a $4.90
+   product there is no point in disputing: refund the suspicious ones yourself
+   before escalation.
 
-## 2. Что потом делаю я (разработка)
+## 2. What I then do (development)
 
-1. Серверный endpoint «создать Checkout Session» (hosted Stripe Checkout,
-   mode=payment, success/cancel URL обратно в игру) + кнопки покупки.
-   Checkout сам решает PCI, 3DS/SCA, Apple/Google Pay, локализацию.
-2. Webhook `checkout.session.completed` с проверкой подписи — по нему
-   игра выдаёт товар (не по возврату игрока на «спасибо»-страницу).
-3. Прогон в sandbox тестовой картой 4242… → go-live checklist → живой тест.
+1. A server endpoint «create a Checkout Session» (hosted Stripe Checkout,
+   mode=payment, success/cancel URL back into the game) + the purchase buttons.
+   Checkout itself solves PCI, 3DS/SCA, Apple/Google Pay, localization.
+2. A `checkout.session.completed` webhook with signature verification — on it
+   the game grants the product (not on the player returning to the
+   «thank-you» page).
+3. A run in sandbox with the test card 4242… → go-live checklist → a live test.
 
-Ключевые ссылки: docs.stripe.com/get-started/account/activate ·
+Key links: docs.stripe.com/get-started/account/activate ·
 …/get-started/checklist/website · …/keys · …/payments/online-payments ·
 …/products-prices/manage-prices · stripe.com/pricing · docs.stripe.com/tax ·
 …/disputes/how-disputes-work · …/webhooks · stripe.com/global · stripe.com/atlas

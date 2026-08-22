@@ -1,37 +1,37 @@
-# SaaS-лидерборды Playgama: контракт для «отправки счёта без экрана»
+# Playgama SaaS leaderboards: the contract for «submitting a score with no screen»
 
-Ответ ИНТЕГРАЦИИ на четыре вопроса диспетчера (запрос 2026-07-29,
-проектирование лидербордов — docs/LEADERBOARD-PLAN.md).
+INTEGRATION's answer to the dispatcher's four questions (request 2026-07-29,
+leaderboards design — docs/LEADERBOARD-PLAN.md).
 
-⚠️ **ИСТОЧНИК КАЖДОГО УТВЕРЖДЕНИЯ ПОМЕЧЕН.** `[код]` — прочитано в
-завендоренном `playgama-bridge.js` v2.0.0; `[замер]` — проверено прогоном
-на реальном SDK со своим сервером; `[?]` — не установлено, нужен живой
-прогон с токеном владельца. Токена нет — борд в кабинете ещё не заведён,
-это его шаг. Всё, что помечено `[?]`, НЕ додумано.
+⚠️ **THE SOURCE OF EVERY STATEMENT IS MARKED.** `[code]` — read in the
+vendored `playgama-bridge.js` v2.0.0; `[measurement]` — verified by a run
+against the real SDK with our own server; `[?]` — not established, a live
+run with the owner's token is needed. There is no token — the board has not
+been created in the dashboard yet, that is his step. Everything marked `[?]` is NOT guessed.
 
 ---
 
-## 1. Поля конфига
+## 1. Config fields
 
-`[код]` Гейт включения (`_isSaas`, дословная логика):
+`[code]` The enable gate (`_isSaas`, verbatim logic):
 
 ```
-saas.<module> задан  И  (
-      (platformId === 'playgama'  И  saas.publicToken задан)
-   ИЛИ  saas.<module>.platforms — массив, содержащий текущий platformId
+saas.<module> is set  AND  (
+      (platformId === 'playgama'  AND  saas.publicToken is set)
+   OR  saas.<module>.platforms — an array containing the current platformId
 )
 ```
 
-`[код]` Транспорт читает: `saas.baseUrl` (иначе дефолт
-`<api playgama>/api/bridge/v1`) и `saas.publicToken` — уходит заголовком
-`x-public-token`. Вместе с ним шлются `x-player-id` и `x-platform-id`.
+`[code]` The transport reads: `saas.baseUrl` (otherwise the default
+`<api playgama>/api/bridge/v1`) and `saas.publicToken` — it goes out as the
+`x-public-token` header. Together with it, `x-player-id` and `x-platform-id` are sent.
 
-**Рабочий пример для наших площадок:**
+**A working example for our platforms:**
 
 ```json
 {
   "saas": {
-    "publicToken": "<токен из кабинета>",
+    "publicToken": "<token from the dashboard>",
     "leaderboards": {
       "platforms": ["poki", "crazy_games", "playgama"]
     }
@@ -39,31 +39,31 @@ saas.<module> задан  И  (
 }
 ```
 
-⚠️ **`platforms` ОБЯЗАТЕЛЕН для всех, кроме Playgama.** `[замер]` На Poki
-конфиг с токеном, но БЕЗ `platforms`, оставляет тип `not_available` —
-первая ветка гейта требует именно `playgama`. Таблица прогона (площадка
-Poki, реальный SDK):
+⚠️ **`platforms` IS MANDATORY for everyone except Playgama.** `[measurement]` On Poki
+a config with a token but WITHOUT `platforms` leaves the type as `not_available` —
+the first branch of the gate requires exactly `playgama`. Table of the run (platform
+Poki, real SDK):
 
-| конфиг | `leaderboards.type` |
+| config | `leaderboards.type` |
 |---|---|
-| без секции `saas` (как сейчас) | `not_available` |
-| `saas.leaderboards.platforms:['poki']`, **без токена** | **`in_game`** |
-| то же + `publicToken` | `in_game` |
-| `saas.leaderboards` **без** `platforms` + токен | `not_available` |
+| without the `saas` section (as it is now) | `not_available` |
+| `saas.leaderboards.platforms:['poki']`, **without a token** | **`in_game`** |
+| the same + `publicToken` | `in_game` |
+| `saas.leaderboards` **without** `platforms` + a token | `not_available` |
 
-⚠️ **ТИП `in_game` НЕ ОЗНАЧАЕТ РАБОТОСПОСОБНОСТЬ.** `[замер]` Гейт
-включается и БЕЗ токена: тип станет `in_game`, вызовы пойдут с пустым
-`x-public-token`, и отлуп придёт только от сервера — а его мы не увидим
-(см. §3). Наличие токена проверять самим.
+⚠️ **THE TYPE `in_game` DOES NOT MEAN IT WORKS.** `[measurement]` The gate
+turns on WITHOUT a token as well: the type will become `in_game`, the calls will go out with an empty
+`x-public-token`, and the rebuff will come only from the server — and we will not see it
+(see §3). Check for the token ourselves.
 
-`[?]` Имя борда (`leaderboards/<id>`) заводится в кабинете; допустимые
-символы, длина и лимиты частоты — из доки/кабинета, не из кода.
+`[?]` The board name (`leaderboards/<id>`) is created in the dashboard; the allowed
+characters, the length and the rate limits — from the docs/dashboard, not from the code.
 
 ---
 
-## 2. Авторизация и гость
+## 2. Authorization and the guest
 
-`[код]` Гейт записи — **НЕ `isAuthorized`, а непустой `playerId`**:
+`[code]` The write gate is **NOT `isAuthorized`, but a non-empty `playerId`**:
 
 ```js
 setScore(id, score){
@@ -75,217 +75,217 @@ setScore(id, score){
 }
 ```
 
-⚠️ **ПОПРАВКА К ОЖИДАНИЮ ДИСПЕТЧЕРА** («у гостя идентификатор пустой и
-запись реджектится»): `[замер]` на наших прогонах `player.id` у
-НЕавторизованного гостя **непустой** (например `xYqlDvA0ms6eu87s`,
-`oQG29Klwms6euevm` — новый на каждую сессию). Значит локальный гейт гость
-ПРОХОДИТ и запрос уходит на сервер. Примет ли сервер гостевой id и что он
-сделает с «новым игроком каждую сессию» — `[?]`, только живой прогон.
+⚠️ **CORRECTION TO THE DISPATCHER'S EXPECTATION** («the guest has an empty identifier and the
+write is rejected»): `[measurement]` in our runs `player.id` for an
+UNauthorized guest is **non-empty** (for example `xYqlDvA0ms6eu87s`,
+`oQG29Klwms6euevm` — a new one for each session). That means the guest DOES PASS the local gate
+and the request goes out to the server. Whether the server will accept a guest id and what it
+will do with «a new player every session» — `[?]`, only a live run.
 
-`[код]` Заголовок формируется как `"x-player-id": playerId || ""` — то
-есть пустой id технически допустим на уровне транспорта, отсекает его
-именно гейт выше.
+`[code]` The header is formed as `"x-player-id": playerId || ""` — that
+is, an empty id is technically permitted at the transport level; it is cut off
+precisely by the gate above.
 
-`[код]` Чтение таблицы (`getEntries`) требует `type === IN_GAME`, иначе
-пустой реджект. Авторизации не требует.
+`[code]` Reading the table (`getEntries`) requires `type === IN_GAME`, otherwise
+an empty reject. It does not require authorization.
 
 ---
 
-## 3. Что возвращает вызов — и почему резолву нельзя верить
+## 3. What the call returns — and why the resolve cannot be trusted
 
-`[код]` Весь транспорт SaaS:
+`[code]` The entire SaaS transport:
 
 ```js
 get(p){  return fetch(`${base}/${p}`, {method:'GET',  …}).then(e => e.json()) }
 post(p,b){return fetch(`${base}/${p}`, {method:'POST', body:JSON.stringify(b), …}).then(e => e.json()) }
 ```
 
-**Ни `res.ok`, ни статуса.** Утверждение диспетчера подтверждено дословно.
+**Neither `res.ok`, nor the status.** The dispatcher's statement is confirmed verbatim.
 
-⚠️⚠️ **СЛЕДСТВИЕ — ГЛАВНОЕ В ЭТОМ ДОКУМЕНТЕ: ПРОВАЛЕННАЯ ЗАПИСЬ ВЫГЛЯДИТ
-КАК УСПЕШНАЯ.** `[замер]` Подставил свой сервер вместо `saas.baseUrl` и
-вызвал `setScore`:
+⚠️⚠️ **THE CONSEQUENCE — THE MAIN THING IN THIS DOCUMENT: A FAILED WRITE LOOKS
+LIKE A SUCCESSFUL ONE.** `[measurement]` I substituted my own server for `saas.baseUrl` and
+called `setScore`:
 
-| ответ сервера | что делает Bridge |
+| server response | what Bridge does |
 |---|---|
-| `200 {"ok":true}` | резолв |
-| **`403 {"error":"no token"}`** | **резолв — как успех** |
-| **`500 {"error":"boom"}`** | **резолв — как успех** |
-| `502`, тело не JSON | реджект, но с ошибкой парсинга JSON |
+| `200 {"ok":true}` | resolve |
+| **`403 {"error":"no token"}`** | **resolve — as success** |
+| **`500 {"error":"boom"}`** | **resolve — as success** |
+| `502`, body is not JSON | reject, but with a JSON parsing error |
 
-То есть `setScore(...).then(() => 'сохранено')` — **ложь**. Единственные
-реджекты: локальные гейты (§2) и невалидный JSON. Любая осмысленная
-серверная ошибка (нет токена, борд не заведён, лимит, протух токен)
-приезжает как успешный резолв с телом-ошибкой.
+That is, `setScore(...).then(() => 'saved')` is **a lie**. The only
+rejects: the local gates (§2) and invalid JSON. Any meaningful
+server error (no token, the board is not created, a limit, an expired token)
+arrives as a successful resolve with an error body.
 
-**Что из этого следует для кода:** резолв обязан РАЗБИРАТЬСЯ, а не
-приниматься на веру. Форма успешного ответа — `[?]`: Bridge отдаёт тело
-SaaS сырым, без нормализации, и увидеть его можно только живьём. До
-токена писать разбор вслепую нельзя — заложить точку и заполнить после
-первого прогона.
+**What follows from this for the code:** a resolve MUST BE PARSED, not
+taken on faith. The shape of a successful response is `[?]`: Bridge hands over the SaaS body
+raw, without normalization, and it can be seen only live. Before the
+token, writing the parsing blind is not allowed — lay in a point and fill it in after
+the first run.
 
-`[?]` Форма записи таблицы (поля entry: name/score/rank/photo и их имена в
-SaaS-ответе) — тоже только живьём: у нативных площадок форма своя, SaaS
-не нормализуется.
+`[?]` The shape of a table record (the entry fields: name/score/rank/photo and their names in
+the SaaS response) — also only live: the native platforms have their own shape, SaaS
+is not normalized.
 
 ---
 
-## 4. Как отличить «площадка не умеет» от «сеть упала»
+## 4. How to tell «the platform cannot do it» from «the network went down»
 
-`[код]` Оба случая дают **пустой** `Promise.reject()` без аргумента, так
-что по самому реджекту их не различить. Различать НАДО ДО вызова:
+`[code]` Both cases give an **empty** `Promise.reject()` with no argument, so
+they cannot be told apart by the reject itself. They MUST be distinguished BEFORE the call:
 
 ```js
-// 1. Умеет ли площадка вообще
+// 1. Can the platform do it at all
 const t = bridge.leaderboards.type;           // 'not_available' | 'in_game' | 'native' | 'native_popup'
-if (t === 'not_available') return 'платформа не поддерживает';
+if (t === 'not_available') return 'the platform does not support it';
 
-// 2. Есть ли кому приписать результат
-if (!bridge.player.id) return 'нет идентификатора игрока';
+// 2. Is there anyone to attribute the result to
+if (!bridge.player.id) return 'no player identifier';
 
-// 3. Только теперь вызываем — и ЛЮБОЙ реджект здесь означает транспорт,
-//    а НЕ отсутствие поддержки
-try { const r = await bridge.leaderboards.setScore(BOARD, score); /* §3: разобрать r */ }
-catch(e){ /* сеть/невалидный JSON */ }
+// 3. Only now do we call — and ANY reject here means transport,
+//    and NOT the absence of support
+try { const r = await bridge.leaderboards.setScore(BOARD, score); /* §3: parse r */ }
+catch(e){ /* network / invalid JSON */ }
 ```
 
-⚠️ Проверка типа НЕОБХОДИМА, но НЕ ДОСТАТОЧНА: `in_game` бывает и при
-отсутствующем токене (§1). Полный набор предусловий — тип, `player.id`
-и наличие `saas.publicToken` в конфиге.
+⚠️ Checking the type is NECESSARY, but NOT SUFFICIENT: `in_game` also happens when
+the token is missing (§1). The full set of preconditions — the type, `player.id`
+and the presence of `saas.publicToken` in the config.
 
-⚠️ И помнить §3: отсутствие исключения ≠ успех. «Записалось» доказывается
-только разбором тела ответа либо обратным чтением своей записи.
+⚠️ And remember §3: the absence of an exception ≠ success. «It was written» is proven
+only by parsing the response body or by reading your own record back.
 
 ---
 
-## Проверить на живом прогоне (после того, как владелец заведёт борд)
+## To check on a live run (after the owner creates the board)
 
-1. Форма успешного ответа `setScore` и `getEntries` (Bridge не
-   нормализует — поля неизвестны).
-2. Примет ли сервер ГОСТЕВОЙ `player.id` и как поведёт себя с новым
-   гостевым id каждую сессию (не засорит ли таблицу).
-3. Что приходит при неизвестном имени борда и при протухшем токене — и
-   отличимо ли это от успеха по телу (по статусу мы отличить не можем).
-4. Лимиты: частота записи, длина имени борда, размер страницы выдачи.
-5. Влияет ли `credentials:'include'` (Bridge шлёт его всегда) на работу
-   из iframe площадки — куки третьей стороны там могут не пройти.
-6. **Политика перезаписи: лучший результат или последний** (см.
-   дополнение) — от этого зависит, слать счёт всегда или только при росте.
-7. Тело успешного `POST` — пустое или JSON: при пустом успешная запись
-   уедет в `.catch` (см. дополнение).
-
----
-
-## Дополнение по итогам чтения доки (2026-07-29, тот же день)
-
-### ⚠️ ПОПРАВКА: наш SDK НЕ самый свежий — мы на две патч-версии позади
-
-Раньше я написал «v2.0.0 — актуальный релиз, обновляться не нужно». **Это
-неверно**, источник был плохой: я смотрел GitHub Releases, где последний
-тег действительно v2.0.0 (2026-07-10). `[замер]` В npm лежит **2.0.2**
-(2026-07-23), до неё 2.0.1 (2026-07-20) — обе НЕ протегированы релизом и
-НЕ упомянуты в changelog доки.
-
-⚠️ **ВЫВОД ДЛЯ ПРОЦЕССА: версию этого SDK смотреть в npm, а не в релизах
-GitHub.** Релизы отстают, changelog тоже.
-
-`[замер]` Сравнил наш бандл с 2.0.2: публичная поверхность API **идентична**
-(ни одного добавленного/пропавшего геттера, `+8 КБ` — внутренние правки),
-SaaS-транспорт **тот же**, `res.ok` нет ни там, ни там. Отсюда:
-- контракт из §1–4 к версии НЕ привязан и остаётся верным на свежей;
-- обновление низкорисковое (API не менялся), но и не срочное для
-  лидербордов; сделать имеет смысл **перед заливкой на портал**, чтобы
-  забрать патч-фиксы — отдельной задачей с прогоном сьюта.
-
-### ⚠️ ЗЕРКАЛЬНАЯ ПОЛОВИНА ПРОБЛЕМЫ ИЗ §3: пустое тело = ложный провал
-
-В §3 доказано, что ошибка с JSON-телом резолвится как успех. Обратное тоже
-верно `[код]`: `.then(e => e.json())` на ПУСТОМ теле (204 / пустой 200)
-бросит исключение — то есть **успешная запись прилетит в `.catch`**.
-Итого путь врёт в обе стороны, и «сохранилось ли» по исходу промиса не
-определяется в принципе. Разбирать только тело; форма — `[?]`.
-
-### Политика перезаписи — вопрос НЕ праздный именно для нас
-
-`[?]` Хранит борд ЛУЧШИЙ результат или ПОСЛЕДНИЙ присланный — из кода не
-видно, это серверная политика.
-⚠️ Для нас это не мелочь: `leaderboardScore()` **может УМЕНЬШАТЬСЯ** —
-по действующей модели трата сверх пополнения опускает ранг осознанно. Если
-сервер пишет «последнее», ранг будет проседать после каждой такой траты;
-если «лучшее» — просадка не отобразится вовсе, и задуманное владельцем
-поведение «трата роняет позицию» не заработает. **Решение зависит от
-ответа сервера**: либо слать всегда, либо только при росте. Внести в живой
-прогон первым пунктом.
-
-### Мелочи из доки, не меняющие сути
-
-- `[дока]` Есть КОРНЕВАЯ секция `leaderboards: [{ "id": "..." }]` —
-  описание бордов. `[код]` SaaS-путь её НЕ читает (id идёт прямо в URL
-  `leaderboards/<id>`); её использует нативная ветка через
-  `_getPlatformLeaderboardId`. Держать обе не вредно.
-- ⚠️ `[?]` Секции `saas` в `config.md` доки **нет** — имена ключей
-  (`saas.publicToken` / `saas.baseUrl` / `saas.<модуль>.platforms`)
-  установлены ЧТЕНИЕМ КОДА и подтверждены замером, но официально не
-  задокументированы. Риск: это может оказаться внутренней деталью сборки и
-  поехать в будущей версии. Уточнить у Playgama вместе с токеном.
+1. The shape of a successful `setScore` and `getEntries` response (Bridge does not
+   normalize — the fields are unknown).
+2. Whether the server will accept a GUEST `player.id` and how it will behave with a new
+   guest id every session (whether it will clutter the table).
+3. What arrives for an unknown board name and for an expired token — and
+   whether that is distinguishable from success by the body (by the status we cannot tell).
+4. Limits: the write frequency, the board name length, the page size of the listing.
+5. Whether `credentials:'include'` (Bridge always sends it) affects operation
+   from the platform's iframe — third-party cookies may not get through there.
+6. **The overwrite policy: the best result or the last one** (see
+   the addendum) — this determines whether to send the score always or only on growth.
+7. The body of a successful `POST` — empty or JSON: if empty, a successful write
+   will go off into `.catch` (see the addendum).
 
 ---
 
-## ✅ ЗАКРЫТО ЖИВЫМ ПРОГОНОМ (2026-07-29, борд `Blendo`, токен владельца)
+## Addendum following the reading of the docs (2026-07-29, the same day)
 
-Прогон на боевом борде, площадка `playgama`, тип таблицы `in_game`.
-Диспетчер независимо повторил на `poki` — результат тот же.
+### ⚠️ CORRECTION: our SDK is NOT the freshest — we are two patch versions behind
 
-### ⛔ ГЛАВНОЕ: сервер хранит МАКСИМУМ, а не последнее
+Earlier I wrote «v2.0.0 — the current release, no need to update». **That
+is wrong**, the source was bad: I was looking at GitHub Releases, where the latest
+tag is indeed v2.0.0 (2026-07-10). `[measurement]` In npm there is **2.0.2**
+(2026-07-23), before it 2.0.1 (2026-07-20) — both are NOT tagged with a release and
+NOT mentioned in the docs' changelog.
+
+⚠️ **CONCLUSION FOR THE PROCESS: look up this SDK's version in npm, not in the GitHub
+releases.** The releases lag behind, and so does the changelog.
+
+`[measurement]` I compared our bundle with 2.0.2: the public API surface is **identical**
+(not a single added/disappeared getter, `+8 KB` — internal edits),
+the SaaS transport is **the same**, `res.ok` is absent both there and there. Hence:
+- the contract from §1–4 is NOT tied to the version and remains true on the fresh one;
+- the update is low-risk (the API has not changed), but also not urgent for
+  the leaderboards; it makes sense to do it **before the upload to the portal**, so as to
+  pick up the patch fixes — as a separate task with a run of the suite.
+
+### ⚠️ THE MIRROR HALF OF THE PROBLEM FROM §3: an empty body = a false failure
+
+In §3 it is proven that an error with a JSON body resolves as a success. The reverse is also
+true `[code]`: `.then(e => e.json())` on an EMPTY body (204 / an empty 200)
+will throw an exception — that is, **a successful write will fly into `.catch`**.
+All in all the path lies in both directions, and «whether it was saved» cannot be determined
+from the promise outcome in principle. Parse only the body; the shape is `[?]`.
+
+### The overwrite policy — a question that is NOT idle precisely for us
+
+`[?]` Whether the board stores the BEST result or the LAST one sent — is not
+visible from the code, this is a server policy.
+⚠️ For us this is not a trifle: `leaderboardScore()` **can DECREASE** —
+under the current model, spending beyond the top-ups lowers the rank deliberately. If
+the server writes «the last one», the rank will sag after every such spend;
+if «the best one» — the sag will not be displayed at all, and the behavior intended by the owner,
+«spending drops your position», will not work. **The decision depends on the
+server's answer**: either always send, or only on growth. Put it into the live
+run as the first item.
+
+### Small things from the docs that do not change the essence
+
+- `[docs]` There is a ROOT section `leaderboards: [{ "id": "..." }]` —
+  a description of the boards. `[code]` The SaaS path does NOT read it (the id goes straight into the URL
+  `leaderboards/<id>`); it is used by the native branch via
+  `_getPlatformLeaderboardId`. Keeping both does no harm.
+- ⚠️ `[?]` There is **no** `saas` section in the docs' `config.md` — the key names
+  (`saas.publicToken` / `saas.baseUrl` / `saas.<module>.platforms`)
+  were established BY READING THE CODE and confirmed by a measurement, but are not officially
+  documented. The risk: this may turn out to be an internal detail of the build and
+  shift in a future version. Clarify with Playgama together with the token.
+
+---
+
+## ✅ CLOSED BY A LIVE RUN (2026-07-29, board `Blendo`, the owner's token)
+
+A run on the production board, platform `playgama`, table type `in_game`.
+The dispatcher independently repeated it on `poki` — the same result.
+
+### ⛔ THE MAIN THING: the server stores the MAXIMUM, not the last one
 
 ```
-послали 12345 → 201, в теле score 12345 → в таблице 12345
-послали   500 → 201, в теле score 12345 (!) → в таблице 12345
-КОНТРОЛЬ: 20000 → 201, score 20000 → в таблице 20000
+sent 12345 → 201, score 12345 in the body → 12345 in the table
+sent   500 → 201, score 12345 (!) in the body → 12345 in the table
+CONTROL: 20000 → 201, score 20000 → 20000 in the table
 ```
-Контроль (третий шаг) исключает толкование «вторая запись не дошла»:
-бо́льшее принимается, меньшее молча игнорируется. **Следствие для
-продукта: утверждённая владельцем механика «потратил — упал» с этим
-лидербордом НЕ РАБОТАЕТ** — ранг может только расти. Решение за владельцем
-(варианты — в docs/LEADERBOARD-PLAN.md).
+The control (the third step) rules out the reading «the second write did not get through»:
+the larger one is accepted, the smaller one is silently ignored. **The consequence for the
+product: the mechanic approved by the owner, «spent — dropped», does NOT WORK with this
+leaderboard** — the rank can only grow. The decision is the owner's
+(the options are in docs/LEADERBOARD-PLAN.md).
 
-### ⚠️ Отказ невидим по статусу — различать по ТЕЛУ
+### ⚠️ The refusal is invisible by the status — distinguish by the BODY
 
-Проигнорированная запись отдаёт **тот же 201** и **`scoreAttemptStatus:
-"normal"`**, `scoreAttemptReasons: []` — поле, выглядящее созданным ровно
-для этого, не срабатывает. **Единственный честный признак: в теле приходит
-СОХРАНЁННЫЙ счёт, а не присланный.** Реализовано в `78-ads`:
-`accepted = (res.score === отправленное)`.
-⚠️ `accepted === false` — НЕ ошибка: это штатное «ниже личного пика».
+An ignored write returns **the same 201** and **`scoreAttemptStatus:
+"normal"`**, `scoreAttemptReasons: []` — a field that looks created exactly
+for this does not fire. **The only honest sign: the body carries the
+STORED score, not the sent one.** Implemented in `78-ads`:
+`accepted = (res.score === sentScore)`.
+⚠️ `accepted === false` is NOT an error: this is the normal «below the personal peak».
 
-### Формы ответов (Bridge их не нормализует)
+### The shapes of the responses (Bridge does not normalize them)
 
-- **POST** `leaderboards/<id>` → **201**, тело
+- **POST** `leaderboards/<id>` → **201**, body
   `{uuid, leaderboardUuid, playerUuid, score, platformId, updatedAt,
     scoreAttemptStatus, scoreAttemptReasons[]}`
-- **GET** `leaderboards/<id>` → **200**, тело — **ГОЛЫЙ МАССИВ** (не обёртка)
+- **GET** `leaderboards/<id>` → **200**, body — a **BARE ARRAY** (not a wrapper)
   `[{score, id, name, photo, rank, platformId, updatedAt}]`.
-  Имена полей совпали с доковыми.
+  The field names matched the ones in the docs.
 
-### Гость: сервер ПРИНИМАЕТ, не пускает только наш гейт
+### The guest: the server ACCEPTS, only our gate does not let him through
 
-Прогон шёл при `isAuthorized: false`, `isGuest: true` — запись прошла (201)
-и попала в таблицу. ⚠️ Значит решение владельца «в лидерборд только
-залогиненные» держится ИСКЛЮЧИТЕЛЬНО на нашей проверке в `78-ads`; уберут
-её — гости поедут. Имя гостю сервер присваивает сам (нам досталось
-«Aquamarine Guppy»), мы имя не отправляем вовсе.
+The run went with `isAuthorized: false`, `isGuest: true` — the write went through (201)
+and landed in the table. ⚠️ That means the owner's decision «only logged-in players in the
+leaderboard» rests EXCLUSIVELY on our check in `78-ads`; remove
+it — and the guests will go through. The server assigns the guest a name itself (we got
+«Aquamarine Guppy»), we do not send a name at all.
 
-### Прочее
+### Other
 
-- Лимита частоты на трёх подряд записях не встретил (полноценно не мерил).
-- ⚠️ След в боевой таблице: записи легли в ОДНУ строку, потому что я заранее
-  закрепил `bridge-player-guest-id`. Строка `qa-mixer-probe-01` / 20000
-  осталась навсегда — удаления в SDK нет. Перед запуском борд лучше
-  пересоздать (предложено владельцу).
+- I did not encounter a rate limit on three writes in a row (did not measure it properly).
+- ⚠️ A trace in the production table: the records landed in ONE row, because I pinned
+  `bridge-player-guest-id` in advance. The row `qa-mixer-probe-01` / 20000
+  stayed forever — there is no deletion in the SDK. Before the launch it is better to recreate
+  the board (proposed to the owner).
 
-## Чего этот документ НЕ решает
+## What this document does NOT solve
 
-Продуктовый вопрос «что именно отправлять». Диспетчер отдельно нашёл, что
-купленный бустер множит начисление очков, а база звёзд — нет, то есть
-место в таблице покупается. Отправку счёта включать только после решения
-владельца: таблицу на площадке **нельзя ни обнулить, ни почистить**.
+The product question «what exactly to send». The dispatcher separately found that
+a purchased booster multiplies the points award, while the base stars do not, that is,
+a place in the table can be bought. Turn score submission on only after the owner's
+decision: the table on the platform **can neither be reset nor cleaned**.

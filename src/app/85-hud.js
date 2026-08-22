@@ -1,21 +1,21 @@
-// ===== 85-hud: DOM-хелперы и обновление интерфейса =====
+// ===== 85-hud: DOM helpers and interface updates =====
 
 function $(id){ return document.getElementById(id); }
 
-// ===== ЗАНАВЕС ЗАГРУЗКИ: защёлка `html.uiready` (CSS-часть в shell.html) =====
-// Спека владельца 2026-07-30: «во время загрузки бриджа не должно быть никаких
-// элементов интерфейса. Они появляются плавно сразу после».
-// ⚠️ ОТКРЫВАЕМ ОДИН РАЗ И НЕ ЗАКРЫВАЕМ. Ядро снимает `introdone` в startIntro
-// (99-main) в начале КАЖДОГО уровня, поэтому занавес, повешенный прямо на
-// introdone, гасил бы HUD на каждом интро — это шире спеки. Отсюда своя
-// защёлка: первый introdone открывает её навсегда.
-// ⚠️ НЕ ЦЕПЛЯЕМСЯ ЗА `#loading-overlay` СПЛЭША: это приватный DOM чужого SDK,
-// и снимает его сам SDK (замер: сплэш ушёл на 3947 мс, а GAME_READY уходит
-// только на 4359) — наблюдатель по чужому id молча сломается на обновлении
-// Bridge. Наблюдаем ТОЛЬКО за своим <html>.
-// ⚠️ СТРАХОВОЧНЫЙ ТАЙМАУТ ОБЯЗАТЕЛЕН: если интро не доехало (ошибка, зависший
-// bridge), HUD остался бы скрыт НАВСЕГДА и игра выглядела бы сломанной наглухо
-// — хуже исходного бага. По истечении предела открываем безусловно.
+// ===== LOADING CURTAIN: the `html.uiready` latch (CSS part in shell.html) =====
+// The owner's spec 2026-07-30: «while the bridge is loading there must be no
+// interface elements at all. They appear smoothly right afterwards».
+// ⚠️ WE OPEN IT ONCE AND NEVER CLOSE IT. The core removes `introdone` in startIntro
+// (99-main) at the start of EVERY level, so a curtain hung directly on
+// introdone would blank the HUD on every intro — that is wider than the spec. Hence our own
+// latch: the first introdone opens it forever.
+// ⚠️ WE DO NOT HOOK THE SPLASH'S `#loading-overlay`: that is the private DOM of a foreign SDK,
+// and the SDK removes it itself (measurement: the splash left at 3947 ms, while GAME_READY leaves
+// only at 4359) — an observer keyed to a foreign id will silently break on a Bridge
+// update. We observe ONLY our own <html>.
+// ⚠️ THE SAFETY TIMEOUT IS MANDATORY: if the intro never arrived (an error, a hung
+// bridge), the HUD would stay hidden FOREVER and the game would look utterly broken
+// — worse than the original bug. Once the limit expires we open unconditionally.
 const UI_CURTAIN_MAX_MS = 8000;
 let uiCurtainObs = null;
 function openUICurtain(){
@@ -30,52 +30,52 @@ else {
   uiCurtainObs.observe(document.documentElement, { attributes:true, attributeFilter:['class'] });
   setTimeout(openUICurtain, UI_CURTAIN_MAX_MS);
 }
-// ⚠️ ЕДИНАЯ ТОЧКА ПОКАЗА/СКРЫТИЯ = единая точка учёта ЭКРАНОВ (docs/METRICS.md
-// §3). Вешать замер на каждый оверлей отдельно бессмысленно: их семь, и
-// новый восьмой молча выпал бы из статистики.
+// ⚠️ A SINGLE SHOW/HIDE POINT = a single point of SCREEN accounting (docs/METRICS.md
+// §3). Hanging a measurement on each overlay separately is pointless: there are seven of them, and
+// a new eighth one would silently drop out of the statistics.
 const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
   starsOverlay:'more_stars', museumOverlay:'museum', loseOverlay:'lose' };
-// ⛔⛔ МАШИНЕРИЯ КРОМОК СНЯТА ЦЕЛИКОМ 2026-08-14 — слово владельца: «убери все
-// попытки скрыть или расширить поля сверху и снизу, как я просил для ios 26 —
-// нужно исключить все проблемы с дополнительным кодом поверх или костылями».
-// Было: chromeSync (единственный водитель) писал --edge-top-rgb/--edge-bot-rgb,
-// фон html/body и мету theme-color в локстепе; бары носили фон в альфе .01 как
-// канал живого семплинга Safari 26. Снято ВМЕСТЕ с viewport-fit=cover — иначе
-// вернулись бы чёрные полосы (Safari читает `transparent` фикс-бара как
-// «прозрачный чёрный»). Теперь страница живёт в безопасной зоне, полосы у
-// кромок рисует система. Пять редакций саги — в CLAUDE.md; возвращать что-то
-// одно из этого набора НЕЛЬЗЯ, только весь комплект разом.
+// ⛔⛔ THE EDGE MACHINERY WAS REMOVED ENTIRELY 2026-08-14 — the owner's word: «remove all
+// attempts to hide or extend the fields at the top and bottom, as I asked for ios 26 —
+// we need to rule out all problems with extra code on top or with crutches».
+// It used to be: chromeSync (the single driver) wrote --edge-top-rgb/--edge-bot-rgb,
+// the html/body background and the theme-color meta in lockstep; the bars carried a background at alpha .01 as
+// the channel for Safari 26's live sampling. Removed TOGETHER with viewport-fit=cover — otherwise
+// the black bars would come back (Safari reads a fixed bar's `transparent` as
+// «transparent black»). Now the page lives in the safe area, and the strips at
+// the edges are drawn by the system. The five editions of the saga are in CLAUDE.md; bringing back any
+// one item from this set is FORBIDDEN, only the whole set at once.
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
-  // кромки: любой полноэкранный фейд темнит полосы (5-я редакция)
+  // edges: any full-screen fade darkens the strips (5th edition)
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
-  // вернулись в игру — экран снова 'game' (если партия жива)
+  // back in the game — the screen is 'game' again (if the run is alive)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
 }
 
-// ===== ЭКРАН ЗАВЕРШЕНИЯ УРОВНЯ (Figma 778:732) =====
-// Рисуется из ЖИВОГО состояния при показе оверлея (хук в show выше). checkEnd
-// (80-gameplay, ВНЕ моей зоны) уже посчитал счёт, инкрементил levelNum и
-// записал скрытые держатели winTitle/… — я читаю состояние и крашу стикеры.
+// ===== LEVEL COMPLETION SCREEN (Figma 778:732) =====
+// Drawn from the LIVE state when the overlay is shown (the hook in show above). checkEnd
+// (80-gameplay, OUTSIDE my zone) has already counted the score, incremented levelNum and
+// written the hidden holders winTitle/… — I read the state and paint the stickers.
 let winScoreRAF = 0, winScoreTO = 0;
-// стоп count-up: гасим И таймер, И rAF (зовётся из hide — иначе после клика
-// Next досчёт бил бы по скрытому #winScore и мог перескочить в след. уровень)
+// count-up stop: we kill BOTH the timer AND the rAF (called from hide — otherwise after a click on
+// Next the count-up would write into the hidden #winScore and could spill into the next level)
 function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0; }
-// компрессия как в HUD (≥10000 → «12.5k»): большой счёт не рвёт рамку 320 и
-// согласован со счётом игрового экрана (иначе HUD «12.5k» vs победа «124800»)
-// КОМПРЕССОР БОЛЬШИХ ЧИСЕЛ — общий для экрана победы И чипа счёта в HUD.
-// Ступени: <10k как есть · <100k «12.5k» · <1M «125k» (дробь уже не нужна,
-// а знак экономит место) · дальше «1.2M». Максимум 5 символов — этим и
-// лечится наезд чипа на глаза (см. вызов в updateHUD).
-// ⚠️ Ветка M добавлена 2026-07-28: с бандлами кошелёк становится
-// 7-значным (МЕТА: ~29 уровней под x5), а без неё вышло бы «1200k».
+// compression as in the HUD (≥10000 → «12.5k»): a large score does not break the 320 frame and
+// is consistent with the game screen's score (otherwise HUD «12.5k» vs win «124800»)
+// THE BIG-NUMBER COMPRESSOR — shared by the win screen AND the score chip in the HUD.
+// Steps: <10k as is · <100k «12.5k» · <1M «125k» (the fraction is no longer needed,
+// and the sign saves space) · beyond that «1.2M». At most 5 characters — that is what
+// cures the chip overlapping the eyes (see the call in updateHUD).
+// ⚠️ The M branch was added 2026-07-28: with bundles the wallet becomes
+// 7-digit (META: ~29 levels at x5), and without it we would have got «1200k».
 function winFmtScore(n){
   n = n | 0;
   if (n < 10000) return '' + n;
@@ -83,40 +83,40 @@ function winFmtScore(n){
   return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
 }
 function renderWinScreen(){
-  // ⚠️⚠️ СТРОКУ ТАБЛИЦЫ ОБНОВЛЯЕМ СИНХРОННО И ПЕРВОЙ, ДО СЧЁТА: она сама
-  // ставит/снимает `hidden` без сети, поэтому её высота (12+48+12 = 72) есть
-  // уже в ПЕРВОМ кадре экрана. Данные приезжают позже и МЕНЯЮТ ТОЛЬКО ТЕКСТ —
-  // кнопка Next под списком не уедет из-под пальца. То же правило, по которому
-  // жила прежняя врезка `#winLb`.
-  // ⚠️ Обёрнуто в try: экран победы важнее строки таблицы, и отказ сети,
-  // выключенная фича или отсутствующий модуль не смеют уронить показ.
+  // ⚠️⚠️ WE UPDATE THE LEADERBOARD ROW SYNCHRONOUSLY AND FIRST, BEFORE THE SCORE: it itself
+  // sets/clears `hidden` without the network, so its height (12+48+12 = 72) exists
+  // already in the FIRST frame of the screen. The data arrives later and CHANGES ONLY THE TEXT —
+  // the Next button below the list will not slide out from under the finger. The same rule by which
+  // the former `#winLb` inset lived.
+  // ⚠️ Wrapped in try: the win screen matters more than the leaderboard row, and a network failure,
+  // a disabled feature or a missing module must not dare to bring the display down.
   try { lbEntryRefresh(); } catch (e) {}
   const wrap = $('winWrap'); if (!wrap) return;
   const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  // levelNum уже инкрементнут в checkEnd → только что пройденный = levelNum-1
+  // levelNum has already been incremented in checkEnd → the one just completed = levelNum-1
   const lv = Math.max(1, (typeof levelNum === 'number' ? levelNum - 1 : 1));
   const score = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.score | 0) : 0;
-  // ★-число на победе = ДЕНОМИНИРОВАННЫЙ прирост (score/SCORE_DENOM) = ровно
-  // столько ушло в баланс (bankLevelScore) и на сколько подрос чип. Единый
-  // баланс: чип/кошелёк/лидерборд/победа — одна шкала (решение диспетчера v113)
+  // the ★-number on the win screen = the DENOMINATED gain (score/SCORE_DENOM) = exactly
+  // as much as went into the balance (bankLevelScore) and by how much the chip grew. A single
+  // balance: chip/wallet/leaderboard/win — one scale (dispatcher's decision v113)
   const bal = Math.floor(score / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10));
   const secs = (typeof stats !== 'undefined' && stats && stats.t0)
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
   renderWinTop(reduce);
-  // ⛔ Врезки таблицы здесь нет (слово владельца); её кластер вырезан уборкой
-  // 2026-08-12 — прежнее «оставлены живыми: на них висят хуки» протухло, хуки
-  // не читал никто, включая тесты (перепись употреблений).
-  // СЧЁТ — анимированный count-up (reduce/0 → сразу); стартует синхронно с pop
+  // ⛔ There is no leaderboard inset here (the owner's word); its cluster was cut out by the cleanup
+  // of 2026-08-12 — the former «left alive: hooks hang on them» went stale, nobody
+  // read those hooks, tests included (a census of usages).
+  // THE SCORE — an animated count-up (reduce/0 → immediately); it starts in sync with the pop
   winStopScore();
-  // ⚠️⚠️ СЧЁТ ПИШЕТСЯ В ОБА СЛОЯ ОБВОДКИ ОДНИМ КОДОМ (2026-08-21-р). Текст
-  // рисуется дважды — белая 12 снизу, чёрная 6 сверху; второй писатель
-  // разошёлся бы с первым на count-up, и обводка отставала бы от цифры.
-  // ⚠️ Обёртка-сеттер, а не список: ниже четыре присваивания `st.textContent`,
-  // и переписывать каждое значило бы завести четыре места вместо одного.
-  const слои = Array.prototype.slice.call(document.querySelectorAll('.win-score text'));
-  const st = слои.length ? { set textContent(v){ слои.forEach(n => { n.textContent = v; }); } } : null;
+  // ⚠️⚠️ THE SCORE IS WRITTEN INTO BOTH OUTLINE LAYERS BY ONE PIECE OF CODE (2026-08-21-r). The text
+  // is drawn twice — white 12 underneath, black 6 on top; a second writer
+  // would diverge from the first on the count-up, and the outline would lag behind the digit.
+  // ⚠️ A setter wrapper, not a list: below there are four assignments to `st.textContent`,
+  // and rewriting each one would mean four places instead of one.
+  const layers = Array.prototype.slice.call(document.querySelectorAll('.win-score text'));
+  const st = layers.length ? { set textContent(v){ layers.forEach(n => { n.textContent = v; }); } } : null;
   if (st){
     if (reduce || bal <= 0){ st.textContent = '★ ' + winFmtScore(bal); }
     else {
@@ -132,175 +132,175 @@ function renderWinScreen(){
       }, 520);
     }
   }
-  // ПЕРЕЗАПУСК ВХОДНОЙ АНИМАЦИИ: reflow-трюк — CSS-анимации детей отыгрывают
-  // заново при каждом показе (быстрый Next→win не «съедает» анимацию)
+  // RESTART OF THE ENTRANCE ANIMATION: the reflow trick — the children's CSS animations play
+  // again on every show (a fast Next→win does not «eat» the animation)
   wrap.classList.remove('win-in'); void wrap.offsetWidth; wrap.classList.add('win-in');
 }
-// ⛔ ЗДЕСЬ ЖИЛА ВРЕЗКА ТАБЛИЦЫ НА ЭКРАНЕ ПОБЕДЫ (WIN_LB_MS, winLbStop/Source/
-// Adapt/Render, renderWinLb) — снята словом владельца («врезки больше нет»),
-// кластер ВЫРЕЗАН уборкой 2026-08-12 по его же приказу «удали старое и
-// неиспользуемое»: не читал никто, включая тесты. Возврат — из истории git;
-// требование «место после победы» закрывают плашка меню и экран таблицы
-// (мгновенный пересчёт lbOnSent). Страж «врезки НЕТ» жив и остался.
-// ===== ЭКРАН ТАБЛИЦЫ ЛИДЕРОВ: ДВЕ ВКЛАДКИ =====
-// ⚠️⚠️ ТЕКСТ ПРО РАСХОЖДЕНИЕ ЧИСЕЛ ПИШЕТ ВЛАДЕЛЕЦ САМ. До тех пор здесь стоит
-// ВИДИМО ПОМЕЧЕННАЯ заглушка, а в сьюте — страж, утверждающий, что метка ЕЩЁ
-// НА МЕСТЕ. Когда придёт настоящий текст, страж ПОКРАСНЕЕТ и заставит снять
-// метку осознанно. Молчаливая заглушка («пустая строка») уехала бы в релиз
-// незамеченной — тот же приём «обратного утверждения», что у снятого градиента.
-// ⛔ ЗАГЛУШКА ТЕКСТА ВЛАДЕЛЬЦА СНЯТА ВМЕСТЕ СО ВКЛАДКАМИ: она объясняла
-// расхождение чисел ДВУХ вкладок, а вкладки отменены — объяснять нечего.
-// Подзаголовок экрана теперь берётся из макета (846:1274).
+// ⛔ HERE LIVED THE LEADERBOARD INSET ON THE WIN SCREEN (WIN_LB_MS, winLbStop/Source/
+// Adapt/Render, renderWinLb) — removed by the owner's word («there is no inset any more»),
+// the cluster was CUT OUT by the cleanup of 2026-08-12 on his own order «delete the old and
+// unused»: nobody read it, tests included. To bring it back — from the git history;
+// the «rank after a win» requirement is covered by the menu plate and the leaderboard screen
+// (the instant recount of lbOnSent). The guard «there is NO inset» is alive and stayed.
+// ===== LEADERBOARD SCREEN: TWO TABS =====
+// ⚠️⚠️ THE TEXT ABOUT THE DIVERGENCE OF THE NUMBERS IS WRITTEN BY THE OWNER HIMSELF. Until then there stands
+// a VISIBLY MARKED stub here, and in the suite — a guard asserting that the mark is STILL
+// IN PLACE. When the real text arrives the guard WILL GO RED and force the mark to be removed
+// deliberately. A silent stub («an empty string») would have gone into the release
+// unnoticed — the same «inverse assertion» trick as with the removed gradient.
+// ⛔ THE STUB FOR THE OWNER'S TEXT WAS REMOVED TOGETHER WITH THE TABS: it explained
+// the divergence of the numbers of the TWO tabs, and the tabs are cancelled — there is nothing to explain.
+// The screen's subtitle is now taken from the mockup (846:1274).
 let lbEpoch = 0;
-// ⚠️ ЭПОХА — НА ВЫБРОСЕ, как у врезки: игрок переключает вкладки быстрее, чем
-// отвечает сеть, и ответ прошлой вкладки не смеет дорисоваться в свежую.
+// ⚠️ THE EPOCH IS ON THE DISCARD, as with the inset: the player switches tabs faster than
+// the network answers, and the answer of the previous tab must not dare to draw itself into the fresh one.
 function lbScreenStop(){ lbEpoch++; }
-// ─── ТОЧКА ВХОДА В ТАБЛИЦУ (меню, макеты 840:4344 моб. / 840:4633 деск.) ───
-// ⚠️ ОБА ЧИСЛА ИДУТ ЧЕРЕЗ `window.__lb` И ТОЛЬКО ЧЕРЕЗ НЕГО: он один держит
-// кэш `top()`/`me()` и умеет РАЗОВЫЙ обход HTTP-кэша браузера после сброса
-// (без этого место не менялось бы минуту ровно после победы и после траты —
-// найдено живым прогоном). Меню открывается часто, второй сетевой путь завёл
-// бы запрос на каждое открытие.
+// ─── THE LEADERBOARD ENTRY POINT (menu, mockups 840:4344 mob. / 840:4633 desk.) ───
+// ⚠️ BOTH NUMBERS GO THROUGH `window.__lb` AND ONLY THROUGH IT: it alone holds
+// the `top()`/`me()` cache and knows how to do a ONE-OFF bypass of the browser's HTTP cache after a reset
+// (without it the rank would not change for a whole minute right after a win and after a spend —
+// found by a live run). The menu is opened often, and a second network path would start
+// a request on every opening.
 let lbEntryEpoch = 0;
-// ⚠️ ЭПОХА НУЖНА ЗДЕСЬ ПО ТОЙ ЖЕ ПРИЧИНЕ, ЧТО У ВРЕЗКИ ПОБЕДЫ: меню
-// закрывают быстрее, чем отвечает сеть, и ответ прошлого открытия не смеет
-// дорисоваться в следующее. Сверка — ДО единого касания DOM.
+// ⚠️ THE EPOCH IS NEEDED HERE FOR THE SAME REASON AS WITH THE WIN INSET: the menu
+// is closed faster than the network answers, and the answer of the previous opening must not dare
+// to draw itself into the next one. The check comes BEFORE a single touch of the DOM.
 
-// ⚠️⚠️ МЕСТО ПО ЖИВОМУ СЧЁТУ — ОДНА ФУНКЦИЯ НА ВСЕХ ПОТРЕБИТЕЛЕЙ.
-// Жалоба владельца 2026-08-17-д: «с лидербордом всё такая же задержка при
-// трате очков, нужно быстрее считать позицию». Тратит он, СТОЯ В МЕНЮ, а
-// сервер узнаёт новое число не раньше отправки (частота 20 с) — всё это окно
-// место оставалось прежним.
-// ⚠️⚠️ ГЛАВНЫЙ ИСТОЧНИК — СОСЕДИ ИЗ `/v1/me` (`up`/`dn`, по пять с каждой
-// стороны), а НЕ отрезок топа. Топ приходит из ЧАСОВОГО СНИМКА и накрывает
-// только первую сотню: игрок с местом 3000 не попадал в него никогда, и для
-// него «мгновенное место» не работало вовсе. Соседи запрошены ЖИВОЙ базой и
-// существуют на любом месте таблицы.
-// ⛔ ЭТО НЕ ОТМЕНА ПРАВИЛА ЗАКРЫТОГО ОТКАЗА: прикидку (`exact:0`) не
-// показываем нигде. Здесь считается ТОЧНОЕ положение — ровно пока живой счёт
-// не вышел за известное окно; вышел — отдаём `null`, и потребитель остаётся на
-// серверном числе.
-// ⚠️ РАВЕНСТВО СЧЁТОВ РЕШАЕТСЯ ПОРЯДКОМ СЕРВЕРА (`ORDER BY s DESC, u ASC`):
-// сосед снизу с ТЕМ ЖЕ счётом стоит ниже меня по идентификатору, значит при
-// падении ровно до его числа я его НЕ пропускаю. Поэтому строгое сравнение.
-function lbRankNow(m, живой, топ){
+// ⚠️⚠️ THE RANK BY THE LIVE SCORE — ONE FUNCTION FOR ALL CONSUMERS.
+// The owner's complaint 2026-08-17-d: «with the leaderboard there is still the same delay when
+// spending points, the position needs to be counted faster». He spends STANDING IN THE MENU, while
+// the server learns the new number no earlier than the send (rate 20 s) — for that whole window
+// the rank stayed the same.
+// ⚠️⚠️ THE MAIN SOURCE IS THE NEIGHBOURS FROM `/v1/me` (`up`/`dn`, five on each
+// side), and NOT the top segment. The top comes from an HOURLY SNAPSHOT and covers
+// only the first hundred: a player at rank 3000 never got into it, and for
+// him the «instant rank» did not work at all. The neighbours are requested from the LIVE database and
+// exist at any rank of the table.
+// ⛔ THIS IS NOT A REPEAL OF THE CLOSED-REFUSAL RULE: the estimate (`exact:0`) we do not
+// show anywhere. Here the EXACT position is computed — exactly while the live score
+// has not left the known window; once it has — we return `null`, and the consumer stays on
+// the server's number.
+// ⚠️ TIES ARE RESOLVED BY THE SERVER'S ORDER (`ORDER BY s DESC, u ASC`):
+// a neighbour below with the SAME score stands lower than me by identifier, which means that on
+// a fall to exactly his number I do NOT pass him. Hence the strict comparison.
+function lbRankNow(m, live, top){
   if (!m || m.state !== 'ok' || !m.exact || !(m.rank > 0)) return null;
-  const серв = m.score | 0;
-  if (живой === серв) return m.rank | 0;          // сервер догнал — его число точнее
-  // ── СОСЕДИ (точно на любом месте таблицы) ──
-  const окно = (живой < серв) ? m.dn : m.up;
-  if (Array.isArray(окно) && окно.length){
-    // сколько соседей я пересёк: вниз — те, кто теперь выше меня; вверх — те,
-    // кого я обогнал
-    let мимо = 0;
-    for (const r of окно){
+  const srv = m.score | 0;
+  if (live === srv) return m.rank | 0;            // the server caught up — its number is more exact
+  // ── NEIGHBOURS (exact at any rank of the table) ──
+  const nearWin = (live < srv) ? m.dn : m.up;
+  if (Array.isArray(nearWin) && nearWin.length){
+    // how many neighbours I crossed: downwards — those who are now above me; upwards — those
+    // whom I overtook
+    let passed = 0;
+    for (const r of nearWin){
       if (!r) continue;
       const s = r.score | 0;
-      if (живой < серв ? (s > живой) : (s < живой)) мимо++;
+      if (live < srv ? (s > live) : (s < live)) passed++;
     }
-    // ⚠️⚠️ ОКНО ИСЧЕРПАНО — ЗА НИМ МОГУТ БЫТЬ ЕЩЁ, И ОТВЕТА У НАС НЕТ: отдаём
-    // `null`, потребитель остаётся на серверном числе. Соблазн «окно короче
-    // пяти, значит соседей больше нет» ОТВЕРГНУТ — пятёрка это `NEAR_N`
-    // СЕРВЕРА, и её копия здесь разошлась бы с ним при первой правке (закон,
-    // на котором проект обжигался пятикратно). Правило строгое и всегда верное.
-    if (мимо < окно.length) return Math.max(1, (m.rank | 0) + (живой < серв ? мимо : -мимо));
+    // ⚠️⚠️ THE WINDOW IS EXHAUSTED — THERE MAY BE MORE BEYOND IT, AND WE HAVE NO ANSWER: we return
+    // `null`, the consumer stays on the server's number. The temptation of «the window is shorter
+    // than five, so there are no more neighbours» is REJECTED — the five is the SERVER's `NEAR_N`,
+    // and a copy of it here would diverge from it at the first edit (the law
+    // on which the project has been burned five times over). The rule is strict and always correct.
+    if (passed < nearWin.length) return Math.max(1, (m.rank | 0) + (live < srv ? passed : -passed));
   }
-  // ⛔ ЗДЕСЬ СТОЯЛА ВЕТКА «список соседей сверху пуст — значит игрок первый,
-  // отдаём его же место». Она НЕВЕРНА: пустой список значит «соседей не
-  // прислали», а не «их нет» — у игрока с местом 9 она возвращала серверную
-  // девятку и глушила расчёт по отрезку топа (поймано пробой: ждали 3,
-  // получили 9). Настоящему лидеру ветка не нужна: он и так уходит ниже, где
-  // при живом счёте выше верхней строки отрезок отвечает отказом, а место
-  // остаётся серверной единицей.
-  // ── ОТРЕЗОК ТОПА (запасной путь: крупный скачок внутри первой сотни) ──
-  if (Array.isArray(топ) && топ.length > 1){
-    const верх = топ[0].score | 0, низ = топ[топ.length - 1].score | 0;
-    // строго ВНУТРИ отрезка: на границах положение неоднозначно (ниже низа мы
-    // не знаем, сколько игроков между нами и хвостом снимка)
-    if (живой <= верх && живой >= низ){
-      let выше = 0;
-      for (const r of топ) if ((r.score | 0) > живой) выше++;
-      return выше + 1;
+  // ⛔ HERE STOOD THE BRANCH «the list of neighbours above is empty — so the player is first,
+  // we return his own rank». It is WRONG: an empty list means «the neighbours were not
+  // sent», not «there are none» — for a player at rank 9 it returned the server's
+  // nine and muted the computation over the top segment (caught by a probe: we expected 3,
+  // we got 9). The real leader does not need that branch: he goes further down anyway, where
+  // with a live score above the top row the segment answers with a refusal, and the rank
+  // stays the server's one.
+  // ── THE TOP SEGMENT (the fallback path: a large jump inside the first hundred) ──
+  if (Array.isArray(top) && top.length > 1){
+    const hi = top[0].score | 0, lo = top[top.length - 1].score | 0;
+    // strictly INSIDE the segment: at the boundaries the position is ambiguous (below the bottom we
+    // do not know how many players there are between us and the tail of the snapshot)
+    if (live <= hi && live >= lo){
+      let above = 0;
+      for (const r of top) if ((r.score | 0) > live) above++;
+      return above + 1;
     }
   }
   return null;
 }
-// ⚠️⚠️ ЭКЗЕМПЛЯРОВ СТРОКИ ТЕПЕРЬ ДВА: в меню (`#msLbEntry`) и на экране победы
-// (`#winLbEntry`, нода 891:4297, слово владельца 2026-08-21-н). Функция стала
-// писать во ВСЕ найденные, а не в узел по id.
-// ⚠️ ПОЧЕМУ НЕ ВТОРАЯ ФУНКЦИЯ: место считается формулой `lbRankNow` со своим
-// стражем и своей памятью прошлого места в localStorage. Две копии этой логики
-// разошлись бы при первой правке, и экраны показывали бы РАЗНОЕ место игрока —
-// худший вид расхождения, потому что оба числа выглядят правдой.
-const lbEntryВсе = сел => Array.prototype.slice.call(document.querySelectorAll(сел));
-// ⚠️ ЗНАЧОК НАПРАВЛЕНИЯ ШТАМПУЕТСЯ ИЗ МЕНЮ, А НЕ ДУБЛИРУЕТСЯ В РАЗМЕТКЕ: три
-// SVG (вверх/вниз/новичок) весят почти 5 КБ путей, и вторая их копия в файле
-// была бы ровно тем дублем, который расходится при первой перерисовке значка.
-// Берём разметку у первого экземпляра, у которого она есть.
-function lbEntryШтампЗначка(){
-  const источник = document.querySelector('#msLbeBadge');
-  if (!источник || !источник.firstElementChild) return;
-  lbEntryВсе('.ms-lbe-badge').forEach(з => {
-    if (з !== источник && !з.firstElementChild) з.innerHTML = источник.innerHTML;
+// ⚠️⚠️ THERE ARE NOW TWO INSTANCES OF THE ROW: in the menu (`#msLbEntry`) and on the win screen
+// (`#winLbEntry`, node 891:4297, the owner's word 2026-08-21-n). The function now
+// writes into ALL the ones it finds, and not into a node by id.
+// ⚠️ WHY NOT A SECOND FUNCTION: the rank is computed by the `lbRankNow` formula with its own
+// guard and its own memory of the previous rank in localStorage. Two copies of this logic
+// would diverge at the first edit, and the screens would show a DIFFERENT rank for the player —
+// the worst kind of divergence, because both numbers look like the truth.
+const lbEntryAll = sel => Array.prototype.slice.call(document.querySelectorAll(sel));
+// ⚠️ THE DIRECTION BADGE IS STAMPED OUT OF THE MENU AND NOT DUPLICATED IN THE MARKUP: the three
+// SVGs (up/down/newcomer) weigh almost 5 KB of paths, and a second copy of them in the file
+// would be exactly the duplicate that diverges at the first redraw of the badge.
+// We take the markup from the first instance that has it.
+function lbEntryStampBadge(){
+  const source = document.querySelector('#msLbeBadge');
+  if (!source || !source.firstElementChild) return;
+  lbEntryAll('.ms-lbe-badge').forEach(badge => {
+    if (badge !== source && !badge.firstElementChild) badge.innerHTML = source.innerHTML;
   });
 }
 function lbEntryRefresh(){
-  lbEntryШтампЗначка();
-  const боксы = lbEntryВсе('.ms-lbentry'); if (!боксы.length) return;
-  const box = боксы[0];
+  lbEntryStampBadge();
+  const boxes = lbEntryAll('.ms-lbentry'); if (!boxes.length) return;
+  const box = boxes[0];
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
-  // ФИЧА ВЫКЛЮЧЕНА (модуля нет или адрес сервиса пуст) — блока в раскладке
-  // нет вовсе. Резервировать место под данные, которых в этой сборке быть не
-  // может, значит без причины двигать меню (то же правило, что у врезки).
+  // THE FEATURE IS OFF (the module is missing or the service address is empty) — the block is not
+  // in the layout at all. Reserving space for data that cannot exist in this build
+  // means moving the menu for no reason (the same rule as with the inset).
   const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
-  боксы.forEach(б => { б.hidden = !on; });
+  boxes.forEach(b => { b.hidden = !on; });
   if (!on) return;
   const my = ++lbEntryEpoch;
   lb.top(1).then(t => {
     if (my !== lbEntryEpoch) return;
-    const хосты = lbEntryВсе('.ms-lbe-avs'); if (!хосты.length) return;
-    хосты.forEach(h => { h.innerHTML = ''; });
-    // ⛔⛔ НА ЭКРАНЕ ПОБЕДЫ АВАТАР ОДИН, И ЭТО АВАТАР ИГРОКА, А НЕ ПЕРВОГО ИЗ
-    // ТОПА (слово владельца 2026-08-21-р: «вместо трёх аватарок показываем
-    // только аватарку игрока», нода 891:4307 — один кружок 56).
-    // ⚠️ ЕГО ЖЕ ПРАВИЛО «всегда показывай 3 аватарки» (2026-08-05) ОСТАЁТСЯ В
-    // СИЛЕ ДЛЯ МЕНЮ: там три аватара показывают ТОП, здесь один показывает
-    // ТЕБЯ — это разные утверждения, а не разная плотность одного и того же.
-    // ⚠️ ЭТА ВЕТКА НЕ ЖДЁТ СЕТИ: номер аватара выводится из ключа игрока
-    // (`guestAvatar`), поэтому строка победы рисуется целиком в первом кадре,
-    // даже если топ не придёт вовсе.
-    const свой = lbEntryВсе('#winLbeAvs');
-    свой.forEach(h => {
+    const hosts = lbEntryAll('.ms-lbe-avs'); if (!hosts.length) return;
+    hosts.forEach(h => { h.innerHTML = ''; });
+    // ⛔⛔ ON THE WIN SCREEN THERE IS ONE AVATAR, AND IT IS THE PLAYER'S AVATAR, NOT THE FIRST FROM
+    // THE TOP (the owner's word 2026-08-21-r: «instead of three avatars we show
+    // only the player's avatar», node 891:4307 — one circle of 56).
+    // ⚠️ HIS OWN RULE «always show 3 avatars» (2026-08-05) REMAINS IN
+    // FORCE FOR THE MENU: there three avatars show the TOP, here one shows
+    // YOU — these are different statements, not a different density of one and the same thing.
+    // ⚠️ THIS BRANCH DOES NOT WAIT FOR THE NETWORK: the avatar number is derived from the player's key
+    // (`guestAvatar`), so the win row is drawn in full in the first frame,
+    // even if the top never arrives at all.
+    const own = lbEntryAll('#winLbeAvs');
+    own.forEach(h => {
       const ai = (typeof guestAvatar === 'function') ? (guestAvatar() | 0) : 0;
-      if (ai <= 0){ const пусто = document.createElement('i');
-        пусто.className = 'ms-lbe-slot'; h.appendChild(пусто); return; }
+      if (ai <= 0){ const blank = document.createElement('i');
+        blank.className = 'ms-lbe-slot'; h.appendChild(blank); return; }
       const img = document.createElement('img');
       img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
       img.alt = ''; img.decoding = 'async'; h.appendChild(img);
     });
-    const топХосты = хосты.filter(h => h.id !== 'winLbeAvs');
-    if (!топХосты.length) return;
+    const topHosts = hosts.filter(h => h.id !== 'winLbeAvs');
+    if (!topHosts.length) return;
     if (!t || t.state !== 'ok' || !t.rows) return;
-    // ⚠️ `lbRow` отдаёт `null` на строке, которая не разобралась (сервер шлёт
-    // МАССИВЫ `[имя, аватар, счёт]`, а не объекты). Без этой проверки битая
-    // строка роняла бы весь рендер аватаров в `catch`, и блок молча оставался
-    // бы без картинок — то есть дефект выглядел бы как «сервер пуст».
-    // ⚠️⚠️ СЛОТОВ ВСЕГДА ТРИ (слово владельца «всегда показывай 3 аватарки»), и
-    // ПУСТОЙ СЛОТ — НЕЙТРАЛЬНЫЙ КРУЖОК, а не чужой аватар. Подставить туда
-    // картинку живого игрока значило бы придумать участника таблицы; на старте,
-    // когда строк меньше трёх, это прямая ложь на самом видном месте.
+    // ⚠️ `lbRow` returns `null` on a row that failed to parse (the server sends
+    // ARRAYS `[name, avatar, score]`, not objects). Without this check a broken
+    // row would bring the whole avatar render down into `catch`, and the block would silently stay
+    // without pictures — that is, the defect would look like «the server is empty».
+    // ⚠️⚠️ THERE ARE ALWAYS THREE SLOTS (the owner's word «always show 3 avatars»), and
+    // AN EMPTY SLOT IS A NEUTRAL CIRCLE, not somebody else's avatar. Putting the picture of
+    // a live player there would mean inventing a participant of the table; at the start,
+    // when there are fewer than three rows, that is a direct lie in the most visible place.
     for (let i = 0; i < 3; i++){
       const r = t.rows[i];
       const ai = r ? (r.av | 0) : 0;
       if (ai <= 0){
-        топХосты.forEach(h => {
-          const пусто = document.createElement('i');
-          пусто.className = 'ms-lbe-slot';
-          h.appendChild(пусто);
+        topHosts.forEach(h => {
+          const blank = document.createElement('i');
+          blank.className = 'ms-lbe-slot';
+          h.appendChild(blank);
         });
         continue;
       }
-      топХосты.forEach(h => {
+      topHosts.forEach(h => {
         const img = document.createElement('img');
         img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
         img.alt = ''; img.decoding = 'async'; h.appendChild(img);
@@ -309,80 +309,80 @@ function lbEntryRefresh(){
   }).catch(()=>{});
   lb.me().then(async m => {
     if (my !== lbEntryEpoch) return;
-    // ⚠️ ТОП БЕРЁМ ТЕМ ЖЕ КЭШИРОВАННЫМ ВЫЗОВОМ, А НЕ ПЕРЕМЕННОЙ ИЗ СОСЕДНЕГО
-    // `.then`: два промиса резолвятся в непредсказуемом порядке, и «мгновенное»
-    // место срабатывало бы через раз — ровно тот флейк, что записан у нас как
-    // «поймал момент, а не состояние». Сети это не стоит: `__lb` кэширует.
+    // ⚠️ WE TAKE THE TOP THROUGH THE SAME CACHED CALL, AND NOT FROM A VARIABLE OF THE NEIGHBOURING
+    // `.then`: the two promises resolve in an unpredictable order, and the «instant»
+    // rank would work every other time — exactly the flake recorded by us as
+    // «caught a moment, not a state». It does not cost the network: `__lb` caches.
     let lbEntryTop = null;
     try { const t = await lb.top(1); if (t && t.state === 'ok' && Array.isArray(t.rows))
       lbEntryTop = t.rows.filter(Boolean); } catch(e){}
     if (my !== lbEntryEpoch) return;
-    const подписи = lbEntryВсе('.ms-lbe-sub'), места = lbEntryВсе('.ms-lbe-rank');
-    const боксы = lbEntryВсе('.ms-lbentry');
-    if (!подписи.length || !места.length || !боксы.length) return;
-    const box = боксы[0];
-    // ⚠️⚠️ МЕСТО — ТОЛЬКО ТОЧНОЕ, И ОТКАЗ ЗАКРЫТЫЙ: нет признака достоверности
-    // (`exact`) — числа не показываем вовсе. Прикидку из ответа на ОТПРАВКУ не
-    // показываем нигде: пока в таблице меньше сотни строк, лесенка снимка
-    // пуста и прикидка отвечает «место 1» КАЖДОМУ.
+    const subs = lbEntryAll('.ms-lbe-sub'), ranks = lbEntryAll('.ms-lbe-rank');
+    const boxes = lbEntryAll('.ms-lbentry');
+    if (!subs.length || !ranks.length || !boxes.length) return;
+    const box = boxes[0];
+    // ⚠️⚠️ THE RANK — ONLY THE EXACT ONE, AND THE REFUSAL IS CLOSED: there is no trustworthiness flag
+    // (`exact`) — we do not show the numbers at all. The estimate from the answer to the SEND we do not
+    // show anywhere: while the table has fewer than a hundred rows, the snapshot's ladder
+    // is empty and the estimate answers «rank 1» to EVERYONE.
     const ok = !!(m && m.state === 'ok' && m.exact && m.rank > 0);
-    // ⚠️⚠️ МЕСТО ОБНОВЛЯЕТСЯ СРАЗУ, А НЕ ЖДЁТ СЕРВЕР (жалоба владельца
-    // 2026-08-17: «всё так же есть проблемы с быстрым обновлением»). Экран
-    // таблицы это уже умеет с 2026-08-13, а точка входа осталась чисто
-    // серверной — и между отправкой и ответом (частота 20 с + кэши) показывала
-    // старое место рядом со свежей пилюлей счёта.
-    // ⛔⛔ ЭТО НЕ ОТМЕНА ПРАВИЛА ЗАКРЫТОГО ОТКАЗА: прикидку по лесенке
-    // (`exact:0`) мы по-прежнему не показываем НИГДЕ. Здесь считается ТОЧНОЕ
-    // положение — но только тогда, когда его МОЖНО вывести: живой счёт обязан
-    // попасть ВНУТРЬ присланного отрезка топа, тогда позиция это просто
-    // «сколько строк выше», а не оценка. Не попал — оставляем серверное число.
-    let место = ok ? (m.rank | 0) : 0;
+    // ⚠️⚠️ THE RANK IS UPDATED IMMEDIATELY AND DOES NOT WAIT FOR THE SERVER (the owner's complaint
+    // 2026-08-17: «there are still the same problems with fast updating»). The
+    // leaderboard screen has been able to do this since 2026-08-13, while the entry point stayed purely
+    // server-side — and between the send and the answer (rate 20 s + caches) it showed
+    // the old rank next to a fresh score pill.
+    // ⛔⛔ THIS IS NOT A REPEAL OF THE CLOSED-REFUSAL RULE: the estimate over the ladder
+    // (`exact:0`) we still do not show ANYWHERE. Here the EXACT position
+    // is computed — but only when it CAN be derived: the live score is obliged
+    // to fall INSIDE the top segment that was sent, then the position is simply
+    // «how many rows are above», not an estimate. It did not fall in — we keep the server's number.
+    let rank = ok ? (m.rank | 0) : 0;
     if (ok && typeof leaderboardScore === 'function'){
-      // ⚠️ СЧИТАЕТ `lbRankNow` — отдельная функция, а не инлайн: на ней стоит
-      // страж, и её же позовёт следующий потребитель живого места. Экран
-      // таблицы считает СВОЁ (вставку строки в видимый отрезок) — там нужен не
-      // номер, а положение в списке; общей формулы у них нет.
-      const свежее = lbRankNow(m, leaderboardScore() | 0, lbEntryTop);
-      if (свежее > 0) место = свежее;
+      // ⚠️ IT IS COMPUTED BY `lbRankNow` — a separate function, not an inline: there is
+      // a guard on it, and the next consumer of the live rank will call the very same one. The leaderboard
+      // screen computes ITS OWN (the insertion of the row into the visible segment) — there one needs not
+      // a number but a position in the list; they have no shared formula.
+      const fresh = lbRankNow(m, leaderboardScore() | 0, lbEntryTop);
+      if (fresh > 0) rank = fresh;
     }
-    // ⚠️ ОБЕ мобильные строки и класс идут от ТОГО ЖЕ `ok`, что и раньше, —
-    // то есть место в ПЕРВОЙ строке слушается правила `exact` ровно так же,
-    // как слушалась «You on N». Прикидка из ответа на отправку сюда не
-    // попадает ни при каком состоянии.
-    // ⚠️⚠️ У НОВИЧКА МЕСТА НЕТ, А БЛОК ОСТАЁТСЯ — И ЭТОГО СЛУЧАЯ В МАКЕТЕ НЕТ.
-    // Решение диспетчера, названо владельцу: показываем прежнее слово
-    // «Leaderboard» одной строкой, подпись и значок направления гасим. Так блок
-    // сохраняет личность и ничего не утверждает: «on leaderboard» в одиночку не
-    // говорит ничего, а стрелка утверждала бы движение, которого не было.
-    места.forEach(rk => { rk.textContent = ok ? (winFmtScore(место) + ' place') : 'Leaderboard'; });
-    подписи.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
-    боксы.forEach(б => { б.classList.toggle('has-rank', ok); });
-    // ⚠️⚠️ НАПРАВЛЕНИЕ — ПО СРАВНЕНИЮ С ПРОШЛЫМ ВИДЕННЫМ МЕСТОМ, а не по знаку
-    // счёта: владелец дал ДВА значка (вверх/вниз), значит оба состояния обязаны
-    // случаться, а единственная величина, которая тут растёт и падает, — само
-    // место. Меньше номер = поднялся.
-    // ⚠️ Память живёт в localStorage и НЕ в сейве: это подсказка интерфейса, а
-    // не прогресс; переносить её между устройствами незачем, а мержить —
-    // тем более (два устройства дали бы стрелку по чужому движению).
-    // ⚠️ ПЕРВЫЙ РАЗ — БЕЗ ЗНАЧКА: сравнивать не с чем, и «вверх» было бы
-    // выдумкой. Значок появится со второго открытия, когда движение реально.
+    // ⚠️ BOTH mobile rows and the class come from THE SAME `ok` as before, —
+    // that is, the rank in the FIRST row obeys the `exact` rule exactly the same way
+    // as «You on N» used to obey it. The estimate from the answer to the send does not
+    // get here under any state.
+    // ⚠️⚠️ A NEWCOMER HAS NO RANK, YET THE BLOCK STAYS — AND THIS CASE IS NOT IN THE MOCKUP.
+    // The dispatcher's decision, told to the owner: we show the former word
+    // «Leaderboard» as a single line, and mute the subtitle and the direction badge. That way the block
+    // keeps its identity and asserts nothing: «on leaderboard» on its own says
+    // nothing, whereas an arrow would assert a movement that did not happen.
+    ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
+    subs.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
+    boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
+    // ⚠️⚠️ THE DIRECTION IS BY COMPARISON WITH THE PREVIOUSLY SEEN RANK, and not by the sign of
+    // the score: the owner gave TWO badges (up/down), which means both states are obliged
+    // to happen, and the only quantity that here goes up and down is the rank
+    // itself. A smaller number = went up.
+    // ⚠️ The memory lives in localStorage and NOT in the save: this is an interface hint, and
+    // not progress; there is no point in carrying it between devices, and merging it —
+    // even less so (two devices would give an arrow based on somebody else's movement).
+    // ⚠️ THE FIRST TIME — WITHOUT A BADGE: there is nothing to compare with, and «up» would be
+    // an invention. The badge appears from the second opening, when the movement is real.
     let dir = '';
     if (ok){
       const key = 'mixer_lb_seen_rank';
       let prev = null;
       try { const v = localStorage.getItem(key); prev = v === null ? null : (v | 0); } catch(e){}
-      // ⚠️⚠️ СРАВНИВАЕМ ПОКАЗАННОЕ ЧИСЛО, А НЕ СЕРВЕРНОЕ — ЭПОХА У СТРОКИ ОДНА
-      // (урок «двух эпох», скриншот 2026-08-11). Пока сервер не догнал, на
-      // экране стоит живое место; запомнив рядом с ним серверное, следующее
-      // открытие показало бы стрелку по движению, которого игрок не видел.
-      const now = место | 0;
+      // ⚠️⚠️ WE COMPARE THE NUMBER THAT WAS SHOWN, NOT THE SERVER'S ONE — THE ROW HAS ONE EPOCH
+      // (the lesson of «the two epochs», screenshot 2026-08-11). While the server has not caught up, on
+      // the screen stands the live rank; having remembered the server's one next to it, the next
+      // opening would show an arrow for a movement the player did not see.
+      const now = rank | 0;
       if (prev !== null && prev !== now) dir = (now < prev) ? 'dir-up' : 'dir-dn';
       else if (prev !== null) dir = box.classList.contains('dir-dn') ? 'dir-dn' : 'dir-up';
       try { localStorage.setItem(key, String(now)); } catch(e){}
     }
-    боксы.forEach(б => {
-      б.classList.remove('dir-up', 'dir-dn');
-      if (dir) б.classList.add(dir);
+    boxes.forEach(b => {
+      b.classList.remove('dir-up', 'dir-dn');
+      if (dir) b.classList.add(dir);
     });
   }).catch(()=>{});
 }
@@ -391,22 +391,22 @@ function lbServ(text){
   host.innerHTML = ''; const d = document.createElement('div');
   d.className = 'lb-serv'; d.textContent = text; host.appendChild(d);
 }
-// ⚠️ ЗВЕЗДА В ПИЛЮЛЕ СЧЁТА — фигура ассета `Star-box` (20×20). В макете три
-// выгрузки с разной заливкой (тёмная у призёров, белая дальше, жёлтая у своей
-// строки), но КОНТУР один — поэтому файл один, а цвет задаёт CSS по классу
-// строки. Копировать три файла значило бы держать три копии одной фигуры.
+// ⚠️ THE STAR IN THE SCORE PILL is the shape of the `Star-box` asset (20×20). In the mockup there are three
+// exports with different fills (dark for the medallists, white further down, yellow for one's own
+// row), but the OUTLINE is one — hence one file, and the colour is set by CSS according to the row's
+// class. Copying three files would mean keeping three copies of one shape.
 const LB_STAR_D = 'M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z';
-// ⚠️ ЧИСЛО ГРУППАМИ ПО ТРИ, КАК В МАКЕТЕ («123 900»). ⛔ НЕ `winFmtScore`: тот
-// сжимает от 10 000 в «12.5k», а таблица — про ТОЧНЫЕ результаты, и сжатие
-// скрывает как раз разницу между соседями, ради которой в неё и смотрят.
+// ⚠️ THE NUMBER IN GROUPS OF THREE, AS IN THE MOCKUP («123 900»). ⛔ NOT `winFmtScore`: that one
+// compresses from 10 000 into «12.5k», whereas the table is about EXACT results, and the compression
+// hides exactly the difference between neighbours for the sake of which people look at it.
 function lbFmt(n){ return String(Math.max(0, n | 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 function lbRowsRender(rows){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = '';
   rows.forEach(r => {
     const row = document.createElement('div');
-    // ⚠️ ЦВЕТ ПИЛЮЛИ — ПО МЕСТУ, А НЕ ПО ПОРЯДКУ В МАССИВЕ: строки экрана могут
-    // начинаться не с первого места, и «первые три сверху» ≠ «призёры».
+    // ⚠️ THE PILL'S COLOUR IS BY RANK, AND NOT BY THE ORDER IN THE ARRAY: the screen's rows may
+    // start not from the first rank, and «the first three from the top» ≠ «the medallists».
     const p = r.pos | 0;
     row.className = 'lb-row' + (r.me ? ' me' : (p >= 1 && p <= 3 ? ' p' + p : ''));
     const left = document.createElement('div'); left.className = 'lb-left';
@@ -421,7 +421,7 @@ function lbRowsRender(rows){
       img.alt = ''; img.decoding = 'async'; av.appendChild(img);
     }
     const nm = document.createElement('div'); nm.className = 'lb-name';
-    // «Name • You» — так в макете: своя строка ПОДПИСАНА, а не только выделена
+    // «Name • You» — that is how it is in the mockup: one's own row is LABELLED, not merely highlighted
     nm.textContent = (r.name || '') + (r.me ? ' • You' : '');
     ava.append(av, nm); left.append(pos, ava);
     const sc = document.createElement('div'); sc.className = 'lb-score';
@@ -430,18 +430,18 @@ function lbRowsRender(rows){
     const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pth.setAttribute('d', LB_STAR_D); svg.appendChild(pth);
     const num = document.createElement('span'); num.textContent = lbFmt(r.score);
-    // ⚠️ ЧИСЛО ПЕРВЫМ, ЗВЕЗДА ВТОРОЙ (слово владельца 2026-08-10). Меняем
-    // ПОРЯДОК В РАЗМЕТКЕ, а не `row-reverse` в стилях: реверс переставил бы
-    // только картинку, а диктор продолжил бы читать «звезда, четырнадцать
-    // тысяч» вместо «четырнадцать тысяч, звезда».
+    // ⚠️ THE NUMBER FIRST, THE STAR SECOND (the owner's word 2026-08-10). We change
+    // THE ORDER IN THE MARKUP, and not `row-reverse` in the styles: a reverse would rearrange
+    // only the picture, while the screen reader would go on reading «star, fourteen
+    // thousand» instead of «fourteen thousand, star».
     sc.append(num, svg);
     row.append(left, sc);
     host.appendChild(row);
   });
 }
-// НАША вкладка: место — ТОЛЬКО из me() и ТОЛЬКО точное (правило диспетчера);
-// строки списка — из top(). ⚠️ Гость тут ПОЛНОПРАВЕН: платформенный гейт
-// «нужно залогиниться» на нашу таблицу НЕ переносится (решение владельца).
+// OUR tab: the rank — ONLY from me() and ONLY the exact one (the dispatcher's rule);
+// the list's rows — from top(). ⚠️ A guest here has FULL RIGHTS: the platform gate
+// «you need to log in» is NOT carried over to our table (the owner's decision).
 async function lbLoadOurs(my){
   const lb = (typeof window !== 'undefined') ? window.__lb : null;
   if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
@@ -449,105 +449,105 @@ async function lbLoadOurs(my){
   if (my !== lbEpoch) return;
   if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
   if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  const строки = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
+  const rows = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
   const m = await lb.me().catch(()=>null);
   if (my !== lbEpoch) return;
-  // ⚠️⚠️ СВОЯ СТРОКА ИДЁТ ЧЕРЕЗ ТОТ ЖЕ РЕНДЕР, что и все прочие. Раньше она
-  // собиралась ОТДЕЛЬНЫМ куском кода — и разъехалась с макетом сразу в трёх
-  // местах (место с решёткой, имя «You» вместо «Имя • You», сжатый счёт). Это
-  // ровно тот закон, на котором проект обжигался: копия рядом с рабочей
-  // величиной совпадает в момент написания и расходится потом.
-  // ⚠️ ТОЛЬКО ТОЧНОЕ МЕСТО (`exact`) — отказ закрытый: нет признака
-  // достоверности, значит своей строки на экране нет вовсе.
+  // ⚠️⚠️ ONE'S OWN ROW GOES THROUGH THE SAME RENDER as all the others. Previously it
+  // was assembled by a SEPARATE piece of code — and diverged from the mockup in three
+  // places at once (the rank with a hash sign, the name «You» instead of «Name • You», a compressed score). This is
+  // exactly the law on which the project has been burned: a copy next to a working
+  // quantity matches at the moment of writing and diverges afterwards.
+  // ⚠️ ONLY THE EXACT RANK (`exact`) — the refusal is closed: no trustworthiness
+  // flag means there is no own row on the screen at all.
   if (m && m.state === 'ok' && m.exact && m.rank > 0){
-    // ⚠️⚠️ СЧЁТ СВОЕЙ СТРОКИ — ЖИВОЙ, НЕ СЕРВЕРНЫЙ (жалоба владельца
-    // 2026-08-13, скриншот «7 406 в таблице против 1 406 в пилюле»): после
-    // покупки сервер догоняет с гэпом (частота отправки 20 с + кэши), и всё
-    // это окно экран показывал бы старое число рядом со свежей пилюлей.
-    const живой = (typeof leaderboardScore === 'function') ? (leaderboardScore() | 0) : (m.score | 0);
-    const своя = { pos:m.rank, name:(typeof guestName === 'function') ? guestName() : '',
-      av:(typeof guestAvatar === 'function') ? guestAvatar() : 0, score:живой, me:true };
-    // ⚠️⚠️ СВОЯ СТРОКА ВСТАЁТ НА СВОЁ МЕСТО, А НЕ В КОНЕЦ (слово владельца
-    // 2026-08-10: «игрок должен занимать правильное место в таблице»). Прежний
-    // `push` ставил её последней ВСЕГДА: при месте 7 из 60 она была
-    // шестьдесят первой, то есть экран врал о положении игрока.
-    // ⚠️ Место в снимке и место из `me()` — РАЗНЫЕ ИСТОЧНИКИ: топ приходит из
-    // снимка крона, своё место живое. Пока ранг попадает в присланный отрезок,
-    // строка под этим номером и есть наша, поэтому её ЗАМЕЩАЕМ (имя, аватар и
-    // свежий счёт — наши), а не вставляем рядом: вставка сдвинула бы всех ниже
-    // и в таблице появились бы два игрока с одним номером.
-    // ⚠️ Ранг ВНЕ отрезка — строка идёт в конец, и это не «в конце списка», а
-    // честное «ниже показанного»: подпирать её снизу будет `sticky`.
-    // ⚠️⚠️ СПЕРВА ИЩЕМ СЕБЯ В САМОМ СНИМКЕ, И ТОЛЬКО ПОТОМ СТАВИМ ПО РАНГУ.
-    // ⛔ ПОЧЕМУ ЭТОГО НЕ ХВАТАЛО РАНЬШЕ И ЭТО БЫЛ НАСТОЯЩИЙ ДЕФЕКТ: топ
-    // приходит из ЧАСОВОГО СНИМКА, а своё место — ЖИВОЕ. Между ними проходит
-    // победа или трата множителя, они расходятся, и слепое `строки[rank-1] =
-    // своя` затирало ЧУЖУЮ строку, оставляя мою старую на прежнем месте —
-    // игрок видел себя ДВАЖДЫ, а сосед пропадал. Ровно после победы экран и
-    // открывают, так что случай не редкий, а типичный.
-    // ⚠️⚠️ СТРОКА ИЗ СНИМКА УДАЛЯЕТСЯ, А НЕ ЗАМЕЩАЕТСЯ НА МЕСТЕ. Здесь стояло
-    // «нашли себя в снимке — оставляем ЕГО позицию», и это давало на экране
-    // прямую нелепицу (жалоба владельца 2026-08-11, скриншот): счёт брался
-    // ЖИВОЙ, а номер — ЧАСОВОЙ ДАВНОСТИ, и «8 668» вставало восьмым между
-    // 6 500 и 5 300, при том что меню тут же показывало «4 place». Два числа
-    // одной строки приходили из РАЗНЫХ эпох, и колонка счёта переставала быть
-    // убывающей — то есть таблица противоречила сама себе.
-    // ⚠️ ПОЧЕМУ ЖИВОЕ МЕСТО ЗАОДНО ЧИНИТ И ПОРЯДОК: ранг считает сервер по
-    // ЖИВОЙ базе, снимок — её приближение часовой давности. Встав по рангу,
-    // строка попадает между теми, кто выше и ниже неё ПО СЧЁТУ, — монотонность
-    // восстанавливается сама, отдельной сортировки не нужно.
-    // ⚠️ Номер строки — это её ИНДЕКС в присланном отрезке (`pos: i + 1` выше),
-    // другого источника нумерации нет вовсе. Поэтому после вставки список
-    // перенумеровывается подряд: тогда нет ни дублей, ни дырок, а своя строка
-    // получает РОВНО `m.rank` — то самое точное место, и второй раз его
-    // присваивать не надо.
-    // ⚠️ Ранг ВНЕ отрезка — строка идёт в конец со своим живым номером, и это
-    // не «в конце списка», а честное «ниже показанного»: подпирает её `sticky`.
-    // ⚠️ Опознание по имени+аватару — единственное, что есть: строки снимка
-    // приходят как `[имя, аватар, счёт]`, идентификатора в них нет. Совпадение
-    // с чужим возможно (пул имён конечен); цена промаха теперь мала — чужая
-    // строка исчезнет из показа, но список останется связным.
-    // ⛔ `слот` — ИМЕННО ТОТ индекс, который прежняя версия и брала за место
-    // («нашли себя — оставляем позицию снимка»). Он оставлен переменной, а не
-    // растворён в булевом флаге, чтобы диверсия дефекта была ОДНОЙ строкой:
-    // `const j = слот >= 0 ? слот : m.rank - 1` возвращает старое поведение
-    // целиком, и по красному видно, что страж стережёт именно это.
-    let слот = -1;
-    for (let k = строки.length - 1; k >= 0; k--){
-      if (строки[k].name === своя.name && (строки[k].av | 0) === (своя.av | 0)){ строки.splice(k, 1); слот = k; }
+    // ⚠️⚠️ THE SCORE OF ONE'S OWN ROW IS LIVE, NOT THE SERVER'S (the owner's complaint
+    // 2026-08-13, screenshot «7 406 in the table against 1 406 in the pill»): after
+    // a purchase the server catches up with a gap (send rate 20 s + caches), and for that
+    // whole window the screen would show the old number next to a fresh pill.
+    const live = (typeof leaderboardScore === 'function') ? (leaderboardScore() | 0) : (m.score | 0);
+    const mine = { pos:m.rank, name:(typeof guestName === 'function') ? guestName() : '',
+      av:(typeof guestAvatar === 'function') ? guestAvatar() : 0, score:live, me:true };
+    // ⚠️⚠️ ONE'S OWN ROW TAKES ITS OWN PLACE AND NOT THE END (the owner's word
+    // 2026-08-10: «the player must occupy the correct place in the table»). The former
+    // `push` put it last ALWAYS: at rank 7 out of 60 it was
+    // the sixty-first, that is, the screen lied about the player's position.
+    // ⚠️ The rank in the snapshot and the rank from `me()` are DIFFERENT SOURCES: the top comes from
+    // the cron's snapshot, one's own rank is live. As long as the rank falls into the segment that was sent,
+    // the row under that number is ours, so we REPLACE it (the name, the avatar and
+    // the fresh score are ours) rather than insert next to it: an insertion would shift everyone below
+    // and two players with one number would appear in the table.
+    // ⚠️ A rank OUTSIDE the segment — the row goes to the end, and that is not «at the end of the list» but
+    // an honest «below what is shown»: `sticky` will prop it up from below.
+    // ⚠️⚠️ FIRST WE LOOK FOR OURSELVES IN THE SNAPSHOT ITSELF, AND ONLY THEN PLACE BY RANK.
+    // ⛔ WHY THIS WAS NOT ENOUGH BEFORE AND WHY IT WAS A REAL DEFECT: the top
+    // comes from an HOURLY SNAPSHOT, while one's own rank is LIVE. Between them there passes
+    // a win or the spending of a multiplier, they diverge, and a blind `rows[rank-1] =
+    // mine` overwrote SOMEBODY ELSE'S row, leaving my old one in its former place —
+    // the player saw himself TWICE, and a neighbour disappeared. It is right after a win that the screen
+    // is opened, so the case is not rare but typical.
+    // ⚠️⚠️ THE ROW FROM THE SNAPSHOT IS DELETED, AND NOT REPLACED IN PLACE. Here stood
+    // «we found ourselves in the snapshot — we keep ITS position», and that gave outright
+    // nonsense on the screen (the owner's complaint 2026-08-11, screenshot): the score was taken
+    // LIVE, and the number was AN HOUR OLD, and «8 668» stood eighth between
+    // 6 500 and 5 300, while the menu right there showed «4 place». Two numbers
+    // of one row came from DIFFERENT epochs, and the score column stopped being
+    // descending — that is, the table contradicted itself.
+    // ⚠️ WHY THE LIVE RANK ALSO FIXES THE ORDER: the rank is computed by the server over
+    // the LIVE database, the snapshot is its hour-old approximation. Having stood by rank,
+    // the row lands between those who are above and below it BY SCORE — the monotonicity
+    // is restored by itself, no separate sorting is needed.
+    // ⚠️ A row's number is its INDEX in the segment that was sent (`pos: i + 1` above),
+    // there is no other source of numbering at all. That is why after the insertion the list
+    // is renumbered consecutively: then there are neither duplicates nor holes, and one's own row
+    // gets EXACTLY `m.rank` — that very exact rank, and there is no need to assign it
+    // a second time.
+    // ⚠️ A rank OUTSIDE the segment — the row goes to the end with its own live number, and that is
+    // not «at the end of the list» but an honest «below what is shown»: `sticky` props it up.
+    // ⚠️ Identification by name+avatar is the only thing there is: the snapshot's rows
+    // come as `[name, avatar, score]`, there is no identifier in them. A collision
+    // with somebody else's is possible (the pool of names is finite); the price of a miss is now small — somebody else's
+    // row will disappear from the display, but the list will stay coherent.
+    // ⛔ `slot` is EXACTLY THAT index which the former version took for the rank
+    // («we found ourselves — we keep the snapshot's position»). It is left as a variable, and not
+    // dissolved into a boolean flag, so that the sabotage test of the defect is ONE line:
+    // `const j = slot >= 0 ? slot : m.rank - 1` brings back the old behaviour
+    // entirely, and by the red one can see that the guard guards exactly this.
+    let slot = -1;
+    for (let k = rows.length - 1; k >= 0; k--){
+      if (rows[k].name === mine.name && (rows[k].av | 0) === (mine.av | 0)){ rows.splice(k, 1); slot = k; }
     }
-    // ⚠️⚠️ ДЛИНА ПОКАЗАННОГО ОТРЕЗКА НЕ МЕНЯЕТСЯ, И ЭТО РЕШАЕТ, ВСТАВКА ИЛИ
-    // ЗАМЕЩЕНИЕ: нашли себя в снимке — своя старая строка уже удалена, дыру
-    // закрывает ВСТАВКА; не нашли — строка под нашим живым номером и есть наша
-    // (снимок просто не знал), её ЗАМЕЩАЕМ. Иначе первый случай терял игрока из
-    // показа, а второй растил список на строку и дописывал снимку номер,
-    // которого в нём не было.
-    // ⚠️⚠️ ЭПОХА СТРОКИ ПО-ПРЕЖНЕМУ ОДНА (урок «двух эпох», скриншот
-    // 2026-08-11): пока сервер НЕ ДОГНАЛ (живой счёт != m.score), ставить
-    // живое число на СЕРВЕРНОЕ место нельзя — колонка перестала бы убывать
-    // ровно как тогда. В этом окне место выводится ИЗ ТОГО ЖЕ живого счёта:
-    // вставка по убыванию в видимый отрезок. Сервер догнал — прежний путь по
-    // `m.rank` (живое место сервера точнее снимка, канон 2026-08-11).
-    const догнал = живой === (m.score | 0);
+    // ⚠️⚠️ THE LENGTH OF THE SHOWN SEGMENT DOES NOT CHANGE, AND THAT DECIDES WHETHER IT IS AN INSERTION OR
+    // A REPLACEMENT: we found ourselves in the snapshot — our own old row has already been deleted, the hole
+    // is closed by an INSERTION; we did not find ourselves — the row under our live number is ours
+    // (the snapshot simply did not know), we REPLACE it. Otherwise the first case lost the player from
+    // the display, and the second grew the list by a row and appended to the snapshot a number
+    // which was not in it.
+    // ⚠️⚠️ THE ROW STILL HAS ONE EPOCH (the lesson of «the two epochs», screenshot
+    // 2026-08-11): while the server HAS NOT CAUGHT UP (live score != m.score), putting
+    // the live number at the SERVER's rank is forbidden — the column would stop descending
+    // exactly as it did then. In this window the rank is derived FROM THAT SAME live score:
+    // an insertion by descending order into the visible segment. The server has caught up — the former path by
+    // `m.rank` (the server's live rank is more exact than the snapshot, the canon of 2026-08-11).
+    const caughtUp = live === (m.score | 0);
     let j;
-    if (догнал){ j = m.rank - 1; }
+    if (caughtUp){ j = m.rank - 1; }
     else {
-      j = строки.length;
-      for (let k = 0; k < строки.length; k++)
-        if ((строки[k].score | 0) < живой){ j = k; break; }
+      j = rows.length;
+      for (let k = 0; k < rows.length; k++)
+        if ((rows[k].score | 0) < live){ j = k; break; }
     }
-    if (j >= 0 && j <= строки.length){
-      // в «не догнал» снимок нашей новой строки не знает — всегда ВСТАВКА
-      строки.splice(j, (догнал && слот < 0) ? 1 : 0, своя);
-      for (let k = 0; k < строки.length; k++) строки[k].pos = k + 1;
+    if (j >= 0 && j <= rows.length){
+      // in the «has not caught up» case the snapshot does not know our new row — always an INSERTION
+      rows.splice(j, (caughtUp && slot < 0) ? 1 : 0, mine);
+      for (let k = 0; k < rows.length; k++) rows[k].pos = k + 1;
     } else {
-      строки.push(своя);   // ниже показанного отрезка — со своим живым номером
+      rows.push(mine);     // below the shown segment — with its own live number
     }
   }
-  lbRowsRender(строки);
+  lbRowsRender(rows);
 }
-// ПЛАТФОРМЕННАЯ вкладка — «рекорд за всё время». ⚠️ Отказ у неё СВОЙ (`why`),
-// и он не ошибка: площадка может не поддерживать таблицы вовсе.
+// THE PLATFORM tab — «the all-time record». ⚠️ Its refusal is ITS OWN (`why`),
+// and it is not an error: the platform may not support tables at all.
 async function lbLoadPlat(my){
   if (typeof Ads === 'undefined' || !Ads.lbEntries){ lbServ('Not available on this platform.'); return; }
   const r = await Ads.lbEntries({ limit: 20 }).catch(()=>null);
@@ -556,27 +556,27 @@ async function lbLoadPlat(my){
   if (!r.entries || !r.entries.length){ lbServ('No records yet.'); return; }
   lbRowsRender(r.entries.map(e => ({ pos:e.rank, name:e.name, av:0, score:e.score, me:!!e.me })));
 }
-// ⛔ ВКЛАДОК НЕТ (решение владельца «только наша таблица, вкладки отменяются»),
-// поэтому и переключателя, и заглушки текста здесь больше нет. `lbLoadPlat`
-// оставлен ЖИВЫМ намеренно: платформенная отправка работает и даёт видимость на
-// площадке — вернуть показ можно одной строкой, если владелец передумает.
+// ⛔ THERE ARE NO TABS (the owner's decision «only our table, the tabs are cancelled»),
+// which is why neither the switcher nor the text stub is here any more. `lbLoadPlat`
+// is left ALIVE deliberately: the platform send works and gives visibility on
+// the platform — the display can be brought back with one line if the owner changes his mind.
 function lbScreenRender(){
-  // «Loading…» — только на пустом списке: мгновенный перерендер после траты
-  // идёт из кэшей __lb, и блик загрузки на живом списке читался бы миганием
+  // «Loading…» — only on an empty list: the instant re-render after a spend
+  // comes from the __lb caches, and a loading blink on a live list would read as flicker
   const host = $('lbList');
   if (!host || !host.querySelector('.lb-row')) lbServ('Loading…');
   const my = ++lbEpoch;
   lbLoadOurs(my).catch(()=>{});
 }
 function lbScreenOpen(){ show('lbOverlay'); lbScreenRender(); }
-// ⚠️⚠️ МГНОВЕННЫЙ ПЕРЕСЧЁТ ПОСЛЕ ОТПРАВКИ (жалоба владельца 2026-08-12).
-// Раньше показ обновлялся только на ОТКРЫТИИ меню и экрана; игрок же покупает
-// буст, УЖЕ стоя в меню, и смотрит на прежнее место. Теперь клиент таблицы
-// говорит «счёт доехал», и мы перечитываем ровно то, что видно СЕЙЧАС.
-// ⚠️ ПЕРЕЧИТЫВАЕМ, А НЕ ДОРИСОВЫВАЕМ ЧИСЛО ОТ СЕБЯ: место по-прежнему берётся
-// только из `/v1/me` и только точное — правило закрытого отказа не тронуто.
-// ⚠️ Экран трогаем ТОЛЬКО когда он открыт: иначе `lbScreenRender` показал бы
-// «Loading…» в невидимом слое и сжёг запрос на каждой отправке.
+// ⚠️⚠️ INSTANT RECOUNT AFTER THE SEND (the owner's complaint 2026-08-12).
+// Previously the display was updated only on the OPENING of the menu and of the screen; yet the player buys
+// a boost while ALREADY standing in the menu, and looks at the former rank. Now the leaderboard client
+// says «the score has arrived», and we re-read exactly what is visible RIGHT NOW.
+// ⚠️ WE RE-READ, AND DO NOT PAINT THE NUMBER IN OURSELVES: the rank is still taken
+// only from `/v1/me` and only the exact one — the closed-refusal rule is untouched.
+// ⚠️ We touch the screen ONLY when it is open: otherwise `lbScreenRender` would show
+// «Loading…» in an invisible layer and burn a request on every send.
 try {
   if (typeof window !== 'undefined' && window.__lb && window.__lb.onSent){
     window.__lb.onSent(function (){
@@ -589,13 +589,13 @@ try {
   }
 } catch (e) {}
 function lbScreenClose(){ lbScreenStop(); hide('lbOverlay'); }
-// ЗАХВАТ ТИПОВ УРОВНЯ — НЕЗАВИСИМО от витрины (её тик gated ≥1160px, на
-// мобайле/узком vitAll не строится вовсе). Дёргается из updateHUD (тикает
-// ВСЕГДА): при смене уровня фиксируем ключи типов замеса, пока куча полна.
+// CAPTURE OF THE LEVEL'S TYPES — INDEPENDENTLY of the showcase (its tick is gated at ≥1160px, on
+// mobile/narrow vitAll is not built at all). Pulled from updateHUD (which ticks
+// ALWAYS): on a level change we fix the keys of the mix's types while the pile is full.
 let winLevelTypes = null, winLevelRef = null;
 function captureLevelTypes(){
   if (typeof level === 'undefined' || !level || level === winLevelRef) return;
-  if (typeof intro !== 'undefined' && intro) return; // атласы моделей ещё декодятся
+  if (typeof intro !== 'undefined' && intro) return; // the model atlases are still decoding
   const seen = new Set(), keys = [];
   try {
     for (const it of items){
@@ -604,17 +604,17 @@ function captureLevelTypes(){
       if (!seen.has(k)){ seen.add(k); keys.push(k); }
     }
   } catch(e){}
-  // пиним ref ТОЛЬКО при удачном захвате — иначе пустой items (крайний край)
-  // залочил бы прошлые типы навсегда, уровень не перезахватился бы
+  // we pin the ref ONLY on a successful capture — otherwise an empty items (the extreme edge)
+  // would lock the previous types forever and the level would not be re-captured
   if (keys.length){ winLevelTypes = keys; winLevelRef = level; }
 }
-// TOP ITEMS: топ-5 типов уровня по прогрессу (та же метрика/портреты, что у
-// витрины; было 3 — спека владельца 2026-07-28). Источник — winLevelTypes
-// (captureLevelTypes); фолбэк — vitAll. Если типов уровня меньше — строк
-// столько, сколько есть (slice не добивает пустышками).
-// Строк на ДЕСКТОПЕ 5 (спека #124), на МОБАЙЛЕ 3 (макет 783:711, спека
-// владельца 2026-07-28). Брейкпоинт тот же 768, что у HUD и мобильной
-// раскладки экрана победы в shell.html — разводить нельзя.
+// TOP ITEMS: the top 5 types of the level by progress (the same metric/portraits as in
+// the showcase; it used to be 3 — the owner's spec 2026-07-28). The source is winLevelTypes
+// (captureLevelTypes); the fallback is vitAll. If the level has fewer types — there are
+// as many rows as there are (slice does not pad with blanks).
+// On the DESKTOP there are 5 rows (spec #124), on MOBILE 3 (mockup 783:711, the owner's
+// spec 2026-07-28). The breakpoint is the same 768 as the HUD's and the mobile
+// layout of the win screen in shell.html — they must not be split apart.
 const WIN_TOP_N = 5, WIN_TOP_N_MOB = 3;
 function winTopN(){ return innerWidth < 768 ? WIN_TOP_N_MOB : WIN_TOP_N; }
 function renderWinTop(reduce){
@@ -651,65 +651,65 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
 function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
-// ===== Персонаж: 7 эмоций + живая анимация (ассеты владельца, Figma 741:1420) =====
-// Четыре НЕЗАВИСИМЫХ слоя: ЭМОЦИЯ (какая форма) + ВЗГЛЯД (куда смотрят
-// зрачки) + РЕАКЦИЯ (короткий всплеск) + МОРГАНИЕ. Круглая пара
-// параметрическая: зрачок ездит ±24 и меняет размер 15..50 в единицах
-// viewBox — этим покрыты семейства eyes-0 (взгляд/размер), eyes-2 (хитрые)
-// и eyes-5 (подмигивание). Несводимые формы — отдельными слоями SVG.
-// Дуги eyes-4-4 УДАЛЕНЫ (спека владельца 2026-07-21): «добрые» показываем
-// не формой, а РАЗМЕРОМ зрачков — асимметрией eyes-5 (741:1357).
-// ⚠️ `spent`/`out` — ЛИЦА УСТАЛОСТИ ПО НОДАМ ВЛАДЕЛЬЦА (741:1302 и 741:1281):
-// «выдохся» (щёлочки) на предпоследнем зачёте и «вырубился» (✕✕) на N-м.
-// `out` делит слой `fX` с поражением: слой один, поводов два — конфликта нет,
-// они взаимоисключающие по построению (в норме уровень непроигрываем).
+// ===== The character: 7 emotions + live animation (the owner's assets, Figma 741:1420) =====
+// Four INDEPENDENT layers: THE EMOTION (which shape) + THE GAZE (where the pupils
+// look) + THE REACTION (a short burst) + THE BLINK. The round pair is
+// parametric: the pupil travels ±24 and changes size 15..50 in units of
+// the viewBox — that covers the families eyes-0 (gaze/size), eyes-2 (sly)
+// and eyes-5 (winking). Irreducible shapes are separate SVG layers.
+// The eyes-4-4 arcs were DELETED (the owner's spec 2026-07-21): «kind» we show
+// not by shape but by the SIZE of the pupils — by the asymmetry of eyes-5 (741:1357).
+// ⚠️ `spent`/`out` — THE FATIGUE FACES BY THE OWNER'S NODES (741:1302 and 741:1281):
+// «spent» (slits) on the second-to-last bowl mark and «knocked out» (✕✕) on the N-th.
+// `out` shares the `fX` layer with the defeat: there is one layer and two reasons — there is no conflict,
+// they are mutually exclusive by construction (normally a level cannot be lost).
 const FACE_LAYER = { calm:'fRound', surprised:'fRound', sly:'fRound', rolled:'fRound',
   closed:'fRound', kind:'fRound', angry:'fAngry', lose:'fX', sad:'fSad',
   spent:'fSlit', out:'fX' };
-// Геометрия из ассетов (viewBox 240×120): белок r60, зрачок r29.
+// Geometry from the assets (viewBox 240×120): the white r60, the pupil r29.
 const EYE_R = 60, PUP_MIN = 15, PUP_WIDE = 50;
-// eyes-5 (асимметрия из ассета: левый зрачок 40 в белке 60; правый белок 44
-// со зрачком 12) — СЕРИЯ ТУРБО (решение владельца 2026-07-21: второе турбо,
-// собранное внутри активного, = серия; ядро считает chainSeries в 60-access)
+// eyes-5 (the asymmetry from the asset: the left pupil 40 in a white of 60; the right white 44
+// with a pupil of 12) — A TURBO SERIES (the owner's decision 2026-07-21: a second turbo
+// assembled inside an active one = a series; the core counts chainSeries in 60-access)
 const EYE5_PL = 40, EYE5_PR = 12, EYE5_WR = 44;
-const FACE_GAZE = {                    // смещения зрачков [левый, правый]
-  rolled: [[0,-24],[0,-24]],           // eyes-0-5: закатились вверх
-  sly:    [[-16,-16],[16,16]],         // eyes-2: один вверх-влево, другой вниз-вправо
+const FACE_GAZE = {                    // pupil offsets [left, right]
+  rolled: [[0,-24],[0,-24]],           // eyes-0-5: rolled up
+  sly:    [[-16,-16],[16,16]],         // eyes-2: one up-left, the other down-right
 };
-const PUP_BASE = 29;                   // радиус зрачка в покое (eyes-0)
-// ===== «МИКСЕР ВЫДЫХАЕТСЯ» (спека владельца v2: индикация зачётов чаши) =====
-// Владелец отверг трещины и сказал «беру глаза»: каждый зачёт БЬЁТ миксер,
-// усталость копится, на N-м глаза захлопываются и это переходит в разлёт.
-// ⚠️ ИРОНИЯ, А НЕ ЖАЛОСТЬ: миксер «держится из последних сил», поэтому на
-// серии он всё равно распахивается — просто от просевшей базы (см. eyeSizes).
+const PUP_BASE = 29;                   // the pupil's radius at rest (eyes-0)
+// ===== «THE MIXER IS RUNNING OUT OF STEAM» (the owner's spec v2: indication of the bowl's marks) =====
+// The owner rejected the cracks and said «I'll take the eyes»: every mark HITS the mixer,
+// the fatigue accumulates, on the N-th one the eyes slam shut and that turns into the scatter.
+// ⚠️ IRONY, NOT PITY: the mixer is «holding on with its last strength», which is why on
+// a series it still opens wide — just from a sagged base (see eyeSizes).
 //
-// ⛔⛔ ТОМБСТОУН: ВЕК СВЕРХУ НЕ БЫВАЕТ. Спека владельца 2026-08-03 дословно,
-// по скрину копящейся усталости: «убери черные веки сверху, у нас нет такого
-// состояния, потому что во всех состояниях есть только белое глазное яблоко и
-// черный зрачок в разной форме». Накладка `fTired` (дуга-веко из fSad поверх
-// круглых, переменная `--tired`, парковка 54, фикс «серпа 5px») УДАЛЕНА
-// ЦЕЛИКОМ вместе со своим CSS и стражами. НЕ ВОЗВРАЩАТЬ ни под каким видом:
-// это не баг реализации, а отсутствующее в языке глаз состояние.
-// ⚠️ НИЖНИЕ веки `fSad` (нода 741:1336) — ДРУГОЕ и остаются: они утверждённая
-// форма грусти, а претензия была к ВЕРХНИМ дугам поверх круглых глаз.
-// ⚠️ ВМЕСТЕ С ВЕКАМИ УМЕР «УДАР НА ЗАЧЁТ» (TIRED_STUN): он был доп. просадкой
-// ВЕКА на 180 мс и другого канала не имел. Возвращать его через зрачок —
-// отдельное слово владельца, самодеятельностью не делаем.
+// ⛔⛔ TOMBSTONE: THERE IS NO SUCH THING AS AN UPPER EYELID. The owner's spec 2026-08-03 verbatim,
+// on the screenshot of accumulating fatigue: «remove the black eyelids on top, we do not have such
+// a state, because in all states there is only a white eyeball and
+// a black pupil in various shapes». The `fTired` overlay (an eyelid arc from fSad on top of
+// the round ones, the `--tired` variable, parking at 54, the «5px crescent» fix) was DELETED
+// ENTIRELY together with its CSS and its guards. DO NOT BRING IT BACK under any guise:
+// this is not an implementation bug but a state absent from the language of the eyes.
+// ⚠️ The LOWER eyelids `fSad` (node 741:1336) are a DIFFERENT thing and they stay: they are the approved
+// shape of sadness, whereas the objection was to the UPPER arcs on top of round eyes.
+// ⚠️ TOGETHER WITH THE EYELIDS DIED «THE HIT ON A MARK» (TIRED_STUN): it was an extra sag of
+// THE EYELID for 180 ms and it had no other channel. Bringing it back through the pupil is
+// a separate word from the owner, we do not do it on our own initiative.
 //
-// ОСТАЛОСЬ ДВА канала, оба «белок + чёрный зрачок разной формы»:
-//   (1) РАЗМЕР зрачка — копящаяся усталость роняет его базу;
-//   (2) ФОРМА зрачка — щёлочки (741:1302) на предпоследнем зачёте и ✕✕
-//       (741:1281) на N-м; обе — собственные ноды владельца.
-const TIRED_PUP_K = 0.28;   // насколько усталость роняет БАЗУ зрачка (0..1)
-const TIRED_SPENT_AT = 1;   // за сколько зачётов ДО разлёта миксер «выдыхается» (щёлочки)
+// TWO channels REMAIN, both «the white + a black pupil of a different shape»:
+//   (1) THE SIZE of the pupil — the accumulating fatigue drops its base;
+//   (2) THE SHAPE of the pupil — slits (741:1302) on the second-to-last mark and ✕✕
+//       (741:1281) on the N-th; both are the owner's own nodes.
+const TIRED_PUP_K = 0.28;   // how much the fatigue drops the pupil's BASE (0..1)
+const TIRED_SPENT_AT = 1;   // how many marks BEFORE the scatter the mixer «runs out of steam» (slits)
 let bowlSeen = 0, tiredSlam = false;
-// доля усталости 0..1 по ЗАЧЁТАМ (cracks/N). Механику не трогаем — только читаем.
+// the fatigue fraction 0..1 by MARKS (cracks/N). We do not touch the mechanics — we only read.
 function bowlFatigue(){
   if (!level || level.over) return 0;
   const n = (typeof bowlN === 'function') ? bowlN() : 6;
   return Math.min(1, (level.bowlCracks || 0) / Math.max(1, n));
 }
-// сколько зачётов ОСТАЛОСЬ до разлёта (по нему решается «выдохся»)
+// how many marks are LEFT until the scatter (it decides «spent»)
 function bowlLeft(){
   if (!level || level.over) return 99;
   const n = (typeof bowlN === 'function') ? bowlN() : 6;
@@ -718,69 +718,69 @@ function bowlLeft(){
 let faceState = 'calm', blinkUntil = 0, nextBlinkAt = 0, faceHold = '', faceHoldUntil = 0, faceHoldFrom = 0;
 let lookVec = null, lookUntil = 0, wander = [0,0], wanderAt = 0, dart = [0,0], dartAt = 0;
 let pupPulseUntil = 0, lastScoreSeen = null;
-// Приоритет сверху вниз. Лесенка угрозы: спокойные -> закатанные -> хитрые -> злые
+// Priority from top to bottom. The ladder of menace: calm -> rolled -> sly -> angry
 function eyesMood(now, grinding){
   if (!level || intro) return 'calm';
-  if (level.over) return items.every(i => !i.alive) ? 'kind' : 'lose'; // ✕✕ из набора
-  if (chainUntil > now) return 'surprised';       // турбо
-  if (grinding) return 'angry';                   // лопасти едят вещи
+  if (level.over) return items.every(i => !i.alive) ? 'kind' : 'lose'; // ✕✕ from the set
+  if (chainUntil > now) return 'surprised';       // turbo
+  if (grinding) return 'angry';                   // the blades are eating things
   const idle = (now - stats.lastAction)/1000;
-  if (level.idleLimit - idle <= 3) return 'sly';  // предвкушение: ≤3 с до перемолки
-  if (comboUntil > now) return 'kind';            // горит серия
-  if (idle > 8) return 'rolled';                  // заскучал
+  if (level.idleLimit - idle <= 3) return 'sly';  // anticipation: ≤3 s until the grind
+  if (comboUntil > now) return 'kind';            // a series is burning
+  if (idle > 8) return 'rolled';                  // got bored
   return 'calm';
 }
-// Диск заряда у курсора (tickChainBar) УДАЛЁН: индикатор турбо теперь
-// РАЗМЕР ЗРАЧКА персонажа (спека владельца в чате ИНТЕРФЕЙСА: «полоски
-// нет, копит глаз») — см. eyeSizes ниже. (Флаг диска-заряда вырезан уборкой)
-// остался мёртвым флагом истории.
-// короткая реакция поверх состояния (тап по глазам, промах, сюрприз)
+// The charge disc at the cursor (tickChainBar) was DELETED: the turbo indicator is now
+// THE PUPIL SIZE of the character (the owner's spec in the INTERFACE chat: «there is no
+// bar, the eye accumulates») — see eyeSizes below. (The charge-disc flag was cut out by the cleanup)
+// it stayed a dead flag of history.
+// a short reaction on top of the state (a tap on the eyes, a miss, a surprise)
 function faceEvent(state, ms){ faceHold = state; faceHoldUntil = performance.now() + ms; faceHoldFrom = 0; }
-// зрачки поворачиваются к точке экрана (тап игрока) на 1.4 с
+// the pupils turn towards a point on the screen (the player's tap) for 1.4 s
 function faceLook(x, y){
   const r = $('face').getBoundingClientRect();
   const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
   const d = Math.hypot(dx, dy) || 1;
-  const k = 24 * Math.min(1, d / 260);          // чем дальше тап, тем сильнее косит
+  const k = 24 * Math.min(1, d / 260);          // the farther the tap, the stronger the squint
   lookVec = [dx / d * k, dy / d * k];
   lookUntil = performance.now() + 1400;
 }
-function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ах!» на матче
-// РАЗМЕРЫ ЗРАЧКОВ И БЕЛКОВ, отдельно для левого и правого глаза.
-// Драматургия буста (спека владельца): копится — зрачки РАСТУТ 29->50;
-// как только буст набран — резко СЖИМАЮТСЯ до 15 (eyes-0-1) и катаются.
+function facePulse(){ pupPulseUntil = performance.now() + 180; } // «ah!» on a match
+// THE SIZES OF THE PUPILS AND THE WHITES, separately for the left and the right eye.
+// The dramaturgy of the boost (the owner's spec): while it accumulates — the pupils GROW 29->50;
+// as soon as the boost is collected — they sharply SHRINK to 15 (eyes-0-1) and roll around.
 function eyeSizes(now, state){
-  // ⚠️ УСТАЛОСТЬ — ВТОРАЯ ФАЗА ТОГО ЖЕ КАНАЛА РАЗМЕРА (рамка ГРАФИКИ: не
-  // заводить новую визуальную переменную). Она роняет БАЗУ, а набор серии
-  // по-прежнему тянет зрачок вверх ОТ ЭТОЙ просевшей базы — читается как
-  // «устал, но на серии всё равно распахивается, просто уже не так широко».
+  // ⚠️ THE FATIGUE IS THE SECOND PHASE OF THAT SAME SIZE CHANNEL (the GRAPHICS frame: do not
+  // introduce a new visual variable). It drops the BASE, while collecting a series
+  // still pulls the pupil up FROM THAT sagged base — it reads as
+  // «tired, but on a series it still opens wide, just not as wide any more».
   const base = PUP_BASE * (1 - TIRED_PUP_K * bowlFatigue());
   const s = { pl: base, pr: base, wl: EYE_R, wr: EYE_R };
   if (chainUntil > now){
-    if (chainSeries >= 2){                       // СЕРИЯ турбо: асимметрия eyes-5
+    if (chainSeries >= 2){                       // a turbo SERIES: the asymmetry of eyes-5
       s.pl = EYE5_PL; s.pr = EYE5_PR; s.wr = EYE5_WR; return s;
     }
-    s.pl = s.pr = PUP_MIN; return s;             // обычное турбо: сжались, катаются
+    s.pl = s.pr = PUP_MIN; return s;             // ordinary turbo: shrunk, rolling around
   }
   if (state === 'surprised'){ s.pl = s.pr = PUP_WIDE; return s; }
   if (state === 'kind'){
-    // НАБОР БУСТА: зрачки растут 29 -> 50 по мере серии (спека владельца).
-    // Дуги eyes-4-4 этим и заменены — размером, а не формой.
-    const t = Math.min(1, comboCount / chainComboAt()); // порог растёт с уровнем (00-config)
-    s.pl = s.pr = base + (PUP_WIDE - base) * t;          // тянем ОТ просевшей базы
+    // COLLECTING THE BOOST: the pupils grow 29 -> 50 as the series builds up (the owner's spec).
+    // That is exactly what replaced the eyes-4-4 arcs — size, not shape.
+    const t = Math.min(1, comboCount / chainComboAt()); // the threshold grows with the level (00-config)
+    s.pl = s.pr = base + (PUP_WIDE - base) * t;          // we pull FROM the sagged base
     return s;
   }
-  if (pupPulseUntil > now){ s.pl = s.pr = base * 1.25; }   // «ах!» на матче
+  if (pupPulseUntil > now){ s.pl = s.pr = base * 1.25; }   // «ah!» on a match
   return s;
 }
-// КУДА СМОТРЯТ. Вектор задаётся с запасом — реальную амплитуду обрежет
-// clampGaze по свободному месту внутри белка.
+// WHERE THEY LOOK. The vector is given with a margin — the real amplitude will be trimmed by
+// clampGaze according to the free room inside the white.
 function gazeFor(now, state){
   if (chainUntil > now){
-    // ТУРБО: зрачки КАТАЮТСЯ в РАЗНЫЕ стороны (спека владельца) — один по
-    // часовой, другой против, оборот примерно за 1.2 с
+    // TURBO: the pupils ROLL in OPPOSITE directions (the owner's spec) — one
+    // clockwise, the other counter-clockwise, a revolution in about 1.2 s
     const th = now / 1000 * 5.2;
-    const c = Math.cos(th) * 99, sn = Math.sin(th) * 99;       // 99 = «до упора»
+    const c = Math.cos(th) * 99, sn = Math.sin(th) * 99;       // 99 = «all the way»
     return [[c, sn], [-c, -sn]];
   }
   if (FACE_GAZE[state]) return FACE_GAZE[state];
@@ -789,100 +789,100 @@ function gazeFor(now, state){
     wander = [(Math.random() * 2 - 1) * 10, (Math.random() * 2 - 1) * 8]; }
   return [wander, wander];
 }
-// ⚠️ ГЛАВНОЕ ПРАВИЛО (спека владельца): чёрный зрачок НИКОГДА не выходит за
-// белок. Свободный ход = радиус белка − радиус зрачка − 1 (запас, чтобы не
-// касался края). Без этого распахнутый зрачок при взгляде вбок вылезал наружу.
+// ⚠️ THE MAIN RULE (the owner's spec): the black pupil NEVER goes outside
+// the white. The free travel = the white's radius − the pupil's radius − 1 (a margin so that it does not
+// touch the edge). Without this a wide-open pupil poked outside when looking sideways.
 function clampGaze(vec, pupR, eyeR){
   const room = Math.max(0, eyeR - pupR - 1);
   const d = Math.hypot(vec[0], vec[1]);
   if (d <= room || d === 0) return vec;
   return [vec[0] / d * room, vec[1] / d * room];
 }
-// тик всей конструкции — каждый кадр (моргание требует мельче 600 мс)
+// the tick of the whole construction — every frame (blinking requires finer than 600 ms)
 function tickFace(now){
-  tickVitrine(now); // витрина сама гейтится медиазапросом и 150 мс
-  // РЕАКЦИИ без правок в чужой зоне: следим за счётом. Вырос — зрачок
-  // «ахнул», упал (промах −7) — ГРУСТНО смотрят вниз (eyes-1-6, спека
-  // владельца). ⚠️ ВО ВРЕМЯ ПОМОЛА реакции ГЛУШАТСЯ: штраф −20 капает
-  // каждый помол, и грусть перебивала бы злые глаза — владелец требует
-  // «при работе блендера всегда злые».
+  tickVitrine(now); // the showcase gates itself by a media query and by 150 ms
+  // REACTIONS without edits in somebody else's zone: we watch the score. It grew — the pupil
+  // «gasped», it fell (a miss of −7) — they look down SADLY (eyes-1-6, the owner's
+  // spec). ⚠️ DURING THE GRIND the reactions are MUTED: the −20 penalty drips
+  // on every grind, and sadness would override the angry eyes — the owner demands
+  // «always angry while the blender is working».
   if (level && !intro && !lastGrind){
     if (lastScoreSeen === null) lastScoreSeen = stats.score;
     else if (stats.score > lastScoreSeen) facePulse();
     else if (stats.score < lastScoreSeen){
-      // естественный вход в грусть: зрачки НЫРЯЮТ вниз (80 мс на круглой
-      // паре), затем выезжают веки; после грусти взгляд ещё висит внизу
+      // the natural entry into sadness: the pupils DIVE downwards (80 ms on the round
+      // pair), then the eyelids come out; after the sadness the gaze still hangs at the bottom
       lookVec = [0, 18]; lookUntil = performance.now() + 1900;
       faceHold = 'sad'; faceHoldUntil = performance.now() + 780;
-      faceHoldFrom = performance.now() + 80; // 80 мс — нырок зрачков до век
+      faceHoldFrom = performance.now() + 80; // 80 ms — the pupils' dive before the eyelids
     }
     lastScoreSeen = stats.score;
   } else lastScoreSeen = null;
-  // время меняет ширину раз в секунду — обжимаем рамку по факту смены
+  // the time changes its width once a second — we squeeze the frame on the fact of the change
   const tmStr = $('timer').textContent;
   if (tmStr !== tmStrLast){ tmStrLast = tmStr; fitStat('timer'); }
-  // ЗАЧЁТ ЧАШИ ловим ДИФФОМ счётчика — механику (bowlCrackAdd) не трогаем.
-  // ⚠️ Тот же дифф ловит и СБРОС уровня (cracks обнулился) — отдельного
-  // обработчика смены уровня не нужно, и рассинхрона между ними не будет.
+  // WE CATCH A BOWL MARK BY A DIFF of the counter — we do not touch the mechanics (bowlCrackAdd).
+  // ⚠️ The same diff also catches a level RESET (cracks went back to zero) — a separate
+  // handler for the level change is not needed, and there will be no desync between them.
   const _cr = (level && level.bowlCracks) || 0;
   if (_cr !== bowlSeen){
     if (_cr > bowlSeen && level && !level.over){
       const _n = (typeof bowlN === 'function') ? bowlN() : 6;
-      if (_cr >= _n) tiredSlam = true;               // N-й: глаза захлопнулись
+      if (_cr >= _n) tiredSlam = true;               // the N-th: the eyes slammed shut
     }
-    if (_cr === 0) tiredSlam = false;                // новый уровень — с чистого лица
+    if (_cr === 0) tiredSlam = false;                // a new level — with a clean face
     bowlSeen = _cr;
   }
   if (!nextBlinkAt) nextBlinkAt = now + 4000;
-  // моргание 120 мс раз в 4-7 с; в турбо и на помоле не моргаем
+  // a blink of 120 ms once every 4-7 s; in turbo and during the grind we do not blink
   const canBlink = faceState === 'calm' || faceState === 'kind' || faceState === 'rolled';
   if (now > nextBlinkAt && canBlink){
     blinkUntil = now + 120;
-    // ⚠️ РЕЖЕ МОРГАЕТ ПО МЕРЕ УСТАЛОСТИ (рамка ГРАФИКИ): интервал растёт
-    // вдвое к последнему зачёту. Не «чаще» — уставший моргает медленно и
-    // тяжело, частое моргание читалось бы как тревога, а это чужой сигнал.
+    // ⚠️ IT BLINKS MORE RARELY AS THE FATIGUE GROWS (the GRAPHICS frame): the interval grows
+    // twofold by the last mark. Not «more often» — a tired one blinks slowly and
+    // heavily, frequent blinking would read as anxiety, and that is somebody else's signal.
     nextBlinkAt = now + (4000 + Math.random() * 3000) * (1 + bowlFatigue());
   }
-  // помол перебивает всё, включая короткие реакции и моргание;
-  // faceHoldFrom задерживает включение hold-состояния (нырок зрачков)
+  // the grind overrides everything, including the short reactions and the blinking;
+  // faceHoldFrom delays the switching-on of the hold state (the pupils' dive)
   const holdOn = faceHoldUntil > now && now >= faceHoldFrom;
-  // ЛИЦА УСТАЛОСТИ — ЛЕСЕНКА ВЛАДЕЛЬЦА: веки копятся -> ЩЁЛОЧКИ (выдохся) ->
-  // ✕✕ (вырубился) -> разлёт чаши. ⚠️ Обе формы взяты из его нод, а не
-  // придуманы: 741:1302 и 741:1281.
-  // ⚠️ ЖИВОЙ ГЕЙТ `level.over`: `tiredSlam` живёт до genLevel (bowlCracks
-  // обнуляет только он, shatterBowl — НЕТ), а уровень кончается РАНЬШЕ, на
-  // волне сбора. Без гейта победное лицо рисовалось бы вырубленным.
-  const живая = !lastGrind && !!level && !level.over;
-  const вырубился = tiredSlam && живая;                       // ТЕРМИНАЛЬНОЕ: бьёт и реакции
-  const выдохся = !вырубился && живая && bowlLeft() <= TIRED_SPENT_AT;
-  // ⚠️ ПОРЯДОК ЗДЕСЬ И ЕСТЬ ЛЕСЕНКА ПРИОРИТЕТОВ (рамка ГРАФИКИ, п.3):
-  // помол > вырубился > короткие реакции > выдохся > покой. «Выдохся» стоит
-  // НИЖЕ реакций намеренно — иначе щёлочки съедали бы грусть на промахе,
-  // а это сигнал о другом событии.
+  // THE FATIGUE FACES — THE OWNER'S LADDER: the eyelids accumulate -> SLITS (spent) ->
+  // ✕✕ (knocked out) -> the bowl's scatter. ⚠️ Both shapes are taken from his nodes and not
+  // invented: 741:1302 and 741:1281.
+  // ⚠️ THE LIVE GATE `level.over`: `tiredSlam` lives until genLevel (only it resets
+  // bowlCracks, shatterBowl does NOT), while the level ends EARLIER, on
+  // the collection wave. Without the gate the victorious face would be drawn knocked out.
+  const aliveNow = !lastGrind && !!level && !level.over;
+  const knockedOut = tiredSlam && aliveNow;                   // TERMINAL: it beats the reactions too
+  const isSpent = !knockedOut && aliveNow && bowlLeft() <= TIRED_SPENT_AT;
+  // ⚠️ THE ORDER HERE IS EXACTLY THE LADDER OF PRIORITIES (the GRAPHICS frame, item 3):
+  // grind > knocked out > short reactions > spent > rest. «Spent» stands
+  // BELOW the reactions deliberately — otherwise the slits would eat the sadness on a miss,
+  // and that is a signal about a different event.
   const st = lastGrind ? 'angry'
-           : вырубился ? 'out'
+           : knockedOut ? 'out'
            : holdOn ? faceHold
-           : выдохся ? 'spent' : faceState;
+           : isSpent ? 'spent' : faceState;
   setFace(st, now, blinkUntil > now && st !== 'lose' && st !== 'out' && st !== 'spent' && !lastGrind);
 }
 function setFace(state, now, blinking){
   const svg = $('eyes'), layer = FACE_LAYER[state] || 'fRound';
   for (const id of ['fRound','fAngry','fX','fSad','fSlit'])
     $(id).classList.toggle('on', id === layer);
-  // ⚠️ СПИСОК СНОВА ОДИН — накладок больше нет (веки удалены, см. томбстоун
-  // вверху файла). Правило канона «каждый узел разметки обработан в setFace»
-  // выполняется буквально: сколько слоёв в разметке, столько и здесь.
+  // ⚠️ THE LIST IS ONE AGAIN — there are no overlays any more (the eyelids were deleted, see the tombstone
+  // at the top of the file). The canonical rule «every markup node is handled in setFace»
+  // is fulfilled literally: as many layers as there are in the markup, so many are here.
   svg.classList.toggle('blink', !!blinking);
   if (layer === 'fAngry'){
-    // злые СЛЕДЯТ ЗА ЧАШЕЙ (спека владельца): влево -> вправо -> вниз,
-    // шаг ~0.8 с; CSS-переход на .p сглаживает; клип держит внутри белка
+    // the angry ones FOLLOW THE BOWL (the owner's spec): left -> right -> down,
+    // step ~0.8 s; the CSS transition on .p smooths it; the clip keeps it inside the white
     const seq = [[-11, 5], [11, 5], [0, 11]];
     const g2 = seq[Math.floor((now || performance.now()) / 800) % 3];
     $('pupAL').style.transform = 'translate(' + g2[0] + 'px,' + g2[1] + 'px)';
     $('pupAR').style.transform = 'translate(' + g2[0] + 'px,' + g2[1] + 'px)';
     return;
   }
-  if (layer !== 'fRound') return;                 // у прочих слоёв зрачков нет
+  if (layer !== 'fRound') return;                 // the other layers have no pupils
   const t = now || performance.now();
   const sz = eyeSizes(t, state), g = gazeFor(t, state);
   const gl = clampGaze(g[0], sz.pl, sz.wl), gr = clampGaze(g[1], sz.pr, sz.wr);
@@ -894,80 +894,80 @@ function setFace(state, now, blinking){
   $('wR').style.transform = 'scale(' + (sz.wr / EYE_R).toFixed(3) + ')';
 }
 let lastGrind = false;
-function updateEyes(now, grinding){ lastGrind = !!grinding; faceState = eyesMood(now, grinding); } // мод — раз в 600 мс
-// ⚠️ МЕНЯЛОСЬ ВМЕСТЕ С skyTimeNow (10-stage), спека владельца 2026-07-31
-// «день до 20:00, ночь с 20:00». ПРАВКА ГРАФИКИ В ФАЙЛЕ ИНТЕРФЕЙСА — по
-// согласованию через диспетчера: граница обязана двигаться в локстепе с небом,
-// иначе с 20 до 22 небо дневное, а тема кнопок ночная.
-// ⚠️ ЧИСЛО БОЛЬШЕ НЕ ДУБЛИРУЕТСЯ: обе функции читают SKY_DAY_FROM/
-// SKY_NIGHT_FROM из 00-config. Час берётся через skyHourNow() — он же несёт
-// форс-хук `?hour=N`, которым ИНТЕРФЕЙС просил закрыть непроверяемость
-// темовых фич (тема витрины, инверсия Shake, правило цвета кнопок).
-// ⛔⛔ «ИНВЕРСИЯ SHAKE» В ЭТОМ ПЕРЕЧНЕ БОЛЬШЕ НЕ СУЩЕСТВУЕТ (2026-08-21): по
-// слову владельца «везде замени кнопку Shake» кнопка стала ИКОНКОЙ-КИСТЬЮ без
-// подложки и вышла из правила `--btn-bg`/`--btn-fg` — переворачивать у неё
-// нечего. Это НЕ «недостижимо ночью», а ОТСУТСТВУЕТ; фраза оставлена с
-// надгробием, чтобы следующий не искал механику, которой нет. Прочие две
-// темовые фичи перечня целы (и по-прежнему недостижимы — только день).
-// ⛔⛔ ТОЛЬКО ДЕНЬ, ВСЕГДА — слово владельца 2026-08-20. Вторая половина правила
-// живёт в `skyTimeNow` (10-stage): разъедутся — небо дневное при ночной теме
-// кнопок, ровно та болезнь, ради которой обе функции когда-то свели на одни
-// числа. Правила `html.night` (тема витрины, цвет кнопок; ⛔ инверсии Shake
-// среди них БОЛЬШЕ НЕТ — см. надгробие выше) и
-// звёзды на витрине остаются в коде, но недостижимы — вкусовое решение
-// владельца, к таким он возвращается.
+function updateEyes(now, grinding){ lastGrind = !!grinding; faceState = eyesMood(now, grinding); } // the mood — once every 600 ms
+// ⚠️ IT USED TO CHANGE TOGETHER WITH skyTimeNow (10-stage), the owner's spec 2026-07-31
+// «day until 20:00, night from 20:00». A GRAPHICS EDIT IN AN INTERFACE FILE — by
+// agreement through the dispatcher: the boundary is obliged to move in lockstep with the sky,
+// otherwise from 20 to 22 the sky is daytime while the buttons' theme is nighttime.
+// ⚠️ THE NUMBER IS NO LONGER DUPLICATED: both functions read SKY_DAY_FROM/
+// SKY_NIGHT_FROM from 00-config. The hour is taken via skyHourNow() — it also carries
+// the force hook `?hour=N` with which the INTERFACE asked to close the untestability
+// of the themed features (the showcase's theme, the Shake inversion, the button-colour rule).
+// ⛔⛔ «THE SHAKE INVERSION» NO LONGER EXISTS IN THIS LIST (2026-08-21): by
+// the owner's word «replace the Shake button everywhere» the button became a BRUSH ICON without
+// a backing and left the `--btn-bg`/`--btn-fg` rule — there is nothing to invert
+// on it. This is NOT «unreachable at night» but ABSENT; the phrase is left with
+// a tombstone so that the next person does not go looking for a mechanic that does not exist. The other two
+// themed features of the list are intact (and still unreachable — daytime only).
+// ⛔⛔ DAYTIME ONLY, ALWAYS — the owner's word 2026-08-20. The second half of the rule
+// lives in `skyTimeNow` (10-stage): if they diverge — the sky is daytime with a nighttime theme
+// of the buttons, exactly the disease for the sake of which both functions were once brought onto the same
+// numbers. The `html.night` rules (the showcase's theme, the buttons' colour; ⛔ the Shake inversion
+// is NO LONGER among them — see the tombstone above) and
+// the stars on the showcase stay in the code but are unreachable — a matter of the owner's
+// taste, and to such things he comes back.
 function isNightSky(){
   return false;
 }
-// Обжать svg-рамку по тексту: ширина = длина текста в юнитах viewBox ×
-// текущий масштаб (высота/27). Без этого фиксированные рамки давали дыру
-// между LV и временем и наезд времени на глаза (скрин владельца).
+// Squeeze the svg frame to the text: the width = the text's length in viewBox units ×
+// the current scale (height/27). Without this the fixed frames gave a hole
+// between LV and the time and the time overlapping the eyes (the owner's screenshot).
 function fitStat(id){
   const t = $(id), svg = t.ownerSVGElement;
-  const u = t.getComputedTextLength() + 3;          // ширина в юнитах viewBox
-  // ⚠️ менять надо И viewBox, И css-ширину: svg держит пропорции viewBox
-  // (meet) — одна лишь ширина при высоте 42 УМЕНЬШАЛА контент (LV мельче
-  // времени на скрине владельца)
+  const u = t.getComputedTextLength() + 3;          // the width in viewBox units
+  // ⚠️ one has to change BOTH the viewBox AND the css width: the svg keeps the viewBox proportions
+  // (meet) — the width alone at a height of 42 SHRANK the content (LV smaller than
+  // the time on the owner's screenshot)
   svg.setAttribute('viewBox', '0 0 ' + u.toFixed(1) + ' 27');
-  // ⚠️ ЯКОРЬ ЕДЕТ ЗА РАМКОЙ (жалоба владельца 2026-07-27 «отступы поломались»,
-  // скрин: число обрезано краем экрана). LV и время привязаны к ЛЕВОМУ краю
-  // (x=1) — им сжатие рамки безразлично. А чип очков привязан к ПРАВОМУ
-  // (text-anchor=end, x=102 под ИСХОДНУЮ рамку 104). Ужав viewBox до ~91, мы
-  // оставляли якорь на 102 — текст рисовался НА 10 ЮНИТОВ ЗА рамкой (overflow
-  // у .otext visible, поэтому не обрезался, а вылезал) и уходил за вьюпорт:
-  // замер 390px — правый край текста 392 при рамке до 382.
+  // ⚠️ THE ANCHOR TRAVELS WITH THE FRAME (the owner's complaint 2026-07-27 «the paddings broke»,
+  // screenshot: the number is cut off by the screen's edge). LV and the time are tied to the LEFT edge
+  // (x=1) — the squeezing of the frame is irrelevant to them. But the points chip is tied to the RIGHT one
+  // (text-anchor=end, x=102 for the ORIGINAL frame of 104). Having squeezed the viewBox to ~91, we
+  // left the anchor at 102 — the text was drawn 10 UNITS BEYOND the frame (overflow
+  // on .otext is visible, so it was not clipped but stuck out) and went past the viewport:
+  // measurement 390px — the text's right edge 392 with the frame reaching 382.
   if (t.getAttribute('text-anchor') === 'end') t.setAttribute('x', (u - 2).toFixed(1));
   const k = (svg.getBoundingClientRect().height || 27) / 27;
   svg.style.width = (u * k) + 'px';
 }
 let tmStrLast = '';
 let chargeInT = 0, chargeRAF = 0;
-// ⚠️⚠️ РАСТВОРЕНИЕ ЗАРЯДА ВЕДЁТ ПОКАДРОВЫЙ ТИК, А НЕ updateHUD. Постановка
-// описывала «лестничную opacity из updateHUD (тик 600 мс)» — ТИКА НЕТ:
-// `updateHUD` зовётся ПО СОБЫТИЯМ (матч, конец серии/цепи, встряска, реген,
-// сам грант), а таймер миксера обновляет отдельный блок в loop. Замер на main:
-// пока игрок не трогает игру, прозрачность пишется ОДИН раз при выпадении и
-// не меняется — растворения не было вовсе, кнопка просто исчезала через 7 с.
-// Поэтому здесь свой rAF: читает ЖИВОЙ `chargeState().leftMs` (единственный
-// источник времени — ядро; пауза TTL не двигает, `chargeUntil` — чистая метка),
-// пишет opacity каждый кадр и САМ ОСТАНАВЛИВАЕТСЯ, когда заряда нет.
-// ⚠️ Писатель opacity ОДИН. Прежняя пара «шаг из updateHUD + переход в CSS»
-// разъезжалась бы: на паузе меню кадры идут, а событий нет.
+// ⚠️⚠️ THE CHARGE'S DISSOLVE IS DRIVEN BY A PER-FRAME TICK, AND NOT BY updateHUD. The brief
+// described «a stepped opacity from updateHUD (a 600 ms tick)» — THERE IS NO SUCH TICK:
+// `updateHUD` is called BY EVENTS (a match, the end of a series/chain, a shake, a regen,
+// the grant itself), while the mixer's timer updates a separate block in the loop. A measurement on main:
+// as long as the player does not touch the game, the opacity is written ONCE when it drops and
+// does not change — there was no dissolve at all, the button simply disappeared after 7 s.
+// Hence its own rAF here: it reads the LIVE `chargeState().leftMs` (the only
+// source of time is the core; the pause does not move the TTL, `chargeUntil` is a pure mark),
+// writes the opacity every frame and STOPS ITSELF when there is no charge.
+// ⚠️ There is ONE writer of the opacity. The former pair «a step from updateHUD + a transition in CSS»
+// would diverge: on the menu's pause the frames go on, but there are no events.
 function chargeFadeStart(){ if (!chargeRAF) chargeRAF = requestAnimationFrame(chargeFadeTick); }
 function chargeFadeTick(){
   chargeRAF = 0;
   const cb = $('chargeBtn');
   if (!cb || cb.style.display === 'none') return;
   const cs = (typeof chargeState === 'function') ? chargeState() : null;
-  if (!cs || !cs.name) return;                    // заряд ушёл — тик умирает сам
+  if (!cs || !cs.name) return;                    // the charge is gone — the tick dies by itself
   cb.style.opacity = String(0.25 + 0.75 * Math.min(1, cs.leftMs / CHARGE_TTL_MS));
-  // САМОЛЕЧЕНИЕ СПИНА (Интерфейс поймал дыру и честно её не закрыл): канвас
-  // ОДИН на игру — меню/коллекция забирают его в любой момент, а добор жил
-  // только в updateHUD, то есть возвращался лишь со следующим игровым
-  // событием. В простое слот оставался мёртвой картинкой (а по правилу
-  // владельца картинка ещё и скрыта — то есть пустым). Возвращаем покадрово:
-  // проверка дешёвая (сравнение parentNode), thumbSpinStart зовётся только
-  // когда канваса в слоте реально нет.
+  // THE SPIN'S SELF-HEALING (the Interface caught the hole and honestly did not close it): the canvas is
+  // ONE for the whole game — the menu/collection take it at any moment, while the top-up lived
+  // only in updateHUD, that is, it came back only with the next game
+  // event. In idle the slot stayed a dead picture (and by the owner's
+  // rule the picture is also hidden — that is, empty). We bring it back per frame:
+  // the check is cheap (a parentNode comparison), thumbSpinStart is called only
+  // when the canvas really is not in the slot.
   try {
     const live = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb);
     if (!live && cb.dataset.img === cs.name){
@@ -979,14 +979,14 @@ function chargeFadeTick(){
   } catch(e){}
   chargeRAF = requestAnimationFrame(chargeFadeTick);
 }
-// ТОСТ МНОЖИТЕЛЯ ПОД ГЛАЗАМИ (нода 829:1242, слово владельца «множитель
-// набранной вещи показывается под глазами»): плашка 169×60, портрет 44,
-// «×N.NN» лаймом. Показывается на сборе прокачанного типа (accMult > 1),
-// повторный сбор перезаводит таймер. Зовёт doMatch (80-gameplay).
-let multToastT = 0, multTween = 0, multLastShown = null; // multLastShown — с какого числа крутить счётчик
+// THE MULTIPLIER TOAST UNDER THE EYES (node 829:1242, the owner's word «the multiplier
+// of the collected thing is shown under the eyes»): a plate of 169×60, a portrait of 44,
+// «×N.NN» in lime. It is shown on collecting an upgraded type (accMult > 1),
+// a repeated collection restarts the timer. Called by doMatch (80-gameplay).
+let multToastT = 0, multTween = 0, multLastShown = null; // multLastShown — the number from which to spin the counter
 function showMultToast(typeName, mult, isTierUp){
-  // десктоп ставит тост НАД витриной (нода 741:1497): её высота зависит от
-  // числа типов уровня, поэтому отдаём измеренную высоту в CSS-переменную
+  // the desktop puts the toast ABOVE the showcase (node 741:1497): its height depends on
+  // the number of the level's types, so we hand the measured height into a CSS variable
   try {
     const v = document.getElementById('vitrine');
     if (v && v.offsetHeight) document.documentElement.style.setProperty('--vitrineH', v.offsetHeight + 'px');
@@ -997,11 +997,11 @@ function showMultToast(typeName, mult, isTierUp){
   const url = it ? itemThumb(it) : '';
   const img = $('multToastImg');
   if (url) img.src = url; else img.removeAttribute('src');
-  // ЧИСЛО ПЕРЕЕЗЖАЕТ ПЛАВНО (слово владельца 2026-08-05: «добавить плавное,
-  // но быстрое изменение множителя с предыдущего значения на новое»): на
-  // повышении ступени крутим счётчик от прошлого множителя к новому за 420 мс
-  // на РЕАЛЬНЫХ часах (тост живёт вне игрового времени; слоу-мо разлёта не
-  // должно его растягивать). Обычный показ ставит число сразу.
+  // THE NUMBER MOVES SMOOTHLY (the owner's word 2026-08-05: «add a smooth
+  // but fast change of the multiplier from the previous value to the new one»): on
+  // a tier increase we spin the counter from the previous multiplier to the new one over 420 ms
+  // on the REAL clock (the toast lives outside the game time; the scatter's slow-mo must
+  // not stretch it). An ordinary display sets the number at once.
   const valEl = $('multToastVal');
   const target = Math.round(mult * 100) / 100;
   if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
@@ -1018,10 +1018,10 @@ function showMultToast(typeName, mult, isTierUp){
     valEl.textContent = '×' + target;
   }
   multLastShown = target;
-  // ПОВЫШЕНИЕ СТУПЕНИ — тот же тост, но заметное СОБЫТИЕ: вспышка чипа и
-  // вдвое дольше на экране (слово владельца 2026-08-05 «своди в один»).
-  // Класс снимаем таймером — иначе разовая анимация висела бы на узле и
-  // перебивала следующий показ (грабля слота заряда).
+  // A TIER INCREASE — the same toast, but a noticeable EVENT: a flash of the chip and
+  // twice as long on the screen (the owner's word 2026-08-05 «merge them into one»).
+  // We remove the class by a timer — otherwise the one-off animation would hang on the node and
+  // override the next display (the rake of the charge slot).
   el.classList.toggle('up', !!isTierUp);
   el.classList.add('on');
   if (multToastT) clearTimeout(multToastT);
@@ -1029,9 +1029,9 @@ function showMultToast(typeName, mult, isTierUp){
                           isTierUp ? 2600 : 1400);
 }
 function updateHUD(){
-  // СЛОТ ЗАРЯДА ТИПА (вставка диспетчера 2026-07-31, полировка за ИНТЕРФЕЙСОМ):
-  // портрет из общего thumb-кэша (холодная пачка отдаст пусто первые тики —
-  // v183-правило само доложит картинку позже), прозрачность = остаток жизни.
+  // THE TYPE CHARGE SLOT (the dispatcher's insertion 2026-07-31, polished by the INTERFACE):
+  // the portrait from the shared thumb cache (a cold pack will give back nothing for the first ticks —
+  // the v183 rule will deliver the picture later by itself), the opacity = the remaining life.
   try {
     const cb = $('chargeBtn');
     if (cb && typeof chargeState === 'function'){
@@ -1039,49 +1039,49 @@ function updateHUD(){
       if (cs.name && level && !level.over && !intro){
         cb.style.display = '';
         if (cb.dataset.oc !== cs.name){
-          cb.dataset.oc = cs.name; cb.dataset.img = '';   // портрет ещё не подтверждён
+          cb.dataset.oc = cs.name; cb.dataset.img = '';   // the portrait is not confirmed yet
           cb.style.opacity = '1';
-          // ВХОД: короткий поп — заряд выпадает на зажигании Power chain, момент
-          // яркий. Поп на TRANSFORM УЗЛА, растворение на OPACITY, а бесконечный
-          // ПУЛЬС — на transform КАРТИНКИ (v3, «не кнопкой, а моделью»): три
-          // движения на трёх носителях, поэтому не спорят. Класс снимаем
-          // таймером — иначе разовая анимация висела бы на узле вечно и
-          // перебивала бы будущий поп следующего заряда.
+          // THE ENTRANCE: a short pop — the charge drops when the Power chain ignites, the moment is
+          // a bright one. The pop is on the NODE'S TRANSFORM, the dissolve on the OPACITY, and the endless
+          // PULSE — on the transform of the PICTURE (v3, «not with the button but with the model»): three
+          // movements on three carriers, which is why they do not argue. We remove the class
+          // by a timer — otherwise the one-off animation would hang on the node forever and
+          // would override the future pop of the next charge.
           cb.classList.remove('in'); void cb.offsetWidth; cb.classList.add('in');
           if (chargeInT) clearTimeout(chargeInT);
           chargeInT = setTimeout(() => { cb.classList.remove('in'); chargeInT = 0; }, 420);
         }
         chargeFadeStart();
-        // ⚠️ ПОРТРЕТ ДОБИРАЕМ, ПОКА НЕ ПРИДЁТ, а не один раз на смене имени:
-        // тип заряда СЛУЧАЙНЫЙ, и его пачка вполне может быть холодной —
-        // тогда `itemThumb` по правилу v183 честно отдаёт пусто, и разовая
-        // попытка оставила бы слот с ЧУЖОЙ картинкой прошлого заряда (хуже
-        // пустоты: кнопка обещала бы не тот предмет). До прихода снимаем src.
+        // ⚠️ WE KEEP TOPPING UP THE PORTRAIT UNTIL IT ARRIVES, and not once on a name change:
+        // the charge's type is RANDOM, and its pack may well be cold —
+        // then `itemThumb` by the v183 rule honestly gives back nothing, and a one-off
+        // attempt would leave the slot with SOMEBODY ELSE'S picture of the previous charge (worse than
+        // emptiness: the button would promise the wrong item). Until it arrives we clear the src.
         if (cb.dataset.img !== cs.name){
           const it = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
           const url = it ? itemThumb(it) : '';
           if (url){ $('chargeImg').src = url; cb.dataset.img = cs.name; }
           else $('chargeImg').removeAttribute('src');
         }
-        // ВРАЩЕНИЕ ЗАРЯДА (нода 829:1242 «крутится»). Общий спин портретов;
-        // канвас ОДИН на игру — меню при открытии заберёт его под коллекцию,
-        // а этот добор вернёт спин заряду, как только слот снова обновится.
+        // THE CHARGE'S ROTATION (node 829:1242 «it spins»). The shared portrait spin;
+        // the canvas is ONE for the whole game — the menu will take it for the collection when it opens,
+        // and this top-up will give the spin back to the charge as soon as the slot is refreshed again.
         if (cb.dataset.img === cs.name &&
             !(typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb && cb.dataset.spin === cs.name)){
           const sit = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
           if (sit && sit.mesh){ try { thumbSpinStart(sit, cb); cb.dataset.spin = cs.name; } catch(e){} }
         }
-        // ⚠️⚠️ ПРАВИЛО ВЛАДЕЛЬЦА (2026-08-05, дословно): «если я прошу модельку
-        // и у неё вращение, то это именно 3D БЕЗ ДОП КАРТИНКИ». Прежняя версия
-        // держала `#chargeImg` ПОД канвасом «фолбэком» — и обе видны разом:
-        // плоский портрет и крутящаяся модель поверх. Это ВТОРОЙ случай той же
-        // ошибки (первый — галерея коллекции), поэтому правило, а не разовая
-        // правка: живой спин => картинки быть НЕ ДОЛЖНО.
-        // ⚠️ ПРОВЕРКА КАЖДЫЙ ТИК, А НЕ В ВЕТКЕ СМЕНЫ ИМЕНИ: канвас общий, меню
-        // забирает его в любой момент — картинка обязана вернуться ровно тогда,
-        // когда спина не стало, иначе слот останется пустым.
-        // ⚠️ Пустой `src` НЕ ЗАМЕНЯЕМ чужим портретом (правило v183): холодная
-        // пачка => пусто, и это честнее, чем показать не тот предмет.
+        // ⚠️⚠️ THE OWNER'S RULE (2026-08-05, verbatim): «if I ask for a model
+        // and it has rotation, then it is exactly 3D WITHOUT AN EXTRA PICTURE». The former version
+        // kept `#chargeImg` UNDER the canvas as a «fallback» — and both are visible at once:
+        // a flat portrait and a spinning model on top. This is the SECOND case of the same
+        // mistake (the first was the collection gallery), hence a rule and not a one-off
+        // fix: a live spin => there must be NO picture.
+        // ⚠️ THE CHECK IS EVERY TICK, AND NOT IN THE NAME-CHANGE BRANCH: the canvas is shared, the menu
+        // takes it at any moment — the picture is obliged to come back exactly when
+        // the spin is gone, otherwise the slot will stay empty.
+        // ⚠️ We do NOT REPLACE an empty `src` with somebody else's portrait (the v183 rule): a cold
+        // pack => nothing, and that is more honest than showing the wrong item.
         const spinLive = (typeof spinR !== 'undefined' && spinR &&
                           spinR.domElement.parentNode === cb);
         $('chargeImg').style.display = spinLive ? 'none' : '';
@@ -1093,154 +1093,154 @@ function updateHUD(){
       }
     }
   } catch(e){}
-  // ⚠️ ТЕМА МОЖЕТ СМЕНИТЬСЯ В ЖИВОЙ СЕССИИ (граница 20:00), а нейтраль полос
-  // зависит ровно от неё — значит тинт обязан переехать вместе с темой, иначе
-  // после заката полосы останутся белыми. Перекрашиваем ТОЛЬКО на переходе,
-  // не каждый тик. (Покраска кромок снята 4-й редакцией — тик остался дешёвым.)
-  // ⛔ Под меню НЕ вмешиваемся — там своя нейтраль, и её ставит openMainScreen.
-  const ночьТеперь = isNightSky();
-  if (ночьТеперь !== hudWasNight){
-    hudWasNight = ночьТеперь;
-    // смена палитры в живой сессии (граница 20:00): кромки едут за небом.
-    // 10-stage к этому моменту уже переписал --sky-*-rgb.
+  // ⚠️ THE THEME CAN CHANGE IN A LIVE SESSION (the 20:00 boundary), and the neutral of the strips
+  // depends exactly on it — which means the tint is obliged to move together with the theme, otherwise
+  // after sunset the strips would stay white. We repaint ONLY on the transition,
+  // not every tick. (The painting of the edges was removed by the 4th edition — the tick stayed cheap.)
+  // ⛔ Under the menu we do NOT interfere — there is its own neutral there, and openMainScreen sets it.
+  const nightNow = isNightSky();
+  if (nightNow !== hudWasNight){
+    hudWasNight = nightNow;
+    // a palette change in a live session (the 20:00 boundary): the edges follow the sky.
+    // by this moment 10-stage has already rewritten --sky-*-rgb.
   }
-  document.documentElement.classList.toggle('night', ночьТеперь);
-  captureLevelTypes(); // фиксируем типы уровня для экрана победы (вне зоны витрины)
-  // #11 (спека владельца): УРОВЕНЬ показываем на десктопе (левая группа) И на
-  // мобайле — над очками (тот же #lvlSvg переносит в стек layoutHUD). Время
-  // (#tmSvg) остаётся СКРЫТЫМ, слот не репёрпоузим — ассерт «время скрыто» цел.
+  document.documentElement.classList.toggle('night', nightNow);
+  captureLevelTypes(); // we fix the level's types for the win screen (outside the showcase's zone)
+  // #11 (the owner's spec): we show the LEVEL on the desktop (the left group) AND on
+  // mobile — above the points (layoutHUD moves that same #lvlSvg into the stack). The time
+  // (#tmSvg) stays HIDDEN, we do not repurpose the slot — the assertion «the time is hidden» is intact.
   $('lvlNum').textContent = 'LV ' + levelNum;
   fitStat('lvlNum');
-  // мобильный макет 741:1738: справа стек «уровень / очки». СЧЁТЧИК ПРЕДМЕТОВ
-  // УДАЛЁН (спека владельца 2026-07-28 «верхняя цифра вообще не нужна»): на
-  // десктопе его и так не было (макета нет), оставался только мобайл.
-  // Монет тоже нет (кошелёк — в меню), номер уровня — #lvlSvg (#11).
-  // СПРАВА — ОЧКИ УРОВНЯ под иконкой звезды (спека владельца 2026-07-22-б:
-  // «звезды справа это не звезды, а очки. Иконка звезды остается, но подсчет
-  // очков идет так же от совмещения или ошибок»). Отменяет короткоживущую
-  // спеку «общие звёзды в чипе»: САМИ звёзды теперь только на экране
-  // завершения (winStars) и на будущем главном экране (макет владелец
-  // покажет позже) — totalStars() в HUD не выводить.
-  // ЕДИНЫЙ БАЛАНС (финализация владельца 2026-07-24, запрос МЕТА): чип
-  // показывает liveBalance() = баланс + незабанкованный счёт уровня (÷10),
-  // а НЕ per-level stats.score — то же число, что кошелёк меню и лидерборд.
-  // На победе счёт уезжает в se (bankLevelScore) → число непрерывно.
-  // ⚠️ ЧИП ПЕРЕПОЛНЯЛСЯ (замер МЕТЫ: 6 цифр на 360px наезжали на глаза на
-  // 4px, 7 цифр на 393px — на 14px): число писалось СЫРЫМ, а #scSvg имеет
-  // фиксированный viewBox и ширину — лишнее рисовалось ЗА рамкой
-  // (.otext overflow:visible) прямо на конструкцию глаз. Лечение из двух
-  // частей: (а) тот же компрессор, что на экране победы — длина строки
-  // ограничена сверху; (б) fitStat — рамка по факту текста, как у
-  // lvlNum/timer. Бандлы делают это критичным: кошелёк 6-7 цифр уже в
-  // первую платную сессию.
+  // the mobile mockup 741:1738: on the right the stack «level / points». THE ITEM COUNTER
+  // WAS DELETED (the owner's spec 2026-07-28 «the top figure is not needed at all»): on
+  // the desktop it was not there anyway (there is no mockup), only mobile was left.
+  // There are no coins either (the wallet is in the menu), the level number is #lvlSvg (#11).
+  // ON THE RIGHT — THE LEVEL'S POINTS under the star icon (the owner's spec 2026-07-22-b:
+  // «the stars on the right are not stars but points. The star icon stays, but the counting
+  // of the points goes the same way from a match or from mistakes»). It cancels the short-lived
+  // spec «the total stars in the chip»: THE stars THEMSELVES are now only on the completion
+  // screen (winStars) and on the future main screen (the owner will show
+  // the mockup later) — totalStars() must not be output in the HUD.
+  // THE SINGLE BALANCE (the owner's finalisation 2026-07-24, META's request): the chip
+  // shows liveBalance() = the balance + the level's unbanked score (÷10),
+  // and NOT the per-level stats.score — the same number as the menu's wallet and the leaderboard.
+  // On a win the score goes into se (bankLevelScore) → the number is continuous.
+  // ⚠️ THE CHIP USED TO OVERFLOW (META's measurement: 6 digits at 360px overlapped the eyes by
+  // 4px, 7 digits at 393px — by 14px): the number was written RAW, while #scSvg has
+  // a fixed viewBox and width — the excess was drawn BEYOND the frame
+  // (.otext overflow:visible) right onto the construction of the eyes. The cure has two
+  // parts: (a) the same compressor as on the win screen — the string's length is
+  // bounded from above; (b) fitStat — the frame by the fact of the text, as with
+  // lvlNum/timer. Bundles make this critical: a wallet of 6-7 digits already in
+  // the first paying session.
   $('score').textContent = '★ ' + winFmtScore(liveBalance());
   fitStat('score');
   const btn = $('shakeBtn');
-  // ⚠️ Счётчик = бесплатные уровня + КУПЛЕННЫЙ запас бандла (77-save): без
-  // этого игрок с 50 оплаченными встрясками видел бы «No shakes». Стиль/
-  // раскладка бейджа — за ИНТЕРФЕЙСОМ, здесь только правдивое число.
+  // ⚠️ The counter = the level's free ones + the PURCHASED stock of the bundle (77-save): without
+  // this a player with 50 paid shakes would see «No shakes». The badge's style/
+  // layout are the INTERFACE's business, here only the truthful number.
   const shakesLeft = level.shakes + purchasedShakes();
-  // ⛔⛔ НАДПИСИ БОЛЬШЕ НЕТ — ЕСТЬ ЛАЙМОВЫЙ БЕЙДЖ НА ИКОНКЕ-КИСТИ (слово
-  // владельца 2026-08-21 «везде замени кнопку Shake» + макеты 886:3949 и
-  // 886:4017). Отменены разом: строки «Shake ×N» / «Shake Ad» / «No shakes»,
-  // порождаемый узел <span class="ad-w"> и правило #shakeBtn.ad .ad-w.
-  // ⚠️⚠️ НОСИТЕЛЬ СОСТОЯНИЯ «Ad» ПЕРЕЕХАЛ С КНОПКИ НА БЕЙДЖ — ОДИН, А НЕ ДВА:
-  // раньше класс .ad висел на #shakeBtn ради цвета слова внутри надписи, теперь
-  // он живёт на самом бейдже, ровно как .ad у #hintCnt. Держать его в обоих
-  // местах значило бы завести вторую истину о состоянии.
-  // ⚠️ textContent, а не innerHTML: узла внутри бейджа больше нет, а
-  // updateHUD зовут ~52 места — запись обязана быть дешёвой.
+  // ⛔⛔ THERE IS NO CAPTION ANY MORE — THERE IS A LIME BADGE ON THE BRUSH ICON (the owner's
+  // word 2026-08-21 «replace the Shake button everywhere» + the mockups 886:3949 and
+  // 886:4017). Cancelled all at once: the strings «Shake ×N» / «Shake Ad» / «No shakes»,
+  // the generated node <span class="ad-w"> and the rule #shakeBtn.ad .ad-w.
+  // ⚠️⚠️ THE CARRIER OF THE «Ad» STATE MOVED FROM THE BUTTON TO THE BADGE — ONE, AND NOT TWO:
+  // previously the .ad class hung on #shakeBtn for the sake of the colour of the word inside the caption, now
+  // it lives on the badge itself, exactly like the .ad of #hintCnt. Keeping it in both
+  // places would mean introducing a second truth about the state.
+  // ⚠️ textContent, and not innerHTML: there is no node inside the badge any more, and
+  // updateHUD is called from ~52 places — the write is obliged to be cheap.
   const lbl = $('shakeLbl');
   if (shakesLeft > 0){ btn.classList.remove('off'); lbl.classList.remove('ad'); lbl.textContent = shakesLeft; }
   else if (level.adShakes > 0){ btn.classList.remove('off'); lbl.classList.add('ad'); lbl.textContent = 'Ad'; }
-  // ⚠️ ВЕТКА НЕДОСТИЖИМА при AD_SHAKES_PER_LEVEL = Infinity (00-config) и
-  // потому макета у неё нет — «0» с гашением это умолчание диспетчера,
-  // названное владельцу. Не сносим: константа может стать конечной, и тогда
-  // состояние оживёт. Гасим ТОЛЬКО прозрачностью — кликабельность у погашенной
-  // Shake это её контракт (тап роняет тост «No shakes left»), в отличие от
-  // подсказки, где .off глушит события.
+  // ⚠️ THE BRANCH IS UNREACHABLE with AD_SHAKES_PER_LEVEL = Infinity (00-config) and
+  // therefore it has no mockup — the «0» with the dimming is the dispatcher's default,
+  // named to the owner. We do not demolish it: the constant may become finite, and then
+  // the state will come alive. We dim ONLY with the opacity — the clickability of a dimmed
+  // Shake is its contract (a tap drops the toast «No shakes left»), unlike
+  // the hint, where .off mutes the events.
   else { btn.classList.add('off'); lbl.classList.remove('ad'); lbl.textContent = '0'; }
-  // чипа монет и счётчика подсказок в макете 741:1738 НЕТ (монеты к тому же
-  // скрыты COINS_ENABLED; кошелёк уедет в меню). Заряды подсказок живут в
-  // сейве — кнопка просто гаснет при нуле
-  // ПОДСКАЗКА — ТРИ СОСТОЯНИЯ бейджа (контракт МЕТЫ v129):
-  //  заряды есть      → число зарядов (бейдж Number 783:91/778:721/778:719);
-  //  зарядов 0 + ролик → лайм «Ad» (бейдж Ad 778:723/783:93) — тап крутит ролик;
-  //  зарядов 0, кап    → «0» и кнопка гаснет.
-  // ⛔ «ПАТТЕРН SHAKE .off» ИЗ ЭТОЙ СТРОКИ ВЫЧЕРКНУТ 2026-08-21, И ЭТО НЕ
-  // КОСМЕТИКА: десятью строками выше в этой же функции теперь написано
-  // ОБРАТНОЕ — у Shake `.off` гасит ТОЛЬКО прозрачностью и оставляет кнопку
-  // кликабельной (тап роняет тост), а у подсказки `#hintBtn.off` ещё и глушит
-  // события. Контракты РАЗНЫЕ, и ссылка на Shake как на образец врала бы
-  // ровно в том файле, где стоит опровержение.
+  // there is NO coin chip and no hint counter in the mockup 741:1738 (the coins are on top of that
+  // hidden by COINS_ENABLED; the wallet will move into the menu). The hint charges live in
+  // the save — the button simply dims at zero
+  // THE HINT — THREE STATES of the badge (META's contract v129):
+  //  there are charges  → the number of charges (the Number badge 783:91/778:721/778:719);
+  //  0 charges + an ad  → a lime «Ad» (the Ad badge 778:723/783:93) — a tap plays the ad;
+  //  0 charges, capped  → «0» and the button dims.
+  // ⛔ «THE SHAKE .off PATTERN» WAS STRUCK OUT OF THIS LINE ON 2026-08-21, AND IT IS NOT
+  // COSMETICS: ten lines above, in this same function, the OPPOSITE is now written
+  // — with Shake `.off` dims ONLY with the opacity and leaves the button
+  // clickable (a tap drops a toast), whereas with the hint `#hintBtn.off` also mutes
+  // the events. The contracts are DIFFERENT, and a reference to Shake as a model would lie
+  // in exactly the file where the refutation stands.
   const hCnt = hints(), hAd = (typeof adHintAvailable === 'function') && adHintAvailable();
   $('hintCnt').textContent = hAd ? 'Ad' : hCnt;
-  $('hintCnt').classList.toggle('ad', hAd);   // у ad-бейджа падинг 8 (в ноде без 12/8)
-  // ⚠️ .off ТОЛЬКО когда И зарядов нет, И ролик недоступен. Раньше гасили по
-  // одному hints()<1 — а .off несёт pointer-events:none, и это ЗАБЛОКИРОВАЛО БЫ
-  // тап по «Ad» (кнопка выглядела бы активной, но не нажималась).
+  $('hintCnt').classList.toggle('ad', hAd);   // the ad badge has a padding of 8 (in the node without 12/8)
+  // ⚠️ .off ONLY when there are BOTH no charges AND no ad available. Previously we dimmed by
+  // hints()<1 alone — but .off carries pointer-events:none, and that WOULD HAVE BLOCKED
+  // a tap on «Ad» (the button would look active but would not press).
   $('hintBtn').classList.toggle('off', hCnt < 1 && !hAd);
-  // ⚠️ ТОЧНЫЙ СЧЁТ ПАР УБРАН ИЗ updateHUD (ревью 2026-08-05): availablePairs
-  // — O(k²) с GJK-запросом Rapier, а updateHUD зовётся из 48 мест, включая
-  // хвост doMatch и досыпку турбо каждые 125 мс. Замер: ~11 лишних вызовов
-  // в секунду активной игры (0.13-0.16 мс каждый) в САМЫХ горячих кадрах.
-  // Поле #apCount живёт в дев-панели и обновляется 600-мс тиком (99-main),
-  // где ap всё равно считается для детекта тупика — визуально ничего не
-  // теряем.
-  $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // динамический; ∞ = эндшпиль
+  // ⚠️ THE EXACT COUNT OF PAIRS WAS REMOVED FROM updateHUD (review 2026-08-05): availablePairs
+  // is O(k²) with a GJK query to Rapier, while updateHUD is called from 48 places, including
+  // the tail of doMatch and the turbo top-up every 125 ms. Measurement: ~11 extra calls
+  // per second of active play (0.13-0.16 ms each) in the HOTTEST frames.
+  // The #apCount field lives in the dev panel and is updated by the 600-ms tick (99-main),
+  // where ap is computed anyway for the deadlock detection — visually we lose
+  // nothing.
+  $('radiusVal').textContent = CFG.matchRadius > 10 ? '∞' : CFG.matchRadius.toFixed(2); // dynamic; ∞ = the endgame
 }
 
 
-// ===== НАКОПЛЕНИЕ ОБЪЕКТОВ: всплывашка апа ступени + музей (каркас) =====
-// Контракт с МЕТОЙ (WORKSTREAMS): accSnapshot() -> [{name,count,tier,mult,
-// next}], хук onAccTierUp(cb) с {name,tier,mult,item}. Пока меты нет —
-// демо-данные с бейджем DEMO; стыковка ниже подхватит настоящие функции
-// автоматически, править ничего не придётся.
+// ===== OBJECT ACCUMULATION: the tier-up popup + the museum (the skeleton) =====
+// The contract with META (WORKSTREAMS): accSnapshot() -> [{name,count,tier,mult,
+// next}], the hook onAccTierUp(cb) with {name,tier,mult,item}. While there is no meta —
+// demo data with a DEMO badge; the joining below will pick up the real functions
+// automatically, nothing will have to be edited.
 
-// --- миниатюра предмета: однокадровый рендер НАСТОЯЩЕГО меша в офскрин-
-// канвас. Matcap не зависит от света — портрет честный без ламп. Кэш по
-// типу; второй WebGL-контекст один и переиспользуется.
+// --- an item's thumbnail: a single-frame render of the REAL mesh into an offscreen
+// canvas. Matcap does not depend on the light — the portrait is honest without lamps. The cache is by
+// type; the second WebGL context is single and reused.
 let thumbR = null, thumbScene = null, thumbCam = null;
 const thumbCache = {};
-// Сброс кэша портретов. Нужен всякому, кто меняет МАТЕРИАЛ предмета: карточки
-// коллекции снимаются один раз и живут вечно, поэтому после смены матчепа
-// пачки в музее остались бы старые картинки (поймано на своей же примерке —
-// развёртка силы показала четыре одинаковых снимка).
+// A reset of the portrait cache. It is needed by anyone who changes an item's MATERIAL: the collection's
+// cards are shot once and live forever, so after a change of a pack's matcap
+// the museum would keep the old pictures (caught on my own fitting —
+// the force unwrap showed four identical shots).
 function thumbCacheDrop(){ for (const k in thumbCache) delete thumbCache[k]; }
-// РАЗМЕР БУФЕРА: 132 = 3×44 (витрина/музей) и 2.4×56 (тост) — хватает
-// ретине; 96 давало мыло, 176 — лишние 50% веса кэша. Буфер СТРОГО
-// КВАДРАТНЫЙ: у потребителей img 100%/100% без object-fit, неквадрат
-// сплющит портрет. MARGIN 4% — меньше нельзя: у боксов радиус 10-12,
-// углы круглых моделей срезало бы.
-const THUMB_PX = 256, THUMB_MARGIN = 0.04, THUMB_Y = 100; // 256 (было 132): резче на карточке коллекции (спека владельца «качество»)
-// ПОЗА ПОРТРЕТА — ЕДИНЫЙ ИСТОЧНИК для статики (itemThumb) И спина (thumbSpin):
-// интерфейс на hover прячет статичный img и показывает канвас, спин стартует
-// с этого же угла — подмена бесшовна. Если статика и спин разойдутся — скачок
-// при наведении, поэтому ОБА берут отсюда (нельзя развести). Спека владельца
-// 2026-07-24-в: «лёгкий подъём вправо-вверх, потом спин по горизонтали».
-// tx=−0.15 — ЛЁГКИЙ взгляд СНИЗУ (перёд модели приподнят, не «ныряет» сверху,
-// как прежний +0.42 top-down, который владелец забраковал «уводит в нижний
-// угол»); yaw=−0.6 даёт 3/4: у машин перёд вправо-вверх, у зверей видна морда.
-// Подобрано скрином на police/bee/banana (все три читаются геройски).
+// THE BUFFER SIZE: 132 = 3×44 (the showcase/museum) and 2.4×56 (the toast) — enough for
+// a retina; 96 gave mush, 176 — an extra 50% of the cache's weight. The buffer is STRICTLY
+// SQUARE: the consumers have img 100%/100% without object-fit, a non-square
+// will squash the portrait. MARGIN 4% — less is not allowed: the boxes have a radius of 10-12,
+// the corners of round models would be clipped.
+const THUMB_PX = 256, THUMB_MARGIN = 0.04, THUMB_Y = 100; // 256 (it used to be 132): sharper on the collection card (the owner's spec «quality»)
+// THE PORTRAIT'S POSE — A SINGLE SOURCE for the static shot (itemThumb) AND the spin (thumbSpin):
+// on hover the interface hides the static img and shows the canvas, the spin starts
+// from that same angle — the substitution is seamless. If the static shot and the spin diverge — there is a jump
+// on hover, which is why BOTH take it from here (they must not be split apart). The owner's spec
+// 2026-07-24-v: «a light lift to the right and up, then a spin along the horizontal».
+// tx=−0.15 — a LIGHT view FROM BELOW (the model's front is lifted, it does not «dive» from above,
+// as the former +0.42 top-down did, which the owner rejected as «it drags into the bottom
+// corner»); yaw=−0.6 gives a 3/4: cars have their front to the right and up, animals show their muzzle.
+// Chosen by screenshots on police/bee/banana (all three read heroically).
 let PORTRAIT_TILT_X = -0.15, PORTRAIT_YAW0 = -0.6;
-// ПОРТРЕТ-МЕШ ПО КЛЮЧУ ТИПА (type.name) — вариант B спеки владельца 2026-07-24:
-// даёт модель тем ОТКРЫТЫМ типам, которых НЕТ в текущей партии (иначе была
-// буква-заглушка). Меш строится БЕЗ тела Rapier (портрету физика не нужна) и
-// НЕ добавляется в главную сцену — itemThumb/спин делают свою меш-обёртку.
-// Материал — ТОТ ЖЕ itemMaterial (40-items), что у боевого предмета: matcap,
-// вуаль, texTune честны. Кэш по ключу; key='T'+idx СОВПАДАЕТ с боевым, поэтому
-// thumbCache (по item.key) у портрета и живого предмета один — двойного
-// рендера нет. Возвращает минимальный item под itemThumb/thumbSpinStart.
-// ГХОСТ ЗАКРЫТЫХ ТИПОВ (спека владельца 2026-07-24-в: «не открытые модели
-// выглядят прозрачными и немного матовыми, но бесцветными» + «заполни весь
-// музей моделями»). Силуэт непойманного (как покедекс) — дразнит. Интерфейс
-// вешает на ЗАКРЫТЫЕ карточки ВМЕСТО буквы (ghost=true).
-// ⚠️ ПЕРЕИСПОЛЬЗУЕМ уже готовое: обесцвечивание — вуаль uVeil (десат в шейдере,
-// v84), прозрачность — material.opacity. itemThumb при item.ghost жмёт uVeil=1
-// + opacity=GHOST_ALPHA (иначе форсит uVeil=0/opacity=1). Матовость даёт сам
-// десат (серый читается как глина). Свой кэш-ключ '@g' — гхост и цветной
-// портрет одного типа не должны затирать друг друга в thumbCache.
-const GHOST_ALPHA = 0.42;   // «полупрозрачный»: сквозь силуэт видно фон карточки
+// A PORTRAIT MESH BY THE TYPE'S KEY (type.name) — variant B of the owner's spec 2026-07-24:
+// it gives a model to those OPEN types that are NOT in the current run (otherwise there was
+// a letter placeholder). The mesh is built WITHOUT a Rapier body (a portrait does not need physics) and
+// is NOT added to the main scene — itemThumb/the spin make their own mesh wrapper.
+// The material is THE SAME itemMaterial (40-items) as on a live item: the matcap,
+// the veil, texTune are honest. The cache is by key; key='T'+idx MATCHES the live one, which is why
+// thumbCache (by item.key) is shared by the portrait and the live item — there is no double
+// render. It returns a minimal item for itemThumb/thumbSpinStart.
+// THE GHOST OF LOCKED TYPES (the owner's spec 2026-07-24-v: «the models that are not open
+// look transparent and a little matte, but colourless» + «fill the whole
+// museum with models»). The silhouette of what has not been caught (like a pokedex) — it teases. The interface
+// hangs it on the LOCKED cards INSTEAD of the letter (ghost=true).
+// ⚠️ WE REUSE what is already there: the decolouring is the uVeil veil (the desat in the shader,
+// v84), the transparency is material.opacity. itemThumb on item.ghost pushes uVeil=1
+// + opacity=GHOST_ALPHA (otherwise it forces uVeil=0/opacity=1). The matteness is given by the
+// desat itself (grey reads as clay). Its own cache key '@g' — the ghost and the colour
+// portrait of one type must not overwrite each other in thumbCache.
+const GHOST_ALPHA = 0.42;   // «semi-transparent»: the card's background shows through the silhouette
 const thumbItemCache = {};
 function thumbItemForKey(key, ghost){
   const ck = ghost ? key + '@g' : key;
@@ -1251,8 +1251,8 @@ function thumbItemForKey(key, ghost){
   const t = TYPES[idx], gkey = String(idx);
   if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
   const mat = itemMaterial(t);
-  // ⚠️ transparent выставляем ОДИН раз при создании (смена на лету =
-  // перекомпиляция шейдера); гхост-материал персональный, живых не трогает
+  // ⚠️ we set transparent ONCE at creation time (changing it on the fly =
+  // a shader recompilation); the ghost material is personal, it does not touch the live ones
   if (ghost) mat.transparent = true;
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
   mesh.scale.setScalar(MESH_SCALE);
@@ -1263,103 +1263,103 @@ function thumbItemForKey(key, ghost){
   thumbItemCache[ck] = it;
   return it;
 }
-// ⚠️⚠️ ПОРТРЕТЫ — ТОЖЕ ПРЕДМЕТЫ ПАЧКИ, И МАТЕРИАЛ У НИХ СВОЙ. `itemMaterial`
-// строит НОВЫЙ материал на каждый портрет (`new THREE.MeshMatcapMaterial`), а
-// `thumbItemCache` держит готовый предмет вечно. Значит всякий, кто МЕНЯЕТ САМ
-// ОБЪЕКТ текстуры у пачки, обязан пройтись и по портретам: сброса `thumbCache`
-// мало — снимок переснимут, но со СТАРЫМ материалом, и карточка врёт до
-// перезагрузки. Ровно это и был дефект «протухающие портреты» (2026-08-19).
-// ⚠️ Правку ПИКСЕЛЕЙ на месте сюда звать НЕ НАДО: объект тот же, материалы и
-// так смотрят куда следует — там хватает `thumbCacheDrop`. Таких писателей
-// ЧЕТВЕРО, и список стоил разбора 2026-08-19: `packMatcapApply` (08),
-// `mceApply` по существующей текстуре и `mceReset` (12), а также
-// `retuneMatcap` (10) — через него ходят ползунки тюнера пресетов.
-// ⚠️⚠️ ЗДЕСЬ ТОЛЬКО ПОИСК, БЕЗ СУДА. Кому матчеп пачки положен, а кому нет
-// (`paint`), решает ОДНО место — `packMatcapRepoint` (10-stage). Разнести это
-// правило по двум циклам уже пробовали: в живом забыли `paint`, и «Применить»
-// на кирпичах расщепляло пачку.
-// ⚠️ Гхост-варианты попадают сюда наравне: у них свой ключ кэша ('@g'), но тот
-// же `type`, и матчеп им нужен такой же — иначе закрытая карточка осталась бы
-// на старом материале, а открытая обновилась.
+// ⚠️⚠️ PORTRAITS ARE ALSO ITEMS OF A PACK, AND THEIR MATERIAL IS THEIR OWN. `itemMaterial`
+// builds a NEW material for every portrait (`new THREE.MeshMatcapMaterial`), while
+// `thumbItemCache` keeps the ready item forever. Which means that anyone who CHANGES THE TEXTURE
+// OBJECT ITSELF of a pack is obliged to go over the portraits too: resetting `thumbCache`
+// is not enough — the shot will be retaken, but with the OLD material, and the card lies until
+// a reload. That was exactly the defect «the portraits go stale» (2026-08-19).
+// ⚠️ An in-place edit of the PIXELS does NOT need to be called in here: the object is the same, and the materials
+// point where they should anyway — `thumbCacheDrop` is enough there. There are FOUR such writers,
+// and the list cost an investigation on 2026-08-19: `packMatcapApply` (08),
+// `mceApply` over an existing texture and `mceReset` (12), and also
+// `retuneMatcap` (10) — the preset tuner's sliders go through it.
+// ⚠️⚠️ HERE THERE IS ONLY THE SEARCH, WITHOUT THE JUDGEMENT. Who is entitled to a pack's matcap and who is not
+// (`paint`) is decided by ONE place — `packMatcapRepoint` (10-stage). Splitting this
+// rule across two loops has already been tried: in the live one `paint` was forgotten, and «Apply»
+// on the bricks split the pack.
+// ⚠️ The ghost variants get in here on equal terms: they have their own cache key ('@g') but the same
+// `type`, and they need the same matcap — otherwise a locked card would stay
+// on the old material while an open one got updated.
 function thumbItemsOfPack(pack){
-  const из = [];
+  const out = [];
   for (const k in thumbItemCache){
     const it = thumbItemCache[k];
-    if (it && it.type && it.type.tex === pack && it.mesh) из.push(it);
+    if (it && it.type && it.type.tex === pack && it.mesh) out.push(it);
   }
-  return из;
+  return out;
 }
 function itemThumb(item){
   if (!item || !item.mesh) return null;
   const key = String(item.key);
   if (thumbCache[key]) return thumbCache[key];
-  // ⚠️⚠️ АТЛАС ЕЩЁ НЕ ДЕКОДИРОВАН -> НЕ СНИМАТЬ И НЕ КЭШИРОВАТЬ (жалоба
-  // владельца 2026-07-30 «где превью у всех новых объектов?»).
-  // `modelColormap` (36-models) отдаёт текстуру с БЕЛОЙ 1×1 заглушкой, а
-  // `needsUpdate` ставит только в `img.onload` — до него `map.version === 0`,
-  // то есть текстура НИ РАЗУ не загружена в GPU. Портрет снимается синхронно
-  // и выходит ПУСТЫМ (замер: 0 непрозрачных пикселей из 65536, а два разных
-  // типа дают побайтово одинаковый PNG 3174 Б), после чего пустышка оседает
-  // в thumbCache НАВСЕГДА — карточка остаётся без картинки до перезагрузки.
-  // ⚠️ Болели только НОВЫЕ пачки (holiday/survival/toycar/factory/market/
-  // arcade/forest): их атласы не нужны раннему уровню и декодируются впервые
-  // ровно на этом вызове. Старые (animal/food/car/brick/pirate) прогреты
-  // живой партией, поэтому дефект годами не проявлялся.
-  // ⚠️ ВТОРОЙ РЕНДЕР ПОДРЯД НЕ ЛЕЧИТ (проверено: оба кадра по 3174 Б) —
-  // ждать нужно СОБЫТИЯ декода, а не лишнего кадра. Сам вызов уже запустил
-  // загрузку (itemMaterial -> modelColormap), поэтому добор идёт по таймеру
-  // в buildMainCollection.
+  // ⚠️⚠️ THE ATLAS IS NOT DECODED YET -> DO NOT SHOOT AND DO NOT CACHE (the owner's
+  // complaint 2026-07-30 «where are the previews of all the new objects?»).
+  // `modelColormap` (36-models) returns a texture with a WHITE 1×1 placeholder, while
+  // `needsUpdate` is set only in `img.onload` — before that `map.version === 0`,
+  // that is, the texture has NEVER been uploaded to the GPU. The portrait is shot synchronously
+  // and comes out EMPTY (measurement: 0 opaque pixels out of 65536, and two different
+  // types give a byte-identical PNG of 3174 B), after which the blank settles
+  // in thumbCache FOREVER — the card stays without a picture until a reload.
+  // ⚠️ Only the NEW packs were ill (holiday/survival/toycar/factory/market/
+  // arcade/forest): their atlases are not needed by an early level and are decoded for the first time
+  // exactly on this call. The old ones (animal/food/car/brick/pirate) are warmed up
+  // by a live run, which is why the defect did not show itself for years.
+  // ⚠️ A SECOND RENDER IN A ROW DOES NOT CURE IT (verified: both frames at 3174 B) —
+  // what one has to wait for is the decode EVENT, not an extra frame. The call itself has already started
+  // the loading (itemMaterial -> modelColormap), which is why the top-up goes by a timer
+  // in buildMainCollection.
   const map0 = item.mesh.material && item.mesh.material.map;
   if (map0 && (!map0.image || !map0.image.width || map0.image.width <= 1 || !map0.version)) return null;
   try {
     if (!thumbR){
       thumbR = new THREE.WebGLRenderer({ alpha:true, antialias:true });
       thumbR.setSize(THUMB_PX, THUMB_PX, false);
-      thumbR.outputEncoding = renderer.outputEncoding; // без неё цвета уезжают
+      thumbR.outputEncoding = renderer.outputEncoding; // without it the colours drift
       thumbScene = new THREE.Scene();
-      // ОРТОГРАФИЯ (а не перспектива): проекция аффинная, поэтому кадр
-      // считается АНАЛИТИЧЕСКИ за один проход — без чтения пикселей,
-      // без второго рендера и без стойла GPU->CPU на readPixels.
+      // ORTHOGRAPHY (and not perspective): the projection is affine, which is why the frame
+      // is computed ANALYTICALLY in a single pass — without reading pixels,
+      // without a second render and without a GPU->CPU stall on readPixels.
       thumbCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 50);
       thumbCam.position.set(1.7, THUMB_Y + 1.35, 2.3);
       thumbCam.lookAt(0, THUMB_Y, 0);
-      // на случай CFG.matcap=false (аварийный MeshStandard) — мягкий свет
+      // in case of CFG.matcap=false (the emergency MeshStandard) — a soft light
       thumbScene.add(new THREE.AmbientLight(0xffffff, 0.9));
       const dl = new THREE.DirectionalLight(0xffffff, 0.5);
       dl.position.set(2, 3, 2); thumbScene.add(dl);
     }
-    // ⚠️ НЕ mesh.clone(): three r149 копирует userData через JSON.stringify,
-    // а в userData.item лежит тело Rapier — циклическая структура, throw.
+    // ⚠️ NOT mesh.clone(): three r149 copies userData through JSON.stringify,
+    // and userData.item holds a Rapier body — a cyclic structure, a throw.
     const m = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
     m.scale.copy(item.mesh.scale);
     m.rotation.set(PORTRAIT_TILT_X, PORTRAIT_YAW0, 0);
-    // ⚠️ ВЫСОКО НАД СЦЕНОЙ: matcap-патч гасит диффуз по МИРОВОЙ высоте
-    // (vWorldY против uPileTop, 10-stage) — портрет на y=0 всегда выходил
-    // самым тёмным тоном кучи (замер: до −0.83 по каналу R).
+    // ⚠️ HIGH ABOVE THE SCENE: the matcap patch dims the diffuse by the WORLD height
+    // (vWorldY against uPileTop, 10-stage) — a portrait at y=0 always came out
+    // in the darkest tone of the pile (measurement: down to −0.83 on the R channel).
     m.position.set(0, THUMB_Y, 0);
     thumbScene.add(m);
     m.updateMatrixWorld(true);
     thumbCam.updateMatrixWorld(true);
-    // ⚠️ КАДР ПО ОХВАТНОМУ ЦИЛИНДРУ (общий frameCylinder), НЕ по силуэту при
-    // одном угле. Причина (спека владельца 2026-07-27 «размер при hover не
-    // должен меняться»): спин обязан кадрировать по цилиндру (иначе «дышит»
-    // при вращении), а статика по силуэту давала БОЛЬШУЮ модель → на hover
-    // подмена img→канвас ШРИНКАЛА объект. Единая цилиндр-рамка = статика РОВНО
-    // равна спину. Y-инвариантна: yaw не влияет, поэтому одна на любой ракурс.
+    // ⚠️ THE FRAME BY THE ENCLOSING CYLINDER (the shared frameCylinder), NOT by the silhouette at
+    // one angle. The reason (the owner's spec 2026-07-27 «the size must not change on
+    // hover»): the spin is obliged to frame by the cylinder (otherwise it «breathes»
+    // while rotating), whereas the static shot by the silhouette gave a BIGGER model → on hover
+    // the img→canvas substitution SHRANK the object. A single cylinder frame = the static shot is EXACTLY
+    // equal to the spin. It is Y-invariant: yaw has no effect, so one frame fits any angle.
     frameCylinder(thumbCam, m);
-    // ⚠️ ВУАЛЬ НЕДОСТУПНОСТИ красит material.color лерпом к серому
-    // (tickVeil, 60-access): снимок в этот момент лёг бы в кэш СЕРЫМ
-    // НАВСЕГДА. На время рендера возвращаем исходный цвет типа.
-    // ⚠️ С 2026-07-23 вуаль живёт ещё и В ШЕЙДЕРЕ (uVeil, режим 'desat'):
-    // одного восстановления color МАЛО — обесцвеченный портрет так же
-    // осел бы в кэше навсегда. Гасим обе ручки на время снимка.
-    // ГХОСТ (item.ghost): наоборот — ЖМЁМ вуаль на максимум (десат к светло-
-    // серому) + полупрозрачность. Обычный портрет: обе ручки в 0/1 (полный цвет).
+    // ⚠️ THE UNAVAILABILITY VEIL paints material.color with a lerp towards grey
+    // (tickVeil, 60-access): a shot at that moment would settle into the cache GREY
+    // FOREVER. For the duration of the render we restore the type's original colour.
+    // ⚠️ Since 2026-07-23 the veil also lives IN THE SHADER (uVeil, the 'desat' mode):
+    // restoring the color alone is NOT ENOUGH — a decoloured portrait would just as well
+    // settle into the cache forever. We mute both knobs for the duration of the shot.
+    // THE GHOST (item.ghost): the other way round — we PUSH the veil to the maximum (a desat towards a light
+    // grey) + semi-transparency. An ordinary portrait: both knobs at 0/1 (full colour).
     const gh = item.ghost;
-    // ⚠️ userData.shader ставит matcapSpecPatch в onBeforeCompile — на ПЕРВОМ
-    // рендере. У свежего гхост-материала до рендера он ещё null, и uVeil=1 не
-    // применился бы (гхост выходил цветным). Форс-компиляция даёт shader
-    // ДО чтения. Только для гхоста — обычным портретам uVeil=0 по умолчанию.
+    // ⚠️ userData.shader is set by matcapSpecPatch in onBeforeCompile — on the FIRST
+    // render. On a fresh ghost material it is still null before the render, and uVeil=1 would
+    // not have been applied (the ghost came out in colour). A forced compilation gives the shader
+    // BEFORE the read. Only for the ghost — ordinary portraits have uVeil=0 by default.
     if (gh) thumbR.compile(thumbScene, thumbCam);
     const col = m.material.color, saved = (item.baseColor && col) ? col.clone() : null;
     if (saved) col.copy(item.baseColor);
@@ -1368,15 +1368,15 @@ function itemThumb(item){
     if (sh) sh.uniforms.uVeil.value = gh ? 1 : 0;
     const savedOp = m.material.opacity;
     m.material.opacity = gh ? GHOST_ALPHA : 1;
-    // ⚠️ ГХОСТ ОБЯЗАН ОСТАТЬСЯ БЕСЦВЕТНЫМ (спека владельца «не открытые модели —
-    // прозрачные, немного матовые, но БЕСЦВЕТНЫЕ»). Гхост переиспользует ту же
-    // юниформу uVeil, что и боевая вуаль, а у неё с 2026-07-29 ЕСТЬ ТОН
-    // (VEIL_TINT, «светло-синяя, не серая») — и он молча красил силуэты
-    // коллекции в синий: замер среднего цвета гхоста дал rgb(81,117,161), синева
-    // b−r = +80. Два применения одной юниформы разъехались по требованиям,
-    // поэтому на время СЪЁМКИ ПОРТРЕТА тон возвращается в нейтраль (белый:
-    // vec3(vLum)*1 = честный серый). Боевая вуаль не затронута — правка живёт
-    // ровно на кадр снимка, как и соседние сохранения color/opacity.
+    // ⚠️ THE GHOST IS OBLIGED TO STAY COLOURLESS (the owner's spec «the models that are not open are
+    // transparent, a little matte, but COLOURLESS»). The ghost reuses the same
+    // uVeil uniform as the live veil, and that one since 2026-07-29 HAS A TINT
+    // (VEIL_TINT, «light blue, not grey») — and it silently painted the collection's
+    // silhouettes blue: a measurement of the ghost's average colour gave rgb(81,117,161), a blueness
+    // of b−r = +80. Two applications of one uniform diverged in their requirements,
+    // which is why for the duration of the PORTRAIT SHOT the tint is returned to neutral (white:
+    // vec3(vLum)*1 = an honest grey). The live veil is untouched — the edit lives
+    // exactly for the frame of the shot, just like the neighbouring saves of color/opacity.
     const savedCol = uVeilCol.value.clone();
     if (gh) uVeilCol.value.setRGB(1, 1, 1);
     thumbR.render(thumbScene, thumbCam);
@@ -1391,15 +1391,15 @@ function itemThumb(item){
   } catch(e){ console.warn('itemThumb:', e && e.message); return null; }
 }
 
-// ====== ЖИВОЕ ВРАЩЕНИЕ ПОРТРЕТА ПРИ HOVER (спека владельца 2026-07-24
-// «на витрине при наведении модель медленно вращается по горизонтали»).
-// ОДИН общий офскрин-контекст spinR, rAF ТОЛЬКО пока висит hover; вне hover —
-// НОЛЬ стоимости (rAF отменён, канвас снят). КОНТРАКТ С ИНТЕРФЕЙСОМ:
-// thumbSpinStart(item, hostEl) / thumbSpinStop() — интерфейс вешает на
-// mouseenter/leave карточки, статический <img> остаётся кадром покоя.
-const SPIN_PX = 256;       // квадрат буфера = THUMB_PX (качество, спека владельца)
-const SPIN_SPEED = 0.9;    // рад/с — «медленно» (оборот ~7 с)
-// SPIN_TILT_X/SPIN_YAW0 — АЛИАСЫ на общий PORTRAIT_* (нельзя развести со статикой)
+// ====== LIVE ROTATION OF THE PORTRAIT ON HOVER (the owner's spec 2026-07-24
+// «on the showcase, on hover, the model rotates slowly along the horizontal»).
+// ONE shared offscreen context spinR, the rAF ONLY while the hover hangs; outside the hover —
+// ZERO cost (the rAF is cancelled, the canvas is removed). THE CONTRACT WITH THE INTERFACE:
+// thumbSpinStart(item, hostEl) / thumbSpinStop() — the interface hangs them on the card's
+// mouseenter/leave, the static <img> stays the frame of rest.
+const SPIN_PX = 256;       // the buffer's square = THUMB_PX (quality, the owner's spec)
+const SPIN_SPEED = 0.9;    // rad/s — «slowly» (a revolution in ~7 s)
+// SPIN_TILT_X/SPIN_YAW0 — ALIASES onto the shared PORTRAIT_* (they must not be split apart from the static shot)
 
 let spinR = null, spinScene = null, spinCam = null;
 let spinMesh = null, spinItem = null, spinRAF = 0, spinPrev = 0, spinAngle = 0;
@@ -1409,26 +1409,26 @@ function ensureSpinR(){
   spinR = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   spinR.setSize(SPIN_PX, SPIN_PX, false);
   spinR.outputEncoding = renderer.outputEncoding;
-  // absolute inset:0 — канвас НАКРЫВАЕТ статический <img> в ячейке
-  // (.msc-imgwrap position:relative), интерфейсу достаточно appendChild.
-  // border-radius:inherit — если интерфейс округлит превью, канвас подхватит
-  // радиус хоста сам (сейчас у .msc-img радиуса нет — no-op, но self-mounting
-  // без CSS у интерфейса).
+  // absolute inset:0 — the canvas COVERS the static <img> in the cell
+  // (.msc-imgwrap position:relative), an appendChild is enough for the interface.
+  // border-radius:inherit — if the interface rounds the preview, the canvas will pick up
+  // the host's radius by itself (right now .msc-img has no radius — a no-op, but it is self-mounting
+  // without CSS from the interface).
   spinR.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:inherit;';
   spinScene = new THREE.Scene();
   spinCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 50);
-  spinCam.position.set(1.7, THUMB_Y + 1.35, 2.3); // тот же ракурс, что itemThumb
+  spinCam.position.set(1.7, THUMB_Y + 1.35, 2.3); // the same angle as itemThumb
   spinCam.lookAt(0, THUMB_Y, 0);
   spinCam.updateMatrixWorld(true);
   spinScene.add(new THREE.AmbientLight(0xffffff, 0.9));
   const dl = new THREE.DirectionalLight(0xffffff, 0.5);
   dl.position.set(2, 3, 2); spinScene.add(dl);
 }
-// Y-ИНВАРИАНТНАЯ РАМКА: силуэт при вращении вокруг Y меняется, поэтому
-// кадрируем по ОХВАТНОМУ ЦИЛИНДРУ вокруг локальной оси Y — его силуэт под
-// Y-поворотом не меняется ПО ПОСТРОЕНИЮ (three Euler XYZ: R=Rx·Ry, а Ry не
-// трогает Y-симметричный цилиндр). Значит модель НЕ клипается и не «дышит»
-// зумом. Считается ОДИН раз на старте hover.
+// A Y-INVARIANT FRAME: the silhouette changes while rotating around Y, which is why
+// we frame by the ENCLOSING CYLINDER around the local Y axis — its silhouette under
+// a Y rotation does not change BY CONSTRUCTION (three Euler XYZ: R=Rx·Ry, and Ry does not
+// touch a Y-symmetric cylinder). This means the model is NOT clipped and does not «breathe»
+// with the zoom. It is computed ONCE at the start of the hover.
 function frameCylinder(cam, mesh){
   const pos = mesh.geometry.attributes.position, s = mesh.scale.x;
   let R = 0, yMin = Infinity, yMax = -Infinity;
@@ -1438,7 +1438,7 @@ function frameCylinder(cam, mesh){
     if (y < yMin) yMin = y; if (y > yMax) yMax = y;
   }
   R *= s; yMin *= s; yMax *= s;
-  _spm.makeRotationX(PORTRAIT_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // поза покоя (Ry не влияет)
+  _spm.makeRotationX(PORTRAIT_TILT_X); _spm.setPosition(0, THUMB_Y, 0); // the pose of rest (Ry has no effect)
   const view = cam.matrixWorldInverse;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const yy of [yMin, (yMin + yMax) / 2, yMax]){
@@ -1461,9 +1461,9 @@ function thumbSpinStop(){
   if (spinR && spinR.domElement.parentNode) spinR.domElement.parentNode.removeChild(spinR.domElement);
   spinItem = null; spinPrev = 0;
 }
-// авто-вращение спина: экран новой вещи глушит его на время драга пальцем.
-// spinTilt — ВТОРАЯ ось (слово владельца 2026-08-13 «крутить по всем осям»):
-// вертикальный драг наклоняет, горизонтальный вертит — турнтейбл двумя углами.
+// the spin's auto-rotation: the new-item screen mutes it for the duration of a finger drag.
+// spinTilt is the SECOND axis (the owner's word 2026-08-13 «spin it on all the axes»):
+// a vertical drag tilts, a horizontal one turns — a turntable with two angles.
 let spinAuto = true;
 let spinTilt = PORTRAIT_TILT_X;
 function thumbSpinNudge(dYaw, dTilt){ spinAngle += dYaw; if (dTilt) spinTilt += dTilt; }
@@ -1471,56 +1471,56 @@ function thumbSpinAuto(on){ spinAuto = !!on; }
 function thumbSpinStart(item, host, px){
   if (!item || !item.mesh || !host) return;
   ensureSpinR();
-  thumbSpinStop();                       // один общий канвас: снять предыдущий
-  // ⚠️ РАЗМЕР БУФЕРА — ПАРАМЕТР (слово владельца 2026-08-13 «качество выше»):
-  // коллекция остаётся на SPIN_PX=256 (инвариант рамки с статикой цел — рамку
-  // держит единый frameCylinder, буфер на неё не влияет), а экран новой вещи
-  // просит буфер ПОД СВОЙ РАЗМЕР × DPR — прежние 256 растягивались втрое и
-  // мылились. Каждый start выставляет размер заново — общий канвас не
-  // наследует чужой.
+  thumbSpinStop();                       // one shared canvas: remove the previous one
+  // ⚠️ THE BUFFER SIZE IS A PARAMETER (the owner's word 2026-08-13 «higher quality»):
+  // the collection stays at SPIN_PX=256 (the invariant of the frame with the static shot is intact — the frame
+  // is held by the single frameCylinder, the buffer has no effect on it), while the new-item screen
+  // asks for a buffer FOR ITS OWN SIZE × DPR — the former 256 was stretched threefold and
+  // went mushy. Every start sets the size anew — the shared canvas does not
+  // inherit somebody else's.
   spinR.setSize(px || SPIN_PX, px || SPIN_PX, false);
   spinAuto = true;
   spinItem = item; spinAngle = PORTRAIT_YAW0; spinTilt = PORTRAIT_TILT_X;
-  // ⚠️ НЕ mesh.clone() (JSON userData с телом Rapier — throw): обёртка на общих
-  // geometry+material, как в itemThumb
+  // ⚠️ NOT mesh.clone() (JSON userData with a Rapier body — a throw): a wrapper on the shared
+  // geometry+material, as in itemThumb
   spinMesh = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
   spinMesh.scale.copy(item.mesh.scale);
-  spinMesh.position.set(0, THUMB_Y, 0);  // matcap гасит диффуз по мировой высоте — портрет высоко
+  spinMesh.position.set(0, THUMB_Y, 0);  // the matcap dims the diffuse by the world height — the portrait sits high
   spinMesh.rotation.set(spinTilt, spinAngle, 0);
   spinScene.add(spinMesh);
   frameCylinder(spinCam, spinMesh);
-  // ⚠️ ЗАПАС КАДРА ПОД СВОБОДНОЕ ВРАЩЕНИЕ (только экран вещи, px задан):
-  // рамка по цилиндру Y-инвариантна, но наклон по ВТОРОЙ оси выводит
-  // диагональ модели за неё — расширяем ортокамеру, чтобы не срезало углы.
-  // Коллекция (px нет) вертит только по Y — ей запас не нужен, размер карточек
-  // не трогаем (инвариант рамки со статикой).
+  // ⚠️ A FRAME MARGIN FOR FREE ROTATION (only the item screen, px is given):
+  // the cylinder frame is Y-invariant, but a tilt on the SECOND axis takes
+  // the model's diagonal outside it — we widen the ortho camera so that the corners are not clipped.
+  // The collection (no px) turns only along Y — it does not need a margin, we do not touch the cards'
+  // size (the invariant of the frame with the static shot).
   if (px){ spinCam.left *= 1.22; spinCam.right *= 1.22;
            spinCam.top *= 1.22; spinCam.bottom *= 1.22;
            spinCam.updateProjectionMatrix(); }
   host.appendChild(spinR.domElement);
   spinRAF = requestAnimationFrame(spinTick);
 }
-// TAP = HOVER (спека владельца 2026-07-24 «один компонент, ховер = тап»): на
-// мобиле нет mouseleave, поэтому ИНТЕРФЕЙС вешает НА ТАП карточки ОДИН
-// обработчик thumbSpinToggle — тап по неактивной карточке заводит спин (сам
-// снимет спин с прежней — канвас общий), повторный тап по ТОЙ ЖЕ карточке
-// останавливает. Ховер (десктоп) как был: start на enter / stop на leave.
-// Возвращает true, если после вызова карточка крутится. Размер при этом РОВНО
-// как у статики (единый frameCylinder, см. #3) — тап не «дёргает» масштаб.
+// TAP = HOVER (the owner's spec 2026-07-24 «one component, hover = tap»): on
+// mobile there is no mouseleave, which is why the INTERFACE hangs ONE handler
+// thumbSpinToggle ON THE CARD'S TAP — a tap on an inactive card starts the spin (it will itself
+// take the spin off the previous one — the canvas is shared), a repeated tap on THE SAME card
+// stops it. The hover (desktop) is as it was: start on enter / stop on leave.
+// It returns true if after the call the card is spinning. The size at that is EXACTLY
+// as with the static shot (the single frameCylinder, see #3) — a tap does not «jerk» the scale.
 function thumbSpinToggle(item, host){
   if (spinItem === item && spinR && spinR.domElement.parentNode === host){ thumbSpinStop(); return false; }
   thumbSpinStart(item, host); return true;
 }
 function spinTick(now){
   if (!spinItem || !spinMesh){ spinRAF = 0; return; }
-  // страховка: ячейку сняли из DOM без thumbSpinStop (ротация списка) —
-  // не крутить впустую в отцепленный канвас
+  // a safety net: the cell was removed from the DOM without thumbSpinStop (a rotation of the list) —
+  // do not spin into a detached canvas for nothing
   if (!spinR.domElement.parentNode){ thumbSpinStop(); return; }
   const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
   if (spinAuto) spinAngle += dt * SPIN_SPEED;
   spinMesh.rotation.set(spinTilt, spinAngle, 0);
-  // вуаль/matcap-затемнение и прозрачность OFF на кадр (портрет не сереет) —
-  // материал ОБЩИЙ с боевым, восстанавливаем сразу (как itemThumb)
+  // the veil/matcap darkening and the transparency are OFF for the frame (the portrait does not go grey) —
+  // the material is SHARED with the live one, we restore it at once (as itemThumb does)
   const mat = spinMesh.material;
   const col = mat.color, saved = (spinItem.baseColor && col) ? col.clone() : null;
   if (saved) col.copy(spinItem.baseColor);
@@ -1534,22 +1534,22 @@ function spinTick(now){
   spinRAF = requestAnimationFrame(spinTick);
 }
 
-// --- всплывашка: очередь, показываем по одной ~2.2 с ---
+// --- the popup: a queue, we show them one at a time for ~2.2 s ---
 function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
-// ⚠️ ОДИН ТОСТ НА ДВА СОБЫТИЯ (слово владельца 2026-08-05 «своди в один»):
-// сбор прокачанного вида и ПОВЫШЕНИЕ ступени показывает один и тот же тост
-// под глазами; раньше ступень уходила в отдельную пилюлю у нижнего края и
-// читалась как дубль. ✅ Пилюля #tierToast, её очередь и CSS ВЫРЕЗАНЫ уборкой
-// 2026-08-12 — этот комментарий сам просил снять их «вместе с разметкой».
+// ⚠️ ONE TOAST FOR TWO EVENTS (the owner's word 2026-08-05 «merge them into one»):
+// the collection of an upgraded kind and a TIER INCREASE are shown by one and the same toast
+// under the eyes; previously the tier went into a separate pill at the bottom edge and
+// read as a duplicate. ✅ The #tierToast pill, its queue and its CSS were CUT OUT by the cleanup
+// of 2026-08-12 — this very comment asked to remove them «together with the markup».
 function showTierUp(ev){
   try { showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true); } catch(e){}
 }
 
-// --- музей: открывается ИЗ ПАУЗЫ (paused держится), закрытие — обратно ---
-const ACC_TIERS_DEMO = [100, 300, 700, 1500, 3100]; // пороги контракта (×2+100)
+// --- the museum: it opens FROM THE PAUSE (paused is held), closing goes back ---
+const ACC_TIERS_DEMO = [100, 300, 700, 1500, 3100]; // the contract's thresholds (×2+100)
 function demoAccSnapshot(){
-  // демо: живые типы уровня с правдоподобными накоплениями — только чтобы
-  // владелец видел каркас; НЕ настоящие данные (бейдж DEMO в шапке)
+  // demo: the level's live types with plausible accumulations — only so that
+  // the owner sees the skeleton; NOT real data (the DEMO badge in the header)
   const byKey = {};
   for (const it of items) if (it.alive && !it.surprise) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
   return Object.keys(byKey).slice(0, 12).map((k, i) => {
@@ -1568,9 +1568,9 @@ function renderMuseum(rows, demo){
     row.className = 'mrow';
     const th = document.createElement('div');
     th.className = 'mthumb';
-    // ⚠️ фолбэк по КЛЮЧУ типа, не по имени: r.name — человеческий ярлык
-    // («Watermelon»), а item.key — 'T{индекс}'; сравнение с name не могло
-    // совпасть никогда, и строки без _item молча теряли портрет
+    // ⚠️ the fallback is by the type's KEY, not by the name: r.name is a human label
+    // («Watermelon»), whereas item.key is 'T{index}'; a comparison with name could
+    // never match, and the rows without _item silently lost their portrait
     const url = itemThumb(r._item || (items && items.find(i =>
       i.alive && i.type && String(i.type.name) === String(r.key))));
     if (url){ const im = document.createElement('img'); im.src = url; th.appendChild(im); }
@@ -1596,65 +1596,65 @@ function openMuseum(){
   renderMuseum(real ? accSnapshot() : demoAccSnapshot(), !real);
 }
 function closeMuseum(){ hide('museumOverlay'); show('pauseOverlay'); }
-// стыковка с метой: хук подключаем, как только он появится в сборке
+// the joining with the meta: we connect the hook as soon as it appears in the build
 if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 
-// ===== ГЛАВНЫЙ ЭКРАН / ПАУЗА (макет Figma 770:1271) =====
-// ОДИН экран, две роли: «Play Game» до партии, «Resume» в паузе. Живые
-// данные: коллекция — accSnapshot(), звёзды — totalStars(), Sound/Difficult —
-// CFG. ⚠️ ЭКОНОМИЧЕСКИЕ РАЗВИЛКИ на плейсхолдерах (владельцу в отчёт,
-// междузонные запросы МЕТЕ/ИНТЕГРАЦИИ): звёзды-как-валюта + Boost (МЕТА),
-// Subscribe $1.99 (ИНТЕГРАЦИЯ), Music-слайдер и аватар (ассетов/фичи нет).
-// ⛔ `msSelKey` УДАЛЁН 2026-08-21-н вместе с выбором по клику: вид выбранной
-// карточки переехал на CSS-ховер (слово владельца «сейчас это вид клика, а
-// нужно сделать ховером, десктоп»). Переменная жила дольше открытия меню и
-// восстанавливала подсветку при повторном входе — у ховера восстанавливать
-// нечего, он идёт за курсором. Возврат = откат этого коммита.
+// ===== THE MAIN SCREEN / THE PAUSE (Figma mockup 770:1271) =====
+// ONE screen, two roles: «Play Game» before a run, «Resume» in the pause. Live
+// data: the collection — accSnapshot(), the stars — totalStars(), Sound/Difficult —
+// CFG. ⚠️ THE ECONOMIC FORKS are on placeholders (into the report to the owner,
+// cross-zone requests to META/INTEGRATION): stars-as-currency + Boost (META),
+// Subscribe $1.99 (INTEGRATION), the Music slider and the avatar (there are no assets/feature).
+// ⛔ `msSelKey` WAS DELETED 2026-08-21-n together with the click selection: the look of the selected
+// card moved onto the CSS hover (the owner's word «right now this is the look of a click, but
+// it has to be made a hover, desktop»). The variable lived longer than the menu's opening and
+// restored the highlight on a repeated entry — a hover has nothing to restore,
+// it follows the cursor. To bring it back = revert this commit.
 function fmtStars(n){
   n = n | 0;
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return String(n);
 }
-// КОШЕЛЁК В ШАПКЕ МЕНЮ: ТОЧНОЕ ЧИСЛО, ЕСЛИ ВЛЕЗАЕТ ПО ГОРИЗОНТАЛИ (спека
-// владельца 2026-07-28: «1466, а не 1.5K, если помещается»). Пишем точное,
-// меряем ряд — если он переполнился ИЛИ Get More съехал на другую строку
-// (у .ms-collhead на десктопе flex-wrap), откатываемся в сокращение.
-// ⚠️ Порог не в знаках: ширина зависит от раскладки (мобильная пилюля против
-// десктопной шапки) и от длины имени — меряем ФАКТ, а не угадываем.
-// Кнопки Boost сокращение сохраняют (спека про кошелёк) — они зовут fmtStars.
+// THE WALLET IN THE MENU'S HEADER: THE EXACT NUMBER IF IT FITS HORIZONTALLY (the owner's
+// spec 2026-07-28: «1466, and not 1.5K, if it fits»). We write the exact one,
+// we measure the row — if it has overflowed OR Get More has moved onto another line
+// (.ms-collhead has flex-wrap on the desktop), we fall back to the abbreviation.
+// ⚠️ The threshold is not in characters: the width depends on the layout (the mobile pill against
+// the desktop header) and on the name's length — we measure the FACT, we do not guess.
+// The Boost buttons keep the abbreviation (the spec is about the wallet) — they call fmtStars.
 function setWalletNumber(el, n){
   if (!el) return;
   const exact = String(n | 0), short = fmtStars(n);
   el.textContent = exact;
-  if (exact === short) return;                       // сокращать нечего
+  if (exact === short) return;                       // there is nothing to abbreviate
   const row = el.closest('.ms-head'); if (!row) return;
-  let fits = row.scrollWidth <= row.clientWidth + 1; // ряд не переполнен
+  let fits = row.scrollWidth <= row.clientWidth + 1; // the row has not overflowed
   if (fits){
     const gm = $('msGetMore');
-    if (gm){                                          // Get More на той же строке?
+    if (gm){                                          // is Get More on the same line?
       const a = el.getBoundingClientRect(), b = gm.getBoundingClientRect();
       if (Math.abs(a.top - b.top) > Math.max(a.height, b.height) * 0.6) fits = false;
     }
-    // ⚠️ И ИМЯ НЕ ДОЛЖНО ОБРЕЗАТЬСЯ: у .ms-uname overflow:hidden, поэтому
-    // флекс «впихивал» длинное число за счёт имени («Guest» → «Gu…»), а ряд
-    // при этом НЕ переполнялся и проверка выше молчала. Обрезка имени = число
-    // по горизонтали не поместилось.
+    // ⚠️ AND THE NAME MUST NOT BE TRUNCATED: .ms-uname has overflow:hidden, which is why
+    // the flex «squeezed in» a long number at the expense of the name («Guest» → «Gu…»), while the row
+    // did NOT overflow and the check above stayed silent. A truncation of the name = the number
+    // did not fit horizontally.
     const un = row.querySelector('.ms-uname');
     if (fits && un && un.offsetParent !== null && un.scrollWidth > un.clientWidth + 1) fits = false;
   }
   if (!fits) el.textContent = short;
 }
-// сколько типов открыто прогрессией: 9 на ур.1, +1 за уровень, потолок пула
-// (типы открываются ПО ПОРЯДКУ массива TYPES — как в genLevel)
+// how many types are opened by the progression: 9 at level 1, +1 per level, the pool's ceiling
+// (the types are opened IN THE ORDER of the TYPES array — as in genLevel)
 function unlockedTypeCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
   return Math.min(TYPES.length, LEVEL_TYPES_MIN + Math.max(0, lvl - 1));
 }
-// BOOST-ЦЕЛЕБРАЦИЯ (спека владельца): на успешную покупку карточка празднует —
-// полоска зеленеет и доливается к текущей доле, под портретом бьют частицы
-// радости (лайм+белые). Зовётся ПОСЛЕ refreshMainScreen (карточка пересобрана)
-// — ищем свежую по ключу. ⚠️ полоска считается по ЗАРАБОТАННЫМ ступеням, Boost
-// копит отдельно → доливка ЦЕЛЕБРАЦИОННАЯ (к текущей доле), экономику не трогаем.
+// THE BOOST CELEBRATION (the owner's spec): on a successful purchase the card celebrates —
+// the bar goes green and tops up to the current fraction, under the portrait particles
+// of joy burst (lime+white). It is called AFTER refreshMainScreen (the card has been rebuilt)
+// — we look for the fresh one by key. ⚠️ the bar is computed by the EARNED tiers, Boost
+// accumulates separately → the top-up is CELEBRATORY (to the current fraction), we do not touch the economy.
 function spawnJoyParticles(host){
   if (!host) return;
   const N = 12, col = ['#c0ff47', '#ffffff'];
@@ -1664,7 +1664,7 @@ function spawnJoyParticles(host){
     const ang = (i / N) * Math.PI * 2;
     const dist = 24 + (i % 3) * 9;
     s.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
-    s.style.setProperty('--dy', (Math.sin(ang) * dist - 12).toFixed(1) + 'px'); // лёгкий подъём вверх
+    s.style.setProperty('--dy', (Math.sin(ang) * dist - 12).toFixed(1) + 'px'); // a light lift upwards
     s.style.background = col[i % 2];
     host.appendChild(s);
     setTimeout(()=> s.remove(), 760);
@@ -1675,26 +1675,26 @@ function boostCelebrate(key){
   const card = [...grid.children].find(c => c.dataset && c.dataset.key === key);
   if (!card) return;
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  card.classList.add('boosted'); // полоска -> зелёная (+ transition из .boosted)
+  card.classList.add('boosted'); // the bar -> green (+ the transition from .boosted)
   const bar = card.querySelector('.msc-prog i');
   if (bar && !reduce){
     const target = bar.style.width || '0%';
-    bar.style.transition = 'none'; bar.style.width = '0%'; // старт с нуля БЕЗ анимации
+    bar.style.transition = 'none'; bar.style.width = '0%'; // the start from zero WITHOUT animation
     void bar.offsetWidth;
-    bar.style.transition = '';                              // вернуть CSS-переход .55с
-    bar.style.width = target;                               // анимируется 0 -> доля
+    bar.style.transition = '';                              // bring back the CSS transition of .55s
+    bar.style.width = target;                               // it animates 0 -> the fraction
     setTimeout(()=>{ if (bar.isConnected) bar.style.transition = ''; }, 620);
   }
   if (!reduce) spawnJoyParticles(card.querySelector('.msc-imgwrap'));
-  // класс-целебрацию снимаем позже (следующий refresh и так пересоберёт карточку)
+  // we remove the celebration class later (the next refresh will rebuild the card anyway)
   setTimeout(()=>{ if (card.isConnected) card.classList.remove('boosted'); }, 950);
 }
-// #4 ТАП-СПИН (тач): один тап-обработчик через хук ГРАФИКИ thumbSpinToggle
-// (контракт диспетчера v121): тап по неактивной заводит спин (общий канвас сам
-// снимет спин с прежней), повторный тап по ТОЙ ЖЕ — стоп, размер НЕ дёргается.
-// Хук управляет ТОЛЬКО спином; статический <img> (канвас alpha:true накрывает
-// его, но просвечивает) прячем/возвращаем МЫ — как ховер. msTapSpinCard держит,
-// у какой карточки img спрятан, чтобы вернуть его при переключении на другую.
+// #4 THE TAP SPIN (touch): one tap handler through the GRAPHICS hook thumbSpinToggle
+// (the dispatcher's contract v121): a tap on an inactive one starts the spin (the shared canvas itself
+// takes the spin off the previous one), a repeated tap on THE SAME one — stop, the size is NOT jerked.
+// The hook controls ONLY the spin; the static <img> (the alpha:true canvas covers
+// it but it shows through) is hidden/restored by US — like the hover. msTapSpinCard holds
+// which card's img is hidden, so that it can be restored when switching to another one.
 let msTapSpinCard = null;
 function msTapSpinRestore(){ if (msTapSpinCard){ const im = msTapSpinCard.querySelector('img.msc-img'); if (im) im.style.visibility = 'visible'; msTapSpinCard.classList.remove('spinning'); msTapSpinCard = null; } }
 function msCardTapSpin(card){
@@ -1702,18 +1702,18 @@ function msCardTapSpin(card){
   const wrap = card.querySelector('.msc-imgwrap'); if (!wrap) return;
   const key = card.dataset.key;
   const live = (typeof items !== 'undefined' && items) ? items.find(it => it.alive && it.type && String(it.type.name) === String(key)) : null;
-  msTapSpinRestore();                                   // вернуть img прошлой тап-крутящейся
+  msTapSpinRestore();                                   // restore the img of the previously tap-spinning one
   let spinning = false;
   try { spinning = thumbSpinToggle(live || thumbItemForKey(key), wrap); } catch(e){ spinning = false; }
   const im = wrap.querySelector('img.msc-img');
   if (im) im.style.visibility = spinning ? 'hidden' : 'visible';
-  card.classList.toggle('spinning', spinning); // тач-аналог :hover для бейджа (40%)
+  card.classList.toggle('spinning', spinning); // the touch analogue of :hover for the badge (40%)
   msTapSpinCard = spinning ? card : null;
 }
-// ДОБОР ПОРТРЕТОВ: атлас пачки декодируется асинхронно, и карточки типов из
-// ещё не прогретой пачки открываются с буквой. Ждём декода и подменяем букву
-// картинкой НА МЕСТЕ. Предел 16×200 мс = 3.2 с — если пачка так и не пришла
-// (битый атлас), добор молча прекращается и буква остаётся честным фолбэком.
+// THE TOP-UP OF PORTRAITS: a pack's atlas is decoded asynchronously, and the cards of types from
+// a pack that has not warmed up yet open with a letter. We wait for the decode and replace the letter
+// with a picture IN PLACE. The limit is 16×200 ms = 3.2 s — if the pack never arrived
+// (a broken atlas), the top-up silently stops and the letter stays an honest fallback.
 let msThumbWait = null;
 const MS_THUMB_TRIES = 16, MS_THUMB_MS = 200;
 function msThumbFill(pending, left){
@@ -1721,7 +1721,7 @@ function msThumbFill(pending, left){
     msThumbWait = null;
     const rest = [];
     for (const p of pending){
-      if (!p.wrap.isConnected) continue;   // сетку пересобрали — эта карточка мертва
+      if (!p.wrap.isConnected) continue;   // the grid was rebuilt — this card is dead
       const url = p.live ? itemThumb(p.live) : itemThumb(thumbItemForKey(p.key, p.locked));
       if (!url){ rest.push(p); continue; }
       const im = document.createElement('img');
@@ -1735,37 +1735,37 @@ function msThumbFill(pending, left){
 function buildMainCollection(){
   const grid = $('msGrid');
   if (!grid) return;
-  if (msTapSpinCard){ thumbSpinStop(); msTapSpinCard = null; } // сброс тап-спина при пересборке
+  if (msTapSpinCard){ thumbSpinStop(); msTapSpinCard = null; } // a reset of the tap spin on a rebuild
   grid.innerHTML = '';
-  if (msThumbWait){ clearTimeout(msThumbWait); msThumbWait = null; } // старый добор к мёртвым карточкам
-  const pending = []; // карточки без портрета: атлас пачки ещё декодируется
+  if (msThumbWait){ clearTimeout(msThumbWait); msThumbWait = null; } // the old top-up to dead cards
+  const pending = []; // the cards without a portrait: the pack's atlas is still decoding
   const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
   const open = unlockedTypeCount();
-  // спин портрета — ТОЛЬКО на устройствах с настоящим hover (десктоп): на
-  // тач-экранах mouseenter стреляет по тапу и крутил бы карточку без причины
-  // (спека ГРАФИКИ «мобайл: hover не вешать, статический портрет и так есть»)
+  // the portrait spin — ONLY on devices with a real hover (desktop): on
+  // touch screens mouseenter fires on a tap and would spin the card for no reason
+  // (the GRAPHICS spec «mobile: do not hang a hover, the static portrait is there anyway»)
   const canHover = !!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches);
   rows.forEach((r, i) => {
     const locked = i >= open;
     const card = document.createElement('div');
-    // ⛔ Здесь к классам добавлялся `sel` по совпадению с `msSelKey`. Снято
-    //    2026-08-21-н: подсветку даёт `:hover` в стилях, класса `sel` больше
-    //    нет ни в одном файле.
+    // ⛔ Here `sel` was added to the classes on a match with `msSelKey`. Removed
+    //    2026-08-21-n: the highlight is given by `:hover` in the styles, the `sel` class is
+    //    no longer in any file.
     card.className = 'msc' + (locked ? ' lock' : '');
     card.dataset.key = r.key;
-    // портрет: живой предмет типа -> офскрин-рендер; иначе буква (как музей).
-    // ⚠️ портрет есть только у типов, живых в ТЕКУЩЕЙ партии (мешей вне
-    // уровня нет) — вне партии/у неоткрытых будет буква. Портрет для ВСЕХ
-    // типов = хелпер «собрать меш по типу» (междузонный запрос ГРАФИКЕ/МЕТЕ).
+    // the portrait: a live item of the type -> an offscreen render; otherwise a letter (as in the museum).
+    // ⚠️ a portrait exists only for the types that are live in the CURRENT run (there are no meshes outside
+    // a level) — outside a run / for the unopened ones there will be a letter. A portrait for ALL
+    // types = a helper «assemble a mesh by type» (a cross-zone request to GRAPHICS/META).
     const wrap = document.createElement('div');
     wrap.className = 'msc-imgwrap';
     const live = r._item || (typeof items !== 'undefined' && items &&
       items.find(it => it.alive && it.type && String(it.type.name) === String(r.key)));
-    // портрет: живой предмет типа -> его снимок; иначе строим меш по ключу
-    // (thumbItemForKey, ГРАФИКА). ЗАКРЫТЫЕ (locked) — ГХОСТ (2-й арг true:
-    // полупрозрачный+бесцветный силуэт, «покедекс»; спека владельца «не
-    // открытые модели прозрачные, матовые, бесцветные» + «заполни музей
-    // моделями», ОТМЕНЯЕТ прежнюю букву). ОТКРЫТЫЕ — цветной портрет.
+    // the portrait: a live item of the type -> its shot; otherwise we build a mesh by key
+    // (thumbItemForKey, GRAPHICS). The LOCKED ones — a GHOST (the 2nd arg true:
+    // a semi-transparent+colourless silhouette, a «pokedex»; the owner's spec «the models that are not
+    // open are transparent, matte, colourless» + «fill the museum with
+    // models», it CANCELS the former letter). The OPEN ones — a colour portrait.
     const url = live ? itemThumb(live) : itemThumb(thumbItemForKey(r.key, locked));
     if (url){
       const im = document.createElement('img');
@@ -1775,11 +1775,11 @@ function buildMainCollection(){
       ph.className = 'msc-img letter';
       ph.textContent = String(r.name || '?').slice(0, 1).toUpperCase();
       wrap.appendChild(ph);
-      // ⚠️ ПОРТРЕТА ПОКА НЕТ — берём на ДОБОР, а не оставляем букву навсегда.
-      // itemThumb отказывается снимать, пока атлас пачки не декодирован
-      // (см. страж там же); сам этот вызов декод и запустил. Буква остаётся
-      // видимой доли секунды и подменяется картинкой НА МЕСТЕ — без
-      // пересборки сетки, чтобы не рвать скролл и тап-спин.
+      // ⚠️ THERE IS NO PORTRAIT YET — we take it for the TOP-UP instead of leaving the letter forever.
+      // itemThumb refuses to shoot until the pack's atlas is decoded
+      // (see the guard right there); this very call is what started the decode. The letter stays
+      // visible for a fraction of a second and is replaced by a picture IN PLACE — without
+      // rebuilding the grid, so as not to tear the scroll and the tap spin.
       pending.push({ wrap, key: r.key, locked, live });
     }
     if (!locked){
@@ -1797,11 +1797,11 @@ function buildMainCollection(){
       lvl.className = 'msc-lvl';
       lvl.textContent = 'Level ' + Math.max(1, i - LEVEL_TYPES_MIN + 2);
       card.appendChild(lvl);
-      // КНОПКА «Open» СКРЫТА (спека владельца 2026-07-28: «не имеет сейчас
-      // никакого смысла для игроков»). Механика покупки типа (purchaseUnlock,
-      // act:'open') ЖИВА и не тронута — вернуть = раскомментировать три строки.
-      // ОТЛОЖЕНО (просьба владельца записать): когда-нибудь вернуть открытие
-      // предметов ЗА ЗВЁЗДЫ — см. блок ИНТЕРФЕЙС в WORKSTREAMS.
+      // THE «Open» BUTTON IS HIDDEN (the owner's spec 2026-07-28: «it makes no
+      // sense at all for the players right now»). The mechanic of buying a type (purchaseUnlock,
+      // act:'open') is ALIVE and untouched — to bring it back = uncomment three lines.
+      // POSTPONED (the owner asked to write it down): some day bring back the opening
+      // of items FOR STARS — see the INTERFACE block in WORKSTREAMS.
     } else {
       const cnt = document.createElement('div');
       cnt.className = 'msc-cnt';
@@ -1812,25 +1812,25 @@ function buildMainCollection(){
       const frac = r.next ? Math.min(1, r.count / r.next) : 1;
       prog.innerHTML = '<i style="width:' + (frac * 100).toFixed(0) + '%"></i>';
       card.appendChild(prog);
-      // BOOST: цена следующей ступени из снапшота. price === null — КАП
-      // (показываем «Max», а не пустую цену); !affordable — гасим кнопку,
-      // чтобы не обещать покупку, которую buyBoost отвергнет.
+      // BOOST: the price of the next tier from the snapshot. price === null — THE CAP
+      // (we show «Max», and not an empty price); !affordable — we dim the button,
+      // so as not to promise a purchase that buyBoost will reject.
       const boost = document.createElement('button');
       boost.className = 'msc-boost'; boost.dataset.act = 'boost';
       if (r.price == null){ boost.textContent = 'Max'; boost.disabled = true; }
       else {
-        boost.textContent = 'Boost ' + fmtStars(r.price); // ★ убрана (спека владельца #5)
+        boost.textContent = 'Boost ' + fmtStars(r.price); // the ★ was removed (the owner's spec #5)
         if (!r.affordable) boost.classList.add('poor');
       }
       card.appendChild(boost);
     }
-    // HOVER-СПИН (десктоп): канвас ГРАФИКИ самомонтируется в .msc-imgwrap
-    // (absolute inset:0). ⚠️ канвас ПРОЗРАЧНЫЙ (alpha) — под вращающимся
-    // силуэтом просвечивал статический <img> кадра покоя (жалоба владельца
-    // «картинка модели остаётся за ней»). ПРЯЧЕМ img на время спина
-    // (visibility, чтобы rect ячейки не схлопнулся — канвас на нём и стоит),
-    // возвращаем на mouseleave. Спин стартует с угла статики (SPIN_YAW0/TILT
-    // == rotation портрета) — подмена бесшовна. Только у ОТКРЫТЫХ.
+    // THE HOVER SPIN (desktop): the GRAPHICS canvas self-mounts into .msc-imgwrap
+    // (absolute inset:0). ⚠️ the canvas is TRANSPARENT (alpha) — under the rotating
+    // silhouette the static <img> of the frame of rest showed through (the owner's complaint
+    // «the picture of the model stays behind it»). We HIDE the img for the duration of the spin
+    // (visibility, so that the cell's rect does not collapse — the canvas stands on it),
+    // we restore it on mouseleave. The spin starts from the static shot's angle (SPIN_YAW0/TILT
+    // == the portrait's rotation) — the substitution is seamless. Only on the OPEN ones.
     if (canHover && !locked){
       card.addEventListener('mouseenter', () => {
         const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'hidden';
@@ -1845,28 +1845,28 @@ function buildMainCollection(){
   });
   if (pending.length) msThumbFill(pending, MS_THUMB_TRIES);
 }
-// отражение текущих настроек в контролах экрана (значения из CFG)
-// --fill (в %) двигает зелёную заливку у WebKit-ползунка (см. shell.html);
-// Firefox рисует её сам через ::-moz-range-progress, но лишним не будет
+// the reflection of the current settings in the screen's controls (the values from CFG)
+// --fill (in %) moves the green fill of the WebKit slider (see shell.html);
+// Firefox draws it itself through ::-moz-range-progress, but it will not hurt
 function msFill(el){ if (el) el.style.setProperty('--fill', el.value + '%'); }
-// ===== ГРОМКОСТЬ ЗВУКА 0..1, хранится в mixer_sound =====
-// ⚠️⚠️ ЖАЛОБА ВЛАДЕЛЬЦА 2026-07-30: «ползунок Sound не сохраняет состояние
-// после выхода из паузы». ДИАГНОЗ: состоянием звука был БУЛЕВ `CFG.sound`, а
-// в блоке настроек стоит ПОЛЗУНОК 0..100. `refreshMainSettings` рисовал его
-// как `CFG.sound ? 100 : 0` — любое промежуточное значение (40) при повторном
-// открытии меню превращалось в 100. Плюс персиста не было ВОВСЕ: у музыки есть
-// `mixer_music`, у звука не было ничего, поэтому и тишина не выживала
-// перезагрузку (замер: выставил 0 → reload → снова 100 и звук включён).
-// ⚠️ ЛЕЧЕНИЕ СИММЕТРИЧНО МУЗЫКЕ: своя громкость 0..1 + localStorage + единая
-// точка применения. `CFG.sound` ОСТАЁТСЯ (на него смотрят `Sound.play` и
-// `vibrate`) и вычисляется как `soundVol > 0` — старый смысл «вкл/выкл» цел,
-// а чекбокс `#soundToggle` в держателе состояний паузы синхронизируется тут же.
-// ⚠️ ВНЕШНИЙ МЬЮТ (`Sound.setMuted` из 78-ads на время ролика) НЕ ТРОГАЕМ —
-// у него свой флаг и он СИЛЬНЕЕ ползунка, как и у музыки (musicSuspend).
-// ⚠️ ДВЕ ПЕРЕМЕННЫЕ, А НЕ ОДНА: `soundVolPrev` — ПОСЛЕДНЯЯ НЕНУЛЕВАЯ громкость.
-// Без неё тумблер «выкл → вкл» возвращал 100 вместо выбранных игроком 40:
-// выключение обнуляет `soundVol`, и «последнее ненулевое» брать уже негде
-// (поймано собственным замером ПОСЛЕ первой версии этой правки).
+// ===== THE SOUND VOLUME 0..1, stored in mixer_sound =====
+// ⚠️⚠️ THE OWNER'S COMPLAINT 2026-07-30: «the Sound slider does not keep its state
+// after leaving the pause». THE DIAGNOSIS: the sound's state was the BOOLEAN `CFG.sound`, while
+// in the settings block there stands a SLIDER 0..100. `refreshMainSettings` drew it
+// as `CFG.sound ? 100 : 0` — any intermediate value (40) on a repeated
+// opening of the menu turned into 100. On top of that there was NO persistence AT ALL: the music has
+// `mixer_music`, the sound had nothing, which is why silence did not survive
+// a reload either (measurement: set 0 → reload → 100 again and the sound on).
+// ⚠️ THE CURE IS SYMMETRIC TO THE MUSIC: its own volume 0..1 + localStorage + a single
+// point of application. `CFG.sound` REMAINS (`Sound.play` and
+// `vibrate` look at it) and is computed as `soundVol > 0` — the old meaning «on/off» is intact,
+// and the `#soundToggle` checkbox in the pause's state holder is synchronised right here.
+// ⚠️ WE DO NOT TOUCH THE EXTERNAL MUTE (`Sound.setMuted` from 78-ads for the duration of an ad) —
+// it has its own flag and it is STRONGER than the slider, as with the music (musicSuspend).
+// ⚠️ TWO VARIABLES, NOT ONE: `soundVolPrev` is the LAST NON-ZERO volume.
+// Without it the «off → on» toggle brought back 100 instead of the 40 chosen by the player:
+// switching off zeroes `soundVol`, and there is nowhere left to take the «last non-zero» from
+// (caught by my own measurement AFTER the first version of this fix).
 let soundVol = 1, soundVolPrev = 1;
 try { const _sv = localStorage.getItem('mixer_sound');
   if (_sv !== null) soundVol = Math.max(0, Math.min(1, (parseInt(_sv, 10) || 0) / 100)); } catch(e){}
@@ -1876,34 +1876,34 @@ function applySoundVol(v01){
   if (soundVol > 0) soundVolPrev = soundVol;
   try { localStorage.setItem('mixer_sound', String(Math.round(soundVol * 100))); } catch(e){}
   CFG.sound = soundVol > 0;
-  const cb = $('soundToggle'); if (cb) cb.checked = CFG.sound;   // держатель состояний паузы
-  // ⚠️ ПОЛЗУНОК ТОЖЕ ЗДЕСЬ: иначе тумблер паузы менял громкость, а ползунок
-  // продолжал показывать старое число — два элемента об одном состоянии
-  // расходились (замер: тумблер выкл → ползунок всё ещё 35 при тишине).
+  const cb = $('soundToggle'); if (cb) cb.checked = CFG.sound;   // the pause's state holder
+  // ⚠️ THE SLIDER IS HERE TOO: otherwise the pause's toggle changed the volume while the slider
+  // went on showing the old number — two elements about one state
+  // diverged (measurement: the toggle off → the slider still at 35 while there was silence).
   const snd = $('msSound'); if (snd){ snd.value = Math.round(soundVol * 100); msFill(snd); }
-  try { Sound.setVolume(soundVol); } catch(e){}                  // мастер-гейн WebAudio
+  try { Sound.setVolume(soundVol); } catch(e){}                  // the WebAudio master gain
 }
-applySoundVol(soundVol);   // боевое восстановление на старте (как CFG.hard из mixer_hard)
-// ===== ФОНОВАЯ МУЗЫКА (спека владельца 2026-07-24): регулятор + трек =====
-// Потоковый HTML5 <audio id="bgm"> (трек ~4.2 МБ грузится ЛЕНИВО, не в старте;
-// WebAudio-движок SFX (Sound) НЕ трогаем — музыка отдельный тракт). Ползунок
-// Music = громкость 0..1, хранится в mixer_music. Автоплей разблокирует ПЕРВЫЙ
-// жест страницы (90-input) — политика браузера: audio.play() только по жесту.
+applySoundVol(soundVol);   // the live restoration at startup (like CFG.hard from mixer_hard)
+// ===== THE BACKGROUND MUSIC (the owner's spec 2026-07-24): a control + a track =====
+// A streaming HTML5 <audio id="bgm"> (the track of ~4.2 MB is loaded LAZILY, not at startup;
+// we do NOT touch the WebAudio SFX engine (Sound) — the music is a separate path). The Music
+// slider = the volume 0..1, stored in mixer_music. Autoplay is unlocked by the FIRST
+// gesture on the page (90-input) — the browser's policy: audio.play() only on a gesture.
 let musicVol = 0.7;
 try { const _mv = localStorage.getItem('mixer_music');
   if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
-// ⚠️ ПОСЛЕДНЯЯ НЕНУЛЕВАЯ ГРОМКОСТЬ МУЗЫКИ — ровно та же пара, что у звука
-// (`soundVolPrev`), и заведена по той же причине: мобильный свитчер знает
-// только ВКЛ/ВЫКЛ, и включение обязано вернуть игроку ЕГО громкость, а не 100.
-// Без этого свитчер тихо стирал бы выбор, сделанный ползунком на десктопе.
+// ⚠️ THE LAST NON-ZERO VOLUME OF THE MUSIC — exactly the same pair as with the sound
+// (`soundVolPrev`), and introduced for the same reason: the mobile switcher knows
+// only ON/OFF, and switching on is obliged to give the player back HIS volume, and not 100.
+// Without this the switcher would quietly erase the choice made with the slider on the desktop.
 let musicVolPrev = musicVol > 0 ? musicVol : 0.7;
-// ⚠️⚠️ ГРОМКОСТЬ ПРИМЕНЯЕТСЯ К ЭЛЕМЕНТУ СРАЗУ, НЕ ПРИ ПЕРВОМ ЖЕСТЕ (жалоба
-// владельца 2026-07-31: «при загрузке музыка выше, падает до настроек после
-// анимации ведра»). МЕХАНИКА, доказана пробой: volume ставил только жестовый
-// unlockBgm, а на портале трек заводила РАЗМОРОЗКА (musicSuspend(false) после
-// рекламы/паузы площадки) — play() шёл на дефолтной 1.0, и до первого жеста
-// игрока музыка орала мимо настроек. Инвариант: volume выставлен ДО любого
-// возможного play, кто бы его ни позвал.
+// ⚠️⚠️ THE VOLUME IS APPLIED TO THE ELEMENT AT ONCE, NOT ON THE FIRST GESTURE (the owner's
+// complaint 2026-07-31: «on loading the music is louder, it drops to the settings after
+// the bucket animation»). THE MECHANIC, proven by a probe: the volume was set only by the gesture-driven
+// unlockBgm, while on the portal the track was started by the UNFREEZE (musicSuspend(false) after
+// an ad / the platform's pause) — play() went at the default 1.0, and until the player's first
+// gesture the music blared past the settings. The invariant: the volume is set BEFORE any
+// possible play, whoever calls it.
 { const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicVol; }
 function applyMusic(v01){
   musicVol = Math.max(0, Math.min(1, v01));
@@ -1911,46 +1911,46 @@ function applyMusic(v01){
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
   const bgm = $('bgm'); if (!bgm) return;
   bgm.volume = musicVol;
-  // ⚠️ Внешняя приглушка (реклама/пауза площадки) СИЛЬНЕЕ ползунка: иначе
-  // игрок, двинувший громкость во время ролика, завёл бы трек поверх рекламы.
-  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused) bgm.play().catch(()=>{}); } // тянут вверх — заводим
-  else if (!bgm.paused) bgm.pause();                             // в ноль — глушим
+  // ⚠️ The external muffling (an ad / the platform's pause) is STRONGER than the slider: otherwise
+  // a player who moved the volume during an ad would have started the track over the ad.
+  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused) bgm.play().catch(()=>{}); } // they pull it up — we start it
+  else if (!bgm.paused) bgm.pause();                             // down to zero — we mute it
 }
-// ВНЕШНЯЯ ПРИГЛУШКА МУЗЫКИ (правка ИНТЕГРАЦИИ 2026-07-29 по авторизации
-// диспетчера; аналог Sound.setMuted для WebAudio-тракта). Зовётся из
-// applyMute (78-ads) на время рекламного ролика и платформенной паузы.
-// ⚠️ СВОЙ ФЛАГ, `musicVol` НЕ ТРОГАЕМ: громкость — выбор игрока, лежит в
-// localStorage; затирать его временной приглушкой нельзя. Поэтому храним
-// причину отдельно и на снятии восстанавливаем ровно то, что выбрал игрок
-// (в т.ч. НЕ заводим трек, если ползунок стоит в нуле).
-// ⛔⛔ ПРОГРЕВ БУФЕРА ЗАРАНЕЕ ПРОБОВАЛИ И СНЯЛИ — НЕ ИЗОБРЕТАТЬ ЗАНОВО.
-// Гипотеза была разумная: файл внешний, 4.4 МБ, тег `preload="none"`, значит
-// закачка начинается только с первого жеста. ЗАМЕР ЕЁ НЕ ПОДТВЕРДИЛ. Задержка
-// от жеста до звука и без прогрева мала (191 мс на 8 Мбит, 253 на 4, 467 на
-// 1.5), а с прогревом на 1.5 Мбит вышло 466 против 469 — то есть НИЧЕГО.
-// ⚠️ И он стоил дефекта: `load()` на ИГРАЮЩЕМ элементе обрывает звук — игрок,
-// тапнувший во время интро, через секунду терял музыку (поймано пробой).
-// Цена без выигрыша: 4.4 МБ трафика тому, кто, может, и не тронет экран.
-// ⚠️ НАСТОЯЩАЯ причина жалобы владельца была другая — см. `unlockBgm` в
-// 90-input: музыка ждала ПЕРВОГО КАСАНИЯ, а клавиша её не заводила вовсе.
+// THE EXTERNAL MUFFLING OF THE MUSIC (INTEGRATION's edit 2026-07-29 by the dispatcher's
+// authorisation; the analogue of Sound.setMuted for the WebAudio path). It is called from
+// applyMute (78-ads) for the duration of an ad and of the platform's pause.
+// ⚠️ ITS OWN FLAG, WE DO NOT TOUCH `musicVol`: the volume is the player's choice, it lies in
+// localStorage; overwriting it with a temporary muffling is forbidden. That is why we keep the
+// reason separately and on the release we restore exactly what the player chose
+// (including NOT starting the track if the slider stands at zero).
+// ⛔⛔ PRE-WARMING THE BUFFER WAS TRIED AND REMOVED — DO NOT INVENT IT AGAIN.
+// The hypothesis was reasonable: the file is external, 4.4 MB, the tag is `preload="none"`, which means
+// the download starts only with the first gesture. THE MEASUREMENT DID NOT CONFIRM IT. The delay
+// from the gesture to the sound is small even without the warm-up (191 ms on 8 Mbit, 253 on 4, 467 on
+// 1.5), and with the warm-up on 1.5 Mbit it came out at 466 against 469 — that is, NOTHING.
+// ⚠️ And it cost a defect: `load()` on a PLAYING element cuts the sound off — a player who
+// tapped during the intro lost the music a second later (caught by a probe).
+// The price without a gain: 4.4 MB of traffic for someone who may not even touch the screen.
+// ⚠️ The REAL reason for the owner's complaint was a different one — see `unlockBgm` in
+// 90-input: the music waited for the FIRST TOUCH, and a key did not start it at all.
 let musicExtMuted = false;
 function musicSuspend(on){
   musicExtMuted = !!on;
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
   else if (musicVol > 0 && bgm.paused){
-    bgm.volume = musicVol; // инвариант: громкость ДО play (см. блок musicVol)
+    bgm.volume = musicVol; // the invariant: the volume BEFORE play (see the musicVol block)
     bgm.play().catch(()=>{});
   }
 }
 function refreshMainSettings(){
-  // ⚠️ ИЗ `soundVol`, А НЕ ИЗ `CFG.sound ? 100 : 0` — именно та строка теряла
-  // промежуточное положение ползунка (жалоба владельца, см. applySoundVol).
+  // ⚠️ FROM `soundVol`, AND NOT FROM `CFG.sound ? 100 : 0` — that very line lost
+  // the intermediate position of the slider (the owner's complaint, see applySoundVol).
   const snd = $('msSound'); if (snd){ snd.value = Math.round(soundVol * 100); msFill(snd); }
   const mus = $('msMusic'); if (mus){ mus.value = Math.round(musicVol * 100); msFill(mus); }
-  // ⚠️ СВИТЧЕРЫ СИНХРОНИЗИРУЮТСЯ ЗДЕСЬ ЖЕ, а не своим тиком: у ползунка и
-  // свитчера ОДНО состояние (громкость), и две точки обновления разошлись бы —
-  // игрок двинул ползунок на планшете, повернул экран, а свитчер показывает старое.
+  // ⚠️ THE SWITCHERS ARE SYNCHRONISED RIGHT HERE, and not by their own tick: the slider and
+  // the switcher have ONE state (the volume), and two points of updating would diverge —
+  // the player moved the slider on a tablet, rotated the screen, and the switcher shows the old one.
   const sSw = $('msSoundSw'); if (sSw) sSw.setAttribute('aria-checked', soundVol > 0 ? 'true' : 'false');
   const mSw = $('msMusicSw'); if (mSw) mSw.setAttribute('aria-checked', musicVol > 0 ? 'true' : 'false');
   const seg = $('msDiff');
@@ -1958,47 +1958,47 @@ function refreshMainSettings(){
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
 }
 function refreshMainScreen(){
-  // ⚠️ ЕДИНОЕ ЧИСЛО ВЕЗДЕ — liveBalance(), ТОТ ЖЕ вызов, что у игрового чипа
-  // ($('score') в updateHUD). Жалоба владельца 2026-07-27: «во время игры одно
-  // число, а на пузе второе — игрок всегда и везде видит свой единый баланс».
-  // Причина расхождения была: чип показывал liveBalance (забанкованное +
-  // незабанкованный счёт текущего уровня ÷10), а меню — starBalance (только
-  // забанкованное), т.е. открытие меню посреди уровня «съедало» заработанное
-  // за партию. Теперь оба читают liveBalance.
-  // ⚠️ НЕ totalStars: сумма рейтинга уровней живёт отдельно и не тратится —
-  // показывать её как валюту было бы враньём.
+  // ⚠️ ONE NUMBER EVERYWHERE — liveBalance(), THE SAME call as the game chip's
+  // ($('score') in updateHUD). The owner's complaint 2026-07-27: «during the game one
+  // number, and on the belly a second one — the player must always and everywhere see his single balance».
+  // The reason for the divergence was: the chip showed liveBalance (the banked +
+  // the unbanked score of the current level ÷10), while the menu showed starBalance (only
+  // the banked one), i.e. opening the menu in the middle of a level «ate» what had been earned
+  // during the run. Now both read liveBalance.
+  // ⚠️ NOT totalStars: the sum of the levels' ratings lives separately and is not spent —
+  // showing it as a currency would be a lie.
   const st = $('msStars');
-  const бал = typeof liveBalance === 'function' ? liveBalance()
+  const bal = typeof liveBalance === 'function' ? liveBalance()
               : (typeof starBalance === 'function' ? starBalance() : 0);
-  setWalletNumber(st, бал);
-  // ЗЕРКАЛО В ПЛАВАЮЩЕЙ ШАПКЕ — ТОТ ЖЕ ПИСАТЕЛЬ. Отдельный расчёт завёл бы
-  // второй источник одного числа: они разъезжаются на первом же начислении.
+  setWalletNumber(st, bal);
+  // THE MIRROR IN THE FLOATING HEADER — THE SAME WRITER. A separate computation would introduce
+  // a second source of one number: they diverge on the very first accrual.
   const st2 = $('msStars2');
-  if (st2) setWalletNumber(st2, бал);
-  // роль кнопки: нет живой партии — «Play Game» (старт), иначе «Resume»
+  if (st2) setWalletNumber(st2, bal);
+  // the button's role: there is no live run — «Play Game» (a start), otherwise «Resume»
   const btn = $('msPlayBtn');
-  const роль = (!level || level.over) ? 'Play Game' : 'Resume';
-  if (btn) btn.textContent = роль;
-  // ПЛАВАЮЩАЯ КНОПКА (нода 815:1521) — ТОТ ЖЕ ПИСАТЕЛЬ РОЛИ. Заводить ей
-  // собственный расчёт нельзя: два источника одной подписи разъезжаются на
-  // первом же переходе (в ноде стоит «Resume», но без живой партии это «Play
-  // Game», и кнопки не должны спорить между собой).
+  const role = (!level || level.over) ? 'Play Game' : 'Resume';
+  if (btn) btn.textContent = role;
+  // THE FLOATING BUTTON (node 815:1521) — THE SAME WRITER OF THE ROLE. Giving it
+  // its own computation is forbidden: two sources of one caption diverge on
+  // the very first transition (the node says «Resume», but without a live run this is «Play
+  // Game», and the buttons must not argue with each other).
   const fl = $('msFloatResume');
-  if (fl) fl.textContent = роль;
+  if (fl) fl.textContent = role;
   refreshMainSettings();
   buildMainCollection();
 }
-// ⚠️ ВЛАДЕНИЕ ПАУЗОЙ (контракт 99-main, тот же паттерн, что у рекламы в
-// 78-ads): pauseGame(silent) отдаёт true ТОЛЬКО если паузу поставил именно
-// этот вызов. Резюмить ЧУЖУЮ паузу (рекламную или от visibilitychange)
-// нельзя — игрок вернулся бы в живую игру, которую не возобновлял. Поэтому
-// меню (а) ставит паузу ТИХО (silent — своя карточка вместо pauseOverlay),
-// (б) над чужой паузой НЕ открывается вовсе, (в) снимает только свою.
+// ⚠️ THE OWNERSHIP OF THE PAUSE (the 99-main contract, the same pattern as with the ads in
+// 78-ads): pauseGame(silent) returns true ONLY if the pause was set by this very
+// call. Resuming SOMEBODY ELSE'S pause (an ad one or one from visibilitychange)
+// is forbidden — the player would return into a live game that he did not resume. That is why
+// the menu (a) sets the pause QUIETLY (silent — its own card instead of pauseOverlay),
+// (b) does NOT open over somebody else's pause at all, (c) lifts only its own.
 let menuPaused = false;
-// ЦЕННИКИ БАНДЛОВ ЖИВЫМИ (находка Интеграции 2026-08-03: на карточках были
-// зашиты ДОЛЛАРЫ, а игрок платит в GAM — «неправда на экране»). Каталог
-// асинхронный: до его прихода стоят зашитые лейблы-фолбэки, после — цена
-// площадки (Ads.priceOf). Зовётся при каждом открытии магазина звёзд.
+// THE BUNDLE PRICE TAGS LIVE (Integration's find 2026-08-03: the cards had
+// DOLLARS hard-wired, while the player pays in GAM — «an untruth on the screen»). The catalogue
+// is asynchronous: until it arrives the hard-wired fallback labels stand, afterwards — the platform's
+// price (Ads.priceOf). It is called on every opening of the star shop.
 function refreshBundlePrices(){
   try {
     if (!(typeof Ads === 'object' && Ads.priceOf)) return;
@@ -2008,9 +2008,9 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
-// ПРОФИЛЬ ГОСТЯ: имя-животное + аватар чистым цветом из хеша имени
-// (слово владельца 2026-08-04; 🫐-плейсхолдер уходит). HSL: тон из хеша,
-// сочность фиксированная — любое имя даёт читаемый кружок.
+// THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
+// (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,
+// the saturation fixed — any name gives a readable circle.
 function refreshGuestProfile(){
   try {
     const name = (typeof guestName === 'function') ? guestName() : 'Guest';
@@ -2021,54 +2021,54 @@ function refreshGuestProfile(){
       let h = 0;
       for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
       av.dataset.gn = name;
-      av.textContent = '';                        // 🫐-плейсхолдер уходит
-      // АВАТАРЫ ВЛАДЕЛЬЦА (папка avatars/, слово 2026-08-05: «они должны быть
-      // вписаны в текущий размер окружности, но быть все без фона, поэтому и
-      // png»). Файл выбирается ДЕТЕРМИНИРОВАННО по имени: один гость — один
-      // аватар навсегда, как и его имя. Цветной круг остаётся ПОДЛОЖКОЙ:
-      // картинки прозрачные, и без него они висели бы в пустоте.
-      // ⚠️ БЕЗ ПОДЛОЖКИ (слово владельца 2026-08-05: «под картинкой не должно
-      // быть никакого фона»). Прежняя цветная заливка отменена — аватары
-      // владельца сами несут форму и цвет, круг под ними давал второй ободок.
+      av.textContent = '';                        // the 🫐 placeholder goes
+      // THE OWNER'S AVATARS (the avatars/ folder, his word 2026-08-05: «they must be
+      // fitted into the current size of the circle, but all be without a background, hence
+      // png»). The file is chosen DETERMINISTICALLY by the name: one guest — one
+      // avatar forever, just like his name. The coloured circle stays a BACKING:
+      // the pictures are transparent, and without it they would hang in a void.
+      // ⚠️ WITHOUT A BACKING (the owner's word 2026-08-05: «under the picture there must
+      // be no background at all»). The former coloured fill is cancelled — the owner's
+      // avatars carry the shape and the colour themselves, and a circle under them gave a second rim.
       av.style.background = 'transparent';
-      // ⚠️ АВАТАР ИЗ КЛЮЧА ИГРОКА, а не из хеша имени (слово владельца
-      // 2026-08-07 «лучше свести к одному»): личность одинакова на всех
-      // устройствах, потому что ключ сходится мержем, а имя выводится из него.
+      // ⚠️ THE AVATAR FROM THE PLAYER'S KEY, and not from the name's hash (the owner's word
+      // 2026-08-07 «better to reduce it to one»): the identity is the same on all
+      // devices, because the key converges by a merge, and the name is derived from it.
       const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
       const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
       const img = document.createElement('img');
       img.src = file; img.alt = ''; img.decoding = 'async';
-      // ⚠️ БЕЗ border-radius НА КАРТИНКЕ (жалоба владельца 2026-08-06 «рваные
-      // пиксели по контуру»): аватар УЖЕ круглый и со сглаженной альфой
-      // (замер исходника: 48 градаций, 199 полупрозрачных пикселей по краю).
-      // Наша круглая обрезка резала ПОВЕРХ этого края — граница клипа
-      // ступенчатая, и она видна как рваный контур. Ассеты владельца при
-      // этом не трогаем: он прямо запретил их «оптимизировать».
+      // ⚠️ WITHOUT border-radius ON THE PICTURE (the owner's complaint 2026-08-06 «ragged
+      // pixels along the outline»): the avatar is ALREADY round and with a smoothed alpha
+      // (a measurement of the source: 48 gradations, 199 semi-transparent pixels along the edge).
+      // Our round clipping cut ON TOP OF that edge — the clip's boundary is
+      // stepped, and it is visible as a ragged outline. The owner's assets we
+      // do not touch: he explicitly forbade «optimising» them.
       img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
       av.appendChild(img);
     }
   } catch(e){}
 }
-// ===== ЗВЁЗДЫ НА КАРТОЧКЕ PLAY (слово владельца 2026-08-10) =====
-// «Добавь сюда звёзды в ночной теме, как на экране игры». Тогда карточка НЕСЛА
-// градиент неба (`--sky-grad` в shell.html) и ночью выглядела ночным небом —
-// не хватало только звёзд.
-// ⛔ НАДГРОБИЕ 2026-08-20: у карточки теперь `background:transparent` (слово
-// владельца «100% прозрачный фон»), небо под звёздами даёт САМ ЭКРАН паузы.
-// ⚠️ Слой всё равно недостижим — тема стала только дневной; оставлен, как и
-// вся ночная ветка.
-// ⚠️⚠️ ЧИСЛА БЕРУТСЯ ИЗ ТЕХ ЖЕ КОНСТАНТ, ЧТО У ШЕЙДЕРА НЕБА (`STAR_*`,
-// 00-config): распределение размера (`STAR_SIZE_MIN`/`STAR_SIZE_BIAS`), обе
-// скорости и амплитуды моргания и пульса, доля пульсирующих. Копия чисел
-// «на глаз» разошлась бы с небом при первой же правке палитры — ровно тот
-// закон, на котором проект обжигался не раз.
-// ⛔ ПОЧЕМУ КАНВАС, А НЕ НАБОР `radial-gradient`: у неба звёзды МОРГАЮТ, и
-// каждая десятая ещё и пульсирует (спека владельца) — CSS-градиентами это не
-// выражается, а статичная россыпь читается как текстура, а не как небо.
-const MS_SKY_PER_KPX = 0.55;   // звёзд на 1000 px² карточки — плотность подобрана к небу
+// ===== THE STARS ON THE PLAY CARD (the owner's word 2026-08-10) =====
+// «Add stars here in the night theme, like on the game screen». Back then the card CARRIED
+// the sky's gradient (`--sky-grad` in shell.html) and at night looked like a night sky —
+// only the stars were missing.
+// ⛔ TOMBSTONE 2026-08-20: the card now has `background:transparent` (the owner's
+// word «a 100% transparent background»), the sky under the stars is given by THE PAUSE SCREEN ITSELF.
+// ⚠️ The layer is unreachable anyway — the theme became daytime only; it is left, as is
+// the whole night branch.
+// ⚠️⚠️ THE NUMBERS ARE TAKEN FROM THE SAME CONSTANTS AS THE SKY'S SHADER (`STAR_*`,
+// 00-config): the size distribution (`STAR_SIZE_MIN`/`STAR_SIZE_BIAS`), both
+// speeds and amplitudes of the twinkle and the pulse, the fraction of the pulsing ones. A copy of the numbers
+// «by eye» would diverge from the sky at the very first edit of the palette — exactly the
+// law on which the project has been burned more than once.
+// ⛔ WHY A CANVAS AND NOT A SET OF `radial-gradient`s: in the sky the stars TWINKLE, and
+// every tenth one also pulses (the owner's spec) — this cannot be expressed
+// with CSS gradients, and a static scattering reads as a texture, not as a sky.
+const MS_SKY_PER_KPX = 0.55;   // stars per 1000 px² of the card — the density was matched to the sky
 let msSkyRaf = 0, msSkyStars = null, msSkyW = 0, msSkyH = 0;
-// хеш из индекса — детерминированный, как у ячеек неба: одна и та же карточка
-// даёт одно и то же небо, а не мерцающую кашу при каждом открытии меню
+// a hash from the index — deterministic, as with the sky's cells: one and the same card
+// gives one and the same sky, and not a flickering mess on every opening of the menu
 function msSkyHash(i, k){ const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }
 function msSkyBuild(w, h){
   const n = Math.max(24, Math.round(w * h / 1000 * MS_SKY_PER_KPX));
@@ -2077,13 +2077,13 @@ function msSkyBuild(w, h){
     const hs = msSkyHash(i, 3);
     out.push({
       x: msSkyHash(i, 1) * w, y: msSkyHash(i, 2) * h,
-      // ⚠️ ТА ЖЕ ФОРМУЛА РАЗМЕРА, ЧТО В ШЕЙДЕРЕ: смещение выборки к мелким
-      // (спека владельца «больше мелких звёзд, не меняя их количество»).
+      // ⚠️ THE SAME SIZE FORMULA AS IN THE SHADER: a bias of the sampling towards the small ones
+      // (the owner's spec «more small stars, without changing their number»).
       r: (STAR_SIZE_MIN + (1 - STAR_SIZE_MIN) * Math.pow(hs, STAR_SIZE_BIAS)) * 1.6,
       ph: msSkyHash(i, 4) * Math.PI * 2,
-      // ⚠️ ОТБОР ПУЛЬСИРУЮЩИХ — ОТДЕЛЬНЫМ хешем, как у неба: иначе пульс
-      // коррелировал бы с размером и «одна из десяти» превратилась бы
-      // в «самые крупные».
+      // ⚠️ THE SELECTION OF THE PULSING ONES IS BY A SEPARATE hash, as with the sky: otherwise the pulse
+      // would correlate with the size and «one in ten» would turn
+      // into «the largest ones».
       pulse: msSkyHash(i, 5) < STAR_PULSE_FRAC, pph: msSkyHash(i, 6) * Math.PI * 2,
     });
   }
@@ -2103,14 +2103,14 @@ function msSkyDraw(t){
   }
   g.globalAlpha = 1;
 }
-// ⚠️ ГЕЙТ ДВОЙНОЙ: ночь И открытое меню. Днём слоя нет вовсе (у неба днём
-// звёзд тоже нет), а при закрытом меню rAF не крутится — карточка живёт в
-// поддереве, которое просто скрыто, и без явной остановки цикл жил бы ВЕСЬ
-// геймплей (та же грабля, что уже ловили у тап-спина коллекции).
+// ⚠️ THE GATE IS DOUBLE: night AND an open menu. In the daytime the layer is not there at all (the sky
+// has no stars in the daytime either), and with the menu closed the rAF does not spin — the card lives in
+// a subtree that is simply hidden, and without an explicit stop the loop would live through the WHOLE
+// gameplay (the same rake we already caught with the collection's tap spin).
 function msSkyStart(){
   const c = $('msNightSky'), host = c && c.parentNode; if (!c || !host) return;
-  const ночь = (typeof isNightSky === 'function') ? isNightSky() : false;
-  if (!ночь){ msSkyStop(); c.style.display = 'none'; return; }
+  const night = (typeof isNightSky === 'function') ? isNightSky() : false;
+  if (!night){ msSkyStop(); c.style.display = 'none'; return; }
   const r = host.getBoundingClientRect();
   const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
   if (!w || !h) return;
@@ -2124,17 +2124,17 @@ function msSkyStart(){
   c.style.display = 'block';
   if (msSkyRaf) return;
   const t0 = performance.now();
-  const тик = () => {
+  const tick = () => {
     msSkyRaf = 0;
     if (!$('mainScreen') || !$('mainScreen').classList.contains('open')){ return; }
     msSkyDraw((performance.now() - t0) / 1000);
-    msSkyRaf = requestAnimationFrame(тик);
+    msSkyRaf = requestAnimationFrame(tick);
   };
-  msSkyRaf = requestAnimationFrame(тик);
+  msSkyRaf = requestAnimationFrame(tick);
 }
-// ⚠️ ПЕРЕСТРОЙКА ПРИ СМЕНЕ РАЗМЕРА: без неё канвас растягивается CSS'ом
-// (`width:100%`), и звёзды после поворота телефона превращаются в эллипсы —
-// до переоткрытия меню. `msSkyStart` перемеряет сам и сам решает, надо ли.
+// ⚠️ A REBUILD ON A SIZE CHANGE: without it the canvas is stretched by the CSS
+// (`width:100%`), and after a rotation of the phone the stars turn into ellipses —
+// until the menu is reopened. `msSkyStart` re-measures by itself and decides by itself whether it is needed.
 try {
   window.addEventListener('resize', function (){
     if (!$('mainScreen') || !$('mainScreen').classList.contains('open')) return;
@@ -2146,115 +2146,115 @@ function msSkyStop(){
   const c = $('msNightSky'); if (c) c.style.display = 'none';
 }
 function openMainScreen(){
-  // телеметрия меню (дыра из ревью Интеграции: #mainScreen открывается
-  // классом .open мимо show()/SCREEN_OF — крупнейший экран не трекался)
+  // the menu's telemetry (a hole from Integration's review: #mainScreen is opened
+  // by the .open class bypassing show()/SCREEN_OF — the largest screen was not tracked)
   try { Telemetry.screen.enter('menu'); } catch(e){}
   try { refreshGuestProfile(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
-  if (!menuPaused && paused) return; // чужая пауза (реклама/вкладка) — не лезем
-  // ⚠️⚠️ БАНКУЕМ СЧЁТ ПАРТИИ ПЕРЕД ПОКАЗОМ — ЖАЛОБА ВЛАДЕЛЬЦА «разные значения»
-  // (в шапке 9445, в строке таблицы 9 367). Замер объяснил разницу ровно:
-  // шапка читает liveBalance (банк + НЕзабанкованный счёт текущего уровня), а
-  // на сервере лежит только ЗАБАНКОВАННОЕ — 78 и есть счёт партии ÷10.
-  // Канон 2026-07-24: «balance показывается ВЕЗДЕ — чип, кошелёк, лидерборд»,
-  // то есть два числа спорить не имеют права.
-  // ⛔ Обратный путь (показывать в меню starBalance) ЗАПРЕЩЁН прежним словом
-  // владельца 2026-07-27: «во время игры одно число, а на пузе второе» — его
-  // уже чинили, повторять нельзя. Значит сводим ВВЕРХ: банкуем.
-  // ⚠️ Своего тракта нет — зовём тот же bankLive, которым пользуется покупка
-  // («банк по требованию»): он двигает водяной знак level.banked, поэтому
-  // победа не забанкует это второй раз, а упавший потом счёт корректируется
-  // через ss в bankLevelScore. Без заработка возвращает 0 и события не шлёт —
-  // переоткрытие меню сеть не дёргает.
-  // ⚠️ ПОСЛЕ гварда чужой паузы и ДО refreshMainScreen: иначе шапка успела бы
-  // отрисовать число до банка, а строка таблицы — после.
+  if (!menuPaused && paused) return; // somebody else's pause (an ad / the tab) — we do not meddle
+  // ⚠️⚠️ WE BANK THE RUN'S SCORE BEFORE THE DISPLAY — THE OWNER'S COMPLAINT «different values»
+  // (9445 in the header, 9 367 in the leaderboard row). The measurement explained the difference exactly:
+  // the header reads liveBalance (the bank + the UNbanked score of the current level), while
+  // on the server there lies only the BANKED one — and 78 is exactly the run's score ÷10.
+  // The canon of 2026-07-24: «the balance is shown EVERYWHERE — the chip, the wallet, the leaderboard»,
+  // that is, two numbers have no right to argue.
+  // ⛔ The reverse path (showing starBalance in the menu) is FORBIDDEN by the owner's earlier word
+  // 2026-07-27: «during the game one number, and on the belly a second one» — that has
+  // already been fixed, and it must not be repeated. Which means we reconcile UPWARDS: we bank.
+  // ⚠️ There is no path of our own — we call the same bankLive that the purchase uses
+  // («banking on demand»): it moves the level.banked watermark, so that
+  // a win does not bank this a second time, while a score that later falls is corrected
+  // through ss in bankLevelScore. Without any earnings it returns 0 and sends no events —
+  // reopening the menu does not touch the network.
+  // ⚠️ AFTER the guard of somebody else's pause and BEFORE refreshMainScreen: otherwise the header would manage
+  // to draw the number before the banking, and the leaderboard row — after it.
   try { if (typeof bankLive === 'function') bankLive(); } catch(e){}
   refreshMainScreen();
-  // ⚠️ ПОСЛЕ гварда чужой паузы: при отказе открыться ни канваса, ни цикла
-  // заводиться не должно. Размер берём отложенно — у только что показанной
-  // карточки rect ещё нулевой (та же природа, что у спина в коллекции).
+  // ⚠️ AFTER the guard of somebody else's pause: if the opening is refused, neither the canvas nor the loop
+  // must be started. We take the size deferred — a card that has only just been shown
+  // still has a zero rect (the same nature as with the spin in the collection).
   setTimeout(()=>{ try { msSkyStart(); } catch(e){} }, 0);
-  // ⚠️ ПОСЛЕ ГВАРДА ЧУЖОЙ ПАУЗЫ: при отказе открыться сетевого захода быть не
-  // должно. Сам вызов ничего не ждёт — числа приезжают асинхронно из кэша
-  // `__lb`, а до их прихода блок стоит с прежними (или пустыми) значениями.
+  // ⚠️ AFTER THE GUARD OF SOMEBODY ELSE'S PAUSE: if the opening is refused there must be no network
+  // trip. The call itself waits for nothing — the numbers arrive asynchronously from the `__lb`
+  // cache, and until they arrive the block stands with the former (or empty) values.
   try { lbEntryRefresh(); } catch(e){}
   const ms = $('mainScreen');
-  // «Было ли открыто» снимается ДО add('open') — проверка после него всегда
-  // ложна, и сброс превращался в мёртвый код (поймано стражем переоткрытия).
+  // «Whether it was open» is taken BEFORE add('open') — a check after it is always
+  // false, and the reset turned into dead code (caught by the reopening guard).
   const wasOpen = ms.classList.contains('open');
   ms.classList.add('open');
-  // КРОМКА ЭКРАНА В ТОНЕ МЕНЮ (жалоба владельца «в меню паузы сверху
-  // прокидывается фон игры»). Сам `#mainScreen` стоит inset:0 и закрывает
-  // весь вьюпорт — «фон игры» протекал ПОЛОСОЙ ХРОМА, которую Safari красит
-  // по background-color html/body (там цвет неба от tintChrome). Правило —
-  // `html.menuopen` в shell.html; ставится ПОСЛЕ гварда чужой паузы, иначе
-  // при отказе открыться кромка перекрасилась бы под невидимое меню.
+  // THE SCREEN'S EDGE IN THE MENU'S TONE (the owner's complaint «in the pause menu the game's
+  // background leaks through at the top»). `#mainScreen` itself stands at inset:0 and covers
+  // the whole viewport — the «game's background» leaked through the CHROME STRIP, which Safari paints
+  // by the background-color of html/body (there the sky's colour comes from tintChrome). The rule is
+  // `html.menuopen` in shell.html; it is set AFTER the guard of somebody else's pause, otherwise
+  // if the opening were refused the edge would be repainted for an invisible menu.
   document.documentElement.classList.add('menuopen');
-  // ⛔⛔ ПЕРЕКРАСКА КРОМКИ ПОД МЕНЮ СНЯТА (решение владельца 2026-08-12): полосы
-  // берут ТЕМУ УСТРОЙСТВА, а вью отделён от них скруглением 40px. Здесь стоял
-  // `chromeMeta(menuChrome())` — второй канал кромки, заведённый 2026-08-10,
-  // когда цвет полосы ещё подбирался под экран.
-  // ⚠️ КЛАСС `menuopen` СТАВИТСЯ ПО-ПРЕЖНЕМУ — на нём висят другие правила;
-  // снята только покраска.
-  // СБРОС ПРОКРУТКИ — ТОЛЬКО ПРИ ФАКТИЧЕСКОМ ОТКРЫТИИ. Контейнер помнит
-  // scrollTop между открытиями, и без сброса меню открывалось бы сразу с
-  // плавающей шапкой и кнопкой поверх видимой карточки Play.
-  // ⚠️ НО НЕ БЕЗУСЛОВНО: `openMainScreen` зовётся ещё и по visibilitychange
-  // (90-input) — при уходе вкладки в фон НА УЖЕ ОТКРЫТОМ меню. Безусловный
-  // сброс выбрасывал игрока из середины коллекции в самый верх (замер: 3000 →
-  // 0). Классы снимаем ЯВНО: scrollTop=0 события scroll не рождает.
+  // ⛔⛔ THE REPAINTING OF THE EDGE FOR THE MENU WAS REMOVED (the owner's decision 2026-08-12): the strips
+  // take THE DEVICE'S THEME, while the view is separated from them by a 40px rounding. Here stood
+  // `chromeMeta(menuChrome())` — the second channel of the edge, introduced 2026-08-10,
+  // when the strip's colour was still being matched to the screen.
+  // ⚠️ THE `menuopen` CLASS IS STILL SET — other rules hang on it;
+  // only the painting was removed.
+  // THE SCROLL RESET — ONLY ON AN ACTUAL OPENING. The container remembers
+  // scrollTop between openings, and without the reset the menu would open straight away with
+  // the floating header and the button on top of the visible Play card.
+  // ⚠️ BUT NOT UNCONDITIONALLY: `openMainScreen` is also called on visibilitychange
+  // (90-input) — when the tab goes into the background WITH THE MENU ALREADY OPEN. An unconditional
+  // reset threw the player out of the middle of the collection right to the top (measurement: 3000 →
+  // 0). We remove the classes EXPLICITLY: scrollTop=0 does not produce a scroll event.
   if (!wasOpen){
     ms.scrollTop = 0;
     ms.classList.remove('playoff');
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
-  menuEyesStart(); // #8b: оживить глаза меню (курсор/оглядка)
+  menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
 }
-// ЕДИНАЯ ТОЧКА ЗАПИСИ ВТОРОГО КАНАЛА КРОМКИ (мета `theme-color`). Отдельная
-// функция, а не строка в двух местах: копия признака рядом с рабочей величиной
-// расходится с ней при первой же правке (закон канона, четыре случая за неделю).
-// ⚠️ В МЕНЮ ОБА КАНАЛА НЕСУТ ФОН МЕНЮ (слово владельца 2026-08-10, отмена
-// нейтрали). Меню прокручивается, но его СТРАНИЧНЫЙ фон постоянен — карточки
-// плавают ПОВЕРХ него, поэтому попадание в тон здесь возможно.
-// ⚠️ Читается из `--ms-bg`, а не литералом: фон меню объявлен один раз, и
-// копия рядом с ним разошлась бы при первой же правке палитры меню.
-// ⚠️ Прошлое состояние темы — для перекраски кромки ТОЛЬКО на переходе.
-// ⚠️ ОБЪЯВЛЕНИЕ ЧУТЬ НЕ ПОГИБЛО: оно стояло вплотную к снятому блоку
-// нейтрали, и правка «вырезать блок» унесла его заодно — сьют поймал
-// ошибкой страницы. Режешь диапазон — проверь, что на его краях.
+// THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
+// function, and not a line in two places: a copy of a flag next to a working quantity
+// diverges from it at the very first edit (the canon's law, four cases in a week).
+// ⚠️ IN THE MENU BOTH CHANNELS CARRY THE MENU'S BACKGROUND (the owner's word 2026-08-10, the cancellation
+// of the neutral). The menu scrolls, but its PAGE background is constant — the cards
+// float ON TOP of it, which is why hitting the tone is possible here.
+// ⚠️ It is read from `--ms-bg` and not as a literal: the menu's background is declared once, and
+// a copy next to it would diverge at the very first edit of the menu's palette.
+// ⚠️ The previous state of the theme — for repainting the edge ONLY on the transition.
+// ⚠️ THE DECLARATION NEARLY PERISHED: it stood right against the removed neutral
+// block, and the edit «cut out the block» carried it along — the suite caught it
+// with a page error. When you cut a range — check what is at its edges.
 let hudWasNight = null;
-// ⛔ menuChrome/chromeMeta вырезаны уборкой 2026-08-12: 4-я редакция кромок
-// (чёрный всегда, статически) оставила их без единого читателя. Моё же
-// «menuChrome жива — её читает страж» оказалось неправдой по переписи.
+// ⛔ menuChrome/chromeMeta were cut out by the cleanup of 2026-08-12: the 4th edition of the edges
+// (black always, statically) left them without a single reader. My own
+// «menuChrome is alive — a guard reads it» turned out to be untrue by the census.
 function closeMainScreen(){
-  // #4: тап-спин крутит offscreen-WebGL rAF; без mouseleave он бы жил ВЕСЬ
-  // геймплей (карточка уходит в display:none-поддерево, guard parentNode в
-  // spinTick не срабатывает — оно ещё в DOM). Гасим явно + возвращаем img.
+  // #4: the tap spin drives an offscreen-WebGL rAF; without a mouseleave it would live through the WHOLE
+  // gameplay (the card goes into a display:none subtree, the parentNode guard in
+  // spinTick does not fire — it is still in the DOM). We kill it explicitly + restore the img.
   if (msTapSpinCard){ thumbSpinStop(); msTapSpinRestore(); }
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
-  // Плавающая шапка — ОТДЕЛЬНЫЙ fixed-узел ВНЕ #mainScreen (z-index 31):
-  // закрытие экрана её не прячет. Без явного гашения она переживала закрытие
-  // и висела над игрой (скрин владельца 2026-07-31: прокрутил меню, нажал
-  // плавающую Resume — плашка «My collection» проникла на игровой экран).
+  // The floating header is a SEPARATE fixed node OUTSIDE #mainScreen (z-index 31):
+  // closing the screen does not hide it. Without an explicit dismissal it survived the closing
+  // and hung over the game (the owner's screenshot 2026-07-31: he scrolled the menu, pressed
+  // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
 }
-// #8b ЖИВЫЕ ГЛАЗА МЕНЮ (спека владельца): десктоп — зрачки СЛЕДЯТ за курсором;
-// тач — зациклённая мягкая «оглядка» (курсора нет). Зрачок не выходит за белок.
-// Активно ТОЛЬКО пока меню открыто (перф). НЕ путать с игровым #face.
+// #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
+// on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.
+// It is active ONLY while the menu is open (perf). NOT to be confused with the game's #face.
 let _menuEyesInit = false, _menuEyesRun = false;
 function menuEyesStart(){
   const eyes = document.querySelector('.ms-eyes');
   const pL = $('msPupL'), pR = $('msPupR');
   if (!eyes || !pL || !pR) return;
-  const CX_L = 60, CX_R = 180, CY = 60, MAXOFF = 29; // зрачок r29 в белке r60 → ход 29
+  const CX_L = 60, CX_R = 180, CY = 60, MAXOFF = 29; // a pupil of r29 in a white of r60 → a travel of 29
   const menuOpen = () => { const m = $('mainScreen'); return !!(m && m.classList.contains('open')); };
   const center = () => { pL.setAttribute('cx', CX_L); pR.setAttribute('cx', CX_R); pL.setAttribute('cy', CY); pR.setAttribute('cy', CY); };
   const clamp = (dx, dy) => { const d = Math.hypot(dx, dy); return d > MAXOFF ? [dx / d * MAXOFF, dy / d * MAXOFF] : [dx, dy]; };
   const offset = (ox, oy) => { pL.setAttribute('cx', (CX_L + ox).toFixed(1)); pR.setAttribute('cx', (CX_R + ox).toFixed(1)); pL.setAttribute('cy', (CY + oy).toFixed(1)); pR.setAttribute('cy', (CY + oy).toFixed(1)); };
-  const look = (tx, ty) => { // десктоп: оба зрачка сходятся к курсору
+  const look = (tx, ty) => { // desktop: both pupils converge on the cursor
     const [lx, ly] = clamp(tx - CX_L, ty - CY); pL.setAttribute('cx', (CX_L + lx).toFixed(1)); pL.setAttribute('cy', (CY + ly).toFixed(1));
     const [rx, ry] = clamp(tx - CX_R, ty - CY); pR.setAttribute('cx', (CX_R + rx).toFixed(1)); pR.setAttribute('cy', (CY + ry).toFixed(1));
   };
@@ -2268,8 +2268,8 @@ function menuEyesStart(){
       look((e.clientX - r.left) / r.width * 240, (e.clientY - r.top) / r.height * 120);
     }, { passive: true });
   }
-  if (canHover || reduce) return;            // десктоп двигает на pointermove; reduce — статичные зрачки
-  if (_menuEyesRun) return; _menuEyesRun = true;   // тач: зациклённая мягкая «оглядка»
+  if (canHover || reduce) return;            // the desktop moves them on pointermove; reduce — static pupils
+  if (_menuEyesRun) return; _menuEyesRun = true;   // touch: a looped soft «looking around»
   requestAnimationFrame(function loop(ts){
     if (!menuOpen()){ _menuEyesRun = false; center(); return; }
     const t = ts / 1000, [ox, oy] = clamp(Math.cos(t * 0.8) * 26, Math.sin(t * 1.25) * 17);
@@ -2277,54 +2277,54 @@ function menuEyesStart(){
     requestAnimationFrame(loop);
   });
 }
-// живое обновление шапки/цен при трате или начислении звёзд (подписка МЕТЫ)
+// a live update of the header/prices on a spend or an accrual of stars (META's subscription)
 if (typeof onStarsChange === 'function') onStarsChange(()=>{
   if ($('mainScreen').classList.contains('open')) refreshMainScreen();
-  // ⚠️⚠️ ТОЧКА ВХОДА ПЕРЕСЧИТЫВАЕТСЯ ЗДЕСЬ ЖЕ (жалоба владельца 2026-08-17-д
-  // «всё такая же задержка при трате очков»). Прежде она обновлялась только на
-  // ОТКРЫТИИ меню и на `onSent` — а тратит игрок, СТОЯ В МЕНЮ, и до ответа
-  // сервера (частота отправки 20 с) рядом со свежей пилюлей висело старое
-  // место. Ровно тот же разрыв, что закрывали экрану таблицы 2026-08-13, — у
-  // соседнего блока он остался незакрытым.
-  // ⚠️ Сети это не стоит: `me()`/`top()` в `__lb` кэшированы, а место считает
-  // `lbRankNow` из уже полученных соседей. Трогаем только открытое меню.
+  // ⚠️⚠️ THE ENTRY POINT IS RECOMPUTED RIGHT HERE (the owner's complaint 2026-08-17-d
+  // «there is still the same delay when spending points»). Previously it was updated only on
+  // the OPENING of the menu and on `onSent` — but the player spends STANDING IN THE MENU, and until the server's
+  // answer (a send rate of 20 s) the old rank hung next to a fresh
+  // pill. Exactly the same gap that was closed for the leaderboard screen on 2026-08-13 — for
+  // the neighbouring block it stayed unclosed.
+  // ⚠️ It does not cost the network: `me()`/`top()` in `__lb` are cached, and the rank is computed by
+  // `lbRankNow` from the neighbours already received. We touch only an open menu.
   if ($('mainScreen').classList.contains('open')){
     try { lbEntryRefresh(); } catch (e) {}
   }
-  // МГНОВЕННЫЙ пересчёт открытой таблицы (жалоба владельца 2026-08-13):
-  // рендер идёт из кэшей __lb + живого счёта, сети не дёргает; сервер потом
-  // догонит через onSent и перерисует ещё раз — уже точным местом
+  // an INSTANT recount of an open leaderboard (the owner's complaint 2026-08-13):
+  // the render goes from the __lb caches + the live score, it does not touch the network; the server will then
+  // catch up through onSent and redraw once more — this time with the exact rank
   try {
     const o = $('lbOverlay');
     if (o && getComputedStyle(o).display !== 'none') lbScreenRender();
   } catch (e) {}
 });
-// debug/preview: открыть экран из консоли
+// debug/preview: open the screen from the console
 window.showMainScreen = openMainScreen;
 window.hideMainScreen = closeMainScreen;
 
 
-// ===== ВИТРИНА УРОВНЯ — макет Figma 768:1061 =====
-// ТОП-5 ПО ПРОГРЕССУ (спека владельца 2026-07-24): видимых строк РОВНО 5, но
-// ранжируются ВСЕ типы уровня по vitFrac — скрытый тип, набравший больше,
-// ВЫТЕСНЯЕТ верхнего (входит в пятёрку, выбывший уходит за кадр). Отменяет
-// «весь замес» (2026-07-23) и авторотацию «собрал→ушёл» (v77): механизм — РАНГ.
-// Ручной скролл невозможен (pointer-events:none). Реалтайм: пересчёт vitFrac
-// ВСЕХ типов раз в 150 мс (число, дёшево — не DOM).
-// ⚠️ ЧИСЛО СЛОТОВ ПОСТОЯННО (VIT_MAX=3, а типов на 1-м уровне ровно 3) → высота #vGrid постоянна →
-// rect #vitrine бит-в-бит: его читает якорь тоста
-// (85-hud). Смена типа в слоте — уезд/въезд ВНУТРИ слота (.out/.in на ДЕТЯХ
-// раскладки нет — на самой ячейке, но число ячеек не меняется), НЕ add/remove.
-// VIT_MAX 5 → 3 (спека владельца 2026-07-28 «давай сюда всё же три строки,
-// и они так же меняются при наборе»): кап строк, ротация НЕ трогается —
-// собранный тип уезжает, на его место встаёт следующий из ranked-очереди.
-// Побочно закрыт открытый вопрос «на высоких уровнях панель уходит выше вьюпорта».
+// ===== THE LEVEL'S SHOWCASE — Figma mockup 768:1061 =====
+// THE TOP 5 BY PROGRESS (the owner's spec 2026-07-24): there are EXACTLY 5 visible rows, but
+// ALL the level's types are ranked by vitFrac — a hidden type that has collected more
+// DISPLACES the top one (it enters the five, the one dropping out goes off screen). It cancels
+// «the whole mix» (2026-07-23) and the auto-rotation «collected→gone» (v77): the mechanism is the RANK.
+// Manual scrolling is impossible (pointer-events:none). Realtime: a recount of vitFrac for
+// ALL the types once every 150 ms (a number, cheap — not the DOM).
+// ⚠️ THE NUMBER OF SLOTS IS CONSTANT (VIT_MAX=3, and at level 1 there are exactly 3 types) → the height of #vGrid is constant →
+// the rect of #vitrine is bit-for-bit: the toast's anchor reads it
+// (85-hud). A type change in a slot is a departure/arrival INSIDE the slot (.out/.in are not on the layout's
+// CHILDREN — they are on the cell itself, but the number of cells does not change), NOT an add/remove.
+// VIT_MAX 5 → 3 (the owner's spec 2026-07-28 «let us have three rows here after all,
+// and they change on collecting just the same»): a cap on the rows, the rotation is NOT touched —
+// a collected type departs, and the next one from the ranked queue takes its place.
+// As a side effect the open question «at high levels the panel goes above the viewport» is closed.
 const VIT_TICK_MS = 150, VIT_MAX = 3;
 let vitLevelRef = null, vitAt = 0, vitSlots = null, vitAll = null;
 function vitrineOn(){
-  // ПРАВИЛО 2/3 (спека владельца 2026-07-27): панель на десктопе И планшетах,
-  // прячется только когда заняла бы >1/3 ширины (порог 813 = 3×271px полосы,
-  // тот же @media в shell.html). pointer:fine снят — планшеты видят панель.
+  // THE 2/3 RULE (the owner's spec 2026-07-27): the panel is on the desktop AND on tablets,
+  // it hides only when it would take up >1/3 of the width (the threshold 813 = 3×271px of the strip,
+  // the same @media in shell.html). pointer:fine was removed — tablets see the panel.
   return window.matchMedia && matchMedia('(min-width:813px)').matches;
 }
 function vitFillCell(cell, entry){
@@ -2339,24 +2339,24 @@ function vitFillCell(cell, entry){
   cell._acc = { last: -1 };
   vitUpdateCell(cell);
 }
-// прогресс полоски типа (0..1) к следующей ступени; на капе = 1. Это КЛЮЧ
-// сортировки витрины (спека владельца «по убыванию, первая — с большим
-// прогрессом; строка меняется, если полоска обгонит первую»).
-// ⚠️⚠️ ПОЛОСКА СЧИТАЕТСЯ ПО ЗАРАБОТАННОЙ СТУПЕНИ — ОБА КОНЦА ОТРЕЗКА.
-// ЖИВАЯ ЖАЛОБА, КОТОРАЯ ЭТО ВСКРЫЛА (владелец 2026-08-11): «были совмещения,
-// но полоски не росли» — на экране победы арбуз стоял на 100%, апельсин на 0.
-// ⛔ ПРИЧИНА: начало отрезка бралось от `accTier` (заработанное ПЛЮС купленный
-// буст), а конец — от `accNext`, который считает по `accCountTier` (только
-// заработанное). У кого буст куплен, `prev` уезжал ВЫШЕ `next`, знаменатель
-// становился отрицательным, и дробь клампилась в 0 или 1 — полоска намертво
-// залипала и переставала реагировать на совмещения.
-// Пример с числами: заработано 150 (ступень 1), куплено 2 → accTier 3 →
-// prev = 700, next = 300 → (150−700)/(300−700) = 1.375 → полная полоска.
-// ⚠️ И ВТОРАЯ КОПИЯ В ТОЙ ЖЕ СТРОКЕ: порог считался формулой руками
-// (`100·(2^t−1)`), хотя рядом живёт `accThreshold`. Теперь обе стороны берут
-// ОДНУ функцию — тот самый закон про копию рядом с рабочей величиной.
-// ⚠️ Полоска показывает ЧЕСТНО ЗАРАБОТАННОЕ, и это осознанно: купленные
-// ступени уже отражены множителем справа, а прогресс — про совмещения.
+// the progress of a type's bar (0..1) towards the next tier; at the cap = 1. This is the KEY
+// of the showcase's sorting (the owner's spec «descending, the first one has the greater
+// progress; a row changes if a bar overtakes the first one»).
+// ⚠️⚠️ THE BAR IS COMPUTED BY THE EARNED TIER — BOTH ENDS OF THE SEGMENT.
+// THE LIVE COMPLAINT THAT UNCOVERED THIS (the owner 2026-08-11): «there were matches,
+// but the bars did not grow» — on the win screen the watermelon stood at 100%, the orange at 0.
+// ⛔ THE REASON: the start of the segment was taken from `accTier` (the earned PLUS the purchased
+// boost), and the end from `accNext`, which counts by `accCountTier` (only
+// the earned). For anyone who had bought a boost, `prev` went ABOVE `next`, the denominator
+// became negative, and the fraction was clamped to 0 or 1 — the bar stuck dead
+// and stopped reacting to matches.
+// An example with numbers: earned 150 (tier 1), bought 2 → accTier 3 →
+// prev = 700, next = 300 → (150−700)/(300−700) = 1.375 → a full bar.
+// ⚠️ AND A SECOND COPY IN THAT SAME LINE: the threshold was computed by a formula by hand
+// (`100·(2^t−1)`), although `accThreshold` lives right next door. Now both sides take
+// ONE function — that very law about a copy next to a working quantity.
+// ⚠️ The bar shows WHAT WAS HONESTLY EARNED, and that is deliberate: the purchased
+// tiers are already reflected by the multiplier on the right, whereas the progress is about matches.
 function vitFrac(k){
   const n = accCount(k), next = accNext(k);
   const prev = accThreshold(accCountTier(k));
@@ -2365,26 +2365,26 @@ function vitFrac(k){
 function vitUpdateCell(cell){
   const k = cell.dataset.key, n = accCount(k);
   if (n === cell._acc.last) return;
-  // рост счётчика = я СОВМЕСТИЛ этот тип (first-set с last=-1 не считаем)
+  // a growth of the counter = I MATCHED this type (the first set with last=-1 does not count)
   const grew = cell._acc.last >= 0 && n > cell._acc.last;
   cell._acc.last = n;
   cell.querySelector('.vbar i').style.width = (vitFrac(k) * 100).toFixed(1) + '%';
   cell.querySelector('.vmult').textContent = fmtMult(accMult(k));
-  if (grew) vitPulse(cell); // ненавязчивая реакция на моё совмещение
+  if (grew) vitPulse(cell); // an unobtrusive reaction to my match
 }
-// короткий подскок портрета + вспышка полоски; рестарт через reflow, чтобы
-// частые совмещения подряд перезапускали анимацию, а не глотали её.
-// ⚠️ СНИМАЕМ ПРЕДЫДУЩИЙ ТАЙМЕР: без этого при двух матчах одного типа за
-// <460 мс (цепь/эндшпиль-∞) старый таймер срывал .hit посреди новой
-// анимации — скачок scale (найдено адверс-ревью 2026-07-23)
+// a short bounce of the portrait + a flash of the bar; the restart is through a reflow, so that
+// frequent matches in a row restart the animation instead of swallowing it.
+// ⚠️ WE CLEAR THE PREVIOUS TIMER: without this, on two matches of one type within
+// <460 ms (a chain / the ∞ endgame) the old timer tore .hit off in the middle of a new
+// animation — a jump of the scale (found by an adversarial review 2026-07-23)
 function vitPulse(cell){
   if (cell._hitT) clearTimeout(cell._hitT);
   cell.classList.remove('hit'); void cell.offsetWidth;
   cell.classList.add('hit');
   cell._hitT = setTimeout(()=>{ cell.classList.remove('hit'); cell._hitT = 0; }, 460);
 }
-// vitAll — ВСЕ типы замеса уровня (не расходуется: ранжируем среди всех, но
-// показываем только топ-5). Строим РОВНО 5 слотов, заполняем топ-5 по прогрессу.
+// vitAll — ALL the types of the level's mix (it is not consumed: we rank among all of them, but
+// we show only the top 5). We build EXACTLY 5 slots and fill them with the top 5 by progress.
 function buildVitrine(){
   vitLevelRef = level;
   const grid = $('vGrid'); grid.innerHTML = '';
@@ -2397,8 +2397,8 @@ function buildVitrine(){
   }
   vitSlots = [];
   const ranked = vitRankedAll();
-  const count = Math.min(VIT_MAX, ranked.length); // РОВНО 3 (типов всегда ≥9)
-  // шаг каскада капим, чтобы разворот не тянулся (~0.45 с)
+  const count = Math.min(VIT_MAX, ranked.length); // EXACTLY 3 (there are always ≥9 types)
+  // we cap the cascade's step so that the unfolding does not drag on (~0.45 s)
   const step = Math.min(0.07, 0.45 / Math.max(1, count));
   for (let i = 0; i < count; i++){
     const cell = document.createElement('div');
@@ -2407,9 +2407,9 @@ function buildVitrine(){
       '<div class="vname"></div><div class="vbar"><i></i></div></div>' +
       '<div class="vmult"></div>';
     vitFillCell(cell, ranked[i]);
-    // КАСКАД РАЗВОРОТА: строки проявляются снизу по очереди (i·step); .rin
-    // снимаем по завершении, чтобы остаточный animation-delay не задержал
-    // будущие .hit/.in на этой же ячейке
+    // THE UNFOLDING CASCADE: the rows appear from the bottom in turn (i·step); we remove
+    // .rin on completion, so that a residual animation-delay does not hold up
+    // future .hit/.in on this same cell
     cell.style.animationDelay = (i * step) + 's';
     cell.classList.add('rin');
     setTimeout(()=>{ cell.classList.remove('rin'); cell.style.animationDelay = ''; }, 520 + i * step * 1000);
@@ -2417,31 +2417,31 @@ function buildVitrine(){
     vitSlots.push(cell);
   }
 }
-// РАНЖИРОВАНИЕ ВСЕХ типов уровня по прогрессу убыванием (тай-брейк — накопление)
+// THE RANKING OF ALL the level's types by progress in descending order (the tie-break is the accumulation)
 function vitRankedAll(){
   return vitAll.slice().sort((a, b) =>
     vitFrac(b.k) - vitFrac(a.k) || accCount(b.k) - accCount(a.k));
 }
-// СОГЛАСОВАНИЕ ТОП-5: держим РОВНО 5 слотов = топ-5 по рангу. Слот, чей тип
-// перестал занимать свою позицию топ-5 (вытеснён скрытым обгонщиком / пересорт),
-// уходит ВВЕРХ и гаснет (.out, 0.28 с), затем перезаполняется актуальным типом
-// позиции и проявляется СНИЗУ (.in) — ТОЛЬКО вертикаль + фейд, без бокового
-// движения (спека владельца 2026-07-24). Слот, где тип не изменился, — обычный
-// vitUpdateCell (полоска + .hit-пульс на совмещении). Число ячеек НЕ меняется
-// → высота #vGrid и rect #vitrine постоянны. reduce-motion: мгновенная замена.
+// THE RECONCILIATION OF THE TOP 5: we keep EXACTLY 5 slots = the top 5 by rank. A slot whose type
+// has stopped occupying its top-5 position (displaced by a hidden overtaker / a re-sort)
+// goes UP and fades out (.out, 0.28 s), then is refilled with the current type of that
+// position and appears FROM BELOW (.in) — ONLY the vertical + a fade, without any sideways
+// movement (the owner's spec 2026-07-24). A slot where the type has not changed gets the ordinary
+// vitUpdateCell (the bar + the .hit pulse on a match). The number of cells does NOT change
+// → the height of #vGrid and the rect of #vitrine are constant. reduce-motion: an instant replacement.
 function vitReconcile(){
   if (!vitSlots || !vitAll) return;
-  const top5 = vitRankedAll().slice(0, VIT_MAX); // имя историческое: теперь топ-3
+  const top5 = vitRankedAll().slice(0, VIT_MAX); // the name is historical: now it is the top 3
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (let i = 0; i < vitSlots.length; i++){
     const cell = vitSlots[i], want = top5[i];
     if (!want) continue;
     if (cell.dataset.key === want.k){ vitUpdateCell(cell); continue; }
-    if (cell.classList.contains('out')) continue; // уже анимируется — не трогаем
+    if (cell.classList.contains('out')) continue; // it is already animating — we do not touch it
     if (reduce){ vitFillCell(cell, want); continue; }
     cell.classList.add('out');
     setTimeout(()=>{
-      // топ мог сдвинуться за 0.28 с — берём АКТУАЛЬНЫЙ тип для этой позиции
+      // the top could have shifted over 0.28 s — we take the CURRENT type for this position
       const w = vitRankedAll()[i];
       cell.classList.remove('out');
       if (w){ vitFillCell(cell, w); void cell.offsetWidth; cell.classList.add('in');
@@ -2450,140 +2450,140 @@ function vitReconcile(){
   }
 }
 function tickVitrine(now){
-  // ⚠️⚠️ ГЕЙТ НЕ ПРОСТО «НЕ СТРОИМ», А УБИРАЕТ УЖЕ ПОСТРОЕННОЕ. Прежняя редакция
-  // выходила первой строкой — и панель, собранная когда гейт был открыт,
-  // оставалась висеть во всей красе: три строки, opacity 1 (замер владельца
-  // глазами, мой зонд подтвердил бит-в-бит). Классическая ошибка гейта: он
-  // закрывает БУДУЩЕЕ действие, а состояние уже создано.
-  // ⚠️ ГАСИМ СУЩЕСТВУЮЩИМ СИГНАЛОМ `vempty` (прозрачность), а не новым правилом:
-  // у `#vitrine` ЧЕТЫРЕ независимых сигнала видимости, разведённых по РАЗНЫМ
-  // свойствам (opacity / display у медиазапроса / clip-path у разворота), и
-  // пятый на том же свойстве спорил бы с ними порядком в файле — фейд умер бы
-  // молча. Пустая панель и правда пуста: строки снимаем.
-  // ⚠️ `vitLevelRef` сбрасываем, иначе возврат на обычный уровень не пересобрал
-  // бы панель — тик строит только при СМЕНЕ уровня.
+  // ⚠️⚠️ THE GATE DOES NOT MERELY «NOT BUILD», IT REMOVES WHAT HAS ALREADY BEEN BUILT. The former edition
+  // returned on the first line — and the panel assembled while the gate was open
+  // stayed hanging in all its glory: three rows, opacity 1 (the owner's measurement by
+  // eye, my probe confirmed it bit-for-bit). The classic gate mistake: it
+  // closes the FUTURE action, while the state has already been created.
+  // ⚠️ WE KILL IT WITH THE EXISTING SIGNAL `vempty` (the opacity), and not with a new rule:
+  // `#vitrine` has FOUR independent visibility signals, spread over DIFFERENT
+  // properties (opacity / display in the media query / clip-path in the unfolding), and
+  // a fifth one on the same property would argue with them by the order in the file — the fade would die
+  // silently. An empty panel really is empty: we remove the rows.
+  // ⚠️ We reset `vitLevelRef`, otherwise a return to an ordinary level would not rebuild
+  // the panel — the tick builds only on a level CHANGE.
   if (!vitrineOn()){
-    // ⚠️⚠️ ГАШЕНИЕ БЕЗУСЛОВНОЕ, И ЭТО ВТОРАЯ ПОПЫТКА. Первая гасила панель
-    // ТОЛЬКО если та была построена (`if (vitSlots || vitLevelRef)`) — а когда
-    // гейт закрыт С ПЕРВОГО КАДРА СЕССИИ, её никто не строил, значит и не гасил:
-    // на десктопе оставалась пустая карточка 24×24 с фоном
-    // `rgba(255,255,255,.16)`. Замер поймал это на ЖИВОЙ ссылке, уже после
-    // заливки.
-    // ⚠️ Тот же класс, что был у самого гейта: условие закрывало ПУТЬ, а не
-    // утверждало СОСТОЯНИЕ. Состояние «панели нет» обязано выполняться при
-    // ЛЮБОМ способе оказаться под закрытым гейтом, включая холодный старт.
+    // ⚠️⚠️ THE KILLING IS UNCONDITIONAL, AND THIS IS THE SECOND ATTEMPT. The first one killed the panel
+    // ONLY if it had been built (`if (vitSlots || vitLevelRef)`) — but when
+    // the gate is closed FROM THE SESSION'S FIRST FRAME, nobody built it, and so nobody killed it either:
+    // on the desktop an empty card of 24×24 with the background
+    // `rgba(255,255,255,.16)` remained. The measurement caught this on the LIVE link, already after
+    // the upload.
+    // ⚠️ The same class as the gate itself had: the condition closed the PATH and did not
+    // assert the STATE. The state «there is no panel» is obliged to hold under
+    // ANY way of ending up behind a closed gate, including a cold start.
     const g = $('vGrid'); if (g && g.firstChild) g.innerHTML = '';
     const v = $('vitrine'); if (v) v.classList.add('vempty');
     if (vitSlots || vitLevelRef){ vitSlots = null; vitAll = null; vitLevelRef = null; }
     return;
   }
-  // строим ПОСЛЕ интро: на первых кадрах палитровые атласы моделей ещё
-  // декодируются (грабля 36-models) — портреты выходили чёрными и
-  // навсегда оседали в кэше превью
+  // we build AFTER the intro: in the first frames the models' palette atlases are still
+  // decoding (the 36-models rake) — the portraits came out black and
+  // settled into the preview cache forever
   if (level && level !== vitLevelRef && !intro) buildVitrine();
   if (!vitSlots || now - vitAt < VIT_TICK_MS) return;
   vitAt = now;
-  // vitReconcile сам зовёт vitUpdateCell для неизменившихся слотов (полоски/пульс)
+  // vitReconcile itself calls vitUpdateCell for the unchanged slots (the bars/the pulse)
   if (!intro && level && !level.over) vitReconcile();
 }
 
-// ═══ ЭКРАН НОВОЙ ВЕЩИ (макеты владельца 2026-08-10: 846:4814 моб. / 846:4763
-// деск.). Слово владельца: «идёт сразу бесшовно за экраном окончания уровня».
+// ═══ THE NEW-ITEM SCREEN (the owner's mockups 2026-08-10: 846:4814 mob. / 846:4763
+// desk.). The owner's word: «it goes seamlessly right after the level completion screen».
 //
-// ⚠️⚠️ ЧТО СЧИТАЕТСЯ «НОВОЙ ВЕЩЬЮ» — ВЫВЕДЕНО ИЗ ПРОГРЕССИИ, А НЕ ПРИДУМАНО.
-// Типы открываются ПО ПОРЯДКУ массива: 9 штук на первом уровне и РОВНО ОДИН
-// новый за каждый следующий (`LEVEL_TYPES_MIN + (уровень − 1)`, единое правило
-// genLevel и `isTypeUnlocked`). Значит у экрана есть естественный и
-// детерминированный повод: показать ту единственную вещь, которая откроется на
-// уровне, к которому игрок только что перешёл.
-// ⛔ ПОЭТОМУ ЖЕ ЕГО НЕТ ПЕРЕД ПЕРВЫМ УРОВНЕМ (там открывается сразу девятка —
-// «новая вещь» одна не выделяется) И КОГДА ПУЛ ИСЧЕРПАН (с ур.112 новых типов
-// больше не появляется). Обе ветки обязаны отдавать управление дальше, иначе
-// кнопка «Next» молча перестанет начинать уровень — та же грабля, что была у
-// анонса сюжета.
+// ⚠️⚠️ WHAT COUNTS AS A «NEW ITEM» IS DERIVED FROM THE PROGRESSION AND NOT INVENTED.
+// The types are opened IN THE ORDER of the array: 9 of them at the first level and EXACTLY ONE
+// new one for each subsequent one (`LEVEL_TYPES_MIN + (level − 1)`, the single rule of
+// genLevel and `isTypeUnlocked`). Which means the screen has a natural and
+// deterministic occasion: to show that single item which will open at
+// the level the player has just moved on to.
+// ⛔ FOR THAT VERY REASON IT IS NOT THERE BEFORE THE FIRST LEVEL (there a whole nine open at once —
+// a single «new item» does not stand out) AND WHEN THE POOL IS EXHAUSTED (from level 112 no new types
+// appear any more). Both branches are obliged to hand control on, otherwise
+// the «Next» button will silently stop starting a level — the same rake as with
+// the story announcement.
 function newObjDue(){
-  const lv = (typeof levelNum === 'number') ? levelNum : 0;   // уровень, который вот-вот начнётся
+  const lv = (typeof levelNum === 'number') ? levelNum : 0;   // the level that is about to begin
   if (lv < 2) return null;
   const idx = LEVEL_TYPES_MIN + lv - 2;
   if (idx < 0 || idx >= TYPES.length) return null;
   return TYPES[idx].name;
 }
 let newObjDone = null;
-// ⚠️ Ключ показанной вещи держим отдельно — по нему `newObjInfo` отдаёт стражу
-// ОЖИДАЕМЫЙ тон. Иначе тест сверял бы вычисленный градиент с литералом, а тот
-// разъедется с палитрой при первой же правке цвета типа (закон «копия рядом с
-// рабочей величиной всегда расходится»).
+// ⚠️ We keep the key of the shown item separately — by it `newObjInfo` gives the guard
+// the EXPECTED tone. Otherwise the test would compare the computed gradient with a literal, and that
+// would diverge from the palette at the very first edit of a type's colour (the law «a copy next to
+// a working quantity always diverges»).
 let newObjLastKey = null;
-// Показ. `done` зовётся по нажатию кнопки — ровно один раз.
-// ⚠️ МОДЕЛЬ ЖИВАЯ: общий спин-канвас `thumbSpinStart`, тот же, что крутит
-// карточки коллекции. Картинку-подложку сюда НЕ ставить (слово владельца
-// «моделька, которая крутится» — про чистый 3D без подложки).
+// The display. `done` is called on a press of the button — exactly once.
+// ⚠️ THE MODEL IS LIVE: the shared spin canvas `thumbSpinStart`, the same one that spins
+// the collection's cards. A backing picture must NOT be put here (the owner's word
+// «a model that spins» — about pure 3D without a backing).
 function newObjShow(key, done){
   const box = $('newObj'), host = $('newObjModel');
   if (!box || !host || !key){ if (done) done(); return; }
   const item = (typeof thumbItemForKey === 'function') ? thumbItemForKey(key) : null;
-  // ⚠️ НЕТ МОДЕЛИ — НЕТ ЭКРАНА. Пустая сцена с надписью «new object» и дыркой
-  // посередине хуже, чем отсутствие экрана: игрок решит, что вещь не выдали.
+  // ⚠️ NO MODEL — NO SCREEN. An empty scene with the caption «new object» and a hole
+  // in the middle is worse than the absence of the screen: the player will decide the item was not given.
   if (!item){ if (done) done(); return; }
   newObjDone = done || null;
   newObjLastKey = key;
-  // ⛔ НАЗВАНИЕ ВЕЩИ БОЛЬШЕ НЕ ПОКАЗЫВАЕМ (слово владельца 2026-08-11: «убери
-  // название объекта для всех объектов»). Узел снят из разметки целиком, а не
-  // спрятан стилем: скрытый узел с текстом остаётся в дереве доступности и
-  // читается диктором — экран сообщал бы имя, которого на нём нет.
-  // ⚠️⚠️ ЦВЕТ СВЕЧЕНИЯ — ОСНОВНОЙ ЦВЕТ ВЕЩИ (слово владельца 2026-08-10). Берём
-  // `type.color`: это тот же авторский тон, которым сыплется труха ЭТОГО типа
-  // (`fxColor` — он же, только переведённый в linear), то есть цвет у игрока
-  // уже связан с предметом, а не назначен экрану заново.
-  // ⛔ НЕ `baseColor` и не пиксели портрета: у всех 120 моделей цвет несёт
-  // АТЛАС, а `material.color` белый — свечение вышло бы белым у всего пула
-  // (та же грабля, из-за которой вуаль недоступных пришлось увести в шейдер).
-  const тон = item.type && item.type.color;
-  // ⚠️⚠️ У ТЁМНЫХ ВЕЩЕЙ ОСНОВА СВЕЧЕНИЯ — БЕЛАЯ (слово владельца 2026-08-11
-  // «для чёрных предметов используй белый цвет как основу свечения»).
-  // ⛔ ПРИЧИНА НЕ ВО ВКУСЕ, А В ФИЗИКЕ ЭКРАНА: подложка попапа почти чёрная
-  // (rgba(10,14,22,.88)), и свет цветом самого предмета у пингвина (#3a4048),
-  // пиратского ядра и пушки просто не виден — свечения как будто нет.
-  // ⚠️ ПОРОГ ПО СВЕТЛОТЕ, А НЕ СПИСОК ИМЁН: появится новая тёмная модель —
-  // подхватится сама. Список разъехался бы с пулом при первой же партии.
-  // ⚠️ Светлота — Rec.709 по СЫРЫМ каналам sRGB: нам нужна не колориметрия, а
-  // «различим ли этот тон на чёрном», и для порога этого достаточно.
-  // ⚠️⚠️ ПРИЗНАК «ЧЁРНЫЙ» — ТЁМНЫЙ **И** ОБЕСЦВЕЧЕННЫЙ, А НЕ ПРОСТО ТЁМНЫЙ.
-  // Одной светлоты мало: свёкла (#a03a6b) и баклажан (#7a4a9e) тоже тёмные, но
-  // НАСЫЩЕННЫЕ — их свет читается как цвет и белить его нечего. Чёрными в пуле
-  // выглядят серые: пингвин, пиратские ядро и пушка.
-  // ⚠️ ЧИСЛА ВЫВЕДЕНЫ ЗАМЕРОМ ПО ВСЕМУ ПУЛУ, а не подобраны: при L<0.40 и
-  // S<0.14 попадают РОВНО эти три из 120; ближайший непопавший — рыба (L 0.410),
-  // ближайший по насыщенности — она же (S 0.118). Коридор с обеих сторон пуст.
-  // ⚠️⚠️ УТОЧНЕНИЕ ВЛАДЕЛЬЦА 2026-08-11: «чёрный ИЛИ ТЁМНЫЙ — БЛИЗКИЙ К
-  // ФОНОВОМУ ЦВЕТУ». То есть признак не «мало света вообще», а «не отличить
-  // от подложки» — и это ровно то, что видит игрок. Считаем РАССТОЯНИЕ до
-  // фона попапа; всё, что ближе порога, светит белым.
-  // ⚠️ ФОН БЕРЁМ ИЗ ЖИВОГО СТИЛЯ, А НЕ ЛИТЕРАЛОМ: подложка задана у `.overlay`
-  // одним правилом на все попапы, и копия числа тут разъехалась бы при первой
-  // же его правке — закон, на котором проект обжигался не раз.
-  const фон = (function (){
+  // ⛔ WE NO LONGER SHOW THE ITEM'S NAME (the owner's word 2026-08-11: «remove
+  // the object's name for all objects»). The node was removed from the markup entirely, and not
+  // hidden by a style: a hidden node with text stays in the accessibility tree and
+  // is read by the screen reader — the screen would announce a name that is not on it.
+  // ⚠️⚠️ THE GLOW'S COLOUR IS THE ITEM'S MAIN COLOUR (the owner's word 2026-08-10). We take
+  // `type.color`: it is that same authored tone in which THIS type's crumbs scatter
+  // (`fxColor` is the same one, only converted to linear), that is, for the player the colour
+  // is already tied to the item, and not assigned to the screen anew.
+  // ⛔ NOT `baseColor` and not the portrait's pixels: for all 120 models the colour is carried by
+  // the ATLAS, while `material.color` is white — the glow would come out white for the whole pool
+  // (the same rake because of which the veil of the unavailable ones had to be moved into the shader).
+  const tone = item.type && item.type.color;
+  // ⚠️⚠️ FOR DARK ITEMS THE BASE OF THE GLOW IS WHITE (the owner's word 2026-08-11
+  // «for black items use white as the base of the glow»).
+  // ⛔ THE REASON IS NOT TASTE BUT THE PHYSICS OF THE SCREEN: the popup's backing is almost black
+  // (rgba(10,14,22,.88)), and light in the colour of the item itself is simply invisible for the penguin (#3a4048),
+  // the pirate cannonball and the cannon — it is as if there were no glow.
+  // ⚠️ A THRESHOLD BY LIGHTNESS, AND NOT A LIST OF NAMES: a new dark model will appear — it will be
+  // picked up by itself. A list would diverge from the pool at the very first run.
+  // ⚠️ The lightness is Rec.709 over the RAW sRGB channels: what we need is not colorimetry but
+  // «is this tone distinguishable on black», and for a threshold that is enough.
+  // ⚠️⚠️ THE FLAG «BLACK» IS DARK **AND** DESATURATED, AND NOT MERELY DARK.
+  // Lightness alone is not enough: the beetroot (#a03a6b) and the aubergine (#7a4a9e) are also dark, but
+  // SATURATED — their light reads as colour and there is nothing to whiten. What look black in the pool
+  // are the greys: the penguin, the pirate cannonball and the cannon.
+  // ⚠️ THE NUMBERS WERE DERIVED BY A MEASUREMENT OVER THE WHOLE POOL and not picked: at L<0.40 and
+  // S<0.14 EXACTLY these three out of 120 fall in; the nearest one that does not is the fish (L 0.410),
+  // the nearest by saturation is the same one (S 0.118). The corridor is empty on both sides.
+  // ⚠️⚠️ THE OWNER'S CLARIFICATION 2026-08-11: «black OR DARK — CLOSE TO
+  // THE BACKGROUND COLOUR». That is, the flag is not «little light in general» but «indistinguishable
+  // from the backing» — and that is exactly what the player sees. We compute the DISTANCE to
+  // the popup's background; everything closer than the threshold glows white.
+  // ⚠️ WE TAKE THE BACKGROUND FROM THE LIVE STYLE, AND NOT AS A LITERAL: the backing is set on `.overlay`
+  // by one rule for all the popups, and a copy of the number here would diverge at the very first
+  // edit of it — the law on which the project has been burned more than once.
+  const bg = (function (){
     try {
       const m = String(getComputedStyle(box).backgroundColor).match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
       return m ? [+m[1], +m[2], +m[3]] : [10, 14, 22];
     } catch (e) { return [10, 14, 22]; }
   })();
-  // ⚠️ ПОРОГ 140 ВЫВЕДЕН ЗАМЕРОМ ПО ПУЛУ И СТОИТ В ПУСТОМ КОРИДОРЕ: расстояния
-  // до фона — пингвин 85.5, ядро 119.6, шар 124.2, а следующий за ними кабан
-  // уже 161.8. Между 124 и 162 нет никого, туда порог и поставлен.
-  // ⚠️ Насыщенность больше НЕ участвует: свёкла и баклажан далеки от фона сами
-  // по себе (они тёмные, но цветные), их отсекает уже расстояние — признак
-  // владельца «близкий к фоновому цвету» оказался и точнее, и проще прежнего.
-  const БЛИЗКО_К_ФОНУ = 140;
+  // ⚠️ THE THRESHOLD OF 140 WAS DERIVED BY A MEASUREMENT OVER THE POOL AND STANDS IN AN EMPTY CORRIDOR: the distances
+  // to the background are — the penguin 85.5, the cannonball 119.6, the sphere 124.2, while the boar that follows them
+  // is already at 161.8. Between 124 and 162 there is nobody, and that is where the threshold was put.
+  // ⚠️ The saturation NO LONGER takes part: the beetroot and the aubergine are far from the background by
+  // themselves (they are dark but colourful), the distance alone cuts them off — the owner's flag
+  // «close to the background colour» turned out to be both more exact and simpler than the former one.
+  const NEAR_BG = 140;
   let rgb = '203,255,104';
-  if (typeof тон === 'number'){
-    const r = (тон >> 16) & 255, g = (тон >> 8) & 255, b = тон & 255;
-    const d = Math.sqrt((r - фон[0]) * (r - фон[0]) + (g - фон[1]) * (g - фон[1]) +
-                        (b - фон[2]) * (b - фон[2]));
-    // ⚠️ Не чистый белый, а тон, ПОДТЯНУТЫЙ к белому: вещь остаётся «своей»,
-    // просто её свет становится виден. Чистый белый стёр бы разницу между
-    // тремя тёмными предметами.
-    rgb = (d < БЛИЗКО_К_ФОНУ)
+  if (typeof tone === 'number'){
+    const r = (tone >> 16) & 255, g = (tone >> 8) & 255, b = tone & 255;
+    const d = Math.sqrt((r - bg[0]) * (r - bg[0]) + (g - bg[1]) * (g - bg[1]) +
+                        (b - bg[2]) * (b - bg[2]));
+    // ⚠️ Not a pure white, but the tone PULLED towards white: the item stays «its own»,
+    // its light simply becomes visible. A pure white would erase the difference between
+    // the three dark items.
+    rgb = (d < NEAR_BG)
       ? Math.round(r + (255 - r) * 0.82) + ',' + Math.round(g + (255 - g) * 0.82) + ',' +
         Math.round(b + (255 - b) * 0.82)
       : r + ',' + g + ',' + b;
@@ -2592,43 +2592,43 @@ function newObjShow(key, done){
   host.innerHTML = '';
   box.setAttribute('aria-hidden', 'false');
   box.classList.add('on');
-  // ⚠️ СПИН ЗАВОДИМ ПОСЛЕ ПОКАЗА: `frameCylinder` внутри старта считает кадр по
-  // размерам узла, а у скрытого блока они нулевые (та же природа, что у
-  // «страж мерил высоту на закрытом меню» — скрытый узел не имеет геометрии).
-  // КАЧЕСТВО (слово владельца): буфер = размер узла × DPR, кап 768 — выше
-  // на телефонных диагоналях уже неотличимо, а буфер квадратичен по цене.
-  // ⚠️ КАП ПОДНЯТ 768 -> 1280: на телефоне узел ~250px и кап не задевался вовсе,
-  // а на десктопе модель теперь до 40% ширины (слово владельца 2026-08-17), и
-  // при DPR 2 старый кап давал бы апскейл вдвое — ровно то мыло, из-за которого
-  // буфер когда-то и поднимали со 256. Цена квадратична, но экран одноразовый.
+  // ⚠️ WE START THE SPIN AFTER THE DISPLAY: `frameCylinder` inside the start computes the frame from
+  // the node's dimensions, and for a hidden block they are zero (the same nature as with
+  // «the guard measured the height on a closed menu» — a hidden node has no geometry).
+  // QUALITY (the owner's word): the buffer = the node's size × DPR, a cap of 768 — above that
+  // it is already indistinguishable on phone diagonals, while the buffer is quadratic in cost.
+  // ⚠️ THE CAP WAS RAISED 768 -> 1280: on a phone the node is ~250px and the cap was not touched at all,
+  // whereas on the desktop the model is now up to 40% of the width (the owner's word 2026-08-17), and
+  // at DPR 2 the old cap would give a twofold upscale — exactly the mush because of which
+  // the buffer was once raised from 256. The cost is quadratic, but the screen is one-off.
   const px = Math.min(1280, Math.max(SPIN_PX,
     Math.round((host.clientWidth || 256) * (window.devicePixelRatio || 1))));
   try { thumbSpinStart(item, host, px); } catch (e) {}
   newObjDragWire(host);
   Telemetry.ev('newobj', { k: key });
 }
-// ВРАЩЕНИЕ ПАЛЬЦЕМ/КУРСОРОМ (слово владельца 2026-08-13). Драг глушит
-// авто-вращение и ведёт угол рукой; отпустил — авто продолжается с этого
-// места. Обработчики вешаются ОДИН раз (гвард-флаг): host — постоянный узел.
+// ROTATION WITH A FINGER/CURSOR (the owner's word 2026-08-13). The drag mutes
+// the auto-rotation and leads the angle by hand; on release the auto continues from that
+// place. The handlers are hung ONCE (a guard flag): host is a permanent node.
 let newObjDragOn = false;
 function newObjDragWire(host){
   if (newObjDragOn) return; newObjDragOn = true;
-  let вести = false, x0 = 0;
+  let dragging = false, x0 = 0;
   let y0 = 0;
   host.addEventListener('pointerdown', (e) => {
-    вести = true; x0 = e.clientX; y0 = e.clientY; thumbSpinAuto(false);
+    dragging = true; x0 = e.clientX; y0 = e.clientY; thumbSpinAuto(false);
     try { host.setPointerCapture(e.pointerId); } catch(err){}
     e.preventDefault();
   });
   host.addEventListener('pointermove', (e) => {
-    if (!вести) return;
-    // обе оси: горизонталь вертит, вертикаль наклоняет («по всем осям»)
+    if (!dragging) return;
+    // both axes: the horizontal turns, the vertical tilts («on all the axes»)
     thumbSpinNudge((e.clientX - x0) * 0.012, (e.clientY - y0) * 0.012);
     x0 = e.clientX; y0 = e.clientY;
   });
-  const отпустил = () => { вести = false; thumbSpinAuto(true); };
-  host.addEventListener('pointerup', отпустил);
-  host.addEventListener('pointercancel', отпустил);
+  const onRelease = () => { dragging = false; thumbSpinAuto(true); };
+  host.addEventListener('pointerup', onRelease);
+  host.addEventListener('pointercancel', onRelease);
 }
 function newObjHide(){
   const box = $('newObj');
@@ -2637,8 +2637,8 @@ function newObjHide(){
   const d = newObjDone; newObjDone = null;
   if (d) d();
 }
-// Точка входа для цепочки победы: сам решает, есть ли повод, и ВСЕГДА отдаёт
-// управление дальше.
+// The entry point for the win chain: it decides for itself whether there is an occasion, and it ALWAYS hands
+// control on.
 function newObjOnWin(done){
   const key = newObjDue();
   if (!key){ if (done) done(); return; }

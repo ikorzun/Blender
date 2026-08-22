@@ -1,27 +1,30 @@
-# Тексты листинга площадок — BLENDO (v1, 2026-07-30)
+# Platform listing copy — BLENDO (v1, 2026-07-30)
 
-Направление ПОВЕСТВОВАНИЕ. Запрос владельца: тексты для формы паблишинга
-(поля «Game description» и «How to play»), отвечающие требованиям площадок
-и работающие на SEO.
+The NARRATIVE workstream. The owner's request: copy for the publishing form
+(the «Game description» and «How to play» fields) that satisfies the platforms'
+requirements and works for SEO.
 
-⚠️ **ИМЯ ИГРЫ — BLENDO** (решение владельца 2026-07-30; кандидаты BLENDO RUSH /
-BLENDO SORT НЕ выбраны). «Миксер» — рабочее имя папки и веток, во внешних
-текстах не употребляется.
+⚠️ **THE GAME'S NAME IS BLENDO** (the owner's decision 2026-07-30; the candidates
+BLENDO RUSH / BLENDO SORT were NOT chosen). «Mixer» is the working name of the
+folder and of the branches, it is not used in external copy.
 
-## 0. Инварианты этих текстов
+## 0. Invariants of this copy
 
-- **Соответствие фактической механике.** Ни одной выдуманной фичи: чаша,
-  таймер ножей, комбо/Power chain, встряска, подсказка, рыбка, бомба, камни,
-  коллекция, Hard-режим — всё реализовано. Несоответствие = снятие листинга.
-- **Лор соблюдён:** матч = СПАСЕНИЕ предмета (он уходит в коллекцию), помол и
-  бомба = потеря. Формулировки «fuse and burst» из первой редакции ОТМЕНЕНЫ —
-  это взгляд блендера, а не игрока (см. docs/STORY-SPEC.md §1).
-- **Запрещено (типовые причины отклонения):** ссылки, упоминания других
-  площадок и конкурентов, обещания призов/реальных денег, слово «beta»,
-  «download/install» в утвердительном смысле, keyword stuffing.
-- **SEO:** ключ `free 3D physics puzzle game` в первых ~120 знаках; имя BLENDO
-  трижды (первое предложение, закрывающая строка, meta); жанровые слова
-  вплетены в предложения, а не списком; текст уникальный (дубли режут выдачу).
+- **It matches the actual mechanics.** Not a single invented feature: the bowl,
+  the blades timer, combo/Power chain, the shake, the hint, the fish, the bomb,
+  the rocks, the collection, Hard mode — all of it is implemented. A mismatch =
+  the listing gets pulled.
+- **The lore is respected:** a match = SAVING the object (it goes into the
+  collection), grinding and the bomb = a loss. The «fuse and burst» wording from
+  the first edition is CANCELLED — that is the blender's view, not the player's
+  (see docs/STORY-SPEC.md §1).
+- **Forbidden (the standard reasons for rejection):** links, mentions of other
+  platforms and of competitors, promises of prizes/real money, the word «beta»,
+  «download/install» in the affirmative sense, keyword stuffing.
+- **SEO:** the key phrase `free 3D physics puzzle game` within the first ~120
+  characters; the name BLENDO three times (the first sentence, the closing line,
+  the meta); genre words woven into sentences rather than given as a list; the
+  text is unique (duplicates hurt search visibility).
 
 ## 1. Game description
 
@@ -90,32 +93,35 @@ GOOD TO KNOW
   locked until you uncover them.
 ```
 
-## 3. Остальные поля формы
+## 3. The remaining form fields
 
 **Title:** `BLENDO — 3D Blender Puzzle`
-⚠️ Голое `BLENDO` в выдаче конкурирует со словом «blender» (миксер И 3D-редактор,
-очень сильный домен) — поэтому рядом с именем ВСЕГДА слово `puzzle`.
+⚠️ A bare `BLENDO` competes in search results with the word «blender» (both the
+appliance AND the 3D editor, a very strong domain) — which is why the word
+`puzzle` ALWAYS stands next to the name.
 
-**Meta description (139 знаков):**
+**Meta description (139 characters):**
 ```
 The blender wants to grind up the world and thinks you're helping. Free 3D
 puzzle game: match objects, save them, play in your browser.
 ```
 
-**Теги:** puzzle, 3d, physics, match, casual, brain, one button, mobile,
+**Tags:** puzzle, 3d, physics, match, casual, brain, one button, mobile,
 arcade, logic, relaxing, blender, sorting, collection
 
-## 4. Размеры и что резать
+## 4. Sizes and what to cut
 
-Описание ~1020 знаков, How to play ~1450. Лимиты формы не сверялись.
-Если поле короче — резать в этом порядке: (1) блок `GOOD TO KNOW`,
-(2) абзац `WHEN YOU'RE STUCK`, (3) третий абзац описания (механика),
-НИКОГДА — первые два абзаца описания (там имя, жанровый ключ и премиса).
+The description is ~1020 characters, How to play ~1450. The form's limits have
+not been checked. If a field is shorter — cut in this order: (1) the
+`GOOD TO KNOW` block, (2) the `WHEN YOU'RE STUCK` paragraph, (3) the third
+paragraph of the description (the mechanics), NEVER the first two paragraphs of
+the description (they carry the name, the genre key phrase and the premise).
 
-## 5. Почему премиса обязана быть в тексте
+## 5. Why the premise has to be in the copy
 
-Сюжет в игре **бессловесный** (пиктограммы, ноль реплик — инвариант
-STORY-SPEC §0, ради отсутствия локализации). Карточка площадки — ЕДИНСТВЕННОЕ
-место, где ирония «блендер думает, что ты помогаешь» проговаривается словами.
-Если текст свести к перечислению механик, игрок узнает о ней только из
-виньеток, которые скипаются одним тапом.
+The story in the game is **wordless** (pictograms, zero lines of dialogue — the
+STORY-SPEC §0 invariant, for the sake of having no localization). The platform
+listing card is the ONLY place where the irony of «the blender thinks you are
+helping» is spelled out in words. If the copy is reduced to a list of mechanics,
+the player will learn about it only from the vignettes, which are skipped with a
+single tap.

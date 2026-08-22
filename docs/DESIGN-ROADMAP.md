@@ -1,330 +1,330 @@
-# «Миксер» — план развития мета-геймплея (2026-07-17)
+# "Mixer" — meta-gameplay development plan (2026-07-17)
 
-Метод: 3 дизайнера (ретеншн / нарратив / портальная экономика) -> синтез -> 3 адверсариальных критика -> защита с вердиктами.
+Method: 3 designers (retention / narrative / portal economy) -> synthesis -> 3 adversarial critics -> defense with verdicts.
 
 
 ---
 
-# ЧАСТЬ 1. ПЛАН
+# PART 1. THE PLAN
 
-# «Миксер» — план развития меты. Финальный дизайн-документ
+# "Mixer" — meta development plan. Final design document
 
-## Стержень плана
+## Backbone of the plan
 
-Сегодня в игре сильное ядро (комбо → цепная реакция, «копай глубже») и две дыры: очки ни во что не конвертируются, и нет ни одной причины вернуться завтра. Канал — порталы: игрок анонимен, пушей нет, сейв хрупкий, сессия 5–15 минут, порталы ранжируют по playtime и доле вернувшихся. Значит, вся мета обязана быть мелкой, переживать потерю сейва, жить внутри сессии и продавать лучшие механики ядра, а не разбавлять их. Битва идёт за первую сессию и за момент выхода из неё: игрок должен закрывать вкладку с видимой незавершёнкой.
+Today the game has a strong core (combo → chain reaction, "dig deeper") and two holes: points don't convert into anything, and there isn't a single reason to come back tomorrow. The channel is portals: the player is anonymous, there are no pushes, the save is fragile, the session is 5–15 minutes, portals rank by playtime and by the share of returning players. That means the whole meta must be small, survive the loss of the save, live inside the session and sell the core's best mechanics rather than dilute them. The battle is for the first session and for the moment of leaving it: the player must close the tab with visible unfinished business.
 
-## 1. Сюжетная рамка: «Музей спасённых вещей»
+## 1. Story frame: "Museum of Rescued Things"
 
-Миксер — антагонист. Игрок не «собирает пары», а спасает вещи из-под лопастей. Рамка бесплатна, потому что переворачивает в сюжет уже существующие механики: таймер простоя = миксер теряет терпение; штрафной помол = вещи погибли; финальная зачистка = «то, что не спасли»; встряска = последний шанс. Золотой чайник — первый экспонат музея, он уже в игре.
+The mixer is the antagonist. The player doesn't "collect pairs", he rescues things from under the blades. The frame is free because it flips already existing mechanics into story: the idle timer = the mixer is losing patience; penalty grinding = the things died; the final sweep = "what wasn't rescued"; the shake = the last chance. The golden teapot is the museum's first exhibit, it's already in the game.
 
-Инвариант: ноль переводимого текста. Весь нарратив — визуалом: золотой блик, тёмные силуэты на пустых полках, пиктограммы, цифры прогресса. Это снимает локализацию на все языки порталов и делает рамку шипабельной сразу.
+Invariant: zero translatable text. The whole narrative is done visually: a golden glint, dark silhouettes on empty shelves, pictograms, progress numbers. This removes localization into all the portals' languages and makes the frame shippable right away.
 
-Единственный «персонаж» — сам блендер с глазами: 3–4 спрайта эмоций (радость на комбо, азарт на цепной реакции, скука на простое). Диалоги, катсцены, лор — не делаем: на порталах их скипают, метрик они не двигают, а стоят дорого.
+The only "character" is the blender itself with eyes: 3–4 emotion sprites (joy on a combo, excitement on a chain reaction, boredom on idling). Dialogues, cutscenes, lore — we don't make them: on portals they get skipped, they don't move metrics, and they cost a lot.
 
-## 2. Прогрессия уровней
+## 2. Level progression
 
-**Залы музея.** Каждые 10 уровней — новый зал: своя палитра фона и чаши плюс сет из 5 типов предметов. Существующие 15 типов пересобираем в 3 стартовых сета по 5 («Чаепитие», «Геометрия», «Гриль» со стейком) — это классификация, не новый арт, залы 1–3 бесплатны. Внутри зала уровни вводят типы сета по одному; к десятому уровню зала активен полный пул. Текущий анлок «9+N типов» заменяется этой схемой — кривая знакомства сохраняется, но получает витринный смысл: залы видны на экране музея как секции, прогрессия читается без слов.
+**Museum halls.** Every 10 levels — a new hall: its own background and bowl palette plus a set of 5 item types. We reassemble the existing 15 types into 3 starting sets of 5 ("Tea Party", "Geometry", "Grill" with the steak) — this is classification, not new art, halls 1–3 are free. Inside a hall the levels introduce the set's types one at a time; by the hall's tenth level the full pool is active. The current "9+N types" unlock is replaced by this scheme — the familiarization curve is preserved but gains a showcase meaning: the halls are visible on the museum screen as sections, the progression reads without words.
 
-**Цена новых залов — считаем в килобайтах.** Низкополигональный OBJ весит 20–60 КБ; зал = 3 рескина существующих форм + не больше 2 новых моделей ≈ 100–150 КБ. При бюджете файла ~1 МБ комфортно добавить 3–4 новых зала; дальше — децимация моделей или ротация пулов. КБ-лимит фиксируется до заказа каждой модели — это второй арт-бюджет.
+**The price of new halls — we count in kilobytes.** A low-poly OBJ weighs 20–60 KB; a hall = 3 reskins of existing shapes + no more than 2 new models ≈ 100–150 KB. With a file budget of ~1 MB it is comfortable to add 3–4 new halls; beyond that — model decimation or pool rotation. The KB limit is fixed before ordering each model — this is the second art budget.
 
-**Первая сессия — фронт-лоуд всех крючков (битва за D1):**
-- Уровни 1–3 укороченные (100–110 предметов вместо 141): первая победа к 3-й минуте.
-- Закопанный золотой сюрприз — уже на уровне 1–2.
-- Первый экспонат музея закрывается к уровню 2, второй открыт сразу же (§3).
-- Interstitial не показывается до первой победы. Время до первого тапа < 20 секунд от загрузки — козырь 1-МБ файла, беречь его.
+**The first session — a front-load of all the hooks (the battle for D1):**
+- Levels 1–3 shortened (100–110 items instead of 141): the first win by minute 3.
+- The buried golden surprise — already on level 1–2.
+- The first museum exhibit closes by level 2, the second is open right away (§3).
+- The interstitial is not shown before the first win. Time to the first tap < 20 seconds from load — the trump card of the 1 MB file, protect it.
 
-**Дальше — дешёвое разнообразие:**
-- Цикл сложности из 5 уровней: Лёгкий → Средний → Средний → Сложный → Средний. «Сложный» = вплетённые Hard-правила (вуаль видимости или таймер миксера 15 с), помечен заранее и платит ×1,5 монет. Hard перестаёт быть настройкой и становится ритмом.
-- Каждый 5-й уровень — мутатор без нового арта, только параметры: «Гиганты» (предметы ×1,6, 8 типов), «Туман» (видна верхняя половина чаши), «Турбо-миксер», «Только цепи» (очки идут только во время цепной реакции). На старте 3–4 мутатора ≈ 1 AI-сессия.
-- Пар-скор для 2★ (§4) растёт на 8% за уровень внутри зала и сбрасывается к началу нового: пила сложности — зал кончается тяжело, новый начинается легко плюс новизна сета.
+**Next — cheap variety:**
+- A 5-level difficulty cycle: Easy → Medium → Medium → Hard → Medium. "Hard" = woven-in Hard rules (a visibility veil or a 15 s mixer timer), flagged in advance and paying ×1.5 coins. Hard stops being a setting and becomes a rhythm.
+- Every 5th level — a mutator with no new art, parameters only: "Giants" (items ×1.6, 8 types), "Fog" (the upper half of the bowl is visible), "Turbo-mixer", "Chains only" (points count only during a chain reaction). At the start 3–4 mutators ≈ 1 AI session.
+- The par score for 2★ (§4) grows by 8% per level inside a hall and resets at the start of a new one: a difficulty sawtooth — the hall ends hard, the new one starts easy plus the novelty of the set.
 
-## 3. Коллекции: музей как машина возврата
+## 3. Collections: the museum as a return machine
 
-**Экспонаты-сеты (пассивный прогресс).** Экспонат «собирается» из спасённых предметов: «спаси N предметов типа X». Прогресс капает сам от обычных матчей, отдельно играть не надо. Калибровка от факта «за уровень собирается ~8–10 предметов каждого типа»:
-- Экспонат 1: 3 типа × 8 шт. → закрывается за 1 уровень. Обучение петле в первой сессии.
-- Экспонат 2: 4 типа × 20 шт. → ~2,5–3 уровня. Типичная первая сессия = 2–3 уровня, значит игрок выходит с прогрессом 60–75%. Это спроектированная незавершёнка — главный рычаг D1 на канале без пушей.
-- Дальше: 5 типов × 25–30 шт. → ~3–4 уровня на экспонат; зал целиком ≈ 30–40 уровней контента.
+**Set exhibits (passive progress).** An exhibit is "assembled" from rescued items: "rescue N items of type X". The progress drips in by itself from ordinary matches, no separate play needed. Calibration from the fact that "per level ~8–10 items of each type are collected":
+- Exhibit 1: 3 types × 8 pcs. → closes in 1 level. Teaching the loop in the first session.
+- Exhibit 2: 4 types × 20 pcs. → ~2.5–3 levels. A typical first session = 2–3 levels, which means the player leaves with 60–75% progress. This is designed unfinished business — the main D1 lever on a channel with no pushes.
+- Further on: 5 types × 25–30 pcs. → ~3–4 levels per exhibit; a whole hall ≈ 30–40 levels of content.
 
-**Артефакты (генерализация золотого чайника).** В каждом уровне на дне закопан ровно один артефакт — золотая версия предмета текущего сета (смена материала, ноль байт арта). Всегда в нижней трети чаши, раз в ~8 секунд даёт золотой блик сквозь толщу: игрок знает, ГДЕ копать, но не ЧТО лежит. Раскопал до конца уровня — экспонат в музее плюс монеты.
+**Artifacts (a generalization of the golden teapot).** In every level exactly one artifact is buried at the bottom — a golden version of an item from the current set (a material swap, zero bytes of art). Always in the lower third of the bowl, roughly once every 8 seconds it gives a golden glint through the mass: the player knows WHERE to dig, but not WHAT lies there. Dug it out before the end of the level — an exhibit in the museum plus coins.
 
-**Редкости** — материалом, процедурно: обычный 70% / редкий 20% / эпик 8% / легендарный 2% (металлик, перламутр, свечение). Pity-таймер: нет редкого+ за 6 уровней — гарантия редкого; нет легендарного к 40-му уровню — гарантия. Дубликаты конвертируются в монеты: 15 / 40 / 100 / 250 по редкости. Дубликаты НЕ дают звёзд — звёзды только за игру (§4).
+**Rarities** — by material, procedurally: common 70% / rare 20% / epic 8% / legendary 2% (metallic, pearlescent, glow). Pity timer: no rare+ for 6 levels — a rare is guaranteed; no legendary by level 40 — guaranteed. Duplicates are converted into coins: 15 / 40 / 100 / 250 by rarity. Duplicates do NOT give stars — stars only for playing (§4).
 
-**Витрина.** Один экран между уровнями: полки музея, экспонаты = те же 3D-меши в масштабе ~0,4 — ноль новых байт. Тап — фигурка вращается. Пустые полки с силуэтами видны с первого дня. Жёсткий тайминг: до кнопки «Дальше» ≤5 секунд, пропуск тапом — цикл сессии не удлиняем.
+**The showcase.** One screen between levels: museum shelves, exhibits = the same 3D meshes at a scale of ~0.4 — zero new bytes. A tap — the figurine rotates. Empty shelves with silhouettes are visible from day one. Hard timing: up to the "Next" button ≤5 seconds, skip by tap — we do not lengthen the session cycle.
 
-**Награда за полный сет — косметика и расходники, не сила:** процедурный скин чаши/блендера + разовая пачка 3 встрясок. Единственный перманент — +1 бесплатная встряска за самый первый закрытый сет, и на этом кап. Музей — радость и статус; навык и удача от него не зависят, потеря сейва болезненна, но баланс не ломает.
+**The reward for a full set is cosmetics and consumables, not power:** a procedural bowl/blender skin + a one-off pack of 3 shakes. The only permanent is +1 free shake for the very first closed set, and that is the cap. The museum is joy and status; skill and luck do not depend on it, losing the save hurts but does not break the balance.
 
-## 4. Экономика: монеты + звёзды
+## 4. Economy: coins + stars
 
-**Монеты — единственная тратимая валюта.** Приход за уровень: 20 базовых + 5 за каждую неиспользованную встряску + 1 монета за каждые 500 очков (комбо и цепные реакции наконец экономически выгодны) + дубликаты артефактов (15–250). Типовой доход 35–50 монет/уровень.
+**Coins are the only spendable currency.** Income per level: 20 base + 5 for each unused shake + 1 coin per each 500 points (combos and chain reactions are finally economically profitable) + artifact duplicates (15–250). Typical income 35–50 coins/level.
 
-**Магазин — 2 позиции на старте:**
-- Доп. встряска — 25 монет (чуть меньше одной за уровень честной игры → мягкий дефицит).
-- «Прицел» — подсветить все доступные пары на 5 с — 15 монет (снимает фрустрацию видимости на сложных уровнях).
-- Позже: «Магнит» — принудительно собрать любую пару — 40 монет.
+**The shop — 2 items at the start:**
+- An extra shake — 25 coins (slightly less than one per level of honest play → a soft deficit).
+- "Sight" — highlight all available pairs for 5 s — 15 coins (removes the visibility frustration on hard levels).
+- Later: "Magnet" — force-collect any pair — 40 coins.
 
-Правило баланса: расходы среднего игрока должны опережать доход на ~20–30%, иначе монеты инфлируют и перестают быть целью. На экране победы всегда видна цель: «до Магнита осталось 35 монет».
+Balance rule: the average player's spending must outpace income by ~20–30%, otherwise coins inflate and stop being a goal. On the victory screen the goal is always visible: "35 coins left until the Magnet".
 
-**Звёзды — рейтинг уровня, не валюта.** За уровень 1–3★: 1★ — пройден; 2★ — очки ≥ пар-скора (сумма номиналов предметов × 1,3 — надо матчить с комбо-множителями, а не «в ноль»); 3★ — запустил хотя бы одну цепную реакцию И ни один предмет не смолот за простой. 3★ прямо продаёт две лучшие механики как цель. Звёзды не тратятся: суммарный счёт открывает скины по порогам и даёт причину переиграть уровень. Позже (v1.2): переигровка пройденного уровня в Hard даёт 4-ю звезду — дешёвый ×2 контента из готовой сложности.
+**Stars are a level rating, not a currency.** Per level 1–3★: 1★ — completed; 2★ — points ≥ the par score (the sum of the items' face values × 1.3 — you have to match with combo multipliers, not "flat"); 3★ — launched at least one chain reaction AND not a single item was ground down during idling. 3★ directly sells the two best mechanics as a goal. Stars are not spent: the total score unlocks skins at thresholds and gives a reason to replay a level. Later (v1.2): replaying a completed level on Hard gives a 4th star — a cheap ×2 of content out of ready-made difficulty.
 
-**Rewarded — 4 плейсмента (сейчас 1):**
-1. Встряска (есть, остаётся: база 3 + до 2 за рекламу).
-2. Continue после поражения — 1 раз за уровень: досыпать 10 предметов + 1 встряска. Самый конвертящий плейсмент жанра.
-3. ×2 очков на экране победы — второй по конверсии.
-4. «Металлоискатель» — подсветить колонну предметов над закопанным артефактом на 10 с. (Не путать с «Прицелом» из магазина: прицел показывает пары, металлоискатель — раскопку.)
+**Rewarded — 4 placements (currently 1):**
+1. Shake (exists, stays: base 3 + up to 2 for an ad).
+2. Continue after a loss — once per level: top up 10 items + 1 shake. The genre's highest-converting placement.
+3. ×2 points on the victory screen — second by conversion.
+4. "Metal Detector" — highlight the column of items above the buried artifact for 10 s. (Not to be confused with the "Sight" from the shop: the sight shows pairs, the metal detector shows the dig.)
 
-Появляется выбор «потратить монеты или посмотреть рекламу» — растит и удержание, и рекламный инвентарь. Ориентиры: 1,5–2,5 показа rewarded/сессию, конверсия предложения в просмотр 25–40%; плейсменты с конверсией <10% убиваем, а не плодим.
+A choice appears: "spend coins or watch an ad" — it grows both retention and ad inventory. Benchmarks: 1.5–2.5 rewarded impressions/session, offer-to-view conversion 25–40%; placements with conversion <10% we kill rather than multiply.
 
-**Interstitial:** только между уровнями, не раньше 2-й победы в сессии, не чаще 1 раза в 3 минуты. Всё через Playgama Bridge с фолбэком «платформа не даёт — молча пропускаем».
+**Interstitial:** only between levels, not before the 2nd win in a session, no more often than once every 3 minutes. All of it through the Playgama Bridge with the fallback "the platform doesn't give it — we silently skip".
 
-## 5. Ритм сессий и возврат
+## 5. Session rhythm and return
 
-Целевой ритм: уровень 3–5 мин → сессия 2–3 уровня = 8–12 минут playtime + 1–2 interstitial + 1–2 rewarded. Флоу без тупиков: победа → витрина ≤5 с → один тап «Дальше» → следующий уровень.
+Target rhythm: a level of 3–5 min → a session of 2–3 levels = 8–12 minutes of playtime + 1–2 interstitials + 1–2 rewarded. A flow with no dead ends: win → showcase ≤5 s → one tap on "Next" → the next level.
 
-**Daily Challenge — главный механизм возврата, бэкенд не нужен.** Сид раскладки = дата (YYYYMMDD): у всех игроков один уровень дня, один зачёт в день. Первый уровень дня — гарантированный редкий+ артефакт. Единый мягкий стрик: день 2 = +1 стартовая встряска, день 3+ = +2 и рамка в музее, день 7 = легендарный артефакт. Пропуск снимает одну ступень, а НЕ обнуляет: злой сброс на анонимной аудитории = отток.
+**Daily Challenge — the main return mechanism, no backend needed.** The layout seed = the date (YYYYMMDD): all players get one level of the day, one scored attempt per day. The first level of the day — a guaranteed rare+ artifact. A single soft streak: day 2 = +1 starting shake, day 3+ = +2 and a frame in the museum, day 7 = a legendary artifact. A miss takes off one step and does NOT zero it out: a harsh reset on an anonymous audience = churn.
 
-**Счётчик визитов «Дни в игре»** — не подряд, никогда не сбрасывается: награды на 2, 3, 5, 7, 10, 15 визитов (монеты → встряска → эксклюзивный предмет в чашу → скин). Работает на органике портала: игрок вернулся в каталог → «у меня там 4/5 до награды».
+**The "Days in the game" visit counter** — not consecutive, never resets: rewards at 2, 3, 5, 7, 10, 15 visits (coins → shake → an exclusive item in the bowl → skin). It works on the portal's organics: the player came back to the catalog → "I've got 4/5 there until a reward".
 
-**Возвратный бонус:** не заходил >24 ч → «чаша настоялась»: +1 бесплатная встряска и ×2 монеты на первый уровень.
+**Return bonus:** hasn't come in for >24 h → "the bowl has steeped": +1 free shake and ×2 coins on the first level.
 
-**Тизер «завтра»:** на витрине слот с силуэтом редкого артефакта и таймером до полуночи (локальное время). Обещание внутри сессии — единственный канал возврата без пушей, поэтому оно обязано быть видно в конце каждой сессии.
+**The "tomorrow" teaser:** on the showcase, a slot with the silhouette of a rare artifact and a timer until midnight (local time). A promise inside the session is the only return channel without pushes, and therefore it must be visible at the end of every session.
 
-**«Сет недели»:** сид из ISO-номера недели → дроп одного сета ×2. Псевдо-лайв-опс без бэкенда и без календарных дедлайнов.
+**"Set of the week":** a seed from the ISO week number → the drop of one set ×2. Pseudo-live-ops without a backend and without calendar deadlines.
 
-**Лидерборды** (Bridge, только где платформа даёт, за флагом): «Очки дня» и «Лучшая цепь» (максимум предметов за одну цепную реакцию — борд продаёт зрелищную фичу и провоцирует переигровки). Фолбэк везде: локальные рекорды + плашка «Новый рекорд!» на экране победы. На лидербордах ядро возврата не строим — это бонус части платформ.
+**Leaderboards** (Bridge, only where the platform gives them, behind a flag): "Points of the Day" and "Best Chain" (the maximum number of items in a single chain reaction — the board sells a spectacular feature and provokes replays). Fallback everywhere: local records + a "New record!" banner on the victory screen. We do not build the return core on leaderboards — that is a bonus on some platforms.
 
-## 6. Живучесть сейва
+## 6. Save survivability
 
-- Всё критическое (монеты, звёзды, музей-битмаска, визиты, стрик) — один компактный JSON, запись после каждого уровня.
-- Дублирование: localStorage + Bridge storage; при расхождении берём максимум по каждому счётчику.
-- Мета переживает потерю сейва: первые 5–8 уровней прогрессия ускоренная (быстрый повторный набор), контент не гейтится одной длинной цепочкой, за валюту не продаётся перманентная сила.
-- Защиту от читеров не делаем: игрок аноним, PvP-ценности нет — не тратим на это сессии.
+- Everything critical (coins, stars, the museum bitmask, visits, the streak) — one compact JSON, written after every level.
+- Duplication: localStorage + Bridge storage; on divergence we take the maximum of each counter.
+- The meta survives the loss of the save: the first 5–8 levels have accelerated progression (fast re-accumulation), content is not gated behind one long chain, permanent power is not sold for currency.
+- We do not build anti-cheat protection: the player is anonymous, there is no PvP value — we do not spend sessions on it.
 
-## 7. Релизные порции (каждая строка ≈ 1 AI-сессия, если не указано иное)
+## 7. Release batches (each row ≈ 1 AI session unless stated otherwise)
 
-### v1 — «экономика и первая сессия» (≈5 AI-сессий, всё дёшево — код и параметры, ноль арта)
+### v1 — "the economy and the first session" (≈5 AI sessions, everything is cheap — code and parameters, zero art)
 
-| P | Фича | Метрика |
+| P | Feature | Metric |
 |---|------|---------|
-| P0 | Монеты: начисление, конвертация очков 500:1, магазин (встряска 25, прицел 15), счётчик на HUD и экране победы | удержание, playtime |
-| P0 | Звёзды 1–3★ + пар-скор + экран победы с ними | replays |
-| P0 | Ребаланс первой сессии: уровни 1–3 укорочены, золотой на ур. 1–2, без interstitial до первой победы; флоу «Дальше» одним тапом (0,5 сессии) | D1, QA-гейт |
-| P0 | Rewarded ×3 новых плейсмента + interstitial с капами (1,5 сессии) | ads |
-| P0 | Bridge storage + localStorage, максимум при расхождении (0,5 сессии) | D1 |
+| P0 | Coins: accrual, 500:1 point conversion, the shop (shake 25, sight 15), a counter on the HUD and on the victory screen | retention, playtime |
+| P0 | Stars 1–3★ + the par score + the victory screen with them | replays |
+| P0 | Rebalance of the first session: levels 1–3 shortened, the golden one on lvl. 1–2, no interstitial before the first win; a one-tap "Next" flow (0.5 session) | D1, QA gate |
+| P0 | Rewarded ×3 new placements + interstitial with caps (1.5 sessions) | ads |
+| P0 | Bridge storage + localStorage, the maximum on divergence (0.5 session) | D1 |
 
-Ничего из v1.1 в v1 не тащим — релизимся малой порцией и смотрим метрики платформы.
+We do not drag anything from v1.1 into v1 — we release in a small batch and watch the platform's metrics.
 
-### v1.1 — «музей и причина вернуться» (через 1–2 недели, ≈5–6 AI-сессий, дёшево: материалы и UI, ноль новых моделей)
+### v1.1 — "the museum and a reason to come back" (in 1–2 weeks, ≈5–6 AI sessions, cheap: materials and UI, zero new models)
 
-| P | Фича | Метрика |
+| P | Feature | Metric |
 |---|------|---------|
-| P0 | Музей: 3 сета из существующих типов, экспонаты-сеты с пассивным прогрессом, артефакты + редкости + pity, витрина ≤5 с, блик-телеграф (2 сессии) | D1, playtime |
-| P0 | Daily Challenge (сид от даты) + единый мягкий стрик + тизер «завтра» (2 сессии) | D1 |
-| P1 | Счётчик визитов + возвратный бонус | D1/D7 |
-| P1 | Дубликаты → монеты; награды за полный сет (скин + пачка встрясок) | replays |
+| P0 | The museum: 3 sets out of existing types, set exhibits with passive progress, artifacts + rarities + pity, showcase ≤5 s, the glint telegraph (2 sessions) | D1, playtime |
+| P0 | Daily Challenge (a seed from the date) + a single soft streak + the "tomorrow" teaser (2 sessions) | D1 |
+| P1 | Visit counter + return bonus | D1/D7 |
+| P1 | Duplicates → coins; rewards for a full set (skin + a pack of shakes) | replays |
 
-### v1.2 — «разнообразие и витрина» (ещё через 2–3 недели, ≈5–6 AI-сессий; единственная дорогая часть — модели)
+### v1.2 — "variety and the showcase" (another 2–3 weeks later, ≈5–6 AI sessions; the only expensive part is the models)
 
-| P | Фича | Метрика |
+| P | Feature | Metric |
 |---|------|---------|
-| P0 | Первый новый зал: палитра + 2 новых OBJ в пределах 150 КБ (2 сессии + заказ моделей — ДОРОГО, единственная арт-статья) | удержание после 10-го уровня |
-| P1 | Цикл сложности 5 уровней + «сложный ×1,5 монет»; мутаторы 3–4 шт. | playtime |
-| P1 | Скины чаши/фона за пороги звёзд и полные сеты | replays |
-| P2 | Bridge-лидерборды «Очки дня» + «Лучшая цепь» (за флагом); Hard-переигровка за 4-ю звезду (0,5 сессии) | replays |
+| P0 | The first new hall: palette + 2 new OBJs within 150 KB (2 sessions + ordering the models — EXPENSIVE, the only art line item) | retention after level 10 |
+| P1 | The 5-level difficulty cycle + "hard ×1.5 coins"; mutators, 3–4 pcs. | playtime |
+| P1 | Bowl/background skins for star thresholds and full sets | replays |
+| P2 | Bridge leaderboards "Points of the Day" + "Best Chain" (behind a flag); a Hard replay for the 4th star (0.5 session) | replays |
 
-Дальше по метрикам: конвейер залов (1 сессия + модели на зал), «сет недели», сезонный сет к празднику. Опциональный AB-эксперимент (только за флагом): артефакт может быть смолот при штрафном помоле с компенсацией 50% монетами — даёт ставки, но риск фрустрации, без AB не включать.
+Further on, by the metrics: a hall conveyor (1 session + models per hall), "set of the week", a seasonal set for a holiday. An optional A/B experiment (behind a flag only): the artifact can be ground up during penalty grinding with 50% compensation in coins — it adds stakes, but there is a frustration risk, do not turn it on without A/B.
 
-## 8. Отрезано осознанно (противоречит портальной реальности)
+## 8. Deliberately cut off (contradicts portal reality)
 
-- **Энергия/жизни/таймеры ожидания** — режут playtime, по которому портал ранжирует; на портале это прямой уход к соседней игре в каталоге.
-- **Жёсткие стрики со сбросом и календарные ивенты «успей за 48 часов»** — без пушей игрок возвращается к проваленному таймеру → чистый негатив.
-- **Внутриигровые покупки** — на порталах их обычно нет; монетизация = rewarded + interstitial.
-- **Нарратив глубже музейной рамки** (диалоги, катсцены, главы с текстом) — дорого, скипается, метрик не двигает, тянет локализацию.
-- **Глубокая мета** (прокачка, крафт, деревья улучшений) — умирает вместе с localStorage и не раскрывается за 5–15 минут.
-- **Бэкенд, логин, облачные сейвы за пределами Bridge** — канал этого не даёт.
-- **Новые корневые механики** — ядро уже сильное; план его обрамляет и монетизирует, а не разбавляет.
+- **Energy/lives/waiting timers** — they cut the playtime the portal ranks by; on a portal this is a direct exit to the neighboring game in the catalog.
+- **Hard streaks with a reset and calendar events "make it within 48 hours"** — without pushes the player comes back to a failed timer → pure negative.
+- **In-game purchases** — portals usually do not have them; monetization = rewarded + interstitial.
+- **Narrative deeper than the museum frame** (dialogues, cutscenes, chapters with text) — expensive, gets skipped, does not move metrics, drags localization along.
+- **Deep meta** (leveling, crafting, upgrade trees) — dies together with localStorage and does not unfold in 5–15 minutes.
+- **A backend, login, cloud saves beyond Bridge** — the channel does not give that.
+- **New core mechanics** — the core is already strong; the plan frames and monetizes it rather than diluting it.
 
-## 9. Что мерить после каждого релиза
+## 9. What to measure after every release
 
-- **Playtime/сессию:** цель 8+ минут (задача звёзд, витрины и флоу «Дальше» — затащить на 2-й/3-й уровень). Уровней за сессию: с 2–3 → 3–4.
-- **D1:** портальный бенчмарк 8–15%; цель v1 — +3–5 пп к своей базе; после v1.1 ориентир 15–20% (цель, не прогноз) — daily должен дать видимый скачок.
-- **Незавершёнка:** % сессий, закончившихся с экспонатом ≥50% готовности — цель >60%.
-- **Rewarded:** конверсия по каждому из 4 плейсментов отдельно; <10% — убиваем плейсмент.
-- **Interstitial:** жалобы/аномалии → крутим кап 3 минуты, а не выпиливаем.
+- **Playtime/session:** target 8+ minutes (the job of the stars, the showcase and the "Next" flow is to drag the player onto level 2/3). Levels per session: from 2–3 → 3–4.
+- **D1:** the portal benchmark is 8–15%; the v1 target is +3–5 pp to our own baseline; after v1.1 the benchmark is 15–20% (a target, not a forecast) — daily should give a visible jump.
+- **Unfinished business:** % of sessions that ended with an exhibit ≥50% complete — target >60%.
+- **Rewarded:** conversion for each of the 4 placements separately; <10% — we kill the placement.
+- **Interstitial:** complaints/anomalies → we tune the 3-minute cap rather than rip it out.
 
-Первый шаг — v1 целиком: она чинит обе дыры (очки → монеты и звёзды; первая сессия → незавершёнка и чистый флоу), стоит ~5 AI-сессий без единой новой модели и самодостаточна — даже если дальше ничего не выйдет, игра уже получает экономику и причину доиграть «ещё один уровень».
-
-
----
-
-# ЧАСТЬ 2. КРИТИКА
-
-
-## Линза: психология игрока
-
-1. Незавершёнка экспоната как главный рычаг D1 — работает только в голове гейм-дизайнера
-
-План прямо называет выход из сессии с экспонатом на 60–75% «главным рычагом D1». Механизм провала: эффект незавершённости требует, чтобы игрок в момент решения «во что поиграть» ВСПОМНИЛ о прогрессе. Но решение принимается назавтра в каталоге портала, где среди сотни иконок незакрытый экспонат не виден, а 8-минутная анонимная сессия не создаёт ни запоминания названия игры, ни эмоциональной привязки к «4 чайникам из 20» на полке. Коллекционные механики удерживают уже удержанных (это инструмент D30, не D1) — казуал, который ещё не решил, нравится ли ему игра, не испытывает потери от недособранного сета безымянных пастельных фигурок. Ставка всей v1.1 сделана на психологический механизм, для срабатывания которого нужны память и привязанность, которых на этом канале физически неоткуда взяться. Критичность: убийца.
-
-2. Daily Challenge — «главный механизм возврата», который видят только уже вернувшиеся
-
-Daily-механики живут на пушах (мобайл) или социальном шаринге (Wordle). Здесь нет ни того, ни другого, и план это знает — но подпирает daily «тизером завтра» на витрине. Это замкнутый круг: тизер видит только игрок, доигравший сессию до витрины, то есть механизм возврата рекламируется исключительно тем, кто уже вернулся. Награды стрика (+1/+2 стартовые встряски) микроскопичны относительно усилия «сам вспомни и сам вернись»: встряски и так почти бесплатны — 3 базовых плюс rewarded. Счётчик «Дни в игре» страдает тем же: «игрок вернулся в каталог → у меня там 4/5» предполагает, что он помнит счётчик из игры, в которую заходил один раз. Ориентир «D1 15–20% после v1.1» при портальном бенчмарке 8–15% — удвоение базы за счёт механики, невидимой для невернувшихся. Критичность: убийца.
-
-3. Экономика монет каннибализируется собственным rewarded
-
-План гордится строкой «появляется выбор "потратить монеты или посмотреть рекламу" — растит и удержание, и рекламный инвентарь». Это не выбор: встряска за 25 монет и встряска за 30 секунд рекламы — один товар по двум ценам, одна из которых ноль. Рациональное (и интуитивное казуальное) поведение — всегда смотреть рекламу; платный канал мёртв с первого дня. «Прицел» за 15 монет нужен только на сложных уровнях — низкочастотный сток. Итог: монеты копятся без расхода, правило «расходы опережают доход на 20–30%» нечем обеспечить, и v1 воспроизводит ровно ту дыру («очки ни во что не конвертируются»), которую заявляет починить, — только теперь с магазином, HUD-счётчиком и потраченными AI-сессиями поверх. Критичность: серьёзно.
-
-4. 3★ — скилл-гейт, превращающий систему рейтинга в табличку «ты играешь плохо»
-
-3★ требует запустить цепную реакцию (серия из 10 быстрых матчей без промахов — реальный скилл-порог для пальца на телефоне) И не допустить ни одного помола за уровень. Большинство казуалов не возьмут это никогда — и будут уровень за уровнем видеть 1★. Система, задуманная «продавать две лучшие механики», для основной массы аудитории становится перманентным свидетельством некомпетентности, а скины «по порогам суммарных звёзд» — заведомо недостижимой витриной. Расчёт на replays ради звёзд — миф про другую аудиторию: анонимный казуал с сессией 10 минут не переигрывает пройденное, он либо идёт вперёд, либо уходит в соседнюю игру. Метрика replays, под которую заложен весь блок, на этом канале близка к нулю независимо от дизайна звёзд. Критичность: серьёзно.
-
-5. Межуровневый флоу: заявлен «один тап Дальше», спроектирована воронка из четырёх экранов
-
-После уровня игрока ждут: экран победы (звёзды, монеты, пар-скор, оффер ×2 за рекламу, «до Магнита осталось 35 монет»), витрина музея, тизер «завтра» и — при уровне в 3–5 минут и капе «раз в 3 минуты» — interstitial практически после каждого уровня. Ловушка витрины двойная: если она реально ≤5 секунд и скипается тапом — казуал промотает её не глядя, и весь музейный крючок пройдёт мимо сознания (главный рычаг из п.1 ещё и не будет увиден); если она информативна — цикл удлиняется и стакается с рекламой в двойное прерывание, а прерывание флоу между уровнями — точка оттока номер один в жанре, где следующая игра в один клик. План одновременно требует от одного экрана продать коллекцию и не существовать. Критичность: серьёзно.
-
-6. Обязательный Hard каждый пятый уровень — стена ровно в точке решения «продолжать ли»
-
-Казуал на портале не выбирал Hard — цикл «Лёгкий → Средний → Средний → Сложный» навязывает его всем. На стене казуал не «фармит ×1,5 монет» (он не считает EV, он чувствует фрустрацию) — он уходит. Хуже: пар-скор +8% за уровень внутри зала означает, что конец каждого зала — худший опыт игрока за сессию, и «пила» кладёт этот худший опыт точно на момент принятия решения о возврате. Мутатор «Только цепи» для игрока, ни разу не запускавшего цепную реакцию (см. п.4 — таких большинство), — это уровень с принудительно нулевым доходом. Разнообразие, спроектированное как удержание, работает как расписание точек оттока. Критичность: серьёзно.
-
-7. Генерализация артефактов убивает единственный работающий крючок и конфликтует с ядром
-
-Золотой чайник работал, потому что был сюрпризом. «Ровно один артефакт каждый уровень, всегда в нижней трети, блик каждые 8 секунд» — это рутинная обязанность с телеграфом, а не открытие: третья раскопка эмоционально пуста. Редкости 70/20/8/2 — гача-грамматика без гача-ценности: игрок быстро выучивает, что 70% раскопок — «мусор за 15 монет», а pity-легендарка на 40-м уровне обещана аудитории, которая в массе не доживает до десятого. Главное — механический конфликт с ядром: раскопка требует целенаправленно матчить нижнюю треть чаши, комбо-система требует быстрых матчей где угодно; промахи ради раскопки сбивают ступени комбо, то есть новая система штрафует игрока за использование лучшей старой. Две мотивации тянут палец в разные стороны в каждом уровне. Критичность: серьёзно.
-
-
-## Линза: производство
-
-# Критика плана «Миксер»: 7 слабых мест (по убыванию цены ошибки)
-
-## 1. Смета AI-сессий занижена в 2–3 раза, а регрессионный налог монолита не заложен вовсе — убийца
-
-Весь план посчитан в «сессиях-фичах», как будто каждая сессия заканчивается работающим кодом. Производственная реальность проекта говорит обратное: игра — один HTML-файл с настроенной физикой (three.js + Rapier), уже пережившая регрессию 2026-07, после которой пришлось фиксировать инварианты сна/трима/доступности/стекла. Тестов нет, QA — владелец-непрограммист на телефоне. Каждая из «дешёвых» фич v1 (монеты, звёзды, плейсменты, сторадж) лезет в общие места монолита: пайплайн очков, флоу уровня, оверлеи UI. Механизм провала: сессия N ломает то, что настроила сессия N-3, владелец замечает это через день на телефоне, чинящая сессия ломает следующее. «Музей за 2 сессии» — витринный пример: это отдельный мета-UI с прогрессом по типам, pity-таймерами, силуэтами и вращением фигурок; реально 5–8 сессий (см. также п. 4). Умножьте все таблицы §7 на 2–3 — «v1 за неделю» превращается в месяц, и это до первого замера метрик. Дополнительно: каждая система раздувает единственный файл, и сама производственная модель деградирует — чем больше монолит, тем хуже AI-сессии в нём ориентируются и тем дороже каждая следующая правка.
-
-## 2. У плана нет сенсора: §9 нечем измерять — убийца
-
-Вся логика плана — «релизимся малой порцией и смотрим метрики»: D1, playtime, конверсия каждого из 4 rewarded-плейсментов отдельно, «% сессий с экспонатом ≥50%». Но ни в v1, ни в v1.1, ни в v1.2 нет ни одной сессии на телеметрию, а бэкенда, куда слать события, не существует по условию. Порталы отдают в лучшем случае агрегаты уровня «игроки/сессии»; поплейсментную конверсию rewarded и «незавершёнку» они не считают — это кастомные события. Механизм провала: правило «плейсмент с конверсией <10% убиваем» неисполнимо — цифру конверсии негде взять. План строит контур управления без датчиков: релизы будут, решения по ним приниматься не смогут, и через 3 релиза выбор фич снова делается на глазок. Втащить стороннюю аналитику — отдельная работа (плюс часть порталов ограничивает или требует согласования внешних запросов), и она нигде не бюджетирована.
-
-## 3. Экономика монет арифметически не сходится к заявленному дефициту — серьёзно
-
-План декларирует «расходы опережают доход на 20–30%», но собственные цифры плана дают обратное. Доход 35–50 монет/уровень; уровень по замерам проходится за 2–3 встряски при 3 бесплатных + 2 за рекламу — то есть типовому игроку покупать встряску за 25 монет **не нужно**. «Прицел» за 15 — ситуативный. Обязательного стока нет. Механизм провала: за 10 уровней у среднего игрока копится 300+ мёртвых монет, плашка «до Магнита осталось 35» перестаёт что-либо значить — и исходная дыра «очки ни во что не конвертируются» воспроизводится этажом выше, только теперь за неё заплачено ~2 сессиями. Внутри той же экономики зашит конфликт стимулов: +5 монет за неиспользованную встряску награждает за то, чтобы НЕ пользоваться механикой, и прямо воюет и с магазином встрясок, и с Continue-плейсментом. И ещё из собственных цифр плана: rewarded «×2 очков» при конвертации 500:1 даёт ~5–15 монет — меньше одной встряски; по собственному правилу плана (<10% — убиваем) этот плейсмент убьёт себя сам.
-
-## 4. Музей-витрина: скрытая цена рендера на мобилках — серьёзно
-
-«Экспонаты = те же меши в масштабе 0,4 — ноль новых байт» звучит бесплатно, но байты — не цена. Полка музея — это либо вторая сцена, либо render-to-texture поверх живой игровой сцены на слабом мобильном GPU. «Редкости материалом»: металлик и перламутр без environment map выглядят как серая пластмасса, свечение — это bloom или его имитация; и то и другое — перф-статья, которой в игре сейчас нет. «Блик раз в 8 секунд сквозь толщу» — свечение сквозь окклюдеры, то есть отдельный рендер-трюк, а не смена материала. Механизм провала: оценка «2 сессии» превращается в 5+, из них половина — борьба за то, чтобы легендарный артефакт не выглядел хуже обычного и чтобы витрина не роняла FPS перед следующим уровнем. Это главная фича v1.1 («причина вернуться»), и именно она недооценена сильнее всего.
-
-## 5. «У всех игроков один уровень дня» — недоказанное обещание — серьёзно
-
-Сид от даты задаёт состав и порядок спавна, но раскладка получается физическим оседанием 141 тела — а оно зависит от таймстепа, частоты кадров и устройства. «Один уровень дня у всех» требует либо детерминированной симуляции с фиксированным шагом, либо пре-запечённых раскладок — ни то ни другое не бюджетировано, а фиксированный шаг — это вторжение в отлаженное физическое ядро, которое план сам поклялся не трогать (§8: «новые корневые механики не делаем»). Механизм провала: либо тратятся незапланированные сессии на детерминизм с риском регрессии физики, либо «уровень дня» у каждого свой — тогда борд «Очки дня» сравнивает несравнимое, а маркетинговая суть daily («у всех одно и то же») тихо ложная. Дешёвый честный вариант (сид задаёт только состав) надо признавать заранее, а не обнаруживать на середине сессии.
-
-## 6. Инвариант «ноль переводимого текста» опровергается собственным контентом плана — серьёзно
-
-Рамку музея пиктограммами продать можно. Но план дальше вводит: условия 3★ («запусти цепную реакцию И ни один предмет не смолот»), пар-скор для 2★, магазин с тремя товарами, pity-правила, стрик со ступенями, «чаша настоялась», «до Магнита осталось 35 монет» (это буквально текстовая строка в самом плане). Механизм провала: игрок не реверс-инженерит «очки ≥ сумма номиналов × 1,3» из иконки. Развилка двоичная: либо текст и локализация возвращаются (стоимость, которую «ноль текста» обещал снять), либо игроки систем не понимают — и тогда звёзды, pity и стрик куплены сессиями, но метрик не двигают, потому что невидимы как цели. Второй исход хуже: деньги потрачены, эффект нулевой, а по метрикам это будет выглядеть как «фича не сработала».
-
-## 7. КБ-бюджет залов посчитан от запаса, которого нет — серьёзно/косметика
-
-Файл **уже** ~1 МБ. План распоряжается «комфортными 3–4 залами по 100–150 КБ» из бюджета, который текущим состоянием исчерпан, и при этом считает килобайты только для арта — а v1–v1.2 добавляют магазин, звёзды, музей, daily, стрики, мутаторы, то есть сотни килобайт кода в тот же файл. Механизм провала: козырь «до первого тапа <20 секунд», который план сам называет главным преимуществом первой сессии, размывается именно теми фичами, которые должны первую сессию спасать. Лимит надо пересчитать от факта (взвесить текущий файл, зафиксировать потолок и статью «код», а не только «модели») до заказа первой модели, иначе v1.2 упрётся в выбор «резать зал или резать скорость загрузки» постфактум.
-
----
-
-**Итог по соотношению цена/эффект:** пункты 1 и 2 — системные: они не про отдельную фичу, а про то, что производственная модель (сметы) и контур управления (метрики) плана не существуют в заявленном виде; пока они не закрыты, любая таблица §7 — фантазия. Пункты 3–6 — фичи, купленные по заниженной цене с риском нулевого или отрицательного эффекта. Пункт 7 — дешёвая проверка, которую надо сделать до первой потраченной на модели копейки.
-
-
-## Линза: платформы
-
-## 1. Музей стоит на хранилище, которое целевые каналы стирают — «убийца»
-
-Вся мета v1.1 (экспонаты, стрик, «дни в игре», незавершёнка как рычаг D1) предполагает, что игрока можно узнать завтра. На порталах это ложь. Игра живёт в iframe на чужом домене: в Safari/iOS WebView storage партиционируется и/или вычищается ITP примерно через 7 дней без визита — а недельный каденс возврата из каталога для портальной аудитории норма. Хуже: план «дублируем localStorage + Bridge storage» на Poki и части других платформ вырождается в localStorage + localStorage, потому что Bridge при отсутствии платформенного стора фолбэчится в тот же localStorage. На CrazyGames облачный сейв есть только у залогиненных — а игрок по условию аноним. Механизм провала: игрок возвращается на 8-й день → музей пуст → «спроектированная незавершёнка» превращается в спроектированное обнуление, то есть машина возврата активно учит игрока, что возвращаться бессмысленно. Пункт §6 «мета переживает потерю сейва» описывает быстрый повторный набор первых уровней, но не отвечает на главное: коллекция, которая регулярно испаряется, ретеншен не строит, а рушит. **Критичность: убийца** — это фундамент всего v1.1.
-
-## 2. Мерж «максимум по каждому счётчику» ломает экономику дефицита — серьёзно
-
-Правило из §6 доказуемо генерирует дюп валюты. Сценарий: в обоих сторах 100 монет → игрок покупает встряску за 25 → localStorage = 75, асинхронная запись в Bridge не прошла (платформа тормозит, вкладка закрыта, лимит записей) → следующий запуск: max(75, 100) = 100 → покупка бесплатна. Любая трата откатывается при любом сбое записи, а сбои на порталах — норма, не исключение. Вся калибровка §4 («расходы опережают доход на 20–30%») построена на дефиците, который это правило молча отменяет. Отдельно для Telegram: CloudStorage — 4096 символов на значение и лимиты на частоту записи; «один JSON после каждого уровня» упрётся в потолок по мере роста музея-битмаски и счётчиков, и именно тогда записи начнут молча падать, включая сценарий выше. Мержить нужно по семантике поля (монеты — через лог транзакций или last-write-wins с версией, битмаски — через OR), а этого в плане нет. **Критичность: серьёзно.**
-
-## 3. План распоряжается рекламной каденцией, которая ему не принадлежит — серьёзно
-
-«Interstitial не показывается до первой победы» и «первый тап < 20 секунд» написаны так, будто игра владеет рекламным слотом. На порталах это не так: портал показывает собственный preroll до/при загрузке игры независимо от желания разработчика — обещание «первого тапа за 20 секунд» умирает не в вашем коде, а в обёртке платформы. Вторая сторона той же ошибки: Poki требует вызывать commercialBreak в естественных паузах, и портальные QA/алгоритмы ранжирования смотрят на монетизацию сессии; игра, которая дисциплинированно молчит до второй победы и держит кап «раз в 3 минуты», получает низкий revenue-score → меньше трафика из каталога → все метрики §9 падают по причине, которую план даже не мерит. Каденцию надо проектировать per-platform от требований SDK, а не декларировать глобально. **Критичность: серьёзно.**
-
-## 4. Экономика откалибрована под rewarded, которого на части платформ нет — серьёзно
-
-Фолбэк «платформа не даёт — молча пропускаем» план прописывает только для interstitial. Для rewarded фолбэка нет, хотя rewarded несёт экономическую нагрузку: Continue после поражения, ×2 монет, встряски 4–5, металлоискатель. На платформе без rewarded все четыре плейсмента молча исчезают → доход игрока падает, а цены магазина (встряска 25 при доходе 35–50) и правило «расходы опережают доход на 20–30%» остаются → мягкий дефицит превращается в жёсткую нехватку, поражение становится безальтернативным (Continue нет), фрустрационный отток растёт именно там, где монетизации и так нет. Ориентир «1,5–2,5 показа rewarded/сессию» на таких платформах — ноль по определению, и усреднённые метрики это замаскируют. Нужна отдельная ценовая/наградная таблица для no-rewarded-платформ — её в плане нет. **Критичность: серьёзно.**
-
-## 5. §9 обещает измерения, для которых не назван инструмент — серьёзно
-
-Kill-критерии плана («конверсия плейсмента <10% — убиваем», «% сессий с экспонатом ≥50% — цель >60%», «незавершёнка») требуют кастомных событий по каждому плейсменту и каждой сессии. Портальные дашборды дают агрегаты: показы, revenue, DAU, иногда playtime — но не воронку «предложение → просмотр» по четырём плейсментам и не состояние экспоната на выходе из сессии. Bridge-аналитика фрагментирована по платформам так же, как storage. План нигде не называет пайплайн (внешний beacon-эндпоинт, событийная схема, стоимость его поддержки при позиции «бэкенда нет») — то есть вся управляющая петля «релиз → метрики → решение» молча предполагает возможность, которой в описанном стеке нет. Без этого решения «убиваем/оставляем» будут приниматься на глаз, и весь смысл малых релизных порций теряется. **Критичность: серьёзно.**
-
-## 6. Лидерборд «Очки дня» в специфицированном виде не существует ни в одном Bridge-бэкенде — косметика
-
-Bridge проксирует платформенные лидерборды, а это глобальные персистентные таблицы (где вообще есть). Борда с ежедневным сбросом «Очки дня» не даёт ни одна из целевых платформ без серверной логики — то есть фича, как записана, нереализуема, и AI-сессия уйдёт на то, от чего в проде останется только локальный рекорд с плашкой, который план и так делает фолбэком. «Лучшая цепь» как глобальный максимум технически возможна, но на анонимной аудитории с теряемым сейвом одна и та же цепь будет засабмичена «новыми» игроками многократно, замусоривая борд. **Критичность: косметика** (фича за флагом), но строка в v1.2 в текущей формулировке — заранее потраченная сессия.
+The first step is all of v1: it fixes both holes (points → coins and stars; the first session → unfinished business and a clean flow), costs ~5 AI sessions without a single new model and is self-sufficient — even if nothing further works out, the game already gets an economy and a reason to play "one more level".
 
 
 ---
 
-# ЧАСТЬ 3. ЗАЩИТА И КОРРЕКТИРОВКИ
+# PART 2. CRITIQUE
 
-# Вердикты по критике плана «Миксер»
 
-## Психология
+## Lens: player psychology
 
-**1. Незавершёнка как рычаг D1 — ЧАСТИЧНО.** Механизм признаю: эффект незавершённости требует памяти и привязанности, которых у анонимного казуала после одной сессии нет, и статус «главный рычаг D1» с экспоната снимается. Но это не убийца: возврат на порталах идёт через каталог и ряды «недавно игранные» — туда игрока приводит качество первой сессии (фронт-лоуд v1), а незавершёнка легально работает этажом ниже, как ускоритель второй сессии у уже кликнувших. Понижаем фичу в ранге, а не вырезаем: она дешёвая и бьёт по D7, не по D1.
+1. An exhibit's unfinished business as the main D1 lever — works only in the game designer's head
 
-**2. Daily виден только вернувшимся — ЧАСТИЧНО.** Замкнутый круг признаю: daily не создаёт возврат из ниоткуда, и ориентир «D1 15–20% после v1.1» снимается как необоснованный. Но функция механики другая: портальная органика и так возвращает часть игроков — daily даёт вернувшемуся причину зайти именно сегодня и завтра, то есть работает на частоту сессий вернувшихся и D7. При себестоимости «сид от даты» фича остаётся, метрика цели меняется.
+The plan directly calls leaving a session with an exhibit at 60–75% "the main D1 lever". The failure mechanism: the incompleteness effect requires the player, at the moment of deciding "what to play", to REMEMBER the progress. But the decision is made the next day in the portal's catalog, where among a hundred icons an unclosed exhibit is not visible, and an 8-minute anonymous session creates neither a memory of the game's name nor an emotional attachment to "4 teapots out of 20" on a shelf. Collection mechanics retain the already retained (this is a D30 instrument, not D1) — a casual who has not yet decided whether he likes the game feels no loss from an unfinished set of nameless pastel figurines. The whole of v1.1 is betting on a psychological mechanism which, in order to fire, needs memory and attachment that on this channel physically have nowhere to come from. Criticality: killer.
 
-**3. Rewarded каннибализирует монеты — ПРИНЯТА.** Один товар по двум ценам, одна из которых ноль, — дизайн-баг, спорить не с чем. План корректируется: товары разводятся по каналам (rewarded = Continue и ×2; магазин = прицел и магнит), встряска за монеты покупается только после исчерпания rewarded-капа — тогда монеты снимают кап, а не конкурируют с бесплатным. Детали — в списке корректировок, п. 1.
+2. Daily Challenge — "the main return mechanism", which is seen only by those who have already returned
 
-**4. 3★ — скилл-гейт — ЧАСТИЧНО.** Условие «цепная реакция И ноль помолов» для казуала завышено — принимаю, перекалибруем: 3★ = очки с запасом над пар-скором, цепная реакция уходит в ачивку/рекорд «Лучшая цепь». Но выбрасывать звёзды не за что: это дешёвый progression-feel и единственный рейтинг уровня; ставка на массовые replays действительно снимается, звёзды остаются ради порогов скинов и ощущения роста, а не переигровок.
+Daily mechanics live on pushes (mobile) or social sharing (Wordle). Here there is neither, and the plan knows it — but props daily up with the "tomorrow teaser" on the showcase. This is a closed loop: the teaser is seen only by a player who played the session through to the showcase, that is, the return mechanism is advertised exclusively to those who have already returned. The streak rewards (+1/+2 starting shakes) are microscopic relative to the effort of "remember on your own and come back on your own": shakes are nearly free as it is — 3 base plus rewarded. The "Days in the game" counter suffers from the same thing: "the player came back to the catalog → I've got 4/5 there" assumes that he remembers a counter from a game he entered once. The benchmark "D1 15–20% after v1.1" against a portal benchmark of 8–15% is a doubling of the baseline off the back of a mechanic invisible to those who did not return. Criticality: killer.
 
-**5. Воронка из четырёх экранов вместо «одного тапа» — ПРИНЯТА.** Противоречие реальное: витрина одновременно обязана продать музей и не существовать. Корректировка: отдельный экран витрины между уровнями убирается — прирост экспоната показывается анимированной строкой прямо на экране победы, музей открывается опциональной кнопкой; interstitial-кап согласуется так, чтобы не стакаться с экраном победы каждый уровень.
+3. The coin economy is cannibalized by its own rewarded
 
-**6. Обязательный Hard — стена в точке решения — ЧАСТИЧНО.** Что навязанная стена в конце зала — худший момент для худшего опыта, принимаю: «сложный» уровень становится опциональным выбором («обычный / испытание ×1,5 монет») — стена превращается в дверь; мутатор «Только цепи» уходит из стартового пула; рост пар-скора сглаживается. Но сам цикл разнообразия и мутаторы за копейки — здоровая часть плана и остаются.
+The plan is proud of the line "a choice appears: 'spend coins or watch an ad' — it grows both retention and ad inventory". This is not a choice: a shake for 25 coins and a shake for 30 seconds of an ad are one product at two prices, one of which is zero. The rational (and intuitive casual) behavior is to always watch the ad; the paid channel is dead from day one. The "Sight" for 15 coins is needed only on hard levels — a low-frequency sink. The result: coins pile up without being spent, there is nothing to back the rule "spending outpaces income by 20–30%" with, and v1 reproduces exactly the hole ("points don't convert into anything") that it claims to fix — only now with a shop, a HUD counter and spent AI sessions on top. Criticality: serious.
 
-**7. Артефакты убивают сюрприз и конфликтуют с комбо — ЧАСТИЧНО.** Конфликт мотиваций (копать низ против быстрых матчей где угодно) — сильное наблюдение, принимается с дешёвым фиксом: блик-телеграф включается только в эндшпиле, когда чаша пустеет и комбо-давление спало — раскопка становится естественной фазой конца уровня, а не войной за палец. Рутинизацию лечим вариативностью (артефакт не в 100% уровней, изредка два) и сокращением редкостей до 3 ступеней. Генерализация единственного подтверждённого крючка — правильная ставка, отменять её из-за калибровки телеграфа не нужно.
+4. 3★ — a skill gate that turns the rating system into a sign that says "you play badly"
 
-## Производство
+3★ requires launching a chain reaction (a series of 10 fast matches with no misses — a real skill threshold for a finger on a phone) AND not allowing a single grinding per level. Most casuals will never take it — and level after level they will see 1★. A system conceived to "sell the two best mechanics" becomes, for the bulk of the audience, permanent evidence of incompetence, and skins "by thresholds of total stars" become a knowingly unreachable showcase. Counting on replays for the sake of stars is a myth about a different audience: an anonymous casual with a 10-minute session does not replay what he has already completed, he either goes forward or leaves for the neighboring game. The replays metric, on which the whole block is staked, is close to zero on this channel regardless of the design of the stars. Criticality: serious.
 
-**1. Смета ×2–3 и регрессионный налог — ПРИНЯТА.** История проекта (регрессия 2026-07, инварианты, владелец-QA на телефоне) — прямое подтверждение. Все таблицы §7 пересчитываются с буфером ×2, вводится правило «одна фича — одна сессия — один смоук-прогон чеклиста инвариантов», музей в v1.1 бюджетируется от 4–5 сессий. Порядок и состав порций при этом не меняются — критика бьёт по смете, не по последовательности.
+5. The between-level flow: "one tap on Next" is declared, a funnel of four screens is designed
 
-**2. Нет сенсора для §9 — ПРИНЯТА, но не убийца.** Дыра реальная, и закрывается она конкретным дешёвым ходом: у владельца уже есть продовый Cloudflare Worker (platform-landings) — event-beacon на 10–15 событий (плейсменты, сессии, прогресс экспоната) — это ~1 AI-сессия и строка P0 в v1. Оговорка самой критики учитывается: доступность внешних запросов проверяется per-portal до релиза, где запрещено — фолбэк в агрегаты платформы.
+After a level the player is met by: the victory screen (stars, coins, the par score, the ×2-for-an-ad offer, "35 coins left until the Magnet"), the museum showcase, the "tomorrow" teaser and — with a level of 3–5 minutes and a "once every 3 minutes" cap — an interstitial after practically every level. The showcase trap is twofold: if it really is ≤5 seconds and is skipped by a tap, the casual will scroll past it without looking and the whole museum hook will pass by his consciousness (the main lever from point 1 will on top of that never even be seen); if it is informative, the cycle lengthens and stacks with the ad into a double interruption, and interrupting the flow between levels is churn point number one in a genre where the next game is one click away. The plan simultaneously demands of one screen that it sell the collection and that it not exist. Criticality: serious.
 
-**3. Экономика не сходится к дефициту — ПРИНЯТА.** Арифметика критики верна: обязательного стока нет, +5 за неиспользованную встряску воюет с собственными плейсментами, «×2 очков» даёт копейки. Чинится вместе с психологией-3 одной корректировкой (список, п. 1): разведение каналов, ×2 монет вместо ×2 очков, отмена бонуса за неиспользованные встряски, пересбор цен после первых данных beacon'а.
+6. A mandatory Hard every fifth level — a wall exactly at the decision point "whether to continue"
 
-**4. Скрытая цена рендера музея — ОТБИТА (с уступкой по смете).** Все названные проблемы решаются стандартными приёмами three.js без борьбы: витрина — вторая сцена, рендерящаяся по требованию между уровнями при поставленной на паузу физике (не «поверх живой сцены»); металлик/перламутр — PMREM-окружение из процедурного градиента, пара строк; «блик сквозь толщу» — billboard-спрайт глоу, не bloom и не volumetrics. Уступка одна: оценка 2 сессии → 3, что уже покрыто буфером из п. 1; сценарий «5+ сессий, половина на FPS» не подтверждается при этих решениях.
+A casual on a portal did not choose Hard — the cycle "Easy → Medium → Medium → Hard" imposes it on everyone. At the wall the casual does not "farm ×1.5 coins" (he does not calculate EV, he feels frustration) — he leaves. Worse: a par score of +8% per level inside a hall means that the end of every hall is the player's worst experience of the session, and the "sawtooth" places that worst experience exactly at the moment of the decision about returning. The "Chains only" mutator, for a player who has never once launched a chain reaction (see point 4 — such players are the majority), is a level with forcibly zero income. Variety designed as retention works as a schedule of churn points. Criticality: serious.
 
-**5. «Один уровень дня у всех» недоказуем — ПРИНЯТА.** Физическое оседание недетерминировано, и трогать отлаженное ядро ради фиксированного шага план не вправе по собственному §8. Принимается честный вариант, который критика сама предлагает: сид задаёт состав, порядок спавна и правила дня, формулировка «одна раскладка у всех» из плана убирается заранее, борд «Очки дня» становится локальным рекордом дня.
+7. Generalizing the artifacts kills the only working hook and conflicts with the core
 
-**6. «Ноль текста» опровергнут собственным контентом — ПРИНЯТА.** Условия звёзд, магазин и стрик из пиктограмм не реверс-инженерятся. Инвариант переформулируется: «ноль сюжетного текста» (диалоги, лор, катсцены — по-прежнему запрещены) + словарь из ~30 коротких системных UI-строк в JSON, переводимый AI за копейки. Это сохраняет исходную цель (не строить нарративную локализацию), признавая, что системы должны быть проговорены.
+The golden teapot worked because it was a surprise. "Exactly one artifact every level, always in the lower third, a glint every 8 seconds" is a routine chore with a telegraph, not a discovery: the third dig is emotionally empty. Rarities 70/20/8/2 are gacha grammar without gacha value: the player quickly learns that 70% of digs are "junk for 15 coins", while the pity legendary at level 40 is promised to an audience that by and large does not survive to the tenth. The main thing is the mechanical conflict with the core: digging requires deliberately matching the lower third of the bowl, the combo system requires fast matches anywhere; misses for the sake of digging knock down the combo steps, that is, the new system penalizes the player for using the best old one. Two motivations pull the finger in different directions in every level. Criticality: serious.
 
-**7. КБ-бюджет от несуществующего запаса — ЧАСТИЧНО.** Процедурная часть принимается полностью: до заказа первой модели файл взвешивается по факту (raw и по сети), фиксируется потолок и отдельная статья «код». Но паника «сотни КБ кода размоют козырь загрузки» преувеличена: код жмётся brotli примерно 5:1, сотни КБ кода — десятки КБ по сети, тогда как модели жмутся плохо; лимит останется в первую очередь арт-лимитом, что план и утверждал.
 
-## Платформы
+## Lens: production
 
-**1. Хранилище стирается каналом — ЧАСТИЧНО.** Хрупкость сейва на части каналов (iframe, ITP, Bridge-фолбэк в тот же localStorage) признаю — это самый тяжёлый пункт всей критики, и «музей, который испаряется, учит не возвращаться» — верная формула риска. Но убийцей он был бы, только если бы вся мета висела на персисте: план корректируется принципом «сессионная ценность первична» — музей полноценно радует внутри сессии, при потере сейва показывает «новую экспозицию» вместо пустых полок-улик, длинные цепочки не продаются на платформах без реального стора (адаптивная глубина меты per-platform). На Playgama и Telegram платформенный стор есть — там мета работает как задумана.
+# Critique of the "Mixer" plan: 7 weak spots (in descending order of the cost of the error)
 
-**2. Max-мерж дюпит валюту — ПРИНЯТА.** Сценарий отката трат доказуем, спорить не о чем. Фикс классический и дешёвый: монеты хранятся парой монотонных счётчиков earned/spent (баланс = разность, оба мержатся через max), битмаски музея — через OR, немонотонное — last-write-wins с версией; для Telegram JSON дробится по ключам под лимит CloudStorage. Полсессии работы, дыра закрыта полностью.
+## 1. The AI-session estimate is understated by a factor of 2–3, and the monolith's regression tax is not budgeted at all — killer
 
-**3. Рекламная каденция не принадлежит игре — ЧАСТИЧНО.** Что портал показывает preroll и что Poki требует commercialBreak — принимаю: каденция становится per-platform конфигом поверх Bridge, «<20 с до первого тапа» переформулируется как метрика нашей части загрузки. Но принцип «не бить interstitial'ом до первой победы» остаётся дефолтом там, где платформа не диктует обратного, — это защита D1, и отдавать её всем каналам скопом незачем.
+The whole plan is counted in "session-features", as if every session ended with working code. The project's production reality says the opposite: the game is a single HTML file with tuned physics (three.js + Rapier), which has already been through the 2026-07 regression, after which the sleep/trim/reachability/glass invariants had to be fixed. There are no tests, QA is the owner, a non-programmer, on a phone. Each of v1's "cheap" features (coins, stars, placements, storage) reaches into the monolith's shared places: the points pipeline, the level flow, the UI overlays. The failure mechanism: session N breaks what session N-3 tuned, the owner notices it a day later on his phone, the repairing session breaks the next thing. "The museum in 2 sessions" is the showcase example: this is a separate meta UI with progress by type, pity timers, silhouettes and rotating figurines; realistically 5–8 sessions (see also point 4). Multiply all the §7 tables by 2–3 — "v1 in a week" turns into a month, and that is before the first measurement of the metrics. Additionally: every system inflates the single file, and the production model itself degrades — the bigger the monolith, the worse AI sessions orient themselves in it and the more expensive each subsequent edit is.
 
-**4. Экономика без rewarded ломается — ПРИНЯТА.** Фолбэк был прописан только для interstitial — пробел. Корректировка: единая конфиг-таблица no-rewarded-платформ: Continue за монеты, 4 базовые встряски вместо 3, цены магазина −30%; метрики rewarded считаются только по платформам, где он есть, чтобы усреднение не маскировало ноль.
+## 2. The plan has no sensor: there is nothing to measure §9 with — killer
 
-**5. §9 без названного инструмента — ПРИНЯТА.** Тот же пункт, что производство-2, и тот же фикс: beacon на существующий Cloudflare Worker владельца, событийная схема на 10–15 событий, P0 в v1, per-portal проверка допустимости внешних запросов. Без этой строки малые порции действительно теряют смысл — критика довела до плана его собственную логику.
+The plan's entire logic is "we release in a small batch and watch the metrics": D1, playtime, the conversion of each of the 4 rewarded placements separately, "% of sessions with an exhibit ≥50%". But neither v1, nor v1.1, nor v1.2 contains a single session for telemetry, and a backend to send the events to does not exist by definition. Portals give out at best aggregates at the level of "players/sessions"; per-placement rewarded conversion and "unfinished business" they do not count — those are custom events. The failure mechanism: the rule "a placement with conversion <10% we kill" is unenforceable — there is nowhere to get the conversion figure from. The plan is building a control loop with no sensors: the releases will happen, decisions on them will not be possible to make, and after 3 releases the choice of features is once again made by eye. Dragging in third-party analytics is separate work (plus some portals restrict external requests or require approval for them), and it is nowhere budgeted.
 
-**6. Борд «Очки дня» не существует в Bridge — ПРИНЯТА.** Ежедневный сброс требует серверной логики, которой нет. Строка v1.2 переформулируется до реализуемого: персистентный борд «Лучшая цепь» там, где платформа даёт (за флагом), «Очки дня» — локальный рекорд с плашкой; сессия на несуществующую фичу не тратится.
+## 3. The coin economy does not arithmetically add up to the declared deficit — serious
+
+The plan declares "spending outpaces income by 20–30%", but the plan's own numbers give the opposite. Income 35–50 coins/level; by the measurements a level is completed with 2–3 shakes given 3 free ones + 2 for an ad — that is, the typical player does **not need** to buy a shake for 25 coins. The "Sight" for 15 is situational. There is no mandatory sink. The failure mechanism: over 10 levels the average player accumulates 300+ dead coins, the banner "35 left until the Magnet" stops meaning anything — and the original hole "points don't convert into anything" is reproduced one floor up, only now ~2 sessions have been paid for it. Inside the same economy a conflict of incentives is baked in: +5 coins for an unused shake rewards NOT using a mechanic, and directly wars both with the shake shop and with the Continue placement. And one more thing from the plan's own numbers: the "×2 points" rewarded, at a 500:1 conversion, gives ~5–15 coins — less than one shake; by the plan's own rule (<10% — we kill) this placement will kill itself.
+
+## 4. The museum showcase: the hidden cost of rendering on mobiles — serious
+
+"Exhibits = the same meshes at a scale of 0.4 — zero new bytes" sounds free, but the bytes are not the price. A museum shelf is either a second scene or a render-to-texture on top of the live game scene on a weak mobile GPU. "Rarities by material": metallic and pearlescent without an environment map look like gray plastic, glow is bloom or an imitation of it; both are a performance line item that the game does not currently have. "A glint once every 8 seconds through the mass" is a glow through occluders, that is, a separate render trick, not a material swap. The failure mechanism: the "2 sessions" estimate turns into 5+, half of which is the fight to keep the legendary artifact from looking worse than a common one and to keep the showcase from dropping FPS before the next level. This is v1.1's main feature ("a reason to come back"), and it is precisely the one that is underestimated the most.
+
+## 5. "All players get one level of the day" — an unproven promise — serious
+
+A seed from the date sets the composition and the spawn order, but the layout comes out of the physical settling of 141 bodies — and that depends on the timestep, the frame rate and the device. "One level of the day for everyone" requires either a deterministic simulation with a fixed step or pre-baked layouts — neither is budgeted, and a fixed step is an intrusion into the debugged physics core that the plan itself swore not to touch (§8: "we do not do new core mechanics"). The failure mechanism: either unplanned sessions are spent on determinism with a risk of a physics regression, or the "level of the day" is different for everyone — and then the "Points of the Day" board compares the incomparable, while daily's marketing essence ("everyone gets the same thing") is quietly false. The cheap honest option (the seed sets only the composition) must be admitted in advance, not discovered halfway through a session.
+
+## 6. The invariant "zero translatable text" is refuted by the plan's own content — serious
+
+The museum frame can be sold with pictograms. But further on the plan introduces: the 3★ conditions ("launch a chain reaction AND not a single item ground down"), the par score for 2★, a shop with three goods, pity rules, a streak with steps, "the bowl has steeped", "35 coins left until the Magnet" (that is literally a text string in the plan itself). The failure mechanism: the player does not reverse-engineer "points ≥ the sum of the face values × 1.3" out of an icon. The fork is binary: either text and localization come back (the cost that "zero text" promised to remove), or the players do not understand the systems — and then the stars, pity and the streak have been bought with sessions but do not move metrics, because they are invisible as goals. The second outcome is worse: the money is spent, the effect is zero, and in the metrics it will look like "the feature did not work".
+
+## 7. The halls' KB budget is counted from headroom that does not exist — serious/cosmetic
+
+The file is **already** ~1 MB. The plan disposes of "a comfortable 3–4 halls at 100–150 KB each" out of a budget that the current state has exhausted, and on top of that it counts kilobytes only for the art — while v1–v1.2 add the shop, the stars, the museum, daily, the streaks, the mutators, that is, hundreds of kilobytes of code into the same file. The failure mechanism: the trump card "under 20 seconds to the first tap", which the plan itself calls the first session's main advantage, is diluted by exactly those features that are supposed to save the first session. The limit has to be recalculated from fact (weigh the current file, fix the ceiling and a "code" line item, not just "models") before ordering the first model, otherwise v1.2 will run into the choice "cut the hall or cut the load speed" after the fact.
 
 ---
 
-## Итоговые корректировки плана
+**Bottom line on the cost/effect ratio:** points 1 and 2 are systemic: they are not about a particular feature but about the fact that the plan's production model (the estimates) and its control loop (the metrics) do not exist in the declared form; until they are closed, any §7 table is a fantasy. Points 3–6 are features bought at an understated price with a risk of a zero or negative effect. Point 7 is a cheap check that has to be done before the first kopeck spent on models.
 
-1. **Экономика (псх-3, пр-3, плт-4):** товары разведены по каналам — rewarded: Continue, ×2 монет (не очков), металлоискатель; магазин: прицел, магнит; встряска за монеты — только после исчерпания rewarded-капа. Убрать +5 за неиспользованную встряску. Отдельная ценовая таблица для no-rewarded-платформ. Цены пересобрать по данным телеметрии.
-2. **Телеметрия (пр-2, плт-5):** новая строка P0 в v1 — event-beacon на существующий Cloudflare Worker (10–15 событий: плейсменты, длина сессии, прогресс экспоната), с per-portal проверкой допустимости внешних запросов и фолбэком в агрегаты платформы.
-3. **Флоу (псх-5):** экран витрины между уровнями упраздняется; прирост экспоната — анимацией на экране победы, музей — опциональной кнопкой; interstitial не стакается с экраном победы.
-4. **Сейв (плт-1, плт-2):** семантический мерж вместо max (earned/spent-счётчики, OR для битмасок, версии для остального); принцип «сессионная ценность первична», «новая экспозиция» вместо пустых полок при потере сейва, глубина меты адаптивна к надёжности стора платформы.
-5. **Daily (псх-2, пр-5):** сид задаёт состав и правила, не раскладку; формулировка «у всех одна раскладка» убрана; цель механики — частота сессий вернувшихся и D7, ориентир «D1 15–20%» снят.
-6. **Звёзды и сложность (псх-4, псх-6):** 3★ = очки с запасом над пар-скором; цепная реакция — в ачивку/рекорд «Лучшая цепь»; «сложный» уровень — опциональный выбор с ×1,5, «Только цепи» из стартового пула убран, рост пар-скора сглажен.
-7. **Артефакты (псх-7):** телеграф-блик только в эндшпиле (снимает конфликт с комбо); артефакт не в 100% уровней; редкостей 3 вместо 4 на старте.
-8. **Текст (пр-6):** инвариант = «ноль сюжетного текста» + словарь ~30 системных UI-строк в JSON с AI-переводом.
-9. **Производство (пр-1, пр-4):** буфер смет ×2 на все таблицы §7; правило «фича — сессия — смоук-чеклист инвариантов»; музей v1.1 бюджетируется от 4–5 сессий с конкретными приёмами (вторая сцена по требованию, PMREM из градиента, спрайт-глоу).
-10. **Реклама и бюджет файла (плт-3, плт-6, пр-7):** рекламная каденция — per-platform конфиг; борды сведены к реализуемому («Лучшая цепь» за флагом, локальные рекорды дня); до v1.2 — взвешивание файла по факту, потолок со статьёй «код», КБ-лимит зала подтверждается до заказа моделей.
 
-## Топ-5 доводов в защиту плана
+## Lens: platforms
 
-1. **Периметр §8 выдержал атаку с трёх сторон.** Двадцать пунктов критики — и ни один не потребовал вернуть энергию, IAP, бэкенд-мету, нарратив или новые корневые механики. Всё, что план осознанно отрезал, критика молча подтвердила как правильно отрезанное — а это самые дорогие ошибки, которые он мог совершить и не совершил.
-2. **Критика бьёт по калибровкам, а не по архитектуре.** Цены магазина, условия 3★, формулировка daily-сида, правило мержа, тайминг телеграфа — каждый «убийца» и «серьёзно» закрылся корректировкой внутри существующей структуры, без сноса ни одной системы. План правильной формы: параметры правятся релизами, форма — нет.
-3. **Диагноз никем не оспорен.** Обе дыры («очки ни во что не конвертируются», «нет причины вернуться») и приоритет v1 — код и параметры без единой модели, без риска для отлаженного ядра — все три критика приняли как данность и спорили только о способах лечения.
-4. **Арт-дисциплина плана уникальна для мета-планов.** Вся v1 и v1.1 построены на рескинах, материалах и пересборке существующих 15 типов; единственная дорогая статья (модели нового зала) вынесена в v1.2 — после первых метрик, а не до.
-5. **Малые порции с kill-критериями — механизм самопочинки плана, и после корректировки №2 он реален.** С beacon-телеметрией на уже существующем Worker'е контур «релиз → метрики → решение» получает сенсор, и все оставшиеся спорные калибровки (цены, конверсии плейсментов, доля незавершёнки) будут проверены данными за один-два дешёвых релиза, а не угаданы заранее.
+## 1. The museum stands on storage that the target channels wipe — "killer"
+
+The whole v1.1 meta (exhibits, the streak, "days in the game", unfinished business as a D1 lever) assumes that the player can be recognized tomorrow. On portals this is a lie. The game lives in an iframe on someone else's domain: in Safari/iOS WebView storage is partitioned and/or cleaned out by ITP after roughly 7 days without a visit — while a weekly cadence of returning from the catalog is the norm for a portal audience. Worse: the plan "we duplicate localStorage + Bridge storage" degenerates on Poki and on some other platforms into localStorage + localStorage, because in the absence of a platform store Bridge falls back to that same localStorage. On CrazyGames a cloud save exists only for logged-in users — and the player is anonymous by definition. The failure mechanism: the player comes back on day 8 → the museum is empty → the "designed unfinished business" turns into designed zeroing, that is, the return machine actively teaches the player that coming back is pointless. The §6 item "the meta survives the loss of the save" describes a fast re-accumulation of the first levels, but it does not answer the main thing: a collection that regularly evaporates does not build retention, it destroys it. **Criticality: killer** — this is the foundation of the whole of v1.1.
+
+## 2. The "maximum of each counter" merge breaks the deficit economy — serious
+
+The rule from §6 provably generates a currency dupe. Scenario: 100 coins in both stores → the player buys a shake for 25 → localStorage = 75, the asynchronous write to Bridge did not go through (the platform is lagging, the tab is closed, the write limit) → the next launch: max(75, 100) = 100 → the purchase is free. Any spend rolls back on any write failure, and failures on portals are the norm, not the exception. The whole §4 calibration ("spending outpaces income by 20–30%") is built on a deficit that this rule silently cancels. Separately for Telegram: CloudStorage means 4096 characters per value and limits on write frequency; "one JSON after every level" will hit the ceiling as the museum bitmask and the counters grow, and that is exactly when the writes will start silently failing, including the scenario above. Merging has to be done by the semantics of the field (coins — through a transaction log or last-write-wins with a version, bitmasks — through OR), and that is not in the plan. **Criticality: serious.**
+
+## 3. The plan disposes of an ad cadence that does not belong to it — serious
+
+"The interstitial is not shown before the first win" and "the first tap < 20 seconds" are written as if the game owned the ad slot. On portals this is not so: the portal shows its own preroll before/during the loading of the game regardless of the developer's wishes — the promise of "a first tap in 20 seconds" dies not in your code but in the platform's wrapper. The other side of the same error: Poki requires calling commercialBreak at natural pauses, and portal QA/ranking algorithms look at session monetization; a game that disciplinedly keeps silent until the second win and holds a "once every 3 minutes" cap gets a low revenue score → less traffic from the catalog → all the §9 metrics fall for a reason the plan does not even measure. The cadence has to be designed per-platform from the SDK's requirements, not declared globally. **Criticality: serious.**
+
+## 4. The economy is calibrated for rewarded, which some platforms do not have — serious
+
+The fallback "the platform doesn't give it — we silently skip" is written by the plan only for the interstitial. For rewarded there is no fallback, even though rewarded carries the economic load: Continue after a loss, ×2 coins, shakes 4–5, the metal detector. On a platform without rewarded all four placements silently disappear → the player's income falls, while the shop prices (a shake at 25 against an income of 35–50) and the rule "spending outpaces income by 20–30%" remain → the soft deficit turns into a hard shortage, a loss becomes an outcome with no alternative (there is no Continue), frustration churn grows precisely where there is no monetization anyway. The benchmark "1.5–2.5 rewarded impressions/session" on such platforms is zero by definition, and averaged metrics will mask that. A separate price/reward table for no-rewarded platforms is needed — it is not in the plan. **Criticality: serious.**
+
+## 5. §9 promises measurements for which no instrument is named — serious
+
+The plan's kill criteria ("a placement's conversion <10% — we kill it", "% of sessions with an exhibit ≥50% — target >60%", "unfinished business") require custom events for every placement and every session. Portal dashboards give aggregates: impressions, revenue, DAU, sometimes playtime — but not the "offer → view" funnel across four placements and not the state of an exhibit at the exit from a session. Bridge analytics is fragmented across platforms in the same way storage is. Nowhere does the plan name a pipeline (an external beacon endpoint, an event schema, the cost of maintaining it given the "there is no backend" position) — that is, the whole control loop "release → metrics → decision" silently assumes a capability that does not exist in the described stack. Without that, "kill/keep" decisions will be made by eye, and the whole point of small release batches is lost. **Criticality: serious.**
+
+## 6. The "Points of the Day" leaderboard in the specified form does not exist in any Bridge backend — cosmetic
+
+Bridge proxies platform leaderboards, and those are global persistent tables (where they exist at all). A board with a daily reset, "Points of the Day", is not given by any of the target platforms without server logic — that is, the feature as written is unimplementable, and an AI session will go into something of which only the local record with a banner will remain in prod, which the plan makes a fallback anyway. "Best Chain" as a global maximum is technically possible, but on an anonymous audience with a losable save the same chain will be submitted by "new" players many times over, cluttering the board. **Criticality: cosmetic** (the feature is behind a flag), but the v1.2 row in its current wording is a session spent in advance.
+
+
+---
+
+# PART 3. DEFENSE AND CORRECTIONS
+
+# Verdicts on the critique of the "Mixer" plan
+
+## Psychology
+
+**1. Unfinished business as a D1 lever — PARTIAL.** I acknowledge the mechanism: the incompleteness effect requires memory and attachment, which an anonymous casual does not have after one session, and the status of "the main D1 lever" is removed from the exhibit. But this is not a killer: on portals the return goes through the catalog and the "recently played" rows — what brings the player there is the quality of the first session (v1's front-load), while unfinished business legitimately works one floor down, as an accelerator of the second session for those who have already clicked. We lower the feature in rank rather than cut it out: it is cheap and it hits D7, not D1.
+
+**2. Daily is seen only by those who returned — PARTIAL.** I acknowledge the closed loop: daily does not create a return out of nowhere, and the benchmark "D1 15–20% after v1.1" is withdrawn as unfounded. But the mechanic's function is a different one: portal organics returns some of the players anyway — daily gives the returning player a reason to come in precisely today and tomorrow, that is, it works on the session frequency of returning players and on D7. At the cost price of "a seed from the date" the feature stays, the target metric changes.
+
+**3. Rewarded cannibalizes coins — ACCEPTED.** One product at two prices, one of which is zero, is a design bug, there is nothing to argue with. The plan is corrected: the goods are split across the channels (rewarded = Continue and ×2; the shop = the sight and the magnet), a shake for coins is bought only after the rewarded cap has been exhausted — then coins lift the cap rather than compete with what is free. The details are in the list of corrections, item 1.
+
+**4. 3★ — a skill gate — PARTIAL.** The condition "a chain reaction AND zero grindings" is set too high for a casual — accepted, we recalibrate: 3★ = points with a margin over the par score, the chain reaction moves into an achievement/record, "Best Chain". But there is nothing to throw the stars out for: it is a cheap progression feel and the only level rating; the bet on mass replays is indeed withdrawn, the stars remain for the sake of the skin thresholds and the feeling of growth, not for the sake of replays.
+
+**5. A funnel of four screens instead of "one tap" — ACCEPTED.** The contradiction is real: the showcase is simultaneously obliged to sell the museum and not to exist. Correction: the separate showcase screen between levels is removed — the exhibit's gain is shown by an animated line right on the victory screen, the museum opens via an optional button; the interstitial cap is aligned so that it does not stack with the victory screen every level.
+
+**6. A mandatory Hard — a wall at the decision point — PARTIAL.** That an imposed wall at the end of a hall is the worst moment for the worst experience, I accept: the "hard" level becomes an optional choice ("normal / challenge ×1.5 coins") — the wall turns into a door; the "Chains only" mutator leaves the starting pool; the par score's growth is smoothed. But the variety cycle itself and mutators for pennies are a healthy part of the plan and stay.
+
+**7. Artifacts kill the surprise and conflict with the combo — PARTIAL.** The conflict of motivations (dig the bottom versus fast matches anywhere) is a strong observation, accepted with a cheap fix: the glint telegraph turns on only in the endgame, when the bowl is emptying and the combo pressure has subsided — digging becomes a natural phase of the level's end rather than a war over the finger. We treat the routinization with variability (an artifact not in 100% of levels, occasionally two) and by cutting the rarities down to 3 tiers. Generalizing the only confirmed hook is the right bet, there is no need to cancel it because of the telegraph's calibration.
+
+## Production
+
+**1. The estimate ×2–3 and the regression tax — ACCEPTED.** The project's history (the 2026-07 regression, the invariants, the owner as QA on a phone) is direct confirmation. All the §7 tables are recalculated with a ×2 buffer, the rule "one feature — one session — one smoke run of the invariants checklist" is introduced, the museum in v1.1 is budgeted from 4–5 sessions. The order and composition of the batches do not change in the process — the critique hits the estimate, not the sequence.
+
+**2. There is no sensor for §9 — ACCEPTED, but not a killer.** The hole is real, and it is closed by a concrete cheap move: the owner already has a production Cloudflare Worker (platform-landings) — an event beacon for 10–15 events (placements, sessions, exhibit progress) — that is ~1 AI session and a P0 row in v1. The critique's own caveat is taken into account: the permissibility of external requests is checked per-portal before the release, and where it is forbidden — a fallback to the platform's aggregates.
+
+**3. The economy does not add up to a deficit — ACCEPTED.** The critique's arithmetic is correct: there is no mandatory sink, +5 for an unused shake wars with our own placements, "×2 points" gives pennies. It is fixed together with psychology-3 by a single correction (the list, item 1): splitting the channels, ×2 coins instead of ×2 points, cancelling the bonus for unused shakes, reassembling the prices after the beacon's first data.
+
+**4. The hidden cost of rendering the museum — REPELLED (with a concession on the estimate).** All the named problems are solved by standard three.js techniques without a fight: the showcase is a second scene that is rendered on demand between levels with the physics put on pause (not "on top of the live scene"); metallic/pearlescent is a PMREM environment out of a procedural gradient, a couple of lines; "a glint through the mass" is a billboard glow sprite, not bloom and not volumetrics. There is one concession: the estimate of 2 sessions → 3, which is already covered by the buffer from item 1; the "5+ sessions, half of them on FPS" scenario is not confirmed with these solutions.
+
+**5. "One level of the day for everyone" is unprovable — ACCEPTED.** Physical settling is non-deterministic, and the plan has no right to touch the debugged core for the sake of a fixed step, by its own §8. The honest option that the critique itself proposes is accepted: the seed sets the composition, the spawn order and the day's rules, the wording "one layout for everyone" is removed from the plan in advance, the "Points of the Day" board becomes a local record of the day.
+
+**6. "Zero text" is refuted by our own content — ACCEPTED.** The star conditions, the shop and the streak are not reverse-engineered out of pictograms. The invariant is reformulated: "zero story text" (dialogues, lore, cutscenes are still forbidden) + a dictionary of ~30 short system UI strings in JSON, translatable by AI for pennies. This preserves the original goal (not to build narrative localization) while admitting that the systems have to be spelled out.
+
+**7. The KB budget from non-existent headroom — PARTIAL.** The procedural part is accepted in full: before ordering the first model the file is weighed by fact (raw and over the network), the ceiling and a separate "code" line item are fixed. But the panic that "hundreds of KB of code will dilute the loading trump card" is exaggerated: code is compressed by brotli at roughly 5:1, hundreds of KB of code are tens of KB over the network, whereas models compress badly; the limit will remain first and foremost an art limit, which is what the plan asserted.
+
+## Platforms
+
+**1. Storage is wiped by the channel — PARTIAL.** I acknowledge the save's fragility on some of the channels (iframe, ITP, the Bridge fallback into that same localStorage) — this is the heaviest point of the entire critique, and "a museum that evaporates teaches you not to come back" is a correct formula of the risk. But it would be a killer only if the whole meta hung on persistence: the plan is corrected with the principle "session value comes first" — the museum fully delights inside the session, on the loss of the save it shows "a new exposition" instead of empty shelves as evidence, long chains are not sold on platforms without a real store (adaptive meta depth per-platform). On Playgama and Telegram a platform store exists — there the meta works as intended.
+
+**2. The max merge dupes currency — ACCEPTED.** The scenario of spends rolling back is provable, there is nothing to argue about. The fix is classic and cheap: coins are stored as a pair of monotonic earned/spent counters (the balance = the difference, both are merged via max), the museum bitmasks — via OR, the non-monotonic — last-write-wins with a version; for Telegram the JSON is split across keys to fit under the CloudStorage limit. Half a session of work, the hole is fully closed.
+
+**3. The ad cadence does not belong to the game — PARTIAL.** That the portal shows a preroll and that Poki requires commercialBreak — accepted: the cadence becomes a per-platform config on top of Bridge, "<20 s to the first tap" is reformulated as a metric of our part of the loading. But the principle "do not hit with an interstitial before the first win" remains the default where the platform does not dictate otherwise — it is a defense of D1, and there is no reason to surrender it to all the channels wholesale.
+
+**4. The economy breaks without rewarded — ACCEPTED.** The fallback was written only for the interstitial — a gap. Correction: a single config table for no-rewarded platforms: Continue for coins, 4 base shakes instead of 3, shop prices −30%; rewarded metrics are counted only on the platforms that have it, so that averaging does not mask a zero.
+
+**5. §9 without a named instrument — ACCEPTED.** The same point as production-2, and the same fix: a beacon to the owner's existing Cloudflare Worker, an event schema for 10–15 events, P0 in v1, a per-portal check of the permissibility of external requests. Without that row the small batches really do lose their meaning — the critique carried the plan's own logic through to it.
+
+**6. The "Points of the Day" board does not exist in Bridge — ACCEPTED.** A daily reset requires server logic, which is not there. The v1.2 row is reformulated down to what is implementable: a persistent "Best Chain" board where the platform gives one (behind a flag), "Points of the Day" — a local record with a banner; a session is not spent on a non-existent feature.
+
+---
+
+## Final corrections to the plan
+
+1. **Economy (psy-3, prod-3, plat-4):** the goods are split across the channels — rewarded: Continue, ×2 coins (not points), the metal detector; the shop: the sight, the magnet; a shake for coins — only after the rewarded cap has been exhausted. Remove the +5 for an unused shake. A separate price table for no-rewarded platforms. Reassemble the prices from the telemetry data.
+2. **Telemetry (prod-2, plat-5):** a new P0 row in v1 — an event beacon to the existing Cloudflare Worker (10–15 events: placements, session length, exhibit progress), with a per-portal check of the permissibility of external requests and a fallback to the platform's aggregates.
+3. **Flow (psy-5):** the showcase screen between levels is abolished; the exhibit's gain — by an animation on the victory screen, the museum — via an optional button; the interstitial does not stack with the victory screen.
+4. **Save (plat-1, plat-2):** a semantic merge instead of max (earned/spent counters, OR for bitmasks, versions for the rest); the principle "session value comes first", "a new exposition" instead of empty shelves on the loss of the save, meta depth adaptive to the reliability of the platform's store.
+5. **Daily (psy-2, prod-5):** the seed sets the composition and the rules, not the layout; the wording "everyone gets one layout" is removed; the mechanic's goal is the session frequency of returning players and D7, the "D1 15–20%" benchmark is withdrawn.
+6. **Stars and difficulty (psy-4, psy-6):** 3★ = points with a margin over the par score; the chain reaction — into an achievement/record, "Best Chain"; the "hard" level — an optional choice with ×1.5, "Chains only" is removed from the starting pool, the par score's growth is smoothed.
+7. **Artifacts (psy-7):** the telegraph glint only in the endgame (removes the conflict with the combo); an artifact not in 100% of levels; 3 rarities instead of 4 at the start.
+8. **Text (prod-6):** the invariant = "zero story text" + a dictionary of ~30 system UI strings in JSON with AI translation.
+9. **Production (prod-1, prod-4):** a ×2 estimate buffer on all the §7 tables; the rule "feature — session — invariants smoke checklist"; the v1.1 museum is budgeted from 4–5 sessions with concrete techniques (a second scene on demand, PMREM out of a gradient, a glow sprite).
+10. **Ads and the file budget (plat-3, plat-6, prod-7):** the ad cadence — a per-platform config; the boards are reduced to what is implementable ("Best Chain" behind a flag, local records of the day); before v1.2 — weighing the file by fact, a ceiling with a "code" line item, the hall's KB limit is confirmed before ordering the models.
+
+## Top 5 arguments in defense of the plan
+
+1. **The §8 perimeter withstood an attack from three sides.** Twenty points of critique — and not one of them demanded bringing back energy, IAP, backend meta, narrative or new core mechanics. Everything the plan deliberately cut off, the critique silently confirmed as correctly cut off — and those are the most expensive mistakes it could have made and did not make.
+2. **The critique hits the calibrations, not the architecture.** The shop prices, the 3★ conditions, the wording of the daily seed, the merge rule, the telegraph's timing — every "killer" and "serious" was closed by a correction inside the existing structure, without tearing down a single system. The plan is of the right shape: the parameters are fixed by releases, the shape is not.
+3. **The diagnosis was disputed by no one.** Both holes ("points don't convert into anything", "there is no reason to come back") and v1's priority — code and parameters without a single model, without risk to the debugged core — all three critics accepted as a given and argued only about the methods of treatment.
+4. **The plan's art discipline is unique for meta plans.** The whole of v1 and v1.1 is built on reskins, materials and a reassembly of the existing 15 types; the only expensive line item (the new hall's models) is moved out to v1.2 — after the first metrics, not before them.
+5. **Small batches with kill criteria are the plan's self-repair mechanism, and after correction No. 2 it is real.** With beacon telemetry on the already existing Worker the loop "release → metrics → decision" gets a sensor, and all the remaining disputed calibrations (the prices, the placements' conversions, the share of unfinished business) will be verified by data over one or two cheap releases rather than guessed in advance.

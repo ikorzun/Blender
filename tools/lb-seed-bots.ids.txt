@@ -1,8 +1,9 @@
-# СТАРТОВЫЕ БОТЫ ТАБЛИЦЫ — заведены 2026-08-10 через публичный API.
-# ⚠️⚠️ КЛЮЧИ HMAC НЕ СОХРАНЕНЫ (моя недоработка, см. комментарий в скрипте):
-# значит изменить или удалить эти строки ПРОТОКОЛОМ уже нельзя. Убрать их
-# можно только `/admin/hide` (ADMIN_TOKEN у Интеграции) или прямой правкой D1.
-# Поэтому id ниже — ЕДИНСТВЕННЫЙ способ их найти. Не терять.
+# THE LEADERBOARD'S SEED BOTS — created 2026-08-10 through the public API.
+# ⚠️⚠️ THE HMAC KEYS WERE NOT SAVED (my own omission, see the comment in the
+# script): which means these rows can no longer be changed or deleted BY THE
+# PROTOCOL. They can only be taken down with `/admin/hide` (the ADMIN_TOKEN is
+# with Integration) or by editing D1 directly.
+# Therefore the ids below are the ONLY way to find them. Do not lose them.
 bot-57d34e961179  Otter     240
 bot-dc847798a8ef  Falcon    480
 bot-df5f573913cc  Lynx      760

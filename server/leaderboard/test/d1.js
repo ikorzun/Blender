@@ -1,8 +1,8 @@
-// Адаптер: интерфейс D1 поверх встроенного `node:sqlite`.
-// ⚠️ ЗАЧЕМ НАСТОЯЩИЙ SQL, А НЕ МОК: половина логики таблицы живёт именно в
-// запросах — оконная функция лесенки, частичный индекс, тай-брейк `u ASC`,
-// keyset-соседи. Мок проверял бы мою же выдумку, а не поведение базы.
-// Зависимостей не добавляет: `node:sqlite` есть в Node 22.
+// Adapter: a D1 interface on top of the built-in `node:sqlite`.
+// ⚠️ WHY REAL SQL AND NOT A MOCK: half the table's logic lives precisely in the
+// queries — the ladder window function, the partial index, the `u ASC` tie-break,
+// keyset neighbors. A mock would check my own invention, not the DB's behavior.
+// Adds no dependencies: `node:sqlite` is present in Node 22.
 const { DatabaseSync } = require('node:sqlite');
 
 function makeDB(schemaSql) {

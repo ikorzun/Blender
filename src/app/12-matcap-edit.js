@@ -1,148 +1,152 @@
-// ===== 12-matcap-edit: РЕДАКТОР МАТЧЕПОВ В РЕЖИМЕ РАЗРАБОТЧИКА =====
-// Слово владельца 2026-08-17: «хорошая штука для редактирования маткапа. Как бы
-// нам её добавить в режиме разработчика, чтобы я мог быстро добавлять разный
-// материал на объекты и проверять как выглядит на бою?» (референс —
-// jverneaut/laboratoire/src/matcap-editor: холст с кистью, размытие, экспорт).
+// ===== 12-matcap-edit: MATCAP EDITOR IN DEVELOPER MODE =====
+// The owner's word 2026-08-17: «a good thing for editing a matcap. How could we
+// add it in developer mode, so that I could quickly put different
+// material on objects and check how it looks in battle?» (reference —
+// jverneaut/laboratoire/src/matcap-editor: a canvas with a brush, blur, export).
 //
-// ⚠️⚠️ ГЛАВНОЕ ОТЛИЧИЕ ОТ РЕФЕРЕНСА — ПРИМЕНЕНИЕ В ЖИВУЮ СЦЕНУ, А НЕ ПРЕВЬЮ НА
-// СФЕРЕ. У нас матчепы лежат в кэше ПО ОДНОМУ ОБЪЕКТУ ТЕКСТУРЫ НА ПРЕСЕТ, и
-// материалы только ссылаются на него — значит достаточно переписать ПИКСЕЛИ и
-// поставить `needsUpdate`, и вся куча меняется в тот же кадр. Материалы при
-// этом не трогаются (перекомпиляция шейдера тут не нужна) — тот же приём, что
-// у `retuneMatcap`.
+// ⚠️⚠️ THE MAIN DIFFERENCE FROM THE REFERENCE — APPLYING TO THE LIVE SCENE, NOT A PREVIEW
+// ON A SPHERE. Our matcaps live in the cache AS ONE TEXTURE OBJECT PER PRESET, and
+// materials only reference it — which means it is enough to rewrite the PIXELS and
+// set `needsUpdate`, and the whole pile changes in the same frame. The materials
+// are not touched (no shader recompilation is needed here) — the same trick as
+// in `retuneMatcap`.
 //
-// ⚠️ МОДУЛЬ 12 — ПОСЛЕ 10-stage (там `makeMatcap`, `matcapCache`, `MATCAP_SIZE`)
-// и ДО 20-arena. Функции хойстятся, но КОНСТАНТЫ старших модулей для top-level
-// кода младших в TDZ; здесь top-level кода нет вовсе, только объявления.
+// ⚠️ MODULE 12 — AFTER 10-stage (`makeMatcap`, `matcapCache`, `MATCAP_SIZE` live there)
+// and BEFORE 20-arena. Functions are hoisted, but CONSTANTS of higher modules are in the
+// TDZ for top-level code of lower ones; here there is no top-level code at all, only declarations.
 //
-// ⚠️ ОТКРЫВАЕТСЯ ТОЛЬКО РУКАМИ: `__game.matcapEdit()` или кнопка в панели
-// разработчика. Сама панель едет в сборке, как и `matcapTuner`.
-const MCE_CANVAS = 512;                 // холст рисования — как у референса
+// ⚠️ OPENS BY HAND ONLY: `__game.matcapEdit()` or the button in the developer
+// panel. The panel itself ships in the build, same as `matcapTuner`.
+const MCE_CANVAS = 512;                 // drawing canvas — same as the reference
 let mcePanel = null, mceCtx = null, mcePost = null, mceDrawing = false, mceLast = null;
-// сохранённые процедурные пиксели пресетов — чтобы «Сброс» возвращал точно то,
-// что было, а не пересчитывал заново (пересчёт зависит от живых ползунков тюнера)
+// saved procedural pixels of the presets — so that «Reset» returns exactly what
+// was there instead of recomputing it (the recompute depends on the tuner's live sliders)
 const mceBackup = new Map();
 
-// ЦЕЛИ: наши четыре независимых носителя матчепа. Имена — те же ключи, что
-// у `makeMatcap`, плюс лопасти (у них своя текстура из PNG владельца).
-// ⚠️⚠️ ПАЧКИ БЕРУТСЯ ИЗ ЖИВОГО ПУЛА, А НЕ СПИСКОМ. Владелец режет и добавляет
-// типы (120 → 88 за одну сессию), и переписанный от руки список разошёлся бы с
-// игрой при первой же партии моделей — канонная грабля «копия признака рядом с
-// рабочей величиной». Имя пачки это поле `tex` у типа, оно же ключ атласа.
+// TARGETS: our four independent matcap carriers. The names are the same keys as
+// in `makeMatcap`, plus the blades (they have their own texture from the owner's PNG).
+// ⚠️⚠️ PACKS ARE TAKEN FROM THE LIVE POOL, NOT FROM A LIST. The owner cuts and adds
+// types (120 → 88 in a single session), and a hand-written list would have diverged from
+// the game at the very first batch of models — the canonical rake «a copy of an attribute
+// next to the working value». The pack name is the `tex` field of a type, and it is also the atlas key.
 function mcePacks(){
-  const из = new Set();
-  try { for (const t of TYPES) if (t && t.tex) из.add(t.tex); } catch (e) {}
-  return [...из].sort();
+  const packNames = new Set();
+  try { for (const t of TYPES) if (t && t.tex) packNames.add(t.tex); } catch (e) {}
+  return [...packNames].sort();
 }
-// РУССКИЕ ЯРЛЫКИ ПАЧЕК — для панели; незнакомая пачка показывается как есть,
-// а не выпадает из списка (появится новая партия — она сразу видна).
-const MCE_PACK_RU = { food:'еда', animal:'звери', car:'машины', brick:'кирпичи',
-  pirate:'пиратское', holiday:'праздник', toycar:'машинки', factory:'завод',
-  survival:'выживание', forest:'лес' };
+// RUSSIAN PACK LABELS — for the panel; an unknown pack is shown as is
+// instead of dropping out of the list (a new batch arrives — it is visible at once).
+// ⛔ THESE LABELS, AND THE TARGET LABELS IN `mceTargets` BELOW, STAY RUSSIAN ON
+// PURPOSE: test.js matches them by regex (~9339-9533, the animal-pack label among
+// them). Translate them ONLY in lockstep with test.js — otherwise the guard that
+// walks the owner's path through this panel goes silently blind.
+const MCE_PACK_LABEL = { food:'food', animal:'animals', car:'cars', brick:'bricks',
+  pirate:'pirate', holiday:'holiday', toycar:'toy cars', factory:'factory',
+  survival:'survival', forest:'forest' };
 function mceTargets(){
-  const пачки = mcePacks().map(p => ({ id:'pack:' + p, имя:'пачка: ' + (MCE_PACK_RU[p] || p) }));
+  const packs = mcePacks().map(p => ({ id:'pack:' + p, label:'pack: ' + (MCE_PACK_LABEL[p] || p) }));
   return [
-    { id:'tex',   имя:'все текстурные разом' },
-    ...пачки,
-    { id:'soft',  имя:'крашеные предметы' },
-    { id:'metal', имя:'хром' },
-    { id:'blades',имя:'лопасти миксера' },
-    { id:'bomb',  имя:'бомба' },
+    { id:'tex',   label:'all textured at once' },
+    ...packs,
+    { id:'soft',  label:'painted items' },
+    { id:'metal', label:'chrome' },
+    { id:'blades',label:'mixer blades' },
+    { id:'bomb',  label:'bomb' },
   ];
 }
-// ⚠️ У ПАЧКИ ТЕКСТУРА ПОЯВЛЯЕТСЯ ТОЛЬКО В МОМЕНТ ПРИМЕНЕНИЯ (копирование по
-// требованию): до этого она делит общую с остальными, и `mceTexOf` честно
-// отдаёт `null` — «своей ещё нет». Создаёт её `mceApply`.
+// ⚠️ A PACK GETS ITS TEXTURE ONLY AT THE MOMENT OF APPLYING (copy on
+// demand): before that it shares the common one with the rest, and `mceTexOf` honestly
+// returns `null` — «it has none of its own yet». `mceApply` is what creates it.
 function mcePackOf(id){ return (id && id.indexOf('pack:') === 0) ? id.slice(5) : null; }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
   if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
-  const пачка = mcePackOf(id);
-  if (пачка) return (typeof packMatcaps !== 'undefined') ? (packMatcaps.get(пачка) || null) : null;
+  const pack = mcePackOf(id);
+  if (pack) return (typeof packMatcaps !== 'undefined') ? (packMatcaps.get(pack) || null) : null;
   return makeMatcap(id);
 }
-// ⚠️⚠️ ПРИМЕНЕНИЕ ИДЁТ ЧЕРЕЗ УМЕНЬШЕНИЕ ДО РАЗМЕРА ЖИВОЙ ТЕКСТУРЫ, А НЕ
-// ПОДМЕНОЙ ОБЪЕКТА: процедурные матчепы у нас 128×128 (`MATCAP_SIZE`), и
-// показать в игре 512 значило бы показать НЕ ТО, что будет в бою. Экспорт при
-// этом остаётся 512 — вшивать в сборку надо полное разрешение.
-// ⚠️⚠️ АЛЬФА МАТЧЕПА — ЭТО БЛИК, И ВЛАДЕЕТ ЕЮ ДВИЖОК, А НЕ ХОЛСТ.
-// В `matcapSpecPatch` (10-stage) стоит `... + vec3( matcapColor.a )`, то есть
-// альфа ПРИБАВЛЯЕТСЯ к поверхности; у процедурных пресетов блик запечён именно
-// в неё (`data[i+3] = (sp*255)|0`). Холст же внутри круглой маски НЕПРОЗРАЧЕН
-// (заливка шестизначным hex), поэтому копирование RGBA «как есть» ставило
-// альфу 255 ВЕЗДЕ и прибавляло единицу ко всей поверхности.
-// ⛔ ЗАМЕР ДЕФЕКТА (A/B на ПУСТОМ холсте, без единого мазка, портрет
-// `animalbee`): яркость 144.9 → 255.0, насыщенность 0.400 → 0. То есть одно
-// применение в редакторе молча выбеливало цель — включая матчепы пачек,
-// принятые владельцем по числам (2026-08-18).
-// ⚠️ ПРАВИЛО ОДНО И ОНО УЖЕ БЫЛО В ПРОЕКТЕ, я лишь распространил его на
-// редактор: у Графики в `08-matcap-packs` библиотечная картинка кладётся с
-// `d[i+3] = 0` — «альфа = блик, у библиотечного его нет». Здесь то же самое,
-// только сохраняем блик ЦЕЛИ, а не обнуляем: редактор правит ЦВЕТ.
-// ⛔ Обнулять альфу В КАНВАСЕ по-прежнему нельзя (канвас premultiplied, при
-// альфе 0 браузер отдаёт нулевой RGB) — мы трогаем только сырые байты
-// DataTexture, а они про премножение не знают.
-function mceAlphaИзДвижка(данные, S, база){
-  const b = база && база.image && база.image.data;
-  if (!b){                      // блика у базы нет (или это PNG без массива)
-    for (let i = 3; i < данные.length; i += 4) данные[i] = 0;
-    return 'нет';
+// ⚠️⚠️ APPLYING GOES THROUGH DOWNSCALING TO THE SIZE OF THE LIVE TEXTURE, NOT
+// THROUGH SWAPPING THE OBJECT: our procedural matcaps are 128×128 (`MATCAP_SIZE`), and
+// showing 512 in the game would mean showing NOT WHAT will be in battle. The export
+// meanwhile stays 512 — the full resolution is what has to be baked into the build.
+// ⚠️⚠️ THE MATCAP'S ALPHA IS THE SPECULAR HIGHLIGHT, AND THE ENGINE OWNS IT, NOT THE CANVAS.
+// In `matcapSpecPatch` (10-stage) there is `... + vec3( matcapColor.a )`, that is, the
+// alpha is ADDED to the surface; in the procedural presets the highlight is baked exactly
+// into it (`data[i+3] = (sp*255)|0`). The canvas, however, is OPAQUE inside the round mask
+// (filled with a six-digit hex), so copying RGBA «as is» set
+// the alpha to 255 EVERYWHERE and added one to the whole surface.
+// ⛔ MEASUREMENT OF THE DEFECT (A/B on an EMPTY canvas, without a single stroke, the
+// `animalbee` portrait): brightness 144.9 → 255.0, saturation 0.400 → 0. That is, a single
+// apply in the editor silently whitened the target — including the pack matcaps
+// accepted by the owner by the numbers (2026-08-18).
+// ⚠️ THE RULE IS ONE AND IT WAS ALREADY IN THE PROJECT, I only extended it to the
+// editor: in Graphics' `08-matcap-packs` the library picture is laid down with
+// `d[i+3] = 0` — «alpha = highlight, and the library one has none». Here it is the same,
+// only we PRESERVE the TARGET's highlight instead of zeroing it: the editor edits the COLOR.
+// ⛔ Zeroing the alpha IN THE CANVAS is still forbidden (the canvas is premultiplied, at
+// alpha 0 the browser returns zero RGB) — we touch only the raw bytes of the
+// DataTexture, and they know nothing about premultiplication.
+function mceAlphaFromEngine(data, S, base){
+  const b = base && base.image && base.image.data;
+  if (!b){                      // the base has no highlight (or it is a PNG without an array)
+    for (let i = 3; i < data.length; i += 4) data[i] = 0;
+    return 'none';
   }
-  // ⚠️⚠️ ГЕОМЕТРИЮ БАЗЫ БЕРЁМ ПО ОБЕИМ ОСЯМ, А НЕ ПО ОДНОЙ ШИРИНЕ.
-  // `packMatcapLoad` (08-matcap-packs) принимает ЛЮБОЙ PNG и кладёт `{width,
-  // height}` как есть — квадратность не проверяет никто. Прежняя версия считала
-  // базу квадратной по ширине: у картинки 128×64 при S=128 ветка «один-в-один»
-  // останавливалась на половине буфера (`i < b.length`), и у нижней половины
-  // текселей альфа оставалась 255 с непрозрачного холста — ВЫБЕЛИВАНИЕ
-  // ВОЗВРАЩАЛОСЬ на половине сферы. Найдено состязательным разбором 2026-08-19.
-  const BW = (база.image.width  || S)  | 0;
-  const BH = (база.image.height || BW) | 0;
+  // ⚠️⚠️ WE TAKE THE BASE'S GEOMETRY ALONG BOTH AXES, NOT FROM THE WIDTH ALONE.
+  // `packMatcapLoad` (08-matcap-packs) accepts ANY PNG and stores `{width,
+  // height}` as is — nobody checks squareness. The previous version considered
+  // the base square by its width: for a 128×64 picture at S=128 the «one-to-one» branch
+  // stopped at half of the buffer (`i < b.length`), and for the lower half of the
+  // texels the alpha stayed 255 from the opaque canvas — THE WHITENING
+  // CAME BACK on half of the sphere. Found by adversarial review 2026-08-19.
+  const BW = (base.image.width  || S)  | 0;
+  const BH = (base.image.height || BW) | 0;
   if (b.length !== BW * BH * 4){
-    // буфер не сходится с заявленной геометрией — читать его вслепую нельзя;
-    // безопасный исход тот же, что «блика нет»
-    for (let i = 3; i < данные.length; i += 4) данные[i] = 0;
-    return 'несходство ' + BW + '×' + BH + ' при ' + b.length;
+    // the buffer does not match the declared geometry — reading it blindly is not allowed;
+    // the safe outcome is the same as «there is no highlight»
+    for (let i = 3; i < data.length; i += 4) data[i] = 0;
+    return 'mismatch ' + BW + '×' + BH + ' vs ' + b.length;
   }
   if (BW === S && BH === S){
-    for (let i = 3; i < данные.length; i += 4) данные[i] = b[i];
-    return 'один-в-один';
+    for (let i = 3; i < data.length; i += 4) data[i] = b[i];
+    return 'one-to-one';
   }
-  // ⚠️ РАЗМЕРЫ РАСХОДЯТСЯ (пресеты 128, картинки пачек 256) — берём ближайший
-  // пиксель. Блик у нас крупное мягкое пятно, интерполяция ему не нужна.
+  // ⚠️ THE SIZES DIVERGE (presets 128, pack pictures 256) — we take the nearest
+  // pixel. Our highlight is a large soft blob, it does not need interpolation.
   for (let y = 0; y < S; y++){
     const by = Math.min(BH - 1, (y * BH / S) | 0);
     for (let x = 0; x < S; x++){
       const bx = Math.min(BW - 1, (x * BW / S) | 0);
-      данные[(y * S + x) * 4 + 3] = b[(by * BW + bx) * 4 + 3];
+      data[(y * S + x) * 4 + 3] = b[(by * BW + bx) * 4 + 3];
     }
   }
-  return 'ближайший ' + BW + '×' + BH + '->' + S;
+  return 'nearest ' + BW + '×' + BH + '->' + S;
 }
 function mceApply(id){
-  const пачка = mcePackOf(id);
-  if (пачка && !mceTexOf(id)){
-    // ⚠️ ПЕРВОЕ ПРИМЕНЕНИЕ К ПАЧКЕ = РОЖДЕНИЕ ЕЁ СОБСТВЕННОЙ ТЕКСТУРЫ. До него
-    // пачка делила общую, и правка растеклась бы на ВСЕ текстурные предметы —
-    // ровно то, чего владелец и просил избежать («по пачке»).
+  const pack = mcePackOf(id);
+  if (pack && !mceTexOf(id)){
+    // ⚠️ THE FIRST APPLY TO A PACK = THE BIRTH OF ITS OWN TEXTURE. Before it
+    // the pack shared the common one, and the edit would have spread over ALL textured items —
+    // exactly what the owner asked to avoid («per pack»).
     const S = MATCAP_SIZE;
     const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
     const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
     g0.drawImage(mcePost, 0, 0, S, S);
-    const данные = new Uint8Array(g0.getImageData(0,0,S,S).data);
-    // блик берём у ТОЙ текстуры, которую пачка носила до правки: у пачки с
-    // картинкой это её альфа (у Графики она 0), у прочих — пресет `tex`
-    const базаПачки = ((typeof packMatcapTex === 'function' && packMatcapTex(пачка)) || makeMatcap('tex'));
-    mceAlphaИзДвижка(данные, S, базаПачки);
-    const свой = new THREE.DataTexture(данные, S, S, THREE.RGBAFormat);
-    свой.encoding = THREE.sRGBEncoding;
-    свой.magFilter = свой.minFilter = THREE.LinearFilter;
-    свой.needsUpdate = true;
-    const n = setPackMatcap(пачка, свой);
-    mceBackup.set(id, null);          // «Сброс» вернёт пачку на общую текстуру
-    return 'пачка ' + пачка + ': своя текстура ' + S + '×' + S + ', предметов ' + n;
+    const data = new Uint8Array(g0.getImageData(0,0,S,S).data);
+    // we take the highlight from THAT texture which the pack carried before the edit: for a pack
+    // with a picture it is its alpha (Graphics keeps it at 0), for the rest — the `tex` preset
+    const packBase = ((typeof packMatcapTex === 'function' && packMatcapTex(pack)) || makeMatcap('tex'));
+    mceAlphaFromEngine(data, S, packBase);
+    const ownTex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    ownTex.encoding = THREE.sRGBEncoding;
+    ownTex.magFilter = ownTex.minFilter = THREE.LinearFilter;
+    ownTex.needsUpdate = true;
+    const n = setPackMatcap(pack, ownTex);
+    mceBackup.set(id, null);          // «Reset» will return the pack to the common texture
+    return 'pack ' + pack + ': own texture ' + S + '×' + S + ', items ' + n;
   }
   const tex = mceTexOf(id);
-  if (!tex) return 'нет такой цели';
+  if (!tex) return 'no such target';
   const S = (tex.image && tex.image.width) ? tex.image.width : MATCAP_SIZE;
   const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
   const g = tmp.getContext('2d');
@@ -150,78 +154,78 @@ function mceApply(id){
   g.drawImage(mcePost, 0, 0, S, S);
   const src = g.getImageData(0, 0, S, S).data;
   if (!mceBackup.has(id)){
-    // копия ДО первой правки — «Сброс» возвращает ровно её
-    // ⚠️⚠️ У ЦЕЛЕЙ-КАРТИНОК (лопасти, бомба) БАЙТОВ НЕТ ВОВСЕ: их текстура —
-    // `THREE.Texture` поверх `HTMLImageElement` (06-matcap-metal / 07-matcap-bomb,
-    // PNG владельца), у неё `image.data === undefined`. Прежняя строка клала им
-    // в бэкап `null`, а ниже `tex.image = tmp` затирал ЕДИНСТВЕННУЮ ссылку на
-    // декодированный PNG — и «Сброс» становился МОЛЧАЛИВЫМ NO-OP: обе его ветки
-    // отпадали, возвращать было нечего, лечилось только перезагрузкой страницы.
-    // Найдено состязательным разбором 2026-08-19, снято словом владельца
-    // 2026-08-20 («остальное почини»).
-    // ЛЕЧЕНИЕ: у кого есть байты — храним КОПИЮ БАЙТОВ (как было), у кого нет —
-    // храним САМ ОБЪЕКТ-ИСТОЧНИК. Он никуда не девается: мы его лишь отцепляем
-    // от текстуры, а не портим.
+    // a copy BEFORE the first edit — «Reset» returns exactly it
+    // ⚠️⚠️ THE PICTURE TARGETS (blades, bomb) HAVE NO BYTES AT ALL: their texture is
+    // a `THREE.Texture` on top of an `HTMLImageElement` (06-matcap-metal / 07-matcap-bomb,
+    // the owner's PNG), and its `image.data === undefined`. The previous line put
+    // `null` into their backup, and below `tex.image = tmp` overwrote the ONLY reference to
+    // the decoded PNG — and «Reset» became a SILENT NO-OP: both of its branches
+    // fell through, there was nothing to return, and it was cured only by reloading the page.
+    // Found by adversarial review 2026-08-19, lifted by the owner's word
+    // 2026-08-20 («fix the rest»).
+    // THE CURE: whoever has bytes — we keep A COPY OF THE BYTES (as before), whoever has none —
+    // we keep THE SOURCE OBJECT ITSELF. It does not go anywhere: we only detach it
+    // from the texture rather than spoil it.
     const d = tex.image && tex.image.data;
     mceBackup.set(id, d ? new Uint8Array(d) : (tex.image || null));
   }
   const dst = tex.image && tex.image.data;
   if (dst && dst.length === src.length){
-    // ⚠️ ТОЛЬКО RGB: альфа цели — её собственный блик, он остаётся как был
+    // ⚠️ RGB ONLY: the target's alpha is its own highlight, it stays as it was
     for (let i = 0; i < src.length; i += 4){
       dst[i] = src[i]; dst[i + 1] = src[i + 1]; dst[i + 2] = src[i + 2];
     }
   }
   else {
-    // у PNG-матчепа лопастей data-массива нет — там подменяем сам источник
+    // the blades' PNG matcap has no data array — there we swap the source itself
     tex.image = tmp;
   }
   tex.needsUpdate = true;
-  // ⚠️⚠️ ПРАВКА НА МЕСТЕ — И СНИМКИ ПОРТРЕТОВ ПРОТУХЛИ. Объект текстуры тот же,
-  // переставлять материалам ничего не надо, но `itemThumb` (85-hud) держит
-  // ГОТОВЫЙ PNG вечно. `setPackMatcap` сюда не заходит — он про СМЕНУ объекта,
-  // а здесь мы пишем в существующие байты, — поэтому сбрасываем сами. Без этого
-  // мазок кистью не двигал карточку коллекции ВООБЩЕ (замер: 67.6/0.730 до и
-  // после мазка, один в один). Дефект «протухающие портреты», 2026-08-19.
+  // ⚠️⚠️ AN EDIT IN PLACE — AND THE PORTRAIT SNAPSHOTS WENT STALE. The texture object is the same,
+  // nothing has to be re-assigned to the materials, but `itemThumb` (85-hud) keeps
+  // the FINISHED PNG forever. `setPackMatcap` does not come here — it is about SWAPPING the object,
+  // and here we write into the existing bytes, — so we drop the cache ourselves. Without this
+  // a brush stroke did not move the collection card AT ALL (measurement: 67.6/0.730 before and
+  // after the stroke, one to one). The «stale portraits» defect, 2026-08-19.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
-  return 'применено: ' + id + ' (' + S + '×' + S + ')';
+  return 'applied: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
-  const пачка = mcePackOf(id);
-  if (пачка){ setPackMatcap(пачка, null); mceBackup.delete(id); return; }
+  const pack = mcePackOf(id);
+  if (pack){ setPackMatcap(pack, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
   const b = mceBackup.get(id);
   if (b instanceof Uint8Array){
-    // процедурные пресеты и текстуры пачек: возвращаем байты на место
+    // procedural presets and pack textures: we put the bytes back in place
     if (tex.image && tex.image.data && tex.image.data.length === b.length){
       tex.image.data.set(b); tex.needsUpdate = true;
     }
   } else if (b && (b.width || b.nodeName)){
-    // ⚠️ ЦЕЛЬ-КАРТИНКА (лопасти, бомба): подменяем ИСТОЧНИК обратно. Это ровно
-    // обратная операция к `tex.image = tmp` в `mceApply` — тем же способом, что
-    // и порча, иначе восстановление врало бы про свой охват.
+    // ⚠️ A PICTURE TARGET (blades, bomb): we swap the SOURCE back. This is exactly
+    // the inverse operation to `tex.image = tmp` in `mceApply` — by the same means as
+    // the damage itself, otherwise the restore would lie about its own coverage.
     tex.image = b; tex.needsUpdate = true;
   } else if (typeof retuneMatcap === 'function' && id !== 'blades' && id !== 'bomb'){
-    // ⚠️ Гейт `blades`/`bomb` ОСТАЁТСЯ и после починки: `retuneMatcap` ходит по
-    // `matcapCache` (ключи soft/metal/tex) и до этих двух не достаёт вовсе —
-    // вызов был бы пустым, а выглядел бы как запасной путь.
-    retuneMatcap(id);   // тоже правка НА МЕСТЕ: `bakeMatcap` пишет в `tex.image.data`
+    // ⚠️ The `blades`/`bomb` gate STAYS even after the fix: `retuneMatcap` walks
+    // `matcapCache` (keys soft/metal/tex) and does not reach these two at all —
+    // the call would be empty while looking like a fallback path.
+    retuneMatcap(id);   // also an edit IN PLACE: `bakeMatcap` writes into `tex.image.data`
   }
-  // ⚠️ ОБЕ ветки выше — правка на месте, поэтому снимки портретов надо сбросить
-  // ровно так же, как в `mceApply`. Пачечная ветка вышла раньше через
-  // `setPackMatcap`, он это делает сам.
+  // ⚠️ BOTH branches above are an edit in place, so the portrait snapshots have to be dropped
+  // exactly as in `mceApply`. The pack branch returned earlier via
+  // `setPackMatcap`, and that one does it itself.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
 }
 
-// ═══ ПАНЕЛЬ ═══ Стиль и приёмы взяты у `matcapTuner` (10-stage): фиксированная
-// панель, z-index ВЫШЕ оверлеев, keydown НЕ пускаем в игру (иначе пробел на
-// ползунке ушёл бы во встряску).
-// ⚠️⚠️ ПРИЗНАК ОТКРЫТОСТИ — ОТДЕЛЬНОЙ ФУНКЦИЕЙ, А НЕ ФЛАГОМ РЯДОМ: панель
-// создаётся и сносится ОДНОЙ переменной `mcePanel`, и второй флаг рядом с ней
-// разошёлся бы при первом же способе закрытия, о котором он не узнает (закон
-// «копия признака расходится с источником», пойман в проекте пятикратно).
-// Читает её главный цикл — ради заморозки часов миксера (слово владельца
-// 2026-08-17-е «если открыт маткап редактор, то фризим таймер миксера»).
+// ═══ THE PANEL ═══ The style and the techniques are taken from `matcapTuner` (10-stage): a fixed
+// panel, z-index ABOVE the overlays, keydown is NOT let through into the game (otherwise space on
+// a slider would go into a shake).
+// ⚠️⚠️ THE «IS OPEN» ATTRIBUTE IS A SEPARATE FUNCTION, NOT A FLAG NEXT TO IT: the panel
+// is created and torn down by a SINGLE variable `mcePanel`, and a second flag next to it
+// would have diverged at the very first way of closing that it does not learn about (the law
+// «a copy of an attribute diverges from its source», caught five times in this project).
+// The main loop reads it — for the sake of freezing the mixer's clock (the owner's word
+// 2026-08-17-e «if the matcap editor is open, we freeze the mixer timer»).
 function mceIsOpen(){ return !!mcePanel; }
 function matcapEdit(){
   if (mcePanel){ mcePanel.remove(); mcePanel = null; return 'matcap editor: closed'; }
@@ -237,7 +241,7 @@ function matcapEdit(){
   h.style.cssText = 'font-weight:700; letter-spacing:.06em; margin-bottom:8px;';
   p.appendChild(h);
 
-  // ── холст рисования (как у референса) + пост-обработка (база + размытие)
+  // ── the drawing canvas (as in the reference) + post-processing (base + blur)
   const draw = document.createElement('canvas'); draw.width = draw.height = MCE_CANVAS;
   mcePost = document.createElement('canvas'); mcePost.width = mcePost.height = MCE_CANVAS;
   mceCtx = draw.getContext('2d');
@@ -246,160 +250,160 @@ function matcapEdit(){
   p.appendChild(mcePost);
 
   const ctrl = {};
-  const мк = (имя, тип, знач, доп) => {
+  const mkRow = (label, type, value, extra) => {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:6px;';
-    const t = document.createElement('span'); t.textContent = имя;
+    const t = document.createElement('span'); t.textContent = label;
     t.style.cssText = 'flex:0 0 92px; opacity:.8;';
-    const el = document.createElement('input'); el.type = тип; el.value = знач;
-    if (доп) Object.assign(el, доп);
-    el.style.cssText = тип === 'color' ? 'width:38px; height:22px; padding:0; border:0; background:none;'
+    const el = document.createElement('input'); el.type = type; el.value = value;
+    if (extra) Object.assign(el, extra);
+    el.style.cssText = type === 'color' ? 'width:38px; height:22px; padding:0; border:0; background:none;'
                                        : 'flex:1 1 auto;';
     row.appendChild(t); row.appendChild(el);
     const vv = document.createElement('span');
-    if (тип === 'range'){ vv.style.cssText='width:34px; text-align:right; opacity:.7;';
-      vv.textContent = знач; el.addEventListener('input', () => { vv.textContent = el.value; репост(); });
+    if (type === 'range'){ vv.style.cssText='width:34px; text-align:right; opacity:.7;';
+      vv.textContent = value; el.addEventListener('input', () => { vv.textContent = el.value; renderPost(); });
       row.appendChild(vv); }
-    // ⚠️ ОБЁРТКА ОБЯЗАТЕЛЬНА: `репост` принимает `тихо`, и голым обработчиком
-    // сюда прилетал бы Event — истинный, то есть цвета фона и кисти перестали
-    // бы применяться сразу, молча
-    else el.addEventListener('input', () => репост());
+    // ⚠️ THE WRAPPER IS MANDATORY: `renderPost` takes `silent`, and as a bare handler
+    // an Event would arrive here — a truthy one, that is, the background and brush colours would
+    // silently stop being applied immediately
+    else el.addEventListener('input', () => renderPost());
     p.appendChild(row); return el;
   };
-  ctrl.base  = мк('фон',     'color', '#8a8f98');
-  ctrl.brush = мк('кисть',   'color', '#ffffff');
-  ctrl.size  = мк('размер',  'range', 60,  { min:1, max:256, step:1 });
-  ctrl.blur  = мк('размытие','range', 12,  { min:0, max:64,  step:1 });
+  ctrl.base  = mkRow('background', 'color', '#8a8f98');
+  ctrl.brush = mkRow('brush',      'color', '#ffffff');
+  ctrl.size  = mkRow('size',       'range', 60,  { min:1, max:256, step:1 });
+  ctrl.blur  = mkRow('blur',       'range', 12,  { min:0, max:64,  step:1 });
 
-  // ⚠️ ПОСТ-ОБРАБОТКА КАЖДЫЙ РАЗ РИСУЕТ С НУЛЯ: фон, затем размытый слой кисти.
-  // Референс накладывает блюр НА СЕБЯ и копит его от кадра к кадру — у нас это
-  // давало бы «расползание» при каждом движении ползунка.
-  // ⚠️⚠️ `тихо` — ЭТО НЕ УДОБСТВО, А ЗАПРЕТ ПРИМЕНЯТЬ БЕЗ ПРОСЬБЫ.
-  // Панель строится с ВКЛЮЧЁННЫМИ «применять сразу» и целью №0 «все текстурные
-  // разом» (`cb.checked = (i === 0)`), а холст на старте — плоская заливка
-  // `ctrl.base`. Без этого флага финальный `репост()` в конце сборки клал серую
-  // заливку на общий пресет `tex` В МОМЕНТ ОТКРЫТИЯ РЕДАКТОРА: владелец видел
-  // порчу, не сделав ни одного клика. ЗАМЕР (портрет `animalcow`, сборка с уже
-  // починенной альфой): без панели 209.4/0.106 → после одного лишь открытия
-  // 114.3/0.239. Вторая половина дефекта «выбеливание» (2026-08-19).
-  // ⚠️ Тихий он ТОЛЬКО на открытии: мазок, ползунок, «Очистить» и брошенный PNG
-  // зовут `репост()` без аргумента и применяются сразу — это просил владелец.
-  function репост(тихо){
+  // ⚠️ THE POST-PROCESSING DRAWS FROM SCRATCH EVERY TIME: the background, then the blurred brush layer.
+  // The reference applies the blur ONTO ITSELF and accumulates it from frame to frame — for us that
+  // would give «creeping» at every movement of a slider.
+  // ⚠️⚠️ `silent` IS NOT A CONVENIENCE, IT IS A BAN ON APPLYING WITHOUT BEING ASKED.
+  // The panel is built with the apply-immediately checkbox TURNED ON and with target #0, the
+  // all-textured-at-once one (`cb.checked = (i === 0)`), while the canvas at start is a flat fill of
+  // `ctrl.base`. Without this flag the final `renderPost()` at the end of the build laid the grey
+  // fill onto the common `tex` preset AT THE MOMENT THE EDITOR WAS OPENED: the owner saw
+  // the damage without having made a single click. MEASUREMENT (the `animalcow` portrait, a build with the
+  // alpha already fixed): without the panel 209.4/0.106 → after merely opening it
+  // 114.3/0.239. The second half of the «whitening» defect (2026-08-19).
+  // ⚠️ It is silent ONLY on opening: a stroke, a slider, «Clear» and a dropped PNG
+  // call `renderPost()` without an argument and are applied at once — this is what the owner asked for.
+  function renderPost(silent){
     const g = mcePost.getContext('2d');
     g.setTransform(1,0,0,1,0,0); g.filter = 'none';
     g.fillStyle = ctrl.base.value; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
     g.filter = 'blur(' + ctrl.blur.value + 'px)';
     g.drawImage(draw, 0, 0);
     g.filter = 'none';
-    // ⚠️ КРУГЛАЯ МАСКА: матчеп читается по нормали, углы квадрата в выборку не
-    // попадают вовсе — но если их не срезать, размытие тащит краевой цвет
-    // внутрь сферы и по ободку идёт грязь.
+    // ⚠️ THE ROUND MASK: a matcap is sampled by the normal, the corners of the square do not
+    // get into the sampling at all — but if they are not cut off, the blur drags the edge colour
+    // inside the sphere and dirt runs along the rim.
     g.globalCompositeOperation = 'destination-in';
     g.beginPath(); g.arc(MCE_CANVAS/2, MCE_CANVAS/2, MCE_CANVAS/2, 0, Math.PI*2); g.fill();
     g.globalCompositeOperation = 'source-over';
-    if (авто.checked && !тихо) mceTargets().forEach(t => { if (цели[t.id].checked) mceApply(t.id); });
+    if (autoApply.checked && !silent) mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceApply(t.id); });
   }
-  // ── рисование
-  const точка = e => { const r = mcePost.getBoundingClientRect();
+  // ── drawing
+  const pointAt = e => { const r = mcePost.getBoundingClientRect();
     return { x:(e.clientX - r.left) / r.width * MCE_CANVAS, y:(e.clientY - r.top) / r.height * MCE_CANVAS }; };
-  const штрих = (a, b) => {
+  const drawStroke = (a, b) => {
     mceCtx.strokeStyle = mceCtx.fillStyle = ctrl.brush.value;
     mceCtx.lineWidth = +ctrl.size.value; mceCtx.lineCap = 'round';
     if (a){ mceCtx.beginPath(); mceCtx.moveTo(a.x,a.y); mceCtx.lineTo(b.x,b.y); mceCtx.stroke(); }
     mceCtx.beginPath(); mceCtx.arc(b.x, b.y, +ctrl.size.value/2, 0, Math.PI*2); mceCtx.fill();
   };
-  mcePost.addEventListener('pointerdown', e => { mceDrawing = true; mceLast = точка(e);
-    штрих(null, mceLast); репост(); mcePost.setPointerCapture(e.pointerId); });
+  mcePost.addEventListener('pointerdown', e => { mceDrawing = true; mceLast = pointAt(e);
+    drawStroke(null, mceLast); renderPost(); mcePost.setPointerCapture(e.pointerId); });
   mcePost.addEventListener('pointermove', e => { if (!mceDrawing) return;
-    const t = точка(e); штрих(mceLast, t); mceLast = t; репост(); });
+    const t = pointAt(e); drawStroke(mceLast, t); mceLast = t; renderPost(); });
   mcePost.addEventListener('pointerup', () => { mceDrawing = false; mceLast = null; });
 
-  // ── ЦЕЛИ: на что примерять. Без выбора непонятно, что именно видишь: у нас
-  // четыре независимых носителя, и предметы делятся между ними по пачкам.
-  const шапка = document.createElement('div');
-  шапка.textContent = 'на что примерять';
-  шапка.style.cssText = 'margin-top:10px; opacity:.65;';
-  p.appendChild(шапка);
-  const цели = {};
+  // ── TARGETS: what to try it on. Without a choice it is unclear what exactly you are seeing: we have
+  // four independent carriers, and the items are split between them by packs.
+  const targetsHead = document.createElement('div');
+  targetsHead.textContent = 'apply to';
+  targetsHead.style.cssText = 'margin-top:10px; opacity:.65;';
+  p.appendChild(targetsHead);
+  const targetChecks = {};
   mceTargets().forEach((t, i) => {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:3px;';
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = (i === 0);
-    const s = document.createElement('span'); s.textContent = t.имя; s.style.cssText = 'opacity:.85;';
+    const s = document.createElement('span'); s.textContent = t.label; s.style.cssText = 'opacity:.85;';
     row.appendChild(cb); row.appendChild(s); p.appendChild(row);
-    цели[t.id] = cb;
+    targetChecks[t.id] = cb;
   });
-  const авто = document.createElement('input'); авто.type = 'checkbox'; авто.checked = true;
+  const autoApply = document.createElement('input'); autoApply.type = 'checkbox'; autoApply.checked = true;
   { const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
-    const s = document.createElement('span'); s.textContent = 'применять сразу (в бою)';
-    row.appendChild(авто); row.appendChild(s); p.appendChild(row); }
+    const s = document.createElement('span'); s.textContent = 'apply immediately (live)';
+    row.appendChild(autoApply); row.appendChild(s); p.appendChild(row); }
 
-  // ── КНОПКИ
-  const бар = document.createElement('div');
-  бар.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;';
-  const кн = (текст, фон, действие) => {
-    const b = document.createElement('button'); b.textContent = текст;
+  // ── BUTTONS
+  const btnBar = document.createElement('div');
+  btnBar.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;';
+  const mkBtn = (text, bg, action) => {
+    const b = document.createElement('button'); b.textContent = text;
     b.style.cssText = 'flex:1 1 auto; padding:6px 8px; border:0; border-radius:6px; cursor:pointer;'
-      + ' font:inherit; background:' + фон + '; color:#0d1420;';
-    b.addEventListener('click', действие); бар.appendChild(b); return b;
+      + ' font:inherit; background:' + bg + '; color:#0d1420;';
+    b.addEventListener('click', action); btnBar.appendChild(b); return b;
   };
-  кн('Применить', '#9ce52e', () => { const r = mceTargets()
-    .filter(t => цели[t.id].checked).map(t => mceApply(t.id)); console.log(r.join('\n')); });
-  кн('Сброс', '#e5484d', () => { mceTargets().forEach(t => { if (цели[t.id].checked) mceReset(t.id); }); });
-  кн('Очистить', '#8b93a0', () => { mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS); репост(); });
-  p.appendChild(бар);
+  mkBtn('Apply', '#9ce52e', () => { const r = mceTargets()
+    .filter(t => targetChecks[t.id].checked).map(t => mceApply(t.id)); console.log(r.join('\n')); });
+  mkBtn('Reset', '#e5484d', () => { mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceReset(t.id); }); });
+  mkBtn('Clear', '#8b93a0', () => { mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS); renderPost(); });
+  p.appendChild(btnBar);
 
-  // ⚠️⚠️ ЗАГРУЗКА ГОТОВОГО PNG — ЭТОГО У РЕФЕРЕНСА НЕТ, А ЗАДАЧА ВЛАДЕЛЬЦА
-  // ЗВУЧИТ «БЫСТРО ДОБАВЛЯТЬ РАЗНЫЙ материал». Рисовать матчеп с нуля долго,
-  // а готовых пачки; перетащил файл — и он на предметах в тот же кадр.
-  const дроп = document.createElement('div');
-  дроп.textContent = 'перетащи PNG сюда (или кликни)';
-  дроп.style.cssText = 'margin-top:8px; padding:10px; border:1px dashed rgba(223,230,242,.35);'
+  // ⚠️⚠️ LOADING A READY-MADE PNG — THE REFERENCE DOES NOT HAVE THIS, WHILE THE OWNER'S TASK
+  // READS «QUICKLY ADD DIFFERENT material». Drawing a matcap from scratch takes long,
+  // while ready-made ones come in bundles; you drop a file — and it is on the items in the same frame.
+  const dropZone = document.createElement('div');
+  dropZone.textContent = 'drop a PNG here (or click)';
+  dropZone.style.cssText = 'margin-top:8px; padding:10px; border:1px dashed rgba(223,230,242,.35);'
     + ' border-radius:8px; text-align:center; opacity:.7; cursor:pointer;';
-  const файл = document.createElement('input'); файл.type = 'file'; файл.accept = 'image/*';
-  файл.style.display = 'none';
-  const взять = f => {
+  const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/*';
+  fileInput.style.display = 'none';
+  const takeFile = f => {
     if (!f) return;
     const rd = new FileReader();
     rd.onload = () => { const im = new Image();
       im.onload = () => {
-        // кладём в СЛОЙ КИСТИ, а не в пост: тогда поверх картинки можно дорисовать
+        // we put it into the BRUSH LAYER, not into the post: then one can draw on top of the picture
         mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS);
         mceCtx.drawImage(im, 0, 0, MCE_CANVAS, MCE_CANVAS);
-        // фон под картинкой не виден — гасим размытие, иначе PNG сразу мылится
+        // the background under the picture is not visible — we kill the blur, otherwise the PNG blurs at once
         ctrl.blur.value = 0; ctrl.blur.dispatchEvent(new Event('input'));
-        репост();
+        renderPost();
       };
       im.src = rd.result; };
     rd.readAsDataURL(f);
   };
-  дроп.addEventListener('click', () => файл.click());
-  файл.addEventListener('change', () => взять(файл.files && файл.files[0]));
-  дроп.addEventListener('dragover', e => { e.preventDefault(); дроп.style.opacity = '1'; });
-  дроп.addEventListener('dragleave', () => { дроп.style.opacity = '.7'; });
-  дроп.addEventListener('drop', e => { e.preventDefault(); дроп.style.opacity = '.7';
-    взять(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
-  p.appendChild(дроп); p.appendChild(файл);
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => takeFile(fileInput.files && fileInput.files[0]));
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.opacity = '1'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.opacity = '.7'; });
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.opacity = '.7';
+    takeFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+  p.appendChild(dropZone); p.appendChild(fileInput);
 
-  // ── ЭКСПОРТ: PNG в полном разрешении (вшивать надо 512, а не игровые 128)
-  const низ = document.createElement('div');
-  низ.style.cssText = 'display:flex; gap:6px; margin-top:8px;';
-  { const b = document.createElement('button'); b.textContent = 'Скачать PNG';
+  // ── EXPORT: a PNG in full resolution (512 is what has to be baked in, not the in-game 128)
+  const bottomRow = document.createElement('div');
+  bottomRow.style.cssText = 'display:flex; gap:6px; margin-top:8px;';
+  { const b = document.createElement('button'); b.textContent = 'Download PNG';
     b.style.cssText = 'flex:1; padding:6px 8px; border:0; border-radius:6px; cursor:pointer;'
       + ' font:inherit; background:#dfe6f2; color:#0d1420;';
     b.addEventListener('click', () => mcePost.toBlob(bl => {
       const a = document.createElement('a'); a.href = URL.createObjectURL(bl);
       a.download = 'matcap.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }, 'image/png'));
-    низ.appendChild(b); }
-  p.appendChild(низ);
-  const хвост = document.createElement('div');
-  хвост.style.cssText = 'margin-top:8px; opacity:.55; font-size:11px;';
-  хвост.textContent = 'холст 512, в игре ' + MATCAP_SIZE + ' — видно ровно то, что в бою';
-  p.appendChild(хвост);
+    bottomRow.appendChild(b); }
+  p.appendChild(bottomRow);
+  const footNote = document.createElement('div');
+  footNote.style.cssText = 'margin-top:8px; opacity:.55; font-size:11px;';
+  footNote.textContent = 'canvas 512, in game ' + MATCAP_SIZE + ' — exactly what ships';
+  p.appendChild(footNote);
 
   document.body.appendChild(p);
-  репост(true);          // ОТКРЫТИЕ НИЧЕГО НЕ ПРИМЕНЯЕТ (см. `тихо` выше)
+  renderPost(true);          // OPENING APPLIES NOTHING (see `silent` above)
   return 'matcap editor: open';
 }

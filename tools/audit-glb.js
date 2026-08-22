@@ -1,5 +1,5 @@
-// Аудит GLB под пайплайн «Миксера»: геометрия, материалы, построение.
-// Парсим контейнер напрямую — без рантайм-лоадеров, как и требует проект.
+// GLB audit for the «Mixer» pipeline: geometry, materials, construction.
+// We parse the container directly — no runtime loaders, exactly as the project requires.
 const fs = require('fs');
 const path = require('path');
 
@@ -8,7 +8,7 @@ const NC = { SCALAR:1, VEC2:2, VEC3:3, VEC4:4, MAT4:16 };
 
 function readGLB(file) {
   const buf = fs.readFileSync(file);
-  if (buf.readUInt32LE(0) !== 0x46546C67) throw new Error('не GLB');
+  if (buf.readUInt32LE(0) !== 0x46546C67) throw new Error('not a GLB');
   let off = 12, json = null, bin = null;
   while (off < buf.length) {
     const len = buf.readUInt32LE(off), type = buf.readUInt32LE(off + 4);
@@ -47,7 +47,7 @@ function accessorData(g, bin, idx) {
   return { data: out, count: a.count, nc, ctName };
 }
 
-// --- матрицы ---
+// --- matrices ---
 const mul = (a, b) => { const o = new Array(16).fill(0);
   for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
   return o; };
@@ -76,7 +76,7 @@ function audit(file) {
               ext: (g.extensionsUsed||[]), meshNodes: 0, volume: 0,
               min: [1e9,1e9,1e9], max: [-1e9,-1e9,-1e9] };
 
-  // обход графа сцены с накоплением трансформов
+  // scene graph walk with transform accumulation
   const walk = (ni, parent) => {
     const n = g.nodes[ni];
     const m = mul(parent, trs(n));
@@ -91,7 +91,7 @@ function audit(file) {
         if (p.indices !== undefined) { idx = accessorData(g, bin, p.indices).data; R.tris += idx.length / 3; }
         else R.tris += pos.count / 3;
         if (p.material !== undefined && !R.mats.includes(p.material)) R.mats.push(p.material);
-        // world-space bbox + объём (теорема о дивергенции)
+        // world-space bbox + volume (divergence theorem)
         const P = [];
         for (let i = 0; i < pos.count; i++) {
           const w = xf(m, [pos.data[i*3], pos.data[i*3+1], pos.data[i*3+2]]);
@@ -129,16 +129,16 @@ function audit(file) {
   return R;
 }
 
-// ---------- отчёт ----------
+// ---------- report ----------
 const dir = process.argv[2];
 const files = fs.readdirSync(dir).filter(f => /\.glb$/i.test(f)).sort();
-const TARGET_TRIS = 400;   // ориентир: стейк 144 тр., на экране до 181 предмета
-const TARGET_KB = 150;     // бюджет «нового зала» из роадмапа
+const TARGET_TRIS = 400;   // target: steak 144 tris, up to 181 items on screen
+const TARGET_KB = 150;     // budget of the «new hall» from the roadmap
 
-console.log('\n================ АУДИТ 3D-АССЕТОВ ПОД ПАЙПЛАЙН «МИКСЕРА» ================\n');
+console.log('\n================ 3D ASSET AUDIT FOR THE «MIXER» PIPELINE ================\n');
 const all = [];
 for (const f of files) {
-  let R; try { R = audit(path.join(dir, f)); } catch (e) { console.log(f, 'ОШИБКА:', e.message); continue; }
+  let R; try { R = audit(path.join(dir, f)); } catch (e) { console.log(f, 'ERROR:', e.message); continue; }
   all.push(R);
   const dim = [0,1,2].map(c => R.max[c] - R.min[c]);
   const bboxVol = dim[0] * dim[1] * dim[2];
@@ -149,33 +149,33 @@ for (const f of files) {
   const texKb = R.imgs.reduce((s, i) => s + i.kb, 0);
 
   console.log('─'.repeat(74));
-  console.log(R.name.toUpperCase(), ` ${Math.round(R.bytes/1024)} КБ`);
-  console.log('  треугольников :', Math.round(R.tris), R.tris > TARGET_TRIS ? `  ⚠ ориентир ${TARGET_TRIS}` : '  ✓');
-  console.log('  вершин        :', R.verts, ' примитивов:', R.prims, ' мешей-нод:', R.meshNodes,
-              R.meshNodes > 1 ? '  ⚠ несколько нод — потребуется merge' : '');
-  console.log('  атрибуты      :', [...R.attrs].join(', '),
-              R.attrs.has('COLOR_0') ? '  ✓ есть вершинные цвета' : '  ⚠ вершинных цветов НЕТ');
-  console.log('  габарит       :', dim.map(d => d.toFixed(2)).join(' × '),
-              ` охват rc=${rc.toFixed(2)}  сплюснутость=${flat.toFixed(2)}`, flat < 0.35 ? ' ⚠ плоская → нужен wr' : '');
-  console.log('  смещение цент.:', centre.map(c => c.toFixed(2)).join(', '),
-              Math.hypot(...centre) > 0.01 * rc ? ' ⚠ не в нуле' : ' ✓');
-  console.log('  заполненность :', fill.toFixed(2), fill < 0.25 ? ' ⚠ сильно вогнутая → convex hull соврёт' : ' ✓ hull подойдёт');
-  console.log('  материалов    :', R.materials.length);
+  console.log(R.name.toUpperCase(), ` ${Math.round(R.bytes/1024)} KB`);
+  console.log('  triangles     :', Math.round(R.tris), R.tris > TARGET_TRIS ? `  ⚠ target ${TARGET_TRIS}` : '  ✓');
+  console.log('  vertices      :', R.verts, ' primitives:', R.prims, ' mesh nodes:', R.meshNodes,
+              R.meshNodes > 1 ? '  ⚠ several nodes — a merge will be needed' : '');
+  console.log('  attributes    :', [...R.attrs].join(', '),
+              R.attrs.has('COLOR_0') ? '  ✓ vertex colours present' : '  ⚠ NO vertex colours');
+  console.log('  dimensions    :', dim.map(d => d.toFixed(2)).join(' × '),
+              ` extent rc=${rc.toFixed(2)}  flatness=${flat.toFixed(2)}`, flat < 0.35 ? ' ⚠ flat → wr needed' : '');
+  console.log('  centre offset :', centre.map(c => c.toFixed(2)).join(', '),
+              Math.hypot(...centre) > 0.01 * rc ? ' ⚠ not at zero' : ' ✓');
+  console.log('  fill ratio    :', fill.toFixed(2), fill < 0.25 ? ' ⚠ heavily concave → the convex hull will lie' : ' ✓ hull will do');
+  console.log('  materials     :', R.materials.length);
   for (const m of R.materials) {
     const tex = [m.baseColorTex && 'baseColor', m.mrTex && 'metalRough', m.normalTex && 'normal', m.emissiveTex && 'emissive'].filter(Boolean);
     console.log(`    · ${m.name}: color=${m.baseColor ? m.baseColor.slice(0,3).join('/') : '—'}`,
-                `metal=${m.metal} rough=${m.rough}`, tex.length ? `ТЕКСТУРЫ: ${tex.join('+')}` : 'без текстур',
+                `metal=${m.metal} rough=${m.rough}`, tex.length ? `TEXTURES: ${tex.join('+')}` : 'no textures',
                 m.alphaMode !== 'OPAQUE' ? `alpha=${m.alphaMode}` : '', m.doubleSided ? 'doubleSided' : '');
   }
-  console.log('  картинки      :', R.imgs.length ? R.imgs.map(i => `${i.mime.replace('image/','')} ${i.kb}КБ`).join(', ') + `  = ${texKb} КБ` : 'нет  ✓');
-  if (R.anims || R.skins) console.log('  ⚠ анимации:', R.anims, ' скины:', R.skins, '— в пайплайне не поддерживаются');
-  if (R.ext.length) console.log('  расширения    :', R.ext.join(', '),
-      R.ext.some(e => /draco|meshopt|basisu/i.test(e)) ? ' ⚠ сжатие → нужен декодер, однофайловость под угрозой' : '');
+  console.log('  images        :', R.imgs.length ? R.imgs.map(i => `${i.mime.replace('image/','')} ${i.kb}KB`).join(', ') + `  = ${texKb} KB` : 'none  ✓');
+  if (R.anims || R.skins) console.log('  ⚠ animations:', R.anims, ' skins:', R.skins, '— not supported by the pipeline');
+  if (R.ext.length) console.log('  extensions    :', R.ext.join(', '),
+      R.ext.some(e => /draco|meshopt|basisu/i.test(e)) ? ' ⚠ compression → a decoder is needed, single-file delivery is at risk' : '');
 }
 
 console.log('─'.repeat(74));
-console.log('\nСВОДКА (в игре одновременно до 181 предмета):');
+console.log('\nSUMMARY (up to 181 items in the game at once):');
 const totTris = all.reduce((s, r) => s + r.tris, 0) / all.length;
-console.log('  средний полигонаж   :', Math.round(totTris), 'тр. → при 181 предмете ≈', Math.round(totTris * 181 / 1000), 'k треугольников');
-console.log('  текущий стейк       : 144 тр. → 26k при 181 предмете');
-console.log('  суммарный вес файлов:', Math.round(all.reduce((s, r) => s + r.bytes, 0) / 1024), 'КБ (бюджет зала ~' + TARGET_KB + ' КБ на модель)');
+console.log('  average polycount   :', Math.round(totTris), 'tris → with 181 items ≈', Math.round(totTris * 181 / 1000), 'k triangles');
+console.log('  current steak       : 144 tris → 26k with 181 items');
+console.log('  total file weight   :', Math.round(all.reduce((s, r) => s + r.bytes, 0) / 1024), 'KB (hall budget ~' + TARGET_KB + ' KB per model)');

@@ -1,36 +1,36 @@
-// ===== СВОЯ ТАБЛИЦА ЛИДЕРОВ — КЛИЕНТ (постановка docs/LEADERBOARD-OWN.md) =====
-// Только ДАННЫЕ. Экран и врезка на победе — отдельными правками, поверх этого.
+// ===== OUR OWN LEADERBOARD — CLIENT (spec docs/LEADERBOARD-OWN.md) =====
+// DATA only. The screen and the win inset come as separate edits, on top of this.
 //
-// Слово владельца 2026-08-07: «не будем мудрить и сейчас делать защиту от
-// накрутки. Пока сделай хорошую простую основу для лидерборда с показом
-// результата сразу по окончанию каждого уровня. Так же результат меняется,
-// если игрок потратил деньги в коллекции на множитель».
+// The owner's word 2026-08-07: «let's not get clever and build score-inflation
+// protection right now. For now make a good simple foundation for the leaderboard that shows
+// the result right at the end of every level. The result also changes
+// if the player has spent money in the collection on a multiplier».
 //
-// ⚠️⚠️ ЧЕТЫРЕ СОСТОЯНИЯ, И ТРИ ИЗ НИХ — НЕ ОШИБКИ. Экран обязан их различать,
-// поэтому клиент отдаёт их ЯВНЫМ полем `state`, а не заставляет угадывать по
-// пустому массиву:
-//   'ok'      — список пришёл;
-//   'early'   — сервер жив, но снимка ещё нет (признак `stale`, `t:0`).
-//               ⛔ ЭТО НЕ ПОЛОМКА: топ строится кроном раз в час, сразу после
-//               развёртывания он пуст ЗАКОННО. Показать «ошибка» здесь — соврать.
-//   'offline' — сети/сервера нет;
-//   'broken'  — ответ пришёл, но не по контракту (не JSON, нет полей).
-// ⚠️ 'early' и 'broken' РАЗВЕДЕНЫ НАМЕРЕННО. Наш воркер деградирует МЯГКО и на
-// упавшей базе отдаёт 200 — то есть признак поломки живёт В ТЕЛЕ, а не в коде
-// ответа. Проверка по `res.ok` была бы зелёной на мёртвой таблице (этой ровно
-// ошибкой уже болел серверный смоук — см. README сервера).
+// ⚠️⚠️ FOUR STATES, AND THREE OF THEM ARE NOT ERRORS. The screen must tell them apart,
+// which is why the client hands them over as an EXPLICIT `state` field instead of making it guess from
+// an empty array:
+//   'ok'      — the list arrived;
+//   'early'   — the server is alive, but there is no snapshot yet (markers `stale`, `t:0`).
+//               ⛔ THIS IS NOT A BREAKAGE: the top is built by a cron once an hour, right after
+//               a deployment it is empty LEGITIMATELY. Showing «error» here would be a lie.
+//   'offline' — no network/server;
+//   'broken'  — a response arrived, but off-contract (not JSON, fields missing).
+// ⚠️ 'early' and 'broken' ARE SEPARATED DELIBERATELY. Our worker degrades SOFTLY and on
+// a downed database returns 200 — that is, the breakage marker lives IN THE BODY, not in the
+// response code. A `res.ok` check would be green on a dead leaderboard (the server smoke test
+// suffered from exactly this bug — see the server README).
 
-// ⚠️⚠️ ВКЛЮЧЕНИЕ — ТОЛЬКО ПО ЯВНОМУ ПРИЗНАКУ, А НЕ ПО ДОГАДКЕ ПРО localhost.
-// Здесь стояло «любой localhost -> стенд 127.0.0.1:8788», и это было удобно
-// ровно одному человеку: на localhost сидят ВСЕ направления (превью игры 8779 —
-// Графика, Физика, Повествование), стенда у них не поднято, и они получали
-// неудачные запросы в консоли на каждой победе, без единого намёка почему.
-// Признаки, по убыванию приоритета:
-//   ?lb=1            — стенд по умолчанию (127.0.0.1:8788), для разработки;
-//   ?lb=<адрес>      — произвольный адрес, для проб и для сьюта;
-//   localStorage.mixer_lb_url — то же, но переживает перезагрузку;
-//   LB_URL           — боевой адрес из конфига (появится после развёртывания).
-// Ничего из этого нет — таблица ВЫКЛЮЧЕНА целиком и молчит.
+// ⚠️⚠️ ENABLING — ONLY BY AN EXPLICIT MARKER, NOT BY A GUESS ABOUT localhost.
+// This used to say «any localhost -> stand 127.0.0.1:8788», and that was convenient
+// for exactly one person: ALL the workstreams sit on localhost (game preview 8779 —
+// Graphics, Physics, Narrative), they have no stand running, and they were getting
+// failed requests in the console on every win, without a single hint why.
+// Markers, in descending priority:
+//   ?lb=1            — the default stand (127.0.0.1:8788), for development;
+//   ?lb=<address>    — an arbitrary address, for probes and for the suite;
+//   localStorage.mixer_lb_url — the same, but survives a reload;
+//   LB_URL           — the production address from the config (appears after deployment).
+// None of these present — the leaderboard is switched OFF entirely and stays silent.
 const LB_BASE = (function () {
   try {
     const q = new URLSearchParams(location.search).get('lb');
@@ -41,17 +41,17 @@ const LB_BASE = (function () {
   return (typeof LB_URL === 'string' && LB_URL) ? LB_URL : '';
 })();
 
-const LB_TTL_MS = 20000;   // короткий кэш: врезка на победе и экран читают ОДНО
+const LB_TTL_MS = 20000;   // short cache: the win inset and the screen read ONE AND THE SAME
 const LB_TIMEOUT_MS = 6000;
 
-// ⚠️ КЛЮЧ ПОДПИСИ ПРИНИМАЕТСЯ СЕРВЕРОМ ТОЛЬКО ПРИ СОЗДАНИИ СТРОКИ
-// (trust-on-first-use): прислать его к СУЩЕСТВУЮЩЕЙ строке нельзя, иначе любой
-// желающий переписал бы чужую. Значит ключ обязан пережить перезапуск игры —
-// потеряв его, игрок теряет и возможность обновлять СВОЮ строку навсегда.
-// ⚠️ СЕЙЧАС ОН В localStorage, И ЭТО ВРЕМЕННО: правильное место — сейв (77-save,
-// не моя зона), тогда он переживёт и чистку кэша, и переезд на второе устройство
-// вместе с `Save.gid`. Запрос Мете отправлен; до него поведение честное, но
-// «сменил устройство — новая строка».
+// ⚠️ THE SIGNING KEY IS ACCEPTED BY THE SERVER ONLY WHEN THE ROW IS CREATED
+// (trust-on-first-use): sending it against an EXISTING row is not allowed, otherwise anyone
+// who felt like it could overwrite someone else's. So the key must survive a game restart —
+// losing it, the player also loses the ability to update THEIR OWN row forever.
+// ⚠️ RIGHT NOW IT LIVES IN localStorage, AND THAT IS TEMPORARY: the right place is the save (77-save,
+// not my zone), then it would survive both a cache wipe and a move to a second device
+// together with `Save.gid`. A request has been sent to Meta; until it lands the behaviour is honest, but
+// «changed device — new row».
 const LB_KEY_LS = 'mixer_lb_key';
 
 function lbKey() {
@@ -66,12 +66,12 @@ function lbKey() {
   } catch (e) { return ''; }
 }
 
-// Была ли строка уже создана (ключ отправляется РОВНО в первой отправке).
+// Whether the row has already been created (the key is sent in EXACTLY the first submission).
 const LB_REG_LS = 'mixer_lb_reg';
-// ⚠️ ПОСЛЕДНЕЕ ОТПРАВЛЕННОЕ ЗНАЧЕНИЕ ЖИВЁТ МЕЖДУ ЗАПУСКАМИ, и это не роскошь.
-// Замер (headless, полная победа): при пустой памяти КАЖДЫЙ старт игры давал
-// лишнюю отправку — облачный синк `bridgeSyncSave` дёргает `onStarsChange` на
-// инициализации, и подписка честно слала уже лежащее на сервере число.
+// ⚠️ THE LAST SUBMITTED VALUE LIVES BETWEEN LAUNCHES, and that is not a luxury.
+// Measurement (headless, a full win): with empty memory EVERY game start produced
+// an extra submission — the cloud sync `bridgeSyncSave` pokes `onStarsChange` on
+// initialization, and the subscription honestly sent the number that already sat on the server.
 const LB_SENT_LS = 'mixer_lb_sent';
 function lbRegistered() { try { return localStorage.getItem(LB_REG_LS) === '1'; } catch (e) { return false; } }
 function lbMarkRegistered() { try { localStorage.setItem(LB_REG_LS, '1'); } catch (e) {} }
@@ -85,29 +85,29 @@ async function lbSign(msg) {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ⚠️⚠️ ЗАПРОСЫ ОБЯЗАНЫ ОСТАВАТЬСЯ «ПРОСТЫМИ» ПО CORS: тело `text/plain`, НИКАКИХ
-// кастомных заголовков и `content-type: application/json`. Иначе браузер шлёт
-// предполётный запрос, и КАЖДАЯ отправка стоит ДВА обращения вместо одного.
-// Требование записано в контракте сервера — не «оптимизация», а условие.
+// ⚠️⚠️ REQUESTS MUST STAY «SIMPLE» BY CORS RULES: a `text/plain` body, NO
+// custom headers and no `content-type: application/json`. Otherwise the browser sends
+// a preflight request, and EVERY submission costs TWO round trips instead of one.
+// The requirement is written into the server contract — not an «optimization», but a condition.
 async function lbFetch(path, opts) {
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const timer = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, LB_TIMEOUT_MS);
   try {
     const res = await fetch(LB_BASE + path, Object.assign({ signal: ctl && ctl.signal }, opts || {}));
     clearTimeout(timer);
-    // Тело у сервера ВСЕГДА непустой JSON, а успех — ПОЛЕ тела. Поэтому читаем
-    // тело при любом коде: 409 (повтор) и 429 (частим) несут осмысленные данные.
+    // The server's body is ALWAYS non-empty JSON, and success is a FIELD of the body. That is why we read
+    // the body on any code: 409 (duplicate) and 429 (rate-limited) carry meaningful data.
     let body = null;
     try { body = JSON.parse(await res.text()); } catch (e) { return { state: 'broken', code: res.status }; }
     if (!body || typeof body !== 'object') return { state: 'broken', code: res.status };
-    // ⚠️⚠️ РАЗОБРАЛСЯ JSON — ЕЩЁ НЕ УСПЕХ. Поймано ЖИВЫМ ПРОГОНОМ против стенда
-    // 2026-08-07, до него код считал успехом ЛЮБОЕ разобранное тело: повторная
-    // отправка возвращала `state:'ok'`, хотя сервер отвечал ошибкой. То есть
-    // клиент бодро рапортовал «приняли» на 400/401/429 — ровно тот класс, что
-    // мы ловим в стражах, только в боевом коде.
-    // Ошибка у сервера — ПОЛЕ `err` (замер: битая подпись → 400 `{"err":"nokey"}`),
-    // и она не зависит от кода ответа: он деградирует мягко и на упавшей базе
-    // отвечает 200. Поэтому судим ПО ТЕЛУ.
+    // ⚠️⚠️ THE JSON PARSED — THAT IS NOT SUCCESS YET. Caught by a LIVE RUN against the stand
+    // on 2026-08-07; before that the code counted ANY parsed body as success: a repeated
+    // submission returned `state:'ok'` even though the server answered with an error. That is,
+    // the client cheerfully reported «accepted» on 400/401/429 — exactly the class we
+    // catch in the guards, only in production code.
+    // The server's error is the `err` FIELD (measurement: a broken signature → 400 `{"err":"nokey"}`),
+    // and it does not depend on the response code: it degrades softly and on a downed database
+    // answers 200. That is why we judge BY THE BODY.
     if (body.err) return { state: 'refused', code: res.status, err: String(body.err), body: body };
     return { state: 'ok', code: res.status, body: body };
   } catch (e) {
@@ -116,33 +116,33 @@ async function lbFetch(path, opts) {
   }
 }
 
-// ===== ЧТЕНИЕ =====
+// ===== READING =====
 
 let lbTopCache = null;   // { at, data }
 let lbMeCache = null;
 
-// ⚠️ ОДНА ТОЧКА ПОЛУЧЕНИЯ НА ДВУХ ПОТРЕБИТЕЛЕЙ (врезка на победе + экран
-// таблицы). Две копии логики разъехались бы ровно на ТРАТЕ множителя — то есть
-// в единственном месте, где владелец и просил числам сходиться.
-// ⚠️⚠️ СБРОСИТЬ СВОЙ КЭШ НЕ ЗНАЧИТ ПОЛУЧИТЬ СВЕЖЕЕ. Поймано живым прогоном:
-// после очистки таблицы на стенде клиент честно перезапросил `/v1/top` и снова
-// получил СТАРЫЕ 24 строки с тем же `t` — ответ отдал HTTP-кэш браузера, у
-// сервера на этом маршруте `max-age` 60 с. Своя память была сброшена, а число
-// на экране не менялось бы ещё минуту — ровно там, где оно и обязано меняться
-// (после победы и после траты на множитель).
-// ⛔ ЛЕЧИТЬ ПОСТОЯННЫМ ОБХОДОМ КЭША НЕЛЬЗЯ: те 60 секунд у сервера НАМЕРЕННЫЕ,
-// топ отдаётся из снимка и держит нагрузку. Поэтому обход РАЗОВЫЙ — метка
-// живёт до следующего успешного чтения и тратится на него.
+// ⚠️ ONE FETCH POINT FOR TWO CONSUMERS (the win inset + the leaderboard
+// screen). Two copies of the logic would drift apart exactly on SPENDING on the multiplier — that is,
+// in the single place where the owner asked the numbers to agree.
+// ⚠️⚠️ DROPPING OUR OWN CACHE DOES NOT MEAN GETTING FRESH DATA. Caught by a live run:
+// after the leaderboard was cleared on the stand the client honestly re-requested `/v1/top` and again
+// got the OLD 24 rows with the same `t` — the answer came from the browser's HTTP cache, the
+// server has `max-age` 60 s on that route. Our own memory had been dropped, but the number
+// on the screen would not change for another minute — exactly where it is obliged to change
+// (after a win and after spending on the multiplier).
+// ⛔ CURING THIS WITH A PERMANENT CACHE BYPASS IS NOT ALLOWED: those 60 seconds on the server are DELIBERATE,
+// the top is served from a snapshot and holds the load. That is why the bypass is ONE-SHOT — the mark
+// lives until the next successful read and is spent on it.
 let lbBust = 0;
 function lbInvalidate() { lbTopCache = null; lbMeCache = null; lbBust = Date.now(); }
-// ⚠️⚠️ ПОДПИСКА «СЧЁТ ДОЕХАЛ» — ТОЧКА, КОТОРОЙ НЕ ХВАТАЛО (жалоба владельца
-// 2026-08-12: «мне нужен мгновенный пересчёт рейтинга и позиции, если я
-// закончил уровень или потратил очки на прокачку»). Отправка ЗАБЫВАЛА КЭШ, но
-// НИКОМУ НЕ ГОВОРИЛА, что число на сервере уже новое: плашка в меню перечитывала
-// таблицу только при ОТКРЫТИИ меню, а игрок в этот момент уже стоит в нём и
-// смотрит на старую цифру. Отсюда его же «разные значения»: 9445 в кошельке
-// против 9367 в строке — это не разные формулы, а отставший показ.
-// ⚠️ Зовём ПОСЛЕ `lbInvalidate`, иначе подписчик перечитает старый кэш.
+// ⚠️⚠️ THE «THE SCORE HAS ARRIVED» SUBSCRIPTION — THE POINT THAT WAS MISSING (the owner's complaint
+// 2026-08-12: «I need an instant recount of the rating and the position if I
+// finished a level or spent points on an upgrade»). The submission FORGOT THE CACHE, but
+// TOLD NOBODY that the number on the server was already new: the badge in the menu re-read
+// the leaderboard only when the menu was OPENED, and at that moment the player is already standing in it
+// looking at the old figure. Hence his own «different values»: 9445 in the wallet
+// against 9367 in the row — those are not different formulas, but a lagging display.
+// ⚠️ We call it AFTER `lbInvalidate`, otherwise the subscriber will re-read the old cache.
 const lbSentCbs = [];
 function lbOnSent(cb){ if (typeof cb === 'function') lbSentCbs.push(cb); }
 function lbFireSent(info){ for (const cb of lbSentCbs){ try { cb(info); } catch (e) {} } }
@@ -157,17 +157,17 @@ async function lbTop(page) {
   if (r.state !== 'ok') out = { state: r.state, rows: [] };
   else if (!Array.isArray(r.body.r)) out = { state: 'broken', rows: [] };
   else if (r.body.stale || !r.body.t) {
-    // ⛔ ИМЕННО ЗДЕСЬ ЖИВЁТ РАЗНИЦА «ПУСТО, ПОТОМУ ЧТО РАНО» И «ПУСТО, ПОТОМУ ЧТО
-    // СЛОМАЛОСЬ». Признак берём из ТЕЛА (`stale`/`t`), а не из кода ответа.
+    // ⛔ THIS IS EXACTLY WHERE THE DIFFERENCE BETWEEN «EMPTY BECAUSE IT IS EARLY» AND «EMPTY BECAUSE
+    // IT BROKE» LIVES. We take the marker from the BODY (`stale`/`t`), not from the response code.
     out = { state: 'early', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: 0 };
   } else out = { state: 'ok', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: r.body.t };
-  if (out.state === 'ok' || out.state === 'early') lbBust = 0;  // метка потрачена
+  if (out.state === 'ok' || out.state === 'early') lbBust = 0;  // the mark is spent
   lbTopCache = { p: p, at: Date.now(), data: out };
   return out;
 }
 
-// Строка снимка/соседей приходит тройкой [имя, аватар, счёт] — разворачиваем в
-// объект здесь, чтобы экран не знал про порядок полей.
+// A snapshot/neighbours row arrives as a triple [name, avatar, score] — we unfold it into
+// an object here so that the screen does not need to know the field order.
 function lbRow(a) { return Array.isArray(a) ? { name: a[0], av: a[1], score: a[2] } : null; }
 
 async function lbMe() {
@@ -180,30 +180,30 @@ async function lbMe() {
   if (!sig) return { state: 'offline' };
   const r = await lbFetch('/v1/me?id=' + encodeURIComponent(id) + '&t=' + t + '&sig=' + sig + lbBustQ(), { method: 'GET' });
   let out;
-  // ⚠️⚠️ «СТРОКИ ИГРОКА ЕЩЁ НЕТ» — ЭТО НЕ ОТКАЗ, И УЗНАЁТСЯ ОНО ПО СМЫСЛУ, А НЕ
-  // ПО КОДУ ОТВЕТА. Сервер отвечает `404 {"err":"none"}` (index.js:238), а
-  // `lbFetch` ЛЮБОЕ поле `err` в теле объявляет `refused` — поэтому прежняя ветка
-  // `r.code === 404` стояла ПОСЛЕ общего выхода и была НЕДОСТИЖИМА. Замер против
-  // стенда (2026-08-10): до первой победы игрок получал `refused`, экран прятал
-  // блок молча, и НОВИЧОК БЫЛ НЕОТЛИЧИМ ОТ МЁРТВОГО СЕРВЕРА — а это самый частый
-  // путь первого запуска.
-  // ⛔ Условие — `err === 'none'`, а НЕ `code === 404`: второй 404 сервера это
-  // `{"err":"route"}` (кривой `LB_BASE`), и по коду он выдал бы «ты просто не в
-  // таблице» вместо поломки — ложное «ок», ровно тот класс, что мы вычищаем.
-  // Форма ветки та же, что у 429 ниже (`refused` + разбор `err`).
-  // ⚠️ `exact` ЗДЕСЬ ОБЯЗАТЕЛЕН, ХОТЬ МЕСТА И НЕТ: без поля законный случай
-  // неотличим от «поле переименовали на сервере», а у экрана отказ по `exact`
-  // ЗАКРЫТЫЙ — нет признака достоверности, место не показываем. ПРАВИЛО: любой
-  // ответ, который МОЖЕТ нести место (`me`, `submit`), при `state:'ok'` несёт и
-  // `exact` — пусть `false`. Однородный контракт снимает класс двусмысленности
-  // и делает страж на стыке простым.
+  // ⚠️⚠️ «THE PLAYER HAS NO ROW YET» — THAT IS NOT A REFUSAL, AND IT IS RECOGNIZED BY MEANING, NOT
+  // BY THE RESPONSE CODE. The server answers `404 {"err":"none"}` (index.js:238), while
+  // `lbFetch` declares ANY `err` field in the body to be `refused` — that is why the former branch
+  // `r.code === 404` stood AFTER the common exit and was UNREACHABLE. A measurement against
+  // the stand (2026-08-10): before the first win the player got `refused`, the screen hid
+  // the block silently, and A NEWCOMER WAS INDISTINGUISHABLE FROM A DEAD SERVER — and that is the most common
+  // first-launch path.
+  // ⛔ The condition is `err === 'none'`, and NOT `code === 404`: the server's second 404 is
+  // `{"err":"route"}` (a broken `LB_BASE`), and by the code it would report «you are simply not on
+  // the leaderboard» instead of a breakage — a false «ok», exactly the class we are cleaning out.
+  // The shape of the branch is the same as the 429 one below (`refused` + parsing `err`).
+  // ⚠️ `exact` IS MANDATORY HERE, EVEN THOUGH THERE IS NO RANK: without the field the legitimate case
+  // is indistinguishable from «the field was renamed on the server», and the screen's refusal on `exact`
+  // is CLOSED — no trustworthiness marker, no rank shown. RULE: any
+  // response that CAN carry a rank (`me`, `submit`) also carries
+  // `exact` when `state:'ok'` — even if it is `false`. A uniform contract removes a class of ambiguity
+  // and keeps the guard at the seam simple.
   if (r.state === 'refused' && r.err === 'none') {
     out = { state: 'ok', me: null, rank: null, exact: false, up: [], dn: [] };
   } else if (r.state !== 'ok') out = { state: r.state };
   else out = {
     state: 'ok',
-    // ⚠️ У `/v1/me` место ТОЧНОЕ, но `null` возможен как признак «строки нет» —
-    // отдаём как есть, чтобы экран отличал «не знаю» от «первое место».
+    // ⚠️ At `/v1/me` the rank is EXACT, but `null` is possible as the «no row» marker —
+    // we pass it through as is so the screen can tell «I don't know» from «first place».
     rank: (typeof r.body.rank === 'number') ? r.body.rank : null,
     exact: !!r.body.exact,
     score: r.body.s,
@@ -214,134 +214,134 @@ async function lbMe() {
   return out;
 }
 
-// ===== ОТПРАВКА =====
+// ===== SUBMISSION =====
 
 let lbSending = false;
 let lbLastQ = 0;
-// Что уже лежит на сервере — одно и то же дважды не шлём (см. LB_SENT_LS).
+// What already sits on the server — we do not send the same thing twice (see LB_SENT_LS).
 let lbSentScore = (function () {
   try { const v = localStorage.getItem(LB_SENT_LS); return v === null ? null : Number(v); }
   catch (e) { return null; }
 })();
-let lbTimer = 0;          // отложенная отправка: окно частоты или коалесцинг
-let lbAgain = false;      // баланс изменился, пока прошлая отправка была в полёте
+let lbTimer = 0;          // deferred submission: the rate window or coalescing
+let lbAgain = false;      // the balance changed while the previous submission was in flight
 
-// ⚠️ ФОЛБЭК НА СЛУЧАЙ СТАРОГО ВОРКЕРА БЕЗ ПОЛЯ `retry`. Это ОСОЗНАННАЯ копия,
-// и она намеренно БОЛЬШЕ любого разумного окна: промахнуться в большую сторону
-// значит подождать лишнее, в меньшую — долбить сервер отказами. Боевое число
-// приходит от того, кто им владеет, — из тела 429.
+// ⚠️ A FALLBACK IN CASE OF AN OLD WORKER WITHOUT THE `retry` FIELD. This is a DELIBERATE copy,
+// and it is intentionally LARGER than any reasonable window: overshooting
+// means waiting longer than needed, undershooting means hammering the server with refusals. The production number
+// comes from whoever owns it — from the 429 body.
 const LB_RETRY_FALLBACK_S = 30;
 
-// ⚠️⚠️ ЗАДЕРЖКА КОАЛЕСЦИНГА — НЕ ЗАЩИТА ОТ ПОТОКА СОБЫТИЙ. Предпосылка «баланс
-// меняется на каждом начислении» ПРОВЕРЕНА ГРЕПОМ И НЕВЕРНА: `fireStarsChange`
-// зовут семь мест (облачный синк, досрочный банк, банк победы, пополнение,
-// трата, буст, анлок), за матч он не дёргается вовсе. Значит собирать поток
-// не от чего, и задержка нужна ровно для двух вещей:
-//   1) склеить пачку изменений одного жеста (купил два буста подряд);
-//   2) пропустить вперёд немедленную отправку победы — она уходит в том же
-//      тике, что и банк, а этот таймер приходит позже и видит уже отправленное
-//      значение (гасится проверкой `s === lbSentScore`).
-// ⚠️ ЗАМЕР (headless на живом стенде, полная победа ботом): на одну победу
-// уходит РОВНО ОДНА отправка — немедленная; отложенная её не дублирует.
-// ⚠️⚠️ И ГЛАВНЫЙ ЗАМЕР, СЦЕНАРИЙ ВЛАДЕЛЬЦА «победа, сразу трата на множитель»
-// (тот же стенд, ранг-счёт 5000 -> трата 2000 -> 3000):
-//     #1 200 (5000) -> #2 429 err=rate retry=18с -> #3 200 (3000)
-//     в базе стенда 3000, то есть совпало с игрой.
-// Без отложенной посылки шаг #3 не случился бы вовсе, и место обновилось бы
-// только после СЛЕДУЮЩЕЙ победы — ровно та потеря, ради которой всё делалось.
+// ⚠️⚠️ THE COALESCING DELAY IS NOT A DEFENCE AGAINST A STREAM OF EVENTS. The premise «the balance
+// changes on every award» HAS BEEN CHECKED BY GREP AND IS WRONG: `fireStarsChange`
+// is called from seven places (cloud sync, early bank, win bank, top-up,
+// spend, boost, unlock), during a match it is not poked at all. So there is no stream
+// to collect, and the delay is needed for exactly two things:
+//   1) to glue together a batch of changes from one gesture (bought two boosts in a row);
+//   2) to let the immediate win submission go first — it leaves in the same
+//      tick as the bank, while this timer arrives later and sees the already submitted
+//      value (suppressed by the `s === lbSentScore` check).
+// ⚠️ MEASUREMENT (headless against a live stand, a full win by the bot): one win
+// costs EXACTLY ONE submission — the immediate one; the deferred one does not duplicate it.
+// ⚠️⚠️ AND THE MAIN MEASUREMENT, THE OWNER'S SCENARIO «a win, immediately spending on a multiplier»
+// (the same stand, rank score 5000 -> spend 2000 -> 3000):
+//     #1 200 (5000) -> #2 429 err=rate retry=18s -> #3 200 (3000)
+//     the stand's database holds 3000, i.e. it matched the game.
+// Without the deferred send step #3 would not have happened at all, and the rank would update
+// only after the NEXT win — exactly the loss all of this was built to prevent.
 const LB_CHANGE_DELAY_S = 0.5;
 
-// Отложить отправку на `sec` секунд. Повторный вызов ПЕРЕНАЗНАЧАЕТ таймер —
-// в этом и состоит склейка: уходит ОДНА отправка с последним значением.
+// Defer the submission by `sec` seconds. A repeated call REASSIGNS the timer —
+// that is exactly what the gluing is: ONE submission leaves, carrying the latest value.
 function lbSchedule(sec) {
   const ms = Math.max(0, Math.min(120, Number(sec) || 0)) * 1000;
   if (lbTimer) clearTimeout(lbTimer);
   lbTimer = setTimeout(function () { lbTimer = 0; lbSubmit(); }, ms);
 }
 
-// ⚠️⚠️ ЗВАТЬ ТОЛЬКО ПОСЛЕ `bankLevelScore` — иначе место отстанет РОВНО НА ОДИН
-// УРОВЕНЬ. Симптом коварный: число правдоподобное, просто вчерашнее, и на глаз
-// это не ловится.
-// ✅ ПОРЯДОК В ИГРЕ УЖЕ ВЕРНЫЙ, сверено диспетчером ПО КОДУ 2026-08-07:
-// `80-gameplay.js` банкует счёт, и только потом идёт `Ads.noteWin()`, внутри
-// которого отправка; в `78-ads.js` у этого места стоит объяснение, что вызов
-// положили в `noteWin` именно потому, что он случается ровно раз за победу и
-// строго после банка. Чинить тут нечего — но и ломать нельзя.
-// ⚠️⚠️ А ВОТ ДЛЯ ВРЕЗКИ НА ПОБЕДЕ ЭТОГО МАЛО, И ЭТО НЕОЧЕВИДНО: в ответе на
-// отправку `rank` идёт с `exact: 0` — это ОЦЕНКА по последнему снимку, а не
-// точное место. Точное (`exact: 1`) и соседи `up`/`dn` есть ТОЛЬКО у `/v1/me`.
-// Значит последовательность врезки строго такая:
-//     банк → `lbSubmit()` → ДОЖДАТЬСЯ ответа → `lbMe()` → рисовать.
-// ⛔ Позвать `lbMe()` ПАРАЛЛЕЛЬНО с отправкой — получить место ДО учёта только
-// что сыгранной партии, то есть тот же «отстало на уровень», только теперь уже
-// не из-за банка. Кэш этому не мешает: `lbSubmit` сбрасывает его сам.
+// ⚠️⚠️ CALL ONLY AFTER `bankLevelScore` — otherwise the rank lags behind BY EXACTLY ONE
+// LEVEL. The symptom is insidious: the number is plausible, just yesterday's, and by eye
+// it cannot be caught.
+// ✅ THE ORDER IN THE GAME IS ALREADY CORRECT, verified by the dispatcher BY CODE on 2026-08-07:
+// `80-gameplay.js` banks the score, and only then comes `Ads.noteWin()`, inside
+// which the submission lives; in `78-ads.js` there is an explanation at that spot that the call
+// was put into `noteWin` precisely because it happens exactly once per win and
+// strictly after the bank. There is nothing to fix here — but nothing to break either.
+// ⚠️⚠️ FOR THE WIN INSET, THOUGH, THAT IS NOT ENOUGH, AND IT IS NOT OBVIOUS: in the response to
+// the submission `rank` comes with `exact: 0` — that is an ESTIMATE from the last snapshot, not
+// an exact rank. The exact one (`exact: 1`) and the neighbours `up`/`dn` exist ONLY at `/v1/me`.
+// So the inset's sequence is strictly this:
+//     bank → `lbSubmit()` → WAIT for the answer → `lbMe()` → draw.
+// ⛔ Calling `lbMe()` IN PARALLEL with the submission means getting the rank BEFORE the round just
+// played is accounted for, that is, the same «one level behind», only this time
+// not because of the bank. The cache does not get in the way: `lbSubmit` drops it itself.
 async function lbSubmit() {
   if (!LB_BASE) return { state: 'offline' };
-  // ⚠️⚠️ АВТОПРОГОН ЧИТАЕТ, НО НЕ ПИШЕТ. Гейт стоит ИМЕННО ЗДЕСЬ, на
-  // единственном месте, где рождается запись, — а не на адресе: пустой адрес
-  // глушил и чтение, и владелец на своём стенде не находил входа в таблицу.
-  // ⛔ ПРИЗНАК — АВТОМАТИЗАЦИЯ (`navigator.webdriver`, плюс `file:`), а НЕ
-  // локальный хост: по хосту глушился и сам владелец, а без своей строки у него
-  // пропало место и молчала врезка победы («на экране завершения уровня нет
-  // лидерборда»). Подробности у `LB_NOSEND` в 00-config.
-  // ⛔ ВЫХОД ПОМЕЧЕН ОТДЕЛЬНЫМ ПРИЗНАКОМ `bot`, а не маскируется под успех:
-  // «тихо не отправили» — ровно тот класс лжи, который мы весь день вычищали.
-  // ⚠️ И НЕ `state:'ok'`: экран победы по `ok` рисует место, а места здесь нет.
+  // ⚠️⚠️ AN AUTOMATED RUN READS BUT DOES NOT WRITE. The gate stands EXACTLY HERE, at
+  // the single place where a write is born — and not on the address: an empty address
+  // muted reading too, and the owner could not find the entry point into the leaderboard on his own stand.
+  // ⛔ THE MARKER IS AUTOMATION (`navigator.webdriver`, plus `file:`), and NOT
+  // the local host: by host the owner himself got muted, and without his own row his
+  // rank disappeared and the win inset went silent («there is no leaderboard on the level
+  // completion screen»). Details are at `LB_NOSEND` in 00-config.
+  // ⛔ THE EXIT IS MARKED WITH ITS OWN `bot` FLAG rather than disguised as success:
+  // «silently did not submit» is exactly the class of lie we spent the whole day cleaning out.
+  // ⚠️ AND NOT `state:'ok'`: the win screen draws a rank on `ok`, and there is no rank here.
   if (typeof LB_NOSEND !== 'undefined' && LB_NOSEND)
     return { state: 'refused', err: 'bot', bot: true, sent: 0 };
-  // ⚠️ Занятость — НЕ повод потерять изменение: помечаем и дошлём в хвосте.
+  // ⚠️ Being busy is NOT a reason to lose a change: we mark it and send it in the tail.
   if (lbSending) { lbAgain = true; return { state: 'busy' }; }
   const id = (typeof guestId === 'function') ? guestId() : '';
   const nm = (typeof guestName === 'function') ? guestName() : '';
   const av = (typeof guestAvatar === 'function') ? guestAvatar() : 0;
   const s = (typeof leaderboardScore === 'function') ? leaderboardScore() : 0;
   if (!id || !nm) return { state: 'offline' };
-  // ⚠️ Одно и то же значение второй раз не шлём: победа отправляет счёт сама,
-  // и подписка на изменение баланса пришла бы следом с тем же числом — вторая
-  // отправка ничего не меняет, но СЪЕДАЕТ окно частоты, и настоящая трата,
-  // случившаяся через секунду, упёрлась бы в 429 на ровном месте.
+  // ⚠️ We do not send the same value a second time: the win submits the score itself,
+  // and the balance-change subscription would follow with the same number — the second
+  // submission changes nothing, but EATS UP the rate window, and a real spend
+  // happening a second later would hit a 429 out of nowhere.
   if (s === lbSentScore) return { state: 'ok', skipped: true, sent: s, score: s,
     rank: null, exact: false, dup: false };
-  // ⚠️⚠️ НОЛЬ НЕ СОЗДАЁТ СТРОКУ, НО ОБЯЗАН ОБНОВЛЯТЬ СУЩЕСТВУЮЩУЮ. Сервер
-  // намеренно заводит строку при ПЕРВОЙ ПОБЕДЕ — «зашедший на десять секунд
-  // гость строку не плодит». Подписка на изменение баланса это свойство ЛОМАЛА:
-  // облачный синк на старте дёргает `onStarsChange`, и у не игравшего гостя
-  // уходила отправка с нулём, заводя строку. Найдено замером, а не рассуждением.
-  // ⛔ НО ПРЕЖНЕЕ `if (!(s > 0)) return` ЗАПРЕЩАЛО НОЛЬ И ТОМУ, У КОГО СТРОКА
-  // УЖЕ ЕСТЬ, — а это ДВА разных случая, и второй ломал модель владельца:
-  //   • сброс прогресса (панель разработчика) обнулял игру, а в таблице
-  //     оставался прежний счёт и прежнее место — жалоба владельца 2026-08-11;
-  //   • «Форбс»-модель обещает «спустил всё → 0, низ таблицы» (канон
-  //     2026-07-29), и ровно последний шаг до нуля не доезжал никогда.
-  // ⚠️ ПРИЗНАК «строка есть» — `lbSentScore > 0`, а НЕ `lbRegistered()`:
-  // регистрация помнит, что мы отправляли КЛЮЧ, а нам нужно знать, что на
-  // сервере лежит ПОЛОЖИТЕЛЬНОЕ число, которое ноль перезапишет. Он же
-  // переживает отложенную посылку: после 429 `lbSchedule` зовёт `lbSubmit()`
-  // без аргументов, и флаг-параметр здесь потерялся бы (проверено по коду).
+  // ⚠️⚠️ ZERO DOES NOT CREATE A ROW, BUT IT MUST UPDATE AN EXISTING ONE. The server
+  // deliberately creates a row on the FIRST WIN — «a guest who dropped in for ten seconds
+  // does not breed rows». The balance-change subscription BROKE that property:
+  // the cloud sync pokes `onStarsChange` at startup, and a guest who had not played
+  // sent off a submission with a zero, creating a row. Found by measurement, not by reasoning.
+  // ⛔ BUT THE FORMER `if (!(s > 0)) return` FORBADE ZERO ALSO FOR SOMEONE WHOSE ROW
+  // ALREADY EXISTS — and these are TWO different cases, and the second one broke the owner's model:
+  //   • a progress reset (the developer panel) zeroed the game, while on the leaderboard
+  //     the former score and the former rank remained — the owner's complaint 2026-08-11;
+  //   • the «Forbes» model promises «blew it all → 0, bottom of the leaderboard» (the canon
+  //     2026-07-29), and exactly the last step down to zero never made it through.
+  // ⚠️ THE «the row exists» MARKER IS `lbSentScore > 0`, and NOT `lbRegistered()`:
+  // registration remembers that we sent the KEY, while we need to know that on
+  // the server sits a POSITIVE number that a zero will overwrite. It also
+  // survives the deferred send: after a 429 `lbSchedule` calls `lbSubmit()`
+  // with no arguments, and a flag parameter would be lost here (verified by code).
   if (!(s > 0) && !(lbSentScore > 0)) return { state: 'ok', skipped: true, sent: s, score: s,
     rank: null, exact: false, dup: false };
   lbSending = true;
   try {
     const t = Math.floor(Date.now() / 1000);
-    // `q` — номер попытки: по нему сервер отличает ПОВТОР (409 dup) от новой
-    // отправки. Растёт монотонно, иначе повтор выглядел бы новой записью.
+    // `q` is the attempt number: by it the server tells a REPEAT (409 dup) from a new
+    // submission. It grows monotonically, otherwise a repeat would look like a new record.
     const q = Math.max(lbLastQ + 1, t);
     lbLastQ = q;
     const sig = await lbSign(id + '.' + s + '.' + q + '.' + t);
     if (!sig) return { state: 'offline' };
     const payload = { id: id, n: nm, a: av, s: s, q: q, t: t, sig: sig };
-    // Ключ уходит РОВНО в первой отправке (создание строки); к существующей
-    // сервер его не примет — и это не наша ошибка, а его защита.
+    // The key leaves in EXACTLY the first submission (row creation); against an existing one
+    // the server will not accept it — and that is not our bug, but its protection.
     if (!lbRegistered()) payload.k = lbKey();
     const r = await lbFetch('/v1/score', { method: 'POST', body: JSON.stringify(payload) });
-    // ⚠️⚠️ 429 — ЭТО «ПОДОЖДИ», А НЕ «ВЫБРОСЬ». Типичный путь владельца: победа
-    // отправила счёт, игрок тут же на экране победы покупает множитель — вторая
-    // отправка попадает внутрь окна частоты. Потеряй мы её, «трата опускает в
-    // таблице сразу» не случилось бы ровно в том сценарии, ради которого всё и
-    // делалось; следующая отправка ушла бы только после СЛЕДУЮЩЕЙ победы.
-    // ⚠️ Сколько ждать, говорит СЕРВЕР (поле `retry`): свою копию его `RATE_SEC`
-    // здесь держать нельзя — она совпадёт сегодня и разойдётся при первой же
-    // правке окна, о которой этот файл не узнает.
+    // ⚠️⚠️ A 429 MEANS «WAIT», NOT «THROW AWAY». The owner's typical path: the win
+    // submitted the score, the player immediately buys a multiplier on the win screen — the second
+    // submission lands inside the rate window. Were we to lose it, «spending drops you on
+    // the leaderboard immediately» would not happen in exactly the scenario all of this was
+    // built for; the next submission would leave only after the NEXT win.
+    // ⚠️ How long to wait is told by the SERVER (the `retry` field): keeping our own copy of its `RATE_SEC`
+    // here is not allowed — it would match today and drift apart at the very first
+    // edit of the window, which this file will not learn about.
     if (r.state === 'refused' && r.err === 'rate') {
       const wait = Number(r.body && r.body.retry) || LB_RETRY_FALLBACK_S;
       lbSchedule(wait);
@@ -356,32 +356,32 @@ async function lbSubmit() {
     return {
       state: 'ok',
       dup: !!r.body.dup,
-      // ⚠️ `null` ПРОПУСКАЕМ НАРУЖУ КАК ЕСТЬ. Прежнее `|| 0` превращало «сказать
-      // нечего» в число, а экран не смог бы отличить его от настоящего места.
-      // Оценка в ответе на отправку вообще не место — см. контракт клиента.
+      // ⚠️ WE PASS `null` OUTWARDS AS IS. The former `|| 0` turned «nothing to
+      // say» into a number, and the screen would not be able to tell it from a real rank.
+      // The estimate in the submission response is not a rank at all — see the client contract.
       rank: (typeof r.body.rank === 'number') ? r.body.rank : null,
       exact: !!r.body.exact,
-      // ⚠️ ОБА ЧИСЛА НАРУЖУ, И ЭТО НЕСУЩЕЕ: `sent` — что мы отправили,
-      // `score` — что сервер записал. Сегодня они совпадают, но экран обязан
-      // уметь показать расхождение: как только сервер начнёт что-то делать со
-      // счётом, разница станет единственным способом это заметить.
+      // ⚠️ BOTH NUMBERS GO OUTWARDS, AND THAT IS LOAD-BEARING: `sent` is what we submitted,
+      // `score` is what the server recorded. Today they match, but the screen must
+      // be able to show the discrepancy: as soon as the server starts doing something with the
+      // score, the difference will become the only way to notice it.
       sent: s,
       score: r.body.s,
     };
   } finally {
     lbSending = false;
-    // Изменение, пришедшее во время полёта, не теряем — дошлём следом.
+    // A change that arrived while in flight is not lost — we send it right after.
     if (lbAgain) { lbAgain = false; lbSchedule(LB_CHANGE_DELAY_S); }
   }
 }
 
-// ⚠️⚠️ ТРАТА ОБЯЗАНА ОПУСКАТЬ В ТАБЛИЦЕ СРАЗУ (прямое слово владельца
-// 2026-08-09), а для этого мало забыть свой кэш — надо ОТПРАВИТЬ новое число.
-// Здесь стоял только `lbInvalidate()`: экран перечитывал таблицу и видел в ней
-// СТАРЫЙ счёт, потому что на сервере он и лежал старым до следующей победы.
-// ⛔ И почему это нельзя было решить платформенной отправкой: сервер площадки
-// хранит МАКСИМУМ и молча игнорирует меньшее значение (замер 2026-07-29) —
-// опускать умеет только наша таблица.
+// ⚠️⚠️ SPENDING MUST DROP YOU ON THE LEADERBOARD IMMEDIATELY (the owner's direct word
+// 2026-08-09), and dropping our own cache is not enough for that — we have to SUBMIT the new number.
+// Here there used to be only `lbInvalidate()`: the screen re-read the leaderboard and saw
+// the OLD score in it, because on the server it was indeed sitting there old until the next win.
+// ⛔ And why this could not be solved with the platform submission: the platform's server
+// stores the MAXIMUM and silently ignores a smaller value (measurement 2026-07-29) —
+// only our own leaderboard can lower you.
 try {
   if (typeof onStarsChange === 'function') onStarsChange(function () {
     lbInvalidate();
@@ -389,17 +389,17 @@ try {
   });
 } catch (e) {}
 
-// ⚠️ ТЕСТОВАЯ ПОВЕРХНОСТЬ — СВОЙ ОБЪЕКТ, А НЕ `__game`. Причина не в
-// брезгливости: `__game` — ОДИН литерал в 99-main (чужая зона), и два
-// определения одного имени там не конфликтуют, а молча затирают друг друга —
-// хук начинает отдавать `undefined`, то есть правдоподобные нули. Проект на
-// этом уже обжигался (`itemsBrief`). Своё пространство имён такой встречи
-// исключает ПО ПОСТРОЕНИЮ.
+// ⚠️ THE TEST SURFACE IS OUR OWN OBJECT, NOT `__game`. The reason is not
+// squeamishness: `__game` is ONE literal in 99-main (someone else's zone), and two
+// definitions of the same name there do not conflict but silently overwrite each other —
+// the hook starts returning `undefined`, that is, plausible zeros. The project has
+// been burned by this before (`itemsBrief`). Our own namespace rules such a collision
+// out BY CONSTRUCTION.
 window.__lb = {
   top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent,
   base: function () { return LB_BASE; },
-  // ⚠️ Наружу — СОСТОЯНИЕ ОТПРАВКИ, а не флаг «всё хорошо»: страж обязан
-  // видеть, что отложенная посылка ЖИВА (таймер назначен), иначе «429 не
-  // потерян» проверялось бы по возвращённому слову, а не по факту.
+  // ⚠️ Outwards goes the SUBMISSION STATE, not an «all is well» flag: the guard must
+  // see that the deferred send is ALIVE (a timer is scheduled), otherwise «the 429 is not
+  // lost» would be checked against a returned word rather than against the fact.
   pending: function () { return { timer: !!lbTimer, again: lbAgain, sent: lbSentScore }; },
 };

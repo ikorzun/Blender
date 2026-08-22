@@ -1,6 +1,6 @@
-// ===== 75-audio: процедурный звук (WebAudio, без ассетов) и вибрация =====
-// Контекст создаётся/резюмится только по жесту пользователя (требование iOS) —
-// Sound.unlock() вешается на pointerdown в 90-input.
+// ===== 75-audio: procedural sound (WebAudio, no assets) and vibration =====
+// The context is created/resumed only on a user gesture (an iOS requirement) —
+// Sound.unlock() is hung on pointerdown in 90-input.
 
 const Sound = (function(){
   let ctx = null, master = null;
@@ -9,20 +9,20 @@ const Sound = (function(){
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       master = ctx.createGain();
-      // ⚠️ НЕ хардкод 0.5, а applyGain() — ЩЕЛЬ, найденная диспетчером на мерже
-      // правки громкости (2026-07-30): master создаётся ЛЕНИВО по первому жесту,
-      // а восстановление ползунка из localStorage (applySoundVol на старте,
-      // 85-hud) отрабатывает РАНЬШЕ, когда master ещё null и applyGain — no-op.
-      // С хардкодом восстановленные 40% ИГРАЛИ НА ПОЛНОЙ громкости до первого
-      // касания ползунка или мьюта рекламы. Замер стража ниже: гейн после
-      // холодного старта обязан быть 0.5·playerVol, а не 0.5.
+      // ⚠️ NOT a hardcoded 0.5, but applyGain() — a GAP found by the dispatcher during
+      // the merge of the volume fix (2026-07-30): master is created LAZILY on the first
+      // gesture, while restoring the slider from localStorage (applySoundVol at startup,
+      // 85-hud) runs EARLIER, when master is still null and applyGain is a no-op.
+      // With the hardcode, a restored 40% PLAYED AT FULL volume until the first
+      // touch of the slider or an ad mute. The guard's measurement below: the gain after
+      // a cold start must be 0.5·playerVol, not 0.5.
       master.connect(ctx.destination);
       applyGain();
     } catch(e){ ctx = null; }
   }
-  // Сэмплы из 74-sfx-data: декод лениво после unlock. m4a/AAC декодится
-  // везде (ogg Safari НЕ умеет — потому конверсия на этапе интеграции).
-  // При недоступности сэмпла звук честно падает на процедурный вариант.
+  // Samples from 74-sfx-data: decoded lazily after unlock. m4a/AAC decodes
+  // everywhere (Safari CANNOT do ogg — hence the conversion at the integration stage).
+  // When a sample is unavailable the sound honestly falls back to the procedural variant.
   const buffers = {};
   function b64buf(b64){
     const bin = atob(b64), arr = new Uint8Array(bin.length);
@@ -37,63 +37,69 @@ const Sound = (function(){
       catch(e){}
     }
   }
-  // ⚠️⚠️ ТРЕТИЙ АРГУМЕНТ `v` — РАЗНООБРАЗИЕ, И ОН НЕОБЯЗАТЕЛЕН ПО ЗАМЫСЛУ.
-  // Слово владельца 2026-08-10: «сделай web audio разнообразным ТОЛЬКО для 3
-  // ⚠️ ЗАПИСЕЙ ТЕПЕРЬ ПЯТЬ (2026-08-20-г/е: пластик и звери озвучены впервые), и
-  // разнообразие пришло к нему САМО — ветка смотрит на НАЛИЧИЕ БУФЕРА, а не на
-  // список имён. Спека «только для добавленных звуков» этим не нарушена: она
-  // отделяла записи владельца от процедурного звука, а не считала их штуки.
-  // добавленных новых звуков» — это его записи материалов (mat_juicy/metal/
-  // glass). Все прочие потребители (`grind`, `ui`, `crunch`) зовут функцию
-  // ДВУМЯ аргументами и идут прежним путём бит-в-бит.
-  // ⛔ ИМЕННО ПОЭТОМУ РАЗНООБРАЗИЕ — АРГУМЕНТ, А НЕ ПОВЕДЕНИЕ ПО УМОЛЧАНИЮ:
-  // «только для трёх» тогда держится СТРУКТУРОЙ, а не дисциплиной того, кто
-  // будет править файл следующим. Страж на это опирается: `grind` — тоже
-  // сэмпл и тоже через playBuf, и он обязан остаться с rate ровно 1.
-  // ===== ВЫРАВНИВАНИЕ ГРОМКОСТИ ГОЛОСОВ (слово владельца 2026-08-20-ж) =====
-  // ⚠️⚠️ ТРИМ В КОДЕ, А НЕ НОРМАЛИЗАЦИЯ ФАЙЛОВ. Записи владельца не трогаем —
-  // правило проекта; движок компенсирует разницу одним множителем на голос.
-  // Скажет перезаписать ровнее — таблица уйдёт в единицы сама собой.
+  // ⚠️⚠️ THE THIRD ARGUMENT `v` IS VARIETY, AND IT IS OPTIONAL BY DESIGN.
+  // The owner's word 2026-08-10: «make web audio varied ONLY for the 3
+  // ⚠️ THERE ARE FIVE RECORDINGS NOW (2026-08-20-g/e: plastic and animals voiced for the
+  // first time), and variety came to it BY ITSELF — the branch looks at the PRESENCE OF
+  // A BUFFER, not at a list of names. The spec «only for the added sounds» is not
+  // violated by this: it separated the owner's recordings from the procedural sound,
+  // it did not count how many of them there are.
+  // newly added sounds» — these are his material recordings (mat_juicy/metal/
+  // glass). All the other consumers (`grind`, `ui`, `crunch`) call the function
+  // with TWO arguments and go the previous path bit-for-bit.
+  // ⛔ THAT IS EXACTLY WHY VARIETY IS AN ARGUMENT AND NOT THE DEFAULT BEHAVIOR:
+  // «only for the three» is then held by STRUCTURE, not by the discipline of whoever
+  // edits this file next. The guard relies on this: `grind` is also a
+  // sample and also goes through playBuf, and it must stay at rate exactly 1.
+  // ===== ALIGNING THE LOUDNESS OF THE VOICES (the owner's word 2026-08-20-zh) =====
+  // ⚠️⚠️ TRIM IN CODE, NOT NORMALIZATION OF THE FILES. We do not touch the owner's
+  // recordings — a project rule; the engine compensates the difference with one
+  // multiplier per voice. If he says to re-record them more evenly, the table will
+  // drift to ones by itself.
   //
-  // ⚠️ МЕТРИКА — МАКС. КРАТКОСРОЧНЫЙ RMS В ОКНЕ 200 мс, а не пик и не RMS всего
-  // файла. Пик не описывает громкость (щелчок и шорох с равным пиком слышны
-  // по-разному); RMS всего файла наказал бы `fruit.wav` за 310 мс тишины в
-  // хвосте; окно 200 мс близко к временнОй интеграции слуха, поэтому КОРОТКИЙ
-  // звук честно получает больше усиления. Замер (краткосрочный, дБ):
+  // ⚠️ THE METRIC IS THE MAX. SHORT-TERM RMS IN A 200 ms WINDOW, not the peak and not the
+  // RMS of the whole file. The peak does not describe loudness (a click and a rustle with
+  // equal peaks are heard differently); the RMS of the whole file would punish `fruit.wav`
+  // for 310 ms of silence in the tail; a 200 ms window is close to the temporal
+  // integration of hearing, therefore a SHORT sound honestly gets more gain.
+  // Measurement (short-term, dB):
   //   plush -21.4 | metal -17.8 | plastic -20.4 | juicy -35.7 | glass -35.6
-  // ⚠️ ЦЕЛЬ -22.8 дБ — СРЕДНЕВЗВЕШЕННАЯ ПО ЧИСЛУ ЖИВЫХ ТИПОВ (plush 26, juicy 22,
-  // metal 15, plastic 4). Так общая громкость игры НЕ ЕДЕТ: двигается только
-  // разброс, который был 16.6 дБ по RMS и 20.7 по пику.
-  // ⚠️ ПРО ЗАПАС ДО ПЕРЕГРУЗА, ЧЕСТНО: у `plush` пик -1.0 дБFS, и при крупной
-  // группе поканальный множитель доходит до (0.5+0.06n)·√2 = 1.216 — то есть
-  // трим 0.858 даёт поканальный пик 0.93, ещё под единицей.
-  // ⛔ НО ПРЕЖНЯЯ ФОРМУЛИРОВКА «выше поднять НЕЛЬЗЯ, потолок 0.923» БЫЛА
-  // НЕВЕРНА: промежуточные ноды WebAudio — float32 и не клиппуют вовсе,
-  // обрезание бывает только на `destination`, а до него сигнал ещё умножается
-  // на мастер (0.5 · громкость игрока). Реальный запас — около 9.6 дБ.
-  // Цель -22.8 выбрана НЕ потолком, а тем, чтобы общая громкость игры не поехала.
-  // ⚠️ ШУМОВОЙ ПОЛ ПРОВЕРЕН ПЕРЕД ПОДЪЁМОМ: самый большой трим (+12.9 дБ у
-  // `juicy`) поднимает её шум до -54 дБFS, то есть он остаётся неслышимым.
-  // ⚠️ ПОЧЕМУ СЧИТАТЬ ПО ФАЙЛАМ ЗАКОННО: `playBuf` применяет ко ВСЕМ голосам
-  // ОДНО И ТО ЖЕ преобразование (гейн группы × √2 панорамы × master), поэтому
-  // разница между голосами РАВНА разнице файлов. Браузерный захват в headless
-  // этого не подтвердил и был отброшен как неисправный прибор, а не как довод.
-  // ⛔ `grind*` и `ui` В ТАБЛИЦЕ НЕТ НАМЕРЕННО: это другие события, владелец
-  // просил выровнять звуки материалов. Незнакомый ключ даёт 1.
+  // ⚠️ THE TARGET -22.8 dB IS THE WEIGHTED AVERAGE BY THE NUMBER OF LIVE TYPES (plush 26,
+  // juicy 22, metal 15, plastic 4). This way the overall loudness of the game DOES NOT
+  // DRIFT: only the spread moves, which was 16.6 dB by RMS and 20.7 by peak.
+  // ⚠️ ABOUT THE HEADROOM BEFORE OVERLOAD, HONESTLY: `plush` has a peak of -1.0 dBFS, and
+  // with a large group the per-channel multiplier reaches (0.5+0.06n)·√2 = 1.216 — that
+  // is, a trim of 0.858 gives a per-channel peak of 0.93, still under one.
+  // ⛔ BUT THE FORMER WORDING «raising it higher is IMPOSSIBLE, the ceiling is 0.923» WAS
+  // WRONG: the intermediate WebAudio nodes are float32 and do not clip at all,
+  // clipping happens only at `destination`, and before it the signal is still multiplied
+  // by the master (0.5 · the player's volume). The real headroom is about 9.6 dB.
+  // The target -22.8 was chosen NOT by the ceiling, but so that the overall loudness of
+  // the game would not drift.
+  // ⚠️ THE NOISE FLOOR WAS CHECKED BEFORE THE BOOST: the largest trim (+12.9 dB on
+  // `juicy`) raises its noise to -54 dBFS, that is, it stays inaudible.
+  // ⚠️ WHY COUNTING BY THE FILES IS LEGITIMATE: `playBuf` applies to ALL voices
+  // ONE AND THE SAME transformation (group gain × √2 of panning × master), therefore
+  // the difference between the voices EQUALS the difference between the files. A browser
+  // capture in headless did not confirm this and was discarded as a faulty instrument,
+  // not as an argument.
+  // ⛔ `grind*` AND `ui` ARE DELIBERATELY NOT IN THE TABLE: these are other events, the
+  // owner asked to align the material sounds. An unknown key gives 1.
   const VOICE_TRIM = {
-    mat_plush:   0.858,   //  -1.3 дБ
-    mat_juicy:   4.422,   // +12.9 дБ
-    mat_metal:   0.566,   //  -4.9 дБ
-    mat_plastic: 0.765,   //  -2.3 дБ
-    mat_glass:   4.401,   // +12.9 дБ (носителей в пуле нет, ровняем для полноты)
+    mat_plush:   0.858,   //  -1.3 dB
+    mat_juicy:   4.422,   // +12.9 dB
+    mat_metal:   0.566,   //  -4.9 dB
+    mat_plastic: 0.765,   //  -2.3 dB
+    mat_glass:   4.401,   // +12.9 dB (there are no carriers in the pool, aligned for completeness)
   };
-  // ⚠️ ПИК ПРОЦЕДУРНОГО «БУЛЯ» — ИМЕНОВАННОЙ КОНСТАНТОЙ, а не литералом в
-  // формуле: на неё смотрит страж, а копия числа рядом с рабочим расходится
-  // при первой правке. Вывод числа — у самой формулы ниже.
+  // ⚠️ THE PEAK OF THE PROCEDURAL «BLOOP» IS A NAMED CONSTANT, not a literal in the
+  // formula: the guard looks at it, and a copy of the number next to the working one
+  // diverges at the first edit. The derivation of the number is at the formula itself below.
   const MATCH_PROC_PEAK = 0.131;
-  // ⚠️ НАРУЖУ ОТДАЁМ ТАБЛИЦУ И БУФЕРЫ, А НЕ ЧИСЛА-КОПИИ: страж считает
-  // громкость ПО САМИМ ЗАПИСЯМ и умножает на ТОТ ЖЕ трим, что применяет бой.
-  // Литералы в тесте разошлись бы с кодом при первой перезаписи звука.
+  // ⚠️ WE EXPOSE THE TABLE AND THE BUFFERS, NOT COPIES OF THE NUMBERS: the guard computes
+  // the loudness FROM THE RECORDINGS THEMSELVES and multiplies by THE SAME trim that the
+  // live code applies. Literals in the test would diverge from the code at the first
+  // re-recording of a sound.
   function sfxTrimTable(){ return Object.assign({}, VOICE_TRIM); }
   function sfxProcPeak(){ return MATCH_PROC_PEAK; }
   function sfxBufferOf(name){ return buffers[name] || null; }
@@ -102,43 +108,44 @@ const Sound = (function(){
     if (!buf) return false;
     const src = ctx.createBufferSource(); src.buffer = buf;
     if (v && v.rate) src.playbackRate.value = v.rate;
-    // Панорама — только если браузер её умеет; нет ноды, значит звук по центру,
-    // и это НЕ повод тянуть PannerNode с HRTF: та на мобиле считает свёртку на
-    // КАЖДЫЙ источник, а совмещение случается по нескольку раз в секунду.
+    // Panning — only if the browser can do it; no node means the sound is centered,
+    // and this is NOT a reason to drag in a PannerNode with HRTF: on mobile it computes a
+    // convolution for EVERY source, while a match happens several times per second.
     let pan = null;
     if (v && v.pan != null && ctx.createStereoPanner){
       try { pan = ctx.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, v.pan)); }
       catch (e) { pan = null; }
     }
-    // ⚠️⚠️ √2 — ЭТО ВОЗВРАТ СЪЕДЕННОЙ ГРОМКОСТИ, А НЕ УСИЛЕНИЕ. Все три записи
-    // владельца МОНО (проверено заголовками WAV: 1 канал, 46875 Гц, 16 бит).
-    // Моно БЕЗ панорамы апмиксится КОПИЕЙ в оба канала — ×1.0; моно ЧЕРЕЗ
-    // StereoPanner идёт equal-power и на ЛЮБОМ значении панорамы отдаёт ×0.707,
-    // то есть РОВНО −3.01 дБ. Замерено в OfflineAudioContext: мощность
-    // 0.25 → 0.125 при pan 0 / 0.33 / 0.6 — потеря не зависит от места.
-    // ⛔ БЕЗ ЭТОЙ СТРОКИ записи владельца звучат тише процедурного «буля»,
-    // который идёт в master напрямую, — то есть тише играет ровно то, что он
-    // записал. И хуже: на старом iOS панорамы НЕТ вовсе, там те же записи шли
-    // бы на 3 дБ ГРОМЧЕ — один звук разной громкости на разных телефонах.
-    // ⚠️ ВЕРНО ТОЛЬКО ДЛЯ МОНО. Придут стерео-дубли — пересмотреть: у стерео
-    // входа StereoPanner уровень не режет.
-    // ⚠️ ПОРЯДОК НЕСУЩИЙ: гейн считается ПОСЛЕ решения о панораме, потому что
-    // зависит от него. Переставить строки местами нельзя.
+    // ⚠️⚠️ √2 IS THE RETURN OF EATEN LOUDNESS, NOT A BOOST. All three of the owner's
+    // recordings are MONO (verified by the WAV headers: 1 channel, 46875 Hz, 16 bit).
+    // Mono WITHOUT panning is upmixed as a COPY into both channels — ×1.0; mono THROUGH
+    // StereoPanner goes equal-power and at ANY panning value gives ×0.707,
+    // that is, EXACTLY −3.01 dB. Measured in an OfflineAudioContext: power
+    // 0.25 → 0.125 at pan 0 / 0.33 / 0.6 — the loss does not depend on the position.
+    // ⛔ WITHOUT THIS LINE the owner's recordings sound quieter than the procedural
+    // «bloop», which goes to master directly — that is, exactly what he recorded plays
+    // quieter. And worse: on old iOS there is NO panning at all, and there the same
+    // recordings would go 3 dB LOUDER — one sound at different loudness on different
+    // phones.
+    // ⚠️ TRUE ONLY FOR MONO. If stereo takes arrive — revisit: with a stereo
+    // input StereoPanner does not cut the level.
+    // ⚠️ THE ORDER IS LOAD-BEARING: the gain is computed AFTER the decision about panning,
+    // because it depends on it. The lines cannot be swapped.
     const g = ctx.createGain();
     g.gain.value = (peak || 0.7) * (pan ? Math.SQRT2 : 1) * (VOICE_TRIM[name] || 1);
     src.connect(g);
     if (pan){ g.connect(pan); pan.connect(master); } else { g.connect(master); }
-    // ⚠️ ОТСОЕДИНЯЕМ ПОСЛЕ ОКОНЧАНИЯ: Safari не спешит собирать отключённые
-    // ноды сам, а при частых матчах их накапливаются сотни. Прежний путь (две
-    // ноды на звук) это терпел, с панорамой их три.
+    // ⚠️ WE DISCONNECT AFTER THE END: Safari is in no hurry to collect disconnected
+    // nodes by itself, and with frequent matches hundreds of them pile up. The previous
+    // path (two nodes per sound) tolerated this, with panning there are three.
     src.onended = function(){ try { src.disconnect(); g.disconnect(); if (pan) pan.disconnect(); } catch (e) {} };
     src.start();
     return true;
   }
   function unlock(){
     ensure();
-    // не только 'suspended': iOS после звонка/сворачивания даёт 'interrupted' —
-    // резюмим из ЛЮБОГО не-running состояния, иначе звук молчал до перезагрузки
+    // not only 'suspended': after a call/minimizing iOS gives 'interrupted' —
+    // we resume from ANY non-running state, otherwise the sound stayed silent until reload
     if (ctx && ctx.state !== 'running'){ try { ctx.resume(); } catch(e){} }
     loadSamples();
   }
@@ -168,54 +175,59 @@ const Sound = (function(){
     src.start(t0);
   }
   const fxMap = {
-    match(a){ // «буль»-арпеджио, выше и длиннее при большой группе.
-      // Аргумент: число (совместимость) ЛИБО {n, k} — k = длина серии,
-      // питч растёт лесенкой с темпом (пакет темпа 2026-07-31), кап +60%.
+    match(a){ // a «bloop» arpeggio, higher and longer with a big group.
+      // Argument: a number (compatibility) OR {n, k} — k = the length of the streak,
+      // the pitch grows as a staircase with the tempo (tempo batch 2026-07-31), cap +60%.
       const n = (a && a.n) || a || 2, k = (a && a.k) || 0;
-      // ⚠️⚠️ ГОЛОС МАТЕРИАЛА ГЛАВНЕЕ ПРОЦЕДУРНОГО «БУЛЯ», НО НЕ ОБЯЗАТЕЛЕН.
-      // Записан не весь набор (пять голосов из десяти: plush, juicy, metal,
-      // plastic, glass — 67 живых типов из 87) —
-      // у остальных голосов сэмпла нет, и они ДОЛЖНЫ звучать как раньше.
-      // ⛔ Поэтому здесь не `if (материал)`, а проверка НАЛИЧИЯ БУФЕРА: тип
-      // размечен всегда, а звук — пока нет, и путать эти два условия значит
-      // молча оглушить пятую часть пула (20 живых типов из 87 идут процедурным;
-      // когда абзац писался, их было девять десятых — записей было три).
-      // ⚠️ ГРОМКОСТЬ РАСТЁТ С РАЗМЕРОМ ГРУППЫ, а не фиксирована: у процедурного
-      // «буля» размер слышен длиной арпеджио, и сэмпл без этого читался бы как
-      // «звук перестал реагировать на игру». Питч серии сюда НЕ переносим —
-      // на записи он звучал бы как ускоренная плёнка.
-      // ⚠️⚠️ РАЗНООБРАЗИЕ ТОЛЬКО ЗДЕСЬ (слово владельца 2026-08-10). Записанный
-      // сэмпл, повторённый один в один, ухо ловит как «зациклило» уже к пятому
-      // разу — процедурный «буль» этим не болел, он каждый раз считается заново.
-      // ⛔ ROUND ROBIN ОТМЕНЁН ВЛАДЕЛЬЦЕМ (2026-08-11: «убери дубли записей
-      // звука»). Я предлагал писать по 2-3 дубля на голос, чтобы включить
-      // выбор как у `grind`, — он отказался. ⛔ Значит РАЗНООБРАЗИЕ ДЕРЖИТСЯ
-      // ЦЕЛИКОМ НА ПИТЧЕ И ПАНОРАМЕ, и трогать их «за ненадобностью» нельзя:
-      // без них одна запись читалась бы как зацикленная уже к пятому разу.
-      // ⚠️ Не заводить дубли и «на будущее»: каждая запись едет в пакет
-      // портала, а запас до лимита 8 МБ у нас 1.4 МБ на всё остальное.
-      // ⚠️ ПИТЧ ПО РАЗМЕРУ — формула владельца 1/√размер: крупная вещь звучит
-      // ниже, мелкая выше. Берём охватный радиус ТАПНУТОГО предмета: он несёт и
-      // калибр типа, и разброс размеров уровня.
-      // ⚠️⚠️ ОПОРА — `MESH_SCALE`, А НЕ ЕДИНИЦА, И ЭТО НЕ КОСМЕТИКА. `it.r` это
-      // `rc · размерУровня · MESH_SCALE` (40-items:117), то есть у типичного
-      // предмета (`rc:1.0`, а таких 107 из 120) он равен 0.62, а не 1. Пивот на
-      // единице зашивал постоянный множитель 1/√0.62 = 1.27: ЗАМЕР на живых
-      // матчах давал 12 значений из 12 ВЫШЕ единицы (медиана 1.12), то есть
-      // «крупнее — ниже» вырождалось в «всё ускорено, крупное чуть меньше».
-      // ⛔ И ЦЕНА БЫЛА НЕ ТОЛЬКО СМЫСЛОВОЙ: Blink и WebKit ресемплят
-      // `AudioBufferSourceNode` линейной интерполяцией (это почти весь мобильный
-      // трафик), и повышение тона — это децимация без антиалиасинга. Постоянная
-      // работа выше единицы заворачивала верх спектра у КАЖДОГО совмещения.
-      // ⚠️ Опора берётся ТОЙ ЖЕ константой, из которой собран радиус, а не
-      // литералом 0.62: копия числа рядом с рабочим всегда расходится потом.
-      // ⚠️ КОРИДОР 0.72..1.38 — НЕ УКРАШЕНИЕ: за его пределами короткая запись
-      // читается уже не как «тот же материал крупнее», а как другой звук, и
-      // материал перестаёт узнаваться на слух — ровно то, ради чего он записан.
-      // ⚠️ ДЖИТТЕР ±5% берём ИЗ ОБРАЗЦА ВЛАДЕЛЬЦА (0.95..1.05) — он и даёт
-      // «каждый раз чуть иначе» там, где размер одинаков (уровни 1-19 идут
-      // ОДНИМ размером, SIZE_UNIFORM_LEVELS: без джиттера там нет разнообразия
-      // вовсе, и это самые первые полчаса игрока).
+      // ⚠️⚠️ THE MATERIAL'S VOICE OUTRANKS THE PROCEDURAL «BLOOP», BUT IS NOT MANDATORY.
+      // Not the whole set is recorded (five voices out of ten: plush, juicy, metal,
+      // plastic, glass — 67 live types out of 87) —
+      // the other voices have no sample, and they MUST sound as before.
+      // ⛔ Therefore it is not `if (material)` here, but a check for the PRESENCE OF A
+      // BUFFER: the type is always tagged, while the sound is not yet, and confusing
+      // these two conditions means silently deafening a fifth of the pool (20 live types
+      // out of 87 go procedural; when this paragraph was written it was nine tenths —
+      // there were three recordings).
+      // ⚠️ THE LOUDNESS GROWS WITH THE SIZE OF THE GROUP, it is not fixed: with the
+      // procedural «bloop» the size is heard through the length of the arpeggio, and a
+      // sample without this would read as «the sound stopped reacting to the game». The
+      // pitch of the streak is NOT carried over here — on a recording it would sound like
+      // a sped-up tape.
+      // ⚠️⚠️ VARIETY ONLY HERE (the owner's word 2026-08-10). A recorded
+      // sample repeated one to one is caught by the ear as «it looped» already by the
+      // fifth time — the procedural «bloop» did not suffer from this, it is computed anew
+      // every time.
+      // ⛔ ROUND ROBIN WAS CANCELED BY THE OWNER (2026-08-11: «remove the duplicate sound
+      // recordings»). I proposed recording 2-3 takes per voice in order to enable
+      // selection like `grind` has — he refused. ⛔ That means VARIETY IS HELD
+      // ENTIRELY BY THE PITCH AND THE PANNING, and touching them «as unnecessary» is not
+      // allowed: without them a single recording would read as looped already by the
+      // fifth time.
+      // ⚠️ Do not add takes «for the future» either: every recording rides in the portal
+      // package, and our headroom to the 8 MB limit is 1.4 MB for everything else.
+      // ⚠️ PITCH BY SIZE — the owner's formula 1/√size: a large thing sounds
+      // lower, a small one higher. We take the bounding radius of the TAPPED item: it
+      // carries both the caliber of the type and the size spread of the level.
+      // ⚠️⚠️ THE PIVOT IS `MESH_SCALE`, NOT ONE, AND THIS IS NOT COSMETICS. `it.r` is
+      // `rc · levelSize · MESH_SCALE` (40-items:117), that is, for a typical
+      // item (`rc:1.0`, and there are 107 such out of 120) it equals 0.62, not 1. A pivot
+      // at one baked in a constant multiplier of 1/√0.62 = 1.27: THE MEASUREMENT on live
+      // matches gave 12 values out of 12 ABOVE one (median 1.12), that is,
+      // «bigger — lower» degenerated into «everything is sped up, the big ones a bit less».
+      // ⛔ AND THE COST WAS NOT ONLY IN MEANING: Blink and WebKit resample
+      // `AudioBufferSourceNode` with linear interpolation (that is almost all mobile
+      // traffic), and raising the tone is decimation without antialiasing. Constant
+      // work above one folded the top of the spectrum on EVERY match.
+      // ⚠️ The pivot is taken from THE SAME constant the radius is assembled from, not
+      // from the literal 0.62: a copy of a number next to the working one always
+      // diverges later.
+      // ⚠️ THE CORRIDOR 0.72..1.38 IS NOT DECORATION: beyond it a short recording
+      // reads no longer as «the same material, bigger», but as a different sound, and
+      // the material stops being recognizable by ear — exactly what it was recorded for.
+      // ⚠️ THE ±5% JITTER IS TAKEN FROM THE OWNER'S SAMPLE (0.95..1.05) — it is what gives
+      // «a bit different every time» where the size is the same (levels 1-19 go with
+      // ONE size, SIZE_UNIFORM_LEVELS: without the jitter there is no variety there
+      // at all, and those are the player's very first half hour).
       if (a && a.m){
         const r = Math.max(0.05, (a && a.r) || MESH_SCALE);
         const rate = Math.max(0.72, Math.min(1.38,
@@ -223,59 +235,61 @@ const Sound = (function(){
         if (playBuf('mat_' + a.m, 0.5 + 0.06 * Math.min(6, n),
                     { rate, pan: (a && a.pan != null) ? a.pan : null })) return;
       }
-      // ⚠️⚠️ ПРОЦЕДУРНЫЙ «БУЛЬ» ОПУЩЕН 0.45 -> 0.19 (та же правка владельца
-      // «выровняй громкость звуков»). Он играет у 20 типов, у которых записи
-      // нет, и БЫЛ САМЫМ ГРОМКИМ ЗВУКОМ СОВМЕЩЕНИЯ: краткосрочный -16.2 дБ
-      // против -21.4…-35.7 у записей. Выровнять записи между собой и оставить
-      // его — значило бы не доделать: ровно эти 20 типов и торчали бы.
-      // ⛔ ПОДНЯТЬ ЗАПИСИ ДО НЕГО БЫЛО НЕЛЬЗЯ — упёрлись бы в пик `plush`
-      // (-1.0 дБFS), поэтому ровняем вниз, к общей цели -22.8 дБ.
-      // ⚠️ ЧИСЛО ВЫВЕДЕНО СИМУЛЯЦИЕЙ ЭТОЙ ЖЕ ФОРМУЛЫ, а не подобрано на слух:
-      // peak 0.131 даёт краткосрочный -26.1 дБ при группе 3 — ровно уровень
-      // записей у мастера. Лесенка по размеру группы сохранена бит-в-бит.
-      // ⛔⛔ ПЕРВАЯ РЕДАКЦИЯ ЭТОГО ЧИСЛА (0.19) БЫЛА НЕВЕРНА, И ОШИБКА
-      // ПОУЧИТЕЛЬНА: я взял множитель тракта записей как `(0.5+0.06n)·√2` =
-      // -0.3 дБ. Но √2 здесь НЕ УСИЛЕНИЕ — он ВОЗВРАЩАЕТ съеденное панорамой
-      // (см. большой комментарий у `playBuf` строками выше), и вместе с
-      // equal-power 0.707 сокращается ТОЖДЕСТВЕННО. Настоящий множитель при
-      // группе 3 — 0.68, то есть -3.35 дБ, и «буль» оставался громче записей
-      // на +2.0…+3.3 дБ по всем размерам группы.
-      // ⚠️⚠️ КЛАСС ОШИБКИ, А НЕ ОПИСКА: КЛИППИНГОВЫЙ множитель переиспользован
-      // как ГРОМКОСТНОЙ. Для запаса до перегруза √2 учитывать НАДО (на жёсткой
-      // панораме поканальный пик его содержит), для громкости — НЕЛЬЗЯ.
-      // ⚠️ И симптом был виден без замеров: мой комментарий противоречил
-      // СОСЕДНЕМУ в этом же файле. **Правишь число — грепни файл на слово, а не
-      // только на символ.**
-      // ⚠️ ПРОВЕРЕНО ЭМПИРИЧЕСКИ, А НЕ ВЫВЕДЕНО: рендер моно через
-      // `√2 → StereoPanner` даёт РОВНО тот же уровень, что без панорамы, на
-      // pan 0 / 0.3 / 1 — все три -9.031 дБ.
-      // ⛔ ТРОНУТ ТОЛЬКО МАТЧ: `tone` общая, и правка её параметра здесь не
-      // касается ни `tick`, ни `miss`, ни прочих — у них свои вызовы.
+      // ⚠️⚠️ THE PROCEDURAL «BLOOP» WAS LOWERED 0.45 -> 0.19 (the same edit of the owner
+      // «align the loudness of the sounds»). It plays for the 20 types that have no
+      // recording, and it WAS THE LOUDEST SOUND OF A MATCH: short-term -16.2 dB
+      // against -21.4…-35.7 for the recordings. To align the recordings with each other
+      // and leave it as is would mean not finishing the job: exactly those 20 types would
+      // stick out.
+      // ⛔ RAISING THE RECORDINGS UP TO IT WAS IMPOSSIBLE — we would have hit the peak of
+      // `plush` (-1.0 dBFS), therefore we align downward, to the common target -22.8 dB.
+      // ⚠️ THE NUMBER WAS DERIVED BY A SIMULATION OF THIS VERY FORMULA, not picked by ear:
+      // peak 0.131 gives short-term -26.1 dB with a group of 3 — exactly the level of the
+      // recordings at the master. The staircase by group size is preserved bit-for-bit.
+      // ⛔⛔ THE FIRST EDITION OF THIS NUMBER (0.19) WAS WRONG, AND THE MISTAKE IS
+      // INSTRUCTIVE: I took the multiplier of the recordings' path as `(0.5+0.06n)·√2` =
+      // -0.3 dB. But √2 here is NOT A BOOST — it RETURNS what the panning ate
+      // (see the big comment at `playBuf` some lines above), and together with
+      // the equal-power 0.707 it cancels IDENTICALLY. The real multiplier with
+      // a group of 3 is 0.68, that is -3.35 dB, and the «bloop» stayed louder than the
+      // recordings by +2.0…+3.3 dB across all group sizes.
+      // ⚠️⚠️ A CLASS OF MISTAKE, NOT A TYPO: A CLIPPING multiplier was reused
+      // as a LOUDNESS one. For the headroom before overload √2 MUST be taken into account
+      // (with hard panning the per-channel peak contains it), for loudness it MUST NOT.
+      // ⚠️ And the symptom was visible without measurements: my comment contradicted
+      // THE NEIGHBORING one in this same file. **When you edit a number — grep the file
+      // for the word, not only for the symbol.**
+      // ⚠️ VERIFIED EMPIRICALLY, NOT DERIVED: rendering mono through
+      // `√2 → StereoPanner` gives EXACTLY the same level as without panning, at
+      // pan 0 / 0.3 / 1 — all three -9.031 dB.
+      // ⛔ ONLY THE MATCH IS TOUCHED: `tone` is shared, and editing its parameter here
+      // does not affect `tick`, `miss` or the others — they have their own calls.
       const pitch = 1 + 0.06 * Math.min(10, k);
       const t = ctx.currentTime, base = (380 + Math.min(4, n)*60) * pitch;
       for (let i=0;i<Math.min(n,4);i++) tone(base*Math.pow(1.25, i), 'sine', t + i*0.055, 0.008, 0.16, MATCH_PROC_PEAK);
     },
-    tick(){ // тревога у края окна серии (пакет темпа): сухой короткий «тк»,
-            // тихий — периферийный сигнал, не событие
+    tick(){ // an alarm at the edge of the streak window (tempo batch): a dry short «tk»,
+            // quiet — a peripheral signal, not an event
       const t = ctx.currentTime; tone(1250, 'sine', t, 0.002, 0.035, 0.10); },
     miss(){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); },
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
-    grind(){ // сэмпл дробления (3 варианта, спека владельца) с процедурным фолбэком
+    grind(){ // the grinding sample (3 variants, the owner's spec) with a procedural fallback
       if (playBuf('grind' + (1 + Math.floor(Math.random()*3)), 0.8)) return;
       const t = ctx.currentTime; noise(t, 0.45, 0.5, 300); tone(70, 'sawtooth', t, 0.01, 0.4, 0.22); },
-    crunch(n){ // «хруст» скола твёрдой пачки (brick/pirate -> осколки).
-      // СПЕКТР ВЫШЕ рокота grind (тот низкий, cutoff 300 + 70 Гц) — на общей
-      // куче они не маскируют друг друга: рокот лопастей внизу, треск раскола
-      // сверху. Тело — короткий фильтрованный шум, поверх пара сухих щелчков
-      // (раскол «тк»). Чуть жёстче на большой группе (n осколков), кап 12.
+    crunch(n){ // the «crunch» of a hard pack splitting (brick/pirate -> shards).
+      // THE SPECTRUM IS HIGHER than the rumble of grind (that one is low, cutoff 300 +
+      // 70 Hz) — on a common pile they do not mask each other: the rumble of the blades
+      // below, the crack of the split above. The body is short filtered noise, with a
+      // couple of dry clicks on top (the split «tk»). A bit harsher with a big group
+      // (n shards), cap 12.
       const t = ctx.currentTime, k = Math.min(1, (n || 7)/12);
-      noise(t, 0.10 + 0.05*k, 0.30 + 0.12*k, 2600);   // резкий верхний скол
-      noise(t + 0.015, 0.09, 0.18, 1300);             // тело хруста
+      noise(t, 0.10 + 0.05*k, 0.30 + 0.12*k, 2600);   // the sharp upper split
+      noise(t + 0.015, 0.09, 0.18, 1300);             // the body of the crunch
       tone(190, 'square', t,        0.002, 0.05, 0.13);
       tone(130, 'square', t + 0.03, 0.002, 0.06, 0.10); },
     ui(){ if (!playBuf('ui', 0.5)){ const t = ctx.currentTime; tone(900, 'sine', t, 0.004, 0.05, 0.15); } },
-    combo(){ // «пауэр-ап»: восходящее глиссандо + искорка; старт с задержкой,
-             // чтобы не маскировать «буль» матча, звучащий в тот же тап
+    combo(){ // a «power-up»: a rising glissando + a spark; the start is delayed
+             // so as not to mask the match «bloop» that sounds on the same tap
       const t = ctx.currentTime + 0.06;
       const o = ctx.createOscillator();
       o.type = 'triangle';
@@ -283,10 +297,10 @@ const Sound = (function(){
       o.frequency.exponentialRampToValueAtTime(1260, t + 0.18);
       o.connect(env(t, 0.01, 0.22, 0.4));
       o.start(t); o.stop(t + 0.3);
-      tone(1568, 'sine', t + 0.16, 0.005, 0.12, 0.3);  // искорка сверху
+      tone(1568, 'sine', t + 0.16, 0.005, 0.12, 0.3);  // a spark on top
       tone(2093, 'sine', t + 0.22, 0.005, 0.14, 0.22);
     },
-    chain(){ // «реактор пошёл»: низкое глиссандо + свуш + фанфарная искра
+    chain(){ // «the reactor has started»: a low glissando + a swoosh + a fanfare spark
       const t = ctx.currentTime + 0.05;
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
@@ -301,40 +315,42 @@ const Sound = (function(){
     win(){ const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f,i)=>tone(f, 'triangle', t + i*0.12, 0.01, 0.3, 0.38)); },
     lose(){ const t = ctx.currentTime; [330, 262, 196].forEach((f,i)=>tone(f, 'sine', t + i*0.15, 0.01, 0.35, 0.32)); },
   };
-  // ВНЕШНИЙ МЬЮТ — НЕЗАВИСИМЫЙ ОТ CFG.sound (запрос ИНТЕГРАЦИИ 2026-07-23).
-  // Два разных владельца тишины: CFG.sound — выбор ИГРОКА (тумблер настроек),
-  // extMuted — требование СРЕДЫ (рекламный ролик, площадка прислала
-  // AUDIO_STATE_CHANGED). Мешать их нельзя: «сохранить и восстановить»
-  // CFG.sound — гонка с игроком, который может открыть настройки под роликом
-  // и получить затёртый выбор. Глушим master-гейном, а не флагом: уже
-  // звучащие сэмплы обрываются тоже, иначе хвост звука лез бы поверх рекламы.
+  // THE EXTERNAL MUTE IS INDEPENDENT OF CFG.sound (a request from INTEGRATION 2026-07-23).
+  // Two different owners of silence: CFG.sound is the PLAYER's choice (the settings
+  // toggle), extMuted is a requirement of the ENVIRONMENT (an ad spot, the platform sent
+  // AUDIO_STATE_CHANGED). They must not be mixed: «save and restore»
+  // CFG.sound is a race with the player, who can open the settings during a spot
+  // and get his choice overwritten. We mute with the master gain, not with a flag: the
+  // already sounding samples are cut off too, otherwise the tail of a sound would climb
+  // over the ad.
   let extMuted = false;
-  // ГРОМКОСТЬ ИГРОКА 0..1 (ползунок Sound в настройках, 85-hud/applySoundVol).
-  // ⚠️ ДОБАВЛЕНО ИНТЕРФЕЙСОМ 2026-07-30 по жалобе владельца «ползунок Sound не
-  // сохраняет состояние»: до этого состоянием звука был ТОЛЬКО булев CFG.sound,
-  // и ползунок 0..100 физически не мог ничего сохранить — громкости в тракте
-  // не существовало. БАЗОВЫЙ УРОВЕНЬ МАСТЕРА 0.5 (запас на клиппинг) СОХРАНЁН:
-  // при playerVol=1 гейн ровно 0.5, как было до правки, бит-в-бит.
-  // ⚠️ ВНЕШНИЙ МЬЮТ СИЛЬНЕЕ: extMuted=true глушит в 0 при любой громкости —
-  // иначе игрок, двинувший ползунок под рекламой, завёл бы звук поверх ролика.
+  // THE PLAYER'S VOLUME 0..1 (the Sound slider in the settings, 85-hud/applySoundVol).
+  // ⚠️ ADDED BY INTERFACE 2026-07-30 following the owner's complaint «the Sound slider
+  // does not save its state»: before that the state of the sound was ONLY the boolean
+  // CFG.sound, and a 0..100 slider physically could not save anything — there was no
+  // volume in the path at all. THE BASE MASTER LEVEL 0.5 (headroom for clipping) IS
+  // PRESERVED: at playerVol=1 the gain is exactly 0.5, as it was before the edit,
+  // bit-for-bit.
+  // ⚠️ THE EXTERNAL MUTE IS STRONGER: extMuted=true mutes to 0 at any volume —
+  // otherwise a player who moved the slider during an ad would start the sound over the spot.
   let playerVol = 1;
   function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5 * playerVol; }
   return {
     unlock,
-    loaded(){ return Object.keys(buffers); }, // отладка: какие сэмплы декодированы
-    // ⚠️⚠️ ТРОЙКА ДЛЯ СТРАЖА ГРОМКОСТИ, И ОНА НЕСУЩАЯ. Он берёт САМ БУФЕР,
-    // считает по нему краткосрочный RMS и умножает на ТОТ ЖЕ трим, что
-    // применяет бой, — то есть проверяет РЕЗУЛЬТАТ выравнивания, а не совпадение
-    // теста с копией таблицы. Снести это = тихо убрать единственную проверку
-    // того, что записи звучат одинаково громко.
+    loaded(){ return Object.keys(buffers); }, // debug: which samples are decoded
+    // ⚠️⚠️ THE TRIO FOR THE LOUDNESS GUARD, AND IT IS LOAD-BEARING. It takes THE BUFFER
+    // ITSELF, computes the short-term RMS over it and multiplies by THE SAME trim that
+    // the live code applies — that is, it checks the RESULT of the alignment, not the
+    // agreement of the test with a copy of the table. Removing this = quietly removing
+    // the only check that the recordings sound equally loud.
     trimTable(){ return sfxTrimTable(); },
     procPeak(){ return sfxProcPeak(); },
     bufferOf(name){ return sfxBufferOf(name); },
     setMuted(on){ extMuted = !!on; ensure(); applyGain(); return extMuted; },
     setVolume(v){ playerVol = Math.max(0, Math.min(1, +v || 0)); applyGain(); return playerVol; },
     volume(){ return playerVol; },
-    // диагностика для стражей: НАСТОЯЩИЙ гейн мастера (volume() отдаёт лишь
-    // playerVol и не видит расхождения с движком — на этом и жила щель выше)
+    // diagnostics for the guards: the REAL master gain (volume() returns only
+    // playerVol and does not see a divergence with the engine — that is what the gap above lived on)
     gain(){ return master ? master.gain.value : null; },
     isMuted(){ return extMuted; },
     play(name, arg){

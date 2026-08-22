@@ -1,98 +1,98 @@
-// ===== 99-main: главный цикл, отладочный API, старт =====
+// ===== 99-main: main loop, debug API, start =====
 
 let camShake = 0, lastT = performance.now(), lastAccMs = 0, lastHudMs = 0;
-let lastMtText = null; // кэш отсчёта до помола — DOM трогаем только при смене
-// ⛔⛔ ОГОНЬ У ГЛАЗ СНЯТ СЛОВОМ ВЛАДЕЛЬЦА 2026-08-20 («убери огонь у глаз»).
-// Здесь жили `lastFireOn`, `grindStartMs` и разовая постановка класса
-// `dropped`. Вместе с короной пламени ушёл и СПУСК конструкции: он существовал
-// РОВНО затем, чтобы дать короне место над глазами (решение 2026-07-22
-// «опустить конструкцию»), и без огня опускать не подо что.
-// ⚠️ НЕ ПУТАТЬ С ДРУГИМ ОГНЁМ: `fireSilhouetteFX` (горящий ПРЕДМЕТ раз в 30 с,
-// `FIRE_EVERY_MS`/`FIRE_BURN_MS`/`FIRE_TOP_N`/`FIRE_BONUS_MULT`) — отдельная
-// механика, она ЖИВА и не тронута.
-// Вернуть — `git revert` коммита «Огонь у глаз убран».
+let lastMtText = null; // cache of the countdown to grinding — we touch the DOM only on a change
+// ⛔⛔ THE FIRE AT THE EYES WAS REMOVED BY THE OWNER'S WORD 2026-08-20 («remove the
+// fire at the eyes»). Here lived `lastFireOn`, `grindStartMs` and the one-off
+// setting of the `dropped` class. With the crown of flame the LOWERING of the
+// construction went away too: it existed EXACTLY to give the crown room above the
+// eyes (decision 2026-07-22 «lower the construction»), and with no fire there is nothing to lower for.
+// ⚠️ DO NOT CONFUSE WITH THE OTHER FIRE: `fireSilhouetteFX` (a burning ITEM once every 30 s,
+// `FIRE_EVERY_MS`/`FIRE_BURN_MS`/`FIRE_TOP_N`/`FIRE_BONUS_MULT`) — a separate
+// mechanic, it is ALIVE and untouched.
+// Restore — `git revert` of the commit «Fire at the eyes removed».
 
-// Перф-метр (соак-тест и замеры на устройствах, потребитель — soak.js):
-// кольца последних 600 кадров — сырое время кадра и время шага физики
+// Perf meter (soak test and measurements on devices, consumer — soak.js):
+// rings of the last 600 frames — raw frame time and physics step time
 const frameRing = [], stepRing = [];
 let perfFrames = 0, perfWorstMs = 0;
-// фазы ТЕКУЩЕГО кадра — копятся по ходу loop и складываются в _lastPh в конце
+// phases of the CURRENT frame — accumulated along loop and folded into _lastPh at the end
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
-let seriesNextTick = 0; // троттлинг тревожного тика окна серии (пакет темпа)
-let slowmoUntil = 0;    // слоу-мо разлёта чаши (прототип v2): dt множится на K
-// ⚠️ РАЗБОРКА КАДРА ПО ПОДСИСТЕМАМ (2026-07-31, задача владельца «игра
-// подтупливает на мобиле»). Прежний перф-метр давал кадр ОДНИМ КОМКОМ и
-// шаг физики отдельно — по такой паре нельзя сказать, кто ест кадр: остаток
-// сваливался в «всё остальное» и молча включал рендер, частицы и тики HUD.
-// Кольца: fx — stepFX (частицы), ren — renderer.render, ui — прочие тики
-// (вуаль/тонировка/глаза/камера/HUD). Цена инструментовки — 4 замера
-// performance.now на кадр, вынесена в отчёт отдельным замером.
+let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
+let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
+// ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
+// lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
+// the physics step separately — from such a pair you cannot say who eats the frame:
+// the remainder was dumped into «everything else» and silently swallowed render,
+// particles and HUD ticks. Rings: fx — stepFX (particles), ren — renderer.render,
+// ui — the rest of the ticks (veil/depth tint/eyes/camera/HUD). The price of the
+// instrumentation — 4 performance.now measurements per frame, reported as a separate measurement.
 const fxRing = [], renRing = [], uiRing = [];
-// разборка САМОГО шага физики + число подшагов за кадр (см. stepPhysics)
+// breakdown of the physics step ITSELF + number of substeps per frame (see stepPhysics)
 const solveRing = [], syncRing = [], subRing = [], buildRing = [], tapRing = [];
-// снимок ОДНОГО худшего кадра (см. разбор в loop): фазы прошлого кадра + outside
+// snapshot of ONE worst frame (see the breakdown in loop): phases of the previous frame + outside
 let _worstFrame = null, _wfRaw = 0, _lastPh = null;
-// ⚠️ ВТОРОЙ СНИМОК — КАДР С МАКСИМАЛЬНОЙ ПОСТРОЙКОЙ ЭФФЕКТОВ, и он нужен
-// отдельно от худшего. Замер показал, что это РАЗНЫЕ кадры: пик держит солвер,
-// а постройка садится на соседний. Вопрос «стоит ли пул эффектов» решается не
-// тоталом постройки, а тем, насколько тяжёл кадр, который её несёт: 11 мс
-// поверх 38 мс солвера — это одно, 11 мс поверх пустого кадра — совсем другое.
+// ⚠️ THE SECOND SNAPSHOT — THE FRAME WITH THE MAXIMUM EFFECT BUILD, and it is needed
+// separately from the worst one. The measurement showed these are DIFFERENT frames: the
+// peak is held by the solver, while the build lands on the neighbour. The question «is an
+// effect pool worth it» is decided not by the build total but by how heavy the frame that
+// carries it is: 11 ms on top of 38 ms of solver is one thing, 11 ms on top of an empty frame is quite another.
 let _worstBuildFrame = null, _wbBuild = 0;
-let _tapPh = { pick:0, cand:0, ghost:0 };  // фазы последнего тапа (профилировка)
+let _tapPh = { pick:0, cand:0, ghost:0 };  // phases of the last tap (profiling)
 const _pushRing = (r, v) => { r.push(v); if (r.length > 600) r.shift(); };
 
-// ===== Интро уровня (по мокапу владельца): вид сбоку -> предметы сыплются
-// в пустую чашу (~2 с живой физики) -> 2-секундный облёт вокруг чаши
-// с плавным переходом на игровой вид сверху. Ввод и миксер заблокированы.
+// ===== Level intro (per the owner's mockup): side view -> items pour
+// into an empty bowl (~2 s of live physics) -> a 2-second orbit around the bowl
+// with a smooth transition to the top-down gameplay view. Input and mixer are locked.
 let intro = null; // { phase:'drop'|'orbit', t, shakes }
-let pendingTrim = false; // трим и база радиуса ждут ОСЕВШЕЙ кучи (см. finalizeFill)
+let pendingTrim = false; // trim and the radius base wait for a SETTLED pile (see finalizeFill)
 function beginDrop(){
   intro.phase = 'drop'; intro.t = 0; introPerfStart();
 }
 function startIntro(){
-  // экран 'intro' — облёт; закрывается finishIntro/skipIntro (docs/METRICS.md §3)
+  // screen 'intro' — the orbit; closed by finishIntro/skipIntro (docs/METRICS.md §3)
   try { Telemetry.screen.enter('intro'); } catch(_){}
-  // КОНТРАКТ С ИНТЕРФЕЙСОМ v2 (спека владельца 2026-07-22: «блок плавно
-  // разворачивается ПОСЛЕ анимации облёта ведра»): класс `introdone` на
-  // <html> снят на время интро, повешен в finishIntro — их CSS разворачивает
-  // витрину по нему. Сигнал именно КОНЦА облёта, а не построения панели.
+  // CONTRACT WITH THE INTERFACE v2 (the owner's spec 2026-07-22: «the block smoothly
+  // unfolds AFTER the bucket orbit animation»): the `introdone` class on
+  // <html> is removed for the duration of the intro and set in finishIntro — their CSS
+  // unfolds the showcase by it. The signal is precisely the END of the orbit, not the panel build.
   document.documentElement.classList.remove('introdone');
-  // ⚠️ ФАЗА 'wait' — ЖДЁМ, ПОКА ПЛОЩАДКА УБЕРЁТ СВОЙ ЗАНАВЕС (жалоба владельца
-  // 2026-07-30: «пропала анимация заполнения корзины, сразу попадаю на её
-  // разворот»). Замер диспетчера показал, почему: сплэш площадки непрозрачный
-  // и висит 1778→3947 мс, а предметы сыплются 1706→3200 — ВСЯ анимация играла
-  // в закрытый занавес, игрок видел только хвост облёта.
-  // Пока фаза 'wait': физика НЕ шагает (предметы стоят над чашей, их никто не
-  // видит — занавес сверху), камера на стартовом виде сбоку. Как занавес ушёл —
-  // переходим в 'drop' и куча сыплется НА ГЛАЗАХ.
-  // ⚠️ ПОЧЕМУ НЕ ПЕРЕНЕСЛИ genLevel ЗА ЗАНАВЕС: loop и весь HUD читают level,
-  // а до genLevel его нет — пришлось бы гейтить десяток мест. Заморозка на
-  // один-два кадра дешевле и локальнее.
-  // ⚠️ ПОЧЕМУ ЭТО НЕ ВОЗВРАЩАЕТ РЕГРЕССИЮ «предметы висят в воздухе»: та была
-  // ФОРС-СНОМ по чистым часам ПОСРЕДИ падения столба, на глазах игрока и на
-  // неопределённое время. Здесь пауза до ПЕРВОГО шага физики, под занавесом,
-  // и снимается гарантированно (Ads.curtainGone всегда резолвится, предел 12 с).
+  // ⚠️ PHASE 'wait' — WE WAIT UNTIL THE PLATFORM REMOVES ITS CURTAIN (the owner's
+  // complaint 2026-07-30: «the basket filling animation is gone, I land straight on its
+  // unfolding»). The dispatcher's measurement showed why: the platform splash is opaque
+  // and hangs 1778→3947 ms, while the items pour 1706→3200 — the WHOLE animation played
+  // into a closed curtain, the player saw only the tail of the orbit.
+  // While the phase is 'wait': physics does NOT step (the items stand above the bowl, nobody
+  // sees them — the curtain is on top), the camera is at the starting side view. Once the curtain is gone —
+  // we move to 'drop' and the pile pours IN PLAIN SIGHT.
+  // ⚠️ WHY genLevel WAS NOT MOVED BEHIND THE CURTAIN: loop and the whole HUD read level,
+  // and before genLevel it does not exist — we would have had to gate a dozen places. A freeze for
+  // one or two frames is cheaper and more local.
+  // ⚠️ WHY THIS DOES NOT BRING BACK THE REGRESSION «items hang in the air»: that one was
+  // a FORCED SLEEP by pure clock IN THE MIDDLE of the falling column, in front of the player and for
+  // an indefinite time. Here the pause lasts until the FIRST physics step, under the curtain,
+  // and it is lifted for sure (Ads.curtainGone always resolves, limit 12 s).
   intro = { phase:'wait', t: 0, shakes: 0, readySent: false };
-  waveArm();                    // очередь волн — с нуля на каждый уровень
+  waveArm();                    // wave queue — from scratch for every level
   resetPointers();
-  // ⚠️ 14, А НЕ 11 (ускорение интро 2026-08-15). Ограничение ставилось против
-  // пробоя стен столбом на v=16-18; на Rapier 0.20 удержание качественно иное
-  // (максимум выступа за стену в соаке 2.415 -> 0.330), поэтому запас есть.
-  // Боевая MAX_FALL 16 всё равно выше — это по-прежнему «мягче», просто ближе.
-  setFallCap(Math.min(MAX_FALL, 14 * INTRO_SPEED)); // мягче терминальной, но едет за скоростью
+  // ⚠️ 14, NOT 11 (intro speed-up 2026-08-15). The limit was set against the column
+  // punching through the walls at v=16-18; on Rapier 0.20 the containment is qualitatively
+  // different (max wall excess in the soak 2.415 -> 0.330), so there is room to spare.
+  // The live MAX_FALL 16 is still higher — it is still «softer», just closer.
+  setFallCap(Math.min(MAX_FALL, 14 * INTRO_SPEED)); // softer than terminal, but follows the speed
   camAz = 0.35; camPhi = 1.25; camR = 17.8;
   updateCamera();
 }
-// Страховка от рыхлых сидов: всё, что торчит выше линии заполнения после
-// утряски, тихо изымается ПАРАМИ (верхний + его близнец) — чётность типов
-// цела, переполнения не бывает никогда
+// Insurance against loose seeds: everything sticking out above the fill line after the
+// shake-down is quietly removed IN PAIRS (the top one + its twin) — type parity stays
+// intact, an overflow never happens
 function trimOverfill(){
   let removed = 0;
   for (let guard=0; guard<8; guard++){
     let top = null;
     for (const it of items){
-      // сюрприз/бомба/камень триму не кандидаты: непарные спецпредметы,
-      // изъятие «топ-пары» для них вырождается в одиночное удаление
+      // surprise/bomb/stone are not trim candidates: unpaired special items,
+      // removing a «top pair» for them degenerates into a single deletion
       if (it.alive && !it.surprise && !it.bomb && !it.frozen && (!top || it.p.y + it.r > top.p.y + top.r)) top = it;
     }
     if (!top || top.p.y + top.r <= FUNNEL.H - 0.2) return removed;
@@ -101,47 +101,47 @@ function trimOverfill(){
   }
   return removed;
 }
-// ⚠️⚠️ ЗАМОРОЖЕННЫЙ СРЕЗ НАСЫПАНИЯ — ПРИБОР ДЛЯ ЖИВОГО УСТРОЙСТВА (жалоба
-// владельца 2026-08-11 «на айфоне 17 есть падение фремрейта при насыпании»).
-// ⛔ БЕЗ НЕГО ОТЧЁТ О ПЕРФЕ ЭТОТ МОМЕНТ НЕ ВИДИТ ВОВСЕ: `frameRing` — скользящее
-// окно на 600 кадров (~10 с), а игрок доберётся до панели разработчика через
-// паузу и меню, то есть кадры насыпания к тому времени ВЫТЕСНЕНЫ. Мерить надо
-// там, где событие происходит, и держать снимок до востребования.
-// ⚠️ Своих счётчиков не заводим: срез снимается ТЕМ ЖЕ `perfStats()`, что и
-// всё остальное. Копия метрики рядом с работающей разошлась бы с ней при первой
-// же правке — закон, на котором проект обжигался пять раз.
+// ⚠️⚠️ A FROZEN SLICE OF THE POURING — AN INSTRUMENT FOR A LIVE DEVICE (the owner's
+// complaint 2026-08-11 «on the iPhone 17 there is a framerate drop while pouring»).
+// ⛔ WITHOUT IT THE PERF REPORT DOES NOT SEE THIS MOMENT AT ALL: `frameRing` is a sliding
+// window of 600 frames (~10 s), and the player reaches the developer panel through
+// the pause and the menu, that is, by then the pouring frames are DISPLACED. One must measure
+// where the event happens, and keep the snapshot until it is asked for.
+// ⚠️ We do not start counters of our own: the slice is taken by THE SAME `perfStats()` as
+// everything else. A copy of a metric next to the working one would diverge from it at the
+// very first edit — the law this project has been burned by five times.
 let _introPerf = null, _introT0 = 0;
 function introPerfStart(){
   _introT0 = performance.now();
   try { __game.perfReset(); } catch(e){}
-  // ⚠️ Разбор фаз шага вешаем на ТО ЖЕ ОКНО, что и срез насыпания: иначе числа
-  // фаз и числа кадра нельзя класть в одну таблицу — они про разные отрезки.
+  // ⚠️ We hang the step-phase breakdown on THE SAME WINDOW as the pouring slice: otherwise the
+  // phase numbers and the frame numbers cannot go into one table — they are about different stretches.
   try { if (profActive()) profReset(); } catch(e){}
 }
 function introPerfStop(){
   if (!_introT0) return;
   try {
     const p = __game.perfStats();
-    _introPerf = { мс: Math.round(performance.now() - _introT0), уровень: levelNum,
-      живых: items.filter(i => i.alive).length,
-      кадр: p.frame, шаг: p.step, солвер: p.solve, синк: p.sync,
-      рендер: p.ren, ui: p.ui, эффекты: p.fx, подшагов: p.sub,
-      кадров: p.frames, худший: p.worstFrame,
-      рывков33: p.jank33, рывков50: p.jank50,
-      dpr: renderer.getPixelRatio(), тир: CFG.perfTier };
-    // фазы шага — только когда профайлер включён ручкой (в бою его нет)
-    try { if (profActive()) _introPerf.фазы = profTake(); } catch(e){}
+    _introPerf = { ms: Math.round(performance.now() - _introT0), level: levelNum,
+      alive: items.filter(i => i.alive).length,
+      frame: p.frame, step: p.step, solve: p.solve, sync: p.sync,
+      ren: p.ren, ui: p.ui, fx: p.fx, sub: p.sub,
+      frames: p.frames, worst: p.worstFrame,
+      jank33: p.jank33, jank50: p.jank50,
+      dpr: renderer.getPixelRatio(), tier: CFG.perfTier };
+    // step phases — only when the profiler is switched on by hand (in the live build it is absent)
+    try { if (profActive()) _introPerf.phases = profTake(); } catch(e){}
   } catch(e){}
   _introT0 = 0;
 }
-// ⚠️⚠️ СЧЁТЧИК НА ЭКРАН — ЧТОБЫ ЗАМЕР ШЁЛ С ТЕЛЕФОНА ВЛАДЕЛЬЦА, А НЕ СО СТЕНДА
-// (заведён 2026-08-13, жалоба «стало тупить больше»: A/B по трём сборкам на
-// стенде — и в Chromium, и в WebKit 26 — регрессии НЕ показал, то есть спор
-// нельзя решить моим железом; нужны ЕГО числа). Включается `?fps=1`, живёт
-// поверх всего, обновляется раз в 500 мс. Показывает: текущий FPS, ХУДШИЙ за
-// последние 3 секунды (именно он и есть «тупит»), шаг физики, предметов на
-// сцене, DPR и уровень.
-// ⚠️ БЕЗ ФЛАГА НЕ СТОИТ НИЧЕГО: одна проверка булева в кадре, DOM не создаётся.
+// ⚠️⚠️ AN ON-SCREEN COUNTER — SO THAT THE MEASUREMENT COMES FROM THE OWNER'S PHONE, NOT FROM THE BENCH
+// (started 2026-08-13, the complaint «it started lagging more»: an A/B over three builds on
+// the bench — both in Chromium and in WebKit 26 — did NOT show the regression, that is, the argument
+// cannot be settled by my hardware; HIS numbers are needed). Switched on by `?fps=1`, it lives
+// above everything, updates once per 500 ms. It shows: current FPS, the WORST over the
+// last 3 seconds (that is exactly what «lags» means), the physics step, items on
+// the scene, DPR and the level.
+// ⚠️ WITHOUT THE FLAG IT COSTS NOTHING: one boolean check per frame, no DOM is created.
 let fpsBadgeOn = false, fpsBadgeEl = null, fpsBadgeNext = 0, fpsBadgeRing = [];
 try { fpsBadgeOn = new URLSearchParams(location.search).get('fps') === '1'; } catch(e){}
 function fpsBadgeTick(now){
@@ -157,106 +157,106 @@ function fpsBadgeTick(now){
       'padding:8px 10px;border-radius:10px;pointer-events:none;white-space:pre;letter-spacing:.2px';
     document.body.appendChild(fpsBadgeEl);
   }
-  // ХУДШИЙ КАДР ЗА ОКНО — то, что человек и называет «тупит»: средний FPS может
-  // быть отличным, а один кадр в 200 мс уже виден рывком
-  let худший = 0;
+  // THE WORST FRAME OVER THE WINDOW — what a human calls «lagging»: the average FPS can
+  // be excellent, while a single 200 ms frame is already visible as a jerk
+  let worst = 0;
   for (let i = 1; i < fpsBadgeRing.length; i++){
     const d = fpsBadgeRing[i] - fpsBadgeRing[i-1];
-    if (d > худший) худший = d;
+    if (d > worst) worst = d;
   }
   const fps = fpsBadgeRing.length > 1
     ? Math.round(1000 * (fpsBadgeRing.length - 1) / (fpsBadgeRing[fpsBadgeRing.length-1] - fpsBadgeRing[0])) : 0;
-  const шаг = stepRing.length ? (stepRing.reduce((a,b)=>a+b,0) / stepRing.length) : 0;
+  const step = stepRing.length ? (stepRing.reduce((a,b)=>a+b,0) / stepRing.length) : 0;
   fpsBadgeEl.textContent =
-    'FPS ' + fps + '   худший кадр ' + Math.round(худший) + ' мс\n' +
-    'физика ' + шаг.toFixed(1) + ' мс   вещей ' + items.filter(i=>i.alive).length + '\n' +
-    'ур.' + levelNum + '   DPR ' + (+renderer.getPixelRatio().toFixed(2)) +
-    (intro ? '   (интро)' : '');
+    'FPS ' + fps + '   worst frame ' + Math.round(worst) + ' ms\n' +
+    'physics ' + step.toFixed(1) + ' ms   items ' + items.filter(i=>i.alive).length + '\n' +
+    'lv.' + levelNum + '   DPR ' + (+renderer.getPixelRatio().toFixed(2)) +
+    (intro ? '   (intro)' : '');
 }
-// ⚠️⚠️ АВТОМАТИЧЕСКИЙ ДОЕЗД ПОСЛЕ ОБЛЁТА (слово владельца 2026-08-21-р: «в
-// анимации поворота чаши после приближения добавь автоматический плавный зум
-// равный градации одного нажатия на кнопку +»).
-// ⚠️ ВЕЛИЧИНА БЕРЁТСЯ У САМОЙ КНОПКИ (`ZOOM_STEP`), А НЕ ПИШЕТСЯ ЧИСЛОМ:
-// «равный градации одного нажатия» — это требование СОВПАДЕНИЯ с шагом кнопки,
-// и копия числа разошлась бы с ней при первой правке шага.
-// ⚠️ ДОЕЗД ИДЁТ ПО РЕАЛЬНЫМ ЧАСАМ И ЧЕРЕЗ rAF, а не по игровому времени: сразу
-// после интро куча ещё оседает, кадр тяжёлый, и привязка к игровым часам
-// растянула бы движение ровно там, где оно заметнее всего.
-// ⚠️ ЛЮБОЙ ЖЕСТ ИГРОКА ОТМЕНЯЕТ ДОЕЗД: перехватывать камеру у пальца нельзя.
-// Признак — изменение `camR` кем-то ещё; сверяем с тем, что поставили сами.
+// ⚠️⚠️ AUTOMATIC FINAL ZOOM-IN AFTER THE ORBIT (the owner's word 2026-08-21-r: «in the
+// bowl rotation animation, after the approach, add an automatic smooth zoom
+// equal to the gradation of one press of the + button»).
+// ⚠️ THE MAGNITUDE IS TAKEN FROM THE BUTTON ITSELF (`ZOOM_STEP`), IT IS NOT WRITTEN AS A NUMBER:
+// «equal to the gradation of one press» is a requirement of MATCHING the button's step,
+// and a copy of the number would diverge from it at the first edit of that step.
+// ⚠️ THE FINAL ZOOM RUNS ON THE REAL CLOCK AND THROUGH rAF, not on game time: right
+// after the intro the pile is still settling, the frame is heavy, and binding to the game clock
+// would stretch the movement exactly where it is most noticeable.
+// ⚠️ ANY PLAYER GESTURE CANCELS THE FINAL ZOOM: intercepting the camera from a finger is not allowed.
+// The sign is a change of `camR` by somebody else; we compare with what we set ourselves.
 let introZoomRAF = 0, introZoomWant = 0;
 function introZoomStop(){ if (introZoomRAF) cancelAnimationFrame(introZoomRAF); introZoomRAF = 0; }
 function introZoomStart(){
   introZoomStop();
-  const шаг = (typeof ZOOM_STEP === 'number') ? ZOOM_STEP : 3.2;
-  const от = camR, до = Math.max(CAM_R_MIN, от - шаг), t0 = performance.now(), дл = 420;
-  if (!(до < от)) return;
-  let прошлый = от;
-  const тик = () => {
-    // камеру тронули снаружи (драг, пинч, кнопка) — уступаем
-    if (Math.abs(camR - прошлый) > 1e-4){ introZoomRAF = 0; return; }
-    const k = Math.min(1, (performance.now() - t0) / дл);
-    const e = 1 - Math.pow(1 - k, 3);           // тот же ease-out, что у count-up счёта
-    camR = от + (до - от) * e; прошлый = camR;
+  const step = (typeof ZOOM_STEP === 'number') ? ZOOM_STEP : 3.2;
+  const from = camR, to = Math.max(CAM_R_MIN, from - step), t0 = performance.now(), durMs = 420;
+  if (!(to < from)) return;
+  let prev = from;
+  const tick = () => {
+    // the camera was touched from outside (drag, pinch, button) — we give way
+    if (Math.abs(camR - prev) > 1e-4){ introZoomRAF = 0; return; }
+    const k = Math.min(1, (performance.now() - t0) / durMs);
+    const e = 1 - Math.pow(1 - k, 3);           // the same ease-out as the count-up of the score
+    camR = from + (to - from) * e; prev = camR;
     updateCamera();
-    introZoomRAF = k < 1 ? requestAnimationFrame(тик) : 0;
+    introZoomRAF = k < 1 ? requestAnimationFrame(tick) : 0;
   };
-  introZoomRAF = requestAnimationFrame(тик);
+  introZoomRAF = requestAnimationFrame(tick);
 }
 
 function finishIntro(){
   introPerfStop();
-  waveReleaseAll();              // страховка: облёт мог начаться раньше очереди                                     // срез насыпания — ДО всего прочего
-  try { Telemetry.screen.enter('game'); } catch(_){}   // с этого момента идёт партия
-  // ПЛОЩАДКЕ: первый ИГРАБЕЛЬНЫЙ кадр + старт уровня. GAME_READY раньше
-  // уходил из Ads.init (до genLevel и интро) — площадка снимала свой лоадер
-  // над чёрным экраном. LEVEL_STARTED у Poki/CrazyGames маппится в нативный
-  // gameplayStart: без него площадка пейсит рекламу вслепую. Оба вызова
-  // идемпотентны и молчат вне bridge-режима.
+  waveReleaseAll();              // insurance: the orbit could have started before the queue                                     // pouring slice — BEFORE everything else
+  try { Telemetry.screen.enter('game'); } catch(_){}   // from this moment the session is running
+  // TO THE PLATFORM: the first PLAYABLE frame + the level start. GAME_READY used to
+  // go out from Ads.init (before genLevel and the intro) — the platform removed its loader
+  // over a black screen. LEVEL_STARTED on Poki/CrazyGames maps into the native
+  // gameplayStart: without it the platform paces ads blindly. Both calls are
+  // idempotent and silent outside bridge mode.
   try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
   intro = null;
-  document.documentElement.classList.add('introdone'); // облёт кончился — витрина разворачивается
+  document.documentElement.classList.add('introdone'); // the orbit is over — the showcase unfolds
   resetPointers();
-  setFallCap(); // вернуть боевую терминальную скорость
-  // отпустить сюрприз (был прибит ко дну на время осадки)
+  setFallCap(); // restore the live terminal speed
+  // release the surprise (it was pinned to the bottom for the settling)
   const sp = items.find(i => i.surprise && i.body);
   if (sp) sp.body.setBodyType(RAPIER.RigidBodyType.Dynamic, false);
   camAz = 0; camPhi = 0.45; camR = 16.2;
   updateCamera();
-  introZoomStart();   // плавный доезд на одно нажатие «+» (слово владельца 2026-08-21-р)
+  introZoomStart();   // smooth final zoom by one «+» press (the owner's word 2026-08-21-r)
   stats.t0 = performance.now();
   stats.lastAction = performance.now();
-  // свежий 3-секундный бюджет форс-сна ПОСЛЕ интро: wakeAtMs стоял с genLevel,
-  // и бюджет истекал к концу интро — форс-сон бил на первом же кадре игры
+  // a fresh 3-second forced-sleep budget AFTER the intro: wakeAtMs had stood since genLevel,
+  // and the budget expired by the end of the intro — the forced sleep hit on the very first game frame
   wakeAtMs = performance.now(); calmT = 0;
-  // ⚠️ ТРИМ И БАЗУ РАДИУСА ЗДЕСЬ НЕ СЧИТАТЬ: куча к концу облёта может ещё
-  // падать (на слабых машинах — сильно); трим по летящему столбу тихо удалял
-  // до 16 предметов, а topY0 по нему ломал динамический радиус. Ждём штиля.
+  // ⚠️ DO NOT COMPUTE THE TRIM AND THE RADIUS BASE HERE: by the end of the orbit the pile may still
+  // be falling (on weak machines — a lot); a trim over a flying column quietly removed
+  // up to 16 items, and topY0 over it broke the dynamic radius. We wait for calm.
   pendingTrim = true;
   refreshAccessibility(); updateHUD();
 }
-// Финализация заполнения — СТРОГО по осевшей куче (из loop при штиле)
+// Fill finalization — STRICTLY over a settled pile (from loop when calm)
 function finalizeFill(){
-  // после изъятия пар куча ОБЯЗАНА доосесть: трим по спящей куче оставлял
-  // замороженные полости (предметы висели над дырами от изъятых близнецов)
+  // after the pairs are removed the pile MUST settle further: a trim over a sleeping pile left
+  // frozen cavities (items hung above the holes from the removed twins)
   if (trimOverfill() > 0) wakePhysics('trim');
   let top0 = 0, aliveN = 0;
-  // камни не в счёте (спека 2026-07-22): пар-скор и порог автопана (20%)
-  // считаются по совмещаемой массе
+  // stones are not counted (spec 2026-07-22): the par score and the auto-pan threshold (20%)
+  // are computed over the matchable mass
   for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen) aliveN++; }
   level.topY0 = top0;
-  level.aliveN0 = aliveN; // стартовая загрузка — порог 20% для автопана камеры
-  // пар-скор (звёзды): база = «всё сматчено парами без комбо» ПО ТИПАМ и
-  // С УЧЁТОМ МНОЖИТЕЛЕЙ НАКОПЛЕНИЯ (обязательная связка (а) спеки владельца
-  // 2026-07-22: иначе прокачанные типы делали бы 2★/3★ автоматом — база
-  // растёт вместе с ценой матчей, пороги остаются скилловыми). Сюрприз,
-  // бомба и КАМНИ в пары не входят (не матчатся; заодно ушёл старый перекос
-  // базы на пол-пары от бомбы). ⚠️ Камни добавлены 2026-07-22 вслед за их
-  // ⛔ Абзац про камни снят вместе с ними (2026-08-17).
-  // базу на 20 очков, которые игрок не может заработать НИКАК. С 16-го
-  // уровня 1 камень, +1 каждые 5, кап 6 — до 3 фантомных пар (60 очков).
-  // Правка МЕТА в физическом файле — санкционирована задачей диспетчера
-  // (баланс-таблица).
+  level.aliveN0 = aliveN; // starting load — the 20% threshold for the camera auto-pan
+  // par score (stars): the base = «everything matched in pairs without combos» BY TYPE and
+  // WITH THE ACCUMULATION MULTIPLIERS TAKEN INTO ACCOUNT (the mandatory bundle (a) of the owner's spec
+  // 2026-07-22: otherwise boosted types would make 2★/3★ automatically — the base
+  // grows together with the price of matches, the thresholds stay skill-based). The surprise,
+  // the bomb and the STONES are not part of pairs (they do not match; along the way the old skew of the
+  // base by half a pair from the bomb went away). ⚠️ Stones were added 2026-07-22 following their
+  // ⛔ The paragraph about stones was removed together with them (2026-08-17).
+  // base by 20 points that the player cannot earn IN ANY WAY. From level 16
+  // 1 stone, +1 every 5, cap 6 — up to 3 phantom pairs (60 points).
+  // A META edit in a physics file — sanctioned by the dispatcher's task
+  // (the balance table).
   const accPerType = {};
   for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
@@ -268,24 +268,24 @@ function finalizeFill(){
 function tickIntro(dt){
   intro.t += dt;
   if (intro.phase === 'wait'){
-    // Ждём ВТОРОГО тика: к нему первый кадр с пустой чашей уже ушёл на экран,
-    // и «игра готова» — не ложь. Слать раньше нельзя ровно по той причине,
-    // которая записана в 78-ads: площадка сняла бы лоадер над пустотой.
+    // We wait for the SECOND tick: by then the first frame with the empty bowl has already gone to the screen,
+    // and «the game is ready» is not a lie. Sending earlier is forbidden for exactly the reason
+    // written down in 78-ads: the platform would remove the loader over emptiness.
     if (!intro.readySent && intro.t > 0){
       intro.readySent = true;
-      // ЭТО И ЕСТЬ «ТРЕТЬЯ ТОЧКА»: уровень сгенерирован, чаша нарисована,
-      // предметы ещё не тронулись. GAME_READY здесь СНИМАЕТ занавес площадки
-      // (в SDK узел удаляется синхронно внутри вызова — разбор ИНТЕГРАЦИИ),
-      // то есть момент снятия мы не угадываем, а НАЗНАЧАЕМ.
+      // THIS IS THE «THIRD POINT»: the level is generated, the bowl is drawn,
+      // the items have not moved yet. GAME_READY here REMOVES the platform's curtain
+      // (in the SDK the node is deleted synchronously inside the call — the INTEGRATION analysis),
+      // that is, we do not guess the moment of removal, we APPOINT it.
       try { Ads.gameReady(); } catch(_){}
-      // Разрешается всегда: сразу на file:// и без SDK, по game_ready,
-      // страховкой, жёстким пределом. Ждать вечно эта ветка не может.
+      // It always resolves: immediately on file:// and without an SDK, by game_ready,
+      // by insurance, by a hard limit. This branch cannot wait forever.
       try {
         Ads.curtainGone.then(()=>{
           if (!(intro && intro.phase === 'wait')) return;
-          // ПРОЛОГ-КОМИКС новому игроку — ровно здесь: занавес убран, чаша
-          // пустая, предметы ещё не тронулись (86-story). Если пролог не нужен,
-          // колбэк зовётся сразу и падение начинается как раньше.
+          // THE PROLOGUE COMIC for a new player — exactly here: the curtain is removed, the bowl
+          // is empty, the items have not moved yet (86-story). If the prologue is not needed,
+          // the callback is called right away and the fall starts as before.
           storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } });
         });
       } catch(_){ beginDrop(); }
@@ -293,35 +293,35 @@ function tickIntro(dt){
     return;
   }
   if (intro.phase === 'drop'){
-    // ВОЛНЫ: открываем следующий слой по РЕАЛЬНЫМ часам (см. 50-physics).
-    // ⚠️ Тик стоит ВНУТРИ фазы drop: в 'wait' физика не шагает вовсе, и
-    // выпускать тела туда значило бы копить их над чашей за занавесом.
+    // WAVES: we open the next layer by the REAL clock (see 50-physics).
+    // ⚠️ The tick sits INSIDE the drop phase: in 'wait' physics does not step at all, and
+    // releasing bodies there would mean piling them above the bowl behind the curtain.
     waveTick();
-    // К ОБЛЁТУ ПОРАНЬШЕ (спека владельца: «ускорь переход»): не ждём
-    // почти-штиля — куча доседает уже во время облёта (утряска в орбите
-    // гейтится maxV<3, трим всё равно ждёт штиля через pendingTrim)
-    // ⚠️ ПОРОГИ СЖАТЫ (0.8/1.4 -> 0.55/1.0): куча доседает во время облёта, а
-    // трим всё равно ждёт штиля через pendingTrim — ранний переход ничего не
-    // ломает, но убирает самую заметную паузу «предметы уже лежат, а камера
-    // ещё не поехала».
+    // TO THE ORBIT EARLIER (the owner's spec: «speed up the transition»): we do not wait
+    // for near-calm — the pile settles further already during the orbit (the shake-down in orbit
+    // is gated by maxV<3, the trim waits for calm anyway through pendingTrim)
+    // ⚠️ THE THRESHOLDS ARE TIGHTENED (0.8/1.4 -> 0.55/1.0): the pile settles during the orbit, and
+    // the trim waits for calm anyway through pendingTrim — an early transition breaks
+    // nothing, but removes the most noticeable pause «the items already lie there, and the camera
+    // has not moved yet».
     if ((intro.t > INTRO_DROP_MIN && maxBodySpeed() < 3.5) || intro.t > INTRO_DROP_MAX){
       removeTempTallWall();
       intro.phase = 'orbit'; intro.t = 0;
     }
   } else {
-    // ⚠️⚠️ ВОЛНЫ ТИКАЮТ И В ОБЛЁТЕ (диспетчер, приёмка #51, 2026-08-13).
-    // ЗАМЕР, ПОТРЕБОВАВШИЙ ЭТОГО: тик только в 'drop' не успевал отдать
-    // очередь — фаза кончается по `t > 0.8 && maxV < 3.5`, а с волнами куча в
-    // начале почти пустая и скорости малы, то есть переход случается на самом
-    // РАННЕМ пороге. Остаток (до ~100 тел из 182) вываливал `waveReleaseAll`
-    // в finishIntro РАЗОМ — работа уезжала ЗА окно интро, на глаза игроку:
-    // время до штиля 5.9-6.0 с против 5.5 без волн (ур.11, CPU ×4), при том
-    // что метрика окна интро честно показывала −51% и этого не видела.
-    // ⛔ Это ровно канонная грабля «метрика меряет не то, что называешь вслух»:
-    // окно замера кончалось там, куда правка перенесла нагрузку.
-    // ⚠️ Облёт — ЗАКОННОЕ место досыпки: канон прямо говорит «куча доседает уже
-    // во время облёта», а утряска здесь гейтится `maxV < 3` и по летящему
-    // столбу не бьёт (её же правило «бить по летящему опасно» цело).
+    // ⚠️⚠️ THE WAVES TICK IN THE ORBIT TOO (dispatcher, acceptance #51, 2026-08-13).
+    // THE MEASUREMENT THAT DEMANDED THIS: a tick only in 'drop' did not manage to hand out
+    // the queue — the phase ends by `t > 0.8 && maxV < 3.5`, and with waves the pile at
+    // the start is almost empty and the speeds are low, that is, the transition happens at the very
+    // EARLIEST threshold. The remainder (up to ~100 bodies out of 182) was dumped by `waveReleaseAll`
+    // in finishIntro ALL AT ONCE — the work moved BEYOND the intro window, in front of the player:
+    // time to calm 5.9-6.0 s against 5.5 without waves (lv.11, CPU ×4), while
+    // the intro-window metric honestly showed −51% and did not see this.
+    // ⛔ This is exactly the canonical rake «the metric measures not what you name out loud»:
+    // the measurement window ended where the edit had moved the load.
+    // ⚠️ The orbit is a LAWFUL place for the top-up: the canon says outright «the pile settles already
+    // during the orbit», and the shake-down here is gated by `maxV < 3` and does not hit a flying
+    // column (its own rule «hitting a flying one is dangerous» is intact).
     waveTick();
     if (intro.shakes < 3 && intro.t > 0.1 + intro.shakes*0.3 && maxBodySpeed() < 3){
       intro.shakes++;
@@ -334,25 +334,25 @@ function tickIntro(dt){
         }
       }
     }
-    // ⚠️ ОБЛЁТ 0.65 с вместо 1.0 (слово владельца «ускорить оборот вокруг чаши»).
-    // Финиш по-прежнему РОВНО в 2π — иначе вернётся дёрганый последний кадр.
+    // ⚠️ THE ORBIT IS 0.65 s instead of 1.0 (the owner's word «speed up the turn around the bowl»).
+    // The finish is still EXACTLY at 2π — otherwise the jerky last frame comes back.
     const k = Math.min(1, intro.t / INTRO_ORBIT_S);
     const e = k*k*(3 - 2*k); // smoothstep
-    // финиш РОВНО в 2π (≡ 0): раньше облёт кончался на 0.35+2π, а finishIntro
-    // ставил 0 — скачок ~20° в последний кадр («дёргается» — баг владельца)
+    // the finish EXACTLY at 2π (≡ 0): the orbit used to end at 0.35+2π, while finishIntro
+    // set 0 — a jump of ~20° in the last frame («it jerks» — the owner's bug)
     camAz = 0.35 + e*(Math.PI*2 - 0.35);
-    camPhi = 1.25 + (0.45 - 1.25)*e; // сбоку -> сверху
+    camPhi = 1.25 + (0.45 - 1.25)*e; // from the side -> from above
     camR = 17.8 + (16.2 - 17.8)*e;
     updateCamera();
     if (k >= 1) finishIntro();
   }
 }
 
-// Сон физики: в покое интегратор ВЫКЛЮЧЕН — предметы лежат абсолютно
-// неподвижно (микродрожь от вечной борьбы гравитации с коррекцией
-// нервировала владельца). Будим на любое событие, меняющее массу.
+// Physics sleep: at rest the integrator is OFF — the items lie absolutely
+// still (the micro-tremor from the eternal fight of gravity against correction
+// annoyed the owner). We wake up on any event that changes the mass.
 let physAwake = true, calmT = 0, wakeAtMs = 0, vibT = 0;
-const psLog = []; // диагностика: журнал сна/пробуждений {t, ev, src, v}
+const psLog = []; // diagnostics: the sleep/wake log {t, ev, src, v}
 function wakePhysics(src){
   psLog.push({ t: Math.round(performance.now()), ev: 'wake', src: src || '?', v: +maxBodySpeed().toFixed(1) });
   if (psLog.length > 200) psLog.shift();
@@ -360,199 +360,199 @@ function wakePhysics(src){
   physAwake = true; calmT = 0; wakeAtMs = performance.now();
 }
 function sleepPhysics(src){
-  // спасённый (телепортированный из стены) должен ДООСЕСТЬ — сон отменяется,
-  // иначе замораживали предмет в воздухе на новом месте; уснём на след. штиле
+  // a rescued item (teleported out of a wall) must SETTLE FURTHER — the sleep is cancelled,
+  // otherwise we froze the item in mid-air at the new place; we will fall asleep at the next calm
   if (rescueSweep(true) > 0){ calmT = 0; return; }
   psLog.push({ t: Math.round(performance.now()), ev: 'sleep', src: src || '?', v: +maxBodySpeed().toFixed(1) });
   if (psLog.length > 200) psLog.shift();
   physAwake = false; calmT = 0;
   sleepAllBodies();
-  if (level) refreshAccessibility(); // финальный срез по уснувшей куче
+  if (level) refreshAccessibility(); // final slice over the pile that fell asleep
 }
-// ⚠️⚠️ ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ПИШЕТСЯ uResY. Кто МЕНЯЕТ РАЗМЕР БУФЕРА —
-// ОБЯЗАН позвать resize(), иначе юниформа протухает. Раньше это было почти
-// безобидно (uResY кормил только слои uCombo/uGrind, а они в покое равны нулю),
-// но с 2026-07-31 от неё зависит САМА БАЗА неба (раскладка стопов по экрану),
-// и протухшая uResY срезает верх палитры. Ловушка найдена ревью: понижение
-// качества applyPerfTier('low') зовёт setPixelRatio+setSize ПОСРЕДИ ИГРЫ и
-// resize() не вызывало — замер на 400×800 DPR 1.5 давал верх кадра #42b9ff
-// (третий стоп) вместо #6e86ff (первый; ⛔ хексы ПРЕЖНЕЙ дневной палитры, она
-// сменена 2026-08-20-б — не грепать их как живые), и так до конца сессии, потому что на
-// телефоне события resize может не случиться вовсе.
-// ⚠️ ПОЧЕМУ ПРАВКА ЗДЕСЬ, А НЕ ВНУТРИ applyPerfTier: та объявлена в 10-stage и
-// зовётся там же на старте (deviceLooksWeak) РАНЬШЕ инициализации skyMat —
-// обращение к нему изнутри упало бы в TDZ. Поэтому resize() зовут вызывающие.
-// ⛔⛔ ЗДЕСЬ ЖИЛА ФОРМУЛА РАДИУСА СКРУГЛЕНИЯ ВЬЮ (viewRadius, --view-r) —
-// СНЯТА ЦЕЛИКОМ словом владельца 2026-08-12 («убирай вариант скругления вью»).
-// Прожила меньше суток; вместе с ней снята и 3-я редакция кромок (тема
-// устройства). Действующая 4-я — ЧЁРНЫЙ ВСЕГДА, статически, см. shell.html.
-// Формула была честной (замер: 50/39/36/30 по доле экрана) — не решение
-// оказалось кривым, а сама идея «вью как карточка» отклонена владельцем.
+// ⚠️⚠️ THE ONLY PLACE WHERE uResY IS WRITTEN. Whoever CHANGES THE BUFFER SIZE —
+// IS OBLIGED to call resize(), otherwise the uniform goes stale. Earlier this was almost
+// harmless (uResY fed only the uCombo/uGrind layers, and at rest they are zero),
+// but since 2026-07-31 THE SKY BASE ITSELF depends on it (the layout of the stops across the screen),
+// and a stale uResY cuts off the top of the palette. The trap was found by review: lowering
+// the quality with applyPerfTier('low') calls setPixelRatio+setSize IN THE MIDDLE OF THE GAME and
+// did not call resize() — a measurement at 400×800 DPR 1.5 gave the top of the frame as #42b9ff
+// (the third stop) instead of #6e86ff (the first; ⛔ the hexes of the FORMER daytime palette, it was
+// changed 2026-08-20-b — do not grep them as live), and so on until the end of the session, because on
+// a phone the resize event may not happen at all.
+// ⚠️ WHY THE FIX IS HERE AND NOT INSIDE applyPerfTier: that one is declared in 10-stage and
+// is called there at startup (deviceLooksWeak) EARLIER than the initialization of skyMat —
+// touching it from inside would fall into the TDZ. That is why resize() is called by the callers.
+// ⛔⛔ HERE LIVED THE FORMULA FOR THE VIEW CORNER RADIUS (viewRadius, --view-r) —
+// REMOVED ENTIRELY by the owner's word 2026-08-12 («drop the view rounding variant»).
+// It lived less than a day; together with it the 3rd edition of the edges (the device
+// theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
+// The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
+// that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
 function resize(){
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
-  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // база неба + слои лихорадки
+  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // the sky base + the fever layers
 }
 addEventListener('resize', resize);
 
-// ВИТРИНА: ПРАВИЛО ШИРИНЫ ВМЕСТО CAMNEAR (спека владельца 2026-07-27
-// «на десктопе и планшетах панель НЕ убирать; убираем только если игровое
-// поле остаётся уже 2/3 экрана — панель занимает 1/3»). Скрытие по
-// приближению камеры (camnear v1-v3: пороги по чаше, затем устойчивый край
-// кучи hullR) ПОЛНОСТЬЮ ОТМЕНЕНО — при любом зуме панель стоит. Видимость
-// теперь ЧИСТЫЙ CSS: @media (min-width:813px) в shell.html (порог = 3×271px
-// занятой полосы панели, замер 2026-07-27; сменится ширина панели — пере-
-// мерить). pointer:fine снят — планшеты тоже видят панель. JS-машинерии нет.
+// SHOWCASE: THE WIDTH RULE INSTEAD OF CAMNEAR (the owner's spec 2026-07-27
+// «on desktop and tablets do NOT hide the panel; we hide it only if the play
+// field is left narrower than 2/3 of the screen — the panel takes 1/3»). Hiding by
+// camera approach (camnear v1-v3: thresholds by the bowl, then the stable edge of
+// the pile hullR) IS COMPLETELY CANCELLED — at any zoom the panel stays. Visibility
+// is now PURE CSS: @media (min-width:813px) in shell.html (the threshold = 3×271px
+// of the strip occupied by the panel, measurement 2026-07-27; if the panel width changes — re-
+// measure). pointer:fine is removed — tablets see the panel too. There is no JS machinery.
 
-// iOS/Android-хром (метод About-Us, приказ владельца 2026-07-22): статусбар/
-// остров iOS красится ТОЛЬКО через meta theme-color (фон страницы там
-// игнорируется), жестовая зона снизу и Android-тулбар — фоном html/body.
-// Без этого тёмная тема телефона рисует чёрные поля вокруг канваса.
-// Красим ЧИСТОЙ НЕЙТРАЛЬЮ ПО ТЕМЕ: светлая — белый, тёмная — чёрный.
-// ⛔ ТОМБСТОН, ДВЕ ОТМЕНЫ ПОДРЯД — шапку читают первой, и она успела соврать
-// дважды: (1) «тон ВЕРХА ПАНОРАМЫ» — панорам нет с 2026-07-30, `05-sky.js`
-// удалён вместе с фоновой картинкой; (2) «тон верхнего стопа неба» — подбор
-// под палитру ОТМЕНЁН владельцем 2026-08-10 («на игровом тоже сделай
-// нейтральной»). Подбирать тон под небо больше не нужно и НЕ НАДО возвращать.
-// ⚠️ ЕДИНСТВЕННАЯ РУЧКА РАСПРЕДЕЛЕНИЯ КАНАЛОВ. false: фон html/body — ВЕРХНИЙ
-// стоп, мета — НИЖНИЙ. Снимок с устройства покажет обратное — поменять здесь.
-// ⛔ Стартовый вызов chromeSync снят вместе со всей машинерией кромок (2026-08-14).
+// iOS/Android chrome (the About-Us method, the owner's order 2026-07-22): the iOS status bar /
+// island is painted ONLY through meta theme-color (the page background is ignored
+// there), the gesture zone at the bottom and the Android toolbar — by the html/body background.
+// Without this the phone's dark theme draws black fields around the canvas.
+// We paint with a PURE NEUTRAL BY THEME: light — white, dark — black.
+// ⛔ A TOMBSTONE, TWO CANCELLATIONS IN A ROW — the header is read first, and it managed to lie
+// twice: (1) «the tone of the TOP OF THE PANORAMA» — there are no panoramas since 2026-07-30, `05-sky.js`
+// was deleted together with the background picture; (2) «the tone of the top sky stop» — matching
+// the palette was CANCELLED by the owner 2026-08-10 («on the game one make it
+// neutral too»). Matching the tone to the sky is no longer needed and MUST NOT be brought back.
+// ⚠️ THE ONLY KNOB FOR CHANNEL DISTRIBUTION. false: the html/body background — the TOP
+// stop, the meta — the BOTTOM one. A device screenshot will show the opposite — change it here.
+// ⛔ The startup chromeSync call was removed together with the whole edge machinery (2026-08-14).
 
-// ПАУЗА: замораживаем игру целиком; все якоря НА ЧАСАХ (таймер миксера,
-// окна комбо/цепи, t0, форс-сон) на резюме сдвигаются на длительность паузы —
-// пауза не «съедает» простой и не гасит серию
+// PAUSE: we freeze the game entirely; all anchors ON THE CLOCK (the mixer timer,
+// the combo/chain windows, t0, the forced sleep) are shifted on resume by the pause duration —
+// the pause does not «eat» the idle time and does not extinguish the series
 let paused = false, pausedAt = 0;
-// setTimeout-хвосты игровых цепочек (удаление матча, помол, финал) НЕ замирают
-// с паузой: колбэк, созревший под паузой, доделал бы removeItem/checkEnd —
-// вплоть до победы на застывшем экране. Такие колбэки оборачиваются в
-// afterPause: под паузой откладываются в очередь, resumeGame их дренирует.
+// The setTimeout tails of the game chains (match removal, grinding, finale) do NOT freeze
+// with the pause: a callback that matured under the pause would finish removeItem/checkEnd —
+// up to a victory on a frozen screen. Such callbacks are wrapped in
+// afterPause: under the pause they are deferred into a queue, resumeGame drains them.
 const pausedQueue = [];
 function afterPause(fn){ if (paused) pausedQueue.push(fn); else fn(); }
-// silent=true — ПАУЗА БЕЗ ПОПАПА (запрос ИНТЕГРАЦИИ 2026-07-23 под рекламу:
-// игрок не должен возвращаться из ролика в нашу карточку паузы с настройками
-// и закрывать её руками). ВОЗВРАЩАЕТ true, только если паузу поставил ИМЕННО
-// ЭТОТ вызов — вызывающий обязан резюмить лишь свою паузу: вкладка могла уйти
-// в hidden, тогда паузу поставил visibilitychange (90-input), и её снимает
-// ТОЛЬКО игрок кнопкой Continue. Автоматический resume поверх чужой паузы
-// вернул бы игрока в живую игру, которую он не возобновлял.
+// silent=true — A PAUSE WITHOUT THE POPUP (the INTEGRATION request 2026-07-23 for ads:
+// the player must not come back from the clip into our pause card with the settings
+// and close it by hand). RETURNS true only if the pause was set by EXACTLY
+// THIS call — the caller is obliged to resume only its own pause: the tab could have gone
+// hidden, then the pause was set by visibilitychange (90-input), and it is lifted
+// ONLY by the player with the Continue button. An automatic resume on top of somebody else's pause
+// would return the player into a live game that he did not resume.
 function pauseGame(silent){
-  // ⚠️⚠️ ИНТРО БОЛЬШЕ НЕ ОТКАЗ (жалоба владельца 2026-08-12: «на паузе таймер
-  // не останавливается и через какое-то время миксер начинает работать»).
-  // Механика бага: меню при отказе паузы ВСЁ РАВНО открывалось — его гвард
-  // умеет отступить только перед ЧУЖОЙ паузой (реклама), а случай «поставить
-  // не смог вовсе» не был предусмотрен. Игрок смотрит в меню, игра под ним
-  // идёт, простой тикает, и миксер начинает есть кучу. Замер (Hard):
-  // пауза нажата в интро → меню открыто, куча 80 → 68 за 30 секунд.
-  // ⚠️ ВХОДА В ДЫРУ БЫЛО ДВА, и второй объясняет «иногда» владельца: кнопка
-  // паузы в интро (окно ~9 с) И уход вкладки в фон (90-input зовёт
-  // openMainScreen по visibilitychange) — свернул телефон во время насыпания.
-  // ⚠️ ПАУЗА ЗАМОРАЖИВАЕТ ИНТРО ЧИСТО ПО ПОСТРОЕНИЮ: гейт `if (paused)` в
-  // loop стоит РАНЬШЕ вызова tickIntro, а интро тикает игровым временем
-  // (intro.t += dt) — на резюме продолжится с того же места. Якоря
-  // resumeGame интро не трогают: level.nextGrind в интро равен 0 и пропущен.
+  // ⚠️⚠️ THE INTRO IS NO LONGER A REFUSAL (the owner's complaint 2026-08-12: «on pause the timer
+  // does not stop and after a while the mixer starts working»).
+  // The mechanics of the bug: on a refused pause the menu opened ANYWAY — its guard
+  // can step back only before SOMEBODY ELSE'S pause (ads), and the case «could not set it
+  // at all» was not foreseen. The player looks at the menu, the game under it
+  // runs, the idle time ticks, and the mixer starts eating the pile. Measurement (Hard):
+  // pause pressed in the intro → the menu is open, the pile 80 → 68 in 30 seconds.
+  // ⚠️ THERE WERE TWO ENTRANCES INTO THE HOLE, and the second one explains the owner's «sometimes»: the pause
+  // button in the intro (a window of ~9 s) AND the tab going into the background (90-input calls
+  // openMainScreen on visibilitychange) — he minimized the phone during the pouring.
+  // ⚠️ THE PAUSE FREEZES THE INTRO PURELY BY CONSTRUCTION: the `if (paused)` gate in
+  // loop stands EARLIER than the tickIntro call, and the intro ticks on game time
+  // (intro.t += dt) — on resume it continues from the same place. The resumeGame anchors
+  // do not touch the intro: level.nextGrind in the intro equals 0 and is skipped.
   if (paused || !level || level.over) return false;
   paused = true; pausedAt = performance.now();
-  // ⚠️ НЕ писать textContent в #eyes: это SVG-конструкция персонажа
-  // (85-hud) — текст уничтожил бы слои. Лицо просто застывает стоп-кадром.
+  // ⚠️ DO NOT write textContent into #eyes: this is the SVG construction of the character
+  // (85-hud) — text would destroy the layers. The face simply freezes as a still frame.
   if (!silent) show('pauseOverlay');
-  try { Ads.msg('LEVEL_PAUSED'); } catch(_){} // площадке: геймплей встал (нативный gameplayStop)
+  try { Ads.msg('LEVEL_PAUSED'); } catch(_){} // to the platform: gameplay has stopped (native gameplayStop)
   return true;
 }
 function resumeGame(){
-  try { Telemetry.screen.enter('game'); } catch(e){} // выход из меню — пара к enter('menu') в openMainScreen
+  try { Telemetry.screen.enter('game'); } catch(e){} // leaving the menu — the pair to enter('menu') in openMainScreen
   if (!paused) return;
   const d = performance.now() - pausedAt;
   stats.t0 += d; stats.lastAction += d;
   if (level.nextGrind) level.nextGrind += d;
   wakeAtMs += d;
   if (comboUntil) comboUntil += d;
-  if (missRadiusAt) missRadiusAt += d;   // штраф за промах — такой же якорь реального времени
+  if (missRadiusAt) missRadiusAt += d;   // the miss penalty — the same kind of real-time anchor
   if (chainUntil){ chainUntil += d; chainNextDrop += d; chainNextBolt += d; }
   if (lastMatchMs) lastMatchMs += d;
-  // ⛔ Здесь двигался якорь огня у глаз (`grindStartMs`) — снят вместе с огнём
-  // 2026-08-20. ⚠️ ЭТО БЫЛА ОСИРОТЕВШАЯ ССЫЛКА: я убрал объявление и не прошёл
-  // по потребителям — `resumeGame` падал ReferenceError на КАЖДОМ снятии паузы,
-  // а `node --check` и загрузка игры этого не видят (пауза наступает позже).
-  // Поймал сьют; правило канона «выписать все удалённые объявления и грепнуть
-  // каждое» существует ровно для таких случаев.
-  if (chargeUntil) chargeUntil += d;   // ревью v212: пауза (реклама/меню/вкладка)
-                                       // не съедает TTL заряда — как все якоря;
-                                       // потратить под паузой всё равно нельзя
-  lastT = performance.now(); // без гигантского dt на первом кадре
+  // ⛔ Here the anchor of the fire at the eyes (`grindStartMs`) used to be shifted — removed together with the fire
+  // 2026-08-20. ⚠️ THIS WAS AN ORPHANED REFERENCE: I removed the declaration and did not walk
+  // through the consumers — `resumeGame` threw a ReferenceError on EVERY pause release,
+  // and `node --check` and loading the game do not see that (the pause comes later).
+  // The suite caught it; the canon rule «write out every removed declaration and grep
+  // each one» exists exactly for such cases.
+  if (chargeUntil) chargeUntil += d;   // review v212: the pause (ads/menu/tab)
+                                       // does not eat the charge TTL — like all anchors;
+                                       // spending it under the pause is impossible anyway
+  lastT = performance.now(); // no giant dt on the first frame
   paused = false;
-  try { Ads.msg('LEVEL_RESUMED'); } catch(_){} // площадке: геймплей продолжился (нативный gameplayStart)
-  // дренаж отложенных цепочек СТРОГО после paused=false (иначе afterPause
-  // вернул бы их в очередь) и после сдвига якорей — колбэки читают часы
+  try { Ads.msg('LEVEL_RESUMED'); } catch(_){} // to the platform: gameplay has resumed (native gameplayStart)
+  // draining the deferred chains STRICTLY after paused=false (otherwise afterPause
+  // would put them back into the queue) and after the anchors are shifted — the callbacks read the clock
   pausedQueue.splice(0).forEach(fn => { try { fn(); } catch(e){} });
   hide('pauseOverlay');
   updateHUD();
 }
-// ⚠️ ОПРЕДЕЛЕНИЕ СЛАБОГО УСТРОЙСТВА ЗАМЕРОМ (спека владельца 2026-07-29).
-// Копим окно РЕАЛЬНЫХ кадров и смотрим МЕДИАНУ, а не среднее: одна секундная
-// заминка (сборка мусора, уход во вкладку) среднее утащит, медиану — нет.
-// Считаем только когда игра действительно рисует нагруженную сцену: не в интро
-// и не на паузе, иначе замерили бы пустой экран и сочли телефон быстрым.
-// Кадры длиннее PERF_OUTLIER_MS выбрасываем — это не рендер, это система.
+// ⚠️ DETECTING A WEAK DEVICE BY MEASUREMENT (the owner's spec 2026-07-29).
+// We accumulate a window of REAL frames and look at the MEDIAN, not the average: a single one-second
+// hitch (garbage collection, going to another tab) drags the average, the median — no.
+// We count only when the game really draws a loaded scene: not in the intro
+// and not on pause, otherwise we would measure an empty screen and consider the phone fast.
+// Frames longer than PERF_OUTLIER_MS are thrown away — that is not render, that is the system.
 let perfWin = [], perfWinStart = 0, perfDecided = false;
 function tickPerfTier(ms){
   if (perfDecided || CFG.perfTier === 'low') { perfDecided = true; return; }
-  if (intro || ms > PERF_OUTLIER_MS) return;   // интро и системные заминки не в счёт
+  if (intro || ms > PERF_OUTLIER_MS) return;   // the intro and system hitches do not count
   if (!perfWinStart) perfWinStart = performance.now();
   perfWin.push(ms);
   if (performance.now() - perfWinStart < PERF_WINDOW_MS || perfWin.length < PERF_MIN_SAMPLES) return;
   perfWin.sort((a,b) => a - b);
   const med = perfWin[perfWin.length >> 1];
-  perfDecided = true;                       // решаем ОДИН раз за сессию
+  perfDecided = true;                       // we decide ONCE per session
   if (med > PERF_SLOW_FRAME_MS){
     applyPerfTier('low');
-    resize();  // ⚠️ ОБЯЗАТЕЛЬНО, см. комментарий у resize: понижение качества
-               // меняет высоту буфера, а uResY пишет только resize()
-    console.warn('[perf] слабое устройство: медиана кадра ' + med.toFixed(1) + ' мс -> качество понижено');
+    resize();  // ⚠️ MANDATORY, see the comment at resize: lowering the quality
+               // changes the buffer height, and uResY is written only by resize()
+    console.warn('[perf] weak device: frame median ' + med.toFixed(1) + ' ms -> quality lowered');
   }
   perfWin = [];
 }
 
-// ГОРЯЩИЙ ПРЕДМЕТ (спека владельца 2026-08-01: «1 предмет за 30 секунд может
-// загореться»). Раз в FIRE_EVERY_MS вспыхивает ОДИН предмет; горит FIRE_BURN_MS
-// и гаснет сам. Собрал группу этого типа — бонус (начисление за диспетчером,
-// стык — burningName в 70-fx).
-// ⚠️ ЧАСЫ ИДУТ ТОЛЬКО В ЖИВОЙ ПАРТИИ: в интро, на паузе и после конца уровня
-// окно не копится — иначе игрок вернулся бы с рекламы к мгновенной вспышке,
-// а за длинную паузу накопился бы «долг» из нескольких.
-// ⚠️ ГОРИТ РОВНО ОДИН: igniteItem сам тушит предыдущего, а следующая вспышка
-// назначается от МОМЕНТА ЭТОЙ, а не от момента, когда прошлый догорел.
+// A BURNING ITEM (the owner's spec 2026-08-01: «1 item per 30 seconds may
+// catch fire»). Once per FIRE_EVERY_MS ONE item flares up; it burns FIRE_BURN_MS
+// and goes out by itself. Collected a group of this type — a bonus (the crediting is with the dispatcher,
+// the seam — burningName in 70-fx).
+// ⚠️ THE CLOCK RUNS ONLY IN A LIVE SESSION: in the intro, on pause and after the level ends
+// the window does not accumulate — otherwise the player would come back from an ad to an instant flare-up,
+// and over a long pause a «debt» of several would pile up.
+// ⚠️ EXACTLY ONE BURNS: igniteItem itself extinguishes the previous one, and the next flare-up
+// is scheduled from THE MOMENT OF THIS ONE, not from the moment the previous one burned out.
 let fireNextMs = 0;
 function tickFireSpawn(now){
   if (intro || paused || !level || level.over){ fireNextMs = 0; return; }
-  if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // первый отсчёт с начала партии
+  if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // the first countdown from the start of the session
   if (now < fireNextMs || burningName()) return;
-  // ⚠️ ГОРИТ ТОЛЬКО СОБИРАЕМОЕ (слово владельца 2026-08-05: «объект
-  // загорается только если у него есть хотя бы одна пара и он находится в
-  // зоне досягаемости для совмещения»). Два условия, оба обязательны:
-  //  (1) ДОСТУПНОСТЬ — isAccessible (как было);
-  //  (2) РЕАЛЬНАЯ ПАРА — есть ДРУГОЙ живой доступный предмет того же вида,
-  //      до которого дотягивается боевой радиус (pairMatch — та же функция,
-  //      что решает настоящий тап, поэтому обещание совпадает с игрой).
-  // Иначе горел бы одиночка, которого нельзя собрать: бонус ×2 недостижим,
-  // а игрок видит приглашение и тратит на него ходы.
+  // ⚠️ ONLY WHAT IS COLLECTABLE BURNS (the owner's word 2026-08-05: «an object
+  // catches fire only if it has at least one pair and it is within
+  // reach for matching»). Two conditions, both mandatory:
+  //  (1) ACCESSIBILITY — isAccessible (as before);
+  //  (2) A REAL PAIR — there is ANOTHER live accessible item of the same kind,
+  //      which the live radius reaches (pairMatch — the same function
+  //      that decides a real tap, so the promise matches the game).
+  // Otherwise a loner would burn that cannot be collected: the ×2 bonus is unreachable,
+  // and the player sees an invitation and spends moves on it.
   const cand = [];
   const byKey = {};
   for (const it of items){
     if (!it.alive || !it.mesh || !it.type) continue;
-    if (it.surprise || it.bomb || it.frozen) continue;     // спецпредметы не горят
-    if (it.animating || !isAccessible(it)) continue;     // справедливость (работает на Hard)
+    if (it.surprise || it.bomb || it.frozen) continue;     // special items do not burn
+    if (it.animating || !isAccessible(it)) continue;     // fairness (works on Hard)
     (byKey[it.key] = byKey[it.key] || []).push(it);
   }
   for (const k in byKey){
     const arr = byKey[k];
-    if (arr.length < 2) continue;                        // одиночка не горит
+    if (arr.length < 2) continue;                        // a loner does not burn
     for (const a of arr){
       if (arr.some(b => b !== a && pairMatch(a, b))) cand.push(a);
     }
   }
-  if (!cand.length){ fireNextMs = now + 2000; return; }  // нечего поджечь — пробуем позже
-  // ВИДИМОСТЬ: берём из верхних, иначе пламя утонет в куче (см. FIRE_TOP_N)
+  if (!cand.length){ fireNextMs = now + 2000; return; }  // nothing to ignite — we try later
+  // VISIBILITY: we take from the top ones, otherwise the flame drowns in the pile (see FIRE_TOP_N)
   cand.sort((a, b) => b.p.y - a.p.y);
   const top = cand.slice(0, Math.min(FIRE_TOP_N, cand.length));
   igniteItem(top[Math.floor(Math.random() * top.length)]);
@@ -563,47 +563,47 @@ function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
   const rawMs = now - lastT;
-  // КАП КАДРОВ (боевое CFG.fpsCap=60, порог 840/кап = 14 мс — см. 00-config):
-  // на 120-герцовых телефонах пропускаем каждый второй тик rAF ДО любой
-  // работы. lastT не двигается — dt честно копится к следующему кадру,
-  // симуляция капа не замечает (фикс-шаг тот же).
-  // ⚠️ Порог ВЫВОДИТСЯ из капа (840/cap), а не литерал: хедлес не умеет
-  // отпустить vsync, и двусторонний страж доказывает механику капом 30 на
-  // обычных 60 Гц (кадры обязаны стать ~33 мс). 840/60 = ровно боевые 14.
+  // FRAME CAP (live CFG.fpsCap=60, threshold 840/cap = 14 ms — see 00-config):
+  // on 120 Hz phones we skip every second rAF tick BEFORE any
+  // work. lastT does not move — dt honestly accumulates towards the next frame,
+  // the simulation does not notice the cap (the fixed step is the same).
+  // ⚠️ The threshold is DERIVED from the cap (840/cap), not a literal: headless cannot
+  // release vsync, and a two-sided guard proves the mechanics with a cap of 30 on
+  // ordinary 60 Hz (frames must become ~33 ms). 840/60 = exactly the live 14.
   if (CFG.fpsCap > 0 && rawMs < 840 / CFG.fpsCap) return;
   let dt = Math.min(0.033, rawMs/1000); lastT = now;
-  // ЧАША-РАЗЛЁТ: слоу-мо («да!» владельца) — замедляем ИГРОВОЕ время (физика,
-  // fx, тики на dt); реальные часы (тосты, сбор, HUD) не трогаем
+  // BOWL SHATTER: slow-mo (the owner's «yes!») — we slow down GAME time (physics,
+  // fx, ticks on dt); the real clock (toasts, collection, HUD) is not touched
   if (now < slowmoUntil) dt *= BOWL_SLOWMO_K;
-  if (paused){ renderer.render(scene, camera); return; } // стоп-кадр (до перф-метра — пауза не портит статистику кадров)
-  // ⚠️⚠️ РЕДАКТОР МАТКАПА ЗАМОРАЖИВАЕТ ЧАСЫ УРОВНЯ (слово владельца
-  // 2026-08-17-е: «если открыт маткап редактор, то фризим таймер миксера»).
-  // ⛔ ПАУЗУ СТАВИТЬ НЕЛЬЗЯ — весь смысл редактора в том, чтобы крутить материал
-  // и смотреть его НА ЖИВОМ БОЮ. Поэтому игра идёт, а якоря реального времени
-  // ДВИГАЮТСЯ ВМЕСТЕ С ЧАСАМИ: остаток до помола застывает на том значении,
-  // какое было в момент открытия, и продолжается с него после закрытия.
-  // ⚠️ ЭТО ПРИЁМ `resumeGame`, А НЕ «ОСВЕЖИТЬ lastAction», КАК ПОД РЕКЛАМОЙ:
-  // освежение показывало бы полный период (миксер тоже не ест, но таймер
-  // прыгает на максимум), а владелец просил ЗАМОРОЗИТЬ.
+  if (paused){ renderer.render(scene, camera); return; } // a still frame (before the perf meter — the pause does not spoil the frame statistics)
+  // ⚠️⚠️ THE MATCAP EDITOR FREEZES THE LEVEL CLOCK (the owner's word
+  // 2026-08-17-e: «if the matcap editor is open, then we freeze the mixer timer»).
+  // ⛔ SETTING A PAUSE IS FORBIDDEN — the whole point of the editor is to tweak the material
+  // and look at it IN THE LIVE GAME. That is why the game runs, while the real-time anchors
+  // MOVE TOGETHER WITH THE CLOCK: the remainder until grinding freezes at the value
+  // it had at the moment of opening, and continues from it after closing.
+  // ⚠️ THIS IS THE `resumeGame` TRICK, NOT «REFRESH lastAction» AS UNDER ADS:
+  // a refresh would show the full period (the mixer does not eat either, but the timer
+  // jumps to the maximum), whereas the owner asked to FREEZE.
   if (typeof mceIsOpen === 'function' && mceIsOpen() && stats && level && !level.over){
     stats.lastAction += rawMs;
     if (level.nextGrind) level.nextGrind += rawMs;
   }
   perfFrames++;
-  if (perfFrames > 5){ // первые кадры — прогрев страницы, в статистику не идут
+  if (perfFrames > 5){ // the first frames are the page warm-up, they do not go into the statistics
     frameRing.push(rawMs); if (frameRing.length > 600) frameRing.shift();
-    fpsBadgeTick(now);          // счётчик на экран по ?fps=1 (замер С ТЕЛЕФОНА)
+    fpsBadgeTick(now);          // on-screen counter by ?fps=1 (measurement FROM THE PHONE)
     if (rawMs > perfWorstMs) perfWorstMs = rawMs;
-    // ⚠️⚠️ РАЗБОР ХУДШЕГО КАДРА ЦЕЛИКОМ (A2). p95/max отдельных колец — это
-    // максимумы РАЗНЫХ кадров, и по ним нельзя сказать, из чего сложился один
-    // плохой. Здесь снимок ОДНОГО кадра: все фазы плюс `outside` — время,
-    // которого нет НИ В ОДНОЙ моей фазе. Это не остаток от округления: туда
-    // попадают работа браузера (стиль/лейаут/композит — у нас есть DOM-капли
-    // сока с CSS-переходами), сборка мусора и планировщик rAF. Без этой
-    // колонки «кадр 107 мс» неотличим: у меня дорого или снаружи.
-    // ⚠️ Фазы берутся от ПРЕДЫДУЩЕГО кадра, и это не приблизительность:
-    // rawMs = (старт этого кадра) − (старт прошлого) = работа ПРОШЛОГО кадра
-    // + браузер + простой. Складывать его с фазами ТЕКУЩЕГО было бы враньём.
+    // ⚠️⚠️ A BREAKDOWN OF THE WORST FRAME AS A WHOLE (A2). The p95/max of individual rings are
+    // the maxima of DIFFERENT frames, and by them you cannot say what one
+    // bad frame was made of. Here is a snapshot of ONE frame: all phases plus `outside` — the time
+    // that is in NONE of my phases. This is not a rounding remainder: into it
+    // go the browser's work (style/layout/composite — we have DOM juice drops
+    // with CSS transitions), garbage collection and the rAF scheduler. Without this
+    // column «a 107 ms frame» is indistinguishable: expensive in my code or outside.
+    // ⚠️ The phases are taken from the PREVIOUS frame, and this is not an approximation:
+    // rawMs = (the start of this frame) − (the start of the previous one) = the work of the PREVIOUS frame
+    // + the browser + idling. Adding it to the phases of the CURRENT one would be a lie.
     if (_lastPh && rawMs > _wfRaw){
       _wfRaw = rawMs;
       _worstFrame = Object.assign({ raw: +rawMs.toFixed(1),
@@ -612,35 +612,35 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
-  try { chargeTick(); } catch(e){}   // растворение заряда типа (80-gameplay, TTL 7 c)
-  try { tickBowlCracks(now); } catch(e){} // пульс телеграфа трещин при N-1
-  tickFires();                       // огонь по силуэту (70-fx): гонит время и тушит
-  // пульс ГОТОВОЙ глыбы (слово владельца «пульсирует, нужен тап»): дышит
-  // масштабом оболочки; сам предмет и его материал не трогаются
+  try { chargeTick(); } catch(e){}   // dissolving of the type charge (80-gameplay, TTL 7 s)
+  try { tickBowlCracks(now); } catch(e){} // the pulse of the crack telegraph at N-1
+  tickFires();                       // fire along the silhouette (70-fx): drives time and extinguishes
+  // the pulse of a READY ice block (the owner's word «it pulses, a tap is needed»): it breathes
+  // with the shell scale; the item itself and its material are not touched
   for (const it of items) if (it.alive && it.frozen && it.iceShell)
     it.iceShell.scale.setScalar(it.frozenReady ? 1 + 0.06 * Math.sin(now * 0.008) : 1);
-  tickIceBooms(now); // разлёт корки по реальным часам (куски — вершинный шейдер)
-  tickFireSpawn(now);                // вспышка горящего предмета (спека владельца)
-  // ⚠️ СПАСАТЕЛЬ ЗАВИСШИХ УДАЛЕНИЙ (найдено пробами v218, класс ЛАТЕНТНЫЙ —
-  // воспроизведён и на v217): у матча анимация сжатия и removeItem едут
-  // ПАРАЛЛЕЛЬНЫМИ таймерами (addFX + setTimeout→afterPause), и изредка хвост
-  // не наступает — предметы остаются alive+animating НАВСЕГДА: полусжатые
-  // висят в куче, глотают рейкаст тапа, недоступны матчам (сьют ловил как
-  // «за тап ушло 0»). По образцу спасателя пола: страховка по СРОКУ — жизнь
-  // анимации ≤0.16с + пауза 150мс, всё старше ANIM_RESCUE_MS зависло̆ —
-  // доудаляем с warn. Корень (почему хвост не наступает) — TODO расследовать.
+  tickIceBooms(now); // the crust scatter on the real clock (the pieces — a vertex shader)
+  tickFireSpawn(now);                // the flare-up of a burning item (the owner's spec)
+  // ⚠️ THE RESCUER OF STUCK REMOVALS (found by probes v218, the class is LATENT —
+  // reproduced on v217 too): in a match the shrink animation and removeItem run on
+  // PARALLEL timers (addFX + setTimeout→afterPause), and once in a while the tail
+  // does not arrive — the items stay alive+animating FOREVER: half-shrunk
+  // they hang in the pile, swallow the tap raycast, are unavailable to matches (the suite caught it as
+  // «0 went away for a tap»). Modelled on the floor rescuer: insurance by DEADLINE — the life
+  // of the animation ≤0.16s + a pause of 150ms, everything older than ANIM_RESCUE_MS is stuck —
+  // we finish the removal with a warn. The root (why the tail does not arrive) — TODO to investigate.
   if (!paused){
     const nowA = performance.now();
     for (const it of items){
       if (it.alive && it.animating && it.animStartMs && nowA - it.animStartMs > ANIM_RESCUE_MS){
-        console.warn('[anim-rescue] зависшее удаление доедено:', it.type && it.type.name);
+        console.warn('[anim-rescue] stuck removal finished off:', it.type && it.type.name);
         it.animStartMs = 0;
         try { removeItem(it); } catch(e){}
       }
     }
   }
-  // ТРЕВОГА ОКНА СЕРИИ (пакет темпа): у края окна — сухой тик раз в 250 мс.
-  // В турбо не тикаем (там своя лихорадка), визуальный канал — глаза (Интерфейс).
+  // THE SERIES WINDOW ALARM (tempo package): at the edge of the window — a dry tick once per 250 ms.
+  // In turbo we do not tick (it has its own fever there), the visual channel is the eyes (Interface).
   {
     const nowT = performance.now();
     if (comboUntil > nowT && chainUntil <= nowT && !intro){
@@ -650,10 +650,10 @@ function loop(){
       }
     }
   }
-  // в фазе ожидания занавеса физика СТОИТ — иначе куча ссыплется под сплэшем
+  // in the curtain-wait phase physics STANDS STILL — otherwise the pile would pour down under the splash
   if (physAwake && !(intro && intro.phase === 'wait')){
-    // в интро физика ускорена: заполнение чаши на 30% быстрее (спека
-    // владельца), камера при этом идёт по реальному времени — облёт прежний
+    // in the intro physics is sped up: the bowl fills 30% faster (the owner's
+    // spec), while the camera runs on real time — the orbit is unchanged
     stepPhysics(intro ? dt * INTRO_TIME_SCALE : dt);
     if (perfFrames > 5){
       _pushRing(stepRing, stepMsLast);
@@ -662,20 +662,20 @@ function loop(){
     }
     const maxV = maxBodySpeed();
     const noAnim = !items.some(i=>i.alive && i.animating);
-    // штиль: скорости тел малы, анимаций нет — замораживаем до следующего
-    // события. НЕ в интро: мгновение тишины между слоями сыплющегося столба —
-    // ещё не штиль, сон заморозил бы осадку (и интро-утряска не будит физику)
+    // calm: body speeds are small, there are no animations — we freeze until the next
+    // event. NOT in the intro: a moment of silence between the layers of the pouring column is
+    // not calm yet, sleep would freeze the settling (and the intro shake-down does not wake physics)
     if (!intro && maxV < 0.25 && noAnim){
       calmT += dt;
       if (calmT > 0.4) sleepPhysics('calm');
     } else calmT = 0;
-    // медленное докатывание круглых форм может длиться долго — через 3 с
-    // бодрствования усыпляем принудительно. ⚠️ ТОЛЬКО ПРИ ПОЧТИ-ШТИЛЕ и НЕ в
-    // интро: форс-сон по чистым часам замораживал столб, падающий на v≈17
-    // (зависшие в воздухе предметы — баг владельца); докатывание — это v<2
+    // the slow rolling of round shapes can last long — after 3 s
+    // of being awake we put it to sleep forcibly. ⚠️ ONLY AT NEAR-CALM and NOT in
+    // the intro: a forced sleep by pure clock froze the column falling at v≈17
+    // (items hanging in the air — the owner's bug); rolling out is v<2
     if (!intro && maxV < 2.0 && noAnim && now - wakeAtMs > 3000) sleepPhysics('force3s');
   }
-  // отложенная финализация заполнения: как только куча после интро осела
+  // deferred fill finalization: as soon as the pile has settled after the intro
   if (pendingTrim && !intro && (!physAwake || maxBodySpeed() < 1.0)){
     pendingTrim = false;
     finalizeFill();
@@ -685,53 +685,53 @@ function loop(){
   const _tUi = performance.now();
   if (perfFrames > 5){ _phFx = _tUi - _tFx; _phBuild = fxBuildTake(); const _tm = tapMsTake();
     _phTap = _tm; _pushRing(fxRing, _phFx); _pushRing(buildRing, _phBuild); _pushRing(tapRing, _tm);
-    // ⚠️ фазы держим от ПОСЛЕДНЕГО НАСТОЯЩЕГО тапа: перезапись каждым
-    // кадром затирала их нулями с кадров без тапа, и разборка читалась
-    // как «выбор 0 + кандидаты 0 + призрак 0» при ненулевом итоге
+    // ⚠️ we keep the phases from the LAST REAL tap: overwriting them every
+    // frame wiped them with zeros from frames without a tap, and the breakdown read
+    // as «pick 0 + candidates 0 + ghost 0» with a non-zero total
     const _ph = tapPhasesTake(_tm); if (_tm > 0) _tapPh = _ph; }
   tickVeil(dt);
-  tickDepthTint(dt); // ГРАФИКА: верх кучи для тонировки по глубине (10-stage)
-  tickFace(now); // ИНТЕРФЕЙС: персонаж-глаза (эмоция+взгляд+зрачок-индикатор турбо); заменил tickChainBar
+  tickDepthTint(dt); // GRAPHICS: the top of the pile for depth tinting (10-stage)
+  tickFace(now); // INTERFACE: the eyes character (emotion+gaze+pupil as the turbo indicator); replaced tickChainBar
   tickCamFollow(dt);
-  tickHintFly(); // полёт камеры к подсказке (90-input), обрывается жестом
-  tickZoomAnim(); // плавный зум кнопками (90-input), жест гасит
-  tickZoomHold(); // непрерывный зум удержанием (90-input) // камера сама опускается за кучей по мере разбора (90-input, спека владельца)
-  // комбо-буст обязан погаснуть и на СПЯЩЕЙ куче (refresh в штиле не тикает,
-  // а тап читает CFG.matchRadius напрямую — залипший буст был бы читом)
+  tickHintFly(); // the camera flight to the hint (90-input), interrupted by a gesture
+  tickZoomAnim(); // smooth zoom by buttons (90-input), a gesture cancels it
+  tickZoomHold(); // continuous zoom by holding (90-input) // the camera lowers itself after the pile as it is taken apart (90-input, the owner's spec)
+  // the combo boost must go out on a SLEEPING pile too (refresh does not tick at calm,
+  // and the tap reads CFG.matchRadius directly — a stuck boost would be a cheat)
   if (comboUntil && now > comboUntil){
     comboUntil = 0; comboCount = 0; comboLevel = 0;
     updateMatchRadius(); updateHUD();
   }
-  // ШТРАФ РАДИУСА ЗА ПРОМАХ ПОЛЗЁТ ОБРАТНО ПО РЕАЛЬНЫМ ЧАСАМ — тикаем здесь по
-  // той же причине, по которой здесь гаснет комбо-буст: `refreshAccessibility`
-  // в штиле не работает, а тап читает `CFG.matchRadius` напрямую. Промахнулся,
-  // замер на пять секунд, тапнул — радиус обязан быть уже восстановленным.
+  // THE RADIUS PENALTY FOR A MISS CRAWLS BACK ON THE REAL CLOCK — we tick it here for
+  // the same reason the combo boost goes out here: `refreshAccessibility`
+  // does not work at calm, and the tap reads `CFG.matchRadius` directly. Missed,
+  // froze for five seconds, tapped — the radius must already be restored.
   if (missRadiusTick(now)) updateHUD();
-  // цепная реакция: досыпка по тику; гаснет по таймеру / chainMissesLimit() (Easy 4, Hard 3)
-  // промахам / финалу-концу (досыпать пары в финал миксера нельзя — он бы прервался)
+  // chain reaction: top-up by tick; goes out by timer / chainMissesLimit() (Easy 4, Hard 3)
+  // by misses / by the finale-end (pairs must not be poured into the mixer finale — it would be interrupted)
   if (chainUntil){
     if (level.over || now > chainUntil || stats.misses - chainStartMisses >= chainMissesLimit() || !hasAnyPair()){
       chainUntil = 0; comboCount = 0; chainSeries = 0; chainCarry = 0;
       updateMatchRadius(); updateHUD();
     } else if (now >= chainNextDrop){
       chainNextDrop = now + CHAIN_DROP_MS;
-      // ОКНО ДОСЫПКИ — только первые CHAIN_DROP_WINDOW_MS цепи (спека владельца
-      // 2026-07-31 «всё укладывается в 3 секунды»): старт цепи восстанавливаем
-      // из chainUntil (единственный источник, паузо-сдвиги двигают его сами)
+      // THE TOP-UP WINDOW — only the first CHAIN_DROP_WINDOW_MS of the chain (the owner's spec
+      // 2026-07-31 «everything fits into 3 seconds»): we restore the chain start
+      // from chainUntil (the single source, the pause shifts move it themselves)
       if (now < chainUntil - CHAIN_MS + CHAIN_DROP_WINDOW_MS) chainRefill();
     }
-    // амбиентный треск: короткие дуги между верхними предметами.
-    // ⚠️ ГУЩЕ (спека владельца 2026-07-28 «больше мелких молний»): тик чаще и
-    // за тик выпускается несколько КОРОТКИХ разрядов. Дорогая часть тика —
-    // filter+sort по всей куче, поэтому она делается ОДИН раз, а разряды берут
-    // пары из уже готового списка (участить сам тик втрое было бы втрое дороже).
+    // ambient crackle: short arcs between the top items.
+    // ⚠️ DENSER (the owner's spec 2026-07-28 «more small lightnings»): the tick is more frequent and
+    // several SHORT discharges are released per tick. The expensive part of the tick is
+    // filter+sort over the whole pile, so it is done ONCE, while the discharges take
+    // pairs from the already prepared list (tripling the tick itself would have been three times as expensive).
     if (chainUntil && now >= chainNextBolt){
       chainNextBolt = now + BOLT_TICK_MS + Math.random()*BOLT_TICK_JIT;
       const topmost = items.filter(i => i.alive && !i.animating).sort((a,b) => b.p.y - a.p.y).slice(0, 24);
       if (topmost.length > 3){
         for (let n = 0; n < BOLT_PER_TICK; n++){
-          // до 3 попыток найти БЛИЗКУЮ пару: раньше неудачный жребий гасил
-          // весь тик и треск заикался
+          // up to 3 attempts to find a CLOSE pair: earlier an unlucky draw extinguished
+          // the whole tick and the crackle stuttered
           for (let att = 0; att < 3; att++){
             const a0 = topmost[Math.floor(Math.random()*topmost.length)];
             const b0 = topmost[Math.floor(Math.random()*topmost.length)];
@@ -741,64 +741,64 @@ function loop(){
       }
     }
   }
-  // фон-лихорадка: низ неба наливается красным (сильнее в цепной реакции)
+  // background fever: the bottom of the sky fills with red (stronger in the chain reaction)
   if (skyMat){
-    // ЧАСЫ ЗВЁЗД. ⚠️ КОПИМ dt, а не берём performance.now(): dt в игре КЛАМПНУТ,
-    // поэтому на паузе, при уходе вкладки и на просадке кадра моргание не
-    // «перепрыгивает» вперёд — иначе после возврата всё небо мигнуло бы разом.
-    // ⚠️ И БЕЗ ГЕЙТА ПО НОЧИ: юниформа копится всегда, а ветка звёзд днём не
-    // исполняется вовсе (uStars = 0) — ветвление тут дороже сложения.
+    // THE STARS CLOCK. ⚠️ WE ACCUMULATE dt instead of taking performance.now(): dt in the game is CLAMPED,
+    // so on pause, when the tab goes away and on a frame drop the blinking does not
+    // «jump» forward — otherwise after coming back the whole sky would blink at once.
+    // ⚠️ AND WITHOUT A NIGHT GATE: the uniform accumulates always, while the stars branch by day is not
+    // executed at all (uStars = 0) — branching here is more expensive than an addition.
     skyMat.uniforms.uTime.value += dt;
-    // подогрев фона растёт с длиной серии: чем ближе цепь — тем гуще зелень
+    // the background warm-up grows with the length of the series: the closer the chain — the denser the green
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
   }
-  // тики по реальным часам (не по dt): при низком FPS детект тупика/миксера
-  // не растягивается. В ШТИЛЕ доступность не пересчитывается вовсе —
-  // предметы неподвижны, она не может измениться (перф: refresh ~десятки мс)
-  // ⚠️ ЧАЩЕ, НО МЕЛЬЧЕ: 100 мс по 1/8 кучи вместо 300 мс по всей — суммарная
-  // работа та же, полный цикл 0.8 с, но кадр больше не застревает на 80-90 мс
-  // (замер Hard: p95 104.6 -> см. раздел канона). Полный обход остаётся на
-  // событиях игрока, здесь — фоновая переоценка осевшей кучи.
+  // ticks on the real clock (not on dt): at a low FPS the deadlock/mixer detection
+  // does not stretch. AT CALM accessibility is not recomputed at all —
+  // the items are motionless, it cannot change (perf: refresh ~tens of ms)
+  // ⚠️ MORE OFTEN BUT SMALLER: 100 ms over 1/8 of the pile instead of 300 ms over the whole one — the total
+  // work is the same, the full cycle is 0.8 s, but the frame no longer gets stuck at 80-90 ms
+  // (measurement Hard: p95 104.6 -> see the canon section). The full pass stays on
+  // player events, here it is a background re-evaluation of the settled pile.
   if (physAwake && now - lastAccMs > 100){ lastAccMs = now; refreshAccessibility(true); }
-  // миксер: финальная зачистка остатков без пар; иначе — наказание за простой
+  // mixer: the final clean-up of the leftovers without pairs; otherwise — the punishment for idling
   let grinding = false;
   if (!level.over && !intro){
     const anyAlive = items.some(i=>i.alive);
     const idle = (now - stats.lastAction)/1000;
-    // ФИНАЛЬНАЯ ДОКИДКА ПАР — ПЕРЕД помолом остатков (см. 40-items): в
-    // первый кадр НАСТОЯЩЕГО finale сироты получают партнёров, hasAnyPair
-    // оживает, и ветка помола ниже не включается.
-    // ⚠️ БЕЗ АНИМАЦИЙ В КАДРЕ — обязательное условие (пойман прогоном):
-    // у слияния предметы «живы, но в анимации», и когда последняя пара типа
-    // сливается, на миг «пар нет» при живых прочих — рефилл срабатывал
-    // ПОСРЕДИ уровня, сжигая единственный заряд и досыпая лишнее; на
-    // настоящем finale сироту потом молча съедал finaleGrind.
+    // THE FINAL PAIR TOP-UP — BEFORE grinding the leftovers (see 40-items): on
+    // the first frame of a REAL finale the orphans get partners, hasAnyPair
+    // comes alive, and the grinding branch below does not switch on.
+    // ⚠️ NO ANIMATIONS IN THE FRAME — a mandatory condition (caught by a run):
+    // in a merge the items are «alive but animating», and when the last pair of a type
+    // merges, for an instant «there are no pairs» while the others are alive — the refill fired
+    // IN THE MIDDLE of the level, burning the single charge and pouring in extra; on
+    // a real finale the orphan was then silently eaten by finaleGrind.
     const finaleAnimBusy = items.some(i => i.alive && i.animating);
     if (anyAlive && !hasAnyPair() && !level.finalRefillDone && !finaleAnimBusy) finalPairsRefill();
-    // ⚠️ ПОМОЛ НЕ ОПЕРЕЖАЕТ РЕФИЛЛ (пойман стражем): в «грязный» кадр
-    // (последняя пара ещё в анимации слияния) рефилл пасует по своему
-    // anim-гейту, а помол без гейта съедал сироту до докидки. Пока рефилл
-    // не потрачен — финальный помол ждёт того же чистого кадра; после
-    // траты (или пустой докидки) ест как раньше, в любые кадры.
+    // ⚠️ GRINDING DOES NOT OUTRUN THE REFILL (caught by a guard): on a «dirty» frame
+    // (the last pair is still in the merge animation) the refill passes by its own
+    // anim gate, while grinding without a gate ate the orphan before the top-up. While the refill
+    // is not spent — the final grinding waits for the same clean frame; after it is
+    // spent (or the top-up came out empty) it eats as before, on any frames.
     if (anyAlive && !hasAnyPair() && (level.finalRefillDone || !finaleAnimBusy)){
       grinding = true;
-      // ФИНАЛ БЫСТРЕЕ (слово владельца 2026-08-05: «блендер должен быстрее
-      // измельчать оставшиеся объекты»): период 500 -> 220 мс. Это ХВОСТ
-      // уровня без очков — ускорение сокращает ожидание вдвое с лишним и не
-      // трогает НАКАЗАТЕЛЬНЫЙ помол (MIXER_PERIOD), у которого своя цена.
+      // THE FINALE IS FASTER (the owner's word 2026-08-05: «the blender must grind the remaining
+      // objects faster»): the period 500 -> 220 ms. This is the TAIL of the
+      // level without points — the speed-up more than halves the wait and does not
+      // touch the PUNITIVE grinding (MIXER_PERIOD), which has its own price.
       if (now >= level.nextGrind){ level.nextGrind = now + FINALE_GRIND_MS; finaleGrind(); }
     } else if (anyAlive && hasAnyPair() && (idle > level.idleLimit || level.deadlock)){
-      // ⚠️ hasAnyPair() в условии — закрытая БОКОВАЯ ДВЕРЬ (пойман стражем
-      // докидки): в finale «грязного» кадра первая ветка пасовала, и сироту
-      // съедал ЭТОТ помол — хотя его смысл (наказание простоя / разбор кучи
-      // до пары) существует только ПРИ живых парах; finale целиком ведёт
-      // ветка выше (рефилл, потом finaleGrind).
-      // idle>idleLimit — наказание за простой; level.deadlock — ТУПИК-ВЫРУЧАЛКА
-      // (нет достижимых пар + нет встрясок, выставляется в 600-мс тике ниже):
-      // помол разбирает кучу, пока не появится достижимая пара, ВМЕСТО экрана
-      // поражения (решение владельца 2026-07-27 «помол = штраф, не смерть»).
+      // ⚠️ hasAnyPair() in the condition is a closed SIDE DOOR (caught by the top-up
+      // guard): in the finale of a «dirty» frame the first branch passed, and the orphan
+      // was eaten by THIS grinding — although its meaning (punishing idling / taking the pile apart
+      // down to a pair) exists only WHEN there are live pairs; the finale is entirely led
+      // by the branch above (refill, then finaleGrind).
+      // idle>idleLimit — the punishment for idling; level.deadlock — THE DEADLOCK RESCUE
+      // (no reachable pairs + no shakes, set in the 600-ms tick below):
+      // grinding takes the pile apart until a reachable pair appears, INSTEAD of the defeat
+      // screen (the owner's decision 2026-07-27 «grinding = a penalty, not death»).
       grinding = true;
       if (now >= level.nextGrind){
         level.nextGrind = now + MIXER_PERIOD*1000;
@@ -806,51 +806,51 @@ function loop(){
       }
     }
   }
-  // ⛔⛔ ДРАЙВЕР КРАСНОГО ВЕРХА СНЯТ (слово владельца 2026-08-20 «убери вверху
-  // изменение фона (покраснение) когда миксер злится»). Здесь жила ЛЕСЕНКА
-  // УГРОЗЫ: цель 1.0 при работающих лопастях, иначе рост по таймеру за
-  // `GRIND_LEAD` секунд до помола, гашение вниз быстрее подъёма.
-  // ⚠️ САМА МЕХАНИКА ПОМОЛА ЦЕЛА — снят только её ФОНОВЫЙ показ. Угрозу
-  // по-прежнему видно по злым глазам, отсчёту под ними и лопастям.
-  // лопасти: стоят, пока миксер не работает (владельца нервировало холостое вращение)
+  // ⛔⛔ THE RED-TOP DRIVER IS REMOVED (the owner's word 2026-08-20 «remove the change of the
+  // background at the top (the reddening) when the mixer gets angry»). Here lived THE THREAT
+  // LADDER: target 1.0 while the blades are running, otherwise growth by timer over
+  // `GRIND_LEAD` seconds before the grinding, fading down faster than the rise.
+  // ⚠️ THE GRINDING MECHANIC ITSELF IS INTACT — only its BACKGROUND display was removed. The threat
+  // is still visible through the angry eyes, the countdown under them and the blades.
+  // blades: they stand still while the mixer is not working (idle spinning annoyed the owner)
   mixerSpeed += ((grinding ? 14 : 0) - mixerSpeed) * Math.min(1, dt*3);
   mixerBlades.rotation.y += mixerSpeed * dt;
-  // работающий миксер ВИБРИРУЕТ массу: нижним слоям лёгкие импульсы
+  // a working mixer VIBRATES the mass: light impulses to the lower layers
   if (grinding){
     if (!physAwake) wakePhysics('grind');
-    wakeAtMs = now; // при перемалывании не засыпаем принудительно
+    wakeAtMs = now; // while grinding we do not fall asleep forcibly
     vibT += dt;
     if (vibT > 0.12){
       vibT = 0;
       for (const it of items){
         if (!it.alive || it.animating || !it.body) continue;
         if (it.p.y < FLOOR_REST + 2.2){
-          const wk = it.shakeK || 1; // вес: вибрация миксера тоже по пачке
+          const wk = it.shakeK || 1; // weight: the mixer vibration is per pack too
           impulseBody(it, (Math.random()-0.5)*0.4*wk, Math.random()*0.3*wk, (Math.random()-0.5)*0.4*wk);
         }
       }
     }
   }
-  // ОТСЧЁТ ДО ПОМОЛА — КАЖДЫЙ КАДР (жалоба владельца: «таймер под глазами
-  // запаздывает и дёргается»): в 600-мс HUD-тике граница секунды проскакивала
-  // и число меняло значение неравномерно. grinding уже посчитан выше; DOM
-  // трогаем только при СМЕНЕ текста — перерисовка SVG-обводки не бесплатна.
+  // THE COUNTDOWN TO GRINDING — EVERY FRAME (the owner's complaint: «the timer under the eyes
+  // lags behind and jerks»): in the 600-ms HUD tick the second boundary slipped through
+  // and the number changed unevenly. grinding has already been computed above; we touch the DOM
+  // only on a CHANGE of the text — redrawing the SVG outline is not free.
   {
     let txt = '';
     if (!intro && !level.over && items.some(i => i.alive)){
       const idleS = (now - stats.lastAction) / 1000;
-      // при работе лопастей — ПУСТО (спека владельца 2026-07-31 со скрина:
-      // «убери это слово, и так понятно, что идёт измельчение» — злые глаза и
-      // лопасти уже говорят всё; ОТМЕНЯЕТ прежнее «вместо красного 0 слово
-      // владельца); и число, и слово всегда чёрные с белой обводкой (CSS)
+      // while the blades are working — EMPTY (the owner's spec 2026-07-31 from a screenshot:
+      // «remove that word, it is clear anyway that grinding is going on» — the angry eyes and
+      // the blades already say everything; this CANCELS the former «instead of a red 0 the owner's
+      // word»); both the number and the word are always black with a white outline (CSS)
       txt = grinding ? '' : String(Math.max(0, Math.ceil(level.idleLimit - idleS)));
     }
-    // ⛔ Здесь стояла лесенка огня у глаз (3 с непрерывного помола → корона
-    // пламени + спуск конструкции). Снято словом владельца 2026-08-20.
-    // Эскалацию помола по-прежнему несут ЗЛЫЕ ГЛАЗА, отсчёт под ними и сами
-    // раскрученные лопасти — сигнал не исчез, исчезли два его представления.
-    // ⛔ ЗДЕСЬ СТОЯЛА «красная лесенка неба (uGrind)» — ЕЁ СНЯЛИ В ТОТ ЖЕ ДЕНЬ,
-    // вторым пунктом того же владельца; не искать слой, его нет.
+    // ⛔ Here stood the ladder of the fire at the eyes (3 s of continuous grinding → a crown
+    // of flame + the lowering of the construction). Removed by the owner's word 2026-08-20.
+    // The grinding escalation is still carried by the ANGRY EYES, the countdown under them and the
+    // spun-up blades themselves — the signal has not disappeared, two of its representations have.
+    // ⛔ HERE STOOD «the red sky ladder (uGrind)» — IT WAS REMOVED THE SAME DAY,
+    // as the second item of the same owner's word; do not look for the layer, it does not exist.
     if (txt !== lastMtText){
       lastMtText = txt;
       if (!txt){
@@ -869,46 +869,46 @@ function loop(){
     const ap = availablePairs();
     $('apCount').textContent = ap;
     const alive = items.some(i=>i.alive);
-    // ⚠️⚠️ ПОД ШТРАФОМ РАДИУСА «ПАР НЕТ» НИЧЕГО НЕ ЗНАЧИТ. Найдено разведкой
-    // ДО правки, а не прогоном: `ap` кормит детектор тупика и бесплатную
-    // авто-встряску, обоим хватает ДВУХ стабильных тиков (~1.2 с) — а штраф за
-    // промах живёт 3 с. То есть игрок промахнулся бы, радиус упал, пары
-    // «исчезли», и игра сама объявила бы тупик и начала молоть кучу за очки —
-    // наказание за промах превратилось бы в списание очков помолом.
-    // Штраф — ВРЕМЕННЫЙ и САМОПРОХОДЯЩИЙ, тупиком он быть не может по смыслу.
-    const штрафРадиуса = missRadiusActive(now);
-    const noMoves = alive && ap === 0 && !level.over && !штрафРадиуса;
+    // ⚠️⚠️ UNDER THE RADIUS PENALTY «THERE ARE NO PAIRS» MEANS NOTHING. Found by reconnaissance
+    // BEFORE the edit, not by a run: `ap` feeds the deadlock detector and the free
+    // auto-shake, and TWO stable ticks (~1.2 s) are enough for both — while the penalty for
+    // a miss lives 3 s. That is, the player would miss, the radius would drop, the pairs would
+    // «disappear», and the game itself would declare a deadlock and start grinding the pile for points —
+    // the punishment for a miss would turn into points being written off by grinding.
+    // The penalty is TEMPORARY and SELF-CLEARING, by its meaning it cannot be a deadlock.
+    const radiusPenalty = missRadiusActive(now);
+    const noMoves = alive && ap === 0 && !level.over && !radiusPenalty;
     const idle = (now - stats.lastAction)/1000;
-    // Красный баннер УДАЛЁН (спека владельца 2026-07-19): всю коммуникацию
-    // несёт таймер-чип в левой верхней группе — подложка плывёт из зелёной
-    // в красную по мере истечения времени; при помоле — красный «0 с»
+    // The red banner is DELETED (the owner's spec 2026-07-19): the whole communication
+    // is carried by the timer chip in the top-left group — the backing floats from green
+    // to red as the time runs out; while grinding — a red «0 s»
     const finale = alive && !hasAnyPair();
-    // (отсчёт до помола ПЕРЕЕХАЛ в каждокадровый блок ниже — в 600-мс тике
-    // секунды обновлялись то через 0.6 с, то через 1.2 с: «таймер запаздывает
-    // и дёргается», жалоба владельца 2026-07-21)
-    // ТУПИК → ПОМОЛ-ВЫРУЧАЛКА, НЕ ПОРАЖЕНИЕ (решение владельца 2026-07-27
-    // «помол = штраф, не смерть»): пары есть, но недоступны, и встрясок нет —
-    // ждём 2 стабильных проверки (~1.2 c, чтобы масса доосела; при финале и при
-    // движении не срабатывает), затем ставим level.deadlock → кадровый gate
-    // выше гонит mixerGrind, разбирая кучу, пока не появится достижимая пара.
-    // Цена выручки — очки (−20/помол), она же влияет на лидерборд. Экран
-    // поражения (showLose) больше не вызывается из тупика; UI жив на будущее.
-    // ⚠️ КУПЛЕННЫЙ ЗАПАС ВСТРЯСОК = АГЕНТНОСТЬ: пока он есть, тупика НЕТ —
-    // игроку есть чем разрулить, и выручалка-помол (она стоит очков) не должна
-    // включаться за него. Условие расширено вместе с вводом бандлов.
-    // ⚠️ И ВСТРЯСКА ЗА РЕКЛАМУ — ТОЖЕ АГЕНТНОСТЬ (слово владельца 2026-08-01:
-    // «встряска за рекламу считается выходом»): при adShakes>0 тупик не
-    // объявляется. Сейчас adShakes=∞ → deadlock-ветка фактически в резерве
-    // (на случай площадок без rewarded/отключения рекламы); кучу при простое
-    // всё равно разбирает обычный idle-помол — вечного стояния нет.
-    // БЕСПЛАТНАЯ АВТО-ВСТРЯСКА (просьба тестировщиков «иначе ощущение, что
-    // вымогают шейки за рекламу» + условие владельца 2026-08-02 дословно:
-    // «только при условии, что объекты далеко друг от друга и их невозможно
-    // соединить»): пары по типам ЕСТЬ (не finale), соединимых НЕТ (noMoves),
-    // бесплатные и купленные встряски кончились — раньше здесь игрока ждала
-    // только кнопка «за рекламу» (adShakes безлимитны и НЕ проверяются —
-    // в этом суть жалобы). Один раз за уровень, 2 стабильных тика (~1.2 с)
-    // на оседание массы — как у детектора тупика ниже.
+    // (the countdown to grinding MOVED into the per-frame block below — in the 600-ms tick
+    // the seconds were updated sometimes after 0.6 s, sometimes after 1.2 s: «the timer lags
+    // and jerks», the owner's complaint 2026-07-21)
+    // DEADLOCK → THE RESCUE GRINDING, NOT A DEFEAT (the owner's decision 2026-07-27
+    // «grinding = a penalty, not death»): there are pairs, but they are unreachable, and there are no shakes —
+    // we wait for 2 stable checks (~1.2 s, so that the mass settles; in the finale and while
+    // moving it does not fire), then we set level.deadlock → the per-frame gate
+    // above drives mixerGrind, taking the pile apart until a reachable pair appears.
+    // The price of the rescue is points (−20/grinding), and it also affects the leaderboard. The defeat
+    // screen (showLose) is no longer called from a deadlock; the UI is alive for the future.
+    // ⚠️ A PURCHASED STOCK OF SHAKES = AGENCY: while it exists there is NO deadlock —
+    // the player has something to sort it out with, and the rescue grinding (it costs points) must not
+    // switch on instead of him. The condition was extended together with the introduction of bundles.
+    // ⚠️ AND A SHAKE FOR AN AD IS AGENCY TOO (the owner's word 2026-08-01:
+    // «a shake for an ad counts as a way out»): while adShakes>0 the deadlock is not
+    // declared. Right now adShakes=∞ → the deadlock branch is effectively in reserve
+    // (in case of platforms without rewarded ads / with ads disabled); the pile while idling
+    // is taken apart by the ordinary idle grinding anyway — there is no eternal standstill.
+    // A FREE AUTO-SHAKE (the testers' request «otherwise it feels like they are
+    // extorting shakes for ads» + the owner's condition 2026-08-02 verbatim:
+    // «only on the condition that the objects are far from each other and it is impossible
+    // to join them»): pairs by type EXIST (not a finale), joinable ones do NOT (noMoves),
+    // the free and purchased shakes have run out — earlier only the «for an ad» button
+    // was waiting for the player here (adShakes are unlimited and are NOT checked —
+    // that is the essence of the complaint). Once per level, 2 stable ticks (~1.2 s)
+    // for the mass to settle — as with the deadlock detector below.
     if (noMoves && !finale && !level.autoShakeUsed && level.shakes === 0 &&
         purchasedShakes() === 0 && !items.some(i=>i.alive && i.animating)){
       level.autoStuck = (level.autoStuck || 0) + 1;
@@ -926,36 +926,36 @@ function loop(){
       if (level.stuck >= 2) level.deadlock = true;
     } else {
       level.stuck = Math.min(level.stuck, 0);
-      // вернулась агентность (появилась достижимая пара / встряски) — тупик снят,
-      // помол-выручалка останавливается. НЕ снимаем по items animating: сам помол
-      // анимирует предметы, иначе флаг схлопнулся бы на первом же обороте лопастей.
-      // ⚠️ СБРАСЫВАЕМ lastAction на переходе тупик→снят: помол мог крутиться дольше
-      // idleLimit (stats.lastAction застыл), и без сброса idle-помол ДОГРЫЗАЛ бы кучу
-      // после появления пары (idle всё ещё > idleLimit), пока игрок не тапнет — даём
-      // свежий отсчёт, чтобы выручалка встала РОВНО с появлением достижимой пары.
+      // agency is back (a reachable pair / shakes appeared) — the deadlock is lifted,
+      // the rescue grinding stops. We do NOT lift it by items animating: the grinding itself
+      // animates the items, otherwise the flag would collapse on the very first turn of the blades.
+      // ⚠️ WE RESET lastAction ON THE deadlock→lifted TRANSITION: the grinding could have been running longer than
+      // idleLimit (stats.lastAction froze), and without the reset the idle grinding would KEEP GNAWING the pile
+      // after a pair appeared (idle is still > idleLimit), until the player taps — we give
+      // a fresh countdown, so that the rescue stops EXACTLY when a reachable pair appears.
       if (level.deadlock && (ap > 0 || level.shakes > 0 || purchasedShakes() > 0)){
         level.deadlock = false;
         stats.lastAction = now;
       }
     }
-    // время партии (ЧЁРНОЕ — спека владельца 2026-07-21, был зелёный макета);
-    // отсчёт до перемолки — отдельное число под глазами
-    if (LEVEL_TIME_IN_HUD && !level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000)); // скрытому таймеру и fitStat не нужен
+    // the session time (BLACK — the owner's spec 2026-07-21, it was the green of the mockup);
+    // the countdown to grinding is a separate number under the eyes
+    if (LEVEL_TIME_IN_HUD && !level.over) $('timer').textContent = fmtTime(Math.round((now-stats.t0)/1000)); // the hidden timer does not need fitStat either
   }
-  // стекло РАСТВОРЯЕТСЯ при приближении камеры (спека владельца: вблизи
-  // чаша не нужна и мешает совмещать): полная плотность при camR>=13.5,
-  // полностью тает к camR<=10 (smoothstep)
+  // the glass DISSOLVES as the camera approaches (the owner's spec: up close
+  // the bowl is not needed and gets in the way of matching): full density at camR>=13.5,
+  // it melts completely by camR<=10 (smoothstep)
   if (bowlMat){
     const gk = Math.max(0, Math.min(1, (camR - 10) / 3.5));
     const k = gk * gk * (3 - 2 * gk);
-    bowlMat.uniforms.uFade.value = k;   // стекло — ShaderMaterial (20-arena)
-    // ⚠️ И НЕ ПОКАЗЫВАЕМ РАЗБИТУЮ: после разлёта от чаши остаются ТОЛЬКО
-    // осколки (слово владельца). Видимостью владеет этот цикл, поэтому гейт
-    // стоит здесь, а не в 20-arena — иначе он живёт один кадр.
+    bowlMat.uniforms.uFade.value = k;   // the glass is a ShaderMaterial (20-arena)
+    // ⚠️ AND WE DO NOT SHOW A BROKEN ONE: after the shatter ONLY the shards are left
+    // of the bowl (the owner's word). Visibility is owned by this loop, so the gate
+    // stands here and not in 20-arena — otherwise it would live for a single frame.
     bowlMesh.visible = (k > 0.02 && !bowlBroken)
   }
-  // тени перерисовываем только когда что-то движется (свет статичен; в штиле
-  // экономим ~150 теневых draw calls каждый кадр)
+  // we redraw the shadows only when something is moving (the light is static; at calm
+  // we save ~150 shadow draw calls every frame)
   renderer.shadowMap.needsUpdate = physAwake || !!intro || mixerSpeed > 0.01 || fx.length > 0;
   if (camShake > 0){
     camShake -= dt;
@@ -963,21 +963,21 @@ function loop(){
     camera.position.x += (Math.random()-0.5)*camShake*0.8;
     camera.position.y += (Math.random()-0.5)*camShake*0.8;
   }
-  // ⚠️ ui = ВСЁ между stepFX и рендером (вуаль/тонировка/глаза/камера/HUD).
-  // Меряем здесь, а не по кускам: цель разборки — найти ГЛАВНОГО едока, а не
-  // расписать тик глаз до микросекунды. Понадобится дробить — дробить тогда.
+  // ⚠️ ui = EVERYTHING between stepFX and the render (veil/depth tint/eyes/camera/HUD).
+  // We measure it here and not piece by piece: the goal of the breakdown is to find THE MAIN eater, not
+  // to itemize the eyes tick down to a microsecond. Should it need splitting — we split it then.
   if (perfFrames > 5){ _phUi = performance.now() - _tUi; _pushRing(uiRing, _phUi); }
   const _tRen = performance.now();
   renderer.render(scene, camera);
-  // ⚠️ ЭТО НЕ ВРЕМЯ GPU. renderer.render отдаёт команды и возвращается; настоящая
-  // работа видеочипа асинхронна и сюда не попадает. Число честно ловит ОБХОД
-  // СЦЕНЫ И ДРАЙВЕРНЫЕ ВЫЗОВЫ (draw calls, загрузку буферов частиц) — на мобиле
-  // это и есть основной CPU-налог рендера. Настоящий GPU-таймлайн headless не
-  // отдаёт; для него нужен реальный телефон.
+  // ⚠️ THIS IS NOT GPU TIME. renderer.render hands over the commands and returns; the real
+  // work of the video chip is asynchronous and does not get here. The number honestly catches THE SCENE
+  // TRAVERSAL AND THE DRIVER CALLS (draw calls, uploading particle buffers) — on mobile
+  // that is the main CPU tax of rendering. A real GPU timeline is not given by headless;
+  // for it a real phone is needed.
   if (perfFrames > 5){
     _phRen = performance.now() - _tRen;
     _pushRing(renRing, _phRen);
-    // фазы ЭТОГО кадра — их прочтёт следующий, когда узнает свой rawMs
+    // the phases of THIS frame — the next one will read them, when it learns its own rawMs
     _lastPh = { work: +(performance.now() - now).toFixed(1), step: +_phStep.toFixed(1),
       solve: +_phSolve.toFixed(1), sync: +_phSync.toFixed(1), sub: _phSub,
       fx: +_phFx.toFixed(1), build: +_phBuild.toFixed(1), tap: +_phTap.toFixed(1),
@@ -987,15 +987,15 @@ function loop(){
   }
 }
 
-// ---------- Отладочный API ----------
-// ⚠️ ПИКСЕЛЬ, ГДЕ ПРЕДМЕТ — ПЕРВОЕ ПЕРЕСЕЧЕНИЕ ЛУЧА (общий для findByTex и
-// bestTapTarget; только для тестов). Проекция ЦЕНТРА для клика НЕ ГОДИТСЯ:
-// центр бывает закрыт соседом, и тест бьёт не по тому предмету. Историю этой
-// грабли писали дважды: флейк-репорт v76 (клик по центру попадал в
-// загораживающий предмет, «−20» вместо «+120») и флейк v157 (новый ассерт капа
-// кликал по центру группы, случайно попадал в БОМБУ и детонировал её ДО секции
-// бомбы — три ассерта бомбы падали через раз). Пробуем центр и 8 смещений по
-// экранным осям камеры на 0.55·r; ни один не подошёл — предмет закрыт целиком.
+// ---------- Debug API ----------
+// ⚠️ THE PIXEL WHERE THE ITEM IS THE FIRST RAY INTERSECTION (shared by findByTex and
+// bestTapTarget; for tests only). The projection of the CENTRE IS NOT SUITABLE for a click:
+// the centre is sometimes covered by a neighbour, and the test hits the wrong item. The history of this
+// rake was written twice: the flake report v76 (a click on the centre landed on the
+// occluding item, «−20» instead of «+120») and the flake v157 (a new cap assert
+// clicked on the centre of a group, accidentally hit the BOMB and detonated it BEFORE the bomb
+// section — three bomb asserts failed every other time). We try the centre and 8 offsets along
+// the camera's screen axes by 0.55·r; if none fit — the item is completely covered.
 function pickCtx(){
   const right = new THREE.Vector3(), up = new THREE.Vector3();
   camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
@@ -1010,10 +1010,10 @@ function visiblePixel(it, ctx){
         .add(ctx.up.clone().multiplyScalar(Math.sin(a)*d));
     }
     const sp = wp.project(camera);
-    // ⚠️ ПРОВЕРЯЕМ ПО ОКРУГЛЁННОМУ ПИКСЕЛЮ, а не по сырой проекции: тест кликает
-    // ЦЕЛЫМИ координатами, а смещённые пробы лежат у самого силуэта — округление
-    // на полпикселя перебрасывало луч на соседа. Замер: 5 расхождений «обещано
-    // n, ушло меньше» из 14 тапов; после сверки по округлённому — 0.
+    // ⚠️ WE CHECK BY THE ROUNDED PIXEL, not by the raw projection: the test clicks with
+    // WHOLE coordinates, while the offset probes lie right at the silhouette — rounding
+    // by half a pixel threw the ray onto a neighbour. Measurement: 5 discrepancies «promised
+    // n, less went away» out of 14 taps; after checking by the rounded one — 0.
     const px = Math.round((sp.x + 1)/2*innerWidth), py = Math.round((-sp.y + 1)/2*innerHeight);
     ctx.rc.setFromCamera({ x: px/innerWidth*2 - 1, y: -(py/innerHeight*2 - 1) }, camera);
     const hits = ctx.rc.intersectObjects(ctx.meshes, false);
@@ -1025,9 +1025,9 @@ window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
   availablePairs,
   autoMatch(){
-    stats.lastAction = performance.now(); // стендовый матч = действие игрока:
-    // иначе долгие бот-прогоны «простаивали» для idle-помола, и он параллельно
-    // выедал кучу (в бою тап обновляет lastAction сам)
+    stats.lastAction = performance.now(); // a bench match = a player action:
+    // otherwise long bot runs «idled» for the idle grinding, and it ate the pile
+    // in parallel (in the live game the tap updates lastAction itself)
     refreshAccessibility();
     const byKey = {};
     for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key]=byKey[it.key]||[]).push(it);
@@ -1040,24 +1040,24 @@ window.__game = {
     return false;
   },
   shake: performShake,
-  penalizeTest(){ penalize(null, 10, 10); }, // тест: промах через единую точку штрафа
-  multToastTest(name, mult){ showMultToast(name || 'T0', mult || 2); }, // тест: тост множителя через единую точку
-  hintShow(){ showHint(); },                 // тест/стенд: честный путь кнопки подсказки
-  hintLast(){ return hintLastPick; },        // тест: самоотчёт последнего выбора (read-only)
-  // ⚠️ ИМЯ РАЗВЕДЕНО С ФИЗИКИНЫМ itemsBrief (ловля 2026-08-05): в объекте
-  // __game были ДВА ключа itemsBrief, побеждало последнее определение —
-  // мои поля (x/z/acc/key) молча не существовали, страж читал undefined и
-  // выдавал правдоподобные нули. Геометрия — здесь, физдиагностика — там.
-  // ⚠️ ПОЛЕ `vy` ДОБАВЛЕНО 2026-08-21-д РАДИ СТРАЖА ДОСЫПКИ: без него
-  // «предмет стартует со скоростью вниз» ненаблюдаемо ничем — `awake().maxV`
-  // отдаёт МАКСИМУМ по всей куче и загрязняется чужим движением, а per-item
-  // скорости наружу не отдавал никто. Читается прямо у тела, копии нет.
+  penalizeTest(){ penalize(null, 10, 10); }, // test: a miss through the single penalty point
+  multToastTest(name, mult){ showMultToast(name || 'T0', mult || 2); }, // test: the multiplier toast through the single point
+  hintShow(){ showHint(); },                 // test/bench: the honest path of the hint button
+  hintLast(){ return hintLastPick; },        // test: the self-report of the last pick (read-only)
+  // ⚠️ THE NAME IS KEPT APART FROM THE PHYSICS itemsBrief (catch 2026-08-05): in the
+  // __game object there were TWO itemsBrief keys, the last definition won —
+  // my fields (x/z/acc/key) silently did not exist, the guard read undefined and
+  // produced plausible zeros. Geometry is here, physics diagnostics is there.
+  // ⚠️ THE `vy` FIELD WAS ADDED 2026-08-21-d FOR THE SAKE OF THE TOP-UP GUARD: without it
+  // «the item starts with a downward speed» is observable by nothing — `awake().maxV`
+  // gives the MAXIMUM over the whole pile and is polluted by somebody else's movement, while per-item
+  // speeds were given outside by nobody. It is read straight from the body, there is no copy.
   itemsGeo(){ return items.filter(i => i.alive).map(i => { const v = i.body && i.body.linvel && i.body.linvel();
     return { key: String(i.key), name: (i.type && i.type.name) || '', x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), r: +i.r.toFixed(3), acc: !!i.accessible, vy: v ? +v.y.toFixed(2) : null }; }); },
 
-  // тест: съесть один ОБЫЧНЫЙ предмет (сирота для стража финальной докидки).
-  // В бою сироты создаёт бомба (взрыв соседей нечётом); ручка воспроизводит
-  // ФАКТ сироты, а страж проверяет ПОВЕДЕНИЕ после факта — саму докидку.
+  // test: eat one ORDINARY item (an orphan for the final top-up guard).
+  // In the live game orphans are created by the bomb (an odd number of neighbours blown up); the handle reproduces
+  // the FACT of an orphan, while the guard checks the BEHAVIOUR after the fact — the top-up itself.
   killOneTest(kind){
     const pred = kind === 'surprise' ? (i => i.alive && i.surprise)
                : kind === 'bomb'     ? (i => i.alive && i.bomb)
@@ -1066,20 +1066,20 @@ window.__game = {
     if (it) removeItem(it);
     return items.filter(i => i.alive).length;
   },
-  requestShake: requestShake, // тест: РЕАЛЬНЫЙ путь встряски с учётом (бесплатные -> купленные -> реклама)
+  requestShake: requestShake, // test: the REAL shake path with accounting (free -> purchased -> ad)
   cfg: CFG,
   regen: genLevel,
-  // дебаг-тюнер пресетов matcap (10-stage): ползунки поверх HUD, живое
-  // применение, вывод значений кнопкой Copy. Повторный вызов закрывает.
+  // debug tuner of the matcap presets (10-stage): sliders on top of the HUD, live
+  // application, printing the values with the Copy button. A repeated call closes it.
   matcapTuner,
   matcapPresets(){ return JSON.parse(JSON.stringify(MATCAP_PRESETS)); },
-  // сила матчепа пачки: 0 — как было, 1 — библиотечный в полную силу
+  // the strength of a pack's matcap: 0 — as it was, 1 — the library one at full strength
   packMatcapLoad(pack, src, opts){ return packMatcapLoad(pack, src, opts); },
   packMatcapGain(pack, g){
     if (g == null) return JSON.parse(JSON.stringify(PACK_MATCAP_GAIN));
     PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
-  // одна ли КАРТИНКА у двух пачек: на неё стоит ассерт веса (второй такой же
-  // base64 в сборке невидим на глаз и стоит 54 КБ)
+  // whether two packs share ONE PICTURE: a weight assert stands on it (a second identical
+  // base64 in the build is invisible to the eye and costs 54 KB)
   packMatcapSrcShared(a, b){ return PACK_MATCAP_SRC[a] === PACK_MATCAP_SRC[b] && !!PACK_MATCAP_SRC[a]; },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
@@ -1088,18 +1088,18 @@ window.__game = {
     if (k == null) return JSON.parse(JSON.stringify(PACK_MATCAP_MIX));
     return packMatcapApply(pack, Math.max(0, Math.min(1, k)));
   },
-  // замер вуали: выставить её ВСЕМ живым разом. Нужна именно так — чтобы
-  // сравнивать стоимость шейдера на ОДНОЙ И ТОЙ ЖЕ сцене (доля недоступных
-  // от сида к сиду гуляет 121-136, и на этом шуме тонет любой честный дельта-замер)
+  // veil measurement: set it on ALL live items at once. It is needed exactly this way — so as to
+  // compare the shader cost on ONE AND THE SAME scene (the share of inaccessible ones
+  // wanders 121-136 from seed to seed, and any honest delta measurement drowns in that noise)
   veilAll: veilAllItems,
-  // ДЕБАГ ГРАФИКИ (цена прозрачности + цена переключения сложности на лету,
-  // 2026-07-29): флип material.transparent на ВСЕХ живых предметах. Возвращает
-  // мс на сам флип + первый кадр — это и есть цена перекомпиляции (transparent
-  // входит в ключ программы three через `#define OPAQUE`).
-  // ЗАМЕРЕНО: 1-й флип 183 материалов — 34 мс (компиляция второго варианта),
-  // каждый следующий 1.2-1.6 мс (обе программы уже в кэше three). Поэтому
-  // «сложность применяется со следующего уровня» — ограничение снимаемое.
-  // Им же меряется цена прозрачности парным чередующимся замером (см. WORKSTREAMS).
+  // GRAPHICS DEBUG (the price of transparency + the price of switching complexity on the fly,
+  // 2026-07-29): a flip of material.transparent on ALL live items. It returns
+  // the ms of the flip itself + the first frame — and that is the price of recompilation (transparent
+  // is part of the three program key through `#define OPAQUE`).
+  // MEASURED: the 1st flip of 183 materials — 34 ms (compiling the second variant),
+  // each next one 1.2-1.6 ms (both programs are already in the three cache). That is why
+  // «the complexity is applied from the next level» is a removable limitation.
+  // The price of transparency is measured by it too, with a paired alternating measurement (see WORKSTREAMS).
   setItemsTransparent(on){
     const t0 = performance.now();
     let n = 0;
@@ -1111,48 +1111,48 @@ window.__game = {
       m.opacity = on ? VEIL_ALPHA : 1;
       m.needsUpdate = true; n++;
     }
-    renderer.render(scene, camera);          // форсим компиляцию здесь, а не в тике
+    renderer.render(scene, camera);          // we force the compilation here and not in the tick
     return { flipped: n, ms: +(performance.now() - t0).toFixed(1) };
   },
-  // ДЕБАГ ГРАФИКИ (подбор тона вуали, спека владельца «светло-синяя, не серая»):
-  // менять тон/светлоту/подъём на ЖИВОЙ сцене без пересборки. uVeilCol и
-  // uVeilTune — ОБЩИЕ юниформы (10-stage), поэтому правка видна сразу всем.
-  // Оставлен постоянным (как matcapTuner): тон — вкусовое решение владельца,
-  // и он к нему возвращался уже дважды; пересобирать билд на каждый оттенок
-  // не нужно, а контактный лист вариантов снимается одним прогоном.
+  // GRAPHICS DEBUG (picking the veil tone, the owner's spec «light blue, not grey»):
+  // change the tone/lightness/lift on a LIVE scene without a rebuild. uVeilCol and
+  // uVeilTune are SHARED uniforms (10-stage), so an edit is immediately visible to everyone.
+  // Left permanent (like matcapTuner): the tone is the owner's taste decision,
+  // and he has already come back to it twice; rebuilding the build for every shade
+  // is not needed, and a contact sheet of variants is taken in one run.
   veilTune(hex, light, lift){
     if (hex != null) uVeilCol.value.setHex(hex).convertSRGBToLinear();
     if (light != null) uVeilTune.value.x = light;
     if (lift != null) uVeilTune.value.y = lift;
     return { hex: '#' + (hex == null ? 0 : hex).toString(16), light: uVeilTune.value.x, lift: uVeilTune.value.y };
   },
-  // ДЕБАГ ГРАФИКИ: раскладка стопов неба на живой сцене — 'screen' (как
-  // CSS-градиент владельца) или 'view' (по высоте взгляда). Нужен для A/B без
-  // пересборки: разница между режимами ВИДНА ТОЛЬКО НА СКРИНЕ, числами её не
-  // передать, а решение о раскладке — за владельцем. Дефолт — SKY_MAP.
+  // GRAPHICS DEBUG: the layout of the sky stops on a live scene — 'screen' (like
+  // the owner's CSS gradient) or 'view' (by the height of the gaze). Needed for an A/B without
+  // a rebuild: the difference between the modes IS VISIBLE ONLY ON A SCREENSHOT, it cannot be
+  // conveyed in numbers, and the decision about the layout is the owner's. The default is SKY_MAP.
   skyMap(mode){
     if (skyMat && mode != null) skyMat.uniforms.uSkyMap.value = mode === 'view' ? 0 : 1;
     return skyMat ? (skyMat.uniforms.uSkyMap.value ? 'screen' : 'view') : null;
   },
-  // час, по которому выбраны небо и тема (форс через ?hour=N) — для стражей тем
+  // the hour by which the sky and the theme were chosen (forced via ?hour=N) — for the theme guards
   skyHour(){ return { hour: skyHourNow(), time: skyTimeNow(), night: isNightSky() }; },
-  // ДЕБАГ ГРАФИКИ: подменить палитру неба на живой сцене (подбор цветов
-  // владельцем без пересборки, как veilTune). Массив хексов любой длины >= 2.
+  // GRAPHICS DEBUG: substitute the sky palette on a live scene (the owner picking colours
+  // without a rebuild, like veilTune). An array of hexes of any length >= 2.
   skyStops(list){ return setSkyStops(list); },
-  // ⚠️⚠️ ХУК НЕСУЩИЙ: на нём единственная проверка ПОЗИЦИЙ стопов. Пикселями
-  // их не поймать — позиции владельца 0/36/65/100 отстоят от равномерных
-  // 0/33.3/66.7/100 на Δ≈2 из 255 на канал, то есть тонут в шуме кадра.
-  // Отдаём РАЗОБРАННОЕ состояние и ГОТОВУЮ строку CSS: страж сверяет, что
-  // позиции дошли до обоих потребителей — до рампы шейдера и до `--sky-grad`.
+  // ⚠️⚠️ A LOAD-BEARING HOOK: the only check of the POSITIONS of the stops stands on it. They cannot
+  // be caught by pixels — the owner's positions 0/36/65/100 differ from the even
+  // 0/33.3/66.7/100 by Δ≈2 out of 255 per channel, that is, they drown in the frame noise.
+  // We hand out the PARSED state and a READY CSS string: the guard checks that the
+  // positions reached both consumers — the shader ramp and `--sky-grad`.
   skyInfo(){
-    return { стопы: skyStops.slice(), позиции: skyPos.slice(),
-             свои: skyParsed.свои, градиент: skyGradCSS };
+    return { stops: skyStops.slice(), pos: skyPos.slice(),
+             own: skyParsed.ownPos, grad: skyGradCSS };
   },
-  // ДЕБАГ ГРАФИКИ: форма звезды на живой сцене — 0 чистая точка, 1 искра.
-  // Контактный лист вариантов снимается одним прогоном, как у палитр.
+  // GRAPHICS DEBUG: the star shape on a live scene — 0 a pure dot, 1 a spark.
+  // A contact sheet of variants is taken in one run, as with the palettes.
   starSpark(v){ if (skyMat && v != null) skyMat.uniforms.uStarSpark.value = v;
     return skyMat ? skyMat.uniforms.uStarSpark.value : null; },
-  // срез вуали для сьюта: сколько материалов реально получили uVeil>0
+  // a veil slice for the suite: how many materials really got uVeil>0
   veilStats(){
     let withShader = 0, veiled = 0, max = 0;
     for (const it of items){
@@ -1166,10 +1166,10 @@ window.__game = {
     }
     return { mode: VEIL_MODE, withShader, veiled, max: +max.toFixed(2) };
   },
-  // A/B прозрачности НА ЖИВОЙ странице. Боевой режим задаёт VEIL_MODE в
-  // 00-config; здесь — только замер и показ владельцу, без пересборки.
-  // ⚠️ Смена transparent — перекомпиляция шейдера: после вызова дать кадр-другой
-  // на прогрев, иначе в замер попадёт компиляция, а не установившаяся цена.
+  // A/B of transparency ON A LIVE page. The live mode is set by VEIL_MODE in
+  // 00-config; here it is only a measurement and a demo for the owner, without a rebuild.
+  // ⚠️ Changing transparent means recompiling the shader: after the call give it a frame or two
+  // to warm up, otherwise the compilation gets into the measurement instead of the settled price.
   veilFade(on){
     let n = 0;
     for (const it of items){
@@ -1181,8 +1181,8 @@ window.__game = {
     }
     return n;
   },
-  // контрольная сумма пикселей пресета: сьют проверяет ПЕРЕСЪЁМКУ текстуры,
-  // а не только смену числа в объекте (иначе ассерт был бы пустым)
+  // the checksum of the preset pixels: the suite checks the RE-SHOOTING of the texture,
+  // and not just a change of a number in the object (otherwise the assert would be empty)
   matcapSum(kind){
     const t = matcapCache.get(kind);
     if (!t) return -1;
@@ -1190,27 +1190,27 @@ window.__game = {
     for (let i = 0; i < d.length; i += 97) s += d[i];
     return s;
   },
-  // мгновенно завершить интро (для тестов): синхронная осадка + утряска
+  // finish the intro instantly (for tests): a synchronous settling + shake-down
   skipIntro(){
-    // ⚠️ Пролог-комикс висит поверх фазы 'wait' и ЖДЁТ тапа. В автопрогоне
-    // тапать некому: без этой строки сьют застревал бы на первом же экране,
-    // а координатные клики уходили бы в панель. Закрываем штатно — так пролог
-    // ещё и метится показанным, и не всплывает в следующих секциях.
+    // ⚠️ The prologue comic hangs above the 'wait' phase and WAITS for a tap. In an auto run
+    // there is nobody to tap: without this line the suite would get stuck on the very first screen,
+    // and the coordinate clicks would go into the panel. We close it properly — that way the prologue
+    // is also marked as shown, and does not pop up in the following sections.
     try { storyForceClose(); } catch(_){}
     if (!intro) return;
     intro = null;
-    // тот же сигнал, что и у честного finishIntro (иначе витрина ждала бы
-    // облёта, которого в тестах/пробах не будет) — и те же сообщения площадке
+    // the same signal as in the honest finishIntro (otherwise the showcase would wait for
+    // an orbit that will not happen in tests/probes) — and the same messages to the platform
     document.documentElement.classList.add('introdone');
     try { Ads.gameReady(); Ads.msg('LEVEL_STARTED', { level: String(levelNum) }); } catch(_){}
-    // ⚠️ ВОЛНЫ ОБЯЗАНЫ ДОЗРЕТЬ МГНОВЕННО: на skipIntro стоит весь сьют, а
-    // 300 синхронных шагов не двигают реальные часы — без этой строки
-    // выключенные тела остались бы висеть над чашей и уровень был бы пуст.
+    // ⚠️ THE WAVES MUST MATURE INSTANTLY: the whole suite stands on skipIntro, and
+    // 300 synchronous steps do not move the real clock — without this line
+    // the switched-off bodies would keep hanging above the bowl and the level would be empty.
     waveReleaseAll();
     for (let s=0; s<300; s++){
       world.step();
-      // терминальная скорость и тут: столб падает с ~40 юнитов, v>20
-      // пробивала компаунды (латентный источник флейков тестов)
+      // the terminal speed here too: the column falls from ~40 units, v>20
+      // punched through the compounds (a latent source of test flakes)
       if (s % 3 === 0) for (const it of items){
         if (!it.alive || !it.body) continue;
         const v = it.body.linvel();
@@ -1218,8 +1218,8 @@ window.__game = {
       }
     }
     syncMeshes();
-    // вибро-утряска ВСЕЙ массы: свежая куча рыхлая (арки-мосты в конусе),
-    // импульсы только верхним мосты не рушат
+    // a vibro shake-down of the WHOLE mass: a fresh pile is loose (arch bridges in the cone),
+    // impulses only to the top ones do not break the bridges
     for (let round=0; round<8; round++){
       let top = 0;
       for (const it of items) if (it.alive) top = Math.max(top, it.p.y + it.r);
@@ -1234,169 +1234,169 @@ window.__game = {
     removeTempTallWall();
     finishIntro();
     pendingTrim = false;
-    finalizeFill(); // синхронно: тесты читают topY0/трим сразу после skipIntro
+    finalizeFill(); // synchronously: the tests read topY0/the trim right after skipIntro
     sleepPhysics('skipIntro');
-    renderer.shadowMap.needsUpdate = true; // осадка прошла мимо loop-гейта — тень по финальной куче
+    renderer.shadowMap.needsUpdate = true; // the settling passed by the loop gate — the shadow over the final pile
   },
   level(){ return level; },
   stats(){ return stats; },
   levelNum(){ return levelNum; },
-  // отладка/сьют: последние события телеметрии (буфер копится даже при
-  // выключенной отправке — иначе метрики нельзя было бы проверить до прода)
+  // debug/suite: the last telemetry events (the buffer accumulates even when
+  // sending is off — otherwise the metrics could not be checked before production)
   telemetry(n){ const b = Telemetry.buffer(); return n ? b.slice(-n) : b; },
   telemetryScreen(){ return Telemetry.screen.current(); },
-  guestId(){ return guestId(); },        // ключ игрока для своей таблицы
-  guestAvatar(){ return guestAvatar(); }, // номер аватара, выведенный из ключа
-  // ⚠️ ИМЯ НУЖНО СТРАЖУ, ЧТОБЫ СОБРАТЬ СНИМОК СО СВОЕЙ СТРОКОЙ: опознание в
-  // `lbLoadOurs` идёт по имени+аватару (идентификатора в строках снимка нет),
-  // и без этой пары мок не воспроизведёт случай «нашли себя в снимке» вовсе.
+  guestId(){ return guestId(); },        // the player key for his own table
+  guestAvatar(){ return guestAvatar(); }, // the avatar number derived from the key
+  // ⚠️ THE GUARD NEEDS THE NAME TO ASSEMBLE A SNAPSHOT WITH ITS OWN ROW: identification in
+  // `lbLoadOurs` goes by name+avatar (there is no identifier in the snapshot rows),
+  // and without that pair the mock would not reproduce the case «found ourselves in the snapshot» at all.
   guestName(){ return guestName(); },
-  // ВРЕЗКА ТАБЛИЦЫ НА ПОБЕДЕ (85-hud). Ручки НЕСУЩИЕ: на них все стражи врезки.
-  // winScreen — показ/скрытие экрана победы БОЕВЫМ путём (те же show/hide,
-  // что зовёт checkEnd) — на нём стражи цепочки победы.
-  // ⛔ Хуки winLbStub/winLbInfo вырезаны вместе с кластером врезки (85-hud).
+  // THE LEADERBOARD INSET ON VICTORY (85-hud). The handles are LOAD-BEARING: all the inset guards stand on them.
+  // winScreen — showing/hiding the victory screen by the LIVE path (the same show/hide
+  // that checkEnd calls) — the guards of the victory chain stand on it.
+  // ⛔ The winLbStub/winLbInfo hooks were cut out together with the inset cluster (85-hud).
   winScreen(on){ if (on) show('winOverlay'); else hide('winOverlay'); },
-  // ⚠️ НЕСУЩИЙ ХУК, А НЕ УДОБСТВО: на нём страж «фича выключена — точки входа в
-  // меню нет». Без него страж ЖДАЛ БЫ, что кто-то откроет меню при снятом
-  // модуле, — то есть наследовал бы обстановку вместо того, чтобы её ПРИВЕСТИ.
+  // ⚠️ A LOAD-BEARING HOOK, NOT A CONVENIENCE: the guard «the feature is off — there is no entry point to
+  // the menu» stands on it. Without it the guard WOULD WAIT for somebody to open the menu with the module
+  // removed — that is, it would inherit the situation instead of BRINGING IT ABOUT.
   lbEntryRefresh(){ lbEntryRefresh(); },
-  // ⚠️ НЕСУЩИЙ: на нём страж таблицы случаев живого места (соседи/топ/отказ).
-  // Через `location`/сеть эту таблицу не прогнать — ответы сервера в тесте не
-  // задать построчно, а без таблицы проверяется один вспомненный случай.
-  lbRankNow(m, живой, топ){ return lbRankNow(m, живой, топ); },
-  // ⚠️ НЕСУЩИЙ: на нём страж «по умолчанию все пачки делят ОДНУ текстуру, а
-  // заданная пачка меняет ТОЛЬКО свои предметы». Отдаёт не флаги, а тождество
-  // объектов — иначе проверялось бы моё представление, а не сцена.
+  // ⚠️ LOAD-BEARING: the guard of the table of live-rank cases (neighbours/top/refusal) stands on it.
+  // This table cannot be run through `location`/the network — the server answers cannot be
+  // set row by row in a test, and without the table only one remembered case is checked.
+  lbRankNow(m, live, top){ return lbRankNow(m, live, top); },
+  // ⚠️ LOAD-BEARING: the guard «by default all packs share ONE texture, while
+  // a given pack changes ONLY its own items» stands on it. It hands out not flags but the identity
+  // of the objects — otherwise my representation would be checked, not the scene.
   packMatcapInfo(){
-    // ⚠️⚠️ «СВОЯ» ОПРЕДЕЛЯЕТСЯ ПО РЕЕСТРУ ПАЧЕК, А НЕ ПО «НЕ РАВНА ОБЩЕЙ».
-    // Первая редакция считала своей любую текстуру, отличную от `tex`, и
-    // записала в свои КИРПИЧИ: они крашеные, у них законный пресет `soft`.
-    // То есть метрика правдоподобно врала ровно про тот случай, который
-    // проверяет («пачке задали своё»).
-    // ⚠️⚠️ ТРИ СЧЁТЧИКА, А НЕ ДВА, И ТРЕТИЙ ПОЯВИЛСЯ ОТ ЗАМЕРА, А НЕ ОТ ВКУСА.
-    // С 2026-08-18 у машин и еды есть СВОЯ КАРТИНКА (08-matcap-packs), и на
-    // двух счётчиках они не попадали НИ В ОДИН: в реестре их нет (`наСвоей`
-    // мимо), общей текстуре они не равны (`наОбщей` мимо). Метрика молча
-    // теряла ровно те две пачки, ради которых её и читают — тот же жанр, что
-    // записан абзацем выше, только в другую сторону.
-    const базовая = makeMatcap('tex'), пачки = {};
+    // ⚠️⚠️ «OWN» IS DETERMINED BY THE PACK REGISTRY, AND NOT BY «NOT EQUAL TO THE SHARED ONE».
+    // The first edition counted as own any texture different from `tex`, and
+    // recorded the BRICKS as own: they are painted, they have a lawful `soft` preset.
+    // That is, the metric plausibly lied about exactly the case it
+    // checks («a pack was given its own»).
+    // ⚠️⚠️ THREE COUNTERS, NOT TWO, AND THE THIRD APPEARED FROM A MEASUREMENT, NOT FROM TASTE.
+    // Since 2026-08-18 the cars and the food have THEIR OWN PICTURE (08-matcap-packs), and with
+    // two counters they fell into NEITHER: they are not in the registry (`onOwn`
+    // missed), they are not equal to the shared texture (`onShared` missed). The metric silently
+    // lost exactly the two packs it is read for — the same genre as the one
+    // written a paragraph above, only in the other direction.
+    const baseTex = makeMatcap('tex'), packs = {};
     for (const it of items){
       if (!it || !it.alive || !it.type || !it.type.tex || !it.mesh) continue;
-      const p = it.type.tex, m = it.mesh.material, свояТек = packMatcaps.get(p);
-      const картинка = (typeof packMatcapTex === 'function') ? packMatcapTex(p) : null;
-      const о = пачки[p] || (пачки[p] = { предметов: 0, наСвоей: 0, наКартинке: 0, наОбщей: 0 });
-      о.предметов++;
-      if (m && свояТек && m.matcap === свояТек) о.наСвоей++;
-      else if (m && картинка && m.matcap === картинка) о.наКартинке++;
-      else if (m && m.matcap === базовая) о.наОбщей++;
+      const p = it.type.tex, m = it.mesh.material, ownTex = packMatcaps.get(p);
+      const image = (typeof packMatcapTex === 'function') ? packMatcapTex(p) : null;
+      const rec = packs[p] || (packs[p] = { items: 0, onOwn: 0, onImage: 0, onShared: 0 });
+      rec.items++;
+      if (m && ownTex && m.matcap === ownTex) rec.onOwn++;
+      else if (m && image && m.matcap === image) rec.onImage++;
+      else if (m && m.matcap === baseTex) rec.onShared++;
     }
-    return { пачки, зарегистрировано: [...packMatcaps.keys()],
-             сКартинкой: (typeof PACK_MATCAP_SRC !== 'undefined')
+    return { packs, registered: [...packMatcaps.keys()],
+             withImage: (typeof PACK_MATCAP_SRC !== 'undefined')
                ? Object.keys(PACK_MATCAP_SRC).filter(k => PACK_MATCAP_SRC[k]) : [] };
   },
-  // ⚠️ НЕСУЩИЙ: на нём страж «бомба одета в картинку владельца». Проверять это
-  // грепом по сборке нельзя — инлайн base64 присутствует и тогда, когда его
-  // никто не вешает на материал; а размер картинки виден только после декода.
+  // ⚠️ LOAD-BEARING: the guard «the bomb is dressed in the owner's picture» stands on it. This cannot be
+  // checked by grepping the build — the inline base64 is present even when nobody
+  // hangs it on a material; and the size of the picture is visible only after decoding.
   bombMatcapInfo(){
     const t = (typeof bombMatcapTex === 'function') ? bombMatcapTex() : null;
     const im = t && t.image;
-    return { есть:!!t, w:(im && im.width) | 0, h:(im && im.height) | 0,
-             свой:!!(im && im.width > 1) };
+    return { has:!!t, w:(im && im.width) | 0, h:(im && im.height) | 0,
+             own:!!(im && im.width > 1) };
   },
-  // ⚠️ НЕСУЩИЙ ХУК: на нём страж «гейт боевой таблицы» гоняет ТАБЛИЦУ ХОСТОВ.
-  // Через `location` её не прогнать — браузер не даст произвольное имя, а гейт
-  // уже дважды пропускал случай, о котором не вспомнили. Отдельный сквозной
-  // ассерт доказывает, что эта же функция подключена к `location`.
+  // ⚠️ A LOAD-BEARING HOOK: on it the guard «the live-table gate» runs THE HOST TABLE.
+  // It cannot be run through `location` — the browser will not allow an arbitrary name, and the gate
+  // has already twice let through a case nobody remembered. A separate end-to-end
+  // assert proves that this very function is wired to `location`.
   lbHostIsLocal(protocol, hostname){ return lbHostIsLocal(protocol, hostname); },
-  // ЭКРАН НОВОЙ ВЕЩИ: повод, показ и слепок состояния для стражей.
-  // ⚠️ `newObjInfo` отдаёт ЖИВОЙ КАНВАС (`canvas:true`), а не факт вызова: без
-  // этого страж «модель крутится» проверял бы намерение, а не картинку —
-  // владелец дважды ловил подложку вместо 3D.
+  // THE NEW-ITEM SCREEN: the occasion, the display and a state snapshot for the guards.
+  // ⚠️ `newObjInfo` hands out a LIVE CANVAS (`canvas:true`), not the fact of a call: without
+  // this the guard «the model spins» would check the intent and not the picture —
+  // the owner has twice caught a still backing instead of 3D.
   newObjDue(){ return newObjDue(); },
-  // ⚠️ ХУК ДЛЯ СТРАЖА ПОВОДА: он обязан сверять ключ с ЖИВЫМ порядком типов, а
-  // не с литералом. Порядок массива — рычаг сложности, его правят по спеке
-  // владельца; литерал в тесте разъехался бы с ним молча.
+  // ⚠️ A HOOK FOR THE OCCASION GUARD: it is obliged to check the key against the LIVE order of types, and
+  // not against a literal. The array order is a difficulty lever, it is edited by the owner's
+  // spec; a literal in a test would drift apart from it silently.
   typeNameAt(i){ return (i >= 0 && i < TYPES.length) ? TYPES[i].name : null; },
-  // ⚠️ НАЧАЛО ПРОГРЕССИИ ТИПОВ — ЖИВЫМ ЧИСЛОМ, А НЕ ЛИТЕРАЛОМ В ТЕСТЕ. Владелец
-  // правит его как главный рычаг сложности (9 → 3 по слову 2026-08-11), и
-  // страж «повода новой вещи», державший копию, покраснел на ИСПРАВНОЙ сборке —
-  // тот самый закон про копию рядом с рабочей величиной.
+  // ⚠️ THE START OF THE TYPE PROGRESSION — AS A LIVE NUMBER, NOT A LITERAL IN A TEST. The owner
+  // edits it as the main difficulty lever (9 → 3 by the word 2026-08-11), and
+  // the guard of «the new-item occasion», which kept a copy, went red on a HEALTHY build —
+  // that very law about a copy next to a working value.
   levelTypesMin(){ return LEVEL_TYPES_MIN; },
-  // ⚠️ НЕСУЩИЕ ХУКИ ПОДАЧИ БОМБЫ (спека владельца 2026-08-12): снаружи видно
-  // только «есть бомба в куче или нет», а правило состоит из трёх величин —
-  // порога уровня, разрыва и награды за серии. Без них страж проверял бы
-  // следствие, а не правило.
-  // ⚠️ ХУК ЧИТАЕТ ЖИВОЕ ПРАВИЛО, а не копию констант: страж, вписавший 10 к
-  // себе, разъедется с боем при первой же правке владельца.
+  // ⚠️ LOAD-BEARING HOOKS OF THE BOMB SUPPLY (the owner's spec 2026-08-12): from outside only
+  // «is there a bomb in the pile or not» is visible, while the rule consists of three values —
+  // the level threshold, the gap and the reward for series. Without them the guard would check
+  // the consequence and not the rule.
+  // ⚠️ THE HOOK READS THE LIVE RULE, not a copy of the constants: a guard that wrote 10 into
+  // itself will drift apart from the live game at the owner's very first edit.
   pausedNow(){ return paused; },
-  // пиксель КОНКРЕТНОГО предмета для боевого клика стража (findByTex отдаёт
-  // любой предмет пачки, а глыбу надо тапнуть именно её)
+  // the pixel of a SPECIFIC item for a guard's live click (findByTex hands out
+  // any item of the pack, while an ice block must be tapped as itself)
   pixelOf(i){ const it = items[i];
     if (!it || !it.alive) return null;
     return visiblePixel(it, pickCtx()) || { occluded: true }; },
   frozenInfo(){ return items.filter(i => i.alive && i.frozen).map(i => ({
-    тип: i.frozenType, собрано: i.frozenGotItems, нужно: i.frozenNeedItems,
-    готова: !!i.frozenReady, индекс: items.indexOf(i),
-    пульс: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null,
-    щель: (i.iceShell && i.iceShell.userData.iceMat)
+    type: i.frozenType, got: i.frozenGotItems, need: i.frozenNeedItems,
+    ready: !!i.frozenReady, index: items.indexOf(i),
+    pulse: i.iceShell ? +i.iceShell.scale.x.toFixed(3) : null,
+    gap: (i.iceShell && i.iceShell.userData.iceMat)
       ? +i.iceShell.userData.iceMat.uniforms.uGap.value.toFixed(4) : null })); },
   frozenNextAt(){ return frozenNextLevel; },
-  // ⚠️ ХУКИ ВЕРНУЛИСЬ ПОСЛЕ СНЯТИЯ БОНУСНОГО УРОВНЯ (2026-08-18). Их сняли
-  // вместе с его секцией сьюта — и вместе с ними умерли КОНТРОЛЬНЫЕ ПЛЕЧИ,
-  // утверждавшие свойства ОБЫЧНОЙ игры: «спецпредметы вообще спавнятся» и
-  // «фаза падения в интро случается». Канонное «страж умирает вместе с
-  // механикой» про стражей СНЯТОЙ механики, а не про контроли, которые просто
-  // жили в том же блоке.
+  // ⚠️ THE HOOKS CAME BACK AFTER THE BONUS LEVEL WAS REMOVED (2026-08-18). They were removed
+  // together with its suite section — and with them died the CONTROL ARMS
+  // asserting properties of the ORDINARY game: «special items spawn at all» and
+  // «the drop phase in the intro does happen». The canonical «a guard dies together with its
+  // mechanic» is about guards of a REMOVED mechanic, and not about controls that simply
+  // lived in the same block.
   introPhase(){ return intro ? intro.phase : null; },
   specialsCount(){
-    let клад = 0, бомб = 0, глыб = 0;   // ⛔ камней в игре нет (2026-08-17)
+    let treasure = 0, bombs = 0, iceBlocks = 0;   // ⛔ there are no stones in the game (2026-08-17)
     for (const it of items){
       if (!it.alive) continue;
-      if (it.surprise) клад++; else if (it.bomb) бомб++;
-      else if (it.frozen) глыб++;
+      if (it.surprise) treasure++; else if (it.bomb) bombs++;
+      else if (it.frozen) iceBlocks++;
     }
-    return { клад, бомб, глыб, всего: клад + бомб + глыб };
+    return { treasure, bombs, iceBlocks, total: treasure + bombs + iceBlocks };
   },
-  // ⛔ хук iceStyle СРЕЗАН вместе со стендом (владелец выбрал иней-корку);
-  // разлёт корки наблюдаем этим хуком: доля полёта каждого живого разлёта
+  // ⛔ the iceStyle hook was CUT OUT together with the bench (the owner chose the frost crust);
+  // we observe the crust scatter with this hook: the flight fraction of every live scatter
   iceBoomsInfo(){ return iceBooms.map(b => +(((performance.now() - b.t0) / ICE_BOOM_MS)).toFixed(2)); },
   frozenBreak(i){ const it = items[i]; if (it && it.frozen) breakIce(it); return !!(it && !it.frozen); },
-  // ⛔ chromeInfo СНЯТ 2026-08-14 вместе с машинерией кромок: читать стало нечего
-  surpriseRule(){ return { сУровня: SURPRISE_FROM_LEVEL, уровень: levelNum,
-                           естьБуст: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
-                           вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
-  bombRule(){ return { сУровня: BOMB_FROM_LEVEL, разрывМин: BOMB_GAP_MIN, разрывМакс: BOMB_GAP_MAX,
-                       заСерии: BOMB_SERIES_REWARD, следующийУровень: bombNextLevel,
-                       вКуче: (function (){ let n = 0; for (const it of items) if (it.alive && it.bomb) n++; return n; })(),
-                       серий: (level && level.bowlCracks) || 0, наградаВыдана: !!(level && level.bombReward) }; },
+  // ⛔ chromeInfo was REMOVED 2026-08-14 together with the edge machinery: there is nothing left to read
+  surpriseRule(){ return { fromLevel: SURPRISE_FROM_LEVEL, level: levelNum,
+                           hasBoost: (typeof anyBoostBought === 'function') ? anyBoostBought() : null,
+                           inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.surprise) n++; return n; })() }; },
+  bombRule(){ return { fromLevel: BOMB_FROM_LEVEL, gapMin: BOMB_GAP_MIN, gapMax: BOMB_GAP_MAX,
+                       perSeries: BOMB_SERIES_REWARD, nextLevel: bombNextLevel,
+                       inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.bomb) n++; return n; })(),
+                       series: (level && level.bowlCracks) || 0, rewardGiven: !!(level && level.bombReward) }; },
   bombNextAt(lv){ if (lv != null) bombNextLevel = lv | 0; return bombNextLevel; },
-  // ⚠️ НЕСУЩИЕ ХУКИ ШТРАФА РАДИУСА (спека владельца 2026-08-11). Без них
-  // механику не проверить: она вся внутри IIFE, а снаружи видно только
-  // `CFG.matchRadius` — по нему «упал из-за промаха» неотличимо от «упал из-за
-  // сжатия кучи». `missRadius()` отдаёт СОСТОЯНИЕ, а не пересказ.
-  missRadius(){ return { активен: missRadiusActive(), потолок: missRadiusCap(),
-                         счётных: aliveCountForRadius(),   // то же число, по которому решают ОБЕ ступени эндшпиля
-                         своихВстрясок: (level ? level.shakes : 0) + purchasedShakes(),
-                         радиус: +CFG.matchRadius.toFixed(3), база: CFG.baseRadius,
-                         пол: MATCH_R_MIN, потолокКомбо: COMBO_RADIUS,
-                         дно: MATCH_R_MISS, окно: MATCH_R_MISS_MS }; },
+  // ⚠️ LOAD-BEARING HOOKS OF THE RADIUS PENALTY (the owner's spec 2026-08-11). Without them
+  // the mechanic cannot be checked: it is entirely inside an IIFE, and from outside only
+  // `CFG.matchRadius` is visible — by it «it dropped because of a miss» is indistinguishable from «it dropped because
+  // the pile shrank». `missRadius()` hands out the STATE, not a retelling.
+  missRadius(){ return { active: missRadiusActive(), cap: missRadiusCap(),
+                         counted: aliveCountForRadius(),   // the same number by which BOTH endgame steps decide
+                         ownShakes: (level ? level.shakes : 0) + purchasedShakes(),
+                         radius: +CFG.matchRadius.toFixed(3), base: CFG.baseRadius,
+                         floor: MATCH_R_MIN, comboCap: COMBO_RADIUS,
+                         bottom: MATCH_R_MISS, windowMs: MATCH_R_MISS_MS }; },
   missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
-  baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // стражам — вернуть боевое, а не литерал
-  missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // страж перехода: та же сцена БЕЗ штрафа
+  baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // to the guards — return the live value, not a literal
+  missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // the transition guard: the same scene WITHOUT the penalty
 
-  // ⚠️⚠️ НЕСУЩИЙ ХУК: доля полоски прогресса. Её показывают ДВА экрана (витрина
-  // и TOP ITEMS на победе) одной и той же функцией, а сам дефект был
-  // АРИФМЕТИЧЕСКИЙ — смешение купленной ступени с заработанной. Первый страж
-  // мерил ШИРИНУ в `#vGrid` и давал ноль во всех трёх состояниях: панель на той
-  // странице никто не тикает, то есть измерялся неживой DOM (шестой случай
-  // «поймал не свойство, а его подделку»). Число берём у самой функции.
+  // ⚠️⚠️ A LOAD-BEARING HOOK: the fraction of the progress bar. It is shown by TWO screens (the showcase
+  // and TOP ITEMS on victory) by one and the same function, while the defect itself was
+  // ARITHMETIC — mixing a purchased tier with an earned one. The first guard
+  // measured the WIDTH in `#vGrid` and gave zero in all three states: nobody ticks the panel on that
+  // page, that is, dead DOM was being measured (the sixth case of
+  // «caught not the property but its imitation»). We take the number from the function itself.
   vitFrac(k){ return (typeof vitFrac === 'function') ? vitFrac(k) : null; },
-  // ⚠️ НЕСУЩИЙ ХУК: на нём страж «у каждого типа есть голос материала». Без
-  // него связку «предмет -> звук» проверить нечем — она вся внутри IIFE.
+  // ⚠️ A LOAD-BEARING HOOK: the guard «every type has a material voice» stands on it. Without
+  // it the link «item -> sound» cannot be checked by anything — it is entirely inside an IIFE.
   materialOf(name){ return materialOf(name); },
-  // ⚠️ И ОТДЕЛЬНО — КАКИЕ ГОЛОСА ОЗВУЧЕНЫ НА САМОМ ДЕЛЕ: разметка есть у всех
-  // 120, а сэмплов пока три. Страж обязан различать «тип размечен» и «звук
-  // записан», иначе он зазеленеет на сборке без единого сэмпла.
+  // ⚠️ AND SEPARATELY — WHICH VOICES ARE ACTUALLY RECORDED: the markup exists for all
+  // 120, while there are only three samples so far. The guard is obliged to distinguish «the type is marked up» and «the sound
+  // is recorded», otherwise it would go green on a build without a single sample.
   sfxVoices(){ return Object.keys(SFX_B64).filter(k => k.indexOf('mat_') === 0).map(k => k.slice(4)); },
   newObjShow(key, done){ return newObjShow(key, done); },
   newObjHide(){ return newObjHide(); },
@@ -1404,170 +1404,170 @@ window.__game = {
     const b = document.getElementById('newObj'), h = document.getElementById('newObjModel');
     if (!b) return null;
     const c = h ? h.querySelector('canvas') : null;
-    // ⚠️ СВЕЧЕНИЕ ОТДАЁМ ВЫЧИСЛЕННЫМ ГРАДИЕНТОМ, а не значением переменной,
-    // которую сами же и записали: последнее — пересказ намерения, а страж
-    // обязан видеть СЛЕДСТВИЕ (переменная может не дойти до правила, если у
-    // `.no-shine` сменится background). Рядом — ожидаемый тон типа, чтобы
-    // сверять было с чем, не вписывая литерал в тест.
+    // ⚠️ WE HAND OUT THE GLOW AS THE COMPUTED GRADIENT, and not as the value of a variable
+    // that we wrote ourselves: the latter is a retelling of the intent, while the guard
+    // is obliged to see the CONSEQUENCE (the variable may not reach the rule if
+    // the background of `.no-shine` changes). Next to it — the expected tone of the type, so that
+    // there is something to compare with, without writing a literal into the test.
     const sh = b.querySelector('.no-shine');
     const t = (function (){ const k = newObjLastKey; if (!k) return null;
       for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === k) return TYPES[i].color; return null; })();
-    return { on: b.classList.contains('on'), канвас: !!c,
-      ширина: c ? Math.round(c.getBoundingClientRect().width) : 0,
-      свечение: sh ? getComputedStyle(sh).backgroundImage : '',
-      тонВещи: (typeof t === 'number')
+    return { on: b.classList.contains('on'), canvas: !!c,
+      width: c ? Math.round(c.getBoundingClientRect().width) : 0,
+      glow: sh ? getComputedStyle(sh).backgroundImage : '',
+      itemTone: (typeof t === 'number')
         ? ((t >> 16) & 255) + ', ' + ((t >> 8) & 255) + ', ' + (t & 255) : null,
-      // ⛔ Узла названия больше нет (слово владельца 2026-08-11). Поле остаётся
-      // и обязано быть ПУСТЫМ — на нём страж «имени на экране нет»: без него
-      // возврат подписи прошёл бы молча.
-      имя: (document.getElementById('newObjName') || {}).textContent || '' };
+      // ⛔ The name node no longer exists (the owner's word 2026-08-11). The field remains
+      // and must be EMPTY — the guard «there is no name on the screen» stands on it: without it
+      // a return of the caption would pass silently.
+      name: (document.getElementById('newObjName') || {}).textContent || '' };
   },
-  freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // лесенка запаса 3+⌊ур/10⌋
+  freeShakes(lv){ return freeShakesFor(lv == null ? levelNum : lv); }, // the stock ladder 3+⌊lv/10⌋
   adsMode(){ return Ads.mode; },
-  // отладка/тесты: принудительный пересчёт доступности и её слепок
+  // debug/tests: a forced recomputation of accessibility and its snapshot
   forceRefresh(){ refreshAccessibility(); },
-  // диагностика регрессии: сон физики, мигание вуали, «висуны» в воздухе
+  // regression diagnostics: physics sleep, veil blinking, «hangers» in mid-air
   awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
   accFlips(){ return accFlips; },
-  // v1: кошелёк и звёзды (тесты экономики)
+  // v1: the wallet and the stars (economy tests)
   wallet(){ return { coins: coins(), ce: Save.ce, cs: Save.cs, hints: hints(),
     stars: Object.assign({}, Save.stars), total: totalStars(),
     starBalance: starBalance(), se: Save.se, ss: Save.ss }; },
   grant(n){ addCoins(n); updateHUD(); },
-  // ===== ЕДИНЫЙ БАЛАНС + BOOST + ОТКРЫТИЕ (контракт для ИНТЕРФЕЙСА,
-  // финализация владельца 2026-07-24: очки=звёзды=баланс=лидерборд).
-  // Все ручки честные — плейсхолдеры меню можно снимать.
-  starBalance: starBalance,       // ЕДИНОЕ число: чип, кошелёк, лидерборд-база
-  liveBalance: liveBalance,       // для ЧИПА в игре: баланс + незабанкованный счёт уровня
-  leaderboardScore: leaderboardScore, // ранг = СЫГРАННОЕ (se−max(0,ss−tu)); ниже кошелька на неистраченный tu — пополнение не поднимает ранг
-  spendStars: spendStars,         // списание с проверкой достаточности -> bool
-  onStarsChange: onStarsChange,   // подписка: {balance, earned, spent}
-  boostPrice: boostPrice,         // цена следующей ступени типа (null — кап)
-  canBoost: canBoost,             // хватает ли баланса
-  buyBoost: buyBoost,             // покупка -> {ok, price, tier, mult, balance, next}
-  boostTier: boostTier,           // сколько ступеней докуплено у типа
-  // ОТКРЫТИЕ ТИПА ЗА БАЛАНС (на закрытых карточках коллекции)
-  typeUnlockPrice: typeUnlockPrice, // цена или null (уже открыт/неизвестен)
-  canUnlockType: canUnlockType,     // хватает ли баланса
-  purchaseUnlock: purchaseUnlock,   // покупка -> {ok, price, balance}
-  starAward: starAward,           // номинал (только миграция) — оставлен для тестов
-  // тест/отладка
+  // ===== A SINGLE BALANCE + BOOST + UNLOCK (the contract for the INTERFACE,
+  // the owner's finalization 2026-07-24: points=stars=balance=leaderboard).
+  // All the handles are honest — the menu placeholders can be removed.
+  starBalance: starBalance,       // THE SINGLE number: the chip, the wallet, the leaderboard base
+  liveBalance: liveBalance,       // for the in-game CHIP: the balance + the unbanked level score
+  leaderboardScore: leaderboardScore, // the rank = WHAT WAS PLAYED (se−max(0,ss−tu)); lower than the wallet by the unspent tu — a top-up does not raise the rank
+  spendStars: spendStars,         // a write-off with a sufficiency check -> bool
+  onStarsChange: onStarsChange,   // subscription: {balance, earned, spent}
+  boostPrice: boostPrice,         // the price of the next tier of a type (null — the cap)
+  canBoost: canBoost,             // whether the balance is enough
+  buyBoost: buyBoost,             // a purchase -> {ok, price, tier, mult, balance, next}
+  boostTier: boostTier,           // how many tiers have been bought up for a type
+  // UNLOCKING A TYPE FOR BALANCE (on the locked collection cards)
+  typeUnlockPrice: typeUnlockPrice, // the price or null (already unlocked/unknown)
+  canUnlockType: canUnlockType,     // whether the balance is enough
+  purchaseUnlock: purchaseUnlock,   // a purchase -> {ok, price, balance}
+  starAward: starAward,           // the face value (migration only) — kept for the tests
+  // test/debug
   starGrant(n){ addStars(n); return starBalance(); },
-  // ПОДСКАЗКА ЗА РЕКЛАМУ — контракт с ИНТЕРФЕЙСОМ (бейдж «Ad» на кнопке):
-  // adHintAvailable() — рисовать ли ad-состояние; requestAdHint() — запустить
-  // ролик (сам showHint уже уходит в эту ветку при нуле зарядов).
+  // A HINT FOR AN AD — the contract with the INTERFACE (the «Ad» badge on the button):
+  // adHintAvailable() — whether to draw the ad state; requestAdHint() — start
+  // the clip (showHint itself already goes into this branch when there are zero charges).
   adHintAvailable: adHintAvailable,
   requestAdHint: requestAdHint,
-  spendHint: spendHint, // тест-ручка: слить заряды, чтобы проверить ad-ветку
-  // БАНДЛЫ — контракт с ИНТЕРФЕЙСОМ (экран «More Stars») и ИНТЕГРАЦИЕЙ
-  // (buyBundle зовётся ПОСЛЕ подтверждённой оплаты; сами платежи не мои).
-  buyBundle: buyBundle,               // покупка тира целиком
-  bundleState: bundleState,           // снимок для отрисовки активного
-  bundles(){ return STAR_BUNDLES.map(b => ({ ...b })); }, // витрина тиров
-  scoreBoostMult: scoreBoostMult,     // активный множитель (1 — окна нет)
-  scoreBoostLeftMs: scoreBoostLeftMs, // остаток сильнейшего тира — таймер экрана
+  spendHint: spendHint, // a test handle: drain the charges to check the ad branch
+  // BUNDLES — the contract with the INTERFACE (the «More Stars» screen) and the INTEGRATION
+  // (buyBundle is called AFTER a confirmed payment; the payments themselves are not mine).
+  buyBundle: buyBundle,               // buying a whole tier
+  bundleState: bundleState,           // a snapshot for drawing the active one
+  bundles(){ return STAR_BUNDLES.map(b => ({ ...b })); }, // the tier showcase
+  scoreBoostMult: scoreBoostMult,     // the active multiplier (1 — there is no window)
+  scoreBoostLeftMs: scoreBoostLeftMs, // the remainder of the strongest tier — the screen timer
   noAdActive: noAdActive, noAdLeftMs: noAdLeftMs,
   purchasedShakes: purchasedShakes,
-  boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // тест-ручка
-  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // тест: подделать «виденное время»
-  boostClear(){ boostClear(); return scoreBoostMult(); }, // тест: снять окна начисто
-  // СЮЖЕТ (86-story): состояние глав и ручной показ для тестов
+  boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // a test handle
+  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time»
+  boostClear(){ boostClear(); return scoreBoostMult(); }, // test: clear the windows completely
+  // THE STORY (86-story): the state of the chapters and a manual display for the tests
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),
                          due: (storyDue() || {}).id || null, busy: storyBusy, on: storyOn }; },
-  // ⚠️ АРГУМЕНТ ПРОКИНУТ (2026-08-06): без него хук ронял колбэк, и страж
-  // «анонс всегда отдаёт управление уровню» мерил бы пустоту.
+  // ⚠️ THE ARGUMENT IS PASSED THROUGH (2026-08-06): without it the hook dropped the callback, and the guard
+  // «the announcement always hands control back to the level» would measure emptiness.
   storyOnWin(done){ return storyOnWin(done); },
-  // ТЕКСТЫ ДОЛГОЙ МЕТЫ (пункт 1.3): строки и одноразовость правила
+  // THE TEXTS OF THE LONG META (item 1.3): the strings and the one-shot nature of the rule
   metaTexts(key){ return { line: accToastLine(key), saved: accSavedText(key),
                            next: accNextText(key), rule: accRuleText() }; },
   metaRuleState(){ return { due: accRuleDue(), mt: Save.mt || 0 }; },
   metaRuleMark(){ accRuleMark(); return Save.mt; },
   metaRuleReset(){ Save.mt = 0; commitSave(); },
   storyReset(){ Save.st = 0; Save.sv = 0; commitSave(); },
-  storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // тест: считать главу показанной
-  storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // тест: когда была последняя виньетка
-  storyClearAcc(){ Save.ac = {}; commitSave(); },  // тест: обнулить накопления — вехи К2-К4 считаются по ним
+  storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // test: count the chapter as shown
+  storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // test: when the last vignette was
+  storyClearAcc(){ Save.ac = {}; commitSave(); },  // test: zero the accumulations — the K2-K4 milestones are counted by them
   storyPrologueDue(){ return storyPrologueDue(); },
-  // ⚠️ ДВА РАЗНЫХ ХУКА, И РАЗНИЦА НЕСУЩАЯ: `storyWinShipped` отдаёт БОЕВУЮ
-  // константу (её утверждает страж «в поставке виньетка между уровнями
-  // выключена по слову владельца»), `storyWinForce` — рычаг автопрогона,
-  // которым секции сюжета включают механику себе, чтобы она осталась под
-  // стражами до возврата фичи. Свести их в одно значило бы дать стражу читать
-  // то, что сам сьют и выставил.
+  // ⚠️ TWO DIFFERENT HOOKS, AND THE DIFFERENCE IS LOAD-BEARING: `storyWinShipped` hands out the LIVE
+  // constant (asserted by the guard «in the shipped build the between-levels vignette
+  // is off by the owner's word»), `storyWinForce` is the auto-run lever
+  // with which the story sections switch the mechanic on for themselves, so that it stays under
+  // the guards until the feature returns. Merging them into one would mean letting the guard read
+  // what the suite itself has set.
   storyWinShipped(){ return STORY_WIN_VIGNETTE; },
   storyWinForce(v){ return storyWinForceSet(v); },
-  storyPrologueSpy(cb){ return storyPrologue(cb); }, // тест: проверить, что колбэк зовётся
+  storyPrologueSpy(cb){ return storyPrologue(cb); }, // test: check that the callback is called
   storyPrologueNow(){ Save.st = 0; commitSave(); return new Promise(r => storyPrologue(() => r(true))); },
   storyClose(){ const b = document.getElementById('storyOverlay');
     if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
-  storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // тест: имена типов с пачкой
+  storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // test: the names of the types that have a pack
   storyPackOf(name){ const t = TYPES.find(x => x.name === name); return t ? t.tex : null; },
   storyFullSet(){ return stFullSet(); },
-  storyFillSet(){ // тест: добрать самую маленькую годную пачку до полного зала
+  storyFillSet(){ // test: top up the smallest suitable pack to a full hall
     const by = {}; for (const t of TYPES) if (t.tex) (by[t.tex] = by[t.tex] || []).push(t.name);
     let best = null;
     for (const k in by) if (by[k].length >= 4 && (!best || by[k].length < by[best].length)) best = k;
-    if (best) by[best].forEach(n => accAdd(n, 1, null)); // accGrant — метод __game, глобальная точка это accAdd
+    if (best) by[best].forEach(n => accAdd(n, 1, null)); // accGrant is a __game method, the global entry point is accAdd
     return best;
   },
-  storyEnable(v){ storyEnable(v); }, // тест: глушить сюжет на механических секциях
+  storyEnable(v){ storyEnable(v); }, // test: mute the story on the mechanical sections
   bankScore(n){ return bankLevelScore(n); },
-  addScore(n){ stats.score += n | 0; return stats.score; }, // тест: подвинуть живой счёт уровня // тест деноминации банка счёта
-  scoreShownDenom: scoreShownDenom,          // #10: деноминир. показ счёта (чип и попы — одна шкала)
-  // ⚠️⚠️ ТЕСТ-ХУК ПРЕДПОСЫЛКИ КЛАДА, И ОН ЗАВЕДЁН ПО ЗАМЕРУ, А НЕ ДЛЯ УДОБСТВА.
-  // Гейт рыбки требует «прокачена хоть одна вещь». Честный путь (заработать →
-  // `buyBoost`) СЛОМАЛ ДЕВЯТЬ соседних стражей: покупка НАВСЕГДА поднимает
-  // ступень типа, который они меряют поимённо, а пополнение баланса ломает
-  // формат чипа (`88.2k` против `88208`). Это ровно канонный случай «страж,
-  // приводя состояние, ломает соседей по странице».
-  // ⛔ Поэтому ставим РОВНО названное владельцем условие и ничего больше: одна
-  // купленная ступень на ПОСЛЕДНЕМ типе пула — его не меряет ни один страж.
-  // Баланс не трогается, чужие ступени не трогаются.
+  addScore(n){ stats.score += n | 0; return stats.score; }, // test: move the live level score // test of the score bank denomination
+  scoreShownDenom: scoreShownDenom,          // #10: denominated score display (the chip and the pops are one scale)
+  // ⚠️⚠️ A TEST HOOK FOR THE TREASURE PRECONDITION, AND IT WAS STARTED FROM A MEASUREMENT, NOT FOR CONVENIENCE.
+  // The fish gate requires «at least one item has been boosted». The honest path (earn →
+  // `buyBoost`) BROKE NINE neighbouring guards: a purchase raises FOREVER
+  // the tier of the type they measure by name, and topping up the balance breaks
+  // the chip format (`88.2k` against `88208`). This is exactly the canonical case «a guard,
+  // while bringing the state about, breaks its neighbours on the page».
+  // ⛔ That is why we set EXACTLY the condition the owner named and nothing more: one
+  // purchased tier on the LAST type of the pool — not a single guard measures it.
+  // The balance is not touched, other tiers are not touched.
   boostGrantForSurprise(){ const t = TYPES[TYPES.length - 1];
     Save.bo = Save.bo || {}; Save.bo[t.name] = Math.max(1, Save.bo[t.name] | 0);
-    commitSave(); return { тип: t.name, естьБуст: anyBoostBought() }; },
-  clearBought(){ Save.uk = {}; commitSave(); }, // тест: сбросить купленные разлоки (изоляция прогрессионного ассерта)
+    commitSave(); return { type: t.name, hasBoost: anyBoostBought() }; },
+  clearBought(){ Save.uk = {}; commitSave(); }, // test: reset the purchased unlocks (isolating the progression assert)
   starMigrate(){ return migrateStarsToWallet(); },
   saveRaw(){ return JSON.parse(JSON.stringify(Save)); },
   mergeRaw(o){ mergeSave(Save, o); commitSave(); return starBalance(); },
-  // НАКОПЛЕНИЕ ПО ТИПАМ (спека владельца 2026-07-22) — контракт для
-  // ИНТЕРФЕЙСА (вкладка «Музей объектов» + всплывашка апа) и тестов;
-  // сама функция глобальная в 77-save (85-hud подхватывает по typeof)
+  // ACCUMULATION BY TYPE (the owner's spec 2026-07-22) — the contract for
+  // the INTERFACE (the «Museum of objects» tab + the tier-up popup) and for the tests;
+  // the function itself is global in 77-save (85-hud picks it up by typeof)
   accSnapshot(){ return accSnapshot(); },
-  // ОТКРЫТОСТЬ ТИПОВ прогрессией (контракт для ГРАФИКИ: портрет только
-  // открытым). Правило единое с genLevel; accSnapshot() уже несёт поле
-  // `unlocked` per-тип, эти ручки — для прямых запросов/тестов.
-  unlockedTypes: unlockedTypes,       // -> [type.name] открытых по достигнутому уровню
+  // TYPE UNLOCKING by progression (the contract for GRAPHICS: a portrait only for
+  // unlocked ones). The rule is the same as in genLevel; accSnapshot() already carries the
+  // `unlocked` field per type, these handles are for direct queries/tests.
+  unlockedTypes: unlockedTypes,       // -> [type.name] of those unlocked by the reached level
   isTypeUnlocked: isTypeUnlocked,     // (name) -> bool
   accGrant(name, n){ accAdd(name, n, null); return { count: accCount(name), tier: accTier(name), mult: accMult(name), next: accNext(name) }; },
-  onAccTierUp: onAccTierUp, // подписка на ап ступени ({name, tier, mult, item})
-  // тесты баланса: форс уровня (правила штрафов зависят от levelNum)
-  setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} }, // Save.lv тут НЕ трогаем: это тестовая ручка, а не прогресс игрока
-  // ⚠️ ТЕСТ-ХУК, НЕ ВРЕМЕННЫЙ — НЕ УДАЛЯТЬ (метка «ВРЕМЕННО, удалю после
-  // бейка» висела здесь ошибочно и чуть не привела к сносу 2026-07-27).
-  // На нём стоит ЕДИНСТВЕННЫЙ страж инварианта «поза статики и спина — ОДИН
-  // источник» (сам инвариант — в CLAUDE.md: развести нельзя, иначе скачок при
-  // подмене img→канвас на hover). Ассерт сьюта МЕНЯЕТ позу этим хуком и ждёт,
-  // что спин стартует с новой. ПОЧЕМУ БЕЗ МУТАЦИИ НЕЛЬЗЯ: статика и спин
-  // читают ОДНУ переменную PORTRAIT_YAW0 — любой getter вернул бы её дважды,
-  // и сверка «getter против getter» была бы пуста и зелена всегда. Мутация и
-  // ЕСТЬ проверка. ГРАФИКА доказала симуляцией (дала спину свою копию yaw):
-  // ассерт упал — startAngle −0.6 вместо 0.2; вернули общую — снова 0.2.
-  // Рамку стережёт отдельный thumbFrames, а ПОЗУ — только этот хук.
-  // Сменить позу + сбросить thumbCache, чтобы портрет переснялся.
+  onAccTierUp: onAccTierUp, // subscription to a tier-up ({name, tier, mult, item})
+  // balance tests: forcing the level (the penalty rules depend on levelNum)
+  setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} }, // we do NOT touch Save.lv here: this is a test handle, not the player's progress
+  // ⚠️ A TEST HOOK, NOT A TEMPORARY ONE — DO NOT DELETE (the label «TEMPORARY, I will remove it after
+  // the bake» hung here by mistake and almost led to its demolition 2026-07-27).
+  // On it stands the ONLY guard of the invariant «the pose of the still and of the spin is ONE
+  // source» (the invariant itself is in CLAUDE.md: they must not be split, otherwise there is a jump when
+  // img→canvas is substituted on hover). The suite assert CHANGES the pose with this hook and expects
+  // the spin to start from the new one. WHY IT IS IMPOSSIBLE WITHOUT A MUTATION: the still and the spin
+  // read ONE variable PORTRAIT_YAW0 — any getter would return it twice,
+  // and a check of «getter against getter» would be empty and green always. The mutation IS
+  // the check. GRAPHICS proved it by simulation (gave the spin its own copy of yaw):
+  // the assert fell — startAngle −0.6 instead of 0.2; the shared one was returned — 0.2 again.
+  // The frame is guarded by a separate thumbFrames, and the POSE — only by this hook.
+  // Change the pose + reset thumbCache, so that the portrait is re-shot.
   setPortraitPose(tx, yaw){ PORTRAIT_TILT_X = tx; PORTRAIT_YAW0 = yaw;
     for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
-  // статический портрет как data-URL (проба/сьют): ghost=true -> гхост-режим
+  // the static portrait as a data-URL (probe/suite): ghost=true -> ghost mode
   thumbURL(key, ghost){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it) : null; },
-  // РЕГРЕССИЯ #3 (спека владельца 2026-07-24 «размер при hover = размер статики»):
-  // статика (itemThumb) и спин ДОЛЖНЫ кадрировать ОДНИМ frameCylinder — иначе
-  // на hover подмена img->канвас шринкает объект. Хук фреймит обе камеры ПРЯМО
-  // (мимо кэша itemThumb) на одном меше и сверяет ширины ортокамер бит-в-бит.
-  // Сьют ассертит equal===true; если кто-то ужмёт itemThumb обратно по силуэту —
-  // ассерт покраснеет. Лёгкий (без рендера/readback).
+  // REGRESSION #3 (the owner's spec 2026-07-24 «the size on hover = the size of the still»):
+  // the still (itemThumb) and the spin MUST frame with ONE frameCylinder — otherwise
+  // on hover the img->canvas substitution shrinks the object. The hook frames both cameras DIRECTLY
+  // (bypassing the itemThumb cache) on one mesh and compares the ortho camera widths bit for bit.
+  // The suite asserts equal===true; if somebody shrinks itemThumb back to the silhouette —
+  // the assert will go red. Lightweight (without a render/readback).
   thumbFrames(key){
     const it = thumbItemForKey(key); if (!it) return null;
-    if (!thumbR) itemThumb(it); // поднять thumbCam/thumbR
+    if (!thumbR) itemThumb(it); // bring up thumbCam/thumbR
     ensureSpinR();
     thumbCam.updateMatrixWorld(true);
     const m1 = new THREE.Mesh(it.mesh.geometry, it.mesh.material); m1.scale.copy(it.mesh.scale);
@@ -1577,25 +1577,25 @@ window.__game = {
     const tW = thumbCam.right - thumbCam.left, sW = spinCam.right - spinCam.left;
     return { thumbW: +tW.toFixed(4), spinW: +sW.toFixed(4), equal: Math.abs(tW - sW) < 1e-4 };
   },
-  // ДЕБАГ ГРАФИКИ (вращение портрета, 2026-07-24): мост к thumb-машинерии
-  // 85-hud. thumbSpinKey резолвит ключ->портрет-меш и монтирует спин в host
-  // (item через границу page.evaluate не передать). buildAllThumbs — перф
-  // варианта B: время построения портретов всех открытых типов.
+  // GRAPHICS DEBUG (portrait rotation, 2026-07-24): a bridge to the thumb machinery of
+  // 85-hud. thumbSpinKey resolves key->portrait mesh and mounts the spin into host
+  // (an item cannot be passed across the page.evaluate boundary). buildAllThumbs is the perf of
+  // variant B: the build time of the portraits of all unlocked types.
   thumbSpinKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; if (it && host) thumbSpinStart(it, host); return !!(it && host); },
-  // TAP=HOVER (#4): тап-обработчик интерфейса. Резолв ключ->портрет + host по
-  // селектору, дальше toggle (см. thumbSpinToggle в 85-hud). Возвращает,
-  // крутится ли карточка после вызова.
+  // TAP=HOVER (#4): the interface's tap handler. Resolving key->portrait + host by
+  // a selector, then a toggle (see thumbSpinToggle in 85-hud). It returns whether
+  // the card is spinning after the call.
   thumbSpinToggleKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; return (it && host) ? thumbSpinToggle(it, host) : false; },
   thumbSpinStop, thumbSpinToggle, thumbItemForKey,
-  // ⚠️ 2026-08-13: сюда добавлены auto/px для стражей экрана новой вещи.
-  // Я успел завести ВТОРОЙ spinState и наступить на записанную граблю «дубль
-  // ключа в __game молча съедает хук» (победил этот, дальний по файлу) —
-  // проба показала чужие поля вместо моих. Грепать имя ПЕРЕД добавлением.
+  // ⚠️ 2026-08-13: auto/px were added here for the guards of the new-item screen.
+  // I managed to start a SECOND spinState and step on the written-down rake «a duplicate
+  // key in __game silently eats the hook» (this one won, the later one in the file) —
+  // the probe showed somebody else's fields instead of mine. Grep the name BEFORE adding.
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
     auto: spinAuto, px: (spinR ? spinR.domElement.width : 0), tilt: +spinTilt.toFixed(3),
     mounted: !!(spinR && spinR.domElement.parentNode),
-    // ширина ортокамеры: Y-инвариантная рамка ставится ОДИН раз -> константна
-    // весь спин (пересчёт = «дыхание»). Округляю грубо, чтобы не ловить эпсилон.
+    // the ortho camera width: the Y-invariant frame is set ONCE -> it is constant
+    // for the whole spin (a recomputation = «breathing»). I round coarsely, so as not to catch an epsilon.
     camW: spinCam ? +(spinCam.right - spinCam.left).toFixed(4) : 0 }; },
   buildAllThumbs(n){
     const rows = (typeof accSnapshot === 'function') ? accSnapshot() : [];
@@ -1603,35 +1603,35 @@ window.__game = {
     for (let i = 0; i < lim; i++){ const it = thumbItemForKey(rows[i].key); if (it && itemThumb(it)) built++; }
     return { built, total: lim };
   },
-  // ДЕБАГ ГРАФИКИ (осколки, полировка 2026-07-23): выстрелить shardFX над
-  // кучей — скрин визуала и перф-замер (реальный бурст/помол собрать
-  // детерминированно тяжело: burstFX нужна пачка >=4, помол хука не имеет).
-  // Мост к эффекту 70-fx, поведение (burstFX/grindShred) не трогает.
+  // GRAPHICS DEBUG (shards, polish 2026-07-23): fire shardFX above
+  // the pile — a visual screenshot and a perf measurement (assembling a real burst/grinding
+  // deterministically is hard: burstFX needs a pack of >=4, grinding has no hook).
+  // A bridge to the 70-fx effect, it does not touch behaviour (burstFX/grindShred).
   shardBurst(n, opts){
     opts = opts || {};
     const c = new THREE.Color(opts.color != null ? opts.color : 0x4a6cff);
-    const y = opts.y != null ? opts.y : FUNNEL.H + 2; // по умолчанию над кромкой — чистое небо
+    const y = opts.y != null ? opts.y : FUNNEL.H + 2; // by default above the rim — clear sky
     shardFX(new THREE.Vector3(opts.x || 0, y, opts.z || 0), c,
       Object.assign({ count: n || 10, up: 4, spread: 2.6, size: 0.18, life: 0.6 }, opts));
     wakePhysics('shardTest');
     return fx.length;
   },
-  // ⚠️ ХУК НЕСУЩИЙ: на нём единственная защита «свет один на игру». Читается
-  // ПОСЛЕ shardBurst — тогда это свет, которым скол УЖЕ запечён, а не тот,
-  // которым запёкся бы. Уберут syncShardLight из makeShardGeo (свет снова
-  // станет снимком на старте) или вернут вторую константу — здесь останется
-  // старое значение, страж покраснеет. Снести хук = тихо снять стража.
+  // ⚠️ A LOAD-BEARING HOOK: on it stands the only protection «one light per game». It is read
+  // AFTER shardBurst — then it is the light the chip is ALREADY baked with, and not the one
+  // it would have been baked with. If somebody removes syncShardLight from makeShardGeo (the light again
+  // becomes a snapshot at startup) or brings back the second constant — the old value will stay
+  // here, the guard will go red. Demolishing the hook = quietly removing the guard.
   shardLight(){ return SHARD_LIGHT.toArray().map(v => +v.toFixed(3)); },
-  // ⚠️⚠️ ФОРМЫ ЖИВЫХ ОСКОЛКОВ — ПОДПИСЬ БУФЕРА КАЖДОГО, а не их количество.
-  // Инвариант ГРАФИКИ: «каждый скол уникален» (углы тетраэдра сдвинуты ±38%,
-  // тинт печётся по нормали грани). Стерёг его до сих пор ТОЛЬКО счётчик
-  // геометрий сцены, а он доказывает, что геометрии СОЗДАВАЛИСЬ, — не что
-  // формы РАЗНЫЕ: регрессия «одна форма на весь залп через новый объект
-  // геометрии» прошла бы мимо него зелёной. Здесь читается содержимое.
-  // ⚠️ Понадобится и как предусловие пула буферов: под пулом счётчик
-  // геометрий перестаёт расти по построению (декремент живёт только в
-  // onGeometryDispose), то есть старый страж покраснеет на ВЕРНОЙ правке —
-  // заменять его надо этим, а не ослаблять порог.
+  // ⚠️⚠️ THE SHAPES OF THE LIVE SHARDS — THE SIGNATURE OF EACH ONE'S BUFFER, and not their count.
+  // The GRAPHICS invariant: «every chip is unique» (the tetrahedron corners are shifted by ±38%,
+  // the tint is baked by the face normal). Until now it was guarded ONLY by the counter of
+  // the scene's geometries, and that one proves that geometries WERE CREATED — not that
+  // the shapes are DIFFERENT: the regression «one shape for the whole volley through a new geometry
+  // object» would have passed it green. Here the contents are read.
+  // ⚠️ It will be needed as a precondition of a buffer pool too: under a pool the geometry
+  // counter stops growing by construction (the decrement lives only in
+  // onGeometryDispose), that is, the old guard will go red on a CORRECT edit —
+  // it must be replaced by this one, and not weakened in its threshold.
   shardShapes(){
     const out = [];
     for (const f of fx){
@@ -1640,9 +1640,9 @@ window.__game = {
       const p = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
       const c = o.geometry && o.geometry.attributes && o.geometry.attributes.color;
       if (!p) continue;
-      // подпись: сумма и сумма квадратов координат + первый тинт. Двух разных
-      // сколов с совпадающей парой сумм не бывает практически, а сравнивать
-      // массивы целиком через мост в тест дорого и шумно.
+      // the signature: the sum and the sum of the squares of the coordinates + the first tint. Two different
+      // chips with a matching pair of sums practically do not happen, while comparing
+      // whole arrays across the bridge into the test is expensive and noisy.
       let s = 0, q = 0;
       for (let i = 0; i < p.array.length; i++){ s += p.array[i]; q += p.array[i]*p.array[i]; }
       out.push({ n: p.array.length, s: +s.toFixed(6), q: +q.toFixed(6),
@@ -1650,28 +1650,28 @@ window.__game = {
     }
     return out;
   },
-  // КАЛИБРОВКА ЗВЁЗД: экранные координаты ЛУЧШЕЙ доступной группы
-  // (findHintGroup — тот же поиск, что у подсказки). Нужно ботам, которые
-  // ходят РЕАЛЬНЫМИ тапами: findByTex отдаёт любой предмет пачки, часто без
-  // пары в радиусе, и такой тап штрафуется как промах (замер показал 85%
-  // промахов) — человек же бьёт по видимой группе. Только для тестов.
-  // mode 'any' — СЛУЧАЙНАЯ валидная группа (модель обычного игрока: он бьёт
-  // по первой замеченной паре, а не сканирует чашу в поисках максимума);
-  // без аргумента — ЛУЧШАЯ группа (модель внимательного игрока). Разброс
-  // между этими двумя моделями и есть коридор, в котором живут пороги звёзд.
-  // ручки качества для тестов и замеров
+  // STAR CALIBRATION: the screen coordinates of the BEST accessible group
+  // (findHintGroup — the same search as the hint's). It is needed by bots that
+  // walk with REAL taps: findByTex hands out any item of a pack, often without
+  // a pair within the radius, and such a tap is penalized as a miss (the measurement showed 85%
+  // misses) — whereas a human hits a visible group. For tests only.
+  // mode 'any' — a RANDOM valid group (the model of an ordinary player: he hits
+  // the first pair he notices, and does not scan the bowl looking for the maximum);
+  // without an argument — the BEST group (the model of an attentive player). The spread
+  // between these two models is exactly the corridor the star thresholds live in.
+  // quality handles for the tests and the measurements
   perfTier(){ return { tier: CFG.perfTier, dpr: renderer.getPixelRatio(), fx: CFG.fxScale,
     shadows: renderer.shadowMap.enabled, decided: perfDecided }; },
   setPerfTier(t){ if (t !== 'low') return false;
-    const ok = applyPerfTier('low'); if (ok) resize(); return ok; },  // resize — см. tickPerfTier
+    const ok = applyPerfTier('low'); if (ok) resize(); return ok; },  // resize — see tickPerfTier
   bestTapTarget(mode){
     refreshAccessibility();
     const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
-    // ⚠️ ГРУППА СЧИТАЕТСЯ ВОКРУГ КОНКРЕТНОГО ЯКОРЯ — ровно так, как её
-    // пересоберёт handleTap, ВКЛЮЧАЯ кап. pairMatch — это БЛИЗОСТЬ (зазор <=
-    // matchRadius), а НЕ класс эквивалентности: у соседа по цепочке набор
-    // соседей свой. Поэтому «n от одного предмета, пиксель от другого» врёт —
-    // ревью v157 замерило: 9 тапов из 14 уносили не то число, что обещано.
+    // ⚠️ THE GROUP IS COMPUTED AROUND A CONCRETE ANCHOR — exactly the way
+    // handleTap will reassemble it, INCLUDING the cap. pairMatch is PROXIMITY (a gap <=
+    // matchRadius), and NOT an equivalence class: a neighbour along the chain has its own set
+    // of neighbours. That is why «n from one item, the pixel from another» lies —
+    // the review v157 measured: 9 taps out of 14 took away a number other than the promised one.
     const groupAround = (it) => {
       let g = acc.filter(o => o !== it && o.key === it.key && pairMatch(o, it));
       const raw = g.length + 1;
@@ -1684,29 +1684,29 @@ window.__game = {
     const cands = [];
     for (const it of acc){ const g = groupAround(it); if (g.n > 1) cands.push({ it, n: g.n, raw: g.raw }); }
     if (!cands.length) return null;
-    // mode 'any' — СЛУЧАЙНЫЙ порядок (модель обычного игрока: бьёт по первой
-    // замеченной паре); без аргумента — сперва САМЫЕ КРУПНЫЕ группы (модель
-    // внимательного игрока). Разброс двух моделей и есть коридор порогов звёзд.
+    // mode 'any' — a RANDOM order (the model of an ordinary player: he hits the first
+    // pair he notices); without an argument — the BIGGEST groups first (the model of
+    // an attentive player). The spread of the two models is exactly the corridor of the star thresholds.
     if (mode === 'any') for (let i = cands.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t;
     } else cands.sort((a, b) => b.raw - a.raw);
-    // ⚠️ ПЕРЕБИРАЕМ ВСЕХ КАНДИДАТОВ, а не одну группу: доступность считается
-    // лучами В НЕБО, а пиксель — лучом ОТ КАМЕРЫ, и предмет бывает доступен,
-    // но закрыт соседом. Первая версия v157 сдавалась на первой же закрытой
-    // группе и отдавала null при сотне живых пар (замер ревью: дефолтный режим
-    // возвращал null на ур.5/10/20, хотя 31-40 из 60 групп были видимы), а
-    // ассерт капа молча уходил в «пропуск». Как findByTex — идём до упора.
+    // ⚠️ WE GO THROUGH ALL THE CANDIDATES, and not one group: accessibility is computed
+    // by rays INTO THE SKY, while the pixel is by a ray FROM THE CAMERA, and an item is sometimes accessible
+    // but covered by a neighbour. The first version of v157 gave up on the very first covered
+    // group and returned null with a hundred live pairs (the review measurement: the default mode
+    // returned null at lv.5/10/20, although 31-40 of 60 groups were visible), and
+    // the cap assert silently went into «skipped». Like findByTex — we go to the end.
     const ctx = pickCtx();
     for (const c of cands){
       const px = visiblePixel(c.it, ctx);
-      // n — размер того матча, который РЕАЛЬНО соберётся вокруг отданного
-      // пикселя (с капом); raw — тот же матч ДО капа, по нему видно, сработал
-      // ли кап вообще (нужно ассерту сьюта, иначе он проверяет пустоту).
+      // n — the size of the match that will REALLY assemble around the returned
+      // pixel (with the cap); raw — the same match BEFORE the cap, by it one can see whether
+      // the cap worked at all (needed by the suite assert, otherwise it checks emptiness).
       if (px) return Object.assign({ n: c.n, raw: c.raw, name: c.it.type.name }, px);
     }
-    return { n: 0, occluded: true };   // группы есть, но все закрыты от камеры
+    return { n: 0, occluded: true };   // there are groups, but all of them are hidden from the camera
   },
-  // тест множителя: сматчить пару КОНКРЕТНОГО типа (доступную и в радиусе)
+  // multiplier test: match a pair of a SPECIFIC type (accessible and within the radius)
   matchType(name){
     refreshAccessibility();
     const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && i.type.name === name);
@@ -1714,7 +1714,7 @@ window.__game = {
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;
   },
-  // индекс живого предмета типа — для адресных ручек (ignite и т.п.)
+  // the index of a live item of a type — for the addressed handles (ignite and the like)
   indexByType(name){
     for (let i = 0; i < items.length; i++){
       const it = items[i];
@@ -1722,18 +1722,18 @@ window.__game = {
     }
     return -1;
   },
-  // живые по типам (независимая проверка пар-скора в тестах)
+  // live ones by type (an independent check of the par score in the tests)
   aliveByType(){
     const m = {};
     for (const it of items) if (it.alive && !it.surprise && !it.bomb) m[it.type.name] = (m[it.type.name] || 0) + 1;
     return m;
   },
-  // диагностика зависших удалений (найдено пробой v218: doMatch отработал,
-  // а removeItem не случился — см. разбор в журнале)
+  // diagnostics of stuck removals (found by the probe v218: doMatch did its work,
+  // while removeItem did not happen — see the analysis in the journal)
   isPaused(){ return paused; },
   animCount(){ let k = 0; for (const it of items) if (it.alive && it.animating) k++; return k; },
-  // ПАКЕТ ТЕМПА — API для глаз Интерфейса (спека владельца: показ темпа
-  // ТОЛЬКО глазами, шкалы нет). mult читает ТУ ЖЕ seriesMult, что и деньги.
+  // THE TEMPO PACKAGE — the API for the Interface's eyes (the owner's spec: the tempo is shown
+  // ONLY by the eyes, there is no bar). mult reads THE SAME seriesMult as the money does.
   series(){
     const n = performance.now();
     const active = comboUntil > n;
@@ -1748,10 +1748,10 @@ window.__game = {
     return { hot: comboUntil > n, count: comboCount, level: comboLevel, chain: chainUntil > n, series: chainSeries, radius: +CFG.matchRadius.toFixed(2),
       top: +top.toFixed(2), airborne, nextDropIn: chainUntil ? Math.round(chainNextDrop - n) : null };
   },
-  // ДЕБАГ ГРАФИКИ (густота молний, 2026-07-28): непрерывно сыпать разряды между
-  // верхними предметами ms миллисекунд. Нужен потому, что молния живёт 0.16 с —
-  // случайный скрин ловит её как повезёт, и «стало ли гуще» на глаз не проверить.
-  // Мост к boltFX (70-fx), поведение цепи/турбо не трогает. Как shardBurst у осколков.
+  // GRAPHICS DEBUG (lightning density, 2026-07-28): continuously pour discharges between
+  // the top items for ms milliseconds. It is needed because a lightning lives 0.16 s —
+  // a random screenshot catches it as luck has it, and «has it become denser» cannot be checked by eye.
+  // A bridge to boltFX (70-fx), it does not touch the chain/turbo behaviour. Like shardBurst for the shards.
   boltProbe(ms){
     const top = items.filter(i => i.alive && !i.animating).sort((a,b) => b.p.y - a.p.y).slice(0, 24);
     if (top.length < 4) return 0;
@@ -1766,61 +1766,61 @@ window.__game = {
     return top.length;
   },
   psLog(){ return psLog.slice(); },
-  // ⚙️ ЭФФЕКТЫ ВЫБОРА ВЛАДЕЛЬЦА 2026-08-01 — отладка и стражи.
-  // ⚠️ У ОГНЯ ПОКА НЕТ ИГРОВОГО ТРИГГЕРА: владелец одобрил ВИД («покажи, как он
-  // может прям гореть»), но когда именно предмет загорается — отдельная спека,
-  // её нет. До неё огонь живёт функцией и этой ручкой, а не механикой.
-  // ⚙️ ГОРЯЩИЙ ПРЕДМЕТ: стык для бонуса (зона диспетчера) и ручки для стражей
+  // ⚙️ THE EFFECTS OF THE OWNER'S CHOICE 2026-08-01 — debug and guards.
+  // ⚠️ THE FIRE HAS NO GAME TRIGGER YET: the owner approved the LOOK («show how it
+  // can really burn»), but exactly when an item catches fire is a separate spec,
+  // and there is none. Until then the fire lives as a function and this handle, not as a mechanic.
+  // ⚙️ THE BURNING ITEM: the seam for the bonus (the dispatcher's zone) and the handles for the guards
   burning(){ return burningName(); },
-  // ⚠️ ИНДЕКС ГОРЯЩЕГО — ДЛЯ СТРАЖА «выбор жертвы реально меняется». Прежде он
-  // мерил разнообразие ТИПОВ, но ломается-то ВЫБОР ПРЕДМЕТА (extinguishAll не
-  // чистил burningItem — планировщик держал один и тот же). После правки
-  // владельца LEVEL_TYPES_MIN 9→3 типов на уровне стало втрое меньше, и повтор
-  // ТИПА пошёл сам по себе: страж краснел на исправной сборке. Индекс от числа
-  // типов не зависит.
-  // ⚠️ ИНДЕКС ГОРЯЩЕГО — ДЛЯ СТРАЖА «выбор жертвы реально меняется». Прежде он
-  // мерил разнообразие ТИПОВ, но ломается-то ВЫБОР ПРЕДМЕТА (extinguishAll не
-  // чистил burningItem — планировщик держал один и тот же). После правки
-  // владельца LEVEL_TYPES_MIN 9→3 типов на уровне стало втрое меньше, и повтор
-  // ТИПА пошёл сам по себе: страж краснел на исправной сборке. Индекс от числа
-  // типов не зависит. Ссылку берём ИЗ 70-fx, а не угадываем по признакам меша.
+  // ⚠️ THE INDEX OF THE BURNING ONE — FOR THE GUARD «the choice of the victim really changes». Before, it
+  // measured the variety of TYPES, but what breaks is THE CHOICE OF THE ITEM (extinguishAll did not
+  // clear burningItem — the scheduler kept one and the same). After the owner's
+  // edit LEVEL_TYPES_MIN 9→3 there are three times fewer types on a level, and a repeat of
+  // the TYPE started happening by itself: the guard went red on a healthy build. The index does not depend on
+  // the number of types.
+  // ⚠️ THE INDEX OF THE BURNING ONE — FOR THE GUARD «the choice of the victim really changes». Before, it
+  // measured the variety of TYPES, but what breaks is THE CHOICE OF THE ITEM (extinguishAll did not
+  // clear burningItem — the scheduler kept one and the same). After the owner's
+  // edit LEVEL_TYPES_MIN 9→3 there are three times fewer types on a level, and a repeat of
+  // the TYPE started happening by itself: the guard went red on a healthy build. The index does not depend on
+  // the number of types. We take the reference FROM 70-fx, and do not guess by the mesh's signs.
   burningIndex(){ const it = burningItemRef(); return it ? items.indexOf(it) : -1; },
-  fireSoon(){ fireNextMs = performance.now() + 120; }, // тест: не ждать FIRE_EVERY_MS
-  faceState(){ return faceHold || faceState; }, // тест: какое лицо ДЕРЖИТСЯ (реакция поверх состояния)
-  refreshAcc(){ refreshAccessibility(); }, // тест: свежий пересчёт доступности (кэш живёт только при движении)
-  // ЧАША-РАЗЛЁТ (прототип v2): стенд и стражи
+  fireSoon(){ fireNextMs = performance.now() + 120; }, // test: do not wait for FIRE_EVERY_MS
+  faceState(){ return faceHold || faceState; }, // test: which face is HELD (a reaction on top of the state)
+  refreshAcc(){ refreshAccessibility(); }, // test: a fresh recomputation of accessibility (the cache lives only while there is movement)
+  // THE BOWL SHATTER (v2 prototype): the bench and the guards
   bowl(){ return bowlState(); },
-  bowlCrack(){ bowlCrackAdd(); return bowlState(); },   // та же точка, что у турбо
+  bowlCrack(){ bowlCrackAdd(); return bowlState(); },   // the same entry point as turbo's
   bowlShatterNow(){ if (level && !level.over){ level.bowlCracks = bowlN(); shatterBowl(); } return bowlState(); },
   bowlSetN(n){ bowlNRuntime = Math.max(0, n|0); return bowlN(); },
   walls(){ return wallsCount(); },
   slowmoLeft(){ return Math.max(0, Math.round(slowmoUntil - performance.now())); },
   fireDue(ms){ if (ms != null) fireNextMs = performance.now() + ms; return fireNextMs; },
   ignite(i){
-    // без индекса — САМЫЙ ВЕРХНИЙ живой: нулевой это сюрприз на дне, и огонь
-    // на нём не виден вовсе (поймано первым же скрином при переносе)
+    // without an index — the TOPMOST live one: number zero is the surprise at the bottom, and the fire
+    // is not visible on it at all (caught by the very first screenshot during the port)
     let it = i != null ? items[i] : null;
     if (!it){
       for (const c of items) if (c.alive && !c.surprise && (!it || c.p.y > it.p.y)) it = c;
     }
     if (!it || !it.alive) return null;
-    // ⚠️ ЧЕРЕЗ МЕХАНИКУ, не голым эффектом (ловля стража бонуса v232): ручка
-    // осталась от переноса эффектов и звала fireSilhouetteFX напрямую —
-    // burningItem не ставился, бонус и «горит ровно один» её не видели.
+    // ⚠️ THROUGH THE MECHANIC, not with a bare effect (caught by the bonus guard v232): the handle
+    // was left over from the effects port and called fireSilhouetteFX directly —
+    // burningItem was not set, the bonus and «exactly one burns» did not see it.
     igniteItem(it);
     return { type: it.type && it.type.name, fires: fires.length };
   },
   extinguish(){ extinguishAll(); return fires.length; },
   firesN(){ return fires.length; },
-  // срез для стражей переноса: жива ли ОБЩАЯ геометрия типа после распила и
-  // не оброс ли предмет чужими детьми (огонь обязан быть накладкой-ребёнком,
-  // а не правкой материала — иначе просочится в портреты коллекции)
+  // a slice for the port guards: is the SHARED geometry of the type alive after the cut and
+  // has the item grown somebody else's children (the fire must be an overlay child,
+  // and not an edit of the material — otherwise it will seep into the collection portraits)
   fxProbe(){
-    // ⚠️ ДЕТИ СЧИТАЮТСЯ ПО ПРЕДМЕТАМ, А ГЕОМЕТРИЯ — ПО ТИПАМ, И ЭТО РАЗНЫЕ
-    // ВЫБОРКИ. Первая версия складывала всё в карту по имени типа — и предмет
-    // с накладкой огня ЗАТИРАЛСЯ другим предметом того же типа: страж честно
-    // печатал «предметов с детьми 0» при горящем предмете. Классика «метрика
-    // правдоподобна, но меряет не то».
+    // ⚠️ THE CHILDREN ARE COUNTED BY ITEMS, AND THE GEOMETRY — BY TYPES, AND THESE ARE DIFFERENT
+    // SAMPLES. The first version put everything into a map keyed by the type name — and the item
+    // with the fire overlay WAS OVERWRITTEN by another item of the same type: the guard honestly
+    // printed «items with children 0» while an item was burning. A classic «the metric
+    // is plausible, but measures the wrong thing».
     const byType = {};
     let kidsTotal = 0, kidsMax = 0;
     for (const it of items){
@@ -1830,27 +1830,27 @@ window.__game = {
       if (!it.type) continue;
       const g = it.mesh.geometry, a = g && g.attributes && g.attributes.position;
       const v = a ? a.count : 0;
-      // по типу держим ХУДШЕЕ: если хоть у одного предмета типа геометрия
-      // умерла, тип обязан считаться мёртвым
+      // per type we keep the WORST: if the geometry of even one item of the type
+      // has died, the type must be counted as dead
       if (!(it.type.name in byType) || v < byType[it.type.name]) byType[it.type.name] = v;
     }
-    // ⚠️ СЧИТАЕМ САМИ ПОЛОВИНЫ ПО МЕТКЕ, А НЕ КОСВЕННЫЙ ИТОГ. Страж «объектов
-    // сцены не стало больше» дважды оказался тавтологичным: при диверсии
-    // (половины не убираются) число случайно совпадало с исправным, потому что
-    // одновременно уходили перемолотые предметы. Метка keepGeo есть ТОЛЬКО у
-    // половин распила — их и считаем поимённо.
+    // ⚠️ WE COUNT THE HALVES THEMSELVES BY THE MARKER, AND NOT AN INDIRECT TOTAL. The guard «the number of scene
+    // objects has not grown» turned out to be tautological twice: under a sabotage test
+    // (the halves are not removed) the number accidentally matched the healthy one, because
+    // ground-up items were leaving at the same time. The keepGeo marker exists ONLY on
+    // the halves of the cut — and it is them that we count by name.
     let halves = 0;
     for (const o of scene.children) if (o.userData && o.userData.keepGeo) halves++;
     return { types: Object.keys(byType).length, byType, kidsTotal, kidsMax, halves,
              fires: fires.length, fxN: fx.length };
   },
   grindNow(){ mixerGrind(); return true; },
-  // камни: число живых (тесты рампы спавна) и индекс первого (постановка сцен)
-  // бомба: индекс живой бомбы (-1 если нет) и принудительная детонация
+  // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)
+  // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
-  // РЕГРЕССИЯ #2 (спека владельца 2026-07-23 «переливающаяся бомба»): материал
-  // бомбы — радужный MeshMatcapMaterial (bombMatcap), НЕ плоский MeshBasicMaterial.
-  // Сьют ассертит type==='MeshMatcapMaterial' && hasMatcap.
+  // REGRESSION #2 (the owner's spec 2026-07-23 «an iridescent bomb»): the bomb's material
+  // is a rainbow MeshMatcapMaterial (bombMatcap), NOT a flat MeshBasicMaterial.
+  // The suite asserts type==='MeshMatcapMaterial' && hasMatcap.
   bombMatKind(){ const b = items.find(i => i.alive && i.bomb); if (!b) return null;
     const m = b.mesh.material; return { type: m.type, hasMatcap: !!m.matcap }; },
   detonate(){
@@ -1859,14 +1859,14 @@ window.__game = {
     detonateBomb(b);
     return true;
   },
-  // скрин-пробы эффектов: ВИДИМАЯ точка первого доступного предмета пачки
-  // (для реального mouse.click в headless). v2 по флейк-репорту диспетчера
-  // (v76): проекция ЦЕНТРА иногда попадала в ЗАГОРАЖИВАЮЩИЙ передний предмет
-  // (клик матчил чужую группу: «−20» превращался в «+120»). Теперь точка
-  // ищется рейкастом с камеры — центр + 8 смещений по экранным осям в
-  // пределах охвата; отдаётся только пиксель, где предмет — ПЕРВОЕ
-  // пересечение. Все точки закрыты у всех кандидатов -> {occluded:true}:
-  // вызывающий делает встряску и повторяет.
+  // screenshot probes of the effects: a VISIBLE point of the first accessible item of a pack
+  // (for a real mouse.click in headless). v2 after the dispatcher's flake report
+  // (v76): the projection of the CENTRE sometimes landed on an OCCLUDING front item
+  // (the click matched somebody else's group: «−20» turned into «+120»). Now the point
+  // is found by a raycast from the camera — the centre + 8 offsets along the screen axes within
+  // the extent; only a pixel where the item is the FIRST intersection is handed out.
+  // All points covered on all candidates -> {occluded:true}:
+  // the caller does a shake and repeats.
   findByTex(tex){
     const ctx = pickCtx();
     let firstHidden = null;
@@ -1879,21 +1879,21 @@ window.__game = {
     }
     return firstHidden;
   },
-  // вес при встряске: средняя |v| живых тел по пачкам (car/animal/food/...)
-  // — замер отклика сразу после shake(); для тюнинга SHAKE_RESP владельцем
-  // отклик кучи ПО ВЫСОТЕ (замер «взрыв похож на shake», 2026-07-27):
-  // средняя |v| и доля шевельнувшихся в трёх слоях — низ/середина/ВЕРХ.
-  // Верх — ключевой: до второго слоя волны он стоял как вкопанный.
+  // the weight during a shake: the average |v| of the live bodies by pack (car/animal/food/...)
+  // — a measurement of the response right after shake(); for the owner's tuning of SHAKE_RESP
+  // the pile's response BY HEIGHT (the measurement «the explosion is like a shake», 2026-07-27):
+  // the average |v| and the share of those that moved in three bands — bottom/middle/TOP.
+  // The top one is the key one: until the second wave layer it stood rooted to the spot.
   velByHeight(){
     const alive = items.filter(i => i.alive && i.body && !i.animating);
     if (!alive.length) return {};
     const ys = alive.map(i => i.p.y).sort((a,b) => a-b);
     const q1 = ys[Math.floor(ys.length/3)], q2 = ys[Math.floor(ys.length*2/3)];
-    const band = { низ: [], середина: [], верх: [] };
+    const band = { low: [], mid: [], top: [] };
     for (const it of alive){
       const v = it.body.linvel();
       const s = Math.hypot(v.x, v.y, v.z);
-      (it.p.y <= q1 ? band['низ'] : it.p.y <= q2 ? band['середина'] : band['верх']).push(s);
+      (it.p.y <= q1 ? band['low'] : it.p.y <= q2 ? band['mid'] : band['top']).push(s);
     }
     const out = {};
     for (const k in band){
@@ -1915,26 +1915,26 @@ window.__game = {
     for (const k in m) m[k] = +(m[k].sum / m[k].n).toFixed(2);
     return m;
   },
-  sfx(){ return Sound.loaded(); }, // какие аудио-сэмплы декодированы
-  // перф-срез для соак-теста и замеров на устройствах (см. soak.js):
-  // времена кадра/шага физики за последние ~10 с + счётчики ресурсов,
-  // по которым ловятся утечки (тела/коллайдеры/меши/геометрии/DOM/куча)
-  // Обнулить кольца перф-метра: профилировка меряет ОКНО СЦЕНАРИЯ (взрыв,
-  // осыпание), а не всю сессию — иначе кадры старта и skipIntro тянут
-  // статистику и «взрыв» выходит дороже, чем он есть.
-  // Тест-хук профилировки: перевести качество вниз РУКАМИ. Боевая автоматика
-  // решает один раз за сессию по медиане кадра и НЕ РАБОТАЕТ В ИНТРО (см.
-  // tickPerfTier) — а профилировать «слабый» тир на осыпании надо.
+  sfx(){ return Sound.loaded(); }, // which audio samples are decoded
+  // a perf slice for the soak test and for measurements on devices (see soak.js):
+  // frame/physics-step times over the last ~10 s + resource counters
+  // by which leaks are caught (bodies/colliders/meshes/geometries/DOM/heap)
+  // Zero the perf meter rings: profiling measures THE WINDOW OF A SCENARIO (an explosion,
+  // a collapse), and not the whole session — otherwise the startup and skipIntro frames drag
+  // the statistics and «the explosion» comes out more expensive than it is.
+  // A profiling test hook: put the quality down BY HAND. The live automation
+  // decides once per session by the frame median and DOES NOT WORK IN THE INTRO (see
+  // tickPerfTier) — while the «weak» tier has to be profiled on a collapse.
   perfTierSet(t){ const ok = applyPerfTier(t); if (ok) resize(); return CFG.perfTier; },
-  // ⚠️ ТОЛЬКО ДЛЯ ЗАМЕРА ЧУВСТВИТЕЛЬНОСТИ, НЕ ДЛЯ БОЯ. Крутит числовые ручки
-  // солвера на живом мире, чтобы понять ЦЕНУ каждой, прежде чем что-то менять.
-  // Менять их всерьёз нельзя без слова владельца: итерации и подшаги держат
-  // плотную кучу от взаимного проваливания, то есть это ПОВЕДЕНИЕ, а не
-  // качество картинки (см. комментарий у applyPerfTier).
-  // Перепись СЛОЖНОСТИ физической сцены: сколько тел и коллайдеров стоит
-  // контейнер против предметов, и из скольких вершин строятся выпуклые
-  // оболочки. Цена узкой фазы растёт с вершинами, цена широкой — с числом
-  // прокси, а геймплей ни от того, ни от другого не зависит.
+  // ⚠️ FOR A SENSITIVITY MEASUREMENT ONLY, NOT FOR THE LIVE GAME. It turns the solver's numeric
+  // knobs on a live world, in order to understand THE PRICE of each one before changing anything.
+  // They must not be changed for real without the owner's word: the iterations and the substeps keep
+  // a dense pile from falling through itself, that is, this is BEHAVIOUR and not
+  // picture quality (see the comment at applyPerfTier).
+  // A census of the COMPLEXITY of the physics scene: how many bodies and colliders the
+  // container costs against the items, and from how many vertices the convex
+  // hulls are built. The price of the narrow phase grows with the vertices, the price of the broad one with the number
+  // of proxies, while the gameplay depends on neither.
   colliderCensus(){
     let itemBodies = 0, itemCols = 0, hullVerts = [], compounds = 0;
     for (const it of items){
@@ -1952,7 +1952,7 @@ window.__game = {
       hullMed: hullVerts[hullVerts.length >> 1] || 0,
       hullSum: hullVerts.reduce((s, v) => s + v, 0) };
   },
-  // Разбор world.step() на фазы (профайлер Rapier). ТОЛЬКО ЗАМЕР, не бой.
+  // A breakdown of world.step() into phases (the Rapier profiler). MEASUREMENT ONLY, not the live game.
   stepProfOn: (on) => profEnable(on),
   stepProf: () => profTake(),
   shapeCensus: () => shapeCensus(),
@@ -1971,10 +1971,10 @@ window.__game = {
       maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol(),
       waves: getWaves() };
   },
-  fpsCapInfo(){ return { кап: CFG.fpsCap, порогМс: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
+  fpsCapInfo(){ return { cap: CFG.fpsCap, thresholdMs: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
   fpsBadge(v){ fpsBadgeOn = !!v; if (!fpsBadgeOn && fpsBadgeEl){ fpsBadgeEl.remove(); fpsBadgeEl = null; } return fpsBadgeOn; },
-  // минимум кольца кадров: детерминированный признак СВЯЗЫВАНИЯ капа —
-  // нагрузка делает кадры ДЛИННЕЕ, минимум ниже порога от неё не появится
+  // the minimum of the frame ring: a deterministic sign that the cap IS BINDING —
+  // load makes the frames LONGER, a minimum below the threshold will not appear from it
   frameMin(){ return frameRing.length ? +Math.min.apply(null, frameRing).toFixed(1) : null; },
   perfReset(){ frameRing.length = 0; stepRing.length = 0; solveRing.length = 0; syncRing.length = 0; subRing.length = 0; buildRing.length = 0; tapRing.length = 0;
     fxRing.length = 0; renRing.length = 0; uiRing.length = 0; perfWorstMs = 0;
@@ -1990,11 +1990,11 @@ window.__game = {
     return { frame: q(frameRing), step: q(stepRing),
       fx: q(fxRing), ren: q(renRing), ui: q(uiRing), parts: fxParticleCount(),
       solve: q(solveRing), sync: q(syncRing), sub: q(subRing), build: q(buildRing), tap: q(tapRing), tapPh: _tapPh,
-      // ⚠️ РЫВКИ — ЭТО РАСПРЕДЕЛЕНИЕ, А НЕ ОДИН ХУДШИЙ КАДР. «Худший за окно» —
-      // ОДИН сэмпл на прогон, и по правилу проекта редкое событие им не
-      // сертифицируется. Жалоба «подтупливает» — про то, СКОЛЬКО кадров
-      // просело, поэтому считаем их: 33 мс = пропущен кадр при 30 к/с,
-      // 50 мс = видимый рывок.
+      // ⚠️ JANK IS A DISTRIBUTION, AND NOT ONE WORST FRAME. «The worst over the window» is
+      // ONE sample per run, and by the project's rule a rare event is not
+      // certified by it. The complaint «it lags a bit» is about HOW MANY frames
+      // dropped, so we count them: 33 ms = a frame skipped at 30 fps,
+      // 50 ms = a visible jerk.
       jank33: frameRing.reduce((n, v) => n + (v > 33 ? 1 : 0), 0),
       jank50: frameRing.reduce((n, v) => n + (v > 50 ? 1 : 0), 0),
       frames: perfFrames, worstMs: +perfWorstMs.toFixed(1), worstFrame: _worstFrame, worstBuildFrame: _worstBuildFrame,
@@ -2006,28 +2006,28 @@ window.__game = {
       domNodes: document.getElementsByTagName('*').length,
       heapMB: performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : -1 };
   },
-  // Постройка эффектов ПО ВИДАМ (A2): собственное время конструктора и число
-  // вызовов. `build` в perfStats даёт только тотал, а он складывается из
-  // очень разных статей (облако трухи против 15 осколков), и по тоталу нельзя
-  // сказать, куда целить пул. reset=true обнуляет — замер идёт окном вокруг
-  // события. ⚠️ Виды, которых нет в списке обёрток 70-fx, здесь НЕ ПОЯВЯТСЯ:
-  // молчание — это «не обёрнут», а не «бесплатно».
+  // The build of the effects BY KIND (A2): the constructor's own time and the number of
+  // calls. `build` in perfStats gives only the total, and it is made up of
+  // very different line items (a cloud of dust against 15 shards), and by the total one cannot
+  // say where to aim a pool. reset=true zeroes it — the measurement runs as a window around
+  // an event. ⚠️ Kinds that are not in the list of 70-fx wrappers WILL NOT APPEAR here:
+  // silence means «not wrapped», and not «free».
   fxBreak(reset){ return fxBuildBreak(reset); },
-  // ⚠️ ХУК НЕСУЩИЙ: на нём единственный страж «удар растёт с группой» (кольцо,
-  // стрелы и вспышка обязаны быть больше у крупной группы, чем у пары).
+  // ⚠️ A LOAD-BEARING HOOK: on it stands the only guard «the impact grows with the group» (the ring,
+  // the arrows and the flash must be bigger for a large group than for a pair).
   lastImpact(){ return lastImpact; },
-  // ⚠️ ХУК НЕСУЩИЙ: на нём страж «всплеск огня — ТОЛЬКО у горящего вида».
-  // Отдаёт метку времени, чтобы отличить свежий всплеск от прошлого: без неё
-  // страж читал бы один и тот же снимок дважды и «два из двух» значило бы одно.
+  // ⚠️ A LOAD-BEARING HOOK: on it stands the guard «a fire burst is ONLY for the burning kind».
+  // It hands out a timestamp, in order to tell a fresh burst from an old one: without it
+  // the guard would read one and the same snapshot twice and «two out of two» would mean one.
   lastFireBurst(){ return lastFireBurst; },
-  // ⚠️ ХУК НЕСУЩИЙ: на нём стражи разлёта чаши — «силуэта нет», «один объект»,
-  // «геометрия печётся заранее и переиспользуется», «куски РАЗНОГО размера».
-  // Последнее — прямо на жалобу владельца («сетка стерильная и равномерная»):
-  // без него возврат к правильной решётке прошёл бы молча.
-  // ⚠️ РУЧКА ПУЛЬСА ЗВЁЗД — и тюнинг («1 из 10» может стать «1 из 20»), и
-  // ЕДИНСТВЕННЫЙ честный способ проверить механизм: 10% пульсирующих на фоне
-  // моргания ВСЕХ пиксельный замер не различает (размах 0.41 против 0.41 базы),
-  // а при доле 1.0 отличие видно сразу (0.93). Страж гоняет именно долю.
+  // ⚠️ A LOAD-BEARING HOOK: on it stand the bowl shatter guards — «there is no silhouette», «one object»,
+  // «the geometry is baked in advance and reused», «the pieces are of DIFFERENT sizes».
+  // The last one is directly on the owner's complaint («the mesh is sterile and even»):
+  // without it a return to a regular lattice would pass silently.
+  // ⚠️ THE STAR PULSE HANDLE — both a tuning knob («1 in 10» may become «1 in 20») and
+  // the ONLY honest way to check the mechanism: 10% of pulsing ones against a background of
+  // ALL of them blinking is not distinguished by a pixel measurement (a swing of 0.41 against a base of 0.41),
+  // while at a fraction of 1.0 the difference is visible at once (0.93). The guard runs exactly the fraction.
   starPulse(frac, amp){
     const u = skyMat && skyMat.uniforms;
     if (!u || !u.uStarPulseFrac) return null;
@@ -2036,56 +2036,58 @@ window.__game = {
     return { frac: u.uStarPulseFrac.value, amp: u.uStarPulseAmp.value };
   },
   bowlShardsInfo(){
-    return { разбита: bowlBroken, кусков: _shatterN, испечена: !!_shatterGeo,
+    return { broken: bowlBroken, pieces: _shatterN, baked: !!_shatterGeo,
              geoId: _shatterGeo ? _shatterGeo.id : null,
-             размеры: _shatterSizes, стеклоВидно: !!(bowlMesh && bowlMesh.visible),
-             // ⚠️ РАДИУС ПО МЕШАМ, А НЕ ПО ТЕЛАМ. Слёт в центр двигает
-             // mesh.position (тела к этому моменту уничтожены), а itemsGeo
-             // отдаёт it.p — он застывает на месте взрыва, и страж мерил бы
-             // разлёт вместо схождения. Ровно «метрика правдоподобна, но
-             // считает не то».
-             радиусМешей: (() => { let m = 0;
+             sizes: _shatterSizes, glassVisible: !!(bowlMesh && bowlMesh.visible),
+             // ⚠️ THE RADIUS BY MESHES, AND NOT BY BODIES. The convergence to the centre moves
+             // mesh.position (the bodies are destroyed by that moment), while itemsGeo
+             // hands out it.p — it freezes at the place of the explosion, and the guard would measure
+             // the scatter instead of the convergence. Exactly «the metric is plausible, but
+             // counts the wrong thing».
+             meshRadius: (() => { let m = 0;
                for (const it of items) if (it.alive && it.mesh)
                  m = Math.max(m, Math.hypot(it.mesh.position.x, it.mesh.position.z));
                return +m.toFixed(2); })(),
-             живыхМешей: items.filter(i => i.alive).length,
-             // ⚠️ КЛАД ОТДЕЛЬНО: он лежит на ДНЕ, и общий «радиус кучи» его не
-             // видит — максимум берут предметы с краёв. Без своего числа страж
-             // «клад летит со всеми» был бы слеп ровно к тому, что проверяет.
-             кладДоЦентра: (() => {
+             aliveMeshes: items.filter(i => i.alive).length,
+             // ⚠️ THE TREASURE SEPARATELY: it lies at the BOTTOM, and the common «pile radius» does not
+             // see it — the maximum is taken by the items at the edges. Without its own number the guard
+             // «the treasure flies with everybody» would be blind to exactly what it checks.
+             treasureToCenter: (() => {
                const s = items.find(i => i.alive && i.surprise && i.mesh);
                if (!s) return null;
                const p = s.mesh.position;
                return +Math.hypot(p.x, p.y - BOWL_MERGE_AT_Y, p.z).toFixed(2);
              })() };
   },
-  // ⚠️ ХУК НЕСУЩИЙ: на нём страж «три семейства колец живы и детерминированы».
-  // Отдаёт РАСКЛАД ПО ВСЕМУ ПУЛУ, а не по текущему уровню: семейство считается
-  // от габаритов геометрии типа, и проверять его надо на всех, а не на девятке.
-  // ⚠️ НЕСУЩИЙ ХУК: на нём страж «обводка попа отделяет белую цифру» по ВСЕМУ
-  // пулу. Считает ТОЙ ЖЕ функцией, что и бой (popOutlineColor), а не копией
-  // формулы — копия разошлась бы с боем при первой правке порогов.
-  // РЕДАКТОР МАТЧЕПОВ (слово владельца 2026-08-17): рисуй кистью или брось
-  // готовый PNG — материал применяется в ЖИВУЮ сцену, видно ровно как в бою.
+  // ⚠️ A LOAD-BEARING HOOK: on it stands the guard «all three ring families are alive and deterministic».
+  // It hands out THE LAYOUT OVER THE WHOLE POOL, and not over the current level: the family is computed
+  // from the dimensions of the type's geometry, and it must be checked on all of them, not on the nine.
+  // ⚠️ A LOAD-BEARING HOOK: on it stands the guard «the pop outline separates the white digit» over the WHOLE
+  // pool. It counts with THE SAME function as the live game (popOutlineColor), and not with a copy of
+  // the formula — a copy would drift apart from the live game at the first edit of the thresholds.
+  // THE MATCAP EDITOR (the owner's word 2026-08-17): paint with a brush or drop
+  // a ready PNG — the material is applied to the LIVE scene, it is seen exactly as in the game.
   matcapEdit(){ return matcapEdit(); },
-  // ⚠️⚠️ БЕЗ ЭТОЙ РУЧКИ ДЕФЕКТ «СБРОС ДЛЯ ЛОПАСТЕЙ И БОМБЫ» НЕНАБЛЮДАЕМ. У этих
-  // целей текстура — `THREE.Texture` поверх `HTMLImageElement`, и порча/возврат
-  // видны только по тому, ЧЕМ является `image`: картинкой владельца или холстом
-  // редактора. Ни один существующий хук этого не отдавал.
-  // ⚠️ Читает ТУ ЖЕ `mceTexOf`, что и сам редактор: свой обход по кэшам
-  // проверял бы моё представление о цели, а не цель.
+  // ⚠️⚠️ WITHOUT THIS HANDLE THE DEFECT «THE RESET FOR THE BLADES AND THE BOMB» IS UNOBSERVABLE. For these
+  // targets the texture is a `THREE.Texture` over an `HTMLImageElement`, and the corruption/restoration
+  // are visible only by WHAT `image` is: the owner's picture or the editor's canvas.
+  // Not a single existing hook gave this out.
+  // ⚠️ It reads THE SAME `mceTexOf` as the editor itself: my own walk over the caches
+  // would check my representation of the target, and not the target.
   mceTexInfo(id){
     let t = null; try { t = mceTexOf(id); } catch (e) {}
     const im = t && t.image;
-    return { есть: !!t, источник: im ? (im.nodeName || 'данные') : null,
+    return { has: !!t, source: im ? (im.nodeName || 'data') : null,
              w: im ? (im.width | 0) : 0, h: im ? (im.height | 0) : 0,
-             байты: !!(im && im.data) };
+             bytes: !!(im && im.data) };
   },
-  popOutlines(){ return { палитра: POP_OTL_PALETTE.slice(),
-    // выборка боевой функцией — страж проверяет ТО, что рисует игра
-    выборка: Array.from({ length: 60 }, () => popOutlineColor()) }; },
+  popOutlines(){ return { palette: POP_OTL_PALETTE.slice(),
+    // the sample is taken by the live function — the guard checks WHAT the game draws
+    sample: Array.from({ length: 60 }, () => popOutlineColor()) }; },
   ringFams(){
-    const out = { круг: [], многоугольник: [], овал: [] };
+    // ⚠️ The keys MIRROR the `fam` string values from 70-fx — renamed there in
+    //    lockstep (circle / polygon / oval), and test.js reads them by these names.
+    const out = { circle: [], polygon: [], oval: [] };
     for (const t of TYPES){
       if (!geoCache.has(t.name)) { try { geoCache.set(t.name, t.geo()); } catch(e){ continue; } }
       const f = ringFamFor(t, geoCache.get(t.name));
@@ -2093,93 +2095,93 @@ window.__game = {
     }
     return out;
   },
-  // Метки видов: список зарегистрированных + первая коллизия, если она есть.
-  // ⚠️ Коллизия метки — НЕ косметика: `fxBuildBy` ключуется меткой, и две
-  // разные функции под одним именем складываются в одну строку отчёта. Ровно
-  // это и случилось с `'spark'` (поймала ГРАФИКА): число было суммой двух
-  // эффектов и оказалось верным лишь потому, что один из них мёртв.
+  // The kind labels: the list of registered ones + the first collision, if there is one.
+  // ⚠️ A label collision is NOT cosmetics: `fxBuildBy` is keyed by the label, and two
+  // different functions under one name are added into a single report row. Exactly
+  // this happened with `'spark'` (caught by GRAPHICS): the number was the sum of two
+  // effects and turned out correct only because one of them is dead.
   fxKinds(){ return { kinds: Object.keys(fxKindOwner).sort(), dup: fxKindDup }; },
-  // ОТЧЁТ ДЛЯ ЗАМЕРА НА ЖИВОМ ТЕЛЕФОНЕ (заказ диспетчера): всё, что нужно для
-  // разбора лага, ОДНИМ объектом — владельцу достаточно нажать кнопку.
-  // ⚠️ Счётчики НЕ сбрасываются: worstFrame копится с загрузки страницы, и это
-  // ровно то, что нужно — «худший момент за партию», а не за последнюю секунду.
+  // A REPORT FOR A MEASUREMENT ON A LIVE PHONE (the dispatcher's order): everything needed to
+  // analyse the lag, as ONE object — the owner only has to press a button.
+  // ⚠️ The counters are NOT reset: worstFrame accumulates from the page load, and that is
+  // exactly what is needed — «the worst moment of the session», and not of the last second.
   perfReport(){
     const p = this.perfStats();
     return {
-      когда: new Date().toISOString(),
-      сборка: (document.getElementById('buildVer') || {}).textContent || '?',
-      устройство: {
+      at: new Date().toISOString(),
+      build: (document.getElementById('buildVer') || {}).textContent || '?',
+      device: {
         ua: navigator.userAgent,
-        экран: screen.width + '×' + screen.height + ' @' + (window.devicePixelRatio || 1),
-        окно: innerWidth + '×' + innerHeight,
-        ядер: navigator.hardwareConcurrency || '?',
-        памятиГБ: navigator.deviceMemory || '?',
+        screen: screen.width + '×' + screen.height + ' @' + (window.devicePixelRatio || 1),
+        window: innerWidth + '×' + innerHeight,
+        cores: navigator.hardwareConcurrency || '?',
+        memoryGB: navigator.deviceMemory || '?',
       },
-      партия: { уровень: levelNum, живых: items.filter(i => i.alive).length,
-        сложность: CFG.hard ? 'Hard' : 'Easy', тир: CFG.perfTier,
-        dpr: renderer.getPixelRatio(), fxScale: CFG.fxScale, подшагов: maxSubsteps() },
-      // ⚠️ НАСЫПАНИЕ ИДЁТ ОТДЕЛЬНЫМ ПОЛЕМ И ПЕРВЫМ: именно на него жалоба, а
-      // общие `кадр`/`фазы` к моменту нажатия кнопки описывают уже спокойную игру.
-      насыпание: _introPerf,
-      кадр: { p95: p.frame.p95, max: p.frame.max, кадров: p.frames },
-      фазы_p95: { шаг: p.step.p95, солвер: p.solve.p95, синк: p.sync.p95,
-        постройка: p.build.p95, тап: p.tap.p95, эффекты: p.fx.p95, ui: p.ui.p95, рендер: p.ren.p95 },
-      худший_кадр: p.worstFrame,
-      кадр_с_постройкой: p.worstBuildFrame,
-      эффекты_по_видам: fxBuildBreak(false),
-      сцена: { тел: p.bodies, коллайдеров: p.colliders, геометрий: p.geoms,
-        drawCalls: p.drawCalls, треугольников: p.tris, частиц: p.parts, кучаМБ: p.heapMB },
+      session: { level: levelNum, alive: items.filter(i => i.alive).length,
+        difficulty: CFG.hard ? 'Hard' : 'Easy', tier: CFG.perfTier,
+        dpr: renderer.getPixelRatio(), fxScale: CFG.fxScale, sub: maxSubsteps() },
+      // ⚠️ THE POURING GOES AS A SEPARATE FIELD AND FIRST: the complaint is precisely about it, while
+      // the general `frame`/`phases` by the moment the button is pressed already describe a calm game.
+      filling: _introPerf,
+      frame: { p95: p.frame.p95, max: p.frame.max, frames: p.frames },
+      phasesP95: { step: p.step.p95, solve: p.solve.p95, sync: p.sync.p95,
+        build: p.build.p95, tap: p.tap.p95, fx: p.fx.p95, ui: p.ui.p95, ren: p.ren.p95 },
+      worstFrame: p.worstFrame,
+      worstBuildFrame: p.worstBuildFrame,
+      fxByKind: fxBuildBreak(false),
+      scene: { bodies: p.bodies, colliders: p.colliders, geoms: p.geoms,
+        drawCalls: p.drawCalls, tris: p.tris, parts: p.parts, heapMB: p.heapMB },
     };
   },
-  // отладка: телепорт предмета (постановка сцен доступности в тестах)
+  // debug: teleporting an item (setting up accessibility scenes in the tests)
   place(i, x, y, z){
     const it = items[i];
     if (!it || !it.body) return false;
     it.body.setTranslation({ x, y, z }, true);
     it.body.setLinvel({ x:0, y:0, z:0 }, true);
     it.body.setAngvel({ x:0, y:0, z:0 }, true);
-    // ГРАБЛЯ Rapier: query pipeline (castRay) видит телепорт только после
-    // world.step() или явной прокачки — иначе лучи бьют по фантому
+    // A Rapier RAKE: the query pipeline (castRay) sees the teleport only after
+    // world.step() or an explicit propagation — otherwise the rays hit a phantom
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
     syncMeshes();
-    renderer.shadowMap.needsUpdate = true; // autoUpdate=false: телепорт без пробуждения физики оставлял тень на старом месте
+    renderer.shadowMap.needsUpdate = true; // autoUpdate=false: a teleport without waking physics left the shadow at the old place
     return true;
   },
-  // Диагностика «дыры» (жалоба владельца 2026-07-30): краткий срез всех живых
-  // тел — имя/высота/нижняя точка/сон/контакты. floaters() ловит зазор ПОД
-  // предметом, но не ловит ПРОВАЛ СКВОЗЬ ПОЛ (провалившийся лежит на лопастях
-  // с контактами и без зазора) — для него нужен именно y ниже FLOOR_REST.
+  // Diagnostics of the «hole» (the owner's complaint 2026-07-30): a brief slice of all live
+  // bodies — name/height/lowest point/sleep/contacts. floaters() catches a gap UNDER
+  // an item, but does not catch a FALL THROUGH THE FLOOR (the one that fell through lies on the blades
+  // with contacts and without a gap) — for it exactly a y below FLOOR_REST is needed.
   itemsBrief(){
     return items.filter(i => i.alive && i.body).map(i => ({
       name: i.type ? i.type.name : '?', y: +i.p.y.toFixed(2),
       bottom: +(i.p.y - i.r).toFixed(2), r: +i.r.toFixed(2),
-      // low — нижняя точка по ориентированной коробке (bottom по охватной
-      // сфере врёт вдвое у плоских). ⚠️ ОЦЕНКА СВЕРХУ, для порогов не годится;
-      // pen — ИСТИННОЕ проникновение в плиту пола по манифолду (null = нет
-      // контакта с полом), вот он ground truth.
+      // low — the lowest point by the oriented box (bottom by the bounding
+      // sphere lies twofold for flat ones). ⚠️ AN UPPER ESTIMATE, not suitable for thresholds;
+      // pen — the TRUE penetration into the floor slab by the manifold (null = no
+      // contact with the floor), that one is the ground truth.
       low: +lowestPoint(i).toFixed(3), pen: floorPenetration(i),
-      // порог просадки ИМЕННО ЭТОГО предмета (см. floorPenLimit): у тонкой
-      // плашки он ниже абсолютного, у толстых равен ему
+      // the sag threshold of EXACTLY THIS item (see floorPenLimit): for a thin
+      // plate it is below the absolute one, for thick ones it equals it
       penLim: +floorPenLimit(i).toFixed(4),
       d: +Math.hypot(i.p.x, i.p.z).toFixed(2),
       sleeping: i.body.isSleeping(), bomb: !!i.bomb
     }));
   },
-  // диагностика провала: кто сидит ЦЕНТРОМ ниже пола. У выпуклого предмета,
-  // лежащего на полу, центр ВСЕГДА выше FLOOR_REST на свой полу-габарит —
-  // значит центр ниже пола = проникновение или уже провал насквозь.
-  // потолок спасателя (50-physics): выше него предмет считается улетевшим.
-  // Нужен стражу докидки — он сверяет ПИК СПАВНА с этим числом, а не с
-  // литералом: иначе страж и код разъедутся при первой же правке потолка.
+  // fall-through diagnostics: who sits with its CENTRE below the floor. For a convex item
+  // lying on the floor the centre is ALWAYS above FLOOR_REST by its own half-extent —
+  // so a centre below the floor = a penetration or already a fall right through.
+  // the rescuer's ceiling (50-physics): above it an item is considered to have flown away.
+  // The top-up guard needs it — it compares the SPAWN PEAK with this number, and not with
+  // a literal: otherwise the guard and the code would drift apart at the first edit of the ceiling.
   rescueCeil(){ return RESCUE_CEIL; },
-  // ⚠️⚠️ ЗОНД ОХВАТА: НАСКОЛЬКО МЕТРИКА СТЕН ПЕРЕОЦЕНИВАЕТ ФОРМУ. `radialReach`
-  // берёт min(охватная сфера, ориентированная коробка) — обе честные оценки
-  // СВЕРХУ, но у изогнутых и вытянутых моделей коробка может быть заметно
-  // шире реального силуэта, и тогда «выступ за стену» покажет протискивание
-  // там, где предмет стены не касается. Сравниваем оценку с ИСТИНОЙ: опорной
-  // функцией по вершинам геометрии в том же направлении.
-  // ⚠️ Поворот задаём САМИ и перебираем — иначе число пляшет по позе (та же
-  // грабля, что у порога просадки). Предмет живёт вне кучи и сносится.
+  // ⚠️⚠️ A REACH PROBE: HOW MUCH THE WALL METRIC OVERESTIMATES THE SHAPE. `radialReach`
+  // takes min(bounding sphere, oriented box) — both are honest UPPER
+  // estimates, but for curved and elongated models the box can be noticeably
+  // wider than the real silhouette, and then «the wall excess» will show squeezing through
+  // where the item does not touch the wall. We compare the estimate with the TRUTH: a support
+  // function over the geometry's vertices in the same direction.
+  // ⚠️ We set the rotation OURSELVES and enumerate it — otherwise the number dances by pose (the same
+  // rake as with the sag threshold). The item lives outside the pile and is demolished.
   reachProbe(name, n){
     const idx = TYPES.findIndex(t => t.name === name);
     if (idx < 0) return null;
@@ -2187,45 +2189,45 @@ window.__game = {
     for (let k = 0; k < N; k++){
       const it = makeItem(idx, 1);
       it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
-      // детерминированный перебор поз: три угла из индекса, без Math.random
+      // a deterministic enumeration of poses: three angles from the index, without Math.random
       it.mesh.rotation.set(k * 0.7, k * 1.3, k * 2.1); it.mesh.updateMatrixWorld();
       createItemBody(it, TYPES[idx].name, it.geo);
-      const ux = 1, uz = 0;                      // радиаль — вдоль X, предмет в центре
-      const оценка = radialReach(it, ux, uz);
-      // истина: максимум проекции вершин на ту же ось, с учётом поворота и масштаба
+      const ux = 1, uz = 0;                      // the radial direction — along X, the item is in the centre
+      const estimate = radialReach(it, ux, uz);
+      // truth: the maximum projection of the vertices onto the same axis, with the rotation and the scale taken into account
       const P = it.geo.attributes.position.array, q = it.mesh.quaternion;
-      const v = new THREE.Vector3(); let истина = 0;
+      const v = new THREE.Vector3(); let truth = 0;
       for (let i = 0; i < P.length; i += 3){
-        // ⚠️ ТОЛЬКО `it.scl` — он УЖЕ включает MESH_SCALE (40-items: scl = s·MESH_SCALE),
-        // ровно как и в radialReach. Первая версия домножала ещё раз, и «истина»
-        // выходила в 0.62 меньше: у апельсина 0.381 вместо 0.62, то есть зонд
-        // приписывал метрике запас, которого нет. Ловится сравнением с r круглой
-        // модели — у неё оценка и истина обязаны совпасть.
+        // ⚠️ ONLY `it.scl` — it ALREADY includes MESH_SCALE (40-items: scl = s·MESH_SCALE),
+        // exactly as in radialReach. The first version multiplied by it once more, and «the truth»
+        // came out 0.62 smaller: for the orange 0.381 instead of 0.62, that is, the probe
+        // credited the metric with a margin it does not have. It is caught by comparison with the r of a round
+        // model — for it the estimate and the truth must coincide.
         v.set(P[i], P[i+1], P[i+2]).applyQuaternion(q).multiplyScalar(it.scl);
         const pr = v.x * ux + v.z * uz;
-        if (pr > истина) истина = pr;
+        if (pr > truth) truth = pr;
       }
-      out.push({ оценка: +оценка.toFixed(3), истина: +истина.toFixed(3),
-                 запас: +(оценка - истина).toFixed(3) });
+      out.push({ estimate: +estimate.toFixed(3), truth: +truth.toFixed(3),
+                 margin: +(estimate - truth).toFixed(3) });
       destroyItemBody(it);
       if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
     }
-    const z = out.map(x => x.запас).sort((a, b) => a - b);
-    return { поз: N, запасМед: z[Math.floor(N/2)], запасМакс: z[N-1],
-             оценкаМакс: Math.max(...out.map(x => x.оценка)),
-             истинаМакс: Math.max(...out.map(x => x.истина)) };
+    const z = out.map(x => x.margin).sort((a, b) => a - b);
+    return { poses: N, marginMed: z[Math.floor(N/2)], marginMax: z[N-1],
+             estimateMax: Math.max(...out.map(x => x.estimate)),
+             truthMax: Math.max(...out.map(x => x.truth)) };
   },
-  // ⚠️⚠️ ЗОНД ПОРОГА ПРОСАДКИ. Порог спасателя относительный — доля
-  // ВЕРТИКАЛЬНОЙ толщины предмета в текущей позе, — и на живой куче он пляшет:
-  // `makeItem` крутит меш `Math.random()` по трём осям (40-items), а тело
-  // берёт кватернион именно оттуда (50-physics). Поэтому страж на куче красен
-  // через раз НА ИСПРАВНОЙ сборке — я на этом уже обожглась.
-  // ⚠️ КЛЮЧЕВАЯ СТРОКА — ОБНУЛЕНИЕ ПОВОРОТА перед созданием тела: тогда
-  // downReach = scl · half.y, без единого случайного числа. Предмет живёт вне
-  // кучи (y=500) и сносится сразу, на уровень не влияет — шаблон holeProbe.
-  // ⚠️ Порог берётся из `floorPenLimit`, ТОЙ ЖЕ функции, которой пользуется
-  // спасатель: страж не должен пересчитывать формулу у себя, иначе он стережёт
-  // свою копию, а не бой.
+  // ⚠️⚠️ A SAG THRESHOLD PROBE. The rescuer's threshold is relative — a fraction of the
+  // VERTICAL thickness of the item in its current pose, — and on a live pile it dances:
+  // `makeItem` turns the mesh by `Math.random()` around three axes (40-items), while the body
+  // takes the quaternion from exactly there (50-physics). That is why a guard on the pile is red
+  // every other time ON A HEALTHY BUILD — I have already been burned by this.
+  // ⚠️ THE KEY LINE IS ZEROING THE ROTATION before creating the body: then
+  // downReach = scl · half.y, without a single random number. The item lives outside
+  // the pile (y=500) and is demolished at once, it does not affect the level — the holeProbe pattern.
+  // ⚠️ The threshold is taken from `floorPenLimit`, THE SAME function the rescuer uses:
+  // a guard must not recompute the formula at home, otherwise it guards
+  // its own copy and not the live game.
   penProbe(name){
     const idx = TYPES.findIndex(t => t.name === name);
     if (idx < 0) return null;
@@ -2233,20 +2235,20 @@ window.__game = {
     it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
     it.mesh.rotation.set(0, 0, 0); it.mesh.updateMatrixWorld();
     createItemBody(it, TYPES[idx].name, it.geo);
-    const out = { порог: +floorPenLimit(it).toFixed(4), толщина: +downReach(it).toFixed(4),
-                  абсолютный: FLOOR_PEN_MAX };
+    const out = { limit: +floorPenLimit(it).toFixed(4), thickness: +downReach(it).toFixed(4),
+                  absolute: FLOOR_PEN_MAX };
     destroyItemBody(it);
     if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
     return out;
   },
-  // ⚠️⚠️ ЗОНД ДЫРКИ: СВОБОДЕН ЛИ ЦЕНТР предмета — спрашиваем саму ФОРМУ
-  // (`containsPoint`), рейкаста здесь НЕТ намеренно (см. ниже, почему).
-  // Единственный честный способ спросить «дырка настоящая или её затянуло»:
-  // считать коллайдеры мало — их число говорит, какая ВЕТКА отработала, а не
-  // проходим ли центр. Тело строится в стороне (y=500), сразу сносится, на
-  // уровень не влияет.
-  // ⚠️ Луч пускаем ВДОЛЬ ОСИ, которую нашла та же логика, что строит кольцо
-  // (плоскость с наибольшим отношением rmin/rmax) — иначе зонд мерил бы не то.
+  // ⚠️⚠️ A HOLE PROBE: IS THE CENTRE of the item free — we ask the SHAPE itself
+  // (`containsPoint`), there is NO raycast here on purpose (see below, why).
+  // The only honest way to ask «is the hole real or has it been filled in»:
+  // counting the colliders is not enough — their number tells which BRANCH ran, and not
+  // whether the centre is passable. The body is built aside (y=500), demolished at once, it does not
+  // affect the level.
+  // ⚠️ We shoot the ray ALONG THE AXIS found by the same logic that builds the ring
+  // (the plane with the greatest rmin/rmax ratio) — otherwise the probe would measure the wrong thing.
   holeProbe(name){
     const idx = TYPES.findIndex(t => t.name === name);
     if (idx < 0) return null;
@@ -2254,7 +2256,7 @@ window.__game = {
     it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
     createItemBody(it, TYPES[idx].name, it.geo);
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
-    // ось дырки — та же, что у ringFromGeometry: ищем по вершинам
+    // the hole axis — the same as in ringFromGeometry: we look by the vertices
     const P = it.geo.attributes.position.array, n = P.length / 3;
     const axes = [[0, 2, 1], [0, 1, 2], [1, 2, 0]];
     let best = null;
@@ -2264,11 +2266,11 @@ window.__game = {
         if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
       if (rmax > 1e-4 && (!best || rmin/rmax > best.ratio)) best = { ax, ratio: rmin/rmax };
     }
-    // ⚠️⚠️ НЕ РЕЙКАСТОМ. Первая версия зонда пускала луч вдоль оси и объявила
-    // «дырка есть» У ВСЕХ, включая заведомо сплошные модели: свежесозданный
-    // коллайдер ещё не попал в query-конвейер Rapier (он обновляется шагом
-    // мира), и луч не встречал НИКОГО. Классический зелёный-на-всём зонд.
-    // `containsPoint` спрашивает саму ФОРМУ и конвейера не требует.
+    // ⚠️⚠️ NOT BY A RAYCAST. The first version of the probe shot a ray along the axis and declared
+    // «there is a hole» IN ALL of them, including knowingly solid models: a freshly created
+    // collider had not yet got into Rapier's query pipeline (it is updated by a world
+    // step), and the ray met NOBODY. A classic green-on-everything probe.
+    // `containsPoint` asks the SHAPE itself and does not require the pipeline.
     const colliders = it.body ? it.body.numColliders() : 0;
     let inside = false;
     for (let i = 0; i < colliders; i++){
@@ -2277,8 +2279,8 @@ window.__game = {
     }
     destroyItemBody(it);
     if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
-    return { дырка: !inside, коллайдеров: colliders, ось: ['x','y','z'][best.ax],
-             отношение: +best.ratio.toFixed(3) };
+    return { hole: !inside, colliders: colliders, axis: ['x','y','z'][best.ax],
+             ratio: +best.ratio.toFixed(3) };
   },
   underFloor(){
     return items.filter(i => i.alive && i.body && i.p.y < FLOOR_REST)
@@ -2288,40 +2290,40 @@ window.__game = {
         touching: this.contacts(items.indexOf(i)).touching,
         bomb: !!i.bomb }));
   },
-  // ТЕСТ-ХУК СПАСАТЕЛЯ, НЕСУЩИЙ: прогнать sweep СИНХРОННО. Без него страж
-  // пола был бы гонкой — place() физику НЕ будит, а на спящей куче sweep не
-  // зовёт никто (stepPhysics не вызывается вовсе), и «зелёный» ничего не значил бы.
-  // ⚠️ syncMeshes ОБЯЗАТЕЛЕН: спасатель двигает ТЕЛА, а item.p обновляется
-  // только синхронизацией. В бою это неважно (следующий кадр всё равно
-  // синхронизирует), но здесь без него хук отдавал бы старые координаты и
-  // страж «после подъёма под полом никого» падал бы на пустом месте.
+  // A RESCUER TEST HOOK, LOAD-BEARING: run the sweep SYNCHRONOUSLY. Without it the floor
+  // guard would be a race — place() does NOT wake physics, and on a sleeping pile the sweep is
+  // called by nobody (stepPhysics is not called at all), and a «green» would mean nothing.
+  // ⚠️ syncMeshes IS MANDATORY: the rescuer moves the BODIES, while item.p is updated
+  // only by synchronization. In the live game this does not matter (the next frame synchronizes
+  // anyway), but here without it the hook would hand out old coordinates and
+  // the guard «after the lift there is nobody under the floor» would fail on an empty spot.
   rescueNow(){ const n = rescueSweep(); syncMeshes(); return n; },
-  // заряд типа: состояние/грант/детонация (стражи сьюта)
+  // the type charge: state/grant/detonation (suite guards)
   charge(){ return chargeState(); },
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },
   floaters(){
-    // предмет «висит», если под его нижней точкой пусто больше 0.35.
-    // ⚠️ Один луч из центра лжёт про «мосты»: плоский предмет (стейк) лежит
-    // КОНЦАМИ на соседях, центр — над полостью, а у стены луч уходит мимо
-    // диска пола сквозь клиновые щели внешних краёв ступенчатых панелей
-    // (соак 2026-07-20, сид 101). Честная опора — контактные пары Rapier:
-    // висун = gap>0.35 И contacts===0. contacts>0 при gap>0.35 — «мост», норма.
+    // an item «hangs» if under its lowest point there is more than 0.35 of emptiness.
+    // ⚠️ A single ray from the centre lies about «bridges»: a flat item (a steak) lies with its
+    // ENDS on the neighbours, the centre is above a cavity, while near the wall the ray goes past
+    // the floor disc through the wedge slits of the outer edges of the stepped panels
+    // (soak 2026-07-20, seed 101). The honest support is Rapier's contact pairs:
+    // a hanger = gap>0.35 AND contacts===0. contacts>0 with gap>0.35 is a «bridge», normal.
     const ray = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:-1, z:0 });
     const out = [];
     for (const it of items){
       if (!it.alive || !it.body) continue;
       ray.origin.x = it.p.x; ray.origin.y = it.p.y - it.r - 0.02; ray.origin.z = it.p.z;
-      if (ray.origin.y <= FLOOR_REST + 0.05) continue; // лежит на дне
-      // ⚠️ СЕНСОРЫ НЕ ОПОРА: призрачное дно (неактивный контейнер, разлёт чаши)
-      // иначе засчиталось бы как поддержка и ПРЯТАЛО бы висунов — см. тот же
-      // разбор у луча доступности в 60-access.
+      if (ray.origin.y <= FLOOR_REST + 0.05) continue; // lies on the bottom
+      // ⚠️ SENSORS ARE NOT SUPPORT: a phantom bottom (an inactive container, the bowl shatter)
+      // would otherwise be counted as support and would HIDE the hangers — see the same
+      // analysis at the accessibility ray in 60-access.
       const hit = world.castRay(ray, 30, true,
         RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, it.body);
-      // Rapier 0.12+ переименовал toi -> timeOfImpact: с hit.toi зазор был
-      // undefined, и floaters видел ТОЛЬКО случаи «луч не попал вовсе»
-      // (gap=30) — конечные зависания молчали (нашлось соаком 2026-07-20)
+      // Rapier 0.12+ renamed toi -> timeOfImpact: with hit.toi the gap was
+      // undefined, and floaters saw ONLY the cases «the ray did not hit at all»
+      // (gap=30) — finite hangs stayed silent (found by the soak 2026-07-20)
       const gap = hit ? (hit.timeOfImpact !== undefined ? hit.timeOfImpact : hit.toi) : 30;
       if (gap > 0.35) out.push({ name: it.type.name, y: +it.p.y.toFixed(2),
         d: +Math.hypot(it.p.x, it.p.z).toFixed(2), gap: +gap.toFixed(2),
@@ -2329,10 +2331,10 @@ window.__game = {
     }
     return out;
   },
-  // контактные пары нарровой фазы предмета i: pairs — соседи по AABB,
-  // touching — с реальными точками контакта. Пары живут и на спящей куче
-  // (наш глобальный сон не зовёт world.step, граф остаётся от последнего шага);
-  // -1 = API недоступен (страховка на смену версии Rapier)
+  // the narrow-phase contact pairs of item i: pairs — neighbours by AABB,
+  // touching — those with real contact points. The pairs live on a sleeping pile too
+  // (our global sleep does not call world.step, the graph stays from the last step);
+  // -1 = the API is unavailable (insurance against a change of the Rapier version)
   contacts(i){
     const it = items[i];
     if (!it || !it.body || !world.contactPairsWith) return { pairs: -1, touching: -1 };
@@ -2353,7 +2355,7 @@ window.__game = {
     items.forEach((it, i) => { if (it.alive && it.accessible) out.push(i); });
     return out;
   },
-  // слепок по типам: сколько живых и сколько из них доступно
+  // a snapshot by type: how many are alive and how many of them are accessible
   typesSnapshot(){
     const m = {};
     items.forEach(it => {
@@ -2364,24 +2366,24 @@ window.__game = {
     });
     return m;
   },
-  // ⚠️ `shake` В СНИМКЕ КАМЕРЫ — НЕСУЩЕЕ ПОЛЕ (2026-08-11): без него «тряски
-  // на совмещении нет» проверялось бы по дрожанию ЦЕЛИ камеры, а трясётся
-  // ПОЗИЦИЯ — страж мерил бы соседнее свойство и был бы зелен при любой силе.
+  // ⚠️ `shake` IN THE CAMERA SNAPSHOT IS A LOAD-BEARING FIELD (2026-08-11): without it «there is no shaking
+  // during a match» would be checked by the tremor of the camera's TARGET, while what shakes is
+  // the POSITION — the guard would measure a neighbouring property and would be green at any strength.
   cam(){ return { az: +camAz.toFixed(3), phi: +camPhi.toFixed(3), r: +camR.toFixed(2), ty: +camTarget.y.toFixed(2), shake: +camShake.toFixed(3), intro: !!intro, fly: !!hintFly }; },
-  // отладка: постановка дистанции камеры (тесты зума: стекло чаши, витрина)
+  // debug: setting the camera distance (zoom tests: the bowl glass, the showcase)
   setCamR(v){ camR = Math.max(6, Math.min(24, +v || camR)); updateCamera(); },
-  // ПРИМИТИВЫ ПОД РЕКЛАМУ (контракт с ИНТЕГРАЦИЕЙ 2026-07-23). Боевой
-  // потребитель — 78-ads: pause(true) на входе в показ, resume() на ВСЕХ
-  // развязках, но ТОЛЬКО если pause вернул true (иначе снимем чужую паузу
-  // от visibilitychange, которую обязан снять игрок кнопкой Continue).
+  // THE PRIMITIVES FOR ADS (the contract with the INTEGRATION 2026-07-23). The live
+  // consumer is 78-ads: pause(true) when entering the display, resume() on ALL
+  // exits, but ONLY if pause returned true (otherwise we would lift somebody else's pause
+  // from visibilitychange, which the player is obliged to lift with the Continue button).
   pause(silent){ return pauseGame(silent); },
   resume(){ resumeGame(); },
-  sound: Sound, // setMuted/isMuted — внешний мьют, независимый от CFG.sound
-  // отладка: состояние паузы, видимость попапа и ВНЕШНИЙ мьют
+  sound: Sound, // setMuted/isMuted — the external mute, independent of CFG.sound
+  // debug: the pause state, the popup visibility and the EXTERNAL mute
   pauseState(){ return { paused: paused,
     overlay: $('pauseOverlay').style.display === 'flex',
     muted: Sound.isMuted() }; },
-  // отладка: поиск NaN в состоянии предметов
+  // debug: searching for NaN in the items' state
   scanNaN(){
     const bad = [];
     items.forEach((it, i) => {
@@ -2392,43 +2394,43 @@ window.__game = {
     return bad;
   },
   topY(){ let m = 0; for (const it of items) if (it.alive) m = Math.max(m, it.p.y + it.r); return m; },
-  // отладка/тесты: уникальные множители размера живых предметов (спека
-  // «первые 15 уровней — один размер»: до ур.15 включительно ровно [1])
+  // debug/tests: the unique size multipliers of the live items (the spec
+  // «the first 15 levels are one size»: up to and including lv.15 exactly [1])
   sizes(){
     const s = new Set();
     for (const it of items) if (it.alive && !it.surprise) s.add(+((it.scl || 0) / MESH_SCALE).toFixed(3));
     return [...s].sort((a, b) => a - b);
   },
-  // максимальный ВЫСТУП края предмета за внутреннюю поверхность стекла
-  // (>0 — предмет визуально в стекле/снаружи; допуск ~0.0 благодаря WALL_GAP)
-  // ⚠️ РАСПРЕДЕЛЕНИЕ, А НЕ МАКСИМУМ. `maxWallExcess` отдаёт ОДИН сэмпл на
-  // прогон, и на нём нельзя ни ставить норму, ни сравнивать варианты: замер
-  // 2026-07-31 показал, что редкие события на 8-16 прогонах дают
-  // противоположный порядок вариантов. Здесь — выступ КАЖДОГО живого предмета,
-  // то есть под две сотни сэмплов за один снимок.
+  // the maximum EXCESS of an item's edge beyond the inner surface of the glass
+  // (>0 — the item is visually inside the glass/outside; the tolerance is ~0.0 thanks to WALL_GAP)
+  // ⚠️ A DISTRIBUTION, AND NOT A MAXIMUM. `maxWallExcess` hands out ONE sample per
+  // run, and on it one can neither set a norm nor compare variants: the measurement
+  // of 2026-07-31 showed that rare events over 8-16 runs give
+  // the opposite ordering of the variants. Here — the excess of EVERY live item,
+  // that is, close to two hundred samples in a single snapshot.
   wallExcessAll(){
     const out = [];
     for (const it of items){
       if (!it.alive) continue;
       const d = Math.hypot(it.p.x, it.p.z);
-      // ТОЧНЫЙ охват: у вытянутых моделей оценка сверху завышает больше, чем
-      // сам порог тревоги (см. radialReachExact в 50-physics)
+      // the EXACT reach: for elongated models the upper estimate overshoots more than
+      // the alarm threshold itself (see radialReachExact in 50-physics)
       out.push(+((d + (d > 1e-3 ? radialReachExact(it, it.p.x / d, it.p.z / d) : (it.wallR || it.r))) - wallDistAt(it.p.y, d > 1e-3 ? it.p.x/d : 1, d > 1e-3 ? it.p.z/d : 0)).toFixed(3));
     }
     return out;
   },
-  // ⚠️⚠️ ВЫСОТА И «ЕСТЬ ЛИ ТАМ СТЕНА» — НЕСУЩИЕ ПОЛЯ, А НЕ УКРАШЕНИЕ.
-  // `radiusAt(y)` выше кромки возвращает R1 НАВСЕГДА, а физические стены
-  // кончаются на `WALL_TOP_Y`: конус до 9.2, пояс верхних стен до 13.3, выше —
-  // открытый воздух. Поэтому «выступ за стену» у предмета на y=17 сравнивает
-  // его с несуществующей стеной: он не протискивается сквозь стекло, он просто
-  // ЛЕТИТ над чашей (докидка, досыпка цепи, взрыв).
-  // ⚠️ ЗАМЕР, ради которого это заведено: из 19 тревог соака по всем журналам
-  // ОДИННАДЦАТЬ пришли с y > 13.3 и НОЛЬ — из самого пояса стен. То есть
-  // больше половины сигнала инварианта была шумом метрики.
-  // ⛔ СПАСАТЕЛЬ ЭТИМ НЕ ЛЕЧИТСЯ И НЕ ТРОГАЕТСЯ: у него та же формула означает
-  // другое — предмет выше чаши и снаружи R1 упадёт МИМО чаши, и вернуть его
-  // внутрь правильно. Слепое пятно у ДИАГНОСТИКИ, не у механики.
+  // ⚠️⚠️ THE HEIGHT AND «IS THERE A WALL THERE» ARE LOAD-BEARING FIELDS, AND NOT DECORATION.
+  // `radiusAt(y)` above the rim returns R1 FOREVER, while the physical walls
+  // end at `WALL_TOP_Y`: the cone up to 9.2, the belt of the upper walls up to 13.3, above that —
+  // open air. That is why «the wall excess» of an item at y=17 compares
+  // it with a non-existent wall: it is not squeezing through the glass, it is simply
+  // FLYING above the bowl (a top-up, a chain refill, an explosion).
+  // ⚠️ THE MEASUREMENT this was started for: out of 19 soak alarms across all journals
+  // ELEVEN came with y > 13.3 and ZERO from the wall belt itself. That is,
+  // more than half of the invariant's signal was metric noise.
+  // ⛔ THE RESCUER IS NOT CURED BY THIS AND IS NOT TOUCHED: for it the same formula means
+  // something else — an item above the bowl and outside R1 will fall PAST the bowl, and returning it
+  // inside is correct. The blind spot is in the DIAGNOSTICS, not in the mechanic.
   maxWallExcess(){
     let worst = -99, who = '', wy = 0;
     for (const it of items){
@@ -2442,13 +2444,13 @@ window.__game = {
   },
   topItem(){ let best = null; for (const it of items) if (it.alive && (!best || it.p.y + it.r > best.p.y + best.r)) best = it;
     return best ? { name: best.type.name, y: +(best.p.y + best.r).toFixed(2), meshY: +best.mesh.position.y.toFixed(2), sleeping: best.body ? best.body.isSleeping() : null } : null; },
-  // отладка: оставить по одному предмету каждого типа (для теста финала миксера)
-  // ⚠️ ТЕСТОВЫЙ РЫЧАГ: снять РОВНО n обычных предметов, не трогая клад, бомбу и
-  // камни и не запуская эффекты. Заведён потому, что окно мягкой ступени
-  // эндшпиля — ОДНО ЗНАЧЕНИЕ счётчика (9), а матч снимает ПАРУ: «доиграть до
-  // окна» проскакивает его через раз, а на попытках доиграть финал успевает
-  // доесть кучу (замерено трижды, каждый раз приезжали к нулю). Ставить сцену
-  // надо прямо, а не пытаться попасть в неё игрой.
+  // debug: leave one item of each type (for the mixer finale test)
+  // ⚠️ A TEST LEVER: remove EXACTLY n ordinary items, without touching the treasure, the bomb and
+  // the stones and without launching the effects. It was started because the window of the soft endgame
+  // step is ONE VALUE of the counter (9), while a match removes a PAIR: «playing up to
+  // the window» skips past it every other time, and during the attempts to play on the finale manages
+  // to eat up the pile (measured three times, every time we arrived at zero). The scene
+  // must be set up directly, and not by trying to hit it by playing.
   cull(n){
     let k = 0;
     for (const it of items){
@@ -2471,34 +2473,34 @@ window.__game = {
   },
 };
 
-// Старт асинхронный: сперва WASM-инициализация Rapier
+// The start is asynchronous: first the WASM initialization of Rapier
 if (!window.RAPIER){
   window.__fatal && window.__fatal('Physics engine (Rapier) failed to load.');
 } else {
   RAPIER.init().then(() => {
     initPhysicsWorld();
     resize(); updateCamera(); Ads.init(); genLevel(); loop();
-    // ⚙️ ПАНЕЛЬ ТЮНИНГА ПО АДРЕСУ (просьба владельца 2026-08-02: «на адрес»).
-    // `?matcap=1` открывает matcapTuner сразу — консоль браузера не нужна.
-    // ⚠️ ПОСЛЕ loop(), а не до: панель читает живые значения матерьялов, а до
-    // первого кадра часть из них ещё не создана.
-    // ⚠️ Ровно тот же приём, что у `?hour=N` — форс-хук в query-строке, чтобы
-    // владелец мог сам смотреть, не трогая код и не открывая devtools.
+    // ⚙️ THE TUNING PANEL BY URL (the owner's request 2026-08-02: «by address»).
+    // `?matcap=1` opens matcapTuner right away — the browser console is not needed.
+    // ⚠️ AFTER loop(), and not before: the panel reads the live values of the materials, and before
+    // the first frame some of them have not been created yet.
+    // ⚠️ Exactly the same trick as with `?hour=N` — a force hook in the query string, so that
+    // the owner can look for himself without touching the code and without opening devtools.
     try { if (/[?&]matcap=1/.test(location.search)) matcapTuner(); } catch(e){}
-    grabKeyFocus(); // Space работает с первого кадра, без клика по чаше
-    // ⚠️ ФЛАГ «ИГРА ПОДНЯЛАСЬ» — по нему window.onerror (shell.html) перестаёт
-    // хоронить сессию фатальным экраном. До этой строки ошибка действительно
-    // означает «не запустилось», после — игра уже идёт, и падение чужого
-    // скрипта не повод убивать партию (жалоба владельца 2026-07-29 со скрина:
-    // «Failed to start 3D — Script error.» на работающей игре).
+    grabKeyFocus(); // Space works from the first frame, without a click on the bowl
+    // ⚠️ THE «THE GAME HAS COME UP» FLAG — by it window.onerror (shell.html) stops
+    // burying the session with a fatal screen. Before this line an error really
+    // means «it did not start», after it the game is already running, and a crash of somebody else's
+    // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
+    // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }
 
-// ⚠️ СЛУЖЕБНЫЙ ИНТЕРФЕЙС СНИМАЕТСЯ В БОЮ (спека владельца 2026-07-29).
-// Не вырезан, а закрыт: на нём стоит весь сьют, и вырезав его, мы тестировали
-// бы не то, что выпускаем. В боевой сборке window.__game просто отсутствует —
-// вместе с ним закрыты starGrant (выдать валюту), buyBundle (бандл за $19.99
-// бесплатно), setLevel и boostSetClock (переставить метку времени, на которой
-// держится защита от перевода часов). Открыть на живом сайте: ?dev=1.
+// ⚠️ THE SERVICE INTERFACE IS REMOVED IN THE LIVE BUILD (the owner's spec 2026-07-29).
+// It is not cut out but closed off: the whole suite stands on it, and by cutting it out we would be testing
+// something other than what we ship. In the live build window.__game is simply absent —
+// together with it starGrant (hand out currency), buyBundle (a $19.99 bundle for
+// free), setLevel and boostSetClock (move the timestamp on which
+// the protection against clock tampering rests) are closed off. To open it on the live site: ?dev=1.
 if (!DEV){ try { delete window.__game; } catch(e){ window.__game = undefined; } }

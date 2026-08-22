@@ -1,155 +1,162 @@
-# Звук и музыка «Миксера»: что есть, что молчит, что делать
+# Sound and music of the "Mixer": what exists, what is silent, what to do
 
-Составлено 2026-07-29 прогоном звукового тракта по коду (не на слух — все
-«есть»/«нет» проверены по вызовам, у каждого пункта ссылка файл:строка в
-исходниках). Разбито на четыре блока, как ты просил.
+Compiled 2026-07-29 by a run of the audio path over the code (not by ear — every
+"there is"/"there is not" was verified against the calls, each item has a
+file:line reference in the sources). Split into four blocks, as you asked.
 
-## 0. Как устроено сейчас
+## 0. How it is built now
 
-- **Эффекты — процедурные**, синтезируются WebAudio на лету (`src/app/75-audio.js`),
-  плюс несколько base64-сэмплов (`74-sfx-data.js`, формат m4a — ogg Safari не
-  умеет). Веса почти не занимают.
-- **Музыка — один внешний файл** `music.mp3` (4.4 МБ), тянется лениво после
-  первого касания (политика автоплея iOS), громкость в настройках.
-- Всего звуков в тракте: 12 штук. Из них `surprise` обслуживает **четыре**
-  разных смысла, `match` — ещё и тап по глазам.
+- **Effects are procedural**, synthesized by WebAudio on the fly (`src/app/75-audio.js`),
+  plus a few base64 samples (`74-sfx-data.js`, m4a format — Safari cannot do
+  ogg). They take up almost no weight.
+- **Music is one external file** `music.mp3` (4.4 MB), pulled lazily after the
+  first touch (the iOS autoplay policy), volume in the settings.
+- Total sounds in the path: 12. Of them `surprise` serves **four** different
+  meanings, `match` — the tap on the eyes as well.
 
 ---
 
-## 1. Интерфейс
+## 1. Interface
 
-Сейчас все кнопки звучат **одним щелчком** через общий перехватчик — это
-хорошо, отдельно вешать не надо. Проблемы в другом.
+Right now all the buttons sound with **a single click** through a common
+interceptor — that is good, no need to hook them up separately. The problems are
+elsewhere.
 
-| Событие | Сейчас | Предложение | Приоритет |
+| Event | Now | Proposal | Priority |
 |---|---|---|---|
-| **Любой отказ**: нет встрясок, нет подсказок, мало звёзд, покупка не прошла, реклама недоступна (8 мест) | **молчит** — щелчок звучит одинаково и когда сработало, и когда нет | `deny`: две коротких ноты вниз 220→165 Гц, ~0.14 с, тихо. Вешается **одной строкой внутрь toast()** — покрывает все 8 мест разом. ⚠️ Не переиспользовать звук промаха: тот уже означает «потерял очки» | **важно** |
-| **Подсказка сработала** | молчит (только общий щелчок) | `hint`: две ноты вверх 1175→1568 Гц, ~0.24 с, старт +40 мс чтобы не смазаться с щелчком. Единственная платная механика без своего звука | **важно** |
-| **Тап по пустому полю карточки Play** | **молчит** — перехватчик ловит только кнопки, а кликабельна вся карточка (это её основная площадь) | расширить селектор до `button, .ms-play, .msc` — одна правка | **важно** |
-| **Включение звука ползунком** | молчит до следующего тапа — тумблер выглядит сломанным | одна строка: при включении сыграть щелчок, он же и есть доказательство | **важно** |
-| **Закрытие экрана** (Resume, крестики, Museum) | звучит **так же, как открытие** | тот же звук ниже и тише (680 Гц вместо 900) — новых байт не тянет | желательно |
-| **Покупка** бандла и Boost | звук клада `surprise` | свой «монетный» звон ~0.25 с. Сейчас клад, покупка бандла, покупка буста и рост множителя — **один и тот же звук**, это обесценивает находку | желательно |
-| **Тап по глазам миксера** | ✅ ЗАКРЫТО v186: тап стал ПРОВОКАЦИЕЙ помола (спека владельца 2026-07-30), лживый 'match' убран — звучит сам помол | — | ~~важно~~ |
+| **Any refusal**: no shakes, no hints, too few stars, the purchase did not go through, the ad is unavailable (8 places) | **silent** — the click sounds the same both when it worked and when it did not | `deny`: two short notes down 220→165 Hz, ~0.14 s, quiet. Hooked up with **one line inside toast()** — covers all 8 places at once. ⚠️ Do not reuse the miss sound: that one already means "lost points" | **important** |
+| **The hint fired** | silent (only the common click) | `hint`: two notes up 1175→1568 Hz, ~0.24 s, starting +40 ms so that it does not smear together with the click. The only paid mechanic without its own sound | **important** |
+| **Tap on the empty field of the Play card** | **silent** — the interceptor catches only buttons, while the whole card is clickable (that is its main area) | widen the selector to `button, .ms-play, .msc` — a single edit | **important** |
+| **Turning the sound on with the slider** | silent until the next tap — the toggle looks broken | one line: play the click when turning on, it is itself the proof | **important** |
+| **Closing a screen** (Resume, the crosses, Museum) | sounds **the same as opening** | the same sound lower and quieter (680 Hz instead of 900) — pulls in no new bytes | desirable |
+| **Purchase** of a bundle and of Boost | the treasure sound `surprise` | its own "coin" chime ~0.25 s. Right now the treasure, the bundle purchase, the boost purchase and the multiplier growth are **one and the same sound**, this devalues the find | desirable |
+| **Tap on the mixer's eyes** | ✅ CLOSED in v186: the tap became a PROVOCATION of the grinding (the owner's spec 2026-07-30), the lying 'match' is removed — the grinding itself sounds | — | ~~important~~ |
 
 ---
 
-## 2. Геймплей
+## 2. Gameplay
 
-| Событие | Сейчас | Предложение | Приоритет |
+| Event | Now | Proposal | Priority |
 |---|---|---|---|
-| **Обратный отсчёт до помола, последние 3 с** | молчит | тикающий отсчёт, нарастающий по громкости. Игрок должен слышать, что время кончается, **не глядя на таймер** | **важно** |
-| **Пуск ножей** (миксер завёлся) | молчит — слышно только сам помол | короткий «взвыв» раскрутки на переходе | **важно** |
-| **Финальная зачистка** | звучит **как наказание** | отделить: зачистка — это уже победа, а не штраф. Иначе финал ощущается наказанием | **важно** |
-| **Взрыв бомбы** | берёт звук встряски | свой низкий удар с телом — самое зрелищное событие игры сейчас звучит вторично | **важно** |
-| **Нарастающий гул угрозы** | молчит | континуальная подложка синхронно с краснеющим небом (драйвер уже посчитан, см. §4) | желательно |
-| **Окончание турбо** | молчит | спад — игрок не понимает, что режим кончился | желательно |
-| **Тупик и включение выручалки** | молчит | отдельный сигнал: сейчас непонятно, почему миксер вдруг заработал сам | желательно |
-| **Ступени комбо 2..5** | молчит (звучит только зажигание) | подъём тона по ступени — рост радиуса не слышен | желательно |
-| **Тап по камню** | звук обычного промаха | «стук по камню» — камень не промах, а особый объект с двойным штрафом | желательно |
-| **Тап по перекрытому** | звук промаха | глухой «тук» — разные причины отказа звучат одинаково | желательно |
-| **Сюрприз стал доступен** | молчит | тихий отзвук «что-то блеснуло» | потом |
+| **Countdown to the grinding, the last 3 s** | silent | a ticking countdown, rising in volume. The player must hear that time is running out **without looking at the timer** | **important** |
+| **Start of the blades** (the mixer got going) | silent — only the grinding itself is audible | a short spin-up "whine" on the transition | **important** |
+| **Final clean-up** | sounds **like a punishment** | separate it: the clean-up is already a victory, not a penalty. Otherwise the finale feels like a punishment | **important** |
+| **Bomb explosion** | takes the shake sound | its own low hit with body — the most spectacular event of the game currently sounds secondary | **important** |
+| **Rising hum of the threat** | silent | a continuous bed in sync with the reddening sky (the driver is already computed, see §4) | desirable |
+| **End of turbo** | silent | a fall-off — the player does not understand that the mode has ended | desirable |
+| **Deadlock and the bail-out kicking in** | silent | a separate signal: right now it is unclear why the mixer suddenly started working by itself | desirable |
+| **Combo steps 2..5** | silent (only the ignition sounds) | a rise in pitch per step — the radius growth is not audible | desirable |
+| **Tap on a rock** | the ordinary miss sound | a "knock on stone" — a rock is not a miss but a special object with a double penalty | desirable |
+| **Tap on an occluded item** | the miss sound | a dull "thud" — different reasons for a refusal sound the same | desirable |
+| **The surprise became reachable** | silent | a quiet echo of "something glinted" | later |
 
 ---
 
-## 3. Объекты: таблица по типам и совмещению
+## 3. Objects: a table by type and by matching
 
-Сейчас **все типы при совмещении звучат одинаково** — арпеджио `match`, где
-меняется только число нот от размера группы. При этом визуально пачки уже
-различаются (сок у еды, искры у машин, звёздочки у зверей, осколки у кирпичей
-и пиратских) — звук за визуалом не пошёл.
+Right now **all types sound the same when matched** — the `match` arpeggio, where
+only the number of notes changes with the group size. Visually the packs already
+differ (juice for food, sparks for cars, little stars for animals, shards for
+bricks and pirate ones) — the sound did not follow the visuals.
 
-| Пачка | Что в ней | Эффект при совмещении (визуал) | Звук сейчас | Предложение |
+| Pack | What is in it | Effect on matching (visual) | Sound now | Proposal |
 |---|---|---|---|---|
-| **food** — фрукты, овощи | 41 тип | сок, крупные капли | общий `match` | **сочный «плюх»**: шум до 800 Гц + тон с глиссандо вниз 300→160 Гц, ~90 мс. Низкий и мягкий |
-| **animal** — звери | 24 типа | звёздочки веером | общий `match` | **мультяшный «поп»**: бенд вверх 420→900 Гц, ~90 мс, без хвоста |
-| **car** — машины | 12 типов | искры + кубики-детальки | общий `match` | **сухой металлический «клац»**: две пипы 1300 и 1900 Гц + верхний тик, ~80 мс. Без шумового тела — иначе спутается с кирпичами |
-| **brick** — кирпичи | 7 типов | осколки | общий `match` | **уже есть `crunch`** (хруст) — просто начать его использовать, с силой от размера группы |
-| **pirate** — пиратский набор | 8 типов | осколки | общий `match` | тот же `crunch`, но ниже — дерево против камня |
-| **стейк** | 1 тип | труха | общий `match` | оставить общий — одиночка, свой звук не окупается |
-| **камень** (не совмещается) | спец | осколки только от бомбы | звук промаха | «стук по камню» (см. §2) |
-| **бомба** | спец | взрыв + эффекты жертв | звук встряски | свой удар (см. §2) |
-| **золотая рыбка** | сюрприз | своё сияние | `surprise` | оставить — это её собственный звук, но убрать его из покупок |
+| **food** — fruit, vegetables | 41 types | juice, large drops | the common `match` | **a juicy "splat"**: noise up to 800 Hz + a tone with a glissando down 300→160 Hz, ~90 ms. Low and soft |
+| **animal** — animals | 24 types | little stars in a fan | the common `match` | **a cartoon "pop"**: a bend up 420→900 Hz, ~90 ms, without a tail |
+| **car** — cars | 12 types | sparks + little part cubes | the common `match` | **a dry metallic "clack"**: two beeps at 1300 and 1900 Hz + a top tick, ~80 ms. Without a noise body — otherwise it will be confused with the bricks |
+| **brick** — bricks | 7 types | shards | the common `match` | **`crunch` already exists** (the crackle) — simply start using it, with strength from the group size |
+| **pirate** — the pirate set | 8 types | shards | the common `match` | the same `crunch`, but lower — wood against stone |
+| **steak** | 1 type | dust | the common `match` | leave the common one — a loner, its own sound does not pay off |
+| **rock** (does not match) | special | shards only from the bomb | the miss sound | a "knock on stone" (see §2) |
+| **bomb** | special | the explosion + the victims' effects | the shake sound | its own hit (see §2) |
+| **goldfish** | surprise | its own radiance | `surprise` | leave it — this is its own sound, but remove it from the purchases |
 
-**Два механических замечания, без которых таблица не заработает:**
+**Two mechanical remarks, without which the table will not work:**
 
-1. **Звук пачки — один на матч, а не на предмет.** Сейчас эффекты вызываются в
-   цикле по предметам; если так же сделать звук, при группе из восьми
-   получится восемь наложенных «плюхов» — каша и клиппинг. Звук пачки играется
-   один раз, с силой от размера группы.
-2. **Арпеджио должно различать группы от 4 до 8.** Сейчас оно насыщается на
-   четырёх — кап группы (8) ввели, а слышимой разницы между «четыре» и
-   «восемь» нет. Тон базы должен расти с размером.
-
----
-
-## 4. Музыка — ответы на твои вопросы
-
-### Сколько треков и какой длины
-
-Сейчас один трек. Для казуальной игры такого типа практика — **2-3 петли по
-1.5-2 минуты**: меню и игра не должны звучать одинаково, иначе за час игры
-трек приедается до раздражения. Это отраслевая практика, а не измерение —
-проверять придётся на игроках.
-
-### Должна ли музыка меняться, когда блендер злится
-
-**Да, и для этого уже всё посчитано** — новых состояний заводить не нужно.
-В игре есть готовый драйвер угрозы: величина, которая растёт от нуля к единице
-по мере приближения помола и держится на единице, пока крутятся ножи (по нему
-уже краснеет небо). На него достаточно повесить **фильтр и громкость**: чем
-ближе помол, тем глуше и тревожнее музыка. Это дешевле смены трека и не
-требует ни одного нового файла.
-
-Турбо — то же самое, но в другую сторону: короткий подъём.
-
-⚠️ Смену трека на злость **не рекомендую**: она даёт паузу на переключении и
-второй файл в загрузку.
-
-### Вес и как заливать
-
-⚠️ **Сейчас переплата примерно вчетверо.** Трек лежит в 267 кбит/с стерео —
-это качество для прослушивания музыки, а не для фоновой петли под звуковыми
-эффектами. Переэкспорт в AAC (.m4a) на 96-112 кбит/с даст **1.5-1.8 МБ вместо
-4.4** без слышимой на фоне разницы. Формат в проекте уже обкатан — все
-эффекты в нём.
-
-Раз ты всё равно меняешь музыку из-за лицензии — **сделай это сразу в m4a на
-96-112 кбит/с**, тогда не придётся переделывать.
-
-### Найденные дефекты музыки
-
-Это не пожелания, это поломки:
-
-1. ⚠️ **Музыка не глохнет во время рекламного ролика** и когда площадка
-   требует тишины. Эффекты глохнут, музыка играет поверх рекламы. Для портала
-   это претензия, для игрока — каша.
-2. ⚠️ **На iPhone после звонка или сворачивания музыка не возвращается** до
-   конца сессии. Лечится одной строкой: пробовать возобновить на каждом
-   касании.
-3. ⚠️ **Шов петли**: каждые 2 минуты 11 секунд в музыке дыра почти на секунду
-   и жёсткий рестарт. Лечится при переэкспорте — обрезать хвостовую тишину.
-4. ⚠️ **Уход во вкладку**: игра встаёт на паузу, музыка продолжает играть.
-5. ⚠️ **Джинглы победы и поражения** играют поверх музыки на полной громкости —
-   музыку на это время надо приглушать.
+1. **The pack sound is one per match, not per item.** Right now the effects are
+   called in a loop over the items; if the sound is done the same way, a group of
+   eight will give eight overlaid "splats" — mush and clipping. The pack sound
+   plays once, with strength from the group size.
+2. **The arpeggio must tell groups of 4 to 8 apart.** Right now it saturates at
+   four — the group cap (8) was introduced, but there is no audible difference
+   between "four" and "eight". The base tone must grow with the size.
 
 ---
 
-## 5. Порядок работ
+## 4. Music — answers to your questions
 
-**Сначала то, что чинит ложь и молчание** (часы работы, ноль новых файлов):
-отказы получают свой звук, тап по глазам перестаёт врать «совместил», главная
-кнопка перестаёт молчать, музыка глохнет на рекламе и возвращается после
-звонка.
+### How many tracks and of what length
 
-**Потом характер** (дни): отсчёт до помола, пуск ножей, свой звук взрыва,
-отделённая зачистка — это то, что делает игру «живой» на слух.
+Right now there is one track. For a casual game of this type the practice is
+**2-3 loops of 1.5-2 minutes**: the menu and the game must not sound the same,
+otherwise over an hour of play the track becomes stale to the point of
+irritation. This is industry practice, not a measurement — it will have to be
+checked on players.
 
-**Потом пачки** (дни): пять звуков совмещения по таблице §3. Работы немного,
-но эффект самый заметный — предметы перестают быть взаимозаменяемыми на слух.
+### Should the music change when the blender gets angry
 
-**Музыка** — когда заменишь трек: сразу в m4a 96-112 кбит/с, с ровной петлёй,
-и повесить фильтр на угрозу.
+**Yes, and everything has already been computed for that** — there is no need to
+set up new states. The game has a ready threat driver: a value that grows from
+zero to one as the grinding approaches and holds at one while the blades spin
+(the sky already reddens from it). It is enough to hang **a filter and volume**
+on it: the closer the grinding, the more muffled and anxious the music. This is
+cheaper than a track change and does not require a single new file.
 
-⚠️ **Ни одного теста на звук в сьюте сейчас нет** — 234 проверки не трогают
-аудио вовсе. Когда будем делать пачки, стоит добавить хотя бы «на матч
-позвали звук нужной пачки», иначе следующая правка отломает молча.
+Turbo is the same thing, but in the other direction: a short lift.
+
+⚠️ A track change on the anger I **do not recommend**: it gives a pause on the
+switch and a second file to download.
+
+### Weight and how to upload
+
+⚠️ **Right now we are overpaying roughly fourfold.** The track sits at 267 kbit/s
+stereo — that is quality for listening to music, not for a background loop under
+sound effects. A re-export to AAC (.m4a) at 96-112 kbit/s will give **1.5-1.8 MB
+instead of 4.4** with no difference audible in the background. The format is
+already proven in the project — all the effects are in it.
+
+Since you are replacing the music anyway because of the licence — **do it right
+away in m4a at 96-112 kbit/s**, then it will not have to be redone.
+
+### Music defects found
+
+These are not wishes, these are breakages:
+
+1. ⚠️ **The music does not duck during an ad spot** and when the platform demands
+   silence. The effects duck, the music plays over the ad. For the portal that is
+   a complaint, for the player it is mush.
+2. ⚠️ **On iPhone the music does not come back after a phone call or after
+   minimising** until the end of the session. Cured with one line: try to resume
+   on every touch.
+3. ⚠️ **The loop seam**: every 2 minutes 11 seconds there is a hole in the music
+   of almost a second and a hard restart. Cured on the re-export — trim the
+   trailing silence.
+4. ⚠️ **Switching away to another tab**: the game goes on pause, the music keeps
+   playing.
+5. ⚠️ **The victory and defeat jingles** play over the music at full volume — the
+   music has to be ducked for that time.
+
+---
+
+## 5. Order of work
+
+**First what fixes the lie and the silence** (hours of work, zero new files): the
+refusals get their own sound, the tap on the eyes stops lying "matched", the main
+button stops being silent, the music ducks on the ad and comes back after a phone
+call.
+
+**Then the character** (days): the countdown to the grinding, the start of the
+blades, its own explosion sound, the separated clean-up — this is what makes the
+game "alive" to the ear.
+
+**Then the packs** (days): five matching sounds per the table in §3. Not much
+work, but the most noticeable effect — the items stop being interchangeable to
+the ear.
+
+**Music** — when you replace the track: right away in m4a at 96-112 kbit/s, with
+an even loop, and hang a filter on the threat.
+
+⚠️ **There is not a single sound test in the suite right now** — the 234 checks do
+not touch audio at all. When we do the packs, it is worth adding at least "on a
+match the sound of the right pack was called", otherwise the next edit will break
+it silently.

@@ -1,174 +1,174 @@
-# Глаза миксера — как работают (живой документ)
+# The mixer's eyes — how they work (living document)
 
-Канон персонажа. **Правило ведения:** любая правка глаз (состояние, тайминг,
-ассет, триггер) обязана добавить строку в «Журнал» внизу и поправить
-соответствующий раздел. Держит документ чат ИНТЕРФЕЙСА; код — `85-hud.js`
-(движок), разметка — `#face` в `shell.html`.
+The character's canon. **Maintenance rule:** any edit to the eyes (state, timing,
+asset, trigger) is required to add a line to the "Log" at the bottom and to fix the
+corresponding section. The document is maintained by the INTERFACE chat; the code is
+`85-hud.js` (engine), the markup is `#face` in `shell.html`.
 
-Ассеты владельца: Figma 741:1420 (сетка всех вариантов) + папка
-`Interface/Eyes/`. Историческая версия этого файла (доассетная, с дугами и
-полоской заряда) не действует.
+The owner's assets: Figma 741:1420 (a grid of all the variants) + the folder
+`Interface/Eyes/`. The historical version of this file (pre-asset, with arcs and
+the charge bar) is not in force.
 
-## 1. Анатомия
+## 1. Anatomy
 
-Глаза — **один инлайновый SVG** (`#eyes`, viewBox 240×120), а не набор
-картинок. Почти весь набор владельца — два круга с разными числами, поэтому
-круглая пара **параметрическая**:
+The eyes are **one inline SVG** (`#eyes`, viewBox 240×120), not a set of
+images. Almost the whole set from the owner is two circles with different numbers, which
+is why the round pair is **parametric**:
 
-- белки `#wL/#wR` (r60) и зрачки `#pupL/#pupR` (r29) — отдельные `circle`;
-  позиция и размер задаются CSS-трансформами каждый кадр;
-- несводимые формы лежат **отдельными слоями** `<g class="face">`:
-  `fAngry` (злые, eyes-3-1, со СВОИМИ подвижными зрачками `#pupAL/#pupAR`
-  под клипом по белку-клину), `fSad` (грусть, eyes-1-6, веки `.lid`),
-  `fX` (поражение, eyes-4);
-- слой включается классом `.on` (кросс-фейд opacity 0.12 с).
+- the whites `#wL/#wR` (r60) and the pupils `#pupL/#pupR` (r29) are separate `circle`s;
+  position and size are set by CSS transforms every frame;
+- the irreducible shapes lie in **separate layers** `<g class="face">`:
+  `fAngry` (angry, eyes-3-1, with THEIR OWN movable pupils `#pupAL/#pupAR`
+  under a clip by the wedge-shaped white), `fSad` (sadness, eyes-1-6, lids `.lid`),
+  `fX` (defeat, eyes-4);
+- a layer is switched on by the class `.on` (opacity cross-fade 0.12 s).
 
-⚠️ Слои перечислены **явно** в `setFace`. Удаляешь слой из разметки — убери
-его из списка: обращение к несуществующему id валит тик каждый кадр и
-останавливает весь игровой цикл (ловилось тестом: бот не мог добить уровень).
+⚠️ The layers are listed **explicitly** in `setFace`. If you delete a layer from the markup —
+remove it from the list too: a reference to a non-existent id crashes the tick every frame and
+stops the whole game loop (it was caught by a test: the bot could not finish off the level).
 
-⚠️ В `#eyes` **никогда не писать textContent** — это стёрло бы всю разметку
-персонажа (грабля из эпохи эмодзи; пауза когда-то ставила «😴»).
+⚠️ **Never write textContent into `#eyes`** — that would erase the character's whole
+markup (a trap from the emoji era; the pause used to put "😴" there).
 
-## 2. Четыре независимых слоя анимации
+## 2. Four independent animation layers
 
-| Слой | Что решает | Где |
+| Layer | What it decides | Where |
 |---|---|---|
-| ЭМОЦИЯ | какая форма глаз | `eyesMood` → `faceState`, тик 600 мс |
-| ВЗГЛЯД | куда смотрят зрачки | `gazeFor` + `clampGaze`, каждый кадр |
-| РЕАКЦИЯ | короткий всплеск поверх эмоции | `faceEvent(state, ms)` / `facePulse` |
-| МОРГАНИЕ | жизнь в паузах | `tickFace`, 120 мс раз в 4–7 с |
+| EMOTION | which eye shape | `eyesMood` → `faceState`, 600 ms tick |
+| GAZE | where the pupils look | `gazeFor` + `clampGaze`, every frame |
+| REACTION | a short burst on top of the emotion | `faceEvent(state, ms)` / `facePulse` |
+| BLINKING | life during pauses | `tickFace`, 120 ms once every 4–7 s |
 
-Сведение — в `tickFace` (зовётся из loop каждый кадр): помол > реакция >
-эмоция; моргание поверх, если состоянию можно моргать.
+The merging is in `tickFace` (called from the loop every frame): grinding > reaction >
+emotion; blinking on top, if the state is allowed to blink.
 
-## 3. Состояния (приоритет сверху вниз)
+## 3. States (priority from top to bottom)
 
-| # | Триггер | Вид | Механика |
+| # | Trigger | Look | Mechanics |
 |---|---|---|---|
-| 1 | пауза | стоп-кадр текущего лица | rAF стоит, ничего не тикает |
-| 2 | победа (`level.over`, все спасены) | добрые: зрачки крупные | fRound |
-| 3 | поражение (`level.over`) | ✕✕ | слой `fX` |
-| 4 | **серия турбо** (`chainSeries ≥ 2` при активной цепи) | асимметрия eyes-5: левый зрачок 40 в белке 60, правый белок 44 со зрачком 12; катаются | fRound, `EYE5_*` |
-| 5 | турбо (`chainUntil > now`) | зрачки сжаты до 15, катаются в РАЗНЫЕ стороны (один по часовой, другой против), оборот ~1.2 с | fRound, `PUP_MIN` |
-| 6 | помол (`grinding`) | злые eyes-3-1; зрачки СКАНИРУЮТ чашу: влево → вправо → вниз, шаг 0.8 с | слой `fAngry`, клип держит внутри клина |
-| 7 | ≤3 с до перемолки | хитрые: зрачки вразнобой по диагонали (±16) | fRound, `FACE_GAZE.sly` |
-| 8 | горит серия комбо | набор буста: зрачки растут 29→50 пропорционально `comboCount/CHAIN_COMBO_AT` | fRound |
-| 9 | простой > 8 с | закатанные: зрачки вверх (0,−24) | fRound |
-| 10 | иначе | спокойные: зрачки бродят ±10/±8 раз в 1.5–3 с | fRound |
+| 1 | pause | freeze-frame of the current face | rAF is stopped, nothing ticks |
+| 2 | victory (`level.over`, everyone saved) | kind: large pupils | fRound |
+| 3 | defeat (`level.over`) | ✕✕ | layer `fX` |
+| 4 | **turbo series** (`chainSeries ≥ 2` with an active chain) | eyes-5 asymmetry: the left pupil 40 inside a white of 60, the right white 44 with a pupil of 12; they roll | fRound, `EYE5_*` |
+| 5 | turbo (`chainUntil > now`) | the pupils are squeezed down to 15, rolling in OPPOSITE directions (one clockwise, the other counter-clockwise), a revolution takes ~1.2 s | fRound, `PUP_MIN` |
+| 6 | grinding (`grinding`) | angry eyes-3-1; the pupils SCAN the bowl: left → right → down, 0.8 s per step | layer `fAngry`, the clip keeps them inside the wedge |
+| 7 | ≤3 s until the grind | sly: the pupils out of sync along the diagonal (±16) | fRound, `FACE_GAZE.sly` |
+| 8 | a combo series is burning | boost build-up: the pupils grow 29→50 proportionally to `comboCount/CHAIN_COMBO_AT` | fRound |
+| 9 | idle > 8 s | rolled up: the pupils up (0,−24) | fRound |
+| 10 | otherwise | calm: the pupils wander ±10/±8 once every 1.5–3 s | fRound |
 
-Лесенка угрозы читается без слов: спокойные → закатанные → хитрые → злые.
-Лесенка турбо: рост зрачков → сжатые катающиеся → асимметрия eyes-5.
+The threat ladder reads without words: calm → rolled up → sly → angry.
+The turbo ladder: the pupils growing → squeezed and rolling → the eyes-5 asymmetry.
 
-⚠️ ПОМОЛ ПЕРЕБИВАЕТ ВСЁ: пока крутятся лопасти — только злые. Реакции на
-падение счёта глушатся (`lastGrind` в `tickFace`), иначе штраф −20 за каждый
-помол дёргал бы грусть поверх злых. Моргание при помоле тоже выключено.
+⚠️ GRINDING OVERRIDES EVERYTHING: while the blades are spinning — angry only. Reactions to
+a score drop are muted (`lastGrind` in `tickFace`), otherwise the −20 penalty for every
+grind would jerk sadness on top of the angry ones. Blinking during grinding is also off.
 
-## 4. Мгновенные реакции (поверх состояния)
+## 4. Instant reactions (on top of the state)
 
-| Триггер | Что происходит | Длится |
+| Trigger | What happens | Lasts |
 |---|---|---|
-| счёт вырос (матч, клад) | зрачки «ахнули» ×1.25 | 180 мс |
-| счёт упал (промах −7) | **грусть в три фазы**: зрачки ныряют вниз 80 мс ещё на круглой паре (`faceHoldFrom`) → нижние веки `.lid` выезжают снизу 0.22 с (CSS translateY 34→0 на `#fSad.on`) → держится ~0.7 с → веки уезжают, взгляд ещё ~1 с висит внизу и «поднимается» (lookVec-хвост). Замер rAF: грусть видна 273→941 мс от тапа | ~0.9 с + хвост |
-| раскопан клад | распахнутые зрачки | 1 с (`collectSurprise`, 80-gameplay) |
-| тап по глазам | подмигивание-поза (зрачки вразнобой) + подскок `bounce` (scale 1.12, −5°) + звук | 0.8 с / 0.45 с |
-| тап/драг по полю | зрачки провожают палец: вектор к точке, сила 24·min(1, d/260) | 1.4 с |
+| the score went up (match, treasure) | the pupils "gasped" ×1.25 | 180 ms |
+| the score went down (miss −7) | **sadness in three phases**: the pupils dive down for 80 ms while still on the round pair (`faceHoldFrom`) → the lower lids `.lid` slide out from below over 0.22 s (CSS translateY 34→0 on `#fSad.on`) → it holds ~0.7 s → the lids slide away, the gaze hangs down for another ~1 s and "rises" (the lookVec tail). rAF measurement: sadness is visible 273→941 ms from the tap | ~0.9 s + the tail |
+| a treasure has been dug up | wide-open pupils | 1 s (`collectSurprise`, 80-gameplay) |
+| a tap on the eyes | a winking pose (the pupils out of sync) + a `bounce` hop (scale 1.12, −5°) + sound | 0.8 s / 0.45 s |
+| a tap/drag on the field | the pupils follow the finger: a vector towards the point, strength 24·min(1, d/260) | 1.4 s |
 
-Реакции на счёт реализованы НАБЛЮДЕНИЕМ за `stats.score` в `tickFace` —
-в ядро правок нет.
+The reactions to the score are implemented by WATCHING `stats.score` in `tickFace` —
+there are no edits in the core.
 
-## 5. Жёсткие правила (спека владельца)
+## 5. Hard rules (the owner's spec)
 
-1. **Чёрный зрачок никогда не выходит за белок.** `clampGaze` режет вектор
-   взгляда по свободному месту: радиус белка − радиус зрачка − 1. Работает
-   ПО-ГЛАЗНО — при асимметрии eyes-5 правому позволен ход 31, левому 19.
-2. Индикатор турбо — **сами зрачки**, никаких полосок/колец (удалены).
-3. Дуги eyes-4-4 удалены совсем: «добрые» — размером зрачков, не формой.
-4. При помоле всегда злые; вместо красного «0» — слово «Grinding» тем же
-   стилем (это конструкция `#face`, но текст — зона единого контура .otext).
+1. **The black pupil never goes outside the white.** `clampGaze` clips the gaze
+   vector by the free space: the white's radius − the pupil's radius − 1. It works
+   PER EYE — with the eyes-5 asymmetry the right one is allowed a travel of 31, the left one 19.
+2. The turbo indicator is **the pupils themselves**, no bars/rings (they are removed).
+3. The eyes-4-4 arcs are removed entirely: "kind" is conveyed by the size of the pupils, not by shape.
+4. During grinding always angry; instead of the red "0" — the word "Grinding" in the same
+   style (this is the `#face` construction, but the text belongs to the zone of the single .otext outline).
 
-## 6. Карта ассетов → что с ними стало
+## 6. Asset map → what became of them
 
-| Ассет | Судьба |
+| Asset | Fate |
 |---|---|
-| eyes-0 семейство (взгляд/размер) | параметрика круглой пары |
-| eyes-0-1 (зрачки 15) | турбо |
-| eyes-0-2 (зрачки 50) | распахнутые (клад, пик набора буста) |
-| eyes-0-3/4/5/6 (взгляд по сторонам) | параметрика взгляда |
-| eyes-1-6 (веки снизу, взгляд вниз) | слой `fSad` (промах) |
-| eyes-1, 1-2…1-5 (фазы века) | НЕ задействованы (кандидат: сон/скука) |
-| eyes-2 семейство (вразнобой) | поза «хитрые» и подмигивание |
-| eyes-3-1 (злые) | слой `fAngry` + подвижные зрачки |
-| eyes-3 (злые, вариант) | не задействован (заменён на 3-1 по спеке) |
-| eyes-4 (✕✕) | слой `fX` (поражение) |
-| eyes-4-1 (><), 4-2 (——), 4-3 (^^), 4-4 (⌒⌒) | НЕ задействованы (4-3 был зажмуром — удалён; 4-4 дуги — запрещены) |
-| eyes-5 / 5-1 (асимметрия) | серия турбо (`chainSeries ≥ 2`) |
+| the eyes-0 family (gaze/size) | the parametrics of the round pair |
+| eyes-0-1 (pupils 15) | turbo |
+| eyes-0-2 (pupils 50) | wide open (treasure, the peak of the boost build-up) |
+| eyes-0-3/4/5/6 (gaze to the sides) | the parametrics of the gaze |
+| eyes-1-6 (lids from below, gaze down) | layer `fSad` (miss) |
+| eyes-1, 1-2…1-5 (lid phases) | NOT used (candidate: sleep/boredom) |
+| the eyes-2 family (out of sync) | the "sly" pose and winking |
+| eyes-3-1 (angry) | layer `fAngry` + movable pupils |
+| eyes-3 (angry, variant) | not used (replaced by 3-1 per the spec) |
+| eyes-4 (✕✕) | layer `fX` (defeat) |
+| eyes-4-1 (><), 4-2 (——), 4-3 (^^), 4-4 (⌒⌒) | NOT used (4-3 was the squint — removed; the 4-4 arcs are forbidden) |
+| eyes-5 / 5-1 (asymmetry) | the turbo series (`chainSeries ≥ 2`) |
 
-## 7. Карта кода
+## 7. Code map
 
-| Функция (85-hud) | Роль |
+| Function (85-hud) | Role |
 |---|---|
-| `eyesMood(now, grinding)` | имя эмоции по приоритету (тик 600 мс из `updateEyes`) |
-| `eyeSizes(now, state)` | радиусы зрачков и белков per-глаз (буст/турбо/серия/пульс) |
-| `gazeFor(now, state)` | вектор взгляда (качение турбо, позы, палец, блуждание) |
-| `clampGaze(vec, pupR, eyeR)` | правило №1 |
-| `tickFace(now)` | сведение всего + наблюдатель счёта + моргание (каждый кадр из loop 99-main) |
-| `setFace(state, now, blinking)` | включение слоя + трансформы зрачков (вкл. скан злых) |
-| `faceEvent(state, ms)` | короткая реакция; `faceHoldFrom` умеет отложить старт |
-| `faceLook(x, y)` | взгляд в точку экрана (зовёт 90-input на pointerdown) |
-| `facePulse()` | пульс зрачка |
+| `eyesMood(now, grinding)` | the emotion name by priority (600 ms tick from `updateEyes`) |
+| `eyeSizes(now, state)` | the pupil and white radii per eye (boost/turbo/series/pulse) |
+| `gazeFor(now, state)` | the gaze vector (turbo rolling, poses, finger, wandering) |
+| `clampGaze(vec, pupR, eyeR)` | rule #1 |
+| `tickFace(now)` | merging everything + the score watcher + blinking (every frame from the loop in 99-main) |
+| `setFace(state, now, blinking)` | switching a layer on + the pupil transforms (incl. the angry scan) |
+| `faceEvent(state, ms)` | a short reaction; `faceHoldFrom` is able to delay the start |
+| `faceLook(x, y)` | gaze at a screen point (called by 90-input on pointerdown) |
+| `facePulse()` | a pupil pulse |
 
-Внешние вызовы: `tickFace` — loop (99-main); `faceLook` и тап-подмигивание —
-90-input; `faceEvent('surprised')` — collectSurprise (80-gameplay, по
-междузонному запросу). Серию считает ядро: `chainSeries` (60-access,
-инкремент в doMatch 80-gameplay).
+External calls: `tickFace` — the loop (99-main); `faceLook` and the tap-wink —
+90-input; `faceEvent('surprised')` — collectSurprise (80-gameplay, by a
+cross-zone request). The series is counted by the core: `chainSeries` (60-access,
+incremented in doMatch, 80-gameplay).
 
-## 7б. Огонь угрозы (макет 751:1122, ассеты Fire-left/right)
+## 7b. The threat fire (mockup 751:1122, assets Fire-left/right)
 
-Корона пламени ЗА белками: два зеркальных языка (viewBox-координаты:
-левый −6.7…120, правый 120…246.7, Y −47…79.8 — из design context, поворот
-0.33° опущен). Слой `#fFire` — ПЕРВЫЙ ребёнок `#eyes` (глаза рисуются
-поверх, как в макете); `#eyes` получил `overflow:visible`.
+A crown of flame BEHIND the whites: two mirrored tongues (viewBox coordinates:
+the left one −6.7…120, the right one 120…246.7, Y −47…79.8 — from the design context, the
+0.33° rotation is dropped). The `#fFire` layer is the FIRST child of `#eyes` (the eyes are
+drawn on top, as in the mockup); `#eyes` got `overflow:visible`.
 
-- **Триггер:** остаток до помола < 5 с ИЛИ идёт Grinding. Считается в
-  блоке отсчёта 99-main из ТОГО ЖЕ источника, что число (`level.idleLimit
-  − idleS`), кэш `lastFireOn` — класс дёргается только при смене.
-- **Тайминги:** появление 0.35 с / гашение 0.2 с — те же, что у красной
-  лесенки неба (одна система угрозы). Гаснет, когда матч сбросил таймер.
-- **Жизнь:** мягкое «дыхание» scaleY 1→1.045 (0.52 с, alternate), языки
-  вразнобой (правому delay 0.26 с).
-- ⚠️ **Грабля SVG:** позиция — АТРИБУТ transform внешней группы, дыхание —
-  CSS-анимация ВЛОЖЕННОЙ `.fl`: CSS-transform перекрывает атрибут той же
-  группы — пламёна слетали в (0,0) и стопкой ложились на левый глаз.
-- ⚠️ **Открыто (решение владельца):** конструкция стоит в 8px от верха
-  экрана, корона макета поднимается на ~37px выше глаз — на экранах без
-  выреза верх пламени режется кромкой. Варианты: опустить конструкцию /
-  уменьшить огонь / принять как есть (на телефонах с чёлкой корона видна
-  в safe-area). Реализовано по макету 1:1.
+- **Trigger:** the time left until grinding < 5 s OR Grinding is under way. It is computed in
+  the countdown block of 99-main from the SAME source as the number (`level.idleLimit
+  − idleS`), the cache `lastFireOn` — the class is touched only on a change.
+- **Timings:** appearance 0.35 s / fade-out 0.2 s — the same as for the red
+  sky ladder (one threat system). It goes out when a match has reset the timer.
+- **Life:** a soft "breathing" scaleY 1→1.045 (0.52 s, alternate), the tongues
+  out of sync (the right one has a 0.26 s delay).
+- ⚠️ **SVG trap:** the position is the transform ATTRIBUTE of the outer group, the breathing is
+  a CSS animation of the NESTED `.fl`: a CSS transform overrides the attribute of the same
+  group — the flames flew off to (0,0) and lay in a stack on the left eye.
+- ⚠️ **Open (the owner's decision):** the construction stands 8px from the top of
+  the screen, the mockup's crown rises ~37px above the eyes — on screens without
+  a notch the top of the flame is cut off by the edge. Options: lower the construction /
+  make the fire smaller / accept it as is (on phones with a notch the crown is visible
+  in the safe area). Implemented 1:1 with the mockup.
 
-## 8. Открытые вопросы
+## 8. Open questions
 
-- «Закатанные» в Hard не показываются никогда: скука требует простоя 8 с,
-  а «хитрые» перехватывают на 7-й секунде (терпение Hard = 10 с). Лечится
-  привязкой порога скуки к доле терпения — ждёт решения владельца.
-- Моргание владелец хочет «отдельно проработать позже» (его слова при
-  постановке правил) — пока 120 мс схлопыванием, раз в 4–7 с.
-- Семейство eyes-1 (фазы века) свободно — кандидат на сон/глубокую скуку.
+- The "rolled up" eyes are never shown on Hard: boredom requires 8 s of idling,
+  while the "sly" ones intercept at the 7th second (Hard patience = 10 s). It is cured
+  by tying the boredom threshold to a fraction of the patience — it awaits the owner's decision.
+- The owner wants blinking "worked out separately later" (his words when
+  the rules were set) — for now 120 ms by collapsing, once every 4–7 s.
+- The eyes-1 family (lid phases) is free — a candidate for sleep/deep boredom.
 
-## Журнал
-- 2026-07-30 (v1-test-186, спека владельца): ТАП ПО ГЛАЗАМ = ПРОВОКАЦИЯ.
-  Отменяет «подмигивает» (2026-07-19). Тап объявляет терпение миксера
-  исчерпанным — планировщик начинает помол немедленно (тот же путь, что
-  наказание за простой; глаза злеют сами, помол перебивает все состояния).
-  Останавливается любым матчем/встряской. Вне партии (интро/пауза/победа) —
-  только подскок. Звук 'match' с тапа УБРАН (врал «совместил», AUDIO-PLAN §1);
-  звучит сам помол. Цена = цена помола (−20/укус, ур.1 без штрафов).
+## Log
+- 2026-07-30 (v1-test-186, the owner's spec): A TAP ON THE EYES = PROVOCATION.
+  It cancels "he winks" (2026-07-19). The tap declares the mixer's patience
+  exhausted — the scheduler starts grinding immediately (the same path as
+  the punishment for idling; the eyes get angry on their own, grinding overrides all states).
+  It is stopped by any match/shake. Outside a game (intro/pause/victory) —
+  only the hop. The 'match' sound on the tap is REMOVED (it lied "matched", AUDIO-PLAN §1);
+  the grinding itself sounds. The cost = the cost of grinding (−20 per bite, lv.1 without penalties).
 
-- 2026-07-22 · дроп конструкции под корону огня (решение владельца):
-  #face.dropped на --fireLift, режимы FIRE_DROP_MODE; на чёлках лифт 0.
-- 2026-07-21 · огонь угрозы: слой #fFire при <5 с до помола и в Grinding
-  (макет 751:1122); тайминги 0.35/0.2 с как у лихорадки неба; дыхание
-  scaleY; грабля «CSS-анимация против атрибута transform» описана в §7б.
-- 2026-07-21 · документ переписан начисто как живой канон (доассетная
-  версия не действует); зафиксировано текущее поведение v1-test-47+ветка:
-  серия турбо = eyes-5, скан злых, грусть в три фазы, наблюдатель счёта.
+- 2026-07-22 · dropping the construction to make room for the fire crown (the owner's decision):
+  #face.dropped on --fireLift, the modes FIRE_DROP_MODE; on notches the lift is 0.
+- 2026-07-21 · the threat fire: the #fFire layer at <5 s until grinding and during Grinding
+  (mockup 751:1122); timings 0.35/0.2 s as for the sky fever; scaleY
+  breathing; the trap "a CSS animation against the transform attribute" is described in §7b.
+- 2026-07-21 · the document was rewritten from scratch as a living canon (the pre-asset
+  version is not in force); the current behavior of v1-test-47+branch was recorded:
+  the turbo series = eyes-5, the angry scan, sadness in three phases, the score watcher.

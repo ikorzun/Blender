@@ -1,318 +1,318 @@
-# План на неделю: доделать веб-версию + челендж роста
+# Week plan: finish the web version + the growth challenge
 
-Составлено 2026-07-30 диспетчером после сдачи всех пяти направлений, ревью кода
-(17 агентов, 8 срезов) и панели по возвращаемости (8 агентов, 4 угла, 3 судьи).
-База — `v1-test-177`, сьют 266 PASS, exit 0.
+Compiled 2026-07-30 by the dispatcher after all five workstreams delivered, a code
+review (17 agents, 8 slices) and a retention panel (8 agents, 4 angles, 3 judges).
+Base — `v1-test-177`, the suite 266 PASS, exit 0.
 
-⚠️ **О достоверности этого документа.** Всё, что помечено ✅ ПРОВЕРЕНО, я
-воспроизвёл или пересчитал сам. Всё остальное — заявка агента или направления,
-и перед работой это надо подтвердить. Причина такой осторожности: из 31
-«подтверждённой» находки ревью **все три блокера оказались ложными** — шесть
-агентов подряд не нашли защиту, стоявшую пятьюдесятью строками выше симптома.
-Ни одна находка не идёт в работу без своей проверки.
+⚠️ **On the trustworthiness of this document.** Everything marked ✅ VERIFIED I
+reproduced or recomputed myself. Everything else is a claim by an agent or a
+workstream, and it has to be confirmed before work. The reason for such caution: out of
+31 "confirmed" review findings **all three blockers turned out to be false** — six
+agents in a row failed to find the guard standing fifty lines above the symptom.
+No finding goes into work without its own check.
 
 ---
 
-## 0. Что уже сделано сегодня
+## 0. What has already been done today
 
-| Версия | Что |
+| Version | What |
 |---|---|
-| 174 | Занавес над HUD на время загрузки (ИНТЕРФЕЙС) |
-| 175 | Цены без девяток 4.90 / 9.90 / 19.90 + сторож текста кнопок |
-| 176 | Межстраничная раз в 3 уровня вместо 5 |
-| 177 | Анимация заполнения больше не играет под занавесом площадки; попутно закрыт ЧЁРНЫЙ ЭКРАН НАВСЕГДА при незарезолвившемся `initialize()` |
-| — | Хвостовой гейт ошибок в сьюте: 59% прогона шло с неработающим стражем |
-| — | Канон поправлен трижды: мёртвый хвост TYPES, геометрия стен, два устаревших «открытых вопроса» |
+| 174 | A curtain over the HUD for the duration of loading (INTERFACE) |
+| 175 | Prices without nines 4.90 / 9.90 / 19.90 + a guard on the button text |
+| 176 | The interstitial once every 3 levels instead of 5 |
+| 177 | The fill animation no longer plays behind the platform curtain; along the way the FOREVER BLACK SCREEN on an unresolved `initialize()` was closed |
+| — | The tail error gate in the suite: 59% of the run went with a non-working guard |
+| — | The canon was corrected three times: the dead TYPES tail, the wall geometry, two stale "open questions" |
 
 ---
 
-## 1. Дни 1–2: то, что игрок видит, а мы почему-то нет
+## 1. Days 1–2: what the player sees and we somehow do not
 
-Эти пять пунктов — самые дешёвые в проекте и при этом самые заметные. Все
-пять означают «уже сделано и не показано», то есть работа оплачена, а эффекта нет.
+These five items are the cheapest in the project and at the same time the most
+noticeable. All five mean "already done and not shown", that is, the work is paid for and there is no effect.
 
-### 1.1 ✅ ПРОВЕРЕНО. Музей физически недостижим — вернуть вход
-Кнопка `Museum` лежит внутри `#pauseOverlay` (shell.html:1181), а этот оверлей
-больше никогда не показывается: меню стало `#mainScreen`, и все вызовы
-`pauseGame` идут с `silent=true`. Проверено в бою: при нажатии паузы
-`mainScreen` виден, `pauseOverlay` и `museumBtn` скрыты.
-Целый экран меты — портреты всех 93 типов, ступени, счётчики — мёртв.
-Найдено ДВУМЯ независимыми прогонами (срез прод-готовности и диагност панели).
-**Кому:** ИНТЕРФЕЙС. **Цена:** часы. Перенести вход в `#mainScreen`.
-⚠️ Заодно решить судьбу `#pauseOverlay`: он держит `soundToggle`/`hardToggle`
-как состояние и содержит вход в отладку БЕЗ DEV-гварда.
+### 1.1 ✅ VERIFIED. The museum is physically unreachable — bring the entry back
+The `Museum` button lies inside `#pauseOverlay` (shell.html:1181), and that overlay
+is never shown again: the menu became `#mainScreen`, and all `pauseGame`
+calls go with `silent=true`. Verified in the field: on pressing pause
+`mainScreen` is visible, `pauseOverlay` and `museumBtn` are hidden.
+A whole meta screen — portraits of all 93 types, tiers, counters — is dead.
+Found by TWO independent runs (the prod-readiness slice and the panel's diagnostician).
+**To whom:** INTERFACE. **Price:** hours. Move the entry into `#mainScreen`.
+⚠️ Decide the fate of `#pauseOverlay` at the same time: it holds `soundToggle`/`hardToggle`
+as state and contains the entry into debug WITHOUT a DEV guard.
 
-### 1.2 ✅ ПРОВЕРЕНО. Рейтинг 1★/2★/3★ не показывается никогда
-Он считается на победе и уходит в `<div id="winHolders" hidden>`; `hidden` не
-снимается НИГДЕ в `src/app`. Видимое «★ N» на экране победы — это прирост
-баланса, а не оценка. Значит у уровня нет ни видимой цели, ни оценки качества —
-игрок не знает, хорошо ли он сыграл.
-**Кому:** ИНТЕРФЕЙС. **Цена:** часы.
-⚠️ Связано с долгом ПОВЕСТВОВАНИЯ: рейтинг мерит НОМЕР УРОВНЯ не меньше
-мастерства (одна и та же игра даёт ratio 4.95 на ур.1 и 1.2 на ур.20), а бустер
-×3/×5 гарантирует 3★. Показать как есть — значит показать шумную оценку.
-Поэтому пункт идёт В ПАРЕ с нормализацией (см. 2.3).
+### 1.2 ✅ VERIFIED. The 1★/2★/3★ rating is never shown
+It is computed on a win and goes into `<div id="winHolders" hidden>`; `hidden` is
+removed NOWHERE in `src/app`. The visible "★ N" on the win screen is the balance
+gain, not a score. So the level has neither a visible goal nor a quality score —
+the player does not know whether he played well.
+**To whom:** INTERFACE. **Price:** hours.
+⚠️ Tied to the NARRATIVE debt: the rating measures the LEVEL NUMBER no less than
+mastery (one and the same play gives ratio 4.95 on lv.1 and 1.2 on lv.20), while a
+×3/×5 booster guarantees 3★. To show it as is means to show a noisy score.
+That is why the item goes IN A PAIR with normalization (see 2.3).
 
-### 1.3 Долгая мета невидима на телефоне
-Витрина — единственная поверхность в бою, показывающая ступени и множители —
-загейтована `min-width:813px`, то есть на телефоне не строится вовсе. Всплывашка
-апа ступени показывает портрет и «×1.25» на 1.9 с без текста. Ни одной строки,
-объясняющей, что совмещения НАВСЕГДА растят множитель типа, в игре нет.
-**Кому:** ИНТЕРФЕЙС + ПОВЕСТВОВАНИЕ (текст). **Цена:** день.
+### 1.3 The long meta is invisible on the phone
+The showcase panel — the only surface in the field that shows tiers and multipliers —
+is gated by `min-width:813px`, that is, on the phone it is not built at all. The tier-up
+popup shows a portrait and "×1.25" for 1.9 s without text. There is not a single line
+in the game explaining that matches grow a type's multiplier FOREVER.
+**To whom:** INTERFACE + NARRATIVE (text). **Price:** a day.
 
-### 1.4 Экран победы не даёт причины начать следующий уровень
-Показывает: «Level N», «CLEANED», время, «★ N», статичное «+1» подсказки,
-кнопку Next. Нет баланса, нет «что откроется дальше», нет новостей коллекции.
-**Это ТОП-2 хода панели по оценке судей (26 из 30).**
-**Кому:** ИНТЕРФЕЙС. **Цена:** день. Детали — в разделе «Челендж».
+### 1.4 The win screen gives no reason to start the next level
+It shows: "Level N", "CLEANED", the time, "★ N", a static "+1" of hints,
+the Next button. No balance, no "what will open next", no collection news.
+**This is the panel's TOP-2 move by the judges' score (26 out of 30).**
+**To whom:** INTERFACE. **Price:** a day. Details — in the "Challenge" section.
 
-### 1.5 Чип баланса замерзает примерно с 15-го уровня
-От 10000 значение печатается как «12.5k» — минимальный видимый шаг 100, а матч
-пары даёт +2. То есть нужно ~50 матчей, чтобы цифра шевельнулась. Главный канал
-«я что-то заработал» перестаёт отвечать на действие.
-**Кому:** ИНТЕРФЕЙС. **Цена:** часы (показывать полное число либо шаг мельче).
-
----
-
-## 2. Дни 2–4: физика, баланс и то, что нельзя выпускать не измерив
-
-### 2.1 ✅ ПРОВЕРЕНО (пересчитал сам). Стены чаши — частокол, а не кольцо
-Поворот панелей задан `Euler(0, -a + Math.PI/2, 0)`: локальная X уходит
-тангенциально, поэтому полутолщина 0.30 стоит поперёк, а `chord/2` (посчитанная
-как ТАНГЕНЦИАЛЬНАЯ ширина сектора) торчит радиально. У кромки: шаг между
-центрами 0.84 при ширине панели 0.6 → щель 0.24; у внутренних концов рёбер
-0.156; внутренняя граница уходит внутрь на ~0.13 от задуманной.
-Это объясняет давнюю аномалию `wallExcess` 0.141 на ур.40 БЕЗ взрыва и телепорты
-спасателя: между рёбрами карманы, предметы в них заклиниваются.
-**Кому:** ФИЗИКА. **Цена:** правка одна строка, проверка — день.
-⚠️ **НЕ ПРАВИТЬ ОТДЕЛЬНО.** Снятие π/2 меняет эффективный радиус чаши, а на
-текущей геометрии снята калибровка PAIRS/topY и норма wallExcess. Идёт ОДНИМ
-пакетом с 2.2.
-
-### 2.2 Соак не гонялся с 20 июля — долг ФИЗИКИ №1
-С тех пор появились камни, бомба с усиленным взрывом, кап группы, осколки,
-двухфазный помол, 93 типа. Всё проверялось точечно, длинной сессией — ни разу.
-Соак ловит утечки, накопительный дрейф и висуны, и он же даёт основание
-пересмотреть устаревшую норму `wallExcess ~0.15`.
-**Кому:** ФИЗИКА. **Цена:** полдня готовым инструментом (3–6 прогонов × 15 мин).
-
-### 2.3 Перф взрыва на боевых значениях никто не мерил — и запас съеден
-Я усилил взрыв втрое (панч 5.0→15.0, джолт 6.0→18.0) ПОСЛЕ калибровки ФИЗИКИ.
-Их замер на main: шаг физики в кадре взрыва **12.6–16.4 мс против 6.3–6.6** —
-запас до бюджета 25 упал с ×4 до ×1.5. Инварианты целы, утечек нет.
-⚠️ И отдача падает: сила ×3 дала прирост отклика всего 10–40%. Если снова
-захочется «мощнее» — усиливать восприятие (камера, звук, частицы), не физику.
-**Решение владельца:** митигировать или осознанно оставить, зная цену.
-
-### 2.4 Бесплатных встрясок структурно не хватает с ~15-го уровня
-Замер ПОВЕСТВОВАНИЯ: неплатящий теряет **45–55% очков уровня** на помолах.
-Запас флэт 3 на любом уровне, лесенка отменена намеренно. Диагност панели
-измерил следствие: состояние «нет ни одной тапабельной группы» занимает
-**28–48% времени уровня**, и на экране в это время нет ни одной подсказки.
-Это уже не баланс, а риск удержания.
-**Решение владельца:** поднимать запас, или давать встряски за прогресс, или
-оставить как давление на монетизацию.
-
-### 2.5 Android-замер — блокер, упирающийся в телефон владельца
-Без него 2.1–2.3 остаются теорией на десктопе: именно там выяснится, фризит ли
-взрыв и верно ли детектор определяет слабое устройство.
-**Моё:** сделать способ снять числа в один тап и прислать ссылку.
+### 1.5 The balance chip freezes at roughly level 15
+From 10000 the value is printed as "12.5k" — the minimum visible step is 100, while a
+pair match gives +2. That is, ~50 matches are needed for the digit to budge. The main
+"I have earned something" channel stops responding to action.
+**To whom:** INTERFACE. **Price:** hours (show the full number or a finer step).
 
 ---
 
-## 3. Дни 4–5: мёртвый контент и магазин, который продаёт несуществующее
+## 2. Days 2–4: physics, balance and what must not ship unmeasured
 
-### 3.1 ✅ ПРОВЕРЕНО. Последние три типа не попадают в игру никогда
-Спавн раздаёт типы как `type: i % typesCount`, где `i` пробегает 0..пар−1, а пар
-максимум 90. Достижимы только индексы 0..89. Мертвы `foodicecreamscoopmint` (90),
-`fooddonutsprinkles` (91) и **`steak` (92) — собственная модель владельца.**
-⛔ Отменяет запись канона «пончик открывается на 54-м уровне, так закрыт вопрос
-дырки convex hull»: он не открывается никогда, дырка «закрыта» отсутствием
-предмета. И «потолок TYPES.length=93» неверен — потолок PAIRS=90.
-⚠️ Следствие, которое нашёл критик полноты: **магазин предлагает открыть за 700
-типы, которых в игре не бывает.**
-**Решение владельца:** правка одна строка (`floor(i*typesCount/pairsCnt)` вместо
-`i % typesCount`) — распределение остаётся ровным, число типов в уровне не
-меняется, хвост становится достижимым. Но состав уровня — рычаг сложности.
+### 2.1 ✅ VERIFIED (recomputed myself). The bowl walls are a picket fence, not a ring
+The panel rotation is set as `Euler(0, -a + Math.PI/2, 0)`: the local X goes
+tangentially, so the half-thickness 0.30 stands crosswise, while `chord/2` (computed
+as the TANGENTIAL width of the sector) sticks out radially. At the edge: the step between
+centres is 0.84 with a panel width of 0.6 → a gap of 0.24; at the inner ends of the ribs
+0.156; the inner boundary goes inward by ~0.13 from the intended one.
+This explains the long-standing `wallExcess` anomaly of 0.141 on lv.40 WITHOUT an explosion and the
+rescuer's teleports: between the ribs there are pockets, items get jammed in them.
+**To whom:** PHYSICS. **Price:** a one-line fix, verification — a day.
+⚠️ **DO NOT FIX SEPARATELY.** Removing π/2 changes the effective radius of the bowl, and on
+the current geometry the PAIRS/topY calibration and the wallExcess norm were taken. It goes as ONE
+package with 2.2.
 
-### 3.2 Ветка ГРАФИКИ с 28 новыми типами ждёт решения по 3.1
-Держу не влитой: их типы попадают ровно в мёртвый хвост и работать не будут, а
-весят почти мегабайт (`index.html` 8.09 → ~9.0 МБ; зип пакета 6.11 из лимита 8).
-Вливать невидимое игроку — смысла нет.
+### 2.2 The soak has not been run since 20 July — PHYSICS debt №1
+Since then rocks appeared, a bomb with a strengthened explosion, the group cap, shards,
+two-phase grinding, 93 types. Everything was checked pointwise, by a long session — not once.
+The soak catches leaks, cumulative drift and hangers, and it is also the grounds
+to revise the stale `wallExcess ~0.15` norm.
+**To whom:** PHYSICS. **Price:** half a day with the ready tool (3–6 runs × 15 min).
 
-### 3.3 Новизна уровня физически незаметна
-Из-за той же формулы типы 0–8 стоят в КАЖДОМ уровне с 1-го по 82-й, а
-единственный новый тип за уровень — 7 пар из 71 на ур.2 и 3 пары из 90 на
-ур.20 (3% чаши). Прогрессия есть на бумаге, а не в ощущении.
-**Связано с ответом ПОВЕСТВОВАНИЯ на «что после 20-го уровня»:** сделать
-единицей прогрессии не «+1 тип», а **раздел рецепта** (наши пачки: звери, еда,
-машины, кирпичи, пиратское). Механически ноль нового — пачки уже есть.
+### 2.3 Nobody measured the explosion perf at production values — and the headroom is eaten
+I strengthened the explosion threefold (punch 5.0→15.0, jolt 6.0→18.0) AFTER the PHYSICS calibration.
+Their measurement on main: the physics step in the explosion frame is **12.6–16.4 ms against 6.3–6.6** —
+the headroom to the budget of 25 dropped from ×4 to ×1.5. The invariants are intact, there are no leaks.
+⚠️ And the return is falling: ×3 force gave a response gain of only 10–40%. If "more powerful"
+is wanted again — strengthen the perception (camera, sound, particles), not the physics.
+**The owner's decision:** mitigate or deliberately leave it, knowing the price.
 
----
+### 2.4 Free shakes are structurally short from ~level 15
+NARRATIVE's measurement: a non-paying player loses **45–55% of the level's points** to grindings.
+The stock is a flat 3 at any level, the ladder was cancelled deliberately. The panel's diagnostician
+measured the consequence: the state "not a single tappable group" takes up
+**28–48% of the level's time**, and there is not a single hint on the screen at that time.
+This is no longer balance but a retention risk.
+**The owner's decision:** raise the stock, or give shakes for progress, or
+leave it as pressure toward monetization.
 
-## 4. Дни 5–6: инфраструктура правды
-
-### 4.1 Визуальных стражей почти нет — самооценка ИНТЕРФЕЙСА, и я согласен
-Сьют проверяет поведение, а вся вёрстка живёт на замерах, умирающих вместе с
-сессией. Под охраной три вещи. БЕЗ охраны: толщины обводок, инверсия кнопок в
-ночной теме, выравнивание настроек, границы сжатия чисел, зазор витрины и весь
-рецепт iOS-хрома. Любое сносится правкой в одну строку при зелёном прогоне.
-⚠️ Отдельно: контраст белка глаза к дневному небу **50 из 255** (ночью 209), и
-на том же числе держится белая кнопка паузы. Осветлит ГРАФИКА верх дневного
-неба — оба пропадут молча.
-**Кому:** ИНТЕРФЕЙС (сами предложили начать с этого). **Цена:** день.
-
-### 4.2 Нельзя форсировать время суток — три темовые фичи непроверяемы
-`skyTimeNow()` (10-stage; прежний `skyForNow`/модуль 05-sky удалены вместе с
-панорамами в v191) и `isNightSky()` читают реальные часы, поэтому тема витрины,
-инверсия Shake и системное правило кнопок в сьюте не проверяются вовсе.
-Нужен крошечный хук (`?hour=`) — Графике предложено завести его в текущей
-задаче неба, они как раз трогают этот код.
-
-### 4.3 Весь сьют — один движок
-`test.js` и `soak.js` жёстко берут chromium. Ни одного прогона в WebKit.
-Критик полноты показал, что смоук в WebKit дёшев, но сам зелёного вердикта на
-другом движке не дал.
-
-### 4.4 Звук вне ревью и вне тестов
-`75-audio.js` и `74-sfx-data.js` не заявлены ни одним срезом; в сьюте нет ни
-одного ассерта на аудио; **ни один звук никем не прослушан** — headless не умеет.
-`docs/AUDIO-PLAN.md` перечисляет пять «это не пожелания, это поломки», и ни один
-срез не сверил список с кодом.
-⚠️ Плюс: музыка включена по умолчанию (`musicVol=0.7`) и тянет 4.4 МБ на первом
-касании; переэкспорт в m4a 96–112 кбит/с даст 1.5–1.8 МБ.
-
-### 4.5 Мелочи из ревью, которые я перепроверю перед работой
-Отрицательный баланс скрыт клампом (кнопка обещает покупку, которую отвергнет);
-`commitSave` перезаписывает localStorage без мержа (две вкладки затирают друг
-друга) и пишет в облако на каждый матч; тост лежит ПОД экранами монетизации
-(z-index 8 против 30/40 — все отказы там невидимы); `wiggle` вызывается дважды;
-уровень/сложность/музыка живут ВНЕ сейва, то есть между устройствами не едут;
-`DEV` определяется по hostname — обёртка Capacitor отдаст в стор сборку с
-открытой отладкой.
+### 2.5 The Android measurement — a blocker that runs into the owner's phone
+Without it 2.1–2.3 remain theory on the desktop: it is exactly there that it will become clear whether the
+explosion freezes and whether the detector correctly identifies a weak device.
+**Mine:** make a way to take the numbers in one tap and send a link.
 
 ---
 
-## 5. День 7: заливка на площадку
+## 3. Days 4–5: dead content and a store that sells the non-existent
 
-Первое исполнение боевого пути монетизации на настоящем SDK. Ни одна проверка
-рекламы и платежей ещё не шла против реального портала — только моки и стенд.
-Нужен смоук на developer.playgama.com: отличить реальный показ от фолбэка
-«рекламы нет — награду выдай» можно только глазами на портале.
+### 3.1 ✅ VERIFIED. The last three types never get into the game
+Spawn hands out types as `type: i % typesCount`, where `i` runs 0..pairs−1, and pairs
+are at most 90. Only indices 0..89 are reachable. Dead are `foodicecreamscoopmint` (90),
+`fooddonutsprinkles` (91) and **`steak` (92) — the owner's own model.**
+⛔ It cancels the canon entry "the donut opens at level 54, that is how the convex hull
+hole question is closed": it never opens, the hole is "closed" by the absence of the
+item. And "the ceiling TYPES.length=93" is wrong — the ceiling is PAIRS=90.
+⚠️ A consequence found by the completeness critic: **the store offers to unlock for 700
+types that do not occur in the game.**
+**The owner's decision:** a one-line fix (`floor(i*typesCount/pairsCnt)` instead of
+`i % typesCount`) — the distribution stays even, the number of types in a level does not
+change, the tail becomes reachable. But the level composition is a difficulty lever.
+
+### 3.2 The GRAPHICS branch with 28 new types is waiting for a decision on 3.1
+I am keeping it unmerged: their types land exactly in the dead tail and will not work, while
+they weigh almost a megabyte (`index.html` 8.09 → ~9.0 MB; the package zip 6.11 out of the limit of 8).
+There is no point merging what is invisible to the player.
+
+### 3.3 The novelty of a level is physically unnoticeable
+Because of the same formula types 0–8 stand in EVERY level from the 1st to the 82nd, while
+the single new type per level is 7 pairs out of 71 on lv.2 and 3 pairs out of 90 on
+lv.20 (3% of the bowl). The progression exists on paper, not in the feel.
+**Tied to NARRATIVE's answer to "what comes after level 20":** make the unit of
+progression not "+1 type" but a **recipe section** (our packs: animals, food,
+cars, bricks, pirate). Mechanically nothing new — the packs already exist.
 
 ---
 
-## 6. Блок решений владельца
+## 4. Days 5–6: the infrastructure of truth
 
-| № | Решение | Почему нужно именно твоё слово |
+### 4.1 There are almost no visual guards — INTERFACE's self-assessment, and I agree
+The suite checks behaviour, while the whole layout lives on measurements that die together with
+the session. Three things are guarded. WITHOUT a guard: outline thicknesses, button inversion in
+the night theme, settings alignment, the boundaries of number compression, the showcase gap and the whole
+iOS chrome recipe. Any of them is wiped out by a one-line fix on a green run.
+⚠️ Separately: the contrast of the eye white against the daytime sky is **50 out of 255** (at night 209), and
+the white pause button hangs on the same number. Should GRAPHICS lighten the top of the daytime
+sky — both will disappear silently.
+**To whom:** INTERFACE (they themselves proposed to start with this). **Price:** a day.
+
+### 4.2 The time of day cannot be forced — three theme features are unverifiable
+`skyTimeNow()` (10-stage; the former `skyForNow`/the 05-sky module were deleted together with
+the panoramas in v191) and `isNightSky()` read the real clock, so the showcase theme,
+the Shake inversion and the system button rule are not checked in the suite at all.
+A tiny hook is needed (`?hour=`) — Graphics has been offered to introduce it within the current
+sky task, they are touching that code right now.
+
+### 4.3 The whole suite is one engine
+`test.js` and `soak.js` hard-take chromium. Not a single run in WebKit.
+The completeness critic showed that a smoke in WebKit is cheap, but did not himself give a
+green verdict on another engine.
+
+### 4.4 Sound is outside the review and outside the tests
+`75-audio.js` and `74-sfx-data.js` were not claimed by any slice; there is not a single
+audio assert in the suite; **not one sound has been listened to by anyone** — headless cannot.
+`docs/AUDIO-PLAN.md` lists five "these are not wishes, these are breakages", and not one
+slice checked the list against the code.
+⚠️ Plus: the music is on by default (`musicVol=0.7`) and pulls 4.4 MB on the first
+touch; a re-export to m4a 96–112 kbit/s will give 1.5–1.8 MB.
+
+### 4.5 Small items from the review that I will re-check before work
+A negative balance is hidden by a clamp (the button promises a purchase it will reject);
+`commitSave` overwrites localStorage without a merge (two tabs wipe each
+other) and writes to the cloud on every match; the toast lies UNDER the monetization screens
+(z-index 8 against 30/40 — all refusals there are invisible); `wiggle` is called twice;
+level/difficulty/music live OUTSIDE the save, that is, they do not travel between devices;
+`DEV` is determined by hostname — the Capacitor wrapper will ship a build to the store with
+debug open.
+
+---
+
+## 5. Day 7: upload to the platform
+
+The first execution of the production monetization path on the real SDK. Not a single check
+of ads and payments has yet run against the real portal — only mocks and the bench.
+A smoke on developer.playgama.com is needed: telling a real impression from the fallback
+"there is no ad — grant the reward" is only possible by eye on the portal.
+
+---
+
+## 6. The owner's decision block
+
+| № | Decision | Why exactly your word is needed |
 |---|---|---|
-| 1 | **Имя игры: BLENDO?** | В сборке `<title>Mixer</title>`, а весь листинг площадок Повествование написало под BLENDO. Бренд по пересказу не переименовываю |
-| 2 | **Формула спавна и мёртвый стейк** (3.1) | Меняет состав уровня — главный рычаг сложности |
-| 3 | **Кнопка Subscribe → «без рекламы навсегда» за 4.90** | Решено, но не сделано; нужен флаг «куплено» в сейве и восстановление покупки |
-| 4 | **Заводить ли `noads_forever` в кабинете** | При каденции раз в 3 уровня товар перестал быть пустым |
-| 5 | **Баннерная реклама** | Спрашивал, ответа не было. Сам не завожу |
-| 6 | **Запас встрясок** (2.4) | Неплатящий теряет 45–55% очков уровня |
-| 7 | **Перф взрыва** (2.3) | Митигировать или оставить, зная цену |
-| 8 | **Пустота в середине карточки Play на десктопе** | Висит с прошлых сессий (ИНТЕРФЕЙС) |
-| 9 | **Полоски прогресса в коллекции: частичные или всегда полные** | Висит с прошлых сессий (ИНТЕРФЕЙС) |
-| 10 | **Кнопка Open на карточках коллекции** | Отложена твоей просьбой; возврат — три строки |
-| 11 | **16 МБ ассетов в репозитории** | Мой недосмотр (собрал коммит через `git add -A`). Предлагаю оставить осознанно: это исходники конвертера моделей |
-| 12 | **Материалы витрины площадки** (иконка, обложка, скриншоты, описание) | Только ты |
-| 13 | **Лицензия на музыку** | Только ты |
+| 1 | **The game's name: BLENDO?** | The build has `<title>Mixer</title>`, while Narrative wrote the whole platform listing for BLENDO. I do not rename a brand off a retelling |
+| 2 | **The spawn formula and the dead steak** (3.1) | It changes the level composition — the main difficulty lever |
+| 3 | **The Subscribe button → "no ads forever" for 4.90** | Decided but not done; a "purchased" flag in the save and purchase restoration are needed |
+| 4 | **Whether to create `noads_forever` in the dashboard** | At a cadence of once every 3 levels the product stopped being empty |
+| 5 | **Banner ads** | I asked, there was no answer. I do not create it on my own |
+| 6 | **The shake stock** (2.4) | A non-paying player loses 45–55% of the level's points |
+| 7 | **The explosion perf** (2.3) | Mitigate or leave it, knowing the price |
+| 8 | **The emptiness in the middle of the Play card on the desktop** | Hanging since past sessions (INTERFACE) |
+| 9 | **Progress bars in the collection: partial or always full** | Hanging since past sessions (INTERFACE) |
+| 10 | **The Open button on the collection cards** | Postponed by your request; bringing it back is three lines |
+| 11 | **16 MB of assets in the repository** | My oversight (I assembled the commit via `git add -A`). I propose to keep it deliberately: these are the sources of the model converter |
+| 12 | **The platform storefront materials** (icon, cover, screenshots, description) | Only you |
+| 13 | **The music license** | Only you |
 
 ---
 
-## 7. ЧЕЛЕНДЖ: как растить возвращаемость и таймспенд
+## 7. THE CHALLENGE: how to grow retention and time spent
 
-### 7.1 Диагноз: почему игрок уходит
+### 7.1 The diagnosis: why the player leaves
 
-Восемь утечек, все со ссылками на код. Самые тяжёлые:
+Eight leaks, all with references to the code. The heaviest ones:
 
-1. **Первые 60 секунд не объясняют правило.** Обучения в проекте нет вовсе.
-   По умолчанию Easy, где доступно ВСЁ — то есть 3D-куча декоративна, а правило
-   звучит как «тот же тип И невидимый зазор ≤0.9». Зона досягаемости рисуется
-   ТОЛЬКО ПОСЛЕ тапа, поэтому до тапа отличить работающую пару от неработающей
-   нельзя. Первое, чему учит неудачный тап, — тост «Pair is too far — shake!»,
-   то есть «трать ресурс, которого 3».
-2. **Игрок становится зрителем, когда кончаются встряски** (см. 2.4):
-   28–48% времени уровня агентности нет, и экран об этом молчит.
-3. **Экран победы не даёт причины продолжать** (см. 1.4).
-4. **Балансу некуда деваться.** Единственный достижимый слив — Boost за
-   2000×2^куплено, дающий +25% очков ОДНОГО типа: на ур.20 это ~+0.9% дохода за
-   три уровня накоплений, полный выкуп одного типа ≈ 88 уровней. Кнопка Open
-   скрыта, лидерборд выключен. Число растёт бесконечно и не превращается ни во что.
-5. **Незаконченный уровень обнуляется.** Счёт банкуется только на победе;
-   партии в сейве нет. Выход на 4-й минуте уничтожает 100% видимой награды — при
-   том что невидимые пожизненные счётчики коммитятся на каждом матче. На портале
-   в iframe обрыв сессии — норма.
-6. **Возврат ничем не встречает:** сразу заливка чаши с теми же 9 базовыми типами.
+1. **The first 60 seconds do not explain the rule.** There is no tutorial in the project at all.
+   By default it is Easy, where EVERYTHING is available — that is, the 3D pile is decorative, and the rule
+   sounds like "the same type AND an invisible gap ≤0.9". The reach zone is drawn
+   ONLY AFTER a tap, so before a tap it is impossible to tell a working pair from a
+   non-working one. The first thing an unsuccessful tap teaches is the toast "Pair is too far — shake!",
+   that is, "spend a resource of which you have 3".
+2. **The player becomes a spectator when the shakes run out** (see 2.4):
+   for 28–48% of the level's time there is no agency, and the screen says nothing about it.
+3. **The win screen gives no reason to continue** (see 1.4).
+4. **The balance has nowhere to go.** The only reachable sink is Boost for
+   2000×2^bought, giving +25% points of ONE type: on lv.20 that is ~+0.9% of income for
+   three levels of savings, a full buyout of one type ≈ 88 levels. The Open button
+   is hidden, the leaderboard is off. The number grows endlessly and turns into nothing.
+5. **An unfinished level is zeroed.** The score is banked only on a win;
+   the round in progress is not in the save. Leaving on the 4th minute destroys 100% of the visible reward — while
+   the invisible lifetime counters are committed on every match. On the portal,
+   inside an iframe, a session break is the norm.
+6. **The return is met by nothing:** straight to the bowl fill with the same 9 base types.
 
-⚠️ И системная особенность, которую нельзя забывать: **уровень практически
-непроигрываем** — твоё осознанное решение. Значит «проиграл и хочу отыграться»,
-главный драйвер возврата в жанре, у нас отсутствует по построению, и рост надо
-строить на другом.
+⚠️ And a systemic property that must not be forgotten: **a level is practically
+unlosable** — your deliberate decision. So "I lost and want to win it back",
+the main return driver in the genre, is absent for us by construction, and growth has to be
+built on something else.
 
-### 7.2 Что делать: три хода, отобранные судьями
+### 7.2 What to do: three moves selected by the judges
 
-Судьи оценивали по цене эффекта, риску навредить и выполнимости в наших
-ограничениях (бэкенда нет, пушей нет, iframe, гость с новым id каждую сессию).
+The judges scored by the price of the effect, the risk of doing harm and feasibility within our
+constraints (no backend, no pushes, an iframe, a guest with a new id every session).
 
-**Ход 1. Телеграф серии — 29 из 30, единогласно первый. Цена: часы.**
-В игре ЕСТЬ скилл-потолок: бот на цепи набрал 28 855 очков против пар-скора
-1280, то есть ×22.5. Но обе половины — и награда, и цена — игроку не сообщаются:
-он не знает, сколько матчей до турбо, сколько промахов осталось до срыва и
-сколько он только что потерял. Показать эти три числа — самый дешёвый ход в
-списке и единственный, который делает существующую глубину видимой.
+**Move 1. The series telegraph — 29 out of 30, unanimously first. Price: hours.**
+The game DOES have a skill ceiling: a bot on the chain scored 28 855 points against a par score of
+1280, that is ×22.5. But both halves — both the reward and the price — are not communicated to the player:
+he does not know how many matches remain until turbo, how many misses remain until the break, and
+how much he has just lost. Showing these three numbers is the cheapest move in the
+list and the only one that makes the existing depth visible.
 
-**Ход 2. Экран победы называет НОВЫЙ предмет и показывает призрак следующего —
-26 из 30. Цена: день.**
-Превращает «Next» в «хочу увидеть, что дальше». Опирается на готовое: гхост-
-портреты закрытых типов уже реализованы, коллекция уже знает, что открыто.
-Заодно закрывает утечку 1.4 и даёт прогрессии ощущение, которого ей не хватает.
+**Move 2. The win screen names the NEW item and shows the ghost of the next one —
+26 out of 30. Price: a day.**
+It turns "Next" into "I want to see what comes next". It leans on what is ready: the ghost
+portraits of locked types are already implemented, the collection already knows what is open.
+At the same time it closes leak 1.4 and gives the progression the feel it lacks.
 
-**Ход 3. Два числа на экране победы, которые можно побить — 21 из 30. Цена: день.**
-Лучшая серия против рекорда и сколько забрал миксер. Соревнование с собой — то,
-что работает без сервера и без логина, а у нас уже посчитан идеальный показатель
-(`level.parBase`), и он лежит в скрытом держателе.
+**Move 3. Two numbers on the win screen that can be beaten — 21 out of 30. Price: a day.**
+The best series against the record and how much the mixer took. Competing with oneself is what
+works without a server and without a login, and the ideal metric is already computed for us
+(`level.parBase`), and it lies in a hidden holder.
 
-**Что судьи зарезали:** «Микс дня» (4 из 30) — требует общего состояния, которого
-без бэкенда нет; включение лидерборда (6 из 30) — упирается в то, что сервер
-хранит максимум, а твоя модель падающая.
+**What the judges killed:** "Mix of the day" (4 out of 30) — it requires shared state, which
+does not exist without a backend; turning on the leaderboard (6 out of 30) — it runs into the server
+storing a maximum, while your model is a falling one.
 
-### 7.3 Дальше, по нисходящей ценности
+### 7.3 Further on, in descending value
 
-Личный рекорд как соперник (18) · Встряска как шаг к турбо, чтобы у ресурса
-появилась причина для риска (17) · Тап в тупике наводит миксер вместо
-бездействия (16) · Безопасный уход: банк по `visibilitychange`, чтобы выход не
-стоил игроку всего (15) · Финал уровня — свип с выплатой вместо 10–15-секундной
-катсцены (15) · Журнал раскопок на 7 суток (14) · Гость дня (13) · Альбомы и
-FOCUS в коллекции (12).
+A personal record as a rival (18) · A shake as a step toward turbo, so that the resource
+gets a reason for risk (17) · A tap in a dead end aims the mixer instead of
+doing nothing (16) · A safe exit: banking on `visibilitychange`, so that leaving does not
+cost the player everything (15) · The level finale — a sweep with a payout instead of a 10–15-second
+cutscene (15) · A dig log for 7 days (14) · Guest of the day (13) · Albums and
+FOCUS in the collection (12).
 
-⚠️ **Про ежедневные крючки — важное наблюдение ПОВЕСТВОВАНИЯ.** Мы только что
-закрывали эксплойт отката часов, где откат КРАЛ оплаченное. У ежедневного
-подарка асимметрия обратная: худшее, что делает игрок откатом часов — выдаёт себе
-бонус раньше. Это не эксплойт, а самообслуживание. Поэтому дейли на часах
-устройства строить МОЖНО, в отличие от платных окон.
+⚠️ **About daily hooks — an important observation by NARRATIVE.** We have just been
+closing the clock-rollback exploit, where the rollback STOLE what had been paid for. For a daily
+gift the asymmetry is the opposite: the worst a player does by rolling back the clock is give himself
+the bonus earlier. This is not an exploit but self-service. Therefore a daily on the device
+clock MAY be built, unlike paid windows.
 
-⛔ Чего не делаем: энергии, жизней и таймеров, гейтящих игру. Они убивают наше же
-обещание «уровень непроигрываем, играй сколько хочешь».
+⛔ What we do not do: energy, lives and timers that gate the game. They kill our own
+promise "a level is unlosable, play as much as you want".
 
-### 7.4 Честная оговорка
-Ходы 2 и 3 упираются в ИНТЕРФЕЙС, а сюжетная часть — в него же и в ГРАФИКУ
-(виньетки, залы музея). Моя и повествовательная части дешёвые; узкое место —
-их ёмкость. Планировать надо с этим.
+### 7.4 An honest caveat
+Moves 2 and 3 run into INTERFACE, and the story part runs into it as well and into GRAPHICS
+(vignettes, museum halls). My part and the narrative part are cheap; the bottleneck is
+their capacity. Planning has to be done with that in mind.
 
 ---
 
-## 8. Чего в плане НЕТ и почему
+## 8. What is NOT in the plan and why
 
-- **Сюжет в коде.** Спека арки написана 22.07, в продукте ноль строк — это
-  крупнейший разрыв «спроектировано ↔ существует». В неделю не влезает и не
-  является блокером запуска; но именно он отвечает на «что после 20-го уровня».
-- **Локализация.** Язык площадки читается и выбрасывается. Слой нужен, но это
-  отдельная работа, и до запуска на англоязычные площадки он не блокер.
-- **Доступность.** На 1462 строки разметки — 10 атрибутов aria/role/tabindex.
-- **Восстановление потери WebGL-контекста.** Потеря ловится, восстановление не
-  реализовано, никто её не воспроизводил.
-- **Миграция в приложение.** План есть (`docs/LAUNCH-PLAN.md`, часть II), но это
-  следующая неделя, не эта.
+- **The story in code.** The arc spec was written on 22.07, in the product there are zero lines — this is
+  the biggest "designed ↔ exists" gap. It does not fit into a week and is not
+  a launch blocker; but it is exactly what answers "what comes after level 20".
+- **Localization.** The platform language is read and thrown away. A layer is needed, but that is
+  separate work, and until launch on English-language platforms it is not a blocker.
+- **Accessibility.** For 1462 lines of markup — 10 aria/role/tabindex attributes.
+- **Recovery from a WebGL context loss.** The loss is caught, recovery is not
+  implemented, nobody has reproduced it.
+- **Migration into an app.** There is a plan (`docs/LAUNCH-PLAN.md`, part II), but that is
+  next week, not this one.

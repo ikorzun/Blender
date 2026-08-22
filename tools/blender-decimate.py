@@ -1,16 +1,16 @@
-"""Подготовка тяжёлых GLB: упрощение КВАДРИЧНЫМ СХЛОПЫВАНИЕМ РЁБЕР (Blender).
+"""Preparing heavy GLB files: simplification by QUADRIC EDGE COLLAPSE (Blender).
 
-Зачем: собственное прореживание схлопыванием вершин в сетку (было в
-glb2module.py) губило тонкую и полую геометрию — корона рассыпалась на
-осколки, конёк и будка превращались в кашу. Decimate/COLLAPSE считает
-квадрику ошибки и сохраняет силуэт, поэтому вся тяжёлая геометрия теперь
-готовится здесь, а конвертер больше НИЧЕГО не искажает.
+Why: our own decimation by collapsing vertices onto a grid (it used to be in
+glb2module.py) ruined thin and hollow geometry — the crown fell apart into
+shards, the skate and the booth turned into mush. Decimate/COLLAPSE computes
+the error quadric and preserves the silhouette, so all heavy geometry is now
+prepared here, and the converter no longer distorts ANYTHING.
 
-Модели легче KEEP_UNDER не трогаются вообще — копируются как есть.
+Models lighter than KEEP_UNDER are not touched at all — they are copied as is.
 
-Запуск:
+Run:
   /Applications/Blender.app/Contents/MacOS/Blender --background \
-      --python tools/blender-decimate.py -- "<вход>" "<выход>"
+      --python tools/blender-decimate.py -- "<input>" "<output>"
 """
 import os
 import shutil
@@ -18,20 +18,20 @@ import sys
 
 import bpy
 
-KEEP_UNDER = 3200   # столько треугольников и меньше — не трогаем
-# ⚠️ ПОРОГ ПОДНЯТ 1500 → 3200 (решение владельца 2026-07-28 по замеру).
-# Причина: владелец УЖЕ отдаёт low-poly модели, и под старым порогом скрипт
-# трогал ровно одну пачку — МАШИНЫ (1952-3124 тр), срезая им 39-62% и
-# превращая колёса в многогранники. Всё остальное (животные/еда/пираты)
-# проходило нетронутым и так. Замер цены отказа от сжатия машин: вес +0.85 МБ
-# (7.49→8.39), кадры под CPU×4 20.3→18.5, шаг физики БЕЗ изменений (нагрузка
-# от числа тел, а не от детализации). Порог 3200 пропускает все текущие
-# модели целиком, оставаясь страховкой от реально тяжёлых (15-20 тыс. тр).
-# ⚠️ Переопределяется переменной окружения DECIMATE_TARGET: машины сводят
-# к 1200, и раньше для этого приходилось ПРАВИТЬ ЭТУ СТРОКУ РУКАМИ и потом
-# не забыть вернуть — забытая правка тихо испортила бы следующую партию.
-TARGET = int(os.environ.get('DECIMATE_TARGET', 15000))  # к скольким сводим всё, что тяжелее
-MIN_FACES = 40      # мелкие детали не прореживаем — схлопнутся в ничто
+KEEP_UNDER = 3200   # this many triangles and fewer — we don't touch them
+# ⚠️ THRESHOLD RAISED 1500 → 3200 (the owner's decision 2026-07-28 by measurement).
+# Reason: the owner ALREADY supplies low-poly models, and under the old threshold the
+# script touched exactly one pack — the CARS (1952-3124 tri), cutting 39-62% off them
+# and turning the wheels into polyhedra. The rest (animals/food/pirates) passed through
+# untouched anyway. Measurement of the price of giving up car compression: weight
+# +0.85 MB (7.49→8.39), frames under CPU×4 20.3→18.5, physics step WITHOUT changes
+# (the load is from the number of bodies, not from detail). The threshold 3200 lets all
+# current models through whole, remaining insurance against really heavy ones (15-20K tri).
+# ⚠️ Overridden by the DECIMATE_TARGET environment variable: cars are brought down to
+# 1200, and previously this required EDITING THIS LINE BY HAND and then remembering to
+# revert it — a forgotten edit would silently ruin the next batch.
+TARGET = int(os.environ.get('DECIMATE_TARGET', 15000))  # what we bring everything heavier down to
+MIN_FACES = 40      # we don't decimate small details — they would collapse into nothing
 
 
 def clear():
@@ -39,7 +39,7 @@ def clear():
 
 
 def collapse(obj):
-    """Квадричное схлопывание рёбер до TARGET граней."""
+    """Quadric edge collapse down to TARGET faces."""
     n = len(obj.data.polygons)
     if n <= TARGET:
         return
@@ -57,12 +57,12 @@ def meshes():
 def main(src_dir, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     rows = []
-    # ⚠️ РЕКУРСИВНЫЙ ОБХОД (2026-07-28): модели разложены по ТИПАМ в подпапки
-    # («Food/Фрукты-ягоды», «Car/Машины», …) по просьбе владельца. Прежний
-    # os.listdir видел только корень пачки и после раскладки не нашёл бы НИ
-    # ОДНОЙ модели — конвейер молча собрал бы пустой выхлоп.
-    # Служебные каталоги пропускаем: .lowpoly — это ВЫХОД (иначе децимировали
-    # бы уже децимированное), .pick — исторический staging.
+    # ⚠️ RECURSIVE WALK (2026-07-28): the models are laid out by TYPE into subfolders
+    # ("Food/Fruits-berries", "Car/Cars", …) at the owner's request. The former
+    # os.listdir saw only the root of the batch and after the re-layout would not have
+    # found A SINGLE model — the pipeline would silently have built an empty output.
+    # We skip the service directories: .lowpoly is the OUTPUT (otherwise we would be
+    # decimating what has already been decimated), .pick is historical staging.
     names = []
     for root, dirs, files in os.walk(src_dir):
         dirs[:] = [d for d in dirs if d not in ('.lowpoly', '.pick')]
@@ -70,30 +70,30 @@ def main(src_dir, out_dir):
             if fn.lower().endswith('.glb'):
                 names.append(os.path.relpath(os.path.join(root, fn), src_dir))
     for f in sorted(names):
-        # выход остаётся ПЛОСКИМ: glb2module читает .lowpoly одним списком,
-        # а имена моделей уникальны в пределах пачки
+        # the output stays FLAT: glb2module reads .lowpoly as a single list,
+        # and model names are unique within a batch
         src, dst = os.path.join(src_dir, f), os.path.join(out_dir, os.path.basename(f))
         clear()
         try:
             bpy.ops.import_scene.gltf(filepath=src)
         except Exception as e:
-            rows.append((f, 0, 0, 'импорт не удался: %s' % e))
+            rows.append((f, 0, 0, 'import failed: %s' % e))
             continue
         ms = meshes()
         if not ms:
-            rows.append((f, 0, 0, 'геометрии нет — пустой экспорт'))
+            rows.append((f, 0, 0, 'no geometry — empty export'))
             continue
 
         total = sum(len(o.data.polygons) for o in ms)
         if total <= KEEP_UNDER:
             shutil.copyfile(src, dst)
-            rows.append((f, total, total, 'без изменений'))
+            rows.append((f, total, total, 'unchanged'))
             continue
 
-        # ⚠️ СНАЧАЛА СЛИВАЕМ В ОДИН ОБЪЕКТ. Иначе доля считается на каждый
-        # объект отдельно, а нижняя отсечка MIN_FACES не даёт мелким деталям
-        # исчезнуть — и модель из сотен частей (Ice Skate) вылетала за цель
-        # в девять раз: 1200 просили, 10561 получали.
+        # ⚠️ FIRST WE JOIN INTO A SINGLE OBJECT. Otherwise the ratio is computed for
+        # each object separately, and the MIN_FACES lower cutoff keeps small details
+        # from disappearing — and a model made of hundreds of parts (Ice Skate)
+        # overshot the target ninefold: 1200 asked for, 10561 received.
         bpy.ops.object.select_all(action='DESELECT')
         for o in ms:
             o.select_set(True)
@@ -103,16 +103,16 @@ def main(src_dir, out_dir):
         obj = bpy.context.view_layer.objects.active
         collapse(obj)
         got = len(obj.data.polygons)
-        note = 'схлопнуто'
+        note = 'collapsed'
 
-        # ⚠️ COLLAPSE не умеет сливать НЕСВЯЗНЫЕ оболочки: у моделей,
-        # собранных из тысяч пересекающихся кусков (Ice Skate, Concrete
-        # Mixer), каждая оболочка держит свой минимум граней, и упрощение
-        # упиралось в пол ~10000 вместо запрошенных 1200.
-        # Сварка вершин тут НЕ помогает — проверено, счётчик РАСТЁТ: она
-        # плодит немногообразные рёбра, а их COLLAPSE как раз сохраняет.
-        # Работает воксельный ремеш: он строит по объёму ОДНУ замкнутую
-        # поверхность, после чего схлопывание отрабатывает как задумано.
+        # ⚠️ COLLAPSE cannot merge DISCONNECTED shells: in models
+        # assembled from thousands of intersecting pieces (Ice Skate, Concrete
+        # Mixer) each shell holds its own minimum of faces, and the simplification
+        # hit a floor of ~10000 instead of the requested 1200.
+        # Vertex welding does NOT help here — tested, the counter GROWS: it
+        # breeds non-manifold edges, and those are exactly what COLLAPSE preserves.
+        # Voxel remesh works: it builds ONE closed surface over the volume,
+        # after which the collapse does its job as intended.
         if got > TARGET * 1.6:
             rm = obj.modifiers.new('rm', 'REMESH')
             rm.mode = 'VOXEL'
@@ -121,16 +121,16 @@ def main(src_dir, out_dir):
             bpy.ops.object.modifier_apply(modifier=rm.name)
             collapse(obj)
             got = len(obj.data.polygons)
-            note = 'ремеш + схлопывание'
+            note = 'remesh + collapse'
         try:
             bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB',
                                       export_materials='NONE')
-        except TypeError:            # старые/новые сборки расходятся в аргументах
+        except TypeError:            # old/new builds differ in their arguments
             bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB')
         rows.append((f, total, got, note))
 
     print('\n===== BLENDER DECIMATE =====')
-    print('%-34s %10s %8s   %s' % ('файл', 'было', 'стало', 'что сделано'))
+    print('%-34s %10s %8s   %s' % ('file', 'was', 'became', 'what was done'))
     for f, a, b, why in rows:
         print('%-34s %10s %8s   %s' % (f[:34], a, b, why))
     print('===== END =====')

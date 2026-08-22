@@ -1,43 +1,43 @@
-# Цены в GAM на платформе Playgama (ресёрч 2026-07-31)
+# GAM prices on the Playgama platform (research 2026-07-31)
 
-Проверено по wiki.playgama.com (IAP-гайд), Bridge SDK API-доке payments и
-исходнику `PlaygamaPlatformBridge.ts` (github.com/playgama/bridge).
+Verified against wiki.playgama.com (the IAP guide), the Bridge SDK API docs for
+payments and the source of `PlaygamaPlatformBridge.ts` (github.com/playgama/bridge).
 
-## Механизм — коротко
+## The mechanism — in short
 
-- **Курс фиксированный: 1 GAM = $0.10** (10 GAM = $1). Официально: «1 Gam
-  equals $0.1 USD», пример из гайда: товар $3.99 ≈ 40 Gam.
-- **Автоконвертации НЕТ.** Разработчик сам пересчитывает доллары в ЦЕЛОЕ
-  число GAM и вписывает его в `playgama-bridge-config.json` → массив
-  `payments` → `"playgama": { "amount": N }`. Кабинет цену на площадке НЕ
-  задаёт — цена живёт в конфиге, который лежит в билде игры.
-- **getCatalog на playgama формируется ЛОКАЛЬНО из конфига** (без запроса к
-  серверу): `price` = строка «49 Gam», `priceCurrencyCode` = 'Gam',
-  `priceValue` = число, `priceCurrencyImage` = монетка-фенек (можно
-  показывать рядом с ценой). Долларов в каталоге нет вообще.
-- Покупка: платформа сама списывает GAM у игрока; JWT-верификация несёт
-  только orderId/externalId, сумм в ней нет.
+- **The rate is fixed: 1 GAM = $0.10** (10 GAM = $1). Officially: «1 Gam
+  equals $0.1 USD», the example from the guide: an item at $3.99 ≈ 40 Gam.
+- **There is NO auto-conversion.** The developer himself converts dollars into an
+  INTEGER number of GAM and writes it into `playgama-bridge-config.json` → the
+  `payments` array → `"playgama": { "amount": N }`. The dashboard does NOT set
+  the price on the platform — the price lives in the config, which sits in the game build.
+- **getCatalog on playgama is assembled LOCALLY from the config** (without a request to
+  the server): `price` = the string «49 Gam», `priceCurrencyCode` = 'Gam',
+  `priceValue` = a number, `priceCurrencyImage` = the fennec coin (it may be
+  shown next to the price). There are no dollars in the catalog at all.
+- The purchase: the platform debits the GAM from the player itself; the JWT verification carries
+  only orderId/externalId, there are no amounts in it.
 
-## Наши четыре товара (вписано в конфиг в v212)
+## Our four items (written into the config in v212)
 
-| id | Цена USD | amount (GAM) | Игрок увидит |
+| id | Price USD | amount (GAM) | The player will see |
 |---|---|---|---|
 | bundle5 | $4.90 | 49 | «49 Gam» |
 | bundle3 | $9.90 | 99 | «99 Gam» |
 | bundle2 | $19.90 | 199 | «199 Gam» |
 | noads_forever | $4.90 | 49 | «49 Gam» |
 
-⚠️ СЛЕДСТВИЕ ДЛЯ UI: на playgama игрок платит в GAM — кнопки с зашитым
-«$4.90» обязаны брать цену из `bridge.payments.getCatalog()`
-(price/priceValue + priceCurrencyCode). Кнопка noads_forever уже так делает
-(v212: фетч до гейта rewarded); кнопки бандлов — задача понедельника
-(Интерфейс #31 + Интеграция).
+⚠️ CONSEQUENCE FOR THE UI: on playgama the player pays in GAM — buttons with a
+hard-wired «$4.90» are obliged to take the price from `bridge.payments.getCatalog()`
+(price/priceValue + priceCurrencyCode). The noads_forever button already does so
+(v212: the fetch happens before the rewarded gate); the bundle buttons are Monday's task
+(Interface #31 + Integration).
 
-## Открытые вопросы (публичных ответов нет — спросить коллег в Playgama)
+## Open questions (there are no public answers — ask the colleagues at Playgama)
 
-1. Используется ли курс $0.10 и при расчёте Net Revenue разработчику, и
-   есть ли у игроков бонусные/региональные пакеты GAM (тогда фактический
-   доллар за 49 GAM может отличаться от $4.90)?
-2. Есть ли в кабинете developer.playgama.com дублирующий каталог товаров
-   (форма «New In-Game Purchase» там есть — как она соотносится с конфигом)?
-   Гайд отсылает к Developer Success Manager за base pricing.
+1. Is the $0.10 rate used when calculating the developer's Net Revenue as well, and
+   do players have bonus/regional GAM packs (in which case the actual
+   dollar amount for 49 GAM may differ from $4.90)?
+2. Is there a duplicating catalog of items in the developer.playgama.com dashboard
+   (the «New In-Game Purchase» form is there — how does it relate to the config)?
+   The guide refers you to the Developer Success Manager for base pricing.

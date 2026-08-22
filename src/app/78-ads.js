@@ -1,70 +1,77 @@
-// ===== 78-ads: rewarded-реклама через Playgama Bridge с фолбэком-заглушкой =====
-// SDK: github.com/playgama/bridge — файлы playgama-bridge.js и
-// playgama-bridge-config.json лежат РЯДОМ с index.html (в пакете для портала
-// заливаются вместе). Схема: на http/https подгружаем SDK динамически,
-// bridge.initialize() -> если платформа поддерживает rewarded — работаем через
-// Bridge (награда строго по состоянию REWARDED), иначе/офлайн — заглушка.
+// ===== 78-ads: rewarded ads via Playgama Bridge with a stub fallback =====
+// SDK: github.com/playgama/bridge — the files playgama-bridge.js and
+// playgama-bridge-config.json sit NEXT TO index.html (in the portal package
+// they are uploaded together). The scheme: on http/https we load the SDK
+// dynamically, bridge.initialize() -> if the platform supports rewarded we work
+// through Bridge (reward strictly by the REWARDED state), otherwise/offline — the stub.
 
 const Ads = (function(){
   let mode = 'stub';      // 'stub' | 'bridge'
-  let rewardCb = null;    // колбэк награды текущего показа
-  let failCb = null;      // колбэк неудачи (FAILED/CLOSED/исключение) — опционален
+  let rewardCb = null;    // reward callback of the current show
+  let failCb = null;      // failure callback (FAILED/CLOSED/exception) — optional
   let watchdog = 0;
-  let stubTimer = 0;      // интервал заглушки — cancel() обязан уметь её прервать
-  let pendingTick = 0;    // пока показ висит, тикаем lastAction — миксер не ест предметы
-  let interWatchdog = 0;  // страховка межстраничной: OPENED без CLOSED заморозил бы игру
+  let stubTimer = 0;      // the stub's interval — cancel() must be able to break it
+  let pendingTick = 0;    // while a show hangs we tick lastAction — the mixer does not eat items
+  let interWatchdog = 0;  // interstitial safety net: OPENED without CLOSED would freeze the game
 
-  // ТРЕБОВАНИЕ ПЛОЩАДОК (Poki и CrazyGames, 2026-07-23): на время ролика игра
-  // СТОИТ и МОЛЧИТ. Bridge этого НЕ делает — проверено чтением его адаптеров:
-  // он лишь переводит колбэки площадки (rewardedBreak / ad.requestAd) в свои
-  // состояния, а ручки на наш звук у него нет. Значит обязанность на игре.
-  // Пауза заодно закрывает и блок ввода: в 90-input тап-путь начинается с
-  // `if (paused) return`, отдельная блокировка не нужна.
-  // pausedByAd — ВЛАДЕНИЕ паузой: резюмим ТОЛЬКО свою. Вкладка могла уйти в
-  // hidden, тогда паузу поставил visibilitychange (90-input), и снять её
-  // обязан игрок кнопкой Continue — автоснятие вернуло бы его в живую игру.
+  // PLATFORM REQUIREMENT (Poki and CrazyGames, 2026-07-23): for the duration of
+  // the ad the game STANDS STILL and STAYS SILENT. Bridge does NOT do this —
+  // verified by reading its adapters: it only translates the platform's callbacks
+  // (rewardedBreak / ad.requestAd) into its own states, and it has no handle on
+  // our sound. So the duty is on the game.
+  // The pause also covers input blocking: in 90-input the tap path starts with
+  // `if (paused) return`, no separate lock is needed.
+  // pausedByAd — pause OWNERSHIP: we resume ONLY our own. The tab could have gone
+  // hidden, then the pause was set by visibilitychange (90-input), and it is the
+  // player who must lift it with the Continue button — auto-lifting would drop
+  // him back into a live game.
   let pausedByAd = false, mutedByAd = false, mutedByPlatform = false;
-  // ПЛАТФОРМЕННАЯ ПАУЗА — ТРЕТИЙ владелец паузы, СВОЙ флаг (2026-07-29,
-  // обязательный шаг доки: подписка на ОБА события, pause и audio).
-  // ⚠️ НЕЛЬЗЯ переиспользовать pausedByAd: конец ролика снял бы паузу,
-  // которую поставила площадка, и игрок вернулся бы в живую игру под
-  // чужим оверлеем. `visibilitychange` (90-input) это НЕ покрывает: игра
-  // на портале живёт в iframe, и когда площадка открывает своё меню/промо
-  // поверх фрейма, document.hidden НЕ становится true — сигнал приходит
-  // только от платформы. До этой подписки под оверлеем портала у нас
-  // продолжал тикать миксер и ЖРАТЬ предметы игрока.
-  // ⚠️ У ПАУЗЫ СВОЙ МЬЮТ, ОТДЕЛЬНО ОТ mutedByPlatform. Сначала я переиспользовал
-  // общий флаг звука площадки — и снятие паузы не возвращало звук: флаг
-  // принадлежит AUDIO_STATE_CHANGED, снимать его чужой рукой нельзя (поймано
-  // собственным ассертом). Один флаг = один владелец, как и у паузы.
+  // THE PLATFORM PAUSE — the THIRD owner of the pause, with ITS OWN flag (2026-07-29,
+  // a mandatory step of the docs: subscribe to BOTH events, pause and audio).
+  // ⚠️ pausedByAd MUST NOT BE REUSED: the end of the ad would lift a pause that
+  // the platform had set, and the player would come back to a live game under
+  // someone else's overlay. `visibilitychange` (90-input) does NOT cover this:
+  // on the portal the game lives in an iframe, and when the platform opens its
+  // own menu/promo over the frame, document.hidden does NOT become true — the
+  // signal comes only from the platform. Before this subscription, under the
+  // portal's overlay our mixer kept ticking and EATING the player's items.
+  // ⚠️ THE PAUSE HAS ITS OWN MUTE, SEPARATE FROM mutedByPlatform. At first I reused
+  // the platform's shared sound flag — and lifting the pause did not bring the
+  // sound back: the flag belongs to AUDIO_STATE_CHANGED, it must not be cleared by
+  // someone else's hand (caught by our own assert). One flag = one owner, same as
+  // for the pause.
   let pausedByPlatform = false, mutedByPause = false;
-  let bridgeLang = null;      // platform.language — читаем, отдаём наружу под будущий словарь
-  let sdkReady = false;       // initialize() резолвился
-  let gameReadyWanted = false, gameReadySent = false; // латч: игра дозрела раньше SDK
+  let bridgeLang = null;      // platform.language — we read it and expose it outward for a future dictionary
+  let sdkReady = false;       // initialize() resolved
+  let gameReadyWanted = false, gameReadySent = false; // latch: the game got ready before the SDK
 
-  // ===== ЗАНАВЕС ПЛОЩАДКИ (жалоба владельца 2026-07-30) =====
-  // Симптом: «после загрузки бриджа пропала анимация заполнения корзины».
-  // РАЗБОР КОДА SDK (v2.0.2, вендорный бандл): у Playgama свой БРЕНДОВЫЙ
-  // лоадер — непрозрачный `#242424` во весь вьюпорт (замер: он и виден).
-  // Снимается ДВУМЯ путями:
-  //   1) `sendMessage(GAME_READY)` — СИНХРОННО удаляет узел внутри вызова;
-  //   2) сам SDK: `initialize()` в `.finally` через 700 мс ставит прогресс
-  //      100 (мягко — только если игра ни разу не сообщала прогресс), а
-  //      снятие идёт ещё через 1400 мс. Итого ≈2.1 с после резолва init.
-  //      ⚠️ Тайминги 700/1400 СВЕРЕНЫ на 2.0.2 — не изменились.
-  // ⚠️ С 2.0.2 занавес имеет z-index 9999999 (в 2.0.0 был 1, и наш HUD
-  // рисовался ПОВЕРХ него). Значит «занавес завис» теперь = ПУСТОЙ ЭКРАН
-  // без единого нашего пикселя — страховка ниже стала важнее, а не наоборот.
-  // Отдельного события «занавес снят» в SDK НЕТ. Но нам оно и не нужно:
-  // путь 1 — НАШ, значит момент снятия мы не угадываем, а НАЗНАЧАЕМ.
-  // ⚠️⚠️ НАЙДЕНО ЗАМЕРОМ И ХУЖЕ ИСХОДНОЙ ЖАЛОБЫ: если `initialize()` НЕ
-  // РЕЗОЛВИТСЯ (у меня на стенде playgama вне их домена — висел 20 с),
-  // то `sdkReady` остаётся false, GAME_READY не уходит, `.finally` не
-  // наступает — и занавес висит НАВСЕГДА, игра под ним невидима.
-  // Поэтому нужна страховка. Рычаг — ПУБЛИЧНЫЙ `setGameLoadingProgress(100)`
-  // (документированный метод v2), проверен замером: занавес уходит.
-  // ⚠️ НЕ трогаем `#loading-overlay` по id — приватный DOM чужого SDK
-  // (прямой запрет диспетчера; молча отвалится на обновлении).
+  // ===== THE PLATFORM'S CURTAIN (the owner's complaint 2026-07-30) =====
+  // Symptom: "after the bridge loaded, the basket-filling animation disappeared".
+  // ANALYSIS OF THE SDK CODE (v2.0.2, the vendor bundle): Playgama has its own
+  // BRANDED loader — an opaque `#242424` across the whole viewport (measurement:
+  // it is indeed the one visible).
+  // It is removed in TWO ways:
+  //   1) `sendMessage(GAME_READY)` — SYNCHRONOUSLY removes the node inside the call;
+  //   2) the SDK itself: `initialize()` in `.finally` sets progress 100 after 700 ms
+  //      (softly — only if the game never reported progress), and the removal comes
+  //      1400 ms after that. In total ≈2.1 s after the init resolve.
+  //      ⚠️ The 700/1400 timings are VERIFIED against 2.0.2 — they have not changed.
+  // ⚠️ Since 2.0.2 the curtain has z-index 9999999 (in 2.0.0 it was 1, and our HUD
+  // was drawn ON TOP of it). So "the curtain hung" now means an EMPTY SCREEN
+  // without a single pixel of ours — the safety net below became more important,
+  // not less.
+  // The SDK has NO separate "curtain removed" event. But we do not need one:
+  // path 1 is OURS, so we do not guess the moment of removal, we APPOINT it.
+  // ⚠️⚠️ FOUND BY MEASUREMENT AND WORSE THAN THE ORIGINAL COMPLAINT: if `initialize()`
+  // DOES NOT RESOLVE (on my bench playgama outside their domain — it hung for 20 s),
+  // then `sdkReady` stays false, GAME_READY never goes out, `.finally` never
+  // happens — and the curtain hangs FOREVER, with the game invisible underneath.
+  // That is why a safety net is needed. The lever is the PUBLIC
+  // `setGameLoadingProgress(100)` (a documented v2 method), verified by
+  // measurement: the curtain goes away.
+  // ⚠️ We do NOT touch `#loading-overlay` by id — that is the private DOM of
+  // someone else's SDK (a direct ban from the dispatcher; it would silently break
+  // on an update).
   let curtainSettle = null, curtainWhy = null, curtainForce = 0;
   const curtainGone = new Promise((res)=>{ curtainSettle = res; });
   function curtainDone(why){
@@ -73,50 +80,52 @@ const Ads = (function(){
     clearTimeout(curtainForce); curtainForce = 0;
     r(why);
   }
-  // Дёрнуть публичный рычаг и разрешить обещание ТОЛЬКО ПОСЛЕ затухания.
-  // ⚠️ РАЗРЕШАТЬ РАНЬШЕ СНЯТИЯ НЕЛЬЗЯ — это ровно исходный баг, только короче:
-  // потребитель начнёт показ под ещё висящим занавесом. Поймано замером на
-  // живом стенде (обещание 8771 мс против фактического снятия 9442 мс —
-  // жёсткий предел обгонял страховку), мок этого не воспроизводил.
+  // Pull the public lever and resolve the promise ONLY AFTER the fade-out.
+  // ⚠️ RESOLVING BEFORE THE REMOVAL IS FORBIDDEN — that is exactly the original bug,
+  // only shorter: the consumer would start a show under a curtain that is still
+  // hanging. Caught by a measurement on a live bench (the promise at 8771 ms against
+  // the actual removal at 9442 ms — the hard limit was outrunning the safety net);
+  // the mock did not reproduce this.
   function liftCurtain(why){
     if (!curtainSettle) return;
     try { window.bridge.setGameLoadingProgress(100); } catch(e){}
-    setTimeout(()=>curtainDone(why), CURTAIN_FADE_MS); // у SDK своё затухание 1400
+    setTimeout(()=>curtainDone(why), CURTAIN_FADE_MS); // the SDK has its own 1400 fade-out
   }
-  // Страховка ставится ТОЛЬКО когда игра уже сказала «я готова», а
-  // GAME_READY уйти не смог: занавес в этот момент врёт — картинка есть.
-  // Если не готова сама игра — занавес честен, и снимать его нельзя.
+  // The safety net is armed ONLY when the game has already said "I am ready" and
+  // GAME_READY could not go out: at that moment the curtain is lying — the picture
+  // is there.
+  // If the game itself is not ready — the curtain is honest, and it must not be removed.
   function armCurtainFallback(){
     if (curtainForce || !curtainSettle) return;
-    curtainForce = setTimeout(()=>{ curtainForce = 0; liftCurtain('снят страховкой'); },
+    curtainForce = setTimeout(()=>{ curtainForce = 0; liftCurtain('lifted by the safety net'); },
       CURTAIN_GRACE_MS);
   }
 
-  // GAME_READY шлётся ОДИН РАЗ и по факту первого играбельного кадра.
-  // Идемпотентность обязательна: finishIntro и skipIntro оба зовут, а
-  // повторный sendMessage у части площадок отдаёт rejected-промис
-  // (в бандле: второй GAME_READY уходит в `Promise.reject()`).
+  // GAME_READY is sent ONCE and upon the fact of the first playable frame.
+  // Idempotency is mandatory: finishIntro and skipIntro both call it, and a repeat
+  // sendMessage on some platforms returns a rejected promise
+  // (in the bundle: the second GAME_READY goes into `Promise.reject()`).
   function sendGameReady(){
     if (gameReadySent || !sdkReady) return;
     try {
       const br = window.bridge;
       const p = br.platform.sendMessage(br.PLATFORM_MESSAGE.GAME_READY);
-      if (p && p.catch) p.catch(()=>{}); // промис — синхронный try его не поймает
-      // ⚠️ ЛАТЧ ВЗВОДИТСЯ ПОСЛЕ ОТПРАВКИ, А НЕ ДО (найдено ревью диспетчера).
-      // Раньше синхронный бросок sendMessage оставлял gameReadySent=true при
-      // НЕотправленном сообщении: повтора нет, страховка занавеса не взводится
-      // (её условие — именно `!gameReadySent`), и занавес висел до жёсткого
-      // предела. Теперь бросок = «не отправили», и оба механизма живут дальше.
+      if (p && p.catch) p.catch(()=>{}); // a promise — a synchronous try will not catch it
+      // ⚠️ THE LATCH IS ARMED AFTER SENDING, NOT BEFORE (found by the dispatcher's review).
+      // Previously a synchronous throw from sendMessage left gameReadySent=true with the
+      // message NOT sent: no repeat, the curtain's safety net is not armed (its condition
+      // is precisely `!gameReadySent`), and the curtain hung until the hard limit.
+      // Now a throw = "we did not send", and both mechanisms stay alive.
       gameReadySent = true;
-      // Узел занавеса удаляется СИНХРОННО внутри sendMessage — к этой строке
-      // его уже нет, поэтому ждать нечего.
-      curtainDone('снят game_ready');
+      // The curtain node is removed SYNCHRONOUSLY inside sendMessage — by this line
+      // it is already gone, so there is nothing to wait for.
+      curtainDone('lifted by game_ready');
     } catch(e){}
   }
-  // Сообщения жизненного цикла уровня. У POKI и CRAZY_GAMES адаптеры Bridge
-  // маппят LEVEL_* в НАТИВНЫЕ gameplayStart()/gameplayStop() — без них
-  // площадка не знает, что геймплей идёт, и пейсит рекламу вслепую (прямая
-  // потеря показов). Ядро зовёт только Ads.msg(...) и о bridge не знает.
+  // Level lifecycle messages. On POKI and CRAZY_GAMES the Bridge adapters map
+  // LEVEL_* to NATIVE gameplayStart()/gameplayStop() — without them the platform
+  // does not know that gameplay is running, and paces ads blindly (a direct loss
+  // of impressions). The core calls only Ads.msg(...) and knows nothing about bridge.
   function sendMsg(name, params){
     if (!sdkReady) return;
     try {
@@ -127,53 +136,55 @@ const Ads = (function(){
       if (p && p.catch) p.catch(()=>{});
     } catch(e){}
   }
-  // ТРИ независимых источника тишины: ролик, звук площадки
-  // (AUDIO_STATE_CHANGED — игрок выключил звук в плеере портала) и
-  // платформенная пауза. Складываем: иначе конец ролика включал бы звук,
-  // который площадка просила выключить.
-  // ⚠️ ГЛУШИМ ОБА ТРАКТА. Sound.setMuted — это master-гейн WebAudio, то есть
-  // ТОЛЬКО процедурные SFX; фоновая музыка живёт отдельно (<audio id="bgm">,
-  // 85-hud). Когда мьют писался (v85), музыки в движке не было — её завели
-  // в v106 и в мьют не внесли, из-за чего трек играл ПОВЕРХ рекламы. Это
-  // нарушение требования площадок «во время полноэкранной рекламы игра и её
-  // звук должны быть на паузе» и пункт их самопроверки.
+  // THREE independent sources of silence: the ad, the platform's sound
+  // (AUDIO_STATE_CHANGED — the player turned the sound off in the portal's player)
+  // and the platform pause. We add them up: otherwise the end of an ad would turn on
+  // the sound that the platform had asked to keep off.
+  // ⚠️ WE MUTE BOTH PATHS. Sound.setMuted is the WebAudio master gain, that is,
+  // ONLY the procedural SFX; the background music lives separately (<audio id="bgm">,
+  // 85-hud). When the mute was written (v85) there was no music in the engine — it
+  // was introduced in v106 and was not added to the mute, because of which the track
+  // played ON TOP of the ad. That is a violation of the platforms' requirement "during
+  // a fullscreen ad the game and its sound must be paused" and an item on their
+  // self-check list.
   function applyMute(){
     const m = mutedByAd || mutedByPlatform || mutedByPause;
     try { Sound.setMuted(m); } catch(e){}
-    try { musicSuspend(m); } catch(e){} // 85-hud; своя среда, musicVol не трогает
+    try { musicSuspend(m); } catch(e){} // 85-hud; its own environment, does not touch musicVol
   }
-  // ⚠️⚠️ ПАУЗУ НАДО ДОЖИМАТЬ, А НЕ «попробовать один раз» (найдено адверсарным
-  // ревью диспетчера, v211; на единственном пути показа межстраничной тихая
-  // пауза НЕ ВСТАВАЛА НИКОГДА).
-  // МЕХАНИЗМ: показ идёт из againBtn (90-input) — `Ads.maybeInterstitial();
-  // genLevel();`. genLevel ставит интро СИНХРОННО, а OPENED прилетает
-  // асинхронно уже поверх живого интро; `pauseGame` во время интро отдаёт
-  // false (гвард в 99-main). Одной попытки не хватало никогда: pausedByAd
-  // оставался false, и КОГДА ИНТРО КОНЧАЛОСЬ, игра оказывалась ЖИВОЙ под
-  // непрозрачным роликом — миксер по idleLimit начинал ЕСТЬ ПРЕДМЕТЫ игрока
-  // (−20 за помол), а площадка не получала LEVEL_PAUSED.
-  // ⚠️ ПОЧЕМУ НЕ «применить в finishIntro»: этот вызов вот-вот переедет в
-  // третью точку (занавес площадки), то есть внутрь интро — привязка к нему
-  // сломалась бы молча. Дожим самодостаточен и от чужого порядка не зависит.
-  // ⚠️ ГАСИТЬ ОБЯЗАТЕЛЬНО в adBlockOff: поздняя удачная пауза заморозила бы
-  // игру уже БЕЗ рекламы на экране.
+  // ⚠️⚠️ THE PAUSE MUST BE PRESSED THROUGH, NOT "tried once" (found by the dispatcher's
+  // adversarial review, v211; on the only interstitial show path the quiet pause
+  // NEVER GOT SET AT ALL).
+  // THE MECHANISM: the show comes from againBtn (90-input) — `Ads.maybeInterstitial();
+  // genLevel();`. genLevel starts the intro SYNCHRONOUSLY, and OPENED arrives
+  // asynchronously already on top of a live intro; `pauseGame` during the intro returns
+  // false (a guard in 99-main). One attempt was never enough: pausedByAd
+  // stayed false, and WHEN THE INTRO ENDED, the game turned out to be ALIVE under
+  // an opaque ad — the mixer, by idleLimit, started EATING the player's items
+  // (−20 per grind), and the platform did not get LEVEL_PAUSED.
+  // ⚠️ WHY NOT "apply it in finishIntro": that call is about to move to a
+  // third point (the platform's curtain), that is, inside the intro — binding to it
+  // would break silently. Pressing through is self-sufficient and does not depend on
+  // someone else's ordering.
+  // ⚠️ IT MUST BE KILLED in adBlockOff: a late successful pause would freeze
+  // the game with NO ad on screen any more.
   let adPauseRetry = 0;
   function tryAdPause(){
     if (pausedByAd) return true;
-    pausedByAd = pauseGame(true); // true — тихая, без попапа; LEVEL_PAUSED шлёт сам pauseGame
+    pausedByAd = pauseGame(true); // true — quiet, without a popup; pauseGame sends LEVEL_PAUSED itself
     return pausedByAd;
   }
   function stopAdPauseRetry(){ if (adPauseRetry){ clearInterval(adPauseRetry); adPauseRetry = 0; } }
-  // ⚠️ ЭКРАН «РЕКЛАМА» В ТЕЛЕМЕТРИИ ВЁЛСЯ ТОЛЬКО В ЗАГЛУШКЕ. `show('adOverlay')`
-  // живёт ровно в showStub, а карта SCREEN_OF (85-hud) вешает экран на показ
-  // оверлея — значит в БОЮ, где ролик рисует площадка, экран 'ad' не входил
-  // никогда: событие `screen` про рекламу отсутствовало, а ветка `st:'on_ad'`
-  // в обработчике ухода вкладки была недостижима. Ведём экран сами — здесь,
-  // потому что adBlockOn/Off накрывают И rewarded, И межстраничную.
+  // ⚠️ THE "AD" SCREEN IN TELEMETRY WAS ONLY TRACKED IN THE STUB. `show('adOverlay')`
+  // lives exactly in showStub, and the SCREEN_OF map (85-hud) hangs the screen on the
+  // overlay being shown — which means in PRODUCTION, where the ad is drawn by the
+  // platform, the 'ad' screen was never entered at all: the `screen` event about ads was
+  // absent, and the `st:'on_ad'` branch in the tab-leave handler was unreachable. We track
+  // the screen ourselves — here, because adBlockOn/Off cover BOTH rewarded AND interstitial.
   let screenBeforeAd = null;
   function adScreenOn(){
     try {
-      if (Telemetry.screen.current() === 'ad') return;   // заглушка уже вошла
+      if (Telemetry.screen.current() === 'ad') return;   // the stub has already entered
       screenBeforeAd = Telemetry.screen.current();
       Telemetry.screen.enter('ad');
     } catch(e){}
@@ -181,7 +192,7 @@ const Ads = (function(){
   function adScreenOff(){
     try {
       if (Telemetry.screen.current() !== 'ad') return;
-      // возвращаемся туда, откуда пришли; правило запасного пути — как у hide()
+      // we go back to where we came from; the fallback rule is the same as in hide()
       const back = screenBeforeAd
         || ((typeof level !== 'undefined' && level && !level.over) ? 'game' : 'menu');
       screenBeforeAd = null;
@@ -201,19 +212,21 @@ const Ads = (function(){
     adScreenOff();
   }
 
-  // Ролик может идти десятки секунд (и стаб — 3 с): всё это время простой
-  // игрока не по его вине, миксер-наказание должно молчать. Тикаем на ЛЮБОМ
-  // показе (bridge И стаб) до развязки. Тик остаётся страховкой и после
-  // введения паузы: pauseGame не встаёт на конце уровня (level.over — экраны
-  // победы/поражения с плейсментами ×2 и Continue), там игра идёт дальше.
+  // An ad can run for tens of seconds (and the stub — 3 s): all that time the player's
+  // idleness is not his fault, and the mixer punishment must stay silent. We tick on
+  // ANY show (bridge AND stub) until the resolution. The tick remains a safety net even
+  // after the pause was introduced: pauseGame does not engage at the end of a level
+  // (level.over — the win/lose screens with the ×2 and Continue placements), there the
+  // game keeps running.
   function beginPending(){
     clearInterval(pendingTick);
     pendingTick = setInterval(()=>{ if (stats) stats.lastAction = performance.now(); }, 800);
     adBlockOn();
   }
-  // ЕДИНСТВЕННАЯ развязка: сюда сходятся награда, провал, watchdog, исключение
-  // SDK и cancel(). Снимать паузу и мьют только здесь — иначе один забытый
-  // путь оставит игру замороженной навсегда, а это хуже исходного бага.
+  // THE ONLY resolution: the reward, the failure, the watchdog, an SDK exception and
+  // cancel() all converge here. Lift the pause and the mute only here — otherwise one
+  // forgotten path will leave the game frozen forever, and that is worse than the
+  // original bug.
   function clearTimers(){
     clearInterval(pendingTick); pendingTick = 0;
     clearTimeout(watchdog); watchdog = 0;
@@ -232,17 +245,17 @@ const Ads = (function(){
     const fb = failCb; rewardCb = null; failCb = null;
     endPending();
     if (!silent) toast('Ad unavailable');
-    // ⚠️ ПРИЧИНА ПЕРЕДАЁТСЯ В КОЛБЭК: 'unavailable' — ролик НЕ ПОДОБРАЛСЯ
-    // (нет заполнения, исключение SDK, площадка без роликов, тишина);
-    // 'closed' — игрок сам закрыл до награды. Слово владельца 2026-08-05
-    // «если реклама не подобралась, всё равно разрешать шейк и типс»
-    // распространяется ТОЛЬКО на первое: закрыл сам — награды нет.
+    // ⚠️ THE REASON IS PASSED INTO THE CALLBACK: 'unavailable' — the ad DID NOT FILL
+    // (no fill, an SDK exception, a platform without ads, silence);
+    // 'closed' — the player closed it himself before the reward. The owner's word of
+    // 2026-08-05 "if the ad did not fill, still allow the shake and the tips"
+    // applies ONLY to the first one: closed it himself — no reward.
     if (fb) fb(silent ? 'closed' : 'unavailable');
   }
-  // Смена контекста (genLevel): висящий показ никого не должен наградить —
-  // колбэки замкнуты на СТАРЫЙ level, награда пришла бы новому уровню
-  // (или уже несуществующему состоянию). Колбэк неудачи тоже не зовём:
-  // экран, который он восстанавливал, уже пересоздан.
+  // A context switch (genLevel): a hanging show must not reward anyone — the
+  // callbacks are closed over the OLD level, the reward would go to a new level
+  // (or to a state that no longer exists). We do not call the failure callback either:
+  // the screen it used to restore has already been rebuilt.
   function cancel(){
     rewardCb = null; failCb = null;
     endPending();
@@ -250,16 +263,16 @@ const Ads = (function(){
   }
 
   function init(){
-    // file:// (офлайн-прототип, headless-тесты) — SDK не грузим, живём на заглушке
+    // file:// (the offline prototype, headless tests) — we do not load the SDK, we live on the stub
     if (location.protocol !== 'http:' && location.protocol !== 'https:') {
-      curtainDone('нет sdk (file://)');   // занавеса быть не может — не заставляем ждать
+      curtainDone('no sdk (file://)');   // there can be no curtain — we do not make anyone wait
       return;
     }
-    // ЖЁСТКИЙ ПРЕДЕЛ на весь путь: что бы ни случилось со SDK (не загрузился,
-    // повис, площадка без лоадера), обещание разрешится и игра не встанет.
-    // Предел не «сдаётся молча»: перед тем как отпустить игру, он делает
-    // последнюю попытку СНЯТЬ занавес тем же публичным рычагом.
-    setTimeout(()=>liftCurtain('снят по пределу ожидания'), CURTAIN_MAX_MS);
+    // A HARD LIMIT on the whole path: whatever happens to the SDK (did not load,
+    // hung, a platform without a loader), the promise will resolve and the game will
+    // not stall. The limit does not "give up silently": before releasing the game it
+    // makes one last attempt to REMOVE the curtain with the same public lever.
+    setTimeout(()=>liftCurtain('lifted by the wait limit'), CURTAIN_MAX_MS);
     const s = document.createElement('script');
     s.src = 'playgama-bridge.js';
     s.onload = ()=>{
@@ -267,28 +280,29 @@ const Ads = (function(){
       window.bridge.initialize().then(()=>{
         const br = window.bridge;
         sdkReady = true;
-        // ⚠️ GAME_READY здесь БОЛЬШЕ НЕ ШЛЁТСЯ. Дока: слать «когда готов
-        // первый играбельный кадр», а тут ещё не было ни genLevel, ни
-        // декодирования атласов, ни ~2 с интро — площадка сняла бы свой
-        // лоадер над чёрным экраном. Шлём из finishIntro/skipIntro через
-        // Ads.gameReady(); если игра успела дозреть раньше SDK, латч
-        // gameReadyWanted досылает сообщение здесь.
+        // ⚠️ GAME_READY IS NO LONGER SENT HERE. The docs: send it "when the first
+        // playable frame is ready", and at this point there has been no genLevel, no
+        // atlas decoding, no ~2 s of intro — the platform would have removed its
+        // loader over a black screen. We send it from finishIntro/skipIntro via
+        // Ads.gameReady(); if the game managed to get ready before the SDK, the
+        // gameReadyWanted latch sends the message from here.
         if (gameReadyWanted) sendGameReady();
-        // Облачный сейв НЕ зависит от рекламы и потому синкается ДО гейта
-        // rewarded: commitSave (77-save) пишет в bridge.storage всегда, когда
-        // storage есть, а читал облако только этот вызов — на площадке со
-        // storage, но без rewarded, прогресс уезжал в облако в один конец и
-        // не поднимался никогда (потеря прогресса между сессиями/устройствами).
+        // The cloud save does NOT depend on ads and is therefore synced BEFORE the
+        // rewarded gate: commitSave (77-save) writes into bridge.storage whenever
+        // storage exists, and only this call ever read the cloud — on a platform with
+        // storage but without rewarded, progress went into the cloud one way and never
+        // came back (loss of progress between sessions/devices).
         bridgeSyncSave();
-        // ВОССТАНОВЛЕНИЕ ПОКУПОК — здесь же и по той же причине, что и синк
-        // сейва: платежи от rewarded не зависят, а на площадке со storage и
-        // платежами, но без rewarded, игрок иначе не вернул бы оплаченное.
+        // RESTORING PURCHASES — here as well and for the same reason as the save sync:
+        // payments do not depend on rewarded, and on a platform with storage and
+        // payments but without rewarded the player would otherwise never get back what
+        // he had paid for.
         try { restorePurchases(); } catch(e){}
-        // ЗВУК ПЛОЩАДКИ (тоже вне гейта rewarded — к рекламе отношения не
-        // имеет): игрок мог выключить звук в плеере портала. Bridge отдаёт
-        // событие со значением «звук РАЗРЕШЁН», отсюда инверсия. Стартовое
-        // состояние читаем сразу — событие о том, что уже было выключено, не
-        // придёт.
+        // THE PLATFORM'S SOUND (also outside the rewarded gate — it has nothing to do
+        // with ads): the player could have turned the sound off in the portal's player.
+        // Bridge gives an event with the value "sound is ALLOWED", hence the inversion.
+        // We read the initial state right away — an event about something that was
+        // already off will not arrive.
         try {
           mutedByPlatform = !br.platform.isAudioEnabled;
           br.platform.on(br.EVENT_NAME.AUDIO_STATE_CHANGED, (enabled)=>{
@@ -296,13 +310,13 @@ const Ads = (function(){
           });
           applyMute();
         } catch(e){}
-        // ПАУЗА ПЛОЩАДКИ (обязательный шаг доки — подписка на ОБА события).
-        // Площадка просит паузу не только под свою рекламу: свой оверлей,
-        // меню портала, диалог оценки. Своё владение — снимаем ТОЛЬКО свою.
+        // THE PLATFORM'S PAUSE (a mandatory step of the docs — subscribe to BOTH events).
+        // The platform asks for a pause not only for its own ads: its own overlay, the
+        // portal menu, a rating dialog. Our own ownership — we lift ONLY our own.
         try {
           const setPlatPause = (isPaused)=>{
             if (isPaused){
-              if (!pausedByPlatform) pausedByPlatform = pauseGame(true); // тихо, без попапа
+              if (!pausedByPlatform) pausedByPlatform = pauseGame(true); // quietly, without a popup
               mutedByPause = true;
             } else {
               mutedByPause = false;
@@ -310,56 +324,58 @@ const Ads = (function(){
             }
             applyMute();
           };
-          if (br.platform.isPaused) setPlatPause(true); // стартовое: событие о уже поставленной паузе не придёт
+          if (br.platform.isPaused) setPlatPause(true); // the initial state: an event about an already-set pause will not arrive
           br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
         } catch(e){}
-        // ЯЗЫК ИГРОКА (обязательный шаг доки). Локализации пока нет —
-        // интерфейс жёстко EN по спеке владельца; читаем и отдаём наружу,
-        // чтобы словарь можно было завести без правок этого файла.
+        // THE PLAYER'S LANGUAGE (a mandatory step of the docs). There is no localization
+        // yet — the interface is hard EN by the owner's spec; we read it and expose it
+        // outward so that a dictionary can be introduced without editing this file.
         try { bridgeLang = String(br.platform.language || '').slice(0, 2).toLowerCase() || null; } catch(e){}
-        // ⚠️ ВСТАВКА ДИСПЕТЧЕРА в зону ИНТЕГРАЦИИ: ревьюить при подключении
-        // bridge.payments (план — понедельник 3.08). id обязан совпадать с
-        // кабинетом: 'noads_forever'. СТОИТ ДО ГЕЙТА rewarded НАМЕРЕННО (ревью
-        // v212): платежи от rewarded не зависят — та же причина, по которой
-        // bridgeSyncSave вынесен выше (площадка с платежами, но без rewarded,
-        // иначе не получала бы живую цену никогда).
+        // ⚠️ THE DISPATCHER'S INSERT into the INTEGRATION zone: review it when
+        // bridge.payments is hooked up (the plan — Monday 3.08). The id must match the
+        // dashboard: 'noads_forever'. IT STANDS BEFORE THE rewarded GATE DELIBERATELY
+        // (review v212): payments do not depend on rewarded — the same reason for which
+        // bridgeSyncSave was moved above (a platform with payments but without rewarded
+        // would otherwise never get a live price).
         try {
-          // ⛔ Подтяжка живой цены noads_forever на кнопку меню удалена
-          // вместе с баннером (слово владельца 2026-08-03); сам продукт в
-          // каталоге жив. Для БУДУЩЕЙ точки входа (блок лидербордов) цена
-          // берётся готовым Ads.priceOf('noads_forever') из пакета платежей.
+          // ⛔ Pulling the live noads_forever price onto the menu button was removed
+          // together with the banner (the owner's word 2026-08-03); the product itself
+          // is alive in the catalog. For the FUTURE entry point (the leaderboards block)
+          // the price is taken ready-made as Ads.priceOf('noads_forever') from the
+          // payments package.
         } catch(e){}
-        if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // остаёмся на заглушке
+        if (!(br.advertisement && br.advertisement.isRewardedSupported)) return; // we stay on the stub
         br.advertisement.on(br.EVENT_NAME.REWARDED_STATE_CHANGED, (state)=>{
-          // любое состояние = платформа жива: гасим watchdog (ролики штатно
-          // идут 15-30+ с — таймер на 20 с отбирал награду у досмотревших)
-          // ⚠️ ГАСИМ СТОРОЖА ТОЛЬКО НА КОНЕЧНЫХ СОСТОЯНИЯХ. Раньше его снимало
-          // ЛЮБОЕ первое состояние, включая OPENED, — и если площадка после
-          // открытия ролика замолкала, снять паузу было уже некому: игра
-          // оставалась замороженной навсегда. У межстраничной такая страховка
-          // была, у роликов нет. Теперь на OPENED сторож ПЕРЕВОДИТСЯ на длинный
-          // предел (ролик штатно идёт 15-30 с, 120 трогает только аварию).
+          // any state = the platform is alive: we kill the watchdog (ads normally
+          // run 15-30+ s — a 20 s timer was taking the reward away from those who
+          // watched it through)
+          // ⚠️ WE KILL THE GUARD ONLY ON TERMINAL STATES. Previously ANY first state
+          // cleared it, including OPENED — and if the platform went silent after
+          // opening the ad, there was no one left to lift the pause: the game stayed
+          // frozen forever. The interstitial had such a safety net, the rewarded did
+          // not. Now on OPENED the guard is SWITCHED to a long limit (an ad normally
+          // runs 15-30 s, 120 only touches a breakdown).
           const terminal = state === br.REWARDED_STATE.REWARDED ||
                            state === br.REWARDED_STATE.FAILED ||
                            state === br.REWARDED_STATE.CLOSED;
           clearTimeout(watchdog); watchdog = 0;
           if (!terminal) watchdog = setTimeout(()=>settleFail(true), 120000);
-          // во время рекламы миксер не должен пожирать предметы
+          // during an ad the mixer must not devour items
           if (stats) stats.lastAction = performance.now();
           if (state === br.REWARDED_STATE.REWARDED) settleReward();
           else if (state === br.REWARDED_STATE.FAILED) settleFail(false);
-          else if (state === br.REWARDED_STATE.CLOSED) settleFail(true); // закрыл до награды — без награды
+          else if (state === br.REWARDED_STATE.CLOSED) settleFail(true); // closed before the reward — no reward
         });
-        // МЕЖСТРАНИЧНАЯ: показ идёт БЕЗ наших колбэков (showInterstitial —
-        // fire-and-forget), поэтому пауза/мьют вешаются прямо на состояния —
-        // без этой подписки мы вообще не знали, когда ролик кончился.
+        // THE INTERSTITIAL: the show runs WITHOUT our callbacks (showInterstitial is
+        // fire-and-forget), so the pause/mute are hung directly on the states —
+        // without this subscription we did not know at all when the ad had ended.
         br.advertisement.on(br.EVENT_NAME.INTERSTITIAL_STATE_CHANGED, (state)=>{
           if (stats) stats.lastAction = performance.now();
           if (state === br.INTERSTITIAL_STATE.OPENED){
             adBlockOn();
-            // Страховка на молчание платформы: CLOSED может не прийти вовсе,
-            // и тогда игра осталась бы замороженной навсегда. Межстраничные
-            // штатно короче минуты — этот предел трогает только аварию.
+            // A safety net against the platform's silence: CLOSED may not arrive at all,
+            // and then the game would stay frozen forever. Interstitials are normally
+            // shorter than a minute — this limit only touches a breakdown.
             clearTimeout(interWatchdog);
             interWatchdog = setTimeout(()=>{ interWatchdog = 0; adBlockOff(); }, 60000);
           } else if (state === br.INTERSTITIAL_STATE.CLOSED || state === br.INTERSTITIAL_STATE.FAILED){
@@ -367,21 +383,23 @@ const Ads = (function(){
             adBlockOff();
           }
         });
-        // ЦЕНА «НАВСЕГДА БЕЗ РЕКЛАМЫ» — ИЗ КАТАЛОГА ПЛОЩАДКИ (спека владельца
-        // 2026-07-30 «проверь цену из бриджа»). Кнопка в shell.html несёт фолбэк
-        // «Forever for $4.90»; здесь подтягивается живая цена товара
-        // noads_forever (у площадки она в локальной валюте игрока). Ошибки
-        // глотаем молча — кнопка остаётся с фолбэком, покупку это не ломает.
-        // (фетч каталога платежей — ВЫШЕ, до гейта rewarded: ревью v212)
+        // THE "FOREVER WITHOUT ADS" PRICE — FROM THE PLATFORM'S CATALOG (the owner's spec
+        // 2026-07-30 "check the price from the bridge"). The button in shell.html carries
+        // the fallback "Forever for $4.90"; here the live price of the noads_forever
+        // product is pulled in (on the platform it is in the player's local currency).
+        // Errors are swallowed silently — the button keeps the fallback, and this does
+        // not break the purchase.
+        // (fetching the payments catalog is ABOVE, before the rewarded gate: review v212)
         mode = 'bridge';
-      }).catch(()=>{ /* остаёмся на заглушке */
-        // initialize упал: GAME_READY отправить нечем, но у SDK сработает свой
-        // `.finally` (прогресс 100 -> снятие через 1400 мс) — ждём ровно его
-        setTimeout(()=>curtainDone('снят самим sdk после сбоя init'), CURTAIN_SELF_MS);
+      }).catch(()=>{ /* we stay on the stub */
+        // initialize failed: there is nothing to send GAME_READY through, but the SDK
+        // will run its own `.finally` (progress 100 -> removal after 1400 ms) — we wait
+        // for exactly that
+        setTimeout(()=>curtainDone('lifted by the sdk itself after an init failure'), CURTAIN_SELF_MS);
       });
     };
-    s.onerror = ()=>{ /* файла нет — остаёмся на заглушке */
-      curtainDone('sdk не загрузился');   // занавес рисовать некому
+    s.onerror = ()=>{ /* no file — we stay on the stub */
+      curtainDone('sdk did not load');   // there is no one to draw the curtain
     };
     document.head.appendChild(s);
   }
@@ -395,114 +413,117 @@ const Ads = (function(){
       left--; el.textContent = left;
       if (left <= 0){
         hide('adOverlay');
-        settleReward(); // прибирает и сам stubTimer (endPending)
+        settleReward(); // it also cleans up stubTimer itself (endPending)
       }
     }, 1000);
   }
 
-  // interstitial между уровнями: раз в INTER_EVERY_LEVELS ПОБЕД (спека
-  // владельца 2026-07-23 «межстраничная каждый 5 уровень», уточнение
-  // 2026-07-24 «только между уровнями, не на переигровке из тупика»).
-  // Счётчик двигает ТОЛЬКО победа (noteWin в showEnd). Показ привязан
-  // СТРУКТУРНО к победному переходу: maybeInterstitial зовёт лишь `againBtn`
-  // (Next после победы, 90-input); из `loseAgainBtn` (Retry из тупика) вызов
-  // УБРАН — спасение там это rewarded Continue, а не межстраничная.
-  // ⚠️ Уровень меняют и МИМО этого гейта (msPlayBtn «Play Game», pauseRestart —
-  // genLevel без сброса счётчика). Это не показывает ролик, но копит перелив:
-  // накопленный за 5 побед показ выстрелит на БЛИЖАЙШЕМ againBtn (следующая
-  // победа) — на поражении не выстрелит НИКОГДА, т.к. loseAgainBtn гейт не зовёт.
-  // Почему нельзя загейтить внутри 78-ads: msPlayBtn/pauseRestart/showLose о
-  // переходе сюда не сообщают, любой win-латч пережил бы bypass и утёк в
-  // Retry — различает переходы только проводка кнопок (90-input).
-  // Только в bridge-режиме (в стабе не раздражаем). Единственная точка ПОКАЗА.
-  // ⚠️ Это НАШ ЗАПРОС, а не гарантия: showInterstitial у Poki/CrazyGames —
-  // сигнал возможности, площадка сама пейсит и вправе пропустить. «Каждый 5»
-  // — верхняя граница нашей инициативы; ЧАЩЕ мы не просим (см.
-  // docs/AD-CADENCE-PER-PLATFORM.md). Пауза/мьют на время ролика висят на
-  // INTERSTITIAL_STATE_CHANGED (см. init) — если площадка ничего не показала,
-  // OPENED не придёт и игра не замрёт.
-  // ⚠️ ТОЧКА ПОДПИСКИ: когда владелец включит «Subscribe отключает баннеры»,
-  // сюда встанет ОДНА строка-гвард в начале (`if (adsRemoved()) return;`).
-  // Флаг «реклама снята» — покупка, живёт в сейве (зона МЕТЫ), запрос туда
-  // оформляется в момент решения по платежам (у Poki платежей в Bridge нет).
-  // ⚠️ СЧЁТЧИК ПОБЕД ЖИВЁТ В СЕЙВЕ (Save.iw), а НЕ в замыкании. Пока он был
-  // переменной IIFE, он умирал с перезагрузкой страницы: чтобы увидеть ОДИН
-  // ролик, надо было выиграть INTER_EVERY_LEVELS уровней в ОДНОЙ непрерывной
-  // сессии (~25 мин). Замер: час игры одним заходом = 2 показа в день, тот же
-  // час тремя заходами по 20 мин = НОЛЬ, всегда. Из-за этого обещание бандла
-  // «месяц без рекламы» убирало то, чего игрок и так почти не получал.
-  // ⚠️ Это НЕ валюта: анти-дюп не нужен, мерж берёт max (худший случай —
-  // один лишний показ, а не потерянные деньги игрока).
-  // ===== ЛИДЕРБОРД: отправка счёта без экрана (спека владельца 2026-07-29) =====
-  // МОДЕЛЬ РАНГА — «как в Форбс»: ранг это ТЕКУЩЕЕ состояние, а не пожизненное
-  // достижение. Заработал — поднялся, потратил — упал. Формулу не трогаем,
-  // шлём `leaderboardScore()` как есть (77-save).
-  let lbBoardId = LEADERBOARD_ID;   // мутабельно ради тест-хука (DEV)
-  let lbLast = null;                // последнее ОТПРАВЛЕННОЕ значение — не шлём то же дважды
-  let lbLastRaw = null;             // сырой ответ сервера (форма известна с 2026-07-29)
-  let lbAccepted = null;            // true — счёт принят, false — ниже пика и проигнорирован
-  // Три предусловия ДО вызова. Причина именно такой проверки: и «площадка не
-  // умеет», и «сеть упала» дают ПУСТОЙ Promise.reject() без аргумента — по
-  // самому реджекту их не различить (замер 2026-07-29). Значит различаем ДО.
+  // The interstitial between levels: once every INTER_EVERY_LEVELS WINS (the owner's
+  // spec 2026-07-23 "an interstitial every 5th level", the clarification of
+  // 2026-07-24 "only between levels, not on a replay out of a dead end").
+  // The counter is moved ONLY by a win (noteWin in showEnd). The show is bound
+  // STRUCTURALLY to the victory transition: maybeInterstitial is called only by `againBtn`
+  // (Next after a win, 90-input); the call from `loseAgainBtn` (Retry out of a dead end)
+  // has been REMOVED — the rescue there is a rewarded Continue, not an interstitial.
+  // ⚠️ The level is also changed PAST this gate (msPlayBtn "Play Game", pauseRestart —
+  // genLevel without resetting the counter). That does not show an ad, but it accumulates
+  // an overflow: a show accumulated over 5 wins will fire on the NEAREST againBtn (the next
+  // win) — on a loss it will NEVER fire, since loseAgainBtn does not call the gate.
+  // Why it cannot be gated inside 78-ads: msPlayBtn/pauseRestart/showLose do not report
+  // the transition here, and any win latch would survive the bypass and leak into
+  // Retry — only the buttons' wiring (90-input) distinguishes the transitions.
+  // Only in bridge mode (in the stub we do not annoy anyone). The ONLY SHOW point.
+  // ⚠️ This is OUR REQUEST, not a guarantee: showInterstitial on Poki/CrazyGames is
+  // a signal of an opportunity, the platform paces it itself and is entitled to skip it.
+  // "Every 5th" is the upper bound of our initiative; we do NOT ask MORE OFTEN (see
+  // docs/AD-CADENCE-PER-PLATFORM.md). The pause/mute for the duration of the ad hang on
+  // INTERSTITIAL_STATE_CHANGED (see init) — if the platform showed nothing,
+  // OPENED will not arrive and the game will not freeze.
+  // ⚠️ THE SUBSCRIPTION POINT: when the owner enables "Subscribe turns off the banners",
+  // ONE guard line will go in here at the beginning (`if (adsRemoved()) return;`).
+  // The "ads removed" flag is a purchase, it lives in the save (the META zone), and the
+  // request for it is filed at the moment the payments decision is made (Poki has no
+  // payments in Bridge).
+  // ⚠️ THE WIN COUNTER LIVES IN THE SAVE (Save.iw), and NOT in the closure. While it was
+  // an IIFE variable, it died with a page reload: to see ONE ad you had to win
+  // INTER_EVERY_LEVELS levels in ONE uninterrupted session (~25 min). Measurement: an
+  // hour of play in one sitting = 2 impressions a day, the same hour in three 20-minute
+  // sittings = ZERO, always. Because of that the bundle's promise of "a month without ads"
+  // removed something the player was hardly getting anyway.
+  // ⚠️ This is NOT currency: no anti-dupe is needed, the merge takes max (the worst case
+  // is one extra impression, not the player's lost money).
+  // ===== THE LEADERBOARD: submitting the score without a screen (the owner's spec 2026-07-29) =====
+  // THE RANK MODEL — "like in Forbes": the rank is the CURRENT state, not a lifetime
+  // achievement. Earned it — went up, spent it — went down. We do not touch the formula,
+  // we send `leaderboardScore()` as is (77-save).
+  let lbBoardId = LEADERBOARD_ID;   // mutable for the sake of the test hook (DEV)
+  let lbLast = null;                // the last SUBMITTED value — we do not send the same one twice
+  let lbLastRaw = null;             // the raw server response (its shape has been known since 2026-07-29)
+  let lbAccepted = null;            // true — the score was accepted, false — below the peak and ignored
+  // Three preconditions BEFORE the call. The reason for exactly this check: both "the
+  // platform cannot do it" and "the network went down" give an EMPTY Promise.reject()
+  // with no argument — they cannot be told apart by the rejection itself (measurement
+  // 2026-07-29). So we tell them apart BEFOREHAND.
   function lbBlockedWhy(){
-    if (!lbBoardId) return 'нет id борда/токена';          // наш выключатель
-    if (mode !== 'bridge' || !sdkReady) return 'sdk не поднят';
+    if (!lbBoardId) return 'no board id/token';          // our own switch
+    if (mode !== 'bridge' || !sdkReady) return 'sdk is not up';
     try {
       const br = window.bridge;
       if (!br.leaderboards || br.leaderboards.type === 'not_available')
-        return 'площадка не поддерживает';
-      // ⚠️ ГЕЙТ ПО АВТОРИЗАЦИИ — НАШ, И ОН СТРОЖЕ SDK. Спека владельца:
-      // «чтобы попасть в лидерборд, нужно залогиниться». SDK пропускает по
-      // НЕПУСТОМУ playerId, а у гостя он непустой (замер) — без этой строки
-      // гости бы поехали. Побочно закрывает засорение таблицы: гостевой id
-      // НОВЫЙ НА КАЖДУЮ СЕССИЮ, а удаления записей в SDK нет вовсе.
-      if (!br.player || !br.player.isAuthorized) return 'игрок не авторизован';
-      if (!br.player.id) return 'нет id игрока';
-    } catch(e){ return 'sdk недоступен'; }
+        return 'platform does not support it';
+      // ⚠️ THE AUTHORIZATION GATE IS OURS, AND IT IS STRICTER THAN THE SDK'S. The owner's
+      // spec: "to get into the leaderboard you have to log in". The SDK lets you through
+      // on a NON-EMPTY playerId, and a guest's one is non-empty (measurement) — without
+      // this line guests would go through. As a side effect it closes the littering of the
+      // table: a guest id is NEW FOR EVERY SESSION, and the SDK has no record deletion at all.
+      if (!br.player || !br.player.isAuthorized) return 'player is not authorized';
+      if (!br.player.id) return 'no player id';
+    } catch(e){ return 'sdk unavailable'; }
     return null;
   }
-  // ⚠️⚠️ ЭТА ТАБЛИЦА ПАДАТЬ НЕ УМЕЕТ, И ЗДЕСЬ ЧИНИТЬ НЕЧЕГО.
-  // Сервер площадки хранит МАКСИМУМ: меньшее значение он молча игнорирует, и
-  // отказ невидим даже по статусу — приходит 201 и `scoreAttemptStatus:'normal'`
-  // (живой замер 2026-07-29, два прогона, площадки playgama и poki). Признак
-  // один: в теле возвращается СОХРАНЁННЫЙ счёт, а не присланный.
-  // ⛔ ПОЭТОМУ требование владельца «трата опускает в таблице сразу» НЕ
-  // РЕШАЕТСЯ ЗДЕСЬ ни перевешиванием триггера, ни чем-либо ещё: опускать умеет
-  // только НАША таблица (`82-lb.js`). Следующий, кто придёт с этим требованием,
-  // должен прочесть эти строки раньше, чем начнёт править платформенный путь.
-  // Роли разведены намеренно: платформенная — «рекорд за всё время», наша —
-  // текущий баланс. Расхождение их чисел задумано и объясняется на экране.
+  // ⚠️⚠️ THIS TABLE CANNOT GO DOWN, AND THERE IS NOTHING TO FIX HERE.
+  // The platform's server keeps the MAXIMUM: it silently ignores a smaller value, and the
+  // refusal is invisible even by status — a 201 arrives with `scoreAttemptStatus:'normal'`
+  // (a live measurement 2026-07-29, two runs, the playgama and poki platforms). There is
+  // one sign: the body returns the STORED score, not the submitted one.
+  // ⛔ THEREFORE the owner's requirement "spending drops you in the table immediately" IS
+  // NOT SOLVED HERE, neither by re-hanging the trigger nor by anything else: only OUR
+  // table (`82-lb.js`) can go down. Whoever comes next with this requirement
+  // must read these lines before starting to edit the platform path.
+  // The roles were separated deliberately: the platform's one is "the all-time record",
+  // ours is the current balance. The divergence of their numbers is by design and is
+  // explained on screen.
   function submitLeaderboardScore(){
     const why = lbBlockedWhy();
-    if (why) return { ok: false, skipped: why };   // МОЛЧА: ни тостов, ни ошибок в консоли
+    if (why) return { ok: false, skipped: why };   // SILENTLY: no toasts, no errors in the console
     const score = leaderboardScore();
-    if (score === lbLast) return { ok: false, skipped: 'значение не изменилось' };
+    if (score === lbLast) return { ok: false, skipped: 'the value did not change' };
     lbLast = score;
     try {
       window.bridge.leaderboards.setScore(lbBoardId, score).then((res)=>{
-        // ⚠️⚠️ РЕЗОЛВ НЕ ОЗНАЧАЕТ УСПЕХ. Транспорт SaaS — fetch(...).then(r =>
-        // r.json()) БЕЗ проверки res.ok (замер: 403 и 500 с JSON-телом приезжают
-        // сюда как успех; пустое тело — наоборот, улетает в catch по парсингу).
+        // ⚠️⚠️ A RESOLVE DOES NOT MEAN SUCCESS. The SaaS transport is fetch(...).then(r =>
+        // r.json()) WITHOUT checking res.ok (measurement: 403 and 500 with a JSON body arrive
+        // here as a success; an empty body, on the contrary, flies into catch on parsing).
         lbLastRaw = res;
-        // РАЗБОР ТЕЛА — форма установлена ЖИВЫМ ПРОГОНОМ 2026-07-29 (борд
-        // Blendo, площадки playgama и poki, два независимых прогона):
+        // PARSING THE BODY — the shape was established by a LIVE RUN on 2026-07-29 (the
+        // Blendo board, the playgama and poki platforms, two independent runs):
         //   POST → {uuid, leaderboardUuid, playerUuid, score, platformId,
         //           updatedAt, scoreAttemptStatus, scoreAttemptReasons[]}
-        // ⚠️⚠️ СЕРВЕР ХРАНИТ МАКСИМУМ, И ОТКАЗ НЕВИДИМ ПО СТАТУСУ: меньшее
-        // значение молча игнорируется, но ответ всё равно 201 и
-        // scoreAttemptStatus:'normal' — поле, которое выглядит созданным ровно
-        // для этого, не срабатывает. ЕДИНСТВЕННЫЙ честный признак: в теле
-        // приходит СОХРАНЁННЫЙ счёт, а не присланный. Сравниваем с ним.
+        // ⚠️⚠️ THE SERVER KEEPS THE MAXIMUM, AND THE REFUSAL IS INVISIBLE BY STATUS: a smaller
+        // value is silently ignored, but the response is still 201 and
+        // scoreAttemptStatus:'normal' — the field that looks like it was created for exactly
+        // this does not fire. THE ONLY honest sign: the body carries the STORED score, not
+        // the submitted one. We compare against it.
         const stored = res && typeof res.score === 'number' ? res.score : null;
         const accepted = stored === null ? null : stored === score;
         lbAccepted = accepted;
-        // ⚠️ «Проигнорировано» — НЕ ошибка и НЕ повод для тревоги: это штатный
-        // случай, когда текущий счёт ниже личного пика игрока. Пишем как факт.
+        // ⚠️ "Ignored" is NOT an error and NOT a reason for alarm: it is the normal case
+        // where the current score is below the player's personal peak. We record it as a fact.
         Telemetry.ev('lb', { s: score, st: stored, ok: accepted === true ? 1 : 0 });
       }).catch(()=>{
-        // Сюда падает и НАСТОЯЩИЙ транспортный сбой, и успешная запись с пустым
-        // телом. Различить нельзя — поэтому просто разрешаем повтор на следующей
-        // победе, а не считаем «не сохранилось».
+        // Both a REAL transport failure and a successful write with an empty body land here.
+        // They cannot be told apart — so we simply allow a repeat on the next win, rather
+        // than deciding "it was not saved".
         lbLast = null;
         Telemetry.ev('lb', { s: score, err: 1 });
       });
@@ -512,55 +533,54 @@ const Ads = (function(){
   function interWins(){ return Math.max(0, Save.iw || 0); }
   function noteWin(){
     Save.iw = interWins() + 1; commitSave();
-    // ЛИДЕРБОРД шлём ОТСЮДА, а не из ядра: noteWin уже зовётся ровно раз за
-    // победу и СТРОГО ПОСЛЕ bankLevelScore (80-gameplay: банк на строке выше
-    // вызова) — значит счёт уже учтён. Ядро о лидерборде не знает, правок в
-    // чужой зоне не потребовалось.
-    // ⛔⛔ НАДГРОБИЕ. Ниже — решение, принятое ОСОЗНАННО 2026-07-29, и оно
-    // ОТМЕНЕНО словом владельца 2026-08-09 («результат меняется, если игрок
-    // потратил деньги в коллекции на множитель»). Текст сохранён дословно,
-    // потому что у нас не переписывают молча то, что было взвешено:
+    // THE LEADERBOARD is sent FROM HERE, not from the core: noteWin is already called
+    // exactly once per win and STRICTLY AFTER bankLevelScore (80-gameplay: the bank is on
+    // the line above the call) — which means the score has already been counted. The core
+    // knows nothing about the leaderboard, and no edits in someone else's zone were needed.
+    // ⛔⛔ A TOMBSTONE. Below is a decision taken DELIBERATELY on 2026-07-29, and it has been
+    // REVERSED by the owner's word of 2026-08-09 ("the result changes if the player has
+    // spent money in the collection on a multiplier"). The text is kept verbatim, because
+    // here we do not silently rewrite what has been weighed:
     //
-    //   «⚠️ ИЗВЕСТНОЕ ПОВЕДЕНИЕ: leaderboardScore() меняется НЕ только на
-    //    победе — досрочный банк при покупке двигает его посреди партии.
-    //    В таблицу уходит значение НА КОНЕЦ УРОВНЯ; промежуточные изменения
-    //    не отправляются. Принято осознанно (диспетчер 2026-07-29): отправка
-    //    привязана к естественной точке, а не к каждому шевелению баланса.»
+    //   "⚠️ KNOWN BEHAVIOR: leaderboardScore() changes NOT only on a win — an early bank
+    //    on a purchase moves it in the middle of a run. What goes into the table is the
+    //    value AT THE END OF THE LEVEL; intermediate changes are not submitted.
+    //    Accepted deliberately (the dispatcher 2026-07-29): the submission is bound to a
+    //    natural point, not to every twitch of the balance."
     //
-    // ЧТО ИМЕННО ОТМЕНИЛОСЬ: трата случается В МЕНЮ, между уровнями. При
-    // прежнем триггере место обновилось бы только после СЛЕДУЮЩЕЙ победы —
-    // то есть ровно то, о чём просил владелец, не происходило бы.
-    // ⚠️ ЧТО ОСТАЛОСЬ ВЕРНЫМ И ЧЕГО НЕЛЬЗЯ ПОТЕРЯТЬ: обе отправки стоят ПОСЛЕ
-    // `bankLevelScore` (80-gameplay: банк на строке выше вызова `noteWin`).
-    // Перенесёте выше банка — в таблицу уедет счёт без только что сыгранного
-    // уровня, и симптом будет коварным: число правдоподобное, просто вчерашнее.
+    // WHAT EXACTLY WAS REVERSED: the spending happens IN THE MENU, between levels. With the
+    // former trigger the place would have been updated only after the NEXT win — that is,
+    // exactly what the owner asked for would not have happened.
+    // ⚠️ WHAT REMAINED TRUE AND MUST NOT BE LOST: both submissions stand AFTER
+    // `bankLevelScore` (80-gameplay: the bank is on the line above the `noteWin` call).
+    // Move them above the bank and a score without the level just played will go into the
+    // table, and the symptom will be insidious: a plausible number, just yesterday's.
     submitLeaderboardScore();
-    // НАША таблица (текущий баланс, умеет падать). Промежуточные изменения
-    // ловит её собственная подписка на `onStarsChange` — здесь только победа.
+    // OUR table (the current balance, it can go down). Intermediate changes are caught by
+    // its own subscription to `onStarsChange` — here it is only the win.
     if (typeof lbSubmit === 'function') { try { lbSubmit(); } catch (e) {} }
   }
 
-  // ===== ЛИДЕРБОРД: ЧТЕНИЕ (контракт для экрана ИНТЕРФЕЙСА) =====
-  // Разобрано ПО ИСХОДНИКУ `LeaderboardsModule.ts` v2.0.2, не по доке.
+  // ===== THE LEADERBOARD: READING (the contract for the INTERFACE screen) =====
+  // Analyzed FROM THE SOURCE of `LeaderboardsModule.ts` v2.0.2, not from the docs.
   //
-  // ⚠️⚠️ ТИП ТАБЛИЦЫ ПЕРЕБИВАЕТСЯ SaaS, И ЭТО МЕНЯЕТ ПОСТАНОВКУ ЗАДАЧИ:
+  // ⚠️⚠️ THE TABLE TYPE IS OVERRIDDEN BY SaaS, AND THAT CHANGES THE STATEMENT OF THE TASK:
   //   `get type(){ return this.#saas ? IN_GAME : platformBridge.leaderboardsType }`
-  // У нас SaaS включён в конфиге для playgama/poki/y8/yandex/crazy_games,
-  // значит на этих площадках тип ВСЕГДА `in_game`, и ветка «нарисует
-  // площадка, наш экран не нужен» там НЕ СРАБОТАЕТ НИКОГДА. Рисуем свой
-  // экран; `native`/`native_popup` остаются только для площадок вне списка.
+  // We have SaaS enabled in the config for playgama/poki/y8/yandex/crazy_games,
+  // which means on those platforms the type is ALWAYS `in_game`, and the branch "the
+  // platform will draw it, our screen is not needed" will NEVER FIRE there. We draw our own
+  // screen; `native`/`native_popup` remain only for platforms outside that list.
   //
-  // ⚠️ ПОСТРАНИЧНОСТИ У МОСТА НЕТ. `getEntries(id)` зовётся БЕЗ параметров
-  // (`saas.get('leaderboards/'+id)`) и отдаёт один список целиком. Поэтому
-  // `limit/offset` ниже режут УЖЕ ПОЛУЧЕННЫЙ массив на нашей стороне —
-  // это НЕ серверная страница, и обещать «подгрузим ещё» экрану нельзя.
+  // ⚠️ THE BRIDGE HAS NO PAGINATION. `getEntries(id)` is called WITHOUT parameters
+  // (`saas.get('leaderboards/'+id)`) and returns one whole list. That is why the
+  // `limit/offset` below slice an ALREADY RECEIVED array on our side —
+  // this is NOT a server page, and we must not promise the screen "we will load more".
   //
-  // ⚠️ ЧТЕНИЕ НЕ ТРЕБУЕТ АВТОРИЗАЦИИ, в отличие от ЗАПИСИ. Гейт
-  // `isAcquired`/`isAuthorized` в `lbBlockedWhy` — про отправку своего
-  // результата (решение владельца «чтобы ПОПАСТЬ в таблицу, нужно
-  // залогиниться»). Таблицу СМОТРЕТЬ может кто угодно, включая гостя;
-  // держать эти два правила порознь обязательно.
-  const LB_ENTRY_TTL = 30000;         // экран открывают часто, сервер жалеть
+  // ⚠️ READING DOES NOT REQUIRE AUTHORIZATION, unlike WRITING. The
+  // `isAcquired`/`isAuthorized` gate in `lbBlockedWhy` is about submitting one's own
+  // result (the owner's decision "to GET INTO the table you have to log in"). ANYONE can
+  // LOOK at the table, including a guest; keeping these two rules apart is mandatory.
+  const LB_ENTRY_TTL = 30000;         // the screen is opened often, spare the server
   let lbCache = null, lbCacheAt = 0;
 
   function lbType(){
@@ -569,13 +589,13 @@ const Ads = (function(){
       return t || null;
     } catch(e){ return null; }
   }
-  // Почему не может быть прочитано — одной причиной, ЯЗЫКОМ ЭКРАНА.
+  // Why it cannot be read — in a single reason, IN THE SCREEN'S LANGUAGE.
   function lbReadWhy(){
-    if (!lbBoardId) return 'выключено';                   // наш выключатель
-    if (mode !== 'bridge' || !sdkReady) return 'нет sdk';
+    if (!lbBoardId) return 'disabled';                   // our own switch
+    if (mode !== 'bridge' || !sdkReady) return 'no sdk';
     const t = lbType();
-    if (!t || t === 'not_available') return 'площадка не поддерживает';
-    if (t !== 'in_game') return 'таблицу рисует площадка';  // native / native_popup
+    if (!t || t === 'not_available') return 'platform does not support it';
+    if (t !== 'in_game') return 'the table is drawn by the platform';  // native / native_popup
     return null;
   }
   function lbNormalize(list){
@@ -584,9 +604,9 @@ const Ads = (function(){
       id: String((e && e.id) || ''),
       name: (e && e.name) || '',
       score: Number((e && e.score) || 0),
-      // ⚠️ `rank` берём с сервера, а СВОЙ считаем только когда его нет:
-      // у SaaS место приходит готовым, и пересчёт по индексу молча
-      // разошёлся бы с сервером при равных счётах.
+      // ⚠️ We take `rank` from the server, and compute OUR OWN only when it is missing:
+      // with SaaS the place arrives ready-made, and recomputing it by index would
+      // silently diverge from the server on equal scores.
       rank: (e && typeof e.rank === 'number') ? e.rank : (i + 1),
       photo: (e && e.photo) || null,
       me: !!meId && String((e && e.id) || '') === meId,
@@ -594,11 +614,11 @@ const Ads = (function(){
     rows.sort((a, b) => a.rank - b.rank);
     return rows;
   }
-  // Отдаёт ВСЕГДА resolve: отказ — это состояние экрана, а не исключение.
+  // It ALWAYS returns a resolve: a refusal is a state of the screen, not an exception.
   // {ok, why, type, total, entries, me}
-  // ⚠️ `me === null` значит «моей строки в выдаче нет» — а НЕ «я вне таблицы»:
-  // список приходит срезом, и за его пределами место неизвестно. Экран обязан
-  // различать эти два случая, иначе покажет игроку неправду.
+  // ⚠️ `me === null` means "my row is not in the output" — and NOT "I am outside the table":
+  // the list arrives as a slice, and beyond its bounds the place is unknown. The screen must
+  // distinguish these two cases, otherwise it will show the player an untruth.
   function lbEntries(opts){
     const o = opts || {};
     const why = lbReadWhy();
@@ -615,70 +635,72 @@ const Ads = (function(){
                entries: rows.slice(from, to), me: rows.find(r => r.me) || null };
     }).catch((e)=>{
       Telemetry.ev('lb', { ph: 'read_fail', r: String((e && e.message) || e || '').slice(0, 60) });
-      return { ok: false, why: 'сеть', type: lbType(), entries: [], me: null, total: 0 };
+      return { ok: false, why: 'network', type: lbType(), entries: [], me: null, total: 0 };
     });
   }
-  // ПЛАТФОРМЕННЫЙ ПОПАП. ⚠️ Заранее узнать, есть ли он, НЕЛЬЗЯ: модуль сверяет
-  // СЫРОЙ тип площадки (`_platformBridge.leaderboardsType`), а наружу отдаёт
-  // тип, перебитый SaaS. Поэтому — пробуем и честно отдаём отказ.
+  // THE PLATFORM'S POPUP. ⚠️ It is IMPOSSIBLE to find out in advance whether it exists: the
+  // module checks the RAW platform type (`_platformBridge.leaderboardsType`), while outward
+  // it gives the type overridden by SaaS. So — we try and honestly report the refusal.
   function lbShowNative(){
-    if (!lbBoardId) return Promise.resolve({ ok: false, why: 'выключено' });
+    if (!lbBoardId) return Promise.resolve({ ok: false, why: 'disabled' });
     let p;
     try { p = window.bridge.leaderboards.showNativePopup(lbBoardId); }
     catch(e){ p = Promise.reject(e); }
     return Promise.resolve(p).then(()=>({ ok: true, why: null }))
-      .catch(()=>({ ok: false, why: 'площадка не умеет попап' }));
+      .catch(()=>({ ok: false, why: 'the platform cannot do a popup' }));
   }
 
   function maybeInterstitial(){
-    // ОКНО БЕЗ РЕКЛАМЫ из бандла (77-save): гасит ТОЛЬКО межстраничные.
-    // Rewarded НЕ трогаем — их игрок просит сам, и они несут заряды.
+    // THE NO-ADS WINDOW from the bundle (77-save): it kills ONLY interstitials.
+    // We do NOT touch rewarded — the player asks for those himself, and they carry charges.
     if (typeof noAdActive === 'function' && noAdActive()) return;
     if (mode !== 'bridge') return;
-    // ⚠️ ГВАРД ПОДДЕРЖКИ — СТРОГО ДО сброса окна. mode==='bridge' ставится по
-    // isRewardedSupported, а межстраничная поддержана НЕ везде (в бандле это
-    // разные геттеры, у части адаптеров интерстишл ещё и отключается конфигом
-    // `advertisement.interstitial.disable`). Без гварда мы обнуляли накопленные
-    // 5 побед там, где ролика не будет НИКОГДА, — окно скручивалось впустую.
+    // ⚠️ THE SUPPORT GUARD — STRICTLY BEFORE resetting the window. mode==='bridge' is set by
+    // isRewardedSupported, while the interstitial is NOT supported everywhere (in the bundle
+    // these are different getters, and on some adapters the interstitial is additionally
+    // disabled by the config
+    // `advertisement.interstitial.disable`). Without the guard we were zeroing the
+    // accumulated 5 wins where there will NEVER be an ad — the window was being wound
+    // down for nothing.
     try { if (!window.bridge.advertisement.isInterstitialSupported) return; } catch(e){ return; }
     if (interWins() < INTER_EVERY_LEVELS) return;
-    Save.iw = 0; commitSave(); // крестим окно СРАЗУ: повторный клик или поражение
-    // между победами не должны выпустить второй ролик; при сбое показа
-    // best-effort теряем один — лучше, чем спам-ретраи каждый переход
+    Save.iw = 0; commitSave(); // we cross the window off RIGHT AWAY: a repeated click or a loss
+    // between wins must not release a second ad; on a show failure we lose one on a
+    // best-effort basis — better than spam retries on every transition
     try {
-      // PLACEMENT — имя рекламного места. Адаптеры прокидывают его в нативные
-      // SDK площадок (у Poki/GameSnacks это `name` в adBreak), и без него вся
-      // статистика по местам слепая. У межстраничной место ровно одно.
+      // PLACEMENT — the name of the ad slot. The adapters pass it into the platforms'
+      // native SDKs (on Poki/GameSnacks this is `name` in adBreak), and without it all
+      // per-slot statistics is blind. The interstitial has exactly one slot.
       window.bridge.advertisement.showInterstitial('level_completed');
-      if (stats) stats.lastAction = performance.now(); // миксер не ест предметы под рекламой
+      if (stats) stats.lastAction = performance.now(); // the mixer does not eat items under an ad
       Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
     } catch(e){}
   }
-  // ===== ПЛАТЕЖИ (bridge.payments, v2.0.2) =====
-  // Контракт площадки playgama (разобран по исходнику PlaygamaPlatformBridge):
-  // purchase() РЕЗОЛВИТСЯ ТОЛЬКО при status==='PAID' (иначе reject), доставку
-  // SDK подтверждает сам (confirmDelivery), а getPurchases() отдаёт список,
-  // где `id` — наш идентификатор товара.
+  // ===== PAYMENTS (bridge.payments, v2.0.2) =====
+  // The playgama platform's contract (analyzed from the PlaygamaPlatformBridge source):
+  // purchase() RESOLVES ONLY on status==='PAID' (otherwise it rejects), the SDK confirms
+  // delivery itself (confirmDelivery), and getPurchases() returns a list where
+  // `id` is our product identifier.
   //
-  // ⚠️⚠️ РАСХОДУЕМЫЕ И НЕТ — ГЛАВНОЕ РЕШЕНИЕ РАЗДЕЛА, из него растёт всё
-  // остальное. БАНДЛЫ расходуемые: их ОБЯЗАТЕЛЬНО consume после выдачи, иначе
-  // getPurchases() возвращал бы их вечно и КАЖДЫЙ СТАРТ выдавал бы бустер
-  // заново — бесконечный бесплатный буст. NOADS_FOREVER не расходуемый: сама
-  // покупка и ЕСТЬ доказательство владения, consume стёр бы возможность
-  // восстановления.
+  // ⚠️⚠️ CONSUMABLE AND NOT — THE MAIN DECISION OF THIS SECTION, everything else grows out
+  // of it. BUNDLES are consumable: they MUST be consumed after being granted, otherwise
+  // getPurchases() would return them forever and EVERY START would grant the booster
+  // again — an endless free boost. NOADS_FOREVER is not consumable: the purchase itself
+  // IS the proof of ownership, and a consume would erase the possibility of restoring it.
   const isConsumable = (id) => id !== 'noads_forever';
 
-  // Локальный реестр закрытых заказов — СВОЙ ключ, в Save не лезем (чужая зона).
-  // Нужен на случай «выдали, а consume не прошёл»: без него следующий старт
-  // увидел бы покупку в списке и выдал ВТОРОЙ раз.
-  // ⚠️ Ключ — orderId, а НЕ id товара: бандлы можно покупать повторно, и ключ
-  // по id заблокировал бы законную вторую покупку.
+  // A local registry of closed orders — OUR OWN key, we do not climb into Save (someone
+  // else's zone). It is needed for the case "we granted it, but the consume did not go
+  // through": without it the next start would see the purchase in the list and grant it
+  // a SECOND time.
+  // ⚠️ The key is the orderId, and NOT the product id: bundles can be bought repeatedly, and
+  // a key by id would block a legitimate second purchase.
   const IAP_LEDGER = 'mixer_iap_done';
   function ledger(){
     try { return JSON.parse(localStorage.getItem(IAP_LEDGER) || '[]') || []; } catch(e){ return []; }
   }
   function ledgerAdd(orderId){
-    if (!orderId) return;                       // нет заказа — не блокируем ничего
+    if (!orderId) return;                       // no order — we do not block anything
     try {
       const l = ledger(); if (l.indexOf(orderId) >= 0) return;
       l.push(orderId);
@@ -692,11 +714,11 @@ const Ads = (function(){
                     && window.bridge.payments.isPaymentsSupported); } catch(e){ return false; }
   }
 
-  // КАТАЛОГ — кэш на сессию. Наружу отдаём, чтобы ИНТЕРФЕЙС брал ЖИВЫЕ цены,
-  // а не зашитые доллары: на площадке playgama мост отдаёт `price: "49 Gam"`,
-  // `priceCurrencyCode: 'Gam'`, `priceValue` и картинку монетки (проверено по
-  // исходнику PlaygamaPlatformBridge, не по доке). Игрок платит В GAM —
-  // ценник «$4.99» на карточке будет просто неправдой.
+  // THE CATALOG — cached for the session. We expose it outward so that the INTERFACE takes
+  // LIVE prices rather than hard-wired dollars: on the playgama platform the bridge returns
+  // `price: "49 Gam"`, `priceCurrencyCode: 'Gam'`, `priceValue` and a coin image (verified
+  // against the PlaygamaPlatformBridge source, not against the docs). The player pays IN GAM —
+  // a "$4.99" price tag on the card would simply be a lie.
   let catalogCache = null, catalogPromise = null;
   function catalog(){
     if (catalogCache) return Promise.resolve(catalogCache);
@@ -716,18 +738,18 @@ const Ads = (function(){
       ? it.priceValue + ' ' + it.priceCurrencyCode : null);
   }
 
-  // ВЫДАЧА. Бандлы уходят в существующую ручку МЕТЫ buyBundle (77-save).
-  // ⚠️ NOADS_FOREVER ВЫДАТЬ НЕЧЕМ: `Save.na` — ВРЕМЕННОЕ окно, и ставится оно
-  // только внутри buyBundle для трёх бандлов; постоянного признака в сейве нет
-  // вовсе (проверено по 77-save). Поэтому здесь — вызов ручки, которой пока не
-  // существует, и ГРОМКИЙ отказ вместо тихого «ок»: молча «купить навсегда» и
-  // ничего не выдать — худшее, что можно сделать с платной покупкой.
+  // GRANTING. Bundles go into the existing META handle buyBundle (77-save).
+  // ⚠️ THERE IS NOTHING TO GRANT NOADS_FOREVER WITH: `Save.na` is a TEMPORARY window, and it
+  // is set only inside buyBundle for the three bundles; there is no permanent marker in the
+  // save at all (verified against 77-save). So here there is a call to a handle that does not
+  // exist yet, and a LOUD refusal instead of a quiet "ok": to silently "buy forever" and grant
+  // nothing is the worst thing you can do with a paid purchase.
   function grantPurchase(id){
     if (id === 'noads_forever'){
       if (typeof grantNoAdsForever === 'function'){
         try { grantNoAdsForever(); return { ok: true }; } catch(e){ return { ok: false, reason: 'grant_threw' }; }
       }
-      console.warn('[iap] noads_forever оплачен, но выдать нечем: нет ручки МЕТЫ grantNoAdsForever');
+      console.warn('[iap] noads_forever was paid for, but there is nothing to grant it with: no META handle grantNoAdsForever');
       return { ok: false, reason: 'no_grant_handle' };
     }
     if (typeof buyBundle !== 'function') return { ok: false, reason: 'no_grant_handle' };
@@ -735,9 +757,9 @@ const Ads = (function(){
     return r && r.ok ? { ok: true } : { ok: false, reason: (r && r.reason) || 'grant_failed' };
   }
 
-  // ВЫДАТЬ, ПОТОМ ЗАКРЫТЬ. Порядок принципиален: закрой мы сперва, а выдача
-  // упади — игрок заплатил и не получил ничего, и восстановить уже нечем.
-  // Обратный порядок в худшем случае даёт лишнюю выдачу, и её ловит реестр.
+  // GRANT FIRST, THEN CLOSE. The order matters: had we closed first and the granting
+  // failed — the player paid and got nothing, and there would be nothing left to restore it
+  // with. The reverse order in the worst case gives one extra grant, and the registry catches it.
   function settlePurchase(id, purchase){
     const orderId = purchase && (purchase.orderId || purchase.id_order || null);
     const g = grantPurchase(id);
@@ -749,15 +771,15 @@ const Ads = (function(){
     if (isConsumable(id)){
       try {
         const p = window.bridge.payments.consumePurchase(id);
-        if (p && p.catch) p.catch(()=>{ console.warn('[iap] consume не прошёл:', id); });
+        if (p && p.catch) p.catch(()=>{ console.warn('[iap] the consume did not go through:', id); });
       } catch(e){}
     }
     Telemetry.ev('iap', { ph: 'granted', id: id });
     return { ok: true, id: id };
   }
 
-  // ПОКУПКА. Отдаёт ВСЕГДА resolve с {ok}, чтобы вызывающий не строил свой
-  // catch: отказ игрока — это не ошибка программы.
+  // A PURCHASE. It ALWAYS returns a resolve with {ok}, so that the caller does not build its
+  // own catch: the player's refusal is not a program error.
   function purchase(id){
     if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
     Telemetry.ev('iap', { ph: 'start', id: id });
@@ -771,10 +793,11 @@ const Ads = (function(){
       });
   }
 
-  // ВОССТАНОВЛЕНИЕ НА СТАРТЕ. Две задачи сразу:
-  //  (1) вернуть noads_forever — он не расходуемый и живёт в списке всегда;
-  //  (2) ДОВЫДАТЬ оплаченное, но не выданное: вкладку могли закрыть между
-  //      оплатой и выдачей, тогда бандл остался НЕзакрытым и висит в списке.
+  // RESTORING AT STARTUP. Two tasks at once:
+  //  (1) bring back noads_forever — it is not consumable and always lives in the list;
+  //  (2) FINISH GRANTING what was paid for but not granted: the tab could have been closed
+  //      between the payment and the granting, then the bundle stayed UNclosed and hangs in
+  //      the list.
   function restorePurchases(){
     if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
     let p;
@@ -785,7 +808,7 @@ const Ads = (function(){
       items.forEach((it) => {
         const id = it && it.id; if (!id) return;
         const orderId = it.orderId || null;
-        if (ledgerHas(orderId)){ skipped++; return; }   // уже закрывали — не выдавать снова
+        if (ledgerHas(orderId)){ skipped++; return; }   // already closed — do not grant again
         const r = settlePurchase(id, it);
         if (r.ok) restored++;
       });
@@ -800,93 +823,94 @@ const Ads = (function(){
   return {
     init,
     noteWin,
-    // ПЛАТЕЖИ. purchase отдаёт {ok, reason} и НИКОГДА не реджектится.
-    // ⚠️ noads_forever сейчас вернёт ok:false / 'no_grant_handle' — ручки
-    // выдачи «навсегда без рекламы» в МЕТЕ ещё нет (запрос диспетчеру).
+    // PAYMENTS. purchase returns {ok, reason} and NEVER rejects.
+    // ⚠️ noads_forever will currently return ok:false / 'no_grant_handle' — the META handle
+    // for granting "forever without ads" does not exist yet (a request to the dispatcher).
     purchase,
     restorePurchases,
-    catalog,          // промис со списком товаров (кэш на сессию)
-    priceOf,          // строка цены товара из каталога или null (нужен фетч)
+    catalog,          // a promise with the product list (cached for the session)
+    priceOf,          // the product's price string from the catalog or null (a fetch is required)
     get paymentsOn(){ return paymentsOn(); },
     maybeInterstitial,
-    cancel, // genLevel гасит висящий показ (колбэки замкнуты на старый level)
+    cancel, // genLevel kills a hanging show (the callbacks are closed over the old level)
     get mode(){ return mode; },
-    get lang(){ return bridgeLang; }, // язык игрока с площадки (под будущий словарь)
-    // Первый ИГРАБЕЛЬНЫЙ кадр (зовут finishIntro/skipIntro). Идемпотентно и
-    // терпит вызов до готовности SDK — тогда досылается из init.
+    get lang(){ return bridgeLang; }, // the player's language from the platform (for a future dictionary)
+    // The first PLAYABLE frame (called by finishIntro/skipIntro). Idempotent and
+    // tolerant of a call before the SDK is ready — then it is sent later from init.
     gameReady(){
       gameReadyWanted = true; sendGameReady();
-      // не смогли отправить (initialize ещё/уже не резолвится) — взводим
-      // страховку: игра-то готова, значит занавес поверх неё врёт
+      // we could not send it (initialize does not resolve yet/any more) — we arm the
+      // safety net: the game IS ready, so the curtain on top of it is lying
       if (!gameReadySent) armCurtainFallback();
     },
-    // «ЗАНАВЕС ПЛОЩАДКИ УБРАН, ИГРОКА МОЖНО ПОКАЗЫВАТЬ» — однократный промис
-    // с ГАРАНТИЕЙ срабатывания. Резолвится: сразу, если занавеса быть не может
-    // (file://, SDK не загрузился, initialize упал); при отправке GAME_READY
-    // (SDK снимает узел синхронно); либо страховкой через публичный
-    // setGameLoadingProgress. Никогда не висит: жёсткий предел в init.
-    // ⚠️ Дефолт — РЕЗОЛВИТЬ. Ошибиться в сторону «показать игру» безопасно,
-    // в сторону «ждать вечно» — нет.
+    // "THE PLATFORM'S CURTAIN IS REMOVED, THE PLAYER CAN BE SHOWN" — a one-shot promise
+    // with a GUARANTEE of firing. It resolves: immediately, if there can be no curtain
+    // (file://, the SDK did not load, initialize failed); on sending GAME_READY
+    // (the SDK removes the node synchronously); or by the safety net via the public
+    // setGameLoadingProgress. It never hangs: there is a hard limit in init.
+    // ⚠️ The default is TO RESOLVE. Erring on the side of "show the game" is safe,
+    // erring on the side of "wait forever" is not.
     get curtainGone(){ return curtainGone; },
-    get curtainWhy(){ return curtainWhy; },   // отладка: чем именно разрешилось
-    // Жизненный цикл уровня для площадки: LEVEL_STARTED/COMPLETED/PAUSED/
-    // RESUMED. LEVEL_FAILED не шлём — поражения в игре нет (тупик = помол).
+    get curtainWhy(){ return curtainWhy; },   // debugging: what exactly resolved it
+    // The level lifecycle for the platform: LEVEL_STARTED/COMPLETED/PAUSED/
+    // RESUMED. We do not send LEVEL_FAILED — there is no losing in the game (a dead end = a grind).
     msg: sendMsg,
-    // ЛИДЕРБОРД (отправка живёт в noteWin). Наружу — только для сьюта и
-    // будущего экрана: причина отказа, последнее отправленное и сырой ответ.
+    // THE LEADERBOARD (the submission lives in noteWin). Outward — only for the suite and
+    // the future screen: the refusal reason, the last submitted value and the raw response.
     submitScore: submitLeaderboardScore,
     lbWhy: lbBlockedWhy,
     get lbLast(){ return lbLast; },
     get lbRaw(){ return lbLastRaw; },
-    // ⚠️ ЧИТАТЬ ТАК: true — счёт принят; false — НЕ ошибка, а «ниже личного
-    // пика», сервер хранит максимум; null — ответ без поля score (сбой).
+    // ⚠️ READ IT LIKE THIS: true — the score was accepted; false — NOT an error, but "below
+    // the personal peak", the server keeps the maximum; null — a response without a score
+    // field (a failure).
     get lbAccepted(){ return lbAccepted; },
-    setBoardId(id){ if (DEV) lbBoardId = id || ''; },  // тест-хук: id боевой из 00-config
-    // ЧТЕНИЕ ТАБЛИЦЫ — контракт экрана. Подробности и границы — у функций.
+    setBoardId(id){ if (DEV) lbBoardId = id || ''; },  // test hook: the production id is in 00-config
+    // READING THE TABLE — the screen's contract. The details and the boundaries — at the functions.
     lbType,                 // 'in_game' | 'native' | 'native_popup' | 'not_available' | null
-    lbReadWhy,              // почему читать нельзя (null = можно)
+    lbReadWhy,              // why it cannot be read (null = it can)
     lbEntries,              // {ok, why, type, total, entries[{rank,name,score,photo,id,me}], me}
-    lbShowNative,           // платформенный попап; узнать заранее нельзя — только попробовать
-    // onFail (опционален) зовётся на FAILED/CLOSED/исключении — например,
-    // вернуть кнопку «×2», которую спрятали на время показа
-    // placement — имя рекламного места ('shake'/'continue'/'x2'/'magnet'),
-    // прокидывается в нативный SDK площадки; без него статистика по местам
-    // слепая. Необязателен: старые вызовы работают как раньше.
+    lbShowNative,           // the platform's popup; it cannot be known in advance — only tried
+    // onFail (optional) is called on FAILED/CLOSED/an exception — for example, to
+    // bring back the "×2" button that was hidden for the duration of the show
+    // placement — the name of the ad slot ('shake'/'continue'/'x2'/'magnet'),
+    // it is passed into the platform's native SDK; without it the per-slot statistics
+    // is blind. Optional: old calls work as before.
     showRewarded(onReward, onFail, placement){
-      // Страховка: сирота прошлого показа (watchdog/стаб) не должен пережить
-      // новый. ⚠️ НЕ полный cancel(): тот снимает паузу и МЬЮТ, а мы через
-      // строку ставим их обратно — на этом «сняли-вернули» музыка успевала
-      // рыпнуться и заиграть поверх начинающегося ролика (поймано ассертом
-      // «трек не заводится под роликом»). Гасим только таймеры и колбэки;
-      // A/V переарминает beginPending, единая точка снятия (endPending) цела.
+      // A safety net: an orphan of a previous show (watchdog/stub) must not outlive
+      // the new one. ⚠️ NOT a full cancel(): that one lifts the pause and the MUTE, and a
+      // line later we put them back — on that "lifted-and-restored" the music managed to
+      // twitch and start playing on top of the beginning ad (caught by the assert
+      // "the track does not start under an ad"). We kill only the timers and the callbacks;
+      // beginPending re-arms the A/V, and the single lifting point (endPending) is intact.
       rewardCb = null; failCb = null; clearTimers(); hide('adOverlay');
       rewardCb = onReward; failCb = onFail || null;
       beginPending();
       if (mode === 'bridge'){
-        // страховка ТОЛЬКО на полную тишину платформы (ни одного состояния)
+        // a safety net ONLY against complete silence from the platform (not a single state)
         watchdog = setTimeout(()=>settleFail(false), 20000);
         try { window.bridge.advertisement.showRewarded(placement || 'rewarded'); }
-        // исключение SDK = показа не было. Раньше тут открывался стаб —
-        // БЕСПЛАТНАЯ награда без рекламы на боевой платформе (дыра экономики)
+        // an SDK exception = there was no show. Previously the stub opened here —
+        // a FREE reward without an ad on a production platform (an economy hole)
         catch(e){ settleFail(false); }
       } else if (DEV){
-        showStub();   // локальная разработка: показать поток без настоящего ролика
+        showStub();   // local development: show the flow without a real ad
       } else {
-        // ⚠️ В БОЮ ЗАГЛУШКИ НЕТ (спека владельца 2026-07-29). Раньше на площадке
-        // без поддержки роликов открывался НАШ экран «(rewarded video will play
-        // here)», ждал 3 секунды и ВЫДАВАЛ награду. Рекламных встрясок на
-        // уровень не ограничено — то есть бесконечная раздача бонусов при нулевом
-        // доходе, причём игрок уверен, что смотрит рекламу. Показ поддельного
-        // рекламного экрана — типовое основание для отказа на ревью площадки.
-        // Нет ролика — нет награды, честный тост.
+        // ⚠️ THERE IS NO STUB IN PRODUCTION (the owner's spec 2026-07-29). Previously, on a
+        // platform without ad support, OUR screen "(rewarded video will play here)" opened,
+        // waited 3 seconds and GRANTED the reward. Ad shakes per level are not limited —
+        // that is, an endless handout of bonuses at zero revenue, and the player is
+        // convinced he is watching an ad. Showing a fake ad screen is a standard ground for
+        // rejection at the platform's review.
+        // No ad — no reward, an honest toast.
         settleFail(false);
       }
     },
-    // отладка каденции (сьют): счётчик побед до следующего ролика
+    // cadence debugging (the suite): the win counter until the next ad
     get _winsSinceInter(){ return interWins(); },
   };
 })();
-// Отладочная ручка каденции для headless-сьюта (как __game для ядра): полный
-// прогон 5 побед в тесте медленный и флейкозависимый, а noteWin/maybeInter —
-// публичные методы Ads. Зона ИНТЕГРАЦИИ, снять = одна строка.
+// A cadence debug handle for the headless suite (like __game for the core): a full
+// run of 5 wins in a test is slow and flaky, while noteWin/maybeInter are
+// public methods of Ads. The INTEGRATION zone, removing it = one line.
 if (typeof window !== 'undefined' && DEV) window.__ads = Ads;

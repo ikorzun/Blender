@@ -1,18 +1,18 @@
-// ===== 30-shapes: геометрии типов, палитра, материалы предметов =====
-// Референсы владельца: webgl_geometries, webgl_geometry_shapes,
-// webgl_geometry_teapot (формы); webgl_batch_lod_bvh (пастельные цвета
-// в линейном HSL); webgl_loader_ldraw (финиш LEGO-пластика).
+// ===== 30-shapes: type geometries, palette, item materials =====
+// The owner's references: webgl_geometries, webgl_geometry_shapes,
+// webgl_geometry_teapot (shapes); webgl_batch_lod_bvh (pastel colors
+// in linear HSL); webgl_loader_ldraw (the LEGO-plastic finish).
 
-// Простые новые формы (спека владельца 2026-07-20): все ВЫПУКЛЫЕ — физика
-// и сэмплы доступности работают через convex hull без ручных компаундов
-function gemGeo(){ // кристалл: две 8-гранные пирамиды основаниями друг к другу
+// Simple new shapes (the owner's spec 2026-07-20): all CONVEX — physics
+// and the accessibility samples work through a convex hull with no hand-made compounds
+function gemGeo(){ // crystal: two 8-sided pyramids base to base
   const up = new THREE.ConeGeometry(0.7, 0.8, 8);
   const down = new THREE.ConeGeometry(0.7, 0.8, 8);
   const mUp = new THREE.Matrix4().makeTranslation(0, 0.4, 0);
   const mDown = new THREE.Matrix4().makeRotationX(Math.PI).setPosition(0, -0.4, 0);
   return mergeGeos([[up, mUp], [down, mDown]]);
 }
-function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индексированная геометрия
+function mergeGeos(parts){ // [geometry, Matrix4] -> one non-indexed geometry
   const pos = [], norm = [];
   for (const [g, m] of parts){
     const ng = g.toNonIndexed();
@@ -25,72 +25,72 @@ function mergeGeos(parts){ // [geometry, Matrix4] -> одна не-индекс�
   out.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
   return out;
 }
-// teapotGeo УДАЛЁН 2026-07-20 (спека владельца: «убери модель чайника»);
-// сюрприз-археология вернётся с реальной моделью из 3D-ассетов
+// teapotGeo DELETED 2026-07-20 (the owner's spec: «remove the teapot model»);
+// the archaeology surprise will come back with a real model from the 3D assets
 
-// rc — эффективный радиус НЕмасштабированной геометрии (между инрадиусом и
-// охватывающей сферой): коллайдер = rc * s * MESH_SCALE, чтобы предметы
-// визуально касались пола и друг друга, а не висели на невидимых сферах.
-// Палитра — дружелюбная пастель (тёмно-зелёный и коричневый исключены);
-// ⚠️ УДАЛЕНЫ ПО ПРЯМОЙ СПЕКЕ ВЛАДЕЛЬЦА 2026-07-30: `holidaycandycanered`
-// (леденец — «убери полностью», по скрину читался толстой полосатой трубой)
-// и `steak` («убери стейк совсем»). ⚠️ ПРО СТЕЙК: это ОТМЕНА его же спеки
-// того же дня — тем утром модель уводили НА ИНДЕКС 9 с формулировкой «НЕ
-// уводить в хвост, модель владельца обязана быть в игре», и на этом стоял
-// ассерт сьюта. Владелец передумал; ассерт снят вместе с типом. Данные
-// модели (35-steak.js) тоже удалены — «совсем». Вернуть = восстановить файл
-// из истории git + строку TYPES.
-// mat: soft (полированный цветной лак), chrome (зеркальный хром) —
-// эталон webgl_materials_envmaps_fasthdr (сферы №5 и №3).
-// ⚠️ ПОРЯДОК ЗНАЧИМ: прогрессия ОТКРЫВАЕТ первые typesCount типов (9 на 1-м
-// уровне, +1 за уровень). ⚠️ С 2026-07-30 genLevel берёт из открытого диапазона
-// СЛУЧАЙНУЮ выборку нужного размера, а НЕ первые подряд — до этого всё, что
-// стояло дальше индекса PAIRS-1 (89), не спавнилось никогда (см. genLevel).
-// Порядок по-прежнему решает, КОГДА тип открывается,
-// +1 за уровень до 15). Модели владельца поставлены В НАЧАЛО намеренно —
-// иначе на первых уровнях их не увидеть (просьба 2026-07-20 «хочу глянуть»).
-// Вернуть примитивы вперёд = просто переставить блоки местами.
-// Тип 'teapot' убран по просьбе владельца; функция teapotGeo ОСТАВЛЕНА —
-// на ней держится золотой сюрприз со дна (makeSurprise).
+// rc — the effective radius of the UNscaled geometry (between the inradius and
+// the bounding sphere): collider = rc * s * MESH_SCALE, so that the items
+// visually touch the floor and each other instead of hanging on invisible spheres.
+// The palette is friendly pastel (dark green and brown are excluded);
+// ⚠️ REMOVED BY THE OWNER'S DIRECT SPEC 2026-07-30: `holidaycandycanered`
+// (the candy cane — «remove it completely», on the screenshot it read as a thick striped pipe)
+// and `steak` («remove the steak entirely»). ⚠️ ABOUT THE STEAK: this is a CANCELLATION of his own spec
+// from the same day — that morning the model was moved TO INDEX 9 with the wording «do NOT
+// move it to the tail, the owner's model must be in the game», and a suite
+// assert stood on that. The owner changed his mind; the assert was removed together with the type. The model's
+// data (35-steak.js) was deleted too — «entirely». To bring it back = restore the file
+// from git history + the TYPES line.
+// mat: soft (polished colored lacquer), chrome (mirror chrome) —
+// the reference is webgl_materials_envmaps_fasthdr (spheres #5 and #3).
+// ⚠️ THE ORDER MATTERS: progression UNLOCKS the first typesCount types (9 on the 1st
+// level, +1 per level). ⚠️ Since 2026-07-30 genLevel takes a RANDOM
+// sample of the needed size from the unlocked range, and NOT the first ones in a row — before that everything
+// that stood past index PAIRS-1 (89) never spawned at all (see genLevel).
+// The order still decides WHEN a type unlocks,
+// +1 per level up to 15). The owner's models are placed AT THE START deliberately —
+// otherwise they cannot be seen on the first levels (the 2026-07-20 request «I want to take a look»).
+// To bring the primitives back to the front = just swap the blocks around.
+// The 'teapot' type was removed at the owner's request; the teapotGeo function is KEPT —
+// the golden surprise from the bottom rests on it (makeSurprise).
 const TYPES = [
-  // ⚠️ ПУЛ — ТОЛЬКО МОДЕЛИ ВЛАДЕЛЬЦА (решение владельца 2026-07-21:
-  // «процедурные формы удали совсем»). Куб, шар, тор, конус и прочие
-  // примитивы ИЗ ПУЛА УБРАНЫ. Их фабрики в этом файле ОСТАВЛЕНЫ живыми
-  // намеренно: на gemGeo висит фолбэк геометрии сюрприза (makeSurprise
-  // в 40-items), а gemGeo опирается на mergeGeos — рвать эту цепочку ради
-  // косметики не стоит. Вернуть примитив в игру = добавить строку сюда.
+  // ⚠️ THE POOL IS THE OWNER'S MODELS ONLY (the owner's decision 2026-07-21:
+  // «delete the procedural shapes entirely»). The cube, sphere, torus, cone and the other
+  // primitives are REMOVED FROM THE POOL. Their factories in this file are KEPT alive
+  // deliberately: the surprise geometry fallback hangs on gemGeo (makeSurprise
+  // in 40-items), and gemGeo leans on mergeGeos — tearing that chain apart for
+  // cosmetics is not worth it. To bring a primitive back into the game = add a line here.
   //
-  // 30 фруктов-овощей + 24 зверя + 8 машин + 7 кирпичей + 8 пиратов,
-  // ЗАМЕС 3:3:1:1:1 (решение владельца 2026-07-22), плюс стейк
-  // (35-steak — тоже модель владельца, не примитив; вершинные цвета,
-  // без атласа). У каждой пачки СВОЙ атлас (tex:'animal'/'food'/'car'/
-  // 'brick'/'pirate'), цвет материала БЕЛЫЙ; `color` красит НЕ модель, а ТРУХУ.
+  // 30 fruits-and-vegetables + 24 animals + 8 cars + 7 bricks + 8 pirates,
+  // MIX 3:3:1:1:1 (the owner's decision 2026-07-22), plus the steak
+  // (35-steak — also the owner's model, not a primitive; vertex colors,
+  // no atlas). Each pack has ITS OWN atlas (tex:'animal'/'food'/'car'/
+  // 'brick'/'pirate'), the material color is WHITE; `color` paints NOT the model but the DEBRIS.
   //
-  // ⚠️ ИСКЛЮЧЕНИЕ — КИРПИЧИ (`paint:1`, решение владельца «крась кирпичи»):
-  // атлас пачки Brick БЕЛЫЙ (замер по UV: #f9f9fc у 152 моделей из 185), а
-  // сверху они всего лишь прямоугольники разной пропорции — различить их
-  // белыми нельзя. Поэтому им цвет даёт ПАЛИТРА (candyColor от `color`),
-  // как процедурным, и `color` тут красит И модель, И труху. Реализация —
-  // ветка t.paint в makeItem (40-items).
-  // ⚠️ Из 185 файлов Brick взято 7: остальное — те же формы в 8 вариантах
-  // кромки (bevel/none/round/square × hq/lq), сверху неотличимых, плюс
-  // дубли длины (1x4/1x6/1x8 — один и тот же брусок). Из 19 Pirate взято 8:
-  // КОРАБЛИ НЕ ВЗЯТЫ (пять близнецов сверху, охват 5.0-6.5 против 1.0 и
-  // заполненность 0.15-0.18 — convex hull соврал бы грубо), флаги и пальма-
-  // флагшток плоские. Камни rocks-* не трогаем — резерв владельца.
+  // ⚠️ THE EXCEPTION IS THE BRICKS (`paint:1`, the owner's decision «paint the bricks»):
+  // the Brick pack's atlas is WHITE (measurement over the UVs: #f9f9fc on 152 models out of 185), and
+  // from above they are merely rectangles of different proportions — telling them apart
+  // while white is impossible. So their color is given by THE PALETTE (candyColor from `color`),
+  // like the procedural ones, and `color` here paints BOTH the model AND the debris. The implementation is
+  // the t.paint branch in makeItem (40-items).
+  // ⚠️ Out of the 185 Brick files 7 were taken: the rest are the same shapes in 8 edge
+  // variants (bevel/none/round/square × hq/lq), indistinguishable from above, plus
+  // length duplicates (1x4/1x6/1x8 — one and the same bar). Out of the 19 Pirate ones 8 were taken:
+  // THE SHIPS WERE NOT TAKEN (five twins from above, extent 5.0-6.5 against 1.0 and
+  // fill 0.15-0.18 — a convex hull would lie crudely), the flags and the palm-
+  // flagpole are flat. We do not touch the rocks-* stones — the owner's reserve.
   //
-// ⚠️ ПОРЯДОК = ПРОГРЕССИЯ: типов в уровне 9+уровень−1, открываются по порядку
-// массива. Впереди самые различимые — матч идёт ПО ТИПУ, путать на старте нельзя.
-// ⚠️ РАСКЛАДКА 2026-07-30 (спека владельца «перемешивай типы»):
-//   • индексы 0..8 — базовая девятка ур.1, НЕ ТРОГАТЬ;
-//   • индекс 9 — СТЕЙК, модель владельца, держим близко к началу (его спека);
-//   • партия Kenney РАВНОМЕРНО вмешана дальше (~каждый 4-й), а не в хвосте:
-//     в хвосте она не открывалась раньше ур.86 и не существовала для игрока;
-//   • РЫБА survivalfish сдвинута НЕ в первые вставки — новичок сначала должен
-//     выучить «золотая рыбка на дне = клад» (возражение Графики учтено);
-//   • ПОНЧИК остаётся в хвосте, ВПЕРЁД НЕ ДВИГАТЬ: его convex hull без дырки,
-//     компаунд-коллайдер — задача Физики после запуска;
-//   • forestplant — ПОСЛЕДНИЙ НАМЕРЕННО: сентинел стражей хвоста в test.js.
+// ⚠️ ORDER = PROGRESSION: types in a level are 9+level−1, they unlock in the order of the
+// array. The most distinguishable ones come first — the match goes BY TYPE, confusing them at the start is not allowed.
+// ⚠️ THE 2026-07-30 LAYOUT (the owner's spec «shuffle the types»):
+//   • indices 0..8 — the base nine of lvl.1, DO NOT TOUCH;
+//   • index 9 — THE STEAK, the owner's model, we keep it close to the start (his spec);
+//   • the Kenney batch is mixed in EVENLY further on (~every 4th), and not in the tail:
+//     in the tail it did not unlock before lvl.86 and did not exist for the player;
+//   • the survivalfish FISH is shifted NOT into the first insertions — the newcomer must first
+//     learn «a goldfish at the bottom = treasure» (the Graphics workstream's objection was taken into account);
+//   • THE DONUT stays in the tail, DO NOT MOVE IT FORWARD: its convex hull has no hole,
+//     a compound collider is a Physics task after launch;
+//   • forestplant is LAST DELIBERATELY: the sentinel for the tail guards in test.js.
   { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
   { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
@@ -103,13 +103,13 @@ const TYPES = [
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
-  // ===== ПАРТИЯ KENNEY 2026-07-30: 28 предметов из 7 китов (модуль 38-kenney.js,
-  // отдельный от 36-models — см. WORKSTREAMS, там же почему 36-models НЕ перегенерён).
-// ⚠️ ПАРТИЯ ПЕРЕМЕШАНА ПО ПРОГРЕССИИ (спека владельца 2026-07-30
-// «перемешивай типы») — прежнее «дописаны в хвост» ОТМЕНЕНО: в хвосте
-// они не открывались раньше ур.86 и владелец их не видел вовсе.
-  // color красит НЕ модель (её красит атлас), а ТРУХУ при распаде — подобран по
-  // доминирующему тону предмета. wr там, где конвертер отметил плоскую форму.
+  // ===== THE KENNEY BATCH 2026-07-30: 28 items from 7 kits (the 38-kenney.js module,
+  // separate from 36-models — see WORKSTREAMS, and there too why 36-models was NOT regenerated).
+// ⚠️ THE BATCH IS SHUFFLED ALONG THE PROGRESSION (the owner's spec 2026-07-30
+// «shuffle the types») — the former «appended to the tail» is CANCELLED: in the tail
+// they did not unlock before lvl.86 and the owner did not see them at all.
+  // color paints NOT the model (the atlas paints that) but the DEBRIS on decay — picked by
+  // the item's dominant tone. wr is there where the converter marked a flat shape.
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
@@ -124,11 +124,11 @@ const TYPES = [
   { name:'animalelephant',        color:0x9aa6b4, rc:1.0, tex:'animal', mat:'soft', geo:animalelephantGeo },
   { name:'animalpolar',           color:0xe8eef4, rc:1.0, tex:'animal', mat:'soft', geo:animalpolarGeo },
   { name:'animaltiger',           color:0xff8a2b, rc:1.0, tex:'animal', mat:'soft', geo:animaltigerGeo },
-  // ⚠️ РЫБА ДОБАВЛЕНА ПО ПРЯМОЙ ПРОСЬБЕ ВЛАДЕЛЬЦА 2026-07-30 («добавь рыбу,
-  // объектов слишком мало»). Я отводила её как риск путаницы с золотой
-  // РЫБКОЙ-СЮРПРИЗОМ — владелец решил иначе. Риск умеренный: у сюрприза
-  // свой золотой emissive-материал (MeshStandard даже в matcap-режиме),
-  // а эта идёт с атласом survival — тон и блеск разные.
+  // ⚠️ THE FISH WAS ADDED BY THE OWNER'S DIRECT REQUEST 2026-07-30 («add a fish,
+  // there are too few objects»). I was warding it off as a risk of confusion with the golden
+  // SURPRISE FISH — the owner decided otherwise. The risk is moderate: the surprise has
+  // its own golden emissive material (MeshStandard even in matcap mode),
+  // while this one comes with the survival atlas — the tone and the gloss are different.
   { name:'survivalfish', color:0x7fa8c4, rc:1.0, wr:0.89, tex:'survival', mat:'soft', geo:survivalfishGeo },
   { name:'carfiretruck',          color:0xe03a2e, rc:1.4, tex:'car', mat:'soft', geo:()=>carfiretruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'holidaypresentacube', color:0xe0574f, rc:1.0, tex:'holiday', mat:'soft', geo:holidaypresentacubeGeo },
@@ -140,10 +140,10 @@ const TYPES = [
   { name:'animalparrot',          color:0xe2453a, rc:1.0, tex:'animal', mat:'soft', geo:animalparrotGeo },
   { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
   { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
-  // ⛔ `piratechest` УДАЛЁН 2026-08-20 (слово владельца: «сундук удали и
-  // открытый и закрытый»). Художник прислал ОТКРЫТЫЙ вариант вместо прежнего
-  // закрытого — владелец не захотел ни того, ни другого. Модель убрана и из
-  // исходника, и из модуля: типов в пуле стало 87.
+  // ⛔ `piratechest` DELETED 2026-08-20 (the owner's word: «delete the chest, both
+  // the open one and the closed one»). The artist sent an OPEN variant instead of the previous
+  // closed one — the owner wanted neither. The model was removed both from
+  // the source and from the module: the pool now holds 87 types.
   { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
   { name:'foodavocado',           color:0x6b8f3a, rc:1.0, tex:'food', mat:'soft', geo:foodavocadoGeo },
@@ -192,42 +192,42 @@ const TYPES = [
   { name:'foodhotdog', color:0xeb9268, rc:1.0, wr:0.99, tex:'food', mat:'soft', geo:foodhotdogGeo },
   { name:'foodcakebirthday', color:0xffc044, rc:1.0, tex:'food', mat:'soft', geo:foodcakebirthdayGeo },
   { name:'foodicecreamscoopmint', color:0x2b9571, rc:1.0, tex:'food', mat:'soft', geo:foodicecreamscoopmintGeo },
-  // phys:'ring' — дырка НАСТОЯЩАЯ: физика строит кольцо капсул по геометрии,
-  // иначе convex hull затягивает середину невидимой перепонкой (см. 50-physics)
+  // phys:'ring' — the hole is REAL: physics builds a ring of capsules along the geometry,
+  // otherwise the convex hull pulls the middle shut with an invisible membrane (see 50-physics)
   { name:'fooddonutsprinkles',    color:0xffb3d1, rc:1.0, tex:'food', mat:'soft', phys:'ring', geo:fooddonutsprinklesGeo },
   { name:'forestplant', color:0x5fb562, rc:1.0, tex:'forest', mat:'soft', geo:forestplantGeo },
 ];
 
-// Сочная карамель: HSL нормализуется в sRGB (s=0.75) и конвертится в linear.
-// История: линейная пастель L=0.5 (как в batch_lod_bvh) была «слишком
-// ванильной» по оценке владельца — не возвращать.
+// Juicy caramel: HSL is normalized in sRGB (s=0.75) and converted to linear.
+// History: linear pastel L=0.5 (as in batch_lod_bvh) was «too
+// vanilla» in the owner's judgement — do not bring it back.
 //
-// РАЗНЕСЁННАЯ СВЕТЛОТА (спека владельца 2026-07-20): раньше светлота была
-// зафиксирована на 0.55 у ВСЕХ типов, и различал их только тон. На 15 типах
-// круг ещё делился, на 24 (после моделей) — исчерпался: куча читалась
-// неоновой рябью, а в оттенках серого (и у дальтоников, ~8% мужчин) типы
-// сливались вовсе, хотя матч ПО ТИПУ — ядро механики.
+// SPREAD-OUT LIGHTNESS (the owner's spec 2026-07-20): earlier the lightness was
+// fixed at 0.55 on ALL types, and only the hue told them apart. At 15 types
+// the circle still divided, at 24 (after the models) it ran out: the pile read as
+// neon ripple, and in shades of grey (and for the color-blind, ~8% of men) the types
+// merged completely, even though matching BY TYPE is the core of the mechanic.
 //
-// ⚠️ ИСТОРИЯ ДВУХ ПОДХОДОВ (первый забракован владельцем — не возвращать):
-// СНАЧАЛА целились в АБСОЛЮТНУЮ яркость (relative luminance) — каждому типу
-// своя ступень, бисекция гнала светлоту, пока тон в неё не попадёт. Разделение
-// вышло, цвет — нет: у тонов разная природная яркость, и жёлтый/лайм, которым
-// досталась низкая ступень, уезжали в болото, а синий/фиолетовый на высокой
-// разбеливались в пастель. Куча стала пыльно-розовой с оливковым. Карамель,
-// принятая владельцем третьей итерацией, была убита.
-// ТЕПЕРЬ сдвиг ОТНОСИТЕЛЬНЫЙ: тон остаётся у своей природной светлоты 0.55 и
-// лишь смещается на ±0.20. Соседи расходятся по значению — этого хватает,
-// чтобы куча не сливалась, — но ни один тон не выдавливается за края, где
-// HSL-насыщенность перестаёт давать цветность.
+// ⚠️ THE HISTORY OF TWO APPROACHES (the first was rejected by the owner — do not bring it back):
+// AT FIRST we aimed at ABSOLUTE brightness (relative luminance) — each type got
+// its own step, and a bisection drove the lightness until the hue landed on it. The separation
+// came out, the color did not: hues have different natural brightness, and yellow/lime, which
+// got a low step, drifted into a swamp, while blue/violet on a high one
+// bleached out into pastel. The pile turned dusty pink with olive. The caramel,
+// accepted by the owner as the third iteration, was killed.
+// NOW the shift is RELATIVE: the hue stays at its own natural lightness 0.55 and
+// only moves by ±0.20. Neighbors diverge by value — that is enough
+// to keep the pile from merging — but no hue is squeezed past the edges, where
+// HSL saturation stops producing chroma.
 function candyColor(hex, dl){
   const c = new THREE.Color(hex), hsl = {};
   c.getHSL(hsl);
   c.setHSL(hsl.h, 0.75, Math.max(0.30, Math.min(0.78, 0.55 + (dl || 0))));
   return c.convertSRGBToLinear();
 }
-// Сдвиги раскладываются ПО ПОРЯДКУ типов, поэтому соседи по списку заведомо
-// расходятся по светлоте. Тона у моделей тоже раскиданы по кругу с шагом 168°,
-// так что совпасть и по тону, и по светлоте соседи не могут.
+// The offsets are laid out IN THE ORDER of the types, so neighbors in the list are guaranteed
+// to diverge in lightness. The models' hues are also scattered around the circle in 168° steps,
+// so neighbors cannot coincide in both hue and lightness.
 const LIGHT_OFFSETS = [0.00, -0.15, 0.12, -0.08, 0.18, -0.20];
 TYPES.forEach((t, i) => { if (t.mat === 'soft') t.dl = LIGHT_OFFSETS[i % LIGHT_OFFSETS.length]; });
 const MESH_SCALE = 0.62;

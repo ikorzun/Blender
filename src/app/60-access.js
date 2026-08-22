@@ -1,47 +1,47 @@
-// ===== 60-access: физическая доступность, подсчёт пар =====
+// ===== 60-access: physical accessibility, pair counting =====
 
-const DIM_GREY = new THREE.Color(0xb6bcc6).convertSRGBToLinear(); // вуаль недоступных: светлый нейтральный под белое поле
+const DIM_GREY = new THREE.Color(0xb6bcc6).convertSRGBToLinear(); // veil of the inaccessible: a light neutral against the white field
 const raycaster = new THREE.Raycaster();
 function aliveMeshes(){ return items.filter(i=>i.alive).map(i=>i.mesh); }
 
-// Доступность — СТРОГО СВЕРХУ и ПО ФОРМЕ, независимо от камеры.
-// История двух багов, которые это чинит (владелец зафиксировал их как корневые):
-// 1) луч в ЦЕНТР предмета: у тора/узла в центре ДЫРКА — луч пролетал насквозь,
-//    полностью видимый бублик считался «перекрытым» с ракурсов, где дырка
-//    смотрит на наблюдателя (матч работал с одного ракурса и не работал с другого);
-// 2) лучи ОТ КАМЕРЫ: доступность (и серая вуаль) менялись при вращении камеры —
-//    предметы «тускнели в зависимости от ракурса».
-// Теперь: ВЕЕР лучей «к небу» по сэмплам ФИЗИЧЕСКОЙ формы предмета (ниже).
-// Камера ни при чём. Механика включается сложностью Hard (CFG.hard);
-// по умолчанию доступно всё живое, кроме сюрприза — он всегда честный.
+// Accessibility is judged STRICTLY FROM ABOVE and BY SHAPE, independently of the camera.
+// The story of the two bugs this fixes (the owner recorded them as the root causes):
+// 1) a ray into the CENTER of an item: a torus/knot has a HOLE in the center — the ray flew
+//    straight through, and a fully visible donut counted as "occluded" from the angles where
+//    the hole faces the observer (a match worked from one angle and did not work from another);
+// 2) rays FROM THE CAMERA: accessibility (and the grey veil) changed as the camera rotated —
+//    items "dimmed depending on the angle".
+// Now: a FAN of rays "toward the sky" over samples of the item's PHYSICAL shape (below).
+// The camera has nothing to do with it. The mechanic is switched on by the Hard difficulty (CFG.hard);
+// by default everything alive is accessible except the surprise — it is always honest.
 const _apt = new THREE.Vector3();
-// Лучи бьём ЧЕРЕЗ RAPIER (нативный BVH, микросекунды на луч; three-raycast
-// по мешам стоил 86-106 мс на refresh). Сэмплы — из item.samples,
-// построенных по ФИЗИЧЕСКИМ коллайдерам (50-physics buildAccessSamples).
+// We shoot the rays THROUGH RAPIER (native BVH, microseconds per ray; three-raycast
+// over meshes cost 86-106 ms per refresh). The samples come from item.samples,
+// built over the PHYSICAL colliders (50-physics buildAccessSamples).
 //
-// ВЕЕР «К НЕБУ»: вертикаль + 6 наклонных (~35°). Чисто вертикальный луч
-// хоронил визуально открытые предметы под НАВИСАЮЩИМ соседом (кейс владельца:
-// два открытых додекаэдра рядом не матчились — над одним нависал конус).
-// Предмет доступен, если хоть одна точка его физформы видит небо в конусе
-// ~35°. Стены чаши луч честно блокируют (сквозь стекло пальцем не залезть).
+// THE FAN "TOWARD THE SKY": the vertical + 6 slanted ones (~35°). A purely vertical ray
+// buried visually open items under an OVERHANGING neighbour (the owner's case:
+// two open dodecahedrons side by side did not match — a cone overhung one of them).
+// An item is accessible if at least one point of its physical shape sees the sky within a
+// ~35° cone. The walls of the bowl honestly block the ray (you cannot reach through glass with a finger).
 const SKY_DIRS = [{ x:0, y:1, z:0 }];
 for (let a = 0; a < 6; a++){
-  const th = a/6 * Math.PI*2, s = Math.sin(0.6), c = Math.cos(0.6); // 0.6 рад ≈ 34°
+  const th = a/6 * Math.PI*2, s = Math.sin(0.6), c = Math.cos(0.6); // 0.6 rad ≈ 34°
   SKY_DIRS.push({ x: Math.cos(th)*s, y: c, z: Math.sin(th)*s });
 }
 let _rapierRay = null;
-// ⚠️⚠️ ЕДИНАЯ ТОЧКА КАСТА «К НЕБУ» — И ЭТО НЕ КОСМЕТИКА, А УСЛОВИЕ
-// ПРОВЕРЯЕМОСТИ. Флаг EXCLUDE_SENSORS обязан быть здесь (иначе призрачная
-// стена «держит небо» — разбор у стража ниже), но страж, кастующий СВОЙ луч со
-// СВОИМ флагом, проверял бы Rapier, а не нас. Вынеся каст в функцию, мы даём
-// зонду ходить БОЕВЫМ путём: снимут флаг отсюда — покраснеет и игра, и страж.
+// ⚠️⚠️ THE SINGLE POINT OF THE "TOWARD THE SKY" CAST — AND THIS IS NOT COSMETICS, IT IS A
+// CONDITION OF VERIFIABILITY. The EXCLUDE_SENSORS flag must live here (otherwise a ghost
+// wall "holds up the sky" — the breakdown is at the guard below), but a guard casting ITS OWN ray
+// with ITS OWN flag would be checking Rapier, not us. By pulling the cast out into a function we let
+// the probe walk the LIVE path: remove the flag from here and both the game and the guard turn red.
 function skyCast(ray, maxToi, excludeBody){
   return world.castRay(ray, maxToi, true,
     RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, excludeBody);
 }
 function isAccessible(item){
-  // лёгкая сложность: любая пара доступна. Исключение — СЮРПРИЗ: он всегда
-  // «по-честному» перекрыт (иначе +150 снимался бы тапом с первой секунды)
+  // easy difficulty: any pair is accessible. The exception is the SURPRISE: it is always
+  // "honestly" occluded (otherwise +150 would be taken with a tap from the very first second)
   if (!CFG.hard && !item.surprise) return true;
   if (!item.samples || !item.samples.length) return false;
   if (!_rapierRay) _rapierRay = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:1, z:0 });
@@ -53,29 +53,29 @@ function isAccessible(item){
     _rapierRay.origin.x = _apt.x; _rapierRay.origin.y = _apt.y; _rapierRay.origin.z = _apt.z;
     for (let d = 0; d < SKY_DIRS.length; d++){
       _rapierRay.dir = SKY_DIRS[d];
-      // старт ВНУТРИ собственного коллайдера — своё тело исключаем из каста
-      // ⚠️⚠️ И СЕНСОРЫ ТОЖЕ ИСКЛЮЧАЕМ — БЕЗ ЭТОГО ПРИЗРАЧНАЯ СТЕНА «ДЕРЖИТ
-      // НЕБО». Rapier по умолчанию отдаёт попадания в сенсоры, а у нас сенсором
-      // становится ЧАША ВО ВРЕМЯ РАЗЛЁТА: `dropWalls` (50-physics) переводит в
-      // сенсоры и кольца стен, и дно-плиту. Без флага каждый луч доступности
-      // упирался бы в призрак, `isAccessible` возвращал бы false ВСЕМУ, и на
-      // Hard куча целиком уходила бы под вуаль (так это и выглядело, когда
-      // сенсором был лишний контейнер: ур.3 — 100 недоступных из 100 против 55).
-      // Семантика верна и сама по себе: сквозь призрак небо видно.
+      // the start is INSIDE our own collider — we exclude our own body from the cast
+      // ⚠️⚠️ AND WE EXCLUDE SENSORS TOO — WITHOUT THIS A GHOST WALL "HOLDS UP
+      // THE SKY". By default Rapier reports hits on sensors, and for us the BOWL BECOMES A
+      // SENSOR DURING THE SCATTER: `dropWalls` (50-physics) turns both the wall rings
+      // and the floor slab into sensors. Without the flag every accessibility ray
+      // would run into a ghost, `isAccessible` would return false for EVERYTHING, and on
+      // Hard the whole pile would go under the veil (that is exactly how it looked when
+      // an extra container was a sensor: lvl.3 — 100 inaccessible out of 100 against 55).
+      // The semantics are correct on their own too: the sky is visible through a ghost.
       const hit = skyCast(_rapierRay, 40, item.body);
-      if (!hit) return true; // луч дошёл до неба
+      if (!hit) return true; // the ray reached the sky
     }
   }
   return false;
 }
-// Динамический радиус совпадения: сжимается вместе с поверхностью кучи
-// (см. комментарий в 00-config). Пол — MATCH_R_MIN, но ручной baseRadius
-// меньше пола (дебаг/тесты) уважается как есть.
-// Сколько предметов СЧИТАЕТСЯ для эндшпиля. Камни и клад не входят (спека
-// 2026-07-22): они не пары, и ∞-радиус не должен ждать, пока их уберут.
-// ⚠️ ФУНКЦИЯ, А НЕ ПОВТОРНЫЙ ЦИКЛ: на этом числе стоят ОБЕ ступени эндшпиля и
-// страж сьюта. Своя копия подсчёта у стража означала бы, что он проверяет своё
-// представление о правиле, а не правило (закон проекта, пойманный пять раз).
+// Dynamic match radius: it shrinks together with the surface of the pile
+// (see the comment in 00-config). The floor is MATCH_R_MIN, but a manual baseRadius
+// below the floor (debug/tests) is respected as is.
+// How many items COUNT for the endgame. Stones and the treasure are not included (the spec of
+// 2026-07-22): they are not pairs, and the ∞ radius must not wait until they are cleared away.
+// ⚠️ A FUNCTION, NOT A REPEATED LOOP: BOTH endgame stages and the suite's guard rest on this
+// number. A copy of the count of its own inside the guard would mean it checks its own
+// notion of the rule rather than the rule (a law of this project, caught five times).
 function aliveCountForRadius(){
   let n = 0;
   for (const it of items) if (it.alive && !it.surprise && !it.frozen) n++;
@@ -86,17 +86,17 @@ function updateMatchRadius(){
   let top = 0;
   const aliveCnt = aliveCountForRadius();
   for (const it of items) if (it.alive) top = Math.max(top, it.p.y + it.r);
-  // ЭНДШПИЛЬ: остатки лежат на дне дальше друг от друга, чем зажатый в пол
-  // радиус. Аудит ботом: 100% встрясок эндшпиля — из-за расстояния, ни одной
-  // из-за захоронения. При <=8 живых радиусная проверка снимается.
-  // ⚠️ Проверка ПЕРВАЯ, раньше цепи: инвариант владельца «эндшпильный ∞
-  // СОХРАНЁН» — цепная реакция (потолок 1.1) не имеет права его душить,
-  // иначе последние пары в цепи снова не совмещаются (анти-фрустрация).
+  // ENDGAME: the leftovers lie on the bottom farther from each other than the radius
+  // clamped to the floor. Bot audit: 100% of endgame shakes are because of distance, not one
+  // because of burial. At <=8 alive the radius check is lifted.
+  // ⚠️ This check comes FIRST, ahead of the chain: the owner's invariant "the endgame ∞ is
+  // PRESERVED" — the chain reaction (the 1.1 ceiling) has no right to strangle it,
+  // otherwise the last pairs in the chain again fail to combine (anti-frustration).
   if (aliveCnt <= 8){ CFG.matchRadius = 99; return; }
-  // МЯГКАЯ СТУПЕНЬ: предметов меньше десяти И встрясок почти нет — снимаем
-  // радиусную проверку так же, как в жёсткой ступени (слово владельца
-  // 2026-08-11). Стоит СРАЗУ за ней и до всех прочих веток по той же причине:
-  // это анти-фрустрация, её не должны душить ни сжатие кучи, ни штраф промаха.
+  // THE SOFT STAGE: fewer than ten items AND almost no shakes — we lift the
+  // radius check exactly as in the hard stage (the owner's word of
+  // 2026-08-11). It stands IMMEDIATELY after it and before all the other branches for the same reason:
+  // this is anti-frustration, and neither the shrinking of the pile nor the miss penalty may strangle it.
   if (aliveCnt < ENDGAME_SOFT_ALIVE &&
       (level.shakes + (typeof purchasedShakes === 'function' ? purchasedShakes() : 0)) <= ENDGAME_SOFT_SHAKES){
     CFG.matchRadius = 99; return;
@@ -104,182 +104,182 @@ function updateMatchRadius(){
   const k = level.topY0 > 0 ? radiusAt(top) / radiusAt(level.topY0) : 1;
   const base = CFG.baseRadius;
   let r = Math.max(Math.min(MATCH_R_MIN, base), Math.min(base, base * k));
-  // цепная реакция: радиус БОЛЬШЕ НЕ «вся чаша» — потолок зазора 1.1
-  // (спека владельца 2026-07-21: «даже в турборежиме не больше 1.1»);
-  // фишки цепи остаются: досыпка, молнии, ×2, продление серии.
-  // Буст только ВВЕРХ: ручной слайдер выше потолка цепью не срезается
-  // ⚠️ ВЕТКА ЦЕПИ БОЛЬШЕ НЕ ВЫХОДИТ ДОСРОЧНО (2026-08-11): ниже стоит ПОТОЛОК
-  // ШТРАФА ЗА ПРОМАХ, и он обязан накрывать в том числе турбо — иначе «промах
-  // сильно сбрасывает» не выполнялось бы ровно там, где игрок разогнался.
-  // Значение ветки не изменилось: тот же `Math.max(r, COMBO_RADIUS)`.
+  // chain reaction: the radius is NO LONGER "the whole bowl" — the gap ceiling is 1.1
+  // (the owner's spec of 2026-07-21: "not more than 1.1 even in turbo mode");
+  // the chain's perks remain: the top-up, the lightning, the ×2, the extension of the streak.
+  // The boost is only UPWARD: a manual slider above the ceiling is not cut down by the chain
+  // ⚠️ THE CHAIN BRANCH NO LONGER RETURNS EARLY (2026-08-11): below it stands THE CEILING
+  // OF THE MISS PENALTY, and it must cover turbo as well — otherwise "a miss
+  // resets a lot" would not hold exactly where the player has picked up speed.
+  // The value of the branch has not changed: the same `Math.max(r, COMBO_RADIUS)`.
   if (chainUntil > performance.now()){
     r = Math.max(r, COMBO_RADIUS);
   } else if (comboUntil > performance.now() && comboLevel > 0){
-    // комбо-лихорадка: радиус растёт ЛЕСЕНКОЙ по ступеням серии (не сразу
-    // до максимума — «мгновенные 3.5» владелец забраковал как слишком лёгкие).
-    // Тоже только ВВЕРХ: при базе выше потолка лесенка радиус не понижает
+    // combo fever: the radius grows as a STAIRCASE along the steps of the streak (not straight
+    // to the maximum — the owner rejected "an instant 3.5" as too easy).
+    // Also only UPWARD: with a base above the ceiling the staircase does not lower the radius
     const t = Math.min(1, comboLevel / COMBO_STEPS);
     r = Math.max(r, r + (COMBO_RADIUS - r) * t);
   }
-  // ШТРАФ ЗА ПРОМАХ — ПОТОЛОК ПОВЕРХ ВСЕГО, кроме эндшпильного ∞ (он вышел
-  // раньше). Именно потолок, а не присваивание: сжатие кучи и лесенка серии
-  // продолжают жить своей жизнью, штраф лишь не пускает результат выше себя.
-  const пот = missRadiusCap();
-  if (пот !== null) r = Math.min(r, пот);
+  // THE MISS PENALTY IS A CEILING ON TOP OF EVERYTHING except the endgame ∞ (that one returned
+  // earlier). Precisely a ceiling, not an assignment: the shrinking of the pile and the staircase of
+  // the streak go on living their own lives, the penalty merely does not let the result rise above it.
+  const cap = missRadiusCap();
+  if (cap !== null) r = Math.min(r, cap);
   CFG.matchRadius = r;
 }
-// ===== ШТРАФ РАДИУСА ЗА ПРОМАХ (спека владельца 2026-08-11) =====
-// «при ошибке на какое-то время сильно сбрасывать до 0.3, но через несколько
-// секунд возвращать» — момент промаха, 0 = штрафа нет.
+// ===== RADIUS PENALTY FOR A MISS (the owner's spec of 2026-08-11) =====
+// "on a mistake drop it hard down to 0.3 for some time, but bring it back after a few
+// seconds" — the moment of the miss, 0 = no penalty.
 let missRadiusAt = 0;
 function noteMissRadius(){ missRadiusAt = performance.now(); updateMatchRadius(); }
 function missRadiusClear(){ missRadiusAt = 0; }
 function missRadiusActive(now){
   return missRadiusAt > 0 && ((now || performance.now()) - missRadiusAt) < MATCH_R_MISS_MS;
 }
-// Потолок штрафа: `MATCH_R_MISS` в момент промаха, линейно к базе за
-// `MATCH_R_MISS_MS`. ⚠️ Возвращает null, когда штрафа нет, а НЕ базу: потолок
-// «равный базе» отличается от «потолка нет» ровно в тот день, когда база
-// уедет ниже (ползунком в панели), и тогда штраф молча стал бы БУСТОМ.
+// The ceiling of the penalty: `MATCH_R_MISS` at the moment of the miss, linearly back to the base over
+// `MATCH_R_MISS_MS`. ⚠️ It returns null when there is no penalty, and NOT the base: a ceiling
+// "equal to the base" differs from "no ceiling at all" on exactly the day when the base
+// drifts lower (via the slider in the panel), and then the penalty would silently become a BOOST.
 function missRadiusCap(now){
   if (!missRadiusAt) return null;
   const t = ((now || performance.now()) - missRadiusAt) / MATCH_R_MISS_MS;
   if (t >= 1) return null;
   return MATCH_R_MISS + (CFG.baseRadius - MATCH_R_MISS) * Math.max(0, t);
 }
-// ⚠️⚠️ ВОССТАНОВЛЕНИЕ ИДЁТ ПО РЕАЛЬНЫМ ЧАСАМ, ПОЭТОМУ ЕГО НАДО ТИКАТЬ ИЗ ЦИКЛА.
-// `refreshAccessibility` (а с ним и `updateMatchRadius`) в штиле НЕ тикает
-// вовсе — куча спит. Игрок промахнулся, замер на пять секунд и тапнул: без
-// этого тика радиус остался бы 0.3 навсегда. Тот же класс, что у «комбо-буст
-// обязан погаснуть и на СПЯЩЕЙ куче» в 99-main.
-// Отдаёт true РОВНО на последнем тике — чтобы вызывающий обновил HUD один раз.
+// ⚠️⚠️ THE RECOVERY RUNS ON THE REAL CLOCK, SO IT HAS TO BE TICKED FROM THE LOOP.
+// `refreshAccessibility` (and with it `updateMatchRadius`) does NOT tick at all when things
+// are calm — the pile is asleep. The player missed, froze for five seconds and tapped: without
+// this tick the radius would stay at 0.3 forever. The same class as "the combo boost
+// must go out on a SLEEPING pile too" in 99-main.
+// Returns true EXACTLY on the last tick — so that the caller updates the HUD once.
 function missRadiusTick(now){
   if (!missRadiusAt) return false;
-  const кончился = !missRadiusActive(now);
-  if (кончился) missRadiusAt = 0;
+  const expired = !missRadiusActive(now);
+  if (expired) missRadiusAt = 0;
   updateMatchRadius();
-  return кончился;
+  return expired;
 }
-// Состояние комбо: до какого момента горит буст, время последнего матча,
-// длина серии; цепная реакция: до какого момента, промахи на старте, тик досыпки
+// Combo state: until what moment the boost is lit, the time of the last match,
+// the length of the streak; the chain reaction: until what moment, the misses at the start, the top-up tick
 let comboUntil = 0, lastMatchMs = 0, comboCount = 0, comboLevel = 0;
 let chainUntil = 0, chainStartMisses = 0, chainNextDrop = 0, chainNextBolt = 0;
-// СЕРИЯ ТУРБО (спека владельца 2026-07-21): номер цепи в непрерывной связке —
-// 1 у обычной, 2+ когда следующее турбо собрано ВНУТРИ активного (перезапуск
-// окна в doMatch). >=2 — сигнал интерфейсу для глаз eyes-5. chainCarry —
-// дробный аккумулятор досыпки (2.6 шт/тик не спавнится целиком за раз).
+// THE TURBO SERIES (the owner's spec of 2026-07-21): the number of the chain within a continuous
+// bundle — 1 for an ordinary one, 2+ when the next turbo is collected INSIDE an active one (the window
+// is restarted in doMatch). >=2 is the signal to the interface for the eyes-5 eyes. chainCarry is
+// the fractional accumulator of the top-up (2.6 items/tick do not spawn whole at once).
 let chainSeries = 0, chainCarry = 0;
-let veilPinned = false; // тюнер держит вуаль на всех — refresh её не перебивает
-let accFlips = 0; // диагностика: сколько предметов сменили доступность за последний refresh
-// ⚠️⚠️ ЧАСТИЧНЫЙ ОБХОД — ЛЕЧЕНИЕ ДЖАНКА НА HARD (замер 2026-08-14, ревизия по
-// жалобе владельца «стало тупить больше»). ОДИН вызов веера лучей по всей куче
-// стоит 79-86 мс (CPU ×4, ур.11/20), а тик шёл КАЖДЫЕ 300 мс, пока куча
-// бодрствует, — то есть каждые 300 мс кадр застревал почти на 0.1 с. Замер
-// кадра: Easy p95 33.5/33.8 против HARD 93.0/104.6, худший кадр 76 против 180.
-// ⛔ МЕХАНИКА НЕ ТРОНУТА: тот же веер, те же лучи, тот же результат на предмет.
-// Меняется только РАСПРЕДЕЛЕНИЕ работы: периодический тик обходит 1/ACC_SLICES
-// кучи по кругу, полный цикл — 8 тиков. События (матч, встряска, регены, финал)
-// по-прежнему зовут ПОЛНЫЙ обход, поэтому реакция на действие игрока мгновенна,
-// как была; частичный — только фоновая переоценка осевшей кучи.
-// ⚠️ Курсор ЖИВЁТ МЕЖДУ ВЫЗОВАМИ и обходит по живым: удаление предметов его не
-// ломает (индекс берётся по модулю живой длины на каждом шаге).
+let veilPinned = false; // the tuner holds the veil on everyone — refresh does not override it
+let accFlips = 0; // diagnostics: how many items changed accessibility during the last refresh
+// ⚠️⚠️ THE PARTIAL SWEEP IS THE CURE FOR JANK ON HARD (measurement of 2026-08-14, a revision prompted by
+// the owner's complaint "it started lagging more"). ONE call of the ray fan over the whole pile
+// costs 79-86 ms (CPU ×4, lvl.11/20), and the tick ran EVERY 300 ms while the pile
+// is awake — that is, every 300 ms the frame stalled for almost 0.1 s. Frame
+// measurement: Easy p95 33.5/33.8 against HARD 93.0/104.6, worst frame 76 against 180.
+// ⛔ THE MECHANIC IS UNTOUCHED: the same fan, the same rays, the same result per item.
+// Only the DISTRIBUTION of the work changes: the periodic tick sweeps 1/ACC_SLICES
+// of the pile in a round robin, a full cycle is 8 ticks. Events (a match, a shake, regens, the finale)
+// still call the FULL sweep, so the reaction to the player's action is instant,
+// as it was; the partial one is only the background re-evaluation of a settled pile.
+// ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
+// break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;
 let accCursor = 0;
-// ⚠️⚠️ ЛОКАЛЬНЫЙ ПЕРЕСЧЁТ ВОКРУГ СОБЫТИЯ (2026-08-14, владелец подтвердил: у
-// него включён HARD, то есть веер работает на полную). Полный обход стоит
-// 79-86 мс (CPU ×4) и вызывался ПОСЛЕ КАЖДОГО СОВМЕЩЕНИЯ — то есть рывок
-// садился на самое частое действие игрока.
-// ФИЗИЧЕСКОЕ ОБОСНОВАНИЕ ЛОКАЛЬНОСТИ: лучи идут ВВЕРХ, к небу. Удаление группы
-// открывает небо тем, кто лежал ПОД ней и рядом, — то есть внутри столба над
-// точкой события. Далёкий предмет своей доступности от этого не меняет.
-// ⚠️ РАДИУС ЩЕДРЫЙ (ACC_NEAR_R), а не «по размеру группы»: цена ошибки
-// несимметрична — лишний предмет в выборке стоит доли миллисекунды, а
-// пропущенный живёт с устаревшей вуалью до фонового круга.
-// ⚠️ И ГЛАВНАЯ СТРАХОВКА: фоновый порционный обход всё равно проходит ВСЮ кучу
-// за ~0.8 с, поэтому любая промашка локальности самоисцеляется — точность
-// держит фон, скорость держит локальность.
-// ⛔ ЦИЛИНДР, А НЕ СФЕРА: сравниваем по XZ и берём всех, кто ВЫШЕ точки минус
-// запас. Предмет строго над удалённым может быть далеко по высоте, и сфера
-// его бы не поймала — а он как раз тот, кто теперь видит небо.
+// ⚠️⚠️ LOCAL RECALCULATION AROUND AN EVENT (2026-08-14, the owner confirmed: he has
+// HARD switched on, that is, the fan runs at full strength). The full sweep costs
+// 79-86 ms (CPU ×4) and was called AFTER EVERY COMBINATION — that is, the hitch
+// settled onto the player's most frequent action.
+// THE PHYSICAL JUSTIFICATION OF LOCALITY: the rays go UPWARD, toward the sky. Removing a group
+// opens the sky to those who lay UNDER it and next to it — that is, inside the column above
+// the point of the event. A distant item does not change its accessibility because of that.
+// ⚠️ THE RADIUS IS GENEROUS (ACC_NEAR_R) rather than "by the size of the group": the cost of an error
+// is asymmetric — a superfluous item in the selection costs a fraction of a millisecond, while
+// a missed one lives with a stale veil until the background round.
+// ⚠️ AND THE MAIN SAFETY NET: the background portioned sweep still goes through the WHOLE pile
+// in ~0.8 s, so any slip of locality heals itself — accuracy
+// is held by the background, speed is held by locality.
+// ⛔ A CYLINDER, NOT A SPHERE: we compare by XZ and take everyone who is ABOVE the point minus
+// a margin. An item strictly above the removed one can be far away in height, and a sphere
+// would not have caught it — and it is exactly the one that now sees the sky.
 const ACC_NEAR_R = 4.2;
-function refreshAccessibilityNear(p, доп){
+function refreshAccessibilityNear(p, extra){
   updateMatchRadius();
   accFlips = 0;
-  const R = ACC_NEAR_R + (доп || 0), R2 = R * R;
+  const R = ACC_NEAR_R + (extra || 0), R2 = R * R;
   for (const it of items){
     if (!it.alive) continue;
     const dx = it.p.x - p.x, dz = it.p.z - p.z;
     if (dx*dx + dz*dz > R2) continue;
-    if (it.p.y < p.y - 2.0) continue;          // строго ниже события — не затронут
+    if (it.p.y < p.y - 2.0) continue;          // strictly below the event — not affected
     const was = it.accessible;
     it.accessible = !it.animating && isAccessible(it);
     if (it.accessible !== was) accFlips++;
     if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
-function refreshAccessibility(частично){
+function refreshAccessibility(partial){
   updateMatchRadius();
   accFlips = 0;
-  if (частично){
-    const живые = [];
-    for (const it of items) if (it.alive) живые.push(it);
-    if (!живые.length) return;
-    const доля = Math.max(1, Math.ceil(живые.length / ACC_SLICES));
-    for (let k = 0; k < доля; k++){
-      const it = живые[(accCursor + k) % живые.length];
+  if (partial){
+    const aliveList = [];
+    for (const it of items) if (it.alive) aliveList.push(it);
+    if (!aliveList.length) return;
+    const sliceSize = Math.max(1, Math.ceil(aliveList.length / ACC_SLICES));
+    for (let k = 0; k < sliceSize; k++){
+      const it = aliveList[(accCursor + k) % aliveList.length];
       const was = it.accessible;
       it.accessible = !it.animating && isAccessible(it);
       if (it.accessible !== was) accFlips++;
       if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
     }
-    accCursor = (accCursor + доля) % живые.length;
+    accCursor = (accCursor + sliceSize) % aliveList.length;
     return;
   }
   accCursor = 0;
   for (const it of items){
     if (!it.alive) continue;
     const was = it.accessible;
-    // animating (тело удалено, растворяется) лучи не блокирует — без гварда
-    // «воскресал» в счётчике доступных пар и мигал цифрой HUD
+    // an animating one (body removed, dissolving) does not block rays — without the guard
+    // it "resurrected" in the counter of accessible pairs and made the HUD digit flicker
     it.accessible = !it.animating && isAccessible(it);
     if (it.accessible !== was) accFlips++;
-    // вуаль применяется ПЛАВНО в tickVeil (мгновенные скачки цвета всей кучи
-    // при пересчёте читались как «цвета скачут» — жалоба владельца);
-    // у animating вуаль не трогаем — пусть дотлевает как есть
-    // камни вуалью не мигают (спека 2026-07-22: «иная природа» читается
-    // фактурой); лучи их тела при этом честно блокируют — завал настоящий
-    // ⚠️ ПИН ТЮНЕРА выше доступности: без него превью «вуаль на всех» жило
-    // максимум до следующего тика refresh (300 мс) и молча растворялось —
-    // ползунки силы вуали были бы неподкручиваемы.
+    // the veil is applied SMOOTHLY in tickVeil (instant colour jumps across the whole pile
+    // on recalculation read as "the colours are jumping" — the owner's complaint);
+    // for an animating one we do not touch the veil — let it smoulder out as it is
+    // stones do not flicker with the veil (the spec of 2026-07-22: their "different nature" reads
+    // through the texture); their bodies honestly block the rays all the same — the burial is real
+    // ⚠️ THE TUNER'S PIN outranks accessibility: without it the "veil on everyone" preview lived
+    // at most until the next refresh tick (300 ms) and silently dissolved —
+    // the veil-strength sliders would be untweakable.
     if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
-// Плавное затухание/снятие вуали (~0.25 с), из главного цикла каждый кадр.
-// Недоступные — серая вуаль (лерп к нейтральному), НЕ умножение цвета
-// (умножение давало «грязные» тёмно-зелёный и коричневый). Сюрприз не
-// вуалится — должен золотиться сквозь щели.
-// ⚠️ РЕЖИМ 'desat' (спека владельца 2026-07-23) вуалит В ШЕЙДЕРЕ — иначе
-// текстурные модели (114 из 130 в кадре) обесцветить НЕЛЬЗЯ: их material.color
-// белый, цвет несёт атлас, и лерп color к серому лишь притемнял его.
-// Лерп по color оставлен ЖИВЫМ фолбэком для материалов без нашего патча
-// (бомба на MeshBasicMaterial, аварийный откат CFG.matcap=false) — без него
-// они молча перестали бы вуалиться вовсе.
+// Smooth fade-in/removal of the veil (~0.25 s), from the main loop every frame.
+// The inaccessible ones get a grey veil (a lerp toward the neutral), NOT a multiplication of the colour
+// (multiplication produced a "dirty" dark green and brown). The surprise is not
+// veiled — it must gleam gold through the gaps.
+// ⚠️ THE 'desat' MODE (the owner's spec of 2026-07-23) veils IN THE SHADER — otherwise
+// the textured models (114 out of 130 in the frame) CANNOT be desaturated: their material.color
+// is white, the colour is carried by the atlas, and a lerp of color toward grey merely darkened it.
+// The lerp over color is left as a LIVE fallback for materials without our patch
+// (the bomb on MeshBasicMaterial, the emergency rollback CFG.matcap=false) — without it
+// they would silently stop being veiled altogether.
 function applyVeil(it, k){
   const mat = it.mesh.material;
   const sh = mat.userData && mat.userData.shader;
   if (VEIL_MODE !== 'tint' && sh){
     sh.uniforms.uVeil.value = k;
-    // 'fade': прозрачность поверх обесцвечивания. transparent выставлен ОДИН
-    // раз при создании материала (переключать на лету = перекомпиляция).
+    // 'fade': transparency on top of the desaturation. transparent is set ONCE
+    // at material creation (switching it on the fly = a recompile).
     if (VEIL_MODE === 'fade') mat.opacity = 1 - k * (1 - VEIL_ALPHA);
     return;
   }
   mat.color.copy(it.baseColor).lerp(DIM_GREY, k);
 }
-// Вуаль ВСЕМ живым разом: превью в тюнере и изоляция замеров (доля
-// недоступных гуляет от сида к сиду, на этом шуме дельта-замер тонет).
-// k = число: ПРИБИТЬ вуаль всем на этом значении; k = null: отпустить,
-// дальше вуаль снова ведёт доступность.
+// The veil on ALL the alive ones at once: the preview in the tuner and the isolation of measurements (the share
+// of inaccessible ones wanders from seed to seed, and a delta measurement drowns in that noise).
+// k = a number: PIN the veil on everyone at this value; k = null: release it,
+// after which accessibility drives the veil again.
 function veilAllItems(k){
   if (k === null){ veilPinned = false; refreshAccessibility(); return 0; }
   veilPinned = true;
@@ -298,18 +298,18 @@ function tickVeil(dt){
     applyVeil(it, next);
   }
 }
-// Дистанция пары = ЗАЗОР между поверхностями (охватные радиусы); может быть
-// слегка отрицательной при касании/нахлёсте — это «вплотную», всегда матч
+// The distance of a pair = the GAP between the surfaces (bounding radii); it can be
+// slightly negative on contact/overlap — that is "flush", always a match
 function pairDist(a, b){ return a.p.distanceTo(b.p) - a.r - b.r; }
-// ЕДИНСТВЕННОЕ правило совпадения (тап/бот/подсказка/прицел/счётчик пар/
-// детект тупика — все ходят сюда; новые проверки писать ТОЛЬКО через
-// pairMatch). МЕТРИКА v3 (спека владельца 2026-07-20): ИСТИННЫЙ зазор
-// между физическими поверхностями через GJK Rapier — охватные сферы
-// анизотропно щедрили продолговатым (стейк плашмя «матчился сквозь воздух»:
-// видимый зазор 1.0 = охватный −0.46). Охватный зазор остаётся ФИЛЬТРОМ
-// грубой фазы: он НИЖНЯЯ граница истинного, отсечение честное. Компаунды
-// (тор/узел/спираль/чайник) — перебор пар коллайдеров с ранним выходом;
-// дырка тора при этом «настоящая» (расстояние до трубки, не до диска).
+// The ONLY match rule (tap/bot/hint/aim/pair counter/
+// dead-end detection — all of them come here; new checks are to be written ONLY through
+// pairMatch). METRIC v3 (the owner's spec of 2026-07-20): the TRUE gap
+// between the physical surfaces via Rapier's GJK — the bounding spheres
+// were anisotropically generous to elongated shapes (a steak lying flat "matched through thin air":
+// visible gap 1.0 = bounding −0.46). The bounding gap remains the FILTER of
+// the broad phase: it is a LOWER bound on the true one, so the cut-off is honest. Compounds
+// (torus/knot/spiral/teapot) are a scan over pairs of colliders with an early exit;
+// the hole of the torus is "real" in the process (the distance to the tube, not to a disc).
 function trueGapWithin(a, b, r){
   const na = a.body.numColliders(), nb = b.body.numColliders();
   for (let i = 0; i < na; i++){
@@ -324,18 +324,18 @@ function trueGapWithin(a, b, r){
 function pairMatch(a, b){
   if (!CFG.radiusOn) return true;
   const r = CFG.matchRadius;
-  if (r >= 9) return true;                 // эндшпиль (<=8 живых): вся чаша
-  if (pairDist(a, b) > r) return false;    // грубая фаза (без GJK)
-  // тело уже снято (animating/удалён): предмета физически нет — НЕ матч.
-  // Прежний охватный вердикт «true» тихо откатывал метрику v3 на старую
-  // щедрую сферу именно в гонке с растворением
+  if (r >= 9) return true;                 // endgame (<=8 alive): the whole bowl
+  if (pairDist(a, b) > r) return false;    // broad phase (no GJK)
+  // the body has already been removed (animating/deleted): the item physically is not there — NOT a match.
+  // The former bounding verdict "true" quietly rolled metric v3 back to the old
+  // generous sphere exactly in the race with the dissolve
   if (!a.body || !b.body) return false;
   return trueGapWithin(a, b, r);
 }
 function availablePairs(){
   const byKey = {};
-  // animating отсекаем и здесь: между refresh'ами тапнутый предмет ещё числится
-  // accessible, а его тело уже снято — пары с ним фантомные
+  // we cut off animating here too: between refreshes a tapped item is still listed as
+  // accessible while its body has already been removed — pairs with it are phantom
   for (const it of items) if (it.alive && it.accessible && !it.animating) (byKey[it.key] = byKey[it.key]||[]).push(it);
   let cnt = 0;
   for (const k in byKey){
@@ -346,7 +346,7 @@ function availablePairs(){
   }
   return cnt;
 }
-// Есть ли вообще возможный матч (два живых предмета одного типа), где угодно
+// Whether any possible match exists at all (two alive items of the same type), anywhere
 function hasAnyPair(){
   const cnt = {};
   for (const it of items){

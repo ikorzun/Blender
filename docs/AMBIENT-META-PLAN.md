@@ -1,61 +1,61 @@
-# Пакет «Живое окружение» — ПЕРВОЕ ОБНОВЛЕНИЕ ПОСЛЕ РЕЛИЗА
+# The «Living Environment» package — FIRST UPDATE AFTER THE RELEASE
 
-Утверждено владельцем 2026-07-31: «делай мета-тройку и дневную пару после
-релиза». Отобрано панелью (17 идей, 3 судьи: перф слабых телефонов / риск
-отвлечения / честность мета-слоя); полный свод — в выводе панели wswcvvxct.
-⚠️ ДО РЕЛИЗА НЕ НАЧИНАТЬ: пакет не входит в неделю запуска.
+Approved by the owner 2026-07-31: «do the meta-triple and the daytime pair after
+the release». Selected by a panel (17 ideas, 3 judges: perf on weak phones / risk
+of distraction / honesty of the meta layer); full digest — in panel output wswcvvxct.
+⚠️ DO NOT START BEFORE THE RELEASE: the package is not part of the launch week.
 
-## Мета-тройка (все — «часы» работы, 28/30 у судей)
+## The meta-triple (all are «hours» of work, 28/30 from the judges)
 
-1. **Планета-мечта (ночь)** — зона ГРАФИКИ.
-   После виньетки К0 среди ночных звёзд появляется крошечный тусклый диск —
-   планета из мечты миксера; с каждой просмотренной главой (К1→К4) чуть
-   подрастает / получает кольцо. Строится: ветка `if (uStars > 0)` шейдера
-   неба (10-stage), ~4-6 ALU только ночью; юниформа меняется 4 раза за жизнь
-   сейва (биты Save.st уже есть). 0 draw calls, гейт не нужен по построению.
+1. **The dream planet (night)** — the GRAPHICS zone.
+   After the K0 vignette a tiny dim disc appears among the night stars —
+   the planet from the mixer's dream; with every chapter viewed (K1→K4) it grows
+   a little / gains a ring. Built on: the `if (uStars > 0)` branch of the sky
+   shader (10-stage), ~4-6 ALU at night only; the uniform changes 4 times over the
+   life of a save (the Save.st bits already exist). 0 draw calls, no gate needed by construction.
 
-2. **Небо копит звёзды (ночь)** — зона ГРАФИКИ.
-   У новичка ночь почти пустая; плотность звёзд растёт с долей открытых типов,
-   за каждый ПОЛНЫЙ раздел коллекции — одна крупная звезда в фиксированной
-   точке. Строится там же (звёздная ветка уже стоит, uStars из 0/1 становится
-   драйвером); данные — accSnapshot()/Save.ac, уже считаются.
-   ⚠️ Судьи зарезали ДУБЛЬ этой идеи («Небо-музей») — обе жили бы в одной
-   ветке шейдера; реализуется ЭТА формулировка, вторую не изобретать.
+2. **The sky accumulates stars (night)** — the GRAPHICS zone.
+   For a newcomer the night is almost empty; star density grows with the share of
+   unlocked types, for every COMPLETE section of the collection — one large star at
+   a fixed point. Built in the same place (the star branch is already there, uStars
+   turns from 0/1 into a driver); the data — accSnapshot()/Save.ac, already counted.
+   ⚠️ The judges killed a DUPLICATE of this idea («Sky-museum») — both would live in
+   one shader branch; THIS formulation is implemented, do not invent the second one.
 
-3. **Персонаж помнит ветерана** — зона ИНТЕРФЕЙСА.
-   На ап ступени миксер на секунду делает довольное лицо (faceEvent по
-   onAccTierUp — событие уже кидается); у игрока с большим Save.se idle-
-   настроение смещено к kind/sly. Ноль пикселей WebGL: глаза — DOM/SVG, уже
-   тикаются. ⚠️ Канон глаз: любая правка = запись в EYES-CHARACTER-SPEC.
+3. **The character remembers a veteran** — the INTERFACE zone.
+   On a tier-up the mixer makes a pleased face for a second (faceEvent on
+   onAccTierUp — the event is already fired); for a player with a large Save.se the
+   idle mood is shifted toward kind/sly. Zero WebGL pixels: the eyes are DOM/SVG,
+   already ticking. ⚠️ Canon of the eyes: any edit = an entry in EYES-CHARACTER-SPEC.
 
-## Дневная пара
+## The daytime pair
 
-4. **Жесты покоя (день)** — зона ИНТЕРФЕЙСА, ~день работы.
-   Миксер в простое скучает/косится (редкие, медленные жесты поверх idle-
-   блуждания зрачков). Не конкурирует с сигналами: жесты только в ПОКОЕ,
-   любое событие геймплея их снимает. Канон глаз обязателен.
+4. **Idle gestures (day)** — the INTERFACE zone, ~a day of work.
+   The mixer at idle gets bored / glances sideways (rare, slow gestures on top of
+   the idle wandering of the pupils). Does not compete with signals: gestures only
+   AT REST, any gameplay event removes them. The canon of the eyes is mandatory.
 
-5. **Свет часов (солнце/луна)** — зона ГРАФИКИ, ~день работы.
-   Мягкое размытое пятно света в небе; азимут — от реального часа при
-   загрузке (утро — «с востока», вечер — «с запада»). +6-8 ALU на пиксель в
-   уже оплаченный проход, юниформы статичны, гейт не нужен.
+5. **Light of the hour (sun/moon)** — the GRAPHICS zone, ~a day of work.
+   A soft blurred patch of light in the sky; the azimuth — from the real hour at
+   load time (morning — «from the east», evening — «from the west»). +6-8 ALU per
+   pixel in an already paid-for pass, the uniforms are static, no gate needed.
 
-## Опционально, по ёмкости (было в рекомендации рядом с парой)
+## Optional, capacity permitting (was in the recommendation next to the pair)
 
-6. **Процедурный эмбиент-звук** — лёгкий ветер днём, сверчки ночью, синтез
-   WebAudio (75-audio), ноль файлов. Тихо, ниже SFX; глушится теми же
-   правилами мьюта (реклама/площадка сильнее). Судьи дали 20/30 — не потому
-   что плохо, а потому что не мета; владелец отдельно не утверждал — при
-   реализации показать ему выключаемым.
+6. **Procedural ambient sound** — light wind by day, crickets at night, WebAudio
+   synthesis (75-audio), zero files. Quiet, below the SFX; muted by the same mute
+   rules (ads/the platform take precedence). The judges gave 20/30 — not because
+   it is bad, but because it is not meta; the owner did not approve it separately —
+   when implementing, show it to him with an off switch.
 
-## Ограничения пакета (из вердиктов судей — НЕ нарушать)
+## Constraints of the package (from the judges' verdicts — DO NOT violate)
 
-- Периферия движется МЕДЛЕННО или не движется: «быстрая мелочь на краю
-  зрения хуже медленной крупной формы». Зарезанные пылинки/светлячки/прожилки
-  не возвращать.
-- Ничего вечного в fx[] и ничего, что будит физику или теневой гейт —
-  экономия сна неприкосновенна.
-- Новых картинок-ассетов ноль; всё в существующий проход неба, DOM или синтез.
-- Каждая правка глаз — через EYES-CHARACTER-SPEC; каждая правка неба помнит:
-  юниформы сырые sRGB, линейная интерполяция, три отвергнутых подхода к
-  звёздам не повторять (канон).
+- The periphery moves SLOWLY or does not move: «fast small stuff at the edge of
+  vision is worse than a slow large form». The killed motes/fireflies/veins
+  must not be brought back.
+- Nothing eternal in fx[] and nothing that wakes the physics or the shadow gate —
+  the sleep savings are untouchable.
+- Zero new image assets; everything into the existing sky pass, the DOM or synthesis.
+- Every edit of the eyes — through EYES-CHARACTER-SPEC; every edit of the sky remembers:
+  the uniforms are raw sRGB, linear interpolation, the three rejected approaches to
+  the stars must not be repeated (the canon).

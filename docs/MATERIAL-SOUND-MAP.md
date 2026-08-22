@@ -1,53 +1,53 @@
-# Классификация предметов по материалу — под звук совмещения
+# Item classification by material — for the merge sound
 
-Заказ владельца 2026-08-10: «классифицируй предметы по типу материала, чтобы я
-смог записать для каждого типа свой звук совмещения предметов».
+The owner's order 2026-08-10: «classify the items by material type so that I
+can record its own item-merge sound for each type».
 
-⚠️ **РАЗМЕТКА СНЯТА С ЖИВОГО ПУЛА, А НЕ ПО ПАМЯТИ**: имена вычитаны из
-`src/app/30-shapes.js`, покрытие проверено перебором — **120 из 120, ноль
-пропусков, ноль дублей**. Появится новая партия моделей — прогнать проверку
-заново (скрипт ниже), иначе новые типы молча останутся без звука.
+⚠️ **THE MARKUP IS TAKEN FROM THE LIVE POOL, NOT FROM MEMORY**: the names were read out of
+`src/app/30-shapes.js`, coverage checked by enumeration — **120 of 120, zero
+omissions, zero duplicates**. A new batch of models appears — run the check
+again (script below), otherwise the new types will silently be left without sound.
 
-⛔ **ПОЛЕ `mat` В `TYPES` ДЛЯ ЭТОГО НЕ ГОДИТСЯ, ХОТЯ НАЗЫВАЕТСЯ ТАК ЖЕ.** Оно
-рендерное: `40-items.js` выбирает по нему matcap и вершинные цвета, а
-`50-physics.js` — ПЛОТНОСТЬ тела. Сейчас у всех 120 там стоит `'soft'`, то есть
-информации оно не несёт, но перепись его значений сменила бы материалы и вес
-предметов в игре. Звуку нужен ОТДЕЛЬНЫЙ признак (предлагаю `snd`).
+⛔ **THE `mat` FIELD IN `TYPES` IS NOT FIT FOR THIS, THOUGH IT IS NAMED THE SAME.** It is
+a render field: `40-items.js` picks the matcap and the vertex colors by it, and
+`50-physics.js` — the body's DENSITY. Right now all 120 have `'soft'` there, that is, it
+carries no information, but rewriting its values would change the materials and the
+weight of the items in the game. The sound needs a SEPARATE attribute (I propose `snd`).
 
-## Десять голосов
+## Ten voices
 
-Восемь основных плюс два маленьких. Считать «типом материала» стоит именно
-голос: игрок различает звуки на слух, а не по пачке ассетов — поэтому пачки
-`food`, `holiday`, `survival`, `car`, `toycar` РАЗОБРАНЫ между голосами, а
-`brick` целиком лежит в одном.
-⚠️ Пачка ассетов голосу НЕ РАВНА ни в одну сторону: `brick`+конусы из `car` и
-`toycar` дают `plastic`, а кузова тех же двух пачек — `metal`.
+Eight main ones plus two small ones. It is precisely the voice that should be
+counted as the «material type»: the player tells the sounds apart by ear, not by
+the asset pack — that is why the packs `food`, `holiday`, `survival`, `car`,
+`toycar` are SPLIT UP between the voices, while `brick` lies wholly in one.
+⚠️ An asset pack is NOT EQUAL to a voice in either direction: `brick` + the cones from
+`car` and `toycar` give `plastic`, while the bodies of those same two packs — `metal`.
 
-| голос | шт | что это звучит | характер записи |
+| voice | qty | what it is that sounds | character of the recording |
 |---|---:|---|---|
-| `juicy` | 26 | фрукты, овощи, зелень | сочный чавк, брызги, короткий |
-| `dough` | 8 | выпечка и тесто | глухой мягкий шлепок, крошка |
-| `meat` | 7 | мясо, рыба, сыр, бургер | плотный влажный удар |
-| `cream` | 3 | мороженое | холодный «плюх», липкий хвост |
-| `plush` | 26 | звери и мягкие игрушки | пуховый пуф, лёгкий писк |
-| `plastic` | 10 | кубики, волчок, дорожные конусы | сухой щелчок, клац |
-| `wood` | 11 | бочки, ящики, сундуки, инструмент | деревянный стук, скрип |
-| `metal` | 25 | МАШИНКИ, ядра, шестерни, поршни, ведро | звон, лязг |
-| `glass` | 1 | бутылка | звяк (можно не записывать — см. ниже) |
-| `paper` | 3 | подарки, корзина | шорох картона (можно не записывать) |
+| `juicy` | 26 | fruit, vegetables, greens | juicy squelch, splashes, short |
+| `dough` | 8 | baked goods and dough | dull soft slap, crumbs |
+| `meat` | 7 | meat, fish, cheese, burger | dense wet impact |
+| `cream` | 3 | ice cream | cold «plop», sticky tail |
+| `plush` | 26 | animals and soft toys | downy poof, light squeak |
+| `plastic` | 10 | bricks, spinning top, traffic cones | dry click, clack |
+| `wood` | 11 | barrels, crates, chests, tools | wooden knock, creak |
+| `metal` | 25 | TOY CARS, cannonballs, cogs, pistons, bucket | ring, clang |
+| `glass` | 1 | bottle | clink (may be left unrecorded — see below) |
+| `paper` | 3 | presents, basket | rustle of cardboard (may be left unrecorded) |
 
-⚠️ **`glass` и `paper` — по желанию.** В них 1 и 3 предмета; если записывать их
-отдельно не хочется, `glass` уходит в `metal`, `paper` — в `plastic`, и ничего
-не ломается. Восемь голосов — рабочий минимум, десять — потолок.
+⚠️ **`glass` and `paper` are optional.** They hold 1 and 3 items; if you do not want
+to record them separately, `glass` goes into `metal`, `paper` — into `plastic`, and
+nothing breaks. Eight voices is the working minimum, ten is the ceiling.
 
-⚠️ **МАШИНКИ ПЕРЕЕХАЛИ В `metal`** (слово владельца 2026-08-10: «отнеси все
-модели машинок к группе металла по звуку»): 11 моделей из пачки `car`, три
-кузова из `toycar` и золотая монета — всего 15. `plastic` уменьшился с 25 до 10.
-⛔ **ДВА ДОРОЖНЫХ КОНУСА ОСТАЛИСЬ В ПЛАСТИКЕ** (`carcone`, `toycaritemcone`):
-они лежат в тех же пачках, но машинками не являются. Скажете «всю пачку
-целиком» — переедут двумя строками.
+⚠️ **THE TOY CARS MOVED INTO `metal`** (the owner's word 2026-08-10: «assign all the
+toy car models to the metal group by sound»): 11 models from the `car` pack, three
+bodies from `toycar` and the gold coin — 15 in all. `plastic` shrank from 25 to 10.
+⛔ **TWO TRAFFIC CONES STAYED IN PLASTIC** (`carcone`, `toycaritemcone`):
+they lie in the same packs, but they are not toy cars. Say «the whole pack
+entirely» — and they move over with two lines.
 
-## Полная разметка
+## Full markup
 
 **juicy (26)** — foodapple, foodavocado, foodbanana, foodbeet, foodbroccoli, foodcabbage, foodcarrot, foodcauliflower, foodcherries, foodcoconut, foodcorn, foodeggplant, foodgrapes, foodleek, foodlemon, foodmushroom, foodonion, foodorange, foodpaprika, foodpear, foodpineapple, foodpumpkin, foodstrawberry, foodtomato, foodwatermelon, forestplant
 
@@ -69,34 +69,34 @@
 
 **paper (3)** — holidaypresentacube, holidaypresentaround, marketshoppingbasket
 
-## Спорные, которые я решил сам — скажите, если иначе
+## Debatable ones I decided myself — tell me if it should be otherwise
 
-- **foodcoconut → juicy.** Скорлупа твёрдая, и трескается кокос вкусно; если
-  захотите отдельный «хруст скорлупы», он вытащится в свой голос одной строкой.
-- **holidaysnowman и holidayreindeer → plush,** а не к «холодному»: в пуле они
-  игрушечные, и с зверями звучат заодно.
-- **holidayhanukkahdreidel → plastic** (волчок, сухой щелчок), хотя пачка
-  праздничная.
-- **survivalbucket → metal.** Если ведро в модели пластиковое, переедет в
+- **foodcoconut → juicy.** The shell is hard, and a coconut cracks tastily; if
+  you want a separate «crunch of the shell», it pulls out into its own voice with one line.
+- **holidaysnowman and holidayreindeer → plush,** and not to the «cold» one: in the pool
+  they are toy-like, and they sound together with the animals.
+- **holidayhanukkahdreidel → plastic** (a spinning top, a dry click), even though the
+  pack is a holiday one.
+- **survivalbucket → metal.** If the bucket in the model is plastic, it will move into
   `plastic`.
-- **piratetower → metal** как каменная кладка; при желании — свой голос
-  «камень» вместе с ядром и пушкой.
+- **piratetower → metal** as stone masonry; if desired — its own voice
+  «stone» together with the cannonball and the cannon.
 
-## Чего ещё нет и о чём стоит подумать заранее
+## What is still missing and what is worth thinking about in advance
 
-- **Спецпредметы вне пула:** сюрприз-рыбка (золото), бомба, камни. У них своя
-  природа и, вероятно, свои звуки — в эту таблицу они не входят.
-- **Размер группы.** Совмещение бывает от 2 до 8 предметов, и цена растёт
-  квадратично. Стоит записать ОДИН звук на голос, а масштаб отдать коду
-  (высота тона и громкость от размера группы) — иначе понадобится 10 голосов ×
-  7 размеров.
-- **Горящий предмет** уже даёт всплеск огня при совмещении; звук огня, скорее
-  всего, ложится ПОВЕРХ материала, а не вместо него.
+- **Special items outside the pool:** the surprise fish (gold), the bomb, the rocks. They
+  have their own nature and, probably, their own sounds — they are not in this table.
+- **Group size.** A merge runs from 2 to 8 items, and the price grows
+  quadratically. It is worth recording ONE sound per voice and giving the scaling
+  to the code (pitch and volume from the group size) — otherwise 10 voices ×
+  7 sizes will be needed.
+- **A burning item** already gives a burst of fire on merging; the fire sound most
+  likely lies ON TOP OF the material, and not instead of it.
 
-## Проверка полноты при новой партии моделей
+## Completeness check when a new batch of models arrives
 
 ```bash
 node tools/material-map-check.js
 ```
-Печатает «НЕ РАЗМЕЧЕНЫ» — список типов, у которых нет голоса. ⚠️ Он же ловит
-опечатки в именах: тип, которого нет в пуле, попадает в «НЕТ В ПУЛЕ».
+Prints «NOT MAPPED» — the list of types that have no voice. ⚠️ It also catches
+typos in names: a type that is not in the pool lands in «NOT IN POOL».

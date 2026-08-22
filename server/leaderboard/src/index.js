@@ -1,45 +1,45 @@
-// ===== СВОЯ ТАБЛИЦА ЛИДЕРОВ — Cloudflare Worker + D1 =====
-// Постановка: docs/LEADERBOARD-OWN.md. Здесь только сервер; клиент —
-// отдельный модуль игры (src/app/82-lb.js), ядро игры не правится.
+// ===== OUR OWN LEADERBOARD — Cloudflare Worker + D1 =====
+// Spec: docs/LEADERBOARD-OWN.md. Only the server lives here; the client is
+// a separate game module (src/app/82-lb.js), the game core is not touched.
 //
-// ⚠️⚠️ ГЛАВНОЕ ОТЛИЧИЕ ОТ ПЛОЩАДКИ: пишем ПОСЛЕДНЕЕ значение, а не максимум.
-// Ради этого таблица и своя — сервер Playgama хранит максимум и понижать не
-// умеет, а владельцу нужна «Форбс»-модель: потратил очки — упал в списке.
+// ⚠️⚠️ THE MAIN DIFFERENCE FROM THE PLATFORM: we write the LAST value, not the maximum.
+// That is the whole reason the table is our own — the Playgama server stores the maximum and
+// cannot lower it, while the owner needs the "Forbes" model: spent points — dropped in the list.
 //
-// ⛔⛔ ЗАЩИТЫ ОТ НАКРУТКИ ЗДЕСЬ НЕТ — ЭТО РЕШЕНИЕ ВЛАДЕЛЬЦА 2026-08-09.
-// Дословно: «давай не будем мудрить и сейчас делать защиту от накрутки. Пока
-// сделай хорошую простую основу для лидерборда». Возрастной потолок
-// (`GROW_BASE`/`GROW_PER_S`), обрезка счёта и автоматическое скрытие УДАЛЕНЫ
-// целиком, а не заглушены флагом — история в git, возврат `git revert`.
-// ⚠️ ЦЕНА НАЗВАНА ВЛАДЕЛЬЦУ И ПРИНЯТА: счёт считает КЛИЕНТ, сервер проверить
-// его не может, поэтому любой желающий пришлёт любое число и встанет первым,
-// не сыграв. Это осознанный размен «простота сейчас» против «честность
-// таблицы», а не недосмотр.
+// ⛔⛔ THERE IS NO ANTI-CHEAT PROTECTION HERE — THIS IS THE OWNER'S DECISION 2026-08-09.
+// Verbatim: "let's not overthink things and build anti-cheat protection right now. For now
+// make a good simple foundation for the leaderboard". The age-based ceiling
+// (`GROW_BASE`/`GROW_PER_S`), score clamping and automatic hiding are REMOVED
+// entirely rather than disabled by a flag — the history is in git, restore with `git revert`.
+// ⚠️ THE PRICE WAS NAMED TO THE OWNER AND ACCEPTED: the score is computed by the CLIENT, the server cannot
+// verify it, so anyone who wishes will send any number and take first place
+// without playing. This is a conscious trade of "simplicity now" against "fairness of the
+// table", not an oversight.
 //
-// ⚠️⚠️ ЧТО ОСТАЛОСЬ И ПОЧЕМУ ЭТО НЕ «ЗАЩИТА ОТ НАКРУТКИ» (снести заодно —
-// типичная ошибка, поэтому список явный):
-//   • `sig` — ПРАВО СОБСТВЕННОСТИ на строку. Без подписи посторонний
-//     перезапишет чужой результат и удалит чужие данные. Игрока защищаем от
-//     ПОСТОРОННЕГО, а не от него самого.
-//   • `RATE_SEC` — бережёт НАШ бесплатный тариф (лимит запросов к базе), а не
-//     честность. Снять — первый же цикл отправок съест суточную квоту.
-//   • `/admin/hide` и флаг `f` — ручная модерация. Теперь она ЕДИНСТВЕННАЯ:
-//     автоматики, которая пряталa строку сама, больше нет.
+// ⚠️⚠️ WHAT REMAINS AND WHY IT IS NOT "ANTI-CHEAT PROTECTION" (removing it along the way is
+// a typical mistake, hence the explicit list):
+//   • `sig` — OWNERSHIP of the row. Without the signature an outsider
+//     would overwrite someone else's result and delete someone else's data. We protect the player from an
+//     OUTSIDER, not from himself.
+//   • `RATE_SEC` — protects OUR free plan (the database request limit), not
+//     fairness. Remove it — and the very first cycle of submissions eats the daily quota.
+//   • `/admin/hide` and the `f` flag — manual moderation. Now it is the ONLY one:
+//     the automation that hid a row by itself is gone.
 
-const RATE_SEC   = 20;      // не чаще одной записи в 20 с на игрока
-const SKEW_SEC   = 300;     // допуск часов клиента
-const TOP_N      = 100;     // сколько строк держим в снимке
-const PAGE_N     = 50;      // строк на странице /top
-const NEAR_N     = 5;       // соседей выше и ниже в /me
-const LADDER_STEP= 100;     // лесенка: счёт на каждом сотом месте
-const KEEP_DAYS  = 180;     // ретенция молчащих строк
+const RATE_SEC   = 20;      // no more than one write per 20 s per player
+const SKEW_SEC   = 300;     // client clock tolerance
+const TOP_N      = 100;     // how many rows we keep in the snapshot
+const PAGE_N     = 50;      // rows per /top page
+const NEAR_N     = 5;       // neighbours above and below in /me
+const LADDER_STEP= 100;     // ladder: the score at every hundredth place
+const KEEP_DAYS  = 180;     // retention of silent rows
 
-// ⚠️ ОТВЕТ ВСЕГДА НЕПУСТОЙ JSON, а успех кодируется ПОЛЕМ ТЕЛА, не статусом.
-// Причина записана в постановке: если когда-нибудь пойдём через транспорт
-// бриджа, он делает `fetch().then(r=>r.json())` БЕЗ проверки `res.ok` —
-// пустое тело приезжает как провал, а 500 с телом как успех.
-// ⚠️ CORS «простой»: тело text/plain, никаких кастомных заголовков — иначе
-// каждый запрос стоил бы ДВА (preflight), а суточный лимит воркера штучный.
+// ⚠️ THE RESPONSE IS ALWAYS NON-EMPTY JSON, and success is encoded by a BODY FIELD, not by the status.
+// The reason is written down in the spec: if we ever go through the bridge
+// transport, it does `fetch().then(r=>r.json())` WITHOUT checking `res.ok` —
+// an empty body arrives as a failure, and a 500 with a body as a success.
+// ⚠️ CORS is "simple": a text/plain body, no custom headers — otherwise
+// every request would cost TWO (preflight), and the worker's daily limit is counted per request.
 function reply(obj, status, extraHeaders) {
   const h = {
     'content-type': 'text/plain; charset=utf-8',
@@ -49,10 +49,10 @@ function reply(obj, status, extraHeaders) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: h });
 }
 
-// ⚠️ Preflight нужен РОВНО ОДНОМУ эндпоинту — DELETE /v1/me: метод DELETE не
-// входит в «простые» по спецификации CORS и предполётный запрос неизбежен.
-// Это осознанно: удаление своих данных случается раз в жизни игрока и не
-// лежит на горячем пути, в отличие от отправки счёта.
+// ⚠️ Preflight is needed by EXACTLY ONE endpoint — DELETE /v1/me: the DELETE method is not
+// among the "simple" ones per the CORS specification and the preflight request is unavoidable.
+// This is deliberate: deleting one's own data happens once in a player's lifetime and does not
+// lie on the hot path, unlike submitting the score.
 function preflight() {
   return new Response(null, { status: 204, headers: {
     'access-control-allow-origin': '*',
@@ -66,12 +66,12 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 const isHex64 = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
 const intOr = (v, d) => (Number.isFinite(v) ? Math.floor(v) : d);
 
-// ===== ПОДПИСЬ =====
-// HMAC-SHA256 по строке `id.s.q.t`. Ключ клиент присылает ОДИН раз, при
-// создании строки (trust-on-first-use под TLS).
-// ⚠️⚠️ КЛЮЧ ПРИНИМАЕТСЯ ТОЛЬКО ПРИ СОЗДАНИИ. Если разрешить присылать `k`
-// существующей строке, любой желающий перезапишет чужой ключ своим и заберёт
-// строку себе — это была бы дыра размером со всю защиту.
+// ===== SIGNATURE =====
+// HMAC-SHA256 over the string `id.s.q.t`. The client sends the key ONCE, when
+// the row is created (trust-on-first-use over TLS).
+// ⚠️⚠️ THE KEY IS ACCEPTED ONLY ON CREATION. If we allowed sending `k` for
+// an existing row, anyone who wished would overwrite someone else's key with their own and take
+// the row for themselves — that would be a hole the size of the whole protection.
 async function hmacHex(keyHex, msg) {
   const raw = new Uint8Array(keyHex.match(/../g).map((h) => parseInt(h, 16)));
   const key = await crypto.subtle.importKey(
@@ -79,8 +79,8 @@ async function hmacHex(keyHex, msg) {
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
-// Сравнение за постоянное время: обычный `===` на строках выходит раньше при
-// первом несовпадении и по времени ответа подсказывает подбор побайтно.
+// Constant-time comparison: a plain `===` on strings exits early at the
+// first mismatch and, through the response time, hints at byte-by-byte guessing.
 function sameSig(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
   let d = 0;
@@ -88,35 +88,35 @@ function sameSig(a, b) {
   return d === 0;
 }
 
-// ===== ЛЕСЕНКА РАНГОВ =====
-// Массив счетов на местах 100, 200, 300… (по убыванию). Оценка места стоит
-// НОЛЬ строк D1 — это и есть то, из-за чего смета сходится: точный
-// `COUNT(*) WHERE s > ?` для игрока на 30 000-м месте стоил бы 30 000
-// прочитанных строк на КАЖДОЙ отправке.
-// ⚠️⚠️ ОТДАЁТ ГРАНИЦУ «НЕ ЛУЧШЕ N», А НЕ МЕСТО, И `null` — ЗАКОННЫЙ ОТВЕТ.
-// Здесь стояло `return 1`, и это была не опечатка, а ЛОЖЬ УВЕРЕННОСТИ, причём
-// ровно в тот период, когда на таблицу и будут смотреть:
-//   • лесенка строится по каждому СОТОМУ месту, значит при базе меньше сотни
-//     игроков она ПУСТА — и «место 1» получал КАЖДЫЙ, все первые недели после
-//     запуска (поймано живым прогоном клиента, диагноз диспетчера 2026-08-09);
-//   • тот же дефект жил на шаг глубже и пережил бы починку первого: игрок ВЫШЕ
-//     первой ступени (`lo === 0`) тоже получал единицу, хотя про него известно
-//     лишь «где-то в первой сотне».
-// Формально контракт был честен — рядом едет `exact: 0`. Но поле называется
-// `rank`, и живой потребитель прочёл его как настоящее место в первый же день.
-// ⚠️ ЗНАЧЕНИЕ, КОТОРОЕ НЕЛЬЗЯ ПЕРЕПУТАТЬ, ЛУЧШЕ ПОМЕТКИ, КОТОРУЮ МОЖНО НЕ
-// ЗАМЕТИТЬ: где границы нет — отдаём `null`, и экран сам решает, что показать.
-// ⛔ ТОЧНОЕ МЕСТО ЖИВЁТ ТОЛЬКО В `/v1/me` (`exact: 1`). Оценка — подсказка, и
-// стоит она НОЛЬ строк D1; ради этого лесенка и заведена.
+// ===== RANK LADDER =====
+// An array of scores at places 100, 200, 300… (descending). Estimating the place costs
+// ZERO D1 rows — and that is exactly what makes the budget add up: an exact
+// `COUNT(*) WHERE s > ?` for a player at place 30,000 would cost 30,000
+// rows read on EVERY submission.
+// ⚠️⚠️ IT RETURNS THE BOUND "NO BETTER THAN N", NOT THE PLACE, AND `null` IS A LEGITIMATE ANSWER.
+// There used to be `return 1` here, and that was not a typo but a LIE OF CONFIDENCE, and
+// exactly during the period when the table is going to be looked at:
+//   • the ladder is built from every HUNDREDTH place, so with a base of fewer than a hundred
+//     players it is EMPTY — and EVERYONE got "place 1", for all the first weeks after
+//     launch (caught by a live run of the client, the dispatcher's diagnosis 2026-08-09);
+//   • the same defect lived one step deeper and would have survived fixing the first one: a player ABOVE
+//     the first rung (`lo === 0`) also got a one, although all that is known about him
+//     is "somewhere in the first hundred".
+// Formally the contract was honest — `exact: 0` travels alongside. But the field is called
+// `rank`, and a live consumer read it as the real place on the very first day.
+// ⚠️ A VALUE THAT CANNOT BE CONFUSED IS BETTER THAN A MARKER THAT CAN BE
+// OVERLOOKED: where there is no bound we return `null`, and the screen itself decides what to show.
+// ⛔ THE EXACT PLACE LIVES ONLY IN `/v1/me` (`exact: 1`). The estimate is a hint, and
+// it costs ZERO D1 rows; that is what the ladder was created for.
 function estimateRank(ladder, score) {
-  if (!ladder || !ladder.length) return null;   // меньше сотни игроков — сказать нечего
+  if (!ladder || !ladder.length) return null;   // fewer than a hundred players — nothing to say
   let lo = 0, hi = ladder.length;
-  while (lo < hi) {                       // ищем первую ступень НИЖЕ нашего счёта
+  while (lo < hi) {                       // look for the first rung BELOW our score
     const mid = (lo + hi) >> 1;
     if (ladder[mid] >= score) lo = mid + 1; else hi = mid;
   }
-  // прошли lo ступеней -> мы ниже lo*100. При lo === 0 мы выше первой ступени,
-  // то есть в первой сотне, а НАСКОЛЬКО — лесенка не знает: это тоже `null`.
+  // we passed lo rungs -> we are below lo*100. When lo === 0 we are above the first rung,
+  // that is, in the first hundred, but HOW FAR — the ladder does not know: that is `null` too.
   return lo === 0 ? null : lo * LADDER_STEP;
 }
 
@@ -148,14 +148,14 @@ async function postScore(req, env) {
 
   const msg = id + '.' + s + '.' + q + '.' + t;
   if (!row) {
-    // ПЕРВАЯ отправка: ключ приходит открыто (TOFU). Строка создаётся здесь,
-    // то есть при ПЕРВОЙ ПОБЕДЕ — зашедший на десять секунд гость строку
-    // не плодит.
+    // The FIRST submission: the key arrives in the clear (TOFU). The row is created here,
+    // that is, on the FIRST WIN — a guest who dropped in for ten seconds does not
+    // spawn a row.
     if (!isHex64(body.k)) return reply({ err: 'nokey' }, 400);
     if (!sameSig(await hmacHex(body.k, msg), body.sig)) return reply({ err: 'sig' }, 401);
-    // ⚠️ `c` (когда строка создана) ПИШЕМ, но механикой больше НЕ ЧИТАЕМ: на нём
-    // держался возрастной потолок, и он снят. Оставлен для ручной модерации —
-    // отличить свежую строку от давней иначе нечем, а стоит он один INTEGER.
+    // ⚠️ `c` (when the row was created) IS WRITTEN, but the mechanics NO LONGER READ it: the
+    // age ceiling rested on it, and it has been removed. Kept for manual moderation —
+    // there is no other way to tell a fresh row from an old one, and it costs one INTEGER.
     const born = now;
     await env.DB.prepare(
       'INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
@@ -166,53 +166,53 @@ async function postScore(req, env) {
 
   if (!sameSig(await hmacHex(row.k, msg), body.sig)) return reply({ err: 'sig' }, 401);
 
-  // ⚠️ ИДЕМПОТЕНТНЫЙ ПОВТОР, А НЕ ОШИБКА: клиент шлёт АБСОЛЮТНОЕ значение,
-  // поэтому ретрай безопасен по построению — отдаём сохранённое состояние.
+  // ⚠️ AN IDEMPOTENT RETRY, NOT AN ERROR: the client sends an ABSOLUTE value,
+  // so a retry is safe by construction — we return the stored state.
   if (q <= row.q) {
     const snap = await readSnap(env, 'ladder');
     return reply({ ok: 1, dup: 1, s: row.s, rank: estimateRank(snap && snap.v, row.s), exact: 0, n: row.n }, 409);
   }
   if (now - row.u < RATE_SEC) {
-    // ⚠️⚠️ `retry` — СКОЛЬКО СЕКУНД ЖДАТЬ, И ЭТО НЕСУЩЕЕ ПОЛЕ, А НЕ УДОБСТВО.
-    // Без него клиент вынужден ЗНАТЬ наш `RATE_SEC`, то есть держать копию
-    // серверной константы у себя — а копия совпадает в момент написания и
-    // расходится потом (за сессию 2026-08-07/09 проект поймал этот закон
-    // четырежды). Здесь величина едет ОТ ТОГО, КТО ЕЮ ВЛАДЕЕТ.
-    // ⚠️ Зачем вообще ждать, а не выбрасывать: типичный путь владельца —
-    // победа, а сразу за ней покупка множителя на экране победы. Вторая
-    // отправка попадает внутрь окна, и если её потерять, «трата опускает в
-    // таблице сразу» не случится ровно в том сценарии, ради которого всё
-    // и делалось.
+    // ⚠️⚠️ `retry` — HOW MANY SECONDS TO WAIT, AND IT IS A LOAD-BEARING FIELD, NOT A CONVENIENCE.
+    // Without it the client is forced to KNOW our `RATE_SEC`, that is, to keep a copy
+    // of the server constant on its side — and a copy matches at the moment it is written and
+    // diverges later (during the 2026-08-07/09 session the project caught this law
+    // four times). Here the value travels FROM WHOEVER OWNS IT.
+    // ⚠️ Why wait at all instead of discarding: the owner's typical path is
+    // a win, and right after it a multiplier purchase on the win screen. The second
+    // submission falls inside the window, and if it is lost, "spending drops you in
+    // the table immediately" will not happen in exactly the scenario for which all this
+    // was built.
     const snap = await readSnap(env, 'ladder');
     return reply({ ok: 0, err: 'rate', retry: RATE_SEC - (now - row.u),
       s: row.s, rank: estimateRank(snap && snap.v, row.s), n: row.n }, 429);
   }
 
-  // ===== СЧЁТ ПИШЕТСЯ КАК ПРИСЛАН =====
-  // Здесь был возрастной потолок: рост обрезался «по доверию», а превысившая
-  // строка пряталась из общей таблицы. Снят целиком по решению владельца
-  // 2026-08-09 (см. шапку файла) — сервер больше не спорит с клиентом о числе.
-  // ⚠️ ФЛАГ `f` ЗДЕСЬ НЕ ТРОГАЕМ ВОВСЕ, НИ В КАКУЮ СТОРОНУ. Он теперь
-  // принадлежит ТОЛЬКО ручной модерации (`/admin/hide`): выставлять его стало
-  // некому, а снимать отправкой — значит дать спрятанному руками вернуть себя
-  // самому первой же победой. Единственный владелец флага — админ.
+  // ===== THE SCORE IS WRITTEN AS SENT =====
+  // There used to be an age ceiling here: growth was clamped "by trust", and a row that
+  // exceeded it was hidden from the public table. Removed entirely by the owner's decision
+  // 2026-08-09 (see the file header) — the server no longer argues with the client about the number.
+  // ⚠️ WE DO NOT TOUCH THE `f` FLAG HERE AT ALL, IN EITHER DIRECTION. It now
+  // belongs ONLY to manual moderation (`/admin/hide`): there is no longer anyone to set it,
+  // and clearing it by a submission would mean letting someone hidden by hand bring himself
+  // back with the very first win. The only owner of the flag is the admin.
   await env.DB.prepare('UPDATE p SET n=?, a=?, s=?, u=?, q=? WHERE id=?')
     .bind(n, Math.min(49, Math.max(1, a)), s, now, q, id).run();
 
   const snap = await readSnap(env, 'ladder');
-  // ⚠️ Скрытому руками место ВСЁ РАВНО отдаём: узнав о скрытии, он просто
-  // заведёт новый id. Из ОБЩЕЙ таблицы он при этом исчез — выборки фильтруют
-  // по `f = 0`.
+  // ⚠️ We STILL return the place to someone hidden by hand: on learning about the hiding, he will simply
+  // create a new id. From the PUBLIC table he has disappeared anyway — the queries filter
+  // by `f = 0`.
   return reply({ ok: 1, s: s, rank: estimateRank(snap && snap.v, s), exact: 0, n: n });
 }
 
 // ===== GET /v1/top =====
-// Читается ИЗ СНИМКА, а не из `p`: ноль сканов боевой таблицы и кэш на краю.
+// Read FROM THE SNAPSHOT, not from `p`: zero scans of the live table and caching at the edge.
 async function getTop(env, url) {
   const page = Math.max(1, Math.min(2, intOr(Number(url.searchParams.get('p')), 1)));
-  // ⚠️ Постановка, раздел ДЕГРАДАЦИЯ: «если D1 не отвечает, /top отдаёт
-  // последний снимок». Обрыв базы НЕ должен превращаться в 503 — таблица
-  // украшение и игру не блокирует никогда.
+  // ⚠️ The spec, section DEGRADATION: "if D1 does not respond, /top returns
+  // the last snapshot". A database outage must NOT turn into a 503 — the table is
+  // decoration and never blocks the game.
   let snap = null;
   try { snap = await readSnap(env, 'top'); }
   catch (e) { snap = null; }
@@ -224,9 +224,9 @@ async function getTop(env, url) {
 }
 
 // ===== GET /v1/me =====
-// Точное место: база по лесенке + пересчёт ВНУТРИ корзины (<=100 строк),
-// плюс соседи keyset-запросами. OFFSET не используем нигде — он сканирует
-// всё, что перепрыгивает, и в D1 это оплаченные строки.
+// The exact place: the base from the ladder + a recount INSIDE the bucket (<=100 rows),
+// plus the neighbours via keyset queries. We do not use OFFSET anywhere — it scans
+// everything it jumps over, and in D1 those are billed rows.
 async function getMe(env, url) {
   const id = url.searchParams.get('id');
   const t = intOr(Number(url.searchParams.get('t')), NaN);
@@ -244,15 +244,15 @@ async function getMe(env, url) {
   for (let i = 0; i < ladder.length; i++) {
     if (ladder[i] >= row.s) { base = (i + 1) * LADDER_STEP; bound = ladder[i]; } else break;
   }
-  // Кто выше меня, но не выше границы корзины — таких по построению <= ~100.
+  // Those who are above me but not above the bucket boundary — by construction there are <= ~100 of them.
   const cnt = await env.DB.prepare(
     'SELECT COUNT(*) AS c FROM p WHERE f=0 AND s>0 AND (s > ? OR (s = ? AND u < ?))'
     + (bound === null ? '' : ' AND s <= ?'))
     .bind(...(bound === null ? [row.s, row.s, row.u] : [row.s, row.s, row.u, bound])).first();
-  // ⚠️⚠️ МИНУС ЕДИНИЦА — НЕ КОСМЕТИКА. Игрок, стоящий РОВНО на границе
-  // корзины (место (i+1)·100), попадает в счёт ДВАЖДЫ: он уже учтён в `base`
-  // и снова проходит по условию `s <= bound`. Без вычета все, кто ниже
-  // сотого места, видели место на единицу хуже настоящего.
+  // ⚠️⚠️ THE MINUS ONE IS NOT COSMETIC. A player standing EXACTLY on the bucket
+  // boundary (place (i+1)·100) is counted TWICE: he is already included in `base`
+  // and passes the `s <= bound` condition again. Without the subtraction everyone below
+  // the hundredth place saw a place one worse than the real one.
   const exactRank = base + 1 + ((cnt && cnt.c) || 0) - (bound === null ? 0 : 1);
 
   const above = await env.DB.prepare(
@@ -270,7 +270,7 @@ async function getMe(env, url) {
 }
 
 // ===== DELETE /v1/me =====
-// Единственный физически возможный «удалите мои данные»: почты у нас нет.
+// The only physically possible "delete my data": we have no email.
 async function deleteMe(env, url) {
   const id = url.searchParams.get('id');
   const t = intOr(Number(url.searchParams.get('t')), NaN);
@@ -278,7 +278,7 @@ async function deleteMe(env, url) {
   if (!id || !Number.isFinite(t) || !isHex64(sig)) return reply({ err: 'form' }, 400);
   if (Math.abs(t - nowSec()) > SKEW_SEC) return reply({ err: 'skew' }, 400);
   const row = await env.DB.prepare('SELECT k FROM p WHERE id = ?').bind(id).first();
-  if (!row) return reply({ ok: 1, gone: 1 });         // уже нет — это успех
+  if (!row) return reply({ ok: 1, gone: 1 });         // already gone — that is a success
   if (!sameSig(await hmacHex(row.k, id + '.del.' + t), sig)) return reply({ err: 'sig' }, 401);
   await env.DB.prepare('DELETE FROM p WHERE id = ?').bind(id).run();
   return reply({ ok: 1, gone: 1 });
@@ -290,15 +290,15 @@ async function adminHide(req, env) {
   if (!env.ADMIN_TOKEN || auth !== 'Bearer ' + env.ADMIN_TOKEN) return reply({ err: 'auth' }, 401);
   let b; try { b = JSON.parse(await req.text()); } catch (e) { return reply({ err: 'form' }, 400); }
   if (!b || typeof b.id !== 'string') return reply({ err: 'form' }, 400);
-  const f = b.show ? 0 : 2;   // 2 = РУЧНОЕ, чистой отправкой не снимается
+  const f = b.show ? 0 : 2;   // 2 = MANUAL, not cleared by a plain submission
   await env.DB.prepare('UPDATE p SET f=? WHERE id=?').bind(f, b.id).run();
   return reply({ ok: 1, id: b.id, f: f });
 }
 
 // ===== CRON =====
-// ⚠️ Агрегация делается В SQL, а не перебором в JS: время запроса D1 в
-// CPU воркера не входит, а перебор 50 000 элементов может съесть бесплатные
-// 10 мс CPU целиком.
+// ⚠️ Aggregation is done IN SQL, not by iterating in JS: D1 query time does not count
+// towards the worker's CPU, while iterating over 50,000 elements can eat the free
+// 10 ms of CPU entirely.
 async function buildSnapshot(env) {
   const now = nowSec();
   const top = await env.DB.prepare(
@@ -334,9 +334,9 @@ export default {
       if (url.pathname === '/admin/hide'&& req.method === 'POST')   return await adminHide(req, env);
       return reply({ err: 'route' }, 404);
     } catch (e) {
-      // ⚠️ Даже на сбое тело непустое и это НЕ 200: клиент оставит число в
-      // слоте и повторит на следующей естественной точке, а не решит, что
-      // «сохранилось».
+      // ⚠️ Even on a failure the body is non-empty and this is NOT 200: the client will keep the number in
+      // its slot and retry at the next natural point, instead of deciding that
+      // it "was saved".
       return reply({ err: 'srv' }, 503);
     }
   },
@@ -344,6 +344,6 @@ export default {
     if (event.cron === '0 4 * * *') return void await retention(env);
     await buildSnapshot(env);
   },
-  // экспорт для тестов — боевой путь их не использует
+  // export for tests — the production path does not use them
   _internals: { estimateRank, hmacHex, buildSnapshot, retention, sameSig, RATE_SEC },
 };

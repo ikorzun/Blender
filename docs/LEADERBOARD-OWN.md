@@ -1,367 +1,367 @@
-# СВОЯ ТАБЛИЦА ЛИДЕРОВ — постановка (2026-08-07)
+# OUR OWN LEADERBOARD — specification (2026-08-07)
 
-Решение владельца: «делаем свою» + «гостю нужно присваивать уникальный id и всегда показывать, условно автологин в игре, но не гугловый».
-Собрано разведкой по коду (4 параллельных агента) + сведение. Ниже — рабочая спецификация.
+The owner's decision: «we're making our own» + «a guest needs to be assigned a unique id and always shown, effectively auto-login in the game, but not a Google one».
+Assembled by code reconnaissance (4 parallel agents) + consolidation. Below is the working specification.
 
-## ЧТО РАНЖИРУЕМ
-## Какое число ранжируем
+## WHAT WE RANK
+## Which number we rank
 
-**Ранжируем `leaderboardScore()` — `src/app/77-save.js:285`.** Формула уже написана и менять её НЕ НУЖНО:
+**We rank `leaderboardScore()` — `src/app/77-save.js:285`.** The formula is already written and does NOT need to be changed:
 `leaderboardScore() = max(0, se − max(0, ss − tu))`
 
-Простыми словами: это всё, что игрок **наиграл**, минус то, что он **потратил сверх купленного**. Пополнения (`tu`) сначала съедаются тратами, и только избыток трат роняет наигранное — поэтому покупка звёзд место НЕ поднимает («фикс A», решение владельца 2026-07-24), а трата на буст/анлок место роняет. Это ровно «Форбс»-модель, которую владелец подтвердил дословно 2026-08-07 («делаем свою», CLAUDE.md, «РЕШЕНИЯ ВЛАДЕЛЬЦА 2026-08-07», п.1).
+In plain words: this is everything the player has **earned in play**, minus what he **spent above what was topped up**. Top-ups (`tu`) are eaten by spending first, and only the excess of spending drags down what was played — that is why buying stars does NOT raise your place («fix A», the owner's decision 2026-07-24), while spending on a boost/unlock drops your place. This is exactly the «Forbes» model, which the owner confirmed verbatim on 2026-08-07 («we're making our own», CLAUDE.md, «OWNER'S DECISIONS 2026-08-07», item 1).
 
-**НЕ брать `starBalance()` (77-save.js:278)** — это кошелёк (`se+tu−ss`). Сегодня оба числа совпадают, потому что живых источников `tu` нет с 2026-07-27 (77-save.js:34-41, паки звёзд удалены словом владельца; `addStars` зовётся только из dev-ручки `starGrant`, 99-main.js:1068). Но если пополнения вернутся, разница станет «место покупается или нет», а таблицу задним числом не почистить. Публичная ручка уже проброшена: `__game.leaderboardScore` (99-main.js:1055).
+**Do NOT take `starBalance()` (77-save.js:278)** — that is the wallet (`se+tu−ss`). Today both numbers coincide, because there have been no live sources of `tu` since 2026-07-27 (77-save.js:34-41, the star packs were removed by the owner's word; `addStars` is called only from the dev handle `starGrant`, 99-main.js:1068). But if top-ups come back, the difference becomes «is a place bought or not», and the table cannot be cleaned up after the fact. The public handle is already exposed: `__game.leaderboardScore` (99-main.js:1055).
 
-## ⚠️ ГЛАВНАЯ ПРАВКА К ДОСЬЕ: момент отправки
+## ⚠️ THE MAIN CORRECTION TO THE DOSSIER: the moment of submission
 
-Досье (блок про сервис) предлагает вешать отправку на `noteWin()` в 78-ads.js:502-514. **Так «падение» НЕ ЗАРАБОТАЕТ.** `noteWin` зовётся ровно раз за победу (единственный вызов — 80-gameplay.js:657), поэтому покупка буста в меню уронит баланс мгновенно, а таблица останется на значении конца уровня. Это записано как ОСОЗНАННОЕ решение диспетчера 2026-07-29 (комментарий 78-ads.js:508-512) — и именно оно отменяется задачей владельца.
+The dossier (the block about the service) proposes hanging the submission on `noteWin()` in 78-ads.js:502-514. **That way «dropping» WILL NOT WORK.** `noteWin` is called exactly once per win (the only call is 80-gameplay.js:657), so buying a boost in the menu will drop the balance instantly, while the table will stay at the end-of-level value. This is recorded as a DELIBERATE decision of the dispatcher 2026-07-29 (the comment at 78-ads.js:508-512) — and it is exactly that decision which the owner's task cancels.
 
-**Решение: подписка `onStarsChange(cb)` (77-save.js:270-276).** Одна подписка накрывает ВСЕ точки изменения баланса, потому что `fireStarsChange()` зовут все писатели:
-- `bankLevelScore` (77-save.js:344) — победа;
-- `bankLive` (:318) — досрочный банк при покупке;
-- `spendStars` (:364), `buyBoost` (:408), `purchaseUnlock` (:570) — траты;
-- `bridgeSyncSave` (:132) — приезд облачной копии.
+**The solution: the `onStarsChange(cb)` subscription (77-save.js:270-276).** One subscription covers ALL the points where the balance changes, because `fireStarsChange()` is called by every writer:
+- `bankLevelScore` (77-save.js:344) — a win;
+- `bankLive` (:318) — early banking on a purchase;
+- `spendStars` (:364), `buyBoost` (:408), `purchaseUnlock` (:570) — spending;
+- `bridgeSyncSave` (:132) — the arrival of the cloud copy.
 
-Ядро (`80-gameplay.js`) не правится вовсе — тот же приём, которым Интеграция уже сделала отправку без вторжения в чужую зону. Троттл: дедуп по последнему отправленному значению (образец `lbLast`, 78-ads.js:441/468) + серверный лимит 1 запись в 20 с (поле `u` той же строки).
+The core (`80-gameplay.js`) is not touched at all — the same technique with which Integration already built the submission without intruding into someone else's zone. Throttle: dedup by the last submitted value (the pattern `lbLast`, 78-ads.js:441/468) + a server-side limit of 1 write per 20 s (the `u` field of the same row).
 
-## Три источника расхождения «таблица ≠ кошелёк» — что с каждым
+## Three sources of the «table ≠ wallet» discrepancy — what to do with each
 
-- **D1 (сервер хранит максимум)** — на СВОЁМ сервере исчезает по построению: пишем ПОСЛЕДНЕЕ значение (`UPDATE`, не `max`). Остаётся только на второй вкладке — платформенной, и там это подпись «рекорд за всё время», уже санкционированная владельцем 2026-08-06.
-- **D2 (непотраченные пополнения `max(0, tu−ss)`)** — тождественно ноль, источников `tu` нет. Если владельцу покажут расхождение, `tu` тут ни при чём.
-- **D3 (незабанкованный счёт текущего уровня)** — реален и не лечится: чип в игре и кошелёк в меню показывают `liveBalance() = starBalance() + liveScoreDenom()` (77-save.js:299-307; потребители 85-hud.js:630 и :1406-1417), а в таблицу уходит только забанкованное. Посреди уровня игрок увидит в кошельке больше, чем в таблице, ровно на `liveScoreDenom()` (`SCORE_DENOM = 10`, 00-config.js:99). **Лечим подписью на экране «в таблице — по итогам уровня», а не отправкой liveBalance** (иначе таблица дёргается на каждый матч).
+- **D1 (the server stores the maximum)** — on OUR OWN server it disappears by construction: we write the LAST value (`UPDATE`, not `max`). It remains only on the second tab — the platform one — and there it is the caption «all-time record», already sanctioned by the owner on 2026-08-06.
+- **D2 (unspent top-ups `max(0, tu−ss)`)** — identically zero, there are no sources of `tu`. If a discrepancy is shown to the owner, `tu` has nothing to do with it.
+- **D3 (the unbanked score of the current level)** — real and not curable: the chip in the game and the wallet in the menu show `liveBalance() = starBalance() + liveScoreDenom()` (77-save.js:299-307; the consumers are 85-hud.js:630 and :1406-1417), while only what has been banked goes into the table. In the middle of a level the player will see more in the wallet than in the table, by exactly `liveScoreDenom()` (`SCORE_DENOM = 10`, 00-config.js:99). **We cure this with a caption on the screen «in the table — as of the level's result», not by submitting liveBalance** (otherwise the table twitches on every match).
 
-## Две вкладки, а не одна
+## Two tabs, not one
 
-Владелец 2026-08-07, п.1 дословно: «платформенная таблица остаётся второй вкладкой "рекорд за всё время" (она бесплатная, код готов)». Значит:
-- **Вкладка 1 «Сейчас»** — наш сервис, `leaderboardScore()`, ПОСЛЕДНЕЕ значение, падает, гости видны.
-- **Вкладка 2 «Рекорд»** — площадка, тот же `leaderboardScore()`, сервер хранит максимум, гейт авторизации остаётся (78-ads.js:456-460). Включение = одна строка `LEADERBOARD_ID` (00-config.js:379, сейчас `''`) + токен из кабинета Playgama (действие владельца).
+The owner, 2026-08-07, item 1, verbatim: «the platform table remains the second tab "all-time record" (it is free, the code is ready)». That means:
+- **Tab 1 «Now»** — our service, `leaderboardScore()`, the LAST value, it drops, guests are visible.
+- **Tab 2 «Record»** — the platform, the same `leaderboardScore()`, the server stores the maximum, the authorization gate stays (78-ads.js:456-460). Enabling = one line `LEADERBOARD_ID` (00-config.js:379, currently `''`) + a token from the Playgama dashboard (an action for the owner).
 
-## ЛИЧНОСТЬ ИГРОКА
-## Как устроен гостевой id
+## THE PLAYER'S IDENTITY
+## How the guest id is arranged
 
-**Сегодня уникального id нет вовсе.** Есть только ОТОБРАЖАЕМАЯ личность: `Save.gn` — случайное имя из списка `GUEST_NAMES` (77-save.js:200-217), аватар ВЫВОДИТСЯ из хеша этого же имени (85-hud.js:1459-1493, `AVATAR_COUNT = 49`, файлы `avatars/Avatar01..49.png`). То есть пара «имя+аватар» несёт ровно ту же энтропию, что имя, и при 100 игроках ожидается ~77 различных имён — как ключ не годится.
+**Today there is no unique id at all.** There is only a DISPLAYED identity: `Save.gn` — a random name from the `GUEST_NAMES` list (77-save.js:200-217), the avatar is DERIVED from a hash of that same name (85-hud.js:1459-1493, `AVATAR_COUNT = 49`, files `avatars/Avatar01..49.png`). That is, the «name+avatar» pair carries exactly the same entropy as the name, and with 100 players ~77 distinct names are expected — as a key it is no good.
 
-## Новое поле `Save.gid`
+## The new field `Save.gid`
 
-**Формат:** `Date.now().toString(36) + Math.random().toString(36).slice(2,8)` — прецедент уже в проекте, `sid` телеметрии (79-telemetry.js:9). Ленивая инициализация при первом обращении, как у `guestName()` (77-save.js:218-224), чтобы старые сейвы получили id при первом запуске.
+**Format:** `Date.now().toString(36) + Math.random().toString(36).slice(2,8)` — the precedent is already in the project, the telemetry `sid` (79-telemetry.js:9). Lazy initialization on the first access, as in `guestName()` (77-save.js:218-224), so that old saves get an id on the first launch.
 
-**Правило мержа — МИНИМУМ СТРОКИ, в ОБЕИХ ветках `mergeSave`.** Почему именно min: base36-метка времени остаётся 8-символьной до 2059 года, поэтому лексикографический минимум = самый СТАРЫЙ id. Правило идемпотентно, коммутативно, ассоциативно — оба устройства СХОДЯТСЯ к одному значению.
+**The merge rule — the MINIMUM OF THE STRING, in BOTH branches of `mergeSave`.** Why exactly min: the base36 timestamp stays 8 characters long until the year 2059, therefore the lexicographic minimum = the OLDEST id. The rule is idempotent, commutative, associative — both devices CONVERGE to one and the same value.
 
-⚠️ **НЕ копировать правило `Save.gn`** (`into.gn = into.gn || from.gn`, 77-save.js:63 и :91). Оно по построению НЕ сходится: каждое устройство навсегда держит своё, а облачная копия перезаписывается тем, кто коммитил последним. Скопируем — получим ту же болезнь под новым именем: две строки в таблице на одного человека.
+⚠️ **Do NOT copy the `Save.gn` rule** (`into.gn = into.gn || from.gn`, 77-save.js:63 and :91). By construction it does NOT converge: each device keeps its own forever, and the cloud copy is overwritten by whoever committed last. Copy it and we get the same disease under a new name: two rows in the table for one person.
 
-**Чек-лист трёх мест — прямо в комментарии файла (77-save.js:11-12):**
-1. литерал `Save` (77-save.js:48);
-2. **ОБЕ** ветки `mergeSave` — перенос при `from.gen > gen` (:54-72) и мерж при равных (:74-111);
-3. `resetProgress` (:416-424) — **gid НЕ обнуляем** (прецеденты: `gn` и `naf` там не перечислены).
+**A checklist of three places — right in the file's comment (77-save.js:11-12):**
+1. the `Save` literal (77-save.js:48);
+2. **BOTH** branches of `mergeSave` — the carry-over when `from.gen > gen` (:54-72) and the merge when they are equal (:74-111);
+3. `resetProgress` (:416-424) — **we do NOT reset gid** (the precedents: `gn` and `naf` are not listed there).
 
-**Сброс прогресса шлёт счёт 0**, и игрок честно падает на дно таблицы. Это не дыра, а заявленная механика — и она закрывает старую проблему из LEADERBOARD-PLAN «сбросил прогресс, а рекорд на площадке остался навсегда».
+**Resetting progress sends a score of 0**, and the player honestly falls to the bottom of the table. This is not a hole but the declared mechanic — and it closes the old problem from LEADERBOARD-PLAN «I reset my progress, but the record on the platform stayed forever».
 
-## Что видит игрок
+## What the player sees
 
-Имя-животное `Save.gn` + аватар из хеша — как сейчас, без изменений в показе. `gid` игроку не показывается никогда, это ключ строки на сервере. Владелец 2026-08-07, п.2, дословно: «гостю нужно присваивать уникальный id и всегда показывать, условно автологин в игре, но не гугловый» — то есть авторизации площадки не ждём, id выдаём сами при первом запуске.
+The animal name `Save.gn` + the avatar from the hash — as it is now, no changes in the display. `gid` is never shown to the player, it is the key of the row on the server. The owner, 2026-08-07, item 2, verbatim: «a guest needs to be assigned a unique id and always shown, effectively auto-login in the game, but not a Google one» — that is, we do not wait for the platform's authorization, we issue the id ourselves on the first launch.
 
-## Границы честности — сказать владельцу прямо
+## The limits of honesty — tell the owner straight
 
-- **`gid` едет в облако только внутри объекта `Save`** — это единственный канал (`commitSave` → `bridge.storage.set('mixer_save_v1')`, 77-save.js:116-135). Поле мимо `Save` облака не увидит никогда.
-- **Переустановку и чистку кэша Safari переживает только то, что легло в облако ПЛОЩАДКИ** (docs/PROGRESS-SAVE.md:31-45): Playgama и Yandex — да, настоящее облако; Poki и GameDistribution — облака нет вовсе, всё в localStorage; CrazyGames — неизвестно. **Клиентского решения не существует.** На Poki чистка кэша = новая личность и осиротевшая строка (умрёт по ретенции 180 дней).
-- **ДЫРА, о которой владелец, вероятно, не знает: номер уровня НЕ в сейве.** `mixer_level` — отдельный ключ localStorage (40-items.js:12; пишется 80-gameplay.js:656 и 99-main.js:1138), в объекте `Save` его нет. То есть даже на Playgama/Yandex с рабочим облаком игрок перенесёт баланс, звёзды, накопления и покупки — **но начнёт с 1-го уровня.** Если «автологин ради сохранения прогресса» — это надо либо чинить (перенести в `Save` с max-мержем по тому же чек-листу), либо честно назвать ограничением. Вынесено в вопросы владельцу.
-- **Наш `gid` до сервера ПЛОЩАДКИ не доходит вовсе** — `bridge.leaderboards.setScore(id, score)` принимает только id борда и число (78-ads.js:471), ключ строки там `x-player-id` площадки. Поэтому на вкладке «Рекорд» гейт авторизации остаётся: без него получим строку на устройство и ещё по строке на каждую чистку кэша, причём с чужим именем («Aquamarine Guppy»), а почистить нечем — удаления записей в SDK нет.
+- **`gid` travels to the cloud only inside the `Save` object** — that is the only channel (`commitSave` → `bridge.storage.set('mixer_save_v1')`, 77-save.js:116-135). A field outside `Save` will never see the cloud.
+- **Only what has landed in the PLATFORM's cloud survives a reinstall and a Safari cache clear** (docs/PROGRESS-SAVE.md:31-45): Playgama and Yandex — yes, a real cloud; Poki and GameDistribution — no cloud at all, everything is in localStorage; CrazyGames — unknown. **A client-side solution does not exist.** On Poki a cache clear = a new identity and an orphaned row (it will die by the 180-day retention).
+- **A HOLE that the owner probably does not know about: the level number is NOT in the save.** `mixer_level` is a separate localStorage key (40-items.js:12; written by 80-gameplay.js:656 and 99-main.js:1138), it is not in the `Save` object. That is, even on Playgama/Yandex with a working cloud the player will carry over the balance, the stars, the accumulations and the purchases — **but will start from level 1.** If it is «auto-login for the sake of saving progress», this must either be fixed (move it into `Save` with a max-merge per the same checklist) or honestly named as a limitation. Moved out into the questions for the owner.
+- **Our `gid` does not reach the PLATFORM's server at all** — `bridge.leaderboards.setScore(id, score)` accepts only the board id and a number (78-ads.js:471), the row key there is the platform's `x-player-id`. That is why the authorization gate stays on the «Record» tab: without it we get a row per device and one more row per every cache clear, and with someone else's name at that («Aquamarine Guppy»), and there is nothing to clean it up with — the SDK has no record deletion.
 
-## ⚠️ Противоречие канону, не закрывать теорией
+## ⚠️ A contradiction with the canon, do not close it with theory
 
-Завендоренный bridge v2.0.2 (модуль 3941) **персистит** гостевой id в `localStorage` (ключ `bridge-player-guest-id`), а канон трижды утверждает «гостевой id новый на каждую сессию» (CLAUDE.md «ЕДИНЫЙ БАЛАНС»; docs/LEADERBOARD-PLAN.md:166, :186-188; комментарий 78-ads.js:457-458). Канон НЕ переписываем — нужен один живой перезамер на стенде. **На наш выбор это не влияет:** localStorage всё равно не переживает чистку кэша Safari, поэтому ключ SDK нашим хранилищем быть не может в любом случае. И записывать в приватный ключ чужого SDK мы не будем — это недокументированный контракт, отвалится на обновлении бриджа.
+The vendored bridge v2.0.2 (module 3941) **persists** the guest id in `localStorage` (the key `bridge-player-guest-id`), while the canon asserts three times «the guest id is new for every session» (CLAUDE.md «UNIFIED BALANCE»; docs/LEADERBOARD-PLAN.md:166, :186-188; the comment at 78-ads.js:457-458). We do NOT rewrite the canon — one live re-measurement on the bench is needed. **This does not affect our choice:** localStorage does not survive a Safari cache clear anyway, so the SDK's key cannot be our storage in any case. And we are not going to write into a private key of someone else's SDK — that is an undocumented contract, it will fall off on a bridge update.
 
-## СЕРВИС
-## Хостинг
+## THE SERVICE
+## Hosting
 
-**Cloudflare Worker + D1. Второго биндинга не заводим — KV не нужен.**
+**Cloudflare Worker + D1. We do not set up a second binding — KV is not needed.**
 
-KV отпадает арифметикой, а не вкусом: бесплатный тариф — 1 000 записей в сутки, при тысяче активных игроков лимит выбирается за час; плюс в KV нет порядка, и позицию пришлось бы считать вычиткой всего списка в память воркера. Роль кэша снимка дешевле закрывает Cache API прямо в воркере.
+KV falls away by arithmetic, not by taste: the free plan is 1 000 writes per day, and with a thousand active players the limit is used up in an hour; plus KV has no ordering, and the position would have to be computed by reading the whole list into the worker's memory. The role of a snapshot cache is covered more cheaply by the Cache API right in the worker.
 
-⚠️ **Воркер вешать на СВОЙ поддомен, не на `*.workers.dev`** — часть корпоративных и школьных сетей режет workers.dev целиком, а игра живёт на чужих порталах, где сетью мы не управляем.
+⚠️ **Hang the worker on OUR OWN subdomain, not on `*.workers.dev`** — a part of corporate and school networks blocks workers.dev entirely, and the game lives on other people's portals, where we do not control the network.
 
-**Ключевой факт биллинга, вокруг которого построена вся схема: «строка чтения» в D1 — это ПРОСКАНИРОВАННАЯ строка, а не отданная.** Значит `SELECT COUNT(*) WHERE s > ?` для игрока на 30 000-м месте стоит 30 000 строк, и точный ранг на каждой отправке в бесплатный тариф не влезает никогда.
+**The key billing fact around which the whole scheme is built: a «row read» in D1 is a SCANNED row, not a returned one.** That means `SELECT COUNT(*) WHERE s > ?` for a player in 30 000th place costs 30 000 rows, and an exact rank on every submission never fits into the free plan.
 
-| | Free | Workers Paid ($5/мес) |
+| | Free | Workers Paid ($5/mo) |
 |---|---|---|
-| Запросы к воркеру | 100 000/сут | без лимита |
-| CPU на запрос | 10 мс | 30 с |
-| D1 строк чтения | 5 000 000/сут | 25 млрд/мес |
-| D1 строк записи | 100 000/сут | 50 млн/мес |
-| D1 хранилище | 5 ГБ (500 МБ на базу) | 10 ГБ на базу |
-| Cron-триггеры | 5 на аккаунт | 250 |
+| Requests to the worker | 100 000/day | no limit |
+| CPU per request | 10 ms | 30 s |
+| D1 rows read | 5 000 000/day | 25 billion/mo |
+| D1 rows written | 100 000/day | 50 million/mo |
+| D1 storage | 5 GB (500 MB per database) | 10 GB per database |
+| Cron triggers | 5 per account | 250 |
 
-**Смета:** до ~5 000 активных в сутки — бесплатный тариф с двукратным запасом. 10 000 активных — влезает при cron раз в час (~2,9 млн строк чтения, 50 тыс запросов из 100 тыс). 50 000 активных — Workers Paid $5/мес, овераджей не будет (290 млн строк чтения в месяц против включённых 25 млрд = 1% пакета). Хранилище не проблема вообще: строка ~200 Б, 50 000 игроков = 10 МБ. Трафик ~4 КБ на сессию.
+**The estimate:** up to ~5 000 active per day — the free plan with a twofold margin. 10 000 active — it fits with a cron once per hour (~2.9 million rows read, 50 thousand requests out of 100 thousand). 50 000 active — Workers Paid $5/mo, there will be no overages (290 million rows read per month against the 25 billion included = 1% of the package). Storage is not a problem at all: a row is ~200 B, 50 000 players = 10 MB. Traffic ~4 KB per session.
 
-## Схема
+## Schema
 
 ```sql
 CREATE TABLE p (
-  id TEXT PRIMARY KEY,            -- наш Save.gid
-  k  TEXT NOT NULL,               -- секрет HMAC, приходит один раз (TOFU)
-  n  TEXT NOT NULL,               -- имя-животное из GUEST_NAMES
-  a  INTEGER NOT NULL,            -- номер аватара 1..49
-  s  INTEGER NOT NULL,            -- ПОЗИЦИЯ = leaderboardScore(); ПОСЛЕДНЕЕ, не максимум
-  u  INTEGER NOT NULL,            -- unix-сек последней записи: тай-брейк + rate-limit
-  q  INTEGER NOT NULL DEFAULT 0,  -- seq клиента, монотонный (анти-реплей)
-  c  INTEGER NOT NULL,            -- создано: потолок правдоподобия по возрасту
-  cl INTEGER NOT NULL DEFAULT 0,  -- сколько раз клампили прирост
-  f  INTEGER NOT NULL DEFAULT 0   -- 1 = скрыт из общей таблицы
+  id TEXT PRIMARY KEY,            -- our Save.gid
+  k  TEXT NOT NULL,               -- the HMAC secret, arrives once (TOFU)
+  n  TEXT NOT NULL,               -- the animal name from GUEST_NAMES
+  a  INTEGER NOT NULL,            -- the avatar number 1..49
+  s  INTEGER NOT NULL,            -- POSITION = leaderboardScore(); the LAST value, not the maximum
+  u  INTEGER NOT NULL,            -- unix-sec of the last write: tie-break + rate-limit
+  q  INTEGER NOT NULL DEFAULT 0,  -- the client's seq, monotonic (anti-replay)
+  c  INTEGER NOT NULL,            -- created: the plausibility ceiling by age
+  cl INTEGER NOT NULL DEFAULT 0,  -- how many times the growth was clamped
+  f  INTEGER NOT NULL DEFAULT 0   -- 1 = hidden from the common table
 );
 CREATE INDEX ix_rank ON p(s DESC, u ASC) WHERE f = 0 AND s > 0;
 CREATE TABLE snap (k TEXT PRIMARY KEY, v TEXT NOT NULL, t INTEGER NOT NULL);
 ```
 
-Частичный индекс `WHERE f=0 AND s>0` бесплатно выкидывает из всех сканов скрытых накрутчиков и обнулившихся игроков. Тай-брейк `u ASC` (кто раньше достиг — тот выше) делает порядок детерминированным без лишнего поля.
+The partial index `WHERE f=0 AND s>0` throws hidden cheaters and zeroed-out players out of all scans for free. The `u ASC` tie-break (whoever reached it earlier stands higher) makes the ordering deterministic without an extra field.
 
-**Лесенка рангов — то, из-за чего смета сходится.** Cron раз в час одним запросом с оконной функцией собирает счёт на каждом сотом месте:
+**The ladder of ranks is what makes the estimate add up.** Once an hour a cron collects, in a single query with a window function, the score at every hundredth place:
 ```sql
 SELECT s FROM (SELECT s, ROW_NUMBER() OVER (ORDER BY s DESC, u ASC) rn
                FROM p WHERE f=0 AND s>0) WHERE rn % 100 = 0;
 ```
-При 50 000 игроков это 500 чисел (~3,5 КБ JSON). Кладём в `snap` вместе с топ-100 и общим числом игроков. ⚠️ **Агрегация делается в SQL, а не в JS** — перебор 50 000 элементов в воркере может съесть бесплатные 10 мс CPU (время самого запроса D1 в CPU воркера не входит).
+With 50 000 players that is 500 numbers (~3.5 KB of JSON). We put it into `snap` together with the top-100 and the total number of players. ⚠️ **The aggregation is done in SQL, not in JS** — iterating over 50 000 elements in the worker can eat up the free 10 ms of CPU (the time of the D1 query itself does not count towards the worker's CPU).
 
-Позиция считается двумя способами:
-- **оценка (0 строк D1)** — двоичный поиск по лесенке, `rank ≈ i*100`. Отдаётся в ответе на отправку счёта;
-- **точная (≤100 строк)** — `rank = i*100 + 1 + COUNT(*)` внутри корзины. Только при явном открытии экрана.
+The position is computed in two ways:
+- **an estimate (0 D1 rows)** — a binary search over the ladder, `rank ≈ i*100`. Returned in the response to a score submission;
+- **an exact one (≤100 rows)** — `rank = i*100 + 1 + COUNT(*)` inside the bucket. Only when the screen is explicitly opened.
 
-## Эндпоинты
+## Endpoints
 
-⚠️ **Все — «простые» CORS-запросы: тело `text/plain` с JSON внутри, без кастомных заголовков.** Игра живёт в iframe чужого домена, и `Content-Type: application/json` вызвал бы OPTIONS-preflight — каждая отправка стоила бы ДВА запроса из суточных 100 000. Кэш края экономит строки D1, но НЕ запросы.
+⚠️ **All of them are «simple» CORS requests: a `text/plain` body with JSON inside, without custom headers.** The game lives in an iframe of someone else's domain, and `Content-Type: application/json` would trigger an OPTIONS preflight — every submission would cost TWO requests out of the daily 100 000. The edge cache saves D1 rows, but NOT requests.
 
-- **`POST /v1/score`** — upsert + позиция. Запрос `{id,k(первый раз),n,a,s,q,t,sig}` ~190 Б, ответ `{s,rank,exact,n}` ~70 Б. Коды: 400 форма, 401 подпись, 409 `q` не вырос (идемпотентный повтор — возвращаем сохранённое), 429 чаще 20 с. **Строка создаётся при ПЕРВОЙ ПОБЕДЕ, а не при открытии игры** — зашедший на десять секунд гость не плодит строку.
-- **`GET /v1/top?p=1`** — без id и без подписи, поэтому кэшируется на краю целиком (`Cache-Control: public, max-age=60`) и у большинства D1 не трогает вовсе. Компактная форма массивом: `{"t":…,"n":50231,"p":1,"r":[["Kingfisher",37,182400],…50 строк]}` ≈ 1,6 КБ сырых, ~700 Б после сжатия.
-- **`GET /v1/me?id=…&t=…&sig=…`** — точный ранг + 5 соседей выше и ниже, ~400 Б. Пагинация — **keyset, не OFFSET**, и глубже 100 мест не ходим осознанно: вместо бесконечного списка игроку даётся его собственная окрестность.
-- **`DELETE /v1/me`** (подписанный) — удаление своей строки. Раз почты нет, это единственный физически возможный механизм «удалите мои данные».
-- **`POST /admin/hide`** (Bearer из secrets) — ручное скрытие и возврат.
-- **cron** `0 * * * *` снимок + лесенка, `0 4 * * *` ретенция. Два триггера из пяти.
+- **`POST /v1/score`** — upsert + position. The request `{id,k(the first time),n,a,s,q,t,sig}` ~190 B, the response `{s,rank,exact,n}` ~70 B. Codes: 400 the form, 401 the signature, 409 `q` did not grow (an idempotent retry — we return what was stored), 429 more often than 20 s. **The row is created on the FIRST WIN, not when the game is opened** — a guest who dropped in for ten seconds does not spawn a row.
+- **`GET /v1/top?p=1`** — no id and no signature, therefore it is cached at the edge in full (`Cache-Control: public, max-age=60`) and for the majority of requests does not touch D1 at all. A compact array form: `{"t":…,"n":50231,"p":1,"r":[["Kingfisher",37,182400],…50 rows]}` ≈ 1.6 KB raw, ~700 B after compression.
+- **`GET /v1/me?id=…&t=…&sig=…`** — the exact rank + 5 neighbours above and below, ~400 B. Pagination is **keyset, not OFFSET**, and we deliberately do not go deeper than 100 places: instead of an endless list the player is given his own neighbourhood.
+- **`DELETE /v1/me`** (signed) — deletion of one's own row. Since there is no email, this is the only physically possible mechanism for «delete my data».
+- **`POST /admin/hide`** (Bearer from secrets) — manual hiding and restoring.
+- **cron** `0 * * * *` the snapshot + the ladder, `0 4 * * *` retention. Two triggers out of five.
 
-## Защита от накрутки
+## Anti-cheat protection
 
-**Честная рамка: счёт считает клиент, значит абсолютной защиты нет и не будет** — она требует серверной симуляции игры. Защищаем не истину, а то, что видят остальные: таблица не должна выглядеть заваленной миллиардами.
+**An honest framing: the score is computed by the client, which means there is no absolute protection and there will not be one** — it would require a server-side simulation of the game. We protect not the truth but what everyone else sees: the table must not look buried under billions.
 
-**Ключевое упрощение: механика падения делает защиту ОДНОСТОРОННЕЙ — защищаем только рост.** Уменьшение счёта принимаем без вопросов: оно легитимно (трата) и накрутчику бесполезно. Вдвое меньше кода.
+**The key simplification: the dropping mechanic makes the protection ONE-SIDED — we protect growth only.** A decrease of the score we accept without questions: it is legitimate (spending) and useless to a cheater. Half as much code.
 
-1. **Подпись HMAC-SHA256 через WebCrypto.** Клиент генерит `id` и `key` (32 байта), первая отправка несёт ключ открыто (trust-on-first-use под TLS), дальше подписывается `id.s.q.t`. Честно: закрывает curl по чужому id, реплей перехваченного пакета и правку числа в дороге. **НЕ закрывает** того, кто откроет консоль — ключ лежит в сейве. Это подъём цены, а не стена, и называть это надо так.
-2. **Анти-реплей:** `q` монотонный (`q <= сохранённого` → 409), `|t − now| > 300 с` → 400. Шлём АБСОЛЮТНОЕ значение, а не дельту, поэтому ретраи безопасны по построению.
-3. **Частота:** не чаще 1 записи в 20 с на игрока — по полю `u` той же строки, отдельного хранилища не нужно. Поверх — правило Cloudflare Rate Limiting по IP на уровне WAF (сам IP не храним).
-4. **Серверный потолок прироста** из экономики игры (600-800 деноминированных за уровень, уровень 1,5-4 мин, честный пик ~9 ед/с): `Δ_max = 25×(now−u) + 2000`, плюс возрастной потолок `s ≤ 25×(now−c)` (новорождённый аккаунт не может стоять первым). **Клампим молча, а не отклоняем** — отклонение учит накрутчика подбирать параметры.
-5. **Три тихие ступени:** кламп → при `cl ≥ 5` или пробитии возрастного потолка `f=1` (строка исчезает из общей таблицы, **но свою позицию игрок по-прежнему видит** — не узнаёт, что пойман, и не идёт заводить новый id) → ручное удаление админ-эндпоинтом. **Банов нет:** логина нет, бан стоит одной очистки localStorage.
-6. **Не делаем:** капчи, proof-of-work, отправки реплеев партии, серверной проверки геймплея. Для казуалки без призов не окупается ничем.
+1. **An HMAC-SHA256 signature via WebCrypto.** The client generates an `id` and a `key` (32 bytes), the first submission carries the key in the clear (trust-on-first-use under TLS), after that `id.s.q.t` is signed. Honestly: it closes off curl against someone else's id, the replay of an intercepted packet and editing the number in transit. It does **NOT** close off whoever opens the console — the key lies in the save. This is raising the price, not a wall, and that is how it must be called.
+2. **Anti-replay:** `q` is monotonic (`q <= the stored one` → 409), `|t − now| > 300 s` → 400. We send the ABSOLUTE value, not a delta, therefore retries are safe by construction.
+3. **Rate:** no more often than 1 write per 20 s per player — by the `u` field of the same row, no separate storage is needed. On top of that — a Cloudflare Rate Limiting rule by IP at the WAF level (we do not store the IP itself).
+4. **A server-side ceiling on the growth** derived from the game's economy (600-800 denominated per level, a level is 1.5-4 min, an honest peak of ~9 units/s): `Δ_max = 25×(now−u) + 2000`, plus an age ceiling `s ≤ 25×(now−c)` (a newborn account cannot stand first). **We clamp silently rather than reject** — a rejection teaches the cheater to tune the parameters.
+5. **Three quiet steps:** clamping → at `cl ≥ 5` or on breaching the age ceiling `f=1` (the row disappears from the common table, **but the player still sees his own position** — he does not learn that he has been caught and does not go and create a new id) → manual deletion via the admin endpoint. **There are no bans:** there is no login, a ban costs one localStorage clear.
+6. **We do not do:** captchas, proof-of-work, submitting replays of a round, server-side validation of the gameplay. For a casual game without prizes it does not pay off in any way.
 
-## Совместимость с существующим разбором
+## Compatibility with the existing parsing
 
-Наш сервер возвращает в теле СОХРАНЁННОЕ значение (`res.score`) + явный статус — тогда клиентский разбор из 78-ads.js:472-490 переиспользуется без переписывания. И если когда-нибудь пойдём через подмену `saas.baseUrl` в конфиге бриджа, **сервер обязан ВСЕГДА отдавать непустое JSON-тело и кодировать успех полем тела, а не HTTP-статусом**: транспорт бриджа делает `fetch(...).then(r=>r.json())` без проверки `res.ok`, поэтому 403 и 500 приезжают как успех, а 204 с пустым телом — как провал. **Рекомендация: свой транспорт (fetch/sendBeacon мимо бриджа), он ни от чего в SDK не зависит** — ключи `saas.*` официально не задокументированы и могут поехать в будущей версии.
+Our server returns the STORED value in the body (`res.score`) + an explicit status — then the client-side parsing from 78-ads.js:472-490 is reused without rewriting. And if we ever go through substituting `saas.baseUrl` in the bridge's config, **the server is obliged to ALWAYS return a non-empty JSON body and to encode success in a body field, not in the HTTP status**: the bridge's transport does `fetch(...).then(r=>r.json())` without checking `res.ok`, therefore 403 and 500 arrive as success, while a 204 with an empty body arrives as a failure. **Recommendation: our own transport (fetch/sendBeacon bypassing the bridge), it does not depend on anything in the SDK** — the `saas.*` keys are not officially documented and may shift in a future version.
 
-## ДЕГРАДАЦИЯ
-## Правило номер один
+## DEGRADATION
+## Rule number one
 
-**Таблица — украшение. Она НИКОГДА не блокирует игру.** Ни одного `await` на пути победы, ни одного гейта на старте партии, на `GAME_READY` или на переходе между уровнями.
+**The table is decoration. It NEVER blocks the game.** Not a single `await` on the win path, not a single gate at the start of a round, on `GAME_READY` or on the transition between levels.
 
-Это не наше изобретение — владелец уже утвердил тот же принцип для другого канала доставки 2026-08-06, п.1, дословно: «при недоступности пака игра молча играется базой». Формулируем для лидерборда так же: игра обязана быть полноценной без него.
+This is not our invention — the owner has already approved the same principle for another delivery channel on 2026-08-06, item 1, verbatim: «if the pack is unavailable the game silently plays with the base». We formulate it for the leaderboard the same way: the game must be complete without it.
 
-## Три обкатанных образца из проекта — копируем, а не изобретаем
+## Three battle-tested patterns from the project — we copy, we do not invent
 
-1. **Молчаливый скип с причиной, определённой ДО вызова.** `lbBlockedWhy()` (78-ads.js:445-462) → `{ok:false, skipped: why}`, комментарий там же: «МОЛЧА: ни тостов, ни ошибок в консоли». Причина именно такой конструкции: и «площадка не умеет», и «сеть упала» дают пустой `Promise.reject()` без аргумента — по самому реджекту их не различить (замер 2026-07-29). Значит различаем ДО вызова.
-2. **Best-effort без ретрай-спама.** `.catch(()=>{ lbLast = null; Telemetry.ev('lb',{s:score,err:1}); })` (78-ads.js:~495) — «просто разрешаем повтор на следующей естественной точке, а не считаем "не сохранилось"».
-3. **Промис с жёстким потолком времени.** `Ads.curtainGone` — однократный промис, ВСЕГДА резолвится (сразу на `file://` и без SDK, по `game_ready`, страховкой, жёстким пределом `CURTAIN_MAX_MS`).
+1. **A silent skip with the reason determined BEFORE the call.** `lbBlockedWhy()` (78-ads.js:445-462) → `{ok:false, skipped: why}`, the comment right there: «SILENTLY: no toasts, no errors in the console». The reason for exactly this construction: both «the platform cannot do it» and «the network went down» give an empty `Promise.reject()` without an argument — they cannot be told apart by the rejection itself (measurement 2026-07-29). So we tell them apart BEFORE the call.
+2. **Best-effort without retry spam.** `.catch(()=>{ lbLast = null; Telemetry.ev('lb',{s:score,err:1}); })` (78-ads.js:~495) — «we simply allow a retry at the next natural point rather than deciding "it did not save"».
+3. **A promise with a hard time ceiling.** `Ads.curtainGone` — a one-shot promise that ALWAYS resolves (immediately on `file://` and without the SDK, on `game_ready`, by the safety net, by the hard limit `CURTAIN_MAX_MS`).
 
-## Клиент
+## The client
 
-- `fetch` с `AbortController` и таймаутом **4 с**, ретраев внутри сессии нет.
-- **Исходящий счёт — ОДИН СЛОТ, а не очередь.** Число абсолютное, значит хранить надо только последнее: неотправленное лежит в сейве (`lb_pending`) и уходит с ближайшим успешным запросом. Очередь была бы лишней сущностью и источником дублей.
-- Спиннер дольше секунды не показываем никогда.
+- `fetch` with an `AbortController` and a timeout of **4 s**, there are no retries within a session.
+- **The outgoing score is ONE SLOT, not a queue.** The number is absolute, which means only the last one has to be stored: what has not been sent lies in the save (`lb_pending`) and goes out with the next successful request. A queue would be a superfluous entity and a source of duplicates.
+- We never show a spinner for longer than a second.
 
-## Четыре состояния экрана
+## Four states of the screen
 
-1. **Живая таблица.**
-2. **Кэш из localStorage** с честной подписью «на 14:30» — показывается МГНОВЕННО и обновляется на месте.
-3. **Нет связи** — «таблица недоступна», но **своя строка нарисована из локального баланса**. Требование владельца «гость виден всегда» выполняется и офлайн.
-4. **Первый запуск офлайн** — только своя строка, вместо места прочерк.
+1. **A live table.**
+2. **A cache from localStorage** with an honest caption «as of 14:30» — it is shown INSTANTLY and updated in place.
+3. **No connection** — «the table is unavailable», but **your own row is drawn from the local balance**. The owner's requirement «a guest is always visible» is met offline as well.
+4. **The first launch offline** — only your own row, a dash instead of the place.
 
-Плюс для второй вкладки (платформенной) остаются состояния из LEADERBOARD-PLAN «Кусок 2»: «площадка не поддерживает» и «войди, чтобы попасть в таблицу».
+Plus, for the second tab (the platform one) the states from LEADERBOARD-PLAN «Chunk 2» remain: «the platform does not support it» and «sign in to get into the table».
 
-## Сервер
+## The server
 
-- Если D1 не отвечает, `/top` отдаёт последний снимок из Cache API с честным `t` (**stale-on-error**).
-- Запись падает в 503 — клиент оставляет число в слоте и не считает это ошибкой.
+- If D1 does not answer, `/top` returns the last snapshot from the Cache API with an honest `t` (**stale-on-error**).
+- A write falls to 503 — the client leaves the number in the slot and does not treat this as an error.
 
-## Площадка
+## The platform
 
-Воркер на своём поддомене; при жёстком CSP портала домен вносится в `connect-src`. ⚠️ **Проверяется на стенде КАЖДОЙ площадки до релиза** — в нашей странице CSP нет вовсе (`grep` по `src/shell.html` пусто), значит ограничение, если возникнет, придёт снаружи: заголовками хостинга площадки, атрибутом `sandbox` на iframe или CSP родительского документа. Ничего из этого в проекте не зафиксировано.
+The worker on our own subdomain; with a portal's strict CSP the domain is added into `connect-src`. ⚠️ **It is verified on the bench of EVERY platform before the release** — our page has no CSP at all (a `grep` over `src/shell.html` is empty), which means the restriction, if it arises, will come from outside: from the headers of the platform's hosting, from the `sandbox` attribute on the iframe or from the parent document's CSP. None of this is recorded in the project.
 
-## ЗОНЫ И ЦЕНА
-## Диспетчер — 0,75 агенто-дня
+## ZONES AND PRICE
+## The dispatcher — 0.75 agent-days
 
-- Эта постановка + запись решения в CLAUDE.md (блок 2026-08-07 уже есть, дополнить механикой отправки через `onStarsChange` — чтобы следующая сессия не откатила обратно на `noteWin`).
-- **Поля сейва — зона диспетчера, 77-save.js его канон:** `Save.gid` в литерал (:48), в ОБЕ ветки `mergeSave` (:54-72 и :74-111) с правилом min-строки, НЕ трогать в `resetProgress` (:416-424).
-- Конфиг: секция своего борда (URL воркера, вкл/выкл одной строкой по образцу `LEADERBOARD_ID`, 00-config.js:379); включение вкладки площадки после токена владельца.
-- **Закрыть `?dev=1` на боевой сборке — блокер, делается ДО включения записи.**
-- Правка опечатки в docs/LEADERBOARD-PLAN.md (в таблице зачёркнут вариант «г», а текст ниже говорит «вариант "в" вычёркиваю» и описывает при этом «г» — читатель делает ложный вывод, что свой сервер отвергнут).
+- This specification + recording the decision in CLAUDE.md (the 2026-08-07 block is already there, supplement it with the submission mechanism via `onStarsChange` — so that the next session does not roll back to `noteWin`).
+- **The save fields are the dispatcher's zone, 77-save.js is his canon:** `Save.gid` into the literal (:48), into BOTH branches of `mergeSave` (:54-72 and :74-111) with the min-string rule, do NOT touch it in `resetProgress` (:416-424).
+- The config: the section for our own board (the worker's URL, on/off in one line following the `LEADERBOARD_ID` pattern, 00-config.js:379); enabling the platform tab after the owner's token.
+- **Close `?dev=1` on the production build — a blocker, it is done BEFORE writes are enabled.**
+- Fixing a typo in docs/LEADERBOARD-PLAN.md (in the table option «d» is struck through, while the text below says «I am striking out option "c"» and describes «d» at that — the reader draws the false conclusion that our own server was rejected).
 
-## Интеграция — 3,0 агенто-дня
+## Integration — 3.0 agent-days
 
-| Кусок | Дней |
+| Chunk | Days |
 |---|---|
-| Воркер, схема D1, `POST /score`, `GET /top`, cron (снимок + лесенка) | 1,0 |
-| `GET /me` (точный ранг по лесенке, соседи), keyset-пагинация, simple-CORS, кэш края | 0,5 |
-| Анти-накрутка: HMAC, seq, частота, потолок с клампом, флаг `f`, `/admin/hide`, `DELETE /me` | 0,75 |
-| Тесты воркера (miniflare/vitest) + сид 50 000 строк + **замер реального расхода по дашборду D1** | 0,75 |
+| The worker, the D1 schema, `POST /score`, `GET /top`, cron (the snapshot + the ladder) | 1.0 |
+| `GET /me` (the exact rank via the ladder, the neighbours), keyset pagination, simple-CORS, the edge cache | 0.5 |
+| Anti-cheat: HMAC, seq, the rate, the ceiling with clamping, the `f` flag, `/admin/hide`, `DELETE /me` | 0.75 |
+| Worker tests (miniflare/vitest) + a seed of 50 000 rows + **a measurement of the real consumption from the D1 dashboard** | 0.75 |
 
-Плюс новый модуль **`src/app/82-lb.js`** — сетевой клиент: подписка `onStarsChange`, дедуп по значению, слот `lb_pending`, таймаут 4 с, состояния деградации. **Ядро (80-gameplay.js) не правится.**
+Plus a new module **`src/app/82-lb.js`** — the network client: the `onStarsChange` subscription, dedup by value, the `lb_pending` slot, a timeout of 4 s, the degradation states. **The core (80-gameplay.js) is not touched.**
 
-## Интерфейс — 1,75 агенто-дня
+## Interface — 1.75 agent-days
 
-- Экран-оверлей по образцу **«More Stars»** (`src/shell.html:1843`, стили и карточки уже есть): топ-50 своей вкладки, своя строка подсвечена, окрестность (5 выше / 5 ниже), вторая страница.
-- **Две вкладки:** «Сейчас» (наш сервис, падает) и «Рекорд» (площадка, максимум) с честными подписями — расхождение чисел объясняем, не прячем (требование владельца 2026-08-06).
-- Подпись про D3: «в таблице — по итогам уровня».
-- Четыре состояния деградации.
-- Вход: кнопка на главном экране рядом с профилем + строка «твоё место» на экране победы. **Место в меню уже освобождено** — блок баннера «No more AD» снят с томбстоуном именно под блок лидербордов (WORKSTREAMS.md, v1-test-236, слово владельца «вместо него будет блок лидербордов»).
+- An overlay screen following the **«More Stars»** pattern (`src/shell.html:1843`, the styles and the cards are already there): the top-50 of our own tab, your own row highlighted, the neighbourhood (5 above / 5 below), a second page.
+- **Two tabs:** «Now» (our service, it drops) and «Record» (the platform, the maximum) with honest captions — we explain the discrepancy of the numbers, we do not hide it (the owner's requirement 2026-08-06).
+- The caption about D3: «in the table — as of the level's result».
+- Four degradation states.
+- The entry point: a button on the main screen next to the profile + a «your place» line on the win screen. **The place in the menu has already been freed up** — the «No more AD» banner block was removed with a tombstone specifically for the leaderboard block (WORKSTREAMS.md, v1-test-236, the owner's word «there will be a leaderboard block instead of it»).
 
-## Графика — 0 дней
+## Graphics — 0 days
 
-Работ нет. Аватары (`avatars/Avatar01..49.png`, 192px) и стили карточек уже в проекте.
+There is no work. The avatars (`avatars/Avatar01..49.png`, 192px) and the card styles are already in the project.
 
-## Дока и деплой — 0,5 агенто-дня (Интеграция)
+## Docs and deploy — 0.5 agent-days (Integration)
 
-Строка в политику конфиденциальности, деплой, мониторинг квот.
+A line for the privacy policy, the deploy, quota monitoring.
 
 ---
 
-## ИТОГО ~6 агенто-дней
+## TOTAL ~6 agent-days
 
-**Линия разреза ровно одна:** всё, кроме экрана Интерфейса (~4 дня), даёт работающий сервис БЕЗ экрана — счёт копится, позиция считается, игрок ничего не видит. **Первая половина обратима, вторая нет.** Экран верстать после того, как владелец закрепит формулу (см. вопросы) — если менять величину, экран всё равно переделывать, а таблицу задним числом не почистить.
+**There is exactly one cut line:** everything except the Interface screen (~4 days) gives a working service WITHOUT the screen — the score accumulates, the position is computed, the player sees nothing. **The first half is reversible, the second is not.** Lay out the screen after the owner fixes the formula (see the questions) — if the quantity is to be changed, the screen has to be redone anyway, and the table cannot be cleaned up after the fact.
 
-## Точки интеграции, чтобы не искать заново
+## Integration points, so that they need not be looked up again
 
-- Новый модуль `src/app/82-lb.js` (нумерация свободна между 80 и 85).
-- Подписка — `onStarsChange` (77-save.js:270-276), НЕ `noteWin`.
-- Поля сейва — 77-save.js рядом с `gn` (:196-224).
-- Экран — 85-hud.js (аватары подключены там же, :1459-1493).
-- События — 79-telemetry.js, имя `lb` уже занято этим смыслом (78-ads.js).
-- Публичный API для экрана уже проброшен: `__game.wallet/starBalance/liveBalance/leaderboardScore/spendStars` (99-main.js:1048-1056) + тест-ручки `bankScore` (:1119), `scoreShownDenom` (:1121), `mergeRaw` (:1125), `starGrant` (:1068).
+- The new module `src/app/82-lb.js` (the numbering is free between 80 and 85).
+- The subscription is `onStarsChange` (77-save.js:270-276), NOT `noteWin`.
+- The save fields are in 77-save.js next to `gn` (:196-224).
+- The screen is 85-hud.js (the avatars are wired up there as well, :1459-1493).
+- The events are in 79-telemetry.js, the name `lb` is already taken with this meaning (78-ads.js).
+- The public API for the screen is already exposed: `__game.wallet/starBalance/liveBalance/leaderboardScore/spendStars` (99-main.js:1048-1056) + the test handles `bankScore` (:1119), `scoreShownDenom` (:1121), `mergeRaw` (:1125), `starGrant` (:1068).
 
-## СТРАЖИ
-Все стражи — **двусторонние по канону проекта: красный на сломанной сборке, зелёный на исправной.** Диверсия обязана бить в СВОЙСТВО, а не в его соседа.
+## GUARDS
+All guards are **two-sided per the project's canon: red on a broken build, green on a healthy one.** A sabotage test must strike at the PROPERTY, not at its neighbour.
 
-## Стражи личности (`test.js`, зона диспетчера) — 5 штук
+## Identity guards (`test.js`, the dispatcher's zone) — 5 of them
 
-Сегодня межустройственный мерж личности не проверяет НИЧТО: существующий страж (test.js:4612-4685, «HUD-ПАКЕТ C») проверяет только стабильность имени между входами в меню. Добавляем через тест-ручки `saveRaw`/`mergeRaw` (99-main.js:1125):
+Today NOTHING checks the cross-device merge of the identity: the existing guard (test.js:4612-4685, «HUD PACKAGE C») checks only the stability of the name between openings of the menu. We add them via the test handles `saveRaw`/`mergeRaw` (99-main.js:1125):
 
-1. **Сходимость `gid` в ОБОИХ порядках слияния.** Два «устройства» с разными `gid` мержатся в обе стороны и дают ОДИН И ТОТ ЖЕ результат (минимальный). *Диверсия: заменить min на `into.gid || from.gid` (нынешнее правило `gn`) — страж обязан покраснеть, потому что порядки разойдутся.*
-2. **Ветка `from.gen > gen` тоже сохраняет минимум.** ⚠️ Это самая вероятная дыра — ровно про неё чек-лист 77-save.js:11-12. *Диверсия: выкинуть строку из ветки :54-72 — при равных поколениях всё ещё зелено, здесь красно.*
-3. **`resetProgress` не стирает `gid`.** *Диверсия: дописать `Save.gid=''` в :416-424.*
-4. **`gid` доезжает до облака:** после `commitSave` поле присутствует в JSON, ушедшем в `bridge.storage`.
-5. **`gid` не показывается игроку** — на экране профиля только `Save.gn` и аватар.
+1. **Convergence of `gid` in BOTH merge orders.** Two «devices» with different `gid`s are merged in both directions and give ONE AND THE SAME result (the minimal one). *Sabotage test: replace min with `into.gid || from.gid` (the current `gn` rule) — the guard must go red, because the orders will diverge.*
+2. **The `from.gen > gen` branch also preserves the minimum.** ⚠️ This is the most likely hole — the checklist at 77-save.js:11-12 is about exactly this. *Sabotage test: throw the line out of the :54-72 branch — with equal generations it is still green, here it is red.*
+3. **`resetProgress` does not erase `gid`.** *Sabotage test: add `Save.gid=''` at :416-424.*
+4. **`gid` makes it to the cloud:** after `commitSave` the field is present in the JSON that went to `bridge.storage`.
+5. **`gid` is not shown to the player** — on the profile screen there is only `Save.gn` and the avatar.
 
-## Стражи отправки (`test.js`, Интеграция)
+## Submission guards (`test.js`, Integration)
 
-6. **Трата роняет отправляемое число.** Забанковать счёт → купить буст (`buyBoost`) → зафиксировать, что `onStarsChange` сработал и в клиент ушло УМЕНЬШЕННОЕ значение. *Диверсия: вернуть подписку на `noteWin` — страж краснеет, потому что число не поедет до следующей победы. Это прямая защита требования владельца.*
-7. **Ранжируем `leaderboardScore`, а не `starBalance`.** Насыпать `tu` тест-ручкой `starGrant(n)` (99-main.js:1068) → числа разъезжаются → отправляется меньшее. *Сегодня формулы численно равны, поэтому без искусственного `tu` страж бессодержателен — и именно поэтому он обязателен: он единственный поймает подмену формулы.*
-8. **Дедуп:** одинаковое значение второй раз не уходит; УПАВШЕЕ значение уходит обязательно (упавшее ≠ прежнему, дедуп по значению для падающей таблицы безопасен).
-9. **Ни одного `await` на пути победы:** при недоступном эндпоинте (мок с таймаутом) победа, банк счёта и переход на следующий уровень проходят в те же сроки. *Диверсия: поставить `await` перед показом экрана победы.*
-10. **Слот, а не очередь:** три неудачные отправки подряд → в `lb_pending` лежит ровно ОДНО, последнее число.
+6. **Spending drops the submitted number.** Bank the score → buy a boost (`buyBoost`) → record that `onStarsChange` fired and that a REDUCED value went to the client. *Sabotage test: put the subscription back on `noteWin` — the guard goes red, because the number will not travel until the next win. This is a direct defence of the owner's requirement.*
+7. **We rank `leaderboardScore`, not `starBalance`.** Pour in `tu` with the test handle `starGrant(n)` (99-main.js:1068) → the numbers diverge → the smaller one is submitted. *Today the formulas are numerically equal, so without an artificial `tu` the guard is vacuous — and that is exactly why it is mandatory: it is the only one that will catch a substitution of the formula.*
+8. **Dedup:** the same value does not go out a second time; a DROPPED value goes out without fail (a dropped one ≠ the previous one, dedup by value is safe for a dropping table).
+9. **Not a single `await` on the win path:** with an unavailable endpoint (a mock with a timeout) the win, the banking of the score and the transition to the next level take the same time. *Sabotage test: put an `await` before showing the win screen.*
+10. **A slot, not a queue:** three failed submissions in a row → in `lb_pending` there lies exactly ONE number, the last one.
 
-## Стражи воркера (miniflare/vitest, Интеграция)
+## Worker guards (miniflare/vitest, Integration)
 
-11. **Сервер хранит ПОСЛЕДНЕЕ, а не максимум.** Записать 5000 → 3000 → прочитать 3000. *Диверсия: заменить upsert на `max(s, ?)` — то есть на поведение площадки. Это главный страж всей затеи.*
-12. **Идемпотентность и анти-реплей:** повтор с тем же `q` → 409 с текущим значением, не дубль строки; `q` меньше сохранённого → 409; `|t−now| > 300 с` → 400.
-13. **Кламп молча:** заявка выше `Δ_max` пишет потолок и растит `cl`, ответ не отличается от штатного; при `cl ≥ 5` строка получает `f=1`, пропадает из `/top`, но `/me` продолжает отдавать свою позицию.
-14. **Точный ранг == честному пересчёту** на сиде 50 000 строк: `rank` по лесенке совпадает с прямым `COUNT(*)` для случайных 20 игроков.
-15. **Simple CORS:** запрос уходит БЕЗ preflight (в логе воркера нет OPTIONS). *Диверсия: поставить `Content-Type: application/json` — страж краснеет.*
-16. **stale-on-error:** при недоступной D1 `/top` отдаёт снимок с честным `t`, а не 500.
+11. **The server stores the LAST value, not the maximum.** Write 5000 → 3000 → read 3000. *Sabotage test: replace the upsert with `max(s, ?)` — that is, with the platform's behaviour. This is the main guard of the whole undertaking.*
+12. **Idempotency and anti-replay:** a retry with the same `q` → 409 with the current value, not a duplicate row; a `q` smaller than the stored one → 409; `|t−now| > 300 s` → 400.
+13. **Silent clamping:** a claim above `Δ_max` writes the ceiling and grows `cl`, the response does not differ from the normal one; at `cl ≥ 5` the row gets `f=1`, disappears from `/top`, but `/me` keeps returning its own position.
+14. **The exact rank == an honest recomputation** on a seed of 50 000 rows: the `rank` from the ladder matches a direct `COUNT(*)` for 20 random players.
+15. **Simple CORS:** the request goes out WITHOUT a preflight (there is no OPTIONS in the worker's log). *Sabotage test: set `Content-Type: application/json` — the guard goes red.*
+16. **stale-on-error:** with D1 unavailable `/top` returns a snapshot with an honest `t`, not a 500.
 
-## Замеры, а не стражи
+## Measurements, not guards
 
-17. ⚠️ **Реальный расход D1 на сиде 50 000 строк по дашборду.** Допущение «обновление строки с одним индексом ≈ 2 строки записи» — НЕ из документации Cloudflare, это оценка, и на ней стоит весь вывод «40 тыс записей в сутки влезают в бесплатные 100 тыс». До замера числа сметы называть оценкой. Лечится увеличением интервала отправки.
-18. ⚠️ **CORS/iframe/куки проверяются ТОЛЬКО на боевом стенде площадки.** Наш автотест до лидербордов не дотягивается в принципе — он ходит по локальным файлам, где SDK не грузится, а бридж-секции гоняют МОКИ. Свой сервер этот разрыв частично закрывает (эндпоинт поднимается локально и покрывается сьютом честно) — но не полностью.
+17. ⚠️ **The real D1 consumption on a seed of 50 000 rows, from the dashboard.** The assumption «updating a row with one index ≈ 2 rows written» is NOT from Cloudflare's documentation, it is an estimate, and the whole conclusion «40 thousand writes per day fit into the free 100 thousand» rests on it. Until the measurement, call the numbers of the estimate an estimate. It is cured by increasing the submission interval.
+18. ⚠️ **CORS/iframe/cookies are verified ONLY on the platform's production bench.** Our automated test does not reach the leaderboards in principle — it walks over local files, where the SDK does not load, while the bridge sections run MOCKS. Our own server partially closes this gap (the endpoint is brought up locally and is honestly covered by the suite) — but not fully.
 
-## Ловушка канона перед началом работ
+## A trap of the canon before the work starts
 
-⚠️ **Перед добавлением любой новой ручки в `__game` — `grep` по 99-main.js.** Дубль ключа молча съедает хук (ловля 2026-08-05, CLAUDE.md).
+⚠️ **Before adding any new handle into `__game` — a `grep` over 99-main.js.** A duplicate key silently eats the hook (caught 2026-08-05, CLAUDE.md).
 
-## РИСКИ
-## 1. Ревью-риск площадки — НЕИЗМЕРИМ, а не «низкий». Единственный блокер релиза
+## RISKS
+## 1. The platform's review risk — UNMEASURABLE, not «low». The only release blocker
 
-**Механизм:** в docs/LAUNCH-PLAN.md записано, что Playgama называет встроенную аналитику отдельной причиной отказа, и «часть партнёрских площадок блокирует любые внешние запросы» — из-за чего своя телеметрия сознательно выключена для портальных сборок (79-telemetry.js:7, `let URL = ''`, всё остальное готово). Свой лидерборд — исходящий запрос на свой домен, тот же класс.
+**The mechanism:** docs/LAUNCH-PLAN.md records that Playgama names built-in analytics as a separate reason for rejection, and that «a part of the partner platforms blocks any external requests» — because of which our own telemetry is deliberately switched off for portal builds (79-telemetry.js:7, `let URL = ''`, everything else is ready). Our own leaderboard is an outgoing request to our own domain, the same class.
 
-**Почему неизмерим:** ⚠️ **первоисточника в репозитории нет.** Раздел собран поиском, цитаты правил Playgama или письма площадки не приложено, конкретные «партнёрские площадки» не названы.
+**Why it is unmeasurable:** ⚠️ **there is no primary source in the repository.** The section was assembled by searching, no quote of Playgama's rules or a letter from the platform is attached, the specific «partner platforms» are not named.
 
-**Смягчение:** ответ площадки письмом (вопросы 7-9). Промежуточный вариант, если риск сочтут высоким: **писать счёт к себе, а показывать таблицу площадки** — запись почти бесплатна и незаметна (`sendBeacon`, переживает уход вкладки), а вот экран требует настоящего CORS-контракта. Асимметрия, которую легко проглядеть.
+**Mitigation:** an answer from the platform by letter (questions 7-9). An intermediate option, if the risk is judged high: **write the score to ourselves, but show the platform's table** — a write is almost free and unnoticeable (`sendBeacon`, it survives the tab going away), whereas the screen requires a real CORS contract. An asymmetry that is easy to overlook.
 
-## 2. `?dev=1` на живом сайте — блокер, закрывать ДО включения записи
+## 2. `?dev=1` on the live site — a blocker, to be closed BEFORE writes are enabled
 
-**Механизм:** отладка открывается на боевом адресе через `?dev=1`, а там есть выдача очков (`starGrant`, `bankScore`). Пока лидерборда нет — это чит в одиночной игре. **С лидербордом — прямой вход в топ.** Свой сервер тут не помогает вообще: он ничего не проверяет, он принимает подписанное число.
+**The mechanism:** debugging opens on the production address via `?dev=1`, and there is score granting there (`starGrant`, `bankScore`). While there is no leaderboard, this is a cheat in a single-player game. **With a leaderboard it is a direct entry into the top.** Our own server does not help here at all: it verifies nothing, it accepts a signed number.
 
-**Смягчение:** закрыть `?dev=1` на боевой сборке отдельной задачей ДО, а не вместе.
+**Mitigation:** close `?dev=1` on the production build as a separate task BEFORE this, not together with it.
 
-## 3. Ошибка отправки посреди уровня — новый риск нашей же архитектуры
+## 3. A submission error in the middle of a level — a new risk of our own architecture
 
-**Механизм:** мы переносим отправку с `noteWin` (раз за победу) на `onStarsChange` (каждое изменение баланса). Это ОБЯЗАТЕЛЬНО для «падения», но повышает частоту запросов и создаёт новую точку отказа посреди партии.
+**The mechanism:** we move the submission from `noteWin` (once per win) to `onStarsChange` (every change of the balance). This is MANDATORY for «dropping», but it raises the frequency of requests and creates a new point of failure in the middle of a round.
 
-**Смягчение:** дедуп по значению (образец `lbLast`, 78-ads.js:441), серверный лимит 20 с по полю `u`, один слот `lb_pending` вместо очереди, таймаут 4 с без ретраев. Оценка трафика: 20 000 отправок/сут при 10 000 активных.
+**Mitigation:** dedup by value (the pattern `lbLast`, 78-ads.js:441), a server-side limit of 20 s via the `u` field, one `lb_pending` slot instead of a queue, a timeout of 4 s without retries. The traffic estimate: 20 000 submissions/day with 10 000 active.
 
-## 4. Накрутка — поднимаем цену, не строим стену
+## 4. Cheating — we raise the price, we do not build a wall
 
-**Механизм:** счёт считает клиент, сейв — открытый текст в localStorage, ключ HMAC лежит там же. Кто откроет консоль — подпишет что угодно. Плюс подделанное число «липкое»: `se`/`ss` монотонные и не понижаются синхронизацией.
+**The mechanism:** the score is computed by the client, the save is plain text in localStorage, the HMAC key lies right there. Whoever opens the console will sign anything. Plus a forged number is «sticky»: `se`/`ss` are monotonic and are not lowered by synchronization.
 
-**Смягчение:** односторонняя защита (только рост), кламп молча, тихое скрытие `f=1`. ⚠️ **Формулировка «свой сервер решает накрутку» ВЕРНА только с валидацией** (серверное время, потолок прироста, возрастной потолок) — простой приёмник числа даёт ровно ту же защиту, что площадка, то есть никакую. Это отдельный объём работ (0,75 дня), а не побочный эффект.
+**Mitigation:** one-sided protection (growth only), silent clamping, the quiet hiding `f=1`. ⚠️ **The formulation «our own server solves cheating» is TRUE only with validation** (server time, the growth ceiling, the age ceiling) — a simple receiver of a number gives exactly the same protection as the platform, that is, none. This is a separate scope of work (0.75 days), not a side effect.
 
-## 5. Биллинг D1 — стоит на непроверенном допущении
+## 5. D1 billing — rests on an unverified assumption
 
-**Механизм:** вывод «40 тыс записей в сутки влезают в бесплатные 100 тыс» опирается на оценку «обновление строки с одним индексом ≈ 2 строки записи». **Документация Cloudflare не раскрывает, как считается обновление индекса** — это оценка, а не взятое из доки число. Плюс «строка чтения» = просканированная, поэтому неаккуратный `COUNT(*)` уносит квоту мгновенно.
+**The mechanism:** the conclusion «40 thousand writes per day fit into the free 100 thousand» leans on the estimate «updating a row with one index ≈ 2 rows written». **Cloudflare's documentation does not disclose how an index update is counted** — this is an estimate, not a number taken from the docs. Plus a «row read» = a scanned one, therefore a careless `COUNT(*)` carries off the quota instantly.
 
-**Смягчение:** замер по дашборду D1 на сиде 50 000 строк входит в объём работ. Если запись окажется дороже — лечится увеличением интервала отправки с 3 до 10 минут. Тариф в любом случае $5/мес при 50 тыс активных.
+**Mitigation:** a measurement from the D1 dashboard on a seed of 50 000 rows is part of the scope of work. If a write turns out to be more expensive — it is cured by increasing the submission interval from 3 to 10 minutes. The plan is $5/mo in any case at 50 thousand active.
 
-## 6. iframe / CSP боевого портала — замер был на стенде, не в проде
+## 6. The iframe / CSP of the production portal — the measurement was on the bench, not in production
 
-**Механизм:** запрос из игры на не-playgama хост уже проверен живьём (Интеграция подставляла свой сервер вместо `saas.baseUrl` и снимала таблицу ответов) — это самый сильный прецедент, «наш домен из контекста игры достижим» подтверждено, а не выведено. ⚠️ **Но воспроизведение НА БОЕВОМ ПОРТАЛЕ в iframe не зафиксировано.** Отдельно: транспорт бриджа шлёт `credentials:'include'`, а сторонние куки в iframe могут не пройти — открытый вопрос, помеченный самим автором контракта.
+**The mechanism:** a request from the game to a non-playgama host has already been verified live (Integration substituted its own server for `saas.baseUrl` and recorded a table of the responses) — this is the strongest precedent, «our domain is reachable from the game's context» has been confirmed, not inferred. ⚠️ **But a reproduction ON THE PRODUCTION PORTAL inside an iframe has not been recorded.** Separately: the bridge's transport sends `credentials:'include'`, and third-party cookies in an iframe may not go through — an open question flagged by the author of the contract himself.
 
-**Смягчение:** авторизацию на куках НЕ строим вовсе — идентичность передаётся явным полем в теле. Проверка на стенде каждой площадки до релиза; домен вносится в `connect-src`, если у портала жёсткий CSP.
+**Mitigation:** we do NOT build authorization on cookies at all — the identity is passed as an explicit field in the body. Verification on the bench of every platform before the release; the domain is added into `connect-src` if the portal has a strict CSP.
 
-## 7. Потеря личности при чистке кэша — ограничение площадки, не наше
+## 7. Loss of the identity on a cache clear — the platform's limitation, not ours
 
-**Механизм:** `gid` едет в облако только внутри `Save`, а облако есть только у Playgama и Yandex. На Poki и GameDistribution облака нет вовсе — чистка кэша Safari даёт новую личность и осиротевшую строку.
+**The mechanism:** `gid` travels to the cloud only inside `Save`, and a cloud exists only at Playgama and Yandex. Poki and GameDistribution have no cloud at all — a Safari cache clear gives a new identity and an orphaned row.
 
-**Смягчение:** технического нет. Строка умрёт по ретенции 180 дней. **Обещать владельцу «прогресс не потеряется» на Poki нельзя.**
+**Mitigation:** there is no technical one. The row will die by the 180-day retention. **We must not promise the owner «progress will not be lost» on Poki.**
 
-## 8. Откат следующей сессией — процессный риск
+## 8. A rollback by the next session — a process risk
 
-**Механизм:** по вопросу «падающий ранг» это ТРЕТИЙ разворот (2026-07-29 утверждён → 2026-08-06 отменён → 2026-08-07 возвращён). Кроме того, в docs/LEADERBOARD-PLAN.md есть опечатка, из-за которой читатель решит, что свой сервер был отвергнут (в таблице зачёркнут вариант «г», а текст говорит «вариант "в" вычёркиваю» и описывает при этом «г»).
+**The mechanism:** on the question of the «dropping rank» this is the THIRD reversal (2026-07-29 approved → 2026-08-06 cancelled → 2026-08-07 restored). Besides that, docs/LEADERBOARD-PLAN.md has a typo because of which the reader will decide that our own server was rejected (in the table option «d» is struck through, while the text says «I am striking out option "c"» and describes «d» at that).
 
-**Смягчение:** решение уже зафиксировано с датой и цитатой (CLAUDE.md, 2026-08-07, п.1) — на него и ссылаемся. Дописать туда механику отправки через `onStarsChange` (иначе следующая сессия увидит комментарий 78-ads.js:508-512 «принято осознанно, диспетчер 2026-07-29» и откатит на `noteWin`). Опечатку в LEADERBOARD-PLAN поправить одним словом.
+**Mitigation:** the decision is already recorded with a date and a quote (CLAUDE.md, 2026-08-07, item 1) — that is what we refer to. Add the submission mechanism via `onStarsChange` there (otherwise the next session will see the comment at 78-ads.js:508-512 «accepted deliberately, the dispatcher 2026-07-29» and will roll back to `noteWin`). Fix the typo in LEADERBOARD-PLAN with a single word.
 
-## ВОПРОСЫ ВЛАДЕЛЬЦУ
-## Решения (нужно слово, работа без них идёт вслепую)
+## QUESTIONS FOR THE OWNER
+## Decisions (his word is needed, without them the work goes blind)
 
-**1. Формула — закрепить ДО первой отправки.** Рекомендую `leaderboardScore()`: купленные звёзды место НЕ поднимают. Сегодня вопрос численно пустой (у поля `tu` нет активных источников с 2026-07-27, обе формулы дают одно число), но если пополнения вернутся, разница станет «место покупается или нет», а таблицу с двумя шкалами уже не почистить. **Формулировка для владельца: «Если мы когда-нибудь снова начнём продавать звёзды — купленные звёзды должны поднимать место в таблице или нет?»**
+**1. The formula — fix it BEFORE the first submission.** I recommend `leaderboardScore()`: bought stars do NOT raise your place. Today the question is numerically empty (the `tu` field has had no active sources since 2026-07-27, both formulas give the same number), but if top-ups come back, the difference becomes «is a place bought or not», and a table with two scales can no longer be cleaned up. **The wording for the owner: «If we ever start selling stars again — should bought stars raise your place in the table or not?»**
 
-**2. Развилка по имени и аватару — А или Б, это не наше решение.**
-Сегодня действует записанное правило: имя генерится один раз на устройство и при мерже «непустое своё побеждает» (77-save.js:196-198, :63, :91). Новый `gid` сам по себе расхождение имён НЕ чинит.
-- **А. `gid` — только технический ключ.** Имя и аватар остаются как есть. Человек на двух устройствах — одна строка в таблице, но на экранах у него два разных имени.
-- **Б. Имя и аватар ВЫВОДЯТСЯ из `gid`** тем же хешем. Личность сходится на обоих устройствах, но **у части игроков имя однократно сменится** при первом мерже.
+**2. The fork on the name and the avatar — A or B, this is not our decision.**
+Today the recorded rule is in force: the name is generated once per device and on a merge «a non-empty own value wins» (77-save.js:196-198, :63, :91). The new `gid` by itself does NOT fix the divergence of the names.
+- **A. `gid` is only a technical key.** The name and the avatar stay as they are. A person on two devices is one row in the table, but on the screens he has two different names.
+- **B. The name and the avatar are DERIVED from `gid`** by the same hash. The identity converges on both devices, but **for a part of the players the name will change once** on the first merge.
 
-Решение владельца 2026-08-07, п.2 говорит «к нему уже привязаны имя-животное и аватар» — это скорее Б, но мерж двух устройств там не назван. По правилам проекта на расхождение с записанным решением — стоп и вопрос, а не импровизация.
+The owner's decision of 2026-08-07, item 2 says «the animal name and the avatar are already tied to it» — this is rather B, but the merge of two devices is not named there. By the project's rules, on a divergence from a recorded decision — stop and ask, not improvise.
 
-**3. Вкладка площадки — включать сразу или потом?** Владелец 2026-08-07 сказал «платформенная таблица остаётся второй вкладкой». Включение = одна строка в конфиге + **токен SaaS из кабинета Playgama, который может получить только владелец**. Вопрос: заводим токен сейчас (тогда вкладка «Рекорд» едет в том же релизе) или сначала выкатываем свою?
+**3. The platform tab — enable it right away or later?** The owner said on 2026-08-07 «the platform table remains the second tab». Enabling = one line in the config + **a SaaS token from the Playgama dashboard, which only the owner can obtain**. The question: do we set up the token now (then the «Record» tab ships in the same release) or do we roll out our own first?
 
-**4. Уровень не переносится между устройствами — чиним или называем ограничением?** Номер уровня живёт в отдельном ключе `mixer_level`, а не в сейве. Даже на Playgama/Yandex с рабочим облаком игрок перенесёт баланс, звёзды, накопления и покупки — **но начнёт с 1-го уровня.** Если «автологин» продаётся владельцем как «прогресс не теряется», это надо либо починить (+0,25 дня, перенос поля в `Save` по тому же чек-listу), либо честно проговорить.
+**4. The level does not carry over between devices — do we fix it or do we name it a limitation?** The level number lives in a separate key `mixer_level`, not in the save. Even on Playgama/Yandex with a working cloud the player will carry over the balance, the stars, the accumulations and the purchases — **but will start from level 1.** If «auto-login» is sold by the owner as «progress is not lost», this must either be fixed (+0.25 days, moving the field into `Save` per the same checklist) or honestly talked through.
 
-## Доступы и тексты
+## Access and texts
 
-**5. Доступ к аккаунту Cloudflare** (воркеры для лендингов там уже есть) **и поддомен под API.** Не `*.workers.dev` — часть корпоративных и школьных сетей режет его целиком.
+**5. Access to the Cloudflare account** (the workers for the landing pages are already there) **and a subdomain for the API.** Not `*.workers.dev` — a part of corporate and school networks blocks it entirely.
 
-**6. Строка в политику конфиденциальности.** Достаточно одной: «мы храним случайный идентификатор, сгенерированный псевдоним и ваш игровой счёт; удалить — кнопкой в игре».
+**6. A line for the privacy policy.** One is enough: «we store a random identifier, a generated pseudonym and your game score; to delete it — use the button in the game».
 
-## Письмо площадке (нужен ответ Playgama, тремя отдельными вопросами)
+## A letter to the platform (an answer from Playgama is needed, as three separate questions)
 
-**7.** Разрешены ли исходящие запросы игры на домен разработчика вообще?
-**8.** Считается ли собственный лидерборд «встроенной аналитикой» по вашим правилам?
-**9.** Какие именно партнёрские площадки ре-дистрибуции блокируют внешние запросы и как это проявляется (CSP, sandbox, прокси)? Какие CSP/sandbox применяются к игровому iframe на playgama.com?
+**7.** Are outgoing requests from a game to the developer's domain allowed at all?
+**8.** Does an own leaderboard count as «built-in analytics» by your rules?
+**9.** Which exact partner re-distribution platforms block external requests and how does this manifest itself (CSP, sandbox, a proxy)? Which CSP/sandbox are applied to the game iframe on playgama.com?
 
-Почему это важно: в docs/LAUNCH-PLAN.md (~стр. 296) записано, что Playgama называет встроенную аналитику отдельной причиной отказа, из-за чего своя телеметрия ОСТАЁТСЯ ВЫКЛЮЧЕННОЙ для портальных сборок. **⚠️ Первоисточника этого запрета в репозитории НЕТ** — раздел собран поиском, цитаты правил или письма площадки нет. Свой лидерборд = исходящий запрос на свой домен, то есть ТОТ ЖЕ КЛАСС, что уже запрещённая телеметрия.
+Why this matters: docs/LAUNCH-PLAN.md (~p. 296) records that Playgama names built-in analytics as a separate reason for rejection, because of which our own telemetry REMAINS SWITCHED OFF for portal builds. **⚠️ There is NO primary source of this prohibition in the repository** — the section was assembled by searching, there is no quote of the rules or a letter from the platform. Our own leaderboard = an outgoing request to our own domain, that is, THE SAME CLASS as the already forbidden telemetry.
 
-## Чего НЕ спрашиваем
+## What we do NOT ask
 
-**Модель «падающего ранга» переспрашивать не нужно.** Она записана дословно — CLAUDE.md, «РЕШЕНИЯ ВЛАДЕЛЬЦА 2026-08-07», п.1: «делаем свою», причина названа («трата очков опускала в списке»), и там же явно сказано, что решение от 2026-08-06 «Рекорды — как у площадки» этим отменяется. Это третий разворот по одному вопросу, но он **уже зафиксирован с датой и цитатой** — постановка ссылается на этот блок, а не переоткрывает его.
+**There is no need to re-ask about the «dropping rank» model.** It is recorded verbatim — CLAUDE.md, «OWNER'S DECISIONS 2026-08-07», item 1: «we're making our own», the reason is named («spending points would push you down the list»), and it is explicitly stated right there that the decision of 2026-08-06 «Records — like the platform's» is thereby cancelled. This is the third reversal on one question, but it is **already recorded with a date and a quote** — the specification refers to this block rather than reopening it.

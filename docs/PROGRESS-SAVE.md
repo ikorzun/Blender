@@ -1,67 +1,68 @@
-# Сохранение прогресса — решение и реальность по площадкам
+# Progress saving — the decision and the reality across platforms
 
-Решение владельца 2026-07-23: **«для сохранения прогресса использовать
-технологии площадки и бриджа там, где это логично»** — то есть НЕ строить
-Google-авторизацию, а опираться на облако площадки через Bridge. Этот
-документ фиксирует, что из этого УЖЕ работает и где остаются дыры.
-Зона: ИНТЕГРАЦИЯ И ПУБЛИКАЦИЯ.
+The owner's decision 2026-07-23: **«to save progress, use the platform's and
+the bridge's technologies where that is logical»** — that is, do NOT build
+Google authentication, but lean on the platform's cloud through Bridge. This
+document records what of that ALREADY works and where the holes remain.
+Zone: INTEGRATION AND PUBLISHING.
 
-## Что уже сделано (кода не требуется добавлять)
+## What is already done (no code needs to be added)
 
-Облачный сейв через `bridge.storage` реализован и **подтверждён на боевом
-SDK** (замер 2026-07-23 на живом Pages): `commitSave` (77-save) пишет
-прогресс в облако площадки, `bridgeSyncSave` (78-ads.init) поднимает и
-мержит его при старте — ВЫШЕ гейта rewarded, поэтому работает и на
-площадках без рекламы. Мерж монотонный (max по ключам, gen-эпоха), дюпа и
-отката трат нет. Это и есть «технология площадки и бриджа».
+Cloud save via `bridge.storage` is implemented and **confirmed on the live SDK**
+(measurement 2026-07-23 on live Pages): `commitSave` (77-save) writes progress
+into the platform's cloud, `bridgeSyncSave` (78-ads.init) pulls it up and merges
+it at startup — ABOVE the rewarded gate, so it works on platforms without ads
+too. The merge is monotonic (max over keys, gen-epoch), there is no dupe and no
+rollback of spends. This is exactly «the platform's and the bridge's technology».
 
-## Почему НЕ Google-авторизация (исследование по бандлу 2026-07-23)
+## Why NOT Google authentication (bundle research 2026-07-23)
 
-1. Игра на портале живёт в IFRAME стороннего домена. Google OAuth там
-   упирается в third-party cookies / X-Frame-Options / FedCM — «войти
-   через Google» может просто не работать.
-2. На площадках, где авторизация игрока есть, она уже опознаёт игрока
-   БЕЗ Google (см. таблицу) — Google дублировал бы то, что даёт Bridge.
-3. ⚠️ ГЛАВНОЕ: «войти через Google» САМО ПО СЕБЕ прогресс не сохраняет.
-   OAuth — это только «кто ты». Чтобы прогресс переезжал между
-   устройствами под этим id, нужен СВОЙ бэкенд (база, эндпоинты, GDPR).
-   Это несопоставимо больше кнопки входа и оправдано только для
-   standalone-хостинга (Pages), где iframe нет.
+1. On a portal the game lives in an IFRAME on a third-party domain. Google OAuth
+   there runs into third-party cookies / X-Frame-Options / FedCM — «sign in
+   with Google» may simply not work.
+2. On platforms where player authentication exists, it already identifies the
+   player WITHOUT Google (see the table) — Google would duplicate what Bridge gives.
+3. ⚠️ THE MAIN POINT: «sign in with Google» BY ITSELF does not save progress.
+   OAuth is only «who you are». For progress to travel between devices under
+   this id, we need OUR OWN backend (database, endpoints, GDPR). That is
+   incomparably more than a sign-in button and is justified only for
+   standalone hosting (Pages), where there is no iframe.
 
-## Реальность по площадкам (из завендоренного playgama-bridge.js v2.0.0)
+## Reality across platforms (from the vendored playgama-bridge.js v2.0.0)
 
-Разбор адаптеров по границам классов; «нет» = базовый класс отдаёт `false`.
+Adapters taken apart along class boundaries; «no» = the base class returns `false`.
 
-| Площадка | авторизация игрока | облачный сейв в адаптере | итог для прогресса |
+| Platform | player authentication | cloud save in the adapter | bottom line for progress |
 |---|---|---|---|
-| **Playgama** | есть (внутр. флаг), `userService.authorizeUser` | **ДА** — `cloudSaveApi.getState/setItems` | ✅ облако работает |
-| **Yandex** | **есть** | через player-API платформы | ✅ облако работает |
-| **CrazyGames** | условно (`isUserAccountAvailable`) | нет спец. вызовов → базовый `data.*` (локальный) | ⚠️ межустройственного нет |
-| **Poki** | **НЕТ** (адаптер: только init/commercialBreak/rewardedBreak) | **нет** | ⚠️ прогресс только в localStorage |
-| GameDistribution | нет | нет | ⚠️ то же |
+| **Playgama** | yes (internal flag), `userService.authorizeUser` | **YES** — `cloudSaveApi.getState/setItems` | ✅ the cloud works |
+| **Yandex** | **yes** | via the platform's player-API | ✅ the cloud works |
+| **CrazyGames** | conditionally (`isUserAccountAvailable`) | no special calls → base `data.*` (local) | ⚠️ no cross-device one |
+| **Poki** | **NO** (adapter: only init/commercialBreak/rewardedBreak) | **no** | ⚠️ progress only in localStorage |
+| GameDistribution | no | no | ⚠️ the same |
 
-Базовая реализация `getDataFromStorage`/`setDataToStorage` (для площадок
-без своего облака) ходит в `platformSdk.data` — это локальное хранилище
-браузера, НЕ межустройственное.
+The base implementation of `getDataFromStorage`/`setDataToStorage` (for platforms
+without a cloud of their own) goes to `platformSdk.data` — this is the browser's
+local storage, NOT a cross-device one.
 
-## Открытые пункты (честно — чтобы не выдать желаемое за факт)
+## Open items (honestly — so as not to pass off wishes as facts)
 
-- **Poki и GameDistribution: межустройственного сохранения НЕТ** — ни с
-  Google (iframe его не пустит), ни без. Это ограничение ПЛОЩАДКИ, не наш
-  недочёт. На Poki прогресс живёт в localStorage и теряется при смене
-  устройства/чистке. Формулировка для игрока/владельца: «на Poki прогресс
-  локальный» — не обещать облако там, где его нет.
-- **CrazyGames**: авторизация условная (аккаунт может быть недоступен),
-  своего cloudSave-вызова в адаптере нет — уточнить на смоуке, ложится ли
-  сейв в их облако или остаётся локальным.
-- **Standalone (Pages)**: iframe нет, Google технически возможен, но
-  требует своего бэкенда для хранения. Отдельная задача, не входит в
-  «технологии площадки». Браться только если владелец захочет
-  межустройственный прогресс ИМЕННО на нашем хостинге.
+- **Poki and GameDistribution: there is NO cross-device saving** — neither with
+  Google (the iframe will not let it in), nor without. This is a limitation of the
+  PLATFORM, not our oversight. On Poki progress lives in localStorage and is lost
+  on a device change / cleanup. The wording for the player/owner: «on Poki progress
+  is local» — do not promise a cloud where there is none.
+- **CrazyGames**: authentication is conditional (the account may be unavailable),
+  there is no cloudSave call of its own in the adapter — check on the smoke
+  whether the save lands in their cloud or stays local.
+- **Standalone (Pages)**: there is no iframe, Google is technically possible, but
+  it requires a backend of our own for storage. A separate task, not part of «the
+  platform's technologies». To be taken on only if the owner wants cross-device
+  progress SPECIFICALLY on our hosting.
 
-## Вывод
+## Conclusion
 
-На Playgama/Yandex прогресс сохраняется силами площадки — код уже стоит и
-проверен, делать нечего. На Poki/CrazyGames межустройственного облака нет
-по построению площадки; Google это не чинит. Google-вход имеет смысл ТОЛЬКО
-для standalone и тянет за собой бэкенд — отдельное решение владельца.
+On Playgama/Yandex progress is saved by the platform's own forces — the code is
+already in place and verified, there is nothing to do. On Poki/CrazyGames there is
+no cross-device cloud by the platform's very construction; Google does not fix that.
+Google sign-in makes sense ONLY for standalone and drags a backend behind it — a
+separate decision by the owner.
