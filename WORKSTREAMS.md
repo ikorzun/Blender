@@ -1,5 +1,24 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-g: THE HINT IS ROUND — the dispatcher
+
+«Round the button's shape», with the hint selected. Radius 16 → 80, which on a 56×56
+box renders as a circle. The bar is one family now: zoom circles, a circle hint, a
+Shake pill, all three on the same declared 80. Measured: the badge still hangs 6 and
+the magnifier frame is unmoved — a radius does not touch the padding box an absolute
+child is placed against, unlike Shake's border of the previous message.
+
+⚠️⚠️ SECOND TIME IN TWO MESSAGES THAT A GUARD'S NAMED SABOTAGE BECAME HIS SPEC: the
+hint's radius pin said «rounding it would be a guess he never made», and the axis
+assert before it said «the sabotage is to replace the axes with a flex and a gap». He
+asked for both. A GUARD STATES A DECISION, NOT A TRUTH — it moves with his word,
+carrying a tombstone, and is never «repaired».
+
+✅ WHAT MADE BOTH CHEAP: the divergence was NAMED TO HIM in the report each time
+(«if you meant the shape too — one line, ask»). Naming an open divergence costs a
+line; guessing it costs a round trip.
+
+
 ### ACCEPTANCE 2026-08-23-v: THE MISTAKE COSTS TEN ON SCREEN; SHAKE BECOMES AN AUTO-LAYOUT PILL — the dispatcher
 
 Two items. «The cost of a mistake is still −1 and not −10» — HE WAS RIGHT, and the

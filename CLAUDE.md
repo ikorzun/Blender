@@ -10252,3 +10252,33 @@ ended with «the sabotage: replace the axes with a flex and a gap — both will 
 That is exactly what the owner then asked for. The comment is kept above its
 replacement as a reminder that **a guard states a decision, not a truth** — when the
 decision changes, the guard moves with it and is not «repaired».
+
+## BATCH 2026-08-23-g: THE HINT IS ROUND — THE DIVERGENCE LEFT OPEN ONE MESSAGE EARLIER
+
+His word, with the hint button selected: «round the button's shape».
+✅ `#hintBtn` radius **16 → 80**. On a 56×56 box that renders as a CIRCLE (each corner
+clamps to half the side), so the bar now reads as one family: two circles for the
+zoom, a circle for the hint, a pill for Shake — all three carrying the SAME declared
+radius of 80.
+⚠️ **WHY 80 AND NOT 28 OR 1000:** 80 is the number he gave this family in the previous
+message. One declared value across three buttons means a retune moves one number in
+three places instead of three different numbers.
+⚠️ **THE BADGE SURVIVED THE ROUNDING UNTOUCHED** — measured after: it still hangs
+exactly 6 below and at left 0, and the magnifier's frame is still [0,0,56,56]. Nothing
+was compensated, because nothing moved: unlike Shake's border, a radius does not change
+the padding box that an absolutely positioned child is placed against.
+
+⚠️⚠️ **THE SAME LAW, TWICE IN TWO MESSAGES — AND IT IS WORTH STATING PLAINLY.** One
+message earlier, when he restyled the three buttons and listed only PAINT properties
+for the hint, the squircle was kept deliberately and the guard's message said in as
+many words: «if a future pass rounds it to a pill for consistency, that is a guess he
+never made and this pin is what stops it». He then made exactly that guess his spec.
+The message before that, the axis assert of 2026-08-22-g had named «replace the axes
+with a flex and a gap» as ITS sabotage — and he asked for precisely that.
+**A GUARD STATES A DECISION, NOT A TRUTH.** Both times the correct move was the same:
+the pin moves WITH his word, carrying a tombstone of what it used to say, and is never
+«repaired» to keep the old shape alive.
+✅ AND THE HABIT THAT MADE BOTH CHEAP: the divergence was NAMED TO HIM in the report
+both times («if you meant the shape too, that is one line — ask, do not guess»). He
+answered in one sentence each time. Naming an open divergence costs a line; guessing
+it costs a round trip.

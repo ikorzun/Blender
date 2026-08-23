@@ -9420,16 +9420,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(mag.tag === 'BUTTON' && mag.aria === 'Hint' && !/iconBtn/.test(mag.classes) &&
            mag.width === 56 && mag.height === 56 &&
            mag.bg === 'rgba(255, 255, 255, 0.5)' && mag.bgImage === 'none' &&
-           mag.radius === '16px' &&
+           mag.radius === '80px' &&
            mag.btnShadow === 'rgb(255, 255, 255) 0px 0px 16px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&
            mag.events === 'auto' && mag.position === 'relative',
       '⚠️⚠️ THE HINT IS 56×56, FILL .50, AN EVEN INNER GLOW `0 0 16px #FFF` AND A 1px WHITE ' +
       'RIM, RADIUS 16 (the owner 2026-08-23-v). ⛔ THE FILL MOVED FOR THE THIRD TIME IN THREE ' +
       'DAYS (.20 → .40 → .60 → .50) and the glow stopped being directional. ' +
-      '⚠️⚠️ THE RADIUS 16 IS THE DELIBERATE DIVERGENCE FROM SHAKE, WHICH WENT TO 80 IN THE SAME ' +
-      'MESSAGE: for this button he listed only three PAINT properties (fill / stroke / shadow) ' +
-      'and no shape, so the squircle stays. If a future pass rounds it to a pill «for ' +
-      'consistency», that is a guess he never made and this pin is what stops it. ' +
+      '⛔⛔ THE RADIUS IS 80 SINCE 2026-08-23-g («round the button\'s shape», with this button ' +
+      'selected) — on a 56×56 box that renders as a CIRCLE, since each corner clamps to half ' +
+      'the side. ⚠️⚠️ THE PREVIOUS EDITION OF THIS VERY LINE PINNED 16 AND CALLED A ROUNDING ' +
+      'PASS «a guess he never made» — and one message later he made it. That is the second time ' +
+      'in two messages that a guard\'s named sabotage turned out to be his next spec, and it is ' +
+      'the same law both times: A GUARD STATES A DECISION, NOT A TRUTH. It moves with his word ' +
+      'and is not «repaired». ⚠️ 80 rather than 28 or 1000: it is the number he gave this family ' +
+      'in the previous message, so all three buttons now carry ONE declared radius. ' +
       '⚠️ THE RIM STAYS AN INSET RING HERE AND IS NOT A `border` LIKE SHAKE\'S — his own ' +
       'wording (`stroke` for this one), and load-bearing: the magnifier sits at (5.7, 3.38) ' +
       'absolutely and a border would push it and the badge inward by a pixel (' +
@@ -10350,6 +10354,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            brMob.zoomIn.opacity === '1' && brMob.zoomOut.opacity === '1' &&
            brDesk.hint.opacity === '1' && brDesk.shake.opacity === '1' &&
            brDesk.zoomIn.radius === '1000px' && brDesk.zoomOut.radius === '1000px' &&
+           // ⛔ THE HINT JOINED THE ROUND SHAPES 2026-08-23-g («round the button's shape»). It is
+           //    pinned HERE TOO, beside the zoom, because this is the assert that guards the
+           //    family as a whole — the shape is no longer what separates the hint from it.
+           brDesk.hint.radius === '80px' && brMob.hint.radius === '80px' &&
+           brDesk.shake.radius === '80px' &&
            brDesk.zoomIn.shadow === brDesk.hint.shadow &&
            brMob.zoomIn.shadow === brDesk.zoomIn.shadow &&
            brDesk.zoomOut.shadow === brDesk.zoomIn.shadow,

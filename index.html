@@ -705,9 +705,18 @@
      and the badge inward by a pixel under the global box-sizing.
      ⚠️ THE ORDER STAYS: the rim is listed LAST so the soft glow is painted under the crisp
      line and not over it. */
+  /* ⛔⛔ THE RADIUS 16 → 80 (the owner's word 2026-08-23-g, with the button selected:
+     «round the button's shape»). ⛔ IT CLOSES THE DIVERGENCE THAT WAS LEFT OPEN ONE MESSAGE
+     EARLIER ON PURPOSE: when he restyled the three buttons he listed only PAINT properties for
+     the hint, so the squircle stayed and the gap to Shake's new radius 80 was named to him
+     rather than guessed. He looked and named the shape.
+     ⚠️ ON A 56×56 BOX 80 RENDERS AS A CIRCLE — the browser clamps each corner to half the
+     side, i.e. 28. The number is written as 80 and not as 28 or 1000 deliberately: it is the
+     one he gave for this family in the previous message, so the three buttons now carry ONE
+     declared radius and a retune moves one value in three places rather than three values. */
   #hintBtn { position:relative; pointer-events:auto; width:56px; height:56px;
     flex:none; border:none; padding:0; cursor:pointer;
-    border-radius:16px; background:rgba(255,255,255,.50);
+    border-radius:80px; background:rgba(255,255,255,.50);
     box-shadow:inset 0 0 16px 0 #fff, inset 0 0 0 1px #fff;
     display:block; -webkit-tap-highlight-color:transparent; }
   /* ⚠️ THE MAGNIFIER — BY EXPLICIT SIZES FROM THE NODE: 56×61 at the point (4, 1).
