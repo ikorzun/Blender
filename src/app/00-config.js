@@ -448,10 +448,31 @@ const CHARGE_TTL_MS = 10000; // 10s — the owner's word 2026-08-04 ("disappears
 // growth with a cap; late levels accumulate a series harder anyway — the groups are smaller,
 // see the measurement in the group cap section: an average of 3.28 on lv.1 → 2.19 on lv.20).
 // Tune by playtest; consumers MUST call chainComboAt(), NOT the constant.
+// ⛔⛔ THE THRESHOLD IS A FLAT 16 ON EVERY LEVEL (the owner's word 2026-08-23-a: «the
+// items boost switches on only after 16 pairs»; asked and answered — «a flat 16
+// everywhere»). ⛔ IT CANCELS THE LADDER of 2026-07-31 («make the entry to this mode more
+// expensive… carefully»): the growth by level, the step of 8 and the cap of 14 no longer
+// decide anything. Level 1 became 60% more expensive, level 32 — 14%.
+// ⚠️ «16 PAIRS» MEANS 16 IN AN UNBROKEN SERIES, not 16 per level. The counter is
+// `comboCount`, which a mistake and a lapsed tempo window already reset — and that is the
+// only reading under which his own next sentence («any mistake cancels the boost») is
+// about the same counter. `stats.matches`, the per-level total, never resets and was
+// therefore not the subject.
+// ⚠️⚠️ THE COST WAS NAMED TO HIM AND HE PAID IT KNOWINGLY: entering turbo is the unit
+// that credits the bowl shatter and the bomb, so a rarer entry makes both rarer. He chose
+// to compensate rather than accept it — see BOWL_SHATTER_N and BOMB_SERIES_REWARD, both
+// lowered in the same batch by his word. Do not read those two numbers as independent
+// tuning: they are the counterweight to this one, and moving this back to 10 without
+// moving them back would make the finale trivial.
+// ⚠️ THE STEP AND THE CAP ARE KEPT DEAD ON PURPOSE — restoring the ladder is one line
+// (return the Math.min expression below), and the owner has already switched this knob
+// twice. They decide nothing today; do not read them as live.
 const CHAIN_AT_STEP = 8, CHAIN_AT_CAP = 14;
 function chainComboAt(){
-  const lv = (typeof levelNum === 'number') ? levelNum : 1;
-  return Math.min(CHAIN_AT_CAP, CHAIN_COMBO_AT + Math.max(0, Math.floor(lv / CHAIN_AT_STEP)));
+  return CHAIN_COMBO_AT;
+  // the ladder, until 2026-08-23-a:
+  //   const lv = (typeof levelNum === 'number') ? levelNum : 1;
+  //   return Math.min(CHAIN_AT_CAP, CHAIN_COMBO_AT + Math.max(0, Math.floor(lv / CHAIN_AT_STEP)));
 }
 
 // LEADERBOARD: the id of the board the owner created in the Playgama dashboard. EMPTY =
@@ -490,7 +511,20 @@ const LEADERBOARD_ID = 'Blendo';
 // manages to land within 3 s (a fall from the spawn at MAX_FALL takes <1 s).
 // The fullness limits (141 alive / top>H-1 / <=8 in the air) are untouched — they cut ticks
 // before as well, now they cut them more densely, and the number will never exceed the old one.
-const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 125, CHAIN_DROP_N = 3.0;
+// ⛔ CHAIN_DROP_MS 125 → 80 (the owner's word 2026-08-23-a: «by the way, speed up their
+// pouring»). The tick is the ONLY knob touched: the window stays 3000 and the per-tick
+// volume stays 3.0, so the batch is not made smaller — it is delivered denser.
+// ⛔⛔ THE FALL SPEED WAS DELIBERATELY **NOT** TOUCHED, and that is the canon's ⛔ ground:
+// «WE TRIED 12 — THERE IS NO GAIN… do not turn this knob» about DROP_V0, with bans on
+// MAX_FALL and on lowering the spawn beside it. Two days earlier he complained about
+// exactly this pour «feeling like dropped frames», and DROP_V0 = 8 was the measured cure —
+// making things fall faster again would walk straight back into that complaint.
+// ⚠️ THE WINDOW WAS NOT SHORTENED EITHER, though it looks like the obvious «faster». The
+// pour is gated by PHYSICAL state (the pile below the rim, the items in the air), not by
+// the tick count, so a shorter window would have cut the delivered QUANTITY — the opposite
+// of what he asked. Measured before the edit: 22 items actually landed out of a
+// theoretical 60.
+const CHAIN_COMBO_AT = 16, CHAIN_MS = 10000, CHAIN_DROP_MS = 80, CHAIN_DROP_N = 3.0;  // ⛔ 10 → 16, the owner's word 2026-08-23-a
 // ⚠️ CHAIN_DROP_N 2.6→3.0 (the owner's word 2026-08-01 "finish off the top-up drop"):
 // a 3-second window fits 20 ticks (a prime of 600 ms on a grid of 125), not
 // 24 from a naive division — 2.6×20=52 violated the spec "keep the quantity as it is"
@@ -765,7 +799,16 @@ const BOWL_SERIES_LEN = 4;
 // after 5 turbos in a row without mistakes, and every 10th level needs +1 turbo — yes,
 // it will be hard". Base 5, +1 for every ten levels (lv.1-9: 5, lv.10-19:
 // 6, lv.20-29: 7...), he did not set a cap — we do not invent one. The bowlSetN knob is alive.
-const BOWL_SHATTER_N = 5;
+// ⛔⛔ 5 → 3 (the owner's word 2026-08-23-a, his choice out of three offered: «a flat 16
+// everywhere AND fix the bowl»). This is NOT independent tuning — it is the counterweight
+// to the turbo threshold going 10 → 16 in the same batch. The unit here is an ENTRY INTO
+// TURBO, so a 60% dearer entry would have pushed the shatter out of the game: at 5 credits
+// it needed 50 flawless matches on levels 1-9, at a threshold of 16 it would have needed
+// 80, against a series window that shrinks to an 1800 ms floor. Three credits × 16 = 48,
+// i.e. the finale lands roughly where it landed before this batch.
+// ⚠️ IF THE THRESHOLD EVER RETURNS TO 10, THIS MUST RETURN TO 5 — otherwise the shatter
+// becomes trivial. The two numbers are one decision.
+const BOWL_SHATTER_N = 3;
 // "THE CHAIN BREAKS FROM A PAUSE OR FROM A MISTAKE" (the owner's word 2026-08-02) — already
 // in production WITHOUT any edits: the progress towards a credit goes by comboCount, and that is reset by
 // a pause (the window) and by ANY miss (penalize/penalizeDouble, spec 2026-07-27
@@ -898,7 +941,11 @@ const FROZEN_MAX_PER_LEVEL = 2;
 const FROZEN_PAIRS_N = 3;
 const FROZEN_BREAK_MULT = 3;        // earlier — there is no bomb at all
 const BOMB_GAP_MIN = 1, BOMB_GAP_MAX = 3;   // "every 1-3 levels"
-const BOMB_SERIES_REWARD = 3;     // "if the player scores 3 series"
+// ⛔⛔ 3 → 2 (the owner's word 2026-08-23-a) — the same counterweight as at
+// BOWL_SHATTER_N, for the same reason: his spec «if the player scores 3 series» was
+// written when a series cost 10 matches, and at 16 the bomb would practically have stopped
+// arriving. Two entries × 16 = 32 matches, against the 30 his own sentence describes.
+const BOMB_SERIES_REWARD = 2;     // was 3: "if the player scores 3 series" (2026-08-12), re-based at the threshold of 16
 const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.86→5.72, the owner's spec 2026-07-27-b; history: 2.2→+30%→×2); the cap BOMB_MAX=7 holds the balance ("no more than 5-7") — it is really what decides, the radius now covers almost the whole bottom
 // ⚠️ THE ICE BREAKS ONLY FROM A CLOSE EXPLOSION (the owner's choice "2", 2026-08-13):
 // a measurement showed that the zone of 5.72 with a bowl ~8 across reached a block from

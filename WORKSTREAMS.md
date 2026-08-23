@@ -1,5 +1,51 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-a: EIGHT ITEMS IN ONE MESSAGE — the dispatcher
+
+He sent eight requests with an instruction attached: «split all the tasks, remember
+you have agents. Analyse everything, ask me questions in this chat, then act on your
+own.» Six recon agents read the items against the code and the canon BEFORE any
+edit; of eighteen ambiguities they found, four were put to him — the ones where the
+two readings produce different work, and in particular the three that reverse a
+recorded decision of his own. The rest were decided here and stated as assumptions.
+
+THE FOUR ANSWERS, EACH CANCELLING SOMETHING OF HIS:
+1. The boost threshold: a FLAT 16 everywhere ⛔ cancelling his escalating ladder of
+   2026-07-31 — plus, his own choice, the counterweights `BOWL_SHATTER_N` 5 → 3 and
+   `BOMB_SERIES_REWARD` 3 → 2, because entering turbo is what credits both.
+2. A tap on a pairless item is a FULL mistake ⛔ cancelling his own removal of that
+   penalty on 2026-07-29, whose measurement (50 accessible items, 11 accessible
+   pairs on lv.20 Hard) he was shown before answering.
+3. The notification under the eyes: only the level-up, once per level ⛔ cancelling
+   his per-collection spec of 2026-08-05.
+4. The zoom buttons take the new colour and rim only ✅ KEEPING his 50%-at-rest
+   dimming of 2026-08-05, with the consequence named: at rest they read at an
+   effective 30% against their neighbours' 60%.
+
+⚠️⚠️ THE TWO ITEMS THAT COULD HAVE SHIPPED AS SILENT NO-OPS, and both needed a new
+hook to be provable at all:
+— THE LIGHTNING. The obvious implementation calls `boltFX`, which begins with
+  `if (!TURBO_BOLTS) return;` and would have drawn NOTHING while throwing nothing
+  and passing all 786 asserts. `chainBoltFX` is its own function; `chainBoltProbe()`
+  makes the thread measurable (18 victims → 2 meshes / 2150 verts, 28 → 3250).
+— THE BLADES. Nothing in the suite read blade geometry, so a wrong number would
+  have shipped green. `bladeProbe()` computes the world-space boxes rather than
+  the group's y — which on this correct build would have reported «nothing changed»,
+  because the hub grew instead of the group moving.
+
+⚠️ TWO KNOBS WERE REFUSED ON THE CANON'S OWN ⛔ GROUND. «Speed up the pouring» was
+done by the tick (125 → 80 ms), NOT by the fall speed (`DROP_V0`: «we tried 12 —
+there is no gain… do not turn this knob», and his own dropped-frames complaint two
+days earlier) and NOT by shortening the window (the pour is gated by physical state,
+so a shorter window cuts the QUANTITY). Measured: +22 → +34 items delivered, worst
+frame 22.5 ms.
+
+⚠️ THE RIM ON THE BUTTONS IS AN INSET SHADOW AND NOT A `border`: `box-sizing` is
+global here, so a border would have shrunk every button's content box by a pixel and
+moved the Shake caption off its node's axis. Measured after: axis 84, hand frame
+[5,3,50,50] — unmoved.
+
+
 ### ACCEPTANCE 2026-08-22-e: TOP ITEMS — THREE ROWS ON THE DESKTOP TOO — the dispatcher
 
 One item, sent with a screenshot of the desktop win screen carrying five rows:

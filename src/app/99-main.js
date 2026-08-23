@@ -1845,6 +1845,55 @@ window.__game = {
     return { types: Object.keys(byType).length, byType, kidsTotal, kidsMax, halves,
              fires: fires.length, fxN: fx.length };
   },
+  // ⚠️⚠️ A PROBE FOR THE IMPELLER'S CLEARANCE (2026-08-23-a: «make the distance from the
+  // objects to the blades smaller»). Before this batch NOTHING in the suite read the blade
+  // geometry at all — grep confirmed the only blade hits were matcap-texture guards — so a
+  // wrong number would have shipped green.
+  // ⚠️ THE WORLD-SPACE TOP IS COMPUTED, not the group's y: the raise was done by growing the
+  // hub and moving the blades UP THE SHAFT precisely so that the group's y could stay put,
+  // and a probe reading `mixerBlades.position.y` would therefore report «nothing changed»
+  // on a correct build. It walks the real boxes instead.
+  // ⚠️ `floor` IS RETURNED BESIDE IT so the guard can state the CLEARANCE rather than an
+  // absolute height — the clearance is the quantity he asked about, and it moves if either
+  // side moves.
+  bladeProbe(){
+    const box = new THREE.Box3();
+    let top = -Infinity, hubTop = -Infinity;
+    for (const o of mixerBlades.children){
+      o.updateWorldMatrix(true, true);
+      box.setFromObject(o);
+      if (!isFinite(box.max.y)) continue;
+      if (o.geometry && o.geometry.type === 'CylinderGeometry') hubTop = Math.max(hubTop, box.max.y);
+      else top = Math.max(top, box.max.y);
+    }
+    return { bladeTop: +top.toFixed(3), hubTop: +hubTop.toFixed(3),
+             groupY: +mixerBlades.position.y.toFixed(3), floor: FLOOR_REST,
+             gap: +(FLOOR_REST - top).toFixed(3) };
+  },
+  // ⚠️⚠️ A PROBE FOR THE THREAD OF LIGHTNING (2026-08-23-a). Without it the item «a click on
+  // the bonus thing draws a bolt through all the copies» is INVISIBLE TO EVERY AUTOMATED
+  // CHECK: a build that draws nothing throws nothing, logs nothing and passes the whole
+  // suite — the single most likely way to ship this feature without shipping it.
+  // ⚠️ THE VERTEX COUNT IS RETURNED, NOT ONLY THE MESH COUNT, and that is the load-bearing
+  // half. Two meshes appear whether the thread has fifteen hops or one degenerate segment;
+  // only the vertex count grows with the number of victims, so only it can tell a real
+  // thread from a stub. The guard compares two detonations of different sizes.
+  // ⛔⛔ THE NAME IS `chainBoltProbe`, NOT `boltProbe`, AND THAT IS NOT COSMETIC. This object is
+  // an OBJECT LITERAL: a second key of the same name silently WINS, and `boltProbe(ms)` fifty
+  // lines above is GRAPHICS's live debug hook that pours discharges for a screenshot. Naming
+  // this one `boltProbe` did not error, did not warn and passed the build — it simply deleted
+  // that hook. Caught in review, not by a run. ⚠️ Before adding any hook here, grep the file
+  // for the name; the file already carries one scar of exactly this shape (`itemsBrief`).
+  chainBoltProbe(){
+    let meshes = 0, verts = 0;
+    for (const o of scene.children){
+      if (!(o.userData && o.userData.poolBolt)) continue;
+      meshes++;
+      const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+      if (a) verts += a.count;
+    }
+    return { meshes, verts };
+  },
   grindNow(){ mixerGrind(); return true; },
   // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)
   // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
@@ -2304,6 +2353,18 @@ window.__game = {
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },
+  // ⚠️⚠️ THE FOUR NUMBERS OF THE POUR, AS LIVE VALUES (2026-08-23-a «speed up their pouring»).
+  // The suite cannot state «the tick got denser» by watching the clock: `combo().nextDropIn` is
+  // the REMAINING time to the next tick, so catching a fresh one needs sampling faster than the
+  // tick itself — and the sampler that fast is heavy enough to slow the game it is measuring
+  // (measured: 23 samples in 3 s instead of 375, and the delivery read back as the OLD build's
+  // number on a fixed build). The deciding values are these constants; the guard reads them from
+  // here and pins them as twins of the spec, the same way the turbo ladder is pinned.
+  // ⚠️ `airCap` is the ceiling inside chainRefill (40-items) and is duplicated here BY HAND —
+  // it is a literal in a hot loop and there is nowhere else to read it from. If that loop's
+  // number moves, move this one with it; the guard on it exists to make the pair notice.
+  chainPour(){ return { tickMs: CHAIN_DROP_MS, perTick: CHAIN_DROP_N,
+                        windowMs: CHAIN_DROP_WINDOW_MS, airCap: 10 }; },
   floaters(){
     // an item «hangs» if under its lowest point there is more than 0.35 of emptiness.
     // ⚠️ A single ray from the centre lies about «bridges»: a flat item (a steak) lies with its

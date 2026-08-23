@@ -282,7 +282,14 @@ function chainRefill(){
     aliveCnt++;
     if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++;
   }
-  if (top > FUNNEL.H - 1 || airborne >= 8) return;
+  // ⛔ THE AIR CEILING 8 → 10 (2026-08-23-a, together with the denser tick). Measured on
+  // the live build BEFORE the edit: at a tick of 125 ms the air held at most 6 of the 8
+  // allowed, i.e. the ceiling was not the wall — but at 80 ms it becomes one, and a tick
+  // that returns here delivers nothing at all. The raise is deliberately small: this
+  // ceiling is what keeps the pour from becoming an endless column, and the frame cost of
+  // items in flight is exactly what he complained about two days ago. Re-measure the worst
+  // frame before raising it again.
+  if (top > FUNNEL.H - 1 || airborne >= 10) return;
   // the fractional volume of a tick (2.6 = +30%, the owner's spec): the integer
   // part is spawned, the remainder piles up in chainCarry until the next tick
   chainCarry += CHAIN_DROP_N;

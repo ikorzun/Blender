@@ -421,7 +421,21 @@
      it does not cover these two nodes — if the sky ever brightens at the top,
      they will have to be checked separately. The #gScore gradient IS LEFT in the markup:
      on desktop the style is as before. */
-  #score { fill:url(#gScore); }
+  /* ⛔⛔ ONE FLAT YELLOW ON BOTH LAYOUTS (the owner's word 2026-08-23-a: «the colour of
+     the score on the game screen in all versions as on mobile»). ⛔ THE #gScore GRADIENT
+     IS CANCELLED — it was the last place in the game still using it; the mobile arm has
+     been flat `#ffe730` since his spec of 2026-08-03, and the win screen's score is flat
+     already too, so after this the score is ONE colour everywhere.
+     ⚠️ THE `<linearGradient id="gScore">` BLOCK IS LEFT IN THE MARKUP, DEAD — the same
+     thing was done with the win screen's gradient when that score was flattened, so that
+     a return costs one line. It is now referenced by nothing; do not read its presence
+     as evidence that something still paints with it.
+     ⚠️ THE PRICE, BY THE NUMBER: `#ffe730` against the faded top of the sky is 1.35:1,
+     i.e. the desktop score loses the contrast its gradient's darker lower half gave it.
+     The mobile score has carried exactly this number since yesterday and he accepted it
+     knowingly; this extends the same acceptance to the desktop. The star beside it and
+     the type size are what carry the reading, not the contrast. */
+  #score { fill:#ffe730; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
      ⛔ THE THICKNESS 6 LIVED THROUGH ONE EDIT: having looked at the rendered frame, the owner
@@ -469,7 +483,9 @@
   #lvlSvg text { --otl:0; }
   @media (max-width:767px){
     #lvlSvg text { font-size:18px; --otl:0; fill:#fff; }
-    #score { fill:#ffe730; }
+    /* ⛔ THE MOBILE `#score { fill:#ffe730 }` IS REMOVED AS A DUPLICATE 2026-08-23-a:
+       the base rule above now carries the same colour for both layouts. Restoring a
+       line here would only be needed if the two layouts ever diverge again. */
     #scSvg text { --otl:0; }
   }
   /* The countdown number and the word Grinding — SVG text with a REAL outline.
@@ -664,10 +680,25 @@
      ⚠️ THE BACKGROUND IS TWICE AS DENSE (.20 → .40), while the hover stayed .80 — the owner did not
      name it, and the step 40→80 is still noticeable. The argument «glass, and not colour» is intact:
      the button does not return to the rule of the time of day. */
+  /* ⛔⛔ THE FILL .40 → .60 AND A 1px WHITE RIM (the owner's word 2026-08-23-a:
+     «update the style of the buttons, including the zoom buttons: fill:
+     rgba(255,255,255,0.60); stroke-width:1px; stroke:#FFF»). ⛔ It cancels the .40 of
+     2026-08-22-v, which lived one day. The radius 16 and the inner glow are NOT named
+     by him and therefore SURVIVE — the house rule of this project: an unnamed property
+     is not touched (the same way the hover .80 survived the .20 → .40 move).
+     ⚠️⚠️ THE RIM IS AN INSET SHADOW AND NOT A `border`, AND THAT IS LOAD-BEARING. He
+     wrote a Figma `stroke`, whose default alignment is INSIDE — an inset ring is the
+     faithful translation. A real CSS border would also be honest to the eye but not to
+     the layout: `box-sizing:border-box` is global here, so a 1px border keeps the outer
+     56 and shrinks the CONTENT box to 54, moving every absolutely positioned child
+     (the magnifier, the badge, the Shake caption and hand) inward by a pixel. The
+     shadow paints the same ring and moves nothing.
+     ⚠️ THE ORDER INSIDE box-shadow MATTERS: the rim is listed LAST so that the soft
+     glow is painted over the crisp line and not the other way round. */
   #hintBtn { position:relative; pointer-events:auto; width:56px; height:56px;
     flex:none; border:none; padding:0; cursor:pointer;
-    border-radius:16px; background:rgba(255,255,255,.40);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70);
+    border-radius:16px; background:rgba(255,255,255,.60);
+    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
     display:block; -webkit-tap-highlight-color:transparent; }
   /* ⚠️ THE MAGNIFIER — BY EXPLICIT SIZES FROM THE NODE: 56×61 at the point (4, 1).
      ⛔⛔ THE SHADOW WAS REMOVED 2026-08-21-zh TOGETHER WITH THE BRUSH'S SHADOW — the owner took it out in
@@ -797,9 +828,20 @@
      at night. The zoom's backing is light in both themes, therefore a light glyph
      cannot be here under any theme. */
   #zoomGrp { flex-direction:column; gap:8px; }
+  /* ⛔⛔ THE FILL .4 → .60 AND THE 1px WHITE RIM (the owner's word 2026-08-23-a — he
+     named the zoom buttons BY NAME: «including the zoom buttons»). The rim is an inset
+     shadow for the same reason as at the hint; the zoom's own softer glow (.55, not .70)
+     is his and stays.
+     ⚠️⚠️ THE 50% DIMMING AT REST IS KEPT ON HIS EXPLICIT WORD 2026-08-23-a (asked and
+     answered: «only the colour and the outline»). The consequence is named and accepted:
+     `opacity:.5` multiplies the whole node, so at rest these buttons read at an
+     effective 30% against the neighbours' 60% and the rim reads at half strength. They
+     become the family only under the finger. ⛔ Do not «fix» this by dropping the
+     opacity — it is his spec of 2026-08-05 («50% transparency in the calm state»),
+     re-confirmed a day after this very restyle. */
   .zoomBtn, html.night .zoomBtn {
-    background:rgba(255,255,255,.4); color:#000;
-    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55); }
+    background:rgba(255,255,255,.60); color:#000;
+    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55), inset 0 0 0 1px #fff; }
   /* SEMI-TRANSPARENT AT REST (the owner's word 2026-08-05: «50% transparency in
      the calm state and 100% on hover»). We dim the WHOLE node, and not only the
      background: otherwise the glyph would stay dense and the button would read as «broken».
@@ -972,10 +1014,16 @@
      2026-08-22-g): 120×56, radius 16, background .40, the same inner shadow.
      ⚠️ THE HINT IS UNTOUCHED — it stayed 56×56: he was updating ONLY Shake, and
      the pair is again of different widths. What stayed common to them is the height, the shape and the background. */
+  /* ⛔⛔ THE FILL .40 → .60 AND THE 1px WHITE RIM (the owner's word 2026-08-23-a) —
+     the same three properties as at the hint; the reasoning about the inset ring versus
+     a `border` lives at #hintBtn and is not repeated. Here the border would have been
+     even more expensive: the caption stands on the axis x=84 and the hand on x=30, both
+     absolutely positioned, so a 1px content-box shrink would move BOTH off their nodes'
+     axes and turn the label guard red on a sound build. */
   #shakeBtn { pointer-events:auto; position:relative; width:120px; height:56px; flex:none;
     border:none; padding:0; cursor:pointer; display:block;
-    border-radius:16px; background:rgba(255,255,255,.40);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70);
+    border-radius:16px; background:rgba(255,255,255,.60);
+    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
     -webkit-tap-highlight-color:transparent; }
   /* ⚠️⚠️ THE CAPTION IS CENTRED ON THE POINT FROM THE NODE (x=84), AND NOT BY FLEX. Flex with
      a gap would have given a symmetrical layout, while in the mock-up the hand and the caption each stand
@@ -3283,12 +3331,26 @@
      the construction = the top of #face + its height: #face's top is the safe-area + 8, and
      the height is --eyeW*.667 (see the #face rule). The former formula took .55 and
      14 px — the toast ran onto the bottom of the eyes. */
+  /* ⛔⛔ THE WHOLE PILL IS 30% SMALLER (the owner's word 2026-08-23-a: «also make it 30%
+     smaller»). Every number below is the node's 829:1618 value × 0.7, rounded to the
+     pixel: min-width 169 → 118, height 60 → 42, the gap 12 → 8, the paddings 8/10/8/16 →
+     6/7/6/11, the inner glow 28 → 20, and in the rules below the portrait 44 → 31 and the
+     chip 23/8/12 → 16/6/8. He said «it», not «its plate», so the contents shrink with it.
+     ⚠️⚠️ IT IS DONE BY THE LITERALS AND NOT BY `transform: scale(.7)`, AND THAT IS
+     LOAD-BEARING TWICE OVER. (1) The transform slot is already occupied: this node's
+     entrance IS a scale (.85 → 1), so a scale for the size would have to be multiplied into
+     both states and would then also scale the entrance. (2) `getBoundingClientRect` sees
+     transforms, so a scaled pill measures 42 tall while still occupying 60 — the gap of 32
+     under the eyes, which he set by hand on 2026-08-05 and which is pinned with a ±2
+     tolerance, would silently become 41.
+     ⚠️ THE GAP OF 32 ITSELF IS NOT SCALED: he shrank the notification, not the distance
+     from the eyes. */
   #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85);
     top:calc(env(safe-area-inset-top, 0px) + 8px + var(--eyeW, 133px) * 0.667 + 32px);
-    min-width:169px; height:60px; border-radius:1000px; background:rgba(255,255,255,.16);
-    box-shadow:inset 0 0 28px 0 rgba(255,255,255,.7);
-    display:flex; align-items:center; justify-content:center; gap:12px;
-    padding:8px 10px 8px 16px; box-sizing:border-box;
+    min-width:118px; height:42px; border-radius:1000px; background:rgba(255,255,255,.16);
+    box-shadow:inset 0 0 20px 0 rgba(255,255,255,.7);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:6px 7px 6px 11px; box-sizing:border-box;
     opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
   /* THE NIGHT VARIANT (node 776:701 «Item toast black», the owner's word
      2026-08-07): a pill rgba(0,0,0,.2) and WITHOUT an inner glow — by day
@@ -3297,9 +3359,9 @@
      the black number are the same in both themes (the node does not change them). */
   html.night #multToast { background:rgba(0,0,0,.2); box-shadow:none; }
   #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
-  #multToast img { width:44px; height:44px; object-fit:contain; }
-  #multToastVal { font-size:23px; font-weight:800; color:#000; background:#c0ff47;
-    border-radius:32px; padding:8px 12px; line-height:1; }
+  #multToast img { width:31px; height:31px; object-fit:contain; }  /* ⛔ 44 × 0.7 (2026-08-23-a) */
+  #multToastVal { font-size:16px; font-weight:800; color:#000; background:#c0ff47;
+    border-radius:32px; padding:6px 8px; line-height:1; }  /* ⛔ 23/8/12 × 0.7 (2026-08-23-a) */
   /* ===== DESKTOP: THE ZOOM AND THE TOAST BY NODE 741:1497 (the owner's word 2026-08-04
      «in the desktop version the + and − controls are placed differently») =====
      The node (a frame of 1280×832): Zoom x588 y764 104×48 — A ROW, the minus on the left (48×48),
@@ -4638,10 +4700,31 @@ const CHARGE_TTL_MS = 10000; // 10s — the owner's word 2026-08-04 ("disappears
 // growth with a cap; late levels accumulate a series harder anyway — the groups are smaller,
 // see the measurement in the group cap section: an average of 3.28 on lv.1 → 2.19 on lv.20).
 // Tune by playtest; consumers MUST call chainComboAt(), NOT the constant.
+// ⛔⛔ THE THRESHOLD IS A FLAT 16 ON EVERY LEVEL (the owner's word 2026-08-23-a: «the
+// items boost switches on only after 16 pairs»; asked and answered — «a flat 16
+// everywhere»). ⛔ IT CANCELS THE LADDER of 2026-07-31 («make the entry to this mode more
+// expensive… carefully»): the growth by level, the step of 8 and the cap of 14 no longer
+// decide anything. Level 1 became 60% more expensive, level 32 — 14%.
+// ⚠️ «16 PAIRS» MEANS 16 IN AN UNBROKEN SERIES, not 16 per level. The counter is
+// `comboCount`, which a mistake and a lapsed tempo window already reset — and that is the
+// only reading under which his own next sentence («any mistake cancels the boost») is
+// about the same counter. `stats.matches`, the per-level total, never resets and was
+// therefore not the subject.
+// ⚠️⚠️ THE COST WAS NAMED TO HIM AND HE PAID IT KNOWINGLY: entering turbo is the unit
+// that credits the bowl shatter and the bomb, so a rarer entry makes both rarer. He chose
+// to compensate rather than accept it — see BOWL_SHATTER_N and BOMB_SERIES_REWARD, both
+// lowered in the same batch by his word. Do not read those two numbers as independent
+// tuning: they are the counterweight to this one, and moving this back to 10 without
+// moving them back would make the finale trivial.
+// ⚠️ THE STEP AND THE CAP ARE KEPT DEAD ON PURPOSE — restoring the ladder is one line
+// (return the Math.min expression below), and the owner has already switched this knob
+// twice. They decide nothing today; do not read them as live.
 const CHAIN_AT_STEP = 8, CHAIN_AT_CAP = 14;
 function chainComboAt(){
-  const lv = (typeof levelNum === 'number') ? levelNum : 1;
-  return Math.min(CHAIN_AT_CAP, CHAIN_COMBO_AT + Math.max(0, Math.floor(lv / CHAIN_AT_STEP)));
+  return CHAIN_COMBO_AT;
+  // the ladder, until 2026-08-23-a:
+  //   const lv = (typeof levelNum === 'number') ? levelNum : 1;
+  //   return Math.min(CHAIN_AT_CAP, CHAIN_COMBO_AT + Math.max(0, Math.floor(lv / CHAIN_AT_STEP)));
 }
 
 // LEADERBOARD: the id of the board the owner created in the Playgama dashboard. EMPTY =
@@ -4680,7 +4763,20 @@ const LEADERBOARD_ID = 'Blendo';
 // manages to land within 3 s (a fall from the spawn at MAX_FALL takes <1 s).
 // The fullness limits (141 alive / top>H-1 / <=8 in the air) are untouched — they cut ticks
 // before as well, now they cut them more densely, and the number will never exceed the old one.
-const CHAIN_COMBO_AT = 10, CHAIN_MS = 10000, CHAIN_DROP_MS = 125, CHAIN_DROP_N = 3.0;
+// ⛔ CHAIN_DROP_MS 125 → 80 (the owner's word 2026-08-23-a: «by the way, speed up their
+// pouring»). The tick is the ONLY knob touched: the window stays 3000 and the per-tick
+// volume stays 3.0, so the batch is not made smaller — it is delivered denser.
+// ⛔⛔ THE FALL SPEED WAS DELIBERATELY **NOT** TOUCHED, and that is the canon's ⛔ ground:
+// «WE TRIED 12 — THERE IS NO GAIN… do not turn this knob» about DROP_V0, with bans on
+// MAX_FALL and on lowering the spawn beside it. Two days earlier he complained about
+// exactly this pour «feeling like dropped frames», and DROP_V0 = 8 was the measured cure —
+// making things fall faster again would walk straight back into that complaint.
+// ⚠️ THE WINDOW WAS NOT SHORTENED EITHER, though it looks like the obvious «faster». The
+// pour is gated by PHYSICAL state (the pile below the rim, the items in the air), not by
+// the tick count, so a shorter window would have cut the delivered QUANTITY — the opposite
+// of what he asked. Measured before the edit: 22 items actually landed out of a
+// theoretical 60.
+const CHAIN_COMBO_AT = 16, CHAIN_MS = 10000, CHAIN_DROP_MS = 80, CHAIN_DROP_N = 3.0;  // ⛔ 10 → 16, the owner's word 2026-08-23-a
 // ⚠️ CHAIN_DROP_N 2.6→3.0 (the owner's word 2026-08-01 "finish off the top-up drop"):
 // a 3-second window fits 20 ticks (a prime of 600 ms on a grid of 125), not
 // 24 from a naive division — 2.6×20=52 violated the spec "keep the quantity as it is"
@@ -4955,7 +5051,16 @@ const BOWL_SERIES_LEN = 4;
 // after 5 turbos in a row without mistakes, and every 10th level needs +1 turbo — yes,
 // it will be hard". Base 5, +1 for every ten levels (lv.1-9: 5, lv.10-19:
 // 6, lv.20-29: 7...), he did not set a cap — we do not invent one. The bowlSetN knob is alive.
-const BOWL_SHATTER_N = 5;
+// ⛔⛔ 5 → 3 (the owner's word 2026-08-23-a, his choice out of three offered: «a flat 16
+// everywhere AND fix the bowl»). This is NOT independent tuning — it is the counterweight
+// to the turbo threshold going 10 → 16 in the same batch. The unit here is an ENTRY INTO
+// TURBO, so a 60% dearer entry would have pushed the shatter out of the game: at 5 credits
+// it needed 50 flawless matches on levels 1-9, at a threshold of 16 it would have needed
+// 80, against a series window that shrinks to an 1800 ms floor. Three credits × 16 = 48,
+// i.e. the finale lands roughly where it landed before this batch.
+// ⚠️ IF THE THRESHOLD EVER RETURNS TO 10, THIS MUST RETURN TO 5 — otherwise the shatter
+// becomes trivial. The two numbers are one decision.
+const BOWL_SHATTER_N = 3;
 // "THE CHAIN BREAKS FROM A PAUSE OR FROM A MISTAKE" (the owner's word 2026-08-02) — already
 // in production WITHOUT any edits: the progress towards a credit goes by comboCount, and that is reset by
 // a pause (the window) and by ANY miss (penalize/penalizeDouble, spec 2026-07-27
@@ -5088,7 +5193,11 @@ const FROZEN_MAX_PER_LEVEL = 2;
 const FROZEN_PAIRS_N = 3;
 const FROZEN_BREAK_MULT = 3;        // earlier — there is no bomb at all
 const BOMB_GAP_MIN = 1, BOMB_GAP_MAX = 3;   // "every 1-3 levels"
-const BOMB_SERIES_REWARD = 3;     // "if the player scores 3 series"
+// ⛔⛔ 3 → 2 (the owner's word 2026-08-23-a) — the same counterweight as at
+// BOWL_SHATTER_N, for the same reason: his spec «if the player scores 3 series» was
+// written when a series cost 10 matches, and at 16 the bomb would practically have stopped
+// arriving. Two entries × 16 = 32 matches, against the 30 his own sentence describes.
+const BOMB_SERIES_REWARD = 2;     // was 3: "if the player scores 3 series" (2026-08-12), re-based at the threshold of 16
 const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.86→5.72, the owner's spec 2026-07-27-b; history: 2.2→+30%→×2); the cap BOMB_MAX=7 holds the balance ("no more than 5-7") — it is really what decides, the radius now covers almost the whole bottom
 // ⚠️ THE ICE BREAKS ONLY FROM A CLOSE EXPLOSION (the owner's choice "2", 2026-08-13):
 // a measurement showed that the zone of 5.72 with a bowl ~8 across reached a block from
@@ -7471,22 +7580,46 @@ const mixerBlades = new THREE.Group();
   // and without the difference in tone the impeller would read as one solid lump
   // of metal with no centre.
   const dark = new THREE.MeshMatcapMaterial({ color:0x8b93a0, matcap: metalMatcapTex() });
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.42, 16), dark);
-  hub.position.y = 0.21; mixerBlades.add(hub);
+  // ⛔⛔ THE BLADES WERE RAISED TOWARDS THE PILE (the owner's word 2026-08-23-a: «make
+  // the distance from the objects to the blades smaller»). Measured before: the blade
+  // tops stood at 0.665 while the items rest on a floor whose top is FLOOR_REST = 1.15 —
+  // a gap of 0.485. After: the tops are at 0.965, the gap is 0.185.
+  // ⚠️⚠️ THE GROUP WAS **NOT** MOVED, AND THAT IS THE WHOLE POINT OF THIS EDIT. Raising
+  // `mixerBlades.position.y` is the one-liner, and it would have torn the impeller off
+  // the bottom of the bowl: the hub is modelled from y=0 upwards, so the group's y IS
+  // the hub's footing. Instead the HUB GREW (0.42 → 0.72, its centre following to keep
+  // the base at exactly the same place) and the blades rode up its shaft.
+  // ⚠️ WHY THE BLADES AND NOT THE PILE: the blades carry NO physics body at all, so this
+  // is render-only — no collider, no fill, no trim, no sink-in threshold moves. Dropping
+  // FLOOR_REST instead would have dragged the pile's top height, `trimOverfill`, the
+  // rescuers and the 0.30 half-thickness margin of the floor plate with it, i.e. a
+  // difficulty change smuggled in behind a visual request.
+  // ⚠️ THE CEILING ON THIS NUMBER IS THE GRIND ANIMATION, not the look: a doomed item is
+  // dragged down to centre-y = FLOOR_REST − 0.25 = 0.90 to be sawn. The hub now tops out
+  // at 1.00 and the blade tops at 0.965 — raise them further and the blades start passing
+  // through the item BEFORE the saw, and the whole grind reads as a glitch.
+  // ⚠️ The blades intersect the INVISIBLE floor plate (it spans 0.55..1.15) — they did
+  // before this edit too. Nothing collides: the plate is a physics-only collider and the
+  // blades have no body. What must never happen is the tops crossing 1.15, where they
+  // would stick out through the resting items.
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.72, 16), dark);
+  hub.position.y = 0.36; mixerBlades.add(hub);
   for (let i=0;i<4;i++){
     const arm = new THREE.Group();
     arm.rotation.y = i*Math.PI/2;
     const g = new THREE.BoxGeometry(2.1, 0.09, 0.44);
     g.translate(1.08, 0, 0); // span 2.13 with a bottom of 2.4 — nearly the full width
     const blade = new THREE.Mesh(g, metal);
-    blade.position.y = 0.24;
+    blade.position.y = 0.54;   // ⛔ was 0.24 — raised by 0.30 with the hub (2026-08-23-a)
     blade.rotation.x = (i % 2 ? 0.5 : -0.4); // one pair of blades up, one pair down
     arm.add(blade);
     mixerBlades.add(arm);
   }
   // at the VERY bottom (the owner's spec: "the impeller isn't visible — closer to
-  // the lower edge and bigger"); the blade tops are at ~0.6 — items at
-  // FLOOR_REST=1.15 do not touch them
+  // the lower edge and bigger"). ⚠️ THIS NUMBER IS THE IMPELLER'S FOOTING ON THE BOWL
+  // AND IS DELIBERATELY UNCHANGED by the raise of 2026-08-23-a — the shaft grew instead.
+  // The blade tops now sit at 0.28 + 0.54 + 0.145 = 0.965; items rest at FLOOR_REST=1.15
+  // and still do not touch them.
   mixerBlades.position.y = 0.28;
   scene.add(mixerBlades);
 })();
@@ -8937,7 +9070,14 @@ function chainRefill(){
     aliveCnt++;
     if (it.p.y < FUNNEL.H) top = Math.max(top, it.p.y + it.r); else airborne++;
   }
-  if (top > FUNNEL.H - 1 || airborne >= 8) return;
+  // ⛔ THE AIR CEILING 8 → 10 (2026-08-23-a, together with the denser tick). Measured on
+  // the live build BEFORE the edit: at a tick of 125 ms the air held at most 6 of the 8
+  // allowed, i.e. the ceiling was not the wall — but at 80 ms it becomes one, and a tick
+  // that returns here delivers nothing at all. The raise is deliberately small: this
+  // ceiling is what keeps the pour from becoming an endless column, and the frame cost of
+  // items in flight is exactly what he complained about two days ago. Re-measure the worst
+  // frame before raising it again.
+  if (top > FUNNEL.H - 1 || airborne >= 10) return;
   // the fractional volume of a tick (2.6 = +30%, the owner's spec): the integer
   // part is spawned, the remainder piles up in chainCarry until the next tick
   chainCarry += CHAIN_DROP_N;
@@ -12257,6 +12397,84 @@ function _boltFX_impl(a, b){
   layer(0x2f6bff, 0.075, 0.038, 0.6);  // the sheath (was 0.09 — still "smaller")
   layer(0xdceeff, 0.024, 0.012, 1.0);  // the core (was 0.035)
 }
+// ═══ THE THREAD OF LIGHTNING THROUGH THE VICTIMS OF THE CHARGE (the owner's word
+// 2026-08-23-a: «a click on the bonus item destroys all similar items by way of a lightning
+// bolt that threads through them all, from centre to centre») ═══
+// ⚠️⚠️ ONE CONTINUOUS THREAD, NOT A STAR OF SEPARATE BOLTS, AND THE DIFFERENCE IS HIS
+// WORDING. «Пронизывает их все… от центра к центру» is a traversal — centre to centre to
+// centre — not a radiation from one point. A fan already existed in this codebase (the
+// per-match star at the turbo line) and it is NOT what was asked for; a fan would have been
+// «от центра ко всем».
+// ⛔⛔ THIS DOES **NOT** GO THROUGH `boltFX`, AND MUST NOT BE «SIMPLIFIED» INTO IT. That one
+// begins with `if (!TURBO_BOLTS) return;`, and TURBO_BOLTS is false by the owner's own spec
+// of 2026-07-28 (entering turbo is marked by tossing the pile, not by discharges). Calling
+// boltFX here would draw NOTHING while throwing no error and failing no assert — the single
+// most likely way to «ship» this item without shipping it. Flipping the flag instead would
+// be worse still: it would simultaneously resurrect the ambient crackle across the whole
+// bowl and the star on every match in turbo, i.e. cancel his 2026-07-28 word in three places
+// to satisfy one request.
+// ⚠️ THE ORDER OF THE VICTIMS IS A GREEDY NEAREST-NEIGHBOUR WALK FROM THE TOPMOST ONE. The
+// items arrive in `items` order, which is spawn order — a thread through that would jump
+// across the bowl and read as a scribble rather than as one bolt. Starting from the topmost
+// victim makes the visible end of the thread the one the player is looking at.
+// ⚠️ THE LIFE IS LONGER THAN AN ORDINARY DISCHARGE (0.24 s against BOLT_LIFE 0.16): this is a
+// single event the player asked for and must see, not ambient crackle. The items themselves
+// still die in the same frame — he has twice pushed for instantness on this exact button,
+// which is also why its handler is `pointerdown`.
+// ⚠️ TWO MESHES TOTAL, WHATEVER N IS: every hop and every fork is merged into one geometry
+// per layer. A per-hop mesh at N=16 would mean 30 materials against a BOLT_POOL_MAX of 24,
+// on top of the 16 dissolve clouds already firing.
+// ⚠️ `poolBolt` IS SET AND THAT IS CORRECT HERE — the material comes from `boltMat`, so it
+// belongs in the bolt pool. The canon's warning about this flag is about OTHER effects
+// borrowing it, which would push foreign materials into that pool.
+const CHAIN_BOLT_LIFE = 0.24, CHAIN_BOLT_SEG = 5;
+function chainBoltFX(points){
+  if (!Array.isArray(points) || points.length < 2) return;
+  const left = points.map(p => p.clone());
+  let cur = left[0];
+  for (const p of left) if (p.y > cur.y) cur = p;      // start at the topmost victim
+  left.splice(left.indexOf(cur), 1);
+  const order = [cur];
+  while (left.length){
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < left.length; i++){
+      const d = cur.distanceToSquared(left[i]);
+      if (d < bd){ bd = d; bi = i; }
+    }
+    cur = left[bi]; left.splice(bi, 1); order.push(cur);
+  }
+  const hops = [];
+  for (let i = 0; i < order.length - 1; i++){
+    const h = boltPath(order[i], order[i+1], CHAIN_BOLT_SEG, 0.16);
+    if (h) hops.push(h);
+  }
+  if (!hops.length) return;
+  // the forks are spread over the WHOLE thread and capped at BOLT_FORKS — one set per hop
+  // would give 75 branches at N=16 and turn the thread into a bush
+  const forks = [];
+  for (let i = 0; i < BOLT_FORKS; i++){
+    const h = hops[Math.floor(Math.random()*hops.length)];
+    const j = 1 + Math.floor(Math.random()*(CHAIN_BOLT_SEG-1));
+    const from = h.pts[j];
+    const to = from.clone()
+      .addScaledVector(h.n1, (Math.random()-0.5)*2)
+      .addScaledVector(h.n2, (Math.random()-0.5)*2);
+    to.sub(from).normalize().multiplyScalar(h.len*(0.18+Math.random()*0.25)).add(from);
+    const f = boltPath(from, to, 3, 0.22);
+    if (f) forks.push(f);
+  }
+  const layer = (color, rMain, rFork, opacity) => {
+    const geos = [];
+    for (const h of hops) geos.push(new THREE.TubeGeometry(h.path, CHAIN_BOLT_SEG*2, rMain, 4, false));
+    for (const f of forks) geos.push(new THREE.TubeGeometry(f.path, 6, rFork, 3, false));
+    const mesh = new THREE.Mesh(mergeTubeGeos(geos), boltMat(color, opacity));
+    mesh.renderOrder = 12;
+    mesh.userData.poolBolt = true;
+    addFX(mesh, CHAIN_BOLT_LIFE, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.6+0.4*Math.random()); });
+  };
+  layer(0x2f6bff, 0.075, 0.038, 0.6);  // the sheath — the same proportion as a single bolt
+  layer(0xdceeff, 0.024, 0.012, 1.0);  // the core
+}
 // Floating text (+points, ×multiplier, penalties)
 function scorePopScreen(text, px, py, color, big){
   const el = document.createElement('div');
@@ -15044,13 +15262,19 @@ function doMatch(list){
   // is, on an upgrade bought long ago as well, and it turned into noise. The growth
   // event comes from accAdd (a tier being raised) and from buying the booster —
   // both go through showTierUp -> showMultToast(..., true).
-  // Only the CASE OF GROWTH IN COMBAT is left here: the kind's multiplier has become
-  // bigger than it was at the level's start.
-  try {
-    const am = accMult(typeName);
-    const base = (level && level.multAtStart && level.multAtStart[typeName]) || 1;
-    if (am > base + 1e-6) showMultToast(typeName, am);
-  } catch(e){}
+  // ⛔⛔ THE PER-COLLECTION TOAST IS REMOVED ENTIRELY (the owner's word 2026-08-23-a; asked
+  // and answered — «only the level-up, once per level»). ⛔ THIS CANCELS HIS OWN SPEC OF
+  // 2026-08-05 quoted just above: «the toast under the eyes is shown only if the item's
+  // multiplier was increased during play». That spec had already narrowed the trigger once
+  // (it used to fire on EVERY collection of an upgraded kind); this batch closes the
+  // remaining half.
+  // ⚠️ WHY REMOVED AND NOT ALSO GATED: his complaint is that the thing is on screen too
+  // often. Keeping this call and gating only the rarer tier-up would have left the pill
+  // popping on every collection of a kind that grew this run, i.e. the complaint would have
+  // survived the fix untouched. The tier-up path (showTierUp → showMultToast) is now the
+  // ONLY producer, and it is gated to once per level.
+  // ⚠️ `level.multAtStart` STAYS ALIVE — it is a snapshot the win screen and the meta read;
+  // it is not this toast's private state, and deleting it here would break other readers.
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // denom. gain of the chip (#10)
@@ -15474,6 +15698,14 @@ function detonateCharge(){
   frozenCredit(name, n);                         // the charge's pairs go into the ice blocks' credit (the owner: «they do»)
   lastMatchMs = performance.now();               // the series window is extended (an action),
                                                  // comboCount is NOT touched — the charge does not accumulate a series
+  // ⚠️⚠️ THE THREAD OF LIGHTNING IS FIRED BEFORE THE BODIES DIE (the owner's word
+  // 2026-08-23-a). The positions are SNAPSHOTTED here on purpose: `it.p` is the live vector
+  // the physics writes into, and `destroyItemBody` on the next line stops it being updated —
+  // reading it later would thread the bolt through wherever the items happened to stop.
+  // ⚠️ It draws through victims the player CANNOT SEE as well (the charge takes buried copies
+  // by design) and the bolt carries `depthTest:false`, so the thread reads over the pile.
+  // That is deliberate: it is what shows him the strike really did take every copy.
+  try { chainBoltFX(victims.map(v => v.p.clone())); } catch(e){}
   victims.forEach(it => { it.animating = true; destroyItemBody(it); });
   // DISSOLVING, and not a pack burst (the owner's spec 2026-07-31: «they should fly apart harder,
   // or simply dissolve, otherwise it is not clear what happened»): dissolving was chosen — the
@@ -15862,22 +16094,40 @@ function handleTapInner(x, y){
     return;
   }
   if (finale){ wiggle(item); return; }
-  // ⚠️ A TAP ON AN ACCESSIBLE ITEM WITHOUT A PAIR IS NOT A MISTAKE AND IS NOT PENALISED
-  // (the owner's spec 2026-07-29). He poked at the colourful items near the bottom of the
-  // bowl and got a penalty; the measurement explained why: on lv.20 Hard there are 50
-  // accessible items, but only 11 accessible PAIRS — that is, more than half of the
-  // «colourful» ones have nothing to be connected with in principle. The veil answers the
-  // question «CAN I REACH IT», while the player reads it as «CAN I USE IT»; these are
-  // different sets, and the gap is enormous. Punishing for what the game itself gave a green
-  // light to is dishonest.
-  // ⚠️ THE OTHER MISSES KEEP THE PENALTY: empty space, a COVERED item (it is veiled, the
-  // player sees that) and a stone (the double teaching penalty).
-  // ⚠️ WE DO NOT TOUCH stats.lastAction: otherwise, with taps on a lonely item, the grinding
-  // could be postponed forever — that would be a hole, and not an indulgence.
-  // ⚠️ TURBO DOES NOT SUFFER EITHER: penalize resets the chain build-up and drops the radius
-  // ladder, and since this is not a mistake there is nothing to reset.
-  // The feedback remains: the red halo has already been drawn above + the wiggle.
+  // ⛔⛔ A TAP ON AN ACCESSIBLE ITEM WITHOUT A PAIR IS A MISTAKE AGAIN (the owner's word
+  // 2026-08-23-a: «any click past an object or INTO AN OBJECT WITHOUT A PAIR gives −10
+  // points»; asked and answered — «a full-blown mistake», i.e. the whole package and not
+  // the points alone).
+  // ⛔ THIS CANCELS HIS OWN SPEC OF 2026-07-29, and the reasoning behind that spec is worth
+  // keeping because it is the cost he is now paying: he poked at the colourful items near
+  // the bottom of the bowl and got punished; the measurement explained why he was right at
+  // the time — on lv.20 Hard there are 50 accessible items but only 11 accessible PAIRS, so
+  // more than half of the «colourful» ones have nothing to be connected with. The veil
+  // answers «CAN I REACH IT», the player reads it as «CAN I USE IT», and the gap between
+  // those two sets is enormous. That gap has not gone anywhere — the owner has simply
+  // decided that searching should cost. He was shown this paragraph before answering.
+  // ⚠️⚠️ THE WHOLE PACKAGE, THROUGH THE SINGLE PENALTY POINT: `penalize` is what makes this
+  // a mistake rather than a fine — it counts stats.misses (which kills a LIVE turbo), zeroes
+  // the turbo build-up, drops the radius ladder by two, resets the bowl streak and starts
+  // the 3-second radius penalty. Routing the case anywhere else would have invented a THIRD
+  // kind of tap — «a mistake for points but not for the boost» — which nothing in this game
+  // could explain in one sentence.
+  // ⚠️ HIS THREE EXEMPTIONS SURVIVE FOR FREE, because they live inside `scorePenalty`, below
+  // this call: level 1 has no point penalty at all (and then no «−N» pop is drawn either),
+  // levels 2-5 are clamped at zero, and the finale never reaches this line — it returns one
+  // branch above, where by definition nothing has a pair left.
+  // ⚠️ WE STILL DO NOT TOUCH stats.lastAction: otherwise taps on a lonely item could
+  // postpone the grinding forever. That would be a hole, not an indulgence.
+  // ⚠️ THE SEARCH HINTS BELOW ARE NOW PAID, and that is the visible half of his decision:
+  // the yellow «Pair is near but covered» and the red «Pair is deeper and farther» markers
+  // only ever appear after this line, so every use of the game's own search tool costs 10.
+  // ⚠️ AND ONE HOLE HE INHERITS: `noteMissRadius` suppresses the deadlock detector for 3 s
+  // (99-main, «under the radius penalty ‘there are no pairs’ means nothing»). A player who
+  // keeps poking pairless items faster than once per 3 s therefore keeps deferring his own
+  // rescue grinding. It self-heals the moment he stops, and the rescue costs points anyway,
+  // so it is left as is — but it is a consequence of this batch, not a pre-existing bug.
   Telemetry.tap(x, y, 'nopair');   // separate from 'miss' — in the map of misses this is a different case
+  penalize(item.p);
   wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){
@@ -16617,10 +16867,29 @@ const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
 // «transparent black»). Now the page lives in the safe area, and the strips at
 // the edges are drawn by the system. The five editions of the saga are in CLAUDE.md; bringing back any
 // one item from this set is FORBIDDEN, only the whole set at once.
+// ⚠️⚠️ THE TOAST UNDER THE EYES IS TORN DOWN WHENEVER A SCREEN OPENS (the owner's word
+// 2026-08-23-a: «the notification under the eyes sometimes crawls out onto the final screen
+// and onto the pause screen»). It is `position:fixed` at z-index 60, i.e. ABOVE every
+// overlay in the project, so nothing else was ever going to cover it.
+// ⚠️⚠️ THE TIMER IS KILLED TOGETHER WITH THE CLASS, AND THAT IS THE ACTUAL BUG. `multToastT`
+// is a bare real-clock setTimeout: it is not held by `paused` and not queued by
+// `afterPause`. Removing the class without clearing the timer leaves a live callback that
+// will strip `.on`/`.up` later — and, worse, the NEXT toast would inherit a stale timer and
+// vanish early. Hiding and forgetting is deliberate: he complained about clutter, so a
+// toast swallowed by the win screen is simply lost, not queued for later.
+function hideMultToast(){
+  try {
+    const el = $('multToast');
+    if (el){ el.classList.remove('on'); el.classList.remove('up'); }
+    if (multToastT){ clearTimeout(multToastT); multToastT = 0; }
+    if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
+  } catch(e){}
+}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
   // edges: any full-screen fade darkens the strips (5th edition)
+  hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
@@ -18154,8 +18423,25 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // under the eyes; previously the tier went into a separate pill at the bottom edge and
 // read as a duplicate. ✅ The #tierToast pill, its queue and its CSS were CUT OUT by the cleanup
 // of 2026-08-12 — this very comment asked to remove them «together with the markup».
+// ⛔⛔ ONCE PER LEVEL (the owner's word 2026-08-23-a: «show it only once per game session,
+// if an item has moved up to the next level»; asked and answered — «once per level», so
+// that a long sitting still gets the celebration regularly).
+// ⚠️⚠️ THE GATE STANDS HERE AND NOT IN `accAdd`, AND THAT IS LOAD-BEARING. The tier increase
+// is also an event (`acc_up` telemetry) and a documented hook (`onAccTierUp`) that the suite
+// pins; gating the EVENT would silently stop both, so what is gated is only the DISPLAY.
+// ⚠️ THE FLAG LIVES ON `level`, which genLevel builds fresh — so it resets by itself, in
+// the same way as multAtStart / chargeGiven / continueUsed. No reset line is needed, and
+// adding one would just be a second truth.
+// ⚠️ `multToastTest` (99-main) DELIBERATELY BYPASSES THIS GATE: it calls showMultToast
+// directly, so the suite can still raise the toast at will. If that ever changes, the toast
+// guard goes silent rather than red.
 function showTierUp(ev){
-  try { showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true); } catch(e){}
+  try {
+    if (typeof level === 'undefined' || !level) return;
+    if (level.multToastShown) return;
+    level.multToastShown = true;
+    showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true);
+  } catch(e){}
 }
 
 // --- the museum: it opens FROM THE PAUSE (paused is held), closing goes back ---
@@ -18761,6 +19047,12 @@ function msSkyStop(){
 function openMainScreen(){
   // the menu's telemetry (a hole from Integration's review: #mainScreen is opened
   // by the .open class bypassing show()/SCREEN_OF — the largest screen was not tracked)
+  // ⚠️⚠️ AND FOR EXACTLY THE SAME REASON THE TOAST HAS TO BE TORN DOWN HERE BY HAND. What
+  // the owner calls «the pause screen» IS this one: `pauseGame` is called with silent=true
+  // at every production site, so `#pauseOverlay` is never shown in a live game. A fix that
+  // only hooked `show()` would have cured the win screen and left his other complaint
+  // standing.
+  hideMultToast();
   try { Telemetry.screen.enter('menu'); } catch(e){}
   try { refreshGuestProfile(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
@@ -22416,6 +22708,55 @@ window.__game = {
     return { types: Object.keys(byType).length, byType, kidsTotal, kidsMax, halves,
              fires: fires.length, fxN: fx.length };
   },
+  // ⚠️⚠️ A PROBE FOR THE IMPELLER'S CLEARANCE (2026-08-23-a: «make the distance from the
+  // objects to the blades smaller»). Before this batch NOTHING in the suite read the blade
+  // geometry at all — grep confirmed the only blade hits were matcap-texture guards — so a
+  // wrong number would have shipped green.
+  // ⚠️ THE WORLD-SPACE TOP IS COMPUTED, not the group's y: the raise was done by growing the
+  // hub and moving the blades UP THE SHAFT precisely so that the group's y could stay put,
+  // and a probe reading `mixerBlades.position.y` would therefore report «nothing changed»
+  // on a correct build. It walks the real boxes instead.
+  // ⚠️ `floor` IS RETURNED BESIDE IT so the guard can state the CLEARANCE rather than an
+  // absolute height — the clearance is the quantity he asked about, and it moves if either
+  // side moves.
+  bladeProbe(){
+    const box = new THREE.Box3();
+    let top = -Infinity, hubTop = -Infinity;
+    for (const o of mixerBlades.children){
+      o.updateWorldMatrix(true, true);
+      box.setFromObject(o);
+      if (!isFinite(box.max.y)) continue;
+      if (o.geometry && o.geometry.type === 'CylinderGeometry') hubTop = Math.max(hubTop, box.max.y);
+      else top = Math.max(top, box.max.y);
+    }
+    return { bladeTop: +top.toFixed(3), hubTop: +hubTop.toFixed(3),
+             groupY: +mixerBlades.position.y.toFixed(3), floor: FLOOR_REST,
+             gap: +(FLOOR_REST - top).toFixed(3) };
+  },
+  // ⚠️⚠️ A PROBE FOR THE THREAD OF LIGHTNING (2026-08-23-a). Without it the item «a click on
+  // the bonus thing draws a bolt through all the copies» is INVISIBLE TO EVERY AUTOMATED
+  // CHECK: a build that draws nothing throws nothing, logs nothing and passes the whole
+  // suite — the single most likely way to ship this feature without shipping it.
+  // ⚠️ THE VERTEX COUNT IS RETURNED, NOT ONLY THE MESH COUNT, and that is the load-bearing
+  // half. Two meshes appear whether the thread has fifteen hops or one degenerate segment;
+  // only the vertex count grows with the number of victims, so only it can tell a real
+  // thread from a stub. The guard compares two detonations of different sizes.
+  // ⛔⛔ THE NAME IS `chainBoltProbe`, NOT `boltProbe`, AND THAT IS NOT COSMETIC. This object is
+  // an OBJECT LITERAL: a second key of the same name silently WINS, and `boltProbe(ms)` fifty
+  // lines above is GRAPHICS's live debug hook that pours discharges for a screenshot. Naming
+  // this one `boltProbe` did not error, did not warn and passed the build — it simply deleted
+  // that hook. Caught in review, not by a run. ⚠️ Before adding any hook here, grep the file
+  // for the name; the file already carries one scar of exactly this shape (`itemsBrief`).
+  chainBoltProbe(){
+    let meshes = 0, verts = 0;
+    for (const o of scene.children){
+      if (!(o.userData && o.userData.poolBolt)) continue;
+      meshes++;
+      const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+      if (a) verts += a.count;
+    }
+    return { meshes, verts };
+  },
   grindNow(){ mixerGrind(); return true; },
   // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)
   // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
@@ -22875,6 +23216,18 @@ window.__game = {
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },
+  // ⚠️⚠️ THE FOUR NUMBERS OF THE POUR, AS LIVE VALUES (2026-08-23-a «speed up their pouring»).
+  // The suite cannot state «the tick got denser» by watching the clock: `combo().nextDropIn` is
+  // the REMAINING time to the next tick, so catching a fresh one needs sampling faster than the
+  // tick itself — and the sampler that fast is heavy enough to slow the game it is measuring
+  // (measured: 23 samples in 3 s instead of 375, and the delivery read back as the OLD build's
+  // number on a fixed build). The deciding values are these constants; the guard reads them from
+  // here and pins them as twins of the spec, the same way the turbo ladder is pinned.
+  // ⚠️ `airCap` is the ceiling inside chainRefill (40-items) and is duplicated here BY HAND —
+  // it is a literal in a hot loop and there is nowhere else to read it from. If that loop's
+  // number moves, move this one with it; the guard on it exists to make the pair notice.
+  chainPour(){ return { tickMs: CHAIN_DROP_MS, perTick: CHAIN_DROP_N,
+                        windowMs: CHAIN_DROP_WINDOW_MS, airCap: 10 }; },
   floaters(){
     // an item «hangs» if under its lowest point there is more than 0.35 of emptiness.
     // ⚠️ A single ray from the centre lies about «bridges»: a flat item (a steak) lies with its

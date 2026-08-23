@@ -182,13 +182,19 @@ function doMatch(list){
   // is, on an upgrade bought long ago as well, and it turned into noise. The growth
   // event comes from accAdd (a tier being raised) and from buying the booster —
   // both go through showTierUp -> showMultToast(..., true).
-  // Only the CASE OF GROWTH IN COMBAT is left here: the kind's multiplier has become
-  // bigger than it was at the level's start.
-  try {
-    const am = accMult(typeName);
-    const base = (level && level.multAtStart && level.multAtStart[typeName]) || 1;
-    if (am > base + 1e-6) showMultToast(typeName, am);
-  } catch(e){}
+  // ⛔⛔ THE PER-COLLECTION TOAST IS REMOVED ENTIRELY (the owner's word 2026-08-23-a; asked
+  // and answered — «only the level-up, once per level»). ⛔ THIS CANCELS HIS OWN SPEC OF
+  // 2026-08-05 quoted just above: «the toast under the eyes is shown only if the item's
+  // multiplier was increased during play». That spec had already narrowed the trigger once
+  // (it used to fire on EVERY collection of an upgraded kind); this batch closes the
+  // remaining half.
+  // ⚠️ WHY REMOVED AND NOT ALSO GATED: his complaint is that the thing is on screen too
+  // often. Keeping this call and gating only the rarer tier-up would have left the pill
+  // popping on every collection of a kind that grew this run, i.e. the complaint would have
+  // survived the fix untouched. The tier-up path (showTierUp → showMultToast) is now the
+  // ONLY producer, and it is gated to once per level.
+  // ⚠️ `level.multAtStart` STAYS ALIVE — it is a snapshot the win screen and the meta read;
+  // it is not this toast's private state, and deleting it here would break other readers.
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // denom. gain of the chip (#10)
@@ -612,6 +618,14 @@ function detonateCharge(){
   frozenCredit(name, n);                         // the charge's pairs go into the ice blocks' credit (the owner: «they do»)
   lastMatchMs = performance.now();               // the series window is extended (an action),
                                                  // comboCount is NOT touched — the charge does not accumulate a series
+  // ⚠️⚠️ THE THREAD OF LIGHTNING IS FIRED BEFORE THE BODIES DIE (the owner's word
+  // 2026-08-23-a). The positions are SNAPSHOTTED here on purpose: `it.p` is the live vector
+  // the physics writes into, and `destroyItemBody` on the next line stops it being updated —
+  // reading it later would thread the bolt through wherever the items happened to stop.
+  // ⚠️ It draws through victims the player CANNOT SEE as well (the charge takes buried copies
+  // by design) and the bolt carries `depthTest:false`, so the thread reads over the pile.
+  // That is deliberate: it is what shows him the strike really did take every copy.
+  try { chainBoltFX(victims.map(v => v.p.clone())); } catch(e){}
   victims.forEach(it => { it.animating = true; destroyItemBody(it); });
   // DISSOLVING, and not a pack burst (the owner's spec 2026-07-31: «they should fly apart harder,
   // or simply dissolve, otherwise it is not clear what happened»): dissolving was chosen — the
@@ -1000,22 +1014,40 @@ function handleTapInner(x, y){
     return;
   }
   if (finale){ wiggle(item); return; }
-  // ⚠️ A TAP ON AN ACCESSIBLE ITEM WITHOUT A PAIR IS NOT A MISTAKE AND IS NOT PENALISED
-  // (the owner's spec 2026-07-29). He poked at the colourful items near the bottom of the
-  // bowl and got a penalty; the measurement explained why: on lv.20 Hard there are 50
-  // accessible items, but only 11 accessible PAIRS — that is, more than half of the
-  // «colourful» ones have nothing to be connected with in principle. The veil answers the
-  // question «CAN I REACH IT», while the player reads it as «CAN I USE IT»; these are
-  // different sets, and the gap is enormous. Punishing for what the game itself gave a green
-  // light to is dishonest.
-  // ⚠️ THE OTHER MISSES KEEP THE PENALTY: empty space, a COVERED item (it is veiled, the
-  // player sees that) and a stone (the double teaching penalty).
-  // ⚠️ WE DO NOT TOUCH stats.lastAction: otherwise, with taps on a lonely item, the grinding
-  // could be postponed forever — that would be a hole, and not an indulgence.
-  // ⚠️ TURBO DOES NOT SUFFER EITHER: penalize resets the chain build-up and drops the radius
-  // ladder, and since this is not a mistake there is nothing to reset.
-  // The feedback remains: the red halo has already been drawn above + the wiggle.
+  // ⛔⛔ A TAP ON AN ACCESSIBLE ITEM WITHOUT A PAIR IS A MISTAKE AGAIN (the owner's word
+  // 2026-08-23-a: «any click past an object or INTO AN OBJECT WITHOUT A PAIR gives −10
+  // points»; asked and answered — «a full-blown mistake», i.e. the whole package and not
+  // the points alone).
+  // ⛔ THIS CANCELS HIS OWN SPEC OF 2026-07-29, and the reasoning behind that spec is worth
+  // keeping because it is the cost he is now paying: he poked at the colourful items near
+  // the bottom of the bowl and got punished; the measurement explained why he was right at
+  // the time — on lv.20 Hard there are 50 accessible items but only 11 accessible PAIRS, so
+  // more than half of the «colourful» ones have nothing to be connected with. The veil
+  // answers «CAN I REACH IT», the player reads it as «CAN I USE IT», and the gap between
+  // those two sets is enormous. That gap has not gone anywhere — the owner has simply
+  // decided that searching should cost. He was shown this paragraph before answering.
+  // ⚠️⚠️ THE WHOLE PACKAGE, THROUGH THE SINGLE PENALTY POINT: `penalize` is what makes this
+  // a mistake rather than a fine — it counts stats.misses (which kills a LIVE turbo), zeroes
+  // the turbo build-up, drops the radius ladder by two, resets the bowl streak and starts
+  // the 3-second radius penalty. Routing the case anywhere else would have invented a THIRD
+  // kind of tap — «a mistake for points but not for the boost» — which nothing in this game
+  // could explain in one sentence.
+  // ⚠️ HIS THREE EXEMPTIONS SURVIVE FOR FREE, because they live inside `scorePenalty`, below
+  // this call: level 1 has no point penalty at all (and then no «−N» pop is drawn either),
+  // levels 2-5 are clamped at zero, and the finale never reaches this line — it returns one
+  // branch above, where by definition nothing has a pair left.
+  // ⚠️ WE STILL DO NOT TOUCH stats.lastAction: otherwise taps on a lonely item could
+  // postpone the grinding forever. That would be a hole, not an indulgence.
+  // ⚠️ THE SEARCH HINTS BELOW ARE NOW PAID, and that is the visible half of his decision:
+  // the yellow «Pair is near but covered» and the red «Pair is deeper and farther» markers
+  // only ever appear after this line, so every use of the game's own search tool costs 10.
+  // ⚠️ AND ONE HOLE HE INHERITS: `noteMissRadius` suppresses the deadlock detector for 3 s
+  // (99-main, «under the radius penalty ‘there are no pairs’ means nothing»). A player who
+  // keeps poking pairless items faster than once per 3 s therefore keeps deferring his own
+  // rescue grinding. It self-heals the moment he stops, and the rescue costs points anyway,
+  // so it is left as is — but it is a consequence of this batch, not a pre-existing bug.
   Telemetry.tap(x, y, 'nopair');   // separate from 'miss' — in the map of misses this is a different case
+  penalize(item.p);
   wiggle(item);
   const nearBuried = copies.filter(i => pairMatch(i, item));
   if (accessible.length){

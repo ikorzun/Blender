@@ -77,22 +77,46 @@ const mixerBlades = new THREE.Group();
   // and without the difference in tone the impeller would read as one solid lump
   // of metal with no centre.
   const dark = new THREE.MeshMatcapMaterial({ color:0x8b93a0, matcap: metalMatcapTex() });
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.42, 16), dark);
-  hub.position.y = 0.21; mixerBlades.add(hub);
+  // ⛔⛔ THE BLADES WERE RAISED TOWARDS THE PILE (the owner's word 2026-08-23-a: «make
+  // the distance from the objects to the blades smaller»). Measured before: the blade
+  // tops stood at 0.665 while the items rest on a floor whose top is FLOOR_REST = 1.15 —
+  // a gap of 0.485. After: the tops are at 0.965, the gap is 0.185.
+  // ⚠️⚠️ THE GROUP WAS **NOT** MOVED, AND THAT IS THE WHOLE POINT OF THIS EDIT. Raising
+  // `mixerBlades.position.y` is the one-liner, and it would have torn the impeller off
+  // the bottom of the bowl: the hub is modelled from y=0 upwards, so the group's y IS
+  // the hub's footing. Instead the HUB GREW (0.42 → 0.72, its centre following to keep
+  // the base at exactly the same place) and the blades rode up its shaft.
+  // ⚠️ WHY THE BLADES AND NOT THE PILE: the blades carry NO physics body at all, so this
+  // is render-only — no collider, no fill, no trim, no sink-in threshold moves. Dropping
+  // FLOOR_REST instead would have dragged the pile's top height, `trimOverfill`, the
+  // rescuers and the 0.30 half-thickness margin of the floor plate with it, i.e. a
+  // difficulty change smuggled in behind a visual request.
+  // ⚠️ THE CEILING ON THIS NUMBER IS THE GRIND ANIMATION, not the look: a doomed item is
+  // dragged down to centre-y = FLOOR_REST − 0.25 = 0.90 to be sawn. The hub now tops out
+  // at 1.00 and the blade tops at 0.965 — raise them further and the blades start passing
+  // through the item BEFORE the saw, and the whole grind reads as a glitch.
+  // ⚠️ The blades intersect the INVISIBLE floor plate (it spans 0.55..1.15) — they did
+  // before this edit too. Nothing collides: the plate is a physics-only collider and the
+  // blades have no body. What must never happen is the tops crossing 1.15, where they
+  // would stick out through the resting items.
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.72, 16), dark);
+  hub.position.y = 0.36; mixerBlades.add(hub);
   for (let i=0;i<4;i++){
     const arm = new THREE.Group();
     arm.rotation.y = i*Math.PI/2;
     const g = new THREE.BoxGeometry(2.1, 0.09, 0.44);
     g.translate(1.08, 0, 0); // span 2.13 with a bottom of 2.4 — nearly the full width
     const blade = new THREE.Mesh(g, metal);
-    blade.position.y = 0.24;
+    blade.position.y = 0.54;   // ⛔ was 0.24 — raised by 0.30 with the hub (2026-08-23-a)
     blade.rotation.x = (i % 2 ? 0.5 : -0.4); // one pair of blades up, one pair down
     arm.add(blade);
     mixerBlades.add(arm);
   }
   // at the VERY bottom (the owner's spec: "the impeller isn't visible — closer to
-  // the lower edge and bigger"); the blade tops are at ~0.6 — items at
-  // FLOOR_REST=1.15 do not touch them
+  // the lower edge and bigger"). ⚠️ THIS NUMBER IS THE IMPELLER'S FOOTING ON THE BOWL
+  // AND IS DELIBERATELY UNCHANGED by the raise of 2026-08-23-a — the shaft grew instead.
+  // The blade tops now sit at 0.28 + 0.54 + 0.145 = 0.965; items rest at FLOOR_REST=1.15
+  // and still do not touch them.
   mixerBlades.position.y = 0.28;
   scene.add(mixerBlades);
 })();

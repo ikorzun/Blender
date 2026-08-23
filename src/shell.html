@@ -421,7 +421,21 @@
      it does not cover these two nodes — if the sky ever brightens at the top,
      they will have to be checked separately. The #gScore gradient IS LEFT in the markup:
      on desktop the style is as before. */
-  #score { fill:url(#gScore); }
+  /* ⛔⛔ ONE FLAT YELLOW ON BOTH LAYOUTS (the owner's word 2026-08-23-a: «the colour of
+     the score on the game screen in all versions as on mobile»). ⛔ THE #gScore GRADIENT
+     IS CANCELLED — it was the last place in the game still using it; the mobile arm has
+     been flat `#ffe730` since his spec of 2026-08-03, and the win screen's score is flat
+     already too, so after this the score is ONE colour everywhere.
+     ⚠️ THE `<linearGradient id="gScore">` BLOCK IS LEFT IN THE MARKUP, DEAD — the same
+     thing was done with the win screen's gradient when that score was flattened, so that
+     a return costs one line. It is now referenced by nothing; do not read its presence
+     as evidence that something still paints with it.
+     ⚠️ THE PRICE, BY THE NUMBER: `#ffe730` against the faded top of the sky is 1.35:1,
+     i.e. the desktop score loses the contrast its gradient's darker lower half gave it.
+     The mobile score has carried exactly this number since yesterday and he accepted it
+     knowingly; this extends the same acceptance to the desktop. The star beside it and
+     the type size are what carry the reading, not the contrast. */
+  #score { fill:#ffe730; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
      ⛔ THE THICKNESS 6 LIVED THROUGH ONE EDIT: having looked at the rendered frame, the owner
@@ -469,7 +483,9 @@
   #lvlSvg text { --otl:0; }
   @media (max-width:767px){
     #lvlSvg text { font-size:18px; --otl:0; fill:#fff; }
-    #score { fill:#ffe730; }
+    /* ⛔ THE MOBILE `#score { fill:#ffe730 }` IS REMOVED AS A DUPLICATE 2026-08-23-a:
+       the base rule above now carries the same colour for both layouts. Restoring a
+       line here would only be needed if the two layouts ever diverge again. */
     #scSvg text { --otl:0; }
   }
   /* The countdown number and the word Grinding — SVG text with a REAL outline.
@@ -664,10 +680,25 @@
      ⚠️ THE BACKGROUND IS TWICE AS DENSE (.20 → .40), while the hover stayed .80 — the owner did not
      name it, and the step 40→80 is still noticeable. The argument «glass, and not colour» is intact:
      the button does not return to the rule of the time of day. */
+  /* ⛔⛔ THE FILL .40 → .60 AND A 1px WHITE RIM (the owner's word 2026-08-23-a:
+     «update the style of the buttons, including the zoom buttons: fill:
+     rgba(255,255,255,0.60); stroke-width:1px; stroke:#FFF»). ⛔ It cancels the .40 of
+     2026-08-22-v, which lived one day. The radius 16 and the inner glow are NOT named
+     by him and therefore SURVIVE — the house rule of this project: an unnamed property
+     is not touched (the same way the hover .80 survived the .20 → .40 move).
+     ⚠️⚠️ THE RIM IS AN INSET SHADOW AND NOT A `border`, AND THAT IS LOAD-BEARING. He
+     wrote a Figma `stroke`, whose default alignment is INSIDE — an inset ring is the
+     faithful translation. A real CSS border would also be honest to the eye but not to
+     the layout: `box-sizing:border-box` is global here, so a 1px border keeps the outer
+     56 and shrinks the CONTENT box to 54, moving every absolutely positioned child
+     (the magnifier, the badge, the Shake caption and hand) inward by a pixel. The
+     shadow paints the same ring and moves nothing.
+     ⚠️ THE ORDER INSIDE box-shadow MATTERS: the rim is listed LAST so that the soft
+     glow is painted over the crisp line and not the other way round. */
   #hintBtn { position:relative; pointer-events:auto; width:56px; height:56px;
     flex:none; border:none; padding:0; cursor:pointer;
-    border-radius:16px; background:rgba(255,255,255,.40);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70);
+    border-radius:16px; background:rgba(255,255,255,.60);
+    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
     display:block; -webkit-tap-highlight-color:transparent; }
   /* ⚠️ THE MAGNIFIER — BY EXPLICIT SIZES FROM THE NODE: 56×61 at the point (4, 1).
      ⛔⛔ THE SHADOW WAS REMOVED 2026-08-21-zh TOGETHER WITH THE BRUSH'S SHADOW — the owner took it out in
@@ -797,9 +828,20 @@
      at night. The zoom's backing is light in both themes, therefore a light glyph
      cannot be here under any theme. */
   #zoomGrp { flex-direction:column; gap:8px; }
+  /* ⛔⛔ THE FILL .4 → .60 AND THE 1px WHITE RIM (the owner's word 2026-08-23-a — he
+     named the zoom buttons BY NAME: «including the zoom buttons»). The rim is an inset
+     shadow for the same reason as at the hint; the zoom's own softer glow (.55, not .70)
+     is his and stays.
+     ⚠️⚠️ THE 50% DIMMING AT REST IS KEPT ON HIS EXPLICIT WORD 2026-08-23-a (asked and
+     answered: «only the colour and the outline»). The consequence is named and accepted:
+     `opacity:.5` multiplies the whole node, so at rest these buttons read at an
+     effective 30% against the neighbours' 60% and the rim reads at half strength. They
+     become the family only under the finger. ⛔ Do not «fix» this by dropping the
+     opacity — it is his spec of 2026-08-05 («50% transparency in the calm state»),
+     re-confirmed a day after this very restyle. */
   .zoomBtn, html.night .zoomBtn {
-    background:rgba(255,255,255,.4); color:#000;
-    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55); }
+    background:rgba(255,255,255,.60); color:#000;
+    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55), inset 0 0 0 1px #fff; }
   /* SEMI-TRANSPARENT AT REST (the owner's word 2026-08-05: «50% transparency in
      the calm state and 100% on hover»). We dim the WHOLE node, and not only the
      background: otherwise the glyph would stay dense and the button would read as «broken».
@@ -972,10 +1014,16 @@
      2026-08-22-g): 120×56, radius 16, background .40, the same inner shadow.
      ⚠️ THE HINT IS UNTOUCHED — it stayed 56×56: he was updating ONLY Shake, and
      the pair is again of different widths. What stayed common to them is the height, the shape and the background. */
+  /* ⛔⛔ THE FILL .40 → .60 AND THE 1px WHITE RIM (the owner's word 2026-08-23-a) —
+     the same three properties as at the hint; the reasoning about the inset ring versus
+     a `border` lives at #hintBtn and is not repeated. Here the border would have been
+     even more expensive: the caption stands on the axis x=84 and the hand on x=30, both
+     absolutely positioned, so a 1px content-box shrink would move BOTH off their nodes'
+     axes and turn the label guard red on a sound build. */
   #shakeBtn { pointer-events:auto; position:relative; width:120px; height:56px; flex:none;
     border:none; padding:0; cursor:pointer; display:block;
-    border-radius:16px; background:rgba(255,255,255,.40);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70);
+    border-radius:16px; background:rgba(255,255,255,.60);
+    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
     -webkit-tap-highlight-color:transparent; }
   /* ⚠️⚠️ THE CAPTION IS CENTRED ON THE POINT FROM THE NODE (x=84), AND NOT BY FLEX. Flex with
      a gap would have given a symmetrical layout, while in the mock-up the hand and the caption each stand
@@ -3283,12 +3331,26 @@
      the construction = the top of #face + its height: #face's top is the safe-area + 8, and
      the height is --eyeW*.667 (see the #face rule). The former formula took .55 and
      14 px — the toast ran onto the bottom of the eyes. */
+  /* ⛔⛔ THE WHOLE PILL IS 30% SMALLER (the owner's word 2026-08-23-a: «also make it 30%
+     smaller»). Every number below is the node's 829:1618 value × 0.7, rounded to the
+     pixel: min-width 169 → 118, height 60 → 42, the gap 12 → 8, the paddings 8/10/8/16 →
+     6/7/6/11, the inner glow 28 → 20, and in the rules below the portrait 44 → 31 and the
+     chip 23/8/12 → 16/6/8. He said «it», not «its plate», so the contents shrink with it.
+     ⚠️⚠️ IT IS DONE BY THE LITERALS AND NOT BY `transform: scale(.7)`, AND THAT IS
+     LOAD-BEARING TWICE OVER. (1) The transform slot is already occupied: this node's
+     entrance IS a scale (.85 → 1), so a scale for the size would have to be multiplied into
+     both states and would then also scale the entrance. (2) `getBoundingClientRect` sees
+     transforms, so a scaled pill measures 42 tall while still occupying 60 — the gap of 32
+     under the eyes, which he set by hand on 2026-08-05 and which is pinned with a ±2
+     tolerance, would silently become 41.
+     ⚠️ THE GAP OF 32 ITSELF IS NOT SCALED: he shrank the notification, not the distance
+     from the eyes. */
   #multToast { position:fixed; left:50%; transform:translateX(-50%) scale(.85);
     top:calc(env(safe-area-inset-top, 0px) + 8px + var(--eyeW, 133px) * 0.667 + 32px);
-    min-width:169px; height:60px; border-radius:1000px; background:rgba(255,255,255,.16);
-    box-shadow:inset 0 0 28px 0 rgba(255,255,255,.7);
-    display:flex; align-items:center; justify-content:center; gap:12px;
-    padding:8px 10px 8px 16px; box-sizing:border-box;
+    min-width:118px; height:42px; border-radius:1000px; background:rgba(255,255,255,.16);
+    box-shadow:inset 0 0 20px 0 rgba(255,255,255,.7);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:6px 7px 6px 11px; box-sizing:border-box;
     opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60; }
   /* THE NIGHT VARIANT (node 776:701 «Item toast black», the owner's word
      2026-08-07): a pill rgba(0,0,0,.2) and WITHOUT an inner glow — by day
@@ -3297,9 +3359,9 @@
      the black number are the same in both themes (the node does not change them). */
   html.night #multToast { background:rgba(0,0,0,.2); box-shadow:none; }
   #multToast.on { opacity:1; transform:translateX(-50%) scale(1); }
-  #multToast img { width:44px; height:44px; object-fit:contain; }
-  #multToastVal { font-size:23px; font-weight:800; color:#000; background:#c0ff47;
-    border-radius:32px; padding:8px 12px; line-height:1; }
+  #multToast img { width:31px; height:31px; object-fit:contain; }  /* ⛔ 44 × 0.7 (2026-08-23-a) */
+  #multToastVal { font-size:16px; font-weight:800; color:#000; background:#c0ff47;
+    border-radius:32px; padding:6px 8px; line-height:1; }  /* ⛔ 23/8/12 × 0.7 (2026-08-23-a) */
   /* ===== DESKTOP: THE ZOOM AND THE TOAST BY NODE 741:1497 (the owner's word 2026-08-04
      «in the desktop version the + and − controls are placed differently») =====
      The node (a frame of 1280×832): Zoom x588 y764 104×48 — A ROW, the minus on the left (48×48),

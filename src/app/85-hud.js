@@ -45,10 +45,29 @@ const SCREEN_OF = { winOverlay:'win', pauseOverlay:'pause', adOverlay:'ad',
 // «transparent black»). Now the page lives in the safe area, and the strips at
 // the edges are drawn by the system. The five editions of the saga are in CLAUDE.md; bringing back any
 // one item from this set is FORBIDDEN, only the whole set at once.
+// ⚠️⚠️ THE TOAST UNDER THE EYES IS TORN DOWN WHENEVER A SCREEN OPENS (the owner's word
+// 2026-08-23-a: «the notification under the eyes sometimes crawls out onto the final screen
+// and onto the pause screen»). It is `position:fixed` at z-index 60, i.e. ABOVE every
+// overlay in the project, so nothing else was ever going to cover it.
+// ⚠️⚠️ THE TIMER IS KILLED TOGETHER WITH THE CLASS, AND THAT IS THE ACTUAL BUG. `multToastT`
+// is a bare real-clock setTimeout: it is not held by `paused` and not queued by
+// `afterPause`. Removing the class without clearing the timer leaves a live callback that
+// will strip `.on`/`.up` later — and, worse, the NEXT toast would inherit a stale timer and
+// vanish early. Hiding and forgetting is deliberate: he complained about clutter, so a
+// toast swallowed by the win screen is simply lost, not queued for later.
+function hideMultToast(){
+  try {
+    const el = $('multToast');
+    if (el){ el.classList.remove('on'); el.classList.remove('up'); }
+    if (multToastT){ clearTimeout(multToastT); multToastT = 0; }
+    if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
+  } catch(e){}
+}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
   // edges: any full-screen fade darkens the strips (5th edition)
+  hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
   if (id === 'winOverlay') renderWinScreen();
 }
@@ -1582,8 +1601,25 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // under the eyes; previously the tier went into a separate pill at the bottom edge and
 // read as a duplicate. ✅ The #tierToast pill, its queue and its CSS were CUT OUT by the cleanup
 // of 2026-08-12 — this very comment asked to remove them «together with the markup».
+// ⛔⛔ ONCE PER LEVEL (the owner's word 2026-08-23-a: «show it only once per game session,
+// if an item has moved up to the next level»; asked and answered — «once per level», so
+// that a long sitting still gets the celebration regularly).
+// ⚠️⚠️ THE GATE STANDS HERE AND NOT IN `accAdd`, AND THAT IS LOAD-BEARING. The tier increase
+// is also an event (`acc_up` telemetry) and a documented hook (`onAccTierUp`) that the suite
+// pins; gating the EVENT would silently stop both, so what is gated is only the DISPLAY.
+// ⚠️ THE FLAG LIVES ON `level`, which genLevel builds fresh — so it resets by itself, in
+// the same way as multAtStart / chargeGiven / continueUsed. No reset line is needed, and
+// adding one would just be a second truth.
+// ⚠️ `multToastTest` (99-main) DELIBERATELY BYPASSES THIS GATE: it calls showMultToast
+// directly, so the suite can still raise the toast at will. If that ever changes, the toast
+// guard goes silent rather than red.
 function showTierUp(ev){
-  try { showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true); } catch(e){}
+  try {
+    if (typeof level === 'undefined' || !level) return;
+    if (level.multToastShown) return;
+    level.multToastShown = true;
+    showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true);
+  } catch(e){}
 }
 
 // --- the museum: it opens FROM THE PAUSE (paused is held), closing goes back ---
@@ -2189,6 +2225,12 @@ function msSkyStop(){
 function openMainScreen(){
   // the menu's telemetry (a hole from Integration's review: #mainScreen is opened
   // by the .open class bypassing show()/SCREEN_OF — the largest screen was not tracked)
+  // ⚠️⚠️ AND FOR EXACTLY THE SAME REASON THE TOAST HAS TO BE TORN DOWN HERE BY HAND. What
+  // the owner calls «the pause screen» IS this one: `pauseGame` is called with silent=true
+  // at every production site, so `#pauseOverlay` is never shown in a live game. A fix that
+  // only hooked `show()` would have cured the win screen and left his other complaint
+  // standing.
+  hideMultToast();
   try { Telemetry.screen.enter('menu'); } catch(e){}
   try { refreshGuestProfile(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);

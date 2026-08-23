@@ -9867,3 +9867,268 @@ Ten references were corrected, comment-only, no behaviour touched.
 batch that arrives in two messages tempts you to advance the letter mid-way. The
 letter belongs to the COMMIT, not to the message. When in doubt, `git log -S` on
 the line answers it in one command.
+
+## BATCH 2026-08-23-a: EIGHT ITEMS — THE BOOST, THE LIGHTNING, THE PENALTY, THE BUTTONS, THE NOTIFICATION, THE SCORE, THE BLADES
+
+Eight requests in one message, with an instruction attached: «split all the tasks,
+remember you have agents. Analyse everything, ask me questions in this chat, then
+act on your own.» ⚠️ THAT INSTRUCTION IS ITSELF A DECISION AND IS RECORDED: he
+wants the forks surfaced BEFORE the work, not reported after it. Six recon agents
+read the eight items against the code and the canon; four forks came back worth his
+time, and four of his answers below cancel earlier decisions of his own.
+
+**HOW THE QUESTIONS WERE CHOSEN.** The recon produced eighteen ambiguities. Only
+four were put to him: the ones where the two readings produce DIFFERENT WORK, and
+in particular the three that reverse a recorded decision of his. Everything else was
+decided here and stated to him as an assumption — that is the standing shape of this
+project, and asking eighteen questions would have spent his attention on choices
+with an obvious default.
+
+### 1 + 3. THE BOOST: A FLAT 16, AND THE POUR MADE DENSER
+
+His words: «the items boost switches on only after 16 pairs» / «any mistake cancels
+the boost — the items stop pouring. By the way, speed up their pouring».
+
+⚠️ **«16 PAIRS» READS AS 16 IN AN UNBROKEN SERIES**, not 16 per level, and his own
+next sentence is the proof: a mistake cancelling the boost only coheres with a
+counter that a mistake resets. That is `comboCount`; the per-level total
+`stats.matches` never resets and was therefore not the subject.
+⛔ **THE LADDER IS CANCELLED** (`chainComboAt()` returns `CHAIN_COMBO_AT` flat). It
+was his spec of 2026-07-31 — «make the entry more expensive… carefully» — 10 at
+lv.1-7 climbing to 14 by lv.32. Asked, he chose a flat 16 everywhere. The step and
+the cap are kept dead so a return costs one line.
+⚠️⚠️ **THE FIRST SENTENCE OF ITEM 3 ALREADY SHIPPED AND HE WAS TOLD SO.** One miss
+has killed a live boost on both difficulties since 2026-07-31. What actually changed
+the behaviour he described is item 4 below — it makes a pairless tap a miss, so
+there are now many more ways to lose the boost.
+⛔⛔ **THE COUNTERWEIGHTS ARE HIS CHOICE, NOT MY INITIATIVE — AND THEY ARE ONE
+DECISION WITH THE THRESHOLD.** Entering turbo is the unit that credits both the bowl
+shatter and the bomb, so at 16 the shatter would have needed 80 flawless matches on
+levels 1-9 instead of 50, and the bomb would practically have stopped arriving. He
+was offered the plain 16 with that consequence named, and chose «a flat 16 AND fix
+the bowl»: `BOWL_SHATTER_N` 5 → 3, `BOMB_SERIES_REWARD` 3 → 2.
+⚠️ **IF THE THRESHOLD EVER GOES BACK TO 10, THOSE TWO MUST GO BACK TOO** — otherwise
+the finale becomes trivial. Do not read them as independent tuning.
+
+**«SPEED UP THE POURING» WAS DONE BY DENSITY, AND THE OTHER TWO KNOBS WERE REFUSED
+ON THE CANON'S OWN ⛔ GROUND.** `CHAIN_DROP_MS` 125 → 80; the window (3000) and the
+per-tick volume (3.0) untouched, so the batch is not made smaller, it is delivered
+denser.
+⛔ THE FALL SPEED WAS NOT TOUCHED: «WE TRIED 12 — THERE IS NO GAIN… do not turn this
+knob» about `DROP_V0`, with bans on `MAX_FALL` and on lowering the spawn beside it.
+Two days earlier he complained that this very pour «feels like dropped frames», and
+`DROP_V0 = 8` was the measured cure.
+⛔ THE WINDOW WAS NOT SHORTENED either, though it is the obvious «faster»: the pour
+is gated by PHYSICAL state, so a shorter window cuts the delivered QUANTITY — the
+opposite of the request.
+⚠️ The airborne ceiling in `chainRefill` went 8 → 10 in the same edit, because at a
+tick of 80 ms it becomes the wall and a tick that hits it delivers nothing.
+**MEASURED, before → after:** the pour delivers **+22 → +34 items** in the same
+~2.8 s; max simultaneous airborne 6 → 8; frames during the pour p50 16.5 ms, p95
+20.8 ms, worst **22.5 ms** — i.e. the complaint of two days ago did not return (the
+canon's failing trial measured 104.5 ms).
+
+### 2. A THREAD OF LIGHTNING THROUGH THE VICTIMS OF THE CHARGE
+
+His words: «a click on the bonus item destroys all similar items by way of a
+lightning bolt that threads through them all, from centre to centre».
+
+⚠️ «The bonus item» is THE TYPE CHARGE, and the identification is not a guess — it is
+the only click in the game that destroys every copy of a type. The removed bonus
+LEVEL (`bonus.html`) is a different thing entirely.
+⚠️⚠️ **ONE CONTINUOUS THREAD, NOT A STAR, AND THE DIFFERENCE IS HIS GRAMMAR.**
+«Threads through them all… from centre to centre» is a traversal; a fan would have
+been «from the centre out to all of them» — a different sentence in his language too,
+and he did not write it. A fan already existed in this codebase (the per-match star at the
+turbo line) — it is not what was asked for. The victims are ordered by a greedy
+nearest-neighbour walk from the TOPMOST one, so the visible end of the thread is the
+one the player is looking at; the raw `items` order is spawn order and would have
+drawn a scribble.
+⛔⛔ **IT DOES NOT GO THROUGH `boltFX`, AND THAT IS THE WHOLE TRAP OF THIS ITEM.**
+`boltFX` begins with `if (!TURBO_BOLTS) return;`, and that flag is `false` by his own
+spec of 2026-07-28. Implementing this by calling it produces a build that draws
+NOTHING, throws nothing and passes every assert. Flipping the flag would be worse
+still — it would simultaneously resurrect the ambient crackle across the bowl and the
+star on every match in turbo, cancelling his 2026-07-28 word in three places to
+satisfy one request. `chainBoltFX` is its own function and reads no flag.
+⚠️ TWO MESHES WHATEVER N IS: every hop and fork is merged into one geometry per
+layer. A per-hop mesh at N=16 would mean 30 materials against a `BOLT_POOL_MAX` of
+24, on top of the 16 dissolve clouds already firing.
+⚠️ THE LIFE IS 0.24 s AGAINST `BOLT_LIFE` 0.16 — this is a one-off event he asked to
+see, not ambient crackle. The items themselves still die in the same frame: he has
+twice pushed for instantness on this exact button, which is why its handler is
+`pointerdown`.
+**MEASURED:** idle `{meshes:0, verts:0}`; 18 copies → `{meshes:2, verts:2150}`;
+28 copies → `{meshes:2, verts:3250}`; 500 ms later back to zero. The geometry is
+exactly `verts = 2 × ((N−1) × 55 + 140)`.
+✅ **A NEW HOOK `chainBoltProbe()` EXISTS BECAUSE THE SUITE WAS BLIND TO LIGHTNING** — zero
+bolt asserts existed in 786. Without it this item could ship as a silent no-op.
+⛔⛔ **IT IS CALLED `chainBoltProbe` AND NOT `boltProbe` BECAUSE THE FIRST NAME WAS ALREADY
+TAKEN — BY GRAPHICS'S OWN `boltProbe(ms)` DEBUG HOOK.** `window.__game` is an object
+literal: a second key of the same name silently WINS. The duplicate did not error, did
+not warn, built clean and would simply have DELETED the older hook. It was caught in
+review, not by a run. **Rule: grep the hook literal for the name before adding a key** —
+the file already carries one scar of exactly this shape (`itemsBrief`).
+
+### 4. A TAP ON A PAIRLESS ITEM IS A MISTAKE AGAIN
+
+His words: «any click past an object or into an object without a pair gives −10
+points»; asked, he chose «a full-blown mistake» over «only the points».
+
+⛔⛔ **THIS CANCELS HIS OWN SPEC OF 2026-07-29, AND HE WAS SHOWN THAT SPEC BEFORE
+ANSWERING.** Then he had poked at the colourful items near the bottom of the bowl,
+got punished, and asked for the penalty to be removed; the measurement explained why
+he was right at the time — on lv.20 Hard there are ~50 accessible items but only ~11
+accessible PAIRS, so more than half of the «colourful» ones have nothing to connect
+with. The veil answers «CAN I REACH IT», the player reads it as «CAN I USE IT». That
+gap has not gone anywhere. He has simply decided that searching should cost.
+⚠️ THE HALF OF HIS ANSWER THAT COSTS THE MOST: it goes through `penalize`, so a
+pairless tap now also kills a live turbo, zeroes the build-up toward the next one,
+drops the radius ladder by two and starts the 3-second radius penalty. Together with
+the threshold of 16 that makes the boost materially harder to reach — named to him
+in the question itself.
+⚠️ **HIS THREE EXEMPTIONS SURVIVE FOR FREE**, because they live inside
+`scorePenalty`: level 1 has no point penalty at all, levels 2-5 clamp at zero, and
+the finale never reaches the line (it returns one branch above, where by definition
+nothing has a pair).
+⚠️ **THE SEARCH HINTS ARE NOW PAID.** The yellow «Pair is near but covered» and the
+red «Pair is deeper and farther» markers only ever appear after this line, so every
+use of the game's own search tool costs 10.
+⚠️ **AND ONE HOLE HE INHERITS:** `noteMissRadius` suppresses the deadlock detector
+for 3 s, so a player poking pairless items faster than once per 3 s keeps deferring
+his own rescue grinding. It self-heals the moment he stops and the rescue costs
+points anyway, so it is left — but it is a consequence of this batch, not a
+pre-existing bug.
+
+### 5. THE BUTTONS: FILL .60 AND A 1px WHITE RIM
+
+His words, with three Figma properties: «update the style of the buttons, including
+the zoom buttons: fill: rgba(255,255,255,0.60); stroke-width: 1px; stroke: #FFF».
+
+⚠️ HE GAVE **SVG** PROPERTIES FOR **HTML** BOXES, so they were translated: fill → the
+background, stroke → a rim. Applied literally they would have repainted the `+`, `−`
+and pause glyphs, which he pinned pure black by name on 2026-08-03.
+⛔ The `.40` of 2026-08-22-v is cancelled after one day. The radius 16 and the inner
+glow are NOT named by him and therefore SURVIVE — the house rule here is that an
+unnamed property is not touched (the same way the hover `.80` survived the
+`.20 → .40` move, and it survives this one).
+⚠️⚠️ **THE RIM IS AN INSET SHADOW AND NOT A `border`, AND THAT IS LOAD-BEARING.** A
+Figma stroke defaults to INSIDE alignment, so an inset ring is the faithful reading —
+and it is also the only layout-safe one: `box-sizing:border-box` is global, so a 1px
+border keeps the outer 56/120 and shrinks the CONTENT box to 54, moving the
+magnifier, the badges, the Shake caption (axis 84) and its hand (frame [5,3,50,50])
+inward by a pixel. **Measured after the edit: 120×56, axis 84, frame [5,3,50,50] —
+nothing moved.**
+⛔ **THE PAUSE BUTTON WAS NOT TOUCHED** and it was named to him: it is the last living
+carrier of the day/night system rule of 2026-07-28 and it has a measured contrast
+floor of ≥ 3.50 against the sky.
+⛔ **THE ZOOM KEEPS ITS 50%-AT-REST DIMMING ON HIS EXPLICIT WORD** (asked and
+answered: «only the colour and the outline»). The consequence was named and
+accepted: `opacity:.5` multiplies the whole node, so at rest the zoom reads at an
+effective 30% against its neighbours' 60% and its rim at half strength. It becomes
+one family with them only under the finger. ⛔ Do not «fix» this — it is his spec of
+2026-08-05, re-confirmed a day after this restyle.
+
+### 6. THE NOTIFICATION UNDER THE EYES: SMALLER, RARER, AND IT NO LONGER LEAKS
+
+His words: «the notification under the eyes sometimes crawls out onto the final
+screen and onto the pause screen. Also make it 30% smaller and show it only once per
+game session if an item has moved up to the next level».
+
+⚠️⚠️ **«THE PAUSE SCREEN» IS `#mainScreen`, NOT `#pauseOverlay`** — `pauseGame` is
+called with silent=true at every production site, so the pause overlay is never shown
+in a live game. `#mainScreen` is opened by an `.open` class and BYPASSES `show()`.
+A fix that hooked only `show()` would have cured the win screen and left his second
+complaint standing; `hideMultToast()` is therefore called from both.
+⚠️⚠️ **THE ACTUAL BUG WAS THE TIMER, NOT THE CLASS.** `multToastT` is a bare
+real-clock `setTimeout`, held by neither `paused` nor the `afterPause` queue.
+Removing the class without clearing it leaves a live callback that strips `.on`
+later — and the NEXT toast inherits a stale timer and vanishes early.
+⛔⛔ **THE PER-COLLECTION TOAST IS REMOVED ENTIRELY**, which cancels his spec of
+2026-08-05 («shown only if the item's multiplier was increased during play»). Asked
+between three readings, he chose «only the level-up, once per level». Gating only the
+rarer tier-up would have left the pill popping on every collection of a grown kind,
+i.e. his complaint would have survived the fix untouched.
+⚠️ **THE GATE IS ON THE DISPLAY, NOT ON THE EVENT.** It lives in `showTierUp`, not in
+`accAdd`: the tier increase is also an `acc_up` telemetry event and a documented
+`onAccTierUp` hook the suite pins, and gating the event would silently stop both.
+⚠️ The flag lives on `level`, which `genLevel` rebuilds — it resets by itself, and a
+reset line would be a second truth.
+⚠️ **−30% BY THE LITERALS, NOT BY `transform: scale()`**, for two independent
+reasons: the transform slot is already taken by the entrance (.85 → 1), and
+`getBoundingClientRect` sees transforms, so a scaled pill would measure 42 while
+still occupying 60 and the 32px gap under the eyes — his own number from 2026-08-05,
+pinned with a ±2 tolerance — would silently read as 41. The gap itself is not scaled:
+he shrank the notification, not the distance.
+**MEASURED:** 118×42 (was 169×60 — exactly 70%), portrait 31, chip font 16; `.on`
+true before `winScreen(true)` and false immediately after; three tier-ups in one
+level → shown, silent, silent; after `regen()` → shown again.
+
+### 7. ONE FLAT YELLOW FOR THE SCORE
+
+⛔ The `#gScore` gradient is cancelled — it was the last consumer in the game. The
+mobile arm has been flat `#ffe730` since 2026-08-03 and the win screen's score is
+flat already, so the score is now ONE colour everywhere. The `<linearGradient>` block
+is left in the markup, dead, so a return costs one line — the same thing was done
+with the win screen's gradient.
+⚠️ THE PRICE, BY THE NUMBER: `#ffe730` on the faded sky is **1.35:1**, i.e. the
+desktop score loses the contrast its gradient's darker lower half gave it. The mobile
+score has carried exactly this number since yesterday and he accepted it knowingly.
+**MEASURED:** `rgb(255, 231, 48)` at both 657 and 1280 wide.
+
+### 8. THE BLADES WERE RAISED TOWARDS THE PILE — THE PILE WAS NOT DROPPED
+
+⚠️⚠️ **TWO READINGS GIVE THE SAME GAP AND WILDLY DIFFERENT RISK.** Dropping
+`FLOOR_REST` moves the objects — which is the grammar of his sentence — but it drags
+the pile's top height, `trimOverfill`, the rescuers and the floor plate's 0.30
+half-thickness margin with it, i.e. a difficulty change smuggled in behind a visual
+request. The blades carry NO physics body at all, so raising them is render-only.
+That is why the blades moved.
+⚠️⚠️ **THE GROUP'S `position.y` WAS DELIBERATELY LEFT AT 0.28.** Raising it is the
+one-liner and it would have torn the impeller off the bottom of the bowl: the hub is
+modelled from y=0 upwards, so the group's y IS the hub's footing. Instead the HUB
+GREW (0.42 → 0.72, its centre following to keep the base put) and the blades rode up
+the shaft (0.24 → 0.54).
+⚠️ **THE CEILING IS THE GRIND ANIMATION, NOT THE LOOK:** a doomed item is dragged
+down to centre-y = `FLOOR_REST − 0.25` = 0.90 to be sawn. The hub now tops out at
+1.00. Raise it further and the blades pass through the item BEFORE the saw, and the
+whole grind reads as a glitch.
+⚠️ The blade tops must also stay below `FLOOR_REST` (1.15) or they stick out through
+the resting items.
+**MEASURED:** `{bladeTop: 0.965, hubTop: 1.00, groupY: 0.28, floor: 1.15,
+gap: 0.185}` — the clearance went **0.485 → 0.185**.
+✅ **A NEW HOOK `bladeProbe()` EXISTS BECAUSE NOTHING IN THE SUITE READ BLADE
+GEOMETRY** — a wrong number would have shipped green. It computes the world-space
+boxes rather than reading `mixerBlades.position.y`, which on this correct build would
+have reported «nothing changed».
+
+### WHAT THE TWO RUNS OF THIS BATCH TAUGHT — THREE SUITE-SIDE LESSONS
+
+⛔⛔ **A GUARD THAT ASSERTS «NOTHING HAPPENED» IS ALSO SATISFIED BY A TAP THAT NEVER
+LANDED, AND THIS ONE WAS — FOR THREE WEEKS.** The guard of 2026-07-29 stated that a
+tap on a pairless item takes no points and counts no miss. Inverting it into «it costs
+10» is what finally showed that its click had been swallowed the whole time:
+`stats.taps` never moved. The route was sound; the PAGE was not — by the time the run
+reached that section the shared main page had a screen open over the canvas.
+✅ Cured twice over: the section now runs on its own fresh page, AND it reads
+`stats.taps` as a control, so a swallowed tap can never again be read as a result.
+**Law: a negative assertion needs a positive control, or it guards nothing.**
+
+⛔⛔ **AN AGED PAGE KILLED A WHOLE RUN WITH NO VERDICT — THE SECOND BILLING OF THIS
+LESSON.** At 631 PASS the run died on `deskPage.hover('#shakeBtn')`: the page had won
+by itself while the sections above ran, and the full-screen win overlay intercepts
+pointer events, so Playwright waited 30 s and threw. ⚠️ THIS BATCH MADE IT LIKELIER BY
+DESIGN — `BOWL_SHATTER_N` 5 → 3 means levels now finish sooner. Cured by taking the
+covers down through the live path before the hover. ⛔ NOT by `{ force: true }`: the
+hover must be real or `:hover` never applies and the assert would measure the idle
+state and call it hover.
+
+⛔⛔ **A MEASUREMENT THAT LOADS THE SYSTEM MEASURES ITS OWN LOAD.** The pour guard
+sampled every 8 ms and called `combo()` on each pass — and `combo()` walks every live
+item. On a pile of 180 the sampler ate the frame it was measuring: 23 samples in 3 s
+instead of 375, and the delivery it observed fell to **22 — exactly what the OLD build
+delivers**. The guard was one assert away from stating «the tick did not get denser»
+about a build where it did. Measured out of the loop, the same window delivers 34.
+✅ The pour is now read twice (before and after the window), with one short 15-read
+burst for the tick period. **Law: before trusting a number, ask what the act of
+measuring cost — and prefer two reads to a poll.**

@@ -1181,6 +1181,84 @@ function _boltFX_impl(a, b){
   layer(0x2f6bff, 0.075, 0.038, 0.6);  // the sheath (was 0.09 — still "smaller")
   layer(0xdceeff, 0.024, 0.012, 1.0);  // the core (was 0.035)
 }
+// ═══ THE THREAD OF LIGHTNING THROUGH THE VICTIMS OF THE CHARGE (the owner's word
+// 2026-08-23-a: «a click on the bonus item destroys all similar items by way of a lightning
+// bolt that threads through them all, from centre to centre») ═══
+// ⚠️⚠️ ONE CONTINUOUS THREAD, NOT A STAR OF SEPARATE BOLTS, AND THE DIFFERENCE IS HIS
+// WORDING. «Пронизывает их все… от центра к центру» is a traversal — centre to centre to
+// centre — not a radiation from one point. A fan already existed in this codebase (the
+// per-match star at the turbo line) and it is NOT what was asked for; a fan would have been
+// «от центра ко всем».
+// ⛔⛔ THIS DOES **NOT** GO THROUGH `boltFX`, AND MUST NOT BE «SIMPLIFIED» INTO IT. That one
+// begins with `if (!TURBO_BOLTS) return;`, and TURBO_BOLTS is false by the owner's own spec
+// of 2026-07-28 (entering turbo is marked by tossing the pile, not by discharges). Calling
+// boltFX here would draw NOTHING while throwing no error and failing no assert — the single
+// most likely way to «ship» this item without shipping it. Flipping the flag instead would
+// be worse still: it would simultaneously resurrect the ambient crackle across the whole
+// bowl and the star on every match in turbo, i.e. cancel his 2026-07-28 word in three places
+// to satisfy one request.
+// ⚠️ THE ORDER OF THE VICTIMS IS A GREEDY NEAREST-NEIGHBOUR WALK FROM THE TOPMOST ONE. The
+// items arrive in `items` order, which is spawn order — a thread through that would jump
+// across the bowl and read as a scribble rather than as one bolt. Starting from the topmost
+// victim makes the visible end of the thread the one the player is looking at.
+// ⚠️ THE LIFE IS LONGER THAN AN ORDINARY DISCHARGE (0.24 s against BOLT_LIFE 0.16): this is a
+// single event the player asked for and must see, not ambient crackle. The items themselves
+// still die in the same frame — he has twice pushed for instantness on this exact button,
+// which is also why its handler is `pointerdown`.
+// ⚠️ TWO MESHES TOTAL, WHATEVER N IS: every hop and every fork is merged into one geometry
+// per layer. A per-hop mesh at N=16 would mean 30 materials against a BOLT_POOL_MAX of 24,
+// on top of the 16 dissolve clouds already firing.
+// ⚠️ `poolBolt` IS SET AND THAT IS CORRECT HERE — the material comes from `boltMat`, so it
+// belongs in the bolt pool. The canon's warning about this flag is about OTHER effects
+// borrowing it, which would push foreign materials into that pool.
+const CHAIN_BOLT_LIFE = 0.24, CHAIN_BOLT_SEG = 5;
+function chainBoltFX(points){
+  if (!Array.isArray(points) || points.length < 2) return;
+  const left = points.map(p => p.clone());
+  let cur = left[0];
+  for (const p of left) if (p.y > cur.y) cur = p;      // start at the topmost victim
+  left.splice(left.indexOf(cur), 1);
+  const order = [cur];
+  while (left.length){
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < left.length; i++){
+      const d = cur.distanceToSquared(left[i]);
+      if (d < bd){ bd = d; bi = i; }
+    }
+    cur = left[bi]; left.splice(bi, 1); order.push(cur);
+  }
+  const hops = [];
+  for (let i = 0; i < order.length - 1; i++){
+    const h = boltPath(order[i], order[i+1], CHAIN_BOLT_SEG, 0.16);
+    if (h) hops.push(h);
+  }
+  if (!hops.length) return;
+  // the forks are spread over the WHOLE thread and capped at BOLT_FORKS — one set per hop
+  // would give 75 branches at N=16 and turn the thread into a bush
+  const forks = [];
+  for (let i = 0; i < BOLT_FORKS; i++){
+    const h = hops[Math.floor(Math.random()*hops.length)];
+    const j = 1 + Math.floor(Math.random()*(CHAIN_BOLT_SEG-1));
+    const from = h.pts[j];
+    const to = from.clone()
+      .addScaledVector(h.n1, (Math.random()-0.5)*2)
+      .addScaledVector(h.n2, (Math.random()-0.5)*2);
+    to.sub(from).normalize().multiplyScalar(h.len*(0.18+Math.random()*0.25)).add(from);
+    const f = boltPath(from, to, 3, 0.22);
+    if (f) forks.push(f);
+  }
+  const layer = (color, rMain, rFork, opacity) => {
+    const geos = [];
+    for (const h of hops) geos.push(new THREE.TubeGeometry(h.path, CHAIN_BOLT_SEG*2, rMain, 4, false));
+    for (const f of forks) geos.push(new THREE.TubeGeometry(f.path, 6, rFork, 3, false));
+    const mesh = new THREE.Mesh(mergeTubeGeos(geos), boltMat(color, opacity));
+    mesh.renderOrder = 12;
+    mesh.userData.poolBolt = true;
+    addFX(mesh, CHAIN_BOLT_LIFE, (o,k)=>{ o.material.opacity = opacity*(1-k)*(0.6+0.4*Math.random()); });
+  };
+  layer(0x2f6bff, 0.075, 0.038, 0.6);  // the sheath — the same proportion as a single bolt
+  layer(0xdceeff, 0.024, 0.012, 1.0);  // the core
+}
 // Floating text (+points, ×multiplier, penalties)
 function scorePopScreen(text, px, py, color, big){
   const el = document.createElement('div');

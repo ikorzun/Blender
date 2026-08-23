@@ -1462,16 +1462,27 @@ page.on('response', (r) => {
       // dropped out of the delivery (a bonus level, there are no special items there by the spec);
       // the feature moved out into a separate build 2026-08-18, and the skip moved out together with it.
       const gaps = seen.slice(1).map((v, i) => v - seen[i]);
-      // THE REWARD: a level without a bomb (the queue is led far away), three series in a row
+      // THE REWARD: a level without a bomb (the queue is led far away), series in a row.
+      // ⛔⛔ THE REWARD MOVED FROM THE THIRD SERIES TO THE SECOND (BOMB_SERIES_REWARD 3 → 2,
+      // the owner's word 2026-08-23-a) — it is the counterweight to the turbo threshold going
+      // 10 → 16 in the same batch: his spec «if the player scores 3 series» was written when a
+      // series cost 10 matches, and at 16 the bomb would practically have stopped arriving.
+      // ⚠️⚠️ AND THE SHATTER HAD TO BE FENCED OFF, WHICH IT DID NOT BEFORE: BOWL_SHATTER_N went
+      // 5 → 3 in the same batch, so on lv.9 the THIRD crack now ENDS THE LEVEL and everything
+      // measured after it would be read off a dead level. `bowlSetN(999)` is the idiom this file
+      // already uses for exactly that.
       g.setLevel(9); g.bombNextAt(99); g.regen(); g.skipIntro(); await sl(500);
+      g.bowlSetN(999);
       const before = g.bombRule();
-      g.bowlCrack(); g.bowlCrack();
-      const after2 = g.bombRule().inPile;     // on the SECOND series there must be no reward
+      g.bowlCrack();
+      const after1 = g.bombRule().inPile;     // on the FIRST series there must be no reward
       g.bowlCrack(); await sl(500);
-      const after3 = g.bombRule();
+      const after2 = g.bombRule();            // on the SECOND it arrives
       g.bowlCrack(); await sl(300);
-      const after4 = g.bombRule().inPile;     // and no second bomb either
-      return { early, seen, gaps, before, after2, after3, after4 };
+      const after3 = g.bombRule().inPile;     // and no second bomb either
+      g.bowlSetN(0);
+      const rewardAt = g.bombRule().perSeries;
+      return { early, seen, gaps, before, after1, after2, after3, rewardAt };
     });
     console.log('bomb delivery:', JSON.stringify(bomb));
     expect(bomb.early.every(n => n === 0),
@@ -1482,14 +1493,22 @@ page.on('response', (r) => {
            bomb.gaps.every(g0 => g0 >= 1 && g0 <= 3),
       '⚠️⚠️ BOMB: from level 5 it arrives, the gap is within 1-3 (levels ' +
       JSON.stringify(bomb.seen) + ', gaps ' + JSON.stringify(bomb.gaps) + ')');
-    // ⚠️ THE REWARD IS A TRANSITION, not a state: on the second series there is still no bomb, on
-    // the third it appears, on the fourth a SECOND one does not appear (the «only one» invariant).
-    expect(bomb.before.inPile === 0 && bomb.after2 === 0 &&
-           bomb.after3.inPile === 1 && bomb.after3.rewardGiven === true &&
-           bomb.after4 === 1,
-      '⚠️⚠️ BOMB: EXACTLY on the third series it drops as a reward, there is never a second one (' +
-      JSON.stringify({ before: bomb.before.inPile, after2: bomb.after2,
-                       after3: bomb.after3.inPile, after4: bomb.after4 }) + ')');
+    // ⚠️ THE REWARD IS A TRANSITION, not a state: on the series before the threshold there is
+    // still no bomb, ON the threshold it appears, and one series later a SECOND one does not
+    // (the «only one» invariant).
+    // ⚠️⚠️ THE THRESHOLD IS READ FROM THE HOOK (`bombRule().perSeries`) AND NOT WRITTEN AS A
+    // LITERAL: the owner has now moved this number twice, and a copy of it here would go red on
+    // a healthy build at his next pass. What is pinned is that the arrival lands EXACTLY on it.
+    expect(bomb.rewardAt === 2 && bomb.before.inPile === 0 && bomb.after1 === 0 &&
+           bomb.after2.inPile === 1 && bomb.after2.rewardGiven === true &&
+           bomb.after3 === 1,
+      '⚠️⚠️ BOMB: EXACTLY on series #' + bomb.rewardAt + ' it drops as a reward, and there is ' +
+      'never a second one (the owner 2026-08-23-a, 3 → 2 as the counterweight to the turbo ' +
+      'threshold 10 → 16). ⛔ SABOTAGE THAT MUST TURN THIS RED: moving BOMB_SERIES_REWARD without ' +
+      'moving the threshold, or the reward firing on `>=` instead of `===` — a second bomb would ' +
+      'then arrive on every further series (' +
+      JSON.stringify({ perSeries: bomb.rewardAt, before: bomb.before.inPile, after1: bomb.after1,
+                       after2: bomb.after2.inPile, after3: bomb.after3 }) + ')');
     await bombPage.close();
   }
 
@@ -1875,7 +1894,13 @@ page.on('response', (r) => {
   await page.waitForTimeout(400);
   const chainProbe = await page.evaluate(async () => {
     const g = window.__game, out = { chainAt: -1, seriesAt: -1 };
-    for (let i = 0; i < 30; i++){
+    // ⚠️⚠️ THIS LOOP NEEDS **TWO** IGNITIONS, so its budget is 2× the live threshold plus
+    // slack: comboCount is zeroed at the first ignition, so the second turbo has to be
+    // assembled from scratch inside the first one's window. At the threshold of 16
+    // (2026-08-23-a) the old literal 30 could not physically get there — it would have gone
+    // red on a sound build. Derived from chainAt() so it follows the owner's next tuning too.
+    const need = g.chainAt() * 2 + 8;
+    for (let i = 0; i < need; i++){
       if (!g.autoMatch()) break;
       const c = g.combo();
       if (c.chain && out.chainAt < 0) out.chainAt = i;
@@ -4350,33 +4375,241 @@ window.bridge = {
   // >=10 items» (the level became bigger, 172 alive instead of 130) and the bomb
   // section. The project had already documented this trap — I stepped on it a second time.
 
-  // ⚠️ A TAP ON AN AVAILABLE ITEM WITHOUT A PAIR IS NOT PENALIZED (the owner's spec 2026-07-29).
-  // We guard it EXPLICITLY: removing the penalty is one line, and bringing it back with a random
-  // edit in handleTap is dead easy, while the player will not notice at once.
+  // ═══ A TAP ON A PAIRLESS ACCESSIBLE ITEM IS A FULL-BLOWN MISTAKE (the owner's word
+  // 2026-08-23-a: «any click past an object or INTO AN OBJECT WITHOUT A PAIR gives −10
+  // points»; asked and answered — «a full-blown mistake», the whole package, not the points alone).
+  // ⛔ THIS CANCELS HIS OWN SPEC OF 2026-07-29 that stood here before — the two asserts
+  // «did NOT take points away» / «was NOT counted as a miss» are inverted, not deleted:
+  // the same line of `handleTap` is still the subject, only its verdict has flipped.
+  // ⚠️ THE POINTS HALF NEEDS A LEVEL >= 6. On lv.1 there is no point penalty at all
+  // (SCORE_NO_PENALTY_LEVELS), on lv.2-5 the score is clamped at zero — there a score
+  // delta of ZERO is somebody else's exemption, and a guard written on the suite's main
+  // page (it plays lv.1) could be «fixed» into a tautology. The canon pins the full
+  // minus at lv.8 (test.js «lv.8: the full penalty of a miss −10»); we stay on lv.11,
+  // the level this block has always used.
+  // ⛔ NO COPY OF MISS_PENALTY HERE. The cost of one miss is MEASURED on this very level
+  // through `penalizeTest()` — the single penalty point — and the tap is required to cost
+  // exactly the same. When the owner retunes the number, both move together.
+  // ⚠️ THE TRAP THIS GUARD IS BUILT AROUND: a click that lands on EMPTY SPACE penalizes on
+  // the UNFIXED build too (`if (!item){ ... penalize(null, x, y) }`). Score + misses alone
+  // would therefore be green with the item branch still dead. The tag `'nopair'` (the
+  // branch's own telemetry, separate from `'dead'`/`'match'`/`'surprise'`) plus an
+  // unchanged alive count is what pins the tap TO THE ITEM.
+  await page.evaluate(() => { const g = window.__game; g.setLevel(11); g.regen(); g.skipIntro(); });
+  await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
+  // ═══ THE PAIRLESS TAP RUNS ON ITS OWN FRESH PAGE, AND THAT IS NOT TIDINESS ═══
+  // ⚠️⚠️ THE FIRST EDITION OF THIS SECTION LIVED ON THE SUITE'S MAIN PAGE AND EVERY TAP IN IT
+  // SILENTLY MISSED: by the time the run reaches here the main page has been through the
+  // wallet and leaderboard sections, and a screen left open over the canvas swallows the
+  // click — `stats.taps` stayed 0 while the guard happily measured «nothing changed».
+  // ⛔ THAT IS EXACTLY WHY THE FORMER GUARD OF 2026-07-29 WAS GREEN FOR THREE WEEKS: it
+  // asserted that the tap changes NOTHING, which is also what a tap that never lands does.
+  // Inverting it into «the tap costs 10» is what finally exposed the hole. The canon already
+  // carries this lesson once («two guards ran on an aged page») — this is its second billing.
+  // ⚠️ THE `landed` CONTROL BELOW IS THE PERMANENT CURE: the guard now reads `stats.taps` and
+  // the element under the click point, so a swallowed tap can never again be read as a result.
+  const npPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  npPage.on('pageerror', e => errors.push('PAGEERROR(nopair): ' + e.message));
+  await npPage.goto('file://' + PAGE_FILE);
+  await npPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+  // ⚠️⚠️ THE LEVEL IS SET **BEFORE** THE REFERENCE MISS, and that is not tidiness: `scorePenalty`
+  // waives the points entirely on levels <= SCORE_NO_PENALTY_LEVELS (his beginner grace), so on a
+  // fresh page — which starts at level 1 — the reference miss costs 0 and the whole section then
+  // compares two zeroes. On the old shared page this was hidden by luck: the run had already
+  // walked the level up by the time it got here. Measured on the first fresh-page run: the
+  // reference miss returned d=0 and the guard went red on a correct build.
+  await npPage.evaluate(() => { const g = window.__game; g.skipIntro(); g.setLevel(11); g.regen(); g.skipIntro(); });
+  await npPage.waitForTimeout(900);
+  const nopairRad = await npPage.evaluate(() => window.__game.cfg.baseRadius);
+
+  // (1) the LIVE cost of one miss on THIS level, through the single penalty point
+  const npRef = await npPage.evaluate(() => {
+    const g = window.__game, s0 = g.stats().score, m0 = g.stats().misses;
+    g.penalizeTest();
+    return { d: g.stats().score - s0, dm: g.stats().misses - m0 };
+  });
+  console.log('nopair ref-miss:', JSON.stringify(npRef));
+  expect(npRef.d < 0 && npRef.dm === 1,
+    '⚠️ THE REFERENCE MISS IS ALIVE, so the equality below is a statement and not an ' +
+    'identity of two zeroes (' + JSON.stringify(npRef) + '). This arm exists because the ' +
+    'guard measures the tap AGAINST `penalizeTest()` instead of against a copy of ' +
+    'MISS_PENALTY: on a build where `penalize` itself lost its points, both deltas would ' +
+    'be 0 and «the tap costs as much as a miss» would go green on a corpse. ' +
+    'The sabotage that must turn this red: gut `scorePenalty` (80-gameplay) or make ' +
+    '`penalize` (70-fx) stop touching stats.score / stats.misses on lv.11');
+
+  // (2) the turbo charge, built BELOW the live threshold chainAt() — entering turbo
+  //     ZEROES comboCount by itself (80-gameplay «the series is spent on the launch»),
+  //     and a guard that let that happen would read its own tautology back as a success
+  await npPage.evaluate(async () => {
+    const g = window.__game;
+    g.missRadiusClearTest();                    // drop the radius cap the reference miss left
+    for (let i = 0; i < 4; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 130)); }
+  });
+  await npPage.waitForTimeout(280);               // the pile slumps after four matches: the pixel must be honest
+
+  // (3) make the target PAIRLESS without touching the item itself — the documented trick,
+  //     the match radius below zero. ⚠️ −99 and not −9: under the fever `updateMatchRadius`
+  //     lifts the radius back TOWARDS COMBO_RADIUS along the ladder, and at the top step it
+  //     lands exactly on it. With four matches the ladder stands at 3 of COMBO_STEPS, and
+  //     −99 keeps the result deeply negative with room to spare. If it ever did come out
+  //     positive the tap would MATCH — score up, count up — that is, RED, not silent.
+  //     `missRadiusClearTest()` is the only synchronous entry into `updateMatchRadius`:
+  //     without it CFG.matchRadius stays stale for up to 300 ms and the tap merges instead.
+  const npT = await npPage.evaluate(() => {
+    const g = window.__game;
+    g.cfg.baseRadius = -99;
+    g.missRadiusClearTest();
+    g.forceRefresh();
+    const t = g.findByTex('food') || g.findByTex('animal');
+    const c = g.combo(), s = g.stats();
+    return { t: t, score: s.score, misses: s.misses, taps: s.taps, alive: g.alive(),
+             hot: c.hot, count: c.count, chain: c.chain, radius: c.radius, chainAt: g.chainAt() };
+  });
+  const npFound = !!(npT.t && npT.t.px != null);
+  console.log('nopair before:', JSON.stringify(npT));
+  expect(npFound,
+    '⚠️ THE TARGET FOR THE PAIRLESS TAP WAS FOUND (' + JSON.stringify(npT) + '). ' +
+    'Deliberately an ASSERT and not the `skipped` branch this block used to carry: a guard ' +
+    'that quietly steps aside is the silence the canon forbids. lv.11 unlocks 13 types and ' +
+    'takes them all (40-items «while typesCount <= pairsCnt ALL the unlocked types are taken»), ' +
+    'and the first of them are the food/animal packs — no target means the level layout or ' +
+    '`findByTex`/`visiblePixel` broke, and every arm below would have been measuring nothing');
+  expect(npT.hot === true && npT.count > 0 && npT.chain === false,
+    '⚠️⚠️ THE TURBO CHARGE WAS REALLY BUILT UP AND TURBO DID NOT LAUNCH BY ITSELF (' +
+    JSON.stringify({ hot: npT.hot, count: npT.count, chain: npT.chain, chainAt: npT.chainAt }) + '). ' +
+    'Without this arm the next one is a TAUTOLOGY: `comboCount` is zeroed by the turbo ' +
+    'LAUNCH too (80-gameplay «the series is spent on the launch»), so a run that crossed ' +
+    '`chainAt()` would report count 0 no matter what the tap did — and a run where the ' +
+    'fever never ignited would report 0 as well. The sabotage: lower CHAIN_COMBO_AT under ' +
+    'the four matches, or stop `autoMatch` from feeding the series');
+
+  if (npFound){ await npPage.mouse.click(npT.t.px, npT.t.py); await npPage.waitForTimeout(350); }
+  const npA = (npFound ? await npPage.evaluate(() => {
+    const g = window.__game, s = g.stats(), c = g.combo();
+    const tp = g.telemetry(8).filter(e => e.n === 'tap');
+    return { score: s.score, misses: s.misses, taps: s.taps, alive: g.alive(),
+             count: c.count, chain: c.chain, tag: tp.length ? tp[tp.length - 1].r : null };
+  }) : null) || {};
+  console.log('nopair after:', JSON.stringify(npA));
+
+  expect(npA.tag === 'nopair' && npA.alive === npT.alive && npA.taps === npT.taps + 1,
+    '⚠️⚠️ THE TAP LANDED ON THE ITEM, and this is the arm that stops the whole section from ' +
+    'being a tautology (' + JSON.stringify({ tag: npA.tag, alive: npT.alive + ' -> ' + npA.alive,
+      taps: npT.taps + ' -> ' + npA.taps }) + '). A click into EMPTY SPACE takes points and a ' +
+    'miss on the UNFIXED build as well (`if (!item) ... penalize(null, x, y)`), so the two ' +
+    'arms below would be green with `penalize(item.p)` never added. `nopair` is that ' +
+    'branch\'s own tag, separate from `dead`/`match`/`surprise`/`frozen`; the unchanged ' +
+    'alive count says nothing merged. The sabotage: let the pixel drift off the item, or ' +
+    'route the pairless tap through any other branch of `handleTap`');
+
+  expect(npA.score - npT.score === npRef.d && npA.misses === npT.misses + 1,
+    '⚠️⚠️ A TAP ON A PAIRLESS ACCESSIBLE ITEM COSTS A WHOLE MISS — the same points as a real ' +
+    'miss, and it is COUNTED as a miss (' + JSON.stringify({ score: npT.score + ' -> ' + npA.score,
+      delta: npA.score - npT.score, refMiss: npRef.d, misses: npT.misses + ' -> ' + npA.misses }) + '). ' +
+    'The owner\'s word 2026-08-23-a: «any click past an object or into an object without a ' +
+    'pair gives −10 points», and, asked, «a full-blown mistake». ⛔ IT CANCELS HIS OWN SPEC ' +
+    'OF 2026-07-29, which had removed exactly this penalty — do not restore that one without ' +
+    'his word. The sabotage: delete `penalize(item.p);` from the `nopair` branch of ' +
+    '`handleTap` (80-gameplay, the line right after `if (finale){ wiggle(item); return; }`)');
+
+  expect(npA.count === 0 && npA.chain === false,
+    '⚠️⚠️ IT IS A MISTAKE AND NOT A FINE: the same tap KILLS THE TURBO BUILD-UP (' +
+    JSON.stringify({ count: npT.count + ' -> ' + npA.count, hot: npT.hot,
+      chain: npA.chain, chainAt: npT.chainAt }) + '). This is the half of the owner\'s answer ' +
+    'that a points-only guard misses entirely — he was asked whether it is a fine or a ' +
+    'mistake and said «a full-blown mistake», i.e. the whole package `penalize` carries. ' +
+    'The sabotage: charge the points for this branch from anywhere other than `penalize` ' +
+    '(70-fx) — a private `scorePenalty(MISS_PENALTY)` call would keep the two arms above ' +
+    'green and invent a third kind of tap, «a mistake for points but not for the boost»');
+
+  // (4) HIS EXEMPTION FOR LEVEL 1 SURVIVES — and survives as an exemption from the POINTS
+  //     ONLY. It is a deliberate arm, not a leftover: it is what keeps the section from
+  //     being «fixed» onto the main page (which plays lv.1) into a guard that measures a
+  //     score delta of zero and calls it a pass.
+  await npPage.evaluate(() => { const g = window.__game; g.setLevel(1); g.regen(); g.skipIntro(); });
+  await npPage.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
+  const np1 = await npPage.evaluate(() => {
+    const g = window.__game;
+    g.cfg.baseRadius = -99; g.missRadiusClearTest(); g.forceRefresh();
+    const t = g.findByTex('food') || g.findByTex('animal');
+    const s = g.stats();
+    return { t: t, score: s.score, misses: s.misses, alive: g.alive() };
+  });
+  const np1Found = !!(np1.t && np1.t.px != null);
+  if (np1Found){ await npPage.mouse.click(np1.t.px, np1.t.py); await npPage.waitForTimeout(350); }
+  const np1A = (np1Found ? await npPage.evaluate(() => {
+    const g = window.__game, s = g.stats();
+    const tp = g.telemetry(8).filter(e => e.n === 'tap');
+    return { score: s.score, misses: s.misses, alive: g.alive(),
+             tag: tp.length ? tp[tp.length - 1].r : null };
+  }) : null) || {};
+  console.log('nopair lv1:', JSON.stringify({ before: np1, after: np1A }));
+  expect(np1Found && np1A.tag === 'nopair' && np1A.misses === np1.misses + 1 &&
+         np1A.score === np1.score && np1A.alive === np1.alive,
+    '⚠️⚠️ ON LEVEL 1 THE SAME TAP IS STILL A MISTAKE, BUT A FREE ONE (' +
+    JSON.stringify({ found: np1Found, tag: np1A.tag, score: np1.score + ' -> ' + np1A.score,
+      misses: np1.misses + ' -> ' + np1A.misses }) + '). The owner\'s three exemptions ride ' +
+    'inside `scorePenalty` and NOT inside the new call — lv.1 pays nothing, lv.2-5 clamp at ' +
+    'zero, the finale returns one branch earlier. ⚠️ THE `misses` ARM CARRIES THIS ASSERT: ' +
+    '«the score did not change» is also true of a build where the branch does nothing at ' +
+    'all, which is exactly the trap of writing this guard on the suite\'s main npPage. ' +
+    'The sabotage: move the point penalty out of `scorePenalty` into `handleTap` — lv.1 ' +
+    'starts paying; or drop `stats.misses++` — the tap stops being a mistake on lv.1');
+
+  await npPage.evaluate((r) => { const g = window.__game; g.cfg.baseRadius = r; g.missRadiusClearTest(); }, nopairRad);
+  await npPage.waitForTimeout(400);
+
+  // ⛔⛔ A TAP ON AN AVAILABLE ITEM WITHOUT A PAIR IS PENALISED AGAIN (the owner's word
+  // 2026-08-23-a: «any click past an object or into an object without a pair gives −10 points»;
+  // asked between «a full-blown mistake» and «points only», he chose the full mistake).
+  // ⛔ THIS ASSERT IS THE INVERSION OF ITS OWN FORMER SELF, AND THE FORMER TEXT IS KEPT BELOW AS
+  // THE TOMBSTONE, because the reasoning that produced it is exactly the price he is now paying:
+  // on 2026-07-29 he poked at the colourful items near the bottom of the bowl, was punished, and
+  // asked for the penalty to go; the measurement backed him — on lv.20 Hard there are ~50
+  // accessible items but only ~11 accessible PAIRS. That gap has not gone anywhere. He has
+  // decided that searching should cost, and he was shown the measurement before answering.
+  // ⚠️ THE ROUTE IS UNCHANGED and it is the load-bearing part of this block: the radius is driven
+  // to −9 (the documented trick for forcing «there are no pairs») on LEVEL 11 — on lv.1 there are
+  // no point penalties at all and on 2-5 the score is clamped at zero, so on those the assert
+  // would be green for somebody else's reason.
   // We drive the radius to −9 (the documented trick for forcing «there are no pairs»), and we take
   // level 10: on the 1st there are no penalties at all, on 2-5 the score is clamped at zero — there
   // the assert would be green for somebody else's reason.
-  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
-  await page.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
-  const npRad = await page.evaluate(() => window.__game.cfg.baseRadius);
-  await page.evaluate(() => { window.__game.cfg.baseRadius = -9; });
-  await page.waitForTimeout(500);                       // updateMatchRadius ticks once every 300 ms
-  const npTarget = await page.evaluate(() => {
+  await npPage.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+  await npPage.waitForFunction(() => !window.__game.awake().physAwake, null, { timeout: 5000 }).catch(()=>{});
+  const npRad = await npPage.evaluate(() => window.__game.cfg.baseRadius);
+  await npPage.evaluate(() => { window.__game.cfg.baseRadius = -9; });
+  await npPage.waitForTimeout(500);                       // updateMatchRadius ticks once every 300 ms
+  const npTarget = await npPage.evaluate(() => {
     const g = window.__game; g.forceRefresh();
     return g.findByTex('food') || g.findByTex('animal');
   });
   if (npTarget && npTarget.px != null){
-    const npBefore = await page.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
-    await page.mouse.click(npTarget.px, npTarget.py);
-    await page.waitForTimeout(400);
-    const npAfter = await page.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
-    expect(npAfter.score === npBefore.score,
-      'a tap on an available item without a pair did NOT take points away (' + npBefore.score + ' -> ' + npAfter.score + ')');
-    expect(npAfter.misses === npBefore.misses,
-      'a tap on an available item without a pair was NOT counted as a miss (' + npBefore.misses + ' -> ' + npAfter.misses + ')');
+    const npBefore = await npPage.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
+    await npPage.mouse.click(npTarget.px, npTarget.py);
+    await npPage.waitForTimeout(400);
+    const npAfter = await npPage.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
+    // ⚠️ THE TRANSITION, BOTH HALVES: the points AND the fact that the game booked it as a
+    // MISTAKE. The second half is the one his answer turned on — `stats.misses` is what kills a
+    // live turbo and zeroes the build-up toward the next one, so a build that took the 10 points
+    // without counting the miss would satisfy «−10» and still not be what he asked for.
+    expect(npAfter.score === npBefore.score - 10,
+      '⛔⛔ VICTORY OVER HIS OWN SPEC OF 2026-07-29: a tap on an ACCESSIBLE item WITHOUT A PAIR ' +
+      'costs exactly −10 on lv.11 (the owner 2026-08-23-a). ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
+      'dropping the `penalize(item.p)` call from the nopair branch of handleTap — the tap goes ' +
+      'back to free and the search costs nothing again (' + npBefore.score + ' -> ' + npAfter.score + ')');
+    expect(npAfter.misses === npBefore.misses + 1,
+      '⚠️⚠️ AND IT IS BOOKED AS A MISTAKE, NOT AS A FINE (his choice «a full-blown mistake» over ' +
+      '«points only»): `stats.misses` grows by exactly one, which is what kills a live turbo and ' +
+      'zeroes the charge toward the next one. ⛔ SABOTAGE: routing the penalty through a ' +
+      'points-only path instead of `penalize` — the score would still fall by 10 and the boost ' +
+      'would survive, i.e. a third kind of tap that this game does not have (' +
+      npBefore.misses + ' -> ' + npAfter.misses + ')');
   } else console.log('tap without a pair: no available target was found — skipped');
-  await page.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
-  await page.waitForTimeout(400);
+  await npPage.evaluate((r) => { window.__game.cfg.baseRadius = r; }, npRad);
+  await npPage.waitForTimeout(400);
+  await npPage.close();
 
   // ===== THE TAIL OF TYPES, THE STEAK AND THE SHAKE LADDER (the owner's specs 2026-07-30) =====
   // ⚠️ THE SECTION IS AT THE VERY END ON PURPOSE: setLevel/regen change the context, and in
@@ -4583,7 +4816,10 @@ window.bridge = {
   // the top of the ladder: we catch up to the turbo — the multiplier ×4 with a live chain
   const tempoChain = await page.evaluate(async () => {
     const g = window.__game;
-    for (let i = 0; i < 14 && !g.combo().chain; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
+    // ⚠️ THE BUDGET FOLLOWS chainAt() (2026-08-23-a: the threshold went 10 → 16, and a
+    // bound of 14 could no longer reach the chain at all — it would have gone red on a
+    // sound build).
+    for (let i = 0, need = g.chainAt() + 6; i < need && !g.combo().chain; i++){ g.autoMatch(); await new Promise(r => setTimeout(r, 80)); }
     return { chain: g.combo().chain, mult: g.series().mult };
   });
   expect(tempoChain.chain && tempoChain.mult === 4,
@@ -4799,6 +5035,155 @@ window.bridge = {
     slot.slot === 116 && slot.slot > slot.hint && ratioProbe > 0.012 && ratioProbe < 0.072,
     'CHARGE: not a button but a model of 116 (node 829:1242 +30%, then ×2, then −30% on mobile), and it pulsates ' +
     'by a fraction of 0.04 of its own size (' + JSON.stringify(Object.assign({ ratioProbe: +ratioProbe.toFixed(4) }, slot)) + ')');
+
+  // ═══ TURBO: A FLAT THRESHOLD OF 16, AND A DENSER POUR ══════════════════════
+  // The word of the owner 2026-08-23-a: «the items boost switches on only after 16 pairs»
+  // and, asked directly, «a flat 16 everywhere»; in the same answer «by the way, speed up
+  // their pouring». In the code: CHAIN_COMBO_AT 10 → 16, chainComboAt() returns it FLAT
+  // (the ladder CHAIN_AT_STEP 8 / CHAIN_AT_CAP 14 is kept dead on purpose, 00-config:468),
+  // CHAIN_DROP_MS 125 → 80 with the window (3000) and the per-tick volume (3.0) untouched,
+  // and the air ceiling of chainRefill 8 → 10.
+  // ⚠️⚠️ WHY FOUR LEVELS AND NOT ONE — THE TAUTOLOGY TRAP. `chainAt() === 16` read at level 1
+  // alone is ALSO green on the old ladder with a raised base; and «all four levels are equal»
+  // alone is ALSO green on a RESTORED ladder whose base is 16, because min(CHAIN_AT_CAP=14, …)
+  // pins it flat at 14 everywhere. Only the two halves together state «flat AND sixteen», and
+  // each half kills the sabotage the other one misses.
+  // ⚠️ ITS OWN PAGE: the probe walks setLevel over four levels and then plays a whole turbo out —
+  // on the shared `page` (mobile, level 1) it would hand the neighbours someone else level and a
+  // pile half eaten by the walk.
+  const turboPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  turboPage.on('pageerror', e => errors.push('PAGEERROR(turbo16): ' + e.message));
+  await turboPage.goto('file://' + PAGE_FILE);
+  await turboPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+
+  // (a) the threshold ACROSS LEVELS — read from the live hook, one reading per level
+  const chainFlat = await turboPage.evaluate(() => {
+    const g = window.__game, at = {};
+    for (const lv of [1, 8, 20, 40]){ g.setLevel(lv); at[lv] = g.chainAt(); }
+    g.setLevel(1);                       // we leave the shared file:// storage on level 1
+    return at;
+  });
+  const flatVals = [1, 8, 20, 40].map(lv => chainFlat[lv]);
+  console.log('turbo threshold by level:', JSON.stringify(chainFlat));
+  expect(flatVals.every(v => v === flatVals[0]) && flatVals[0] === 16,
+    'TURBO: the entry threshold is a FLAT 16 on levels 1/8/20/40 — the word of the owner 2026-08-23-a ' +
+    '«the items boost switches on only after 16 pairs», «a flat 16 everywhere». RESTORING THE LADDER ' +
+    '(the commented Math.min in chainComboAt, 00-config:475) breaks the EQUALITY of the four readings; ' +
+    'a return of CHAIN_COMBO_AT to 10 breaks the SIXTEEN (' + JSON.stringify(chainFlat) + ')');
+
+  // (b) the threshold the GAME uses + (c) the counterweights + (d) the pour — one honest run
+  const turbo = await turboPage.evaluate(async () => {
+    const g = window.__game, sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(1); g.regen(); g.skipIntro();
+    await sleep(700);
+    const at = g.chainAt();
+    // the counterweights are read from HOOKS, never from a copy of the constant:
+    // bowl().n is the live bowlN() (BOWL_SHATTER_N + ⌊lv/10⌋, so we take it on level 1),
+    // bombRule().perSeries is the live BOMB_SERIES_REWARD.
+    const weights = { at: at, bowlN: g.bowl().n, perSeries: g.bombRule().perSeries };
+    // THE HONEST PATH TO IGNITION. ⚠️ THE FIRST MATCH OF A COLD PILE DOES NOT COUNT:
+    // comboHot in doMatch demands a group of 3+, a neighbour within COMBO_CHAIN_MS or a live
+    // window, and a fresh genLevel zeroes lastMatchMs/comboUntil — autoMatch always merges
+    // exactly a PAIR, so the counter starts on the second call and the ignition falls on
+    // match at+1. That is the measured 17 at a threshold of 16, and it is stated
+    // relative to the hook, never as the number 17.
+    const walk = [];
+    let matches = 0, igniteAt = -1, ranOut = false, pre = null;
+    for (let i = 0; i < at + 12; i++){
+      if (!g.autoMatch()){ ranOut = true; break; }
+      matches++;
+      const c = g.combo();
+      walk.push(c.count);
+      if (c.chain){ igniteAt = matches; break; }
+      pre = { count: c.count, chain: c.chain, matches: matches };  // the last DARK sample
+      await sleep(80);
+    }
+    const atIgn = g.combo();
+    // THE POUR. ⚠️ THE FIRST TICK OF A FRESH CHAIN IS SCHEDULED AT +600 ms, NOT at
+    // CHAIN_DROP_MS (99-main: `if (!again) chainNextDrop = nowMs + 600`) — sampling before it
+    // would put a 600 into the maximum and the pace would read as far slower than it is.
+    // The measuring window is therefore [700, 2900] ms inside the 3000 ms drop window.
+    // ⚠️ THE BASELINE AT 250 ms: by then the igniting pair has been removed (the match
+    // animation lives ~150 ms) and the first topped-up item has not arrived yet.
+    const t0 = performance.now();
+    // ⚠️⚠️ TWO READS, NOT A POLL — AND THAT IS THE MEASUREMENT, NOT A STYLE CHOICE. The first
+    // edition sampled every 8 ms and read `combo()` on each pass; `combo()` walks every live
+    // item, so on a pile of ~180 the sampler ate the frame it was measuring: it managed 23
+    // samples in 3 s instead of 375, and the pour it observed FELL to 22 — exactly the number
+    // the OLD build delivers. In other words the guard was about to state «the tick did not get
+    // denser» about a build where it did. Measured out of the loop, the same 3 s deliver 34.
+    // ⛔ Do not put a poll back in here. If a future arm needs the airborne count or the tick
+    // phase, it needs its own cheap hook, not a tighter loop.
+    await sleep(250);                       // the igniting pair is gone, the first drop has not landed
+    const base = g.alive();
+    await sleep(2650);                      // to t≈2900, the end of the 3 s delivery window
+    const aliveMax = g.alive();
+    // ⛔⛔ THE PACE IS READ FROM THE HOOK, NOT FROM THE CLOCK, AND THAT IS THE SECOND LESSON OF
+    // THIS BATCH. Two editions tried to measure the tick by watching `combo().nextDropIn`:
+    // catching a FRESH tick needs sampling faster than the tick, and a sampler that fast walks
+    // every live item on every pass and slows the very pour it is timing. The first edition read
+    // back the OLD build's delivery on a FIXED build (22 of 34); the second read a maximum of 26
+    // ms against a tick of 80 and would have gone red on a correct build. The deciding value is
+    // the constant — so the constant is what the guard reads.
+    const pour = g.chainPour();
+    return { at: at, weights: weights, matches: matches, igniteAt: igniteAt, ranOut: ranOut,
+             pre: pre, ignited: atIgn.chain, countAtIgnition: atIgn.count, walk: walk,
+             pour: { base: base, aliveMax: aliveMax, delivered: aliveMax - base,
+                     tickMs: pour.tickMs, perTick: pour.perTick, windowMs: pour.windowMs,
+                     airCap: pour.airCap, chainAlive: g.combo().chain } };
+  });
+  console.log('turbo 16 + pour:', JSON.stringify(turbo));
+
+  // (b) THE TRANSITION, not a snapshot: dark at at−1, alight at at
+  expect(turbo.ranOut === false && turbo.ignited === true && turbo.igniteAt === turbo.at + 1 &&
+         !!turbo.pre && turbo.pre.count === turbo.at - 1 && turbo.pre.chain === false &&
+         turbo.countAtIgnition === 0,
+    'TURBO: the threshold is the number the GAME uses, not only the one the hook reports — with ' +
+    'comboCount at chainAt()−1 the boost is still DARK, and it lights on the very next match ' +
+    '(#' + turbo.igniteAt + ' = chainAt()+1; the first match of a cold pile does not enter the count, ' +
+    'and comboCount is zeroed AT ignition — hence the 0 after it). A threshold hard-coded in ' +
+    '80-gameplay past chainComboAt(), or an off-by-one in `comboCount >= chainComboAt()`, moves the ' +
+    'ignition off chainAt()+1 and turns this red (' + JSON.stringify({ at: turbo.at, igniteAt: turbo.igniteAt,
+      pre: turbo.pre, countAtIgnition: turbo.countAtIgnition, ranOut: turbo.ranOut, walk: turbo.walk }) + ')');
+
+  // (c) THE COUNTERWEIGHTS — pinned as a PRODUCT with the threshold (the canon law 2)
+  const shatterCost = turbo.weights.bowlN * turbo.weights.at;    // 3 × 16 = 48  (was 5 × 10 = 50)
+  const bombCost = turbo.weights.perSeries * turbo.weights.at;   // 2 × 16 = 32  (was 3 × 10 = 30)
+  expect(shatterCost >= 40 && shatterCost <= 60 && bombCost >= 26 && bombCost <= 40,
+    'TURBO: the counterweights are pinned TO THE THRESHOLD and not as bare numbers — the unit that ' +
+    'credits BOTH the bowl shatter AND the bomb is an ENTRY INTO TURBO, so what the owner held ' +
+    'constant on 2026-08-23-a is the PRICE IN MATCHES: the shatter ' + shatterCost + ' (5×10=50 → 3×16=48), ' +
+    'the bomb ' + bombCost + ' (3×10=30 → 2×16=32). Putting CHAIN_COMBO_AT back to 10 WITHOUT putting ' +
+    'BOWL_SHATTER_N and BOMB_SERIES_REWARD back — the exact failure 00-config:456 warns about — turns ' +
+    'this red, and so does lifting either counterweight alone ' +
+    '(' + JSON.stringify(Object.assign({ shatterCost: shatterCost, bombCost: bombCost }, turbo.weights)) + ')');
+
+  // (d) THE PACE OF THE POUR — the constants, read live and pinned as twins of the spec
+  expect(turbo.pour.tickMs === 80 && turbo.pour.perTick === 3 && turbo.pour.windowMs === 3000 &&
+         turbo.pour.airCap === 10,
+    'TURBO: the pour TICK is 80 ms and not the old 125 (the owner 2026-08-23-a «speed up their ' +
+    'pouring»). ⚠️⚠️ ALL FOUR NUMBERS ARE PINNED TOGETHER ON PURPOSE, because «faster» has three ' +
+    'wrong ways to be delivered and each of them would satisfy the tick alone: shortening the ' +
+    'WINDOW cuts the quantity (the pour is gated by physical state, not by tick count), lowering ' +
+    'the PER-TICK volume cancels the tick, and the AIR CEILING is what decides whether a denser ' +
+    'tick lands anything at all — at 80 ms it becomes the wall, which is why it went 8 → 10 in the ' +
+    'same edit. ⛔ THE FALL SPEED IS NOT AMONG THEM AND MUST NOT BE: `DROP_V0` is fenced by the ' +
+    'canon («we tried 12 — there is no gain… do not turn this knob») and by his own dropped-frames ' +
+    'complaint of two days earlier (' + JSON.stringify(turbo.pour) + ')');
+
+  // (d-2) and the pour REALLY DELIVERS — a liveness floor, deliberately not a density claim
+  expect(turbo.pour.chainAlive === true && turbo.pour.delivered >= 15,
+    'TURBO: the pour actually lands items — at least 15 arrived inside the 3 s window with the ' +
+    'turbo still alive. ⚠️⚠️ THIS ARM IS LIVENESS, NOT DENSITY, AND THE SPLIT IS DELIBERATE: the ' +
+    'density statement lives in the assert above, on the constants, because a delivered COUNT ' +
+    'cannot carry it — the pour is throttled by physical state (the pile below the rim, the items ' +
+    'in the air), so the number swings with the machine and with how heavily the guard itself ' +
+    'samples. Measured: 34 in a browser, 24 headless, and 22 when an earlier edition of this very ' +
+    'guard polled every 8 ms and starved the frame it was timing. The floor of 15 sits below all ' +
+    'of them and still goes red the moment the pour is gated to nothing — the spawn blocked, the ' +
+    'window closed, the air ceiling dropped to zero (' + JSON.stringify(turbo.pour) + ')');
+
+  await turboPage.close();
   // THE TURBO LADDER: the entry threshold grows with the level. The numbers are PINNED as a twin
   // of the spec (10 + ⌊lv/8⌋, cap 14) — reading them from the game would mean checking emptiness.
   const chainLadder = await page.evaluate(() => {
@@ -4807,8 +5192,19 @@ window.bridge = {
     g.setLevel(3);
     return out;
   });
-  expect(chainLadder[1] === 10 && chainLadder[8] === 11 && chainLadder[16] === 12 && chainLadder[40] === 14,
-    'THE TURBO GETS MORE EXPENSIVE: the threshold 10/11/12/14 at lv.1/8/16/40 (' + JSON.stringify(chainLadder) + ')');
+  // ⛔⛔ THE LADDER IS DEAD (the owner's word 2026-08-23-a «the items boost switches on only
+  // after 16 pairs», asked and answered — «a flat 16 everywhere»). ⛔ IT CANCELS his spec of
+  // 2026-07-31 «make the entry to this mode more expensive… carefully»: 10 + ⌊lv/8⌋ capped at
+  // 14 decides nothing today (CHAIN_AT_STEP / CHAIN_AT_CAP are kept dead on purpose).
+  // ⚠️⚠️ THE FLATNESS IS THE LOAD-BEARING HALF, NOT THE NUMBER, and it needs BOTH halves:
+  // «all four are equal» alone is ALSO green on a restored ladder whose base is 16, because
+  // the cap of 14 would pin it flat at 14 everywhere; «lv.1 is 16» alone is ALSO green on a
+  // ladder whose base was merely raised. Each half kills the sabotage the other one misses.
+  expect(chainLadder[1] === 16 && chainLadder[1] === chainLadder[8] &&
+         chainLadder[8] === chainLadder[16] && chainLadder[16] === chainLadder[40],
+    'THE TURBO COSTS A FLAT 16 ON EVERY LEVEL (the owner 2026-08-23-a). ⛔ SABOTAGE THAT MUST ' +
+    'TURN THIS RED: restoring the ladder of 2026-07-31 — one line in chainComboAt() brings back ' +
+    '10/11/12/14 and level 1 gets 37% cheaper again (' + JSON.stringify(chainLadder) + ')');
   // THE DROP OUT OF A LIVE SERIES: an honest 10 fast matches ignite the chain,
   // and at the moment of ignition a charge of a type with >= 6 copies drops
   await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
@@ -4821,7 +5217,9 @@ window.bridge = {
   const drop = await page.evaluate(async () => {
     const g = window.__game;
     let cs = { name: '', leftMs: 0 }, copies = 0;
-    for (let i = 0; i < 14 && !cs.name; i++){
+    // ⚠️ THE BUDGET FOLLOWS chainAt() (2026-08-23-a) — the charge drops ON ENTERING turbo,
+    // so this loop must be able to reach the threshold.
+    for (let i = 0, need = g.chainAt() + 6; i < need && !cs.name; i++){
       g.autoMatch();
       for (let t = 0; t < 3 && !cs.name; t++){
         await new Promise(r => setTimeout(r, 40));
@@ -4866,6 +5264,176 @@ window.bridge = {
   });
   expect(tap1.cleared, 'CHARGE: it fired from the FIRST pointerdown on the slot');
   // (the guard of the cursor jitter was deleted together with the feature — rejected by the owner v202)
+
+  // ═══ THE THREAD OF LIGHTNING THROUGH THE VICTIMS OF THE CHARGE (the owner's word
+  // 2026-08-23-a: «a click on the bonus item destroys all similar items by way of a lightning
+  // bolt that threads through them all, from centre to centre») ═══
+  // ⛔⛔ WHY THIS GUARD EXISTS AT ALL: the pre-existing `boltFX` (70-fx) opens with
+  // `if (!TURBO_BOLTS) return;`, and TURBO_BOLTS is false by the owner's own spec of
+  // 2026-07-28. A build that «implements» this item by calling boltFX DRAWS NOTHING, throws
+  // nothing, logs nothing and passes every other assert in this file. On top of that
+  // `detonateCharge` wraps the call in `try{}catch(e){}` (80-gameplay:628) — an implementation
+  // that CRASHES is swallowed too and does not even produce a pageerror. The scene probe is
+  // the ONLY witness; without it the single most likely way to ship this item is to not ship it.
+  // ⚠️⚠️ THE VERTEX COUNT IS THE LOAD-BEARING HALF, NOT THE MESH COUNT. Two merged meshes
+  // (sheath + core) appear whether the thread has fifteen hops or one degenerate segment, so
+  // `meshes === 2` alone is a snapshot a stub passes. We fire TWO detonations of DIFFERENT
+  // victim counts and state the TRANSITION: more victims ⇒ strictly more vertices.
+  // ⛔ WE DO NOT PIN 55 AND 140 (the per-hop / per-fork vertex numbers of the live build):
+  // those are TubeGeometry tessellation, i.e. tuning, and a copy of them here would go red at
+  // the owner's first pass over the look of the bolt. We state monotonicity, not arithmetic.
+  // ⚠️ THE TRUE VICTIM COUNT IS READ FROM THE LIFETIME COUNTER, NOT FROM typesSnapshot:
+  // `accAdd(name, n)` grows by the UNCAPPED n of the real victims (80-gameplay), while
+  // typesSnapshot counts bombs and frozen copies of the type — which `detonateCharge` excludes
+  // by design. The snapshot picks the NAMES; the accumulator delta states the NUMBERS.
+  // ⚠️ THE «ON» READING IS SYNCHRONOUS AND THEREFORE NOT A TIMING FLAKE: detonateCharge ->
+  // chainBoltFX -> addFX -> scene.add all run inside the one call, and chainBoltProbe walks
+  // scene.children. No frame, no clock, nothing to race. The «off» reading is a poll BY FACT
+  // with a ceiling (the tempoDie idiom), not a sleep tuned to CHAIN_BOLT_LIFE.
+  const thread = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️ ONLY the number is taken out of accSnapshot: its rows carry `_item`, a LIVE three
+    // object, and returning a row across the bridge would die on serialisation.
+    const acc = k => { const r = g.accSnapshot().find(x => x.key === k); return r ? r.count : 0; };
+    const drain = async (ceil) => {                 // poll to the empty scene BY FACT
+      const t0 = Date.now();
+      let p = g.chainBoltProbe();
+      while (p.meshes > 0 && Date.now() - t0 < ceil){ await sleep(60); p = g.chainBoltProbe(); }
+      return { meshes: p.meshes, verts: p.verts, waited: Date.now() - t0 };
+    };
+    // OUR OWN PILE, AND THAT IS MANDATORY: the guard above (tap1) has just detonated the
+    // largest type on this page, so the sizes we need are gone.
+    // ⚠️ We need two groups of DIFFERENT size on one level; lv.3 carries 5 types. The margin
+    // of 3 is the buffer against the bomb/ice copies that inflate typesSnapshot but are not victims.
+    // ⛔⛔ THE TWO VICTIM SETS COME FROM TWO **LEVELS**, NOT FROM TWO TYPES OF ONE LEVEL.
+    // The first edition of this guard looked for a big type and a small type on lv.3 and gave
+    // up every time (`picked:false`, six tries): genLevel spreads the pairs EVENLY, so on lv.3
+    // all five types carry exactly 20 copies each and the spread it needed does not exist at
+    // all. Measured across levels instead: lv.1 → 3 types at 26-28 copies, lv.12 → 14 types at
+    // 12-14. That is a gap of ~16 victims, and it is structural rather than lucky.
+    // ⚠️ The level is part of the statement and is reported, so a future change of
+    // LEVEL_TYPES_MIN or of the pair ladder shows up in the JSON instead of silently shrinking
+    // the gap the assert relies on.
+    const pickBiggest = async (lv) => {
+      g.setLevel(lv); g.regen(); g.skipIntro();
+      await sleep(600);
+      const rows = Object.entries(g.typesSnapshot())
+        .filter(([k, v]) => k !== 'surprise' && k !== 'bomb' && v.alive >= 3)
+        .sort((a, b) => b[1].alive - a[1].alive);
+      return rows.length ? { name: rows[0][0], alive: rows[0][1].alive,
+                             shape: rows.map(([k, v]) => k + ':' + v.alive) } : null;
+    };
+    const dud = { name: '', fired: false, n: 0, on: { meshes: -1, verts: -1 },
+                  off: { meshes: -1, verts: -1, waited: 0 } };
+    // ⚠️ DRAIN FIRST: a neighbouring section may have left a thread mid-life, and reading `rest`
+    // on top of it would turn «nothing is drawn at rest» red for somebody else's reason.
+    await drain(4000);
+    const rest = g.chainBoltProbe();                 // THE STATE «NOTHING IS DRAWN» — before any strike
+    const strike = async (name) => {
+      const c0 = acc(name);
+      g.chargeGrant(name);
+      const fired = g.detonateCharge();
+      const on = g.chainBoltProbe();                     // SYNCHRONOUS — see the note above
+      const n = acc(name) - c0;                     // the true, uncapped victim count
+      const off = await drain(4000);                // THE STATE «IT IS GONE» — by fact
+      return { name, fired, n, on, off };
+    };
+    const small = await pickBiggest(12);            // ~12-14 copies per type at 14 types
+    if (!small) return { picked: false, where: 'lv12', rest, a: dud, b: dud };
+    const a = await strike(small.name);
+    await sleep(250);                               // the afterPause tail of the first strike
+    await drain(4000);
+    const big = await pickBiggest(1);               // ~26-28 copies per type at 3 types
+    if (!big) return { picked: false, where: 'lv1', rest, a, b: dud };
+    const b = await strike(big.name);
+    return { picked: true, rest, a, b,
+             shape: { lv12: small.shape, lv1: big.shape } };
+  });
+  console.log('chainbolt:', JSON.stringify(thread));
+  // (a) THREE STATES. A build permanently on is red on `rest`, a build that draws nothing is
+  // red on `on`, a build that never frees the thread is red on `off`.
+  expect(thread.picked && thread.rest.meshes === 0 && thread.rest.verts === 0 &&
+    thread.a.fired && thread.b.fired &&
+    thread.a.on.meshes > 0 && thread.a.on.verts > 0 &&
+    thread.b.on.meshes > 0 && thread.b.on.verts > 0 &&
+    thread.a.off.meshes === 0 && thread.b.off.meshes === 0,
+    '⚠️⚠️ THE THREAD OF LIGHTNING, THREE STATES (the owner 2026-08-23-a «a click on the bonus ' +
+    'item destroys all similar items by way of a lightning bolt that threads through them all, ' +
+    'from centre to centre»): the scene is EMPTY of poolBolt at rest, it CARRIES a thread the ' +
+    'instant the charge goes off, and it is EMPTY again after its life. ⛔ SABOTAGE THAT MUST ' +
+    'TURN THIS RED: routing the item through `boltFX` instead of `chainBoltFX` — it opens with ' +
+    '`if (!TURBO_BOLTS) return;` and would draw NOTHING while throwing nothing (`on` stays 0); ' +
+    'equally, a thread that is never released by stepFX (`off` stays 2) (' + JSON.stringify(thread) + ')');
+  // (b) THE THREAD SCALES WITH THE VICTIMS. This is the half that cannot be faked by a stub.
+  expect(thread.a.n > 0 && thread.b.n > thread.a.n &&
+    thread.b.on.verts > thread.a.on.verts &&
+    (thread.b.on.verts - thread.a.on.verts) >= 2 * (thread.b.n - thread.a.n),
+    '⚠️⚠️ THE THREAD SCALES: ' + thread.b.n + ' victims give STRICTLY more vertices than ' +
+    thread.a.n + ' (' + thread.b.on.verts + ' > ' + thread.a.on.verts + '). ⛔ SABOTAGE THAT MUST ' +
+    'TURN THIS RED: a single bolt drawn from the topmost victim to the last one, or to the ' +
+    'centroid — the vertex count would then be CONSTANT and `meshes === 2` alone would still ' +
+    'be green. ⛔ THE 55/140 PER-HOP NUMBERS ARE DELIBERATELY NOT PINNED: they are TubeGeometry ' +
+    'tessellation, i.e. the owner\'s tuning; only the growth is the statement, and the floor of ' +
+    '2 vertices per extra victim says «a hop is geometry, not nothing» — no retune of the look ' +
+    'can break it (' + JSON.stringify(thread) + ')');
+  expect(thread.a.on.meshes === 2 && thread.b.on.meshes === 2,
+    'THE THREAD IS TWO MERGED MESHES WHATEVER N IS — a blue sheath and a white core, every hop ' +
+    'and every fork merged into one geometry per layer. ⛔ SABOTAGE THAT MUST TURN THIS RED: a ' +
+    'mesh per hop — at 16 victims that is 30 materials against a BOLT_POOL_MAX of 24, on top of ' +
+    'the 16 dissolve clouds firing in the same frame (' + thread.a.on.meshes + '/' + thread.b.on.meshes + ')');
+  // (c) TURBO_BOLTS IS STILL FALSE. ⚠️ THIS IS AN «IT MUST NOT COME BACK» STATEMENT, therefore
+  // it is green on the unfixed build BY CONSTRUCTION — it is not a check of the new item but
+  // the fence around the owner's word of 2026-07-28 («entering turbo is marked by tossing the
+  // pile, not by discharges»). It exists because the CHEAPEST wrong way to deliver 08-23-a is to
+  // flip TURBO_BOLTS to true, which would silently resurrect the ambient crackle over the whole
+  // bowl (99-main:738) and the star on every match in turbo (80-gameplay:134) — three
+  // cancellations of his word to satisfy one request. ⛔ NO HOOK EXPOSES THE FLAG, so the
+  // statement is behavioural: inside a LIVE turbo, with a match fired inside it, the scene
+  // still holds no bolt at all.
+  const noAmbient = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(3); g.regen(); g.skipIntro();
+    await sleep(320);
+    // ⚠️ 40 ATTEMPTS, NOT 14/16 LIKE THE OLDER LOOPS IN THIS FILE: `chainAt()` is a FLAT 16 on
+    // every level since the owner's word 2026-08-23-a («the items boost switches on only after
+    // 16 pairs», the ladder 10+⌊lv/8⌋ cancelled). A loop of 14 CANNOT reach it at all and a loop
+    // of 16 sits exactly on the boundary — one autoMatch that finds no pair and the guard invents
+    // a breakage. We take the threshold from the HOOK and give it a real margin.
+    let matches = 0;
+    const at = g.chainAt();
+    for (; matches < at * 2 + 8 && !g.combo().chain; matches++){ g.autoMatch(); await sleep(80); }
+    const chain = g.combo().chain;
+    // the PER-MATCH STAR (80-gameplay:134) fires on a match made INSIDE the chain, and it fires
+    // synchronously — one extra match plus an immediate read is a deterministic probe of it
+    // ⚠️ `starMatched` IS RECORDED: if autoMatch finds no pair it returns false and `star` reads a
+    // vacuous 0 — the star path was then never exercised, and the JSON must show that. The
+    // sabotage is still caught by `maxMeshes`: the ambient crackle fires on the clock, not on a match.
+    let star = -1, starMatched = false;
+    if (chain){ starMatched = g.autoMatch(); star = g.chainBoltProbe().meshes; }
+    // the AMBIENT CRACKLE (99-main:738) ticks every BOLT_TICK_MS(130)+jitter(≤110) — a window of
+    // 1.3 s covers at least five ticks at any of them
+    let maxMeshes = star < 0 ? -1 : star, samples = 0;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 1300){
+      maxMeshes = Math.max(maxMeshes, g.chainBoltProbe().meshes); samples++;
+      await sleep(90);
+    }
+    g.penalizeTest();                               // put the turbo out: the next section must not
+    await sleep(250);                               // run inside a chain we ignited
+    return { chain, matches, at, star, starMatched, maxMeshes, samples, stillHot: g.combo().chain };
+  });
+  console.log('turbobolts:', JSON.stringify(noAmbient));
+  expect(noAmbient.chain && noAmbient.star === 0 && noAmbient.maxMeshes === 0,
+    '⚠️⚠️ TURBO_BOLTS IS STILL FALSE (the owner 2026-07-28: entering turbo is marked by TOSSING ' +
+    'the pile, not by discharges): a live turbo, a match made inside it and ' + noAmbient.samples +
+    ' samples over 1.3 s — the scene holds NO poolBolt mesh. ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
+    'flipping TURBO_BOLTS to true in 00-config to «deliver» the thread of 2026-08-23-a — that ' +
+    'resurrects the ambient crackle over the whole bowl (99-main:738) and the star on every ' +
+    'match in turbo (80-gameplay:134) in one stroke. ⚠️ This assert is green on the build ' +
+    'BEFORE the thread was written, and that is correct: it fences the old word, it does not ' +
+    'test the new item (' + JSON.stringify(noAmbient) + ')');
 
   // ===== CUSTOM DESKTOP CURSORS (the owner's spec 2026-07-31) =====
   // headless chromium hands out pointer:fine — the media gate is open, the cursors are visible
@@ -5933,7 +6501,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   const hudA = await page.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    // ⚠️ THE BUDGET IS TAKEN FROM THE LIVE THRESHOLD, NOT FROM A LITERAL (2026-08-23-a,
+    // when it went 10 → 16 four loops like this one sat exactly on the edge). `+6` is
+    // slack for the matches autoMatch cannot make on a given tick — the loop still exits
+    // the instant the chain lights, so a bigger budget costs nothing on a healthy build.
+    for (let i = 0, need = g.chainAt() + 6; i < need && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
     let cs = null;
     { const t0 = Date.now();      // settling: the charge was issued on entering turbo
       while (Date.now() - t0 < 5000){ cs = g.chargeInfo ? g.chargeInfo() : (g.charge ? g.charge() : null);
@@ -6398,6 +6970,252 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'TOAST: the tier increase goes through THE SAME toast under the eyes, with a marker of the event (' + JSON.stringify(oneToast) + ')');
     expect(oneToast.skipped || oneToast.pill === false,
       'TOAST: the old tier pill is no longer shown (' + JSON.stringify(oneToast) + ')');
+
+  // ═════ THE MULTIPLIER TOAST UNDER THE EYES — THE PACKET 2026-08-23-a ═════
+  // The owner's word: «the notification under the eyes sometimes crawls out onto the final
+  // screen and onto the pause screen. Also make it 30% smaller and show it only once per game
+  // session if an item has moved up to the next level»; asked, he chose «only the level-up,
+  // once per level».
+  // ⚠️ ITS OWN PAGE, 390×780. (1) The arms below drive regen/winScreen/the menu and must not
+  // shuffle the main page's run under the neighbouring sections. (2) A fresh context = a fresh
+  // localStorage, so the accumulation ladder starts from zero. (3) IT MUST BE MOBILE: the
+  // desktop media (≥768) moves the toast into the bottom-left corner with `transform:none`, and
+  // «under the eyes, gap 32» does not exist there at all.
+  {
+    const tp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    tp.on('pageerror', e => errors.push('PAGEERROR(mult-toast): ' + e.message));
+    await tp.goto('file://' + PAGE_FILE);
+    await tp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await tp.evaluate(() => { window.__game.skipIntro();
+      try { window.__game.bowlSetN(999); } catch (e) {} });   // the bowl must not shatter mid-arm
+    await tp.waitForTimeout(500);
+
+    // ───── (a) THE SIZE −30% AND THE GAP OF 32, IN ONE BREATH ─────
+    // ⚠️⚠️ THE RECT, NOT THE DECLARATIONS — AND THE GAP IN THE SAME PROBE. The pairing is the
+    // whole point: `transform: scale(.7)` laid over the OLD literals reproduces 118/42/31
+    // EXACTLY in the rect and betrays itself ONLY by the gap. The transform scales about the box
+    // centre, so half of the 18 px it eats moves the top edge down and 32 silently becomes ≈41.
+    // The owner shrank the notification, NOT its distance from the eyes.
+    // ⚠️ «×2» AND NOT «×2.25» DELIBERATELY: with the short value the content is ≈93 px, so
+    // `min-width` is what decides the rect's width. With a long value it would be ≈116 and a
+    // DELETED min-width would slip through unnoticed.
+    // ⚠️ 350 ms of settling: at rest the pill is scale(.85) and the entrance transition is .18s —
+    // measured earlier we would be reading the entrance, not the size.
+    const size = await tp.evaluate(async () => {
+      const g = window.__game;
+      g.multToastTest('T1', 2);
+      await new Promise(r => setTimeout(r, 350));
+      const el = document.getElementById('multToast');
+      const t = el.getBoundingClientRect();
+      const f = document.getElementById('face').getBoundingClientRect();
+      const im = document.getElementById('multToastImg').getBoundingClientRect();
+      const vl = document.getElementById('multToastVal');
+      return { on: el.classList.contains('on'), val: vl.textContent,
+               w: Math.round(t.width), h: Math.round(t.height),
+               gap: Math.round(t.top - f.bottom),
+               center: Math.round(t.left + t.width / 2), half: Math.round(innerWidth / 2),
+               imgW: Math.round(im.width), imgH: Math.round(im.height),
+               chipFont: Math.round(parseFloat(getComputedStyle(vl).fontSize)),
+               chipH: Math.round(vl.getBoundingClientRect().height),
+               xform: getComputedStyle(el).transform };
+    });
+    console.log('toast size:', JSON.stringify(size));
+    // the node 829:1618 numbers × 0.7 are written as the ARITHMETIC and not as bare 118/42/31/16,
+    // so that the assert states WHAT it pins: «the node, shrunk by 30%» — the owner's own recipe.
+    expect(size.on === true &&
+      Math.abs(size.w - Math.round(169 * 0.7)) <= 1 && Math.abs(size.h - Math.round(60 * 0.7)) <= 1 &&
+      Math.abs(size.imgW - Math.round(44 * 0.7)) <= 1 && Math.abs(size.imgH - Math.round(44 * 0.7)) <= 1 &&
+      size.chipFont === Math.round(23 * 0.7) &&
+      Math.abs(size.gap - 32) <= 2 && Math.abs(size.center - size.half) <= 2,
+      '⛔ TOAST −30% (the owner\'s word 2026-08-23-a «also make it 30% smaller»): the SHOWN pill ' +
+      'measures 118×42 BY THE RECT, the portrait 31, the chip 16px — AND the gap under the eyes is ' +
+      'still 32, centred. Goes red on: a return of the node\'s 169/60/44/23; on shrinking the plate ' +
+      'and forgetting its contents; on deleting min-width (the width would drop to the content, ≈93); ' +
+      'and — the trap this pairing exists for — on doing the −30% with `transform: scale(.7)`, which ' +
+      'reproduces 118/42/31 exactly and betrays itself only by the gap, 32 → 41 (' + JSON.stringify(size) + ')');
+
+    // ───── (c) THE LEAK ONTO THE SCREENS: VISIBLE → A SCREEN OPENS → NOT VISIBLE ─────
+    // ⚠️⚠️ BOTH SCREENS, AND THAT IS NOT A DUPLICATE. `#winOverlay` goes through `show(id)`;
+    // `#mainScreen` — what the owner calls «the pause screen» — is opened by the `.open` class and
+    // BYPASSES `show()` entirely (`pauseGame` is called with silent=true at every production site,
+    // so `#pauseOverlay` is never raised in a live game). A fix hung only on `show()` cures the
+    // final screen and leaves his second complaint standing — hence two separate asserts.
+    // ⚠️ The menu is opened BY THE LIVE PATH (a click on #pauseBtn — 90-input hangs a plain
+    // `click` listener on openMainScreen) and inside ONE evaluate, so that no round-trip to Node
+    // can slip between «the toast is on» and «the screen has opened» and let the toast's own
+    // timer expire in the gap and forge a green. `winDt`/`menuDt` are reported for exactly that:
+    // both are tens of ms against the toast's own life of seconds.
+    const leak = await tp.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const el = document.getElementById('multToast');
+      const on = () => el.classList.contains('on');
+      const off = async (ms) => { const t0 = Date.now();
+        while (Date.now() - t0 < ms){ if (!on()) return true; await sleep(80); } return !on(); };
+      await off(5000);
+      // (1) THE FINAL SCREEN — the live show()/hide() path
+      g.multToastTest('T1', 2); await sleep(120);
+      const winBefore = on();
+      const tw = Date.now();
+      g.winScreen(true);
+      const winAfter = on();
+      const winDt = Date.now() - tw;
+      g.winScreen(false);
+      await off(5000);
+      // (2) THE MENU — the `.open` path, past show()
+      g.multToastTest('T1', 2); await sleep(120);
+      const menuBefore = on();
+      const tm = Date.now();
+      document.getElementById('pauseBtn').click();
+      await sleep(150);
+      const menuOpen = document.getElementById('mainScreen').classList.contains('open');
+      const menuAfter = on();
+      const menuDt = Date.now() - tm;
+      try { window.hideMainScreen(); } catch (e) {}
+      await sleep(250);
+      return { winBefore, winAfter, winDt, menuBefore, menuOpen, menuAfter, menuDt,
+               closed: !document.getElementById('mainScreen').classList.contains('open') };
+    });
+    console.log('toast leak:', JSON.stringify(leak));
+    expect(leak.winBefore === true && leak.winAfter === false,
+      '⛔ TOAST → THE FINAL SCREEN (the owner\'s word 2026-08-23-a «the notification under the eyes ' +
+      'sometimes crawls out onto the final screen»): it is ON, `winScreen(true)` opens the screen, ' +
+      'and the same tick it is OFF. `winBefore` is half of the assert — without it a build on which ' +
+      'the toast never rises at all would be green. Goes red on removing `hideMultToast()` from ' +
+      '`show(id)` (85-hud) (' + JSON.stringify(leak) + ')');
+    expect(leak.menuBefore === true && leak.menuOpen === true && leak.menuAfter === false,
+      '⛔⛔ TOAST → THE PAUSE SCREEN (the same word, «and onto the pause screen»): a click on ' +
+      '#pauseBtn raises `#mainScreen` — by the `.open` class, PAST `show()` — and the toast is off. ' +
+      'THIS is the arm a fix hung only on `show()` does not cover: it would leave the assert above ' +
+      'green and this one red. Goes red on removing `hideMultToast()` from `openMainScreen` (85-hud) ' +
+      '(' + JSON.stringify(leak) + ')');
+
+    // ───── (d) THE CLOCK DIES WITH THE CLASS, AND NOT ONLY THE CLASS ─────
+    // `multToastT` is a bare REAL-clock setTimeout: it is not held by `paused` and is not queued
+    // by `afterPause`. We state it WITHOUT a copy of the 1400 ms and without a hook: first we
+    // measure the life of an undisturbed toast (`base` — our own ruler, so that a tuning pass on
+    // the constant cannot turn this red), then we let a screen swallow a toast at base*0.7 of its
+    // life and IMMEDIATELY raise a new one — the new one is obliged to live its OWN full life and
+    // not the remainder of the swallowed one's.
+    // ⚠️⚠️ HONESTLY, WHAT THIS DOES NOT CATCH — and the comment at 85-hud.js:52 overstates it:
+    // `showMultToast` itself does `if (multToastT) clearTimeout(multToastT)` before arming the
+    // next one, so a hide that merely FORGETS `multToastT` is invisible from the DOM — the next
+    // toast disarms the orphan by itself. What this arm does catch is the classic
+    // `multToastT = 0` written WITHOUT `clearTimeout`: then the callback survives disarming and
+    // strips `.on` off the new toast at ≈0.3 of its life. To pin the forgotten-handle variant a
+    // hook would be needed — `__game.multToastPending()` -> {t:!!multToastT, tween:!!multTween};
+    // there is none today, and inventing a DOM proxy for it would be a tautology.
+    const clock = await tp.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const el = document.getElementById('multToast');
+      const on = () => el.classList.contains('on');
+      const life = async (limit) => { const t0 = Date.now();
+        while (Date.now() - t0 < limit){ if (!on()) return Date.now() - t0; await sleep(50); }
+        return -1; };
+      { const t0 = Date.now(); while (on() && Date.now() - t0 < 5000) await sleep(80); }
+      g.multToastTest('T1', 2);
+      const base = await life(8000);                    // the undisturbed life — the ruler
+      g.multToastTest('T1', 2);                         // the one the screen will swallow
+      await sleep(Math.max(200, Math.round(base * 0.7)));
+      g.winScreen(true); g.winScreen(false);
+      await sleep(40);
+      const swallowed = !on();
+      g.multToastTest('T1', 2);                         // the NEXT one — with a clock of its own
+      const after = await life(8000);
+      return { base, swallowed, after, ratio: base > 0 ? +(after / base).toFixed(2) : null };
+    });
+    console.log('toast clock:', JSON.stringify(clock));
+    expect(clock.base > 0 && clock.swallowed === true && clock.after > 0 && clock.after >= clock.base * 0.6,
+      '⚠️ TOAST, THE CLOCK: a toast raised right after a screen swallowed the previous one lives its ' +
+      'OWN life and not the swallowed one\'s remainder — the ruler is the MEASURED `base`, not a copy ' +
+      'of the 1400 ms. Goes red on hiding the toast with `multToastT = 0` instead of ' +
+      '`clearTimeout(multToastT)`: the orphaned callback survives and kills the new toast at ≈0.3 of ' +
+      'its life (' + JSON.stringify(clock) + ')');
+
+    // ───── (b) ONCE PER LEVEL — A TRANSITION, NOT A STATE ─────
+    // shown → silent → silent → (A NEW LEVEL) shown again. «The second one is silent» alone is
+    // green on a build where the toast never appears at all; «the first one is shown» alone is
+    // green on the build the owner is complaining about. Only the whole chain is a statement.
+    // ⚠️ REAL tier-ups, not `multToastTest`: the test handle calls `showMultToast` directly and
+    // DELIBERATELY BYPASSES the gate — on it this arm would prove nothing.
+    // ⚠️ NO COPY OF THE THRESHOLD LADDER: every step reads the LIVE `next` through
+    // `accGrant(key, 0)` (a pure read — accAdd returns early on n<=0) and tops up to exactly one
+    // threshold above it, so one grant = one event. A retuning of `accThreshold` cannot redden it.
+    // ⚠️ `tier0 < tier1` IS CHECKED ON EVERY STEP, THE SILENT ONES INCLUDED — that is the whole
+    // anti-tautology: the silence must be the GATE's doing and not a stalled `accGrant`.
+    // ⚠️ The show is SYNCHRONOUS (accAdd runs the callbacks inside `accGrant`, showTierUp adds
+    // `.on` right there), so the watch loop is belt-and-braces and not a timing dependency.
+    const gate = await tp.evaluate(async () => {
+      const g = window.__game;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const el = document.getElementById('multToast');
+      const on = () => el.classList.contains('on');
+      const off = async (ms) => { const t0 = Date.now();
+        while (Date.now() - t0 < ms){ if (!on()) return true; await sleep(80); } return !on(); };
+      const step = async (k, watchMs) => {
+        await off(6000);                                   // a clean slate: nothing left burning
+        const before = g.accGrant(k, 0);                   // a PURE read (accAdd returns early on n<=0)
+        if (before.next == null) return { capped: true };
+        g.accGrant(k, before.next - before.count + 1);     // exactly ONE threshold = exactly one event
+        let shown = on();
+        const t0 = Date.now();
+        while (!shown && Date.now() - t0 < watchMs){ await sleep(60); shown = on(); }
+        return { tier0: before.tier, tier1: g.accGrant(k, 0).tier, shown };
+      };
+      // a deeper level: more types and more items, so that the collection tail below cannot
+      // accidentally finish the level in the middle of the arm
+      g.setLevel(8); g.regen(); g.skipIntro(); await sleep(600);
+      const key = (g.itemsGeo()[0] || {}).name || null;
+      if (!key) return { noKey: true };
+      const first  = await step(key, 800);
+      const second = await step(key, 800);
+      const third  = await step(key, 800);
+      g.regen(); g.skipIntro(); await sleep(600);          // a fresh `level` object = a fresh flag
+      const fourth = await step(key, 800);
+      // ───── the tail: the PER-COLLECTION producer stays dead (change 4) ─────
+      // every live type is put just above its FIRST threshold (101 — well below the second, 300),
+      // so every collection from here on is a collection of an UPGRADED kind: exactly the trigger
+      // that was cut out of doMatch. The level's gate is already spent by `fourth`.
+      await off(6000);
+      const names = Array.from(new Set(g.itemsGeo().map(o => o.name).filter(Boolean)));
+      for (const n of names){ const s = g.accGrant(n, 0); if (s.count < 101) g.accGrant(n, 101 - s.count); }
+      await sleep(250);
+      const afterGrants = on();
+      const alive0 = g.alive();
+      let collectOn = false;
+      for (let i = 0; i < 6 && g.alive() > 8; i++){ g.autoMatch(); await sleep(150); collectOn = collectOn || on(); }
+      return { key, types: names.length, first, second, third, fourth,
+               afterGrants, collectOn, alive0, alive1: g.alive() };
+    });
+    console.log('toast gate:', JSON.stringify(gate));
+    expect(!gate.noKey && !gate.first.capped && !gate.second.capped && !gate.third.capped &&
+      gate.first.tier1 > gate.first.tier0 && gate.first.shown === true &&
+      gate.second.tier1 > gate.second.tier0 && gate.second.shown === false &&
+      gate.third.tier1 > gate.third.tier0 && gate.third.shown === false,
+      '⛔⛔ TOAST, ONCE PER LEVEL — A TRANSITION (the owner\'s word 2026-08-23-a «show it only once ' +
+      'per game session if an item has moved up to the next level»; asked, he chose «only the ' +
+      'level-up, once per level»): inside ONE level the 1st real tier-up SHOWS, the 2nd and the 3rd ' +
+      'are SILENT. `tier0 < tier1` on every step is the anti-tautology — the silence must be the ' +
+      'gate\'s doing and not a stalled `accGrant`; `first.shown` is the other half — without it a ' +
+      'build where the toast never rises at all would be green. Goes red on removing the ' +
+      '`if (level.multToastShown) return` early exit from `showTierUp` (85-hud) (' + JSON.stringify(gate) + ')');
+    expect(!gate.noKey && !gate.fourth.capped &&
+      gate.fourth.tier1 > gate.fourth.tier0 && gate.fourth.shown === true,
+      '⛔ TOAST, THE FLAG RESETS WITH THE LEVEL: after `regen()` — genLevel builds a fresh `level` ' +
+      'object — the next tier-up shows AGAIN. «Once per level», not once per run. Goes red on moving ' +
+      '`multToastShown` onto `Save` or onto a module-level variable, which would silence the ' +
+      'celebration for the rest of the session (' + JSON.stringify(gate) + ')');
+    expect(!gate.noKey && gate.afterGrants === false && gate.alive1 < gate.alive0 && gate.collectOn === false,
+      '⛔ TOAST: THE PER-COLLECTION PRODUCER STAYS BURIED (the owner\'s word 2026-08-23-a cancels his ' +
+      'own spec of 2026-08-05): every live type stands above its first threshold, so EVERY collection ' +
+      'is a collection of an upgraded kind — and the pill does not rise once across six real matches. ' +
+      '`alive1 < alive0` is the anti-tautology: without it a build where `autoMatch` collected nothing ' +
+      'would be green. Goes red on bringing the `showMultToast` call back into `doMatch` (80-gameplay) ' +
+      '(' + JSON.stringify(gate) + ')');
+
+    await tp.close();
+  }
   }
 
   // ===== PACKAGE 2026-08-07: the night toast, the charge does not touch the eyes, there is no line =====
@@ -6451,7 +7269,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     g.bowlSetN(999); // the threshold must not fire in the middle of the guard
     g.regen(); g.skipIntro(); await sleep(600);
     const c0 = g.bowl().cracks;
-    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    // ⚠️ THE BUDGET IS TAKEN FROM THE LIVE THRESHOLD, NOT FROM A LITERAL (2026-08-23-a,
+    // when it went 10 → 16 four loops like this one sat exactly on the edge). `+6` is
+    // slack for the matches autoMatch cannot make on a given tick — the loop still exits
+    // the instant the chain lights, so a bigger budget costs nothing on a healthy build.
+    for (let i = 0, need = g.chainAt() + 6; i < need && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
     return { c0, chain: g.combo().chain, c1: g.bowl().cracks, misses: g.stats().misses };
   });
   expect(bowlStreak1.c0 === 0 && bowlStreak1.chain === true && bowlStreak1.c1 === 1,
@@ -6470,7 +7292,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // a pause > the streak window: the streak (0) must wait, pauses do not touch it
     await sleep(4400);
     const cAfterPause = g.bowl().cracks;
-    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    // ⚠️ THE BUDGET IS TAKEN FROM THE LIVE THRESHOLD, NOT FROM A LITERAL (2026-08-23-a,
+    // when it went 10 → 16 four loops like this one sat exactly on the edge). `+6` is
+    // slack for the matches autoMatch cannot make on a given tick — the loop still exits
+    // the instant the chain lights, so a bigger budget costs nothing on a healthy build.
+    for (let i = 0, need = g.chainAt() + 6; i < need && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
     return { cAfterMiss, cAfterPause, c2: g.bowl().cracks };
   });
   expect(streakMissGrew && bowlStreak2.cAfterMiss === 0,
@@ -6491,8 +7317,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     for (const lv of [1, 11, 25]){ g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(250); out.push(g.bowl().n); }
     return out;
   });
-  expect(bowlLadder[0] === 5 && bowlLadder[1] === 6 && bowlLadder[2] === 7,
-    'BOWL: N grows as a ladder 5 +1/ten levels (' + JSON.stringify(bowlLadder) + ')');
+  // ⛔ THE BASE 5 → 3 (the owner's word 2026-08-23-a, his own choice out of three offered).
+  // ⚠️⚠️ IT IS NOT INDEPENDENT TUNING AND MUST NOT BE READ AS SUCH: the unit that credits the
+  // shatter is an ENTRY INTO TURBO, and the entry went 10 → 16 in the same batch. What he held
+  // constant is the PRICE IN MATCHES — 5 × 10 = 50 before, 3 × 16 = 48 now. Putting the
+  // threshold back to 10 without putting this back to 5 makes the finale trivial.
+  // ⚠️ THE +1 PER TEN LEVELS IS UNTOUCHED — he changed the base, not the shape of the ladder.
+  expect(bowlLadder[0] === 3 && bowlLadder[1] === 4 && bowlLadder[2] === 5,
+    'BOWL: N grows as a ladder 3 +1/ten levels (the owner 2026-08-23-a, the base 5 → 3 as the ' +
+    'counterweight to the turbo threshold 10 → 16) (' + JSON.stringify(bowlLadder) + ')');
 
   // THE SHATTER IN A LIVE TURBO (the owner's bug 2026-08-04: the top-up of the chain threw
   // items through the ghost floor, the victory did not come, the level hung).
@@ -6505,7 +7338,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     g.setLevel(2); g.regen(); g.skipIntro(); await sleep(700);
     g.bowlSetN(3);
     g.bowlCrack(); g.bowlCrack();
-    for (let i = 0; i < 16 && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
+    // ⚠️ THE BUDGET IS TAKEN FROM THE LIVE THRESHOLD, NOT FROM A LITERAL (2026-08-23-a,
+    // when it went 10 → 16 four loops like this one sat exactly on the edge). `+6` is
+    // slack for the matches autoMatch cannot make on a given tick — the loop still exits
+    // the instant the chain lights, so a bigger budget costs nothing on a healthy build.
+    for (let i = 0, need = g.chainAt() + 6; i < need && !g.combo().chain; i++){ g.autoMatch(); await sleep(80); }
     const cracked = g.bowl().cracks;
     let over = false;
     { const t0 = Date.now();                       // the settling: the victory of the shatter
@@ -8088,11 +8925,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(sh0.tag === 'BUTTON' && sh0.aria === null && !/iconBtn/.test(sh0.btnClass || '') &&
            sh0.nameFromContent === 'Shake ' + sh0.text &&
            sh0.width === 120 && sh0.height === 56 &&
-           sh0.bg === 'rgba(255, 255, 255, 0.4)' && sh0.bgImage === 'none' &&
+           sh0.bg === 'rgba(255, 255, 255, 0.6)' && sh0.bgImage === 'none' &&   // ⛔ .40 → .60, the owner 2026-08-23-a
            sh0.radius === '16px' &&
-           sh0.shadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset' &&
+           sh0.shadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&   // ⛔ the rim was appended 2026-08-23-a
            sh0.position === 'relative' && sh0.events === 'auto',
-      '⚠️⚠️ SHAKE IS 120×56 WITH A GLASS BACKING OF .40, A RADIUS OF 16 AND A CAPTION (' +
+      '⚠️⚠️ SHAKE IS 120×56 WITH A GLASS BACKING OF .60 AND A 1px WHITE RIM, RADIUS 16, WITH A ' +
+      'CAPTION (the owner 2026-08-23-a; ⛔ the .40 of 2026-08-22-v lived one day). ⚠️ THE RIM IS ' +
+      'PINNED AS THE SECOND, LAST LAYER OF box-shadow: a `border:1px solid #fff` paints the same ' +
+      'line and, under the global box-sizing:border-box, shrinks the content box to 54 and moves ' +
+      'the caption off its node axis — which the geometry in this very assert then catches (' +
       JSON.stringify({ tag: sh0.tag, aria: sh0.aria, name: sh0.nameFromContent,
                        size: [sh0.width, sh0.height],
                        bg: sh0.bg, image: sh0.bgImage, radius: sh0.radius,
@@ -8434,11 +9275,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('hint-magnifier:', JSON.stringify(mag));
     expect(mag.tag === 'BUTTON' && mag.aria === 'Hint' && !/iconBtn/.test(mag.classes) &&
            mag.width === 56 && mag.height === 56 &&
-           mag.bg === 'rgba(255, 255, 255, 0.4)' && mag.bgImage === 'none' &&
+           mag.bg === 'rgba(255, 255, 255, 0.6)' && mag.bgImage === 'none' &&   // ⛔ .40 → .60, the owner 2026-08-23-a
            mag.radius === '16px' &&
-           mag.btnShadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset' &&
+           mag.btnShadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&   // ⛔ the rim was appended 2026-08-23-a
            mag.events === 'auto' && mag.position === 'relative',
-      '⚠️⚠️ THE HINT IS 56×56 WITH A GLASS BACKING OF .40, RADIUS 16 (' +
+      '⚠️⚠️ THE HINT IS 56×56 WITH A GLASS BACKING OF .60 AND A 1px WHITE RIM, RADIUS 16 ' +
+      '(the owner 2026-08-23-a) (' +
       JSON.stringify({ tag: mag.tag, classes: mag.classes, size: [mag.width, mag.height],
                        bg: mag.bg, radius: mag.radius, shadow: mag.btnShadow,
                        events: mag.events }) + '). ' +
@@ -8574,6 +9416,119 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️ THE PRICE IS NAMED TO THE OWNER BY THE NUMBER: white «LV 3» against the top stop ' +
       'of the sky `#b6c5ff` gives a contrast of 1.69:1. The readable way out is the FILL ' +
       'of the level, and that is his separate word.');
+
+    // ══════════ ITEM 7 — ONE FLAT YELLOW ON THE SCORE IN BOTH LAYOUTS (2026-08-23-a) ══════════
+    // ⚠️⚠️ THE TWO WIDTHS ARE READ IN ONE ASSERT BECAUSE THE STATEMENT IS AN AGREEMENT.
+    // «The desktop is #ffe730» alone is ALSO true of a build that repainted the MOBILE arm to
+    // something else — the owner's word is «as on mobile», i.e. a relation between two arms,
+    // and a one-sided read would bless exactly the drift he was guarding against.
+    // ⚠️ AND THE ARMS ARE PROVED TO BE TWO: `matchMedia('(max-width:767px)')` is read on both
+    // pages. Without it «they agree» is vacuously green on a build where both pages happen to
+    // sample the same media arm (a broken breakpoint, a viewport that did not take).
+    // ⚠️ `deskPage` (1280×832, created above) IS THE DESKTOP ARM and `page` (390) the mobile one —
+    // this block MUST stay between the creation of deskPage and its `.close()`.
+    // ⚠️ THE DEAD `#gScore` DEF IS LOGGED, NOT ASSERTED — see the note at the end of the probe.
+    const scoreArm = async (p) => p.evaluate(() => {
+      const t = document.getElementById('score');
+      // how many LIVE nodes still paint with the gradient — diagnostics only, see below
+      let refs = 0;
+      for (const e of document.querySelectorAll('svg *')) if (/gScore/.test(getComputedStyle(e).fill)) refs++;
+      return { fill: t ? getComputedStyle(t).fill : null,
+               mobileArm: matchMedia('(max-width:767px)').matches,
+               width: innerWidth,
+               defPresent: !!document.getElementById('gScore'),
+               liveGradientRefs: refs };
+    });
+    const scMob = await scoreArm(page), scDesk = await scoreArm(deskPage);
+    console.log('score-colour/arms:', JSON.stringify({ mob: scMob, desk: scDesk }));
+    expect(scMob.mobileArm && !scDesk.mobileArm &&
+           scMob.fill === scDesk.fill &&
+           scMob.fill === 'rgb(255, 231, 48)',
+      '⚠️⚠️ THE SCORE ON THE GAME SCREEN IS ONE FLAT YELLOW IN BOTH LAYOUTS, AND IT IS THE ' +
+      'MOBILE ONE (' + JSON.stringify({ mob: scMob, desk: scDesk }) + '). The owner\'s word ' +
+      '2026-08-23-a: «the colour of the score on the game screen in all versions as on mobile». ' +
+      '⛔ THE SABOTAGE THIS TURNS RED: giving `#score` back the `url(#gScore)` gradient on the ' +
+      'desktop arm — the pre-edit state, where computed fill read `url("#gScore")` at 1280 and ' +
+      '`rgb(255, 231, 48)` at 390. It also turns red on the reverse drift: repainting the MOBILE ' +
+      'arm and leaving the desktop yellow, or restoring the removed `@media (max-width:767px)` ' +
+      'duplicate with a different value. ' +
+      '⚠️⚠️ THE AGREEMENT IS THE STATEMENT, NOT THE VALUE: `desk === #ffe730` on its own is true ' +
+      'of a build whose mobile score has been changed under it, and «as on mobile» is precisely a ' +
+      'relation between the two arms. Both are read in one breath. ' +
+      '⚠️ AND THE ARMS ARE PROVED TO BE TWO by `matchMedia` on each page — otherwise a build ' +
+      'where the 768px breakpoint has broken, and both pages fall into ONE arm, would pass this ' +
+      'assert by agreeing with itself. ' +
+      '⚠️ THE VALUE IS PINNED BY LITERAL AND THAT IS DELIBERATE: `#ffe730` is the owner\'s own ' +
+      'number (2026-08-03 for the phone, extended to every layout by 2026-08-23-a); there is no ' +
+      'hook exposing this colour, and coupling it to the WIN screen\'s score would import a ' +
+      'surface his word did not name — that node is pinned separately and lawfully moves alone. ' +
+      '⚠️ THE PRICE HE ACCEPTED KNOWINGLY: `#ffe730` on the faded top of the sky is 1.35:1 — the ' +
+      'desktop score loses the contrast the darker lower half of the gradient gave it. The star ' +
+      'and the type size carry the reading. ' +
+      '⚠️ THE DEAD `<linearGradient id="gScore">` IS NOT ASSERTED ON, ONLY LOGGED ' +
+      '(defPresent/liveGradientRefs above): its presence decides nothing at runtime, any live ' +
+      'reference to it turns THIS assert red already, and pinning the def would fire a false ' +
+      'red at the first honest dead-markup cleanup.');
+
+    // ══════════ ITEM 8 — THE CLEARANCE FROM THE ITEMS DOWN TO THE BLADES (2026-08-23-a) ══════════
+    // ⚠️⚠️ THE CLEARANCE IS READ, NOT AN ABSOLUTE HEIGHT: `gap = FLOOR_REST − bladeTop` is the
+    // quantity the owner named, and it moves if EITHER side moves. `bladeProbe()` computes the
+    // tops from the real world-space boxes, so it does not care by which of the three numbers
+    // (hub height, hub centre, blade.position.y) the raise was achieved.
+    // ⚠️ THE SAW PLANE IS DERIVED FROM THE HOOK'S OWN `floor`, not copied: 80-gameplay.js:700
+    // `Math.max(0.6, p0.y − FLOOR_REST + 0.25)` puts a doomed item's centre at FLOOR_REST − 0.25.
+    // (A LOW item is clamped by the 0.6 and goes DEEPER, so 0.90 is the SHALLOWEST sawn centre —
+    // the binding one.) Read, not assumed.
+    const impProbe = await page.evaluate(() => window.__game.bladeProbe());
+    const sawY = +(impProbe.floor - 0.25).toFixed(3);
+    const bladeGeo = Object.assign({}, impProbe, { sawY,
+      hubOverSaw: +(impProbe.hubTop - sawY).toFixed(3),
+      bladeOverSaw: +(impProbe.bladeTop - sawY).toFixed(3) });
+    const nearG = (a, b, tol) => Math.abs(a - b) < tol;
+    console.log('impeller/clearance:', JSON.stringify(bladeGeo));
+
+    expect(nearG(bladeGeo.bladeTop, 0.965, 0.05) && nearG(bladeGeo.gap, 0.185, 0.05),
+      '⚠️⚠️ THE ITEMS AND THE BLADES CAME CLOSER, AND IT WAS THE BLADES THAT MOVED (' +
+      JSON.stringify(bladeGeo) + '). The owner\'s word 2026-08-23-a: «make the distance from the ' +
+      'objects to the blades smaller». ' +
+      '⛔ THE TRANSITION: the blade tops stood at 0.665 with the items resting on FLOOR_REST = ' +
+      '1.15 — a clearance of 0.485. They now top out at 0.965 and the clearance is 0.185. A ' +
+      'revert of any of the three numbers (hub height 0.72→0.42, hub centre 0.36→0.21, ' +
+      '`blade.position.y` 0.54→0.24) turns this red, and so does a HALF revert — the value is ' +
+      'pinned where it landed, ±0.05, and not merely «less than it was». ' +
+      '⚠️⚠️ BOTH HALVES ARE READ FOR ONE REASON: the clearance alone can be forged by DROPPING ' +
+      'THE PILE. FLOOR_REST = 0.85 with the blades left at 0.665 also yields a gap of 0.185 — and ' +
+      'that would be a difficulty change (the pile\'s top height, `trimOverfill`, the rescuers, ' +
+      'the 0.30 half-thickness margin of the floor plate) smuggled in behind a visual request. ' +
+      'Pinning `bladeTop` beside `gap` fixes `floor` at 1.15 without a second literal on it, and ' +
+      'that build goes red here. ' +
+      '⚠️ WHY THE BLADES AND NOT THE PILE, in the code\'s own words: the blades carry NO physics ' +
+      'body, so this edit is render-only — no collider, no fill, no trim, no sink-in threshold.');
+
+    expect(bladeGeo.bladeTop < bladeGeo.floor && bladeGeo.hubTop < bladeGeo.floor &&
+           bladeGeo.bladeTop > sawY && bladeGeo.groupY === 0.28,
+      '⚠️⚠️ THE IMPELLER STAYS INSIDE ITS BAND AND STILL STANDS ON THE BOTTOM OF THE BOWL (' +
+      JSON.stringify(bladeGeo) + '). Three rules, none of them a matter of taste: ' +
+      '⚠️ THE CEILING — the tops must stay BELOW `floor` (1.15), the height at which the items ' +
+      'come to rest, or the blades stick out THROUGH the resting pile. Both the blade tops and ' +
+      'the grown hub are checked; the hub is the taller of the two (1.00) and is the one a ' +
+      'further `CylinderGeometry` growth would push through first. ' +
+      '⚠️⚠️ THE FLOOR — the tops must stay ABOVE the saw plane `floor − 0.25` = 0.90, where a ' +
+      'doomed item\'s centre is dragged to be sawn (80-gameplay.js:700). This is what makes the ' +
+      'grind read as «pulled UNDER the blades»; drop them back below it and the grab stops short ' +
+      'of the impeller. ⛔ THE GRIND IS ALSO WHY THE CEILING IS NOT NEGOTIABLE: the tops now sit ' +
+      '0.065 (blades) and 0.10 (hub) above that plane — raise them much further and the blades ' +
+      'sweep clean through the item BEFORE the saw fires, and the whole animation reads as a ' +
+      'glitch. ⚠️ 0.90 IS THE SHALLOWEST SAWN CENTRE, not the only one: an item already low in ' +
+      'the bowl is clamped by the `Math.max(0.6, …)` and goes deeper — the shallowest is the one ' +
+      'that binds. ' +
+      '⚠️⚠️ AND `groupY === 0.28` IS NOT DECORATION, IT IS THE ONLY CLAUSE IN THIS WHOLE GUARD ' +
+      'THAT CATCHES THE «SIMPLIFICATION». Raising `mixerBlades.position.y` to 0.58 and reverting ' +
+      'the hub and `blade.position.y` reproduces bladeTop 0.965, hubTop 1.00 AND gap 0.185 — every ' +
+      'other number above stays green, and the impeller is torn off the bottom of the bowl, ' +
+      'because the hub is modelled from y=0 upwards and the group\'s y IS its footing. The ' +
+      'clearance was bought by growing the SHAFT precisely so this number could stay put; it is ' +
+      'part of the statement, not a leftover.');
 
     // ── THE WIN SCREEN: THE HAND GLYPH IS REPLACED BY THE MAGNIFIER (the owner's word 2026-08-21-z) ──
     // ⚠️ We read a HIDDEN node: the win overlay is `display:none`, but the attributes and the
@@ -8864,6 +9819,21 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       transition: getComputedStyle(document.getElementById('shakeBtn')).transitionProperty,
       transitionDur: getComputedStyle(document.getElementById('shakeBtn')).transitionDuration,
       rectBefore: JSON.stringify(document.getElementById('shakeBtn').getBoundingClientRect()) }));
+    // ⚠️⚠️ THE AGED PAGE MAY HAVE WON BY ITSELF WHILE THE SECTIONS ABOVE RAN, AND THE WIN
+    // OVERLAY IS FULL-SCREEN. Playwright then waits 30 s for the button to become hittable and
+    // the WHOLE RUN DIES with a TimeoutError and NO VERDICT — it happened on the first run of
+    // 2026-08-23-a, at 631 PASS, and that batch made it likelier by taking BOWL_SHATTER_N from
+    // 5 to 3, i.e. levels now finish sooner. This is the SECOND billing of the canon's «two
+    // guards ran on an aged page» lesson.
+    // ⛔ NOT CURED WITH `{ force: true }`: the hover must be a REAL one or `:hover` never
+    // applies and the assert below would measure the idle state and call it hover. We take the
+    // covers down instead, through the live path first and by display as the backstop.
+    await deskPage.evaluate(() => {
+      try { window.__game.winScreen(false); } catch (e) {}
+      for (const id of ['winOverlay', 'loseOverlay', 'adOverlay', 'pauseOverlay']){
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+      }
+    });
     await deskPage.hover('#shakeBtn');
     const hov2 = await deskPage.evaluate(() => ({
       shakeBg: getComputedStyle(document.getElementById('shakeBtn')).backgroundColor,
@@ -8878,7 +9848,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('buttons-hover:', JSON.stringify({ idle: hov, onShake: hov2, onHint: hov3 }));
     // ⛔ IDLE MOVED .20 → .40 (the owner's word 2026-08-22-v, together with
     //    the shape and the size). The FILLED one he did not name — the step 40 → 80 stayed.
-    const IDLE = 'rgba(255, 255, 255, 0.4)', FILLED = 'rgba(255, 255, 255, 0.8)';
+    // ⛔ IDLE .40 → .60 (the owner 2026-08-23-a). ⚠️ FILLED STAYS .80 AND THE STEP HALVES —
+    // he named only the fill, and by this project's house rule an unnamed property is not
+    // touched; the same thing happened when .20 became .40 and the hover was kept. The step
+    // 60 → 80 is what the guard below now states, and it is smaller than it was on purpose.
+    const IDLE = 'rgba(255, 255, 255, 0.6)', FILLED = 'rgba(255, 255, 255, 0.8)';
     expect(hov.shakeBg === IDLE && hov.hintBg === IDLE &&
            hov2.shakeBg === FILLED && hov2.hintBg === IDLE &&
            hov3.hintBg === FILLED && hov3.shakeBg === IDLE &&
@@ -8889,7 +9863,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            // when there is no TIME — «delete the other animations» is about that.
            hov.btnTransform === 'none' && hov.transitionDur === '0s' &&
            hov.rectBefore === hov2.rectAfter,
-      '⚠️⚠️ HOVER FILLS THE BACKGROUND 40% → 80%, AND THAT IS THE ONLY THING IT DOES ' +
+      '⚠️⚠️ HOVER FILLS THE BACKGROUND 60% → 80%, AND THAT IS THE ONLY THING IT DOES ' +
       '(the owner\'s word 2026-08-21-p). ⛔ IT CANCELS his own word of 2026-08-21-g about ' +
       'the toss of the icon — it lived for a day. ⚠️ The hovering is checked ON EACH ' +
       'button SEPARATELY: their rule is common, and filling BOTH at once would be ' +
@@ -9024,13 +9998,175 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('buttons-hover(touch):', JSON.stringify(hovTouch));
     // ⛔ THE IDLE BACKGROUND MOVED .20 → .40 (2026-08-22-v). The arm lives 500 lines away
     //    from the main section, and when fixing the background it is the first thing forgotten.
-    expect(hovTouch.hasHover === false && hovTouch.bg === 'rgba(255, 255, 255, 0.4)' &&
+    expect(hovTouch.hasHover === false && hovTouch.bg === 'rgba(255, 255, 255, 0.6)' &&   // ⛔ .40 → .60 (2026-08-23-a)
            hovTouch.art === 'none',
       '⚠️⚠️ ON TOUCH THE BUTTON IS NOT FILLED ON HOVERING (' + JSON.stringify(hovTouch) +
       '). The gate is `@media (hover:hover) and (pointer:fine)`. ⚠️ The arm is OBLIGATORY: ' +
       'take the gate off — on the desktop NOTHING will change, while on the phone the button after ' +
       'every tap will stay 80% white until a touch somewhere else. The sabotage is to ' +
       'strip the media query: exactly this field goes red');
+
+
+    // ══ THE BUTTON RESTYLE: THE NEW FILL .60 + THE 1px WHITE RIM (the owner's word 2026-08-23-a) ══
+    // «update the style of the buttons, including the zoom buttons: fill: rgba(255,255,255,0.60);
+    //  stroke-width: 1px; stroke: #FFF».
+    // ⚠️⚠️ THE ZOOM IS THE HALF THAT WAS UNGUARDED, AND IT IS THE HALF THAT GETS FORGOTTEN. Before this
+    //    section the suite read the zoom's GLYPH colour, its rest opacity, its desktop geometry
+    //    and its travel step — and NOT ONCE its background or its shadow (checked: zero
+    //    occurrences of `.zoomBtn` computed style in the file). «Including the zoom buttons» is
+    //    exactly the words the owner had to add, and only the two bar buttons had guards.
+    // ⚠️⚠️ WHY THE GEOMETRY LIVES IN THE SAME ASSERT AS THE RIM, AND THAT IS THE WHOLE POINT OF THIS GUARD:
+    //    the rim is an INSET SHADOW and not a `border` because `box-sizing:border-box` is global.
+    //    Somebody «simplifying» it into `border:1px solid #fff` ships a build that LOOKS right —
+    //    the OUTER box stays 120×56 and 56×56 — while the content box shrinks to 54 and EVERY
+    //    absolutely positioned child moves in by a pixel. Measured on that exact sabotage:
+    //    the caption axis 84 → 85, the hand frame [5,3,50,50] → [6,4,50,50], the magnifier
+    //    [0,0,56,56] → [1,1,54,54]. Pin only the colours and that build is GREEN.
+    // ⚠️ THE ZOOM HAS NO SUCH DETECTOR AND I SAY SO OUT LOUD: its glyph is centred by flex, and a
+    //    centred child does not move when the box shrinks symmetrically (measured: the glyph centre
+    //    stays at 24 on the sabotage). For the zoom the border-swap is caught only by the rim
+    //    layer disappearing out of `box-shadow` — which is why the rim is read on all four nodes.
+    // ⚠️⚠️ TWO VIEWPORTS, AND THAT IS NOT PEDANTRY: the whole restyle sits in rules with no media
+    //    gate, so a sabotage that hides it behind `@media (min-width:768px)` would be green on a
+    //    desktop-only read. The pair `vw` + the zoom's own size (48 desktop / 56 mobile) is the
+    //    WITNESS that the second read really is a second layout and not the same one twice —
+    //    without it a silently failed resize would make the mobile half a tautology.
+    // ⚠️ THE GUARD BRINGS ITS OWN PAGE. The shared `page` is clicked and hovered by earlier
+    //    sections (`#zoomInBtn` among them) and `:hover` STICKS in headless — on it the bar
+    //    buttons read .8 instead of .6 and the zoom reads opacity 1. The mouse is parked at 0,0
+    //    here for the same reason.
+    const brPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    brPage.on('pageerror', e => errors.push('PAGEERROR(btn-restyle): ' + e.message));
+    await brPage.goto('file://' + PAGE_FILE);
+    await brPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await brPage.evaluate(() => window.__game.skipIntro());
+    await brPage.mouse.move(0, 0);
+    await brPage.waitForTimeout(700);
+    const brGrab = () => brPage.evaluate(() => {
+      // ⚠️⚠️ THE PAUSE IS COMPARED WITH THE LIVE TOKEN AND NOT WITH A COPY OF `#2a2935`. Its colour is
+      //    the day/night system rule `var(--btn-bg)`; a literal here would go red at the owner's
+      //    first palette pass on a button that never changed. We resolve the token through a
+      //    throwaway span so the browser hands back the same `rgb(...)` serialisation.
+      const probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+      probe.style.backgroundColor =
+        getComputedStyle(document.documentElement).getPropertyValue('--btn-bg').trim();
+      document.body.appendChild(probe);
+      const tokenBg = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const face = (el) => { const c = getComputedStyle(el), r = el.getBoundingClientRect();
+        return { bg: c.backgroundColor, bgImage: c.backgroundImage, shadow: c.boxShadow,
+                 radius: c.borderRadius, opacity: c.opacity,
+                 w: +r.width.toFixed(2), h: +r.height.toFixed(2) }; };
+      const hint = document.getElementById('hintBtn');
+      const shake = document.getElementById('shakeBtn');
+      const sr = shake.getBoundingClientRect(), hr = hint.getBoundingClientRect();
+      // ⚠️ THE CAPTION IS MEASURED BY ITS CENTRE AND NOT BY ITS LEFT EDGE: it stands on the axis
+      //    x=84 through `translate(-50%)`, its WIDTH depends on the font (`SF Pro Rounded` exists
+      //    only on Apple), so the left edge is a flake and the centre is the statement.
+      const txt = shake.querySelector('.shake-txt').getBoundingClientRect();
+      const art = shake.querySelector('.shake-art').getBoundingClientRect();
+      const mag = hint.querySelector('.tip-mag').getBoundingClientRect();
+      return { vw: innerWidth, tokenBg,
+        hint: face(hint), shake: face(shake),
+        zoomIn: face(document.getElementById('zoomInBtn')),
+        zoomOut: face(document.getElementById('zoomOutBtn')),
+        pause: face(document.getElementById('pauseBtn')),
+        capAxis: +(txt.left + txt.width / 2 - sr.left).toFixed(2),
+        art: [+(art.left - sr.left).toFixed(2), +(art.top - sr.top).toFixed(2),
+              +art.width.toFixed(2), +art.height.toFixed(2)],
+        magBox: [+(mag.left - hr.left).toFixed(2), +(mag.top - hr.top).toFixed(2),
+                 +mag.width.toFixed(2), +mag.height.toFixed(2)] };
+    });
+    const brDesk = await brGrab();
+    // ⚠️ THE PAUSE IS NOT A TIMING DEPENDENCY: nothing here transitions. The bar buttons carry
+    //    `transition-duration: 0s` (pinned by the hover guard above) and the zoom transitions
+    //    ONLY opacity, which the resize does not touch. The wait is for the relayout, not for a frame.
+    await brPage.setViewportSize({ width: 390, height: 780 });
+    await brPage.waitForTimeout(250);
+    const brMob = await brGrab();
+    await brPage.close();
+    console.log('btn-restyle:', JSON.stringify({ desk: brDesk, mob: brMob }));
+
+    // ⚠️ ONE CONSTANT FOR THE WHOLE FAMILY AND NOT FOUR COPIES: the owner's number is `.60`, and
+    //    the STATEMENT is that the four nodes wear the SAME fill. Retune the fill — one line moves.
+    const BR_FILL = 'rgba(255, 255, 255, 0.6)';
+    // ⚠️ THE RIM IS PINNED AS THE LAST LAYER AND NOT MERELY AS «present»: shell.html states the
+    //    order is load-bearing (the rim is listed after the soft glow). `$` is the whole point —
+    //    an assert on «contains» would be green on a build that put the rim first.
+    const BR_RIM = /, rgb\(255, 255, 255\) 0px 0px 0px 1px inset$/;
+    const nearBtn = (a, b) => Math.abs(a - b) < 0.05;
+    const brFamily = (s) => [s.hint, s.shake, s.zoomIn, s.zoomOut]
+      .every(b => b.bg === BR_FILL && b.bgImage === 'none' && BR_RIM.test(b.shadow));
+    // ⚠️ `bgImage === 'none'` IS IN THE FAMILY TEST FOR THE SAME REASON AS AT SHAKE ABOVE: a fill can
+    //    be brought back by a gradient, and a check on `background-color` alone would not see it.
+    const brUnmoved = (s) => s.shake.w === 120 && s.shake.h === 56 &&
+      s.hint.w === 56 && s.hint.h === 56 &&
+      nearBtn(s.capAxis, 84) &&
+      nearBtn(s.art[0], 5) && nearBtn(s.art[1], 3) &&
+      nearBtn(s.art[2], 50) && nearBtn(s.art[3], 50) &&
+      nearBtn(s.magBox[0], 0) && nearBtn(s.magBox[1], 0) &&
+      nearBtn(s.magBox[2], 56) && nearBtn(s.magBox[3], 56);
+    expect(brDesk.vw === 1280 && brMob.vw === 390 &&
+           brDesk.zoomIn.w === 48 && brMob.zoomIn.w === 56 &&
+           brFamily(brDesk) && brFamily(brMob) &&
+           brUnmoved(brDesk) && brUnmoved(brMob),
+      '⚠️⚠️ ALL THREE BUTTONS WEAR THE FILL .60 AND THE 1px WHITE RIM AS THE LAST INSET LAYER, ' +
+      'AND NOT ONE CHILD MOVED (the owner\'s word 2026-08-23-a: «update the style of the buttons, ' +
+      'including the zoom buttons: fill: rgba(255,255,255,0.60); stroke-width: 1px; stroke: #FFF»). ' +
+      '⛔⛔ THIS MOVES HIS OWN NUMBER OF 2026-08-22-v: the fill .40 → .60, and the rim is NEW. ' +
+      '⚠️⚠️ THE SABOTAGE THIS ASSERT EXISTS FOR is to «simplify» the rim into ' +
+      '`border:1px solid #fff`: `box-sizing:border-box` is global, so the OUTER box stays ' +
+      '120×56 / 56×56 and the build LOOKS right, while the content box shrinks to 54 and every ' +
+      'absolutely positioned child moves in by a pixel — measured on that build: the caption axis ' +
+      '84 → 85, the hand [5,3,50,50] → [6,4,50,50], the magnifier [0,0,56,56] → [1,1,54,54]. ' +
+      'That is why the geometry stands in the SAME assert as the rim and not in a neighbouring one. ' +
+      '⚠️ THE SECOND SABOTAGE is to restyle only the two bar buttons: the zoom was the half with ' +
+      'no guard at all, and `brFamily` counts all FOUR nodes (both zoom buttons — they are two ' +
+      'elements of one class, and repainting one is a real half-fix). ⚠️ THE THIRD is to gate the ' +
+      'restyle behind `@media (min-width:768px)`: the read is repeated at 390, and `vw` + the ' +
+      'zoom\'s own 48/56 are the witness that the second read really is the second layout. ' +
+      '⚠️ THE RIM IS PINNED AS THE LAST LAYER (the `$` in the regex) — shell.html says the order ' +
+      'inside `box-shadow` is load-bearing (' + JSON.stringify({ desk: brDesk, mob: brMob }) + ')');
+
+    // ⚠️⚠️ THE DELIBERATE NON-CHANGES, AND THEY ARE EXACTLY WHAT A CARELESS «MAKE ALL THE BUTTONS
+    //    THE SAME» DESTROYS. (1) The PAUSE was NOT touched: it carries the day/night system rule
+    //    `var(--btn-bg)` and a measured contrast floor against the sky (BTN_FLOOR ≥ 3.50 above) —
+    //    give it the white glass and that floor collapses. (2) The zoom KEEPS `opacity:.5` at rest:
+    //    the owner was asked and answered «only the colour and the outline» (2026-08-23-a), and the
+    //    consequence is accepted in shell.html — at rest the zoom reads at an effective 30%.
+    // ⚠️ THE PAUSE IS HELD BY TWO STATEMENTS AND NOT ONE, AND THE SECOND IS WHY: the token equality
+    //    alone would stay green if somebody repainted THE TOKEN ITSELF to the glass — then the pause
+    //    would still «follow --btn-bg» and would still have joined the family. `pause.bg !== hint.bg`
+    //    is the half that says it did NOT join.
+    expect(brDesk.pause.bg === brDesk.tokenBg && brMob.pause.bg === brMob.tokenBg &&
+           brDesk.pause.bg !== brDesk.hint.bg && brMob.pause.bg !== brMob.hint.bg &&
+           brDesk.pause.shadow === 'none' && brMob.pause.shadow === 'none' &&
+           brDesk.pause.radius === '1000px' &&
+           brDesk.zoomIn.opacity === '0.5' && brDesk.zoomOut.opacity === '0.5' &&
+           brMob.zoomIn.opacity === '0.5' && brMob.zoomOut.opacity === '0.5' &&
+           brDesk.hint.opacity === '1' && brDesk.shake.opacity === '1' &&
+           brDesk.zoomIn.radius === '1000px' && brDesk.zoomOut.radius === '1000px' &&
+           brDesk.zoomIn.shadow === 'rgba(255, 255, 255, 0.55) 0px 4px 8px 0px inset, ' +
+                                    'rgb(255, 255, 255) 0px 0px 0px 1px inset' &&
+           brMob.zoomIn.shadow === brDesk.zoomIn.shadow &&
+           brDesk.zoomOut.shadow === brDesk.zoomIn.shadow,
+      '⚠️⚠️ THE PAUSE DID NOT JOIN THE FAMILY AND THE ZOOM KEPT ITS 50% AT REST — both are ' +
+      'DELIBERATE non-changes of 2026-08-23-a, and both are what «make all the buttons the same» ' +
+      'breaks. ⛔ THE PAUSE stays on the day/night token `var(--btn-bg)`: it is compared with the ' +
+      'LIVE token and not with a copy of `#2a2935`, so a palette pass on a button that never ' +
+      'changed cannot redden it. Give it the white glass and the measured contrast floor against ' +
+      'the sky (BTN_FLOOR.day ≥ 3.50, the section above) goes with it — a floor that fired twice ' +
+      'for real. ⚠️ `pause.bg !== hint.bg` IS THE SECOND HALF AND IT IS NOT A DUPLICATE: repaint ' +
+      'the TOKEN itself to the glass and the token equality alone would still be green. ' +
+      '⚠️ `pause.shadow === none` catches the rim leaking into the `.iconBtn` rule — five more ' +
+      'nodes wear that class. ⛔ THE ZOOM\'S `opacity:.5` IS HIS EXPLICIT ANSWER when asked ' +
+      '(«only the colour and the outline»), re-confirmed a day after the restyle — do not «fix» ' +
+      'the fact that at rest it reads at an effective 30%. ⚠️ THE MIRROR ARM `hint/shake ' +
+      'opacity === 1` is here so the same careless unify pass cannot dim the bar pair instead. ' +
+      '⚠️ THE ZOOM\'S FULL SHADOW STRING IS PINNED HERE AND NOWHERE ELSE: its glow is .55 and not ' +
+      'the bar pair\'s .70, and until this section nothing in the suite had ever read it ' +
+      '(' + JSON.stringify({ desk: brDesk, mob: brMob }) + ')');
 
     // ⛔⛔ HERE STOOD THE SECTION «A CLICK TOSSES THE ICON» — taken off on 2026-08-21-p
     // by the owner's word «delete the other animations». It read the `shakeToss` animation
