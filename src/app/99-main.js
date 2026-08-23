@@ -1813,6 +1813,11 @@ window.__game = {
   },
   extinguish(){ extinguishAll(); return fires.length; },
   firesN(){ return fires.length; },
+  // the knobs of the red-hot crust: contour, glow, grain, speed, scale plus the
+  // three gradient colours. Two presets, two knobs — `heatTune` is the flame one
+  // (it hangs on a burning item), `chillTune` the ice one (on a frozen one).
+  heatTune(o){ return heatKnobs(HEAT, o); },
+  chillTune(o){ return heatKnobs(COLD, o); },
   // a slice for the port guards: is the SHARED geometry of the type alive after the cut and
   // has the item grown somebody else's children (the fire must be an overlay child,
   // and not an edit of the material — otherwise it will seep into the collection portraits)
@@ -1843,7 +1848,7 @@ window.__game = {
     let halves = 0;
     for (const o of scene.children) if (o.userData && o.userData.keepGeo) halves++;
     return { types: Object.keys(byType).length, byType, kidsTotal, kidsMax, halves,
-             fires: fires.length, fxN: fx.length };
+             fires: fires.length, chills: chills.length, fxN: fx.length };
   },
   grindNow(){ mixerGrind(); return true; },
   // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)

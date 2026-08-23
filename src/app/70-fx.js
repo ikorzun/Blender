@@ -105,6 +105,8 @@ const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
 const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
+const heatShellFX      = fxBuilt('heat',     _heatShellFX_impl);
+const chillShellFX     = fxBuilt('chill',    it => _heatShellFX_impl(it, COLD, 2));
 const boltFX           = fxBuilt('bolt',     _boltFX_impl);
 function fxBuildBreak(reset){
   const out = {};
@@ -968,7 +970,11 @@ function _sawFX_impl(item){
 // ⚠️ IT LIVES INDEFINITELY LONG, which is why it does not go through addFX (that
 // one is about a finite life): its own fires list and its own tick from 99-main.
 // Returns an extinguishing function.
-const fires = [];
+// ⚠️⚠️ THE ICE CRUST LIVES IN ITS OWN LIST, AND THAT IS LOAD-BEARING: the flame
+// is put out by `extinguishAll` on the burn timer, and had the cold crust landed
+// in `fires` it would have died together with somebody else's fire. Its own end is
+// different: the ice was smashed or the item is gone.
+const fires = [], chills = [];
 // THE BURNING ITEM: mechanics state. We keep it HERE, next to the fire, and not in
 // the gameplay — burning is what exactly this module knows how to do. Outwards we
 // hand out only the type name: on it the dispatcher hangs the bonus for collecting
@@ -982,6 +988,7 @@ function igniteItem(it, ms){
   if (!it || !it.alive) return null;
   extinguishAll();                       // no more than one burns at a time
   fireSilhouetteFX(it);
+  heatShellFX(it);                       // the red-hot crust UNDER the flame
   burningItem = it;
   burnUntil = performance.now() + (ms || FIRE_BURN_MS);
   return it;
@@ -1021,7 +1028,139 @@ function _fireSilhouetteFX_impl(item){
   fires.push(st);
   return () => { if (!st.dying) st.dying = performance.now(); };
 }
+// ===== THE RED-HOT CRUST ON A BURNING ITEM (the owner's word 2026-08-19) =====
+// A port of the «heatmap» look from thrine.app.
+// ⚠️⚠️ THERE IT IS AN IMAGE-SPACE EFFECT: the model is rendered into an offscreen
+// target, its edge is blurred, a FULL-SCREEN shader paints it, and the mesh itself
+// is excluded from the frame (`replacesGeometry`). That pipeline does not suit us:
+// they have ONE model in the frame, we have 130-180 items, and image-space work
+// covers the WHOLE frame — per item that means a render target per item, which the
+// mobile budget will not take. We cut `transmission` for exactly this reason: a
+// second pass of the scene ate 55% of the frame.
+// ⚠️ WHAT IS PORTED IS THE QUANTITY, NOT THE PIPELINE. Their «heat» is the distance
+// to the silhouette's edge; in 3D that is exactly `dot(normal, view)`: the front is
+// hot, the grazing edge is cold. The isolines, the glow, the grain and the running
+// band are all computed from it, inside the overlay's own material — without a
+// single extra pass.
+// ⚠️⚠️ THIS IS AN OVERLAY-CHILD, NOT AN EDIT OF THE ITEM'S MATERIAL. The canon
+// forbids touching the material: the collection portraits are rendered by the same
+// material class, and «hot» would leak into the museum.
+// ⚠️ The default palette is SHARED WITH THE FLAME (FIRE_*) — the owner's choice
+// («the crust in the flame palette»): the crust must read as «this item got
+// red-hot», and not as a separate effect.
+const HEAT = { contour: 0.40, inner: 0.45, grain: 0.20, speed: 0.40, scale: 1.0,
+               cool: FIRE_DEEP.clone(), mid: FIRE_HOT.clone(), hot: FIRE_CORE.clone() };
+// ⚠️ THE COLD SET — THE COLOURS OF THE ORIGINAL thrine PRESET, the owner's word
+// 2026-08-19 «the frozen object inside with the crust as it was in the preset».
+// The numbers come from there as well: contour 40, innerGlow 45, grain 20,
+// speed 40, scale 100.
+const COLD = { contour: 0.40, inner: 0.45, grain: 0.20, speed: 0.40, scale: 1.0,
+               cool: new THREE.Color('#0b3a6b'), mid: new THREE.Color('#2fb8ff'),
+               hot: new THREE.Color('#eafcff') };
+function _heatShellFX_impl(item, set, order){
+  set = set || HEAT;
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.FrontSide,
+    uniforms: {
+      t: { value: 0 }, op: { value: 1 },
+      uContour: { value: set.contour }, uInner: { value: set.inner },
+      uGrain: { value: set.grain }, uSpeed: { value: set.speed },
+      uScale: { value: set.scale },
+      uCool: { value: set.cool.clone() }, uMid: { value: set.mid.clone() },
+      uHot: { value: set.hot.clone() },
+    },
+    vertexShader: [
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      // the crust SITS on the item, it is not puffed up: the 0.012 is only so that
+      // it does not argue with the item's own surface over depth
+      '  vN = normalize(normalMatrix*normal); vP = position;',
+      '  vec4 mv = modelViewMatrix*vec4(position + normal*0.012, 1.0); vV = mv.xyz;',
+      '  gl_Position = projectionMatrix*mv; }',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float t; uniform float op; uniform float uContour; uniform float uInner;',
+      'uniform float uGrain; uniform float uSpeed; uniform float uScale;',
+      'uniform vec3 uCool; uniform vec3 uMid; uniform vec3 uHot;',
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      // THIS IS THEIR «distance to the edge»: 1 in the centre, 0 at the grazing edge
+      '  float ndv = clamp(dot(normalize(vN), normalize(-vV)), 0.0, 1.0);',
+      '  float heat = pow(ndv, 1.0/max(0.15, uInner));',
+      // the running dark patches — the analogue of their shadowShape, in OBJECT
+      // coordinates, so that the band rides across the item and not across the screen
+      '  float band = sin(vP.y*uScale*6.0 - t*uSpeed*4.0 + sin(vP.x*uScale*4.0)*1.5);',
+      '  heat *= 0.78 + 0.22*band;',
+      // the contour isolines of the same quantity
+      '  float bands = 4.0 + 16.0*uContour;',
+      '  float ln = abs(fract(heat*bands) - 0.5)*2.0;',
+      '  heat += (1.0 - smoothstep(0.72, 1.0, ln))*0.30*step(0.01, uContour);',
+      '  heat += uGrain*(fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233)))*43758.5453) - 0.5);',
+      '  heat = clamp(heat, 0.0, 1.0);',
+      '  vec3 c = heat < 0.5 ? mix(uCool, uMid, heat*2.0) : mix(uMid, uHot, (heat - 0.5)*2.0);',
+      // the cold edges are DELIBERATELY transparent — the silhouette and the colour of
+      // the item stay readable, it is the middle that gets red-hot. Otherwise the
+      // player would stop recognising the type, and it is by type that he looks for a pair.
+      '  float a = op*smoothstep(0.06, 0.38, heat);',
+      '  if (a < 0.02) discard;',
+      '  gl_FragColor = vec4(c, a); }',
+    ].join('\n'),
+  });
+  const m = new THREE.Mesh(item.mesh.geometry, mat);
+  m.userData.keepGeo = true;         // the geometry is SHARED with the item — do not dispose
+  m.renderOrder = order != null ? order : 8;   // UNDER the flame (9) / UNDER the ice (3)
+  item.mesh.add(m);
+  const st = { item, obj: m, mat, t0: performance.now(), dying: 0, set };
+  (set === COLD ? chills : fires).push(st);
+  return () => { if (!st.dying) st.dying = performance.now(); };
+}
+// The knobs of one preset. ⚠️ A no-argument call READS, a call with an object
+// WRITES and applies to the crusts that are ALREADY alive — otherwise picking the
+// look would require a fresh flare-up once every 30 seconds.
+function heatKnobs(set, o){
+  if (!o) return { contour: set.contour, inner: set.inner, grain: set.grain,
+                   speed: set.speed, scale: set.scale,
+                   cool: '#' + set.cool.getHexString(), mid: '#' + set.mid.getHexString(),
+                   hot: '#' + set.hot.getHexString() };
+  for (const k of ['contour','inner','grain','speed','scale']) if (o[k] != null) set[k] = o[k];
+  for (const k of ['cool','mid','hot']) if (o[k] != null) set[k].set(o[k]);
+  return heatApplyLive();
+}
+function heatApplyLive(){
+  let n = 0;
+  for (const f of fires.concat(chills)){
+    const u = f.mat && f.mat.uniforms;
+    if (!u || !u.uContour) continue;
+    const s = f.set || HEAT;         // the ice has its own set, the flame its own
+    u.uContour.value = s.contour; u.uInner.value = s.inner;
+    u.uGrain.value = s.grain; u.uSpeed.value = s.speed; u.uScale.value = s.scale;
+    u.uCool.value.copy(s.cool); u.uMid.value.copy(s.mid); u.uHot.value.copy(s.hot);
+    n++;
+  }
+  return n;
+}
+// THE ICE CRUST: it lives as long as the item is frozen. The end is the ice being
+// smashed (`it.frozen` is cleared in 80-gameplay) or the item disappearing.
+function tickChills(){
+  if (!chills.length) return;
+  const now = performance.now();
+  for (let i = chills.length - 1; i >= 0; i--){
+    const c = chills[i];
+    c.mat.uniforms.t.value = (now - c.t0)/1000;
+    if ((!c.item.alive || !c.item.frozen) && !c.dying) c.dying = now;
+    if (c.dying){
+      const k = (now - c.dying)/FIRE_FADE_MS;
+      c.mat.uniforms.op.value = Math.max(0, 1 - k);
+      if (k >= 1){
+        if (c.obj.parent) c.obj.parent.remove(c.obj);
+        c.mat.dispose();
+        chills.splice(i, 1);
+      }
+    }
+  }
+}
 function tickFires(){
+  tickChills();
   const now = performance.now();
   // burnt out by time OR the item has already been collected/ground — extinguish and release
   if (burningItem && (!burningItem.alive || now > burnUntil)){

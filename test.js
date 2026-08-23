@@ -5739,15 +5739,37 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'SAWING does not accumulate geometries: over 3 s of continuous grinding ' + fx1.geoms + ' -> ' + fx1b);
   // FIRE: a child overlay, the item's material is untouched, extinguishing drains it
   const ign = await fxPage.evaluate(() => window.__game.ignite());
-  expect(!!ign && ign.fires === 1, 'FIRE: it lit up (' + JSON.stringify(ign) + ')');
+  // ⚠️ THERE ARE TWO OVERLAYS NOW (the owner's word 2026-08-19 «do this effect on
+  // the burning object, but do not remove the fire around it»): the flame outside
+  // and the RED-HOT CRUST under it. Both live in the same `fires` list and are put
+  // out together.
+  expect(!!ign && ign.fires === 2, 'FIRE: it lit up with the crust (' + JSON.stringify(ign) + ')');
   await new Promise(r => setTimeout(r, 300));
   const burn = await fxPage.evaluate(() => {
     const p = window.__game.fxProbe();
     return { fires: p.fires, kids: p.kidsTotal, max: p.kidsMax };
   });
-  expect(burn.fires === 1 && burn.kids === 1 && burn.max === 1,
-    '⚠️ FIRE IS A CHILD OVERLAY, AND NOT AN EDIT OF THE MATERIAL (otherwise it will seep into the portraits ' +
-    'of the collection — the trap of two consumers of uVeil): burning ' + burn.fires + ', items with children ' + burn.kids);
+  // ⚠️⚠️ THE LOAD-BEARING PART HERE IS «CHILDREN ON EXACTLY ONE ITEM», not their
+  // number: the point of the assert is that the hot stuff hangs as OVERLAYS and does
+  // not touch the material (otherwise it seeps into the collection portraits — the
+  // trap of two consumers of uVeil). The COUNT of overlays moved 1 -> 2 together with
+  // the rule: the flame plus the crust.
+  // ⚠️ `kidsTotal` IS THE SUM OVER ALL THE ITEMS, and `kidsMax` the worst single one:
+  // their EQUALITY is what says «the children hang on exactly ONE item», i.e. the
+  // material of the other 130 is untouched. Measured on the live build: 2 and 2.
+  expect(burn.fires === 2 && burn.max === 2 && burn.kids === burn.max,
+    '⚠️ FIRE IS TWO CHILD OVERLAYS ON ONE ITEM (the flame plus the red-hot crust), AND ' +
+    'NOT AN EDIT OF THE MATERIAL: burning ' + burn.fires + ', children in total ' + burn.kids +
+    ', children on one item ' + burn.max);
+  // ⚠️ THE CRUST'S PALETTE IS THE OWNER'S CHOICE («the crust in the flame palette»,
+  // 2026-08-19). He was shown the blue variant of the original preset as well; the
+  // guard asserts exactly the chosen one, otherwise a quiet swap back to blue would
+  // pass unnoticed. The values were taken FROM THE LIVE BUILD, not written from
+  // memory: these are FIRE_DEEP/FIRE_HOT/FIRE_CORE.
+  const crustTone = await fxPage.evaluate(() => window.__game.heatTune());
+  expect(crustTone.cool === '#ff470f' && crustTone.mid === '#ffd83f' && crustTone.hot === '#fff7cc',
+    '⚠️ THE CRUST IS IN THE FLAME PALETTE (the owner chose it): it must read as ' +
+    '«the item got red-hot», and not as a separate effect (' + JSON.stringify(crustTone) + ')');
   await fxPage.evaluate(() => window.__game.extinguish());
   await new Promise(r => setTimeout(r, 900));
   const fx2 = await fxPage.evaluate(() => { const s = window.__game.perfStats();
@@ -5757,6 +5779,67 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(fx2.geoms <= fx1b + 6,
     'FIRE: extinguishing left no geometries (' + fx1b + ' -> ' + fx2.geoms + ')');
   await fxPage.close();
+
+  // ===== THE ICE CRUST ON A FROZEN ITEM (the owner's word 2026-08-19) =====
+  // Word for word: «make the frozen object inside with the crust as it was in the
+  // preset» — the same effect as on a burning item, only in the ORIGINAL BLUE
+  // palette of the preset and under the ice block (renderOrder 2 against the ice's 3).
+  // ⚠️⚠️ ITS OWN PAGE, AND THAT IS NOT TIDINESS: the check sets the LEVEL, and the
+  // fx page above ends with perf drain asserts taken on a different level — a regen
+  // under them would be measuring somebody else's scene.
+  const icePage = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  icePage.on('pageerror', e => errors.push('PAGEERROR(ice): ' + e.message));
+  await icePage.goto('file://' + PAGE_FILE);
+  await icePage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+  const ice = await icePage.evaluate(async () => {
+    const g = window.__game;
+    // ⚠️ THE LEVEL IS TAKEN FROM THE QUEUE ITSELF (`frozenNextAt`), it is not guessed:
+    // the ice blocks arrive every 1-3 levels and a level with a treasure pushes them
+    // on. Each unsuccessful attempt advances the queue by exactly one, so this
+    // converges in a couple of turns instead of a blind sweep over ten levels.
+    let f = null;
+    for (let tries = 0; tries < 6 && !f; tries++){
+      g.setLevel(g.frozenNextAt()); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 400));
+      f = (g.frozenInfo() || [])[0];
+    }
+    if (!f) return null;
+    const born = g.fxProbe().chills;
+    g.ignite();                                       // somebody else's fire
+    await new Promise(r => setTimeout(r, 250));
+    const withFire = g.fxProbe();
+    g.extinguish();                                   // it is put out — the ice must survive
+    await new Promise(r => setTimeout(r, 900));
+    const afterFire = g.fxProbe();
+    g.frozenBreak(f.index);                           // the ice is smashed — the crust must go
+    await new Promise(r => setTimeout(r, 900));
+    const afterBreak = g.fxProbe();
+    return { born, withFire: withFire.chills, firesWithFire: withFire.fires,
+             afterFire: afterFire.chills, firesAfterFire: afterFire.fires,
+             afterBreak: afterBreak.chills, tone: g.chillTune() };
+  });
+  console.log('the ice crust:', JSON.stringify(ice));
+  // ⚠️⚠️ THE LOAD-BEARING ASSERT: the crust lives in ITS OWN list. The flame is put
+  // out by `extinguishAll` on the burn timer, and had the cold crust landed in
+  // `fires` it would have died together with somebody else's fire. The sabotage is
+  // exactly that — put it into `fires`.
+  expect(ice && ice.born >= 1 && ice.afterFire === ice.born && ice.firesAfterFire === 0,
+    '⚠️⚠️ THE ICE CRUST LIVES ITS OWN LIFE: putting out somebody else\'s fire does not ' +
+    'remove it (' + JSON.stringify(ice) + ')');
+  // ⚠️ AND THE SECOND END OF THE TRANSITION, without which «it lives» is true for an
+  // immortal crust as well: it is smashed together with the ice.
+  // ⚠️ EXACTLY ONE, not «none»: a level carries one or two ice blocks
+  // (FROZEN_MAX_PER_LEVEL), and we smash one — a guard demanding zero would go red on
+  // a healthy build every time the second block turned up. Measured: born 2 -> 1 left.
+  expect(ice && ice.afterBreak === ice.born - 1,
+    'THE ICE CRUST DIES WITH ITS OWN ICE, AND ONLY WITH IT: there were ' +
+    (ice ? ice.born : '?') + ', after breaking one there are ' + (ice ? ice.afterBreak : '?') + ' left');
+  // ⚠️ THE PALETTE IS THE PRESET'S, and that is his word: «as it was in the preset».
+  // Without this assert a quiet substitution of the flame palette would pass green —
+  // the count of the crusts would not change by one.
+  expect(ice && ice.tone.cool === '#0b3a6b' && ice.tone.mid === '#2fb8ff' && ice.tone.hot === '#eafcff',
+    'THE ICE CRUST IS IN THE PRESET PALETTE (' + (ice ? JSON.stringify(ice.tone) : '?') + ')');
+  await icePage.close();
 
   // ===== A BURNING ITEM: THE MECHANICS (the owner's spec 2026-08-01) =====
   // Word for word: «DO IT, only 1 item per 30 seconds may catch fire» + my
@@ -5776,8 +5859,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   await new Promise(r => setTimeout(r, 1100));
   const fire1 = await firePage.evaluate(() => ({ burning: window.__game.burning(),
     fires: window.__game.firesN(), due: window.__game.fireDue(), t: performance.now() }));
-  expect(!!fire1.burning && fire1.fires === 1,
-    'FIRE: by schedule exactly one lit up (' + fire1.burning + ', fires ' + fire1.fires + ')');
+  // ⚠️ `firesN()` counts the OVERLAYS, and since 2026-08-19 one flare-up hangs two of
+  // them (the flame plus the red-hot crust). What is asserted is still «exactly ONE
+  // ITEM lit up» — that is `burning`; the number moved with the rule.
+  expect(!!fire1.burning && fire1.fires === 2,
+    'FIRE: by schedule exactly one item lit up (' + fire1.burning + ', overlays ' + fire1.fires + ')');
   // ⚠️ THE OWNER'S NUMBER: the next flare-up is scheduled NOT EARLIER than 30 s
   // from the moment of THIS one (and not from the moment when it burns out).
   const gap = (fire1.due - fire1.t) / 1000;
