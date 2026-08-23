@@ -1,5 +1,33 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-b: THE ZOOM JOINS THE HINT'S STYLE — the dispatcher
+
+One item, with a frame: «do not take them into transparency, the style of these
+buttons is the same as the magnifier button's». The 50% dimming at rest is gone;
+the paint (fill .60, glow .70, the 1px rim, the hover step to .80) is now
+byte-identical to the hint's at both 390 and 1280. The geometry is NOT: the zoom
+stays a circle, 56 on the phone and 48 on the desktop, from his own nodes.
+
+⛔⛔ IT CANCELS HIS SPEC OF 2026-08-05 AND HIS OWN ANSWER OF ONE MESSAGE EARLIER.
+On 2026-08-23-a he was asked this exact question and chose to keep the dimming.
+
+⚠️⚠️ THE LESSON, AND IT IS THE TRANSFERABLE PART: the option he chose was offered
+WITH its consequence spelled out — «at rest they will look about twice paler than
+their neighbours, one style by eye will not come out» — and he chose it anyway,
+then complained about precisely that. A named consequence is not a substitute for
+seeing it. WHEN THE DOWNSIDE OF AN OPTION IS VISUAL, OFFER A RENDERED FRAME OF BOTH
+OPTIONS WITH THE QUESTION, not a better sentence.
+
+⚠️ THE HOVER STEP WAS ADDED, NOT INVENTED: the zoom's only hover response had BEEN
+the opacity: removing the dimming without giving it the hint's hover would have
+left it the one button on the bar that does not answer the cursor.
+
+⚠️ ONE GUARD WAS INVERTED RATHER THAN DELETED (a return of `opacity:.5` is one line
+and that value has moved twice), and in the family assert the zoom's glow is now
+pinned AGAINST THE HINT'S rather than as a literal — he named an equality of two
+places, and a literal would outlive the next repaint and stop guarding it.
+
+
 ### ACCEPTANCE 2026-08-23-a: EIGHT ITEMS IN ONE MESSAGE — the dispatcher
 
 He sent eight requests with an instruction attached: «split all the tasks, remember

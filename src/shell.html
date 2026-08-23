@@ -828,28 +828,32 @@
      at night. The zoom's backing is light in both themes, therefore a light glyph
      cannot be here under any theme. */
   #zoomGrp { flex-direction:column; gap:8px; }
-  /* ⛔⛔ THE FILL .4 → .60 AND THE 1px WHITE RIM (the owner's word 2026-08-23-a — he
-     named the zoom buttons BY NAME: «including the zoom buttons»). The rim is an inset
-     shadow for the same reason as at the hint; the zoom's own softer glow (.55, not .70)
-     is his and stays.
-     ⚠️⚠️ THE 50% DIMMING AT REST IS KEPT ON HIS EXPLICIT WORD 2026-08-23-a (asked and
-     answered: «only the colour and the outline»). The consequence is named and accepted:
-     `opacity:.5` multiplies the whole node, so at rest these buttons read at an
-     effective 30% against the neighbours' 60% and the rim reads at half strength. They
-     become the family only under the finger. ⛔ Do not «fix» this by dropping the
-     opacity — it is his spec of 2026-08-05 («50% transparency in the calm state»),
-     re-confirmed a day after this very restyle. */
+  /* ⛔⛔⛔ THE ZOOM WEARS THE HINT'S STYLE, FULL STOP (the owner's word 2026-08-23-b, with a
+     frame of the two pale circles attached: «do not take them into transparency, the style of
+     these buttons is the same as the magnifier button's»).
+     ⛔ THIS CANCELS TWO THINGS OF HIS AT ONCE, ONE OF THEM ONE DAY OLD:
+     — the 50% dimming at rest, his spec of 2026-08-05 («50% transparency in the calm state
+       and 100% on hover»), which existed so the buttons would not get in the way of looking at
+       the pile;
+     — and his own answer of 2026-08-23-a, given to this very question: asked whether the zoom
+       should keep the dimming or read like its neighbours, he chose «only the colour and the
+       outline», i.e. keep it. He saw the result and reversed it the next message.
+     ⚠️⚠️ THE CONSEQUENCE HE WAS WARNED ABOUT IS EXACTLY WHAT HE THEN COMPLAINED OF, and it is
+     worth keeping as evidence: `opacity:.5` multiplies the WHOLE node, so at rest a .60 fill
+     read as an effective .30 and the 1px rim at half strength — the pale circles in his frame.
+     ⚠️ WHAT «THE SAME STYLE» WAS TAKEN TO MEAN: the paint — the fill, the inner glow (.55 → .70,
+     the hint's number), the rim, and the hover step to .80. NOT the geometry: the zoom stays a
+     CIRCLE and stays 56 on the phone / 48 on the desktop, because those come from his own nodes
+     (829:1242 and 741:1497) and «style» is not the word for a shape. ⚠️ If he meant the shape
+     too, that is one line here plus the desktop arm — ask, do not guess a second time.
+     ⚠️⚠️ THE HOVER STEP IS **ADDED**, NOT INVENTED. Dropping the opacity would otherwise have
+     left the zoom with no hover response at all — a NEW divergence from the hint, created by
+     the very edit meant to remove one. Now rest and hover match the hint exactly; the press
+     feedback (`transform:scale(.94)`) it has always had from `.iconBtn`.
+     ⚠️ ZOOM IS STILL WHITE IN BOTH THEMES — that pinpoint exception (2026-08-03) is untouched. */
   .zoomBtn, html.night .zoomBtn {
     background:rgba(255,255,255,.60); color:#000;
-    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.55), inset 0 0 0 1px #fff; }
-  /* SEMI-TRANSPARENT AT REST (the owner's word 2026-08-05: «50% transparency in
-     the calm state and 100% on hover»). We dim the WHOLE node, and not only the
-     background: otherwise the glyph would stay dense and the button would read as «broken».
-     ⚠️ On touch screens there is no hover — there we keep :active, otherwise on the phone
-     the button would stay semi-transparent forever even under the finger. */
-  .zoomBtn { opacity:.5; transition:opacity .18s ease-out; }
-  .zoomBtn:active { opacity:1; }
-  @media (hover:hover){ .zoomBtn:hover { opacity:1; } }
+    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.70), inset 0 0 0 1px #fff; }
   /* ⚠️ THE GLYPH IS PAINTED NOT BY color, but by the rule «.iconBtn svg path { fill:var(--btn-fg) }»
      — at night the theme gave a WHITE plus/minus on a light backing (the owner's screenshot
      2026-08-04, his word: «always of black colour»). The pinpoint re-painter is below
@@ -1224,7 +1228,10 @@
      ⚠️ The rule is common to both buttons: he named them in one item, and splitting
      them into different rules would mean starting two copies of one requirement. */
   @media (hover:hover) and (pointer:fine){
-    #shakeBtn:hover, #hintBtn:hover { background:rgba(255,255,255,.80); }
+    /* ⚠️ THE ZOOM JOINED THIS RULE 2026-08-23-b, when its own hover (opacity .5 → 1) was
+       removed together with the dimming: without it the zoom would have been the only button
+       of the bar that does not answer the cursor. */
+    #shakeBtn:hover, #hintBtn:hover, .zoomBtn:hover { background:rgba(255,255,255,.80); }
   }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;

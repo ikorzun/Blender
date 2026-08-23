@@ -6791,7 +6791,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     '(' + JSON.stringify(zoomDesk) + ')');
   expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
     'ZOOM: the glyph is black in BOTH themes (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
-  // 50% at rest / 100% under the finger and on hover (the owner's word 2026-08-05)
+  // ⛔⛔ THE 50% AT REST IS GONE (the owner's word 2026-08-23-b, with a frame of the two pale
+  // circles: «do not take them into transparency, the style of these buttons is the same as the
+  // magnifier button's»). ⛔ It cancels his spec of 2026-08-05 AND his own answer of the day
+  // before, when he was asked this exact question and chose to keep the dimming.
+  // ⚠️ THE PIN IS NOT DELETED, IT IS INVERTED: «no dimming» must be stated, or a return of
+  // `opacity:.5` would ship green — and that value is one line and has now moved twice.
   const zoomOpacity = await page.evaluate(async () => {
     const b = document.getElementById('zoomInBtn');
     const rest = getComputedStyle(b).opacity;
@@ -6804,8 +6809,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'touch' }));
     return { rest, act };
   });
-  expect(Math.abs(parseFloat(zoomOpacity.rest) - 0.5) < 0.02,
-    'ZOOM: at rest it is semi-transparent 50% (' + JSON.stringify(zoomOpacity) + ')');
+  expect(parseFloat(zoomOpacity.rest) === 1 && parseFloat(zoomOpacity.act) === 1,
+    '⛔⛔ ZOOM: NO DIMMING AT REST — the button reads at full strength, like the magnifier ' +
+    '(the owner 2026-08-23-b). ⛔ IT CANCELS his «50% in the calm state» of 2026-08-05 and his ' +
+    'own answer of 2026-08-23-a, given to this very question. ⚠️ THE `act` ARM IS THE HALF THAT ' +
+    'KEEPS THIS HONEST: with the dimming gone, rest and press must read the SAME — if a future ' +
+    'edit brings back an opacity step in either direction, one of the two numbers moves ' +
+    '(' + JSON.stringify(zoomOpacity) + ')');
   // ⚠️ THE STEP WAS DOUBLED BY THE WORD OF THE OWNER 2026-08-05 (it was 1.6, it became ZOOM_STEP=3.2);
   // the CAM_R_MIN clamp can shorten the travel, which is why we check the end against the expected
   // radius, and not against a difference of «exactly one step».
@@ -10238,12 +10248,18 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️ THE RIM IS PINNED AS THE LAST LAYER (the `$` in the regex) — shell.html says the order ' +
       'inside `box-shadow` is load-bearing (' + JSON.stringify({ desk: brDesk, mob: brMob }) + ')');
 
-    // ⚠️⚠️ THE DELIBERATE NON-CHANGES, AND THEY ARE EXACTLY WHAT A CARELESS «MAKE ALL THE BUTTONS
-    //    THE SAME» DESTROYS. (1) The PAUSE was NOT touched: it carries the day/night system rule
+    // ⚠️⚠️ THE DELIBERATE NON-CHANGE, AND IT IS EXACTLY WHAT A CARELESS «MAKE ALL THE BUTTONS
+    //    THE SAME» DESTROYS: the PAUSE was NOT touched. It carries the day/night system rule
     //    `var(--btn-bg)` and a measured contrast floor against the sky (BTN_FLOOR ≥ 3.50 above) —
-    //    give it the white glass and that floor collapses. (2) The zoom KEEPS `opacity:.5` at rest:
-    //    the owner was asked and answered «only the colour and the outline» (2026-08-23-a), and the
-    //    consequence is accepted in shell.html — at rest the zoom reads at an effective 30%.
+    //    give it the white glass and that floor collapses.
+    // ⛔⛔ THE ZOOM, BY CONTRAST, HAS NOW JOINED THE FAMILY (the owner 2026-08-23-b «the style of
+    //    these buttons is the same as the magnifier button's»): no dimming, and its glow is
+    //    compared WITH THE HINT'S rather than with a copy of the value — «the same as the
+    //    magnifier» is a statement about two places being equal, and a literal here would
+    //    outlive the next repaint of the pair and stop guarding the named property.
+    // ⚠️ WHAT DID NOT FOLLOW: the SHAPE. The zoom stays a circle (radius 1000) and stays 48 on
+    //    the desktop — those come from his own nodes, and «style» is not the word for a shape.
+    //    The radius pin below is what would catch a future unify pass overreaching into geometry.
     // ⚠️ THE PAUSE IS HELD BY TWO STATEMENTS AND NOT ONE, AND THE SECOND IS WHY: the token equality
     //    alone would stay green if somebody repainted THE TOKEN ITSELF to the glass — then the pause
     //    would still «follow --btn-bg» and would still have joined the family. `pause.bg !== hint.bg`
@@ -10252,27 +10268,29 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            brDesk.pause.bg !== brDesk.hint.bg && brMob.pause.bg !== brMob.hint.bg &&
            brDesk.pause.shadow === 'none' && brMob.pause.shadow === 'none' &&
            brDesk.pause.radius === '1000px' &&
-           brDesk.zoomIn.opacity === '0.5' && brDesk.zoomOut.opacity === '0.5' &&
-           brMob.zoomIn.opacity === '0.5' && brMob.zoomOut.opacity === '0.5' &&
+           brDesk.zoomIn.opacity === '1' && brDesk.zoomOut.opacity === '1' &&
+           brMob.zoomIn.opacity === '1' && brMob.zoomOut.opacity === '1' &&
            brDesk.hint.opacity === '1' && brDesk.shake.opacity === '1' &&
            brDesk.zoomIn.radius === '1000px' && brDesk.zoomOut.radius === '1000px' &&
-           brDesk.zoomIn.shadow === 'rgba(255, 255, 255, 0.55) 0px 4px 8px 0px inset, ' +
-                                    'rgb(255, 255, 255) 0px 0px 0px 1px inset' &&
+           brDesk.zoomIn.shadow === brDesk.hint.shadow &&
            brMob.zoomIn.shadow === brDesk.zoomIn.shadow &&
            brDesk.zoomOut.shadow === brDesk.zoomIn.shadow,
-      '⚠️⚠️ THE PAUSE DID NOT JOIN THE FAMILY AND THE ZOOM KEPT ITS 50% AT REST — both are ' +
-      'DELIBERATE non-changes of 2026-08-23-a, and both are what «make all the buttons the same» ' +
-      'breaks. ⛔ THE PAUSE stays on the day/night token `var(--btn-bg)`: it is compared with the ' +
+      '⚠️⚠️ THE PAUSE DID NOT JOIN THE FAMILY, AND THE ZOOM DID — the first is a deliberate ' +
+      'non-change, the second is the owner\'s word 2026-08-23-b. ⛔ THE PAUSE stays on the ' +
+      'day/night token `var(--btn-bg)`: it is compared with the ' +
       'LIVE token and not with a copy of `#2a2935`, so a palette pass on a button that never ' +
       'changed cannot redden it. Give it the white glass and the measured contrast floor against ' +
       'the sky (BTN_FLOOR.day ≥ 3.50, the section above) goes with it — a floor that fired twice ' +
       'for real. ⚠️ `pause.bg !== hint.bg` IS THE SECOND HALF AND IT IS NOT A DUPLICATE: repaint ' +
       'the TOKEN itself to the glass and the token equality alone would still be green. ' +
       '⚠️ `pause.shadow === none` catches the rim leaking into the `.iconBtn` rule — five more ' +
-      'nodes wear that class. ⛔ THE ZOOM\'S `opacity:.5` IS HIS EXPLICIT ANSWER when asked ' +
-      '(«only the colour and the outline»), re-confirmed a day after the restyle — do not «fix» ' +
-      'the fact that at rest it reads at an effective 30%. ⚠️ THE MIRROR ARM `hint/shake ' +
-      'opacity === 1` is here so the same careless unify pass cannot dim the bar pair instead. ' +
+      'nodes wear that class. ⛔⛔ THE ZOOM\'S DIMMING IS GONE: he was asked on 2026-08-23-a and ' +
+      'chose to keep it, then saw the two pale circles and reversed himself the next message — ' +
+      'the effective 30% at rest was the defect, not the design. Its glow is now pinned AGAINST ' +
+      'THE HINT\'S rather than as a literal, because what he named is an equality of two places. ' +
+      '⚠️ THE MIRROR ARM `hint/shake opacity === 1` stays: the same careless unify pass could ' +
+      'dim the bar pair instead. ⚠️ The radius pin holds the SHAPE apart from the style — he ' +
+      'named the paint, not the circle. ' +
       '⚠️ THE ZOOM\'S FULL SHADOW STRING IS PINNED HERE AND NOWHERE ELSE: its glow is .55 and not ' +
       'the bar pair\'s .70, and until this section nothing in the suite had ever read it ' +
       '(' + JSON.stringify({ desk: brDesk, mob: brMob }) + ')');

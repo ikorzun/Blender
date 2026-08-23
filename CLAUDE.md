@@ -10132,3 +10132,54 @@ about a build where it did. Measured out of the loop, the same window delivers 3
 ✅ The pour is now read twice (before and after the window), with one short 15-read
 burst for the tick period. **Law: before trusting a number, ask what the act of
 measuring cost — and prefer two reads to a poll.**
+
+## BATCH 2026-08-23-b: THE ZOOM WEARS THE HINT'S STYLE — HIS OWN ANSWER OF THE DAY BEFORE, REVERSED
+
+His word, with a frame of the two pale circles attached: «do not take them into
+transparency, the style of these buttons is the same as the magnifier button's».
+
+⛔⛔ **THIS CANCELS TWO DECISIONS OF HIS, AND ONE OF THEM WAS ONE MESSAGE OLD.**
+— The 50% dimming at rest is his spec of 2026-08-05 («50% transparency in the calm
+  state and 100% on hover»), made so the buttons would not get in the way of looking
+  at the pile.
+— And on 2026-08-23-a he was asked THIS EXACT QUESTION — keep the dimming, or make
+  the zoom read like its neighbours — and answered «only the colour and the outline»,
+  i.e. keep it. He looked at the result and reversed himself in the next message.
+
+⚠️⚠️ **THE WARNING GIVEN WITH THAT QUESTION IS WHAT HE THEN COMPLAINED OF, WORD FOR
+WORD, AND THAT IS THE LESSON HERE.** The option he chose was offered with its
+consequence spelled out: «at rest the zoom buttons will look about twice paler than
+their neighbours (effectively 30% against 60%) — one style by eye will not come out».
+He chose it anyway, saw the pale circles, and asked for the opposite.
+**A named consequence is not a substitute for seeing it.** When an answer's downside
+is VISUAL, the cheap move is not a better sentence — it is a rendered frame of both
+options offered with the question. That would have saved this round trip.
+
+**WHAT «THE SAME STYLE» WAS TAKEN TO MEAN — AND WHAT IT WAS NOT.**
+✅ THE PAINT follows the hint exactly: the fill `.60`, the inner glow `.55 → .70`
+(the hint's number), the 1px rim, and the hover step to `.80`.
+⛔ THE GEOMETRY DOES NOT: the zoom stays a CIRCLE and stays 56 on the phone / 48 on
+the desktop. Those come from his own nodes 829:1242 and 741:1497, and «style» is not
+the word for a shape. ⚠️ If he meant the shape too it is one line here plus the
+desktop arm — ASK, do not guess a second time on the same buttons.
+⚠️⚠️ **THE HOVER STEP WAS ADDED, NOT INVENTED.** The zoom's only hover response WAS
+the opacity going .5 → 1. Removing the dimming without giving it the hint's hover
+would have left the zoom the one button on the bar that does not answer the cursor —
+a NEW divergence created by the very edit meant to remove one. The press feedback
+(`transform:scale(.94)`) it has always had from `.iconBtn` and is untouched.
+⚠️ Zoom stays white in BOTH themes — the pinpoint exception of 2026-08-03 is intact.
+
+**MEASURED after the edit:** hint and zoom carry byte-identical paint —
+`rgba(255,255,255,0.6)` and
+`rgba(255,255,255,0.7) 0px 4px 8px 0px inset, rgb(255,255,255) 0px 0px 0px 1px inset`,
+opacity `1` on both, at 390 and at 1280. The pause is untouched (`rgb(42,41,53)`, no
+shadow). Radius stays 16 against 1000, and the desktop zoom stays 48 against 56.
+
+**THE GUARDS MOVED WITH THE RULE, AND ONE OF THEM WAS INVERTED RATHER THAN DELETED:**
+the standalone pin «at rest it is semi-transparent 50%» now states the opposite and
+keeps a second arm (rest and press must read the SAME), because a return of
+`opacity:.5` is one line and that value has now moved twice. In the family assert the
+zoom's glow is compared **against the hint's** instead of against a literal — what he
+named is an EQUALITY OF TWO PLACES, and a literal there would outlive the next
+repaint of the pair and quietly stop guarding the named property. The radius pin
+stays as the fence that keeps a future unify pass from overreaching into geometry.
