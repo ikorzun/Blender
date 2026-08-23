@@ -1058,6 +1058,18 @@ window.__game = {
     PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
   // одна ли КАРТИНКА у двух пачек: на неё стоит ассерт веса (второй такой же
   // base64 в сборке невидим на глаз и стоит 54 КБ)
+  // ручки раскалённой корки: контур, свечение, зерно, скорость, масштаб,
+  // плюс три цвета градиента (по умолчанию — палитра пламени)
+  heatTune(o){
+    if (!o) return JSON.parse(JSON.stringify({ contour: HEAT.contour, inner: HEAT.inner,
+      grain: HEAT.grain, speed: HEAT.speed, scale: HEAT.scale,
+      cool: '#' + HEAT.cool.getHexString(), mid: '#' + HEAT.mid.getHexString(),
+      hot: '#' + HEAT.hot.getHexString() }));
+    for (const k of ['contour','inner','grain','speed','scale'])
+      if (o[k] != null) HEAT[k] = o[k];
+    for (const k of ['cool','mid','hot']) if (o[k] != null) HEAT[k].set(o[k]);
+    return heatApplyLive();
+  },
   packMatcapSrcShared(a, b){ return PACK_MATCAP_SRC[a] === PACK_MATCAP_SRC[b] && !!PACK_MATCAP_SRC[a]; },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));

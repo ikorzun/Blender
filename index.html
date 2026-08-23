@@ -9774,6 +9774,7 @@ const sparkRicochetFX  = fxBuilt('sparkRico', _sparkRicochetFX_impl);
 const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
 const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
+const heatShellFX      = fxBuilt('heat',     _heatShellFX_impl);
 const boltFX           = fxBuilt('bolt',     _boltFX_impl);
 function fxBuildBreak(reset){
   const out = {};
@@ -10597,6 +10598,7 @@ function igniteItem(it, ms){
   if (!it || !it.alive) return null;
   extinguishAll();                       // одновременно горит не больше одного
   fireSilhouetteFX(it);
+  heatShellFX(it);                       // раскалённая корка ПОД пламенем
   burningItem = it;
   burnUntil = performance.now() + (ms || FIRE_BURN_MS);
   return it;
@@ -10635,6 +10637,95 @@ function _fireSilhouetteFX_impl(item){
   const st = { item, obj: m, mat, t0: performance.now(), dying: 0 };
   fires.push(st);
   return () => { if (!st.dying) st.dying = performance.now(); };
+}
+// ===== РАСКАЛЁННАЯ КОРКА НА ГОРЯЩЕМ (слово владельца 2026-08-19) =====
+// Перенос вида «heatmap» из thrine.app. ⚠️⚠️ ТАМ ЭТО ЭФФЕКТ ПО КАРТИНКЕ: модель
+// рендерят в закадровую цель, размывают кромку и красят ПОЛНОЭКРАННЫМ шейдером,
+// а сам меш из кадра исключают (`replacesGeometry`). Нам такой конвейер не
+// годится: у них в кадре ОДНА модель, у нас 130-180 предметов, и обработка по
+// картинке накрывает кадр целиком — поштучно это цель рендера на предмет, чего
+// мобильный бюджет не выдержит (мы за то же вырезали `transmission`, он съедал
+// 55% кадра).
+// ⚠️ ПЕРЕНОСИТСЯ НЕ КОНВЕЙЕР, А ВЕЛИЧИНА. У них «тепло» — расстояние до кромки
+// силуэта; в 3D ровно это даёт `dot(нормаль, взгляд)`: фронт горячий, скользящий
+// край холодный. Изолинии, свечение, зерно и бегущая полоса считаются от неё же,
+// внутри материала накладки — без единого лишнего прохода.
+// ⚠️⚠️ ЭТО ВТОРАЯ НАКЛАДКА-РЕБЁНОК, А НЕ ПРАВКА МАТЕРИАЛА ПРЕДМЕТА. Канон
+// запрещает трогать материал: портреты коллекции рендерятся ТЕМ ЖЕ классом
+// материала, и «горячее» протекло бы в музей.
+// ⚠️ Палитра по умолчанию — ОБЩАЯ С ПЛАМЕНЕМ (FIRE_*): корка обязана читаться
+// как «этот предмет раскалился», а не как отдельный эффект. Синий вариант из
+// исходного пресета доступен ручкой.
+const HEAT = { contour: 0.40, inner: 0.45, grain: 0.20, speed: 0.40, scale: 1.0,
+               cool: FIRE_DEEP.clone(), mid: FIRE_HOT.clone(), hot: FIRE_CORE.clone() };
+function _heatShellFX_impl(item){
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.FrontSide,
+    uniforms: {
+      t: { value: 0 }, op: { value: 1 },
+      uContour: { value: HEAT.contour }, uInner: { value: HEAT.inner },
+      uGrain: { value: HEAT.grain }, uSpeed: { value: HEAT.speed },
+      uScale: { value: HEAT.scale },
+      uCool: { value: HEAT.cool.clone() }, uMid: { value: HEAT.mid.clone() },
+      uHot: { value: HEAT.hot.clone() },
+    },
+    vertexShader: [
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      // корка сидит на предмете, а не раздувается: 0.012 только чтобы не спорить
+      // с его же поверхностью по глубине
+      '  vN = normalize(normalMatrix*normal); vP = position;',
+      '  vec4 mv = modelViewMatrix*vec4(position + normal*0.012, 1.0); vV = mv.xyz;',
+      '  gl_Position = projectionMatrix*mv; }',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float t; uniform float op; uniform float uContour; uniform float uInner;',
+      'uniform float uGrain; uniform float uSpeed; uniform float uScale;',
+      'uniform vec3 uCool; uniform vec3 uMid; uniform vec3 uHot;',
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      // ЭТО И ЕСТЬ ИХ «расстояние до кромки»: 1 в центре, 0 на скользящем крае
+      '  float ndv = clamp(dot(normalize(vN), normalize(-vV)), 0.0, 1.0);',
+      '  float heat = pow(ndv, 1.0/max(0.15, uInner));',
+      // бегущие тёмные пятна — аналог их shadowShape, по объектной координате,
+      // чтобы полоса ехала по предмету, а не по экрану
+      '  float band = sin(vP.y*uScale*6.0 - t*uSpeed*4.0 + sin(vP.x*uScale*4.0)*1.5);',
+      '  heat *= 0.78 + 0.22*band;',
+      // контурные изолинии той же величины
+      '  float bands = 4.0 + 16.0*uContour;',
+      '  float ln = abs(fract(heat*bands) - 0.5)*2.0;',
+      '  heat += (1.0 - smoothstep(0.72, 1.0, ln))*0.30*step(0.01, uContour);',
+      '  heat += uGrain*(fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233)))*43758.5453) - 0.5);',
+      '  heat = clamp(heat, 0.0, 1.0);',
+      '  vec3 c = heat < 0.5 ? mix(uCool, uMid, heat*2.0) : mix(uMid, uHot, (heat - 0.5)*2.0);',
+      // холодные края ПРОЗРАЧНЫ — силуэт и цвет предмета остаются читаемыми,
+      // раскаляется середина
+      '  float a = op*smoothstep(0.06, 0.38, heat);',
+      '  if (a < 0.02) discard;',
+      '  gl_FragColor = vec4(c, a); }',
+    ].join('\n'),
+  });
+  const m = new THREE.Mesh(item.mesh.geometry, mat);
+  m.userData.keepGeo = true;         // геометрия ОБЩАЯ с предметом — не диспозить
+  m.renderOrder = 8;                 // ПОД пламенем (у него 9): огонь остаётся снаружи
+  item.mesh.add(m);
+  const st = { item, obj: m, mat, t0: performance.now(), dying: 0 };
+  fires.push(st);                    // тик, гашение и уборка — общие с пламенем
+  return () => { if (!st.dying) st.dying = performance.now(); };
+}
+// живое применение ручек к УЖЕ горящей корке — иначе подбор требовал бы новой
+// вспышки раз в 30 секунд
+function heatApplyLive(){
+  let n = 0;
+  for (const f of fires){
+    const u = f.mat && f.mat.uniforms;
+    if (!u || !u.uContour) continue;
+    u.uContour.value = HEAT.contour; u.uInner.value = HEAT.inner;
+    u.uGrain.value = HEAT.grain; u.uSpeed.value = HEAT.speed; u.uScale.value = HEAT.scale;
+    u.uCool.value.copy(HEAT.cool); u.uMid.value.copy(HEAT.mid); u.uHot.value.copy(HEAT.hot);
+    n++;
+  }
+  return n;
 }
 function tickFires(){
   const now = performance.now();
@@ -19656,6 +19747,18 @@ window.__game = {
     PACK_MATCAP_GAIN[pack] = g; return packMatcapApply(pack, PACK_MATCAP_MIX[pack]); },
   // одна ли КАРТИНКА у двух пачек: на неё стоит ассерт веса (второй такой же
   // base64 в сборке невидим на глаз и стоит 54 КБ)
+  // ручки раскалённой корки: контур, свечение, зерно, скорость, масштаб,
+  // плюс три цвета градиента (по умолчанию — палитра пламени)
+  heatTune(o){
+    if (!o) return JSON.parse(JSON.stringify({ contour: HEAT.contour, inner: HEAT.inner,
+      grain: HEAT.grain, speed: HEAT.speed, scale: HEAT.scale,
+      cool: '#' + HEAT.cool.getHexString(), mid: '#' + HEAT.mid.getHexString(),
+      hot: '#' + HEAT.hot.getHexString() }));
+    for (const k of ['contour','inner','grain','speed','scale'])
+      if (o[k] != null) HEAT[k] = o[k];
+    for (const k of ['cool','mid','hot']) if (o[k] != null) HEAT[k].set(o[k]);
+    return heatApplyLive();
+  },
   packMatcapSrcShared(a, b){ return PACK_MATCAP_SRC[a] === PACK_MATCAP_SRC[b] && !!PACK_MATCAP_SRC[a]; },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));
