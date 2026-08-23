@@ -3799,10 +3799,15 @@ window.bridge = {
     'effect profile: kind labels are unique (collision: ' + kinds.dup + ')');
   // ⚠️ KEEP THE NUMBER IN SYNC WITH THE LIST in 70-fx: 15 -> 13 -> +impactFX —
   // the dead juiceFX and sparkFX were removed, then screenDripsFX (the drops on the glass of
-  // the screen were taken out by the owner's word 2026-08-02). If you change the list of constructors —
-  // change this number too, otherwise the guard will go red on a healthy build.
-  expect(kinds.kinds.length === 14,
-    'effect profile: ALL 14 constructors are wrapped (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
+  // the screen were taken out by the owner's word 2026-08-02); 14 -> 16 on 2026-08-23,
+  // the heat crust under the flame and the ice one under the block (`heat` and `chill`).
+  // If you change the list of constructors — change this number too, otherwise the guard
+  // will go red on a healthy build.
+  // ⚠️⚠️ THE LITERAL IS DELIBERATE AND MUST NOT BE DERIVED FROM `fxKinds()` ITSELF: the property
+  // asserted is «every constructor is WRAPPED», and unwrapping one (`const fooFX = _impl`)
+  // lowers BOTH sides at once — a derived number would go green on exactly that defect.
+  expect(kinds.kinds.length === 16,
+    'effect profile: ALL 16 constructors are wrapped (' + kinds.kinds.length + ': ' + kinds.kinds.join(',') + ')');
   expect(fxb.kinds.indexOf('shard') >= 0 && fxb.by.shard && fxb.by.shard.n >= 1,
     'effect profile: shards report as a separate kind (' + JSON.stringify(fxb.by.shard) + ')');
   expect(fxb.kinds.indexOf('dust') >= 0 && fxb.by.dust && fxb.by.dust.n >= 4,
@@ -8942,7 +8947,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // itself — the neighbours would start measuring now 836, now 832 again.
     // ⚠️ AND `transform === 'none'` ON BOTH BUTTONS is also part of «delete the other
     // animations»: without this field bringing back a `scale` on press would have passed green.
-    const hov = await deskPage.evaluate(() => ({
+    // ⚠️⚠️ ITS OWN FRESH PAGE, AND THAT IS NOT TIDINESS — IT IS THE AGEING CLASS ALREADY
+    // RECORDED IN THE CANON (2026-08-22-v, the fifth miss). `deskPage` is opened ~550 lines
+    // above with `skipIntro()`, i.e. the game on it RUNS all that time: the mixer grinds the
+    // pile on idle, the level plays ITSELF out and `#winOverlay` comes up — after which
+    // `page.hover` cannot reach the button and falls off by timeout, killing the run WITHOUT
+    // a verdict (zero reds, plenty of greens — indistinguishable from «it broke off itself»).
+    // It fired for real on 2026-08-23: a section added in the MIDDLE of the file (the ice
+    // crust) lengthened this page's life by seconds and tipped it over. The sibling touch arm
+    // was cured the same way; do not cure this by the ORDER of the sections — that hides the
+    // fragility until the next insertion.
+    const hovPage = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    hovPage.on('pageerror', e => errors.push('PAGEERROR(shake-hover): ' + e.message));
+    await hovPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await hovPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await hovPage.evaluate(() => { window.__game.skipIntro(); });
+    const hov = await hovPage.evaluate(() => ({
       shakeBg: getComputedStyle(document.getElementById('shakeBtn')).backgroundColor,
       hintBg: getComputedStyle(document.getElementById('hintBtn')).backgroundColor,
       artTransform: getComputedStyle(document.querySelector('.shake-art')).transform,
@@ -8950,16 +8970,17 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       transition: getComputedStyle(document.getElementById('shakeBtn')).transitionProperty,
       transitionDur: getComputedStyle(document.getElementById('shakeBtn')).transitionDuration,
       rectBefore: JSON.stringify(document.getElementById('shakeBtn').getBoundingClientRect()) }));
-    await deskPage.hover('#shakeBtn');
-    const hov2 = await deskPage.evaluate(() => ({
+    await hovPage.hover('#shakeBtn');
+    const hov2 = await hovPage.evaluate(() => ({
       shakeBg: getComputedStyle(document.getElementById('shakeBtn')).backgroundColor,
       hintBg: getComputedStyle(document.getElementById('hintBtn')).backgroundColor,
       artTransform: getComputedStyle(document.querySelector('.shake-art')).transform,
       rectAfter: JSON.stringify(document.getElementById('shakeBtn').getBoundingClientRect()) }));
-    await deskPage.hover('#hintBtn');
-    const hov3 = await deskPage.evaluate(() => ({
+    await hovPage.hover('#hintBtn');
+    const hov3 = await hovPage.evaluate(() => ({
       shakeBg: getComputedStyle(document.getElementById('shakeBtn')).backgroundColor,
       hintBg: getComputedStyle(document.getElementById('hintBtn')).backgroundColor }));
+    await hovPage.close();
     await deskPage.close();
     console.log('buttons-hover:', JSON.stringify({ idle: hov, onShake: hov2, onHint: hov3 }));
     // ⛔ IDLE MOVED .20 → .40 (the owner's word 2026-08-22-v, together with
