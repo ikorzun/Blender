@@ -401,6 +401,9 @@ function freezeItem(it){
   it.key = 'FROZEN#' + Math.floor(Math.random() * 1e9);   // уникален — вне парных механик
   it.frozenNeedItems = FROZEN_PAIRS_N * 2;                // зачёт ШТУКАМИ: 2 штуки = пара
   it.frozenGotItems = 0;
+  // ⚠️ КОРКА ПРЕСЕТА — НА САМОМ ПРЕДМЕТЕ, ПОД ЛЬДОМ (renderOrder 2 против 3):
+  // владелец просил «замороженный объект ВНУТРИ с коркой как была в пресете».
+  chillShellFX(it);
   makeIceShell(it);
 }
 // ГЛЫБА — ДВА НИЗКОПОЛИГОНАЛЬНЫХ СЛОЯ ПОВЕРХ МЕША (приём накладки огня:

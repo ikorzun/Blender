@@ -1060,7 +1060,22 @@ window.__game = {
   // base64 в сборке невидим на глаз и стоит 54 КБ)
   // ручки раскалённой корки: контур, свечение, зерно, скорость, масштаб,
   // плюс три цвета градиента (по умолчанию — палитра пламени)
-  heatTune(o){
+  heatTune(o, набор){
+    // 'cold' — набор ледяной корки (цвета исходного пресета), иначе горячий
+    if (o === 'cold' || набор === 'cold'){
+      const c = COLD;
+      if (o && typeof o === 'object'){
+        for (const k of ['contour','inner','grain','speed','scale']) if (o[k] != null) c[k] = o[k];
+        for (const k of ['cool','mid','hot']) if (o[k] != null) c[k].set(o[k]);
+        return heatApplyLive();
+      }
+      return { contour: c.contour, inner: c.inner, grain: c.grain, speed: c.speed,
+               scale: c.scale, cool: '#' + c.cool.getHexString(),
+               mid: '#' + c.mid.getHexString(), hot: '#' + c.hot.getHexString() };
+    }
+    return this.heatTuneHot(o);
+  },
+  heatTuneHot(o){
     if (!o) return JSON.parse(JSON.stringify({ contour: HEAT.contour, inner: HEAT.inner,
       grain: HEAT.grain, speed: HEAT.speed, scale: HEAT.scale,
       cool: '#' + HEAT.cool.getHexString(), mid: '#' + HEAT.mid.getHexString(),
@@ -1070,6 +1085,8 @@ window.__game = {
     for (const k of ['cool','mid','hot']) if (o[k] != null) HEAT[k].set(o[k]);
     return heatApplyLive();
   },
+  // сколько ледяных корок живёт (для стража: тушение огня их не трогает)
+  chillCount(){ return chills.length; },
   packMatcapSrcShared(a, b){ return PACK_MATCAP_SRC[a] === PACK_MATCAP_SRC[b] && !!PACK_MATCAP_SRC[a]; },
   packMatcapContrast(pack, c){
     if (c == null) return JSON.parse(JSON.stringify(PACK_MATCAP_CONTRAST));

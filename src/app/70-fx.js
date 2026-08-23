@@ -98,6 +98,7 @@ const wheelFX          = fxBuilt('wheel',    _wheelFX_impl);
 const sawFX            = fxBuilt('saw',      _sawFX_impl);
 const fireSilhouetteFX = fxBuilt('fire',     _fireSilhouetteFX_impl);
 const heatShellFX      = fxBuilt('heat',     _heatShellFX_impl);
+const chillShellFX     = fxBuilt('chill',    it => _heatShellFX_impl(it, COLD, 2));
 const boltFX           = fxBuilt('bolt',     _boltFX_impl);
 function fxBuildBreak(reset){
   const out = {};
@@ -908,7 +909,7 @@ function _sawFX_impl(item){
 // граблей, что у двух потребителей uVeil. Огонь только НАКЛАДКОЙ поверх меша.
 // ⚠️ ЖИВЁТ НЕОПРЕДЕЛЁННО ДОЛГО, поэтому не через addFX (тот про конечную жизнь):
 // свой список fires и свой тик из 99-main. Возвращает функцию тушения.
-const fires = [];
+const fires = [], chills = [];
 // ГОРЯЩИЙ ПРЕДМЕТ: состояние механики. Держим ЗДЕСЬ, рядом с огнём, а не в
 // геймплее — гореть умеет ровно этот модуль. Наружу отдаём только имя типа:
 // на нём диспетчер вешает бонус за сбор группы (стык, зона его).
@@ -981,16 +982,23 @@ function _fireSilhouetteFX_impl(item){
 // исходного пресета доступен ручкой.
 const HEAT = { contour: 0.40, inner: 0.45, grain: 0.20, speed: 0.40, scale: 1.0,
                cool: FIRE_DEEP.clone(), mid: FIRE_HOT.clone(), hot: FIRE_CORE.clone() };
-function _heatShellFX_impl(item){
+// ⚠️ ХОЛОДНЫЙ НАБОР — ЦВЕТА ИСХОДНОГО ПРЕСЕТА thrine, слово владельца
+// 2026-08-19 «замороженный объект внутри с коркой как была в пресете».
+// Числа оттуда же: contour 40, innerGlow 45, grain 20, speed 40, scale 100.
+const COLD = { contour: 0.40, inner: 0.45, grain: 0.20, speed: 0.40, scale: 1.0,
+               cool: new THREE.Color('#0b3a6b'), mid: new THREE.Color('#2fb8ff'),
+               hot: new THREE.Color('#eafcff') };
+function _heatShellFX_impl(item, набор, порядок){
+  набор = набор || HEAT;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.FrontSide,
     uniforms: {
       t: { value: 0 }, op: { value: 1 },
-      uContour: { value: HEAT.contour }, uInner: { value: HEAT.inner },
-      uGrain: { value: HEAT.grain }, uSpeed: { value: HEAT.speed },
-      uScale: { value: HEAT.scale },
-      uCool: { value: HEAT.cool.clone() }, uMid: { value: HEAT.mid.clone() },
-      uHot: { value: HEAT.hot.clone() },
+      uContour: { value: набор.contour }, uInner: { value: набор.inner },
+      uGrain: { value: набор.grain }, uSpeed: { value: набор.speed },
+      uScale: { value: набор.scale },
+      uCool: { value: набор.cool.clone() }, uMid: { value: набор.mid.clone() },
+      uHot: { value: набор.hot.clone() },
     },
     vertexShader: [
       'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
@@ -1030,27 +1038,52 @@ function _heatShellFX_impl(item){
   });
   const m = new THREE.Mesh(item.mesh.geometry, mat);
   m.userData.keepGeo = true;         // геометрия ОБЩАЯ с предметом — не диспозить
-  m.renderOrder = 8;                 // ПОД пламенем (у него 9): огонь остаётся снаружи
+  m.renderOrder = порядок != null ? порядок : 8;   // ПОД пламенем (9) / ПОД льдом (3)
   item.mesh.add(m);
-  const st = { item, obj: m, mat, t0: performance.now(), dying: 0 };
-  fires.push(st);                    // тик, гашение и уборка — общие с пламенем
+  const st = { item, obj: m, mat, t0: performance.now(), dying: 0, набор };
+  // ⚠️ РАЗНЫЕ СПИСКИ, И ЭТО НЕСУЩЕЕ: пламя гасит `extinguishAll` по таймеру
+  // горения, и попади туда ледяная корка — она умирала бы вместе с чужим
+  // огнём. У холодной свой конец: лёд разбили или предмет исчез.
+  (набор === COLD ? chills : fires).push(st);
   return () => { if (!st.dying) st.dying = performance.now(); };
 }
 // живое применение ручек к УЖЕ горящей корке — иначе подбор требовал бы новой
 // вспышки раз в 30 секунд
 function heatApplyLive(){
   let n = 0;
-  for (const f of fires){
+  for (const f of fires.concat(chills)){
     const u = f.mat && f.mat.uniforms;
     if (!u || !u.uContour) continue;
-    u.uContour.value = HEAT.contour; u.uInner.value = HEAT.inner;
-    u.uGrain.value = HEAT.grain; u.uSpeed.value = HEAT.speed; u.uScale.value = HEAT.scale;
-    u.uCool.value.copy(HEAT.cool); u.uMid.value.copy(HEAT.mid); u.uHot.value.copy(HEAT.hot);
+    const н = f.набор || HEAT;      // у льда свой набор, у пламени свой
+    u.uContour.value = н.contour; u.uInner.value = н.inner;
+    u.uGrain.value = н.grain; u.uSpeed.value = н.speed; u.uScale.value = н.scale;
+    u.uCool.value.copy(н.cool); u.uMid.value.copy(н.mid); u.uHot.value.copy(н.hot);
     n++;
   }
   return n;
 }
+// ЛЕДЯНАЯ КОРКА: живёт, пока предмет заморожен. Конец — разбили лёд
+// (`it.frozen` снимается в 80-gameplay) или предмет исчез.
+function tickChills(){
+  if (!chills.length) return;
+  const now = performance.now();
+  for (let i = chills.length - 1; i >= 0; i--){
+    const c = chills[i];
+    c.mat.uniforms.t.value = (now - c.t0)/1000;
+    if ((!c.item.alive || !c.item.frozen) && !c.dying) c.dying = now;
+    if (c.dying){
+      const k = (now - c.dying)/FIRE_FADE_MS;
+      c.mat.uniforms.op.value = Math.max(0, 1 - k);
+      if (k >= 1){
+        if (c.obj.parent) c.obj.parent.remove(c.obj);
+        c.mat.dispose();
+        chills.splice(i, 1);
+      }
+    }
+  }
+}
 function tickFires(){
+  tickChills();
   const now = performance.now();
   // догорел по времени ИЛИ предмет уже собрали/перемололи — гасим и отпускаем
   if (burningItem && (!burningItem.alive || now > burnUntil)){
