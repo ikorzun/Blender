@@ -1,5 +1,39 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-d: POINTS IN THE UNITS THE PLAYER SEES — the dispatcher
+
+«Why do I see +0 from a merge and still −1 on a mistake? The mixer eats 20 points per
+pair. Stop thinking about the denomination, we count points on the basis of it.»
+
+⛔⛔ THE «+0» WAS A REAL BUG AND THE DISPATCHER CAUSED IT THE DAY BEFORE. The pop was
+the difference of two values CLAMPED AT ZERO, so while the score sat in the minus every
+gain read «+0». It had been there for a month and surfaced only when the miss was
+re-based to 10 points against a pair's 2 — the minus stopped being an edge case.
+**A display rule that is only correct in the common case is a bug waiting for a balance
+change.** Fixed honestly; the cost is named — «Σ pops = chip change» now holds only
+above zero, because below it the pops describe the LEVEL score and the chip the WALLET.
+
+⚠️ «−1 ON A MISTAKE» WAS A STALE BUILD. Measured on the deployed file at the moment of
+his message: merge +2, miss −10. WHEN THE OWNER REPORTS A NUMBER THE LIVE BUILD DOES
+NOT PRODUCE, CHECK THE BUILD HE IS ON BEFORE THE CODE.
+
+✅ EVERY SCORE CONSTANT IS NOW `n * PT`, where PT is one visible point. SCORE_DENOM
+moved to the top of the balance block — it used to sit a hundred lines below the
+constants, which is precisely why the 2026-07-22 balance table was never re-based
+behind the 2026-07-24 denomination and the two sides quoted different numbers at each
+other in good faith for a month. ⛔ A bare number in a score constant is now a bug.
+
+⛔ THE GRINDER 2 → 20 POINTS: its literal never moved, its UNIT did.
+
+⚠️ THE RATIO IS NAMED FOR HIM: a pair 2, a mistake 10, the grinder 20. He set the last
+two; the MERGE value is the knob he has not touched and the one that decides whether
+sitting in the red is normal.
+
+✅ TWO GUARDS WHERE THERE WERE NONE: nothing read the grinder's cost, nothing read a
+pop at all. The new pair asserts the numbers IN POINTS and pins that a merge reads its
+true value WHILE THE SCORE IS NEGATIVE, with `negAt < 0` as the control.
+
+
 ### ACCEPTANCE 2026-08-23-g: THE HINT IS ROUND — the dispatcher
 
 «Round the button's shape», with the hint selected. Radius 16 → 80, which on a 56×56

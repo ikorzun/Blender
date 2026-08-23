@@ -40,7 +40,24 @@ function pairsForLevel(lv){
   return Math.min(PAIRS, PAIRS_START + (n - 1) * PAIRS_STEP);
 }
 const G = 22;
-const MATCH_SCORE = 10;      // score: 10 * N * (N-1) for a group of N
+// DENOMINATION ×10 (the owner's decision 2026-07-24 — «divide, denominate everything»): we
+// put score/10 into the wallet, the Boost/unlock prices are in the same small units. If the
+// scope is ever adjusted — the fix must land BEFORE the se record is finalized.
+// ⚠️ MOVED TO THE TOP OF THE BALANCE BLOCK 2026-08-23-d so the constants below can be written
+// in the PLAYER'S units. It used to live a hundred lines lower, which is exactly why the
+// balance table of 2026-07-22 was never re-based behind it.
+const SCORE_DENOM = 10;
+// ⛔⛔⛔ **ONE UNIT FOR THE WHOLE BALANCE: `PT` IS ONE POINT AS THE PLAYER SEES IT** (the
+// owner's word 2026-08-23-d, verbatim: «stop thinking about the denomination, it has already
+// happened and we count points on the basis of it»).
+// ⚠️⚠️ EVERY SCORE NUMBER BELOW IS NOW WRITTEN IN HIS UNITS AND MULTIPLIED BY `PT` ONCE. Read
+// `10 * PT` as «ten points», not as a hundred of something. Before this, the numbers in this
+// file were RAW and the screen divided them by ten, so the owner's «a miss costs 10» rendered
+// as «−1» for a month and both sides quoted different numbers at each other in good faith.
+// ⛔ DO NOT WRITE A BARE NUMBER INTO A SCORE CONSTANT AGAIN. If a value is not `n * PT`, it is
+// either not a score or it is a bug.
+const PT = SCORE_DENOM;
+const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a pair = 2 points
 // NEW BALANCE TABLE (the owner's spec 2026-07-22, via the dispatcher):
 // a miss got more expensive 7 -> 10; level 1 — NO score penalties at all;
 // levels 1..SCORE_CLAMP_LEVELS — the score is clamped at zero from below (the grind −20
@@ -64,15 +81,23 @@ const MATCH_SCORE = 10;      // score: 10 * N * (N-1) for a group of N
 // 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting the mixer eat
 // a pair, where it used to be the other way round. He named the MISTAKE and only the mistake —
 // this is his call to make, and it is flagged to him rather than decided here.
-const MISS_PENALTY = 100;
+const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d)
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)
 const FINALE_GRIND_MS = 220; // ms between leftovers in the FINALE (was 500; the owner's
 // word 2026-08-05 "the blender must grind the leftovers faster")
-const MIXER_PENALTY = 20;    // score penalty per pair
-const SURPRISE_BONUS = 150;  // the golden fish from the bottom: +150 + 5×level
-const SURPRISE_LEVEL_BONUS = 5;
+// ⛔⛔ 2 → 20 POINTS PER PAIR (the owner's word 2026-08-23-d: «the mixer eats 20 points per
+// pair»). ⚠️ THE LITERAL DID NOT MOVE — ITS UNIT DID: it used to be 20 RAW, i.e. 2 points on
+// screen, and the owner's number has always been twenty. This is the same re-basing that
+// MISS_PENALTY got, on the constant right beside it.
+// ⚠️ THE ORDER IS RESTORED BY IT: letting the grinder eat a pair (−20) is now twice as bad as
+// a mistake (−10), which is how it read before the denomination silently halved one of them.
+const MIXER_PENALTY = 20 * PT;   // score penalty per pair
+const SURPRISE_BONUS = 15 * PT;  // the golden fish from the bottom: +15 points + 0.5×level
+// ⚠️ HALF A POINT PER LEVEL, AND IT IS WRITTEN AS SUCH RATHER THAN ROUNDED: the sum is
+// rounded once, where it is applied, so the half-points accumulate honestly across levels.
+const SURPRISE_LEVEL_BONUS = 0.5 * PT;
 // ===== ACCUMULATION BY TYPE (the owner's spec 2026-07-22, via the dispatcher:
 // "if you combined [many] objects, then their multiplier by default
 // increases... with respect to each object"). The thresholds are approved as the series
@@ -130,11 +155,6 @@ const BOOST_TIER_CAP = 5;
 // BALANCE = the accumulated game score (denominated) − spending. Inside there are
 // two monotonic counters se/ss (anti-dupe), balance = se−ss is shown
 // in the chip, in the menu and in the leaderboard.
-// DENOMINATION ×10 (the owner's decision, the dispatcher's working assumption
-// 2026-07-24 — "divide, denominate everything"): we put score/10 into the wallet,
-// the Boost/unlock prices are in the same small units. If the owner adjusts
-// the scope — the fix must land BEFORE the se record is finalized.
-const SCORE_DENOM = 10;
 // UNLOCK A TYPE IN THE COLLECTION AHEAD OF TIME — LEVEL-SCALED (matrix #9, approved by the dispatcher
 // 2026-07-27, docs/STARS-STORE-ECONOMY.md §v3). Price = BASE + PER_LEVEL·level:
 // L1=1000 ... L50=10800. Linear to match the linear income (~700/level) → it keeps a dent of
@@ -275,7 +295,7 @@ const COMBO_STEPS = 5, COMBO_MISS_DROP = 2; // 5 tiers: slower growth (nerf −2
 // it goes out by timer OR after CHAIN_MISSES misses
 // ===== v1 META (docs/DESIGN-ROADMAP.md, with protection adjustments) =====
 const COIN_BASE = 20;        // coins for a win
-const COIN_PER_SCORE = 500;  // +1 coin for every 500 points (combos are profitable)
+const COIN_PER_SCORE = 50 * PT;  // +1 coin for every 50 points (combos are profitable)
 const PRICE_SHAKE = 25;      // a shake for coins — ONLY after the rewarded cap
 // HINT FOR AN AD (the owner's spec 2026-07-28, a lime "Ad" badge on the button):
 // charges ran out → the button offers a video → +1 charge. The cap is PER LEVEL, like

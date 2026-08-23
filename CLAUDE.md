@@ -10282,3 +10282,69 @@ the pin moves WITH his word, carrying a tombstone of what it used to say, and is
 both times («if you meant the shape too, that is one line — ask, do not guess»). He
 answered in one sentence each time. Naming an open divergence costs a line; guessing
 it costs a round trip.
+
+## BATCH 2026-08-23-d: POINTS ARE COUNTED IN THE UNITS THE PLAYER SEES
+
+His words: «why do I see +0 points from a merge and still −1 on a mistake? The mixer
+eats 20 points per pair. **Stop thinking about the denomination, it has already
+happened and we count points on the basis of it.**»
+
+### THE «+0» WAS A REAL BUG, AND I CAUSED IT THE DAY BEFORE
+
+`scoreShownDelta` was the difference of two values **clamped at zero**
+(`floor(max(0, v)/10)`). While the level score sat in the minus BOTH ends clamped to
+0, so every gain popped up as «+0» — the game told the player his pair was worth
+nothing.
+⚠️⚠️ **IT EXISTED FOR A MONTH AND SURFACED ONLY NOW, AND THE REASON IS THE LESSON:**
+going into the minus used to be rare and shallow (a miss cost 1 point). Re-basing the
+miss to 10 points against a pair's 2 made the minus a NORMAL state. **A display rule
+that is only correct in the common case is a bug waiting for a balance change.**
+✅ The delta is now honest below zero; `scoreShownDenom` keeps its clamp because it
+feeds the chip and the bank, and a negative wallet is meaningless.
+⚠️ **THE COST, STATED RATHER THAN HIDDEN:** the identity «Σ of the pops = the change of
+the chip» (his #10 of 2026-07-27) now holds only ABOVE zero. Below it the pops describe
+the LEVEL SCORE and the chip describes the WALLET — two quantities that used to
+coincide. The alternative was to keep lying about the gain, and a wrong number is worse
+than two numbers that mean different things.
+
+### «−1 ON A MISTAKE» — HE WAS LOOKING AT A STALE BUILD
+
+Measured on the deployed build at the moment of his message: a merge **+2**, a miss
+**−10**, i.e. the re-basing of 2026-08-23-v was already live. The «−1» is the previous
+build, cached. ⚠️ Worth remembering before hunting: **when the owner reports a number
+that the live build does not produce, check the build he is on before the code.**
+
+### THE BALANCE NOW SPEAKS HIS LANGUAGE — `PT`
+
+⛔⛔⛔ **EVERY SCORE CONSTANT IS WRITTEN AS `n * PT`, WHERE `PT` IS ONE POINT AS THE
+PLAYER SEES IT.** `SCORE_DENOM` was moved to the top of the balance block for it — it
+used to live a hundred lines lower, which is exactly why the balance table of
+2026-07-22 was never re-based behind the denomination of 2026-07-24.
+⛔ **DO NOT WRITE A BARE NUMBER INTO A SCORE CONSTANT AGAIN.** If a value is not
+`n * PT`, it is either not a score or it is a bug.
+
+| | before | now | on screen |
+|---|---|---|---|
+| a pair | 20 raw | `1 * PT` ×N×(N−1) | **+2** |
+| a mistake | 100 raw | `10 * PT` | **−10** |
+| the grinder, per pair | 20 raw | `20 * PT` | **−20** |
+| the golden fish | 150 raw | `15 * PT` | +15 |
+
+⛔ **THE GRINDER MOVED 2 → 20 POINTS AND ITS LITERAL NEVER CHANGED — ITS UNIT DID.** It
+was 20 raw, i.e. 2 on screen, while his number has always been twenty.
+✅ **THE ORDER IS RESTORED BY IT:** losing a pair to the grinder is now twice as bad as
+a mistake, which is how it read before the denomination silently halved one of them.
+
+### THE RATIO IS NOW HIS TO JUDGE, AND IT IS NAMED
+
+A pair pays **2**, a mistake costs **10** (five pairs), the grinder **20** (ten pairs).
+That is what puts the level score in the minus for long stretches — the state that made
+the «+0» visible in the first place. He set the mistake and the grinder himself; the
+MERGE value is the knob he has not touched, and it is the one that decides whether the
+red is normal. Named to him with the arithmetic rather than adjusted here.
+
+✅ **TWO GUARDS ADDED WHERE THERE WERE NONE.** Nothing in 818 asserts read the grinder's
+score cost, and nothing read a pop at all. The new pair states the three numbers IN
+POINTS and pins that a merge reads its true value **while the score is negative** —
+with `negAt < 0` as the control, because without it the arm is satisfied by a run that
+never went into the minus, i.e. by exactly the state the bug hides in.

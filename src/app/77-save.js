@@ -336,7 +336,26 @@ function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Sa
 // by the carry (±1 drift). The guarantee: Σ of pops = the change of the chip
 // over the level, bit for bit.
 function scoreShownDenom(v){ return Math.floor(Math.max(0, v || 0) / SCORE_DENOM); }
-function scoreShownDelta(before, after){ return scoreShownDenom(after) - scoreShownDenom(before); }
+// ⛔⛔ THE DELTA IS HONEST BELOW ZERO SINCE 2026-08-23-d (the owner: «why do I see +0 points
+// from a merge?»). It used to be the difference of two CLAMPED values, so while the level
+// score sat in the minus BOTH ends clamped to 0 and every gain popped up as «+0» — the player
+// merged a pair and the game told him it was worth nothing.
+// ⚠️⚠️ WHY IT WENT UNNOTICED FOR A MONTH AND SURFACED NOW: going into the minus used to be
+// rare and shallow (a miss cost 1 point). Since the miss was re-based to 10 points against a
+// pair's 2, the minus is a normal state — so the clamp stopped being an edge case and became
+// what he sees. **A display rule that is only correct in the common case is a bug waiting for
+// a balance change.**
+// ⚠️ THE CONSEQUENCE, STATED RATHER THAN HIDDEN: the identity «Σ of the pops = the change of
+// the chip» (his #10 of 2026-07-27) now holds only while the score is ABOVE zero. Below zero
+// the pops keep describing the LEVEL SCORE honestly while the chip keeps describing the
+// WALLET, which cannot go negative — two different quantities that used to coincide. The
+// alternative was to keep lying about the gain, and a wrong number is worse than two numbers
+// that mean different things.
+// ⚠️ `scoreShownDenom` ITSELF KEEPS ITS CLAMP: it feeds the chip and the bank, and a negative
+// wallet is meaningless.
+function scoreShownDelta(before, after){
+  return Math.floor((after || 0) / SCORE_DENOM) - Math.floor((before || 0) / SCORE_DENOM);
+}
 // The LIVE balance for the in-game chip (a request to the INTERFACE: the chip
 // shows balance, not the per-level score): the banked balance + the still NOT
 // banked score of the current level. On a win the score goes into se, so the

@@ -1174,6 +1174,69 @@ page.on('response', (r) => {
     'it (the owner 2026-08-23-v). ⛔ A return to −10 raw brings back the «−1» he complained ' +
     'about twice (' + missL8 + ')');
 
+  // ═══ THE POINTS THE PLAYER ACTUALLY SEES (the owner's word 2026-08-23-d) ═══
+  // «Why do I see +0 points from a merge and still −1 on a mistake? The mixer eats 20 points per
+  //  pair. Stop thinking about the denomination, it has already happened and we count points on
+  //  the basis of it.»
+  // ⚠️⚠️ EVERYTHING BELOW IS ASSERTED IN **POINTS**, i.e. what flies out of the item, and the raw
+  // score is only the bridge. That is the whole subject of his complaint: for a month this file
+  // and the owner quoted different numbers to each other in good faith, because the constants
+  // were raw and the screen divided them by ten.
+  const ptsProbe = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const clear = () => document.querySelectorAll('.pop').forEach(e => e.remove());
+    const popOf = () => { const p = [...document.querySelectorAll('.pop')]
+      .map(e => e.textContent.trim()).filter(t => /^[+-]\d/.test(t)); return p.length ? p[p.length - 1] : null; };
+    g.setLevel(8); g.regen(); g.skipIntro();
+    await sleep(700);
+    // (a) A MERGE WHILE THE SCORE IS POSITIVE — the reference reading
+    clear(); const b1 = g.stats().score; g.autoMatch(); await sleep(350);
+    const up = { raw: g.stats().score - b1, pop: popOf() };
+    // (b) THE SAME MERGE WITH THE SCORE DEEP IN THE MINUS — the defect he reported
+    for (let i = 0; i < 3; i++) g.penalizeTest();
+    await sleep(250);
+    const negAt = g.stats().score;
+    clear(); const b2 = g.stats().score; g.autoMatch(); await sleep(350);
+    const upNeg = { raw: g.stats().score - b2, pop: popOf() };
+    // (c) THE MISTAKE and (d) THE GRINDER, both in points
+    clear(); const b3 = g.stats().score; g.penalizeTest(); await sleep(300);
+    const miss = { raw: g.stats().score - b3, pop: popOf() };
+    clear(); const b4 = g.stats().score; g.grindNow(); await sleep(600);
+    const grind = { raw: g.stats().score - b4, pop: popOf() };
+    return { up, upNeg, negAt, miss, grind };
+  });
+  console.log('points as seen:', JSON.stringify(ptsProbe));
+  // ⚠️⚠️ THE DEFECT HE REPORTED, AND IT IS THE HALF THAT CANNOT BE FAKED: a gain must read its
+  // true value EVEN WHILE THE SCORE IS NEGATIVE. The old display took the difference of two
+  // values clamped at zero, so below zero every merge popped «+0» — the game told the player his
+  // pair was worth nothing. `negAt < 0` is the CONTROL: without it the arm is satisfied by a run
+  // that never went into the minus at all, i.e. by exactly the state the bug hides in.
+  expect(ptsProbe.negAt < 0 && ptsProbe.up.raw > 0 && ptsProbe.upNeg.raw > 0 &&
+         ptsProbe.up.pop === '+' + (ptsProbe.up.raw / 10) &&
+         ptsProbe.upNeg.pop === '+' + (ptsProbe.upNeg.raw / 10),
+    '⛔⛔ A MERGE POPS ITS TRUE VALUE EVEN WITH THE SCORE IN THE MINUS (the owner 2026-08-23-d: ' +
+    '«why do I see +0 points from a merge?»). The score stood at ' + ptsProbe.negAt + ' raw and ' +
+    'the pair still read ' + ptsProbe.upNeg.pop + '. ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
+    'computing the pop as the difference of two values clamped at zero — the shape the display ' +
+    'had for a month, correct only while the score stayed positive. ⚠️ IT SURFACED ONLY WHEN THE ' +
+    'MISS WAS RE-BASED TO 10 POINTS AGAINST A PAIR\'S 2: the minus stopped being an edge case ' +
+    'and became a normal state (' + JSON.stringify(ptsProbe) + ')');
+  // ⚠️ THE THREE NUMBERS HE NAMED, IN HIS UNITS. The raw values are pinned because that is what
+  // the code holds, but each is stated as points in the message — if those two ever disagree
+  // again, the disagreement is the bug.
+  expect(ptsProbe.miss.raw === -100 && ptsProbe.miss.pop === '-10' &&
+         ptsProbe.grind.raw === -200 && ptsProbe.grind.pop === '-20',
+    '⚠️⚠️ A MISTAKE COSTS 10 POINTS AND THE GRINDER 20 PER PAIR — both as the player sees them ' +
+    '(the owner 2026-08-23-v and -d). ⛔ THE GRINDER MOVED 2 → 20 POINTS: its literal never ' +
+    'changed, its UNIT did — it was 20 raw, i.e. 2 on screen, while his number has always been ' +
+    'twenty. ⚠️ THE ORDER IS RESTORED BY IT: losing a pair to the grinder is now twice as bad ' +
+    'as a mistake, which is how it read before the denomination silently halved one of them. ' +
+    '⛔ SABOTAGE: writing a bare number into a score constant instead of `n * PT` — the value ' +
+    'then means raw units again and the player sees a tenth of it (' +
+    JSON.stringify({ miss: ptsProbe.miss, grind: ptsProbe.grind }) + ')');
+
+
   // A MISS ZEROES THE BUILD-UP OF THE TURBO (the owner's spec 2026-07-27; a REVERSAL of his own
   // former tuning «we reset the power chain too sharply», where it was −2).
   // The radius ladder (combo.level) meanwhile loses exactly COMBO_MISS_DROP=2, and is not
