@@ -46,7 +46,25 @@ const MATCH_SCORE = 10;      // score: 10 * N * (N-1) for a group of N
 // levels 1..SCORE_CLAMP_LEVELS — the score is clamped at zero from below (the grind −20
 // stays, but it does not push a beginner into the negative); the fish gets more expensive with level.
 // The single point of application is scorePenalty (80-gameplay).
-const MISS_PENALTY = 10;
+// ⛔⛔ 10 → 100 (the owner's word 2026-08-23-v: «the cost of a mistake is STILL −1 and not
+// −10»). ⚠️⚠️ THIS IS NOT A TENFOLD TIGHTENING INVENTED HERE — IT IS A RE-BASING INTO THE
+// UNITS HE ACTUALLY SEES, and the root cause is a date order in this very file: the balance
+// table above is his spec of 2026-07-22 («a miss got more expensive 7 → 10»), while the ×10
+// DENOMINATION (SCORE_DENOM, «divide, denominate everything») arrived on 2026-07-24 and
+// nobody re-based the penalties behind it. Every number on screen is `floor(score/10)`, so a
+// raw 10 has been popping up as «−1» ever since — his spec said ten and the player saw one.
+// ⚠️ THE PRICE, IN THE UNITS OF THE SCREEN, NAMED BECAUSE IT IS A REAL BALANCE MOVE: a pair
+// pays 10·2·1 = 20 raw = 2 shown, so a miss now costs FIVE PAIRS where it used to cost half of
+// one. Combined with 2026-08-23-a — where a tap on a pairless item became a full mistake —
+// searching the pile by poking is now genuinely expensive.
+// ⚠️ TWO CONSUMERS RIDE ALONG AND NEITHER WAS NAMED BY HIM: `penalizeDouble` (the early tap on
+// an ice block) is 2×, so it becomes 20 shown; and the paid ×5 booster multiplies penalties
+// too (his own decision 2026-07-28), so one miss under it reads −50.
+// ⛔ `MIXER_PENALTY` WAS **NOT** RE-BASED and is now the odd one out: the grinder still takes
+// 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting the mixer eat
+// a pair, where it used to be the other way round. He named the MISTAKE and only the mistake —
+// this is his call to make, and it is flagged to him rather than decided here.
+const MISS_PENALTY = 100;
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)

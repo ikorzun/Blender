@@ -695,10 +695,20 @@
      shadow paints the same ring and moves nothing.
      ⚠️ THE ORDER INSIDE box-shadow MATTERS: the rim is listed LAST so that the soft
      glow is painted over the crisp line and not the other way round. */
+  /* ⛔⛔ THE FILL .60 → .50 AND THE GLOW BECAME A FULL-ROUND ONE (the owner's word
+     2026-08-23-v: `fill: rgba(255,255,255,0.50); stroke-width:1px; stroke:#FFF;
+     box-shadow: 0 0 16px 0 #FFF inset`). The directional `0 4px 8px rgba(255,255,255,.70)`
+     — a glow from above — is replaced by an even `0 0 16px #FFF` at FULL opacity.
+     ⚠️ THE RIM STAYS AN INSET RING AND IS NOT PROMOTED TO A `border`: for this button he
+     wrote `stroke`, the Figma property whose default alignment is inside. It is also still
+     load-bearing — the magnifier sits at (5.7, 3.38) absolutely, and a border would push it
+     and the badge inward by a pixel under the global box-sizing.
+     ⚠️ THE ORDER STAYS: the rim is listed LAST so the soft glow is painted under the crisp
+     line and not over it. */
   #hintBtn { position:relative; pointer-events:auto; width:56px; height:56px;
     flex:none; border:none; padding:0; cursor:pointer;
-    border-radius:16px; background:rgba(255,255,255,.60);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
+    border-radius:16px; background:rgba(255,255,255,.50);
+    box-shadow:inset 0 0 16px 0 #fff, inset 0 0 0 1px #fff;
     display:block; -webkit-tap-highlight-color:transparent; }
   /* ⚠️ THE MAGNIFIER — BY EXPLICIT SIZES FROM THE NODE: 56×61 at the point (4, 1).
      ⛔⛔ THE SHADOW WAS REMOVED 2026-08-21-zh TOGETHER WITH THE BRUSH'S SHADOW — the owner took it out in
@@ -852,8 +862,8 @@
      feedback (`transform:scale(.94)`) it has always had from `.iconBtn`.
      ⚠️ ZOOM IS STILL WHITE IN BOTH THEMES — that pinpoint exception (2026-08-03) is untouched. */
   .zoomBtn, html.night .zoomBtn {
-    background:rgba(255,255,255,.60); color:#000;
-    box-shadow:inset 0 4px 8px 0 rgba(255,255,255,.70), inset 0 0 0 1px #fff; }
+    background:rgba(255,255,255,.50); color:#000;
+    box-shadow:inset 0 0 16px 0 #fff, inset 0 0 0 1px #fff; }
   /* ⚠️ THE GLYPH IS PAINTED NOT BY color, but by the rule «.iconBtn svg path { fill:var(--btn-fg) }»
      — at night the theme gave a WHITE plus/minus on a light backing (the owner's screenshot
      2026-08-04, his word: «always of black colour»). The pinpoint re-painter is below
@@ -1024,10 +1034,30 @@
      even more expensive: the caption stands on the axis x=84 and the hand on x=30, both
      absolutely positioned, so a 1px content-box shrink would move BOTH off their nodes'
      axes and turn the label guard red on a sound build. */
-  #shakeBtn { pointer-events:auto; position:relative; width:120px; height:56px; flex:none;
-    border:none; padding:0; cursor:pointer; display:block;
-    border-radius:16px; background:rgba(255,255,255,.60);
-    box-shadow:inset 0 4px 8px rgba(255,255,255,.70), inset 0 0 0 1px #fff;
+  /* ⛔⛔⛔ SHAKE IS AN AUTO-LAYOUT PILL NOW (the owner's word 2026-08-23-v, his CSS verbatim:
+     `display:inline-flex; height:56px; padding:8px 12px; align-items:center; gap:6px;
+     border-radius:80px; border:1px solid #FFF; background:rgba(255,255,255,0.50);
+     box-shadow:0 0 16px 0 #FFF inset`).
+     ⛔ IT CANCELS THE FIXED 120×56 WITH RADIUS 16 of 2026-08-22-g, and with it the whole
+     axis layout: the caption stood on the point x=84 and the hand on x=30, both absolutely
+     positioned, because the button had a FIXED width and the mock-up placed them by hand.
+     An auto-layout frame decides the width by its content instead, so the axes have nothing
+     left to be measured against — the row is now padding 12 | icon | gap 6 | caption | 12.
+     ⛔ AND THE FILL WENT .60 → .50, one day after .40 → .60. Third value in three days.
+     ⚠️⚠️ HERE THE RIM IS A REAL `border`, WHILE AT THE HINT AND THE ZOOM IT STAYS AN INSET
+     RING — AND THAT IS HIS OWN WORDING, NOT AN INCONSISTENCY OF MINE. For this button he
+     wrote `border: 1px solid #FFF`; for those two he wrote `stroke-width/stroke`, i.e. the
+     Figma property whose default alignment is INSIDE. It also happens to be safe here for
+     the first time: with a flex row there are no absolutely positioned children left for a
+     border to push inward — that was the whole reason the ring was chosen on 2026-08-23-a.
+     ⚠️ THE BADGE STAYS ABSOLUTE and still hangs 6px below the bottom edge. It now sits
+     against a radius-80 end instead of a radius-16 corner — he did not name it, so it is
+     left; if it reads wrong on the round end, that is one line. */
+  #shakeBtn { pointer-events:auto; position:relative; height:56px; flex:none;
+    padding:8px 12px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+    border-radius:80px; border:1px solid #fff; background:rgba(255,255,255,.50);
+    box-shadow:inset 0 0 16px 0 #fff;
     -webkit-tap-highlight-color:transparent; }
   /* ⚠️⚠️ THE CAPTION IS CENTRED ON THE POINT FROM THE NODE (x=84), AND NOT BY FLEX. Flex with
      a gap would have given a symmetrical layout, while in the mock-up the hand and the caption each stand
@@ -1039,8 +1069,13 @@
      ⚠️ THE COLOUR `#484472` IS HIS NUMBER AND THE SAME TONE AS THE CONTOUR OF THE ICONS (a measurement
      of the PNG gave the dominant 72,68,114 = #484472). The coincidence is not accidental, but is
      pinned by the value: he changes the asset silently. */
-  #shakeBtn .shake-txt { position:absolute; left:84px; top:50%;
-    transform:translate(-50%, -50%); pointer-events:none; white-space:nowrap;
+  /* ⛔ THE CAPTION IS A FLEX CHILD NOW (2026-08-23-v) — the axis x=84 is gone with the fixed
+     width that gave it meaning. Its type is untouched: 18px/700 `#484472`, the round family.
+     ⚠️ THE FONT-METRIC ARGUMENT THAT PUT IT ON AN AXIS STILL HOLDS AND IS NOW SERVED BETTER:
+     `SF Pro Rounded` exists only on Apple, elsewhere a fallback of different width is
+     substituted — on an axis the text merely grew around its centre, in an auto-layout row
+     the BUTTON grows around the text, which is what the owner's own frame does. */
+  #shakeBtn .shake-txt { pointer-events:none; white-space:nowrap;
     color:#484472; font-family:var(--font-round); font-size:18px;
     font-weight:700; line-height:1; }
   /* ⛔⛔ THE WHOLE MOTOR BEHAVIOUR OF THE ICON IS REMOVED (the owner's word 2026-08-21-p: «hover on
@@ -1073,7 +1108,16 @@
      is expressed exactly: 30−25 = 5 and 28−25 = 3. Pixel for pixel the same.
      ⚠️ AT THE CAPTION the transform STAYS — its width depends on the font, an axis cannot be
      expressed statically; not a single transform guard looks at it. */
-  #shakeBtn .shake-art { position:absolute; left:5px; top:3px; width:50px; height:50px;
+  /* ⛔ THE HAND IS A FLEX CHILD NOW (2026-08-23-v), not an absolutely placed 50×50 box at
+     (5,3). Its size is the CONTENT HEIGHT of the button: 56 − 2 (the border) − 16 (the
+     vertical padding) = 38. ⚠️ THE NUMBER IS WRITTEN OUT AND NOT DERIVED, because a
+     `height:100%` on a flex child of a row is the row's height, not the content box's, and
+     `align-self:stretch` alone would leave the width at 0 — the image inside is sized in
+     percentages. If the height or the padding ever move, this 38 moves with them.
+     ⚠️ THE DRAWING SHRANK WITH IT: the sheet used to be 50 so its ink read 44 wide (the
+     sheet's ink occupies 148 of 168). At 38 the ink is ~33.5. That follows from HIS numbers
+     — the frame he gave leaves 38 of vertical room — and is named rather than adjusted. */
+  #shakeBtn .shake-art { width:38px; height:38px; flex:none;
     display:block; pointer-events:none; }
   /* ⚠️ THE BRUSH IS BY EXPLICIT SIZES, AND NOT 100%/100%. The owner's asset arrived from
      Figma Dev Mode with `preserveAspectRatio="none"` — exactly the mine the canon
@@ -1191,6 +1235,17 @@
      the state is visible by COLOUR — that is stronger than width: «Ad» means «a video
      next», and confusing it with a number costs more than confusing two numbers. */
   #shakeLbl.ad, #hintCnt.ad { background:#c547ff; color:#fff; }
+  /* ⚠️⚠️ SHAKE'S BADGE IS OFFSET BY THE BORDER, AND THIS IS NOT A SECOND TRUTH ABOUT THE 6.
+     An absolutely positioned child is placed against the PADDING box, and since 2026-08-23-v
+     Shake carries a real `border:1px solid #fff` while the hint does not. With the shared
+     `left:0; bottom:-6px` the badge therefore sat 1px inward and hung only 5px below the
+     button's visible edge — a silent regression against his measured spec of 2026-08-22-v
+     («the counter comes out six pixels lower along the bottom edge»), caught by measuring
+     after the restyle, not by reading.
+     ⛔ THE SHARED RULE IS NOT EDITED: the hint has no border and is correct at −6/0. Only the
+     bordered button compensates, by exactly the border width. If the border ever goes, this
+     block goes with it. */
+  #shakeBtn #shakeLbl { left:-1px; bottom:-7px; }
   /* ⚠️ A VISUALLY HIDDEN WORD FOR THE ACCESSIBLE NAME. Not `display:none` and not
      `visibility:hidden` — they remove the node from the accessibility tree too, that
      is, the name would again become empty. A 1×1 frame with `clip-path` is the trick that
@@ -4305,7 +4360,25 @@ const MATCH_SCORE = 10;      // score: 10 * N * (N-1) for a group of N
 // levels 1..SCORE_CLAMP_LEVELS — the score is clamped at zero from below (the grind −20
 // stays, but it does not push a beginner into the negative); the fish gets more expensive with level.
 // The single point of application is scorePenalty (80-gameplay).
-const MISS_PENALTY = 10;
+// ⛔⛔ 10 → 100 (the owner's word 2026-08-23-v: «the cost of a mistake is STILL −1 and not
+// −10»). ⚠️⚠️ THIS IS NOT A TENFOLD TIGHTENING INVENTED HERE — IT IS A RE-BASING INTO THE
+// UNITS HE ACTUALLY SEES, and the root cause is a date order in this very file: the balance
+// table above is his spec of 2026-07-22 («a miss got more expensive 7 → 10»), while the ×10
+// DENOMINATION (SCORE_DENOM, «divide, denominate everything») arrived on 2026-07-24 and
+// nobody re-based the penalties behind it. Every number on screen is `floor(score/10)`, so a
+// raw 10 has been popping up as «−1» ever since — his spec said ten and the player saw one.
+// ⚠️ THE PRICE, IN THE UNITS OF THE SCREEN, NAMED BECAUSE IT IS A REAL BALANCE MOVE: a pair
+// pays 10·2·1 = 20 raw = 2 shown, so a miss now costs FIVE PAIRS where it used to cost half of
+// one. Combined with 2026-08-23-a — where a tap on a pairless item became a full mistake —
+// searching the pile by poking is now genuinely expensive.
+// ⚠️ TWO CONSUMERS RIDE ALONG AND NEITHER WAS NAMED BY HIM: `penalizeDouble` (the early tap on
+// an ice block) is 2×, so it becomes 20 shown; and the paid ×5 booster multiplies penalties
+// too (his own decision 2026-07-28), so one miss under it reads −50.
+// ⛔ `MIXER_PENALTY` WAS **NOT** RE-BASED and is now the odd one out: the grinder still takes
+// 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting the mixer eat
+// a pair, where it used to be the other way round. He named the MISTAKE and only the mistake —
+// this is his call to make, and it is flagged to him rather than decided here.
+const MISS_PENALTY = 100;
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)

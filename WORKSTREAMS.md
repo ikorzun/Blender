@@ -1,5 +1,37 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-v: THE MISTAKE COSTS TEN ON SCREEN; SHAKE BECOMES AN AUTO-LAYOUT PILL — the dispatcher
+
+Two items. «The cost of a mistake is still −1 and not −10» — HE WAS RIGHT, and the
+cause is a date order in 00-config: his balance table («a miss costs 10») is from
+2026-07-22, the ×10 denomination arrived 2026-07-24, and nobody re-based the
+penalties behind it. `MISS_PENALTY` 10 → 100; measured raw −100 / shown −10.
+⚠️ The dispatcher had reported «−10» to him three times while reading the RAW
+constant — he was reading the screen. **When a number is quoted to the owner, quote
+it in the units he sees.**
+⚠️ A pair pays 2 shown, so a mistake now costs five pairs; together with the
+pairless-tap change of 2026-08-23-a, poking to search is genuinely expensive. The
+grinder was NOT re-based and is now the odd one out (2 shown) — flagged, not decided.
+
+And his CSS for the three bar buttons. Shake is an auto-layout pill now — inline-flex,
+padding 8/12, gap 6, radius 80, a real 1px border, fill .50, an even `0 0 16px #FFF`
+glow — which CANCELS the fixed 120×56 of 2026-08-22-g and, with it, the axis layout
+(caption x=84, hand x=30). The hint and the zoom take the same paint but keep their
+shapes: he listed only paint properties for them.
+
+⚠️⚠️ THE RIM IS A `border` ON SHAKE AND A RING ON THE OTHER TWO BECAUSE THAT IS HOW HE
+WROTE IT (`border` vs `stroke`) — and it is safe on Shake for the first time, since a
+flex row has no absolutely positioned children to push.
+
+⚠️⚠️ THE BORDER SILENTLY ATE A PIXEL OF HIS OWN 6px BADGE OVERHANG (an absolute child
+is placed against the PADDING box) — caught by measuring after the restyle, not by
+reading. Only the bordered button compensates; the shared rule is untouched.
+
+⚠️ A GUARD'S OWN NAMED SABOTAGE BECAME THE SPEC: the 2026-08-22-g axis assert ended
+with «the sabotage: replace the axes with a flex and a gap». That is what he then
+asked for. A guard states a DECISION, not a truth.
+
+
 ### ACCEPTANCE 2026-08-23-b: THE ZOOM JOINS THE HINT'S STYLE — the dispatcher
 
 One item, with a frame: «do not take them into transparency, the style of these

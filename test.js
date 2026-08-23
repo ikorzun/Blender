@@ -1165,7 +1165,14 @@ page.on('response', (r) => {
   await page.mouse.click(25, 540);
   await page.waitForTimeout(300);
   const missL8 = await page.evaluate(() => window.__game.stats().score);
-  expect(missL8 === -10, 'lv.8: the full penalty of a miss −10 (' + missL8 + ')');
+  // ⛔⛔ 10 → 100 RAW (the owner's word 2026-08-23-v: «the cost of a mistake is STILL −1 and not
+  // −10»). ⚠️ IT IS NOT A TENFOLD TIGHTENING INVENTED BY ANYONE — it is a re-basing into the
+  // units of the SCREEN: his balance table of 2026-07-22 said «a miss costs 10», the ×10
+  // denomination arrived two days later, nobody re-based the penalties behind it, and the pop
+  // has been reading «−1» ever since. The number below is RAW; what he sees is raw/10.
+  expect(missL8 === -100, 'lv.8: the full penalty of a miss −100 raw = −10 as the player sees ' +
+    'it (the owner 2026-08-23-v). ⛔ A return to −10 raw brings back the «−1» he complained ' +
+    'about twice (' + missL8 + ')');
 
   // A MISS ZEROES THE BUILD-UP OF THE TURBO (the owner's spec 2026-07-27; a REVERSAL of his own
   // former tuning «we reset the power chain too sharply», where it was −2).
@@ -4214,8 +4221,16 @@ window.bridge = {
     const boosted = s1 - g.stats().score;
     return { plain, boosted, mult: g.scoreBoostMult() };
   });
-  expect(penSym.plain === 10 && penSym.boosted === 20 && penSym.mult === 2,
-    '⚠️ SYMMETRY: under x2 a miss costs ×2 (−' + penSym.plain + ' -> −' + penSym.boosted + ')');
+  // ⚠️⚠️ THE STATEMENT IS THE **RATIO**, NOT THE TWO AMOUNTS. The first edition pinned 10 and 20
+  // as literals and went red on a sound build the moment MISS_PENALTY was re-based 10 → 100
+  // (2026-08-23-v) — the symmetry it exists to guard had not moved at all. What the owner
+  // decided on 2026-07-28 is that the booster multiplies the punishment BY THE SAME FACTOR as
+  // the reward; the size of a miss is a different decision, guarded elsewhere.
+  // ⚠️ `plain > 0` IS THE SANITY ARM: without it the ratio is satisfied by two zeroes, i.e. by a
+  // build where penalties stopped costing anything at all.
+  expect(penSym.plain > 0 && penSym.mult === 2 && penSym.boosted === penSym.plain * penSym.mult,
+    '⚠️ SYMMETRY: under x2 a miss costs exactly ×2 — the RATIO is the statement, not the amount ' +
+    '(−' + penSym.plain + ' -> −' + penSym.boosted + ', mult ' + penSym.mult + ')');
 
   // THE CLAMP IS ALIVE AFTER THE MULTIPLICATION: a newcomer under x5 does not fly into the minus faster
   const penClamp = await page.evaluate(async () => {
@@ -4599,9 +4614,10 @@ window.bridge = {
     // MISTAKE. The second half is the one his answer turned on — `stats.misses` is what kills a
     // live turbo and zeroes the build-up toward the next one, so a build that took the 10 points
     // without counting the miss would satisfy «−10» and still not be what he asked for.
-    expect(npAfter.score === npBefore.score - 10,
+    expect(npAfter.score === npBefore.score - 100,
       '⛔⛔ VICTORY OVER HIS OWN SPEC OF 2026-07-29: a tap on an ACCESSIBLE item WITHOUT A PAIR ' +
-      'costs exactly −10 on lv.11 (the owner 2026-08-23-a). ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
+      'costs exactly −100 raw = −10 as the player sees it, on lv.11 (the owner 2026-08-23-a, the ' +
+      'amount re-based 2026-08-23-v). ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
       'dropping the `penalize(item.p)` call from the nopair branch of handleTap — the tap goes ' +
       'back to free and the search costs nothing again (' + npBefore.score + ' -> ' + npAfter.score + ')');
     expect(npAfter.misses === npBefore.misses + 1,
@@ -8939,6 +8955,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                labelColor: ct ? ct.color : null,
                labelAxis: tr ? +(tr.left + tr.width / 2 - r.left).toFixed(1) : null,
                handAxis: hr ? +(hr.left + hr.width / 2 - r.left).toFixed(1) : null,
+               // ⚠️ THE GAP BETWEEN THE ICON AND THE CAPTION — the number the owner dictated
+               // (2026-08-23-v, `gap: 6px`). It replaced the axes, which died with the fixed width.
+               capGap: (tr && hr) ? +(tr.left - hr.right).toFixed(2) : null,
                nameFromContent: (b.textContent || '').replace(/\s+/g, ' ').trim(),
                btnClass: b.className, colors: colors,
                width: Math.round(r.width), height: Math.round(r.height),
@@ -9023,18 +9042,31 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     //    (`border-radius:1000px`), the day/night rule (`--btn-bg`) and the removed
     //    motion `:active scale(.94)`. The hint had such an arm since
     //    2026-08-21-e, Shake had none AT ALL.
+    // ⛔⛔⛔ SHAKE IS AN AUTO-LAYOUT PILL SINCE 2026-08-23-v (his CSS verbatim: inline-flex,
+    //    height 56, padding 8/12, gap 6, radius 80, `border:1px solid #FFF`, fill .50, glow
+    //    `0 0 16px #FFF inset`). ⛔ THE FIXED 120 IS CANCELLED — the width is now decided by the
+    //    content, so it is asserted as a RANGE around the measured 121 rather than as a number:
+    //    the caption is `SF Pro Rounded` on Apple and a fallback of different width elsewhere,
+    //    and pinning a width would make this guard fail by FONT rather than by defect.
+    // ⛔ AND THE RIM IS A REAL `border` HERE, WHERE THE HINT KEEPS AN INSET RING — that is his
+    //    own wording (`border` for Shake, `stroke` for the other two), and it is safe for the
+    //    first time because the flex row has no absolutely positioned children left to push.
     expect(sh0.tag === 'BUTTON' && sh0.aria === null && !/iconBtn/.test(sh0.btnClass || '') &&
            sh0.nameFromContent === 'Shake ' + sh0.text &&
-           sh0.width === 120 && sh0.height === 56 &&
-           sh0.bg === 'rgba(255, 255, 255, 0.6)' && sh0.bgImage === 'none' &&   // ⛔ .40 → .60, the owner 2026-08-23-a
-           sh0.radius === '16px' &&
-           sh0.shadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&   // ⛔ the rim was appended 2026-08-23-a
+           sh0.width >= 110 && sh0.width <= 140 && sh0.height === 56 &&
+           sh0.bg === 'rgba(255, 255, 255, 0.5)' && sh0.bgImage === 'none' &&
+           sh0.radius === '80px' &&
+           sh0.shadow === 'rgb(255, 255, 255) 0px 0px 16px 0px inset' &&
            sh0.position === 'relative' && sh0.events === 'auto',
-      '⚠️⚠️ SHAKE IS 120×56 WITH A GLASS BACKING OF .60 AND A 1px WHITE RIM, RADIUS 16, WITH A ' +
-      'CAPTION (the owner 2026-08-23-a; ⛔ the .40 of 2026-08-22-v lived one day). ⚠️ THE RIM IS ' +
-      'PINNED AS THE SECOND, LAST LAYER OF box-shadow: a `border:1px solid #fff` paints the same ' +
-      'line and, under the global box-sizing:border-box, shrinks the content box to 54 and moves ' +
-      'the caption off its node axis — which the geometry in this very assert then catches (' +
+      '⚠️⚠️ SHAKE IS AN AUTO-LAYOUT PILL: height 56, radius 80, a REAL 1px white border, the ' +
+      'fill .50 and an even inner glow `0 0 16px #FFF` (the owner 2026-08-23-v, his CSS ' +
+      'verbatim). ⛔ IT CANCELS the fixed 120×56 with radius 16 of 2026-08-22-g, and the fill ' +
+      'moved for the third time in three days (.20 → .40 → .60 → .50). ⚠️ THE WIDTH IS A RANGE ' +
+      'AND NOT A NUMBER: an auto-layout frame is sized by its caption, and `SF Pro Rounded` ' +
+      'exists only on Apple — a pinned width would go red on a font substitution rather than on ' +
+      'a defect (measured 121). ⚠️ THE GLOW IS PINNED AS THE ONLY LAYER: the rim is a `border` ' +
+      'now, so a box-shadow with two layers here would mean the ring came back on top of the ' +
+      'border and the button carries two white lines (' +
       JSON.stringify({ tag: sh0.tag, aria: sh0.aria, name: sh0.nameFromContent,
                        size: [sh0.width, sh0.height],
                        bg: sh0.bg, image: sh0.bgImage, radius: sh0.radius,
@@ -9085,16 +9117,26 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // the caption itself. The pin `nameFromContent === 'Shake ' + text` below is what holds
     // this: let the space between the caption and the badge disappear — the name will glue into
     // «Shake3» and exactly it will go red.
+    // ⛔⛔ THE AXES ARE DEAD (2026-08-23-v). They were the right pin while the button had a
+    // FIXED width of 120 and its children were placed by hand; his new CSS makes it an
+    // auto-layout row, so the width follows the caption and an axis measured from the left edge
+    // is no longer a property of the design at all. ⚠️ The old comment below the assert used to
+    // name «replace the axes with a flex and a gap» as THE SABOTAGE — and that is precisely what
+    // the owner then asked for. Kept as a reminder that a guard states a decision, not a truth.
+    // ⚠️ WHAT REPLACES THEM IS THE FRAME HE DICTATED: padding 12 before the icon, a gap of 6
+    // after it, and the type of the caption, which he did NOT change and which therefore must
+    // not drift on the way through a layout rewrite.
     expect(sh0.label === 'Shake' && sh0.labelSize === '18px/700' &&
            sh0.labelColor === 'rgb(72, 68, 114)' &&
-           Math.abs(sh0.labelAxis - 84) <= 1 && Math.abs(sh0.handAxis - 30) <= 1,
-      '⚠️⚠️ THERE IS A «Shake» CAPTION ON THE BUTTON, 18/700 #484472, AXIS 84; THE HAND — AXIS 30 (' +
+           Math.abs(sh0.capGap - 6) <= 0.5 && Math.abs(sh0.hand[0] - 13) <= 0.5,
+      '⚠️⚠️ THE «Shake» CAPTION IS 18/700 #484472 AND SITS IN HIS AUTO-LAYOUT ROW: 12 of padding ' +
+      'to the icon (13 with the border), then a gap of EXACTLY 6 (the owner 2026-08-23-v, his ' +
+      'CSS verbatim). ⛔ THE AXES 84 AND 30 ARE CANCELLED together with the fixed width of 120 ' +
+      'that gave them meaning. ⚠️ THE TYPE IS PINNED BESIDE THE GEOMETRY ON PURPOSE: he rewrote ' +
+      'the FRAME and said nothing about the letters, so a layout pass that quietly resized or ' +
+      'recoloured them is exactly what this half catches (' +
       JSON.stringify({ label: sh0.label, size: sh0.labelSize, color: sh0.labelColor,
-        labelAxis: sh0.labelAxis, handAxis: sh0.handAxis }) + '). ' +
-      'The owner\'s word 2026-08-22-g + node 894:1555. ⛔ IT CANCELS the icon without ' +
-      'text, which lived for a day. ⚠️ TWO AXES IN ONE ASSERT: a fix that moved ' +
-      'only the hand would have left the caption in place and vice versa — while in the mockup this is ' +
-      'ONE layout. The sabotage: replace the axes with a flex and a gap — both will drift');
+        capGap: sh0.capGap, handLeft: sh0.hand && sh0.hand[0] }) + ')');
 
     // ⛔⛔ THE ICON IS NOT AN SVG ANY MORE BUT THE OWNER'S PNG (the word 2026-08-21-r «update
     // the icons of the magnifier and the hand, do not change their shape and do not modify them, they fit
@@ -9113,12 +9155,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // to bring back.
     expect(sh0.hasHand && sh0.iconTag === 'IMG' && sh0.natural === '168x168' &&
            sh0.outline === '72,68,114' &&
-           // ⛔⛔ THE HAND DOES NOT TAKE UP THE BUTTON'S WHOLE BOX ANY MORE (2026-08-22-g): the button
-           //    became a wide pill of 120×56 with a caption, while the hand by node 894:1555
-           //    stands on the left, with a drawing of 44×40 on the axis x=30. The sheet of the PNG is 50×50
-           //    at that (the arithmetic of the ink 148/168 — the analysis is in shell.html), the corner is (5, 3).
-           near(sh0.hand[0], 5) && near(sh0.hand[1], 3) &&
-           near(sh0.hand[2], 50) && near(sh0.hand[3], 50) &&
+           // ⛔⛔ THE HAND IS A FLEX CHILD NOW (2026-08-23-v), not a 50×50 sheet placed at (5,3).
+           //    Its box is the button's CONTENT box: 56 − 2 (border) − 16 (padding) = 38, and it
+           //    starts at 12 + 1 = 13 from the left edge. ⚠️ THE SHEET SHRANK 50 → 38, so the
+           //    drawing's ink went 44 → ~33.5 — that follows from HIS frame (8px of vertical
+           //    padding inside 56 leaves 38) and is recorded rather than corrected.
+           near(sh0.hand[0], 13) && near(sh0.hand[1], 9) &&
+           near(sh0.hand[2], 38) && near(sh0.hand[3], 38) &&
            sh0.handShadow === 'none' &&
            sh0.dupIds.length === 0 && sh0.brokenRefs.length === 0,
       '⚠️⚠️ THE HAND IS THE OWNER\'S PNG ACROSS THE BUTTON\'S WHOLE BOX, WITHOUT FILTERS (' +
@@ -9376,12 +9419,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('hint-magnifier:', JSON.stringify(mag));
     expect(mag.tag === 'BUTTON' && mag.aria === 'Hint' && !/iconBtn/.test(mag.classes) &&
            mag.width === 56 && mag.height === 56 &&
-           mag.bg === 'rgba(255, 255, 255, 0.6)' && mag.bgImage === 'none' &&   // ⛔ .40 → .60, the owner 2026-08-23-a
+           mag.bg === 'rgba(255, 255, 255, 0.5)' && mag.bgImage === 'none' &&
            mag.radius === '16px' &&
-           mag.btnShadow === 'rgba(255, 255, 255, 0.7) 0px 4px 8px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&   // ⛔ the rim was appended 2026-08-23-a
+           mag.btnShadow === 'rgb(255, 255, 255) 0px 0px 16px 0px inset, rgb(255, 255, 255) 0px 0px 0px 1px inset' &&
            mag.events === 'auto' && mag.position === 'relative',
-      '⚠️⚠️ THE HINT IS 56×56 WITH A GLASS BACKING OF .60 AND A 1px WHITE RIM, RADIUS 16 ' +
-      '(the owner 2026-08-23-a) (' +
+      '⚠️⚠️ THE HINT IS 56×56, FILL .50, AN EVEN INNER GLOW `0 0 16px #FFF` AND A 1px WHITE ' +
+      'RIM, RADIUS 16 (the owner 2026-08-23-v). ⛔ THE FILL MOVED FOR THE THIRD TIME IN THREE ' +
+      'DAYS (.20 → .40 → .60 → .50) and the glow stopped being directional. ' +
+      '⚠️⚠️ THE RADIUS 16 IS THE DELIBERATE DIVERGENCE FROM SHAKE, WHICH WENT TO 80 IN THE SAME ' +
+      'MESSAGE: for this button he listed only three PAINT properties (fill / stroke / shadow) ' +
+      'and no shape, so the squircle stays. If a future pass rounds it to a pill «for ' +
+      'consistency», that is a guess he never made and this pin is what stops it. ' +
+      '⚠️ THE RIM STAYS AN INSET RING HERE AND IS NOT A `border` LIKE SHAKE\'S — his own ' +
+      'wording (`stroke` for this one), and load-bearing: the magnifier sits at (5.7, 3.38) ' +
+      'absolutely and a border would push it and the badge inward by a pixel (' +
       JSON.stringify({ tag: mag.tag, classes: mag.classes, size: [mag.width, mag.height],
                        bg: mag.bg, radius: mag.radius, shadow: mag.btnShadow,
                        events: mag.events }) + '). ' +
@@ -9971,7 +10022,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // he named only the fill, and by this project's house rule an unnamed property is not
     // touched; the same thing happened when .20 became .40 and the hover was kept. The step
     // 60 → 80 is what the guard below now states, and it is smaller than it was on purpose.
-    const IDLE = 'rgba(255, 255, 255, 0.6)', FILLED = 'rgba(255, 255, 255, 0.8)';
+    // ⛔ IDLE .60 → .50 (the owner 2026-08-23-v). FILLED stays .80 — unnamed, so untouched.
+    const IDLE = 'rgba(255, 255, 255, 0.5)', FILLED = 'rgba(255, 255, 255, 0.8)';
     expect(hov.shakeBg === IDLE && hov.hintBg === IDLE &&
            hov2.shakeBg === FILLED && hov2.hintBg === IDLE &&
            hov3.hintBg === FILLED && hov3.shakeBg === IDLE &&
@@ -9982,7 +10034,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            // when there is no TIME — «delete the other animations» is about that.
            hov.btnTransform === 'none' && hov.transitionDur === '0s' &&
            hov.rectBefore === hov2.rectAfter,
-      '⚠️⚠️ HOVER FILLS THE BACKGROUND 60% → 80%, AND THAT IS THE ONLY THING IT DOES ' +
+      '⚠️⚠️ HOVER FILLS THE BACKGROUND 50% → 80%, AND THAT IS THE ONLY THING IT DOES ' +
       '(the owner\'s word 2026-08-21-p). ⛔ IT CANCELS his own word of 2026-08-21-g about ' +
       'the toss of the icon — it lived for a day. ⚠️ The hovering is checked ON EACH ' +
       'button SEPARATELY: their rule is common, and filling BOTH at once would be ' +
@@ -10117,7 +10169,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('buttons-hover(touch):', JSON.stringify(hovTouch));
     // ⛔ THE IDLE BACKGROUND MOVED .20 → .40 (2026-08-22-v). The arm lives 500 lines away
     //    from the main section, and when fixing the background it is the first thing forgotten.
-    expect(hovTouch.hasHover === false && hovTouch.bg === 'rgba(255, 255, 255, 0.6)' &&   // ⛔ .40 → .60 (2026-08-23-a)
+    expect(hovTouch.hasHover === false && hovTouch.bg === 'rgba(255, 255, 255, 0.5)' &&   // ⛔ .60 → .50 (2026-08-23-v)
            hovTouch.art === 'none',
       '⚠️⚠️ ON TOUCH THE BUTTON IS NOT FILLED ON HOVERING (' + JSON.stringify(hovTouch) +
       '). The gate is `@media (hover:hover) and (pointer:fine)`. ⚠️ The arm is OBLIGATORY: ' +
@@ -10175,7 +10227,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       probe.remove();
       const face = (el) => { const c = getComputedStyle(el), r = el.getBoundingClientRect();
         return { bg: c.backgroundColor, bgImage: c.backgroundImage, shadow: c.boxShadow,
-                 radius: c.borderRadius, opacity: c.opacity,
+                 radius: c.borderRadius, opacity: c.opacity, border: c.border,
                  w: +r.width.toFixed(2), h: +r.height.toFixed(2) }; };
       const hint = document.getElementById('hintBtn');
       const shake = document.getElementById('shakeBtn');
@@ -10192,6 +10244,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         zoomOut: face(document.getElementById('zoomOutBtn')),
         pause: face(document.getElementById('pauseBtn')),
         capAxis: +(txt.left + txt.width / 2 - sr.left).toFixed(2),
+        capGap: +(txt.left - art.right).toFixed(2),
         art: [+(art.left - sr.left).toFixed(2), +(art.top - sr.top).toFixed(2),
               +art.width.toFixed(2), +art.height.toFixed(2)],
         magBox: [+(mag.left - hr.left).toFixed(2), +(mag.top - hr.top).toFixed(2),
@@ -10209,34 +10262,59 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
 
     // ⚠️ ONE CONSTANT FOR THE WHOLE FAMILY AND NOT FOUR COPIES: the owner's number is `.60`, and
     //    the STATEMENT is that the four nodes wear the SAME fill. Retune the fill — one line moves.
-    const BR_FILL = 'rgba(255, 255, 255, 0.6)';
+    const BR_FILL = 'rgba(255, 255, 255, 0.5)';   // ⛔ .60 → .50, the owner 2026-08-23-v
     // ⚠️ THE RIM IS PINNED AS THE LAST LAYER AND NOT MERELY AS «present»: shell.html states the
     //    order is load-bearing (the rim is listed after the soft glow). `$` is the whole point —
     //    an assert on «contains» would be green on a build that put the rim first.
     const BR_RIM = /, rgb\(255, 255, 255\) 0px 0px 0px 1px inset$/;
     const nearBtn = (a, b) => Math.abs(a - b) < 0.05;
+    // ⛔⛔ THE FAMILY SPLIT IN TWO ON 2026-08-23-v, AND THE SPLIT IS HIS OWN WORDING. For SHAKE he
+    //    wrote `border: 1px solid #FFF`; for the hint and the zoom he wrote `stroke-width/stroke`,
+    //    the Figma property whose default alignment is INSIDE. So Shake wears a real border and
+    //    the other two keep the inset ring — and the family test can no longer expect one shape
+    //    of `box-shadow` from all four. What ALL of them still share is the fill and the even
+    //    glow `0 0 16px #FFF` he gave to every one of them.
+    // ⚠️ SHAKE IS CHECKED FOR THE **ABSENCE** OF THE RING: with a border in place, a ring in the
+    //    box-shadow would mean TWO white lines on one button — the exact mess a careless «unify
+    //    the rim» pass produces, and nothing else in the file would notice it.
+    const BR_GLOW = 'rgb(255, 255, 255) 0px 0px 16px 0px inset';
     const brFamily = (s) => [s.hint, s.shake, s.zoomIn, s.zoomOut]
-      .every(b => b.bg === BR_FILL && b.bgImage === 'none' && BR_RIM.test(b.shadow));
+      .every(b => b.bg === BR_FILL && b.bgImage === 'none' && b.shadow.indexOf(BR_GLOW) === 0) &&
+      [s.hint, s.zoomIn, s.zoomOut].every(b => BR_RIM.test(b.shadow)) &&
+      !BR_RIM.test(s.shake.shadow) && /^1px solid rgb\(255, 255, 255\)$/.test(s.shake.border || '');
     // ⚠️ `bgImage === 'none'` IS IN THE FAMILY TEST FOR THE SAME REASON AS AT SHAKE ABOVE: a fill can
     //    be brought back by a gradient, and a check on `background-color` alone would not see it.
-    const brUnmoved = (s) => s.shake.w === 120 && s.shake.h === 56 &&
+    // ⛔⛔ SHAKE'S GEOMETRY IS NOW AUTO-LAYOUT, so «nothing moved» is stated differently for it:
+    //    the caption axis 84 and the hand frame [5,3,50,50] died with the fixed 120 that gave
+    //    them meaning (2026-08-23-v). What replaces them is the FRAME HE DICTATED — padding 12
+    //    to the icon, a gap of 6 to the caption, and an icon that exactly fills the content
+    //    height (56 − 2 border − 16 padding = 38). Those three numbers are his; the width is not,
+    //    it is whatever the caption needs.
+    // ⚠️ THE HINT'S CHILDREN ARE STILL PINNED ABSOLUTELY, because the hint still has no border
+    //    and its magnifier is still placed by hand — that half of the border-swap detector is
+    //    intact and is exactly what would catch a `border` creeping onto THIS button.
+    const brUnmoved = (s) => s.shake.h === 56 && s.shake.w >= 110 && s.shake.w <= 140 &&
       s.hint.w === 56 && s.hint.h === 56 &&
-      nearBtn(s.capAxis, 84) &&
-      nearBtn(s.art[0], 5) && nearBtn(s.art[1], 3) &&
-      nearBtn(s.art[2], 50) && nearBtn(s.art[3], 50) &&
+      nearBtn(s.art[0], 13) && nearBtn(s.art[1], 9) &&
+      nearBtn(s.art[2], 38) && nearBtn(s.art[3], 38) &&
+      nearBtn(s.capGap, 6) &&
       nearBtn(s.magBox[0], 0) && nearBtn(s.magBox[1], 0) &&
       nearBtn(s.magBox[2], 56) && nearBtn(s.magBox[3], 56);
     expect(brDesk.vw === 1280 && brMob.vw === 390 &&
            brDesk.zoomIn.w === 48 && brMob.zoomIn.w === 56 &&
            brFamily(brDesk) && brFamily(brMob) &&
            brUnmoved(brDesk) && brUnmoved(brMob),
-      '⚠️⚠️ ALL THREE BUTTONS WEAR THE FILL .60 AND THE 1px WHITE RIM AS THE LAST INSET LAYER, ' +
-      'AND NOT ONE CHILD MOVED (the owner\'s word 2026-08-23-a: «update the style of the buttons, ' +
-      'including the zoom buttons: fill: rgba(255,255,255,0.60); stroke-width: 1px; stroke: #FFF»). ' +
-      '⛔⛔ THIS MOVES HIS OWN NUMBER OF 2026-08-22-v: the fill .40 → .60, and the rim is NEW. ' +
-      '⚠️⚠️ THE SABOTAGE THIS ASSERT EXISTS FOR is to «simplify» the rim into ' +
+      '⚠️⚠️ ALL FOUR NODES WEAR THE FILL .50 AND THE EVEN GLOW `0 0 16px #FFF` AS THE FIRST ' +
+      'LAYER; THE HINT AND THE ZOOM CARRY THE 1px RIM AS AN INSET RING, SHAKE CARRIES IT AS A ' +
+      'REAL BORDER, AND SHAKE\'S FRAME IS HIS AUTO-LAYOUT (padding 12, gap 6, icon 38) ' +
+      '(the owner 2026-08-23-v). ⛔⛔ THIS MOVES HIS OWN NUMBERS OF ONE DAY EARLIER: the fill ' +
+      '.60 → .50 and the directional glow became even. ⚠️⚠️ THE RIM SPLIT IS HIS WORDING, NOT ' +
+      'AN INCONSISTENCY: `border` for Shake, `stroke` for the other two. Shake is asserted to ' +
+      'have NO ring in its box-shadow precisely so a «unify the rim» pass cannot give it two ' +
+      'white lines at once. ' +
+      '⚠️⚠️ THE SABOTAGE THIS ASSERT STILL EXISTS FOR is to «simplify» the HINT\'S ring into ' +
       '`border:1px solid #fff`: `box-sizing:border-box` is global, so the OUTER box stays ' +
-      '120×56 / 56×56 and the build LOOKS right, while the content box shrinks to 54 and every ' +
+      '56×56 and the build LOOKS right, while the content box shrinks to 54 and every ' +
       'absolutely positioned child moves in by a pixel — measured on that build: the caption axis ' +
       '84 → 85, the hand [5,3,50,50] → [6,4,50,50], the magnifier [0,0,56,56] → [1,1,54,54]. ' +
       'That is why the geometry stands in the SAME assert as the rim and not in a neighbouring one. ' +
@@ -12326,9 +12404,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // ⚠️ −20, and not −40: the double penalty of a stone = 2×MISS_PENALTY = 2×10 (the canon,
       // the table 2026-07-22). The first version of the assert doubled an ALREADY doubled number
       // from memory — the mechanic was right, it was the expectation that lied.
-      expect(penalty.delta === -20 && penalty.miss === 1,
-        '⚠️ ICE BLOCK: a tap before the time — the penalty IS AS AT A STONE (double, 2×10 = −20 raw), the miss is counted (' +
-        JSON.stringify(penalty) + ')');
+      expect(penalty.delta === -200 && penalty.miss === 1,
+        '⚠️ ICE BLOCK: a tap before the time — the penalty IS AS AT A STONE (double, 2×100 = −200 ' +
+        'raw = −20 as the player sees it), the miss is counted. ⛔ IT RODE ALONG WITH THE ' +
+        'RE-BASING OF MISS_PENALTY 10 → 100 (2026-08-23-v) and was NOT named by the owner — the ' +
+        'double stays a double, so if he ever wants the ice tap priced separately it needs its ' +
+        'own constant rather than a second multiplier here (' + JSON.stringify(penalty) + ')');
     }
     // ── THE CREDITING UP TO THE FACT of readiness (a poll, not a count of calls) + the pulse
     const phase2 = await fz.evaluate(async (arg) => {

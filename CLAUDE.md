@@ -10183,3 +10183,72 @@ zoom's glow is compared **against the hint's** instead of against a literal — 
 named is an EQUALITY OF TWO PLACES, and a literal there would outlive the next
 repaint of the pair and quietly stop guarding the named property. The radius pin
 stays as the fence that keeps a future unify pass from overreaching into geometry.
+
+## BATCH 2026-08-23-v: THE MISTAKE COSTS WHAT HE SEES, AND SHAKE BECOMES AN AUTO-LAYOUT PILL
+
+### 1. «THE COST OF A MISTAKE IS STILL −1 AND NOT −10»
+
+⚠️⚠️ **HE WAS RIGHT, AND THE BUG IS A DATE ORDER IN `00-config`, NOT A DISPLAY FAULT.**
+His balance table of 2026-07-22 says «a miss got more expensive 7 → 10». The ×10
+DENOMINATION (`SCORE_DENOM`, «divide, denominate everything») arrived on 2026-07-24,
+**and nobody re-based the penalties behind it**. Every number on screen is
+`floor(score/10)`, so his «10» has been popping up as «−1» for a month. He was told
+«−10» in three separate reports because the dispatcher was reading the RAW constant
+and the player was reading the screen.
+✅ `MISS_PENALTY` 10 → **100**. Measured: raw −100, shown **−10**.
+⚠️ **THE PRICE, IN THE UNITS OF THE SCREEN:** a pair pays 10·2·1 = 20 raw = **2
+shown**, so a mistake now costs FIVE PAIRS where it used to cost half of one.
+Together with 2026-08-23-a — where a tap on a pairless item became a full mistake —
+searching the pile by poking is now genuinely expensive. Named to him.
+⚠️ **TWO CONSUMERS RODE ALONG, NEITHER NAMED BY HIM:** the early tap on an ice block
+is 2× (→ 20 shown), and the paid ×5 booster multiplies penalties (his decision
+2026-07-28), so one miss under it reads −50.
+⛔ **`MIXER_PENALTY` WAS NOT RE-BASED AND IS NOW THE ODD ONE OUT:** the grinder still
+takes 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting
+the mixer eat a pair, where it used to be the other way round. He named the MISTAKE
+and only the mistake — flagged to him rather than decided here.
+⚠️ **A GUARD WENT RED ON A SOUND BUILD AND WAS RE-BASED, NOT PATCHED:** the booster
+symmetry assert pinned the two AMOUNTS (10 and 20). What the owner decided in 2026-07-28
+is a RATIO — the booster multiplies punishment by the same factor as reward — so the
+assert now states `boosted === plain × mult` with a `plain > 0` sanity arm. The size of
+a miss is a different decision and is guarded elsewhere.
+
+### 2. SHAKE IS AN AUTO-LAYOUT PILL; THE HINT AND THE ZOOM TAKE ITS PAINT
+
+His CSS, verbatim: Shake — `inline-flex; height:56px; padding:8px 12px; gap:6px;
+border-radius:80px; border:1px solid #FFF; background:rgba(255,255,255,0.50);
+box-shadow:0 0 16px 0 #FFF inset`; the hint and the zoom — `fill: rgba(255,255,255,
+0.50); stroke-width:1px; stroke:#FFF; box-shadow: 0 0 16px 0 #FFF inset`.
+
+⛔ **THE FIXED 120×56 WITH RADIUS 16 IS CANCELLED** (it was 2026-08-22-g), and with it
+the whole AXIS layout: the caption stood on x=84 and the hand on x=30 because the
+button had a fixed width and the mock-up placed them by hand. An auto-layout frame is
+sized by its content, so the axes have nothing left to measure against. The row is now
+padding 12 | icon | gap 6 | caption | 12.
+⛔ **THE FILL MOVED FOR THE THIRD TIME IN THREE DAYS:** .20 → .40 → .60 → .50.
+⚠️⚠️ **THE RIM IS A REAL `border` ON SHAKE AND AN INSET RING ON THE OTHER TWO — AND
+THAT IS HIS OWN WORDING, NOT AN INCONSISTENCY.** For Shake he wrote `border`; for the
+hint and the zoom he wrote `stroke`, the Figma property whose default alignment is
+INSIDE. It is also SAFE on Shake for the first time: a flex row has no absolutely
+positioned children for a border to push inward — which was the entire reason the ring
+was chosen on 2026-08-23-a. The hint still has its magnifier at (5.7, 3.38) absolutely,
+so its ring stays a ring.
+⛔ **THE HINT KEEPS RADIUS 16 WHILE SHAKE WENT TO 80,** and that divergence is
+deliberate: for the hint he listed only three PAINT properties and no shape. A future
+pass that rounds it «for consistency» would be a guess he never made; the radius pin is
+what stops it. Named to him.
+⚠️⚠️ **THE BORDER SILENTLY BROKE HIS OWN 6px BADGE OVERHANG, AND ONLY A MEASUREMENT
+CAUGHT IT.** An absolutely positioned child is placed against the PADDING box, so with
+`left:0; bottom:-6px` shared between both badges, Shake's hung only **5** px below the
+visible edge — a regression against his measured spec of 2026-08-22-v. The shared rule
+was NOT edited (the hint is correct at −6/0); only the bordered button compensates, by
+exactly the border width. **Measured after: both badges hang 6.**
+⚠️ **THE HAND SHRANK 50 → 38 AND THE INK WITH IT (44 → ~33.5).** That follows from HIS
+frame — 8px of vertical padding inside 56 leaves 38 of content — and is recorded rather
+than corrected.
+
+⚠️ **A GUARD'S OWN NAMED SABOTAGE BECAME THE SPEC.** The axis assert of 2026-08-22-g
+ended with «the sabotage: replace the axes with a flex and a gap — both will drift».
+That is exactly what the owner then asked for. The comment is kept above its
+replacement as a reminder that **a guard states a decision, not a truth** — when the
+decision changes, the guard moves with it and is not «repaired».
