@@ -10398,3 +10398,59 @@ them would let the odd one out through exactly where the eye notices least.
 ✅ **THE COUNT-UP GUARD CARRIES `target > 0` AS ITS CONTROL:** a level of zero seconds
 lands on the final value at once by design, and on such a run every other arm of the
 assert is satisfied by a build with no animation at all.
+
+## BATCH 2026-08-23-zh: THE DAY PALETTE IS FIVE STOPS AND IS WRITTEN IN OKLCH
+
+His word, with the Figma stops panel attached: «update the gradient, bring its values
+to OKLCH». The stops: `#8C86FF 0% / #81BEFF 36% / #B0DAFF 61% / #AAF6F3 81% /
+#AEFFC9 100%`.
+
+⛔ **IT CANCELS the four-stop palette of 2026-08-22-g** (`#869eff / #81caff / #bcfbff /
+#ccfff8` at 0/36/65/100), which lived one day. The 0% and 36% positions survived; a
+fifth stop appeared and the tail turned from cyan-white towards **green**.
+
+### THE NOTATION MOVED, THE COLOUR DID NOT
+
+✅ `SKY_STOPS.day` now holds `oklch(L% C H)` triples, converted to sRGB in ONE place
+(`_oklchHex` beside `parseSkyStops` in 10-stage). Everything downstream still receives a
+hex, so **no consumer moved**: the shader ramp, `--sky-grad`, `--sky-top-rgb` and the
+Safari band tint all work unchanged.
+⚠️⚠️ **EVERY ONE OF THE FIVE WAS VERIFIED TO ROUND-TRIP BACK TO HIS EXACT HEX** before
+being written down. Writing the palette in OKLCH changed **no pixel** — that was the
+point of checking rather than trusting the math.
+⚠️ **A HEX STILL PARSES.** The old canon note here said colours are stored as CSS
+strings because «the owner pastes them from Figma and triples would force a manual
+recalculation and would lie on a typo». That reasoning did NOT stop being true — the
+very message asking for OKLCH carried a panel full of hexes. So the source of truth is
+OKLCH as he asked, and a pasted hex still works. ⛔ The old note is superseded, not
+deleted: it is the reason the parser accepts both.
+⚠️ **THE CHANNELS ARE CLAMPED AT THE END OF THE CONVERSION, AND THAT IS NOT COSMETIC:**
+OKLCH can address colours OUTSIDE the sRGB gamut, and an unclamped value would wrap
+through the byte and give a wildly wrong hue instead of the nearest legal colour.
+⚠️ **A STOP THAT DOES NOT PARSE IS LOUD, NOT SILENT.** Falling back to the raw string
+would hand a non-hex to `fadeToWhite`/`hexRGB` and paint the sky black with no
+explanation.
+
+### WHAT WAS **NOT** DONE, AND IT IS A REAL FORK
+
+⛔ **THE INTERPOLATION IS STILL sRGB, IN BOTH CONSUMERS.** He asked to bring the
+VALUES to OKLCH; interpolating *in* OKLCH is a different change with a visible result
+(smoother, more saturated midtones). It was not done, and the reason is structural: the
+shader bakes its ramp from RGB stops while CSS would interpolate in whatever space the
+gradient declares — switch only one and the game background and the pause screen DRIFT
+APART, which the single-source note in 10-stage exists to prevent. Doing it means doing
+both. Named to him.
+
+### MEASURED
+
+Faded 40% (what the player sees): `#bab6ff / #b3d8ff / #d0e9ff / #ccfaf8 / #ceffdf`,
+positions 0/0.36/0.61/0.81/1, reaching both the ramp and `--sky-grad`.
+⚠️ **THE HUD CONTRAST MOVED UP, NOT DOWN:** white against the new top stop is **1.87:1**
+against 1.69 before, because the new top is a deeper violet. Still below the 3.0 floor —
+his standing aesthetic choice — but the direction is the one his to-do item «make the
+gradient a little darker» asked for.
+⚠️ **AND THE FADE IS THE NEXT KNOB FOR «DARKER», NOT THE PALETTE.** Measured mean
+luminance: the old palette faded 0.782, the new palette faded 0.748, the new palette
+UNFADED 0.622. The 40% white is what holds the sky light; his own to-do item 5 asks for
+darker, and that is one number (`SKY_FADE_WHITE`). Named to him rather than changed —
+the fade is his explicit spec of 2026-08-22-g.

@@ -8684,26 +8684,37 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // visible that the positions reached BOTH consumers — the ramp and `--sky-grad`.
     const sky = await batchPage.evaluate(() => window.__game.skyInfo());
     console.log('sky:', JSON.stringify(sky));
-    // ⛔⛔ THE PALETTE WAS CHANGED (the owner's word 2026-08-22-g, a screenshot of the stops panel):
-    //    #869EFF 0% / #81CAFF 36% / #BCFBFF 65% / #CCFFF8 100%. The positions are the same.
-    // ⚠️⚠️ AND WHAT WE EXPECT IS NOT HIS HEXES BUT THE SHOWN ONES — by the same word of his the sky is
-    //    LIGHTENED BY 40% OF WHITE («throw a fade of 40% white over the whole area of the gradient»),
-    //    and the lightening lives in the parsing of the stops, not as a separate layer
-    //    (the parsing is in 00-config at `SKY_FADE_WHITE`). Hence the numbers below:
-    //    every channel c -> c + (255−c)·0.4, that is #869eff -> #b6c5ff and so on.
-    // ⚠️ WE PIN EXACTLY THE RESULT AND NOT THE PALETTE: the guard is obliged to read what
-    //    the player sees. Take the fade off — it goes red here, and rightly so.
-    const expected = ['#b6c5ff', '#b3dfff', '#d7fdff', '#e0fffb'];
-    const posOk = sky.pos.length === 4 &&
-      [0, 0.36, 0.65, 1].every((v, i) => Math.abs(sky.pos[i] - v) < 1e-6);
+    // ⛔⛔⛔ THE PALETTE WAS CHANGED AGAIN AND IS NOW WRITTEN IN OKLCH (the owner's word
+    //    2026-08-23-zh, his Figma stops panel: `#8C86FF 0% / #81BEFF 36% / #B0DAFF 61% /
+    //    #AAF6F3 81% / #AEFFC9 100%`, «bring its values to OKLCH»).
+    // ⛔ IT CANCELS the four stops of 2026-08-22-g (0/36/65/100), which lived one day. The 0%
+    //    and 36% positions survived; a fifth stop appeared and the tail turned from cyan-white
+    //    towards green.
+    // ⚠️⚠️ WHAT IS EXPECTED IS NOT HIS HEXES BUT THE SHOWN ONES — by his word of 2026-08-22-g the
+    //    sky is still LIGHTENED BY 40% OF WHITE, and the lightening lives inside the parsing of
+    //    the stops rather than as a separate layer. Hence the numbers below: every channel
+    //    c → c + (255−c)·0.4, i.e. #8c86ff → #bab6ff and so on.
+    // ⚠️⚠️ AND THAT MAKES THIS ASSERT THE ONLY WITNESS OF THE OKLCH CONVERTER. Nothing else in
+    //    the suite reads it: the stops are DECLARED as `oklch(L% C H)` and everything downstream
+    //    receives a hex, so a converter that drifts by a channel — a wrong matrix row, a missed
+    //    gamma step, an unclamped out-of-gamut value — surfaces HERE and nowhere else. The five
+    //    numbers were verified to round-trip to his exact hexes before they were written down.
+    // ⚠️ WE PIN THE RESULT AND NOT THE PALETTE: the guard is obliged to read what the player
+    //    sees. Take the fade off — it goes red here, and rightly so.
+    const expected = ['#bab6ff', '#b3d8ff', '#d0e9ff', '#ccfaf8', '#ceffdf'];
+    const posOk = sky.pos.length === 5 &&
+      [0, 0.36, 0.61, 0.81, 1].every((v, i) => Math.abs(sky.pos[i] - v) < 1e-6);
     expect(sky.stops.join() === expected.join() && sky.own && posOk,
-      '⚠️⚠️ THE BACKGROUND GRADIENT IS THE OWNER\'S PALETTE OF 2026-08-22-g, LIGHTENED BY 40% ' +
-      'OF WHITE, FOUR STOPS WITH HIS ' +
-      'POSITIONS (' + JSON.stringify({ stops: sky.stops, pos: sky.pos, own: sky.own }) +
-      '). The sabotage is to strip the positions out of `SKY_STOPS.day`: the parsing will silently lay the ' +
-      'stops out EVENLY (0/33.3/66.7/100), `own` will become false, and the sky ' +
-      'will drift apart from the very same string in the CSS, where the browser does respect the positions');
-    expect(/36%/.test(sky.grad) && /65%/.test(sky.grad) &&
+      '⚠️⚠️ THE BACKGROUND GRADIENT IS THE OWNER\'S PALETTE OF 2026-08-23-zh, DECLARED IN OKLCH ' +
+      'AND LIGHTENED BY 40% OF WHITE — FIVE STOPS WITH HIS POSITIONS (' +
+      JSON.stringify({ stops: sky.stops, pos: sky.pos, own: sky.own }) +
+      '). ⛔ SABOTAGE #1: strip the positions out of `SKY_STOPS.day` — the parsing lays the stops ' +
+      'out EVENLY (0/25/50/75/100), `own` goes false, and the sky drifts apart from the same ' +
+      'string in the CSS, where the browser does respect them. ⛔ SABOTAGE #2, THE ONE ONLY THIS ' +
+      'ASSERT CAN SEE: break the OKLCH → sRGB conversion. The stops are declared as `oklch(...)` ' +
+      'and every consumer downstream takes a hex, so a drifted matrix row or a missed gamma step ' +
+      'is invisible everywhere else in the file');
+    expect(/36%/.test(sky.grad) && /61%/.test(sky.grad) && /81%/.test(sky.grad) &&
            sky.grad.indexOf('180deg') > 0,
       '⚠️⚠️ THE POSITIONS REACHED THE CSS TOO (' + sky.grad + '). ⚠️ THE SECOND CONSUMER ' +
       'IS CHECKED SEPARATELY ON PURPOSE: the shader ramp and `--sky-grad` read the same ' +
@@ -9695,7 +9706,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'own colour. Without them «no stroke» is true of a build where the captions have ' +
       'disappeared altogether. ' +
       '⚠️ THE PRICE IS NAMED TO THE OWNER BY THE NUMBER: white «LV 3» against the top stop ' +
-      'of the sky `#b6c5ff` gives a contrast of 1.69:1. The readable way out is the FILL ' +
+      'of the sky (`#bab6ff` since 2026-08-23-zh, `#b6c5ff` before it) gives a contrast of ' +
+      '1.87:1 — the new palette moved it UP from 1.69, because its top stop is a deeper violet. ' +
+      'Still below the 3.0 floor. The readable way out is the FILL ' +
       'of the level, and that is his separate word.');
 
     // ══════════ ITEM 7 — ONE FLAT YELLOW ON THE SCORE IN BOTH LAYOUTS (2026-08-23-a) ══════════

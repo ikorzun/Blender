@@ -5604,7 +5604,25 @@ const SKY_STOPS = {
   //    is shown LIGHTENED by 40% white. Here lies the owner's PURE palette —
   //    exactly as he sent it.
   // day: blue-violet -> pale turquoise (4 stops, EXPLICIT POSITIONS)
-  day: ['#869eff 0%', '#81caff 36%', '#bcfbff 65%', '#ccfff8 100%'],
+  // ⛔⛔⛔ THE DAY PALETTE, FIVE STOPS, WRITTEN IN OKLCH (the owner's word 2026-08-23-zh:
+  // «update the gradient, bring its values to OKLCH», with his Figma stops panel attached).
+  // ⛔ IT CANCELS the four-stop palette of 2026-08-22-g (`#869eff / #81caff / #bcfbff /
+  // #ccfff8` at 0/36/65/100), which lived one day. The 0% and 36% positions survived; a fifth
+  // stop appeared and the tail turned from cyan-white towards green.
+  // ⚠️⚠️ THE HEX BESIDE EACH LINE IS HIS FIGMA VALUE AND IS THE PROVENANCE, NOT A DUPLICATE
+  // TRUTH: the OKLCH triple is what the game reads. Every one of the five was verified to
+  // round-trip back to exactly that hex, so writing them in OKLCH changed no pixel — the
+  // notation moved, the colour did not.
+  // ⚠️ A HEX STILL PARSES HERE. The old canon note («the owner pastes CSS strings, triples
+  // would force a manual recalculation and would lie on a typo») has not stopped being true —
+  // the very message that asked for OKLCH carried a panel full of hexes. Paste a hex and it
+  // works; convert it when you have a moment.
+  // ⚠️ THE ORDER IS ZENITH → NADIR, as before: the first stop is the top of the view.
+  day: ['oklch(68.10% 0.1739 282.99) 0%',    // #8c86ff
+        'oklch(78.53% 0.1127 250.91) 36%',   // #81beff
+        'oklch(87.10% 0.0678 245.28) 61%',   // #b0daff
+        'oklch(92.29% 0.0748 192.82) 81%',   // #aaf6f3
+        'oklch(93.36% 0.1083 154.61) 100%'], // #aeffc9
   // night: deep blue -> magenta (12 stops)
   // ⚠️ THE TAIL IS TONED DOWN (the owner's spec 2026-07-31, the second iteration: "the purple
   // colour at the bottom is very aggressive, it is worth dimming it a little"). ONLY the
@@ -6891,13 +6909,52 @@ const fadeToWhite = (hex, k) => {
   const r = toWhite(n >> 16 & 255), g = toWhite(n >> 8 & 255), b = toWhite(n & 255);
   return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
 };
+// ⛔⛔⛔ OKLCH → sRGB HEX (the owner's word 2026-08-23-zh: «update the gradient, bring its
+// values to OKLCH»). A stop may now be written either as `oklch(L% C H)` or as a plain hex —
+// both parse, and everything downstream still receives a hex, so no consumer moved.
+// ⚠️⚠️ WHY BOTH FORMS AND NOT A CLEAN SWITCH: the canon at SKY_STOPS says, in as many words,
+// that colours are stored as CSS strings because the owner pastes them from Figma and «triples
+// would force a manual recalculation and would lie on a typo». That reasoning did not stop
+// being true — his OWN message carrying this request has a Figma panel full of HEXES in it. So
+// the source of truth is OKLCH, as he asked, and a hex pasted straight from Figma still works.
+// ⚠️ THE MATH IS THE STANDARD OKLab PIPELINE (Björn Ottosson): LCh → Lab → LMS' → cube → linear
+// sRGB → the sRGB transfer curve → 8 bit. VERIFIED ON HIS OWN FIVE COLOURS: every one of them
+// round-trips back to the exact hex he sent, so writing the palette in OKLCH changed no pixel.
+// ⚠️ THE CHANNELS ARE CLAMPED AT THE END, and that is not cosmetic: OKLCH can address colours
+// OUTSIDE the sRGB gamut, and an unclamped value would wrap through the byte and produce a
+// wildly wrong hue rather than the nearest legal colour.
+const _oklchHex = (L, C, H) => {
+  const hr = H * Math.PI / 180, a = C * Math.cos(hr), b2 = C * Math.sin(hr);
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b2;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b2;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b2;
+  const l = l_ * l_ * l_, m = m_ * m_ * m_, s2 = s_ * s_ * s_;
+  const lin = [
+    +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s2,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s2,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s2,
+  ];
+  const b8 = lin.map(v => {
+    const c = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(Math.max(0, v), 1 / 2.4) - 0.055;
+    return Math.max(0, Math.min(255, Math.round(c * 255)));
+  });
+  return '#' + ((1 << 24) | (b8[0] << 16) | (b8[1] << 8) | b8[2]).toString(16).slice(1);
+};
+// one stop: `oklch(L% C H)` or `#rrggbb`, optionally followed by a position `NN%`
+const _stopRe = /^(oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)\s*\)|#[0-9a-fA-F]{6})(?:\s+([\d.]+)%)?$/;
 function parseSkyStops(list){
   const hex = [], raw = [];
   const k = (typeof SKY_FADE_WHITE === 'number') ? SKY_FADE_WHITE : 0;
   for (const it of list){
-    const m = String(it).trim().split(/\s+/);
-    hex.push(k > 0 ? fadeToWhite(m[0], k) : m[0]);
-    raw.push(m.length > 1 ? parseFloat(m[1]) / 100 : null);
+    const t = String(it).trim();
+    const q = _stopRe.exec(t);
+    // ⚠️ A STOP THAT DOES NOT PARSE IS LOUD, NOT SILENT: falling back to the raw string would
+    // hand a non-hex to `fadeToWhite`/`hexRGB` and paint the sky black with no explanation.
+    if (!q){ console.warn('[sky] a stop was not understood, skipped: ' + t); continue; }
+    const col = q[2] !== undefined ? _oklchHex(parseFloat(q[2]) / 100, parseFloat(q[3]), parseFloat(q[4]))
+                                   : q[1];
+    hex.push(k > 0 ? fadeToWhite(col, k) : col);
+    raw.push(q[5] !== undefined ? parseFloat(q[5]) / 100 : null);
   }
   const count = raw.filter(v => v !== null).length;
   const ownPos = count === raw.length;

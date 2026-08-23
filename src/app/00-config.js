@@ -1271,7 +1271,25 @@ const SKY_STOPS = {
   //    is shown LIGHTENED by 40% white. Here lies the owner's PURE palette —
   //    exactly as he sent it.
   // day: blue-violet -> pale turquoise (4 stops, EXPLICIT POSITIONS)
-  day: ['#869eff 0%', '#81caff 36%', '#bcfbff 65%', '#ccfff8 100%'],
+  // ⛔⛔⛔ THE DAY PALETTE, FIVE STOPS, WRITTEN IN OKLCH (the owner's word 2026-08-23-zh:
+  // «update the gradient, bring its values to OKLCH», with his Figma stops panel attached).
+  // ⛔ IT CANCELS the four-stop palette of 2026-08-22-g (`#869eff / #81caff / #bcfbff /
+  // #ccfff8` at 0/36/65/100), which lived one day. The 0% and 36% positions survived; a fifth
+  // stop appeared and the tail turned from cyan-white towards green.
+  // ⚠️⚠️ THE HEX BESIDE EACH LINE IS HIS FIGMA VALUE AND IS THE PROVENANCE, NOT A DUPLICATE
+  // TRUTH: the OKLCH triple is what the game reads. Every one of the five was verified to
+  // round-trip back to exactly that hex, so writing them in OKLCH changed no pixel — the
+  // notation moved, the colour did not.
+  // ⚠️ A HEX STILL PARSES HERE. The old canon note («the owner pastes CSS strings, triples
+  // would force a manual recalculation and would lie on a typo») has not stopped being true —
+  // the very message that asked for OKLCH carried a panel full of hexes. Paste a hex and it
+  // works; convert it when you have a moment.
+  // ⚠️ THE ORDER IS ZENITH → NADIR, as before: the first stop is the top of the view.
+  day: ['oklch(68.10% 0.1739 282.99) 0%',    // #8c86ff
+        'oklch(78.53% 0.1127 250.91) 36%',   // #81beff
+        'oklch(87.10% 0.0678 245.28) 61%',   // #b0daff
+        'oklch(92.29% 0.0748 192.82) 81%',   // #aaf6f3
+        'oklch(93.36% 0.1083 154.61) 100%'], // #aeffc9
   // night: deep blue -> magenta (12 stops)
   // ⚠️ THE TAIL IS TONED DOWN (the owner's spec 2026-07-31, the second iteration: "the purple
   // colour at the bottom is very aggressive, it is worth dimming it a little"). ONLY the

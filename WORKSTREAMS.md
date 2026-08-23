@@ -1,5 +1,29 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-zh: THE DAY PALETTE IN OKLCH, FIVE STOPS — the dispatcher
+
+«Update the gradient, bring its values to OKLCH», with his Figma panel. Cancels the
+four stops of 2026-08-22-g after one day; 0% and 36% survive, a fifth stop appears and
+the tail turns from cyan-white to green.
+
+✅ THE NOTATION MOVED, THE COLOUR DID NOT: all five OKLCH triples were verified to
+round-trip back to his exact hexes before being written down, so the rewrite changed no
+pixel. The conversion lives in ONE place and everything downstream still takes a hex —
+shader ramp, --sky-grad, --sky-top-rgb, the Safari band tint, all untouched.
+
+⚠️ A HEX STILL PARSES, deliberately: the old canon note («he pastes CSS strings from
+Figma, triples would lie on a typo») did not stop being true — the very message asking
+for OKLCH carried a panel full of hexes.
+
+⛔ WHAT WAS NOT DONE AND IS A REAL FORK: the INTERPOLATION is still sRGB in both
+consumers. Switching only one would drift the game background from the pause screen,
+which the single-source rule exists to prevent. Doing it means doing both. Named to him.
+
+⚠️ MEASURED: the HUD contrast went UP (white on the top stop 1.69 → 1.87) because the
+new top is a deeper violet. And the FADE, not the palette, is the knob for his standing
+«make it darker»: mean luminance 0.782 old-faded → 0.748 new-faded → 0.622 unfaded.
+
+
 ### ACCEPTANCE 2026-08-23-e: THE WIN ROW WHITE AND UNOUTLINED, THE TIME COUNTS UP — the dispatcher
 
 «Remove the outline from the level, the dot and the time, make them white; add an
