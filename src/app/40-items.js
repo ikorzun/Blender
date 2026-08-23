@@ -447,6 +447,10 @@ function freezeItem(it){
   it.key = 'FROZEN#' + Math.floor(Math.random() * 1e9);   // unique — outside the pairing mechanics
   it.frozenNeedItems = FROZEN_PAIRS_N * 2;                // the credit is counted IN PIECES: 2 pieces = a pair
   it.frozenGotItems = 0;
+  // ⚠️ THE PRESET CRUST — ON THE ITEM ITSELF, UNDER THE ICE (renderOrder 2 against
+  // 3): the owner asked for «the frozen object INSIDE with the crust as it was in
+  // the preset», i.e. the glow belongs to the object, not to the ice block.
+  chillShellFX(it);
   makeIceShell(it);
 }
 // THE ICE BLOCK — TWO LOW-POLY LAYERS ON TOP OF THE MESH (the fire overlay
