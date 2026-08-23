@@ -471,13 +471,24 @@ page.on('response', (r) => {
   // We do NOT check the paddings here: the viewport of the suite is mobile, and the mobile mockup
   // 783:711 deliberately overrides them — it would not be the numbers of the node that got checked.
   const pill = await page.evaluate(() => {
+    // ⚠️⚠️ `svg,img` AND NOT `svg`: since 2026-08-23-z the icon is an <img>. With the old
+    // selector this whole probe short-circuits to `{noNode:true}` and the assert blames a
+    // MISSING NODE instead of the swap — every other arm (the white backing, the black
+    // «+1») would never even be evaluated.
     const r = document.querySelector('.win-reward'), ic = document.querySelector('.win-reward-ic'),
-          n = document.querySelector('.win-reward-n'), sv = ic && ic.querySelector('svg');
+          n = document.querySelector('.win-reward-n'), sv = ic && ic.querySelector('svg,img');
     if (!r || !ic || !n || !sv) return { noNode: true };
     const c = getComputedStyle(r), ci = getComputedStyle(ic), cn = getComputedStyle(n);
+    const ir = ic.getBoundingClientRect(), sr = sv.getBoundingClientRect();
     return { bg: c.backgroundColor, shadow: c.boxShadow, gap: c.gap,
-      circle: ci.backgroundColor, diameter: Math.round(ic.getBoundingClientRect().width),
-      icon: Math.round(sv.getBoundingClientRect().width), plus: cn.color };
+      circle: ci.backgroundColor, diameter: Math.round(ir.width),
+      icon: Math.round(sr.width), plus: cn.color,
+      // ⚠️ THE ICON'S OFFSET INSIDE ITS SLOT — the centring, measured where the layout is
+      // real. The sheet (69.5) is WIDER than the slot (54), so a centred icon must overhang
+      // by exactly (54 − 69.5) / 2 = −7.75 on each side. Pinned HERE and not in the
+      // win-reward section at the end of the file, because that one reads a hidden node,
+      // where a percentage transform computes to `none`.
+      iconOff: Math.round(sr.left - ir.left) };
   });
   // ⛔⛔ THE GUARD MOVED AFTER THE RULE 2026-08-21-m: the owner said «remove
   // the outline, leave only the icon in the circle, and make the +1 white». The backing
@@ -495,13 +506,29 @@ page.on('response', (r) => {
   // ⚠️ THERE IS NO WHITE CIRCLE AT ALL ANY MORE — the slot 54 stands right on the glass, therefore
   // `circle` is obliged to be TRANSPARENT: without this field the return of the circle would pass
   // green, and it is exactly what the owner removed.
-  expect(pill.bg === 'rgba(255, 255, 255, 0.08)' &&
-    pill.circle === 'rgba(0, 0, 0, 0)' && pill.diameter === 54 && pill.icon === 43 &&
-    pill.plus === 'rgb(255, 255, 255)',
-    '⚠️⚠️ VICTORY: the reward is a GLASS pill (white 8%, radius 64) with a slot ' +
-    'of the loupe 54 and a white «+1», WITHOUT the white circle (' + JSON.stringify(pill) + '). ' +
-    '⛔ The same glass style as the row of the leaderboard above — both nodes came ' +
-    'in one message exactly for that reason');
+  // ⛔⛔ AND THE GLASS LIVED TWO DAYS: on 2026-08-23-z the owner said «the backing 100%
+  // white, the +1 in black» (in the same breath as «update it to the new one on the final
+  // screen»). All three of his words are ONE decision — white text on a white pill would be
+  // nothing at all — so they are pinned in one assert.
+  // ⚠️⚠️ AND THIS BREAKS A PAIRING THE CANON RECORDS AS DELIBERATE: the leaderboard row
+  // above was given the SAME glass in the SAME message («two blocks received one glass
+  // style»). His newer word beats the older node, the row was LEFT alone, and the two
+  // blocks now diverge on purpose — named to him, not absorbed silently.
+  // ⚠️ THE ICON GREW 43 → 70 AND THAT IS NOT A RESTYLE: the <img> carries his PNG, whose
+  // ink is only 65% of its sheet, so the sheet must be 69.5 for the DRAWN glyph to stay
+  // the 45.0×48.8 it was. The arithmetic lives at the CSS rule.
+  // ⚠️ `circle` STAYS PINNED TRANSPARENT — the white circle of 64 he removed on 2026-08-21-r
+  // must not creep back in under a white pill, where it would be invisible to the eye and
+  // still wrong in the box model.
+  expect(pill.bg === 'rgb(255, 255, 255)' &&
+    pill.circle === 'rgba(0, 0, 0, 0)' && pill.diameter === 54 && pill.icon === 70 &&
+    pill.iconOff === -8 && pill.plus === 'rgb(0, 0, 0)',
+    '⚠️⚠️ VICTORY: the reward is a 100% WHITE pill (radius 64) with a slot of 54, an icon ' +
+    'sheet of 69.5 CENTRED IN IT and a BLACK «+1», without the white circle (' +
+    JSON.stringify(pill) + '). ' +
+    'The owner 2026-08-23-z. ⛔ IT CANCELS THE GLASS of 2026-08-21-r (white 8%), which lived ' +
+    'two days, and with it the pairing with the leaderboard row above — that row KEEPS the ' +
+    'glass, the divergence is deliberate');
   // ═══ THE HEADER OF THE VICTORY SCREEN BY THE REDRAWN NODE 778:732 (2026-08-21-n) ═══
   // ⚠️⚠️ UNTIL THIS SECTION NOBODY GUARDED THE HEADER. In the suite there was not a single
   // mention of `winCleaned`/`winLevel`/`winTime`: the redraw would pass green
@@ -573,17 +600,17 @@ page.on('response', (r) => {
                         two: +(rt.left - rd.right).toFixed(1),
                         widths: [+rl.width.toFixed(1), +rd.width.toFixed(1), +rt.width.toFixed(1)] };
              })(),
-             // ⚠️ THE MAGNIFIER OF THE REWARD IS NOT CLIPPED BY ITS OWN VIEWBOX (the owner's
-             // word 2026-08-22-d «the icon is being cut off»): a root <svg> clips by default,
-             // and this artwork's stroke sticks out of the node's box by ~1.2 px per side.
-             mag: (() => { const m = document.querySelector('.win-mag');
-               if (!m) return null;
-               const cs = getComputedStyle(m), r = m.getBoundingClientRect();
-               const g = m.querySelector('g') || m, rg = g.getBoundingClientRect();
-               return { overflow: cs.overflow,
-                        outLeft: +(r.left - rg.left).toFixed(1),
-                        outTop: +(r.top - rg.top).toFixed(1) };
-             })(),
+             // ⛔⛔ THE CLIPPING PIN DIED WITH ITS MECHANIC ON 2026-08-23-z. It read
+             // `overflow` and the overhang of the ink beyond the svg box, because a root
+             // <svg> clips by its viewBox and this artwork's stroke stuck out ~1.2 px per
+             // side (the owner's «the icon is being cut off», 2026-08-22-d). The icon is
+             // now an <img>: a replaced element does not clip at all, `overflow` on it is a
+             // silent no-op, and `querySelector('g')` is null — the old arms would have gone
+             // red for the wrong reason while the `overflow === 'visible'` arm stayed GREEN
+             // and meaningless. A guard dies with its mechanic; it is not rewritten.
+             // ✅ WHAT REPLACES IT lives in the win-reward section at the end of this file:
+             // the sheet, the tone, the ink box and — the new risk that came WITH the <img> —
+             // that the box is SQUARE, so a square sheet cannot be squashed by `object-fit`.
              // ⚠️ THE LEADERBOARD ROW ENTERS LIKE THE REST (his «make it consistent»).
              lbAnim: (() => { const e = document.querySelector('.win-lbslot');
                if (!e) return null; const cs = getComputedStyle(e);
@@ -690,22 +717,22 @@ page.on('response', (r) => {
   // ⚠️⚠️ THE WIDTHS ARE THE SECOND HALF AND WITHOUT THEM THE FIRST IS EMPTY: the old
   // frames were fixed (120 / 14 / 80 px), and around short text a fixed frame reads as a
   // gap even when the real gap is one space. `Level N` at 24 px never reaches 120.
-  // ⚠️ THE MAGNIFIER: we read the OVERFLOW and the overhang of the ink beyond the svg box.
-  // The overhang is the proof that the clipping was real — the artwork does stick out.
+  // ⛔ THE MAGNIFIER CLAUSE WAS REMOVED FROM THIS ASSERT ON 2026-08-23-z together with the
+  // sub-probe it read — the icon became an <img> and there is no clipping left to guard.
+  // The reasoning is at the sub-probe above; the replacement pins are in the win-reward
+  // section at the end of the file.
   // ⚠️ THE ROW'S ENTRANCE: the name of the animation AND its delay inside the wave
   // (between the top row .72 and the reward .86), otherwise «it is animated» is true of
   // any animation, including one that plays before the screen exists.
-  expect(winHeadProbe.gaps && winHeadProbe.mag && winHeadProbe.lbAnim &&
+  expect(winHeadProbe.gaps && winHeadProbe.lbAnim &&
     Math.abs(winHeadProbe.gaps.one - winHeadProbe.gaps.two) <= 1 &&
     winHeadProbe.gaps.one > 1 && winHeadProbe.gaps.one < 12 &&
     winHeadProbe.gaps.widths[0] < 110 && winHeadProbe.gaps.widths[2] < 75 &&
-    winHeadProbe.mag.overflow === 'visible' &&
-    winHeadProbe.mag.outLeft > 0.3 && winHeadProbe.mag.outTop > 0.3 &&
     winHeadProbe.lbAnim.name === 'winRise' &&
     parseFloat(winHeadProbe.lbAnim.delay) > 0.72 && parseFloat(winHeadProbe.lbAnim.delay) < 0.86,
     '⚠️⚠️ VICTORY: ONE SPACE BETWEEN THE LEVEL, THE DOT AND THE TIME; THE FRAMES ARE FITTED ' +
-    'TO THE TEXT; THE MAGNIFIER IS NOT CLIPPED; THE LEADERBOARD ROW ENTERS WITH THE REST (' +
-    JSON.stringify({ gaps: winHeadProbe.gaps, mag: winHeadProbe.mag,
+    'TO THE TEXT; THE LEADERBOARD ROW ENTERS WITH THE REST (' +
+    JSON.stringify({ gaps: winHeadProbe.gaps,
                      lb: winHeadProbe.lbAnim }) + '). The owner\'s word 2026-08-22-d. ' +
     '⛔ IT CANCELS the flex `gap:11` of 2026-08-21-r — a gap in pixels cannot BE a space: ' +
     'it has to be guessed and it stops matching at the first change of the type size. ' +
@@ -9067,6 +9094,29 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         for (const k in cnt) if (cnt[k] > max) { max = cnt[k]; best = k; }
         return best;
       } catch (e) { return 'ERR:' + e.name; } };
+      // ⚠️⚠️ AND THE SECOND HELPER, ADDED 2026-08-23-z BY THE OWNER'S WORD «update the brush
+      // too» — it closes on the hand the same blindness that was found on the magnifier that
+      // day. `natural` + `outline` pin the SHEET and the TONE, and those are exactly the two
+      // properties a redraw of his need not touch: he swapped the magnifier for one of the
+      // same 168×168 and the same `#484472`, and both pins stayed green over a changed
+      // drawing. The ink box (the alpha bounds inside the sheet) is what separates two
+      // pictures of one sheet and one tone.
+      // ⚠️ THE BRUSH FILE ITSELF WAS NOT SWAPPED THAT DAY — verified byte for byte against
+      // the disk before this pin was written, so 148×136 pins TODAY'S asset, not a new one.
+      const inkPx = (im) => { try {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 8) continue;
+          const px = (i / 4) % c.width, py = ((i / 4) / c.width) | 0;
+          if (px < x0) x0 = px; if (px > x1) x1 = px;
+          if (py < y0) y0 = py; if (py > y1) y1 = py;
+        }
+        return x1 < 0 ? null : [x1 - x0 + 1, y1 - y0 + 1];
+      } catch (e) { return 'ERR:' + e.name; } };
       const b = document.getElementById('shakeBtn'), l = document.getElementById('shakeLbl');
       // ⚠️ THE SELECTOR IS WITHOUT `svg` — THE ICON IS NOW AN `<img>` (2026-08-21-r). The previous
       //    `svg.shake-hand` handed out null, and THE WHOLE snapshot of the hand came back empty.
@@ -9108,6 +9158,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                // asserts would have passed green. White and semi-transparent is discarded,
                // the most frequent opaque NON-white tone is taken.
                outline: h && h.tagName === 'IMG' ? dominant(h) : null,
+               ink168: h && h.tagName === 'IMG' ? inkPx(h) : null,
                viewBox: h && h.getAttribute('viewBox'),
                pAR: h && h.getAttribute('preserveAspectRatio'),
                paths: h ? h.querySelectorAll('path').length : 0,
@@ -9121,7 +9172,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                // the same (`paint0_linear_0_4`), and on one page the browser
                // takes the FIRST declaration: the second icon would be filled with the gradient
                // of the first one SILENTLY, without an error in the console and without a shift of the geometry.
-               // The cure is the prefixes `sh-`/`tip-`/`tipw-`; this scan is what guards them.
+               // The cure was the prefixes `sh-`/`tip-`/`tipw-`.
+               // ⛔ ALL THREE ARE HISTORY SINCE 2026-08-23-z — every one of those icons is a
+               // PNG now and no Figma-derived id is left on the page. The SCAN stays live and
+               // is not narrowed: it guards the page's OWN ids (`otlFill`, `msEyeVol`, the
+               // eyelid clips) and will guard the next inlined SVG before anyone remembers
+               // to prefix it.
                dupIds: (() => { const all = [...document.querySelectorAll('[id]')].map(e => e.id);
                  return [...new Set(all.filter((v, i) => all.indexOf(v) !== i))]; })(),
                // ⚠️ AND THE REVERSE HALF: a `url(#…)` reference with nowhere to lead.
@@ -9291,6 +9347,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // to bring back.
     expect(sh0.hasHand && sh0.iconTag === 'IMG' && sh0.natural === '168x168' &&
            sh0.outline === '72,68,114' &&
+           // ⛔⛔ THE INK BOX, ADDED 2026-08-23-z: the two pins above are blind to a redraw
+           //    on the SAME sheet in the SAME tone — that is exactly what happened to the
+           //    magnifier that day, and a rollback there would have passed green. 148×136 is
+           //    the alpha bounds of his current brush inside the 168 sheet (margins 10/16),
+           //    the same number the canon records independently.
+           !!sh0.ink168 && sh0.ink168[0] === 148 && sh0.ink168[1] === 136 &&
            // ⛔⛔ THE HAND IS A FLEX CHILD NOW (2026-08-23-v), not a 50×50 sheet placed at (5,3).
            //    Its box is the button's CONTENT box: 56 − 2 (border) − 16 (padding) = 38, and it
            //    starts at 12 + 1 = 13 from the left edge. ⚠️ THE SHEET SHRANK 50 → 38, so the
@@ -9301,15 +9363,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            sh0.handShadow === 'none' &&
            sh0.dupIds.length === 0 && sh0.brokenRefs.length === 0,
       '⚠️⚠️ THE HAND IS THE OWNER\'S PNG ACROSS THE BUTTON\'S WHOLE BOX, WITHOUT FILTERS (' +
-      JSON.stringify({ tag: sh0.iconTag, natural: sh0.natural, frame: sh0.hand,
-                       filter: sh0.handShadow, outline: sh0.outline }) +
+      JSON.stringify({ tag: sh0.iconTag, natural: sh0.natural, ink: sh0.ink168,
+                       frame: sh0.hand, filter: sh0.handShadow, outline: sh0.outline }) +
       '). ⛔ THE OWNER\'S BATCH OF 2026-08-22: 192×192 with a BLACK outline is replaced by ' +
       '168×168 with indigo `#484472` — he replaced the files at the same paths, the shape is ' +
       'the same bit for bit. ⛔ IT CANCELS the inline SVG ' +
       'of 92 KB (18 paths, 8 gradients, a mask) — the id prefixes `sh-` went away ' +
-      'together with it. ⚠️ The duplicate-id check IS KEPT: a copy of the ' +
-      'magnifier on the win screen with its own `tipw-` still lives on the page, and the rule «two SVGs out of one ' +
-      'Figma file must get different prefixes» is in force');
+      'together with it. ⚠️⚠️ THE DUPLICATE-ID CHECK IS KEPT, BUT ITS OLD JUSTIFICATION DIED ' +
+      'ON 2026-08-23-z: it used to point at the copy of the magnifier on the win screen, which ' +
+      'carried its own `tipw-` prefix — that copy is a PNG now, and no Figma-derived prefix is ' +
+      'left on the page at all. What the arms still guard is real and live: the page keeps other ' +
+      '`url(#…)` subjects of its own (`otlFill`, `msEyeVol`, the eyelid clips), a duplicate id ' +
+      'among them would be resolved silently to the first declaration, and a broken reference ' +
+      'draws nothing with no error anywhere. The rule «two inline SVGs out of one Figma file ' +
+      'must get different prefixes» stays in the canon for the next inlined asset');
 
     // ⛔⛔ THE BADGE MOVED INTO THE BOTTOM LEFT CORNER (2026-08-21-p). It was: the point
     // 28.5/40, height 24, shadow `0 2px 4px`. It became: the corner (0, bottom), height 22,
@@ -9852,58 +9919,112 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'clearance was bought by growing the SHAFT precisely so this number could stay put; it is ' +
       'part of the statement, not a leftover.');
 
-    // ── THE WIN SCREEN: THE HAND GLYPH IS REPLACED BY THE MAGNIFIER (the owner's word 2026-08-21-z) ──
-    // ⚠️ We read a HIDDEN node: the win overlay is `display:none`, but the attributes and the
-    // computed fills resolve all the same — opening the screen for the sake of three properties
-    // would mean running a whole win.
-    const reward = await page.evaluate(() => {
+    // ── THE WIN SCREEN: THE REWARD ICON IS THE OWNER'S PNG (2026-08-23-z) ──────────
+    // ⛔⛔ THE THIRD PICTURE IN THIS ONE SLOT, AND EACH TIME BY HIS WORD: a hand glyph →
+    // a magnifier SVG (2026-08-21-z, closing the fork «two different icons of one entity»)
+    // → THE SAME PNG THE BAR BUTTON USES (2026-08-23-z «update it to the new one on the
+    // final screen»). Every pin of the previous edition — `viewBox`, `paths`, the gradient
+    // ids `tipw-`, the 42.602×46.406 box — would go red on a sound build now, and `oldHand`
+    // would go VACUOUSLY GREEN (an <img> has an empty innerHTML). The guard moves with his
+    // word; it is not «repaired».
+    // ⚠️ We read a HIDDEN node (the win overlay is `display:none`): computed `width`/`height`
+    // resolve all the same, and a data: <img> decodes regardless of display — we await the
+    // decode rather than assume it.
+    const reward = await page.evaluate(async () => {
       const ic = document.querySelector('.win-reward-ic');
       if (!ic) return { has: false };
-      const svg = ic.querySelector('svg');
-      const col = {}; svg.querySelectorAll('path').forEach(pa => {
-        const f = getComputedStyle(pa).fill; col[f] = (col[f] || 0) + 1; });
-      const cs = getComputedStyle(svg);
-      return { has: true, cls: svg.getAttribute('class'), viewBox: svg.getAttribute('viewBox'),
-               paths: svg.querySelectorAll('path').length, colors: col,
+      // ⚠️⚠️ `svg,img` AND NOT `img`: with the bare new selector a REGRESSION back to the
+      // inline SVG would return `{ has:false }` and the assert would read as «the slot is
+      // gone» instead of «the picture came back». We take whichever node is there and pin
+      // the TAG.
+      const m = ic.querySelector('svg,img');
+      if (!m) return { has: true, noIcon: true };
+      if (m.tagName === 'IMG' && m.decode) { try { await m.decode(); } catch (e) {} }
+      // ⚠️ THE TWO PIXEL HELPERS ARE COPIED VERBATIM FROM THE BAR'S GUARD, AND THAT IS
+      // DELIBERATE: a shared helper would have to live outside both `evaluate` bodies, and
+      // the page cannot see the node scope. The pair must stay in step — when one is
+      // corrected, correct the other.
+      const px = (im, want) => { try {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        if (want === 'ink') {
+          let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 8) continue;
+            const cx = (i / 4) % c.width, cy = ((i / 4) / c.width) | 0;
+            if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
+            if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+          }
+          return x1 < 0 ? null : [x1 - x0 + 1, y1 - y0 + 1];
+        }
+        const cnt = {};
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 200) continue;
+          if (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240) continue;
+          const k = d[i] + ',' + d[i + 1] + ',' + d[i + 2];
+          cnt[k] = (cnt[k] || 0) + 1;
+        }
+        let best = null, max = 0;
+        for (const k in cnt) if (cnt[k] > max) { max = cnt[k]; best = k; }
+        return best;
+      } catch (e) { return 'ERR:' + e.name; } };
+      const cs = getComputedStyle(m);
+      const isImg = m.tagName === 'IMG';
+      return { has: true, tag: m.tagName, cls: m.getAttribute('class'),
                width: cs.width, height: cs.height, position: cs.position,
-               // ⚠️ THE SLOT MUST STAY THE MOCKUP'S 32×32: somebody else's guard of the reward
-               // pill pins it by a number, and the first edition dropped it to
-               // 29.4, fitting the element by the DRAWING instead of the PLACE for the drawing.
-               // ⚠️ the previous hand glyph started with this command — if it is still
-               // here, it means the wrong place was replaced
-               oldHand: /M14\.333 2\.667/.test(svg.innerHTML) };
+               events: cs.pointerEvents,
+               // ⚠️⚠️ THE CENTRING IS **NOT** PINNED HERE, AND THAT IS A MEASUREMENT, NOT AN
+               // OVERSIGHT: on a `display:none` node `getComputedStyle().transform` returns
+               // `none` — the percentages in `translate(-50%,-50%)` resolve against a border
+               // box that does not exist — so an arm on it would go RED ON A SOUND BUILD.
+               // Caught by a probe before the run, not by the run. The centring is pinned
+               // where the layout is real: the reward-pill guard near the top of this file
+               // measures the icon's offset inside its slot on a SHOWN screen.
+               natural: isImg ? (m.naturalWidth | 0) + 'x' + (m.naturalHeight | 0) : null,
+               outline: isImg ? px(m, 'tone') : null,
+               ink168: isImg ? px(m, 'ink') : null,
+               // ⚠️ THE ONE THING THAT MUST BE ZERO: an inline <svg> left behind would sit
+               // UNDER the <img> and nobody would see it — the same class of defect as the
+               // `oldHand` clause it replaces.
+               svgLeft: ic.querySelectorAll('svg').length };
     });
     console.log('win-reward:', JSON.stringify(reward));
-    // ⛔ IT MOVED AFTER THE MOCKUP 891:4199 TOGETHER WITH THE MAGNIFIER IN THE BAR.
-    // ⚠️⚠️ AND HERE LIVES THE THIRD id PREFIX — `tipw-`. The copy of the magnifier on the win
-    // screen is a SEPARATE inline SVG with the same gradient names; without
-    // its own prefix it would share the declarations with the magnifier in the bar, and a fix to
-    // one would SILENTLY change the other. We check the reference explicitly.
-    const winGrads = Object.keys(reward.colors).filter(k => /^url\(/.test(k));
-    expect(reward.has && /tip-mag/.test(reward.cls) &&
-           reward.viewBox === '14.48 11.58 50.492 55' &&
-           reward.paths === 3 && reward.colors['rgb(255, 255, 255)'] === 2 &&
-           winGrads.length === 1 && /#tipw-/.test(winGrads[0]) &&
-           // ⛔ THE SLOT MOVED FROM A WHITE CIRCLE OF 32 TO A GLASS PILL OF 54
-           // (node 891:4317): the magnifier is 42.602×46.406 at the point (5.7, 3.38), that is,
-           // absolute inside the slot and not `static` in the centre of the circle.
-           reward.position === 'absolute' && !reward.oldHand &&
-           reward.width === '42.602px' && reward.height === '46.406px',
-      '⚠️⚠️ ON THE WIN SCREEN THE «+1 HINT» REWARD HAS THE SAME MAGNIFIER AS THE BUTTON (' +
-      JSON.stringify(reward) + '). The owner\'s word 2026-08-21-z «on the win ' +
-      'screen the icon needs replacing» — THIS IS THE CLOSING OF A FORK that I named ' +
-      'to him a batch earlier: that same glyph stood as a SECOND showing of one entity, and ' +
-      'after the button was redone the player would see two different hint icons. ' +
-      '⚠️⚠️ `oldHand` IN THE SAME ASSERT IS LOAD-BEARING: «there is a magnifier» is true on a ' +
-      'build where the magnifier was ADDED but they forgot to remove the hand — both icons would lie ' +
-      'on top of each other. ⚠️ `position:static` too: `.tip-mag` in the bar has ' +
-      '`absolute`, and without a reset the magnifier would fall out of the circle\'s centring into its top ' +
-      'left corner. ⚠️⚠️ THE SLOT OF 32×32 IS A PIN BY SOMEBODY ELSE\'S GUARD: the reward pill ' +
-      '(node 779:1114) requires an icon of 32, and the first edition of this fix ' +
-      'dropped it to 29, fitting the element by the DRAWING instead of the PLACE for the drawing. ' +
-      'The proportion 56:61 is held by the viewBox itself — the magnifier centres inside the slot. ' +
-      '⚠️ The measurement goes by a HIDDEN node (the overlay is `display:none`) — the attributes and the ' +
-      'fills resolve all the same, there is no need to open the win for the sake of four properties');
+    // ⚠️⚠️ THE SIZE IS THE POINT OF THIS ASSERT, NOT A PASSENGER. His sheet is 168×168 with
+    // the ink on only 109×118 of it, so the naive «fill the slot» (54) would draw a glyph of
+    // 35×38 — SMALLER than the same asset in the HUD button. 69.5 is the number at which the
+    // drawn ink stays the 45.0×48.8 the SVG drew; the arithmetic is at the CSS rule.
+    // ⚠️⚠️ AND `width === height` IS THE NEW RISK THAT ARRIVED WITH THE <img>: `object-fit`
+    // defaults to `fill`, so a NON-square box on a square sheet squashes the drawing without
+    // any error anywhere. A square box makes the whole problem not exist; this arm is what
+    // stops someone «fitting» the element to the drawing again.
+    // ⚠️ `pointer-events:none`: the rule that carries it for the bar copy is nailed to
+    // `#hintBtn`, an <img> is draggable by default, and at 69.5 the transparent sheet
+    // overhangs the «+1».
+    // ⚠️⚠️ `natural` + `outline` ALONE ARE BLIND — that is the lesson of this very day: the
+    // owner swapped the file for one of the SAME sheet and the SAME tone, and both pins
+    // stayed green. `ink168` is what separates two magnifiers of one sheet.
+    expect(reward.has && !reward.noIcon && reward.tag === 'IMG' &&
+           /tip-mag/.test(reward.cls) && /win-mag/.test(reward.cls) &&
+           reward.natural === '168x168' && reward.outline === '72,68,114' &&
+           !!reward.ink168 && reward.ink168[0] === 109 && reward.ink168[1] === 118 &&
+           reward.width === '69.5px' && reward.height === '69.5px' &&
+           reward.position === 'absolute' &&
+           reward.events === 'none' && reward.svgLeft === 0,
+      '⚠️⚠️ ON THE WIN SCREEN THE «+1» REWARD CARRIES THE OWNER\'S PNG — THE SAME FILE AS THE ' +
+      'BAR BUTTON (' + JSON.stringify(reward) + '). His word 2026-08-23-z. ' +
+      '⛔ IT CANCELS the inline SVG of node 891:4317 (viewBox `14.48 11.58 50.492 55`, three ' +
+      'paths, the `tipw-` gradient prefix) — one entity is now drawn by ONE picture, which ' +
+      'closes for good the fork named to him twice. ' +
+      '⚠️⚠️ THE BOX IS 69.5 AND NOT THE SLOT\'S 54 — the arithmetic of his own sheet, the same ' +
+      'as at the Shake pill: the ink is 65% of the sheet, so 54 would draw a glyph SMALLER ' +
+      'than the one in the HUD. ⚠️ `svgLeft === 0` is the heir of the old `oldHand` clause: ' +
+      'a leftover SVG would lie UNDER the img and be seen by nobody. ' +
+      '⚠️ AND A CONSEQUENCE NAMED TO HIM, NOT GUARDED HERE BECAUSE IT IS A MATTER OF TASTE: ' +
+      '58% of this PNG\'s ink is WHITE (the halo and the lens), so on the 100% white backing ' +
+      'he asked for, that half stops being visible and the glyph reads as indigo line art ' +
+      '— the same way it already reads on the pale sky behind the bar button');
 
     // ── HOVER AND THE TOSS (the owner's word 2026-08-21-g) ────────────────────
     // ⚠️⚠️ THE MEASUREMENT IS WITH THE TRANSITION SWITCHED OFF, AND NOT THROUGH A PAUSE: with a live transition

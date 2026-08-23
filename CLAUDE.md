@@ -10504,3 +10504,99 @@ had outlived its code since 2026-08-21-r and stood directly above a PNG. The fal
 assertions were removed and the LESSON kept (a Dev Mode export arrives with
 `preserveAspectRatio="none"` and global `id=`s, both of which had to be stripped) — the
 canon's own rule for cutting prose.
+
+### 2026-08-23-z, THE SECOND HALF: THE SAME PNG ON THE WIN SCREEN, A WHITE PILL, A BLACK «+1»
+
+⚠️ **THE LETTER DOES NOT ADVANCE — THIS BATCH SPANS THREE MESSAGES.** The first was «update
+the magnifier icon» (above); the next two answer the two forks that report named to him:
+«update it to the new one on the final screen, the backing 100% white, the +1 in black» and
+«update the brush too». One asset rollout, one letter.
+
+**HIS THREE WORDS ARE ONE DECISION AND WERE IMPLEMENTED AS ONE.** The reward pill's backing
+`rgba(255,255,255,.08)` → **`#fff`**, the «+1» white → **black** (white text on a white pill
+would be nothing at all), and the inline SVG magnifier of node 891:4317 → **the same PNG the
+bar button carries**. That closes for good the fork «one entity drawn by two pictures», named
+to him twice and never decided by me.
+
+⛔⛔ **AND IT BREAKS A PAIRING THE CANON RECORDS AS DELIBERATE — NAMED, NOT ABSORBED.** On
+2026-08-21-r the reward pill and the leaderboard row above it were given ONE glass style in
+ONE message («two blocks received one glass style — that is precisely why the two nodes
+arrived together»). He has now repainted only the pill. The row was LEFT as it was: his newer
+word beats the older node, and the two blocks diverge on purpose. One line at the row if he
+ever wants them one family again.
+
+⚠️⚠️ **THE DECISIVE FACT NONE OF THE FOUR RECON READERS SAW, AND THE CRITIC DID: 58% OF THIS
+PNG'S INK IS WHITE.** Of 6358 opaque pixels 3683 are near-white — the outer halo and the lens
+glass; the indigo `#484472` is only 2140. On today's dark glass the white halo carries the
+shape at 15.5:1; **on a 100% white backing that half stops being visible** and the glyph reads
+as indigo line art (the visible bbox drops 109×118 → 93×102 of the sheet). ⚠️ THIS IS NOT A
+DEFECT AND WAS NOT TREATED AS ONE: the bar button's own fill is `rgba(255,255,255,.50)` over a
+pale sky, so the SAME asset already reads as line art there — his spec makes the two copies
+read alike. Rendered and sent to him rather than described: **when the consequence is visual,
+the cheap move is a frame, not a better sentence** (the lesson of 2026-08-23-b, applied
+forward for once instead of after the round trip).
+
+⚠️⚠️ **THE ICON BOX IS 69.5, NOT THE SLOT'S 54 — THE ARITHMETIC OF HIS OWN SHEET.** The ink
+occupies 109×118 of the 168 sheet (65%), so a sheet sized to the slot would draw a glyph of
+35×38 — **smaller than the same asset in the HUD button**, i.e. the hero icon smaller than the
+toolbar one. For the drawn ink to stay what the SVG drew (45.03×48.83, measured before the
+swap) the sheet must be `45.03·168/109 = 69.40` wide and `48.83·168/118 = 69.52` tall — the
+two agree to a tenth of a pixel, which is itself the proof that it is the same glyph.
+**Measured after: drawn ink 45.09×48.82.** The precedent is the Shake pill of 2026-08-22-g
+(«the icon box is 50×50, not the node's 44×40»); the slot stays 54 because 54 is the PLACE for
+the icon and not the icon.
+⚠️ CENTRED by `left/top:50%` + a translate, not by the node's point (5.7, 3.38): those were
+literals for a different picture — the same device and the same reason as at the bar's icons.
+⚠️ `pointer-events:none` IS NEW AND LOAD-BEARING: the rule that carries it for the bar copy is
+nailed to `#hintBtn`, an `<img>` is draggable by default, and at 69.5 the transparent sheet
+overhangs the «+1».
+
+⛔ **`overflow:visible` WAS REMOVED WITH ITS REASON, AND SO WAS THE GUARD THAT READ IT.** It
+existed because a root `<svg>` clips by its viewBox (his «the icon is being cut off»,
+2026-08-22-d). A replaced element does not clip at all: the declaration would have been a
+no-op that still READ as a fix, and the assert arm `overflow === 'visible'` would have stayed
+**green and meaningless** while its two neighbours went red for the wrong reason. A guard dies
+with its mechanic.
+✅ **WHAT REPLACED IT IS THE RISK THE `<img>` BROUGHT WITH IT:** `object-fit` defaults to
+`fill`, so a NON-square box on a square sheet squashes the drawing silently. The new arm is
+`width === height` — a square box makes the problem not exist rather than patching it.
+
+⚠️⚠️ **THE PROBE CAUGHT A GUARD THAT WOULD HAVE GONE RED ON A SOUND BUILD — one minute
+instead of thirteen.** The first edition of the new pin asserted the centring by
+`getComputedStyle().transform !== 'none'`, and that section reads a **hidden** node (the win
+overlay is `display:none`): the percentages in `translate(-50%,-50%)` resolve against a border
+box that does not exist, and Chrome returns **`none`**. The centring moved to the reward-pill
+guard, which runs on a SHOWN screen and measures the icon's offset inside its slot (−8, i.e.
+`(54 − 69.5) / 2`). **Where a property needs layout, pin it where the layout is real.**
+
+✅ **TWO-SIDED, SHOWN NOT CLAIMED** (a copy of the previous build next to the original, the
+original verified by md5 afterwards): healthy — `tag IMG`, `69.5px`, `ink 109×118`,
+`svgLeft 0`, pill `rgb(255,255,255)`, icon 70, offset −8, «+1» black; the previous build —
+`tag svg`, `42.602px`, `natural/outline/ink168` all null, `svgLeft 1`, pill `.08`, icon 43,
+offset +6, «+1» white. Every new arm red, and — the point of the `svg,img` selector and the
+null-guards — **the probe did not throw**: the old edition would have died inside `evaluate`
+on `svg.querySelectorAll` and taken the whole run down without a verdict, exactly as
+`test.js` records happening once before at 597 greens.
+
+**«UPDATE THE BRUSH TOO» — THE FILE WAS NOT SWAPPED, SO IT WAS READ AS THE OTHER THING.**
+Checked first, not assumed: `Interface/Shake-icon.png` on the disk is **byte-identical** to
+the embedded copy, mtime 2026-08-22 11:11. There was nothing to re-embed — so the sentence
+answers the paragraph of the previous report («the brush has the same blind pins; when you
+swap it, remind me»). The hand guard got the same `ink168` pin, **148×136**, the number the
+canon already records independently from the sheet's margins 10/16. Named to him with the
+measurement, with an invitation to drop a new file if that is what he meant.
+
+⚠️ **FOUR COMMENTS THE EDIT MADE FALSE WERE CLEARED, AND ONE REASON WAS REPLACED RATHER THAN
+DELETED.** `#hintBtn .tip-mag` stays nailed — but its old justification («the win copy is an
+inline SVG, a common rule would stretch the PNG there too») died the moment the win copy
+became a PNG. The NEW reason is the size: `width:100%` would force the win copy to its slot's
+54, i.e. exactly the sizing the sheet's arithmetic rejects. **A rule whose reason dies is more
+dangerous than a rule that dies: it keeps working for a season and then someone un-nails it
+because the comment no longer holds.** Also cleared: the `position:static`/`32×32` numbers
+(stale since 2026-08-21-r), the lime-glow note on `.win-reward` (stale since the glass), and
+the `tipw-` justification in the duplicate-id scan — **no Figma-derived id prefix is left on
+the page at all now**, while the scan itself stays live for the page's own ids
+(`otlFill`, `msEyeVol`, the eyelid clips) and for the next inlined SVG.
+⚠️ `.win-reward::after` (a white inner glow) is now inert on a white pill. Kept **dead and
+labelled dead**, by the canon's own rule for a layer that may come back — this pill's backing
+has moved four times.
