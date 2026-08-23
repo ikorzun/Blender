@@ -9515,6 +9515,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         for (const k in cnt) if (cnt[k] > max) { max = cnt[k]; best = k; }
         return best;
       } catch (e) { return 'ERR:' + e.name; } };
+      // ⚠️⚠️ AND THE SECOND HELPER, ADDED 2026-08-23-z, BECAUSE `natural` + `outline` HAD
+      // GONE BLIND: on that day the owner swapped the file on the disk for a magnifier of the
+      // SAME 168×168 sheet and the SAME `#484472` tone — both pins stayed green while the
+      // drawing had changed. The ink box (the alpha bounds inside the sheet) is the only
+      // thing that tells the two assets apart, so a rollback to the previous PNG now goes red.
+      const inkPx = (im) => { try {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 8) continue;
+          const px = (i / 4) % c.width, py = ((i / 4) / c.width) | 0;
+          if (px < x0) x0 = px; if (px > x1) x1 = px;
+          if (py < y0) y0 = py; if (py > y1) y1 = py;
+        }
+        return x1 < 0 ? null : [x1 - x0 + 1, y1 - y0 + 1];
+      } catch (e) { return 'ERR:' + e.name; } };
       const b = document.getElementById('hintBtn'), l = document.getElementById('hintCnt');
       const m = b.querySelector('.tip-mag');   // ⚠️ without `svg`: it is an <img> now
       const r = b.getBoundingClientRect(), lr = l.getBoundingClientRect();
@@ -9543,6 +9562,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         natural: m ? ((m.naturalWidth|0) + 'x' + (m.naturalHeight|0)) : null,
         // ⚠️ The same trick as with the hand: the colour of a PNG is observable only by pixels.
         outline: m && m.tagName === 'IMG' ? dominant(m) : null,
+        ink168: m && m.tagName === 'IMG' ? inkPx(m) : null,
         radius: cs.borderRadius, btnShadow: cs.boxShadow,
         badgeX: +(lr.left - r.left).toFixed(1), badgeY: +(lr.top - r.top).toFixed(1),
         badgeBottom: +(r.bottom - lr.bottom).toFixed(1),
@@ -9607,14 +9627,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // the icon takes up the button's whole box, on the win screen it is a slot of 54 inside a pill.
     expect(mag.hasMag && mag.iconTag === 'IMG' && mag.natural === '168x168' &&
            mag.outline === '72,68,114' &&
+           !!mag.ink168 && mag.ink168[0] === 109 && mag.ink168[1] === 118 &&
            nearM(mag.magBox[0], 0) && nearM(mag.magBox[1], 0) &&
            nearM(mag.magBox[2], 56) && nearM(mag.magBox[3], 56) &&
            mag.shadow === 'none',
       '⚠️⚠️ THE MAGNIFIER IS THE OWNER\'S PNG ACROSS THE BUTTON\'S WHOLE BOX, WITHOUT FILTERS (' +
-      JSON.stringify({ tag: mag.iconTag, natural: mag.natural,
+      JSON.stringify({ tag: mag.iconTag, natural: mag.natural, ink: mag.ink168,
                        frame: mag.magBox, filter: mag.shadow,
                        outline: mag.outline }) + '). ⛔ THE OWNER\'S BATCH OF ' +
-      '2026-08-22: the black 192×192 is replaced by an indigo 168×168 `#484472`');
+      '2026-08-22: the black 192×192 is replaced by an indigo 168×168 `#484472`. ' +
+      '⛔⛔ AND ON 2026-08-23-z HE SWAPPED THE FILE AGAIN, SILENTLY, AT THE SAME PATH ' +
+      '(«update the magnifier icon»): the sheet stayed 168×168 and the tone stayed `#484472`, ' +
+      'so BOTH former pins were satisfied by BOTH assets — the guard had gone silent without ' +
+      'going red. The ink box inside the sheet is what separates them: 115×124 before, ' +
+      '**109×118** now. ⚠️ It is an EXACT equality on purpose: the alpha bounds of a fixed PNG ' +
+      'are deterministic, and a redraw of his is a DECISION — this pin moves with his word ' +
+      'and is not «repaired»');
 
     // ⛔⛔ THE HINT'S BADGE MOVED AND WAS REPAINTED (2026-08-21-p). It was: the point
     // (4, 40), height 24, PINK `#ffa5b7`/`#871048`. It became: the bottom left corner,

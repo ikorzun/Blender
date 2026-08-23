@@ -10454,3 +10454,53 @@ luminance: the old palette faded 0.782, the new palette faded 0.748, the new pal
 UNFADED 0.622. The 40% white is what holds the sky light; his own to-do item 5 asks for
 darker, and that is one number (`SKY_FADE_WHITE`). Named to him rather than changed —
 the fade is his explicit spec of 2026-08-22-g.
+
+## BATCH 2026-08-23-z: THE MAGNIFIER PNG WAS SWAPPED AGAIN — AND THE GUARD HAD GONE SILENT
+
+His word, one line and no attachment: «update the magnifier icon». Nothing came with
+the message, so the asset was found the way it was found the last time — with
+`git status`: `Interface/Tip-icon.png` lay MODIFIED in the working tree (5811 B,
+22:26 that evening) while the embedded copy was a different file (6135 B). The path he
+once named is a live channel of delivery and he uses it silently; this is the SECOND
+time (2026-08-22 was the first). ⚠️ `Shake-icon.png` was compared in the same pass and
+is byte-identical to the embedded hand — he swapped ONE file, so ONE was re-embedded.
+
+**WHAT ACTUALLY CHANGED — MEASURED, NOT ASSUMED.** The sheet stayed **168×168**, the
+outline tone stayed **`#484472`**, the shape is the same magnifier. What moved is the
+DRAWING inside the sheet: the ink box **115×124 → 109×118**, i.e. the icon is drawn a
+touch smaller with a slightly thinner ring and handle. 5200 of 28224 pixels differ.
+⚠️ The extension, the format and the pixels are untouched, as his standing rule
+demands; `width/height:100%` did not change either — «exactly into the box of the
+button» is about the box, not about the resolution of the sheet.
+
+⛔⛔ **AND THE POINT OF THE BATCH IS NOT THE SWAP BUT WHAT IT EXPOSED: BOTH EXISTING
+PINS WERE SATISFIED BY BOTH ASSETS.** The guard pinned `natural === '168x168'` and
+`outline === '72,68,114'` — precisely the two properties this redraw did NOT touch. A
+rollback to the previous PNG would have passed GREEN, and the canon's own note at that
+line («a size pin alone would not have saved us») had already been proved insufficient
+once. **A pin chosen against the LAST way an asset changed does not survive the next
+one.** The cure is the INK BOX (the alpha bounds inside the sheet), added as `ink168`:
+it is the only observable that separates two magnifiers of one sheet and one tone.
+⚠️ It is pinned by EXACT equality on purpose: alpha bounds of a fixed PNG are
+deterministic, there is nothing to flake. A future redraw of his moves it — and that is
+a decision, so **the pin moves with his word and is not «repaired»**.
+✅ TWO-SIDED, SHOWN NOT CLAIMED (a copy of the build NEXT to the original, the original
+verified by md5 afterwards): the healthy build gives `ink 109×118` → green; the copy
+carrying the PREVIOUS asset gives `natural 168x168`, `outline 72,68,114`,
+`frame [0,0,56,56]` — every old arm still green — and `ink 115×124` → RED on the new
+arm alone.
+
+⚠️ **NOTHING ELSE MOVED, AND THAT WAS MEASURED TOO:** the button 56×56 radius 80, the
+magnifier across the whole box `[0,0,56,56]` with no filter, the badge still hanging
+exactly 6 px below at left 0.
+⚠️ **THE WIN SCREEN'S MAGNIFIER IS UNTOUCHED AND STAYS AN SVG** (node 891:4317, viewBox
+`14.48 11.58 50.492 55`, 3 paths, `overflow:visible`): the disk file feeds the BAR
+button only, and the fork «two icons of one entity, drawn differently» has been named to
+him before. Should he want them unified, that is his word and a different asset.
+
+⚠️ **A STALE COMMENT WAS CLEARED AT THE SAME LINE, DELIBERATELY.** The block above the
+`<img>` still described an INLINE SVG implanted from `Tip-magnifier.svg` — prose that
+had outlived its code since 2026-08-21-r and stood directly above a PNG. The false
+assertions were removed and the LESSON kept (a Dev Mode export arrives with
+`preserveAspectRatio="none"` and global `id=`s, both of which had to be stripped) — the
+canon's own rule for cutting prose.
