@@ -71,6 +71,70 @@ an indicator only on his word. Open for moving into the process: the sound
 of the shatter with its own sample, calibration of N by a series-running bot, the
 star economy on an early victory (par score takes a full level — check thresholds).
 
+### 2. THE OWNER'S TO-DO LIST, DICTATED 2026-08-23
+
+⚠️ **WRITTEN DOWN AS DICTATED, NOT ANALYSED.** He asked for a list, not for
+decisions — nothing below has been scoped, questioned or agreed. Each item still
+needs its own round of «what exactly do you mean» before any code. The pointers in
+italics are only «what this would touch», put there so a future session does not
+re-derive it or blunder into a decision already recorded elsewhere.
+
+1. **A screen after buying a multiplier.**
+   *Touches:* the purchase flow and the «More Stars» screen; there is no
+   post-purchase screen today — the buy just resolves.
+
+2. **A click or tap on an item opens it in a separate pop-up, where it can be
+   spun.**
+   *Touches:* the spin machinery already exists and is exposed —
+   `thumbSpinStart` / `thumbSpinToggle` / `thumbSpinKey` (99-main), used by the
+   collection. ⚠️ AND IT COLLIDES HEAD-ON WITH A LIVE RULE: a tap on an item in the
+   bowl is the game's main verb, and since 2026-08-23-a a tap on a pairless item
+   COSTS 10 points. Which tap opens the pop-up — in the bowl, or only in the
+   collection? That is the first question to ask.
+   *And his standing rule:* «a model that spins» means pure 3D, never a picture on
+   a backing — he has caught that twice.
+
+3. **Fix the level completion screen.**
+   ⚠️ NO DEFECT NAMED. That screen was rebuilt twice in the last three days
+   (2026-08-21-r by node 891:4251, then 2026-08-22-d and -e). Ask for a frame with
+   what is wrong before touching it — the canon's own rule for a screenshot
+   complaint.
+
+4. **Fix the margins in iOS 26.**
+   *Touches:* the longest-running saga in the canon — the safe area, the
+   `viewport-fit`, the Safari 26 chrome tint and the black bars, five editions of
+   it, with a standing ⛔ «bringing back any ONE item of that set is FORBIDDEN,
+   only the whole set at once». ⚠️ READ THAT SECTION FIRST; do not re-derive it.
+   Needs a frame from his device to know which margin he means.
+
+5. **Make the background gradient in the game a little darker, add life and
+   volume to it.**
+   *Touches:* `SKY_FADE_WHITE = 0.40` (00-config) — the 40% white fade he asked
+   for himself on 2026-08-22-g is exactly what made it lighter, so «darker» is
+   most likely that number coming down. ⚠️ But «life and volume» is not the same
+   knob and is not a number — ask what he wants to see. The palette itself
+   (`SKY_STOPS.day`) is his from a Figma screenshot the same day.
+   ⚠️ A darker sky RAISES the HUD contrast, which is currently 1.69:1 for the white
+   level and 1.35:1 for the yellow score — both below the project floor. This item
+   may cure that complaint for free; say so when it lands.
+
+6. **Bonus objects in the bowl — for example an ELECTRIC object, appearing when
+   you have collected N similar objects on the level.**
+   *Touches:* the closest existing thing is the TYPE CHARGE, which drops on
+   entering turbo and destroys every copy of its type — and since 2026-08-23-a it
+   draws a thread of lightning through them. ⚠️ So «electric» may mean a second,
+   differently-earned charge rather than a new mechanic; ask whether it replaces
+   the charge, stands beside it, or is a new item type in the pile.
+
+7. **Finish the graphics.**
+   ⚠️ TOO BROAD TO ACT ON — needs breaking into named pieces by him.
+
+8. **Are loading screens needed on a slow connection?** — A QUESTION, NOT A TASK.
+   *What is already there:* the loading curtain (`#skyFill`, a fill from the bottom
+   up, the HUD hidden until `uiready`) and a guard on it. The build is a single
+   10 MB HTML file, so the whole game arrives before the first frame — the honest
+   answer needs a measurement on a throttled connection, not an opinion.
+
 ## v2 start rules
 
 - The v1 canon (CLAUDE.md) is in force until an idea explicitly cancels one of its
