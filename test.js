@@ -549,6 +549,13 @@ page.on('response', (r) => {
                return { bottom: [co.stroke, co.strokeWidth], top: [cv.stroke, cv.strokeWidth],
                         textMatches: elLow.textContent === elUp.textContent }; })(),
              boxLvl: boxOf('.win-level'), boxTime: boxOf('.win-time'),
+             // ⚠️ THE PAINT OF THE THREE PARTS OF THE ROW (2026-08-23-e). The dot has no id —
+             // and it is READ ANYWAY, because «make them white» named three nodes and a guard
+             // on two of them would let the odd one out through in the exact place the eye
+             // notices least.
+             rowPaint: ['.win-level', '.win-dot', '.win-time'].map(sel => {
+               const t = document.querySelector(sel + ' text'); if (!t) return null;
+               const c = getComputedStyle(t); return { fill: c.fill, sw: c.strokeWidth }; }),
              // ⚠️⚠️ THE GAPS OF THE ROW AND THE WIDTHS OF THE FRAMES (the owner's word
              // 2026-08-22-d: «between the level, the dot and the time — a single space
              // each»). The two gaps are measured BETWEEN THE BOXES, because that is what
@@ -619,6 +626,61 @@ page.on('response', (r) => {
     'the former layout: the level 50px centred + the time 28px tilted next ' +
     'to the caption. The sabotage is to return `.win-cleanrow`: the counter of the old ' +
     'rows goes red (' + JSON.stringify(winHeadProbe) + ')');
+
+  // ═══ THE ROW IS WHITE AND WITHOUT AN OUTLINE (the owner's word 2026-08-23-e) ═══
+  // «Remove the outline from the level, the dot and the time, make them white.»
+  // ⛔ IT CANCELS the white outline of 2.5 these three carried since node 891:4314. Measured
+  // before the edit: black fill under a white stroke of 5 — on the dark card the halo dominated
+  // and the row READ as white-with-a-black-contour, which is what his frame shows.
+  // ⚠️⚠️ DO NOT CARRY OVER THE WARNING FROM THE HUD'S «remove the outline» OF 2026-08-22-d: the
+  // two requests look alike and are opposite in effect. There the white text was left on the pale
+  // sky at 1.69:1 and the outline was what bought the contrast; here the card is the dark overlay,
+  // so removing it IMPROVES legibility. Same words, different background — check the background.
+  // ⚠️ `stroke-width` SERIALISES AS `0%`, NOT `0px`, so it is compared numerically — a pin on the
+  // string would go red on a sound build, and that trap has already been paid for once.
+  // ⚠️ THE FILL IS IN THE SAME ASSERT: «no outline» alone is equally true of a build where the
+  // row went invisible, and the two halves of his sentence must not be guarded apart.
+  const rowPaintOk = (winHeadProbe.rowPaint || []).length === 3 &&
+    winHeadProbe.rowPaint.every(p0 => p0 && p0.fill === 'rgb(255, 255, 255)' && parseFloat(p0.sw) === 0);
+  expect(rowPaintOk,
+    '⛔⛔ THE ROW «Level N • MM:SS» IS WHITE AND HAS NO OUTLINE — all THREE of its parts, the ' +
+    'dot included (the owner 2026-08-23-e). ⚠️ THE DOT IS READ EVEN THOUGH IT HAS NO id: he ' +
+    'named three nodes, and a guard on two of them would let the odd one out through exactly ' +
+    'where the eye notices least. ⛔ SABOTAGE THAT MUST TURN THIS RED: deleting the `--otl` line ' +
+    'instead of setting it to 0 — the base `.otext text` gives `--otl:2` in WHITE, so the ' +
+    'outline would come BACK, thinner, and «I removed it» would be wrong (' +
+    JSON.stringify(winHeadProbe.rowPaint) + ')');
+
+  // ═══ THE TIME COUNTS UP LIKE THE SCORE (the owner's word 2026-08-23-e) ═══
+  // ⚠️ «LIKE THE SCORE» READ AS THE COUNT-UP AND NOT AS THE POP: the time already had an
+  // entrance of its own (`winTimeIn`, .72s), so what it lacked beside the score was the NUMBER
+  // SPINNING UP. The shape is copied exactly — a 520 ms wait, 700 ms, the same cubic ease-out.
+  // ⚠️⚠️ THE STATEMENT IS A TRANSITION AND IT NEEDS A NON-ZERO TARGET: a run of 0 seconds lands
+  // on the final value at once BY DESIGN, and an assert taken on such a run would be satisfied by
+  // a build with no animation at all. `target > 0` is that control.
+  const timeAnim = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const el = () => document.getElementById('winTime').textContent;
+    g.winScreen(false); await sleep(80);
+    g.winScreen(true);
+    const at0 = el();                       // inside the 520 ms wait — must still be zero
+    await sleep(760);                       // ~240 ms into the 700 ms run
+    const mid = el();
+    await sleep(900);                       // well past the end
+    const done = el();
+    const secs = (t) => { const m = /^(\d+):(\d\d)$/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
+    return { at0, mid, done, s0: secs(at0), sMid: secs(mid), target: secs(done) };
+  });
+  console.log('win time count-up:', JSON.stringify(timeAnim));
+  expect(timeAnim.target > 0 && timeAnim.s0 === 0 &&
+         timeAnim.sMid > 0 && timeAnim.sMid <= timeAnim.target,
+    '⚠️⚠️ THE TIME COUNTS UP TO ITS VALUE, like the score (the owner 2026-08-23-e): it starts at ' +
+    '0:00, is PART WAY THERE in the middle of the run, and lands on the real time. ⚠️ THE ' +
+    '`target > 0` ARM IS THE CONTROL — a level of zero seconds lands at once by design, and on ' +
+    'such a run every other arm is satisfied by a build with no animation at all. ⛔ SABOTAGE: ' +
+    'writing the final value straight into the node — `s0` stops being 0 (' +
+    JSON.stringify(timeAnim) + ')');
   // ══ A SINGLE SPACE IN THE ROW, THE FITTED FRAMES, THE UNCLIPPED MAGNIFIER AND THE
   //    ENTRANCE OF THE LEADERBOARD ROW (the owner's word 2026-08-22-d) ══
   // ⚠️⚠️ THE TWO GAPS ARE COMPARED WITH EACH OTHER AND NOT WITH A NUMBER: a space is a

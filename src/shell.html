@@ -1598,7 +1598,17 @@
      the text in it is centred — extra width is seen as an extra gap. */
   .win-level { flex:none; width:120px; height:34px; }
   .win-dot { flex:none; width:14px; height:34px; }
-  .otext.win-level text, .otext.win-dot text { font-size:24px; --otl:2.5; }
+  /* ⛔⛔ NO OUTLINE, WHITE FILL (the owner's word 2026-08-23-e, with a frame of the row:
+     «remove the outline from the level, the dot and the time, make them white»).
+     ⛔ IT CANCELS the white outline of 2.5 that these three carried since node 891:4314.
+     ⚠️ `--otl:0` AND NOT A DELETION OF THE DECLARATION: the base `.otext text` gives `--otl:2`
+     in WHITE, so removing the line would bring an outline BACK, thinner, instead of removing
+     it. Zero is the only way to say «none» in this mechanism.
+     ⚠️ UNLIKE THE HUD CASE OF 2026-08-22-d, THIS ONE IMPROVES LEGIBILITY RATHER THAN COSTING
+     IT: the win card sits on the dark overlay, so white-on-dark is a strong contrast, whereas
+     the HUD's white sat on the pale sky at 1.69:1. The two «remove the outline» requests look
+     alike and are not — do not carry the HUD's warning over to here. */
+  .otext.win-level text, .otext.win-dot text { font-size:24px; --otl:0; fill:#fff; }
   /* CLEANED + the time — ONE ROW under Level (Figma: the badge on the left, the time on the right,
      on one line). The row is centred, it slightly overlaps the bottom of Level. */
   /* gap 12 (in #124 it was set for the fat outline 27). The outline went down to 4, but
@@ -1672,7 +1682,7 @@
      the shift +30 paired with it at the sticker; the slant 11° balanced the sticker's slant
      alongside. In node 891:4314 the time stands EXACTLY at the right edge. */
   .win-time { flex:none; width:80px; height:34px; }
-  .otext.win-time text { font-size:24px; --otl:2.5; }  /* 24 by node 891:4314 */
+  .otext.win-time text { font-size:24px; --otl:0; fill:#fff; }  /* 24 by node 891:4314; no outline, white — 2026-08-23-e */
   /* ⚠️ The overlap of the score onto the sticker is from the node (`mb:-24` at the sticker's frame). */
   .win-score { width:min(320px, 86vw); height:auto; margin-top:-24px; }
   /* ⛔⛔ TWO OUTLINES (the owner's word 2026-08-21-r «a black one of 6 pixels and

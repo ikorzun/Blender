@@ -84,9 +84,15 @@ function hide(id){
 // (80-gameplay, OUTSIDE my zone) has already counted the score, incremented levelNum and
 // written the hidden holders winTitle/… — I read the state and paint the stickers.
 let winScoreRAF = 0, winScoreTO = 0;
+// ⚠️ THE TIME HAS ITS OWN PAIR OF HANDLES AND SHARES THE STOPPER (2026-08-23-e, «add an
+// animation to the time like the one on the score»). Separate handles because the two count-ups
+// run on different schedules; ONE stopper because they are torn down by the same event — the
+// screen closing — and a second stopper would be a second truth about when that happens.
+let winTimeRAF = 0, winTimeTO = 0;
 // count-up stop: we kill BOTH the timer AND the rAF (called from hide — otherwise after a click on
 // Next the count-up would write into the hidden #winScore and could spill into the next level)
-function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0; }
+function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0;
+  if (winTimeRAF) cancelAnimationFrame(winTimeRAF); if (winTimeTO) clearTimeout(winTimeTO); winTimeRAF = winTimeTO = 0; }
 // compression as in the HUD (≥10000 → «12.5k»): a large score does not break the 320 frame and
 // is consistent with the game screen's score (otherwise HUD «12.5k» vs win «124800»)
 // THE BIG-NUMBER COMPRESSOR — shared by the win screen AND the score chip in the HUD.
@@ -123,6 +129,10 @@ function renderWinScreen(){
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
   const tt = $('winTime'); if (tt) tt.textContent = fmtTime(secs);
+  // ⚠️⚠️ THE FINAL VALUE IS WRITTEN **BEFORE** `fitWinTopRow`, AND THAT ORDER IS LOAD-BEARING FOR
+  // THE COUNT-UP BELOW: the fit shrinks each frame of the row to the width of the text it holds,
+  // so it must measure the LONGEST string the animation will ever show — the final one. Fit on
+  // «0:00» and a run of ten minutes would spill out of its own box on the last frame.
   fitWinTopRow();
   renderWinTop(reduce);
   // ⛔ There is no leaderboard inset here (the owner's word); its cluster was cut out by the cleanup
@@ -149,6 +159,31 @@ function renderWinScreen(){
           winScoreRAF = p < 1 ? requestAnimationFrame(tick) : 0;
         };
         winScoreRAF = requestAnimationFrame(tick);
+      }, 520);
+    }
+  }
+  // ⛔⛔ THE TIME COUNTS UP TOO (the owner's word 2026-08-23-e: «add an animation to the time
+  // like the one on the score»). ⚠️ «LIKE THE SCORE» READ AS THE COUNT-UP, NOT AS THE POP: the
+  // time ALREADY has an entrance of its own (`winTimeIn`, .72s in the cascade) — what it lacked
+  // beside the score was the number spinning up to its value. The shape is copied exactly, not
+  // re-invented: the same 520 ms wait, the same 700 ms duration and the same cubic ease-out
+  // `1 − (1−p)³`, so the two numbers on the card breathe together instead of beating.
+  // ⚠️ IT COUNTS IN SECONDS AND FORMATS EACH FRAME, rather than interpolating the STRING: a
+  // string tween would walk through nonsense like «0:9» on the way to «1:05».
+  // ⚠️ `reduce` AND A ZERO RUN BOTH LAND ON THE FINAL VALUE AT ONCE — the same two exits the
+  // score uses; a count-up from 0 to 0 is an animation that shows nothing and still costs a frame.
+  if (tt){
+    if (reduce || secs <= 0){ tt.textContent = fmtTime(secs); }
+    else {
+      tt.textContent = fmtTime(0);
+      winTimeTO = setTimeout(()=>{
+        const t0 = performance.now(), dur = 700;
+        const tick = ()=>{
+          const p = Math.min(1, (performance.now() - t0) / dur);
+          tt.textContent = fmtTime(Math.round(secs * (1 - Math.pow(1 - p, 3))));
+          winTimeRAF = p < 1 ? requestAnimationFrame(tick) : 0;
+        };
+        winTimeRAF = requestAnimationFrame(tick);
       }, 520);
     }
   }

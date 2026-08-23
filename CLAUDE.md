@@ -10348,3 +10348,53 @@ score cost, and nothing read a pop at all. The new pair states the three numbers
 POINTS and pins that a merge reads its true value **while the score is negative** —
 with `negAt < 0` as the control, because without it the arm is satisfied by a run that
 never went into the minus, i.e. by exactly the state the bug hides in.
+
+## BATCH 2026-08-23-e: THE WIN ROW IS WHITE AND UNOUTLINED; THE TIME COUNTS UP
+
+His word, with a frame of the row: «remove the outline from the level, the dot and the
+time, make them white; add an animation to the time like the one on the score».
+
+**WHAT THE ROW ACTUALLY WAS.** Measured before the edit: a BLACK fill under a WHITE
+stroke of 5 (`--otl:2.5`, doubled by the mechanism). On the dark card the halo dominates
+the letter, so the row READ as white-with-a-black-contour — which is exactly what his
+frame shows and why «make them white» sounded like a no-op. It was not: the glyph was
+black all along.
+✅ `--otl:0` and `fill:#fff` on `.win-level`, `.win-dot`, `.win-time`.
+⚠️ `--otl:0` AND NOT A DELETION OF THE DECLARATION: the base `.otext text` gives
+`--otl:2` in WHITE, so removing the lines would bring an outline BACK, thinner, instead
+of removing it. Zero is the only way to say «none» in this mechanism.
+
+⚠️⚠️ **THIS IS THE SECOND «REMOVE THE OUTLINE» AND IT IS THE OPPOSITE OF THE FIRST — DO
+NOT CARRY THE WARNING OVER.** On 2026-08-22-d the same words applied to the HUD, and
+there the cost was real and was named by the number: white on the pale sky at **1.69:1**,
+below any readability floor, with the outline being exactly what had bought the contrast.
+Here the row sits on the dark overlay, so removing the outline **improves** legibility.
+**Same sentence, different background — check the background before repeating the
+warning.**
+
+**THE TIME COUNTS UP.** ⚠️ «Like the score» was read as the COUNT-UP, not as the pop:
+the time already had an entrance of its own (`winTimeIn`, .72s in the cascade), so what
+it lacked beside the score was the number spinning up. The shape is copied exactly
+rather than re-invented — the same 520 ms wait, the same 700 ms duration, the same cubic
+ease-out `1 − (1−p)³` — so the two numbers on the card breathe together instead of
+beating against each other.
+⚠️ **IT COUNTS IN SECONDS AND FORMATS EACH FRAME**, rather than interpolating the
+STRING: a string tween would walk through nonsense like «0:9» on the way to «1:05».
+⚠️⚠️ **THE FINAL VALUE IS WRITTEN BEFORE `fitWinTopRow()`, AND THAT ORDER IS
+LOAD-BEARING.** The fit shrinks each frame of the row to the width of the text it holds,
+so it must measure the LONGEST string the animation will ever show — the final one. Fit
+on «0:00» and a run of ten minutes would spill out of its own box on the last frame.
+⚠️ **ONE STOPPER FOR TWO COUNT-UPS.** The time has its own pair of handles (the two run
+on different schedules) but shares `winStopScore`, because they are torn down by the
+same event — the screen closing — and a second stopper would be a second truth about
+when that happens.
+⚠️ `reduce` AND A ZERO-SECOND RUN both land on the final value at once, the same two
+exits the score uses.
+
+**MEASURED:** all three parts `rgb(255,255,255)` with `stroke-width: 0%`; the time
+`0:00 → 0:21 → 0:30`, landing on the real value.
+✅ **THE DOT IS GUARDED THOUGH IT HAS NO id.** He named three nodes; a guard on two of
+them would let the odd one out through exactly where the eye notices least.
+✅ **THE COUNT-UP GUARD CARRIES `target > 0` AS ITS CONTROL:** a level of zero seconds
+lands on the final value at once by design, and on such a run every other arm of the
+assert is satisfied by a build with no animation at all.

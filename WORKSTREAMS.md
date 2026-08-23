@@ -1,5 +1,32 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-23-e: THE WIN ROW WHITE AND UNOUTLINED, THE TIME COUNTS UP — the dispatcher
+
+«Remove the outline from the level, the dot and the time, make them white; add an
+animation to the time like the one on the score.»
+
+⚠️ THE ROW WAS BLACK UNDER A WHITE OUTLINE, not white under a black one — on the dark
+card the halo dominates the letter, which is why his frame reads the way it does and
+why «make them white» sounded like a no-op. It was not.
+
+⚠️⚠️ SECOND «REMOVE THE OUTLINE» IN TWO DAYS AND THE OPPOSITE OF THE FIRST: on the HUD
+(2026-08-22-d) it cost real contrast — white on the pale sky at 1.69:1 — and the price
+was named by number. Here the card is the dark overlay and removing it IMPROVES
+legibility. SAME SENTENCE, DIFFERENT BACKGROUND — check the background before repeating
+a warning.
+
+⚠️ «Like the score» = the COUNT-UP, not the pop: the time already had its own entrance,
+so what it lacked was the number spinning up. Shape copied exactly (520 ms wait, 700 ms,
+the same ease) so the two numbers breathe together. It counts in SECONDS and formats
+each frame — a string tween would walk through «0:9» on the way to «1:05».
+
+⚠️⚠️ THE FINAL VALUE IS WRITTEN BEFORE `fitWinTopRow()`: the fit sizes each frame to the
+text it holds, so it must measure the LONGEST string the animation will show. Fit on
+«0:00» and a ten-minute run spills out of its box on the last frame.
+
+Measured: three parts white at stroke-width 0%; the time 0:00 → 0:21 → 0:30.
+
+
 ### ACCEPTANCE 2026-08-23-d: POINTS IN THE UNITS THE PLAYER SEES — the dispatcher
 
 «Why do I see +0 from a merge and still −1 on a mistake? The mixer eats 20 points per
