@@ -1259,9 +1259,52 @@ page.on('response', (r) => {
   // units of the SCREEN: his balance table of 2026-07-22 said «a miss costs 10», the ×10
   // denomination arrived two days later, nobody re-based the penalties behind it, and the pop
   // has been reading «−1» ever since. The number below is RAW; what he sees is raw/10.
-  expect(missL8 === -100, 'lv.8: the full penalty of a miss −100 raw = −10 as the player sees ' +
-    'it (the owner 2026-08-23-v). ⛔ A return to −10 raw brings back the «−1» he complained ' +
+  expect(missL8 === -100, 'lv.8: the FIRST miss of a level costs −100 raw = −10 as the player ' +
+    'sees it (the owner 2026-08-23-v). ⛔ A return to −10 raw brings back the «−1» he complained ' +
     'about twice (' + missL8 + ')');
+
+  // ══ THE PRICE OF A MISTAKE IS A LADDER (the owner's word 2026-08-24) ══
+  // «Make each successive mistake cost +1 more. The first −10, the second −11 and so on.»
+  // ⛔⛔ IT CANCELS THE CONSTANT PRICE. `MISS_PENALTY` is now the FIRST RUNG only, and the
+  // assert above pins exactly that — it is no longer the statement «a miss costs 10».
+  // ⚠️⚠️ THE STEP IS READ THROUGH THE PRODUCTION FUNCTION (`missPenaltyAt`), NOT RECOMPUTED
+  // HERE. A guard that writes `base + step*(n−1)` on its own side checks its own arithmetic and
+  // diverges from the game at the first retune — this project has paid for that copy four times.
+  // ⚠️ AND THE ABSOLUTE OF RUNG 1 STAYS A LITERAL ON PURPOSE: −100 is HIS number. If both ends
+  // came from the same function the pair would be a tautology — the ladder could start anywhere.
+  const missL8b = await page.evaluate(async () => {
+    const g = window.__game;
+    const before = g.stats().score;
+    return { before, rung2: g.missPenaltyAt(2), step: g.missPenaltyAt(2).shown - g.missPenaltyAt(1).shown };
+  });
+  await page.mouse.click(25, 540);
+  await page.waitForTimeout(300);
+  const missL8c = await page.evaluate(() => ({ score: window.__game.stats().score,
+                                               misses: window.__game.stats().misses }));
+  // ⚠️ AND THE RESET: a new level starts the ladder over, because `stats` is rebuilt by
+  // `genLevel` — the scope is where the counter LIVES, not a number someone chose. Without this
+  // arm a build that let the ladder run across the whole session would pass green.
+  await page.evaluate(() => { window.__game.setLevel(8); window.__game.regen(); window.__game.skipIntro(); });
+  await page.waitForTimeout(600);
+  await page.mouse.click(25, 540);
+  await page.waitForTimeout(300);
+  const missL8d = await page.evaluate(() => window.__game.stats().score);
+  console.log('miss ladder:', JSON.stringify({ first: missL8, second: missL8c.score - missL8b.before,
+    rung2: missL8b.rung2, step: missL8b.step, afterRegen: missL8d, misses: missL8c.misses }));
+  expect(missL8c.misses === 2 &&
+         missL8c.score - missL8b.before === -missL8b.rung2.raw &&
+         missL8b.rung2.shown === 11 && missL8b.step === 1 &&
+         missL8d === -100,
+    '⚠️⚠️ THE SECOND MISTAKE OF A LEVEL COSTS ONE POINT MORE, AND A NEW LEVEL STARTS OVER AT ' +
+    'TEN (the owner 2026-08-24: «each successive mistake +1 dearer; the first −10, the second ' +
+    '−11 and so on»): ' + JSON.stringify({ first: missL8, secondDelta: missL8c.score - missL8b.before,
+      rung2shown: missL8b.rung2.shown, step: missL8b.step, afterRegen: missL8d }) + '. ' +
+    '⚠️ THE `step === 1` ARM IS THE ONE THAT STATES HIS NUMBER — without it any escalation at ' +
+    'all would satisfy the rest, including a doubling. ⚠️ AND `afterRegen === −100` IS THE ' +
+    'SCOPE: the ladder resets per LEVEL because `stats` is rebuilt in `genLevel`; a build that ' +
+    'carried the ordinal across levels would be caught only by this arm. ' +
+    '⛔ TWO THINGS DELIBERATELY DO NOT CLIMB AND ARE GUARDED ELSEWHERE: the grinder ' +
+    '(`MIXER_PENALTY`, not a mistake) and level 1 (no penalties at all)');
 
   // ═══ THE POINTS THE PLAYER ACTUALLY SEES (the owner's word 2026-08-23-d) ═══
   // «Why do I see +0 points from a merge and still −1 on a mistake? The mixer eats 20 points per
@@ -1289,8 +1332,13 @@ page.on('response', (r) => {
     clear(); const b2 = g.stats().score; g.autoMatch(); await sleep(350);
     const upNeg = { raw: g.stats().score - b2, pop: popOf() };
     // (c) THE MISTAKE and (d) THE GRINDER, both in points
+    // ⚠️⚠️ THE MEASURED MISS IS **NOT** THE FIRST OF THIS LEVEL — three warm-ups above drove the
+    // score into the minus, so this is the FOURTH, and since 2026-08-24 the price climbs with the
+    // ordinal. We capture the ordinal and what production charges for it; pinning −100 here made
+    // the assert go red on a correct build the moment the ladder arrived.
     clear(); const b3 = g.stats().score; g.penalizeTest(); await sleep(300);
-    const miss = { raw: g.stats().score - b3, pop: popOf() };
+    const missN = g.stats().misses;
+    const miss = { raw: g.stats().score - b3, pop: popOf(), n: missN, rung: g.missPenaltyAt(missN) };
     clear(); const b4 = g.stats().score; g.grindNow(); await sleep(600);
     const grind = { raw: g.stats().score - b4, pop: popOf() };
     return { up, upNeg, negAt, miss, grind };
@@ -1314,13 +1362,20 @@ page.on('response', (r) => {
   // ⚠️ THE THREE NUMBERS HE NAMED, IN HIS UNITS. The raw values are pinned because that is what
   // the code holds, but each is stated as points in the message — if those two ever disagree
   // again, the disagreement is the bug.
-  expect(ptsProbe.miss.raw === -100 && ptsProbe.miss.pop === '-10' &&
+  expect(ptsProbe.miss.n === 4 && ptsProbe.miss.raw === -ptsProbe.miss.rung.raw &&
+         ptsProbe.miss.pop === '-' + ptsProbe.miss.rung.shown && ptsProbe.miss.rung.shown === 13 &&
          ptsProbe.grind.raw === -200 && ptsProbe.grind.pop === '-20',
-    '⚠️⚠️ A MISTAKE COSTS 10 POINTS AND THE GRINDER 20 PER PAIR — both as the player sees them ' +
-    '(the owner 2026-08-23-v and -d). ⛔ THE GRINDER MOVED 2 → 20 POINTS: its literal never ' +
-    'changed, its UNIT did — it was 20 raw, i.e. 2 on screen, while his number has always been ' +
-    'twenty. ⚠️ THE ORDER IS RESTORED BY IT: losing a pair to the grinder is now twice as bad ' +
-    'as a mistake, which is how it read before the denomination silently halved one of them. ' +
+    '⚠️⚠️ A MISTAKE COSTS ITS RUNG OF THE LADDER AND THE GRINDER 20 PER PAIR — both as the ' +
+    'player sees them (the owner 2026-08-23-v/-d and 2026-08-24). ' +
+    '⛔⛔ THIS ASSERT USED TO PIN −100 FLAT AND WOULD HAVE GONE RED ON A CORRECT BUILD: the ' +
+    'probe drives the score into the minus with three warm-up misses first, so the measured one ' +
+    'is the FOURTH — 13 points, not 10. The ordinal is now stated (`n === 4`) and the price is ' +
+    'compared against the SAME function production charges through, so a retune of the base or ' +
+    'the step moves both ends together; `rung.shown === 13` is what keeps the pair from being a ' +
+    'tautology. ⛔ THE GRINDER MOVED 2 → 20 POINTS: its literal never changed, its UNIT did. ' +
+    '⛔⛔ AND THE ORDER THIS ASSERT USED TO STATE IS NOW ORDINAL-DEPENDENT: «the grinder is twice ' +
+    'as bad as a mistake» holds at rung 1 and INVERTS at rung 11, where a mistake also reaches ' +
+    '20 and keeps climbing. The grinder deliberately does not climb — he named the mistake only. ' +
     '⛔ SABOTAGE: writing a bare number into a score constant instead of `n * PT` — the value ' +
     'then means raw units again and the player sees a tenth of it (' +
     JSON.stringify({ miss: ptsProbe.miss, grind: ptsProbe.grind }) + ')');
@@ -4367,11 +4422,14 @@ window.bridge = {
     const s0 = g.stats().score;
     g.penalizeTest();                                  // a miss without the booster
     const plain = s0 - g.stats().score;
+    const nPlain = g.stats().misses;                   // the ordinal it was charged at
     g.buyBundle('bundle2');                            // x2
     const s1 = g.stats().score;
     g.penalizeTest();
     const boosted = s1 - g.stats().score;
-    return { plain, boosted, mult: g.scoreBoostMult() };
+    const nBoost = g.stats().misses;                   // ⚠️ a DIFFERENT rung — see the note below
+    return { plain, boosted, mult: g.scoreBoostMult(), nPlain, nBoost,
+             rungPlain: g.missPenaltyAt(nPlain).raw, rungBoost: g.missPenaltyAt(nBoost).raw };
   });
   // ⚠️⚠️ THE STATEMENT IS THE **RATIO**, NOT THE TWO AMOUNTS. The first edition pinned 10 and 20
   // as literals and went red on a sound build the moment MISS_PENALTY was re-based 10 → 100
@@ -4380,9 +4438,23 @@ window.bridge = {
   // the reward; the size of a miss is a different decision, guarded elsewhere.
   // ⚠️ `plain > 0` IS THE SANITY ARM: without it the ratio is satisfied by two zeroes, i.e. by a
   // build where penalties stopped costing anything at all.
-  expect(penSym.plain > 0 && penSym.mult === 2 && penSym.boosted === penSym.plain * penSym.mult,
+  // ⛔⛔ AND IT HAD TO BE RE-BASED A SECOND TIME ON 2026-08-24, FOR A DIFFERENT REASON THAN THE
+  // FIRST. The two misses here fall on CONSECUTIVE rungs of the new ladder — the plain one is
+  // the level's first (10), the boosted one its second (11) — so `boosted === plain * mult` is
+  // false on a correct build: 220 ≠ 200. The first re-basing survived a change of the AMOUNT;
+  // this one is a change of the SHAPE, and a ratio between two different rungs is not a ratio.
+  // ⚠️ THE PROPERTY IS UNCHANGED AND IS STILL WHAT IS STATED: the booster multiplies the
+  // punishment by the same factor as the reward. It is now measured against the rung each miss
+  // actually landed on, read from the production function — not against the other miss.
+  expect(penSym.plain > 0 && penSym.mult === 2 &&
+         penSym.nBoost === penSym.nPlain + 1 &&
+         penSym.plain === penSym.rungPlain &&
+         penSym.boosted === Math.round(penSym.rungBoost * penSym.mult) &&
+         penSym.rungBoost > penSym.rungPlain,
     '⚠️ SYMMETRY: under x2 a miss costs exactly ×2 — the RATIO is the statement, not the amount ' +
-    '(−' + penSym.plain + ' -> −' + penSym.boosted + ', mult ' + penSym.mult + ')');
+    '(' + JSON.stringify(penSym) + '). ⚠️ THE `rungBoost > rungPlain` ARM IS NOT DECORATION: it ' +
+    'is what proves the two measurements really did land on different rungs, so the assert ' +
+    'cannot quietly degenerate back into comparing a miss with itself');
 
   // THE CLAMP IS ALIVE AFTER THE MULTIPLICATION: a newcomer under x5 does not fly into the minus faster
   const penClamp = await page.evaluate(async () => {
@@ -4661,7 +4733,11 @@ window.bridge = {
     const g = window.__game, s = g.stats(), c = g.combo();
     const tp = g.telemetry(8).filter(e => e.n === 'tap');
     return { score: s.score, misses: s.misses, taps: s.taps, alive: g.alive(),
-             count: c.count, chain: c.chain, tag: tp.length ? tp[tp.length - 1].r : null };
+             count: c.count, chain: c.chain, tag: tp.length ? tp[tp.length - 1].r : null,
+             // ⚠️ THE RUNG THIS TAP LANDED ON (2026-08-24). The reference miss above is the
+             // level's FIRST and this tap its SECOND, so «the same points as a real miss» stopped
+             // being an equality of two numbers the moment the price started climbing.
+             rung: g.missPenaltyAt(s.misses).raw };
   }) : null) || {};
   console.log('nopair after:', JSON.stringify(npA));
 
@@ -4675,10 +4751,19 @@ window.bridge = {
     'alive count says nothing merged. The sabotage: let the pixel drift off the item, or ' +
     'route the pairless tap through any other branch of `handleTap`');
 
-  expect(npA.score - npT.score === npRef.d && npA.misses === npT.misses + 1,
-    '⚠️⚠️ A TAP ON A PAIRLESS ACCESSIBLE ITEM COSTS A WHOLE MISS — the same points as a real ' +
-    'miss, and it is COUNTED as a miss (' + JSON.stringify({ score: npT.score + ' -> ' + npA.score,
-      delta: npA.score - npT.score, refMiss: npRef.d, misses: npT.misses + ' -> ' + npA.misses }) + '). ' +
+  // ⛔⛔ RE-BASED 2026-08-24 AND THE REASON IS WORTH KEEPING: this assert compared the tap with
+  // a REFERENCE MISS taken on the same level, deliberately, so that a retune of the number would
+  // move both ends together. The ladder broke that by construction — the reference is rung 1 and
+  // the tap is rung 2, so the equality is false on a correct build. What the assert states is
+  // unchanged («a whole mistake, not a fine»); it is now measured against the rung the tap
+  // actually landed on, read from the production function. The reference miss stays as the
+  // LIVENESS arm above: it proves `penalize` charges anything at all.
+  expect(npA.score - npT.score === -npA.rung && npA.rung > 0 &&
+         npA.misses === npT.misses + 1,
+    '⚠️⚠️ A TAP ON A PAIRLESS ACCESSIBLE ITEM COSTS A WHOLE MISS — its full rung of the ladder, ' +
+    'and it is COUNTED as a miss (' + JSON.stringify({ score: npT.score + ' -> ' + npA.score,
+      delta: npA.score - npT.score, rung: npA.rung, refMiss: npRef.d,
+      misses: npT.misses + ' -> ' + npA.misses }) + '). ' +
     'The owner\'s word 2026-08-23-a: «any click past an object or into an object without a ' +
     'pair gives −10 points», and, asked, «a full-blown mistake». ⛔ IT CANCELS HIS OWN SPEC ' +
     'OF 2026-07-29, which had removed exactly this penalty — do not restore that one without ' +
@@ -4761,12 +4846,19 @@ window.bridge = {
     const npBefore = await npPage.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
     await npPage.mouse.click(npTarget.px, npTarget.py);
     await npPage.waitForTimeout(400);
-    const npAfter = await npPage.evaluate(() => ({ score: window.__game.stats().score, misses: window.__game.stats().misses }));
+    const npAfter = await npPage.evaluate(() => ({ score: window.__game.stats().score,
+      misses: window.__game.stats().misses,
+      // ⚠️ THE RUNG (2026-08-24): a `regen()` two statements above makes this the level's FIRST
+      // mistake, so −100 is still the right number — but pinning the literal would go red the
+      // moment anyone inserts a miss in between, and it would claim a general fact while pinning
+      // rung 1. Read the rung and the literal survives as what it is: the base of the ladder.
+      rung: window.__game.missPenaltyAt(window.__game.stats().misses).raw }));
     // ⚠️ THE TRANSITION, BOTH HALVES: the points AND the fact that the game booked it as a
     // MISTAKE. The second half is the one his answer turned on — `stats.misses` is what kills a
     // live turbo and zeroes the build-up toward the next one, so a build that took the 10 points
     // without counting the miss would satisfy «−10» and still not be what he asked for.
-    expect(npAfter.score === npBefore.score - 100,
+    expect(npAfter.score === npBefore.score - npAfter.rung && npAfter.rung === 100 &&
+           npAfter.misses === npBefore.misses + 1,
       '⛔⛔ VICTORY OVER HIS OWN SPEC OF 2026-07-29: a tap on an ACCESSIBLE item WITHOUT A PAIR ' +
       'costs exactly −100 raw = −10 as the player sees it, on lv.11 (the owner 2026-08-23-a, the ' +
       'amount re-based 2026-08-23-v). ⛔ SABOTAGE THAT MUST TURN THIS RED: ' +
@@ -12680,7 +12772,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // the ice block to the top — the pixel will be its own, covered by nothing
       g.place(ice.index, 0, g.topY() + 1.2, 0); await sl(700);
       steps.pixel = g.pixelOf(ice.index);
+      // ⛔⛔ ONE WARM-UP MISS ON PURPOSE (2026-08-24), AND WITHOUT IT THE ASSERT BELOW IS BLIND.
+      // The ice tap charges DOUBLE. While it was the level's first mistake, «double of the
+      // current rung» and «double of the base» are the SAME number (200) — the guard could not
+      // tell a laddered ice tap from a flat one, and a build that pinned the ice to 2×MISS_PENALTY
+      // would have passed green while quietly making the ice the cheapest mistake of a long level.
+      // One warm-up puts the tap on rung 2, where the two readings differ: 220 against 200.
+      g.penalizeTest(); await sl(200);
       steps.before = { score: g.stats().score, misses: g.stats().misses };
+      steps.expect = 2 * g.missPenaltyAt(g.stats().misses + 1).raw;  // the rung the tap WILL land on
       return { steps };
     });
     const st = phase1.steps;
@@ -12697,15 +12797,23 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         delta: window.__game.stats().score - before.score,
         miss: window.__game.stats().misses - before.misses }), st.before);
       console.log('ice block/penalty:', JSON.stringify(penalty));
-      // ⚠️ −20, and not −40: the double penalty of a stone = 2×MISS_PENALTY = 2×10 (the canon,
-      // the table 2026-07-22). The first version of the assert doubled an ALREADY doubled number
-      // from memory — the mechanic was right, it was the expectation that lied.
-      expect(penalty.delta === -200 && penalty.miss === 1,
-        '⚠️ ICE BLOCK: a tap before the time — the penalty IS AS AT A STONE (double, 2×100 = −200 ' +
-        'raw = −20 as the player sees it), the miss is counted. ⛔ IT RODE ALONG WITH THE ' +
-        'RE-BASING OF MISS_PENALTY 10 → 100 (2026-08-23-v) and was NOT named by the owner — the ' +
-        'double stays a double, so if he ever wants the ice tap priced separately it needs its ' +
-        'own constant rather than a second multiplier here (' + JSON.stringify(penalty) + ')');
+      // ⚠️ The double penalty of a stone = 2× a miss (the canon, the table 2026-07-22). The first
+      // version of the assert doubled an ALREADY doubled number from memory — the mechanic was
+      // right, it was the expectation that lied.
+      // ⛔⛔ AND SINCE 2026-08-24 IT IS DOUBLE OF THE **CURRENT RUNG**, NOT OF THE BASE. The ice
+      // spec says «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once the price of a
+      // miss climbs, twice-a-miss climbs with it. The warm-up miss above is what makes this
+      // assert able to see the difference at all: on rung 2 the two readings are 220 and 200.
+      expect(penalty.delta === -st.expect && st.expect === 220 && penalty.miss === 1,
+        '⚠️ ICE BLOCK: a tap before the time — the penalty IS AS AT A STONE (double of the rung ' +
+        'the tap lands on: on rung 2 that is 2×110 = −220 raw = −22 as the player sees it), and ' +
+        'the miss is counted. ⛔ IT RODE ALONG WITH THE RE-BASING OF MISS_PENALTY 10 → 100 ' +
+        '(2026-08-23-v) AND WITH THE LADDER OF 2026-08-24, and was NOT named by the owner either ' +
+        'time — the double stays a double. If he ever wants the ice tap priced separately it ' +
+        'needs its own constant rather than a second multiplier here. ⚠️ `st.expect === 220` is ' +
+        'what stops the pair from being a tautology: without it the assert would agree with ' +
+        'production about any number, including a flat 200 (' +
+        JSON.stringify({ penalty, expect: st.expect, misses: st.before.misses }) + ')');
     }
     // ── THE CREDITING UP TO THE FACT of readiness (a poll, not a count of calls) + the pulse
     const phase2 = await fz.evaluate(async (arg) => {

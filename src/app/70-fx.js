@@ -1481,7 +1481,11 @@ function scorePop(text, worldPos, color, big){
 function penalize(worldPos, sx, sy){
   stats.misses++;
   const before = stats.score;
-  const charged = scorePenalty(MISS_PENALTY);
+  // ⛔ THE PRICE CLIMBS WITH THE ORDINAL (2026-08-24) — `stats.misses` has ALREADY been
+  // incremented above, so it IS the ordinal of the miss being charged: 1 → 10, 2 → 11, …
+  // ⚠️ Read through `missPenaltyFor` and never as `MISS_PENALTY` again: that constant is now
+  // only the FIRST rung of the ladder.
+  const charged = scorePenalty(missPenaltyFor(stats.misses));
   const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
   // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
   // makes a mistake while charging turbo mode — the mode's counter is reset").

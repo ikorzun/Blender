@@ -454,7 +454,9 @@ at the end of the session.
   (the keys 'ROCK#i' are unique); only the BOMB can remove them early (legal
   victims of detonateBomb, they count into the cap of 7); mixerGrind and trimOverfill do not
   touch them, the final cleanup finishes them off; a tap = penalizeRock (80-gameplay):
-  a DOUBLE penalty of 2×MISS_PENALTY=20 through the single point scorePenalty (lvl.1
+  a DOUBLE penalty of 2×the miss through the single point scorePenalty (lvl.1
+  ⛔ THE «=20» THAT STOOD HERE DIED ON 2026-08-24: the price of a miss became a LADDER, and
+  the double follows it — `2 × missPenaltyFor(n)`, i.e. 20 only on the level's first mistake.
   without penalties, the lvl.2-5 clamp are respected), misses/the combo cut — as with a miss,
   in the finale there is no penalty; outside victory/the endgame/the auto-pan: aliveCnt (∞<=8) and
   aliveN (the pair score + the 20% threshold) do not count the rocks; they do NOT blink with the veil
@@ -2864,7 +2866,9 @@ with the platform.
 ⚠️ THE NUMBER OF ITEMS PER LEVEL is in the «OBJECT STATE» section at the top, it is
 MEASURED: the formula «pairs×2 + 1 = 181» went stale with the arrival of the bomb and the stones);
 `FLOOR_REST`=1.15; `G`=22;
-`MATCH_SCORE`=10; `MISS_PENALTY`=**10** (not 7 — the table of 2026-07-22); `MIXER_PERIOD`=2; `MIXER_PENALTY`=20;
+`MATCH_SCORE`=10; `MISS_PENALTY`=**10** — since 2026-08-24 THE FIRST RUNG ONLY, the price is
+`missPenaltyFor(n)` = `MISS_PENALTY` + `MISS_PENALTY_STEP`(=`1 * PT`)·(n−1), reset per level;
+`MIXER_PERIOD`=2; `MIXER_PENALTY`=20 (does NOT climb);
 ⚠️ THE PENALTIES ARE MULTIPLIED BY THE BOOSTER (2026-07-28, the single point scorePenalty).
 `SURPRISE_BONUS`=150; the mixer's patience by DIFFICULTY `MIXER_IDLE_EASY/HARD`=
 **15/10 s** (retuned in `304fdf0` 2026-07-27; the former 10/3.3 went stale in the canon); the progression: `LEVEL_TYPES_MIN`=9 +1/level
@@ -9994,6 +9998,8 @@ nothing has a pair).
 ⚠️ **THE SEARCH HINTS ARE NOW PAID.** The yellow «Pair is near but covered» and the
 red «Pair is deeper and farther» markers only ever appear after this line, so every
 use of the game's own search tool costs 10.
+⛔ TRUE ONLY OF THE FIRST USE SINCE 2026-08-24 — the price of a mistake climbs by one point
+each time within a level, so the search tool gets steadily more expensive as it is used.
 ⚠️ **AND ONE HOLE HE INHERITS:** `noteMissRadius` suppresses the deadlock detector
 for 3 s, so a player poking pairless items faster than once per 3 s keeps deferring
 his own rescue grinding. It self-heals the moment he stops and the rescue costs
@@ -10326,7 +10332,7 @@ used to live a hundred lines lower, which is exactly why the balance table of
 | | before | now | on screen |
 |---|---|---|---|
 | a pair | 20 raw | `1 * PT` ×N×(N−1) | **+2** |
-| a mistake | 100 raw | `10 * PT` | **−10** |
+| a mistake | 100 raw | `10 * PT` | **−10** ⛔ THE FIRST ONE ONLY, see 2026-08-24 |
 | the grinder, per pair | 20 raw | `20 * PT` | **−20** |
 | the golden fish | 150 raw | `15 * PT` | +15 |
 
@@ -10338,6 +10344,10 @@ a mistake, which is how it read before the denomination silently halved one of t
 ### THE RATIO IS NOW HIS TO JUDGE, AND IT IS NAMED
 
 A pair pays **2**, a mistake costs **10** (five pairs), the grinder **20** (ten pairs).
+⛔⛔ THE MISTAKE'S HALF OF THIS SENTENCE WAS CANCELLED ON 2026-08-24 — it is a LADDER now,
+10 for the first of a level and +1 for each further one, so «five pairs» is the floor and the
+order «the grinder is twice as bad» inverts at the eleventh mistake. The pair and the grinder
+are unchanged.
 That is what puts the level score in the minus for long stretches — the state that made
 the «+0» visible in the first place. He set the mistake and the grinder himself; the
 MERGE value is the knob he has not touched, and it is the one that decides whether the
@@ -10600,3 +10610,141 @@ the page at all now**, while the scan itself stays live for the page's own ids
 ⚠️ `.win-reward::after` (a white inner glow) is now inert on a white pill. Kept **dead and
 labelled dead**, by the canon's own rule for a layer that may come back — this pill's backing
 has moved four times.
+
+## BATCH 2026-08-24: THE PRICE OF A MISTAKE IS A LADDER
+
+His word: «make each successive mistake cost +1 more. The first −10, the second −11 and so on.»
+
+⛔⛔ **IT CANCELS THE CONSTANT PRICE OF A MISS, AND WITH IT A LINE OF THE BALANCE TABLE OF
+2026-08-23-d** («a pair 2, a mistake 10, the grinder 20»). `MISS_PENALTY` stopped being «the
+price of a miss» and is now **the price of the FIRST miss**; the price itself comes from
+`missPenaltyFor(n) = MISS_PENALTY + MISS_PENALTY_STEP·(n−1)`, `MISS_PENALTY_STEP = 1 * PT`.
+⛔ **NOTHING MAY READ `MISS_PENALTY` AS «the price» AGAIN** — both charge points go through the
+function, and so does every guard.
+
+**MEASURED ON THE LIVE PATH, NOT DERIVED:** five real taps into empty space on lv.11 gave
+**−10, −11, −12, −13, −14**; the next level starts again at −10; level 1 still charges nothing.
+
+⚠️⚠️ **THE LADDER RESETS PER LEVEL, AND THAT IS NOT A NUMBER SOMEBODY CHOSE — IT IS WHERE THE
+COUNTER LIVES.** `stats` (with `misses` in it) is rebuilt by `genLevel`, so the ordinal starts
+from one on every level by construction. Two consequences that follow from the same fact and
+are worth knowing before someone reports them as bugs:
+- **Restart launders the ladder** — Pause → Restart and Retry both re-enter `genLevel`.
+- **An ad-Continue does NOT** — `continueRun` revives the level without touching `stats`, so the
+  ladder carries across it.
+Should he ever want the count to run across a whole session, the counter has to move OUT of
+`stats` first; it is not a constant to tweak.
+
+⚠️ **THE FUNCTION IS PURE AND TAKES THE ORDINAL** — it does not read `stats` itself. That is what
+lets a guard call the very function production calls, at any ordinal, without a live game. The
+hook is `__game.missPenaltyAt(n)` → `{raw, shown}`.
+⚠️ **THE ORDINAL IS 1-BASED AND BOTH CALL SITES INCREMENT FIRST** (`stats.misses++` then charge),
+so `stats.misses` IS the ordinal of the miss being charged. Swap those two lines and the ladder
+silently starts at 11.
+⚠️ **ONE ASYMMETRY, NAMED:** on level 1 `scorePenalty` returns before charging, but the increment
+already ran — the counter is a MISTAKE counter, not a CHARGE counter. Harmless today.
+
+**TWO PRICES RIDE ALONG, ONE OF THEM BY DESIGN AND ONE DELIBERATELY NOT:**
+- **THE ICE BLOCK CLIMBS WITH IT.** An early tap is `2 × missPenaltyFor(n)`, not `2 × MISS_PENALTY`.
+  Its spec says «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once a miss climbs,
+  twice-a-miss climbs too. Pinning it to the base would have made the ice the CHEAPEST mistake
+  of a long level.
+- ⛔ **THE GRINDER DOES NOT.** `MIXER_PENALTY` is not a mistake; he named the mistake only.
+  ⚠️⚠️ **AND THAT INVERTS AN ORDER THE CANON STATED AS A FACT ONE DAY EARLIER:** «losing a pair to
+  the grinder is twice as bad as a mistake» holds at rung 1 and **flips at rung 11**, where a
+  mistake also reaches 20 and keeps climbing. That sentence is now ordinal-dependent everywhere
+  it appears.
+
+**THE ARITHMETIC, NAMED TO HIM RATHER THAN LEFT TO BE DISCOVERED:** cumulative cost is
+`10n + n(n−1)/2` — **10 mistakes cost 145 points, 20 cost 390**, while a pair pays 2 and a group
+of four pays 12. ⚠️ And the biggest generator of misses is his own decision of 2026-08-23-a: a
+tap on a pairless item is a full mistake, so ordinary probing of the pile climbs the ladder fast.
+⛔ There is no cap — he said «and so on». One number if he wants one.
+⚠️ **A STANDING CONSEQUENCE THAT BECAME FALSE:** «every use of the game's own search tool costs
+10» (2026-08-23-a) is true only of the first use.
+
+### THE RECON FOUND WHAT A RUN WOULD HAVE COST: THREE RED, ONE BLIND, TWO NARROWED
+
+⚠️⚠️ **THE THREE REDS ARE ALL THE SAME SHAPE, AND IT IS A SHAPE WORTH RECOGNISING: A SECTION
+THAT MAKES MORE THAN ONE MISS INSIDE ONE LEVEL.** While the price was constant that was free;
+with a ladder every such assert compares two different rungs.
+- **the points-as-seen probe** drives the score into the minus with three warm-up misses, so its
+  «a mistake costs −100» measured the FOURTH miss → now −130. Re-based onto the ordinal, which
+  is now stated (`n === 4`) and compared against the production function.
+- **the booster symmetry** took `plain` at rung 1 and `boosted` at rung 2 and asserted
+  `boosted === plain × mult`: 220 ≠ 200. ⚠️ **THIS IS THE SECOND RE-BASING OF THAT ASSERT AND THE
+  TWO ARE DIFFERENT IN KIND** — the first survived a change of the AMOUNT (10 → 100) precisely
+  because it had been rewritten as a ratio; a ratio between two different rungs is not a ratio.
+  It now compares each charge with the rung it landed on, plus an arm proving the rungs differ.
+- **the pairless tap** was measured against a live reference miss ON PURPOSE, «so a retune of the
+  number moves both ends together» — and the ladder broke exactly that, because the reference is
+  rung 1 and the tap is rung 2. The reference stays as the LIVENESS arm; the price is now the tap's
+  own rung.
+⛔⛔ **AND THE BLIND ONE IS THE MOST INSTRUCTIVE: THE ICE GUARD WOULD HAVE STAYED GREEN EITHER
+WAY.** The ice tap was the level's first mistake, and at rung 1 «double of the current rung» and
+«double of the base» are the SAME number, 200 — so a build that pinned the ice to `2×MISS_PENALTY`
+would have passed while quietly making the ice the cheapest mistake of a long level. Cured by
+giving the section ONE warm-up miss so the tap lands on rung 2, where the readings differ (220
+against 200). **A guard that cannot distinguish the two implementations is not guarding the
+choice between them.**
+
+✅ **THE LADDER'S OWN GUARD STATES THREE THINGS, AND EACH ARM EXISTS FOR A REASON:** rung 1 as an
+ABSOLUTE literal (his number — if both ends came from the function the pair would be a tautology
+and the ladder could start anywhere), the STEP as exactly 1 point (without it any escalation at
+all satisfies the rest, including a doubling), and the RESET after a `regen` (without it a build
+that ran the ordinal across the whole session passes green).
+
+## THE PUBLIC REPOSITORY WAS PUBLISHED IN FULL AND THEN TIDIED (2026-08-24)
+
+His words: «push everything to the public git» and then «clean it up». `ikorzun/Blender` is
+PUBLIC — verified by an anonymous API request, not from memory — and it is the repo the whole
+project has been pushing to all along.
+
+**PUBLISHED:** 12 direction branches that had never left this machine (16 commits, 12 files).
+Before publishing to a public repo they were scanned for credentials — ONE hit, a comment saying
+«the ADMIN_TOKEN is with Integration», no value. `tools/lb-seed-bots.*` looked alarming and turned
+out to be already public via another branch. `3d assets/` is gitignored and went nowhere.
+⛔ **ONE BRANCH WAS NOT FORCE-PUSHED AND MUST NOT BE:** `claude/bonus-level` had diverged (12
+local commits, 2 remote). It went up as `claude/bonus-level-rebased` — additive, nothing clobbered.
+
+**THEN DELETED — 9 branches, and the honest headline is that it freed NOTHING.** Measured over
+all refs: 9804 objects reachable before, 9804 after. Every one of the nine tips is an ancestor of
+v2, so their objects live in the mainline regardless. **Deleting refs is tidiness, not weight.**
+The nine (tips recorded so the refs are recreatable): `bonus-level-rebased` 7a78ff7,
+`graphics-guard-fix` 3e5af98, `graphics-matcap-owner` ba94650, `interface-audit` ec76a06,
+`interface-debts` bee5386, `intro-ccd` 0fc6a7a, `physics-bowl` 2d6a25a, `star-pulse-2of10` 729d4c7,
+`wall-anchor` 7abd285.
+
+⛔⛔ **WHAT WAS **NOT** DELETED, AND THE RULE THAT DECIDED IT: A BRANCH CAN BE FULLY MERGED AND
+STILL BE LOAD-BEARING, BECAUSE THE CANON POINTS AT IT BY NAME.** «Merged = safe to delete» is
+WRONG here and would have destroyed recorded recovery paths:
+- **`claude/bonus-standalone`** — «the whole code is intact in TWO places: the branch … to bring
+  it back into production = merge the branch». Four passages instruct a future session to merge a
+  ref that would no longer exist.
+- **`claude/bonus-level`** — «the work … lives in the branch `claude/bonus-level`», and that is
+  true only of the REMOTE ref.
+- **`claude/matcap-bench`** — «it has been pushed to the remote so that it does not live in a
+  single clone»: the canon names the remote copy AS the preservation mechanism. «Do not merge» is
+  not «may delete».
+- **`assets/models-in-game`** — unrelated history, and since `3d assets/` is gitignored **this ref
+  is the only version-controlled copy of the game's 3D models**.
+Plus every branch carrying unique commits (deleting the ref orphans them) and every live worktree.
+
+⚠️⚠️ **A HAZARD NO DELETE COMMAND CAN CAUSE, FLAGGED TO HIM:** the remote `claude/bonus-level`
+(42dd63a) is the ONLY ref in existence containing the canon's recovery content, while the LOCAL
+branch of the same name sits at a different sha in a stale worktree. **A routine
+`git push blender claude/bonus-level` from that worktree would silently orphan it.** The same
+single-ref exposure applies to `claude/lb-grow` (0df77bc).
+⚠️ Two more, found in passing: `.git/config` has `branch.v1-launch.merge = refs/heads/main`, i.e.
+a careless push from `v1-launch` aims at the DEPLOY branch; and the main clone's `node_modules` is
+a symlink into `Backups/Blender` — that backup is load-bearing, not an archive.
+
+✅ **THE ONLY FREE WEIGHT WIN WAS `git gc`, AND IT WAS LARGE:** 73% of `.git` was unpacked loose
+objects. Main clone **499 MB → 164 MB**, the backup clone **810 MB → 154 MB** — **991 MB
+reclaimed in seconds, not one sha changed, no worktree touched, no canon anchor invalidated.**
+⛔ **A HISTORY REWRITE WAS CONSIDERED AND REJECTED, WITH THE COST COUNTED:** stripping the 720
+historical copies of the built `index.html` (~281 MiB) would invalidate 9 worktrees, turn the
+810 MB backup clone into unrelated history (and it is the only copy of nine branches long gone
+from the remote), kill **124 commit-sha anchors** the canon is written on, and force-push the
+live site's branch. Not worth 281 MiB. **If the weight ever must go, the cut is the built
+artifact, and it is a separate operation with the owner's word.**

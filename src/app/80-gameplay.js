@@ -308,7 +308,13 @@ function doMatch(list){
 function penalizeDouble(item){
   stats.misses++;
   const before = stats.score;
-  const charged = scorePenalty(2 * MISS_PENALTY);
+  // ⛔ DOUBLE OF THE **CURRENT** RUNG, NOT OF THE FIRST ONE (2026-08-24). The ice spec says
+  // «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once the price of a miss
+  // climbs, «twice a miss» climbs with it. Pinning it to 2×MISS_PENALTY would have quietly
+  // turned the ice into the CHEAPEST mistake of a long level.
+  // ⚠️ And it advances the ladder for what follows, because it is a mistake: `stats.misses`
+  // is incremented above by the same rule as in `penalize`.
+  const charged = scorePenalty(2 * missPenaltyFor(stats.misses));
   const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
   // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
   // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.

@@ -1240,6 +1240,11 @@ window.__game = {
   },
   level(){ return level; },
   stats(){ return stats; },
+  // ⚠️ THE LADDER OF THE MISS PRICE (2026-08-24). The guard is obliged to call THIS — the very
+  // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula
+  // beside the working one diverges at the first edit, and this project has paid for that four
+  // times. `raw` is what `scorePenalty` receives, `shown` is what the player reads.
+  missPenaltyAt(n){ return { raw: missPenaltyFor(n), shown: Math.floor(missPenaltyFor(n) / SCORE_DENOM) }; },
   levelNum(){ return levelNum; },
   // debug/suite: the last telemetry events (the buffer accumulates even when
   // sending is off — otherwise the metrics could not be checked before production)

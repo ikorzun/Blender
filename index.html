@@ -4439,11 +4439,34 @@ const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a 
 // ⚠️ TWO CONSUMERS RIDE ALONG AND NEITHER WAS NAMED BY HIM: `penalizeDouble` (the early tap on
 // an ice block) is 2×, so it becomes 20 shown; and the paid ×5 booster multiplies penalties
 // too (his own decision 2026-07-28), so one miss under it reads −50.
-// ⛔ `MIXER_PENALTY` WAS **NOT** RE-BASED and is now the odd one out: the grinder still takes
-// 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting the mixer eat
-// a pair, where it used to be the other way round. He named the MISTAKE and only the mistake —
-// this is his call to make, and it is flagged to him rather than decided here.
-const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d)
+// ⛔⛔ THE PARAGRAPH THAT USED TO STAND HERE WAS STALE AND CONTRADICTED ITS OWN NEIGHBOUR
+// TWENTY LINES BELOW — cleared 2026-08-24. It said «MIXER_PENALTY was NOT re-based, the
+// grinder still takes 20 raw = 2 shown», while `MIXER_PENALTY = 20 * PT` (i.e. 20 SHOWN) sits
+// right there with a tombstone of its own re-basing. It was written in the hour between the
+// two edits of 2026-08-23-d and outlived its truth by a day.
+// ⚠️ THE LESSON IS THE PROJECT'S OWN, EARNED AGAIN: when you edit a number, grep the file BY
+// THE WORD and not only by the symbol — one's own text next door is the first reviewer.
+const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d) — THE FIRST one
+// ⛔⛔ SINCE 2026-08-24 THE PRICE OF A MISTAKE IS A LADDER, NOT A CONSTANT (the owner's word:
+// «make each successive mistake cost +1 more. The first −10, the second −11 and so on»).
+// `MISS_PENALTY` stopped being «the price of a miss» and became «the price of the FIRST miss»;
+// everything that wants the price must go through `missPenaltyFor()`.
+// ⚠️⚠️ THE LADDER RESETS PER LEVEL, AND THAT IS NOT A CHOICE OF MINE — IT IS WHERE THE COUNTER
+// LIVES: `stats` (with `misses` in it) is REBUILT by `genLevel` (40-items), so the ordinal
+// starts from one on every level by construction. Should he ever want it to run across a whole
+// session, the counter has to move out of `stats` first — it is not a number to tweak here.
+// ⚠️ THE FUNCTION IS PURE AND TAKES THE ORDINAL — it does NOT read `stats` itself. That is what
+// lets a guard call the very function production calls, on any ordinal, without a live game;
+// a guard recomputing `base + step*(n−1)` on its own side would be checking its own arithmetic.
+// ⚠️ THE ORDINAL IS 1-BASED and both call sites do `stats.misses++` FIRST, so they pass the
+// ordinal of the miss being charged: first miss → n=1 → 10.
+// ⛔ THE GRINDER DOES NOT CLIMB: `MIXER_PENALTY` is not a mistake, he named the mistake only.
+//    A consequence worth knowing: the grinder is 20, so from the ELEVENTH miss of a level a
+//    mistake costs more than letting the mixer eat a pair.
+const MISS_PENALTY_STEP = 1 * PT;   // +1 point for each further mistake of the same level
+function missPenaltyFor(n){
+  return MISS_PENALTY + MISS_PENALTY_STEP * Math.max(0, (n | 0) - 1);
+}
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)
@@ -12906,7 +12929,11 @@ function scorePop(text, worldPos, color, big){
 function penalize(worldPos, sx, sy){
   stats.misses++;
   const before = stats.score;
-  const charged = scorePenalty(MISS_PENALTY);
+  // ⛔ THE PRICE CLIMBS WITH THE ORDINAL (2026-08-24) — `stats.misses` has ALREADY been
+  // incremented above, so it IS the ordinal of the miss being charged: 1 → 10, 2 → 11, …
+  // ⚠️ Read through `missPenaltyFor` and never as `MISS_PENALTY` again: that constant is now
+  // only the FIRST rung of the ladder.
+  const charged = scorePenalty(missPenaltyFor(stats.misses));
   const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
   // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
   // makes a mistake while charging turbo mode — the mode's counter is reset").
@@ -15755,7 +15782,13 @@ function doMatch(list){
 function penalizeDouble(item){
   stats.misses++;
   const before = stats.score;
-  const charged = scorePenalty(2 * MISS_PENALTY);
+  // ⛔ DOUBLE OF THE **CURRENT** RUNG, NOT OF THE FIRST ONE (2026-08-24). The ice spec says
+  // «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once the price of a miss
+  // climbs, «twice a miss» climbs with it. Pinning it to 2×MISS_PENALTY would have quietly
+  // turned the ice into the CHEAPEST mistake of a long level.
+  // ⚠️ And it advances the ladder for what follows, because it is a mistake: `stats.misses`
+  // is incremented above by the same rule as in `penalize`.
+  const charged = scorePenalty(2 * missPenaltyFor(stats.misses));
   const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
   // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
   // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.
@@ -22505,6 +22538,11 @@ window.__game = {
   },
   level(){ return level; },
   stats(){ return stats; },
+  // ⚠️ THE LADDER OF THE MISS PRICE (2026-08-24). The guard is obliged to call THIS — the very
+  // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula
+  // beside the working one diverges at the first edit, and this project has paid for that four
+  // times. `raw` is what `scorePenalty` receives, `shown` is what the player reads.
+  missPenaltyAt(n){ return { raw: missPenaltyFor(n), shown: Math.floor(missPenaltyFor(n) / SCORE_DENOM) }; },
   levelNum(){ return levelNum; },
   // debug/suite: the last telemetry events (the buffer accumulates even when
   // sending is off — otherwise the metrics could not be checked before production)
