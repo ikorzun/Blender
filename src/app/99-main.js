@@ -1240,6 +1240,10 @@ window.__game = {
   },
   level(){ return level; },
   stats(){ return stats; },
+  // the colour a mistake is painted with — so a guard can tie the CSS `#score.miss` to it
+  // instead of pinning a second copy of the hex (2026-08-25)
+  missColor(){ return MISS_COLOR; },
+  scoreMissOn(){ const e = document.getElementById('score'); return !!(e && e.classList.contains('miss')); },
   // ⚠️ THE LADDER OF THE MISS PRICE (2026-08-24). The guard is obliged to call THIS — the very
   // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula
   // beside the working one diverges at the first edit, and this project has paid for that four
@@ -1299,6 +1303,28 @@ window.__game = {
     return { packs, registered: [...packMatcaps.keys()],
              withImage: (typeof PACK_MATCAP_SRC !== 'undefined')
                ? Object.keys(PACK_MATCAP_SRC).filter(k => PACK_MATCAP_SRC[k]) : [] };
+  },
+  // ⚠️ THE TWIN OF THE ABOVE FOR THE PER-OBJECT TIER (2026-08-25-b). It is what lets a guard
+  // state the thing that matters — that a type with its own matcap is NOT wearing what the rest
+  // of its pack wears — without reaching into the registry, which would only prove the registry
+  // agrees with itself. `sameAsPack` is the load-bearing field: it must be 0 for an overridden
+  // type and equal to `items` for every other type of that pack.
+  typeMatcapInfo(){
+    const out = {};
+    for (const it of items){
+      if (!it || !it.alive || !it.type || !it.type.name || !it.mesh) continue;
+      const t = it.type, m = it.mesh.material;
+      const own = typeMatcaps.get(t.name);
+      // what this type WOULD wear if it had no override of its own
+      const packAim = (t.tex && !t.paint)
+        ? packMatcap(t.tex, (typeof packMatcapTex === 'function' && packMatcapTex(t.tex)) || makeMatcap('tex'))
+        : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');
+      const rec = out[t.name] || (out[t.name] = { pack: t.tex || null, items: 0, onOwn: 0, sameAsPack: 0 });
+      rec.items++;
+      if (m && own && m.matcap === own) rec.onOwn++;
+      if (m && m.matcap === packAim) rec.sameAsPack++;
+    }
+    return { types: out, registered: [...typeMatcaps.keys()] };
   },
   // ⚠️ LOAD-BEARING: the guard «the bomb is dressed in the owner's picture» stands on it. This cannot be
   // checked by grepping the build — the inline base64 is present even when nobody

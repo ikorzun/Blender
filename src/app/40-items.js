@@ -77,9 +77,11 @@ function itemMaterial(t){
       // ⚠️ `typeof packMatcapTex === 'function'` from the branch's edition was
       // REMOVED deliberately: it is a function declaration, it never lands in the
       // TDZ, and the check would only mask a real breakage of the module order.
-      matcap: (t.tex && !t.paint)
-            ? packMatcap(t.tex, packMatcapTex(t.tex) || makeMatcap('tex'))
-            : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      // ⛔ SINCE 2026-08-25-b THE SELECTION IS NOT WRITTEN OUT HERE — it lives in ONE function,
+      // `itemMatcapAim` (10-stage), shared with both repoints. The three tiers described above
+      // are unchanged; a FOURTH was added on top of them, the editor's PER-TYPE override, and a
+      // second copy of this expression would have diverged from the repoints at the first edit.
+      matcap: itemMatcapAim(t),
       vertexColors: t.mat === 'model',
     });
     // the brightness/contrast knobs are calibrated for the AUTHORS' atlases; the

@@ -10089,6 +10089,11 @@ with the win screen's gradient.
 desktop score loses the contrast its gradient's darker lower half gave it. The mobile
 score has carried exactly this number since yesterday and he accepted it knowingly.
 **MEASURED:** `rgb(255, 231, 48)` at both 657 and 1280 wide.
+⛔⛔ **«ONE COLOUR EVERYWHERE» DIED ON 2026-08-25-b.** Node 913:3644 «Header-desk» paints the
+DESKTOP number black (`text-[34px] text-black`), and he asked for the header to be updated by it.
+The phone keeps `#ffe730` — there the top of the frame is the darkest sky stop in both themes.
+The two arms are now deliberately different and the suite states the split as intended; do not
+«restore the symmetry» without his word. The `#gScore` cancellation above still stands.
 
 ### 8. THE BLADES WERE RAISED TOWARDS THE PILE — THE PILE WAS NOT DROPPED
 
@@ -10856,3 +10861,249 @@ section whose measurement has a MERGE between its misses): the points-as-seen pr
 gained the strongest statement of the reset for free, since it merges before the miss it
 measures, so **four mistakes deep the price is back at ten**; the booster symmetry; both halves
 of the pairless tap; the ice block.
+
+## BATCH 2026-08-25: THE SCORE REDDENS ON A MISTAKE, AND TWO BLOCKS OF THE VICTORY SCREEN LOSE THEIR GLASS
+
+Three of his words in two messages, plus one investigation he asked for and did not get an answer
+to yet (the icons — see the section after this one).
+
+### THE SCORE CHIP TURNS THE COLOUR OF A MISTAKE
+
+His word: «if the player misses, at that moment the total score must redden (the same colour as
+the miss)».
+
+⚠️⚠️ **«THE SAME COLOUR» IS THE HALF THAT DECIDED THE SHAPE OF THE CODE.** The hex `#e5484d` was
+written as a literal at three pop sites; a promise repeated over four copies is not a fact. It is
+now `MISS_COLOR` in 00-config, read by all three pops.
+⛔ **THE FOURTH COPY IS UNAVOIDABLE AND LIVES IN CSS** (`#score.miss { fill:#e5484d }`) — a
+stylesheet cannot read a JS const. It is TIED BY A GUARD instead: the suite reads the computed
+fill of the reddened chip and `__game.missColor()` and asserts the two strings are equal. Retune
+the miss colour in 00-config alone and the suite goes red — which is what «the same colour» has
+to mean.
+
+**THE MECHANISM IS A CLASS AND A TRANSITION, NOT A PER-FRAME PAINT.** `scoreFlashMiss()` (85-hud)
+adds `.miss` and removes it `SCORE_MISS_MS = 520` ms later; the return to yellow is a `fill`
+transition of .14 s. One description of each colour per side, no JS in the loop.
+⚠️ **THE TIMER RESTARTS, IT DOES NOT STACK** — without the `clearTimeout` a run of quick misses
+would let the FIRST timeout clear the red while the later mistakes were still landing. Guarded.
+
+⛔⛔ **IT FIRES INSIDE THE `charged && shown > 0` GATE, BESIDE THE RED POP — AND THAT IS A
+DECISION, NOT A PLACEMENT.** On level 1 his beginner grace takes no points, and a chip that
+reddened there would be colouring a number that did not move. The guard states it with the
+control that the mistake WAS nevertheless counted, because «the chip stayed yellow» is also true
+of a build where the tap was not a mistake at all.
+⛔ **THE GRINDER TAKES THE COLOUR AND NOT THE CHIP.** `mixerGrind` pops in `MISS_COLOR` because
+that is the colour of a penalty, but it does not flash the score: he said «if the player MISSES»,
+and the grinder is not a mistake — his standing position, held through the ladder of 2026-08-24
+too, where `MIXER_PENALTY` deliberately did not climb.
+
+**THE TWO CHARGE POINTS ARE THE TWO CALL SITES**, the same pair as everywhere else in this
+mechanic: `penalize` (70-fx) and `penalizeDouble` (80-gameplay).
+
+### THE LEADERBOARD PILL: THE GLASS BECAME A FRAME
+
+His word, three properties verbatim: `border-radius:64px; border:1px solid rgba(255,255,255,.12);
+background:rgba(255,255,255,.04)` — and, one message earlier, «remove the inner glow from this
+block».
+
+⛔⛔ **IT CANCELS THE RECIPE OF 2026-08-21-r**, which the canon recorded as «ONE glass style for
+two blocks» (this pill and the reward pill): white 8% + `inset 0 0 20px rgba(255,255,255,.8)`. It
+lived four days.
+✅ **HIS MESSAGE AND THE DESIGN AGREE — CHECKED, NOT ASSUMED.** Node 891:4297 was re-read with
+`get_design_context` and carries exactly `bg rgba(255,255,255,0.04)`, `border 1px
+rgba(255,255,255,0.12)`, `rounded-64`, no effect. The build was the only side still on the old
+stratum.
+⛔ **HIS FIRST WORDING WAS «the background transparent» AND IT LIVED ONE MESSAGE** — the numbers
+he sent afterwards say 4%. The later, more precise word is in force.
+⚠️ **THE HEIGHT STAYS 72 BECAUSE `box-sizing:border-box` WAS ALREADY THERE** — the 1px frame eats
+into the box instead of growing it, so the stable height the canon pins is untouched.
+⚠️ **THE PADDING IS LEFT AT 16 DELIBERATELY:** the node now says 12, he named three properties and
+padding was not one of them. Flagged to him, not decided.
+⚠️ **THE `::after` LAYER IS KEPT AND LEFT EMPTY** (`box-shadow:none`) — it is the layer the canon
+describes as drawn OVER the avatars, and a return must cost one line. Its presence proves
+nothing; the guard reads the computed shadow.
+
+### THE LIST OF ITEMS BECAME A FRAMED BLOCK
+
+His word: «around the block of rows 1px of 56% white» (with the background transparent and no
+inner glow).
+
+⚠️ **THE RADIUS 32 IS THE NODE'S OWN** (`rounded-[var(--32,32px)]` on 779:1049). **THE PADDING 16
+IS THE DISPATCHER'S** and is named as such: it repeats the side padding of the pill above so the
+column of portraits stands under its laurel instead of half a step left of it.
+⚠️⚠️ **THE TWO FRAMES ARE DIFFERENT ON PURPOSE — 56% on the list against 12% on the pill** — and
+that is his own pair of numbers from two consecutive messages, not a drift. Each is pinned
+separately; pinning them EQUAL would invent a symmetry he did not ask for. **Flagged to him.**
+⚠️ **`listW === pillW` IS THE LOAD-BEARING ARM**: the frame eats into the box only while
+`box-sizing:border-box` holds; without it the block stands 2px wider than the pill above — a
+divergence nobody would report and everybody would see.
+
+### THE ASYMMETRY OF THE EVIDENCE, NAMED
+
+⚠️ In Figma the rows block (779:1049 / 779:1050) carries **no fill and no stroke at all** — the
+glass he is cancelling lives in the WHITE variant of the same component, which is what he had on
+screen. His word is the spec; the node is the evidence that the two disagree. Both are recorded
+here so that the next reader does not «fix» the CSS back to the node.
+
+## OPEN 2026-08-25: «A PROBLEM WITH THE ICONS» — MEASURED, NOT YET DECIDED
+
+He sent a screenshot of the victory screen and wrote only «problem with the icons, check it». What
+follows is the measurement; **no code was changed, because the cure collides with a spec of his
+own and he has to choose.**
+
+### WHAT IS WRONG: THE PORTRAIT IS FRAMED BY THE CYLINDER, SO EVERY TYPE FILLS A DIFFERENT SHARE
+
+`itemThumb` (85-hud) frames through `frameCylinder`, whose radius is `max hypot(x,z)` over every
+vertex — a frame that fits the silhouette at ANY yaw. Only one yaw is ever shown
+(`PORTRAIT_YAW0`). The geometric ideal for the long axis at `THUMB_MARGIN = 0.04` is **92.6%**.
+MEASURED ink box inside the 256px buffer (alpha > 8), all renderable types:
+
+| type | long axis | in the 44px box |
+|---|---|---|
+| `brickbar` | **44.5%** | 19.6 px |
+| `animalcrab` | 60.6% | 26.7 px |
+| `foodwatermelon` | 73.8% | 29.4 × 32.5 |
+| `foodorange` | 76.2% | 30.6 × 33.5 |
+| `piratebarrel` | 86.7% | ~38 px |
+| `cartaxi` | 90.6% | ~40 px |
+
+**A 1.49× spread inside one column of identical 44×44 boxes** — the eye reads it as icons drawn at
+random sizes. Silhouette framing would put every one of them at 40.7 px: crab **+53%**, watermelon
++25%, orange +21%.
+
+⛔⛔ **AND IT IS A REGRESSION AGAINST HIS OWN OLD COMPLAINT.** The canon still describes the
+framing as «by the SILHOUETTE … the fill is 0.91–0.92» and records that the owner once said «the
+objects are too small» when the silhouette occupied ~55%. `brickbar` now sits at **44.5%** — below
+the state he complained about. The swap to the cylinder is recorded in WORKSTREAMS (2026-07-27):
+it cured «on hover the img→canvas substitution SHRANK the object». **The fill was never re-measured
+after the swap, and the canon was never updated.**
+
+### WHY IT WAS NOT FIXED ON THE SPOT
+
+⚠️⚠️ **THE CYLINDER IS HIS OWN SPEC OF 2026-07-27 — «the size must not change on hover» — AND IT
+IS GUARDED**: `__game.thumbFrames(key).equal` asserts `thumbW === spinW`. A silhouette fix breaks a
+tested owner invariant unless the spin is changed with it. Three ways out, his to pick:
+- **(a) recommended** — a tight frame for the victory rows only (a second cache entry). Those rows
+  have no hover-spin at all, so the showcase and the museum are untouched and nothing breaks.
+- **(b)** a tight frame everywhere and the spin re-based onto it — one look in every surface, but
+  long models must be re-checked for clipping while rotating.
+- **(c)** leave it.
+
+⛔ **THE BANANA IS NOT CURED BY ANY OF THEM, AND HE WAS TOLD SO.** Its long axis is already 87.9%;
+re-framing moves its height 28.9% → 30.5%, i.e. 12.7 → 13.4 px in a 44 box. A flat model in a
+square box is a different lever — a non-square thumb box, a per-type pose, or acceptance.
+
+### TWO THINGS FOUND ALONGSIDE, ALSO OPEN
+
+⚠️ **THERE IS NO GUARD OVER THE VICTORY-ROW THUMBNAIL AT ALL** — `grep 'wt-thumb' test.js` returns
+nothing. Not its presence, not its size, not its aspect. The one framing guard that exists
+(`thumbFrames`) is indifferent to size: a sabotage of `THUMB_MARGIN` 0.04 → 2.0 shrank the model to
+21% linear and 22× fewer opaque pixels, and the guard stayed green with `equal === true`.
+⚠️ **THE PORTRAIT BUFFER IGNORES devicePixelRatio.** `THUMB_PX = 256` flat: for the 44px victory
+row that is ~1.94× more than needed at DPR 3, while on the collection card it is an **UPSCALE** —
+1.36× on the charge slot at DPR 3 and 1.57× on a tablet. The buffer is spent in the wrong place.
+The only DPR-aware consumer is the new-object screen.
+
+## BATCH 2026-08-25-b: THE HEADER BY THE NODE, THREE BLOCKS RESTYLED, AND THE MATCAP EDITOR FINISHED
+
+Five of his asks in one message. Two of them cancel words of his own; both cancellations are named
+here rather than smuggled in.
+
+### THE HEADER — NODE 913:3644 «Header-desk»
+
+His word: «update the visual for the elements in the header», with the node attached.
+
+⛔⛔ **THE STAR STOPPED BEING THE GLYPH «★» AND BECAME AN ICON.** It is HIS OWN asset
+`Interface/Star.svg` — the same path that already serves the wallet in the menu (`.ms-stars`) —
+inlined a second time rather than exported from Dev Mode: those exports ship
+`preserveAspectRatio="none"` and render distorted, which this project has already paid for.
+⚠️ **IT LIVES INSIDE `#scSvg`, NOT BESIDE IT, AND THAT IS LOAD-BEARING:** `layoutHUD` (90-input)
+moves `#lvlSvg`/`#tmSvg` around with `insertBefore(x, $('scSvg'))`, so `#scSvg` must stay a DIRECT
+child of `#statStack`. A wrapper span would have broken that call — the obvious implementation.
+⚠️ **`fitStat` LEARNED ONE ATTRIBUTE, `data-lead`** — the width of whatever is drawn to the LEFT
+of the text inside the same frame, in viewBox units, plus its gap. The frame is squeezed to the
+TEXT, so without the lead the icon would have been left outside the viewBox it shares.
+⚠️ **THE SCALE 0.643 = 20.57/32 IS DERIVED, NOT CHOSEN:** the asset's viewBox is 32×30, and 20.57
+units of a 27-unit frame render as **32 px** at the desktop scale 42/27 — the node's number. The
+gap was tuned to the node's 8 by measurement (25.7 gave 10, 24.4 gives 8).
+
+⛔⛔ **THE DESKTOP NUMBER IS BLACK, AND THAT CANCELS HIS OWN WORD OF 2026-08-23-a** («the colour of
+the score on the game screen in all versions as on mobile») **FOR THE DESKTOP ONLY.**
+⚠️ **MOBILE KEEPS THE YELLOW ON PURPOSE:** there the top of the frame is the DARKEST sky stop in
+both themes (the sky invariant), so black would be unreadable. On desktop the top is light — which
+is why the LEVEL beside it has been black all along, and the score simply joins it.
+⚠️⚠️ **THE `@media` BLOCK STANDS AFTER THE BASE RULE ON PURPOSE.** Both selectors are (1,0,0), so
+ORDER decides and the media query does not. Written up beside the other ≥768 rules it measured
+YELLOW on a 1280 viewport — caught by a probe, not by the run.
+⚠️ `#score.miss` is (1,1,0) and beats both in either layout: the reddening on a mistake is
+untouched.
+⚠️ **THE `'★ '` PREFIX HAD TO GO FROM `updateHUD` TOO** — the markup change alone left TWO stars
+on the screen. Caught by a probe.
+
+### THREE BLOCKS, ONE STYLE
+
+⛔ **THE LIST OF TOP ITEMS TOOK THE LEADERBOARD PILL'S STYLE** (his word: «on this screen the pixel
+outline around the top items and the colour of the background — the same as the style of the
+leaderboard block above it»). The 56% frame and the transparent fill of 2026-08-25 lived one
+batch; it is 4% fill + 1px white 12% now, and the guard states it as an EQUALITY of two live
+readings, so a retune of the pill drags the list with it.
+⚠️ **THE RADIUS STAYS THE ODD ONE OUT — 32 against the pill's 64.** He named the outline and the
+background; a block of three rows at radius 64 would round into a lozenge.
+
+⛔ **«SAVED» IS BLACK — THE FIFTH EDITION OF THAT CAPTION.** The chain: text without a pill →
+white +30% → black on lime → white again (891:4315) → black (2026-08-25-b, with the node selected
+on the page). The lime outline `--otl:10` has not changed once through all five.
+
+⛔ **THE IN-GAME SHOWCASE PANEL** took `radius 32 / border 1px rgba(255,255,255,.20) / background
+rgba(255,255,255,.20)` verbatim. ⚠️ **ITS 28px WHITE INNER GLOW WAS DROPPED THOUGH HE DID NOT NAME
+IT** — he pasted a COMPLETE declaration with no `box-shadow`, and this is the third block of the
+batch where an inner glow gives way to a 1px frame. Named to him; one word restores it.
+⚠️ **THE NIGHT VARIANT IS UNTOUCHED** (`html.night #vitrine` keeps its own fill and dark border):
+his screenshot is the DAY sky, and the day/night split of this panel is his own spec of 2026-07-24.
+
+### THE MATCAP EDITOR: THE BRUSH OUT, A PER-OBJECT TIER IN
+
+His word: «1. remove the top part with the drawing of the material 2. show a list of objects, so
+that I could add its own matcap not to a GROUP but to EACH one».
+
+**WHAT WENT:** the visible 276px canvas, the four controls (background / brush / size / blur), the
+pointer handlers and the brush. **THE SOURCE OF A MATCAP IS NOW A PNG** — the drop zone, which had
+always been the faster of the two paths.
+⚠️ `mcePost` is KEPT and stays OFFSCREEN: it is the canvas every apply branch downsamples into the
+live texture. `draw` is kept too — it is the picture layer a dropped PNG lands in and the thing
+«Clear» empties. The background is a constant now, the removed picker's own former default.
+⚠️ The drop zone reports the loaded file by name — with no preview left, it is the only feedback.
+
+**THE FOURTH TIER.** The order is now: **TYPE override → pack override → the pack's own image →
+the shared preset**, and it is EMPTY by default, so by default not a pixel changes.
+⚠️ **THE KEY IS `type.name`** (`foodbanana`), NOT the item's `key` — the latter is `'T' + typeIdx`,
+an index into the pool that MOVES the moment the owner adds or cuts a model, and an override
+pinned to it would silently land on a different object after the next batch.
+⛔⛔ **AND THE SELECTION RULE WAS EXTRACTED INTO ONE FUNCTION, `itemMatcapAim` (10-stage).** It used
+to be written out inside `itemMaterial` (40-items) and read back through `packMatcapAim` in the
+repoints — two copies of one selection, and this project has already paid for exactly that shape
+(2026-08-19: the live loop forgot `paint`, and «Apply» moved a matcap onto bricks that
+`itemMaterial` never gave it to). `packMatcapRepoint` now reads it too, which is what stops a
+per-object override from being wiped the next time anything touches its pack.
+
+✅ **MEASURED ON THE OWNER'S PATH, END TO END:** load a PNG → tick one object → Apply → all 14 live
+items of that type wear their own texture (`onOwn 14`, `sameAsPack 0`), all its pack-mates still
+wear the pack's, the PACK registry stays empty, and «Reset» hands the type back.
+
+### THE SUITE HAD TO BE RE-BASED, AND THE SHAPE OF THE BREAKAGE IS WORTH KNOWING
+
+⚠️⚠️ **FOUR GUARDS DROVE A REAL MOUSE OVER `#matcapEdit canvas`, AND THE CANVAS NO LONGER EXISTS.**
+They would have thrown on a null bounding box — i.e. the run would have DIED rather than gone red,
+and a dead run states nothing. All four now load a PNG through the panel's REAL file input (canvas
+→ dataURL → Blob → File → DataTransfer → `dispatchEvent('change')`), which is the only path he has
+left. A hand-written PNG fixture was rejected: a second asset to keep in step.
+⛔ **ONE GUARD LOST HALF ITS STATEMENT WITH THE FIELD IT DROVE.** «The wrapper `() => renderPost()`
+at the colour fields» guarded a bare handler leaking an Event into `silent`; there are no colour
+fields left to leak. The surviving half — the default target is edited WITHOUT pressing «Apply» —
+is re-pointed at the PNG, and the `silent` flag itself is still guarded by the «opening applies
+nothing» arm, which is the one that matters.
+✅ **THE NEW GUARD PICKS ITS VICTIM FROM THE LIVE LEVEL, NOT BY NAME:** a literal («Banana») would
+tie it to whatever `genLevel` happened to deal and go red on a sound build the day the pool
+changes. It takes a type that is on the field AND has pack-mates, because the pack-mates are what
+the «not to a group» arm is about. The rows carry `data-type` so the guard need not reproduce the
+`accLabel` mapping — a copy of a translation table beside the working one is how labels drift.

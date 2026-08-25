@@ -335,7 +335,11 @@ function penalizeDouble(item){
   }
   try { bowlStreakReset(); } catch(e){} // the bowl streak: a miss on something non-mergeable = a mistake
   try { noteMissRadius(); } catch(e){} // the radius penalty — as with an ordinary miss (2026-08-11)
-  if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
+  // ⚠️ THE SAME PAIR AS IN `penalize` — the red pop and the reddening chip, under one gate.
+  if (charged && shown > 0){
+    scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), MISS_COLOR, false);
+    scoreFlashMiss();
+  }
   Sound.play('miss');
   vibrate(20);
   wiggle(item);
@@ -1213,7 +1217,10 @@ function mixerGrind(){
   const grindBefore = stats.score;
   if (scorePenalty(MIXER_PENALTY)){ // lv.1 without penalties; lv.<=5 clamped at zero (the balance table 2026-07-22)
     const shown = scoreShownDelta(stats.score, grindBefore); // denom. drop of the chip (#10)
-    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+    // ⛔ THE GRINDER TAKES THE COLOUR AND **NOT** THE REDDENING CHIP: it is not a mistake —
+    // his own standing position, held through the ladder of 2026-08-24 as well, where
+    // `MIXER_PENALTY` deliberately did not climb. He said «if the player MISSES».
+    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), MISS_COLOR, true);
   }
   Sound.play('grind');
   vibrate(40);

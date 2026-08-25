@@ -435,7 +435,36 @@
      The mobile score has carried exactly this number since yesterday and he accepted it
      knowingly; this extends the same acceptance to the desktop. The star beside it and
      the type size are what carry the reading, not the contrast. */
-  #score { fill:#ffe730; }
+  /* ⛔⛔ AND IT REDDENS AT THE MOMENT OF A MISTAKE (the owner's word 2026-08-25: «if the player
+     misses, at that moment the total score must redden — the same colour as the miss»).
+     ⚠️⚠️ `#e5484d` IS THE FOURTH COPY OF ONE VALUE AND THE ONLY ONE A GUARD CANNOT REMOVE: the
+     other three read `MISS_COLOR` (00-config), a stylesheet cannot. The suite therefore reads
+     THIS computed fill and `__game.missColor()` and asserts the two strings are equal — «the
+     same colour as the miss» is checked, not promised.
+     ⚠️ THE RETURN TO YELLOW IS THE TRANSITION, NOT A SECOND CLASS: JS only adds `.miss` and
+     removes it SCORE_MISS_MS later, so there is exactly one description of each colour.
+     ⚠️ SPECIFICITY: `#score.miss` is (1,1,0) against the base `#score` (1,0,0) — it wins
+     regardless of the order of these two lines. */
+  #score { fill:#ffe730; transition:fill .14s ease-out; }
+  /* ⛔⛔ THE DESKTOP NUMBER IS BLACK (node 913:3644 «Header-desk» → `text-[34px] text-black`,
+     the owner 2026-08-25-b). ⛔ IT CANCELS HIS OWN WORD OF 2026-08-23-a — «the colour of the
+     score on the game screen in all versions as on mobile» — FOR THE DESKTOP ONLY, and the
+     cancellation is named to him rather than smuggled in.
+     ⚠️ MOBILE KEEPS THE YELLOW ON PURPOSE: there the top of the frame is the DARKEST sky stop
+     in both themes (the sky invariant in the canon), so black would be unreadable. On desktop
+     the top is light — which is why the LEVEL beside it has been black all along (the base
+     `.otext text { fill:#000 }`), and the score simply joins it.
+     ⚠️⚠️ THIS BLOCK STANDS **AFTER** THE BASE RULE ON PURPOSE. Both selectors are (1,0,0), so
+     ORDER decides, not the media query — written up beside the other ≥768 rules (line ~409) it
+     was overridden by the base and measured yellow on a 1280 viewport. Caught by a probe. */
+  @media (min-width:768px){ #score { fill:#000; } }
+  /* ⚠️ AND `#score.miss` IS (1,1,0), so it beats both of the above in either layout — the
+     reddening on a mistake (2026-08-25) is untouched by the black. Guarded. */
+  #score.miss { fill:#e5484d; }
+  /* ⚠️ THE STAR KEEPS ITS OWN YELLOW ON BOTH LAYOUTS (`#FFE730`, the owner's word 2026-08-10
+     about this very asset). Written as a rule and not left to the inline `fill` so that a
+     future re-theme has one place to reach — the same shape as `.ms-stars svg path`. */
+  #scStar path { fill:#FFE730; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
      ⛔ THE THICKNESS 6 LIVED THROUGH ONE EDIT: having looked at the rendered frame, the owner
@@ -1413,7 +1442,20 @@
     /* DAY/MORNING = a WHITE panel (the owner's spec 2026-07-24 «by day and in the morning
        white, in the evening and at night black»). The dark variant is under html.night below
        (mock-up 776:649). width:fit-content — «pull it up by width». */
-    background:rgba(255,255,255,.16); box-shadow:0 0 28px 0 #fff inset;
+    /* ⛔⛔ THE STYLE IS HIS, VERBATIM (2026-08-25-b, «on the game screen the style of the block
+       with the statistics»): `border-radius:32px; border:1px solid rgba(255,255,255,.20);
+       background:rgba(255,255,255,.20)`. It cancels the fill of 16% AND the 28px white inner
+       glow of the 2026-07-24 recipe.
+       ⚠️ THE GLOW IS DROPPED THOUGH HE DID NOT NAME IT, AND THAT IS A DECISION: he pasted a
+       COMPLETE declaration with no `box-shadow` in it, and this is the third block of the same
+       batch where an inner glow gives way to a 1px frame (the leaderboard pill and the list of
+       top items are the other two). One word restores it.
+       ⚠️ THE RADIUS 32 WAS ALREADY HERE and is left where it was, above.
+       ⚠️ THE NIGHT VARIANT IS NOT TOUCHED (`html.night #vitrine` below keeps its own fill and
+       its dark 7% border): his screenshot is the DAY sky, and the day/night split of this panel
+       is his own spec of 2026-07-24. Named to him. */
+    background:rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.20);
+    box-shadow:none;
     opacity:1;
     /* THE UNFOLDING AFTER THE FLY-AROUND (the owner's spec «the block smoothly unfolds
        after the animation of the fly-around of the bucket»): the panel rolls out from the bottom up by
@@ -1679,7 +1721,14 @@
      ⚠️ THE «BLOB» SANITISER IS NEITHER NEEDED NOR APPLICABLE HERE: it catches a coincidence of
      the fill with the outline, while white on lime are different colours. The closing-up of the thick
      lime contour into a «pill» is INTENDED here, the canon has already approved it. */
-  #winCleaned { fill:#fff; }
+  /* ⛔⛔ AND BLACK AGAIN, THE FIFTH EDITION (the owner's word 2026-08-25-b, with this very
+     node selected on the page: «change the white fill to black»). The chain in full: text
+     without a pill → white +30% → black on lime → white again (891:4315) → black. The lime
+     outline `--otl:10` has not changed even once through all five.
+     ⚠️ THE PARAGRAPH ABOVE IS NOW HISTORY — read it for the reasoning, not for the colour.
+     ⚠️ AND THE «BLOB» SANITISER STILL DOES NOT APPLY: it catches a fill equal to the outline,
+     and black against lime is as different as white was. */
+  #winCleaned { fill:#000; }
   /* ⛔ THE TIME IS NO LONGER SLANTED AND NOT SHIFTED: `translateX(-10px) rotate(11deg)`
      was removed together with the row in which it stood. The shift −10 was the owner's word
      2026-08-12 («the time further left by 10») and solved the same collision with the caption as
@@ -1731,12 +1780,30 @@
      ⚠️ The glow is a separate `::after` layer: an inset shadow on the row itself would have lain
      UNDER the avatars (they are in the flow), while the rim is needed OVER the content. */
   .win-lbslot { width:100%; }
+  /* ⛔⛔ THE GLASS WAS REPLACED BY A THIN FRAME (the owner's word 2026-08-25, three properties
+     verbatim: `border-radius:64px; border:1px solid rgba(255,255,255,.12);
+     background:rgba(255,255,255,.04)`), and it CANCELS the recipe of 2026-08-21-r four lines
+     above — the fill 8% and the inner glow. The node 891:4297 was re-read with
+     get_design_context and carries exactly these three values, so his message and the design
+     agree; the build was the only one still on the old stratum.
+     ⛔ HIS FIRST WORDING WAS «the background transparent» and it lived one message: the
+     numbers he sent afterwards say 4%, not 0. The later, more precise word is in force.
+     ⚠️ THE HEIGHT STAYS 72 BECAUSE OF `box-sizing:border-box`, which was already here — the
+     1px frame eats into the box instead of growing it, so the gap of 30 under the row and the
+     stable height the canon pins are untouched.
+     ⚠️ THE PADDING IS LEFT AT 16 AND THAT IS DELIBERATE: the node now says 12, he named three
+     properties and padding was not one of them. Flagged to him, not decided here. */
   .win-wrap .win-lbentry { position:relative; width:100%; box-sizing:border-box;
     cursor:default; height:72px; padding:0 16px;
-    background:rgba(255,255,255,.08); border-radius:64px; }
+    background:rgba(255,255,255,.04); border-radius:64px;
+    border:1px solid rgba(255,255,255,.12); }
+  /* ⛔ THE INNER GLOW IS OFF (his word above: «remove the inner glow from this block»). The
+     layer is KEPT and left empty on purpose — it is the `::after` the canon describes as
+     drawn OVER the avatars, and bringing the glow back must cost one line, not a rebuild of
+     the stacking. Do not read its presence as evidence that anything is painted here. */
   .win-wrap .win-lbentry::after { content:''; position:absolute; inset:0;
     border-radius:inherit; pointer-events:none;
-    box-shadow:inset 0 0 20px 0 rgba(255,255,255,.8); }
+    box-shadow:none; }
   .win-wrap .win-lbentry .ms-lbe-rank { font-size:18px; font-weight:800; color:#fff; }
   .win-wrap .win-lbentry .ms-lbe-sub { color:#a2a2a8; }
   .win-wrap .win-lbentry .ms-lbe-avs { gap:0; }
@@ -2051,7 +2118,33 @@
      2026-08-11. It is left together with the animation below so that a return costs ONE
      line of markup; if you decide it will not come back — tear down both at once. */
   .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
-  .win-top-list { display:flex; flex-direction:column; gap:12px; }
+  /* ⛔⛔ THE LIST OF ITEMS BECAME A FRAMED BLOCK (the owner's word 2026-08-25, with the node
+     779:1049 «Level items white black» in front of him): «remove the inner glow from this block,
+     the background transparent, around the block of rows 1px of 56% white».
+     ⚠️⚠️ ALL THREE OF HIS PROPERTIES ARE STATED HERE LITERALLY AND NONE OF THEM COMES FROM THE
+     NODE. In Figma this block carries no fill and no stroke at all (checked with
+     get_design_context, not off a screenshot) — the fill and the inner glow he is cancelling
+     live in the WHITE variant of the same component, which is what he had on the screen. His
+     word is the spec; the node is the evidence that the two disagree, and it is flagged to him.
+     ⚠️ THE RADIUS IS THE NODE'S OWN 32 (`rounded-[var(--32,32px)]` on 779:1049) — the one number
+     here that is NOT a choice of mine.
+     ⚠️ THE PADDING OF 16 IS MINE AND IS NAMED AS SUCH: it repeats the side padding of the
+     leaderboard pill right above (`.win-lbentry { padding:0 16px }`), so the column of portraits
+     stands under the pill's laurel instead of half a step to the left of it. One word from him
+     moves it.
+     ⚠️ `box-sizing:border-box` is load-bearing: the row is `width:100%` inside a column of a
+     fixed width, and without it the 1px frame would push the block 2px wider than the pill.
+     ⛔⛔ THE FRAME OF 56% AND THE TRANSPARENT FILL LIVED ONE BATCH. His word of 2026-08-25-b:
+     «on this screen the pixel outline around the top items and the colour of the background —
+     THE SAME AS THE STYLE OF THE LEADERBOARD BLOCK ABOVE IT». So the two blocks are ONE style
+     after all, and the pair of numbers I asked him about is closed: 12%, not 56%.
+     ⚠️ THE RADIUS STAYS 32 AND DOES **NOT** BECOME THE PILL'S 64: he named the outline and the
+     background, and the 32 is the node's own (`rounded-[var(--32,32px)]` on 779:1049). A block
+     of three rows at radius 64 would round into a lozenge. */
+  .win-top-list { display:flex; flex-direction:column; gap:12px;
+    box-sizing:border-box; padding:16px; border-radius:32px;
+    background:rgba(255,255,255,.04); box-shadow:none;
+    border:1px solid rgba(255,255,255,.12); }
   .wt-row { display:flex; align-items:center; gap:8px; }
   .wt-thumb { flex:none; width:44px; height:44px; border-radius:12px; overflow:hidden; }
   .wt-thumb img { width:100%; height:100%; display:block; }
@@ -3597,11 +3690,25 @@
   </div>
   <div class="grp" id="statStack">
     <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
-    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27">
+    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-lead="24.4">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
         <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>
       </linearGradient></defs>
-      <text id="score" x="102" y="21" text-anchor="end">★ 0</text></svg>
+      <!-- ⛔⛔ THE STAR IS AN ICON AND NO LONGER THE GLYPH «★» (node 913:3644 «Header-desk»,
+           the owner 2026-08-25-b «update the visual for the elements in the header»). It is HIS
+           OWN asset `Interface/Star.svg` — the same path that already serves the wallet in the
+           menu (`.ms-stars`), inlined a second time rather than exported from Dev Mode: those
+           exports ship `preserveAspectRatio="none"` and render distorted.
+           ⚠️ IT LIVES INSIDE `#scSvg`, NOT BESIDE IT, AND THAT IS LOAD-BEARING: `layoutHUD`
+           (90-input) moves `#lvlSvg`/`#tmSvg` around with `insertBefore(x, $('scSvg'))`, so
+           `#scSvg` must stay a DIRECT child of `#statStack`. A wrapper would break that call.
+           ⚠️ THE SCALE 0.643 = 20.57/32: the asset's viewBox is 32×30, and 20.57 units of a
+           27-unit-tall frame render as 32 px at the desktop scale 42/27 — the node's number.
+           The y offset 3.86 centres 19.28 units of height in 27.
+           ⚠️ `data-lead` IS READ BY `fitStat` (85-hud): the frame is squeezed to the TEXT, and
+           without the lead the star would be drawn outside the frame it shares. -->
+      <g id="scStar" transform="translate(0,3.86) scale(0.643)" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></g>
+      <text id="score" x="102" y="21" text-anchor="end">0</text></svg>
   </div>
 </div>
 <!-- THE CHARACTER: the owner's eyes (Figma 741:1420) as one inline SVG.
@@ -4483,6 +4590,18 @@ function missPenaltyFor(n){
   const rungs = Math.round((MISS_PENALTY_MAX - MISS_PENALTY) / MISS_PENALTY_STEP) + 1;
   return MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
 }
+// ⛔⛔ THE COLOUR OF A MISTAKE IS ONE VALUE SINCE 2026-08-25, AND THAT IS WHAT HIS WORD
+// REQUIRES: «if the player misses, at that moment the total score must redden (THE SAME
+// COLOUR AS THE MISS)». It used to be written as the literal `#e5484d` at three pop sites;
+// «the same colour» stated over four copies is a promise, not a fact.
+// ⚠️ THE FOURTH COPY IS UNAVOIDABLE AND IT LIVES IN CSS (`#score.miss { fill:#e5484d }` in
+// shell.html) — a stylesheet cannot read a JS const. It is TIED BY A GUARD instead: the suite
+// reads the computed fill of the reddened score and `__game.missColor()` and asserts they are
+// the same string, so a divergence goes red instead of going unnoticed.
+const MISS_COLOR = '#e5484d';
+// how long the score stays red after a mistake — long enough to be seen, short enough not to
+// still be burning when the next tap lands
+const SCORE_MISS_MS = 520;
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)
@@ -6582,7 +6701,10 @@ function packMatcapRepoint(pack){
       if (!it || !it.type || it.type.tex !== pack || it.type.paint || !it.mesh) continue;
       const m = it.mesh.material;
       if (!m || !('matcap' in m)) continue;
-      m.matcap = aim; touched++;
+      // ⚠️ THROUGH THE SINGLE RULE, NOT THROUGH `aim`: since 2026-08-25-b a TYPE may carry its
+      // own override, and it beats the pack's. Reading `aim` here would have wiped a per-object
+      // matcap the moment anything touched its pack — the classic «two writers of one field».
+      m.matcap = itemMatcapAim(it.type); touched++;
     }
   }
   // ⚠️⚠️ THE PORTRAIT SNAPSHOTS WENT STALE. The previous line called `thumbCache.clear()`, but
@@ -6591,6 +6713,54 @@ function packMatcapRepoint(pack){
   // portraits. Found by the analysis of the merge on 2026-08-18.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
   return touched;   // ⚠️ we count BOTH the live ones AND the portraits: both are items of the pack
+}
+// ═══ THE PER-OBJECT TIER (the owner's word 2026-08-25-b: «show a list of objects, so that I
+// could add its own matcap not to a GROUP but to EACH one») ═══
+// ⚠️⚠️ IT IS A FOURTH TIER ON TOP OF THE THREE THAT ALREADY EXISTED, AND IT IS EMPTY BY DEFAULT —
+// so by default not a single byte of the picture changes. The order is: TYPE override → pack
+// override (the editor's registry) → the pack's own image → the shared preset.
+// ⚠️ THE KEY IS `type.name` (`foodbanana`, `animalcrab`) and NOT the item's `key`: the latter is
+// `'T' + typeIdx`, an index into the pool that MOVES the moment the owner adds or cuts a model —
+// an override pinned to it would silently land on a different object after the next batch.
+const typeMatcaps = new Map();   // type name → its own texture
+// ⛔⛔ THE ONLY PLACE WHERE THE RULE «WHAT AN ITEM WEARS» LIVES. It used to be written out inside
+// `itemMaterial` (40-items) and read back through `packMatcapAim` in the repoints — two copies of
+// one selection, and this project has already paid for exactly that shape once (2026-08-19: the
+// live loop forgot `paint`, and «Apply» moved a matcap onto bricks that `itemMaterial` never gave
+// it to). Both callers go through here now.
+function itemMatcapAim(t){
+  if (!t) return makeMatcap('soft');
+  const own = t.name && typeMatcaps.get(t.name);
+  if (own) return own;
+  return (t.tex && !t.paint)
+       ? packMatcap(t.tex, packMatcapTex(t.tex) || makeMatcap('tex'))
+       : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');
+}
+// Registering ONE type's own texture + a live repoint. Same contract as `setPackMatcap`:
+// `tex === null` removes the override and the type falls back to its pack's rule.
+function setTypeMatcap(name, tex){
+  if (!name) return 0;
+  if (tex) typeMatcaps.set(name, tex); else typeMatcaps.delete(name);
+  return typeMatcapRepoint(name);
+}
+function typeMatcapRepoint(name){
+  if (!name) return 0;
+  const lists = [];
+  try { if (typeof items !== 'undefined' && items) lists.push(items); } catch (e) {}
+  try { if (typeof thumbItemsOfType === 'function') lists.push(thumbItemsOfType(name)); } catch (e) {}
+  let touched = 0;
+  for (const list of lists){
+    for (const it of list){
+      if (!it || !it.type || it.type.name !== name || !it.mesh) continue;
+      const m = it.mesh.material;
+      if (!m || !('matcap' in m)) continue;
+      m.matcap = itemMatcapAim(it.type); touched++;
+    }
+  }
+  // ⚠️ The portraits are separate items and `itemThumb` holds the finished PNG forever — the same
+  // reason the pack repoint drops the snapshots. Without this the collection card lies until a reload.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
+  return touched;   // live items AND portraits of this type
 }
 // Re-baking the already handed out textures (the tuner). kind not given — all at once: the light
 // is shared, moving it changes every preset. The materials do NOT need to be touched — they
@@ -7354,7 +7524,13 @@ function setSkyStops(list){
 //
 // ⚠️ OPENS BY HAND ONLY: `__game.matcapEdit()` or the button in the developer
 // panel. The panel itself ships in the build, same as `matcapTuner`.
-const MCE_CANVAS = 512;                 // drawing canvas — same as the reference
+const MCE_CANVAS = 512;                 // the source canvas — same as the reference
+// ⛔ THE BACKGROUND USED TO BE A COLOUR PICKER; since 2026-08-25-b («remove the top part with
+// the drawing of the material») it is this constant — the picker's own former default.
+const MCE_BASE = '#8a8f98';
+// ⛔ `mceDrawing`/`mceLast` DIED WITH THE BRUSH (2026-08-25-b). They are NOT removed: `mceCtx`
+// beside them is still the picture layer's context and is written by the PNG drop, so the line
+// stays as one declaration; a reader looking for the brush must find its tombstone, not silence.
 let mcePanel = null, mceCtx = null, mcePost = null, mceDrawing = false, mceLast = null;
 // saved procedural pixels of the presets — so that «Reset» returns exactly what
 // was there instead of recomputing it (the recompute depends on the tuner's live sliders)
@@ -7395,6 +7571,34 @@ function mceTargets(){
 // demand): before that it shares the common one with the rest, and `mceTexOf` honestly
 // returns `null` — «it has none of its own yet». `mceApply` is what creates it.
 function mcePackOf(id){ return (id && id.indexOf('pack:') === 0) ? id.slice(5) : null; }
+// ⛔⛔ PER-OBJECT TARGETS (the owner's word 2026-08-25-b: «show a list of objects, so that I
+// could add its own matcap not to a GROUP but to EACH one»).
+// ⚠️ THE POOL IS LIVE, exactly as with the packs — a hand-written list of 80+ names would have
+// diverged from the game at the first batch of models. The id is `type:<name>` and the name is
+// `type.name`, the same key `typeMatcaps` (10-stage) is registered under.
+function mceTypeOf(id){ return (id && id.indexOf('type:') === 0) ? id.slice(5) : null; }
+function mceTypeDef(name){
+  try { for (const t of TYPES) if (t && t.name === name) return t; } catch (e) {}
+  return null;
+}
+function mceTypeTargets(){
+  const out = [];
+  try {
+    for (const t of TYPES){
+      if (!t || !t.name) continue;
+      const grp = t.tex ? (MCE_PACK_LABEL[t.tex] || t.tex)
+                        : (t.paint ? 'painted' : (t.mat === 'chrome' ? 'chrome' : 'plain'));
+      out.push({ id: 'type:' + t.name, name: t.name, grp,
+                 label: (typeof accLabel === 'function' ? accLabel(t.name) : t.name) });
+    }
+  } catch (e) {}
+  out.sort((a, b) => a.grp.localeCompare(b.grp) || a.label.localeCompare(b.label));
+  return out;
+}
+// Everything Apply/Reset/live have to walk. ⚠️ `mceTargets()` is left UNTOUCHED as the group
+// list: the suite finds the pack rows by their labels through it, and widening it would have
+// changed what those guards count.
+function mceAllTargets(){ return mceTargets().concat(mceTypeTargets()); }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
   if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
@@ -7460,6 +7664,29 @@ function mceAlphaFromEngine(data, S, base){
   return 'nearest ' + BW + '×' + BH + '->' + S;
 }
 function mceApply(id){
+  // ⛔ THE PER-OBJECT BRANCH COMES FIRST AND ALWAYS MAKES ITS OWN TEXTURE: a type has no
+  // «shared» texture of its own to write into — it wears its pack's, and writing into that is
+  // exactly the group edit he asked to stop doing.
+  const tname = mceTypeOf(id);
+  if (tname){
+    const S = MATCAP_SIZE;
+    const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+    const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
+    g0.drawImage(mcePost, 0, 0, S, S);
+    const data = new Uint8Array(g0.getImageData(0, 0, S, S).data);
+    // ⚠️ THE HIGHLIGHT COMES FROM WHATEVER THIS TYPE WEARS RIGHT NOW — through the single rule
+    // `itemMatcapAim`, not through a second copy of the tier order.
+    const def = mceTypeDef(tname);
+    const base = (typeof itemMatcapAim === 'function' && def) ? itemMatcapAim(def) : makeMatcap('tex');
+    mceAlphaFromEngine(data, S, base);
+    const ownTex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    ownTex.encoding = THREE.sRGBEncoding;
+    ownTex.magFilter = ownTex.minFilter = THREE.LinearFilter;
+    ownTex.needsUpdate = true;
+    const n = setTypeMatcap(tname, ownTex);
+    mceBackup.set(id, null);          // «Reset» drops the override and the type returns to its pack
+    return 'type ' + tname + ': own texture ' + S + '×' + S + ', items ' + n;
+  }
   const pack = mcePackOf(id);
   if (pack && !mceTexOf(id)){
     // ⚠️ THE FIRST APPLY TO A PACK = THE BIRTH OF ITS OWN TEXTURE. Before it
@@ -7528,6 +7755,8 @@ function mceApply(id){
   return 'applied: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
+  const tname = mceTypeOf(id);
+  if (tname){ setTypeMatcap(tname, null); mceBackup.delete(id); return; }
   const pack = mcePackOf(id);
   if (pack){ setPackMatcap(pack, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
@@ -7578,39 +7807,21 @@ function matcapEdit(){
   h.style.cssText = 'font-weight:700; letter-spacing:.06em; margin-bottom:8px;';
   p.appendChild(h);
 
-  // ── the drawing canvas (as in the reference) + post-processing (base + blur)
+  // ⛔⛔ THE DRAWING HALF IS GONE (the owner's word 2026-08-25-b: «remove the top part with the
+  // drawing of the material»). What went with it: the visible 276px canvas, the four controls
+  // (background / brush / size / blur), the pointer handlers and the brush itself. THE SOURCE OF
+  // A MATCAP IS NOW A PNG — the drop zone below, which had always been the faster of the two
+  // paths («ready-made ones come in bundles»).
+  // ⚠️ `mcePost` IS KEPT AND STAYS OFFSCREEN, NOT APPENDED: it is the canvas `mceApply` reads
+  // the pixels from, and every target branch downsamples it into the live texture. Deleting it
+  // would mean rewriting the whole apply tract for no reason.
+  // ⚠️ `draw` IS KEPT TOO — it is the PICTURE layer, the thing a dropped PNG lands in and the
+  // thing «Clear» empties. It simply has no brush strokes reaching it any more.
+  // ⚠️ THE BACKGROUND IS A CONSTANT NOW, and it is the former control's own default: with no
+  // picture loaded the source is a flat fill, exactly as it was when the panel opened.
   const draw = document.createElement('canvas'); draw.width = draw.height = MCE_CANVAS;
   mcePost = document.createElement('canvas'); mcePost.width = mcePost.height = MCE_CANVAS;
   mceCtx = draw.getContext('2d');
-  mcePost.style.cssText = 'width:276px; height:276px; display:block; border-radius:8px;'
-    + ' background:#111; cursor:crosshair; touch-action:none;';
-  p.appendChild(mcePost);
-
-  const ctrl = {};
-  const mkRow = (label, type, value, extra) => {
-    const row = document.createElement('label');
-    row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:6px;';
-    const t = document.createElement('span'); t.textContent = label;
-    t.style.cssText = 'flex:0 0 92px; opacity:.8;';
-    const el = document.createElement('input'); el.type = type; el.value = value;
-    if (extra) Object.assign(el, extra);
-    el.style.cssText = type === 'color' ? 'width:38px; height:22px; padding:0; border:0; background:none;'
-                                       : 'flex:1 1 auto;';
-    row.appendChild(t); row.appendChild(el);
-    const vv = document.createElement('span');
-    if (type === 'range'){ vv.style.cssText='width:34px; text-align:right; opacity:.7;';
-      vv.textContent = value; el.addEventListener('input', () => { vv.textContent = el.value; renderPost(); });
-      row.appendChild(vv); }
-    // ⚠️ THE WRAPPER IS MANDATORY: `renderPost` takes `silent`, and as a bare handler
-    // an Event would arrive here — a truthy one, that is, the background and brush colours would
-    // silently stop being applied immediately
-    else el.addEventListener('input', () => renderPost());
-    p.appendChild(row); return el;
-  };
-  ctrl.base  = mkRow('background', 'color', '#8a8f98');
-  ctrl.brush = mkRow('brush',      'color', '#ffffff');
-  ctrl.size  = mkRow('size',       'range', 60,  { min:1, max:256, step:1 });
-  ctrl.blur  = mkRow('blur',       'range', 12,  { min:0, max:64,  step:1 });
 
   // ⚠️ THE POST-PROCESSING DRAWS FROM SCRATCH EVERY TIME: the background, then the blurred brush layer.
   // The reference applies the blur ONTO ITSELF and accumulates it from frame to frame — for us that
@@ -7628,32 +7839,19 @@ function matcapEdit(){
   function renderPost(silent){
     const g = mcePost.getContext('2d');
     g.setTransform(1,0,0,1,0,0); g.filter = 'none';
-    g.fillStyle = ctrl.base.value; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
-    g.filter = 'blur(' + ctrl.blur.value + 'px)';
+    g.fillStyle = MCE_BASE; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
     g.drawImage(draw, 0, 0);
-    g.filter = 'none';
     // ⚠️ THE ROUND MASK: a matcap is sampled by the normal, the corners of the square do not
     // get into the sampling at all — but if they are not cut off, the blur drags the edge colour
     // inside the sphere and dirt runs along the rim.
     g.globalCompositeOperation = 'destination-in';
     g.beginPath(); g.arc(MCE_CANVAS/2, MCE_CANVAS/2, MCE_CANVAS/2, 0, Math.PI*2); g.fill();
     g.globalCompositeOperation = 'source-over';
-    if (autoApply.checked && !silent) mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceApply(t.id); });
+    // ⚠️ THE LIVE APPLY WALKS **ALL** THE TARGETS, groups and single objects alike — otherwise
+    // ticking an object and dropping a PNG would do nothing until «Apply» was pressed by hand.
+    if (autoApply.checked && !silent) mceAllTargets().forEach(t => {
+      const cb = targetChecks[t.id]; if (cb && cb.checked) mceApply(t.id); });
   }
-  // ── drawing
-  const pointAt = e => { const r = mcePost.getBoundingClientRect();
-    return { x:(e.clientX - r.left) / r.width * MCE_CANVAS, y:(e.clientY - r.top) / r.height * MCE_CANVAS }; };
-  const drawStroke = (a, b) => {
-    mceCtx.strokeStyle = mceCtx.fillStyle = ctrl.brush.value;
-    mceCtx.lineWidth = +ctrl.size.value; mceCtx.lineCap = 'round';
-    if (a){ mceCtx.beginPath(); mceCtx.moveTo(a.x,a.y); mceCtx.lineTo(b.x,b.y); mceCtx.stroke(); }
-    mceCtx.beginPath(); mceCtx.arc(b.x, b.y, +ctrl.size.value/2, 0, Math.PI*2); mceCtx.fill();
-  };
-  mcePost.addEventListener('pointerdown', e => { mceDrawing = true; mceLast = pointAt(e);
-    drawStroke(null, mceLast); renderPost(); mcePost.setPointerCapture(e.pointerId); });
-  mcePost.addEventListener('pointermove', e => { if (!mceDrawing) return;
-    const t = pointAt(e); drawStroke(mceLast, t); mceLast = t; renderPost(); });
-  mcePost.addEventListener('pointerup', () => { mceDrawing = false; mceLast = null; });
 
   // ── TARGETS: what to try it on. Without a choice it is unclear what exactly you are seeing: we have
   // four independent carriers, and the items are split between them by packs.
@@ -7670,6 +7868,57 @@ function matcapEdit(){
     row.appendChild(cb); row.appendChild(s); p.appendChild(row);
     targetChecks[t.id] = cb;
   });
+  // ── ⛔⛔ AND THE LIST OF SINGLE OBJECTS (the owner's word 2026-08-25-b: «show a list of
+  //    objects, so that I could add its own matcap not to a GROUP but to EACH one»).
+  //    ⚠️ IT IS A SECOND LIST, NOT AN EXTENSION OF THE ONE ABOVE, and the split is deliberate:
+  //    the groups are six-to-sixteen rows a human reads at a glance, the objects are ~90 and
+  //    need a filter and a scroller. Mixing them would have buried «all textured at once».
+  //    ⚠️ ONE `targetChecks` MAP FOR BOTH, so Apply/Reset/live have a single place to look.
+  //    ⚠️ A TYPE OVERRIDE BEATS ITS PACK (the tier order in `itemMatcapAim`, 10-stage), so
+  //    ticking both a pack and one of its objects is not a conflict — the object wins, which is
+  //    exactly what «not to a group but to each» asks for.
+  const objHead = document.createElement('div');
+  objHead.textContent = 'objects (each its own)';
+  objHead.style.cssText = 'margin-top:12px; opacity:.65;';
+  p.appendChild(objHead);
+  const objFilter = document.createElement('input');
+  objFilter.type = 'search'; objFilter.placeholder = 'filter…';
+  objFilter.style.cssText = 'width:100%; margin-top:4px; padding:4px 6px; border-radius:6px;'
+    + ' border:1px solid rgba(223,230,242,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit;';
+  p.appendChild(objFilter);
+  const objBox = document.createElement('div');
+  objBox.style.cssText = 'max-height:180px; overflow:auto; margin-top:4px;'
+    + ' border:1px solid rgba(223,230,242,.15); border-radius:6px; padding:4px 6px;';
+  p.appendChild(objBox);
+  // ⚠️ THE ROWS ARE BUILT ONCE AND ONLY HIDDEN BY THE FILTER — rebuilding them would throw away
+  // the checkboxes together with everything the owner had ticked, which is the one thing a
+  // filter must never do.
+  const objRows = [];
+  mceTypeTargets().forEach(t => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:3px;';
+    // ⚠️ THE ROW CARRIES ITS TYPE NAME. The visible label is `accLabel` («Banana»), and a guard
+    // that had to tick a row would otherwise have to reproduce that mapping — a copy of a
+    // translation table beside the working one, which is how the labels drifted last time.
+    row.dataset.type = t.name;
+    const cb = document.createElement('input'); cb.type = 'checkbox';
+    const s1 = document.createElement('span'); s1.textContent = t.label; s1.style.cssText = 'opacity:.9;';
+    const s2 = document.createElement('span'); s2.textContent = t.grp;
+    s2.style.cssText = 'margin-left:auto; opacity:.45; font-size:11px;';
+    row.appendChild(cb); row.appendChild(s1); row.appendChild(s2);
+    objBox.appendChild(row);
+    targetChecks[t.id] = cb;
+    objRows.push({ row, hay: (t.label + ' ' + t.grp + ' ' + t.name).toLowerCase() });
+  });
+  objFilter.addEventListener('input', () => {
+    const q = objFilter.value.trim().toLowerCase();
+    objRows.forEach(r => { r.row.style.display = (!q || r.hay.indexOf(q) >= 0) ? '' : 'none'; });
+  });
+  const objNote = document.createElement('div');
+  objNote.style.cssText = 'margin-top:4px; opacity:.5; font-size:11px;';
+  objNote.textContent = objRows.length + ' objects — an object beats its pack';
+  p.appendChild(objNote);
+
   const autoApply = document.createElement('input'); autoApply.type = 'checkbox'; autoApply.checked = true;
   { const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
@@ -7685,9 +7934,11 @@ function matcapEdit(){
       + ' font:inherit; background:' + bg + '; color:#0d1420;';
     b.addEventListener('click', action); btnBar.appendChild(b); return b;
   };
-  mkBtn('Apply', '#9ce52e', () => { const r = mceTargets()
-    .filter(t => targetChecks[t.id].checked).map(t => mceApply(t.id)); console.log(r.join('\n')); });
-  mkBtn('Reset', '#e5484d', () => { mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceReset(t.id); }); });
+  mkBtn('Apply', '#9ce52e', () => { const r = mceAllTargets()
+    .filter(t => targetChecks[t.id] && targetChecks[t.id].checked).map(t => mceApply(t.id));
+    console.log(r.join('\n')); });
+  mkBtn('Reset', '#e5484d', () => { mceAllTargets().forEach(t => {
+    const cb = targetChecks[t.id]; if (cb && cb.checked) mceReset(t.id); }); });
   mkBtn('Clear', '#8b93a0', () => { mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS); renderPost(); });
   p.appendChild(btnBar);
 
@@ -7708,8 +7959,10 @@ function matcapEdit(){
         // we put it into the BRUSH LAYER, not into the post: then one can draw on top of the picture
         mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS);
         mceCtx.drawImage(im, 0, 0, MCE_CANVAS, MCE_CANVAS);
-        // the background under the picture is not visible — we kill the blur, otherwise the PNG blurs at once
-        ctrl.blur.value = 0; ctrl.blur.dispatchEvent(new Event('input'));
+        // ⚠️ THE PANEL HAS NO PREVIEW ANY MORE, so the drop zone itself reports what is loaded —
+        // without it the only feedback would be the pile changing, and on an unticked target
+        // there would be none at all.
+        dropZone.textContent = 'loaded: ' + (f.name || 'PNG') + ' — press Apply';
         renderPost();
       };
       im.src = rd.result; };
@@ -9109,9 +9362,11 @@ function itemMaterial(t){
       // ⚠️ `typeof packMatcapTex === 'function'` from the branch's edition was
       // REMOVED deliberately: it is a function declaration, it never lands in the
       // TDZ, and the check would only mask a real breakage of the module order.
-      matcap: (t.tex && !t.paint)
-            ? packMatcap(t.tex, packMatcapTex(t.tex) || makeMatcap('tex'))
-            : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft'),
+      // ⛔ SINCE 2026-08-25-b THE SELECTION IS NOT WRITTEN OUT HERE — it lives in ONE function,
+      // `itemMatcapAim` (10-stage), shared with both repoints. The three tiers described above
+      // are unchanged; a FOURTH was added on top of them, the editor's PER-TYPE override, and a
+      // second copy of this expression would have diverged from the repoints at the first edit.
+      matcap: itemMatcapAim(t),
       vertexColors: t.mat === 'model',
     });
     // the brightness/contrast knobs are calibrated for the AUTHORS' atlases; the
@@ -12974,8 +13229,13 @@ function penalize(worldPos, sx, sy){
   // only line of the function that already stands "on every miss".
   try { noteMissRadius(); } catch(e){}
   if (charged && shown > 0){
-    if (worldPos) scorePop('-' + shown, worldPos, '#e5484d', false);
-    else scorePopScreen('-' + shown, sx, sy, '#e5484d', false);
+    if (worldPos) scorePop('-' + shown, worldPos, MISS_COLOR, false);
+    else scorePopScreen('-' + shown, sx, sy, MISS_COLOR, false);
+    // ⛔⛔ AND THE SCORE CHIP REDDENS WITH IT (the owner's word 2026-08-25). It stands INSIDE
+    // the `charged && shown > 0` gate on purpose, next to the pop it echoes: on level 1 nothing
+    // is taken (his beginner grace) and there is no pop either — a chip that reddened there
+    // would be colouring a number that did not move.
+    scoreFlashMiss();
   }
   Sound.play('miss'); // the error sound stays even on lvl.1 — the "wrong place" feedback
   updateHUD();
@@ -15828,7 +16088,11 @@ function penalizeDouble(item){
   }
   try { bowlStreakReset(); } catch(e){} // the bowl streak: a miss on something non-mergeable = a mistake
   try { noteMissRadius(); } catch(e){} // the radius penalty — as with an ordinary miss (2026-08-11)
-  if (charged && shown > 0) scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), '#e5484d', false);
+  // ⚠️ THE SAME PAIR AS IN `penalize` — the red pop and the reddening chip, under one gate.
+  if (charged && shown > 0){
+    scorePop('-' + shown, item.p.clone().setY(item.p.y + 0.6), MISS_COLOR, false);
+    scoreFlashMiss();
+  }
   Sound.play('miss');
   vibrate(20);
   wiggle(item);
@@ -16706,7 +16970,10 @@ function mixerGrind(){
   const grindBefore = stats.score;
   if (scorePenalty(MIXER_PENALTY)){ // lv.1 without penalties; lv.<=5 clamped at zero (the balance table 2026-07-22)
     const shown = scoreShownDelta(stats.score, grindBefore); // denom. drop of the chip (#10)
-    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), '#e5484d', true);
+    // ⛔ THE GRINDER TAKES THE COLOUR AND **NOT** THE REDDENING CHIP: it is not a mistake —
+    // his own standing position, held through the ladder of 2026-08-24 as well, where
+    // `MIXER_PENALTY` deliberately did not climb. He said «if the player MISSES».
+    if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), MISS_COLOR, true);
   }
   Sound.play('grind');
   vibrate(40);
@@ -18243,7 +18510,12 @@ function isNightSky(){
 // between LV and the time and the time overlapping the eyes (the owner's screenshot).
 function fitStat(id){
   const t = $(id), svg = t.ownerSVGElement;
-  const u = t.getComputedTextLength() + 3;          // the width in viewBox units
+  // ⚠️ `data-lead` — the width of anything drawn to the LEFT of the text inside the same frame,
+  // in viewBox units, plus its gap (2026-08-25-b: `#scSvg` carries the star icon at x=0). The
+  // frame is squeezed to the text, so without adding the lead the icon would end up outside the
+  // viewBox it shares and be clipped away at the first repaint.
+  const lead = parseFloat(svg.getAttribute('data-lead')) || 0;
+  const u = lead + t.getComputedTextLength() + 3;  // the width in viewBox units
   // ⚠️ one has to change BOTH the viewBox AND the css width: the svg keeps the viewBox proportions
   // (meet) — the width alone at a height of 42 SHRANK the content (LV smaller than
   // the time on the owner's screenshot)
@@ -18479,7 +18751,10 @@ function updateHUD(){
   // bounded from above; (b) fitStat — the frame by the fact of the text, as with
   // lvlNum/timer. Bundles make this critical: a wallet of 6-7 digits already in
   // the first paying session.
-  $('score').textContent = '★ ' + winFmtScore(liveBalance());
+  // ⛔ THE «★ » PREFIX IS GONE FROM THE STRING (2026-08-25-b): the star is now the owner's
+  // icon `#scStar` drawn inside the same frame, not a glyph in the text. Putting it back here
+  // would draw TWO stars — the guard pins the text as digits only.
+  $('score').textContent = winFmtScore(liveBalance());
   fitStat('score');
   const btn = $('shakeBtn');
   // ⚠️ The counter = the level's free ones + the PURCHASED stock of the bundle (77-save): without
@@ -18632,6 +18907,16 @@ function thumbItemsOfPack(pack){
   for (const k in thumbItemCache){
     const it = thumbItemCache[k];
     if (it && it.type && it.type.tex === pack && it.mesh) out.push(it);
+  }
+  return out;
+}
+// The same, but for ONE type — the per-object matcap of the editor (2026-08-25-b) repoints
+// exactly one type, and the portraits are separate items that live only here.
+function thumbItemsOfType(name){
+  const out = [];
+  for (const k in thumbItemCache){
+    const it = thumbItemCache[k];
+    if (it && it.type && it.type.name === name && it.mesh) out.push(it);
   }
   return out;
 }
@@ -19319,6 +19604,23 @@ function refreshMainSettings(){
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
+}
+// ⛔⛔ THE SCORE CHIP REDDENS AT THE MOMENT OF A MISTAKE (the owner's word 2026-08-25: «if the
+// player misses, at that moment the total score must redden — the same colour as the miss»).
+// ⚠️ THE COLOUR IS NOT SET FROM HERE. The class is the whole mechanism, the paint lives in
+// `#score.miss` (shell.html) beside the base `#score { fill:#ffe730 }`, and the return is a CSS
+// transition on `fill` — so there is ONE description of the colour per side and no per-frame JS.
+// ⚠️ THE TIMER IS RESTARTED, NOT STACKED: a run of quick misses would otherwise leave several
+// timeouts racing, and the FIRST of them would clear the red while the chip was still being
+// punished by the later ones. `clearTimeout` on a fresh id is a no-op, so the first call is safe.
+// ⚠️ Called from BOTH charge points (`penalize` in 70-fx, `penalizeDouble` in 80-gameplay), each
+// time inside their `charged && shown > 0` gate — see the note there for why.
+let scoreMissT = 0;
+function scoreFlashMiss(){
+  const el = $('score'); if (!el) return;
+  el.classList.add('miss');
+  clearTimeout(scoreMissT);
+  scoreMissT = setTimeout(()=>{ el.classList.remove('miss'); }, SCORE_MISS_MS);
 }
 function refreshMainScreen(){
   // ⚠️ ONE NUMBER EVERYWHERE — liveBalance(), THE SAME call as the game chip's
@@ -22567,6 +22869,10 @@ window.__game = {
   },
   level(){ return level; },
   stats(){ return stats; },
+  // the colour a mistake is painted with — so a guard can tie the CSS `#score.miss` to it
+  // instead of pinning a second copy of the hex (2026-08-25)
+  missColor(){ return MISS_COLOR; },
+  scoreMissOn(){ const e = document.getElementById('score'); return !!(e && e.classList.contains('miss')); },
   // ⚠️ THE LADDER OF THE MISS PRICE (2026-08-24). The guard is obliged to call THIS — the very
   // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula
   // beside the working one diverges at the first edit, and this project has paid for that four
@@ -22626,6 +22932,28 @@ window.__game = {
     return { packs, registered: [...packMatcaps.keys()],
              withImage: (typeof PACK_MATCAP_SRC !== 'undefined')
                ? Object.keys(PACK_MATCAP_SRC).filter(k => PACK_MATCAP_SRC[k]) : [] };
+  },
+  // ⚠️ THE TWIN OF THE ABOVE FOR THE PER-OBJECT TIER (2026-08-25-b). It is what lets a guard
+  // state the thing that matters — that a type with its own matcap is NOT wearing what the rest
+  // of its pack wears — without reaching into the registry, which would only prove the registry
+  // agrees with itself. `sameAsPack` is the load-bearing field: it must be 0 for an overridden
+  // type and equal to `items` for every other type of that pack.
+  typeMatcapInfo(){
+    const out = {};
+    for (const it of items){
+      if (!it || !it.alive || !it.type || !it.type.name || !it.mesh) continue;
+      const t = it.type, m = it.mesh.material;
+      const own = typeMatcaps.get(t.name);
+      // what this type WOULD wear if it had no override of its own
+      const packAim = (t.tex && !t.paint)
+        ? packMatcap(t.tex, (typeof packMatcapTex === 'function' && packMatcapTex(t.tex)) || makeMatcap('tex'))
+        : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');
+      const rec = out[t.name] || (out[t.name] = { pack: t.tex || null, items: 0, onOwn: 0, sameAsPack: 0 });
+      rec.items++;
+      if (m && own && m.matcap === own) rec.onOwn++;
+      if (m && m.matcap === packAim) rec.sameAsPack++;
+    }
+    return { types: out, registered: [...typeMatcaps.keys()] };
   },
   // ⚠️ LOAD-BEARING: the guard «the bomb is dressed in the owner's picture» stands on it. This cannot be
   // checked by grepping the build — the inline base64 is present even when nobody

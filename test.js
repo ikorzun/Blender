@@ -742,12 +742,16 @@ page.on('response', (r) => {
     'the gaps stay one space while the row looks exactly as before');
 
   expect(winHeadProbe.sticker && winHeadProbe.sticker.text === 'SAVED' &&
-    winHeadProbe.sticker.fill === 'rgb(255, 255, 255)' &&
+    winHeadProbe.sticker.fill === 'rgb(0, 0, 0)' &&
     winHeadProbe.sticker.stroke === 'rgb(192, 255, 71)' &&
     winHeadProbe.sticker.fontSize === '57.2px',
-    '⚠️⚠️ VICTORY/STICKER: the word «SAVED», the fill WHITE, the outline lime #c0ff47 ' +
-    '(node 891:4315). ⛔ The fourth edition of this caption: it was «CLEANED» and ' +
-    'the fill black. ⚠️ THE FONT SIZE 57.2 IS NOT FROM THE NODE, BUT FROM THE WORD OF THE OWNER +30% ' +
+    '⚠️⚠️ VICTORY/STICKER: the word «SAVED», the fill BLACK, the outline lime #c0ff47 ' +
+    '(the owner 2026-08-25-b, with this very node selected on the page: «change the white fill ' +
+    'to black»). ⛔ THE FIFTH EDITION OF THIS CAPTION, and the chain is worth keeping: text ' +
+    'without a pill → white +30% → black on lime → white again (891:4315) → black. The lime ' +
+    'outline has not changed once through all five, which is why it is the arm that stays a ' +
+    'literal while the fill keeps moving. ' +
+    '⚠️ THE FONT SIZE 57.2 IS NOT FROM THE NODE, BUT FROM THE WORD OF THE OWNER +30% ' +
     '(2026-07-28) — the node asks for less and has already lost to this word once; ' +
     'changing it to the number of the node is not allowed without a new word (' +
     JSON.stringify(winHeadProbe.sticker) + ')');
@@ -809,9 +813,18 @@ page.on('response', (r) => {
     const feature = (() => { const lb = window.__lb;
       return !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base())); })();
     const menuBox = document.getElementById('msLbEntry');
+    const listCs = getComputedStyle(document.getElementById('winTopList'));
     return { feature, hiddenMenu: menuBox ? menuBox.hidden : null,
              hidden: box.hidden, height: Math.round(b.height), bg: cs.backgroundColor,
              radius: cs.borderRadius, cursor: cs.cursor,
+             // the three properties of his word 2026-08-25 + the glow that was cancelled with them
+             border: cs.borderTopWidth + ' ' + cs.borderTopStyle + ' ' + cs.borderTopColor,
+             glow: getComputedStyle(box, '::after').boxShadow,
+             // and the frame of the list of rows, from the same batch
+             listBorder: listCs.borderTopWidth + ' ' + listCs.borderTopStyle + ' ' + listCs.borderTopColor,
+             listBg: listCs.backgroundColor, listRadius: listCs.borderRadius,
+             listShadow: listCs.boxShadow, listPad: listCs.padding,
+             listW: Math.round(listRect.width), pillW: Math.round(b.width),
              underHead: Math.round(b.top) >= Math.round(headRect.bottom),
              aboveList: Math.round(b.bottom) <= Math.round(listRect.top),
              badges: badge ? badge.querySelectorAll('svg').length : 0,
@@ -838,7 +851,9 @@ page.on('response', (r) => {
   expect(!winLbRow.noNode && winLbRow.instances === 2 &&
     winLbRow.hidden === !winLbRow.feature && winLbRow.hiddenMenu === !winLbRow.feature &&
     (!winLbRow.feature || (winLbRow.height === 72 &&
-      winLbRow.bg === 'rgba(255, 255, 255, 0.08)' && winLbRow.underHead && winLbRow.aboveList &&
+      winLbRow.bg === 'rgba(255, 255, 255, 0.04)' &&
+      winLbRow.border === '1px solid rgba(255, 255, 255, 0.12)' &&
+      winLbRow.glow === 'none' && winLbRow.underHead && winLbRow.aboveList &&
       winLbRow.badges === 3 && winLbRow.visibleBadges === 1 && winLbRow.ownButtons === 0 &&
       // ⚠️⚠️ WE CHECK ONLY OUR OWN AVATAR, AND NOT «one against three». The first
       // edition demanded `avatarsMenu === 3` and WENT RED ON A SOUND
@@ -851,7 +866,9 @@ page.on('response', (r) => {
       winLbRow.avatars === 1 && winLbRow.ownTag === 'IMG' &&
       winLbRow.cursor !== winLbRow.cursorMenu)),
     '⚠️⚠️ VICTORY: the row «N place / on leaderboard» stands BETWEEN the header and the list ' +
-    'of items — a GLASS pill 72px (white 8%, radius 64), EXACTLY ONE ' +
+    'of items — a FRAMED pill 72px (white 4%, a 1px frame of white 12%, radius 64, NO inner ' +
+    'glow — the owner 2026-08-25, verbatim three properties, confirmed against node 891:4297 ' +
+    'with get_design_context), EXACTLY ONE ' +
     'avatar — THE PLAYER one, and not the first one from the top (the word of the owner 2026-08-21-r ' +
     '«instead of three avatars we show only the avatar of the player»; his rule ' +
     '«always three» from 2026-08-05 has remained in force FOR THE MENU and is guarded there), ' +
@@ -862,8 +879,44 @@ page.on('response', (r) => {
     '⚠️ Three badges with one visible is a stamp from the menu: the markup of the badge is not ' +
     'duplicated, it is copied from the first instance, and an empty stamp would give zero. ' +
     '⛔ NOT TO BE CONFUSED WITH THE `#winLb` INSET: that one was a table of three rows and was removed ' +
-    '2026-08-10; the statements about its absence lower down the file REMAIN IN FORCE (' +
-    JSON.stringify(winLbRow) + ')');
+    '2026-08-10; the statements about its absence lower down the file REMAIN IN FORCE. ' +
+    '⛔⛔ THE 8% GLASS AND ITS INNER GLOW DIED 2026-08-25 AND THIS ASSERT IS THEIR TOMBSTONE: ' +
+    'the recipe of 2026-08-21-r («the SAME glass for two blocks», shared with the reward pill) ' +
+    'lasted four days. `glow === none` is the arm that carries the cancellation — the `::after` ' +
+    'layer is deliberately KEPT in the CSS so a return costs one line, so its mere presence ' +
+    'proves nothing and only the computed shadow does (' + JSON.stringify(winLbRow) + ')');
+  // ⛔⛔ AND THE LIST OF ROWS BECAME A FRAMED BLOCK IN THE SAME BATCH (his word 2026-08-25:
+  // «around the block of rows 1px of 56% white»). It is asserted HERE, inside the branch that
+  // already proved the victory screen is up, rather than in a probe of its own.
+  // ⛔⛔ THE 56% AND THE TRANSPARENT FILL LIVED ONE BATCH: «on this screen the pixel outline
+  // around the top items and the colour of the background — THE SAME AS THE STYLE OF THE
+  // LEADERBOARD BLOCK ABOVE IT» (2026-08-25-b). The two blocks are ONE style, and this assert
+  // now states that as an EQUALITY of two live readings rather than as two literals — a retune
+  // of the pill drags the list with it or the guard goes red, which is what «the same as» means.
+  // ⚠️ THE RADIUS STAYS THE ODD ONE OUT ON PURPOSE — 32 against the pill's 64. He named the
+  // outline and the background; a block of three rows at radius 64 would round into a lozenge.
+  // ⚠️ `listW === pillW` IS THE LOAD-BEARING ONE: the frame eats into the box only while
+  // `box-sizing:border-box` holds, and without it the block would stand 2px wider than the pill
+  // above — a divergence of one pixel that nobody would report and everybody would see.
+  expect(!winLbRow.noNode && (!winLbRow.feature || (
+      winLbRow.listBorder === winLbRow.border && winLbRow.listBg === winLbRow.bg &&
+      winLbRow.listBorder === '1px solid rgba(255, 255, 255, 0.12)' &&
+      winLbRow.listShadow === 'none' &&
+      winLbRow.listRadius === '32px' && winLbRow.listPad === '16px' &&
+      winLbRow.listW === winLbRow.pillW)),
+    '⚠️⚠️ VICTORY: the list of items wears THE SAME STYLE AS THE LEADERBOARD PILL ABOVE IT — ' +
+    'the same 1px frame of white 12% and the same 4% fill, read off BOTH nodes and compared, no ' +
+    'inner glow, radius 32, padding 16 (the owner 2026-08-25-b). ' +
+    '⚠️ THE RADIUS 32 IS THE NODE\'S OWN (`rounded-[var(--32,32px)]` on 779:1049) and the ' +
+    'padding 16 is the dispatcher\'s, named to him as such — it repeats the side padding of the ' +
+    'pill above so the column of portraits stands under its laurel. ' +
+    '⚠️ THE PAIR `listBorder === border, listBg === bg` IS THE STATEMENT; the literal beside it ' +
+    'is what stops the pair from being satisfied by two blocks that drifted TOGETHER onto some ' +
+    'third style. ' +
+    '⚠️ AND THE WIDTHS ARE EQUAL TO THE PILL\'S: the sabotage is dropping `box-sizing:border-box` ' +
+    '(' + JSON.stringify({ border: winLbRow.listBorder, bg: winLbRow.listBg,
+      shadow: winLbRow.listShadow, radius: winLbRow.listRadius, pad: winLbRow.listPad,
+      listW: winLbRow.listW, pillW: winLbRow.pillW }) + ')');
   expect(winLbRow.textWin !== null && winLbRow.textMenu !== null &&
     winLbRow.textWin === winLbRow.textMenu,
     '⚠️⚠️ VICTORY: the place in the row is THE SAME NUMBER AS IN THE MENU, and it is checked ' +
@@ -1372,6 +1425,81 @@ page.on('response', (r) => {
     '(99-main «stats.misses − chainStartMisses»), and a merge must NOT launder the mistakes ' +
     'already made. ⛔ SABOTAGE: reset `stats.misses` in `doMatch` instead of `missRun` — the ' +
     'price would look right and a player could farm turbo by alternating a miss and a merge');
+
+  // ══ THE SCORE CHIP REDDENS AT THE MOMENT OF A MISTAKE (the owner 2026-08-25) ══
+  // «If the player misses, at that moment the total score must redden — THE SAME COLOUR AS THE
+  // MISS.» The second half of that sentence is the whole reason this guard is shaped as it is.
+  // ⚠️⚠️ «THE SAME COLOUR» IS ASSERTED AS AN EQUALITY OF TWO LIVE READINGS, NOT AS A LITERAL.
+  // The value has four copies by necessity — three in JS (the pop calls) reading `MISS_COLOR`,
+  // and a fourth in CSS (`#score.miss { fill:#e5484d }`), because a stylesheet cannot read a
+  // const. This assert reads the COMPUTED fill of the reddened chip and `__game.missColor()` and
+  // demands they agree, so the one copy that cannot be removed is the one that is watched.
+  const redProbe = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const el = document.getElementById('score');
+    // rgb() back to the hex the code is written in — the comparison is with `MISS_COLOR`
+    const hex = () => { const m = getComputedStyle(el).fill.match(/\d+/g);
+      return m ? '#' + m.slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join('') : null; };
+    g.setLevel(8); g.regen(); g.skipIntro(); await sleep(800);   // lv.>5: the minus is honest
+    const calm = { cls: g.scoreMissOn(), fill: hex() };
+    g.penalizeTest();
+    const atOnce = g.scoreMissOn();          // the CLASS lands in the same tick as the charge
+    await sleep(260);                        // ⚠️ past the .14s transition — see the note below
+    const red = { cls: g.scoreMissOn(), fill: hex() };
+    await sleep(700);
+    const back = { cls: g.scoreMissOn(), fill: hex() };
+    // ⚠️ THE RESTART, NOT THE STACK: two misses inside one flash must leave the chip red until
+    // SCORE_MISS_MS after the LAST of them. A build that let the first timeout win would clear
+    // the red while the player was still being punished.
+    g.penalizeTest(); await sleep(300); g.penalizeTest(); await sleep(300);
+    const stillRed = g.scoreMissOn();
+    // ⚠️ AND LEVEL 1, WHERE NOTHING IS CHARGED: the chip must NOT redden — the flash sits inside
+    // the same `charged && shown > 0` gate as the pop, and colouring a number that did not move
+    // would be a lie. The CONTROL is that the mistake was nevertheless counted.
+    g.setLevel(1); g.regen(); g.skipIntro(); await sleep(700);
+    const m0 = g.stats().misses, s0 = g.stats().score;
+    g.penalizeTest(); await sleep(260);
+    const lv1 = { cls: g.scoreMissOn(), fill: hex(),
+                  missed: g.stats().misses === m0 + 1, scoreMoved: g.stats().score !== s0 };
+    return { calm, atOnce, red, back, stillRed, lv1, missColor: g.missColor() };
+  });
+  console.log('score reddens on a miss:', JSON.stringify(redProbe));
+  expect(redProbe.atOnce === true && redProbe.red.cls === true &&
+         redProbe.red.fill === redProbe.missColor &&
+         redProbe.calm.fill !== redProbe.missColor && redProbe.calm.cls === false &&
+         redProbe.back.cls === false && redProbe.back.fill === redProbe.calm.fill,
+    '⚠️⚠️ THE SCORE CHIP TURNS THE COLOUR OF A MISTAKE AND COMES BACK (the owner 2026-08-25: ' +
+    '«if the player misses, at that moment the total score must redden — the same colour as the ' +
+    'miss»): ' + JSON.stringify(redProbe) + '. ' +
+    '⚠️⚠️ `red.fill === missColor` IS THE SENTENCE\'S SECOND HALF AND IT IS THE ARM THAT CANNOT ' +
+    'BE FAKED — the CSS copy of the hex in `#score.miss` is tied to the `MISS_COLOR` the pops ' +
+    'are painted with. Retune the miss colour in 00-config alone and this goes red, which is ' +
+    'exactly what «the same colour» has to mean. ' +
+    '⚠️ `calm.fill !== missColor` IS THE POSITIVE CONTROL: without it a build whose chip was ' +
+    'ALWAYS red would satisfy everything else. And `back` states the return — a flash that ' +
+    'never ends is not a flash. ' +
+    '⚠️ THE READING IS TAKEN 260 ms AFTER THE CHARGE, PAST THE .14 s `fill` TRANSITION: ' +
+    '`getComputedStyle` mid-transition returns the INTERPOLATED colour, so an immediate read ' +
+    'would report something between yellow and red and this assert would flake. The CLASS is ' +
+    'read in the same tick instead (`atOnce`), which is the half that has no timing at all. ' +
+    '⛔ SABOTAGE: drop `scoreFlashMiss()` from `penalize` (70-fx) — `atOnce` goes false; or ' +
+    'write a second hex into `#score.miss` — the equality goes red');
+  expect(redProbe.stillRed === true,
+    '⚠️ A SECOND MISTAKE RESTARTS THE FLASH INSTEAD OF INHERITING THE FIRST ONE\'S CLOCK ' +
+    '(stillRed ' + redProbe.stillRed + '): two misses 300 ms apart leave the chip red 300 ms ' +
+    'after the second, i.e. past the moment the FIRST timeout would have fired. ' +
+    '⛔ SABOTAGE: drop the `clearTimeout(scoreMissT)` from `scoreFlashMiss` (85-hud) — the ' +
+    'earlier timeout survives and clears the red out from under the later mistake');
+  expect(redProbe.lv1.cls === false && redProbe.lv1.fill === redProbe.calm.fill &&
+         redProbe.lv1.missed === true && redProbe.lv1.scoreMoved === false,
+    '⚠️⚠️ ON LEVEL 1 THE CHIP DOES NOT REDDEN, AND THAT IS NOT AN OVERSIGHT: his beginner grace ' +
+    '(`SCORE_NO_PENALTY_LEVELS`) takes no points there, and a chip that reddened would be ' +
+    'colouring a number that did not move. The flash sits inside the same `charged && shown > 0` ' +
+    'gate as the red pop. ⚠️ `missed === true` IS THE CONTROL THAT CARRIES THIS ASSERT: without ' +
+    'it «the chip stayed yellow» is also true of a build where the tap was not a mistake at all, ' +
+    'which is the trap of writing a negative guard on the level that exempts everything (' +
+    JSON.stringify(redProbe.lv1) + ')');
 
   // ═══ THE POINTS THE PLAYER ACTUALLY SEES (the owner's word 2026-08-23-d) ═══
   // «Why do I see +0 points from a merge and still −1 on a mistake? The mixer eats 20 points per
@@ -2042,6 +2170,7 @@ page.on('response', (r) => {
     timeOnWin: document.getElementById('winStats').textContent.includes('Time:'),
     hudTimerHidden: getComputedStyle(document.getElementById('tmSvg')).display === 'none',
     starChip: document.getElementById('score').textContent,
+    starIcon: document.querySelectorAll('#scSvg #scStar path').length,
     liveBal: window.__game.liveBalance() }));
   expect(fin2.win === 'flex', 'the final clean-up brings it to a win');
   expect(fin2.score === 150 + 5 * lvlBefore, 'the finale: points are neither spent nor credited, only the fish 150+5×lv (' + fin2.score + ' at lv.' + lvlBefore + ')');
@@ -2050,7 +2179,15 @@ page.on('response', (r) => {
   // the chip now shows the SINGLE BALANCE (liveBalance), and NOT the per-level score
   // (the owner's finalization 2026-07-24 «points=stars=balance», the META request):
   // on a win the score is banked into se → the chip = the balance = liveBalance.
-  expect(fin2.starChip === '★ ' + fin2.liveBal, 'the chip shows the single balance liveBalance (' + fin2.starChip + ' = ★ ' + fin2.liveBal + ')');
+  // ⛔⛔ THE «★ » PREFIX LEFT THE STRING 2026-08-25-b: the star is an ICON now (`#scStar`, the
+  // owner's own `Interface/Star.svg`, node 913:3644), drawn inside the same frame instead of
+  // being a glyph in the text. The STATEMENT is unchanged and is the whole point of the assert —
+  // the chip shows `liveBalance`, the one number the menu and the leaderboard also show.
+  // ⚠️ THE ICON IS ASSERTED SEPARATELY AND IN THE SAME BREATH: without it a build that lost the
+  // star altogether would satisfy «the text is the number» and quietly ship a bare digit.
+  expect(fin2.starChip === String(fin2.liveBal) && fin2.starIcon === 1,
+    'the chip shows the single balance liveBalance as digits, with the star as an icon beside ' +
+    'it (' + JSON.stringify({ text: fin2.starChip, liveBal: fin2.liveBal, icon: fin2.starIcon }) + ')');
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
   // the win overlay has to be hidden by hand, otherwise it will intercept the real clicks
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
@@ -10006,14 +10143,29 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const scMob = await scoreArm(page), scDesk = await scoreArm(deskPage);
     console.log('score-colour/arms:', JSON.stringify({ mob: scMob, desk: scDesk }));
     expect(scMob.mobileArm && !scDesk.mobileArm &&
-           scMob.fill === scDesk.fill &&
-           scMob.fill === 'rgb(255, 231, 48)',
-      '⚠️⚠️ THE SCORE ON THE GAME SCREEN IS ONE FLAT YELLOW IN BOTH LAYOUTS, AND IT IS THE ' +
-      'MOBILE ONE (' + JSON.stringify({ mob: scMob, desk: scDesk }) + '). The owner\'s word ' +
-      '2026-08-23-a: «the colour of the score on the game screen in all versions as on mobile». ' +
+           scMob.fill === 'rgb(255, 231, 48)' &&
+           scDesk.fill === 'rgb(0, 0, 0)',
+      '⚠️⚠️ THE SCORE IS YELLOW ON THE PHONE AND BLACK ON THE DESKTOP, AND THE TWO ARMS ARE ' +
+      'DELIBERATELY DIFFERENT (' + JSON.stringify({ mob: scMob, desk: scDesk }) + '). ' +
+      '⛔⛔ THIS ASSERT USED TO STATE THE OPPOSITE — «one flat yellow in both layouts» — and it ' +
+      'was his own word of 2026-08-23-a («the colour of the score on the game screen in all ' +
+      'versions as on mobile»). Node 913:3644 «Header-desk» CANCELS it FOR THE DESKTOP ONLY: ' +
+      '`text-[34px] text-black`, brought in by his word 2026-08-25-b «update the visual for the ' +
+      'elements in the header». ' +
+      '⚠️⚠️ AND THE PHONE KEEPS THE YELLOW FOR A MEASURED REASON, not out of caution: there the ' +
+      'top of the frame is the DARKEST sky stop in both themes (the sky invariant in the canon), ' +
+      'so black would be unreadable. On desktop the top is light — which is why the LEVEL beside ' +
+      'it has been black all along. ⛔ DO NOT «RESTORE THE SYMMETRY» BY PAINTING THE PHONE BLACK ' +
+      'without his word: this assert is what would go red, and it is the only place that states ' +
+      'the split is intended. ' +
       '⛔ THE SABOTAGE THIS TURNS RED: giving `#score` back the `url(#gScore)` gradient on the ' +
       'desktop arm — the pre-edit state, where computed fill read `url("#gScore")` at 1280 and ' +
-      '`rgb(255, 231, 48)` at 390. It also turns red on the reverse drift: repainting the MOBILE ' +
+      '`rgb(255, 231, 48)` at 390. It also turns red on the drift the black introduces: letting ' +
+      'the desktop rule leak past the 768 breakpoint and repaint the phone. ' +
+      '⚠️⚠️ THE ORDER OF THE TWO CSS RULES IS WHAT THE DESKTOP ARM ACTUALLY RESTS ON — both are ' +
+      '(1,0,0), so the `@media` block must stand AFTER the base `#score`; written before it the ' +
+      'desktop measured YELLOW on a sound intent. Caught by a probe, not by this run. ' +
+      'The old wording continued: repainting the MOBILE ' +
       'arm and leaving the desktop yellow, or restoring the removed `@media (max-width:767px)` ' +
       'duplicate with a different value. ' +
       '⚠️⚠️ THE AGREEMENT IS THE STATEMENT, NOT THE VALUE: `desk === #ffe730` on its own is true ' +
@@ -11342,6 +11494,31 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // ⚠️⚠️ THE OWNER'S PATH, NOT AN INTERNAL FUNCTION: we open the panel, tick the
   // pack with a checkbox, drag a REAL mouse over the canvas and press «Apply». Through
   // `setPackMatcap` the guard would be checking the registry, and not the tract that is used.
+  // ⛔⛔ THE BRUSH IS GONE FROM THE EDITOR (the owner's word 2026-08-25-b «remove the top part
+  // with the drawing of the material»), AND WITH IT EVERY `#matcapEdit canvas` DRAG THAT USED TO
+  // FEED THESE GUARDS. The panel now has NO canvas and NO sliders at all — those probes would
+  // have thrown on a null bounding box, i.e. the run would have DIED rather than gone red, and a
+  // dead run states nothing.
+  // ⚠️ THE REPLACEMENT IS STILL THE OWNER'S PATH, AND IT IS THE ONLY ONE HE HAS LEFT: a PNG
+  // through the panel's REAL file input — the same element the drop zone clicks. We build the
+  // file in the page (canvas → dataURL → Blob → File → DataTransfer) rather than shipping a
+  // fixture: a hand-written PNG byte array in a test file is a second asset to keep in step.
+  // ⚠️ `dispatchEvent(new Event('change'))` IS WHAT THE REAL INPUT FIRES — assigning `files`
+  // alone does not notify anyone, and the guard would have measured a picture nobody loaded.
+  const mceDropPng = async (pg, col) => {
+    const ok = await pg.evaluate(async (c0) => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const x = c.getContext('2d'); x.fillStyle = c0; x.fillRect(0, 0, 128, 128);
+      const blob = await (await fetch(c.toDataURL('image/png'))).blob();
+      const dt = new DataTransfer(); dt.items.add(new File([blob], 'm.png', { type: 'image/png' }));
+      const inp = document.querySelector('#matcapEdit input[type=file]');
+      if (!inp) return false;
+      inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+      return true;
+    }, col);
+    await pg.waitForTimeout(450);   // FileReader + Image.onload + renderPost
+    return ok;
+  };
   const packMatcapPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await packMatcapPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
   await packMatcapPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
@@ -11362,14 +11539,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     return { packs: labels.filter(l => /^pack: /.test(l.textContent.trim())).length,
              marked: !!(check && check.checked) };
   });
-  const packMatcapCanvas = await packMatcapPage.$('#matcapEdit canvas');
-  const packMatcapBox = packMatcapCanvas && await packMatcapCanvas.boundingBox();
-  if (packMatcapBox){
-    await packMatcapPage.mouse.move(packMatcapBox.x + packMatcapBox.width * 0.3, packMatcapBox.y + packMatcapBox.height * 0.3);
-    await packMatcapPage.mouse.down();
-    await packMatcapPage.mouse.move(packMatcapBox.x + packMatcapBox.width * 0.7, packMatcapBox.y + packMatcapBox.height * 0.7, { steps: 12 });
-    await packMatcapPage.mouse.up();
-  }
+  const packMatcapLoaded = await mceDropPng(packMatcapPage, '#ff2d55');
   for (const btn of await packMatcapPage.$$('#matcapEdit button')){
     const t = await btn.textContent(); if (/Apply/.test(t)){ await btn.click(); break; }
   }
@@ -11377,8 +11547,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   const packMatcapAfter = await packMatcapPage.evaluate(() => window.__game.packMatcapInfo());
   await packMatcapPage.close();
   console.log('matcaps per pack:', JSON.stringify({ packMatcapTargets, packMatcapBefore, packMatcapAfter }));
-  expect(packMatcapTargets.packs >= 5 && packMatcapTargets.marked,
-    'SANITY: the panel has pack targets and «animals» is ticked (' + JSON.stringify(packMatcapTargets) + ')');
+  expect(packMatcapTargets.packs >= 5 && packMatcapTargets.marked && packMatcapLoaded,
+    'SANITY: the panel has pack targets, «animals» is ticked, and a PNG really reached the ' +
+    'panel\'s file input (' + JSON.stringify({ packMatcapTargets, packMatcapLoaded }) + '). ' +
+    '⚠️ `packMatcapLoaded` REPLACED A BRUSH DRAG 2026-08-25-b and it is not decoration: without ' +
+    'it a build whose file input vanished would apply the flat background instead of a picture, ' +
+    'and «the pack got its own texture» below would still be true — for the wrong reason');
   // (1) BY DEFAULT THEY ALL SHARE ONE — this is exactly «nothing has changed»
   const ownRows = o => Object.values(o.packs).reduce((s, x) => s + x.onOwn, 0);
   expect(Object.values(packMatcapBefore.packs).reduce((s, x) => s + x.onShared, 0) > 0 && ownRows(packMatcapBefore) === 0 && packMatcapBefore.registered.length === 0,
@@ -11555,14 +11729,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // The key is DIFFERENT, not the pig one: otherwise this guard and the guard «apply immediately» below
     // would be quenched by one sabotage and would stop being independent.
     const catBefore = await takeSnap(c, 'animalcat');
-    await c.evaluate(() => { const r = [...document.querySelectorAll('#matcapEdit input[type=range]')][0];
-      r.value = 200; r.dispatchEvent(new Event('input')); });   // the brush width — a wider stroke, a cleaner measurement
-    await c.waitForTimeout(200);
-    const boxProbe = await (await c.$('#matcapEdit canvas')).boundingBox();
-    await c.mouse.move(boxProbe.x + boxProbe.width * 0.35, boxProbe.y + boxProbe.height * 0.35);
-    await c.mouse.down();
-    await c.mouse.move(boxProbe.x + boxProbe.width * 0.62, boxProbe.y + boxProbe.height * 0.55, { steps: 8 });
-    await c.mouse.up();
+    // ⚠️ A PNG INSTEAD OF THE STROKE (2026-08-25-b), and the statement is UNCHANGED: the pack
+    // already has its own texture, so this write goes into ITS BYTES — the object is not
+    // swapped, `setPackMatcap` is not called, and only `mceApply` itself can drop the portrait
+    // snapshots. A colour far from the flat background is what makes the delta measurable.
+    // ⚠️ A LIGHT, SATURATED PICTURE ON PURPOSE: the assert below states «it got LIGHTER, but not
+    // white», which is what the old white brush produced. A dark PNG would satisfy «it changed»
+    // and quietly retire the upper bound that guards the alpha regression.
+    const cLoaded = await mceDropPng(c, '#ffd166');
     await c.waitForTimeout(500);
     const catAfter = await takeSnap(c, 'animalcat');
     const pigStroke = await takeSnap(c, 'animalpig');
@@ -11575,17 +11749,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // texture»), while the owner's whitening went by the SECOND — by writing inside
     // the existing `image.data` of the common preset `tex`. Rolling back `dst.set(src)`
     // left the whole suite green. Here the target is exactly `tex`, the branch is the second one.
-    // ⚠️ We edit the BACKGROUND COLOUR, and do not draw: this is at the same time the only measurement of the wrapper
-    // `() => renderPost()` at the colour fields (with a bare handler an Event would arrive
-    // into `silent`, and the applying of colours would die silently).
+    // ⛔⛔ THIS BLOCK USED TO DRIVE THE «background» COLOUR FIELD, AND THAT FIELD NO LONGER
+    // EXISTS (2026-08-25-b: the whole drawing half of the panel was removed by the owner's
+    // word). The STATEMENT it carried survives in full and is what is measured below — the
+    // default target («all textured at once») is edited WITHOUT PRESSING «Apply», i.e. the
+    // live path fires by itself. Only its trigger changed: a dropped PNG instead of a colour.
+    // ⚠️ AND THE SECOND HALF OF THE OLD STATEMENT DIED WITH THE FIELD: «the wrapper
+    // `() => renderPost()` at the colour fields» guarded a bare handler leaking an Event into
+    // `silent`. There are no colour fields left to leak. The `silent` flag itself is still
+    // guarded — by `openCow` above, which is the arm that matters.
     const d = await openPage();
     await d.evaluate(() => window.__game.matcapEdit());
     await d.waitForTimeout(600);
-    const colorApplied = await d.evaluate(() => {
-      const c = document.querySelector('#matcapEdit input[type=color]');   // «background»
-      if (!c) return false;
-      c.value = '#3ba0ff'; c.dispatchEvent(new Event('input')); return true;
-    });
+    const colorApplied = await mceDropPng(d, '#3ba0ff');
     await d.waitForTimeout(500);
     const pirateAfter = await takeSnap(d, 'piratebarrel');
     const withImageD = await d.evaluate(() => window.__game.packMatcapInfo().withImage);
@@ -11624,7 +11800,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'on one sabotage');
 
     expect(pigStroke.lum > pigNoStroke.lum + 8 && pigStroke.lum < 250 && pigStroke.sat > 0.1,
-      '⚠️ «APPLY IMMEDIATELY» IS ALIVE: a stroke with a white brush lightens the target without pressing ' +
+      '⚠️ «APPLY IMMEDIATELY» IS ALIVE: a dropped PNG lightens the target without pressing ' +
       '«Apply» (' + JSON.stringify({ pigNoStroke, pigStroke }) + ', measurement 98.0 → 121.5). ' +
       'This is the SECOND SIDE of the `silent` flag: make ALL the `renderPost` calls silent, and ' +
       'the guard of the opening above will stay green, while this one will go red. ' +
@@ -11635,7 +11811,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
 
     expect(colorApplied && basePirate && basePirate.n > 500 && pirateAfter
         && withImageD.indexOf('pirate') < 0,
-      'SANITY OF THE DEFAULT TARGET: the «background» field was found and got the event, both ' +
+      'SANITY OF THE DEFAULT TARGET: a PNG reached the panel\'s file input (2026-08-25-b — it ' +
+      'used to be the «background» colour field, removed with the drawing half), both ' +
       'portraits were built, and the pirate pack did NOT ACQUIRE its own picture ' +
       '(otherwise it would stop seeing the common preset and the two guards below would go red ' +
       'for no reason — take another pack from those without a picture) (' +
@@ -11648,11 +11825,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'the measurement of the sabotage here is 255.0/0, of a healthy build 81.1/0.823');
 
     expect(pirateAfter && Math.abs(pirateAfter.lum - basePirate.lum) > 5,
-      '⚠️ THE COLOUR FIELDS ARE APPLIED IMMEDIATELY: changing the «background» changes the target without pressing ' +
-      '«Apply» (' + JSON.stringify({ basePirate, pirateAfter }) + ', measurement 156.7 → 81.1). ' +
-      'The sabotage — bring back `addEventListener(\'input\', renderPost)` without the wrapper: into ' +
-      '`silent` an Event will arrive, the applying of colours will die SILENTLY, and the measurement will match the ' +
-      'base one one to one (156.7/0.440)');
+      '⚠️ THE LIVE PATH APPLIES WITHOUT «Apply»: a dropped PNG changes the default target on its ' +
+      'own (' + JSON.stringify({ basePirate, pirateAfter }) + '). ' +
+      '⛔ RE-POINTED 2026-08-25-b: it used to say «changing the background changes the target», ' +
+      'and the background field went away with the drawing half. The sabotage is now the same ' +
+      'one it always was, one step earlier — pass `silent` (or an Event) into the `renderPost()` ' +
+      'at the end of `takeFile`, and loading a picture will stop reaching the pile while the ' +
+      'panel goes on looking healthy');
 
     expect(Math.abs(applyBee.lum - preBee.lum) > 5,
       '⚠️⚠️ THE PORTRAITS DO NOT GO STALE: a card TAKEN BEFORE the matcap edit, after ' +
@@ -11763,6 +11942,102 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // ⚠️ THE OWNER'S PATH IN FULL: the panel → the tick «pack: cars» → a stroke
   // with a REAL mouse → «Apply» → «Reset». Through internal functions the guard
   // would be checking the registry, and not the tract the owner uses.
+  // ═══ A MATCAP PER **OBJECT**, NOT PER GROUP (the owner's word 2026-08-25-b) ═══
+  // «Show a list of objects, so that I could add its own matcap not to a GROUP but to EACH one.»
+  // ⚠️⚠️ THE OWNER'S PATH IN FULL, THROUGH THE PANEL: open the editor, drop a PNG into the real
+  // file input, untick everything, tick ONE object in the new list, press «Apply». Reaching
+  // `setTypeMatcap` directly would be checking the registry against itself — the tract he uses
+  // starts at a checkbox in a list of ninety.
+  const typeMcPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await typeMcPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await typeMcPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+  await typeMcPage.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
+  await typeMcPage.waitForTimeout(1200);
+  await typeMcPage.evaluate(() => window.__game.matcapEdit());
+  await typeMcPage.waitForTimeout(300);
+  // ⚠️ THE PANEL MUST HAVE LOST ITS DRAWING HALF — asserted, not assumed: «remove the top part
+  // with the drawing of the material» is half of what he asked for, and a build that kept the
+  // canvas would satisfy every arm below.
+  const typeMcPanel = await typeMcPage.evaluate(() => {
+    const p = document.getElementById('matcapEdit'); if (!p) return { noPanel: true };
+    const rows = [...p.querySelectorAll('label')];
+    return { canvases: p.querySelectorAll('canvas').length,
+             ranges: p.querySelectorAll('input[type=range]').length,
+             colors: p.querySelectorAll('input[type=color]').length,
+             file: p.querySelectorAll('input[type=file]').length,
+             objects: rows.filter(l => /^(?!.*(pack:|textured|painted|chrome|blades|bomb|apply immediately))/.test(l.textContent)).length };
+  });
+  const typeMcLoaded = await mceDropPng(typeMcPage, '#ff2d55');
+  // ⚠️⚠️ THE VICTIM IS CHOSEN FROM THE LIVE LEVEL, NOT PINNED BY NAME. A literal («Banana») would
+  // make this guard depend on which types `genLevel` happened to deal — and go red on a sound
+  // build the day the pool changes. We take a type that IS on the field AND has neighbours in
+  // its own pack, because the neighbours are what the second arm is about.
+  const typeMcPicked = await typeMcPage.evaluate(() => {
+    const live = window.__game.typeMatcapInfo().types;
+    const byPack = {};
+    for (const n in live){ const p = live[n].pack; if (!p) continue; (byPack[p] = byPack[p] || []).push(n); }
+    const pack = Object.keys(byPack).filter(p => byPack[p].length >= 2).sort()[0];
+    if (!pack) return { none: 'no pack with two live types' };
+    const name = byPack[pack].sort()[0];
+    const rows = [...document.querySelectorAll('#matcapEdit label')];
+    for (const l of rows){ const cb = l.querySelector('input[type=checkbox]');
+      if (cb && cb.checked && !/apply immediately/.test(l.textContent)) cb.click(); }
+    const want = document.querySelector('#matcapEdit label[data-type="' + name + '"]');
+    const cb = want && want.querySelector('input[type=checkbox]');
+    if (cb && !cb.checked) cb.click();
+    return { name, pack, label: want ? want.textContent.trim() : null, ticked: !!(cb && cb.checked),
+             siblings: byPack[pack].length - 1 };
+  });
+  for (const btn of await typeMcPage.$$('#matcapEdit button')){
+    const t = await btn.textContent(); if (/Apply/.test(t)){ await btn.click(); break; }
+  }
+  await typeMcPage.waitForTimeout(500);
+  const typeMcAfter = await typeMcPage.evaluate(() => ({
+    t: window.__game.typeMatcapInfo(), packs: window.__game.packMatcapInfo().registered }));
+  for (const btn of await typeMcPage.$$('#matcapEdit button')){
+    const t = await btn.textContent(); if (/Reset/.test(t)){ await btn.click(); break; }
+  }
+  await typeMcPage.waitForTimeout(400);
+  const typeMcReset = await typeMcPage.evaluate(() => window.__game.typeMatcapInfo());
+  await typeMcPage.close();
+  const typeMcOwn = typeMcAfter.t.types[typeMcPicked.name];
+  const typeMcSiblings = Object.entries(typeMcAfter.t.types)
+    .filter(([n, v]) => v.pack === typeMcPicked.pack && n !== typeMcPicked.name);
+  console.log('matcap per object:', JSON.stringify({ typeMcPanel, typeMcLoaded, typeMcPicked,
+    registered: typeMcAfter.t.registered, packs: typeMcAfter.packs, own: typeMcOwn,
+    siblings: typeMcSiblings.length, resetRegistered: typeMcReset.registered }));
+  expect(!typeMcPanel.noPanel && typeMcPanel.canvases === 0 && typeMcPanel.ranges === 0 &&
+         typeMcPanel.colors === 0 && typeMcPanel.file === 1,
+    '⚠️⚠️ THE DRAWING HALF OF THE EDITOR IS GONE (the owner 2026-08-25-b: «remove the top part ' +
+    'with the drawing of the material»): no canvas, no sliders, no colour fields — and the file ' +
+    'input, which is now the ONLY source of a matcap, is still there (' +
+    JSON.stringify(typeMcPanel) + '). ' +
+    '⚠️ `file === 1` IS THE HALF THAT KEEPS THIS FROM BEING A GUARD ON AN EMPTY PANEL: a build ' +
+    'that removed the drop zone along with the brush would satisfy the three zeroes');
+  expect(typeMcLoaded && typeMcPicked.ticked && typeMcOwn &&
+         typeMcOwn.items > 0 && typeMcOwn.onOwn === typeMcOwn.items && typeMcOwn.sameAsPack === 0,
+    '⚠️⚠️ ONE OBJECT TOOK ITS OWN MATCAP: every live item of the ticked TYPE wears the texture ' +
+    'the editor made for it, and none of them is on the pack\'s any more (' +
+    JSON.stringify({ picked: typeMcPicked, own: typeMcOwn }) + '). ' +
+    'The owner 2026-08-25-b: «so that I could add its own matcap not to a group but to each ' +
+    'one». ⛔ SABOTAGE: drop the `type:` branch from `mceApply` (12-matcap-edit) — the tick does ' +
+    'nothing; or read `packMatcapAim` instead of `itemMatcapAim` in `packMatcapRepoint` ' +
+    '(10-stage) — the override survives the apply and dies at the next touch of its pack');
+  expect(typeMcSiblings.length > 0 && typeMcSiblings.every(([n, v]) => v.sameAsPack === v.items) &&
+         typeMcAfter.packs.indexOf(typeMcPicked.pack) < 0,
+    '⚠️⚠️ AND ITS NEIGHBOURS DID NOT MOVE — THIS IS THE ARM THAT SAYS «not to a group»: the ' +
+    'other ' + typeMcSiblings.length + ' types of the «' + typeMcPicked.pack + '» pack are all still on the pack\'s ' +
+    'texture, and the pack itself never entered the registry (' +
+    JSON.stringify({ siblings: typeMcSiblings, packs: typeMcAfter.packs }) + '). ' +
+    '⛔ SABOTAGE: route the `type:` branch through `setPackMatcap` — the banana would look right ' +
+    'and the whole pack would come with it, which is exactly the behaviour he asked to end');
+  expect(typeMcReset.registered.length === 0 &&
+         (typeMcReset.types[typeMcPicked.name] || {}).sameAsPack ===
+         (typeMcReset.types[typeMcPicked.name] || {}).items,
+    '⚠️ «Reset» GIVES THE OBJECT BACK TO ITS PACK: the registry is empty again and its items ' +
+    'are on the pack texture (' + JSON.stringify(typeMcReset.types[typeMcPicked.name]) + '). Without ' +
+    'this arm an override would be a one-way door — and the editor exists for trying things on');
+
   const packResetPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await packResetPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
   await packResetPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
@@ -11782,14 +12057,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     if (ch && !ch.checked) ch.click();
     return !!(ch && ch.checked);
   });
-  const packResetCanvas = await packResetPage.$('#matcapEdit canvas');
-  const packResetBox = packResetCanvas && await packResetCanvas.boundingBox();
-  if (packResetBox){
-    await packResetPage.mouse.move(packResetBox.x + packResetBox.width * 0.35, packResetBox.y + packResetBox.height * 0.35);
-    await packResetPage.mouse.down();
-    await packResetPage.mouse.move(packResetBox.x + packResetBox.width * 0.65, packResetBox.y + packResetBox.height * 0.65, { steps: 6 });
-    await packResetPage.mouse.up();
-  }
+  const packResetLoaded = await mceDropPng(packResetPage, '#22c55e');   // a PNG, not a stroke (2026-08-25-b)
   const press = async (name) => {
     for (const btn of await packResetPage.$$('#matcapEdit button')){
       const t = await btn.textContent(); if (new RegExp(name).test(t)){ await btn.click(); return true; }
@@ -11806,10 +12074,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   console.log('pack reset:', JSON.stringify({ packResetChecked, packResetHitApply, packResetHitReset, packResetBefore, packResetApplied, packResetCleared }));
   // SANITY: the owner's path was REALLY walked — otherwise «after the reset everything is
   // as before» is true even on a build where the buttons were not pressed at all.
-  expect(packResetChecked && packResetHitApply && packResetHitReset &&
+  expect(packResetChecked && packResetHitApply && packResetHitReset && packResetLoaded &&
          packResetApplied.onOwn === packResetApplied.items && packResetApplied.items > 0,
-    'SANITY OF THE RESET: the pack «cars» is ticked, «Apply» and «Reset» are pressed, ' +
-    'after the apply all the cars are on THEIR OWN texture (' + JSON.stringify(packResetApplied) + ')');
+    'SANITY OF THE RESET: the pack «cars» is ticked, a PNG reached the file input, «Apply» and ' +
+    '«Reset» are pressed, after the apply all the cars are on THEIR OWN texture (' +
+    JSON.stringify({ packResetApplied, packResetLoaded }) + ')');
   expect(packResetCleared.items > 0 && packResetCleared.onImage === packResetCleared.items &&
          packResetCleared.onOwn === 0,
     '⚠️⚠️ THE RESET RETURNS A PACK TO ITS PICTURE, AND NOT TO THE COMMON PRESET: otherwise ' +

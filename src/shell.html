@@ -435,7 +435,36 @@
      The mobile score has carried exactly this number since yesterday and he accepted it
      knowingly; this extends the same acceptance to the desktop. The star beside it and
      the type size are what carry the reading, not the contrast. */
-  #score { fill:#ffe730; }
+  /* ⛔⛔ AND IT REDDENS AT THE MOMENT OF A MISTAKE (the owner's word 2026-08-25: «if the player
+     misses, at that moment the total score must redden — the same colour as the miss»).
+     ⚠️⚠️ `#e5484d` IS THE FOURTH COPY OF ONE VALUE AND THE ONLY ONE A GUARD CANNOT REMOVE: the
+     other three read `MISS_COLOR` (00-config), a stylesheet cannot. The suite therefore reads
+     THIS computed fill and `__game.missColor()` and asserts the two strings are equal — «the
+     same colour as the miss» is checked, not promised.
+     ⚠️ THE RETURN TO YELLOW IS THE TRANSITION, NOT A SECOND CLASS: JS only adds `.miss` and
+     removes it SCORE_MISS_MS later, so there is exactly one description of each colour.
+     ⚠️ SPECIFICITY: `#score.miss` is (1,1,0) against the base `#score` (1,0,0) — it wins
+     regardless of the order of these two lines. */
+  #score { fill:#ffe730; transition:fill .14s ease-out; }
+  /* ⛔⛔ THE DESKTOP NUMBER IS BLACK (node 913:3644 «Header-desk» → `text-[34px] text-black`,
+     the owner 2026-08-25-b). ⛔ IT CANCELS HIS OWN WORD OF 2026-08-23-a — «the colour of the
+     score on the game screen in all versions as on mobile» — FOR THE DESKTOP ONLY, and the
+     cancellation is named to him rather than smuggled in.
+     ⚠️ MOBILE KEEPS THE YELLOW ON PURPOSE: there the top of the frame is the DARKEST sky stop
+     in both themes (the sky invariant in the canon), so black would be unreadable. On desktop
+     the top is light — which is why the LEVEL beside it has been black all along (the base
+     `.otext text { fill:#000 }`), and the score simply joins it.
+     ⚠️⚠️ THIS BLOCK STANDS **AFTER** THE BASE RULE ON PURPOSE. Both selectors are (1,0,0), so
+     ORDER decides, not the media query — written up beside the other ≥768 rules (line ~409) it
+     was overridden by the base and measured yellow on a 1280 viewport. Caught by a probe. */
+  @media (min-width:768px){ #score { fill:#000; } }
+  /* ⚠️ AND `#score.miss` IS (1,1,0), so it beats both of the above in either layout — the
+     reddening on a mistake (2026-08-25) is untouched by the black. Guarded. */
+  #score.miss { fill:#e5484d; }
+  /* ⚠️ THE STAR KEEPS ITS OWN YELLOW ON BOTH LAYOUTS (`#FFE730`, the owner's word 2026-08-10
+     about this very asset). Written as a rule and not left to the inline `fill` so that a
+     future re-theme has one place to reach — the same shape as `.ms-stars svg path`. */
+  #scStar path { fill:#FFE730; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
      ⛔ THE THICKNESS 6 LIVED THROUGH ONE EDIT: having looked at the rendered frame, the owner
@@ -1413,7 +1442,20 @@
     /* DAY/MORNING = a WHITE panel (the owner's spec 2026-07-24 «by day and in the morning
        white, in the evening and at night black»). The dark variant is under html.night below
        (mock-up 776:649). width:fit-content — «pull it up by width». */
-    background:rgba(255,255,255,.16); box-shadow:0 0 28px 0 #fff inset;
+    /* ⛔⛔ THE STYLE IS HIS, VERBATIM (2026-08-25-b, «on the game screen the style of the block
+       with the statistics»): `border-radius:32px; border:1px solid rgba(255,255,255,.20);
+       background:rgba(255,255,255,.20)`. It cancels the fill of 16% AND the 28px white inner
+       glow of the 2026-07-24 recipe.
+       ⚠️ THE GLOW IS DROPPED THOUGH HE DID NOT NAME IT, AND THAT IS A DECISION: he pasted a
+       COMPLETE declaration with no `box-shadow` in it, and this is the third block of the same
+       batch where an inner glow gives way to a 1px frame (the leaderboard pill and the list of
+       top items are the other two). One word restores it.
+       ⚠️ THE RADIUS 32 WAS ALREADY HERE and is left where it was, above.
+       ⚠️ THE NIGHT VARIANT IS NOT TOUCHED (`html.night #vitrine` below keeps its own fill and
+       its dark 7% border): his screenshot is the DAY sky, and the day/night split of this panel
+       is his own spec of 2026-07-24. Named to him. */
+    background:rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.20);
+    box-shadow:none;
     opacity:1;
     /* THE UNFOLDING AFTER THE FLY-AROUND (the owner's spec «the block smoothly unfolds
        after the animation of the fly-around of the bucket»): the panel rolls out from the bottom up by
@@ -1679,7 +1721,14 @@
      ⚠️ THE «BLOB» SANITISER IS NEITHER NEEDED NOR APPLICABLE HERE: it catches a coincidence of
      the fill with the outline, while white on lime are different colours. The closing-up of the thick
      lime contour into a «pill» is INTENDED here, the canon has already approved it. */
-  #winCleaned { fill:#fff; }
+  /* ⛔⛔ AND BLACK AGAIN, THE FIFTH EDITION (the owner's word 2026-08-25-b, with this very
+     node selected on the page: «change the white fill to black»). The chain in full: text
+     without a pill → white +30% → black on lime → white again (891:4315) → black. The lime
+     outline `--otl:10` has not changed even once through all five.
+     ⚠️ THE PARAGRAPH ABOVE IS NOW HISTORY — read it for the reasoning, not for the colour.
+     ⚠️ AND THE «BLOB» SANITISER STILL DOES NOT APPLY: it catches a fill equal to the outline,
+     and black against lime is as different as white was. */
+  #winCleaned { fill:#000; }
   /* ⛔ THE TIME IS NO LONGER SLANTED AND NOT SHIFTED: `translateX(-10px) rotate(11deg)`
      was removed together with the row in which it stood. The shift −10 was the owner's word
      2026-08-12 («the time further left by 10») and solved the same collision with the caption as
@@ -1731,12 +1780,30 @@
      ⚠️ The glow is a separate `::after` layer: an inset shadow on the row itself would have lain
      UNDER the avatars (they are in the flow), while the rim is needed OVER the content. */
   .win-lbslot { width:100%; }
+  /* ⛔⛔ THE GLASS WAS REPLACED BY A THIN FRAME (the owner's word 2026-08-25, three properties
+     verbatim: `border-radius:64px; border:1px solid rgba(255,255,255,.12);
+     background:rgba(255,255,255,.04)`), and it CANCELS the recipe of 2026-08-21-r four lines
+     above — the fill 8% and the inner glow. The node 891:4297 was re-read with
+     get_design_context and carries exactly these three values, so his message and the design
+     agree; the build was the only one still on the old stratum.
+     ⛔ HIS FIRST WORDING WAS «the background transparent» and it lived one message: the
+     numbers he sent afterwards say 4%, not 0. The later, more precise word is in force.
+     ⚠️ THE HEIGHT STAYS 72 BECAUSE OF `box-sizing:border-box`, which was already here — the
+     1px frame eats into the box instead of growing it, so the gap of 30 under the row and the
+     stable height the canon pins are untouched.
+     ⚠️ THE PADDING IS LEFT AT 16 AND THAT IS DELIBERATE: the node now says 12, he named three
+     properties and padding was not one of them. Flagged to him, not decided here. */
   .win-wrap .win-lbentry { position:relative; width:100%; box-sizing:border-box;
     cursor:default; height:72px; padding:0 16px;
-    background:rgba(255,255,255,.08); border-radius:64px; }
+    background:rgba(255,255,255,.04); border-radius:64px;
+    border:1px solid rgba(255,255,255,.12); }
+  /* ⛔ THE INNER GLOW IS OFF (his word above: «remove the inner glow from this block»). The
+     layer is KEPT and left empty on purpose — it is the `::after` the canon describes as
+     drawn OVER the avatars, and bringing the glow back must cost one line, not a rebuild of
+     the stacking. Do not read its presence as evidence that anything is painted here. */
   .win-wrap .win-lbentry::after { content:''; position:absolute; inset:0;
     border-radius:inherit; pointer-events:none;
-    box-shadow:inset 0 0 20px 0 rgba(255,255,255,.8); }
+    box-shadow:none; }
   .win-wrap .win-lbentry .ms-lbe-rank { font-size:18px; font-weight:800; color:#fff; }
   .win-wrap .win-lbentry .ms-lbe-sub { color:#a2a2a8; }
   .win-wrap .win-lbentry .ms-lbe-avs { gap:0; }
@@ -2051,7 +2118,33 @@
      2026-08-11. It is left together with the animation below so that a return costs ONE
      line of markup; if you decide it will not come back — tear down both at once. */
   .win-top-label { color:#fff; font-weight:900; font-size:16px; padding-left:2px; }
-  .win-top-list { display:flex; flex-direction:column; gap:12px; }
+  /* ⛔⛔ THE LIST OF ITEMS BECAME A FRAMED BLOCK (the owner's word 2026-08-25, with the node
+     779:1049 «Level items white black» in front of him): «remove the inner glow from this block,
+     the background transparent, around the block of rows 1px of 56% white».
+     ⚠️⚠️ ALL THREE OF HIS PROPERTIES ARE STATED HERE LITERALLY AND NONE OF THEM COMES FROM THE
+     NODE. In Figma this block carries no fill and no stroke at all (checked with
+     get_design_context, not off a screenshot) — the fill and the inner glow he is cancelling
+     live in the WHITE variant of the same component, which is what he had on the screen. His
+     word is the spec; the node is the evidence that the two disagree, and it is flagged to him.
+     ⚠️ THE RADIUS IS THE NODE'S OWN 32 (`rounded-[var(--32,32px)]` on 779:1049) — the one number
+     here that is NOT a choice of mine.
+     ⚠️ THE PADDING OF 16 IS MINE AND IS NAMED AS SUCH: it repeats the side padding of the
+     leaderboard pill right above (`.win-lbentry { padding:0 16px }`), so the column of portraits
+     stands under the pill's laurel instead of half a step to the left of it. One word from him
+     moves it.
+     ⚠️ `box-sizing:border-box` is load-bearing: the row is `width:100%` inside a column of a
+     fixed width, and without it the 1px frame would push the block 2px wider than the pill.
+     ⛔⛔ THE FRAME OF 56% AND THE TRANSPARENT FILL LIVED ONE BATCH. His word of 2026-08-25-b:
+     «on this screen the pixel outline around the top items and the colour of the background —
+     THE SAME AS THE STYLE OF THE LEADERBOARD BLOCK ABOVE IT». So the two blocks are ONE style
+     after all, and the pair of numbers I asked him about is closed: 12%, not 56%.
+     ⚠️ THE RADIUS STAYS 32 AND DOES **NOT** BECOME THE PILL'S 64: he named the outline and the
+     background, and the 32 is the node's own (`rounded-[var(--32,32px)]` on 779:1049). A block
+     of three rows at radius 64 would round into a lozenge. */
+  .win-top-list { display:flex; flex-direction:column; gap:12px;
+    box-sizing:border-box; padding:16px; border-radius:32px;
+    background:rgba(255,255,255,.04); box-shadow:none;
+    border:1px solid rgba(255,255,255,.12); }
   .wt-row { display:flex; align-items:center; gap:8px; }
   .wt-thumb { flex:none; width:44px; height:44px; border-radius:12px; overflow:hidden; }
   .wt-thumb img { width:100%; height:100%; display:block; }
@@ -3597,11 +3690,25 @@
   </div>
   <div class="grp" id="statStack">
     <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
-    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27">
+    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-lead="24.4">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
         <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>
       </linearGradient></defs>
-      <text id="score" x="102" y="21" text-anchor="end">★ 0</text></svg>
+      <!-- ⛔⛔ THE STAR IS AN ICON AND NO LONGER THE GLYPH «★» (node 913:3644 «Header-desk»,
+           the owner 2026-08-25-b «update the visual for the elements in the header»). It is HIS
+           OWN asset `Interface/Star.svg` — the same path that already serves the wallet in the
+           menu (`.ms-stars`), inlined a second time rather than exported from Dev Mode: those
+           exports ship `preserveAspectRatio="none"` and render distorted.
+           ⚠️ IT LIVES INSIDE `#scSvg`, NOT BESIDE IT, AND THAT IS LOAD-BEARING: `layoutHUD`
+           (90-input) moves `#lvlSvg`/`#tmSvg` around with `insertBefore(x, $('scSvg'))`, so
+           `#scSvg` must stay a DIRECT child of `#statStack`. A wrapper would break that call.
+           ⚠️ THE SCALE 0.643 = 20.57/32: the asset's viewBox is 32×30, and 20.57 units of a
+           27-unit-tall frame render as 32 px at the desktop scale 42/27 — the node's number.
+           The y offset 3.86 centres 19.28 units of height in 27.
+           ⚠️ `data-lead` IS READ BY `fitStat` (85-hud): the frame is squeezed to the TEXT, and
+           without the lead the star would be drawn outside the frame it shares. -->
+      <g id="scStar" transform="translate(0,3.86) scale(0.643)" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></g>
+      <text id="score" x="102" y="21" text-anchor="end">0</text></svg>
   </div>
 </div>
 <!-- THE CHARACTER: the owner's eyes (Figma 741:1420) as one inline SVG.

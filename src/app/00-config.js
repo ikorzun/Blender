@@ -121,6 +121,18 @@ function missPenaltyFor(n){
   const rungs = Math.round((MISS_PENALTY_MAX - MISS_PENALTY) / MISS_PENALTY_STEP) + 1;
   return MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
 }
+// ⛔⛔ THE COLOUR OF A MISTAKE IS ONE VALUE SINCE 2026-08-25, AND THAT IS WHAT HIS WORD
+// REQUIRES: «if the player misses, at that moment the total score must redden (THE SAME
+// COLOUR AS THE MISS)». It used to be written as the literal `#e5484d` at three pop sites;
+// «the same colour» stated over four copies is a promise, not a fact.
+// ⚠️ THE FOURTH COPY IS UNAVOIDABLE AND IT LIVES IN CSS (`#score.miss { fill:#e5484d }` in
+// shell.html) — a stylesheet cannot read a JS const. It is TIED BY A GUARD instead: the suite
+// reads the computed fill of the reddened score and `__game.missColor()` and asserts they are
+// the same string, so a divergence goes red instead of going unnoticed.
+const MISS_COLOR = '#e5484d';
+// how long the score stays red after a mistake — long enough to be seen, short enough not to
+// still be burning when the next tap lands
+const SCORE_MISS_MS = 520;
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)

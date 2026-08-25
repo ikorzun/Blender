@@ -992,7 +992,12 @@ function isNightSky(){
 // between LV and the time and the time overlapping the eyes (the owner's screenshot).
 function fitStat(id){
   const t = $(id), svg = t.ownerSVGElement;
-  const u = t.getComputedTextLength() + 3;          // the width in viewBox units
+  // ⚠️ `data-lead` — the width of anything drawn to the LEFT of the text inside the same frame,
+  // in viewBox units, plus its gap (2026-08-25-b: `#scSvg` carries the star icon at x=0). The
+  // frame is squeezed to the text, so without adding the lead the icon would end up outside the
+  // viewBox it shares and be clipped away at the first repaint.
+  const lead = parseFloat(svg.getAttribute('data-lead')) || 0;
+  const u = lead + t.getComputedTextLength() + 3;  // the width in viewBox units
   // ⚠️ one has to change BOTH the viewBox AND the css width: the svg keeps the viewBox proportions
   // (meet) — the width alone at a height of 42 SHRANK the content (LV smaller than
   // the time on the owner's screenshot)
@@ -1228,7 +1233,10 @@ function updateHUD(){
   // bounded from above; (b) fitStat — the frame by the fact of the text, as with
   // lvlNum/timer. Bundles make this critical: a wallet of 6-7 digits already in
   // the first paying session.
-  $('score').textContent = '★ ' + winFmtScore(liveBalance());
+  // ⛔ THE «★ » PREFIX IS GONE FROM THE STRING (2026-08-25-b): the star is now the owner's
+  // icon `#scStar` drawn inside the same frame, not a glyph in the text. Putting it back here
+  // would draw TWO stars — the guard pins the text as digits only.
+  $('score').textContent = winFmtScore(liveBalance());
   fitStat('score');
   const btn = $('shakeBtn');
   // ⚠️ The counter = the level's free ones + the PURCHASED stock of the bundle (77-save): without
@@ -1381,6 +1389,16 @@ function thumbItemsOfPack(pack){
   for (const k in thumbItemCache){
     const it = thumbItemCache[k];
     if (it && it.type && it.type.tex === pack && it.mesh) out.push(it);
+  }
+  return out;
+}
+// The same, but for ONE type — the per-object matcap of the editor (2026-08-25-b) repoints
+// exactly one type, and the portraits are separate items that live only here.
+function thumbItemsOfType(name){
+  const out = [];
+  for (const k in thumbItemCache){
+    const it = thumbItemCache[k];
+    if (it && it.type && it.type.name === name && it.mesh) out.push(it);
   }
   return out;
 }
@@ -2068,6 +2086,23 @@ function refreshMainSettings(){
   const seg = $('msDiff');
   if (seg) for (const b of seg.querySelectorAll('button'))
     b.classList.toggle('on', (b.dataset.hard === '1') === !!CFG.hard);
+}
+// ⛔⛔ THE SCORE CHIP REDDENS AT THE MOMENT OF A MISTAKE (the owner's word 2026-08-25: «if the
+// player misses, at that moment the total score must redden — the same colour as the miss»).
+// ⚠️ THE COLOUR IS NOT SET FROM HERE. The class is the whole mechanism, the paint lives in
+// `#score.miss` (shell.html) beside the base `#score { fill:#ffe730 }`, and the return is a CSS
+// transition on `fill` — so there is ONE description of the colour per side and no per-frame JS.
+// ⚠️ THE TIMER IS RESTARTED, NOT STACKED: a run of quick misses would otherwise leave several
+// timeouts racing, and the FIRST of them would clear the red while the chip was still being
+// punished by the later ones. `clearTimeout` on a fresh id is a no-op, so the first call is safe.
+// ⚠️ Called from BOTH charge points (`penalize` in 70-fx, `penalizeDouble` in 80-gameplay), each
+// time inside their `charged && shown > 0` gate — see the note there for why.
+let scoreMissT = 0;
+function scoreFlashMiss(){
+  const el = $('score'); if (!el) return;
+  el.classList.add('miss');
+  clearTimeout(scoreMissT);
+  scoreMissT = setTimeout(()=>{ el.classList.remove('miss'); }, SCORE_MISS_MS);
 }
 function refreshMainScreen(){
   // ⚠️ ONE NUMBER EVERYWHERE — liveBalance(), THE SAME call as the game chip's

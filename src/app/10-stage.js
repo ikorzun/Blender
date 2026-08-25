@@ -287,7 +287,10 @@ function packMatcapRepoint(pack){
       if (!it || !it.type || it.type.tex !== pack || it.type.paint || !it.mesh) continue;
       const m = it.mesh.material;
       if (!m || !('matcap' in m)) continue;
-      m.matcap = aim; touched++;
+      // ⚠️ THROUGH THE SINGLE RULE, NOT THROUGH `aim`: since 2026-08-25-b a TYPE may carry its
+      // own override, and it beats the pack's. Reading `aim` here would have wiped a per-object
+      // matcap the moment anything touched its pack — the classic «two writers of one field».
+      m.matcap = itemMatcapAim(it.type); touched++;
     }
   }
   // ⚠️⚠️ THE PORTRAIT SNAPSHOTS WENT STALE. The previous line called `thumbCache.clear()`, but
@@ -296,6 +299,54 @@ function packMatcapRepoint(pack){
   // portraits. Found by the analysis of the merge on 2026-08-18.
   try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
   return touched;   // ⚠️ we count BOTH the live ones AND the portraits: both are items of the pack
+}
+// ═══ THE PER-OBJECT TIER (the owner's word 2026-08-25-b: «show a list of objects, so that I
+// could add its own matcap not to a GROUP but to EACH one») ═══
+// ⚠️⚠️ IT IS A FOURTH TIER ON TOP OF THE THREE THAT ALREADY EXISTED, AND IT IS EMPTY BY DEFAULT —
+// so by default not a single byte of the picture changes. The order is: TYPE override → pack
+// override (the editor's registry) → the pack's own image → the shared preset.
+// ⚠️ THE KEY IS `type.name` (`foodbanana`, `animalcrab`) and NOT the item's `key`: the latter is
+// `'T' + typeIdx`, an index into the pool that MOVES the moment the owner adds or cuts a model —
+// an override pinned to it would silently land on a different object after the next batch.
+const typeMatcaps = new Map();   // type name → its own texture
+// ⛔⛔ THE ONLY PLACE WHERE THE RULE «WHAT AN ITEM WEARS» LIVES. It used to be written out inside
+// `itemMaterial` (40-items) and read back through `packMatcapAim` in the repoints — two copies of
+// one selection, and this project has already paid for exactly that shape once (2026-08-19: the
+// live loop forgot `paint`, and «Apply» moved a matcap onto bricks that `itemMaterial` never gave
+// it to). Both callers go through here now.
+function itemMatcapAim(t){
+  if (!t) return makeMatcap('soft');
+  const own = t.name && typeMatcaps.get(t.name);
+  if (own) return own;
+  return (t.tex && !t.paint)
+       ? packMatcap(t.tex, packMatcapTex(t.tex) || makeMatcap('tex'))
+       : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');
+}
+// Registering ONE type's own texture + a live repoint. Same contract as `setPackMatcap`:
+// `tex === null` removes the override and the type falls back to its pack's rule.
+function setTypeMatcap(name, tex){
+  if (!name) return 0;
+  if (tex) typeMatcaps.set(name, tex); else typeMatcaps.delete(name);
+  return typeMatcapRepoint(name);
+}
+function typeMatcapRepoint(name){
+  if (!name) return 0;
+  const lists = [];
+  try { if (typeof items !== 'undefined' && items) lists.push(items); } catch (e) {}
+  try { if (typeof thumbItemsOfType === 'function') lists.push(thumbItemsOfType(name)); } catch (e) {}
+  let touched = 0;
+  for (const list of lists){
+    for (const it of list){
+      if (!it || !it.type || it.type.name !== name || !it.mesh) continue;
+      const m = it.mesh.material;
+      if (!m || !('matcap' in m)) continue;
+      m.matcap = itemMatcapAim(it.type); touched++;
+    }
+  }
+  // ⚠️ The portraits are separate items and `itemThumb` holds the finished PNG forever — the same
+  // reason the pack repoint drops the snapshots. Without this the collection card lies until a reload.
+  try { if (typeof thumbCacheDrop === 'function') thumbCacheDrop(); } catch (e) {}
+  return touched;   // live items AND portraits of this type
 }
 // Re-baking the already handed out textures (the tuner). kind not given — all at once: the light
 // is shared, moving it changes every preset. The materials do NOT need to be touched — they

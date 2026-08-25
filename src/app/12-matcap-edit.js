@@ -17,7 +17,13 @@
 //
 // ⚠️ OPENS BY HAND ONLY: `__game.matcapEdit()` or the button in the developer
 // panel. The panel itself ships in the build, same as `matcapTuner`.
-const MCE_CANVAS = 512;                 // drawing canvas — same as the reference
+const MCE_CANVAS = 512;                 // the source canvas — same as the reference
+// ⛔ THE BACKGROUND USED TO BE A COLOUR PICKER; since 2026-08-25-b («remove the top part with
+// the drawing of the material») it is this constant — the picker's own former default.
+const MCE_BASE = '#8a8f98';
+// ⛔ `mceDrawing`/`mceLast` DIED WITH THE BRUSH (2026-08-25-b). They are NOT removed: `mceCtx`
+// beside them is still the picture layer's context and is written by the PNG drop, so the line
+// stays as one declaration; a reader looking for the brush must find its tombstone, not silence.
 let mcePanel = null, mceCtx = null, mcePost = null, mceDrawing = false, mceLast = null;
 // saved procedural pixels of the presets — so that «Reset» returns exactly what
 // was there instead of recomputing it (the recompute depends on the tuner's live sliders)
@@ -58,6 +64,34 @@ function mceTargets(){
 // demand): before that it shares the common one with the rest, and `mceTexOf` honestly
 // returns `null` — «it has none of its own yet». `mceApply` is what creates it.
 function mcePackOf(id){ return (id && id.indexOf('pack:') === 0) ? id.slice(5) : null; }
+// ⛔⛔ PER-OBJECT TARGETS (the owner's word 2026-08-25-b: «show a list of objects, so that I
+// could add its own matcap not to a GROUP but to EACH one»).
+// ⚠️ THE POOL IS LIVE, exactly as with the packs — a hand-written list of 80+ names would have
+// diverged from the game at the first batch of models. The id is `type:<name>` and the name is
+// `type.name`, the same key `typeMatcaps` (10-stage) is registered under.
+function mceTypeOf(id){ return (id && id.indexOf('type:') === 0) ? id.slice(5) : null; }
+function mceTypeDef(name){
+  try { for (const t of TYPES) if (t && t.name === name) return t; } catch (e) {}
+  return null;
+}
+function mceTypeTargets(){
+  const out = [];
+  try {
+    for (const t of TYPES){
+      if (!t || !t.name) continue;
+      const grp = t.tex ? (MCE_PACK_LABEL[t.tex] || t.tex)
+                        : (t.paint ? 'painted' : (t.mat === 'chrome' ? 'chrome' : 'plain'));
+      out.push({ id: 'type:' + t.name, name: t.name, grp,
+                 label: (typeof accLabel === 'function' ? accLabel(t.name) : t.name) });
+    }
+  } catch (e) {}
+  out.sort((a, b) => a.grp.localeCompare(b.grp) || a.label.localeCompare(b.label));
+  return out;
+}
+// Everything Apply/Reset/live have to walk. ⚠️ `mceTargets()` is left UNTOUCHED as the group
+// list: the suite finds the pack rows by their labels through it, and widening it would have
+// changed what those guards count.
+function mceAllTargets(){ return mceTargets().concat(mceTypeTargets()); }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
   if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
@@ -123,6 +157,29 @@ function mceAlphaFromEngine(data, S, base){
   return 'nearest ' + BW + '×' + BH + '->' + S;
 }
 function mceApply(id){
+  // ⛔ THE PER-OBJECT BRANCH COMES FIRST AND ALWAYS MAKES ITS OWN TEXTURE: a type has no
+  // «shared» texture of its own to write into — it wears its pack's, and writing into that is
+  // exactly the group edit he asked to stop doing.
+  const tname = mceTypeOf(id);
+  if (tname){
+    const S = MATCAP_SIZE;
+    const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+    const g0 = tmp.getContext('2d'); g0.imageSmoothingEnabled = true;
+    g0.drawImage(mcePost, 0, 0, S, S);
+    const data = new Uint8Array(g0.getImageData(0, 0, S, S).data);
+    // ⚠️ THE HIGHLIGHT COMES FROM WHATEVER THIS TYPE WEARS RIGHT NOW — through the single rule
+    // `itemMatcapAim`, not through a second copy of the tier order.
+    const def = mceTypeDef(tname);
+    const base = (typeof itemMatcapAim === 'function' && def) ? itemMatcapAim(def) : makeMatcap('tex');
+    mceAlphaFromEngine(data, S, base);
+    const ownTex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    ownTex.encoding = THREE.sRGBEncoding;
+    ownTex.magFilter = ownTex.minFilter = THREE.LinearFilter;
+    ownTex.needsUpdate = true;
+    const n = setTypeMatcap(tname, ownTex);
+    mceBackup.set(id, null);          // «Reset» drops the override and the type returns to its pack
+    return 'type ' + tname + ': own texture ' + S + '×' + S + ', items ' + n;
+  }
   const pack = mcePackOf(id);
   if (pack && !mceTexOf(id)){
     // ⚠️ THE FIRST APPLY TO A PACK = THE BIRTH OF ITS OWN TEXTURE. Before it
@@ -191,6 +248,8 @@ function mceApply(id){
   return 'applied: ' + id + ' (' + S + '×' + S + ')';
 }
 function mceReset(id){
+  const tname = mceTypeOf(id);
+  if (tname){ setTypeMatcap(tname, null); mceBackup.delete(id); return; }
   const pack = mcePackOf(id);
   if (pack){ setPackMatcap(pack, null); mceBackup.delete(id); return; }
   const tex = mceTexOf(id); if (!tex) return;
@@ -241,39 +300,21 @@ function matcapEdit(){
   h.style.cssText = 'font-weight:700; letter-spacing:.06em; margin-bottom:8px;';
   p.appendChild(h);
 
-  // ── the drawing canvas (as in the reference) + post-processing (base + blur)
+  // ⛔⛔ THE DRAWING HALF IS GONE (the owner's word 2026-08-25-b: «remove the top part with the
+  // drawing of the material»). What went with it: the visible 276px canvas, the four controls
+  // (background / brush / size / blur), the pointer handlers and the brush itself. THE SOURCE OF
+  // A MATCAP IS NOW A PNG — the drop zone below, which had always been the faster of the two
+  // paths («ready-made ones come in bundles»).
+  // ⚠️ `mcePost` IS KEPT AND STAYS OFFSCREEN, NOT APPENDED: it is the canvas `mceApply` reads
+  // the pixels from, and every target branch downsamples it into the live texture. Deleting it
+  // would mean rewriting the whole apply tract for no reason.
+  // ⚠️ `draw` IS KEPT TOO — it is the PICTURE layer, the thing a dropped PNG lands in and the
+  // thing «Clear» empties. It simply has no brush strokes reaching it any more.
+  // ⚠️ THE BACKGROUND IS A CONSTANT NOW, and it is the former control's own default: with no
+  // picture loaded the source is a flat fill, exactly as it was when the panel opened.
   const draw = document.createElement('canvas'); draw.width = draw.height = MCE_CANVAS;
   mcePost = document.createElement('canvas'); mcePost.width = mcePost.height = MCE_CANVAS;
   mceCtx = draw.getContext('2d');
-  mcePost.style.cssText = 'width:276px; height:276px; display:block; border-radius:8px;'
-    + ' background:#111; cursor:crosshair; touch-action:none;';
-  p.appendChild(mcePost);
-
-  const ctrl = {};
-  const mkRow = (label, type, value, extra) => {
-    const row = document.createElement('label');
-    row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:6px;';
-    const t = document.createElement('span'); t.textContent = label;
-    t.style.cssText = 'flex:0 0 92px; opacity:.8;';
-    const el = document.createElement('input'); el.type = type; el.value = value;
-    if (extra) Object.assign(el, extra);
-    el.style.cssText = type === 'color' ? 'width:38px; height:22px; padding:0; border:0; background:none;'
-                                       : 'flex:1 1 auto;';
-    row.appendChild(t); row.appendChild(el);
-    const vv = document.createElement('span');
-    if (type === 'range'){ vv.style.cssText='width:34px; text-align:right; opacity:.7;';
-      vv.textContent = value; el.addEventListener('input', () => { vv.textContent = el.value; renderPost(); });
-      row.appendChild(vv); }
-    // ⚠️ THE WRAPPER IS MANDATORY: `renderPost` takes `silent`, and as a bare handler
-    // an Event would arrive here — a truthy one, that is, the background and brush colours would
-    // silently stop being applied immediately
-    else el.addEventListener('input', () => renderPost());
-    p.appendChild(row); return el;
-  };
-  ctrl.base  = mkRow('background', 'color', '#8a8f98');
-  ctrl.brush = mkRow('brush',      'color', '#ffffff');
-  ctrl.size  = mkRow('size',       'range', 60,  { min:1, max:256, step:1 });
-  ctrl.blur  = mkRow('blur',       'range', 12,  { min:0, max:64,  step:1 });
 
   // ⚠️ THE POST-PROCESSING DRAWS FROM SCRATCH EVERY TIME: the background, then the blurred brush layer.
   // The reference applies the blur ONTO ITSELF and accumulates it from frame to frame — for us that
@@ -291,32 +332,19 @@ function matcapEdit(){
   function renderPost(silent){
     const g = mcePost.getContext('2d');
     g.setTransform(1,0,0,1,0,0); g.filter = 'none';
-    g.fillStyle = ctrl.base.value; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
-    g.filter = 'blur(' + ctrl.blur.value + 'px)';
+    g.fillStyle = MCE_BASE; g.fillRect(0,0,MCE_CANVAS,MCE_CANVAS);
     g.drawImage(draw, 0, 0);
-    g.filter = 'none';
     // ⚠️ THE ROUND MASK: a matcap is sampled by the normal, the corners of the square do not
     // get into the sampling at all — but if they are not cut off, the blur drags the edge colour
     // inside the sphere and dirt runs along the rim.
     g.globalCompositeOperation = 'destination-in';
     g.beginPath(); g.arc(MCE_CANVAS/2, MCE_CANVAS/2, MCE_CANVAS/2, 0, Math.PI*2); g.fill();
     g.globalCompositeOperation = 'source-over';
-    if (autoApply.checked && !silent) mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceApply(t.id); });
+    // ⚠️ THE LIVE APPLY WALKS **ALL** THE TARGETS, groups and single objects alike — otherwise
+    // ticking an object and dropping a PNG would do nothing until «Apply» was pressed by hand.
+    if (autoApply.checked && !silent) mceAllTargets().forEach(t => {
+      const cb = targetChecks[t.id]; if (cb && cb.checked) mceApply(t.id); });
   }
-  // ── drawing
-  const pointAt = e => { const r = mcePost.getBoundingClientRect();
-    return { x:(e.clientX - r.left) / r.width * MCE_CANVAS, y:(e.clientY - r.top) / r.height * MCE_CANVAS }; };
-  const drawStroke = (a, b) => {
-    mceCtx.strokeStyle = mceCtx.fillStyle = ctrl.brush.value;
-    mceCtx.lineWidth = +ctrl.size.value; mceCtx.lineCap = 'round';
-    if (a){ mceCtx.beginPath(); mceCtx.moveTo(a.x,a.y); mceCtx.lineTo(b.x,b.y); mceCtx.stroke(); }
-    mceCtx.beginPath(); mceCtx.arc(b.x, b.y, +ctrl.size.value/2, 0, Math.PI*2); mceCtx.fill();
-  };
-  mcePost.addEventListener('pointerdown', e => { mceDrawing = true; mceLast = pointAt(e);
-    drawStroke(null, mceLast); renderPost(); mcePost.setPointerCapture(e.pointerId); });
-  mcePost.addEventListener('pointermove', e => { if (!mceDrawing) return;
-    const t = pointAt(e); drawStroke(mceLast, t); mceLast = t; renderPost(); });
-  mcePost.addEventListener('pointerup', () => { mceDrawing = false; mceLast = null; });
 
   // ── TARGETS: what to try it on. Without a choice it is unclear what exactly you are seeing: we have
   // four independent carriers, and the items are split between them by packs.
@@ -333,6 +361,57 @@ function matcapEdit(){
     row.appendChild(cb); row.appendChild(s); p.appendChild(row);
     targetChecks[t.id] = cb;
   });
+  // ── ⛔⛔ AND THE LIST OF SINGLE OBJECTS (the owner's word 2026-08-25-b: «show a list of
+  //    objects, so that I could add its own matcap not to a GROUP but to EACH one»).
+  //    ⚠️ IT IS A SECOND LIST, NOT AN EXTENSION OF THE ONE ABOVE, and the split is deliberate:
+  //    the groups are six-to-sixteen rows a human reads at a glance, the objects are ~90 and
+  //    need a filter and a scroller. Mixing them would have buried «all textured at once».
+  //    ⚠️ ONE `targetChecks` MAP FOR BOTH, so Apply/Reset/live have a single place to look.
+  //    ⚠️ A TYPE OVERRIDE BEATS ITS PACK (the tier order in `itemMatcapAim`, 10-stage), so
+  //    ticking both a pack and one of its objects is not a conflict — the object wins, which is
+  //    exactly what «not to a group but to each» asks for.
+  const objHead = document.createElement('div');
+  objHead.textContent = 'objects (each its own)';
+  objHead.style.cssText = 'margin-top:12px; opacity:.65;';
+  p.appendChild(objHead);
+  const objFilter = document.createElement('input');
+  objFilter.type = 'search'; objFilter.placeholder = 'filter…';
+  objFilter.style.cssText = 'width:100%; margin-top:4px; padding:4px 6px; border-radius:6px;'
+    + ' border:1px solid rgba(223,230,242,.25); background:rgba(255,255,255,.06); color:inherit; font:inherit;';
+  p.appendChild(objFilter);
+  const objBox = document.createElement('div');
+  objBox.style.cssText = 'max-height:180px; overflow:auto; margin-top:4px;'
+    + ' border:1px solid rgba(223,230,242,.15); border-radius:6px; padding:4px 6px;';
+  p.appendChild(objBox);
+  // ⚠️ THE ROWS ARE BUILT ONCE AND ONLY HIDDEN BY THE FILTER — rebuilding them would throw away
+  // the checkboxes together with everything the owner had ticked, which is the one thing a
+  // filter must never do.
+  const objRows = [];
+  mceTypeTargets().forEach(t => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:3px;';
+    // ⚠️ THE ROW CARRIES ITS TYPE NAME. The visible label is `accLabel` («Banana»), and a guard
+    // that had to tick a row would otherwise have to reproduce that mapping — a copy of a
+    // translation table beside the working one, which is how the labels drifted last time.
+    row.dataset.type = t.name;
+    const cb = document.createElement('input'); cb.type = 'checkbox';
+    const s1 = document.createElement('span'); s1.textContent = t.label; s1.style.cssText = 'opacity:.9;';
+    const s2 = document.createElement('span'); s2.textContent = t.grp;
+    s2.style.cssText = 'margin-left:auto; opacity:.45; font-size:11px;';
+    row.appendChild(cb); row.appendChild(s1); row.appendChild(s2);
+    objBox.appendChild(row);
+    targetChecks[t.id] = cb;
+    objRows.push({ row, hay: (t.label + ' ' + t.grp + ' ' + t.name).toLowerCase() });
+  });
+  objFilter.addEventListener('input', () => {
+    const q = objFilter.value.trim().toLowerCase();
+    objRows.forEach(r => { r.row.style.display = (!q || r.hay.indexOf(q) >= 0) ? '' : 'none'; });
+  });
+  const objNote = document.createElement('div');
+  objNote.style.cssText = 'margin-top:4px; opacity:.5; font-size:11px;';
+  objNote.textContent = objRows.length + ' objects — an object beats its pack';
+  p.appendChild(objNote);
+
   const autoApply = document.createElement('input'); autoApply.type = 'checkbox'; autoApply.checked = true;
   { const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
@@ -348,9 +427,11 @@ function matcapEdit(){
       + ' font:inherit; background:' + bg + '; color:#0d1420;';
     b.addEventListener('click', action); btnBar.appendChild(b); return b;
   };
-  mkBtn('Apply', '#9ce52e', () => { const r = mceTargets()
-    .filter(t => targetChecks[t.id].checked).map(t => mceApply(t.id)); console.log(r.join('\n')); });
-  mkBtn('Reset', '#e5484d', () => { mceTargets().forEach(t => { if (targetChecks[t.id].checked) mceReset(t.id); }); });
+  mkBtn('Apply', '#9ce52e', () => { const r = mceAllTargets()
+    .filter(t => targetChecks[t.id] && targetChecks[t.id].checked).map(t => mceApply(t.id));
+    console.log(r.join('\n')); });
+  mkBtn('Reset', '#e5484d', () => { mceAllTargets().forEach(t => {
+    const cb = targetChecks[t.id]; if (cb && cb.checked) mceReset(t.id); }); });
   mkBtn('Clear', '#8b93a0', () => { mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS); renderPost(); });
   p.appendChild(btnBar);
 
@@ -371,8 +452,10 @@ function matcapEdit(){
         // we put it into the BRUSH LAYER, not into the post: then one can draw on top of the picture
         mceCtx.clearRect(0,0,MCE_CANVAS,MCE_CANVAS);
         mceCtx.drawImage(im, 0, 0, MCE_CANVAS, MCE_CANVAS);
-        // the background under the picture is not visible — we kill the blur, otherwise the PNG blurs at once
-        ctrl.blur.value = 0; ctrl.blur.dispatchEvent(new Event('input'));
+        // ⚠️ THE PANEL HAS NO PREVIEW ANY MORE, so the drop zone itself reports what is loaded —
+        // without it the only feedback would be the pile changing, and on an unticked target
+        // there would be none at all.
+        dropZone.textContent = 'loaded: ' + (f.name || 'PNG') + ' — press Apply';
         renderPost();
       };
       im.src = rd.result; };

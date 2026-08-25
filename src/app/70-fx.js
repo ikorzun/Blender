@@ -1509,8 +1509,13 @@ function penalize(worldPos, sx, sy){
   // only line of the function that already stands "on every miss".
   try { noteMissRadius(); } catch(e){}
   if (charged && shown > 0){
-    if (worldPos) scorePop('-' + shown, worldPos, '#e5484d', false);
-    else scorePopScreen('-' + shown, sx, sy, '#e5484d', false);
+    if (worldPos) scorePop('-' + shown, worldPos, MISS_COLOR, false);
+    else scorePopScreen('-' + shown, sx, sy, MISS_COLOR, false);
+    // ⛔⛔ AND THE SCORE CHIP REDDENS WITH IT (the owner's word 2026-08-25). It stands INSIDE
+    // the `charged && shown > 0` gate on purpose, next to the pop it echoes: on level 1 nothing
+    // is taken (his beginner grace) and there is no pop either — a chip that reddened there
+    // would be colouring a number that did not move.
+    scoreFlashMiss();
   }
   Sound.play('miss'); // the error sound stays even on lvl.1 — the "wrong place" feedback
   updateHUD();
