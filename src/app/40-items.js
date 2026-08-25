@@ -791,7 +791,8 @@ function genLevel(){
   // WITHOUT a preliminary settling: the fall happens LIVE on the screen
   // (the intro: side view -> fly-around -> top view); the shake-down and the trim
   // are in the intro (tickIntro/finishIntro) or in __game.skipIntro() for tests
-  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
+  stats = { taps:0, matches:0, misses:0, missRun:0, // missRun: mistakes since the last merge — drives the price ladder (2026-08-24-b)
+            shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
   // ⚠️ adHints (the cap of videos per hint) is NOT written into the save — this is
   // an anti-dupe: the remainder in Save would be merged by max and the cloud would

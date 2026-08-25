@@ -110,6 +110,11 @@ Two items. «The cost of a mistake is still −1 and not −10» — HE WAS RIGH
 cause is a date order in 00-config: his balance table («a miss costs 10») is from
 2026-07-22, the ×10 denomination arrived 2026-07-24, and nobody re-based the
 penalties behind it. `MISS_PENALTY` 10 → 100; measured raw −100 / shown −10.
+⛔⛔ THIS RECORD IS A DATED ONE AND IT NO LONGER STATES THE PRICE. Since 2026-08-24 a miss costs
+a LADDER — `missPenaltyFor(n)`, ten for the first and +1 for each further one — and since
+2026-08-24-b the rung is capped at **15** and wraps back to 10, and **one collected pair puts it
+back to the base** (the ordinal is `stats.missRun`, not `stats.misses`). `MISS_PENALTY` is the
+FIRST RUNG only. The live text is in CLAUDE.md, «BATCH 2026-08-24» and «BATCH 2026-08-24-b».
 ⚠️ The dispatcher had reported «−10» to him three times while reading the RAW
 constant — he was reading the screen. **When a number is quoted to the owner, quote
 it in the units he sees.**
@@ -8706,6 +8711,8 @@ This is common infrastructure, and not only my zone — take note.
   graphics' warning was taken into account). All 8 points of the spec: a ramp from the
   16th (+1/5 lv., cap 6), density 2.6, they are removed only by the bomb (within a cap
   of 7), a tap −2×MISS_PENALTY=20 through scorePenalty (lv.1/the clamp are respected),
+  ⛔ THE «=20» IS THE 2026-07-22 READING: the double now follows the ladder, `2 × missPenaltyFor(n)`
+  = 20 to 30 (2026-08-24 / -b),
   outside the ∞ threshold/the pair-score/the auto-pan, there is no veil,
   SHAKE_RESP.rock=0.7.
   Perf, point 9: the physics step with 6 rocks is within the noise (p95 6-7 ms, the

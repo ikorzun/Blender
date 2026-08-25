@@ -1306,6 +1306,73 @@ page.on('response', (r) => {
     '⛔ TWO THINGS DELIBERATELY DO NOT CLIMB AND ARE GUARDED ELSEWHERE: the grinder ' +
     '(`MIXER_PENALTY`, not a mistake) and level 1 (no penalties at all)');
 
+  // ══ THE LADDER HAS A CEILING, AND A MERGE PUTS IT BACK (the owner 2026-08-24-b) ══
+  // «The maximum cost of a mistake per round reaches −15 and then resets to −10.»
+  // «The cost of a mistake also resets to the base if the player has collected at least one pair.»
+  // ⚠️⚠️ MEASURED ON THE LIVE PATH, NOT READ OFF `missPenaltyAt`. The pure function is used for
+  // ONE thing here — the counterfactual `wouldBe` — and every rung of the sequence below is the
+  // real delta `penalize` charged. A guard that asked the function for both ends would be
+  // checking that the function agrees with itself, and would stay green on a build where
+  // production stopped calling it.
+  const capProbe = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(8); g.regen(); g.skipIntro();        // lv.>5: no clamp, the minus is honest
+    await sleep(700);
+    // SEVEN mistakes in a row: six rungs and the WRAP on the seventh
+    const seq = [];
+    for (let i = 0; i < 7; i++){
+      const b = g.stats().score;
+      g.penalizeTest(); await sleep(120);
+      seq.push(b - g.stats().score);
+    }
+    const atTop = { misses: g.stats().misses, run: g.stats().missRun };
+    // two more, so that the price stands WELL above the base when the merge arrives
+    for (let i = 0; i < 2; i++){ g.penalizeTest(); await sleep(120); }
+    // ⚠️ THE COUNTERFACTUAL, TAKEN BEFORE THE MERGE: what the next mistake WOULD have cost.
+    // Without it «the miss after a merge costs 100» is satisfied by a run standing at the base
+    // anyway — and the wrap above guarantees the sequence passes through the base, so that trap
+    // is not hypothetical here.
+    const wouldBe = g.missPenaltyAt(g.stats().missRun + 1).raw;
+    const preMerge = { misses: g.stats().misses, run: g.stats().missRun, matches: g.stats().matches };
+    g.autoMatch(); await sleep(350);                // ONE collected pair
+    const merged = { matches: g.stats().matches, run: g.stats().missRun };
+    const b = g.stats().score;
+    g.penalizeTest(); await sleep(200);
+    const after = { charged: b - g.stats().score, misses: g.stats().misses, run: g.stats().missRun };
+    return { seq, atTop, wouldBe, preMerge, merged, after };
+  });
+  console.log('miss ladder cap/reset:', JSON.stringify(capProbe));
+  expect(JSON.stringify(capProbe.seq) === JSON.stringify([100, 110, 120, 130, 140, 150, 100]),
+    '⚠️⚠️ THE PRICE CLIMBS TO FIFTEEN AND THEN STARTS OVER AT TEN (the owner 2026-08-24-b: ' +
+    '«the maximum cost of a mistake per round reaches −15 and then resets to −10»). Seven ' +
+    'mistakes in a row cost, as he sees them, 10-11-12-13-14-15-10; raw ' +
+    JSON.stringify(capProbe.seq) + '. ⛔ THE SEVENTH IS THE WHOLE ASSERT: without a ceiling it ' +
+    'reads 160, and with a CLAMP instead of a wrap it reads 150 — his word says the price ' +
+    '«resets to −10», not that it stops at −15. ⚠️ THE LENGTH OF THE CYCLE IS DERIVED IN ' +
+    '`missPenaltyFor` from base/step/max and is not a literal anywhere: retuning the ceiling ' +
+    'moves the wrap by itself, and this sequence is what would catch a hand-written modulus ' +
+    'drifting out of step with it');
+  expect(capProbe.merged.matches === capProbe.preMerge.matches + 1 &&
+         capProbe.merged.run === 0 && capProbe.preMerge.run === 9 &&
+         capProbe.wouldBe === 130 && capProbe.after.charged === 100 &&
+         capProbe.after.run === 1 &&
+         capProbe.after.misses === capProbe.preMerge.misses + 1,
+    '⚠️⚠️ ONE COLLECTED PAIR PUTS THE PRICE BACK TO THE BASE (the owner 2026-08-24-b: «the cost ' +
+    'of a mistake also resets to the base if the player has collected at least one pair»). Nine ' +
+    'mistakes deep the next one would have cost ' + capProbe.wouldBe + ' raw; one merge later it ' +
+    'cost ' + capProbe.after.charged + ' (' + JSON.stringify(capProbe) + '). ' +
+    '⚠️ THE `wouldBe === 130` ARM IS THE POSITIVE CONTROL — the ladder WRAPS through the base ' +
+    'every six mistakes, so «the miss after the merge costs 100» is true by accident at three ' +
+    'ordinals out of every six, and without this arm the guard would go green on a build with no ' +
+    'reset at all. ⚠️ THE `matches + 1` ARM PROVES THE MERGE HAPPENED: `autoMatch` returning ' +
+    'false on a layout with no available pair would otherwise satisfy everything else. ' +
+    '⛔⛔ AND `misses` GROWS WHILE `missRun` GOES TO ZERO — THAT SPLIT IS THE POINT: the price ' +
+    'rides `stats.missRun`, but `stats.misses` is what the turbo rules read as a delta ' +
+    '(99-main «stats.misses − chainStartMisses»), and a merge must NOT launder the mistakes ' +
+    'already made. ⛔ SABOTAGE: reset `stats.misses` in `doMatch` instead of `missRun` — the ' +
+    'price would look right and a player could farm turbo by alternating a miss and a merge');
+
   // ═══ THE POINTS THE PLAYER ACTUALLY SEES (the owner's word 2026-08-23-d) ═══
   // «Why do I see +0 points from a merge and still −1 on a mistake? The mixer eats 20 points per
   //  pair. Stop thinking about the denomination, it has already happened and we count points on
@@ -1337,8 +1404,9 @@ page.on('response', (r) => {
     // ordinal. We capture the ordinal and what production charges for it; pinning −100 here made
     // the assert go red on a correct build the moment the ladder arrived.
     clear(); const b3 = g.stats().score; g.penalizeTest(); await sleep(300);
-    const missN = g.stats().misses;
-    const miss = { raw: g.stats().score - b3, pop: popOf(), n: missN, rung: g.missPenaltyAt(missN) };
+    const missN = g.stats().misses, missRun = g.stats().missRun;
+    const miss = { raw: g.stats().score - b3, pop: popOf(), n: missN, run: missRun,
+                   rung: g.missPenaltyAt(missRun) };
     clear(); const b4 = g.stats().score; g.grindNow(); await sleep(600);
     const grind = { raw: g.stats().score - b4, pop: popOf() };
     return { up, upNeg, negAt, miss, grind };
@@ -1362,17 +1430,23 @@ page.on('response', (r) => {
   // ⚠️ THE THREE NUMBERS HE NAMED, IN HIS UNITS. The raw values are pinned because that is what
   // the code holds, but each is stated as points in the message — if those two ever disagree
   // again, the disagreement is the bug.
-  expect(ptsProbe.miss.n === 4 && ptsProbe.miss.raw === -ptsProbe.miss.rung.raw &&
-         ptsProbe.miss.pop === '-' + ptsProbe.miss.rung.shown && ptsProbe.miss.rung.shown === 13 &&
+  expect(ptsProbe.miss.n === 4 && ptsProbe.miss.run === 1 &&
+         ptsProbe.miss.raw === -ptsProbe.miss.rung.raw &&
+         ptsProbe.miss.pop === '-' + ptsProbe.miss.rung.shown && ptsProbe.miss.rung.shown === 10 &&
          ptsProbe.grind.raw === -200 && ptsProbe.grind.pop === '-20',
     '⚠️⚠️ A MISTAKE COSTS ITS RUNG OF THE LADDER AND THE GRINDER 20 PER PAIR — both as the ' +
     'player sees them (the owner 2026-08-23-v/-d and 2026-08-24). ' +
-    '⛔⛔ THIS ASSERT USED TO PIN −100 FLAT AND WOULD HAVE GONE RED ON A CORRECT BUILD: the ' +
-    'probe drives the score into the minus with three warm-up misses first, so the measured one ' +
-    'is the FOURTH — 13 points, not 10. The ordinal is now stated (`n === 4`) and the price is ' +
-    'compared against the SAME function production charges through, so a retune of the base or ' +
-    'the step moves both ends together; `rung.shown === 13` is what keeps the pair from being a ' +
-    'tautology. ⛔ THE GRINDER MOVED 2 → 20 POINTS: its literal never changed, its UNIT did. ' +
+    '⛔⛔ AND THE PAIR `n === 4, run === 1` IS THE WHOLE STATEMENT OF THE RESET (2026-08-24-b: ' +
+    '«the cost of a mistake resets to the base if the player has collected at least one pair»). ' +
+    'FOUR mistakes have been made on this level and the price is nevertheless back at TEN, ' +
+    'because a merge stands between the third and the fourth — the probe merges at (b) before it ' +
+    'measures at (c). ⛔ THIS ASSERT HAS NOW BEEN RE-BASED TWICE FOR TWO DIFFERENT REASONS: it ' +
+    'pinned −100 flat until the ladder arrived (the measured miss was the fourth, 13 points), ' +
+    'and it pinned 13 until the reset arrived (the merge puts it back to 10). The price is read ' +
+    'through the SAME function production charges through, so a retune of the base or the step ' +
+    'moves both ends together; `rung.shown === 10` keeps the pair from being a tautology, and ' +
+    '`n === 4` is what proves the counter of MISTAKES did not get reset along with the price — ' +
+    'the turbo rules read that one as a delta and a merge must not launder it. ⛔ THE GRINDER MOVED 2 → 20 POINTS: its literal never changed, its UNIT did. ' +
     '⛔⛔ AND THE ORDER THIS ASSERT USED TO STATE IS NOW ORDINAL-DEPENDENT: «the grinder is twice ' +
     'as bad as a mistake» holds at rung 1 and INVERTS at rung 11, where a mistake also reaches ' +
     '20 and keeps climbing. The grinder deliberately does not climb — he named the mistake only. ' +
@@ -4422,12 +4496,12 @@ window.bridge = {
     const s0 = g.stats().score;
     g.penalizeTest();                                  // a miss without the booster
     const plain = s0 - g.stats().score;
-    const nPlain = g.stats().misses;                   // the ordinal it was charged at
+    const nPlain = g.stats().missRun;                  // the ordinal it was charged at
     g.buyBundle('bundle2');                            // x2
     const s1 = g.stats().score;
     g.penalizeTest();
     const boosted = s1 - g.stats().score;
-    const nBoost = g.stats().misses;                   // ⚠️ a DIFFERENT rung — see the note below
+    const nBoost = g.stats().missRun;                  // ⚠️ a DIFFERENT rung — see the note below
     return { plain, boosted, mult: g.scoreBoostMult(), nPlain, nBoost,
              rungPlain: g.missPenaltyAt(nPlain).raw, rungBoost: g.missPenaltyAt(nBoost).raw };
   });
@@ -4446,6 +4520,10 @@ window.bridge = {
   // ⚠️ THE PROPERTY IS UNCHANGED AND IS STILL WHAT IS STATED: the booster multiplies the
   // punishment by the same factor as the reward. It is now measured against the rung each miss
   // actually landed on, read from the production function — not against the other miss.
+  // ⚠️ AND THE ORDINAL IS `missRun`, NOT `misses`, SINCE 2026-08-24-b: the price counts mistakes
+  // since the last merge. Here the two coincide (nothing merges between the two misses), and
+  // that is precisely why the read has to be the RIGHT one — `misses` would keep this section
+  // green while the game charged a different rung anywhere a merge intervened.
   expect(penSym.plain > 0 && penSym.mult === 2 &&
          penSym.nBoost === penSym.nPlain + 1 &&
          penSym.plain === penSym.rungPlain &&
@@ -4737,7 +4815,11 @@ window.bridge = {
              // ⚠️ THE RUNG THIS TAP LANDED ON (2026-08-24). The reference miss above is the
              // level's FIRST and this tap its SECOND, so «the same points as a real miss» stopped
              // being an equality of two numbers the moment the price started climbing.
-             rung: g.missPenaltyAt(s.misses).raw };
+             // ⚠️ READ FROM `missRun` SINCE 2026-08-24-b: the four `autoMatch` calls of step (2)
+             // stand between the reference miss and this tap, and each of them puts the price
+             // back to the base — so the tap is run-ordinal 1 again, and `misses` (4-ish) would
+             // name a rung the game never charged.
+             rung: g.missPenaltyAt(s.missRun).raw };
   }) : null) || {};
   console.log('nopair after:', JSON.stringify(npA));
 
@@ -4852,7 +4934,8 @@ window.bridge = {
       // mistake, so −100 is still the right number — but pinning the literal would go red the
       // moment anyone inserts a miss in between, and it would claim a general fact while pinning
       // rung 1. Read the rung and the literal survives as what it is: the base of the ladder.
-      rung: window.__game.missPenaltyAt(window.__game.stats().misses).raw }));
+      // ⚠️ THROUGH `missRun` SINCE 2026-08-24-b — the ordinal the price is charged at.
+      rung: window.__game.missPenaltyAt(window.__game.stats().missRun).raw }));
     // ⚠️ THE TRANSITION, BOTH HALVES: the points AND the fact that the game booked it as a
     // MISTAKE. The second half is the one his answer turned on — `stats.misses` is what kills a
     // live turbo and zeroes the build-up toward the next one, so a build that took the 10 points
@@ -12780,7 +12863,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // One warm-up puts the tap on rung 2, where the two readings differ: 220 against 200.
       g.penalizeTest(); await sl(200);
       steps.before = { score: g.stats().score, misses: g.stats().misses };
-      steps.expect = 2 * g.missPenaltyAt(g.stats().misses + 1).raw;  // the rung the tap WILL land on
+      // ⚠️ `missRun`, NOT `misses` (2026-08-24-b): the price counts mistakes since the last
+      // merge. Nothing merges between the warm-up above and the tap, so the tap is run-ordinal 2.
+      steps.expect = 2 * g.missPenaltyAt(g.stats().missRun + 1).raw;  // the rung the tap WILL land on
       return { steps };
     });
     const st = phase1.steps;

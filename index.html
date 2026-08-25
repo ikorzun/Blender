@@ -4452,20 +4452,36 @@ const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d) 
 // `MISS_PENALTY` stopped being «the price of a miss» and became «the price of the FIRST miss»;
 // everything that wants the price must go through `missPenaltyFor()`.
 // ⚠️⚠️ THE LADDER RESETS PER LEVEL, AND THAT IS NOT A CHOICE OF MINE — IT IS WHERE THE COUNTER
-// LIVES: `stats` (with `misses` in it) is REBUILT by `genLevel` (40-items), so the ordinal
+// LIVES: `stats` (with the counter in it) is REBUILT by `genLevel` (40-items), so the ordinal
 // starts from one on every level by construction. Should he ever want it to run across a whole
 // session, the counter has to move out of `stats` first — it is not a number to tweak here.
+// ⛔ AND SINCE 2026-08-24-b THAT IS NO LONGER THE ONLY RESET — a merge zeroes it too, see below.
 // ⚠️ THE FUNCTION IS PURE AND TAKES THE ORDINAL — it does NOT read `stats` itself. That is what
 // lets a guard call the very function production calls, on any ordinal, without a live game;
 // a guard recomputing `base + step*(n−1)` on its own side would be checking its own arithmetic.
-// ⚠️ THE ORDINAL IS 1-BASED and both call sites do `stats.misses++` FIRST, so they pass the
-// ordinal of the miss being charged: first miss → n=1 → 10.
+// ⚠️ THE ORDINAL IS 1-BASED and both call sites increment FIRST, so they pass the ordinal of the
+// miss being charged: first miss → n=1 → 10.
+// ⛔ THE COUNTER USED TO BE `stats.misses` AND IS NOW `stats.missRun` (2026-08-24-b) — see below.
 // ⛔ THE GRINDER DOES NOT CLIMB: `MIXER_PENALTY` is not a mistake, he named the mistake only.
-//    A consequence worth knowing: the grinder is 20, so from the ELEVENTH miss of a level a
-//    mistake costs more than letting the mixer eat a pair.
+//    ⛔⛔ AND THE CONSEQUENCE THAT STOOD HERE — «the grinder is 20, so from the ELEVENTH miss a
+//    mistake costs more than letting the mixer eat a pair» — DIED THE SAME DAY IT WAS WRITTEN:
+//    the ceiling of 2026-08-24-b is 15, so a single mistake never overtakes the grinder again.
+//    The ICE TAP still can, at 2× the rung — up to 30.
 const MISS_PENALTY_STEP = 1 * PT;   // +1 point for each further mistake of the same level
+// ⛔⛔ THE LADDER HAS A CEILING AND IT WRAPS (the owner's word 2026-08-24-b: «the maximum cost
+// of a mistake per round reaches −15 and then resets to −10»). Six rungs — 10, 11, 12, 13,
+// 14, 15 — and the mistake AFTER a 15 costs 10 again, climbing anew. The cycle length is
+// DERIVED from the three constants, not written as a literal: change the ceiling or the step
+// and the wrap moves by itself.
+const MISS_PENALTY_MAX = 15 * PT;   // the top rung, as he sees it
+// ⛔⛔ AND THE LADDER IS NO LONGER DRIVEN BY `stats.misses` (2026-08-24-b): «the cost of a
+// mistake also resets to the base if the player has collected at least one pair». The ordinal
+// is now `stats.missRun` — a RUN of mistakes since the last successful merge — incremented in
+// the same two places as `misses` and zeroed at the head of `doMatch`. `stats.misses` keeps its
+// old meaning untouched: the turbo rules read it as a delta and a merge must NOT launder those.
 function missPenaltyFor(n){
-  return MISS_PENALTY + MISS_PENALTY_STEP * Math.max(0, (n | 0) - 1);
+  const rungs = Math.round((MISS_PENALTY_MAX - MISS_PENALTY) / MISS_PENALTY_STEP) + 1;
+  return MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
 }
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
@@ -9807,7 +9823,8 @@ function genLevel(){
   // WITHOUT a preliminary settling: the fall happens LIVE on the screen
   // (the intro: side view -> fly-around -> top view); the shake-down and the trim
   // are in the intro (tickIntro/finishIntro) or in __game.skipIntro() for tests
-  stats = { taps:0, matches:0, misses:0, shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
+  stats = { taps:0, matches:0, misses:0, missRun:0, // missRun: mistakes since the last merge — drives the price ladder (2026-08-24-b)
+            shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
             t0: performance.now(), lastAction: performance.now() };
   // ⚠️ adHints (the cap of videos per hint) is NOT written into the save — this is
   // an anti-dupe: the remainder in Save would be merged by max and the cloud would
@@ -12928,12 +12945,14 @@ function scorePop(text, worldPos, color, big){
 // (stats.misses is needed by the chain rules), the sanction is points only.
 function penalize(worldPos, sx, sy){
   stats.misses++;
+  stats.missRun = (stats.missRun | 0) + 1;
   const before = stats.score;
-  // ⛔ THE PRICE CLIMBS WITH THE ORDINAL (2026-08-24) — `stats.misses` has ALREADY been
-  // incremented above, so it IS the ordinal of the miss being charged: 1 → 10, 2 → 11, …
-  // ⚠️ Read through `missPenaltyFor` and never as `MISS_PENALTY` again: that constant is now
-  // only the FIRST rung of the ladder.
-  const charged = scorePenalty(missPenaltyFor(stats.misses));
+  // ⛔ THE PRICE CLIMBS WITH THE RUN, NOT WITH THE LEVEL TOTAL (2026-08-24-b): `missRun` counts
+  // mistakes since the last merge and is zeroed at the head of `doMatch`, so one collected pair
+  // puts the price back to the base. Both counters are incremented above, BEFORE the charge, so
+  // each already holds the 1-based ordinal. ⚠️ `misses` keeps its old meaning — the turbo rules
+  // read it as a delta, and a merge must not launder those.
+  const charged = scorePenalty(missPenaltyFor(stats.missRun));
   const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
   // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
   // makes a mistake while charging turbo mode — the mode's counter is reset").
@@ -15499,6 +15518,15 @@ function scorePenalty(n){
 // 2026-07-22: accumulated merges grow the type's price, accMult in 77-save)
 function doMatch(list){
   if (level) level.stuck = 0; // a successful move burns the «Look around» grace period
+  // ⛔⛔ ONE COLLECTED PAIR RESETS THE PRICE OF A MISTAKE TO THE BASE (the owner's word
+  // 2026-08-24-b). The reset sits HERE and nowhere else, deliberately: `doMatch` is called only
+  // with a CONFIRMED merge list, from all three merge paths (a live tap, autoMatch, matchType) —
+  // a rejected tap never reaches this line. ⚠️ The type charge, the bomb, the bowl-shatter
+  // collection and the ice break do NOT reset: none of them is «collecting a pair» — they are
+  // rescues and bonuses with their own paths. A dispatcher's default, named to the owner.
+  // ⚠️ `stats.misses` is NOT touched — the turbo rules read it as a delta, and
+  // `chainStartMisses = stats.misses` a few lines below is one of them.
+  stats.missRun = 0;
   // COMBO: a group of 3+ at once, or a second merge within COMBO_CHAIN_MS, or a match
   // while the boost is already burning — radius up to COMBO_RADIUS and SCORE
   // ×COMBO_SCORE_MULT for COMBO_MS (the window is extended by every match — the fever
@@ -15781,14 +15809,15 @@ function doMatch(list){
 // the stones would have quietly changed the ice mechanic, so it was renamed, not deleted.
 function penalizeDouble(item){
   stats.misses++;
+  stats.missRun = (stats.missRun | 0) + 1;
   const before = stats.score;
   // ⛔ DOUBLE OF THE **CURRENT** RUNG, NOT OF THE FIRST ONE (2026-08-24). The ice spec says
   // «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once the price of a miss
   // climbs, «twice a miss» climbs with it. Pinning it to 2×MISS_PENALTY would have quietly
   // turned the ice into the CHEAPEST mistake of a long level.
-  // ⚠️ And it advances the ladder for what follows, because it is a mistake: `stats.misses`
-  // is incremented above by the same rule as in `penalize`.
-  const charged = scorePenalty(2 * missPenaltyFor(stats.misses));
+  // ⚠️ Since 2026-08-24-b the ordinal is `missRun` (mistakes since the last merge), zeroed at
+  // the head of `doMatch` — the same rule as in `penalize`, incremented above the charge.
+  const charged = scorePenalty(2 * missPenaltyFor(stats.missRun));
   const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
   // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
   // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.

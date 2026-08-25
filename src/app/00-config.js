@@ -90,20 +90,36 @@ const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d) 
 // `MISS_PENALTY` stopped being «the price of a miss» and became «the price of the FIRST miss»;
 // everything that wants the price must go through `missPenaltyFor()`.
 // ⚠️⚠️ THE LADDER RESETS PER LEVEL, AND THAT IS NOT A CHOICE OF MINE — IT IS WHERE THE COUNTER
-// LIVES: `stats` (with `misses` in it) is REBUILT by `genLevel` (40-items), so the ordinal
+// LIVES: `stats` (with the counter in it) is REBUILT by `genLevel` (40-items), so the ordinal
 // starts from one on every level by construction. Should he ever want it to run across a whole
 // session, the counter has to move out of `stats` first — it is not a number to tweak here.
+// ⛔ AND SINCE 2026-08-24-b THAT IS NO LONGER THE ONLY RESET — a merge zeroes it too, see below.
 // ⚠️ THE FUNCTION IS PURE AND TAKES THE ORDINAL — it does NOT read `stats` itself. That is what
 // lets a guard call the very function production calls, on any ordinal, without a live game;
 // a guard recomputing `base + step*(n−1)` on its own side would be checking its own arithmetic.
-// ⚠️ THE ORDINAL IS 1-BASED and both call sites do `stats.misses++` FIRST, so they pass the
-// ordinal of the miss being charged: first miss → n=1 → 10.
+// ⚠️ THE ORDINAL IS 1-BASED and both call sites increment FIRST, so they pass the ordinal of the
+// miss being charged: first miss → n=1 → 10.
+// ⛔ THE COUNTER USED TO BE `stats.misses` AND IS NOW `stats.missRun` (2026-08-24-b) — see below.
 // ⛔ THE GRINDER DOES NOT CLIMB: `MIXER_PENALTY` is not a mistake, he named the mistake only.
-//    A consequence worth knowing: the grinder is 20, so from the ELEVENTH miss of a level a
-//    mistake costs more than letting the mixer eat a pair.
+//    ⛔⛔ AND THE CONSEQUENCE THAT STOOD HERE — «the grinder is 20, so from the ELEVENTH miss a
+//    mistake costs more than letting the mixer eat a pair» — DIED THE SAME DAY IT WAS WRITTEN:
+//    the ceiling of 2026-08-24-b is 15, so a single mistake never overtakes the grinder again.
+//    The ICE TAP still can, at 2× the rung — up to 30.
 const MISS_PENALTY_STEP = 1 * PT;   // +1 point for each further mistake of the same level
+// ⛔⛔ THE LADDER HAS A CEILING AND IT WRAPS (the owner's word 2026-08-24-b: «the maximum cost
+// of a mistake per round reaches −15 and then resets to −10»). Six rungs — 10, 11, 12, 13,
+// 14, 15 — and the mistake AFTER a 15 costs 10 again, climbing anew. The cycle length is
+// DERIVED from the three constants, not written as a literal: change the ceiling or the step
+// and the wrap moves by itself.
+const MISS_PENALTY_MAX = 15 * PT;   // the top rung, as he sees it
+// ⛔⛔ AND THE LADDER IS NO LONGER DRIVEN BY `stats.misses` (2026-08-24-b): «the cost of a
+// mistake also resets to the base if the player has collected at least one pair». The ordinal
+// is now `stats.missRun` — a RUN of mistakes since the last successful merge — incremented in
+// the same two places as `misses` and zeroed at the head of `doMatch`. `stats.misses` keeps its
+// old meaning untouched: the turbo rules read it as a delta and a merge must NOT launder those.
 function missPenaltyFor(n){
-  return MISS_PENALTY + MISS_PENALTY_STEP * Math.max(0, (n | 0) - 1);
+  const rungs = Math.round((MISS_PENALTY_MAX - MISS_PENALTY) / MISS_PENALTY_STEP) + 1;
+  return MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
 }
 const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
 const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero

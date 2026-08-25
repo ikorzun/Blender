@@ -456,7 +456,8 @@ at the end of the session.
   touch them, the final cleanup finishes them off; a tap = penalizeRock (80-gameplay):
   a DOUBLE penalty of 2×the miss through the single point scorePenalty (lvl.1
   ⛔ THE «=20» THAT STOOD HERE DIED ON 2026-08-24: the price of a miss became a LADDER, and
-  the double follows it — `2 × missPenaltyFor(n)`, i.e. 20 only on the level's first mistake.
+  the double follows it — `2 × missPenaltyFor(n)`, i.e. **20 to 30**, 20 only when the run of
+  mistakes stands at its base (a fresh level, or right after a merge — 2026-08-24-b).
   without penalties, the lvl.2-5 clamp are respected), misses/the combo cut — as with a miss,
   in the finale there is no penalty; outside victory/the endgame/the auto-pan: aliveCnt (∞<=8) and
   aliveN (the pair score + the 20% threshold) do not count the rocks; they do NOT blink with the veil
@@ -2867,7 +2868,10 @@ with the platform.
 MEASURED: the formula «pairs×2 + 1 = 181» went stale with the arrival of the bomb and the stones);
 `FLOOR_REST`=1.15; `G`=22;
 `MATCH_SCORE`=10; `MISS_PENALTY`=**10** — since 2026-08-24 THE FIRST RUNG ONLY, the price is
-`missPenaltyFor(n)` = `MISS_PENALTY` + `MISS_PENALTY_STEP`(=`1 * PT`)·(n−1), reset per level;
+`missPenaltyFor(n)` = `MISS_PENALTY` + `MISS_PENALTY_STEP`(=`1 * PT`)·((n−1) mod 6), i.e. the six
+rungs **10-11-12-13-14-15** and then back to 10 (`MISS_PENALTY_MAX`=**15**, 2026-08-24-b; the
+length of the cycle is DERIVED from base/step/max, never written as a literal); the ordinal `n` is
+`stats.missRun` — mistakes SINCE THE LAST MERGE, zeroed in `doMatch` and by `genLevel`;
 `MIXER_PERIOD`=2; `MIXER_PENALTY`=20 (does NOT climb);
 ⚠️ THE PENALTIES ARE MULTIPLIED BY THE BOOSTER (2026-07-28, the single point scorePenalty).
 `SURPRISE_BONUS`=150; the mixer's patience by DIFFICULTY `MIXER_IDLE_EASY/HARD`=
@@ -9999,7 +10003,11 @@ nothing has a pair).
 red «Pair is deeper and farther» markers only ever appear after this line, so every
 use of the game's own search tool costs 10.
 ⛔ TRUE ONLY OF THE FIRST USE SINCE 2026-08-24 — the price of a mistake climbs by one point
-each time within a level, so the search tool gets steadily more expensive as it is used.
+each time, so the search tool gets steadily more expensive as it is used.
+⛔ AND SINCE 2026-08-24-b IT IS BOUNDED AND RESETTABLE: the run of searches costs 10-11-12-13-14-15
+and then starts over at 10, and **one collected pair puts it back to 10** — so a player who
+alternates searching and merging pays the flat 10 he was told about, and only an unbroken hunt
+climbs.
 ⚠️ **AND ONE HOLE HE INHERITS:** `noteMissRadius` suppresses the deadlock detector
 for 3 s, so a player poking pairless items faster than once per 3 s keeps deferring
 his own rescue grinding. It self-heals the moment he stops and the rescue costs
@@ -10332,7 +10340,7 @@ used to live a hundred lines lower, which is exactly why the balance table of
 | | before | now | on screen |
 |---|---|---|---|
 | a pair | 20 raw | `1 * PT` ×N×(N−1) | **+2** |
-| a mistake | 100 raw | `10 * PT` | **−10** ⛔ THE FIRST ONE ONLY, see 2026-08-24 |
+| a mistake | 100 raw | `10 * PT` | **−10 … −15** ⛔ A LADDER, see 2026-08-24 / -b |
 | the grinder, per pair | 20 raw | `20 * PT` | **−20** |
 | the golden fish | 150 raw | `15 * PT` | +15 |
 
@@ -10340,14 +10348,19 @@ used to live a hundred lines lower, which is exactly why the balance table of
 was 20 raw, i.e. 2 on screen, while his number has always been twenty.
 ✅ **THE ORDER IS RESTORED BY IT:** losing a pair to the grinder is now twice as bad as
 a mistake, which is how it read before the denomination silently halved one of them.
+⛔ THIS ORDER WOBBLED FOR EXACTLY ONE DAY AND THEN CAME BACK: the ladder of 2026-08-24 let a
+mistake pass 20 at the eleventh, and the ceiling of 2026-08-24-b caps it at **15**. The grinder is
+worse than any single mistake again — permanently, by arithmetic. ⚠️ The one thing that still
+outruns it is the ICE TAP, which is `2 ×` the rung: up to **30**.
 
 ### THE RATIO IS NOW HIS TO JUDGE, AND IT IS NAMED
 
 A pair pays **2**, a mistake costs **10** (five pairs), the grinder **20** (ten pairs).
 ⛔⛔ THE MISTAKE'S HALF OF THIS SENTENCE WAS CANCELLED ON 2026-08-24 — it is a LADDER now,
-10 for the first of a level and +1 for each further one, so «five pairs» is the floor and the
-order «the grinder is twice as bad» inverts at the eleventh mistake. The pair and the grinder
-are unchanged.
+10 for the first and +1 for each further one, so «five pairs» is the floor.
+⛔ AND THE INVERSION THAT SENTENCE PREDICTED NEVER SHIPPED: 2026-08-24-b caps the rung at 15 and
+sends it back to 10, so a mistake costs **5 to 7.5 pairs** and the grinder stays the worse of the
+two. The pair and the grinder are unchanged.
 That is what puts the level score in the minus for long stretches — the state that made
 the «+0» visible in the first place. He set the mistake and the grinder himself; the
 MERGE value is the knob he has not touched, and it is the one that decides whether the
@@ -10626,8 +10639,11 @@ function, and so does every guard.
 **−10, −11, −12, −13, −14**; the next level starts again at −10; level 1 still charges nothing.
 
 ⚠️⚠️ **THE LADDER RESETS PER LEVEL, AND THAT IS NOT A NUMBER SOMEBODY CHOSE — IT IS WHERE THE
-COUNTER LIVES.** `stats` (with `misses` in it) is rebuilt by `genLevel`, so the ordinal starts
-from one on every level by construction. Two consequences that follow from the same fact and
+COUNTER LIVES.** `stats` (with the counter in it) is rebuilt by `genLevel`, so the ordinal starts
+from one on every level by construction.
+⛔ **AND SINCE 2026-08-24-b IT RESETS ON A MERGE TOO, AND THAT ONE IS A DECISION, NOT A SIDE
+EFFECT** — see the batch below. Everything in this paragraph still holds; it is no longer the
+ONLY thing that puts the price back. Two consequences that follow from the same fact and
 are worth knowing before someone reports them as bugs:
 - **Restart launders the ladder** — Pause → Restart and Retry both re-enter `genLevel`.
 - **An ad-Continue does NOT** — `continueRun` revives the level without touching `stats`, so the
@@ -10638,9 +10654,12 @@ Should he ever want the count to run across a whole session, the counter has to 
 ⚠️ **THE FUNCTION IS PURE AND TAKES THE ORDINAL** — it does not read `stats` itself. That is what
 lets a guard call the very function production calls, at any ordinal, without a live game. The
 hook is `__game.missPenaltyAt(n)` → `{raw, shown}`.
-⚠️ **THE ORDINAL IS 1-BASED AND BOTH CALL SITES INCREMENT FIRST** (`stats.misses++` then charge),
-so `stats.misses` IS the ordinal of the miss being charged. Swap those two lines and the ladder
-silently starts at 11.
+⚠️ **THE ORDINAL IS 1-BASED AND BOTH CALL SITES INCREMENT FIRST** (increment then charge), so the
+counter IS the ordinal of the miss being charged. Swap those two lines and the ladder silently
+starts at 11.
+⛔ **THE COUNTER IS `stats.missRun`, NOT `stats.misses`, SINCE 2026-08-24-b.** For one day they
+were the same field and every guard read `misses`; they are two fields now and reading the wrong
+one is silent. See the batch below for why they had to split.
 ⚠️ **ONE ASYMMETRY, NAMED:** on level 1 `scorePenalty` returns before charging, but the increment
 already ran — the counter is a MISTAKE counter, not a CHARGE counter. Harmless today.
 
@@ -10654,12 +10673,19 @@ already ran — the counter is a MISTAKE counter, not a CHARGE counter. Harmless
   the grinder is twice as bad as a mistake» holds at rung 1 and **flips at rung 11**, where a
   mistake also reaches 20 and keeps climbing. That sentence is now ordinal-dependent everywhere
   it appears.
+  ⛔ **THE FLIP NEVER SHIPPED.** The ceiling of 2026-08-24-b is 15, which is below the grinder's
+  20 — the order the canon stated holds again, and now it holds by arithmetic rather than by
+  luck. ⚠️ The ICE TAP is the exception, `2 ×` the rung, i.e. up to 30.
 
 **THE ARITHMETIC, NAMED TO HIM RATHER THAN LEFT TO BE DISCOVERED:** cumulative cost is
 `10n + n(n−1)/2` — **10 mistakes cost 145 points, 20 cost 390**, while a pair pays 2 and a group
 of four pays 12. ⚠️ And the biggest generator of misses is his own decision of 2026-08-23-a: a
 tap on a pairless item is a full mistake, so ordinary probing of the pile climbs the ladder fast.
 ⛔ There is no cap — he said «and so on». One number if he wants one.
+⛔⛔ **BOTH SENTENCES ABOVE DIED THE NEXT MESSAGE (2026-08-24-b): HE GAVE THE NUMBER, 15, AND HE
+GAVE A SECOND BRAKE ON TOP OF IT.** The unbroken run now costs 10-11-12-13-14-15-10-…, so **10
+consecutive mistakes cost 121 and 20 cost 246**, not 145 and 390 — and any merge in between puts
+the whole thing back to 10. The quadratic is gone; the worst sustained rate is 12.5 a mistake.
 ⚠️ **A STANDING CONSEQUENCE THAT BECAME FALSE:** «every use of the game's own search tool costs
 10» (2026-08-23-a) is true only of the first use.
 
@@ -10693,6 +10719,8 @@ ABSOLUTE literal (his number — if both ends came from the function the pair wo
 and the ladder could start anywhere), the STEP as exactly 1 point (without it any escalation at
 all satisfies the rest, including a doubling), and the RESET after a `regen` (without it a build
 that ran the ordinal across the whole session passes green).
+✅ It got a SECOND guard the next day for the ceiling and the merge reset — a live sequence of
+seven charges plus a counterfactual. See the batch below.
 
 ## THE PUBLIC REPOSITORY WAS PUBLISHED IN FULL AND THEN TIDIED (2026-08-24)
 
@@ -10748,3 +10776,83 @@ historical copies of the built `index.html` (~281 MiB) would invalidate 9 worktr
 from the remote), kill **124 commit-sha anchors** the canon is written on, and force-push the
 live site's branch. Not worth 281 MiB. **If the weight ever must go, the cut is the built
 artifact, and it is a separate operation with the owner's word.**
+
+## BATCH 2026-08-24-b: THE LADDER GETS A CEILING AND A BRAKE
+
+His word, both halves in one message: «the maximum cost of a mistake per round reaches −15 and
+then resets to −10» / «the cost of a mistake also resets to the base if the player has collected
+at least one pair».
+
+⛔⛔ **THIS IS A CORRECTION TO THE BATCH SHIPPED HOURS EARLIER, NOT A NEW MECHANIC.** He was told
+the cumulative arithmetic of the unbounded ladder (`10n + n(n−1)/2`, 20 mistakes = 390 points)
+and answered with two brakes. Read the two batches together: the ladder is his, and so are its
+limits.
+
+### THE CEILING WRAPS, IT DOES NOT CLAMP
+
+`MISS_PENALTY_MAX = 15 * PT`. The rungs are **10-11-12-13-14-15** and the mistake after a 15
+costs **10** again, climbing anew.
+⚠️⚠️ **«RESETS TO −10» IS NOT «STOPS AT −15», AND THE DIFFERENCE IS THE WHOLE SEVENTH CHARGE.**
+A clamp would hold at 15 for ever; his word says the price starts over. The guard's sequence
+measures seven charges precisely so the two implementations cannot both pass.
+⚠️ **THE LENGTH OF THE CYCLE IS DERIVED, NEVER WRITTEN:** `missPenaltyFor` computes
+`rungs = (MAX − BASE)/STEP + 1` and takes the ordinal modulo it, so retuning the ceiling or the
+step moves the wrap by itself. A hand-written `% 6` would drift out of step at the first retune
+and nothing would say so.
+
+### ONE COLLECTED PAIR PUTS THE PRICE BACK — AND THAT FORCED THE COUNTER TO SPLIT
+
+⛔⛔ **THE PRICE STOPPED RIDING `stats.misses` AND NOW RIDES `stats.missRun`.** The reset had to
+zero *something*, and zeroing `stats.misses` was not available: the turbo rules read that field
+as a delta (`99-main` «`stats.misses − chainStartMisses`»), and `chainStartMisses` is itself
+stamped inside `doMatch`. A merge that laundered the mistake count would have let a player farm
+turbo by alternating a miss and a merge. So there are two counters now, and they mean different
+things:
+- `stats.misses` — mistakes made this LEVEL. Never reset by a merge. Feeds the turbo rules,
+  the telemetry, the statistics screen.
+- `stats.missRun` — mistakes since the LAST MERGE. Feeds the price, and only the price.
+⚠️ **BOTH ARE INCREMENTED AT BOTH CHARGE POINTS** (`penalize` in 70-fx, `penalizeDouble` in
+80-gameplay), before the charge, so `missRun` is the 1-based ordinal of the miss being charged.
+⚠️ **READING THE WRONG ONE IS SILENT.** They agree whenever no merge intervenes — which is most
+of a guard's life — so a guard on `misses` stays green and diverges only in the case the reset
+exists for. Four guards were moved onto `missRun` for exactly this reason.
+
+### THE RESET SITS AT THE HEAD OF `doMatch`, AND THAT IS THE WHOLE ROUTING DECISION
+
+`doMatch` is called only with a CONFIRMED merge list, from all three merge paths (a live tap
+through `handleTap`, `autoMatch`, `matchType`) — a rejected tap never reaches the line. One line,
+`stats.missRun = 0;`, next to the `level.stuck = 0` that already lives there for the same reason.
+⚠️⚠️ **WHAT DELIBERATELY DOES *NOT* RESET, AND HE SHOULD BE TOLD:** the type CHARGE
+(`detonateCharge`), the BOMB, the bowl-shatter collection (`bowlCollectAll`), the ice break, the
+grinder and the finale sweep. None of them is «collecting a pair» — they are rescues and bonuses
+with their own paths, and several of them clear half the bowl at once, which would make the
+brake free. **A dispatcher's default. If he wants the charge or the shatter to count, it is one
+line each.**
+
+### WHAT THE ARITHMETIC BECAME
+
+**10 consecutive mistakes cost 121 points and 20 cost 246** (was 145 and 390). The worst
+sustained rate is **12.5 a mistake** — the average of the six rungs. And the brake is under the
+player's own control: merge anything and the next mistake is 10 again. ⚠️ Against a pair paying
+2, a mistake is still **5 to 7.5 pairs**; the grinder's 20 is once again worse than any single
+mistake, permanently (the ICE TAP, `2 ×` the rung, is the one thing that outruns it, up to 30).
+
+### THE GUARD, AND THE TWO ARMS THAT KEEP IT FROM BEING A TAUTOLOGY
+
+✅ **MEASURED ON THE LIVE PATH, NOT READ OFF THE FUNCTION.** Seven real charges gave
+`[100,110,120,130,140,150,100]` — the pure function is used for ONE thing, the counterfactual.
+✅ **THE COUNTERFACTUAL IS THE POSITIVE CONTROL FOR THE RESET, AND IT IS NOT OPTIONAL.** The
+ladder wraps THROUGH the base every six mistakes, so «the miss after the merge costs 100» is true
+by accident at three ordinals out of six. The guard stands the run at 9 (next would be 130),
+merges once, and reads 100.
+✅ **`matches + 1` PROVES THE MERGE HAPPENED** — `autoMatch` returning false on a layout with no
+pair would otherwise satisfy everything else.
+✅ **`misses` GROWS WHILE `missRun` GOES TO ZERO** is asserted as one arm, because that split is
+the mechanic. The sabotage it names: reset `stats.misses` in `doMatch` instead — the price would
+look right and the turbo would become farmable.
+
+⚠️ **THE FOUR GUARDS RE-BASED ONTO `missRun`,** all by the same shape as the day before (a
+section whose measurement has a MERGE between its misses): the points-as-seen probe — which
+gained the strongest statement of the reset for free, since it merges before the miss it
+measures, so **four mistakes deep the price is back at ten**; the booster symmetry; both halves
+of the pairless tap; the ice block.

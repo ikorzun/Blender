@@ -25,6 +25,15 @@ function scorePenalty(n){
 // 2026-07-22: accumulated merges grow the type's price, accMult in 77-save)
 function doMatch(list){
   if (level) level.stuck = 0; // a successful move burns the «Look around» grace period
+  // ⛔⛔ ONE COLLECTED PAIR RESETS THE PRICE OF A MISTAKE TO THE BASE (the owner's word
+  // 2026-08-24-b). The reset sits HERE and nowhere else, deliberately: `doMatch` is called only
+  // with a CONFIRMED merge list, from all three merge paths (a live tap, autoMatch, matchType) —
+  // a rejected tap never reaches this line. ⚠️ The type charge, the bomb, the bowl-shatter
+  // collection and the ice break do NOT reset: none of them is «collecting a pair» — they are
+  // rescues and bonuses with their own paths. A dispatcher's default, named to the owner.
+  // ⚠️ `stats.misses` is NOT touched — the turbo rules read it as a delta, and
+  // `chainStartMisses = stats.misses` a few lines below is one of them.
+  stats.missRun = 0;
   // COMBO: a group of 3+ at once, or a second merge within COMBO_CHAIN_MS, or a match
   // while the boost is already burning — radius up to COMBO_RADIUS and SCORE
   // ×COMBO_SCORE_MULT for COMBO_MS (the window is extended by every match — the fever
@@ -307,14 +316,15 @@ function doMatch(list){
 // the stones would have quietly changed the ice mechanic, so it was renamed, not deleted.
 function penalizeDouble(item){
   stats.misses++;
+  stats.missRun = (stats.missRun | 0) + 1;
   const before = stats.score;
   // ⛔ DOUBLE OF THE **CURRENT** RUNG, NOT OF THE FIRST ONE (2026-08-24). The ice spec says
   // «the penalty is LIKE THE STONE'S», i.e. twice a miss — and once the price of a miss
   // climbs, «twice a miss» climbs with it. Pinning it to 2×MISS_PENALTY would have quietly
   // turned the ice into the CHEAPEST mistake of a long level.
-  // ⚠️ And it advances the ladder for what follows, because it is a mistake: `stats.misses`
-  // is incremented above by the same rule as in `penalize`.
-  const charged = scorePenalty(2 * missPenaltyFor(stats.misses));
+  // ⚠️ Since 2026-08-24-b the ordinal is `missRun` (mistakes since the last merge), zeroed at
+  // the head of `doMatch` — the same rule as in `penalize`, incremented above the charge.
+  const charged = scorePenalty(2 * missPenaltyFor(stats.missRun));
   const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
   // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
   // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.

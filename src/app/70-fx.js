@@ -1480,12 +1480,14 @@ function scorePop(text, worldPos, color, big){
 // (stats.misses is needed by the chain rules), the sanction is points only.
 function penalize(worldPos, sx, sy){
   stats.misses++;
+  stats.missRun = (stats.missRun | 0) + 1;
   const before = stats.score;
-  // ⛔ THE PRICE CLIMBS WITH THE ORDINAL (2026-08-24) — `stats.misses` has ALREADY been
-  // incremented above, so it IS the ordinal of the miss being charged: 1 → 10, 2 → 11, …
-  // ⚠️ Read through `missPenaltyFor` and never as `MISS_PENALTY` again: that constant is now
-  // only the FIRST rung of the ladder.
-  const charged = scorePenalty(missPenaltyFor(stats.misses));
+  // ⛔ THE PRICE CLIMBS WITH THE RUN, NOT WITH THE LEVEL TOTAL (2026-08-24-b): `missRun` counts
+  // mistakes since the last merge and is zeroed at the head of `doMatch`, so one collected pair
+  // puts the price back to the base. Both counters are incremented above, BEFORE the charge, so
+  // each already holds the 1-based ordinal. ⚠️ `misses` keeps its old meaning — the turbo rules
+  // read it as a delta, and a merge must not launder those.
+  const charged = scorePenalty(missPenaltyFor(stats.missRun));
   const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
   // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
   // makes a mistake while charging turbo mode — the mode's counter is reset").
