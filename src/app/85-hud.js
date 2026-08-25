@@ -409,6 +409,11 @@ function lbEntryRefresh(){
     // «Leaderboard» as a single line, and mute the subtitle and the direction badge. That way the block
     // keeps its identity and asserts nothing: «on leaderboard» on its own says
     // nothing, whereas an arrow would assert a movement that did not happen.
+    // ⛔ THE PLATE APPEARS WITH THE DATA, NOT BEFORE IT (the owner 2026-08-25-v). The class is
+    // hung HERE, on the line that writes the row, so the paint and the content can never get out
+    // of step. ⚠️ It is added unconditionally: the newcomer branch («Leaderboard» with no rank)
+    // is data too — it is the answer, and it is what the row is going to show.
+    boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
     subs.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
     boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
@@ -992,11 +997,20 @@ function isNightSky(){
 // between LV and the time and the time overlapping the eyes (the owner's screenshot).
 function fitStat(id){
   const t = $(id), svg = t.ownerSVGElement;
-  // ⚠️ `data-lead` — the width of anything drawn to the LEFT of the text inside the same frame,
-  // in viewBox units, plus its gap (2026-08-25-b: `#scSvg` carries the star icon at x=0). The
-  // frame is squeezed to the text, so without adding the lead the icon would end up outside the
-  // viewBox it shares and be clipped away at the first repaint.
-  const lead = parseFloat(svg.getAttribute('data-lead')) || 0;
+  // ⚠️ THE LEAD — the space taken to the LEFT of the text inside the same frame (2026-08-25-b:
+  // `#scSvg` carries the star icon at x=0). The frame is squeezed to the text, so without adding
+  // it the icon would end up outside the viewBox it shares and be clipped at the first repaint.
+  // ⚠️⚠️ THE GAP IS IN **PIXELS**, THE ICON IN VIEWBOX UNITS, AND THAT SPLIT IS THE WHOLE POINT
+  // (the owner 2026-08-25-v: «the gap between the star icon and the score is 8 px»). Everything
+  // inside an `.otext` frame scales with it — 42/27 on the desktop, 1 on the phone — so ONE
+  // number of units would have rendered 8 px in one layout and 5 in the other, which is exactly
+  // what he is pointing at. Dividing the pixels by the live scale pins the gap in both.
+  // ⚠️ THE `- 1` IS THE FRAME'S OWN INSET, not a fudge: the text is anchored `end` at `u - 2`
+  // and the frame is `lead + textLen + 3` wide, so the text's ink begins at exactly `lead + 1`.
+  const k0 = (svg.getBoundingClientRect().height || 27) / 27;
+  const icon = parseFloat(svg.getAttribute('data-icon')) || 0;
+  const lead = icon ? (icon - 1 + (parseFloat(svg.getAttribute('data-gap')) || 0) / k0)
+                    : (parseFloat(svg.getAttribute('data-lead')) || 0);
   const u = lead + t.getComputedTextLength() + 3;  // the width in viewBox units
   // ⚠️ one has to change BOTH the viewBox AND the css width: the svg keeps the viewBox proportions
   // (meet) — the width alone at a height of 42 SHRANK the content (LV smaller than

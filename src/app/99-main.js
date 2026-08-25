@@ -1243,6 +1243,13 @@ window.__game = {
   // the colour a mistake is painted with — so a guard can tie the CSS `#score.miss` to it
   // instead of pinning a second copy of the hex (2026-08-25)
   missColor(){ return MISS_COLOR; },
+  // ⚠️ test: re-fit a HUD frame to its text through the PRODUCTION `fitStat`. The guard on «the
+  // score is always flush right» has to try several numbers, and reproducing the fit on its own
+  // side would be checking its own arithmetic (2026-08-25-v).
+  fitStatTest(id){ if (typeof fitStat === 'function') fitStat(id); },
+  // ⚠️ test: rewrite the whole HUD through the production writer — used to put the chip back
+  // after a probe that typed into it by hand (2026-08-25-v).
+  updateHUDTest(){ if (typeof updateHUD === 'function') updateHUD(); },
   scoreMissOn(){ const e = document.getElementById('score'); return !!(e && e.classList.contains('miss')); },
   // ⚠️ THE LADDER OF THE MISS PRICE (2026-08-24). The guard is obliged to call THIS — the very
   // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula

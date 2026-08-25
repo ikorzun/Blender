@@ -813,7 +813,10 @@ page.on('response', (r) => {
     const feature = (() => { const lb = window.__lb;
       return !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base())); })();
     const menuBox = document.getElementById('msLbEntry');
-    const listCs = getComputedStyle(document.getElementById('winTopList'));
+    // ⛔ THE PLATE MOVED ONTO `::before` 2026-08-25-v so it could fade in with the rows. Reading
+    // the block itself would now measure a transparent box and bless a build with no plate at all.
+    const listCs = getComputedStyle(document.getElementById('winTopList'), '::before');
+    const listBox = getComputedStyle(document.getElementById('winTopList'));
     return { feature, hiddenMenu: menuBox ? menuBox.hidden : null,
              hidden: box.hidden, height: Math.round(b.height), bg: cs.backgroundColor,
              radius: cs.borderRadius, cursor: cs.cursor,
@@ -823,7 +826,8 @@ page.on('response', (r) => {
              // and the frame of the list of rows, from the same batch
              listBorder: listCs.borderTopWidth + ' ' + listCs.borderTopStyle + ' ' + listCs.borderTopColor,
              listBg: listCs.backgroundColor, listRadius: listCs.borderRadius,
-             listShadow: listCs.boxShadow, listPad: listCs.padding,
+             listShadow: listCs.boxShadow, listPad: listBox.padding,
+             listPlateOpacity: listCs.opacity,
              listW: Math.round(listRect.width), pillW: Math.round(b.width),
              underHead: Math.round(b.top) >= Math.round(headRect.bottom),
              aboveList: Math.round(b.bottom) <= Math.round(listRect.top),
@@ -924,6 +928,61 @@ page.on('response', (r) => {
     'by ONE formula (`lbRankNow`); should they diverge, the player would see two different ' +
     'places, and both would look like the truth (' + JSON.stringify({
       win: winLbRow.textWin, menu: winLbRow.textMenu }) + ')');
+
+  // ═══ THE PLATES ARRIVE WITH THEIR DATA, NOT BEFORE IT (the owner's word 2026-08-25-v) ═══
+  // «On the final screen the backing under the item statistics and the leaderboards appears
+  // together with the data, not before it.»
+  // ⚠️⚠️ THE TWO PLATES WAIT FOR DIFFERENT THINGS AND ARE THEREFORE MEASURED DIFFERENTLY, which
+  // is the whole content of this guard. The item list waits for an ANIMATION whose delay we own,
+  // so its plate is checked mid-flight — the entrance is re-triggered and sampled INSIDE the 1 s.
+  // The leaderboard row waits for a NETWORK ANSWER whose time nobody owns, so its plate is gated
+  // on a class and is checked by taking the class away.
+  const plateWait = await page.evaluate(async () => {
+    const w = document.getElementById('winWrap'), l = document.getElementById('winTopList');
+    const row = document.querySelector('.wt-row');
+    const plate = () => getComputedStyle(l, '::before').opacity;
+    w.classList.remove('win-in'); void w.offsetWidth; w.classList.add('win-in');
+    await new Promise(r => setTimeout(r, 200));
+    const early = { plate: plate(), row: row ? getComputedStyle(row).opacity : null };
+    await new Promise(r => setTimeout(r, 1300));
+    const late = { plate: plate(), row: row ? getComputedStyle(row).opacity : null };
+    const pill = document.querySelector('.win-lbentry');
+    const read = () => ({ bg: getComputedStyle(pill).backgroundColor,
+                          border: getComputedStyle(pill).borderTopColor,
+                          h: Math.round(pill.getBoundingClientRect().height) });
+    const withData = read();
+    pill.classList.remove('lb-ready');
+    await new Promise(r => setTimeout(r, 480));
+    const noData = read();
+    pill.classList.add('lb-ready');
+    return { early, late, withData, noData };
+  });
+  console.log('plates wait for data:', JSON.stringify(plateWait));
+  expect(parseFloat(plateWait.early.plate) === 0 && parseFloat(plateWait.early.row) === 0 &&
+         parseFloat(plateWait.late.plate) === 1 && parseFloat(plateWait.late.row) === 1,
+    '⚠️⚠️ THE PLATE UNDER THE ITEM STATISTICS IS INVISIBLE WHILE THE ROWS ARE (' +
+    JSON.stringify(plateWait) + '). Before 2026-08-25-v an empty framed box stood on the screen ' +
+    'for the full second the rows spend waiting on their entrance delay. ' +
+    '⚠️⚠️ THE ROW IS READ BESIDE THE PLATE AND THAT PAIR IS THE STATEMENT: «the plate is at 0» ' +
+    'alone is true of a build where the plate never appears at all, and «together with the data» ' +
+    'is a relation, not a value. ' +
+    '⚠️ IT IS A `::before` AND NOT `opacity` ON THE BLOCK — fading the container would drag rows ' +
+    '2 and 3 in with row 1 and flatten the stagger. ⛔ SABOTAGE: drop the `1s` delay from ' +
+    '`.win-in .win-top-list::before` — `early.plate` goes to 1 while the rows stay at 0');
+  expect(plateWait.withData.bg === 'rgba(255, 255, 255, 0.04)' &&
+         plateWait.withData.border === 'rgba(255, 255, 255, 0.12)' &&
+         plateWait.noData.bg === 'rgba(0, 0, 0, 0)' &&
+         plateWait.noData.border === 'rgba(0, 0, 0, 0)' &&
+         plateWait.noData.h === plateWait.withData.h && plateWait.withData.h === 72,
+    '⚠️⚠️ AND THE LEADERBOARD PLATE IS PAINTED ONLY ONCE ITS ROW HAS BEEN WRITTEN: strip ' +
+    '`lb-ready` and the fill and the frame go to fully transparent (' +
+    JSON.stringify(plateWait) + '). The class is hung in `lbEntryRefresh` (85-hud) on the very ' +
+    'line that writes the rank, so the paint and the content cannot get out of step. ' +
+    '⚠️⚠️ THE HEIGHT IS PINNED ON BOTH SIDES AND IT IS THE LAW THIS OBEYS: 72 stays in the ' +
+    'layout whether the answer has arrived or not, so a late answer does not move the Next ' +
+    'button out from under the finger — the disease the removed inset was cured of. ' +
+    '⛔ SABOTAGE: gate the row with `display:none` or `border:none` instead of transparency — ' +
+    'the paint would look right and the button would jump when the network replied');
 
   // ═══ THE EDITS OF THE VICTORY SCREEN 2026-08-11 (three words of the owner) ═══
   // 1) the «×N» plate — green like the strip of the progress, the text black;
@@ -6540,7 +6599,16 @@ window.bridge = {
 // ⛔ THE FORMER FLOORS ARE PRESERVED FOR A RETURN: day 3.00, night 12.5 — the former palette
 // will come back, and so will they.
 const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against the sky (day — a PIN, see above)
-  const BTN_FLOOR = { day: 3.50, night: 11.0 };   // the disc of the pause button against the sky
+  // ⛔⛔ THE FLOOR WAS 3.50/11.0 AND IT FIRED FOR REAL ON 2026-08-25-v, at 1.476 in BOTH themes.
+  // The owner made the pause button white 60 % «everywhere» — a light disc on a light sky — so
+  // the quantity the old floor measured stopped being the one that carries the button.
+  // ⚠️⚠️ WHAT CARRIES IT NOW IS THE BLACK GLYPH INSIDE THE DISC, and that is asserted below with
+  // a real floor: (0.8008 + 0.05) / 0.05 = 17.0 measured, against 4.5. The disc-vs-sky number is
+  // KEPT with a low floor rather than deleted — it is what would catch the disc disappearing
+  // altogether, which the glyph arm alone would not.
+  // ⚠️ THE PRICE IS NAMED TO HIM BY THE NUMBER: 3.50 → 1.476, i.e. the button no longer stands
+  // out from the sky by its plate. One word restores a darker plate.
+  const BTN_FLOOR = { day: 1.25, night: 1.25, glyph: 4.5 };
   // Leave visible ONLY the target and its ancestors (visibility, and not display — so that
   // the layout does not shift and the target does not move under its own measurement).
   // ⚠️ WHY HIDE THE NEIGHBOURS: the strips of sky caught the right stack (by level 3 the points
@@ -6702,9 +6770,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(r.ratio >= HUD_FLOOR.day,
       'THE FLOOR OF THE EYE CONTRAST (' + tema + '): ' + r.ratio + ' >= ' + HUD_FLOOR.day +
       ' (the white of the eye ' + r.own + ', the sky ' + r.sky + ')');
-    expect(btn.settled && btn.ratio >= BTN_FLOOR.day,
-      'THE FLOOR OF THE PAUSE BUTTON CONTRAST (' + tema + '): ' + btn.ratio + ' >= ' + BTN_FLOOR.day +
-      ' (the disc ' + btn.own + ', the sky ' + btn.sky + ', ' + btn.why + ')');
+    // ⚠️ THE GLYPH IS BLACK IN BOTH THEMES (a pinpoint rule, guarded by its own assert), so its
+    // contrast against the measured disc is arithmetic, not a second sample: L=0 for black.
+    const glyphRatio = +((btn.own + 0.05) / 0.05).toFixed(2);
+    expect(btn.settled && btn.ratio >= BTN_FLOOR.day && glyphRatio >= BTN_FLOOR.glyph,
+      'THE FLOOR OF THE PAUSE BUTTON (' + tema + '): the disc against the sky ' + btn.ratio +
+      ' >= ' + BTN_FLOOR.day + ', AND THE BLACK GLYPH AGAINST THE DISC ' + glyphRatio + ' >= ' +
+      BTN_FLOOR.glyph + ' (the disc ' + btn.own + ', the sky ' + btn.sky + ', ' + btn.why + '). ' +
+      '⛔⛔ THE SECOND ARM IS NEW AND IT IS THE ONE THAT NOW CARRIES THE BUTTON: since 2026-08-25-v ' +
+      'the plate is white 60 % on a light sky and reads 1.476 against it, where the old floor ' +
+      'demanded 3.50. The owner asked for exactly that plate; what makes the button findable is ' +
+      'the black glyph inside it, so that is what is guarded with a real number. ' +
+      '⚠️ THE DISC ARM IS KEPT AT A LOW FLOOR RATHER THAN DELETED — it is the only thing that ' +
+      'would catch the plate vanishing into the sky entirely, and a guard removed is a guard that ' +
+      'cannot fire');
   }
   expect(Math.abs(hudSeen['noon'].eyes.sky - hudSeen['late hour'].eyes.sky) < 0.01,
     '⚠️⚠️ DAY ONLY, BY A MEASUREMENT OVER THE PIXELS: the sky at 22:00 is the same as at 12:00 (' +
@@ -10068,9 +10147,33 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const outline = async (p) => p.evaluate(() => {
       const takeSnap = sel => { const e = document.querySelector(sel); if (!e) return null;
         const cs = getComputedStyle(e);
+        // ⚠️⚠️ THE VISIBLE THICKNESS IS NOT `strokeWidth`. Two conversions stand between them and
+        // both are load-bearing: the mechanism doubles (`--otl × 2`, half hides under the fill
+        // via `paint-order:stroke`), and the frame SCALES its own units (42/27 on the desktop, 1
+        // on the phone). A guard that pinned the raw number would state neither his 4 px nor
+        // anything else a person can see.
+        const svg = e.ownerSVGElement;
+        const k = (svg.getBoundingClientRect().height || 27) / 27;
+        // ⚠️⚠️ `stroke-width` SERIALISES AS `calc(5.14px)` HERE (the value comes from a `calc()`
+        // over a custom property), and `parseFloat('calc(5.14px)')` is NaN — the first edition of
+        // this probe reported `visible: null` and the assert went red on a sound build. The file
+        // already carries the same lesson one screen up, where zero serialises as `0%`.
+        const num = v => { const m = String(v).match(/[\d.]+/); return m ? parseFloat(m[0]) : NaN; };
         return { stroke: cs.strokeWidth, color: cs.stroke, fill: cs.fill,
-                 font: cs.fontSize, blob: cs.fill === cs.stroke }; };
+                 font: cs.fontSize, blob: cs.fill === cs.stroke,
+                 visible: +(num(cs.strokeWidth) / 2 * k).toFixed(2), k: +k.toFixed(3) }; };
+      const numG = v => { const m = String(v).match(/[\d.]+/); return m ? parseFloat(m[0]) : NaN; };
+      const st = document.querySelector('#scStar path');
+      const stCs = st ? getComputedStyle(st) : null;
+      const svg = document.getElementById('scSvg');
+      const k = (svg.getBoundingClientRect().height || 27) / 27;
+      const num = document.getElementById('score');
+      const stB = st ? st.getBoundingClientRect() : null, nB = num.getBoundingClientRect();
       return { LV: takeSnap('#lvlSvg text'), score: takeSnap('#scSvg text'),
+               star: stCs ? { fill: stCs.fill, stroke: stCs.stroke,
+                              visible: +(numG(stCs.strokeWidth) * 0.643 * k).toFixed(2),
+                              w: Math.round(stB.width), h: Math.round(stB.height) } : null,
+               gap: stB ? Math.round(nB.left - stB.right) : null,
                width: innerWidth };
     });
     const outMob = await outline(page), outDesk = await outline(deskPage);
@@ -10095,28 +10198,117 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE WIDTH IS READ AS A NUMBER, NOT AS A STRING: at `--otl:0` the engine
     // serialises `stroke-width` as `0%`, not as `calc(0px)` — a literal pin would have
     // gone red on a sound build. Measured, not assumed.
-    const noStroke = v => parseFloat(v) === 0;
-    expect(noStroke(outMob.score.stroke) && noStroke(outDesk.score.stroke) &&
-           noStroke(outMob.LV.stroke) && noStroke(outDesk.LV.stroke) &&
-           outMob.LV.fill === 'rgb(255, 255, 255)' && outMob.score.fill !== outMob.LV.fill,
-      '⚠️⚠️ THERE IS NO STROKE ON THE LEVEL AND ON THE SCORE, IN EITHER LAYOUT (' +
-      JSON.stringify({ mob: outMob, desk: outDesk }) + '). The owner\'s word 2026-08-22-d ' +
-      '«remove the stroke from the level and the score», with a frame of the HUD attached. ' +
-      '⛔ IT CANCELS his own 2026-08-21-z/k: a stroke of 4 px, black at first and then ' +
-      '`#113444`. Both pins would now go red on a sound build — the guard moves with the ' +
-      'rule, it is not «repaired». ' +
-      '⚠️⚠️ ZERO IS PINNED, NOT THE ABSENCE OF THE DECLARATION: `.otext text` gives a ' +
-      'default of `--otl:2` in WHITE, so deleting the lines would bring a white stroke ' +
-      'BACK instead of removing it. In this mechanism `calc(0px)` is the only way to say ' +
-      '«none», and it is what the sabotage — restoring any `--otl` — turns red. ' +
-      '⚠️ THE FILLS ARE READ AS A CONTROL: the level stays white and the score keeps its ' +
-      'own colour. Without them «no stroke» is true of a build where the captions have ' +
-      'disappeared altogether. ' +
-      '⚠️ THE PRICE IS NAMED TO THE OWNER BY THE NUMBER: white «LV 3» against the top stop ' +
-      'of the sky (`#bab6ff` since 2026-08-23-zh, `#b6c5ff` before it) gives a contrast of ' +
-      '1.87:1 — the new palette moved it UP from 1.69, because its top stop is a deeper violet. ' +
-      'Still below the 3.0 floor. The readable way out is the FILL ' +
-      'of the level, and that is his separate word.');
+    const near4 = v => Math.abs(v - 4) <= 0.35;
+    expect(outDesk.star && outDesk.star.fill === 'rgb(255, 228, 21)' &&
+           outDesk.star.stroke === 'rgb(255, 255, 255)' && near4(outDesk.star.visible) &&
+           outMob.star && outMob.star.fill === outDesk.star.fill &&
+           outMob.star.stroke === outDesk.star.stroke &&
+           Math.abs(outDesk.gap - 8) <= 1 && Math.abs(outMob.gap - 8) <= 1,
+      '⚠️⚠️ THE STAR IS #FFE415 UNDER A WHITE 4 px OUTLINE, AND IT STANDS 8 px FROM THE NUMBER ' +
+      'IN BOTH LAYOUTS (' + JSON.stringify({ desk: { star: outDesk.star, gap: outDesk.gap },
+        mob: { star: outMob.star, gap: outMob.gap } }) + '). The owner 2026-08-25-v, with the ' +
+      'SVG attached and the gap named separately. ' +
+      '⛔ THE PREVIOUS ASSET WAS FLAT `#FFE730` WITH NO STROKE and is still in the menu wallet — ' +
+      'the two have diverged on purpose; do not «unify» them without his word. ' +
+      '⚠️⚠️ THE GAP IS THE ARM THAT COST THE MECHANISM A CHANGE: everything inside an `.otext` ' +
+      'frame scales with it, so ONE number of viewBox units gave 8 px on the desktop and 5 on ' +
+      'the phone — his complaint. `fitStat` now takes the gap in PIXELS (`data-gap`) and divides ' +
+      'by the live scale, which is why both arms can be pinned at 8. ' +
+      '⛔ SABOTAGE: put the gap back into `data-lead` as units — the desktop stays right and the ' +
+      'phone drifts, i.e. exactly the half a one-layout guard would have missed');
+
+  // ═══ THE PAUSE BUTTON IS WHITE IN BOTH THEMES (the owner's word 2026-08-25-v) ═══
+  // «The pause button is everywhere white with a black icon inside», plus the three properties
+  // verbatim. ⚠️ BOTH THEMES ARE READ IN ONE BREATH, exactly as the closing-cross guard does:
+  // this is a pinpoint exception from the day/night `--btn-bg` rule, and an exception checked in
+  // one theme only is the shape that lets the other one silently eat it — which is what happened
+  // to the zoom's glyph on 2026-08-04.
+  const pauseSkin = await page.evaluate(() => {
+    const b = document.getElementById('pauseBtn'); if (!b) return { noNode: true };
+    const p = b.querySelector('svg path');
+    const was = document.documentElement.classList.contains('night');
+    const snap = () => { const cs = getComputedStyle(b); return {
+      bg: cs.backgroundColor, radius: cs.borderRadius, shadow: cs.boxShadow,
+      glyph: getComputedStyle(p).fill }; };
+    document.documentElement.classList.remove('night'); const day = snap();
+    document.documentElement.classList.add('night');    const night = snap();
+    document.documentElement.classList.toggle('night', was);
+    return { day, night };
+  });
+  console.log('pause skin:', JSON.stringify(pauseSkin));
+  expect(!pauseSkin.noNode &&
+         pauseSkin.day.bg === 'rgba(255, 255, 255, 0.6)' && pauseSkin.night.bg === pauseSkin.day.bg &&
+         pauseSkin.day.glyph === 'rgb(0, 0, 0)' && pauseSkin.night.glyph === pauseSkin.day.glyph &&
+         pauseSkin.day.radius === '80px' &&
+         pauseSkin.day.shadow === 'rgb(255, 255, 255) 0px 0px 16px 0px inset' &&
+         pauseSkin.night.shadow === pauseSkin.day.shadow,
+    '⚠️⚠️ THE PAUSE BUTTON IS WHITE 60 % WITH A BLACK GLYPH, A 16 px INNER GLOW AND RADIUS 80 — ' +
+    'IN BOTH THEMES (' + JSON.stringify(pauseSkin) + '). The owner 2026-08-25-v, three ' +
+    'properties verbatim plus «everywhere white with a black icon inside». ' +
+    '⛔ IT TAKES THE PAUSE OUT OF THE DAY/NIGHT `--btn-bg` RULE — the second pinpoint exception ' +
+    'after the zoom. ⚠️ THE `night === day` ARMS CARRY THIS ASSERT: the theme rule is still ' +
+    'there and still flips everything else, so a build that lost the override would read ' +
+    'DIFFERENTLY in the two themes and identically in neither. ' +
+    '⚠️ IT IS NOT THE ZOOM\'S RECIPE AND THE DIFFERENCE IS HIS: .60 against .50, and no 1 px rim. ' +
+    'Pinning the zoom\'s numbers here would be inventing a value he did not write');
+
+  // ═══ THE SCORE IS ALWAYS FLUSH RIGHT, WHATEVER THE NUMBER (the owner 2026-08-25-v) ═══
+  // ⚠️⚠️ THE STATEMENT IS AN INVARIANT ACROSS WIDTHS, so it is measured across widths — one
+  // reading of one number would be true of any layout at all. The star is the thing that moves.
+  const scAlign = await page.evaluate(async () => {
+    const out = [];
+    for (const v of [0, 7, 1234, 987654]){
+      document.getElementById('score').textContent = String(v);
+      window.__game.fitStatTest('score');   // the production fit, not a copy of it
+      await new Promise(r => setTimeout(r, 30));
+      const t = document.getElementById('score').getBoundingClientRect();
+      const st = document.getElementById('scStar').getBoundingClientRect();
+      out.push({ v, right: Math.round(t.right), starLeft: Math.round(st.left) });
+    }
+    // ⚠️ PUT THE CHIP BACK THE PRODUCTION WAY. This probe writes into `#score` by hand, and
+    // leaving it on 987654 would hand every later assert on this page a number the game never
+    // produced — the classic «the guard left its own footprint in the scene».
+    window.__game.updateHUDTest ? window.__game.updateHUDTest() : window.__game.fitStatTest('score');
+    return out;
+  });
+  console.log('score align:', JSON.stringify(scAlign));
+  expect(scAlign.length === 4 && scAlign.every(r => r.right === scAlign[0].right) &&
+         scAlign[3].starLeft < scAlign[0].starLeft,
+    '⚠️⚠️ THE SCORE TEXT IS ALWAYS ALIGNED TO THE RIGHT (the owner 2026-08-25-v): its right edge ' +
+    'is the same pixel at 0, 7, 1234 and 987654, and it is the STAR that travels left as the ' +
+    'number grows (' + JSON.stringify(scAlign) + '). ' +
+    '⚠️ THE `starLeft` ARM IS THE POSITIVE CONTROL: a frozen right edge is also true of a build ' +
+    'where the text stopped being re-fitted at all, and then the number would be overrunning its ' +
+    'own frame instead of standing still');
+
+    expect(outDesk.LV.fill === 'rgb(0, 0, 0)' && outDesk.score.fill === 'rgb(0, 0, 0)' &&
+           outMob.LV.fill === 'rgb(0, 0, 0)' && outMob.score.fill === 'rgb(0, 0, 0)' &&
+           outDesk.LV.color === 'rgb(255, 255, 255)' && outDesk.score.color === 'rgb(255, 255, 255)' &&
+           outMob.LV.color === 'rgb(255, 255, 255)' && outMob.score.color === 'rgb(255, 255, 255)' &&
+           !outMob.LV.blob && !outDesk.score.blob &&
+           near4(outDesk.LV.visible) && near4(outDesk.score.visible),
+      '⚠️⚠️ THE LEVEL AND THE SCORE ARE BLACK UNDER A WHITE OUTLINE OF 4 VISIBLE PIXELS, IN BOTH ' +
+      'LAYOUTS (' + JSON.stringify({ mob: outMob, desk: outDesk }) + '). The owner 2026-08-25-v ' +
+      'gave both captions one block: `color:#000; -webkit-text-stroke-width:4px; ' +
+      '-webkit-text-stroke-color:#FFF; font-size:34px`. ' +
+      '⛔⛔ IT CANCELS HIS OWN WORD OF 2026-08-22-d («remove the stroke from the level and the ' +
+      'score»), which this very assert used to state — and with it the desktop-only black of ' +
+      '2026-08-25-b, because black now reads on the phone too. THIS IS THE FOURTH EDITION OF ' +
+      'THIS PAIR: 6 px black → 4 px `#113444` → none → 4 px white. The guard moves with the rule; ' +
+      'it is not «repaired». ' +
+      '⚠️⚠️ `-webkit-text-stroke` IS **NOT** WHAT SHIPS AND MUST NOT BE «RESTORED» FROM HIS ' +
+      'TEXT: it cuts corners on a miter join, which is the documented reason the single `.otext` ' +
+      'mechanism exists. The same 4 px arrive as a real vector stroke through `--otl`. ' +
+      '⚠️⚠️ THE 4 IS MEASURED IN **VISIBLE** PIXELS AND THAT IS THE WHOLE ARITHMETIC OF THIS ' +
+      'ASSERT: computed `stroke-width` is the DOUBLE (half hides under the fill), and the frame ' +
+      'scales its units by 42/27 on the desktop. A pin on the raw number would state nothing a ' +
+      'person can see. ' +
+      '⚠️ THE `blob` ARMS ARE THE SANITY: a fill equal to the stroke reads as a solid lump, and ' +
+      'this pair has been one lump once before. ' +
+      '⚠️ THE PHONE IS DELIBERATELY NOT PINNED AT 4 — the frame there is 1.5556× smaller and the ' +
+      'outline scales with it (measured ' + outMob.score.visible + ' px), which is one design at ' +
+      'two sizes rather than two designs. Its COLOURS are pinned, and they are the half that ' +
+      'must not drift.');
 
     // ══════════ ITEM 7 — ONE FLAT YELLOW ON THE SCORE IN BOTH LAYOUTS (2026-08-23-a) ══════════
     // ⚠️⚠️ THE TWO WIDTHS ARE READ IN ONE ASSERT BECAUSE THE STATEMENT IS AN AGREEMENT.
@@ -10143,21 +10335,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const scMob = await scoreArm(page), scDesk = await scoreArm(deskPage);
     console.log('score-colour/arms:', JSON.stringify({ mob: scMob, desk: scDesk }));
     expect(scMob.mobileArm && !scDesk.mobileArm &&
-           scMob.fill === 'rgb(255, 231, 48)' &&
-           scDesk.fill === 'rgb(0, 0, 0)',
-      '⚠️⚠️ THE SCORE IS YELLOW ON THE PHONE AND BLACK ON THE DESKTOP, AND THE TWO ARMS ARE ' +
-      'DELIBERATELY DIFFERENT (' + JSON.stringify({ mob: scMob, desk: scDesk }) + '). ' +
-      '⛔⛔ THIS ASSERT USED TO STATE THE OPPOSITE — «one flat yellow in both layouts» — and it ' +
-      'was his own word of 2026-08-23-a («the colour of the score on the game screen in all ' +
-      'versions as on mobile»). Node 913:3644 «Header-desk» CANCELS it FOR THE DESKTOP ONLY: ' +
-      '`text-[34px] text-black`, brought in by his word 2026-08-25-b «update the visual for the ' +
-      'elements in the header». ' +
-      '⚠️⚠️ AND THE PHONE KEEPS THE YELLOW FOR A MEASURED REASON, not out of caution: there the ' +
-      'top of the frame is the DARKEST sky stop in both themes (the sky invariant in the canon), ' +
-      'so black would be unreadable. On desktop the top is light — which is why the LEVEL beside ' +
-      'it has been black all along. ⛔ DO NOT «RESTORE THE SYMMETRY» BY PAINTING THE PHONE BLACK ' +
-      'without his word: this assert is what would go red, and it is the only place that states ' +
-      'the split is intended. ' +
+           scMob.fill === scDesk.fill &&
+           scMob.fill === 'rgb(0, 0, 0)',
+      '⚠️⚠️ THE SCORE IS ONE COLOUR IN BOTH LAYOUTS AGAIN, AND IT IS BLACK (' +
+      JSON.stringify({ mob: scMob, desk: scDesk }) + '). ' +
+      '⛔⛔ THIS ASSERT HAS NOW BEEN RE-BASED TWICE IN TWO MESSAGES AND THE ROUTE MATTERS. It ' +
+      'said «one flat YELLOW in both layouts» (his 2026-08-23-a: «the colour of the score in all ' +
+      'versions as on mobile»); node 913:3644 split it, black on the desktop only (2026-08-25-b), ' +
+      'because black without an outline is unreadable on the phone, where the top of the frame is ' +
+      'the DARKEST sky stop; and the 4 px white outline of 2026-08-25-v removed that constraint, ' +
+      'so the split closed and his ORIGINAL intent — one colour everywhere — holds again by a ' +
+      'different route. ' +
+      '⚠️ THE AGREEMENT IS STILL THE STATEMENT: `desk === black` alone is true of a build whose ' +
+      'phone arm drifted under it, which is why both are read in one breath. ' +
       '⛔ THE SABOTAGE THIS TURNS RED: giving `#score` back the `url(#gScore)` gradient on the ' +
       'desktop arm — the pre-edit state, where computed fill read `url("#gScore")` at 1280 and ' +
       '`rgb(255, 231, 48)` at 390. It also turns red on the drift the black introduces: letting ' +
@@ -10960,10 +11150,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     //    alone would stay green if somebody repainted THE TOKEN ITSELF to the glass — then the pause
     //    would still «follow --btn-bg» and would still have joined the family. `pause.bg !== hint.bg`
     //    is the half that says it did NOT join.
-    expect(brDesk.pause.bg === brDesk.tokenBg && brMob.pause.bg === brMob.tokenBg &&
-           brDesk.pause.bg !== brDesk.hint.bg && brMob.pause.bg !== brMob.hint.bg &&
-           brDesk.pause.shadow === 'none' && brMob.pause.shadow === 'none' &&
-           brDesk.pause.radius === '1000px' &&
+    expect(brDesk.pause.bg === 'rgba(255, 255, 255, 0.6)' && brMob.pause.bg === brDesk.pause.bg &&
+           brDesk.pause.bg !== brDesk.tokenBg && brMob.pause.bg !== brMob.tokenBg &&
+           brDesk.pause.shadow === 'rgb(255, 255, 255) 0px 0px 16px 0px inset' &&
+           brMob.pause.shadow === brDesk.pause.shadow &&
+           brDesk.pause.radius === '80px' &&
            brDesk.zoomIn.opacity === '1' && brDesk.zoomOut.opacity === '1' &&
            brMob.zoomIn.opacity === '1' && brMob.zoomOut.opacity === '1' &&
            brDesk.hint.opacity === '1' && brDesk.shake.opacity === '1' &&
@@ -10976,14 +11167,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
            brDesk.zoomIn.shadow === brDesk.hint.shadow &&
            brMob.zoomIn.shadow === brDesk.zoomIn.shadow &&
            brDesk.zoomOut.shadow === brDesk.zoomIn.shadow,
-      '⚠️⚠️ THE PAUSE DID NOT JOIN THE FAMILY, AND THE ZOOM DID — the first is a deliberate ' +
-      'non-change, the second is the owner\'s word 2026-08-23-b. ⛔ THE PAUSE stays on the ' +
-      'day/night token `var(--btn-bg)`: it is compared with the ' +
-      'LIVE token and not with a copy of `#2a2935`, so a palette pass on a button that never ' +
-      'changed cannot redden it. Give it the white glass and the measured contrast floor against ' +
-      'the sky (BTN_FLOOR.day ≥ 3.50, the section above) goes with it — a floor that fired twice ' +
-      'for real. ⚠️ `pause.bg !== hint.bg` IS THE SECOND HALF AND IT IS NOT A DUPLICATE: repaint ' +
-      'the TOKEN itself to the glass and the token equality alone would still be green. ' +
+      '⚠️⚠️ THE PAUSE HAS JOINED THE WHITE FAMILY TOO (the owner 2026-08-25-v: «the pause button ' +
+      'is everywhere white with a black icon inside», with the three properties written out). ' +
+      '⛔⛔ THIS ASSERT USED TO SAY THE OPPOSITE — «the pause did NOT join, and that is a ' +
+      'deliberate non-change» — and it warned in as many words what joining would cost: «give it ' +
+      'the white glass and the measured contrast floor against the sky goes with it». It did. The ' +
+      'floor fired at 1.476 against 3.50 and was re-based in the section above, where the price is ' +
+      'written down by the number. The warning was right; the owner overruled it knowingly, and ' +
+      'the guard moves with the rule. ' +
+      '⛔ IT IS NO LONGER ON THE DAY/NIGHT TOKEN, and `pause.bg !== tokenBg` is now the arm that ' +
+      'says so — the inversion of the old `pause.bg === tokenBg`. Both layouts are read, because ' +
+      'the point of «everywhere» is that neither of them keeps the old skin. ' +
+      '⚠️ IT IS STILL NOT THE HINT\'S RECIPE and must not be «unified» into it: his .60 against ' +
+      'the hint family\'s own numbers, and no 1 px rim. ' +
       '⚠️ `pause.shadow === none` catches the rim leaking into the `.iconBtn` rule — five more ' +
       'nodes wear that class. ⛔⛔ THE ZOOM\'S DIMMING IS GONE: he was asked on 2026-08-23-a and ' +
       'chose to keep it, then saw the two pale circles and reversed himself the next message — ' +

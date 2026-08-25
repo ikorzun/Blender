@@ -445,26 +445,36 @@
      removes it SCORE_MISS_MS later, so there is exactly one description of each colour.
      ⚠️ SPECIFICITY: `#score.miss` is (1,1,0) against the base `#score` (1,0,0) — it wins
      regardless of the order of these two lines. */
-  #score { fill:#ffe730; transition:fill .14s ease-out; }
-  /* ⛔⛔ THE DESKTOP NUMBER IS BLACK (node 913:3644 «Header-desk» → `text-[34px] text-black`,
-     the owner 2026-08-25-b). ⛔ IT CANCELS HIS OWN WORD OF 2026-08-23-a — «the colour of the
-     score on the game screen in all versions as on mobile» — FOR THE DESKTOP ONLY, and the
-     cancellation is named to him rather than smuggled in.
-     ⚠️ MOBILE KEEPS THE YELLOW ON PURPOSE: there the top of the frame is the DARKEST sky stop
-     in both themes (the sky invariant in the canon), so black would be unreadable. On desktop
-     the top is light — which is why the LEVEL beside it has been black all along (the base
-     `.otext text { fill:#000 }`), and the score simply joins it.
-     ⚠️⚠️ THIS BLOCK STANDS **AFTER** THE BASE RULE ON PURPOSE. Both selectors are (1,0,0), so
-     ORDER decides, not the media query — written up beside the other ≥768 rules (line ~409) it
-     was overridden by the base and measured yellow on a 1280 viewport. Caught by a probe. */
-  @media (min-width:768px){ #score { fill:#000; } }
-  /* ⚠️ AND `#score.miss` IS (1,1,0), so it beats both of the above in either layout — the
-     reddening on a mistake (2026-08-25) is untouched by the black. Guarded. */
+  /* ⛔ THE YELLOW FILL IS GONE (2026-08-25-v: «color:#000» for the score on the game screen).
+     The fill now arrives from `#scSvg text` together with the outline; what stays here is the
+     TRANSITION, which the reddening on a mistake rides on. */
+  #score { transition:fill .14s ease-out; }
+  /* ⛔⛔ THE DESKTOP-ONLY BLACK OF 2026-08-25-b LIVED ONE BATCH. It existed because the phone's
+     sky is darkest exactly where the score stands, and black without an outline was unreadable
+     there; the 4 px white outline of 2026-08-25-v removes that constraint, so the split is gone
+     and the fill is stated once, at `#scSvg text`.
+     ⚠️ `#score.miss` (1,1,0) beats `#scSvg text` (0,1,1) and the base alike — the reddening on a
+     mistake (2026-08-25) is untouched. Guarded. */
   #score.miss { fill:#e5484d; }
   /* ⚠️ THE STAR KEEPS ITS OWN YELLOW ON BOTH LAYOUTS (`#FFE730`, the owner's word 2026-08-10
      about this very asset). Written as a rule and not left to the inline `fill` so that a
      future re-theme has one place to reach — the same shape as `.ms-stars svg path`. */
-  #scStar path { fill:#FFE730; }
+  /* ⛔ THE STAR WAS REDRAWN AND NOW CARRIES A WHITE OUTLINE (the owner's word 2026-08-25-v, with
+     the SVG attached: `fill:#FFE415; stroke-width:4px; stroke:#FFF`). The former asset was
+     `Interface/Star.svg`, viewBox 32×30, flat `#FFE730` and no stroke — it is still in the menu
+     wallet (`.ms-stars`), which he did not name; the two have DIVERGED on purpose and this line
+     is where that is recorded.
+     ⚠️ THE PAINT IS A RULE AND NOT AN ATTRIBUTE, the same shape as `.ms-stars svg path` — one
+     place to reach for a re-theme, and a CSS rule beats a presentational attribute anywhere.
+     ⚠️⚠️ `stroke-width:4` IS IN THE ARTWORK'S OWN UNITS AND LANDS ON 4 PX BY ARITHMETIC, not by
+     luck: the `<g>` scales by 0.643 and the desktop frame by 42/27 = 1.5556, and
+     4 × 0.643 × 1.5556 = 4.00. On the phone the whole frame is smaller and the outline scales
+     with it — one design at two sizes.
+     ⚠️ `paint-order:stroke` KEEPS THE OUTLINE UNDER THE FILL, exactly as the `.otext` mechanism
+     does for the captions beside it; without it the 4-wide stroke would eat 2 units of the
+     yellow body all the way round. */
+  #scStar path { fill:#FFE415; stroke:#fff; stroke-width:4; stroke-linejoin:round;
+    paint-order:stroke; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
      ⛔ THE THICKNESS 6 LIVED THROUGH ONE EDIT: having looked at the rendered frame, the owner
@@ -503,19 +513,37 @@
      own yellow fill and holds better. Should the level become hard to read on the
      phone — the way out is its FILL (a dark level, the way it is on the desktop), and
      that is his separate word. */
-  #scSvg text { --otl:0; }
+  /* ⛔⛔ THE OUTLINE IS BACK, AND IT CANCELS HIS WORD OF 2026-08-22-d («remove the stroke from
+     the level and the score»). His word 2026-08-25-v gives both captions the same block:
+     `color:#000; -webkit-text-stroke-width:4px; -webkit-text-stroke-color:#FFF; font-size:34px;
+     font-weight:900`.
+     ⚠️⚠️ `-webkit-text-stroke` ITSELF IS FORBIDDEN IN THIS PROJECT AND IS NOT WHAT IS WRITTEN
+     HERE: it cuts the corners (miter), which is the documented reason the single `.otext`
+     mechanism exists at all. The same 4 px of WHITE arrive through `--otl`/`--otl-color` — a
+     real vector stroke with round joins. His numbers, this project's engine.
+     ⚠️⚠️ 2.57 AND NOT 4, AND THE NUMBER IS DERIVED: `--otl` is in the SVG's own units, and the
+     desktop frame scales them by 42/27 = 1.5556 — the very scale that turns the 22-unit base
+     into the 34 px he wrote. 4 / 1.5556 = 2.57, i.e. exactly 4 visible px at the size his block
+     describes; on the phone the whole frame is smaller and the outline scales with it, which is
+     one design at two sizes rather than two designs.
+     ⛔ AND THE BLACK FILL RETIRES THE DESKTOP-ONLY BLACK OF 2026-08-25-b: with a white outline
+     under it, black reads on the dark top of the phone's sky too, so the score is ONE colour in
+     both layouts again — reaching his 2026-08-23-a intent by a different route. */
+  #scSvg text { --otl:2.57; --otl-color:#fff; fill:#000; }
   /* ⚠️ THE DESKTOP LEVEL LOSES ITS STROKE TOO. It never had the dark one — it carried
      the default white 2 from `.otext text`, and that default is exactly what «remove the
      stroke» has to reach: he named the ELEMENTS, not a layout, unlike his previous
      asks where the layout was said out loud. The desktop fill is black, so on the light
      sky the caption stays readable without any stroke at all. */
-  #lvlSvg text { --otl:0; }
+  #lvlSvg text { --otl:2.57; --otl-color:#fff; fill:#000; }
   @media (max-width:767px){
-    #lvlSvg text { font-size:18px; --otl:0; fill:#fff; }
-    /* ⛔ THE MOBILE `#score { fill:#ffe730 }` IS REMOVED AS A DUPLICATE 2026-08-23-a:
-       the base rule above now carries the same colour for both layouts. Restoring a
-       line here would only be needed if the two layouts ever diverge again. */
-    #scSvg text { --otl:0; }
+    /* ⛔ THE WHITE FILL AND THE ZEROED OUTLINE DIED 2026-08-25-v — see the note at `#scSvg text`
+       above. The SIZE stays 18: he named the outline, the colour and the weight, and the 34 px
+       of his block is the DESKTOP rendering of the shared 22-unit base, not a number for the
+       phone.
+       ⛔ THE MOBILE `#score { fill:#ffe730 }` IS REMOVED AS A DUPLICATE 2026-08-23-a:
+       the base rule above now carries the same colour for both layouts. */
+    #lvlSvg text { font-size:18px; }
   }
   /* The countdown number and the word Grinding — SVG text with a REAL outline.
      viewBox units (240 in width), therefore everything scales together with the
@@ -911,6 +939,25 @@
      2026-08-04, his word: «always of black colour»). The pinpoint re-painter is below
      that rule, both themes at once. */
   .zoomBtn svg path, html.night .zoomBtn svg path { fill:#000; }
+  /* ⛔⛔ THE PAUSE BUTTON IS WHITE IN BOTH THEMES (the owner's word 2026-08-25-v, three
+     properties verbatim: `border-radius:80px; background:rgba(255,255,255,.60);
+     box-shadow:0 0 16px 0 #FFF inset`, «everywhere white with a black icon inside»).
+     ⛔ IT TAKES THE PAUSE OUT OF THE DAY/NIGHT BUTTON RULE — the SECOND pinpoint exception
+     after the zoom, and it is written the same way: an override on top of `--btn-bg/--btn-fg`,
+     not an edit of the rule itself. «In the light theme the buttons are dark» stays in force
+     for whatever else wears `.iconBtn`.
+     ⚠️ IT IS NOT THE ZOOM'S RECIPE, and the difference is his: .60 against the zoom's .50, and
+     NO 1px rim (`inset 0 0 0 1px #fff`). Copying the zoom «for consistency» would have been
+     inventing a number he did not write.
+     ⚠️ THE RADIUS 80 IS HIS TOO, and on a 56px button it is the same full circle as the former
+     1000 — written as he wrote it, so a later reader compares his number with his number.
+     ⚠️ THE GLYPH IS PAINTED BY THE `.iconBtn svg path { fill:var(--btn-fg) }` RULE, so black has
+     to be said here explicitly and for BOTH themes — exactly the trap the zoom hit on
+     2026-08-04, when the night theme put a white glyph on a light plate. */
+  #pauseBtn, html.night #pauseBtn {
+    border-radius:80px; background:rgba(255,255,255,.60);
+    box-shadow:inset 0 0 16px 0 #fff; }
+  #pauseBtn svg path, html.night #pauseBtn svg path { fill:#000; }
   /* THE CHARACTER CONSTRUCTION (the mobile mock-up 741:1772 «Eye+score»): the eyes
      210×105 and the countdown number overlapping their bottom. There is NO turbo bar —
      the accumulation is shown by the pupils themselves (the owner's spec 2026-07-21).
@@ -1793,10 +1840,24 @@
      stable height the canon pins are untouched.
      ⚠️ THE PADDING IS LEFT AT 16 AND THAT IS DELIBERATE: the node now says 12, he named three
      properties and padding was not one of them. Flagged to him, not decided here. */
+  /* ⛔⛔ AND THE PLATE WAITS FOR ITS OWN DATA (the same word of 2026-08-25-v). This row's text
+     and avatar arrive from the network — until then the node is EMPTY, and the only thing on the
+     screen was the plate. It is now transparent until `lbEntryRefresh` (85-hud) has written the
+     row and hung `lb-ready` on it.
+     ⚠️⚠️ THE GEOMETRY IS UNTOUCHED AND THAT IS THE LAW THIS OBEYS: the height 72 and the 1 px
+     frame stay in the layout at all times (`border-color:transparent`, not `border:none`), so
+     the arrival of the answer does not move the Next button out from under the finger — the
+     disease the former inset was cured of. Only the PAINT waits.
+     ⚠️ IT IS A CLASS AND NOT A TIMED ANIMATION, unlike the item statistics above: that plate
+     waits for an animation whose delay we own, this one waits for a network answer whose time
+     nobody owns. A fixed delay here would be a guess dressed as a rule. */
   .win-wrap .win-lbentry { position:relative; width:100%; box-sizing:border-box;
     cursor:default; height:72px; padding:0 16px;
-    background:rgba(255,255,255,.04); border-radius:64px;
-    border:1px solid rgba(255,255,255,.12); }
+    background:transparent; border-radius:64px;
+    border:1px solid transparent;
+    transition:background-color .32s ease-out, border-color .32s ease-out; }
+  .win-wrap .win-lbentry.lb-ready { background:rgba(255,255,255,.04);
+    border-color:rgba(255,255,255,.12); }
   /* ⛔ THE INNER GLOW IS OFF (his word above: «remove the inner glow from this block»). The
      layer is KEPT and left empty on purpose — it is the `::after` the canon describes as
      drawn OVER the avatars, and bringing the glow back must cost one line, not a rebuild of
@@ -2141,10 +2202,28 @@
      ⚠️ THE RADIUS STAYS 32 AND DOES **NOT** BECOME THE PILL'S 64: he named the outline and the
      background, and the 32 is the node's own (`rounded-[var(--32,32px)]` on 779:1049). A block
      of three rows at radius 64 would round into a lozenge. */
-  .win-top-list { display:flex; flex-direction:column; gap:12px;
-    box-sizing:border-box; padding:16px; border-radius:32px;
-    background:rgba(255,255,255,.04); box-shadow:none;
-    border:1px solid rgba(255,255,255,.12); }
+  /* ⛔⛔ THE PLATE MOVED ONTO ITS OWN LAYER 2026-08-25-v: «on the final screen the backing under
+     the item statistics and the leaderboards appears TOGETHER WITH THE DATA, not before it».
+     The rows enter on a 1 s delay (`winRowIn`, renderWinTop), so an empty framed box stood on
+     the screen for a full second before anything was in it.
+     ⚠️⚠️ A `::before` AND NOT `opacity` ON THE BLOCK ITSELF, and the reason is the stagger: the
+     rows carry their own animations at 1 + i×0.09 s, and fading the container would have
+     dragged rows 2 and 3 in with row 1 — the very rhythm the delays exist for. The plate is a
+     separate layer, so the two do not touch.
+     ⚠️ `inset:0` COVERS THE PADDING BOX, so the 16 px inset of the rows is unchanged, and
+     `pointer-events:none` keeps the layer out of the way of anything clickable.
+     ⚠️ THE VALUES ARE UNMOVED — 4 % fill, 1 px white 12 %, radius 32 — they simply live one
+     layer down now. A guard that read them off the block itself has been re-pointed. */
+  .win-top-list { position:relative; display:flex; flex-direction:column; gap:12px;
+    box-sizing:border-box; padding:16px; }
+  .win-top-list::before { content:''; position:absolute; inset:0; pointer-events:none;
+    border-radius:32px; background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.12); box-shadow:none; }
+  /* ⚠️ THE SAME 1 s AS THE FIRST ROW (`renderWinTop`: `1 + i * step`). The number is repeated
+     here because CSS cannot read it from the JS; if the row delay is ever retuned, this is the
+     second place. Guarded: the suite measures the plate BEFORE the delay and after it. */
+  .win-in .win-top-list::before { animation:winFade .42s ease-out 1s both; }
+  @keyframes winFade { from { opacity:0; } to { opacity:1; } }
   .wt-row { display:flex; align-items:center; gap:8px; }
   .wt-thumb { flex:none; width:44px; height:44px; border-radius:12px; overflow:hidden; }
   .wt-thumb img { width:100%; height:100%; display:block; }
@@ -2233,6 +2312,7 @@
   @media (prefers-reduced-motion: reduce){
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
+    .win-in .win-top-list::before,
     .win-in .win-lbslot { animation:none; }
     /* ⚠️ HERE THEY RESTORE THE STATIC ROTATION, WHICH OTHERWISE WOULD BE REMOVED BY
        the switched-off entry animation (`animation:none` returns the element to the
@@ -3690,7 +3770,7 @@
   </div>
   <div class="grp" id="statStack">
     <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
-    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-lead="24.4">
+    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-icon="24.44" data-gap="8">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
         <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>
       </linearGradient></defs>
@@ -3707,7 +3787,7 @@
            The y offset 3.86 centres 19.28 units of height in 27.
            ⚠️ `data-lead` IS READ BY `fitStat` (85-hud): the frame is squeezed to the TEXT, and
            without the lead the star would be drawn outside the frame it shares. -->
-      <g id="scStar" transform="translate(0,3.86) scale(0.643)" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></g>
+      <g id="scStar" transform="translate(0,0.65) scale(0.643)" aria-hidden="true"><path d="M20.0159 2C22.5429 2 23.9256 3.94445 24.5178 5.86426L24.5198 5.87207L26.47 12.2822L32.8088 12.2246C33.8201 12.2129 34.8629 12.3966 35.7795 12.9258C36.7343 13.4769 37.4286 14.3341 37.7834 15.4141C38.5684 17.8031 37.2731 19.7695 35.6487 20.9834L35.6477 20.9844L30.3879 24.9102L32.468 31.3184H32.467C33.1031 33.2503 33.0051 35.577 31.1086 37.0781L31.1077 37.0771C30.1831 37.8112 29.0868 38.1084 27.9612 37.9648C26.9016 37.8296 25.9482 37.3248 25.1409 36.707L25.1379 36.7041L20.0149 32.7666L14.8762 36.7061C14.0756 37.3252 13.1273 37.8295 12.0706 37.9648C10.9451 38.1089 9.848 37.8109 8.92407 37.0771C7.14313 35.6671 6.94737 33.5292 7.45728 31.6738L7.56763 31.3076L9.6438 24.9102L4.38501 20.9844L4.38403 20.9834C2.77288 19.7794 1.43567 17.8062 2.25415 15.3809H2.25513C2.61368 14.311 3.30846 13.4654 4.25317 12.9219C5.16228 12.3988 6.19565 12.2136 7.20044 12.2246L13.5608 12.2822L15.512 5.87207L15.5149 5.86426C16.1071 3.94457 17.4891 2.00024 20.0159 2Z"/></g>
       <text id="score" x="102" y="21" text-anchor="end">0</text></svg>
   </div>
 </div>

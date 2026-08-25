@@ -11107,3 +11107,101 @@ tie it to whatever `genLevel` happened to deal and go red on a sound build the d
 changes. It takes a type that is on the field AND has pack-mates, because the pack-mates are what
 the «not to a group» arm is about. The rows carry `data-type` so the guard need not reproduce the
 `accLabel` mapping — a copy of a translation table beside the working one is how labels drift.
+
+## BATCH 2026-08-25-v: THE HUD PAINTED BY HIS NUMBERS, AND TWO PLATES THAT WAIT FOR THEIR DATA
+
+Seven asks in one message. Two of them cancel words of his own, one of them cancels a warning this
+file wrote a day earlier — and that warning turned out to be right, which is why it is kept.
+
+### THE PAUSE BUTTON IS WHITE IN BOTH THEMES, AND THE PRICE IS 3.50 → 1.476
+
+His word: «the pause button is everywhere white with a black icon inside», with
+`border-radius:80px; background:rgba(255,255,255,.60); box-shadow:0 0 16px 0 #FFF inset`.
+
+⛔ **IT TAKES THE PAUSE OUT OF THE DAY/NIGHT `--btn-bg` RULE** — the SECOND pinpoint exception
+after the zoom, written the same way: an override on top of the tokens, not an edit of the rule.
+⚠️ **IT IS NOT THE ZOOM'S RECIPE, AND THE DIFFERENCE IS HIS:** .60 against the zoom's .50, and no
+1px rim. Copying the zoom «for consistency» would have been inventing a number he did not write.
+⚠️ **THE GLYPH HAD TO BE SAID FOR BOTH THEMES EXPLICITLY** — it is painted by
+`.iconBtn svg path { fill:var(--btn-fg) }`, exactly the trap the zoom hit on 2026-08-04.
+
+⛔⛔ **THE MEASURED CONTRAST FLOOR FIRED, AND THE GUARD THAT FIRED HAD PREDICTED IT IN WORDS.**
+`BTN_FLOOR.day` demanded the disc read ≥ 3.50 against the sky; a white 60 % plate on a light sky
+reads **1.476**, in both themes. The «pause did not join the family» assert had said, one day
+earlier: «give it the white glass and the measured contrast floor against the sky goes with it».
+**It did. He overruled it knowingly-by-instruction, so both guards moved with the rule** — and the
+old warning is preserved inside the new message rather than deleted.
+✅ **WHAT NOW CARRIES THE BUTTON IS THE BLACK GLYPH INSIDE THE DISC**, and that is guarded with a
+real number: (0.8008 + 0.05) / 0.05 = **17.0** against a floor of 4.5. The disc-vs-sky arm is KEPT
+at a low floor rather than deleted — it is the only thing that would catch the plate vanishing.
+
+### THE LEVEL AND THE SCORE: BLACK UNDER A WHITE OUTLINE OF 4 PIXELS
+
+His word gives both captions one block: `color:#000; -webkit-text-stroke-width:4px;
+-webkit-text-stroke-color:#FFF; font-size:34px; font-weight:900`.
+
+⛔⛔ **IT CANCELS HIS OWN WORD OF 2026-08-22-d** («remove the stroke from the level and the score»).
+**THE FOURTH EDITION OF THIS PAIR:** 6 px black → 4 px `#113444` → none → 4 px white.
+⚠️⚠️ **`-webkit-text-stroke` IS NOT WHAT SHIPS AND MUST NOT BE «RESTORED» FROM HIS TEXT** — it cuts
+corners on a miter join, which is the documented reason the single `.otext` mechanism exists at
+all. The same 4 px of white arrive through `--otl`/`--otl-color`: his numbers, this project's
+engine.
+⚠️⚠️ **2.57 AND NOT 4, AND THE NUMBER IS DERIVED.** `--otl` is in the SVG's own units and the
+desktop frame scales them by 42/27 = 1.5556 — the same scale that turns the 22-unit base into the
+34 px he wrote. 4 / 1.5556 = 2.57, i.e. exactly 4 visible px at the size his block describes; the
+phone's frame is smaller and the outline scales with it. **One design at two sizes.**
+⛔ **AND IT RETIRES THE DESKTOP-ONLY BLACK OF 2026-08-25-b, ONE BATCH OLD.** That split existed
+only because black without an outline is unreadable on the phone, where the top of the frame is
+the darkest sky stop. With the outline the constraint is gone and the score is ONE colour in both
+layouts again — his original 2026-08-23-a intent, reached by a different route.
+
+### THE STAR: A NEW ASSET, AND A GAP THAT COST THE MECHANISM A CHANGE
+
+`fill:#FFE415; stroke:#FFF; stroke-width:4` — a redrawn asset, viewBox 41×40.
+⚠️ **THE MENU WALLET KEEPS THE OLD FLAT `#FFE730` STAR** (`.ms-stars`): he did not name it, so the
+two have DIVERGED on purpose. Recorded so nobody «unifies» them.
+⚠️ **4 IN THE ARTWORK'S UNITS LANDS ON 4 PX BY ARITHMETIC:** the `<g>` scales by 0.643 and the
+frame by 1.5556 — 4 × 0.643 × 1.5556 = 4.00. `paint-order:stroke` keeps the outline under the
+fill, as the `.otext` captions beside it do.
+
+⛔⛔ **«8 px BETWEEN THE STAR AND THE SCORE» COULD NOT BE WRITTEN AS UNITS AT ALL.** Everything
+inside an `.otext` frame scales with it, so ONE number of viewBox units rendered **8 px on the
+desktop and 5 on the phone** — which is what he was pointing at. `fitStat` now takes the gap in
+PIXELS (`data-gap`) and divides it by the live scale, so both layouts land on 8. The icon's own
+width stays in units (`data-icon`).
+⚠️ The `- 1` inside that arithmetic is the frame's own inset, not a fudge: the text is anchored
+`end` at `u - 2` in a frame of `lead + textLen + 3`, so its ink begins at exactly `lead + 1`.
+
+### THE SCORE IS ALWAYS FLUSH RIGHT — MEASURED ACROSS WIDTHS
+
+His sixth ask was already true, and is now **stated**: the right edge is the same pixel at 0, 7,
+1234 and 987654, and it is the STAR that travels left. ⚠️ The `starLeft` arm is the positive
+control — a frozen right edge is also true of a build that stopped re-fitting the frame at all,
+and then the number would be overrunning it instead of standing still.
+
+### THE PLATES WAIT FOR THEIR DATA, AND THEY WAIT FOR DIFFERENT THINGS
+
+His word: «on the final screen the backing under the item statistics and the leaderboards appears
+together with the data, not before it».
+
+⚠️⚠️ **THE TWO ARE SOLVED DIFFERENTLY BECAUSE THEY WAIT FOR DIFFERENT THINGS, AND THAT IS THE
+WHOLE DESIGN.** The item list waits for an ANIMATION whose delay we own → a `::before` plate with
+the same 1 s delay as the first row. The leaderboard row waits for a NETWORK ANSWER whose time
+nobody owns → a class (`lb-ready`), hung in `lbEntryRefresh` on the very line that writes the
+rank, so the paint and the content cannot get out of step. A fixed delay there would be a guess
+dressed as a rule.
+⚠️⚠️ **A `::before` AND NOT `opacity` ON THE BLOCK:** the rows carry their own animations at
+1 + i×0.09 s, and fading the container would have dragged rows 2 and 3 in with row 1 — the very
+stagger the delays exist for.
+⚠️⚠️ **THE LEADERBOARD ROW KEEPS ITS 72 px AT ALL TIMES** (`border-color:transparent`, not
+`border:none`). Only the PAINT waits; the geometry never moves, so a late answer cannot shift the
+Next button out from under the finger — the disease the removed inset was cured of. Pinned on both
+sides of the transition.
+
+### THE `calc()` TRAP, PAID FOR A SECOND TIME
+
+⚠️ `getComputedStyle(...).strokeWidth` serialises as **`calc(5.14px)`** when the value comes from a
+`calc()` over a custom property, and `parseFloat('calc(5.14px)')` is `NaN` — the first edition of
+the outline probe reported `visible: null` and went red on a sound build. The file already carried
+the same lesson one screen up, where a zero width serialises as `0%`. **Read numbers out of a
+computed length with a regex in this project, never with `parseFloat` alone.**
