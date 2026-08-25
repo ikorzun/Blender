@@ -929,6 +929,72 @@ page.on('response', (r) => {
     'places, and both would look like the truth (' + JSON.stringify({
       win: winLbRow.textWin, menu: winLbRow.textMenu }) + ')');
 
+  // ═══ THE VICTORY ROWS ARE FRAMED TIGHT, AND ONLY THEY (the owner's word 2026-08-25-d) ═══
+  // He was shown the measurement — the enclosing-cylinder frame gives every type a different
+  // share of its 44 px box, 44.5 % to 90.6 %, a 2.04× spread inside one column — and picked
+  // option «a»: a silhouette frame for the victory rows alone, since they are the one surface
+  // with no hover spin to stay in step with.
+  // ⚠️⚠️ THREE SEPARATE STATEMENTS, AND EACH NEEDS ITS OWN ARM: the tight picture is tight, the
+  // loose one is still loose, and THE ROW ACTUALLY SHOWS THE TIGHT ONE. A build that computed
+  // the tight portrait and went on rendering the loose one would satisfy the first two.
+  const tightProbe = await page.evaluate(async () => {
+    const g = window.__game;
+    const ink = url => new Promise(done => {
+      const im = new Image();
+      im.onload = () => {
+        const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+        for (let yy = 0; yy < c.height; yy++) for (let xx = 0; xx < c.width; xx++)
+          if (d[(yy * c.width + xx) * 4 + 3] > 8){
+            if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy; }
+        done(x1 < 0 ? null : +(Math.max(x1 - x0 + 1, y1 - y0 + 1) / c.width * 100).toFixed(1));
+      };
+      im.onerror = () => done(null); im.src = url;
+    });
+    const rows = [...document.querySelectorAll('.wt-row')];
+    const out = [];
+    for (const r of rows){
+      const k = r.dataset.type, img = r.querySelector('img');
+      const tightUrl = g.thumbURL(k, false, true), looseUrl = g.thumbURL(k, false, false);
+      out.push({ k, shown: !!(img && tightUrl && img.getAttribute('src') === tightUrl),
+                 differ: !!(tightUrl && looseUrl && tightUrl !== looseUrl),
+                 tight: tightUrl ? await ink(tightUrl) : null,
+                 loose: looseUrl ? await ink(looseUrl) : null });
+    }
+    return { rows: out, frames: rows.length ? g.thumbFrames(rows[0].dataset.type) : null };
+  });
+  const tightRows = tightProbe.rows.filter(r => r.tight != null && r.loose != null);
+  const tightFills = tightRows.map(r => r.tight);
+  console.log('victory icons/tight frame:', JSON.stringify(tightProbe));
+  expect(tightRows.length >= 3 && tightFills.every(v => v >= 90) &&
+         Math.max(...tightFills) / Math.min(...tightFills) <= 1.05,
+    '⚠️⚠️ EVERY VICTORY ROW FILLS ITS BOX, AND THEY ALL FILL IT THE SAME (' +
+    JSON.stringify(tightFills) + '). The geometric ideal at `THUMB_MARGIN = 0.04` is 92.6 %, and ' +
+    'the measurement before this change ran 44.5…90.6 % — a 2.04× spread that the eye read as ' +
+    '«the icons are drawn at random sizes». ' +
+    '⚠️⚠️ THE **SPREAD** IS THE STATEMENT, NOT THE FLOOR: three icons all at 70 % would look ' +
+    'consistent and small, three at 93/70/93 would not. Both arms are needed and neither is ' +
+    'decoration. ⛔ SABOTAGE: point `renderWinTop` back at `itemThumb(it)` without the flag');
+  expect(tightRows.every(r => r.differ) && tightRows.some(r => r.tight - r.loose >= 3),
+    '⚠️⚠️ AND THE LOOSE PORTRAIT IS STILL THERE, UNTOUCHED — this is the half that keeps the fix ' +
+    'from having eaten the collection card. The two URLs differ for every row (separate cache ' +
+    'entries, `#t`), and for at least one type the tight one is materially fuller (' +
+    JSON.stringify(tightRows.map(r => ({ k: r.k, loose: r.loose, tight: r.tight }))) + '). ' +
+    '⛔⛔ THE CYLINDER FRAME MUST SURVIVE: it is the owner\'s own spec of 2026-07-27 («the size ' +
+    'must not change on hover») and `thumbFrames().equal` pins it (' +
+    JSON.stringify(tightProbe.frames) + '). ⛔ SABOTAGE: make `frameSilhouette` replace ' +
+    '`frameCylinder` instead of standing beside it — this assert goes red, and so does the ' +
+    'hover-frame guard at the top of the file');
+  expect(tightProbe.rows.length >= 3 && tightProbe.rows.every(r => r.shown),
+    '⚠️⚠️ AND THE ROW REALLY SHOWS THE TIGHT PICTURE — the arm the other two cannot cover: its ' +
+    '`<img src>` is compared with the URL production would compute for THAT type, read off the ' +
+    'row\'s own `data-type` rather than through the `accLabel` mapping (' +
+    JSON.stringify(tightProbe.rows.map(r => ({ k: r.k, shown: r.shown }))) + '). ' +
+    '⛔ SABOTAGE: compute the tight portrait and hand the loose one to the markup — the fills ' +
+    'above stay perfect and the screen does not change at all');
+
   // ═══ THE PLATES ARRIVE WITH THEIR DATA, NOT BEFORE IT (the owner's word 2026-08-25-v) ═══
   // «On the final screen the backing under the item statistics and the leaderboards appears
   // together with the data, not before it.»

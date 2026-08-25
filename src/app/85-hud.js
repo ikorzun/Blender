@@ -700,9 +700,16 @@ function renderWinTop(reduce){
   keys.slice(0, winTopN()).forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
+    // ⚠️ THE ROW CARRIES ITS TYPE KEY (2026-08-25-d): the visible name is `accLabel`, and a guard
+    // that has to compare this row's picture with the one production would compute for it would
+    // otherwise have to reproduce that mapping — a copy of a translation table beside the
+    // working one, which is how labels drift.
+    row.dataset.type = k;
     row.style.animationDelay = (reduce ? 0 : (1 + i * step)) + 's';
     let url = '';
-    try { const it = thumbItemForKey(k); if (it) url = itemThumb(it); } catch(e){}
+    // ⛔ TIGHT (2026-08-25-d): framed by the silhouette, not by the enclosing cylinder, so every
+    // type fills its 44 px box instead of floating in it at a per-type share of 44…90 %.
+    try { const it = thumbItemForKey(k); if (it) url = itemThumb(it, true); } catch(e){}
     row.innerHTML =
       '<div class="wt-thumb">' + (url ? '<img alt="" src="' + url + '">' : '') + '</div>' +
       '<div class="wt-body"><div class="wt-col"><div class="wt-name"></div>' +
@@ -1416,9 +1423,15 @@ function thumbItemsOfType(name){
   }
   return out;
 }
-function itemThumb(item){
+function itemThumb(item, tight){
   if (!item || !item.mesh) return null;
-  const key = String(item.key);
+  // ⚠️⚠️ THE MODE IS PART OF THE CACHE KEY (2026-08-25-d). Both variants are legitimate pictures
+  // of one item, and one key for two framings would have served whichever was shot first — the
+  // collection card would have got the tight one or the victory row the loose one, at random,
+  // depending on which screen the player opened first.
+  // ⚠️ `thumbCacheDrop` walks the whole object, so the second variant is dropped with the first
+  // and no writer of pixels has to learn about it.
+  const key = String(item.key) + (tight ? '#t' : '');
   if (thumbCache[key]) return thumbCache[key];
   // ⚠️⚠️ THE ATLAS IS NOT DECODED YET -> DO NOT SHOOT AND DO NOT CACHE (the owner's
   // complaint 2026-07-30 «where are the previews of all the new objects?»).
@@ -1473,7 +1486,10 @@ function itemThumb(item){
     // while rotating), whereas the static shot by the silhouette gave a BIGGER model → on hover
     // the img→canvas substitution SHRANK the object. A single cylinder frame = the static shot is EXACTLY
     // equal to the spin. It is Y-invariant: yaw has no effect, so one frame fits any angle.
-    frameCylinder(thumbCam, m);
+    // ⛔ THE VICTORY ROWS ASK FOR THE TIGHT ONE — the only surface with no hover spin to keep in
+    // step with (verified: `thumbSpinStart`/`thumbSpinToggle` are wired to the collection cards
+    // and the new-item screen, never to `.wt-thumb`).
+    if (tight) frameSilhouette(thumbCam, m); else frameCylinder(thumbCam, m);
     // ⚠️ THE UNAVAILABILITY VEIL paints material.color with a lerp towards grey
     // (tickVeil, 60-access): a shot at that moment would settle into the cache GREY
     // FOREVER. For the duration of the render we restore the type's original colour.
@@ -1556,6 +1572,38 @@ function ensureSpinR(){
 // a Y rotation does not change BY CONSTRUCTION (three Euler XYZ: R=Rx·Ry, and Ry does not
 // touch a Y-symmetric cylinder). This means the model is NOT clipped and does not «breathe»
 // with the zoom. It is computed ONCE at the start of the hover.
+// ⛔⛔ THE TIGHT FRAME — BY THE SILHOUETTE AT THE POSE ACTUALLY SHOWN (the owner's word
+// 2026-08-25-d, choosing option «a» after the measurement was put to him).
+// ⚠️⚠️ IT DOES **NOT** REPLACE `frameCylinder` AND MUST NOT: the cylinder is his own spec of
+// 2026-07-27 («the size must not change on hover»), it is what makes the static shot and the
+// live spin identical, and `__game.thumbFrames(key).equal` asserts that equality. This function
+// is a SECOND path for the ONE surface that never spins — the victory screen's rows. Everything
+// else keeps the cylinder untouched.
+// ⚠️ WHY THE CYLINDER UNDER-SIZES AT ALL: its radius is the single widest vertex in XZ, sampled
+// as a full circle, so a model that is not round in plan is framed by a disc it does not fill —
+// measured 44.5 % of the box on `brickbar` against the 92.6 % the margin allows, and a 1.49×
+// spread between neighbouring rows of one screen.
+// ⚠️ IT PROJECTS THROUGH `mesh.matrixWorld`, NOT THROUGH A POSE REBUILT HERE. The cylinder can
+// afford `makeRotationX` alone because it is Y-invariant; the silhouette is not — it must see
+// `PORTRAIT_YAW0`, and the only place that never disagrees with the render is the matrix the
+// render itself uses.
+function frameSilhouette(cam, mesh){
+  const pos = mesh.geometry.attributes.position;
+  const mw = mesh.matrixWorld, view = cam.matrixWorldInverse;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < pos.count; i++){
+    _spv.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(mw).applyMatrix4(view);
+    if (_spv.x < x0) x0 = _spv.x; if (_spv.x > x1) x1 = _spv.x;
+    if (_spv.y < y0) y0 = _spv.y; if (_spv.y > y1) y1 = _spv.y;
+  }
+  // ⚠️ THE SAME `THUMB_MARGIN` AS THE CYLINDER, and squared off the same way: the buffer is
+  // square, so the LONGER axis decides and the other one keeps the model's own proportion.
+  const half = Math.max(Math.max(x1 - x0, y1 - y0) / 2 * (1 + 2 * THUMB_MARGIN), 1e-4);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  cam.left = cx - half; cam.right = cx + half;
+  cam.top = cy + half;  cam.bottom = cy - half;
+  cam.updateProjectionMatrix();
+}
 function frameCylinder(cam, mesh){
   const pos = mesh.geometry.attributes.position, s = mesh.scale.x;
   let R = 0, yMin = Infinity, yMax = -Infinity;

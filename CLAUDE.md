@@ -10945,11 +10945,11 @@ glass he is cancelling lives in the WHITE variant of the same component, which i
 screen. His word is the spec; the node is the evidence that the two disagree. Both are recorded
 here so that the next reader does not «fix» the CSS back to the node.
 
-## OPEN 2026-08-25: «A PROBLEM WITH THE ICONS» — MEASURED, NOT YET DECIDED
+## CLOSED 2026-08-25-d: «A PROBLEM WITH THE ICONS» — MEASURED, THEN DECIDED BY HIM (option «a»)
 
 He sent a screenshot of the victory screen and wrote only «problem with the icons, check it». What
-follows is the measurement; **no code was changed, because the cure collides with a spec of his
-own and he has to choose.**
+follows is the measurement, kept because it is what the choice was made on. **He was shown the
+three ways out and chose «a» — see the batch at the end of this file for what shipped.**
 
 ### WHAT IS WRONG: THE PORTRAIT IS FRAMED BY THE CYLINDER, SO EVERY TYPE FILLS A DIFFERENT SHARE
 
@@ -11252,3 +11252,69 @@ a hard-coded `0.643`; the moment the icon was rescaled that literal went on repo
 outline width for a build that had changed. It now reads `getScreenCTM().a` off the live `<g>` —
 user units to screen pixels, whatever either scale becomes. **A copy of a live number inside a
 guard is the same defect as a copy inside the code.**
+
+## BATCH 2026-08-25-d: THE VICTORY ICONS ARE FRAMED TIGHT — AND ONLY THEY
+
+His word: «now deal with the icons on the final screen, option a» — after being shown the
+measurement and the three ways out.
+
+### WHAT SHIPPED
+
+A SECOND framing path, `frameSilhouette` (85-hud), used by `renderWinTop` alone through
+`itemThumb(item, true)`. **Measured over every live type, before → after:**
+
+| | max-axis fill | spread across one column |
+|---|---|---|
+| the enclosing cylinder (was) | 44.5 % … 90.6 % | **2.04×** |
+| the silhouette (now) | 92.6 % … 93.0 % | **1.00×** |
+
+92.6 % is the geometric ideal at `THUMB_MARGIN = 0.04` — every type now stands at it.
+
+### WHY IT IS A SECOND PATH AND NOT A REPLACEMENT
+
+⛔⛔ **`frameCylinder` MUST SURVIVE UNTOUCHED.** It is his own spec of 2026-07-27 («the size must
+not change on hover»); it is what makes the static shot and the live spin identical, and
+`__game.thumbFrames(key).equal` asserts that equality. **The victory rows are the ONE surface with
+no hover spin to stay in step with** — verified, not assumed: `thumbSpinStart`/`thumbSpinToggle`
+are wired to the collection cards and the new-item screen, never to `.wt-thumb`.
+⚠️ **THE MODE IS PART OF THE CACHE KEY** (`key + '#t'`). One key for two framings would have
+served whichever screen the player opened first — the collection card could have got the tight
+picture, or the victory row the loose one, at random. `thumbCacheDrop` walks the whole object, so
+no writer of pixels had to learn about the second variant.
+⚠️ **THE SILHOUETTE PROJECTS THROUGH `mesh.matrixWorld`, NOT A POSE REBUILT INSIDE THE FRAMER.**
+The cylinder can afford `makeRotationX` alone because it is Y-invariant; the silhouette is not —
+it must see `PORTRAIT_YAW0`, and the only matrix that can never disagree with the render is the
+one the render itself uses.
+
+### A DOCUMENTED-INERT RULE BECAME ACTIVE, AND THAT IS WORTH THE PARAGRAPH
+
+⚠️⚠️ `.wt-thumb { border-radius:12px; overflow:hidden }` was measured **inert** — 0 pixels lost on
+all 76 types — for as long as the models never reached the corner. The tight frame changed that in
+the same batch: **`brickbar`, a long bar drawn on the diagonal, lost 42 pixels of 65536** to the
+corner mask. The rule was removed rather than worked around: this box has no background and no
+border of its own, so the radius clipped the ART and nothing else, and the sibling row on the
+showcase panel (`.vthumb`) has carried radius 0 and visible overflow all along.
+⚠️ **A REMINDER LEFT IN THE CSS:** anyone restoring a background here must restore the radius WITH
+it and re-measure the corner bite — `THUMB_MARGIN` alone no longer buys the clearance it used to.
+
+### THE GUARD IS THREE STATEMENTS, AND THE THIRD IS THE ONE THE OTHERS CANNOT COVER
+
+✅ **the tight picture is tight** — every row ≥ 90 % and the spread ≤ 1.05×. ⚠️ **THE SPREAD IS
+THE STATEMENT, NOT THE FLOOR:** three icons all at 70 % would look consistent and small; three at
+93/70/93 would not. Neither arm is decoration.
+✅ **the loose picture is still there** — the two URLs differ for every row, and for at least one
+type the tight one is materially fuller. This is what keeps the fix from having eaten the
+collection card.
+✅ **the row really shows the tight one** — its `<img src>` is compared with the URL production
+would compute for that type. **A build that computed the tight portrait and went on rendering the
+loose one satisfies the first two arms and changes nothing on the screen.** The row carries
+`data-type` so the guard need not reproduce the `accLabel` mapping.
+
+### WHAT THIS DOES **NOT** FIX, AND HE WAS TOLD SO BEFORE HE CHOSE
+
+⛔ **THE ELONGATED MODELS.** A banana's long axis was already at 87.9 % and is now 93 %; its
+HEIGHT moves 28.9 % → 30.5 %, i.e. 12.7 → 13.4 CSS px in a 44 box. A flat model in a square box is
+a different lever — a non-square thumb box, a per-type pose, or acceptance. Not touched.
+⛔ **THE DPR OF THE PORTRAIT BUFFER** (`THUMB_PX = 256` flat) is still open: ~1.94× more than the
+44 px row needs at DPR 3, and an **upscale** on the collection card — 1.36× on the charge slot,
+1.57× on a tablet. Named in the closed section above; still nobody's decision.

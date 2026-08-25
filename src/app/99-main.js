@@ -1597,7 +1597,7 @@ window.__game = {
   setPortraitPose(tx, yaw){ PORTRAIT_TILT_X = tx; PORTRAIT_YAW0 = yaw;
     for (const k in thumbCache) delete thumbCache[k]; return [PORTRAIT_TILT_X, PORTRAIT_YAW0]; },
   // the static portrait as a data-URL (probe/suite): ghost=true -> ghost mode
-  thumbURL(key, ghost){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it) : null; },
+  thumbURL(key, ghost, tight){ const it = thumbItemForKey(key, ghost); return it ? itemThumb(it, tight) : null; },
   // REGRESSION #3 (the owner's spec 2026-07-24 «the size on hover = the size of the still»):
   // the still (itemThumb) and the spin MUST frame with ONE frameCylinder — otherwise
   // on hover the img->canvas substitution shrinks the object. The hook frames both cameras DIRECTLY

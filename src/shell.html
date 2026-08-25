@@ -2246,7 +2246,17 @@
   .win-in .win-top-list::before { animation:winFade .42s ease-out 1s both; }
   @keyframes winFade { from { opacity:0; } to { opacity:1; } }
   .wt-row { display:flex; align-items:center; gap:8px; }
-  .wt-thumb { flex:none; width:44px; height:44px; border-radius:12px; overflow:hidden; }
+  /* ⛔⛔ THE RADIUS AND THE `overflow:hidden` ARE GONE (2026-08-25-d). They were INERT for as long
+     as the portraits were framed by the enclosing cylinder — measured: 0 pixels lost on all 76
+     types — because the model never reached the corner. The tight frame changed that in the same
+     batch: `brickbar`, a long bar drawn on the diagonal, lost 42 pixels of 65536 to the mask.
+     ⚠️ NOTHING IS LOST BY REMOVING THEM: this box has no background and no border of its own, so
+     the radius clipped the ART and nothing else. The sibling row on the showcase panel
+     (`.vthumb`) has carried radius 0 and visible overflow all along — this is the two agreeing
+     again, not a new divergence.
+     ⚠️ A REMINDER FOR ANYONE RESTORING A BACKGROUND HERE: put the radius back WITH it, and
+     re-measure the corner bite — `THUMB_MARGIN` alone no longer buys the clearance it used to. */
+  .wt-thumb { flex:none; width:44px; height:44px; }
   .wt-thumb img { width:100%; height:100%; display:block; }
   .wt-body { flex:1; min-width:0; display:flex; align-items:center; gap:16px; }
   .wt-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
