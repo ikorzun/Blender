@@ -132,6 +132,20 @@
      ⛔ Do NOT replace with `transparent` «for cleanliness»: on a fixed element at the edge that
      reads as «transparent BLACK». */
   #topBar { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
+  /* ⛔⛔ THE TOP BAR CENTRES ITS GROUPS (the owner's word 2026-08-25-g: «the pause button, the
+     level, the star and the score must be aligned on ONE vertical; take the centre of the pause
+     button as the base»).
+     ⚠️⚠️ THE DEFECT WAS MEASURED, NOT GUESSED: `.bar` gives `align-items:flex-start`, the left
+     group is as tall as the 56 px pause and the right one only 42, so with both pinned to the
+     TOP their centres sat at 36 and 29 — the score group rode **7 px high** on the desktop.
+     ⚠️ THE PAUSE IS THE BASE BY ARITHMETIC AND NOT BY A NUMBER: it is the tallest child, so it
+     alone fills the bar's 56 px content box, and centring everything in that box puts every
+     other group on the pause's own centre line. Nothing here is written as a literal.
+     ⚠️ `#topBar` AND NOT `.bar`: the BOTTOM bar needs `flex-end` for the zoom column (the canon
+     says so at `#zoomGrp`), and editing the shared rule would have moved it.
+     ⚠️ THE PHONE DOES NOT MOVE — its right group is the 56-tall `#statStack`, already the same
+     height as the pause; measured 36 against 36 before and after. */
+  #topBar { align-items:center; }
   #bottomBar { background:rgba(var(--sky-bot-rgb, 204,255,248), .01); }
   #face { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
   /* ⚠️ WHILE THE MENU IS OPEN — THE SCREEN EDGE IS IN THE MENU'S TONE (the owner's complaint
@@ -466,14 +480,21 @@
      is where that is recorded.
      ⚠️ THE PAINT IS A RULE AND NOT AN ATTRIBUTE, the same shape as `.ms-stars svg path` — one
      place to reach for a re-theme, and a CSS rule beats a presentational attribute anywhere.
-     ⚠️⚠️ `stroke-width:4` IS IN THE ARTWORK'S OWN UNITS AND LANDS ON 4 PX BY ARITHMETIC, not by
-     luck: the `<g>` scales by 0.643 and the desktop frame by 42/27 = 1.5556, and
-     4 × 0.643 × 1.5556 = 4.00. On the phone the whole frame is smaller and the outline scales
-     with it — one design at two sizes.
+     ⛔⛔ THE STAR WAS SHRUNK TO THE HEIGHT OF THE SCORE'S TYPE SIZE (the owner 2026-08-25-g:
+     «shrink the star next to the score on the game screen to the height of the size of the score
+     text»). The scale went 0.643 → 0.55, i.e. the 40-unit artwork now stands **22 units tall —
+     exactly the `font-size` of the number beside it** (`.otext.stat text`). It is that equality
+     that is written, not a pixel count: on the desktop both come out at 34.2 px and on the phone
+     at 22, because the frame scales them together.
+     ⚠️⚠️ AND `stroke-width` HAD TO GROW 4 → 4.676 TO **STAY** 4 VISIBLE PIXELS. It is in the
+     artwork's own units, so shrinking the `<g>` would have thinned the outline to 3.4 px while
+     the captions beside it kept theirs at 4 — the icon and the text would have stopped being one
+     design. 4 × 0.643 / 0.55 = 4.676, and 4.676 × 0.55 × 1.5556 = 4.00 on the desktop, 2.57 on
+     the phone: the same pair the captions produce.
      ⚠️ `paint-order:stroke` KEEPS THE OUTLINE UNDER THE FILL, exactly as the `.otext` mechanism
      does for the captions beside it; without it the 4-wide stroke would eat 2 units of the
      yellow body all the way round. */
-  #scStar path { fill:#FFE415; stroke:#fff; stroke-width:4; stroke-linejoin:round;
+  #scStar path { fill:#FFE415; stroke:#fff; stroke-width:4.676; stroke-linejoin:round;
     paint-order:stroke; }
   /* ⛔⛔ «NEITHER OF THEM HAS AN OUTLINE» IS CANCELLED BY THE OWNER'S WORD
      2026-08-21-z: «the level and the score need a black outline of 6 px added».
@@ -3770,7 +3791,7 @@
   </div>
   <div class="grp" id="statStack">
     <svg class="otext stat" id="tmSvg" viewBox="0 0 72 27" width="72"><text id="timer" x="1" y="21">0:00</text></svg>
-    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-icon="24.44" data-gap="8">
+    <svg class="otext stat" id="scSvg" viewBox="0 0 104 27" data-icon="20.9" data-gap="8">
       <defs><linearGradient id="gScore" x1="0" y1="1" x2="0" y2="0">
         <stop offset="0" stop-color="#ff70b5"/><stop offset="1" stop-color="#f2ff00"/>
       </linearGradient></defs>
@@ -3787,7 +3808,7 @@
            The y offset 3.86 centres 19.28 units of height in 27.
            ⚠️ `data-lead` IS READ BY `fitStat` (85-hud): the frame is squeezed to the TEXT, and
            without the lead the star would be drawn outside the frame it shares. -->
-      <g id="scStar" transform="translate(0,0.65) scale(0.643)" aria-hidden="true"><path d="M20.0159 2C22.5429 2 23.9256 3.94445 24.5178 5.86426L24.5198 5.87207L26.47 12.2822L32.8088 12.2246C33.8201 12.2129 34.8629 12.3966 35.7795 12.9258C36.7343 13.4769 37.4286 14.3341 37.7834 15.4141C38.5684 17.8031 37.2731 19.7695 35.6487 20.9834L35.6477 20.9844L30.3879 24.9102L32.468 31.3184H32.467C33.1031 33.2503 33.0051 35.577 31.1086 37.0781L31.1077 37.0771C30.1831 37.8112 29.0868 38.1084 27.9612 37.9648C26.9016 37.8296 25.9482 37.3248 25.1409 36.707L25.1379 36.7041L20.0149 32.7666L14.8762 36.7061C14.0756 37.3252 13.1273 37.8295 12.0706 37.9648C10.9451 38.1089 9.848 37.8109 8.92407 37.0771C7.14313 35.6671 6.94737 33.5292 7.45728 31.6738L7.56763 31.3076L9.6438 24.9102L4.38501 20.9844L4.38403 20.9834C2.77288 19.7794 1.43567 17.8062 2.25415 15.3809H2.25513C2.61368 14.311 3.30846 13.4654 4.25317 12.9219C5.16228 12.3988 6.19565 12.2136 7.20044 12.2246L13.5608 12.2822L15.512 5.87207L15.5149 5.86426C16.1071 3.94457 17.4891 2.00024 20.0159 2Z"/></g>
+      <g id="scStar" transform="translate(0,2.5) scale(0.55)" aria-hidden="true"><path d="M20.0159 2C22.5429 2 23.9256 3.94445 24.5178 5.86426L24.5198 5.87207L26.47 12.2822L32.8088 12.2246C33.8201 12.2129 34.8629 12.3966 35.7795 12.9258C36.7343 13.4769 37.4286 14.3341 37.7834 15.4141C38.5684 17.8031 37.2731 19.7695 35.6487 20.9834L35.6477 20.9844L30.3879 24.9102L32.468 31.3184H32.467C33.1031 33.2503 33.0051 35.577 31.1086 37.0781L31.1077 37.0771C30.1831 37.8112 29.0868 38.1084 27.9612 37.9648C26.9016 37.8296 25.9482 37.3248 25.1409 36.707L25.1379 36.7041L20.0149 32.7666L14.8762 36.7061C14.0756 37.3252 13.1273 37.8295 12.0706 37.9648C10.9451 38.1089 9.848 37.8109 8.92407 37.0771C7.14313 35.6671 6.94737 33.5292 7.45728 31.6738L7.56763 31.3076L9.6438 24.9102L4.38501 20.9844L4.38403 20.9834C2.77288 19.7794 1.43567 17.8062 2.25415 15.3809H2.25513C2.61368 14.311 3.30846 13.4654 4.25317 12.9219C5.16228 12.3988 6.19565 12.2136 7.20044 12.2246L13.5608 12.2822L15.512 5.87207L15.5149 5.86426C16.1071 3.94457 17.4891 2.00024 20.0159 2Z"/></g>
       <text id="score" x="102" y="21" text-anchor="end">0</text></svg>
   </div>
 </div>

@@ -10165,13 +10165,26 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const numG = v => { const m = String(v).match(/[\d.]+/); return m ? parseFloat(m[0]) : NaN; };
       const st = document.querySelector('#scStar path');
       const stCs = st ? getComputedStyle(st) : null;
+      // ⚠️⚠️ THE SCALE IS READ OFF THE LIVE NODE, NOT COPIED. The first edition multiplied by a
+      // hard-coded 0.643, and when the star was shrunk on 2026-08-25-g that literal turned the
+      // guard into a fabricator — it went on reporting the OLD outline width for a build that
+      // had changed. `getScreenCTM().a` is user-units→screen px for this very `<g>`, i.e. the
+      // `<g>` scale and the frame scale multiplied together, whatever either of them becomes.
+      const stG = document.getElementById('scStar');
+      const ctm = stG && stG.getScreenCTM ? stG.getScreenCTM() : null;
+      const gScale = ctm ? ctm.a : 0;
       const svg = document.getElementById('scSvg');
       const k = (svg.getBoundingClientRect().height || 27) / 27;
       const num = document.getElementById('score');
       const stB = st ? st.getBoundingClientRect() : null, nB = num.getBoundingClientRect();
       return { LV: takeSnap('#lvlSvg text'), score: takeSnap('#scSvg text'),
                star: stCs ? { fill: stCs.fill, stroke: stCs.stroke,
-                              visible: +(numG(stCs.strokeWidth) * 0.643 * k).toFixed(2),
+                              visible: +(numG(stCs.strokeWidth) * gScale).toFixed(2),
+                              // the ARTWORK box (his SVG is 41×40), not the ink — that is what a
+                              // designer sets as the icon's width/height
+                              artH: +(40 * gScale).toFixed(2),
+                              fontPx: +(parseFloat(getComputedStyle(
+                                document.getElementById('score')).fontSize) * k).toFixed(2),
                               w: Math.round(stB.width), h: Math.round(stB.height) } : null,
                gap: stB ? Math.round(nB.left - stB.right) : null,
                width: innerWidth };
@@ -10217,6 +10230,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⛔ SABOTAGE: put the gap back into `data-lead` as units — the desktop stays right and the ' +
       'phone drifts, i.e. exactly the half a one-layout guard would have missed');
 
+    // ══ THE STAR IS EXACTLY AS TALL AS THE SCORE'S TYPE SIZE (the owner 2026-08-25-g) ══
+    // «Shrink the star next to the score on the game screen to the height of the size of the
+    // score text.»
+    // ⚠️⚠️ IT IS ASSERTED AS AN EQUALITY OF TWO LIVE READINGS AND NOT AS A PIXEL COUNT, because
+    // that is what he asked for: the star's artwork box against the number's `font-size`, both
+    // taken through the same frame scale. Pin 34.2 px instead and the guard states the desktop
+    // alone and goes red the day either side is retuned.
+    expect(outDesk.star && Math.abs(outDesk.star.artH - outDesk.star.fontPx) <= 0.5 &&
+           outMob.star && Math.abs(outMob.star.artH - outMob.star.fontPx) <= 0.5,
+      '⚠️⚠️ THE STAR STANDS EXACTLY AS TALL AS THE SCORE\'S TYPE SIZE, IN BOTH LAYOUTS (desk ' +
+      outDesk.star.artH + ' vs ' + outDesk.star.fontPx + ', phone ' + outMob.star.artH + ' vs ' +
+      outMob.star.fontPx + '). The owner 2026-08-25-g. ⛔ IT SHRANK THE ICON 0.643 → 0.55, i.e. ' +
+      'the 40-unit artwork became 22 units — the number\'s own `font-size`. ' +
+      '⚠️⚠️ AND THE OUTLINE HAD TO GROW 4 → 4.676 IN THE ARTWORK\'S UNITS TO **STAY** 4 VISIBLE ' +
+      'PIXELS (asserted a line above): a uniform shrink would have thinned it to 3.4 while the ' +
+      'captions beside it kept 4, and the icon would have stopped being the same design as the ' +
+      'text. ⛔ SABOTAGE: change the `<g>` scale without the stroke, or the stroke without the ' +
+      'scale — one of these two asserts catches each');
+
   // ═══ THE PAUSE BUTTON IS WHITE IN BOTH THEMES (the owner's word 2026-08-25-v) ═══
   // «The pause button is everywhere white with a black icon inside», plus the three properties
   // verbatim. ⚠️ BOTH THEMES ARE READ IN ONE BREATH, exactly as the closing-cross guard does:
@@ -10251,6 +10283,42 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'DIFFERENTLY in the two themes and identically in neither. ' +
     '⚠️ IT IS NOT THE ZOOM\'S RECIPE AND THE DIFFERENCE IS HIS: .60 against .50, and no 1 px rim. ' +
     'Pinning the zoom\'s numbers here would be inventing a value he did not write');
+
+  // ═══ ONE VERTICAL, AND THE PAUSE BUTTON IS ITS BASE (the owner's word 2026-08-25-g) ═══
+  // «The pause button, the level, the star and the score must be aligned on one vertical; take
+  // the centre of the pause button as the base.»
+  // ⚠️⚠️ THE BASE IS READ FROM THE PAUSE ITSELF AND EVERYTHING ELSE IS COMPARED WITH IT — no
+  // number is written down. Pin 36 and the guard states the current bar height rather than his
+  // rule, and goes red the day the padding or the button size moves for an unrelated reason.
+  const hudRow = async (p) => p.evaluate(() => {
+    const cy = sel => { const e = document.querySelector(sel); if (!e) return null;
+      const b = e.getBoundingClientRect(); return +(b.top + b.height / 2).toFixed(1); };
+    return { pause: cy('#pauseBtn'), lvl: cy('#lvlSvg'), sc: cy('#scSvg'), star: cy('#scStar'),
+             stack: cy('#statStack'), align: getComputedStyle(document.getElementById('topBar')).alignItems };
+  });
+  const rowDesk = await hudRow(deskPage), rowMob = await hudRow(page);
+  console.log('hud one vertical:', JSON.stringify({ desk: rowDesk, mob: rowMob }));
+  expect(rowDesk.align === 'center' &&
+         Math.abs(rowDesk.lvl - rowDesk.pause) <= 0.6 &&
+         Math.abs(rowDesk.sc - rowDesk.pause) <= 0.6 &&
+         Math.abs(rowDesk.star - rowDesk.pause) <= 0.6,
+    '⚠️⚠️ ON THE DESKTOP THE PAUSE, THE LEVEL, THE STAR AND THE SCORE SIT ON ONE VERTICAL, AND ' +
+    'THE PAUSE IS THE BASE (' + JSON.stringify(rowDesk) + '). The owner 2026-08-25-g. ' +
+    '⛔ THE DEFECT WAS MEASURED: `.bar` pins its groups to the TOP, the left group is as tall as ' +
+    'the 56 px pause and the right one only 42, so their centres stood at 36 and 29 — the score ' +
+    'rode SEVEN PIXELS HIGH. `#topBar { align-items:center }` is the whole cure. ' +
+    '⚠️⚠️ THE PAUSE IS THE BASE BY ARITHMETIC: it is the tallest child, so it alone fills the ' +
+    'bar\'s content box and centring in that box lands everything on its centre line. That is ' +
+    'why nothing here is a literal — the comparison IS the statement. ' +
+    '⛔ SABOTAGE: put `align-items:flex-start` back, or set it on the shared `.bar` instead of ' +
+    '`#topBar` — the second one also drags the BOTTOM bar off its `flex-end`, which the zoom ' +
+    'column depends on');
+  expect(Math.abs(rowMob.stack - rowMob.pause) <= 0.6,
+    '⚠️ AND THE PHONE DID NOT MOVE: its right group is the stack «level over score», already as ' +
+    'tall as the pause, so it was centred before the change and is centred after (' +
+    JSON.stringify(rowMob) + '). ⚠️ THE STACK IS COMPARED AND NOT ITS TWO ROWS — on the phone ' +
+    'the level stands ABOVE the score by his own layout, and demanding one vertical of them ' +
+    'there would be guarding a screen that does not exist');
 
   // ═══ THE SCORE IS ALWAYS FLUSH RIGHT, WHATEVER THE NUMBER (the owner 2026-08-25-v) ═══
   // ⚠️⚠️ THE STATEMENT IS AN INVARIANT ACROSS WIDTHS, so it is measured across widths — one

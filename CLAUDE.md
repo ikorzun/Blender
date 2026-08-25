@@ -11205,3 +11205,50 @@ sides of the transition.
 the outline probe reported `visible: null` and went red on a sound build. The file already carried
 the same lesson one screen up, where a zero width serialises as `0%`. **Read numbers out of a
 computed length with a regex in this project, never with `parseFloat` alone.**
+
+## BATCH 2026-08-25-g: THE HUD ROW ON ONE VERTICAL, AND THE STAR CUT TO THE TYPE SIZE
+
+### THE SCORE GROUP RODE SEVEN PIXELS HIGH, AND IT WAS MEASURED BEFORE IT WAS FIXED
+
+His word: «the pause button, the level, the star and the score must be aligned on ONE vertical;
+take the centre of the pause button as the base».
+
+⚠️⚠️ **THE DEFECT, BY THE NUMBERS:** `.bar` gives `align-items:flex-start`; the left group is as
+tall as the 56 px pause and the right one only 42, so with both pinned to the TOP their centres
+stood at **36 and 29** on the desktop. `#topBar { align-items:center }` is the whole cure.
+⚠️⚠️ **THE PAUSE IS THE BASE BY ARITHMETIC, NOT BY A NUMBER.** It is the tallest child, so it
+alone fills the bar's 56 px content box, and centring in that box lands every other group on its
+centre line. Nothing in the rule or in its guard is a literal — **the comparison IS the
+statement**, which is what keeps it alive through a change of padding or button size.
+⚠️ **`#topBar` AND NOT `.bar`:** the BOTTOM bar needs `flex-end` for the zoom column (the canon
+says so at `#zoomGrp`), and editing the shared rule would have moved it. The guard names that
+sabotage explicitly.
+⚠️ **THE PHONE DID NOT MOVE** — its right group is the 56-tall `#statStack`, already the pause's
+height; measured 36 against 36 before and after. Its level stands ABOVE its score by his own
+layout, so the guard compares the STACK with the pause and not the two rows: demanding one
+vertical of them there would be guarding a screen that does not exist.
+⚠️ The two texts sit 0.8 px above the geometric centre — the glyphs' own optical position off the
+baseline — and they do it IDENTICALLY, which is the consistent outcome. The tolerance is 0.6 px
+on the boxes, which is what the rule is about.
+
+### THE STAR IS NOW EXACTLY THE NUMBER'S TYPE SIZE
+
+His word: «shrink the star next to the score on the game screen to the height of the size of the
+score text».
+
+The `<g>` scale went **0.643 → 0.55**, so the 40-unit artwork stands **22 units tall — exactly the
+`font-size` of the number beside it**. That equality is what is written and what is guarded: the
+artwork box against the computed `font-size`, both through the same frame scale, in both layouts
+(34.2 px on the desktop, 22 on the phone). A pixel count would have stated the desktop alone.
+
+⚠️⚠️ **AND THE OUTLINE HAD TO GROW 4 → 4.676 IN THE ARTWORK'S UNITS TO *STAY* 4 VISIBLE PIXELS.**
+`stroke-width` lives in the artwork's units, so a uniform shrink would have thinned it to 3.4 px
+while the captions beside it kept 4 — the icon would have stopped being the same design as the
+text. 4 × 0.643 / 0.55 = 4.676, and 4.676 × 0.55 × 1.5556 = 4.00 on the desktop, 2.57 on the
+phone: the same pair the captions produce.
+
+⚠️ **A GUARD TURNED INTO A FABRICATOR AND WAS CAUGHT BY THIS BATCH.** The star probe multiplied by
+a hard-coded `0.643`; the moment the icon was rescaled that literal went on reporting the OLD
+outline width for a build that had changed. It now reads `getScreenCTM().a` off the live `<g>` —
+user units to screen pixels, whatever either scale becomes. **A copy of a live number inside a
+guard is the same defect as a copy inside the code.**
