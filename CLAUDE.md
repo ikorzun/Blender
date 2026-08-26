@@ -11318,3 +11318,85 @@ a different lever — a non-square thumb box, a per-type pose, or acceptance. No
 ⛔ **THE DPR OF THE PORTRAIT BUFFER** (`THUMB_PX = 256` flat) is still open: ~1.94× more than the
 44 px row needs at DPR 3, and an **upscale** on the collection card — 1.36× on the charge slot,
 1.57× on a tablet. Named in the closed section above; still nobody's decision.
+
+## BATCH 2026-08-26: THE BADGE HAS A RULE FOR EVERY STATE (the yellow wreath as the fallback)
+
+His word, with a frame of «43 place / on leaderboard» wearing an empty 48 px slot: «the icon
+is periodically missing. If the problem is understanding the arrows, then take the yellow
+wreath».
+
+⚠️ **THE LABEL IS `-26` AND NOT `-25-e`: THE LETTER BELONGS TO THE COMMIT, NOT TO THE MESSAGE**
+(the canon's own rule, «THE BATCH-OF-THE-DAY SUFFIXES WERE OFF BY ONE»). His word came on the
+25th, the work landed on the 26th — the day between them was eaten by a macOS permission
+block, not by the task.
+
+### THE DEFECT WAS A CLASS COMBINATION NOBODY HAD WRITTEN A RULE FOR
+
+Three rules covered two states:
+
+```css
+.ms-lbentry.dir-up .ms-lbe-badge .lbe-up,
+.ms-lbentry.dir-dn .ms-lbe-badge .lbe-dn { display:block; }
+.ms-lbentry:not(.has-rank) .ms-lbe-badge .lbe-new { display:block; }   /* ← was */
+```
+
+A row with a **REAL RANK BUT NO DIRECTION** (`has-rank` set, neither `dir-*`) matched **none of
+the three** — the 48 px badge drew nothing. That is exactly his screenshot.
+
+⚠️⚠️ **THE STATE IS NOT AN EDGE CASE, IT IS THE FIRST VIEW OF EVERY PLAYER WHO HAS A PLACE.**
+`lbEntryRefresh` (85-hud) leaves `dir` empty when `localStorage.mixer_lb_seen_rank` holds no
+previous rank — there is nothing to compare with, and an arrow there would assert a movement
+that did not happen. It recurs after any storage wipe. So the row was drawn correctly and the
+stylesheet simply had no sentence for it.
+
+**THE CURE IS ONE SELECTOR** (`src/shell.html`):
+
+```css
+.ms-lbentry:not(.dir-up):not(.dir-dn) .ms-lbe-badge .lbe-new { display:block; }
+```
+
+⛔ **THE WREATH IS NOW THE FALLBACK, NOT THE NEWCOMER'S SIGN ALONE.** «No arrow» is drawn as the
+wreath, which is what the state actually means — a place, and no movement to report — and it is
+what he named.
+⛔ **THE CURE IS THE SELECTOR AND NEVER THE JS.** The empty `dir` is deliberate and must stay: a
+future pass that «fixes» this by always assigning a direction brings back the invented movement.
+The second arm of the guard goes red on exactly that.
+⚠️ **IT COVERS THE MENU ROW TOO, AND THAT IS RIGHT RATHER THAN INCIDENTAL:** `.ms-lbentry` is ONE
+component with two instances (the menu and the victory screen), and the hole was in the component.
+
+### THE GUARD THAT EXISTED COULD NOT HAVE CAUGHT IT — AND THAT IS THE LESSON OF THE BATCH
+
+⛔⛔ **A GUARD THAT VISITS ONE STATE DOES NOT GUARD A RULE ABOUT FOUR.** The victory-row assert
+already read `visibleBadges === 1` — and it was GREEN throughout, because it read whatever ONE
+state the live row happened to be in on the suite's page, and that state was never the broken
+one. Nothing was wrong with the number; the sample was one wide. **Where a rule is a mapping
+from N inputs to N outputs, the guard is obliged to DRIVE the inputs.**
+
+✅ **THE NEW GUARD HAS TWO ARMS, AND NEITHER STANDS ALONE.**
+- **Arm A — the CSS.** All four combinations are driven on the DOM, on BOTH instances, and it is
+  pinned WHICH badge shows, not merely how many: `(none)` and `has-rank` → the wreath,
+  `dir-up`/`dir-dn` → their arrows. ⚠️ «Exactly one» alone is satisfied by an ARROW in the
+  no-direction state — the very thing an empty slot was preferable to.
+  ⚠️ The classes are driven by hand ON PURPOSE and that does not break «bring the state about by
+  the real path»: the thing under test IS the stylesheet, and the class combination is its INPUT.
+  ⚠️ `total === 3` is the sanity check: the win badge is EMPTY in the markup and is stamped from
+  the menu one by `lbEntryStampBadge`; if the stamp never ran, every state would honestly read
+  «nothing» for a reason having nothing to do with the rule.
+- **Arm B — the control WITHOUT WHICH ARM A GUARDS A FANTASY.** It drives the production
+  `lbEntryRefresh` with only the DATA SOURCE stubbed: a rank arrives with no previous one in
+  localStorage → `has-rank` alone and the wreath; the rank then improves in the same session →
+  `has-rank dir-up` and the arrow. ⚠️⚠️ **THE SECOND HALF IS THE POSITIVE CONTROL AND IS NOT
+  DECORATION:** «no direction» in the first reading is satisfied by a stub that can never produce
+  a direction at all, i.e. by a dead probe. Without it, a future reader could also delete the CSS
+  rule as unreachable dead code.
+- ⚠️ Both the module and `mixer_lb_seen_rank` are restored in a `finally`: the page is shared, and
+  a leftover remembered rank would hand a neighbour an arrow for somebody else's movement.
+
+✅ **SHOWN TWO-SIDEDLY, NOT CLAIMED.** A copy of the build carrying the OLD selector was written
+NEXT TO the original (relative paths — the canon's rule), and on it the `has-rank` state reads
+`shown: []` — the 48 px hole, on BOTH instances; the healthy build reads exactly one everywhere.
+The original was verified by md5 before and after, and the copy removed.
+
+**MEASURED, healthy:** `(none)→lbe-new`, `has-rank→lbe-new`, `has-rank+dir-up→lbe-up`,
+`has-rank+dir-dn→lbe-dn` — identical on `msLbEntry` and `winLbEntry`; arm B `43 → has-rank/wreath`,
+`40 → has-rank+dir-up/arrow`. `index.html` 10342400 → 10343754 bytes, 26 modules.

@@ -2497,8 +2497,23 @@
   /* ⚠️ A NEWCOMER GETS HIS OWN SIGN (the owner's asset `Interface/Leader-new.svg`,
      2026-08-12). Before that the player's place was unknown, there was no sign at all, and
      on the left a hole of 48px gaped — the block read as under-loaded. An arrow must NOT be
-     put here: it would assert a movement that did not happen. */
-  .ms-lbentry:not(.has-rank) .ms-lbe-badge .lbe-new { display:block; }
+     put here: it would assert a movement that did not happen.
+     ⛔⛔ THE WREATH IS NOW THE **FALLBACK**, NOT THE NEWCOMER'S SIGN ALONE (the owner's word
+     2026-08-26: «the icon is periodically missing. If the problem is understanding the arrows,
+     then take the yellow wreath», with a frame of «43 place» wearing no badge at all).
+     ⚠️⚠️ THE HOLE HE PHOTOGRAPHED HAD A THIRD STATE NOBODY HAD WRITTEN A RULE FOR: the selector
+     was `:not(.has-rank)`, the arrows need `dir-up`/`dir-dn`, and a row with a REAL RANK BUT NO
+     DIRECTION matched none of the three — the 48 px badge came out empty. It happens on the
+     first view after the place first becomes known (`lbEntryRefresh`: with no previous rank in
+     localStorage there is nothing to compare with, so `dir` stays empty on purpose — an arrow
+     there would invent a movement), and again after any storage wipe.
+     ⚠️ THE CURE IS THE SELECTOR AND NOT THE JS: `dir` is deliberately empty in that state and
+     must stay so; what was wrong is that «no arrow» was drawn as «nothing». Now «no arrow»
+     is drawn as the wreath, which is what he asked for and what the state actually means —
+     a place, and no movement to report.
+     ⚠️ IT COVERS THE MENU ROW TOO, and that is right rather than incidental: this is ONE
+     component with two instances, and the hole was in the component. */
+  .ms-lbentry:not(.dir-up):not(.dir-dn) .ms-lbe-badge .lbe-new { display:block; }
   /* ⚠️⚠️ THE TEXT DOES NOT SHRINK (`flex:none`), AND THIS IS LOAD-BEARING. With `min-width:0` flex
      took width away from the column, and at 320 the line «Leaderboard» (a NEWCOMER sees it,
      113px of ink) got a box of 74 — the letters ran onto the avatars. The arithmetic meanwhile

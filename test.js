@@ -929,6 +929,118 @@ page.on('response', (r) => {
     'places, and both would look like the truth (' + JSON.stringify({
       win: winLbRow.textWin, menu: winLbRow.textMenu }) + ')');
 
+  // ═══ THE DIRECTION BADGE HAS A RULE FOR EVERY STATE (the owner's word 2026-08-26) ═══
+  // Verbatim: «the icon is periodically missing. If the problem is understanding the arrows,
+  // then take the yellow wreath» — with a frame of «43 place / on leaderboard» wearing an
+  // EMPTY 48 px slot.
+  // ⚠️⚠️ THE DEFECT WAS A CLASS COMBINATION NOBODY HAD WRITTEN A RULE FOR. Three rules covered
+  // two states: `dir-up`, `dir-dn`, and `:not(.has-rank)` for a newcomer. A row with a REAL
+  // RANK BUT NO DIRECTION (`has-rank`, neither `dir-*`) matched none of the three and drew
+  // NOTHING. The cure is `:not(.dir-up):not(.dir-dn)` — «no arrow» is now drawn as the wreath,
+  // which is what the state actually means: a place, and no movement to report.
+  // ⛔⛔ AND THE GUARD THAT STOOD HERE COULD NOT HAVE CAUGHT IT — the `winLbRow` assert above
+  // reads `visibleBadges === 1` in whatever ONE state the live row happens to be in on this
+  // page, and that state was never the broken one. **A guard that visits one state does not
+  // guard a rule about four.** That is why this one DRIVES every combination.
+  // ⚠️⚠️ TWO ARMS, AND NEITHER STANDS ALONE. Arm A is a statement about the CSS: for every
+  // combination the JS can produce, exactly one badge shows — and WHICH one, because «exactly
+  // one» is also satisfied by an ARROW in the no-direction state, which would invent a movement
+  // that did not happen. Arm B is the positive control for arm A: it proves through the
+  // PRODUCTION path that `has-rank` with no direction is a state the game really reaches, so
+  // the rule arm A guards is not dead code somebody may delete as unreachable.
+  const badgeStates = await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const cls = r => ['has-rank', 'dir-up', 'dir-dn'].filter(c => r.classList.contains(c));
+    const shownIn = r => { const b = r.querySelector('.ms-lbe-badge');
+      return b ? Array.prototype.filter.call(b.querySelectorAll('svg'),
+        s => getComputedStyle(s).display !== 'none').map(s => s.getAttribute('class')) : []; };
+    const out = {};
+    // ─── ARM A: every combination, on BOTH instances of the shared component ───
+    // ⚠️ THE CLASSES ARE DRIVEN BY HAND HERE ON PURPOSE, and that does not break the project's
+    // rule «bring the state about by the real path»: the thing under test IS the stylesheet,
+    // and the class combination is its INPUT. Which combinations the JS produces is a
+    // different statement, and it is arm B that makes it.
+    for (const id of ['msLbEntry', 'winLbEntry']){
+      const row = document.getElementById(id);
+      if (!row){ out[id] = null; continue; }
+      const svgs = (row.querySelector('.ms-lbe-badge') || { querySelectorAll: () => [] })
+        .querySelectorAll('svg');
+      const was = cls(row);
+      const set = c => { row.classList.remove('has-rank', 'dir-up', 'dir-dn');
+        c.forEach(k => row.classList.add(k));
+        return { cls: c.join('+') || '(none)', shown: shownIn(row).join('+') || '(nothing)' }; };
+      const states = [set([]), set(['has-rank']), set(['has-rank', 'dir-up']),
+                      set(['has-rank', 'dir-dn'])];
+      set(was);                                  // ⚠️ the row is shared with the neighbours — put it back
+      out[id] = { total: svgs.length, states };
+    }
+    // ─── ARM B: the state he photographed is one the PRODUCTION path really produces ───
+    // `lbEntryRefresh` leaves `dir` empty when localStorage holds no previous rank — there is
+    // nothing to compare with, and an arrow there would assert a movement that did not happen.
+    // Only the DATA SOURCE is stubbed; the function under test is the production one.
+    const real = window.__lb;
+    const mock = rank => ({ base: () => 'http://probe',
+      top: () => Promise.resolve({ state: 'ok', rows: [] }),
+      me:  () => Promise.resolve({ state: 'ok', exact: 1, rank }) });
+    const readMenu = () => { const r = document.getElementById('msLbEntry');
+      return { cls: cls(r).join('+') || '(none)', shown: shownIn(r).join('+') || '(nothing)' }; };
+    try {
+      try { localStorage.removeItem('mixer_lb_seen_rank'); } catch(e){}
+      window.__lb = mock(43); window.__game.lbEntryRefresh(); await sleep(250);
+      out.firstView = readMenu();                // his screenshot: a real place, nothing to compare with
+      window.__lb = mock(40); window.__game.lbEntryRefresh(); await sleep(250);
+      out.moved = readMenu();                    // the same session, the rank improved -> an arrow is due
+    } finally {
+      // ⚠️ BOTH the module AND the remembered rank go back: this page is shared, and a leftover
+      // `mixer_lb_seen_rank` would hand a neighbour an arrow for somebody else's movement.
+      window.__lb = real;
+      try { localStorage.removeItem('mixer_lb_seen_rank'); } catch(e){}
+      try { window.__game.lbEntryRefresh(); } catch(e){}
+    }
+    return out;
+  });
+  console.log('the badge in four states:', JSON.stringify(badgeStates));
+  const badgeWant = ['(none)=lbe-new', 'has-rank=lbe-new',
+                     'has-rank+dir-up=lbe-up', 'has-rank+dir-dn=lbe-dn'].join(' | ');
+  const badgeGot = o => o && o.total === 3
+    ? o.states.map(s => s.cls + '=' + s.shown).join(' | ') : '(no node)';
+  expect(badgeGot(badgeStates.msLbEntry) === badgeWant &&
+         badgeGot(badgeStates.winLbEntry) === badgeWant,
+    '⚠️⚠️ THE BADGE OF THE ROW HAS A RULE FOR EVERY STATE, ON BOTH INSTANCES: a newcomer and a ' +
+    'place WITHOUT a direction both wear the YELLOW WREATH, a place with a direction wears its ' +
+    'arrow — exactly one svg out of three in every one of the four combinations (the owner ' +
+    '2026-08-26: «if the problem is understanding the arrows, then take the yellow wreath»). ' +
+    '⛔⛔ THE SABOTAGE IS THE BUILD HE PHOTOGRAPHED: put `:not(.has-rank)` back in place of ' +
+    '`:not(.dir-up):not(.dir-dn)` and the `has-rank` state draws NOTHING — a 48 px hole, on ' +
+    'BOTH instances (shown two-sidedly on a copy of the build lying next to the original, the ' +
+    'original verified by md5 afterwards). ' +
+    '⚠️ WHICH badge shows is pinned and not merely HOW MANY: «exactly one» is satisfied by an ' +
+    'ARROW in the no-direction state too, and that would assert a movement that did not happen ' +
+    '— the very thing the empty slot was preferable to. ' +
+    '⚠️ `total === 3` IS THE SANITY CHECK: the win badge is EMPTY in the markup and is stamped ' +
+    'from the menu one by `lbEntryStampBadge`; if the stamp never runs there is nothing to hide ' +
+    'or show, and every state would honestly read «(nothing)» for a reason that has nothing to ' +
+    'do with the rule. ' +
+    '⚠️ IT COVERS THE MENU ROW TOO, and that is right rather than incidental: this is ONE ' +
+    'component with two instances, and the hole was in the component ' +
+    '(want ' + badgeWant + ', got ' + JSON.stringify(badgeStates) + ')');
+  expect(badgeStates.firstView && badgeStates.moved &&
+    badgeStates.firstView.cls === 'has-rank' && badgeStates.firstView.shown === 'lbe-new' &&
+    badgeStates.moved.cls === 'has-rank+dir-up' && badgeStates.moved.shown === 'lbe-up',
+    '⚠️⚠️ AND THAT STATE IS ONE THE GAME REALLY REACHES — the control WITHOUT WHICH THE ARM ' +
+    'ABOVE GUARDS A FANTASY. Driven through the production `lbEntryRefresh` with only the data ' +
+    'source stubbed: a rank arrives and localStorage holds no previous one -> `has-rank` alone ' +
+    'and the WREATH; the rank then improves in the same session -> `has-rank dir-up` and the ' +
+    'ARROW. ' +
+    '⚠️⚠️ THE SECOND HALF IS THE POSITIVE CONTROL AND IS NOT DECORATION: «no direction» in the ' +
+    'first reading is satisfied by a stub that can never produce a direction at all, i.e. by a ' +
+    'dead probe. The arrow in the second proves the first reading is a property of the STATE ' +
+    'and not of the rig. ' +
+    '⛔ THE EMPTY `dir` IS DELIBERATE AND MUST STAY: with nothing to compare against, an arrow ' +
+    'would invent a movement. The cure was the SELECTOR, never the JS — a future pass that ' +
+    '«fixes» this by always assigning a direction is exactly what this arm goes red on ' +
+    '(' + JSON.stringify({ firstView: badgeStates.firstView, moved: badgeStates.moved }) + ')');
+
   // ═══ THE VICTORY ROWS ARE FRAMED TIGHT, AND ONLY THEY (the owner's word 2026-08-25-d) ═══
   // He was shown the measurement — the enclosing-cylinder frame gives every type a different
   // share of its 44 px box, 44.5 % to 90.6 %, a 2.04× spread inside one column — and picked
