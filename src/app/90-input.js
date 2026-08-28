@@ -661,8 +661,13 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           // an error. 'cancelled' and 'pending' (Ask to Buy awaiting approval) are now silent;
           // a pending one arrives later through the restore pass, so a message would be a lie
           // in the other direction.
+          // ⚠️ 'pending' gets its OWN word rather than silence. iOS shows its own «request
+          // sent» sheet, so this is not the only feedback — but the game's own card still
+          // invites a second tap, and a second tap sends a SECOND approval request to the
+          // parent for the same product. One honest line prevents that.
           const r = res && res.reason;
-          if (r !== 'cancelled' && r !== 'pending')
+          if (r === 'pending') toast('Waiting for approval');
+          else if (r !== 'cancelled')
             toast(r === 'unsupported' || r === 'unavailable' ? 'Coming soon' : 'Purchase failed');
           return;
         }

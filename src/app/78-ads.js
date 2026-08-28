@@ -263,6 +263,24 @@ const Ads = (function(){
   }
 
   function init(){
+    // ⛔⛔ THE NATIVE PROVIDER DOES NOT LIVE BEHIND THE SDK GATE — AND NEITHER MAY THE RESTORE.
+    // Until 2026-08-28 the ONLY call to restorePurchases() sat inside bridge.initialize().then().
+    // The native wrapper serves the page from `blendo://game`, so `location.protocol` is neither
+    // http nor https, the gate two lines below fires, init() returns, the bridge never loads —
+    // and the restore pass was therefore UNREACHABLE in the wrapper. window.__ads is DEV-only,
+    // so the Swift side had no door either.
+    // What that cost: paymentsOn() is true regardless of init(), so buying WORKED — only
+    // recovery was dead. Ask to Buy arrives exclusively through this pass (a parent approves
+    // AFTER the game was told 'pending'), so a family could pay and the child receive nothing;
+    // the same for an app killed between the charge and the grant, and for a failed grant.
+    // ⚠️ The money hangs rather than burns: the transaction stays UNFINISHED in StoreKit's queue
+    // with a stable id, so the first build carrying this line grants it retroactively — exactly
+    // once, because the ledger holds its orderId.
+    // ⚠️ Safe here by construction: Ads.init() is called from 99-main.js:2587 with the game
+    // already built, and buyBundle is a hoisted declaration from module 77 — the grant handle
+    // exists. On the web nativePayments() is null, so this line does nothing and the bridge
+    // path below keeps its own call: no double restore.
+    if (nativePayments()) { try { restorePurchases(); } catch(e){} }
     // file:// (the offline prototype, headless tests) — we do not load the SDK, we live on the stub
     if (location.protocol !== 'http:' && location.protocol !== 'https:') {
       curtainDone('no sdk (file://)');   // there can be no curtain — we do not make anyone wait
@@ -699,15 +717,34 @@ const Ads = (function(){
   function ledger(){
     try { return JSON.parse(localStorage.getItem(IAP_LEDGER) || '[]') || []; } catch(e){ return []; }
   }
+  // ⛔⛔ AN ORDER NUMBER IS A KEY, AND `0` IS A PERFECTLY GOOD KEY. Everything below used to
+  // test the orderId for truthiness, which is correct for a bridge that always sends a
+  // non-empty string and CATASTROPHIC for StoreKit: `Transaction.id` is a NUMBER, and in the
+  // StoreKitTest environment it starts at 0. A numeric 0 would read as «there is no order»,
+  // and then the whole chain fails in the same direction — always in the player's favour and
+  // against the owner:
+  //   the consume goes out with a null order -> StoreKit never finishes the transaction ->
+  //   it returns in getPurchases() on EVERY launch -> and the ledger, which is what stops a
+  //   second grant, was never written -> the bundle is granted again, free, forever.
+  // ⚠️ The normaliser also fixes a quieter one: the ledger holds strings, and `indexOf` compares
+  // strictly, so a numeric 12345 would never match the stored '12345' — the dedupe would miss
+  // without a single error. Everything that enters the ledger is a string from here on.
+  // ⚠️ «Genuinely absent» keeps its old meaning EXACTLY: null, undefined and '' still mean
+  // «no order, block nothing». Only values that are falsy yet real stop being thrown away.
+  function orderKey(v){
+    return (v === null || v === undefined || v === '') ? null : String(v);
+  }
   function ledgerAdd(orderId){
-    if (!orderId) return;                       // no order — we do not block anything
+    const k = orderKey(orderId);
+    if (k === null) return;                     // no order — we do not block anything
     try {
-      const l = ledger(); if (l.indexOf(orderId) >= 0) return;
-      l.push(orderId);
+      const l = ledger(); if (l.indexOf(k) >= 0) return;
+      l.push(k);
       localStorage.setItem(IAP_LEDGER, JSON.stringify(l.slice(-100)));
     } catch(e){}
   }
-  const ledgerHas = (orderId) => !!orderId && ledger().indexOf(orderId) >= 0;
+  const ledgerHas = (orderId) => { const k = orderKey(orderId);
+                                   return k !== null && ledger().indexOf(k) >= 0; };
 
   // ⚠️⚠️ TWO PROVIDERS, ONE SEAM (the native wrapper, 2026-08-28). In the iOS/macOS wrapper
   // the page is served from the custom origin `blendo://game` and a WKUserScript injects
@@ -803,7 +840,11 @@ const Ads = (function(){
   // failed — the player paid and got nothing, and there would be nothing left to restore it
   // with. The reverse order in the worst case gives one extra grant, and the registry catches it.
   function settlePurchase(id, purchase){
-    const orderId = purchase && (purchase.orderId || purchase.id_order || null);
+    // ⚠️ `||` would swallow a numeric 0 here — see orderKey above. The two field names are
+    // tried in order, and the FIRST one that is actually present wins, 0 included.
+    const raw = purchase ? (purchase.orderId !== undefined && purchase.orderId !== null
+                            ? purchase.orderId : purchase.id_order) : null;
+    const orderId = orderKey(raw);
     const g = grantPurchase(id);
     if (!g.ok){
       Telemetry.ev('iap', { ph: 'grant_fail', id: id, r: g.reason });
@@ -886,7 +927,7 @@ const Ads = (function(){
         // ledger a reliable key here — an unconsumed bundle survives a reinstall with the
         // SAME orderId, so it is granted once and only once.
         const id = it && toGameId(it.id); if (!id) return;
-        const orderId = it.orderId || null;
+        const orderId = orderKey(it.orderId);
         if (ledgerHas(orderId)){ skipped++; return; }   // already closed — do not grant again
         const r = settlePurchase(id, it);
         if (r.ok) restored++;

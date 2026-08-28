@@ -11655,3 +11655,82 @@ direction).
 ⚠️ **The general shape of this mistake:** a caller that branches on «ok / not ok» while the
 callee knows four different reasons. Widening the callee's vocabulary is only half the work —
 the other half is at the call site, and without it the new reasons are dead code.
+
+### THE RESTORE PASS WAS BEHIND THE SDK GATE — AND THAT MADE THE WRAPPER ABLE TO BUY BUT NOT TO RECOVER
+
+⛔⛔ **THE WORST DEFECT OF THIS BATCH, AND IT WAS MINE.** The only call to `restorePurchases()`
+in the whole project sat inside `bridge.initialize().then()`. `init()` begins with
+
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') { …; return; }
+
+and the native wrapper serves the page from **`blendo://game`** — confirmed empirically by the
+wrapper session's own lifecycle probe, which prints `origin=blendo://game` on every launch. So
+`init()` returned on its second line, the bridge never loaded, and the restore pass was
+**unreachable**. `window.__ads` is DEV-only, so the Swift side had no door either.
+
+⚠️ **WHY IT WAS NOT OBVIOUS: BUYING STILL WORKED.** `paymentsOn()` does not depend on `init()`
+— the native provider is found directly on `window`. Purchase and immediate grant ran fine.
+Exactly one thing was dead, and it was the one nobody exercises by hand: recovery.
+
+What that costs: **Ask to Buy arrives ONLY through this pass** (the parent approves after the
+game was already told `pending`), so a family could pay and the child receive nothing. Same for
+an app killed between the charge and the grant, and for a grant that failed once.
+
+⚠️ **THE MONEY HANGS, IT DOES NOT BURN** — the correction the skeptics made to the original
+claim. The transaction stays UNFINISHED in StoreKit's queue with a stable id, so the first build
+carrying the fix grants it retroactively, exactly once, because the ledger holds its orderId.
+No App Store 3.1.1 exposure either: all three sellable products are consumable.
+
+⛔ **AND MY OWN CHANGE MADE IT WORSE BEFORE IT MADE IT BETTER.** In the same batch I made
+`pending` SILENT, with a comment promising the money «arrives later through the restore pass».
+In the wrapper that pass did not exist. A wrong message was replaced by NO message about money
+that would never arrive. **A comment that promises a recovery is a claim about reachability —
+check that the recovery actually runs on every origin the page is served from.**
+
+**The fix** is one line before the gate: if a native provider is present, restore without waiting
+for a bridge that is never coming. Safe by construction — `Ads.init()` is called from
+`99-main.js:2587` with the game already built, and `buyBundle` is a hoisted declaration from
+module 77, which the concatenation order guarantees runs before 78.
+
+⚠️ **NAMED AND DELIBERATELY NOT DONE:** an Ask to Buy can be approved **while the app is open**.
+With the restore running only at startup, that approval lands on the NEXT launch. Both the
+adversarial report and the wrapper session flagged a second pass on `visibilitychange → visible`
+as the cheap closure — and both called it separate from this fix. It is a DELAY that self-heals,
+not a loss that never heals, and it carries its own surface (a new listener, throttling, and the
+existing visibility handling). It stays named rather than smuggled in.
+
+### THE LESSON FOR GUARDS: PROVE IT BY THE WIRE, NOT BY THE FLAG
+
+Two of the thirteen asserts I wrote for the seam were **tautologies**, found independently by the
+skeptics and by the wrapper session. `expect(paymentsOn === true)` was green with **no shim on
+the page at all**, because the bridge mock also reports supported; and «the fake is gone» was
+proven by a flag that stayed true either way. Both now prove themselves by the WIRE: the first
+takes the bridge away and checks what remains, the second performs a purchase and checks it
+landed on the bridge and NOT on the fake.
+⚠️ **The shape to remember: an assert whose subject is «a capability is on» is almost always a
+tautology when two providers can supply that capability.** Assert WHO answered, not THAT someone did.
+
+### A CENSUS IS NOT A SEARCH — THE TWO BEST FINDINGS OF THIS BATCH CAME FROM ONE
+
+⚠️⚠️ Two findings today were worth more than everything the finder agents produced, and NEITHER
+came from searching. Both came from **enumerating what a gate swallows**:
+
+1. `restorePurchases()` was unreachable in the native wrapper — buying worked, recovery did not.
+2. Review finding **#4** (the win overlay surviving a return from background) is reachable **in
+   the iOS app too**, not only in a browser — because `visibilitychange` does arrive there
+   (measured in the wrapper: `vis hidden +6362 ms` / `vis visible +8039 ms`, iPhone 17 Pro
+   simulator). That raises its priority: backgrounding the app on the win screen is a far more
+   ordinary gesture on a phone than switching tabs on a desktop.
+
+⛔ **BOTH FACTS WERE ALREADY IN LOGS WE HAD BOTH READ.** The wrapper's staging audit printed
+`WARN file:// gates present` on EVERY build, and both sides classified it as a note about
+DEV/LB_NOSEND. The restore lived behind that same gate the whole time.
+
+**The rule: what a gate swallows must be ENUMERATED, not summarised.** A search asks «is X
+broken?» and only finds what you already suspect. A census walks the gate's body line by line
+and writes down every call — and it does not let you classify a line before you have read it.
+When you find a conditional that skips a block on some origin, protocol or platform, list what
+is inside it. Every item. Then decide, one at a time, whether its absence is harmless.
+
+⚠️ Corollary for a guard: `expect` on «the gate exists» proves nothing. The census of what it
+contains is the artefact worth keeping, and it goes stale the moment the block grows.
