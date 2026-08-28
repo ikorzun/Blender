@@ -1,0 +1,16 @@
+Матчепы из github.com/nidorx/matcaps, размер 256px, скачано 2026-08-18.
+⚠️ У РЕПОЗИТОРИЯ НЕТ ЛИЦЕНЗИИ: его собственный README пишет, что файлы собраны
+с разных сайтов и авторов установить не удалось. Для примерки это неважно;
+перед тем как везти конкретный файл В ПОСТАВКУ — решение владельца.
+
+лёд  04E8E8_04B5B5_04CCCC_33FCFC-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/04E8E8_04B5B5_04CCCC_33FCFC-256px.png
+графит  050505_747474_4C4C4C_333333-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/050505_747474_4C4C4C_333333-256px.png
+бронза  300706_888576_822821_876E79-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/300706_888576_822821_876E79-256px.png
+серебро  9B9994_E1E0DB_474643_544C4C-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/9B9994_E1E0DB_474643_544C4C-256px.png
+латунь  9D8F84_5D4544_D9D3C9_62555A-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/9D8F84_5D4544_D9D3C9_62555A-256px.png
+золото  AF986F_CDB489_9C7C5B_7E6C4D-256px.png  <-  https://raw.githubusercontent.com/nidorx/matcaps/master/256/AF986F_CDB489_9C7C5B_7E6C4D-256px.png
+бомба    2D2D2F_C6C2C5_727176_94949B-512px.png  <-  .../master/512/
+машинки  555555_C8C8C8_8B8B8B_A4A4A4-256px.png  <-  .../master/256/
+фрукты  660505_F2B090_DD4D37_AA1914-256px.png  <-  .../master/256/
+машинки-2  686B73_2A2B2D_D5D9DD_B0B3BC-256px.png  <-  .../master/256/
+фрукты  796D6B_DED3CB_C6BAB1_ADA09B-256px.png  <-  .../master/256/  (ВЫБОР ВЛАДЕЛЬЦА)
