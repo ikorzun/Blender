@@ -1,5 +1,40 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-28-v: THE iOS WRAPPER — SAFE AREA + THE PAYMENTS SEAM — the dispatcher
+
+Coordination with the iOS wrapper session (clone «Blendo iOS»). Two pieces landed in MY zone;
+both are theirs by origin and mine by ownership.
+
+**1. THE SAFE AREA (their find, their diff, my tree).** In the native WKWebView wrapper the page
+runs with `viewport-fit=cover`, so it goes under the Dynamic Island and the close crosses of the
+leaderboard and More Stars sat half-hidden behind it. Four `env(safe-area-inset-top)` terms in
+`src/shell.html`. ⚠️ In browsers `env()` is 0 — the web geometry does not move by a pixel.
+Their line numbers were 7 commits stale; the anchors matched character for character.
+
+**2. THE PAYMENTS SEAM for StoreKit.** An explicit adapter in `78-ads.js`, NOT an impersonation
+of the bridge. Inert on the web: no `window.__nativePayments` → the old path byte for byte. The
+law, the orderId contract and the id-table ownership are written in CLAUDE.md — read it there,
+not here.
+
+⛔⛔ **THE THING WORTH REMEMBERING: ONE QUESTION PREVENTED A SILENT MONEY BUG.** Both sides had
+independently written an id-mapping table, so every product id would have been translated twice.
+Nothing would have thrown — purchases would simply have gone to a product that does not exist.
+It surfaced only because I asked «who owns the table?» instead of assuming, and they rewrote
+their side before either of us pushed. **Ask who owns a shared translation before writing it.**
+
+⚠️ **A DEFECT FOUND ON THE WAY, LIVE ON PLAYGAMA TOO:** the purchase call site showed «Purchase
+failed» on every non-ok answer, including the player's own cancel. Fixed: cancel and pending are
+silent now. Without that fix the whole refusal vocabulary would have been dead code.
+
+⚠️ **NAMED TO THE OWNER, NOT DECIDED HERE:** the seam touches the money path and he had not
+asked for it. It ships as its OWN commit so a single revert removes it. `noads_forever` stays
+unsellable on the native path by two independent causes (no ASC product, no META grant handle) —
+his call, and it lands as one batch when he makes it.
+
+**For their side:** `index.html` grew 10 343 752 → 11 207 381 B with today's seven models. They
+bundle the game inside the app, so that is 833 KB of extra text parsed at every cold start;
+they are measuring the delta against 885/1154/3273 ms.
+
 ### ACCEPTANCE 2026-08-28-b: THE ARCHITECTURE AND CODE REVIEW — the dispatcher
 
 «Carry out a deep architectural and code review. Find the weak spots and the points of

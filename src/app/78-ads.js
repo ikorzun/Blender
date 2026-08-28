@@ -709,10 +709,45 @@ const Ads = (function(){
   }
   const ledgerHas = (orderId) => !!orderId && ledger().indexOf(orderId) >= 0;
 
-  function paymentsOn(){
-    try { return !!(window.bridge && window.bridge.payments
-                    && window.bridge.payments.isPaymentsSupported); } catch(e){ return false; }
+  // ⚠️⚠️ TWO PROVIDERS, ONE SEAM (the native wrapper, 2026-08-28). In the iOS/macOS wrapper
+  // the page is served from the custom origin `blendo://game` and a WKUserScript injects
+  // `window.__nativePayments` at documentStart — that is, BEFORE the first byte of our scripts,
+  // so asking for it synchronously here is safe and no readiness event is needed.
+  // ⛔ THIS IS AN EXPLICIT ADAPTER, NOT AN IMPERSONATION OF THE BRIDGE. The native side must
+  // never pretend to be `window.bridge` — the canon forbids it, and the two contracts genuinely
+  // differ (see the orderId note on the consume below).
+  // ⚠️ The shim itself returns null when there is no native handler behind it, so null and
+  // undefined must be treated the same: «there is no provider».
+  function nativePayments(){
+    try {
+      const n = window.__nativePayments;
+      return (n && typeof n.purchase === 'function') ? n : null;
+    } catch(e){ return null; }
   }
+  function bridgePayments(){
+    try {
+      return (window.bridge && window.bridge.payments
+              && window.bridge.payments.isPaymentsSupported) ? window.bridge.payments : null;
+    } catch(e){ return null; }
+  }
+  // The native provider wins when present: inside the wrapper Apple's rules leave no choice.
+  function payApi(){ return nativePayments() || bridgePayments(); }
+  const isNativeApi = (api) => !!api && api === nativePayments();
+
+  // ⚠️ THE STORE'S PRODUCT IDS ARE NOT OURS. StoreKit needs the full bundle-scoped id; the game
+  // speaks its own short ones everywhere else (the ledger, the telemetry, the grant handles), so
+  // the translation lives HERE and nowhere else.
+  // ⛔ `noads_forever` IS DELIBERATELY ABSENT — its App Store id has not been given to me yet.
+  // An unmapped id on the native path returns 'unavailable', which the HUD already renders as
+  // «Coming soon». That is the honest answer; do NOT invent an id to fill this hole.
+  const NATIVE_IDS = { bundle5: 'monster.blendo.bundle5',
+                       bundle3: 'monster.blendo.bundle3',
+                       bundle2: 'monster.blendo.bundle2' };
+  const GAME_IDS = Object.keys(NATIVE_IDS).reduce((m, k) => (m[NATIVE_IDS[k]] = k, m), {});
+  const toNativeId = (id) => NATIVE_IDS[id] || null;
+  const toGameId   = (id) => GAME_IDS[id] || id;
+
+  function paymentsOn(){ return !!payApi(); }
 
   // THE CATALOG — cached for the session. We expose it outward so that the INTERFACE takes
   // LIVE prices rather than hard-wired dollars: on the playgama platform the bridge returns
@@ -723,10 +758,17 @@ const Ads = (function(){
   function catalog(){
     if (catalogCache) return Promise.resolve(catalogCache);
     if (catalogPromise) return catalogPromise;
-    if (!paymentsOn()) return Promise.resolve([]);
-    let p; try { p = window.bridge.payments.getCatalog(); } catch(e){ p = Promise.reject(e); }
+    const api = payApi();
+    if (!api) return Promise.resolve([]);
+    const native = isNativeApi(api);
+    let p; try { p = api.getCatalog(); } catch(e){ p = Promise.reject(e); }
     catalogPromise = Promise.resolve(p).then((items)=>{
-      catalogCache = Array.isArray(items) ? items : [];
+      const arr = Array.isArray(items) ? items : [];
+      // ⚠️ On the native path the store answers with an EMPTY ARRAY (not a rejection) when it is
+      // unreachable. An empty catalog therefore means «no live prices» — `priceOf` returns null
+      // and the interface falls back to its hard-wired price tags, exactly as before.
+      catalogCache = native ? arr.map((it) => (it && it.id) ? Object.assign({}, it, { id: toGameId(it.id) }) : it)
+                            : arr;
       return catalogCache;
     }).catch(()=>{ catalogPromise = null; return []; });
     return catalogPromise;
@@ -770,7 +812,17 @@ const Ads = (function(){
     ledgerAdd(orderId);
     if (isConsumable(id)){
       try {
-        const p = window.bridge.payments.consumePurchase(id);
+        // ⚠️⚠️ THE TWO CONTRACTS DIFFER HERE AND THAT IS THE WHOLE POINT OF THE ADAPTER.
+        // StoreKit must finish EXACTLY the transaction that was issued, addressed by its
+        // orderId — not «the newest purchase carrying this product id». With Ask to Buy a
+        // second copy of the same product can be in the queue, and closing by id alone kills
+        // it UNGRANTED: the family pays and the player receives nothing. Found by the iOS
+        // session's adversarial review, 2026-08-28.
+        // ⛔ The Playgama bridge takes ONE argument. Do not «unify» these by passing the extra
+        // one to the vendor SDK — an ignored argument today is a changed meaning tomorrow.
+        const api = payApi();
+        const p = isNativeApi(api) ? api.consumePurchase(toNativeId(id) || id, orderId)
+                                   : api.consumePurchase(id);
         if (p && p.catch) p.catch(()=>{ console.warn('[iap] the consume did not go through:', id); });
       } catch(e){}
     }
@@ -781,15 +833,36 @@ const Ads = (function(){
   // A PURCHASE. It ALWAYS returns a resolve with {ok}, so that the caller does not build its
   // own catch: the player's refusal is not a program error.
   function purchase(id){
-    if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    const api = payApi();
+    if (!api) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    const native = isNativeApi(api);
+    // ⛔ An id the store does not know is 'unavailable', NOT 'failed': the HUD renders that as
+    // «Coming soon» instead of «Purchase failed», which is the truth — see NATIVE_IDS above.
+    const storeId = native ? toNativeId(id) : id;
+    if (native && !storeId) return Promise.resolve({ ok: false, reason: 'unavailable' });
     Telemetry.ev('iap', { ph: 'start', id: id });
     let p;
-    try { p = window.bridge.payments.purchase(id); } catch(e){ p = Promise.reject(e); }
+    try { p = api.purchase(storeId); } catch(e){ p = Promise.reject(e); }
     return Promise.resolve(p)
       .then((res) => settlePurchase(id, res))
       .catch((e) => {
-        Telemetry.ev('iap', { ph: 'fail', id: id, r: String((e && e.message) || e || '').slice(0, 60) });
-        return { ok: false, reason: 'failed' };
+        // ⚠️ A REFUSAL IS NOT A FAILURE. The native provider rejects with a message that names
+        // which of the three happened; the bridge has no such vocabulary, so anything it says
+        // keeps falling into 'failed' exactly as before — this widens the vocabulary, it does
+        // not change the Playgama path.
+        //   cancelled — the player backed out: say nothing;
+        //   pending   — Ask to Buy awaits approval: neither granted nor failed; it will arrive
+        //               UNCONSUMED through getPurchases() on the next restore pass;
+        //   unavailable — the store does not know this product: «Coming soon», not «failed».
+        //                 ⚠️ Kept SEPARATE from 'failed' on purpose — 'failed' is reserved for a
+        //                 product the store KNOWS but could not sell (network, StoreKit error).
+        //                 Without this line an id we map but Apple has not published yet would
+        //                 tell the player their purchase broke, when nothing was ever on sale.
+        //   failed    — a real error: tell the player.
+        const m = String((e && e.message) || e || '');
+        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable') ? m : 'failed';
+        Telemetry.ev('iap', { ph: reason === 'failed' ? 'fail' : reason, id: id, r: m.slice(0, 60) });
+        return { ok: false, reason: reason };
       });
   }
 
@@ -799,14 +872,20 @@ const Ads = (function(){
   //      between the payment and the granting, then the bundle stayed UNclosed and hangs in
   //      the list.
   function restorePurchases(){
-    if (!paymentsOn()) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    const api = payApi();
+    if (!api) return Promise.resolve({ ok: false, reason: 'unsupported' });
+    const native = isNativeApi(api);
     let p;
-    try { p = window.bridge.payments.getPurchases(); } catch(e){ p = Promise.reject(e); }
+    try { p = api.getPurchases(); } catch(e){ p = Promise.reject(e); }
     return Promise.resolve(p).then((list) => {
       const items = Array.isArray(list) ? list : [];
       let restored = 0, skipped = 0;
       items.forEach((it) => {
-        const id = it && it.id; if (!id) return;
+        // ⚠️ orderId is StoreKit's Transaction.id: stable across launches, reinstalls and
+        // devices, and a consumed one never returns to the queue. That is what makes the
+        // ledger a reliable key here — an unconsumed bundle survives a reinstall with the
+        // SAME orderId, so it is granted once and only once.
+        const id = it && toGameId(it.id); if (!id) return;
         const orderId = it.orderId || null;
         if (ledgerHas(orderId)){ skipped++; return; }   // already closed — do not grant again
         const r = settlePurchase(id, it);

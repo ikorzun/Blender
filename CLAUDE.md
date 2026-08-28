@@ -11595,3 +11595,63 @@ three files, and only the first is obvious.
 **Files this batch touched:** `src/app/30-shapes.js`, `src/app/39-sport.js` (new),
 `src/app/40-items.js`, `src/app/50-physics.js`, `src/app/73-material.js`, `src/app/77-save.js`,
 `test.js`, `CLAUDE.md`, `index.html` (generated).
+
+## PAYMENTS: TWO PROVIDERS, ONE SEAM (2026-08-28, with the iOS wrapper session)
+
+The iOS/macOS wrapper serves the game from the custom origin `blendo://game` and injects
+`window.__nativePayments` through a WKUserScript at documentStart — **before the first byte of
+our scripts**, so `78-ads.js` may ask for it synchronously and needs no readiness event.
+
+⛔ **AN EXPLICIT ADAPTER, NEVER AN IMPERSONATION OF THE BRIDGE.** The native side must not
+pretend to be `window.bridge`. The two contracts genuinely differ, and the difference is not
+cosmetic — see the orderId law below. `payApi()` returns the native provider when present,
+otherwise the bridge; with neither, `paymentsOn()` is false and **the web path is byte-for-byte
+what it always was.**
+
+⚠️ **THE SHIM RETURNS `null` WHEN NO NATIVE HANDLER IS BEHIND IT** — `null` and `undefined` must
+be treated identically as «no provider». Testing `'__nativePayments' in window` would be wrong.
+
+### THE ORDERID LAW — THE REASON THE ADAPTER EXISTS AT ALL
+
+StoreKit must finish **exactly the transaction that was issued**, addressed by its orderId
+(`Transaction.id`) — not «the newest purchase carrying this product id». With **Ask to Buy** a
+second copy of the same product can sit in the queue, and closing by id alone kills it
+**UNGRANTED**: the family pays and the player receives nothing. Hence
+`consumePurchase(nativeId, orderId)` on the native path and `consumePurchase(id)` on the bridge.
+⛔ Do NOT «unify» these by passing the extra argument to the vendor SDK. An argument ignored
+today is a changed meaning tomorrow.
+⚠️ orderId is stable across launches, reinstalls and devices, and a consumed one never returns
+to the queue — that is precisely what makes `IAP_LEDGER` a reliable key on the restore pass.
+
+### THE ID TABLE HAS EXACTLY ONE OWNER
+
+`NATIVE_IDS` in `78-ads.js` (`bundle5/3/2` → `monster.blendo.bundle5/3/2`). The wire carries
+**FULL** ids in both directions; the native side keeps a flat product list and **no second name
+table**.
+⛔⛔ **THIS WAS CAUGHT ONE QUESTION BEFORE THE PUSH.** Both sides had independently written a
+mapping table, so every id would have been translated twice: purchases into a product that does
+not exist, a catalog the game cannot read, a restore that matches nothing — and all of it
+silently, on the money path. The lesson is not «we were lucky»: **when two sides translate the
+same names, ask WHO OWNS THE TABLE before writing code, not after.**
+⛔ `noads_forever` has **no** App Store id and deliberately none is invented. An unmapped id on
+the native path returns `'unavailable'`, which the HUD already renders as «Coming soon» — the
+honest state. It is doubly dead anyway: there is also no META handle to grant it. If the owner
+decides to sell it, it lands as ONE batch: the ASC product (⚠️ **non-consumable**), the META
+handle, and a line in the table.
+
+### THE REFUSAL VOCABULARY, AND A DEFECT IT EXPOSED
+
+`purchase()` still never rejects; its `reason` widened to `cancelled` / `pending` /
+`unavailable` / `failed`. The bridge has no such vocabulary, so anything it says keeps falling
+into `failed` — **this widened the vocabulary, it did not rewrite the Playgama path.**
+⚠️ `unavailable` is kept SEPARATE from `failed` on purpose: `failed` is reserved for a product
+the store KNOWS but could not sell (network, StoreKit error).
+
+⛔⛔ **AND THE DEFECT THE SEAM UNCOVERED, LIVE SINCE THE FEATURE EXISTED:** `90-input.js` showed
+**«Purchase failed» on EVERY non-ok answer — including the player's own cancel**, calling their
+deliberate choice an error. On Playgama too. `cancelled` and `pending` are now silent (a pending
+Ask-to-Buy arrives later through the restore pass, so any message would be a lie in the other
+direction).
+⚠️ **The general shape of this mistake:** a caller that branches on «ok / not ok» while the
+callee knows four different reasons. Widening the callee's vocabulary is only half the work —
+the other half is at the call site, and without it the new reasons are dead code.

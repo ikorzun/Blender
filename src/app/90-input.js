@@ -656,7 +656,14 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
       Ads.purchase(tier).then((res) => {
         if (!res || !res.ok){
           console.warn('[stars] purchase did not go through:', tier, res);
-          toast(res && (res.reason === 'unsupported' || res.reason === 'unavailable') ? 'Coming soon' : 'Purchase failed');
+          // ⚠️ SILENCE ON A REFUSAL. Until 2026-08-28 EVERY non-ok answer showed «Purchase
+          // failed» — including the player's own cancel, which called their deliberate choice
+          // an error. 'cancelled' and 'pending' (Ask to Buy awaiting approval) are now silent;
+          // a pending one arrives later through the restore pass, so a message would be a lie
+          // in the other direction.
+          const r = res && res.reason;
+          if (r !== 'cancelled' && r !== 'pending')
+            toast(r === 'unsupported' || r === 'unavailable' ? 'Coming soon' : 'Purchase failed');
           return;
         }
         Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
