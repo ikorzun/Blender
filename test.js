@@ -4332,7 +4332,13 @@ window.bridge = {
       // the arity itself is the subject: the bridge takes one argument, StoreKit takes two
       consumePurchase(id, orderId){ rec.consumed.push([id, orderId, arguments.length]); return Promise.resolve({}); },
     };
-    const out = { on: A.paymentsOn };
+    // ⚠️ «paymentsOn is true» PROVES NOTHING on its own: the bridge mock reports supported too,
+    // so the flag is already true with no shim on the page at all. Take the bridge away for one
+    // line — what is left can only be the shim.
+    const bp = window.bridge.payments;
+    bp.isPaymentsSupported = false;
+    const out = { onShimOnly: A.paymentsOn };
+    bp.isPaymentsSupported = true;
 
     // 1) A REAL PURCHASE: the full id goes out, the orderId comes back into the consume
     out.buy = await A.purchase('bundle2');
@@ -4352,13 +4358,22 @@ window.bridge = {
     out.unmapped = (await A.purchase('noads_forever')).reason;
     out.unmappedSilent = (rec.purchased.length === before);
 
-    // 4) AND THE PROVIDER GOES AWAY AGAIN
+    // 4) AND THE PROVIDER GOES AWAY AGAIN — proven BY THE WIRE, not by a flag. «paymentsOn is
+    // still true» would have been true regardless; the only real proof is that the NEXT purchase
+    // lands on the bridge and not on the fake. `_fail` makes the bridge record the attempt and
+    // then reject, so this proof costs no grant and moves no game state.
     try { delete window.__nativePayments; } catch(e){ window.__nativePayments = null; }
-    out.offAgain = A.paymentsOn;          // true again — via the bridge, which is still there
-    out.viaBridge = !!(window.bridge && window.bridge.payments);
+    const natBefore = rec.purchased.length, bridgeBefore = window.__mock.iapTried.length;
+    window.bridge.payments._fail = true;
+    await A.purchase('bundle2');
+    window.bridge.payments._fail = false;
+    out.wentToBridge  = window.__mock.iapTried.length > bridgeBefore;
+    out.fakeUntouched = rec.purchased.length === natBefore;
     return out;
   });
-  expect(nat.on === true, 'payments/native: the shim switches paymentsOn on (the provider is seen)');
+  expect(nat.onShimOnly === true,
+    'payments/native: paymentsOn comes from THE SHIM — true even with the bridge reporting ' +
+    'unsupported (a bare «paymentsOn is true» would have passed with no shim at all)');
   expect(nat.buy && nat.buy.ok === true,
     'payments/native: the purchase through the native provider went through (' + JSON.stringify(nat.buy) + ')');
   expect(nat.wireId === 'monster.blendo.bundle2',
@@ -4382,8 +4397,86 @@ window.bridge = {
     'payments/native: an id absent from NATIVE_IDS answers «unavailable» (' + nat.unmapped + ')');
   expect(nat.unmappedSilent === true,
     'payments/native: an unmapped id does NOT even reach the store (no invented product id)');
-  expect(nat.offAgain === true && nat.viaBridge === true,
-    'payments/native: with the provider removed the bridge is in charge again (the fake left no trace)');
+  expect(nat.wentToBridge === true && nat.fakeUntouched === true,
+    'payments/native: with the provider removed the next purchase goes TO THE BRIDGE and not to ' +
+    'the fake (bridge=' + nat.wentToBridge + ' fakeUntouched=' + nat.fakeUntouched + ')');
+
+  // === PAYMENTS: AN ORDER NUMBER OF ZERO IS STILL AN ORDER NUMBER ===
+  // ⛔⛔ StoreKit's Transaction.id is a NUMBER and in the StoreKitTest environment it STARTS AT 0.
+  // Every orderId test in this file used to be a truthiness test, which is right for a bridge
+  // that always sends a non-empty string and catastrophic here: a numeric 0 read as «no order»,
+  // and then the whole chain failed in one direction — always in the player's favour and against
+  // the owner. The consume went out with a null order, so StoreKit never finished the
+  // transaction, so it came back in getPurchases() on EVERY launch — and the ledger entry that
+  // stops a second grant was never written, because it too tested truthiness. Result: the bundle
+  // granted again, free, on every start, forever.
+  // ⚠️ Reported as a format note by the iOS wrapper session («test ids are small, 0, 1, 2…»),
+  // not as a defect. It became reachable the moment a second provider existed.
+  const zero = await apage.evaluate(async () => {
+    const A = window.__ads;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const rec = { consumed: [], purchased: 0 };
+    let list = [];
+    window.__nativePayments = {
+      getCatalog(){ return Promise.resolve([]); },
+      getPurchases(){ return Promise.resolve(list.slice()); },
+      purchase(id){ rec.purchased++; return Promise.resolve({ orderId: 0 }); },   // <- the number zero
+      consumePurchase(id, orderId){ rec.consumed.push(orderId); return Promise.resolve({}); },
+    };
+    try { localStorage.removeItem('mixer_iap_done'); } catch(e){}
+    const out = {};
+
+    // 1) a purchase whose order number is 0 must still carry that number into the consume
+    await A.purchase('bundle2');
+    await wait(120);
+    out.consumedWith = rec.consumed.length ? rec.consumed[0] : 'NOTHING';
+
+    // 2) and the same transaction, coming back unfinished, must NOT be granted a second time
+    list = [{ id: 'monster.blendo.bundle2', orderId: 0 }];
+    const r1 = await A.restorePurchases();
+    await wait(60);
+    out.restoredAgain = r1 && r1.restored;      // must be 0 — the ledger already holds it
+    out.skipped = r1 && r1.skipped;             // must be 1
+
+    // 3) a genuinely absent order number keeps its old meaning: block nothing
+    list = [{ id: 'monster.blendo.bundle2' }];  // no orderId at all
+    const r2 = await A.restorePurchases();
+    out.absentStillGrants = r2 && r2.restored;  // must be 1 — unchanged behaviour
+
+    try { delete window.__nativePayments; } catch(e){ window.__nativePayments = null; }
+    return out;
+  });
+  expect(zero.consumedWith === '0',
+    '⚠️⚠️ payments: an order number of 0 reaches the consume as the string «0», not as null — ' +
+    'a null order leaves the transaction unfinished FOREVER (' + JSON.stringify(zero.consumedWith) + ')');
+  expect(zero.restoredAgain === 0 && zero.skipped === 1,
+    '⚠️⚠️ payments: order number 0 IS written to the ledger — the same transaction coming back ' +
+    'is skipped, not granted a second time (restored=' + zero.restoredAgain + ' skipped=' + zero.skipped + ')');
+  expect(zero.absentStillGrants === 1,
+    'payments: a GENUINELY absent order number still blocks nothing — the old meaning is intact ' +
+    '(restored=' + zero.absentStillGrants + ')');
+
+  // === STRUCTURAL: THE RESTORE PASS MUST NOT SIT BEHIND THE SDK GATE ===
+  // ⛔⛔ Until 2026-08-28 the ONLY call to restorePurchases() lived inside
+  // bridge.initialize().then(). The native wrapper serves the page from `blendo://game`, so the
+  // `location.protocol` gate at the top of init() fired, init() returned, the bridge never
+  // loaded — and recovery was UNREACHABLE there while BUYING still worked. Ask to Buy arrives
+  // exclusively through that pass, so a family could pay and the child receive nothing.
+  // ⚠️ This guard is STRUCTURAL on purpose: the behavioural version would need a second page on
+  // a non-http origin with a shim installed before any script ran, which the harness cannot do.
+  // It counts CALLS (`restorePurchases();`) rather than matching a formatting-sensitive line, so
+  // reformatting will not turn it red on a healthy build.
+  {
+    const pageSrc = fs.readFileSync(PAGE_FILE, 'utf8');
+    const gateAt = pageSrc.indexOf("location.protocol !== 'http:'");
+    const calls = []; let at = pageSrc.indexOf('restorePurchases();');
+    while (at >= 0){ calls.push(at); at = pageSrc.indexOf('restorePurchases();', at + 1); }
+    const beforeGate = calls.filter(x => x < gateAt).length;
+    expect(gateAt > 0 && calls.length >= 2 && beforeGate >= 1,
+      '⚠️⚠️ payments: the restore pass is reachable WITHOUT the bridge — at least one ' +
+      'restorePurchases() call stands BEFORE the location.protocol gate, or a custom-origin ' +
+      'wrapper can buy and never recover (calls=' + calls.length + ' before the gate=' + beforeGate + ')');
+  }
 
   // === TELEMETRY: a crash goes out ONE time ===
   // ⚠️ A non-empty URL is needed — otherwise sendBeacon is not called at all and the guard measures
