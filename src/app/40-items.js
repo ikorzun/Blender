@@ -241,7 +241,14 @@ function makeSurprise(spawn){
 // ⛔⛔ HERE THE PROCEDURAL RAINBOW MATCAP OF THE BOMB WAS BAKED (`bombMatcap`, ~40
 // lines: fresnel + a thin-film hue by radius and angle + a narrow spark). REMOVED
 // 2026-08-17 by the owner's word «take it for the bomb» together with his picture —
-// now the matcap arrives from `07-matcap-bomb.js` (`bombMatcapTex`).
+// then the matcap arrived from `07-matcap-bomb.js` (`bombMatcapTex`).
+// ⛔⛔ AND THAT IS STALE SINCE 2026-08-28: the bomb became the DYNAMITE (the owner's word
+// «replace the bomb with the dynamite»), and the dynamite is a textured model — it takes the
+// sport pack's colormap and the shared `itemMatcapAim` selector, see the material below.
+// ⚠️ `07-matcap-bomb.js` (168 KB of base64) THEREFORE NOW PAINTS NOTHING in the game.
+// `bombMatcapTex` is still alive on two paths and that is why the file was NOT deleted:
+// the matcap editor's target for id 'bomb' (`12-matcap-edit.js:97`) and the hook at
+// `99-main.js:1340`. Deleting it is 168 KB off the build and the owner's call, not mine.
 // ⚠️ THE REASON IT EXISTED AT ALL HAS NOT DISAPPEARED: three r149 cannot do
 // `MeshPhysicalMaterial.iridescence` (r150+, and the UMD build cannot be raised
 // above r160), and the iridescence still lives in a TEXTURE, not in the material.
