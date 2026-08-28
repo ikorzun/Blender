@@ -2063,7 +2063,13 @@
        the previous one. It hits exactly the owner's word «I scrolled to it — it sits down
        by itself», and precisely in the most frequent case: with a place below the sent
        segment one's own row is the last. If you change `bottom` — change this too. */
-    display:flex; flex-direction:column; gap:24px; padding:88px 0 32px; }
+    /* ⚠️ The 88px cross reserve grows by the top safe-area inset: inside the native
+       WKWebView wrapper (viewport-fit=cover) the page runs under the Dynamic Island,
+       and the cross with the heading must drop below it TOGETHER — the sticky rule
+       below carries the same env() term. In browsers env() is 0 — nothing moves.
+       Reported and measured by the iOS wrapper session, 2026-08-28. */
+    display:flex; flex-direction:column; gap:24px;
+    padding:calc(88px + env(safe-area-inset-top, 0px)) 0 32px; }
   .lb-head { display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; }
   .lb-title { color:#fff; font-weight:900; font-size:36px; line-height:1.2; }
   .lb-sub { color:rgba(255,255,255,.8); font-weight:700; font-size:18px; line-height:1.17; }
@@ -2088,7 +2094,8 @@
      ⚠️ The negative bottom inset kills the space the button now occupies
      in the flow: at the top of the card 88px is already reserved for it, and without this
      the list would have driven down by exactly the height of the button. */
-  #lbOverlay .st-close { position:sticky; top:16px; align-self:center;
+  #lbOverlay .st-close { position:sticky;
+    top:calc(16px + env(safe-area-inset-top, 0px)); align-self:center;
     flex:none; margin-bottom:-56px; z-index:3; }
   /* ⚠️⚠️ DESKTOP IS ON THE LEFT, AND THIS HAD TO BE FIXED SEPARATELY. The rule above hangs on
      `#lbOverlay` (weight 1,1,0) and overrode the common `.st-close { left:16px }` from
@@ -3424,9 +3431,11 @@
      — the rules are only under #starsOverlay. */
   #starsOverlay { z-index:40; overflow-y:auto; touch-action:pan-y; align-items:flex-start; }
   /* THE BASE = MOBILE (mock-up 785:112): a column, insets 16, the close button at the top */
+  /* ⚠️ The top inset grows by the safe area: in the native wrapper the sheet runs
+     under the Dynamic Island and the in-flow cross sat half-hidden behind it. */
   #starsOverlay .st-wrap { margin:auto; width:min(742px, 100vw - 32px);
     display:flex; flex-direction:column; align-items:center; gap:16px;
-    padding:24px 0 32px; font-family:var(--font-round); }
+    padding:calc(24px + env(safe-area-inset-top, 0px)) 0 32px; font-family:var(--font-round); }
   /* ⚠️ THE CROSS IS ALWAYS WHITE WITH A BLACK CROSS (the owner's spec 2026-07-31:
      «a white button with a black little cross is needed, otherwise the contrast is bad. In this
      case the icon colour does not depend on the time of day»). The More Stars overlay is
@@ -3492,8 +3501,10 @@
     .otext.st-x text { font-size:80px; }
     .st-time { font-size:33px; font-weight:900; }
     .st-bonus { flex:none; text-align:center; line-height:24px; width:100%; }
-    /* in the mock-up the button is in the top left corner of the SCREEN (not of the wrapper) */
-    .st-close { position:fixed; top:16px; left:16px; align-self:auto; }
+    /* in the mock-up the button is in the top left corner of the SCREEN (not of the wrapper);
+       the env() term keeps it below the notch/island in landscape on the native wrapper */
+    .st-close { position:fixed; top:calc(16px + env(safe-area-inset-top, 0px));
+      left:16px; align-self:auto; }
   }
   /* THE EYES ON THE PLAY CARD — LARGER AND HIGHER (the owner's markup 2026-07-28:
      the whites almost across the whole width of the card with small insets, the block in the UPPER
