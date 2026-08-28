@@ -598,7 +598,26 @@ const ACC_LABELS = {
   // own (Barrel/Cannon/Chest) and go as the trimmed form, as they are
   brickround: 'Round brick', brickbar: 'Bar brick', brickcorner: 'Corner brick',
   brickstud: 'Stud brick', brickclassic: 'Classic brick',
-  bricksquare: 'Square brick', brickduo: 'Duo brick' };
+  bricksquare: 'Square brick', brickduo: 'Duo brick',
+  // the Kenney packs: stripping the prefix is not enough, the stem itself is unreadable
+  // («Vehiclemonstertruck», «Coga», «Presentacube», «Gingerbreadman»)
+  holidaygingerbreadman: 'Gingerbread man', holidaypresentacube: 'Gift box',
+  toycarvehiclemonstertruck: 'Monster truck', toycarvehiclespeedster: 'Speedster',
+  toycarvehiclevintageracer: 'Vintage racer', factorycoga: 'Cog',
+  // ⚠️ survivalfish needs a label of its OWN: `animalfish` is already «Fish» and `foodfish` is
+  // «Cooked fish» — without this line the museum would show two cards called «Fish».
+  // «Raw» is the dispatcher's default and was named to the owner; one string to change.
+  survivalfish: 'Raw fish',
+  // the owner's batch of 2026-08-28: only the ones whose stem does not read on its own
+  // (basketball / volleyball / fries strip cleanly)
+  sporttennisball: 'Tennis ball', sportsoccerball: 'Football',
+  // ⚠️⚠️ THE KEY SAYS GOLF, THE MODEL IS A BASEBALL — NAMED TO THE OWNER, NOT FIXED SILENTLY.
+  // His file is named «golf ball» in Russian, so the type key keeps his name (assets are taken as they
+  // are). But the rendered portrait is a white ball with the classic red figure-of-eight seam;
+  // a golf ball would have dimples and no seam. A label that contradicts the picture is the
+  // actual defect, so the LABEL follows the model. If he meant golf, the artist sent the wrong
+  // ball — one string here either way.
+  sportgolfball: 'Baseball' };
 // ⚠️ The list of prefixes = ALL the TYPES packs (the INTERFACE's request
 // 2026-07-22: the showcase produced «Brickround»/«Piratebarrel»). Starting a new
 // pack — add its prefix here, otherwise the label will drift along with the key.
@@ -635,7 +654,15 @@ function accRuleMark(){ Save.mt = (Save.mt || 0) | META_TIP_RULE; commitSave(); 
 function accLabel(key){
   const k = String(key);
   if (ACC_LABELS[k]) return ACC_LABELS[k];
-  const short = k.replace(/^(animal|food|car|brick|pirate)/, '');
+  // ⚠️⚠️ ALL ELEVEN PACKS, NOT FIVE. The comment above has demanded «the list of prefixes = ALL
+  // the TYPES packs» since 2026-07-22, but the five Kenney packs were never added to it, and the
+  // fallback therefore glued the prefix onto ELEVEN of the 87 cards the player actually reads:
+  // «Toycarvehiclemonstertruck», «Holidaygingerbreadman», «Factorycoga», «Survivalfish»,
+  // «Forestplant». Found by computing every label instead of reading the regex. The named ones
+  // below also get a real ACC_LABELS entry — stripping alone still leaves «Vehiclemonstertruck».
+  // ⚠️ Longest first: `toycar` must win over `car`, `forest`/`factory` over `food`. With `^` they
+  // cannot actually collide today, but the order costs nothing and survives a new pack.
+  const short = k.replace(/^(survival|factory|holiday|toycar|animal|pirate|forest|brick|sport|food|car)/, '');
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 // TYPE UNLOCKING BY PROGRESSION (the contract for GRAPHICS — a 3D portrait only

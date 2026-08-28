@@ -379,6 +379,15 @@ function buildAccessSamples(item, typeName, geo){
   const s = item.scl;
   const pts = [];
   const push = (x, y, z) => pts.push(x, y, z);
+  // ⚠️ phys:'ball' is answered BEFORE the switch: the switch is keyed by typeName, and a model
+  // type's name is its own ('sportgolfball'), so it would fall into the hull default — 8 face
+  // centroids of a sphere instead of the 5 exact points, i.e. 56 raycasts per item instead of 35
+  // on Hard, for no extra information. The five points are byte for byte the 'ball' case below.
+  if (item.type && item.type.phys === 'ball'){
+    push(0, 0, 0); push(0.5*s, 0, 0); push(-0.5*s, 0, 0); push(0, 0, 0.5*s); push(0, 0, -0.5*s);
+    item.samples = new Float32Array(pts);
+    return;
+  }
   switch (typeName){
     case 'cube':
       push(0, 0, 0);
@@ -447,7 +456,13 @@ function createItemBody(item, typeName, geo){
     // live value is true, it has not been changed.
     .setCcdEnabled(ccdDefault) // against tunnelling at speed (intro/shake)
     .setLinearDamping(0.3)
-    .setAngularDamping(ROLLY[typeName] ? 2.5 : 1.2);
+    // ⚠️⚠️ `phys:'ball'` COUNTS AS ROLLY, AND THAT IS THE WHOLE POINT OF THE FLAG. ROLLY is keyed
+    // by the SHAPE name ('ball', 'torus', …), and a model type's typeName is its own name
+    // ('sportbasketball'), so the five balls of the 2026-08-28 batch would silently have taken the
+    // 1.2 of a box. Rapier has no rolling friction: in a cone-shaped bowl that is a sphere that
+    // never stops, i.e. maxBodySpeed never falls under 0.25 for 0.4 s, the pile never sleeps, and
+    // on Hard the accessibility fan keeps ticking — the very cost measured on 2026-08-14.
+    .setAngularDamping((ROLLY[typeName] || (item.type && item.type.phys === 'ball')) ? 2.5 : 1.2);
   const body = world.createRigidBody(bd);
   const add = (cd, ox, oy, oz) => {
     cd.setDensity(density).setFriction(FRICTION).setRestitution(RESTIT);
@@ -497,6 +512,13 @@ function createItemBody(item, typeName, geo){
       break;
     default: { // cone, octa, dode, tetra, star, heart — convex hull from real geometry
       // ⚠️ RING MODELS COME BEFORE hull: their hole is real, and hull closes it
+      // ⚠️⚠️ BALL MODELS COME BEFORE hull, for the same reason the ring does: the hull is not
+      // WRONG here, it is EXPENSIVE and pointless. The five balls of the 2026-08-28 batch carry
+      // 942..4437 vertices each; hullFromGeometry would build a polyhedron out of them per item
+      // per level, when the exact shape is one number. item.r is the enclosing radius
+      // (t.rc * size * MESH_SCALE) and the models are normalised to rc = 1.0, so for a sphere the
+      // enclosing sphere IS the sphere — this is exact, not an approximation.
+      if (item.type && item.type.phys === 'ball'){ add(RAPIER.ColliderDesc.ball(item.r)); break; }
       if (item.type && item.type.phys === 'ring' && ringFromGeometry(add, geo, s)) break;
       const cd = hullFromGeometry(geo, s);
       if (cd) add(cd);

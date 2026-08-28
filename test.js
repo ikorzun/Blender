@@ -5385,14 +5385,21 @@ window.bridge = {
     const n20 = Object.keys(g.typesSnapshot());
     g.setLevel(11); g.regen(); g.skipIntro();
     const n10 = Object.keys(g.typesSnapshot());
-    // ⚠️⚠️ THE SENTINELS WERE REVISED 2026-08-15 ACCORDING TO THE ACTUAL COMPOSITION. The former
-    // `holidayhanukkahdreidel` was cut out by the owner (a batch of 32 types), and my
-    // first replacement (`holidaysnowman`) missed: after the deletions the order
-    // of the array shrank, and the snowman is not unlocked yet by lv.20. The point of the guard is «by the 20th
-    // types are visible that were not there by the 10th», so the sentinels were taken by a MEASUREMENT
-    // of the actual composition: at lv.20 there are piratepalm / cartaxi / foodeggplant,
-    // at lv.10 — none of them.
-    return { holiday20: ['piratepalm','cartaxi','foodeggplant']
+    // ⚠️⚠️ THE SENTINELS ARE REVISED AGAIN, 2026-08-28 — THE THIRD TIME, AND ALWAYS FOR THE SAME
+    // REASON: they are pinned to POSITIONS in TYPES, and every batch that changes the composition
+    // moves them. 2026-08-15 the owner cut 32 types (the array shrank); 2026-08-28 he had six new
+    // ones inserted at levels 6/9/12/15/18/21 (the array grew in the middle) — and of the previous
+    // trio only `cartaxi` was still unlocked by lv.20, so this assert went red on a HEALTHY build.
+    // The guard MOVED WITH THE RULE, it was not «fixed»: the property it states is unchanged —
+    // «by the 20th, types are visible that were not there by the 10th».
+    // ⚠️ TAKEN BY MEASUREMENT of the live build, not from the array by eye: unlocked at lv.20 and
+    // NOT at lv.10 are animalcaterpillar / holidaygingerbreadman / animalfish / animalpenguin /
+    // cartaxi / foodgrapes plus the four new sport ones.
+    // ⚠️⚠️ THE THREE CHOSEN ARE DELIBERATELY PRE-EXISTING AND FROM THREE DIFFERENT PACKS
+    // (holiday / car / animal). Using a `sport*` type would have been fitting to green: the new
+    // pack IS «new types early», so the assert would have been testing this batch instead of the
+    // shuffling rule of 2026-07-30 it exists for.
+    return { holiday20: ['holidaygingerbreadman','cartaxi','animalpenguin']
                .filter(x => n20.includes(x)).length,
              fish10: n10.includes('survivalfish'),
              donut20: n20.includes('fooddonutsprinkles') };

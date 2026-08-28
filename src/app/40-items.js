@@ -250,19 +250,45 @@ function makeSurprise(spawn){
 // ⚠️ The technique itself has not changed: a matcap = a lookup by the normal IN
 // CAMERA SPACE, so when the ball rolls the picture «flows» by itself, without
 // light and without a patch.
+// ⛔⛔ THE BOMB IS NO LONGER A BALL — THE OWNER'S WORD 2026-08-28: «replace the bomb with
+// dynamite», answering the fork raised with his own batch of new models. It CANCELS his spec of
+// 2026-07-22 «add a black ball of medium size» and, with it, the visual half of 2026-07-23 «make
+// it iridescent»: what an iridescent matcap was FOR was to make a featureless black sphere read as
+// dangerous, and a stick of dynamite says that by itself.
+// ⚠️ WHAT SURVIVES UNCHANGED, deliberately: the blast is untouched. `r` stays 0.95·MESH_SCALE, and
+// the victims of detonateBomb are chosen by the GAP OF ENCLOSING SPHERES against BOMB_RADIUS — so
+// his tuned blast zone, its ×2 of 2026-07-27-b and the ice's point-blank FROZEN_BOMB_RADIUS all
+// keep meaning exactly what they measured. The geometry is normalised to rc = 1.0, hence a mesh
+// scale of 0.95·MESH_SCALE gives an enclosing radius of exactly 0.95·MESH_SCALE.
+// ⚠️ THE MATERIAL STAYS A FLAT `MeshMatcapMaterial` WITHOUT `matcapSpecPatch`, and that is not
+// laziness: the canon records that the bomb is the living carrier of the OLD veil path (a lerp of
+// material.color towards DIM_GREY, «a buried bomb only dims by ~30%, the hue is intact»). Giving it
+// `itemMaterial` would have moved it onto the uVeil shader, i.e. full desaturation — a silent
+// change to a documented behaviour nobody asked for. The `bombMatKind` guard reads type +
+// hasMatcap, and both still hold.
+// ⛔ CONSEQUENCE, NAMED AND NOT SILENTLY TIDIED: `07-matcap-bomb.js` (168 KB of the owner's PNG in
+// base64) no longer paints anything. It is still reachable through the matcap editor's 'bomb'
+// target, `__game.bombMatcapInfo()` and two suite places — so the target now edits a texture that
+// is not rendered, which is exactly the «silent no-op» class this project keeps fighting. Removing
+// it is a separate pass with its own two-sided run; it was NOT folded into this batch.
 function makeBomb(){
-  if (!geoCache.has('B')) geoCache.set('B', new THREE.SphereGeometry(0.95, 28, 20));
-  // iridescent: a rainbow matcap (bombMatcap), a lookup by the normal in camera
-  // space — when the ball rolls the streaks «flow». A flat MeshMatcapMaterial
-  // (without our spec patch): no light is needed, everything is in the texture.
-  const mat = new THREE.MeshMatcapMaterial({ matcap: bombMatcapTex() });
+  // the dynamite from «3d assets/models/sport» (39-sport). It has NO line in TYPES — it is not a
+  // collectable type, only the bomb's body, so the pool stays at 93.
+  if (!geoCache.has('B')) geoCache.set('B', sportdynamiteGeo());
+  // the model's own palette (the sport atlas = the animals' one, aliased in 39-sport) + the same
+  // almost-white pack matcap every textured model gets, through the shared four-tier selector.
+  const mat = new THREE.MeshMatcapMaterial({
+    color: 0xffffff,                       // white: the shader multiplies map by color
+    map: modelColormap('sport'),
+    matcap: itemMatcapAim({ name: 'bomb', tex: 'sport', mat: 'soft' }),
+  });
   const mesh = new THREE.Mesh(geoCache.get('B'), mat);
-  mesh.scale.setScalar(1.0 * MESH_SCALE); // «medium size»: a reach of 0.95·MESH_SCALE
+  mesh.scale.setScalar(0.95 * MESH_SCALE); // enclosing radius exactly 0.95·MESH_SCALE, as before
   const item = {
     key: 'BOMB', bomb: true, type: { name: 'bomb', mat: 'plain' },
     baseColor: mat.color.clone(),
     fxColor: new THREE.Color(0x3a3f4a).convertSRGBToLinear(), // dark debris of the explosion
-    r: 0.95 * MESH_SCALE, scl: 1.0 * MESH_SCALE,
+    r: 0.95 * MESH_SCALE, scl: 0.95 * MESH_SCALE,
     p: new THREE.Vector3(), body: null, geo: geoCache.get('B'),
     mesh, alive: true, animating: false, accessible: false,
   };
@@ -336,7 +362,7 @@ function bombDropReward(){
   const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
   b.p.set(Math.cos(th) * d, FUNNEL.H + 2, Math.sin(th) * d);
   b.mesh.position.copy(b.p);
-  createItemBody(b, 'ball', geoCache.get('B'));
+  createItemBody(b, 'bombhull', geoCache.get('B')); // not 'ball' any more — see makeBomb
   items.push(b);
   wakePhysics('bombReward'); updateHUD();
   return true;
@@ -716,7 +742,7 @@ function genLevel(){
         const b = makeBomb();
         b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
         b.mesh.position.copy(b.p);
-        createItemBody(b, 'ball', geoCache.get('B'));
+        createItemBody(b, 'bombhull', geoCache.get('B')); // not 'ball' any more — see makeBomb
         b.wave = Math.floor(n/8); waveHold(b);
         items.push(b);
       }

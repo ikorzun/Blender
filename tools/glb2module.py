@@ -268,7 +268,8 @@ def find_colormap(src_dir, explicit):
     the Blender pass copies only .glb, it does not drag the Textures folder along."""
     cands = [explicit] if explicit else []
     # ⚠️ THE THIRD CANDIDATE — NEXT TO THE MODELS, WITHOUT Textures/. That is how the owner's
-    # export is laid out, «3d assets/InGame/<Pack>/colormap.png» (2026-08-19): the atlas lies
+    # export is laid out, «3d assets/models/<pack>/colormap.png» (path updated 2026-08-28, the
+    # folder was «InGame/<Pack>» until the merge): the atlas lies
     # right in the pack's folder. Without this line the generator silently writes a module WITHOUT
     # an atlas, and the whole pack comes out white — the failure is silent, there is no error.
     cands += [os.path.join(src_dir, 'colormap.png'),

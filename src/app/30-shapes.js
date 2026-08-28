@@ -98,10 +98,35 @@ const TYPES = [
   { name:'animalcrab',            color:0xff5a2b, rc:1.0, tex:'animal', mat:'soft', geo:animalcrabGeo },
   { name:'animalpig',             color:0xff9ec4, rc:1.0, tex:'animal', mat:'soft', geo:animalpigGeo },
   { name:'carpolice',             color:0x3a6ee0, rc:1.4, tex:'car', mat:'soft', geo:()=>carpoliceGeo().clone().scale(1.4, 1.4, 1.4) },
+  // ===== THE OWNER'S BATCH OF 2026-08-28: five balls and the fries =====
+  // His word: «check the new 3d objects and add them to the game on levels after 5, every 3
+  // levels», confirmed as 6/9/12/15/18/21.
+  // ⚠️⚠️ THE INDEX IS DERIVED FROM THE PROGRESSION, NOT PICKED: typesCount = LEVEL_TYPES_MIN +
+  // (level-1) = level+2, and index i is open while i < typesCount, so a type at index i first
+  // appears at level i-1 — hence index = level+1, i.e. 7/10/13/16/19/22. My first pass wrote
+  // index = level-1 and silently landed everything on levels 4/7/10; caught by printing the
+  // index->level table, not by reading. PRINT THE TABLE if you ever move these.
+  // ⚠️⚠️ THE PRICE OF AN INSERTION INTO THE MIDDLE, NAMED TO THE OWNER AND ACCEPTED: every
+  // existing type after index 7 is pushed 1..6 levels LATER, and the whole pool now opens at
+  // level ~92 instead of ~86. Appending at the tail would have avoided that and would have
+  // ignored his spec — the order of this array IS the difficulty lever, and he set it.
+  // ⚠️ The heaviest two (golf 4416 tris, football 5580) stand LAST on purpose: the early levels,
+  // where a first-time player meets the game, stay as light as they are today.
+  // ⚠️ tex:'sport' is FORCED, not chosen: the atlas embedded in all seven .glb is byte for byte
+  // the ANIMALS colormap, so these models can only be coloured by that palette. 39-sport aliases
+  // it instead of shipping a second copy.
+  // ⚠️ `color` here is the DEBRIS tint (fxColor), not the model's paint — for a textured type
+  // material.color stays white. It is MEASURED, not picked: the area-weighted mean of the body
+  // colours the model's own UV actually samples out of the atlas, with the black outline band
+  // excluded. Re-measure it if the artist re-maps a model.
+  // ⚠️ phys:'ball' on the five balls is NOT cosmetics — see the branch in 50-physics.
+  { name:'sportbasketball', color:0xe67543, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportbasketballGeo },   // lvl 6
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
+  { name:'sportfries', color:0xf99137, rc:1.0, tex:'sport', mat:'soft', geo:sportfriesGeo },   // lvl 9
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
+  { name:'sporttennisball', color:0x74d199, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sporttennisballGeo },   // lvl 12
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
   // ===== THE KENNEY BATCH 2026-07-30: 28 items from 7 kits (the 38-kenney.js module,
   // separate from 36-models — see WORKSTREAMS, and there too why 36-models was NOT regenerated).
@@ -111,10 +136,13 @@ const TYPES = [
   // color paints NOT the model (the atlas paints that) but the DEBRIS on decay — picked by
   // the item's dominant tone. wr is there where the converter marked a flat shape.
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
+  { name:'sportvolleyball', color:0xab8d90, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportvolleyballGeo },   // lvl 15
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
+  { name:'sportgolfball', color:0xefc7c6, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportgolfballGeo },   // lvl 18
   { name:'holidaygingerbreadman', color:0xc08a50, rc:1.0, wr:0.83, tex:'holiday', mat:'soft', geo:holidaygingerbreadmanGeo },
   { name:'cartaxi',               color:0xffc21a, rc:1.4, tex:'car', mat:'soft', geo:()=>cartaxiGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'sportsoccerball', color:0xc2c2c3, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportsoccerballGeo },   // lvl 21
   { name:'brickbar', color:0xe8433a, rc:1.0, wr:0.98, tex:'brick', paint:1, mat:'soft', geo:brickbarGeo },
   { name:'piratepalm', color:0xc87551, rc:1.0, tex:'pirate', mat:'soft', geo:piratepalmGeo },
   { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },

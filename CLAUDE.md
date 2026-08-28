@@ -4477,16 +4477,25 @@ the landing playgama.com/about-us, applied here on 2026-07-29):
 
 ## THE STATE OF THE «3d assets» FOLDER AFTER THE CLEANUP OF 2026-08-17
 
+⛔⛔ **SUPERSEDED 2026-08-28 — READ THE BATCH SECTION AT THE END OF THIS FILE INSTEAD.**
+`InGame`, `Izmenen` and `new` **no longer exist**: the 2026-08-28 batch merged everything into
+`3d assets/models` (11 Latin-named packs, 94 `.glb`, each pack carrying its own `colormap.png`)
+plus `matcap`, and deleted the rest. 15 MB → 6.6 MB. The full pre-merge state is preserved in
+git on the branch `assets/models-in-game`, commit `3ee3f03`.
+⛔ **Therefore the «CONSEQUENCE FOR A FUTURE REGENERATION» below is moot**: there is no `InGame`
+to rebuild `models` from any more, so `chest.glb` cannot come back by that route. Everything else
+in this section is history — read it for the principles, not for the paths.
+
 ⚠️⚠️ **A STATE PARAGRAPH, PARTLY STALE — TOMBSTONE 2026-08-20.** The layout of the
 folders has changed twice since then: right now `3d assets/` holds `InGame`
-(the former «_V igre»), `Izmenen` (the 3D artist's batch), **`_Sborka` (THE GENERATOR'S
+(the former «_V igre»), `Izmenen` (the 3D artist's batch), **`3d assets/models` (THE GENERATOR'S
 INPUT — it is precisely the one that `tools/glb2module.py` reads)** and `matcap`. There
 are **87** types in the pool, not 88 (`piratechest` was withdrawn). Read the text below
 as a DESCRIPTION OF THE PRINCIPLES and as the history of the cleanup, check the numbers
 and the paths against the disk.
 ⛔ **AND THE CONSEQUENCE FOR A FUTURE REGENERATION:** `chest.glb` was DELETED from
-`_Sborka`, but it REMAINED in `InGame/Piratskoe` and `Izmenen/Piratskoe`. Which means a
-regeneration from `_Sborka` will not bring the chest back, but a rebuild of `_Sborka`
+`3d assets/models`, but it REMAINED in `InGame/Piratskoe` and `Izmenen/Piratskoe`. Which means a
+regeneration from `3d assets/models` will not bring the chest back, but a rebuild of `3d assets/models`
 itself from `InGame` will bring it back silently, as dead weight. If you are going to do
 that — first strike the chest out.
 
@@ -11400,3 +11409,189 @@ The original was verified by md5 before and after, and the copy removed.
 **MEASURED, healthy:** `(none)→lbe-new`, `has-rank→lbe-new`, `has-rank+dir-up→lbe-up`,
 `has-rank+dir-dn→lbe-dn` — identical on `msLbEntry` and `winLbEntry`; arm B `43 → has-rank/wreath`,
 `40 → has-rank+dir-up/arrow`. `index.html` 10342400 → 10343754 bytes, 26 modules.
+
+## BATCH 2026-08-28: SEVEN NEW MODELS — SIX INTO THE POOL, THE SEVENTH REPLACES THE BOMB
+
+His words, in two messages: «check the new 3d objects and add them to the game on levels after 5,
+every 3 levels» + «do a full review of the objects in «3d assets», merge the ones used in the
+current build and the new ones into one folder, sort them by type inside, delete the rest of the
+objects and the folders related to objects». Then three answers to the forks put to him:
+**levels 6/9/12/15/18/21**, **«replace the bomb with dynamite»**, **«do not simplify the models,
+take them as they are»**.
+
+### WHAT ARRIVED, AND THE TWO FACTS THAT DECIDED EVERYTHING ELSE
+
+`3d assets/new`: seven `.glb` with Cyrillic names — five balls, dynamite, fries.
+
+⚠️⚠️ **FACT ONE: THE GENERATOR WOULD HAVE COLLAPSED ALL SEVEN INTO ONE NAME.** `glb2module.py`
+builds a type name as `re.sub(r'[^a-z0-9]', '', filename.lower())` — Cyrillic is stripped
+ENTIRELY, so «Basketball.glb» (Cyrillic in the source file name) yields the empty string and every file becomes just the prefix.
+The files were renamed to Latin on the way into the pack; **a Cyrillic model file name is not a
+style question here, it is a build failure.**
+
+⚠️⚠️ **FACT TWO: THE ATLAS INSIDE ALL SEVEN IS BYTE FOR BYTE THE ANIMALS' `colormap.png`**
+(md5 `f9a72b72fb1ffe0ddee2df9f7c0a26cb`, PNG 512×512, 10 915 B — extracted from the glb buffer
+and compared with all ten pack atlases on disk). That is not a coincidence to note, it DICTATES
+the pack: these UVs sample that palette and no other, so «put the fries in the Food pack» was
+never available — it would have coloured them from someone else's strip. Hence ONE new pack,
+`sport` / prefix `sport`, and `39-sport.js` **aliases** the atlas
+(`MODEL_ATLASES['sport'] = MODEL_ATLASES['animal']`) instead of shipping a second identical
+base64 — the precedent is `PACK_MATCAP_SRC.animal = PACK_MATCAP_SRC.food` (2026-08-19).
+⛔ The alias makes the module ORDER load-bearing: 36-models assigns `'animal'` and must run
+first. Renumber 39 below 36 and the alias is `undefined`.
+
+### THE PIPELINE WAS PROVEN REPRODUCIBLE BEFORE ANYTHING WAS TOUCHED
+
+⚠️⚠️ **THE CANON SAID `3d assets/models` IS THE GENERATOR'S INPUT; THAT WAS VERIFIED, NOT TRUSTED.**
+Regenerating from it produced `36-models.js` and `38-kenney.js` whose data lines (`const M_*` +
+`function *Geo`) are **byte-identical** to the committed modules — 381 and 56 lines, `cmp` clean.
+Only after that green light was a regeneration allowed to touch the tree.
+⛔ **AND THE SAME CHECK KILLED THE ASSUMED BACKUP.** The branch `assets/models-in-game` was
+believed (by this canon) to be the version-controlled copy of the models. It is a snapshot of
+**`InGame`**, not of `3d assets/models`: of 71 file names common to both, only **12** matched by content.
+So the real source of the build had NO copy in git at all, while `3d assets/` is gitignored.
+A full backup commit (`3ee3f03`, 362 files, 15 MB — including everything about to be deleted)
+was pushed BEFORE the first deletion. **Do not read a branch name as proof of what it holds.**
+
+### THE FOLDER
+
+`3d assets/` now holds exactly two things: **`3d assets/models`** (11 packs, 94 models, every pack with
+its own `colormap.png`) and **`matcap`**. `InGame`, `Izmenen` and `new` are deleted; 15 → 6.6 MB.
+⚠️ `matcap` was deliberately KEPT and it was named to him: those are the material images he
+picked his matcaps from, not objects. He asked for «folders related to objects».
+⚠️ `InGame` was not a duplicate — it was a STALE fork (49 files differing in content from the
+build source) whose folder name claimed it was «what is in the game». That is exactly the false
+order this canon warns about; deleting it removes the lie, and the backup keeps the bytes.
+
+### THE LEVELS — AND THE ARITHMETIC MISTAKE THAT THE TABLE CAUGHT AND READING DID NOT
+
+`typesCount = LEVEL_TYPES_MIN + (level−1) = level + 2`, and index `i` is open while `i < typesCount`,
+so a type at index `i` first appears at level `i − 1` ⇒ **index = level + 1**, i.e. 7/10/13/16/19/22.
+⚠️⚠️ **MY FIRST PASS WROTE `index = level − 1`** and every new type landed on levels 4/7/10/13/16/19.
+Nothing threw, the build was fine, and the diff looked correct. It was caught by PRINTING THE
+INDEX→LEVEL TABLE and comparing against his six numbers. **Print the table if you ever move these;
+an off-by-two in an inverse formula is invisible in a diff.**
+⚠️ **THE PRICE OF INSERTING INTO THE MIDDLE, NAMED TO HIM BEFORE HE ANSWERED AND ACCEPTED:** every
+existing type after index 7 is pushed 1..6 levels later and the whole pool now opens at ~92 instead
+of ~86. Appending at the tail would have avoided it and ignored his spec — the order of TYPES IS the
+difficulty lever, and this time he set it.
+⚠️ The heaviest two stand LAST on purpose (golf 4416 tris at lvl 18, football 5580 at lvl 21): a
+first-time player's levels stay as light as they are today.
+
+### THE FIVE BALLS NEEDED A PHYSICS FLAG, AND THAT IS NOT AN OPTIMISATION
+
+The shape dispatch in `createItemBody` and the `ROLLY` damping table are keyed by the SHAPE name
+('ball', 'torus', …), while a model type's `typeName` is its own name ('sportbasketball'). Left
+alone the five balls would have taken **the convex-hull default over 942..4437 vertices** and **the
+1.2 angular damping of a box**. Rapier has no rolling friction: in a cone-shaped bowl that is five
+kinds of sphere that never stop, i.e. `maxBodySpeed` never falls under 0.25 for 0.4 s, the pile
+never sleeps, and on Hard the accessibility fan keeps ticking — the exact cost measured on
+2026-08-14. `phys:'ball'` (the `phys:'ring'` precedent) is answered in three places: the collider,
+the damping, and `buildAccessSamples` (5 exact points instead of 8 face centroids = 35 raycasts per
+item instead of 56).
+**MEASURED on the live build, lvl 22:** `byShape {ConvexPolyhedron: 145, Ball: 36}` against exactly
+36 live ball items — the flag applies; and the pile falls asleep **3.0 s after a shake**, maxV 0.
+
+### THE BOMB
+
+The dynamite is NOT a TYPES entry — the pool is 93, not 94. It is `makeBomb`'s geometry.
+⚠️ `r` stays `0.95·MESH_SCALE` (the models are normalised to rc = 1.0, so a mesh scale of
+0.95·MESH_SCALE gives exactly that enclosing radius): the victims of `detonateBomb` are chosen by
+the GAP OF ENCLOSING SPHERES against `BOMB_RADIUS`, so his tuned blast zone, its ×2 of 2026-07-27-b
+and the ice's point-blank `FROZEN_BOMB_RADIUS` all keep meaning what they measured.
+⚠️ The material stays a flat `MeshMatcapMaterial` WITHOUT `matcapSpecPatch`: the canon records the
+bomb as the living carrier of the OLD veil path (a lerp of `material.color` towards `DIM_GREY`,
+«a buried bomb only dims by ~30%»). `itemMaterial` would have moved it onto the uVeil shader, i.e.
+full desaturation — a silent change to a documented behaviour nobody asked for. `bombMatKind` still
+reads `MeshMatcapMaterial` + `hasMatcap`, and both hold.
+⚠️ The collider went `'ball'` → `'bombhull'`: a ball was honest for a sphere and is not for a bundle
+of sticks. Two call sites, not one.
+⛔ **CONSEQUENCE, NAMED AND NOT SILENTLY TIDIED:** `07-matcap-bomb.js` — 168 KB of his PNG in
+base64 — now paints nothing, yet is still reachable through the matcap editor's `'bomb'` target,
+`__game.bombMatcapInfo()` and two suite places. **That target now edits a texture that is not
+rendered** — the «silent no-op» class this project keeps fighting. Removing it is a separate pass
+with its own two-sided run; it was NOT folded into this batch.
+
+### THE COLLECTION LABELS: A DEFECT THAT HAD BEEN LIVE FOR ELEVEN CARDS
+
+`accLabel`'s fallback stripped only `animal|food|car|brick|pirate`, although the comment above it
+has demanded «the list of prefixes = ALL the TYPES packs» since 2026-07-22. The five Kenney packs
+were never added, so **11 of the 87 cards the player reads were labelled with the prefix glued on**:
+«Toycarvehiclemonstertruck», «Holidaygingerbreadman», «Factorycoga», «Survivalfish», «Forestplant».
+⚠️ **Found by COMPUTING all 87 labels, not by reading the regex** — the regex looks complete until
+you list what it fails on. All eleven now have real `ACC_LABELS` entries (stripping alone still
+leaves «Vehiclemonstertruck»), the prefix list is all eleven packs, longest-first.
+⚠️ `survivalfish` needed a label of its own: `animalfish` is already «Fish» and `foodfish` is
+«Cooked fish» — without it the museum would have shown two cards called «Fish». «Raw fish» is the
+dispatcher's default, named to him.
+**MEASURED after: 93 types, 93 distinct labels, zero glued prefixes, zero collisions.**
+
+### THE GOLF BALL IS A BASEBALL — NAMED, NOT FIXED SILENTLY
+
+His file is «Golf ball.glb» (Cyrillic in the source file name), and the type key keeps his name. But the rendered portrait is a white
+ball with the classic red figure-of-eight seam; a golf ball would have dimples and no seam. **A
+label that contradicts the picture is the defect**, so the label follows the model («Baseball») and
+the discrepancy went to him. One string either way.
+⚠️ And a trap of the CONTACT SHEET, not of the model: on the white tiles of my first sheet the golf
+ball read as a bare red curl and looked broken. It is 78 % near-white — it had simply sunk into a
+white background. **Render a near-white model on a neutral ground before calling it broken;** the
+same law by which a whitish effect sinks on a light sky.
+
+### I WALKED INTO THE `__game` DUPLICATE-KEY TRAP MYSELF
+
+Wanting to observe the ball colliders I added a `colliderCensus()` hook — and `colliderCensus` AND
+an exposed `shapeCensus` **already existed** (99-main:2036 and :2051). The grep that would have said
+so ran in the same command and I read past its output. The duplicate was harmless only by position
+(the later key wins in an object literal, and mine was earlier); had it been placed lower it would
+have silently eaten the real hook — the exact defect recorded twice in this canon (`itemsBrief`,
+`boltProbe`). **What caught it was the probe returning an object with `byShape` missing**, not the
+grep. Removed; `__game` re-counted: 248 keys, zero duplicates.
+
+### THE PRICE, MEASURED WITH THE ZIP AS THE RULE DEMANDS
+
+| | before | after |
+|---|---|---|
+| `index.html` | 10 343 752 B | **11 207 381 B** (27 modules) |
+| portal ZIP (index + 2 bridge + music) | 4.57 MB | **4.74 MB** |
+| headroom to the 8 MB reference | 3.43 MB | **3.26 MB** |
+
+⚠️ Geometry is text and compresses ~4.6×: 833 KB raw became **0.17 MB** in the package. The weight
+question was never the ZIP — it is the 833 KB of extra text parsed at load, and the owner chose to
+pay it («do not simplify the models»). Football and the baseball alone are 508 KB of that 833.
+
+### THE SUITE DEMANDED TWO MORE THINGS — BOTH FOUND BY RUN 1, NEITHER BY READING
+
+Run 1 of the suite came back **844 PASS / 2 FAIL**. Both reds were real and both were mine.
+
+**Red 1 — every type owes a material voice.** I had left the six new types out of `MATERIAL_OF`
+(`73-material.js`) on the reasoning that the `null` fallback is the canonical safe default. That
+reasoning is wrong: `null` is the safe default for an **unknown** type arriving at runtime, and the
+suite separately enforces that a type **in TYPES** has an entry. The guard prints the offenders by
+name, which is why the fix took one minute and the wrong reasoning took an hour.
+
+The six voices, and why:
+
+| type | voice | reason |
+|---|---|---|
+| `sportbasketball`, `sportgolfball`, `sportsoccerball`, `sporttennisball`, `sportvolleyball` | `plastic` | a hard bouncing ball; the same voice the bricks and the toy cone already use |
+| `sportfries` | `dough` | **precedent: `foodchinese`** — a paper carton with fried food inside is voiced `dough`, not `paper`. `paper` in this map belongs to empty packaging (gift boxes, the shopping basket) |
+
+⚠️ Do NOT "correct" the fries to `paper` in a later pass. The carton is not the subject; the food
+inside it is. `foodchinese` settled this before this batch existed.
+
+**Red 2 — the shuffling guard went red on a healthy build.** The assert «by lv.20 new types are
+visible» reads three named sentinels, and adding six types at levels 6–21 pushed two of the three
+out of the by-lv.20 window. This is the **third** revision of that guard, and the rule is always the
+same one: the guard tests the 2026-07-30 shuffling rule, so its sentinels must be **re-measured
+against the live composition**, never guessed. New sentinels: `holidaygingerbreadman` / `cartaxi` /
+`animalpenguin` — three pre-existing types from three different packs, deliberately **not** `sport*`
+ones, so the guard keeps testing shuffling rather than this batch. The tombstone lives at
+`test.js:5392`.
+
+**The lesson, stated plainly:** neither red was findable by reading the diff. Both were found by
+running the suite. A batch that adds types touches `30-shapes.js`, `73-material.js` and `test.js` —
+three files, and only the first is obvious.
+
+**Files this batch touched:** `src/app/30-shapes.js`, `src/app/39-sport.js` (new),
+`src/app/40-items.js`, `src/app/50-physics.js`, `src/app/73-material.js`, `src/app/77-save.js`,
+`test.js`, `CLAUDE.md`, `index.html` (generated).
