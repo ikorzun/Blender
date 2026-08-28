@@ -1,5 +1,83 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-28-b: THE ARCHITECTURE AND CODE REVIEW — the dispatcher
+
+«Carry out a deep architectural and code review. Find the weak spots and the points of
+optimisation, write a report and proposals.»
+
+15 finder agents swept the code by slices; every finding was then handed to an independent
+agent whose job was to REFUTE it. 33 harvested → 33 unique → **31 confirmed, 2 refuted** →
+29 entries, ordered strictly by what the defect costs the player or the owner.
+
+⚠️ **THE REPORT LIVES IN `docs/CODE-REVIEW-2026-08.md`** (English, as the July precedent
+`docs/TECH-REVIEW-2026-07.md` established). A Russian rendering went to the owner as a page.
+Do NOT re-run this review wholesale — section (b) of the report lists thirteen things that
+were checked and found HEALTHY, with the evidence; re-checking them is wasted work.
+
+⛔ **THREE FINDINGS ARE FORKS, NOT BUGS — they wait on the owner and must not be «fixed»
+by a passing agent:** #4 (should the post-background «Play» path also fire the new-item /
+story / ad chain?), #18 (which of the two type-progress-bar formulas is the right reading?),
+#19 (the collection grid at 800 px — 4 columns on desktop, or raise the mobile ceiling?).
+
+⚠️ **THE ONE FINDING WITH A DEADLINE:** #3, door A. The leaderboard signing key lives only
+in the browser while the player id travels to the cloud, so a second device freezes the row
+forever. The fix is **not retroactive** — an already-locked player heals only when the
+ORIGINAL device runs the new build once. Every week it is not fixed, more people cannot be
+brought back at all.
+
+Section (a) of the report distils seven repeating mistakes into rules. Three of them the
+canon already states and the code breaks anyway: the load-time read of a «later» variable
+swallowed by an empty catch, the tombstone that goes only in the new place, and the
+assertion with an «or empty» loophole.
+
+### ACCEPTANCE 2026-08-28-a: SEVEN NEW MODELS + THE ASSET FOLDER MERGED — the dispatcher
+
+«Check the new 3D objects and add them to the game on the levels after 5, every 3 levels» +
+«carry out a full review of the objects folder, merge the ones used in the current build and
+the new ones into one folder, lay them out by type inside, delete the rest». His three
+decisions: levels **6/9/12/15/18/21**; «**replace the bomb with the dynamite**»; «**do not
+simplify the models, take them as they are**».
+
+Six models entered the pool as `sport*` types (five balls + the fries), the seventh — the
+dynamite — became the bomb's mesh. TYPES 87 → 93.
+
+⚠️ **THE NEW PACK WAS FORCED, NOT CHOSEN:** all seven models embed the ANIMALS' atlas
+byte-for-byte, so they can only be coloured by that palette. `MODEL_ATLASES['sport']` is an
+ALIAS of `['animal']`, not a copy — which is why `39-sport.js` must keep running AFTER
+`36-models.js`. Renumbering it below 36 turns the whole pack white, silently.
+
+⚠️⚠️ **CROSS-DIRECTION — THE ASSET FOLDER WAS REORGANISED AND RENAMED.** `3d assets/` now
+holds only `models` (11 packs with LATIN names: animals, bricks, cars, factory, food, forest,
+holiday, pirate, sport, survival, toycars — 94 `.glb`, each pack with its own `colormap.png`)
+and `matcap`. **`InGame`, `Izmenen` and `new` are gone**, and the Cyrillic pack names with
+them. 15 MB → 6.6 MB. If your notes point at `InGame/Zveri` or `_Sborka`, they are stale.
+Both states are in git on `assets/models-in-game`: `3ee3f03` = BEFORE, `88e5626` = AFTER.
+⚠️ Note for whoever wrote it: the older line «`3d assets/skyboxes` ARE LEFT» is stale, but
+NOT by my hand — the folder was already absent when the pre-merge backup was taken.
+
+**Two mistakes of mine, both caught by measurement rather than by reading:**
+⛔ The TYPES insertion index. A type at index `i` first appears at level `i − 1`, so the
+inverse is `idx = level + 1`. I coded `level − 1` and landed everything on 4/7/10/13/16/19.
+Caught by PRINTING the index→level table, not by reading the diff.
+⛔ The `__game` duplicate-key trap — walked into by me, in the very session whose canon
+describes it. The grep that would have stopped me ran in the same command and I read past it.
+
+**And two more the SUITE caught, which reading could not:** the six new types owed an entry
+in `MATERIAL_OF` (balls → `plastic`, fries → `dough`, by the `foodchinese` carton precedent),
+and the shuffling guard's three sentinels had to be re-measured and moved. Full detail in
+CLAUDE.md, batch section.
+
+⚠️ **NAMED, NOT FIXED:** the file «Golf ball.glb» is modelled as a BASEBALL (red
+figure-of-eight seam). Labelled `Baseball`, the discrepancy is the owner's to settle.
+⚠️ `07-matcap-bomb.js` (168 KB) now paints nothing — the dynamite takes the `sport` pack's
+matcap — yet its editor target, hook and guards all remain. Left standing deliberately;
+his call whether it goes.
+
+**The price, with the ZIP as the rule demands:** `index.html` 10 343 752 → 11 207 381 B;
+portal ZIP 4.57 → 4.74 MB; headroom to the 8 MB reference 3.43 → 3.26 MB. Geometry is text
+and compresses ~4.6×, so the real cost is the 833 KB of extra text parsed at load — which
+the owner chose to pay («do not simplify»).
+
 ### ACCEPTANCE 2026-08-23-zh: THE DAY PALETTE IN OKLCH, FIVE STOPS — the dispatcher
 
 «Update the gradient, bring its values to OKLCH», with his Figma panel. Cancels the
