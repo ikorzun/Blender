@@ -4303,6 +4303,88 @@ window.bridge = {
   expect(iap.restTwice === false,
     'payments: a repeated restore did NOT grant it a second time (the order registry)');
 
+  // === PAYMENTS: THE NATIVE PROVIDER SEAM (the iOS wrapper, 2026-08-28) ===
+  // ⚠️⚠️ THE SUITE COULD NOT SEE THIS SEAM AT ALL: with no `window.__nativePayments` on the page
+  // `payApi()` always fell back to the bridge, so the whole native branch shipped with ZERO
+  // assertions on the MONEY path. This guard installs a fake provider and pins the two things
+  // that would have cost real money, silently:
+  //   (1) the consume must receive the orderId as its SECOND argument — with Ask to Buy a second
+  //       copy of the same product sits in the queue, and closing by product id alone kills it
+  //       UNGRANTED: the family pays, the player gets nothing;
+  //   (2) the wire carries FULL store ids (monster.blendo.*). Both sides had independently
+  //       written a mapping table, so every id would have been translated TWICE. Nothing would
+  //       have thrown — purchases would simply have gone to a product that does not exist.
+  // ⛔ THE PROVIDER IS REMOVED AGAIN AT THE END. It WINS over the bridge, so leaving it installed
+  // would silently re-point every later payments assertion at the fake.
+  const nat = await apage.evaluate(async () => {
+    const A = window.__ads;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const rec = { purchased: [], consumed: [], gotPurchases: 0 };
+    let mode = 'ok';
+    window.__nativePayments = {
+      getCatalog(){ return Promise.resolve([{ id:'monster.blendo.bundle2', price:'2,99 $' }]); },
+      getPurchases(){ rec.gotPurchases++; return Promise.resolve([]); },
+      purchase(id){
+        rec.purchased.push(id);
+        if (mode !== 'ok') return Promise.reject(new Error(mode));
+        return Promise.resolve({ orderId: 'txn_' + id + '_777' });
+      },
+      // the arity itself is the subject: the bridge takes one argument, StoreKit takes two
+      consumePurchase(id, orderId){ rec.consumed.push([id, orderId, arguments.length]); return Promise.resolve({}); },
+    };
+    const out = { on: A.paymentsOn };
+
+    // 1) A REAL PURCHASE: the full id goes out, the orderId comes back into the consume
+    out.buy = await A.purchase('bundle2');
+    await wait(120);
+    out.wireId   = rec.purchased[0] || null;
+    out.consume  = rec.consumed[0] || null;
+
+    // 2) THE REFUSAL VOCABULARY — none of these grants anything, so no state moves
+    mode = 'cancelled';   out.cancelled   = (await A.purchase('bundle2')).reason;
+    mode = 'pending';     out.pending     = (await A.purchase('bundle2')).reason;
+    mode = 'unavailable'; out.unavailable = (await A.purchase('bundle2')).reason;
+    mode = 'boom';        out.failed      = (await A.purchase('bundle2')).reason;
+
+    // 3) AN ID THE TABLE DOES NOT KNOW must not even reach the store
+    mode = 'ok';
+    const before = rec.purchased.length;
+    out.unmapped = (await A.purchase('noads_forever')).reason;
+    out.unmappedSilent = (rec.purchased.length === before);
+
+    // 4) AND THE PROVIDER GOES AWAY AGAIN
+    try { delete window.__nativePayments; } catch(e){ window.__nativePayments = null; }
+    out.offAgain = A.paymentsOn;          // true again — via the bridge, which is still there
+    out.viaBridge = !!(window.bridge && window.bridge.payments);
+    return out;
+  });
+  expect(nat.on === true, 'payments/native: the shim switches paymentsOn on (the provider is seen)');
+  expect(nat.buy && nat.buy.ok === true,
+    'payments/native: the purchase through the native provider went through (' + JSON.stringify(nat.buy) + ')');
+  expect(nat.wireId === 'monster.blendo.bundle2',
+    '⚠️⚠️ payments/native: the FULL store id goes out on the wire, not the short one (' + nat.wireId + ')');
+  expect(!!nat.consume && nat.consume[0] === 'monster.blendo.bundle2',
+    'payments/native: the consume is addressed by the full store id (' + JSON.stringify(nat.consume) + ')');
+  expect(!!nat.consume && nat.consume[1] === 'txn_monster.blendo.bundle2_777',
+    '⚠️⚠️ payments/native: the consume receives THE ORDERID OF THIS VERY TRANSACTION — ' +
+    'closing by product id alone kills an Ask-to-Buy duplicate UNGRANTED (' + JSON.stringify(nat.consume) + ')');
+  expect(!!nat.consume && nat.consume[2] === 2,
+    'payments/native: the consume is called with TWO arguments, not one (' + JSON.stringify(nat.consume) + ')');
+  expect(nat.cancelled === 'cancelled',
+    'payments/native: the player\'s cancel is reason «cancelled», not «failed» (' + nat.cancelled + ')');
+  expect(nat.pending === 'pending',
+    'payments/native: Ask to Buy awaiting approval is «pending», not «failed» (' + nat.pending + ')');
+  expect(nat.unavailable === 'unavailable',
+    'payments/native: a product the store does not know is «unavailable», not «failed» (' + nat.unavailable + ')');
+  expect(nat.failed === 'failed',
+    'payments/native: anything else IS «failed» — the vocabulary did not swallow real errors (' + nat.failed + ')');
+  expect(nat.unmapped === 'unavailable',
+    'payments/native: an id absent from NATIVE_IDS answers «unavailable» (' + nat.unmapped + ')');
+  expect(nat.unmappedSilent === true,
+    'payments/native: an unmapped id does NOT even reach the store (no invented product id)');
+  expect(nat.offAgain === true && nat.viaBridge === true,
+    'payments/native: with the provider removed the bridge is in charge again (the fake left no trace)');
+
   // === TELEMETRY: a crash goes out ONE time ===
   // ⚠️ A non-empty URL is needed — otherwise sendBeacon is not called at all and the guard measures
   // emptiness. We count in how many sends THIS crash was met.
