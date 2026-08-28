@@ -11688,9 +11688,17 @@ that would never arrive. **A comment that promises a recovery is a claim about r
 check that the recovery actually runs on every origin the page is served from.**
 
 **The fix** is one line before the gate: if a native provider is present, restore without waiting
-for a bridge that is never coming. Safe by construction — `Ads.init()` is called from
-`99-main.js:2587` with the game already built, and `buyBundle` is a hoisted declaration from
-module 77, which the concatenation order guarantees runs before 78.
+for a bridge that is never coming. Safe by construction — `buyBundle` is a hoisted declaration
+from module 77, which the concatenation order guarantees runs before 78, and `Ads.init()` is not
+top-level at all: it sits inside `RAPIER.init().then(...)` at `99-main.js:2585-2587`, next to
+`initPhysicsWorld / genLevel / loop`. So by the time it runs the game is fully built.
+⚠️ If `RAPIER.init()` never resolves, `Ads.init()` never runs and neither does the restore — but
+then `genLevel` and `loop` do not run either: there is no game to grant into. Moot, not a hole.
+
+✅ **PROVEN LIVE, NOT ARGUED.** The wrapper session's log on this very build:
+`web probe getPurchases call at +723 ms`, 31 ms after DOMContentLoaded, with the SDK never
+loaded — and that line is **absent** from the previous build's log. A direct before/after on the
+same device, which is the only evidence that counts for a reachability claim.
 
 ⚠️ **NAMED AND DELIBERATELY NOT DONE:** an Ask to Buy can be approved **while the app is open**.
 With the restore running only at startup, that approval lands on the NEXT launch. Both the
@@ -11734,3 +11742,21 @@ is inside it. Every item. Then decide, one at a time, whether its absence is har
 
 ⚠️ Corollary for a guard: `expect` on «the gate exists» proves nothing. The census of what it
 contains is the artefact worth keeping, and it goes stale the moment the block grows.
+
+
+### A HASH AND A NUMBER MUST COME FROM THE SAME RUN
+
+⚠️ I quoted byte offsets for the structural gate guard (`gate=10603160`, `calls=[…]`) alongside
+the commit hash `40606c4`. The offsets were real, but they came from an INTERMEDIATE build made
+before the final commit; the wrapper session, reading the same guard against the actual blob, got
+`10613105` and said so. Nothing broke — the guard compares POSITIONS computed at run time and
+bakes in no absolutes, which is exactly why it was written that way — and the numbers never
+reached this file or `test.js`. But the habit is the defect.
+
+**The rule: never pair a hash with a number taken from a different run.** If a message, a canon
+line or a commit body carries both, re-measure the number against the very blob the hash names —
+`git cat-file` / `git show`, not the working tree. A number that «was true a minute ago» is the
+same class of lie as a tombstone left in the old place: correct once, misleading forever after.
+
+⚠️ Corollary, and the reason this cost nothing this time: **a structural guard should compare
+relative order, never absolute offsets.** Ordering survives every rebuild; offsets survive none.
