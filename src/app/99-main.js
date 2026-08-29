@@ -1625,7 +1625,7 @@ window.__game = {
   // a selector, then a toggle (see thumbSpinToggle in 85-hud). It returns whether
   // the card is spinning after the call.
   thumbSpinToggleKey(key, sel){ const it = thumbItemForKey(key); const host = sel ? document.querySelector(sel) : null; return (it && host) ? thumbSpinToggle(it, host) : false; },
-  thumbSpinStop, thumbSpinToggle, thumbItemForKey,
+  thumbSpinStop, thumbSpinToggle, thumbItemForKey, portraitPick,
   // ⚠️ 2026-08-13: auto/px were added here for the guards of the new-item screen.
   // I managed to start a SECOND spinState and step on the written-down rake «a duplicate
   // key in __game silently eats the hook» (this one won, the later one in the file) —

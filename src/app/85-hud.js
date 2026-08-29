@@ -1366,14 +1366,31 @@ let PORTRAIT_TILT_X = -0.15, PORTRAIT_YAW0 = -0.6;
 // portrait of one type must not overwrite each other in thumbCache.
 const GHOST_ALPHA = 0.42;   // «semi-transparent»: the card's background shows through the silhouette
 const thumbItemCache = {};
+// ⚠️ A LIVE PILE ITEM IS PREFERRED FOR PORTRAITS ONLY WHEN THE TYPE HAS ONE GEOMETRY.
+// The live item exists as a warm fallback for a cold pack atlas — but for the six sport types
+// the live mesh is the pile LOD, and a card drawn from it would show the simplified model at
+// portrait scale. For geoHi types the portrait item comes first; the live item stays the
+// cold-atlas fallback (thumbItemForKey's thumb returns nothing until the pack warms up).
+function portraitPick(live, key, locked){
+  const hasHi = (function(){ for (let i = 0; i < TYPES.length; i++)
+    if (TYPES[i].name === key) return !!TYPES[i].geoHi; return false; })();
+  const thumb = (typeof thumbItemForKey === 'function') ? thumbItemForKey(key, locked) : null;
+  return hasHi ? (thumb || live) : (live || thumb);
+}
 function thumbItemForKey(key, ghost){
   const ck = ghost ? key + '@g' : key;
   if (thumbItemCache[ck]) return thumbItemCache[ck];
   let idx = -1;
   for (let i = 0; i < TYPES.length; i++) if (TYPES[i].name === key){ idx = i; break; }
   if (idx < 0) return null;
-  const t = TYPES[idx], gkey = String(idx);
-  if (!geoCache.has(gkey)) geoCache.set(gkey, t.geo());
+  const t = TYPES[idx];
+  // ⚠️ THE PORTRAIT TAKES THE DETAILED GEOMETRY (the owner's variant 3, 2026-08-29): types with
+  // a `geoHi` render the full model here — this function feeds EVERY big view (the collection
+  // card, the new-object showcase, the spins). The cache key is split from the pile's on
+  // purpose: String(idx) is the pile's LOD, 'hi:'+idx is the portrait's, and sharing the key
+  // would silently hand one of them the other's mesh.
+  const gkey = t.geoHi ? ('hi:' + idx) : String(idx);
+  if (!geoCache.has(gkey)) geoCache.set(gkey, (t.geoHi || t.geo)());
   const mat = itemMaterial(t);
   // ⚠️ we set transparent ONCE at creation time (changing it on the fly =
   // a shader recompilation); the ghost material is personal, it does not touch the live ones
@@ -1381,7 +1398,14 @@ function thumbItemForKey(key, ghost){
   const mesh = new THREE.Mesh(geoCache.get(gkey), mat);
   mesh.scale.setScalar(MESH_SCALE);
   const it = {
-    key: 'T' + idx + (ghost ? 'g' : ''), type: t, mesh, ghost: !!ghost, baseColor: mat.color.clone(),
+    // ⚠️⚠️ 'h' IN THE KEY IS LOAD-BEARING (found by the adversarial verify, 2026-08-29).
+    // itemThumb caches the PNG by item.key, and a LIVE pile item of the same type carries
+    // 'T'+idx too. Before variant 3 both meshes were identical and sharing the slot was
+    // harmless; now the live mesh is the pile LOD and this one is geoHi — two different
+    // pictures under one key, first shooter wins. The vitrine and the museum shoot LIVE items
+    // automatically (vitFillCell / renderMuseum), so without the suffix a level with a sport
+    // type in the vitrine poisoned the collection card with the LOD shot until a reload.
+    key: 'T' + idx + (t.geoHi ? 'h' : '') + (ghost ? 'g' : ''), type: t, mesh, ghost: !!ghost, baseColor: mat.color.clone(),
     fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
   };
   thumbItemCache[ck] = it;
@@ -1896,7 +1920,7 @@ function msCardTapSpin(card){
   const live = (typeof items !== 'undefined' && items) ? items.find(it => it.alive && it.type && String(it.type.name) === String(key)) : null;
   msTapSpinRestore();                                   // restore the img of the previously tap-spinning one
   let spinning = false;
-  try { spinning = thumbSpinToggle(live || thumbItemForKey(key), wrap); } catch(e){ spinning = false; }
+  try { spinning = thumbSpinToggle(portraitPick(live, key), wrap); } catch(e){ spinning = false; }
   const im = wrap.querySelector('img.msc-img');
   if (im) im.style.visibility = spinning ? 'hidden' : 'visible';
   card.classList.toggle('spinning', spinning); // the touch analogue of :hover for the badge (40%)
@@ -1914,7 +1938,7 @@ function msThumbFill(pending, left){
     const rest = [];
     for (const p of pending){
       if (!p.wrap.isConnected) continue;   // the grid was rebuilt — this card is dead
-      const url = p.live ? itemThumb(p.live) : itemThumb(thumbItemForKey(p.key, p.locked));
+      const url = itemThumb(portraitPick(p.live, p.key, p.locked));
       if (!url){ rest.push(p); continue; }
       const im = document.createElement('img');
       im.className = 'msc-img'; im.src = url;
@@ -1958,7 +1982,7 @@ function buildMainCollection(){
     // a semi-transparent+colourless silhouette, a «pokedex»; the owner's spec «the models that are not
     // open are transparent, matte, colourless» + «fill the museum with
     // models», it CANCELS the former letter). The OPEN ones — a colour portrait.
-    const url = live ? itemThumb(live) : itemThumb(thumbItemForKey(r.key, locked));
+    const url = itemThumb(portraitPick(live, r.key, locked));
     if (url){
       const im = document.createElement('img');
       im.className = 'msc-img'; im.src = url; wrap.appendChild(im);
@@ -2026,7 +2050,7 @@ function buildMainCollection(){
     if (canHover && !locked){
       card.addEventListener('mouseenter', () => {
         const im = wrap.querySelector('img.msc-img'); if (im) im.style.visibility = 'hidden';
-        thumbSpinStart(r._item || thumbItemForKey(r.key), wrap);
+        thumbSpinStart(portraitPick(r._item, r.key), wrap);
       });
       card.addEventListener('mouseleave', () => {
         thumbSpinStop();

@@ -2460,6 +2460,68 @@ page.on('response', (r) => {
     '⚠️⚠️ finding 4: «Play» from the menu clears BOTH overlays and starts a live run — the new ' +
     'level must not begin underneath a stale win screen (' + JSON.stringify(winLeak) + ')');
 
+  // === VARIANT 3 (2026-08-29): TWO GEOMETRIES PER SPORT TYPE — HI FOR THE BIG VIEWS, LOD FOR THE PILE ===
+  // ⛔ The owner's word «delai 3 variant» after the measured lag (frame p95 +3..+10 ms tracking
+  // the new types' triangles). The pin is two-sided ON PURPOSE: the runtime half proves the big
+  // views really get the FULL model, the structural half proves the pile really gets the LOD —
+  // either alone would stay green if someone later «unified» the two geometries one way.
+  const lodPin = await page.evaluate(() => {
+    const it = window.__game.thumbItemForKey('sportsoccerball');
+    const geo = it && (it.geo || (it.mesh && it.mesh.geometry));
+    return { thumbTris: geo && geo.index ? geo.index.count / 3 : -1 };
+  });
+  expect(lodPin.thumbTris === 5580,
+    '⚠️⚠️ variant 3: the portrait/big-view item carries the FULL soccer ball (5580 tris), not the ' +
+    'pile LOD (' + lodPin.thumbTris + ')');
+  {
+    // ⚠️ NOT the top-level `fs`: a later `const fs = require('fs')` in this same enclosing
+    // function (the testers'-pack server) puts that name in the TDZ here — the module-order
+    // trap of the game code, reproduced inside its own suite. A local name dodges it.
+    const fsLod = require('fs');
+    const pageSrc = fsLod.readFileSync(PAGE_FILE, 'utf8');
+    const hiCount = (pageSrc.match(/geoHi:sport/g) || []).length;
+    const lodIdx = pageSrc.match(/M_SPORTSOCCERBALL_LOD_IDX = new Uint16Array\(\[([^\]]*)\]/);
+    const lodTris = lodIdx ? (lodIdx[1].split(',').length / 3) : -1;
+    // ⚠️ ALL SIX pile wires pinned by name, not just soccer's: with only one pinned, reverting
+    // any other type's `geo:` back to the full model kept every guard green while that type's
+    // ~1-5K tris returned to the pile — the exact regression variant 3 exists to prevent.
+    const sportNames = ['sportbasketball','sportfries','sportgolfball','sportsoccerball','sporttennisball','sportvolleyball'];
+    const lodWired = sportNames.filter(n => pageSrc.indexOf('geo:' + n + 'LodGeo') >= 0);
+    expect(hiCount === 6 && lodWired.length === 6,
+      'variant 3: all six sport TYPES carry geoHi AND all six pile geos are the LOD functions ' +
+      '(geoHi=' + hiCount + ', lod wired=' + lodWired.length + '/6' +
+      (lodWired.length < 6 ? ', missing: ' + sportNames.filter(n => lodWired.indexOf(n) < 0).join(',') : '') + ')');
+    expect(lodTris > 0 && lodTris < 700,
+      'variant 3: the pile LOD of the soccer ball is real and small — ' + lodTris + ' tris against ' +
+      '5580 (the regeneration trap: glb2module.py DROPS the LOD block; rerun tools/lodgen.py)');
+    expect((pageSrc.match(/portraitPick\(/g) || []).length >= 5,
+      'variant 3: the live-item portrait sites go through portraitPick — a live pile item (LOD) ' +
+      'must not be preferred for a card of a type that has geoHi');
+  }
+  // ⚠️ THE PREFERENCE ORDER ITSELF, at runtime — the occurrence count above proves the sites
+  // CALL portraitPick, not that portraitPick prefers correctly; regressing its body to
+  // `live || thumb` kept every guard green. A fake live stub makes this deterministic: no
+  // dependence on the random type mix of a level.
+  const pick = await page.evaluate(() => {
+    const g = window.__game;
+    const stub = { mesh: { geometry: { index: { count: 1920 } } } };
+    const hi = g.portraitPick(stub, 'sportsoccerball');
+    const plain = g.portraitPick(stub, 'cartaxi');
+    const thumbKey = g.thumbItemForKey('sportsoccerball').key;
+    return { hiTris: hi && hi.mesh && hi.mesh.geometry.index ? hi.mesh.geometry.index.count / 3 : -1,
+             plainIsStub: plain === stub, thumbKey };
+  });
+  expect(pick.hiTris === 5580,
+    '⚠️⚠️ variant 3: portraitPick PREFERS the full model over a live (LOD) item for a geoHi type ' +
+    '(' + pick.hiTris + ' tris)');
+  expect(pick.plainIsStub === true,
+    'variant 3: for a type WITHOUT geoHi the live item is still preferred — the cold-atlas ' +
+    'fallback of the other 87 types is untouched');
+  expect(/^T\d+h$/.test(pick.thumbKey),
+    '⚠️⚠️ variant 3: the portrait item of a geoHi type carries its own thumb-cache key (' +
+    pick.thumbKey + ') — the vitrine/museum shoot LIVE (LOD) items into itemThumb\'s PNG cache ' +
+    'under T+idx, and one shared key let that shot poison the collection card until a reload');
+
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
   // the win overlay has to be hidden by hand, otherwise it will intercept the real clicks
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });

@@ -1,5 +1,47 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-29-b: THE LAG — MEASURED, AND CURED BY VARIANT 3 — the dispatcher
+
+«Igra nachala tupit, nuzhen razbor. Osobenno s novymi modelyami i s 7 urovnya» — then, on the
+numbers: «delai 3 variant» + the physics idea (wrap items in simple primitives).
+
+**THE A/B AGAINST 42f1f73 CONFIRMED THE COMPLAINT EXACTLY** (regression protocol: measure
+against the named old version first, no hypotheses): frame p95 unchanged at lv1/5, +3.1 ms at
+lv6, +4.3 at lv7, +10.4 at lv12 — tracking the new types' triangles, with BODIES IDENTICAL
+between arms. The lag is rendering, not physics. The owner said «from level 7»; basketball
+enters at lv6 — his ear was one level off from the measurement, no more.
+
+⚠️ **THE HOLE WAS IN MY OWN VERIFICATION, named in the canon:** yesterday's batch priced the
+download (833 KB) and never priced the frame. The six models are 2.4x–13.3x the pool median;
+two of them beat the game's previous record (3100 tris). The worst was still AHEAD: football
+and baseball enter at lv18/21 — projection ~+156K tris on a ~110K scene.
+
+**VARIANT 3:** `tools/lodgen.py` — quadric edge collapse, subset placement, corners keep
+VERBATIM source UV/normal tokens (palette texture -> colours exact by construction; radius
+preserved to 3 digits). soccer 5580->640, golf 4416->640, the rest ~520-600. `geo` = pile LOD
+(also the physics hull input and the shatter shards), `geoHi` = full model for every big view —
+all of which funnel through `thumbItemForKey`; the four live-item portrait sites go through
+`portraitPick` (a geoHi type prefers the portrait item; the live item stays the cold-atlas
+fallback). Four suite guards pin both directions.
+⛔⛔ **THE REGEN TRAP:** glb2module.py DROPS the LOD block from 39-sport.js — rerun
+tools/lodgen.py after any regen. Written in the tool, the block header and the canon.
+
+**THE PHYSICS IDEA — answered, not implemented:** it is already the architecture (exact
+primitives for primitive types, Ball for the five balls since 2026-08-28, convex hulls — which
+ARE «slightly-more-detailed-than-cube primitives» — for the rest). The measurement attributes
+the lag to rendering; recarving the 76 existing models' hulls would change how the tuned pile
+settles for a cost physics does not carry. Named to the owner, his call if a future measurement
+says otherwise.
+
+### ACCEPTANCE 2026-08-29-a: REVIEW FINDING 4 FIXED; THE PAYMENTS SEAM STAYS — the dispatcher
+
+The owner: «shov platezhey ostavlyaem, chini №4». The win/lose overlays are now hidden by the
+menu «Play» path before a new level is generated (90-input, via hide() so winStopScore and the
+telemetry transition fire). ⛔ The «Again» chain (new item / story / interstitial) deliberately
+still does NOT fire on this path — that half of finding 4 remains the owner's open fork. The
+suite guard sits where a REAL win screen is up, with a positive control first (finding 21's
+loophole shape). 865 PASS / 0 FAIL; deployed and verified by size.
+
 ### ACCEPTANCE 2026-08-28-v: THE iOS WRAPPER — SAFE AREA + THE PAYMENTS SEAM — the dispatcher
 
 Coordination with the iOS wrapper session (clone «Blendo iOS»). Two pieces landed in MY zone;
@@ -71,7 +113,9 @@ assertion with an «or empty» loophole.
 «carry out a full review of the objects folder, merge the ones used in the current build and
 the new ones into one folder, lay them out by type inside, delete the rest». His three
 decisions: levels **6/9/12/15/18/21**; «**replace the bomb with the dynamite**»; «**do not
-simplify the models, take them as they are**».
+simplify the models, take them as they are**» (⛔ superseded for the PILE 2026-08-29 by his own
+«delai 3 variant» after the measured lag — see the 2026-08-29 entry; the big views keep the
+full models).
 
 Six models entered the pool as `sport*` types (five balls + the fries), the seventh — the
 dynamite — became the bomb's mesh. TYPES 87 → 93.
@@ -111,7 +155,7 @@ his call whether it goes.
 **The price, with the ZIP as the rule demands:** `index.html` 10 343 752 → 11 207 381 B;
 portal ZIP 4.57 → 4.74 MB; headroom to the 8 MB reference 3.43 → 3.26 MB. Geometry is text
 and compresses ~4.6×, so the real cost is the 833 KB of extra text parsed at load — which
-the owner chose to pay («do not simplify»).
+the owner chose to pay («do not simplify»; ⛔ superseded for the PILE 2026-08-29 — variant 3, see the 2026-08-29-b entry).
 
 ### ACCEPTANCE 2026-08-23-zh: THE DAY PALETTE IN OKLCH, FIVE STOPS — the dispatcher
 

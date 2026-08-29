@@ -11412,6 +11412,15 @@ The original was verified by md5 before and after, and the copy removed.
 
 ## BATCH 2026-08-28: SEVEN NEW MODELS — SIX INTO THE POOL, THE SEVENTH REPLACES THE BOMB
 
+⛔⛔ **«DO NOT SIMPLIFY THE MODELS» IS SUPERSEDED FOR THE PILE — 2026-08-29, THE OWNER'S OWN
+WORD.** The next day the owner reported lag («igra nachala tupit… s 7 urovnya» (the game started to lag… from level 7)), the A/B against
+42f1f73 confirmed it (frame p95 +3..+10 ms exactly where the new types enter, tracking the
+triangle count), and he chose variant 3: «delai 3 variant» (do variant 3) — TWO geometries per sport type.
+`geoHi` (the full model) feeds every big view through `thumbItemForKey`; `geo` (the pile LOD,
+~520–640 tris, `tools/lodgen.py`) feeds the pile, the physics hull input and the shatter shards.
+Wherever this section says «do not simplify», read it as: do not simplify THE BIG-VIEW geometry.
+⚠️ Regenerating 39-sport.js with glb2module.py DROPS the LOD block — rerun tools/lodgen.py.
+
 His words, in two messages: «check the new 3d objects and add them to the game on levels after 5,
 every 3 levels» + «do a full review of the objects in «3d assets», merge the ones used in the
 current build and the new ones into one folder, sort them by type inside, delete the rest of the
@@ -11760,3 +11769,68 @@ same class of lie as a tombstone left in the old place: correct once, misleading
 
 ⚠️ Corollary, and the reason this cost nothing this time: **a structural guard should compare
 relative order, never absolute offsets.** Ordering survives every rebuild; offsets survive none.
+## BATCH 2026-08-29: THE LAG, MEASURED — AND VARIANT 3 (TWO GEOMETRIES PER SPORT TYPE)
+
+The owner: «igra nachala tupit, nuzhen razbor. Osobenno s novymi modelyami i s 7 urovnya» —
+then, on the numbers: «delai 3 variant», plus the physics idea «ne schitat obyekty po ih uglam,
+a oborachivat v prostye primitivy».
+
+### THE REGRESSION PROTOCOL PAID OFF AGAIN: A/B FIRST, HYPOTHESES NEVER
+
+The named previous version was yesterday's pre-batch 42f1f73. The A/B (same stand, same levels,
+median of 3 reps) matched the complaint EXACTLY: frame p95 unchanged on levels 1 and 5, then
++3.1 ms at lv6, +4.3 at lv7, +7.8 at lv10, +10.4 at lv12 — tracking the extra triangles
+(+15K at lv6, +30K at lv12), with bodies IDENTICAL between arms at every level. The lag is
+rendering, not physics. Frames worse than 50 ms went 12 -> 96 at lv6: the p95 crossed the 50 ms
+line, so half the frames started counting as visible jerks.
+
+⚠️ THE VERIFICATION HOLE THIS EXPOSED WAS MINE: yesterday's batch measured the DOWNLOAD price
+(833 KB, 0.17 MB zipped) and never measured the FRAME price. The owner decided «do not simplify»
+on half the bill. The triangle census that would have shown it costs one grep: the six new
+models are 2.4x–13.3x the pool median (420 tris); football (5580) and baseball (4416) are both
+heavier than the pool's previous record (cargarbagetruck, 3100) — and they enter at lv18/21,
+so the measured lv12 regression was NOT yet the worst case. Projection at lv21: ~+156K tris on
+a ~110K-tris scene. A batch that adds models owes BOTH numbers: bytes AND triangles.
+
+### VARIANT 3 — THE MECHANISM
+
+`tools/lodgen.py` (rerunnable, idempotent): welds vertices by exact position (the meshes are
+UV-seam-split, 46–72% unique positions), then quadric-error edge collapse with SUBSET placement.
+⚠️ WHY THE COLOURS CANNOT DRIFT, the load-bearing fact: these models are PALETTE-textured —
+every triangle samples one flat colour cell. A surviving corner keeps its ORIGINAL UV and normal
+as VERBATIM STRING TOKENS from the source arrays; nothing is interpolated, so a surviving face
+samples exactly what it always did, and stretching over a collapsed neighbour stretches a flat
+colour. Colour boundaries move by at most one collapsed edge.
+⚠️ Subset placement also means the LOD's vertices are a strict subset of the original — the
+enclosing radius can only shrink (asserted >= 0.97; measured: all six kept radius to 3 digits).
+Results: soccer 5580->640, golf 4416->640, fries 1748->600, tennis 1344->560, basketball
+1180->560, volleyball 1008->520.
+
+The wiring: `geo` = LOD (the pile, the physics hull input, the shatter shards), `geoHi` = the
+full model. EVERY big view funnels through `thumbItemForKey` (85-hud) — the census of consumers
+found no second door: the collection card, the new-object showcase, the win rows, the charge
+plate, the spins. Its cache key is split ('hi:'+idx vs String(idx)) — sharing it would silently
+hand one path the other's mesh. The four sites that preferred a LIVE pile item for portraits
+(the warm fallback for a cold atlas) now go through `portraitPick`: a geoHi type prefers the
+portrait item, the live item stays the cold-atlas fallback.
+
+⛔⛔ THE REGENERATION TRAP, WRITTEN IN THREE PLACES BECAUSE IT WILL FIRE: glb2module.py
+regenerating 39-sport.js DROPS the LOD block. Rerun tools/lodgen.py after any regen. The failure
+is loud (sport*LodGeo missing -> boot throws) but the cure must be known, not rediscovered.
+
+### THE PHYSICS QUESTION — ANSWERED WITH THE ARCHITECTURE, NOT A CHANGE
+
+The owner asked to wrap items in simple primitives instead of «counting their corners». The
+answer: this is ALREADY the architecture, and the measurement says physics is not where the lag
+lives (bodies identical across arms; the regression tracks triangles).
+- Primitive types (cube/ball/cyl/pill) are exact primitives; torus/knot/spiral are capsule
+  chains; the five balls are EXACT Ball colliders since 2026-08-28 — that flag dodges the worst
+  case, because a sphere's convex hull keeps every vertex.
+- Every other model is already shrink-wrapped into a convex hull (hullFromGeometry) — «a
+  primitive slightly more detailed than a cube» is precisely what a hull is. Its real cost is
+  BUILD time from the vertex array, and the LOD shrinks that input automatically (soccer
+  4437->1334 verts, though it never hulls; fries 1248->990 does).
+⛔ NAMED AND DELIBERATELY NOT DONE: replacing the hulls of the 76 existing models with cuboids
+or capped hull inputs. That changes how the pile settles — the tuned, guarded physics zone —
+for a cost the measurement does not attribute to physics. If a future measurement does, the
+5-line place is hullFromGeometry, and it is the owner's call.
