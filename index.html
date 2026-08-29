@@ -21813,7 +21813,23 @@ function applySound(on){
 function menuPlayResume(){
   const fresh = !level || level.over; // there is no live run — the START of a new one
   closeMainScreen();                  // will lift ONLY its own pause (see 85-hud)
-  if (fresh) genLevel();
+  if (fresh){
+    // ⛔⛔ THE OVERLAYS MUST GO FIRST (review finding 4, 2026-08-28). Until now only the
+    // «Again» button cleared them (`:348` / `:352`), and this path did not — so backgrounding
+    // the tab on «level complete», opening the menu and pressing Play started the new level
+    // UNDERNEATH the stale win screen: the player saw «complete» over a level already pouring
+    // and already grinding below, and the only way out was «Next», which threw that level away,
+    // generated another one and could show one extra interstitial.
+    // ⚠️ Measured as reachable IN THE iOS WRAPPER TOO, not only in a browser: the wrapper
+    // session logged `vis hidden +6362 ms` / `vis visible +8039 ms`, so the page really does
+    // see backgrounding there — and backgrounding a phone app on the win screen is a far more
+    // ordinary gesture than switching a desktop tab.
+    // ⛔ DELIBERATELY NOT DOING WHAT «Again» ALSO DOES: no new-item / story / interstitial
+    // chain. The review named that as an open question for the owner and set «does not fire»
+    // as the default; this fix keeps that default rather than deciding it silently.
+    hide('winOverlay'); hide('loseOverlay');
+    genLevel();
+  }
 }
 document.querySelector('.ms-play').addEventListener('click', menuPlayResume);
 // THE FLOATING BUTTON leads to the same place as the Play card — one action, one

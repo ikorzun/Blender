@@ -2425,6 +2425,41 @@ page.on('response', (r) => {
   expect(fin2.starChip === String(fin2.liveBal) && fin2.starIcon === 1,
     'the chip shows the single balance liveBalance as digits, with the star as an icon beside ' +
     'it (' + JSON.stringify({ text: fin2.starChip, liveBal: fin2.liveBal, icon: fin2.starIcon }) + ')');
+  // === REVIEW FINDING 4: THE WIN SCREEN MUST NOT SURVIVE «PLAY» FROM THE MENU ===
+  // ⛔⛔ Until 2026-08-29 only the «Again» button cleared the overlays. Backgrounding the tab on
+  // «level complete», opening the menu and pressing Play started the new level UNDERNEATH the
+  // stale win screen: the player saw «complete» over a level already pouring and already
+  // grinding below, and the only way out was «Next» — which threw that level away, generated
+  // another and could show one extra interstitial.
+  // ⚠️ THE WIN OVERLAY HERE IS REAL, not painted on: the section above played the level out to
+  // an actual win, which is why this guard sits at exactly this point in the file and not in a
+  // section of its own.
+  // ⚠️ `.click()` is dispatched on the element rather than through Playwright ON PURPOSE — the
+  // full-screen winOverlay intercepts real pointer events, which is the very defect being
+  // tested; a hit-tested click could not reach the button at all.
+  // ⚠️ The state this leaves (a live level instead of a finished one) is wiped two statements
+  // below by setLevel + regen + skipIntro, so it leaks nothing to the neighbours.
+  const winLeak = await page.evaluate(async () => {
+    const lvOf = () => window.__game.level();
+    const before = { win: getComputedStyle(document.getElementById('winOverlay')).display,
+                     over: !!(lvOf() && lvOf().over) };
+    document.querySelector('.ms-play').click();
+    await new Promise(r => setTimeout(r, 150));
+    return { before,
+      win:  getComputedStyle(document.getElementById('winOverlay')).display,
+      lose: getComputedStyle(document.getElementById('loseOverlay')).display,
+      live: !lvOf().over };
+  });
+  // ⚠️⚠️ THE POSITIVE CONTROL FIRST, and it is not ceremony: without it this guard passes
+  // vacuously on any build where the win screen never came up at all — «hidden» would be
+  // trivially true. Review finding 21 is about exactly this shape of loophole.
+  expect(winLeak.before.win === 'flex' && winLeak.before.over === true,
+    'finding 4 / control: the win screen really IS up and the run really IS over before we press ' +
+    'Play (' + JSON.stringify(winLeak.before) + ')');
+  expect(winLeak.win === 'none' && winLeak.lose === 'none' && winLeak.live === true,
+    '⚠️⚠️ finding 4: «Play» from the menu clears BOTH overlays and starts a live run — the new ' +
+    'level must not begin underneath a stale win screen (' + JSON.stringify(winLeak) + ')');
+
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
   // the win overlay has to be hidden by hand, otherwise it will intercept the real clicks
   await page.evaluate(() => { document.getElementById('winOverlay').style.display = 'none'; });
