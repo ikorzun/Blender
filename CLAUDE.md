@@ -11834,3 +11834,21 @@ lives (bodies identical across arms; the regression tracks triangles).
 or capped hull inputs. That changes how the pile settles — the tuned, guarded physics zone —
 for a cost the measurement does not attribute to physics. If a future measurement does, the
 5-line place is hullFromGeometry, and it is the owner's call.
+
+### A PERF WINDOW IS LIVE ONLY IF `frames` GROWS — THE STALE-RING TRAP (2026-08-29)
+
+⚠️ `perfStats()` serves the ring AS-IS, and on pause (the main menu open, a hidden tab, a
+backgrounded WebView) the rAF loop does not tick. A measurement taken in that state reads a
+STALE ring of pre-pause frames and calls it live — non-empty numbers, plausible values, zero
+truth. The iOS wrapper session lost a whole A/B to this: both arms read the leftover ring of the
+loading level and labelled it «rested lv20» (the comparison survived by luck — the protocol was
+equally wrong in both arms; the numbers did not).
+**The one-call diagnostic: take `perfStats().frames` twice across a sleep. It grows only by
+live rAF ticks.** No growth — the window is dead, fix the harness (resume the game first);
+growth with empty rings after `perfReset()` would be a real collection bug (none is known:
+reset clears the rings and nothing else, collection resumes on the next tick by construction —
+verified end-to-end in the wrapper after the fix: +180 frames in 3 s, avg 16.67 at the 60 cap).
+⚠️ Corollary: `geoms`/`textures` are read live from renderer.info and survive `perfReset()` —
+a probe reporting THOSE as zero is reading a dead or foreign context, not this game.
+⚠️ `heapMB` is `-1` in WebKit — `performance.memory` is Chrome-only; the field degrades
+honestly, do not «fix» it.
