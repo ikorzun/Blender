@@ -9463,8 +9463,17 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                        bottomBarEl: bottomBarEl && bottomBarEl.bg, frameBottom: gameFrame.bottom }) + '). ' +
       'The sabotage — to lead `--sky-top-rgb`/`--sky-bot-rgb` away from the outermost stops of the palette ' +
       'or to give the bars back `transparent`');
-    expect(delta(game.html, gameFrame.top) <= 2 && delta(game.body, gameFrame.bottom) <= 2,
-      '⚠️⚠️ THE TWO CHANNELS ARE SEPARATED: `html` carries the UPPER colour, `body` — the LOWER one (' +
+    // ⛔⛔ THE RULE MOVED WITH THE PLATFORM 2026-08-30 (the third revision of this guard's law).
+    // It used to pin body == the LOWER edge — the separation born of «the reddening at the
+    // bottom». The owner's iOS-26 screenshots showed the TOP strip painted MINT — verbatim
+    // rgb(206,255,223), the body background — because on iOS 26.2+ the top strip/letterbox
+    // surface takes the BODY colour and the fixed-element channel is dead. Now BOTH html and
+    // body carry the UPPER colour; the lower band rides on the page's own pixels (the canvas
+    // paints to the physical bottom) plus #bottomBar's .01 channel for older WebKits — the
+    // first expect above still pins THAT pair to the frame's real edges.
+    expect(delta(game.html, gameFrame.top) <= 2 && delta(game.body, gameFrame.top) <= 2,
+      '⚠️⚠️ BOTH CHANNELS CARRY THE UPPER COLOUR: on iOS 26.2+ the top strip takes `body`, so ' +
+      '`body` == `html` == the frame TOP (' +
       JSON.stringify({ html: game.html, body: game.body, frame: gameFrame }) + '). ' +
       'This grew out of the complaint «the reddening at the bottom»: back then the red top (`uGrind`) ' +
       'crept into the LOWER band of Safari through the background of `html`. ⛔ The layer was removed 2026-08-20, ' +

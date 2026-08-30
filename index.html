@@ -98,7 +98,21 @@
      ⚠️ Not a single screen shows these backgrounds to the eye: each has its own opaque
      background on top (the sky canvas in the game, the gradient in the menu, the fill in the overlays). */
   html { background:rgb(var(--sky-top-rgb, 133,220,255)); }
-  body { background:rgb(var(--sky-bot-rgb, 204,255,248)); }
+  /* ⛔⛔ BODY CARRIES THE **TOP** COLOUR SINCE 2026-08-30, AND THAT IS THE WHOLE FIX for the
+     owner's iOS-26 screenshots («razberis s poloskami v brauzere ios26»): the mint strip
+     ABOVE the violet sky was rgb(206,255,223) — the sky's BOTTOM stop, i.e. THIS body
+     background, verbatim. On his iOS 26.x the top strip/letterbox surface is painted by the
+     BODY's background-color; the channels the five-edition recipe relied on — the html canvas
+     and the fixed bars with alpha .01 — no longer drive it there (Apple's 26.2 fix for
+     «fixed poisons the tint» took the whole fixed-element channel with it).
+     ⚠️ THE BOTTOM DOES NOT PAY: the page itself paints behind the bottom bar (the canvas is
+     fixed inset:0), so the lower band keeps the sky's bottom colour from REAL pixels; on older
+     WebKits #bottomBar's .01 channel still speaks for it. Body's colour never shows through
+     the page for the same reason.
+     ⚠️ It used to be rgb(var(--sky-bot-rgb)) — the separation grew out of «the reddening at the
+     bottom» (a red top layer crept into the LOWER band through html); that layer was deleted
+     2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
+  body { background:rgb(var(--sky-top-rgb, 133,220,255)); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -153,8 +167,9 @@
      the menu background»). The same recipe, the third case: `#mainScreen` has `inset:0`
      and covers the WHOLE viewport, therefore the «game background at the top» is not the canvas
      but the CHROME BAR, which Safari paints by the `background-color` of the
-     html/body themselves; there `tintChrome` (99-main) writes the colour of the SKY and under the
-     menu does not change it. The `menuopen` class is hung by openMainScreen (85-hud).
+     html/body themselves. ⛔ `tintChrome` NO LONGER EXISTS (removed 2026-08-14 with the edge
+     machinery) — today the colour rides on the CSS vars alone, written by 10-stage; nothing
+     writes inline html/body backgrounds. The `menuopen` class is hung by openMainScreen (85-hud).
      ⚠️ The `!important` IS LOAD-BEARING: `tintChrome` writes an INLINE style, an ordinary
      stylesheet rule loses to it on specificity and would die silently.
      ⚠️ We kill the gradient too — under the menu the edge is obliged to be of ONE tone with it,
