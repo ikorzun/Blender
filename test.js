@@ -2330,6 +2330,15 @@ page.on('response', (r) => {
   await wavesPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   const wavesProbe = await wavesPage.evaluate(async () => {
     const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️ WAVE 0 OPENS IN beginDrop ITSELF (2026-08-30): waveKick() runs synchronously inside
+    // the phase flip, so ANY observation in the 'drop' phase must already see waveNext >= 1.
+    // Before the fix the first ~3 frames of the drop showed next === 0 (the anchor-only tick
+    // plus the WAVE_MS debt) — an 8 ms poll on the phase flip catches that world red.
+    let kick = null;
+    for (let i = 0; i < 2000 && kick === null; i++){
+      if (g.introPhase() === 'drop'){ const w = g.waveInfo(); kick = { next: w.next, disabled: w.disabled }; break; }
+      await sl(8);
+    }
     let max = 0;
     for (let i = 0; i < 40; i++){          // we catch the pouring window by polling the fact
       const w = g.waveInfo();
@@ -2339,7 +2348,7 @@ page.on('response', (r) => {
     }
     g.skipIntro(); await sl(300);
     const afterProbe = g.waveInfo();
-    return { on: afterProbe.waves, max, afterSkip: afterProbe.disabled };
+    return { on: afterProbe.waves, max, afterSkip: afterProbe.disabled, kick };
   });
   await wavesPage.close();
   console.log('waves of bodies:', JSON.stringify(wavesProbe));
@@ -2347,6 +2356,10 @@ page.on('response', (r) => {
     '⚠️⚠️ THE WAVES OF BODIES ARE ALIVE: in the real intro the bodies wait for their wave (peak ' +
     wavesProbe.max + ' switched off), skipIntro ripens them all instantly (' +
     JSON.stringify(wavesProbe) + ')');
+  expect(wavesProbe.kick && wavesProbe.kick.next >= 1,
+    'the pour starts ON the beginDrop frame: wave 0 is already released when the drop phase is ' +
+    'first observable — the ~3 frames of rendered stillness before the first falling item are ' +
+    'gone (' + JSON.stringify(wavesProbe.kick) + ')');
 
   // (5) THE NUMBERS THEMSELVES ARE A TWIN OF THE SPEC, AND THIS IS MANDATORY. The asserts above read
   // the ceiling and the floor FROM THE GAME, therefore against «somebody changed a number» they are
@@ -2517,6 +2530,51 @@ page.on('response', (r) => {
   expect(perfArm.restored === 'high',
     'perf window: the test hook restored the high tier — the one-way design is production-only ' +
     '(' + perfArm.restored + ')');
+
+  // === THE SHAKE'S ACCESSIBILITY SPREAD CONVERGES (2026-08-30) ===
+  // The owner's 60fps recording: 15 single-frame drops during the shake eruption, the drop
+  // metronome being the 100 ms partial fan tick plus performShake's +900 ms one-frame FULL
+  // sweep. Both were reshaped (a 300 ms stretch while erupting; the sweep drains as a burst of
+  // slices) — and THIS guard pins the property the reshape must not lose: by ~+1.3 s after a
+  // shake every cached accessibility flag equals a forced full recompute. On Easy the fan casts
+  // nothing, so Hard is switched on for the measurement and restored after.
+  // ⚠️ WHAT IS AND IS NOT ASSERTED, deliberately: equality «cached == fresh recompute» is NOT
+  // measured mid-eruption — flags recomputed at +1.05 s against positions at +1.3 s diverge
+  // HONESTLY while the pile still tumbles (the same was true of the old one-shot sweep). The
+  // guarded properties are (1) LIVENESS: the machinery keeps recomputing during the eruption —
+  // a broken stretch condition or a never-draining burst freezes the flags and goes red here;
+  // (2) post-settle equality as sanity; (3) the structural pin on the armed burst.
+  const accConv = await page.evaluate(async () => {
+    const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+    const hardWas = g.cfg.hard;
+    g.cfg.hard = true; g.forceRefresh();
+    const snaps = [g.accessibleList().join(',')];
+    g.shake();
+    await sl(600);  snaps.push(g.accessibleList().join(','));
+    await sl(700);  snaps.push(g.accessibleList().join(','));
+    await sl(4200); // the pile settles; sleepPhysics has run its authoritative refresh
+    const cached = g.accessibleList().join(',');
+    g.forceRefresh();
+    const fresh = g.accessibleList().join(',');
+    const alive = g.alive(), accN = g.accessibleList().length;
+    g.cfg.hard = hardWas; g.forceRefresh();
+    return { livened: new Set(snaps).size > 1, settledMatch: cached === fresh, alive, accN };
+  });
+  expect(accConv.livened === true,
+    '⚠️⚠️ shake spread / LIVENESS: the accessibility flags keep being recomputed during the ' +
+    'eruption — the stretch+burst reshape did not wedge the fan (' + JSON.stringify(accConv) + ')');
+  expect(accConv.settledMatch === true && accConv.accN > 0 && accConv.accN < accConv.alive,
+    'shake spread: after settling the cached flags equal a forced full recompute, and on Hard ' +
+    'they actually vary (' + accConv.accN + ' of ' + accConv.alive + ') — neither side vacuous');
+  {
+    // ⚠️ a LOCAL require: the top-level `fs` is in the TDZ here — a later `const fs` in this
+    // same enclosing function shadows it (the trap this file already documents once).
+    const fsAcc = require('fs');
+    const pageSrc = fsAcc.readFileSync(PAGE_FILE, 'utf8');
+    expect(pageSrc.indexOf('accSweepBurst = ACC_SLICES') >= 0,
+      'shake spread / structural: performShake arms the slice burst instead of the one-frame ' +
+      'full sweep (the +900 ms setTimeout body)');
+  }
 
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
   // the win overlay has to be hidden by hand, otherwise it will intercept the real clicks

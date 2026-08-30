@@ -1293,7 +1293,10 @@ function performShake(){
   camShake = 0.42; // +20% on the camera too
   stats.lastAction = performance.now(); // a shake is an action too, the mixer is postponed
   Sound.play('shake');
-  setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+  // ⛔ NOT the one-shot full fan any more (2026-08-30): at +900 ms the pile is still
+  // tumbling (the eruption lasts ~1.4 s), and the full ~110x56-cast sweep in one frame WAS the
+  // recording's 36 ms worst frame. The burst spreads the same work over ACC_SLICES loop frames.
+  setTimeout(()=>{ accSweepBurst = ACC_SLICES; updateHUD(); }, 900);
 }
 function requestShake(){
   if (level.over || intro) return;

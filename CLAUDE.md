@@ -11926,3 +11926,59 @@ harness (the tier is one-way by design and going low mid-suite would repaint eve
 particle guard through fxScale). Production has no reset path and must not grow one.
 The regression guard's phase 2 is the exact hole: a fast window, THEN a slow window — under the
 one-shot code the second window could never flip the tier and the guard would have been red.
+
+## BATCH 2026-08-30-c: THE SHAKE JUDDER AND THE POUR STILLNESS — MEASURED FROM THE OWNER'S VIDEO
+
+The owner sent a 60 fps screen recording («vizualno chuvstvuetsya chto igra tupit na momente
+vstryaski i na momente novykh obyektov… veroyatno problema animatsii, a ne fiziki») and his
+instinct was RIGHT — the ?fps=1 badge in his own recording shows FPS 56-60 and physics
+1.1-2.8 ms throughout. Neither the frame rate nor the solver is the story.
+
+### WHAT THE RECORDING ACTUALLY SHOWS (frame-duplication analysis of the 60 fps capture)
+
+- **The shake** = micro-judder: 15 single-frame drops in 47 moving frames of the ~1.4 s
+  eruption — every ~3rd frame — against 0 drops in 86 moving frames of calm play, 1 in a match
+  burst, 1 in the final grind. Worst frame 36 ms on the badge.
+- **«New objects»** = dead time, not judder: press Next -> ~250 ms overlay animation -> >=700 ms
+  of TOTAL stillness before the recording ends, plus a 69 ms worst frame (the synchronous
+  genLevel build of ~181 items).
+
+### THE MECHANISM (confirmed by the adversarial deep dive, 13 findings, decomposition exact)
+
+The drop metronome was THE ACCESSIBILITY FAN ON HARD: the 100 ms background tick sweeps 1/8 of
+the pile (each hull item = up to 56 Rapier sky-casts), and performShake's +900 ms tail ran the
+FULL ~110-item fan in ONE frame, mid-eruption. 1.4 s / 100 ms = ~14 partial ticks + 1 full
+sweep = the 15 recorded drops. On a CALM moving pile the same ticks run drop-free — the base
+frame has headroom; during the eruption it sits at budget and each tick tips its own frame.
+The badge's «physics» number never sees this: the tick runs in the UI segment of the frame.
+
+### WHAT SHIPPED (pile physics, pair counts, spawn heights, scoring — all UNTOUCHED)
+
+1. **The +900 ms full sweep became a BURST of partial slices** (accSweepBurst in 60-access,
+   armed by performShake, drained one slice per loop frame in 99-main): same total work, same
+   per-item result, ~130 ms instead of one frame, full coverage still by ~+1.05 s — below the
+   ~1.2 s two-tick deadlock window, so the guarded noMoves/deadlock block needed NO edit.
+2. **The background tick stretches while the pile erupts**: 300 ms when maxBodySpeed() > 3,
+   100 ms otherwise; the speed probe runs at most 10x/s inside the existing gate. A 300 ms
+   PARTIAL sweep is strictly cheaper than the pre-2026-08-14 300 ms FULL cadence — it cannot
+   regress past any previously measured state.
+3. **Wave 0 opens inside beginDrop** (waveKick, 50-physics): the anchor-only first tick plus
+   the WAVE_MS debt cost ~3 rendered frames of stillness at the exact moment the player watches
+   for the pour. Release staging only — same bodies, order, cadence for waves 1+.
+4. genLevel's refreshAccessibility() removed (the fresh-collider query-pipeline trap made its
+   result garbage that happened to be neutral); the honest recomputes stand in finishIntro,
+   finalizeFill, sleepPhysics.
+5. Tombstones: the 0.65 s orbit note (the constant is 1.0), the «nine in the air» census
+   (chain gate 10 / measured 8; finalPairsRefill ~47 UNGATED — do not add a gate there, it must
+   deliver ALL partners), and the 2026-08-14 «events call the full sweep» note revised in place.
+
+⚠️ **THE HONEST LIMIT:** this closes the shake judder (expected 0-3 drops instead of 15) but
+cuts only ~50-85 ms of the >=700 ms post-Next stillness. The dominant transition terms — the
+69 ms synchronous build and the serial modal->build->handshake chain — need owner decisions
+(genLevel under the newObj modal is the big cut, ~30-60 lines, his eyes on the 88%-opaque
+backdrop). Named, not implemented — see WORKSTREAMS 2026-08-30-b/v.
+
+⚠️ **GUARD SHAPE LESSON, again:** the first draft of the convergence guard compared cached
+flags to a fresh recompute MID-ERUPTION — an honest divergence (flags from +1.05 s vs positions
+at +1.3 s) that would have flaked on a healthy build. Shipped as LIVENESS (the flags keep
+changing during the eruption) + post-settle equality + the structural burst pin.

@@ -1,5 +1,36 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-30-v: THE SHAKE JUDDER CLOSED; THE TRANSITION NAMED — the dispatcher
+
+The owner's 60 fps recording, analysed frame by frame (his ?fps=1 badge was on — FPS 56-60,
+physics 1-3 ms, so his «not physics» instinct was right): the shake = 15 single-frame drops in
+47 moving frames (calm play: 0 in 86); «new objects» = >=700 ms of stillness after Next plus a
+69 ms build frame. The deep dive (4 lenses, 13 confirmed findings) decomposed the shake drops
+EXACTLY: ~14 ticks of the 100 ms accessibility fan (1/8 pile x 56 casts, Hard) + performShake's
++900 ms one-frame FULL sweep = 15.
+
+**Shipped** (pile physics/pairs/spawns/scoring untouched; 4 new guards, incl. a liveness one —
+the first draft compared flags mid-eruption and would have flaked honestly): the full sweep ->
+a burst of partial slices; the background tick stretches 100->300 ms while maxBodySpeed()>3;
+wave 0 opens inside beginDrop (~50 ms off the pour stillness); genLevel's garbage refresh
+dropped; three tombstones. Expected on the phone: eruption drops 15 -> 0-3.
+
+⛔ **NAMED TO THE OWNER, NOT IMPLEMENTED** (each needs his word):
+- genLevel UNDER the new-object modal — the big transition cut (~all controllable stillness);
+  ~30-60 lines in the guarded transition pipeline; the #newObj backdrop is 88% opaque, so the
+  level swap is faintly visible behind it — needs his eyes or an opaque backdrop.
+- The vestigial curtain handshake skip on non-first intros (~17-33 ms; two mandatory arms:
+  prologue path, perf-slice anchoring).
+- Per-type hull cache (4-9x cheaper spawns) — needs byte-proof across ~88 types before it may
+  be called guarded-zone-safe; largely redundant if the modal item ships.
+- finalPairsRefill amortisation (real ~47-item one-frame hitch, but only at lvl 40+; not in
+  his video).
+- Shake on pointerdown (60-120 ms perceived latency) — blocked by the Ad-state contract: with
+  zero shakes the button starts a rewarded video, and launching THAT on finger-down breaks the
+  deliberate-tap rule. The chargeBtn recipe is ready if he asks.
+- Camera travel after the pour (~2 s: drop + orbit 1.0 s + zoom) — all owner-tuned knobs
+  (?intro / ?orbit); no cut without his word.
+
 ### ACCEPTANCE 2026-08-30-b: THE PERF WINDOW RE-ARMS (the owner's real-phone data) — the dispatcher
 
 «Na medlennykh telefonakh ili pri rezhime ekonomii batarei na 17 iphone igra nachinaet tupit,

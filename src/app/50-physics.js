@@ -680,6 +680,22 @@ function waveHold(it){
   it.body.setEnabled(false);
 }
 function waveArm(){ waveNext = 0; waveAcc = 0; waveLast = 0; }
+// ⚠️ Opens wave 0 synchronously at beginDrop (2026-08-30): without it the first waveTick is
+// anchor-only and the accumulator still owes WAVE_MS — layer 0 started falling ~3 frames
+// (~33-50 ms) after beginDrop, all rendered as stillness. Mirrors waveTick's release body for
+// exactly one layer; waves 1+ keep their cadence (the anchor is set here, so the next tick
+// accumulates real dt instead of anchoring again).
+function waveKick(){
+  if (!wavesOn || waveNext !== 0) return 0;
+  waveLast = performance.now();
+  let opened = 0;
+  for (const it of items){
+    if (!it.body || (it.wave | 0) !== 0) continue;
+    if (!it.body.isEnabled()){ it.body.setEnabled(true); opened++; }
+  }
+  waveNext = 1;
+  return opened;
+}
 function waveReleaseAll(){
   for (const it of items) if (it.body && !it.body.isEnabled()) it.body.setEnabled(true);
   waveNext = 1e9;

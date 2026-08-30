@@ -9923,6 +9923,10 @@ function dropOneFromSky(k, forcedTypeIdx){
   // showed that the frame sags 34.7 -> 64.3 ms exactly when up to nine items hang
   // in the air at once. A flight half as long removes both the time and the
   // overlap.
+  // ⛔ «NINE IN THE AIR» IS HISTORY, NOT A LIVE BOUND (2026-08-30 census): the chain path is
+  // gated at 10 airborne (measured 8), while finalPairsRefill (~47 at lvl 40+) and continueRun
+  // (10) have NO air gate at all. Do NOT add one to finalPairsRefill — it must deliver ALL
+  // partners; an early return would strand orphans for the grind.
   // ⚠️ ONE POINT FOR ALL THREE TOP-UPS (turbo, the final pairs, continue) — they
   // all come through here; a separate velocity in each would drift apart at the
   // first edit.
@@ -10399,7 +10403,12 @@ function genLevel(){
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');
   startIntro();
-  refreshAccessibility();
+  // ⛔ refreshAccessibility() STOOD HERE and was removed 2026-08-30: at this point every body
+  // is freshly created AND disabled by the wave hold, and Rapier's query pipeline does not see
+  // fresh colliders until world.step (the project's own canonical trap at place()) — on Hard
+  // every first skyCast hit nothing and the whole result was garbage that happened to be
+  // neutral. The honest recomputes stand: finishIntro, finalizeFill and sleepPhysics each run
+  // their own full refresh.
   updateHUD();
 }
 
@@ -11085,6 +11094,22 @@ function waveHold(it){
   it.body.setEnabled(false);
 }
 function waveArm(){ waveNext = 0; waveAcc = 0; waveLast = 0; }
+// ⚠️ Opens wave 0 synchronously at beginDrop (2026-08-30): without it the first waveTick is
+// anchor-only and the accumulator still owes WAVE_MS — layer 0 started falling ~3 frames
+// (~33-50 ms) after beginDrop, all rendered as stillness. Mirrors waveTick's release body for
+// exactly one layer; waves 1+ keep their cadence (the anchor is set here, so the next tick
+// accumulates real dt instead of anchoring again).
+function waveKick(){
+  if (!wavesOn || waveNext !== 0) return 0;
+  waveLast = performance.now();
+  let opened = 0;
+  for (const it of items){
+    if (!it.body || (it.wave | 0) !== 0) continue;
+    if (!it.body.isEnabled()){ it.body.setEnabled(true); opened++; }
+  }
+  waveNext = 1;
+  return opened;
+}
 function waveReleaseAll(){
   for (const it of items) if (it.body && !it.body.isEnabled()) it.body.setEnabled(true);
   waveNext = 1e9;
@@ -11845,10 +11870,22 @@ let accFlips = 0; // diagnostics: how many items changed accessibility during th
 // of the pile in a round robin, a full cycle is 8 ticks. Events (a match, a shake, regens, the finale)
 // still call the FULL sweep, so the reaction to the player's action is instant,
 // as it was; the partial one is only the background re-evaluation of a settled pile.
+// ⛔ REVISED 2026-08-30: the SHAKE's deferred (+900 ms) sweep is no longer a one-frame full
+// fan — it drains as a burst of partial slices (see accSweepBurst above); the match has been
+// LOCAL (refreshAccessibilityNear) since 2026-08-14 itself. Regens and the finale keep the
+// full one-shot sweep — their piles are empty or nearly so.
 // ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
 // break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;
 let accCursor = 0;
+// ⚠️⚠️ THE SHAKE'S DEFERRED SWEEP IS A BURST OF SLICES, NOT ONE FULL FAN (2026-08-30, a
+// REVISION of the 2026-08-14 decision below — recorded, not silently rewritten). The owner's
+// 60fps phone recording showed the +900 ms full sweep landing mid-eruption as the worst frame
+// (36 ms): all ~110 items x up to 56 casts in ONE frame, exactly when the base frame is most
+// loaded. performShake now arms `accSweepBurst = ACC_SLICES`, and the main loop drains ONE
+// partial slice per frame (~130 ms total) — the same total work, the same result per item,
+// full coverage still completes by ~+1.05 s, below the ~1.2 s two-tick deadlock window.
+let accSweepBurst = 0;
 // ⚠️⚠️ LOCAL RECALCULATION AROUND AN EVENT (2026-08-14, the owner confirmed: he has
 // HARD switched on, that is, the fan runs at full strength). The full sweep costs
 // 79-86 ms (CPU ×4) and was called AFTER EVERY COMBINATION — that is, the hitch
@@ -17502,7 +17539,10 @@ function performShake(){
   camShake = 0.42; // +20% on the camera too
   stats.lastAction = performance.now(); // a shake is an action too, the mixer is postponed
   Sound.play('shake');
-  setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+  // ⛔ NOT the one-shot full fan any more (2026-08-30): at +900 ms the pile is still
+  // tumbling (the eruption lasts ~1.4 s), and the full ~110x56-cast sweep in one frame WAS the
+  // recording's 36 ms worst frame. The burst spreads the same work over ACC_SLICES loop frames.
+  setTimeout(()=>{ accSweepBurst = ACC_SLICES; updateHUD(); }, 900);
 }
 function requestShake(){
   if (level.over || intro) return;
@@ -22247,6 +22287,11 @@ let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // trim and the radius base wait for a SETTLED pile (see finalizeFill)
 function beginDrop(){
   intro.phase = 'drop'; intro.t = 0; introPerfStart();
+  // ⚠️ Wave 0 opens IN THIS VERY CALL (2026-08-30): the anchor-only first waveTick plus the
+  // WAVE_MS accumulator used to cost ~3 rendered frames of stillness at the exact moment the
+  // player watches for the pour. Same bodies, same order, same cadence for waves 1+ — a phase
+  // shift of the release staging only.
+  try { waveKick(); } catch(e){}
 }
 function startIntro(){
   // screen 'intro' — the orbit; closed by finishIntro/skipIntro (docs/METRICS.md §3)
@@ -22533,7 +22578,9 @@ function tickIntro(dt){
         }
       }
     }
-    // ⚠️ THE ORBIT IS 0.65 s instead of 1.0 (the owner's word «speed up the turn around the bowl»).
+    // ⚠️ The orbit lasts INTRO_ORBIT_S (default 1.0 s; the ?orbit= knob overrides). ⛔ A stale
+    // note here claimed «0.65 s instead of 1.0» — the constant is 1.0 (00-config:440); the 0.65
+    // era did not survive, the note did (tombstoned 2026-08-30).
     // The finish is still EXACTLY at 2π — otherwise the jerky last frame comes back.
     const k = Math.min(1, intro.t / INTRO_ORBIT_S);
     const e = k*k*(3 - 2*k); // smoothstep
@@ -22975,7 +23022,22 @@ function loop(){
   // work is the same, the full cycle is 0.8 s, but the frame no longer gets stuck at 80-90 ms
   // (measurement Hard: p95 104.6 -> see the canon section). The full pass stays on
   // player events, here it is a background re-evaluation of the settled pile.
-  if (physAwake && now - lastAccMs > 100){ lastAccMs = now; refreshAccessibility(true); }
+  // ⚠️⚠️ TWO CADENCES SINCE 2026-08-30, both born of the owner's 60fps phone recording of a
+  // shake: 15 single-frame drops in 47 moving frames, and the drop metronome WAS this tick.
+  // A partial slice costs 2-8 ms of Rapier casts; on a calm moving pile the frame has headroom
+  // and the tick is free (0 drops in 86 moving frames measured), but during the eruption the
+  // base frame sits at budget and every tick tips exactly its own frame over 16.7 ms.
+  //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access);
+  //  - the background tick STRETCHES to 300 ms while the pile is erupting (maxV > 3) and stays
+  //    at 100 ms otherwise. A 300 ms PARTIAL sweep is strictly cheaper than the pre-2026-08-14
+  //    300 ms FULL cadence, so this cannot regress past any previously measured state.
+  // ⚠️ maxBodySpeed() is called at most 10x/s (inside the 100 ms gate), never per frame.
+  // ⚠️ The deadlock/auto-shake conditions at noMoves are DELIBERATELY untouched (the owner's
+  // recorded decisions); the burst caps post-shake staleness below their ~1.2 s window.
+  if (physAwake && accSweepBurst > 0){ accSweepBurst--; lastAccMs = now; refreshAccessibility(true); }
+  else if (physAwake && now - lastAccMs > 100){
+    if (now - lastAccMs > 300 || maxBodySpeed() <= 3){ lastAccMs = now; refreshAccessibility(true); }
+  }
   // mixer: the final clean-up of the leftovers without pairs; otherwise — the punishment for idling
   let grinding = false;
   if (!level.over && !intro){

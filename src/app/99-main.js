@@ -48,6 +48,11 @@ let intro = null; // { phase:'drop'|'orbit', t, shakes }
 let pendingTrim = false; // trim and the radius base wait for a SETTLED pile (see finalizeFill)
 function beginDrop(){
   intro.phase = 'drop'; intro.t = 0; introPerfStart();
+  // ⚠️ Wave 0 opens IN THIS VERY CALL (2026-08-30): the anchor-only first waveTick plus the
+  // WAVE_MS accumulator used to cost ~3 rendered frames of stillness at the exact moment the
+  // player watches for the pour. Same bodies, same order, same cadence for waves 1+ — a phase
+  // shift of the release staging only.
+  try { waveKick(); } catch(e){}
 }
 function startIntro(){
   // screen 'intro' — the orbit; closed by finishIntro/skipIntro (docs/METRICS.md §3)
@@ -334,7 +339,9 @@ function tickIntro(dt){
         }
       }
     }
-    // ⚠️ THE ORBIT IS 0.65 s instead of 1.0 (the owner's word «speed up the turn around the bowl»).
+    // ⚠️ The orbit lasts INTRO_ORBIT_S (default 1.0 s; the ?orbit= knob overrides). ⛔ A stale
+    // note here claimed «0.65 s instead of 1.0» — the constant is 1.0 (00-config:440); the 0.65
+    // era did not survive, the note did (tombstoned 2026-08-30).
     // The finish is still EXACTLY at 2π — otherwise the jerky last frame comes back.
     const k = Math.min(1, intro.t / INTRO_ORBIT_S);
     const e = k*k*(3 - 2*k); // smoothstep
@@ -776,7 +783,22 @@ function loop(){
   // work is the same, the full cycle is 0.8 s, but the frame no longer gets stuck at 80-90 ms
   // (measurement Hard: p95 104.6 -> see the canon section). The full pass stays on
   // player events, here it is a background re-evaluation of the settled pile.
-  if (physAwake && now - lastAccMs > 100){ lastAccMs = now; refreshAccessibility(true); }
+  // ⚠️⚠️ TWO CADENCES SINCE 2026-08-30, both born of the owner's 60fps phone recording of a
+  // shake: 15 single-frame drops in 47 moving frames, and the drop metronome WAS this tick.
+  // A partial slice costs 2-8 ms of Rapier casts; on a calm moving pile the frame has headroom
+  // and the tick is free (0 drops in 86 moving frames measured), but during the eruption the
+  // base frame sits at budget and every tick tips exactly its own frame over 16.7 ms.
+  //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access);
+  //  - the background tick STRETCHES to 300 ms while the pile is erupting (maxV > 3) and stays
+  //    at 100 ms otherwise. A 300 ms PARTIAL sweep is strictly cheaper than the pre-2026-08-14
+  //    300 ms FULL cadence, so this cannot regress past any previously measured state.
+  // ⚠️ maxBodySpeed() is called at most 10x/s (inside the 100 ms gate), never per frame.
+  // ⚠️ The deadlock/auto-shake conditions at noMoves are DELIBERATELY untouched (the owner's
+  // recorded decisions); the burst caps post-shake staleness below their ~1.2 s window.
+  if (physAwake && accSweepBurst > 0){ accSweepBurst--; lastAccMs = now; refreshAccessibility(true); }
+  else if (physAwake && now - lastAccMs > 100){
+    if (now - lastAccMs > 300 || maxBodySpeed() <= 3){ lastAccMs = now; refreshAccessibility(true); }
+  }
   // mixer: the final clean-up of the leftovers without pairs; otherwise — the punishment for idling
   let grinding = false;
   if (!level.over && !intro){

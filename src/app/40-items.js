@@ -390,6 +390,10 @@ function dropOneFromSky(k, forcedTypeIdx){
   // showed that the frame sags 34.7 -> 64.3 ms exactly when up to nine items hang
   // in the air at once. A flight half as long removes both the time and the
   // overlap.
+  // ⛔ «NINE IN THE AIR» IS HISTORY, NOT A LIVE BOUND (2026-08-30 census): the chain path is
+  // gated at 10 airborne (measured 8), while finalPairsRefill (~47 at lvl 40+) and continueRun
+  // (10) have NO air gate at all. Do NOT add one to finalPairsRefill — it must deliver ALL
+  // partners; an early return would strand orphans for the grind.
   // ⚠️ ONE POINT FOR ALL THREE TOP-UPS (turbo, the final pairs, continue) — they
   // all come through here; a separate velocity in each would drift apart at the
   // first edit.
@@ -866,6 +870,11 @@ function genLevel(){
   Telemetry.ev('level_start', { lv: levelNum });
   wakePhysics('genLevel');
   startIntro();
-  refreshAccessibility();
+  // ⛔ refreshAccessibility() STOOD HERE and was removed 2026-08-30: at this point every body
+  // is freshly created AND disabled by the wave hold, and Rapier's query pipeline does not see
+  // fresh colliders until world.step (the project's own canonical trap at place()) — on Hard
+  // every first skyCast hit nothing and the whole result was garbage that happened to be
+  // neutral. The honest recomputes stand: finishIntro, finalizeFill and sleepPhysics each run
+  // their own full refresh.
   updateHUD();
 }

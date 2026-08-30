@@ -181,10 +181,22 @@ let accFlips = 0; // diagnostics: how many items changed accessibility during th
 // of the pile in a round robin, a full cycle is 8 ticks. Events (a match, a shake, regens, the finale)
 // still call the FULL sweep, so the reaction to the player's action is instant,
 // as it was; the partial one is only the background re-evaluation of a settled pile.
+// ⛔ REVISED 2026-08-30: the SHAKE's deferred (+900 ms) sweep is no longer a one-frame full
+// fan — it drains as a burst of partial slices (see accSweepBurst above); the match has been
+// LOCAL (refreshAccessibilityNear) since 2026-08-14 itself. Regens and the finale keep the
+// full one-shot sweep — their piles are empty or nearly so.
 // ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
 // break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;
 let accCursor = 0;
+// ⚠️⚠️ THE SHAKE'S DEFERRED SWEEP IS A BURST OF SLICES, NOT ONE FULL FAN (2026-08-30, a
+// REVISION of the 2026-08-14 decision below — recorded, not silently rewritten). The owner's
+// 60fps phone recording showed the +900 ms full sweep landing mid-eruption as the worst frame
+// (36 ms): all ~110 items x up to 56 casts in ONE frame, exactly when the base frame is most
+// loaded. performShake now arms `accSweepBurst = ACC_SLICES`, and the main loop drains ONE
+// partial slice per frame (~130 ms total) — the same total work, the same result per item,
+// full coverage still completes by ~+1.05 s, below the ~1.2 s two-tick deadlock window.
+let accSweepBurst = 0;
 // ⚠️⚠️ LOCAL RECALCULATION AROUND AN EVENT (2026-08-14, the owner confirmed: he has
 // HARD switched on, that is, the fan runs at full strength). The full sweep costs
 // 79-86 ms (CPU ×4) and was called AFTER EVERY COMBINATION — that is, the hitch
