@@ -1,5 +1,18 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-30-b: THE PERF WINDOW RE-ARMS (the owner's real-phone data) — the dispatcher
+
+«Na medlennykh telefonakh ili pri rezhime ekonomii batarei na 17 iphone igra nachinaet tupit,
+proveril na realnykh dannykh» — the adaptive-scheme question answered with a fix, not only a
+recommendation. The quality window decided ONCE in the first 2.5 s of play; a green verdict
+latched forever, so Low Power Mode entered mid-session (or thermal throttle at minute ten)
+never triggered the low tier. Now a green verdict re-arms the window; going low stays one-way.
+GRAPHICS zone touched (tickPerfTier in 99-main + two test-only hooks); physics and item counts
+untouched — the leaderboard-fairness analysis stands in 2026-08-30-a. Three suite guards where
+there were ZERO; phase 2 of the regression guard is red on the old code by construction.
+⚠️ For the owner's re-test: same phone, battery saver ON, deep level, ?fps=1 — the tier should
+now drop within ~3 s of sustained slow frames (console prints «weak device: … quality lowered»).
+
 ### ACCEPTANCE 2026-08-30-a: THE SIX SPORT TYPES REMOVED; THE BOWL'S CEILING; THE ADAPTIVE-COUNT QUESTION — the dispatcher
 
 «Uberi poslednie modeli ot 3d, kotorye tormozyat igru. Skolko seychas maksimalnoe kolichestvo

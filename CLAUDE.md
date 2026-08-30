@@ -11895,3 +11895,34 @@ inert, and inert code rots unwatched; the control needs no geoHi type to run.
 42f1f73, and that residue is itemised: the dynamite arrays (~52 KB), the accLabel fix for
 eleven pre-existing collection cards, the payments seam, the safe-area terms, finding 4, and
 the guards. Frame parity vs 42f1f73 re-measured on the same stand — see WORKSTREAMS.
+
+## 2026-08-30-b: THE PERF WINDOW RE-ARMS — LOW POWER MODE MID-SESSION GETS THE LOW TIER
+
+The owner, with real-device data: «na medlennykh telefonakh ili pri rezhime ekonomii batarei na
+17 iphone igra nachinaet tupit, proveril na realnykh dannykh».
+
+⛔⛔ **THE HOLE MATCHED HIS SCENARIO EXACTLY, AND THE MACHINERY HAD ZERO GUARDS.** The quality
+window (tickPerfTier, 99-main) measured the FIRST 2.5 s of play and decided ONCE per session:
+`perfDecided` latched on the green outcome too. A phone that was fast at level 1 — or entered
+Low Power Mode later, or thermally throttled ten minutes in — passed as fast FOREVER, exactly
+when 180 items at level 11+ met a throttled GPU. An iPhone 17 in battery saver is a FAST device
+at second three and a slow one at minute ten: the one-shot design could never see it.
+
+**THE FIX IS ONE BRANCH:** a green verdict now RE-ARMS the window (perfWinStart = 0) instead of
+latching; `perfDecided` is set only on going low, which is its true meaning. Everything else
+stands deliberately: ONE tier, ONLY DOWNWARDS (once low we stop watching — nothing further to
+do), the intro/outlier gating, the pause gating at the call site, physics untouched (weakening
+the solver changes how the pile behaves — that is gameplay, the owner's call, never a silent
+optimisation). The watching cost is an array push per frame + a ~100-element sort every 2.5 s.
+
+⚠️ **WHAT THE LOW TIER DOES AND DOES NOT DO** (unchanged, restated because the owner asked about
+an adaptive scheme): DPR 1.5 -> 1.0 on touch (2.25x fewer pixels — the honest biggest lever),
+particles x0.4. It does NOT reduce the item count: item count is score potential and the
+leaderboard is one table — fewer items on phones would structurally cap phone players below
+desktop. That fork stays the owner's explicit decision if graphics tiers ever prove not enough.
+
+⚠️ **TEST HOOKS** `tickPerfTier` + `perfTierReset` on __game: the reset exists ONLY for the
+harness (the tier is one-way by design and going low mid-suite would repaint every later
+particle guard through fxScale). Production has no reset path and must not grow one.
+The regression guard's phase 2 is the exact hole: a fast window, THEN a slow window — under the
+one-shot code the second window could never flip the tier and the guard would have been red.

@@ -22679,6 +22679,19 @@ function resumeGame(){
 // and not on pause, otherwise we would measure an empty screen and consider the phone fast.
 // Frames longer than PERF_OUTLIER_MS are thrown away — that is not render, that is the system.
 let perfWin = [], perfWinStart = 0, perfDecided = false;
+// ⛔⛔ «DECIDE ONCE PER SESSION» WAS THE HOLE, REMOVED 2026-08-30 ON THE OWNER'S REAL DATA
+// («na medlennykh telefonakh ili pri rezhime ekonomii batarei na 17 iphone igra nachinaet
+// tupit, proveril na realnykh dannykh»). The one-shot window measured the FIRST 2.5 s of play —
+// a phone that was fast at level 1, or entered Low Power Mode mid-session, or thermally
+// throttled ten minutes in, passed as fast FOREVER: `perfDecided` latched on the green outcome
+// and the tier could never fire again, exactly when 180 items at level 11+ met a throttled GPU.
+// Now the window RE-ARMS after a green verdict and keeps watching. Everything else is
+// unchanged and deliberate: one tier, ONLY DOWNWARDS (once low, we stop — there is nothing
+// further to do), the intro and outlier gating stays, the pause gating stays at the call site
+// (a menu frame is cheap and would read as «fast»), and the cost of watching forever is one
+// array push per frame plus a ~100-element sort every 2.5 s — nothing.
+// ⚠️ `perfDecided` KEEPS ITS NAME AND ITS TRUE MEANING — «the tier question is settled» — and
+// is now set ONLY when it really is: on going low. The debug forcePerfLow path still works.
 function tickPerfTier(ms){
   if (perfDecided || CFG.perfTier === 'low') { perfDecided = true; return; }
   if (intro || ms > PERF_OUTLIER_MS) return;   // the intro and system hitches do not count
@@ -22687,12 +22700,14 @@ function tickPerfTier(ms){
   if (performance.now() - perfWinStart < PERF_WINDOW_MS || perfWin.length < PERF_MIN_SAMPLES) return;
   perfWin.sort((a,b) => a - b);
   const med = perfWin[perfWin.length >> 1];
-  perfDecided = true;                       // we decide ONCE per session
   if (med > PERF_SLOW_FRAME_MS){
+    perfDecided = true;                     // settled: we are low, nothing further to decide
     applyPerfTier('low');
     resize();  // ⚠️ MANDATORY, see the comment at resize: lowering the quality
                // changes the buffer height, and uResY is written only by resize()
     console.warn('[perf] weak device: frame median ' + med.toFixed(1) + ' ms -> quality lowered');
+  } else {
+    perfWinStart = 0;                       // green verdict -> RE-ARM: keep watching
   }
   perfWin = [];
 }
@@ -23887,6 +23902,17 @@ window.__game = {
     shadows: renderer.shadowMap.enabled, decided: perfDecided }; },
   setPerfTier(t){ if (t !== 'low') return false;
     const ok = applyPerfTier('low'); if (ok) resize(); return ok; },  // resize — see tickPerfTier
+  // ⚠️ TEST HOOKS for the perf window (2026-08-30). The window machinery had ZERO guards, which
+  // is how «decide once per session» shipped and sat unnoticed until the owner measured the lag
+  // on a real phone. tickPerfTier is the real function (fed with synthetic frame times);
+  // perfTierReset exists ONLY so the harness can undo the one-way tier — going low mid-suite
+  // changes fxScale and would repaint every later particle guard. Production has no reset path
+  // and must not grow one: one tier, only downwards, is the design.
+  tickPerfTier,
+  perfTierReset(){ perfDecided = false; perfWin = []; perfWinStart = 0;
+    CFG.perfTier = 'high'; CFG.fxScale = 1;
+    try { renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); resize(); } catch(e){}
+  },
   bestTapTarget(mode){
     refreshAccessibility();
     const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && i.accessible);
