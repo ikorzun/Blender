@@ -1,6 +1,36 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-30-a: THE SIX SPORT TYPES REMOVED; THE BOWL'S CEILING; THE ADAPTIVE-COUNT QUESTION — the dispatcher
+
+«Uberi poslednie modeli ot 3d, kotorye tormozyat igru. Skolko seychas maksimalnoe kolichestvo
+modeley v chashe, ne nuzhno li pridumat skhemu, chto na slabykh ustroystvakh ikh menshe, a na
+kompyutere stolko zhe?»
+
+**REMOVED.** TYPES 93 -> 87; 30-shapes matches the pre-batch 42f1f73 byte-for-byte outside
+comments (the diff IS the proof the progression is restored). 39-sport.js regenerated
+dynamite-only (1.18 MB -> 52.7 KB; the dynamite-bomb stays — his own decision, and it does not
+lag). Build 11 559 930 -> 10 420 382 B. The seven variant-3 guards tombstoned with one
+deliberate survivor watching the inert geoHi machinery. Sources stay in «3d assets/models/
+sport/»; the remakes re-enter through the same slots under docs/MODEL-BUDGET.md.
+
+**THE BOWL'S CEILING (from config, not memory):** 40 pairs = 80 items at level 1, +5 pairs
+(+10 items) per level, ceiling **90 pairs = 180 items from level 11** (00-config: PAIRS,
+PAIRS_START, PAIRS_STEP; measured live: 181 bodies with the treasure). The 2026-08-05 testers'
+progression: level 1 is 38% lighter than the old flat fill.
+
+**THE ADAPTIVE-COUNT QUESTION — recommendation given, NOTHING IMPLEMENTED:** measure first,
+fork never (for now). (1) After the removal the game is back to the composition he never
+complained about — he should open ?fps=1 on his own phone before any scheme is designed.
+(2) If phones still lag, the honest fork prices: a GRAPHICS tier (pixel ratio, effects — the
+perf_low path already exists) costs no gameplay and keeps the leaderboard fair; FEWER ITEMS on
+weak devices touches the guarded gameplay core, forks star thresholds and pacing, and
+⚠️ STRUCTURALLY CAPS PHONE PLAYERS' SCORES BELOW DESKTOP ON THE SHARED LEADERBOARD — item
+count is score potential, and the table is one table. His call; today only the removal shipped.
+
 ### ACCEPTANCE 2026-08-29-b: THE LAG — MEASURED, AND CURED BY VARIANT 3 — the dispatcher
+⛔ SUPERSEDED 2026-08-30: the owner judged the machine LODs not good enough and removed the six
+sport types from the pool entirely (see 2026-08-30-a). The measurements and the census below
+stay true; the remakes re-enter under docs/MODEL-BUDGET.md.
 
 «Igra nachala tupit, nuzhen razbor. Osobenno s novymi modelyami i s 7 urovnya» — then, on the
 numbers: «delai 3 variant» + the physics idea (wrap items in simple primitives).

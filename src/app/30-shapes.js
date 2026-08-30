@@ -120,17 +120,21 @@ const TYPES = [
   // colours the model's own UV actually samples out of the atlas, with the black outline band
   // excluded. Re-measure it if the artist re-maps a model.
   // ⚠️ phys:'ball' on the five balls is NOT cosmetics — see the branch in 50-physics.
-  { name:'sportbasketball', color:0xe67543, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportbasketballLodGeo, geoHi:sportbasketballGeo },   // lvl 6
-// ⚠️ THE SIX SPORT TYPES CARRY TWO GEOMETRIES (the owner's variant 3, 2026-08-29). `geo` is the
-// pile-scale LOD (~520-640 tris, tools/lodgen.py), `geoHi` is the full model for the big views —
-// the collection card, the new-object showcase, the spins (all funnel through thumbItemForKey).
-// The pile, the physics hull input and the shatter shards all take `geo`; nothing else changed.
+// ⛔⛔ THE SIX SPORT TYPES LEFT THE POOL 2026-08-30 (the owner: «uberi poslednie modeli ot
+// 3d, kotorye tormozyat igru»). They entered 2026-08-28 at levels 6/9/12/15/18/21, lagged the
+// frame in proportion to their triangles (measured), got machine LODs (variant 3, 2026-08-29),
+// which the owner judged not good enough — the 3D artist is remaking them under
+// docs/MODEL-BUDGET.md. THEY RETURN when the remakes land: same names, same slots, and the
+// geoHi/geo machinery (portraitPick, the 'h' thumb key) is still in place, inert.
+// ⚠️ The dynamite is NOT a TYPES entry and STAYS — it is the bomb's mesh (his own «zameni
+// bombu dinamitom») and does not lag (804 tris, one item per level).
+// ⚠️ MATERIAL_OF / ACC_LABELS keep their sport entries: harmless without the types, needed again
+// with the remakes. Orphan sport rows in players' saves are inert — the collection is built
+// from TYPES.map, unknown save keys are simply never displayed.
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
-  { name:'sportfries', color:0xf99137, rc:1.0, tex:'sport', mat:'soft', geo:sportfriesLodGeo, geoHi:sportfriesGeo },   // lvl 9
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
-  { name:'sporttennisball', color:0x74d199, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sporttennisballLodGeo, geoHi:sporttennisballGeo },   // lvl 12
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
   // ===== THE KENNEY BATCH 2026-07-30: 28 items from 7 kits (the 38-kenney.js module,
   // separate from 36-models — see WORKSTREAMS, and there too why 36-models was NOT regenerated).
@@ -140,13 +144,10 @@ const TYPES = [
   // color paints NOT the model (the atlas paints that) but the DEBRIS on decay — picked by
   // the item's dominant tone. wr is there where the converter marked a flat shape.
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
-  { name:'sportvolleyball', color:0xab8d90, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportvolleyballLodGeo, geoHi:sportvolleyballGeo },   // lvl 15
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
-  { name:'sportgolfball', color:0xefc7c6, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportgolfballLodGeo, geoHi:sportgolfballGeo },   // lvl 18
   { name:'holidaygingerbreadman', color:0xc08a50, rc:1.0, wr:0.83, tex:'holiday', mat:'soft', geo:holidaygingerbreadmanGeo },
   { name:'cartaxi',               color:0xffc21a, rc:1.4, tex:'car', mat:'soft', geo:()=>cartaxiGeo().clone().scale(1.4, 1.4, 1.4) },
-  { name:'sportsoccerball', color:0xc2c2c3, rc:1.0, phys:'ball', tex:'sport', mat:'soft', geo:sportsoccerballLodGeo, geoHi:sportsoccerballGeo },   // lvl 21
   { name:'brickbar', color:0xe8433a, rc:1.0, wr:0.98, tex:'brick', paint:1, mat:'soft', geo:brickbarGeo },
   { name:'piratepalm', color:0xc87551, rc:1.0, tex:'pirate', mat:'soft', geo:piratepalmGeo },
   { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },

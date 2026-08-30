@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # ===== tools/lodgen.py — pile-scale LOD for the sport pack (the owner's variant 3, 2026-08-29) =====
+# ⛔ DORMANT SINCE 2026-08-30: the six sport models left the pool (the owner judged the machine
+# LODs not good enough; the artist remakes them under docs/MODEL-BUDGET.md), and 39-sport.js is
+# dynamite-only — this tool's regexes will not find the M_SPORT*_ arrays until the full pack is
+# regenerated. Under the MODEL-BUDGET contract (<=800 tris) the remakes should not need a LOD at
+# all; run this again only if a remake ships heavy AND the owner asks for variant 3 again.
 #
 # «delai 3 variant» — two versions of each model: the detailed one for the big views (collection
 # card, the new-object showcase, spins), the simplified one for the pile, where an item is a

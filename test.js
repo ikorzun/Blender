@@ -2460,67 +2460,63 @@ page.on('response', (r) => {
     '⚠️⚠️ finding 4: «Play» from the menu clears BOTH overlays and starts a live run — the new ' +
     'level must not begin underneath a stale win screen (' + JSON.stringify(winLeak) + ')');
 
-  // === VARIANT 3 (2026-08-29): TWO GEOMETRIES PER SPORT TYPE — HI FOR THE BIG VIEWS, LOD FOR THE PILE ===
-  // ⛔ The owner's word «delai 3 variant» after the measured lag (frame p95 +3..+10 ms tracking
-  // the new types' triangles). The pin is two-sided ON PURPOSE: the runtime half proves the big
-  // views really get the FULL model, the structural half proves the pile really gets the LOD —
-  // either alone would stay green if someone later «unified» the two geometries one way.
-  const lodPin = await page.evaluate(() => {
-    const it = window.__game.thumbItemForKey('sportsoccerball');
-    const geo = it && (it.geo || (it.mesh && it.mesh.geometry));
-    return { thumbTris: geo && geo.index ? geo.index.count / 3 : -1 };
-  });
-  expect(lodPin.thumbTris === 5580,
-    '⚠️⚠️ variant 3: the portrait/big-view item carries the FULL soccer ball (5580 tris), not the ' +
-    'pile LOD (' + lodPin.thumbTris + ')');
-  {
-    // ⚠️ NOT the top-level `fs`: a later `const fs = require('fs')` in this same enclosing
-    // function (the testers'-pack server) puts that name in the TDZ here — the module-order
-    // trap of the game code, reproduced inside its own suite. A local name dodges it.
-    const fsLod = require('fs');
-    const pageSrc = fsLod.readFileSync(PAGE_FILE, 'utf8');
-    const hiCount = (pageSrc.match(/geoHi:sport/g) || []).length;
-    const lodIdx = pageSrc.match(/M_SPORTSOCCERBALL_LOD_IDX = new Uint16Array\(\[([^\]]*)\]/);
-    const lodTris = lodIdx ? (lodIdx[1].split(',').length / 3) : -1;
-    // ⚠️ ALL SIX pile wires pinned by name, not just soccer's: with only one pinned, reverting
-    // any other type's `geo:` back to the full model kept every guard green while that type's
-    // ~1-5K tris returned to the pile — the exact regression variant 3 exists to prevent.
-    const sportNames = ['sportbasketball','sportfries','sportgolfball','sportsoccerball','sporttennisball','sportvolleyball'];
-    const lodWired = sportNames.filter(n => pageSrc.indexOf('geo:' + n + 'LodGeo') >= 0);
-    expect(hiCount === 6 && lodWired.length === 6,
-      'variant 3: all six sport TYPES carry geoHi AND all six pile geos are the LOD functions ' +
-      '(geoHi=' + hiCount + ', lod wired=' + lodWired.length + '/6' +
-      (lodWired.length < 6 ? ', missing: ' + sportNames.filter(n => lodWired.indexOf(n) < 0).join(',') : '') + ')');
-    expect(lodTris > 0 && lodTris < 700,
-      'variant 3: the pile LOD of the soccer ball is real and small — ' + lodTris + ' tris against ' +
-      '5580 (the regeneration trap: glb2module.py DROPS the LOD block; rerun tools/lodgen.py)');
-    expect((pageSrc.match(/portraitPick\(/g) || []).length >= 5,
-      'variant 3: the live-item portrait sites go through portraitPick — a live pile item (LOD) ' +
-      'must not be preferred for a card of a type that has geoHi');
-  }
-  // ⚠️ THE PREFERENCE ORDER ITSELF, at runtime — the occurrence count above proves the sites
-  // CALL portraitPick, not that portraitPick prefers correctly; regressing its body to
-  // `live || thumb` kept every guard green. A fake live stub makes this deterministic: no
-  // dependence on the random type mix of a level.
+  // === VARIANT 3 GUARDS — TOMBSTONE 2026-08-30 ===
+  // ⛔ Seven asserts stood here pinning the sport types' dual geometry (HI for the big views,
+  // LOD for the pile): the 5580-tris portrait pin, the six geo:*LodGeo wires, the LOD-size pin,
+  // the portraitPick call-site count, the runtime preference probe, and the 'T'+idx+'h' thumb
+  // key. They left WITH the six sport TYPES entries (the owner: «uberi poslednie modeli ot 3d,
+  // kotorye tormozyat igru») — with zero geoHi types on the page every one of them would go red
+  // on a healthy build. THEY RETURN with the artist's remakes IF those ship a geoHi tier; under
+  // docs/MODEL-BUDGET.md (<=800 tris) they should not need one. The git history holds the exact
+  // asserts (commit 125b209).
+  // ⚠️ ONE SURVIVOR, deliberately: the infrastructure (portraitPick, the geoHi branch, the 'h'
+  // key) STAYS in the code, inert — and inert code rots unwatched. The negative control needs
+  // no geoHi type to run and pins that a type WITHOUT geoHi still prefers the live item — the
+  // cold-atlas fallback all 87 types now rely on.
   const pick = await page.evaluate(() => {
-    const g = window.__game;
     const stub = { mesh: { geometry: { index: { count: 1920 } } } };
-    const hi = g.portraitPick(stub, 'sportsoccerball');
-    const plain = g.portraitPick(stub, 'cartaxi');
-    const thumbKey = g.thumbItemForKey('sportsoccerball').key;
-    return { hiTris: hi && hi.mesh && hi.mesh.geometry.index ? hi.mesh.geometry.index.count / 3 : -1,
-             plainIsStub: plain === stub, thumbKey };
+    return { plainIsStub: window.__game.portraitPick(stub, 'cartaxi') === stub };
   });
-  expect(pick.hiTris === 5580,
-    '⚠️⚠️ variant 3: portraitPick PREFERS the full model over a live (LOD) item for a geoHi type ' +
-    '(' + pick.hiTris + ' tris)');
   expect(pick.plainIsStub === true,
-    'variant 3: for a type WITHOUT geoHi the live item is still preferred — the cold-atlas ' +
-    'fallback of the other 87 types is untouched');
-  expect(/^T\d+h$/.test(pick.thumbKey),
-    '⚠️⚠️ variant 3: the portrait item of a geoHi type carries its own thumb-cache key (' +
-    pick.thumbKey + ') — the vitrine/museum shoot LIVE (LOD) items into itemThumb\'s PNG cache ' +
-    'under T+idx, and one shared key let that shot poison the collection card until a reload');
+    'portraitPick: a type without geoHi prefers the live item — the cold-atlas fallback is ' +
+    'intact while the geoHi machinery sleeps (variant-3 tombstone above)');
+
+  // === THE PERF WINDOW RE-ARMS: A PHONE THAT TURNS SLOW MID-SESSION STILL GETS THE LOW TIER ===
+  // ⛔⛔ THE HOLE THIS PINS SHIPPED UNNOTICED BECAUSE THE WHOLE MACHINERY HAD ZERO GUARDS.
+  // Until 2026-08-30 the quality window decided ONCE, in the first 2.5 s of play: a phone that
+  // was fast at level 1 — or entered Low Power Mode later, or thermally throttled ten minutes
+  // in — latched as «fast» forever, exactly when 180 items at level 11+ met a throttled GPU.
+  // The owner measured it on a real iPhone 17 in battery-saver mode. Phase 2 below is the
+  // regression test: under the old code the green phase-1 verdict latched perfDecided and the
+  // slow phase could NEVER flip the tier — this guard would have been red on that build.
+  // ⚠️ Fed through the REAL tickPerfTier with synthetic frame times; the window clock is
+  // performance.now(), so each phase genuinely waits out PERF_WINDOW_MS (2.5 s) — ~5.5 s total.
+  // ⚠️ perfTierReset() before AND after: the tier is one-way by design, and leaving it low
+  // would repaint every later particle guard through fxScale.
+  const perfArm = await page.evaluate(async () => {
+    const g = window.__game, sl = (ms) => new Promise(r => setTimeout(r, ms));
+    g.perfTierReset();
+    const out = {};
+    // phase 1: a fast session start — 10 ms frames across a full window
+    for (let i = 0; i < 27; i++){ g.tickPerfTier(10); await sl(100); }
+    g.tickPerfTier(10);                                  // the verdict tick
+    out.afterFast = g.perfTier().tier;                   // must still be high
+    // phase 2: the SAME session turns slow (Low Power Mode) — 45 ms frames across a window
+    for (let i = 0; i < 27; i++){ g.tickPerfTier(45); await sl(100); }
+    g.tickPerfTier(45);
+    out.afterSlow = g.perfTier();                        // must be low now
+    g.perfTierReset();
+    out.restored = g.perfTier().tier;
+    return out;
+  });
+  expect(perfArm.afterFast === 'high',
+    'perf window: a genuinely fast window does NOT lower the tier (' + perfArm.afterFast + ')');
+  expect(perfArm.afterSlow && perfArm.afterSlow.tier === 'low' && perfArm.afterSlow.fx === 0.4,
+    '⚠️⚠️ perf window: a session that TURNS slow after a fast start still gets the low tier — ' +
+    'the green verdict re-arms the window instead of latching (' + JSON.stringify(perfArm.afterSlow) + ')');
+  expect(perfArm.restored === 'high',
+    'perf window: the test hook restored the high tier — the one-way design is production-only ' +
+    '(' + perfArm.restored + ')');
 
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
   // the win overlay has to be hidden by hand, otherwise it will intercept the real clicks

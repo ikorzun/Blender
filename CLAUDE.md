@@ -11412,6 +11412,9 @@ The original was verified by md5 before and after, and the copy removed.
 
 ## BATCH 2026-08-28: SEVEN NEW MODELS — SIX INTO THE POOL, THE SEVENTH REPLACES THE BOMB
 
+⛔⛔ **2026-08-30: THE SIX POOL TYPES OF THIS BATCH ARE OUT ENTIRELY** («uberi poslednie
+modeli») — only the dynamite-bomb remains of it. The batch section stays as the map of where
+everything was wired; the remakes re-enter through the same slots.
 ⛔⛔ **«DO NOT SIMPLIFY THE MODELS» IS SUPERSEDED FOR THE PILE — 2026-08-29, THE OWNER'S OWN
 WORD.** The next day the owner reported lag («igra nachala tupit… s 7 urovnya» (the game started to lag… from level 7)), the A/B against
 42f1f73 confirmed it (frame p95 +3..+10 ms exactly where the new types enter, tracking the
@@ -11771,6 +11774,14 @@ same class of lie as a tombstone left in the old place: correct once, misleading
 relative order, never absolute offsets.** Ordering survives every rebuild; offsets survive none.
 ## BATCH 2026-08-29: THE LAG, MEASURED — AND VARIANT 3 (TWO GEOMETRIES PER SPORT TYPE)
 
+⛔⛔ **SUPERSEDED 2026-08-30 — THE SIX SPORT TYPES LEFT THE POOL ENTIRELY.** The owner judged
+the machine LODs not good enough («uproshchennye modeli plokho vyglyadyat») and then ordered the
+removal («uberi poslednie modeli ot 3d, kotorye tormozyat igru»). TYPES is back to 87,
+30-shapes matches 42f1f73 byte-for-byte outside comments, 39-sport.js is dynamite-only
+(52.7 KB, was 1.18 MB), tools/lodgen.py is dormant. The A/B mechanics, the census of geometry
+consumers and the portraitPick/'h'-key machinery below all remain TRUE and IN THE CODE (inert)
+— read this section as the map for when the artist's remakes land under docs/MODEL-BUDGET.md.
+
 The owner: «igra nachala tupit, nuzhen razbor. Osobenno s novymi modelyami i s 7 urovnya» —
 then, on the numbers: «delai 3 variant», plus the physics idea «ne schitat obyekty po ih uglam,
 a oborachivat v prostye primitivy».
@@ -11852,3 +11863,35 @@ verified end-to-end in the wrapper after the fix: +180 frames in 3 s, avg 16.67 
 a probe reporting THOSE as zero is reading a dead or foreign context, not this game.
 ⚠️ `heapMB` is `-1` in WebKit — `performance.memory` is Chrome-only; the field degrades
 honestly, do not «fix» it.
+
+
+## BATCH 2026-08-30: THE SIX SPORT TYPES REMOVED FROM THE POOL
+
+The owner: «uberi poslednie modeli ot 3d, kotorye tormozyat igru» + two questions (the bowl's
+maximum and an adaptive per-device item count — answered in WORKSTREAMS 2026-08-30-a).
+
+**WHAT LEFT AND WHAT STAYED.** The six TYPES entries left; TYPES 93 -> 87. THE PROOF THE
+PROGRESSION IS RESTORED: `git diff 42f1f73:src/app/30-shapes.js src/app/30-shapes.js` shows
+comments only — zero entry diffs, so every type is back on its pre-batch level by construction,
+not by an index table I could get off-by-two again. The dynamite STAYS — it is the bomb's mesh
+(his own «zameni bombu dinamitom»), does not lag (804 tris, one item), and removing it would
+silently undo his other decision. The .glb sources stay on disk in «3d assets/models/sport/».
+MATERIAL_OF / ACC_LABELS keep their sport entries (harmless without the types; needed by the
+remakes). Orphan sport rows in live saves are inert: the collection is TYPES.map, unknown save
+keys are never displayed.
+
+**39-sport.js WAS REGENERATED, NOT HAND-TRIMMED**, from a scratch copy of the pack holding only
+dynamite.glb + colormap.png — the file is honestly generator-shaped. ⚠️ The two documented
+post-processing steps were re-applied and MUST be re-applied on every regen: the atlas alias
+(`MODEL_ATLASES['sport'] = MODEL_ATLASES['animal']`, order-dependent on 36-models) and the
+removal of the duplicate `const MODEL_ATLASES/_atlasTex` declarations that would kill the IIFE.
+
+**THE GUARDS.** The seven variant-3 asserts left with the types (each would go red on a healthy
+build with zero geoHi types); the tombstone in test.js names them and where they return. ⚠️ ONE
+SURVIVOR, deliberate: the portraitPick negative control — the geoHi machinery stays in the code
+inert, and inert code rots unwatched; the control needs no geoHi type to run.
+
+**THE PRICE, MEASURED:** index.html 11 559 930 -> 10 420 382 B — 76 629 B ABOVE the pre-batch
+42f1f73, and that residue is itemised: the dynamite arrays (~52 KB), the accLabel fix for
+eleven pre-existing collection cards, the payments seam, the safe-area terms, finding 4, and
+the guards. Frame parity vs 42f1f73 re-measured on the same stand — see WORKSTREAMS.
