@@ -118,7 +118,18 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   lastPtrX = e.clientX; lastPtrY = e.clientY;
   if (intro) return; // during the intro the camera is scripted
-  if (rdrag){ noteManualPan(); setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; } // the content follows the mouse
+  if (rdrag){
+    // ⚠️ THE GRAB CURSOR ON THE RIGHT DRAG TOO (the owner's word 2026-08-30: «kogda pravoy
+    // knopkoy tascaesh korzinu, kursor tozhe menyaetsya s paltsa na khvat»). It did not: this
+    // branch returns BEFORE the block below that sets `html.grabbing`, so the vertical pan ran
+    // with the pointing finger while the left-button orbit clenched the hand.
+    // ⚠️ THE SAME 9 px THRESHOLD as the orbit, and deliberately: a bare right-click (the
+    // context menu is disabled anyway) must not flash the hand. The PAN itself keeps starting
+    // from the first pixel — the threshold gates the CURSOR only, so the view still answers
+    // instantly. Cleanup needs nothing new: endPointer and resetPointers already unclench.
+    if (Math.abs(e.clientY - rdrag.y) > 9) document.documentElement.classList.add('grabbing');
+    noteManualPan(); setTargetY(rdrag.ty0 + (e.clientY - rdrag.y) * 0.012); return; // the content follows the mouse
+  }
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && touches.size === 2){
     const [a,b] = [...touches.values()];

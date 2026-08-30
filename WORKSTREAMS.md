@@ -1,5 +1,45 @@
 # WORKSTREAMS — the map of the parallel development of «the Mixer»
 
+### ACCEPTANCE 2026-08-30-d: PILL + TOSS/WEIGHT + HIT FLASH + RIGHT-DRAG CURSOR — the dispatcher
+
+Five asks in one message; the detail lives in CLAUDE.md 2026-08-30-e.
+
+1. **The win pill follows Next's height** (was 80 vs 84 desktop / 80 vs 72 mobile — mismatched
+   both ways), «+1» -> #484472. Two suite guards; the OLD guard that pinned «+1 black» moved
+   with the rule (his 2026-08-23-z decision is superseded in exactly one third).
+2. **Toss x1.5, gravity 22 -> 26** — his numbers, the guarded zone, entered on his word. Mass
+   is not the weight knob in the solver; gravity is. Horizontal loosening and the twin pull
+   untouched (function, not feel).
+3. **The match hit flash** (flashyfeather vol2): `tools/hitfx-pack.py <n>` repacks one of the
+   20 effects into 37-hitfx.js; the source pack is GITIGNORED (licence: use, not
+   redistribution). Two measured fixes made it visible at all — depthTest:false (the flash is
+   born inside the pile) and a personal PlaneGeometry (r149 Sprites share one, and stepFX
+   disposes obj.geometry). ⚠️ The pack is authored additive-on-black: on our pastel sky the
+   thin-spark effects read as nothing; #4 chosen because it reads. THE PICK IS HIS — a preview
+   sheet of all 20 went to him and switching is one command.
+4. **The right-button drag clenches the hand** — the rdrag branch returned before the class was
+   set. Same 9 px threshold as the orbit; the pan still starts at pixel one.
+5. **The progression question, answered with numbers** (no code): pairs cap at 90 (180 items)
+   from level 11, types at 87 from level 85. ⚠️ EVERY unlocked type is in EVERY pile at every
+   level — `distinct = min(typesCount, pairsCnt)` and 87 < 90 — so old objects never stop
+   appearing and keep accumulating. The real cost is the RATE: ~2 items per type per level at
+   85+. The Fisher-Yates sampling is currently unreachable (it needs types > pairs) — do not
+   delete it, do not call it live either.
+
+### ACCEPTANCE 2026-08-30-g: THE BOTTOM GOES UNDER THE ADDRESS-BAR ISLAND — the dispatcher
+
+«V mobilnom ty sdelal tolko verkhnyuyu chast. a vnizu fon i kontent dolzhny ukhodit pod ostrov
+s adresnoy strokoy.» Closed by MEASUREMENT, not by CSS folklore: a five-probe matrix on the
+iOS 26.5 simulator established the full edge-extension law of Safari 26 (the table lives in
+CLAUDE.md 2026-08-30-d). The shipped triple: html transparent + body zenith colour (belt) +
+body sky-gradient image (trigger), and the rgba(.01) bar channels REMOVED — the old cure had
+become the blocker: a fixed element that paints ANY background while touching a zone boundary
+disables that zone's extension. Verified live: both zones seamless (the zenith above, the mint
+below). Taps/layout untouched by construction — the extension is paint, the viewport does not
+grow. The lvh attempt from the same day was measured useless (clipped) and reverted within the
+same uncommitted batch. The edge guard moved to its FOURTH revision; the third lived one day
+and is tombstoned as the lesson «a fix that moves a seam is not a fix».
+
 ### ACCEPTANCE 2026-08-30-v: THE SHAKE JUDDER CLOSED; THE TRANSITION NAMED — the dispatcher
 
 The owner's 60 fps recording, analysed frame by frame (his ?fps=1 badge was on — FPS 56-60,

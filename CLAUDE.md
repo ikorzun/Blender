@@ -11982,3 +11982,120 @@ backdrop). Named, not implemented — see WORKSTREAMS 2026-08-30-b/v.
 flags to a fresh recompute MID-ERUPTION — an honest divergence (flags from +1.05 s vs positions
 at +1.3 s) that would have flaked on a healthy build. Shipped as LIVENESS (the flags keep
 changing during the eruption) + post-settle equality + the structural burst pin.
+
+## 2026-08-30-d: THE EDGE-EXTENSION MATRIX — «fon i kontent ukhodyat pod ostrov», MEASURED
+
+The owner: «v mobilnom ty sdelal tolko verkhnyuyu chast. a vnizu fon i kontent dolzhny ukhodit
+pod ostrov s adresnoy strokoy». What followed was five probes on the iOS 26.5 simulator's
+Mobile Safari (driven via simctl; the panel needs a sudo xcode-select the owner has not run),
+each isolating one variable. THE RESULTING LAW, all cells measured, none reasoned:
+
+| html | body | fixed at edge paints bg | result |
+|---|---|---|---|
+| colour | colour | — | letterboxed, both zones = BODY's colour |
+| colour | gradient | — | letterboxed, zones = HTML's colour |
+| transparent | colour | — | letterboxed, zones = body's colour |
+| transparent | gradient (+/- colour) | NO | ⚡ FULL BLEED: each zone painted by EXTENDING the page's own edge pixels |
+| transparent | gradient | YES (even rgba .01) | that zone letterboxes; zones are INDEPENDENT |
+
+Further measured facts: the layout viewport does NOT grow (innerHeight/svh stay small, env
+bottom stays 0, taps and layout untouched — the extension is paint, not layout); 100lvh is
++40 pt only (the bar's collapsed delta) and an element taller than the viewport is CLIPPED —
+the lvh route is a dead end; children of an edge bar may paint freely (the buttons do), only
+the edge-abutting element's OWN background disqualifies; a 1 px lift off the edge does NOT
+re-qualify.
+
+**THE SHIPPED SET:** html transparent; body = solid zenith colour (the BELT for letterbox-mode
+WebKits — zones there show the zenith, never «transparent black») + background-image:
+var(--sky-grad) (the trigger); the rgba(...,.01) channel backgrounds of #topBar/#bottomBar/
+#face REMOVED — the five-edition tint channel had inverted into the blocker of the new
+mechanism. Verified live on the simulator: the game's top zone = the zenith row, the bottom
+zone = the mint bottom row, both seamless.
+
+⚠️ THE EDGE GUARD IS ON ITS FOURTH REVISION and each revision is dated in place: (1) html=top/
+body=bottom (the reddening era), (2) — , (3) body==html==top (lived ONE DAY: it merely moved
+the seam from the top to the bottom), (4) the triple: html transparent + body zenith colour +
+body gradient image, bars paint nothing. The old «not a single fixed element at the edge is
+transparent» assert is INVERTED — transparency at the edges is now the requirement.
+
+⚠️ KNOWN, ACCEPTED, NOT REGRESSIONS: the dark overlays and the menu keep painted layers at the
+edges, so THEIR zones letterbox to the body belt (zenith) — exactly what prod showed before
+this batch; improvable later if the owner asks. Do not park any debug element on the exact
+edge row: its pixels become the zone's paint.
+
+## BATCH 2026-08-30-e: THE PILL, THE TOSS, THE HIT FLASH, THE RIGHT-DRAG CURSOR
+
+Five asks in one message. Each is small; the two that touch feel are the owner's own words and
+are recorded as such.
+
+### THE WIN PILL FOLLOWS THE NEXT BUTTON
+
+«Belaya podlozhka sleva takaya zhe po vysote kak knopka Next» + «vnutri tsifra +1 tsveta
+484472». It was 80 against Next's 84 (desktop) and 80 against 72 (mobile) — mismatched in BOTH
+directions, which is why the guard reads the PAIR and not a number. ⛔ This supersedes the
+«the height is 84, and not 80» note of node 779:1114 AND the «+1 in black» of 2026-08-23-z.
+The CSS carries two rules (base + the <=1079 override): move the button, move the pill.
+
+### THE TOSS AND THE WEIGHT — THE OWNER'S NUMBERS, THE GUARDED ZONE
+
+«Podkidyvanie v 1,5 raza bystree i chut silnee, a obyekty chut-chut tyazhelee (chtoby bystree
+padali)». Two knobs, and the split matters:
+- the shake's VERTICAL impulse (5.4 + rnd*6) -> (8.1 + rnd*9), exactly x1.5 (80-gameplay). The
+  horizontal loosening and the twin pull are untouched — they are function, not feel.
+- `G` 22 -> 26 (00-config). ⚠️ MASS IS NOT THE WEIGHT KNOB HERE: in the solver a heavier body
+  falls at the same rate, so «heavier so they fall faster» is GRAVITY. +18% shortens a fall by
+  ~8.5%. MAX_FALL (the anti-tunnelling terminal cap) is deliberately untouched.
+
+### THE MATCH HIT FLASH (flashyfeather hit-animations-vol2)
+
+`tools/hitfx-pack.py <n>` repacks ONE effect of the 20 into `src/app/37-hitfx.js`: 24 frames of
+128 px sampled from the 60-frame 4096 px sheet, ~40 fps (0.6 s), embedded as a data URI.
+⛔ THE SOURCE PACK IS GITIGNORED — the licence covers use in a game, not redistribution of the
+assets. Regenerating with a different number fully rewrites the module: switching effects is
+one command.
+`spawnHitFx` (70-fx) is called at the merge point in `handleTapInner`, next to `collapseFX`.
+⚠️⚠️ TWO THINGS MADE IT VISIBLE, both measured against a blank first cut:
+- `depthTest:false` — the flash is born INSIDE the pile, so with depth testing on the items in
+  front occluded nearly all of it (the first cut read as a faint wash);
+- a PERSONAL PlaneGeometry rather than THREE.Sprite: r149 Sprites share one module-level
+  geometry, and stepFX disposes `obj.geometry` at end of life — it would have been disposing
+  three's shared buffer on every hit.
+⚠️ HONEST LIMIT, NAMED TO THE OWNER: this pack is authored ADDITIVE-ON-BLACK. On our pastel sky
+the thin white-spark effects (13 and its family) read as almost nothing; effect 4 (a dense warm
+starburst) was chosen because it reads. The aesthetic pick is his — 20 candidates, one command.
+Skipped entirely on the low perf tier (the `CFG.fxScale < 1` gate).
+
+### THE RIGHT-BUTTON DRAG CLENCHES THE HAND
+
+«Kogda pravoy knopkoy tascaesh korzinu, kursor tozhe menyaetsya s paltsa na khvat» — it did
+not. The `rdrag` branch (the vertical pan) returns BEFORE the block that sets `html.grabbing`,
+so the pan ran with the pointing finger while the left-button orbit clenched. Fixed with the
+SAME 9 px threshold as the orbit — a bare right-click must not flash the hand — and the PAN
+still starts from the first pixel: the threshold gates the CURSOR only. Cleanup needed nothing
+new: endPointer and resetPointers already unclench.
+
+### THE PROGRESSION, ANSWERED WITH NUMBERS (his question, no code changed)
+
+typesCount = min(87, level + 2); pairsCnt = min(90, 40 + 5(level-1)); items = pairs x 2.
+Pairs hit the 90 ceiling at level 11 (180 items, flat forever); types hit 87 at level 85.
+
+| level | types | items | items per type |
+|---|---|---|---|
+| 1 | 3 | 80 | 26.7 |
+| 11 | 13 | 180 | 13.8 |
+| 20 | 22 | 180 | 8.2 |
+| 50 | 52 | 180 | 3.5 |
+| 85+ | 87 | 180 | 2.1 |
+
+⚠️⚠️ HIS WORRY IS ALREADY ANSWERED, AND MORE STRONGLY THAN HE EXPECTED: `distinct =
+min(typesCount, pairsCnt)`, and since the pool maxes at 87 while pairs max at 90, distinct ==
+typesCount at EVERY level. **Every unlocked type is in every pile, always** — old objects never
+stop appearing, so every type keeps accumulating forever.
+⛔ CONSEQUENCE FOR A NEARBY COMMENT: the Fisher-Yates sampling in genLevel exists for the case
+typesCount > pairsCnt, and with 87 types that case is UNREACHABLE — the shuffle currently only
+randomises the ORDER, never the SET. It was reachable at 93 types (the sport batch) and would
+be again past 90 types. Do not delete it; do not describe it as live cutting either.
+⚠️ THE REAL COST IS THE RATE, NOT THE PRESENCE: at level 85+ each type gets ~2 items = ~1 pair
+per level, so upgrading any single type slows to a crawl. If the owner ever asks «why does the
+collection stop growing», this table is the answer and the lever is the type ceiling, not the
+sampling.

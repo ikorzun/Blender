@@ -396,7 +396,12 @@ function sleepPhysics(src){
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
 function resize(){
-  const w = innerWidth, h = innerHeight;
+  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight (2026-08-30): on iOS the canvas is 100lvh — taller
+  // than the layout viewport — so it extends under Safari's floating address bar. A buffer
+  // sized to innerHeight would be STRETCHED over that height. Everywhere else
+  // clientHeight === innerHeight and this line is byte-equivalent to the old one.
+  const el = renderer.domElement;
+  const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
   if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // the sky base + the fever layers
@@ -1051,8 +1056,10 @@ function visiblePixel(it, ctx){
     // WHOLE coordinates, while the offset probes lie right at the silhouette — rounding
     // by half a pixel threw the ray onto a neighbour. Measurement: 5 discrepancies «promised
     // n, less went away» out of 14 taps; after checking by the rounded one — 0.
-    const px = Math.round((sp.x + 1)/2*innerWidth), py = Math.round((-sp.y + 1)/2*innerHeight);
-    ctx.rc.setFromCamera({ x: px/innerWidth*2 - 1, y: -(py/innerHeight*2 - 1) }, camera);
+    const vw = renderer.domElement.clientWidth || innerWidth,
+          vh = renderer.domElement.clientHeight || innerHeight;  // the canvas, not the viewport (100lvh on iOS)
+    const px = Math.round((sp.x + 1)/2*vw), py = Math.round((-sp.y + 1)/2*vh);
+    ctx.rc.setFromCamera({ x: px/vw*2 - 1, y: -(py/vh*2 - 1) }, camera);
     const hits = ctx.rc.intersectObjects(ctx.meshes, false);
     if (hits.length && hits[0].object.userData.item === it) return { px, py };
   }

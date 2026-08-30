@@ -114,6 +114,43 @@ function fxBuildBreak(reset){
   if (reset) for (const k in fxBuildBy) delete fxBuildBy[k];
   return out;
 }
+// ⚠️ THE MATCH-HIT FLASH (the owner's word 2026-08-30, flashyfeather vol2 — see 37-hitfx).
+// A billboarding sprite walking a packed sheet; its own texture CLONE per instance (the image
+// is shared, only offset/repeat differ), disposed with the sprite. Normal blending on purpose:
+// the source is authored additive-on-dark, but our sky is light — the alpha carries the shape.
+// Skipped on the low perf tier together with the rest of the heavy fx (fxScale gate).
+// ⚠️ A PLANE OF OUR OWN, NOT THREE.Sprite, and that is ownership hygiene: r149 Sprites SHARE
+// one module-level geometry, and stepFX disposes `obj.geometry` at end of life — it would be
+// disposing three's shared buffer on every hit (a re-upload per the measured note, and someone
+// else's property either way). A personal PlaneGeometry dies with its own effect; the
+// billboard is one quaternion copy per tick.
+// ⚠️ The tick's second argument is k = age/life (0..1) — NOT seconds; the frame is k·n.
+// ⚠️ The texture clone dies through the material's 'dispose' event: stepFX disposes the
+// material itself, and materials do not own their maps.
+function spawnHitFx(pos, r){
+  if (CFG.fxScale < 1 || typeof HITFX === 'undefined') return;
+  const tex = hitFxBaseTexture().clone();
+  tex.needsUpdate = true;
+  tex.repeat.set(1/HITFX.cols, 1/HITFX.rows);
+  // ⚠️⚠️ depthTest:false IS THE WHOLE REASON IT IS VISIBLE. The flash is born AT THE MERGE
+  // POINT — i.e. INSIDE the pile — so with depth testing on, the items in front of it occlude
+  // almost the entire sprite (measured: the first cut read as a faint wash and nothing else).
+  // A hit flash belongs on top of the frame; renderOrder keeps it under the HUD pops.
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true,
+    depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+  mat.addEventListener('dispose', () => tex.dispose());
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  const s = Math.max(2.6, r * 3.4);
+  mesh.scale.set(s, s, 1);
+  mesh.position.copy(pos);
+  mesh.renderOrder = 8;                      // over the pile, under the HUD pops
+  addFX(mesh, HITFX.n / HITFX.fps, (o, k) => {
+    o.quaternion.copy(camera.quaternion);    // billboard
+    const f = Math.min(HITFX.n - 1, Math.floor(k * HITFX.n));
+    tex.offset.set((f % HITFX.cols) / HITFX.cols,
+                   1 - 1/HITFX.rows - Math.floor(f / HITFX.cols) / HITFX.rows);
+  });
+}
 function addFX(obj, life, tick){
   scene.add(obj); fx.push({ obj, life, age:0, tick });
 }

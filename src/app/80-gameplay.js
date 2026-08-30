@@ -227,6 +227,8 @@ function doMatch(list){
                       geo: list[0].geo,
                       fxColor: list[0].fxColor, baseColor: list[0].baseColor };
   collapseFX(list, boomAt);
+  // the match-hit flash (the owner's word 2026-08-30, flashyfeather vol2 — 37-hitfx/70-fx)
+  spawnHitFx(boomAt, list[0].r);
   if (burst){ const _tw0 = performance.now(); blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
     tapWaveMs += performance.now() - _tw0; }
   // the number is the denominated gain of the chip (#10: «clear while it happens»);
@@ -1287,7 +1289,11 @@ function performShake(){
     // to the random loosening/toss-up/spin; the pull towards the twin (pull) stays
     // normalised — it is functional, and not «about the feel»
     const wk = it.shakeK || 1;
-    impulseBody(it, (Math.random()-0.5)*9*rnd*wk + ax*pull, (5.4 + Math.random()*6)*wk, (Math.random()-0.5)*9*rnd*wk + az*pull);
+    // ⚠️ THE VERTICAL IS x1.5 SINCE 2026-08-30 (the owner: «podkidyvanie v 1,5 raza bystree i
+    // chut silnee») — was (5.4 + rnd*6). Together with G 22->26 the arc is both quicker and a
+    // touch higher; the horizontal loosening and the twin pull are deliberately untouched —
+    // they are function, not feel.
+    impulseBody(it, (Math.random()-0.5)*9*rnd*wk + ax*pull, (8.1 + Math.random()*9)*wk, (Math.random()-0.5)*9*rnd*wk + az*pull);
     spinBody(it, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk, (Math.random()-0.5)*7.2*wk);
   }
   camShake = 0.42; // +20% on the camera too

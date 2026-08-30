@@ -520,15 +520,20 @@ page.on('response', (r) => {
   // ⚠️ `circle` STAYS PINNED TRANSPARENT — the white circle of 64 he removed on 2026-08-21-r
   // must not creep back in under a white pill, where it would be invisible to the eye and
   // still wrong in the box model.
+  // ⛔⛔ THE «+1» IS NO LONGER BLACK — 2026-08-30, the owner's own word with a hex: «vnutri
+  // tsifra +1 tsveta 484472». It supersedes exactly ONE THIRD of his 2026-08-23-z decision;
+  // the white pill and the absent circle from that same message STAND, so the assert keeps
+  // them and moves only the colour. (The pill's HEIGHT-follows-Next rule of the same day is
+  // pinned separately, on the live win screen — this section measures a detached clone.)
   expect(pill.bg === 'rgb(255, 255, 255)' &&
     pill.circle === 'rgba(0, 0, 0, 0)' && pill.diameter === 54 && pill.icon === 70 &&
-    pill.iconOff === -8 && pill.plus === 'rgb(0, 0, 0)',
+    pill.iconOff === -8 && pill.plus === 'rgb(72, 68, 114)',
     '⚠️⚠️ VICTORY: the reward is a 100% WHITE pill (radius 64) with a slot of 54, an icon ' +
-    'sheet of 69.5 CENTRED IN IT and a BLACK «+1», without the white circle (' +
+    'sheet of 69.5 CENTRED IN IT and a «+1» IN #484472, without the white circle (' +
     JSON.stringify(pill) + '). ' +
-    'The owner 2026-08-23-z. ⛔ IT CANCELS THE GLASS of 2026-08-21-r (white 8%), which lived ' +
-    'two days, and with it the pairing with the leaderboard row above — that row KEEPS the ' +
-    'glass, the divergence is deliberate');
+    'The owner 2026-08-23-z, with the number recoloured 2026-08-30. ⛔ IT CANCELS THE GLASS of ' +
+    '2026-08-21-r (white 8%), which lived two days, and with it the pairing with the ' +
+    'leaderboard row above — that row KEEPS the glass, the divergence is deliberate');
   // ═══ THE HEADER OF THE VICTORY SCREEN BY THE REDRAWN NODE 778:732 (2026-08-21-n) ═══
   // ⚠️⚠️ UNTIL THIS SECTION NOBODY GUARDED THE HEADER. In the suite there was not a single
   // mention of `winCleaned`/`winLevel`/`winTime`: the redraw would pass green
@@ -2473,6 +2478,60 @@ page.on('response', (r) => {
     '⚠️⚠️ finding 4: «Play» from the menu clears BOTH overlays and starts a live run — the new ' +
     'level must not begin underneath a stale win screen (' + JSON.stringify(winLeak) + ')');
 
+  // === THE REWARD PILL FOLLOWS THE NEXT BUTTON'S HEIGHT (the owner, 2026-08-30, with a
+  // screenshot: «belaya podlozhka sleva takaya zhe po vysote kak knopka Next»; «vnutri tsifra
+  // +1 tsveta 484472»). It was 80 against 84 on the desktop and 80 against 72 on mobile —
+  // mismatched in BOTH directions, which is why the assert reads the PAIR and not a number.
+  // ⚠️ Measured on the LIVE win screen this section already has up; the CSS carries two rules
+  // (base + the <=1079 override) and whoever moves the button must move the pill with it.
+  const pillFit = await page.evaluate(() => {
+    const w = document.getElementById('winOverlay'); const was = w.style.display;
+    w.style.display = 'flex';
+    const r = document.querySelector('.win-reward'), n = document.querySelector('.win-next');
+    const num = document.querySelector('.win-reward-n');
+    const out = { pill: r ? Math.round(r.getBoundingClientRect().height) : -1,
+                  next: n ? Math.round(n.getBoundingClientRect().height) : -1,
+                  color: num ? getComputedStyle(num).color : '-' };
+    w.style.display = was;
+    return out;
+  });
+  expect(pillFit.pill > 0 && pillFit.pill === pillFit.next,
+    'the win reward pill is EXACTLY as tall as the Next button (' + JSON.stringify(pillFit) + ') ' +
+    '— the two live in one row and the owner asked for one height');
+  expect(pillFit.color === 'rgb(72, 68, 114)',
+    'the «+1» inside the pill is #484472 (the owner 2026-08-30, superseding «+1 in black» of ' +
+    '2026-08-23-z) — got ' + pillFit.color);
+
+  // === THE RIGHT-BUTTON DRAG CLENCHES THE HAND TOO (the owner, 2026-08-30) ===
+  // ⛔ It did not: the rdrag branch in the pointermove handler returns BEFORE the block that
+  // sets `html.grabbing`, so the vertical pan ran with the pointing finger while the
+  // left-button orbit clenched. Both arms matter — the threshold arm is what keeps a bare
+  // right-click (the context menu is disabled) from flashing the hand.
+  const rgrab = await page.evaluate(async () => {
+    const c = document.getElementById('c'), sl = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️⚠️ THE INTRO MUST BE OVER FIRST, AND THAT IS A REAL TRAP THIS GUARD ALREADY FELL INTO:
+    // the finding-4 block above ends with a freshly generated level, and BOTH pointer handlers
+    // open with `if (intro) return` — every synthetic event was swallowed and the guard went
+    // red on healthy code. `notIntro` below is the positive control: without it a future
+    // regression into the same trap would read as a product defect.
+    window.__game.skipIntro(); await sl(150);
+    const notIntro = !window.__game.introPhase();
+    const ev = (t, x, y, btn) => c.dispatchEvent(new PointerEvent(t, { pointerId: 7,
+      pointerType: 'mouse', button: btn, buttons: btn === 2 ? 2 : 1, clientX: x, clientY: y, bubbles: true }));
+    const has = () => document.documentElement.classList.contains('grabbing');
+    ev('pointerdown', 200, 400, 2);
+    ev('pointermove', 200, 404, 2); const small = has();      // 4 px — below the threshold
+    ev('pointermove', 200, 460, 2); const big = has();        // 60 px — a real drag
+    ev('pointerup', 200, 460, 2); await sl(50);
+    return { notIntro, small, big, cleared: !has() };
+  });
+  expect(rgrab.notIntro === true,
+    'right-drag guard / control: the intro is over, so the pointer handlers actually receive ' +
+    'the synthetic events (they open with `if (intro) return`)');
+  expect(rgrab.big === true && rgrab.small === false && rgrab.cleared === true,
+    '⚠️ the RIGHT-button drag clenches the hand cursor like the left one, past the same 9 px ' +
+    'threshold, and unclenches on release (' + JSON.stringify(rgrab) + ')');
+
   // === VARIANT 3 GUARDS — TOMBSTONE 2026-08-30 ===
   // ⛔ Seven asserts stood here pinning the sport types' dual geometry (HI for the big views,
   // LOD for the pile): the 5580-tris portrait pin, the six geo:*LodGeo wires, the LOD-size pin,
@@ -2506,17 +2565,37 @@ page.on('response', (r) => {
   // performance.now(), so each phase genuinely waits out PERF_WINDOW_MS (2.5 s) — ~5.5 s total.
   // ⚠️ perfTierReset() before AND after: the tier is one-way by design, and leaving it low
   // would repaint every later particle guard through fxScale.
+  // ⚠️⚠️ THE SAMPLES ARE BURST-FED, AND THAT IS NOT STYLE — IT IS THE CURE FOR A FLAKE THIS
+  // GUARD ALREADY PRODUCED (2026-08-30, one run green and the next red on identical code).
+  // The probe shares `perfWin` with the LIVE loop, which on this headless stand pushes ~50 ms
+  // real frames; a probe that fed 28 synthetic samples over 2.7 s was outnumbered by the real
+  // ones and the median landed wherever the machine's load put it. Now ~200 synthetic samples
+  // go in BEFORE the window elapses (no verdict can fire yet), so whoever ticks the verdict —
+  // the loop or us — sorts an array we dominate 4:1. The window still has to elapse in real
+  // time; that part is the mechanism under test and is not faked.
   const perfArm = await page.evaluate(async () => {
     const g = window.__game, sl = (ms) => new Promise(r => setTimeout(r, ms));
-    g.perfTierReset();
     const out = {};
-    // phase 1: a fast session start — 10 ms frames across a full window
-    for (let i = 0; i < 27; i++){ g.tickPerfTier(10); await sl(100); }
-    g.tickPerfTier(10);                                  // the verdict tick
+    // phase 1: a fast session — 200 synthetic 10 ms frames, then let the window elapse
+    g.perfTierReset();
+    for (let i = 0; i < 200; i++) g.tickPerfTier(10);
+    await sl(2800);
+    g.tickPerfTier(10);
     out.afterFast = g.perfTier().tier;                   // must still be high
-    // phase 2: the SAME session turns slow (Low Power Mode) — 45 ms frames across a window
-    for (let i = 0; i < 27; i++){ g.tickPerfTier(45); await sl(100); }
-    g.tickPerfTier(45);
+    // phase 2: the SAME session turns slow (Low Power Mode) — NO reset in between, that is the
+    // whole point (a green verdict must RE-ARM, not latch).
+    // ⚠️ POLLED, AND THE RACE IS THE REASON: the moment phase 1's green verdict re-arms, the
+    // LIVE loop starts its own window with its own frame times, and it can complete that window
+    // before our burst lands in it — measured, two runs of three. Each such verdict is itself
+    // green and re-arms again, so the honest statement is «a slow session gets the low tier
+    // within a few windows», not «within exactly one». Four attempts x ~2.8 s bounds it.
+    out.slowTries = 0;
+    for (let a = 0; a < 8 && g.perfTier().tier !== 'low'; a++){   // 8, not 4: a stand run needed 4
+      out.slowTries++;
+      for (let i = 0; i < 200; i++) g.tickPerfTier(45);
+      await sl(2800);
+      g.tickPerfTier(45);
+    }
     out.afterSlow = g.perfTier();                        // must be low now
     g.perfTierReset();
     out.restored = g.perfTier().tier;
@@ -2524,7 +2603,8 @@ page.on('response', (r) => {
   });
   expect(perfArm.afterFast === 'high',
     'perf window: a genuinely fast window does NOT lower the tier (' + perfArm.afterFast + ')');
-  expect(perfArm.afterSlow && perfArm.afterSlow.tier === 'low' && perfArm.afterSlow.fx === 0.4,
+  expect(perfArm.afterSlow && perfArm.afterSlow.tier === 'low' && perfArm.afterSlow.fx === 0.4
+         && perfArm.slowTries <= 8,
     '⚠️⚠️ perf window: a session that TURNS slow after a fast start still gets the low tier — ' +
     'the green verdict re-arms the window instead of latching (' + JSON.stringify(perfArm.afterSlow) + ')');
   expect(perfArm.restored === 'high',
@@ -9487,6 +9567,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       out.mainAfter = packResetPage('#mainScreen', '::after');
       out.html = getComputedStyle(document.documentElement).backgroundColor;
       out.body = getComputedStyle(document.body).backgroundColor;
+      out.bodyImg = getComputedStyle(document.body).backgroundImage;
       out.meta = (document.querySelector('meta[name=viewport]') || {}).content || '';
       return out;
     }, whitelist);
@@ -9515,12 +9596,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(/viewport-fit=cover/.test(game.meta),
       '⚠️⚠️ `viewport-fit=cover` IS IN PLACE (' + game.meta + '). Without it the page ' +
       'does not go under the bands, and the whole channel of the tint is dead — the set is indivisible');
-    expect(topBarEl && bottomBarEl && delta(topBarEl.bg, gameFrame.top) <= 2 && delta(bottomBarEl.bg, gameFrame.bottom) <= 2,
-      '⚠️⚠️ THE GAME: the bars declare to the bands EXACTLY the colour that is drawn at the edge (' +
-      JSON.stringify({ topBarEl: topBarEl && topBarEl.bg, frameTop: gameFrame.top,
-                       bottomBarEl: bottomBarEl && bottomBarEl.bg, frameBottom: gameFrame.bottom }) + '). ' +
-      'The sabotage — to lead `--sky-top-rgb`/`--sky-bot-rgb` away from the outermost stops of the palette ' +
-      'or to give the bars back `transparent`');
+    // ⛔⛔ THE FOURTH REVISION OF THIS GUARD'S LAW (2026-08-30, the edge-extension matrix,
+    // measured cell by cell on the iOS 26.5 simulator). The owner: «vnizu fon i kontent
+    // dolzhny ukhodit pod ostrov s adresnoy strokoy». What the matrix established:
+    //   - Safari 26 paints its top/bottom zones by EXTENDING the page's edge pixels, but ONLY
+    //     when html is transparent, body carries a background-image, and NO fixed element that
+    //     PAINTS a background abuts that zone's boundary. Each zone is independent.
+    //   - the rgba(...,.01) bar channels of the previous law were therefore INVERTED into the
+    //     blocker: with them the zones letterboxed to body's colour; without them the sky
+    //     smears seamlessly under the clock and the address bar. They are REMOVED.
+    //   - on letterbox-mode WebKits the zones take body's background-COLOR — the belt: body
+    //     keeps a solid zenith colour under its gradient.
+    // Hence the bars must now paint NOTHING of their own:
+    const transparentBg = (bg) => { const m = (String(bg).match(/[\d.]+/g) || []).map(Number);
+      return !m.length || (m.length > 3 && m[3] === 0); };
+    expect(topBarEl && bottomBarEl && transparentBg(topBarEl.bg) && transparentBg(bottomBarEl.bg),
+      '⚠️⚠️ THE GAME: the edge bars paint NO background of their own — a painted background on ' +
+      'an edge-abutting fixed element DISABLES the iOS-26 edge extension for that zone (' +
+      JSON.stringify({ topBarEl: topBarEl && topBarEl.bg, bottomBarEl: bottomBarEl && bottomBarEl.bg }) + '). ' +
+      'The sabotage — re-adding the old rgba(...,.01) «invisible» channel');
     // ⛔⛔ THE RULE MOVED WITH THE PLATFORM 2026-08-30 (the third revision of this guard's law).
     // It used to pin body == the LOWER edge — the separation born of «the reddening at the
     // bottom». The owner's iOS-26 screenshots showed the TOP strip painted MINT — verbatim
@@ -9529,19 +9623,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // body carry the UPPER colour; the lower band rides on the page's own pixels (the canvas
     // paints to the physical bottom) plus #bottomBar's .01 channel for older WebKits — the
     // first expect above still pins THAT pair to the frame's real edges.
-    expect(delta(game.html, gameFrame.top) <= 2 && delta(game.body, gameFrame.top) <= 2,
-      '⚠️⚠️ BOTH CHANNELS CARRY THE UPPER COLOUR: on iOS 26.2+ the top strip takes `body`, so ' +
-      '`body` == `html` == the frame TOP (' +
-      JSON.stringify({ html: game.html, body: game.body, frame: gameFrame }) + '). ' +
-      'This grew out of the complaint «the reddening at the bottom»: back then the red top (`uGrind`) ' +
-      'crept into the LOWER band of Safari through the background of `html`. ⛔ The layer was removed 2026-08-20, ' +
-      'and there is nothing left to redden — but the separation is OBLIGATORY even without it: two ' +
-      'of our measurements from the device diverge on where Safari takes the tint from, and ' +
-      'the palette of the sky itself gives the top and the bottom different colours');
-    expect(game.extra.length === 0,
-      '⚠️⚠️ NOT A SINGLE VISIBLE FIXED ELEMENT AT THE EDGE IS TRANSPARENT (the game): ' +
-      JSON.stringify(game.extra) + '. A transparent one is read by Safari 26 as ' +
-      '«transparent BLACK» — and this is exactly the black fields of all five previous revisions');
+    expect(transparentBg(game.html) && delta(game.body, gameFrame.top) <= 2 && game.bodyImg && game.bodyImg !== 'none',
+      '⚠️⚠️ THE EDGE-EXTENSION TRIPLE: `html` transparent + `body` carries the zenith as its ' +
+      'solid colour (the letterbox BELT) + `body` carries the sky gradient as its image (the ' +
+      'full-bleed trigger) (' +
+      JSON.stringify({ html: game.html, body: game.body, bodyImg: String(game.bodyImg).slice(0, 60),
+                       frameTop: gameFrame.top }) + '). ' +
+      'The third revision (body==html==top) lived one day: it painted the bottom zone violet ' +
+      'over the mint page edge — the seam just moved ends. The matrix on the 26.5 simulator ' +
+      'settled all four cells; the prose lives at the html/body rules in shell.html');
+    // ⛔ The old fourth assert («not a single fixed element at the edge is transparent») is
+    // INVERTED by the same matrix and did not survive: transparency at the edges is now the
+    // REQUIREMENT (asserted positively on the bars above), and the «transparent black» fear
+    // belonged to the dead sampling channel. The belt (body's solid colour) covers the
+    // letterbox-mode builds it used to protect.
+    expect(game.extra.length >= 2,
+      'the edge census still SEES the bars (topBar/bottomBar are transparent AND present at ' +
+      'the edges): ' + JSON.stringify(game.extra) + ' — an empty census here would mean the ' +
+      'bars moved off the edge rows, which is its own regression');
 
     // ── THE PAUSE (the menu)
     await edgePage.click('#pauseBtn', { force: true });
@@ -9561,9 +9660,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'itself is obliged to be transparent (otherwise it will hide its own layer of the gradient), ' +
       'while it lies above the bars — without this strip the lower edge would stay behind ' +
       'a transparent fixed element, that is, black');
-    expect(menu.extra.length === 0,
-      'NOT A SINGLE VISIBLE FIXED ELEMENT AT THE EDGE IS TRANSPARENT (the pause): ' +
-      JSON.stringify(menu.extra));
+    // (4th revision: the transparent bars legitimately appear in the census under the menu too)
+    expect(menu.extra.every(n => n === 'topBar' || n === 'bottomBar'),
+      'the pause: nothing NEW and transparent stands at the edges beyond the game bars (' +
+      JSON.stringify(menu.extra) + ') — the menu edge channels stay msSticky (top) and ' +
+      'the ::after strip (bottom), both painted');
 
     // ── THE DARK OVERLAYS: their own fill is the channel
     const darkOnes = [];
@@ -9578,7 +9679,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     }
     await edgePage.close();
     console.log('edges of the overlays:', JSON.stringify(darkOnes));
-    expect(darkOnes.every(x => x.extra.length === 0 && x.top && nums(x.top)[3] !== 0),
+    expect(darkOnes.every(x => x.extra.every(n => n === 'topBar' || n === 'bottomBar') && x.top && nums(x.top)[3] !== 0),
       '⚠️⚠️ THE DARK OVERLAYS: each has its own NON-transparent fill, which is also the channel ' +
       'of the bands — they need no separate element (' + JSON.stringify(darkOnes) + '). ' +
       'The sabotage — to make `.overlay` transparent: the bands on all six screens ' +

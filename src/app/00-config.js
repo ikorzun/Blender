@@ -39,7 +39,11 @@ function pairsForLevel(lv){
   const n = (typeof lv === 'number' && lv > 0) ? lv : 1;
   return Math.min(PAIRS, PAIRS_START + (n - 1) * PAIRS_STEP);
 }
-const G = 22;
+// ⚠️ 22 -> 26 (the owner's word 2026-08-30: «obyekty chut-chut tyazhelee, chtoby bystree
+// padali»). Mass does not change fall speed in the solver — gravity is THE weight knob; +18%
+// shortens a fall by ~8.5% and firms the whole feel. The toss got its own x1.5 in performShake
+// in the same word. MAX_FALL (the anti-tunnel terminal cap) is deliberately untouched.
+const G = 26;
 // DENOMINATION ×10 (the owner's decision 2026-07-24 — «divide, denominate everything»): we
 // put score/10 into the wallet, the Boost/unlock prices are in the same small units. If the
 // scope is ever adjusted — the fix must land BEFORE the se record is finalized.

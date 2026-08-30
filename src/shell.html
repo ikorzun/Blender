@@ -97,7 +97,28 @@
      gives the top and the bottom different colours.
      ⚠️ Not a single screen shows these backgrounds to the eye: each has its own opaque
      background on top (the sky canvas in the game, the gradient in the menu, the fill in the overlays). */
-  html { background:rgb(var(--sky-top-rgb, 133,220,255)); }
+  /* ⚠️⚠️ THE EDGE-EXTENSION CONTRACT OF iOS 26 SAFARI — MEASURED AS A 2x2 MATRIX ON THE
+     SIMULATOR (26.5), 2026-08-30, one cell per combination:
+       html COLOUR + body COLOUR    -> letterboxed, both zones painted with BODY's colour;
+       html COLOUR + body GRADIENT  -> letterboxed, zones painted with HTML's colour;
+       html transparent + body COLOUR -> letterboxed, zones = body's colour;
+       html TRANSPARENT + body GRADIENT -> ⚡ FULL BLEED: Safari paints the top zone (62 pt
+       behind the clock) and the bottom zone (~98 pt behind the floating address bar) by
+       EXTENDING THE PAGE'S OWN EDGE PIXELS — the top row of the frame smears up, the bottom
+       row smears down. The layout viewport does NOT grow (innerHeight/svh stay small, env
+       bottom stays 0, taps and layout untouched); content «goes under the island» as the
+       owner asked, by extension rather than by a larger viewport. 100lvh was measured
+       USELESS here: an element taller than the layout viewport is simply clipped.
+     ⚠️ THE BELT IS MEASURED TOO: full bleed survives body carrying BOTH a background-color
+     AND the gradient — so on any WebKit that stays letterboxed the zones take the solid
+     colour below (the zenith), never «transparent black».
+     ⚠️ CONSEQUENCE FOR EVERY FULL-SCREEN LAYER: whatever pixels touch the frame's exact top
+     and bottom rows become the zones' paint. The game's rows are the sky (zenith above, the
+     sky's bottom below); the menu's are its own gradient top and the 1 px #mainScreen::after
+     strip — all seamless by construction. Do not park any debug element on the exact edge row.
+     ⚠️ Older iOS: html transparent means the root canvas takes BODY's propagated background
+     (plain CSS) — the island strip gets the gradient's top, which is the same zenith. */
+  html { background:transparent; }
   /* ⛔⛔ BODY CARRIES THE **TOP** COLOUR SINCE 2026-08-30, AND THAT IS THE WHOLE FIX for the
      owner's iOS-26 screenshots («razberis s poloskami v brauzere ios26»): the mint strip
      ABOVE the violet sky was rgb(206,255,223) — the sky's BOTTOM stop, i.e. THIS body
@@ -112,7 +133,8 @@
      ⚠️ It used to be rgb(var(--sky-bot-rgb)) — the separation grew out of «the reddening at the
      bottom» (a red top layer crept into the LOWER band through html); that layer was deleted
      2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
-  body { background:rgb(var(--sky-top-rgb, 133,220,255)); }
+  body { background-color:rgb(var(--sky-top-rgb, 133,220,255));
+         background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe)); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -145,7 +167,20 @@
      there is no copy of the stops here and there must not be one.
      ⛔ Do NOT replace with `transparent` «for cleanliness»: on a fixed element at the edge that
      reads as «transparent BLACK». */
-  #topBar { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
+  /* ⛔⛔ THE rgba(...,.01) CHANNEL BACKGROUNDS OF #topBar/#bottomBar/#face WERE REMOVED
+     2026-08-30 — they had INVERTED from cure to blocker. The five-edition recipe above is
+     HISTORY on iOS 26.2+: the tint channel they fed is dead (the zones take body's colour),
+     and on 26.5 a fixed element that PAINTS any background while abutting a zone boundary
+     DISABLES that zone's edge-extension — measured cell by cell on the simulator: bars with
+     .01 backgrounds = letterboxed zones; the same bars with NO background = full bleed, the
+     page's edge pixels smear under the clock and the address bar. Children may paint (the
+     buttons do) — only the edge-abutting element's own background counts.
+     ⚠️ Older letterbox-mode WebKits are held by the BELT instead: body carries a solid
+     background-color (the zenith) under its gradient — zones there show that colour, never
+     «transparent black». The old law «transparent fixed = black bars» applied to the tint
+     SAMPLING channel, which those builds took from body since 26.0 anyway (About-Us round 2).
+     ⛔ Do NOT re-add «invisible» backgrounds here for any future tint idea — test on the
+     matrix first; this file now carries the measured 2x2 law at the html/body rules. */
   /* ⛔⛔ THE TOP BAR CENTRES ITS GROUPS (the owner's word 2026-08-25-g: «the pause button, the
      level, the star and the score must be aligned on ONE vertical; take the centre of the pause
      button as the base»).
@@ -160,8 +195,8 @@
      ⚠️ THE PHONE DOES NOT MOVE — its right group is the 56-tall `#statStack`, already the same
      height as the pause; measured 36 against 36 before and after. */
   #topBar { align-items:center; }
-  #bottomBar { background:rgba(var(--sky-bot-rgb, 204,255,248), .01); }
-  #face { background:rgba(var(--sky-top-rgb, 133,220,255), .01); }
+  /* (#bottomBar's .01 background — removed with the block above, same law) */
+  /* (#face's .01 background — removed with the block above, same law) */
   /* ⚠️ WHILE THE MENU IS OPEN — THE SCREEN EDGE IS IN THE MENU'S TONE (the owner's complaint
      2026-08-06: «in the pause menu the game background shows through at the top, but it should be
      the menu background»). The same recipe, the third case: `#mainScreen` has `inset:0`
@@ -1949,8 +1984,14 @@
      with the Next button (node 783:1065), they do not draw a backing.
      ⛔ The stale comment that used to stand here described a lime `#c0ff47` glow which had
      not been on this element since the glass arrived; it was removed, not amended. */
+  /* ⚠️ THE PILL'S HEIGHT EQUALS THE NEXT BUTTON'S — IN BOTH LAYOUTS (the owner's word
+     2026-08-30, with a screenshot: «belaya podlozhka sleva takaya zhe po vysote kak knopka
+     Next»). It was 80 against Next's 84 (desktop) and 80 against 72 (mobile) — mismatched in
+     BOTH directions. ⛔ It supersedes the «height 84, and not 80» note of node 779:1114 above;
+     the pairing rule is now «the pill follows .win-next», so whoever changes the button's
+     height must move BOTH rules (desktop here, mobile in the ≤1079 block). */
   .win-reward { position:relative; flex:none; display:flex; align-items:center;
-    gap:0; height:80px; box-sizing:border-box;
+    gap:0; height:84px; box-sizing:border-box;
     background:#fff; border-radius:64px;
     box-shadow:none; padding:0 16px; }
   /* ⚠️⚠️ THIS LAYER IS NOW INERT AND IS KEPT DEAD ON PURPOSE: a white inner glow inside a
@@ -2026,7 +2067,9 @@
      ⚠️ Black on white is 21:1, and the white pill on the overlay's own
      `rgba(10,14,22,.88)` is 19.3:1 — both far above any floor; there is nothing to name here.
      ⚠️ The type size 34 and the width 45 are the numbers of node 779:1118; it used to be 39. */
-  .win-reward-n { color:#000; font-weight:800; font-size:34px; line-height:1;
+  /* ⛔ «+1 in black» (2026-08-23-z) is superseded 2026-08-30 by the owner's own word with a
+     hex: «vnutri tsifra +1 tsveta 484472». */
+  .win-reward-n { color:#484472; font-weight:800; font-size:34px; line-height:1;
     width:45px; text-align:center; }
   .win-next { flex:1; height:84px; border:none; border-radius:1500px; cursor:pointer; transition:background-color .15s;  /* 1500 by node 783:1065 */
     background:#c0ff47; color:#000; font-family:var(--font-round); font-weight:800; font-size:34px; }
@@ -2361,6 +2404,7 @@
        80/16 in both layouts, while the former 4/14/6 and `width:auto` dragged on
        from the white circle that no longer exists. */
     .win-next { height:72px; flex:1 0 0; min-width:0; }
+    .win-reward { height:72px; }  /* the pill follows .win-next — see the pairing rule at its base style */
   }
   @media (prefers-reduced-motion: reduce){
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
