@@ -12060,6 +12060,25 @@ one command.
 - a PERSONAL PlaneGeometry rather than THREE.Sprite: r149 Sprites share one module-level
   geometry, and stepFX disposes `obj.geometry` at end of life — it would have been disposing
   three's shared buffer on every hit.
+⛔ SUPERSEDED SAME DAY — THE SET IS FIVE AND THE QUALITY WENT UP: «khochu effekty 4, 13, 14,
+16, 17 i kachestvo spraytov nuzhno podnyat». 192 px x 24 frames, WebP q80, one picked AT RANDOM
+per match (a single repeated flash is wallpaper by level three), textures built lazily per
+effect. THE BINDING CONSTRAINT IS VRAM, NOT DOWNLOAD, and it was measured: 128px = 362 KB /
+7.5 MB, 192px = 633 KB / 16.9 MB (shipped), 256px = 943 KB / 30.0 MB — and the game's whole
+model-atlas budget is 11 MB, so 256 would have near-quadrupled the texture load on the very
+phones that reported lag. Cropping buys nothing: the ink fills 92-100% of every source cell,
+measured on all five.
+⚠️ THE PROJECT'S FIRST WebP (33 PNG data URIs precede it). PNG at this size costs 1020 KB
+against 633. The compatibility argument is structural, not statistical: any browser that runs
+our Rapier WASM and WebGL decodes WebP-with-alpha; the only gap is Safari 13 (2019). AND THE
+FAILURE IS SAFE BY CONSTRUCTION — the texture fills on img.onload, so a browser that cannot
+decode simply shows no flash. The suite decodes all five sheets in a real browser precisely so
+that this never fails SILENTLY on a stand that can decode.
+⚠️ FOR THE OWNER'S PROMISED SVG REDRAW: the seam is already right — the tool and the module
+regenerate wholesale, and the consumer knows only «a sheet, a grid, a frame rate». Replace the
+generator, leave 70-fx alone. Nothing was built ahead for it: an SVG frame sheet and a vector
+animation are different mechanisms, and guessing costs more than redoing.
+
 ⚠️ HONEST LIMIT, NAMED TO THE OWNER: this pack is authored ADDITIVE-ON-BLACK. On our pastel sky
 the thin white-spark effects (13 and its family) read as almost nothing; effect 4 (a dense warm
 starburst) was chosen because it reads. The aesthetic pick is his — 20 candidates, one command.

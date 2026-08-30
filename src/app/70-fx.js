@@ -128,10 +128,14 @@ function fxBuildBreak(reset){
 // ⚠️ The texture clone dies through the material's 'dispose' event: stepFX disposes the
 // material itself, and materials do not own their maps.
 function spawnHitFx(pos, r){
-  if (CFG.fxScale < 1 || typeof HITFX === 'undefined') return;
-  const tex = hitFxBaseTexture().clone();
+  if (CFG.fxScale < 1 || typeof HITFX_SET === 'undefined' || !HITFX_SET.length) return;
+  // ⚠️ A RANDOM ONE OF THE SET PER MATCH (the owner's five, 2026-08-30) — one repeated flash
+  // becomes wallpaper by the third level. The sheets are built lazily per effect, so a short
+  // session may never upload all five.
+  const F = HITFX_SET[(Math.random() * HITFX_SET.length) | 0];
+  const tex = hitFxTexture(HITFX_SET.indexOf(F)).clone();
   tex.needsUpdate = true;
-  tex.repeat.set(1/HITFX.cols, 1/HITFX.rows);
+  tex.repeat.set(1/F.cols, 1/F.rows);
   // ⚠️⚠️ depthTest:false IS THE WHOLE REASON IT IS VISIBLE. The flash is born AT THE MERGE
   // POINT — i.e. INSIDE the pile — so with depth testing on, the items in front of it occlude
   // almost the entire sprite (measured: the first cut read as a faint wash and nothing else).
@@ -144,11 +148,11 @@ function spawnHitFx(pos, r){
   mesh.scale.set(s, s, 1);
   mesh.position.copy(pos);
   mesh.renderOrder = 8;                      // over the pile, under the HUD pops
-  addFX(mesh, HITFX.n / HITFX.fps, (o, k) => {
+  addFX(mesh, F.n / F.fps, (o, k) => {
     o.quaternion.copy(camera.quaternion);    // billboard
-    const f = Math.min(HITFX.n - 1, Math.floor(k * HITFX.n));
-    tex.offset.set((f % HITFX.cols) / HITFX.cols,
-                   1 - 1/HITFX.rows - Math.floor(f / HITFX.cols) / HITFX.rows);
+    const f = Math.min(F.n - 1, Math.floor(k * F.n));
+    tex.offset.set((f % F.cols) / F.cols,
+                   1 - 1/F.rows - Math.floor(f / F.cols) / F.rows);
   });
 }
 function addFX(obj, life, tick){

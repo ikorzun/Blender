@@ -2532,6 +2532,30 @@ page.on('response', (r) => {
     '⚠️ the RIGHT-button drag clenches the hand cursor like the left one, past the same 9 px ' +
     'threshold, and unclenches on release (' + JSON.stringify(rgrab) + ')');
 
+  // === THE MATCH-HIT FLASH SET (the owner 2026-08-30: effects 4, 13, 14, 16, 17) ===
+  // ⚠️ Structural + a real browser decode. The structural half pins the SET (a silent drop to
+  // one effect would make the flash wallpaper by level three) and the CALL at the merge point;
+  // the decode half is the one that matters for compatibility — these are the project's FIRST
+  // WebP assets, and a browser that cannot decode them shows no flash at all. That failure is
+  // deliberate and safe, but it must never be SILENT on a stand that can decode.
+  {
+    const fsFx = require('fs');
+    const src = fsFx.readFileSync(PAGE_FILE, 'utf8');
+    const sheets = src.match(/data:image\/webp;base64,[A-Za-z0-9+/=]+/g) || [];
+    expect(sheets.length === 5 && /spawnHitFx\(boomAt/.test(src),
+      'hit flash: all five of the owner\'s effects are embedded and spawnHitFx is called at the ' +
+      'merge point (sheets=' + sheets.length + ')');
+    const widths = await page.evaluate(async (list) => {
+      const out = [];
+      for (const u of list) out.push(await new Promise(r => {
+        const i = new Image(); i.onload = () => r(i.naturalWidth); i.onerror = () => r(0); i.src = u; }));
+      return out;
+    }, sheets);
+    expect(widths.length === 5 && widths.every(w => w === 1152),
+      '⚠️⚠️ hit flash: every sheet DECODES in the browser at 6x192 px (' + JSON.stringify(widths) + '). ' +
+      'A zero here means WebP-with-alpha failed to decode — the flash would vanish silently');
+  }
+
   // === VARIANT 3 GUARDS — TOMBSTONE 2026-08-30 ===
   // ⛔ Seven asserts stood here pinning the sport types' dual geometry (HI for the big views,
   // LOD for the pile): the 5580-tris portrait pin, the six geo:*LodGeo wires, the LOD-size pin,
