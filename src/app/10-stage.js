@@ -319,6 +319,13 @@ function itemMatcapAim(t){
   if (!t) return makeMatcap('soft');
   const own = t.name && typeMatcaps.get(t.name);
   if (own) return own;
+  // ⚠️⚠️ t.mk — A PER-TYPE MATCAP DECLARED IN SOURCE, AND IT EXISTS BECAUSE THE TIER ABOVE IT
+  // DOES NOT SHIP. `typeMatcaps` is filled only by `setTypeMatcap`, i.e. by the matcap editor,
+  // and it is a runtime Map: whatever is picked there is gone on reload. A type that must wear
+  // its own matcap in the BUILD had nowhere to say so.
+  // ⚠️ It sits BELOW the editor's override on purpose — the editor must still win while the
+  // owner is picking — and ABOVE the pack, because it is the narrower statement.
+  if (t.mk) return makeMatcap(t.mk);
   return (t.tex && !t.paint)
        ? packMatcap(t.tex, packMatcapTex(t.tex) || makeMatcap('tex'))
        : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');

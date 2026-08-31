@@ -12483,3 +12483,140 @@ PID.** The first because a comment-only edit had left `index.html` behind `src` 
 rule: the verdict must describe the artifact that ships); the second because his message arrived
 and the artifact under test stopped being the one that would be committed. **A run against a
 stale artifact is not a cheap run, it is a claim about the wrong build.**
+
+## BATCH 2026-08-31-g: THE TOILET PAPER GETS ITS OWN MATCAP (landed 2026-09-01)
+
+His word, with the model on screen: «the toilet paper is very light, it needs a darker tone or a
+matcap». Two levers offered, one asked for.
+
+### THE CAUSE IS MEASURED, AND IT IS AN OUTLIER RATHER THAN A MATTER OF DEGREE
+
+⚠️⚠️ **`propstoiletpaper` SAMPLES PURE WHITE — 255,255,255 — AND IT IS THE ONLY ONE OF THE 99 LIVE
+TYPES THAT DOES.** Measured statically: every model's UVs were walked against the atlas its pack
+actually binds, and each triangle's texel weighted by its WORLD AREA (what the eye gets). The
+ranking: toilet paper **255.0**, then `animalpolar` 219.9, `animalcow` 209.6, `propsghost` 201.4;
+the pool median is **129.1**. It is rank 1 of 99 and the gap to second place is 35 points.
+⚠️ **AND THE SECOND HALF OF THE CAUSE IS THE MATCAP, WHICH IS WHY A TONE ALONE WAS THE WEAKER
+ANSWER:** the shared textured-model preset `tex` is almost white ON PURPOSE (amb 0.88) so that it
+does not crush the authors' colours. **This model has no authored colour to crush** — so nothing
+shaded it at all, and it read as a flat white blob with no visible tube and no curl.
+
+⛔ **THE MEASUREMENT FAILED ITS OWN CONTROL FIRST, AND THAT IS WHY IT IS TRUSTWORTHY NOW.** The
+first run sampled with the V axis flipped and reported the crab as grey-lavender 177,176,188 —
+while the crab is authored `0xff5a2b` and renders orange. Re-run without the flip: crab 225,94,70,
+the blue book 120,125,197 blue, the penguin dark. **A UV convention is not a thing to reason
+about; it is a thing to settle with a model whose colour you already know.**
+
+### WHAT SHIPPED: `mk`, A PER-TYPE MATCAP DECLARED IN SOURCE
+
+`itemMatcapAim` (10-stage) gained ONE tier: `if (t.mk) return makeMatcap(t.mk);`, and the type
+carries `mk:'soft'`. Tier order is now editor override → **source kind** → pack override → pack
+image → shared preset.
+⚠️⚠️ **THE TIER EXISTS BECAUSE THE ONE ABOVE IT DOES NOT SHIP.** `typeMatcaps` — the per-object
+override of 2026-08-25-b — is a runtime Map filled only by `setTypeMatcap`, i.e. by the dev
+panel: whatever is picked there is gone on reload. A type that must wear its own matcap IN THE
+BUILD had nowhere to say so. It sits BELOW the editor deliberately (the editor must still win
+while he is picking) and ABOVE the pack (it is the narrower statement).
+⚠️ **WHY `'soft'` AND NOT A NEW PRESET:** it is the preset the game already uses for everything
+whose colour is ours rather than the atlas's, which is exactly this model's situation. amb
+0.66 + diffuse/specular/rim. Measured on the live material: the matcap it wears is **19 of 255
+darker on average and carries 2.9× the shading spread** (26 against the pack's 9).
+⛔ **A TONE WAS BUILT AND RENDERED TOO, AND LOST ON THE FRAMES.** `t.tint` (multiply the atlas by
+one raw colour) was implemented, three values rendered, and REMOVED before shipping: on a
+uniformly white albedo a tint gives a flat GREY blob — it fixes the brightness and not the
+flatness. ⚠️ It was removed rather than left dormant: a `t.tint` branch with zero carriers is the
+stub the canon warns about, one that reads as live. If he ever asks for the tone instead, it is
+one field in `40-items` and one in the type.
+⛔ **AND IT IS NOT `paint`, WHICH IS THE TRAP AN IMPLEMENTER WILL FALL INTO.** `paint` looks like
+the right mechanism — it exists precisely for a white atlas (the 7 bricks) — but it runs the
+colour through `candyColor`, which FORCES saturation 0.75 and lightness ~0.55. On this type it
+would produce a vivid lavender roll. `paint` makes a white thing COLOURFUL; it cannot darken.
+
+### SIX REAL BUILDS, BECAUSE THE CHOICE WAS VISUAL
+
+Each variant was a genuine `build.py` + render, never an approximation: the control, three tones,
+the matcap, and matcap+tone. Sent to him as one sheet.
+⛔⛔ **THE FIRST SHEET WAS WORTHLESS AND THE NUMBERS ON IT WERE OF THE WRONG THING.** It read the
+COLLECTION CARD, and on a fresh save every card is the LOCKED GHOST — 42% alpha and desaturated.
+The «reference» polar bear and cow on it were ghost-white too, i.e. the sheet compared three
+ghosts and called them models. Caught because the toilet paper measured **zero** opaque pixels
+while the references measured 213 — a contradiction inside one sheet. **When a comparison sheet
+disagrees with itself, the sample is wrong before the subject is.**
+⚠️ The second sheet used the New Object screen's live turntable (the real, unlocked model) plus
+the pile at level 24, where 6 rolls spawn. ⚠️ Its per-crop luminance was DROPPED from the labels
+rather than quoted: the crop includes the glow behind the model, so it compressed a 31% albedo
+change into a 9% reading. **A contaminated number next to a correct picture is worse than no
+number** — the labels state the mechanism instead.
+
+### THE CENSUS HAD LOST A CATEGORY FOR THE THIRD TIME — AND A FOURTH ONE IT NEVER HAD
+
+⛔⛔ `packMatcapInfo` counts every textured item into `items` and then into one of `onOwn` /
+`onImage` / `onShared`. A type on its own PRESET matches none of them, so this batch would have
+made the toilet paper vanish from the census while `items` silently exceeded the sum. **That is
+the third repetition of a defect whose own comment already records it twice** (the bricks, then
+the cars and the food). `onKind` added.
+⛔⛔ **AND MEASURING THE RECONCILIATION EXPOSED A PRE-EXISTING HOLE NOBODY HAD SEEN: THE BRICK
+PACK READ `items: 12` WITH ALL FOUR COUNTERS AT ZERO.** A PAINTED type never wears a pack matcap
+at all — `itemMatcapAim` sends it to `'soft'`/`'metal'` because its colour is ours — so the whole
+brick pack had been invisible in this metric since the metric existed. `onPaint` added; **every
+pack now reconciles**, which is what lets a guard state `items === the sum` for ALL of them
+instead of carving out exceptions.
+⚠️ `typeMatcapInfo`'s `packAim` deliberately does NOT consult `t.mk`: `mk` IS an override, and
+folding it in would make `sameAsPack` compare a type with itself and report 1 for a type plainly
+not on its pack's matcap.
+
+### THE GUARD, AND WHY ITS THIRD ARM IS THE ONE THAT MATTERS
+
+Nothing in the suite read `mk` — the tier is new, so both the change and its rollback would have
+passed green. Four arms, on their own page, at level 24 (below it the type is not in the pool):
+1. the type wears its own kind (`onKind === items`, `sameAsPack === 0`);
+2. **its pack-mates did not move** — without this control, arm 1 is satisfied by a build that
+   re-pointed the WHOLE props pack;
+3. the matcap it wears is **darker AND far more shaped** than its pack's;
+4. every pack's census reconciles.
+⚠️⚠️ **ARM 3'S STATISTIC WAS CHOSEN BY A LADDER, NOT GUESSED.** The first version read the CENTRE
+texel — the brightest point of any matcap sphere — where `tex` and `soft` differ by 12 of 255, a
+threshold that would sit inside the noise of any retune. Averaged over the disc they separate at
+19, and the SPREAD separates at 2.9×. **The spread is the load-bearing half:** `tex` is
+deliberately flat, so an arm on brightness alone would pass a build that merely dimmed the model
+and left it a flat grey blob — i.e. exactly the tone variant that was rejected on the frames.
+⚠️ Both are compared as INEQUALITIES against the live pack-mate, never against literals: both
+presets are the owner's to retune.
+
+✅ **SHOWN TWO-SIDEDLY BEFORE THE RUN, THREE SABOTAGES, EACH DROPPING EXACTLY ITS OWN ARMS:**
+drop `mk` from the type → arms 1 and 3 red (lum 247/247, spread 9/9), 2 and 4 green; drop the
+`t.mk` tier from `itemMatcapAim` → the same two, i.e. both halves of the mechanism are covered;
+drop the `onPaint` counter → ONLY arm 4, reporting `brick 12!=0`. Restored, `md5` of the build
+identical to before the run.
+
+⚠️⚠️ **A PROCESS NOTE FROM THIS BATCH: DO NOT RUN CODE-READING RECON AGAINST A TREE YOU ARE
+ACTIVELY EDITING.** A parallel recon fan-out was reading `src/` while the levers were being
+written into it, and several of its verifiers came back with «the file changed under the claim
+and the key assertion is now false» — a refutation of a citation, not of a fact. The substantive
+findings all held and independently reproduced the load-bearing measurement (the 206 UVs sample
+`#ffffff`, 4200 of 4200 texels; the per-type matcap tier was runtime-only and died on reload;
+`propstoiletpaper` had ZERO occurrences in `test.js`). But line numbers are a shared mutable
+resource: **either freeze the tree for the read, or hand the agents a commit to read.**
+
+⛔⛔ **AND THE FIRST RUN OF THIS SECTION KILLED THE SUITE WITHOUT A VERDICT AT 753 GREENS — THE
+CAUSE WAS ONE IDENTIFIER, AND IT IS A NEW SHAPE OF A KNOWN TRAP.** The section navigated with
+`mkPage.goto(URL + '?dev=1')`, and **`URL` in that scope is the global JavaScript URL CLASS**, not
+the suite's page address (which is `PAGE_FILE`). Node stringified the class and Playwright
+honestly reported `Cannot navigate to invalid URL / navigating to "class URL { #context = ..."`.
+⚠️ **THE SIGNATURE IS THE ONE THE CANON ALREADY WARNS ABOUT AND IT LOOKS EXACTLY LIKE HEALTH:**
+greens keep coming, `FAIL` is zero, and there is simply no `SUITE:` line — which is why the
+waiter greps for that line and for the new asserts BY NAME, not for the FAIL count. All four new
+arms had silently not run.
+⚠️ **THE GENERALISATION IS WORTH MORE THAN THE FIX: a bare capitalised identifier in a Node test
+may resolve to a WEB GLOBAL instead of failing loudly.** `URL`, `Request`, `Response`, `Headers`,
+`Blob`, `File`, `FormData`, `Event`, `Performance` are all defined in modern Node. A typo'd
+variable name that happens to collide with one of them does not throw `ReferenceError` — it
+quietly yields an object, and the failure surfaces far away and in the wrong vocabulary.
+✅ Fixed to `'file://' + PAGE_FILE + '?dev=1'`, the form the three neighbouring sections use.
+
+⚠️ **A CONSTRAINT FOUND WHILE CHECKING THIS AND RECORDED AT THE SECTION ITSELF:** `setLevel`
+DOES persist `mixer_level` to localStorage (`99-main.js:1674`), so a section that raises the level
+strands it — the hazard the canon records twice. It cannot bite here because the page comes from
+`browser.newPage()`, which in Playwright opens its OWN context and takes the key with it on close.
+⛔ Move this section onto a shared page or an explicit `newContext` and it MUST gain `setLevel(1)`
+before the close.

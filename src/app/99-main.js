@@ -1345,11 +1345,26 @@ window.__game = {
       if (!it || !it.alive || !it.type || !it.type.tex || !it.mesh) continue;
       const p = it.type.tex, m = it.mesh.material, ownTex = packMatcaps.get(p);
       const image = (typeof packMatcapTex === 'function') ? packMatcapTex(p) : null;
-      const rec = packs[p] || (packs[p] = { items: 0, onOwn: 0, onImage: 0, onShared: 0 });
+      const rec = packs[p] || (packs[p] = { items: 0, onOwn: 0, onImage: 0, onShared: 0, onKind: 0, onPaint: 0 });
       rec.items++;
+      // ⚠️⚠️ A FOURTH COUNTER, AND FOR THE THIRD TIME IT IS THE SAME DEFECT (2026-08-31-g). A type
+      // may now declare its OWN MATCAP PRESET in source (`t.mk`, added for propstoiletpaper), and
+      // such an item matches none of the three buckets above: not the pack registry, not the pack
+      // image, not the shared `tex`. With three counters `items` would simply exceed their sum and
+      // the type would VANISH from the census — exactly what happened to the bricks, and then to
+      // the cars and the food, as the two paragraphs above record.
+      const kindTex = it.type.mk ? makeMatcap(it.type.mk) : null;
       if (m && ownTex && m.matcap === ownTex) rec.onOwn++;
+      else if (m && kindTex && m.matcap === kindTex) rec.onKind++;
       else if (m && image && m.matcap === image) rec.onImage++;
       else if (m && m.matcap === baseTex) rec.onShared++;
+      // ⛔ A FIFTH, AND IT IS A PRE-EXISTING HOLE THIS EDIT ONLY MADE VISIBLE: a PAINTED type
+      // (the 7 bricks) never wore a pack matcap at all — `itemMatcapAim` sends it to 'soft'/'metal'
+      // because its colour is ours and not the atlas's. It therefore matched none of the buckets
+      // and the whole brick pack read as `items: 12, everything else 0`. Measured on the live
+      // build before this line existed. Now every pack reconciles, which is what lets a guard
+      // state `items === the sum` for ALL packs instead of carving out exceptions.
+      else if (m && it.type.paint && m.matcap === makeMatcap(it.type.mat === 'chrome' ? 'metal' : 'soft')) rec.onPaint++;
     }
     return { packs, registered: [...packMatcaps.keys()],
              withImage: (typeof PACK_MATCAP_SRC !== 'undefined')
@@ -1366,14 +1381,45 @@ window.__game = {
       if (!it || !it.alive || !it.type || !it.type.name || !it.mesh) continue;
       const t = it.type, m = it.mesh.material;
       const own = typeMatcaps.get(t.name);
-      // what this type WOULD wear if it had no override of its own
+      // what this type WOULD wear if it had no override of its own — `t.mk` is deliberately NOT
+      // consulted here: it IS an override, and folding it into the aim would make `sameAsPack`
+      // compare a type with itself and report 1 for a type that is plainly not on its pack's
+      // matcap. The source-declared kind is counted separately, as `onKind`.
       const packAim = (t.tex && !t.paint)
         ? packMatcap(t.tex, (typeof packMatcapTex === 'function' && packMatcapTex(t.tex)) || makeMatcap('tex'))
         : makeMatcap(t.mat === 'chrome' ? 'metal' : 'soft');
-      const rec = out[t.name] || (out[t.name] = { pack: t.tex || null, items: 0, onOwn: 0, sameAsPack: 0 });
+      const rec = out[t.name] || (out[t.name] = { pack: t.tex || null, items: 0, onOwn: 0, onKind: 0, sameAsPack: 0, mcLum: undefined, mcVar: undefined });
       rec.items++;
+      if (m && t.mk && m.matcap === makeMatcap(t.mk)) rec.onKind++;
       if (m && own && m.matcap === own) rec.onOwn++;
       if (m && m.matcap === packAim) rec.sameAsPack++;
+      // ⚠️⚠️ THE BRIGHTNESS OF THE MATCAP THE ITEM ACTUALLY WEARS, read off the DataTexture the
+      // material holds. Without it a guard can only state WHICH matcap a type is on, never that
+      // it is DARKER — and «darker» is the owner's whole requirement (2026-08-31-g). Naming the
+      // preset would prove nothing: `mk:'metal'` is also «its own», and it is lighter.
+      // ⛔ THE MEAN OVER THE WHOLE DISC, AND NOT THE CENTRE TEXEL — THE STATISTIC WAS CHOSEN BY A
+      // LADDER, NOT GUESSED. The centre is the sphere's front face, the BRIGHTEST point of any
+      // preset, and there `tex` and `soft` differ by 12 of 255 (252 against 240, measured): a
+      // threshold on that would sit inside the noise of any future retune. Averaged over the disc
+      // the same pair separates cleanly, because the presets differ in the BODY, not the hotspot.
+      if (rec.mcLum === undefined && m && m.matcap && m.matcap.image && m.matcap.image.data){
+        const d = m.matcap.image.data, S = m.matcap.image.width | 0, r = S / 2;
+        let sum = 0, sq = 0, n = 0;
+        for (let y = 0; y < S; y++) for (let x = 0; x < S; x++){
+          const dx = x - r + 0.5, dy = y - r + 0.5;
+          if (dx * dx + dy * dy > r * r) continue;      // outside the sphere - not the material
+          const o = (y * S + x) * 4;
+          const L = 0.2126 * d[o] + 0.7152 * d[o + 1] + 0.0722 * d[o + 2];
+          sum += L; sq += L * L; n++;
+        }
+        // ⚠️⚠️ TWO NUMBERS, BECAUSE THE OWNER'S COMPLAINT HAS TWO HALVES AND ONLY ONE OF THEM IS
+        // BRIGHTNESS. `mcLum` says how dark the matcap is; `mcVar` (the spread over the disc) says
+        // how much it SHAPES. The 'tex' preset is deliberately flat — that is why a pure-white
+        // model wearing it had no form at all — and a guard on the mean alone would be satisfied
+        // by any equally flat but slightly darker preset, i.e. by a build that fixes half of it.
+        rec.mcLum = n ? Math.round(sum / n) : undefined;
+        rec.mcVar = n ? Math.round(Math.sqrt(Math.max(0, sq / n - (sum / n) * (sum / n)))) : undefined;
+      }
     }
     return { types: out, registered: [...typeMatcaps.keys()] };
   },

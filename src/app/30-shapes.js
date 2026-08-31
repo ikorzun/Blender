@@ -131,7 +131,18 @@ const TYPES = [
 // ⚠️ MATERIAL_OF / ACC_LABELS keep their sport entries: harmless without the types, needed again
 // with the remakes. Orphan sport rows in players' saves are inert — the collection is built
 // from TYPES.map, unknown save keys are simply never displayed.
-  { name:'propstoiletpaper', color:0xe8e8f2, rc:1.0, tex:'props', mat:'soft', geo:propstoiletpaperGeo },
+  // ⚠️⚠️ `mk:'soft'` — THE ONE TYPE IN THE GAME THAT WEARS ITS OWN MATCAP (the owner's word
+  // 2026-08-31-g «the toilet paper is very light, it needs a darker tone or a matcap»).
+  // MEASURED CAUSE, not taste: this model samples PURE WHITE 255,255,255 out of the shared
+  // atlas — the ONLY one of the 99 live types that does (next is animalpolar at 219.9, the
+  // pool median is 129.1). The textured-model matcap is deliberately almost white too
+  // ('tex', amb 0.88) so that it does not crush the authors' colours — but this model HAS no
+  // authored colour to crush, so nothing shaded it at all and it read as a flat white blob.
+  // ⚠️ THE 'tex' PRESET'S OWN JUSTIFICATION DOES NOT APPLY HERE, AND THAT IS THE WHOLE
+  // ARGUMENT: 'soft' (amb 0.66 + diff/spec/rim) darkens the body by a quarter AND gives the
+  // roll form — the tube and the curl become visible. A tone alone was rendered too and only
+  // made it a flat GREY blob; that is why the matcap won of the two he offered.
+  { name:'propstoiletpaper', color:0xe8e8f2, mk:'soft', rc:1.0, tex:'props', mat:'soft', geo:propstoiletpaperGeo },
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
   { name:'propsdumbbell', color:0x3f3f46, rc:1.0, tex:'props', mat:'soft', geo:propsdumbbellGeo },

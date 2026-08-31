@@ -13052,6 +13052,78 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'are on the pack texture (' + JSON.stringify(typeMcReset.types[typeMcPicked.name]) + '). Without ' +
     'this arm an override would be a one-way door — and the editor exists for trying things on');
 
+  // ===== A TYPE'S OWN MATCAP, DECLARED IN SOURCE (the owner's word 2026-08-31-g) =====
+  // «the toilet paper is very light, it needs a darker tone or a matcap». The MEASURED cause:
+  // propstoiletpaper samples PURE WHITE 255,255,255 out of the shared atlas - the only one of the
+  // 99 live types that does - and the textured-model matcap is almost white on purpose, so
+  // nothing shaded it. It now carries `mk:'soft'`.
+  // ⚠️⚠️ NOTHING IN THE SUITE READ `mk` BEFORE THIS SECTION: the tier is new, and both the change
+  // and its rollback would have passed green. The per-type EDITOR tier next door does not cover
+  // it - that one is a runtime Map filled by the dev panel, and it ships nothing.
+  const mkPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await mkPage.goto('file://' + PAGE_FILE + '?dev=1');
+  await mkPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+  // level 24 is where this type first enters the pool - below it there is nothing to measure.
+  // ⚠⚠ `setLevel` PERSISTS `mixer_level` TO localStorage (99-main), so this WOULD strand the
+  // level for later sections - the hazard the canon records twice. It cannot here because the
+  // page comes from `browser.newPage()`, which in Playwright opens its OWN context: the key dies
+  // with the page on close. ⛔ MOVE THIS SECTION ONTO A SHARED PAGE OR A SHARED CONTEXT AND IT
+  // MUST GAIN `setLevel(1)` BEFORE THE CLOSE.
+  await mkPage.evaluate(() => { window.__game.setLevel(24); window.__game.regen(); });
+  await mkPage.waitForFunction(() => window.__game.alive() > 100, null, { timeout: 30000 });
+  await mkPage.evaluate(() => window.__game.skipIntro());
+  // ⚠ WAIT ON THE FACT, NOT ON A CLOCK: what the measurement needs is that this type is actually
+  // alive in the pile with a material, and under the suite's load a fixed pause measures the
+  // bench rather than the page - the project's own recurring flake.
+  await mkPage.waitForFunction(() => {
+    const r = window.__game.typeMatcapInfo().types.propstoiletpaper;
+    return !!(r && r.items > 0 && r.mcLum !== undefined);
+  }, null, { timeout: 30000 });
+  const mkInfo = await mkPage.evaluate(() => {
+    const t = window.__game.typeMatcapInfo().types, p = window.__game.packMatcapInfo().packs;
+    const bad = [];
+    for (const [k, r] of Object.entries(p))
+      if (r.items !== r.onOwn + r.onKind + r.onImage + r.onShared + r.onPaint)
+        bad.push(k + ' ' + r.items + '!=' + (r.onOwn + r.onKind + r.onImage + r.onShared + r.onPaint));
+    // a pack-mate of the SAME pack, chosen from the live level rather than named
+    const mate = Object.entries(t).find(([n, v]) => v.pack === 'props' && n !== 'propstoiletpaper');
+    return { tp: t.propstoiletpaper || null, mateName: mate ? mate[0] : null,
+             mate: mate ? mate[1] : null, unreconciled: bad };
+  });
+  await mkPage.close();
+  console.log('type matcap in source:', JSON.stringify(mkInfo));
+  expect(!!(mkInfo.tp && mkInfo.tp.items > 0 && mkInfo.tp.onKind === mkInfo.tp.items &&
+            mkInfo.tp.sameAsPack === 0),
+    '\u26a0\u26a0 THE TOILET PAPER WEARS ITS OWN MATCAP AND NOT ITS PACK\'S (onKind ' +
+    (mkInfo.tp && mkInfo.tp.onKind) + '/' + (mkInfo.tp && mkInfo.tp.items) + ', sameAsPack ' +
+    (mkInfo.tp && mkInfo.tp.sameAsPack) + '). \u26d4 SABOTAGE: drop `mk` from the type in ' +
+    '30-shapes, or drop the `if (t.mk)` tier from `itemMatcapAim` (10-stage) - both put it back ' +
+    'on the pack rule and sameAsPack becomes items');
+  expect(!!(mkInfo.mate && mkInfo.mate.items > 0 && mkInfo.mate.onKind === 0 &&
+            mkInfo.mate.sameAsPack === mkInfo.mate.items),
+    '\u26a0\u26a0 AND ITS PACK-MATES DID NOT MOVE - THE CONTROL WITHOUT WHICH THE ARM ABOVE IS ' +
+    'SATISFIED BY A BUILD THAT RE-POINTED THE WHOLE PROPS PACK (' + mkInfo.mateName + ': onKind ' +
+    (mkInfo.mate && mkInfo.mate.onKind) + ', sameAsPack ' + (mkInfo.mate && mkInfo.mate.sameAsPack) +
+    '/' + (mkInfo.mate && mkInfo.mate.items) + ')');
+  expect(!!(mkInfo.tp && mkInfo.mate && mkInfo.tp.mcLum < mkInfo.mate.mcLum &&
+            mkInfo.tp.mcVar >= mkInfo.mate.mcVar * 2),
+    '\u26a0\u26a0 THE MATCAP IT WEARS IS BOTH DARKER AND FAR MORE SHAPED, WHICH IS THE OWNER\'S ' +
+    'REQUIREMENT AND NOT MERELY «its own»: mean luminance ' + (mkInfo.tp && mkInfo.tp.mcLum) +
+    ' against the pack\'s ' + (mkInfo.mate && mkInfo.mate.mcLum) + ', spread ' +
+    (mkInfo.tp && mkInfo.tp.mcVar) + ' against ' + (mkInfo.mate && mkInfo.mate.mcVar) + '. ' +
+    '\u26d4 THE SPREAD IS THE LOAD-BEARING HALF: the shared `tex` preset is deliberately FLAT, ' +
+    'which is why a pure-white model wearing it had no form at all, so a guard on brightness ' +
+    'alone would pass a build that only dimmed it and left it a flat grey blob. ' +
+    '\u26a0 The mean is compared as an INEQUALITY and not against a literal - both presets are ' +
+    'the owner\'s to retune');
+  expect(mkInfo.unreconciled.length === 0,
+    '\u26a0\u26a0 EVERY PACK\'S MATCAP CENSUS RECONCILES: items === onOwn+onKind+onImage+' +
+    'onShared+onPaint for all of them (' + JSON.stringify(mkInfo.unreconciled) + '). ' +
+    '\u26d4 THIS COUNTER HAS LOST A CATEGORY THREE TIMES - the bricks, then the cars and the ' +
+    'food, and it would have lost this type too. Measured before the fix: the brick pack read ' +
+    'items 12 with all four counters ZERO, because a PAINTED type never wears a pack matcap at ' +
+    'all. A census that does not add up cannot be read as evidence of anything');
+
   const packResetPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await packResetPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
   await packResetPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
