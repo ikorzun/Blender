@@ -12214,3 +12214,72 @@ matters — here the count was already wrong at N=1 and nobody would have notice
 
 Price of the eighth effect: 977 KB embedded, 27.0 MB VRAM if all resident (lazy — a level
 touches three or four); ZIP 5.26 -> 5.32 MB, headroom 2.68 MB.
+
+## 2026-08-31-a: THE BOTTOM CHROME ZONE — THE FINAL RECIPE. TWO COORDINATE FRAMES, ONE HARD LIMIT
+
+The owner: «v mobilnoy versii safari v rezhime pauzy kontent ne ukhodit pod sistemnyy ostrov
+stroki poiska vnizu, vmesto etogo tam zalivka tsveta. Poprav i vyvedi okonchatelnyy retsept».
+
+⛔⛔ **FIRST, THE TRAP THAT COST THIS INVESTIGATION THREE FALSE CONCLUSIONS. THERE ARE TWO
+COORDINATE FRAMES AND THEY ARE OFFSET BY 62.8 pt.** Every `simctl` screenshot is in SCREEN
+points (874 tall on the iPhone 17 Pro); every `getBoundingClientRect`/`innerHeight` is in PAGE
+points (714 tall). Nothing warns you. Measured with two `position:fixed` red rules:
+
+| marker | lands at screen |
+|---|---|
+| `top:0` | 62.8 pt |
+| `top:712px` | 774.8 pt |
+
+Linear, offset 62.8, no scaling. **Register the frames BEFORE reading a single pixel.** Read
+unregistered, the very same screenshots «proved» three different things that are all false:
+content painting below the viewport, the Resume pill being clipped, and a 61 pt smear. Registered,
+they collapse into one boring fact: the pill's rect bottom (page 690) = screen 752.8, and the
+measured paint ended at 751. Everything renders exactly where layout put it.
+
+The device's budget: 874 screen = 62.8 top chrome + 714 layout viewport + 97.2 bottom chrome.
+
+**THE HARD LIMIT, MEASURED, NOT REASONED.** Three `position:fixed` rules at `bottom:-30px`,
+`-60px`, `-90px` — i.e. aimed 30/60/90 pt into the bottom chrome zone:
+
+| marker | result |
+|---|---|
+| `bottom:-30px` (page 744) | **NOT PAINTED** |
+| `bottom:-60px` (page 774) | **NOT PAINTED** |
+| `bottom:-90px` (page 804) | **NOT PAINTED** |
+
+⛔ **FIXED ELEMENTS ARE CLIPPED AT THE LAYOUT VIEWPORT BOTTOM. NO CONTENT CAN BE DRAWN INTO THE
+BOTTOM CHROME ZONE — NOT BY ANY ELEMENT, ANY UNIT, ANY z-index.** `env(safe-area-inset-bottom)`
+is 0 there, `100lvh` reaches +40 pt and then clips, and an inner scroll container
+(`#mainScreen` is `overflow-y:auto`) never collapses the bar, so 714 is permanent. Do not spend
+another hour looking for the CSS length that reaches 811 — there isn't one.
+
+The zone receives exactly ONE thing: **the STRETCHED bottom row of the page canvas.** And it is
+the RENDERED row, not the declared colour — measured: `body`'s `background-color` is the zenith
+(`--sky-top-rgb`, blue) while the zone came out mint (205,255,227), i.e. the gradient's bottom
+stop. ⛔ This corrects the 2026-08-30-d cell «opaque -> extended with the element's colour»:
+Safari stretches what was PAINTED, not what was DECLARED.
+
+**THE EDGE LAW, CORRECTED (single-variable matrix P0-P8, this session).** The 2026-08-30-d line
+«any painted fixed element at the edge blocks the extension» is WRONG and is hereby revoked.
+The real discriminator is two-term:
+
+> A fixed element covering a screen edge disables the extension for that zone **only if it is
+> hit-testable AND not opaque.** `pointer-events:none` makes it invisible to the heuristic;
+> `visibility:hidden` likewise; an OPAQUE one does not block — its own pixels get extended.
+
+That is why the game works: `#topBar`/`#bottomBar`/`#face` carry `pointer-events:none`. A
+transparent full-screen fixed element that is a SCROLL CONTAINER also does not block (measured
+separately) — which is why `#mainScreen` extends despite being transparent and hit-testable.
+⛔ This also revokes 2026-08-30-d's «the menu keeps painted layers at the edges, so THEIR zones
+letterback to the body belt»: measured today, the menu's bottom zone extends correctly, mint,
+seamless — the same mechanism as the game, no seam in either.
+
+**SO WHAT IS THE OWNER SEEING?** Not a bug and not a seam. The pause screen he means is
+`#mainScreen`, not `#pauseOverlay` (which `pauseGame(silent)` never shows — 85-hud:2398). Its
+lowest content ends at page 690, so beneath it lie 24 pt of page gradient plus the 97 pt chrome
+zone = **121 pt of flat gradient**. The game has the identical 121 pt; there it reads as sky
+because sky is supposed to be empty, whereas under a floating pill the same band reads as fill.
+Of those 121 pt exactly **24 are reclaimable** (`.ms-float` sits at `bottom:8px`, `.ms-wrap`
+carries a 132 px tail padding that exists so the last card clears the pill); the other 97 belong
+to Safari. NO CODE WAS CHANGED — the mechanism is already correct and the reclaimable 24 pt is a
+taste call that is the owner's, not mine.
