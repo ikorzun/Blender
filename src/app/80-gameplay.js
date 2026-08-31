@@ -140,7 +140,17 @@ function doMatch(list){
   }
   // chain-reaction lightning: a discharge from the tapped item to every item of the group
   if (chainUntil > performance.now() && list.length > 1){
-    for (let i = 1; i < Math.min(list.length, 9); i++) boltFX(list[0].p, list[i].p);
+    for (let i = 1; i < Math.min(list.length, 9); i++){
+      boltFX(list[0].p, list[i].p);
+      // ⚡ AND A FLASH WHERE EACH BOLT LANDS (the owner 2026-08-30). Effect 3 by his choice —
+      // the pack's only COOL one (cyan, hue 197°), so the discharge reads as electric rather
+      // than as another warm burst; it is forced by index, bypassing the material map, because
+      // it belongs to the EVENT and not to what was hit.
+      // ⚠️ Up to EIGHT of these land in one frame, which is why the shared-texture fix in
+      // spawnHitFx had to come first: with the old per-instance clone this loop alone would
+      // have uploaded ~27 MB to the GPU in that frame.
+      spawnHitFx(list[i].p, list[i].r, null, HITFX_BOLT);
+    }
   }
   // ⚠️ MEASUREMENT OF THE doMatch TAIL (handed over by Graphics: they measured the pops
   // and the save, 0.34 ms out of 4.1). Tearing down the bodies is their prime suspect:

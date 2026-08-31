@@ -12181,3 +12181,36 @@ disposes the last real ghost. Moving the production call WITHOUT the anchor woul
 anchor guarding a program nobody uses while the real one recompiled inside the frame of the next
 tap — a hitch visible only on weak devices. Both moved together, and a NEW GUARD now compares
 every production recipe against the anchors so the next drift is loud instead of silent.
+
+## 2026-08-30-g: THE CHAIN LIGHTNING FLASHES — AND THE TEXTURE CHURN IT EXPOSED
+
+«Poprobuy dobavit na effekt s molniyami (bonusnyy obyekt), effekty vspyshki na kazhdyy predmet
+iz effektov eto nomer 3.» Effect 3 is the pack's ONLY COOL one (cyan, hue 197°, against the
+others' 13-123°), so a discharge now reads as electric rather than as one more warm burst. It
+is forced BY INDEX (`HITFX_BOLT`), bypassing the material map, because it belongs to the EVENT
+and not to what was struck.
+⚠️ APPENDED to the packer's argument list, never inserted: the material map's values are
+INDICES, so inserting anywhere would have silently re-pointed every voice. A guard now pins that
+the bolt index IS the last sheet.
+
+### ⛔⛔ THE DEFECT HIS TASK EXPOSED — MEASURED BEFORE BUILDING, NOT AFTER
+
+`texture.clone()` copies the Texture OBJECT while sharing its image, and WebGLRenderer allocates
+per Texture INSTANCE. So the flash of 2026-08-30 uploaded a fresh 3.4 MB sheet to the GPU on
+EVERY match and threw it away 0.6 s later — `renderer.info.memory.textures` climbed 8 -> 9 -> 10
+across three matches, then fell back. Invisible at one flash per match; the chain lightning
+fires up to EIGHT at once, so this task alone would have pushed ~27 MB of uploads through a
+single frame — a guaranteed hitch at the game's most spectacular moment.
+**The cure: ONE shared texture per effect, and the frame comes from the PLANE'S OWN UV
+ATTRIBUTE.** The geometry is per-instance already, so instances cannot fight over it the way
+they would over a shared texture's `offset`. Nothing disposes the sheet any more (stepFX
+disposes `obj.material`, and three does not dispose a material's map).
+✅ PROVEN BY THE SAME COUNTER: after the fix, three chain matches in a row read 14 -> 15 -> 15
+-> 15 — the cyan sheet loads once and is reused. Textures now grow only with the number of
+DISTINCT effects seen (bounded at 8), never with the number of matches.
+⚠️ THE GENERAL LESSON, and it is not about textures: `clone()` on a GPU resource is not a cheap
+copy. Before multiplying any effect by N, measure what ONE of it costs on the counter that
+matters — here the count was already wrong at N=1 and nobody would have noticed until N=8.
+
+Price of the eighth effect: 977 KB embedded, 27.0 MB VRAM if all resident (lazy — a level
+touches three or four); ZIP 5.26 -> 5.32 MB, headroom 2.68 MB.

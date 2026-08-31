@@ -2542,9 +2542,9 @@ page.on('response', (r) => {
     const fsFx = require('fs');
     const src = fsFx.readFileSync(PAGE_FILE, 'utf8');
     const sheets = src.match(/data:image\/webp;base64,[A-Za-z0-9+/=]+/g) || [];
-    expect(sheets.length === 7 && /spawnHitFx\(boomAt/.test(src),
-      'hit flash: all seven of the owner\'s effects are embedded (4, 11, 12, 13, 14, 16, 17 — ' +
-      'he added 11 and 12 on 2026-08-30) and spawnHitFx is called at the merge point ' +
+    expect(sheets.length === 8 && /spawnHitFx\(boomAt/.test(src),
+      'hit flash: all eight of the owner\'s effects are embedded (4, 11, 12, 13, 14, 16, 17 and ' +
+      '3 for the chain lightning) and spawnHitFx is called at the merge point ' +
       '(sheets=' + sheets.length + ')');
     const widths = await page.evaluate(async (list) => {
       const out = [];
@@ -2552,7 +2552,7 @@ page.on('response', (r) => {
         const i = new Image(); i.onload = () => r(i.naturalWidth); i.onerror = () => r(0); i.src = u; }));
       return out;
     }, sheets);
-    expect(widths.length === 7 && widths.every(w => w === 1152),
+    expect(widths.length === 8 && widths.every(w => w === 1152),
       '⚠️⚠️ hit flash: every sheet DECODES in the browser at 6x192 px (' + JSON.stringify(widths) + '). ' +
       'A zero here means WebP-with-alpha failed to decode — the flash would vanish silently');
     // ⚠️ EVERY MATERIAL VOICE HAS A FLASH, and the check is against the LIVE material map
@@ -2569,10 +2569,21 @@ page.on('response', (r) => {
     // to is pure weight — 130 KB of download and 3.4 MB of VRAM for something no player sees.
     // This is what would go red if a future repack shortened the list without re-reading the
     // material table (whose values are INDICES into it).
+    // ⚠️ THE BOLT EFFECT IS REACHED BY EVENT, NOT BY MATERIAL, so the census counts both doors:
+    // HITFX_BY_MATERIAL plus the HITFX_BOLT constant. Without this the guard would have gone red
+    // on a correct build the moment effect 3 was appended — and the honest reading is «every
+    // sheet is reachable from SOMEWHERE», not «from the material map».
     const used = new Set((mapped.match(/:\s*(\d+)/g) || []).map(x => +x.slice(1)));
+    const boltIdx = (src.match(/HITFX_BOLT\s*=\s*(\d+)/) || [])[1];
+    if (boltIdx != null) used.add(+boltIdx);
     expect(used.size === sheets.length,
-      'hit flash: every embedded effect is reachable from some material — ' + used.size +
-      ' of ' + sheets.length + ' used (an unmapped sheet is 130 KB and 3.4 MB of VRAM for nothing)');
+      'hit flash: every embedded effect is reachable from a material or from an event — ' +
+      used.size + ' of ' + sheets.length + ' used (an unmapped sheet is ~130 KB of download and ' +
+      '3.4 MB of VRAM for something no player ever sees)');
+    expect(boltIdx != null && +boltIdx === sheets.length - 1 && /spawnHitFx\([^)]*HITFX_BOLT\)/.test(src),
+      '⚠️ the chain lightning flashes with HITFX_BOLT, and that index is the LAST sheet — the ' +
+      'effect is APPENDED to the packer\'s list precisely so the material indices above it do ' +
+      'not shift (boltIdx=' + boltIdx + ', sheets=' + sheets.length + ')');
   }
 
   // === REVIEW FINDING 18, THE OWNER'S ANSWER: THE WIN ROW READS LIKE THE COLLECTION ===

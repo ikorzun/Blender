@@ -155,35 +155,56 @@ function fxBuildBreak(reset){
 // the right one; that half is taste and lives here in prose.
 const HITFX_BY_MATERIAL = { metal:3, glass:3, plastic:0, wood:0, juicy:1, meat:2,
                             dough:4, paper:4, cream:5, plush:6 };
-function spawnHitFx(pos, r, typeName){
+// ⚠️ INDEX 7 = effect 3, the pack's ONLY COOL ONE (hue 197° cyan against everyone else's
+// 13-123°) — the owner 2026-08-30 asked for it on the chain lightning specifically, and it is
+// the one effect that belongs to an ELECTRIC event rather than to a material. It is deliberately
+// APPENDED to the packer's argument list so every material index above stays put.
+const HITFX_BOLT = 7;
+function spawnHitFx(pos, r, typeName, forceIdx){
   if (CFG.fxScale < 1 || typeof HITFX_SET === 'undefined' || !HITFX_SET.length) return;
-  let idx = -1;
-  try {
+  let idx = (forceIdx != null && forceIdx >= 0 && forceIdx < HITFX_SET.length) ? forceIdx : -1;
+  if (idx < 0) try {
     const m = typeName && typeof materialOf === 'function' ? materialOf(typeName) : null;
     if (m != null && HITFX_BY_MATERIAL[m] != null) idx = HITFX_BY_MATERIAL[m];
   } catch(e){}
   if (idx < 0 || idx >= HITFX_SET.length) idx = (Math.random() * HITFX_SET.length) | 0;
   const F = HITFX_SET[idx];
-  const tex = hitFxTexture(idx).clone();
-  tex.needsUpdate = true;
-  tex.repeat.set(1/F.cols, 1/F.rows);
+  // ⛔⛔ THE TEXTURE IS SHARED, NOT CLONED — MEASURED, NOT ASSUMED. `texture.clone()` copies the
+  // Texture OBJECT while sharing its image, and WebGLRenderer allocates per Texture instance:
+  // renderer.info.memory.textures climbed 8 -> 9 -> 10 across three matches, i.e. EVERY match
+  // uploaded a fresh 3.4 MB sheet to the GPU and threw it away 0.6 s later. Harmless-looking at
+  // one flash per match; at up to eight simultaneous bolt flashes it would have been ~27 MB of
+  // uploads inside a single frame. The frame now comes from the PLANE'S OWN UV attribute — the
+  // geometry is per-instance already, so instances cannot fight over it the way they would over
+  // a shared texture's offset.
+  // ⚠️ AND THEREFORE NOTHING DISPOSES THIS TEXTURE: stepFX disposes obj.material (three does not
+  // dispose a material's map), and the sheet must outlive every flash that uses it.
+  const tex = hitFxTexture(idx);
   // ⚠️⚠️ depthTest:false IS THE WHOLE REASON IT IS VISIBLE. The flash is born AT THE MERGE
   // POINT — i.e. INSIDE the pile — so with depth testing on, the items in front of it occlude
   // almost the entire sprite (measured: the first cut read as a faint wash and nothing else).
   // A hit flash belongs on top of the frame; renderOrder keeps it under the HUD pops.
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true,
     depthWrite: false, depthTest: false, side: THREE.DoubleSide });
-  mat.addEventListener('dispose', () => tex.dispose());
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  const uv = mesh.geometry.attributes.uv;
   const s = Math.max(2.6, r * 3.4);
   mesh.scale.set(s, s, 1);
   mesh.position.copy(pos);
   mesh.renderOrder = 8;                      // over the pile, under the HUD pops
+  let lastFrame = -1;
   addFX(mesh, F.n / F.fps, (o, k) => {
     o.quaternion.copy(camera.quaternion);    // billboard
     const f = Math.min(F.n - 1, Math.floor(k * F.n));
-    tex.offset.set((f % F.cols) / F.cols,
-                   1 - 1/F.rows - Math.floor(f / F.cols) / F.rows);
+    if (f === lastFrame) return;             // the UV write is skipped on repeated frames
+    lastFrame = f;
+    const c = f % F.cols, rw = (f / F.cols) | 0;
+    const u0 = c / F.cols, u1 = (c + 1) / F.cols;
+    const v1 = 1 - rw / F.rows, v0 = 1 - (rw + 1) / F.rows;
+    // PlaneGeometry's vertex order is TL, TR, BL, BR
+    uv.setXY(0, u0, v1); uv.setXY(1, u1, v1);
+    uv.setXY(2, u0, v0); uv.setXY(3, u1, v0);
+    uv.needsUpdate = true;
   });
 }
 function addFX(obj, life, tick){
