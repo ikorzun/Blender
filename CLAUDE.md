@@ -12409,3 +12409,77 @@ place to re-look, and a rep count of three is not enough to settle it.**
 **THE PRICE, BY THE ZIP:** `index.html` 11 454 202 → **11 961 831 B**; the portal package
 5.32 → **5.41 MB**, headroom to the 8 MB reference **2.59 MB**. Geometry is text and compresses
 ~5.6×: 508 KB raw became 0.09 MB in the package.
+
+
+## BATCH 2026-08-31-v: THE PNG BURST IS OUT, THE GLOW STAYS AS IT WAS
+
+His word, in three messages: «remove the png effect on the new object screen after finishing a
+level, better make the glow behind it an uneven circle, as if it were the northern lights» →
+«about the glow I meant something like this» + the full source of the Originkit «Grain Ring»
+WebGL component → and, on the rendered frames, **«the effect does not suit, too complex, bring
+back the first version, just take its colour based on the object's colour»**.
+
+### WHAT SHIPPED IS A DELETION AND NOTHING ELSE
+
+⛔⛔ **THE ONLY CHANGE IN THE TREE IS THE REMOVAL OF `newObjBurst`** — the function, its timer,
+its call site, the `newObjHide` cleanup, the `.no-burst` markup and CSS, and its
+`prefers-reduced-motion` rule. Measured, not asserted: `git diff HEAD -- src/` is **69 deletions
+and ZERO insertions**. `.no-shine` — the three offset radial gradients, `filter:blur(27px)`,
+`opacity:.42` — is byte-for-byte what it was.
+✅ **AND HIS SECOND SENTENCE WAS ALREADY TRUE, WHICH IS THE ANSWER RATHER THAN A CHANGE:** the
+glow has taken its colour from the item since 2026-08-10 (`--no-glow-rgb`, set in `newObjShow`
+from `item.type.color`, with the `NEAR_BG = 140` whitening for items close to the background).
+Measured on the built artifact: crab `255,90,43`, watermelon `255,90,110`, bottle `103,148,217`,
+each reaching the live gradient. **Nothing was «made» to satisfy it — it was verified and
+reported.**
+⚠️ **NAMED TO HIM, NOT ADJUSTED:** with the burst gone the glow is the only light on that screen,
+and it sits at `opacity:.42` — the value HE halved from .85 on 2026-08-10, when the burst was
+still there to carry the arrival. If it now reads too faint that is one number, and it is his.
+
+### THE SHADER WAS BUILT, MEASURED AND REJECTED — READ THIS BEFORE PORTING IT AGAIN
+
+⛔⛔ **DO NOT PROPOSE THE GRAIN RING AGAIN WITHOUT HIS WORD.** It was ported in full, tuned to
+read as an aurora on three items, cost nothing measurable (CPU ×4, 180 frames beside the live
+turntable renderer: the delta sat inside the OFF arm's own spread), and he rejected the LOOK:
+«too complex». That is a taste verdict on a working feature — the same class as the Dirty pack
+and the daytime sky decor, and it belongs in the same «Rejected» drawer.
+⚠️ **THE ROLLBACK IS A REAL ROLLBACK, NOT A HIDE:** `13-grainring.js` is deleted, both call sites
+are gone, the `.no-ring` layer and the `z-index:1` it needed are gone, and a grep for
+`grainRing` / `no-ring` over `src/` and `test.js` returns **0**. The build is 29 modules again.
+
+**THE FOUR TECHNICAL LESSONS OUTLIVE THE FEATURE:**
+
+1. ⛔ **A PORTED PRESET IS IN THE SOURCE COMPONENT'S UNITS, NOT OURS.** His `smear 400 / scale 20`
+   carried over naively gave an angular frequency 30× the radial one, and the field streaked into
+   a **SUNBURST of spokes** — not a ring at all. The two frequencies ARE the look. Found by
+   RENDERING; invisible in the diff and in the code.
+2. ⛔ **`atan(p.y,p.x)` RUNS −π…+π AND THEN JUMPS, AND VALUE NOISE IS NOT PERIODIC** — so an
+   angular noise domain tears the ring with a hard seam at 180°. Sampling the angle as a point on
+   a circle (`vec2(cos a, sin a)`) closes the domain by construction. **The same class as the
+   copies of the Voronoi centres at ±2πR on the bowl.**
+3. ⛔⛔ **A WebGL CANVAS DRAWN ONCE GOES BLANK WITHOUT `preserveDrawingBuffer`** — the browser may
+   clear the drawing buffer after any composite, and an animated path never notices because it
+   redraws. It would have hit exactly the low perf tier and `prefers-reduced-motion`, i.e. the
+   players who can least afford a hole.
+   ⚠️⚠️ **THE PARAMETER BENCH HIT IT FIRST, WHERE IT COST NOTHING:** every static cell
+   photographed empty while `readPixels` returned real colour. **A defect a harness hits is a
+   defect the product can hit — ask where else the same mechanism runs.** That question was worth
+   more than the bench.
+4. ⚠️ **A `re.sub` REPLACEMENT STRING EATS BACKSLASH ESCAPES.** Injecting a JSON-encoded shader
+   with `re.sub` turned every `\n` into a real newline inside a JS string literal — an
+   unterminated string, and a page reporting only «SyntaxError: Invalid or unexpected token».
+   Use a lambda replacement.
+
+⚠️⚠️ **AND THE PROCESS LESSON, WHICH IS THE EXPENSIVE ONE: I SHOULD HAVE SHOWN HIM A FRAME
+SOONER.** The canon already records it from 2026-08-23-b — «when an answer's downside is VISUAL,
+the cheap move is a rendered frame offered WITH the question». Here a whole shader was ported,
+benched, tuned across two rounds and perf-measured before he saw a single pixel, and one look
+settled it. **A reference he pastes is a description of a look, and a look is judged on a frame.**
+The very first render was the sunburst — not what he meant either — and I fixed that before
+showing him, instead of asking whether the direction was right at all.
+
+⚠️ **TWO SUITE RUNS WERE KILLED IN THIS SESSION, BOTH DELIBERATELY AND BOTH BY THE RECORDED
+PID.** The first because a comment-only edit had left `index.html` behind `src` (the canon's own
+rule: the verdict must describe the artifact that ships); the second because his message arrived
+and the artifact under test stopped being the one that would be committed. **A run against a
+stale artifact is not a cheap run, it is a claim about the wrong build.**

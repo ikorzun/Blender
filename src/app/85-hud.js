@@ -2856,49 +2856,7 @@ function newObjShow(key, done){
     Math.round((host.clientWidth || 256) * (window.devicePixelRatio || 1))));
   try { thumbSpinStart(item, host, px); } catch (e) {}
   newObjDragWire(host);
-  newObjBurst();
   Telemetry.ev('newobj', { k: key });
-}
-// THE ARRIVAL FLASH ON THE NEW OBJECT SCREEN (the owner 2026-08-31). One of the eight sheets
-// that already ship for the match flashes — `HITFX_SPAWN`, the golden starburst — stepped
-// through its 24 cells as a background-position on a plain div (.no-burst, styled in the shell).
-// ⚠️ THE DELAY IS NOT DECORATION: the card's own entrance animations are `.no-shine` at .22 s
-// and `.no-model` at .28 s (the keyframes in the shell). The burst is armed at 240 ms so its
-// peak lands with the model rising into place; fired at 0 it plays to an empty stage.
-// ⚠️ WE DRIVE IT OFF rAF TIMESTAMPS AND NOT A setInterval: a background tab throttles timers
-// and the sprite would freeze mid-flash with a frame still on screen. On rAF a throttled tab
-// simply does not advance, and the tail below returns it to opacity 0 either way.
-let newObjBurstTimer = 0;
-function newObjBurst(){
-  const el = $('newObjBurst');
-  if (!el || typeof HITFX_SET === 'undefined' || typeof HITFX_SPAWN === 'undefined') return;
-  const F = HITFX_SET[HITFX_SPAWN];
-  if (!F) return;
-  if (newObjBurstTimer){ clearTimeout(newObjBurstTimer); newObjBurstTimer = 0; }
-  el.style.opacity = '0';
-  newObjBurstTimer = setTimeout(() => {
-    newObjBurstTimer = 0;
-    // the screen may already have been dismissed during the delay
-    const box = $('newObj');
-    if (!box || !box.classList.contains('on')) return;
-    el.style.backgroundImage = 'url(' + F.png + ')';
-    el.style.opacity = '1';
-    let shown = -1, t0 = 0;
-    const step = (t) => {
-      if (!t0) t0 = t;
-      const f = Math.floor((t - t0) / 1000 * F.fps);
-      if (f >= F.n){ el.style.opacity = '0'; return; }
-      if (f !== shown){
-        shown = f;
-        // ⚠️ col/(cols-1), NOT col/cols — see the note on .no-burst in the shell
-        el.style.backgroundPosition =
-          (100 * (f % F.cols) / (F.cols - 1)) + '% ' +
-          (100 * ((f / F.cols) | 0) / (F.rows - 1)) + '%';
-      }
-      requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, 240);
 }
 // ROTATION WITH A FINGER/CURSOR (the owner's word 2026-08-13). The drag mutes
 // the auto-rotation and leads the angle by hand; on release the auto continues from that
@@ -2927,10 +2885,6 @@ function newObjHide(){
   const box = $('newObj');
   if (box){ box.classList.remove('on'); box.setAttribute('aria-hidden', 'true'); }
   try { thumbSpinStop(); } catch (e) {}
-  // the burst is armed on a 240 ms delay — a screen dismissed inside that window must not
-  // light it up on the way out (the rAF loop guards `.on` too, this kills the timer as well)
-  if (newObjBurstTimer){ clearTimeout(newObjBurstTimer); newObjBurstTimer = 0; }
-  { const b = $('newObjBurst'); if (b) b.style.opacity = '0'; }
   const d = newObjDone; newObjDone = null;
   if (d) d();
 }
