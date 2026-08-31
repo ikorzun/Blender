@@ -12118,3 +12118,66 @@ be again past 90 types. Do not delete it; do not describe it as live cutting eit
 per level, so upgrading any single type slows to a crawl. If the owner ever asks «why does the
 collection stop growing», this table is the answer and the lever is the type ceiling, not the
 sampling.
+
+## BATCH 2026-08-30-f: SEVEN FLASHES BY MATERIAL, TWO REVIEW FORKS SETTLED, THE EFFECTS QUIETED
+
+The owner answered the whole open list in two messages. What he DECIDED matters as much as what
+was built — three of the six items were closed by his word alone and must not be reopened:
+⛔ THE POST-«Next» PAUSE STAYS AS IT IS («seychas vse khorosho, ya by nichego ne menyal»). The
+genLevel-under-the-modal proposal is WITHDRAWN, not deferred.
+⛔ ADS IN THE WRAPPER + noads_forever -> pre-release. ⛔ The Xcode Cmd+R for the payment tests ->
+later. Models -> awaited.
+
+### THE FLASH SET IS SEVEN, AND IT IS CHOSEN BY MATERIAL
+
+«Dobav eshche 11 i 12» + «mozhesh raspredelit ikh na gruppy po tipam veshchey ili ostavit
+randomno». Distributed — but NOT by pack, and that is a measurement: all seven are the same warm
+orange (hue 13-28°) except ONE. The map is by the game's own MATERIAL_OF voices, so the axis is
+substance, which is what the flash is about:
+  metal, glass -> 13 (thinnest, most saturated — a sharp ting)
+  plastic, wood -> 4 (densest — a solid knock)
+  juicy -> 11 ⚡ THE ONLY GREEN EFFECT IN THE PACK (hue 123°). Fruit and veg are the one family
+    where a green flash is recognition rather than decoration — the single mapping a player can
+    name out loud.
+  meat -> 12 (deepest red-orange) · dough, paper -> 14 · cream -> 16 · plush -> 17
+⚠️ THE VALUES ARE INDICES INTO HITFX_SET, whose order is the tool's ARGUMENT order. Repacking
+with a different order silently re-points every material. Two guards hold this from both sides:
+every voice maps to an effect, AND every embedded effect is reachable (an unmapped sheet is
+130 KB of download and 3.4 MB of VRAM for something no player sees).
+Price: 906 KB embedded, 23.6 MB VRAM if all seven resident (lazy, so a level of six types
+typically touches three or four); ZIP 5.06 -> 5.26 MB, headroom 2.74 MB.
+
+### REVIEW FINDING 18 — «POKAZYVAEM OBSHCHUYU, KAK V KOLLEKTSII»
+
+The victory row used `vitFrac` (progress WITHIN the current tier) while the collection card
+shows progress from ZERO and its caption «150/300» reads the same way; above 100 matches they
+diverged by up to ~50 points. The row now computes from zero.
+⚠️⚠️ `vitFrac` ITSELF IS UNTOUCHED ON PURPOSE — it is also the SORT KEY of the showcase panel
+(his spec: «descending, the first has the greater progress»), so rewriting it would have
+silently reordered that panel. The showcase therefore still reads within-tier: a THIRD surface,
+named to him, not decided here. If he ever unifies it, that is one line plus a re-measure of
+the panel's order.
+
+### REVIEW FINDING 19 — «NA AYPADE SDELAY TOZHE 4»
+
+The 800-1079 band was three columns while a phone above 421 px already showed four — a wider
+window giving FEWER cards. The ladder now reads 2 / 3 / 4 / 4 / 4 / 5 and is monotonic for the
+first time; the guard MEASURES computed columns at six widths rather than grepping the rule,
+because this ladder has already survived two specificity/file-order traps.
+
+### THE PROGRAMMATIC EFFECTS QUIETED, AND WHY THEY GREW LOUD
+
+«Umenshi raskhodyashchiesya… koltsa na 40%, prozrachnost na 50… inache mnogo effektov» +
+«uvelich prozrachnost u konturov obyektov posle sovmeshcheniya». IMPACT_R0 1.25 -> 0.75,
+IMPACT_ALPHA 0.55 -> 0.28, reachGhostFX 0.02/0.16 -> 0.01/0.08 (both halved, so the falloff's
+SHAPE is unchanged — only its strength).
+⚠️ NOTHING ABOUT THE RINGS CHANGED — THE SPRITE FLASHES OF THE SAME DAY LANDED ON TOP OF THEM.
+Two full-strength bursts at one point read as noise. When adding a new effect at an existing
+event, re-price the old one at the same time.
+⛔⛔ AND THE TRAP THE CANON ALREADY WARNED ABOUT FIRED FOR THE FIRST TIME: a Fresnel ghost's
+numbers are baked into the SHADER TEXT, so a different pair is a different PROGRAM, and
+fxProgramAnchors keeps an eternal instance alive precisely so the program survives when stepFX
+disposes the last real ghost. Moving the production call WITHOUT the anchor would have left the
+anchor guarding a program nobody uses while the real one recompiled inside the frame of the next
+tap — a hitch visible only on weak devices. Both moved together, and a NEW GUARD now compares
+every production recipe against the anchors so the next drift is loud instead of silent.

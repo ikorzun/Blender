@@ -717,7 +717,19 @@ function renderWinTop(reduce){
     row.querySelector('.wt-name').textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
     row.querySelector('.wt-mult').textContent = fmtMult(typeof accMult === 'function' ? accMult(k) : 1);
     host.appendChild(row);
-    const frac = (typeof vitFrac === 'function' ? vitFrac(k) : 0), bar = row.querySelector('.wt-bar i');
+    // ⛔⛔ REVIEW FINDING 18, SETTLED BY THE OWNER 2026-08-30: «pokazyvaem obshchuyu, kak v
+    // kollektsii». The row used `vitFrac` — progress WITHIN the current tier, (n−prev)/(next−prev)
+    // — while the collection card shows progress from ZERO, n/next, and its caption («150/300»)
+    // reads the same way. Below 100 matches the two agree; above, the win screen ran up to ~50
+    // percentage points «emptier» than the same type one screen away. Neither number was wrong;
+    // they answered different questions, and he chose the collection's question.
+    // ⚠️ `vitFrac` ITSELF IS DELIBERATELY UNTOUCHED — it is also the SORT KEY of the showcase
+    // panel (his spec: «descending, the first has the greater progress»), and rewriting it would
+    // have silently reordered that panel. So the showcase still reads within-tier; that third
+    // surface is named to him, not decided here.
+    const frac = (typeof accNext === 'function' && accNext(k))
+      ? Math.min(1, accCount(k) / accNext(k)) : 1;
+    const bar = row.querySelector('.wt-bar i');
     if (reduce){ bar.style.width = (frac * 100).toFixed(1) + '%'; }
     else {
       bar.style.transitionDelay = (1.05 + i * step) + 's';

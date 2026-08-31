@@ -2542,18 +2542,112 @@ page.on('response', (r) => {
     const fsFx = require('fs');
     const src = fsFx.readFileSync(PAGE_FILE, 'utf8');
     const sheets = src.match(/data:image\/webp;base64,[A-Za-z0-9+/=]+/g) || [];
-    expect(sheets.length === 5 && /spawnHitFx\(boomAt/.test(src),
-      'hit flash: all five of the owner\'s effects are embedded and spawnHitFx is called at the ' +
-      'merge point (sheets=' + sheets.length + ')');
+    expect(sheets.length === 7 && /spawnHitFx\(boomAt/.test(src),
+      'hit flash: all seven of the owner\'s effects are embedded (4, 11, 12, 13, 14, 16, 17 — ' +
+      'he added 11 and 12 on 2026-08-30) and spawnHitFx is called at the merge point ' +
+      '(sheets=' + sheets.length + ')');
     const widths = await page.evaluate(async (list) => {
       const out = [];
       for (const u of list) out.push(await new Promise(r => {
         const i = new Image(); i.onload = () => r(i.naturalWidth); i.onerror = () => r(0); i.src = u; }));
       return out;
     }, sheets);
-    expect(widths.length === 5 && widths.every(w => w === 1152),
+    expect(widths.length === 7 && widths.every(w => w === 1152),
       '⚠️⚠️ hit flash: every sheet DECODES in the browser at 6x192 px (' + JSON.stringify(widths) + '). ' +
       'A zero here means WebP-with-alpha failed to decode — the flash would vanish silently');
+    // ⚠️ EVERY MATERIAL VOICE HAS A FLASH, and the check is against the LIVE material map
+    // rather than a copy: the owner's «raspredeli po tipam veshchey» is implemented as
+    // material -> effect, so a voice added to 73-material without an entry here would silently
+    // fall back to random and quietly undo the distribution.
+    const voices = (fsFx.readFileSync('src/app/73-material.js', 'utf8').match(/: '([a-z]+)',/g) || [])
+      .map(x => x.slice(3, -2));
+    const mapped = (src.match(/HITFX_BY_MATERIAL = \{([^}]*)\}/) || [null, ''])[1];
+    const missing = [...new Set(voices)].filter(v => mapped.indexOf(v + ':') < 0);
+    expect(missing.length === 0,
+      'hit flash: every material voice maps to an effect (unmapped: ' + JSON.stringify(missing) + ')');
+    // ⚠️ AND THE OTHER DIRECTION: every embedded sheet must be REACHABLE. An effect nobody maps
+    // to is pure weight — 130 KB of download and 3.4 MB of VRAM for something no player sees.
+    // This is what would go red if a future repack shortened the list without re-reading the
+    // material table (whose values are INDICES into it).
+    const used = new Set((mapped.match(/:\s*(\d+)/g) || []).map(x => +x.slice(1)));
+    expect(used.size === sheets.length,
+      'hit flash: every embedded effect is reachable from some material — ' + used.size +
+      ' of ' + sheets.length + ' used (an unmapped sheet is 130 KB and 3.4 MB of VRAM for nothing)');
+  }
+
+  // === REVIEW FINDING 18, THE OWNER'S ANSWER: THE WIN ROW READS LIKE THE COLLECTION ===
+  // ⛔ «Pokazyvaem obshchuyu, kak v kollektsii» (2026-08-30). The row used vitFrac — progress
+  // WITHIN the current tier — while the card shows progress from ZERO and its caption
+  // («150/300») reads the same way; above 100 matches they diverged by up to ~50 points.
+  // ⚠️ THE GUARD IS STRUCTURAL because the two live in different screens with different
+  // lifecycles; it pins that the win row no longer calls vitFrac AND that vitFrac still exists
+  // for the showcase panel, whose SORT KEY it is (deliberately left on the other reading).
+  {
+    const fsBar = require('fs');
+    const src2 = fsBar.readFileSync(PAGE_FILE, 'utf8');
+    const winRow = /wt-bar i'\);/.test(src2) || /wt-bar/.test(src2);
+    const rowUsesVit = /vitFrac\(k\) : 0\), bar = row/.test(src2);
+    expect(winRow && !rowUsesVit && /function vitFrac/.test(src2),
+      'finding 18: the victory row computes its bar from zero (like the collection card) and no ' +
+      'longer calls vitFrac — while vitFrac SURVIVES for the showcase panel, whose sorting is a ' +
+      'separate owner spec (winRow=' + winRow + ' rowUsesVit=' + rowUsesVit + ')');
+  }
+
+  // === REVIEW FINDING 19, THE OWNER'S ANSWER: THE COLUMN LADDER IS MONOTONIC ===
+  // ⛔ «Na aypade sdelay tozhe 4» (2026-08-30). The 800-1079 band showed THREE columns while a
+  // phone above 421 px already showed FOUR — a wider window giving fewer cards. The ladder now
+  // reads 2 / 3 / 4 / 4 / 4 / 5 and never decreases as the window grows.
+  // ⚠️ MEASURED, not grepped: the count comes from the computed grid-template-columns, so a rule
+  // overridden by specificity or by file order (the trap this ladder already survived twice)
+  // still goes red. One page, resized — six loads would cost a minute for nothing.
+  {
+    const ladderPage = await browser.newPage({ viewport: { width: 375, height: 800 } });
+    await ladderPage.goto('file://' + PAGE_FILE);
+    await ladderPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await ladderPage.evaluate(() => { document.getElementById('pauseBtn').click(); });
+    await ladderPage.waitForTimeout(500);
+    const ladder = [];
+    for (const w of [340, 375, 430, 900, 1100, 1400]){
+      await ladderPage.setViewportSize({ width: w, height: 900 });
+      await ladderPage.waitForTimeout(220);
+      ladder.push(await ladderPage.evaluate(() => {
+        const g = document.querySelector('.ms-grid');
+        return g ? getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/).length : -1;
+      }));
+    }
+    await ladderPage.close();
+    console.log('collection columns by width [340,375,430,900,1100,1400]:', JSON.stringify(ladder));
+    expect(ladder.every((n, i) => i === 0 || n >= ladder[i - 1]),
+      '⚠️⚠️ finding 19: the collection column ladder NEVER decreases as the window grows (' +
+      JSON.stringify(ladder) + '). It used to dip 4 -> 3 at 800 px — an iPad upright showed ' +
+      'fewer cards than a phone');
+    expect(ladder[3] === 4,
+      'finding 19: the 800-1079 band shows FOUR columns (the owner 2026-08-30), got ' + ladder[3]);
+    expect(ladder[0] === 2 && ladder[5] === 5,
+      'finding 19 / control: the ends of the ladder are untouched — 2 below 360, 5 from 1300 (' +
+      JSON.stringify(ladder) + ')');
+  }
+
+  // === THE FRESNEL ANCHOR MATCHES THE PRODUCTION RECIPE (2026-08-30) ===
+  // ⛔⛔ THE NUMBERS OF A FRESNEL GHOST ARE BAKED INTO THE SHADER TEXT, so a different pair is a
+  // DIFFERENT PROGRAM. fxProgramAnchors keeps one eternal instance of each recipe alive so the
+  // program survives when stepFX disposes the last real ghost; if the production call drifts
+  // from the anchor, the anchor guards a program nobody uses and the REAL one recompiles inside
+  // the frame of the next tap — a hitch visible only on weak devices, i.e. exactly where nobody
+  // is testing. The owner's «uvelich prozrachnost u konturov» moved these numbers today, which
+  // is the first time the pair could have drifted; this guard makes the next time loud.
+  {
+    const fsAnchor = require('fs');
+    const src3 = fsAnchor.readFileSync(PAGE_FILE, 'utf8');
+    const prod = [...src3.matchAll(/fresnelGhostMat\(\s*color\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,?\s*([\d.]*)/g)]
+      .map(m => [m[1], m[2], m[3] || ''].join('/'));
+    const anch = [...src3.matchAll(/fresnelGhostMat\(0xffffff\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,?\s*([\d.]*)/g)]
+      .map(m => [m[1], m[2], m[3] || ''].join('/'));
+    const orphan = prod.filter(r => anch.indexOf(r) < 0);
+    expect(prod.length > 0 && orphan.length === 0,
+      '⚠️⚠️ every production fresnelGhostMat recipe has a matching anchor in fxProgramAnchors ' +
+      '(production: ' + JSON.stringify(prod) + ', anchors: ' + JSON.stringify(anch) + '). ' +
+      'An orphan means the shader recompiles inside a tap frame on weak devices');
   }
 
   // === VARIANT 3 GUARDS — TOMBSTONE 2026-08-30 ===

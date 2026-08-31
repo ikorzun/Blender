@@ -751,7 +751,12 @@ const COLLAPSE_SHAKE = 0.13;  // the camera kick on the pop (the hit-stop had 0.
 // ⚠️ THE IMPACT SIZE GROWS WITH THE GROUP (0 for a pair -> 1 for a group at the cap MATCH_MAX_N):
 // "more drive" must be more noticeable where the player collected more.
 const IMPACT_MS = 260;        // the life of the ring
-const IMPACT_R0 = 1.25;       // the ring radius for a pair
+// ⚠️ 1.25 -> 0.75 (−40%, the owner 2026-08-30: «umenshi raskhodyashchiesya ot sovmeshcheniya
+// programmnye koltsa na 40%… inache mnogo effektov»). The cause is additive: the sprite hit
+// flashes of the same day landed ON TOP of the programmatic ring, and two full-size bursts at
+// one point read as noise. R_K is untouched — the ring still grows with the group, from a
+// smaller base.
+const IMPACT_R0 = 0.75;       // the ring radius for a pair
 const IMPACT_R_K = 1.5;       // how many times wider the ring is for a group at the cap
 const IMPACT_FLASH_MS = 140;  // the core flash — shorter than the ring, this is an "impact", not a glow
 const IMPACT_FLASH_SIZE = 1.9;
@@ -766,7 +771,11 @@ const IMPACT_ORDER = 12;      // the render order of the impact layer (it has no
 // outer one is 1.0, so SMALLER = WIDER. The ring's radius lives in IMPACT_R0/R_K.
 // ⚠️ THE WIDTH GOES TOGETHER WITH SATURATION, NOT WITH WHITE — otherwise a wide pale
 // ring will drown in the light pile (my own lesson of 2026-08-06, it cost a ×10 measurement).
-const IMPACT_ALPHA = 0.55;    // the opacity peak (it was 1.0 — "increase the transparency")
+// ⚠️ 0.55 -> 0.28 (halved, the same word of 2026-08-30 «prozrachnost na 50»). THE SECOND
+// HALVING OF THIS NUMBER: 1.0 -> 0.55 was his «increase the transparency» of an earlier round,
+// and the reason is the same both times — on a light pile a saturated ring reads even when
+// faint, so opacity is the cheapest knob that does not touch the ring's shape or its family.
+const IMPACT_ALPHA = 0.28;    // the opacity peak (1.0 -> 0.55 -> 0.28, twice by his word)
 const IMPACT_W_ROUND = 0.60;  // an even ring — for round items
 const IMPACT_W_POLY  = 0.48;  // a polygonal rim — for angular ones (the widest)
 const IMPACT_W_OVAL  = 0.68;  // an oval — for elongated ones (narrower, otherwise the oval reads as a blob)

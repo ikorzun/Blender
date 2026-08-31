@@ -127,13 +127,44 @@ function fxBuildBreak(reset){
 // ⚠️ The tick's second argument is k = age/life (0..1) — NOT seconds; the frame is k·n.
 // ⚠️ The texture clone dies through the material's 'dispose' event: stepFX disposes the
 // material itself, and materials do not own their maps.
-function spawnHitFx(pos, r){
+// ⚠️⚠️ THE FLASH IS CHOSEN BY THE ITEM'S MATERIAL (the owner 2026-08-30: «mne nravyatsya vse
+// effekty, mozhesh raspredelit ikh na gruppy po tipam veshchey ili ostavit randomno»).
+// ⛔ NOT BY PACK, and that is a measurement and not a preference: all five effects are the SAME
+// warm orange (hue 17-28°, measured) — they differ in DENSITY and SATURATION, not in colour, so
+// a per-pack palette would have been a distinction nobody can see. What they can read is
+// «a dense thing hits densely»:
+//   metal, glass -> 13 (the thinnest and most saturated — a sharp ting)
+//   plastic, wood -> 4  (the densest burst — a solid knock)
+//   juicy        -> 11 ⚡ THE ONLY GREEN ONE IN THE PACK (hue 123° against everyone else's
+//                       13-28°, measured) — and fruit and veg are the one family where a green
+//                       flash is not decoration but recognition. This is the single mapping
+//                       the player can name out loud.
+//   meat         -> 12 (the deep red-orange, hue 13° — the warmest of the warm)
+//   dough, paper -> 14 (medium warm)
+//   cream        -> 16 (soft and broad)
+//   plush        -> 17 (the softest)
+// ⚠️ `materialOf` lives in 73-material — LATER in the concatenation — and is reachable here only
+// because it is a hoisted FUNCTION DECLARATION called at run time. Do not touch it at module
+// top level from this file, and do not convert it to a const arrow in 73.
+// ⚠️ A type with no voice (and the bomb/surprise, which have no type name here) falls back to
+// a random pick — never to a fixed one, or those hits would all look alike.
+// ⚠️ THE VALUES ARE INDICES INTO HITFX_SET, WHOSE ORDER IS THE TOOL'S ARGUMENT ORDER
+// (4, 11, 12, 13, 14, 16, 17). Repacking with a different order or a shorter list SILENTLY
+// re-points every material — rerun `tools/hitfx-pack.py 4 11 12 13 14 16 17` and re-read this
+// table together. The suite pins that every material voice has an entry, not that the entry is
+// the right one; that half is taste and lives here in prose.
+const HITFX_BY_MATERIAL = { metal:3, glass:3, plastic:0, wood:0, juicy:1, meat:2,
+                            dough:4, paper:4, cream:5, plush:6 };
+function spawnHitFx(pos, r, typeName){
   if (CFG.fxScale < 1 || typeof HITFX_SET === 'undefined' || !HITFX_SET.length) return;
-  // ⚠️ A RANDOM ONE OF THE SET PER MATCH (the owner's five, 2026-08-30) — one repeated flash
-  // becomes wallpaper by the third level. The sheets are built lazily per effect, so a short
-  // session may never upload all five.
-  const F = HITFX_SET[(Math.random() * HITFX_SET.length) | 0];
-  const tex = hitFxTexture(HITFX_SET.indexOf(F)).clone();
+  let idx = -1;
+  try {
+    const m = typeName && typeof materialOf === 'function' ? materialOf(typeName) : null;
+    if (m != null && HITFX_BY_MATERIAL[m] != null) idx = HITFX_BY_MATERIAL[m];
+  } catch(e){}
+  if (idx < 0 || idx >= HITFX_SET.length) idx = (Math.random() * HITFX_SET.length) | 0;
+  const F = HITFX_SET[idx];
+  const tex = hitFxTexture(idx).clone();
   tex.needsUpdate = true;
   tex.repeat.set(1/F.cols, 1/F.rows);
   // ⚠️⚠️ depthTest:false IS THE WHOLE REASON IT IS VISIBLE. The flash is born AT THE MERGE
@@ -1573,13 +1604,13 @@ function wiggle(item){
 // recipe on the camera — the programs live for the whole session. ⚠️ The numbers of
 // the Fresnel recipes must match the production calls (they are baked into the
 // TEXT of the shader — different numbers = a different program):
-// sphereFX (0.05, 0.32), markerFX (0.1, 0.5), reachGhostFX (0.02, 0.16, 1.1).
+// sphereFX (0.05, 0.32), markerFX (0.1, 0.5), reachGhostFX (0.01, 0.08, 1.1 — halved 2026-08-30).
 (function fxProgramAnchors(){
   const g = new THREE.Group();
   const tiny = new THREE.SphereGeometry(0.001, 4, 3);
   [ fresnelGhostMat(0xffffff, 0.05, 0.32),      // (spare: the variant of the deleted sphereFX; do NOT touch the array — shader warm-up)
     fresnelGhostMat(0xffffff, 0.1, 0.5),        // markerFX
-    fresnelGhostMat(0xffffff, 0.02, 0.16, 1.1), // reachGhostFX (the tap/hint halo)
+    fresnelGhostMat(0xffffff, 0.01, 0.08, 1.1), // reachGhostFX (the tap/hint halo)
   ].forEach(m => { m.uniforms.op.value = 0; g.add(new THREE.Mesh(tiny, m)); });
   g.add(new THREE.Mesh(tiny, new THREE.MeshBasicMaterial({ transparent:true, opacity:0 }))); // popFX/boltFX
   const pg = new THREE.BufferGeometry(); // dustCloud: Points + vertexColors

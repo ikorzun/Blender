@@ -228,7 +228,7 @@ function doMatch(list){
                       fxColor: list[0].fxColor, baseColor: list[0].baseColor };
   collapseFX(list, boomAt);
   // the match-hit flash (the owner's word 2026-08-30, flashyfeather vol2 — 37-hitfx/70-fx)
-  spawnHitFx(boomAt, list[0].r);
+  spawnHitFx(boomAt, list[0].r, list[0].type && list[0].type.name);
   if (burst){ const _tw0 = performance.now(); blastWave(boomAt, BURST_WAVE_R, BURST_WAVE_V);
     tapWaveMs += performance.now() - _tw0; }
   // the number is the denominated gain of the chip (#10: «clear while it happens»);
@@ -912,7 +912,14 @@ function reachGhostFX(item, color){
   const bb = geo.boundingBox, s = item.mesh.scale.x;
   const R = Math.min(CFG.matchRadius, 3.6); // in a chain/endgame no bigger than the bowl
   // the airy variant (the owner's spec): three times more transparent, the edge soft and wide
-  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.02, 0.16, 1.1));
+  // ⚠️ 0.02/0.16 -> 0.01/0.08 (the owner 2026-08-30: «uvelich prozrachnost u konturov obyektov
+  // posle sovmeshcheniya»). Both halved so the SHAPE of the falloff is unchanged — only its
+  // strength; changing the ratio would have altered how the edge reads, which he did not ask for.
+  // ⛔⛔ THE ANCHOR IN 70-fx MOVES WITH THESE NUMBERS, ALWAYS. They are baked into the shader
+  // TEXT, so a different pair is a different PROGRAM: leaving the anchor behind would let the
+  // program die with the last ghost and recompile inside the frame of the next tap — the exact
+  // hitch fxProgramAnchors exists to prevent, and it would show up on weak devices only.
+  const ghost = new THREE.Mesh(geo.clone(), fresnelGhostMat(color, 0.01, 0.08, 1.1));
   ghost.position.copy(item.mesh.position);
   ghost.quaternion.copy(item.mesh.quaternion);
   ghost.scale.set(

@@ -3474,7 +3474,14 @@
      IS BOUNDED from above (max-width), otherwise it would override the 4 bento columns at ≥1080.
      ⚠️ The old narrow desktop 700–900 with a SIDE layout IS DELETED: <1080 is
      the STACKED column (the .ms-wrap base + the order), side by side only ≥1080. */
-  @media (min-width:800px) and (max-width:1079px){ .ms-grid { grid-template-columns:repeat(3, 1fr); } }
+  /* ⛔ REVIEW FINDING 19, SETTLED BY THE OWNER 2026-08-30: «na aypade sdelay tozhe 4». This
+     band was THREE columns while the phone above 421 px already showed FOUR — a wider window
+     giving fewer cards, and one extra row of scrolling on an iPad held upright. The ladder now
+     reads 2 / 3 / 4 / 4 / 4 / 5 and is monotonic across every width for the first time.
+     ⚠️ The range stays BOUNDED from above: without max-width it would override the ≥1080 bento
+     rule below, which happens to be the same 4 today — and would stop being harmless the moment
+     either number moves. */
+  @media (min-width:800px) and (max-width:1079px){ .ms-grid { grid-template-columns:repeat(4, 1fr); } }
   /* ⚠️ THE FIFTH COLUMN FROM 1300 (the owner's spec 2026-07-29 «after 1300 a 5th
      column of things needs to be added on the right»). It goes AFTER the bento block: the rules have
      identical specificity (0,1,0), the argument is decided by the order in the file — above
