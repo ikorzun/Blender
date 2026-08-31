@@ -608,6 +608,10 @@ const ACC_LABELS = {
   // «Cooked fish» — without this line the museum would show two cards called «Fish».
   // «Raw» is the dispatcher's default and was named to the owner; one string to change.
   survivalfish: 'Raw fish',
+  // the props pack: only the two multi-word stems need an entry — «book», «hat»,
+  // «soup», «cart», «ghost», «plunger», «matchbox», «dumbbell», «lifebuoy» and
+  // «volleyball» all strip to a real word once `props` is in the prefix list below.
+  propstoiletpaper: 'Toilet paper', propswaterbottle: 'Water bottle',
   // the owner's batch of 2026-08-28: only the ones whose stem does not read on its own
   // (basketball / volleyball / fries strip cleanly)
   sporttennisball: 'Tennis ball', sportsoccerball: 'Football',
@@ -662,7 +666,7 @@ function accLabel(key){
   // below also get a real ACC_LABELS entry — stripping alone still leaves «Vehiclemonstertruck».
   // ⚠️ Longest first: `toycar` must win over `car`, `forest`/`factory` over `food`. With `^` they
   // cannot actually collide today, but the order costs nothing and survives a new pack.
-  const short = k.replace(/^(survival|factory|holiday|toycar|animal|pirate|forest|brick|sport|food|car)/, '');
+  const short = k.replace(/^(survival|factory|holiday|toycar|animal|pirate|forest|brick|props|sport|food|car)/, '');
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 // TYPE UNLOCKING BY PROGRESSION (the contract for GRAPHICS — a 3D portrait only

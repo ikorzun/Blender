@@ -698,9 +698,16 @@ function genLevel(){
   // typesCount <= pairsCnt, ALL the unlocked types are taken) — this was verified
   // in both.
   // ⚠️ CONSEQUENCE FOR THE TESTS: on high levels the composition of the pile is
-  // NON-DETERMINISTIC. An assert «type X is in the pile on level Y» with Y > 82 must
-  // collect the UNION over several regens — a single regen flakes with a
-  // probability of ~26%.
+  // NON-DETERMINISTIC. An assert «type X is in the pile on level Y» must collect the
+  // UNION over several regens once `typesCount > pairsCnt` — a single regen flakes.
+  // ⚠️⚠️ THE BOUNDARY IS DERIVED, NOT A LITERAL, AND IT MOVES WITH THE POOL. It is the
+  // level where typesCount (level + LEVEL_TYPES_MIN - 1) first exceeds the pairs ceiling
+  // of 90 — i.e. `TYPES.length > 90` is what makes the branch reachable at all.
+  // ⛔ THE «82» THAT STOOD HERE WAS THE VALUE FOR A POOL OF 120 and had been dead since
+  // the pool was cut to 87 (2026-08-20): with 87 types the branch was UNREACHABLE and the
+  // sampling only shuffled the ORDER. The props pack took the pool to 99 on 2026-08-31,
+  // so it is live again — from level 89, and every future edit of TYPES moves that number.
+  // Recompute it, never quote it.
   // ⚠️⚠️ THE SELECTION OF THE LEVEL'S TYPES (the owner's spec 2026-07-30 «change
   // the type-selection line so that everything comes alive»). IT WAS:
   // `type: i % typesCount` — a circular walk FROM ZERO, so with pairsCnt=90 ONLY

@@ -1,7 +1,8 @@
 # Sound inventory — every sound in the game, and every place there isn't one
 
-The owner's order 2026-08-31: «сделай мне таблицу всех звуков в игре, включая ui кнопки.
-Хочу понять каких звуков еще нехватает и какие заменить».
+The owner's order 2026-08-31: «sdelay mne tablitsu vsekh zvukov v igre, vklyuchaya ui
+knopki. Khochu ponyat kakikh zvukov eshche nekhvataet i kakie zamenit» — a table of every
+sound in the game, UI buttons included, so he can see what is missing and what to replace.
 
 Method: a four-lens sweep of `src/` (interactive controls, game events, material voices,
 sample provenance), each lens then handed to an adversarial verifier whose job was to REFUTE
@@ -21,7 +22,7 @@ Nothing here is inferred from memory — every row carries a `file:line`.
      if (e.target && e.target.closest && e.target.closest('button')) Sound.play('ui');
    }, true);
    ```
-   ⚠️⚠️ **THIS SINGLE LINE IS THE ANSWER TO «КАКИЕ ЗАМЕНИТЬ».** It means the interface has
+   ⚠️⚠️ **THIS SINGLE LINE IS THE ANSWER TO HIS «WHAT TO REPLACE».** It means the interface has
    exactly ONE sound and no vocabulary at all: confirm, cancel, refuse, buy and close are the
    same 93 ms click. It also means the rule for whether a control speaks is not «is it a
    control» but **«is it a `<button>`»** — and several of the most-pressed controls in the

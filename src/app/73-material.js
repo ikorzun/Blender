@@ -126,6 +126,28 @@ const MATERIAL_OF = {
   piratedoor: 'wood',
   piratepalm: 'wood',
   piratetower: 'metal',
+  // ⚠️ THE PROPS PACK 2026-08-31. Two of these carry a voice that was starving:
+  //   waterbottle -> glass — the FIRST live carrier since `survivalbottle` left the pool.
+  //     The owner's own glass.wav has been shipped and inaudible ever since; it now plays.
+  //     ⚠️ The canon's standing order applies: «once a glass object appears — bring the
+  //     glass check back too». Done in test.js with this batch.
+  //   toiletpaper + book -> paper — the voice had ONE live carrier and was one delisting
+  //     from glass's fate; it now has three.
+  // ⚠️ THE CONTAINER DOES NOT DECIDE, THE SUBJECT DOES (the `foodchinese` precedent: a paper
+  //   carton of fried food is voiced `dough`). Hence soup -> juicy (the liquid), not `metal`
+  //   for the cast-iron pot it sits in.
+  propsbook: 'paper',
+  propscart: 'wood',
+  propsdumbbell: 'metal',
+  propsghost: 'plush',
+  propshat: 'plush',
+  propslifebuoy: 'plastic',
+  propsmatchbox: 'wood',
+  propsplunger: 'plastic',
+  propssoup: 'juicy',
+  propstoiletpaper: 'paper',
+  propsvolleyball: 'plastic',
+  propswaterbottle: 'glass',
   sportbasketball: 'plastic',
   sportfries: 'dough',
   sportgolfball: 'plastic',

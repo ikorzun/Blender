@@ -14508,15 +14508,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const mat = await mp.evaluate(() => {
       const g = window.__game; const without = []; let total = 0;
       for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break; total++; if (!g.materialOf(n)) without.push(n); }
+      // ⚠️ CARRIERS PER VOICE, not a named example: a voice with a sample and ZERO
+      // carriers is a recording of the owner's that ships and never plays — exactly
+      // what `glass` was for sixteen days. The census survives a rename of any item.
+      const carriers = {};
+      for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break;
+        const v = g.materialOf(n); if (v) carriers[v] = (carriers[v] || 0) + 1; }
       return { total, withoutVoice:without.slice(0, 8), missing:without.length, voices:g.sfxVoices(),
+        carriers,
         // ⚠️ THE SAMPLES WERE REPLACED 2026-08-15 (the batch of deletions of 32 types): the metal was
         // `piratecannon`, the glass — `survivalbottle`, both are cut out of the pool.
-        // The metal is taken from a live neighbour. ⛔ THERE IS NOTHING LEFT TO CHECK THE GLASS ON:
-        // `survivalbottle` was the ONLY carrier of this voice, and now
-        // the voice is alive, while it has no items. The assert is removed, and not substituted
-        // (the canon: «a guard dies together with its mechanic»); let a glass
-        // item come back — the check will come back too. The owner has been told.
+        // The metal is taken from a live neighbour.
+        // ✅ THE GLASS CHECK IS BACK 2026-08-31, exactly as the canon ordered when it was
+        // removed («let a glass item come back — the check will come back too»): the props
+        // pack brought `propswaterbottle`, the first carrier of the voice since
+        // `survivalbottle` left the pool. The owner's glass.wav has shipped and been
+        // inaudible all that time; it plays again.
         fruit:g.materialOf('foodapple'), metal:g.materialOf('carambulance'),
+        glass:g.materialOf('propswaterbottle'),
         alien:g.materialOf('noSuchType') };
     });
     await mp.close();
@@ -14541,6 +14550,18 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // «voiced», otherwise it will go green on a build without a single sound.
     expect(['juicy','metal','glass','plastic','plush'].every(v => mat.voices.indexOf(v) >= 0),
       'MATERIALS: the recordings of the owner are in the build — fruits, metal, glass (' + mat.voices.join(', ') + ')');
+    // ⚠️⚠️ AND THE OTHER HALF, WHICH THE «the sample is in the build» ASSERT ABOVE CANNOT MAKE:
+    // a decoded sample with NO CARRIER never reaches a player's ears. `glass` shipped in
+    // exactly that state from 2026-08-15 until this batch — 64.5 KB of the owner's own
+    // recording, zero playbacks per session. The assert states the CARRIER COUNT, so a future
+    // delisting of the last glass item goes red here instead of going quiet in the game.
+    // ⛔ Do not weaken this to «the voice exists»: that is the very form that stayed green
+    // through those sixteen days.
+    expect(mat.glass === 'glass' && (mat.carriers.glass || 0) > 0,
+      '⚠️ MATERIALS: every RECORDED voice has a live carrier — glass ' +
+      (mat.carriers.glass || 0) + ', juicy ' + (mat.carriers.juicy || 0) + ', metal ' +
+      (mat.carriers.metal || 0) + ', plastic ' + (mat.carriers.plastic || 0) + ', plush ' +
+      (mat.carriers.plush || 0) + ' (propswaterbottle -> ' + mat.glass + ')');
   }
 
   // ===== SOUND VARIETY — ONLY FOR THE OWNER'S THREE RECORDINGS =====

@@ -52,9 +52,43 @@ enough and the LOD machinery is unnecessary for it. A second detailed version (<
 OPTION for the card only — deliver as `<name>-hi.glb`, wiring is the dispatcher's job, not the
 artist's.
 
-## The six to redo (current state)
+## Batch state (last updated 2026-08-31)
 
-soccer-ball 5580, golf-ball 4416 (modelled as a baseball — see the standing discrepancy),
-fries 1748, tennis-ball 1344, basketball 1180, volleyball 1008. The dynamite (804) is fine
-as is. Machine-decimated LODs shipped 2026-08-29 as a stopgap; the owner judged them not good
-enough, hence this contract.
+The artist delivered 22 .glb on 2026-08-31. **Export hygiene was perfect across all 22** —
+triangles-only, NORMAL on every primitive, TEXCOORD_0 everywhere, zero degenerate normals,
+no animations or skins, every file sampling the animals' palette. The contract is understood;
+the ONLY failing axis is the triangle budget.
+
+⚠️ Two of the 22 were byte-identical to files already on disk (`Dinamit` = the shipped
+dynamite, `Kartoshka fri` = the 1748-tri fries — the artist's own Russian filenames,
+transliterated here because the repo carries no Cyrillic that was REMOVED for weight) — i.e. copies, not
+redos. Verified by md5, not by name.
+
+**ACCEPTED AND SHIPPED (12, all <= the 1500 ceiling)** — pack `props`, module `41-props.js`,
+levels 6/9/12/15/18/21/24/27/30/33/36/39 by the owner's word, lightest first:
+toiletpaper 200, dumbbell 300, waterbottle 320, book 332, hat 536, plunger 574, matchbox 716,
+soup 918, volleyball 1008, cart 1112, ghost 1140, lifebuoy 1440.
+⚠️ Five of those (soup, volleyball, cart, ghost, lifebuoy) are ABOVE the 800 norm though under
+the ceiling. They passed; the norm is still the aim for the next batch.
+
+**RETURNED FOR REWORK (8 subjects, 9 files, all over the 1500 ceiling):**
+
+| model | tris | over ceiling | note |
+|---|---|---|---|
+| fire extinguisher | 7504 | 5.0x | the heaviest model ever offered to this pool |
+| fire extinguisher (low mesh) | 2756 | 1.8x | the artist's own lighter cut — still not enough |
+| axe | 2902 | 1.9x | |
+| basketball | 2840 | 1.9x | ⛔ **HEAVIER than the 1180 it was meant to replace** |
+| grenade | 2166 | 1.4x | |
+| football | 2156 | 1.4x | improved from 5580, still over |
+| ship | 1987 | 1.3x | |
+| fries | 1748 | 1.2x | byte-identical to the removed original — not a redo |
+| robot | 1624 | 1.1x | 8% over; the line is held, flexing is how a ceiling dies |
+
+⛔ **STILL OWED FROM THE ORIGINAL SIX:** tennis-ball (1344) and golf-ball (4416, modelled as a
+baseball — the standing discrepancy) did not arrive at all; volleyball arrived at exactly the
+same 1008 as before.
+
+⚠️ **BALLS ARE FINE ON SPHERICITY** and that was measured rather than assumed: the shipped
+baseline was 0.939-0.959 (rmin/rmax), the new balls are 0.965-1.000. The `phys:'ball'` flag is
+safe on them. Sphericity was never the problem — polygons are.

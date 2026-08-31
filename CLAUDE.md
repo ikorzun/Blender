@@ -12283,3 +12283,129 @@ Of those 121 pt exactly **24 are reclaimable** (`.ms-float` sits at `bottom:8px`
 carries a 132 px tail padding that exists so the last card clears the pill); the other 97 belong
 to Safari. NO CODE WAS CHANGED — the mechanism is already correct and the reclaimable 24 pt is a
 taste call that is the owner's, not mine.
+
+## BATCH 2026-08-31-b: THE PROPS PACK — 12 MODELS IN, 8 SUBJECTS RETURNED
+
+The owner: «prover modeli ot 3d, esli podkhodyat, to pereimenuy i zakin v igru, esli net,
+napishi tablitsu chto ispravit». Placement answered in one line when asked: «Kak v proshlyy
+raz: s 6-go, kazhdye 3 urovnya» — i.e. levels 6/9/12/15/18/21/24/27/30/33/36/39.
+
+22 files arrived. **12 accepted and imported as a new pack `props`; 8 subjects (9 files)
+returned with a per-model table.** ⛔ The rework table lives in `docs/MODEL-BUDGET.md` and the
+remakes re-enter through it — it is NOT restated here, because a state paragraph in this file
+goes stale silently while the doc is the thing the artist and I both edit.
+
+### THE EXPORT HYGIENE WAS PERFECT ON ALL 22 — TRIANGLES WERE THE ONLY FAILING AXIS
+
+Measured through `glb2module.py`'s own `convert()`, not from raw POSITION.
+⚠️⚠️ **AND THAT DISTINCTION COST ME A WRONG TABLE FIRST.** My first elongation numbers were
+computed from the raw POSITION arrays, while **7 of the 22 files carry a non-uniform node
+scale** — the dumbbell read 26.69 against its true 1.73. A model's numbers are what the
+GENERATOR produces after applying node transforms; any measurement upstream of that is
+measuring the file, not the model. Re-run through `convert()` and the table changed character
+completely: the returns are a triangle-budget conversation, not a geometry one.
+
+### THE ATLAS DICTATED THE PACK, AGAIN
+
+⚠️ All 12 paint with the **animals'** `colormap.png` (md5 `f9a72b72…`, verified 2026-08-31 by
+extracting from the glb buffers and comparing against every pack atlas on disk) — the same fact
+that dictated the sport pack on 2026-08-28. So `41-props.js` **aliases** rather than embedding a
+second identical base64:
+`MODEL_ATLASES['props'] = MODEL_ATLASES['animal'];`
+⛔ **ORDER-DEPENDENT: 36-models must run first.** Renumber 41 below 36 and the alias is
+`undefined` — and the failure is NOT a throw: it is `modelColormap`'s white 1×1 stub, i.e. the
+3174 B transparent portrait that settles in `thumbCache` forever (the 2026-07-30 defect).
+✅ **IT IS ALREADY GUARDED, AND THAT WAS CHECKED RATHER THAN ASSUMED:** the PORTRAITS assert
+walks the WHOLE `#msGrid` (a `TYPES.map`, so all 99 cards including the 12 props) and requires
+`bad === 0` at a 5000-char threshold, naming the offenders. A broken alias goes red by name.
+⚠️ The two documented post-generation steps were re-applied and MUST be re-applied on every
+regen: the alias, and the removal of the duplicate `const MODEL_ATLASES` / `const _atlasTex`
+that would kill the IIFE.
+
+### THE INDEX→LEVEL TABLE WAS PRINTED, NOT DERIVED IN THE HEAD
+
+`typesCount = LEVEL_TYPES_MIN + (level−1) = level + 2`, index `i` is open while `i < typesCount`
+⇒ **index = level + 1**. Indices 7/10/13/16/19/22/25/28/31/34/37/40.
+⚠️ The 2026-08-28 batch got this inverse formula off by two and the diff looked correct. The
+table was printed and compared against his six numbers again. **Print it every time these move.**
+⚠️ THE PRICE OF INSERTING INTO THE MIDDLE, the same as last time: every pre-existing type after
+index 7 is pushed 1..12 levels later, and the whole pool now opens at ~98 instead of ~86. The
+order of TYPES is the difficulty lever and this placement is his.
+
+### PHYSICS: TWO FLAGS, AND ONE AUTO-DETECTOR THAT PICKED THE WRONG PLANE
+
+- `propsvolleyball` → `phys:'ball'` (an exact enclosing sphere). Without it a sphere takes the
+  convex-hull default over every vertex AND the 1.2 box damping — Rapier has no rolling
+  friction, so the pile would never sleep. The 2026-08-28 precedent, applied on sight.
+- `propslifebuoy` → `phys:'ring'`. `ringFromGeometry` derives the plane, radii and tube from the
+  vertices; measured ratio and tube clear the `>= 0.25` / `> 0.12·R` safeguards.
+- ⛔ **`propstoiletpaper` IS A HULL AND THAT IS DELIBERATE.** It is visibly a ring, and
+  `ringFromGeometry`'s auto-detection picks the plane by the largest rmin/rmax ratio — on this
+  model that lands on **Y**, while the real hole runs along **Z**. A ring built in the wrong
+  plane is the 2026-07 trap that welded items into a visible ring. The flag is left off; the
+  hull is honest. ⚠️ Do not "fix" this by setting `phys:'ring'` on sight of the shape — the
+  plane is decided by MEASUREMENT, and here the measurement says the detector is wrong.
+
+### THE MATERIAL VOICES — AND `glass` FINALLY HAS A CARRIER
+
+12 entries added to `MATERIAL_OF`, because the suite enforces that a type IN TYPES has one
+(the 2026-08-28 red). Three of them are decisions rather than lookups:
+- `propswaterbottle` → **`glass`** — ⚡ **the first live carrier since `survivalbottle` was cut
+  on 2026-08-15.** The owner's `glass.wav` has been shipping in the bundle, costing 64.5 KB, and
+  literally nobody could hear it (`docs/SOUND-INVENTORY.md`). It now plays.
+- `propstoiletpaper`, `propsbook` → `paper` — which had exactly one live carrier and was one
+  delisting from `glass`'s fate.
+- `propssoup` → `juicy`, by the **`foodchinese` precedent**: a container of food is voiced by
+  the food, not by the container. ⛔ Do not "correct" it to `metal` for the tin.
+
+⚠️⚠️ **THE GLASS GUARD CAME BACK AS A CENSUS, NOT AS A NAMED EXAMPLE.** The 2026-08-15 note
+said "once a glass object appears — bring the check back too". Bringing back
+`expect(MATERIAL_OF.survivalbottle === 'glass')` would have pinned THIS batch's accident. What
+was written instead: **every voice that has a recorded sample must have at least one live
+carrier**, counted over TYPES. That statement is what the owner's 64.5 KB actually buys, it
+would have gone red for the fifteen days the voice was orphaned, and it survives any future
+re-shuffling of which type carries which voice.
+
+### TWO SMALL DEFECTS FIXED IN PASSING, BOTH PRE-EXISTING
+
+- `accLabel`: the `props` prefix added to the strip regex (longest-first) plus real
+  `ACC_LABELS` entries for `propstoiletpaper` / `propswaterbottle` — stripping alone leaves
+  "Toiletpaper". All 99 labels computed: 99 distinct, zero glued prefixes, zero collisions.
+- ⛔ **A DEAD LITERAL IN `40-items.js` THAT WOULD HAVE BECOME A LIE.** The genLevel sampling
+  comment said the non-determinism boundary is level 82. That was the value for a pool of 120
+  and had been dead since the pool was cut to 87 — with 87 types the branch is UNREACHABLE
+  (`min(typesCount, pairsCnt)` maxes at 87 < 90). **The props pack takes the pool to 99, so the
+  Fisher-Yates sampling is LIVE again from level 89.** The comment now derives the boundary
+  instead of quoting it, and says every future edit of TYPES moves that number.
+
+### THE PERF A/B — THE FRAME IS THE VERDICT, AND THE STEP IS NOT CORROBORATED
+
+The 2026-08-29 law: a batch that adds models owes BOTH numbers. Ruler: headless Chromium on the
+GPU (`--use-angle=metal`), CPU ×4, 390×844, **3 reps per arm, medians**, the arms differing only
+in this batch.
+
+| | lv20 (5 props types) | lv39 (all 12) |
+|---|---|---|
+| frame p95 | 33.6 → **33.8** (34/33.6/33.3 vs 33.8/33.8/34.6) | 33.8 → **36.9** (+3.1 ms) |
+| physics step p95 | 25.2 → 33.1 | 28.5 → 33.4 |
+| bodies / alive | 182 / 181, identical | 182 / 181, identical |
+| scene triangles | +4.3K on 97K (+4.4%) | +8.4K on 108K (+7.8%) |
+
+**The +3.1 ms at lv39 is real and it tracks triangles**, the same relationship the sport batch
+showed — and it is an eighth of that batch's cost (which reached +7.8 ms at lv12 on +30K tris
+and was rejected). Props median 716 tris against the pool's 424; max 1440, i.e. below the pool's
+own p90 of 2044 and less than half its max (`cargarbagetruck`, 3100).
+
+⚠️⚠️ **THE lv20 STEP NUMBER IS NOT CLOSED AS "NOISE" — IT IS CLOSED AS "IT DID NOT REACH THE
+PLAYER", AND THAT WORDING IS THE POINT.** The medians moved 25.2 → 33.1 and the arms barely
+overlap (31.4 vs 31.1). What says ship: the frame p95 at lv20 is FLAT across three tight reps on
+both arms, the bodies are identical, and the five types live at lv20 are the LIGHTEST of the
+batch and all plain hulls. What says be careful: that same step metric has a within-arm spread
+of **14.6 ms** at lv39-old (37.5/22.9/28.5) — larger than any delta it is being asked to
+certify, which is the canon's own "the metric's margin is larger than the alarm threshold"
+condition. **If the owner ever reports lag specifically at lv20, the step measure is the first
+place to re-look, and a rep count of three is not enough to settle it.**
+
+**THE PRICE, BY THE ZIP:** `index.html` 11 454 202 → **11 961 831 B**; the portal package
+5.32 → **5.41 MB**, headroom to the 8 MB reference **2.59 MB**. Geometry is text and compresses
+~5.6×: 508 KB raw became 0.09 MB in the package.

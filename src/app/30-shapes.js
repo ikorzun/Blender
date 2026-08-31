@@ -131,10 +131,13 @@ const TYPES = [
 // ⚠️ MATERIAL_OF / ACC_LABELS keep their sport entries: harmless without the types, needed again
 // with the remakes. Orphan sport rows in players' saves are inert — the collection is built
 // from TYPES.map, unknown save keys are simply never displayed.
+  { name:'propstoiletpaper', color:0xe8e8f2, rc:1.0, tex:'props', mat:'soft', geo:propstoiletpaperGeo },
   { name:'brickround', color:0x35b8e0, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickroundGeo },
   { name:'piratebarrel', color:0xea9168, rc:1.0, tex:'pirate', mat:'soft', geo:piratebarrelGeo },
+  { name:'propsdumbbell', color:0x3f3f46, rc:1.0, tex:'props', mat:'soft', geo:propsdumbbellGeo },
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
+  { name:'propswaterbottle', color:0x6794d9, rc:1.0, wr:0.33, tex:'props', mat:'soft', geo:propswaterbottleGeo },
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
   // ===== THE KENNEY BATCH 2026-07-30: 28 items from 7 kits (the 38-kenney.js module,
   // separate from 36-models — see WORKSTREAMS, and there too why 36-models was NOT regenerated).
@@ -144,18 +147,25 @@ const TYPES = [
   // color paints NOT the model (the atlas paints that) but the DEBRIS on decay — picked by
   // the item's dominant tone. wr is there where the converter marked a flat shape.
   { name:'animalpenguin',         color:0x3a4048, rc:1.0, tex:'animal', mat:'soft', geo:animalpenguinGeo },
+  { name:'propsbook', color:0x5c68c5, rc:1.0, wr:0.78, tex:'props', mat:'soft', geo:propsbookGeo },
   { name:'animalcaterpillar',     color:0x5ac44a, rc:1.0, tex:'animal', mat:'soft', geo:animalcaterpillarGeo },
   { name:'animalfish',            color:0xff8c3a, rc:1.0, tex:'animal', mat:'soft', geo:animalfishGeo },
+  { name:'propshat', color:0x6078cc, rc:1.0, tex:'props', mat:'soft', geo:propshatGeo },
   { name:'holidaygingerbreadman', color:0xc08a50, rc:1.0, wr:0.83, tex:'holiday', mat:'soft', geo:holidaygingerbreadmanGeo },
   { name:'cartaxi',               color:0xffc21a, rc:1.4, tex:'car', mat:'soft', geo:()=>cartaxiGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propsplunger', color:0xcf534f, rc:1.0, tex:'props', mat:'soft', geo:propsplungerGeo },
   { name:'brickbar', color:0xe8433a, rc:1.0, wr:0.98, tex:'brick', paint:1, mat:'soft', geo:brickbarGeo },
   { name:'piratepalm', color:0xc87551, rc:1.0, tex:'pirate', mat:'soft', geo:piratepalmGeo },
+  { name:'propsmatchbox', color:0xcd8962, rc:1.0, wr:0.86, tex:'props', mat:'soft', geo:propsmatchboxGeo },
   { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },
   { name:'foodeggplant',          color:0x7a4a9e, rc:1.0, tex:'food', mat:'soft', geo:foodeggplantGeo },
+  { name:'propssoup', color:0x38383d, rc:1.0, tex:'props', mat:'soft', geo:propssoupGeo },
   { name:'foodlemon',             color:0xffe83a, rc:1.0, tex:'food', mat:'soft', geo:foodlemonGeo },
   { name:'holidaynutcracker', color:0xd6483f, rc:1.0, wr:0.49, tex:'holiday', mat:'soft', geo:holidaynutcrackerGeo },
+  { name:'propsvolleyball', color:0x595ec0, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsvolleyballGeo },
   { name:'animalelephant',        color:0x9aa6b4, rc:1.0, tex:'animal', mat:'soft', geo:animalelephantGeo },
   { name:'animalpolar',           color:0xe8eef4, rc:1.0, tex:'animal', mat:'soft', geo:animalpolarGeo },
+  { name:'propscart', color:0x4f5260, rc:1.0, tex:'props', mat:'soft', geo:propscartGeo },
   { name:'animaltiger',           color:0xff8a2b, rc:1.0, tex:'animal', mat:'soft', geo:animaltigerGeo },
   // ⚠️ THE FISH WAS ADDED BY THE OWNER'S DIRECT REQUEST 2026-07-30 («add a fish,
   // there are too few objects»). I was warding it off as a risk of confusion with the golden
@@ -163,8 +173,10 @@ const TYPES = [
   // its own golden emissive material (MeshStandard even in matcap mode),
   // while this one comes with the survival atlas — the tone and the gloss are different.
   { name:'survivalfish', color:0x7fa8c4, rc:1.0, wr:0.89, tex:'survival', mat:'soft', geo:survivalfishGeo },
+  { name:'propsghost', color:0xc8c8dc, rc:1.0, tex:'props', mat:'soft', geo:propsghostGeo },
   { name:'carfiretruck',          color:0xe03a2e, rc:1.4, tex:'car', mat:'soft', geo:()=>carfiretruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'holidaypresentacube', color:0xe0574f, rc:1.0, tex:'holiday', mat:'soft', geo:holidaypresentacubeGeo },
+  { name:'propslifebuoy', color:0xff7844, rc:1.0, tex:'props', mat:'soft', phys:'ring', geo:propslifebuoyGeo },
   { name:'foodtomato',            color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodtomatoGeo },
   { name:'foodcarrot',            color:0xff8c2b, rc:1.0, tex:'food', mat:'soft', geo:foodcarrotGeo },
   { name:'foodpineapple',         color:0xf0c040, rc:1.0, tex:'food', mat:'soft', geo:foodpineappleGeo },
