@@ -24,6 +24,9 @@ avatars/_orig-p/
 tools/lb-seed-bots.keys.json
 
 # ⚠️ The itch.io hit-animations SOURCE pack (flashyfeather, hit-animations-vol2): 33 MB of
-# 4096px sheets. The game embeds a REPACKED 128px subset (src/app/37-hitfx.js); the raw pack
-# must not enter the public repo — the licence covers use in a game, not asset redistribution.
+# 4096px sheets. The game embeds a REPACKED subset built by tools/hitfx-pack.py into
+# src/app/37-hitfx.js — today eight effects at 192 px (the size and the list are the tool's
+# arguments and have already changed twice; read the tool, not this line, for the live numbers).
+# The raw pack must not enter the public repo — the licence covers use in a game, not the
+# redistribution of the assets.
 Hits2 Animations/
