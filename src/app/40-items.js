@@ -792,6 +792,15 @@ function genLevel(){
       const th = Math.random() * Math.PI * 2, d = Math.random() * 1.8;
       const spawn = new THREE.Vector3(Math.cos(th) * d, FUNNEL.H + 1.6 + 0.5, Math.sin(th) * d);
       items.push(makeSurprise(spawn));
+      // The treasure announces itself (the owner 2026-08-31). The flash is fired AT THE SPAWN
+      // POINT, i.e. above the rim while the pile is still pouring in — that is the one moment
+      // the golden fish is in the open, before it goes deep and has to be dug out.
+      // ⚠️ `spawnHitFx` is a function DECLARATION in 70-fx, so it hoists across the shared IIFE
+      // and is callable from 40-items even though that module is concatenated earlier. The
+      // constant is not: `HITFX_SPAWN` is a `const`, and it is READ AT CALL TIME (genLevel runs
+      // long after every module has initialised), which is why this is safe and a top-level
+      // read here would not be.
+      spawnHitFx(spawn, 1.6, null, HITFX_SPAWN);
     }
 
   // ═══ THE FROZEN ICE BLOCKS (the owner's spec 2026-08-13; the constants are in

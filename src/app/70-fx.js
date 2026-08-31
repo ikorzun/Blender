@@ -160,6 +160,16 @@ const HITFX_BY_MATERIAL = { metal:3, glass:3, plastic:0, wood:0, juicy:1, meat:2
 // the one effect that belongs to an ELECTRIC event rather than to a material. It is deliberately
 // APPENDED to the packer's argument list so every material index above stays put.
 const HITFX_BOLT = 7;
+// ⚠️ INDEX 2 = effect 12, the golden starburst-with-a-ring. It marks an ARRIVAL, not a hit:
+// the treasure being thrown into the bowl (40-items) and the New Object screen (85-hud). The
+// owner 2026-08-31 asked for ONE of the existing effects on both, and the whole point is that
+// it is one of the existing ones: the sheet is already in the bundle and already resident, so
+// both uses cost 0 B of download and 0 MB of VRAM. Adding a ninth effect would have cost
+// ~94 KB gzipped and 3.4 MB of VRAM — measured, see the canon batch of this date.
+// ⚠️ IT IS ALSO `meat`'s MATCH FLASH (the table above). That is not a clash: nothing reads the
+// index back, and a treasure is not a match — but if the material table is ever repacked, this
+// constant moves with it, exactly like HITFX_BOLT.
+const HITFX_SPAWN = 2;
 function spawnHitFx(pos, r, typeName, forceIdx){
   if (CFG.fxScale < 1 || typeof HITFX_SET === 'undefined' || !HITFX_SET.length) return;
   let idx = (forceIdx != null && forceIdx >= 0 && forceIdx < HITFX_SET.length) ? forceIdx : -1;
