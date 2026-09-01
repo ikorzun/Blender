@@ -1,3 +1,10 @@
+⛔⛔ **PARTLY SUPERSEDED 2026-09-01-l — `Audio/` IS NOW THE LIVE INVENTORY.** The folder holds one
+file per sound in four named categories, its `README.txt` is regenerated from the same table the
+packer uses, and `python3 tools/sfx-pack.py` prints the current format, size and heard-loudness of
+every one of them on every run. Read THAT for the state; read this document for the REASONING and
+for the open questions, which are unchanged. Any path of the form `Audio/things/…`,
+`Audio/ui-audio/…` or `Audio/digital-audio/…` in the text below is historical.
+
 # Sound inventory — every sound in the game, and every place there isn't one
 
 ⛔⛔ **THIS DOCUMENT IS A SNAPSHOT OF 2026-08-31 AND ITS THREE HEADLINE NUMBERS ARE NOW FALSE.**
@@ -70,7 +77,7 @@ Nothing here is inferred from memory — every row carries a `file:line`.
 
 | key | format | source file | length | peak | trim |
 |---|---|---|---|---|---|
-| `ui` | m4a | `Audio/ui-audio/click1.ogg` | 0.093 s | −1.33 dB | 1.0 |
+| `ui` | mp3 | `Audio/1-interface/button-tap.mp3` | | | 0.918 |
 | `grind1` | m4a | Kenney pack | 1.452 s | −1.84 dB | 1.0 |
 | `grind2` | m4a | Kenney pack | 1.475 s | −0.90 dB | 1.0 |
 | `grind3` | m4a | Kenney pack | 1.536 s | −0.64 dB | 1.0 |
@@ -103,7 +110,7 @@ recording; the other five fall through to the procedural arpeggio.
 | `cream` | ❌ | 3 | procedural |
 
 ⛔⛔ **`mat_glass` IS A RECORDING THE OWNER MADE, SHIPPED IN THE BUNDLE, AND NOBODY WILL EVER
-HEAR IT.** `Audio/things/glass.wav` (49 538 B) is byte-identical to the embedded sample; it
+HEAR IT.** `Audio/3-objects/material-glass.wav` (49 538 B) is byte-identical to the embedded sample; it
 costs 66 052 base64 characters (~64.5 KB) in `74-sfx-data.js:74`. The glass voice has exactly
 one carrier and it is not in the live pool. ⚠️ `paper` is ONE delisting from the same fate —
 it has one live carrier left.
@@ -153,7 +160,7 @@ not that size.
 
 1. **Five material recordings** — `wood`, `dough`, `meat`, `paper`, `cream`. 33 item types
    stop sounding synthetic. Same form as the ones he already sent: a short WAV per material,
-   `Audio/things/`, name it after the VOICE and not the item (that rule has already saved 26
+   `Audio/3-objects/`, under the name the folder already shows for it (that rule has saved 26
    types once — `74-sfx-data.js:17-22`).
 2. **Give `glass` carriers or drop it.** Either mark item types as glass so his recording is
    heard, or delete the sample and save 64.5 KB.

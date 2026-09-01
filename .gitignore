@@ -30,3 +30,11 @@ tools/lb-seed-bots.keys.json
 # The raw pack must not enter the public repo — the licence covers use in a game, not the
 # redistribution of the assets.
 Hits2 Animations/
+
+# ⚠️⚠️ THE BENCH ITSELF IS TRACKED — the owner asked for it to be kept («leave this document as an
+# example of bonus-material variants, it will be useful again», 2026-09-01-l). Only its GENERATED
+# self-contained copy is ignored, and that is not tidiness: `artifact.html` is written WITHOUT a
+# doctype because the artifact host supplies the <head>, so served directly from GitHub Pages the
+# same file falls into QUIRKS MODE and its WebGL viewports detach from the tiles they are scissored
+# into (measured). Rebuild it with `python3 tools/variants-artifact.py` whenever it is needed.
+electric-variants/artifact.html

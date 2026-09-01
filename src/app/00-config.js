@@ -121,9 +121,19 @@ const MISS_PENALTY_MAX = 15 * PT;   // the top rung, as he sees it
 // is now `stats.missRun` — a RUN of mistakes since the last successful merge — incremented in
 // the same two places as `misses` and zeroed at the head of `doMatch`. `stats.misses` keeps its
 // old meaning untouched: the turbo rules read it as a delta and a merge must NOT launder those.
-function missPenaltyFor(n){
+// ⚠️⚠️ THE LEVEL IS AN EXPLICIT ARGUMENT AND IS NEVER READ FROM THE ENCLOSING SCOPE. `levelNum`
+// is a `let` in 40-items, i.e. a module that runs LATER than this one, and this project has
+// already paid for exactly that shape once: `typeof` on a name in the temporal dead zone THROWS
+// (it is safe only for UNDECLARED names), an empty `catch` swallowed it, and every restart began
+// from level 1 for six days. Passing it in costs one argument at two call sites.
+// ⚠️ With no level given there is NO tie - the bare ladder. That is the safe default: a caller
+// that does not know the level cannot accidentally get a discount.
+function missPenaltyFor(n, lv){
   const rungs = Math.round((MISS_PENALTY_MAX - MISS_PENALTY) / MISS_PENALTY_STEP) + 1;
-  return MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
+  const rung = MISS_PENALTY + MISS_PENALTY_STEP * (Math.max(0, (n | 0) - 1) % rungs);
+  if (!(lv >= MISS_TIE_FROM)) return rung;
+  const distinct = Math.min(LEVEL_TYPES_MIN + lv - 1, PAIRS, levelDistinctCap(lv));
+  return Math.min(rung, Math.round(MISS_TIE_MERGES * typicalMergeScore(lv, distinct)));
 }
 // ⛔⛔ THE COLOUR OF A MISTAKE IS ONE VALUE SINCE 2026-08-25, AND THAT IS WHAT HIS WORD
 // REQUIRES: «if the player misses, at that moment the total score must redden (THE SAME
@@ -149,6 +159,10 @@ const FINALE_GRIND_MS = 220; // ms between leftovers in the FINALE (was 500; the
 // ⚠️ THE ORDER IS RESTORED BY IT: letting the grinder eat a pair (−20) is now twice as bad as
 // a mistake (−10), which is how it read before the denomination silently halved one of them.
 const MIXER_PENALTY = 20 * PT;   // score penalty per pair
+// ⚠️ FROM THIS LEVEL ON, EVERY WIN PAYS A SHAKE AS WELL AS A HINT (his word 2026-09-01-i «after
+// level 10 give not only +1 hint but also +1 shake»). Below it the old every-5th rule still
+// applies, so levels 5 and 10 are unchanged.
+const SHAKE_EVERY_FROM = 10;
 const SURPRISE_BONUS = 15 * PT;  // the golden fish from the bottom: +15 points + 0.5×level
 // ⚠️ HALF A POINT PER LEVEL, AND IT IS WRITTEN AS SUCH RATHER THAN ROUNDED: the sum is
 // rounded once, where it is applied, so the half-points accumulate honestly across levels.
@@ -235,6 +249,41 @@ const ACC_TIER_CAP = 9;      // ceiling of tiers (×3.25; the 9th threshold = 51
 // ⚠️ The showcase panel requires at least VIT_MAX=3 slots — exactly that many exist on level 1,
 // with nothing to spare. If it drops lower, the panel's height will shift, and the toast anchor
 // reads its rect.
+// ⛔⛔ HOW MANY *DIFFERENT* TYPES ARE DEALT INTO ONE BOWL (the owner 2026-09-01-i, after the
+// measurement of the post-30 collapse). Unlocking is untouched - a new model still opens every
+// level and still enters the collection; this caps only how many of the unlocked types are poured
+// into a GIVEN bowl, which is what decides copies-per-type and therefore group size.
+// ⚠️⚠️ IT IS A RAMP AND NOT A FLAT NUMBER, AND THAT IS THE WHOLE DESIGN. A flat cap makes every
+// level from 23 to the end of the pool economically IDENTICAL - eighty levels in which nothing
+// changes, which is a second way to lose a player and the exact failure this batch is fixing.
+// The ramp keeps the difficulty dial alive: 24 at lv20, 25 at lv30, 27 at lv50, 30 at lv80.
+// ⚠️ THE MEASUREMENT IT COMES FROM (real taps, an attentive player, so an UPPER bound):
+//   copies/type 60 -> 5.6 -> 3.5 across lv1/30/50, avg group 4.93 -> 2.33 -> 2.02,
+//   and the merge score is MATCH_SCORE*n*(n-1) - QUADRATIC, so the reward fell ~10x while the
+//   price of a mistake stayed a flat 10-15. Everything he named is downstream of this one number.
+const DISTINCT_BASE = 22, DISTINCT_STEP = 10;
+function levelDistinctCap(lv){ return DISTINCT_BASE + Math.floor((lv || 1) / DISTINCT_STEP); }
+
+// ⚠️ THE EXPECTED GROUP SIZE FOR A GIVEN COPIES-PER-TYPE. A log fit over the 2026-09-01
+// measurement, and it is an APPROXIMATION used for ONE purpose: to express the price of a mistake
+// in merges. Measured against the fit: copies 14.2 -> 2.69 (fit 2.69), 8.2 -> 2.53 (2.43),
+// 5.6 -> 2.33 (2.25), 3.5 -> 2.02 (2.02).
+// ⛔ IT IS DELIBERATELY NOT FITTED TO LEVEL 1 (60 copies, group 4.93): three types in a tiny pool
+// is a different regime, and forcing the curve through it wrecks the range that actually matters.
+// The floor of 2 is structural - a match is at least a pair.
+function expectedGroup(copies){ return Math.max(2, 1.42 + 0.479 * Math.log(Math.max(2, copies || 2))); }
+function typicalMergeScore(lv, distinct){
+  const g = expectedGroup((PAIRS * 2) / Math.max(1, distinct));
+  return MATCH_SCORE * g * (g - 1);
+}
+// ⛔⛔ FROM THIS LEVEL THE MISTAKE IS PRICED IN MERGES, NOT IN POINTS (his word 2026-09-01-i:
+// «from this level let the price of a mistake be tied to the price of a merge and not be so
+// harsh»). The ladder 10-11-12-13-14-15 and its reset-on-merge are HIS and are untouched in
+// shape; what changes is that its ceiling may not exceed MISS_TIE_MERGES typical merges.
+// ⚠️⚠️ IT CAN ONLY REDUCE, NEVER RAISE - `Math.min` against the ladder. Without that clamp the
+// same formula would make a mistake cost ~58 points on level 1, where a merge is worth 19.
+// Levels below MISS_TIE_FROM are bit-for-bit unchanged.
+const MISS_TIE_FROM = 30, MISS_TIE_MERGES = 4;
 const LEVEL_TYPES_MIN = 3;                          // types on level 1 (+1 per level, ceiling TYPES.length)
 // idle time before the mixer switches on — by DIFFICULTY (the owner's spec 2026-07),
 // the ramp across levels was removed: the difficulty progression is carried by the number of types.
@@ -392,7 +441,14 @@ const PRICE_SCOPE = 15;      // "Scope": highlight all available pairs for 5 s
 // multipliers (finalizeFill) — otherwise upgraded types would give 2★/3★
 // automatically. Bot calibration 2026-07-22 (profiles: pairs without combos ~1.0,
 // combos without series, series-based) — for the final values see the report in WORKSTREAMS.
-const STAR2_K = 1.5, STAR3_K = 2.1; // thresholds for 2★/3★ relative to the pair-score
+// ⛔⛔ STAR2_K / STAR3_K ARE RETIRED (the owner 2026-09-01-i: «we have no concept of stars, only
+// points»). What survives is the GOAL shown on the win screen, which was always a points number —
+// it was simply derived from the 2★ threshold and so had no name of its own.
+// ⚠️ THE VALUE IS THE OLD 2★ THRESHOLD UNCHANGED, deliberately: this batch removes a concept, it
+// does not retune the difficulty. ⛔ AND IT IS MEASURED AS BROKEN ALREADY — parBase is flat from
+// level 30 while the achievable score falls, so a perfect player stops reaching this goal around
+// level 45-50. Fixing that is a separate decision of his (see the difficulty analysis).
+const LEVEL_GOAL_K = 1.5;
 // ⛔ PAIRS_EARLY WAS CANCELLED by the pairsForLevel progression (2026-08-05): three
 // "shortened" levels were the only size variation, after them came a
 // plateau. The table is kept in history so that it is not reinvented from scratch.
@@ -525,6 +581,18 @@ const INTER_EVERY_LEVELS = 3;
 // the charge is itself a reward for a series, and a reward must not be multiplied by a reward.
 // ⚠️ DO NOT CALL IT A "bomb" either in code or in the UI — it clashes with the black ball.
 const CHARGE_MIN_COPIES = 6;
+// ⛔⛔ THE CHARGE ALSO ARRIVES ON A SCHEDULE, NOT ONLY FROM TURBO (the owner 2026-09-01-i: «after
+// level 21, on every 2nd level, an object covered in lightning should sometimes appear randomly
+// and destroy all similar ones in the bowl with a multiplier taken from the object»).
+// ⚠️ ASKED AND ANSWERED BEFORE BUILDING: it is THIS charge in its existing slot, not a new item in
+// the bowl - the mechanic he described (destroy every copy of the type, multiplier from the type)
+// is what `detonateCharge` already does. What was missing was a way to GET it at high levels.
+// ⚠️⚠️ AND THAT IS THE POINT OF THE SCHEDULE, NOT A COSMETIC ADDITION: the only source until now
+// was igniting turbo, which needs 16 clean matches - and the post-30 measurement is precisely that
+// 16 clean matches stop happening. The one mechanic that still produces a BIG group had become
+// unreachable exactly where it was needed most.
+const CHARGE_SCHED_FROM = 21, CHARGE_SCHED_EVERY = 2, CHARGE_SCHED_CHANCE = 0.5;
+
 // ⚡ THE OWNER'S AMENDMENT (the same date, on top of the first spec): "the object must live
 // no more than 7 seconds and dissolve slowly. That way it will be important for the player to activate
 // it right away rather than leave it for later". THE CONSEQUENCE FOR THE CODE: the charge became

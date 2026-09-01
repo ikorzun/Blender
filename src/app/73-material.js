@@ -143,7 +143,6 @@ const MATERIAL_OF = {
   propsghost: 'plush',
   propsgrenade: 'metal',
   propshat: 'plush',
-  propskabar: 'metal',
   propsketchup: 'juicy',
   propslifebuoy: 'plastic',
   propsmatchbox: 'wood',

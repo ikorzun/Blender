@@ -1228,6 +1228,14 @@ function updateHUD(){
         const spinLive = (typeof spinR !== 'undefined' && spinR &&
                           spinR.domElement.parentNode === cb);
         $('chargeImg').style.display = spinLive ? 'none' : '';
+        // ⚠️⚠️ THE CONIC RING IS NOW THE FALLBACK, NOT THE EFFECT. He picked the surge band off
+        // the bench (2026-09-01-l), and a shader shell can only ride on the LIVE 3D model - when
+        // the slot falls back to a flat `#chargeImg` (a cold pack, or the menu having taken the
+        // shared canvas) there is nothing for it to hang on. The ring is what says «electrified»
+        // there, which is exactly the role the bench named for it when it was shown to him.
+        // ⚠️ Showing BOTH would be the same defect the canon records at this very button: a live
+        // model plus a flat picture on top, «a model with rotation means 3D WITHOUT a picture».
+        cb.classList.toggle('flat', !spinLive);
       } else {
         if (cb.style.display !== 'none'){
           try { if (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb) thumbSpinStop(); } catch(e){}
@@ -1261,9 +1269,10 @@ function updateHUD(){
   // ON THE RIGHT — THE LEVEL'S POINTS under the star icon (the owner's spec 2026-07-22-b:
   // «the stars on the right are not stars but points. The star icon stays, but the counting
   // of the points goes the same way from a match or from mistakes»). It cancels the short-lived
-  // spec «the total stars in the chip»: THE stars THEMSELVES are now only on the completion
-  // screen (winStars) and on the future main screen (the owner will show
-  // the mockup later) — totalStars() must not be output in the HUD.
+  // spec «the total stars in the chip».
+  // ⛔ AND SINCE 2026-09-01-i THERE ARE NO STARS TO SHOW ANYWHERE: «we have no concept of stars,
+  // only points». The rating and its win-screen row are gone; what is left of the word `star` in
+  // this codebase is the ICON for points, which is exactly what this comment is about.
   // THE SINGLE BALANCE (the owner's finalisation 2026-07-24, META's request): the chip
   // shows liveBalance() = the balance + the level's unbanked score (÷10),
   // and NOT the per-level stats.score — the same number as the menu's wallet and the leaderboard.
@@ -1592,6 +1601,9 @@ const SPIN_SPEED = 0.9;    // rad/s — «slowly» (a revolution in ~7 s)
 
 let spinR = null, spinScene = null, spinCam = null;
 let spinMesh = null, spinItem = null, spinRAF = 0, spinPrev = 0, spinAngle = 0;
+// THE CHARGE'S ELECTRIC SHELL (chargeSurgeMake, 70-fx) - a child of `spinMesh`, so it is
+// rebuilt with it and can never outlive the mesh it hangs on.
+let spinSurge = null;
 const _spv = new THREE.Vector3(), _spm = new THREE.Matrix4();
 function ensureSpinR(){
   if (spinR) return;
@@ -1678,6 +1690,7 @@ function frameCylinder(cam, mesh){
 }
 function thumbSpinStop(){
   if (spinRAF){ cancelAnimationFrame(spinRAF); spinRAF = 0; }
+  if (spinSurge){ try { spinSurge.material.dispose(); } catch(e){} spinSurge = null; }
   if (spinMesh && spinScene){ spinScene.remove(spinMesh); spinMesh = null; }
   if (spinR && spinR.domElement.parentNode) spinR.domElement.parentNode.removeChild(spinR.domElement);
   spinItem = null; spinPrev = 0;
@@ -1702,6 +1715,7 @@ function thumbSpinStart(item, host, px){
   spinR.setSize(px || SPIN_PX, px || SPIN_PX, false);
   spinAuto = true;
   spinItem = item; spinAngle = PORTRAIT_YAW0; spinTilt = PORTRAIT_TILT_X;
+  spinSurge = null;                      // thumbSpinStop above dropped the previous mesh with its child
   // ⚠️ NOT mesh.clone() (JSON userData with a Rapier body — a throw): a wrapper on the shared
   // geometry+material, as in itemThumb
   spinMesh = new THREE.Mesh(item.mesh.geometry, item.mesh.material);
@@ -1740,6 +1754,22 @@ function spinTick(now){
   const dt = spinPrev ? Math.min(0.05, (now - spinPrev) / 1000) : 0; spinPrev = now;
   if (spinAuto) spinAngle += dt * SPIN_SPEED;
   spinMesh.rotation.set(spinTilt, spinAngle, 0);
+  // ⚠️⚠️ THE ELECTRIC SHELL IS OWNED HERE, AND THAT IS THE WHOLE REASON IT CANNOT LEAK INTO THE
+  // MUSEUM. `spinR` is ONE canvas for the whole game - the collection takes it the moment the
+  // menu opens - so the question «is this the charge?» has exactly one honest answer at any
+  // instant: WHERE the canvas is currently mounted. Deciding it at `thumbSpinStart` instead
+  // would leave the shell on a collection card the next time the slot handed the canvas over.
+  // ⚠️ `chargeSurgeMake` is a function declaration in 70-fx, i.e. hoisted and callable from a
+  // higher-numbered module - the concatenation order guarantees only that, never a `const`.
+  try {
+    const cb = $('chargeBtn');
+    const onCharge = !!(cb && spinR.domElement.parentNode === cb);
+    if (onCharge && !spinSurge && typeof chargeSurgeMake === 'function') spinSurge = chargeSurgeMake(spinMesh);
+    else if (!onCharge && spinSurge){
+      spinMesh.remove(spinSurge); spinSurge.material.dispose(); spinSurge = null;
+    }
+    if (spinSurge) spinSurge.material.uniforms.t.value = now / 1000;
+  } catch(e){}
   // the veil/matcap darkening and the transparency are OFF for the frame (the portrait does not go grey) —
   // the material is SHARED with the live one, we restore it at once (as itemThumb does)
   const mat = spinMesh.material;

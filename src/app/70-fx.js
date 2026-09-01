@@ -1590,7 +1590,7 @@ function penalize(worldPos, sx, sy){
   // puts the price back to the base. Both counters are incremented above, BEFORE the charge, so
   // each already holds the 1-based ordinal. ⚠️ `misses` keeps its old meaning — the turbo rules
   // read it as a delta, and a merge must not launder those.
-  const charged = scorePenalty(missPenaltyFor(stats.missRun));
+  const charged = scorePenalty(missPenaltyFor(stats.missRun, levelNum));
   const shown = scoreShownDelta(stats.score, before); // denominated drop of the chip (#10)
   // ⚠️ A MISS ZEROES THE TURBO CHARGE (the owner's spec 2026-07-27: "if the player
   // makes a mistake while charging turbo mode — the mode's counter is reset").
@@ -1636,6 +1636,88 @@ function wiggle(item){
 // the Fresnel recipes must match the production calls (they are baked into the
 // TEXT of the shader — different numbers = a different program):
 // sphereFX (0.05, 0.32), markerFX (0.1, 0.5), reachGhostFX (0.01, 0.08, 1.1 — halved 2026-08-30).
+// ===== THE CHARGE'S ELECTRIC SHELL — «Surge band», COLD (the owner's pick 2026-09-01-l) =====
+// He chose it off the six-variant bench (electric-variants/, published as an artifact) with one
+// amendment: «variant 6 Surge Band, but take it from warm to cold». The bench's palette was a
+// green-to-yellow-green; this one runs electric violet -> electric cyan -> white.
+// ⛔⛔ IT MUST NOT DRIFT INTO ICE, AND THAT IS A MEASURED CONSTRAINT RATHER THAN TASTE: the frozen
+// block owns 0x8fd4ff / 0xdff4ff / 0xbfeaff (iceCrustMat, 40-items) — PALE and low-saturation. A
+// pale blue-white here would read as frost on a charged object, which is the one reading the
+// effect must not have. The separation is saturation and the violet end, not hue alone.
+// ⚠️⚠️ IT IS A CHILD OVERLAY AND NEVER AN EDIT OF THE ITEM'S MATERIAL — the fire's rule, and for
+// the fire's reason: the collection portraits are rendered by the same material class, so a
+// «charged» look written into the material would leak into the museum.
+// ⚠️⚠️ AND IT RENDERS INTO `spinR`, WHICH IS `alpha:true` — SO THE OUTPUT IS PREMULTIPLIED.
+// three's default `premultipliedAlpha:true` makes NormalBlending `blendFuncSeparate(ONE,
+// ONE_MINUS_SRC_ALPHA, ...)`, i.e. the shader is expected to hand over colour ALREADY multiplied
+// by alpha. The game's other shells (fireSilhouetteFX, the heat crust) write a bare `vec4(c, a)`
+// and get away with it because they draw into the MAIN canvas, which is `alpha:false` — there the
+// framebuffer alpha is discarded and the difference never shows. Copy one of them into an
+// offscreen renderer without this line and the shell comes out washed and haloed at low alpha.
+const CHARGE_SURGE_PUFF = 0.030;   // the shell sits just off the surface; below THUMB_MARGIN so
+                                   // frameCylinder's padding still contains it
+function chargeSurgeMat(y0, y1){
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.FrontSide,
+    uniforms: { t: { value: 0 }, uY0: { value: y0 }, uY1: { value: y1 } },
+    vertexShader: [
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      '  vN = normalize(normalMatrix*normal); vP = position;',
+      '  vec3 p = position + normal*' + CHARGE_SURGE_PUFF.toFixed(3) + ';',
+      '  vec4 mv = modelViewMatrix*vec4(p,1.0); vV = mv.xyz;',
+      '  gl_Position = projectionMatrix*mv; }',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float t; uniform float uY0; uniform float uY1;',
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }',
+      'float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);',
+      '  return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),',
+      '             mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }',
+      'void main(){',
+      '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
+      '  float fres = pow(1.0 - ndv, 2.0);',
+      '  float u = (vP.y - uY0) / max(0.0001, uY1 - uY0);',
+      '  float head = fract(t*0.55);',
+      '  float d = u - (head*1.35 - 0.18);',
+      '  float band = exp(-d*d*90.0);',
+      '  float crk = n3(vP*17.0 + vec3(t*3.0));',
+      '  band *= 0.55 + 0.75*smoothstep(0.35, 0.9, crk);',
+      '  float a = 0.22*fres + band*(0.45 + 0.55*fres);',
+      '  a = clamp(a, 0.0, 1.0);',
+      '  if (a < 0.02) discard;',
+      // ⚠️⚠️ COLD, AND THE PEAK IS A COLD WHITE RATHER THAN A WHITE. First render of the port
+      // whitened the core with `mix(c, vec3(1.0), pow(band,3.0)*0.80)` - the bench's own line,
+      // where a saturated GREEN base survived it. Against violet and cyan it did not: on the
+      // frames the band read as a grey-white crackle on the model, i.e. the one thing «cold» must
+      // not turn into. The white is now (0.75,0.95,1.0) and reaches 0.55, so the hottest part of
+      // the band still leans blue instead of going neutral.
+      '  vec3 c = mix(vec3(0.20,0.12,0.85), vec3(0.10,0.78,1.00), band);',
+      '  c = mix(c, vec3(0.75,0.95,1.00), pow(band,3.0)*0.55);',
+      '  gl_FragColor = vec4(c*a, a); }',   // PREMULTIPLIED - see the note above
+    ].join('\n'),
+  });
+}
+// Builds the shell as a CHILD of the portrait mesh, so it inherits the spin's rotation and scale
+// for free. The geometry is SHARED with the item (the type cache) - `keepGeo` says so out loud,
+// though nothing in this path disposes it.
+function chargeSurgeMake(mesh){
+  const geo = mesh.geometry;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const b = geo.boundingBox;
+  const m = new THREE.Mesh(geo, chargeSurgeMat(b.min.y, b.max.y));
+  m.userData.keepGeo = true;
+  m.renderOrder = 9;
+  mesh.add(m);
+  return m;
+}
+// ⚠️ NO PROGRAM ANCHOR FOR THIS ONE, AND THAT IS DELIBERATE RATHER THAN AN OVERSIGHT.
+// `fxProgramAnchors` below warms the MAIN renderer's program cache; this material only ever
+// compiles inside `spinR`, a second WebGLRenderer with a cache of its own, so an anchor there
+// would warm the wrong one. The compile happens in an offscreen 256px render at the moment a
+// charge first appears - not inside a game frame.
+
 (function fxProgramAnchors(){
   const g = new THREE.Group();
   const tiny = new THREE.SphereGeometry(0.001, 4, 3);

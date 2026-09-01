@@ -100,7 +100,8 @@ application is not submitted.
 ### 1.6. The rights to the music are confirmed by nothing ⛔ hours
 
 The background track `music.mp3` (4.4 MB, downloaded by every player) is a byte-for-byte copy of
-`Audio/stray vibe.mp3`, and **nowhere in the project is there an author, a licence, or a link to
+`Audio/2-music/original-master-267kbps.mp3` (called `Audio/stray vibe.mp3` until 2026-09-01-l),
+and **nowhere in the project is there an author, a licence, or a link to
 where it was taken from**. The platform requires the rights to audio to be confirmed as a separate item.
 
 The models, judging by the file names and the structure, are from the free Kenney sets (their licence
@@ -310,7 +311,8 @@ control.
 - **YOU:** register on `developer.playgama.com` (Sign Up → confirm the
   email). Do not upload anything. Send me a screenshot of the dashboard — I want to see
   the real form fields, not guess at them.
-- **YOU:** settle the music question. The file `music.mp3` is a copy of `Audio/stray vibe.mp3`,
+- **YOU:** settle the music question. `music.mp3` is built from `Audio/2-music/background-music.mp3`
+  (the 267 kbps master sits beside it as `original-master-267kbps.mp3`),
   there is no author and no licence anywhere. Options: remember the source and send the link /
   allow replacing it with a free track with a confirmed licence / release
   without music. **This is a blocker, without an answer we cannot go further.**

@@ -13245,3 +13245,330 @@ constant, grep for its NAME across `src/` — the build will not tell you.**
 statements (2-3 clouds / distinct sizes / distinct positions, plus distinct drift): a bare count is
 satisfied by three identical clouds stacked on one spot — the pattern he complained about, with
 fewer tiles.
+
+## BATCH 2026-09-01-i: THE POST-30 BALANCE, THE SCHEDULED CHARGE, AND THE END OF STARS
+
+Six answers in one message, two of which needed a question first and got one.
+
+### ⛔⛔ «WE HAVE NO CONCEPT OF STARS, ONLY POINTS, REMEMBER THIS»
+
+His correction to my difficulty analysis, which had led with «a perfect player cannot get 3★ after
+level 30». **He corrected the FRAME, not the arithmetic** — the measurement was right and the unit
+was wrong. Saved to memory; everything about balance is stated in points from here.
+✅ **AND THE CODE STILL CONTAINED A REAL 1-3 RATING**, which is what makes this more than a wording
+note: `#winStars` rendered three icons on the win screen, `setStars` wrote `Save.stars`, and
+`STAR2_K/STAR3_K` computed it. All removed on his «вычищай».
+⚠️ **THE ★ GLYPH IS NOT A RATING AND STAYS** — it is the ICON for points in the HUD, the menu and
+`winCoins`. Two different things wore one symbol, which is most of why this drifted.
+⚠️ **THE GOAL SURVIVED AND GOT A NAME.** «Score: X / goal Y» was always a points statement; it was
+merely DERIVED from the 2★ threshold, so it had no constant of its own. `LEVEL_GOAL_K = 1.5` — the
+same number, so nothing on screen moved except the three icons leaving.
+⚠️ **`Save.stars` IS KEPT, READ-ONLY.** The grandfather migration converts an old save's ratings
+into a starting balance and is gated by a monotonic flag; dropping the field would silently rob a
+player who has not migrated. Nothing writes it; exactly one one-time path reads it.
+⛔ A guard died with the mechanic: «a spend does not touch the rating of levels» would have become
+`{}` against `{}` — green under every behaviour. Retired with a tombstone, not rewritten.
+
+### THE DIFFICULTY: WHAT WAS MEASURED, WHAT WAS FIXED, AND WHAT WAS NOT
+
+**THE ROOT, IN ONE LINE:** types grow +1 per level while the bowl holds a flat 180 items, so
+copies-per-type collapsed 60 → 5.6 → 3.5, group size with it, and the merge score is QUADRATIC.
+**IN FORCE:** `levelDistinctCap` — a RAMP (24 at lv20, 25 at lv30, 27 at lv50), never a flat cap.
+⛔ **A FLAT CAP WAS REJECTED FOR A REASON WORTH KEEPING:** it makes every level from 23 to the end
+of the pool economically identical — eighty levels in which nothing changes, which is a second way
+to lose a player and the very failure this batch exists to fix.
+
+⛔⛔ **THE CAP CREATED TWO TRAPS AND BOTH WERE VERIFIED IN THE CODE BEFORE BEING FIXED:**
+1. **`dropOneFromSky` drew from ALL unlocked types** (`random() * level.typesCount`). With a cap the
+   dealt set is a SUBSET, so the turbo rain would drop items whose partner is nowhere in the bowl —
+   and by his own rule a tap on a pairless item is a FULL mistake. **The reward would have become a
+   trap.** It now draws from `level.dealtTypes`.
+2. **A boost is bought on a NAMED type** (`Save.bo[name]`), so a capped deal would silently make
+   PAID content do nothing about half the time at depth. Boosted types are pinned into the deal.
+   That is trust, not balance.
+⚠️ The newest unlock is pinned too: the game promises a new model every level, and without this it
+would be missing from the very bowl that unlocked it about half the time.
+
+⚠️⚠️ **AND THE HONEST RESULT, WHICH IS NOT WHAT I PREDICTED TO HIM.** Median of three runs:
+
+| | before | after |
+|---|---|---|
+| lv50 available pairs | 26 | **47** (samples do not overlap) |
+| lv30 available pairs | 40 | 48 |
+| lv50 avg group | 2.17 | 2.22 |
+| lv30 avg group | 2.40 | 2.48 |
+
+**The cap fixed «there is nothing to find». It did NOT fix «a merge pays little»** — group size
+moved 0.05, inside the noise. The reason is that group size is bound by the match RADIUS (0.45),
+not by density: more copies make pairs far easier to FIND and do not bring them within reach of one
+another. ⛔ The remaining lever is the radius, which he nerfed four times; named to him as his call,
+not taken.
+⚠️ **A SINGLE RUN PER ARM WOULD HAVE TOLD A DIFFERENT STORY IN BOTH DIRECTIONS** — the level score
+swung 4980 → 1010 at lv20, where the cap does not even bind. Score is combo-dependent and is not a
+one-run measurement; available pairs is structural and is.
+
+**THE MISTAKE IS NOW PRICED IN MERGES** from level 30 (`MISS_TIE_FROM`, `MISS_TIE_MERGES = 4`):
+the ladder's ceiling may not exceed four typical merges, which caps it at 12 instead of 15.
+⚠️ **IT CAN ONLY REDUCE, NEVER RAISE** — a `Math.min` against the ladder. Without that clamp the
+same formula prices a mistake at ~58 points on level 1, where a merge is worth 19. His ladder's
+SHAPE (10-11-12… with reset-on-merge) is untouched.
+⚠️ **THE LEVEL IS AN EXPLICIT ARGUMENT, NEVER READ FROM SCOPE.** `levelNum` is a `let` in a module
+that runs later than 00-config, and this project has already lost six days to `typeof` on a name in
+the temporal dead zone. Two call sites pass it; with no level there is no tie.
+
+### THE CHARGE NOW ARRIVES ON A SCHEDULE — AND THAT IS THE REAL FIX FOR BIG MERGES
+
+His words: «after level 21, on every 2nd level, an object covered in lightning should sometimes
+appear and destroy all similar ones in the bowl with a multiplier taken from the object».
+⚠️⚠️ **ASKED BEFORE BUILDING, AND THE ANSWER SAVED A WHOLE MECHANIC.** The description matches the
+EXISTING type charge almost word for word — destroy every copy of a type, multiplier from the type
+— and differed only in WHERE it appears. He confirmed: the existing charge, in its existing slot,
+on a schedule. A new bowl item would have been days of spawn, physics and interaction work for a
+mechanic the game already had.
+⛔ **AND THE SCHEDULE IS THE POINT, NOT A COSMETIC:** the only source until now was igniting turbo,
+which needs 16 clean matches — and the measurement is precisely that 16 clean matches stop
+happening after 30. The one mechanic that still produces a BIG group had become unreachable exactly
+where it was needed most.
+⚠️ The grant was EXTRACTED (`tryGiveCharge`) because it now has two callers; two copies would have
+drifted at the first edit of the copies threshold, and the `chargeGiven` watermark only works if
+both paths respect it. The moment is drawn ONCE at level start, not re-rolled per frame — a
+per-frame chance would make the arrival depend on the frame rate.
+⚠️ The lightning is a RING behind the portrait, not a bolt glyph on top: the slot's whole job is to
+show WHICH type is armed, and a glyph would hide it. `pointer-events:none`, since a tap must detonate.
+
+### THE REWARD: TWO ICONS INSTEAD OF «+1»
+
+⛔⛔ **THE GEOMETRY OF THIS ITEM LIVED ONE DAY AND IS SUPERSEDED BY 2026-09-01-k BELOW.** Nodes
+892:2041 / 892:2031 were the BAR-shaped pair — a 56 square at radius 16 on white 40% with the
+inset highlight, and a 22-high badge hanging 6 px under the frame carrying the WALLET TOTAL. He
+redrew both for the final screen the same evening (933:1515 / 933:1531): a white pill, and the
+badge became a literal «+1». Read the paragraph below for the REASONS (which all survive — the
+two-icon decision, the render-time picture copy, the CSS-orphan lesson) and take the numbers from
+the newer section.
+
+
++1 shake on every win past level 10 (`SHAKE_EVERY_FROM`); the old every-5th rule is KEPT below that
+line, so levels 5 and 10 still pay — dropping it would have made the early game quietly poorer
+while answering a request that was only about the late game.
+⚠️ **THE «+1 Shake» TOAST WENT WITH IT:** from level 11 it would fire on every win, i.e. stop being
+news and start being noise.
+⚠️⚠️ **THE TWO ICONS TAKE THEIR PICTURES FROM THE BAR BUTTONS AT RENDER TIME.** Both PNGs are
+already inlined once; writing them again would have cost ~30 KB of duplicate base64 AND recreated
+the exact fork the win magnifier was cured of on 2026-08-23-z — one entity drawn by two copies that
+then drift apart.
+⛔ **AND THE CSS ORPHANS WERE THE REAL RISK, NOT THE MARKUP.** Replacing the pill left
+`.win-reward { height:72px }` alive in the mobile override — a fixed height on what is now a flex
+row of two 56 icons, on exactly the layout he looks at most. Found by grepping the class after the
+edit, not by reading the diff.
+⛔ Two guards moved with the rule: «a 100% white pill with a slot of 54 and a +1 in #484472» and
+«the pill is EXACTLY as tall as Next». The second is instructive — the property underneath it (the
+reward and Next read as one line) survives and is now stated as CENTRES, which holds at any icon
+size; the equality held only for the component that is gone.
+
+## BATCH 2026-09-01-k: THE FINAL-SCREEN BUTTONS BY THEIR OWN NODES, AND SIX ELECTRICITY VARIANTS
+
+Two of his lines: «redo the buttons on the final screen» + nodes **933:1515 «Tip-final»** and
+**933:1531 «Shake-final»**, and «we have a fire object and a frozen one in different styles, for the
+bonus one we need to add electricity around it. Show me variants, I will choose».
+
+### THE PILLS — AND THE HALF OF THE REDRAW THAT IS NOT GEOMETRY
+
+The frame: `padding 9px 13px`, `gap 6`, `border-radius 80`, `border 1px solid #fff`, background
+`rgba(255,255,255,.9)`, `box-shadow: inset 0 0 16px 0 #fff`; icon 56; badge at `left:-1 / top:43`,
+`#c0ff47` on `#4a7100`, 20 px Heavy, radius 32, padding 8/6, `drop-shadow(0 2px 4px rgba(0,0,0,.16))`.
+Measured on the live build: box 84×76 and every one of those values to the pixel.
+⛔ **IT SUPERSEDES 892:2041 / 892:2031 AFTER ONE BATCH** — see the tombstone in 2026-09-01-i.
+
+⚠️⚠️ **THE LOAD-BEARING CHANGE IS THE BADGE'S MEANING, NOT ITS SIZE: A TOTAL BECAME A
+NOTIFICATION.** The previous edition computed `hints()` and `freeShakesFor + purchasedShakes`;
+BOTH of his nodes read the literal «+1», and his own sentence had asked for «2 icons with
+notifications». A notification says what THIS win paid; a running total says what the wallet holds
+— and the bar badges already say the second, in the same lime, three inches away. The text is now
+static in the markup, so nothing computes it and nothing can drift.
+⚠️ The counts were not lost, one of two readings was chosen; if he wants the totals back it is the
+same three lines in `checkEnd` that were removed.
+⚠️ **THE SHAKE PILL STILL HIDES ON A LEVEL THAT PAID NO SHAKE** (`level.shakeBonus`) — below level
+10 only every fifth win pays one, and a pill that silently never changes reads as a broken counter.
+
+⚠️⚠️ **56 IS BOTH THE NODE'S SLOT AND ITS DRAWN INK, AND THAT COINCIDENCE CLOSED A DIVERGENCE THE
+CANON HAD BEEN CARRYING.** His sheets have transparent margin (the magnifier's ink is 109×118 of a
+168 sheet, the hand's 148×136), so a sheet at 56 draws a magnifier of 36.3×39.3 against the node's
+36.47×40 and a hand of 49.3×45.3 against its 48.4×44 — both inside a pixel. The bar and the win
+screen therefore agree on ONE number for the first time, and the standing note «the two copies
+differ in SIZE, lawfully so — 56 in the bar, 69.5 in a slot of 54» was struck out where it stood.
+⛔ Do not «fit» either box to its drawing again.
+
+⚠️ **THE SHAPE IS GUARDED BY PADDING AND RADIUS, NOT BY A MEASURED WIDTH.** The pill is sized by
+its CONTENT, so a width literal would be a derived number standing next to the numbers it derives
+from, and it would go red the day the icon or the font moves for an unrelated reason.
+
+### THE ELECTRICITY: SIX VARIANTS BUILT, NOTHING WIRED — HIS NUMBER IS AWAITED
+
+⛔⛔ **HE PICKED VARIANT 6 ON 2026-09-01-l — see that section for what shipped.** The paragraph
+below described the awaiting-choice state and is kept as the record of what he was shown.
+⛔ **AND HE ASKED FOR THE BENCH TO BE KEPT** («leave this document as an example of bonus-material
+variants, it will be useful again»), so `electric-variants/` is TRACKED from that batch on; only
+its generated `artifact.html` stays ignored.
+
+⛔⛔ **NOTHING OF THIS IS IN THE GAME AND MUST NOT BE UNTIL HE PICKS.** He asked to be shown
+options; the bench is `electric-variants/` (local, opened from the project's own preview server)
+and the published copy is the artifact
+`https://claude.ai/code/artifact/4238d14c-90ba-4b71-a6ad-16b4449c97c1`.
+The precedent for this state is the ice-styles bench of 2026-08-13 — variants stand, the winner is
+made the only one, the rest are cut.
+1 **Arc ring (2D)** — the conic sweeps already on `#chargeBtn::after`; 2 **Arc cage** — tube bolts
+crawling over the silhouette; 3 **Plasma corona** — a violet fresnel/filament shell; 4 **Orbit
+arcs** — two tilted rings each carrying a bright arc; 5 **Spark shower** — sparks thrown off the
+surface; 6 **Surge band** — a bright band running up the body.
+⚠️ **VARIANT 1 IS ALSO THE FALLBACK FOR WHICHEVER 3D ONE HE PICKS**, and that is a structural fact
+rather than a courtesy: the slot falls back to a flat `#chargeImg` whenever the spin canvas is not
+live (`spinLive` in 85-hud), and a shader shell cannot ride on an `<img>`. A ring can.
+
+⚠️⚠️ **THE BENCH RE-LEARNED TWO OF THE GAME'S OWN LAWS THE HARD WAY, AND BOTH ARE WORTH THE LINE.**
+The first build was additive throughout and half of it was INVISIBLE:
+- **NOT ADDITIVE ON A LIGHT SKY.** The canon says it at the lightning («on a white background the
+  glow is invisible; what reads is the saturated tone, not the bright one»). Measured here from the
+  other side: the orbit rings came out dark navy scribbles and the corona a grey wash. There was a
+  second cause on top — additive blends against the FRAMEBUFFER, and for a transparent canvas over
+  a CSS gradient that is transparent black, not the sky. The sky is now painted INSIDE each scene,
+  which is also how the game has it: one canvas holds the sky and the slot together.
+- **NOT LINES.** WebGL draws every line 1 px whatever `linewidth` says — the bolts are TubeGeometry
+  for exactly the reason `boltFX` is.
+- ⚠️ And a third, found on a frame: `PointsMaterial` has no per-point alpha, so a spark can only be
+  faded by its COLOUR — which on this sky means born near-white (invisible) and dying near-black
+  (a dirty speck). The sparks carry their own shader; the hue stays saturated and the ALPHA fades.
+- ⚠️ The bolts carry `depthTest:false`, the same choice `chainBoltFX` makes: a bolt anchored to
+  surface points is born INSIDE the silhouette and is otherwise occluded almost entirely.
+
+⚠️ **THE BENCH RENDERS THE GAME'S OWN ASSETS** — `36-models.js` and `08-matcap-packs.js` loaded
+verbatim, so the object, its colormap atlas and its pack matcap are the files the build uses. An
+effect judged against a stand-in is a judgement about the stand-in.
+⛔ **THE BENCH IS NOT COMMITTED TO `v2` AND SHOULD NOT BE:** the deploy branch is public GitHub
+Pages, and neither page works there — the bench loads `node_modules` (gitignored) and the artifact
+copy is deliberately doctype-less for the artifact host, which puts a directly-served copy into
+QUIRKS MODE (measured: the WebGL viewports detach from their tiles). If he ever wants it on his own
+domain that is a deliberate standalone copy with a doctype, not a side effect of a batch.
+
+## BATCH 2026-09-01-l: THE COLD SURGE BAND, AND `Audio/` BECOMES THE SOURCE OF EVERY SOUND
+
+Three of his lines: «variant 6 Surge Band, but take it from warm to cold. Leave this document as an
+example of bonus-material variants, it will be useful again» and, with the path attached, «I need
+all the game's sounds and the music to be in this folder, in folders … so that I can change the
+files myself right inside the folder and they go into the game. Name everything obviously».
+
+### THE CHARGE'S ELECTRIC LOOK — HIS PICK, IN THE COLD PALETTE
+
+`chargeSurgeMake` (70-fx) hangs a shader shell on the charge slot's LIVE 3D model: a band running up
+the body, crackling at its two edges, over a faint always-on rim.
+⚠️⚠️ **«COLD» TOOK TWO PASSES AND THE SECOND ONE IS THE LESSON.** The first port carried the bench's
+own peak line, `mix(c, vec3(1.0), pow(band,3.0)*0.80)` — where a saturated GREEN base survived being
+whitened. Against violet and cyan it did not: on the rendered frames the band read as a grey-white
+crackle, i.e. the one thing «cold» must not become. The white is now the COLD white
+`(0.75,0.95,1.00)` at 0.55, and the base rim was lifted 0.16 → 0.22 so the object reads as charged
+between passes of the band. **A palette is not ported by copying its numbers; the numbers that
+survive a swap of hue are only the ones that were never carrying the hue.**
+⛔⛔ **AND IT MUST NOT DRIFT INTO ICE, WHICH IS A MEASURED CONSTRAINT AND NOT TASTE:** the frozen
+block owns `0x8fd4ff / 0xdff4ff / 0xbfeaff` — PALE and low-saturation. The separation is the
+saturation and the violet end, never the hue alone.
+
+⚠️⚠️ **IT RENDERS INTO `spinR`, WHICH IS `alpha:true`, SO THE SHADER OUTPUTS PREMULTIPLIED COLOUR.**
+three's default `premultipliedAlpha:true` makes NormalBlending `blendFuncSeparate(ONE,
+ONE_MINUS_SRC_ALPHA, …)`, i.e. it expects RGB already multiplied by alpha. Every other shell in the
+game writes a bare `vec4(c, a)` and gets away with it because they draw into the MAIN canvas, which
+is `alpha:false` — there the framebuffer alpha is discarded and the difference never shows. **Copy
+one of them into an offscreen renderer without that line and it comes out washed and haloed.**
+⚠️⚠️ **THE SHELL IS OWNED BY `spinTick`, KEYED ON WHERE THE SHARED CANVAS IS MOUNTED — AND THAT IS
+THE WHOLE REASON IT CANNOT LEAK INTO THE MUSEUM.** `spinR` is ONE canvas for the charge slot, the
+collection cards and the new-object screen. Deciding «is this the charge?» once at
+`thumbSpinStart` would leave a charged look on a museum card the next time the slot handed the
+canvas over; asked every frame, the answer is always current. A guard drives that hand-over.
+⚠️ A CHILD OVERLAY, never an edit of the item's material — the flame's rule and the flame's reason.
+⚠️ NO PROGRAM ANCHOR, deliberately: `fxProgramAnchors` warms the MAIN renderer's cache, and this
+material only ever compiles inside `spinR`, which has a cache of its own.
+
+⛔ **THE CONIC RING IS NOW THE FALLBACK, NOT THE EFFECT** (`#chargeBtn.flat::after`). A shader shell
+can only ride the live 3D model; when the slot falls back to a flat `#chargeImg` — a cold pack, or
+the menu having taken the canvas — the ring is what says «electrified». That is the role the bench
+named for it when he was shown the six. ⚠️ Showing both would be the defect this button already
+suffered once: «a model with rotation means 3D WITHOUT a picture».
+⚠️ The ring is guarded ON THE STYLESHEET and not by tearing the canvas out — removing it is
+SELF-HEALING (spinTick stops, updateHUD re-mounts within a tick), so that route measures the healing
+rather than the fallback.
+⚠️ `__game.chargeGive()` was added: a test door onto the production grant `tryGiveCharge`, the single
+point both live callers use. Without it the only way to see a charge in a test is 16 clean matches.
+
+### ⛔⛔ THE DISTINCT CAP MOVED THE «COMPOSITION IS RANDOM» BOUNDARY FROM 89 DOWN TO 23
+
+Found the hard way, and it is the most important line of this batch. `levelDistinctCap`
+(2026-09-01-i) deals `22 + floor(lv/10)` distinct types out of the open ones, so from **level 23**
+a Fisher-Yates decides WHICH of them are in the bowl. The toilet-paper matcap guard set level 24
+and waited for a type at index 7 — an old type, one of 26 open competing for 24 slots, so absent
+about one run in thirteen. It passed once, then **killed a run with a bare `waitForFunction`
+timeout: no FAIL line, no verdict, at 763 greens.**
+⚠️ **THE CURE IS THE CANON'S OWN «UNION OVER SEVERAL REGENS», NOT A LONGER TIMEOUT** — waiting
+cannot make a type appear in a bowl it was never dealt.
+⚠️⚠️ **AND IT NOW APPLIES TO EVERY GUARD THAT NAMES A TYPE AT A LEVEL >= 23.** Two structural
+exemptions: the NEWEST unlock and any type carrying a paid boost are PINNED into the deal by
+genLevel. A full enumeration was done at the time (`setLevel` >= 23 appears four times; the other
+three name no type and are unaffected) — redo it after any edit of the cap.
+⚠️ The same fact is a PRODUCT statement and was named to him: from level 23 an old type is
+sometimes simply not on the level. That is the trade the cap was bought with — findability — and
+the measurement is in 2026-09-01-i.
+
+### `Audio/` — FOUR FOLDERS, AND THE FOLDER IS NOW THE SOURCE OF TRUTH
+
+His four categories, named in English because the project carries no Cyrillic anywhere:
+`1-interface`, `2-music`, `3-objects`, `4-gameplay`. 26 files, plus 9 documented slots that have no
+file yet. `tools/sfx-pack.py` reads the folder into `74-sfx-data.js`; `build.py` copies
+`Audio/2-music/background-music.mp3` to `./music.mp3`.
+
+⚠️⚠️ **THE FILES WERE EXTRACTED FROM THE BUILD, NOT GUESSED FROM THE OLD SCATTER — AND THAT IS WHAT
+MAKES THE FIRST RUN A PROVABLE NO-OP.** Every blob in `74-sfx-data.js` was decoded, its container
+detected from the magic bytes, and written out under its new name. Re-running the packer then
+rewrote the module with **every audio blob byte-identical**; the only diff was the alias comment
+block, and a second run is byte-identical to the first. Had the folder been rebuilt from the old
+`Audio/things/*` sources instead, four of the nine would not have matched what ships.
+⚠️ **VERBATIM OR CONVERTED, ONE RULE, PRINTED PER FILE:** a browser-decodable container
+(mp3/m4a/ogg/wav) at or under 96 KB ships byte for byte; anything else becomes mono 128k mp3. Every
+current file is under the ceiling — that is why the no-op holds — and the ceiling is what stops a
+dropped 40 MB master from putting 53 MB of base64 into the build.
+⚠️⚠️ **ALIASES ARE DETECTED BY CONTENT, NOT DECLARED.** Two identical files produce one blob and an
+assignment, so the folder can show every voice as its own file without the build paying for it.
+⛔ **THE DIRECTION OF AN ALIAS IS DECIDED BY DECLARATION ORDER IN `LAYOUT`, AND THE FIRST DRAFT GOT
+IT BACKWARDS.** Sorted by file name, `material-wood` came before `pack-cars` and the tool emitted
+`SFX_B64.pack_car = SFX_B64.mat_wood` — functionally identical and a LIE: it said the cars speak
+with wood's voice, when the recording is his `Cars.mp3` and wood is the stand-in.
+⚠️⚠️ **EVERY SYNTHESISED SOUND NOW TRIES A RECORDING FIRST** (`win`, `lose`, `surprise`, `shake`,
+`combo`, `chain`, `crunch`, `tick`, and the mixed-harvest `merge`), the shape `ui` and `miss` have
+had since his first drop. **With no file present nothing changes at all** — `playBuf` returns false
+before touching the graph — so the cost is one object lookup per event and the gain is that the
+folder shows every sound the game can make rather than only the recorded ones.
+⚠️ **THE README IS GENERATED FROM THE SAME TABLE ON EVERY RUN.** A hand-kept copy of a mapping next
+to the working one is this project's single most repeated defect.
+⚠️ THE MUSIC IS NOT IN THE PACKER: it is the one sound NOT inlined (4.4 MB of base64 would have
+tripled the start), so it gets its own copy step in `build.py`. The stem is fixed
+(`background-music.mp3`) so the 267 kbps master can live beside it and never be the one that ships.
+⛔ The legacy scatter (`things/`, `ui-audio/`, `digital-audio/`) was removed — every file was either
+byte-identical to something now in the new structure or a superseded source, and all of it is
+tracked, i.e. recoverable from history. `stray vibe.mp3` turned out to BE the 267 kbps music master
+(same 131.24 s) and was moved, not deleted.
+⛔ **NAMED, NOT DONE:** `material-plush.wav` (70 KB) and `material-glass.wav` (49 KB) are the only
+uncompressed files left — 120 KB of the bank's 386. Converting them to mono 128k mp3 would save
+~100 KB, and his 2026-09-01 instruction «convert them to mp3 for less weight» arguably covers them;
+it was NOT folded into a plumbing change, because it would silently re-encode the two most-used
+voices. One word and one command.
+
+⚠️⚠️ **THE GUARD THAT MATTERS IS NODE-SIDE AND COMPARES THE FOLDER WITH THE ARTEFACT:** for every
+slot with a file, that file's base64 must appear in the BUILT `index.html`. That is what turns «put
+a file in and it is in the game» from a promise into a fact, and it goes red both when a file is
+replaced without re-running the tools and when someone edits `74-sfx-data.js` by hand. Shown
+two-sided: appending three bytes to `button-tap.mp3` gives `mismatch: ['ui (button-tap.mp3)']`, and
+the original was restored with its md5 verified.
+⚠️ Its sanity arm is not decoration: every other arm is a `.length === 0`, and an empty list
+satisfies all of them — a table regex that stopped matching would turn the section green while
+checking nothing.
+⛔ **AND ONE ARM WAS WRONG BEFORE THE SUITE EVER SAW IT, CAUGHT BY A DRY RUN:** «every slot is
+openable from 75-audio» searched for the key LITERALLY, while the voices are looked up by a key
+COMPOSED at runtime (`'mat_' + materialOf()`, `'pack_' + type.tex`). It reported all fourteen
+missing on a healthy build. **A dry run of a new guard costs a minute; a suite run costs thirteen.**
+

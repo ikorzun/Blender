@@ -307,7 +307,12 @@ function addHints(n){ if (n > 0){ Save.he += n; commitSave(); } }
 function spendHint(){ if (hints() < 1) return false; Save.hs += 1; commitSave(); return true; }
 function addCoins(n){ if (n > 0){ Save.ce += n; commitSave(); } }
 function spendCoins(n){ if (coins() < n) return false; Save.cs += n; commitSave(); return true; }
-function setStars(lv, n){ if ((Save.stars[lv] || 0) < n){ Save.stars[lv] = n; commitSave(); } }
+// ⛔⛔ `setStars` IS GONE (2026-09-01-i) — nothing writes a rating any more.
+// ⚠️ `Save.stars` ITSELF IS KEPT, READ-ONLY AND ON PURPOSE: the grandfather migration below
+// (`starAward` over Save.stars) converts an OLD save's ratings into a starting balance, and it is
+// gated by a monotonic flag, so a player who has not migrated yet would silently lose that
+// conversion if the field were dropped. It is now written by nothing and read by exactly one
+// one-time path. ⛔ Do not "tidy" it away without checking that flag first.
 
 // ===== STARS-AS-CURRENCY: the wallet (the owner's decision 2026-07-23) =====
 // A subscription for the interface: the balance changed (award/spending/migration).
@@ -612,10 +617,8 @@ const ACC_LABELS = {
   // «soup», «cart», «ghost», «plunger», «matchbox», «dumbbell», «lifebuoy» and
   // «volleyball» all strip to a real word once `props` is in the prefix list below.
   propstoiletpaper: 'Toilet paper', propswater: 'Water bottle',
-  // ⚠️ `propskabar` would strip to «Kabar», which names nothing to a player.
-  // ⛔ THE KITCHEN KNIFE IS GONE (the owner 2026-09-01-e, by screenshot), so this is the only
-  // knife left and the note that used to distinguish two of them went with it.
-  propskabar: 'Combat knife',
+  // ⛔ BOTH KNIVES ARE GONE NOW (the kitchen one 2026-09-01-e, the kabar 2026-09-01-i,
+  // both by his screenshot) - the pack carries no blade at all any more.
   // «Washer» reads as the small metal ring; «Bat» as the animal. Both are spelled out.
   propswasher: 'Washing machine',
   propswineglass: 'Wine glass', propsbeachball: 'Beach ball',

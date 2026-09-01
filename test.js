@@ -471,69 +471,95 @@ page.on('response', (r) => {
   // We do NOT check the paddings here: the viewport of the suite is mobile, and the mobile mockup
   // 783:711 deliberately overrides them — it would not be the numbers of the node that got checked.
   const pill = await page.evaluate(() => {
-    // ⚠️⚠️ `svg,img` AND NOT `svg`: since 2026-08-23-z the icon is an <img>. With the old
-    // selector this whole probe short-circuits to `{noNode:true}` and the assert blames a
-    // MISSING NODE instead of the swap — every other arm (the white backing, the black
-    // «+1») would never even be evaluated.
-    const r = document.querySelector('.win-reward'), ic = document.querySelector('.win-reward-ic'),
-          n = document.querySelector('.win-reward-n'), sv = ic && ic.querySelector('svg,img');
-    if (!r || !ic || !n || !sv) return { noNode: true };
-    const c = getComputedStyle(r), ci = getComputedStyle(ic), cn = getComputedStyle(n);
-    const ir = ic.getBoundingClientRect(), sr = sv.getBoundingClientRect();
-    return { bg: c.backgroundColor, shadow: c.boxShadow, gap: c.gap,
-      circle: ci.backgroundColor, diameter: Math.round(ir.width),
-      icon: Math.round(sr.width), plus: cn.color,
-      // ⚠️ THE ICON'S OFFSET INSIDE ITS SLOT — the centring, measured where the layout is
-      // real. The sheet (69.5) is WIDER than the slot (54), so a centred icon must overhang
-      // by exactly (54 − 69.5) / 2 = −7.75 on each side. Pinned HERE and not in the
-      // win-reward section at the end of the file, because that one reads a hidden node,
-      // where a percentage transform computes to `none`.
-      iconOff: Math.round(sr.left - ir.left) };
+    // ⛔⛔ THE SINGLE «+1» PILL IS GONE (the owner 2026-09-01-i, with two Figma nodes: 892:2041
+    // Tip and 892:2031 Shake). It could not survive his own sentence in the same message — past
+    // level 10 a win pays a hint AND a shake, and one reward slot cannot say what was won.
+    // ⚠️ THE PROBE READS COMPUTED STYLE ONLY, NEVER getBoundingClientRect: this section measures a
+    // DETACHED CLONE, where an absolutely positioned child has no layout and every box would
+    // measure 0 — the old probe could use rects only because its icon was in the flow.
+    const row = document.querySelector('.win-reward');
+    const items = document.querySelectorAll('.win-rw');
+    if (!row || items.length !== 2) return { noNode: true, count: items.length };
+    const c = getComputedStyle(row), a = getComputedStyle(items[0]);
+    const b = getComputedStyle(items[0].querySelector('.win-rw-n'));
+    const im = getComputedStyle(items[0].querySelector('img'));
+    // ⚠️⚠️ THE PROVENANCE ARM IS THE HEIR OF THE RETIRED «win-mag» GUARD (2026-08-23-z), AND IT
+    // NOW STATES THE PROPERTY FOR TWO ENTITIES INSTEAD OF ONE. That guard existed to close the
+    // fork «one entity drawn by two pictures» — the win magnifier was an inline SVG while the
+    // bar wore his PNG, and they drifted apart every time he swapped the asset. The two-icon
+    // reward copies `src` off the bar buttons AT RENDER TIME (80-gameplay), so the fork cannot
+    // reopen; this reads that the copy actually happened.
+    // ⚠️ THE SHAKE SLOT IS ALLOWED TO BE HIDDEN and that is not a loophole: below level 10 a win
+    // pays a shake only on every fifth, and this section wins level 1. What is forbidden is a
+    // VISIBLE slot carrying somebody else's picture or none at all.
+    const tipImg = items[0].querySelector('img'), shkImg = items[1].querySelector('img');
+    const barTip = document.querySelector('#hintBtn img');
+    const barShake = document.querySelector('#shakeBtn img');
+    const shkShown = getComputedStyle(items[1]).display !== 'none';
+    return { count: items.length, ids: [items[0].id, items[1].id],
+             padTop: a.paddingTop, padLeft: a.paddingLeft, gap: a.columnGap,
+             borderW: a.borderTopWidth, borderC: a.borderTopColor,
+             badgeTop: b.top, badgeFont: b.fontSize, badgePad: b.paddingTop + ' ' + b.paddingLeft,
+             badgeRadius: b.borderTopLeftRadius,
+             badgeText: items[0].querySelector('.win-rw-n').textContent,
+             tipFromBar: !!barTip && !!tipImg.getAttribute('src') && tipImg.src === barTip.src,
+             shkShown: shkShown,
+             shkFromBar: !shkShown || (!!barShake && !!shkImg.getAttribute('src') && shkImg.src === barShake.src),
+             tags: [tipImg.tagName, shkImg.tagName],
+             // the heir of the old `svgLeft` clause: a leftover inline SVG would lie UNDER the
+             // <img> and be seen by nobody, so «the picture is right» would be true and wrong.
+             svgLeft: document.querySelectorAll('.win-rw svg').length,
+             rowBg: c.backgroundColor, rowShadow: c.boxShadow,
+             frame: a.width + ' x ' + a.height, radius: a.borderTopLeftRadius, bg: a.backgroundColor,
+             inset: a.boxShadow.indexOf('inset') >= 0,
+             badgeBg: b.backgroundColor, badgeFg: b.color, badgeH: b.height, badgeLeft: b.left,
+             icon: im.width + ' x ' + im.height };
   });
-  // ⛔⛔ THE GUARD MOVED AFTER THE RULE 2026-08-21-m: the owner said «remove
-  // the outline, leave only the icon in the circle, and make the +1 white». The backing
-  // of the pill and the lime inner glow (both by node 779:1114) ARE REMOVED, the «+1»
-  // has turned white. The former pins would go red on a sound build.
-  // ⚠️ WE CHECK THE ABSENCE EXPLICITLY, AND NOT BY SILENCE: «the background is transparent AND there is no shadow»
-  // — otherwise the assert would go green on a build too where the backing was returned in another colour.
-  // ⚠️ THE CIRCLE, THE DIAMETER, THE ICON AND THE GAP REMAIN UNDER THE PIN: those he did not cancel, and
-  // it is exactly they that are the very «leave only the icon in the circle».
-  // ⛔⛔ THE PILL IS AGAIN WITH GLASS (node 779:1115, the owner's word 2026-08-21-r
-  // «update the style of the block with the hint»). ⛔ IT CANCELS his own word 2026-08-21-m
-  // «remove the outline, leave only the icon in the circle» — it lived for a day, and
-  // the former assert («the background is transparent AND there is no shadow, the circle is white 64, the icon 32»)
-  // would go red now on a SOUND build by four fields at once.
-  // ⚠️ THERE IS NO WHITE CIRCLE AT ALL ANY MORE — the slot 54 stands right on the glass, therefore
-  // `circle` is obliged to be TRANSPARENT: without this field the return of the circle would pass
-  // green, and it is exactly what the owner removed.
-  // ⛔⛔ AND THE GLASS LIVED TWO DAYS: on 2026-08-23-z the owner said «the backing 100%
-  // white, the +1 in black» (in the same breath as «update it to the new one on the final
-  // screen»). All three of his words are ONE decision — white text on a white pill would be
-  // nothing at all — so they are pinned in one assert.
-  // ⚠️⚠️ AND THIS BREAKS A PAIRING THE CANON RECORDS AS DELIBERATE: the leaderboard row
-  // above was given the SAME glass in the SAME message («two blocks received one glass
-  // style»). His newer word beats the older node, the row was LEFT alone, and the two
-  // blocks now diverge on purpose — named to him, not absorbed silently.
-  // ⚠️ THE ICON GREW 43 → 70 AND THAT IS NOT A RESTYLE: the <img> carries his PNG, whose
-  // ink is only 65% of its sheet, so the sheet must be 69.5 for the DRAWN glyph to stay
-  // the 45.0×48.8 it was. The arithmetic lives at the CSS rule.
-  // ⚠️ `circle` STAYS PINNED TRANSPARENT — the white circle of 64 he removed on 2026-08-21-r
-  // must not creep back in under a white pill, where it would be invisible to the eye and
-  // still wrong in the box model.
-  // ⛔⛔ THE «+1» IS NO LONGER BLACK — 2026-08-30, the owner's own word with a hex: «vnutri
-  // tsifra +1 tsveta 484472». It supersedes exactly ONE THIRD of his 2026-08-23-z decision;
-  // the white pill and the absent circle from that same message STAND, so the assert keeps
-  // them and moves only the colour. (The pill's HEIGHT-follows-Next rule of the same day is
-  // pinned separately, on the live win screen — this section measures a detached clone.)
-  expect(pill.bg === 'rgb(255, 255, 255)' &&
-    pill.circle === 'rgba(0, 0, 0, 0)' && pill.diameter === 54 && pill.icon === 70 &&
-    pill.iconOff === -8 && pill.plus === 'rgb(72, 68, 114)',
-    '⚠️⚠️ VICTORY: the reward is a 100% WHITE pill (radius 64) with a slot of 54, an icon ' +
-    'sheet of 69.5 CENTRED IN IT and a «+1» IN #484472, without the white circle (' +
-    JSON.stringify(pill) + '). ' +
-    'The owner 2026-08-23-z, with the number recoloured 2026-08-30. ⛔ IT CANCELS THE GLASS of ' +
-    '2026-08-21-r (white 8%), which lived two days, and with it the pairing with the ' +
-    'leaderboard row above — that row KEEPS the glass, the divergence is deliberate');
+  // ⛔⛔ THE GUARD MOVED WITH THE RULE AND DID NOT GET «REPAIRED». Everything the old assert
+  // pinned — the white pill of radius 64, the slot of 54, the 69.5 sheet centred in it, the «+1»
+  // in #484472 — described a component the owner replaced. Read the tombstones it carried (the
+  // glass of 2026-08-21-r, the white of 2026-08-23-z, the recolour of 2026-08-30) as the history
+  // of ONE slot that has now been retired, not as rules still in force.
+  // ⚠️ THE TWO IDS ARE PART OF THE PIN: the win screen must carry a HINT icon and a SHAKE icon,
+  // not two of the same. A count of 2 alone is satisfied by the same icon twice.
+  // ⚠️ AND THE BADGE COLOURS ARE HIS NODE'S, not the bar's: both happen to be lime today, so an
+  // assert that read them off the bar would be comparing a value with itself.
+  // ⚠️⚠️ THE SHAPE IS PINNED BY PADDING AND RADIUS, NOT BY A MEASURED WIDTH, AND THAT IS
+  // DELIBERATE: his pill is sized by its CONTENT (56 icon + 13 either side), so a width literal
+  // would be a derived number standing next to the numbers it is derived from — and it would go
+  // red the day the icon or the font moves for a reason that has nothing to do with this rule.
+  // Padding, radius, border and fill are what he actually wrote in the node.
+  expect(!pill.noNode && pill.count === 2 &&
+         pill.ids[0] === 'winRwTip' && pill.ids[1] === 'winRwShake' &&
+         pill.padTop === '9px' && pill.padLeft === '13px' && pill.gap === '6px' &&
+         pill.radius === '80px' && pill.bg === 'rgba(255, 255, 255, 0.9)' && pill.inset &&
+         pill.borderW === '1px' && pill.borderC === 'rgb(255, 255, 255)' &&
+         pill.icon === '56px x 56px' &&
+         pill.badgeBg === 'rgb(192, 255, 71)' && pill.badgeFg === 'rgb(74, 113, 0)' &&
+         pill.badgeFont === '20px' && pill.badgeRadius === '32px' &&
+         pill.badgePad === '8px 6px' &&
+         pill.badgeLeft === '-1px' && pill.badgeTop === '43px' && pill.badgeText === '+1' &&
+         pill.tags[0] === 'IMG' && pill.tags[1] === 'IMG' && pill.svgLeft === 0 &&
+         pill.tipFromBar && pill.shkFromBar,
+    '\u26a0\ufe0f\u26a0\ufe0f VICTORY: the reward is TWO WHITE PILLS with notification badges - his ' +
+    'Figma nodes 933:1515 (Tip-final) and 933:1531 (Shake-final): padding 9/13 at radius 80 on ' +
+    'white 90% with a 1px white border and the 16px inset glow, a 56 icon, and a lime #c0ff47 ' +
+    'badge with #4a7100 text at 20px crossing the bottom-left corner (-1, 43) (' +
+    JSON.stringify(pill) + '). \u26d4 THEY SUPERSEDE 892:2041 / 892:2031, WHICH LIVED ONE BATCH - ' +
+    'that pair was the BAR-shaped 56 square at radius 16 on white 40%, with a 22-high badge ' +
+    'hanging 6px BELOW the frame; and before them the single «+1» pill. Every pin those carried ' +
+    'is kept above as history, not as rules. ' +
+    '\u26a0\ufe0f\u26a0\ufe0f THE BADGE TEXT IS PINNED AS THE LITERAL «+1» AND THAT IS THE STATEMENT, ' +
+    'NOT A PASSENGER: the previous edition wrote the player\u2019s running TOTAL here, and both of ' +
+    'his nodes read «+1». A notification says what THIS win paid; the totals live on the bar ' +
+    'badges, in the same lime, three inches away. A build that put the counts back would satisfy ' +
+    'every other arm of this assert. ' +
+    '\u26a0\ufe0f\u26a0\ufe0f AND THE PROVENANCE HALF IS THE HEIR OF THE RETIRED «win-mag» ASSERT: ' +
+    'each icon must be the SAME PICTURE as its bar button, because the reward COPIES `src` off the ' +
+    'bar instead of inlining a second base64 — which is what closes for good the fork «one entity ' +
+    'drawn by two pictures» that cost this slot three redraws. A hidden shake slot is legal (level ' +
+    '1 pays no shake); a VISIBLE one with a foreign or empty src is not');
+
   // ═══ THE HEADER OF THE VICTORY SCREEN BY THE REDRAWN NODE 778:732 (2026-08-21-n) ═══
   // ⚠️⚠️ UNTIL THIS SECTION NOBODY GUARDED THE HEADER. In the suite there was not a single
   // mention of `winCleaned`/`winLevel`/`winTime`: the redraw would pass green
@@ -2497,19 +2523,26 @@ page.on('response', (r) => {
     const w = document.getElementById('winOverlay'); const was = w.style.display;
     w.style.display = 'flex';
     const r = document.querySelector('.win-reward'), n = document.querySelector('.win-next');
-    const num = document.querySelector('.win-reward-n');
-    const out = { pill: r ? Math.round(r.getBoundingClientRect().height) : -1,
-                  next: n ? Math.round(n.getBoundingClientRect().height) : -1,
-                  color: num ? getComputedStyle(num).color : '-' };
+    const rr = r ? r.getBoundingClientRect() : null, nr = n ? n.getBoundingClientRect() : null;
+    const out = { row: rr ? Math.round(rr.height) : -1, next: nr ? Math.round(nr.height) : -1,
+                  centred: (rr && nr) ? Math.round(Math.abs((rr.top + rr.bottom) / 2 - (nr.top + nr.bottom) / 2)) : -1,
+                  overflow: r ? getComputedStyle(r.parentElement).overflow : '-' };
     w.style.display = was;
     return out;
   });
-  expect(pillFit.pill > 0 && pillFit.pill === pillFit.next,
-    'the win reward pill is EXACTLY as tall as the Next button (' + JSON.stringify(pillFit) + ') ' +
-    '— the two live in one row and the owner asked for one height');
-  expect(pillFit.color === 'rgb(72, 68, 114)',
-    'the «+1» inside the pill is #484472 (the owner 2026-08-30, superseding «+1 in black» of ' +
-    '2026-08-23-z) — got ' + pillFit.color);
+  // ⛔⛔ «THE PILL IS EXACTLY AS TALL AS NEXT» IS RETIRED, AND NOT BECAUSE IT BECAME INCONVENIENT:
+  // his word of 2026-08-30-e set that equality for a SINGLE reward pill, and on 2026-09-01-i he
+  // replaced it with two 56 icons from his own nodes. 56 cannot equal Next's height, so the old
+  // assert would go red on a build that follows his newest instruction exactly.
+  // ⚠️ WHAT SURVIVES IS THE PROPERTY UNDERNEATH IT — the reward and Next share one row and read as
+  // one line. That is stated as CENTRES, which holds at any icon size, instead of as an equality
+  // of heights, which held only for the component that is gone.
+  expect(pillFit.row > 0 && pillFit.next > 0 && pillFit.centred <= 1,
+    'the win reward and the Next button are CENTRED on one line (' + JSON.stringify(pillFit) + '). ' +
+    '\u26d4 The former pin was an EQUALITY OF HEIGHTS, correct while the reward was one pill as ' +
+    'tall as Next (2026-08-30-e) and wrong the moment it became two 56 icons (2026-09-01-i)');
+  // ⚠️ The badge colour is pinned on the detached clone above, where the whole component is stated
+  // in one place; repeating it here would be a second copy to keep in step.
 
   // === THE RIGHT-BUTTON DRAG CLENCHES THE HAND TOO (the owner, 2026-08-30) ===
   // ⛔ It did not: the rdrag branch in the pointermove handler returns BEFORE the block that
@@ -3200,8 +3233,13 @@ page.on('response', (r) => {
   });
   expect(walletProbe.ok && walletProbe.after.bal === walletProbe.before.bal - 2000,
     'a write-off decreases the balance (' + walletProbe.before.bal + ' -> ' + walletProbe.after.bal + ')');
-  expect(JSON.stringify(walletProbe.before.stars) === JSON.stringify(walletProbe.after.stars),
-    'a spend of currency does NOT touch the rating of levels (' + JSON.stringify(walletProbe.after.stars) + ')');
+  // ⛔⛔ THE ARM «a spend does not touch the rating of levels» DIED WITH ITS MECHANIC on
+  // 2026-09-01-i («we have no concept of stars, only points»). Nothing writes `Save.stars` any
+  // more, so the comparison would be `{}` against `{}` — green under every possible behaviour,
+  // i.e. exactly the tautology this suite keeps hunting. A guard dies with its mechanic; it is
+  // not rewritten to keep a PASS count.
+  // ⚠️ The field itself is still read by ONE path — the grandfather migration for old saves — and
+  // that path keeps its own separate coverage.
   expect(walletProbe.tooMuch === false && walletProbe.balAfterFail === walletProbe.after.bal,
     'a write-off above the balance is rejected and the balance is not changed (' + walletProbe.balAfterFail + ')');
 
@@ -11297,112 +11335,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'clearance was bought by growing the SHAFT precisely so this number could stay put; it is ' +
       'part of the statement, not a leftover.');
 
-    // ── THE WIN SCREEN: THE REWARD ICON IS THE OWNER'S PNG (2026-08-23-z) ──────────
-    // ⛔⛔ THE THIRD PICTURE IN THIS ONE SLOT, AND EACH TIME BY HIS WORD: a hand glyph →
-    // a magnifier SVG (2026-08-21-z, closing the fork «two different icons of one entity»)
-    // → THE SAME PNG THE BAR BUTTON USES (2026-08-23-z «update it to the new one on the
-    // final screen»). Every pin of the previous edition — `viewBox`, `paths`, the gradient
-    // ids `tipw-`, the 42.602×46.406 box — would go red on a sound build now, and `oldHand`
-    // would go VACUOUSLY GREEN (an <img> has an empty innerHTML). The guard moves with his
-    // word; it is not «repaired».
-    // ⚠️ We read a HIDDEN node (the win overlay is `display:none`): computed `width`/`height`
-    // resolve all the same, and a data: <img> decodes regardless of display — we await the
-    // decode rather than assume it.
-    const reward = await page.evaluate(async () => {
-      const ic = document.querySelector('.win-reward-ic');
-      if (!ic) return { has: false };
-      // ⚠️⚠️ `svg,img` AND NOT `img`: with the bare new selector a REGRESSION back to the
-      // inline SVG would return `{ has:false }` and the assert would read as «the slot is
-      // gone» instead of «the picture came back». We take whichever node is there and pin
-      // the TAG.
-      const m = ic.querySelector('svg,img');
-      if (!m) return { has: true, noIcon: true };
-      if (m.tagName === 'IMG' && m.decode) { try { await m.decode(); } catch (e) {} }
-      // ⚠️ THE TWO PIXEL HELPERS ARE COPIED VERBATIM FROM THE BAR'S GUARD, AND THAT IS
-      // DELIBERATE: a shared helper would have to live outside both `evaluate` bodies, and
-      // the page cannot see the node scope. The pair must stay in step — when one is
-      // corrected, correct the other.
-      const px = (im, want) => { try {
-        const c = document.createElement('canvas');
-        c.width = im.naturalWidth; c.height = im.naturalHeight;
-        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
-        const d = x.getImageData(0, 0, c.width, c.height).data;
-        if (want === 'ink') {
-          let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
-          for (let i = 0; i < d.length; i += 4) {
-            if (d[i + 3] < 8) continue;
-            const cx = (i / 4) % c.width, cy = ((i / 4) / c.width) | 0;
-            if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
-            if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
-          }
-          return x1 < 0 ? null : [x1 - x0 + 1, y1 - y0 + 1];
-        }
-        const cnt = {};
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i + 3] < 200) continue;
-          if (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240) continue;
-          const k = d[i] + ',' + d[i + 1] + ',' + d[i + 2];
-          cnt[k] = (cnt[k] || 0) + 1;
-        }
-        let best = null, max = 0;
-        for (const k in cnt) if (cnt[k] > max) { max = cnt[k]; best = k; }
-        return best;
-      } catch (e) { return 'ERR:' + e.name; } };
-      const cs = getComputedStyle(m);
-      const isImg = m.tagName === 'IMG';
-      return { has: true, tag: m.tagName, cls: m.getAttribute('class'),
-               width: cs.width, height: cs.height, position: cs.position,
-               events: cs.pointerEvents,
-               // ⚠️⚠️ THE CENTRING IS **NOT** PINNED HERE, AND THAT IS A MEASUREMENT, NOT AN
-               // OVERSIGHT: on a `display:none` node `getComputedStyle().transform` returns
-               // `none` — the percentages in `translate(-50%,-50%)` resolve against a border
-               // box that does not exist — so an arm on it would go RED ON A SOUND BUILD.
-               // Caught by a probe before the run, not by the run. The centring is pinned
-               // where the layout is real: the reward-pill guard near the top of this file
-               // measures the icon's offset inside its slot on a SHOWN screen.
-               natural: isImg ? (m.naturalWidth | 0) + 'x' + (m.naturalHeight | 0) : null,
-               outline: isImg ? px(m, 'tone') : null,
-               ink168: isImg ? px(m, 'ink') : null,
-               // ⚠️ THE ONE THING THAT MUST BE ZERO: an inline <svg> left behind would sit
-               // UNDER the <img> and nobody would see it — the same class of defect as the
-               // `oldHand` clause it replaces.
-               svgLeft: ic.querySelectorAll('svg').length };
-    });
-    console.log('win-reward:', JSON.stringify(reward));
-    // ⚠️⚠️ THE SIZE IS THE POINT OF THIS ASSERT, NOT A PASSENGER. His sheet is 168×168 with
-    // the ink on only 109×118 of it, so the naive «fill the slot» (54) would draw a glyph of
-    // 35×38 — SMALLER than the same asset in the HUD button. 69.5 is the number at which the
-    // drawn ink stays the 45.0×48.8 the SVG drew; the arithmetic is at the CSS rule.
-    // ⚠️⚠️ AND `width === height` IS THE NEW RISK THAT ARRIVED WITH THE <img>: `object-fit`
-    // defaults to `fill`, so a NON-square box on a square sheet squashes the drawing without
-    // any error anywhere. A square box makes the whole problem not exist; this arm is what
-    // stops someone «fitting» the element to the drawing again.
-    // ⚠️ `pointer-events:none`: the rule that carries it for the bar copy is nailed to
-    // `#hintBtn`, an <img> is draggable by default, and at 69.5 the transparent sheet
-    // overhangs the «+1».
-    // ⚠️⚠️ `natural` + `outline` ALONE ARE BLIND — that is the lesson of this very day: the
-    // owner swapped the file for one of the SAME sheet and the SAME tone, and both pins
-    // stayed green. `ink168` is what separates two magnifiers of one sheet.
-    expect(reward.has && !reward.noIcon && reward.tag === 'IMG' &&
-           /tip-mag/.test(reward.cls) && /win-mag/.test(reward.cls) &&
-           reward.natural === '168x168' && reward.outline === '72,68,114' &&
-           !!reward.ink168 && reward.ink168[0] === 109 && reward.ink168[1] === 118 &&
-           reward.width === '69.5px' && reward.height === '69.5px' &&
-           reward.position === 'absolute' &&
-           reward.events === 'none' && reward.svgLeft === 0,
-      '⚠️⚠️ ON THE WIN SCREEN THE «+1» REWARD CARRIES THE OWNER\'S PNG — THE SAME FILE AS THE ' +
-      'BAR BUTTON (' + JSON.stringify(reward) + '). His word 2026-08-23-z. ' +
-      '⛔ IT CANCELS the inline SVG of node 891:4317 (viewBox `14.48 11.58 50.492 55`, three ' +
-      'paths, the `tipw-` gradient prefix) — one entity is now drawn by ONE picture, which ' +
-      'closes for good the fork named to him twice. ' +
-      '⚠️⚠️ THE BOX IS 69.5 AND NOT THE SLOT\'S 54 — the arithmetic of his own sheet, the same ' +
-      'as at the Shake pill: the ink is 65% of the sheet, so 54 would draw a glyph SMALLER ' +
-      'than the one in the HUD. ⚠️ `svgLeft === 0` is the heir of the old `oldHand` clause: ' +
-      'a leftover SVG would lie UNDER the img and be seen by nobody. ' +
-      '⚠️ AND A CONSEQUENCE NAMED TO HIM, NOT GUARDED HERE BECAUSE IT IS A MATTER OF TASTE: ' +
-      '58% of this PNG\'s ink is WHITE (the halo and the lens), so on the 100% white backing ' +
-      'he asked for, that half stops being visible and the glyph reads as indigo line art ' +
-      '— the same way it already reads on the pale sky behind the bar button');
+    // ⛔⛔ RETIRED 2026-09-01-i: «THE WIN SCREEN: THE REWARD ICON IS THE OWNER'S PNG».
+    // It read `.win-reward-ic .win-mag` — the single «+1» pill — and the owner replaced that
+    // slot with TWO icons (his nodes 892:2041 / 892:2031). Every pin it carried described the
+    // retired component: the 69.5 sheet centred in a slot of 54, `natural 168x168`, the ink
+    // 109x118, `pointer-events:none`, `svgLeft === 0`. On the new build its probe returns
+    // `{has:false}` — i.e. it reported «the slot is gone», which is TRUE and no longer a defect.
+    // ⚠⚠ THE PROPERTY IT ACTUALLY GUARDED SURVIVED AND MOVED, IT WAS NOT DROPPED: «the win
+    // reward carries THE SAME PICTURE as the bar button» is now stated for BOTH icons in the
+    // reward guard at the top of this file (`tipFromBar` / `shkFromBar` / `svgLeft`), where the
+    // screen is shown by a REAL win and the icons have been filled by production. That is also
+    // where it belongs — this section reads a hidden overlay on the blades page, and the fill
+    // happens in the win path, so the assert would have measured an empty src.
+    // ⚠ THE SHEET'S OWN PINS (`natural` / `outline` / `ink168`) did NOT move here and did not
+    // need to: the bar button's guard already reads that same file, and the reward now provably
+    // carries whatever the bar carries. One picture, one place that pins it.
+
 
     // ── HOVER AND THE TOSS (the owner's word 2026-08-21-g) ────────────────────
     // ⚠️⚠️ THE MEASUREMENT IS WITH THE TRANSITION SWITCHED OFF, AND NOT THROUGH A PAUSE: with a live transition
@@ -13425,16 +13373,35 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // page comes from `browser.newPage()`, which in Playwright opens its OWN context: the key dies
   // with the page on close. ⛔ MOVE THIS SECTION ONTO A SHARED PAGE OR A SHARED CONTEXT AND IT
   // MUST GAIN `setLevel(1)` BEFORE THE CLOSE.
-  await mkPage.evaluate(() => { window.__game.setLevel(24); window.__game.regen(); });
-  await mkPage.waitForFunction(() => window.__game.alive() > 100, null, { timeout: 30000 });
-  await mkPage.evaluate(() => window.__game.skipIntro());
-  // ⚠ WAIT ON THE FACT, NOT ON A CLOCK: what the measurement needs is that this type is actually
-  // alive in the pile with a material, and under the suite's load a fixed pause measures the
-  // bench rather than the page - the project's own recurring flake.
-  await mkPage.waitForFunction(() => {
-    const r = window.__game.typeMatcapInfo().types.propstoiletpaper;
-    return !!(r && r.items > 0 && r.mcLum !== undefined);
-  }, null, { timeout: 30000 });
+  // ⛔⛔ THE COMPOSITION OF A LEVEL STOPPED BEING DETERMINISTIC AT 23, AND THIS SECTION IS WHERE
+  // THAT WAS FOUND - THE HARD WAY. `levelDistinctCap` (2026-09-01-i) deals only `22 + floor(lv/10)`
+  // distinct types out of the ones open, so from level 23 upwards a Fisher-Yates picks WHICH of
+  // them are in the bowl. `propstoiletpaper` sits at index 7, i.e. it is an OLD type here and not
+  // the pinned newest unlock: at level 24 it is one of 26 open competing for 24 slots, so it is
+  // absent about one run in thirteen. It passed once and then killed a run with a bare
+  // `waitForFunction` timeout - no FAIL line, no verdict, at 763 greens.
+  // ⚠️⚠️ THE CURE IS THE CANON'S OWN «UNION OVER SEVERAL REGENS», not a longer timeout: waiting
+  // cannot make a type appear in a bowl that was never dealt it. We re-deal until it is there and
+  // say so out loud if it never is.
+  // ⚠️ AND THE SAME NOW APPLIES TO EVERY FUTURE GUARD THAT NAMES A TYPE AT A LEVEL >= 23. Two
+  // exemptions, both structural: the NEWEST unlock and any type with a paid boost are PINNED into
+  // the deal by genLevel, so a guard on either of those stays deterministic.
+  const mkDeals = await mkPage.evaluate(async () => {
+    const g = window.__game;
+    g.setLevel(24);
+    for (let i = 0; i < 40; i++){
+      g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 60));
+      const r0 = g.typeMatcapInfo().types.propstoiletpaper;
+      if (r0 && r0.items > 0 && r0.mcLum !== undefined) return i + 1;
+    }
+    return -1;
+  });
+  expect(mkDeals > 0, '⚠️⚠️ THE TYPE UNDER TEST WAS ACTUALLY DEALT INTO THE BOWL (after ' + mkDeals +
+    ' regen(s) at level 24). ⛔ THIS ARM EXISTS BECAUSE THE DISTINCT CAP MADE THE ANSWER ' +
+    'PROBABILISTIC: from level 23 the deal is a random subset of the open types, so «the type is ' +
+    'in the pile» is no longer something a guard may assume - and a bare wait for it dies without ' +
+    'a verdict instead of failing');
   const mkInfo = await mkPage.evaluate(() => {
     const t = window.__game.typeMatcapInfo().types, p = window.__game.packMatcapInfo().packs;
     const bad = [];
@@ -16418,6 +16385,184 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(sharedSrc === true,
       'THE MATCAP OF THE PACK: the animals and the food share ONE picture (a second base64 just like it would cost 54 KB)');
     await mcPage.close();
+  }
+
+  // ═══ THE CHARGE'S ELECTRIC LOOK (his pick 2026-09-01-l: variant 6 «Surge band», cold) ═══
+  // ⚠️⚠️ NOTHING GUARDED THE CHARGE SLOT'S APPEARANCE BEFORE THIS SECTION - not the ring that had
+  // been on the build for a batch, and not the shell that replaced it. Both the change and its
+  // rollback would have passed green.
+  {
+    const cfPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await cfPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await cfPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+    await cfPage.evaluate(() => window.__game.skipIntro());
+    // ⚠️ THE GRANT GOES THROUGH THE PRODUCTION FUNCTION (`chargeGive` -> `tryGiveCharge`), the
+    // single point both live callers use - so the copies threshold and the `chargeGiven`
+    // watermark are the game's, not the test's.
+    const gave = await cfPage.evaluate(() => window.__game.chargeGive());
+    // ⚠️ WAIT ON THE FACT, NEVER ON A CLOCK: the shell is attached by `spinTick`, i.e. by a rAF,
+    // and under the load of a full run a fixed pause measures the bench.
+    const attached = await cfPage.waitForFunction(() => window.__game.chargeFx().shell === true,
+      null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const cf1 = await cfPage.evaluate(() => window.__game.chargeFx());
+    await cfPage.waitForTimeout(420);
+    const cf2 = await cfPage.evaluate(() => window.__game.chargeFx());
+    console.log('charge fx:', JSON.stringify({ gave, attached, cf1, cf2 }));
+    expect(gave === true && attached && cf1.shell === true && cf1.mountedOnCharge === true,
+      '⚠️⚠️ THE CHARGE WEARS THE SURGE SHELL ON ITS LIVE 3D MODEL (' + JSON.stringify(cf1) + '). ' +
+      'His pick off the six-variant bench, 2026-09-01-l, with his own amendment «take it from warm ' +
+      'to cold». ⛔ IT REPLACES THE CONIC RING AS THE EFFECT - see the next arm for what the ring ' +
+      'became.');
+    expect(cf1.flat === false && cf2.flat === false,
+      '⚠️⚠️ AND THE RING IS NOT SHOWING AT THE SAME TIME (flat ' + cf1.flat + '). ⛔ THIS IS THE ' +
+      'CONTROL AND NOT A PASSENGER: showing both is the exact defect this very button already ' +
+      'suffered once - «a model with rotation means 3D WITHOUT a picture» - and «the shell is on» ' +
+      'is true on a build that simply added it on top of the old look.');
+    expect(cf1.t !== null && cf2.t !== null && cf2.t > cf1.t,
+      '⚠️ THE SHELL IS ANIMATED, NOT A FROZEN DECAL: its clock moved ' + cf1.t + ' -> ' + cf2.t +
+      '. ⛔ Without this arm a build whose uniform is never updated - the band parked wherever the ' +
+      'first frame left it - is indistinguishable from a working one in every other reading.');
+    expect(cf1.sharesItemMaterial === false,
+      '⚠️⚠️ THE SHELL HAS ITS OWN MATERIAL AND NEVER THE ITEM\'S. The canon\'s rule at the flame, ' +
+      'and for the flame\'s reason: the collection portraits are rendered by the same material ' +
+      'class, so a «charged» look written into the material would leak into the museum.');
+    // the ring, tested where the change actually is - the stylesheet's gate
+    const ring = await cfPage.evaluate(() => {
+      const cb = document.getElementById('chargeBtn');
+      const read = () => { const cs = getComputedStyle(cb, '::after');
+        return { content: cs.content, bg: cs.backgroundImage.slice(0, 14), anim: cs.animationName }; };
+      const had = cb.classList.contains('flat');
+      cb.classList.remove('flat'); const off = read();
+      cb.classList.add('flat');    const on  = read();
+      if (!had) cb.classList.remove('flat');
+      return { off, on };
+    });
+    console.log('charge ring:', JSON.stringify(ring));
+    expect(ring.off.content === 'none' && ring.on.content === '""' &&
+           /conic-gradient/.test(ring.on.bg) && /chargeArc/.test(ring.on.anim),
+      '⚠️⚠️ THE CONIC RING IS THE FALLBACK NOW, GATED ON `.flat` (' + JSON.stringify(ring) + '). ' +
+      'A shader shell can only ride the LIVE 3D model; when the slot falls back to a flat picture - ' +
+      'a cold pack, or the menu having taken the shared canvas - there is nothing for it to hang ' +
+      'on, and the ring is what says «electrified» there. ⚠️ IT IS TESTED ON THE STYLESHEET AND NOT ' +
+      'BY TEARING THE CANVAS OUT: removing it is SELF-HEALING (spinTick stops, updateHUD re-mounts ' +
+      'within a tick), so that route measures the healing rather than the fallback.');
+    // ⚠️⚠️ THE LEAK ARM. `spinR` is ONE canvas for the whole game and the collection takes it the
+    // moment a card is touched. This drives that hand-over by the production hook and requires the
+    // shell to be GONE - the property the whole «decide it in spinTick by where the canvas hangs»
+    // design exists for. A build that attached the shell at `thumbSpinStart` instead passes every
+    // arm above and fails exactly here.
+    // ⛔⛔ AND THE FIRST EDITION OF THIS ARM COULD NEVER OBSERVE ITS OWN SUBJECT - it went red on a
+    // build whose mechanism is correct, which is worth more than the arm itself. It handed the
+    // canvas to another host WHILE THE CHARGE WAS STILL LIVE, and `updateHUD` re-mounts it on the
+    // slot within a frame whenever a charge is armed (the canon says so at the mount: «the menu
+    // will take it for the collection when it opens, and this top-up will give the spin back to
+    // the charge as soon as the slot is refreshed again»). Sixty rAFs later the canvas was back
+    // where it started and the probe reported `moved:false`.
+    // ✅ THE STATE THAT ACTUALLY EXISTS is reached through the production path: detonate, the slot
+    // hides and drops the spin, and only THEN does the shared canvas belong to something else.
+    // ⚠️ IT IS STILL NOT A TAUTOLOGY, and that was checked rather than assumed: a build that
+    // attached the shell inside `thumbSpinStart` instead of asking every frame where the canvas
+    // hangs would attach it to this host too, and this arm is the only one that would notice.
+    const leak = await cfPage.evaluate(async () => {
+      const g = window.__game;
+      const key = g.charge().name;
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:0;top:0;width:64px;height:64px';
+      host.id = 'cfHost'; document.body.appendChild(host);
+      g.detonateCharge();
+      for (let i = 0; i < 90 && g.charge().name; i++) await new Promise(r => requestAnimationFrame(r));
+      g.thumbSpinToggleKey(key, '#cfHost');
+      for (let i = 0; i < 90; i++){
+        await new Promise(r => requestAnimationFrame(r));
+        const f = g.chargeFx();
+        if (!f.mountedOnCharge && f.shell === false)
+          return { moved: true, onHost: !!document.querySelector('#cfHost canvas'), f };
+      }
+      return { moved: false, onHost: !!document.querySelector('#cfHost canvas'),
+               charge: g.charge().name, f: g.chargeFx() };
+    });
+    console.log('charge fx leak:', JSON.stringify(leak));
+    expect(leak.moved === true && leak.onHost === true,
+      '⚠️⚠️ THE SHELL DOES NOT FOLLOW THE SHARED CANVAS INTO THE COLLECTION (' +
+      JSON.stringify(leak) + '). ONE renderer serves the charge slot, the collection cards and the ' +
+      'new-object screen, so «is this the charge?» has exactly one honest answer at any instant: ' +
+      'WHERE the canvas is mounted right now. ⛔ Deciding it once at `thumbSpinStart` would leave a ' +
+      'charged look on a museum card the next time the slot handed the canvas over. ' +
+      '⚠️ `onHost` IS PART OF THE PREDICATE: «the shell is gone» is also true of a run where the ' +
+      'canvas went nowhere at all, i.e. of a probe that measured nothing.');
+    await cfPage.close();
+  }
+
+  // ═══ THE Audio/ FOLDER IS THE SOURCE OF THE GAME'S SOUND (his word 2026-09-01-l) ═══
+  // ⚠️⚠️ THIS SECTION IS NODE-SIDE AND OPENS NO PAGE. What it states cannot be seen from inside the
+  // browser at all: that the FILES ON DISK are what the build carries. He asked to be able to
+  // change a sound by replacing a file, and the only way that promise can be checked is by
+  // comparing the folder with the artefact.
+  {
+    const audioDir = path.join(__dirname, 'Audio');
+    const packer = fs.readFileSync(path.join(__dirname, 'tools', 'sfx-pack.py'), 'utf8');
+    const built = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    const audioSrc = fs.readFileSync(path.join(__dirname, 'src', 'app', '75-audio.js'), 'utf8');
+    // the table is read OUT OF THE TOOL, never copied here - a second copy of a mapping next to the
+    // working one is this project's single most repeated defect
+    const rows = [...packer.matchAll(/^\s*'([a-z_0-9]+)':\s*\('([1-4]-[a-z]+)',\s*'([a-z0-9-]+)'/gm)]
+      .map(m => ({ key: m[1], folder: m[2], stem: m[3] }));
+    const EXTS = ['.mp3', '.m4a', '.ogg', '.wav', '.aif', '.aiff', '.flac'];
+    const found = [], missing = [], mismatch = [], notOpenable = [];
+    for (const r of rows){
+      const hit = EXTS.map(e => path.join(audioDir, r.folder, r.stem + e)).find(p => fs.existsSync(p));
+      if (!hit){ missing.push(r.key); }
+      else {
+        found.push(r.key);
+        const b64 = fs.readFileSync(hit).toString('base64');
+        // ⚠️⚠️ THE LOAD-BEARING ARM: the FILE's bytes, base64-encoded, must be inside the BUILT
+        // index.html. That is what makes «replace the file and it is in the game» a fact rather
+        // than a promise - and it goes red the moment someone edits 74-sfx-data.js by hand
+        // instead of through the folder.
+        if (!built.includes(b64)) mismatch.push(r.key + ' (' + path.basename(hit) + ')');
+      }
+      // ⚠️⚠️ AND EVERY SLOT - RECORDED OR EMPTY - MUST BE OPENABLE FROM 75-audio, or the folder is
+      // advertising a door that does not exist. THE DOOR HAS TWO SHAPES AND THE FIRST DRAFT OF
+      // THIS ARM KNEW ONLY ONE: the events name their key literally (`playBuf('win'`), while the
+      // voices are looked up by a key COMPOSED at runtime from the item - `'mat_' + materialOf()`
+      // and `'pack_' + type.tex` - so a literal search called all fourteen of them missing on a
+      // perfectly healthy build. Caught by a dry run BEFORE the suite, not by it.
+      // ⚠️ The take-numbered keys (grind1..4, eyes1/2) are opened by `playVar` on their BASE name,
+      // which appends the number itself - hence the trailing-digit strip.
+      const door = r.key.startsWith('mat_')  ? "playBuf('mat_' +"
+                 : r.key.startsWith('pack_') ? "playVar('pack_' +"
+                 : null;
+      const opened = door ? audioSrc.includes(door)
+        : new RegExp("playBuf\\('" + r.key + "'|playVar\\('" + r.key.replace(/[0-9]$/, '') + "'").test(audioSrc);
+      if (!opened) notOpenable.push(r.key);
+    }
+    console.log('Audio folder:', JSON.stringify({ rows: rows.length, found: found.length,
+      missing, mismatch, notOpenable }));
+    expect(rows.length >= 30 && found.length >= 20,
+      '⚠️ THE TABLE IN tools/sfx-pack.py WAS READ AT ALL (' + rows.length + ' slots, ' + found.length +
+      ' with a file). ⛔ THIS IS THE SANITY CHECK AND IT IS NOT DECORATION: every arm below is a ' +
+      '`.length === 0`, and an empty list satisfies all of them - a regex that stopped matching ' +
+      'would turn this whole section green while checking nothing.');
+    expect(mismatch.length === 0,
+      '⚠️⚠️ EVERY FILE IN Audio/ IS BYTE-FOR-BYTE WHAT THE BUILD CARRIES (' +
+      JSON.stringify(mismatch) + '). His word 2026-09-01-l: «so that I can change the files myself ' +
+      'right inside the folder and they go into the game». ⛔ RED HERE MEANS ONE OF TWO THINGS AND ' +
+      'BOTH ARE REAL: either a file was replaced and `python3 tools/sfx-pack.py && python3 build.py` ' +
+      'was not run, or somebody edited 74-sfx-data.js by hand and the folder no longer describes ' +
+      'the game.');
+    expect(notOpenable.length === 0,
+      '⚠️⚠️ EVERY SLOT THE FOLDER ADVERTISES IS ACTUALLY OPENABLE FROM 75-audio (' +
+      JSON.stringify(notOpenable) + '). Nine of them have no file today and are SYNTHESISED; the ' +
+      'folder promises that dropping a file in takes over, and that promise is only true because ' +
+      'each of those sounds tries `playBuf` before its own voice. ⛔ Without this arm the README ' +
+      'could go on advertising a door that a refactor had quietly bricked up.');
+    const readme = fs.readFileSync(path.join(audioDir, 'README.txt'), 'utf8');
+    const undocumented = rows.filter(r => !readme.includes(r.stem)).map(r => r.stem);
+    expect(undocumented.length === 0 && /tools\/sfx-pack\.py/.test(readme),
+      '⚠️ AND THE FOLDER\'S OWN INSTRUCTIONS NAME EVERY SLOT (' + JSON.stringify(undocumented) +
+      '). README.txt is GENERATED from the same table on every run, so this arm is really about ' +
+      'the generator still running - a hand-kept copy of that list would be correct the day it was ' +
+      'written and silently wrong afterwards.');
   }
 
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.

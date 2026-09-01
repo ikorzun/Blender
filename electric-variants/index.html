@@ -1,0 +1,591 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Charge Slot Electricity</title>
+<!-- ⚠️ A BENCH, NOT A SHIPPING PAGE. It exists to let the owner PICK one look for the
+     charge slot (#chargeBtn). Nothing here is wired into the game: the picked variant
+     gets ported into 70-fx.js / shell.html afterwards.
+     ⚠️ The three sources below are the GAME'S OWN files, loaded verbatim — the model
+     geometry, the pack colormap atlas and the pack matcap pipeline. That is deliberate:
+     an effect judged against a stand-in object is a judgement about the stand-in. -->
+<script src="../node_modules/three/build/three.min.js"></script>
+<script src="../src/app/08-matcap-packs.js"></script>
+<script src="../src/app/36-models.js"></script>
+<style>
+  :root{
+    --lime:#c0ff47; --lime-ink:#4a7100;
+    --ink:#1b2233; --muted:#5d6a86;
+    /* the sky in the slot's own neighbourhood — SKY_STOPS.day faded by SKY_FADE_WHITE (0.28) */
+    --sky:linear-gradient(#c6e4ff,#c2f8f6);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+       color:var(--ink); background:#f2f4f8; -webkit-font-smoothing:antialiased;
+       padding:24px 20px 80px; }
+  h1{font-size:22px; margin:0 0 6px; letter-spacing:-.01em}
+  .sub{color:var(--muted); margin:0 0 20px; max-width:70ch}
+  .bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 22px}
+  .bar b{font-weight:600; font-size:13px; color:var(--muted); margin-right:2px}
+  .bar button{font:inherit; font-size:13px; padding:7px 13px; border-radius:99px; cursor:pointer;
+    border:1px solid #ccd4e2; background:#fff; color:var(--ink)}
+  .bar button.on{background:var(--ink); border-color:var(--ink); color:#fff}
+  .grid{display:grid; gap:18px; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); max-width:1400px}
+  .card{border:1px solid #dfe4ee; border-radius:20px; background:#fff; overflow:hidden;
+        box-shadow:0 1px 2px rgba(20,30,60,.05)}
+  .stage{position:relative; display:flex; align-items:center; justify-content:center; gap:22px;
+         padding:18px; background:var(--sky)}
+  .stage.night{background:linear-gradient(#27278f,#be36b9)}
+  .stage.top{background:linear-gradient(#aca8ff,#a4d0ff)}
+  /* the two cells: BIG = readable detail, TRUE = the real 116px of #chargeBtn */
+  .cell{position:relative; flex:none}
+  .cell.big{width:230px; height:230px}
+  .cell.tru{width:116px; height:116px}
+  .cell.tru::after{content:'116'; position:absolute; left:50%; transform:translateX(-50%);
+    bottom:-15px; font-size:10px; letter-spacing:.08em; color:rgba(0,0,0,.35)}
+  .stage.night .cell.tru::after{color:rgba(255,255,255,.5)}
+  .meta{padding:13px 16px 15px}
+  .meta h2{font-size:15px; margin:0 0 3px; display:flex; align-items:center; gap:8px}
+  .meta .n{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px;
+    padding:0 6px; border-radius:99px; background:var(--lime); color:var(--lime-ink);
+    font-size:12px; font-weight:800}
+  .meta p{margin:0; color:var(--muted); font-size:13px}
+  .swatch{display:inline-block; width:9px; height:9px; border-radius:3px; vertical-align:baseline;
+    margin-left:2px; border:1px solid rgba(0,0,0,.12)}
+  /* VARIANT 1 is 2D — the ring that already sits on #chargeBtn::after in shell.html,
+     reproduced here byte for byte so it can be judged next to the 3D ones. */
+  .ring{position:absolute; inset:-6px; border-radius:26px; pointer-events:none;
+    background:
+      conic-gradient(from 0turn, transparent 0 62%, #9ce2ff 70%, #fff 74%, #9ce2ff 78%, transparent 86% 100%),
+      conic-gradient(from .5turn, transparent 0 70%, #c0ff47 78%, transparent 88% 100%);
+    -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+            mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    animation: ringSpin 1.15s linear infinite, ringFlick .21s steps(2) infinite}
+  .cell.big .ring{inset:-12px; border-radius:52px;
+    -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 10px), #000 calc(100% - 8px));
+            mask: radial-gradient(closest-side, transparent calc(100% - 10px), #000 calc(100% - 8px))}
+  @keyframes ringSpin{to{transform:rotate(1turn)}}
+  @keyframes ringFlick{0%,100%{opacity:.95}50%{opacity:.55}}
+  #gl{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:5}
+  .foot{max-width:70ch; color:var(--muted); font-size:13px; margin:26px 0 0}
+</style>
+
+<h1>Electricity around the bonus object</h1>
+<p class="sub">Six looks for the charge slot. The object, its colormap atlas and its matcap are the
+game's own — the same files the build uses — and the sky behind each tile is the real
+<code>SKY_STOPS.day</code> palette at the height the slot actually sits. Left cell is enlarged so the
+detail is visible; right cell is the true 116&nbsp;px of <code>#chargeBtn</code>.</p>
+
+<div class="bar">
+  <b>Object</b>
+  <button data-obj="fox" class="on">Fox</button>
+  <button data-obj="watermelon">Watermelon</button>
+  <button data-obj="taxi">Taxi</button>
+  <span style="width:14px"></span>
+  <b>Sky</b>
+  <button data-sky="" class="on">At the slot</button>
+  <button data-sky="top">Top of screen</button>
+  <button data-sky="night">Night</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<p class="foot"><b>Picked: variant&nbsp;6, in the cold palette</b> &mdash; it is in the game on the
+charge slot. Variant&nbsp;1 stayed as its fallback rather than being removed: when the slot has no
+live 3D canvas it shows a flat picture, and a shader shell cannot ride on that &mdash; the ring can,
+so the two never show at once.</p>
+<p class="foot">This page is kept as a reference for the next time a bonus object needs a look. It
+renders the game's own model, colormap atlas and pack matcap, so anything judged here is judged
+against the real thing. It is a local bench: open it from the project's own preview server, or use
+the published copy built by <code>tools/variants-artifact.py</code>.</p>
+
+<canvas id="gl"></canvas>
+
+<script>
+(function(){
+'use strict';
+
+// ===== the game's objects, built through the game's own helpers =====
+var OBJECTS = {
+  fox:        { pack:'animal', geo:function(){ return modelGeo(M_ANIMALFOX_POS, M_ANIMALFOX_NRM, M_ANIMALFOX_UV, M_ANIMALFOX_IDX); } },
+  watermelon: { pack:'food',   geo:function(){ return modelGeo(M_FOODWATERMELON_POS, M_FOODWATERMELON_NRM, M_FOODWATERMELON_UV, M_FOODWATERMELON_IDX); } },
+  taxi:       { pack:'car',    geo:function(){ return modelGeo(M_CARTAXI_POS, M_CARTAXI_NRM, M_CARTAXI_UV, M_CARTAXI_IDX); } },
+};
+// itemMaterial (40-items) for a textured model, reduced to what a portrait needs:
+// white colour so the atlas is not tinted, the pack's colormap as map, the pack's matcap.
+function itemMat(pack){
+  return new THREE.MeshMatcapMaterial({
+    color: 0xffffff, map: modelColormap(pack), matcap: packMatcapTex(pack),
+  });
+}
+
+// the portrait pose and speed of the real slot (85-hud: PORTRAIT_TILT_X, PORTRAIT_YAW0, SPIN_SPEED)
+var TILT = -0.15, YAW0 = -0.6, SPEED = 0.9;
+
+// ⚠️⚠️ TWO RULES DECIDE WHETHER ANY OF THIS IS VISIBLE AT ALL, AND THE FIRST BUILD BROKE BOTH.
+// The game's canon states them at its own lightning, and they were re-learned here the hard way:
+//   (1) NOT ADDITIVE. Our sky is LIGHT. An additive glow on a light background washes to white
+//       and disappears; what reads is a SATURATED colour at normal blending. The first build was
+//       additive throughout — the orbit rings came out dark navy scribbles and the corona a grey
+//       wash, because additive also blends against the framebuffer, which for a transparent
+//       canvas is transparent black rather than the CSS gradient behind it.
+//   (2) NOT LINES. WebGL draws every line 1 px whatever `linewidth` says, so a bolt built from
+//       LineSegments is a hairline nobody sees at 116 px. The game builds its bolts as TUBES for
+//       exactly this reason, and so does this bench.
+// Both fixes are why the sky is painted INSIDE each scene below: an effect must blend against the
+// pixels it will really sit on, which in the game is one canvas holding sky and slot together.
+var SKY_STOPS_UI = {
+  '':      ['#c6e4ff', '#c2f8f6'],   // the slot's own neighbourhood
+  'top':   ['#aca8ff', '#a4d0ff'],   // the top of the frame
+  'night': ['#27278f', '#be36b9'],
+};
+var _skyTex = {};
+function skyTex(kind){
+  if (_skyTex[kind]) return _skyTex[kind];
+  var c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  var g = c.getContext('2d'), lg = g.createLinearGradient(0, 0, 0, 256);
+  lg.addColorStop(0, SKY_STOPS_UI[kind][0]); lg.addColorStop(1, SKY_STOPS_UI[kind][1]);
+  g.fillStyle = lg; g.fillRect(0, 0, 4, 256);
+  var t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;
+  return (_skyTex[kind] = t);
+}
+
+// a soft round dot for the spark points — a bare PointsMaterial draws squares
+var _dotTex = null;
+function dotTex(){
+  if (_dotTex) return _dotTex;
+  var c = document.createElement('canvas'); c.width = c.height = 64;
+  var g = c.getContext('2d');
+  var rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.45, 'rgba(255,255,255,0.85)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  var t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  return (_dotTex = t);
+}
+
+// ===== surface sampling — every bolt effect needs points ON the model =====
+function surfacePoints(geo, n){
+  var pos = geo.attributes.position, nrm = geo.attributes.normal, N = pos.count, out = [];
+  for (var i = 0; i < n; i++){
+    var k = (i * 2654435761) % N;                    // deterministic spread, no clustering
+    out.push({ p: new THREE.Vector3(pos.getX(k), pos.getY(k), pos.getZ(k)),
+               n: new THREE.Vector3(nrm.getX(k), nrm.getY(k), nrm.getZ(k)) });
+  }
+  return out;
+}
+
+// ===== the bolt tube (V2) =====
+// A jagged polyline A→B, then a TubeGeometry over it. Two layers, as in the game: a wider
+// coloured SHELL and a thin white CORE — that pair is what makes a bolt read as hot rather
+// than as a coloured wire.
+function boltPath(A, B, seg, jit){
+  var pts = [A.clone()];
+  var dir = B.clone().sub(A);
+  var side = new THREE.Vector3(dir.y, -dir.x, dir.z).normalize();
+  var up = new THREE.Vector3().crossVectors(dir, side).normalize();
+  for (var s = 1; s < seg; s++){
+    var t = s / seg, fall = Math.sin(t * Math.PI);   // the kink dies at both anchors
+    var p = A.clone().addScaledVector(dir, t);
+    p.addScaledVector(side, (Math.random() - 0.5) * jit * fall);
+    p.addScaledVector(up,   (Math.random() - 0.5) * jit * fall);
+    pts.push(p);
+  }
+  pts.push(B.clone());
+  return pts;
+}
+function tubeOf(pts, radius){
+  // tension 0.1 keeps the corners nearly sharp — a smooth spline would round the zigzag away
+  var curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.1);
+  return new THREE.TubeGeometry(curve, pts.length * 2, radius, 5, false);
+}
+
+// ===== the shell shaders (V3, V6) — one skeleton, two skins =====
+// ⚠️ FrontSide, not DoubleSide: with normal blending a two-sided transparent shell draws itself
+// twice and comes out muddy. The flame shell in the game can afford DoubleSide because it is
+// additive; this one cannot.
+function shellMat(frag, puff, uni){
+  var u = { t:{value:0} };
+  for (var k in uni) u[k] = uni[k];
+  return new THREE.ShaderMaterial({
+    transparent:true, depthWrite:false, side:THREE.FrontSide,
+    uniforms:u,
+    vertexShader:[
+      'uniform float t; varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'void main(){',
+      '  vN = normalize(normalMatrix*normal); vP = position;',
+      '  vec3 p = position + normal*' + puff.toFixed(3) + ';',
+      '  vec4 mv = modelViewMatrix*vec4(p,1.0); vV = mv.xyz;',
+      '  gl_Position = projectionMatrix*mv; }'
+    ].join('\n'),
+    fragmentShader:[
+      'uniform float t; varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }',
+      'float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);',
+      '  float a=mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),',
+      '              mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z);',
+      '  return a; }'
+    ].join('\n') + '\n' + frag,
+  });
+}
+
+// ===== the six variants =====
+// Each returns { fx: Object3D|null, tick(dt, time), css:'ring'|null }
+var VARIANTS = [
+{
+  id:1, name:'Arc ring (2D)', accent:'#9ce2ff',
+  note:'What is on the build right now: two conic sweeps rotating around the slot, one blue-white, ' +
+       'one lime, flickering out of phase. Cheapest, always available, and it does not touch the model — ' +
+       'so it is the only one that also works when the slot falls back to a flat picture.',
+  make: function(){ return { css:'ring', tick: function(){} }; }
+},
+{
+  id:2, name:'Arc cage', accent:'#7ee00a',
+  note:'Real bolts crawling over the silhouette: three at a time, anchored to surface points, redrawn ' +
+       'every ~70 ms so the pattern never repeats. A lime shell around a white-hot core, drawn over the ' +
+       'model rather than through it. Reads as electricity at 116 px better than anything else here, ' +
+       'because the shape is jagged rather than soft.',
+  make: function(geo, R){
+    var pts = surfacePoints(geo, 220);
+    var g = new THREE.Group();
+    // ⚠️ depthTest:false — the same choice the game makes for the charge's own bolt («the thread
+    // reads over the pile»). A bolt anchored to surface points is born INSIDE the silhouette, and
+    // with the depth test on the model occludes nearly all of it: measured on the first build,
+    // where this variant showed no bolts at all in a still frame.
+    var mShell = new THREE.MeshBasicMaterial({ color:0x7ee00a, transparent:true, opacity:0.95,
+      depthTest:false, depthWrite:false });
+    var mCore  = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:1,
+      depthTest:false, depthWrite:false });
+    var slots = [];
+    for (var i = 0; i < 3; i++){
+      var sh = new THREE.Mesh(new THREE.BufferGeometry(), mShell);
+      var co = new THREE.Mesh(new THREE.BufferGeometry(), mCore);
+      sh.renderOrder = 12; co.renderOrder = 13;
+      sh.frustumCulled = co.frustumCulled = false;
+      g.add(sh); g.add(co); slots.push({ sh:sh, co:co });
+    }
+    var next = 0;
+    return { fx:g, tick:function(dt, time){
+      if (time < next) return;
+      next = time + 0.055 + Math.random() * 0.03;
+      for (var i = 0; i < 3; i++){
+        var S = slots[i];
+        if (Math.random() < 0.22){ S.sh.visible = S.co.visible = false; continue; }  // it must stutter
+        var a = pts[(Math.random()*pts.length)|0], b = pts[(Math.random()*pts.length)|0];
+        var A = a.p.clone().addScaledVector(a.n, 0.03);
+        var B = b.p.clone().addScaledVector(b.n, 0.03);
+        if (A.distanceTo(B) < 0.40){ S.sh.visible = S.co.visible = false; continue; }
+        var path = boltPath(A, B, 7, 0.13);
+        S.sh.geometry.dispose(); S.co.geometry.dispose();
+        S.sh.geometry = tubeOf(path, R * 0.030);
+        S.co.geometry = tubeOf(path, R * 0.012);
+        S.sh.visible = S.co.visible = true;
+      }
+    }};
+  }
+},
+{
+  id:3, name:'Plasma corona', accent:'#7b3cff',
+  note:'A shell just off the surface, lit by fresnel and cut into filaments by fast noise — the object ' +
+       'looks wrapped in a violet field that breathes. Same family as the flame shell but with its own ' +
+       'signature: no upward tongues, and it hugs the body instead of rising off it.',
+  make: function(geo){
+    var mat = shellMat([
+      'void main(){',
+      '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
+      '  float fres = pow(1.0 - ndv, 1.5);',
+      '  float fil = n3(vP*11.0 + vec3(0.0, t*2.2, t*1.3));',
+      '  fil = smoothstep(0.42, 0.84, fil);',
+      '  float a = (0.10 + 0.90*fres) * (0.25 + 0.95*fil);',
+      '  a *= 0.80 + 0.20*sin(t*17.0);',
+      '  if (a < 0.02) discard;',
+      // saturated violet, whitening only at the very rim — on a light sky a whitish field is
+      // indistinguishable from the background
+      '  vec3 c = mix(vec3(0.35,0.10,0.86), vec3(0.62,0.36,1.0), fil);',
+      '  c = mix(c, vec3(1.0,0.97,1.0), pow(fres,4.0)*0.55);',
+      '  gl_FragColor = vec4(c, clamp(a, 0.0, 1.0)); }'
+    ].join('\n'), 0.055, {});
+    var m = new THREE.Mesh(geo, mat); m.renderOrder = 9; m.userData.keepGeo = true;
+    return { fx:m, tick:function(dt, time){ mat.uniforms.t.value = time; } };
+  }
+},
+{
+  id:4, name:'Orbit arcs', accent:'#ff2fd0',
+  note:'Two rings orbiting the object on different tilts, each carrying one short bright arc that jumps ' +
+       'around its circumference. The only variant that is unmistakably 3D in a still frame — the rings ' +
+       'pass in front of and behind the model.',
+  make: function(geo, R){
+    var g = new THREE.Group();
+    var rings = [];
+    for (var r = 0; r < 2; r++){
+      var rad = R * (0.86 + r * 0.12), tube = R * 0.016;
+      var holder = new THREE.Group();
+      holder.rotation.set(r ? 1.25 : 0.32, 0, r ? -0.7 : 0.5);
+      // the faint strand: a full torus, built once. It is deliberately quiet — the ARC is the
+      // event, the ring is only the path it runs along.
+      var strand = new THREE.Mesh(new THREE.TorusGeometry(rad, tube, 6, 96),
+        new THREE.MeshBasicMaterial({ color:0xff2fd0, transparent:true, opacity:0.42, depthWrite:false }));
+      // the head: a short arc of the same circle, rotated around the ring's own axis
+      var head = new THREE.Mesh(new THREE.TorusGeometry(rad, tube * 2.1, 8, 18, 0.40),
+        new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:1, depthWrite:false }));
+      var halo = new THREE.Mesh(new THREE.TorusGeometry(rad, tube * 3.4, 8, 18, 0.40),
+        new THREE.MeshBasicMaterial({ color:0xff2fd0, transparent:true, opacity:0.65, depthWrite:false }));
+      strand.renderOrder = 9; halo.renderOrder = 10; head.renderOrder = 11;
+      holder.add(strand); holder.add(halo); holder.add(head); g.add(holder);
+      rings.push({ holder:holder, head:head, halo:halo,
+                   at:Math.random()*Math.PI*2, spd:(r ? -2.1 : 1.6) });
+    }
+    return { fx:g, tick:function(dt, time){
+      for (var i = 0; i < rings.length; i++){
+        var K = rings[i];
+        K.at += dt * K.spd;
+        K.head.rotation.z = K.at; K.halo.rotation.z = K.at;
+        // the flicker is on the head only: a blinking whole ring reads as a fault, not as a spark
+        var f = 0.75 + 0.25 * Math.sin(time * 23.0 + i * 2.0);
+        K.head.material.opacity = f; K.halo.material.opacity = 0.65 * f;
+        K.holder.rotation.y += dt * (i ? 0.5 : -0.8);
+      }
+    }};
+  }
+},
+{
+  id:5, name:'Spark shower', accent:'#67d400',
+  note:'No shell at all: sparks are thrown off the surface, live about a third of a second and fall away. ' +
+       'Quietest of the six until you look at it — good if the slot should read as charged without ' +
+       'competing with the model for attention.',
+  make: function(geo, R){
+    var pts = surfacePoints(geo, 300), N = 90;
+    var pos = new Float32Array(N*3), col = new Float32Array(N*3), alp = new Float32Array(N);
+    var bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    bg.setAttribute('acolor', new THREE.BufferAttribute(col,3));
+    bg.setAttribute('aalpha', new THREE.BufferAttribute(alp,1));
+    // ⚠️⚠️ A SHADER RATHER THAN PointsMaterial, FOR TWO REASONS THAT ONLY SHOWED UP ON A FRAME.
+    // (1) PointsMaterial has no per-point alpha, so the only way to fade a spark is to fade its
+    //     COLOUR — and on this sky that means a spark is born near-white (invisible) and dies
+    //     near-black (a dirty speck). Measured on the previous build: variant 5 rendered nothing
+    //     at all at the head of its life and dark dots at the end. Alpha fades; the hue stays
+    //     saturated the whole way.
+    // (2) `sizeAttenuation` scales by the CANVAS height, and every cell here shares one canvas —
+    //     so a spark came out the same pixel size in the 230 tile and in the 116 one, i.e. twice
+    //     as coarse relative to the model in the tile that decides. `uSize` is set per cell from
+    //     that cell's own pixel height.
+    var pmat = new THREE.ShaderMaterial({
+      transparent:true, depthWrite:false,
+      uniforms:{ uSize:{value:8}, uMap:{value:dotTex()} },
+      vertexShader:[
+        'attribute vec3 acolor; attribute float aalpha;',
+        'uniform float uSize; varying vec3 vC; varying float vA;',
+        'void main(){ vC = acolor; vA = aalpha;',
+        '  vec4 mv = modelViewMatrix*vec4(position,1.0);',
+        '  gl_PointSize = uSize; gl_Position = projectionMatrix*mv; }'
+      ].join('\n'),
+      fragmentShader:[
+        'uniform sampler2D uMap; varying vec3 vC; varying float vA;',
+        'void main(){ float a = texture2D(uMap, gl_PointCoord).a * vA;',
+        '  if (a < 0.01) discard; gl_FragColor = vec4(vC, a); }'
+      ].join('\n'),
+    });
+    var o = new THREE.Points(bg, pmat); o.frustumCulled = false; o.renderOrder = 11;
+    var life = new Float32Array(N), vel = new Float32Array(N*3);
+    for (var i = 0; i < N; i++) life[i] = -Math.random()*0.9;
+    return { fx:o, tick:function(dt, time, pxH){
+      // 0.11 of the model's radius, converted through the cell's own ortho scale (half-height 1.30R)
+      pmat.uniforms.uSize.value = Math.max(3, 0.042 * (pxH || 300));
+      for (var i = 0; i < N; i++){
+        life[i] -= dt;
+        if (life[i] <= 0){
+          if (life[i] > -0.35) { alp[i] = 0; continue; }                 // a pause before respawn
+          var s = pts[(Math.random()*pts.length)|0];
+          pos[i*3] = s.p.x; pos[i*3+1] = s.p.y; pos[i*3+2] = s.p.z;
+          var sp = 0.5 + Math.random()*1.1;
+          vel[i*3]   = s.n.x*sp + (Math.random()-0.5)*0.5;
+          vel[i*3+1] = s.n.y*sp + (Math.random()-0.5)*0.5;
+          vel[i*3+2] = s.n.z*sp + (Math.random()-0.5)*0.5;
+          life[i] = 0.18 + Math.random()*0.22;
+        }
+        pos[i*3]   += vel[i*3]  *dt; vel[i*3]   *= 0.93;
+        pos[i*3+1] += vel[i*3+1]*dt - 0.9*dt*dt*8.0; vel[i*3+1] *= 0.93;
+        pos[i*3+2] += vel[i*3+2]*dt; vel[i*3+2] *= 0.93;
+        // ⚠️ THE HUE NEVER LEAVES THE SATURATED RANGE — young is a hot yellow-white, old is a deep
+        // lime, and the DISAPPEARING is done by alpha. Fading the colour instead is what made the
+        // previous build's sparks invisible at birth and dirty at death.
+        var k = Math.max(0, Math.min(1, life[i]*3.2));
+        col[i*3]   = 0.35 + 0.60*k;
+        col[i*3+1] = 0.80 + 0.20*k;
+        col[i*3+2] = 0.02 + 0.55*k;
+        alp[i] = Math.max(0, Math.min(1, life[i]*4.5));
+      }
+      bg.attributes.position.needsUpdate = true;
+      bg.attributes.acolor.needsUpdate = true; bg.attributes.aalpha.needsUpdate = true;
+    }};
+  }
+},
+{
+  id:6, name:'Surge band \u2014 PICKED', accent:'#22b0ff',
+  note:'<b>This is the one that shipped.</b> A bright band running up through the body, crackling at ' +
+       'its two edges, over a faint outline \u2014 it says "a charge is passing through this thing" ' +
+       'rather than "this thing is on fire". He picked it with one amendment, «take it from warm to ' +
+       'cold», so the palette below is the cold one that is now in the game: electric violet at rest, ' +
+       'electric cyan in the band, white only at its very peak. It deliberately stays SATURATED and ' +
+       'dark at the base \u2014 the frozen block owns the pale blues, and a pale blue-white here ' +
+       'would read as frost on a charged object.',
+  make: function(geo){
+    geo.computeBoundingBox();
+    var b = geo.boundingBox, y0 = b.min.y, y1 = b.max.y;
+    var mat = shellMat([
+      'uniform float uY0; uniform float uY1;',
+      'void main(){',
+      '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
+      '  float fres = pow(1.0 - ndv, 2.0);',
+      '  float u = (vP.y - uY0) / max(0.0001, uY1 - uY0);',
+      '  float head = fract(t*0.55);',
+      '  float d = u - (head*1.35 - 0.18);',
+      '  float band = exp(-d*d*90.0);',
+      '  float crk = n3(vP*17.0 + vec3(t*3.0));',
+      '  band *= 0.55 + 0.75*smoothstep(0.35, 0.9, crk);',
+      '  float a = 0.16*fres + band*(0.45 + 0.55*fres);',
+      '  if (a < 0.02) discard;',
+      '  vec3 c = mix(vec3(0.24,0.16,0.86), vec3(0.20,0.86,1.00), band);',
+      '  c = mix(c, vec3(1.0), pow(band,3.0)*0.80);',
+      '  gl_FragColor = vec4(c, clamp(a, 0.0, 1.0)); }'
+    ].join('\n'), 0.030, { uY0:{value:y0}, uY1:{value:y1} });
+    var m = new THREE.Mesh(geo, mat); m.renderOrder = 9; m.userData.keepGeo = true;
+    return { fx:m, tick:function(dt, time){ mat.uniforms.t.value = time; } };
+  }
+}
+];
+
+// ===== the page: one renderer, one scissored viewport per cell =====
+var canvas = document.getElementById('gl');
+var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setClearAlpha(0);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.setScissorTest(true);
+// ⚠ autoClear MUST be off: render() is called once per cell, and with autoClear on each
+// call would wipe the cells already drawn this frame — only the last one would survive.
+renderer.autoClear = false;
+
+var grid = document.getElementById('grid');
+var cells = [];          // { el, S }
+var objKey = 'fox';
+var skyKey = '';
+
+function buildScene(v, geoShared, pack){
+  var scene = new THREE.Scene();
+  // the sky plane: 4R across at z=-5 covers an ortho frustum of half-size R with room to spare
+  var sky = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: skyTex(skyKey), depthWrite: false, depthTest: false }));
+  sky.renderOrder = -1; sky.position.z = -5; scene.add(sky);
+  scene.userData.sky = sky;
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  var dl = new THREE.DirectionalLight(0xffffff, 0.5); dl.position.set(0.4, 1, 0.8); scene.add(dl);
+  var spin = new THREE.Group(); scene.add(spin);
+  // ⚠ TWO GROUPS, NOT ONE. `spin` carries the rotation, `inner` the centring offset.
+  // Folded into one node the transform is T(-c)·R, i.e. p → -c + R·p — the model would
+  // ORBIT the frame instead of turning on its own axis. Nested it is R·(p - c). Caught on
+  // the first frame: the fox swung out of the tile.
+  var inner = new THREE.Group(); spin.add(inner);
+  var body = new THREE.Mesh(geoShared, itemMat(pack));
+  inner.add(body);
+  // frame the model: bounding sphere -> an orthographic box with the slot's own padding
+  geoShared.computeBoundingSphere();
+  var bs = geoShared.boundingSphere;
+  var R = bs.radius * 1.30;
+  var made = v.make(geoShared, bs.radius);
+  if (made.fx) inner.add(made.fx);
+  inner.position.set(-bs.center.x, -bs.center.y, -bs.center.z);
+  sky.scale.set(R * 4, R * 4, 1);
+  var cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.01, 50);
+  cam.position.set(0, 0, 10); cam.lookAt(0, 0, 0);
+  return { scene:scene, cam:cam, spin:spin, tick:made.tick, css:made.css };
+}
+
+function build(){
+  cells.length = 0;
+  grid.innerHTML = '';
+  var pack = OBJECTS[objKey].pack;
+  VARIANTS.forEach(function(v){
+    var card = document.createElement('div'); card.className = 'card';
+    var stage = document.createElement('div'); stage.className = 'stage ' + skyKey;
+    var big = document.createElement('div'); big.className = 'cell big';
+    var tru = document.createElement('div'); tru.className = 'cell tru';
+    stage.appendChild(big); stage.appendChild(tru);
+    var meta = document.createElement('div'); meta.className = 'meta';
+    meta.innerHTML = '<h2><span class="n">' + v.id + '</span>' + v.name +
+      '<span class="swatch" style="background:' + v.accent + '"></span></h2><p>' + v.note + '</p>';
+    card.appendChild(stage); card.appendChild(meta);
+    grid.appendChild(card);
+
+    // ⚠️ ONE geometry per card, SHARED by the body and the shell — the same contract the
+    // game uses (fireSilhouetteFX marks it keepGeo). Two cards must not share it: each
+    // card owns a scene and disposal walks the scene.
+    var geo = OBJECTS[objKey].geo();
+    [big, tru].forEach(function(el){
+      var S = buildScene(v, geo, pack);
+      if (S.css === 'ring'){ var r = document.createElement('div'); r.className = 'ring'; el.appendChild(r); }
+      cells.push({ el:el, S:S });
+    });
+  });
+}
+
+function applySky(){
+  document.querySelectorAll('.stage').forEach(function(s){ s.className = 'stage ' + skyKey; });
+  var t = skyTex(skyKey);
+  cells.forEach(function(c){ if (c.S.scene.userData.sky) c.S.scene.userData.sky.material.map = t; });
+}
+
+document.querySelectorAll('[data-obj]').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('[data-obj]').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); objKey = b.dataset.obj; build();
+  };
+});
+document.querySelectorAll('[data-sky]').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('[data-sky]').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); skyKey = b.dataset.sky; applySky();
+  };
+});
+
+build();
+
+var last = performance.now(), yaw = YAW0;
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt = Math.min(0.05, (now - last) / 1000); last = now;
+  var time = now / 1000;
+  yaw += dt * SPEED;
+
+  var W = window.innerWidth, H = window.innerHeight;
+  if (canvas.width !== Math.floor(W * renderer.getPixelRatio())) renderer.setSize(W, H, false);
+  renderer.setScissorTest(false); renderer.clear(); renderer.setScissorTest(true);
+
+  for (var i = 0; i < cells.length; i++){
+    var c = cells[i], r = c.el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > H) continue;                  // offscreen cards cost nothing
+    c.S.spin.rotation.set(TILT, yaw, 0);
+    c.S.tick(dt, time, r.height * renderer.getPixelRatio());
+    var bottom = H - r.bottom;
+    renderer.setViewport(r.left, bottom, r.width, r.height);
+    renderer.setScissor(r.left, bottom, r.width, r.height);
+    renderer.render(c.S.scene, c.S.cam);
+  }
+}
+requestAnimationFrame(frame);
+
+// a hook for the verification pass (computed state, not a screenshot)
+window.__fx = {
+  cells: function(){ return cells.length; },
+  names: function(){ return VARIANTS.map(function(v){ return v.id + ':' + v.name; }); },
+  drawn: function(){ return renderer.info.render; },
+  obj: function(){ return objKey; },
+  sky: function(){ return skyKey; },
+};
+})();
+</script>

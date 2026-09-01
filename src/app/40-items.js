@@ -323,6 +323,42 @@ function makeBomb(){
   return item;
 }
 
+// THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot. The type is
+// random among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold the charge
+// would blow up 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
+// ⚠️ EXTRACTED 2026-09-01-i BECAUSE IT NOW HAS TWO CALLERS - turbo ignition, as before, and the
+// schedule (`tickChargeSchedule`). Two copies of a grant would have drifted at the first edit of
+// the copies threshold, and the `chargeGiven` watermark only works if BOTH paths respect it.
+function tryGiveCharge(){
+  if (level.chargeGiven || chargeName) return false;
+  const cnt = {};
+  for (const it of items)
+    if (it.alive && !it.surprise && !it.bomb && !it.frozen && it.type)
+      cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
+  const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
+  if (!pool.length) return false;
+  level.chargeGiven = true;
+  chargeName = pool[Math.floor(Math.random() * pool.length)];
+  chargeUntil = performance.now() + CHARGE_TTL_MS;
+  try { updateHUD(); } catch(e){}
+  return true;
+}
+// The scheduled arrival. ⚠️ The moment is drawn ONCE at level start and stored on `level`, not
+// re-rolled per frame: a per-frame chance would make the arrival depend on the frame rate.
+function tickChargeSchedule(now){
+  if (!level || level.over || level.intro) return;
+  if (!level.chargeAt || now < level.chargeAt) return;
+  level.chargeAt = 0;              // one attempt, whether or not the pile can supply a type
+  tryGiveCharge();
+}
+// WHEN (if at all) the scheduled charge lands on this level. 0 = never.
+function chargeAtFor(lv){
+  if (!(lv > CHARGE_SCHED_FROM) || (lv % CHARGE_SCHED_EVERY) !== 0) return 0;
+  if (Math.random() >= CHARGE_SCHED_CHANCE) return 0;     // his «sometimes»
+  // somewhere in the working middle of a round - late enough that the pile has been played into,
+  // early enough that the charge's own 10 s TTL is not racing the end of the level
+  return performance.now() + 12000 + Math.random() * 25000;
+}
 // The chain reaction: a top-up of CHAIN_DROP_N RANDOM items per tick — NOT in
 // pairs (the owner's spec; orphans are legal, the finale eats them). The types are
 // independent, taken from the ones active on the level. Stop at a full bowl or at
@@ -395,8 +431,15 @@ function bombDropReward(){
 }
 // The spawn of one RANDOM item above the bowl (a live fall)
 function dropOneFromSky(k, forcedTypeIdx){
+  // ⛔⛔ FROM THE BOWL'S OWN DEALT SET, NOT FROM EVERY UNLOCKED TYPE (2026-09-01-i). With a cap on
+  // distinct types the two are different, and drawing from the unlocked range would drop items
+  // with NO partner anywhere in the bowl - which the player is then punished a full mistake for
+  // tapping. The fallback keeps the old behaviour for any call before a level exists.
+  const dealt = level && level.dealtTypes;
   const typeIdx = (forcedTypeIdx == null)
-    ? Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN))
+    ? (dealt && dealt.length
+        ? dealt[Math.floor(Math.random() * dealt.length)]
+        : Math.floor(Math.random() * (level.typesCount || LEVEL_TYPES_MIN)))
     : forcedTypeIdx;
   const it = makeItem(typeIdx, levelSize());
   const maxD = Math.max(0.1, radiusAt(FUNNEL.H) * 0.7 - it.r);
@@ -744,13 +787,45 @@ function genLevel(){
   // VERY SAME SET as before (only the order in the pairs array changes, and it is
   // sorted by size below anyway). The sampling starts cutting something off only
   // from typesCount > pairsCnt, that is, exactly where the dead zone used to be.
-  const distinct = Math.min(typesCount, pairsCnt);
+  // ⛔⛔ AND SINCE 2026-09-01-i THERE IS A THIRD LIMIT: how many DIFFERENT types one bowl may hold
+  // (`levelDistinctCap`, a ramp - 24 at lv20, 25 at lv30, 27 at lv50). Unlocking is untouched;
+  // this caps only the deal. It is the fix for the measured post-30 collapse: copies-per-type had
+  // been falling 60 -> 5.6 -> 3.5, taking the group size and with it the QUADRATIC merge score.
+  const distinct = Math.min(typesCount, pairsCnt, levelDistinctCap(levelNum));
   const pool = [];
   for (let i = 0; i < typesCount; i++) pool.push(i);
   for (let i = pool.length - 1; i > 0; i--){          // Fisher-Yates over the unlocked range
     const j = Math.floor(Math.random() * (i + 1));
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
+  // ⚠️⚠️ TWO KINDS OF TYPE ARE PINNED INTO THE DEAL, AND THE SECOND ONE IS A TRUST BUG IF MISSED.
+  // (1) THE NEWEST UNLOCK. The game promises a new thing every level; with a cap it would
+  //     otherwise be absent from the very bowl that unlocked it about half the time.
+  // (2) EVERY TYPE THE PLAYER HAS PAID A BOOST ON. A boost is bought on a NAMED type and does
+  //     nothing in a bowl that type is not dealt into - i.e. without this the cap would silently
+  //     make purchased content stop working roughly half the time. That is not balance, it is
+  //     trust, and it is why this loop exists at all.
+  // ⚠️ Pinning preserves the shuffled order of everything else, and cannot exceed the deal: if a
+  // player has boosted more types than fit, the surplus simply misses out like any other type.
+  {
+    const pin = [];
+    if (typesCount > 0) pin.push(typesCount - 1);                 // the model this level unlocked
+    for (let i = 0; i < typesCount; i++){
+      const nm = TYPES[i] && TYPES[i].name;
+      if (nm && boostTier(nm) > 0 && pin.indexOf(i) < 0) pin.push(i);
+    }
+    if (pin.length){
+      const rest = pool.filter(i => pin.indexOf(i) < 0);
+      pool.length = 0;
+      for (const i of pin) pool.push(i);
+      for (const i of rest) pool.push(i);
+    }
+  }
+  // the set this bowl was actually dealt. ⛔ LOAD-BEARING BEYOND genLevel: `dropOneFromSky` MUST
+  // draw from it. Drawing from all unlocked types - which is what it did until 2026-09-01-i -
+  // would rain items whose partner is nowhere in the bowl, and by the owner's own rule a tap on a
+  // pairless item is a FULL mistake. The turbo reward would have become a trap.
+  const dealtTypes = pool.slice(0, distinct);
   // round-robin over the SELECTED ones — the distribution of copies across types is
   // just as even as it was with `i % typesCount` (otherwise rare types would
   // produce orphans)
@@ -881,7 +956,7 @@ function genLevel(){
   // brought back by the owner's spec 2026-07-30 «raise the shakes»),
   // it used to be a flat 3 and from ~level 15 the stock was not enough for the
   // «dry» episodes
-  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, idleLimit, typesCount, banked:0, // banked — the level's units banked ahead of time (the watermark)
+  level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, chargeAt:chargeAtFor(levelNum), idleLimit, typesCount, dealtTypes, banked:0, // banked — the level's units banked ahead of time (the watermark)
             topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
             aliveN0: 0, camFollowOn: false, deadlock: false, // deadlock: a dead end → the rescue grind (99-main)
 };

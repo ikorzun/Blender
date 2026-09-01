@@ -361,12 +361,27 @@ const Sound = (function(){
       // pan 0 / 0.3 / 1 — all three -9.031 dB.
       // ⛔ ONLY THE MATCH IS TOUCHED: `tone` is shared, and editing its parameter here
       // does not affect `tick`, `miss` or the others — they have their own calls.
+      // ⚠️ A FILE UNDER THIS KEY REPLACES THE ARPEGGIO FOR THE «EVERYTHING AT ONCE» EVENTS - the
+      // bowl-shatter collect-all and a detonated type charge, the only two callers that pass no
+      // material. It is deliberately checked AFTER the pack and material tiers, so dropping one
+      // in cannot silence a voice that has a recording of its own.
+      if (playBuf('merge', MATCH_PROC_PEAK * 4)) return;
       const pitch = 1 + 0.06 * Math.min(10, k);
       const t = ctx.currentTime, base = (380 + Math.min(4, n)*60) * pitch;
       for (let i=0;i<Math.min(n,4);i++) tone(base*Math.pow(1.25, i), 'sine', t + i*0.055, 0.008, 0.16, MATCH_PROC_PEAK);
     },
+    // ⚠️⚠️ EVERY SYNTHESISED SOUND FROM HERE ON TRIES A RECORDING FIRST AND FALLS BACK TO ITS OWN
+    // VOICE (2026-09-01-l, the owner's audio-folder request). That is what makes `Audio/` complete
+    // rather than partial: he drops a file in under the documented name and it takes over, with no
+    // code change - the same shape `ui` and `miss` have had since his first drop.
+    // ⚠️ THE CHECK IS THE PRESENCE OF A DECODED BUFFER, NEVER A LIST OF NAMES, so a sample that
+    // fails to decode degrades to the old sound rather than to silence.
+    // ⛔ WITH NO FILE PRESENT NOTHING CHANGES AT ALL: `playBuf` returns false before it touches the
+    // graph, so these are bit-for-bit the sounds they were. The cost of the whole mechanism is one
+    // object lookup per event.
     tick(){ // an alarm at the edge of the streak window (tempo batch): a dry short «tk»,
             // quiet — a peripheral signal, not an event
+      if (playBuf('tick', 0.90)) return;
       const t = ctx.currentTime; tone(1250, 'sine', t, 0.002, 0.035, 0.10); },
     // ⚠️ THE SAME SHAPE AS `ui`: the recording if it decoded, the former two square blips if it
     // did not. The fallback is a PRESENCE check on the buffer and not a list of names, so a
@@ -392,7 +407,7 @@ const Sound = (function(){
     upgrade(){ playBuf('upgrade', 0.90); },   // a type's multiplier went up a tier
     fill(){    playBuf('fill',    0.64); },   // the intro pour; DELIBERATELY ~3 dB under the rest - a bed
     toast(){   playBuf('toast',   0.90); },   // the refusal and reward channel
-    shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
+    shake(){ if (playBuf('shake', 0.90)) return; noise(ctx.currentTime, 0.35, 0.45, 500); },
     grind(){ // the grinding sample (3 variants, the owner's spec) with a procedural fallback
       // ⚠️ FOUR TAKES SINCE 2026-09-01-b: his «Blend object» joined the three Kenney ones on his
       // own pick, «the moment of blending itself». ⚠️ IT IS MUCH SHORTER THAN THEY ARE - 0.34 s
@@ -406,6 +421,7 @@ const Sound = (function(){
       // below, the crack of the split above. The body is short filtered noise, with a
       // couple of dry clicks on top (the split «tk»). A bit harsher with a big group
       // (n shards), cap 12.
+      if (playBuf('crunch', 0.90)) return;
       const t = ctx.currentTime, k = Math.min(1, (n || 7)/12);
       noise(t, 0.10 + 0.05*k, 0.30 + 0.12*k, 2600);   // the sharp upper split
       noise(t + 0.015, 0.09, 0.18, 1300);             // the body of the crunch
@@ -414,6 +430,7 @@ const Sound = (function(){
     ui(){ if (!playBuf('ui', 0.90)){ const t = ctx.currentTime; tone(900, 'sine', t, 0.004, 0.05, 0.15); } },
     combo(){ // a «power-up»: a rising glissando + a spark; the start is delayed
              // so as not to mask the match «bloop» that sounds on the same tap
+      if (playBuf('combo', 0.90)) return;
       const t = ctx.currentTime + 0.06;
       const o = ctx.createOscillator();
       o.type = 'triangle';
@@ -425,6 +442,7 @@ const Sound = (function(){
       tone(2093, 'sine', t + 0.22, 0.005, 0.14, 0.22);
     },
     chain(){ // «the reactor has started»: a low glissando + a swoosh + a fanfare spark
+      if (playBuf('chain', 0.90)) return;
       const t = ctx.currentTime + 0.05;
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
@@ -435,9 +453,9 @@ const Sound = (function(){
       noise(t + 0.05, 0.35, 0.3, 1200);
       [784, 1047, 1568].forEach((f,i)=>tone(f, 'triangle', t + 0.3 + i*0.07, 0.008, 0.2, 0.32));
     },
-    surprise(){ const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f,i)=>tone(f, 'triangle', t + i*0.09, 0.01, 0.25, 0.38)); },
-    win(){ const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f,i)=>tone(f, 'triangle', t + i*0.12, 0.01, 0.3, 0.38)); },
-    lose(){ const t = ctx.currentTime; [330, 262, 196].forEach((f,i)=>tone(f, 'sine', t + i*0.15, 0.01, 0.35, 0.32)); },
+    surprise(){ if (playBuf('surprise', 0.90)) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f,i)=>tone(f, 'triangle', t + i*0.09, 0.01, 0.25, 0.38)); },
+    win(){ if (playBuf('win', 0.90)) return; const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f,i)=>tone(f, 'triangle', t + i*0.12, 0.01, 0.3, 0.38)); },
+    lose(){ if (playBuf('lose', 0.90)) return; const t = ctx.currentTime; [330, 262, 196].forEach((f,i)=>tone(f, 'sine', t + i*0.15, 0.01, 0.35, 0.32)); },
   };
   // THE EXTERNAL MUTE IS INDEPENDENT OF CFG.sound (a request from INTEGRATION 2026-07-23).
   // Two different owners of silence: CFG.sound is the PLAYER's choice (the settings

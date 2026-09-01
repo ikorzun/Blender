@@ -655,6 +655,7 @@ function loop(){
     it.iceShell.scale.setScalar(it.frozenReady ? 1 + 0.06 * Math.sin(now * 0.008) : 1);
   tickIceBooms(now); // the crust scatter on the real clock (the pieces — a vertex shader)
   tickFireSpawn(now);                // the flare-up of a burning item (the owner's spec)
+  tickChargeSchedule(now);           // the scheduled type charge (his word 2026-09-01-i)
   // ⚠️ THE RESCUER OF STUCK REMOVALS (found by probes v218, the class is LATENT —
   // reproduced on v217 too): in a match the shrink animation and removeItem run on
   // PARALLEL timers (addFX + setTimeout→afterPause), and once in a while the tail
@@ -1306,7 +1307,14 @@ window.__game = {
   // function production calls — instead of recomputing `base + step*(n−1)`: a copy of a formula
   // beside the working one diverges at the first edit, and this project has paid for that four
   // times. `raw` is what `scorePenalty` receives, `shown` is what the player reads.
-  missPenaltyAt(n){ return { raw: missPenaltyFor(n), shown: Math.floor(missPenaltyFor(n) / SCORE_DENOM) }; },
+  // ⚠️ `lv` IS OPTIONAL AND THAT MATTERS TO THE GUARDS: with no level the function returns the
+  // bare ladder, which is what the ladder arms assert; passing a level exercises the tie added
+  // 2026-09-01-i. A hook that silently defaulted to the CURRENT level would have made the
+  // ladder arms depend on wherever the suite happened to leave the game.
+  missPenaltyAt(n, lv){ return { raw: missPenaltyFor(n, lv), shown: Math.floor(missPenaltyFor(n, lv) / SCORE_DENOM),
+                                 tieFrom: MISS_TIE_FROM, tieMerges: MISS_TIE_MERGES }; },
+  distinctCap(lv){ return levelDistinctCap(lv); },
+  dealtTypes(){ return (level && level.dealtTypes) ? level.dealtTypes.slice() : null; },
   levelNum(){ return levelNum; },
   // debug/suite: the last telemetry events (the buffer accumulates even when
   // sending is off — otherwise the metrics could not be checked before production)
@@ -1771,6 +1779,22 @@ window.__game = {
   // I managed to start a SECOND spinState and step on the written-down rake «a duplicate
   // key in __game silently eats the hook» (this one won, the later one in the file) —
   // the probe showed somebody else's fields instead of mine. Grep the name BEFORE adding.
+  // ⚠️ THE CHARGE'S ELECTRIC LOOK, BOTH HALVES AT ONCE — the shell that rides the live 3D model
+  // and the conic ring that covers the flat fallback. They are reported TOGETHER on purpose: the
+  // property worth guarding is that EXACTLY ONE of them is showing, and a hook that reported only
+  // the shell would be green on a build where both were on (the «model + picture» defect this
+  // very button already suffered once).
+  chargeFx(){
+    const cb = $('chargeBtn');
+    const flat = !!(cb && cb.classList.contains('flat'));
+    const u = spinSurge && spinSurge.material && spinSurge.material.uniforms;
+    return { shell: !!spinSurge, flat: flat, ring: flat,
+             mountedOnCharge: !!(cb && spinR && spinR.domElement.parentNode === cb),
+             t: u ? +u.t.value.toFixed(2) : null,
+             puff: (typeof CHARGE_SURGE_PUFF !== 'undefined') ? CHARGE_SURGE_PUFF : null,
+             // the shell must never touch the item's own material - the museum reads the same class
+             sharesItemMaterial: !!(spinSurge && spinMesh && spinSurge.material === spinMesh.material) };
+  },
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
     auto: spinAuto, px: (spinR ? spinR.domElement.width : 0), tilt: +spinTilt.toFixed(3),
     mounted: !!(spinR && spinR.domElement.parentNode),
@@ -2555,6 +2579,15 @@ window.__game = {
   rescueNow(){ const n = rescueSweep(); syncMeshes(); return n; },
   // the type charge: state/grant/detonation (suite guards)
   charge(){ return chargeState(); },
+  // ⚠️ A TEST DOOR ONTO THE PRODUCTION GRANT, not a second one. `tryGiveCharge` is the single
+  // point both live callers use (the turbo ignition and the schedule), so a guard driving it
+  // exercises the same copies-threshold and the same `chargeGiven` watermark the game does.
+  // Without it the only way to see a charge in a test is to ignite turbo - 16 clean matches,
+  // i.e. a slow and flaky path for something that is not what is being measured.
+  // ⚠️ IT IS NOT A DUPLICATE OF `chargeGrant` AND THE PAIR IS DELIBERATE: that one WRITES the state
+  // (a named type, a chosen TTL) and is the scene-setter; this one asks the game to grant a charge
+  // the way the game does, threshold and watermark included.
+  chargeGive(){ try { return tryGiveCharge(); } catch(e){ return false; } },
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },

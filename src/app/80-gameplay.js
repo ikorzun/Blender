@@ -105,19 +105,7 @@ function doMatch(list){
         // among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold
         // the charge would blow up 1-2 items and disappoint (measurement: median
         // copies 14 early / 6 at lv.25).
-        if (!level.chargeGiven && !chargeName){
-          const cnt = {};
-          for (const it of items)
-            if (it.alive && !it.surprise && !it.bomb && !it.frozen && it.type)
-              cnt[it.type.name] = (cnt[it.type.name] || 0) + 1;
-          const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
-          if (pool.length){
-            level.chargeGiven = true;
-            chargeName = pool[Math.floor(Math.random() * pool.length)];
-            chargeUntil = performance.now() + CHARGE_TTL_MS; // ≤7 s, after that it dissolves
-            try { updateHUD(); } catch(e){}
-          }
-        }
+        tryGiveCharge();
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
         mid1.multiplyScalar(1/list.length).y += 1.6;
@@ -340,7 +328,7 @@ function penalizeDouble(item){
   // turned the ice into the CHEAPEST mistake of a long level.
   // ⚠️ Since 2026-08-24-b the ordinal is `missRun` (mistakes since the last merge), zeroed at
   // the head of `doMatch` — the same rule as in `penalize`, incremented above the charge.
-  const charged = scorePenalty(2 * missPenaltyFor(stats.missRun));
+  const charged = scorePenalty(2 * missPenaltyFor(stats.missRun, levelNum));
   const shown = scoreShownDelta(stats.score, before); // the positive magnitude of the chip's drop (#10)
   // a tap on something non-mergeable is a miss too: the turbo build-up is zeroed (the owner's
   // spec 2026-07-27), the radius ladder loses its 2 steps. Symmetrical to registerMiss.
@@ -764,47 +752,69 @@ function checkEnd(){
     level.over = true;
     Sound.play('win');
     const secs = Math.round((performance.now()-stats.t0)/1000);
-    // STARS: 1★ cleared, 2★ score >= par-score×1.3, 3★ >= ×1.7 (the skill lives in the score,
-    // NOT in special conditions — «a chain reaction is mandatory» was rejected by the plan's audit)
+    // ⛔⛔ THE STAR RATING IS GONE (the owner 2026-09-01-i: «we have no concept of stars, only
+    // points, remember this»). Nothing computes a 1..3 rating, nothing writes one, and nothing
+    // draws one. ⚠️ THE ★ GLYPH ELSEWHERE IS NOT A RATING — it is the ICON for points/balance in
+    // the HUD, the menu and `winCoins`; those stay.
+    // ⚠️ THE GOAL SURVIVES AND IS NOW A POINTS STATEMENT, which is what it always was on screen:
+    // «Score: X / goal Y». It used to be derived from the 2★ threshold, so it needed a name of its
+    // own once the stars left. The number is unchanged, so nothing on screen moves except the
+    // three icons disappearing.
     const base = level.parBase || 0;
-    const stars = 1 + (base > 0 && stats.score >= base * STAR2_K ? 1 : 0)
-                    + (base > 0 && stats.score >= base * STAR3_K ? 1 : 0);
     // COINS: the base + the conversion of score (combos are finally economically worthwhile)
     level.coinsWon = COIN_BASE + Math.floor(Math.max(0, stats.score) / COIN_PER_SCORE);
     addCoins(level.coinsWon);
     // A SINGLE BALANCE (the owner's finalisation 2026-07-24: «everything earned in the
     // level = the balance»): we bank the level's ACCUMULATED SCORE (denom. ×10) into the
     // wallet — the same number in the chip, in the menu and in the leaderboard. The stars[lv]
-    // rating stays as an indicator of quality (setStars), it no longer carries currency.
-    setStars(levelNum, stars);
-    // +1 SHAKE FOR EVERY 5 LEVELS CLEARED (the owner's word 2026-08-04: «we will need to
-    // give +1 shake for clearing 5 levels»). We put it into the PERMANENT stock (the pe/ps
-    // pair — the same one the bundles use): it survives the level and the device, and is
-    // dup-safe by the monotonic pair. It fires on 5/10/15..., that is, by the number of the
-    // level that was COMPLETED.
-    if (levelNum % 5 === 0){
-      try { Save.pe = (Save.pe || 0) + 1; commitSave(); level.shakeBonus = 1; toast('+1 Shake'); } catch(e){}
+    // rating is gone entirely (2026-09-01-i); the score is the only measure of a run.
+    // +1 SHAKE. It used to be every 5th level only (his word 2026-08-04); since 2026-09-01-i it is
+    // EVERY level once past SHAKE_EVERY_FROM: «after level 10 give not only +1 hint but also +1
+    // shake». The old rule is kept BELOW that line rather than deleted, so levels 5 and 10 still
+    // pay — dropping it would have made the early game quietly poorer while answering a request
+    // that was only about the late game.
+    // ⚠️ It goes into the PERMANENT stock (the pe/ps pair — the same one the bundles use): it
+    // survives the level and the device, and is dup-safe by the monotonic pair.
+    if (levelNum > SHAKE_EVERY_FROM || levelNum % 5 === 0){
+      try { Save.pe = (Save.pe || 0) + 1; commitSave(); level.shakeBonus = 1; } catch(e){}
     }
     level.starsWon = bankLevelScore(stats.score);
     addHints(1); // +1 hint for a successful level (the owner's spec)
-    Telemetry.ev('win', { lv: levelNum, st: stars, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });
+    level.hintBonus = 1;
+    // ⛔ THE «+1 Shake» TOAST WAS REMOVED WITH THIS BATCH, NOT LOST: from level 11 it would fire on
+    // EVERY win, i.e. it stops being news and starts being noise — and the win screen now shows
+    // both rewards as icons with counts (his two Figma nodes), which is a better place to read
+    // them than a toast that fades.
+    Telemetry.ev('win', { lv: levelNum, sw: level.starsWon, c: level.coinsWon, sc: stats.score, sec: secs });
     $('winTitle').textContent = '🎉 Level ' + levelNum + ' cleared!';
-    // THE VICTORY STARS — the owner's asset Interface/Star.svg (the word 2026-08-05
-    // «replace the star icon everywhere»): instead of the textual ★/☆ we draw the same
-    // geometry as in the HUD and the menu; an unearned one is the same shape with opacity.
-    {
-      const star = (on) => '<svg viewBox="0 0 32 30" width="34" height="32" aria-hidden="true" style="margin:0 3px' +
-        (on ? '' : ';opacity:.28') + '"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>';
-      let html = '';
-      for (let i = 0; i < 3; i++) html += star(i < stars);
-      $('winStars').innerHTML = html;
-    }
-    $('winStats').textContent =
-      'Score: ' + stats.score + (base ? ' / goal ' + Math.round(base * STAR2_K) : '') + '  ·  Time: ' + fmtTime(secs);
+    // ⛔ THE THREE VICTORY STARS WERE DRAWN HERE (his Star.svg geometry, an unearned one at 28%
+    // opacity). Removed with the rating itself; the markup node went with them.
+$('winStats').textContent =
+      'Score: ' + stats.score + (base ? ' / goal ' + Math.round(base * LEVEL_GOAL_K) : '') + '  ·  Time: ' + fmtTime(secs);
     // the coins are hidden: the level's on-screen reward is the stars + a hint;
     // the crediting above lives on (it will come back together with COINS_ENABLED)
     // the level's reward: the earned star-currency + a hint (the coins are hidden by a
     // flag; their crediting above lives on and will come back together with COINS_ENABLED)
+    // THE TWO REWARD PILLS (his Figma nodes 933:1515 / 933:1531). The pictures are COPIED from the
+    // bar buttons rather than inlined a second time — see the markup comment.
+    // ⛔ THE COUNTS ARE GONE FROM HERE AND THAT IS THE POINT OF THE NEW NODES: the badge is a
+    // static «+1» in the markup, i.e. what THIS win paid, not what the wallet now holds. Nothing
+    // computes it, so nothing can drift; the totals live on the bar badges, which updateHUD owns.
+    // ⚠️ The shake slot is hidden when this level paid no shake: past level 10 it always does, but
+    // below that the every-5th rule still applies, and an icon that silently never changes reads
+    // as a broken counter rather than as «not this time».
+    try {
+      const barTip = document.querySelector('#hintBtn img');
+      const barShake = document.querySelector('#shakeBtn img');
+      const tip = $('winRwTip'), shk = $('winRwShake');
+      if (tip && barTip) tip.querySelector('img').src = barTip.src;
+      if (shk){
+        if (level.shakeBonus && barShake){
+          shk.style.display = '';
+          shk.querySelector('img').src = barShake.src;
+        } else shk.style.display = 'none';
+      }
+    } catch(e){}
     $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')
       + (COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  ') : '') + '+1 💡';
     $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';

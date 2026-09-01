@@ -224,7 +224,6 @@ const TYPES = [
   { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cargarbagetruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickclassic', color:0x5ac44a, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickclassicGeo },
   { name:'foodpear',              color:0xc8d94a, rc:1.0, tex:'food', mat:'soft', geo:foodpearGeo },
-  { name:'propskabar', color:0xcb8f6a, rc:1.0, wr:0.22, tex:'props', mat:'soft', geo:propskabarGeo },
   { name:'foodpumpkin',           color:0xff8a2b, rc:1.0, tex:'food', mat:'soft', geo:foodpumpkinGeo },
   { name:'foodpaprika',           color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodpaprikaGeo },
   { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
