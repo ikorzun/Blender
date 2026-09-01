@@ -12620,3 +12620,125 @@ strands it — the hazard the canon records twice. It cannot bite here because t
 `browser.newPage()`, which in Playwright opens its OWN context and takes the key with it on close.
 ⛔ Move this section onto a shared page or an explicit `newContext` and it MUST gain `setLevel(1)`
 before the close.
+
+## BATCH 2026-09-01: THE OWNER'S SOUND DROP, AND CLOUDS THAT COST ONE TEXTURE FETCH
+
+His words: «I want to try these sounds on, but don't forget to convert them to mp3 for less
+weight», then «finish with the sounds and the clouds, then push everything to git and write a
+report». The sounds arrived the way his models and his PNGs arrive - as files on the disk, in
+`~/Desktop/SOUNDS`, with no path named in the message. **THE THIRD TIME THIS CHANNEL HAS BEEN
+USED, AND THE SECOND TIME `git status` / a dated `find` WAS THE ONLY THING THAT FOUND IT.**
+
+### MP3 IS HIS EXPLICIT OVERRIDE OF A STANDING RULE, AND IT NEEDED NO ENGINE CHANGE
+
+⛔ The canon's rule is «never re-encode the owner's assets to another extension» - it exists
+because a conversion was once done WITHOUT being asked and destroyed transparency on his press
+screenshots. **Here he asked, in as many words.** 1.80 MB of sources became 251 KB.
+✅ **AND THE FORMAT WAS FREE TO ADOPT:** `decodeAudioData` is handed RAW BYTES and never a mime
+type, so an mp3 decodes on the identical path as the m4a and wav entries already in the bank.
+Zero lines of engine change; three container formats now share one decode path.
+⚠️ **MONO, 128 kbps, AND BOTH ARE MEASURED.** Mono because `playBuf` sends every sample through
+a `StereoPanner`, which is equal-power for mono and eats exactly -3.01 dB whatever the pan - so
+stereo doubles the bytes and buys nothing. 128k over 96k because the residual against the source
+is 2-3 dB better on the two files that actually carry high frequencies (Metall -24.1 against
+-21.3, Hit Pop -31.8 against -28.9) for 64 KB across the whole set.
+⚠️ Four of his sources are ALREADY mp3, so those are transcodes and carry the first encoder's
+artefacts too (Fruits -17.6, Brick -17.7). Nothing can be done from here; they are what he sent.
+✅ `tools/sfx-pack.py` makes it reproducible, and that was checked rather than claimed: an
+independent re-run of the recipe MD5-matched all 14 embedded samples byte for byte.
+
+### WHERE THE FOURTEEN WENT - AND THE FOUR THAT DID NOT
+
+**FIVE VOICES THAT HAD NO RECORDING AT ALL** - 24 live types that until now merged with the
+synthesised arpeggio, which `docs/SOUND-INVENTORY.md` called the single largest audible gap:
+wood (5 types), dough (6), meat (7), paper (3), cream (3).
+**THREE THAT REPLACE RECORDINGS HE HIMSELF CHOSE ON 2026-08-20-e** - juicy (23 types), metal
+(16), plastic (7). ⚠️ Named to him rather than done quietly: one word puts the old ones back.
+**SIX EVENTS**, four of which the inventory listed as having NO sound whatsoever: the NEW OBJECT
+reveal, the tier-up, the intro pour, and `toast()`; plus `ui` and `miss`, which had a sound and
+now have his.
+⛔ **FOUR FILES WERE NOT WIRED AND THAT IS A DECISION, NOT AN OVERSIGHT:** `Blend object`,
+`Error-2`, `robot`, `robot-2`. There is no slot their names point at, and guessing would have
+put a sound on an event he never named. They are converted and one line from use.
+
+⛔⛔ **A CONSEQUENCE WORTH KNOWING: THE PROCEDURAL ARPEGGIO NO LONGER PLAYS ON ANY ORDINARY
+MERGE.** All ten voices in `MATERIAL_OF` now have recordings, so the branch always finds a buffer
+and returns. What stays reachable is the RIGHT remainder rather than a leftover: the bowl-shatter
+collect-all and a detonated type charge, which pass no material at all. A mixed harvest has no
+single material to speak with. The old comment claiming it «plays for the 20 types that have no
+recording» was removed, not left standing.
+⚠️ **AND `toast()` IS NOT PURELY A REFUSAL CHANNEL, WHICH MY FIRST COMMENT GOT WRONG.** It also
+carries rewards - «+1 Shake», «Free shake», «Final pairs», «Progress reset». A ding reads as
+positive so it fits both, but the sound lands on more paths than the refusals and that is his to
+judge, not mine to bury in a comment.
+
+### THE TRIMS WERE DERIVED WITH THE GUARD'S RULER, NOT WITH A COPY OF IT
+
+His drop spans **13.2 dB** of short-term RMS, so an untrimmed bank would have made «Upgrade obj»
+twelve decibels louder than the interface click. All sixteen are normalised to the same target
+the original five were (-22.8 dB, max short-term RMS in a 200 ms window), and the ROLE's loudness
+is expressed where it belongs - in the `peak` argument at the call site.
+⚠️⚠️ **COMPUTED OFFLINE FIRST, THE TABLE CAME OUT 1.2 dB WIDE AGAINST A GUARD THAT ALLOWS 1.0.**
+Same metric, different sampling: my python window stepped in quarter-window hops while the guard
+slides sample by sample, and `toast` has a transient the coarse grid stepped over. Re-derived
+from `bufferOf` in a real decode, the spread is **0.04 dB**.
+✅ **THE RULER IS THE SAME ONE, AND THAT IS PROVEN RATHER THAN ASSUMED:** computed blind from the
+shipped bytes, `mat_plush` came out 0.854 against the 0.858 standing in the table since
+2026-08-20-zh, and `mat_glass` 4.381 against 4.401.
+
+### THE CLOUDS: BAKED ONCE, SAMPLED ONCE
+
+His «THEY MUST NOT AFFECT PERFORMANCE» (his capitals) is answerable only one way. The FBM is
+baked ONCE into a wrapping 256x256 tile on the CPU - the same device `buildSkyRamp` already uses
+for the gradient - so the shader pays **one texture fetch** on a pass that already does one. An
+FBM evaluated per fragment would have been four to eight hashes on every one of ~685k fragments
+a frame on a phone.
+⛔⛔ **THE DAY DECOR WAS REJECTED ONCE BEFORE** (v213 strata, v215 blob clouds with parallax):
+«bring everything back to the ordinary gradient, since it did not turn out very well». He has
+re-opened it himself, and the canon kept the recipe for exactly this moment. Both halves are
+implemented and both are guarded:
+1. **THE SHIFT IS INTO THE MINUS** - the clouds pull the ramp reading toward a DARKER stop of his
+   own palette, so they can never introduce a hue that is not already in his gradient, and the
+   contrast of the white eyes against the sky can only improve, never drop.
+2. **ZERO AT BOTH FRAME EDGES** - the first and last stops are what `--sky-top-rgb` and
+   `--sky-bot-rgb` promise the iOS chrome zones, and Safari 26 extends the page by STRETCHING
+   those very rows. A cloud touching either edge would put a colour into the system bars that is
+   on no screen. Asserted as BYTE EQUALITY of the encoded edge rows, which states «untouched»
+   rather than «close enough».
+
+⛔⛔ **IT WAS INVISIBLE TWICE, AND BOTH TIMES SILENTLY.** First `THREE.LuminanceFormat`, which a
+WebGL2 context does not support: the sampler read back ZERO, with no warning, while `baked: true`
+was cheerfully reported because the OBJECT existed. Then a knee so hard the tile came out mean 30
+of 255 - mostly empty - and every profiled column read exactly zero, which looked identical to
+the first failure. **A BAKED TEXTURE THAT IS BLANK IS INDISTINGUISHABLE FROM A LAYER THAT IS NOT
+WIRED**, which is why the hook now reports the tile's min/max/mean and a guard reads them.
+⚠️⚠️ **AND THE DIAGNOSTIC THAT FOUND IT WAS THE THIRD ONE, BECAUSE THE FIRST TWO WERE MINE.**
+(1) A `t -= 0.30` probe measured the TOP row - where t is already 0 and clamps, so a subtraction
+cannot change it by construction: I proved nothing and believed it. (2) A four-arm A/B reloaded
+the page per arm, so each got a DIFFERENT random level and the deltas measured the LAYOUT.
+(3) What actually worked was rendering `cl` and `cenv` to the screen as red and green: the
+envelope was perfect and the tile was simply blank where it was sampled. **When a layer does
+nothing, draw its terms rather than profiling its result.**
+
+### THE SATURATION HE ASKED TO SEE
+
+⚠️ **HIS FIVE STOPS ARE UNTOUCHED, AND THAT IS FORCED BY THE GAMUT:** four of them sit exactly on
+the sRGB boundary at their own L and H, so raising chroma only hits the clamp in `_oklchHex` and
+shifts hue. The knob that actually controls saturation is `SKY_FADE_WHITE` - the 40% white wash
+currently eating ~41% of the palette's chroma. Four arms (0.40 / 0.34 / 0.28 / 0.22) were built
+and rendered for him to choose from; nothing was changed without his word.
+
+⚠️⚠️ **AND THE RUN CAUGHT WHAT THE PROBES COULD NOT: WIDENING `VOICE_TRIM` BROKE A GUARD'S
+ASSUMPTION, NOT ITS PROPERTY.** The signal-path arm proves the trim is APPLIED and not merely
+tabulated, and it does so by driving each key through the MATCH path - which looks a recording up
+as `'mat_' + material`. With the table holding only `mat_` voices that was total coverage; with
+event keys in it, `ui` resolves to `mat_ui`, finds nothing, falls through to the procedural
+arpeggio, and the captured gain has nothing to do with any trim (measured 0.0146 against an
+expected 0.65). **The rule changed - `VOICE_TRIM` stopped meaning «the match voices» and started
+meaning «every sample» - so the guard's SCOPE moved with it**, restricted back to what the match
+path can actually play. The loudness arm still covers all sixteen, because it needs only the
+buffer and the table.
+✅ **AND PROVING IT FOR TEN PROVES IT FOR SIXTEEN:** the multiplier lives on ONE line in
+`playBuf`, shared by every caller, so a build that dropped it fails here whatever the key.
+⚠️ A count was added to that arm in the same edit: `every` over an EMPTY set is TRUE, so once the
+loop became conditional the arm could have gone green by measuring nothing at all.

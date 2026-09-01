@@ -13052,6 +13052,149 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'are on the pack texture (' + JSON.stringify(typeMcReset.types[typeMcPicked.name]) + '). Without ' +
     'this arm an override would be a one-way door — and the editor exists for trying things on');
 
+  // ===== THE CLOUDS (the owner's word 2026-08-31, shipped 2026-09-01) =====
+  // «I would also like generated clouds on top, also barely visible» + «THEY MUST NOT AFFECT
+  // PERFORMANCE» (his capitals). Baked once into a wrapping tile and sampled ONCE per fragment,
+  // so the sky pass gains one texture fetch and no arithmetic.
+  // ⛔⛔ THE DAY DECOR WAS REJECTED ONCE BEFORE (v213/v215) and the canon kept the recipe for a
+  // future attempt: shift the ramp reading into the MINUS - a plus shift drops the contrast of
+  // the white eyes against the sky - and fade to ZERO at the frame's edges, or --sky-top-rgb
+  // and --sky-bot-rgb stop describing the real edge pixel and the iOS chrome tint goes wrong.
+  // Both halves are asserted below, and the second one is the reason this section exists.
+  const cldPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await cldPage.goto('file://' + PAGE_FILE + '?dev=1');
+  await cldPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+  await cldPage.evaluate(() => window.__game.skipIntro());
+  await cldPage.waitForFunction(() => window.__game.alive() > 40, null, { timeout: 30000 });
+  await cldPage.waitForTimeout(1500);            // let the pile settle so frames are stable
+  const cldInfo = await cldPage.evaluate(() => window.__game.clouds());
+  // ⚠️⚠️ ONE PAGE, TOGGLED - NOT TWO LOADS. Each load deals a different random level, and a
+  // frame-to-frame delta would then be measuring the LAYOUT rather than the sky. That mistake
+  // was made first and produced a table of deltas that meant nothing.
+  const strip = async (y) => (await cldPage.screenshot({ clip: { x: 0, y, width: 390, height: 1 } })).toString('base64');
+  await cldPage.evaluate(() => window.__game.clouds(0));
+  await cldPage.waitForTimeout(320);
+  const offTop = await strip(0), offBand = await strip(250), offBot = await strip(843);
+  await cldPage.evaluate(() => window.__game.clouds(0.22));   // exaggerated, so the band cannot be noise
+  await cldPage.waitForTimeout(320);
+  const onTop = await strip(0), onBand = await strip(250), onBot = await strip(843);
+  await cldPage.evaluate(() => window.__game.clouds(0.055));
+  await cldPage.close();
+  const cld = { tileMean: cldInfo && cldInfo.tileMean, tileMax: cldInfo && cldInfo.tileMax,
+                amt: cldInfo && cldInfo.amt, topSame: offTop === onTop,
+                botSame: offBot === onBot, bandDiff: offBand !== onBand };
+  console.log('clouds:', JSON.stringify(cld));
+  expect(!!(cldInfo && cldInfo.baked && cld.tileMax > 200 && cld.tileMean > 45),
+    '\u26a0\u26a0 THE BAKED CLOUD TILE HAS CONTENT (mean ' + cld.tileMean + ', max ' +
+    cld.tileMax + ' of 255). \u26d4 THIS ARM EXISTS BECAUSE A BLANK BAKED TEXTURE IS INVISIBLE ' +
+    'AND SILENT - no warning, no error, the layer simply does nothing while `baked: true` is ' +
+    'cheerfully reported, because the OBJECT exists. It happened twice while this was written: ' +
+    'once from LuminanceFormat, which a WebGL2 context does not support and reads back as zero, ' +
+    'and once from a knee so hard the tile came out mean 30 of 255 and every profiled column ' +
+    'read exactly zero' +
+    ' \u26a0 THE THRESHOLD 45 SITS IN AN EMPTY CORRIDOR AND IS NOT A ROUND NUMBER: the healthy ' +
+    'tile measures 66 and the known-bad hard-knee one measured 30. The tile is deterministic ' +
+    '(a sin-based hash, no randomness), so the healthy value reproduces exactly every run. ' +
+    '\u26a0 AND NOTE WHAT THIS ARM CANNOT SEE: the LuminanceFormat failure left the tile DATA ' +
+    'perfectly intact and broke only the SAMPLING - only the band arm below catches that one');
+  expect(cld.bandDiff,
+    '\u26a0 AND THE LAYER ACTUALLY REACHES THE SKY: at four times the shipping strength the ' +
+    'row at the band differs from the same row with the clouds off. \u26a0 THE SAME PAGE IS ' +
+    'TOGGLED rather than reloaded, so the pile is identical and the difference can only be the ' +
+    'sky. \u26d4 SABOTAGE: drop the `t = clamp(t - cl * cenv * uCloudAmt, ...)` line from the ' +
+    'sky shader in 10-stage');
+  expect(cld.topSame && cld.botSame,
+    '\u26a0\u26a0 AND IT IS EXACTLY ZERO AT BOTH FRAME EDGES - the top and bottom pixel rows ' +
+    'are BYTE-IDENTICAL with the clouds off and at four times strength (top ' + cld.topSame +
+    ', bottom ' + cld.botSame + '). \u26d4 THIS IS THE LOAD-BEARING ONE. The first and last ' +
+    'stops of the palette are what --sky-top-rgb and --sky-bot-rgb promise the iOS chrome zones, ' +
+    'and Safari 26 extends the page by STRETCHING those very rows. A cloud touching either edge ' +
+    'would make those variables lie about the frame and put a colour into the system bars that ' +
+    'is on no screen. \u26a0 Byte equality of the encoded strip and not a luminance tolerance: ' +
+    'identical pixels encode identically, so this states «untouched» rather than «close enough»');
+
+  // ===== THE OWNER'S SOUND DROP: THE FOUR MUTE SCREENS NOW SPEAK (2026-09-01) =====
+  // He sent 18 files and said "I want to try these sounds on, but convert them to mp3 for less
+  // weight". Fourteen went in. Four of them fill screens `docs/SOUND-INVENTORY.md` listed as
+  // having NO sound at all - the reveal, the tier-up, the intro pour and the refusal channel.
+  // ⚠️⚠️ NOTHING IN THE SUITE COULD SEE ANY OF THIS: the sound guards iterate the trim table,
+  // which used to hold exactly the five `mat_` voices, so a new NON-mat_ key and a new call site
+  // were both invisible. Adding the sound AND removing it again would have passed green.
+  // ⚠️ MP3 NEEDED NO ENGINE CHANGE, AND THAT IS WHY IT IS SAFE: `decodeAudioData` is handed raw
+  // bytes and never a mime type, so an mp3 decodes on the identical path as the m4a and wav
+  // entries. The arm below proves the DECODE rather than the presence of a key - a sample that
+  // fails to decode is SILENT by construction (playBuf falls back on a presence check), which is
+  // exactly the failure a key-count assert would sail past.
+  const sndPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await sndPage.goto('file://' + PAGE_FILE + '?dev=1');
+  await sndPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+  // ⚠️ A CLICK DOES NOT REACH `Sound.unlock` - the loudness section next door records this same
+  // trap, where a click-driven probe got an empty sample list and nearly produced a false verdict.
+  await sndPage.evaluate(() => { window.__game.skipIntro(); window.__game.sound.unlock(); });
+  await sndPage.waitForFunction(() => {
+    const S = window.__game.sound;
+    return ['newobj', 'upgrade', 'fill', 'toast', 'miss', 'ui'].every(k => !!S.bufferOf(k));
+  }, null, { timeout: 30000 }).catch(() => {});
+  const sndInfo = await sndPage.evaluate(async () => {
+    const S = window.__game.sound, g = window.__game;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    // record WHICH buffer each play actually started - identity, not a duration, because
+    // `newobj` and `fill` happen to be the same length
+    window.__played = [];
+    const P = AudioBufferSourceNode.prototype, orig = P.start;
+    P.start = function(){ try { window.__played.push(this.buffer); } catch (e) {} return orig.apply(this, arguments); };
+    const fired = (k) => window.__played.indexOf(S.bufferOf(k)) >= 0;
+    // ⚠️⚠️ WAIT UNTIL THE CONTEXT IS ACTUALLY RUNNING, NOT UNTIL THE SAMPLES DECODED. `unlock`
+    // calls `ctx.resume()`, which is ASYNCHRONOUS, while `Sound.play` returns immediately when
+    // `ctx.state !== 'running'`. Decoding finishes first, so a probe that waits only for buffers
+    // measures the FIRST event against a suspended context and reports it silent - which is
+    // exactly what happened here: `newobj` came back false purely for being measured first.
+    for (let i = 0; i < 60; i++){
+      window.__played = []; S.play('ui'); await sleep(50);
+      if (window.__played.length) break;
+    }
+    const out = { decoded: {}, site: {}, voice: {} };
+    for (const k of ['ui','grind1','mat_juicy','mat_plush','mat_metal','mat_plastic','mat_glass',
+                     'mat_wood','mat_dough','mat_meat','mat_paper','mat_cream','miss','newobj',
+                     'upgrade','fill','toast'])
+      out.decoded[k] = !!S.bufferOf(k) && S.bufferOf(k).duration > 0.05;
+    // --- the PRODUCTION call sites ---
+    window.__played = []; g.newObjShow('animalcrab', () => {}); await sleep(350);
+    out.site.newobj = fired('newobj');
+    window.__played = []; g.regen(); await sleep(500);
+    out.site.fill = fired('fill');
+    window.__played = []; g.accGrant('animalcrab', 5000); await sleep(350);
+    out.site.upgrade = fired('upgrade');
+    // --- the voices, through the same dispatcher every call site uses ---
+    for (const k of ['newobj','upgrade','fill','toast','miss','ui']){
+      window.__played = []; window.__game.sound.play(k); await sleep(200);
+      out.voice[k] = fired(k);
+    }
+    P.start = orig;
+    return out;
+  });
+  await sndPage.close();
+  console.log('owner sound drop:', JSON.stringify(sndInfo));
+  expect(Object.values(sndInfo.decoded).every(Boolean),
+    '\u26a0\u26a0 EVERY SAMPLE IN THE BANK DECODES, THE FOURTEEN NEW MP3s INCLUDED (' +
+    JSON.stringify(sndInfo.decoded) + '). \u26d4 THIS IS THE ARM THAT MATTERS FOR A FORMAT ' +
+    'CHANGE: a sample that fails to decode does not throw and does not warn - `playBuf` returns ' +
+    'false on a missing buffer and the game silently plays the old procedural sound, or nothing. ' +
+    'A count of keys in SFX_B64 would be green on a bank of eighteen broken files');
+  expect(sndInfo.site.newobj && sndInfo.site.fill && sndInfo.site.upgrade,
+    '\u26a0\u26a0 THREE OF THE FOUR PREVIOUSLY-MUTE SCREENS SOUND ON THEIR PRODUCTION PATH, ' +
+    'NOT MERELY IN THE VOICE TABLE (' + JSON.stringify(sndInfo.site) + '): the reveal via ' +
+    '`newObjShow`, the intro pour via `regen`, the tier-up via `accGrant` crossing a threshold. ' +
+    '\u26a0 IDENTITY OF THE BUFFER AND NOT ITS DURATION - `newobj` and `fill` are both 2.04 s, ' +
+    'so a length check would confuse them. \u26d4 SABOTAGE: drop the `Sound.play` from any of ' +
+    'newObjShow (85-hud), beginDrop (99-main) or showTierUp (85-hud)');
+  expect(Object.values(sndInfo.voice).every(Boolean),
+    '\u26a0 AND ALL SIX NEW VOICES PLAY THEIR OWN SAMPLE THROUGH THE DISPATCHER (' +
+    JSON.stringify(sndInfo.voice) + '). \u26a0 THE HONEST LIMIT, STATED RATHER THAN HIDDEN: ' +
+    'for `toast` this is the ONLY arm - its production call site is not reachable from a test ' +
+    'hook (every toast in the game hangs off a refusal that needs state this section does not ' +
+    'set up), so the wiring of `toast()` itself is carried by code review, not by this guard');
+
   // ===== A TYPE'S OWN MATCAP, DECLARED IN SOURCE (the owner's word 2026-08-31-g) =====
   // «the toilet paper is very light, it needs a darker tone or a matcap». The MEASURED cause:
   // propstoiletpaper samples PURE WHITE 255,255,255 out of the shared atlas - the only one of the
@@ -14777,11 +14920,23 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         // ⚠️ AND SEPARATELY — THAT THE TRIM REACHED THE SIGNAL PATH: we read `gain.value` of
         // a REAL node. Without this the guard would repeat the live game's arithmetic at home and
         // would stay green on a build where the multiplier from `playBuf` has been cut out.
-        window.__sfx.gain.length = 0;
-        S.play('match', { n: 3, m: k.replace(/^mat_/, ''), r: 0.62, pan: 0 });
-        await sleep(60);
-        gains[k] = window.__sfx.gain.length
-          ? +window.__sfx.gain[0].gain.value.toFixed(4) : null;
+        // ⚠️⚠️ ONLY THE `mat_` KEYS CAN BE DRIVEN THIS WAY, AND SINCE 2026-09-01 THE TABLE HOLDS
+        // MORE THAN THEM. The probe reaches a voice through the MATCH path, which looks a
+        // recording up as `'mat_' + material` - so an event key like `ui` or `newobj` resolves
+        // to `mat_ui`, finds nothing, and falls through to the procedural arpeggio, whose
+        // envelope gain has nothing to do with any trim. The loudness arm above still covers
+        // ALL sixteen, because it needs only the buffer and the table; it is the SIGNAL-PATH
+        // arm that is limited to what the match path can play.
+        // ✅ AND PROVING IT FOR THESE PROVES IT FOR THE REST: the multiplier lives on ONE line
+        // in `playBuf` (`* (VOICE_TRIM[name] || 1)`), shared by every caller, so a build that
+        // dropped it would fail here whatever the key.
+        if (k.indexOf('mat_') === 0){
+          window.__sfx.gain.length = 0;
+          S.play('match', { n: 3, m: k.replace(/^mat_/, ''), r: 0.62, pan: 0 });
+          await sleep(60);
+          gains[k] = window.__sfx.gain.length
+            ? +window.__sfx.gain[0].gain.value.toFixed(4) : null;
+        }
       }
       // ⚠️ THE PEAK OF THE PROCEDURAL ONE — FROM THE FORMULA ITSELF, and not from a constant next to it.
       window.__sfx.ramp.length = 0;
@@ -14817,7 +14972,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // green on a build where the multiplier from `playBuf` is cut out entirely. Here
     // `gain.value` of a REAL node is read: the base of group 3 is (0.5+0.06·3)·√2.
     const groupBase = 0.68 * Math.SQRT2;
-    const pathOk = Object.keys(vol.gains).every(k =>
+    // ⚠️ THE COUNT IS PART OF THE PREDICATE: `every` over an EMPTY set is true, so without it a
+    // build where the probe stopped driving anything at all would pass this arm by measuring
+    // nothing. Ten is the number of `mat_` voices in the table.
+    const pathKeys = Object.keys(vol.gains);
+    const pathOk = pathKeys.length >= 10 && pathKeys.every(k =>
       vol.gains[k] !== null &&
       Math.abs(vol.gains[k] - groupBase * vol.trimTbl[k]) < 0.002);
     expect(pathOk,

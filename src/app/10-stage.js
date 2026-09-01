@@ -873,6 +873,61 @@ const SKY_RAMP_W = 256;
 // stops by 2.7% and 1.7% of the frame height, and the sky in the game would have diverged from the same
 // string in the CSS, where the browser respects the positions. The divergence is small and therefore
 // especially nasty: invisible to the eye, while the edges and the measurements are already lying.
+// THE CLOUD TILE, BAKED ONCE (the owner's word 2026-08-31). Value-noise FBM on the CPU, into a
+// wrapping single-channel tile - so the shader pays ONE texture fetch instead of an FBM per
+// fragment. That is the entire reason his «THEY MUST NOT AFFECT PERFORMANCE» is answerable.
+// ⚠️ THE NOISE IS PERIODIC BY CONSTRUCTION: the lattice wraps at the tile's edge (`& (N-1)`),
+// so the drift can run forever without a seam appearing. A non-wrapping tile would show a hard
+// line crossing the sky every time it repeated - the same class of defect as an angular noise
+// domain torn by atan, which cost a whole render to find.
+function buildCloudTex(){
+  const N = CLOUD_TEX, px = new Uint8Array(N * N);
+  const h = (x, y) => {                 // a stable hash on the WRAPPED lattice
+    const s = Math.sin((x & (N - 1)) * 127.1 + (y & (N - 1)) * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const sm = (a, b, f) => a + (b - a) * f * f * (3 - 2 * f);
+  const noise = (x, y, per) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const m = (v) => ((v % per) + per) % per;
+    const a = h(m(xi), m(yi)),     b = h(m(xi + 1), m(yi));
+    const c = h(m(xi), m(yi + 1)), d = h(m(xi + 1), m(yi + 1));
+    return sm(sm(a, b, xf), sm(c, d, xf), yf);
+  };
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    // four octaves, each on its own PERIOD so every one of them wraps too
+    // ⚠️ THE BASE PERIOD IS 2, NOT 4: at 4 the tile came out as fine MOTTLING, which reads as
+    // haze rather than as cloud. Two large cells with three octaves of detail on top give
+    // shapes big enough to be recognised even at an amplitude that is barely visible at all.
+    let v = 0, amp = 0.5, per = 2;
+    for (let o = 0; o < 4; o++){
+      v += amp * noise(x / N * per, y / N * per, per);
+      amp *= 0.5; per *= 2;
+    }
+    // ⚠️⚠️ THE KNEE DECIDES WHETHER THERE ARE CLOUDS AT ALL, AND THE FIRST ONE WAS TOO HARD.
+    // At (v-0.42)/0.58 followed by a smoothstep the tile came out mean 30 of 255 - i.e. mostly
+    // EMPTY - and a profile through any single column read exactly zero, which looked like the
+    // whole layer was broken. It was not: rendering `cl` to the screen showed the envelope
+    // perfect and the tile simply blank where it was sampled. Softened so most of the sky
+    // carries a little and the peaks still stand out.
+    v = Math.max(0, Math.min(1, (v - 0.30) / 0.34));
+    px[y * N + x] = Math.round(255 * v * v * (3 - 2 * v));
+  }
+  // ⛔⛔ RGBA AND NOT LuminanceFormat. On a WebGL2 context - which is what three r149 picks
+  // whenever it can, i.e. essentially always here - LuminanceFormat is NOT supported and the
+  // sampler silently reads ZERO. Measured: with it the cloud layer had literally no effect,
+  // every profiled row identical to the arm with the clouds off, and no warning in the console.
+  // The extra three bytes per texel are 256 KB of VRAM once, which is nothing next to a layer
+  // that quietly does not exist.
+  const rgba = new Uint8Array(N * N * 4);
+  for (let i = 0; i < N * N; i++){ rgba[i*4] = rgba[i*4+1] = rgba[i*4+2] = px[i]; rgba[i*4+3] = 255; }
+  const tex = new THREE.DataTexture(rgba, N, N, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
 function buildSkyRamp(rgb, pos){
   const px = new Uint8Array(SKY_RAMP_W * 4), last = rgb.length - 1;
   const p = (pos && pos.length === rgb.length)
@@ -923,11 +978,14 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
         // of 0.41 against 0.41 for the base), while with a share of 1.0 the difference is visible at once (0.93).
         uStarPulseFrac: { value: STAR_PULSE_FRAC },
         uStarPulseAmp:  { value: STAR_PULSE_AMP },
-        uTime: { value: 0 } };
+        uTime: { value: 0 },
+        uCloud:    { value: buildCloudTex() },
+        uCloudAmt: { value: CLOUD_ON ? CLOUD_AMT : 0 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
        'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
        'uniform float uStarPulseFrac; uniform float uStarPulseAmp;',
+       'uniform sampler2D uCloud; uniform float uCloudAmt;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -951,6 +1009,20 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
       '  float tView = clamp((1.0 - d.y) * 0.5, 0.0, 1.0);',
       '  float tScreen = clamp(1.0 - gl_FragCoord.y / uResY, 0.0, 1.0);',
       '  float t = mix(tView, tScreen, uSkyMap);',
+      // ⚠️⚠️ THE CLOUDS PULL `t` BACK, THEY DO NOT ADD A COLOUR. Shifting the reading of the ramp
+      // toward 0 samples a DARKER stop of the owner's own palette, so a cloud can never
+      // introduce a hue that is not already in his gradient, and the shift is into the MINUS -
+      // the direction the canon requires of any day decor, because a plus shift drops the
+      // contrast of the white eyes against the sky.
+      // ⚠️ THE ENVELOPE IS ZERO AT t=0 AND ZERO AGAIN BY CLOUD_BOT, AND THE FIRST ZERO IS
+      // LOAD-BEARING: the top pixel row IS what --sky-top-rgb promises the Safari chrome zone,
+      // and a cloud touching it would make that variable lie about the frame's edge.
+      '  float cx = gl_FragCoord.x / max(uResY, 1.0) * ' + CLOUD_SCALE.toFixed(3) +
+        ' + uTime * ' + CLOUD_DRIFT.toFixed(5) + ';',
+      '  float cl = texture2D(uCloud, vec2(cx, t * ' + CLOUD_SCALE.toFixed(3) + ')).r;',
+      '  float cenv = smoothstep(' + CLOUD_TOP.toFixed(3) + ', ' + CLOUD_PEAK.toFixed(3) + ', t)'
+        + ' * (1.0 - smoothstep(' + CLOUD_PEAK.toFixed(3) + ', ' + CLOUD_BOT.toFixed(3) + ', t));',
+      '  t = clamp(t - cl * cenv * uCloudAmt, 0.0, 1.0);',
       // half a texel inwards: otherwise the edge of the ramp is blurred by the filter against ClampToEdge
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',

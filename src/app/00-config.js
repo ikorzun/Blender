@@ -1312,6 +1312,27 @@ const SKY_MAP = 'screen';
 //    both paths (loading and live substitution). The displayed colour = fade(palette).
 // ⚠️ THE PAUSE SCREEN IS LIGHTENED BY THE SAME NUMBER FOR FREE: it draws `--sky-grad`,
 //    and that string is assembled from the same lightened stops.
+// ===== THE CLOUDS (the owner's word 2026-08-31: «I would also like generated clouds on top,
+// also barely visible» + «THEY MUST NOT AFFECT PERFORMANCE», his capitals) =====
+// ⛔⛔ THE DAYTIME SKY DECOR WAS TRIED AND REJECTED ONCE (v213 strata, v215 blob clouds with
+// parallax): «bring everything back to the ordinary gradient, since it did not turn out very
+// well». He has re-opened it himself, and the canon kept the recipe for exactly this moment:
+// any future day decor (1) shifts the reading of the ramp INTO THE MINUS - a plus shift
+// physically drops the HUD contrast against the white eyes - and (2) fades to ZERO at the
+// frame's edges, or the Safari bar tint stops matching the real pixel row.
+// ⚠️⚠️ THE COST IS ONE TEXTURE FETCH, AND THAT IS THE WHOLE ANSWER TO HIS CAPITALS. The noise
+// is BAKED ONCE into a DataTexture on the CPU (the same device `buildSkyRamp` already uses for
+// the gradient) instead of being evaluated per fragment. An FBM in the shader would have been
+// four to eight hash evaluations on every one of ~685k fragments a frame on a phone; a baked
+// sample is one lookup, on a pass that already does one.
+const CLOUD_ON    = true;
+const CLOUD_TEX   = 256;   // the baked tile; wraps, so the drift never shows a seam
+const CLOUD_AMT   = 0.055; // how far the ramp reading is pulled back, in units of t. «barely»
+const CLOUD_TOP   = 0.10;  // ⚠️ ZERO AT t=0 IS NOT TASTE: the first stop IS the Safari top zone
+const CLOUD_PEAK  = 0.26;  // where the band is densest - the upper quarter, «clouds on top»
+const CLOUD_BOT   = 0.62;  // and gone well before the bottom edge, for the same reason
+const CLOUD_SCALE = 2.1;   // tiles across the frame's width
+const CLOUD_DRIFT = 0.004; // per second; slow enough that a still frame looks still
 const SKY_FADE_WHITE = 0.40;
 const SKY_STOPS = {
   // ⚠️⚠️ THE OWNER'S PALETTE 2026-08-20-b (he sent OKLCH + hexes and positions):

@@ -739,6 +739,16 @@ function renderWinTop(reduce){
 }
 function toast(msg){
   const t = $('toast');
+  // ⚠️ THE GAME'S REFUSAL CHANNEL («Not enough coins», «No hints left», «No shakes left») and it
+  // was silent - the sound inventory named it.
+  // ⚠️⚠️ BUT IT IS NOT ONLY A REFUSAL CHANNEL, AND THE SOUND IS HEARD ON BOTH: `toast()` also
+  // carries REWARDS - «+1 Shake» (80-gameplay:782), «Free shake» (:1381, 99-main:960), «Final
+  // pairs» (40-items), «Progress reset» (90-input). A ding reads as positive, so it fits both
+  // readings, but this is a behaviour change on more paths than the refusals and it is named to
+  // the owner rather than buried here.
+  // ⚠️ It can overlap the delegated `ui` click when a BUTTON raised the toast, and that is
+  // correct rather than a double-up: the pair reads as «pressed, and answered».
+  try { Sound.play('toast'); } catch (e) {}
   t.textContent = msg; t.style.opacity = 1;
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
@@ -1769,6 +1779,10 @@ function showTierUp(ev){
     if (typeof level === 'undefined' || !level) return;
     if (level.multToastShown) return;
     level.multToastShown = true;
+    // ⚠️ INSIDE the once-per-level gate on purpose: the owner capped this notice at one per
+    // level (2026-08-23-a), and a sound outside the gate would fire on every tier-up while the
+    // pill stayed hidden - a sound with no picture, which reads as a bug.
+    try { Sound.play('upgrade'); } catch (e) {}
     showMultToast(ev && (ev.key || ev.name), (ev && ev.mult) || 1, true);
   } catch(e){}
 }
@@ -2855,6 +2869,10 @@ function newObjShow(key, done){
   const px = Math.min(1280, Math.max(SPIN_PX,
     Math.round((host.clientWidth || 256) * (window.devicePixelRatio || 1))));
   try { thumbSpinStart(item, host, px); } catch (e) {}
+  // ⚠️ THE BIGGEST REWARD SCREEN IN THE GAME AND IT HAD NO SOUND AT ALL - the sound inventory
+  // put it first on the list of what to ask him for. Fired AFTER the screen is up so the sting
+  // lands with the model rising, not against an empty card.
+  try { Sound.play('newobj'); } catch (e) {}
   newObjDragWire(host);
   Telemetry.ev('newobj', { k: key });
 }

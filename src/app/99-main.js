@@ -53,6 +53,10 @@ function beginDrop(){
   // player watches for the pour. Same bodies, same order, same cadence for waves 1+ — a phase
   // shift of the release staging only.
   try { waveKick(); } catch(e){}
+  // ⚠️ THE POUR HAD NO SOUND. ⚠️ ON A COLD FIRST LOAD IT WILL NOT BE HEARD, AND THAT IS THE
+  // AUTOPLAY POLICY, NOT A DEFECT: the AudioContext is unlocked by the first gesture
+  // (90-input), and the very first pour can precede it. Every later level has been touched.
+  try { Sound.play('fill'); } catch(e){}
 }
 function startIntro(){
   // screen 'intro' — the orbit; closed by finishIntro/skipIntro (docs/METRICS.md §3)
@@ -1671,6 +1675,30 @@ window.__game = {
   accGrant(name, n){ accAdd(name, n, null); return { count: accCount(name), tier: accTier(name), mult: accMult(name), next: accNext(name) }; },
   onAccTierUp: onAccTierUp, // subscription to a tier-up ({name, tier, mult, item})
   // balance tests: forcing the level (the penalty rules depend on levelNum)
+  // THE CLOUDS: read and set the live strength (the owner's word 2026-08-31). Load-bearing for
+  // the guard, which must state that the layer DOES something and that it is zero at the frame's
+  // edges - the two properties the whole recipe rests on - and load-bearing for him, so a look
+  // he wants stronger or fainter is one number in the console instead of a rebuild.
+  clouds(v){
+    if (!skyMat || !skyMat.uniforms.uCloudAmt) return null;
+    if (typeof v === 'number') skyMat.uniforms.uCloudAmt.value = Math.max(0, Math.min(0.4, v));
+    // ⚠️⚠️ THE TILE'S OWN STATISTICS, AND THEY ARE NOT DEBUG DECORATION: a baked texture that
+    // comes out ALL ZEROS is invisible AND silent - no warning, no error, the layer simply does
+    // nothing. That is precisely how the first cut of this failed (LuminanceFormat is
+    // unsupported on a WebGL2 context and read back as zero), and `baked: true` was cheerfully
+    // reported the whole time, because the OBJECT existed. A guard needs the CONTENT.
+    const t = skyMat.uniforms.uCloud.value, d = t && t.image && t.image.data;
+    let mn = 0, mx = 0, mean = 0;
+    if (d){
+      mn = 255;
+      let sum = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4){ const v = d[i]; if (v < mn) mn = v; if (v > mx) mx = v; sum += v; n++; }
+      mean = Math.round(sum / Math.max(1, n));
+    }
+    return { amt: skyMat.uniforms.uCloudAmt.value, baked: !!t,
+             tile: CLOUD_TEX, top: CLOUD_TOP, peak: CLOUD_PEAK, bot: CLOUD_BOT,
+             tileMin: mn, tileMax: mx, tileMean: mean };
+  },
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} }, // we do NOT touch Save.lv here: this is a test handle, not the player's progress
   // ⚠️ A TEST HOOK, NOT A TEMPORARY ONE — DO NOT DELETE (the label «TEMPORARY, I will remove it after
   // the bake» hung here by mistake and almost led to its demolition 2026-07-27).

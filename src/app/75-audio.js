@@ -85,12 +85,43 @@ const Sound = (function(){
   // not as an argument.
   // ⛔ `grind*` AND `ui` ARE DELIBERATELY NOT IN THE TABLE: these are other events, the
   // owner asked to align the material sounds. An unknown key gives 1.
+  // ⚠️⚠️ EVERY SAMPLE, NOT ONLY THE MATERIAL VOICES (2026-09-01). The owner's new drop spans
+  // 13.2 dB of short-term RMS between its loudest and quietest file, so an untrimmed bank would
+  // have made «Upgrade obj» twelve decibels louder than the interface click. All sixteen are
+  // normalised to the SAME target the five original voices were (-22.8 dB max short-term RMS in
+  // a 200 ms window), and the ROLE's loudness is expressed where it belongs - in the `peak`
+  // argument at the call site, which is the knob the engine already has.
+  // ⛔ THE FORMER NOTE «grind and ui are deliberately NOT in the table - different events» is
+  // superseded for `ui` and kept for `grind`: the three grinding variants are one recorded set
+  // already balanced against each other, and levelling them individually would flatten that.
+  // ✅ THE MEASUREMENT REPRODUCES THE OLD TABLE, which is what says the ruler is the same one:
+  // computed blind from the shipped bytes, mat_plush came out 0.854 against the 0.858 standing
+  // here since 2026-08-20-zh, and mat_glass 4.381 against 4.401.
+  // ⚠️⚠️ THE VALUES ARE DERIVED WITH THE GUARD'S OWN RULER, IN THE BROWSER, AND NOT WITH A
+  // PYTHON COPY OF IT. Computed offline first, the table came out 1.2 dB wide because my
+  // window stepped in quarter-window hops while the guard slides sample by sample - `toast`
+  // has a transient the coarse grid stepped over. Same metric, different sampling, and the
+  // difference was larger than the 1.0 dB the guard allows. Re-derived from `bufferOf` in a
+  // real decode: the spread is now 0.16 dB.
+  // ⚠️ Headroom checked for all sixteen on the loudest path there is (a group of 6+, peak
+  // 0.5+0.06*6 = 0.86, times the panner's sqrt2): the worst lands at 0.93 of full scale.
   const VOICE_TRIM = {
-    mat_plush:   0.858,   //  -1.3 dB
-    mat_juicy:   4.422,   // +12.9 dB
-    mat_metal:   0.566,   //  -4.9 dB
-    mat_plastic: 0.765,   //  -2.3 dB
-    mat_glass:   4.401,   // +12.9 dB (there are no carriers in the pool, aligned for completeness)
+    mat_plush:   0.855,
+    mat_juicy:   0.188,
+    mat_metal:   0.374,
+    mat_plastic: 0.508,
+    mat_glass:   4.381,
+    mat_wood:    0.339,
+    mat_dough:   0.312,
+    mat_meat:    1.037,
+    mat_paper:   0.586,
+    mat_cream:   0.699,
+    ui:          0.919,
+    miss:        0.422,
+    newobj:      0.404,
+    upgrade:     0.233,
+    fill:        0.519,
+    toast:       0.482,
   };
   // ⚠️ THE PEAK OF THE PROCEDURAL «BLOOP» IS A NAMED CONSTANT, not a literal in the
   // formula: the guard looks at it, and a copy of the number next to the working one
@@ -235,9 +266,17 @@ const Sound = (function(){
         if (playBuf('mat_' + a.m, 0.5 + 0.06 * Math.min(6, n),
                     { rate, pan: (a && a.pan != null) ? a.pan : null })) return;
       }
-      // ⚠️⚠️ THE PROCEDURAL «BLOOP» WAS LOWERED 0.45 -> 0.19 (the same edit of the owner
-      // «align the loudness of the sounds»). It plays for the 20 types that have no
-      // recording, and it WAS THE LOUDEST SOUND OF A MATCH: short-term -16.2 dB
+      // ⛔⛔ IT NO LONGER PLAYS FOR ANY ORDINARY MERGE (2026-09-01). Every one of the ten
+      // voices in `MATERIAL_OF` now has a recording, so the branch above always finds a buffer
+      // and returns. What is left reachable - and it is the RIGHT remainder, not a leftover -
+      // are the two «everything at once» events that pass NO material: the bowl shatter
+      // collect-all (80-gameplay:601) and a detonated type charge (:677, which passes a bare
+      // number). A mixed harvest has no single material to speak with, so the synthesised
+      // arpeggio is exactly the honest voice for it.
+      // ⚠️ THE FORMER TEXT SAID «it plays for the 20 types that have no recording» - that is
+      // now false and was removed rather than left standing, by the canon's own rule.
+      // ⚠️⚠️ THE PROCEDURAL «BLOOP» WAS LOWERED 0.45 -> 0.19 (the owner's edit
+      // «align the loudness of the sounds»), and it WAS THE LOUDEST SOUND OF A MATCH: -16.2 dB
       // against -21.4…-35.7 for the recordings. To align the recordings with each other
       // and leave it as is would mean not finishing the job: exactly those 20 types would
       // stick out.
@@ -271,7 +310,17 @@ const Sound = (function(){
     tick(){ // an alarm at the edge of the streak window (tempo batch): a dry short «tk»,
             // quiet — a peripheral signal, not an event
       const t = ctx.currentTime; tone(1250, 'sine', t, 0.002, 0.035, 0.10); },
-    miss(){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); },
+    // ⚠️ THE SAME SHAPE AS `ui`: the recording if it decoded, the former two square blips if it
+    // did not. The fallback is a PRESENCE check on the buffer and not a list of names, so a
+    // sample that fails to decode degrades to the old sound instead of to silence.
+    miss(){ if (!playBuf('miss', 0.55)){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); } },
+    // THE FOUR SCREENS THE SOUND INVENTORY LISTED AS MUTE (the owner's drop 2026-09-01). They
+    // have no procedural fallback on purpose: there was no sound here at all, so silence is the
+    // honest degradation rather than a synthesised stand-in nobody chose.
+    newobj(){  playBuf('newobj',  0.62); },   // the reveal screen - the biggest reward, and silent
+    upgrade(){ playBuf('upgrade', 0.55); },   // a type's multiplier went up a tier
+    fill(){    playBuf('fill',    0.42); },   // the intro pour; quieter - it is a bed, not an event
+    toast(){   playBuf('toast',   0.45); },   // the game's ONLY refusal channel
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
     grind(){ // the grinding sample (3 variants, the owner's spec) with a procedural fallback
       if (playBuf('grind' + (1 + Math.floor(Math.random()*3)), 0.8)) return;
