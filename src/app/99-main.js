@@ -2094,7 +2094,17 @@ window.__game = {
     let firstHidden = null;
     for (let i = 0; i < items.length; i++){
       const it = items[i];
-      if (!it.alive || !it.accessible || it.animating || it.type.tex !== tex) continue;
+      // ⚠⚠ A FROZEN ITEM IS SKIPPED, AND THAT IS NOT A CONVENIENCE. Every caller of this
+      // hook wants an ORDINARY tappable item of the pack - to merge it, or to prove a tap on it
+      // behaves a certain way. An ice block can do neither: its key is substituted so it never
+      // matches, and a tap on it before its due time is a DOUBLE penalty down a different branch
+      // of handleTap. Handing one back does not fail loudly - the guard taps, gets the tag
+      // `frozen`, and reports that the mechanic under test is broken.
+      // ⛔ CAUGHT 2026-09-01 BY A POOL CHANGE, NOT BY A MECHANIC CHANGE: adding types moved
+      // what the level deals, the first food/animal item happened to be the frozen one, and
+      // three arms of the pairless-tap section went red on a healthy build. The hole had been
+      // there since the ice shipped; only the deal had never landed on it before.
+      if (!it.alive || !it.accessible || it.animating || it.frozen || it.type.tex !== tex) continue;
       const px = visiblePixel(it, ctx);
       if (px) return Object.assign({ i, name: it.type.name }, px);
       if (!firstHidden) firstHidden = { i, name: it.type.name, occluded: true };

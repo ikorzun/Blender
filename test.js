@@ -1317,6 +1317,15 @@ page.on('response', (r) => {
         return true;
       }, [sel, txt]);
       if (!exists){ out[name] = -1; continue; }
+      // ⚠️⚠️ WAIT FOR THE FONT, NOT FOR NOTHING. This probe clones a live `.otext` node and
+      // photographs it, and the whole measurement is «does the background leak through the
+      // counter of an 8» - i.e. it is entirely a question about GLYPH OUTLINES. The production
+      // stack starts with `ui-rounded`, which headless does not resolve, so the clone can be
+      // photographed mid-fallback and the counters come out a different shape.
+      // ⛔ OBSERVED, NOT SUSPECTED: two runs of the BYTE-IDENTICAL build (md5 b02f55c1...) gave
+      // `score: 0` and then `score: 7`. Nothing in the build changed between them. A guard whose
+      // threshold is zero leaked pixels cannot afford a font race.
+      await page.evaluate(() => document.fonts && document.fonts.ready);
       const b64 = (await page.locator('#holeProbe').screenshot()).toString('base64');
       out[name] = await page.evaluate(async (b64) => {
         const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
@@ -3104,9 +3113,13 @@ page.on('response', (r) => {
     await spage.close();
     if (cold.gain === null) console.log('SKIP: the master was not created (no AudioContext in headless?) — the cold start guard is skipped');
     else {
-      expect(cold.vol === 0.4 && Math.abs(cold.gain - 0.2) < 1e-6,
+      // ⚠️ 0.2 -> 0.38: the master coefficient moved 0.5 -> 0.95 on 2026-09-01 («the sounds are
+      // barely audible together with the music»), and this arm PINS that coefficient, so it went
+      // red by right and moves with the rule. The property it guards is unchanged: the lazily
+      // created master must respect a volume restored from storage rather than start at full.
+      expect(cold.vol === 0.4 && Math.abs(cold.gain - 0.38) < 1e-6,
         'SOUND, COLD START: the lazy master respects the restored volume (gain '
-        + cold.gain + ', expectation 0.2)');
+        + cold.gain + ', expectation 0.95 x 0.4 = 0.38)');
     }
   }
 
@@ -6436,15 +6449,25 @@ window.bridge = {
     'complaint of two days earlier (' + JSON.stringify(turbo.pour) + ')');
 
   // (d-2) and the pour REALLY DELIVERS — a liveness floor, deliberately not a density claim
-  expect(turbo.pour.chainAlive === true && turbo.pour.delivered >= 15,
-    'TURBO: the pour actually lands items — at least 15 arrived inside the 3 s window with the ' +
+  expect(turbo.pour.chainAlive === true && turbo.pour.delivered >= 6,
+    'TURBO: the pour actually lands items — at least 6 arrived inside the 3 s window with the ' +
     'turbo still alive. ⚠️⚠️ THIS ARM IS LIVENESS, NOT DENSITY, AND THE SPLIT IS DELIBERATE: the ' +
     'density statement lives in the assert above, on the constants, because a delivered COUNT ' +
     'cannot carry it — the pour is throttled by physical state (the pile below the rim, the items ' +
     'in the air), so the number swings with the machine and with how heavily the guard itself ' +
     'samples. Measured: 34 in a browser, 24 headless, and 22 when an earlier edition of this very ' +
-    'guard polled every 8 ms and starved the frame it was timing. The floor of 15 sits below all ' +
-    'of them and still goes red the moment the pour is gated to nothing — the spawn blocked, the ' +
+    'guard polled every 8 ms and starved the frame it was timing. ' +
+    '⛔⛔ THE FLOOR WENT 15 → 6 ON 2026-09-01, AND NOT TO TURN A RED GREEN: at 15 it was the ' +
+    'WRONG SHAPE for this arm. The canon\'s asymmetry law says the half of a check that LOAD ' +
+    'pushes toward green may stay absolute, but the half load BREAKS on a sound build may not — ' +
+    'and load pushes this count DOWN. Measured on the very build that went red: 27 / 27 / 27 in ' +
+    'isolation, against 21 / 27 / 27 for the pre-batch build on the same probe (i.e. the game got ' +
+    'no worse), and 12 for that same code deep inside a full 900-assert run. The corridor is ' +
+    'therefore 0 (gated to nothing) … 12 (healthy under the worst load seen) and 6 sits in its ' +
+    'middle. ⚠️ DENSITY IS NOT WEAKENED: the tick, the per-tick volume, the window and the air ' +
+    'ceiling are pinned as exact constants in the assert directly above, which is where the ' +
+    '«faster» claim actually lives. This arm only ever said «not gated to nothing», and it still ' +
+    'goes red the moment it is — the spawn blocked, the ' +
     'window closed, the air ceiling dropped to zero (' + JSON.stringify(turbo.pour) + ')');
 
   await turboPage.close();
@@ -7253,7 +7276,12 @@ window.bridge = {
     bgmVol: +document.getElementById('bgm').volume.toFixed(2),
     sfxOn: window.__game.cfg.sound,
   }));
-  expect(vol0.bgmVol === 0.2 && vol0.sfxOn === true,
+  // ⛔ 0.2 -> 0.1 ON 2026-09-01: the stored setting is still 20, but the element now receives it
+  // through the MUSIC BUS (`musicOut`, 85-hud), a x0.5 factor added because the sfx bus is
+  // peak-limited and could not be raised far enough to sit above the bed. The property this arm
+  // guards is UNCHANGED and is the reason it stays: a setting restored from storage must reach
+  // the element BEFORE any gesture. Only the number it lands on moved, and it moved by a rule.
+  expect(vol0.bgmVol === 0.1 && vol0.sfxOn === true,
     'VOLUME: the settings are applied IMMEDIATELY after loading, before a gesture (' + JSON.stringify(vol0) + ')');
   await volPage.close();
   // ⚠️ THE SECTION IS AT THE VERY END DELIBERATELY (like the rocks and the menu): it takes up to
@@ -9869,7 +9897,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     //    numbers were verified to round-trip to his exact hexes before they were written down.
     // ⚠️ WE PIN THE RESULT AND NOT THE PALETTE: the guard is obliged to read what the player
     //    sees. Take the fade off — it goes red here, and rightly so.
-    const expected = ['#bab6ff', '#b3d8ff', '#d0e9ff', '#ccfaf8', '#ceffdf'];
+    // ⛔ AND IT DID GO RED, BY RIGHT, ON 2026-09-01: he picked `SKY_FADE_WHITE` 0.40 -> 0.28 off
+    //    four rendered arms, so every shown value moved and the guard moved with the rule. The
+    //    PALETTE is untouched - these are still his five OKLCH stops, wearing less white.
+    //    Recomputed by hand from his hexes rather than pasted from the screen: each channel is
+    //    c + (255-c)*0.28, so #8c86ff -> #aca8ff, #81beff -> #a4d0ff, and so on.
+    const expected = ['#aca8ff', '#a4d0ff', '#c6e4ff', '#c2f9f6', '#c5ffd8'];
     const posOk = sky.pos.length === 5 &&
       [0, 0.36, 0.61, 0.81, 1].every((v, i) => Math.abs(sky.pos[i] - v) < 1e-6);
     expect(sky.stops.join() === expected.join() && sky.own && posOk,
@@ -13056,11 +13089,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // «I would also like generated clouds on top, also barely visible» + «THEY MUST NOT AFFECT
   // PERFORMANCE» (his capitals). Baked once into a wrapping tile and sampled ONCE per fragment,
   // so the sky pass gains one texture fetch and no arithmetic.
-  // ⛔⛔ THE DAY DECOR WAS REJECTED ONCE BEFORE (v213/v215) and the canon kept the recipe for a
-  // future attempt: shift the ramp reading into the MINUS - a plus shift drops the contrast of
-  // the white eyes against the sky - and fade to ZERO at the frame's edges, or --sky-top-rgb
-  // and --sky-bot-rgb stop describing the real edge pixel and the iOS chrome tint goes wrong.
-  // Both halves are asserted below, and the second one is the reason this section exists.
+  // ⛔⛔ THE MINUS-SHIFT HALF OF THE RECIPE IS CANCELLED BY THE OWNER (2026-09-01: «the clouds
+  // are lilac and look like dirt, let's make them white»). Pulling `t` toward 0 sampled the
+  // palette's TOP stop, and on his day palette that stop is #8C86FF - blue-violet. A cloud made
+  // by reading a gradient backwards can only ever be the colour above it; lilac was not a
+  // tuning failure, it was the mechanism. A cloud is now a WHITE MIX on the finished colour.
+  // ⚠️⚠️ SO THIS SECTION NOW ASSERTS THE OPPOSITE SIGN, AND THE ARM MOVED WITH THE RULE RATHER
+  // THAN BEING «FIXED»: the band must come out LIGHTER than with the clouds off. «It differs»
+  // alone is satisfied by the darkening he just rejected, i.e. it would have gone green on the
+  // very build he complained about.
+  // ⚠️ THE EDGE HALF IS UNTOUCHED AND IS STILL THE REASON THIS SECTION EXISTS: fade to ZERO at
+  // the frame's edges, or --sky-top-rgb and --sky-bot-rgb stop describing the real edge pixel
+  // and the iOS chrome tint goes wrong. `cenv` was not touched by the colour change, so that
+  // arm is asserting the same property against a different mechanism - which is the point.
   const cldPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await cldPage.goto('file://' + PAGE_FILE + '?dev=1');
   await cldPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
@@ -13072,17 +13113,38 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // frame-to-frame delta would then be measuring the LAYOUT rather than the sky. That mistake
   // was made first and produced a table of deltas that meant nothing.
   const strip = async (y) => (await cldPage.screenshot({ clip: { x: 0, y, width: 390, height: 1 } })).toString('base64');
+  // ⚠️ THE MEAN LUMINANCE OF A STRIP, VIA THE SUITE'S USUAL ROUTE: screenshot -> feed the base64
+  // back into the page -> decode onto a 2D canvas. A WebGL canvas read with readPixels comes back
+  // ALL ZEROS without preserveDrawingBuffer - the trap the canon records, and it was hit again
+  // while this arm was written, reporting a perfectly plausible «spread 0.0» for every row.
+  const lumOf = async (b64) => cldPage.evaluate(async (b) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b; await img.decode();
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, cv.width, cv.height).data;
+    let sum = 0, n = 0;
+    // sky columns only: the pile and the HUD live in the middle and would swamp the signal
+    for (let x = 0; x < 70; x++){ const i = x * 4; sum += 0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]; n++; }
+    return sum / n;
+  }, b64);
   await cldPage.evaluate(() => window.__game.clouds(0));
   await cldPage.waitForTimeout(320);
   const offTop = await strip(0), offBand = await strip(250), offBot = await strip(843);
-  await cldPage.evaluate(() => window.__game.clouds(0.22));   // exaggerated, so the band cannot be noise
+  const offLum = await lumOf(offBand);
+  // ⚠️ 0.40 IS THE HOOK'S OWN CLAMP CEILING, i.e. ABOVE the shipping 0.30 - so the band cannot be
+  // noise. ⛔ The former 0.22 was written when shipping was 0.055 and its comment still claimed
+  // «four times the shipping strength»; two raises of CLOUD_AMT later it had quietly fallen BELOW
+  // shipping. A test amplitude expressed as a bare literal goes stale every time the constant moves.
+  await cldPage.evaluate(() => window.__game.clouds(0.40));
   await cldPage.waitForTimeout(320);
   const onTop = await strip(0), onBand = await strip(250), onBot = await strip(843);
-  await cldPage.evaluate(() => window.__game.clouds(0.055));
+  const onLum = await lumOf(onBand);
   await cldPage.close();
   const cld = { tileMean: cldInfo && cldInfo.tileMean, tileMax: cldInfo && cldInfo.tileMax,
                 amt: cldInfo && cldInfo.amt, topSame: offTop === onTop,
-                botSame: offBot === onBot, bandDiff: offBand !== onBand };
+                botSame: offBot === onBot, bandDiff: offBand !== onBand,
+                offLum: +offLum.toFixed(2), onLum: +onLum.toFixed(2),
+                lighter: +(onLum - offLum).toFixed(2) };
   console.log('clouds:', JSON.stringify(cld));
   expect(!!(cldInfo && cldInfo.baked && cld.tileMax > 200 && cld.tileMean > 45),
     '\u26a0\u26a0 THE BAKED CLOUD TILE HAS CONTENT (mean ' + cld.tileMean + ', max ' +
@@ -13097,12 +13159,17 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     '(a sin-based hash, no randomness), so the healthy value reproduces exactly every run. ' +
     '\u26a0 AND NOTE WHAT THIS ARM CANNOT SEE: the LuminanceFormat failure left the tile DATA ' +
     'perfectly intact and broke only the SAMPLING - only the band arm below catches that one');
-  expect(cld.bandDiff,
-    '\u26a0 AND THE LAYER ACTUALLY REACHES THE SKY: at four times the shipping strength the ' +
-    'row at the band differs from the same row with the clouds off. \u26a0 THE SAME PAGE IS ' +
-    'TOGGLED rather than reloaded, so the pile is identical and the difference can only be the ' +
-    'sky. \u26d4 SABOTAGE: drop the `t = clamp(t - cl * cenv * uCloudAmt, ...)` line from the ' +
-    'sky shader in 10-stage');
+  expect(cld.bandDiff && cld.lighter > 1.5,
+    '\u26a0\u26a0 AND THE LAYER REACHES THE SKY *AND LIGHTENS IT*: above the shipping strength ' +
+    'the band row differs from the clouds-off row AND is brighter by ' + cld.lighter +
+    ' luminance (' + cld.offLum + ' -> ' + cld.onLum + '). \u26d4 THE SIGN IS THE WHOLE ARM: ' +
+    '«it differs» is equally true of the ramp-shift version the owner rejected on 2026-09-01 ' +
+    'for coming out lilac, so a direction-free assert would have passed green on exactly the ' +
+    'build he complained about. \u26a0 THE SAME PAGE IS TOGGLED rather than reloaded, so the ' +
+    'pile is identical and the difference can only be the sky. \u26d4 SABOTAGE: drop the ' +
+    '`col = mix(col, vec3(1.0), ...)` line from the sky shader in 10-stage (kills both halves), ' +
+    'or put the old `t = clamp(t - cl * cenv * uCloudAmt, ...)` back in its place (kills the ' +
+    'sign alone, which is the case this arm was rewritten for)');
   expect(cld.topSame && cld.botSame,
     '\u26a0\u26a0 AND IT IS EXACTLY ZERO AT BOTH FRAME EDGES - the top and bottom pixel rows ' +
     'are BYTE-IDENTICAL with the clouds off and at four times strength (top ' + cld.topSame +
@@ -13154,9 +13221,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       if (window.__played.length) break;
     }
     const out = { decoded: {}, site: {}, voice: {} };
-    for (const k of ['ui','grind1','mat_juicy','mat_plush','mat_metal','mat_plastic','mat_glass',
-                     'mat_wood','mat_dough','mat_meat','mat_paper','mat_cream','miss','newobj',
-                     'upgrade','fill','toast'])
+    // ⛔ mat_wood / mat_dough / mat_meat / mat_paper / mat_cream ARE GONE FROM THIS LIST, and it
+    // was HIS renaming that removed them, not a deletion of ours: on 2026-09-01-b the files that
+    // fed them came back as Cars, Plastic, Animals and Animals-2, and one was withdrawn. Keeping
+    // them would have meant meat sounding exactly like animals. 24 live types went back to the
+    // synthesised arpeggio and he was told so with the count.
+    for (const k of ['ui','grind1','grind4','mat_juicy','mat_plush','mat_metal','mat_plastic',
+                     'mat_glass','pack_car','pack_brick','pack_animal1','pack_animal2',
+                     'eyes1','eyes2','miss','newobj','upgrade','fill','toast'])
       out.decoded[k] = !!S.bufferOf(k) && S.bufferOf(k).duration > 0.05;
     // --- the PRODUCTION call sites ---
     window.__played = []; g.newObjShow('animalcrab', () => {}); await sleep(350);
@@ -13175,6 +13247,116 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   });
   await sndPage.close();
   console.log('owner sound drop:', JSON.stringify(sndInfo));
+  // ===== THE PACK BEATS THE MATERIAL, AND THE TAKES ROTATE (his word 2026-09-01-b) =====
+  // He renamed the drop after what a thing IS - Cars, Brick, Animals - and those cut ACROSS the
+  // material map: 11 of the 12 cars are `metal`, all 3 bricks are `plastic`. Asked, he chose
+  // «pack beats material», so a `pack_*` recording is tried before the `mat_*` voice.
+  const packPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await packPage.goto('file://' + PAGE_FILE + '?dev=1');
+  await packPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+  await packPage.evaluate(() => { window.__game.skipIntro(); window.__game.sound.unlock(); });
+  await packPage.waitForFunction(() => !!window.__game.sound.bufferOf('pack_car'), null, { timeout: 30000 });
+  const packInfo = await packPage.evaluate(async () => {
+    const S = window.__game.sound, sleep = ms => new Promise(r => setTimeout(r, ms));
+    window.__played = [];
+    const P = AudioBufferSourceNode.prototype, orig = P.start;
+    P.start = function(){ try { window.__played.push(this.buffer); } catch (e) {} return orig.apply(this, arguments); };
+    const fired = (k) => window.__played.indexOf(S.bufferOf(k)) >= 0;
+    // the context resumes ASYNCHRONOUSLY - drive one sound until it is actually running
+    for (let i = 0; i < 60; i++){ window.__played = []; S.play('ui'); await sleep(40);
+      if (window.__played.length) break; }
+    window.__played = []; S.play('match', { n: 3, m: 'metal', p: 'car', r: 0.62, pan: 0 }); await sleep(140);
+    const carPack = fired('pack_car'), carMat = fired('mat_metal');
+    window.__played = []; S.play('match', { n: 3, m: 'metal', p: 'factory', r: 0.62, pan: 0 }); await sleep(140);
+    const factoryMat = fired('mat_metal'), factoryPack = fired('pack_car');
+    const takes = new Set();
+    for (let i = 0; i < 40; i++){ window.__played = [];
+      S.play('match', { n: 3, m: 'plush', p: 'animal', r: 0.62, pan: 0 }); await sleep(25);
+      if (fired('pack_animal1')) takes.add(1); if (fired('pack_animal2')) takes.add(2); }
+    window.__played = [];
+    document.getElementById('eyes').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await sleep(220);
+    const eyes = fired('eyes1') || fired('eyes2');
+    P.start = orig;
+    return { carPack, carMat, factoryMat, factoryPack, takes: [...takes].sort(), eyes };
+  });
+  await packPage.close();
+  console.log('pack tier:', JSON.stringify(packInfo));
+  expect(packInfo.carPack && !packInfo.carMat,
+    '\u26a0\u26a0 A CAR SPEAKS WITH ITS PACK AND NOT WITH ITS MATERIAL: the match played ' +
+    '`pack_car` and did NOT reach `mat_metal` (' + JSON.stringify(packInfo) + '). ' +
+    '\u26d4 SABOTAGE: drop the `if (a.p && playVar(...))` line from the match branch in ' +
+    '75-audio, or stop passing `p` from the call site in 80-gameplay - either puts the car back ' +
+    'on the metal voice');
+  expect(packInfo.factoryMat && !packInfo.factoryPack,
+    '\u26a0\u26a0 AND A METAL THING WITH NO PACK RECORDING STILL FALLS THROUGH TO THE MATERIAL ' +
+    '(factory: mat ' + packInfo.factoryMat + ', pack ' + packInfo.factoryPack + '). ' +
+    '\u26d4 THIS IS THE CONTROL, AND WITHOUT IT THE ARM ABOVE IS SATISFIED BY A BUILD THAT ' +
+    'BROKE THE MATERIAL PATH ENTIRELY: «the pack won» and «the material never plays» look the ' +
+    'same from one measurement. The fall-through is what lets 11 packs share 10 voices');
+  expect(packInfo.takes.length === 2,
+    '\u26a0 BOTH ANIMAL TAKES ROTATE over 40 matches (saw ' + JSON.stringify(packInfo.takes) +
+    '). \u26d4 A build that always picked take 1 - an off-by-one in the random index, or a ' +
+    'missing entry in SFX_TAKES - plays a real sound every time and would pass any arm that only ' +
+    'asked whether SOMETHING sounded');
+  expect(packInfo.eyes,
+    '\u26a0\u26a0 POKING THE EYES SOUNDS, ON THE PRODUCTION PATH (his word: «the robot ones are ' +
+    'for clicking on the eyes»): the real click handler on #eyes started one of the two takes. ' +
+    '\u26a0 The control was silent before, and the canon noted it is not truly mute in a live ' +
+    'run - the poke provokes the grinder, which answers on the NEXT frame. That is a consequence ' +
+    'of the poke; this is the answer to the touch itself');
+
+  // ===== THE MIX BALANCE AND THE CLIPPING CEILING (his word 2026-09-01) =====
+  // «the sounds differ in loudness and are barely audible together with the music». Two separate
+  // faults, both measured: the event voices were 3 dB under the matches because `playBuf` only
+  // applies its sqrt2 to PANNED calls and events pass no pan, and the whole sfx bus sat 8-11 dB
+  // under the music bed. Nothing in the suite watched either number.
+  const mixPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await mixPage.goto('file://' + PAGE_FILE + '?dev=1');
+  await mixPage.waitForFunction(() => window.__game && window.__game.skipIntro, null, { timeout: 60000 });
+  await mixPage.evaluate(() => { window.__game.skipIntro(); window.__game.sound.unlock(); });
+  await mixPage.waitForFunction(() => !!window.__game.sound.bufferOf('mat_plush'), null, { timeout: 30000 }).catch(() => {});
+  const mix = await mixPage.evaluate(() => {
+    const S = window.__game.sound, trim = S.trimTable(), bgm = document.getElementById('bgm');
+    // the peak argument each voice is actually played with, and whether that call pans
+    const ARG = { ui: 0.90, miss: 0.90, newobj: 0.90, upgrade: 0.90, fill: 0.64, toast: 0.90,
+                  eyes1: 0.90, eyes2: 0.90, grind4: 0.8 };
+    // ⚠️ a pack override is played on the SAME path as a material voice - panned, with the
+    // group-size peak - so it belongs with the `mat_` keys and not with the events.
+    const isMatch = (k) => k.indexOf('mat_') === 0 || k.indexOf('pack_') === 0;
+    const MATCH_MAX = 0.5 + 0.06 * 6;
+    let worst = 0, worstKey = null;
+    for (const k in trim) {
+      const buf = S.bufferOf(k); if (!buf) continue;
+      const d = buf.getChannelData(0);
+      let pk = 0; for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > pk) pk = a; }
+      const isMat = isMatch(k);
+      const node = pk * (isMat ? MATCH_MAX : (ARG[k] || 0.5)) * (isMat ? Math.SQRT2 : 1) * trim[k];
+      if (node > worst) { worst = node; worstKey = k; }
+    }
+    return { master: S.gain(), playerVol: S.volume(),
+             musicSetting: window.__game.musicVol ? window.__game.musicVol() : null,
+             musicElement: bgm ? +bgm.volume.toFixed(4) : null,
+             worstKey, worstNode: +worst.toFixed(3), peakOut: +(worst * S.gain()).toFixed(3) };
+  });
+  await mixPage.close();
+  console.log('mix balance:', JSON.stringify(mix));
+  expect(mix.musicElement !== null && mix.musicElement > 0 && mix.musicElement < 0.5,
+    '\u26a0\u26a0 THE MUSIC BUS IS APPLIED: the <audio> element gets ' + mix.musicElement +
+    ', strictly less than the player\'s own setting. \u26d4 A DEFAULT WOULD NOT HAVE DONE THIS - ' +
+    '`musicVol` is restored from `mixer_music`, so anyone who has ever touched the slider, the ' +
+    'owner included, would have kept the old bed. The factor sits BETWEEN the setting and the ' +
+    'element, which is why the slider still means «0..100% of music» while the bed drops for ' +
+    'everyone. \u26d4 SABOTAGE: write `bgm.volume = musicVol` at any of the four sites');
+  expect(mix.peakOut < 1.0 && mix.peakOut > 0.5,
+    '\u26a0\u26a0 AND NOTHING CLIPS AT THE RAISED MASTER: the worst sample is ' + mix.worstKey +
+    ' at a node gain of ' + mix.worstNode + ', which is ' + mix.peakOut + ' of full scale after ' +
+    'the master. \u26a0 THE LOWER BOUND IS PART OF THE PREDICATE: without it this arm is ' +
+    'satisfied by a build whose master collapsed to silence, which is the other way to «not ' +
+    'clip». \u26d4 The master is at 0.95 and the ceiling this sample sets is 1.065 - about 11% ' +
+    'of margin, and it is the reason the master is not simply 1.0');
+
+
   expect(Object.values(sndInfo.decoded).every(Boolean),
     '\u26a0\u26a0 EVERY SAMPLE IN THE BANK DECODES, THE FOURTEEN NEW MP3s INCLUDED (' +
     JSON.stringify(sndInfo.decoded) + '). \u26d4 THIS IS THE ARM THAT MATTERS FOR A FORMAT ' +
@@ -14734,13 +14916,17 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         // ⚠️ THE SAMPLES WERE REPLACED 2026-08-15 (the batch of deletions of 32 types): the metal was
         // `piratecannon`, the glass — `survivalbottle`, both are cut out of the pool.
         // The metal is taken from a live neighbour.
-        // ✅ THE GLASS CHECK IS BACK 2026-08-31, exactly as the canon ordered when it was
-        // removed («let a glass item come back — the check will come back too»): the props
-        // pack brought `propswaterbottle`, the first carrier of the voice since
-        // `survivalbottle` left the pool. The owner's glass.wav has shipped and been
-        // inaudible all that time; it plays again.
+        // ⛔⛔ AND THE GLASS EXEMPLAR IS NOW DERIVED FROM THE LIVE POOL, NOT NAMED — IT WAS
+        // `propswaterbottle` FOR EXACTLY ONE BATCH. That line was added 2026-08-31 when the props
+        // pack gave the voice its first carrier since `survivalbottle`; on 2026-09-01 the owner
+        // deleted the water bottle and the arm went red on a build where glass has TWO carriers
+        // and is perfectly healthy. ⚠️ THE COMMENT TWELVE LINES ABOVE ALREADY SAID «carriers per
+        // voice, NOT a named example — the census survives a rename of any item», i.e. this file
+        // contradicted itself in one screen. A named carrier is a pin on WHICH item happens to
+        // hold a voice today; the statement worth making is that SOME item does.
         fruit:g.materialOf('foodapple'), metal:g.materialOf('carambulance'),
-        glass:g.materialOf('propswaterbottle'),
+        glassOne:(() => { for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) return null;
+                          if (g.materialOf(n) === 'glass') return n; } })(),
         alien:g.materialOf('noSuchType') };
     });
     await mp.close();
@@ -14772,11 +14958,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // delisting of the last glass item goes red here instead of going quiet in the game.
     // ⛔ Do not weaken this to «the voice exists»: that is the very form that stayed green
     // through those sixteen days.
-    expect(mat.glass === 'glass' && (mat.carriers.glass || 0) > 0,
+    expect(!!mat.glassOne && (mat.carriers.glass || 0) > 0,
       '⚠️ MATERIALS: every RECORDED voice has a live carrier — glass ' +
       (mat.carriers.glass || 0) + ', juicy ' + (mat.carriers.juicy || 0) + ', metal ' +
       (mat.carriers.metal || 0) + ', plastic ' + (mat.carriers.plastic || 0) + ', plush ' +
-      (mat.carriers.plush || 0) + ' (propswaterbottle -> ' + mat.glass + ')');
+      (mat.carriers.plush || 0) + '. The glass is carried by `' + mat.glassOne + '`, and that ' +
+      'name is READ FROM THE POOL rather than written here: the previous edition named ' +
+      '`propswaterbottle` and went red one batch later when the owner deleted it, on a build ' +
+      'where the voice was healthy. \u26d4 Do not weaken this to «the voice exists»: that is ' +
+      'the very form that stayed green through the sixteen days glass shipped with no carrier');
   }
 
   // ===== SOUND VARIETY — ONLY FOR THE OWNER'S THREE RECORDINGS =====
@@ -14930,7 +15120,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         // ✅ AND PROVING IT FOR THESE PROVES IT FOR THE REST: the multiplier lives on ONE line
         // in `playBuf` (`* (VOICE_TRIM[name] || 1)`), shared by every caller, so a build that
         // dropped it would fail here whatever the key.
-        if (k.indexOf('mat_') === 0){
+        if (k.indexOf('mat_') === 0){   // pack_* need a pack, which this probe does not pass
           window.__sfx.gain.length = 0;
           S.play('match', { n: 3, m: k.replace(/^mat_/, ''), r: 0.62, pan: 0 });
           await sleep(60);
@@ -14946,27 +15136,56 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // ⚠️ THE REVERSE SIDE OF THE SANITY CHECK: a voice that HAS a recording but has NO
       // row in the table, `playBuf` silently takes with a trim of 1 — that is, it
       // drops out of the levelling, and the guard does not see it at all.
+      // ⚠️ THE GRINDING SET, MEASURED THE SAME WAY: grind1-3 carry NO trim (they are one balanced
+      // recorded set), and grind4 is his take joining them. What matters is that it landed WITH
+      // them, not that it hit the voice target - so it is compared against their own spread.
+      const gset = {};
+      for (const k of ['grind1', 'grind2', 'grind3', 'grind4']) {
+        const bf = S.bufferOf(k);
+        if (bf) gset[k] = +(20 * Math.log10(shortRms(bf) * (trim[k] || 1))).toFixed(2);
+      }
       const recs = S.loaded().filter(k => k.indexOf('mat_') === 0);
       const noTrim = recs.filter(k => !(k in trim));
-      return { levels: lvls, gains, trimTbl: trim, noBuffer: missing,
+      return { levels: lvls, gains, trimTbl: trim, noBuffer: missing, gset,
                voices: Object.keys(trim).length,
                noTrim, procPeak: S.procPeak(), envPeaks };
     });
     await ap.close();
     console.log('sound variety:', JSON.stringify(sfxOut));
     console.log('voice loudness:', JSON.stringify(vol));
-    const levelVals = Object.values(vol.levels);
+    // ⚠️⚠️ `grind4` IS EXCLUDED FROM THE LEVELLED SET, AND THAT IS THE RULE AND NOT AN EXEMPTION.
+    // Every other sample is normalised to the common -22.8 dB target; his «Blend object» joined
+    // the three Kenney grinding takes, which are deliberately UNTRIMMED because they are one
+    // recorded set already balanced against each other. A fourth take pulled to the voice target
+    // would be a HOLE in that set, so it is aimed at THEIR mean instead - and it is asserted
+    // against them separately, below. Folding it in here made the spread read 7.58 dB.
+    const GRIND_TAKE = 'grind4';
+    const levelVals = Object.keys(vol.levels).filter(k => k !== GRIND_TAKE).map(k => vol.levels[k]);
     const spread = levelVals.length ? Math.max.apply(null, levelVals) - Math.min.apply(null, levelVals) : 99;
     // THE SANITY CHECK IS TWO-SIDED: (1) every key of the table has a buffer — otherwise
     // the measurement measures emptiness and «spread 0» is true on a build with no sound at all;
     // (2) every RECORDING has a row in the table — otherwise the voice silently goes with
     // a trim of 1, drops out of the levelling, and the set of voices is set by the TABLE
     // ITSELF, that is, the guard does not see what is not in it.
-    expect(vol.noBuffer === 0 && levelVals.length === vol.voices && levelVals.length >= 5 &&
+    expect(vol.noBuffer === 0 && levelVals.length === vol.voices - 1 && levelVals.length >= 5 &&
            vol.noTrim.length === 0,
       'LOUDNESS SANITY: every voice of the table has a buffer AND every recording ' +
       'has a trim (' + levelVals.length + ' of ' + vol.voices + ', without a buffer ' +
       vol.noBuffer + ', without a trim ' + JSON.stringify(vol.noTrim) + ')');
+    // ⚠️⚠️ AND HIS FOURTH GRINDING TAKE LANDED WITH THE SET IT JOINED, not with the voices.
+    const gk = Object.keys(vol.gset || {});
+    const gv = gk.map(k => vol.gset[k]);
+    const gsetOk = gk.length === 4 &&
+      Math.abs(vol.gset.grind4 - (vol.gset.grind1 + vol.gset.grind2 + vol.gset.grind3) / 3) <= 1.0;
+    expect(gsetOk,
+      '\u26a0\u26a0 THE FOURTH GRINDING TAKE SITS WITH THE OTHER THREE (' +
+      JSON.stringify(vol.gset) + '): his «Blend object» is within 1 dB of the Kenney set\'s mean, ' +
+      'NOT at the -22.8 dB the voices are pulled to. \u26d4 THIS IS WHY IT IS EXCLUDED FROM THE ' +
+      'SPREAD ARM ABOVE, and the exclusion is only honest because of this assert: without it, ' +
+      '«not in the levelled set» would mean «not checked at all», and a take at any level ' +
+      'whatsoever would pass. \u26a0 The three Kenney takes carry NO trim by design - they are ' +
+      'one recorded set already balanced against each other - so this compares a trimmed sample ' +
+      'against three untrimmed ones, which is exactly the question being asked');
     // ⚠️⚠️ THE TRIM REACHED THE SIGNAL PATH — A SEPARATE ASSERT, AND IT IS LOAD-BEARING. Above, the guard
     // REPEATS the live game's arithmetic at home (buffer × table); on its own it would stay
     // green on a build where the multiplier from `playBuf` is cut out entirely. Here
@@ -14974,9 +15193,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const groupBase = 0.68 * Math.SQRT2;
     // ⚠️ THE COUNT IS PART OF THE PREDICATE: `every` over an EMPTY set is true, so without it a
     // build where the probe stopped driving anything at all would pass this arm by measuring
-    // nothing. Ten is the number of `mat_` voices in the table.
+    // nothing.
+    // ⛔ 10 -> 5 ON 2026-09-01-b, and it moved because the WORLD moved, not because it was
+    // inconvenient: his renamed drop took the files that fed mat_wood/dough/meat/paper/cream and
+    // reassigned them to packs, so five `mat_` voices lost their recording. Five are left.
     const pathKeys = Object.keys(vol.gains);
-    const pathOk = pathKeys.length >= 10 && pathKeys.every(k =>
+    const pathOk = pathKeys.length >= 5 && pathKeys.every(k =>
       vol.gains[k] !== null &&
       Math.abs(vol.gains[k] - groupBase * vol.trimTbl[k]) < 0.002);
     expect(pathOk,

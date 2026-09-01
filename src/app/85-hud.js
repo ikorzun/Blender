@@ -2131,6 +2131,19 @@ applySoundVol(soundVol);   // the live restoration at startup (like CFG.hard fro
 // we do NOT touch the WebAudio SFX engine (Sound) — the music is a separate path). The Music
 // slider = the volume 0..1, stored in mixer_music. Autoplay is unlocked by the FIRST
 // gesture on the page (90-input) — the browser's policy: audio.play() only on a gesture.
+// ⛔⛔ THE MUSIC BUS (his word 2026-09-01: «the sounds are barely audible together with the
+// music»). The sfx side was raised first and hit its ceiling: the master is peak-limited by
+// `mat_plush`, so it can go no higher than 1.065 and is already at 0.95. Measured after that,
+// the bed still sat ABOVE everything - music -19.4 dB against matches -21.5 and events -24.1.
+// ⚠️⚠️ A BUS FACTOR AND NOT A NEW DEFAULT, AND THE DIFFERENCE MATTERS: `musicVol` is his
+// SETTING, restored from `mixer_music`, so lowering the default would fix nothing for anyone who
+// has ever touched the slider - including him. The factor sits between the setting and the
+// element, so the slider keeps meaning «music volume, 0..100%» while the bed drops for everyone.
+// ⚠️ -6 dB puts the music at about -25.4, i.e. under the matches and level with the events -
+// a bed under the feedback rather than over it.
+const MUSIC_BUS = 0.5;
+// one place that turns the setting into what the element gets; every writer goes through it
+function musicOut(v){ return Math.max(0, Math.min(1, v)) * MUSIC_BUS; }
 let musicVol = 0.7;
 try { const _mv = localStorage.getItem('mixer_music');
   if (_mv !== null) musicVol = Math.max(0, Math.min(1, (parseInt(_mv, 10) || 0) / 100)); } catch(e){}
@@ -2146,13 +2159,13 @@ let musicVolPrev = musicVol > 0 ? musicVol : 0.7;
 // an ad / the platform's pause) — play() went at the default 1.0, and until the player's first
 // gesture the music blared past the settings. The invariant: the volume is set BEFORE any
 // possible play, whoever calls it.
-{ const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicVol; }
+{ const _bgm0 = $('bgm'); if (_bgm0) _bgm0.volume = musicOut(musicVol); }
 function applyMusic(v01){
   musicVol = Math.max(0, Math.min(1, v01));
   if (musicVol > 0) musicVolPrev = musicVol;
   try { localStorage.setItem('mixer_music', String(Math.round(musicVol * 100))); } catch(e){}
   const bgm = $('bgm'); if (!bgm) return;
-  bgm.volume = musicVol;
+  bgm.volume = musicOut(musicVol);
   // ⚠️ The external muffling (an ad / the platform's pause) is STRONGER than the slider: otherwise
   // a player who moved the volume during an ad would have started the track over the ad.
   if (musicVol > 0 && !musicExtMuted){ if (bgm.paused) bgm.play().catch(()=>{}); } // they pull it up — we start it
@@ -2181,7 +2194,7 @@ function musicSuspend(on){
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
   else if (musicVol > 0 && bgm.paused){
-    bgm.volume = musicVol; // the invariant: the volume BEFORE play (see the musicVol block)
+    bgm.volume = musicOut(musicVol); // the invariant: the volume BEFORE play (see the musicVol block)
     bgm.play().catch(()=>{});
   }
 }

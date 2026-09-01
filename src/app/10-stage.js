@@ -1009,11 +1009,15 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
       '  float tView = clamp((1.0 - d.y) * 0.5, 0.0, 1.0);',
       '  float tScreen = clamp(1.0 - gl_FragCoord.y / uResY, 0.0, 1.0);',
       '  float t = mix(tView, tScreen, uSkyMap);',
-      // ⚠️⚠️ THE CLOUDS PULL `t` BACK, THEY DO NOT ADD A COLOUR. Shifting the reading of the ramp
-      // toward 0 samples a DARKER stop of the owner's own palette, so a cloud can never
-      // introduce a hue that is not already in his gradient, and the shift is into the MINUS -
-      // the direction the canon requires of any day decor, because a plus shift drops the
-      // contrast of the white eyes against the sky.
+      // ⛔⛔ THE RAMP SHIFT IS CANCELLED (the owner 2026-09-01: «the clouds are lilac and look
+      // like dirt, let's make them white»). Pulling `t` toward 0 sampled the palette's TOP stop,
+      // and on his day palette that stop is #8C86FF - blue-violet. It could not have come out
+      // any other colour: reading a gradient backwards is reading the colour above you.
+      // ⚠️ A cloud is now a WHITE MIX applied to the FINISHED ramp colour, below.
+      // ⚠️⚠️ AND IT LIGHTENS, i.e. it argues with the canon's «shift any day decor INTO THE
+      // MINUS» - a rule that exists because a lighter top of the frame drops the contrast of
+      // the white eyes. The envelope is what keeps the peace, and it is measured, not assumed:
+      // see the HUD-contrast guard, which reads the eyes against the sky on this very build.
       // ⚠️ THE ENVELOPE IS ZERO AT t=0 AND ZERO AGAIN BY CLOUD_BOT, AND THE FIRST ZERO IS
       // LOAD-BEARING: the top pixel row IS what --sky-top-rgb promises the Safari chrome zone,
       // and a cloud touching it would make that variable lie about the frame's edge.
@@ -1022,11 +1026,16 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
       '  float cl = texture2D(uCloud, vec2(cx, t * ' + CLOUD_SCALE.toFixed(3) + ')).r;',
       '  float cenv = smoothstep(' + CLOUD_TOP.toFixed(3) + ', ' + CLOUD_PEAK.toFixed(3) + ', t)'
         + ' * (1.0 - smoothstep(' + CLOUD_PEAK.toFixed(3) + ', ' + CLOUD_BOT.toFixed(3) + ', t));',
-      '  t = clamp(t - cl * cenv * uCloudAmt, 0.0, 1.0);',
       // half a texel inwards: otherwise the edge of the ramp is blurred by the filter against ClampToEdge
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
       '  vec3 col = texture2D(uRamp, vec2(u, 0.5)).rgb;',
+      // THE CLOUD ITSELF: white, mixed into the finished ramp colour. `cenv` is unchanged and
+      // is still exactly zero at t=0 and again by CLOUD_BOT, so the first and last pixel rows
+      // of the frame are untouched BYTE FOR BYTE - which is what --sky-top-rgb/--sky-bot-rgb
+      // promise the iOS chrome zones, and Safari 26 paints those zones by stretching those
+      // very rows. A cloud that reached an edge would put a colour there that is on no screen.
+      '  col = mix(col, vec3(1.0), clamp(cl * cenv * uCloudAmt, 0.0, 1.0));',
       // THE STARS (only at night): the night PANORAMA had them, a pure gradient
       // lost them — the tone matched, but the sky became empty. The grid is THREE-DIMENSIONAL by
       // direction: it is even on a sphere, there are no poles. A star is a random

@@ -105,23 +105,40 @@ const Sound = (function(){
   // real decode: the spread is now 0.16 dB.
   // ⚠️ Headroom checked for all sixteen on the loudest path there is (a group of 6+, peak
   // 0.5+0.06*6 = 0.86, times the panner's sqrt2): the worst lands at 0.93 of full scale.
+  // ⚠️⚠️ EVERY SAMPLE, NOT ONLY THE MATERIAL VOICES. The owner's drops span more than 13 dB of
+  // short-term RMS between their loudest and quietest file, so an untrimmed bank makes one event
+  // twelve decibels louder than another. All of these are normalised to the SAME target the five
+  // original voices were (-22.8 dB max short-term RMS in a 200 ms window), and the ROLE's
+  // loudness is expressed where it belongs - in the `peak` argument at the call site.
+  // ⛔ THE THREE KENNEY GRIND TAKES ARE DELIBERATELY ABSENT: they are one recorded set already
+  // balanced against each other, and levelling them individually would flatten that. `grind4` is
+  // his own take joining them, so it is aimed at THEIR mean (-15.24 dB) and NOT at -22.8 - a
+  // fourth take normalised to the events would have been a hole in the set.
+  // ⚠️⚠️ THE VALUES ARE DERIVED WITH THE GUARD'S OWN RULER, IN THE BROWSER, AND NOT WITH A
+  // PYTHON COPY OF IT: computed offline once, the table came out 1.2 dB wide against a guard that
+  // allows 1.0, because a quarter-window hop steps over a transient the guard's sample-by-sample
+  // slide catches.
+  // ⚠️ Headroom re-checked on the loudest path (a group of 6+, peak 0.86, times the panner's
+  // sqrt2, times the 0.95 master): the worst is `mat_plush` at 0.892 of full scale.
   const VOICE_TRIM = {
-    mat_plush:   0.855,
-    mat_juicy:   0.188,
-    mat_metal:   0.374,
-    mat_plastic: 0.508,
-    mat_glass:   4.381,
-    mat_wood:    0.339,
-    mat_dough:   0.312,
-    mat_meat:    1.037,
-    mat_paper:   0.586,
-    mat_cream:   0.699,
-    ui:          0.919,
-    miss:        0.422,
-    newobj:      0.404,
-    upgrade:     0.233,
-    fill:        0.519,
-    toast:       0.482,
+    mat_juicy:     0.188,
+    mat_plush:     0.855,
+    mat_metal:     0.374,
+    mat_plastic:   0.312,
+    mat_glass:     4.380,
+    pack_car:      0.339,
+    pack_brick:    0.508,
+    pack_animal1:  1.038,
+    pack_animal2:  0.699,
+    ui:            0.918,
+    miss:          0.422,
+    newobj:        0.404,
+    upgrade:       0.233,
+    fill:          0.519,
+    toast:         0.482,
+    eyes1:         0.481,
+    eyes2:         0.762,
+    grind4:        1.058,
   };
   // ⚠️ THE PEAK OF THE PROCEDURAL «BLOOP» IS A NAMED CONSTANT, not a literal in the
   // formula: the guard looks at it, and a copy of the number next to the working one
@@ -134,6 +151,15 @@ const Sound = (function(){
   function sfxTrimTable(){ return Object.assign({}, VOICE_TRIM); }
   function sfxProcPeak(){ return MATCH_PROC_PEAK; }
   function sfxBufferOf(name){ return buffers[name] || null; }
+  // ⚠️ TAKES OF ONE SOUND, PICKED AT RANDOM. The grinding already worked this way with a
+  // hand-rolled `'grind' + (1 + rnd*3)`; naming the counts in one table makes a second take a
+  // data change instead of a code change, and stops the count drifting from the bank.
+  // ⛔ A KEY ABSENT FROM HERE IS PLAYED AS ITSELF, so a single-take sound needs no entry.
+  const SFX_TAKES = { grind: 4, eyes: 2, pack_animal: 2 };
+  function playVar(base, peak, v){
+    const n = SFX_TAKES[base];
+    return playBuf(n ? base + (1 + Math.floor(Math.random() * n)) : base, peak, v);
+  }
   function playBuf(name, peak, v){
     const buf = buffers[name];
     if (!buf) return false;
@@ -259,12 +285,21 @@ const Sound = (function(){
       // «a bit different every time» where the size is the same (levels 1-19 go with
       // ONE size, SIZE_UNIFORM_LEVELS: without the jitter there is no variety there
       // at all, and those are the player's very first half hour).
-      if (a && a.m){
+      if (a && (a.m || a.p)){
         const r = Math.max(0.05, (a && a.r) || MESH_SCALE);
         const rate = Math.max(0.72, Math.min(1.38,
           Math.sqrt(MESH_SCALE / r) * (0.95 + Math.random() * 0.1)));
-        if (playBuf('mat_' + a.m, 0.5 + 0.06 * Math.min(6, n),
-                    { rate, pan: (a && a.pan != null) ? a.pan : null })) return;
+        const pk = 0.5 + 0.06 * Math.min(6, n);
+        const vv = { rate, pan: (a && a.pan != null) ? a.pan : null };
+        // ⚠️⚠️ THE PACK IS TRIED FIRST - his word 2026-09-01-b, «pack beats material». He named
+        // the files after what a thing IS (Cars, Brick, Animals) rather than what it is made of,
+        // and those cut ACROSS the material map: 11 of the 12 cars are `metal`, all 3 bricks are
+        // `plastic`. Without this tier each of those pairs would fight over one voice.
+        // ⚠️ A pack with no recording falls through to the material, which is why nothing else
+        // had to change: `playBuf` returns false on a missing buffer, exactly as the material
+        // branch already relies on.
+        if (a.p && playVar('pack_' + a.p, pk, vv)) return;
+        if (a.m && playBuf('mat_' + a.m, pk, vv)) return;
       }
       // ⛔⛔ IT NO LONGER PLAYS FOR ANY ORDINARY MERGE (2026-09-01). Every one of the ten
       // voices in `MATERIAL_OF` now has a recording, so the branch above always finds a buffer
@@ -313,17 +348,34 @@ const Sound = (function(){
     // ⚠️ THE SAME SHAPE AS `ui`: the recording if it decoded, the former two square blips if it
     // did not. The fallback is a PRESENCE check on the buffer and not a list of names, so a
     // sample that fails to decode degrades to the old sound instead of to silence.
-    miss(){ if (!playBuf('miss', 0.55)){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); } },
+    miss(){ if (!playBuf('miss', 0.90)){ const t = ctx.currentTime; tone(150, 'square', t, 0.005, 0.12, 0.16); tone(110, 'square', t+0.07, 0.005, 0.12, 0.13); } },
     // THE FOUR SCREENS THE SOUND INVENTORY LISTED AS MUTE (the owner's drop 2026-09-01). They
     // have no procedural fallback on purpose: there was no sound here at all, so silence is the
     // honest degradation rather than a synthesised stand-in nobody chose.
-    newobj(){  playBuf('newobj',  0.62); },   // the reveal screen - the biggest reward, and silent
-    upgrade(){ playBuf('upgrade', 0.55); },   // a type's multiplier went up a tier
-    fill(){    playBuf('fill',    0.42); },   // the intro pour; quieter - it is a bed, not an event
-    toast(){   playBuf('toast',   0.45); },   // the game's ONLY refusal channel
+    // ⚠️⚠️ 0.90 AND NOT THE MATCH LADDER'S 0.5-0.86, AND THE REASON IS THE PANNER. `playBuf`
+    // multiplies by sqrt2 ONLY when it built a StereoPanner - that factor exists to give back
+    // the 3.01 dB equal-power panning takes from a mono source. These calls pass no pan, so
+    // they never pay that toll and never get the refund: at the same numeric peak they come out
+    // 3 dB QUIETER than a match. Measured before the fix: matches -21.1 dB, events -27 to -30,
+    // a 9.2 dB spread, which is exactly what he heard as «they differ in loudness».
+    // ⚠️ Headroom re-checked per sample at the new master: the loudest of these is `ui` at a
+    // node gain of 0.50, well under `mat_plush`'s 0.939 which sets the ceiling.
+    // POKING THE EYES (his word 2026-09-01-b: «the robot ones are for clicking on the eyes»).
+    // ⚠️ The control was silent, and the canon noted it is not truly mute in a live run - the
+    // poke provokes the grinder, which answers on the next frame. That answer is a CONSEQUENCE;
+    // this is the response to the touch itself.
+    eyes(){    playVar('eyes',   0.90); },
+    newobj(){  playBuf('newobj',  0.90); },   // the reveal screen - the biggest reward, and silent
+    upgrade(){ playBuf('upgrade', 0.90); },   // a type's multiplier went up a tier
+    fill(){    playBuf('fill',    0.64); },   // the intro pour; DELIBERATELY ~3 dB under the rest - a bed
+    toast(){   playBuf('toast',   0.90); },   // the refusal and reward channel
     shake(){ noise(ctx.currentTime, 0.35, 0.45, 500); },
     grind(){ // the grinding sample (3 variants, the owner's spec) with a procedural fallback
-      if (playBuf('grind' + (1 + Math.floor(Math.random()*3)), 0.8)) return;
+      // ⚠️ FOUR TAKES SINCE 2026-09-01-b: his «Blend object» joined the three Kenney ones on his
+      // own pick, «the moment of blending itself». ⚠️ IT IS MUCH SHORTER THAN THEY ARE - 0.34 s
+      // against 1.45-1.53 - so one grind in four is a blip rather than a grind. Named to him;
+      // making it REPLACE the set instead of joining it is one number here.
+      if (playVar('grind', 0.8)) return;
       const t = ctx.currentTime; noise(t, 0.45, 0.5, 300); tone(70, 'sawtooth', t, 0.01, 0.4, 0.22); },
     crunch(n){ // the «crunch» of a hard pack splitting (brick/pirate -> shards).
       // THE SPECTRUM IS HIGHER than the rumble of grind (that one is low, cutoff 300 +
@@ -336,7 +388,7 @@ const Sound = (function(){
       noise(t + 0.015, 0.09, 0.18, 1300);             // the body of the crunch
       tone(190, 'square', t,        0.002, 0.05, 0.13);
       tone(130, 'square', t + 0.03, 0.002, 0.06, 0.10); },
-    ui(){ if (!playBuf('ui', 0.5)){ const t = ctx.currentTime; tone(900, 'sine', t, 0.004, 0.05, 0.15); } },
+    ui(){ if (!playBuf('ui', 0.90)){ const t = ctx.currentTime; tone(900, 'sine', t, 0.004, 0.05, 0.15); } },
     combo(){ // a «power-up»: a rising glissando + a spark; the start is delayed
              // so as not to mask the match «bloop» that sounds on the same tap
       const t = ctx.currentTime + 0.06;
@@ -383,7 +435,14 @@ const Sound = (function(){
   // ⚠️ THE EXTERNAL MUTE IS STRONGER: extMuted=true mutes to 0 at any volume —
   // otherwise a player who moved the slider during an ad would start the sound over the spot.
   let playerVol = 1;
-  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.5 * playerVol; }
+  // ⛔ 0.5 -> 0.95 (his word 2026-09-01: «the sounds are barely audible together with the
+  // music»). MEASURED, not adjusted by ear: the music track is -15.2 LUFS and plays at its 0.7
+  // default, i.e. about -19.4 dB RMS, while a match landed at -21.1 and the event sounds at
+  // -27 to -30. The sfx bus was 8 to 11 dB under the bed.
+  // ⚠️⚠️ 0.95 IS NOT A ROUND NUMBER, IT IS THE HEADROOM. Per sample, `samplePeak x peakArg x
+  // (sqrt2 if panned) x trim` caps the master: the worst is `mat_plush` at 0.939, so anything
+  // above 1.065 clips it. 0.95 keeps ~11% of margin under that.
+  function applyGain(){ if (master) master.gain.value = extMuted ? 0 : 0.95 * playerVol; }
   return {
     unlock,
     loaded(){ return Object.keys(buffers); }, // debug: which samples are decoded

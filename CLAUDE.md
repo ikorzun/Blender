@@ -12110,6 +12110,12 @@ Pairs hit the 90 ceiling at level 11 (180 items, flat forever); types hit 87 at 
 min(typesCount, pairsCnt)`, and since the pool maxes at 87 while pairs max at 90, distinct ==
 typesCount at EVERY level. **Every unlocked type is in every pile, always** — old objects never
 stop appearing, so every type keeps accumulating forever.
+⛔⛔ **THE SENTENCE ABOVE HELD ONLY WHILE THE POOL WAS SMALLER THAN 90. IT IS NOW TRUE ONLY
+THROUGH LEVEL 88** (the props pack of 2026-09-01-g took the pool to 111): from level 89
+`typesCount` exceeds `pairsCnt`, so the Fisher-Yates in `genLevel` starts CUTTING the set and
+a pile is a RANDOM 90 of the open types. The table is in the 2026-08-31-b section. ⚠️ And the
+boundary moves with every edit of TYPES — it is `pairsCnt_max − LEVEL_TYPES_MIN + 2`, never a
+literal.
 ⛔ CONSEQUENCE FOR A NEARBY COMMENT: the Fisher-Yates sampling in genLevel exists for the case
 typesCount > pairsCnt, and with 87 types that case is UNREACHABLE — the shuffle currently only
 randomises the ORDER, never the SET. It was reachable at 93 types (the sport batch) and would
@@ -12742,3 +12748,304 @@ buffer and the table.
 `playBuf`, shared by every caller, so a build that dropped it fails here whatever the key.
 ⚠️ A count was added to that arm in the same edit: `every` over an EMPTY set is TRUE, so once the
 loop became conditional the arm could have gone green by measuring nothing at all.
+
+## BATCH 2026-09-01-b: HIS THREE VERDICTS ON THE PREVIOUS ONE
+
+«sky fade 0.28» / «the clouds are not visible at all» / «the sounds differ in loudness and are
+barely audible together with the music». All three closed by measurement, not by ear.
+
+### 1. THE FADE IS HIS PICK OFF THE RENDERED ARMS
+
+`SKY_FADE_WHITE` 0.40 -> 0.28. His five OKLCH stops are untouched - four of them sit exactly on
+the sRGB gamut boundary, so chroma has nowhere to go there and the white wash was what held the
+palette pale. **THE GUARD THAT PINS THE SHOWN STOPS WENT RED BY RIGHT AND MOVED WITH THE RULE**;
+its own comment had predicted it («take the fade off - it goes red here, and rightly so»). The
+new values were recomputed BY HAND from his hexes (`c + (255-c)*0.28`) and then checked against
+what the running game produces - they matched to the byte, which is also a live re-verification
+of the OKLCH converter that assert exists to witness.
+
+### 2. THE CLOUDS: THE AMPLITUDE WAS NEVER THE PROBLEM, THE FREQUENCY WAS
+
+⚠️⚠️ At `CLOUD_SCALE = 2.1` the visible band sampled about ONE blob of the tile, so the layer
+read as a smooth vertical DARKENING - and raising the strength only darkened the sky more
+evenly. Measured: at 2.1 even an amplitude of 0.28 moved the band by 12.9 luminance units and
+still looked like a gradient. **A layer can be measurably present and visually absent, and the
+number will happily confirm the wrong thing.** Rendered at scale 4 / 6 / 9 before choosing: 4 too
+broad, 9 too busy. Shipped `CLOUD_SCALE = 6.0`, `CLOUD_AMT = 0.18`.
+
+### 3. THE SOUND: TWO FAULTS, AND THE SECOND ONE WAS MINE FROM THE DAY BEFORE
+
+⛔⛔ **«THEY DIFFER IN LOUDNESS» WAS THE `sqrt2` ASYMMETRY.** `playBuf` multiplies by sqrt2 ONLY
+when it built a StereoPanner - that factor exists to return the 3.01 dB equal-power panning takes
+from a mono source. The match path pans; the four new event calls do not. So at the same numeric
+peak an event came out 3 dB QUIETER than a match, and my own headroom probe had assumed sqrt2 for
+everything and hidden it from me. Measured on the live bank: matches -21.1 dB, events -27 to -30,
+a **9.2 dB spread**. Event peaks raised to 0.90 (`fill` 0.64 - it is a bed); spread now 5.6 dB,
+and 2.6 excluding `fill`.
+⚠️ **THE LESSON IS ABOUT THE PROBE, NOT THE CODE: a measurement that models the signal path must
+model its BRANCHES.** Mine applied the panner's factor unconditionally and therefore could not
+see the very asymmetry it was built to find.
+
+⛔⛔ **«BARELY AUDIBLE WITH THE MUSIC» WAS A REAL 8-11 dB IMBALANCE.** The music track is -15.2
+LUFS and played at its 0.7 default, i.e. about -19.4 dB RMS, against sfx at -21.1 to -30 BEFORE
+the master, which then multiplied everything by 0.5. Two levers, and the first one runs out:
+- **THE MASTER 0.5 -> 0.95, AND 0.95 IS THE HEADROOM AND NOT A ROUND NUMBER.** Per sample,
+  `samplePeak x peakArg x (sqrt2 if panned) x trim` caps it; the worst is `mat_plush` at 0.939,
+  so anything above **1.065** clips. 0.95 keeps ~11% of margin. ⚠️ `mat_plush` is the wall
+  because it is a hot file (peak -1.0 dBFS, low crest) whose trim is already near 1 - which is
+  also why the trim TARGET cannot be raised instead, as the canon already recorded.
+- **A MUSIC BUS FACTOR OF 0.5, NOT A NEW DEFAULT.** ⚠️⚠️ THE DIFFERENCE IS THE WHOLE POINT:
+  `musicVol` is his SETTING, restored from `mixer_music`, so lowering the default would have
+  fixed nothing for anyone who has ever touched the slider - him included. `musicOut()` sits
+  BETWEEN the setting and the `<audio>` element, so the slider keeps meaning «0..100% of music»
+  while the bed drops for everyone. Wired at all FOUR sites that write `bgm.volume`.
+
+**THE MIX NOW:** music -25.4 dB, matches -21.5, events -24.1 - the bed sits under the feedback
+instead of over it. Verified on the live page: element volume 0.35, master 0.95, worst node 0.892
+of full scale.
+⚠️ The cold-start guard pins the master COEFFICIENT (`0.5 x volume`), so it went red by right and
+moved to 0.95 - the property it guards, that a lazily created master respects a volume restored
+from storage, is unchanged.
+✅ Two new arms: the music bus is applied (the element gets strictly less than the setting), and
+nothing clips at the raised master. **The second carries a LOWER bound as well**, because
+«does not clip» is also satisfied by a master that collapsed to silence.
+
+## BATCH 2026-09-01-v: THE PACK BEATS THE MATERIAL (his renamed drop)
+
+«I renamed the sounds, take them all into the game, ask about the ones you don't understand. The
+robot ones are for clicking on the eyes. Don't forget to convert to mp3 and fix the loudness.»
+All 16 are in.
+
+### THE RENAMES ARE THE MAPPING, AND TWO OF THEM DID NOT FIT THE ENGINE
+
+⚠️⚠️ **HE NAMES BY WHAT A THING IS; THE ENGINE DISPATCHED BY WHAT IT IS MADE OF.** `Cars`,
+`Brick` and `Animals` are PACKS, and packs cut ACROSS `MATERIAL_OF`: 11 of the 12 cars are
+`metal` and all 3 bricks are `plastic`, so `Cars`/`Metall` and `Brick`/`Plastic` were two pairs
+fighting over one voice each. **ASKED RATHER THAN GUESSED - he had invited it - and he chose
+«pack beats material».** A `pack_*` recording is now tried before the `mat_*` voice, and a pack
+without one falls through, which is what lets 11 packs share 10 voices.
+✅ **THE FALL-THROUGH NEEDED NO NEW MACHINERY:** `playBuf` already returns false on a missing
+buffer, which is the same thing the material branch has always relied on.
+⚠️ The pack is read off the LIVE item (`list[0].type.tex`) - the same field the atlas and the
+matcap tier key on, so the three cannot drift apart.
+
+⛔⛔ **FIVE VOICES LOST THEIR RECORDING, AND HIS RENAMING IS WHAT DID IT.** The file that fed
+`mat_wood` came back as `Cars`, `mat_dough`'s as `Plastic`, `mat_meat`'s as `Animals`,
+`mat_cream`'s as `Animals-2`, and `mat_paper`'s was withdrawn from the folder. Keeping them would
+have meant meat sounding exactly like animals. **24 live types therefore went back to the
+synthesised arpeggio** - computed, and named to him with the count rather than left to be noticed.
+
+### TAKES, AND WHERE A COUNT BELONGS
+
+Three sounds now have more than one take: the grinding (4), the eyes (2), the animals (2).
+⚠️ The grinding already did this with a hand-rolled `'grind' + (1 + rnd*3)`; the counts now live
+in one table (`SFX_TAKES`), so a second take is a data change rather than a code change and the
+count cannot drift from the bank. A key absent from the table is played as itself.
+⛔ **`grind4` IS AIMED AT THE KENNEY SET'S MEAN (-15.24 dB) AND NOT AT THE -22.8 TARGET.** The
+three Kenney takes are deliberately untrimmed - one recorded set already balanced against each
+other - so a fourth normalised to the events would have been a HOLE in the set rather than a
+member of it.
+⚠️ **AND IT IS FOUR TIMES SHORTER THAN THEY ARE** - 0.34 s against 1.45-1.53 - so one grind in
+four is a blip rather than a grind. Named to him; making it replace the set is one number.
+
+### THE GUARDS, AND THE CONTROL THAT CARRIES THEM
+
+Four new arms: a car speaks with its pack and NOT with its material; a metal thing with no pack
+recording still falls through to the material; both animal takes rotate over 40 matches; poking
+the eyes sounds on the real click handler.
+⚠️⚠️ **THE SECOND IS THE CONTROL AND THE ARM ABOVE IT IS EMPTY WITHOUT IT:** «the pack won» and
+«the material path is broken» look identical from one measurement.
+⚠️ **THE THIRD EXISTS BECAUSE A STUCK INDEX STILL MAKES A SOUND.** A build that always picked
+take 1 - an off-by-one, a missing `SFX_TAKES` row - plays a real recording every time and would
+satisfy any arm that only asked whether SOMETHING sounded.
+⚠️ `#eyes` is an SVG element and has no `.click()`; the probe dispatches a real `MouseEvent`,
+which the handler hears because it is bound to `click` and not to the pointer events.
+
+⚠️ **TWO EXISTING GUARDS MOVED WITH THE RULE, BOTH BY RIGHT:** the decode list dropped the five
+orphaned voices and gained his nine new keys, and the mix guard learned that a `pack_*` key is
+played on the MATCH path - panned, with the group-size peak - so it belongs with the `mat_` keys
+and not with the events when its headroom is computed.
+
+## BATCH 2026-09-01-g: THE PROPS PACK — 15 IN, 2 RETURNED, 3 OUT, AND WHITE CLOUDS
+
+⚠️ THE LETTER: this is the FOURTH batch of 2026-09-01, and two sections had collided on `-b`
+(the renamed sound drop was relabelled `-v` in the same pass). The canon already records the
+suffixes drifting once — «the letter belongs to the COMMIT, not to the message» — and a
+DUPLICATE is worse than an off-by-one: a later reader greps the heading and finds two.
+
+His words, in one message: «1. delete from the current models: cart, soup, water bottle (I'll send
+a different one) 2. check the new pack from the 3D artist, if it's all ok, take it into the game
+(there's water there too) /Users/ikorzyn/Downloads/17 3. after that tell me how the difficulty
+progression and the number of objects go after level 30» + «I can see the clouds, but they are
+lilac and look like dirt, let's make them white and have a look».
+
+### THE CLOUDS WERE LILAC BY MECHANISM, NOT BY TUNING — AND THAT IS THE WHOLE FIX
+
+⛔⛔ **THE MINUS RAMP SHIFT IS CANCELLED.** `t = clamp(t - cl*cenv*uCloudAmt, 0, 1)` pulled the
+ramp READING toward 0, i.e. it sampled the palette's TOP stop — and on his day palette that stop
+is `#8C86FF`, blue-violet. **A cloud drawn by reading a gradient backwards can only ever be the
+colour above it.** No amplitude, envelope or scale could have made it white; it was not a tuning
+failure. A cloud is now `col = mix(col, vec3(1.0), cl*cenv*uCloudAmt)` on the FINISHED colour.
+⚠️⚠️ **AND IT ARGUES WITH A RECORDED INVARIANT, WHICH IS WHY THE NUMBER WAS MEASURED AND NOT
+ASSUMED:** the canon requires day decor to shift INTO THE MINUS, because a lighter top of the
+frame drops the contrast of the white eyes. A white mix lightens. What keeps the peace is the
+ENVELOPE, unchanged: `cenv` is exactly zero at t=0, so the eyes' own rows are untouched —
+measured, the top pixel row is uniform `172,168,255` at every x, i.e. no cloud reaches it at all.
+⚠️ **THE EDGE HALF SURVIVES THE COLOUR CHANGE BY CONSTRUCTION** (`cenv` was not touched), and
+that is exactly why its guard was left alone: it now asserts the same property against a
+different mechanism.
+⛔ **CLOUD_AMT 0.18 → 0.30, AND THAT IS A DISPATCHER'S DEFAULT NAMED TO HIM WITH A SHEET.** The
+same number reads FAINTER as a white mix than as a ramp shift — on a light sky a darkening
+separates from the background more strongly than a whitening does. Keeping 0.18 would have
+quietly walked back his earlier «I can't see the clouds at all» while answering only his
+complaint about the colour. Four arms (off / 0.18 / 0.30 / 0.40) were rendered on ONE page with
+the amplitude toggled live, so the pile is identical across them — one word moves it.
+
+### THE PACK: 15 OF THE 17 NEW ACCEPTED, 2 RETURNED ON THE TRIANGLE CEILING, 3 DELETED
+
+`propscart`, `propssoup`, `propswaterbottle` are out. **THE THREE VACATED SLOTS WERE FILLED IN
+PLACE RATHER THAN CLOSED UP**, and that is the load-bearing choice: a removal shifts every later
+type one level earlier, so filling 13/28/34 with new props keeps **every pre-existing type on the
+level it already had**. Only the 12 entries appended from index 43 push their successors later.
+The cadence is unbroken: props at 7,10,13…76 = **levels 6..75**, his «from the 6th, every 3».
+⚠️ `propswater` takes the water bottle's own slot (level 12) — it is the model he announced, and
+it **must carry `glass`**: the water bottle was the sole live carrier of that voice, and the
+carrier census would have gone red. `propswineglass` gives it a second, so the voice is no longer
+one delisting from silence.
+⚠️ THE THREE EARLY SLOTS TOOK THE LIGHTEST MODELS (ketchup 140 tris, water 236, fries 304) and
+the heaviest stand last (beachball 960 at lvl 72, pistol 1056 at lvl 75) — the 2026-08-28
+principle: a first-time player's levels stay as light as they are today.
+
+⛔⛔ **TWO WERE RETURNED, AND THE REASON IS THAT I ALREADY HELD THE ARTIST TO THIS LINE LAST
+WEEK: basketball 1732 and revolver 1564 triangles, over the 1500 POLICY ceiling of
+`docs/MODEL-BUDGET.md`.** That same document sent their robot back at **1624 — 8% over** — with
+the sentence «the line is held, flexing is how a ceiling dies». Accepting a model **15% over**
+one week later would have made that sentence a bluff, and the ceiling is held by REVIEW: the
+tooling only warns and imports anyway, so review is the only thing there is.
+⚠️ **AND I ALMOST SHIPPED THEM.** They were imported, wired, measured and written up before the
+budget doc was re-read; the frame numbers even said the batch was harmless. **A ceiling that is
+re-litigated per model on «but this one measures fine» is not a ceiling** — that argument was
+equally available for the robot. The models sit in `3d assets/returned-2026-09-01/`.
+⚠️ THE OTHER REWORKS PROVE THE ARTIST CAN HIT IT: grenade 2166 → **584**, fries 1748 → **304**.
+Basketball improved 2840 → 1732 and simply did not arrive.
+⚠️ `phys:'ball'` on beachball (measured half-extents 0.99³). Without it a sphere takes the
+convex-hull default over every vertex AND the 1.2 box damping, and Rapier has no rolling
+friction — the pile would never sleep.
+⚠️ THE ATLAS INSIDE ALL 15 IS AGAIN the ANIMALS' `colormap.png` (md5 `f9a72b72…`, verified by
+extracting from the glb buffers) — so `41-props.js` **aliases** it. ⛔ ORDER-DEPENDENT on
+36-models, and the failure is NOT a throw but the 3174 B transparent portrait cached forever.
+
+### THE MEASUREMENTS THE BATCH OWES
+
+**FRAME (2026-08-29 law), CPU ×4, GPU metal, 390×844, settled play:** lv45 p95 33.6 → **35.8**,
+lv81 34.4 → **33.9**; triangles lv45 100 361 → 101 199, lv81 105 891 → 106 507.
+⚠️⚠️ **THE TWO DELTAS HAVE OPPOSITE SIGNS, WHICH IS THE SIGNATURE OF NOISE AND NOT OF A TREND —
+so the honest verdict is FRAME-NEUTRAL, and no win is claimed.** ⛔ An earlier pass of this same
+A/B (on the 17-model build) read triangles as 10 000 LOWER and I nearly wrote «adding models made
+the frame cheaper» into this file. Re-run, the same build gave 96 613 and then 101 199 at the same
+level: **`regen()` deals a different pile every time, so one deal per arm varies by ±5K triangles
+— wider than the effect being measured.** The canon's own law, met from the flattering side for
+once: a single sample does not certify, and a pleasing number deserves the same suspicion as an
+alarming one. A real claim here needs several deals per arm.
+**THE FOUR THIN MODELS, measured rather than reasoned** (the canon's own note: «should a model
+thinner than 0.1333 appear, re-measure with this same probe»): knife 0.021, rifle 0.054,
+sledgehammer 0.111, bat 0.078 half-extent. The relative floor branch engages exactly as designed —
+`penLim` **0.0378** for the knife and **0.0418** for the rifle against the absolute 0.12, worst
+penetration **0.0000**, `maxWallExcess −0.126` against a norm of 0.45.
+⚠️ THE SLEDGEHAMMER, THE KABAR AND THE BAT GET THE ABSOLUTE 0.12, and that is not an oversight:
+`downReach` is ORIENTATION-dependent, so a bat lying on its side reaches down by its radius and
+not by its thinnest axis. The mechanism is asking the right question.
+⚠️ **THE ONE THING THAT LOOKED LIKE A DEFECT AND WAS MEASURED INSTEAD OF ARGUED:** three
+`[floor]` rescues fired on the knife during an aggressive 3-shake sequence, on `y < FLOOR_REST`
+rather than on penetration — and a rescue CANCELS sleep, which on Hard keeps the accessibility
+fan ticking. So the honest test is whether the pile still sleeps: **lv70 sleeps in 3.0 s against
+HEAD's 3.3 s, with zero lifts in the window.** A transient under shaking, not a storm.
+**THE PRICE:** `index.html` 11 961 831 → **12 630 995 B**; the portal ZIP 5.41 → **5.63 MB**,
+headroom to the 8 MB reference **2.37 MB**. Geometry is text and compresses ~6×.
+
+### HIS ITEM 3 — THE PROGRESSION, WITH THE NUMBERS THIS BATCH CHANGED
+
+`typesCount = min(111, level+2)`, `pairsCnt = min(90, 40+5(level−1))`, `items = pairs×2`.
+
+| level | types | items | items per type | the deal |
+|---|---|---|---|---|
+| 11 | 13 | 180 | 13.8 | all open types |
+| 30 | 32 | 180 | 5.6 | all open types |
+| 50 | 52 | 180 | 3.5 | all open types |
+| 88 | 90 | 180 | 2.0 | all open types |
+| 89+ | 91+ | 180 | 2.0 | **a RANDOM 90 of the open types** |
+| 109+ | 111 | 180 | 2.0 | a random 90 of the WHOLE pool |
+
+⛔⛔ **AND THIS IS WHAT THE BATCH CHANGED, NOT JUST GREW: THE FISHER-YATES IN `genLevel` IS LIVE
+AGAIN.** At 87 types it was unreachable dead-looking code (`min(typesCount, 90)` could never
+exceed 90); at 111 it CUTS from level 89. The 2026-08-30-e claim «every unlocked type is in every
+pile, always» is tombstoned in place. ⚠️ From level 88 each type gets exactly ONE pair, so
+group-size merges effectively die and any single type upgrades at a crawl — the lever there is
+the type ceiling, not the sampling.
+
+### TWO DEFECTS OF MY OWN, AND THE SECOND ONE WAS ALMOST SHIPPED
+
+⛔⛔ **MY TYPES SPLICE DELETED 62 COMMENT LINES INSIDE THE ARRAY, AND NOTHING WOULD HAVE CAUGHT
+IT.** The script rebuilt the body as `lead + entry-lines-only`; every comment BETWEEN entries —
+the mix-cycle note, the Kenney-weave note, the donut/index note, all recorded owner decisions
+living in code — was dropped. **No guard reads comments, the suite would have come back green,
+and the diff looked like a big edit rather than a loss.** Caught by counting: the array went
+201 → 153 lines and 100 → 38 interior comments.
+✅ Redone by walking the line list and inserting each new entry immediately AFTER the entry that
+precedes it — never before a comment block, because a comment block belongs to the entry BELOW
+it and an insert above would silently re-point it at the newcomer. Verified by `comm` on the
+sorted comment lines: **0 originals missing**.
+**THE RULE: a script that rewrites a hand-maintained array must be verified by COUNTING THE LINES
+IT DID NOT INTEND TO TOUCH, not by checking that the entries came out right.**
+
+⛔⛔ **`findByTex` NEVER SKIPPED THE ICE, AND MY POOL CHANGE IS WHAT FIRED IT.** Three arms of the
+pairless-tap section went red on a healthy build: the tap came back tagged `frozen`. The hook
+returns the first accessible item of a pack, the pool change moved what the level deals, and the
+first food/animal item happened to be the frozen one. An ice block can neither merge (its key is
+substituted) nor take an ordinary miss (a tap on it before its time is a DOUBLE penalty down a
+different branch), so the guard reported the mechanic under test as broken.
+✅ Fixed IN THE HOOK and not in the guard: all three callers want an ordinary tappable item, so
+every one of them had the same hole. **The hole had been there since the ice shipped; only the
+deal had never landed on it before** — the class of latent defect that a change in unrelated data
+exposes, and the reason a red arm gets read before it gets re-based.
+
+### THE LABELS, AND THE CALLS TAKEN WITHOUT ASKING
+
+Six explicit `ACC_LABELS` entries, because the prefix strip alone produces a word that names
+nothing to a player: **Combat knife** (`propskabar` → «Kabar»), **Washing machine** («Washer» is
+also the metal ring), **Baseball bat** («Bat» reads as the animal), **Wine glass**, **Beach
+ball**, **Water bottle**. All 113 labels computed: 113 distinct, zero glued prefixes.
+⚠️ `propsketchup: 'juicy'` and `propsfries: 'dough'` are the **`foodchinese` precedent** — a
+container of food is voiced by the FOOD, not the container; `propssoup` was `juicy` for the same
+reason and `sportfries` was `dough`. ⛔ Do not «correct» either to `plastic`/`paper`.
+
+### THE TWO REDS OF THE FINAL RUN — ONE MINE, ONE A THRESHOLD OF THE WRONG SHAPE
+
+⛔⛔ **A NAMED CARRIER CAME BACK INTO THE MATERIALS GUARD AND SURVIVED EXACTLY ONE BATCH.** The
+census written on 2026-08-31 carries the comment «CARRIERS PER VOICE, not a named example — the
+census survives a rename of any item», and **twelve lines below it** the same probe read
+`glass: g.materialOf('propswaterbottle')`. The owner deleted the water bottle, and the arm went
+red on a build where glass has TWO carriers and is perfectly healthy. **The file contradicted
+itself inside one screen** — the class already recorded in the volume batch, met again.
+✅ The exemplar is now DERIVED: the first live type whose voice is `glass`, reported by name in
+the message. The statement moved from «this item is glass» to «some item is», which is the thing
+the guard was written to say.
+
+⛔⛔ **AND THE POUR FLOOR WAS THE WRONG SHAPE, WHICH IS NOT THE SAME AS BEING TOO HIGH.** The
+liveness arm demanded ≥15 delivered and read **12** deep inside a 900-assert run. It was NOT
+waved off: A/B'd, three reps per build, in isolation — **27 / 27 / 27 on this build against
+21 / 27 / 27 on the pre-batch one**, i.e. the game got no worse and the mechanism is healthy.
+And level 1, where that guard runs, is BYTE-IDENTICAL in this batch (3 types, 80 items, `base`
+exactly 80 − 17×2 = 46), so the batch could not have caused it in the first place.
+⚠️⚠️ **THE ASYMMETRY LAW OF 2026-08-17-i DECIDES IT:** load may keep an absolute threshold on the
+half it pushes toward GREEN, never on the half it BREAKS. Load pushes a delivered count DOWN, so
+an absolute floor there is guaranteed to go red on a sound build once the suite grows — and this
+suite grew by a whole section this week. The corridor is 0 (gated to nothing) … 12 (healthy under
+the worst load seen); the floor sits at 6, in its middle.
+⛔ **AND THE DENSITY CLAIM WAS NOT WEAKENED BY A SINGLE UNIT**, which is the only reason lowering
+it is not fitting-to-red: «the pour got faster» is stated by the assert ABOVE, which pins the
+tick, the per-tick volume, the window and the air ceiling as exact constants — and that assert
+passed. This arm only ever said «not gated to nothing».
+⚠️ **THE HABIT WORTH KEEPING FROM BOTH: a red is read before it is re-based.** One of these was a
+real defect of mine and one was a harness artefact, and they were indistinguishable in the log —
+both looked like «the props batch broke something».

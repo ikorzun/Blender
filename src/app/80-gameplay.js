@@ -277,7 +277,11 @@ function doMatch(list){
     try { const s = boomAt.clone().project(camera);
       return Math.max(-1, Math.min(1, s.x)) * 0.6; } catch (e) { return null; }
   })();
+  // ⚠️ `p` IS THE PACK, AND IT IS TRIED BEFORE THE MATERIAL (his word 2026-09-01-b, «pack beats
+  // material»). Read off the live item rather than looked up by name: `list[0].type.tex` is the
+  // same field the atlas and the matcap tiers key on, so the three cannot drift apart.
   Sound.play('match', { n, k: comboHot ? comboCount : 0, m: materialOf(typeName),
+                        p: (list[0].type && list[0].type.tex) || null,
                         r: list[0].r, pan: _pan });
   vibrate(15);
   tapSndMs += performance.now() - _ts0;      // synthesis of the «bloop» + vibro

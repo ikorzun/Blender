@@ -92,3 +92,32 @@ same 1008 as before.
 ⚠️ **BALLS ARE FINE ON SPHERICITY** and that was measured rather than assumed: the shipped
 baseline was 0.939-0.959 (rmin/rmax), the new balls are 0.965-1.000. The `phys:'ball'` flag is
 safe on them. Sphericity was never the problem — polygons are.
+
+## Batch state 2026-09-01 (the 17-model rework pack)
+
+**ACCEPTED AND SHIPPED (15)** — appended to pack `props`, levels 42..75 plus three that took the
+slots of the models the owner deleted (water → lvl 12, ketchup → 27, fries → 33), lightest first:
+ketchup 140, water 236, fries 304, wineglass 370, camera 433, microwave 436, bat 440, washer 540,
+grenade 584, knife 612, sledgehammer 626, kabar 744, rifle 916, beachball 960, pistol 1056.
+✅ **THIRTEEN OF THE FIFTEEN ARE UNDER THE 800 NORM** — against five-of-twelve last batch. The two
+above it (beachball 960, pistol 1056) are comfortably under the ceiling.
+✅ **THE REWORKS LANDED:** grenade **2166 → 584**, fries **1748 → 304** (a real redo this time, not
+the byte-identical copy). Both were over the ceiling last batch and are now under the NORM.
+
+**RETURNED FOR REWORK (2, both over the 1500 ceiling):**
+
+| model | tris | over ceiling | note |
+|---|---|---|---|
+| basketball | 1732 | 1.15x | improved from 2840, still over. Third time this subject has been asked for |
+| revolver | 1564 | 1.04x | a new subject, 4% over — and 4% is still over |
+
+⛔ **WHY 4% IS ENOUGH TO RETURN A MODEL, WRITTEN DOWN SO THE NEXT BATCH DOES NOT REOPEN IT:** the
+robot was returned last batch at **1624, 8% over**, with the words «the line is held, flexing is
+how a ceiling dies». The ceiling is a POLICY held by review — the tooling warns and imports
+anyway — so the only thing that makes 1500 mean 1500 is that it is applied the same way twice.
+A frame measurement showing a given model is harmless is not an argument: that argument was
+equally available for the robot, and for every model that will ever be 4% over.
+
+⚠️ **STILL OWED:** fire extinguisher, axe, football, ship, robot (all returned 2026-08-31 and not
+in this delivery); tennis-ball and golf-ball from the original six.
+⚠️ The two returned files are kept at `3d assets/returned-2026-09-01/`.

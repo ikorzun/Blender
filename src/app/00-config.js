@@ -1327,13 +1327,30 @@ const SKY_MAP = 'screen';
 // sample is one lookup, on a pass that already does one.
 const CLOUD_ON    = true;
 const CLOUD_TEX   = 256;   // the baked tile; wraps, so the drift never shows a seam
-const CLOUD_AMT   = 0.055; // how far the ramp reading is pulled back, in units of t. «barely»
+// ⛔ 0.055 -> 0.18 AND SCALE 2.1 -> 6.0, his word 2026-09-01: «the clouds are not visible at
+// all». ⚠️⚠️ AND THE AMPLITUDE WAS NEVER THE REAL PROBLEM - THE FREQUENCY WAS. At scale 2.1 the
+// visible band sampled about ONE blob of the tile, so the layer read as a smooth vertical
+// darkening rather than as cloud, and raising the strength only darkened the sky more evenly.
+// Measured: at 2.1 even 0.28 was a 12.9-unit luminance shift that still looked like a gradient;
+// at 6.0 several shapes cross the sky and 0.18 reads as cloud. Rendered at 4 / 6 / 9 before
+// choosing - 4 too broad, 9 too busy.
+const CLOUD_AMT   = 0.30;   // ⚠️ RAISED 0.18 -> 0.30 WITH THE SWITCH TO WHITE (2026-09-01).
+// The same number reads FAINTER as a white mix than it did as a ramp shift: on a light sky a
+// darkening separates from the background more strongly than a whitening does. 0.18 white is
+// about half the contrast 0.18 lilac had - i.e. keeping it would have quietly walked back the
+// owner's «I can't see the clouds at all» while answering only his complaint about the colour.
 const CLOUD_TOP   = 0.10;  // ⚠️ ZERO AT t=0 IS NOT TASTE: the first stop IS the Safari top zone
 const CLOUD_PEAK  = 0.26;  // where the band is densest - the upper quarter, «clouds on top»
 const CLOUD_BOT   = 0.62;  // and gone well before the bottom edge, for the same reason
-const CLOUD_SCALE = 2.1;   // tiles across the frame's width
+const CLOUD_SCALE = 6.0;   // tiles across the frame's width
 const CLOUD_DRIFT = 0.004; // per second; slow enough that a still frame looks still
-const SKY_FADE_WHITE = 0.40;
+// ⛔ 0.40 -> 0.28 BY HIS PICK OF 2026-09-01, chosen off four rendered arms. This is the knob
+// that controls the sky's SATURATION, and his five stops are untouched by it: four of them sit
+// exactly on the sRGB gamut boundary at their own L and H, so raising chroma there only hits the
+// clamp in `_oklchHex` and shifts hue. The white wash is what was holding the palette pale.
+// ⚠️ IT DARKENS AS WELL AS SATURATES, and that moves BOTH HUD contrast floors - upward, since
+// the eyes are white and the pause disc is white too. Re-measured rather than assumed.
+const SKY_FADE_WHITE = 0.28;
 const SKY_STOPS = {
   // ⚠️⚠️ THE OWNER'S PALETTE 2026-08-20-b (he sent OKLCH + hexes and positions):
   //   0%   oklch(85.21% 0.0971 225.86)  #85DCFF

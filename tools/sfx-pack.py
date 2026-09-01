@@ -32,26 +32,34 @@ import base64, os, re, subprocess, sys, io
 # `mat_juicy` to `mat_fruit` would have silenced 26 types SILENTLY, because the fallback to the
 # procedural bloop is a presence check and not an error.
 FILES = {
-    # the five voices that had NO recording at all - 24 live types that until now merged with
-    # the synthesised arpeggio, the single largest audible gap the sound inventory named
-    'mat_wood':    'OhmLab_Industrial-Pop',     # 5 types: barrel, palm, matchbox, nutcracker, cart
-    'mat_dough':   'OhmLab_Double-Bubble-Pop',  # 6: gingerbread, cupcake, croissant, chinese, cake, donut
-    'mat_meat':    'Hit Pop',                   # 7: fish, burger, turkey, cheese, ham, hotdog
-    'mat_paper':   'Pop',                       # 3: toilet paper, book, present
-    'mat_cream':   'Pop Up Dings',              # 3: the three ice creams
-    # ⛔ THESE THREE REPLACE RECORDINGS HE HIMSELF CHOSE ON 2026-08-20-e. Named to him rather
-    # than done quietly: one word puts the old ones back, they are in git.
-    'mat_juicy':   'Fruits',                    # 23 types
-    'mat_metal':   'Metall',                    # 16 types
-    'mat_plastic': 'Brick',                     # 7 types
-    # the interface, and the screens the inventory listed as MUTE
-    'ui':          'Peep Click Pop',            # every <button> in the game
-    'miss':        'Error-1',                   # was procedural: two square blips
-    'newobj':      'New object',                # the reveal screen - it had NO sound at all
-    'upgrade':     'Upgrade obj',               # the multiplier tier-up
-    'fill':        'Fill blender',              # the intro pour
-    'toast':       'Ding Pop Up',               # toast() - the game's only refusal channel
+    # ── BY PACK (his word 2026-09-01-b: «pack beats material»). A pack override is tried BEFORE
+    #    the material voice, so these speak for everything in their pack whatever it is made of.
+    #    He renamed the files himself to say so - the names ARE the mapping.
+    'pack_car':     'Cars',          # 12 types (11 of them are material `metal`)
+    'pack_brick':   'Brick',         # 3 types (all of them are material `plastic`)
+    'pack_animal1': 'Animals',       # 24 types, two takes picked at random
+    'pack_animal2': 'Animals-2',
+    # ── BY MATERIAL, for whatever no pack override covers
+    'mat_juicy':    'Fruits',        # 23 types
+    'mat_metal':    'Metall',        # the metal that is not a car: toycars, factory, props
+    'mat_plastic':  'Plastic',       # the plastic that is not a brick
+    # ── EVENTS
+    'ui':           'Peep Click Pop',
+    'miss':         'Error-1',
+    'newobj':       'New object screen',
+    'upgrade':      'Upgrade obj',
+    'fill':         'Fill blender',
+    'toast':        'Ding Pop Up',
+    'eyes1':        'robot',         # poking the eyes - his word: «the robot ones are for
+    'eyes2':        'robot-2',       # clicking on the eyes». Two takes, picked at random.
+    'grind4':       'Blend object',  # his pick: «the moment of blending itself»
 }
+# ⛔⛔ FIVE VOICES LOST THEIR RECORDING IN THIS BATCH, AND IT IS HIS RENAMING THAT DID IT, NOT A
+# DELETION OF MINE: `mat_wood` was fed by the file now called Cars, `mat_dough` by the one now
+# called Plastic, `mat_meat` by Animals, `mat_cream` by Animals-2, and `mat_paper` by a file he
+# took out of the folder. Keeping them would have meant meat sounding exactly like animals.
+# 24 live types therefore go back to the synthesised arpeggio - named to him with the count.
+DROP = ['mat_wood', 'mat_dough', 'mat_meat', 'mat_paper', 'mat_cream']
 BITRATE, DST = '128k', 'src/app/74-sfx-data.js'
 
 def find(src, stem):
@@ -72,6 +80,8 @@ def main(src):
         out[slug] = base64.b64encode(b).decode()
         print('%-11s <- %-26s %7d -> %6d B' % (slug, os.path.basename(p), os.path.getsize(p), len(b)))
     s = io.open(DST, encoding='utf-8').read()
+    for dead in DROP:
+        s = re.sub(r"^  %s: '[^']*',\n" % re.escape(dead), '', s, count=1, flags=re.M)
     for slug, b64 in out.items():
         line = "  %s: '%s'," % (slug, b64)
         pat = re.compile(r"^  %s: '[^']*',$" % re.escape(slug), re.M)

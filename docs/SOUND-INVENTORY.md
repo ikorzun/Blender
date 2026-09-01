@@ -1,5 +1,25 @@
 # Sound inventory — every sound in the game, and every place there isn't one
 
+⛔⛔ **THIS DOCUMENT IS A SNAPSHOT OF 2026-08-31 AND ITS THREE HEADLINE NUMBERS ARE NOW FALSE.**
+It did its job: the owner read it, and on 2026-09-01 he sent two drops of recordings that closed
+almost every gap it names. The state in force is in `CLAUDE.md`, batches 2026-09-01 / -b / -v.
+
+| this document says | in force now |
+|---|---|
+| nine embedded samples | **sixteen** |
+| five of the ten material voices have a recording | **all ten did, then his renaming took five back** |
+| the NEW OBJECT reveal, every toast, the tier-up and the pour are mute | **all four now speak** |
+| «33 item types merge with the synthesised arpeggio» | the arpeggio no longer plays on an ORDINARY merge at all — what reaches it is the bowl-shatter collect-all and a detonated charge, which pass no material |
+| `mat_glass` «IS A RECORDING NOBODY WILL EVER HEAR» | ⚡ **it has carriers again** — `propswater` and `propswineglass`, 2026-09-01-g |
+
+⚠️ **WHAT IS STILL TRUE AND IS WHY THE FILE IS KEPT:** the method (a four-lens sweep, each lens
+handed to an adversarial verifier), the shape of the engine, the two defects in «Two defects, not
+taste» — the keyboard-only player still gets no sound, because `Sound.unlock()` is still bound to
+`pointerdown` alone — and the whole «Where there is no sound at all» census, most of which is
+still unanswered.
+⛔ Do NOT read the tables below as the current bank. Re-run the sweep before trusting a count.
+
+
 The owner's order 2026-08-31: «sdelay mne tablitsu vsekh zvukov v igre, vklyuchaya ui
 knopki. Khochu ponyat kakikh zvukov eshche nekhvataet i kakie zamenit» — a table of every
 sound in the game, UI buttons included, so he can see what is missing and what to replace.

@@ -148,7 +148,7 @@ const TYPES = [
   { name:'propsdumbbell', color:0x3f3f46, rc:1.0, tex:'props', mat:'soft', geo:propsdumbbellGeo },
   { name:'foodstrawberry',        color:0xe83a4a, rc:1.0, tex:'food', mat:'soft', geo:foodstrawberryGeo },
   { name:'foodbroccoli',          color:0x4caf50, rc:1.0, tex:'food', mat:'soft', geo:foodbroccoliGeo },
-  { name:'propswaterbottle', color:0x6794d9, rc:1.0, wr:0.33, tex:'props', mat:'soft', geo:propswaterbottleGeo },
+  { name:'propswater', color:0xc4d9f2, rc:1.0, wr:0.35, tex:'props', mat:'soft', geo:propswaterGeo },
   { name:'foodgrapes',            color:0x9a5ac4, rc:1.0, tex:'food', mat:'soft', geo:foodgrapesGeo },
   // ===== THE KENNEY BATCH 2026-07-30: 28 items from 7 kits (the 38-kenney.js module,
   // separate from 36-models — see WORKSTREAMS, and there too why 36-models was NOT regenerated).
@@ -170,13 +170,13 @@ const TYPES = [
   { name:'propsmatchbox', color:0xcd8962, rc:1.0, wr:0.86, tex:'props', mat:'soft', geo:propsmatchboxGeo },
   { name:'foodcorn',              color:0xffd54a, rc:1.0, tex:'food', mat:'soft', geo:foodcornGeo },
   { name:'foodeggplant',          color:0x7a4a9e, rc:1.0, tex:'food', mat:'soft', geo:foodeggplantGeo },
-  { name:'propssoup', color:0x38383d, rc:1.0, tex:'props', mat:'soft', geo:propssoupGeo },
+  { name:'propsketchup', color:0xb8453d, rc:1.0, wr:0.42, tex:'props', mat:'soft', geo:propsketchupGeo },
   { name:'foodlemon',             color:0xffe83a, rc:1.0, tex:'food', mat:'soft', geo:foodlemonGeo },
   { name:'holidaynutcracker', color:0xd6483f, rc:1.0, wr:0.49, tex:'holiday', mat:'soft', geo:holidaynutcrackerGeo },
   { name:'propsvolleyball', color:0x595ec0, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsvolleyballGeo },
   { name:'animalelephant',        color:0x9aa6b4, rc:1.0, tex:'animal', mat:'soft', geo:animalelephantGeo },
   { name:'animalpolar',           color:0xe8eef4, rc:1.0, tex:'animal', mat:'soft', geo:animalpolarGeo },
-  { name:'propscart', color:0x4f5260, rc:1.0, tex:'props', mat:'soft', geo:propscartGeo },
+  { name:'propsfries', color:0xee7f48, rc:1.0, wr:0.63, tex:'props', mat:'soft', geo:propsfriesGeo },
   { name:'animaltiger',           color:0xff8a2b, rc:1.0, tex:'animal', mat:'soft', geo:animaltigerGeo },
   // ⚠️ THE FISH WAS ADDED BY THE OWNER'S DIRECT REQUEST 2026-07-30 («add a fish,
   // there are too few objects»). I was warding it off as a risk of confusion with the golden
@@ -190,32 +190,53 @@ const TYPES = [
   { name:'propslifebuoy', color:0xff7844, rc:1.0, tex:'props', mat:'soft', phys:'ring', geo:propslifebuoyGeo },
   { name:'foodtomato',            color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodtomatoGeo },
   { name:'foodcarrot',            color:0xff8c2b, rc:1.0, tex:'food', mat:'soft', geo:foodcarrotGeo },
+  // ⚠️ THE PROPS PACK CONTINUES ITS EVERY-3 CADENCE HERE (the owner 2026-08-31: «from the
+  // 6th, every 3 levels»). Indices 7..76 = levels 6..75, unbroken. The three models he had
+  // deleted - cart, soup, water bottle - were REPLACED IN PLACE rather than cut out, so that
+  // every pre-existing type keeps the level it already had; only the 12 entries below this
+  // line push their successors later.
+  // ⛔ TWO MORE ARRIVED AND WERE RETURNED, NOT SHIPPED: basketball 1732 and revolver 1564
+  // triangles, over the 1500 policy ceiling of docs/MODEL-BUDGET.md - the same ceiling that
+  // sent the artist's robot back at 1624 with «flexing is how a ceiling dies». Accepting a
+  // model 15% over one week after rejecting one 8% over is how the ceiling stops existing.
+  { name:'propswineglass', color:0x6794d9, rc:1.0, wr:0.56, tex:'props', mat:'soft', geo:propswineglassGeo },
   { name:'foodpineapple',         color:0xf0c040, rc:1.0, tex:'food', mat:'soft', geo:foodpineappleGeo },
   { name:'animalpanda',           color:0xd8dce2, rc:1.0, tex:'animal', mat:'soft', geo:animalpandaGeo },
+  { name:'propscamera', color:0x767a8d, rc:1.0, wr:0.79, tex:'props', mat:'soft', geo:propscameraGeo },
   { name:'animalcow',             color:0xe6ddd0, rc:1.0, tex:'animal', mat:'soft', geo:animalcowGeo },
   { name:'animalparrot',          color:0xe2453a, rc:1.0, tex:'animal', mat:'soft', geo:animalparrotGeo },
+  { name:'propsmicrowave', color:0x67636a, rc:1.0, wr:0.73, tex:'props', mat:'soft', geo:propsmicrowaveGeo },
   { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
   { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propsbat', color:0xad795c, rc:1.0, wr:0.08, tex:'props', mat:'soft', geo:propsbatGeo },
   // ⛔ `piratechest` DELETED 2026-08-20 (the owner's word: «delete the chest, both
   // the open one and the closed one»). The artist sent an OPEN variant instead of the previous
   // closed one — the owner wanted neither. The model was removed both from
   // the source and from the module: the pool now holds 87 types.
   { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
+  { name:'propswasher', color:0xeeecec, rc:1.0, wr:0.54, tex:'props', mat:'soft', geo:propswasherGeo },
   { name:'foodavocado',           color:0x6b8f3a, rc:1.0, tex:'food', mat:'soft', geo:foodavocadoGeo },
   { name:'foodapple',             color:0xe83a3a, rc:1.0, tex:'food', mat:'soft', geo:foodappleGeo },
+  { name:'propsgrenade', color:0x58a078, rc:1.0, wr:0.76, tex:'props', mat:'soft', geo:propsgrenadeGeo },
   { name:'animalkoala',           color:0x9ba3ad, rc:1.0, tex:'animal', mat:'soft', geo:animalkoalaGeo },
   { name:'animalcat',             color:0x6b7280, rc:1.0, tex:'animal', mat:'soft', geo:animalcatGeo },
+  { name:'propsknife', color:0x806870, rc:1.0, tex:'props', mat:'soft', geo:propsknifeGeo },
   { name:'animalgiraffe',         color:0xe0b23a, rc:1.0, tex:'animal', mat:'soft', geo:animalgiraffeGeo },
   { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cargarbagetruckGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propssledgehammer', color:0x836764, rc:1.0, tex:'props', mat:'soft', geo:propssledgehammerGeo },
   { name:'brickclassic', color:0x5ac44a, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickclassicGeo },
   { name:'foodpear',              color:0xc8d94a, rc:1.0, tex:'food', mat:'soft', geo:foodpearGeo },
+  { name:'propskabar', color:0xcb8f6a, rc:1.0, wr:0.22, tex:'props', mat:'soft', geo:propskabarGeo },
   { name:'foodpumpkin',           color:0xff8a2b, rc:1.0, tex:'food', mat:'soft', geo:foodpumpkinGeo },
   { name:'foodpaprika',           color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodpaprikaGeo },
+  { name:'propsrifle', color:0xa55d42, rc:1.0, tex:'props', mat:'soft', geo:propsrifleGeo },
   { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
   { name:'animalfox',             color:0xf07a34, rc:1.0, tex:'animal', mat:'soft', geo:animalfoxGeo },
+  { name:'propsbeachball', color:0xcf9796, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsbeachballGeo },
   { name:'animallion',            color:0xd9a05b, rc:1.0, tex:'animal', mat:'soft', geo:animallionGeo },
   { name:'carrace',               color:0xff5a2b, rc:1.4, tex:'car', mat:'soft', geo:()=>carraceGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propspistol', color:0x4f5260, rc:1.0, wr:0.82, tex:'props', mat:'soft', geo:propspistolGeo },
   { name:'animalmonkey',          color:0xa9713f, rc:1.0, tex:'animal', mat:'soft', geo:animalmonkeyGeo },
   { name:'animaldog',             color:0xc98f5a, rc:1.0, tex:'animal', mat:'soft', geo:animaldogGeo },
   { name:'animalbeaver',          color:0x9c6b42, rc:1.0, tex:'animal', mat:'soft', geo:animalbeaverGeo },

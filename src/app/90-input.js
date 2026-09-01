@@ -404,6 +404,10 @@ $('eyes').addEventListener('click', ()=>{
   el.classList.remove('bounce'); void el.offsetWidth;
   el.classList.add('bounce');
   setTimeout(()=>{ el.classList.remove('bounce'); }, 450);
+  // ⚠️ BEFORE the run-state gate below on purpose: the bounce and the buzz answer the touch
+  // outside a live round too, and a control that moves and vibrates but stays silent reads as
+  // half-broken. The grinder's own answer is a separate, later consequence of the poke.
+  try { Sound.play('eyes'); } catch(e){}
   vibrate(25);
   if (intro || paused || !level || level.over) return; // outside a run — only the bounce
   stats.lastAction = performance.now() - (level.idleLimit + 0.5)*1000; // the patience is exhausted
@@ -613,7 +617,7 @@ $('msMusicSw').addEventListener('click', () => {
 let bgmUnlocked = false;
 function unlockBgm(){
   if (bgmUnlocked) return; bgmUnlocked = true;
-  const bgm = $('bgm'); if (bgm){ bgm.volume = musicVol; if (musicVol > 0) bgm.play().catch(()=>{}); }
+  const bgm = $('bgm'); if (bgm){ bgm.volume = musicOut(musicVol); if (musicVol > 0) bgm.play().catch(()=>{}); }
 }
 // ⚠️⚠️ THE GESTURE IS ANY GESTURE, AND NOT ONLY A TOUCH (the owner's complaint «the
 // music starts playing with a delay», taken apart by the measurement 2026-08-11). A
