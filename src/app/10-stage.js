@@ -980,12 +980,13 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
         uStarPulseAmp:  { value: STAR_PULSE_AMP },
         uTime: { value: 0 },
         uCloud:    { value: buildCloudTex() },
-        uCloudAmt: { value: CLOUD_ON ? CLOUD_AMT : 0 } };
+        uCloudAmt: { value: CLOUD_ON ? CLOUD_AMT : 0 },
+        uResX:     { value: 1 } };
   const baseDecl =
       ['uniform sampler2D uRamp; uniform float uStars; uniform float uSkyMap;',
        'uniform float uStarDens; uniform float uStarSpark; uniform float uTime;',
        'uniform float uStarPulseFrac; uniform float uStarPulseAmp;',
-       'uniform sampler2D uCloud; uniform float uCloudAmt;',
+       'uniform sampler2D uCloud; uniform float uCloudAmt; uniform float uResX;',
        'float hs(vec3 v){ return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'];
   const baseCol = [
       '  vec3 d = normalize(vDir);',
@@ -1018,20 +1019,36 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
       // MINUS» - a rule that exists because a lighter top of the frame drops the contrast of
       // the white eyes. The envelope is what keeps the peace, and it is measured, not assumed:
       // see the HUD-contrast guard, which reads the eyes against the sky on this very build.
-      // ⚠️ THE ENVELOPE IS ZERO AT t=0 AND ZERO AGAIN BY CLOUD_BOT, AND THE FIRST ZERO IS
+      // ⚠️ THE ENVELOPE IS ZERO AT t=0 AND AGAIN BY CLOUD_FADE_OUT, AND THE FIRST ZERO IS
       // LOAD-BEARING: the top pixel row IS what --sky-top-rgb promises the Safari chrome zone,
       // and a cloud touching it would make that variable lie about the frame's edge.
-      '  float cx = gl_FragCoord.x / max(uResY, 1.0) * ' + CLOUD_SCALE.toFixed(3) +
-        ' + uTime * ' + CLOUD_DRIFT.toFixed(5) + ';',
-      '  float cl = texture2D(uCloud, vec2(cx, t * ' + CLOUD_SCALE.toFixed(3) + ')).r;',
-      '  float cenv = smoothstep(' + CLOUD_TOP.toFixed(3) + ', ' + CLOUD_PEAK.toFixed(3) + ', t)'
-        + ' * (1.0 - smoothstep(' + CLOUD_PEAK.toFixed(3) + ', ' + CLOUD_BOT.toFixed(3) + ', t));',
+      // ⚠️ Since 2026-09-01-zh this envelope no longer SHAPES anything - it is a guard rail, and
+      // the shape is the three placed blobs below. That is why it is deliberately wide.
+      '  float sx = gl_FragCoord.x / max(uResX, 1.0);',
+      '  float cenv = smoothstep(' + CLOUD_FADE_IN[0].toFixed(3) + ', ' + CLOUD_FADE_IN[1].toFixed(3) + ', t)'
+        + ' * (1.0 - smoothstep(' + CLOUD_FADE_OUT[0].toFixed(3) + ', ' + CLOUD_FADE_OUT[1].toFixed(3) + ', t));',
+      '  float cl = 0.0;'].concat(CLOUDS.map(function (c, i) {
+        // one placed blob: an ellipse in frame fractions, its edge broken up by the baked tile.
+        // ⚠️ `dx -= floor(dx + 0.5)` is the toroidal distance - it wraps the horizontal drift with
+        // no seam and no branch, so a cloud leaving the right edge re-enters on the left.
+        // ⚠️ `max` and not `+`: two overlapping clouds must not add up to a bright patch.
+        return [
+        '  { float cx' + i + ' = fract(' + c.x.toFixed(3) + ' + uTime * ' + c.drift.toFixed(5) + ');',
+        '    float dx' + i + ' = sx - cx' + i + '; dx' + i + ' -= floor(dx' + i + ' + 0.5);',
+        '    float dy' + i + ' = t - ' + c.y.toFixed(3) + ';',
+        '    float q' + i + ' = dx' + i + '*dx' + i + '/' + (c.rx * c.rx).toFixed(6) +
+          ' + dy' + i + '*dy' + i + '/' + (c.ry * c.ry).toFixed(6) + ';',
+        '    float b' + i + ' = 1.0 - smoothstep(0.25, 1.0, q' + i + ');',
+        '    float n' + i + ' = texture2D(uCloud, vec2(sx * ' + c.warp.toFixed(2) + ' + ' +
+          c.y.toFixed(3) + ', t * ' + (c.warp * 2.0).toFixed(2) + ' + ' + c.x.toFixed(3) + ')).r;',
+        '    cl = max(cl, b' + i + ' * (0.35 + 0.85 * n' + i + ')); }'].join('\n');
+      })).concat([
       // half a texel inwards: otherwise the edge of the ramp is blurred by the filter against ClampToEdge
       '  float u = t * ' + ((SKY_RAMP_W - 1) / SKY_RAMP_W).toFixed(8) +
         ' + ' + (0.5 / SKY_RAMP_W).toFixed(8) + ';',
       '  vec3 col = texture2D(uRamp, vec2(u, 0.5)).rgb;',
       // THE CLOUD ITSELF: white, mixed into the finished ramp colour. `cenv` is unchanged and
-      // is still exactly zero at t=0 and again by CLOUD_BOT, so the first and last pixel rows
+      // is still exactly zero at t=0 and again by CLOUD_FADE_OUT, so the first and last pixel rows
       // of the frame are untouched BYTE FOR BYTE - which is what --sky-top-rgb/--sky-bot-rgb
       // promise the iOS chrome zones, and Safari 26 paints those zones by stretching those
       // very rows. A cloud that reached an edge would put a colour there that is on no screen.
@@ -1103,7 +1120,7 @@ let skyMat = null; // the screen layer: uCombo paints the BOTTOM (the combo feve
         ' * (0.5 + 0.5 * sin(uTime * ' + STAR_PULSE_SPD.toFixed(3) + ' + ph2));',
       '    col += uStars * has * tw * pl * (core + glow + ray) * 0.6;',
       '  }',
-    ];
+    ]);   // ⚠️ closes the .concat([ … opened at the cloud blobs above
   const skyM = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
     // ⚠️ fwidth IN WebGL1 REQUIRES AN EXTENSION — without this line the shader will not

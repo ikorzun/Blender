@@ -5901,17 +5901,25 @@ window.bridge = {
     // of a false failure with a LIVE tail is ~0.26^6 ≈ 0.0003 — we know how to measure.
     // If the tail is DEAD (they brought back `i % typesCount`) — no regen will help,
     // the failure is honest.
+    // ⛔⛔ THE SENTINEL IS DERIVED, NOT NAMED. It was the literal 'forestplant' until 2026-09-01-e,
+    // when the owner deleted that model by screenshot — and it was THE LAST ENTRY OF TYPES, so the
+    // guard went red naming a type that no longer exists, on a build whose tail is perfectly
+    // reachable. Exactly the shape that killed the glass exemplar the same day: a guard that pins
+    // WHICH item holds a property, when the property is «the last one, whichever it is».
+    let lastType = null;
+    for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break; lastType = n; }
     const seen = new Set(); let regens = 0;
     for (let k = 0; k < 6; k++){
       regens++;
       for (const n of at(161)) seen.add(n);
-      if (seen.has('forestplant') && seen.has('survivalfish')) break;
+      if (seen.has(lastType) && seen.has('survivalfish')) break;
     }
     return {
-             tailAll: seen.has('forestplant'),   // the last type of the array
+             lastType,
+             tailAll: seen.has(lastType),        // the last type of the array, whatever it is today
              fishAll: seen.has('survivalfish'),  // the owner's fish (v180)
              regens,
-             tail20:  lv20.includes('forestplant'),
+             tail20:  lv20.includes(lastType),
              shakes1: g.freeShakes(1), shakes20: g.freeShakes(20), shakes40: g.freeShakes(40) };
   });
   // ⚠️ THE STEAK GUARD WAS REMOVED TOGETHER WITH THE TYPE (the owner's spec 2026-07-30 «remove
@@ -5920,10 +5928,12 @@ window.bridge = {
   // ⚠️ THE ASSERT IS CAPABLE OF FAILING: bring back `i % typesCount` — and tail113 will become
   // false, because pairsCnt (90) is smaller than the number of types (121).
   expect(tailProbe.tailAll && tailProbe.fishAll,
-    'THE TAIL OF TYPES IS REACHABLE: the last type and the fish get into the pile at full unlocking ('
+    'THE TAIL OF TYPES IS REACHABLE: the last type (`' + tailProbe.lastType + '`, read from the ' +
+    'pool rather than named here) and the fish get into the pile at full unlocking ('
     + tailProbe.regens + ' regen(s))');
   expect(!tailProbe.tail20,
-    'the forestplant sentinel is not unlocked yet at lv.20 (it is deliberately the last one)');
+    'the tail sentinel `' + tailProbe.lastType + '` is not unlocked yet at lv.20 (whatever stands ' +
+    'last is by definition the latest to unlock)');
   // SHUFFLING (the owner's spec 2026-07-30): new types must be visible
   // EARLY. At lv.20 the indices 0..27 are unlocked DETERMINISTICALLY (typesCount<=pairsCnt
   // — all the unlocked ones are taken), so a check without regens is honest.
@@ -13140,7 +13150,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   const onTop = await strip(0), onBand = await strip(250), onBot = await strip(843);
   const onLum = await lumOf(onBand);
   await cldPage.close();
-  const cld = { tileMean: cldInfo && cldInfo.tileMean, tileMax: cldInfo && cldInfo.tileMax,
+  const cl = (cldInfo && cldInfo.clouds) || [];
+  // THE OWNER'S SPEC 2026-09-01-zh, AS THREE SEPARATE STATEMENTS: leave 2-3 clouds, make them
+  // DIFFERENT SIZES and place them at DIFFERENT COORDINATES. A count alone is satisfied by three
+  // identical clouds stacked on one spot - the pattern he complained about, with fewer tiles.
+  const cldN = cl.length;
+  const distinctSize  = new Set(cl.map(function(c){ return c.rx.toFixed(3)+'x'+c.ry.toFixed(3); })).size;
+  const distinctPos   = new Set(cl.map(function(c){ return c.x.toFixed(3)+','+c.y.toFixed(3); })).size;
+  const distinctDrift = new Set(cl.map(function(c){ return c.drift.toFixed(5); })).size;
+  const cld = { n: cldN, distinctSize, distinctPos, distinctDrift, tileMean: cldInfo && cldInfo.tileMean, tileMax: cldInfo && cldInfo.tileMax,
                 amt: cldInfo && cldInfo.amt, topSame: offTop === onTop,
                 botSame: offBot === onBot, bandDiff: offBand !== onBand,
                 offLum: +offLum.toFixed(2), onLum: +onLum.toFixed(2),
@@ -13179,6 +13197,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'would make those variables lie about the frame and put a colour into the system bars that ' +
     'is on no screen. \u26a0 Byte equality of the encoded strip and not a luminance tolerance: ' +
     'identical pixels encode identically, so this states «untouched» rather than «close enough»');
+  expect(cld.n >= 2 && cld.n <= 3 && cld.distinctSize === cld.n && cld.distinctPos === cld.n &&
+         cld.distinctDrift === cld.n,
+    '\u26a0\u26a0 THE CLOUDS ARE 2-3, EACH ITS OWN SIZE, PLACE AND SPEED (' + cld.n + ' clouds, ' +
+    cld.distinctSize + ' distinct sizes, ' + cld.distinctPos + ' distinct positions, ' +
+    cld.distinctDrift + ' distinct drift speeds). \u26d4 HIS SPEC READ AS THREE STATEMENTS, ' +
+    'because a bare count is satisfied by three identical clouds on one spot - which is the ' +
+    'cheap pattern he complained about, only with fewer tiles. \u26a0 THE DRIFT ARM IS NOT ' +
+    'DECORATION: three clouds moving at ONE speed read as one sliding texture, i.e. the same ' +
+    'complaint again, slower. \u26d4 SABOTAGE: give two entries in CLOUDS the same rx/ry, the ' +
+    'same x/y, or the same drift; or put the tiling sampler back, which reports zero clouds');
 
   // ===== THE OWNER'S SOUND DROP: THE FOUR MUTE SCREENS NOW SPEAK (2026-09-01) =====
   // He sent 18 files and said "I want to try these sounds on, but convert them to mp3 for less
@@ -13221,13 +13249,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       if (window.__played.length) break;
     }
     const out = { decoded: {}, site: {}, voice: {} };
-    // ⛔ mat_wood / mat_dough / mat_meat / mat_paper / mat_cream ARE GONE FROM THIS LIST, and it
-    // was HIS renaming that removed them, not a deletion of ours: on 2026-09-01-b the files that
-    // fed them came back as Cars, Plastic, Animals and Animals-2, and one was withdrawn. Keeping
-    // them would have meant meat sounding exactly like animals. 24 live types went back to the
-    // synthesised arpeggio and he was told so with the count.
+    // ⛔⛔ THE FIVE ARE BACK IN THIS LIST (his word 2026-09-01-d «give the sound back to the five
+    // voices, I'll record new files»). They had left it on 2026-09-01-b because HIS renaming moved
+    // the files that fed them onto the pack keys — and four of them are therefore ALIASES of a
+    // sample already here (74-sfx-data), which is exactly why they belong in a DECODE list: an
+    // alias that fails to decode is indistinguishable, from the game's side, from a voice that was
+    // never restored — `playBuf` falls back on a presence check and the type goes back to the
+    // arpeggio SILENTLY. That silence is the whole failure mode this list exists to catch.
     for (const k of ['ui','grind1','grind4','mat_juicy','mat_plush','mat_metal','mat_plastic',
-                     'mat_glass','pack_car','pack_brick','pack_animal1','pack_animal2',
+                     'mat_glass','mat_wood','mat_dough','mat_meat','mat_paper','mat_cream',
+                     'pack_car','pack_brick','pack_animal1','pack_animal2',
                      'eyes1','eyes2','miss','newobj','upgrade','fill','toast'])
       out.decoded[k] = !!S.bufferOf(k) && S.bufferOf(k).duration > 0.05;
     // --- the PRODUCTION call sites ---
@@ -14911,8 +14942,35 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const carriers = {};
       for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break;
         const v = g.materialOf(n); if (v) carriers[v] = (carriers[v] || 0) + 1; }
+      // ⚠️⚠️ REACHABILITY PAST THE PACK TIER. A `pack_*` recording is tried BEFORE the material
+      // voice, so a voice whose every carrier sits in an overridden pack ships and is NEVER
+      // HEARD — the same end state `mat_glass` was in for sixteen days, reached by a second
+      // route that did not exist when that lesson was learned. Counting carriers alone cannot
+      // see it: the carriers are right there, they are simply spoken for by their pack.
+      // ⛔⛔ DERIVED FROM THE BANK, NEVER LISTED. The first edition of this arm wrote
+      // ['car','brick','animal'] as a literal - correct for that build, and BLIND TO THE EXACT
+      // EDIT ITS OWN MESSAGE PROMISES TO CATCH: adding a `pack_food` recording would silence
+      // `cream` while this arm went on comparing against a list that never heard of it. A guard's
+      // specification IS its behaviour under mutation, so a hard-coded copy of the thing being
+      // mutated is not a weaker guard, it is a guard that has quietly stopped being one.
+      const OVERRIDDEN = g.sfxPacks();
+      const reach = {};
+      for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break;
+        const v = g.materialOf(n); if (!v) continue;
+        const tex = g.typeTexAt(i);
+        // ⚠️ THE PROGRESSION GATE, THE SECOND WAY A VOICE GOES UNHEARD. genLevel samples only
+        // indices < typesCount = LEVEL_TYPES_MIN + (level-1), so a type at index i first enters
+        // the pool at level i-1. A voice all of whose carriers sit in the tail is as inaudible as
+        // one shadowed by a pack - the recording ships, nothing plays it, nothing errors.
+        const lvl = Math.max(1, i - 1);
+        reach[v] = reach[v] || { carriers: 0, reachable: 0, firstLevel: null };
+        reach[v].carriers++;
+        if (OVERRIDDEN.indexOf(tex) < 0){
+          reach[v].reachable++;
+          if (reach[v].firstLevel === null) reach[v].firstLevel = lvl;
+        } }
       return { total, withoutVoice:without.slice(0, 8), missing:without.length, voices:g.sfxVoices(),
-        carriers,
+        carriers, reach, packs: OVERRIDDEN,
         // ⚠️ THE SAMPLES WERE REPLACED 2026-08-15 (the batch of deletions of 32 types): the metal was
         // `piratecannon`, the glass — `survivalbottle`, both are cut out of the pool.
         // The metal is taken from a live neighbour.
@@ -14949,8 +15007,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ AND SEPARATELY — THAT THE OWNER'S RECORDINGS HAVE REACHED THE BUILD. The markup is at
     // all 120, the samples are three so far; the guard is obliged to distinguish «marked up» and
     // «voiced», otherwise it will go green on a build without a single sound.
-    expect(['juicy','metal','glass','plastic','plush'].every(v => mat.voices.indexOf(v) >= 0),
-      'MATERIALS: the recordings of the owner are in the build — fruits, metal, glass (' + mat.voices.join(', ') + ')');
+    expect(['juicy','metal','glass','plastic','plush','wood','dough','meat','paper','cream']
+             .every(v => mat.voices.indexOf(v) >= 0),
+      'MATERIALS: ALL TEN voices carry a recording again (' + mat.voices.join(', ') + '). ' +
+      '⛔ The list went to five on 2026-09-01-b and back to ten on 2026-09-01-d, both times by his ' +
+      'word; it is spelled out rather than counted so that losing a NAMED voice is what goes red, ' +
+      'not merely losing a count');
     // ⚠️⚠️ AND THE OTHER HALF, WHICH THE «the sample is in the build» ASSERT ABOVE CANNOT MAKE:
     // a decoded sample with NO CARRIER never reaches a player's ears. `glass` shipped in
     // exactly that state from 2026-08-15 until this batch — 64.5 KB of the owner's own
@@ -14967,6 +15029,56 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '`propswaterbottle` and went red one batch later when the owner deleted it, on a build ' +
       'where the voice was healthy. \u26d4 Do not weaken this to «the voice exists»: that is ' +
       'the very form that stayed green through the sixteen days glass shipped with no carrier');
+    // ⚠️⚠️ AND THE HALF THE CARRIER COUNT CANNOT MAKE, ADDED 2026-09-01-d WITH THE FIVE RESTORED
+    // VOICES: a carrier is not the same thing as a carrier that can be HEARD. Since 2026-09-01-b
+    // a `pack_*` recording is tried BEFORE the material voice, so a voice every one of whose
+    // carriers lives in an overridden pack (car / brick / animal) is a shipped recording nobody
+    // will ever hear — mat_glass's sixteen silent days, arrived at down a NEW road. Measured
+    // today: plush has 28 carriers and only 4 reachable, metal 24 and 13 — healthy, but the
+    // margin on some voices is thin enough that a future pack override could close one silently.
+    const unreachable = (mat.voices || []).filter(v =>
+      !mat.reach || !mat.reach[v] || mat.reach[v].reachable === 0);
+    expect(unreachable.length === 0,
+      '⚠️⚠️ EVERY RECORDED VOICE IS REACHABLE PAST THE PACK TIER — not merely carried (' +
+      JSON.stringify(Object.keys(mat.reach || {}).filter(v => (mat.voices||[]).indexOf(v) >= 0)
+        .reduce((o, v) => (o[v] = mat.reach[v].reachable + '/' + mat.reach[v].carriers, o), {})) +
+      '). ⛔ THE SABOTAGE THIS EXISTS FOR IS NOT A DELETION, IT IS AN ADDITION: give the `food` ' +
+      'pack a pack_* override and `cream`, whose three carriers are all food, goes silent with ' +
+      'its recording still in the build and its carrier count untouched — the neighbouring arm ' +
+      'stays green throughout. Unreachable voices here: ' + JSON.stringify(unreachable));
+    // ⚠️ AND THE LIST IS DERIVED, WHICH IS WHAT MAKES THE ARM ABOVE MEAN ANYTHING. If `sfxPacks()`
+    // ever returns empty, every voice counts as reachable and the assert above degenerates into a
+    // tautology - green forever, silently.
+    expect(Array.isArray(mat.packs) && mat.packs.length >= 3 &&
+           mat.packs.every(p => typeof p === 'string' && p.length > 0),
+      '⚠️ THE OVERRIDDEN-PACK LIST IS READ FROM THE BANK (' + JSON.stringify(mat.packs) + '), not ' +
+      'written into the test. An empty or broken list would make the reachability arm above pass ' +
+      'for every voice under every future edit');
+    // ⚠️⚠️ THE FIRST LEVEL AT WHICH EACH RECORDED VOICE CAN BE HEARD — a census, printed every run.
+    // ⛔ IT EXISTS BECAUSE A REFUTATION PASS FOUND `cream` AT LEVEL 91 ON 2026-09-01-d, i.e. an
+    // owner recording that ships and is inaudible for ninety levels — the mat_glass disease
+    // reached by a THIRD road (not «no carrier», not «shadowed by a pack», but «carriers only in
+    // the tail of the progression»). The arm above certified cream reachable and was right on its
+    // own terms; it models the pack tier and knows nothing about the order of TYPES.
+    // ⚠️ THIS IS A REGRESSION PIN, NOT A STANDARD: 91 is NOT asserted to be acceptable — it is
+    // recorded so it cannot get quietly worse. The order of TYPES is the owner's difficulty lever
+    // and only he moves it, so the number is his to improve, and it was named to him.
+    const firstLv = {};
+    (mat.voices || []).forEach(v => { firstLv[v] = mat.reach && mat.reach[v] ? mat.reach[v].firstLevel : null; });
+    const worstVoice = Object.keys(firstLv).reduce((a, b) =>
+      (firstLv[b] || 0) > (firstLv[a] || 0) ? b : a, Object.keys(firstLv)[0]);
+    expect(Object.keys(firstLv).length >= 10 &&
+           Object.keys(firstLv).every(v => firstLv[v] !== null) &&
+           (firstLv[worstVoice] || 0) <= 87,
+      '⚠️⚠️ EVERY RECORDED VOICE IS FIRST HEARD BY ITS PINNED LEVEL — census ' +
+      JSON.stringify(firstLv) + ', worst `' + worstVoice + '` at level ' + firstLv[worstVoice] +
+      ' (pin 87). ⛔ A `null` here means a voice with a recording and NO reachable carrier at all. ' +
+      '⚠️ THE PIN TIGHTENS WHEN THE WORLD IMPROVES: it was 91 for the few hours between the voice ' +
+      'restore and the owner deleting five models by screenshot, which pulled every later index ' +
+      'up by four. Left at 91 it would have let cream drift back to where it was without a word. ' +
+      '⚠️ The pin does not bless 87: it stops a future reshuffle of TYPES from pushing another ' +
+      'voice into the tail unnoticed, which is precisely how this one got there — the order of ' +
+      'TYPES and the material map are two decisions nobody makes together');
   }
 
   // ===== SOUND VARIETY — ONLY FOR THE OWNER'S THREE RECORDINGS =====
@@ -15146,7 +15258,23 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       }
       const recs = S.loaded().filter(k => k.indexOf('mat_') === 0);
       const noTrim = recs.filter(k => !(k in trim));
-      return { levels: lvls, gains, trimTbl: trim, noBuffer: missing, gset,
+      // ⚠️⚠️ THE FOUR ALIASES, CHECKED AGAINST THEIR TWIN. They share bytes in 74-sfx-data by an
+      // assignment, so the two failures worth catching are both SILENT: an alias that does not
+      // decode (the voice falls back to the arpeggio, exactly as if it had never been restored)
+      // and an alias whose TRIM has drifted from its twin (the same audio at a different
+      // loudness — a difference nobody would ever file as a bug).
+      const ALIASES = { mat_wood: 'pack_car', mat_dough: 'mat_plastic',
+                        mat_meat: 'pack_animal1', mat_cream: 'pack_animal2' };
+      const alias = {};
+      for (const k in ALIASES){
+        const a = S.bufferOf(k), b = S.bufferOf(ALIASES[k]);
+        alias[k] = { twin: ALIASES[k], decoded: !!(a && b),
+                     sameAudio: !!(a && b) && a.length === b.length &&
+                                Math.abs(a.duration - b.duration) < 1e-6,
+                     sameTrim: trim[k] === trim[ALIASES[k]],
+                     trim: trim[k], twinTrim: trim[ALIASES[k]] };
+      }
+      return { levels: lvls, gains, trimTbl: trim, noBuffer: missing, gset, alias,
                voices: Object.keys(trim).length,
                noTrim, procPeak: S.procPeak(), envPeaks };
     });
@@ -15172,6 +15300,23 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'LOUDNESS SANITY: every voice of the table has a buffer AND every recording ' +
       'has a trim (' + levelVals.length + ' of ' + vol.voices + ', without a buffer ' +
       vol.noBuffer + ', without a trim ' + JSON.stringify(vol.noTrim) + ')');
+    // ⚠️⚠️ THE FOUR RESTORED ALIASES (his word 2026-09-01-d). Four of the five voices he asked
+    // back are byte-for-byte a sample already in the bank — his own renaming of 2026-09-01-b had
+    // moved those files onto the pack keys — so they are stored as an ASSIGNMENT rather than a
+    // second blob: 60.0 KB saved, and the duplication stays visible to a reader instead of hiding
+    // behind two large base64 strings that look like two recordings.
+    const aliasBad = Object.keys(vol.alias || {}).filter(k =>
+      !vol.alias[k].decoded || !vol.alias[k].sameAudio || !vol.alias[k].sameTrim);
+    expect(Object.keys(vol.alias || {}).length === 4 && aliasBad.length === 0,
+      '⚠️⚠️ EVERY ALIASED VOICE DECODES AND MATCHES ITS TWIN in both audio and trim (' +
+      JSON.stringify(vol.alias) + '). ⛔ BOTH FAILURE MODES ARE SILENT, which is why this arm ' +
+      'states them separately: a typo in the assignment leaves the key undefined, `playBuf` ' +
+      'falls back on a presence check, and the voice returns to the arpeggio with NOTHING in the ' +
+      'log — indistinguishable from never having restored it; and a trim that drifts from its ' +
+      'twin plays the SAME audio at a different loudness, which no player would ever report as ' +
+      'a bug. ⚠️ THE COUNT IS PART OF THE PREDICATE: `filter` over an empty set is empty, so ' +
+      'without it a build that stopped emitting the alias block entirely would pass by measuring ' +
+      'nothing. Offenders: ' + JSON.stringify(aliasBad));
     // ⚠️⚠️ AND HIS FOURTH GRINDING TAKE LANDED WITH THE SET IT JOINED, not with the voices.
     const gk = Object.keys(vol.gset || {});
     const gv = gk.map(k => vol.gset[k]);
@@ -15194,11 +15339,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE COUNT IS PART OF THE PREDICATE: `every` over an EMPTY set is true, so without it a
     // build where the probe stopped driving anything at all would pass this arm by measuring
     // nothing.
-    // ⛔ 10 -> 5 ON 2026-09-01-b, and it moved because the WORLD moved, not because it was
-    // inconvenient: his renamed drop took the files that fed mat_wood/dough/meat/paper/cream and
-    // reassigned them to packs, so five `mat_` voices lost their recording. Five are left.
+    // ⛔ 10 -> 5 ON 2026-09-01-b when his renamed drop reassigned five voices' files to packs,
+    // and BACK TO 10 ON 2026-09-01-d when he asked for them again. The floor tracks the world both
+    // ways on purpose: left at 5 it would have gone on passing with half the voices silently
+    // missing from the signal path, which is the state it was written to detect.
     const pathKeys = Object.keys(vol.gains);
-    const pathOk = pathKeys.length >= 5 && pathKeys.every(k =>
+    const pathOk = pathKeys.length >= 10 && pathKeys.every(k =>
       vol.gains[k] !== null &&
       Math.abs(vol.gains[k] - groupBase * vol.trimTbl[k]) < 0.002);
     expect(pathOk,

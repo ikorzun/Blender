@@ -126,6 +126,29 @@ const Sound = (function(){
     mat_metal:     0.374,
     mat_plastic:   0.312,
     mat_glass:     4.380,
+    // ⛔⛔ THE FIVE RESTORED VOICES (his word 2026-09-01-d «give the sound back to the five
+    //    voices, I'll record new files»). FOUR OF THESE NUMBERS ARE NOT INDEPENDENT MEASUREMENTS
+    //    AND MUST NOT BE «RE-DERIVED»: each voice is an ALIAS of the sample named beside it
+    //    (74-sfx-data, proven by md5), so the same audio at a different trim would be the same
+    //    sound at a different loudness - a drift nobody would ever report as a bug. They are
+    //    copied from the twin, and a guard asserts the equality.
+    mat_wood:      0.339,   // == pack_car
+    mat_dough:     0.312,   // == mat_plastic
+    mat_meat:      1.038,   // == pack_animal1
+    mat_cream:     0.699,   // == pack_animal2
+    // ⚠️ `mat_paper` IS THE ONE WITH AUDIO OF ITS OWN, so this IS an independent measurement -
+    //    the same max-short-term-RMS-in-200ms rule at the same -22.8 dB target, carried over from
+    //    the build of c052338 where it was derived. Headroom re-checked at the 0.95 master it now
+    //    plays under: sample peak 0.822 x 0.86 x sqrt2 x 0.586 = 0.586 at the node, 0.557 after
+    //    master - well under 1.0 and below mat_plush's 0.939, which stays the ceiling.
+    // ⛔ 0.86 AND NOT 0.98, AND THE FIRST EDITION OF THIS COMMENT HAD IT WRONG: the group peak is
+    //    `0.5 + 0.06 * Math.min(6, n)` (the `pk` line in the match branch below), i.e. it SATURATES
+    //    AT SIX. A ceiling of 8 is unreachable on the only path that can play a `mat_` voice, so
+    //    the first version quoted a node value the engine cannot produce. It erred toward caution,
+    //    which is exactly why nothing would have caught it - every neighbouring headroom note in
+    //    this file already says 0.86, and so does the suite's own MATCH_MAX. A number in a comment
+    //    that the code cannot produce is the defect, whichever way it leans.
+    mat_paper:     0.586,
     pack_car:      0.339,
     pack_brick:    0.508,
     pack_animal1:  1.038,

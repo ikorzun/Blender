@@ -12834,6 +12834,10 @@ matcap tier key on, so the three cannot drift apart.
 `mat_cream`'s as `Animals-2`, and `mat_paper`'s was withdrawn from the folder. Keeping them would
 have meant meat sounding exactly like animals. **24 live types therefore went back to the
 synthesised arpeggio** - computed, and named to him with the count rather than left to be noticed.
+⛔⛔ **AND HE ASKED FOR THEM BACK THE SAME DAY — SEE 2026-09-01-d.** Told the count, he answered
+«give the sound back to the five voices, I'll record new files». All five are restored; four as
+ALIASES of the very samples named above, because they are byte-for-byte those files. The
+duplication this paragraph avoided is now DELIBERATE and temporary, and it is his call, not mine.
 
 ### TAKES, AND WHERE A COUNT BELONGS
 
@@ -13049,3 +13053,195 @@ passed. This arm only ever said «not gated to nothing».
 ⚠️ **THE HABIT WORTH KEEPING FROM BOTH: a red is read before it is re-based.** One of these was a
 real defect of mine and one was a harness artefact, and they were indistinguishable in the log —
 both looked like «the props batch broke something».
+
+## BATCH 2026-09-01-d: THE FIVE VOICES ARE BACK — FOUR AS ALIASES, ONE RECOVERED FROM GIT
+
+His word, in one line: «give the sound back to the five voices, I'll record new files». He had just
+been told, with the count, that his own renaming of -b left `wood`, `dough`, `meat`, `paper` and
+`cream` without a recording and sent 24 live types back to the synthesised arpeggio.
+
+### WHAT THEY WERE FED BY — PROVEN TWICE, NOT RECALLED ONCE
+
+⚠️⚠️ **THE CANON'S OWN NOTE («the file that fed mat_wood came back as Cars») IS A RETELLING, AND IT
+WAS CHECKED AGAINST THE PRIMARY SOURCE BEFORE ANY CODE MOVED.** Two independent sources agree:
+- the **md5 of the decoded mp3** in the build of `c052338` against what ships today —
+  `mat_wood` == `pack_car`, `mat_dough` == today's `mat_plastic`, `mat_meat` == `pack_animal1`,
+  `mat_cream` == `pack_animal2`, and **`mat_paper` matches nothing that ships**;
+- the **derived trims**, which nobody edited by hand: `pack_car` 0.339 == the old `mat_wood` 0.339,
+  `pack_animal1` 1.038 == `mat_meat` 1.037, today's `mat_plastic` 0.312 == `mat_dough` 0.312,
+  `pack_brick` 0.508 == the old `mat_plastic`. Every one lines up.
+
+### FOUR ARE ALIASES AND ONE IS BYTES — AND THE ALIAS IS THE HONEST FORM, NOT ONLY THE CHEAP ONE
+
+`SFX_B64.mat_meat = SFX_B64.pack_animal1;` and three like it, emitted by `tools/sfx-pack.py` after
+the object literal. **60.0 KB of base64 saved** — measured, not estimated: all five as copies would
+be 75.9 KB, of which 60.0 is provably duplicate.
+⚠️⚠️ **AND THE BYTES ARE THE SMALLER HALF OF THE ARGUMENT: TWO IDENTICAL BLOBS LOOK LIKE TWO
+RECORDINGS.** An assignment says out loud what is true — meat currently speaks with the animals'
+voice, wood with the car's, dough with the plastic's, cream with the second animal take. That
+duplication is REAL, it was named to him, and it is the state he asked for until his new files land.
+⛔ It is **not** a state to call finished, and no future reader should mistake the alias for design.
+⚠️ `mat_paper` is the one with audio of its own, and his folder no longer holds the source. It was
+recovered from `c052338` and written back as a TRACKED asset, `Audio/things/paper.mp3` — so the
+packer stays a pure files → module tool. A `git show` inside it would have added a dependency that
+dies rc=69 without `DEVELOPER_DIR` and would have left the only copy of that audio inside a blob
+nobody can play. It is carried VERBATIM (the file already IS the 128k mono mp3 the tool produces —
+re-encoding would be a transcode of a transcode) with **the md5 pinned**, so a wrong file fails loud.
+✅ **RE-RUNNING THE PACKER DRIFTED NOTHING:** all 16 pre-existing blobs came back byte-identical,
+`mat_paper` was the only literal added, and the build grew by exactly its bytes.
+
+### THE REFUTATION PASS FOUND THREE THINGS, AND ALL THREE WERE MINE
+
+Three lenses were sent to REFUTE the restore (audible / alias / regress), each finding then handed
+to a skeptic told to default to «not real». **Ten candidates, seven dismissed, three survived.**
+
+⛔⛔ **1. MY HEADROOM COMMENT QUOTED ARITHMETIC THE ENGINE CANNOT PRODUCE.** I wrote the worst case
+as `0.5 + 0.06*8 = 0.98`; the match path is `0.5 + 0.06 * Math.min(6, n)` — it **saturates at six**,
+so 0.98 is unreachable and the true node value is 0.586, not 0.668. The conclusion (safe, below
+`mat_plush`'s 0.939) was unchanged and the error leaned toward CAUTION, which is exactly why nothing
+would have caught it: every neighbouring note in the same file already says 0.86, and so does the
+suite's own `MATCH_MAX`. **A number in a comment the code cannot produce is a defect whichever way
+it leans** — and I had put the same wrong figure in the report to him.
+
+⛔⛔ **2. MY NEW REACHABILITY ARM NAMED THE PACK LIST INSTEAD OF DERIVING IT** — and its own message
+promised to catch «give the food pack a `pack_*` override and cream goes silent». It would not have:
+`OVERRIDDEN = ['car','brick','animal']` is a hard-coded copy of the very thing the sabotage mutates.
+Correct for that build, blind to the one edit that matters. Now `g.sfxPacks()`, derived from the
+bank, with an arm asserting the derivation is non-empty — because an empty list would make the
+reachability assert green for every voice forever.
+**THE LAW, STATED PLAINLY: a guard's specification IS its behaviour under mutation, so a hard-coded
+copy of the thing being mutated is not a weaker guard — it is a guard that has stopped being one.**
+
+⛔⛔⛔ **3. `mat_cream` IS INAUDIBLE UNTIL LEVEL 91, AND THAT IS THE FINDING OF THE BATCH.** Its three
+carriers — `foodicecream` (index 92), `foodsundae` (102), `foodicecreamscoopmint` (108) — all sit in
+the tail, and `genLevel` samples only indices `< LEVEL_TYPES_MIN + (level−1)`. Verified against every
+other spawn path: `dropOneFromSky` clamps to `level.typesCount`, the ice picks from the live pile, and
+a bought unlock explicitly does not touch the pool.
+⚠️⚠️ **THIS IS THE `mat_glass` DISEASE REACHED BY A THIRD ROAD.** The first was «no carrier at all»
+(2026-08-15). The second was «every carrier shadowed by a pack override» (2026-09-01-b, which is what
+the new arm models). The third is «carriers only in the tail of the progression» — and the arm that
+certified cream reachable was right on its own terms: it knows about the pack tier and nothing about
+the ORDER of TYPES.
+**THE FIRST-AUDIBLE CENSUS, now printed every run:** juicy 1, paper 6, wood 8, metal 9, glass 12,
+plush 18, dough 19, plastic 21, meat 35, **cream 91**. Cream is not the tail of a continuum, it is a
+categorical outlier — the next worst is 35.
+⛔ **NOT FIXED HERE, AND DELIBERATELY:** the order of TYPES is the owner's difficulty lever and only
+he moves it. Named to him with the number, before he records the file that would land in ninety
+levels of silence. The pin at 91 **does not bless 91** — it stops a future reshuffle from pushing
+another voice into the tail unnoticed, which is exactly how this one got there: the TYPES order and
+the material map are two decisions nobody makes together.
+
+### WHAT THE SKEPTICS CORRECTLY THREW OUT
+
+Seven candidates died, and the pattern is worth keeping: most were about a HYPOTHETICAL future edit
+(«if someone half-moves a key from ALIAS to FILES…») rather than the code as written. The packer's
+block replacement was replayed against the real file and a same-tables rerun came out byte-identical;
+a correct move of a key from ALIAS to FILES removes its alias line by construction. ⚠️ The residual
+hazard is real but is a HAND edit, not a tool path — and it is what the alias-integrity arm and the
+loud comment in the packer exist for.
+
+## BATCH 2026-09-01-e: FIVE MODELS DELETED BY SCREENSHOT
+
+He sent five collection cards and one line: «delete these models». **Plant** (`forestplant`),
+**Rifle**, **Sledgehammer**, **Knife** and **Baseball bat** (`propsrifle`, `propssledgehammer`,
+`propsknife`, `propsbat`). TYPES 111 → **106**, `index.html` 12 651 320 → **12 414 726 B**.
+
+⚠️⚠️ **FOUR OF THE FIVE ARE FROM THE PACK SHIPPED THREE HOURS EARLIER, AND ALL FOUR ARE THE THIN
+ONES** — knife 0.021 half-thickness, rifle 0.054, bat 0.078, sledgehammer 0.111, i.e. exactly the
+models whose floor behaviour had to be measured specially that morning. They are also the four that
+render as a stick in a 150 px portrait. **The triangle budget passed them and the silhouette is what
+failed** — `docs/MODEL-BUDGET.md` has a rule for polygons and nothing about proportion, and a model
+can clear every line of that contract and still be unreadable on a card.
+
+⛔ **`propskabar` («Combat knife») WAS NOT DELETED, AND THAT IS DELIBERATE.** It is the same family
+and the same thinness (0.147) and he did not send it. Five cards, five deletions; the neighbour was
+named to him as a question instead of being swept up. Guessing a sixth would have been guessing.
+
+### WHAT THE DELETION COST, MEASURED RATHER THAN ASSUMED
+
+⚠️⚠️ **THE PROPS CADENCE IS BROKEN AND ONLY HE CAN RESTORE IT.** His own placement spec was «from
+the 6th, every 3 levels»; removing four members leaves gaps — the props now sit at
+7,10,…,49,**54**,57,**64**,**69**,72, i.e. gaps of 3,3,…,3,**5**,3,**7**,**5**,3. Closing them means
+moving types, and the order of TYPES is his difficulty lever. Named to him, not silently re-spaced.
+⚠️ **EVERY RECORDED VOICE KEPT A CARRIER** — checked, because three of the five were `metal`
+(21 carriers left) and one was `wood` (**4 left, down from 5**). Had he deleted one more wood type
+the voice would have gone the way `mat_glass` went for sixteen days.
+✅ **THE CREAM PIN TIGHTENED 91 → 87** and that is the pin doing its job in the direction nobody
+watches: the deleted indices all sit before cream's carriers, so every later type moved up four
+levels. Left at 91 the number could have drifted back without a word.
+⚠️ **THE WHOLE `forest` PACK RETIRED WITH ITS ONLY TYPE** — `38-kenney.js` was regenerated from four
+packs instead of five, so the forest atlas went too. Verified the regeneration removed exactly
+`forestplant` and nothing else.
+⚠️ **A STALE COMMENT WENT WITH THE CODE:** the ACC_LABELS note explaining «TWO KNIVES IN THE PACK»
+described a distinction that no longer exists.
+⚠️ The five sources are kept at `3d assets/removed-2026-09-01/`; `3d assets/` is gitignored, so that
+folder is the only copy — the same standing exposure as every other model in this project.
+
+## BATCH 2026-09-01-zh: THE DYNAMITE +50% AND THE BOX'S SHADING; THREE PLACED CLOUDS
+
+Two of his lines: «increase the size of the dynamite by 50%, add a matcap on it like on the box»
+and «the clouds in the background look like a cheap pattern. Leave 2-3 clouds, make them different
+sizes and place them at different coordinates».
+
+### THE DYNAMITE: ONE QUANTITY WEARING THREE NAMES, AND A REASON THAT EXPIRED
+
+`BOMB_SCALE = 1.425` (0.95 × 1.5) replaces a bare 0.95 that stood in **two** places in `makeBomb`.
+It is one constant because it is one quantity: the geometry is normalised to rc = 1.0, so the mesh
+scale IS the enclosing radius `r` that the blast metric uses, AND it is the `scl` from which
+`createItemBody` builds the hull collider. Growing only the mesh would have left a bomb that looks
+big and collides small.
+
+⚠️⚠️ **THE BLAST WAS PREDICTED NOT TO MOVE, AND THEN MEASURED.** `detonateBomb` picks victims by
+`pairDist` = centre distance − both radii, so a bigger `r` shrinks EVERY gap by the same 0.29 —
+which cannot REORDER the victims by distance, and `BOMB_MAX = 7` is what actually decides (the
+comment at `BOMB_RADIUS` says so: «the radius now covers almost the whole bottom»). Measured on
+both builds at levels 8 / 20 / 40: **7 victims in every one of the six cases.**
+⛔ **THE ICE IS THE REAL EXCEPTION AND IT WAS NAMED TO HIM:** `FROZEN_BOMB_RADIUS = 2.86` is a
+genuine threshold, not a cap, so point-blank ice-breaking gains ~0.29 of reach — about 10%.
+
+⛔⛔ **`matcapSpecPatch` WAS ADDED, AND THE COMMENT THAT REFUSED IT WAS RIGHT UNTIL TODAY.** It
+read: giving the bomb `itemMaterial` «would have moved it onto the uVeil shader, i.e. full
+desaturation — **a silent change to a documented behaviour nobody asked for**». He has now asked
+for the thing that causes it, so the reason expires with the request.
+⚠️ **WHAT «LIKE ON THE BOX» ACTUALLY MEANT, FOUND BY READING RATHER THAN GUESSING:** the dynamite
+was ALREADY selecting the same matcap preset as `propsmatchbox` — both fall through
+`itemMatcapAim` to the shared `tex` preset. What it lacked was the PATCH, which every other item
+gets through `itemMaterial` and which adds the specular relief. One preset was reading as two
+materials because only one of them was being shaded.
+⛔ **THE PRICE, NAMED:** the bomb was the last carrier of the OLD veil path (`applyVeil` lerps
+`material.color` toward `DIM_GREY` when a material has no patched shader — «a buried bomb only
+dims by ~30%, the hue is intact»). It now desaturates fully like everything else.
+⚠️ `mat.userData.texTune = 1` went in with the patch: it is what `itemMaterial` sets for a textured
+model, and the brightness/contrast knobs behind it are calibrated for the authors' atlases.
+
+### THE CLOUDS: A TILE REPEATED SIX TIMES IS A PATTERN, WHATEVER ITS AMPLITUDE
+
+⛔⛔ **THE TILING SAMPLER IS GONE.** It read the baked tile at `CLOUD_SCALE = 6.0` tiles per frame
+width, so the sky carried the same shape six times — **no amplitude or scale could have hidden
+that, only moved its period.** `CLOUD_TOP/PEAK/BOT/SCALE/DRIFT` are retired.
+**IN FORCE: three placed blobs** (`CLOUDS` in 00-config), each with its own centre, its own two
+radii and **its own drift speed** — three clouds at one speed read as one sliding texture, which is
+the same complaint again, slower. Each samples the tile at its own warp and offset, so no two share
+a silhouette: the tile is now an edge-breaker for a shape that already exists, not the shape itself.
+⚠️ **COORDINATES ARE FRACTIONS OF THE FRAME**, which needed a new `uResX` uniform — without it a
+cloud placed in width-fractions would sit somewhere else on every aspect ratio. Verified at 390×844
+and 1280×800: the same clouds, scaled with the frame.
+⚠️ `dx -= floor(dx + 0.5)` is the toroidal distance — it wraps the horizontal drift with no seam
+and no branch, so a cloud leaving the right edge re-enters on the left. `max` and not `+` when
+combining, or two overlapping clouds add up to a bright patch.
+⚠️⚠️ **THE EDGE INVARIANT SURVIVED THE REWRITE AND IS NOW STRUCTURAL RATHER THAN INCIDENTAL.** The
+old band both SHAPED the clouds and held them off the frame edges; the new envelope
+(`CLOUD_FADE_IN/OUT`) does only the second job and is deliberately wide. Measured on the rebuilt
+shader: the top row is uniform to **0.0** luminance at 390×844 and 0.9 at 1280×800 — so
+`--sky-top-rgb` still describes the real edge pixel and the iOS chrome tint keeps meaning what it
+says. Shader compiles with **0 errors and 0 warnings** on both viewports.
+
+⛔⛔ **AND THE RETIRED CONSTANTS LEFT A LANDMINE THAT THE BUILD DID NOT CATCH:** `__game.clouds()`
+still read `CLOUD_TOP/PEAK/BOT`, i.e. a **ReferenceError waiting for the first caller** — and the
+only caller is the suite. `build.py` concatenates and `node --check` parses; neither evaluates a
+function body, so a deleted constant referenced inside one is invisible to both. **After removing a
+constant, grep for its NAME across `src/` — the build will not tell you.**
+⚠️ The hook now reports the blobs themselves, which is what let the guard state his spec as THREE
+statements (2-3 clouds / distinct sizes / distinct positions, plus distinct drift): a bare count is
+satisfied by three identical clouds stacked on one spot — the pattern he complained about, with
+fewer tiles.

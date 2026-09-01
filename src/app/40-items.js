@@ -262,17 +262,29 @@ function makeSurprise(spawn){
 // 2026-07-22 «add a black ball of medium size» and, with it, the visual half of 2026-07-23 «make
 // it iridescent»: what an iridescent matcap was FOR was to make a featureless black sphere read as
 // dangerous, and a stick of dynamite says that by itself.
-// ⚠️ WHAT SURVIVES UNCHANGED, deliberately: the blast is untouched. `r` stays 0.95·MESH_SCALE, and
-// the victims of detonateBomb are chosen by the GAP OF ENCLOSING SPHERES against BOMB_RADIUS — so
-// his tuned blast zone, its ×2 of 2026-07-27-b and the ice's point-blank FROZEN_BOMB_RADIUS all
-// keep meaning exactly what they measured. The geometry is normalised to rc = 1.0, hence a mesh
-// scale of 0.95·MESH_SCALE gives an enclosing radius of exactly 0.95·MESH_SCALE.
-// ⚠️ THE MATERIAL STAYS A FLAT `MeshMatcapMaterial` WITHOUT `matcapSpecPatch`, and that is not
-// laziness: the canon records that the bomb is the living carrier of the OLD veil path (a lerp of
-// material.color towards DIM_GREY, «a buried bomb only dims by ~30%, the hue is intact»). Giving it
-// `itemMaterial` would have moved it onto the uVeil shader, i.e. full desaturation — a silent
-// change to a documented behaviour nobody asked for. The `bombMatKind` guard reads type +
-// hasMatcap, and both still hold.
+// ⛔⛔ +50% AND THE SHADING PATCH, THE OWNER 2026-09-01-zh: «increase the size of the dynamite by
+// 50%, add a matcap on it like on the box». BOTH PARAGRAPHS THAT USED TO STAND HERE ARE CANCELLED
+// BY THAT ONE LINE, and each is worth reading before anything here moves again:
+// ⚠️ (1) THE SIZE. 0.95 → 1.425·MESH_SCALE, applied to the mesh, to `r` AND to `scl` together —
+// they are one quantity wearing three names (the geometry is normalised to rc = 1.0, so the mesh
+// scale IS the enclosing radius, and `createItemBody` builds the hull collider from `scl`).
+// Growing only the mesh would have left a bomb that looks big and collides small.
+// ⚠️⚠️ (2) WHAT THAT DOES TO THE BLAST, MEASURED RATHER THAN REASONED. `detonateBomb` picks
+// victims by `pairDist` = centre distance − both radii, so a bigger `r` shrinks EVERY gap by the
+// same 0.29, i.e. the blast reaches slightly further. It changes nothing in practice, and the
+// reason is written at BOMB_RADIUS itself: «the cap BOMB_MAX=7 is really what decides, the radius
+// now covers almost the whole bottom». A uniform shrink cannot reorder the victims by distance,
+// so the same nearest 7 are taken. ⛔ THE ICE IS THE EXCEPTION and it is a real change:
+// FROZEN_BOMB_RADIUS = 2.86 is a genuine threshold, so point-blank ice-breaking gains ~0.29 of
+// reach (~10%). Named to him; one number if he wants it back.
+// ⚠️ (3) THE MATERIAL NOW TAKES `matcapSpecPatch`, which is exactly what «like on the box» means:
+// every other item gets it through `itemMaterial` and the dynamite did not, so it was the one
+// object in the bowl with no specular relief at all.
+// ⛔ THE PRICE, WHICH THE OLD COMMENT CORRECTLY REFUSED TO PAY WHEN NOBODY HAD ASKED: the bomb was
+// the last carrier of the OLD veil path (`applyVeil` lerps material.color toward DIM_GREY when a
+// material has no patched shader — «a buried bomb only dims by ~30%, the hue is intact»). With the
+// patch it joins `uVeil` like everything else, i.e. a buried bomb now DESATURATES fully. That is a
+// documented behaviour changing, and it changes because he asked for the thing that causes it.
 // ⛔ CONSEQUENCE, NAMED AND NOT SILENTLY TIDIED: `07-matcap-bomb.js` (168 KB of the owner's PNG in
 // base64) no longer paints anything. It is still reachable through the matcap editor's 'bomb'
 // target, `__game.bombMatcapInfo()` and two suite places — so the target now edits a texture that
@@ -289,13 +301,20 @@ function makeBomb(){
     map: modelColormap('sport'),
     matcap: itemMatcapAim({ name: 'bomb', tex: 'sport', mat: 'soft' }),
   });
+  // «a matcap like on the box»: the same treatment `itemMaterial` gives every textured model —
+  // the specular patch and the brightness/contrast knobs that are calibrated for the authors'
+  // atlases. Without these two lines the matcap was still SELECTED (the four-tier aim above
+  // already returned the same preset the matchbox wears) but never got its relief, which is why
+  // one preset read as two different materials.
+  mat.userData.texTune = 1;
+  mat.onBeforeCompile = matcapSpecPatch;
   const mesh = new THREE.Mesh(geoCache.get('B'), mat);
-  mesh.scale.setScalar(0.95 * MESH_SCALE); // enclosing radius exactly 0.95·MESH_SCALE, as before
+  mesh.scale.setScalar(BOMB_SCALE * MESH_SCALE);   // the mesh scale IS the enclosing radius (rc = 1.0)
   const item = {
     key: 'BOMB', bomb: true, type: { name: 'bomb', mat: 'plain' },
     baseColor: mat.color.clone(),
     fxColor: new THREE.Color(0x3a3f4a).convertSRGBToLinear(), // dark debris of the explosion
-    r: 0.95 * MESH_SCALE, scl: 0.95 * MESH_SCALE,
+    r: BOMB_SCALE * MESH_SCALE, scl: BOMB_SCALE * MESH_SCALE,   // one quantity, three names
     p: new THREE.Vector3(), body: null, geo: geoCache.get('B'),
     mesh, alive: true, animating: false, accessible: false,
   };

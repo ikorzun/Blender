@@ -108,7 +108,6 @@ const MATERIAL_OF = {
   foodturkey: 'meat',
   foodwatermelon: 'juicy',
   foodwholeham: 'meat',
-  forestplant: 'juicy',
   holidaygingerbreadman: 'dough',
   holidayhanukkahdreidel: 'plastic',
   holidaynutcracker: 'wood',
@@ -136,7 +135,6 @@ const MATERIAL_OF = {
   // ⚠️ THE CONTAINER DOES NOT DECIDE, THE SUBJECT DOES (the `foodchinese` precedent: a paper
   //   carton of fried food is voiced `dough`). Hence soup -> juicy (the liquid), not `metal`
   //   for the cast-iron pot it sits in.
-  propsbat: 'wood',
   propsbeachball: 'plastic',
   propsbook: 'paper',
   propscamera: 'plastic',
@@ -147,14 +145,11 @@ const MATERIAL_OF = {
   propshat: 'plush',
   propskabar: 'metal',
   propsketchup: 'juicy',
-  propsknife: 'metal',
   propslifebuoy: 'plastic',
   propsmatchbox: 'wood',
   propsmicrowave: 'metal',
   propspistol: 'metal',
   propsplunger: 'plastic',
-  propsrifle: 'metal',
-  propssledgehammer: 'metal',
   propstoiletpaper: 'paper',
   propsvolleyball: 'plastic',
   propswasher: 'metal',

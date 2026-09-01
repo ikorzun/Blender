@@ -612,11 +612,12 @@ const ACC_LABELS = {
   // «soup», «cart», «ghost», «plunger», «matchbox», «dumbbell», «lifebuoy» and
   // «volleyball» all strip to a real word once `props` is in the prefix list below.
   propstoiletpaper: 'Toilet paper', propswater: 'Water bottle',
-  // ⚠️ TWO KNIVES IN THE PACK: `propsknife` is the kitchen one and strips to a real word;
-  // `propskabar` would strip to «Kabar», which names nothing to a player.
-  propsknife: 'Knife', propskabar: 'Combat knife',
+  // ⚠️ `propskabar` would strip to «Kabar», which names nothing to a player.
+  // ⛔ THE KITCHEN KNIFE IS GONE (the owner 2026-09-01-e, by screenshot), so this is the only
+  // knife left and the note that used to distinguish two of them went with it.
+  propskabar: 'Combat knife',
   // «Washer» reads as the small metal ring; «Bat» as the animal. Both are spelled out.
-  propswasher: 'Washing machine', propsbat: 'Baseball bat',
+  propswasher: 'Washing machine',
   propswineglass: 'Wine glass', propsbeachball: 'Beach ball',
   // the owner's batch of 2026-08-28: only the ones whose stem does not read on its own
   // (basketball / volleyball / fries strip cleanly)

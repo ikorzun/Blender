@@ -121,3 +121,36 @@ equally available for the robot, and for every model that will ever be 4% over.
 ⚠️ **STILL OWED:** fire extinguisher, axe, football, ship, robot (all returned 2026-08-31 and not
 in this delivery); tennis-ball and golf-ball from the original six.
 ⚠️ The two returned files are kept at `3d assets/returned-2026-09-01/`.
+
+## ⛔⛔ 2026-09-01, hours after acceptance: FOUR OF THE FIFTEEN WERE DELETED BY THE OWNER
+
+He sent five collection cards and «delete these models». Four were from the batch accepted that
+morning — **rifle 916, sledgehammer 626, knife 612, baseball bat 440 triangles** — plus the
+pre-existing `forestplant`. Every one of the four was **comfortably inside both the norm and the
+ceiling**. The budget did not fail; it simply does not describe what failed.
+
+**WHAT THEY HAVE IN COMMON IS PROPORTION, NOT POLYGONS.** Their thinnest half-extents after the
+generator's normalisation to bounding radius 1.0: knife **0.021**, rifle **0.054**, bat **0.078**,
+sledgehammer **0.111**. They are the four thinnest models in the pool by a wide margin — thinner
+than `brickbar` (0.1085), the plate on which the floor-rescue threshold was originally calibrated.
+Two consequences the contract had nothing to say about:
+- **on a collection card they read as a stick.** The portrait frames to the silhouette, so a model
+  whose silhouette is a line fills its 150 px card with a line;
+- in the pile they are the models that need the relative floor-rescue branch at all.
+
+### The rule this adds
+
+> **Keep the silhouette compact — aim for a thinnest half-extent above ~0.15 after normalisation.**
+> A long thin object is normalised by its LONGEST axis, so its other two collapse: the game shows
+> it in a square portrait and in a pile of round things, and in both it reads as a splinter.
+
+⚠️ The existing line «keep the silhouette compact: a thin elongated shape gets visually inflated by
+the normalisation» was already in the export contract and was **not specific enough to act on** —
+it carried no number, so nothing in review measured against it. It does now.
+⚠️ **THIS IS NOT A REJECTION OF THOSE FOUR SUBJECTS**, and the distinction matters for whoever
+briefs the artist next: a knife, a rifle, a bat and a sledgehammer can all be modelled with a
+readable silhouette (a thicker haft, a foreshortened blade, a fatter grip). What failed is the
+proportion these particular meshes were built at, not the idea.
+⚠️ `propskabar` (0.147) survives and is the closest to the new line. The owner did not send its card;
+whether it goes is his call, and it was named to him rather than swept up with the others.
+⚠️ The five sources are at `3d assets/removed-2026-09-01/`.

@@ -408,7 +408,10 @@ function resize(){
   const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
-  if (skyMat) skyMat.uniforms.uResY.value = renderer.domElement.height; // the sky base + the fever layers
+  if (skyMat){ skyMat.uniforms.uResY.value = renderer.domElement.height; // the sky base + the fever layers
+    // ⚠️ uResX exists ONLY for the clouds: they are placed in fractions of the frame's WIDTH,
+    // so without it a cloud would sit at a different place on every aspect ratio.
+    if (skyMat.uniforms.uResX) skyMat.uniforms.uResX.value = renderer.domElement.width; }
 }
 addEventListener('resize', resize);
 
@@ -1450,6 +1453,11 @@ window.__game = {
   // not against a literal. The array order is a difficulty lever, it is edited by the owner's
   // spec; a literal in a test would drift apart from it silently.
   typeNameAt(i){ return (i >= 0 && i < TYPES.length) ? TYPES[i].name : null; },
+  // ⚠️ THE PACK OF A TYPE, BESIDE ITS NAME. The pack tier (`pack_*`) is tried BEFORE the
+  // material voice, so a recording whose every carrier sits in an overridden pack ships and
+  // is NEVER HEARD - the exact state `mat_glass` was in for sixteen days, now reachable by a
+  // second route. A guard can only state that with the pack, and nothing else exposed it.
+  typeTexAt(i){ const t = TYPES[i]; return t ? (t.tex || null) : null; },
   // ⚠️ THE START OF THE TYPE PROGRESSION — AS A LIVE NUMBER, NOT A LITERAL IN A TEST. The owner
   // edits it as the main difficulty lever (9 → 3 by the word 2026-08-11), and
   // the guard of «the new-item occasion», which kept a copy, went red on a HEALTHY build —
@@ -1531,6 +1539,14 @@ window.__game = {
   // 120, while there are only three samples so far. The guard is obliged to distinguish «the type is marked up» and «the sound
   // is recorded», otherwise it would go green on a build without a single sample.
   sfxVoices(){ return Object.keys(SFX_B64).filter(k => k.indexOf('mat_') === 0).map(k => k.slice(4)); },
+  // ⚠️ THE PACKS THAT OWN A `pack_*` RECORDING, derived from the bank rather than listed. A
+  // pack override is tried BEFORE the material voice, so this set decides which material
+  // voices can still be reached - and a guard that NAMED the packs instead of deriving them
+  // would be blind to the one edit that matters: ADDING one. `pack_animal1`/`animal2` are
+  // two takes of one pack, hence the trailing digits come off.
+  sfxPacks(){ return Object.keys(SFX_B64).filter(k => k.indexOf('pack_') === 0)
+                .map(k => k.slice(5).replace(/[0-9]+$/, ''))
+                .filter((v, i, a) => a.indexOf(v) === i); },
   newObjShow(key, done){ return newObjShow(key, done); },
   newObjHide(){ return newObjHide(); },
   newObjInfo(){
@@ -1696,7 +1712,14 @@ window.__game = {
       mean = Math.round(sum / Math.max(1, n));
     }
     return { amt: skyMat.uniforms.uCloudAmt.value, baked: !!t,
-             tile: CLOUD_TEX, top: CLOUD_TOP, peak: CLOUD_PEAK, bot: CLOUD_BOT,
+             // ⛔ top/peak/bot ARE GONE (2026-09-01-zh): the band that used to SHAPE the clouds is
+             // now only an edge guard, and the shape lives in the placed blobs. Reporting the
+             // blobs is what a guard can actually assert against - «three of them, at different
+             // places, at different sizes» is the owner's spec, and a count alone would be
+             // satisfied by three identical clouds stacked on one spot.
+             tile: CLOUD_TEX, fadeIn: CLOUD_FADE_IN, fadeOut: CLOUD_FADE_OUT,
+             clouds: CLOUDS.map(function (c){
+               return { x: c.x, y: c.y, rx: c.rx, ry: c.ry, drift: c.drift }; }),
              tileMin: mn, tileMax: mx, tileMean: mean };
   },
   setLevel(n){ levelNum = Math.max(1, n | 0); try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){} }, // we do NOT touch Save.lv here: this is a test handle, not the player's progress

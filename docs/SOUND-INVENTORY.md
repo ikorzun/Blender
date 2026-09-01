@@ -7,7 +7,8 @@ almost every gap it names. The state in force is in `CLAUDE.md`, batches 2026-09
 | this document says | in force now |
 |---|---|
 | nine embedded samples | **sixteen** |
-| five of the ten material voices have a recording | **all ten did, then his renaming took five back** |
+| five of the ten material voices have a recording | **all ten again** — his renaming took five away on -b, he asked for them back on -d |
+| — | ⚠️ four of those five are ALIASES of a sample already in the bank, so wood currently sounds like a car and meat like animals; he is recording replacements |
 | the NEW OBJECT reveal, every toast, the tier-up and the pour are mute | **all four now speak** |
 | «33 item types merge with the synthesised arpeggio» | the arpeggio no longer plays on an ORDINARY merge at all — what reaches it is the bowl-shatter collect-all and a detonated charge, which pass no material |
 | `mat_glass` «IS A RECORDING NOBODY WILL EVER HEAR» | ⚡ **it has carriers again** — `propswater` and `propswineglass`, 2026-09-01-g |

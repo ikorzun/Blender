@@ -1055,6 +1055,10 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.8
 // was devalued by a single tap on the bomb. 2.86 is the historical zone BEFORE the doubling;
 // it is DELIBERATELY its own constant rather than BOMB_RADIUS/2: the owner has changed the bomb's zone and
 // may change it again — the ice-breaking radius is no longer tied to it.
+// ⛔ +50% by the owner's word 2026-09-01-zh («increase the size of the dynamite by 50%»). It was a
+// bare 0.95 in two places in makeBomb; it is one constant now because it is ONE quantity — the mesh
+// scale, the enclosing radius `r` used by the blast metric, and `scl` used to build the collider.
+const BOMB_SCALE = 1.425;   // 0.95 x 1.5, in units of MESH_SCALE
 const FROZEN_BOMB_RADIUS = 2.86;
 // "THE EXPLOSION IS LIKE A SHAKE EFFECT" (the second half of the owner's spec 2026-07-27-b;
 // PHYSICS's constants, added by rule 3 — adding one's own is allowed).
@@ -1339,11 +1343,31 @@ const CLOUD_AMT   = 0.30;   // ⚠️ RAISED 0.18 -> 0.30 WITH THE SWITCH TO WHI
 // darkening separates from the background more strongly than a whitening does. 0.18 white is
 // about half the contrast 0.18 lilac had - i.e. keeping it would have quietly walked back the
 // owner's «I can't see the clouds at all» while answering only his complaint about the colour.
-const CLOUD_TOP   = 0.10;  // ⚠️ ZERO AT t=0 IS NOT TASTE: the first stop IS the Safari top zone
-const CLOUD_PEAK  = 0.26;  // where the band is densest - the upper quarter, «clouds on top»
-const CLOUD_BOT   = 0.62;  // and gone well before the bottom edge, for the same reason
-const CLOUD_SCALE = 6.0;   // tiles across the frame's width
-const CLOUD_DRIFT = 0.004; // per second; slow enough that a still frame looks still
+// ⛔⛔ THE TILING SAMPLER IS GONE (the owner 2026-09-01-zh: «the clouds look like a cheap pattern.
+// Leave 2-3 clouds, different sizes, at different coordinates»). It read the baked tile across the
+// whole sky at CLOUD_SCALE tiles per frame width - and a tile repeated six times IS a pattern; no
+// amount of amplitude or scale could have hidden the repeat, only moved its period. Clouds are now
+// THREE PLACED BLOBS, each with its own centre, its own two radii and its own drift speed.
+// ⚠️ THE DRIFT SPEEDS DIFFER ON PURPOSE. Three clouds moving at one speed read as one moving
+// texture - which is the complaint again, just slower.
+// ⚠️ EACH SAMPLES THE TILE AT ITS OWN WARP AND OFFSET, so no two have the same silhouette; the
+// tile is now an edge-breaker for a shape that already exists, not the shape itself.
+// ⚠️ COORDINATES ARE FRACTIONS OF THE FRAME (x of width, y of height), so a cloud sits in the same
+// place on a phone and on a desktop and scales with the frame instead of being cropped by it.
+const CLOUDS = [
+  { x: 0.20, y: 0.30, rx: 0.30, ry: 0.130, drift: 0.0038, warp: 1.7 },  // the big one, left
+  { x: 0.72, y: 0.19, rx: 0.19, ry: 0.082, drift: 0.0026, warp: 2.4 },  // small, high, right
+  { x: 0.48, y: 0.46, rx: 0.24, ry: 0.100, drift: 0.0047, warp: 2.0 },  // medium, lower, centre
+];
+// ⚠️⚠️ THE EDGE GUARANTEE, AND IT IS THE ONE THING HERE THAT IS NOT TASTE. The first and last pixel
+// rows of the frame are what --sky-top-rgb / --sky-bot-rgb promise the iOS chrome zones, and Safari
+// 26 paints those zones by STRETCHING those very rows: a cloud touching an edge puts a colour into
+// the system bars that is on no screen. This envelope is exactly 0 at t=0 and t=1 whatever the
+// blobs do, so the invariant holds by construction rather than by placing them carefully.
+// ⛔ It replaces the old TOP/PEAK/BOT band, which also SHAPED the clouds; shaping is the blobs' job
+// now, so this is deliberately wide - a guard rail, not a silhouette.
+const CLOUD_FADE_IN  = [0.02, 0.12];
+const CLOUD_FADE_OUT = [0.66, 0.84];
 // ⛔ 0.40 -> 0.28 BY HIS PICK OF 2026-09-01, chosen off four rendered arms. This is the knob
 // that controls the sky's SATURATION, and his five stops are untouched by it: four of them sit
 // exactly on the sRGB gamut boundary at their own L and H, so raising chroma there only hits the
