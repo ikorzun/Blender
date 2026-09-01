@@ -89,10 +89,15 @@ let winScoreRAF = 0, winScoreTO = 0;
 // run on different schedules; ONE stopper because they are torn down by the same event — the
 // screen closing — and a second stopper would be a second truth about when that happens.
 let winTimeRAF = 0, winTimeTO = 0;
+let winRwTO = 0;              // the reward badges' tick-up (2026-09-01-n)
 // count-up stop: we kill BOTH the timer AND the rAF (called from hide — otherwise after a click on
 // Next the count-up would write into the hidden #winScore and could spill into the next level)
 function winStopScore(){ if (winScoreRAF) cancelAnimationFrame(winScoreRAF); if (winScoreTO) clearTimeout(winScoreTO); winScoreRAF = winScoreTO = 0;
-  if (winTimeRAF) cancelAnimationFrame(winTimeRAF); if (winTimeTO) clearTimeout(winTimeTO); winTimeRAF = winTimeTO = 0; }
+  if (winTimeRAF) cancelAnimationFrame(winTimeRAF); if (winTimeTO) clearTimeout(winTimeTO); winTimeRAF = winTimeTO = 0;
+  // ⚠️ THE BADGE TICK JOINS THE SAME STOPPER RATHER THAN GETTING ITS OWN: all three are torn down
+  // by ONE event - the screen closing - and a second stopper would be a second truth about when
+  // that happens.
+  if (winRwTO) clearTimeout(winRwTO); winRwTO = 0; }
 // compression as in the HUD (≥10000 → «12.5k»): a large score does not break the 320 frame and
 // is consistent with the game screen's score (otherwise HUD «12.5k» vs win «124800»)
 // THE BIG-NUMBER COMPRESSOR — shared by the win screen AND the score chip in the HUD.
@@ -185,6 +190,43 @@ function renderWinScreen(){
         };
         winTimeRAF = requestAnimationFrame(tick);
       }, 520);
+    }
+  }
+  // ── THE REWARD BADGES TICK UP BY ONE (his word 2026-09-01-n) ────────────────────────────────
+  // The number starts one short of the total and flips to it with a bounce once the reward row
+  // has finished rising, so the win is READ rather than merely stated.
+  // ⚠️⚠️ THE MOMENT IS TIED TO THE CASCADE AND NOT PICKED BY EYE: `.win-reward` rises at .86 s
+  // over .4 s (`winRise`), so it is settled at 1.26 - the flip at 1.45 lands on a still badge.
+  // Move that keyframe and this number must move with it; they are one sequence.
+  // ⚠️ `reduce` LANDS ON THE FINAL VALUE AT ONCE - the same exit the score and the time take, and
+  // the rule this project applies to every new motion.
+  // ⚠️ A SLOT WITH NO `data-to` IS LEFT ALONE ENTIRELY: that is the shake pill on a level that paid
+  // no shake, and writing a number into a hidden slot would leave a stale one there next time.
+  {
+    const slots = [];
+    document.querySelectorAll('.win-rw').forEach(el => {
+      const b = el.querySelector('.win-rw-n');
+      const to = parseInt(el.dataset.to || '', 10);
+      if (!b || !isFinite(to)) return;
+      b.classList.remove('bump');
+      if (reduce){ b.textContent = String(to); return; }
+      b.textContent = String(Math.max(0, to - 1));
+      slots.push({ b, to });
+    });
+    if (slots.length){
+      winRwTO = setTimeout(() => {
+        winRwTO = 0;
+        for (const s of slots){
+          s.b.textContent = String(s.to);
+          // the reflow restart, as at the showcase panel's `.hit`: without it a second win in a
+          // row would not replay the keyframes
+          s.b.classList.remove('bump'); void s.b.offsetWidth; s.b.classList.add('bump');
+          // ⚠️ AND IT COMES OFF BY THE EVENT, NOT BY A TIMER (the Shake toss's idiom): a timer
+          // drifts from the keyframes at the first edit of the duration, and a class left on is
+          // one rule away from meaning something it should not.
+          s.b.addEventListener('animationend', () => s.b.classList.remove('bump'), { once: true });
+        }
+      }, 1450);
     }
   }
   // RESTART OF THE ENTRANCE ANIMATION: the reflow trick — the children's CSS animations play
@@ -1070,9 +1112,17 @@ function fitStat(id){
 function fitWinTopRow(){
   const row = document.querySelector('.win-toprow');
   if (!row) return;
+  // ⚠️⚠️ THE TIME IS SKIPPED WHILE ITS COUNT-UP IS IN FLIGHT (audit 2026-09-01-o). The fit sizes
+  // each frame to the text the node HOLDS, and production always fits on the FINAL value before
+  // the count-up starts (see the order note in `renderWinScreen`) — but a re-fit landing
+  // mid-animation would measure «0:00» and leave a run of ten minutes spilling out of its box on
+  // the last frame. Skipping leaves the correctly-sized frame in place, so the re-fit is a no-op
+  // rather than a corruption. The timers themselves ARE the «in flight» flag; no new state.
+  const flying = !!(winTimeRAF || winTimeTO);
   row.querySelectorAll('svg').forEach(svg => {
     const t = svg.querySelector('text');
     if (!t) return;
+    if (flying && t.id === 'winTime') return;
     let u = 0;
     try { u = t.getComputedTextLength(); } catch (e) { u = 0; }
     if (!u) return;                       // the screen is hidden — nothing to measure
@@ -1111,14 +1161,28 @@ function chargeFadeTick(){
   // rule the picture is also hidden — that is, empty). We bring it back per frame:
   // the check is cheap (a parentNode comparison), thumbSpinStart is called only
   // when the canvas really is not in the slot.
+  // ⛔⛔ AND IT MUST NOT HEAL ITSELF WHILE THE MENU HOLDS THE CANVAS (audit 2026-09-01-o,
+  // reproduced). This tick runs on EVERY frame, `thumbSpinStart`'s first act is `thumbSpinStop`,
+  // and the collection card has already hidden its own <img> — so with a charge armed, hovering a
+  // museum card gave the card the canvas for about two frames and then left it an EMPTY BOX, for
+  // as long as the menu stayed open. It could not resolve itself either: `chargeTick` sits below
+  // the `paused` return in the loop, so the charge's TTL does not run down while the menu is up.
+  // ⚠️ THE SLOT LOSES NOTHING BY STANDING DOWN: `.flat` puts the conic ring back on it, which is
+  // exactly the fallback that role was given when he picked the shell.
+  // ⚠️ The gate is the menu's own class, the same signal `openMainScreen` writes - not a second
+  // flag that would have to be kept in step with it.
   try {
+    const ms = $('mainScreen');
+    const menuOwns = !!(ms && ms.classList.contains('open'));
     const live = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb);
-    if (!live && cb.dataset.img === cs.name){
+    if (!live && !menuOwns && cb.dataset.img === cs.name){
       const sit = (typeof thumbItemForKey === 'function') ? thumbItemForKey(cs.name) : null;
       if (sit && sit.mesh){ thumbSpinStart(sit, cb); cb.dataset.spin = cs.name; }
     }
+    const onSlot = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb);
     const img = $('chargeImg');
-    if (img) img.style.display = (typeof spinR !== 'undefined' && spinR && spinR.domElement.parentNode === cb) ? 'none' : '';
+    if (img) img.style.display = onSlot ? 'none' : '';
+    cb.classList.toggle('flat', !onSlot);
   } catch(e){}
   chargeRAF = requestAnimationFrame(chargeFadeTick);
 }

@@ -126,6 +126,18 @@ WINDOW_S = 0.200           # short-term RMS: close to the ear's integration time
 SELF_LEVELLED = {'grind1', 'grind2', 'grind3', 'grind4'}
 
 
+def channels(path):
+    """How many channels the file really has. 1 when ffprobe is not around - the verbatim path is
+    then taken as before, which is the behaviour that shipped for a year."""
+    try:
+        out = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                              '-show_entries', 'stream=channels', '-of', 'csv=p=0', path],
+                             check=True, capture_output=True).stdout.decode().strip()
+        return int(out.split()[0])
+    except Exception:
+        return 1
+
+
 def loudness_db(path):
     """Max short-term RMS in a 200 ms window, in dBFS. None if ffmpeg is not around."""
     try:
@@ -164,6 +176,19 @@ def live_trims():
         return {}
 
 
+_MODULE_KEYS = None
+def had_literal(key):
+    """Does 74-sfx-data.js still carry a blob for this key? A vanished FILE does not remove one."""
+    global _MODULE_KEYS
+    if _MODULE_KEYS is None:
+        try:
+            src = io.open(DST, encoding='utf-8').read()
+            _MODULE_KEYS = set(re.findall(r"^  ([a-z_0-9]+): '", src, re.M))
+        except Exception:
+            _MODULE_KEYS = set()
+    return key in _MODULE_KEYS
+
+
 def find(folder, stem):
     for e in EXTS:
         p = os.path.join(SRC, folder, stem + e)
@@ -187,12 +212,31 @@ def main(check=False):
         p = find(folder, stem)
         if not p:
             empty.append((key, folder, stem, what))
-            print('%-13s %-30s -- no file yet, the game synthesises it' % (key, folder + '/' + stem))
+            # ⛔⛔ AND «NO FILE» MEANS TWO DIFFERENT THINGS (audit 2026-09-01-o). If the module still
+            # carries a literal for this key, the OLD recording keeps shipping and keeps playing -
+            # the write step below only removes a literal for a key in DROP or one that became an
+            # alias. Printing «the game synthesises it» there is exactly backwards, and the README
+            # repeated it. A renamed or deleted file is now LOUD.
+            if had_literal(key):
+                print('%-13s %-30s ⛔ FILE GONE - THE OLD RECORDING STILL SHIPS. Put the file back '
+                      'under this name, or add the key to DROP in this tool to remove the sound.'
+                      % (key, folder + '/' + stem))
+            else:
+                print('%-13s %-30s -- no file yet, the game synthesises it' % (key, folder + '/' + stem))
             continue
         seen.add(os.path.abspath(p))
         ext = os.path.splitext(p)[1].lower()
         raw = open(p, 'rb').read()
-        if ext in DECODES_AS_IS and len(raw) <= VERBATIM_MAX:
+        # ⛔⛔ A STEREO FILE MAY NOT TAKE THE VERBATIM PATH (audit 2026-09-01-o). `playBuf` multiplies
+        # every sample by sqrt2 to give back the -3.01 dB that equal-power panning takes from a MONO
+        # source; a stereo file never pays that toll, so the sqrt2 becomes pure gain and it plays
+        # ~3 dB hot. And this is not hypothetical: EVERY ONE of the owner's raw sources is
+        # 2-channel, and nine of them are small enough and in a format that would go verbatim - so
+        # the very next file he drops in would hit it. Worse, the loudness report below downmixes
+        # to mono before measuring, so it would have printed «in step» for a file that plays hot.
+        # ⚠️ WE DOWNMIX RATHER THAN REFUSE: the folder's whole promise is «put a file in and it is
+        # in the game». The conversion is announced on the line, so nothing is silent.
+        if ext in DECODES_AS_IS and len(raw) <= VERBATIM_MAX and channels(p) == 1:
             b, how = raw, 'verbatim'
         else:
             tmp = '/tmp/sfxpack-%s.mp3' % key
@@ -200,7 +244,9 @@ def main(check=False):
                             '-c:a', 'libmp3lame', '-b:a', BITRATE, '-write_xing', '0', tmp],
                            check=True)
             b = open(tmp, 'rb').read()
-            how = 'converted %s -> mono %s mp3' % (ext[1:], BITRATE)
+            ch = channels(p)
+            how = ('DOWNMIXED %d ch -> mono %s mp3' % (ch, BITRATE)) if (ch or 0) > 1 \
+                  else 'converted %s -> mono %s mp3' % (ext[1:], BITRATE)
         h = hashlib.md5(b).hexdigest()
         if h in by_hash:
             alias[key] = by_hash[h]
@@ -339,14 +385,22 @@ def write_readme(present, alias, empty):
     L.append('    python3 build.py              <- rebuilds index.html (and copies the music)')
     L.append('')
     L.append('THE NAME IS THE ADDRESS. The game finds a sound by the file name, so a renamed file')
-    L.append('is a sound the game cannot find - it does not break, it just goes quiet and falls')
-    L.append('back to the old synthesised voice. The extension is free: mp3, m4a, ogg and wav all')
-    L.append('work. Latin letters only, please - the project carries no Cyrillic anywhere.')
+    L.append('is a sound the tool cannot find.')
     L.append('')
-    L.append('mp3 / m4a / ogg / wav up to %d KB ship exactly as you saved them. Anything bigger,'
+    L.append('  !! IF YOU RENAME OR DELETE A FILE THAT ALREADY HAS A SOUND, THE OLD RECORDING KEEPS')
+    L.append('     PLAYING. Removing the file does NOT remove the sound from the game - the tool')
+    L.append('     says so loudly on the line for that slot. To change a sound, REPLACE the file.')
+    L.append('     To remove one for good, say so and it takes one line in tools/sfx-pack.py.')
+    L.append('')
+    L.append('The extension is free: mp3, m4a, ogg and wav all work. Latin letters only, please -')
+    L.append('the project carries no Cyrillic anywhere.')
+    L.append('')
+    L.append('A MONO mp3 / m4a / ogg / wav up to %d KB ships exactly as you saved it. Anything'
              % (VERBATIM_MAX // 1024))
-    L.append('or any other format, is converted to mono %s mp3 automatically. Mono on purpose:' % BITRATE)
-    L.append('the game pans every sound, and panning a stereo file buys nothing and costs double.')
+    L.append('bigger, any other format, and ANY STEREO FILE is converted to mono %s mp3' % BITRATE)
+    L.append('automatically - the tool prints which of the two happened for every file.')
+    L.append('Mono is not tidiness: the game pans every sound, and it corrects the level for a mono')
+    L.append('source - a stereo file skips that correction and plays about 3 dB louder than the rest.')
     L.append('')
     for folder, title in (('1-interface', '1 - INTERFACE'), ('2-music', '2 - MUSIC'),
                           ('3-objects', '3 - OBJECT SOUNDS'), ('4-gameplay', '4 - GAMEPLAY SOUNDS')):

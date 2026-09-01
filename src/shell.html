@@ -2066,6 +2066,14 @@
     background:#c0ff47; color:#4a7100;
     font:900 20px/1 var(--font-round); text-align:center; white-space:nowrap;
     filter:drop-shadow(0 2px 4px rgba(0,0,0,.16)); }
+  /* THE TICK-UP (his word 2026-09-01-n). The badge is shown one short of the total, and after the
+     reward row has finished rising it flips to the real number with a bounce.
+     ⚠️ THE BOUNCE IS `cubic-bezier(.34,1.56,.64,1)` - the project's own overshoot, the same curve
+     the charge slot's pulse and the entry pop use. One language for «something just landed».
+     ⚠️ IT SCALES THE BADGE AND NOTHING ELSE: the badge is absolutely positioned, so a transform on
+     it cannot move the pill or the row. */
+  @keyframes winRwBump { 0% { transform:scale(1) } 45% { transform:scale(1.38) } 100% { transform:scale(1) } }
+  .win-rw-n.bump { animation:winRwBump .42s cubic-bezier(.34,1.56,.64,1); }
   /* ⚠️⚠️ THIS LAYER IS NOW INERT AND IS KEPT DEAD ON PURPOSE: a white inner glow inside a
      white pill draws nothing. It is left so that a return of a darker backing costs ONE
      line (the canon's own rule for a layer that may come back) — but it must not be read
@@ -2476,6 +2484,7 @@
   }
   @media (prefers-reduced-motion: reduce){
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
+    .win-rw-n.bump { animation:none; }
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
     .win-in .win-top-list::before,
     .win-in .win-lbslot { animation:none; }

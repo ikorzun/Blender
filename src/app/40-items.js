@@ -45,8 +45,10 @@ function itemMaterial(t){
       // Brick pack's atlas is WHITE (measurement by UV: #f9f9fc), telling 11 white
       // rectangles apart from above is impossible — so the palette gives them
       // their colour, as it does for the procedural ones. The shader multiplies
-      // the white atlas by color, the tone comes out clean, and the debris
-      // (fxColor from t.color) matches the brick itself.
+      // the white atlas by color, the tone comes out clean, and the debris matches
+      // the brick itself — literally, since 2026-09-01-o: `fxColor` below calls THIS
+      // expression for a painted type instead of reading the raw `t.color`, which is
+      // what this line used to claim while the two silently differed.
       color: t.mat === 'chrome' ? 0xb8c0cc
            : t.paint ? candyColor(t.color, t.dl)
            : (t.tex || t.mat === 'model') ? 0xffffff
@@ -145,7 +147,17 @@ function makeItem(typeIdx, size){
     type: t, baseColor: mat.color.clone(),
     // debris colour: for models with a texture and vertex colours baseColor is
     // WHITE, and without this white dust would fly on breakup instead of coloured
-    fxColor: (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
+    // ⛔⛔ A PAINTED TYPE TAKES `candyColor`, THE VERY EXPRESSION ITS MATERIAL TAKES (audit
+    // 2026-09-01-o). Its atlas is white and the palette gives it its colour, so the mesh wears
+    // `candyColor(t.color, t.dl)` — saturation forced to 0.75, lightness clamped near 0.55 —
+    // while `t.color` is the RAW palette hex. Reading the raw one here made the debris and the
+    // shards of a brick a different colour from the brick, and the comment above (line ~48) said
+    // in as many words that they match. One expression now serves both, so they cannot drift.
+    // ⚠️ `candyColor` RETURNS A LINEAR COLOUR ALREADY (it ends in `convertSRGBToLinear`) — a
+    // second conversion here would wash it out. The other branch converts because `t.color` is a
+    // bare sRGB hex.
+    fxColor: t.paint ? candyColor(t.color, t.dl)
+           : (t.tex || t.mat === 'model') ? new THREE.Color(t.color).convertSRGBToLinear() : null,
     r: t.rc * sz.s * MESH_SCALE, p: new THREE.Vector3(),
     wallR: (t.wr || t.rc) * sz.s * MESH_SCALE, // fallback extent (if half is absent)
     half, // half-sizes in local units — the wall test by OBB
@@ -310,11 +322,28 @@ function makeBomb(){
   mat.onBeforeCompile = matcapSpecPatch;
   const mesh = new THREE.Mesh(geoCache.get('B'), mat);
   mesh.scale.setScalar(BOMB_SCALE * MESH_SCALE);   // the mesh scale IS the enclosing radius (rc = 1.0)
+  // ⛔⛔ THE BOMB NEEDS ITS OWN `half`, EXACTLY AS makeItem BUILDS ONE (audit 2026-09-01-o,
+  // reproduced). Without it `radialReach` (50-physics) falls through to `it.r` and reads the
+  // dynamite as a SPHERE of 0.8835 in every pose, while its collider is a tight convex hull whose
+  // true reach measures 0.32-0.41. The rescuer then teleports a bomb that is legally resting: at
+  // y = 2.0 it fires from d > 2.066 where the ring face allows 2.319 — a 0.25-wide band. Measured:
+  // placed at d = 2.19 -> «[rescue] bomb d=2.19 y=2.00 r=0.88», velocities zeroed, the whole pile
+  // woken; at d = 2.016 no rescue. And the DIAGNOSTICS disagreed with the behaviour, because
+  // `maxWallExcess` uses the exact reach — the very divergence the OBB work existed to end.
+  // ⚠️ The boundingBox guard is not decoration: this geometry comes out of the type cache and may
+  // not have been measured yet at this point.
+  { const bg = geoCache.get('B');
+    if (!bg.boundingBox) bg.computeBoundingBox();
+    const bb = bg.boundingBox, sc = BOMB_SCALE * MESH_SCALE;
+    var bombHalf = { x: Math.max(Math.abs(bb.min.x), Math.abs(bb.max.x)) * sc,
+                     y: Math.max(Math.abs(bb.min.y), Math.abs(bb.max.y)) * sc,
+                     z: Math.max(Math.abs(bb.min.z), Math.abs(bb.max.z)) * sc }; }
   const item = {
     key: 'BOMB', bomb: true, type: { name: 'bomb', mat: 'plain' },
     baseColor: mat.color.clone(),
     fxColor: new THREE.Color(0x3a3f4a).convertSRGBToLinear(), // dark debris of the explosion
     r: BOMB_SCALE * MESH_SCALE, scl: BOMB_SCALE * MESH_SCALE,   // one quantity, three names
+    half: bombHalf,                                             // the wall test by OBB, as for any item
     p: new THREE.Vector3(), body: null, geo: geoCache.get('B'),
     mesh, alive: true, animating: false, accessible: false,
   };
@@ -346,7 +375,14 @@ function tryGiveCharge(){
 // The scheduled arrival. ⚠️ The moment is drawn ONCE at level start and stored on `level`, not
 // re-rolled per frame: a per-frame chance would make the arrival depend on the frame rate.
 function tickChargeSchedule(now){
-  if (!level || level.over || level.intro) return;
+  // ⛔⛔ THE GUARD USED TO READ `level.intro`, AND NOTHING IN THE PROJECT EVER SET IT (audit
+  // 2026-09-01-o, verified by grep): the flag was inert from the day the feature shipped. The
+  // intro is the module-level `intro` of 99-main, and reading it here is safe — this function is
+  // only ever called from `loop`, i.e. long after every top-level initialisation.
+  // ⚠️ IT PAIRS WITH THE `chargeAt` ANCHOR FIX IN `resumeGame`: pausing during the intro is
+  // allowed (his word 2026-08-12), so an unshifted anchor plus a dead guard meant a long pause
+  // there dropped the charge into the intro's remaining frames. Two lines, one hole.
+  if (!level || level.over || intro) return;
   if (!level.chargeAt || now < level.chargeAt) return;
   level.chargeAt = 0;              // one attempt, whether or not the pile can supply a type
   tryGiveCharge();

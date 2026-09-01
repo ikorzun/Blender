@@ -388,7 +388,10 @@ function breakIce(it, byBomb){
   // condition being fulfilled is not paid for.
   if (!byBomb){
     const before = stats.score;
-    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.key) * scoreBoostMult());
+    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
+                              type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
+                              exactly 1, always, against a comment promising «x the type's multiplier».
+                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * scoreBoostMult());
     stats.score += gained;
     const shown = scoreShownDelta(before, stats.score);
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
@@ -407,10 +410,18 @@ function detonateBomb(bomb){
   // ~8 the bomb reached an ice block from anywhere (measurement 10/10) and devalued the
   // condition of collecting pairs with a single tap. The item stays alive — we exclude it
   // from the victims, thaw it separately and WITHOUT the ×3 score.
+  // ⛔⛔ THE THAWED ONES ARE REMEMBERED, AND THAT IS THE WHOLE FIX (audit 2026-09-01-o, reproduced):
+  // `breakIce` sets `i.frozen = false` SYNCHRONOUSLY, and this pass finishes before the victim
+  // filter below runs — so the block the comment above promises to spare passed `!i.frozen` and was
+  // destroyed by the very same blast. The zones make it reachable rather than theoretical:
+  // FROZEN_BOMB_RADIUS 2.86 is a strict SUBSET of BOMB_RADIUS 5.72, so anything thawed is already
+  // inside the kill zone. Measured on the shipped build: alive 181 -> 179, frozen 2 -> 1, the block
+  // gone from the pile. It only looked intermittent because BOMB_MAX = 7 sometimes cut it out.
+  const thawed = new Set();
   items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= FROZEN_BOMB_RADIUS)
-       .forEach(i => { try { breakIce(i, true); } catch(e){} });
+       .forEach(i => { try { breakIce(i, true); thawed.add(i); } catch(e){} });
   const victims = items
-    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen)
+    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !thawed.has(i))
     .map(i => ({ i, d: pairDist(i, bomb) }))
     .filter(v => v.d <= BOMB_RADIUS)
     .sort((a, b) => a.d - b.d)
@@ -637,6 +648,7 @@ function detonateCharge(){
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
   const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
+  const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
   frozenCredit(name, n);                         // the charge's pairs go into the ice blocks' credit (the owner: «they do»)
@@ -658,7 +670,12 @@ function detonateCharge(){
   victims.forEach(it => dissolveFX(it));
   const mid = new THREE.Vector3();
   victims.forEach(it => mid.add(it.p)); mid.multiplyScalar(1/n).y += 1.2;
-  scorePop('+' + gained, mid, '#ffffff', true);
+  // ⛔⛔ THE POP IS IN THE UNITS OF THE SCREEN, NOT THE RAW SCORE (audit 2026-09-01-o). Every other
+  // pop in the game routes through `scoreShownDelta` and carries the #10 note; this one printed the
+  // internal number, i.e. TEN TIMES the movement of the chip beside it — measured live: 16 copies of
+  // piratebarrel, chip +56, pop «+560». His own invariant (77-save: «the sum of the pops = the
+  // change of the chip, bit for bit») was broken by exactly this line.
+  scorePop('+' + scoreShownDelta(chargeScoreBefore, stats.score), mid, '#ffffff', true);
   // ⛔ THE EYES' REACTION TO THE CHARGE IS REMOVED (the owner's word 2026-08-07: «a click on a
   // bonus thing must not knock down the turbo counter, right now it does, the eyes change at the
   // very least»). The measurement showed: THE COUNTER IS INTACT (4 -> 4, 0 misses) — it was
@@ -807,12 +824,25 @@ $('winStats').textContent =
       const barTip = document.querySelector('#hintBtn img');
       const barShake = document.querySelector('#shakeBtn img');
       const tip = $('winRwTip'), shk = $('winRwShake');
-      if (tip && barTip) tip.querySelector('img').src = barTip.src;
+      // ⚠️⚠️ THE BADGE CARRIES THE NEW TOTAL AGAIN, AND IT TICKS UP TO IT (his word 2026-09-01-n:
+      // «add an animation on the final screen, how the number in the badge changes when 1 is
+      // added»). A number can only CHANGE if it is a count, so this supersedes the static «+1» of
+      // nodes 933:1543 / 933:1546 - his word is newer than the mock-up, and the mock-up's own
+      // intent survives: what the screen says is «this win paid one», it just says it by moving.
+      // ⚠️ THE «BEFORE» VALUE NEEDS NO EXTRA STATE, AND THAT IS NOT LUCK: both grants above are
+      // EXACTLY +1 (`addHints(1)` and `Save.pe + 1`), so the previous total is the new one minus
+      // one by construction. Deriving it beats stashing it - a stashed number goes stale the day
+      // a reward becomes +2 while nothing says so.
+      if (tip && barTip){
+        tip.querySelector('img').src = barTip.src;
+        tip.dataset.to = String(hints());
+      }
       if (shk){
         if (level.shakeBonus && barShake){
           shk.style.display = '';
           shk.querySelector('img').src = barShake.src;
-        } else shk.style.display = 'none';
+          shk.dataset.to = String(freeShakesFor(levelNum + 1) + purchasedShakes());
+        } else { shk.style.display = 'none'; shk.dataset.to = ''; }
       }
     } catch(e){}
     $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')

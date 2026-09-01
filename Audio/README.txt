@@ -9,13 +9,21 @@ project folder:
     python3 build.py              <- rebuilds index.html (and copies the music)
 
 THE NAME IS THE ADDRESS. The game finds a sound by the file name, so a renamed file
-is a sound the game cannot find - it does not break, it just goes quiet and falls
-back to the old synthesised voice. The extension is free: mp3, m4a, ogg and wav all
-work. Latin letters only, please - the project carries no Cyrillic anywhere.
+is a sound the tool cannot find.
 
-mp3 / m4a / ogg / wav up to 96 KB ship exactly as you saved them. Anything bigger,
-or any other format, is converted to mono 128k mp3 automatically. Mono on purpose:
-the game pans every sound, and panning a stereo file buys nothing and costs double.
+  !! IF YOU RENAME OR DELETE A FILE THAT ALREADY HAS A SOUND, THE OLD RECORDING KEEPS
+     PLAYING. Removing the file does NOT remove the sound from the game - the tool
+     says so loudly on the line for that slot. To change a sound, REPLACE the file.
+     To remove one for good, say so and it takes one line in tools/sfx-pack.py.
+
+The extension is free: mp3, m4a, ogg and wav all work. Latin letters only, please -
+the project carries no Cyrillic anywhere.
+
+A MONO mp3 / m4a / ogg / wav up to 96 KB ships exactly as you saved it. Anything
+bigger, any other format, and ANY STEREO FILE is converted to mono 128k mp3
+automatically - the tool prints which of the two happened for every file.
+Mono is not tidiness: the game pans every sound, and it corrects the level for a mono
+source - a stereo file skips that correction and plays about 3 dB louder than the rest.
 
 
 1 - INTERFACE
@@ -54,9 +62,9 @@ the game pans every sound, and panning a stereo file buys nothing and costs doub
   material-paper.*             paper and cardboard
                                material-paper.mp3, 11.9 KB, ships as you saved it
   material-glass.*             glass
-                               material-glass.wav, 48.4 KB, ships as you saved it
+                               material-glass.mp3, 8.2 KB, ships as you saved it
   material-plush.*             soft / plush things
-                               material-plush.wav, 68.8 KB, ships as you saved it
+                               material-plush.mp3, 13.1 KB, ships as you saved it
   material-wood.*              wood
                                same file as pack-cars today - replace it to give this its own voice
   material-dough.*             dough and bread

@@ -495,6 +495,15 @@ function resumeGame(){
   // and `node --check` and loading the game do not see that (the pause comes later).
   // The suite caught it; the canon rule «write out every removed declaration and grep
   // each one» exists exactly for such cases.
+  // ⚠️⚠️ THE SCHEDULED ARRIVAL IS AN ANCHOR TOO, AND IT WAS THE ONLY ONE LEFT UNSHIFTED
+  // (audit 2026-09-01-o). `level.chargeAt` is an absolute `performance.now()` stamp drawn at
+  // genLevel; a five-minute pause left it in the past, so the charge fired on the very first
+  // frame after the resume instead of «somewhere in the working middle of a round».
+  // ⛔⛔ THE TRUTHINESS GUARD IS LOAD-BEARING AND MUST NOT BE «SIMPLIFIED» AWAY: 0 means NEVER
+  // (`chargeAtFor` returns 0 for a level that is not scheduled), and a bare `+= d` would turn
+  // that 0 into a small PAST timestamp — i.e. it would ARM a charge on a level that was never
+  // meant to have one. The same sentinel pattern as `level.nextGrind` above.
+  if (level.chargeAt) level.chargeAt += d;
   if (chargeUntil) chargeUntil += d;   // review v212: the pause (ads/menu/tab)
                                        // does not eat the charge TTL — like all anchors;
                                        // spending it under the pause is impossible anyway
@@ -1106,6 +1115,18 @@ window.__game = {
   // speeds were given outside by nobody. It is read straight from the body, there is no copy.
   itemsGeo(){ return items.filter(i => i.alive).map(i => { const v = i.body && i.body.linvel && i.body.linvel();
     return { key: String(i.key), name: (i.type && i.type.name) || '', x: +i.p.x.toFixed(2), y: +i.p.y.toFixed(2), z: +i.p.z.toFixed(2), r: +i.r.toFixed(3), acc: !!i.accessible, vy: v ? +v.y.toFixed(2) : null }; }); },
+
+  // THE COLOUR OF AN ITEM AND THE COLOUR OF ITS DEBRIS, read from the two LIVE objects that
+  // decide it (audit 2026-09-01-o). It exists because the pair was unobservable: `fxColor` is a
+  // field on the item, `material.color` is on the mesh, and nothing outside compared them — so a
+  // painted brick shedding debris in a colour it never wears was invisible to every assert.
+  // ⚠️ THE GUARD MUST COMPARE THESE TWO READINGS AND NEVER RE-COMPUTE `candyColor` ITSELF: a copy
+  // of the formula beside the working one is this project's most repeated defect, and it would
+  // also go green on a build where BOTH sides had drifted the same way.
+  paintProbe(){ return items.filter(i => i.alive && i.type && !i.bomb && !i.surprise).map(i => ({
+    name: String((i.type && i.type.name) || ''), paint: !!(i.type && i.type.paint), tex: (i.type && i.type.tex) || null,
+    fx: i.fxColor ? i.fxColor.getHexString() : null,
+    mesh: (i.mesh && i.mesh.material && i.mesh.material.color) ? i.mesh.material.color.getHexString() : null })); },
 
   // test: eat one ORDINARY item (an orphan for the final top-up guard).
   // In the live game orphans are created by the bomb (an odd number of neighbours blown up); the handle reproduces
@@ -2452,6 +2473,23 @@ window.__game = {
   // the rescuer's ceiling (50-physics): above it an item is considered to have flown away.
   // The top-up guard needs it — it compares the SPAWN PEAK with this number, and not with
   // a literal: otherwise the guard and the code would drift apart at the first edit of the ceiling.
+  // THE BOMB'S RADIAL REACH AROUND THE AZIMUTH (audit 2026-09-01-o). `reachProbe` above cannot
+  // serve here: it looks its subject up in TYPES, and the bomb is deliberately OUTSIDE the pool.
+  // ⚠️⚠️ WHAT MAKES AN ARM ON THIS POSE-INDEPENDENT — and a naive one is NOT, which is how the
+  // first draft flaked: whether the rescuer actually fires at a given distance depends on how the
+  // dynamite happens to be lying, so «place it at d and see if it is teleported» is a coin toss.
+  // The PROPERTY that decides the rescuer is `radialReach`, and it has a signature no pose can
+  // erase: with an oriented box the reach VARIES around the azimuth and dips well under the
+  // enclosing sphere; with no `half` it is `it.r` in every direction, a flat line.
+  bombReach(){
+    const it = items.find(i => i.alive && i.bomb);
+    if (!it) return null;
+    const reach = [];
+    for (let k = 0; k < 8; k++){ const a = k / 8 * Math.PI * 2;
+      reach.push(+radialReach(it, Math.cos(a), Math.sin(a)).toFixed(4)); }
+    return { r: +it.r.toFixed(4), hasHalf: !!it.half, reach,
+             min: Math.min.apply(null, reach), max: Math.max.apply(null, reach) };
+  },
   rescueCeil(){ return RESCUE_CEIL; },
   // ⚠️⚠️ A REACH PROBE: HOW MUCH THE WALL METRIC OVERESTIMATES THE SHAPE. `radialReach`
   // takes min(bounding sphere, oriented box) — both are honest UPPER

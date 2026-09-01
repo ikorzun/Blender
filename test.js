@@ -130,6 +130,21 @@ const fs = require('fs');
     await pg.addInitScript(lbNetStub);
     return pg;
   };
+  // ⛔⛔ AND THE SAME FOR `newContext`, WHICH WAS THE HOLE (audit 2026-09-01-o, reproduced with all
+  // outbound traffic aborted so nothing reached his server): five sections build their pages from
+  // their own context, and those ran UNSTUBBED - a `browser.newContext().newPage()` page reported
+  // `stubbed:false` and opening the menu on it issued a live `GET https://lb.blendo.monster/v1/top`
+  // and `/v1/me`. `LB_BASE` keeps the production address even on `file://` by the owner's own rule
+  // («read always, do not send»), so reads went out on every run.
+  // ⚠️ THE STUB GOES ON THE CONTEXT, NOT ON EACH PAGE IT MAKES: a context's `addInitScript` is
+  // inherited by every page it opens later, including ones a section opens after this wrapper has
+  // returned - which is exactly how the previous edition let pages slip past.
+  const _newContext = browser.newContext.bind(browser);
+  browser.newContext = async function (...a) {
+    const ctx = await _newContext(...a);
+    await ctx.addInitScript(lbNetStub);
+    return ctx;
+  };
 
   const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors = [];
@@ -470,6 +485,13 @@ page.on('response', (r) => {
   // circle, without a glow: on that build the guard falls by three fields at once.
   // We do NOT check the paddings here: the viewport of the suite is mobile, and the mobile mockup
   // 783:711 deliberately overrides them — it would not be the numbers of the node that got checked.
+  // ⚠️ WAIT ON THE FACT, NOT ON A CLOCK: the badge ticks up 1450 ms after the screen is shown
+  // (renderWinScreen), and under this run's load a fixed pause measures the bench.
+  await page.waitForFunction(() => {
+    const e = document.getElementById('winRwTip'); if (!e) return false;
+    const b = e.querySelector('.win-rw-n');
+    return !!(b && e.dataset.to && b.textContent === e.dataset.to);
+  }, null, { timeout: 20000 }).catch(() => {});
   const pill = await page.evaluate(() => {
     // ⛔⛔ THE SINGLE «+1» PILL IS GONE (the owner 2026-09-01-i, with two Figma nodes: 892:2041
     // Tip and 892:2031 Shake). It could not survive his own sentence in the same message — past
@@ -511,6 +533,7 @@ page.on('response', (r) => {
              badgeTop: b.top, badgeFont: b.fontSize, badgePad: b.paddingTop + ' ' + b.paddingLeft,
              badgeRadius: b.borderTopLeftRadius,
              badgeText: items[0].querySelector('.win-rw-n').textContent,
+             badgeTo: items[0].dataset.to || '',
              tipFromBar: !!barTip && !!tipImg.getAttribute('src') && tipImg.src === barTip.src,
              shkShown: shkShown,
              shkFromBar: !shkShown || (!!barShake && !!shkImg.getAttribute('src') && shkImg.src === barShake.src),
@@ -548,7 +571,8 @@ page.on('response', (r) => {
          pill.badgeBg === 'rgb(192, 255, 71)' && pill.badgeFg === 'rgb(74, 113, 0)' &&
          pill.badgeFont === '20px' && pill.badgeRadius === '32px' &&
          pill.badgePad === '8px 6px' &&
-         pill.badgeLeft === '-1px' && pill.badgeTop === '43px' && pill.badgeText === '+1' &&
+         pill.badgeLeft === '-1px' && pill.badgeTop === '43px' &&
+         /^[0-9]+$/.test(pill.badgeText) && pill.badgeText === pill.badgeTo &&
          pill.tags[0] === 'IMG' && pill.tags[1] === 'IMG' && pill.svgLeft === 0 &&
          pill.tipFromBar && pill.shkFromBar,
     '\u26a0\ufe0f\u26a0\ufe0f VICTORY: the reward is TWO WHITE PILLS with notification badges - his ' +
@@ -563,16 +587,44 @@ page.on('response', (r) => {
     'that pair was the BAR-shaped 56 square at radius 16 on white 40%, with a 22-high badge ' +
     'hanging 6px BELOW the frame; and before them the single «+1» pill. Every pin those carried ' +
     'is kept above as history, not as rules. ' +
-    '\u26a0\ufe0f\u26a0\ufe0f THE BADGE TEXT IS PINNED AS THE LITERAL «+1» AND THAT IS THE STATEMENT, ' +
-    'NOT A PASSENGER: the previous edition wrote the player\u2019s running TOTAL here, and both of ' +
-    'his nodes read «+1». A notification says what THIS win paid; the totals live on the bar ' +
-    'badges, in the same lime, three inches away. A build that put the counts back would satisfy ' +
-    'every other arm of this assert. ' +
+    '\u26a0\ufe0f\u26a0\ufe0f THE BADGE CARRIES A COUNT AGAIN AND IT MUST EQUAL ITS OWN TARGET. ' +
+    '\u26d4 THIS SUPERSEDES THE LITERAL «+1» PIN, WHICH LIVED ONE DAY: his word of 2026-09-01-n ' +
+    '(«add an animation of how the number in the badge changes when 1 is added») only means ' +
+    'anything if the number is a COUNT - a «+1» cannot change. The win path writes the new total ' +
+    'into `data-to`, the render shows one less and ticks up to it, and this arm reads the SETTLED ' +
+    'state. ⚠️ `data-to` is the comparison rather than a literal because the number depends on the ' +
+    'player\u2019s wallet, which every earlier section of this run has been spending. ' +
     '\u26a0\ufe0f\u26a0\ufe0f AND THE PROVENANCE HALF IS THE HEIR OF THE RETIRED «win-mag» ASSERT: ' +
     'each icon must be the SAME PICTURE as its bar button, because the reward COPIES `src` off the ' +
     'bar instead of inlining a second base64 — which is what closes for good the fork «one entity ' +
     'drawn by two pictures» that cost this slot three redraws. A hidden shake slot is legal (level ' +
     '1 pays no shake); a VISIBLE one with a foreign or empty src is not');
+
+  // ⚠️⚠️ AND THE TICK ITSELF, STATED AS A TRANSITION (his word 2026-09-01-n). The settled reading
+  // above is satisfied by a build that simply printed the total and never animated; what he asked
+  // for is the CHANGE. We re-show the screen through the production path, which re-runs
+  // `renderWinScreen` and restarts the tick deterministically, and watch the number move.
+  // ⚠️ THE «BEFORE» VALUE IS `to - 1` BY CONSTRUCTION, not by a stash: both grants are exactly +1.
+  const rwTick = await page.evaluate(async () => {
+    const g = window.__game, e = document.getElementById('winRwTip'), b = e.querySelector('.win-rw-n');
+    g.winScreen(false); g.winScreen(true);
+    await new Promise(r => requestAnimationFrame(r));
+    const from = b.textContent;
+    for (let i = 0; i < 200; i++){
+      await new Promise(r => setTimeout(r, 40));
+      if (b.textContent === e.dataset.to) return { from, to: b.textContent, target: e.dataset.to,
+                                                   bumped: b.classList.contains('bump') };
+    }
+    return { from, to: b.textContent, target: e.dataset.to, bumped: b.classList.contains('bump') };
+  });
+  console.log('win reward tick:', JSON.stringify(rwTick));
+  expect(rwTick.target && rwTick.from === String(+rwTick.target - 1) && rwTick.to === rwTick.target,
+    '⚠️⚠️ THE REWARD BADGE TICKS UP BY ONE (' + JSON.stringify(rwTick) + '). His word 2026-09-01-n: ' +
+    '«add an animation on the final screen, how the number in the badge changes when 1 is added». ' +
+    '⛔ THE «FROM» VALUE IS PART OF THE PREDICATE AND NOT A PASSENGER: «it ends on the total» is ' +
+    'true of a build that printed the total and never moved, i.e. of exactly the thing this arm ' +
+    'exists to tell apart. ⚠️ The bounce class is not pinned here - it is removed on `animationend` ' +
+    'by design, so reading it is a race; what is guarded is the NUMBER.');
 
   // ═══ THE HEADER OF THE VICTORY SCREEN BY THE REDRAWN NODE 778:732 (2026-08-21-n) ═══
   // ⚠️⚠️ UNTIL THIS SECTION NOBODY GUARDED THE HEADER. In the suite there was not a single
@@ -2149,7 +2201,7 @@ page.on('response', (r) => {
   // for that with five reds at the bomb and the fire).
   {
     const bombPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-    await bombPage.goto('file://' + path.join(__dirname, 'index.html'));
+    await bombPage.goto('file://' + PAGE_FILE);
     await bombPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     const bomb = await bombPage.evaluate(async () => {
       const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
@@ -2308,7 +2360,7 @@ page.on('response', (r) => {
   // the fire guard flaked from run to run. Its own page rules this out BY
   // CONSTRUCTION — the neighbours have nothing to inherit.
   const endgamePage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  await endgamePage.goto('file://' + path.join(__dirname, 'index.html'));
+  await endgamePage.goto('file://' + PAGE_FILE);
   await endgamePage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   const softEndgame = await endgamePage.evaluate(async () => {
     const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
@@ -2358,7 +2410,7 @@ page.on('response', (r) => {
   // first level). ⚠️ localStorage is SHARED across the pages of the suite — the key is tidied up.
   const coldStartPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   await coldStartPage.addInitScript(() => { try { localStorage.setItem('mixer_level', '11'); } catch (e) {} });
-  await coldStartPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await coldStartPage.goto('file://' + PAGE_FILE);
   await coldStartPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   const coldProbe = await coldStartPage.evaluate(async () => {
     const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
@@ -2380,7 +2432,7 @@ page.on('response', (r) => {
   // contract of the skip would drop the runs who knows where. The sabotage wavesOn=false
   // drops exactly the first half of the assert, a broken release in the skip — the second.
   const wavesPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  await wavesPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await wavesPage.goto('file://' + PAGE_FILE);
   await wavesPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   const wavesProbe = await wavesPage.evaluate(async () => {
     const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
@@ -12472,7 +12524,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // a PAUSE, and on a pause the loop exits at the first line and the clock stands still without any
   // editor at all — the guard would degenerate into a tautology, and a green one at that.
   const mceClockPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  await mceClockPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await mceClockPage.goto('file://' + PAGE_FILE);
   await mceClockPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await mceClockPage.evaluate(() => window.__game.skipIntro());
   const mceClockFreeze = await mceClockPage.evaluate(async () => {
@@ -12539,7 +12591,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     return ok;
   };
   const packMatcapPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await packMatcapPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await packMatcapPage.goto('file://' + PAGE_FILE + '?dev=1');
   await packMatcapPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await packMatcapPage.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await packMatcapPage.waitForTimeout(1200);
@@ -12667,7 +12719,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       im.onerror = () => res(null); im.src = url; }); };
     const openPage = async () => {
       const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await p.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+      await p.goto('file://' + PAGE_FILE + '?dev=1');
       await p.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
       await p.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
       await p.waitForTimeout(1200);
@@ -12968,7 +13020,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // `setTypeMatcap` directly would be checking the registry against itself — the tract he uses
   // starts at a checkbox in a list of ninety.
   const typeMcPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await typeMcPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await typeMcPage.goto('file://' + PAGE_FILE + '?dev=1');
   await typeMcPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await typeMcPage.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await typeMcPage.waitForTimeout(1200);
@@ -13462,7 +13514,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'all. A census that does not add up cannot be read as evidence of anything');
 
   const packResetPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await packResetPage.goto('file://' + path.join(__dirname, 'index.html') + '?dev=1');
+  await packResetPage.goto('file://' + PAGE_FILE + '?dev=1');
   await packResetPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await packResetPage.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await packResetPage.waitForTimeout(1500);   // the pack pictures need to be decoded
@@ -14414,7 +14466,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // and was orphaned together with it — the run fell with `chPage is not defined` WITHOUT
   // a verdict. The canon: a guard brings up the needed state itself, and does not inherit it.
   const chPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
-  await chPage.goto('file://' + path.join(__dirname, 'index.html'));
+  await chPage.goto('file://' + PAGE_FILE);
   await chPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await chPage.evaluate(() => window.__game.skipIntro());
   await chPage.waitForTimeout(400);
@@ -16577,6 +16629,191 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '). README.txt is GENERATED from the same table on every run, so this arm is really about ' +
       'the generator still running - a hand-kept copy of that list would be correct the day it was ' +
       'written and silently wrong afterwards.');
+  }
+
+  // ===== THE AUDIT OF 2026-09-01-o: THE TWO BLOCKERS AND THE ANCHOR (his word «run a full test
+  // ===== of the code and of all the physics, and of the objects too») ==========================
+  // ⚠️⚠️ THE SECTION IS ON ITS OWN PAGE AND AT THE END, and that is not tidiness: it detonates
+  // bombs, teleports items and pauses the game, i.e. exactly the state the neighbours must not
+  // inherit. Its four arms were probed two-sidedly before they were written — every sabotage
+  // named below was RUN against a copy of the build lying NEXT to the original (relative paths),
+  // and the original was verified by md5 afterwards.
+  {
+    const auPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    auPage.on('pageerror', e => errors.push('PAGEERROR(audit): ' + e.message));
+    await auPage.goto('file://' + PAGE_FILE);
+    await auPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+
+    // ── BLOCKER 1: THE BOMB DOES NOT KILL THE BLOCK IT HAS JUST THAWED ────────────────────────
+    // The thaw pass runs FIRST and completes before `victims` is filtered, so a block the blast
+    // freed passed the very `!i.frozen` filter whose comment says it excludes it — the player saw
+    // an ice block break and its contents vanish in the same frame, losing a pair.
+    // ⚠️⚠️ THE LEVEL IS SEARCHED FOR, NEVER PINNED: the bomb arrives on a RANDOM gap of 1-3 from
+    // level 5 and the ice on its own 1-3 from level 11, so «level 11 has both» is true of some
+    // deals and not others — a literal here would be a flake by construction.
+    // ⚠️ BOTH ARE LIFTED CLEAR OF THE PILE so the block is the blast's ONLY candidate: then
+    // «one death» and «two deaths» are the whole difference between the two builds, with no
+    // arithmetic over how many neighbours happened to be in range.
+    const ice = await auPage.evaluate(async () => {
+      const g = window.__game;
+      // ⚠️⚠️ THE SCENE IS STAGED THROUGH THE PRODUCTION SCHEDULES, NOT SWEPT FOR. `frozenNextAt()`
+      // NAMES the next level that gets ice, and `bombNextAt(lv)` POINTS the bomb's own 1-3 gap at
+      // that same level — so both special objects are guaranteed in one deal, deterministically.
+      // ⛔ A SWEEP OVER LIKELY LEVELS WAS TRIED AND IS A TRAP: the bomb's gap lives in SESSION
+      // memory, so every regen advances it, and a loop looking for a bomb SPENDS the very
+      // schedule it is waiting on — measured, 16 regens in a row found none.
+      const lv = Math.max(11, g.frozenNextAt());
+      g.bombNextAt(lv); g.setLevel(lv); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 300));
+      const bi = g.bombIndex(), fz = g.frozenInfo() || [];
+      if (bi < 0 || !fz.length) return { none: true, lv, bi, ice: fz.length };
+      g.place(bi, 0, 25, 0); g.place(fz[0].index, 1.2, 25, 0);
+      await new Promise(r => setTimeout(r, 140));
+      const before = { alive: g.alive(), frozen: (g.frozenInfo() || []).length };
+      g.detonate();
+      await new Promise(r => setTimeout(r, 900));
+      const after = { alive: g.alive(), frozen: (g.frozenInfo() || []).length };
+      return { lv, lost: before.alive - after.alive, thawed: before.frozen - after.frozen };
+    });
+    console.log('audit/ice-in-blast:', JSON.stringify(ice));
+    expect(!ice.none && ice.thawed === 1,
+      '⚠️ SANITY: the blast actually reached the block and thawed it (' + JSON.stringify(ice) +
+      '). ⛔ WITHOUT THIS ARM THE ONE BELOW IS EMPTY: «nobody died» is also true of a bomb that ' +
+      'never touched the ice at all, which is exactly what a badly staged scene produces.');
+    expect(!ice.none && ice.lost === 1,
+      '⛔⛔ THE BLAST KILLS THE BOMB AND NOBODY ELSE — THE BLOCK IT THAWED SURVIVES (lost ' +
+      (ice.lost) + ', expected 1). The sabotage: drop `&& !thawed.has(i)` from the victims ' +
+      'filter in `detonateBomb` (80-gameplay) — measured, it gives lost 2, i.e. the freed item ' +
+      'is destroyed by the very blast that freed it.');
+
+    // ── BLOCKER 2: THE BOMB IS SHAPED LIKE A BOMB TO THE RESCUER ──────────────────────────────
+    // `makeBomb` set no `half`, so `radialReach` fell through to `it.r` and read the dynamite as a
+    // SPHERE of 0.88 in EVERY pose while its collider is a tight convex hull. The rescuer then
+    // teleported a bomb that was legally resting, zeroing its velocities and waking the pile —
+    // and the DIAGNOSTICS disagreed with the behaviour, because `maxWallExcess` uses the exact
+    // reach: the very divergence the OBB work existed to end.
+    // ⛔⛔ THE FIRST DRAFT OF THIS ARM PLACED THE BOMB AT A MEASURED DISTANCE AND ASKED WHETHER IT
+    // WAS TELEPORTED — AND THAT IS A FLAKE BY CONSTRUCTION, caught by a dry run before the suite
+    // ever saw it: the OBB projection depends on the POSE, so a bomb lying with its long axis
+    // radial legitimately reaches as far as the sphere did, and the same distance passes on one
+    // deal and fails on the next. The same rake `reachProbe` documents two screens up («we set
+    // the rotation OURSELVES — otherwise the number dances by pose»).
+    // ✅ WHAT IS ASSERTED INSTEAD IS THE PROPERTY THAT DECIDES THE RESCUER, and its signature
+    // survives any pose: with an oriented box the reach VARIES around the azimuth and dips under
+    // the enclosing sphere; with no `half` it is the constant `it.r`, a flat line at 0.8835.
+    const obb = await auPage.evaluate(async () => {
+      const g = window.__game;
+      // ⚠️ LEVEL 9 AND NOT THE ICE ONE: the bomb must be the only thing staged here, and pointing
+      // its gap at a level BELOW the ice ramp keeps the scene free of frozen blocks.
+      g.bombNextAt(9); g.setLevel(9); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 300));
+      return g.bombReach();
+    });
+    console.log('audit/bomb-obb:', JSON.stringify(obb));
+    expect(obb && obb.hasHalf === true,
+      '⛔ THE BOMB CARRIES ITS OWN `half` (' + JSON.stringify(obb && obb.hasHalf) + '). ⚠️ THIS IS ' +
+      'THE CHEAP HALF and it is here only as a locator for whoever reads a red below — the two ' +
+      'arms after it are the ones that state the behaviour.');
+    expect(obb && (obb.max - obb.min) > 0.05,
+      '⛔⛔ THE BOMB\'S RADIAL REACH VARIES AROUND THE AZIMUTH (' + JSON.stringify(obb && obb.reach) +
+      '). A flat line here means `radialReach` fell through to the enclosing sphere, i.e. the ' +
+      'rescuer is measuring a ball of 0.88 against a tight convex hull. The sabotage: drop ' +
+      '`half: bombHalf` from the item literal in `makeBomb` (40-items) — every one of the eight ' +
+      'readings becomes 0.8835.');
+    expect(obb && obb.min < obb.r * 0.75,
+      '⛔ AND IT IS MATERIALLY TIGHTER THAN THE SPHERE (min ' + (obb && obb.min) + ' against r ' +
+      (obb && obb.r) + '). ⚠️ WITHOUT THIS ARM THE ONE ABOVE IS SATISFIED BY A BOX THAT MERELY ' +
+      'WOBBLES around the sphere\'s value: the whole point of the fix is that the estimate comes ' +
+      'DOWN, which is what stops the rescuer teleporting a bomb that is legally at rest.');
+
+    // ── THE SCHEDULED CHARGE IS A REAL-CLOCK ANCHOR LIKE ALL THE OTHERS ───────────────────────
+    // ⚠️⚠️ TWO ARMS, AND THE SECOND IS NOT A FORMALITY: `chargeAt: 0` MEANS «NEVER», so a bare
+    // `+= d` would turn it into a small PAST stamp and ARM a charge on a level that was never
+    // scheduled. One arm without the other blesses exactly half of the fix.
+    // ⚠️ THE ARMED LEVEL IS FOUND BY REGENERATING, not by picking a number: `chargeAtFor` rolls
+    // his «sometimes» (CHARGE_SCHED_CHANCE), so any single deal is a coin toss.
+    const anch = await auPage.evaluate(async () => {
+      const g = window.__game;
+      const roll = (want) => { for (let k = 0; k < 60; k++){ g.setLevel(24); g.regen(); g.skipIntro();
+        if (!!g.level().chargeAt === want) return true; } return false; };
+      const out = {};
+      if (roll(true)){
+        await new Promise(r => setTimeout(r, 100));
+        const a0 = g.level().chargeAt;
+        g.pause(); await new Promise(r => setTimeout(r, 320)); g.resume();
+        out.moved = Math.round(g.level().chargeAt - a0);
+      }
+      if (roll(false)){
+        g.pause(); await new Promise(r => setTimeout(r, 320)); g.resume();
+        out.zero = g.level().chargeAt;
+      }
+      g.setLevel(1); g.regen(); g.skipIntro();   // put the level back for whoever comes next
+      return out;
+    });
+    console.log('audit/charge-anchor:', JSON.stringify(anch));
+    expect(anch.moved >= 250,
+      '⛔ THE SCHEDULED CHARGE SURVIVES A PAUSE (the anchor moved ' + anch.moved + ' ms across a ' +
+      '320 ms pause). It was the ONE real-clock anchor `resumeGame` did not shift, so a long ' +
+      'pause left the stamp in the past and the charge fired on the first frame after the resume ' +
+      'instead of «somewhere in the working middle of a round». The sabotage: delete the line.');
+    expect(anch.zero === 0,
+      '⛔⛔ AND A LEVEL THAT WAS NEVER SCHEDULED KEEPS ITS 0 (got ' + anch.zero + '). The ' +
+      'sabotage: write the fix as a bare `level.chargeAt += d` without the truthiness guard — the ' +
+      'sentinel becomes a past timestamp and the game hands out a charge nobody scheduled.');
+
+    // ── A PAINTED ITEM SHEDS DEBRIS IN THE COLOUR IT ACTUALLY WEARS ───────────────────────────
+    // The brick atlas is white and the palette gives these types their colour, so the mesh wears
+    // `candyColor(t.color)` — saturation forced to 0.75 — while `fxColor` read the RAW hex. The
+    // shards and the dust of a brick were a different colour from the brick, and the comment in
+    // 40-items said in as many words that they matched.
+    // ⚠️⚠️ THE ARM COMPARES TWO LIVE READINGS AND NEVER RE-COMPUTES `candyColor`: a copy of the
+    // formula would go green on a build where BOTH sides had drifted the same way, and it would
+    // go red the day the owner retunes his palette.
+    const paint = await auPage.evaluate(async () => {
+      const g = window.__game;
+      g.setLevel(30); g.regen(); g.skipIntro();
+      await new Promise(r => setTimeout(r, 300));
+      const all = g.paintProbe();
+      const painted = all.filter(i => i.paint), tex = all.filter(i => !i.paint && i.tex);
+      const r = { painted: painted.length, textured: tex.length,
+                  bad: painted.filter(i => i.fx !== i.mesh).map(i => i.name + ' ' + i.fx + '/' + i.mesh),
+                  sample: painted[0] || null, texSample: tex[0] || null };
+      g.setLevel(1); g.regen(); g.skipIntro();
+      return r;
+    });
+    console.log('audit/paint-debris:', JSON.stringify(paint));
+    expect(paint.painted > 0 && paint.textured > 0,
+      '⚠️ SANITY: the level really carries both kinds (' + paint.painted + ' painted, ' +
+      paint.textured + ' textured). ⛔ Both arms below are `.length === 0` or an inequality, and ' +
+      'an empty set satisfies them — a pool change that swept the painted types out would turn ' +
+      'this green while checking nothing.');
+    expect(paint.bad.length === 0,
+      '⛔⛔ A PAINTED ITEM\'S DEBRIS COLOUR IS ITS MESH COLOUR (' + JSON.stringify(paint.bad) +
+      '). The sabotage: restore `fxColor: (t.tex || t.mat === \'model\') ? ... : null` in ' +
+      '40-items, i.e. read the raw `t.color` for a painted type.');
+    expect(paint.texSample && paint.texSample.fx !== paint.texSample.mesh,
+      '⚠️ AND THE CONTROL, WITHOUT WHICH THE ARM ABOVE IS SATISFIED BY A BUILD THAT COLLAPSED ' +
+      'BOTH BRANCHES INTO ONE: a TEXTURED type still carries its own fx colour against a white ' +
+      'material (' + JSON.stringify(paint.texSample) + ') — there the atlas paints the mesh and ' +
+      '`fxColor` is the only thing that knows what the dust should look like.');
+    await auPage.close();
+
+    // ── THE RELEASE FOLDER SHIPS THE MUSIC THE GAME SHIPS ─────────────────────────────────────
+    // ⚠️ `release/music.mp3` had stayed the 267 kbps MASTER (4.39 MB) ever since the track was
+    // re-encoded on 2026-08-11 — 2.8 MB of dead weight in the one folder a tester is handed, and
+    // a different mix from the one every measurement in this project was taken on.
+    {
+      const relF = path.join(__dirname, 'release', 'music.mp3');
+      const srcF = path.join(__dirname, 'Audio', '2-music', 'background-music.mp3');
+      const md5 = (f) => require('crypto').createHash('md5').update(fs.readFileSync(f)).digest('hex');
+      const same = fs.existsSync(relF) && fs.existsSync(srcF) && md5(relF) === md5(srcF);
+      console.log('audit/release-music:', JSON.stringify({ same,
+        bytes: fs.existsSync(relF) ? fs.statSync(relF).size : null }));
+      expect(same,
+        '⛔ THE TESTER PACKAGE CARRIES THE SHIPPED TRACK, NOT THE MASTER. `release/music.mp3` must ' +
+        'be byte-identical to `Audio/2-music/background-music.mp3` — the folder beside it holds ' +
+        'the 267 kbps original ON PURPOSE, so a copy is one command and a wrong copy is silent.');
+    }
   }
 
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.

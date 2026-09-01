@@ -13599,3 +13599,152 @@ value is not pinning the property.** This project has now paid for that three ti
 ⚠️ `gap:6px` is inert on a single-child pill and is kept because the node declares it and a second
 element there is one line away.
 
+
+## BATCH 2026-09-01-o: THE FULL AUDIT — TWO BLOCKERS, AN UNSHIFTED ANCHOR, AND A TOOL THAT LIED
+
+His word: «run a full test of the code and of all the physics, and of the objects too. Use all the
+agents». Eight finder lenses, then TWO skeptics per finding with DIFFERENT lenses (correctness /
+reachability), then a synthesis pass. **38 findings, 4 refuted by both skeptics, 34 survived; of
+those 6 were blockers, 11 «will bite», and 5 were killed at synthesis as duplicates.**
+⚠️ The three-tier shape is what made the report usable: a single finder pass produced a list a
+third of which did not survive contact with the code, and the skeptics — told to default to «not
+real» — are what separated the two.
+
+### ⛔⛔ BLOCKER 1: THE BOMB DESTROYED THE VERY BLOCK IT HAD JUST FREED
+
+`detonateBomb` thaws every frozen block inside `FROZEN_BOMB_RADIUS` FIRST, and that pass completes
+before `const victims = items.filter(i => … && !i.frozen)` is evaluated. So a block the blast had
+just freed no longer carried `frozen` and passed the very filter whose comment says it excludes
+it — **the player saw the ice break and its contents vanish in the same frame, losing the pair.**
+✅ A `thawed` Set, populated by the thaw pass and subtracted from the victims.
+⚠️ **MEASURED TWO-SIDEDLY, BOTH ITEMS LIFTED CLEAR OF THE PILE so the block is the blast's only
+candidate** — then «one death» against «two deaths» is the whole difference, with no arithmetic
+over how many neighbours happened to be in range: healthy `lost 1 / thawed 1`, sabotage (the
+`!thawed.has(i)` term removed) `lost 2 / thawed 1`.
+
+### ⛔⛔ BLOCKER 2: THE RESCUER READ THE DYNAMITE AS A SPHERE
+
+`makeBomb`'s literal set neither `half` nor `wallR`, so `radialReach` fell through to `it.r` and
+measured **0.8835 in every pose** while the collider is a tight convex hull whose true reach is
+0.37-0.71. The rescuer then teleported a bomb that was legally at rest, zeroing its velocities and
+waking the whole pile — and the DIAGNOSTICS disagreed with the behaviour, because `maxWallExcess`
+uses the exact reach: **the very divergence the whole OBB effort of 2026-08-07 existed to end.**
+✅ The bomb now builds its `half` from the cached geometry's bounding box exactly as `makeItem`
+does. ⚠️ The `boundingBox` guard is not decoration — the geometry comes out of the type cache and
+may not have been measured yet at that point.
+
+⛔⛔ **AND THE GUARD FOR IT WAS A FLAKE IN ITS FIRST DRAFT — CAUGHT BY A DRY RUN, NOT BY THE SUITE.**
+The obvious arm places the bomb at a measured distance and asks whether it is teleported. It is a
+coin toss: **the OBB projection depends on the POSE**, so a bomb lying with its long axis radial
+legitimately reaches as far as the sphere did. The isolated probe gave `moved 0` and the ported
+version gave `moved 0.53` on the SAME healthy build. That is the rake `reachProbe` documents in
+its own header two screens up («we set the rotation OURSELVES — otherwise the number dances by
+pose»), met from the other side.
+✅ **WHAT IS ASSERTED INSTEAD IS THE PROPERTY THAT DECIDES THE RESCUER, WITH A SIGNATURE NO POSE
+CAN ERASE:** with an oriented box the reach VARIES around the azimuth and dips well under the
+enclosing sphere; with no `half` it is a FLAT LINE at `it.r`. Measured — healthy
+`[0.610, 0.371, 0.663, 0.713, …]`, sabotage `[0.8835 × 8]`.
+⚠️ `reachProbe` could not serve: it looks its subject up in TYPES and the bomb is deliberately
+outside the pool. Hence `__game.bombReach()` — **and the name was grepped before it was added**
+(`itemsBrief`, `boltProbe`, `colliderCensus`: three scars from a duplicate key silently winning).
+⚠️⚠️ **THE GENERAL RULE THIS BATCH PAID FOR: WHERE A QUANTITY DEPENDS ON A POSE, ASSERT ITS SHAPE
+(varies / is bounded), NEVER A SINGLE SAMPLE OF IT.** A single sample of a pose-dependent quantity
+is a guard that passes on some deals and not others, and its red says nothing about the code.
+
+### THE OTHER BLOCKERS AND THE «WILL BITE» ONES, APPLIED
+
+- **B3 — the charge slot fought the menu for the shared canvas.** `spinTick`'s self-heal re-mounted
+  the spin onto `#chargeBtn` whenever it found the canvas elsewhere — including while the MENU had
+  legitimately taken it. The gate is now the menu's own `.open` class, i.e. the same signal
+  `openMainScreen` writes, and not a second flag that would have to be kept in step with it.
+- **W7 — the ice paid its multiplier on the wrong key.** `accMult(it.key)` where `key` is `'T'+idx`
+  while `Save.ac`/`Save.bo` are keyed by `type.name`, so `accTier` was 0 and the multiplier was
+  **exactly 1, always**, against a comment promising «× the type's multiplier». `frozenCredit` two
+  screens up already used the right field — the file disagreed with itself.
+- **W8 — the charge popped a raw number.** Its score pop bypassed `scoreShownDelta`, so it stated
+  raw units where every other pop states points, and it broke invariant #10 (Σ of the pops = the
+  movement of the chip).
+- **W13 + W17 — ONE HOLE IN TWO LINES.** `resumeGame` shifts every real-clock anchor and shifted
+  all of them but `level.chargeAt`, so a long pause left that stamp in the past and the scheduled
+  charge fired on the first frame after the resume instead of «somewhere in the working middle of a
+  round»; and `tickChargeSchedule` guarded on `level.intro`, **a field nothing in the project has
+  ever set** — inert since the feature shipped. Pausing during the intro is allowed (his word
+  2026-08-12), so together they dropped the charge into the intro's remaining frames.
+  ⛔⛔ **THE TRUTHINESS GUARD ON THE ANCHOR IS LOAD-BEARING AND MUST NOT BE «SIMPLIFIED» AWAY:**
+  `chargeAt: 0` means NEVER, and a bare `+= d` turns that sentinel into a small PAST timestamp,
+  i.e. **it ARMS a charge on a level that was never scheduled.** Both halves are guarded; measured,
+  an armed level's anchor moved 379 ms across a 320 ms pause and an unscheduled level kept its 0.
+- **W15 — a painted brick shed debris in a colour it never wore.** Its atlas is white and the
+  palette gives it its colour, so the mesh wears `candyColor(t.color, t.dl)` — saturation forced to
+  0.75 — while `fxColor` read the RAW hex. **The comment ten lines above said in as many words that
+  they matched.** One expression now serves both. ⚠️ `candyColor` returns a LINEAR colour already;
+  a second `convertSRGBToLinear` here would wash it out.
+- **W12 — a re-fit of the win row could size the time frame to «0:00».** Production always fits on
+  the final value before the count-up starts, but any re-fit landing mid-animation measured the
+  intermediate string and left a ten-minute run spilling out of its box on the last frame. The fit
+  now skips that node while its count-up is in flight; **the timers themselves are the flag**, no
+  new state.
+- **W16 — the tester package shipped the wrong music.** `release/music.mp3` had stayed the 267 kbps
+  MASTER (4.39 MB) ever since the track was re-encoded on 2026-08-11: 2.8 MB of dead weight in the
+  one folder a tester is handed, and a different mix from the one every measurement in this project
+  was taken on. Replaced, and pinned by md5 against `Audio/2-music/background-music.mp3`.
+  ⚠️ `release/` holds only a README and the music — no game file. It is a remnant of the July
+  tester-zip era; named to him rather than deleted here.
+
+### ⛔ W14 IS NAMED AND DELIBERATELY NOT FIXED — IT NEEDS HIS WORD
+
+`buildAccessSamples` answers `phys:'ball'` before its switch but **NOT `phys:'ring'`**, so
+`fooddonutsprinkles` and `propslifebuoy` fall to the hull default (face centroids × 0.6) — i.e.
+some of their accessibility sample points sit **in the doughnut hole**, outside the collider, which
+is exactly what the canon's own rule forbids («points STRICTLY INSIDE the colliders»; samples taken
+from the render geometry rather than the phys shape is a recorded root bug).
+⛔ It is NOT patched by copying the `torus` case: that pattern lies in the XY plane and OUR donut's
+hole runs along Y — the plane is settled by MEASUREMENT, and `ringFromGeometry` already derives it.
+⚠️ The honest fix is same-file (50-physics): sample points derived from the ring data that already
+exists. It was left alone because it edits the tuned, guarded accessibility zone for two types, and
+this project's record on unrequested edits there is bad. **One word from him and it is bounded.**
+
+### THE TWO TOOLS THAT LIED, AND THE ONE THAT NOW CANNOT
+
+⛔⛔ **`tools/material-map-check.js` CARRIED ITS OWN FROZEN COPY OF THE MAP AND CHECKED NOTHING.**
+Running it printed «in pool: 105 | mapped: 120» and listed all 19 props types as NOT MAPPED while
+every one of them is in `MATERIAL_OF`; it had never opened `73-material.js`. **The inverse failure
+was the dangerous one: a type present in its private copy but MISSING from the real table would
+have printed green.** Three documents point at this file by name as the coverage guard, which is
+why it was repaired rather than deleted — a tool that lies is worse than no tool when the next
+editor is being sent to it by name. Both sides are now parsed out of the source; there is no table
+in the file, so there is nothing in it that can go stale. Output: `pool: 105 | mapped: 144 | NO
+VOICE: none`.
+⚠️ Real coverage is ALSO guarded live in the suite (a census over `g.materialOf` asserting
+`missing === 0`), so the tool is the fast local answer and not the last line of defence.
+
+### THE STALE-DOC SWEEP CAME BACK EMPTY, AND THAT IS STATED RATHER THAN PADDED
+
+⚠️⚠️ **THE AUDIT'S 12 STALE-DOC ITEMS DID NOT SURVIVE THE CONTEXT BREAK, AND A DIFFERENT LIST
+INVENTED AFTERWARDS WOULD NOT BE THE SAME ARTEFACT.** What was done instead is mechanical and
+repeatable: every backtick-quoted identifier in every comment of `src/` was extracted and checked
+against every declaration, property and key defined anywhere in `src/` — tombstone lines excluded,
+since naming dead things is their job. **57 candidates, and on inspection ZERO true positives**:
+the heuristic cannot see markup ids (`fTired`), CSS classes (`vempty`, `menuopen`), DOM event names
+(`animationend`), localStorage keys (`mixer_lb_sent`) or shader locals (`cenv`), and each of the
+plausible-looking ones was verified present by grep.
+⚠️ The stale prose this batch DID repair is the kind no identifier sweep can find — **a comment
+asserting a RELATION that the code beside it contradicted** (the brick debris «matches», the ice
+multiplier «× the type's», the `level.intro` guard). That class is found by reading the code the
+comment stands above, and it was found three times in one audit.
+
+### THE HOUSE RULES THIS BATCH RE-CONFIRMED, EACH AT A COST
+
+⚠️ **A HOOK RETURNS WHAT IT RETURNS, NOT WHAT ITS NAME SUGGESTS.** Two probes of the blockers came
+back `{none: true}` and were read as «the defect does not reproduce» — in fact `frozenInfo()`
+returns an ARRAY carrying an `index` field, and `itemsGeo()` has no `frozen` field at all, so the
+filter behind both was matching nothing. **Read the hook's body before believing its silence.**
+⚠️⚠️ **A SCENE IS STAGED THROUGH THE PRODUCTION SCHEDULES, NEVER SWEPT FOR.** The first port of the
+blocker arms looped likely levels waiting for a bomb — and the bomb's 1-3 gap lives in SESSION
+memory, so **every regen ADVANCES the very schedule the loop is waiting on**: measured, 16 regens
+in a row found none. `frozenNextAt()` NAMES the next level that gets ice and `bombNextAt(lv)`
+POINTS the bomb's gap at it, so both special objects are guaranteed in one deal, deterministically —
+and the section dropped from 12.4 s to 1.1 s as a side effect.
+⚠️ **A DRY RUN OF A NEW SECTION COSTS A MINUTE; THE SUITE COSTS THIRTEEN.** Both the sweep trap and
+the pose flake were caught by lifting the new `page.evaluate` bodies out verbatim and running them
+alone. Neither would have been distinguishable from a real regression inside a 900-assert log.
