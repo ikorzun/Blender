@@ -2038,8 +2038,19 @@
      stacking order nobody needs. */
   .win-reward { display:flex; align-items:center; gap:12px;
     background:none; box-shadow:none; padding:0; height:auto; }
+  /* ⛔⛔ THE PADDING IS EQUAL ON ALL FOUR SIDES SINCE 2026-09-01-m — HIS WORD «the magnifier and the
+     hand must be in ROUND buttons, right now they are stretched horizontally», and he is right:
+     the node's own pair is `px-13 py-9`, which on a 56 icon gives a box of 84x76, i.e. an OVAL.
+     `border-radius:80px` only ever draws a circle on a SQUARE box; on a wider one it draws a pill,
+     and that is exactly what he was looking at.
+     ⚠️ THE VERTICAL PADDING IS THE ONE THAT SURVIVED, NOT THE HORIZONTAL, and that is deliberate:
+     it keeps the outer box at the 76 it already was, so the row with `.win-next` does not move and
+     the badge's own geometry (top:43 on a 76 box) is untouched. Squaring on 13 instead would have
+     grown the pills to 84 and pushed them past the Next button they stand beside.
+     ⚠️ `gap:6px` is now inert — there is one child — and is kept because the node declares it and a
+     second element in this pill (a count, a label) is one line away. */
   .win-rw { position:relative; flex:none; display:inline-flex; align-items:center; gap:6px;
-    padding:9px 13px; border-radius:80px;
+    padding:9px; border-radius:80px;
     border:1px solid #fff; background:rgba(255,255,255,.9);
     box-shadow:inset 0 0 16px 0 #fff; }
   /* ⚠️⚠️ 56 IS THE NODE'S SLOT **AND** ITS DRAWN INK, WHICH IS THE ONE COINCIDENCE WORTH WRITING

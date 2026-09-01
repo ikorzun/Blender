@@ -13572,3 +13572,30 @@ openable from 75-audio» searched for the key LITERALLY, while the voices are lo
 COMPOSED at runtime (`'mat_' + materialOf()`, `'pack_' + type.tex`). It reported all fourteen
 missing on a healthy build. **A dry run of a new guard costs a minute; a suite run costs thirteen.**
 
+## 2026-09-01-m: THE REWARD PILLS ARE CIRCLES — A RADIUS IS NOT A SHAPE
+
+His word on the shipped screen: «fix the buttons on the final screen: the magnifier and the hand
+must be in ROUND buttons, and right now they are stretched horizontally».
+
+⛔⛔ **HE IS RIGHT AND THE NODE ITSELF IS WHAT MISLED ME.** 933:1515 / 933:1531 declare
+`px-[13px] py-[9px]` around a 56 icon, which on a content-sized box is **84 × 76 — an oval**.
+`border-radius:80px` draws a CIRCLE only on a SQUARE box; on anything wider it draws a pill. The
+padding is now equal (`9px`), the box is 76 × 76, and the same radius finally renders what the word
+«rounded» promised.
+⚠️ **THE VERTICAL PADDING IS THE SURVIVOR, NOT THE HORIZONTAL.** Squaring on 13 would have grown the
+pills to 84 and pushed them past the `.win-next` they stand beside; keeping 9 leaves the outer box
+at the 76 the row was already built around, so the centres stay level with Next (measured 677 = 677)
+and the badge's `top:43` on a 76 box is untouched (still 4 px of overhang, still flush left).
+
+⚠️⚠️ **AND THE LESSON IS ABOUT THE GUARD, NOT THE CSS: EVERY PIN OF THE DAY WAS GREEN ON AN OVAL.**
+The reward assert read `padTop`, `padLeft`, `borderRadius`, the fill, the border, the inset glow and
+the badge — nine values, all correct, none of them able to see the SHAPE. A radius literal cannot:
+80 is 80 whether it draws a circle or a lozenge. The arm added here measures the BOX and requires
+width to equal height within a pixel, which is the property the word «round» actually names.
+⛔ **THE GENERAL FORM, worth carrying: when a value's MEANING depends on another value (a radius on
+the aspect ratio, a `1fr` on the row it sits in, a trim on the file it multiplies), pinning the
+value is not pinning the property.** This project has now paid for that three times — the
+`grid-template-rows` blocker, the trim table, and this.
+⚠️ `gap:6px` is inert on a single-child pill and is kept because the node declares it and a second
+element there is one line away.
+

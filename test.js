@@ -498,6 +498,15 @@ page.on('response', (r) => {
     const shkShown = getComputedStyle(items[1]).display !== 'none';
     return { count: items.length, ids: [items[0].id, items[1].id],
              padTop: a.paddingTop, padLeft: a.paddingLeft, gap: a.columnGap,
+             // ⚠️⚠️ THE SHAPE IS ASSERTED AS A MEASURED SQUARE, NOT AS A RADIUS. `border-radius:80px`
+             // draws a CIRCLE only on a square box and a PILL on any wider one - which is exactly
+             // the defect the owner reported on 2026-09-01-m («they are stretched horizontally»)
+             // while every radius/padding pin of the day stood green. A radius literal cannot see
+             // the difference; the box can.
+             box: [Math.round(items[0].getBoundingClientRect().width),
+                   Math.round(items[0].getBoundingClientRect().height)],
+             round: Math.abs(items[0].getBoundingClientRect().width -
+                             items[0].getBoundingClientRect().height) <= 1,
              borderW: a.borderTopWidth, borderC: a.borderTopColor,
              badgeTop: b.top, badgeFont: b.fontSize, badgePad: b.paddingTop + ' ' + b.paddingLeft,
              badgeRadius: b.borderTopLeftRadius,
@@ -531,7 +540,8 @@ page.on('response', (r) => {
   // Padding, radius, border and fill are what he actually wrote in the node.
   expect(!pill.noNode && pill.count === 2 &&
          pill.ids[0] === 'winRwTip' && pill.ids[1] === 'winRwShake' &&
-         pill.padTop === '9px' && pill.padLeft === '13px' && pill.gap === '6px' &&
+         pill.padTop === '9px' && pill.padLeft === '9px' && pill.gap === '6px' &&
+         pill.round === true &&
          pill.radius === '80px' && pill.bg === 'rgba(255, 255, 255, 0.9)' && pill.inset &&
          pill.borderW === '1px' && pill.borderC === 'rgb(255, 255, 255)' &&
          pill.icon === '56px x 56px' &&
@@ -544,7 +554,11 @@ page.on('response', (r) => {
     '\u26a0\ufe0f\u26a0\ufe0f VICTORY: the reward is TWO WHITE PILLS with notification badges - his ' +
     'Figma nodes 933:1515 (Tip-final) and 933:1531 (Shake-final): padding 9/13 at radius 80 on ' +
     'white 90% with a 1px white border and the 16px inset glow, a 56 icon, and a lime #c0ff47 ' +
-    'badge with #4a7100 text at 20px crossing the bottom-left corner (-1, 43) (' +
+    'badge with #4a7100 text at 20px crossing the bottom-left corner (-1, 43). ' +
+    '\u26a0\ufe0f\u26a0\ufe0f AND THE BOX IS SQUARE, WHICH IS WHAT MAKES THE RADIUS A CIRCLE: his ' +
+    'nodes pad 13 across and 9 down, i.e. 84x76 - an OVAL, and he said so («they are stretched ' +
+    'horizontally», 2026-09-01-m). The padding is equal now and the VERTICAL one is the survivor, ' +
+    'so the outer box stays the 76 the row was built around (' +
     JSON.stringify(pill) + '). \u26d4 THEY SUPERSEDE 892:2041 / 892:2031, WHICH LIVED ONE BATCH - ' +
     'that pair was the BAR-shaped 56 square at radius 16 on white 40%, with a 22-high badge ' +
     'hanging 6px BELOW the frame; and before them the single «+1» pill. Every pin those carried ' +
