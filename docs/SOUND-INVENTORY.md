@@ -148,9 +148,14 @@ happens to trip the delegated hook.
 (`90-input.js:271`). The game is playable from the keyboard (Space = shake), and on that path
 the AudioContext is never resumed and no sample is ever decoded.
 
-⚠️ **`release/music.mp3` HAS DIVERGED** from the shipped `music.mp3`. And two comments still
-describe the track as «~4.2 MB» (`shell.html:3902`, `85-hud.js:2116`) — the shipped file is
-not that size.
+⛔ **THE `release/music.mp3` DIVERGENCE IS CLOSED TWICE OVER.** It was cured on 2026-09-01-o
+(the file had stayed the 267 kbps master since the track was re-encoded on 2026-08-11), and the
+folder itself was deleted on his word on 2026-09-01-p. ⚠️ The check it justified did NOT die with
+it: the suite's arm was RETARGETED at the shipped root `music.mp3`, which is the only remaining
+`fs` read tying the `Audio/` folder to what the player hears.
+
+⚠️ STILL LIVE, and a separate defect: two comments describe the track as «~4.2 MB»
+(`shell.html:3902`, `85-hud.js:2116`) — the shipped file is not that size.
 
 ⚠️ Stale scope comments to fix when this area is next touched: `74-sfx-data.js:3-4` still says
 «FOR NOW ONLY: the interface click + 3 grinding variants» (there are nine samples), and

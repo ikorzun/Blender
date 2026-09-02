@@ -1,7 +1,6 @@
 node_modules/
 node_modules
 *.zip
-release/Mixer.html
 /shot_*.png
 .DS_Store
 

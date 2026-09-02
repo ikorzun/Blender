@@ -21,7 +21,7 @@
 //     baked exactly into alpha. In any library PNG alpha = 255 EVERYWHERE, that is,
 //     one is added to the entire surface: the car portraits gave brightness 255 at
 //     saturation 0 against 128-157 and 0.15-0.43 on the base.
-//     ⛔ The blades (06) and the bomb (07) do NOT suffer from this — their materials
+//     ⛔ The blades (06) do NOT suffer from this — their material
 //     go PAST the patch, so «the PNG worked for the owner» is not an argument.
 // (2) YOU MUST NOT ZERO THE ALPHA IN THE CANVAS. The canvas is stored PREMULTIPLIED,
 //     and at alpha 0 the browser returns zero RGB — the cars went black (brightness 0
@@ -31,7 +31,7 @@
 // `DataTexture` does not. Without the flip the highlight would run top to bottom.
 // ⚠️ The files in «3d assets» themselves stay byte-for-byte as in the library: the
 // conversion into our convention is done by the CODE, and that is why it is visible.
-// ⚠️ NUMBER < 20 — as with 06 and 07: functions are hoisted, while the `const`s of
+// ⚠️ NUMBER < 20 — as with 06: functions are hoisted, while the `const`s of
 // higher modules are in the TDZ for top-level code of lower ones (incident 2026-08-13).
 // ⚠️ COST: cars 15 KB -> ~20 KB base64, food 64 KB -> ~85 KB.
 // ⚠️⚠️ FOR ROUND ITEMS THE CENTER OF THE MATCAP MATTERS, NOT ITS MEAN. The front,

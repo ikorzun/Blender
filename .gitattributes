@@ -16,4 +16,3 @@ index.html -merge
 # index.html — not a rebuild, but
 # `git show claude/bonus-standalone:index.html > bonus.html`.
 bonus.html -merge
-release/Mixer.html -merge

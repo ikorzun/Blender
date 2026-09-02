@@ -13748,3 +13748,208 @@ and the section dropped from 12.4 s to 1.1 s as a side effect.
 ⚠️ **A DRY RUN OF A NEW SECTION COSTS A MINUTE; THE SUITE COSTS THIRTEEN.** Both the sweep trap and
 the pose flake were caught by lifting the new `page.evaluate` bodies out verbatim and running them
 alone. Neither would have been distinguishable from a real regression inside a 900-assert log.
+
+## BATCH 2026-09-01-p: A RADIUS IS NOT A SHAPE (AGAIN), AND TWO REMOVALS BY HIS WORD
+
+Four of his answers in two messages: «does it actually get in the way of anything?» (the ring
+accessibility samples), «yes» (delete `release/`), «delete it» (`07-matcap-bomb.js`), and — with the
+badge selected on the page — «the badge shape must be ROUND for a single digit».
+
+### ⛔⛔ THE BADGE: THE SECOND TIME THIS EXACT CLASS HAS SHIPPED PAST A GREEN SUITE
+
+`.win-rw-n` was sized by its content with UNEQUAL paddings — `8px 6px` on a 20px/1 glyph gives
+**25.8 wide by 36 tall**, and `border-radius:32px` on a non-square box draws a vertical capsule, not
+a circle. Measured, not reasoned.
+⚠️⚠️ **AND EVERY PIN OF THE BADGE WAS GREEN ON IT** — colours, font size, the radius literal, the
+point (-1, 43), the padding. **A radius literal cannot see an aspect ratio; only the box can.** The
+identical failure shipped on 2026-09-01-m, when the reward PILLS were an 84×76 oval behind nine
+green pins; that day the PILL got a measured arm and the badge inside it did not, and that gap is
+exactly what he found.
+✅ **THE FIX WAS NOT INVENTED — IT IS THE BAR BADGE'S OWN RULE.** `#shakeLbl, #hintCnt` has carried
+`height:22px; min-width:22px; padding:0 6px` all along and is therefore a circle on one digit; the
+final-screen badge was the ONE in the game without that pair. Same shape, expressed the same way, so
+the two cannot drift into different answers to one question.
+⚠️ **36 IS THE HEIGHT IT ALREADY RENDERED** (8 + 20 + 8), so nothing moved vertically and `top:43`
+stayed valid — only the width grew. `min-width` and not `width`: measured, `4` → 36×36, `12` → 36×36,
+`128` → 49.3×36, i.e. three digits legitimately grow it into a pill instead of clipping.
+⚠️⚠️ **THE GUARD CANNOT LIVE IN THE EXISTING PROBE, AND THAT IS STRUCTURAL:** the badge is
+`position:absolute` and that probe reads a HIDDEN overlay, where every rect is 0 — **and 0 is
+perfectly square**. Computed style still resolves there (`height`/`min-width` are specified lengths,
+not `auto` — verified in both states), so the two halves are deliberately in different places: the
+declaration is pinned on the hidden screen, the BOX is measured on a shown one.
+⚠️ Two-sided: healthy 36×36, sabotage 25.8×36. **The two-digit reading is 35.1 even when broken**, so
+the single-digit arm is the only discriminating one — which is precisely the case he named.
+
+### `07-matcap-bomb.js` DELETED — AND THE CENSUS FOUND A RUN-KILLER
+
+168 KB of his PNG in base64 that had painted nothing since the dynamite replaced the iridescent ball
+(2026-08-28). It stayed alive on REACHABILITY, not use: the matcap editor still offered a `bomb` row
+and `__game.bombMatcapInfo()` still answered — a target that edited a texture nobody renders.
+⚠️ **THE CONSEQUENCE HAD BEEN NAMED TO HIM AT THE MOMENT IT WAS CREATED** (the 40-items tombstone,
+2026-08-28: «removing it is a separate pass with its own two-sided run»). He decided it.
+✅ **Build 29 → 28 modules, `index.html` 12 251 420 → 12 083 723 B — exactly 167 697 bytes.**
+
+⛔⛔ **THE HIGHEST-SEVERITY FINDING WAS NOT A RED, IT WAS A RUN THAT DIES WITHOUT A VERDICT.**
+`test.js` held `await rp.waitForFunction(() => … mceTexInfo('bomb').w > 1)`; with the module gone
+that is false FOREVER, i.e. a **30-second timeout that THROWS** — it kills the section rather than
+reporting a failure, the signature this project has paid for four times. Found by the census BEFORE
+the removal, never by a run.
+⚠️ **EVERY EXTERNAL CALL WAS `typeof`-GUARDED, so nothing throws at load** — which is why the census
+mattered: the failure mode was not a crash but a set of silent no-ops plus one hanging wait.
+⚠️ **REFERENCES BY MODULE NUMBER ARE INVISIBLE TO A GREP BY SYMBOL** — `08-matcap-packs.js` cites
+«the blades (06) and the bomb (07)» and «as with 06 and 07» as a MODEL for its own module ordering.
+That is the canon's own recorded law about references-as-a-model, and only a skeptic found them.
+⚠️ The surviving `bombMatKind` assert (a matcap material, not a flat MeshBasicMaterial) is STILL
+TRUE — the dynamite takes the sport pack's atlas through the shared selector — but its «iridescent»
+framing has been stale since 2026-08-28 and is now marked as the spec's word rather than a
+description of the screen.
+⚠️ `bonus.html` calls `bombMatcapTex()` UNGUARDED and is unaffected: it is a frozen standalone build
+carrying its own inlined copy. Verified before acting, not assumed.
+⚠️ A latent leftover, named: with the `id === 'bomb'` branch gone, `mceTexOf('bomb')` falls through
+to `makeMatcap('bomb')` and bakes a 128 preset. Nothing calls it any more, so it is inert — but the
+fall-through exists and would quietly manufacture a texture for any id ever typed.
+
+### `release/` DELETED — AND THE THING THAT WOULD HAVE RESURRECTED IT
+
+The folder held only `README.txt` and the music — no game file, a remnant of the July tester-zip era.
+⛔⛔ **THE DECISIVE FINDING WAS NOT IN THE CODE: `WORKSTREAMS.md` CARRIED THREE STANDING ORDERS TO
+REBUILD IT** — step 5 («rebuild `release/mixer-v1-testers.zip`, cp index.html Mixer.html»), step 7
+(«one re-packing») and the owner-facing mode description («build+test+repack»). Those are per-session
+instructions handed to every future agent: delete the folder and leave them, and the next dispatcher
+recreates it — and with `.gitignore`'s `release/Mixer.html` line also gone, commits a 12 MB artifact.
+**Struck in the same change, together with the INTEGRATION zone declaration that owned the folder.**
+⚠️ The zip those orders name had not existed for some time — the docs asserted an archive that was
+not on disk. The premise of his instruction was right and two docs were wrong.
+✅ **THE GUARD WAS RETARGETED, NOT DELETED, AND THAT IS THE LOAD-BEARING JUDGEMENT.** A guard dies
+with its MECHANIC — and the mechanic here was never the folder, it is his promise of 2026-09-01-l:
+«so that I can change the files myself right inside the folder and they go into the game». The music
+is the one sound not inlined into the build, so `build.py` copies it as a separate step, **and that
+arm was the ONLY `fs` read of `Audio/2-music/background-music.mp3` in the whole 16 000-line suite.**
+Deleting the block — which is what the removal looked like it needed — would have silently retired
+the coverage that caught W16 one batch earlier. It now pins the shipped root `music.mp3` against the
+folder, plus an arm that `release/` stays gone.
+⚠️ `docs/SOUND-INVENTORY.md` warned that «`release/music.mp3` HAS DIVERGED» — already false since the
+W16 fix, and doubly moot now. A doc that describes a cured defect as open is a switched-off guard.
+⚠️ `docs/LAUNCH-PLAN.md`'s risk row KEEPS its risk (the portal package is assembled by hand and the
+config gets forgotten) and loses only the dead clause about an archive. Edit the clause, keep the row.
+
+### ⛔⛔ THE RING SAMPLES: HIS QUESTION ANSWERED — YES, AND IT REACHES HIM
+
+He asked whether W14 gets in the way of anything. **It does, from level 39, and only on Hard — which
+the canon records he has switched on.**
+
+`buildAccessSamples` answers `phys:'ball'` before its switch but never `phys:'ring'`, so both ring
+types fall to the hull default: 8 face centroids pulled to 60% toward the origin. For a solid hull
+that is a convex combination and therefore strictly inside the collider — **for a torus, 60% of a
+point on the tube lands in the hole.** Re-derived independently TWICE from the shipped vertex arrays,
+and the live game agrees (`holeProbe`: buoy and donut both take a 12-capsule ring on axis y, ratio
+0.582 / 0.338; the orange control takes one hull; `propstoiletpaper` stays on the hull, which is the
+deliberate exception the canon already records):
+
+| type | samples inside the collider | in the hole | first dealt |
+|---|---|---|---|
+| `propslifebuoy` | 2 of 8 | 6 | **level 39**, pinned |
+| `fooddonutsprinkles` | 1 of 8 | 5 (+2 on the shoulder) | level 103, pinned |
+
+**WHY IT BITES, IN BOTH DIRECTIONS.** `isAccessible` is ANY-sample-ANY-direction, and `castRay` with
+`solid=true` returns toi=0 when the origin is inside another collider. For a hull type the 0.6 shrink
+guarantees every origin is inside its OWN collider, where no neighbour may legally be. **For a ring
+that invariant is broken: the hole is free space a neighbour can legitimately occupy.** So an exposed
+lifebuoy can read INACCESSIBLE — the grey veil, and on tap a wiggle, the toast «Item is covered from
+above» and **`penalize()`, a real score penalty for tapping something plainly reachable**. It also
+drops out of `availablePairs()` (which drives the free auto-shake and `level.deadlock` → rescue
+grinding, which costs points), out of `findHintGroup`, and out of `scopeHighlight`. The mirror case is
+a covered item reading accessible because its hole column is clear.
+⚠️⚠️ **WHY THE SUITE CANNOT SEE IT — STRUCTURAL, NOT LUCK.** `cfg.hard = true` appears in exactly four
+places, all asserting AGGREGATES, and none runs at a level where a ring type is dealt. The one ring
+guard that exists calls `holeProbe`, which proves the COLLIDER took the ring branch and says nothing
+whatsoever about `item.samples`. On Easy `isAccessible` returns on its first line and reads no sample
+at all, so the defect is 100% dormant there — and the suite runs Easy.
+⛔ **STILL NOT FIXED, AND STILL HIS CALL.** The obvious patch is wrong: the `torus` case 20 lines above
+pushes its 8 points in the **XY** plane, while our rings' holes run along **Y**. The honest fix derives
+the points from the same `ringFromGeometry` data the collider already uses — same file, bounded — but
+it edits the tuned accessibility zone, and this project's record on unrequested edits there is bad.
+
+### ⚠️⚠️ THE PROCESS MISTAKE OF THIS BATCH, AND IT IS ONE THE CANON ALREADY RECORDS
+
+**I RAN THE RECON AGAINST A TREE I WAS ACTIVELY EDITING — AGAIN.** The census read `test.js` while the
+badge guard was being written into it, so every line number it returned was stale by exactly +59.
+Applying its headline instruction verbatim («delete lines 16800–16816») would have destroyed the live
+`audit/charge-anchor` block and produced a `SyntaxError` — **the suite would not have parsed and not
+one assert would have run.**
+✅ **THE SKEPTICS CAUGHT IT, WHICH IS WHAT THEY ARE FOR:** all three release-folder lenses refuted the
+census on that ground independently, each having re-read the file on disk. The removal was then done
+entirely BY CONTENT — anchors quoted verbatim, never by address.
+⚠️ **THE RULE, RESTATED BECAUSE STATING IT ONCE DID NOT TAKE:** either freeze the tree for the read, or
+hand the agents a COMMIT to read. And a censused line number is a hypothesis, not an address — the
+edit is anchored on text that must match exactly once, so a stale number fails loudly instead of
+cutting somewhere else.
+
+### ⛔⛔ AND TWO MORE OF MY OWN, BOTH CAUGHT BY THE RUN AND BOTH ALREADY IN THIS FILE
+
+**1. THE NEW ARM CLOSED A SCREEN ITS NEIGHBOURS WERE STANDING ON.** The badge probe ended with
+`g.winScreen(false)` — and the two sections below it (the header by node 891:4314, and the top-row
+fit) inherit the screen that the `rwTick` probe above leaves OPEN. Both came back with EVERY rect at
+**0**, the signature of measuring a hidden overlay, and both went red on a build where nothing was
+wrong with them. **Blast radius: exactly two sections, and the cause was one line.**
+⚠️ This is the canon's own «splicing two blocks yields the wrong order» law met from the APPEND side —
+recorded four times already (a conflict merge, a hover arm appended after its page was closed, an
+aged page winning by itself, and now this).
+
+⛔⛔ **AND «AS FOUND» WAS NOT ENOUGH EITHER — THE SECOND EDITION OF THE SAME ARM BROKE THE SAME TWO
+SECTIONS A DIFFERENT WAY.** Told not to close the screen, I made it RE-SHOW it (`winScreen(false);
+winScreen(true)`) and return one frame later. The neighbours then measured the ENTRANCE CASCADE IN
+FLIGHT: the row gaps came back **11.4 / 14.3** against a settled 4.9 / 4.9, the level and the time
+sat 24px apart instead of on one line, and the rotated caption «overlapped» the time by 32.8px.
+⚠️⚠️ **14.3 IS A NUMBER THIS FILE ALREADY CONTAINS**, written a week earlier at the very guard that
+failed: «mid-animation the row is still moving and the right gap reads 14.3 — a measurement taken
+during the entrance is a flake, not a finding». I reproduced a documented flake by hand and it took
+a third run to read my own note.
+✅ **THE THIRD EDITION TOUCHES THE SCREEN STATE NOT AT ALL** — it inherits the open, SETTLED screen
+`rwTick` leaves, and the one thing it waits for is the badge's `bump`, because that animation is a
+`scale(1.38)` and **a transform IS seen by `getBoundingClientRect`**: a reading taken then would be
+49.7 and still perfectly square, i.e. green for the wrong reason.
+✅ **PROVEN AT THE SEAM RATHER THAN BY RE-RUNNING:** the neighbours' geometry measured immediately
+before and immediately after the arm is now byte-identical — `gaps {4.9, 4.9}`, `widths
+[86, 15, 59.9]`, centres `[380, 380]`, overlap `0`.
+
+**THE RULE, IN ITS THIRD AND CORRECT FORM: a block added to the end of someone else's section must
+hand the state on OPEN, SETTLED AND UNTOUCHED — and the cheapest way to prove that is to measure the
+neighbours' own numbers on both sides of it,** which costs one probe and would have caught all three
+editions before the first run.
+
+**2. I REMOVED A DECLARATION AND LEFT ITS CONSUMER.** Trimming the reset guard's bomb half I deleted
+`b = mceTexInfo('bomb')` from a `waitForFunction` and left `return a.w > 1 && b.w > 1;` one line
+below. Inside a `waitForFunction` the predicate is evaluated IN THE PAGE, so it does not fail at
+parse — it throws `ReferenceError: b is not defined` at run time and **kills the suite without a
+verdict at 745 greens**, with no FAIL line at all.
+⛔ The canon records this exact class from the bonus-level removal («write out ALL the deleted
+top-level declarations and grep each one over the tree») and from `resumeGame`'s orphaned
+`grindStartMs`. It survives `node --check` in both cases, and here it survived it twice: the file
+parses, and the broken predicate lives inside a string-compiled page function.
+✅ **The census after the fix is what should have come first:** for every symbol removed
+(`bombTex`, `before.bomb`, `afterProbe.bomb`, `resetProbe.bomb`, `b`, `bombMatcapInfo`,
+`bombMatcapTex`) grep the tree and confirm the only survivors are tombstones. Two stale target lists
+were found by the same pass (`/…|blades|bomb/` regexes in the editor sections) — inert, since no
+`bomb` row exists to match, but they named a target that is gone.
+
+⚠️⚠️ **THE COMMON SHAPE OF BOTH, WORTH MORE THAN EITHER: A REMOVAL IS NOT AN EDIT AT ONE SITE.** Both
+mistakes were made while doing the thing the census existed to make safe, in the same hour that
+census warned about a THIRD instance of the same class (the 30-second `waitForFunction` that would
+have thrown). The census was right and I still walked into two neighbouring versions of it by hand.
+**Reading a hazard is not the same as having a procedure for it: after cutting anything, run the
+symbol census as a COMMAND, not as an intention.**
+
+### ⚠️ ONE FLAKE, RULED OUT BY THE CANON'S OWN PROCEDURE RATHER THAN BY ASSERTION
+
+A run died with **904 PASS, 0 FAIL and no verdict** on `page.evaluate: Execution context was
+destroyed, most likely because of a navigation` inside the pack-matcap brightness probe — a section
+on its own page that this batch never touched. Before calling the suite unstable (the canon requires
+ruling out the man-made first, and three man-made causes had already been found the same day):
+the preceding run reached that same section fine; the only intervening edit was 3 000 lines earlier
+and on a different page; the edits in that area were comment-only; no browser process had leaked
+(every recorded suite PID was gone) and memory was not starved. **It did not reproduce** — the next
+run gave `SUITE: PASS` with the section green at ratio 0.933.
+⚠️ Recorded because the SIGNATURE is the dangerous part and it is now on its fourth appearance today:
+greens keep coming, `FAIL` is zero, and the only thing missing is the `SUITE:` line. **Grep for that
+line, never for the FAIL count.**

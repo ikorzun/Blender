@@ -1459,15 +1459,10 @@ window.__game = {
     }
     return { types: out, registered: [...typeMatcaps.keys()] };
   },
-  // ⚠️ LOAD-BEARING: the guard «the bomb is dressed in the owner's picture» stands on it. This cannot be
-  // checked by grepping the build — the inline base64 is present even when nobody
-  // hangs it on a material; and the size of the picture is visible only after decoding.
-  bombMatcapInfo(){
-    const t = (typeof bombMatcapTex === 'function') ? bombMatcapTex() : null;
-    const im = t && t.image;
-    return { has:!!t, w:(im && im.width) | 0, h:(im && im.height) | 0,
-             own:!!(im && im.width > 1) };
-  },
+  // ⛔⛔ `bombMatcapInfo` DIED WITH `07-matcap-bomb.js` (his word 2026-09-01-p). Its whole contract
+  // was «the owner's 512x512 picture is decoded», and after the dynamite replaced the ball on
+  // 2026-08-28 it could never again answer true — a hook GUARANTEED to lie is worse than none.
+  // Its two suite call sites went in the same edit; a guard dies with its mechanic.
   // ⚠️ A LOAD-BEARING HOOK: on it the guard «the live-table gate» runs THE HOST TABLE.
   // It cannot be run through `location` — the browser will not allow an arbitrary name, and the gate
   // has already twice let through a case nobody remembered. A separate end-to-end
@@ -2139,7 +2134,9 @@ window.__game = {
   // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
   // REGRESSION #2 (the owner's spec 2026-07-23 «an iridescent bomb»): the bomb's material
-  // is a rainbow MeshMatcapMaterial (bombMatcap), NOT a flat MeshBasicMaterial.
+  // is a MeshMatcapMaterial with a matcap, NOT a flat MeshBasicMaterial.
+  // ⛔ THE WORD «RAINBOW» AND THE NAME `bombMatcap` WENT STALE ON 2026-08-28, when the dynamite
+  // replaced the iridescent ball; the assert itself is still true and still worth having.
   // The suite asserts type==='MeshMatcapMaterial' && hasMatcap.
   bombMatKind(){ const b = items.find(i => i.alive && i.bomb); if (!b) return null;
     const m = b.mesh.material; return { type: m.type, hasMatcap: !!m.matcap }; },

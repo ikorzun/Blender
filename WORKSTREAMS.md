@@ -2301,7 +2301,7 @@ TWO MODES:
    of different directions:
    > «Mixer, dispatcher: 1) graphics — …, 2) interface — …, 3) integration — …»
    The dispatcher agent scatters the tasks among PARALLEL subagents (each one
-   in its own zone), then ONE common build+test+repack and one report.
+   in its own zone), then ONE common build+test and one report.
    Non-overlapping zones go simultaneously; the physics/the core the dispatcher
    serializes. Every task is verified by the subagent with a headless probe.
 
@@ -2367,15 +2367,20 @@ The portion is over — the chat can be closed forever.
    the preview tab (it throttles rAF).
 5. Finished the session: update your own block (State/Done/Next), bump
    the build version in `src/shell.html` («build v1-test-N»), add a line
-   into the «Version journal», rebuild `release/mixer-v1-testers.zip`
-   (cp index.html Mixer.html; zip with README.txt).
+   into the «Version journal».
+   ⛔⛔ THE REPACK STEP IS GONE (his word 2026-09-01-p, «yes» to deleting `release/`). It used to
+   read «rebuild `release/mixer-v1-testers.zip` (cp index.html Mixer.html; zip with README.txt)»,
+   and it was the ONE thing in the repo capable of RESURRECTING that folder — a standing per-session
+   order handed to every future agent. It is struck in the same change as the folder, together with
+   its two restatements in step 7 and in the owner-facing mode description above; the zip it names
+   had not existed for some time. The tester path today is the live deploy, ikorzun.github.io/Blender/.
 6. The gameplay constants and the rules of the game are the OWNER'S decisions: change them
    only at his direct request, record every change in CLAUDE.md.
 7. THE DISPATCHER MODE: having received a batch of tasks of different directions — scatter
    them with PARALLEL subagents strictly by zones (into each one's prompt: his block
    from this file + his task + the rule «only your own files»); the tasks
    touching one and the same zone or the physics/the core go sequentially. After all of them:
-   one build+test, one re-packing, one version bump, update ALL
+   one build+test, one version bump, update ALL
    the affected blocks and the journal, one commit.
 10. THE DISPATCHER'S ROLE IS NARROW (the owner's rule of 2026-07-22: «only such
    tasks can be solved here, you are the dispatcher. everything else must be done by
@@ -4954,7 +4959,7 @@ Cloudflare Worker + D1 per `docs/LEADERBOARD-OWN.md`, folder `server/leaderboard
 
 
 **Zone:** `78-ads.js` (Bridge/stub/interstitial), `79-telemetry.js`,
-`build.py`, `release/` (packages), `playgama-bridge*`, deploy/hosting,
+`build.py`, `playgama-bridge*`, deploy/hosting,
 platform checklists.
 
 **⚡ BRIDGE v2 INTEGRATION — THE MANDATORY STEPS OF THE DOCS (2026-07-29).** A full
@@ -5084,7 +5089,7 @@ show stats.lastAction ticks (the mixer does not eat items under a video),
 showRewarded accepts onFail (bringing back the «×2» button), the capture of coinsWon at
 the moment of the click, Telemetry rw for shake/continue. Telemetry: the sendBeacon
 skeleton, TURNED OFF (URL='' in 79-telemetry) — it awaits the endpoint of the owner's
-worker. The package for testers: release/mixer-v1-testers.zip (Mixer.html +
+worker. ⛔ HISTORICAL — the package for testers WAS release/mixer-v1-testers.zip (Mixer.html +
 README.txt, the names are ASCII — Cyrillic in a zip breaks on Windows).
 The stable portal package: funnel-game/release/mixer-playgama.zip.
 THERE IS HOSTING: https://ikorzun.github.io/Blender/ (GitHub Pages from the repo,

@@ -2061,10 +2061,27 @@
   .win-rw img { display:block; width:56px; height:56px; pointer-events:none; }
   /* the Number badge (933:1543 / 933:1546): it crosses the pill's bottom-left corner rather than
      hanging under it — `left:-1` sits it on the 1px border, not beside it */
+  /* ⛔⛔ A RADIUS IS NOT A SHAPE, AND THIS IS THE SECOND TIME THIS EXACT CLASS HAS SHIPPED (his
+     word 2026-09-01-p, with the badge selected on the page: «the badge must be ROUND for a single
+     digit»). `border-radius:32px` draws a CIRCLE only on a SQUARE box; this one was sized by its
+     content with UNEQUAL paddings - `8px 6px` on a 20px/1 glyph gives 24 wide by 36 tall, i.e. a
+     vertical capsule. Measured, not guessed. The first time was the reward pills themselves
+     (2026-09-01-m: `px-13 py-9` around a 56 icon = an 84x76 oval).
+     ⚠️⚠️ THE FIX IS NOT INVENTED - IT IS THE BAR BADGE'S OWN RULE, `#shakeLbl, #hintCnt`, which has
+     carried `height:22px; min-width:22px; padding:0 6px` all along and is therefore a circle on one
+     digit. This badge was the ONE in the game without that pair. Same shape, expressed the same
+     way, so the two cannot drift into different answers to the same question.
+     ⚠️ 36 IS THE HEIGHT IT ALREADY RENDERED (8 + 20 + 8), so nothing moves vertically and `top:43`
+     stays valid - only the width grows 24 -> 36 and the box becomes square. `min-width` and not
+     `width`: two digits still fit inside 36, and three legitimately grow it into a pill rather
+     than clipping the number.
+     ⚠️ The vertical padding became flex centring for the same reason the bar badge uses it: with a
+     fixed height, padding would have to be recomputed by hand at every change of the font. */
   .win-rw-n { position:absolute; left:-1px; top:43px;
-    box-sizing:border-box; padding:8px 6px; border-radius:32px;
-    background:#c0ff47; color:#4a7100;
-    font:900 20px/1 var(--font-round); text-align:center; white-space:nowrap;
+    height:36px; min-width:36px; box-sizing:border-box; padding:0 6px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:32px; background:#c0ff47; color:#4a7100;
+    font:900 20px/1 var(--font-round); white-space:nowrap;
     filter:drop-shadow(0 2px 4px rgba(0,0,0,.16)); }
   /* THE TICK-UP (his word 2026-09-01-n). The badge is shown one short of the total, and after the
      reward row has finished rising it flips to the real number with a bounce.

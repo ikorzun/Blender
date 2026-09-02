@@ -318,26 +318,22 @@ page.on('response', (r) => {
   const b0 = await page.evaluate(() => ({ alive: window.__game.alive(),
     score: window.__game.stats().score, idx: window.__game.bombIndex() }));
   expect(b0.idx >= 0, 'the bomb is spawned into the pile (index ' + b0.idx + ')');
-  // #2 THE IRIDESCENT BOMB (the owner's spec 2026-07-23): the material is a rainbow
-  // matcap, NOT a flat MeshBasicMaterial (we check on a live bomb before the detonation)
+  // #2 THE BOMB'S MATERIAL CLASS (the owner's spec 2026-07-23 «make it iridescent»): a matcap
+  // material, NOT a flat MeshBasicMaterial (checked on a live bomb before the detonation).
+  // ⚠️ THE WORD «IRIDESCENT» IS THE SPEC'S, AND IT WENT STALE ON 2026-08-28 when the dynamite
+  // replaced the iridescent ball. The citation is kept because it is WHY the assert exists; it is
+  // no longer a description of what is on the screen, and it must not be read as one.
   const bombMat = await page.evaluate(() => window.__game.bombMatKind());
   expect(bombMat && bombMat.type === 'MeshMatcapMaterial' && bombMat.hasMatcap,
     'the bomb is iridescent: MeshMatcapMaterial with a matcap (' + JSON.stringify(bombMat) + ')');
-  // ⚠️⚠️ AND WHOSE PICTURE IT IS — AS A SEPARATE ASSERT. The check above («there is a matcap»)
-  // was green on the PROCEDURAL rainbow matcap too, which we removed 2026-08-17
-  // by the owner's word «take this one for the bomb»: a substitution of his picture back to
-  // the baked one would have passed silently. The sign is THE SIZE of the decoded image:
-  // the owner's asset is 512×512, the procedural DataTexture was 128.
-  // ⚠️ We wait for THE FACT of the decode by polling (the picture arrives by `img.onload`), the ceiling is
-  // a safety net: a fixed pause would measure the clock of the bench, and not the readiness of the texture.
-  const bombTex = await page.evaluate(async () => {
-    const sl = ms => new Promise(r => setTimeout(r, ms));
-    for (let i = 0; i < 60 && !window.__game.bombMatcapInfo().own; i++) await sl(100);
-    return window.__game.bombMatcapInfo();
-  });
-  expect(bombTex.has && bombTex.own && bombTex.w === 512 && bombTex.h === 512,
-    '⚠️⚠️ THE BOMB IS DRESSED IN THE PICTURE OF THE OWNER: the matcap 512×512 is decoded, and not ' +
-    'the baked 128 (' + JSON.stringify(bombTex) + ')');
+  // ⛔⛔ HERE STOOD «AND WHOSE PICTURE IT IS» — DELETED 2026-09-01-p WITH ITS MECHANIC. It polled
+  // `__game.bombMatcapInfo().own` and demanded a decoded 512x512, which was the right assert while
+  // the bomb WAS the owner's PNG. Since the dynamite replaced the ball (2026-08-28) that picture
+  // painted nothing, and on his word the module, the hook and this block went together.
+  // ⚠️ THE ASSERT ABOVE STAYS AND IS NOT WEAKENED BY THE REMOVAL: `bombMatKind` still requires a
+  // MeshMatcapMaterial carrying a matcap, and the dynamite honestly has one — from the sport
+  // pack's atlas through the shared selector. What is gone is the claim about WHOSE picture it is,
+  // because there is no longer a picture of the owner's in that material to make a claim about.
   const det = await page.evaluate(() => window.__game.detonate());
   await page.waitForTimeout(450);
   const b1 = await page.evaluate(() => ({ alive: window.__game.alive(),
@@ -531,6 +527,11 @@ page.on('response', (r) => {
                              items[0].getBoundingClientRect().height) <= 1,
              borderW: a.borderTopWidth, borderC: a.borderTopColor,
              badgeTop: b.top, badgeFont: b.fontSize, badgePad: b.paddingTop + ' ' + b.paddingLeft,
+             // ⚠️ THE PAIR THAT MAKES THE BADGE A CIRCLE, read as computed style because THIS probe
+             // measures a DETACHED CLONE where an absolutely positioned child has no layout at all.
+             // The MEASURED box lives in the live-screen arm further down — the two halves are
+             // deliberately in different places because only one of them can be true here.
+             badgeH: b.height, badgeMinW: b.minWidth,
              badgeRadius: b.borderTopLeftRadius,
              badgeText: items[0].querySelector('.win-rw-n').textContent,
              badgeTo: items[0].dataset.to || '',
@@ -570,7 +571,10 @@ page.on('response', (r) => {
          pill.icon === '56px x 56px' &&
          pill.badgeBg === 'rgb(192, 255, 71)' && pill.badgeFg === 'rgb(74, 113, 0)' &&
          pill.badgeFont === '20px' && pill.badgeRadius === '32px' &&
-         pill.badgePad === '8px 6px' &&
+         // ⛔ `0px 6px` AND NOT THE FORMER `8px 6px`: the badge now takes its height from a fixed
+         // `height:36px` with flex centring, exactly as the bar badge does, so that a change of
+         // font can no longer demand a hand-recomputed vertical padding (his word 2026-09-01-p).
+         pill.badgePad === '0px 6px' && pill.badgeH === '36px' && pill.badgeMinW === '36px' &&
          pill.badgeLeft === '-1px' && pill.badgeTop === '43px' &&
          /^[0-9]+$/.test(pill.badgeText) && pill.badgeText === pill.badgeTo &&
          pill.tags[0] === 'IMG' && pill.tags[1] === 'IMG' && pill.svgLeft === 0 &&
@@ -625,6 +629,73 @@ page.on('response', (r) => {
     'true of a build that printed the total and never moved, i.e. of exactly the thing this arm ' +
     'exists to tell apart. ⚠️ The bounce class is not pinned here - it is removed on `animationend` ' +
     'by design, so reading it is a race; what is guarded is the NUMBER.');
+
+  // ⛔⛔ AND THE BADGE IS A CIRCLE ON ONE DIGIT — MEASURED, NOT DERIVED FROM ITS RADIUS (his word
+  // 2026-09-01-p, sent with the badge selected on the page: «the badge must be ROUND for a single
+  // digit»). `border-radius:32px` draws a circle only on a SQUARE box; sized by content with
+  // `padding:8px 6px` on a 20px/1 glyph it was 24 wide by 36 tall — a vertical capsule.
+  // ⚠️⚠️ THIS IS THE SECOND TIME THIS EXACT CLASS HAS SHIPPED PAST A GREEN SUITE. On 2026-09-01-m
+  // the reward PILLS were an 84x76 oval while nine pins — radius, padding, colours, the badge
+  // point — all stood green, because a radius literal cannot see an aspect ratio. The pill got a
+  // measured arm that day; the badge inside it did not, and that is precisely the gap he found.
+  // ⚠️⚠️ IT CANNOT LIVE IN THE CLONE PROBE ABOVE: the badge is `position:absolute`, and in a
+  // detached clone every such box measures 0 — the arm would be green on any build. Hence the live
+  // screen, re-shown through the production path.
+  // ⚠️ THE THIRD READING IS NOT DECORATION: `min-width` and not `width` is the whole design, so a
+  // three-digit total must be allowed to grow into a pill rather than clip. An arm that only ever
+  // saw one digit would be satisfied by a hard `width:36px` that swallows the hundreds.
+  const rwBadge = await page.evaluate(async () => {
+    // ⛔⛔ THE SCREEN IS NEITHER RE-SHOWN NOR CLOSED — IT IS READ AS FOUND, AND BOTH HALVES OF THAT
+    // WERE PAID FOR. The first edition closed it and the two sections below measured a HIDDEN
+    // overlay (every rect 0). The second re-showed it and returned one frame later, so those same
+    // sections measured the ENTRANCE CASCADE in flight: the row gaps came back 11.4 / 14.3 — and
+    // 14.3 is the exact number this file already records as «mid-animation, a flake, not a
+    // finding». `rwTick` above leaves the screen open AND settled; that is the state to inherit.
+    // ⚠️ THE ONE THING WAITED FOR IS THE BUMP: `rwTick` returns at the instant the number flips,
+    // which is when the badge starts a `scale(1.38)` — and a transform IS seen by
+    // getBoundingClientRect, so a reading taken then would be 49.7 and square, i.e. green for the
+    // wrong reason. The class is removed on `animationend`, so we poll the fact with a ceiling.
+    const g = window.__game;
+    const n = document.querySelector('#winRwTip .win-rw-n');
+    if (!n) return { noNode: true };
+    for (let i = 0; i < 60 && n.classList.contains('bump'); i++)
+      await new Promise(r => setTimeout(r, 25));
+    const read = (t) => { const prev = n.textContent; n.textContent = t;
+      const b = n.getBoundingClientRect(); n.textContent = prev;
+      return { t, w: +b.width.toFixed(1), h: +b.height.toFixed(1) }; };
+    const bar = document.querySelector('#hintCnt');
+    const bb = bar ? bar.getBoundingClientRect() : null;
+    // ⛔⛔ THE SCREEN IS LEFT OPEN, AND THAT IS NOT AN OVERSIGHT — IT IS THE CONTRACT OF THIS PAGE.
+    // The first edition of this arm closed it (`g.winScreen(false)`) and took down the TWO sections
+    // below, which stand on the screen the `rwTick` probe above leaves open: the header and the
+    // top-row fit both came back with EVERY rect at 0, the signature of measuring a hidden overlay.
+    // ⚠️ That is the canon's own «splicing two blocks yields the wrong order» law, met from the
+    // APPEND side: a block added at the end of someone else's section is obliged to ask what its
+    // neighbours inherit, and to hand the state on exactly as it found it.
+    return { one: read('4'), two: read('12'), three: read('128'),
+             bar: bb ? { w: +bb.width.toFixed(1), h: +bb.height.toFixed(1) } : null };
+  });
+  console.log('win reward badge box:', JSON.stringify(rwBadge));
+  expect(!rwBadge.noNode && Math.abs(rwBadge.one.w - rwBadge.one.h) <= 1 && rwBadge.one.h > 20,
+    '⛔⛔ THE REWARD BADGE IS A CIRCLE ON A SINGLE DIGIT (' + JSON.stringify(rwBadge.one) + '). His ' +
+    'word 2026-09-01-p. The sabotage: restore `padding:8px 6px` without `height`/`min-width` in ' +
+    '`.win-rw-n` — measured, that gives 24x36, a vertical capsule, while every radius and colour ' +
+    'pin in this file stays green. ⚠️ The `h > 20` clause is the degeneracy control: a hidden or ' +
+    'collapsed node measures 0x0, and 0 is perfectly square.');
+  expect(!rwBadge.noNode && Math.abs(rwBadge.two.w - rwBadge.two.h) <= 1,
+    '⚠️ AND TWO DIGITS STILL FIT INSIDE THAT CIRCLE (' + JSON.stringify(rwBadge.two) + ') — the ' +
+    'hint count reaches double figures in ordinary play, and a badge that turned into a pill at ' +
+    '«12» would be round for about one level of the game.');
+  expect(!rwBadge.noNode && rwBadge.three.w > rwBadge.three.h + 5 && rwBadge.three.h === rwBadge.one.h,
+    '⚠️⚠️ AND THREE DIGITS GROW IT INTO A PILL INSTEAD OF CLIPPING (' + JSON.stringify(rwBadge.three) +
+    '). ⛔ THIS ARM IS WHAT FORBIDS THE OBVIOUS WRONG FIX: a hard `width:36px` satisfies both arms ' +
+    'above and silently eats the hundreds. The height must stay put while only the width moves.');
+  expect(!rwBadge.noNode && rwBadge.bar && Math.abs(rwBadge.bar.w - rwBadge.bar.h) <= 1,
+    '⚠️ THE BAR BADGE IS STILL THE RULE THIS ONE COPIES (' + JSON.stringify(rwBadge.bar) + '). ' +
+    '`#shakeLbl, #hintCnt` has carried `height:22px; min-width:22px` all along — it was the ONE ' +
+    'badge in the game that was already right, and the fix was taken from it rather than invented. ' +
+    '⛔ WITHOUT THIS ARM A FUTURE PASS COULD «UNIFY» THE TWO BY BREAKING THE GOOD ONE and every ' +
+    'arm above would stay green.');
 
   // ═══ THE HEADER OF THE VICTORY SCREEN BY THE REDRAWN NODE 778:732 (2026-08-21-n) ═══
   // ⚠️⚠️ UNTIL THIS SECTION NOBODY GUARDED THE HEADER. In the suite there was not a single
@@ -12604,7 +12675,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const check = target && target.querySelector('input[type=checkbox]');
     for (const l of labels){
       const c = l.querySelector('input[type=checkbox]');
-      if (c && c !== check && /pack|textured|painted|chrome|blades|bomb/.test(l.textContent) && c.checked) c.click();
+      if (c && c !== check && /pack|textured|painted|chrome|blades/.test(l.textContent) && c.checked) c.click();
     }
     if (check && !check.checked) check.click();
     return { packs: labels.filter(l => /^pack: /.test(l.textContent.trim())).length,
@@ -12928,7 +12999,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // ═══ «RESET» RESTORES THE PICTURE OF THE BLADES AND THE BOMB (the defect was found by the analysis
   // of 2026-08-19, lifted by the owner's word of 2026-08-20 «fix the rest») ═══
   // ⚠️⚠️ THESE TWO TARGETS HAVE NO BYTES: their texture is a `THREE.Texture` on top of
-  // an `HTMLImageElement` (the owner's PNG, 06-matcap-metal / 07-matcap-bomb).
+  // an `HTMLImageElement` (the owner's PNG, 06-matcap-metal; the bomb was the second such
+  // carrier until 2026-09-01-p, when the module and this section's bomb half were removed).
   // «Apply» substituted the editor's canvas for `tex.image`, and put `null` into the backup
   // (there they looked for `image.data`) — and «Reset» became a SILENT NO-OP: both of its
   // branches fell away, there was nothing to give back, it was cured only by a reload.
@@ -12937,21 +13009,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // `CANVAS` (the editor's canvas). Not a single former hook gave this out, which is why
   // the defect lived unnoticed.
   // MEASUREMENT: before — the blades IMG 512, after «Apply» — CANVAS 512, after
-  // «Reset» — IMG 512 again (both targets).
+  // «Reset» — IMG 512 again. ⛔ IT WAS A PAIR (blades + bomb) UNTIL 2026-09-01-p, when the bomb's
+  // module was deleted on the owner's word; the bomb half of every reading went with it.
   {
     const rp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     rp.on('pageerror', e => errors.push('PAGEERROR(reset): ' + e.message));
     await rp.goto('file://' + PAGE_FILE + '?dev=1');
     await rp.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
     await rp.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
-    // ⚠️ WE WAIT FOR THE FACT OF THE DECODE, NOT FOR THE CLOCK: both pictures arrive asynchronously and before
+    // ⚠️ WE WAIT FOR THE FACT OF THE DECODE, NOT FOR THE CLOCK: the picture arrives asynchronously and before
     // the decode `image` is a 1×1 stub. A measurement on the stub would be checking a race.
+    // ⛔⛔ AND THIS WAIT IS WHY THE BOMB'S REMOVAL HAD TO BE CENSUSED RATHER THAN GREPPED: it used to
+    // demand `mceTexInfo('bomb').w > 1` as well, which after the deletion is false FOREVER — a
+    // 30-second timeout that THROWS and kills the section without a verdict, not a red assert.
     await rp.waitForFunction(() => {
-      const a = window.__game.mceTexInfo('blades'), b = window.__game.mceTexInfo('bomb');
-      return a.w > 1 && b.w > 1;
+      const a = window.__game.mceTexInfo('blades');
+      return a.w > 1;
     }, { timeout: 30000 });
-    const targets = () => rp.evaluate(() => ({ blades: window.__game.mceTexInfo('blades'),
-                                               bomb: window.__game.mceTexInfo('bomb') }));
+    const targets = () => rp.evaluate(() => ({ blades: window.__game.mceTexInfo('blades') }));
     const before = await targets();
     await rp.evaluate(() => window.__game.matcapEdit());
     await rp.waitForTimeout(400);
@@ -12960,9 +13035,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       let n = 0;
       for (const l of [...panel.querySelectorAll('label')]){
         const c = l.querySelector('input[type=checkbox]'); if (!c) continue;
-        const want = /mixer blades|bomb|apply immediately/.test(l.textContent);
+        const want = /mixer blades|apply immediately/.test(l.textContent);
         if (c.checked !== want) c.click();
-        if (/mixer blades|bomb/.test(l.textContent)) n++;
+        if (/mixer blades/.test(l.textContent)) n++;
       }
       return n;
     });
@@ -12982,19 +13057,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await rp.close();
     console.log('reset of the blades/bomb:', JSON.stringify({ marked, pressedApply, pressedReset, before, afterProbe, resetProbe }));
 
-    expect(marked === 2 && pressedApply && pressedReset
-        && before.blades.source === 'IMG' && before.bomb.source === 'IMG',
-      'SANITY OF THE RESET: both picture targets are ticked, both buttons are pressed, and BEFORE the edit ' +
-      'both carry the owner\'s picture (' + JSON.stringify({ marked, pressedApply, pressedReset, before }) + ')');
+    expect(marked === 1 && pressedApply && pressedReset
+        && before.blades.source === 'IMG',
+      'SANITY OF THE RESET: the picture target is ticked, both buttons are pressed, and BEFORE the edit ' +
+      'it carries the owner\'s picture (' + JSON.stringify({ marked, pressedApply, pressedReset, before }) + '). ' +
+      '⛔ THE COUNT IS 1 AND NOT 2 SINCE 2026-09-01-p: the bomb was the second picture target and its ' +
+      'row went with `07-matcap-bomb.js`. ⚠️⚠️ THE BOMB HALF COULD NOT MERELY BE LEFT TO FAIL - the ' +
+      '`waitForFunction` above demanded `mceTexInfo(\'bomb\').w > 1`, which after the removal is false ' +
+      'forever: that is a 30-SECOND TIMEOUT THAT THROWS, killing this section without a verdict rather ' +
+      'than reporting a red. Found by the pre-removal census, not by a run.');
 
-    expect(afterProbe.blades.source === 'CANVAS' && afterProbe.bomb.source === 'CANVAS',
-      'THE APPLY REACHED THE PICTURE TARGETS AT ALL: for both the source became the editor\'s ' +
+    expect(afterProbe.blades.source === 'CANVAS',
+      'THE APPLY REACHED THE PICTURE TARGET AT ALL: the source became the editor\'s ' +
       'canvas (' + JSON.stringify(afterProbe) + '). Without this hand the guard below would be green ' +
       'even on an editor that does nothing at all');
 
-    expect(resetProbe.blades.source === 'IMG' && resetProbe.bomb.source === 'IMG'
-        && resetProbe.blades.w === before.blades.w && resetProbe.bomb.w === before.bomb.w,
-      '⚠️⚠️ «RESET» RETURNS THE OWNER\'S PICTURE TO THE BLADES AND THE BOMB (' +
+    expect(resetProbe.blades.source === 'IMG'
+        && resetProbe.blades.w === before.blades.w,
+      '⚠️⚠️ «RESET» RETURNS THE OWNER\'S PICTURE TO THE BLADES (' +
       JSON.stringify({ before, afterProbe, resetProbe }) + '). Before the fix of 2026-08-20 it was ' +
       'a SILENT NO-OP: `null` lay in the backup, the only reference to the ' +
       'decoded PNG had been overwritten by the canvas, and only a page reload could bring the picture ' +
@@ -13036,7 +13116,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
              ranges: p.querySelectorAll('input[type=range]').length,
              colors: p.querySelectorAll('input[type=color]').length,
              file: p.querySelectorAll('input[type=file]').length,
-             objects: rows.filter(l => /^(?!.*(pack:|textured|painted|chrome|blades|bomb|apply immediately))/.test(l.textContent)).length };
+             objects: rows.filter(l => /^(?!.*(pack:|textured|painted|chrome|blades|apply immediately))/.test(l.textContent)).length };
   });
   const typeMcLoaded = await mceDropPng(typeMcPage, '#ff2d55');
   // ⚠️⚠️ THE VICTIM IS CHOSEN FROM THE LIVE LEVEL, NOT PINNED BY NAME. A literal («Banana») would
@@ -16798,21 +16878,39 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '`fxColor` is the only thing that knows what the dust should look like.');
     await auPage.close();
 
-    // ── THE RELEASE FOLDER SHIPS THE MUSIC THE GAME SHIPS ─────────────────────────────────────
-    // ⚠️ `release/music.mp3` had stayed the 267 kbps MASTER (4.39 MB) ever since the track was
-    // re-encoded on 2026-08-11 — 2.8 MB of dead weight in the one folder a tester is handed, and
-    // a different mix from the one every measurement in this project was taken on.
+    // ── THE FOLDER HE EDITS REACHES WHAT THE PLAYER HEARS ────────────────────────────────────
+    // ⛔⛔ THIS ARM WAS «release/music.mp3 IS NOT THE MASTER» AND IT WAS RETARGETED, NOT DELETED,
+    // WHEN THE FOLDER WENT (his word 2026-09-01-p, «yes»). A guard dies with its MECHANIC — and the
+    // mechanic here was never the folder: it is his standing promise of 2026-09-01-l, «so that I
+    // can change the files myself right inside the folder and they go into the game». The music is
+    // the ONE sound that is not inlined into the build (4.4 MB of base64 would triple the start),
+    // so `build.py` copies it as a separate step, and this is the only thing that watches that copy.
+    // ⚠️⚠️ AND IT IS THE ONLY `fs` READ OF `Audio/2-music/background-music.mp3` IN THE WHOLE SUITE —
+    // found by the pre-removal census, not by a run. Deleting the block outright, which is what the
+    // removal looked like it needed, would have silently retired that coverage: the folder's music
+    // could then diverge from the shipped track with nothing to say so, which is EXACTLY the defect
+    // (W16) that put a guard here in the first place, one batch earlier.
     {
-      const relF = path.join(__dirname, 'release', 'music.mp3');
+      const shipped = path.join(__dirname, 'music.mp3');
       const srcF = path.join(__dirname, 'Audio', '2-music', 'background-music.mp3');
       const md5 = (f) => require('crypto').createHash('md5').update(fs.readFileSync(f)).digest('hex');
-      const same = fs.existsSync(relF) && fs.existsSync(srcF) && md5(relF) === md5(srcF);
-      console.log('audit/release-music:', JSON.stringify({ same,
-        bytes: fs.existsSync(relF) ? fs.statSync(relF).size : null }));
+      const same = fs.existsSync(shipped) && fs.existsSync(srcF) && md5(shipped) === md5(srcF);
+      const gone = !fs.existsSync(path.join(__dirname, 'release'));
+      console.log('audio/music-reaches-build:', JSON.stringify({ same, gone,
+        bytes: fs.existsSync(shipped) ? fs.statSync(shipped).size : null }));
       expect(same,
-        '⛔ THE TESTER PACKAGE CARRIES THE SHIPPED TRACK, NOT THE MASTER. `release/music.mp3` must ' +
-        'be byte-identical to `Audio/2-music/background-music.mp3` — the folder beside it holds ' +
-        'the 267 kbps original ON PURPOSE, so a copy is one command and a wrong copy is silent.');
+        '⛔ THE SHIPPED `music.mp3` IS BYTE-FOR-BYTE THE FILE IN `Audio/2-music/`. `build.py` copies ' +
+        'it with an md5 skip, so a replaced source that was never rebuilt leaves the player hearing ' +
+        'the old track while the folder shows the new one — silent by construction, since nothing ' +
+        'else in the suite opens either file. ⚠️ The 267 kbps original lives beside it as ' +
+        '`original-master-267kbps.mp3` ON PURPOSE, which is why the copy must be pinned rather than ' +
+        'assumed: shipping the master is a real, measured mistake this project has already made.');
+      expect(gone,
+        '⚠️ AND `release/` STAYS DELETED (his word 2026-09-01-p). ⛔ THIS ARM IS NOT TIDINESS: three ' +
+        'STANDING ORDERS in WORKSTREAMS.md used to tell every future session to rebuild that folder ' +
+        '(«rebuild release/mixer-v1-testers.zip», «one re-packing», «build+test+repack»). They were ' +
+        'struck in the same change, and this is what goes red if one of them creeps back — a ' +
+        'resurrected folder would once again ship a music file nobody watches.');
     }
   }
 

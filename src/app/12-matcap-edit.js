@@ -57,7 +57,6 @@ function mceTargets(){
     { id:'soft',  label:'painted items' },
     { id:'metal', label:'chrome' },
     { id:'blades',label:'mixer blades' },
-    { id:'bomb',  label:'bomb' },
   ];
 }
 // ⚠️ A PACK GETS ITS TEXTURE ONLY AT THE MOMENT OF APPLYING (copy on
@@ -94,7 +93,6 @@ function mceTypeTargets(){
 function mceAllTargets(){ return mceTargets().concat(mceTypeTargets()); }
 function mceTexOf(id){
   if (id === 'blades') return (typeof metalMatcapTex === 'function') ? metalMatcapTex() : null;
-  if (id === 'bomb')   return (typeof bombMatcapTex  === 'function') ? bombMatcapTex()  : null;
   const pack = mcePackOf(id);
   if (pack) return (typeof packMatcaps !== 'undefined') ? (packMatcaps.get(pack) || null) : null;
   return makeMatcap(id);
@@ -212,8 +210,12 @@ function mceApply(id){
   const src = g.getImageData(0, 0, S, S).data;
   if (!mceBackup.has(id)){
     // a copy BEFORE the first edit — «Reset» returns exactly it
-    // ⚠️⚠️ THE PICTURE TARGETS (blades, bomb) HAVE NO BYTES AT ALL: their texture is
-    // a `THREE.Texture` on top of an `HTMLImageElement` (06-matcap-metal / 07-matcap-bomb,
+    // ⚠️⚠️ THE PICTURE TARGET (the blades) HAS NO BYTES AT ALL: its texture is
+    // a `THREE.Texture` on top of an `HTMLImageElement` (06-matcap-metal;
+    // ⛔ THE BOMB WAS THE SECOND SUCH CARRIER AND IS GONE (his word 2026-09-01-p, «delete it»):
+    // 07-matcap-bomb.js shipped 168 KB of his PNG that had painted nothing since the dynamite
+    // replaced the ball on 2026-08-28, yet the editor still offered a row for it — a target that
+    // edited a texture nobody renders. The blades keep every property described here,
     // the owner's PNG), and its `image.data === undefined`. The previous line put
     // `null` into their backup, and below `tex.image = tmp` overwrote the ONLY reference to
     // the decoded PNG — and «Reset» became a SILENT NO-OP: both of its branches
@@ -260,12 +262,15 @@ function mceReset(id){
       tex.image.data.set(b); tex.needsUpdate = true;
     }
   } else if (b && (b.width || b.nodeName)){
-    // ⚠️ A PICTURE TARGET (blades, bomb): we swap the SOURCE back. This is exactly
+    // ⚠️ A PICTURE TARGET (the blades): we swap the SOURCE back. This is exactly
     // the inverse operation to `tex.image = tmp` in `mceApply` — by the same means as
     // the damage itself, otherwise the restore would lie about its own coverage.
     tex.image = b; tex.needsUpdate = true;
-  } else if (typeof retuneMatcap === 'function' && id !== 'blades' && id !== 'bomb'){
-    // ⚠️ The `blades`/`bomb` gate STAYS even after the fix: `retuneMatcap` walks
+  } else if (typeof retuneMatcap === 'function' && id !== 'blades'){
+    // ⛔ THE `&& id !== 'bomb'` TERM WENT WITH THE TARGET (2026-09-01-p): with no `bomb` row in
+    // `mceTargets` the comparison was unreachable, and a dead clause that still READS as a live
+    // guard is the thing this project keeps paying for.
+    // ⚠️ The `blades` gate STAYS even after the fix: `retuneMatcap` walks
     // `matcapCache` (keys soft/metal/tex) and does not reach these two at all —
     // the call would be empty while looking like a fallback path.
     retuneMatcap(id);   // also an edit IN PLACE: `bakeMatcap` writes into `tex.image.data`

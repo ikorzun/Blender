@@ -257,10 +257,12 @@ function makeSurprise(spawn){
 // ⛔⛔ AND THAT IS STALE SINCE 2026-08-28: the bomb became the DYNAMITE (the owner's word
 // «replace the bomb with the dynamite»), and the dynamite is a textured model — it takes the
 // sport pack's colormap and the shared `itemMatcapAim` selector, see the material below.
-// ⚠️ `07-matcap-bomb.js` (168 KB of base64) THEREFORE NOW PAINTS NOTHING in the game.
-// `bombMatcapTex` is still alive on two paths and that is why the file was NOT deleted:
-// the matcap editor's target for id 'bomb' (`12-matcap-edit.js:97`) and the hook at
-// `99-main.js:1340`. Deleting it is 168 KB off the build and the owner's call, not mine.
+// ⛔⛔ AND `07-matcap-bomb.js` IS GONE (his word 2026-09-01-p, «delete it»). It had painted
+// nothing since 2026-08-28 and shipped 168 KB of his PNG in base64 to do it; what kept it alive
+// was reachability, not use — the matcap editor still offered a 'bomb' row and `bombMatcapInfo`
+// still answered — i.e. a target that edited a texture nobody renders. All of it went in one pass.
+// ⚠️ THE POINTER THIS PARAGRAPH USED TO CARRY WAS ITSELF STALE («the hook at 99-main.js:1340» —
+// it was at 1465), which is why the removal was censused BY CONTENT and not by these line numbers.
 // ⚠️ THE REASON IT EXISTED AT ALL HAS NOT DISAPPEARED: three r149 cannot do
 // `MeshPhysicalMaterial.iridescence` (r150+, and the UMD build cannot be raised
 // above r160), and the iridescence still lives in a TEXTURE, not in the material.
@@ -297,11 +299,10 @@ function makeSurprise(spawn){
 // material has no patched shader — «a buried bomb only dims by ~30%, the hue is intact»). With the
 // patch it joins `uVeil` like everything else, i.e. a buried bomb now DESATURATES fully. That is a
 // documented behaviour changing, and it changes because he asked for the thing that causes it.
-// ⛔ CONSEQUENCE, NAMED AND NOT SILENTLY TIDIED: `07-matcap-bomb.js` (168 KB of the owner's PNG in
-// base64) no longer paints anything. It is still reachable through the matcap editor's 'bomb'
-// target, `__game.bombMatcapInfo()` and two suite places — so the target now edits a texture that
-// is not rendered, which is exactly the «silent no-op» class this project keeps fighting. Removing
-// it is a separate pass with its own two-sided run; it was NOT folded into this batch.
+// ✅ THE CONSEQUENCE NAMED HERE ON 2026-08-28 WAS CLOSED ON 2026-09-01-p BY HIS WORD: the 168 KB
+// of PNG, the editor's 'bomb' row, `__game.bombMatcapInfo()` and both suite places are gone. The
+// paragraph is kept because it is the record of a defect that was NAMED rather than discovered —
+// the «silent no-op» was reported to him at the moment it was created, and he decided it.
 function makeBomb(){
   // the dynamite from «3d assets/models/sport» (39-sport). It has NO line in TYPES — it is not a
   // collectable type, only the bomb's body, so the pool stays at 93.
