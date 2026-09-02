@@ -5541,8 +5541,26 @@ const BASE_RADIUS_DEFAULT = 0.45;
 // tail. The full measurement is in CLAUDE.md, the section about the soft endgame threshold.
 const ENDGAME_SOFT_ALIVE = 16;   // it was 10 ("fewer than 10 of them"), raised by measurement
 const ENDGAME_SOFT_SHAKES = 1;   // "there are few or no shakes left"
-const MATCH_R_MISS = 0.30;      // where the radius falls to at the moment of a miss
-const MATCH_R_MISS_MS = 3000;   // "after a few seconds" — over this long it crawls back to the base
+// ⛔⛔⛔ HIS SPEC OF 2026-08-11 IS CANCELLED BY HIS OWN WORD OF 2026-09-02, AND IT IS AN INVERSION,
+// not a retune. It read «on a mistake this parameter needs to be dropped HARD for some time down to
+// 0.3, but after a few seconds brought back up» — `MATCH_R_MISS = 0.30` for `MATCH_R_MISS_MS = 3000`,
+// applied as a CEILING on the match radius. The new word: «let's increase it a little if the player
+// errs once or several times. Our goal is to make the game on the edge of hard and to HELP THE
+// PLAYER OUT OF DEAD-END SITUATIONS.» A mechanic that punishes a miss by shrinking his reach is the
+// exact opposite of helping him out of one, and the two cannot coexist: «errs ONCE» covers the very
+// first mistake, which is precisely when the old rule bit hardest.
+// ⚠️ TO BRING THE PENALTY BACK: restore `MATCH_R_MISS = 0.30`, make `missRadiusAdj` return a CAP
+// again and apply it with `Math.min` in `updateMatchRadius`. The plumbing is deliberately unchanged
+// — the same «the player just missed» state, the same pause anchor, the same hooks — so the
+// direction is one expression, not a refactor.
+// ⚠️⚠️ «A LITTLE» IS A CEILING ON THE HELP, AND THAT IS WHAT KEEPS «ON THE EDGE OF HARD» TRUE: the
+// assist is a FLOOR under the radius, it never exceeds `MISS_ASSIST_MAX` however long the run of
+// mistakes, and it CANNOT push past `COMBO_RADIUS` — the ceiling that holds everywhere else in the
+// game, including turbo. So a player who keeps missing gets steadily more reach up to a fixed
+// stop, and never more than a player in a perfect streak.
+const MISS_ASSIST_STEP = 0.05;  // added to the radius per consecutive mistake
+const MISS_ASSIST_MAX  = 0.20;  // the stop: four mistakes and the help grows no further
+const MATCH_R_MISS_MS = 3000;   // how long a mistake keeps counting as recent (the state's window)
 
 // WEIGHT DURING A SHAKE (the owner's spec 2026-07-21, "option 1"): a discrete
 // response multiplier BY MODEL PACK (tex in TYPES) — metal cars
@@ -9163,18 +9181,20 @@ const TYPES = [
   { name:'propsmicrowave', color:0x67636a, rc:1.0, wr:0.73, tex:'props', mat:'soft', geo:propsmicrowaveGeo },
   { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
   { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propswasher', color:0xeeecec, rc:1.0, wr:0.54, tex:'props', mat:'soft', geo:propswasherGeo },
   // ⛔ `piratechest` DELETED 2026-08-20 (the owner's word: «delete the chest, both
   // the open one and the closed one»). The artist sent an OPEN variant instead of the previous
   // closed one — the owner wanted neither. The model was removed both from
   // the source and from the module: the pool now holds 87 types.
   { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
-  { name:'propswasher', color:0xeeecec, rc:1.0, wr:0.54, tex:'props', mat:'soft', geo:propswasherGeo },
+  { name:'propsgrenade', color:0x58a078, rc:1.0, wr:0.76, tex:'props', mat:'soft', geo:propsgrenadeGeo },
   { name:'foodavocado',           color:0x6b8f3a, rc:1.0, tex:'food', mat:'soft', geo:foodavocadoGeo },
   { name:'foodapple',             color:0xe83a3a, rc:1.0, tex:'food', mat:'soft', geo:foodappleGeo },
-  { name:'propsgrenade', color:0x58a078, rc:1.0, wr:0.76, tex:'props', mat:'soft', geo:propsgrenadeGeo },
+  { name:'propsbeachball', color:0xcf9796, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsbeachballGeo },
   { name:'animalkoala',           color:0x9ba3ad, rc:1.0, tex:'animal', mat:'soft', geo:animalkoalaGeo },
   { name:'animalcat',             color:0x6b7280, rc:1.0, tex:'animal', mat:'soft', geo:animalcatGeo },
+  { name:'propspistol', color:0x4f5260, rc:1.0, wr:0.82, tex:'props', mat:'soft', geo:propspistolGeo },
   { name:'animalgiraffe',         color:0xe0b23a, rc:1.0, tex:'animal', mat:'soft', geo:animalgiraffeGeo },
   { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cargarbagetruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickclassic', color:0x5ac44a, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickclassicGeo },
@@ -9183,10 +9203,8 @@ const TYPES = [
   { name:'foodpaprika',           color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodpaprikaGeo },
   { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
   { name:'animalfox',             color:0xf07a34, rc:1.0, tex:'animal', mat:'soft', geo:animalfoxGeo },
-  { name:'propsbeachball', color:0xcf9796, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsbeachballGeo },
   { name:'animallion',            color:0xd9a05b, rc:1.0, tex:'animal', mat:'soft', geo:animallionGeo },
   { name:'carrace',               color:0xff5a2b, rc:1.4, tex:'car', mat:'soft', geo:()=>carraceGeo().clone().scale(1.4, 1.4, 1.4) },
-  { name:'propspistol', color:0x4f5260, rc:1.0, wr:0.82, tex:'props', mat:'soft', geo:propspistolGeo },
   { name:'animalmonkey',          color:0xa9713f, rc:1.0, tex:'animal', mat:'soft', geo:animalmonkeyGeo },
   { name:'animaldog',             color:0xc98f5a, rc:1.0, tex:'animal', mat:'soft', geo:animaldogGeo },
   { name:'animalbeaver',          color:0x9c6b42, rc:1.0, tex:'animal', mat:'soft', geo:animalbeaverGeo },
@@ -12659,11 +12677,17 @@ function updateMatchRadius(){
     const t = Math.min(1, comboLevel / COMBO_STEPS);
     r = Math.max(r, r + (COMBO_RADIUS - r) * t);
   }
-  // THE MISS PENALTY IS A CEILING ON TOP OF EVERYTHING except the endgame ∞ (that one returned
-  // earlier). Precisely a ceiling, not an assignment: the shrinking of the pile and the staircase of
-  // the streak go on living their own lives, the penalty merely does not let the result rise above it.
-  const cap = missRadiusCap();
-  if (cap !== null) r = Math.min(r, cap);
+  // ⛔⛔ THE MISS ASSIST IS A FLOOR ON TOP OF EVERYTHING except the endgame ∞ (that one returned
+  // earlier). It WAS a ceiling until 2026-09-02 — `Math.min` against a value that fell to 0.30 — and
+  // his new word inverted it. Precisely a floor, not an assignment: the shrinking of the pile and
+  // the staircase of the streak go on living their own lives, and the assist merely does not let the
+  // result fall below the base plus the help.
+  // ⚠️⚠️ AND IT IS CLAMPED TO `COMBO_RADIUS`, THE CEILING THAT HOLDS EVERYWHERE ELSE IN THIS GAME —
+  // his own invariant, nerfed four times for being «too easy». A player who keeps missing must never
+  // out-reach a player in a perfect streak; that clamp is what keeps «on the edge of hard» true
+  // while the help exists at all.
+  const help = missRadiusCap();
+  if (help !== null) r = Math.min(COMBO_RADIUS, Math.max(r, CFG.baseRadius + help));
   CFG.matchRadius = r;
 }
 // ===== RADIUS PENALTY FOR A MISS (the owner's spec of 2026-08-11) =====
@@ -12675,7 +12699,18 @@ function missRadiusClear(){ missRadiusAt = 0; }
 function missRadiusActive(now){
   return missRadiusAt > 0 && ((now || performance.now()) - missRadiusAt) < MATCH_R_MISS_MS;
 }
-// The ceiling of the penalty: `MATCH_R_MISS` at the moment of the miss, linearly back to the base over
+// ⛔⛔ THIS WAS THE PENALTY'S CEILING AND IT IS NOW THE ASSIST'S FLOOR (his word 2026-09-02). What
+// it returns is no longer «how far down the radius is held» but «how much is ADDED to it», and the
+// caller applies it with `Math.max` instead of `Math.min`.
+// ⚠️⚠️ THE SIZE COMES FROM `stats.missRun`, NOT FROM THE CLOCK — «once or several times» is a COUNT,
+// and the count that already exists is the one the price ladder uses: mistakes since the last merge,
+// zeroed in `doMatch` and by `genLevel`. So the help grows with a run of failures and vanishes the
+// instant the player merges anything, which is exactly «help him out of a dead end» and not «make
+// the game easier».
+// ⚠️ The clock still decides only WHETHER a mistake is recent (`MATCH_R_MISS_MS`), so the help fades
+// on its own if the player simply stops and thinks.
+// The old text follows, because the shape of the function is unchanged:
+// the ceiling of the penalty: `MATCH_R_MISS` at the moment of the miss, linearly back to the base over
 // `MATCH_R_MISS_MS`. ⚠️ It returns null when there is no penalty, and NOT the base: a ceiling
 // "equal to the base" differs from "no ceiling at all" on exactly the day when the base
 // drifts lower (via the slider in the panel), and then the penalty would silently become a BOOST.
@@ -12683,7 +12718,11 @@ function missRadiusCap(now){
   if (!missRadiusAt) return null;
   const t = ((now || performance.now()) - missRadiusAt) / MATCH_R_MISS_MS;
   if (t >= 1) return null;
-  return MATCH_R_MISS + (CFG.baseRadius - MATCH_R_MISS) * Math.max(0, t);
+  // ⚠️ THE RUN OF MISTAKES IS READ THROUGH A GUARD: `stats` belongs to 40-items and this function is
+  // also reachable from the test hooks before a level exists.
+  const run = (typeof stats !== 'undefined' && stats && stats.missRun) | 0;
+  if (run <= 0) return null;
+  return Math.min(MISS_ASSIST_MAX, MISS_ASSIST_STEP * run);
 }
 // ⚠️⚠️ THE RECOVERY RUNS ON THE REAL CLOCK, SO IT HAS TO BE TICKED FROM THE LOOP.
 // `refreshAccessibility` (and with it `updateMatchRadius`) does NOT tick at all when things
@@ -25257,12 +25296,13 @@ window.__game = {
   // the mechanic cannot be checked: it is entirely inside an IIFE, and from outside only
   // `CFG.matchRadius` is visible — by it «it dropped because of a miss» is indistinguishable from «it dropped because
   // the pile shrank». `missRadius()` hands out the STATE, not a retelling.
-  missRadius(){ return { active: missRadiusActive(), cap: missRadiusCap(),
+  missRadius(){ return { active: missRadiusActive(), cap: missRadiusCap(), assist: missRadiusCap(),
+                         run: (stats && stats.missRun) | 0, step: MISS_ASSIST_STEP, max: MISS_ASSIST_MAX,
                          counted: aliveCountForRadius(),   // the same number by which BOTH endgame steps decide
                          ownShakes: (level ? level.shakes : 0) + purchasedShakes(),
                          radius: +CFG.matchRadius.toFixed(3), base: CFG.baseRadius,
                          floor: MATCH_R_MIN, comboCap: COMBO_RADIUS,
-                         bottom: MATCH_R_MISS, windowMs: MATCH_R_MISS_MS }; },
+                         windowMs: MATCH_R_MISS_MS }; },
   missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
   baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // to the guards — return the live value, not a literal
   missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // the transition guard: the same scene WITHOUT the penalty
@@ -26157,6 +26197,21 @@ window.__game = {
     it.body.setAngvel({ x:0, y:0, z:0 }, true);
     // A Rapier RAKE: the query pipeline (castRay) sees the teleport only after
     // world.step() or an explicit propagation — otherwise the rays hit a phantom
+    // ⛔⛔ AND THAT IS ONLY HALF TRUE — CORRECTED 2026-09-02 BY TWO INDEPENDENT LIVE MEASUREMENTS
+    // (the level-39 verification, a probe and the skeptic sent to refute it, neither of which had
+    // seen the other's number). The propagation updates COLLIDER POSES; it does NOT rebuild the
+    // query pipeline's BVH, whose leaf AABBs are refreshed only by `world.step()`. So a teleported
+    // body is found by a ray only where the ray still crosses its OLD AABB.
+    // ⚠️⚠️ THE CONSEQUENCE IS ASYMMETRIC AND THAT IS WHY THE HALF-TRUTH SURVIVED: `place()` IS safe
+    // for a ray SOURCE (which is what the rescuer and the accessibility fan do — the item's own body
+    // is excluded from its own cast anyway), and it is NOT safe for a ray TARGET. Measured: a
+    // 25-item slab teleported directly over an item left it reading ACCESSIBLE on every build until
+    // the world was woken and stepped; a body teleported BELOW the pile — where the ray still
+    // crosses the region it came from — WAS seen.
+    // ⛔ SO A GUARD THAT STAGES AN OCCLUDER WITH `place()` ON A SLEPT PILE READS PHANTOMS. After
+    // `skipIntro` the loop steps only while `physAwake`, so it must wake and step, and a wake is not
+    // inert either — it was measured to fling a body 3-4 units. Stage by moving the SUBJECT onto
+    // unmoved geometry, not by moving props onto the subject.
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
     syncMeshes();
     renderer.shadowMap.needsUpdate = true; // autoUpdate=false: a teleport without waking physics left the shadow at the old place

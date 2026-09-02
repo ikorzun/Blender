@@ -208,18 +208,20 @@ const TYPES = [
   { name:'propsmicrowave', color:0x67636a, rc:1.0, wr:0.73, tex:'props', mat:'soft', geo:propsmicrowaveGeo },
   { name:'holidayreindeer', color:0x9a6b45, rc:1.0, tex:'holiday', mat:'soft', geo:holidayreindeerGeo },
   { name:'carambulance',          color:0xeef2f6, rc:1.4, tex:'car', mat:'soft', geo:()=>carambulanceGeo().clone().scale(1.4, 1.4, 1.4) },
+  { name:'propswasher', color:0xeeecec, rc:1.0, wr:0.54, tex:'props', mat:'soft', geo:propswasherGeo },
   // ⛔ `piratechest` DELETED 2026-08-20 (the owner's word: «delete the chest, both
   // the open one and the closed one»). The artist sent an OPEN variant instead of the previous
   // closed one — the owner wanted neither. The model was removed both from
   // the source and from the module: the pool now holds 87 types.
   { name:'holidaysnowman', color:0xeef4fb, rc:1.0, tex:'holiday', mat:'soft', geo:holidaysnowmanGeo },
   { name:'foodcherries',          color:0xd93a4a, rc:1.0, tex:'food', mat:'soft', geo:foodcherriesGeo },
-  { name:'propswasher', color:0xeeecec, rc:1.0, wr:0.54, tex:'props', mat:'soft', geo:propswasherGeo },
+  { name:'propsgrenade', color:0x58a078, rc:1.0, wr:0.76, tex:'props', mat:'soft', geo:propsgrenadeGeo },
   { name:'foodavocado',           color:0x6b8f3a, rc:1.0, tex:'food', mat:'soft', geo:foodavocadoGeo },
   { name:'foodapple',             color:0xe83a3a, rc:1.0, tex:'food', mat:'soft', geo:foodappleGeo },
-  { name:'propsgrenade', color:0x58a078, rc:1.0, wr:0.76, tex:'props', mat:'soft', geo:propsgrenadeGeo },
+  { name:'propsbeachball', color:0xcf9796, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsbeachballGeo },
   { name:'animalkoala',           color:0x9ba3ad, rc:1.0, tex:'animal', mat:'soft', geo:animalkoalaGeo },
   { name:'animalcat',             color:0x6b7280, rc:1.0, tex:'animal', mat:'soft', geo:animalcatGeo },
+  { name:'propspistol', color:0x4f5260, rc:1.0, wr:0.82, tex:'props', mat:'soft', geo:propspistolGeo },
   { name:'animalgiraffe',         color:0xe0b23a, rc:1.0, tex:'animal', mat:'soft', geo:animalgiraffeGeo },
   { name:'cargarbagetruck',       color:0x4a9e5c, rc:1.4, tex:'car', mat:'soft', geo:()=>cargarbagetruckGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'brickclassic', color:0x5ac44a, rc:1.0, tex:'brick', paint:1, mat:'soft', geo:brickclassicGeo },
@@ -228,10 +230,8 @@ const TYPES = [
   { name:'foodpaprika',           color:0xe8402e, rc:1.0, tex:'food', mat:'soft', geo:foodpaprikaGeo },
   { name:'animalchick',           color:0xffd84a, rc:1.0, tex:'animal', mat:'soft', geo:animalchickGeo },
   { name:'animalfox',             color:0xf07a34, rc:1.0, tex:'animal', mat:'soft', geo:animalfoxGeo },
-  { name:'propsbeachball', color:0xcf9796, rc:1.0, tex:'props', mat:'soft', phys:'ball', geo:propsbeachballGeo },
   { name:'animallion',            color:0xd9a05b, rc:1.0, tex:'animal', mat:'soft', geo:animallionGeo },
   { name:'carrace',               color:0xff5a2b, rc:1.4, tex:'car', mat:'soft', geo:()=>carraceGeo().clone().scale(1.4, 1.4, 1.4) },
-  { name:'propspistol', color:0x4f5260, rc:1.0, wr:0.82, tex:'props', mat:'soft', geo:propspistolGeo },
   { name:'animalmonkey',          color:0xa9713f, rc:1.0, tex:'animal', mat:'soft', geo:animalmonkeyGeo },
   { name:'animaldog',             color:0xc98f5a, rc:1.0, tex:'animal', mat:'soft', geo:animaldogGeo },
   { name:'animalbeaver',          color:0x9c6b42, rc:1.0, tex:'animal', mat:'soft', geo:animalbeaverGeo },

@@ -121,11 +121,17 @@ function updateMatchRadius(){
     const t = Math.min(1, comboLevel / COMBO_STEPS);
     r = Math.max(r, r + (COMBO_RADIUS - r) * t);
   }
-  // THE MISS PENALTY IS A CEILING ON TOP OF EVERYTHING except the endgame ∞ (that one returned
-  // earlier). Precisely a ceiling, not an assignment: the shrinking of the pile and the staircase of
-  // the streak go on living their own lives, the penalty merely does not let the result rise above it.
-  const cap = missRadiusCap();
-  if (cap !== null) r = Math.min(r, cap);
+  // ⛔⛔ THE MISS ASSIST IS A FLOOR ON TOP OF EVERYTHING except the endgame ∞ (that one returned
+  // earlier). It WAS a ceiling until 2026-09-02 — `Math.min` against a value that fell to 0.30 — and
+  // his new word inverted it. Precisely a floor, not an assignment: the shrinking of the pile and
+  // the staircase of the streak go on living their own lives, and the assist merely does not let the
+  // result fall below the base plus the help.
+  // ⚠️⚠️ AND IT IS CLAMPED TO `COMBO_RADIUS`, THE CEILING THAT HOLDS EVERYWHERE ELSE IN THIS GAME —
+  // his own invariant, nerfed four times for being «too easy». A player who keeps missing must never
+  // out-reach a player in a perfect streak; that clamp is what keeps «on the edge of hard» true
+  // while the help exists at all.
+  const help = missRadiusCap();
+  if (help !== null) r = Math.min(COMBO_RADIUS, Math.max(r, CFG.baseRadius + help));
   CFG.matchRadius = r;
 }
 // ===== RADIUS PENALTY FOR A MISS (the owner's spec of 2026-08-11) =====
@@ -137,7 +143,18 @@ function missRadiusClear(){ missRadiusAt = 0; }
 function missRadiusActive(now){
   return missRadiusAt > 0 && ((now || performance.now()) - missRadiusAt) < MATCH_R_MISS_MS;
 }
-// The ceiling of the penalty: `MATCH_R_MISS` at the moment of the miss, linearly back to the base over
+// ⛔⛔ THIS WAS THE PENALTY'S CEILING AND IT IS NOW THE ASSIST'S FLOOR (his word 2026-09-02). What
+// it returns is no longer «how far down the radius is held» but «how much is ADDED to it», and the
+// caller applies it with `Math.max` instead of `Math.min`.
+// ⚠️⚠️ THE SIZE COMES FROM `stats.missRun`, NOT FROM THE CLOCK — «once or several times» is a COUNT,
+// and the count that already exists is the one the price ladder uses: mistakes since the last merge,
+// zeroed in `doMatch` and by `genLevel`. So the help grows with a run of failures and vanishes the
+// instant the player merges anything, which is exactly «help him out of a dead end» and not «make
+// the game easier».
+// ⚠️ The clock still decides only WHETHER a mistake is recent (`MATCH_R_MISS_MS`), so the help fades
+// on its own if the player simply stops and thinks.
+// The old text follows, because the shape of the function is unchanged:
+// the ceiling of the penalty: `MATCH_R_MISS` at the moment of the miss, linearly back to the base over
 // `MATCH_R_MISS_MS`. ⚠️ It returns null when there is no penalty, and NOT the base: a ceiling
 // "equal to the base" differs from "no ceiling at all" on exactly the day when the base
 // drifts lower (via the slider in the panel), and then the penalty would silently become a BOOST.
@@ -145,7 +162,11 @@ function missRadiusCap(now){
   if (!missRadiusAt) return null;
   const t = ((now || performance.now()) - missRadiusAt) / MATCH_R_MISS_MS;
   if (t >= 1) return null;
-  return MATCH_R_MISS + (CFG.baseRadius - MATCH_R_MISS) * Math.max(0, t);
+  // ⚠️ THE RUN OF MISTAKES IS READ THROUGH A GUARD: `stats` belongs to 40-items and this function is
+  // also reachable from the test hooks before a level exists.
+  const run = (typeof stats !== 'undefined' && stats && stats.missRun) | 0;
+  if (run <= 0) return null;
+  return Math.min(MISS_ASSIST_MAX, MISS_ASSIST_STEP * run);
 }
 // ⚠️⚠️ THE RECOVERY RUNS ON THE REAL CLOCK, SO IT HAS TO BE TICKED FROM THE LOOP.
 // `refreshAccessibility` (and with it `updateMatchRadius`) does NOT tick at all when things

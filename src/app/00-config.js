@@ -761,8 +761,26 @@ const BASE_RADIUS_DEFAULT = 0.45;
 // tail. The full measurement is in CLAUDE.md, the section about the soft endgame threshold.
 const ENDGAME_SOFT_ALIVE = 16;   // it was 10 ("fewer than 10 of them"), raised by measurement
 const ENDGAME_SOFT_SHAKES = 1;   // "there are few or no shakes left"
-const MATCH_R_MISS = 0.30;      // where the radius falls to at the moment of a miss
-const MATCH_R_MISS_MS = 3000;   // "after a few seconds" — over this long it crawls back to the base
+// ⛔⛔⛔ HIS SPEC OF 2026-08-11 IS CANCELLED BY HIS OWN WORD OF 2026-09-02, AND IT IS AN INVERSION,
+// not a retune. It read «on a mistake this parameter needs to be dropped HARD for some time down to
+// 0.3, but after a few seconds brought back up» — `MATCH_R_MISS = 0.30` for `MATCH_R_MISS_MS = 3000`,
+// applied as a CEILING on the match radius. The new word: «let's increase it a little if the player
+// errs once or several times. Our goal is to make the game on the edge of hard and to HELP THE
+// PLAYER OUT OF DEAD-END SITUATIONS.» A mechanic that punishes a miss by shrinking his reach is the
+// exact opposite of helping him out of one, and the two cannot coexist: «errs ONCE» covers the very
+// first mistake, which is precisely when the old rule bit hardest.
+// ⚠️ TO BRING THE PENALTY BACK: restore `MATCH_R_MISS = 0.30`, make `missRadiusAdj` return a CAP
+// again and apply it with `Math.min` in `updateMatchRadius`. The plumbing is deliberately unchanged
+// — the same «the player just missed» state, the same pause anchor, the same hooks — so the
+// direction is one expression, not a refactor.
+// ⚠️⚠️ «A LITTLE» IS A CEILING ON THE HELP, AND THAT IS WHAT KEEPS «ON THE EDGE OF HARD» TRUE: the
+// assist is a FLOOR under the radius, it never exceeds `MISS_ASSIST_MAX` however long the run of
+// mistakes, and it CANNOT push past `COMBO_RADIUS` — the ceiling that holds everywhere else in the
+// game, including turbo. So a player who keeps missing gets steadily more reach up to a fixed
+// stop, and never more than a player in a perfect streak.
+const MISS_ASSIST_STEP = 0.05;  // added to the radius per consecutive mistake
+const MISS_ASSIST_MAX  = 0.20;  // the stop: four mistakes and the help grows no further
+const MATCH_R_MISS_MS = 3000;   // how long a mistake keeps counting as recent (the state's window)
 
 // WEIGHT DURING A SHAKE (the owner's spec 2026-07-21, "option 1"): a discrete
 // response multiplier BY MODEL PACK (tex in TYPES) — metal cars

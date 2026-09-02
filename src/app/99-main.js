@@ -1539,12 +1539,13 @@ window.__game = {
   // the mechanic cannot be checked: it is entirely inside an IIFE, and from outside only
   // `CFG.matchRadius` is visible — by it «it dropped because of a miss» is indistinguishable from «it dropped because
   // the pile shrank». `missRadius()` hands out the STATE, not a retelling.
-  missRadius(){ return { active: missRadiusActive(), cap: missRadiusCap(),
+  missRadius(){ return { active: missRadiusActive(), cap: missRadiusCap(), assist: missRadiusCap(),
+                         run: (stats && stats.missRun) | 0, step: MISS_ASSIST_STEP, max: MISS_ASSIST_MAX,
                          counted: aliveCountForRadius(),   // the same number by which BOTH endgame steps decide
                          ownShakes: (level ? level.shakes : 0) + purchasedShakes(),
                          radius: +CFG.matchRadius.toFixed(3), base: CFG.baseRadius,
                          floor: MATCH_R_MIN, comboCap: COMBO_RADIUS,
-                         bottom: MATCH_R_MISS, windowMs: MATCH_R_MISS_MS }; },
+                         windowMs: MATCH_R_MISS_MS }; },
   missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
   baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // to the guards — return the live value, not a literal
   missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // the transition guard: the same scene WITHOUT the penalty
@@ -2439,6 +2440,21 @@ window.__game = {
     it.body.setAngvel({ x:0, y:0, z:0 }, true);
     // A Rapier RAKE: the query pipeline (castRay) sees the teleport only after
     // world.step() or an explicit propagation — otherwise the rays hit a phantom
+    // ⛔⛔ AND THAT IS ONLY HALF TRUE — CORRECTED 2026-09-02 BY TWO INDEPENDENT LIVE MEASUREMENTS
+    // (the level-39 verification, a probe and the skeptic sent to refute it, neither of which had
+    // seen the other's number). The propagation updates COLLIDER POSES; it does NOT rebuild the
+    // query pipeline's BVH, whose leaf AABBs are refreshed only by `world.step()`. So a teleported
+    // body is found by a ray only where the ray still crosses its OLD AABB.
+    // ⚠️⚠️ THE CONSEQUENCE IS ASYMMETRIC AND THAT IS WHY THE HALF-TRUTH SURVIVED: `place()` IS safe
+    // for a ray SOURCE (which is what the rescuer and the accessibility fan do — the item's own body
+    // is excluded from its own cast anyway), and it is NOT safe for a ray TARGET. Measured: a
+    // 25-item slab teleported directly over an item left it reading ACCESSIBLE on every build until
+    // the world was woken and stepped; a body teleported BELOW the pile — where the ray still
+    // crosses the region it came from — WAS seen.
+    // ⛔ SO A GUARD THAT STAGES AN OCCLUDER WITH `place()` ON A SLEPT PILE READS PHANTOMS. After
+    // `skipIntro` the loop steps only while `physAwake`, so it must wake and step, and a wake is not
+    // inert either — it was measured to fling a body 3-4 units. Stage by moving the SUBJECT onto
+    // unmoved geometry, not by moving props onto the subject.
     if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
     syncMeshes();
     renderer.shadowMap.needsUpdate = true; // autoUpdate=false: a teleport without waking physics left the shadow at the old place

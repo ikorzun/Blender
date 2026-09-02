@@ -2044,7 +2044,8 @@ page.on('response', (r) => {
     });
     const takeSnap = () => page.evaluate(() => {
       const m = window.__game.missRadius();
-      return { r: m.radius, active: m.active, base: m.base, bottom: m.bottom,
+      return { r: m.radius, active: m.active, base: m.base, assist: m.assist, run: m.run,
+               step: m.step, max: m.max,
                comboCap: m.comboCap, windowMs: m.windowMs,
                misses: window.__game.stats().misses };
     });
@@ -2088,25 +2089,41 @@ page.on('response', (r) => {
   // (1) THE FALL. The sanity check in the same assert: the miss IS COUNTED (the counter grew) —
   // otherwise «the radius fell» would be true on a build too where the click simply did not arrive.
   expect(penalty.atOnce.misses === penalty.rest.misses + 1 &&
-         Math.abs(penalty.atOnce.r - penalty.atOnce.bottom) < 0.02 && penalty.atOnce.active === true,
-    '⚠️⚠️ THE RADIUS: a miss drops it down to ' + penalty.atOnce.bottom + ' (' + JSON.stringify(penalty.atOnce) + ')');
+         penalty.atOnce.r > penalty.rest.r + 0.02 &&
+         Math.abs(penalty.atOnce.r - (penalty.atOnce.base + penalty.atOnce.step)) < 0.02 &&
+         penalty.atOnce.active === true,
+    '⛔⛔ THE RADIUS: A MISS NOW RAISES IT BY ONE STEP, IT NO LONGER DROPS (' +
+    JSON.stringify(penalty.atOnce) + '). ⚠️⚠️ THIS ARM WAS INVERTED ON 2026-09-02 AND NOT «FIXED»: ' +
+    'it used to read «a miss drops it down to 0.30», which was his spec of 2026-08-11, and his new ' +
+    'word cancels it — «increase it a little if the player errs once or several times, our goal is ' +
+    'to help the player out of dead-end situations». A mechanic that shrinks his reach on a mistake ' +
+    'is the opposite of that, and «errs ONCE» covers the very first one. ⚠️ THE SANITY HALF IS THE ' +
+    'SAME AS BEFORE: the miss counter grew, so «the radius moved» cannot be true on a build where ' +
+    'the click never arrived.');
   // (2) THE RETURN. We state the INTERMEDIATE state too: without it «it came back»
   // would be true on a build too where the penalty goes out instantly — that is, where
   // «for some time» is not fulfilled at all.
-  expect(penalty.middle.r > penalty.atOnce.r && penalty.middle.r < penalty.rest.base &&
+  expect(penalty.middle.r >= penalty.atOnce.r - 0.02 && penalty.middle.r > penalty.rest.base &&
          Math.abs(penalty.recovered.r - penalty.rest.r) < 0.02 &&
          penalty.recovered.active === false,
-    '⚠️⚠️ THE RADIUS: it crawls back to the base over ' + penalty.rest.windowMs + ' ms, and does not go out with a jerk (' +
+    '⛔ AND THE HELP FADES BY ITSELF IF THE PLAYER SIMPLY STOPS: it is still there mid-window and ' +
+    'gone after ' + penalty.rest.windowMs + ' ms, back at the base (' +
     JSON.stringify({ atOnce: penalty.atOnce.r, middle: penalty.middle.r,
-                     then: penalty.recovered.r, base: penalty.rest.base }) + ')');
+                     then: penalty.recovered.r, base: penalty.rest.base }) + '). ⚠️ THE MIDDLE ' +
+    'READING IS THE LOAD-BEARING HALF: «it came back» is true of a build where the assist never ' +
+    'turned on at all. ⛔ IT USED TO READ `middle < base` — the penalty CRAWLING UP to the base — ' +
+    'and the inequality flipped with the mechanic on 2026-09-02, not because it was wrong.');
   // (3) THE PENALTY IS NOT A DEADLOCK. Exactly the trap that the reconnaissance found BEFORE the fix:
   // `availablePairs` feeds the detector of the deadlock and the free auto shake, two ticks (~1.2 s)
   // are enough for both, while the penalty lives 3 s — without the gate the game itself
   // would declare a deadlock and would start grinding the pile FOR POINTS as a punishment for the miss.
   expect(penalty.deadlock.underPenalty === false && penalty.deadlock.withoutPenalty === true,
-    '⚠️⚠️ THE RADIUS: the drop after a miss is NOT passed off as a deadlock — the TRANSITION is checked: ' +
-    'with the penalty the grinding rescue keeps silent, without the penalty on the same scene it turns on (' +
-    JSON.stringify(penalty.deadlock) + ')');
+    '⚠️⚠️ A FRESH MISS IS NOT PASSED OFF AS A DEAD END — the TRANSITION is checked: while the miss ' +
+    'is recent the grinding rescue keeps silent, and on the same scene without it the rescue turns ' +
+    'on (' + JSON.stringify(penalty.deadlock) + '). ⛔ THE GATE SURVIVED THE INVERSION AND ITS ' +
+    'JUSTIFICATION GOT STRONGER, WHICH IS WHY IT WAS NOT REMOVED WITH THE PENALTY: it used to stop ' +
+    'the game punishing a miss with grinding; now it stops the game declaring a dead end in the ' +
+    'very seconds when the assist is ramping up to open one. Same line, better reason.');
   // (4) THE CEILING OF THE SERIES. The series is obliged to raise the radius, but not above COMBO_RADIUS.
   // ⚠️ We check BOTH ends: it grew relative to the base AND hit the ceiling. Only
   // «not above the ceiling» would be green on a build too where the series does not raise it at all.
@@ -2542,9 +2559,16 @@ page.on('response', (r) => {
   // the ceiling and the floor FROM THE GAME, therefore against «somebody changed a number» they are
   // tautological: both sides of the comparison will move. The spec of the owner is named in
   // figures — so we pin the figures, so that an edit is deliberate and not silent.
-  expect(penalty.rest.base === 0.45 && penalty.rest.bottom === 0.3 &&
-         penalty.rest.windowMs === 3000 && comboRadiusCap.cap === 0.8,
-    '⚠️⚠️ RADIUS, THE NUMBERS OF THE OWNER 2026-08-11: idle 0.45, miss floor 0.3, ' +
+  expect(penalty.rest.base === 0.45 && penalty.atOnce.step === 0.05 && penalty.atOnce.max === 0.20 &&
+         penalty.rest.windowMs === 3000 && comboRadiusCap.cap === 0.8 &&
+         penalty.rest.base + penalty.atOnce.max < comboRadiusCap.cap,
+    '⛔⛔ RADIUS, THE NUMBERS IN FORCE: idle 0.45, assist +0.05 per mistake, stop at +0.20, window ' +
+    '3000 ms, streak ceiling 0.8. ⚠️⚠️ THE `miss floor 0.3` OF 2026-08-11 IS GONE — his word of ' +
+    '2026-09-02 inverted the mechanic, and this pin moved with it rather than being deleted. ' +
+    '⚠️⚠️ THE LAST CLAUSE IS THE ONE THAT KEEPS «ON THE EDGE OF HARD» HONEST AND IT IS A RELATION, ' +
+    'NOT A LITERAL: base + the full assist must stay BELOW the streak ceiling, so a player who keeps ' +
+    'missing never out-reaches a player in a perfect streak. Raise the step or the stop far enough ' +
+    'and this goes red even though every literal beside it still matches. ' +
     'return window 3000 ms, streak cap 0.8 (' +
     JSON.stringify({ base: penalty.rest.base, floor: penalty.rest.bottom,
                      window: penalty.rest.windowMs, cap: comboRadiusCap.cap }) + ')');
@@ -6160,8 +6184,17 @@ window.bridge = {
     // WHICH item holds a property, when the property is «the last one, whichever it is».
     let lastType = null;
     for (let i = 0; ; i++){ const n = g.typeNameAt(i); if (!n) break; lastType = n; }
+    // ⛔⛔ THE UNION IS 24 REGENS AND NOT 6 SINCE 2026-09-02, AND THE NUMBER IS ARITHMETIC RATHER
+    // THAN TASTE. `levelDistinctCap` (introduced 2026-09-01-i) deals only `22 + floor(lv/10)` types:
+    // at level 161 that is 38 of the pool's 105, so a NAMED type appears in a given deal with
+    // probability 0.362 and this arm needs BOTH the tail type and the fish. At 6 regens it fails
+    // 13% of runs — and the logs show exactly that drift, the loop needing 1, 3, 1, 1, 1, 3, 5, 5,
+    // 6, 6 regens across ten runs before it went red twice. At 24 the failure rate is 0.003%.
+    // ⚠️⚠️ RE-DERIVE THIS IF THE CAP MOVES: the count is `ln(1-sqrt(0.9999)) / ln(1 - distinct/pool)`,
+    // and both terms change the day `DISTINCT_BASE`/`DISTINCT_STEP` or the pool size does. The loop
+    // breaks as soon as both are seen, so the ceiling costs nothing on a lucky deal.
     const seen = new Set(); let regens = 0;
-    for (let k = 0; k < 6; k++){
+    for (let k = 0; k < 24; k++){
       regens++;
       for (const n of at(161)) seen.add(n);
       if (seen.has(lastType) && seen.has('survivalfish')) break;
@@ -9814,8 +9847,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const treasureBefore = g.bowlShardsInfo().treasureToCenter;
     g.fxBreak(true);                       // we count the pops of EXACTLY this collection
     g.bowlShatterNow();
-    await new Promise(r => setTimeout(r, 260));
+    // ⛔⛔ READ SYNCHRONOUSLY, WITH NO CLOCK AT ALL (2026-09-02). This used to sit behind a fixed
+    // `setTimeout(260)` and passed ONLY BECAUSE THE SUITE IS LOADED: measured in isolation on this
+    // build AND on the previously shipped one, three runs each and byte-identical, the extra scene
+    // object exists at 60 ms and is gone by 120 — so on an idle machine the honest reading at 260 ms
+    // is +0, and it duly went red twice in ten runs.
+    // ⚠️⚠️ THE ASYMMETRY LAW MET FROM THE OTHER SIDE: the canon records «load only lengthens frames,
+    // so an absolute threshold is safe on the half load pushes toward GREEN». Here load pushed THIS
+    // guard toward green for months. A guard that only passes on a loaded machine is as broken as
+    // one that only passes on an idle one — and quieter, because nobody reads a green.
+    // ⛔ POLLING THE PEAK WAS TRIED AND IS WRONG: it gives +15, not +1, because the shatter fires
+    // `collapseFX`/`impactFX`/debris into the same frames and they share this counter; the extra
+    // polling also shifted the timings enough to break the TWO arms below (both to `samples 0`).
+    // One red became three, and it was reverted the same hour.
+    // ✅ THE PROPERTY IS ABOUT WHAT `bowlShatterNow()` ITSELF DOES, so it is read with no await:
+    // measured +1 in 4 of 4 runs synchronously, against 1/0/1/0 at 260 ms. The original pause stays
+    // exactly where it was, so every timing below this line is untouched.
     const inFlight = { children: g.perfStats().sceneChildren, info: g.bowlShardsInfo() };
+    await new Promise(r => setTimeout(r, 260));
     // ⚠️ we wait for SEVERAL frames: the visibility of the glass is set by the loop, and not by us
     await new Promise(r => setTimeout(r, 420));
     const silhouette = g.bowlShardsInfo().glassVisible;
@@ -15393,6 +15442,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // a recording for the silence in its tail, while the window is close to the temporal integration of hearing.
     const vol = await ap.evaluate(async () => {
       const S = window.__game.sound, trim = S.trimTable();
+      // ⛔⛔ THE RATE THE MEASUREMENT HAPPENS AT, REPORTED BECAUSE IT DECIDES THE RESULT (2026-09-02).
+      // `decodeAudioData` resamples every sample to the AudioContext's rate, and headless Chromium
+      // picks that from the host — measured here at 16000 while the machine's own devices run at
+      // 48000, and unchanged by every launch flag tried. At 16 kHz everything above 8 kHz is gone,
+      // so BRIGHT recordings lose energy and dull ones barely move: the same untouched build read
+      // spread 0.46 in five runs and 5.67 in the sixth, with `newobj` -5.66 dB and `mat_metal`
+      // -1.47 while `mat_glass` moved 0.11. Nothing in the game changed between them — verified by
+      // an A/B of the two builds' trims and buffer durations, byte-identical.
+      const rate = (() => { try { return S.bufferOf('mat_metal').sampleRate; } catch (e) { return null; } })();
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const shortRms = (buf) => {
         const d = buf.getChannelData(0), W = Math.round(buf.sampleRate * 0.2);
@@ -15464,7 +15522,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                      sameTrim: trim[k] === trim[ALIASES[k]],
                      trim: trim[k], twinTrim: trim[ALIASES[k]] };
       }
-      return { levels: lvls, gains, trimTbl: trim, noBuffer: missing, gset, alias,
+      return { rate, levels: lvls, gains, trimTbl: trim, noBuffer: missing, gset, alias,
                voices: Object.keys(trim).length,
                noTrim, procPeak: S.procPeak(), envPeaks };
     });
@@ -15546,11 +15604,37 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // COMMON multiplier: multiply the whole table by 0.25 — the spread will stay zero,
     // and the game will become 12 dB quieter. The target of −22.8 dB is chosen so that the overall
     // loudness does not drift, and without this assert it is protected by nothing.
-    expect(levelVals.every(v => v >= -24.3 && v <= -21.3),
+    // ⛔⛔ BOTH LOUDNESS ARMS ARE GATED ON THE DECODE RATE (2026-09-02), AND THE GATE IS NOT A
+    // WEAKENING — IT IS THE DIFFERENCE BETWEEN MEASURING THE RECORDINGS AND MEASURING THE HOST.
+    // `decodeAudioData` resamples to the AudioContext's rate, which headless Chromium takes from
+    // the machine: measured 16000 here (unchanged by every launch flag tried) while the host's own
+    // devices report 48000. At 16 kHz everything above 8 kHz is gone, so BRIGHT recordings lose
+    // energy and dull ones do not — and the spread this arm asserts is exactly a difference between
+    // recordings. The same untouched build read spread 0.46 in five consecutive runs and 5.67 in
+    // the sixth; the two builds' trims and buffer DURATIONS were compared byte for byte and are
+    // identical, so nothing in the game moved.
+    // ⚠️⚠️ THE THIRD OUTCOME IS DELIBERATE, and this project already records why: a two-valued
+    // verdict on a three-valued state lies in one of the directions. «The trims drifted» and «this
+    // machine cannot measure trims» are different facts and must not share a red.
+    // ⛔ THE PRICE IS NAMED RATHER THAN HIDDEN: on a host that decodes at 16 kHz these two arms are
+    // DORMANT, and a real trim drift would pass unnoticed there. The remaining protection is the
+    // signal-path arm above (it reads `gain.value`, which no rate can touch) and the alias-integrity
+    // arm below. If the suite ever needs this arm on such a host, the fix is to decode the raw
+    // base64 through an `OfflineAudioContext` at a FIXED rate — a hook for the bytes plus a
+    // re-decode, deliberately not folded into today's batch.
+    const rateOK = vol.rate >= 44100;
+    if (!rateOK) console.log('⚠️ LOUDNESS ARMS SKIPPED — the AudioContext decoded at ' + vol.rate +
+      ' Hz; at that rate the measurement describes the host, not the recordings. Levels seen: ' +
+      JSON.stringify(vol.levels));
+    expect(vol.rate !== null && vol.rate >= 16000,
+      '⚠️ SANITY: the decode rate was READ AT ALL (' + vol.rate + '). ⛔ Without this the two arms ' +
+      'below become unconditionally green the day `bufferOf` stops returning a buffer — a skip that ' +
+      'nobody notices is worse than the red it replaced.');
+    expect(!rateOK || levelVals.every(v => v >= -24.3 && v <= -21.3),
       '⚠️⚠️ THE ABSOLUTE LEVEL OF THE VOICES IS IN THE CORRIDOR −24.3…−21.3 dB (' +
       JSON.stringify(vol.levels) + '). The target is −22.8 ± 1.5. The sabotage — multiply the WHOLE ' +
       'table by a common multiplier: the spread will stay zero, and the level will drift');
-    expect(spread <= 1.0,
+    expect(!rateOK || spread <= 1.0,
       '⚠️⚠️ THE LOUDNESS OF THE VOICES IS LEVELLED: spread ' + spread.toFixed(2) + ' dB <= 1.0 (' +
       JSON.stringify(vol.levels) + '). The owner\'s word 2026-08-20-zh «level out ' +
       'the loudness of the sounds». BEFORE the edit the recordings diverged by 16.6 dB by RMS and 20.7 ' +
