@@ -2596,6 +2596,68 @@ window.__game = {
     return { hole: !inside, colliders: colliders, axis: ['x','y','z'][best.ax],
              ratio: +best.ratio.toFixed(3) };
   },
+  // ⚠️⚠️ ARE THE ACCESSIBILITY ORIGINS ACTUALLY ON THE OBJECT? Built for his word of 2026-09-02
+  // («fix the ring samples»), because the defect was UNOBSERVABLE by anything that existed:
+  // `item.samples` is handed to nobody, and `holeProbe` next door proves which COLLIDER BRANCH ran
+  // and says not one word about the origins. So a ring could carry 6 of 8 origins in its own hole
+  // through every green run in this file.
+  // ⚠️ We ask the SHAPE (`containsPoint`), not a raycast — the same reason `holeProbe` does: a
+  // freshly created collider is not in Rapier's query pipeline until a world step, and a ray would
+  // meet nobody and report «fine» for everything.
+  // ⚠️ THE ROTATION IS PINNED TO IDENTITY so the sample's local coordinates ARE its world offset;
+  // `isAccessible` rotates by the live quaternion, and a probe that let the pose wander would be
+  // measuring the pose. The body is built aside at y=500 and demolished at once — the holeProbe pattern.
+  samplesProbe(name){
+    const idx = TYPES.findIndex(t => t.name === name);
+    if (idx < 0) return null;
+    const it = makeItem(idx, 1);
+    it.p.set(0, 500, 0); it.mesh.position.copy(it.p);
+    it.mesh.rotation.set(0, 0, 0); it.mesh.updateMatrixWorld();
+    createItemBody(it, TYPES[idx].name, it.geo);
+    // ⚠️ THE SAME LINE `holeProbe` MAKES AT THE SAME POINT. `containsPoint` asks the shape and does
+    // not need the query pipeline, so this is symmetry rather than a fix — but a probe that claims
+    // to follow a pattern and quietly drops one of its steps is how the next reader is misled.
+    if (world.propagateModifiedBodyPositionsToColliders) world.propagateModifiedBodyPositionsToColliders();
+    const S = it.samples || new Float32Array(0), nC = it.body ? it.body.numColliders() : 0;
+    const pts = [];
+    for (let i = 0; i < S.length; i += 3){
+      let inside = false;
+      for (let c = 0; c < nC; c++){
+        if (it.body.collider(c).containsPoint({ x: it.p.x + S[i], y: it.p.y + S[i+1], z: it.p.z + S[i+2] })){
+          inside = true; break;
+        }
+      }
+      pts.push({ inside, r: +Math.hypot(S[i], S[i+1], S[i+2]).toFixed(4), i });
+    }
+    // ⚠️ `ringMeasure` IS REPORTED UNCONDITIONALLY, AND THE FLAG IS REPORTED BESIDE IT ON PURPOSE:
+    // it answers for `propstoiletpaper` too, which is visibly ring-shaped and is DELIBERATELY left
+    // on the hull. ⛔⛔ AND THE RECORDED REASON FOR THAT EXCLUSION WAS WRONG — re-measured 2026-09-02:
+    // the detector picks the hole along Y, which IS the roll's own axis, so the PLANE is right. What
+    // is wrong is the RADII: the cross-section is square-ish (x,z half 0.539/0.540) and `rmax` takes
+    // the CORNER DIAGONAL 0.762, so R comes out 0.625 — outside the roll's own surface. The
+    // exclusion stands; its reason did not, and someone re-testing «is the plane right?» would have
+    // found that it is and concluded the exclusion was stale.
+    // Without `flag` the field would read as «this type is a ring» and quietly invite someone to
+    // set `phys:'ring'` on it — the exact mistake the canon warns against by name.
+    const m = ringMeasure(it.geo, it.scl);
+    const flag = (it.type && it.type.phys) || null;
+    destroyItemBody(it);
+    if (it.mesh && it.mesh.parent) it.mesh.parent.remove(it.mesh);
+    // ⚠️⚠️ THE ANGLES CLOSE A BLIND SPOT THAT RADII ALONE LEAVE WIDE OPEN: every origin can sit at
+    // the right DISTANCE and still be bunched on one side of the ring, and radius-only arms would
+    // all stay green. `k / RING_ACC_N` mistyped as `k / RING_SEG` is a one-character edit that does
+    // exactly that — it would crowd all eight into 240 degrees and leave a third of the ring
+    // unsampled. Reported only for a measured ring, in that ring's own plane.
+    const ang = m ? pts.map(q => {
+      const a = Math.atan2(S[q.i + m.v], S[q.i + m.u]) * 180 / Math.PI;
+      return +((a < 0 ? a + 360 : a).toFixed(2));
+    }).sort((x, y) => x - y) : null;
+    return { n: pts.length, colliders: nC, flag,
+             inside: pts.filter(q => q.inside).length,
+             outside: pts.filter(q => !q.inside).length,
+             radii: pts.map(q => q.r), angles: ang,
+             ring: m ? { R: +m.R.toFixed(4), tube: +m.tube.toFixed(4), axis: ['x','y','z'][m.ax] } : null };
+  },
   underFloor(){
     return items.filter(i => i.alive && i.body && i.p.y < FLOOR_REST)
       .map(i => ({ name: i.type.name, y: +i.p.y.toFixed(3),

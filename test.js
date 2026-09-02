@@ -4031,6 +4031,83 @@ window.bridge = {
   expect(hole.control.every(c => c && c.hole === false),
     'DONUT-CONTROL: solid models stay closed — the probe tells them apart (' + JSON.stringify(hole.control) + ')');
 
+  // ═══ THE RING ACCESSIBILITY SAMPLES SIT ON THE RING (his word 2026-09-02, «fix the ring
+  // ═══ samples») ═══════════════════════════════════════════════════════════════════════════════
+  // ⚠️⚠️ THE ARMS ABOVE PROVE WHICH COLLIDER BRANCH RAN AND SAY NOT ONE WORD ABOUT THE ORIGINS, and
+  // that gap is the whole reason the defect lived: `item.samples` was handed to nobody, so a ring
+  // could carry 6 of its 8 accessibility origins INSIDE ITS OWN HOLE through every green run in
+  // this file. Measured before the fix: `propslifebuoy` 2 of 8 inside, `fooddonutsprinkles` 1 of 8.
+  // ⚠️⚠️ IT DELIBERATELY DOES NOT GO THROUGH `isAccessible`. On Easy that function returns on its
+  // first line without touching a sample, and even forcing `cfg.hard` an accessibility arm would
+  // measure a VERDICT — which depends on the neighbours, the pose and the level. `samplesProbe`
+  // builds the body aside and asks the shape, so it states the property itself at any difficulty.
+  const rings = await page.evaluate(() => ({
+    ring: ['propslifebuoy', 'fooddonutsprinkles'].map(n => window.__game.samplesProbe(n)),
+    // ⚠️ BOTH CONTROLS MEASURE AS RINGS AND NEITHER IS FLAGGED — that is what makes them controls
+    // and not decoration: `propstoiletpaper` is deliberately excluded (its plane is right, but
+    // `rmax` takes the corner diagonal, so its R lands outside the roll), and `animalpig` is the
+    // canon's own named counterexample to reading the ratio as a hole detector.
+    control: ['propstoiletpaper', 'animalpig'].map(n => window.__game.samplesProbe(n)),
+  }));
+  const ringGaps = p => p.angles.map((a, i, A) => +(i ? a - A[i-1] : A[0] + 360 - A[A.length-1]).toFixed(1));
+  console.log('ring samples:', JSON.stringify({
+    ring: rings.ring.map(p => ({ n: p.n, inside: p.inside, col: p.colliders, R: p.ring && p.ring.R,
+                                 tube: p.ring && p.ring.tube, gaps: ringGaps(p) })),
+    control: rings.control.map(p => ({ flag: p.flag, col: p.colliders, measured: !!p.ring })) }));
+
+  expect(rings.ring.every(p => p && p.flag === 'ring' && p.n === 8 && p.outside === 0),
+    '⛔⛔ RING SAMPLES: every accessibility origin lies INSIDE the ring\'s own colliders (' +
+    JSON.stringify(rings.ring.map(p => ({ n: p.n, inside: p.inside, outside: p.outside }))) + '). ' +
+    'The sabotage: disable the `phys === \'ring\'` branch of `buildAccessSamples` (50-physics) — the ' +
+    'hull default returns, whose 0.6 shrink is only safe for a SOLID shape, and measured it gives ' +
+    'buoy 2 of 8 inside, donut 1 of 8. ⚠️ `flag === \'ring\'` is in the predicate as the sanity ' +
+    'half: without it the arm is satisfied by a pool where these types stopped being rings at all.');
+
+  expect(rings.ring.every(p => p && p.ring && p.radii.length === 8 &&
+                               p.radii.every(r => Math.abs(r - p.ring.R) <= 5e-4)),
+    '⚠️⚠️ AND THEY ARE ON THE TUBE\'S OWN CENTRE LINE — every origin at exactly the measured R (' +
+    JSON.stringify(rings.ring.map(p => ({ R: p.ring && p.ring.R, radii: p.radii }))) + '). ⛔ THIS IS ' +
+    'THE ARM THAT CARRIES THE GUARD, because it is the only one that never reads the probe\'s own ' +
+    '`inside` verdict: a `containsPoint` that answered true for everything would leave the arm ' +
+    'above green and this one red. It also states the PROVENANCE — the origins come from the same ' +
+    '`ringMeasure` the collider is built from, which is what stops the two drifting apart again.');
+
+  expect(rings.ring.every(p => ringGaps(p).every(g => Math.abs(g - 360 / p.n) < 0.5)),
+    '⚠️⚠️ AND THEY ARE SPREAD EVENLY AROUND IT (' +
+    JSON.stringify(rings.ring.map(p => ringGaps(p))) + '). ⛔ WITHOUT THIS ARM A RADIUS-ONLY GUARD ' +
+    'IS BLIND TO BUNCHING: `k / RING_ACC_N` mistyped as `k / RING_SEG` — a one-character edit ' +
+    'between two neighbouring constants — crowds all eight origins into 240 degrees and leaves a ' +
+    'third of the ring unsampled, while every radius stays exactly R and every arm above stays ' +
+    'green. The angles are reported in the ring\'s own plane, so they do not depend on the pose.');
+
+  expect(rings.ring.every(p => p && p.ring && p.colliders >= 7 &&
+                               (1 - Math.cos(Math.PI / p.colliders)) < 0.12),
+    '⛔⛔ AND THE SEGMENT COUNT STILL BUYS THE MARGIN THAT MAKES THE ABOVE TRUE AT ALL (' +
+    JSON.stringify(rings.ring.map(p => ({ seg: p.colliders,
+      sagittaOverR: +(1 - Math.cos(Math.PI / p.colliders)).toFixed(4), gate: 0.12 }))) +
+    '). The origins sit on the CIRCLE while the collider is a chain of CHORDS, so the worst gap is ' +
+    'the sagitta `R*(1 - cos(pi/RING_SEG))`, and `ringMeasure` only ever returns a ring when ' +
+    '`tube > 0.12*R` — so containment holds for ANY model exactly while `1 - cos(pi/RING_SEG) < ' +
+    '0.12`, i.e. RING_SEG >= 7. ⛔⛔ THE ARM IS PHRASED ON THAT BOUND AND NOT ON `tube > sagitta`, ' +
+    'AND THE DIFFERENCE IS THE WHOLE POINT: at RING_SEG = 6 — the obvious «cheaper collider» value — ' +
+    'the naive form stays GREEN on both shipped rings (buoy tube 0.1298 against a sagitta of 0.0657, ' +
+    'donut 0.2052 against 0.0556), because their tube/R is 0.26 and 0.50, two to four times the ' +
+    'gate. It would go red only on a future thin ring nobody has built yet. This form is red the ' +
+    'moment the constant moves. ⚠️ `p.colliders` IS RING_SEG for a ring (the chain closes: 13 points ' +
+    '-> 12 capsules), so it reads the live constant instead of a copy of it.');
+
+  expect(rings.control.every(p => p && p.flag !== 'ring' && p.ring &&
+                                  !p.radii.every(r => Math.abs(r - p.ring.R) <= 5e-4)),
+    '⚠️⚠️ AND THE BRANCH IS CHOSEN BY THE FLAG, NOT BY THE MEASUREMENT (' +
+    JSON.stringify(rings.control.map(p => ({ flag: p.flag, measured: !!p.ring, col: p.colliders }))) +
+    '). ⛔ THIS IS THE ONLY NON-TAUTOLOGICAL CONTROL HERE, and the mistake it forbids is live rather ' +
+    'than theoretical: `ringMeasure` ANSWERS for both of these types — the toilet roll and the ' +
+    'canon\'s own solid pig both clear the ratio and tube gates — so writing the branch as ' +
+    '`if (ringMeasure(geo, s))` instead of `if (item.type.phys === \'ring\')` would hand measured ' +
+    'ring origins to dozens of unflagged solid types. ⚠️ `p.ring` is REQUIRED to be non-null in the ' +
+    'predicate: were these types to stop measuring as rings the arm would go vacuous, and a vacuous ' +
+    'control is the thing it exists not to be.');
+
   expect(refillTop.toppedUp > 0,
     'TOP-UP HEIGHT: the scenario came together, partners are topped up (' + JSON.stringify(refillTop) + ')');
   expect(refillTop.peak < refillTop.ceiling,

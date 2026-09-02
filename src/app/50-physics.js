@@ -303,7 +303,38 @@ function removeTempTallWall(){
 // the two must not be confused: a compound standing perpendicular to the mesh
 // "welds" items into the visible ring — the rake of 2026-07).
 // Returns false if there is no hole — then the caller honestly falls into hull.
-function ringFromGeometry(add, geo, s){
+// ⚠️⚠️ THE MEASUREMENT IS SPLIT OUT OF THE BUILDER (2026-09-02, his word «fix the ring samples»),
+// AND THAT SPLIT IS THE FIX ITSELF — not a tidy-up. Before it, `ringFromGeometry` both measured and
+// built, so the accessibility samples had NO WAY to ask where the ring is: they fell to the hull
+// default and put 6 of 8 origins for the lifebuoy INTO THE DOUGHNUT HOLE, i.e. outside the very
+// collider they are required to be inside. The collider and the samples disagreed BY CONSTRUCTION.
+// ⛔ THE TWO CONSUMERS MUST KEEP READING THIS ONE FUNCTION. A copy of the derivation beside the
+// working one is this project's single most repeated defect, and here it would be invisible: both
+// sides would look right in isolation and only their DISAGREEMENT is the bug.
+// Returns null when there is no usable ring — and then BOTH callers fall through to the hull, which
+// is what keeps them in step even in the failure case.
+function ringMeasure(geo, s){
+  // ⚠️⚠️ THE VERTEX WALK IS CACHED PER GEOMETRY, AND THAT IS CORRECT RATHER THAN MERELY CHEAP:
+  // every quantity it derives is SCALE-FREE. `ratio` is a quotient; `tube > 0.12*R` divides out;
+  // and `tube > 0.02*s` is `(rmax-rmin)/2 > 0.02` once `s` is cancelled. So the whole decision —
+  // including both refusals — depends on the geometry alone, and only R and tube carry `s`.
+  // ⚠️ WITHOUT THIS THE FIX WOULD HAVE COST WHAT IT SAVES: two consumers now ask, so a ring item
+  // would walk its 1471 vertices TWICE per body creation where the old code walked once, on a path
+  // the turbo top-up drives every ~125 ms. Cached, it is walked ONCE PER TYPE for the session —
+  // strictly cheaper than before the change.
+  // ⚠️ The geometry comes from the shared per-type cache, so `_ringRaw` is a per-type answer; the
+  // `false` sentinel is stored too, or a refusal would be re-walked on every call.
+  let raw = geo.userData ? geo.userData._ringRaw : undefined;
+  if (raw === undefined){
+    raw = ringMeasureRaw(geo);
+    if (!geo.userData) geo.userData = {};
+    geo.userData._ringRaw = raw;
+  }
+  if (!raw) return null;
+  const R = (raw.rmin + raw.rmax) / 2 * s, tube = (raw.rmax - raw.rmin) / 2 * s;
+  return { u: raw.u, v: raw.v, ax: raw.ax, R, tube, ratio: raw.ratio };
+}
+function ringMeasureRaw(geo){
   const P = geo.attributes.position.array, n = P.length / 3;
   if (!n) return false;
   // radius about each of the three axes; the hole is where the MINIMUM is >> 0
@@ -325,21 +356,37 @@ function ringFromGeometry(add, geo, s){
   // threshold here is only the lower cut-off "on this axis there is certainly
   // no hole".
   if (!best || best.ratio < 0.25) return false;
-  const R = (best.rmin + best.rmax) / 2 * s;        // the tube's centre line
-  const tube = (best.rmax - best.rmin) / 2 * s;     // its radius
+  const R = (best.rmin + best.rmax) / 2;            // the tube's centre line, at s = 1
+  const tube = (best.rmax - best.rmin) / 2;         // its radius, at s = 1
   // ⚠️ INSURANCE AGAINST A DEGENERATE RING (the dispatcher's remark): were
   // someone to set the flag on a narrow model, the tube would come out almost
   // zero and items would travel THROUGH it. An honest fallback to the hull is
   // better than a ring made of thread.
-  if (!(tube > 0.12 * R) || !(tube > 0.02 * s)) return false;
-  const SEG = 12, pts = [];
-  for (let k = 0; k <= SEG; k++){
-    const a = k / SEG * Math.PI * 2, p = { x: 0, y: 0, z: 0 };
-    p[['x','y','z'][best.u]] = Math.cos(a) * R;
-    p[['x','y','z'][best.v]] = Math.sin(a) * R;
+  if (!(tube > 0.12 * R) || !(tube > 0.02)) return false;
+  return { u: best.u, v: best.v, ax: best.ax, rmin: best.rmin, rmax: best.rmax, ratio: best.ratio };
+}
+// ⛔⛔ THE SEGMENT COUNT CARRIES THE SAMPLES' SAFETY, AND THE BOUND IS **RING_SEG >= 7**. The
+// samples sit on the circle while the chain is chords, so the worst gap is the sagitta
+// `R*(1 - cos(pi/RING_SEG))`, and it must stay under the `tube > 0.12*R` gate that `ringMeasure`
+// enforces: 1-cos(pi/7) = 0.099 < 0.12 passes, 1-cos(pi/6) = 0.134 > 0.12 FAILS. At 12 it is
+// 0.0341, a 3.5x margin.
+// ⚠️⚠️ AND NEITHER SHIPPED RING COULD DETECT THE VIOLATION: their tube/R is 0.26 and 0.50, two to
+// four times the gate, so at RING_SEG = 6 they would still measure fine while a future thin ring
+// sitting near the gate would put four of its eight origins outside its own collider — exactly the
+// defect this branch exists to remove. 6 is the obvious «cheaper collider» value; the bound is
+// written here so that edit cannot be made silently. There is a guard on the margin itself.
+const RING_SEG = 12;
+function ringFromGeometry(add, geo, s){
+  const m = ringMeasure(geo, s);
+  if (!m) return false;
+  const pts = [];
+  for (let k = 0; k <= RING_SEG; k++){
+    const a = k / RING_SEG * Math.PI * 2, p = { x: 0, y: 0, z: 0 };
+    p[['x','y','z'][m.u]] = Math.cos(a) * m.R;
+    p[['x','y','z'][m.v]] = Math.sin(a) * m.R;
     pts.push(p);
   }
-  addCapsuleChain(add, pts, tube);
+  addCapsuleChain(add, pts, m.tube);
   return true;
 }
 function hullFromGeometry(geo, s){
@@ -387,6 +434,53 @@ function buildAccessSamples(item, typeName, geo){
     push(0, 0, 0); push(0.5*s, 0, 0); push(-0.5*s, 0, 0); push(0, 0, 0.5*s); push(0, 0, -0.5*s);
     item.samples = new Float32Array(pts);
     return;
+  }
+  // ⛔⛔ phys:'ring' IS ANSWERED HERE FOR THE SAME REASON phys:'ball' IS — and its absence was a
+  // REAL defect, not an inefficiency (his word 2026-09-02, «fix the ring samples»). The switch is
+  // keyed by typeName, so a ring model fell to the hull default, whose 0.6-shrink is only safe for
+  // a SOLID shape: for a torus, 60% of a point on the tube lands in the HOLE. Measured on the
+  // shipped vertex arrays: `propslifebuoy` got 6 of 8 origins in the hole, `fooddonutsprinkles` 7
+  // of 8 off the body. And the hole is not merely empty — it is FREE SPACE A NEIGHBOUR OCCUPIES, so
+  // `castRay(solid=true)` returns toi=0 from such an origin. ⚠️ THE SYMPTOM IS STATED AS THE CODE
+  // SUPPORTS IT, NOT AS THE WORST STORY: `isAccessible` is an OR over origins, so a ring read
+  // inaccessible only when the hole origins were blocked AND the one or two that did land on the
+  // body were roofed as well. That is a NARROWED chance of being seen, not a guaranteed veil — and
+  // when it happened the player got the grey veil plus, on tap, a real score penalty for something
+  // plainly reachable. The mirror case is as real: a covered ring whose hole column is clear read
+  // ACCESSIBLE.
+  // ⚠️⚠️ THE SAMPLES ARE THE TUBE'S OWN CENTRE LINE, from the SAME measurement the collider is
+  // built from — one derivation, two consumers, so their NUMBERS cannot drift apart.
+  // ⛔ BUT THE AGREEMENT IS NOT YET STRUCTURAL, AND THE CLAIM MUST NOT BE OVERSTATED: this branch
+  // answers `phys:'ring'` BEFORE the switch, while `createItemBody` answers it INSIDE the switch's
+  // `default:` arm. They are in step because every ring-flagged type carries a MODEL name that
+  // misses every primitive case — by naming, not by construction. Give a type named 'torus' or
+  // 'cyl' the ring flag and it takes a hard-coded primitive collider against measured origins, i.e.
+  // this very defect in the opposite direction. Unreachable today (TYPES holds model names only).
+  // ⚠️⚠️ AND THEY ARE INSIDE BY THE EXISTING GATE, NOT BY THESE TWO MODELS' NUMBERS: the chain
+  // approximates the circle with chords, so a point on the circle stands at most
+  // R*(1 - cos(pi/RING_SEG)) = 0.0341*R off a chord, while `ringMeasure` REFUSES to return a ring
+  // at all unless `tube > 0.12*R`. That is a guaranteed 3.5x margin for any model that reaches
+  // this branch. ⚠️ THE FIGURES THAT FOLLOW ARE AT s = 1 AND THE HOOK REPORTS AT s = MESH_SCALE
+  // (0.62): buoy 0.027 against a tube of 0.209, donut 0.023 against 0.331 — lift them into an
+  // assert unscaled and it goes red on a healthy build.
+  // ⚠️ EIGHT, matching the hull default, so the per-item raycast cost on Hard does not move.
+  // ⛔ AND NEVER A SAMPLE AT THE CENTRE: for a ring that IS the hole — the origin this fix exists
+  // to remove.
+  if (item.type && item.type.phys === 'ring'){
+    const m = ringMeasure(geo, s);
+    if (m){
+      const RING_ACC_N = 8;
+      for (let k = 0; k < RING_ACC_N; k++){
+        const a = k / RING_ACC_N * Math.PI * 2, c = [0, 0, 0];
+        c[m.u] = Math.cos(a) * m.R;
+        c[m.v] = Math.sin(a) * m.R;
+        push(c[0], c[1], c[2]);
+      }
+      item.samples = new Float32Array(pts);
+      return;
+    }
+    // ⚠️ NO MEASUREMENT -> FALL THROUGH TO THE HULL, which is EXACTLY what the collider does one
+    // function away. The failure case has to stay in step too, or the disagreement simply moves.
   }
   switch (typeName){
     case 'cube':

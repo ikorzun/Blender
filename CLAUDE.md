@@ -12347,7 +12347,14 @@ order of TYPES is the difficulty lever and this placement is his.
   vertices; measured ratio and tube clear the `>= 0.25` / `> 0.12·R` safeguards.
 - ⛔ **`propstoiletpaper` IS A HULL AND THAT IS DELIBERATE.** It is visibly a ring, and
   `ringFromGeometry`'s auto-detection picks the plane by the largest rmin/rmax ratio — on this
-  model that lands on **Y**, while the real hole runs along **Z**. A ring built in the wrong
+  model that lands on **Y**. ⛔⛔ **AND THAT REASON WAS WRONG — RE-MEASURED 2026-09-02, WHEN THE RING
+  SAMPLES WERE FIXED AND THE SAME CLAIM WAS FOUND IN MY OWN NEW COMMENT.** The roll is TALL in y
+  (bbox y ±0.652 against x,z ±0.539), so Y **is** its own axis and the detected plane is RIGHT.
+  What is wrong is the RADII: the cross-section is square-ish, so `rmax` takes the CORNER DIAGONAL
+  √(0.539²+0.540²) = 0.762 and R comes out **0.625 — outside the roll's own surface, 0.539**. The
+  exclusion stands and the flag must stay off; only its stated cause changes. ⚠️ The old wording was
+  the dangerous kind: someone re-testing «is the plane right?» would have found that it is and
+  concluded the exclusion was stale. A ring built in the wrong
   plane is the 2026-07 trap that welded items into a visible ring. The flag is left off; the
   hull is honest. ⚠️ Do not "fix" this by setting `phys:'ring'` on sight of the shape — the
   plane is decided by MEASUREMENT, and here the measurement says the detector is wrong.
@@ -13691,7 +13698,7 @@ is a guard that passes on some deals and not others, and its red says nothing ab
   ⚠️ `release/` holds only a README and the music — no game file. It is a remnant of the July
   tester-zip era; named to him rather than deleted here.
 
-### ⛔ W14 IS NAMED AND DELIBERATELY NOT FIXED — IT NEEDS HIS WORD
+### ✅ W14 — FIXED 2026-09-02 ON HIS WORD «FIX THE RING SAMPLES» (the section below is the diagnosis)
 
 `buildAccessSamples` answers `phys:'ball'` before its switch but **NOT `phys:'ring'`**, so
 `fooddonutsprinkles` and `propslifebuoy` fall to the hull default (face centroids × 0.6) — i.e.
@@ -13953,3 +13960,97 @@ run gave `SUITE: PASS` with the section green at ratio 0.933.
 ⚠️ Recorded because the SIGNATURE is the dangerous part and it is now on its fourth appearance today:
 greens keep coming, `FAIL` is zero, and the only thing missing is the `SUITE:` line. **Grep for that
 line, never for the FAIL count.**
+
+## BATCH 2026-09-02: THE RING SAMPLES — ONE MEASUREMENT, TWO CONSUMERS
+
+His word: «fix the ring samples», after being told W14 bites him from level 39 on Hard.
+
+### THE FIX IS THE SPLIT, NOT THE BRANCH
+
+`ringFromGeometry` both MEASURED and BUILT, so `buildAccessSamples` had no way to ask where the ring
+is — it fell to the hull default, whose 0.6 shrink is a convex combination and therefore safe only
+for a SOLID shape. For a torus, 60% of a point on the tube lands in the HOLE.
+✅ The measuring half is now `ringMeasure(geo, s)`, and BOTH the collider and the samples read it —
+one derivation, two consumers, so their numbers cannot drift. **Measured before → after:
+`propslifebuoy` 2 of 8 origins inside its own collider → 8 of 8; `fooddonutsprinkles` 1 of 8 → 8 of
+8; controls unchanged** (`foodorange` 8/8, `propsvolleyball` 5/5, `propstoiletpaper` 8/8).
+⚠️ **THE 8 ORIGINS ARE INSIDE FOR ANY MODEL THAT REACHES THE BRANCH, NOT JUST THESE TWO** — the
+proof is model-independent because the only inputs are R, tube and the axis pair, all from the one
+shared measurement. The chain is chords while the samples are on the circle, so the worst gap is the
+sagitta `R·(1 − cos(π/RING_SEG))`, and `ringMeasure` refuses a ring at all unless `tube > 0.12·R`.
+⛔⛔ **HENCE THE BOUND, WHICH THE FIRST DRAFT DID NOT STATE: RING_SEG ≥ 7.** 1−cos(π/7) = 0.099 < 0.12
+passes; 1−cos(π/6) = 0.134 > 0.12 FAILS. **And neither shipped ring can detect the violation** —
+their tube/R is 0.26 and 0.50, two to four times the gate, so at RING_SEG = 6 (the obvious «cheaper
+collider» value) both still measure fine while a future thin ring near the gate puts four of its
+eight origins outside. The guard is phrased on the BOUND for exactly this reason: a `tube > sagitta`
+arm is GREEN on both rings at SEG = 6 and would only fail on a model nobody has built yet.
+
+⚠️ **THE VERTEX WALK IS NOW MEMOISED PER GEOMETRY, AND THAT IS CORRECTNESS AS MUCH AS COST: every
+gate is SCALE-FREE** (`ratio` is a quotient, `tube > 0.12·R` divides out, and `tube > 0.02·s` is
+`(rmax−rmin)/2 > 0.02` once `s` cancels), so the whole decision belongs to the geometry and only R
+and tube carry `s`. Without it the fix would have cost what it saves — two consumers means a ring
+would walk its 1471 vertices twice per body creation, on a path the turbo top-up drives every
+~125 ms. Cached, it walks once per type per session: strictly cheaper than before the change.
+
+⛔ **AND THE «CANNOT DISAGREE BY CONSTRUCTION» CLAIM WAS NARROWED, BECAUSE IT WAS AN OVERCLAIM.** The
+samples answer `phys:'ring'` BEFORE the switch; `createItemBody` answers it INSIDE the switch's
+`default:` arm. They are in step because every ring-flagged type carries a MODEL name that misses
+every primitive case — **by naming, not by construction**. Give a type named `'torus'` the ring flag
+and it takes a hard-coded primitive collider against measured origins, i.e. this defect mirrored.
+Unreachable today; written down rather than claimed away.
+
+### THE GUARD: FIVE ARMS, EACH SABOTAGE DROPS EXACTLY ITS OWN
+
+Nothing had ever read `item.samples` — that is why the defect lived through every green run. The new
+`__game.samplesProbe(name)` builds the body aside, pins the rotation to identity and asks the SHAPE
+(`containsPoint`), so it states the property at ANY difficulty.
+⛔⛔ **IT DELIBERATELY DOES NOT GO THROUGH `isAccessible`.** On Easy that returns on its first line
+without touching a sample, and even with `cfg.hard` forced an accessibility arm measures a VERDICT —
+which depends on the neighbours, the pose and the level. The arms and their proofs:
+
+| arm | sabotage that reddens it |
+|---|---|
+| 1 containment (`outside === 0`) | disable the ring branch → buoy 2/8 |
+| 2 provenance (every radius = R) | a `containsPoint` that lied would leave arm 1 green and this red |
+| 3 even spread (all gaps 45°) | `k/RING_ACC_N` → `k/RING_SEG`: eight origins crowded into 240° |
+| 4 the SEG bound | `RING_SEG` 12 → 6 |
+| 5 the flag, not the measurement | `if (ringMeasure(...))` instead of `if (phys === 'ring')` |
+
+**Verified four-sided: healthy all green, and each of the four sabotages drops ONLY its own arm.**
+⚠️ **ARM 3 EXISTS BECAUSE RADII ALONE ARE BLIND TO BUNCHING** — every origin can sit at exactly the
+right distance and still leave a third of the ring unsampled, and it is a ONE-CHARACTER edit between
+two neighbouring constants. It was named by the review as unclosable and closed by adding angles to
+the probe.
+⚠️ **ARM 5 IS THE ONLY NON-TAUTOLOGICAL CONTROL, and its mistake is live rather than theoretical:**
+`ringMeasure` ANSWERS for `propstoiletpaper` AND for `animalpig` — the canon's own solid
+counterexample — so keying the branch on the measurement would hand ring origins to dozens of
+unflagged solid types. The predicate REQUIRES `p.ring` non-null, or the control goes vacuous.
+⛔ Do NOT write: any accessibility/veil arm (empty on Easy, still green on Hard); `p.ring === null`
+as a control (red on healthy for both controls); `p.n === 8` / `flag === 'ring'` / `colliders === 12`
+as fix arms (all green on the exact broken build); `radii.every(r => r > 0)` (red on healthy — the
+ball and cube cases legitimately push a centre sample).
+
+### ⛔⛔ A RECORDED MEASUREMENT OF THIS FILE'S OWN WAS WRONG, AND THE FIX FOUND IT
+
+The canon said `propstoiletpaper` stays on the hull because «the detector lands on Y while the real
+hole runs along Z». **Re-measured: the roll is TALL in y (±0.652 against ±0.539), so Y IS its own
+axis and the plane is RIGHT.** What is wrong is the RADII — the cross-section is square-ish, `rmax`
+takes the corner diagonal √(0.539²+0.540²) = 0.762, and R comes out **0.625, outside the roll's own
+surface of 0.539**. The exclusion stands; its stated cause did not.
+⚠️ **THE OLD WORDING WAS THE DANGEROUS KIND:** someone re-testing «is the plane right?» would find
+that it is and conclude the exclusion was stale. And I had copied the same wrong reason into my own
+new comment before the review caught it — **a wrong cause propagates faster than a wrong fact,
+because it reads as an explanation and nobody re-derives an explanation.**
+
+### WHAT THE ADVERSARIAL PASS WAS WORTH
+
+Five lenses, two skeptics each. **No blockers**, and the central geometry survived every attempt to
+break it — one skeptic re-derived the whole thing from the shipped vertex arrays and reproduced every
+figure digit for digit. What it DID produce: the RING_SEG ≥ 7 bound, the overclaim narrowing, the
+memoisation, the corrected toilet-paper cause, the note that the comment's literals are at s = 1
+while the hook reports at s = 0.62 (lift them unscaled into an assert and it goes red on a healthy
+build), and the whole guard design including the arm that cannot be written.
+⚠️⚠️ **AND IT CORRECTED ME ON A FACT I HAD STATED TWICE: «the suite runs Easy» IS FALSE** — `test.js`
+sets `g.cfg.hard = true` in three sections. The conclusion held anyway (those sections run at levels
+where no ring is dealt), but the reason I gave for it was wrong, and I had used it to justify the
+guard's design.
