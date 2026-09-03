@@ -3655,13 +3655,14 @@
     color:#000; font-family:var(--font-round); font-size:24px; font-weight:800; line-height:24px;
     cursor:pointer; padding:13px 32px; }
   .st-buy:active { transform:scale(.97); }
-  /* HOVER (the owner's spec 2026-07-28 for the buy button of this screen): an inversion — a
-     BLACK backing + WHITE text. Kept: the 2026-09-03 mock-ups show no hover state. ⚠️ Under
-     @media (hover:hover): on touch :hover STICKS after a tap (the button would have stayed
-     black). */
+  /* HOVER — the owner's word 2026-09-03 on the live button: «on hover the button is white and
+     the text is black». ⛔ CANCELS the 2026-07-28 inversion (a BLACK backing + WHITE text) that
+     had been kept through the one-package rebuild because the mock-ups show no hover state.
+     ⚠️ Under @media (hover:hover): on touch :hover STICKS after a tap (the button would have
+     stayed white). */
   @media (hover:hover) and (pointer:fine){
     .st-buy { transition:background-color .15s, color .15s; }
-    .st-buy:hover { background:#000; color:#fff; }
+    .st-buy:hover { background:#fff; color:#000; }
   }
   /* DESKTOP (937:1505): the block 510 wide CENTRED in the viewport, the chips in a row with a
      gap of 20 hugging their content, the description Bold 24 in two lines, the button hugs

@@ -14390,8 +14390,11 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   the same bytes the HUD buttons carry (md5 against the files on disk: c2513793…, 6828dfe7…),
   not re-encoded, not resized (the never-change-extensions rule); +19 KB in the build
   (12099864 → 12119124 B).
-- The hover inversion of the buy button (the owner's 2026-07-28 spec) is kept: the new mock-ups
-  show no hover state. The whole-card click went away with the cards (90-input).
+- The hover of the buy button: the 2026-07-28 inversion (black/white) was kept through the
+  rebuild because the mock-ups show no hover state — and the owner corrected it on the live
+  button the same day: «on hover the button is white and the text is black». Now
+  `.st-buy:hover { background:#fff; color:#000 }`. The whole-card click went away with the
+  cards (90-input).
 
 ### MEASURED IN THE PREVIEW (Chromium: the fallback font — `ui-rounded` resolves in Safari only)
 - Desktop 1280×680: the block 510×421 at (385,130) — the mock-up's Frame 39 to the pixel; the
