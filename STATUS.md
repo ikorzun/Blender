@@ -6,32 +6,50 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = 143fa4a, tag v2-visual-ok-2026-08-07** (the owner: «visually everything suits me») · the suite 542 checks · main and v2 on GitHub match
+**Build: v2 = dd9af45 (2026-09-02)** · the suite **940 checks, 0 red** · `main` and `v2` on GitHub
+match · the live site verified byte-for-byte against the build · portal package **5.43 MB** of the
+8 MB reference (headroom 2.57)
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
-## Big milestones of the last two days (172 → 206)
+## What shipped 1–2 September
 
-- **The whole story is in the game**: a prologue comic before the first round + chapters K2-K4
-  up to the «Museum?!» twist (~level 37). Brief for the AI art: docs/COMIC-BRIEF.md.
-- **«Type charge»**: drops for a Power chain, lives 7 s, saves the whole type at once.
-  Turbo tightened: entry gets more expensive with levels, one miss kills it, top-up in 3 s.
-- **New sky**: your gradients (night down to magenta, muted by variant C),
-  day boundary 20:00, panoramas removed. Stars at night — in progress (vector + blinking).
-- **Mobile menu**: sticky header + floating Resume per your nodes.
-- **Custom cursors** (desktop): pointing/clenched hands, crisp on Retina.
-- **Economy**: prices 4.90/9.90/19.90, an interstitial once every 3 levels, a ladder
-  of shakes 3+⌊lvl/6⌋, «Forever for $4.90» instead of a subscription.
-- **The bowl floor**: thin objects falling through is closed off by a rescuer (soak clean).
+- **The full audit** you asked for: 8 finder lenses, two skeptics per finding, 34 findings survived —
+  two real gameplay blockers fixed (the bomb destroyed the very block it had just thawed; the
+  rescuer teleported a resting bomb because it read the dynamite as a sphere), plus the
+  unshifted charge anchor, the painted-brick debris colour, and a tool that had checked nothing.
+- **Ring accessibility samples fixed** (lifebuoy, donut): 6 of 8 origins used to sit in the hole;
+  now 8 of 8, verified on a real level-39 Hard game — surgical, zero change to any other type.
+- **The miss radius inverted on your word**: a mistake no longer drops the radius to 0.30; it
+  now grows +0.05 per consecutive miss, stop at +0.20, always below the turbo ceiling 0.8, and any
+  merge cancels the help. Measured: lv39 available pairs 3 → 4.
+- **The props cadence restored**: 6, 9, 12 … 60, every gap exactly 3; nothing before level 51 moved.
+- **Final screen**: the reward badge is a circle on one digit (36×36), the pills are circles.
+- **Removed**: `07-matcap-bomb.js` (168 KB painting nothing) and the `release/` folder.
+- **Audio/** is the source of every sound: four folders, drop a file in and it reaches the game.
 
-## What is waiting for YOUR actions
+## Direction chats
 
-1. Music: a new track + license, straight to m4a 96-112 kbit/s.
-2. Playgama dashboard: 3 bundles + noads_forever per the LAUNCH-WEEK.md cheat sheet.
-3. Meta texts for the phone — say «yes» to Narrative.
+All five (Physics, Story, Bridge, Interface, Graphics) are archived 2026-09-02 — their work is in
+`v2` or superseded. Load-bearing branches stay on GitHub by name: `bonus-standalone`,
+`matcap-bench`, `assets/models-in-game` (the only versioned copy of the models).
+**Blendo SwiftUI** (the iOS wrapper) stays open: wrapper ads + `noads_forever` and the Xcode
+payment tests are on it.
 
-## Plan up to release (LAUNCH-WEEK.md)
+## What is waiting for YOUR actions (the pre-launch checklist is in the 2026-09-02 report)
 
-Friday: Museum cleanup + score chip (Interface), bowl walls (Physics).
-Monday: payments (Integration) + booster display (Interface).
-Thursday: upload to developer.playgama.com + your smoke test. Friday 7.08: LAUNCH.
+1. Playgama dashboard — products: `bundle5` 4.90 / `bundle3` 9.90 / `bundle2` 19.90 (Consumable);
+   `noads_forever` only if you decide, and NOT Consumable.
+2. Store listing: icon 1024×1024, cover 1920×1080 (+1080×1920), 4–6 screenshots.
+   Texts are ready in `docs/STORE-LISTING.md`.
+3. Ads in the iOS wrapper + `noads_forever` (you deferred it to «before the release»).
+4. Smoke test on developer.playgama.com after the upload — the only place where the ads are
+   real, the purchase is real and the Safari bars are visible.
+5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
+
+## Decisions only you can take
+
+- Telemetry is OFF (`URL = ''`); switching it on is one line, and needs a privacy policy with it.
+- `bonus.html` — the one Cyrillic file left: translate its branch, or drop it.
+- `mat_cream` is first audible at level 87 — the order of TYPES is your lever.
+- Story after level 37, dailies, localisation — planned AFTER the release.
