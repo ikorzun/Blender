@@ -5444,7 +5444,8 @@ window.bridge = {
     // substitute it. That means the config and the markup have to be cross-checked, otherwise the player will see
     // one price while another is charged — and we will learn about it from him, not from the suite.
     const btnLabels = [...document.querySelectorAll('.st-buy')].map(b => b.textContent.trim());
-    return { tiers, idle, hints0, shakes0, buy, st, hints1: g.wallet().hints, btnLabels };
+    const chipLabels = [...document.querySelectorAll('.st-plus')].map(b => b.textContent.trim());
+    return { tiers, idle, hints0, shakes0, buy, st, hints1: g.wallet().hints, btnLabels, chipLabels };
   });
   // ⛔ ONE PACKAGE SINCE 2026-09-03 (the owner's word «we always sell only one package», the
   // mock-ups 937:1505 / 937:1533): ×5 for 30 minutes + 15 Shake's + 25 Tips at $1.99, no no-ads
@@ -5454,10 +5455,13 @@ window.bridge = {
   // HARDCODED IN HTML; the platform's catalogue overwrites it only when it answers).
   expect(sbProbe.tiers.length === 1 && sbProbe.tiers[0].id === 'bundle5' && sbProbe.tiers[0].usd === 1.99
       && sbProbe.tiers[0].mult === 5 && sbProbe.tiers[0].ms === 30 * 60 * 1000
-      && sbProbe.tiers[0].shakes === 15 && sbProbe.tiers[0].hints === 25 && sbProbe.tiers[0].noAdMs === undefined,
-    'ONE package: bundle5 = $1.99, x5 for 30 min of PLAY, 15 shakes, 25 tips, and NO no-ads field at all (' + JSON.stringify(sbProbe.tiers) + ')');
+      && sbProbe.tiers[0].shakes === 9 && sbProbe.tiers[0].hints === 13 && sbProbe.tiers[0].noAdMs === undefined,
+    'ONE package: bundle5 = $1.99, x5 for 30 min of PLAY, 9 shakes, 13 tips (the owner\'s numbers of 2026-09-03), and NO no-ads field at all (' + JSON.stringify(sbProbe.tiers) + ')');
   expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Buy $1.99',
     'the ONE buy button carries the mock-up label «Buy $1.99» (' + JSON.stringify(sbProbe.btnLabels) + ')');
+  // the chips promise EXACTLY what buyBundle hands out — the two numbers live in two files
+  expect(sbProbe.chipLabels.join('|') === ('+' + sbProbe.tiers[0].shakes + '|+' + sbProbe.tiers[0].hints),
+    'the chips «+9 Shake\'s» / «+13 Tips» match the package (' + JSON.stringify(sbProbe.chipLabels) + ')');
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
   // server (stroke-width 26 under paint-order:stroke), NO #otlFill slug (it floods white), 117 on
   // the desktop variant and 80 on the mobile one. Read from the live nodes — computed styles
@@ -5485,6 +5489,7 @@ window.bridge = {
     document.getElementById('starsClose').click();
     if (window.__game.pauseState().paused){ const p = document.querySelector('.ms-play'); if (p) p.click(); } // resume only a real pause — outside the menu that node starts a level
     await wait(300);
+    window.__game.boostClear(); window.__game.refreshX5Float();   // sbProbe above bought a package: this is the IDLE geometry guard, the active state has its own below
     const f = document.getElementById('x5Float'), sc = document.getElementById('scSvg');
     if (!f) return { none: true };
     const r = f.getBoundingClientRect(), s = sc.getBoundingClientRect();
@@ -5521,6 +5526,30 @@ window.bridge = {
     'Boost opens the purchase popup DIRECTLY (no menu), the game is paused under it and resumes on close (' +
     JSON.stringify({ shop: x5f.shopOpen, menu: x5f.menuOpen, paused: x5f.pausedUnderShop, resumed: x5f.resumedOnClose }) + ')');
   expect(x5f.menuLabel === '×5 Boost', 'the pause-menu button is named «×5 Boost» (' + x5f.menuLabel + ')');
+  // THE ACTIVE STATE (957:3782): after a purchase the badge shows the remaining minutes (rounded up)
+  // and the button is a progress bar = remaining / the streak's total; a second purchase on top
+  // EXTENDS the total (15 of 30 left + 30 = 45 of 60 → 75%); spent to zero → back to «Boost».
+  const x5s = await page.evaluate(() => {
+    const g = window.__game; const out = {};
+    g.boostClear(); out.idle = g.refreshX5Float();
+    g.buyBundle('bundle5'); out.bought = g.refreshX5Float();
+    out.boughtBg = getComputedStyle(document.getElementById('x5FloatBtn')).backgroundImage.replace(/\s+/g, ' ').slice(0, 80);
+    g.boostSpend(15 * 60 * 1000); out.half = g.refreshX5Float();
+    g.buyBundle('bundle5'); out.stacked = g.refreshX5Float();
+    out.stackedState = { left: g.bundleState().boostLeftMs, total: g.bundleState().tiers[0].totalMs, progress: +g.boostProgress().toFixed(3) };
+    g.boostSpend(45 * 60 * 1000); out.spent = g.refreshX5Float();
+    g.boostClear(); out.cleared = g.refreshX5Float();
+    return out; });
+  expect(x5s.idle && !x5s.idle.active && x5s.idle.label === 'Boost' && x5s.bought.active && x5s.bought.label === '30 min' && x5s.bought.pct === '100%',
+    'the badge goes ACTIVE on a purchase: «30 min», the bar full (' + JSON.stringify({ idle: x5s.idle, bought: x5s.bought }) + ')');
+  expect(/linear-gradient/.test(x5s.boughtBg) && /192, 255, 71/.test(x5s.boughtBg),
+    'the active button is the lime→white hard-stop bar (' + x5s.boughtBg + ')');
+  expect(x5s.half.label === '15 min' && x5s.half.pct === '50%',
+    'fifteen minutes played: «15 min», the bar at 50% (' + JSON.stringify(x5s.half) + ')');
+  expect(x5s.stacked.label === '45 min' && x5s.stacked.pct === '75%' && x5s.stackedState.left === 45 * 60 * 1000 && x5s.stackedState.total === 60 * 60 * 1000,
+    '⚠️ A SECOND PURCHASE ADDS UP: 15 + 30 = «45 min» of a 60-minute streak, the bar at 75% (' + JSON.stringify({ stacked: x5s.stacked, state: x5s.stackedState }) + ')');
+  expect(!x5s.spent.active && x5s.spent.label === 'Boost' && !x5s.cleared.active,
+    'spent to zero: the badge is back to «Boost» (' + JSON.stringify(x5s.spent) + ')');
   // ⚠️ THE CLOSING CROSS IS ALWAYS white with a black cross (the owner's spec
   // 2026-07-31: «the colour of the icon does not depend on the time of day» — the overlay is dark in
   // both themes, the system rule --btn-bg gave a dark button on dark during the day).
@@ -5541,9 +5570,9 @@ window.bridge = {
     'the More Stars cross is always white with a black cross, regardless of the time of day (' + JSON.stringify(stClose) + ')');
   expect(sbProbe.idle.mult === 1 && sbProbe.idle.noAd === false,
     'without a bundle: multiplier 1, ads are not disabled (' + JSON.stringify(sbProbe.idle) + ')');
-  expect(sbProbe.buy.ok && sbProbe.st.mult === 5 && sbProbe.st.shakes === sbProbe.shakes0 + 15 &&
-         sbProbe.hints1 === sbProbe.hints0 + 25 && sbProbe.st.noAdLeftMs === 0,
-    'the package handed out EVERYTHING at once: x5 + 15 shakes + 25 tips, and NO no-ads window — the mock-up has none (' + JSON.stringify(sbProbe.st) + ')');
+  expect(sbProbe.buy.ok && sbProbe.st.mult === 5 && sbProbe.st.shakes === sbProbe.shakes0 + 9 &&
+         sbProbe.hints1 === sbProbe.hints0 + 13 && sbProbe.st.noAdLeftMs === 0,
+    'the package handed out EVERYTHING at once: x5 + 9 shakes + 13 tips, and NO no-ads window — the mock-up has none (' + JSON.stringify(sbProbe.st) + ')');
 
   // ⚠️ TIME ACCUMULATES FOR ITS OWN TIER, CONSUMABLES ADD UP: a second package on top of a live
   // one adds its own 30 minutes and its own 15 shakes — nothing burns, nothing is refused (a
@@ -5563,7 +5592,7 @@ window.bridge = {
     'a second package keeps x5 playing (' + sbQueue.mult + ')');
   expect(sbQueue.left5 > sbQueue.wasLeft5 + 29 * 60 * 1000 && sbQueue.left5 <= sbQueue.wasLeft5 + 30 * 60 * 1000,
     'the second package ADDED its own 30 minutes to the live window (' + Math.round(sbQueue.wasLeft5/60000) + ' -> ' + Math.round(sbQueue.left5/60000) + ' min)');
-  expect(sbQueue.shakes === sbQueue.wasShakes + 15, 'package consumables simply add up (+15 = ' + sbQueue.shakes + ')');
+  expect(sbQueue.shakes === sbQueue.wasShakes + 9, 'package consumables simply add up (+9 = ' + sbQueue.shakes + ')');
 
   // ⛔⛔ THE MULTIPLIER IS A PLAY-TIME BUDGET SINCE 2026-09-03 (the owner's word «only game
   // time»): it burns through `boostSpend` — the loop's own accounting — and through nothing
@@ -5776,12 +5805,16 @@ window.bridge = {
   // since the last merge. Here the two coincide (nothing merges between the two misses), and
   // that is precisely why the read has to be the RIGHT one — `misses` would keep this section
   // green while the game charged a different rung anywhere a merge intervened.
+  // ⛔⛔ INVERTED 2026-09-03 (the owner's word: «the cost of a mistake must not grow 5× when the
+  // bonus is bought»): the booster multiplies the REWARD only. Under a live x5 a miss costs
+  // exactly its rung — `boosted === rungBoost`, NOT `rungBoost × mult`. The `mult === 5` arm
+  // proves the boost really was live while the miss was charged; the rung arms stay as before.
   expect(penSym.plain > 0 && penSym.mult === 5 &&
          penSym.nBoost === penSym.nPlain + 1 &&
          penSym.plain === penSym.rungPlain &&
-         penSym.boosted === Math.round(penSym.rungBoost * penSym.mult) &&
+         penSym.boosted === penSym.rungBoost &&
          penSym.rungBoost > penSym.rungPlain,
-    '⚠️ SYMMETRY: under x5 a miss costs exactly ×5 — the RATIO is the statement, not the amount ' +
+    '⚠️ NO SYMMETRY: under x5 a miss costs exactly its plain rung — the booster multiplies the reward, not the punishment ' +
     '(' + JSON.stringify(penSym) + '). ⚠️ THE `rungBoost > rungPlain` ARM IS NOT DECORATION: it ' +
     'is what proves the two measurements really did land on different rungs, so the assert ' +
     'cannot quietly degenerate back into comparing a miss with itself');
@@ -5801,7 +5834,7 @@ window.bridge = {
     return { clamped, lv1: g.stats().score, mult: g.scoreBoostMult() };
   });
   expect(penClamp.mult === 5 && penClamp.clamped === 0,
-    'the clamp at zero is applied AFTER the multiplication — a newcomer under x5 is not in the minus (' + penClamp.clamped + ')');
+    'the clamp at zero holds under x5 too — a newcomer is not in the minus (' + penClamp.clamped + ')');
   expect(penClamp.lv1 === 0,
     'lv.1 without penalties at all — the booster does not change that (' + penClamp.lv1 + ')');
 
@@ -5865,8 +5898,11 @@ window.bridge = {
               ', under x' + stuckBoost.mult + ' −' + stuckBoost.drop);
   expect(stuckPlain.deadlock && stuckBoost.deadlock,
     'the rescue started in both runs');
-  expect(stuckBoost.drop > stuckPlain.drop * 2,
-    '⚠️ THE PRICE OF THE RESCUE under the booster is manifold higher — a number for the owner (−' + stuckPlain.drop + ' -> −' + stuckBoost.drop + ')');
+  // ⛔ INVERTED 2026-09-03 with the penalty rule: the booster no longer multiplies the grind
+  // tax either (every punishment goes through scorePenalty). The two runs now cost about the
+  // same; «< 2×» is the arm that turns red if the multiplier ever comes back (it gave ×5).
+  expect(stuckBoost.drop < stuckPlain.drop * 2,
+    '⚠️ THE PRICE OF THE RESCUE under the booster is NOT multiplied — the same plain tax (−' + stuckPlain.drop + ' -> −' + stuckBoost.drop + ')');
 
   await page.evaluate(() => { window.__game.boostClear(); });
   // ── WHAT IS SHOWN = WHAT IS SPENDABLE (the owner's spec 2026-07-28) ───────────────────
@@ -10188,7 +10224,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       JSON.stringify(menu.extra) + ') — the menu edge channels stay msSticky (top) and ' +
       'the ::after strip (bottom), both painted');
 
-    // ── THE DARK OVERLAYS: their own fill is the channel
+    // ── THE DARK OVERLAYS: their own fill is TRANSPARENT, the 88% fill sits on ::before
+    // ⛔⛔ RE-BASED 2026-09-03 (the fourth revision of this guard's law). Until now the arm
+    // demanded the OPPOSITE — «each has its own NON-transparent fill, which is also the channel
+    // of the bands» — the 5th-edition sampling law. The 2026-08-30 measurement moved the bars to
+    // transparent but left this arm behind, and the owner's phone showed the price on
+    // 2026-09-03: «the fields on iOS 26 again … on the purchase screen the top background is not
+    // dark». Under the measured 2x2 law a FIXED element that PAINTS while abutting a zone
+    // boundary letterboxes that zone in body's colour — the overlay's own fill was the trigger.
+    // Now: the element transparent, the fill + blur on a fixed `::before` child (children may
+    // paint), and the census legitimately lists the overlay itself among the transparent ones.
     const darkOnes = [];
     await edgePage.evaluate(() => { const b = document.querySelector('.ms-play'); if (b) b.click(); });
     await edgePage.waitForTimeout(600);
@@ -10196,16 +10241,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       await edgePage.evaluate(i => { document.getElementById(i).style.display = 'flex'; }, id);
       await edgePage.waitForTimeout(350);
       const snap = await takeSnap();
-      darkOnes.push({ id, extra: snap.extra, top: (snap.top.find(x => x.name === id) || {}).bg });
+      const before = await edgePage.evaluate(i => getComputedStyle(document.getElementById(i), '::before').backgroundColor, id);
+      darkOnes.push({ id, extra: snap.extra, top: (snap.top.find(x => x.name === id) || {}).bg, before });
       await edgePage.evaluate(i => { document.getElementById(i).style.display = 'none'; }, id);
     }
     await edgePage.close();
     console.log('edges of the overlays:', JSON.stringify(darkOnes));
-    expect(darkOnes.every(x => x.extra.every(n => n === 'topBar' || n === 'bottomBar') && x.top && nums(x.top)[3] !== 0),
-      '⚠️⚠️ THE DARK OVERLAYS: each has its own NON-transparent fill, which is also the channel ' +
-      'of the bands — they need no separate element (' + JSON.stringify(darkOnes) + '). ' +
-      'The sabotage — to make `.overlay` transparent: the bands on all six screens ' +
-      'will become black, and the guard will go red on every one of them');
+    expect(darkOnes.every(x => x.extra.every(n => n === 'topBar' || n === 'bottomBar' || n === x.id)
+        && x.top && nums(x.top)[3] === 0 && x.before && nums(x.before)[3] !== 0),
+      '⚠️⚠️ THE DARK OVERLAYS paint NOTHING themselves and carry the 88% fill on `::before` — the ' +
+      '2026-08-30 edge law, priced by the owner on 2026-09-03 (' + JSON.stringify(darkOnes) + '). ' +
+      'The sabotage — to give `.overlay` its fill back: a fixed element painting at the zone ' +
+      'boundary letterboxes the zone in body\'s colour, and the purchase screen shows the sky ' +
+      'under the clock again');
   }
 
   // ===== THE OWNER'S BATCHES 2026-08-20/21: NO CHEST, NO RED TOP,
@@ -13942,12 +13990,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     document.getElementById('msLbEntry').click(); await sleep(600);
     const o = document.getElementById('lbOverlay'), c = document.querySelector('#lbOverlay .lb-card');
     const so = document.getElementById('starsOverlay');
-    const cs = getComputedStyle(o), ss = getComputedStyle(so);
+    // ⚠️ the fill and the blur live on the `::before` child since 2026-09-03 (the iOS 26 edge law:
+    // the fixed overlay itself must paint nothing) — read the pseudo-element, and ALSO assert the
+    // elements themselves stay transparent, or the guard would compare two «transparent»s
+    const cs = getComputedStyle(o, '::before'), ss = getComputedStyle(so, '::before');
+    const selfBg = { table: getComputedStyle(o).backgroundColor, more: getComputedStyle(so).backgroundColor };
     const x = document.getElementById('lbClose');
     // ⛔ WE DO NOT MEASURE THE NAME HERE: on THIS page the mock answers «there is no row»
     // (`/v1/me` → 404), that is, one's own row is absent BY CONSTRUCTION and the measurement would
     // return null. It lives in the section of the owner's edits, where the place is set.
-    const out = { width:Math.round(c.getBoundingClientRect().width),
+    const out = { width:Math.round(c.getBoundingClientRect().width), selfBg,
       bg:cs.backgroundColor, bgMore:ss.backgroundColor,
       blur:cs.backdropFilter || cs.webkitBackdropFilter,
       blurMore:ss.backdropFilter || ss.webkitBackdropFilter,
@@ -13966,6 +14018,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(popup.width === 560,
     '⚠️ TABLE SCREEN: on a wide viewport the width is EXACTLY 560 — the ceiling of the owner ' +
     'is reached, and not «somewhere around»: ' + popup.width + 'px');
+  expect(/rgba\(10, 14, 22, 0\.88\)/.test(popup.bg) && /blur/.test(popup.blur) && /rgba\(0, 0, 0, 0\)/.test(popup.selfBg.table) && /rgba\(0, 0, 0, 0\)/.test(popup.selfBg.more),
+    '⚠️ THE OVERLAY ELEMENTS PAINT NOTHING THEMSELVES (the iOS 26 edge law), the 88% fill and the blur sit on ::before (' + JSON.stringify({ selfBg: popup.selfBg, before: popup.bg, blur: popup.blur }) + ')');
   expect(popup.bg === popup.bgMore && popup.blur === popup.blurMore,
     '⚠️ TABLE SCREEN: the backdrop is SHARED with the More screen — «all popups in this style» ' +
     '(' + JSON.stringify({ table:popup.bg, more:popup.bgMore }) + ')');

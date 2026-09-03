@@ -14430,9 +14430,9 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
 
 ## BATCH 2026-09-03-c: THE OWNER'S FOUR ANSWERS — ADS ONLY FOR THE SHAKES AND THE TIPS, THE ×5 BUDGET COUNTS PLAY TIME
 
-His answers to the four questions of the 2026-09-03-b report, verbatim: «1. оставляй 2. сам
-сделаю 3. не будет такого, реклама будет только если закончились шейки и типсы, больше нигде
-4. только игровое время». (1) 20 GAM stays. (2) The dashboard and App Store Connect are his.
+His answers to the four questions of the 2026-09-03-b report, translated: «1. keep it. 2. I will
+do it myself. 3. there will be no such thing; ads will only be when the shakes and the tips have
+run out, nowhere else. 4. only game time». (1) 20 GAM stays. (2) The dashboard and App Store Connect are his.
 (3) and (4) are two mechanics changes, below.
 
 ### (3) ⛔⛔ NO INTERSTITIAL, NO OTHER REWARDED PLACEMENT — ADS ONLY WHEN THE STOCK IS EMPTY
@@ -14595,3 +14595,123 @@ His answers to the four questions of the 2026-09-03-b report, verbatim: «1. о�
 - And the float, final numbers across resizes: desktop 1280 — the float's right 1269.6 = the score
   frame's right 1269.6 (`--x5f-dr` 2.40px), the label dx 0 / dy 0; resized to 393 — 385 = 385
   (`--x5f-dr` 0), the top gap 20; back to 1280 — equal again (2.39px).
+
+## BATCH 2026-09-03-f: THE BADGE'S ACTIVE STATE (variant 957:3782; the owner's word «a second state when the player has bought the 30 minutes: everything the same, only the button shows the time and the button becomes a progress bar; yes, a click goes to the purchase page, and one can buy an unlimited number of times — the time adds up»)
+
+- Dev Mode + the Plugin API for what the export omits: the same card; the button fills the
+  content width (88), keeps the 60% white 1px inside border, the white inner glow 10 and radius
+  80; its fill is a HARD-STOP linear gradient — lime #c0ff47 from the left up to the progress,
+  white after it (the component draws 50% with «15 min»); the label Bold 18 black «15 min»
+  (its 3px white outline is on HTML text — not reproduced, as in the idle state).
+- The numbers behind the bar: `Save.bs[mult]` = the USED milliseconds when a purchase started a
+  streak from zero; the streak's total = bought − bs; the bar = remaining / total. A purchase on
+  top of a live budget EXTENDS the total (15 of 30 left + 30 bought = 45 of 60 → 75%), a
+  purchase from zero starts a new streak (the bar is full again). `bs` is merged by max and reset
+  with the pair. The label is the remaining minutes rounded UP: «30 min» right after the
+  purchase, «1 min» in the last one, «Boost» at zero.
+- `refreshX5Float` (85-hud) writes the class, the label and `--x5f-pct` — called from
+  `updateHUD` and from the loop after `boostTick`; it compares a key per frame and writes the
+  DOM only when the minute or the whole percent changes. The click is the same popup on both
+  states; `buyBundle` adds `ms` to `bb` without a limit, as before.
+- The suite: idle → buy («30 min», 100%, the lime→white gradient on the button) → 15 min played
+  («15 min», 50%) → buy again («45 min», 75%, left 45 of a 60-minute total) → spent to zero
+  («Boost»).
+- Measured in the preview: phone 393 — idle «Boost» → «30 min» 100% → «15 min» 50%, the button
+  61.6×22.4 (88×32 at the 0.7 scale), `linear-gradient(90deg, rgb(192,255,71) 50%, rgb(255,255,255)
+  50%)`, the 60% white border and the inner glow in place, the label dx 0 / dy 0, the badge still
+  flush with the score (385 = 385); desktop 1280 — the same state, the button 88 wide, flush at
+  1269.6 = 1269.6; `boostClear` → «Boost».
+
+## BATCH 2026-09-03-g: HIS FOUR NOTES ON THE LIVE BUILD — THE POPUP CLOSES BY THE DARK, THE iOS 26 FIELDS, THE FLASH AT THE TOP, THE WHOLE BADGE CLICKS
+
+- «On the ×5 score screen a click on the dark area must close the screen» — a click handler on
+  `#starsOverlay`: anything outside `.st-block` and `.st-close` (the backdrop, the wrap's
+  insets) calls `shopClose()`; the block itself does nothing (the whole-card click of the old
+  three-card screen is not coming back).
+- «The fields on iOS 26 again … on the purchase screen the top background is not dark» — the
+  measured 2x2 law of 2026-08-30 named the trigger: a FIXED element that PAINTS a background
+  while abutting a zone boundary disables that zone's edge-extension, and the zone letterboxes
+  in body's colour (the sky) — `.overlay` is fixed at inset:0, abuts both edges and painted the
+  88% fill itself. The fill and the blur moved into `.overlay::before` (fixed, inset:0,
+  z-index −1, pointer-events none — the `#mainScreen::before` pattern); the element is
+  transparent. The same colour, blur and stacking to the eye; every popup (win, lose, pause,
+  museum, ad, table, shop) is covered by the one rule. ⚠️ Unverifiable here — no iOS 26 device
+  in this chat; the law is the canon's own measurement, the fix follows it exactly. The popup
+  guard now reads the `::before` and ALSO asserts the elements themselves are transparent
+  (two «transparent»s would have compared equal and hidden a regression). ⚠️ The edge-census
+  guard's «dark overlays» arm went red on the first run: it still demanded the 5th-edition
+  law (the overlay's own fill = the channel; its message even named «make .overlay
+  transparent» as the sabotage). The 2026-08-30 revision had moved the bars and left that arm
+  behind — re-based as the fourth revision of that guard: the element transparent, `::before`
+  painted, the overlay itself allowed in the transparent census. The bars' arm is untouched.
+- «When the items pour into the bowl there is some parasitic animation, an explosion or
+  something, at the very top — check and remove» — measured first: no CSS animation at the top
+  but the eyes' pupils and the load fade; `fxN` stays 0 through the pour; the score stack has no
+  animation for the badge to inherit. The one burst-shaped thing at the top at a level start is
+  the treasure's «announces itself» flash (`spawnHitFx(spawn, 1.6, null, HITFX_SPAWN)` in
+  genLevel, 2026-08-31) — fired at the spawn point ABOVE the rim while the pile pours, and only
+  from SURPRISE_FROM_LEVEL with a bought boost: exactly what he had just bought, hence «now».
+  The call is removed; the fish, its digging and its bonus are untouched; the `HITFX_SPAWN`
+  kind stays in 70-fx. ⚠️ The frozen spawn column (the waves not yet released, 20 ms apart)
+  is also visible above the rim on a phone during the pour — an older look he did not name;
+  left alone, named here.
+- «The whole ×5 score badge is clickable, not only the button» — one handler on `#x5Float`
+  (a click on the button bubbles into it — no double open), `cursor:pointer` on the card.
+- Measured in the preview (393×852): `#starsOverlay` itself `rgba(0,0,0,0)`, its `::before`
+  `rgba(10,14,22,0.88)` + `blur(6px)`, fixed; a click on the badge's TITLE svg opens the popup
+  (paused, no menu); a click on the wrap outside the block closes it and resumes; a click on the
+  block keeps it open; `fxN` is 0 at and after a regen on level 11 (the flash call is gone by
+  construction — the only `spawnHitFx(spawn, 1.6, null, HITFX_SPAWN)` left in 40-items is the
+  text of the tombstone comment; no uncommented call line remains).
+
+## BATCH 2026-09-03-h: THE BOOSTER MULTIPLIES THE REWARD, NOT THE PUNISHMENT (the owner's word «fix: the cost of a mistake must not grow 5× when the bonus is bought»)
+
+- ⛔⛔ CANCELS his own 2026-07-28 symmetry («the booster multiplies both the reward and the
+  punishment — flat −10/−20 against a +700 backdrop is noise»). `scorePenalty` (80-gameplay) is
+  the single punishment point — the miss, the ice double and the grind tax all pass through it —
+  and it charged `n × scoreBoostMult()`; now it charges `n`. The rewards keep their multiplier
+  where they read it themselves (doMatch, the finale, the treasure bonus). The zero clamp for
+  the first levels is unchanged.
+- The suite: the symmetry guard is inverted — under a live ×5 a miss costs exactly its plain
+  rung (`boosted === rungBoost`, the `mult === 5` arm proves the boost was live); the clamp
+  guard keeps its assert with a truthful message; the rescue-price measurement inverted from
+  «manifold higher» to «not multiplied» (`boosted < plain × 2`, the arm that catches a return
+  of the multiplier — it gave ×5).
+- Measured in the preview (level 8, a live ×5): the first miss −100 (rung 1), the second under
+  the boost −110 (rung 2, not 550) — `mult 5, boosted === rungBoost`.
+
+## BATCH 2026-09-03-i: THE PACKAGE HOLDS 9 SHAKE'S AND 13 TIPS (the owner's word «9 shakes and 13 hints», sent with the chips' screenshot)
+
+- Read as the package's CONTENTS (the mock-up's +15 / +25 were placeholders): `STAR_BUNDLES`
+  shakes 9, hints 13; the chips «+9» / «+13»; the guards moved with them, and a new arm ties the
+  chips' text to `STAR_BUNDLES` — the promise and the grant live in two files and must not drift.
+  ⚠️ The other reading (that he RECEIVED 9 and 13 after a purchase) was named to him in the
+  report: if so, the change is one line back and a hunt for the difference.
+- ⚠️ THE CYRILLIC CENSUS I HAD RUN ALL DAY WAS BLIND: `perl -ne '/\p{Cyrillic}/'` without
+  `-CSD` reads bytes, so it never matched a UTF-8 letter — every «cyrillic: 0» of 2026-09-03
+  was an empty check. A byte-true census (python, the range U+0400..U+04FF) over the tracked
+  text files found my own quotes in batches c and i (translated now) and three PRE-EXISTING
+  pieces left alone: one Russian word of his quoted in an earlier batch of this file, a
+  deliberate example of a Cyrillic-safe form in test.js, and two lines in 70-fx. Use the python
+  census; the suite has no Cyrillic guard of its own.
+
+## BATCH 2026-09-04-a: «I RELOADED THE PAGE AND THE BOOST DISAPPEARED» — MEASURED, IT DID NOT; WHERE THE PAID DATA LIVES
+
+- The measurement (the preview, the current build): buy → play 5 min → flush → «25 min», 83%,
+  `bb 1 800 000 / bu 300 000 / bs 0` in `localStorage` → `location.reload()` → `mult 5`, «25 min»,
+  83%, the same numbers, the guest id `Save.gid` intact. The budget survives a reload BY THE SAVE
+  MODEL (bb/bu/bs are written by `commitSave` at the purchase and folded on every commit).
+- Why he saw it «disappear»: the LIVE build at that moment was bf3bb7a — the badge's idle look
+  only; the active state (the minutes, the bar) is in the batch that suite #18 was still running
+  on. With the budget alive and the badge reading «Boost», the reload looked like a loss. The
+  deploy of this batch is the cure; nothing in the model needed a change.
+- Where the paid data lives, layer by layer (named to him in STATUS): (1) `localStorage` on the
+  device — the primary copy; (2) on the portal, `bridge.storage` — the platform's cloud save,
+  merged monotonically at init (`bridgeSyncSave`), and the SDK's guest id survives in its own
+  key (2.1.0 gives guests cloud saves too); (3) in the wrapper, StoreKit's `restorePurchases`
+  on every start re-grants an unconsumed package by its orderId, and WKWebView's localStorage
+  persists. ⚠️ The real hole is the plain WEB (GitHub Pages) with Safari's storage eviction
+  after 7 days without a visit and a cleared browser — but no money changes hands there (the
+  mock platform has no payments; DEV emulates). An own server ledger keyed by `Save.gid` (the
+  leaderboard service already knows that id) would close it for the web too — a separate
+  feature, offered, not built.

@@ -653,7 +653,15 @@ function shopClose(){
   else refreshMainScreen();
 }
 $('starsClose').addEventListener('click', shopClose);
-{ const b = $('x5FloatBtn'); if (b) b.addEventListener('click', ()=>{
+// A CLICK ON THE DARK AREA CLOSES THE POPUP (the owner's word 2026-09-03): anything outside the
+// block and the cross — the backdrop, the wrap's insets. The block itself does nothing.
+$('starsOverlay').addEventListener('click', (e) => {
+  if (e.target.closest('.st-block') || e.target.closest('.st-close')) return;
+  shopClose();
+});
+// THE WHOLE BADGE IS CLICKABLE, not only its button (the owner's word 2026-09-03): one
+// handler on the card — a click on the button bubbles into it, so there is no double open.
+{ const f = $('x5Float'); if (f) f.addEventListener('click', ()=>{
   shopPausedByHud = pauseGame(true);
   show('starsOverlay'); try { refreshBundlePrices(); } catch(e){}
 }); }

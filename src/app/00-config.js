@@ -432,7 +432,9 @@ const AD_HINTS_PER_LEVEL = 2;
 // already exist under that name; what changes is the price and the contents, not the identity.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25 }, // ms = PLAY time (2026-09-03)
+  // ⚠️ 9 Shake's and 13 Tips — the owner's word 2026-09-03 («9 shakes and 13 hints», sent with the
+  // chips' screenshot); the mock-up's +15 / +25 were its placeholders.
+  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 9, hints: 13 }, // ms = PLAY time (2026-09-03)
 ];
 // Clock slack: a time change/DST/drift must not kill a paid booster,
 // but a rollback further back than the slack is treated as an attempt to extend it manually.

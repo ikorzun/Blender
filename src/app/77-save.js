@@ -73,6 +73,7 @@ function mergeSave(into, from){
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
     into.bb = Object.assign({}, (from.bb && typeof from.bb === 'object') ? from.bb : {}); // the play-time budget, 2026-09-03
     into.bu = Object.assign({}, (from.bu && typeof from.bu === 'object') ? from.bu : {});
+    into.bs = Object.assign({}, (from.bs && typeof from.bs === 'object') ? from.bs : {});
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
@@ -112,7 +113,7 @@ function mergeSave(into, from){
   for (const k in bxf) into.bx[k] = Math.max(into.bx[k] || 0, bxf[k] || 0);
   // THE PLAY-TIME BUDGET (2026-09-03): bought and used are BOTH monotonic per multiplier key —
   // the he/hs pattern. Max of each: a lagging copy neither resurrects used time nor doubles a purchase.
-  for (const f of ['bb', 'bu']){
+  for (const f of ['bb', 'bu', 'bs']){
     if (!into[f] || typeof into[f] !== 'object') into[f] = {};
     const src = (from[f] && typeof from[f] === 'object') ? from[f] : {};
     for (const k in src) into[f][k] = Math.max(into[f][k] || 0, src[k] || 0);
@@ -194,6 +195,14 @@ function boostBudgets(){
   return { bb: Save.bb, bu: Save.bu };
 }
 function boostLeft(m){ const b = boostBudgets(); return Math.max(0, (b.bb[m] || 0) - (b.bu[m] || 0) - (boostAcc[m] || 0)); }
+// THE STREAK (the owner's word 2026-09-03: «you can buy an unlimited number of times, the time
+// adds up» + the active badge is a PROGRESS BAR): `Save.bs[mult]` = the USED milliseconds at
+// the moment a purchase started a streak from zero; the streak's total = bought − bs, and the
+// bar shows remaining / total. A purchase on top of a live budget extends the total (10 of 30
+// left + 30 bought = 40 of 60), a purchase from zero starts a new streak. Merged by max like
+// the rest of the pair; reset with them.
+function boostStreakTotal(m){ const b = boostBudgets(); if (!Save.bs || typeof Save.bs !== 'object') Save.bs = {}; return Math.max(0, (b.bb[m] || 0) - (Save.bs[m] || 0)); }
+function boostProgress(){ const m = scoreBoostMult(); if (m <= 1) return 0; const t = boostStreakTotal(m); return t > 0 ? Math.max(0, Math.min(1, boostLeft(m) / t)) : 0; }
 function boostFlush(){ if (boostAccMs) commitSave(); } // commitSave folds the accumulator itself
 // Spend `ms` of play from the STRONGEST live tier only (the weaker ones wait — the queue
 // semantics of 2026-07-28 survive the model change). The loop passes real frame time.
@@ -249,7 +258,7 @@ function scoreBoostLeftMs(){
   const m = scoreBoostMult();
   return m > 1 ? boostLeft(m) : 0;
 }
-function boostClear(){ Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
+function boostClear(){ Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
 // GRANTING «NO ADS FOREVER» (Integration's stop-question when payments were
 // introduced 2026-08-03): the PERMANENT flag Save.naf — unlike the temporary
 // window Save.na of the bundles. It is called by the payment layer (78-ads
@@ -338,6 +347,8 @@ function buyBundle(id){
   const b = STAR_BUNDLES.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'unknown' };
   const bd = boostBudgets();
+  if (!Save.bs || typeof Save.bs !== 'object') Save.bs = {};
+  if (boostLeft(b.mult) <= 0) Save.bs[b.mult] = (bd.bu[b.mult] || 0) + (boostAcc[b.mult] || 0); // a streak starts from zero: the bar's total resets
   bd.bb[b.mult] = (bd.bb[b.mult] || 0) + b.ms; // play time accumulates for ITS OWN tier
   // ⛔ no no-ads window in the package (2026-09-03): the `Save.na` line is gone with `noAdMs`
   Save.pe = (Save.pe || 0) + b.shakes;
@@ -348,8 +359,8 @@ function buyBundle(id){
 }
 // A snapshot for the INTERFACE (rendering the active bundle).
 function bundleState(){
-  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: boostLeft(b.mult) }));
-  return { mult: scoreBoostMult(), boostLeftMs: scoreBoostLeftMs(), tiers,
+  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: boostLeft(b.mult), totalMs: boostStreakTotal(b.mult) }));
+  return { mult: scoreBoostMult(), boostLeftMs: scoreBoostLeftMs(), progress: boostProgress(), tiers,
            shakes: purchasedShakes(), hints: hints(), noAd: noAdActive(), noAdLeftMs: noAdLeftMs() };
 }
 function hints(){ return Math.max(0, (Save.he || 0) - (Save.hs || 0)); }
@@ -553,7 +564,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
+  Save.bx = {}; Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}

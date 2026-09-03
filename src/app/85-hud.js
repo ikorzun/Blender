@@ -1246,7 +1246,28 @@ function showMultToast(typeName, mult, isTierUp){
   multToastT = setTimeout(() => { el.classList.remove('on'); el.classList.remove('up'); multToastT = 0; },
                           isTierUp ? 2600 : 1400);
 }
+// THE «x5 float» BADGE — TWO STATES (947:3670 idle / 957:3782 active, the owner's word 2026-09-03:
+// «the second state when the player has bought the 30 minutes: everything the same, only the
+// button shows the time and the button becomes a progress bar»). Active while play time is
+// left: the label is the remaining minutes rounded UP («30 min» right after the purchase, «1 min»
+// in the last one), the bar is remaining / the streak's total (77-save boostProgress). Called
+// from updateHUD and from the loop after boostTick; it writes the DOM only when the shown
+// minute or the bar's percent (in whole points) changes — a comparison per frame, not a write.
+function refreshX5Float(){
+  const f = $('x5Float'); if (!f) return;
+  const left = (typeof scoreBoostLeftMs === 'function') ? scoreBoostLeftMs() : 0;
+  const on = left > 0;
+  const label = on ? (Math.ceil(left / 60000) + ' min') : 'Boost';
+  const pct = on ? Math.round(boostProgress() * 100) : 0;
+  const key = label + '|' + pct;
+  if (f.dataset.x5 === key) return;
+  f.dataset.x5 = key;
+  f.classList.toggle('active', on);
+  const b = $('x5FloatBtn'); if (b) b.textContent = label;
+  f.style.setProperty('--x5f-pct', pct + '%');
+}
 function updateHUD(){
+  try { refreshX5Float(); } catch(e){}
   // THE TYPE CHARGE SLOT (the dispatcher's insertion 2026-07-31, polished by the INTERFACE):
   // the portrait from the shared thumb cache (a cold pack will give back nothing for the first ticks —
   // the v183 rule will deliver the picture later by itself), the opacity = the remaining life.

@@ -12,6 +12,25 @@ match · the live site verified byte-for-byte against the build · portal packag
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
+## To continue on another device (a new chat, a fresh clone)
+
+1. `git clone git@github.com:ikorzun/Blender.git` → `git checkout v2` (the work branch; `main` is
+   what GitHub Pages serves — the deploy is a push of `v2` onto `main`).
+2. Node 22 + `npm install`, then `npx playwright install chromium` (the suite drives headless
+   Chromium). Python 3 for the build.
+3. Build: `python3 build.py` → `index.html` (one file, everything inlined but `playgama-bridge.js`,
+   `playgama-bridge-config.json` and `music.mp3`, which sit beside it). Suite: `node test.js`
+   (~10 min, 940+ checks; never rebuild while it runs). Preview: any static server at the repo
+   root (e.g. `python3 -m http.server 8781`) and open `index.html?dev=1`.
+4. Ship: commit on `v2`, `git push origin v2`, then `git push origin v2:main`; verify the live
+   files by byte size (`curl -sI` against `git cat-file -s v2:index.html`, the bridge and the
+   config). The raw 3D/animation folders are ignored on purpose — the build does not need them;
+   the models' versioned copy is the branch `assets/models-in-game`.
+5. Read first: [CLAUDE.md](CLAUDE.md) (the batches of 2026-09-03 a–h are the latest — the one
+   package, the play-time budget, no interstitials, the x5 badge, the penalty rule), then this
+   page; the suite's red lines are read before anything is re-based. On a Mac whose git fails
+   with rc 69 (the Xcode licence), prefix `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+
 ## What shipped 1–3 September
 
 - **The full audit** you asked for: 8 finder lenses, two skeptics per finding, 34 findings survived —
@@ -27,13 +46,20 @@ match · the live site verified byte-for-byte against the build · portal packag
 - **Final screen**: the reward badge is a circle on one digit (36×36), the pills are circles.
 - **Removed**: `07-matcap-bomb.js` (168 KB painting nothing) and the `release/` folder.
 - **The Get More screen is ONE package** (3 September, your mock-ups 937:1505 / 937:1533): ×5 score
-  for 30 min + 15 Shake's + 25 Tips for $1.99 — the three cards are gone, the bridge catalogue and
+  for 30 min + 9 Shake's + 13 Tips for $1.99 (your numbers; the mock-up said 15/25) — the three cards are gone, the bridge catalogue and
   the wrapper's id table carry `bundle5` alone (+ `noads_forever`).
 - **The «x5 float» badge** (your component 947:3670) sits in the HUD under the score: 20 px under
   it, its right edge flush with the score's, 70% on phones; «Boost» opens the purchase popup directly (the
-  game pauses under it and resumes on close); the pause-menu button is now «×5 Boost».
+  game pauses under it and resumes on close); the pause-menu button is now «×5 Boost». After a
+  purchase the badge shows the minutes left and its button is a lime progress bar; buying again
+  adds time (15 of 30 left + 30 = 45 of 60). The whole badge is the click; a tap on the dark
+  area closes the purchase popup; the popups paint their dark fill on an inner layer now (the iOS
+  26 edge law — check the top strip on your phone); the treasure's spawn flash at the top of the
+  pour is removed.
 - **The win screen**: the score now paints above the «SAVED» sticker where they overlap (your
   screenshot).
+- **A mistake under ×5 costs its plain price** (your word of 3 September): the booster multiplies
+  the reward only — the miss, the ice tap and the mixer's grind are not multiplied any more.
 - **Your four answers of 3 September are in:** 20 Gam stays; the ×5 budget counts ONLY play time
   (it stands still on the menu, on the win/lose screens, in the intro, with the tab hidden); no
   no-ads window anywhere; **ads only when the shakes and the tips have run out** — the interstitial
@@ -73,6 +99,13 @@ payment tests are on it.
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
 
 ## Decisions only you can take
+
+- **The boost after a reload**: measured — it survives (25 min / 83% before and after the reload,
+  the numbers are in `localStorage` under the player's own guest id). What you saw was the live
+  build without the badge's active look; this deploy fixes that. Where a paid boost lives:
+  the device's storage, the portal's cloud save (Playgama keeps it under the guest id), the
+  wrapper's StoreKit restore. The one hole is the plain web after Safari clears storage — say if
+  you want our own server ledger keyed by the guest id (the leaderboard service already has it).
 
 - Telemetry is OFF (`URL = ''`); switching it on is one line, and needs a privacy policy with it.
 - `bonus.html` — the one Cyrillic file left: translate its branch, or drop it.

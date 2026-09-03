@@ -660,6 +660,7 @@ function loop(){
   // the level clock (the owner's word 2026-09-03 «only game time»; the accounting is in 77-save).
   if (!intro && level && !level.over && !(typeof mceIsOpen === 'function' && mceIsOpen())){
     try { boostTick(rawMs); } catch(e){}
+    try { refreshX5Float(); } catch(e){}   // the badge's minute label / bar (85-hud): a compare per frame, a write on change
   }
   try { chargeTick(); } catch(e){}   // dissolving of the type charge (80-gameplay, TTL 7 s)
   try { tickBowlCracks(now); } catch(e){} // the pulse of the crack telegraph at N-1
@@ -1652,6 +1653,8 @@ window.__game = {
   boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time» — since 2026-09-03 it must NOT move the budget
   boostSpend(ms){ boostSpend(ms); return scoreBoostLeftMs(); }, // test: burn play time through the real accounting (the loop's own path, uncapped)
   boostFlush(){ boostFlush(); return Object.assign({}, Save.bu); }, // test: force the flush of used time into the save
+  boostProgress: boostProgress,       // the active badge's bar: remaining / the streak's total
+  refreshX5Float(){ refreshX5Float(); const f = document.getElementById('x5Float'); return f ? { active: f.classList.contains('active'), label: document.getElementById('x5FloatBtn').textContent, pct: f.style.getPropertyValue('--x5f-pct') } : null; }, // test
   boostClear(){ boostClear(); return scoreBoostMult(); }, // test: clear the windows completely
   // THE STORY (86-story): the state of the chapters and a manual display for the tests
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),

@@ -8,14 +8,14 @@
 // The mixer's mechanic (eating items) does NOT depend on the level — only the score does.
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
-  // ⚠️ THE BOOSTER MULTIPLIES THE PUNISHMENT TOO (the owner's decision 2026-07-28):
-  // under x5 a miss is −50, a grind −100. Symmetry with the reward: flat −10/−20
-  // against a «+700» backdrop turned the punitive side into noise exactly inside
-  // the paid window.
-  // The zero clamp is applied AFTER the multiplication — a newcomer
-  // (lv.<=SCORE_CLAMP_LEVELS) under the booster does not fly into the minus faster
-  // than without it.
-  stats.score -= Math.round(n * scoreBoostMult());
+  // ⛔⛔ THE BOOSTER DOES NOT MULTIPLY THE PUNISHMENT (the owner's word 2026-09-03: «the cost
+  // of a mistake must not grow 5× when the bonus is bought»). This CANCELS his 2026-07-28
+  // symmetry («under x5 a miss is −50, a grind −100» — the flat −10/−20 read as noise against a
+  // «+700» backdrop); the line was `stats.score -= Math.round(n * scoreBoostMult())`. Every
+  // punishment goes through here — the miss, the ice double, the grind tax — so all of them
+  // stay at their plain rung under a live ×5; the reward keeps its multiplier (doMatch and the
+  // treasure bonus read scoreBoostMult on their own). The zero clamp below is unchanged.
+  stats.score -= n;
   if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
   return true;
 }
