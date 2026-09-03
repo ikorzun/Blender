@@ -1,5 +1,11 @@
 # Ad cadence per platform — DRAFT OF THE MECHANISM
 
+⛔⛔ **SUPERSEDED 2026-09-03 by the owner's word: «ads only when the shakes and the tips have run
+out, nowhere else».** There is NO interstitial in the game any more (the show point, the cadence
+counter and the config placement are gone — CLAUDE.md batch 2026-09-03-c); the only ads are the
+two rewarded offers the player asks for himself. This document stays as the record of the
+mechanism that was designed and never switched on.
+
 ⚠️ **STATUS: DRAFT. Does NOT change game behavior, does not touch code in `src/`,
 `INTER_*` in 00-config are NOT touched.** Written in advance (the dispatcher's
 permission 2026-07-23) so that by the time the owner says "do it" we discuss a

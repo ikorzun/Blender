@@ -28,9 +28,11 @@ match · the live site verified byte-for-byte against the build · portal packag
 - **Removed**: `07-matcap-bomb.js` (168 KB painting nothing) and the `release/` folder.
 - **The Get More screen is ONE package** (3 September, your mock-ups 937:1505 / 937:1533): ×5 score
   for 30 min + 15 Shake's + 25 Tips for $1.99 — the three cards are gone, the bridge catalogue and
-  the wrapper's id table carry `bundle5` alone (+ `noads_forever`). No no-ads window in the package:
-  the mock-up lists Shake's and Tips only. The window is wall-clock 30 minutes, as before («30 min
-  of play» in the copy) — say if it should count play time only.
+  the wrapper's id table carry `bundle5` alone (+ `noads_forever`).
+- **Your four answers of 3 September are in:** 20 Gam stays; the ×5 budget counts ONLY play time
+  (it stands still on the menu, on the win/lose screens, in the intro, with the tab hidden); no
+  no-ads window anywhere; **ads only when the shakes and the tips have run out** — the interstitial
+  between levels, the «📺 Continue» and the «×2 coins» rewarded buttons are removed.
 - **Platform SDK (Playgama Bridge) 2.0.2 → 2.1.0** (3 September): the newest tag, checked the way the
   canon demands — the public surface of every module we use is identical, a live A/B on
   `?platform_id=playgama` is identical, the config untouched. The npm package is `@playgama/bridge`
@@ -50,15 +52,19 @@ payment tests are on it.
 1. Playgama dashboard — ONE product since 3 September: `bundle5` (Consumable) — the config
    charges **20 Gam** for it (= $2.00 at the fixed rate; the mock-up says $1.99, which is 19.9 Gam
    and GAM is whole — say «19» if you want $1.90 instead). Delete `bundle3` / `bundle2` there.
-   App Store: `monster.blendo.bundle5` keeps its id, move its price tier to $1.99.
+   App Store: `monster.blendo.bundle5` keeps its id, move its price tier to $1.99. The wrapper
+   (Blendo SwiftUI chat): drop `monster.blendo.bundle3` / `bundle2` from its StoreKit product list.
    `noads_forever` only if you decide, and NOT Consumable.
 2. Store listing: icon 1024×1024, cover 1920×1080 (+1080×1920), 4–6 screenshots.
    Texts are ready in `docs/STORE-LISTING.md`.
-3. Ads in the iOS wrapper + `noads_forever` (you deferred it to «before the release»).
+3. Ads in the iOS wrapper: ONLY the two rewarded offers (a shake / a tip when the stock is
+   empty) — since 3 September there is no interstitial anywhere. `noads_forever` has nothing left
+   to switch off: say whether to delete the product from the catalogue (it is dormant, no entry point).
 4. Smoke test on developer.playgama.com after the upload — the only place where the ads are
    real, the purchase is real and the Safari bars are visible. Two things to watch there after
    the SDK 2.1.0 update: the curtain now shows Playgama's full logo (their new default), and the
-   portal now receives our `level_completed` — make sure no interstitial appears that we did not call.
+   portal now receives our `level_completed` — make sure NO interstitial appears at all (we call
+   none since 3 September; one would be the portal's own doing).
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
 
 ## Decisions only you can take

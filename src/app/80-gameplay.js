@@ -847,7 +847,6 @@ $('winStats').textContent =
     } catch(e){}
     $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')
       + (COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  ') : '') + '+1 💡';
-    $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
     try { Save.lv = Math.max(Save.lv || 1, levelNum); commitSave(); } catch(e){} // the progress goes to the cloud
@@ -874,21 +873,11 @@ function showLose(){
   const secs = Math.round((performance.now()-stats.t0)/1000);
   $('loseStats').textContent = 'No pairs available and no shakes left. Items left: '
     + items.filter(i=>i.alive).length + '  ·  Time: ' + fmtTime(secs);
-  // Continue for an ad — 1 time per level (the highest-converting placement of the genre)
-  $('loseAdContinue').style.display = level.continueUsed ? 'none' : '';
+  // ⛔ «📺 Continue» for an ad is GONE (the owner's word 2026-09-03: ads only for the shakes
+  // and the tips, nowhere else) — with it `continueRun` (+1 shake, CONTINUE_DROP items, the
+  // grace for the deadlock detector) and `level.continueUsed`. The defeat screen keeps
+  // «Look around» and «Retry».
   show('loseOverlay');
-}
-// Continue: the ad has been watched to the end — bring the game back to life
-function continueRun(){
-  level.continueUsed = true;
-  level.over = false;
-  hide('loseOverlay');
-  level.shakes++;                 // +1 shake
-  dropExtra(CONTINUE_DROP);       // +items from above (new pairs appear)
-  stats.lastAction = performance.now();
-  level.stuck = -4;               // a grace period for the deadlock detector while the top-up settles
-  Telemetry.ev('continue', { lv: levelNum });
-  refreshAccessibility(); updateHUD();
 }
 // The «Scope» (the shop): highlight ALL the available pairs for 5 s
 function scopeHighlight(){

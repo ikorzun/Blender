@@ -655,6 +655,12 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
+  // THE ×N BUDGET BURNS ONLY HERE — real frame time while the level is LIVE: past the pause gate
+  // above, not in the intro, not on the win/lose screens, and not while the matcap editor holds
+  // the level clock (the owner's word 2026-09-03 «only game time»; the accounting is in 77-save).
+  if (!intro && level && !level.over && !(typeof mceIsOpen === 'function' && mceIsOpen())){
+    try { boostTick(rawMs); } catch(e){}
+  }
   try { chargeTick(); } catch(e){}   // dissolving of the type charge (80-gameplay, TTL 7 s)
   try { tickBowlCracks(now); } catch(e){} // the pulse of the crack telegraph at N-1
   tickFires();                       // fire along the silhouette (70-fx): drives time and extinguishes
@@ -1642,8 +1648,10 @@ window.__game = {
   scoreBoostLeftMs: scoreBoostLeftMs, // the remainder of the strongest tier — the screen timer
   noAdActive: noAdActive, noAdLeftMs: noAdLeftMs,
   purchasedShakes: purchasedShakes,
-  boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // a test handle
-  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time»
+  boostRaw(){ return { bx: Save.bx, bb: Save.bb, bu: Save.bu, acc: Object.assign({}, boostAcc), na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // a test handle
+  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time» — since 2026-09-03 it must NOT move the budget
+  boostSpend(ms){ boostSpend(ms); return scoreBoostLeftMs(); }, // test: burn play time through the real accounting (the loop's own path, uncapped)
+  boostFlush(){ boostFlush(); return Object.assign({}, Save.bu); }, // test: force the flush of used time into the save
   boostClear(){ boostClear(); return scoreBoostMult(); }, // test: clear the windows completely
   // THE STORY (86-story): the state of the chapters and a manual display for the tests
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),

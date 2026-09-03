@@ -14424,3 +14424,84 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   right, the read was not — fixed the read, not the build. The second run: 940 checks, 0 red.
   ⚠️ And the deploy chain misread its own WAIT TIMEOUT as a red once (a 9-minute cap against a
   10-minute suite): a gate must tell «not finished» from «failed» — two exits, two messages.
+
+## BATCH 2026-09-03-c: THE OWNER'S FOUR ANSWERS — ADS ONLY FOR THE SHAKES AND THE TIPS, THE ×5 BUDGET COUNTS PLAY TIME
+
+His answers to the four questions of the 2026-09-03-b report, verbatim: «1. оставляй 2. сам
+сделаю 3. не будет такого, реклама будет только если закончились шейки и типсы, больше нигде
+4. только игровое время». (1) 20 GAM stays. (2) The dashboard and App Store Connect are his.
+(3) and (4) are two mechanics changes, below.
+
+### (3) ⛔⛔ NO INTERSTITIAL, NO OTHER REWARDED PLACEMENT — ADS ONLY WHEN THE STOCK IS EMPTY
+- What «ads» meant in the code before this word: ONE interstitial show point
+  (`Ads.maybeInterstitial()` on the winning Next in 90-input, `showInterstitial('level_completed')`,
+  gated by the no-ads window, the bridge mode, `isInterstitialSupported` and the win counter
+  `Save.iw` against `INTER_EVERY_LEVELS = 3`), plus FOUR rewarded placements: the shake and the
+  tip (offered only when the stock is empty — «Watch» for +1), the «📺 Continue» of the defeat
+  screen (`loseAdContinue` → `continueRun`: +1 shake, `CONTINUE_DROP` items, a grace for the
+  deadlock detector) and the «×2 coins» of the victory screen (`winX2Btn`, dead since
+  COINS_ENABLED=false). `magnet` sat in the config only — no code ever used it.
+- Removed: the show point, the counter increment in `noteWin` (the leaderboard send stays —
+  noteWin's other job), `INTER_EVERY_LEVELS`, the `_winsSinceInter` suite hook, the `maybeInterstitial`
+  export, the config's whole `advertisement.interstitial` block, the two buttons with their
+  handlers and markup, `continueRun`, `CONTINUE_DROP`, `level.continueUsed`, and `noAdMs` from the
+  package. The config's rewarded placements are `shake` alone (+ the `rewarded` fallback the tip
+  uses). ⚠️ KEPT ON PURPOSE: the INTERSTITIAL_STATE_CHANGED listener in 78-ads init — a safety net
+  (pause + mute) for an interstitial the PLATFORM opens on its own; the no-ads plumbing
+  (`Save.na/naf`, `noAdActive`, `grantNoAdsForever`) because `noads_forever` is still a catalogue
+  product — dormant, with nothing left to switch off; named to the owner in STATUS as a product to
+  delete or keep. `Save.iw` stays in the schema as a dead key (the merge/reset lines are harmless).
+- The suite: the cadence section became its inverse (the show point is undefined on the public
+  surface, seven wins request nothing, `Save.iw` stays 0); the reload-survival and the Retry
+  wiring blocks went with the cadence — the Retry guard now also asserts the two buttons are GONE
+  from the markup; the placement guard lost its interstitial arm; the «quiet pause under a spot on
+  top of the intro» guard STAYS — it emits OPENED from the mock, i.e. the platform's own spot.
+- `docs/AD-CADENCE-PER-PLATFORM.md` is marked superseded (a mechanism designed and never on).
+
+### (4) ⛔⛔ THE ×5 WINDOW IS A PLAY-TIME BUDGET, NOT A WALL-CLOCK DEADLINE
+- The model (77-save): `Save.bb[mult]` = milliseconds BOUGHT, `Save.bu[mult]` = milliseconds USED
+  — a monotonic pair like he/hs and pe/ps, both max-merged per key: a lagging cloud copy can
+  neither resurrect played time nor double a purchase; a foreign tier lands in its own key. The
+  remainder is `bb − bu − boostAcc` (the unflushed accumulator), the strongest tier with a
+  remainder plays, weaker ones wait (the 2026-07-28 queue semantics survive the model).
+- What burns it: `boostTick(rawMs)` from the loop (99-main), ONLY past the pause gate, not in the
+  intro, not with `level.over`, not with the matcap editor holding the level clock — that is the
+  definition of «play time» in this game; the menu, the shop, the leaderboard, the story, the
+  win/lose screens, an ad and a hidden tab are all pauses or `level.over` already. Real frame
+  time (`rawMs`, not the slow-mo `dt`), capped at 250 ms per frame (a thaw is not play). The
+  accumulator is FOLDED into `Save.bu` by every `commitSave` (a level end, a hint, a shake, a
+  purchase all commit) and a heartbeat commit comes every 60 s of uninterrupted boosted play or
+  when the budget hits zero. ⚠️ The first draft flushed every 5 s — the advisor named the cost:
+  each commit is a `bridge.storage.set`, a cloud write on the portal (~360 per half hour of ×5);
+  the file's own precedent for a play-time heartbeat is the 60-second `ls` mark. A tab closed
+  between commits loses up to one heartbeat of USED time, in the player's favour.
+- ⚠️ THE DEFINITION, SAID TO THE OWNER: idle time INSIDE a live level counts as play (the mixer
+  eating items while he stares at the pile burns budget); only the menu, the shop, the
+  leaderboard, the story, the win/lose screens, the intro, an ad and a hidden tab stop it.
+- ⚠️ THE iOS WRAPPER'S STOREKIT LIST is the Blendo SwiftUI chat's job: the native side keeps a
+  flat product list (canon: «the id table has exactly one owner»), and it still carries
+  `monster.blendo.bundle3` / `bundle2` — they must go there too; named in STATUS.
+- Nothing reads the clock: the re-anchoring in `boostNow` now serves the no-ads window alone; the
+  `Save.bx` deadlines are a DEAD key (nobody had paid for a window before the launch — nothing
+  to migrate). `boostClear`/`resetProgress` zero bb/bu/acc too.
+- Hooks: `boostSpend(ms)` (the loop's own accounting, uncapped) and `boostFlush()`; `boostRaw`
+  carries bb/bu/acc; `boostSetClock` stays and must move nothing.
+- The suite: the exploit guard became «30 → 0 in six five-minute spends with clock jumps in
+  between that change nothing, the used time in the save»; the clock guard became a LIVE loop
+  guard (real frames: ~0.8 s of play burns 300–1600 ms, 0.8 s on the menu burns 0); the
+  after-incident guard buys with the clock two hours off and gets exactly 30 minutes; the merge
+  guard plays ten minutes, merges a lagging copy with zero used time and a foreign ×2, and
+  checks nothing resurrects or doubles.
+- THE SUITE'S OWN STUMBLES ON THIS BATCH, all reads and none the build: run 3 went red on the
+  package guard (`noAdMs === 0` while the field is GONE — now `=== undefined`) and on
+  «game_ready exactly once» (the reload that block relied on had lived inside the removed
+  cadence section, and the spot-on-the-intro block clears the mock's message log — the
+  reload is restored in its own right, with the reason); run 4 CRASHED at the end of the
+  More-stars section on an orphan `sbClock.lsGap` assert left behind by the re-based clock
+  guard (a ReferenceError kills the run, it does not go red) — the `ls`-resync arm moved onto
+  the no-ads window's clock reader, the only reader of the clock left. ⚠️ Cutting a guard by
+  its first N lines leaves its tail behind: grep the old name after every cut.
+- Measured in the preview before the suite (the real loop on the real page, a 393×852 tab):
+  1.5 s of play burned 1500 ms of the budget, 1.5 s on the pause menu burned 0; the accumulator
+  held 1699 ms unflushed against `bb[5] = 1 800 000`; the defeat screen offers «Look around» and
+  «Retry» only, `winX2Btn` and `loseAdContinue` are absent from the DOM.

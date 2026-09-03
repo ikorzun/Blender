@@ -29,6 +29,9 @@ one line (a Cloudflare worker, as on the landings).
 The economy and the ads are covered: `level_start`, `win`, `lose`, `spend`, `rw`
 (shake/hint/x2/continue/detector), `inter`, `boost`, `unlock_buy`,
 `bundle_buy`, `acc_up`, `continue`, `stars_migrate`.
+⚠️ 2026-09-03: `inter`, `rw` with `p:'x2'` / `p:'continue'` and `continue` are GONE — no
+interstitial and no other rewarded placement than the shake and the tip (the owner's word).
+The inventory above is the history of the event vocabulary, not the live set.
 
 ## 2. What is NOT there and what we are adding
 

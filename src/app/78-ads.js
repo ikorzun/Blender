@@ -436,6 +436,9 @@ const Ads = (function(){
     }, 1000);
   }
 
+  // ⛔⛔ THE BLOCK BELOW IS HISTORY (2026-09-03): the interstitial is gone altogether, see the
+  // tombstone at the former `maybeInterstitial`. Kept because it records WHY the cadence was
+  // built the way it was — the next reader must not rebuild it from the same reasons.
   // The interstitial between levels: once every INTER_EVERY_LEVELS WINS (the owner's
   // spec 2026-07-23 "an interstitial every 5th level", the clarification of
   // 2026-07-24 "only between levels, not on a replay out of a dead end").
@@ -548,9 +551,9 @@ const Ads = (function(){
     } catch(e){ lbLast = null; }
     return { ok: true, score };
   }
-  function interWins(){ return Math.max(0, Save.iw || 0); }
+  // ⛔⛔ `interWins()` and the `Save.iw` increment are GONE (2026-09-03): there is no
+  // interstitial cadence any more. `Save.iw` stays in the save schema as a dead key.
   function noteWin(){
-    Save.iw = interWins() + 1; commitSave();
     // THE LEADERBOARD is sent FROM HERE, not from the core: noteWin is already called
     // exactly once per win and STRICTLY AFTER bankLevelScore (80-gameplay: the bank is on
     // the line above the call) — which means the score has already been counted. The core
@@ -668,32 +671,13 @@ const Ads = (function(){
       .catch(()=>({ ok: false, why: 'the platform cannot do a popup' }));
   }
 
-  function maybeInterstitial(){
-    // THE NO-ADS WINDOW from the bundle (77-save): it kills ONLY interstitials.
-    // We do NOT touch rewarded — the player asks for those himself, and they carry charges.
-    if (typeof noAdActive === 'function' && noAdActive()) return;
-    if (mode !== 'bridge') return;
-    // ⚠️ THE SUPPORT GUARD — STRICTLY BEFORE resetting the window. mode==='bridge' is set by
-    // isRewardedSupported, while the interstitial is NOT supported everywhere (in the bundle
-    // these are different getters, and on some adapters the interstitial is additionally
-    // disabled by the config
-    // `advertisement.interstitial.disable`). Without the guard we were zeroing the
-    // accumulated 5 wins where there will NEVER be an ad — the window was being wound
-    // down for nothing.
-    try { if (!window.bridge.advertisement.isInterstitialSupported) return; } catch(e){ return; }
-    if (interWins() < INTER_EVERY_LEVELS) return;
-    Save.iw = 0; commitSave(); // we cross the window off RIGHT AWAY: a repeated click or a loss
-    // between wins must not release a second ad; on a show failure we lose one on a
-    // best-effort basis — better than spam retries on every transition
-    try {
-      // PLACEMENT — the name of the ad slot. The adapters pass it into the platforms'
-      // native SDKs (on Poki/GameSnacks this is `name` in adBreak), and without it all
-      // per-slot statistics is blind. The interstitial has exactly one slot.
-      window.bridge.advertisement.showInterstitial('level_completed');
-      if (stats) stats.lastAction = performance.now(); // the mixer does not eat items under an ad
-      Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
-    } catch(e){}
-  }
+  // ⛔⛔ `maybeInterstitial()` IS GONE (the owner's word 2026-09-03: «ads only when the shakes
+  // and the tips have run out, nowhere else»). It was the ONLY interstitial show point
+  // (`showInterstitial('level_completed')` on the winning Next, gated by the no-ads window,
+  // the bridge mode, `isInterstitialSupported` and the INTER_EVERY_LEVELS win counter). The
+  // game requests NO interstitial anywhere now; the INTERSTITIAL_STATE_CHANGED listener in
+  // init stays as a safety net for an interstitial the PLATFORM opens on its own (pause +
+  // mute for its duration) — that is not a placement of ours.
   // ===== PAYMENTS (bridge.payments, v2.0.2) =====
   // The playgama platform's contract (analyzed from the PlaygamaPlatformBridge source):
   // purchase() RESOLVES ONLY on status==='PAID' (otherwise it rejects), the SDK confirms
@@ -952,7 +936,6 @@ const Ads = (function(){
     catalog,          // a promise with the product list (cached for the session)
     priceOf,          // the product's price string from the catalog or null (a fetch is required)
     get paymentsOn(){ return paymentsOn(); },
-    maybeInterstitial,
     cancel, // genLevel kills a hanging show (the callbacks are closed over the old level)
     get mode(){ return mode; },
     get lang(){ return bridgeLang; }, // the player's language from the platform (for a future dictionary)
@@ -1027,11 +1010,9 @@ const Ads = (function(){
         settleFail(false);
       }
     },
-    // cadence debugging (the suite): the win counter until the next ad
-    get _winsSinceInter(){ return interWins(); },
+    // ⛔ `_winsSinceInter` (the cadence counter for the suite) is gone with the cadence, 2026-09-03.
   };
 })();
-// A cadence debug handle for the headless suite (like __game for the core): a full
-// run of 5 wins in a test is slow and flaky, while noteWin/maybeInter are
-// public methods of Ads. The INTEGRATION zone, removing it = one line.
+// A debug handle for the headless suite (like __game for the core): noteWin, showRewarded,
+// purchase and the rest are public methods of Ads. The INTEGRATION zone, removing it = one line.
 if (typeof window !== 'undefined' && DEV) window.__ads = Ads;

@@ -71,6 +71,8 @@ function mergeSave(into, from){
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
     into.st = from.st || 0; into.sv = from.sv || 0; into.mt = from.mt || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
+    into.bb = Object.assign({}, (from.bb && typeof from.bb === 'object') ? from.bb : {}); // the play-time budget, 2026-09-03
+    into.bu = Object.assign({}, (from.bu && typeof from.bu === 'object') ? from.bu : {});
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
@@ -108,6 +110,13 @@ function mergeSave(into, from){
   if (!into.bx || typeof into.bx !== 'object') into.bx = {};
   const bxf = (from.bx && typeof from.bx === 'object') ? from.bx : {};
   for (const k in bxf) into.bx[k] = Math.max(into.bx[k] || 0, bxf[k] || 0);
+  // THE PLAY-TIME BUDGET (2026-09-03): bought and used are BOTH monotonic per multiplier key —
+  // the he/hs pattern. Max of each: a lagging copy neither resurrects used time nor doubles a purchase.
+  for (const f of ['bb', 'bu']){
+    if (!into[f] || typeof into[f] !== 'object') into[f] = {};
+    const src = (from[f] && typeof from[f] === 'object') ? from[f] : {};
+    for (const k in src) into[f][k] = Math.max(into[f][k] || 0, src[k] || 0);
+  }
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
   if (!into.ac) into.ac = {};
@@ -123,7 +132,19 @@ function mergeSave(into, from){
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
 }
+// The ×N play-time accumulator (the block «THE MULTIPLIER IS A PLAY-TIME BUDGET» below) is
+// FOLDED into Save.bu here, at every commit — so a level end, a hint, a shake, a purchase all
+// carry the used time for free, and the 60-second heartbeat only serves a long uninterrupted
+// stretch. Declared up here, before the first commit can run.
+let boostAcc = {}, boostAccMs = 0;
+function boostFold(){
+  if (!boostAccMs) return;
+  if (!Save.bu || typeof Save.bu !== 'object') Save.bu = {};
+  for (const k in boostAcc){ Save.bu[k] = (Save.bu[k] || 0) + boostAcc[k]; }
+  boostAcc = {}; boostAccMs = 0;
+}
 function commitSave(){
+  boostFold();
   const json = JSON.stringify(Save);
   try { localStorage.setItem(SAVE_KEY, json); } catch(e){}
   // Bridge — asynchronous, fire-and-forget: a failure is not critical (the merge is monotonic)
@@ -151,8 +172,41 @@ function bridgeSyncSave(){
 // zero time gained, zero time lost either. ⚠️ FULL protection is server-time,
 // the zone of INTEGRATION (the same dependency as the daily ad cap).
 let lsDirty = 0;
-// All time windows at once: multiplier tiers (bx by multiplier key) + no-Ad (na).
-function boostWindows(){ if (!Save.bx || typeof Save.bx !== 'object') Save.bx = {}; return Save.bx; }
+// ⛔⛔ THE MULTIPLIER IS A PLAY-TIME BUDGET SINCE 2026-09-03 (the owner's word: «only game
+// time»), NOT a wall-clock window any more. `Save.bb[mult]` = milliseconds BOUGHT, `Save.bu[mult]`
+// = milliseconds USED — a monotonic pair like he/hs and pe/ps: both max-merge, a lagging cloud
+// copy can neither resurrect used time nor double a purchase. The budget burns ONLY from
+// `boostTick`, which the loop (99-main) calls while the level is live: not paused, not the intro,
+// not the win/lose screens, not with the matcap editor open. Nothing here reads the clock, so a
+// clock rollback or jump cannot touch it — the whole re-anchoring machinery below is for the
+// no-ads window `na` alone now. `Save.bx` (the old absolute deadlines) is a DEAD key: nobody had
+// paid for a window before the launch, there is nothing to migrate.
+// ⚠️ Used time is accumulated in memory (`boostAcc`, declared above commitSave) and FOLDED into
+// `Save.bu` by EVERY commitSave (the end of a level, a hint, a shake, a purchase — all commit);
+// `boostFlush` forces a commit every BOOST_FLUSH_MS of uninterrupted boosted play or when the
+// budget hits zero. ⚠️ 60 s, NOT 5: each commit is a `bridge.storage.set` — a cloud write on the
+// portal; the file's own precedent for a play-time heartbeat is the 60-second `ls` mark. A tab
+// closed between commits loses up to one heartbeat of USED time — in the player's favour.
+const BOOST_FLUSH_MS = 60000;
+function boostBudgets(){
+  if (!Save.bb || typeof Save.bb !== 'object') Save.bb = {};
+  if (!Save.bu || typeof Save.bu !== 'object') Save.bu = {};
+  return { bb: Save.bb, bu: Save.bu };
+}
+function boostLeft(m){ const b = boostBudgets(); return Math.max(0, (b.bb[m] || 0) - (b.bu[m] || 0) - (boostAcc[m] || 0)); }
+function boostFlush(){ if (boostAccMs) commitSave(); } // commitSave folds the accumulator itself
+// Spend `ms` of play from the STRONGEST live tier only (the weaker ones wait — the queue
+// semantics of 2026-07-28 survive the model change). The loop passes real frame time.
+function boostSpend(ms){
+  if (!(ms > 0)) return;
+  const m = scoreBoostMult(); if (m <= 1) return;
+  const use = Math.min(ms, boostLeft(m));
+  boostAcc[m] = (boostAcc[m] || 0) + use; boostAccMs += use;
+  if (boostAccMs >= BOOST_FLUSH_MS || boostLeft(m) <= 0) boostFlush();
+}
+// The loop's entry: one frame at a time, capped — a frame longer than a quarter second is a
+// hitch or a thaw of the tab, not play (the pause gate in the loop already stops the rest).
+function boostTick(rawMs){ boostSpend(Math.min(250, rawMs || 0)); }
 function boostNow(){
   const now = Date.now();
   const seen = Save.ls || 0;
@@ -165,8 +219,7 @@ function boostNow(){
     // has already been written off) and loses nothing that was paid for.
     // ⚠️ The ls mark IS SYNCHRONIZED to now: without that a single clock jump
     // FORWARD would stick forever and every next PURCHASED window would die instantly.
-    const w = boostWindows();
-    for (const k in w){ const left = Math.max(0, (w[k] || 0) - seen); if (left > 0) w[k] = now + left; else delete w[k]; }
+    // ⛔ the `Save.bx` window loop stood here — the multiplier no longer lives on the clock (2026-09-03)
     const naLeft = Math.max(0, (Save.na || 0) - seen);
     Save.na = naLeft > 0 ? now + naLeft : 0;
     Save.ls = now;
@@ -186,18 +239,17 @@ function boostNow(){
 // former booster skeleton did, IS NO LONGER ALLOWED: a bundle carries
 // consumables, and a refusal would eat what was paid for.
 function scoreBoostMult(){
-  const t = boostNow(); const w = boostWindows();
+  const b = boostBudgets();
   let best = 1;
-  for (const k in w) if (w[k] > t.now) best = Math.max(best, +k || 1);
+  for (const k in b.bb) if (boostLeft(k) > 0) best = Math.max(best, +k || 1);
   return best;
 }
-// The remainder of the ACTIVE (strongest) tier — for the on-screen timer.
+// The remainder of the ACTIVE (strongest) tier — play time left, for the on-screen timer.
 function scoreBoostLeftMs(){
-  const t = boostNow(); const w = boostWindows();
   const m = scoreBoostMult();
-  return m > 1 ? Math.max(0, (w[m] || 0) - t.now) : 0;
+  return m > 1 ? boostLeft(m) : 0;
 }
-function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
+function boostClear(){ Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
 // GRANTING «NO ADS FOREVER» (Integration's stop-question when payments were
 // introduced 2026-08-03): the PERMANENT flag Save.naf — unlike the temporary
 // window Save.na of the bundles. It is called by the payment layer (78-ads
@@ -285,11 +337,10 @@ function spendPurchasedShake(){ if (purchasedShakes() < 1) return false; Save.ps
 function buyBundle(id){
   const b = STAR_BUNDLES.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'unknown' };
-  const t = boostNow(); const w = boostWindows();
-  w[b.mult] = Math.max(w[b.mult] || 0, t.now) + b.ms; // time accumulates for ITS OWN tier
-  Save.na = Math.max(Save.na || 0, t.now) + b.noAdMs; // the no-ad window — simply added up
+  const bd = boostBudgets();
+  bd.bb[b.mult] = (bd.bb[b.mult] || 0) + b.ms; // play time accumulates for ITS OWN tier
+  // ⛔ no no-ads window in the package (2026-09-03): the `Save.na` line is gone with `noAdMs`
   Save.pe = (Save.pe || 0) + b.shakes;
-  Save.ls = Math.max(Save.ls || 0, t.now);
   addHints(b.hints); // hints — into the existing he charges, no new system needed
   commitSave();
   Telemetry.ev('bundle_buy', { tier: b.id, usd: b.usd, mult: b.mult });
@@ -297,8 +348,7 @@ function buyBundle(id){
 }
 // A snapshot for the INTERFACE (rendering the active bundle).
 function bundleState(){
-  const t = boostNow(); const w = boostWindows();
-  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: Math.max(0, (w[b.mult] || 0) - t.now) }));
+  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: boostLeft(b.mult) }));
   return { mult: scoreBoostMult(), boostLeftMs: scoreBoostLeftMs(), tiers,
            shakes: purchasedShakes(), hints: hints(), noAd: noAdActive(), noAdLeftMs: noAdLeftMs() };
 }
@@ -503,7 +553,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
+  Save.bx = {}; Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}

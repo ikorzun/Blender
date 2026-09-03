@@ -4253,7 +4253,8 @@
     <p id="loseStats"></p>
     <div class="btns">
       <button class="ghost" id="loseContinue">Look around</button>
-      <button class="ghost" id="loseAdContinue">📺 Continue</button>
+      <!-- ⛔ «📺 Continue» (loseAdContinue, a rewarded placement) is gone 2026-09-03: ads only for
+           the shakes and the tips, nowhere else -->
       <button class="primary" id="loseAgainBtn">Retry</button>
     </div>
   </div>
@@ -4288,13 +4289,15 @@
 
 <div class="overlay" id="winOverlay">
   <!-- ⚠️ HIDDEN HOLDERS: checkEnd (80-gameplay — OUTSIDE the interface zone) writes
-       strings into winTitle/winStats/winCoins and pulls winX2Btn.display.
-       (winStars is gone: 2026-09-01-i, «we have no concept of stars, only points».)
+       strings into winTitle/winStats/winCoins.
+       (winStars is gone: 2026-09-01-i, «we have no concept of stars, only points»;
+        winX2Btn is gone: 2026-09-03, the «×2 coins» rewarded placement went with the ad
+        policy «only for the shakes and the tips» — checkEnd no longer pulls its display.)
        The visible screen is drawn by renderWinScreen (85-hud) from the LIVE state. These ids
        must NOT be deleted — otherwise $()→null would drop checkEnd (the fArc/setFace trap). -->
   <div id="winHolders" hidden>
     <h2 id="winTitle"></h2><p id="winStats"></p>
-    <p id="winCoins"></p><button id="winX2Btn"></button>
+    <p id="winCoins"></p>
   </div>
   <!-- THE LEVEL COMPLETION SCREEN (Figma 778:732): stickers over the current
        fade+blur backdrop (.overlay is untouched — the owner's spec). -->
@@ -5213,13 +5216,16 @@ const AD_HINTS_PER_LEVEL = 2;
 // for $1.99. The ×3 / ×2 tiers are GONE — from the config, the payments catalogue and the
 // wrapper's id table alike; the engine below still keeps windows PER multiplier key (a cloud
 // copy from an older build may carry a ×2/×3 window — it plays out and dies, nothing to migrate).
-// ⚠️ NO no-ads window in the package: the mock-up lists Shake's and Tips only. `noAdMs: 0` is the
-// mock-up's word, not an oversight — `Save.na` and `noads_forever` are untouched.
+// ⚠️ NO no-ads window in the package (the mock-up lists Shake's and Tips only), and since the
+// owner's word of 2026-09-03 there is no interstitial in the game at all — `noAdMs` is gone from
+// the tier; `Save.na` / `noads_forever` are left alone as a dormant product.
+// ⚠️ `ms` IS PLAY TIME, not wall-clock (the owner's word 2026-09-03 «only game time»): the
+// budget burns only while the level is live — see boostTick in 77-save.
 // ⚠️ The id STAYS `bundle5`: the dashboard product and the App Store id `monster.blendo.bundle5`
 // already exist under that name; what changes is the price and the contents, not the identity.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25, noAdMs: 0 },
+  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25 }, // ms = PLAY time (2026-09-03)
 ];
 // Clock slack: a time change/DST/drift must not kill a paid booster,
 // but a rollback further back than the slack is treated as an attempt to extend it manually.
@@ -5250,7 +5256,7 @@ const LEVEL_GOAL_K = 1.5;
 // "shortened" levels were the only size variation, after them came a
 // plateau. The table is kept in history so that it is not reinvented from scratch.
 // const PAIRS_EARLY = [64, 71, 78];
-const CONTINUE_DROP = 10;    // Continue after a defeat: drop in extra items
+// ⛔ `CONTINUE_DROP` (10, the ad Continue's top-up) is gone 2026-09-03 with the placement.
 // ⚠️⚠️ 1.7 → 1.3 BY THE OWNER'S DECISION 2026-08-11 (the complaint "on an iPhone 17 the
 // framerate drops during the pour-in" + his own choice out of four options: "slow down the
 // pour-in itself", the named corridor being 1.2-1.3).
@@ -5326,6 +5332,9 @@ const COINS_ENABLED = false;
 // is hidden, but it keeps living on the win/lose screens (Time: in
 // winStats/loseStats). To bring it back into the HUD — true.
 const LEVEL_TIME_IN_HUD = false;
+// ⛔⛔ THE INTERSTITIAL IS GONE ALTOGETHER (the owner's word 2026-09-03: «ads only when the
+// shakes and the tips have run out, nowhere else»). `INTER_EVERY_LEVELS` and the whole cadence
+// below are HISTORY — kept as the record of the two earlier specs, not as a setting.
 // interstitial — once per INTER_EVERY_LEVELS COMPLETED levels. We count wins:
 // a defeat/replay of a level does not move the progression.
 // ⚠️ HISTORY OF THE SPEC (both from the owner, DO NOT confuse them):
@@ -5363,7 +5372,7 @@ const CURTAIN_GRACE_MS = 1200;
 const CURTAIN_MAX_MS   = 12000;
 
 
-const INTER_EVERY_LEVELS = 3;
+// ⛔ `const INTER_EVERY_LEVELS = 3;` stood here until 2026-09-03 — no interstitial, no cadence.
 
 // ===== "TYPE CHARGE" (the owner's spec 2026-07-31 "an object bomb") =====
 // "if the player has collected a boost, any object may drop for him (next to the hint
@@ -11003,7 +11012,7 @@ function genLevel(){
   // it used to be a flat 3 and from ~level 15 the stock was not enough for the
   // «dry» episodes
   level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, chargeAt:chargeAtFor(levelNum), idleLimit, typesCount, dealtTypes, banked:0, // banked — the level's units banked ahead of time (the watermark)
-            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
+            topY0: 0, parBase: 0, coinsWon: 0, detectorUsed: false, /* continueUsed gone 2026-09-03 with the ad Continue */
             aliveN0: 0, camFollowOn: false, deadlock: false, // deadlock: a dead end → the rescue grind (99-main)
 };
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // the combo/chain reaction do not survive the level
@@ -15638,6 +15647,8 @@ function mergeSave(into, from){
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
     into.st = from.st || 0; into.sv = from.sv || 0; into.mt = from.mt || 0;
     into.bx = Object.assign({}, (from.bx && typeof from.bx === 'object') ? from.bx : {});
+    into.bb = Object.assign({}, (from.bb && typeof from.bb === 'object') ? from.bb : {}); // the play-time budget, 2026-09-03
+    into.bu = Object.assign({}, (from.bu && typeof from.bu === 'object') ? from.bu : {});
     into.stars = Object.assign({}, from.stars || {});
     into.ac = Object.assign({}, from.ac || {});
     into.bo = Object.assign({}, from.bo || {});
@@ -15675,6 +15686,13 @@ function mergeSave(into, from){
   if (!into.bx || typeof into.bx !== 'object') into.bx = {};
   const bxf = (from.bx && typeof from.bx === 'object') ? from.bx : {};
   for (const k in bxf) into.bx[k] = Math.max(into.bx[k] || 0, bxf[k] || 0);
+  // THE PLAY-TIME BUDGET (2026-09-03): bought and used are BOTH monotonic per multiplier key —
+  // the he/hs pattern. Max of each: a lagging copy neither resurrects used time nor doubles a purchase.
+  for (const f of ['bb', 'bu']){
+    if (!into[f] || typeof into[f] !== 'object') into[f] = {};
+    const src = (from[f] && typeof from[f] === 'object') ? from[f] : {};
+    for (const k in src) into[f][k] = Math.max(into[f][k] || 0, src[k] || 0);
+  }
   const st = from.stars || {};
   for (const k in st) into.stars[k] = Math.max(into.stars[k] || 0, st[k] || 0);
   if (!into.ac) into.ac = {};
@@ -15690,7 +15708,19 @@ function mergeSave(into, from){
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
 }
+// The ×N play-time accumulator (the block «THE MULTIPLIER IS A PLAY-TIME BUDGET» below) is
+// FOLDED into Save.bu here, at every commit — so a level end, a hint, a shake, a purchase all
+// carry the used time for free, and the 60-second heartbeat only serves a long uninterrupted
+// stretch. Declared up here, before the first commit can run.
+let boostAcc = {}, boostAccMs = 0;
+function boostFold(){
+  if (!boostAccMs) return;
+  if (!Save.bu || typeof Save.bu !== 'object') Save.bu = {};
+  for (const k in boostAcc){ Save.bu[k] = (Save.bu[k] || 0) + boostAcc[k]; }
+  boostAcc = {}; boostAccMs = 0;
+}
 function commitSave(){
+  boostFold();
   const json = JSON.stringify(Save);
   try { localStorage.setItem(SAVE_KEY, json); } catch(e){}
   // Bridge — asynchronous, fire-and-forget: a failure is not critical (the merge is monotonic)
@@ -15718,8 +15748,41 @@ function bridgeSyncSave(){
 // zero time gained, zero time lost either. ⚠️ FULL protection is server-time,
 // the zone of INTEGRATION (the same dependency as the daily ad cap).
 let lsDirty = 0;
-// All time windows at once: multiplier tiers (bx by multiplier key) + no-Ad (na).
-function boostWindows(){ if (!Save.bx || typeof Save.bx !== 'object') Save.bx = {}; return Save.bx; }
+// ⛔⛔ THE MULTIPLIER IS A PLAY-TIME BUDGET SINCE 2026-09-03 (the owner's word: «only game
+// time»), NOT a wall-clock window any more. `Save.bb[mult]` = milliseconds BOUGHT, `Save.bu[mult]`
+// = milliseconds USED — a monotonic pair like he/hs and pe/ps: both max-merge, a lagging cloud
+// copy can neither resurrect used time nor double a purchase. The budget burns ONLY from
+// `boostTick`, which the loop (99-main) calls while the level is live: not paused, not the intro,
+// not the win/lose screens, not with the matcap editor open. Nothing here reads the clock, so a
+// clock rollback or jump cannot touch it — the whole re-anchoring machinery below is for the
+// no-ads window `na` alone now. `Save.bx` (the old absolute deadlines) is a DEAD key: nobody had
+// paid for a window before the launch, there is nothing to migrate.
+// ⚠️ Used time is accumulated in memory (`boostAcc`, declared above commitSave) and FOLDED into
+// `Save.bu` by EVERY commitSave (the end of a level, a hint, a shake, a purchase — all commit);
+// `boostFlush` forces a commit every BOOST_FLUSH_MS of uninterrupted boosted play or when the
+// budget hits zero. ⚠️ 60 s, NOT 5: each commit is a `bridge.storage.set` — a cloud write on the
+// portal; the file's own precedent for a play-time heartbeat is the 60-second `ls` mark. A tab
+// closed between commits loses up to one heartbeat of USED time — in the player's favour.
+const BOOST_FLUSH_MS = 60000;
+function boostBudgets(){
+  if (!Save.bb || typeof Save.bb !== 'object') Save.bb = {};
+  if (!Save.bu || typeof Save.bu !== 'object') Save.bu = {};
+  return { bb: Save.bb, bu: Save.bu };
+}
+function boostLeft(m){ const b = boostBudgets(); return Math.max(0, (b.bb[m] || 0) - (b.bu[m] || 0) - (boostAcc[m] || 0)); }
+function boostFlush(){ if (boostAccMs) commitSave(); } // commitSave folds the accumulator itself
+// Spend `ms` of play from the STRONGEST live tier only (the weaker ones wait — the queue
+// semantics of 2026-07-28 survive the model change). The loop passes real frame time.
+function boostSpend(ms){
+  if (!(ms > 0)) return;
+  const m = scoreBoostMult(); if (m <= 1) return;
+  const use = Math.min(ms, boostLeft(m));
+  boostAcc[m] = (boostAcc[m] || 0) + use; boostAccMs += use;
+  if (boostAccMs >= BOOST_FLUSH_MS || boostLeft(m) <= 0) boostFlush();
+}
+// The loop's entry: one frame at a time, capped — a frame longer than a quarter second is a
+// hitch or a thaw of the tab, not play (the pause gate in the loop already stops the rest).
+function boostTick(rawMs){ boostSpend(Math.min(250, rawMs || 0)); }
 function boostNow(){
   const now = Date.now();
   const seen = Save.ls || 0;
@@ -15732,8 +15795,7 @@ function boostNow(){
     // has already been written off) and loses nothing that was paid for.
     // ⚠️ The ls mark IS SYNCHRONIZED to now: without that a single clock jump
     // FORWARD would stick forever and every next PURCHASED window would die instantly.
-    const w = boostWindows();
-    for (const k in w){ const left = Math.max(0, (w[k] || 0) - seen); if (left > 0) w[k] = now + left; else delete w[k]; }
+    // ⛔ the `Save.bx` window loop stood here — the multiplier no longer lives on the clock (2026-09-03)
     const naLeft = Math.max(0, (Save.na || 0) - seen);
     Save.na = naLeft > 0 ? now + naLeft : 0;
     Save.ls = now;
@@ -15753,18 +15815,17 @@ function boostNow(){
 // former booster skeleton did, IS NO LONGER ALLOWED: a bundle carries
 // consumables, and a refusal would eat what was paid for.
 function scoreBoostMult(){
-  const t = boostNow(); const w = boostWindows();
+  const b = boostBudgets();
   let best = 1;
-  for (const k in w) if (w[k] > t.now) best = Math.max(best, +k || 1);
+  for (const k in b.bb) if (boostLeft(k) > 0) best = Math.max(best, +k || 1);
   return best;
 }
-// The remainder of the ACTIVE (strongest) tier — for the on-screen timer.
+// The remainder of the ACTIVE (strongest) tier — play time left, for the on-screen timer.
 function scoreBoostLeftMs(){
-  const t = boostNow(); const w = boostWindows();
   const m = scoreBoostMult();
-  return m > 1 ? Math.max(0, (w[m] || 0) - t.now) : 0;
+  return m > 1 ? boostLeft(m) : 0;
 }
-function boostClear(){ Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
+function boostClear(){ Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.bx = {}; Save.na = 0; commitSave(); } // does NOT touch naf: that is a purchase, not a boost
 // GRANTING «NO ADS FOREVER» (Integration's stop-question when payments were
 // introduced 2026-08-03): the PERMANENT flag Save.naf — unlike the temporary
 // window Save.na of the bundles. It is called by the payment layer (78-ads
@@ -15852,11 +15913,10 @@ function spendPurchasedShake(){ if (purchasedShakes() < 1) return false; Save.ps
 function buyBundle(id){
   const b = STAR_BUNDLES.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'unknown' };
-  const t = boostNow(); const w = boostWindows();
-  w[b.mult] = Math.max(w[b.mult] || 0, t.now) + b.ms; // time accumulates for ITS OWN tier
-  Save.na = Math.max(Save.na || 0, t.now) + b.noAdMs; // the no-ad window — simply added up
+  const bd = boostBudgets();
+  bd.bb[b.mult] = (bd.bb[b.mult] || 0) + b.ms; // play time accumulates for ITS OWN tier
+  // ⛔ no no-ads window in the package (2026-09-03): the `Save.na` line is gone with `noAdMs`
   Save.pe = (Save.pe || 0) + b.shakes;
-  Save.ls = Math.max(Save.ls || 0, t.now);
   addHints(b.hints); // hints — into the existing he charges, no new system needed
   commitSave();
   Telemetry.ev('bundle_buy', { tier: b.id, usd: b.usd, mult: b.mult });
@@ -15864,8 +15924,7 @@ function buyBundle(id){
 }
 // A snapshot for the INTERFACE (rendering the active bundle).
 function bundleState(){
-  const t = boostNow(); const w = boostWindows();
-  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: Math.max(0, (w[b.mult] || 0) - t.now) }));
+  const tiers = STAR_BUNDLES.map(b => ({ id: b.id, mult: b.mult, leftMs: boostLeft(b.mult) }));
   return { mult: scoreBoostMult(), boostLeftMs: scoreBoostLeftMs(), tiers,
            shakes: purchasedShakes(), hints: hints(), noAd: noAdActive(), noAdLeftMs: noAdLeftMs() };
 }
@@ -16070,7 +16129,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
+  Save.bx = {}; Save.bb = {}; Save.bu = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
@@ -16797,6 +16856,9 @@ const Ads = (function(){
     }, 1000);
   }
 
+  // ⛔⛔ THE BLOCK BELOW IS HISTORY (2026-09-03): the interstitial is gone altogether, see the
+  // tombstone at the former `maybeInterstitial`. Kept because it records WHY the cadence was
+  // built the way it was — the next reader must not rebuild it from the same reasons.
   // The interstitial between levels: once every INTER_EVERY_LEVELS WINS (the owner's
   // spec 2026-07-23 "an interstitial every 5th level", the clarification of
   // 2026-07-24 "only between levels, not on a replay out of a dead end").
@@ -16909,9 +16971,9 @@ const Ads = (function(){
     } catch(e){ lbLast = null; }
     return { ok: true, score };
   }
-  function interWins(){ return Math.max(0, Save.iw || 0); }
+  // ⛔⛔ `interWins()` and the `Save.iw` increment are GONE (2026-09-03): there is no
+  // interstitial cadence any more. `Save.iw` stays in the save schema as a dead key.
   function noteWin(){
-    Save.iw = interWins() + 1; commitSave();
     // THE LEADERBOARD is sent FROM HERE, not from the core: noteWin is already called
     // exactly once per win and STRICTLY AFTER bankLevelScore (80-gameplay: the bank is on
     // the line above the call) — which means the score has already been counted. The core
@@ -17029,32 +17091,13 @@ const Ads = (function(){
       .catch(()=>({ ok: false, why: 'the platform cannot do a popup' }));
   }
 
-  function maybeInterstitial(){
-    // THE NO-ADS WINDOW from the bundle (77-save): it kills ONLY interstitials.
-    // We do NOT touch rewarded — the player asks for those himself, and they carry charges.
-    if (typeof noAdActive === 'function' && noAdActive()) return;
-    if (mode !== 'bridge') return;
-    // ⚠️ THE SUPPORT GUARD — STRICTLY BEFORE resetting the window. mode==='bridge' is set by
-    // isRewardedSupported, while the interstitial is NOT supported everywhere (in the bundle
-    // these are different getters, and on some adapters the interstitial is additionally
-    // disabled by the config
-    // `advertisement.interstitial.disable`). Without the guard we were zeroing the
-    // accumulated 5 wins where there will NEVER be an ad — the window was being wound
-    // down for nothing.
-    try { if (!window.bridge.advertisement.isInterstitialSupported) return; } catch(e){ return; }
-    if (interWins() < INTER_EVERY_LEVELS) return;
-    Save.iw = 0; commitSave(); // we cross the window off RIGHT AWAY: a repeated click or a loss
-    // between wins must not release a second ad; on a show failure we lose one on a
-    // best-effort basis — better than spam retries on every transition
-    try {
-      // PLACEMENT — the name of the ad slot. The adapters pass it into the platforms'
-      // native SDKs (on Poki/GameSnacks this is `name` in adBreak), and without it all
-      // per-slot statistics is blind. The interstitial has exactly one slot.
-      window.bridge.advertisement.showInterstitial('level_completed');
-      if (stats) stats.lastAction = performance.now(); // the mixer does not eat items under an ad
-      Telemetry.ev('inter', { every: INTER_EVERY_LEVELS });
-    } catch(e){}
-  }
+  // ⛔⛔ `maybeInterstitial()` IS GONE (the owner's word 2026-09-03: «ads only when the shakes
+  // and the tips have run out, nowhere else»). It was the ONLY interstitial show point
+  // (`showInterstitial('level_completed')` on the winning Next, gated by the no-ads window,
+  // the bridge mode, `isInterstitialSupported` and the INTER_EVERY_LEVELS win counter). The
+  // game requests NO interstitial anywhere now; the INTERSTITIAL_STATE_CHANGED listener in
+  // init stays as a safety net for an interstitial the PLATFORM opens on its own (pause +
+  // mute for its duration) — that is not a placement of ours.
   // ===== PAYMENTS (bridge.payments, v2.0.2) =====
   // The playgama platform's contract (analyzed from the PlaygamaPlatformBridge source):
   // purchase() RESOLVES ONLY on status==='PAID' (otherwise it rejects), the SDK confirms
@@ -17313,7 +17356,6 @@ const Ads = (function(){
     catalog,          // a promise with the product list (cached for the session)
     priceOf,          // the product's price string from the catalog or null (a fetch is required)
     get paymentsOn(){ return paymentsOn(); },
-    maybeInterstitial,
     cancel, // genLevel kills a hanging show (the callbacks are closed over the old level)
     get mode(){ return mode; },
     get lang(){ return bridgeLang; }, // the player's language from the platform (for a future dictionary)
@@ -17388,13 +17430,11 @@ const Ads = (function(){
         settleFail(false);
       }
     },
-    // cadence debugging (the suite): the win counter until the next ad
-    get _winsSinceInter(){ return interWins(); },
+    // ⛔ `_winsSinceInter` (the cadence counter for the suite) is gone with the cadence, 2026-09-03.
   };
 })();
-// A cadence debug handle for the headless suite (like __game for the core): a full
-// run of 5 wins in a test is slow and flaky, while noteWin/maybeInter are
-// public methods of Ads. The INTEGRATION zone, removing it = one line.
+// A debug handle for the headless suite (like __game for the core): noteWin, showRewarded,
+// purchase and the rest are public methods of Ads. The INTEGRATION zone, removing it = one line.
 if (typeof window !== 'undefined' && DEV) window.__ads = Ads;
 
 // ===== 79-telemetry: beacon scaffold + crash catching + screens/drop-offs =====
@@ -18410,7 +18450,6 @@ $('winStats').textContent =
     } catch(e){}
     $('winCoins').textContent = (level.starsWon > 0 ? '+' + level.starsWon + ' ★  ·  ' : '')
       + (COINS_ENABLED ? ('+' + level.coinsWon + ' 🪙  ·  ') : '') + '+1 💡';
-    $('winX2Btn').style.display = COINS_ENABLED ? '' : 'none';
     levelNum++;
     try { localStorage.setItem('mixer_level', String(levelNum)); } catch(e){}
     try { Save.lv = Math.max(Save.lv || 1, levelNum); commitSave(); } catch(e){} // the progress goes to the cloud
@@ -18437,21 +18476,11 @@ function showLose(){
   const secs = Math.round((performance.now()-stats.t0)/1000);
   $('loseStats').textContent = 'No pairs available and no shakes left. Items left: '
     + items.filter(i=>i.alive).length + '  ·  Time: ' + fmtTime(secs);
-  // Continue for an ad — 1 time per level (the highest-converting placement of the genre)
-  $('loseAdContinue').style.display = level.continueUsed ? 'none' : '';
+  // ⛔ «📺 Continue» for an ad is GONE (the owner's word 2026-09-03: ads only for the shakes
+  // and the tips, nowhere else) — with it `continueRun` (+1 shake, CONTINUE_DROP items, the
+  // grace for the deadlock detector) and `level.continueUsed`. The defeat screen keeps
+  // «Look around» and «Retry».
   show('loseOverlay');
-}
-// Continue: the ad has been watched to the end — bring the game back to life
-function continueRun(){
-  level.continueUsed = true;
-  level.over = false;
-  hide('loseOverlay');
-  level.shakes++;                 // +1 shake
-  dropExtra(CONTINUE_DROP);       // +items from above (new pairs appear)
-  stats.lastAction = performance.now();
-  level.stuck = -4;               // a grace period for the deadlock detector while the top-up settles
-  Telemetry.ev('continue', { lv: levelNum });
-  refreshAccessibility(); updateHUD();
 }
 // The «Scope» (the shop): highlight ALL the available pairs for 5 s
 function scopeHighlight(){
@@ -23233,27 +23262,20 @@ if (window.matchMedia && matchMedia('(pointer:fine)').matches){
 // hand over control).
 $('againBtn').addEventListener('click', ()=>{
   hide('winOverlay');
-  newObjOnWin(()=> storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); }));
+  // ⛔⛔ NO INTERSTITIAL HERE ANY MORE (the owner's word 2026-09-03: «ads only when the shakes
+  // and the tips have run out, nowhere else»). `Ads.maybeInterstitial()` stood in this callback
+  // and was the ONLY interstitial show point of the game; it is gone together with the cadence.
+  newObjOnWin(()=> storyOnWin(()=>{ genLevel(); }));
 });
 { const b = $('newObjBtn'); if (b) b.addEventListener('click', ()=> newObjHide()); }
-$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // WITHOUT maybeInterstitial: the interstitial only on the WINNING transition (againBtn), not on a Retry out of a dead end (there the rescue is the rewarded Continue) — the owner's spec 2026-07-24
-// ×2 coins for a rewarded on the victory screen (the second placement by conversion)
-$('winX2Btn').addEventListener('click', ()=>{
-  $('winX2Btn').style.display = 'none';
-  // we capture the winnings AT THE MOMENT OF THE CLICK: by the end of the video level may change
-  // (checkEnd recreates coinsWon already for the new level)
-  const won = level.coinsWon;
-  Ads.showRewarded(()=>{
-    addCoins(won);
-    $('winCoins').textContent = '+' + (won * 2) + ' 🪙 (×2)';
-    Telemetry.ev('rw', { p: 'x2' });
-    updateHUD();
-  }, ()=>{ $('winX2Btn').style.display = ''; }); // FAILED/CLOSED — the button comes back
-});
-// Continue after a defeat — once per level
-$('loseAdContinue').addEventListener('click', ()=>{
-  Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
-});
+$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); });
+// ⛔⛔ TWO REWARDED PLACEMENTS ARE GONE (the owner's word 2026-09-03: «ads only when the shakes
+// and the tips have run out, nowhere else»): the «×2 coins» button of the victory screen
+// (`winX2Btn`, dead since COINS_ENABLED=false anyway) and the «📺 Continue» of the defeat
+// screen (`loseAdContinue` → continueRun, +1 shake and CONTINUE_DROP items). Their markup,
+// handlers, `continueRun`, `CONTINUE_DROP` and `level.continueUsed` are removed together;
+// the two remaining rewarded flows are the shake (80-gameplay requestShake) and the tip
+// (requestAdHint), both offered ONLY when the stock is empty.
 // ⚠️ THE «SCOPE» AND «METAL DETECTOR» BUTTONS HAVE BEEN REMOVED (the owner's spec
 // 2026-07-29: «on loading on mobile the old magnet buttons and something else in the
 // lower left corner blink — all of that has to be removed»). They lay in the markup
@@ -24424,6 +24446,12 @@ function loop(){
     tickPerfTier(rawMs);
   }
   if (intro) tickIntro(dt);
+  // THE ×N BUDGET BURNS ONLY HERE — real frame time while the level is LIVE: past the pause gate
+  // above, not in the intro, not on the win/lose screens, and not while the matcap editor holds
+  // the level clock (the owner's word 2026-09-03 «only game time»; the accounting is in 77-save).
+  if (!intro && level && !level.over && !(typeof mceIsOpen === 'function' && mceIsOpen())){
+    try { boostTick(rawMs); } catch(e){}
+  }
   try { chargeTick(); } catch(e){}   // dissolving of the type charge (80-gameplay, TTL 7 s)
   try { tickBowlCracks(now); } catch(e){} // the pulse of the crack telegraph at N-1
   tickFires();                       // fire along the silhouette (70-fx): drives time and extinguishes
@@ -25411,8 +25439,10 @@ window.__game = {
   scoreBoostLeftMs: scoreBoostLeftMs, // the remainder of the strongest tier — the screen timer
   noAdActive: noAdActive, noAdLeftMs: noAdLeftMs,
   purchasedShakes: purchasedShakes,
-  boostRaw(){ return { bx: Save.bx, na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // a test handle
-  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time»
+  boostRaw(){ return { bx: Save.bx, bb: Save.bb, bu: Save.bu, acc: Object.assign({}, boostAcc), na: Save.na, pe: Save.pe, ps: Save.ps, ls: Save.ls }; }, // a test handle
+  boostSetClock(ls){ Save.ls = ls; commitSave(); }, // test: fake the «seen time» — since 2026-09-03 it must NOT move the budget
+  boostSpend(ms){ boostSpend(ms); return scoreBoostLeftMs(); }, // test: burn play time through the real accounting (the loop's own path, uncapped)
+  boostFlush(){ boostFlush(); return Object.assign({}, Save.bu); }, // test: force the flush of used time into the save
   boostClear(){ boostClear(); return scoreBoostMult(); }, // test: clear the windows completely
   // THE STORY (86-story): the state of the chapters and a manual display for the tests
   storyState(){ return { st: Save.st || 0, sv: Save.sv || 0, open: !!document.getElementById('storyOverlay'),

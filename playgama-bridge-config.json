@@ -15,28 +15,11 @@
         }
     ],
     "advertisement": {
-        "interstitial": {
-            "placementFallback": "level_completed",
-            "placements": [
-                {
-                    "id": "level_completed"
-                }
-            ]
-        },
         "rewarded": {
             "placementFallback": "rewarded",
             "placements": [
                 {
                     "id": "shake"
-                },
-                {
-                    "id": "continue"
-                },
-                {
-                    "id": "x2"
-                },
-                {
-                    "id": "magnet"
                 }
             ]
         }

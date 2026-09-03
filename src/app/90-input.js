@@ -357,27 +357,20 @@ if (window.matchMedia && matchMedia('(pointer:fine)').matches){
 // hand over control).
 $('againBtn').addEventListener('click', ()=>{
   hide('winOverlay');
-  newObjOnWin(()=> storyOnWin(()=>{ Ads.maybeInterstitial(); genLevel(); }));
+  // ⛔⛔ NO INTERSTITIAL HERE ANY MORE (the owner's word 2026-09-03: «ads only when the shakes
+  // and the tips have run out, nowhere else»). `Ads.maybeInterstitial()` stood in this callback
+  // and was the ONLY interstitial show point of the game; it is gone together with the cadence.
+  newObjOnWin(()=> storyOnWin(()=>{ genLevel(); }));
 });
 { const b = $('newObjBtn'); if (b) b.addEventListener('click', ()=> newObjHide()); }
-$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); }); // WITHOUT maybeInterstitial: the interstitial only on the WINNING transition (againBtn), not on a Retry out of a dead end (there the rescue is the rewarded Continue) — the owner's spec 2026-07-24
-// ×2 coins for a rewarded on the victory screen (the second placement by conversion)
-$('winX2Btn').addEventListener('click', ()=>{
-  $('winX2Btn').style.display = 'none';
-  // we capture the winnings AT THE MOMENT OF THE CLICK: by the end of the video level may change
-  // (checkEnd recreates coinsWon already for the new level)
-  const won = level.coinsWon;
-  Ads.showRewarded(()=>{
-    addCoins(won);
-    $('winCoins').textContent = '+' + (won * 2) + ' 🪙 (×2)';
-    Telemetry.ev('rw', { p: 'x2' });
-    updateHUD();
-  }, ()=>{ $('winX2Btn').style.display = ''; }); // FAILED/CLOSED — the button comes back
-});
-// Continue after a defeat — once per level
-$('loseAdContinue').addEventListener('click', ()=>{
-  Ads.showRewarded(()=>{ Telemetry.ev('rw', { p: 'continue' }); continueRun(); });
-});
+$('loseAgainBtn').addEventListener('click', ()=>{ hide('loseOverlay'); genLevel(); });
+// ⛔⛔ TWO REWARDED PLACEMENTS ARE GONE (the owner's word 2026-09-03: «ads only when the shakes
+// and the tips have run out, nowhere else»): the «×2 coins» button of the victory screen
+// (`winX2Btn`, dead since COINS_ENABLED=false anyway) and the «📺 Continue» of the defeat
+// screen (`loseAdContinue` → continueRun, +1 shake and CONTINUE_DROP items). Their markup,
+// handlers, `continueRun`, `CONTINUE_DROP` and `level.continueUsed` are removed together;
+// the two remaining rewarded flows are the shake (80-gameplay requestShake) and the tip
+// (requestAdHint), both offered ONLY when the stock is empty.
 // ⚠️ THE «SCOPE» AND «METAL DETECTOR» BUTTONS HAVE BEEN REMOVED (the owner's spec
 // 2026-07-29: «on loading on mobile the old magnet buttons and something else in the
 // lower left corner blink — all of that has to be removed»). They lay in the markup

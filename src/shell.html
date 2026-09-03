@@ -4253,7 +4253,8 @@
     <p id="loseStats"></p>
     <div class="btns">
       <button class="ghost" id="loseContinue">Look around</button>
-      <button class="ghost" id="loseAdContinue">📺 Continue</button>
+      <!-- ⛔ «📺 Continue» (loseAdContinue, a rewarded placement) is gone 2026-09-03: ads only for
+           the shakes and the tips, nowhere else -->
       <button class="primary" id="loseAgainBtn">Retry</button>
     </div>
   </div>
@@ -4288,13 +4289,15 @@
 
 <div class="overlay" id="winOverlay">
   <!-- ⚠️ HIDDEN HOLDERS: checkEnd (80-gameplay — OUTSIDE the interface zone) writes
-       strings into winTitle/winStats/winCoins and pulls winX2Btn.display.
-       (winStars is gone: 2026-09-01-i, «we have no concept of stars, only points».)
+       strings into winTitle/winStats/winCoins.
+       (winStars is gone: 2026-09-01-i, «we have no concept of stars, only points»;
+        winX2Btn is gone: 2026-09-03, the «×2 coins» rewarded placement went with the ad
+        policy «only for the shakes and the tips» — checkEnd no longer pulls its display.)
        The visible screen is drawn by renderWinScreen (85-hud) from the LIVE state. These ids
        must NOT be deleted — otherwise $()→null would drop checkEnd (the fArc/setFace trap). -->
   <div id="winHolders" hidden>
     <h2 id="winTitle"></h2><p id="winStats"></p>
-    <p id="winCoins"></p><button id="winX2Btn"></button>
+    <p id="winCoins"></p>
   </div>
   <!-- THE LEVEL COMPLETION SCREEN (Figma 778:732): stickers over the current
        fade+blur backdrop (.overlay is untouched — the owner's spec). -->

@@ -994,7 +994,7 @@ function genLevel(){
   // it used to be a flat 3 and from ~level 15 the stock was not enough for the
   // «dry» episodes
   level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, chargeAt:chargeAtFor(levelNum), idleLimit, typesCount, dealtTypes, banked:0, // banked — the level's units banked ahead of time (the watermark)
-            topY0: 0, parBase: 0, coinsWon: 0, continueUsed: false, detectorUsed: false,
+            topY0: 0, parBase: 0, coinsWon: 0, detectorUsed: false, /* continueUsed gone 2026-09-03 with the ad Continue */
             aliveN0: 0, camFollowOn: false, deadlock: false, // deadlock: a dead end → the rescue grind (99-main)
 };
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // the combo/chain reaction do not survive the level

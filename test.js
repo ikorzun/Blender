@@ -4512,54 +4512,28 @@ window.bridge = {
   expect(audOff.muted && !audOff.paused, 'platform sound: switching off mutes the game, but does not pause it');
   expect(!audOn.muted, 'platform sound: switching on brings the sound back');
 
-  // 5. THE CADENCE «every 5th level» (the owner's spec 2026-07-23). We accumulate wins
-  // through the public noteWin/maybeInterstitial (window.__ads), we count the real
-  // showInterstitial calls on the mock. A full run of 5 wins would be slow and
-  // flake-dependent — the cadence is a pure function of a counter, we test that.
-  // ⚠️ THE CADENCE NUMBER IS SET HERE AND ONLY HERE. This is a DELIBERATE TWIN of
-  // INTER_EVERY_LEVELS from 00-config: if it were read from the game, the assert would become
-  // a tautology and would pass with any cadence, while it is obliged to catch exactly
-  // a divergence from the approved spec of the owner.
-  // The spec: 2026-07-23 «every 5th level» → 2026-07-30 «once every 3 levels».
-  // The owner changes the number — THIS line is edited, everything else is derived.
-  const INTER_EVERY = 3;
-  const cad = await apage.evaluate((every) => {
+  // 5. ⛔⛔ THERE IS NO INTERSTITIAL ANY MORE (the owner's word 2026-09-03: «ads only when the
+  // shakes and the tips have run out, nowhere else»). Until then this section measured the
+  // «once every 3 wins» cadence through noteWin/maybeInterstitial. The inverse guard now: the
+  // show point does not exist on the public surface, and any number of wins releases NOTHING.
+  const cad = await apage.evaluate(() => {
     const A = window.__ads, M = window.__mock;
-    const seq = [];
     const base = M.interShown;
-    // every-1 wins — there is no spot yet
-    for (let i = 0; i < every - 1; i++){ A.noteWin(); A.maybeInterstitial(); }
-    seq.push(M.interShown - base);                 // 0
-    // the threshold win — the spot is shown exactly once
-    A.noteWin(); A.maybeInterstitial();
-    seq.push(M.interShown - base);                 // 1
-    // a repeated transition without a new win (e.g. a loss+repeat) — does not duplicate
-    A.maybeInterstitial();
-    seq.push(M.interShown - base);                 // 1
-    // every more wins — the next spot
-    for (let i = 0; i < every; i++){ A.noteWin(); A.maybeInterstitial(); }
-    seq.push(M.interShown - base);                 // 2
-    // A DEFERRED show: the level can be changed BYPASSING maybeInterstitial
-    // (msPlayBtn «Play Game»/pauseRestart — genLevel without resetting the counter).
-    // Then the spot accumulated over 5 wins will fire on the NEAREST WINNING
-    // transition (againBtn) — the only one that calls the gate now. Here
-    // the direct maybeInterstitial call models exactly that winning Next.
-    const preDef = M.interShown;
-    for (let i = 0; i < every; i++) A.noteWin();    // every wins, not a single maybeInterstitial
-    const deferredNoShow = M.interShown - preDef;   // 0 — not shown yet
-    A.maybeInterstitial();                          // the nearest winning Next
-    const deferredFired = M.interShown - preDef;    // 1 — the deferred spot came out
-    return { seq, winsLeft: A._winsSinceInter, deferredNoShow, deferredFired };
-  }, INTER_EVERY);
-  expect(cad.seq[0] === 0, 'cadence: ' + (INTER_EVERY - 1) + ' wins — there is no spot (' + cad.seq[0] + ')');
-  expect(cad.seq[1] === 1, 'cadence: on the ' + INTER_EVERY + '-th win exactly one spot (' + cad.seq[1] + ')');
-  expect(cad.seq[2] === 1, 'cadence: a transition without a win does not duplicate the spot (' + cad.seq[2] + ')');
-  expect(cad.seq[3] === 2, 'cadence: the next ' + INTER_EVERY + ' wins give one more spot (' + cad.seq[3] + ')');
-  expect(cad.winsLeft === 0, 'cadence: the window is reset after the show (' + cad.winsLeft + ')');
+    for (let i = 0; i < 7; i++) A.noteWin();
+    return { hasShowPoint: typeof A.maybeInterstitial, shown: M.interShown - base, iw: window.__game.saveRaw().iw || 0 };
+  });
+  expect(cad.hasShowPoint === 'undefined',
+    'no interstitial: the show point `maybeInterstitial` is gone from the public surface (' + cad.hasShowPoint + ')');
+  expect(cad.shown === 0,
+    'no interstitial: seven wins request NOTHING from the platform (' + cad.shown + ' shows)');
+  expect(cad.iw === 0,
+    'no interstitial: the win counter `Save.iw` is a dead key — nothing increments it (' + cad.iw + ')');
 
 
   // === A QUIET PAUSE UNDER A SPOT THAT ARRIVED ON TOP OF THE INTRO ===
-  // The battle path of againBtn: `Ads.maybeInterstitial(); genLevel();` — the intro
+  // ⚠️ Since 2026-09-03 the game requests no interstitial, but the PLATFORM may open one on its
+  // own (the listener in 78-ads stays as the safety net): the mock emits OPENED right after a
+  // `regen()` — the intro goes up SYNCHRONOUSLY, OPENED arrives on top of it, and
   // goes up SYNCHRONOUSLY, while OPENED arrives asynchronously already on top of it, and
   // pauseGame during the intro refuses. Without the follow-up push pausedByAd stayed
   // false forever: the intro ended, the game came alive UNDER an opaque spot,
@@ -4597,62 +4571,32 @@ window.bridge = {
     'ads: the pushed-through pause is LIFTED by the close of the spot, the game is not frozen (it was '
     + adp.afterIntro + ' -> it became ' + adp.afterClose + ')');
 
-  expect(cad.deferredNoShow === 0 && cad.deferredFired === 1,
-    'cadence: a show deferred by a non-ad exit comes out on the WINNING transition (' +
-    cad.deferredNoShow + '->' + cad.deferredFired + ')');
 
-  // ⚠️ THE COUNTER SURVIVES A RELOAD (finding no.3 of the matrix): while it was
-  // a closure variable, INTER_EVERY_LEVELS wins had to be gathered in ONE
-  // page session — three sittings of 20 minutes always gave ZERO shows, and
-  // «a month without ads» from the bundle suppressed what the player was not getting anyway.
-  // We gather a SHORTFALL to the threshold (every-2), so that after the reload one win
-  // still does NOT give a spot, and the next one — does. With every=3 that is one win.
-  const preload = Math.max(1, INTER_EVERY - 2);
-  await apage.evaluate((n) => { for (let i = 0; i < n; i++) window.__ads.noteWin(); }, preload);
-  const cadBefore = await apage.evaluate(() => window.__ads._winsSinceInter);
+  // ⛔ «the win counter survives a reload» (finding no.3 of the matrix) went with the cadence, 2026-09-03.
+
+  // ⚠️ A FRESH PAGE FOR THE SECTIONS BELOW. The reload used to live in the «counter survives a
+  // reload» block that went with the cadence (2026-09-03) — and the messages guard (9.) counts
+  // `game_ready` in the mock's log, which the spot-on-the-intro block above has CLEARED.
+  // Without a fresh load that guard counts zero and reads as «the game never said ready».
   await apage.reload({ waitUntil: 'domcontentloaded' });
   await apage.waitForFunction(() => window.__ads && window.__game, null, { timeout: 20000 });
-  const cadAfter = await apage.evaluate(() => window.__ads._winsSinceInter);
-  expect(cadBefore === preload && cadAfter === preload,
-    '⚠️ THE CADENCE SURVIVES A RELOAD: ' + cadBefore + ' wins before, ' + cadAfter + ' after');
-  // and the threshold still fires — what was accumulated across the reload is not lost
-  const cadFire = await apage.evaluate((n) => {
-    const A = window.__ads, M = window.__mock;
-    const base = M.interShown;
-    // we top up to every-1 — there must be no spot yet
-    while (A._winsSinceInter < n - 1){ A.noteWin(); A.maybeInterstitial(); }
-    const atBelow = M.interShown - base;
-    A.noteWin(); A.maybeInterstitial();   // the threshold win — a spot
-    return { atBelow, atFire: M.interShown - base, left: A._winsSinceInter };
-  }, INTER_EVERY);
-  expect(cadFire.atBelow === 0 && cadFire.atFire === 1 && cadFire.left === 0,
-    'the threshold counts the wins ACROSS a reload (' + (INTER_EVERY - 1) + '→0 shows, '
-    + INTER_EVERY + '→1, the counter is reset)');
 
-  // THE WIRING (spec 2026-07-24): a REAL Retry does NOT show an interstitial,
-  // even when the counter is at the threshold — the call was removed from loseAgainBtn. ⚠️ Since 2026-07-27
-  // the defeat screen from a DEAD END no longer pops up (the grinding-rescue, «grinding =
-  // penalty, not death»), but the defeat UI is alive and the wiring of the Retry button remains
-  // valid — we show the overlay DIRECTLY (not through a dead end) and press the real
-  // button. Before the fix its handler called maybeInterstitial and with a counter of 5
-  // it would have shown a spot — the assert would have fallen.
+  // THE WIRING: a REAL Retry out of the defeat screen shows nothing — it never did (spec
+  // 2026-07-24), and since 2026-09-03 nothing else does either. The defeat screen also lost
+  // its «📺 Continue» rewarded button — the node must be gone, not merely hidden.
   await apage.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
-  await apage.evaluate((n) => { window.__interEvery = n; }, INTER_EVERY);
-  await apage.evaluate(() => {
-    for (let i = 0; i < window.__interEvery; i++) window.__ads.noteWin(); // the counter is at the threshold
+  const retry = await apage.evaluate(() => {
     window.__game.level().over = true;
     document.getElementById('loseOverlay').style.display = 'flex'; // show the defeat UI directly
-  });
-  const retry = await apage.evaluate(() => {
-    const before = window.__mock.interShown;
+    const before = window.__mock.interShown, rw = window.__mock.rwShown;
     document.getElementById('loseAgainBtn').click(); // a REAL Retry
-    return { before, after: window.__mock.interShown, winsLeft: window.__ads._winsSinceInter };
+    return { before, after: window.__mock.interShown, rwBefore: rw, rwAfter: window.__mock.rwShown,
+             adContinue: !!document.getElementById('loseAdContinue'), x2: !!document.getElementById('winX2Btn') };
   });
-  expect(retry.after === retry.before,
-    'wiring: a REAL Retry from a dead end with the counter at the threshold does NOT show an interstitial ('
-    + retry.before + '->' + retry.after + ')');
-  expect(retry.winsLeft === INTER_EVERY,
-    'wiring: Retry did not touch the win counter (it stayed at the threshold ' + retry.winsLeft + ')');
+  expect(retry.after === retry.before && retry.rwAfter === retry.rwBefore,
+    'wiring: a REAL Retry requests no ad of any kind (' + retry.before + '->' + retry.after + ')');
+  expect(retry.adContinue === false && retry.x2 === false,
+    '⛔ the «📺 Continue» and «×2 coins» rewarded buttons are GONE from the markup (' + JSON.stringify({ adContinue: retry.adContinue, x2: retry.x2 }) + ')');
   await apage.evaluate(() => window.__game.skipIntro()); // loseAgainBtn started genLevel/the intro
 
   // ── BRIDGE v2 INTEGRATION (2026-07-29): the mandatory steps of the docs ──
@@ -4742,8 +4686,7 @@ window.bridge = {
   });
   await emit('rw', 'closed');
   expect(places.rw === 'shake', 'placement: rewarded went out with the name of the place (' + places.rw + ')');
-  expect(places.inter === 'level_completed',
-    'placement: the interstitial went out with the name of the place (' + places.inter + ')');
+  // ⛔ the interstitial placement arm (`level_completed`) went with the interstitial, 2026-09-03.
 
   // ── LEADERBOARD: sending the score without a screen (the owner's spec 2026-07-29) ──
   // ⚠️ THE MAIN THING UNDER THE GUARD IS THE GUEST GATE. It is a PRODUCT decision of the owner
@@ -5496,8 +5439,8 @@ window.bridge = {
   // HARDCODED IN HTML; the platform's catalogue overwrites it only when it answers).
   expect(sbProbe.tiers.length === 1 && sbProbe.tiers[0].id === 'bundle5' && sbProbe.tiers[0].usd === 1.99
       && sbProbe.tiers[0].mult === 5 && sbProbe.tiers[0].ms === 30 * 60 * 1000
-      && sbProbe.tiers[0].shakes === 15 && sbProbe.tiers[0].hints === 25 && sbProbe.tiers[0].noAdMs === 0,
-    'ONE package: bundle5 = $1.99, x5 for 30 min, 15 shakes, 25 tips, no no-ads window (' + JSON.stringify(sbProbe.tiers) + ')');
+      && sbProbe.tiers[0].shakes === 15 && sbProbe.tiers[0].hints === 25 && sbProbe.tiers[0].noAdMs === undefined,
+    'ONE package: bundle5 = $1.99, x5 for 30 min of PLAY, 15 shakes, 25 tips, and NO no-ads field at all (' + JSON.stringify(sbProbe.tiers) + ')');
   expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Buy $1.99',
     'the ONE buy button carries the mock-up label «Buy $1.99» (' + JSON.stringify(sbProbe.btnLabels) + ')');
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
@@ -5561,69 +5504,93 @@ window.bridge = {
     'the second package ADDED its own 30 minutes to the live window (' + Math.round(sbQueue.wasLeft5/60000) + ' -> ' + Math.round(sbQueue.left5/60000) + ' min)');
   expect(sbQueue.shakes === sbQueue.wasShakes + 15, 'package consumables simply add up (+15 = ' + sbQueue.shakes + ')');
 
-  // ⚠️ THE «ROLLBACK UNDER THE SLACK» EXPLOIT (found by an adversarial run of matrix No. 3, was in
-  // prod v131-v135): a rollback EXACTLY within the previous slack was not detected, while
-  // the windows are stored as an absolute mark → the remainder GREW. A rollback of 5 min every
-  // 5 min = an eternal x5 for $4.99. Now the amnesty is a LIFETIME BUDGET.
+  // ⛔⛔ THE MULTIPLIER IS A PLAY-TIME BUDGET SINCE 2026-09-03 (the owner's word «only game
+  // time»): it burns through `boostSpend` — the loop's own accounting — and through nothing
+  // else. The «rollback under the slack» exploit of v131-v135 (an absolute deadline re-anchored
+  // by the clock) has no surface left: the clock is not read at all. Both are measured.
   const sbExploit = await page.evaluate(() => {
     const g = window.__game;
     g.boostClear(); g.boostSetClock(0); // a clean save
-    g.buyBundle('bundle5');                                   // x5 for 30 minutes
+    g.buyBundle('bundle5');                                   // x5 for 30 minutes of PLAY
     const left = [g.scoreBoostLeftMs()];
     for (let i = 0; i < 6; i++){
-      g.boostSetClock(Date.now() + 5 * 60 * 1000);            // «the clock is wound back by 5 minutes»
+      g.boostSetClock(Date.now() - 5 * 60 * 1000);            // the clock wound back — must change NOTHING
+      g.boostSetClock(Date.now() + 60 * 60 * 1000);           // and forward — nothing either
       left.push(g.scoreBoostLeftMs());
+      g.boostSpend(5 * 60 * 1000);                            // five minutes OF PLAY
     }
-    return { minutes: left.map(ms => +(ms / 60000).toFixed(1)), mult: g.scoreBoostMult() };
+    return { minutes: left.map(ms => +(ms / 60000).toFixed(1)), mult: g.scoreBoostMult(),
+             final: +(g.scoreBoostLeftMs() / 60000).toFixed(1), bu: g.boostFlush() };
   });
-  expect(sbExploit.minutes[1] === 25 && sbExploit.minutes[2] === 20,
-    '⚠️ THE EXPLOIT IS CLOSED: a rollback under the previous slack no longer adds time (' + sbExploit.minutes + ')');
-  expect(sbExploit.minutes[6] === 0,
-    'the window burns down in exactly its own time at ANY rollback cadence (' + sbExploit.minutes + ')');
+  expect(sbExploit.minutes.join(',') === '30,25,20,15,10,5,0' || sbExploit.minutes.join(',') === '30,30,25,20,15,10,5',
+    '⚠️ THE BUDGET BURNS BY PLAY TIME ONLY: 30 → 0 in six five-minute spends, the clock jumps in between change nothing (' + sbExploit.minutes + ')');
+  expect(sbExploit.final === 0 && sbExploit.mult === 1 && (sbExploit.bu[5] || 0) === 30 * 60 * 1000,
+    'the budget is spent to the last millisecond, the multiplier drops to 1 and the USED time is in the save (' + JSON.stringify({ final: sbExploit.final, mult: sbExploit.mult, bu5: sbExploit.bu[5] }) + ')');
 
-  // THE CLOCK: a one-off big jump does NOT burn what was paid for (a write-off cap), there is no brick.
-  // ⚠️ Re-based 2026-09-03 onto the one package: the paid window is x5 for 30 minutes (the
-  // month-long no-ads window went away with the ×2 tier), so the jump is ten minutes, not an hour.
-  const sbClock = await page.evaluate(() => {
+  // THE LIVE LOOP (2026-09-03): the budget burns while the level is LIVE and stands still under
+  // the pause — measured on the real page, with real frames, not through the test hook.
+  // ⚠️ The tolerance is wide on purpose: headless rAF is throttled and the pause round-trip has
+  // its own latency; the statement is «burns / does not burn», not the exact millisecond.
+  const sbLive = await page.evaluate(async () => {
     const g = window.__game;
-    g.boostClear(); g.boostSetClock(0);
-    g.buyBundle('bundle5');                                   // x5 for 30 minutes
-    const before = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
-    g.boostSetClock(Date.now() + 10 * 60 * 1000);             // a clock jump by ten minutes
-    const after = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
-    const lsGap = g.boostRaw().ls - Date.now();
-    return { before, after, lsGap, lostMin: +((before.left - after.left) / 60000).toFixed(1) };
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    g.boostClear();
+    g.regen(); g.skipIntro(); await wait(200);                // a LIVE level: the intro is over
+    if (g.pauseState().paused){ const p = document.querySelector('.ms-play'); if (p) p.click(); await wait(200); } // a pause left by the previous section is a precondition, not the subject
+    g.buyBundle('bundle5');
+    const l0 = g.scoreBoostLeftMs();
+    await wait(800);                                          // playing
+    const l1 = g.scoreBoostLeftMs();
+    document.getElementById('pauseBtn').click();              // the menu = a pause
+    await wait(100);
+    const p0 = g.scoreBoostLeftMs();
+    await wait(800);                                          // paused
+    const p1 = g.scoreBoostLeftMs();
+    const wasPaused = g.pauseState().paused;
+    const btn = document.querySelector('.ms-play');            // Resume
+    if (btn) btn.click();
+    await wait(100);
+    return { burnedPlaying: l0 - l1, burnedPaused: p0 - p1, wasPaused, resumed: !g.pauseState().paused, live: !g.level().over };
   });
-  expect(sbClock.after.mult === 5 && sbClock.after.left > 0,
-    '⚠️ THE CLOCK: a one-off jump did NOT burn the paid window (mult ' + sbClock.after.mult + ')');
-  expect(sbClock.lostMin > 9 && sbClock.lostMin < 11,
-    'the clock: a jump costs EXACTLY itself, not a second more (' + sbClock.lostMin + ' min)');
-  expect(Math.abs(sbClock.lsGap) < 10000,
-    '⚠️ THE CLOCK: the mark is resynchronized — there is no eternal sticking (' + sbClock.lsGap + ' ms)');
+  expect(sbLive.burnedPlaying > 300 && sbLive.burnedPlaying < 1600,
+    '⚠️ THE BUDGET BURNS WHILE PLAYING — real frames, ~0.8 s of play cost ' + sbLive.burnedPlaying + ' ms');
+  expect(sbLive.wasPaused === true && sbLive.burnedPaused === 0,
+    '⚠️ AND STANDS STILL UNDER THE PAUSE — 0.8 s on the menu cost ' + sbLive.burnedPaused + ' ms (paused: ' + sbLive.wasPaused + ')');
+  expect(sbLive.resumed === true, 'the level resumed after the measurement (' + sbLive.resumed + ')');
   const sbAfterIncident = await page.evaluate(() => {
     const g = window.__game;
-    g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000);
+    g.boostClear();
+    g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000);       // a clock two hours ahead — irrelevant to a budget
     g.scoreBoostMult();
     g.buyBundle('bundle5');
-    return { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
+    g.noAdActive();                                           // the one reader of the clock left: it re-anchors the `ls` mark
+    return { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs(), lsGap: g.boostRaw().ls - Date.now() };
   });
-  expect(sbAfterIncident.mult === 5 && sbAfterIncident.left > 25 * 60 * 1000,
-    '⚠️ NO BRICK: a package bought AFTER the clock jump works (' + Math.round(sbAfterIncident.left/60000) + ' min)');
+  expect(sbAfterIncident.mult === 5 && sbAfterIncident.left === 30 * 60 * 1000,
+    '⚠️ NO BRICK: a package bought with the clock two hours off gives exactly its 30 minutes of play (' + Math.round(sbAfterIncident.left/60000) + ' min)');
+  // ⚠️ the `ls` resync used to be asserted on the multiplier's clock path; since 2026-09-03 only the
+  // no-ads window reads the clock, so the arm moved onto that reader
+  expect(Math.abs(sbAfterIncident.lsGap) < 10000,
+    '⚠️ THE CLOCK MARK is resynchronized by the no-ads reader — there is no eternal sticking (' + sbAfterIncident.lsGap + ' ms)');
 
   // MERGE: windows are merged by max BY THE MULTIPLIER KEY — a foreign window lands in ITS OWN
   // key. ⚠️ Since 2026-09-03 the game sells x5 only, so the foreign one is a x2 from an older
   // build's cloud copy: it must neither upgrade nor touch the live x5, and the STRONGEST plays.
+  // ⚠️ Since 2026-09-03 the budget is the bb/bu monotonic pair: a foreign copy with a ×2 budget
+  // lands in ITS OWN key; a lagging copy of MY OWN key with less used time must NOT resurrect
+  // what I have already played (max of used), and must not double the purchase (max of bought).
   const sbMerge = await page.evaluate(() => {
     const g = window.__game;
-    g.boostClear(); g.buyBundle('bundle5');        // mine: x5 for 30 minutes
+    g.boostClear(); g.buyBundle('bundle5');        // mine: x5 for 30 minutes of play
+    g.boostSpend(10 * 60 * 1000); g.boostFlush();  // ten minutes played and flushed
     const mine = g.bundleState().tiers.find(t => t.mult === 5).leftMs;
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: { 2: Date.now() + 10 * 60 * 1000 } });
-    const after = g.bundleState(), bx = g.boostRaw().bx || {};
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, bb: { 2: 10 * 60 * 1000, 5: 30 * 60 * 1000 }, bu: { 5: 0 } });
+    const after = g.bundleState(), raw = g.boostRaw();
     const still5 = after.tiers.find(t => t.mult === 5).leftMs;
-    return { mine, mult: after.mult, foreign2: Math.max(0, (bx[2] || 0) - Date.now()), still5 };
+    return { mine, mult: after.mult, foreign2: (raw.bb[2] || 0) - (raw.bu[2] || 0), still5, bb5: raw.bb[5], bu5: raw.bu[5] };
   });
-  expect(sbMerge.mult === 5 && sbMerge.foreign2 > 0 && Math.abs(sbMerge.still5 - sbMerge.mine) < 5000,
-    '⚠️ MERGE: the foreign x2 landed in ITS OWN key without touching the live x5, and x5 still plays (' + JSON.stringify(sbMerge) + ')');
+  expect(sbMerge.mult === 5 && sbMerge.foreign2 === 10 * 60 * 1000 && sbMerge.still5 === sbMerge.mine && sbMerge.mine === 20 * 60 * 1000,
+    '⚠️ MERGE: the foreign x2 landed in ITS OWN key, the lagging copy of x5 neither resurrected the ten played minutes nor doubled the purchase (' + JSON.stringify(sbMerge) + ')');
 
   // PURCHASED SHAKES: the spending order and the anti-dupe
   const sbShakes = await page.evaluate(() => {

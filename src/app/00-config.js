@@ -423,13 +423,16 @@ const AD_HINTS_PER_LEVEL = 2;
 // for $1.99. The ×3 / ×2 tiers are GONE — from the config, the payments catalogue and the
 // wrapper's id table alike; the engine below still keeps windows PER multiplier key (a cloud
 // copy from an older build may carry a ×2/×3 window — it plays out and dies, nothing to migrate).
-// ⚠️ NO no-ads window in the package: the mock-up lists Shake's and Tips only. `noAdMs: 0` is the
-// mock-up's word, not an oversight — `Save.na` and `noads_forever` are untouched.
+// ⚠️ NO no-ads window in the package (the mock-up lists Shake's and Tips only), and since the
+// owner's word of 2026-09-03 there is no interstitial in the game at all — `noAdMs` is gone from
+// the tier; `Save.na` / `noads_forever` are left alone as a dormant product.
+// ⚠️ `ms` IS PLAY TIME, not wall-clock (the owner's word 2026-09-03 «only game time»): the
+// budget burns only while the level is live — see boostTick in 77-save.
 // ⚠️ The id STAYS `bundle5`: the dashboard product and the App Store id `monster.blendo.bundle5`
 // already exist under that name; what changes is the price and the contents, not the identity.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25, noAdMs: 0 },
+  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25 }, // ms = PLAY time (2026-09-03)
 ];
 // Clock slack: a time change/DST/drift must not kill a paid booster,
 // but a rollback further back than the slack is treated as an attempt to extend it manually.
@@ -460,7 +463,7 @@ const LEVEL_GOAL_K = 1.5;
 // "shortened" levels were the only size variation, after them came a
 // plateau. The table is kept in history so that it is not reinvented from scratch.
 // const PAIRS_EARLY = [64, 71, 78];
-const CONTINUE_DROP = 10;    // Continue after a defeat: drop in extra items
+// ⛔ `CONTINUE_DROP` (10, the ad Continue's top-up) is gone 2026-09-03 with the placement.
 // ⚠️⚠️ 1.7 → 1.3 BY THE OWNER'S DECISION 2026-08-11 (the complaint "on an iPhone 17 the
 // framerate drops during the pour-in" + his own choice out of four options: "slow down the
 // pour-in itself", the named corridor being 1.2-1.3).
@@ -536,6 +539,9 @@ const COINS_ENABLED = false;
 // is hidden, but it keeps living on the win/lose screens (Time: in
 // winStats/loseStats). To bring it back into the HUD — true.
 const LEVEL_TIME_IN_HUD = false;
+// ⛔⛔ THE INTERSTITIAL IS GONE ALTOGETHER (the owner's word 2026-09-03: «ads only when the
+// shakes and the tips have run out, nowhere else»). `INTER_EVERY_LEVELS` and the whole cadence
+// below are HISTORY — kept as the record of the two earlier specs, not as a setting.
 // interstitial — once per INTER_EVERY_LEVELS COMPLETED levels. We count wins:
 // a defeat/replay of a level does not move the progression.
 // ⚠️ HISTORY OF THE SPEC (both from the owner, DO NOT confuse them):
@@ -573,7 +579,7 @@ const CURTAIN_GRACE_MS = 1200;
 const CURTAIN_MAX_MS   = 12000;
 
 
-const INTER_EVERY_LEVELS = 3;
+// ⛔ `const INTER_EVERY_LEVELS = 3;` stood here until 2026-09-03 — no interstitial, no cadence.
 
 // ===== "TYPE CHARGE" (the owner's spec 2026-07-31 "an object bomb") =====
 // "if the player has collected a boost, any object may drop for him (next to the hint
