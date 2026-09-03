@@ -12,7 +12,7 @@ match · the live site verified byte-for-byte against the build · portal packag
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
-## What shipped 1–2 September
+## What shipped 1–3 September
 
 - **The full audit** you asked for: 8 finder lenses, two skeptics per finding, 34 findings survived —
   two real gameplay blockers fixed (the bomb destroyed the very block it had just thawed; the
@@ -26,6 +26,10 @@ match · the live site verified byte-for-byte against the build · portal packag
 - **The props cadence restored**: 6, 9, 12 … 60, every gap exactly 3; nothing before level 51 moved.
 - **Final screen**: the reward badge is a circle on one digit (36×36), the pills are circles.
 - **Removed**: `07-matcap-bomb.js` (168 KB painting nothing) and the `release/` folder.
+- **Platform SDK (Playgama Bridge) 2.0.2 → 2.1.0** (3 September): the newest tag, checked the way the
+  canon demands — the public surface of every module we use is identical, a live A/B on
+  `?platform_id=playgama` is identical, the config untouched. The npm package is `@playgama/bridge`
+  now; we stay on the vendored file (verified by byte size on the live site), not on the CDN.
 - **Audio/** is the source of every sound: four folders, drop a file in and it reaches the game.
 
 ## Direction chats
@@ -44,7 +48,9 @@ payment tests are on it.
    Texts are ready in `docs/STORE-LISTING.md`.
 3. Ads in the iOS wrapper + `noads_forever` (you deferred it to «before the release»).
 4. Smoke test on developer.playgama.com after the upload — the only place where the ads are
-   real, the purchase is real and the Safari bars are visible.
+   real, the purchase is real and the Safari bars are visible. Two things to watch there after
+   the SDK 2.1.0 update: the curtain now shows Playgama's full logo (their new default), and the
+   portal now receives our `level_completed` — make sure no interstitial appears that we did not call.
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
 
 ## Decisions only you can take

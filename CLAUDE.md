@@ -2474,7 +2474,7 @@ with the platform.
   - `75-audio.js` — procedural sound (Sound) + samples (playBuf) + vibrate.
   - `78-ads.js` — rewarded ads: Playgama Bridge (github.com/playgama/bridge)
     with a stub fallback. On http/https it dynamically loads the neighbouring
-    `playgama-bridge.js` (release v2.0.2, LGPL — which is why it is NOT inlined into
+    `playgama-bridge.js` (release v2.1.0 since 2026-09-03, LGPL — which is why it is NOT inlined into
     index.html), `bridge.initialize()` reads `playgama-bridge-config.json`;
     if the platform supports rewarded (`isRewardedSupported`) — mode
     'bridge': the reward strictly by the REWARDED state, CLOSED before the reward = no
@@ -4332,7 +4332,9 @@ the landing playgama.com/about-us, applied here on 2026-07-29):
   ⛔ AND THE LANDMINE OF 2.0.2: the key `advertisement.interstitial.autoShow` in the
   config makes the SDK show the interstitial ITSELF on PLATFORM_MESSAGE — bypassing
   our cadence and the quiet pause. We do NOT have the key and it MUST NOT APPEAR
-  without the dispatcher's word.
+  without the dispatcher's word. (Re-read in the 2.1.0 bundle on 2026-09-03: the key is an
+  ARRAY of platform-message names, `Array.isArray(t) && t.includes(e)`; an absent key is
+  «off». The prohibition stands as written.)
 - ⚠️ A SUBSPECIES: A GUARD THAT READS A CACHED STATE N TIMES IS ONE CHECK
   IN THE MAKEUP OF N (GRAPHICS, the fire 2026-08-01): extinguishAll did not reset
   burningItem → the scheduler after the FIRST ignition never set anything alight, while
@@ -14234,3 +14236,81 @@ the directions»).
 trim drift would pass there. What still protects it is the signal-path arm (it reads `gain.value`,
 which no rate can touch) and the alias-integrity arm. The real fix, deliberately not folded in, is to
 decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
+
+## BATCH 2026-09-03: THE PLATFORM SDK 2.0.2 → 2.1.0 (the owner's word «check the latest bridge and update it in the game»)
+
+### WHAT CHANGED IN THE TREE — ONE FILE, THE BUILD IS BYTE-IDENTICAL
+- `playgama-bridge.js` 282327 B → 285273 B, `version:"2.1.0"`, md5 34aff11182f02cf07e4a30dec7499390,
+  the release asset `github.com/playgama/bridge/releases/download/v2.1.0/playgama-bridge.js`
+  (tag v2.1.0 of 2026-08-21, the newest tag on 2026-09-03). `index.html` did not move
+  (12099864 B): the bridge is a neighbour file, `build.py` does not carry it.
+  `playgama-bridge-config.json` is UNTOUCHED — nothing in 2.1.0 wants a key we lack, and the
+  landmine key (`advertisement.interstitial.autoShow`) stays absent.
+- The npm package was RENAMED: `playgama-bridge-sdk` is 404 now, it is `@playgama/bridge`;
+  the wiki (wiki.playgama.com/playgama/bridge-sdk) recommends the CDN
+  `https://bridge.playgama.com/v2/stable/playgama-bridge.js`. We did NOT move to the CDN on
+  purpose: «stable» moves underneath the game without a commit, and the vendored file is what
+  lets the live site be verified by byte size (the deploy check now reads BOTH files:
+  `index.html` and `playgama-bridge.js`).
+
+### THE COMPATIBILITY — BY THE 2.0.2 RECIPE (surface diff + live A/B), NOT BY THE CHANGELOG
+- The surface, both bundles loaded into a real Chromium (`scratchpad/surface.js`): for every
+  module and dictionary that `78-ads.js` touches (platform, player, storage, advertisement,
+  payments, leaderboards; PLATFORM_MESSAGE, REWARDED_STATE, INTERSTITIAL_STATE, STORAGE_TYPE,
+  PAYMENTS, LEADERBOARD_TYPE) the method and key lists are IDENTICAL. The whole diff of 2.1.0:
+  `bridge.notifications` + `MODULE_NAME.NOTIFICATIONS` added, seven EVENT_NAMEs added
+  (CROSS_PROMO_SHOWN, DAILY_REWARDS_CLAIMED, DAILY_REWARDS_STREAK_RESET, STORAGE_SET,
+  TASKS_PERIOD_ROLLED_OVER, TASKS_REWARD_CLAIMED, VISIBILITY_STATE_CHANGED),
+  `PLATFORM_ID.PLAYDECK` REMOVED. We use none of these. Zero page errors on a bare page, both.
+- The live A/B on `?platform_id=playgama` (`scratchpad/ab.js`: the repo served over http, the
+  bridge file swapped per run, 30 s wait for initialize): platform id, language, audio, pause,
+  ads support (interstitial true / rewarded true / banner false, minDelay 60), payments
+  supported, leaderboards type `in_game`, device — all IDENTICAL; the guest `player.id`
+  differs only by its random value. BOTH runs end with `isInitialized:false` and the same two
+  page errors (`Timeout`, `Message without ID`): the standalone bench has no portal parent
+  frame for `playgama.com/platform-sdk/v1.js` to talk to, so initialize never settles — the
+  same on 2.0.2, hence a bench property, not a regression. A settled initialize is verifiable
+  only inside the portal (the owner's smoke test in STATUS.md).
+- `advertisement.interstitial.autoShow` in 2.1.0 is an ARRAY of platform-message names; the
+  read in the bundle is `Array.isArray(t) && t.includes(e) && showInterstitial(e)`, so an
+  absent key is «off». The prohibition in the 2.0.2 record stands as written.
+- The guest id: module 3941 persists it under `bridge-player-guest-id` in BOTH bundles — the
+  open contradiction in `docs/LEADERBOARD-OWN.md` is unchanged by the update. The changelog's
+  «platform player id is used for unauthorized players too» did not show on the bench (no
+  portal); our leaderboard gate (`lbBlockedWhy`) reads `isAuthorized` BEFORE `id`, so a guest
+  with a platform-issued id is still a guest and still does not submit.
+- The suite ran as the regression gate for the push — green is necessary, not sufficient
+  here (the bridge sections run mocks; the 2.0.2 record says why).
+
+### THE ADVISOR'S TWO GAPS — CLOSED BY MEASUREMENT, NOT BY THE CHANGELOG
+- STORAGE. The first A/B probe threw (`storage.isSupported is not a function` — 2.x has no such
+  method; the module is `initialize/get/set/delete`, identical in both). The re-probe on
+  `?platform_id=playgama` (`scratchpad/ab-storage2.js`): `set` resolves, `get` returns the value,
+  explicit `local_storage` and `platform_internal` reads return it too, and the key lands in
+  `localStorage` verbatim — IDENTICAL in both bundles. The game is safe from any default-type
+  change BY CONSTRUCTION (`77-save.js`): `localStorage` is the primary copy, `bridge.storage.set`
+  is fire-and-forget, `bridgeSyncSave` MERGES the bridge copy monotonically — a save cannot be
+  lost by the bridge choosing another store. What DID change in the playgama adapter (token diff
+  of the adapter class, minifier renames filtered out): `_setPlatformStorageAvailable` is now
+  raised for guests too (the changelog's «cloud saves for guests»), `share()` /
+  `isShareSupported` / `isAddToHomeScreenSupported` were added, and `sendMessage(e, t)` now
+  FORWARDS every platform message except GAME_READY to `platformSdk.gameService.sendMessage`
+  (GAME_READY went to `gameService.gameReady()` before and still does, unchanged) — our
+  LEVEL_COMPLETED / LEVEL_RESUMED reach the portal from now on. ⚠️ In the portal smoke test watch
+  whether the portal answers `level_completed` with anything of its own (an interstitial we did
+  not call); the SDK side (`autoShow`) is off, the portal side is not ours to read.
+- THE CURTAIN (the `bonus.html:12403` list from the 2.0.2 bump). Colour `#242424` once in both;
+  the 400/900/1400 hide choreography and the 700 ms `.finally` progress-100 are byte-identical;
+  z-index 9999999 five times in both, the contexts differ only by minifier renames. ONE real
+  change in the loader: `setHideGate(promise)` — at progress 100 the hide waits for
+  `Promise.race([gate, 3 s])`. The gate is set ONLY when the config has `loadingSound.url`
+  (`r.loadingSound?.url && (... setHideGate(sound.finished))`); we have no such key, so the path
+  is the old `else e()`. ⛔ A SECOND LANDMINE KEY, same family as `autoShow`: `loadingSound` in
+  `playgama-bridge-config.json` would play a sound over our start and hold the curtain up to
+  3 s. It MUST NOT appear without the dispatcher's word.
+  ONE cosmetic default flipped in the loader: `showFullLoadingLogo` was opt-in
+  (`!0===r.showFullLoadingLogo`) and is opt-out now (`!1!==r.showFullLoadingLogo`) — with our
+  config (no such key) the portal curtain shows Playgama's FULL logo variant instead of the short
+  one, on every platform but Yandex/Y8. Playgama's branding on Playgama's curtain, timings
+  unchanged — left at the default; `"showFullLoadingLogo": false` is the switch if the owner
+  wants the old look.

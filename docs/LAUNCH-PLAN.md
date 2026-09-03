@@ -262,11 +262,12 @@ submitted, and this is the only step where you are needed, not me.
 **Step 4 — telemetry (1-2 sessions):** raise the receiver and switch sending on.
 Launching blind is not allowed: the data of the first days cannot be recovered.
 
-**Step 4.5 — update the platform SDK before uploading.** ⚠️ We are two patch versions
-behind (we have 2.0.0, npm has 2.0.2). The public set of functions is identical, the risk is
-low — but the patches are worth taking before publication, not after.
-⚠️ Check the version of this SDK **in npm**: the releases page and the changelog
-lag behind, and we have already made a mistake on that once.
+**Step 4.5 — update the platform SDK before uploading.** ✅ DONE 2026-09-03: the vendored
+`playgama-bridge.js` is 2.1.0, the newest tag (2.0.0 → 2.0.2 on 2026-08-01 before it).
+Re-check right before the submission: the npm package is `@playgama/bridge` now, the tags
+are at github.com/playgama/bridge/tags — the releases page and the changelog lag behind,
+and we have already made a mistake on that once. The recipe of the check (surface diff +
+live A/B) is in CLAUDE.md, batch 2026-09-03.
 
 **Step 5 — submission and a smoke test on the live platform.**
 

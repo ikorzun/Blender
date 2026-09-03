@@ -70,7 +70,7 @@ The animal name `Save.gn` + the avatar from the hash — as it is now, no change
 
 ## ⚠️ A contradiction with the canon, do not close it with theory
 
-The vendored bridge v2.0.2 (module 3941) **persists** the guest id in `localStorage` (the key `bridge-player-guest-id`), while the canon asserts three times «the guest id is new for every session» (CLAUDE.md «UNIFIED BALANCE»; docs/LEADERBOARD-PLAN.md:166, :186-188; the comment at 78-ads.js:457-458). We do NOT rewrite the canon — one live re-measurement on the bench is needed. **This does not affect our choice:** localStorage does not survive a Safari cache clear anyway, so the SDK's key cannot be our storage in any case. And we are not going to write into a private key of someone else's SDK — that is an undocumented contract, it will fall off on a bridge update.
+The vendored bridge (v2.0.2 and v2.1.0 alike, module 3941) **persists** the guest id in `localStorage` (the key `bridge-player-guest-id`), while the canon asserts three times «the guest id is new for every session» (CLAUDE.md «UNIFIED BALANCE»; docs/LEADERBOARD-PLAN.md:166, :186-188; the comment at 78-ads.js:457-458). We do NOT rewrite the canon — one live re-measurement on the bench is needed. **This does not affect our choice:** localStorage does not survive a Safari cache clear anyway, so the SDK's key cannot be our storage in any case. And we are not going to write into a private key of someone else's SDK — that is an undocumented contract, it will fall off on a bridge update.
 
 ## THE SERVICE
 ## Hosting
