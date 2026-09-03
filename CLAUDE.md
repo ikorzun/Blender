@@ -14284,7 +14284,11 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   advisor's blocking check: nobody had yet seen `initialize()` RESOLVE on 2.1.0): both bundles
   initialize (16 ms / 8 ms), `platform.id` «mock», the ads / payments / leaderboards flags
   identical (all unsupported → the game's stub mode, as before), zero page errors, zero console
-  errors, no external requests, the loader gone — identical.
+  errors, no external requests, the loader gone — identical. Then the live site ITSELF
+  (`ab.js --live=https://ikorzun.github.io/Blender/`, after the deploy check): 2.1.0 served,
+  `initialize()` resolved in 158 ms, zero page and console errors, the same 13-module census
+  (`notifications` 5 members among them); the one external call is the bridge's own
+  `api.playgama.com/api/bridge/v1/timestamp/now`.
 - `advertisement.interstitial.autoShow` in 2.1.0 is an ARRAY of platform-message names; the
   read in the bundle is `Array.isArray(t) && t.includes(e) && showInterstitial(e)`, so an
   absent key is «off». The prohibition in the 2.0.2 record stands as written.
