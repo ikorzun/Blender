@@ -14254,15 +14254,24 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   `index.html` and `playgama-bridge.js`).
 
 ### THE COMPATIBILITY — BY THE 2.0.2 RECIPE (surface diff + live A/B), NOT BY THE CHANGELOG
-- The surface, both bundles loaded into a real Chromium (`scratchpad/surface.js`): for every
-  module and dictionary that `78-ads.js` touches (platform, player, storage, advertisement,
-  payments, leaderboards; PLATFORM_MESSAGE, REWARDED_STATE, INTERSTITIAL_STATE, STORAGE_TYPE,
-  PAYMENTS, LEADERBOARD_TYPE) the method and key lists are IDENTICAL. The whole diff of 2.1.0:
+- The surface, two probes (vendored in `tools/bridge-probes/`, they need the repo's playwright):
+  (a) `surface.js` loads both bundles on a BARE page — only the top level and the
+  prototype-assigned dictionaries exist there (PLATFORM_ID, PLATFORM_MESSAGE, MODULE_NAME,
+  EVENT_NAME, the *_STATE enums, DEVICE_TYPE); the modules are created inside `initialize()` and
+  the script prints them as ABSENT. ⚠️ The first draft of that script printed NOTHING for an
+  absent module, which read as «identical» — the dispatcher's error, caught on the advisor's
+  re-read; the module census in (b) is the real one. Bare-page diff of 2.1.0:
   `bridge.notifications` + `MODULE_NAME.NOTIFICATIONS` added, seven EVENT_NAMEs added
   (CROSS_PROMO_SHOWN, DAILY_REWARDS_CLAIMED, DAILY_REWARDS_STREAK_RESET, STORAGE_SET,
   TASKS_PERIOD_ROLLED_OVER, TASKS_REWARD_CLAIMED, VISIBILITY_STATE_CHANGED),
-  `PLATFORM_ID.PLAYDECK` REMOVED. We use none of these. Zero page errors on a bare page, both.
-- The live A/B on `?platform_id=playgama` (`scratchpad/ab.js`: the repo served over http, the
+  `PLATFORM_ID.PLAYDECK` REMOVED, zero page errors in both.
+  (b) `ab.js` runs the REAL game (the repo served over http, the bundle swapped per run) and takes
+  the method census of every module after initialize: platform 17, player 9, storage 4,
+  advertisement 24, payments 6, leaderboards 5, social 19, device 8, remoteConfig 4, analytics 3,
+  achievements 3, clipboard 4 members — IDENTICAL member for member; the only addition is the
+  `notifications` module (cancel, cancelAll, initialize, isSupported, schedule). We use none of
+  the new things.
+- The live A/B on `?platform_id=playgama` (`tools/bridge-probes/ab.js`: the repo served over http, the
   bridge file swapped per run, 30 s wait for initialize): platform id, language, audio, pause,
   ads support (interstitial true / rewarded true / banner false, minDelay 60), payments
   supported, leaderboards type `in_game`, device — all IDENTICAL; the guest `player.id`
@@ -14271,6 +14280,11 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   frame for `playgama.com/platform-sdk/v1.js` to talk to, so initialize never settles — the
   same on 2.0.2, hence a bench property, not a regression. A settled initialize is verifiable
   only inside the portal (the owner's smoke test in STATUS.md).
+- The live A/B WITHOUT a platform id — the path `ikorzun.github.io/Blender/` takes today (the
+  advisor's blocking check: nobody had yet seen `initialize()` RESOLVE on 2.1.0): both bundles
+  initialize (16 ms / 8 ms), `platform.id` «mock», the ads / payments / leaderboards flags
+  identical (all unsupported → the game's stub mode, as before), zero page errors, zero console
+  errors, no external requests, the loader gone — identical.
 - `advertisement.interstitial.autoShow` in 2.1.0 is an ARRAY of platform-message names; the
   read in the bundle is `Array.isArray(t) && t.includes(e) && showInterstitial(e)`, so an
   absent key is «off». The prohibition in the 2.0.2 record stands as written.
@@ -14279,13 +14293,16 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   «platform player id is used for unauthorized players too» did not show on the bench (no
   portal); our leaderboard gate (`lbBlockedWhy`) reads `isAuthorized` BEFORE `id`, so a guest
   with a platform-issued id is still a guest and still does not submit.
-- The suite ran as the regression gate for the push — green is necessary, not sufficient
-  here (the bridge sections run mocks; the 2.0.2 record says why).
+- The suite ran as the regression gate for the push: 940 checks, 0 red — green is necessary,
+  not sufficient here (the bridge sections run mocks; the 2.0.2 record says why). Commits
+  9196895 (the bump) and 9309fe0 (STATUS); the live site verified by byte size on BOTH files.
+  WORKSTREAMS.md gets no entry: since the 2026-09-01 batches the release log lives in these
+  CLAUDE.md batch sections.
 
 ### THE ADVISOR'S TWO GAPS — CLOSED BY MEASUREMENT, NOT BY THE CHANGELOG
 - STORAGE. The first A/B probe threw (`storage.isSupported is not a function` — 2.x has no such
   method; the module is `initialize/get/set/delete`, identical in both). The re-probe on
-  `?platform_id=playgama` (`scratchpad/ab-storage2.js`): `set` resolves, `get` returns the value,
+  `?platform_id=playgama` (`tools/bridge-probes/ab-storage.js`): `set` resolves, `get` returns the value,
   explicit `local_storage` and `platform_internal` reads return it too, and the key lands in
   `localStorage` verbatim — IDENTICAL in both bundles. The game is safe from any default-type
   change BY CONSTRUCTION (`77-save.js`): `localStorage` is the primary copy, `bridge.storage.set`
