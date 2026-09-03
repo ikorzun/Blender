@@ -2370,7 +2370,7 @@ function refreshBundlePrices(){
     if (!(typeof Ads === 'object' && Ads.priceOf)) return;
     document.querySelectorAll('.st-buy[data-tier]').forEach(btn => {
       const price = Ads.priceOf('bundle' + btn.dataset.tier);
-      if (price) btn.textContent = 'Upgrade ' + price;
+      if (price) btn.textContent = 'Buy ' + price;   // the mock-up's verb (937:1517), 2026-09-03
     });
   } catch(e){}
 }

@@ -18,14 +18,18 @@ payments and the source of `PlaygamaPlatformBridge.ts` (github.com/playgama/brid
 - The purchase: the platform debits the GAM from the player itself; the JWT verification carries
   only orderId/externalId, there are no amounts in it.
 
-## Our four items (written into the config in v212)
+## Our items (the config since 2026-09-03 — ONE package, the owner's word)
 
 | id | Price USD | amount (GAM) | The player will see |
 |---|---|---|---|
-| bundle5 | $4.90 | 49 | «49 Gam» |
-| bundle3 | $9.90 | 99 | «99 Gam» |
-| bundle2 | $19.90 | 199 | «199 Gam» |
+| bundle5 | $1.99 | 20 | «20 Gam» |
 | noads_forever | $4.90 | 49 | «49 Gam» |
+
+⚠️ 2026-09-03: `bundle3` / `bundle2` are GONE from the config together with the ×3 / ×2 tiers
+(«we always sell only one package», mock-ups 937:1505 / 937:1533). `bundle5` keeps its id and
+changes its price: the mock-up's button says $1.99, and at the fixed rate that is 19.9 GAM —
+the config carries the INTEGER 20 (= $2.00, the nearest whole GAM above); 19 (= $1.90) is the
+other candidate, the owner's call. The v212 table for history: 49 / 99 / 199 / 49.
 
 ⚠️ CONSEQUENCE FOR THE UI: on playgama the player pays in GAM — buttons with a
 hard-wired «$4.90» are obliged to take the price from `bridge.payments.getCatalog()`

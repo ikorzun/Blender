@@ -460,8 +460,9 @@ storage are substituted in the same way. Everything else is one codebase.
 | Account | free | **$99 a year** |
 | Review | 1-5 days | up to a week, with a risk of rejection |
 
-**Our products in the app:** three bundles $4.99/$9.99/$19.99 — consumable
-purchases; "No more AD" $1.99 — an auto-renewable subscription. They are set up in the Apple
+**Our products in the app:** since 2026-09-03 ONE bundle — `monster.blendo.bundle5` at
+$1.99 (consumable; the ×3 / ×2 products are gone, and the existing App Store product needs its
+price tier moved $4.99 → $1.99); "No more AD" — see `noads_forever`. They are set up in the Apple
 dashboard. The in-game purchase handle is already written correctly (it takes the tier name),
 only what is hooked up to it has to be changed.
 

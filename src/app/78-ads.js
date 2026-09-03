@@ -777,9 +777,10 @@ const Ads = (function(){
   // ⛔ `noads_forever` IS DELIBERATELY ABSENT — its App Store id has not been given to me yet.
   // An unmapped id on the native path returns 'unavailable', which the HUD already renders as
   // «Coming soon». That is the honest answer; do NOT invent an id to fill this hole.
-  const NATIVE_IDS = { bundle5: 'monster.blendo.bundle5',
-                       bundle3: 'monster.blendo.bundle3',
-                       bundle2: 'monster.blendo.bundle2' };
+  // ⛔ ONE PACKAGE SINCE 2026-09-03 (the owner's word): `bundle3` / `bundle2` are gone from
+  // the table together with the tiers. The App Store product keeps its id — only its price
+  // tier changes ($4.99 → $1.99), and that is the owner's move in App Store Connect.
+  const NATIVE_IDS = { bundle5: 'monster.blendo.bundle5' };
   const GAME_IDS = Object.keys(NATIVE_IDS).reduce((m, k) => (m[NATIVE_IDS[k]] = k, m), {});
   const toNativeId = (id) => NATIVE_IDS[id] || null;
   const toGameId   = (id) => GAME_IDS[id] || id;
@@ -819,7 +820,7 @@ const Ads = (function(){
 
   // GRANTING. Bundles go into the existing META handle buyBundle (77-save).
   // ⚠️ THERE IS NOTHING TO GRANT NOADS_FOREVER WITH: `Save.na` is a TEMPORARY window, and it
-  // is set only inside buyBundle for the three bundles; there is no permanent marker in the
+  // is set only inside buyBundle for the bundles; there is no permanent marker in the
   // save at all (verified against 77-save). So here there is a call to a handle that does not
   // exist yet, and a LOUD refusal instead of a quiet "ok": to silently "buy forever" and grant
   // nothing is the worst thing you can do with a paid purchase.

@@ -14335,3 +14335,92 @@ decode the raw base64 through an `OfflineAudioContext` at a FIXED rate.
   one, on every platform but Yandex/Y8. Playgama's branding on Playgama's curtain, timings
   unchanged — left at the default; `"showFullLoadingLogo": false` is the switch if the owner
   wants the old look.
+
+## BATCH 2026-09-03-b: THE GET MORE SCREEN — ONE PACKAGE (the owner's word «redo the Get more screen, now we always sell only one package … add it to the bridge»; mock-ups 937:1505 desk. / 937:1533 mob.)
+
+### WHAT THE MOCK-UP SAYS, READ AS NUMBERS (Dev Mode + the Plugin API for the paint props)
+- One block, a column with a gap of 32: the title «×5 score» (SF Pro Rounded Black, a black fill,
+  a 13px OUTSIDE stroke in the linear gradient #c0ff47 → #47ffd7 left→right, the shadow
+  0 2 12 rgba(0,0,0,.16); desktop 117 in one line 506×117, mobile 80 in TWO lines «×5» / «score»
+  with a line-height of .9), two chips (80 high, radius 64, a 4% white fill, a 1px 16% white border
+  INSIDE, an inner shadow white 80% blur 20; a lime badge 62 high radius 32 with «+15» / «+25»
+  Heavy 24; the icon 56; the label Heavy 24 white «Shake’s» / «Tips»; desktop a row with a gap of
+  20 hugging 264/226, mobile a column with a gap of 12 full width), the description (Bold, white,
+  line-height 1; desktop 24 in two lines, mobile 20 inside insets of 40), the button (lime, 80
+  high, radius 1000, Heavy 24 black «Buy $1.99»; desktop hugs 180, mobile 264). The close is the
+  same white 56 circle with a black cross (the mock-up's «Pause-dark» instance). The frame fill
+  #2d2d2d is the canvas — the common .overlay stays (the rule from the new-item screen).
+- ⛔ THIS CANCELS the three booster cards of 783:95 / 785:112 (2026-07-28) with their whole-card
+  click, the ×3 / ×2 tiers, AND the «prices without nines» rule of 2026-07-30: the mock-up's button
+  says $1.99, and the newer word wins.
+- ⚠️ The mobile frame was found by the Plugin API, not by the link: the owner gave the desktop
+  node; his selection sat inside `Game-Screen-Final-mobile` (937:1533), whose button layer is
+  NAMED «Just Play» while its characters are «Buy $1.99» — a stale layer name, not a second
+  button. `use_figma` walked the parents; the metadata tool alone would have misled.
+
+### THE PRODUCT — ONE `bundle5`, THE ID KEPT
+- `STAR_BUNDLES` is one entry: id `bundle5`, $1.99, ×5 for 30 minutes, 15 Shake's, 25 Tips,
+  `noAdMs: 0`. The id stays because the dashboard product and the App Store id
+  `monster.blendo.bundle5` exist under it — the price and the contents change, not the identity.
+  ⚠️ NO no-ads window: the mock-up lists Shake's and Tips only; `Save.na`, `noads_forever`,
+  `grantNoAdsForever` are untouched. ⚠️ The window is WALL-CLOCK 30 minutes as before, while the
+  copy says «30 min of play» — if the owner means play time only, that is an engine change
+  (pausing the window off-level); named to him in STATUS, not done.
+- The bridge: `playgama-bridge-config.json` payments = `bundle5` at **20 GAM** + `noads_forever`
+  49. At the fixed rate 1 GAM = $0.10 (docs/GAM-PRICING.md) $1.99 is 19.9 GAM and GAM is whole:
+  20 (= $2.00) is written, 19 (= $1.90) is the alternative — the owner's call, in STATUS.
+  `bundle3` / `bundle2` are gone from the config and from `NATIVE_IDS` (78-ads) alike; the
+  wrapper's `monster.blendo.bundle5` needs its App Store price tier moved to $1.99 by the owner.
+- The label: `refreshBundlePrices` (85-hud) writes «Buy » + the live price («Buy 20 Gam» on the
+  portal); the HTML «Buy $1.99» is the fallback until the catalogue answers, as before.
+- The engine keeps windows PER multiplier key: a cloud copy from an older build with a ×2/×3
+  window plays out and dies; the merge guard (sbMerge) now measures exactly that with a foreign ×2.
+
+### HOW IT IS BUILT
+- The title is the `.otext` mechanism with a PAINT SERVER: `<linearGradient id="stGrad">` in the
+  shared `<defs>`, `.otext.st-x text { stroke:url(#stGrad) }`, `--otl:13` (stroke-width 26 under
+  paint-order:stroke = a 13px outside stroke, Figma's own geometry). Two SVGs, one shown by the
+  700 media query — an SVG <text> cannot re-flow into two lines. ⛔ The `#otlFill` slug is NOT
+  applied to the title any more (the rule at the top of shell.html names `#winScore` alone): it
+  floods WHITE under the glyphs, and under a lime→cyan outline a white patch would show; the
+  mock-up has no slug — the heavy counters fill by the 13px stroke alone. The glyph-holes guard
+  lost its 'card' arm for the same reason; the title has its own guard (the stroke is the
+  gradient, width 26, no filter, 117 / 80, the text «×5 score» in both variants).
+- The icons are the owner's PNGs `Interface/Shake-icon.png` / `Tip-icon.png` inline as base64 —
+  the same bytes the HUD buttons carry (md5 against the files on disk: c2513793…, 6828dfe7…),
+  not re-encoded, not resized (the never-change-extensions rule); +19 KB in the build
+  (12099864 → 12119124 B).
+- The hover inversion of the buy button (the owner's 2026-07-28 spec) is kept: the new mock-ups
+  show no hover state. The whole-card click went away with the cards (90-input).
+
+### MEASURED IN THE PREVIEW (Chromium: the fallback font — `ui-rounded` resolves in Safari only)
+- Desktop 1280×680: the block 510×421 at (385,130) — the mock-up's Frame 39 to the pixel; the
+  chips 262×80 / 225×80 (264/226 in the mock-up — font metrics), the badges 67/71×62, the icons
+  56, the description 510×48 at 24px, the button 180×80 at (550,471) — the mock-up's (165+385,
+  341+130) exactly; the close 56 at (16,16); the title svg 506×117, stroke `url(#stGrad)`,
+  stroke-width 26, filter none.
+- Mobile 393×852: the block 361×552 at (16,152) — the mock-up's Frame 39 exactly; the button
+  264×80 at y=624 (152+472 of the mock-up), the description 361×60 at 20px (three lines), the
+  close centred at x=169, the title svg 330×144 in two lines. ⚠️ The chips: the first pass
+  stretched them to 361 and the numbers «matched» the block; the owner re-sent the mobile node
+  with the word «always Dev Mode», and a RE-READ of the Dev Mode export (938:1688 hugs, the Tips
+  chip is w-full INSIDE that hug) gives 264 — the Shake chip's own content width, the same as
+  the button. Fixed and re-measured after the rebuild: both chips 262×80 at x=65 (264 at 64.5 in
+  the mock-up — the label's font metrics), the description reads «…of play. Tips & Shakes…» in
+  three lines, the desktop untouched (the chips row 507 of the mock-up's 510).
+- ⚠️ One defect found by the screenshot, not by the numbers: the hidden `<br>` glued «play.Tips»
+  on mobile — a space BEFORE the `<br>` (it collapses at the line end on desktop).
+
+### THE SUITE
+- Re-based onto the one package: the tiers assert (one entry, $1.99, 15/25, no no-ads), the
+  button label «Buy $1.99», the grant by the shakes and the hints (there is no no-ads window to
+  grow), the queue guard became an accumulation guard (a second package adds its own 30 minutes
+  and 15 shakes), the clock guard jumps ten minutes against the 30-minute window, the merge guard
+  holds a foreign ×2 against the live ×5, the treasure and the penalty symmetry run under ×5,
+  the IAP and the native sections speak `bundle5` / `monster.blendo.bundle5` only.
+- The first run went red on ONE arm — the new title guard itself: the mobile `<text>` is two
+  `<tspan>`s (textContent «×5score», joined with a space now) and the computed stroke-width is
+  `calc(26px)`, not «26px» (the --otl arithmetic survives into the computed value). The build was
+  right, the read was not — fixed the read, not the build. The second run: 940 checks, 0 red.
+  ⚠️ And the deploy chain misread its own WAIT TIMEOUT as a red once (a 9-minute cap against a
+  10-minute suite): a gate must tell «not finished» from «failed» — two exits, two messages.

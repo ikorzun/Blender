@@ -1462,8 +1462,10 @@ page.on('response', (r) => {
   // On a base without the device it gives 132 and 8 holey pixels (and 1339/145 at a retina ×3).
   const glyphHoles = await (async () => {
     const out = {};
-    for (const [sel, txt, name] of [['.otext.win-score', '★ 88', 'score'],
-                                   ['.otext.st-x', '×8', 'card']]) {
+    // ⛔ THE 'card' ARM (`.otext.st-x`, «×8») WENT AWAY 2026-09-03: the Get More title now has a
+    // GRADIENT outline with no white slug by the mock-up (937:1514) — its guard lives in the
+    // More-stars section (stTitle). The score keeps its slug and its arm.
+    for (const [sel, txt, name] of [['.otext.win-score', '★ 88', 'score']]) {
       const exists = await page.evaluate(([sel, txt]) => {
         const old = document.getElementById('holeProbe'); if (old) old.remove();
         const src = document.querySelector(sel); if (!src) return false;
@@ -1514,8 +1516,8 @@ page.on('response', (r) => {
     await page.evaluate(() => { const b = document.getElementById('holeProbe'); if (b) b.remove(); });
     return out;
   })();
-  expect(glyphHoles.score === 0 && glyphHoles.card === 0,
-    'THE GAPS OF THE GLYPHS: through the «8» the background is not visible either in the score or on the card (' + JSON.stringify(glyphHoles) + ')');
+  expect(glyphHoles.score === 0,
+    'THE GAPS OF THE GLYPHS: through the «8» the background is not visible in the score (' + JSON.stringify(glyphHoles) + ')');
 
   // a tap on the shake button after a restart — instantly, without a confirmation
   await page.click('#againBtn');
@@ -4906,10 +4908,10 @@ window.bridge = {
     P._list = []; P._consumed = []; P._fail = false;
     const out = {};
     // 1) THE BUNDLE: purchase -> grant -> consumption (otherwise it would be granted EVERY start)
-    const before = window.__game.bundleState().noAdLeftMs;
+    const before = window.__game.bundleState().shakes;
     out.buy = await A.purchase('bundle5');
     await wait(120);
-    out.granted = window.__game.bundleState().noAdLeftMs > before;  // the bundle is really granted
+    out.granted = window.__game.bundleState().shakes > before;  // the package is really granted (2026-09-03: by the shakes — there is no no-ads window in it)
     out.consumed = P._consumed.indexOf('bundle5') >= 0;
     // 2) NOADS_FOREVER: the meta grants it FOREVER (grantNoAdsForever -> Save.naf,
     //    v237), and the purchase is NOT consumed: it is itself the proof of ownership
@@ -4919,23 +4921,23 @@ window.bridge = {
     out.noadsForever = window.__game.noAdActive() === true; // switched on by a flag, there is no na window here
     out.noadsConsumed = P._consumed.indexOf('noads_forever') >= 0;
     // 3) RESTORE: an unconsumed purchase is granted after the fact...
-    P._list = [{ id:'bundle3', orderId:'ord_restore_1', status:'PAID' }];
+    P._list = [{ id:'bundle5', orderId:'ord_restore_1', status:'PAID' }];
     P._consumed = [];
-    const b2 = window.__game.bundleState().noAdLeftMs;
+    const b2 = window.__game.bundleState().shakes;
     out.rest1 = await A.restorePurchases();
     await wait(120);
-    out.restGranted = window.__game.bundleState().noAdLeftMs > b2;
+    out.restGranted = window.__game.bundleState().shakes > b2;
     // 4) ...but a SECOND time — no (the registry of consumed orders). We return the same
     //    purchase into the list, as if consume had not gone through: it cannot be granted again.
-    P._list = [{ id:'bundle3', orderId:'ord_restore_1', status:'PAID' }];
-    const b3 = window.__game.bundleState().noAdLeftMs;
+    P._list = [{ id:'bundle5', orderId:'ord_restore_1', status:'PAID' }];
+    const b3 = window.__game.bundleState().shakes;
     out.rest2 = await A.restorePurchases();
     await wait(120);
-    out.restTwice = window.__game.bundleState().noAdLeftMs > b3;   // we expect false
+    out.restTwice = window.__game.bundleState().shakes > b3;   // we expect false
     return out;
   });
   expect(iap.buy && iap.buy.ok === true, 'payments: the purchase of the bundle went through (' + JSON.stringify(iap.buy) + ')');
-  expect(iap.granted === true, 'payments: the bundle is REALLY granted (the no-ads window grew)');
+  expect(iap.granted === true, 'payments: the package is REALLY granted (the purchased shakes grew)');
   expect(iap.consumed === true,
     'payments: the consumable bundle is CONSUMED (without this it would be granted every start)');
   // The guard evolved TOGETHER with the handle (v237): earlier it recorded the loud
@@ -4971,7 +4973,7 @@ window.bridge = {
     const rec = { purchased: [], consumed: [], gotPurchases: 0 };
     let mode = 'ok';
     window.__nativePayments = {
-      getCatalog(){ return Promise.resolve([{ id:'monster.blendo.bundle2', price:'2,99 $' }]); },
+      getCatalog(){ return Promise.resolve([{ id:'monster.blendo.bundle5', price:'2,99 $' }]); },
       getPurchases(){ rec.gotPurchases++; return Promise.resolve([]); },
       purchase(id){
         rec.purchased.push(id);
@@ -4990,16 +4992,16 @@ window.bridge = {
     bp.isPaymentsSupported = true;
 
     // 1) A REAL PURCHASE: the full id goes out, the orderId comes back into the consume
-    out.buy = await A.purchase('bundle2');
+    out.buy = await A.purchase('bundle5');
     await wait(120);
     out.wireId   = rec.purchased[0] || null;
     out.consume  = rec.consumed[0] || null;
 
     // 2) THE REFUSAL VOCABULARY — none of these grants anything, so no state moves
-    mode = 'cancelled';   out.cancelled   = (await A.purchase('bundle2')).reason;
-    mode = 'pending';     out.pending     = (await A.purchase('bundle2')).reason;
-    mode = 'unavailable'; out.unavailable = (await A.purchase('bundle2')).reason;
-    mode = 'boom';        out.failed      = (await A.purchase('bundle2')).reason;
+    mode = 'cancelled';   out.cancelled   = (await A.purchase('bundle5')).reason;
+    mode = 'pending';     out.pending     = (await A.purchase('bundle5')).reason;
+    mode = 'unavailable'; out.unavailable = (await A.purchase('bundle5')).reason;
+    mode = 'boom';        out.failed      = (await A.purchase('bundle5')).reason;
 
     // 3) AN ID THE TABLE DOES NOT KNOW must not even reach the store
     mode = 'ok';
@@ -5014,7 +5016,7 @@ window.bridge = {
     try { delete window.__nativePayments; } catch(e){ window.__nativePayments = null; }
     const natBefore = rec.purchased.length, bridgeBefore = window.__mock.iapTried.length;
     window.bridge.payments._fail = true;
-    await A.purchase('bundle2');
+    await A.purchase('bundle5');
     window.bridge.payments._fail = false;
     out.wentToBridge  = window.__mock.iapTried.length > bridgeBefore;
     out.fakeUntouched = rec.purchased.length === natBefore;
@@ -5025,11 +5027,11 @@ window.bridge = {
     'unsupported (a bare «paymentsOn is true» would have passed with no shim at all)');
   expect(nat.buy && nat.buy.ok === true,
     'payments/native: the purchase through the native provider went through (' + JSON.stringify(nat.buy) + ')');
-  expect(nat.wireId === 'monster.blendo.bundle2',
+  expect(nat.wireId === 'monster.blendo.bundle5',
     '⚠️⚠️ payments/native: the FULL store id goes out on the wire, not the short one (' + nat.wireId + ')');
-  expect(!!nat.consume && nat.consume[0] === 'monster.blendo.bundle2',
+  expect(!!nat.consume && nat.consume[0] === 'monster.blendo.bundle5',
     'payments/native: the consume is addressed by the full store id (' + JSON.stringify(nat.consume) + ')');
-  expect(!!nat.consume && nat.consume[1] === 'txn_monster.blendo.bundle2_777',
+  expect(!!nat.consume && nat.consume[1] === 'txn_monster.blendo.bundle5_777',
     '⚠️⚠️ payments/native: the consume receives THE ORDERID OF THIS VERY TRANSACTION — ' +
     'closing by product id alone kills an Ask-to-Buy duplicate UNGRANTED (' + JSON.stringify(nat.consume) + ')');
   expect(!!nat.consume && nat.consume[2] === 2,
@@ -5076,19 +5078,19 @@ window.bridge = {
     const out = {};
 
     // 1) a purchase whose order number is 0 must still carry that number into the consume
-    await A.purchase('bundle2');
+    await A.purchase('bundle5');
     await wait(120);
     out.consumedWith = rec.consumed.length ? rec.consumed[0] : 'NOTHING';
 
     // 2) and the same transaction, coming back unfinished, must NOT be granted a second time
-    list = [{ id: 'monster.blendo.bundle2', orderId: 0 }];
+    list = [{ id: 'monster.blendo.bundle5', orderId: 0 }];
     const r1 = await A.restorePurchases();
     await wait(60);
     out.restoredAgain = r1 && r1.restored;      // must be 0 — the ledger already holds it
     out.skipped = r1 && r1.skipped;             // must be 1
 
     // 3) a genuinely absent order number keeps its old meaning: block nothing
-    list = [{ id: 'monster.blendo.bundle2' }];  // no orderId at all
+    list = [{ id: 'monster.blendo.bundle5' }];  // no orderId at all
     const r2 = await A.restorePurchases();
     out.absentStillGrants = r2 && r2.restored;  // must be 1 — unchanged behaviour
 
@@ -5477,25 +5479,44 @@ window.bridge = {
     g.boostClear();
     const tiers = g.bundles();
     const idle = { mult: g.scoreBoostMult(), noAd: g.noAdActive(), shakes: g.purchasedShakes() };
-    const hints0 = g.wallet().hints;
-    const buy = g.buyBundle('bundle2');            // $19.90: x2/day + 50 shakes + 30 hints + a month without ads
+    const hints0 = g.wallet().hints, shakes0 = g.purchasedShakes();
+    const buy = g.buyBundle('bundle5');            // $1.99: x5/30 min + 15 shakes + 25 tips, NO no-ads window (2026-09-03)
     const st = g.bundleState();
     // ⚠️ The price on the button is HARDCODED TEXT in shell.html, the platform's catalogue does not
     // substitute it. That means the config and the markup have to be cross-checked, otherwise the player will see
     // one price while another is charged — and we will learn about it from him, not from the suite.
     const btnLabels = [...document.querySelectorAll('.st-buy')].map(b => b.textContent.trim());
-    return { tiers, idle, hints0, buy, st, hints1: g.wallet().hints, btnLabels };
+    return { tiers, idle, hints0, shakes0, buy, st, hints1: g.wallet().hints, btnLabels };
   });
-  // ⚠️ PRICES WITHOUT NINES — the owner's spec 2026-07-30 «prices everywhere without the last
-  // 9 cents, i.e. 4.90, 9.90, 19.90». The assert holds THREE things at once: the price,
-  // the order of the tiers and the fact that the text of the buttons in shell.html has not drifted apart from the config
-  // (the price there is HARDCODED IN HTML, the platform's catalogue does not substitute it).
-  expect(sbProbe.tiers.length === 3 && sbProbe.tiers[0].usd === 4.90
-      && sbProbe.tiers[1].usd === 9.90 && sbProbe.tiers[2].usd === 19.90
-      && sbProbe.tiers[2].shakes === 50,
-    'the bundle tiers follow the spec ($4.90 x5, $9.90 x3, $19.90 x2 = 50 shakes) (' + JSON.stringify(sbProbe.tiers.map(t=>t.usd)) + ')');
-  expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Upgrade $4.90|Upgrade $9.90|Upgrade $19.90',
-    'the price tags on the BUTTONS match the config (' + JSON.stringify(sbProbe.btnLabels) + ')');
+  // ⛔ ONE PACKAGE SINCE 2026-09-03 (the owner's word «we always sell only one package», the
+  // mock-ups 937:1505 / 937:1533): ×5 for 30 minutes + 15 Shake's + 25 Tips at $1.99, no no-ads
+  // window. This CANCELS the three tiers of 2026-07-28 and, with them, the «prices without
+  // nines» rule of 2026-07-30 — the mock-up's button says $1.99, and the mock-up is the newer word.
+  // The assert still holds the contents AND the button text at once (the fallback label is
+  // HARDCODED IN HTML; the platform's catalogue overwrites it only when it answers).
+  expect(sbProbe.tiers.length === 1 && sbProbe.tiers[0].id === 'bundle5' && sbProbe.tiers[0].usd === 1.99
+      && sbProbe.tiers[0].mult === 5 && sbProbe.tiers[0].ms === 30 * 60 * 1000
+      && sbProbe.tiers[0].shakes === 15 && sbProbe.tiers[0].hints === 25 && sbProbe.tiers[0].noAdMs === 0,
+    'ONE package: bundle5 = $1.99, x5 for 30 min, 15 shakes, 25 tips, no no-ads window (' + JSON.stringify(sbProbe.tiers) + ')');
+  expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Buy $1.99',
+    'the ONE buy button carries the mock-up label «Buy $1.99» (' + JSON.stringify(sbProbe.btnLabels) + ')');
+  // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
+  // server (stroke-width 26 under paint-order:stroke), NO #otlFill slug (it floods white), 117 on
+  // the desktop variant and 80 on the mobile one. Read from the live nodes — computed styles
+  // resolve inside the hidden overlay.
+  const stTitle = await page.evaluate(() => {
+    // ⚠️ the mobile <text> is two <tspan>s with no whitespace between them — joined with a space here,
+    // and stroke-width computes as `calc(26px)` (the --otl arithmetic survives into the computed value)
+    const q = sel => { const t = document.querySelector(sel + ' text'); const cs = getComputedStyle(t);
+      const sp = [...t.querySelectorAll('tspan')];
+      return { stroke: cs.stroke, sw: cs.strokeWidth, filter: cs.filter, size: cs.fontSize,
+               text: (sp.length ? sp.map(x => x.textContent.trim()).join(' ') : t.textContent).replace(/\s+/g, ' ').trim() }; };
+    return { d: q('.otext.st-x-d'), m: q('.otext.st-x-m'), grad: !!document.getElementById('stGrad') };
+  });
+  expect(stTitle.grad && /stGrad/.test(stTitle.d.stroke) && /stGrad/.test(stTitle.m.stroke)
+      && /\b26px\b/.test(stTitle.d.sw) && /\b26px\b/.test(stTitle.m.sw) && stTitle.d.filter === 'none' && stTitle.m.filter === 'none'
+      && stTitle.d.size === '117px' && stTitle.m.size === '80px' && stTitle.d.text === '×5 score' && stTitle.m.text === '×5 score',
+    'the «×5 score» title: the lime→cyan gradient outline 13 (stroke-width 26 under paint-order), no white slug filter, 117 desktop / 80 mobile (' + JSON.stringify(stTitle) + ')');
   // ⚠️ THE CLOSING CROSS IS ALWAYS white with a black cross (the owner's spec
   // 2026-07-31: «the colour of the icon does not depend on the time of day» — the overlay is dark in
   // both themes, the system rule --btn-bg gave a dark button on dark during the day).
@@ -5516,28 +5537,29 @@ window.bridge = {
     'the More Stars cross is always white with a black cross, regardless of the time of day (' + JSON.stringify(stClose) + ')');
   expect(sbProbe.idle.mult === 1 && sbProbe.idle.noAd === false,
     'without a bundle: multiplier 1, ads are not disabled (' + JSON.stringify(sbProbe.idle) + ')');
-  expect(sbProbe.buy.ok && sbProbe.st.mult === 2 && sbProbe.st.shakes === 50 &&
-         sbProbe.hints1 === sbProbe.hints0 + 30 && sbProbe.st.noAdLeftMs > 29 * 24 * 3600 * 1000,
-    'the bundle handed out EVERYTHING at once: x2 + 50 shakes + 30 hints + a month without ads (' + JSON.stringify(sbProbe.st) + ')');
+  expect(sbProbe.buy.ok && sbProbe.st.mult === 5 && sbProbe.st.shakes === sbProbe.shakes0 + 15 &&
+         sbProbe.hints1 === sbProbe.hints0 + 25 && sbProbe.st.noAdLeftMs === 0,
+    'the package handed out EVERYTHING at once: x5 + 15 shakes + 25 tips, and NO no-ads window — the mock-up has none (' + JSON.stringify(sbProbe.st) + ')');
 
-  // ⚠️ THE QUEUE OF TIERS: multipliers do NOT stack — the strongest one plays, time accumulates
-  // for ITS OWN tier. Rejecting the purchase is not allowed: consumables ride inside the bundle.
+  // ⚠️ TIME ACCUMULATES FOR ITS OWN TIER, CONSUMABLES ADD UP: a second package on top of a live
+  // one adds its own 30 minutes and its own 15 shakes — nothing burns, nothing is refused (a
+  // refusal would eat the consumables that were paid for). The queue of DIFFERENT tiers (the
+  // strongest plays, the weaker one's time waits) is measured below in sbMerge with a foreign
+  // ×2 window: since 2026-09-03 the game sells one tier, the engine still keeps them apart.
   const sbQueue = await page.evaluate(() => {
     const g = window.__game;
     const before = g.bundleState();
-    const buy = g.buyBundle('bundle5');            // x5/30min on top of the active x2/day
+    const buy = g.buyBundle('bundle5');            // a second x5/30min on top of the live one
     const after = g.bundleState();
-    const t2 = after.tiers.find(t => t.mult === 2), t5 = after.tiers.find(t => t.mult === 5);
-    return { before, buy, mult: after.mult, left2: t2.leftMs, left5: t5.leftMs,
-             shakes: after.shakes, wasLeft2: before.tiers.find(t => t.mult === 2).leftMs };
+    const t5 = after.tiers.find(t => t.mult === 5);
+    return { buy, mult: after.mult, left5: t5.leftMs, wasLeft5: before.tiers.find(t => t.mult === 5).leftMs,
+             shakes: after.shakes, wasShakes: before.shakes };
   });
   expect(sbQueue.buy.ok && sbQueue.mult === 5,
-    'the strongest tier plays: x5 on top of x2 (' + sbQueue.mult + ')');
-  expect(sbQueue.left5 > 29 * 60 * 1000 && sbQueue.left5 <= 30 * 60 * 1000,
-    'x5 got ITS OWN 30 minutes (' + Math.round(sbQueue.left5/60000) + ' min)');
-  expect(Math.abs(sbQueue.left2 - sbQueue.wasLeft2) < 5000,
-    '⚠️ THE QUEUE: the x2 time did NOT burn under x5 — it will come back afterwards (' + Math.round(sbQueue.left2/3600000) + ' h)');
-  expect(sbQueue.shakes === 60, 'bundle consumables simply add up (50+10=' + sbQueue.shakes + ')');
+    'a second package keeps x5 playing (' + sbQueue.mult + ')');
+  expect(sbQueue.left5 > sbQueue.wasLeft5 + 29 * 60 * 1000 && sbQueue.left5 <= sbQueue.wasLeft5 + 30 * 60 * 1000,
+    'the second package ADDED its own 30 minutes to the live window (' + Math.round(sbQueue.wasLeft5/60000) + ' -> ' + Math.round(sbQueue.left5/60000) + ' min)');
+  expect(sbQueue.shakes === sbQueue.wasShakes + 15, 'package consumables simply add up (+15 = ' + sbQueue.shakes + ')');
 
   // ⚠️ THE «ROLLBACK UNDER THE SLACK» EXPLOIT (found by an adversarial run of matrix No. 3, was in
   // prod v131-v135): a rollback EXACTLY within the previous slack was not detected, while
@@ -5559,20 +5581,22 @@ window.bridge = {
   expect(sbExploit.minutes[6] === 0,
     'the window burns down in exactly its own time at ANY rollback cadence (' + sbExploit.minutes + ')');
 
-  // THE CLOCK: a one-off big jump does NOT burn what was paid for (a write-off cap), there is no brick
+  // THE CLOCK: a one-off big jump does NOT burn what was paid for (a write-off cap), there is no brick.
+  // ⚠️ Re-based 2026-09-03 onto the one package: the paid window is x5 for 30 minutes (the
+  // month-long no-ads window went away with the ×2 tier), so the jump is ten minutes, not an hour.
   const sbClock = await page.evaluate(() => {
     const g = window.__game;
     g.boostClear(); g.boostSetClock(0);
-    g.buyBundle('bundle2');                                   // x2 for a day + a month of no-Ad
-    const before = { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
-    g.boostSetClock(Date.now() + 60 * 60 * 1000);             // a clock jump by an hour
-    const after = { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
+    g.buyBundle('bundle5');                                   // x5 for 30 minutes
+    const before = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
+    g.boostSetClock(Date.now() + 10 * 60 * 1000);             // a clock jump by ten minutes
+    const after = { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
     const lsGap = g.boostRaw().ls - Date.now();
-    return { before, after, lsGap, lostMin: +((before.noAd - after.noAd) / 60000).toFixed(1) };
+    return { before, after, lsGap, lostMin: +((before.left - after.left) / 60000).toFixed(1) };
   });
-  expect(sbClock.after.mult === 2 && sbClock.after.noAd > 0,
-    '⚠️ THE CLOCK: a one-off jump did NOT burn the paid windows (mult ' + sbClock.after.mult + ')');
-  expect(sbClock.lostMin > 55 && sbClock.lostMin < 65,
+  expect(sbClock.after.mult === 5 && sbClock.after.left > 0,
+    '⚠️ THE CLOCK: a one-off jump did NOT burn the paid window (mult ' + sbClock.after.mult + ')');
+  expect(sbClock.lostMin > 9 && sbClock.lostMin < 11,
     'the clock: a jump costs EXACTLY itself, not a second more (' + sbClock.lostMin + ' min)');
   expect(Math.abs(sbClock.lsGap) < 10000,
     '⚠️ THE CLOCK: the mark is resynchronized — there is no eternal sticking (' + sbClock.lsGap + ' ms)');
@@ -5580,24 +5604,26 @@ window.bridge = {
     const g = window.__game;
     g.boostSetClock(Date.now() + 2 * 60 * 60 * 1000);
     g.scoreBoostMult();
-    g.buyBundle('bundle2');
-    return { mult: g.scoreBoostMult(), noAd: g.noAdLeftMs() };
+    g.buyBundle('bundle5');
+    return { mult: g.scoreBoostMult(), left: g.scoreBoostLeftMs() };
   });
-  expect(sbAfterIncident.noAd > 20 * 24 * 3600 * 1000,
-    '⚠️ NO BRICK: a bundle bought AFTER the clock jump works (' + Math.round(sbAfterIncident.noAd/86400000) + ' d)');
+  expect(sbAfterIncident.mult === 5 && sbAfterIncident.left > 25 * 60 * 1000,
+    '⚠️ NO BRICK: a package bought AFTER the clock jump works (' + Math.round(sbAfterIncident.left/60000) + ' min)');
 
-  // MERGE: windows are merged by max BY THE MULTIPLIER KEY — a foreign short x5 does not upgrade
+  // MERGE: windows are merged by max BY THE MULTIPLIER KEY — a foreign window lands in ITS OWN
+  // key. ⚠️ Since 2026-09-03 the game sells x5 only, so the foreign one is a x2 from an older
+  // build's cloud copy: it must neither upgrade nor touch the live x5, and the STRONGEST plays.
   const sbMerge = await page.evaluate(() => {
     const g = window.__game;
-    g.boostClear(); g.buyBundle('bundle2');        // mine: x2 for a day
-    const mine = g.bundleState().tiers.find(t => t.mult === 2).leftMs;
-    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: { 5: Date.now() + 10 * 60 * 1000 } });
-    const withCloud5 = g.bundleState();
-    const still2 = withCloud5.tiers.find(t => t.mult === 2).leftMs;
-    return { mine, mult: withCloud5.mult, left5: withCloud5.tiers.find(t => t.mult === 5).leftMs, still2 };
+    g.boostClear(); g.buyBundle('bundle5');        // mine: x5 for 30 minutes
+    const mine = g.bundleState().tiers.find(t => t.mult === 5).leftMs;
+    g.mergeRaw({ gen: g.saveRaw().gen || 0, bx: { 2: Date.now() + 10 * 60 * 1000 } });
+    const after = g.bundleState(), bx = g.boostRaw().bx || {};
+    const still5 = after.tiers.find(t => t.mult === 5).leftMs;
+    return { mine, mult: after.mult, foreign2: Math.max(0, (bx[2] || 0) - Date.now()), still5 };
   });
-  expect(sbMerge.mult === 5 && sbMerge.left5 > 0 && Math.abs(sbMerge.still2 - sbMerge.mine) < 5000,
-    '⚠️ MERGE: the foreign x5 landed in ITS OWN key without touching x2 (' + JSON.stringify(sbMerge) + ')');
+  expect(sbMerge.mult === 5 && sbMerge.foreign2 > 0 && Math.abs(sbMerge.still5 - sbMerge.mine) < 5000,
+    '⚠️ MERGE: the foreign x2 landed in ITS OWN key without touching the live x5, and x5 still plays (' + JSON.stringify(sbMerge) + ')');
 
   // PURCHASED SHAKES: the spending order and the anti-dupe
   const sbShakes = await page.evaluate(() => {
@@ -5670,7 +5696,7 @@ window.bridge = {
     'control: without a bundle the treasure gives exactly 150+5×lv (' + sbPlainFinale + ' at lv.' + sbExact.lv + ')');
   const sbBoosted = await page.evaluate(async () => {
     const g = window.__game;
-    g.buyBundle('bundle2');                        // x2
+    g.buyBundle('bundle5');                        // x5 — the one package (2026-09-03)
     g.boostGrantForSurprise();                     // the precondition of the treasure
     if (g.levelNum() < 11) g.setLevel(11);
     g.regen(); g.skipIntro(); g.level().finalRefillDone = true; // the top-up is somebody else's (v234)
@@ -5679,8 +5705,8 @@ window.bridge = {
   });
   await page.waitForFunction(() => window.__game.alive() === 0, null, { timeout: 40000 });
   const sbBoostedFinale = await page.evaluate(() => window.__game.stats().score);
-  expect(sbBoosted.mult === 2 && sbBoostedFinale === 2 * (150 + 5 * sbBoosted.lv),
-    '⚠️ THE x2 BUNDLE MULTIPLIES EXACTLY: the treasure ' + sbBoostedFinale + ' = 2×(150+5×' + sbBoosted.lv + ')');
+  expect(sbBoosted.mult === 5 && sbBoostedFinale === 5 * (150 + 5 * sbBoosted.lv),
+    '⚠️ THE x5 PACKAGE MULTIPLIES EXACTLY: the treasure ' + sbBoostedFinale + ' = 5×(150+5×' + sbBoosted.lv + ')');
   await page.evaluate(() => { window.__game.boostClear(); });
 
   // ── PENALTIES UNDER THE BOOSTER (the owner's decision 2026-07-28) ───────────────────
@@ -5695,7 +5721,7 @@ window.bridge = {
     g.penalizeTest();                                  // a miss without the booster
     const plain = s0 - g.stats().score;
     const nPlain = g.stats().missRun;                  // the ordinal it was charged at
-    g.buyBundle('bundle2');                            // x2
+    g.buyBundle('bundle5');                            // x5 — the one package (2026-09-03)
     const s1 = g.stats().score;
     g.penalizeTest();
     const boosted = s1 - g.stats().score;
@@ -5722,12 +5748,12 @@ window.bridge = {
   // since the last merge. Here the two coincide (nothing merges between the two misses), and
   // that is precisely why the read has to be the RIGHT one — `misses` would keep this section
   // green while the game charged a different rung anywhere a merge intervened.
-  expect(penSym.plain > 0 && penSym.mult === 2 &&
+  expect(penSym.plain > 0 && penSym.mult === 5 &&
          penSym.nBoost === penSym.nPlain + 1 &&
          penSym.plain === penSym.rungPlain &&
          penSym.boosted === Math.round(penSym.rungBoost * penSym.mult) &&
          penSym.rungBoost > penSym.rungPlain,
-    '⚠️ SYMMETRY: under x2 a miss costs exactly ×2 — the RATIO is the statement, not the amount ' +
+    '⚠️ SYMMETRY: under x5 a miss costs exactly ×5 — the RATIO is the statement, not the amount ' +
     '(' + JSON.stringify(penSym) + '). ⚠️ THE `rungBoost > rungPlain` ARM IS NOT DECORATION: it ' +
     'is what proves the two measurements really did land on different rungs, so the assert ' +
     'cannot quietly degenerate back into comparing a miss with itself');

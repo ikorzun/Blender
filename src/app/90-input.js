@@ -640,7 +640,8 @@ $('msDiff').addEventListener('click', e => {
 });
 // Get More / Subscribe / Boost / Open — ECONOMIC FORKS (META/INTEGRATION):
 // on a placeholder until the owner's decision, the action is a «coming soon» note
-// «MORE STARS» (Get More) — the screen of the booster bundles (mockups 783:95 / 785:112).
+// «GET MORE» — the ONE-package screen (the owner's word 2026-09-03, mockups 937:1505 / 937:1533);
+// until then it was the screen of three booster bundles (783:95 / 785:112).
 // It opens ON TOP of the menu; the game is already on the menu's pause, we do NOT set our
 // own pause (the ownership of the pause belongs to openMainScreen, going in there is not
 // allowed, see CLAUDE.md).
@@ -649,15 +650,8 @@ $('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
 // THE PURCHASE goes through the META handle buyBundle(tier). The handle may not exist
 // yet: then we CREDIT NOTHING (a mock crediting is forbidden — this is currency), and we
 // behave like the former Get More in a test build: the «Coming soon» toast + console.warn.
-// A CLICK/TAP ON THE WHOLE CARD = A CLICK ON THE PURCHASE BUTTON (the owner's spec
-// 2026-07-28). ⚠️ We skip a click on the BUTTON ITSELF — otherwise the purchase would go
-// TWICE (the button's handler + this one). The delegation is on the overlay: the cards are
-// static, but this way the rule will survive a possible rebuild of the markup.
-$('starsOverlay').addEventListener('click', (e) => {
-  if (e.target.closest('.st-buy')) return;      // the button will do the work itself
-  const card = e.target.closest('.st-card'); if (!card) return;
-  const btn = card.querySelector('.st-buy'); if (btn) btn.click();
-});
+// ⛔ THE WHOLE-CARD CLICK (the owner's spec 2026-07-28) WENT AWAY WITH THE CARDS (2026-09-03):
+// the one-package screen has no card, the button is the only purchase control.
 document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
   btn.addEventListener('click', ()=>{
     // ⚠️ THE NAME OF THE TIER IS A STRING, AND NOT A NUMBER. Here stood `+btn.dataset.tier`,

@@ -418,11 +418,18 @@ const AD_HINTS_PER_LEVEL = 2;
 // ⚠️ BUNDLES (the owner's mockups 783:95 / 785:112, 2026-07-28) — CANCEL the bare
 // ladder $1.99/$3.99/$19.99: a tier carries a multiplier window + consumables + a window without
 // ads. The multiplier↔time mapping is the same as before (short = strong).
+// ⛔⛔ ONE PACKAGE SINCE 2026-09-03 (the owner's word «we always sell only one package»,
+// the mock-ups 937:1505 desk. / 937:1533 mob.): ×5 score for 30 minutes + 15 Shake's + 25 Tips
+// for $1.99. The ×3 / ×2 tiers are GONE — from the config, the payments catalogue and the
+// wrapper's id table alike; the engine below still keeps windows PER multiplier key (a cloud
+// copy from an older build may carry a ×2/×3 window — it plays out and dies, nothing to migrate).
+// ⚠️ NO no-ads window in the package: the mock-up lists Shake's and Tips only. `noAdMs: 0` is the
+// mock-up's word, not an oversight — `Save.na` and `noads_forever` are untouched.
+// ⚠️ The id STAYS `bundle5`: the dashboard product and the App Store id `monster.blendo.bundle5`
+// already exist under that name; what changes is the price and the contents, not the identity.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STAR_BUNDLES = [
-  { id: 'bundle5', usd: 4.90,  mult: 5, ms: 30 * 60 * 1000, shakes: 10, hints: 15, noAdMs: 1 * DAY_MS },
-  { id: 'bundle3', usd: 9.90,  mult: 3, ms: 60 * 60 * 1000, shakes: 15, hints: 20, noAdMs: 3 * DAY_MS },
-  { id: 'bundle2', usd: 19.90, mult: 2, ms: DAY_MS,         shakes: 50, hints: 30, noAdMs: 30 * DAY_MS },
+  { id: 'bundle5', usd: 1.99, mult: 5, ms: 30 * 60 * 1000, shakes: 15, hints: 25, noAdMs: 0 },
 ];
 // Clock slack: a time change/DST/drift must not kill a paid booster,
 // but a rollback further back than the slack is treated as an attempt to extend it manually.

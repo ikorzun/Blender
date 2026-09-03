@@ -1,54 +1,62 @@
 {
-  "platforms": {},
-  "payments": [
-    { "id": "bundle5",       "playgama": { "amount": 49 } },
-    { "id": "bundle3",       "playgama": { "amount": 99 } },
-    { "id": "bundle2",       "playgama": { "amount": 199 } },
-    { "id": "noads_forever", "playgama": { "amount": 49 } }
-  ],
-  "advertisement": {
-    "interstitial": {
-      "placementFallback": "level_completed",
-      "placements": [
+    "platforms": {},
+    "payments": [
         {
-          "id": "level_completed"
+            "id": "bundle5",
+            "playgama": {
+                "amount": 20
+            }
+        },
+        {
+            "id": "noads_forever",
+            "playgama": {
+                "amount": 49
+            }
         }
-      ]
+    ],
+    "advertisement": {
+        "interstitial": {
+            "placementFallback": "level_completed",
+            "placements": [
+                {
+                    "id": "level_completed"
+                }
+            ]
+        },
+        "rewarded": {
+            "placementFallback": "rewarded",
+            "placements": [
+                {
+                    "id": "shake"
+                },
+                {
+                    "id": "continue"
+                },
+                {
+                    "id": "x2"
+                },
+                {
+                    "id": "magnet"
+                }
+            ]
+        }
     },
-    "rewarded": {
-      "placementFallback": "rewarded",
-      "placements": [
-        {
-          "id": "shake"
-        },
-        {
-          "id": "continue"
-        },
-        {
-          "id": "x2"
-        },
-        {
-          "id": "magnet"
+    "saas": {
+        "publicToken": "cms68frqf0008ri0h81k1dujg",
+        "leaderboards": {
+            "platforms": [
+                "crazy_games",
+                "playgama",
+                "poki",
+                "y8",
+                "yandex"
+            ]
         }
-      ]
-    }
-  },
-  "saas": {
-    "publicToken": "cms68frqf0008ri0h81k1dujg",
-    "leaderboards": {
-      "platforms": [
-        "crazy_games",
-        "playgama",
-        "poki",
-        "y8",
-        "yandex"
-      ]
-    }
-  },
-  "leaderboards": [
-    {
-      "id": "Blendo",
-      "isMain": true
-    }
-  ]
+    },
+    "leaderboards": [
+        {
+            "id": "Blendo",
+            "isMain": true
+        }
+    ]
 }

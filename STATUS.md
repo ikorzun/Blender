@@ -26,6 +26,11 @@ match · the live site verified byte-for-byte against the build · portal packag
 - **The props cadence restored**: 6, 9, 12 … 60, every gap exactly 3; nothing before level 51 moved.
 - **Final screen**: the reward badge is a circle on one digit (36×36), the pills are circles.
 - **Removed**: `07-matcap-bomb.js` (168 KB painting nothing) and the `release/` folder.
+- **The Get More screen is ONE package** (3 September, your mock-ups 937:1505 / 937:1533): ×5 score
+  for 30 min + 15 Shake's + 25 Tips for $1.99 — the three cards are gone, the bridge catalogue and
+  the wrapper's id table carry `bundle5` alone (+ `noads_forever`). No no-ads window in the package:
+  the mock-up lists Shake's and Tips only. The window is wall-clock 30 minutes, as before («30 min
+  of play» in the copy) — say if it should count play time only.
 - **Platform SDK (Playgama Bridge) 2.0.2 → 2.1.0** (3 September): the newest tag, checked the way the
   canon demands — the public surface of every module we use is identical, a live A/B on
   `?platform_id=playgama` is identical, the config untouched. The npm package is `@playgama/bridge`
@@ -42,7 +47,10 @@ payment tests are on it.
 
 ## What is waiting for YOUR actions (the pre-launch checklist is in the 2026-09-02 report)
 
-1. Playgama dashboard — products: `bundle5` 4.90 / `bundle3` 9.90 / `bundle2` 19.90 (Consumable);
+1. Playgama dashboard — ONE product since 3 September: `bundle5` (Consumable) — the config
+   charges **20 Gam** for it (= $2.00 at the fixed rate; the mock-up says $1.99, which is 19.9 Gam
+   and GAM is whole — say «19» if you want $1.90 instead). Delete `bundle3` / `bundle2` there.
+   App Store: `monster.blendo.bundle5` keeps its id, move its price tier to $1.99.
    `noads_forever` only if you decide, and NOT Consumable.
 2. Store listing: icon 1024×1024, cover 1920×1080 (+1080×1920), 4–6 screenshots.
    Texts are ready in `docs/STORE-LISTING.md`.
