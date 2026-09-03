@@ -630,8 +630,42 @@
   /* a 72px stack as in the mock-up, but it grows to the left on long numbers: in the mock-up
      the score is three-digit, while in the game by the 3rd level it is five-digit and «★ 12480»
      was tearing onto two lines */
-  #statStack { flex-direction:column; align-items:flex-end; gap:2px; min-width:72px; }
+  #statStack { flex-direction:column; align-items:flex-end; gap:2px; min-width:72px; position:relative; }
   #statStack > * { white-space:nowrap; }
+  /* THE «x5 float» (947:3670): 106×114, a 20% white fill, a 1px 20% white border INSIDE, radius 24,
+     padding 18/8/8/8, a column with a gap of 16; the title 27 Black in two lines at a line-height
+     of .7 (the box 75×38), a black fill, the gradient outline 7 OUTSIDE under a white outline 3,
+     the shadow 0 4 25 8%; the button 88×32 white, radius 80, padding 8/20, Bold 18 black, a 1px
+     60% white border inside and a white inner glow 10.
+     THE PLACE (the owner's word): under the score with a gap of 20; the RIGHT EDGE FLUSH WITH
+     THE SCORE'S on both layouts (his correction on the live screens: «the right inset is the
+     same as the score's» — it cancels the «20 from the right edge» of the first word). Out of
+     flow, anchored to #statStack: its bottom is the score's bottom and its right edge is the
+     score's right edge on both layouts — hence `right:0`.
+     ⚠️ `pointer-events:auto` is load-bearing: the whole bar is pointer-events:none. */
+  /* ⚠️ `--x5f-dr` = the stack's right edge minus the SCORE FRAME's right edge, written by fitStat
+     (85-hud) every time the score is re-fitted: on desktop the frame sits CENTRED in the stack's
+     72px minimum slot while the score is 1–2 digits (`#topBar .grp { align-items:center }` on a
+     column), so «flush with the score» is a moving edge there; on mobile it is 0. */
+  .x5f { position:absolute; top:calc(100% + 20px); right:var(--x5f-dr, 0px); box-sizing:border-box; width:106px; height:114px;
+    padding:18px 8px 8px; display:flex; flex-direction:column; align-items:center; gap:16px;
+    background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.2); border-radius:24px;
+    font-family:var(--font-round); pointer-events:auto; }
+  .x5f-x { width:75px; height:38px; filter:drop-shadow(0 4px 25px rgba(0,0,0,.08)); }
+  .otext.x5f-x text { font-size:27px; fill:#000; }
+  .otext.x5f-x .x5f-grad { --otl:7; stroke:url(#stGrad); }
+  .otext.x5f-x .x5f-white { --otl:3; --otl-color:#fff; }
+  /* ⚠️ THE LABEL IS CENTRED BY FLEX, NOT BY PADDING: with `padding:8px` the 21.5px line box of
+     Bold 18 overflowed the 14px content box downwards and the word sat 3.75px low (measured;
+     the owner: «the text is not centred in the button»). */
+  .x5f-btn { box-sizing:border-box; height:32px; padding:0 20px; border-radius:80px; background:#fff;
+    display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.6); box-shadow:inset 0 0 10px #fff; color:#000;
+    font-family:var(--font-round); font-size:18px; font-weight:700; line-height:normal; cursor:pointer; }
+  .x5f-btn:active { transform:scale(.97); }
+  /* THE PHONE: «scale it down proportionally by 30%» — a transform from the top right corner, so
+     both 20px gaps stay exactly where he put them */
+  @media (max-width:767px){ .x5f { transform:scale(.7); transform-origin:top right; } }
   /* round icon buttons 56 px, pill radius (var(--rounded,1000px) in the mock-up) */
   /* ROUND BUTTONS (pause, hint) — the geometry is from the mock-ups 778:728/769:132
      and 769:123·778:708/769:114: pill radius 1000, the icon exactly 32.
@@ -1889,7 +1923,14 @@
   .win-time { flex:none; width:80px; height:34px; }
   .otext.win-time text { font-size:24px; --otl:0; fill:#fff; }  /* 24 by node 891:4314; no outline, white — 2026-08-23-e */
   /* ⚠️ The overlap of the score onto the sticker is from the node (`mb:-24` at the sticker's frame). */
-  .win-score { width:min(320px, 86vw); height:auto; margin-top:-24px; }
+  /* ⚠️ THE SCORE PAINTS ABOVE THE «SAVED» STICKER (the owner's word 2026-09-03 on the live
+     screen: «it must be behind the score, not in front of it as now»). The sticker carries a
+     transform (the −10.6° tilt, and the stamp animation's fill), and a transformed element paints
+     in the positioned phase — AFTER an in-flow sibling, whatever the DOM order. And the sticker is
+     a FLEX ITEM of .win-headline carrying `z-index:2` (z-index applies to flex items even when
+     static) — so the score needs 3, not 1: measured by hit-testing, 1 left the sticker on top.
+     `position:relative; z-index:3` lifts the score into that phase above it; the overlap is unchanged. */
+  .win-score { width:min(320px, 86vw); height:auto; margin-top:-24px; position:relative; z-index:3; }
   /* ⛔⛔ TWO OUTLINES (the owner's word 2026-08-21-r «a black one of 6 pixels and
      a white one of 12»). The former single 11.7 (his own «+30%» 2026-07-28) IS CANCELLED.
      The lower layer is WHITE 12, the upper one is BLACK 6 over it; outwards a white
@@ -4025,6 +4066,22 @@
            without the lead the star would be drawn outside the frame it shares. -->
       <g id="scStar" transform="translate(0,2.5) scale(0.55)" aria-hidden="true"><path d="M20.0159 2C22.5429 2 23.9256 3.94445 24.5178 5.86426L24.5198 5.87207L26.47 12.2822L32.8088 12.2246C33.8201 12.2129 34.8629 12.3966 35.7795 12.9258C36.7343 13.4769 37.4286 14.3341 37.7834 15.4141C38.5684 17.8031 37.2731 19.7695 35.6487 20.9834L35.6477 20.9844L30.3879 24.9102L32.468 31.3184H32.467C33.1031 33.2503 33.0051 35.577 31.1086 37.0781L31.1077 37.0771C30.1831 37.8112 29.0868 38.1084 27.9612 37.9648C26.9016 37.8296 25.9482 37.3248 25.1409 36.707L25.1379 36.7041L20.0149 32.7666L14.8762 36.7061C14.0756 37.3252 13.1273 37.8295 12.0706 37.9648C10.9451 38.1089 9.848 37.8109 8.92407 37.0771C7.14313 35.6671 6.94737 33.5292 7.45728 31.6738L7.56763 31.3076L9.6438 24.9102L4.38501 20.9844L4.38403 20.9834C2.77288 19.7794 1.43567 17.8062 2.25415 15.3809H2.25513C2.61368 14.311 3.30846 13.4654 4.25317 12.9219C5.16228 12.3988 6.19565 12.2136 7.20044 12.2246L13.5608 12.2822L15.512 5.87207L15.5149 5.86426C16.1071 3.94457 17.4891 2.00024 20.0159 2Z"/></g>
       <text id="score" x="102" y="21" text-anchor="end">0</text></svg>
+    <!-- THE «x5 float» (Figma component 947:3670, the owner's word 2026-09-03: «add this element
+         in the top right corner under the score, 20 px from it, 20 px from the right edge; on the
+         phone scale it down proportionally by 30%»). It sits INSIDE #statStack as its LAST child
+         and out of flow: layoutHUD (90-input) reorders the stack with insertBefore(x, #scSvg),
+         which never moves a node that stands after #scSvg. Anchored to the stack, not to the
+         bar: the stack's bottom IS the score's bottom on both layouts.
+         The title is the same .otext mechanism as the Get More screen — TWO text layers, as in
+         the component: the gradient outline 7 (#stGrad) below, the white outline 3 on top; the
+         numbers from the Plugin API, because the Dev Mode export carries no text strokes.
+         ⚠️ The component's «Boost» label has a white 3px outline on a white button — invisible,
+         not reproduced. The button opens the Get More screen through the menu (the pause
+         belongs to openMainScreen). -->
+    <div class="x5f" id="x5Float">
+      <svg class="otext x5f-x" viewBox="0 0 75 38" aria-label="×5 score"><text class="x5f-grad" x="37.5" y="19.4" text-anchor="middle"><tspan x="37.5">×5</tspan><tspan x="37.5" dy="18.9">score</tspan></text><text class="x5f-white" x="37.5" y="19.4" text-anchor="middle"><tspan x="37.5">×5</tspan><tspan x="37.5" dy="18.9">score</tspan></text></svg>
+      <button class="x5f-btn" id="x5FloatBtn" type="button">Boost</button>
+    </div>
   </div>
 </div>
 <!-- THE CHARACTER: the owner's eyes (Figma 741:1420) as one inline SVG.
@@ -4568,7 +4625,8 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="25" height="24" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
           <span id="msStars">0</span>
         </div>
-        <button class="ms-getmore" id="msGetMore">More</button>
+        <!-- «×5 Boost» — the owner's word 2026-09-03 (it was «More»); the same popup the HUD float opens -->
+        <button class="ms-getmore" id="msGetMore">×5 Boost</button>
       </div>
     </header>
     <!-- the card's divider — desktop only (in mock-up 840:4688 a line across the whole
@@ -4740,7 +4798,7 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="16" height="16" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
         <span id="msStars2">0</span>
       </div>
-      <button class="ms-getmore" id="msGetMore2">More</button>
+      <button class="ms-getmore" id="msGetMore2">×5 Boost</button>
     </div>
   </div>
 </div>
@@ -20525,6 +20583,17 @@ function fitStat(id){
   if (t.getAttribute('text-anchor') === 'end') t.setAttribute('x', (u - 2).toFixed(1));
   const k = (svg.getBoundingClientRect().height || 27) / 27;
   svg.style.width = (u * k) + 'px';
+  // THE «x5 float» FOLLOWS THE SCORE FRAME'S RIGHT EDGE (the owner's word 2026-09-03: «the right
+  // inset is the same as the score's», both layouts). On desktop the frame is CENTRED in the
+  // stack's 72px minimum slot while the score is 1–2 digits (`#topBar .grp { align-items:center }`
+  // on a column), so the edge moves with the digits — written here, at the one place the frame
+  // is re-fitted; on mobile (flex-end) it is 0. Read by `.x5f { right:var(--x5f-dr) }`.
+  if (id === 'score'){
+    try {
+      const st = svg.parentElement, dr = st.getBoundingClientRect().right - svg.getBoundingClientRect().right;
+      st.style.setProperty('--x5f-dr', Math.max(0, dr).toFixed(2) + 'px');
+    } catch(e){}
+  }
 }
 // Squeeze the three frames of the win screen's top row to their text, the same way
 // `fitStat` does it for the HUD. Without this the frames stay at their fixed 150/14/100
@@ -23545,7 +23614,24 @@ $('msDiff').addEventListener('click', e => {
 // own pause (the ownership of the pause belongs to openMainScreen, going in there is not
 // allowed, see CLAUDE.md).
 $('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
-$('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
+// THE «x5 float» BOOST BUTTON (947:3670, the owner's word 2026-09-03: «this element opens the
+// full-screen purchase popup, like the More button in the pause menu»): the SAME overlay,
+// opened DIRECTLY from the live HUD. The menu is not involved, so the game has no pause under
+// the popup — the float sets its OWN silent one and lifts only its own on close (the ad's
+// pattern: pauseGame returns true only for the pause THIS call set; under the intro, the
+// win/lose screens or somebody else's pause it returns false and nothing is lifted later).
+// ⚠️ The menu path is untouched: from the menu the popup rides the menu's pause as before.
+let shopPausedByHud = false;
+function shopClose(){
+  hide('starsOverlay');
+  if (shopPausedByHud){ shopPausedByHud = false; resumeGame(); updateHUD(); }
+  else refreshMainScreen();
+}
+$('starsClose').addEventListener('click', shopClose);
+{ const b = $('x5FloatBtn'); if (b) b.addEventListener('click', ()=>{
+  shopPausedByHud = pauseGame(true);
+  show('starsOverlay'); try { refreshBundlePrices(); } catch(e){}
+}); }
 // THE PURCHASE goes through the META handle buyBundle(tier). The handle may not exist
 // yet: then we CREDIT NOTHING (a mock crediting is forbidden — this is currency), and we
 // behave like the former Get More in a test build: the «Coming soon» toast + console.warn.
@@ -23596,7 +23682,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           return;
         }
         Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
-        hide('starsOverlay'); refreshMainScreen();
+        shopClose();   // the popup closes; the HUD path resumes the game, the menu path refreshes the menu
       });
       return;
     }
@@ -23610,7 +23696,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     }
     Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
     toast('TEST: booster activated');   // it is visible that this is an emulation, and not a purchase
-    hide('starsOverlay'); refreshMainScreen();
+    shopClose();
   });
 });
 // msSubscribe has been removed together with the menu banner (the owner's word 2026-08-03)
@@ -23663,7 +23749,10 @@ function layoutHUD(){
   }
   $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none'; // the time is hidden from the HUD (the flag is off)
   // after a change of the layout the scale of the frames is different — re-fit by the content
-  if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
+  // ⚠️ the score too (2026-09-03): fitStat('score') also writes `--x5f-dr`, the x5 float's anchor
+  // to the score frame's right edge — a desktop value left over after a resize put the float
+  // 2.4px inside the score on the phone (measured in the preview after a 1280 → 393 resize)
+  if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); fitStat('score'); }
 }
 addEventListener('resize', layoutHUD);
 layoutHUD();

@@ -14508,3 +14508,90 @@ His answers to the four questions of the 2026-09-03-b report, verbatim: «1. о�
   1.5 s of play burned 1500 ms of the budget, 1.5 s on the pause menu burned 0; the accumulator
   held 1699 ms unflushed against `bb[5] = 1 800 000`; the defeat screen offers «Look around» and
   «Retry» only, `winX2Btn` and `loseAdContinue` are absent from the DOM.
+
+## BATCH 2026-09-03-d: THE «x5 float» BADGE IN THE HUD (Figma component 947:3670; the owner's word «add this element in the top right corner under the score, 20 px from it, 20 px from the right edge; on the phone scale it down proportionally by 30%»)
+
+- Dev Mode: 106×114, a 20% white fill, a 1px 20% white border INSIDE, radius 24, padding
+  18/8/8/8, a column with a gap of 16; the title «×5 / score» SF Pro Rounded Black 27 at a
+  line-height of .7 (the box 75×38), black; the button «Boost» 88×32 white, radius 80, padding
+  8/20, Bold 18 black. What the export does NOT carry and the Plugin API does (said, as the rule
+  demands): the title is TWO stacked text layers — a 7px OUTSIDE gradient stroke (#c0ff47 →
+  #47ffd7) under a 3px OUTSIDE white stroke — with a shadow 0 4 25 at 8%; the button has a
+  60% white 1px inside border and a white inner glow 10; the «Boost» label carries a 3px white
+  outline on a white button (invisible — not reproduced).
+- Built as the `.otext` mechanism with two `<text>` layers in one 75×38 svg (the gradient
+  `url(#stGrad)` --otl:7 below, `--otl-color:#fff` --otl:3 on top; the stroke overflows the box
+  like Figma's outside stroke). It lives INSIDE `#statStack` as the LAST child, out of flow,
+  anchored to the stack: the stack's bottom is the score's bottom on both layouts and its right
+  edge is the bar's 8px inset, so `top:calc(100% + 20px); right:12px` gives his 20 and 20.
+  `layoutHUD` reorders the stack with `insertBefore(x, #scSvg)` — a node after `#scSvg` is never
+  moved. `pointer-events:auto` is load-bearing (the bar is pointer-events:none). The phone: a
+  `scale(.7)` from the top right corner under the HUD's own 767 breakpoint — both gaps stay.
+- The click, by the owner's second word the same evening («this element opens the full-screen
+  purchase popup, like the More button in the pause menu; rename that button ×5 Boost»): the
+  SAME `#starsOverlay`, opened DIRECTLY from the live HUD — the menu is not involved, so the
+  float sets its OWN silent pause (`shopPausedByHud = pauseGame(true)`, the ad's pattern: true
+  only for the pause THIS call set) and `shopClose()` lifts only that one; the menu path still
+  rides the menu's pause and refreshes the menu on close. All three close paths (the cross, the
+  bridge purchase, the DEV emulation) go through `shopClose`. ⛔ The first draft opened it
+  THROUGH the menu (menu + popup on top) — cancelled by that word, do not bring it back.
+  ⛔ HIS THREE CORRECTIONS ON THE LIVE SCREENS (the same evening, with screenshots): (1) «on
+  mobile the right inset is the same as the score's» and (2) «on desktop the right inset is
+  the same as the score's» — the right edge is FLUSH with the score's right edge now
+  (`right:0` against #statStack), which cancels the «20 from the right edge» of his first
+  word — ⚠️ on desktop «the score's right edge» is a MOVING edge: the frame sits centred in the
+  stack's 72px minimum slot while the score is 1–2 digits (`#topBar .grp { align-items:center }`
+  acting on a column — 13px inside at «0», 2.4 at «★ 0», flush at three digits), so `fitStat`
+  writes `--x5f-dr` = stack.right − frame.right on every re-fit and `.x5f` reads it (0 on
+  mobile, where the stack is flex-end — and `layoutHUD` re-fits the score on every resize, or a
+  desktop anchor survives a rotation: measured 2.4px inside on the phone after a 1280 → 393
+  resize before that line); (3) «the text is not centred in the button» — measured 3.75px low: the 21.5px line box
+  of Bold 18 overflowed the 14px content box under `padding:8px`; the button is a flex box
+  now (`display:inline-flex; align-items:center; padding:0 20px`), both axes within 1px.
+  `#msGetMore` / `#msGetMore2` read «×5 Boost» now (the menu pill measures 98×45 with the new
+  label). Measured in the preview on the HUD path: not paused and no menu → Boost → the popup
+  open, no menu, paused → the cross → popup closed, no menu, resumed. ⚠️ A preview trap named:
+  the pane loads the page HIDDEN, visibilitychange opens the menu, and a probe that clicks the
+  float without resuming first measures the MENU path (the first probe did exactly that).
+  ⚠️ NOT decided by the owner and not
+  invented: what the badge shows while ×5 is ALREADY active (a timer? hidden?) and a hover for
+  the white button — it is drawn as the component, always; named to him.
+- The suite: gaps 20/20 (width-independent), 106×114 or 70% by the transform matrix, the two
+  stroke layers, the label, and «Boost → menu open + shop open».
+- Measured in the preview: desktop 1280×680 — the float 106×114 at (1154,77), the right gap 20.0,
+  the top gap 20.0 under the 42-high score, the strokes `url(#stGrad)` 14 / white 6 (7 and 3
+  visible under paint-order), the button 90×32 white (88 in the component — font metrics);
+  phone 393×852 — `matrix(0.7,…)`, 74.2×79.8, the gaps still 20.0 / 20.0.
+- The advisor's two checks: (1) the multiplier toast (`#multToast`, the type tier-up) is
+  centred under the eyes at `left:50%` — it does not share the badge's corner, no collision
+  in the ×5-active state; (2) the guard's «resume» click on `.ms-play` is now gated on
+  `pauseState().paused` like sbLive — outside the menu that node starts a level. ⚠️ The gate was
+  written AFTER suite #7 had started: it narrows a precondition and asserts nothing new, so the
+  run's verdict on the build stands; the gated read ships with this commit.
+
+## BATCH 2026-09-03-e: THE WIN SCREEN — THE SCORE PAINTS ABOVE THE «SAVED» STICKER (the owner's screenshot: «it must be behind the score, not in front of it as now»)
+
+- The mechanism, not a guess: `.win-headline` (the sticker) stands BEFORE `.win-score` in the
+  DOM and the score overlaps it by `margin-top:-24px`, so by DOM order the score would paint
+  on top — but the sticker carries a transform (the −10.6° tilt on desktop, the `winStamp`
+  animation with `both` fill on every layout), and a transformed element paints in the
+  POSITIONED phase, after every in-flow sibling whatever the DOM order. Hence SAVED over the
+  star. The fix is one line: `.win-score { position:relative; z-index:1 }` — the score joins
+  the positioned phase above the sticker; no geometry moves (the overlap is still 24).
+- ⚠️ THE FIRST LINE WAS `z-index:1` AND THE HIT-TEST SAID «sticker» — the sticker is a FLEX
+  ITEM of `.win-headline` carrying `z-index:2` (a z-index applies to flex items even when
+  static), so the score needs 3. Measured, not assumed: a probe with both svgs forced to
+  pointer-events:auto still returned the sticker at 1.
+- The guard hit-tests a point inside the overlap (`elementFromPoint`) and expects the score.
+- Measured in the preview after the fix: the overlap 41.6 (the stamp's tilt widens the sticker's
+  box beyond the 24px margin), the hit is the score, z 3.
+- The suite on this batch: run 11 went red on ONE arm — my own read (`stroke.slice(0, 14)` cut
+  «rgb(255, 255, 255)» to «rgb(255, 255, »); run 12, on the SAME build with the read widened,
+  CRASHED at 912 checks in the pack-matcap section: «Execution context was destroyed, most
+  likely because of a navigation» inside `brightness()` on the section's own `file://` page —
+  nothing navigates there; a renderer of a heavy WebGL page dying on a stand that had run twelve
+  suites that day (memory 55% free at the re-run). A stand flake, not a build fault: runs 5, 6 and
+  11 passed that section on the same code. Re-run once; if it recurs at that spot, it is a subject.
+- And the float, final numbers across resizes: desktop 1280 — the float's right 1269.6 = the score
+  frame's right 1269.6 (`--x5f-dr` 2.40px), the label dx 0 / dy 0; resized to 393 — 385 = 385
+  (`--x5f-dr` 0), the top gap 20; back to 1280 — equal again (2.39px).

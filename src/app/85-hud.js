@@ -1097,6 +1097,17 @@ function fitStat(id){
   if (t.getAttribute('text-anchor') === 'end') t.setAttribute('x', (u - 2).toFixed(1));
   const k = (svg.getBoundingClientRect().height || 27) / 27;
   svg.style.width = (u * k) + 'px';
+  // THE «x5 float» FOLLOWS THE SCORE FRAME'S RIGHT EDGE (the owner's word 2026-09-03: «the right
+  // inset is the same as the score's», both layouts). On desktop the frame is CENTRED in the
+  // stack's 72px minimum slot while the score is 1–2 digits (`#topBar .grp { align-items:center }`
+  // on a column), so the edge moves with the digits — written here, at the one place the frame
+  // is re-fitted; on mobile (flex-end) it is 0. Read by `.x5f { right:var(--x5f-dr) }`.
+  if (id === 'score'){
+    try {
+      const st = svg.parentElement, dr = st.getBoundingClientRect().right - svg.getBoundingClientRect().right;
+      st.style.setProperty('--x5f-dr', Math.max(0, dr).toFixed(2) + 'px');
+    } catch(e){}
+  }
 }
 // Squeeze the three frames of the win screen's top row to their text, the same way
 // `fitStat` does it for the HUD. Without this the frames stay at their fixed 150/14/100

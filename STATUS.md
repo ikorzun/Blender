@@ -29,6 +29,11 @@ match · the live site verified byte-for-byte against the build · portal packag
 - **The Get More screen is ONE package** (3 September, your mock-ups 937:1505 / 937:1533): ×5 score
   for 30 min + 15 Shake's + 25 Tips for $1.99 — the three cards are gone, the bridge catalogue and
   the wrapper's id table carry `bundle5` alone (+ `noads_forever`).
+- **The «x5 float» badge** (your component 947:3670) sits in the HUD under the score: 20 px under
+  it, its right edge flush with the score's, 70% on phones; «Boost» opens the purchase popup directly (the
+  game pauses under it and resumes on close); the pause-menu button is now «×5 Boost».
+- **The win screen**: the score now paints above the «SAVED» sticker where they overlap (your
+  screenshot).
 - **Your four answers of 3 September are in:** 20 Gam stays; the ×5 budget counts ONLY play time
   (it stands still on the menu, on the win/lose screens, in the intro, with the tab hidden); no
   no-ads window anywhere; **ads only when the shakes and the tips have run out** — the interstitial

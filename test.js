@@ -676,6 +676,21 @@ page.on('response', (r) => {
              bar: bb ? { w: +bb.width.toFixed(1), h: +bb.height.toFixed(1) } : null };
   });
   console.log('win reward badge box:', JSON.stringify(rwBadge));
+  // THE SCORE PAINTS ABOVE THE «SAVED» STICKER (the owner's word 2026-09-03: «it must be behind the
+  // score, not in front of it as now»). The sticker is transformed (the tilt / the stamp fill) and
+  // so paints in the positioned phase over an in-flow sibling; `.win-score` is lifted with
+  // position:relative; z-index:1. Measured by hit-testing a point INSIDE the 24px overlap.
+  const winOrder = await page.evaluate(() => {
+    const sc = document.querySelector('.win-score'), st = document.querySelector('.win-cleaned');
+    if (!sc || !st) return { none: true };
+    const a = sc.getBoundingClientRect(), b = st.getBoundingClientRect();
+    const x = a.left + a.width / 2, y = Math.min(b.bottom, a.top + 8) - 2;   // inside both boxes
+    const hit = document.elementFromPoint(x, y);
+    return { overlap: +(b.bottom - a.top).toFixed(1), hit: hit ? (hit.closest('.win-score') ? 'score' : hit.closest('.win-cleaned') ? 'sticker' : hit.tagName) : null,
+             z: getComputedStyle(sc).zIndex, pos: getComputedStyle(sc).position };
+  });
+  expect(!winOrder.none && winOrder.overlap > 0 && winOrder.hit === 'score' && winOrder.pos === 'relative' && winOrder.z === '3',
+    '⚠️ THE WIN SCREEN: the score paints ABOVE the SAVED sticker where they overlap (' + JSON.stringify(winOrder) + ')');
   expect(!rwBadge.noNode && Math.abs(rwBadge.one.w - rwBadge.one.h) <= 1 && rwBadge.one.h > 20,
     '⛔⛔ THE REWARD BADGE IS A CIRCLE ON A SINGLE DIGIT (' + JSON.stringify(rwBadge.one) + '). His ' +
     'word 2026-09-01-p. The sabotage: restore `padding:8px 6px` without `height`/`min-width` in ' +
@@ -5460,6 +5475,52 @@ window.bridge = {
       && /\b26px\b/.test(stTitle.d.sw) && /\b26px\b/.test(stTitle.m.sw) && stTitle.d.filter === 'none' && stTitle.m.filter === 'none'
       && stTitle.d.size === '117px' && stTitle.m.size === '80px' && stTitle.d.text === '×5 score' && stTitle.m.text === '×5 score',
     'the «×5 score» title: the lime→cyan gradient outline 13 (stroke-width 26 under paint-order), no white slug filter, 117 desktop / 80 mobile (' + JSON.stringify(stTitle) + ')');
+  // THE «x5 float» (947:3670, the owner's word 2026-09-03): under the score with a gap of 20,
+  // 20 from the right edge, 106×114; on a phone scaled to 70% from the top right corner (the
+  // gaps stay). Measured on the live HUD at whatever width this page has: the two gaps are
+  // width-independent, the scale is read from the transform matrix. The Boost click opens the
+  // shop THROUGH the menu.
+  const x5f = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    document.getElementById('starsClose').click();
+    if (window.__game.pauseState().paused){ const p = document.querySelector('.ms-play'); if (p) p.click(); } // resume only a real pause — outside the menu that node starts a level
+    await wait(300);
+    const f = document.getElementById('x5Float'), sc = document.getElementById('scSvg');
+    if (!f) return { none: true };
+    const r = f.getBoundingClientRect(), s = sc.getBoundingClientRect();
+    const m = getComputedStyle(f).transform, phone = innerWidth < 768;
+    const scale = m && m !== 'none' ? +m.replace('matrix(', '').split(',')[0] : 1;
+    const bt = document.getElementById('x5FloatBtn'), rg = document.createRange(); rg.selectNodeContents(bt);
+    const tb = rg.getBoundingClientRect(), bb = bt.getBoundingClientRect();
+    const out = { phone, scale, rightGap: +(s.right - r.right).toFixed(1), topGap: +(r.top - s.bottom).toFixed(1),
+      w: +r.width.toFixed(1), h: +r.height.toFixed(1), texts: [...f.querySelectorAll('text')].map(t => getComputedStyle(t).stroke.slice(0, 24)),   // 24, not 14: «rgb(255, 255, 255)» is 18 chars — the 14 cut it to «rgb(255, 255, » and the read went red on a right build
+      btn: bt.textContent,
+      labelDx: +((tb.left + tb.width / 2) - (bb.left + bb.width / 2)).toFixed(2), labelDy: +((tb.top + tb.height / 2) - (bb.top + bb.height / 2)).toFixed(2) };
+    document.getElementById('x5FloatBtn').click();
+    await wait(300);
+    out.menuOpen = document.getElementById('mainScreen').classList.contains('open');
+    out.shopOpen = getComputedStyle(document.getElementById('starsOverlay')).display !== 'none';
+    out.pausedUnderShop = window.__game.pauseState().paused;
+    document.getElementById('starsClose').click();
+    await wait(200);
+    out.resumedOnClose = !window.__game.pauseState().paused;
+    out.menuLabel = document.getElementById('msGetMore').textContent.trim();
+    return out; });
+  // the owner's correction on the live screens: the right edge FLUSH with the score's (both layouts)
+  expect(!x5f.none && Math.abs(x5f.rightGap) < 1 && Math.abs(x5f.topGap - 20) < 1,
+    'the x5 float sits 20 under the score with its right edge flush with the score\'s (' + JSON.stringify(x5f) + ')');
+  expect(!x5f.none && Math.abs(x5f.labelDx) < 1 && Math.abs(x5f.labelDy) < 1,
+    'the Boost label is centred in its button on both axes (dx ' + x5f.labelDx + ', dy ' + x5f.labelDy + ')');
+  expect(!x5f.none && (x5f.phone ? Math.abs(x5f.scale - 0.7) < 0.01 && Math.abs(x5f.w - 74.2) < 1 : x5f.scale === 1 && Math.abs(x5f.w - 106) < 1 && Math.abs(x5f.h - 114) < 1),
+    'the x5 float is 106×114, scaled to 70% on a phone (' + JSON.stringify({ phone: x5f.phone, scale: x5f.scale, w: x5f.w, h: x5f.h }) + ')');
+  expect(!x5f.none && /stGrad/.test(x5f.texts[0]) && /rgb\(255, 255, 255\)/.test(x5f.texts[1]) && x5f.btn === 'Boost',
+    'the x5 float title is two layers — the gradient outline under a white one — and the button says Boost (' + JSON.stringify(x5f.texts) + ')');
+  // the owner's word: «this element opens the full-screen purchase popup, like the More button
+  // in the pause menu» — DIRECTLY, with the float's own silent pause, lifted on close
+  expect(x5f.shopOpen === true && x5f.menuOpen === false && x5f.pausedUnderShop === true && x5f.resumedOnClose === true,
+    'Boost opens the purchase popup DIRECTLY (no menu), the game is paused under it and resumes on close (' +
+    JSON.stringify({ shop: x5f.shopOpen, menu: x5f.menuOpen, paused: x5f.pausedUnderShop, resumed: x5f.resumedOnClose }) + ')');
+  expect(x5f.menuLabel === '×5 Boost', 'the pause-menu button is named «×5 Boost» (' + x5f.menuLabel + ')');
   // ⚠️ THE CLOSING CROSS IS ALWAYS white with a black cross (the owner's spec
   // 2026-07-31: «the colour of the icon does not depend on the time of day» — the overlay is dark in
   // both themes, the system rule --btn-bg gave a dark button on dark during the day).

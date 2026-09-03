@@ -639,7 +639,24 @@ $('msDiff').addEventListener('click', e => {
 // own pause (the ownership of the pause belongs to openMainScreen, going in there is not
 // allowed, see CLAUDE.md).
 $('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
-$('starsClose').addEventListener('click', ()=> hide('starsOverlay'));
+// THE «x5 float» BOOST BUTTON (947:3670, the owner's word 2026-09-03: «this element opens the
+// full-screen purchase popup, like the More button in the pause menu»): the SAME overlay,
+// opened DIRECTLY from the live HUD. The menu is not involved, so the game has no pause under
+// the popup — the float sets its OWN silent one and lifts only its own on close (the ad's
+// pattern: pauseGame returns true only for the pause THIS call set; under the intro, the
+// win/lose screens or somebody else's pause it returns false and nothing is lifted later).
+// ⚠️ The menu path is untouched: from the menu the popup rides the menu's pause as before.
+let shopPausedByHud = false;
+function shopClose(){
+  hide('starsOverlay');
+  if (shopPausedByHud){ shopPausedByHud = false; resumeGame(); updateHUD(); }
+  else refreshMainScreen();
+}
+$('starsClose').addEventListener('click', shopClose);
+{ const b = $('x5FloatBtn'); if (b) b.addEventListener('click', ()=>{
+  shopPausedByHud = pauseGame(true);
+  show('starsOverlay'); try { refreshBundlePrices(); } catch(e){}
+}); }
 // THE PURCHASE goes through the META handle buyBundle(tier). The handle may not exist
 // yet: then we CREDIT NOTHING (a mock crediting is forbidden — this is currency), and we
 // behave like the former Get More in a test build: the «Coming soon» toast + console.warn.
@@ -690,7 +707,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           return;
         }
         Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
-        hide('starsOverlay'); refreshMainScreen();
+        shopClose();   // the popup closes; the HUD path resumes the game, the menu path refreshes the menu
       });
       return;
     }
@@ -704,7 +721,7 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     }
     Sound.play('surprise', 0.55); vibrate([15, 30, 15]);
     toast('TEST: booster activated');   // it is visible that this is an emulation, and not a purchase
-    hide('starsOverlay'); refreshMainScreen();
+    shopClose();
   });
 });
 // msSubscribe has been removed together with the menu banner (the owner's word 2026-08-03)
@@ -757,7 +774,10 @@ function layoutHUD(){
   }
   $('tmSvg').style.display = LEVEL_TIME_IN_HUD ? '' : 'none'; // the time is hidden from the HUD (the flag is off)
   // after a change of the layout the scale of the frames is different — re-fit by the content
-  if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); }
+  // ⚠️ the score too (2026-09-03): fitStat('score') also writes `--x5f-dr`, the x5 float's anchor
+  // to the score frame's right edge — a desktop value left over after a resize put the float
+  // 2.4px inside the score on the phone (measured in the preview after a 1280 → 393 resize)
+  if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); fitStat('score'); }
 }
 addEventListener('resize', layoutHUD);
 layoutHUD();
