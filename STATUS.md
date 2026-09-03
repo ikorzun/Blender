@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = dd9af45 (2026-09-02)** · the suite **940 checks, 0 red** · `main` and `v2` on GitHub
+**Build: v2 = 9196895 (2026-09-03)** · the suite **940 checks, 0 red** · `main` and `v2` on GitHub
 match · the live site verified byte-for-byte against the build · portal package **5.43 MB** of the
 8 MB reference (headroom 2.57)
 
