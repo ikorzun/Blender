@@ -14715,3 +14715,127 @@ run out, nowhere else. 4. only game time». (1) 20 GAM stays. (2) The dashboard 
   mock platform has no payments; DEV emulates). An own server ledger keyed by `Save.gid` (the
   leaderboard service already knows that id) would close it for the web too — a separate
   feature, offered, not built.
+
+## BATCH 2026-09-04-b: THE ×5 SCREEN — EQUAL BADGES, THE «o» WITHOUT A GAP, THE PILLS AND THE TEXT SCALE WITH THE SCREEN (the owner's word with a screenshot)
+
+- «Make the backing under the bonus count the same width (like the 13), desktop and mobile» —
+  `.st-plus { min-width:71px; justify-content:center }`: 71 is the «+13» badge of the component
+  (12 + 47 + 12); «+9» is centred in the same pill.
+- «The letter o in score must have no gap» — the 13px outside stroke leaves a slit in the «o» of
+  a 117px Black. The `#otlFill` white slug of the win score cannot serve a GRADIENT outline, so
+  the slug is the text itself: a copy UNDER the outlined layer, filled with the same
+  `url(#stGrad)` (the same text geometry → identical gradient mapping) and run through
+  `#stClose` — a morphological CLOSING (feMorphology dilate 14 then erode 14): holes narrower
+  than 28px fill, the outer contour returns to the glyph's own, nothing pokes out from under the
+  round stroke. Both variants (117 desktop / 80 mobile) carry the slug; `stroke:none` on it.
+  ⚠️ NOT the blur+threshold of `#otlFill`: at threshold .5 a Gaussian slug does not grow, it only
+  bridges slits narrower than ~2σ — a 26–28px counter needs a real dilation.
+- «Stretch the pills to 60% of the screen width on tablets, and to 80% below 400px; the text
+  behaves the same» — `.st-chips` and `.st-desc` are `60vw`, `80vw` under `max-width:399px`;
+  the column layout now runs through the tablets: the mock-up's desktop ROW starts at the
+  project's desktop threshold 1080 (it was this screen's own 700), so a 768–1024 tablet gets
+  the 60% column. ≥1080 the mock-up hugs as before. The description lost its 40px insets (its
+  width is the rule now).
+- Measured in the preview: 375 → the pills and the text 300 (80%), the badges 71/71; 430 → 258
+  (60%); 768 → 461 (60%), a column, the two-line title; 1280 → the mock-up row 266/225 in the
+  510 block, the badges 71/71, the text 510. The «o» reads solid in the 375 and 1280 shots; the
+  slug carries `url("#stClose")`, two slug layers in the DOM. ⚠️ A side effect named to the
+  owner: a 768–1024 tablet now shows the MOBILE structure (the two-line 80px title, the 264
+  button) with 60% pills — his tablet word implies the stacked layout; the desktop mock-up
+  starts at 1080.
+
+## BATCH 2026-09-04-c: THE ZOOM BUTTONS ARE THE HINT'S SIZE ON THE DESKTOP, THE ZOOM COLUMN'S MOBILE INSET, «Play» (the owner's words with screenshots)
+
+- «The size of these buttons on the desktop must be the size of the hint button» — measured:
+  the zoom pair 48×48 at `min-width:768px` against the hint's 56; now `#zoomGrp .zoomBtn`
+  56×56 with the round buttons' base 32 icon (it carried a 28 override). The group's own
+  `bottom:20px` on the desktop is untouched — he named the size, not the inset.
+- «On mobile the zoom's bottom inset must be the same as the hint's and the shake's» —
+  measured: hint/shake 16 from the edge (`.grpShake { margin-bottom:8px }` over the bar's 8),
+  the zoom column 8. `#zoomGrp { margin-bottom:8px }` under `max-width:767px` only — on the
+  desktop the group is absolute with its own bottom, and a margin there would move it.
+- «Just Play» — the menu's start button reads «Play» (it was «Play Game»): the markup and the
+  role switch in `refreshMainScreen` (85-hud) — «Resume» in a live pause is unchanged.
+- Measured in the preview: the desktop zoom pair 56×56 with a 32 icon (the hint 56); the phone
+  zoom column 16 from the bottom edge, the hint 16, the shake 16; `#msPlayBtn` and the play card
+  read «Play» with no live run, the floating `#msFloatResume` read «Resume» in a live pause (the
+  same writer). ⚠️ A probe trap named: a menu opened over SOMEBODY ELSE'S pause refuses and
+  never refreshes the label — a probe that reads «Play» on a live run must first check
+  `mainScreen.open`, or it measures the markup, not the role.
+
+## BATCH 2026-09-04-d: THE ×5 SCREEN — THE DESKTOP ROW WHEREVER IT FITS, THE MOBILE BLOCK 90% UNDER 400 (the owner's second note with a tablet screenshot)
+
+- «At such a width the hint and the shake can sit side by side: use the desktop layout, and only
+  when it does not fit switch to the mobile one» — ⛔ CANCELS the 1080 threshold of batch b (a
+  768 tablet got the stacked column). The desktop layout now starts where the mock-up's block
+  fits: 510 + the wrap's 16+16 = 542 → `min-width:560px` (a tablet, a landscape phone). Below
+  560 the mobile column.
+- «The text must not leave the pills; under 400px use a content block at 90% of the width» —
+  the mobile column is driven by `.st-block`: `60vw` (his first number, kept for 400–559) with
+  `min-width:264px` (a pill's own content: 71 + 12 + 56 + 12 + the label + the paddings) so a
+  pill is never narrower than its text, `90vw` under 400px; the pills and the description take
+  the block's width, and `.st-chip { min-width:max-content }` is the belt against any clipping.
+- Measured in the preview: 375 → the block and the pills 338 (90%), a column, no overflow;
+  480 → 288 (60%, above the 264 floor), a column; 560 → the desktop row (the block 510, the
+  pills 266/225, the one-line title); 1000 → the same row — his tablet case.
+
+## BATCH 2026-09-04-e: TIPS FIRST, THEN SHAKE'S; THE PILL'S RIGHT INSET IS NEVER UNDER 20 (the owner's words)
+
+- «First the hint, then the shake» — the pills' order is Tips, then Shake's on both layouts (the
+  component had Shake's first); the chips guard checks the order against `STAR_BUNDLES`.
+- «The inset inside a pill on the right is always at least 20 px» — `padding:8px 20px 8px 8px`
+  (the component's 16 is overridden); a hugging pill is exactly 20 from the label to the edge, a
+  stretched one has more. The knock-on numbers: the desktop pills 266/225 → ≈270/229, so the
+  desktop block hugs the row (`width:auto; min-width:510px`) instead of the fixed 510, and the
+  mobile block's floor is 272 (the widest pill's own content).
+- Measured in the preview: 1000 → Tips then Shake's, the pills 229/270, the right inset 21/21
+  (20 + the 1px inside border), the block 519, a row, no overflow; 375 → the same order, the
+  pills 338 (the 90% block), the insets 129/88 (stretched), no overflow.
+- «The minimum gap between the pills is 16 px» (the next word) — the mobile column's gap 12 → 16;
+  the desktop row's 20 already satisfies it. Measured: 375 → 16.0, 1000 → 20.0.
+- «The pill's backing style: border-radius 64px; border 1px solid rgba(255,255,255,.16);
+  background rgba(255,255,255,.04)» (the next word, with the inspector open) — exactly the Dev
+  Mode CSS; the inner white glow I had added from the Plugin API's INNER_SHADOW reading is
+  removed. ⚠️ A lesson on the Plugin API: it exposes effects Dev Mode's export drops, but the
+  owner's eye is the arbiter of whether they are wanted — when the export and the Plugin API
+  disagree on a decorative effect, ship the export and name the difference. Measured after the
+  rebuild: radius 64px, the border 1px rgba(255,255,255,0.16), the fill rgba(255,255,255,0.04),
+  box-shadow none.
+
+## BATCH 2026-09-04-f: THE OWNER'S NEW MAGNIFIER — RE-EMBEDDED FROM THE FILE IN BOTH PLACES (his question «is this really the icon from the assets folder? it looks smaller — re-check and update everywhere»)
+
+- Checked by bytes, not by eye: `Interface/Tip-icon.png` had been overwritten at 00:38 (5811 →
+  6123 B, md5 6828dfe7… → d3bb0256…, still 168×168 RGBA) while both embeds — the HUD hint
+  button `.tip-mag` and the popup chip `.st-ico` — carried the previous bytes (my md5 check of
+  the afternoon was right for THAT file). Re-embedded from the file as-is (no re-encoding, no
+  resize) in both places; the shake icon is unchanged (md5 c2513793…). The file is a live
+  delivery channel (the canon said so at the hint button): before answering «it is the same»
+  compare the mtime and the md5 of the file on disk, not the memory of the last embed.
+- Verified on the build: both magnifier embeds in `index.html` are 6123 B / md5 d3bb0256 (the
+  shake stays 6931 / c2513793); in the preview the chip's image is 168×168 natural in a 56 box,
+  and the HUD button and the chip draw the same larger magnifier.
+
+## BATCH 2026-09-04-g: EVERY ICON IN ITS SHEET BOX, THE MAGNIFIER IN THE HAND'S 38 (the owner's word with the inspector open)
+
+- «Inside this button the magnifier must be in its box, otherwise it differs in size from the
+  shake; the icons in the project folder carry this box around them — do not crop it; this
+  applies to all icons» — measured first: the hint button drew the whole 168 sheet at 56 (100%
+  of the button), the shake button draws its sheet at 38 (`.shake-art`), so the magnifier's
+  drawing came out 56/38 ≈ 1.5× the hand's; nothing was cropped anywhere. The fix: the same 38
+  box for the magnifier, centred in the 56 button (`position:absolute; inset:0; margin:auto`),
+  the whole sheet inside it. ⛔ Cancels «the PNG across the whole box of the button»
+  (2026-08-21-r). The popup chips already draw both sheets at 56 each — equal, untouched.
+- Measured after the rebuild (393): the button 56, the magnifier box 38×38 centred (0/0 offset),
+  the hand 38×38. The guards: the two `magBox` pins moved [0,0,56,56] → [9,9,38,38]; the
+  desktop zoom pin 48 → 56 (batch c's word had not yet reached that section — every run since
+  was cut short before it); the magnifier's ink pin 109×118 → 115×124 for his 00:38 file (the
+  tone 72,68,114 unchanged); the title guard reads `text:not(.x5-slug)` and asserts the slug
+  layer separately (the first run picked the slug and read «stroke none»). A THIRD pin on the
+  desktop zoom («ZOOM-DESKTOP: a row of 48×48», the node 741:1497) surfaced only in the full run
+  #27 — re-based to 56 as well; the grep for «48» had found the btn-restyle one but not this.
+- ⚠️ A FLAKE CLASS SEEN AT THE CLOSE OF THE DAY (run #28): «SANITY: the level really carries
+  both kinds (0 painted, 180 textured)» — the paint-debris section's sanity arm needs painted
+  types in the deal, and since the distinct cap made the deal a random subset a level can come
+  without one; the same arm was green in runs #13 and #18 on the same code. Re-run, not
+  re-based; the honest fix is to force a painted type into that section's deal (a subject for
+  a fresh day, named here).

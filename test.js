@@ -5460,8 +5460,9 @@ window.bridge = {
   expect(sbProbe.btnLabels && sbProbe.btnLabels.join('|') === 'Buy $1.99',
     'the ONE buy button carries the mock-up label «Buy $1.99» (' + JSON.stringify(sbProbe.btnLabels) + ')');
   // the chips promise EXACTLY what buyBundle hands out — the two numbers live in two files
-  expect(sbProbe.chipLabels.join('|') === ('+' + sbProbe.tiers[0].shakes + '|+' + sbProbe.tiers[0].hints),
-    'the chips «+9 Shake\'s» / «+13 Tips» match the package (' + JSON.stringify(sbProbe.chipLabels) + ')');
+  // Tips FIRST, then Shake's (the owner's word 2026-09-04)
+  expect(sbProbe.chipLabels.join('|') === ('+' + sbProbe.tiers[0].hints + '|+' + sbProbe.tiers[0].shakes),
+    'the chips «+13 Tips» then «+9 Shake\'s» match the package, in that order (' + JSON.stringify(sbProbe.chipLabels) + ')');
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
   // server (stroke-width 26 under paint-order:stroke), NO #otlFill slug (it floods white), 117 on
   // the desktop variant and 80 on the mobile one. Read from the live nodes — computed styles
@@ -5469,16 +5470,24 @@ window.bridge = {
   const stTitle = await page.evaluate(() => {
     // ⚠️ the mobile <text> is two <tspan>s with no whitespace between them — joined with a space here,
     // and stroke-width computes as `calc(26px)` (the --otl arithmetic survives into the computed value)
-    const q = sel => { const t = document.querySelector(sel + ' text'); const cs = getComputedStyle(t);
+    // ⚠️ since 2026-09-04 the first <text> of each title is the SLUG layer (the counters' fill):
+    // the outlined text is the one WITHOUT .x5-slug, and the slug has its own three arms
+    const q = sel => { const t = document.querySelector(sel + ' text:not(.x5-slug)'); const cs = getComputedStyle(t);
       const sp = [...t.querySelectorAll('tspan')];
+      const z = document.querySelector(sel + ' text.x5-slug'); const cz = z ? getComputedStyle(z) : null;
       return { stroke: cs.stroke, sw: cs.strokeWidth, filter: cs.filter, size: cs.fontSize,
-               text: (sp.length ? sp.map(x => x.textContent.trim()).join(' ') : t.textContent).replace(/\s+/g, ' ').trim() }; };
+               text: (sp.length ? sp.map(x => x.textContent.trim()).join(' ') : t.textContent).replace(/\s+/g, ' ').trim(),
+               slug: cz ? { stroke: cz.stroke, fill: cz.fill, filter: cz.filter } : null }; };
     return { d: q('.otext.st-x-d'), m: q('.otext.st-x-m'), grad: !!document.getElementById('stGrad') };
   });
   expect(stTitle.grad && /stGrad/.test(stTitle.d.stroke) && /stGrad/.test(stTitle.m.stroke)
       && /\b26px\b/.test(stTitle.d.sw) && /\b26px\b/.test(stTitle.m.sw) && stTitle.d.filter === 'none' && stTitle.m.filter === 'none'
       && stTitle.d.size === '117px' && stTitle.m.size === '80px' && stTitle.d.text === '×5 score' && stTitle.m.text === '×5 score',
     'the «×5 score» title: the lime→cyan gradient outline 13 (stroke-width 26 under paint-order), no white slug filter, 117 desktop / 80 mobile (' + JSON.stringify(stTitle) + ')');
+  // the counters' slug (2026-09-04): a copy UNDER the outlined text, no stroke, the same gradient as its
+  // fill, run through the morphological closing — on both variants
+  expect(['d', 'm'].every(k => stTitle[k].slug && stTitle[k].slug.stroke === 'none' && /stGrad/.test(stTitle[k].slug.fill) && /stClose/.test(stTitle[k].slug.filter)),
+    'the title\'s slug layer fills the counters: no stroke, the gradient fill, the #stClose closing (' + JSON.stringify({ d: stTitle.d.slug, m: stTitle.m.slug }) + ')');
   // THE «x5 float» (947:3670, the owner's word 2026-09-03): under the score with a gap of 20,
   // 20 from the right edge, 106×114; on a phone scaled to 70% from the top right corner (the
   // gaps stay). Measured on the live HUD at whatever width this page has: the two gaps are
@@ -8457,8 +8466,10 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     return r;
   })();
   console.log('zoom desktop:', JSON.stringify(zoomDesk));
-  expect(zoomDesk.plus.w === 48 && zoomDesk.minus.w === 48 && zoomDesk.plus.y === zoomDesk.minus.y,
-    'ZOOM-DESKTOP: a row of 48×48 at the same height (node 741:1497) (' + JSON.stringify(zoomDesk) + ')');
+  // ⛔ 56, NOT 48, since 2026-09-04 (the owner: «the size of these buttons on the desktop must be the
+  // size of the hint button»); the node's 48 is history
+  expect(zoomDesk.plus.w === 56 && zoomDesk.minus.w === 56 && zoomDesk.plus.y === zoomDesk.minus.y,
+    'ZOOM-DESKTOP: a row of 56×56 (the hint\'s size, 2026-09-04; the node 741:1497 said 48) at the same height (' + JSON.stringify(zoomDesk) + ')');
   expect(zoomDesk.minus.x < zoomDesk.plus.x && Math.abs(zoomDesk.cx - 640) <= 2 && Math.abs(zoomDesk.bottom - 20) <= 2,
     'ZOOM-DESKTOP: the minus on the left, the group centred, 20px from the bottom (' + JSON.stringify(zoomDesk) + ')');
   // ⚠️ A direct complaint from the owner with a screenshot: the controls were creeping onto the item list.
@@ -11281,11 +11292,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // the icon takes up the button's whole box, on the win screen it is a slot of 54 inside a pill.
     expect(mag.hasMag && mag.iconTag === 'IMG' && mag.natural === '168x168' &&
            mag.outline === '72,68,114' &&
-           !!mag.ink168 && mag.ink168[0] === 109 && mag.ink168[1] === 118 &&
-           nearM(mag.magBox[0], 0) && nearM(mag.magBox[1], 0) &&
-           nearM(mag.magBox[2], 56) && nearM(mag.magBox[3], 56) &&
+           !!mag.ink168 && mag.ink168[0] === 115 && mag.ink168[1] === 124 &&   // the owner's 2026-09-04 00:38 file (it was 109×118)
+           nearM(mag.magBox[0], 9) && nearM(mag.magBox[1], 9) &&
+           nearM(mag.magBox[2], 38) && nearM(mag.magBox[3], 38) &&
            mag.shadow === 'none',
-      '⚠️⚠️ THE MAGNIFIER IS THE OWNER\'S PNG ACROSS THE BUTTON\'S WHOLE BOX, WITHOUT FILTERS (' +
+      // ⛔ RE-BASED 2026-09-04: the sheet sits in the HAND\'S 38 BOX, centred in the 56 button
+      // (the owner: «inside this button the magnifier must be in its box, otherwise it differs in
+      // size from the shake … do not crop it, this applies to all icons») — it was [0,0,56,56].
+      '⚠️⚠️ THE MAGNIFIER IS THE OWNER\'S PNG, THE WHOLE SHEET IN A 38 BOX CENTRED IN THE BUTTON, WITHOUT FILTERS (' +
       JSON.stringify({ tag: mag.iconTag, natural: mag.natural, ink: mag.ink168,
                        frame: mag.magBox, filter: mag.shadow,
                        outline: mag.outline }) + '). ⛔ THE OWNER\'S BATCH OF ' +
@@ -12280,10 +12294,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       nearBtn(s.art[0], 13) && nearBtn(s.art[1], 9) &&
       nearBtn(s.art[2], 38) && nearBtn(s.art[3], 38) &&
       nearBtn(s.capGap, 6) &&
-      nearBtn(s.magBox[0], 0) && nearBtn(s.magBox[1], 0) &&
-      nearBtn(s.magBox[2], 56) && nearBtn(s.magBox[3], 56);
+      nearBtn(s.magBox[0], 9) && nearBtn(s.magBox[1], 9) &&      // the 38 box centred (2026-09-04); it was [0,0,56,56]
+      nearBtn(s.magBox[2], 38) && nearBtn(s.magBox[3], 38);
+    // ⛔ the desktop zoom is 56 since 2026-09-04 («the size of these buttons on the desktop must be
+    // the size of the hint button»); it was 48
     expect(brDesk.vw === 1280 && brMob.vw === 390 &&
-           brDesk.zoomIn.w === 48 && brMob.zoomIn.w === 56 &&
+           brDesk.zoomIn.w === 56 && brMob.zoomIn.w === 56 &&
            brFamily(brDesk) && brFamily(brMob) &&
            brUnmoved(brDesk) && brUnmoved(brMob),
       '⚠️⚠️ ALL FOUR NODES WEAR THE FILL .50 AND THE EVEN GLOW `0 0 16px #FFF` AS THE FIRST ' +

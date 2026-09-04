@@ -58,6 +58,18 @@ match · the live site verified byte-for-byte against the build · portal packag
   pour is removed.
 - **The win screen**: the score now paints above the «SAVED» sticker where they overlap (your
   screenshot).
+- **The ×5 screen, your three notes of 4 September**: both lime badges are 71 wide; the «o» in
+  «score» has no gap (a gradient slug under the outline); the pills and the text are 80% of the
+  screen under 400 px and 60% from 400 up — and by your second note the desktop row is used
+  wherever it fits (from 560 px: tablets, landscape phones); under 400 px the content block is
+  90% of the width, the text never leaves the pills. Tips come first, then Shake's; a pill keeps
+  at least 20 px on the right inside; the gap between the pills is at least 16 px; the pill's
+  backing is your three properties (radius 64, the 16% border, the 4% fill — no inner glow); your
+  new magnifier file (00:38) is embedded in the hint button and the popup chip, and the hint
+  button draws it in the same 38 box as the shake's hand (the whole sheet, nothing cropped).
+- **Three more of your notes of 4 September**: the zoom buttons are 56 on the desktop (the hint's
+  size); on the phone the zoom column sits 16 from the bottom edge like the hint and the shake; the
+  menu button says «Play».
 - **A mistake under ×5 costs its plain price** (your word of 3 September): the booster multiplies
   the reward only — the miss, the ice tap and the mixer's grind are not multiplied any more.
 - **Your four answers of 3 September are in:** 20 Gam stays; the ×5 budget counts ONLY play time

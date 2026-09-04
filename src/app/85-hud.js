@@ -2375,7 +2375,7 @@ function refreshMainScreen(){
   if (st2) setWalletNumber(st2, bal);
   // the button's role: there is no live run — «Play Game» (a start), otherwise «Resume»
   const btn = $('msPlayBtn');
-  const role = (!level || level.over) ? 'Play Game' : 'Resume';
+  const role = (!level || level.over) ? 'Play' : 'Resume';   // «just Play» — the owner's word 2026-09-04 (it was «Play Game»)
   if (btn) btn.textContent = role;
   // THE FLOATING BUTTON (node 815:1521) — THE SAME WRITER OF THE ROLE. Giving it
   // its own computation is forbidden: two sources of one caption diverge on
