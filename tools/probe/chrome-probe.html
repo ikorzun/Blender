@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>chrome probe</title>
+<style>
+  /* THE SAFARI 26 CHROME PROBE (2026-09-05): which layout puts REAL page content under the top zone
+     (the island / the clock) and the bottom zone (the address bar)? Open ?v=fixed | tall | lock | fs
+     on the phone and screenshot each. Every variant draws the same ruler: a gradient stage, a rule
+     every 50 page-px with its y printed, a striped band at the very top and bottom of the STAGE,
+     and the numbers. If the stripes show under the bars, that variant lays content under them. */
+  html { background: transparent; }
+  body { margin: 0; background-color: rgb(120, 140, 255);
+         background-image: linear-gradient(180deg, rgb(120,140,255) 0%, rgb(200,255,225) 100%);
+         font-family: -apple-system, system-ui, sans-serif; color: #000; }
+  /* v=fixed — the game's recipe today: the stage is fixed inset:0 (clipped at the layout viewport) */
+  html.fixed, html.fixed body { height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+  html.fixed #stage { position: fixed; inset: 0; }
+  /* v=tall — the stage is NORMAL FLOW and taller than the layout viewport by the chrome (the number
+     comes from ?h=, default 100lvh + 100px); the root keeps overflow:hidden so nothing scrolls */
+  html.tall, html.tall body { overflow: hidden; touch-action: none; overscroll-behavior: none; }
+  html.tall #stage { position: relative; min-height: calc(100lvh + 100px); }
+  /* v=lock — the same tall stage, but the root is SCROLLABLE (overflow visible) and JS pins scrollY at 0 */
+  html.lock, html.lock body { overscroll-behavior: none; }
+  html.lock #stage { position: relative; min-height: calc(100lvh + 100px); }
+  /* v=fs — fixed like the game, plus a button that asks for the Fullscreen API */
+  html.fs, html.fs body { height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+  html.fs #stage { position: fixed; inset: 0; }
+  #stage { background-image: linear-gradient(180deg, rgb(120,140,255) 0%, rgb(200,255,225) 100%); }
+  .rule { position: absolute; left: 0; right: 0; height: 2px; background: #000; opacity: .55; }
+  .rule b { position: absolute; left: 6px; top: -22px; font-size: 18px; font-weight: 800; background: #fff; padding: 0 4px; }
+  .rule.r100 { height: 3px; opacity: .9; }
+  .band { position: absolute; left: 0; right: 0; height: 40px;
+          background: repeating-linear-gradient(45deg, #ff2d55 0 12px, #ffd60a 12px 24px); }
+  #bandTop { top: 0; } #bandBot { bottom: 0; }
+  .band span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-weight: 900; font-size: 16px; background: #fff; padding: 2px 8px; border-radius: 6px; }
+  #hud { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9; width: min(92vw, 420px);
+         background: rgba(255,255,255,.94); border-radius: 16px; padding: 12px 14px; font-size: 15px; line-height: 1.45; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  #hud h1 { margin: 0 0 6px; font-size: 20px; }
+  #hud table { border-collapse: collapse; width: 100%; }
+  #hud td { padding: 1px 4px; border-bottom: 1px solid #eee; font-variant-numeric: tabular-nums; }
+  #hud td:last-child { text-align: right; font-weight: 700; }
+  #hud .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  #hud a, #hud button { flex: 1; text-align: center; padding: 10px 6px; border-radius: 10px; background: #111; color: #fff; text-decoration: none; font-weight: 700; border: 0; font-size: 15px; }
+  #hud a.on { background: #c0ff47; color: #000; }
+  #probeEnv { position: fixed; left: 0; top: 0; width: 0; height: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); visibility: hidden; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="band" id="bandTop"><span>STAGE TOP ROW</span></div>
+  <div class="band" id="bandBot"><span>STAGE BOTTOM ROW</span></div>
+</div>
+<div id="probeEnv"></div>
+<div id="hud">
+  <h1 id="title">chrome probe</h1>
+  <table id="nums"></table>
+  <div class="row">
+    <a href="?v=fixed">fixed</a><a href="?v=tall">tall</a><a href="?v=lock">lock</a><a href="?v=fs">fs</a>
+  </div>
+  <div class="row" id="fsRow" hidden><button id="fsBtn">Enter fullscreen</button></div>
+</div>
+<script>
+(function(){
+  const q = new URLSearchParams(location.search);
+  const v = ['fixed', 'tall', 'lock', 'fs'].includes(q.get('v')) ? q.get('v') : 'fixed';
+  document.documentElement.classList.add(v);
+  document.title = 'probe ' + v;
+  document.getElementById('title').textContent = 'chrome probe — ' + v;
+  for (const a of document.querySelectorAll('#hud a')) if (a.textContent === v) a.classList.add('on');
+  const stage = document.getElementById('stage');
+  const h = +q.get('h');
+  if (h && (v === 'tall' || v === 'lock')) stage.style.minHeight = h + 'px';
+  if (v === 'lock'){
+    // pin the root scroll at 0; the document is taller than the layout viewport on purpose
+    addEventListener('scroll', () => { if (scrollY !== 0) scrollTo(0, 0); }, { passive: true });
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  }
+  if (v === 'fs'){
+    document.getElementById('fsRow').hidden = false;
+    document.getElementById('fsBtn').addEventListener('click', () => {
+      const el = document.documentElement;
+      const f = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (f) f.call(el).catch(e => alert('fullscreen refused: ' + e.message)); else alert('no Fullscreen API');
+    });
+  }
+  function rules(){
+    for (const r of stage.querySelectorAll('.rule')) r.remove();
+    const H = stage.getBoundingClientRect().height;
+    for (let y = 50; y < H; y += 50){
+      const d = document.createElement('div'); d.className = 'rule' + (y % 100 === 0 ? ' r100' : '');
+      d.style.top = y + 'px'; d.innerHTML = '<b>' + y + '</b>'; stage.appendChild(d);
+    }
+  }
+  function nums(){
+    const env = getComputedStyle(document.getElementById('probeEnv'));
+    const vv = visualViewport || {};
+    const rows = [
+      ['variant', v],
+      ['innerWidth × innerHeight', innerWidth + ' × ' + innerHeight],
+      ['screen.width × height', screen.width + ' × ' + screen.height],
+      ['visualViewport h / offsetTop', (vv.height || 0).toFixed(1) + ' / ' + (vv.offsetTop || 0).toFixed(1)],
+      ['doc scrollHeight / scrollY', document.documentElement.scrollHeight + ' / ' + scrollY],
+      ['stage height', stage.getBoundingClientRect().height.toFixed(1)],
+      ['stage bottom (page px)', stage.getBoundingClientRect().bottom.toFixed(1)],
+      ['env top / bottom', env.paddingTop + ' / ' + env.paddingBottom],
+      ['100lvh / 100svh / 100dvh', [ 'lvh', 'svh', 'dvh' ].map(u => { const t = document.createElement('div'); t.style.cssText = 'position:fixed;height:100' + u + ';width:0;visibility:hidden'; document.body.appendChild(t); const r = t.getBoundingClientRect().height; t.remove(); return r.toFixed(0); }).join(' / ')],
+      ['fullscreenElement', document.fullscreenElement || document.webkitFullscreenElement ? 'yes' : 'no'],
+      ['UA', navigator.userAgent.replace(/^.*(iPhone|iPad|Macintosh)/, '$1').slice(0, 60)]
+    ];
+    document.getElementById('nums').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+  }
+  const tick = () => { rules(); nums(); };
+  tick(); addEventListener('resize', tick); addEventListener('scroll', nums, { passive: true });
+  if (visualViewport) visualViewport.addEventListener('resize', tick);
+  document.addEventListener('fullscreenchange', tick); document.addEventListener('webkitfullscreenchange', tick);
+  setInterval(nums, 1000);
+})();
+</script>
+</body>
+</html>
