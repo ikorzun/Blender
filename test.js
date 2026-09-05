@@ -10489,6 +10489,47 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'and its removal gives them back (' + JSON.stringify({ underCurtain, afterCurtain }) + '). The sabotage — drop the MutationObserver');
   }
 
+  // ===== THE TAIL UNDER THE ADDRESS BAR — THE EIGHTH EDITION OF THE FIELDS (the owner's word
+  // 2026-09-05, late: «on the game view the content is cut at the bottom too… the content must go
+  // under the browser elements»; measured on his iPhone with tools/probe/chrome-probe.html: a
+  // document taller than the layout viewport is painted under the address bar and seen through its
+  // glass, a fixed stage is not) =====
+  // ⚠️ Headless has no bars: what IS checkable is the document's shape — taller than the viewport
+  // by the tail, the tail at the viewport's bottom in the sky's bottom colour, nothing scrollable
+  // by a REAL wheel (the canon: measure scrolling with a wheel, not by assigning scrollTop).
+  {
+    const tlPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    tlPage.on('pageerror', e => errors.push('PAGEERROR(tail): ' + e.message));
+    await tlPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await tlPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await tlPage.evaluate(() => window.__game.skipIntro());
+    await tlPage.waitForTimeout(400);
+    await tlPage.mouse.move(195, 400);
+    await tlPage.mouse.wheel(0, 600);
+    await tlPage.waitForTimeout(300);
+    const tail = await tlPage.evaluate(() => {
+      const t = document.getElementById('skyTail'); if (!t) return { none: true };
+      const cs = getComputedStyle(t), r = t.getBoundingClientRect();
+      const skyB = 'rgb(' + getComputedStyle(document.documentElement).getPropertyValue('--sky-bot-rgb').split(',').map(s => s.trim()).join(', ') + ')';
+      const h = getComputedStyle(document.documentElement), b = getComputedStyle(document.body);
+      return { pos: cs.position, top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), bg: cs.backgroundColor, skyB, pe: cs.pointerEvents,
+        docH: document.documentElement.scrollHeight, bodyH: document.body.getBoundingClientRect().height, vh: innerHeight, scrollY,
+        htmlOv: h.overflowY, bodyOv: b.overflowY, htmlTa: h.touchAction, bodyTa: b.touchAction, lastChild: document.body.lastElementChild && document.body.lastElementChild.tagName };
+    });
+    await tlPage.close();
+    console.log('tail:', JSON.stringify(tail));
+    expect(!tail.none && tail.pos === 'absolute' && Math.abs(tail.top - tail.vh) <= 1 && tail.bottom >= tail.vh + 200 && tail.pe === 'none',
+      'TAIL: #skyTail is absolute, starts exactly at the layout viewport\'s bottom and reaches ≥ 200 px below it — the rows Safari paints under the address bar (' +
+      JSON.stringify({ top: tail.top, bottom: tail.bottom, vh: tail.vh, pos: tail.pos }) + ')');
+    expect(!tail.none && tail.bg === tail.skyB,
+      'TAIL: the tail is the sky\'s bottom stop (' + tail.bg + ' vs --sky-bot-rgb ' + tail.skyB + ') — the mint continues under the bar, not the zenith belt of the top zone');
+    expect(!tail.none && tail.docH >= tail.vh + 100 && tail.bodyH >= tail.vh,
+      'TAIL: the document is taller than the layout viewport by the tail (scrollHeight ' + tail.docH + ' against innerHeight ' + tail.vh + ', body ' + tail.bodyH + ') — a fixed-only page ends at the viewport and its zone takes body\'s colour (measured on the phone)');
+    expect(!tail.none && tail.scrollY === 0 && tail.htmlOv === 'hidden' && tail.bodyOv === 'hidden' && tail.htmlTa === 'none' && tail.bodyTa === 'none',
+      'TAIL: a real wheel of 600 px did not scroll the page (scrollY ' + tail.scrollY + '), html and body are overflow:hidden and touch-action:none — the tall document is paint, not a scroller (' +
+      JSON.stringify({ htmlOv: tail.htmlOv, bodyOv: tail.bodyOv, htmlTa: tail.htmlTa, bodyTa: tail.bodyTa }) + ')');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

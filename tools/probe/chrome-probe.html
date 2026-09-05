@@ -24,6 +24,10 @@
   /* v=lock — the same tall stage, but the root is SCROLLABLE (overflow visible) and JS pins scrollY at 0 */
   html.lock, html.lock body { overscroll-behavior: none; }
   html.lock #stage { position: relative; min-height: calc(100lvh + 100px); }
+  /* v=scroll — a plain SCROLLABLE document, 2.2 viewports tall: scroll it and look at the top zone —
+     does the scrolled-away content show under the island / the status bar through the glass? */
+  html.scroll #stage { position: relative; min-height: 220vh; }
+  html.scroll #hud { top: 24px; transform: translate(-50%, 0); }
   /* v=fs — fixed like the game, plus a button that asks for the Fullscreen API */
   html.fs, html.fs body { height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
   html.fs #stage { position: fixed; inset: 0; }
@@ -57,14 +61,14 @@
   <h1 id="title">chrome probe</h1>
   <table id="nums"></table>
   <div class="row">
-    <a href="?v=fixed">fixed</a><a href="?v=tall">tall</a><a href="?v=lock">lock</a><a href="?v=fs">fs</a>
+    <a href="?v=fixed">fixed</a><a href="?v=tall">tall</a><a href="?v=lock">lock</a><a href="?v=fs">fs</a><a href="?v=scroll">scroll</a>
   </div>
   <div class="row" id="fsRow" hidden><button id="fsBtn">Enter fullscreen</button></div>
 </div>
 <script>
 (function(){
   const q = new URLSearchParams(location.search);
-  const v = ['fixed', 'tall', 'lock', 'fs'].includes(q.get('v')) ? q.get('v') : 'fixed';
+  const v = ['fixed', 'tall', 'lock', 'fs', 'scroll'].includes(q.get('v')) ? q.get('v') : 'fixed';
   document.documentElement.classList.add(v);
   document.title = 'probe ' + v;
   document.getElementById('title').textContent = 'chrome probe — ' + v;

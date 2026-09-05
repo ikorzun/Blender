@@ -188,7 +188,33 @@
   #sbTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
   #sbBot { bottom:-6px; background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
   @supports (font: -apple-system-body) { .sb-strip { display:block; } }
-  html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
+  /* ═══ THE EIGHTH EDITION OF THE FIELDS — THE DOCUMENT IS TALLER THAN THE LAYOUT VIEWPORT, AND THE
+     PAGE ITSELF LIES UNDER THE ADDRESS BAR (the owner's word 2026-09-05, late: «on the game view the
+     content is cut at the bottom too. IMPORTANT: the content must go under the browser elements and
+     the Dynamic Island in iOS 26 Safari. Complete the recipe and fix it once and for all»).
+     MEASURED ON HIS iPHONE, NOT ON THE SIMULATOR (tools/probe/chrome-probe.html, four screenshots):
+     screen 402×874, the layout viewport 654, env top/bottom 0/0, 100lvh 754; a FIXED stage
+     (the game's recipe until now) ends at 654 and BOTH zones take body's background-COLOUR — no
+     edge-pixel extension exists on the device (the 2026-08-30 simulator matrix was a simulator
+     artefact): under the mint bottom of the sky lay a zenith-violet zone, i.e. the «cut»; a stage
+     IN NORMAL FLOW taller than the viewport (html overflow:hidden, nothing scrolls) is painted under
+     the address bar and seen through its glass — the ruler's 700/750/800 marks were visible
+     around the bar. So: the document carries a TAIL under the bar, the colour of the sky's bottom
+     stop, and Safari shows it through the glass. The top zone keeps body's colour (the zenith): a
+     document cannot extend above its own zero, so under the island there is never page content in
+     a non-scrolling page — only a colour, and ours is the sky's own top row.
+     ⚠️ `min-height` on body and NOT `height:100%`: the body is what makes the document taller
+     (100lvh + 120 = 874 on his phone = the screen); `html` keeps `height:100%` so percentages
+     inside the page still mean the layout viewport. Old WebKits without lvh keep the plain 100%.
+     ⚠️ Nothing in the page reads body's height (a census: no `body.clientHeight`/`scrollHeight`
+     reader in src/app); the canvas, the bars and every overlay are fixed to the layout viewport
+     and are untouched. The tail is `#skyTail`, the last child of body. */
+  html { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none; }
+  body { min-height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none; }
+  @supports (height: 100lvh) { body { min-height:calc(100lvh + 120px); } }
+  #skyTail { position:absolute; left:0; right:0; top:100%; height:320px; z-index:0; pointer-events:none;
+    background:rgb(var(--sky-bot-rgb, 204,255,248)); }
+  html, body {
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
      (clip-path 40px / the --view-r formula). BOTH WERE REMOVED by the owner's word 2026-08-12
@@ -4176,6 +4202,10 @@
      frame; their CSS and the reason live at the html/body rules, the driver in 84-chrome.js -->
 <div id="sbTop" class="sb-strip" aria-hidden="true"></div>
 <div id="sbBot" class="sb-strip" aria-hidden="true"></div>
+<!-- THE TAIL UNDER THE ADDRESS BAR (the eighth edition, 2026-09-05): absolute, from the layout
+     viewport's bottom 320 px down, the sky's bottom stop — the page's own content under the bar's
+     glass; the CSS and the measurement live at the html/body rules -->
+<div id="skyTail" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white

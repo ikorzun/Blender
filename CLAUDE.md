@@ -15099,3 +15099,51 @@ mechanism seen from outside: a painted candidate is a colour source, so the exte
   shake arm and the property arm red (the fall reached 14.9), the bomb and intro arms green.
 - WHAT ONLY HIS PHONE CAN SAY: whether 12 reads smooth in Low Power Mode. `?fallcap=10` and
   `?fallcap=16` on the live link are the A/B; the number he picks is one constant.
+
+## BATCH 2026-09-05-e: THE EIGHTH EDITION OF THE FIELDS — THE DOCUMENT IS TALLER THAN THE VIEWPORT, THE PAGE LIES UNDER THE ADDRESS BAR (the owner's word, late: «on the game view the content is cut at the bottom too. IMPORTANT: the content must go under the browser elements and the Dynamic Island in iOS 26 Safari. Complete the recipe and fix it once and for all»)
+
+### MEASURED ON HIS iPHONE — NO SIMULATOR ON THIS MAC (Command Line Tools only, no Xcode); `tools/probe/chrome-probe.html` on Pages, four screenshots
+| | numbers |
+|---|---|
+| screen / layout viewport / visualViewport | 402×874 / 402×654 / 654, offsetTop 0 |
+| env(safe-area-inset-top / bottom) | 0 / 0 (viewport-fit=cover, Safari 26) |
+| 100lvh / 100svh / 100dvh | 754 / 654 / 654 (the bars collapse by exactly 100) |
+| the top zone (status bar, the island) | 61 pt; the bottom zone (the address bar + toolbar) | 159 pt expanded, 59 collapsed |
+| `fixed` (the game's recipe until now: a fixed stage inset 0) | the stage ends at 654; BOTH zones = body's background-COLOUR (violet); the stage's striped edge rows are NOT extended into the zones |
+| `tall` (a stage IN NORMAL FLOW, min-height 100lvh + 100, html/body overflow:hidden) | the document is 854; the ruler's 700 / 750 / 800 are visible around the address bar — real page content under the bar, seen through its glass; scrollY 0 |
+| `lock` (the same, the root scrollable, JS pins scrollY 0) | identical to `tall` |
+| `fs` (fixed + a Fullscreen API button) | identical to `fixed`; the button was not pressed / not confirmed |
+
+⛔⛔ **WHAT THIS CORRECTS IN THE CANON.** The 2026-08-30-d matrix and the 2026-08-31-a «the zone receives
+the STRETCHED bottom row» were SIMULATOR facts, and the device does not do it: on iOS 26 Safari on the
+phone a zone next to a fixed stage takes the PAGE colour (body's background-color), full stop — which is
+exactly why the game's bottom read as «cut»: the sky ends mint, the zone below it was the zenith
+violet belt (the same seam the third revision showed for a day, now understood). The sixth edition's
+«seamless full bleed» was true only where the zone colour happened to equal the edge row — the top.
+The instruction's §1.1 (a) is the real mechanism for content under the bar: the page must LIE there,
+and a document taller than the layout viewport does lie there, fixed elements never do (08-31-a's
+hard limit stands for fixed).
+
+### WHAT SHIPPED
+- `html { height:100% }`, `body { min-height:100% }` and, under `@supports (height:100lvh)`,
+  `body { min-height:calc(100lvh + 120px) }` (874 on his phone = the screen); html and body keep
+  `overflow:hidden; touch-action:none; overscroll-behavior:none` — the tall document is paint, not a
+  scroller (a real 600 px wheel leaves scrollY 0, guarded). `#skyTail`, the last child of body:
+  absolute, `top:100%` (= the layout viewport's bottom), 320 px tall, the sky's bottom stop
+  `--sky-bot-rgb`, pointer-events none — the mint continues under the address bar through the glass.
+  The canvas, the bars, every overlay and the menu are fixed to the layout viewport and untouched
+  (a census: nothing in src/app reads body's height). Desktop and the wrapper: the tail is below the
+  screen, invisible.
+- THE TOP ZONE STAYS A COLOUR — body's zenith, the sky's own top row: a document cannot extend above
+  its zero, so in a non-scrolling page there is never content under the island; the probe's `scroll`
+  variant (a plain scrollable document) is on Pages to ask the phone whether SCROLLED content shows
+  under the status zone through the glass — if it does, the menu can become the root scroller and
+  its card will slide under the island (a separate batch, on his screenshot).
+- The dark popups: their zones are the strips' (the seventh edition), which sit ABOVE the tail; a
+  popup is fixed and covers only the layout viewport, so without the strips the mint tail would
+  show under the bar beneath a dark screen — the strips are the reason the two editions coexist.
+- GUARDS (test.js, a page of its own): the tail absolute at innerHeight, ≥ 200 below, the sky's
+  bottom colour, pointer-events none; the document ≥ innerHeight + 100; html/body overflow hidden
+  and touch-action none; a real wheel does not scroll. Dry-run 4/4; the tail removed → 4 red.
+- WHAT ONLY HIS PHONE CAN SAY NOW: the game's and the menu's bottom zone should show mint under the
+  address bar instead of the violet belt; the popups should still darken both zones.
