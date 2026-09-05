@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = 935d5be (2026-09-05, evening)** · the suite **974 green, 1 red = the documented paint-debris deal flake (2026-09-04-g), a re-run pending** · `main` and `v2` on GitHub
+**Build: v2 = 63b9e17 (2026-09-05, night)** · the suite **979 green, 0 red, SUITE: PASS (run 7; the run-6 paint-debris flake did not recur)** · `main` and `v2` on GitHub
 match · the live site verified by byte size against the build · portal package **5.48 MB** of the
 8 MB reference (headroom 2.52)
 
@@ -44,6 +44,13 @@ match · the live site verified by byte size against the build · portal package
   screen fits without scrolling on a 375×667 SE (the 80 after the cross and the 136 bottom inset
   become 32 under 760 of height; under 375 the icons shrink to 44 so a 360 Android fits); the
   desktop row keeps its labels.
+- **The eruption after a shake or a bomb falls slower** (your word about the phone in Low Power
+  Mode, «a braking effect»): while the pile is in the air the terminal falling speed is 12 instead
+  of the combat 16, the sleep of the pile restores 16, the pour keeps its own 14. Measured first: the
+  braking is the physics falling behind real time on frames longer than 33 ms (0.88 of real time at
+  CPU ×4), and lifting the dt/substep caps does not buy it back (canon 2026-09-05-d). ⚠️ **Your A/B
+  on the phone in Low Power Mode**: `?fallcap=10`, `?fallcap=12` (production), `?fallcap=16` (the
+  old feel) on the live link — the number you pick is one constant.
 - **The Safari 26 fields — the seventh edition, by your instruction** (`safari-26-liquid-glass.md`):
   two 12 px sensor strips at the top and bottom edges (WebKit only, on top of everything,
   pointer-events none) plus a small driver that keeps them the colour of the page row under them —
