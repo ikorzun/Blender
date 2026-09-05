@@ -72,8 +72,12 @@ function hideMultToast(){
 const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
 function refreshDimmed(){
   try {
-    const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
-    document.documentElement.classList.toggle('dimmed', on);
+    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    document.documentElement.classList.toggle('dimmed', DIM_OVERLAYS.some(vis));
+    // ⚡ `underbar`: the two SCROLLING screens lay their own rows inside the bottom bar's zone, so the
+    // edge card must step aside there — it is the fixed candidate whose colour would be painted over
+    // them (his 2026-09-06 word; the rules are at `html.bleed` in shell.html).
+    document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
   } catch(e){}
 }
 function show(id){
@@ -2628,6 +2632,7 @@ function openMainScreen(){
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
+  refreshDimmed();   // the menu drives `underbar` (85-hud `refreshDimmed`)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
 // function, and not a line in two places: a copy of a flag next to a working quantity
@@ -2659,6 +2664,7 @@ function closeMainScreen(){
   // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
+  refreshDimmed();   // the menu drives `underbar` (85-hud `refreshDimmed`)
 }
 // #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
 // on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.

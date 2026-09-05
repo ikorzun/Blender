@@ -10538,6 +10538,93 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'loop\'s write, or make `edgeBottomTriple` return a colour at zero — the arm reads the LOOP\'s output, not the formula');
   }
 
+  // ===== THE TWO SCROLLING SCREENS OWN THE BOTTOM ZONE (his word 2026-09-06 with two screenshots: «on
+  // the pause screen and on the leaderboard the content does not go under the bottom bar») =====
+  // ⚠️ THE PRODUCTION GATE CANNOT FIRE HERE — headless has `screen.height === innerHeight` — so the whole
+  // branch is exercised through `__game.setBleed(220)`. Without that hook these arms would be vacuous, and
+  // an untestable branch is how the seventh edition reached his phone unverified.
+  {
+    const bPage = await browser.newPage({ viewport: { width: 402, height: 654 } });
+    bPage.on('pageerror', e => errors.push('PAGEERROR(bleed): ' + e.message));
+    await bPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await bPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await bPage.evaluate(() => window.__game.skipIntro());
+    await bPage.waitForTimeout(400);
+    const geo = () => bPage.evaluate(() => {
+      const rgb = s => { const m = String(s).match(/[\d.]+/g) || []; const v = m.slice(0, 3).map(Number);
+        return String(s).startsWith('color(') ? v.map(x => Math.round(x * 255)) : v.map(Math.round); };
+      const box = (id, pseudo) => { const e = document.getElementById(id); if (!e) return null;
+        const c = getComputedStyle(e, pseudo || undefined), b = e.getBoundingClientRect();
+        return { h: pseudo ? Math.round(parseFloat(c.height)) : Math.round(b.height), pos: c.position, disp: c.display }; };
+      const el = document.elementsFromPoint(201, innerHeight - 4)[0];
+      let n = el, f = null; while (n && n.nodeType === 1){ const c = getComputedStyle(n);
+        if (c.position === 'fixed' || c.position === 'sticky'){ f = n; break; } n = n.parentElement; }
+      const d = getComputedStyle(document.documentElement);
+      return { htmlH: Math.round(parseFloat(d.height)), bodyH: Math.round(document.body.getBoundingClientRect().height),
+        vh: innerHeight, bleed: document.documentElement.classList.contains('bleed'),
+        underbar: document.documentElement.classList.contains('underbar'),
+        main: box('mainScreen'), mainBefore: box('mainScreen', '::before'), lb: box('lbOverlay'),
+        win: box('winOverlay'), stars: box('starsOverlay'), edgeBot: box('edgeBot'),
+        fixedAtBottom: f && (f.id || f.tagName.toLowerCase()),
+        body: rgb(getComputedStyle(document.body).backgroundColor),
+        sky: [rgb('rgb(' + d.getPropertyValue('--sky-top-rgb') + ')'), rgb('rgb(' + d.getPropertyValue('--sky-bot-rgb') + ')')] };
+    });
+    const bOff = await geo();
+    await bPage.evaluate(() => window.__game.setBleed(220));
+    await bPage.waitForTimeout(120);
+    const bGame = await geo();
+    await bPage.click('#pauseBtn', { force: true });
+    await bPage.waitForTimeout(700);
+    const bMenu = await geo();
+    await bPage.evaluate(() => { const b = document.querySelector('.ms-play'); if (b) b.click(); });
+    await bPage.waitForTimeout(500);
+    // the leaderboard through its OWN entry point, so the class toggle is exercised, not simulated
+    await bPage.evaluate(() => { const e = document.getElementById('msLbEntry') || document.querySelector('.ms-lb'); if (e) e.click(); });
+    await bPage.waitForTimeout(700);
+    let bLb = await geo();
+    if (!bLb.underbar){ await bPage.evaluate(() => window.__game.showScreen ? window.__game.showScreen('lbOverlay') : (document.getElementById('lbOverlay').style.display = 'flex', window.__game.dimList && 0)); await bPage.waitForTimeout(400); bLb = await geo(); }
+    await bPage.evaluate(() => { document.getElementById('lbOverlay').style.display = 'none'; document.getElementById('x5Float') && document.getElementById('x5Float').click(); });
+    await bPage.waitForTimeout(500);
+    const bPopup = await geo();
+    await bPage.close();
+    console.log('bleed:', JSON.stringify({ bOff, bGame, bMenu, bLb, bPopup }));
+    const same = (a, b) => a && b && a.length === 3 && a.every((v, i) => Math.abs(v - b[i]) <= 1);
+    // ⚠️ `fixed`, not `absolute`: with the gate off the bleed rule does not apply at all — that IS the
+    // property under test. (Written the other way round first, and it went red on a healthy build.)
+    expect(bOff.bleed === false && bOff.htmlH === bOff.vh && bOff.bodyH === bOff.vh && bOff.main.pos === 'fixed',
+      'BLEED, THE GATE IS OFF BY DEFAULT: no class, html and body are exactly the layout viewport — desktop, ' +
+      'headless, the Playgama iframe and the WKWebView wrapper keep today\'s geometry byte for byte (' +
+      JSON.stringify({ bleed: bOff.bleed, html: bOff.htmlH, body: bOff.bodyH, vh: bOff.vh }) + ')');
+    expect(bGame.bleed === true && bGame.htmlH === 874 && bGame.bodyH === 874,
+      '⚠️⚠️ BLEED: forced to a 220 px inset, BOTH html and body grow to 874 — the root must grow too or its ' +
+      '`height:100%; overflow:hidden` box CLIPS the taller body at 654 and not one extra row is ever painted (' +
+      JSON.stringify({ html: bGame.htmlH, body: bGame.bodyH }) + '). ⛔ SABOTAGE: drop `html` from that rule');
+    expect(bGame.underbar === false && bGame.edgeBot.disp === 'block' && bGame.fixedAtBottom === 'c',
+      'BLEED, THE GAME IS UNCHANGED: its bottom row is a canvas fixed to the viewport, so the edge card stays and ' +
+      'keeps giving that zone the sky\'s nadir (' + JSON.stringify({ underbar: bGame.underbar, card: bGame.edgeBot.disp, fixed: bGame.fixedAtBottom }) + ')');
+    expect(bMenu.underbar === true && bMenu.main.pos === 'absolute' && bMenu.main.h === 874 &&
+           bMenu.mainBefore.pos === 'absolute' && bMenu.mainBefore.h === 874 &&
+           bMenu.edgeBot.disp === 'none' && bMenu.fixedAtBottom === null,
+      '⚠️⚠️ BLEED, THE PAUSE MENU: it is ABSOLUTE and as tall as the document, its gradient layer follows it, the ' +
+      'edge card steps aside, and at WebKit\'s bottom sample point there is NO fixed or sticky ancestor — which is ' +
+      'the whole condition for the bar\'s glass to show the page\'s own rows instead of a flat fill (' +
+      JSON.stringify(bMenu) + '). ⛔ SABOTAGE: leave `#mainScreen` fixed, or keep the card shown — either puts a ' +
+      'candidate back at the point and his cards stop at the line again');
+    expect(same(bMenu.body, bMenu.sky[1]),
+      'BLEED, THE BELT: while a scrolling screen is open body carries the sky\'s NADIR, so even a WebKit that ' +
+      'declines to paint those rows falls back to the colour that zone should have — this change cannot regress (' +
+      JSON.stringify({ body: bMenu.body, nadir: bMenu.sky[1] }) + ')');
+    expect(bLb.underbar === true && bLb.lb.pos === 'absolute' && bLb.lb.h === 874 && bLb.edgeBot.disp === 'none',
+      'BLEED, THE LEADERBOARD: the same treatment — its list hangs from the top (`justify-content:flex-start`), so ' +
+      'growing the box lays its last rows inside the bar\'s zone (' + JSON.stringify(bLb) + ')');
+    // ⚠️ THE OPEN ONE IS MEASURED BY ITS BOX, THE CLOSED ONE BY ITS POSITION: a `display:none` element has a
+    // zero rect, so a height arm on it would be green whatever the rule said.
+    expect(bPopup.stars.h === bPopup.vh && bPopup.win.pos === 'fixed' && bPopup.stars.pos === 'fixed',
+      '⛔ BLEED DOES NOT TOUCH THE CENTRED POPUPS: the open one is exactly the layout viewport and both stay ' +
+      'FIXED (' + JSON.stringify({ stars: bPopup.stars, win: bPopup.win, vh: bPopup.vh }) + '). A taller box would ' +
+      'drop every card by half the inset, since `.overlay` centres its content — the one thing that must NOT be unified');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

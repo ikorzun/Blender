@@ -15390,3 +15390,55 @@ there. That is a real new constraint of this batch, and it is now stated where t
 ⛔ CONTENT under either bar: impossible on this device. The bottom is impossible because the fill overprints
    (measured today); the top is impossible because a document has no rows above its own origin. Both zones
    are a COLOUR, and the only honest goal is that the colour is exactly right — which is what shipped.
+
+## BATCH 2026-09-06-a: THE PAUSE MENU AND THE LEADERBOARD OWN THE BOTTOM ZONE — THEIR OWN ROWS UNDER THE BAR (his word with two screenshots: «on the pause screen and on the leaderboard the content does not go under the bottom bar»)
+
+### WHY THE COLOUR FIX WAS NOT THE END OF IT, AND WHY BOTH ANSWERS ARE RIGHT
+The `?v=cards` frame proved a fixed candidate WINS and its colour is painted OVER everything below it; the
+`tall` frame proved that with NO fixed box at the sample point the page's own rows are composited under the
+bar and read through its glass. Both are his phone. They are not in conflict — they are the two branches of
+one rule, and each screen falls into one of them:
+- THE GAME's bottom row is a WebGL canvas fixed to the viewport. There is nothing to lay out below it, so
+  that zone can only ever be a colour → the edge card stays and gives it the sky's nadir (batch -h).
+- THE PAUSE MENU and THE LEADERBOARD are LISTS. They can genuinely extend into the zone → so they stop being
+  fixed, and the card steps aside for them.
+
+### WHAT SHIPPED (gated on `html.bleed`, set only where the browser really insets the viewport)
+- `--bot-inset` = `screen.height − innerHeight` (clamped 0..320) and `--doc-h` = `innerHeight + inset`.
+  ⚠️ `env(safe-area-inset-bottom)` is 0 on his phone — the 220 pt is an OBSCURED CONTENT INSET, not a safe
+  area — so this subtraction is the ONLY reading of it. Computed at load and on `orientationchange` only:
+  the bar collapses on scroll and innerHeight jumps ~100, and re-anchoring on that would resize the menu
+  under his finger.
+- `html` AND `body` both grow to `--doc-h`. ⚠️⚠️ THE ROOT IS LOAD-BEARING AND WAS MY FIRST BUG HERE: `html`
+  is `height:100%; overflow:hidden`, so a 654-tall root box CLIPS the taller body and not one extra row is
+  ever painted — the change would have silently done nothing. `overflow:hidden` STAYS on both: the root box
+  is exactly as tall as the document, so nothing scrolls and the game's gestures keep being governed by it
+  exactly as today (this game has no `touchmove` listener — the canon's own reason never to make the root
+  scrollable).
+- `#mainScreen` and `#lbOverlay` become `position:absolute`, `height:var(--doc-h)`, keeping their own
+  `overflow-y:auto` — so their internal scrolling, `scrollTop = 0` on open and the whole `#msSticky`
+  machinery are untouched. Their `::before` fill becomes absolute and therefore follows the taller box.
+- `#edgeBot` is HIDDEN while either is open (`html.underbar`, toggled in the same DOM read as `html.dimmed`):
+  the card is precisely the fixed candidate that would paint over them.
+- `.ms-wrap`'s bottom padding gains `+ var(--bot-inset)`, so the LAST card still clears the bar when the
+  list is scrolled to its end — content passes under the bar mid-scroll, and nothing is stranded there.
+- ⛔ THE SIX CENTRED POPUPS DO NOT GROW. `.overlay` centres its content, so a taller box would drop every
+  card by half the inset. `#lbOverlay` is safe only because it overrides that with `justify-content:
+  flex-start`. This is the one thing that must never be «unified».
+- ⚡ THE BELT, and it is why this cannot regress: while a scrolling screen is open `body` carries the sky's
+  NADIR instead of its zenith. If any WebKit declines to paint those rows, the zone falls back to the colour
+  it should have had anyway. Ordered before `html.dimmed body`, which must win on the leaderboard.
+
+### THE GUARD (`__game.setBleed(px)`, seven arms, proven four-sided)
+The production gate CANNOT fire in headless (`screen.height === innerHeight`), so the branch is exercised
+through the hook — an untestable branch is exactly how the seventh edition reached his phone unverified.
+Arms: the gate off by default (html and body exactly the viewport, `#mainScreen` still FIXED); forced, both
+html and body at 874; the game unchanged (card shown, `#c` still the candidate); the menu absolute at 874
+with its `::before` following, the card hidden, and NO fixed/sticky ancestor at the bottom sample point; the
+belt colour; the leaderboard the same; the centred popups still 654 and still fixed.
+Healthy 7/7. `html` dropped from the growth rule → only the root arm. The card's suppression deleted → the
+menu and the leaderboard arms. `#mainScreen` left fixed → only the menu arm.
+⚠️ TWO OF MY OWN ARMS WENT RED ON A HEALTHY BUILD FIRST, and both were the arm's fault: I asserted
+`position === 'absolute'` for the GATE-OFF case (it is `fixed` — that is the property under test), and I
+measured a `display:none` popup by its rect, which is zero whatever the rule says. An open box is measured
+by its box; a closed one by its computed position.

@@ -63,10 +63,17 @@ match · the live site verified by byte size against the build · portal package
   seven dark screens get their own near-black, and during a chain reaction the bottom follows the sky as it
   goes green. Ten lines of CSS, two elements, no driver and nothing hidden anywhere — that last part is what
   was wrong with the version you rejected. Guarded, and each guard proven by breaking it on purpose.
+- **And on the pause screen and the leaderboard the content now really goes under the bar** (your two
+  screenshots). Those two screens are lists, so they can own that strip: they stop being pinned to the
+  viewport, grow as tall as the screen, and the coloured strip steps aside for them — so a card or a row is
+  sliced by the address bar and continues through its glass instead of stopping at a line. Scrolled to the
+  very end, the last card still clears the bar. The game keeps the colour, because its bottom row is a 3D
+  canvas pinned to the viewport and there is nothing to lay out down there.
 - ⚠️ **What is impossible, so you do not wait for it:** page content cannot lie under either bar on this
-  phone. Under the address bar the browser's fill paints over it (your own screenshot). Under the island
-  there is nothing to paint, because the page begins below it and has no rows above its own first one. Both
-  zones can only ever be a colour — so the goal is that the colour is exactly right, and now it is.
+  phone under the ISLAND: the page begins below it and has no rows above its own first one, so that band can
+  only ever be a colour — and it already matches the sky's first row exactly. Under the address bar content
+  is possible only where the page has rows to put there and nothing of ours is pinned to that edge, which is
+  why the menu and the leaderboard get it and the game screen cannot.
 
 ## What shipped 1–3 September
 
