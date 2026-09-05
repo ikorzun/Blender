@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = af8e5a0 (2026-09-05, night)** · the suite **982 green, 0 red, SUITE: PASS (run 8); +52d9d67 the chrome probe page, no build change** · `main` and `v2` on GitHub
+**Build: v2 = ccc269b (2026-09-05, night)** · the suite **986 green, 0 red, SUITE: PASS (run 9)** · `main` and `v2` on GitHub
 match · the live site verified by byte size against the build · portal package **5.48 MB** of the
 8 MB reference (headroom 2.52)
 
@@ -62,6 +62,18 @@ match · the live site verified by byte size against the build · portal package
   as the screen; the game and the menu must look exactly as before; if a coloured band ever shows
   at an edge, the instruction names the `env()` term as the knob. The simulator cannot show the
   tinted mode, only the phone can.
+- **The page now lies under the address bar** (your word «the content is cut at the bottom too …
+  it must go under the browser elements», the eighth edition): measured on YOUR iPhone with
+  `tools/probe/chrome-probe.html` — a fixed stage ends at the layout viewport and Safari 26 paints
+  both zones with body's colour (no edge extension on the device; the simulator had lied), while a
+  document taller than the viewport is painted under the bar and seen through its glass. So the
+  document carries a 120 px tail of the sky's bottom colour under the bar; nothing scrolls (a real
+  wheel leaves scrollY 0), the HUD and every screen are untouched. ⚠️ **The top zone stays a
+  colour** (the sky's zenith): a non-scrolling document cannot extend above its own zero, so no
+  page content can go under the island. The open question is on your phone: open
+  `…/tools/probe/chrome-probe.html?v=scroll`, **scroll it half a screen** and screenshot — if the
+  scrolled-away content shows under the island through the glass, the menu can become the root
+  scroller and its card will slide under the island; if not, the top is closed by the platform.
   ⛔ **Your night word «in the pause menu the content does not go under the island»**: the strips
   now show ONLY over the dark popups and the SDK curtain; in the game and in the menu they hide
   themselves, so Safari lays its glass over the page and the menu's card scrolls under the island
