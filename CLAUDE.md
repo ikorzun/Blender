@@ -15034,3 +15034,57 @@ mechanism seen from outside: a painted candidate is a colour source, so the exte
   The owner had the batch pushed before the verdict on his word («push it all»); the game code was not
   at fault — the strips, the driver and every CSS rule are identical in the pushed build — only the
   suite could not say so. The verdict of run 5 on the corrected suite is in STATUS.md.
+
+## BATCH 2026-09-05-d: THE FLIGHT FALL CAP — THE ERUPTION AFTER A SHAKE OR A BOMB FALLS AT 12, NOT 16 (the owner's word, about the phone in Low Power Mode: «check the animation after the bomb and after the toss: reduce the falling speed or the whole animation, like we did with the pour — there is a braking effect»; then: «only the phone and the battery-saving mode»)
+
+### THE MECHANISM, MEASURED BEFORE CHOOSING THE LEVER (CPU ×4 in headless Chromium as the Low Power stand-in, a level-20 shake, `--use-angle=metal`, perfReset → shake → perfStats at calm)
+| build | throttle | sim/real over the flight | peak at | calm at | frame p95 | jank33/50 | step p95 |
+|---|---|---|---|---|---|---|---|
+| shipped (dt ≤ 33 ms, substeps ≤ 2) | ×1 | 1.00 | 620 ms | 3043 | 19.8 | 0/0 | 8.5 |
+| shipped | ×2 | 0.98 | 704 | 2043 | 22.4 | 1/0 | 19.8 |
+| shipped | ×4 | **0.88** | **784** | 3031 | 46.2 | 16/5 | 41.7 |
+| variant: dt ≤ 50 ms + substeps ≤ 3 outside the intro | ×2 | 0.99 | 686 | 3164 | 21.3 | 1/1 | 14.8 |
+| variant | ×4 | 0.89 | 793 | 3029 | **64.3** | 17/**11** | 59.7 |
+| **shipped now: the flight cap 12** | ×1 | 0.99 | 614 | 2761 | 17.7 | 1/0 | 7.6 |
+| the flight cap 12 | ×4 | 0.88 | 657 | 3045 | 44.3 | 15/4 | 39.6 |
+
+- THE «BRAKING» IS THE SIMULATION FALLING BEHIND REAL TIME ON HEAVY FRAMES: at ×4 the physics step
+  costs up to 42 ms (180 awake bodies in contact), the loop's dt clamp (33 ms) and the substep cap
+  (2, the A3 decision of 2026-08-01) throw the rest of the frame's time away, the eruption runs at
+  0.88 of real time and the peak comes a quarter late — a mid-air deceleration, which is what a
+  non-developer calls braking. At ×2 (the likelier stand-in for an iPhone in Low Power Mode) the
+  ratio is 0.98: the effect lives on the frames that exceed 33 ms, i.e. the eruption itself.
+- ⛔ THE ROOT-CAUSE LEVER WAS BUILT, MEASURED AND REJECTED: lifting the dt clamp to 50 ms and the
+  substep cap to 3 outside the intro bought NOTHING (0.89) and doubled the visible jerks (jank50
+  5 → 11, frame p95 46 → 64) — the amplifier the A3 record describes, met again: a third step on
+  an already slow frame makes the frame slower, and time is thrown away anyway. The variant is not
+  in the tree; its recipe is here so nobody rebuilds it: `Math.min(intro ? 0.033 : 0.05, …)` in the
+  loop plus `max(SUBSTEP_CAP, 3)` in stepPhysics.
+- THE OWNER'S LEVER IS THE HONEST ONE FOR A 30 FPS DISPLAY: what the eye gets in Low Power Mode is
+  30 frames a second, and at the combat terminal speed 16 u/s an item moves half its own diameter
+  per frame — stroboscopic; at 12 it moves a third. The pour already lives on a lower cap (14 ×
+  INTRO_SPEED) for the walls' sake, and he never called the pour «braking».
+
+### WHAT SHIPPED
+- `FLIGHT_FALL_CAP = 12` (00-config) with the knob `?fallcap=N` (6..16) for his phone, like
+  `?intro=`. `performShake` and `detonateBomb` call `setFallCap(FLIGHT_FALL_CAP)` right after
+  `wakePhysics`; `sleepPhysics` restores `MAX_FALL` when the pile is down; `genLevel` starts every
+  level on `MAX_FALL` (a level change mid-flight must not inherit 12); the intro's own cap and
+  `finishIntro`'s restore are untouched. The number is MINE, chosen between the pour's 14 and the
+  old intro's 11 — his word said «reduce», not how much; the knob is there for his eye.
+- Physics is otherwise UNTOUCHED: gravity 26, the toss ×1.5, MAX_FALL 16, the substep cap 2, the
+  rescuer. The cap only clips downward velocity after the step, the way MAX_FALL always has.
+- THE PERF CHECK THE CANON DEMANDS FOR ANY PHYSICS TASK: no regression, a small gain — at ×1 the
+  flight calms 3043 → 2761 ms with the frame p95 19.8 → 17.7 and the step p95 8.5 → 7.6; at ×4
+  44.3 against 46.2, jank 15/4 against 16/5, the same 0.88 ratio (the cap does not touch the cause
+  and was never meant to). Alive/bodies/colliders unchanged by construction (no item is removed).
+- THE GUARDS (test.js, its own page, level 20 + the bomb staged by `bombNextAt(lv)` POINTING the
+  schedule at the current level, the canon's own way): the cap 16 at rest → 12 the moment of the
+  toss → 16 at sleep; the PROPERTY — the fastest downward item over the eruption, sampled after the
+  step, above 6 and never past 12.01; the bomb 16 → 12 → 16; a real intro still reads 14 and lands
+  on 16. Hooks: `fallCapNow()`, `maxFallSpeed()`. PROVEN THREE-SIDED with the section lifted out
+  verbatim: healthy 4/4; `setFallCap()` dropped from sleepPhysics → exactly the two «back to 16»
+  arms red (12 stays after calm); `setFallCap(FLIGHT_FALL_CAP)` dropped from performShake → the
+  shake arm and the property arm red (the fall reached 14.9), the bomb and intro arms green.
+- WHAT ONLY HIS PHONE CAN SAY: whether 12 reads smooth in Low Power Mode. `?fallcap=10` and
+  `?fallcap=16` on the live link are the A/B; the number he picks is one constant.

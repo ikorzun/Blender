@@ -378,6 +378,7 @@ function sleepPhysics(src){
   if (psLog.length > 200) psLog.shift();
   physAwake = false; calmT = 0;
   sleepAllBodies();
+  setFallCap();   // the pile is down: the flight cap (shake/bomb, 2026-09-05) gives way to MAX_FALL
   if (level) refreshAccessibility(); // final slice over the pile that fell asleep
 }
 // ⚠️⚠️ THE ONLY PLACE WHERE uResY IS WRITTEN. Whoever CHANGES THE BUFFER SIZE —
@@ -1091,6 +1092,10 @@ function visiblePixel(it, ctx){
 }
 window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
+  // the flight fall cap (2026-09-05): the cap in force now, and the fastest downward item — the
+  // property itself, read after the step (the cap is applied after world.step, so a sample is ≤ cap)
+  fallCapNow(){ return currentFallCap(); },
+  maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   // the Safari 26 strips (84-chrome, 2026-09-05): what they carry, what the driver would compute now,
   // and whether this browser shows them at all (WebKit only)
   chromeStrips(){

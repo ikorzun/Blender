@@ -652,6 +652,7 @@ const MAX_FALL = 16; // terminal velocity of a fall: CCD is unreliable on the
 // is lower (energy ∝ v²)
 let fallCap = MAX_FALL;
 function setFallCap(v){ fallCap = v || MAX_FALL; }
+function currentFallCap(){ return fallCap; }   // the suite's reader (2026-09-05, the flight cap)
 // STEP BREAKDOWN (mobile-tier profiling 2026-07-31): four different jobs sit
 // inside a single stepMsLast, and on a weak CPU they are not in equal shares.
 // substeps matters especially: on a SLOW frame the fixed-step accumulator runs

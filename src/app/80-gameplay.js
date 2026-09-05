@@ -404,6 +404,7 @@ function detonateBomb(bomb){
   bomb.animating = true;
   destroyItemBody(bomb);
   wakePhysics('bomb');
+  setFallCap(FLIGHT_FALL_CAP);   // the same flight cap as the shake (the owner 2026-09-05); sleepPhysics restores 16
   stats.lastAction = performance.now(); // a tap = an action, the mixer is postponed
   // ⚠️ ICE BLOCKS: the bomb breaks the ice only POINT-BLANK (FROZEN_BOMB_RADIUS = the old
   // zone 2.86; the owner's choice «2», 2026-08-13). On the full zone 5.72 with a bowl of
@@ -1310,6 +1311,7 @@ function finaleGrind(){
 // ---------- The shake ----------
 function performShake(){
   wakePhysics('shake');
+  setFallCap(FLIGHT_FALL_CAP);   // the flight falls slower than combat (the owner 2026-09-05); sleepPhysics restores 16
   // Towards the end of the level the shake PULLS the pairs towards each other (the owner's
   // spec: «otherwise the player cannot merge the last pairs and gets angry»). The share of
   // the pull grows as things empty out: >=40 alive — pure loosening,

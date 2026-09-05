@@ -766,6 +766,7 @@ function tickIceBooms(now){
 // git history.
 
 function genLevel(){
+  setFallCap();   // a fresh level starts on MAX_FALL; the intro sets its own cap right after (99-main)
 
   Ads.cancel(); // a hanging rewarded impression is bound to the OLD level — we mute the reward
   // A BURNING ITEM: we put it out and zero the window — the items of the old level

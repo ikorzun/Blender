@@ -497,6 +497,23 @@ try {
 } catch (e) {}
 // physics during the intro; at INTRO_SPEED=1 this is 2.0 (was 1.3 before the speed-up)
 const INTRO_TIME_SCALE = 2.0 * INTRO_SPEED;
+// ⚠️ THE FLIGHT FALL CAP (the owner's word 2026-09-05, about the phone in Low Power Mode: «check
+// the animation after the bomb and after the toss: reduce the falling speed or the whole animation,
+// like we did with the pour — there is a braking effect»). After a shake and after a bomb the pile
+// erupts and falls back; while it is in the air the terminal falling speed is THIS instead of the
+// combat MAX_FALL 16 (50-physics), and the sleep of the pile restores 16 (sleepPhysics, 99-main).
+// The pour's own cap is 14 × INTRO_SPEED and is untouched. MEASURED before choosing the lever
+// (CPU ×4 as the Low Power stand-in, a level-20 shake): the simulation ran at 0.88 of real time
+// over the flight and the peak came 26 % late — and lifting the dt clamp / the substep cap did NOT
+// buy it back (0.89, with the jank50 doubled), exactly the amplifier the A3 record describes. A
+// slower fall is the honest lever for a 30 fps display: 16 u/s is half an item per frame at 30 fps,
+// 12 is a third. The knob `?fallcap=N` (6..16) exists so the owner can compare on his phone without
+// a build, like `?intro=`; 0/absent = the production number.
+let FLIGHT_FALL_CAP = 12;
+try {
+  const _f = new URLSearchParams(location.search).get('fallcap');
+  if (_f != null){ const n = +_f; if (n >= 6 && n <= 16) FLIGHT_FALL_CAP = n; }
+} catch (e) {}
 // the length of the POUR-IN phase — in seconds, divided by the speed
 const INTRO_DROP_MIN = 0.55 / INTRO_SPEED;   // early exit if the pile has settled
 const INTRO_DROP_MAX = 1.0  / INTRO_SPEED;   // a hard limit of the phase

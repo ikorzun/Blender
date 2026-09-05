@@ -10475,6 +10475,57 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'and its removal gives them back (' + JSON.stringify({ underCurtain, afterCurtain }) + '). The sabotage — drop the MutationObserver');
   }
 
+  // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
+  // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
+  // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of
+  // the combat 16, and the pile's sleep restores 16; the pour's cap (14) is untouched =====
+  // ⚠️ THE PROPERTY IS READ, NOT THE DECLARATION: the fastest downward item over the flight
+  // (`maxFallSpeed`, sampled after the step where the cap is applied) must never pass 12 — a
+  // build that set the cap but applied it nowhere would keep `fallCapNow` green and this arm red.
+  {
+    const fcPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    fcPage.on('pageerror', e => errors.push('PAGEERROR(fallcap): ' + e.message));
+    await fcPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await fcPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    const fc = await fcPage.evaluate(async () => {
+      const g = window.__game, sleep = ms => new Promise(r => setTimeout(r, ms));
+      const calm = async () => { for (let i = 0; i < 80 && g.awake().physAwake; i++) await sleep(100); return !g.awake().physAwake; };
+      g.setLevel(20); g.regen(); g.skipIntro(); await sleep(400); await calm();
+      const rest = g.fallCapNow();
+      g.shake(); await sleep(30);
+      const inFlight = g.fallCapNow();
+      let maxDown = 0, samples = 0;
+      for (let i = 0; i < 50; i++){ await sleep(30); const m = g.maxFallSpeed(); if (m > maxDown) maxDown = m; samples++; if (i > 10 && !g.awake().physAwake) break; }
+      const calmed = await calm();
+      const afterShake = g.fallCapNow();
+      // the bomb: staged through the production schedule — bombNextAt names the level that deals one
+      const lvB = g.bombNextAt ? g.bombNextAt(g.levelNum()) : null;
+      let bomb = null;
+      if (lvB){ g.setLevel(lvB); g.regen(); g.skipIntro(); await sleep(400); await calm();
+        const before = g.fallCapNow(); const fired = g.detonate(); await sleep(30);
+        const during = g.fallCapNow(); await sleep(600); const c2 = await calm(); bomb = { lvB, before, fired, during, calmed: c2, after: g.fallCapNow() }; }
+      // the intro keeps its own cap: a real intro (no skip) reads 14 × INTRO_SPEED
+      g.regen(); await sleep(250);
+      const introCap = g.fallCapNow(); g.skipIntro(); await sleep(300); await calm();
+      return { rest, inFlight, maxDown, samples, calmed, afterShake, bomb, introCap, afterIntro: g.fallCapNow() };
+    });
+    await fcPage.close();
+    console.log('flight cap:', JSON.stringify(fc));
+    expect(fc.rest === 16 && fc.inFlight === 12 && fc.calmed && fc.afterShake === 16,
+      'FLIGHT CAP, THE SHAKE: 16 at rest → 12 the moment the pile is tossed → 16 again when it sleeps (' +
+      JSON.stringify({ rest: fc.rest, inFlight: fc.inFlight, calmed: fc.calmed, after: fc.afterShake }) + '). ' +
+      '⛔ SABOTAGE: drop `setFallCap()` from sleepPhysics — the cap stays 12 for the rest of the level');
+    expect(fc.samples >= 10 && fc.maxDown > 6 && fc.maxDown <= 12.01,
+      'FLIGHT CAP, THE PROPERTY: over ' + fc.samples + ' samples of the eruption the fastest downward item was ' + fc.maxDown +
+      ' — above 6 (the pile really fell) and never past 12 (the cap is APPLIED, not only declared). ' +
+      '⛔ SABOTAGE: `setFallCap(FLIGHT_FALL_CAP)` removed from performShake — the fall reaches 16');
+    expect(fc.bomb && fc.bomb.fired && fc.bomb.before === 16 && fc.bomb.during === 12 && fc.bomb.calmed && fc.bomb.after === 16,
+      'FLIGHT CAP, THE BOMB (level ' + (fc.bomb && fc.bomb.lvB) + ' by bombNextAt): 16 → 12 on detonation → 16 on sleep (' + JSON.stringify(fc.bomb) + ')');
+    expect(fc.introCap === 14 && fc.afterIntro === 16,
+      'FLIGHT CAP LEAVES THE POUR ALONE: a real intro reads 14 (its own cap, 14 × INTRO_SPEED) and the level lands on 16 (' +
+      JSON.stringify({ intro: fc.introCap, after: fc.afterIntro }) + ')');
+  }
+
   // ===== THE OWNER'S BATCHES 2026-08-20/21: NO CHEST, NO RED TOP,
   // A GRADIENT WITH POSITIONS, A DESKTOP MENU, A MOBILE PILL BUTTON =====
   // ⚠️ THE HEADING WAS REWRITTEN, NOT APPENDED TO: the previous one («settings above the eyes,
