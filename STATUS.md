@@ -6,9 +6,9 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = 3db715b (2026-09-03)** · the suite **950 checks, 0 red** · `main` and `v2` on GitHub
-match · the live site verified byte-for-byte against the build · portal package **5.43 MB** of the
-8 MB reference (headroom 2.57)
+**Build: v2 = be2bb2c (2026-09-05)** · the suite **973 checks, 0 red** · `main` and `v2` on GitHub
+match · the live site verified by byte size against the build · portal package **5.48 MB** of the
+8 MB reference (headroom 2.52)
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
@@ -30,6 +30,29 @@ match · the live site verified byte-for-byte against the build · portal packag
    package, the play-time budget, no interstitials, the x5 badge, the penalty rule), then this
    page; the suite's red lines are read before anything is re-based. On a Mac whose git fails
    with rc 69 (the Xcode licence), prefix `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+
+## What shipped 5 September (your words with the inspector open, and your Safari instruction)
+
+- **The zoom + and −** are 28 (was 32) in the Shake caption's colour `#484472` (was black); one
+  number `--shake-ink` serves the caption and the glyphs.
+- **The pause icon** is 28 inside the 56 button.
+- **The menu**: the side insets are 8 like the top one (was 16); the Easy/Hard segment sits 12 from
+  the right like from the top and bottom (was 20); in the collection cards the count line is 2 px
+  closer to the name (gap 5 → 3).
+- **The ×5 screen on the phone**: the two chips are one row with a 16 gap and no labels (+13 🔍,
+  +9 ✋); the whole screen fits without scrolling on a 375×667 SE (the 80 after the cross and the
+  136 bottom inset become 32 under 760 of height); the desktop row keeps its labels.
+- **The Safari 26 fields — the seventh edition, by your instruction** (`safari-26-liquid-glass.md`):
+  two 12 px sensor strips at the top and bottom edges (WebKit only, on top of everything,
+  pointer-events none) plus a small driver that keeps them the colour of the page row under them —
+  the sky's stops in the game and the menu, the composited dark over any popup, the SDK curtain's
+  grey while it is up. This is what makes the clock and address-bar zones DARK under the ×5 / win /
+  leaderboard screens on iOS 26 (your 3 September complaint): a popup's blurred fill can never win
+  Safari's edge heuristic, a flat strip always does. `theme-color` is back for Chrome/Android and
+  follows the top strip. ⚠️ **Check on your iPhone**: the zones under the ×5 screen must be as dark
+  as the screen; the game and the menu must look exactly as before; if a coloured band ever shows
+  at an edge, the instruction names the `env()` term as the knob. The simulator cannot show the
+  tinted mode, only the phone can.
 
 ## What shipped 1–3 September
 
