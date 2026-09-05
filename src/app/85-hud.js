@@ -66,6 +66,7 @@ function hideMultToast(){
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
+  chromeStripsSync();   // the Safari 26 strips follow the screen (84-chrome, 2026-09-05)
   // edges: any full-screen fade darkens the strips (5th edition)
   hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
@@ -74,6 +75,7 @@ function show(id){
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
+  chromeStripsSync();   // 84-chrome, 2026-09-05
   // back in the game — the screen is 'game' again (if the run is alive)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }

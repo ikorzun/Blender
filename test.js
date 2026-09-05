@@ -5463,6 +5463,70 @@ window.bridge = {
   // Tips FIRST, then Shake's (the owner's word 2026-09-04)
   expect(sbProbe.chipLabels.join('|') === ('+' + sbProbe.tiers[0].hints + '|+' + sbProbe.tiers[0].shakes),
     'the chips «+13 Tips» then «+9 Shake\'s» match the package, in that order (' + JSON.stringify(sbProbe.chipLabels) + ')');
+  // ═══ THE PHONE ROW (the owner's word 2026-09-05: «on mobile it must fit the screen. For the
+  // phone remove the text inside the bubbles and put them side by side in one row with a 16 px
+  // gap between») — read on its OWN page at the two phone sizes the fit was designed for (375×667,
+  // the SE, is the shortest iOS 26 phone; 320×568 is the small-Android arm), then at 1280 for the
+  // desktop row that keeps the labels. The popup is opened by the HUD float (the direct path).
+  // ⚠️ THE BOX IS READ, NOT THE DECLARATION: «one row» is two rects at one top; «fits» is the buy
+  // button's bottom inside innerHeight — a build without the height arm puts it at 748 on a 667
+  // screen and this goes red, while every declared number stays green.
+  const phoneRow = await (async () => {
+    const pp = await browser.newPage({ viewport: { width: 375, height: 667 } });
+    await pp.goto('file://' + PAGE_FILE);
+    await pp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await pp.evaluate(() => window.__game.skipIntro());
+    await pp.waitForTimeout(400);
+    const read = () => pp.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const f = document.getElementById('x5Float'); f.click(); await sleep(350);
+      const R = s => { const r = document.querySelector(s).getBoundingClientRect();
+        return { l: +r.left.toFixed(1), t: +r.top.toFixed(1), r: +r.right.toFixed(1), b: +r.bottom.toFixed(1), w: +r.width.toFixed(1) }; };
+      const chips = [...document.querySelectorAll('.st-chip')].map(c => { const r = c.getBoundingClientRect();
+        return { l: +r.left.toFixed(1), t: +r.top.toFixed(1), r: +r.right.toFixed(1), w: +r.width.toFixed(1), pr: getComputedStyle(c).paddingRight }; });
+      const labs = [...document.querySelectorAll('.st-lab')].map(l => getComputedStyle(l).display);
+      const wrap = document.querySelector('#starsOverlay .st-wrap');
+      const out = { vw: innerWidth, vh: innerHeight, open: getComputedStyle(document.getElementById('starsOverlay')).display !== 'none',
+        chips, labs, gap: +(chips[1].l - chips[0].r).toFixed(1), sameRow: Math.abs(chips[0].t - chips[1].t) <= 1,
+        block: R('.st-block'), buyBottom: R('.st-buy').b, wrapGap: getComputedStyle(wrap).gap,
+        // ⚠️ THE SCROLLER IS #starsOverlay (overflow-y:auto), NOT the wrap: read on the wrap the
+        // vertical overflow is 0 by construction and the arm is a tautology — caught by the sabotage
+        // run (the fit media disabled, the arm stayed green) before the first suite run
+        hOverflow: wrap.scrollWidth - wrap.clientWidth,
+        vOverflow: (() => { const so = document.getElementById('starsOverlay'); return so.scrollHeight - so.clientHeight; })() };
+      document.getElementById('starsClose').click(); await sleep(250);
+      return out;
+    });
+    const p375 = await read();
+    await pp.setViewportSize({ width: 320, height: 568 }); await pp.waitForTimeout(250);
+    const p320 = await read();
+    await pp.setViewportSize({ width: 1280, height: 832 }); await pp.waitForTimeout(250);
+    const d1280 = await read();
+    await pp.close();
+    return { p375, p320, d1280 };
+  })();
+  console.log('phone row:', JSON.stringify(phoneRow));
+  for (const [name, m] of [['375×667', phoneRow.p375], ['320×568', phoneRow.p320]]) {
+    expect(m.open && m.chips.length === 2 && m.sameRow && m.labs.every(d => d === 'none'),
+      'PHONE ROW ' + name + ': the two chips stand on ONE row and their labels are hidden (the owner 2026-09-05) (' +
+      JSON.stringify({ chips: m.chips, labs: m.labs }) + ')');
+    expect(Math.abs(m.gap - (name === '375×667' ? 16 : 12)) <= 0.5,
+      'PHONE ROW ' + name + ': the gap between the chips is ' + (name === '375×667' ? '16' : '12 (the under-360 arm)') + ' (' + m.gap + ')');
+    // the row lives inside the block and the wrap: no horizontal overflow at either size
+    expect(m.chips[0].l >= m.block.l - 0.5 && m.chips[1].r <= m.block.r + 0.5 && m.hOverflow <= 0,
+      'PHONE ROW ' + name + ': the row fits inside the block, nothing overflows sideways (' +
+      JSON.stringify({ block: m.block, chips: m.chips, hOverflow: m.hOverflow }) + ')');
+  }
+  // «it must fit the screen»: on 375×667 the buy button ends above the fold and the wrap does not
+  // scroll — the two insets shrink to 32 under 760 of height (the mock-up's 80/136 were drawn on 852)
+  expect(phoneRow.p375.buyBottom <= phoneRow.p375.vh && phoneRow.p375.vOverflow <= 0 && phoneRow.p375.wrapGap === '32px',
+    'PHONE ROW 375×667: the whole popup fits the screen — the buy button ends at ' + phoneRow.p375.buyBottom +
+    ' of ' + phoneRow.p375.vh + ', no vertical scroll, the wrap gap 32 (' + JSON.stringify({ vOverflow: phoneRow.p375.vOverflow, gap: phoneRow.p375.wrapGap }) + ')');
+  // the desktop row is untouched: labels shown, the label's 20 on the right, the row gap 20
+  expect(phoneRow.d1280.open && phoneRow.d1280.labs.every(d => d !== 'none') && phoneRow.d1280.chips.every(c => c.pr === '20px') &&
+         Math.abs(phoneRow.d1280.gap - 20) <= 0.5 && phoneRow.d1280.sameRow,
+    'DESKTOP ROW 1280: the labels are back, the pill keeps its 20 on the right (2026-09-04), the gap is 20 (' +
+    JSON.stringify({ labs: phoneRow.d1280.labs, chips: phoneRow.d1280.chips, gap: phoneRow.d1280.gap }) + ')');
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
   // server (stroke-width 26 under paint-order:stroke), NO #otlFill slug (it floods white), 117 on
   // the desktop variant and 80 on the mobile one. Read from the live nodes — computed styles
@@ -10298,6 +10362,108 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'under the clock again');
   }
 
+  // ===== THE SAFARI 26 SENSOR STRIPS — THE SEVENTH EDITION OF THE FIELDS (the owner's
+  // instruction of 2026-09-05, safari-26-liquid-glass.md; the mechanism is written at the
+  // html/body rules of shell.html, the driver is 84-chrome) =====
+  // ⚠️ WHAT THIS GUARD CANNOT DO: Chromium never shows the strips (`@supports (font:
+  // -apple-system-body)` is false here) and never paints Safari's zones. What IS checkable: the
+  // structure the WebKit rule needs (fixed, > 10 px thick, ≥ 90 % wide, a flat colour, on top,
+  // at the two check points), and the DRIVER — the colour it writes at rest, under a dark popup,
+  // under the menu (the two pseudo traps) and under a foreign fixed node (the SDK curtain path,
+  // i.e. the observer). Each arm names its sabotage.
+  {
+    const sbPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    sbPage.on('pageerror', e => errors.push('PAGEERROR(strips): ' + e.message));
+    await sbPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await sbPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await sbPage.evaluate(() => { window.__game.skipIntro(); });
+    await sbPage.waitForTimeout(600);
+    const raf2 = () => sbPage.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const strips = await sbPage.evaluate(() => {
+      const q = id => document.getElementById(id);
+      const top = q('sbTop'), bot = q('sbBot');
+      if (!top || !bot) return { none: true };
+      const cs = el => { const c = getComputedStyle(el); return { pos: c.position, h: c.height, top: c.top, bottom: c.bottom,
+        left: c.left, right: c.right, pe: c.pointerEvents, z: c.zIndex, display: c.display }; };
+      // the WebKit-only display:block lives in a @supports rule — read the stylesheet, not the computed style
+      let supports = null;
+      for (const sh of document.styleSheets){ try { for (const r of sh.cssRules){
+        if (r.type === CSSRule.SUPPORTS_RULE && /apple-system-body/.test(r.conditionText) && /\.sb-strip/.test(r.cssText) && /display:\s*block/.test(r.cssText)) supports = r.conditionText; } } catch(e){} }
+      const first = [...document.body.children].slice(0, 2).map(e => e.id);
+      const sky = { top: getComputedStyle(document.documentElement).getPropertyValue('--sky-top-rgb').trim(),
+                    bot: getComputedStyle(document.documentElement).getPropertyValue('--sky-bot-rgb').trim() };
+      return { top: cs(top), bot: cs(bot), supports, first, sky, hook: window.__game.chromeStrips() };
+    });
+    console.log('strips:', JSON.stringify(strips));
+    expect(!strips.none && strips.first.join('|') === 'sbTop|sbBot',
+      'STRIPS: #sbTop and #sbBot are the first two children of body — in the first frame (' + JSON.stringify(strips.first) + ')');
+    expect(!strips.none && ['top', 'bot'].every(k => strips[k].pos === 'fixed' && strips[k].h === '12px' && strips[k].left === '0px' && strips[k].right === '0px'
+        && strips[k].pe === 'none' && strips[k].z === '2147483647') && strips.top.top === '-6px' && strips.bot.bottom === '-6px',
+      'STRIPS: fixed, 12 px thick (> the 10 px WebKit demands), edge to edge (≥ 90 % wide), pointer-events none, z max, ' +
+      'top -6 / bottom -6 so the 4 px check points are covered (' + JSON.stringify({ top: strips.top, bot: strips.bot }) + ')');
+    expect(!strips.none && strips.top.display === 'none' && !!strips.supports,
+      'STRIPS: hidden outside WebKit and shown by a `@supports (font: -apple-system-body)` rule (' +
+      JSON.stringify({ display: strips.top.display, supports: strips.supports }) + ') — display:none, not opacity: Safari samples opacity:0');
+    // THE DRIVER AT REST: the strips carry the sky's own edge stops, the meta rides on the top one
+    const skyTop = 'rgb(' + strips.sky.top.split(',').map(s => s.trim()).join(', ') + ')';
+    const skyBot = 'rgb(' + strips.sky.bot.split(',').map(s => s.trim()).join(', ') + ')';
+    expect(!strips.none && strips.hook.top === skyTop && strips.hook.bottom === skyBot && strips.hook.meta === skyTop,
+      'STRIPS AT REST: the top strip = --sky-top-rgb, the bottom = --sky-bot-rgb (the frame\'s own edge rows), theme-color = the top (' +
+      JSON.stringify({ hook: strips.hook, skyTop, skyBot }) + ')');
+    // TWO-SIDED ON THE BASE: move the palette variable, the strip follows on the next frame
+    await sbPage.evaluate(() => { document.documentElement.style.setProperty('--sky-top-rgb', '1, 2, 3'); chromeStripsSync(); });
+    await raf2();
+    const moved = await sbPage.evaluate(() => window.__game.chromeStrips());
+    await sbPage.evaluate(() => { document.documentElement.style.removeProperty('--sky-top-rgb'); chromeStripsSync(); });
+    await raf2();
+    expect(moved.top === 'rgb(1, 2, 3)' && moved.bottom === skyBot,
+      'STRIPS FOLLOW THE PALETTE: --sky-top-rgb → 1,2,3 moved the top strip and only it (' + JSON.stringify(moved) + ')');
+    // THE DARK POPUP: the purchase screen (the owner\'s 2026-09-03 case) — its 88 % fill sits on a fixed
+    // ::before, and the strips must composite it over the sky. The expected colour is computed HERE
+    // with the plain source-over formula, not read back from the driver.
+    const sky = strips.sky.top.split(',').map(Number), skyB = strips.sky.bot.split(',').map(Number);
+    const dim = (c) => 'rgb(' + c.map(v => Math.round(10 * 0.88 + v * 0.12)).join(', ').replace(/^/, '') + ')';
+    const dimTop = 'rgb(' + [10, 14, 22].map((d, i) => Math.round(d * 0.88 + sky[i] * 0.12)).join(', ') + ')';
+    const dimBot = 'rgb(' + [10, 14, 22].map((d, i) => Math.round(d * 0.88 + skyB[i] * 0.12)).join(', ') + ')';
+    void dim;
+    await sbPage.evaluate(() => { document.getElementById('starsOverlay').style.display = 'flex'; });   // the observer path, no manual sync
+    await raf2(); await sbPage.waitForTimeout(60); await raf2();
+    const underPopup = await sbPage.evaluate(() => window.__game.chromeStrips());
+    await sbPage.evaluate(() => { document.getElementById('starsOverlay').style.display = 'none'; });
+    await raf2(); await sbPage.waitForTimeout(60); await raf2();
+    const afterPopup = await sbPage.evaluate(() => window.__game.chromeStrips());
+    const near = (a, b) => { const x = (a.match(/\d+/g) || []).map(Number), y = (b.match(/\d+/g) || []).map(Number);
+      return x.length === 3 && y.length === 3 && x.every((v, i) => Math.abs(v - y[i]) <= 1); };
+    expect(near(underPopup.top, dimTop) && near(underPopup.bottom, dimBot),
+      '⚠️⚠️ STRIPS UNDER THE PURCHASE POPUP: both carry the 88 % dark fill composited over their sky stop — the popup\'s ' +
+      '::before is read as a full-screen layer (' + JSON.stringify({ got: underPopup, expected: { top: dimTop, bottom: dimBot } }) + '). ' +
+      'The sabotage — drop the ::before arm of the driver: the strips stay sky-coloured and the clock zone shows the sky under a dark popup, the owner\'s 2026-09-03 complaint');
+    expect(afterPopup.top === skyTop && afterPopup.bottom === skyBot,
+      'STRIPS AFTER THE POPUP: back to the sky stops (' + JSON.stringify(afterPopup) + ')');
+    // THE MENU: the gradient layer (#mainScreen::before, a background-IMAGE) and the 1 px mint
+    // strip (#mainScreen::after) must NOT tint — the top stays the zenith, the bottom the sky\'s bottom
+    await sbPage.click('#pauseBtn', { force: true });
+    await sbPage.waitForTimeout(700); await raf2();
+    const underMenu = await sbPage.evaluate(() => ({ open: document.getElementById('mainScreen').classList.contains('open'), s: window.__game.chromeStrips() }));
+    await sbPage.evaluate(() => { const b = document.querySelector('.ms-play'); if (b) b.click(); });
+    await sbPage.waitForTimeout(400);
+    expect(underMenu.open && underMenu.s.top === skyTop && underMenu.s.bottom === skyBot,
+      'STRIPS UNDER THE MENU: the sky stops on both — the gradient pseudo is skipped as an image, the 1 px ::after as a non-layer (' +
+      JSON.stringify(underMenu) + '). The sabotage — drop the height filter on pseudos: the TOP strip turns mint from the bottom strip\'s colour');
+    // A FOREIGN FIXED NODE (the SDK curtain\'s shape: a plain fixed full-screen child of body with a solid colour) — the observer path
+    await sbPage.evaluate(() => { const d = document.createElement('div'); d.id = 'sbProbeCurtain';
+      d.style.cssText = 'position:fixed;inset:0;background:#242424;z-index:9999999;'; document.body.appendChild(d); });
+    await raf2(); await sbPage.waitForTimeout(60); await raf2();
+    const underCurtain = await sbPage.evaluate(() => window.__game.chromeStrips());
+    await sbPage.evaluate(() => document.getElementById('sbProbeCurtain').remove());
+    await raf2(); await sbPage.waitForTimeout(60); await raf2();
+    const afterCurtain = await sbPage.evaluate(() => window.__game.chromeStrips());
+    await sbPage.close();
+    expect(underCurtain.top === 'rgb(36, 36, 36)' && underCurtain.bottom === 'rgb(36, 36, 36)' && afterCurtain.top === skyTop && afterCurtain.bottom === skyBot,
+      'STRIPS UNDER A FOREIGN CURTAIN: a fixed full-screen body child with a solid colour takes both strips through the OBSERVER (no show() call), ' +
+      'and its removal gives them back (' + JSON.stringify({ underCurtain, afterCurtain }) + '). The sabotage — drop the MutationObserver');
+  }
+
   // ===== THE OWNER'S BATCHES 2026-08-20/21: NO CHEST, NO RED TOP,
   // A GRADIENT WITH POSITIONS, A DESKTOP MENU, A MOBILE PILL BUTTON =====
   // ⚠️ THE HEADING WAS REWRITTEN, NOT APPENDED TO: the previous one («settings above the eyes,
@@ -11524,6 +11690,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'DIFFERENTLY in the two themes and identically in neither. ' +
     '⚠️ IT IS NOT THE ZOOM\'S RECIPE AND THE DIFFERENCE IS HIS: .60 against .50, and no 1 px rim. ' +
     'Pinning the zoom\'s numbers here would be inventing a value he did not write');
+  // THE PAUSE GLYPH IS 28 (the owner's word 2026-09-05, the svg selected: «shrink the icon inside
+  // the button to 28 px»); the button stays 56. The BOX is read, like the zoom's arms of the same day.
+  const pauseGlyph = await page.evaluate(() => {
+    const s = document.querySelector('#pauseBtn svg').getBoundingClientRect(), b = document.getElementById('pauseBtn').getBoundingClientRect();
+    return { svg: [+s.width.toFixed(1), +s.height.toFixed(1)], btn: [+b.width.toFixed(1), +b.height.toFixed(1)] };
+  });
+  expect(pauseGlyph.svg[0] === 28 && pauseGlyph.svg[1] === 28 && pauseGlyph.btn[0] === 56 && pauseGlyph.btn[1] === 56,
+    'PAUSE: the glyph is 28×28 inside the 56 button (the owner 2026-09-05) (' + JSON.stringify(pauseGlyph) + ')');
 
   // ═══ ONE VERTICAL, AND THE PAUSE BUTTON IS ITS BASE (the owner's word 2026-08-25-g) ═══
   // «The pause button, the level, the star and the score must be aligned on one vertical; take
@@ -14554,6 +14728,33 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'Difficult and «Easy» without a tail (' + JSON.stringify(desk) + ')');
   await lbPage.setViewportSize({ width: 390, height: 780 });
   await lbPage.waitForTimeout(250);
+
+  // ── THE MENU'S INSETS AND THE CARD'S SQUEEZE (the owner's three words of 2026-09-05) ──
+  // «the side insets the same as the top one, from the edge of the view» (.ms-wrap, the stacked
+  // column); «the right inset the same as the top and bottom» (.ms-settings on the phone, the
+  // segment's column); «raise the description higher, 2 px less between it and the title» (the
+  // collection card: the name↔count gap 5 → 3). RELATIONS where he named relations, numbers where
+  // he named a number; the boxes are read for the gap, not the margin declaration.
+  const menuInsets = await lbPage.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    document.getElementById('pauseBtn').click(); await sleep(400);
+    const pf = (el, k) => parseFloat(getComputedStyle(el)[k]);
+    const wrap = document.querySelector('.ms-wrap'), sets = document.querySelector('.ms-settings');
+    const card = [...document.querySelectorAll('.ms-grid .msc')].find(c => c.querySelector('.msc-cnt') && c.querySelector('.msc-name'));
+    const gap = card ? +(card.querySelector('.msc-cnt').getBoundingClientRect().top - card.querySelector('.msc-name').getBoundingClientRect().bottom).toFixed(1) : null;
+    const o = { wrap: { top: pf(wrap, 'paddingTop'), left: pf(wrap, 'paddingLeft'), right: pf(wrap, 'paddingRight') },
+      sets: { top: pf(sets, 'paddingTop'), bottom: pf(sets, 'paddingBottom'), left: pf(sets, 'paddingLeft'), right: pf(sets, 'paddingRight') },
+      cardGap: gap, hasCard: !!card };
+    { const p = document.querySelector('.ms-play'); if (p) p.click(); }
+    await sleep(250); return o;
+  });
+  console.log('menu insets:', JSON.stringify(menuInsets));
+  expect(menuInsets.wrap.left === menuInsets.wrap.top && menuInsets.wrap.right === menuInsets.wrap.top && menuInsets.wrap.top === 8,
+    'MENU: the column\'s side insets equal its top inset, 8 from the edge of the view (the owner 2026-09-05; it was 16/8) (' + JSON.stringify(menuInsets.wrap) + ')');
+  expect(menuInsets.sets.right === menuInsets.sets.top && menuInsets.sets.right === menuInsets.sets.bottom && menuInsets.sets.top === 12 && menuInsets.sets.left === 20,
+    'SETTINGS 390: the right inset equals the top and the bottom (12), the left keeps its 20 under the labels (the owner 2026-09-05) (' + JSON.stringify(menuInsets.sets) + ')');
+  expect(menuInsets.hasCard && Math.abs(menuInsets.cardGap - 3) <= 0.6,
+    'CARD: the count sits 3 under the name — 2 less than the 5 of spec #6 (the owner 2026-09-05) (' + menuInsets.cardGap + ')');
 
   // ── THE BEHAVIOUR OF THE SWITCHER: SWITCHING ON RETURNS ITS OWN VOLUME, AND NOT 100 ──
   // ⚠️ This is NOT cosmetics: the switcher knows only ON/OFF, and a naive implementation

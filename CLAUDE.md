@@ -14880,4 +14880,133 @@ run out, nowhere else. 4. only game time». (1) 20 GAM stays. (2) The dashboard 
   during that run — the preview pane was playing the live game at 60 fps beside the suite, the
   class the canon already names («a guard that only passes on an idle machine»). The decode rate
   here is 48000 (the audio arms are LIVE on this host, unlike the 16 kHz stand of 2026-09-02).
-  The run on the changed build is recorded below.
+  THE RUNS ON THE CHANGED BUILD: run 2 — 945 green, 7 red, ALL timing-shaped and none about the
+  zoom (sawing orphans 6, the zoom settle read 10.04 twice in a row with `rEnd === rMid`, the toast,
+  the impact FX, the bowl treasure/pile at `samples 0`, the anger layers) on a machine that was
+  QUIET this time — i.e. load is not the whole story of these arms; run 3 on the SAME build and
+  the same quiet machine — **952 green, 0 red, SUITE: PASS** (21 minutes; the runs here take 13-21).
+  ⚠️ The lesson, unchanged from the canon: re-run once before touching a guard; the seven were
+  not touched. The host's ZOOM settle flake (`rEnd === rMid` at 80 ms) is a subject if it recurs.
+
+## BATCH 2026-09-05-b: THE OWNER'S FIVE WORDS WITH THE INSPECTOR OPEN — THE PAUSE GLYPH 28, THE MENU'S INSETS, THE SEGMENT'S RIGHT INSET, THE CARD'S SQUEEZE, THE ×5 POPUP AS A PHONE ROW
+
+His words, each with an element selected on the page: «shrink the icon inside the button to 28 px»
+(the pause svg, 32 in the inspector); «the side insets the same as the top one, from the edge of the
+view» (the profile card and the settings); «the right inset the same as the top and bottom» (the
+Easy/Hard segment); «here and everywhere in the cards raise the description higher, 2 px less
+between it and the title» («23/100»); «on mobile it must fit the screen. For the phone remove the
+text inside the bubbles and put them side by side in one row with a 16 px gap between» (the ×5
+screen). All measured on the build, headless at 375×667 / 320×568 / 390 / 1280.
+
+- THE PAUSE GLYPH: `#pauseBtn svg { 28 }` beside the black-glyph rule — the `.iconBtn` base 32 stays
+  for the crosses; the button stays 56. Measured 28×28 in 56.
+- THE MENU'S SIDE INSETS: `.ms-wrap` padding 8 at the sides (it was 16 against the top's 8) — one
+  rule serves the stacked column and the ≥1080 bento alike, so both got it. Measured: the card at
+  (8, 8), the wrap 8/8/8. ⚠️ Read as the RELATION he named (sides = top); the guard asserts the
+  relation and prints the number.
+- THE SEGMENT'S RIGHT INSET: `.ms-settings { padding-right:12px }` in the <1080 block — the base
+  says 20 at both sides (the mock-up's 12 + 8); the left keeps its 20 under the labels, he named the
+  right. Measured: the segment 12/12/12 from the top/right/bottom of its card. Mobile block only,
+  like the white active button of 2026-08-17 — the desktop was not named.
+- THE CARD: `.msc-cnt` and `.msc-lvl` margin-top −5 → −7 under the card's gap 10, i.e. the visible
+  name↔count gap 5 → 3 (spec #6's «÷2» becomes «÷2, then 2 less»). Measured 3.0 by the boxes.
+- THE ×5 SCREEN ON THE PHONE (<560): `.st-chips` is a ROW (gap 16, centred), `.st-lab` is hidden,
+  the chip is symmetric 8/8 (its label's 20 of 2026-09-04 moves into the ≥560 block, where the
+  label lives), the block's floor 272 → 326 (two label-less chips of 155 + 16). ⛔ CANCELS the mobile
+  column of 938:1688 and the 264/338/60-90 vw chip widths of 2026-09-04; «Tips first» keeps its
+  ORDER, left to right. «It must fit the screen»: the mock-up's 80 after the cross and its 136
+  bottom inset were drawn on an 852-tall frame — under 760 of height both become 32 (a media on
+  the phone widths only): 375×667 → the buy button ends at 596 of 667, no scroll; 390×780 and
+  393×852 fit without the media. Under 360 (small Android; no iOS 26 phone is that narrow) the
+  badge/icon/gaps shrink so 2 × 134 + 12 fits the 288 the wrap leaves at 320. The desktop row
+  (≥560) is untouched: labels shown, the pill's 20 on the right, gap 20 — measured at 1280.
+- THE GUARDS (test.js): PAUSE 28×28 (the box); MENU wrap left = right = top = 8; SETTINGS 390
+  right = top = bottom = 12 and left 20; CARD the count 3 under the name (the boxes); PHONE ROW on
+  its own page — 375×667 and 320×568: one row, labels hidden, the gap 16 / 12, inside the block, no
+  sideways overflow, the buy button inside the viewport with no vertical scroll and the wrap gap 32;
+  1280: labels back, 20 on the right, gap 20. PROVEN TWO-SIDED on the build with the standalone
+  reader of the same properties: the fit media disabled → only the 375 fit arm red; `.st-lab
+  { display:none }` deleted → only the phone-row arms red; the pause rule deleted → only the pause
+  arm red; the healthy build all green.
+
+## BATCH 2026-09-05-c: THE SEVENTH EDITION OF THE SAFARI 26 FIELDS — TWO SENSOR STRIPS AND A DRIVER (the owner's instruction `safari-26-liquid-glass.md`, 5 September 2026, written from the WebKit sources; his words: «act by the instruction for the fields in Safari», «the instruction», «then the other tasks»)
+
+### WHAT THE INSTRUCTION ESTABLISHES (the primary source is his file on the desktop, in Russian; the English gist is here because the project is English-only)
+`LocalFrameView::fixedContainerEdges` (WebKit main, September 2026): at every edge whose obscured
+inset is > 0 Safari hit-tests the point (width/2, 4 px inside the layout viewport), walks up to the
+nearest `position:fixed`/`sticky` ancestor in the main frame and collects `background-color` along
+the chain. The candidate must be > 10 px thick on both sides, ≥ 0.9 × (viewport − 8) wide, not taller
+than 1.05 × the viewport. ONE opaque colour → the zone is painted with it; a gradient/image →
+a 2-px snapshot; several colours or ANY `backdrop-filter` in the chain → «multiple» → the PAGE colour
+(body, else html, else white/black by color-scheme); alpha < 0.1 → invisible, < 0.75 → blended with
+the page colour; `opacity:0`/`visibility:hidden` skipped (but an opacity-0 overlay covering the
+point hides what is under it — hide with `display:none` only); `pointer-events:none` is IGNORED
+by the first hit-test pass (a sensor strip may carry it); a negative z-index is skipped; a
+full-screen fixed DIMMER (a bg with alpha < 1 or opacity < 1, no children) only blends with the
+page colour and — the stability rule — NEVER REPLACES an edge colour already found. The recompute
+happens on any repaint of a fixed layer (writing a strip's `background-color` from JS is one);
+on iPhone the top edge is recomputed always, on iPad/macOS it freezes after the first scroll/tap.
+`theme-color` is parsed and ignored by Safari 26 (kept for Chrome/Android). Fixed elements are
+clipped at the layout viewport since 26.0 (`bottom:-100px` reaches nothing — the 2026-08-31-a
+measurement agrees). The simulator does not reproduce the tinted Liquid Glass mode: the final
+check is the phone.
+
+### WHY THE SIXTH EDITION COULD NOT DARKEN THE POPUP'S ZONES (the 2026-09-03 complaint)
+The popups paint their 88 % fill on a fixed `::before` WITH `backdrop-filter:blur(6px)`: a
+backdrop-filter in the chain gives «multiple» → the page colour = body's zenith → the sky under the
+clock while the screen is dark. And even without the blur a full-screen dimmer never replaces the
+colour the game's edge already had. The 2026-08-30 «extension» recipe was the case «no candidate at
+all → glass over the content», which is why the GAME and the MENU looked right and the popups did
+not. The matrix's law «a painted fixed element at the boundary disables the extension» is the same
+mechanism seen from outside: a painted candidate is a colour source, so the extension stops.
+
+### WHAT SHIPPED
+- Two strips `#sbTop`/`#sbBot`, the FIRST children of body (the instruction: into the first frame):
+  fixed, left 0 right 0, 12 px tall, top −6 / bottom −6 (the 4 px check point covered with 2 px to
+  spare, 6 px inside the viewport), `pointer-events:none`, z-index 2147483647, `display:none` and
+  `display:block` under `@supports (font: -apple-system-body)` (true in every browser on iOS and
+  in Safari on macOS, false in Chromium — headless never sees them). Their CSS default colours are
+  the sky's edge stops, so a strip is right before the driver's first frame.
+  ⚠️ NO `env(safe-area-inset-*)` term in the height, the instruction's optional belt: in the
+  wrapper's WKWebView the top inset is ~59 and a 65 px flat band would sit over the sky's gradient
+  rows; the zones are painted by WebKit's extension FROM the strip, not by the strip's own pixels.
+- The driver `src/app/84-chrome.js` (a new module, 29 in the build): the colour of each strip =
+  the sky's own edge stop (`--sky-top-rgb`/`--sky-bot-rgb`, 10-stage's numbers) with every
+  full-width fixed LAYER found at the edge point composited over it in stacking order — the layer's
+  own `background-color` (× opacity) and its fixed/absolute `::before`/`::after` when they are
+  full-screen (≥ 90 % of both sides); a layer whose fill is a background-IMAGE is skipped (the
+  menu's sky gradient IS the base). NOT the instruction's generic sampler: our sky is a WebGL
+  canvas plus a gradient — a sampler would hand the bottom strip the zenith. The meta
+  `theme-color` (back for Chrome/Android) rides on the top strip's colour.
+  ⚠️ THE TWO FILTERS ARE LOAD-BEARING AND EACH HAS A GUARD: width ≥ 90 % (a button at the point is
+  not a layer — the desktop zoom row is 20 above it, the menu's pill 8); pseudo height ≥ 90 %
+  (`#mainScreen::after` is a 1 px mint strip at the bottom — read blindly it turns the TOP strip
+  mint under the menu; measured, not reasoned: the sabotage goes red on exactly that arm).
+  Triggers: show()/hide() in 85-hud call it on the spot; a MutationObserver on body (childList +
+  class/style/hidden on the subtree, coalesced to one sample per frame) catches the SDK curtain and
+  anything toggled by another path; resize/pageshow/orientationchange/visibilitychange; the palette
+  writers in 10-stage (a `typeof` call — module 10 runs before module 84's `let` exists, the TDZ
+  the canon already records; the call is the last line of its try-block, nothing after it is lost).
+  ⚠️ A HIDDEN page has no rAF: the driver's first write waits for the first visible frame (the
+  preview pane loads pages hidden — the strips read empty there until the pane is shown; measured,
+  then re-measured headless where they read right). The CSS defaults cover that gap.
+  ⚠️ The combo fever paints the frame's bottom red for a moment; the strip keeps the sky's bottom
+  stop then — named, not chased.
+- The sixth edition's set (html transparent, body = zenith + the sky gradient, the bars paint
+  nothing, the overlays on ::before) STAYS: it is the belt for any WebKit that hides the strips and
+  it costs nothing. The «not a single line of JS» of 2026-08-20 is cancelled by the instruction.
+- MEASURED (headless, the same reads the suite makes): at rest the strips carry rgb(172,168,255)
+  / rgb(197,255,216) = the sky's stops, the meta the top one; under the purchase popup
+  rgb(29,32,50) / rgb(32,43,45) = the 88 % dark composited over each stop (the expected value is
+  computed in the test with the plain source-over formula, not read back); under the menu the sky
+  stops again (the gradient pseudo skipped as an image, the 1 px ::after as a non-layer); under a
+  foreign fixed full-screen body child of #242424 both read rgb(36,36,36) through the observer
+  alone, and its removal gives the sky back. PROVEN FOUR-SIDED on the build: the ::before arm of
+  the driver removed → only the popup arm red; the pseudo height filter removed → only the menu arm
+  red; the MutationObserver removed → the popup and the curtain arms red; the healthy build green.
+- WHAT ONLY THE PHONE CAN SAY: the zones themselves. What to look at on iOS 26 — the clock zone
+  and the address-bar zone under the ×5 screen, the win screen and the leaderboard must be as dark
+  as the screen; the game and the menu must look exactly as before (the strips' 6 px are the same
+  colour as the row under them); if a coloured band shows at an edge, the instruction names the
+  `env()` term as the knob. The edge-census guard of the sixth edition is untouched (the strips are
+  hidden in Chromium and are not the bars).

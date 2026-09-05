@@ -1091,6 +1091,16 @@ function visiblePixel(it, ctx){
 }
 window.__game = {
   alive(){ return items.filter(i=>i.alive).length; },
+  // the Safari 26 strips (84-chrome, 2026-09-05): what they carry, what the driver would compute now,
+  // and whether this browser shows them at all (WebKit only)
+  chromeStrips(){
+    const q = id => document.getElementById(id);
+    const top = q('sbTop'), bot = q('sbBot');
+    return { top: top ? top.style.backgroundColor : null, bottom: bot ? bot.style.backgroundColor : null,
+             computedTop: chromeStripColor('top'), computedBottom: chromeStripColor('bottom'),
+             shown: top ? getComputedStyle(top).display : null,
+             meta: (document.querySelector('meta[name=theme-color]') || {}).content || null };
+  },
   availablePairs,
   autoMatch(){
     stats.lastAction = performance.now(); // a bench match = a player action:
