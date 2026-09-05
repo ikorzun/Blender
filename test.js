@@ -10411,10 +10411,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'STRIPS AT REST: the top strip = --sky-top-rgb, the bottom = --sky-bot-rgb (the frame\'s own edge rows), theme-color = the top (' +
       JSON.stringify({ hook: strips.hook, skyTop, skyBot }) + ')');
     // TWO-SIDED ON THE BASE: move the palette variable, the strip follows on the next frame
-    await sbPage.evaluate(() => { document.documentElement.style.setProperty('--sky-top-rgb', '1, 2, 3'); chromeStripsSync(); });
+    // ⚠️ `chromeStripsSync` is IIFE-private — the hook `__game.chromeSync` is the page-side door (a
+    // bare call here threw a ReferenceError that killed run 4 of 2026-09-05 without a verdict — the
+    // canon's «a ReferenceError inside a page function kills the suite, it does not go red»)
+    // ⚠️ and the variable is RESTORED, not removed: 10-stage wrote it inline, `removeProperty` would
+    // drop the page to the CSS fallback for the rest of this page's life
+    const prevSkyTop = await sbPage.evaluate(() => document.documentElement.style.getPropertyValue('--sky-top-rgb'));
+    await sbPage.evaluate(() => { document.documentElement.style.setProperty('--sky-top-rgb', '1, 2, 3'); window.__game.chromeSync(); });
     await raf2();
     const moved = await sbPage.evaluate(() => window.__game.chromeStrips());
-    await sbPage.evaluate(() => { document.documentElement.style.removeProperty('--sky-top-rgb'); chromeStripsSync(); });
+    await sbPage.evaluate((prev) => { document.documentElement.style.setProperty('--sky-top-rgb', prev); window.__game.chromeSync(); }, prevSkyTop);
     await raf2();
     expect(moved.top === 'rgb(1, 2, 3)' && moved.bottom === skyBot,
       'STRIPS FOLLOW THE PALETTE: --sky-top-rgb → 1,2,3 moved the top strip and only it (' + JSON.stringify(moved) + ')');

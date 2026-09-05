@@ -15010,3 +15010,17 @@ mechanism seen from outside: a painted candidate is a colour source, so the exte
   colour as the row under them); if a coloured band shows at an edge, the instruction names the
   `env()` term as the knob. The edge-census guard of the sixth edition is untouched (the strips are
   hidden in Chromium and are not the bars).
+- ⛔⛔ RUN 4 OF THE DAY DIED AT 701 GREEN WITHOUT A VERDICT — MY OWN GUARD, THE CANON'S OWN CLASS.
+  The «follow the palette» arm called `chromeStripsSync()` from a `page.evaluate`; the function is
+  IIFE-private, the page threw `ReferenceError`, and a ReferenceError inside a page function does
+  not go red, it kills the run (the 2026-09-01-p and 2026-09-03-c records say exactly this). The
+  standalone reader had not caught it because it never called the function by name. Two fixes:
+  the page-side door is `__game.chromeSync()` (99-main), and the arm RESTORES `--sky-top-rgb` to the
+  inline value 10-stage wrote instead of `removeProperty` (which would have dropped the page to the
+  CSS fallback for the rest of the section and reddened the popup arm downstream). ⚠️ THE PROCEDURE
+  THAT WAS SKIPPED AND IS NOW DONE: every new section is lifted verbatim out of test.js and run
+  alone before the suite (`scratchpad/dry-run-sections.js` — the strips and the phone row: 17 green,
+  0 red, no page errors; the pause and the menu insets: 4 green). A minute against twenty.
+  The owner had the batch pushed before the verdict on his word («push it all»); the game code was not
+  at fault — the strips, the driver and every CSS rule are identical in the pushed build — only the
+  suite could not say so. The verdict of run 5 on the corrected suite is in STATUS.md.

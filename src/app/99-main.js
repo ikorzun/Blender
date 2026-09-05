@@ -1101,6 +1101,9 @@ window.__game = {
              shown: top ? getComputedStyle(top).display : null,
              meta: (document.querySelector('meta[name=theme-color]') || {}).content || null };
   },
+  // the same driver, callable from a test page: `chromeStripsSync` is IIFE-private, and a
+  // `page.evaluate` that named it killed run 4 of 2026-09-05 with a ReferenceError and no verdict
+  chromeSync(){ chromeStripsSync(); },
   availablePairs,
   autoMatch(){
     stats.lastAction = performance.now(); // a bench match = a player action:
