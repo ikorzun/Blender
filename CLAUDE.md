@@ -15317,3 +15317,63 @@ nothing left to gain: the band's colour is ALREADY the sky's exact first row. `e
 here because it describes only the hardware unsafe area still left INSIDE the shrunken viewport — the 220 pt
 is an *obscured content inset*, not a safe area, and no meta, unit or API in Safari 26 moves it. The one mode
 where the page owns all 874 pt is a Home-screen web app, a different distribution channel.
+
+## BATCH 2026-09-05-h (shipped 09-06): HIS SCREENSHOT SETTLED IT — THE TWO EDGE CARDS, AND EVERY ZONE NOW CARRIES THE COLOUR OF THE ROW IT COVERS
+
+### THE MEASUREMENT (his iPhone, `tools/probe/chrome-probe.html?v=cards`, one frame)
+A document 1310 tall (stage 1014) over a 654 viewport, with real ruled content lying inside the bottom
+zone, plus two 12 px FIXED cards in colours found nowhere else on the page.
+| zone | what his screen showed |
+|---|---|
+| top (≈61 pt, the island) | **PURE RED** — the top card's colour |
+| bottom (≈159 pt, the address bar) | **PURE BLUE** — the bottom card's colour, painted OVER the ruled content beneath it |
+**Three facts in one frame, all now certain:** the colour-extension channel is LIVE on his device (so
+«Allow Website Tinting» is on — the open question is closed without asking him); the two edges take
+INDEPENDENT colours; and the fill PAINTS OVER in-flow content. ⛔ THE LAST ONE RETIRES THE «CONTENT UNDER
+THE BAR» ROUTE ENTIRELY: a taller document can never win the bottom zone while any fixed box covers the
+sample point, and `#c` covers both on every screen. That is also the true, final explanation of the eighth
+edition's failure — not that the tail was mis-placed (it was, at page 874..1194 against a zone of 654..813),
+but that even correctly placed it would have been painted over.
+
+### WHAT SHIPPED — TEN LINES OF CSS, TWO DIVS, NO MODULE
+- `#edgeTop` / `#edgeBot`: fixed, 12 px (over WebKit's 10 px `thinBorderWidth`), full width (over the 0.9
+  `minimumRatio`), one opaque colour (over the 0.75 alpha bar), `z-index:2147483647` so each is topmost at
+  its hit-test, `pointer-events:none` (which WebKit's first pass ignores and the page needs), at `top:-6` /
+  `bottom:-6` so each covers the sample point 4 px inside with 2 px to spare. Only 6 px of each lies inside
+  the viewport, in the SAME colour as the row it covers — invisible by construction.
+- THE COLOURS ARE THE SKY'S OWN CSS VARIABLES, not a sampler: `rgb(var(--sky-top-rgb))` and
+  `rgb(var(--sky-bot-rgb))`, written by 10-stage from the palette the shader itself uses, so a zone and the
+  frame row it covers cannot drift apart. The menu, the pause screen and the loading curtain paint that same
+  gradient, so the same two variables serve them. The seven dark popups override both through
+  `html.dimmed` — a higher-specificity rule, so no `!important` and no inline style.
+- THE COMBO FEVER IS THE ONE MOVING PART: the shader repaints the frame's bottom rows during a chain
+  reaction (at the bottom row the admixture is exactly `uCombo × FEVER_MAX`, since `sy = 0`), so the loop
+  writes `--edge-bot-rgb` — one custom property with ONE consumer, only when the value moves by more than
+  0.02, and removed at zero so the plain rule takes over. Without it the zone keeps the calm mint through a
+  whole chain reaction: 159 pt of mismatch. At rest the loop pays nothing.
+- ⛔⛔ THIS IS THE SEVENTH EDITION'S MECHANISM WITHOUT ITS MISTAKE. There a module sampled the page and then
+  HID the strips in the game and the menu — so on the two screens he actually looks at, the zones fell back
+  to body's zenith violet and he reported the field. Here there is no driver, no sampling, no observer, no
+  module, and nothing is hidden anywhere.
+
+### THE GUARD, PROVEN FIVE-SIDED
+Healthy 6/6. `height 12 → 8` → only the candidate-shape arm; the loop's fever write deleted → only the fever
+arm; `--sky-bot-rgb → --sky-top-rgb` on the bottom card → the game and the menu arms; the `html.dimmed`
+override deleted → only the popup arm.
+⚠️ WHAT HEADLESS CANNOT CHECK, AND HOW THE GUARD WORKS AROUND IT: `elementsFromPoint` HONOURS
+`pointer-events:none`, so it never returns the cards, while WebKit's first hit-test pass deliberately ignores
+that property (`IgnoreCSSPointerEvents::Yes`). Topmost-ness is therefore asserted STRUCTURALLY — max
+z-index plus a box that contains the sample point — instead of by a hit test that would answer a different
+question and go red on a healthy build.
+⚠️ AND THE FEVER ARM MUST NOT NAME A LEVEL: the tween moves `uCombo` every frame, so comparing the variable
+against `edgeTriple(1)` races it — measured, want 125,235,163 against a written 140,239,174 one frame later.
+Both sides are read in the SAME tick (`edgeTriple()` with no argument answers for the current uniform).
+
+### WHAT IS NOW CLOSED, AND WHAT REMAINS TRUE
+✅ The bottom field (a violet belt under a mint horizon) — the bottom card carries the nadir.
+✅ The violet frames around the seven dark screens — the 2026-09-03 complaint, cured twice over now (body
+   for the fallback, the cards for the zones).
+✅ The menu and the pause screen — the same two variables, no separate path.
+⛔ CONTENT under either bar: impossible on this device. The bottom is impossible because the fill overprints
+   (measured today); the top is impossible because a document has no rows above its own origin. Both zones
+   are a COLOUR, and the only honest goal is that the colour is exactly right — which is what shipped.

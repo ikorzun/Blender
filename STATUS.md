@@ -51,26 +51,22 @@ match · the live site verified by byte size against the build · portal package
   CPU ×4), and lifting the dt/substep caps does not buy it back (canon 2026-09-05-d). ⚠️ **Your A/B
   on the phone in Low Power Mode**: `?fallcap=10`, `?fallcap=12` (production), `?fallcap=16` (the
   old feel) on the live link — the number you pick is one constant.
-- **The Safari 26 fields — everything I tried yesterday is DELETED and the cause is finally known.** The
-  bands are not something we paint: iOS 26 Safari draws its own flat colour over the top and bottom of the
-  screen whenever any part of the page is pinned to that edge, and in this game everything is pinned. When
-  the pinned element declares no colour, the browser falls back to the page's own `body` colour — which is
-  the sky's ZENITH violet. That is why the bottom looked cut (violet under a mint horizon) and why the dark
-  popups were framed in violet. Read from the WebKit sources, then confirmed on the game's own screens.
-- **Fixed now:** under the seven dark screens (the ×5 purchase, win, lose, museum, leaderboard, ad, new
-  object) the bands take the screen's own colour instead of the sky's violet. That is your 3 September
-  complaint, and it was never actually cured until now.
-- ⛔ **ONE SCREENSHOT FROM YOU DECIDES THE REST**, and nothing ships before it — the last three attempts
-  skipped exactly this step. Open on the phone and send one shot of the WHOLE screen, island and address bar
-  included: https://ikorzun.github.io/Blender/tools/probe/chrome-probe.html?v=cards
-  It is a page taller than the screen with a ruler, plus two thin strips in colours found nowhere else: red
-  at the top, blue at the bottom. If the bottom band is BLUE the browser paints over real content and the
-  fix is a bigger rebuild; if you can read RULER NUMBERS through the address bar's glass the fix is about
-  ten lines. **And one question that costs no screenshot: is Settings → Apps → Safari → Tabs → «Allow
-  Website Tinting» switched on?** With it off the shot cannot be read.
-- ⚠️ **The top, straight:** nothing can sit under the island while the page is still. The page begins below
-  the island and has no rows above its own first one. That is the browser's layout, not our code. The colour
-  up there is already an exact match to the sky's first row.
+- **The Safari 26 fields are fixed, and your screenshot is what fixed them.** The bands are drawn by the
+  browser itself, not by us: iOS 26 Safari paints its own flat colour over the top and bottom of the screen,
+  taking it from whatever part of the page is pinned to that edge. In this game everything is pinned and
+  nothing declared a colour, so the browser fell back to the page's `body` colour — the sky's ZENITH violet.
+  That is why the bottom looked cut (violet under a mint horizon) and why the dark screens were framed in
+  violet. Your `?v=cards` shot proved the last unknown: the top band went pure red and the bottom pure blue,
+  over content that was lying right there, so the browser's fill paints OVER page content.
+- **What shipped:** two thin strips at the screen edges, each carrying exactly the colour of the row it
+  covers, taken from the sky's own palette. The game and the menu get the sky's top and bottom colours, the
+  seven dark screens get their own near-black, and during a chain reaction the bottom follows the sky as it
+  goes green. Ten lines of CSS, two elements, no driver and nothing hidden anywhere — that last part is what
+  was wrong with the version you rejected. Guarded, and each guard proven by breaking it on purpose.
+- ⚠️ **What is impossible, so you do not wait for it:** page content cannot lie under either bar on this
+  phone. Under the address bar the browser's fill paints over it (your own screenshot). Under the island
+  there is nothing to paint, because the page begins below it and has no rows above its own first one. Both
+  zones can only ever be a colour — so the goal is that the colour is exactly right, and now it is.
 
 ## What shipped 1–3 September
 

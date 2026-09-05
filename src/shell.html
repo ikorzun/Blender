@@ -158,6 +158,34 @@
      ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
      `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
   html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
+  /* ⚡ THE TWO EDGE CARDS — MEASURED ON HIS PHONE, 2026-09-06 (the `?v=cards` probe: a 12 px fixed card
+     of pure RED at the top and pure BLUE at the bottom turned BOTH zones exactly those colours, over a
+     document that had real content underneath). That single frame proved three things at once: the
+     colour-extension channel is LIVE on his device, the two edges take INDEPENDENT colours, and the fill
+     PAINTS OVER in-flow content — so a taller document can never win the bottom zone while a fixed box
+     covers the sample point, which is exactly why the eighth edition failed.
+     Each card is the candidate WebKit finds at its edge: 12 px (over the 10 px `thinBorderWidth`), full
+     width (over the 0.9 `minimumRatio`), one opaque colour (over the 0.75 alpha bar), z-index max so it is
+     topmost at the hit-test, `pointer-events:none` (which WebKit ignores for this pass and the page needs).
+     Only 6 px of each lies inside the viewport, painted the SAME colour as the row it covers — invisible
+     by construction, on every screen.
+     ⛔⛔ THIS IS THE SEVENTH EDITION'S MECHANISM WITHOUT ITS MISTAKE. There the strips were driven by a
+     module that sampled the page and then HID them in the game and the menu — so on the two screens he
+     actually looks at, the zones fell back to body's zenith violet and he saw the field he reported. Here
+     there is no driver, no sampling, no observer and no module: the colours are the sky's own CSS
+     variables, which 10-stage writes from the same palette the shader uses, so the zone and the frame's
+     edge row cannot drift apart. The menu, the pause screen and the loading curtain all paint that same
+     gradient, so the same two variables serve them.
+     ⚠️ `--edge-bot-rgb` is written ONLY during a combo fever (99-main), because the shader repaints the
+     frame's bottom rows then; at rest it does not exist and the fallback below is the sky's own stop.
+     ⚠️ The dark popups override BOTH cards through `html.dimmed` — a higher-specificity rule, so it wins
+     over the fever variable without `!important` and without an inline style. */
+  #edgeTop, #edgeBot { position:fixed; left:0; right:0; height:12px; z-index:2147483647;
+    pointer-events:none; }
+  #edgeTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
+  #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
+  html.dimmed #edgeTop, html.dimmed #edgeBot {
+    background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4142,6 +4170,11 @@
 </style>
 </head>
 <body>
+<!-- THE TWO EDGE CARDS (2026-09-06): the candidates WebKit's colour extension reads at each screen edge,
+     so the iOS 26 chrome zones carry exactly the colour of the row they cover. First children of body so
+     they are present in the very first painted frame; the CSS and the measurement are at the `body` rule. -->
+<div id="edgeTop" aria-hidden="true"></div>
+<div id="edgeBot" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white

@@ -10441,6 +10441,98 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'listed would silently frame a dark screen in the sky\'s violet — the defect this batch cures');
   }
 
+  // ===== THE TWO EDGE CARDS: the candidates WebKit reads at each screen edge (2026-09-06, after the
+  // owner's `?v=cards` screenshot proved the channel is live, per-edge and paints OVER content) =====
+  // ⚠️ WHAT HEADLESS CANNOT DO: see the cards through `elementsFromPoint` — they carry
+  // `pointer-events:none`, which that API honours and WebKit's first hit-test pass deliberately does not
+  // (`IgnoreCSSPointerEvents::Yes`). So topmost-ness is asserted STRUCTURALLY (max z-index, covering the
+  // sample point) instead of by a hit test that would answer the wrong question.
+  {
+    const ecPage = await browser.newPage({ viewport: { width: 402, height: 654 } });
+    ecPage.on('pageerror', e => errors.push('PAGEERROR(edge): ' + e.message));
+    await ecPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await ecPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await ecPage.evaluate(() => window.__game.skipIntro());
+    await ecPage.waitForTimeout(400);
+    const readEdges = () => ecPage.evaluate(() => {
+      const rgb = s => { const m = String(s).match(/[\d.]+/g) || []; const v = m.slice(0, 3).map(Number);
+        return String(s).startsWith('color(') ? v.map(x => Math.round(x * 255)) : v.map(Math.round); };
+      const alpha = s => { const m = String(s).match(/[\d.]+/g) || []; return m.length > 3 ? +m[3] : 1; };
+      const box = id => { const e = document.getElementById(id); if (!e) return null;
+        const c = getComputedStyle(e), r = e.getBoundingClientRect();
+        return { col: rgb(c.backgroundColor), a: alpha(c.backgroundColor), h: r.height, w: r.width,
+                 z: c.zIndex, pos: c.position, pe: c.pointerEvents, top: r.top, bottom: r.bottom }; };
+      const d = getComputedStyle(document.documentElement);
+      return { top: box('edgeTop'), bot: box('edgeBot'), vw: innerWidth, vh: innerHeight,
+        first: [...document.body.children].slice(0, 2).map(e => e.id),
+        sky: [rgb('rgb(' + d.getPropertyValue('--sky-top-rgb') + ')'), rgb('rgb(' + d.getPropertyValue('--sky-bot-rgb') + ')')],
+        fever: d.getPropertyValue('--edge-bot-rgb').trim() || null };
+    });
+    const eGame = await readEdges();
+    await ecPage.evaluate(() => document.getElementById('x5Float').click());
+    await ecPage.waitForTimeout(400);
+    const ePopup = await readEdges();
+    await ecPage.evaluate(() => document.getElementById('starsClose').click());
+    await ecPage.waitForTimeout(300);
+    await ecPage.click('#pauseBtn', { force: true });
+    await ecPage.waitForTimeout(600);
+    const eMenu = await readEdges();
+    await ecPage.evaluate(() => { const b = document.querySelector('.ms-play'); if (b) b.click(); });
+    await ecPage.waitForTimeout(500);
+    // the fever through the LOOP's own path: force the uniform, let the loop write the variable
+    const eFever = await ecPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      // ⚠️ THE LEVEL IS NOT NAMED: the loop's tween moves uCombo every frame, so an arm that compares the
+      // variable against `edgeTriple(1)` races it and goes red on a healthy build (measured: want 125,235,163
+      // against a written 140,239,174 one frame later). Both sides are read in the SAME tick instead.
+      window.__game.edgeFever(1);
+      let got = null, want = null;
+      for (let i = 0; i < 40; i++){ await sleep(25);
+        got = getComputedStyle(document.documentElement).getPropertyValue('--edge-bot-rgb').trim() || null;
+        want = window.__game.edgeTriple();
+        if (got) break; }
+      const calm = window.__game.edgeTriple(0);
+      const card = getComputedStyle(document.getElementById('edgeBot')).backgroundColor;
+      window.__game.edgeFever(0);
+      let gone = null;
+      for (let i = 0; i < 60; i++){ await sleep(25);
+        gone = getComputedStyle(document.documentElement).getPropertyValue('--edge-bot-rgb').trim() || null;
+        if (!gone) break; }
+      return { want, got, card, gone, calm, atZero: window.__game.edgeTriple(0) };
+    });
+    await ecPage.close();
+    console.log('edge cards:', JSON.stringify({ eGame, ePopup, eMenu, eFever }));
+    const same = (a, b) => a && b && a.length === 3 && a.every((v, i) => Math.abs(v - b[i]) <= 1);
+    const shaped = (b, vw) => b && b.pos === 'fixed' && b.h > 10 && b.w >= vw * 0.9 && b.z === '2147483647' && b.pe === 'none' && b.a === 1;
+    expect(eGame.first.join('|') === 'edgeTop|edgeBot',
+      'EDGE CARDS: #edgeTop and #edgeBot are the first two children of body — present in the very first painted frame (' + JSON.stringify(eGame.first) + ')');
+    expect(shaped(eGame.top, eGame.vw) && shaped(eGame.bot, eGame.vw) &&
+           eGame.top.top <= 4 && eGame.top.bottom >= 4 && eGame.bot.top <= eGame.vh - 4 && eGame.bot.bottom >= eGame.vh - 4,
+      '⚠️⚠️ EDGE CARDS pass WebKit\'s candidate test and COVER its sample points: fixed, thicker than the 10 px ' +
+      '`thinBorderWidth`, at least 0.9 of the viewport wide (`minimumRatio`), one OPAQUE colour (over the 0.75 alpha ' +
+      'bar), z-index max so they are topmost, and their boxes contain (w/2, 4) and (w/2, h−4) (' +
+      JSON.stringify({ top: eGame.top, bot: eGame.bot, vh: eGame.vh }) + '). ⛔ SABOTAGE: height 12 → 8, or ' +
+      'top −6 → −12 (the card stops covering the point), or the z-index dropped — each breaks a different clause');
+    expect(same(eGame.top.col, eGame.sky[0]) && same(eGame.bot.col, eGame.sky[1]),
+      'EDGE CARDS, THE GAME: the top card is the sky\'s zenith and the bottom card its nadir — each zone gets the ' +
+      'colour of the frame row it covers (' + JSON.stringify({ top: eGame.top.col, bot: eGame.bot.col, sky: eGame.sky }) + '). ' +
+      '⛔ This is the whole fix for «the content is cut at the bottom»: before it, BOTH zones took body\'s zenith ' +
+      'while the frame\'s bottom row was mint');
+    expect(same(eMenu.top.col, eMenu.sky[0]) && same(eMenu.bot.col, eMenu.sky[1]),
+      'EDGE CARDS, THE MENU: the same two colours — the pause screen paints the same gradient, so the same variables serve it (' +
+      JSON.stringify({ top: eMenu.top.col, bot: eMenu.bot.col }) + ')');
+    const mix = [0, 1, 2].map(i => Math.round([10, 14, 22][i] * 0.88 + ePopup.sky[0][i] * 0.12));
+    expect(same(ePopup.top.col, mix) && same(ePopup.bot.col, mix),
+      '⚠️⚠️ EDGE CARDS, A DARK POPUP: BOTH cards take the popup\'s own first row (the 88% fill over the zenith) — ' +
+      'the owner\'s 2026-09-03 complaint «on the purchase screen the top background is not dark» (' +
+      JSON.stringify({ top: ePopup.top.col, bot: ePopup.bot.col, want: mix }) + ')');
+    expect(eFever.atZero === null && eFever.calm === null && eFever.got && eFever.got === eFever.want && eFever.gone === null,
+      '⚠️⚠️ EDGE CARDS, THE COMBO FEVER: the shader repaints the frame\'s bottom rows, so the LOOP writes the bottom ' +
+      'card from the same formula and removes it at rest (' + JSON.stringify(eFever) + '). Without it the zone keeps ' +
+      'the calm mint through a whole chain reaction — 159 pt of mismatch on his phone. ⛔ SABOTAGE: delete the ' +
+      'loop\'s write, or make `edgeBottomTriple` return a colour at zero — the arm reads the LOOP\'s output, not the formula');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

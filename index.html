@@ -158,6 +158,34 @@
      ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
      `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
   html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
+  /* ⚡ THE TWO EDGE CARDS — MEASURED ON HIS PHONE, 2026-09-06 (the `?v=cards` probe: a 12 px fixed card
+     of pure RED at the top and pure BLUE at the bottom turned BOTH zones exactly those colours, over a
+     document that had real content underneath). That single frame proved three things at once: the
+     colour-extension channel is LIVE on his device, the two edges take INDEPENDENT colours, and the fill
+     PAINTS OVER in-flow content — so a taller document can never win the bottom zone while a fixed box
+     covers the sample point, which is exactly why the eighth edition failed.
+     Each card is the candidate WebKit finds at its edge: 12 px (over the 10 px `thinBorderWidth`), full
+     width (over the 0.9 `minimumRatio`), one opaque colour (over the 0.75 alpha bar), z-index max so it is
+     topmost at the hit-test, `pointer-events:none` (which WebKit ignores for this pass and the page needs).
+     Only 6 px of each lies inside the viewport, painted the SAME colour as the row it covers — invisible
+     by construction, on every screen.
+     ⛔⛔ THIS IS THE SEVENTH EDITION'S MECHANISM WITHOUT ITS MISTAKE. There the strips were driven by a
+     module that sampled the page and then HID them in the game and the menu — so on the two screens he
+     actually looks at, the zones fell back to body's zenith violet and he saw the field he reported. Here
+     there is no driver, no sampling, no observer and no module: the colours are the sky's own CSS
+     variables, which 10-stage writes from the same palette the shader uses, so the zone and the frame's
+     edge row cannot drift apart. The menu, the pause screen and the loading curtain all paint that same
+     gradient, so the same two variables serve them.
+     ⚠️ `--edge-bot-rgb` is written ONLY during a combo fever (99-main), because the shader repaints the
+     frame's bottom rows then; at rest it does not exist and the fallback below is the sky's own stop.
+     ⚠️ The dark popups override BOTH cards through `html.dimmed` — a higher-specificity rule, so it wins
+     over the fever variable without `!important` and without an inline style. */
+  #edgeTop, #edgeBot { position:fixed; left:0; right:0; height:12px; z-index:2147483647;
+    pointer-events:none; }
+  #edgeTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
+  #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
+  html.dimmed #edgeTop, html.dimmed #edgeBot {
+    background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4142,6 +4170,11 @@
 </style>
 </head>
 <body>
+<!-- THE TWO EDGE CARDS (2026-09-06): the candidates WebKit's colour extension reads at each screen edge,
+     so the iOS 26 chrome zones carry exactly the colour of the row they cover. First children of body so
+     they are present in the very first painted frame; the CSS and the measurement are at the `body` rule. -->
+<div id="edgeTop" aria-hidden="true"></div>
+<div id="edgeBot" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white
@@ -7963,12 +7996,25 @@ const skyGradCSS = 'linear-gradient(180deg,' +
 // invisible to the eye, but the tint is taken correctly. The top and the bottom are different, because
 // the sky is a gradient.
 const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
+// ⚠️ THE FRAME'S BOTTOM ROW IN NUMBERS, kept beside the CSS variable because the iOS 26 chrome zone
+// must equal it (shell.html, `#edgeBot`) and the combo fever repaints it every chain reaction.
+let edgeSkyBot = [204, 255, 248];
 try {
   const d = document.documentElement.style;
   d.setProperty('--sky-grad', skyGradCSS);
   d.setProperty('--sky-top-rgb', rgbTriple(skyRGB[0]));
   d.setProperty('--sky-bot-rgb', rgbTriple(skyRGB[skyRGB.length - 1]));
+  edgeSkyBot = skyRGB[skyRGB.length - 1].map(c => Math.round(c * 255));
 } catch(e){}
+// The colour of the frame's BOTTOM ROW at this fever level, as an "r, g, b" triple. The shader is
+// `mix(sky, FEVER, uCombo * (1 - smoothstep(0, FEVER_SPAN, sy)) * FEVER_MAX)`, and at the bottom row
+// sy = 0, so the admixture there is exactly `uCombo * FEVER_MAX` — no approximation.
+function edgeBottomTriple(uCombo){
+  const k = Math.max(0, Math.min(1, uCombo)) * FEVER_MAX;
+  if (k <= 0.005) return null;                       // no fever: the CSS variable is removed, the rule falls back
+  const f = feverColorNow();                         // 0..1 floats, day/night by the same clock as the sky
+  return [0, 1, 2].map(i => Math.round(edgeSkyBot[i] * (1 - k) + f['xyz'[i]] * 255 * k)).join(', ');
+}
 
 // The sky. A ShaderMaterial bypasses
 // the renderer's tone mapping and sRGB conversion, so the colours are given AS THEY ARE
@@ -24158,6 +24204,7 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
+let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
 // the physics step separately — from such a pair you cannot say who eats the frame:
@@ -24945,6 +24992,17 @@ function loop(){
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
+    // ⚠️ THE BOTTOM CHROME ZONE FOLLOWS THE FEVER (iOS 26; the mechanism is at the `body` rule in
+    // shell.html). Without this the zone keeps the calm mint while the frame's bottom rows go green —
+    // a 159 pt mismatch on his phone for the whole chain reaction. ⚠️ ONE CUSTOM PROPERTY WITH ONE
+    // CONSUMER (`#edgeBot`), written only when the value MOVES, and removed at zero so the plain rule
+    // takes over again — the loop pays nothing in the common case (uCombo stays 0).
+    const uc = skyMat.uniforms.uCombo.value;
+    if (Math.abs(uc - edgeFeverLast) > 0.02 || (uc === 0 && edgeFeverLast !== 0)){
+      edgeFeverLast = uc;
+      try { const t = edgeBottomTriple(uc), ds = document.documentElement.style;
+        if (t) ds.setProperty('--edge-bot-rgb', t); else ds.removeProperty('--edge-bot-rgb'); } catch(e){}
+    }
   }
   // ticks on the real clock (not on dt): at a low FPS the deadlock/mixer detection
   // does not stretch. AT CALM accessibility is not recomputed at all —
@@ -25238,6 +25296,12 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
+  // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
+  // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
+  // The tween decays it back on its own — nothing to clean up.
+  edgeTriple(uc){ return edgeBottomTriple(uc == null ? (skyMat ? skyMat.uniforms.uCombo.value : 0) : +uc); },
+  edgeFever(uc){ try { skyMat.uniforms.uCombo.value = Math.max(0, Math.min(1, +uc || 0)); } catch(e){} },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   availablePairs,
   autoMatch(){

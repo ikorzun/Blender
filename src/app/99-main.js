@@ -20,6 +20,7 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
+let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
 // the physics step separately — from such a pair you cannot say who eats the frame:
@@ -807,6 +808,17 @@ function loop(){
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
+    // ⚠️ THE BOTTOM CHROME ZONE FOLLOWS THE FEVER (iOS 26; the mechanism is at the `body` rule in
+    // shell.html). Without this the zone keeps the calm mint while the frame's bottom rows go green —
+    // a 159 pt mismatch on his phone for the whole chain reaction. ⚠️ ONE CUSTOM PROPERTY WITH ONE
+    // CONSUMER (`#edgeBot`), written only when the value MOVES, and removed at zero so the plain rule
+    // takes over again — the loop pays nothing in the common case (uCombo stays 0).
+    const uc = skyMat.uniforms.uCombo.value;
+    if (Math.abs(uc - edgeFeverLast) > 0.02 || (uc === 0 && edgeFeverLast !== 0)){
+      edgeFeverLast = uc;
+      try { const t = edgeBottomTriple(uc), ds = document.documentElement.style;
+        if (t) ds.setProperty('--edge-bot-rgb', t); else ds.removeProperty('--edge-bot-rgb'); } catch(e){}
+    }
   }
   // ticks on the real clock (not on dt): at a low FPS the deadlock/mixer detection
   // does not stretch. AT CALM accessibility is not recomputed at all —
@@ -1100,6 +1112,12 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
+  // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
+  // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
+  // The tween decays it back on its own — nothing to clean up.
+  edgeTriple(uc){ return edgeBottomTriple(uc == null ? (skyMat ? skyMat.uniforms.uCombo.value : 0) : +uc); },
+  edgeFever(uc){ try { skyMat.uniforms.uCombo.value = Math.max(0, Math.min(1, +uc || 0)); } catch(e){} },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   availablePairs,
   autoMatch(){
