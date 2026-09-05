@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = be2bb2c (2026-09-05)** · the suite **973 checks, 0 red** · `main` and `v2` on GitHub
+**Build: v2 = 935d5be (2026-09-05, evening)** · the suite **974 green, 1 red = the documented paint-debris deal flake (2026-09-04-g), a re-run pending** · `main` and `v2` on GitHub
 match · the live site verified by byte size against the build · portal package **5.48 MB** of the
 8 MB reference (headroom 2.52)
 
@@ -33,15 +33,17 @@ match · the live site verified by byte size against the build · portal package
 
 ## What shipped 5 September (your words with the inspector open, and your Safari instruction)
 
-- **The zoom + and −** are 28 (was 32) in the Shake caption's colour `#484472` (was black); one
-  number `--shake-ink` serves the caption and the glyphs.
+- **The zoom + and −** are 24 (your evening word; the morning said 28, before that 32) in the Shake
+  caption's colour `#484472` (was black); one number `--shake-ink` serves the caption and the glyphs.
 - **The pause icon** is 28 inside the 56 button.
 - **The menu**: the side insets are 8 like the top one (was 16); the Easy/Hard segment sits 12 from
   the right like from the top and bottom (was 20); in the collection cards the count line is 2 px
   closer to the name (gap 5 → 3).
 - **The ×5 screen on the phone**: the two chips are one row with a 16 gap and no labels (+13 🔍,
-  +9 ✋); the whole screen fits without scrolling on a 375×667 SE (the 80 after the cross and the
-  136 bottom inset become 32 under 760 of height); the desktop row keeps its labels.
+  +9 ✋) and 16 to the right of the icon inside each chip (your evening word, «double»); the whole
+  screen fits without scrolling on a 375×667 SE (the 80 after the cross and the 136 bottom inset
+  become 32 under 760 of height; under 375 the icons shrink to 44 so a 360 Android fits); the
+  desktop row keeps its labels.
 - **The Safari 26 fields — the seventh edition, by your instruction** (`safari-26-liquid-glass.md`):
   two 12 px sensor strips at the top and bottom edges (WebKit only, on top of everything,
   pointer-events none) plus a small driver that keeps them the colour of the page row under them —
