@@ -24,6 +24,29 @@
   /* v=lock — the same tall stage, but the root is SCROLLABLE (overflow visible) and JS pins scrollY at 0 */
   html.lock, html.lock body { overscroll-behavior: none; }
   html.lock #stage { position: relative; min-height: calc(100lvh + 100px); }
+  /* ═══ THE TWO VARIANTS THAT SETTLE THE MECHANISM (2026-09-05 night, from the WebKit sources:
+     LocalFrameView::fixedContainerEdges hit-tests (w/2, 4) and (w/2, h−4), walks up to the nearest
+     position:fixed/sticky ancestor, and if it finds one WebKit inserts WKColorExtensionView — a
+     UIView of ONE FLAT COLOUR — ABOVE the web content. With no such ancestor the extension view
+     fades out and the bar's glass shows the page itself. The colour, when there is a candidate but
+     it declares none, falls back to PageColorSampler, which EXCLUDES canvases and normal-flow
+     content — so it returns nothing and WebKit uses body's background-color.)
+     v=nofixed — a document taller than the screen with NOT ONE fixed or sticky element anywhere.
+       If the striped bands are visible under the island and under the address bar, real content
+       reaches both zones and the whole game can be rebuilt that way.
+     v=cards — the same tall document PLUS two 12 px fixed cards at the very edges, painted in
+       colours that appear NOWHERE else on the page: pure RED at the top, pure BLUE at the bottom.
+       If the top band turns red and the bottom blue, the colour-extension path is live on this
+       phone and every zone can be given exactly the colour of the row touching it. */
+  html.nofixed, html.cards { height: auto; overflow: visible; }
+  html.nofixed body, html.cards body { min-height: calc(100lvh + 260px); overflow: visible; }
+  html.nofixed #stage, html.cards #stage { position: relative; min-height: calc(100lvh + 260px); }
+  html.nofixed #hud, html.cards #hud { position: absolute; top: 150px; transform: translate(-50%, 0); }
+  html.cards #edgeTop, html.cards #edgeBot { display: block; }
+  #edgeTop, #edgeBot { display: none; position: fixed; left: 0; right: 0; height: 12px;
+    z-index: 2147483647; pointer-events: none; }
+  #edgeTop { top: -6px; background-color: #ff0000; }
+  #edgeBot { bottom: -6px; background-color: #0000ff; }
   /* v=scroll — a plain SCROLLABLE document, 2.2 viewports tall: scroll it and look at the top zone —
      does the scrolled-away content show under the island / the status bar through the glass? */
   html.scroll #stage { position: relative; min-height: 220vh; }
@@ -43,12 +66,12 @@
          background: rgba(255,255,255,.94); border-radius: 16px; padding: 12px 14px; font-size: 15px; line-height: 1.45; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
   #hud h1 { margin: 0 0 6px; font-size: 20px; }
   #hud table { border-collapse: collapse; width: 100%; }
-  #hud td { padding: 1px 4px; border-bottom: 1px solid #eee; font-variant-numeric: tabular-nums; }
+  #hud td { padding: 1px 4px; border-bottom: 1px solid #eee; font-variant-numeric: tabular-nums; word-break: break-word; }
   #hud td:last-child { text-align: right; font-weight: 700; }
   #hud .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   #hud a, #hud button { flex: 1; text-align: center; padding: 10px 6px; border-radius: 10px; background: #111; color: #fff; text-decoration: none; font-weight: 700; border: 0; font-size: 15px; }
   #hud a.on { background: #c0ff47; color: #000; }
-  #probeEnv { position: fixed; left: 0; top: 0; width: 0; height: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); visibility: hidden; }
+  #probeEnv { position: absolute; left: 0; top: 0; width: 0; height: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); visibility: hidden; }
 </style>
 </head>
 <body>
@@ -56,19 +79,24 @@
   <div class="band" id="bandTop"><span>STAGE TOP ROW</span></div>
   <div class="band" id="bandBot"><span>STAGE BOTTOM ROW</span></div>
 </div>
+<div id="edgeTop" aria-hidden="true"></div>
+<div id="edgeBot" aria-hidden="true"></div>
 <div id="probeEnv"></div>
 <div id="hud">
   <h1 id="title">chrome probe</h1>
   <table id="nums"></table>
   <div class="row">
-    <a href="?v=fixed">fixed</a><a href="?v=tall">tall</a><a href="?v=lock">lock</a><a href="?v=fs">fs</a><a href="?v=scroll">scroll</a>
+    <a href="?v=nofixed">nofixed</a><a href="?v=cards">cards</a><a href="?v=scroll">scroll</a>
+  </div>
+  <div class="row">
+    <a href="?v=fixed">fixed</a><a href="?v=tall">tall</a><a href="?v=lock">lock</a><a href="?v=fs">fs</a>
   </div>
   <div class="row" id="fsRow" hidden><button id="fsBtn">Enter fullscreen</button></div>
 </div>
 <script>
 (function(){
   const q = new URLSearchParams(location.search);
-  const v = ['fixed', 'tall', 'lock', 'fs', 'scroll'].includes(q.get('v')) ? q.get('v') : 'fixed';
+  const v = ['fixed', 'tall', 'lock', 'fs', 'scroll', 'nofixed', 'cards'].includes(q.get('v')) ? q.get('v') : 'fixed';
   document.documentElement.classList.add(v);
   document.title = 'probe ' + v;
   document.getElementById('title').textContent = 'chrome probe — ' + v;
@@ -111,7 +139,8 @@
       ['env top / bottom', env.paddingTop + ' / ' + env.paddingBottom],
       ['100lvh / 100svh / 100dvh', [ 'lvh', 'svh', 'dvh' ].map(u => { const t = document.createElement('div'); t.style.cssText = 'position:fixed;height:100' + u + ';width:0;visibility:hidden'; document.body.appendChild(t); const r = t.getBoundingClientRect().height; t.remove(); return r.toFixed(0); }).join(' / ')],
       ['fullscreenElement', document.fullscreenElement || document.webkitFullscreenElement ? 'yes' : 'no'],
-      ['UA', navigator.userAgent.replace(/^.*(iPhone|iPad|Macintosh)/, '$1').slice(0, 60)]
+      ['UA (full)', navigator.userAgent],
+      ['Safari Version token', (navigator.userAgent.match(/Version\/[\d.]+/) || ['(none)'])[0]]
     ];
     document.getElementById('nums').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
   }
