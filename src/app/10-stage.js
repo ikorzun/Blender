@@ -47,7 +47,7 @@ function applyPerfTier(tier){
   CFG.perfTier = 'low';
   CFG.fxScale = PERF_LOW_FX;
   renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
-  try { const el = renderer.domElement;   // the canvas CSS size — 100lvh on iOS, see shell.html
+  try { const el = renderer.domElement;   // the canvas's CSS size = the layout viewport (shell.html `#c`)
     renderer.setSize(el.clientWidth || innerWidth, el.clientHeight || innerHeight, false); } catch(e){}
   try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
   return true;

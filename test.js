@@ -10367,6 +10367,80 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'under the clock again');
   }
 
+  // ===== THE iOS 26 CHROME ZONES: THE ONE COLOUR THAT REACHES THEM (2026-09-05, the mechanism read
+  // from the WebKit sources and confirmed against this game's own DOM; the prose lives at the `body`
+  // declaration in shell.html) =====
+  // ⚠️ WHAT IS CHECKABLE HEADLESS: not the zones — Chromium never draws them — but the INPUT WebKit
+  // reads. Every zone on every screen falls back to `underPageBackgroundColor` = body's
+  // background-color, because at both sample points the nearest fixed ancestor declares no colour and
+  // PageColorSampler excludes canvases and normal-flow content. So body's colour IS the zone colour,
+  // and these arms pin it per screen.
+  {
+    const dimPage = await browser.newPage({ viewport: { width: 402, height: 654 } });
+    dimPage.on('pageerror', e => errors.push('PAGEERROR(dim): ' + e.message));
+    await dimPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await dimPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await dimPage.evaluate(() => window.__game.skipIntro());
+    await dimPage.waitForTimeout(400);
+    const dim = await dimPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      // ⚠️ color-mix computes to `color(srgb ...)` in Chromium and to `rgb(...)` elsewhere — resolve BOTH
+      const rgb = s => { const m = String(s).match(/[\d.]+/g) || [];
+        const v = m.slice(0, 3).map(Number);
+        return String(s).startsWith('color(') ? v.map(x => Math.round(x * 255)) : v.map(Math.round); };
+      const bodyCol = () => rgb(getComputedStyle(document.body).backgroundColor);
+      const cls = () => document.documentElement.classList.contains('dimmed');
+      const sky = rgb('rgb(' + getComputedStyle(document.documentElement).getPropertyValue('--sky-top-rgb') + ')');
+      // the census: every .overlay except the pause screen must be in the dim list, or a future popup
+      // silently keeps the sky's violet framing a dark screen
+      const overlays = [...document.querySelectorAll('.overlay')].map(e => e.id).filter(Boolean);
+      const game = { cls: cls(), col: bodyCol() };
+      document.getElementById('starsOverlay').style.display = 'flex';
+      if (typeof refreshDimmedProbe === 'function') refreshDimmedProbe();
+      await sleep(0);
+      return { sky, overlays, game, listed: window.__game.dimList ? window.__game.dimList() : null };
+    });
+    // the real paths: open a dark popup through the game's own entry point, then the menu
+    await dimPage.evaluate(() => { document.getElementById('starsOverlay').style.display = 'none'; document.getElementById('x5Float').click(); });
+    await dimPage.waitForTimeout(400);
+    const dimOpen = await dimPage.evaluate(() => { const rgb = s => { const m = String(s).match(/[\d.]+/g) || [];
+        const v = m.slice(0, 3).map(Number);
+        return String(s).startsWith('color(') ? v.map(x => Math.round(x * 255)) : v.map(Math.round); };
+      const b = getComputedStyle(document.getElementById('starsOverlay'), '::before').backgroundColor;
+      return { cls: document.documentElement.classList.contains('dimmed'),
+               col: rgb(getComputedStyle(document.body).backgroundColor),
+               fill: (String(b).match(/[\d.]+/g) || []).map(Number) }; });
+    await dimPage.evaluate(() => document.getElementById('starsClose').click());
+    await dimPage.waitForTimeout(400);
+    const dimClosed = await dimPage.evaluate(() => ({ cls: document.documentElement.classList.contains('dimmed') }));
+    await dimPage.click('#pauseBtn', { force: true });
+    await dimPage.waitForTimeout(600);
+    const dimMenu = await dimPage.evaluate(() => ({ cls: document.documentElement.classList.contains('dimmed') }));
+    await dimPage.close();
+    console.log('zones:', JSON.stringify({ dim, dimOpen, dimClosed, dimMenu }));
+    const near = (a, b) => a.length === 3 && b.length === 3 && a.every((v, i) => Math.abs(v - b[i]) <= 1);
+    expect(dim.game.cls === false && near(dim.game.col, dim.sky),
+      'ZONES, THE GAME: no `dimmed` class and body carries the sky\'s zenith — the zone colour equals the frame\'s own top row (' +
+      JSON.stringify({ cls: dim.game.cls, body: dim.game.col, sky: dim.sky }) + ')');
+    // the expected mix is COMPUTED from the two inputs, never written as a literal: the fill lives in
+    // shell.html and the zenith moves with the palette
+    const want = dimOpen.fill.length >= 4
+      ? [0, 1, 2].map(i => Math.round(dimOpen.fill[i] * dimOpen.fill[3] + dim.sky[i] * (1 - dimOpen.fill[3])))
+      : null;
+    expect(dimOpen.cls === true && want && near(dimOpen.col, want),
+      '⚠️⚠️ ZONES, A DARK POPUP: body becomes the popup\'s own first row — the 88% fill of `.overlay::before` ' +
+      'composited over the zenith (' + JSON.stringify({ body: dimOpen.col, want, fill: dimOpen.fill }) + '). ' +
+      'The owner\'s 2026-09-03 complaint «on the purchase screen the top background is not dark» is this arm. ' +
+      '⛔ SABOTAGE: delete the `html.dimmed body` rule — the zones frame a near-black screen in violet again');
+    expect(dimClosed.cls === false && dimMenu.cls === false,
+      'ZONES: the class is cleared when the popup closes, and the MENU never sets it — the pause screen paints ' +
+      'the sky itself, so its zones are already right (' + JSON.stringify({ closed: dimClosed.cls, menu: dimMenu.cls }) + ')');
+    expect(dim.overlays.length >= 7 && dim.overlays.every(id => id === 'pauseOverlay' || (dim.listed || []).indexOf(id) >= 0),
+      '⚠️ ZONES, THE CENSUS: every `.overlay` except the pause screen is in the dim list (' +
+      JSON.stringify({ overlays: dim.overlays, listed: dim.listed }) + '). ⛔ A popup added later and not ' +
+      'listed would silently frame a dark screen in the sky\'s violet — the defect this batch cures');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

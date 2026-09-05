@@ -401,10 +401,12 @@ function sleepPhysics(src){
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
 function resize(){
-  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight (2026-08-30): on iOS the canvas is 100lvh — taller
-  // than the layout viewport — so it extends under Safari's floating address bar. A buffer
-  // sized to innerHeight would be STRETCHED over that height. Everywhere else
-  // clientHeight === innerHeight and this line is byte-equivalent to the old one.
+  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
+  // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
+  // It does not — `#c` is `position:fixed; inset:0; height:100%` of the LAYOUT viewport, and a
+  // fixed box is clipped there. Reading clientHeight stays right anyway (it is what the buffer must
+  // match, and everywhere it equals innerHeight), and it is the line that keeps working unchanged
+  // if the canvas ever does grow past the viewport.
   const el = renderer.domElement;
   const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
@@ -1095,6 +1097,9 @@ window.__game = {
   // the flight fall cap (2026-09-05): the cap in force now, and the fastest downward item — the
   // property itself, read after the step (the cap is applied after world.step, so a sample is ≤ cap)
   fallCapNow(){ return currentFallCap(); },
+  // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
+  // suite's census can prove a popup added later was not forgotten
+  dimList(){ return DIM_OVERLAYS.slice(); },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   availablePairs,
   autoMatch(){

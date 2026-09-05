@@ -63,9 +63,23 @@ function hideMultToast(){
     if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
   } catch(e){}
 }
+// ⚠️ THE SEVEN DARK OVERLAYS (`#pauseOverlay` is the eighth `.overlay` and is NOT one of them — it
+// paints the sky's own gradient, so body's default colour is already right for its zones).
+// `html.dimmed` gives the iOS 26 chrome zones the popup's colour instead of the sky's zenith; the
+// rule and the whole mechanism are written at the `body` declaration in shell.html.
+// ⚠️ THE STATE IS READ, NOT COUNTED: `#newObj` is toggled by a CLASS and never passes through
+// show()/hide(), so a counter would drift. This asks the DOM.
+const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
+function refreshDimmed(){
+  try {
+    const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
+    document.documentElement.classList.toggle('dimmed', on);
+  } catch(e){}
+}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
+  refreshDimmed();
   // edges: any full-screen fade darkens the strips (5th edition)
   hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
@@ -74,6 +88,7 @@ function show(id){
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
+  refreshDimmed();
   // back in the game — the screen is 'game' again (if the run is alive)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -3041,6 +3056,7 @@ function newObjDragWire(host){
 function newObjHide(){
   const box = $('newObj');
   if (box){ box.classList.remove('on'); box.setAttribute('aria-hidden', 'true'); }
+  refreshDimmed();
   try { thumbSpinStop(); } catch (e) {}
   const d = newObjDone; newObjDone = null;
   if (d) d();

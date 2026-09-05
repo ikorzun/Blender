@@ -135,6 +135,29 @@
      2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
   body { background-color:rgb(var(--sky-top-rgb, 133,220,255));
          background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe)); }
+  /* ⚠️⚠️ THE ONE COLOUR THAT REACHES THE iOS 26 CHROME ZONES, AND WHY IT IS ON `body`
+     (2026-09-05, read from the WebKit sources and confirmed against this game's own DOM).
+     `LocalFrameView::fixedContainerEdges()` hit-tests (innerWidth/2, 4) and (innerWidth/2,
+     innerHeight-4), walks up to the nearest `position:fixed`/`sticky` ancestor and, if that box
+     declares a resolved background-color thicker than 10 px and at least 0.9 of the viewport wide,
+     paints the whole zone with it through `WKColorExtensionView` — a UIView of ONE FLAT COLOUR
+     inserted ABOVE the web content. If the candidate declares nothing, `PageColorSampler` takes a
+     2 px snapshot with `ExcludeReplacedContentExceptForIFrames | ExcludeText |
+     FixedAndStickyLayersOnly` — which excludes our WebGL canvas (replaced content) AND all
+     normal-flow content — finds nothing, and WebKit falls back to `underPageBackgroundColor`, i.e.
+     THIS declaration. Measured on the real DOM: at both sample points the nearest fixed ancestor is
+     `#c` (transparent) on the game, `#starsOverlay` (transparent) on a popup, `#mainScreen`
+     (transparent) in the menu. So every zone on every screen is painted with body's colour.
+     ⛔⛔ ON A DARK POPUP THAT IS WRONG BY rgb(143,135,205) — the owner's 2026-09-03 complaint «on
+     the purchase screen the top background is not dark», never actually cured: `.overlay::before`
+     carries `backdrop-filter:blur(6px)`, which forces `PredominantColorType::Multiple`, so the
+     zones fall back here while the popup's own first row is ≈rgb(29,33,50). The rule below IS that
+     arithmetic — the 88% fill of `.overlay::before` composited over the zenith — so the zones match
+     the screen instead of framing it in violet. It is a colour, not content: content under the bars
+     is a separate, larger change gated on a measurement from his phone (canon 2026-09-05-g).
+     ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
+     `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
+  html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view

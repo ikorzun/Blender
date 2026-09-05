@@ -11985,6 +11985,11 @@ flags to a fresh recompute MID-ERUPTION — an honest divergence (flags from +1.
 at +1.3 s) that would have flaked on a healthy build. Shipped as LIVENESS (the flags keep
 changing during the eruption) + post-settle equality + the structural burst pin.
 
+### ⛔⛔ THE MATRIX BELOW IS REFUTED BY HIS OWN PHONE (2026-09-05, batch -g). Its «FULL BLEED: each zone
+### painted by EXTENDING the page's own edge pixels» does NOT happen on the device: a fixed stage ends at
+### the layout viewport and both zones take a FLAT COLOUR from `WKColorExtensionView`. The whole table is a
+### SIMULATOR artefact. Read -g before citing any cell of it.
+
 ## 2026-08-30-d: THE EDGE-EXTENSION MATRIX — «fon i kontent ukhodyat pod ostrov», MEASURED
 
 The owner: «v mobilnom ty sdelal tolko verkhnyuyu chast. a vnizu fon i kontent dolzhny ukhodit
@@ -12222,6 +12227,11 @@ matters — here the count was already wrong at N=1 and nobody would have notice
 
 Price of the eighth effect: 977 KB embedded, 27.0 MB VRAM if all resident (lazy — a level
 touches three or four); ZIP 5.26 -> 5.32 MB, headroom 2.68 MB.
+
+### ⛔⛔ HALF REFUTED (2026-09-05, batch -g). What STANDS: the two coordinate frames, and «fixed elements are
+### clipped at the layout viewport». What FALLS: «the zone receives the STRETCHED bottom row of the page
+### canvas» (it receives a flat colour) and «`pointer-events:none` makes an element invisible to the
+### heuristic» (WebKit's first hit-test pass runs with IgnoreCSSPointerEvents::Yes).
 
 ## 2026-08-31-a: THE BOTTOM CHROME ZONE — THE FINAL RECIPE. TWO COORDINATE FRAMES, ONE HARD LIMIT
 
@@ -15217,3 +15227,93 @@ pixels vs its declared colours, the public record on the iOS 26 viewport model, 
 derived only from his screenshots — then three independent recipes from different angles, two
 adversarial lenses each, and one synthesis. Its verdict, the recipe and any probe go into batch -g.
 ⛔ NOTHING SHIPS TO HIS PHONE UNTIL A MEASUREMENT SAYS IT WORKS.
+
+## BATCH 2026-09-05-g: THE FIELDS, DIAGNOSED FROM THE WEBKIT SOURCES AND CONFIRMED ON THIS GAME'S OWN DOM — ONE CAUSE, AND IT IS body's background-color
+
+Fifteen agents against the primary sources after the revert: his instruction file read IN FULL for the
+first time, the canon's eight editions separated into device-measured and simulator-measured, the game's
+own edge pixels, the public record on the iOS 26 viewport, and the geometry of his screenshots; then three
+independent recipes, two adversarial lenses each, one synthesis. **All three recipes were refuted, and all
+three failed on the SAME unmeasured cell** — which is the honest result, and it is one screenshot from being
+closed.
+
+### THE MECHANISM (WebKit `main`, cited by file and line by two independent agents)
+`LocalFrameView::fixedContainerEdges()` returns early unless the page holds a fixed/sticky box; otherwise it
+hit-tests `(innerWidth/2, 4)` and `(innerWidth/2, innerHeight−4)` and walks up to the nearest
+`position:fixed`/`sticky` ancestor.
+- A candidate that declares a resolved `background-color`, thicker than 10 px (`thinBorderWidth`) and at
+  least 0.9 of the viewport wide (`minimumRatio`), forced opaque at alpha ≥ 0.75 → that colour fills the
+  zone through **`WKColorExtensionView`, a UIView of ONE FLAT CGColor inserted ABOVE the web content**.
+- A candidate that declares nothing → `PageColorSampler::predominantColor` takes a 2 px snapshot with
+  `ExcludeReplacedContentExceptForIFrames | ExcludeText | FixedAndStickyLayersOnly`. That excludes our WebGL
+  **canvas** (replaced content) AND all **normal-flow** content, so it finds nothing and returns `None`.
+- `None` → `WKWebView.mm`: `if (!edgeColor) edgeColor = self.underPageBackgroundColor;` = **body's
+  background-color**.
+- NO candidate at that edge → `[extensionView fadeOut]` and the bar's glass shows the page itself.
+Two corrections to our own record fall out of this: `theme-color` is NOT read for the bar tint in Safari 26
+(it appears in `WKWebView.mm` only as a bare accessor), and `pointer-events:none` does NOT exempt a fixed
+element — the first hit-test pass runs with `IgnoreCSSPointerEvents::Yes`.
+
+### CONFIRMED ON THE REAL DOM, NOT DEDUCED (headless, 402×654, `elementsFromPoint` at both sample points)
+| screen | nearest fixed ancestor at both edges | its background |
+|---|---|---|
+| the game | `#c` (the canvas) | transparent |
+| a dark popup | `#starsOverlay` | transparent (its 88% fill is on `::before`, which also carries `backdrop-filter` → `PredominantColorType::Multiple`) |
+| the menu | `#mainScreen` | transparent |
+So **every zone on every screen is painted with body's colour**, and body carries the sky's ZENITH:
+| | colour |
+|---|---|
+| body, i.e. both zones, everywhere | rgb(172,168,255) |
+| the game's own BOTTOM row | rgb(197,255,216) — Δ(25,87,39): **the bottom field** |
+| a dark popup's own first row | ≈rgb(29,33,50) — Δ(143,135,205): **the violet frame around a near-black screen** |
+| the game's own TOP row | rgb(172,168,255) — equal, so the top band is not a colour error but a CONTENT hole |
+
+### WHY MY THREE EDITIONS FAILED — EACH FOR A DIFFERENT REASON, ALL VISIBLE ONLY NOW
+- The 6th (extension recipe) was built on the simulator matrix, which the phone refutes.
+- The 7th (sensor strips) was the right mechanism, and I then HID the strips in the game and the menu with
+  my own «hybrid» — so on the two screens he actually looks at, the zones fell straight back to body's
+  violet. He never saw a correctly coloured zone.
+- The 8th (`#skyTail`) put real content below the viewport, but left `#c` fixed at both edges — so a
+  candidate still existed and the flat colour view was inserted ABOVE the tail. ⚠️ And the tail sat at page
+  874..1194, never overlapping the bottom zone (654..813) at all, so it also never tested what it claimed.
+
+### WHAT SHIPPED NOW (the tier that is safe whichever way the open question falls)
+- `html.dimmed body { background-color: color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb))) }`
+  and a 6-line `refreshDimmed()` in 85-hud toggling that class for the seven DARK overlays (`#pauseOverlay`
+  excluded — its own first row is the zenith). Measured: rgb(29,32,50) under a popup, i.e. the popup's own
+  first row; the zenith everywhere else. **This is the 2026-09-03 complaint («on the purchase screen the
+  top background is not dark»), never actually cured until now.** No driver, no strip, no sampling, no new
+  module — the seventh edition is not coming back.
+  ⚠️ THE STATE IS READ FROM THE DOM, NOT COUNTED: `#newObj` is toggled by a class and never passes through
+  `show()`/`hide()`, so a counter would drift.
+- The guard: the zenith on the game, the computed mix under a popup (the expected value is COMPUTED from
+  the fill and the palette, never a literal), the class cleared on close and never set by the menu, and a
+  CENSUS arm — every `.overlay` but the pause screen must be in `DIM_OVERLAYS`. Proven three-sided: healthy
+  4/4; the rule deleted → the popup arm alone; a popup dropped from the list → the popup arm and the census.
+- Two comments describing the reverted eighth edition as live were deleted (99-main `resize`, 10-stage).
+
+### ⛔ THE ONE OPEN QUESTION, AND NOTHING SHIPS PAST IT UNTIL HE ANSWERS
+**Does a fixed box at an edge OVERPRINT real in-flow content in the bottom zone?** Never measured: the
+`fixed` probe had the fixed box but no content below page 654; the `tall` probe had the content but no fixed
+box at an edge. `tools/probe/chrome-probe.html?v=cards` (live on Pages) answers it in one screenshot —
+a tall document plus two 12 px fixed cards, pure RED at the top and pure BLUE at the bottom:
+- the bottom zone reads BLUE → the fill overprints, and every edge-covering fixed box must become absolute
+  (`#c`, `.bar`, `#skyFill`, `.overlay::before`, `#pauseOverlay`, `#mainScreen`, `#msSticky`) — ~150 lines;
+- the ruler lines show through the glass → the fill does not overprint, and the fix is the root rules plus
+  one sloping belt layer with `#c` untouched — ~10 lines;
+- VIOLET → neither channel exists on his device and body's colour is all there is.
+The same frame also returns the full UA and the `Version/` token (a greedy regex had destroyed them for a
+month) and his tab mode. ⚠️ ASK IN THE SAME MESSAGE, it costs no screenshot: **is Settings → Apps → Safari →
+Tabs → «Allow Website Tinting» switched on?** With it off no fill is drawn at all and the shot cannot be read.
+
+### ⛔⛔ AND THE TOP ZONE IS A PLATFORM LIMIT, TO BE STATED PLAINLY AND NOT ATTEMPTED A FOURTH TIME
+Page y=0 sits at screen y≈61; a document has no rows above its own origin and fixed boxes are clipped to the
+layout viewport, so at rest there is nothing to put there — all five probe variants agree. The only route
+that could change that is a scrolling root with the game shifted down (his instruction's «взлётная полоса»),
+and it is refuted on gesture safety: this game has ZERO `touchmove` listeners and no `preventDefault` on any
+touch path, so `overflow:hidden` is what has been governing its gestures, and even on success the payoff is
+the sky seen through iPhone's soft scroll pocket (progressive blur plus scrim), not content. There is also
+nothing left to gain: the band's colour is ALREADY the sky's exact first row. `env(safe-area-inset-*)` is 0
+here because it describes only the hardware unsafe area still left INSIDE the shrunken viewport — the 220 pt
+is an *obscured content inset*, not a safe area, and no meta, unit or API in Safari 26 moves it. The one mode
+where the page owns all 874 pt is a Home-screen web app, a different distribution channel.

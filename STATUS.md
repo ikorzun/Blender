@@ -51,34 +51,26 @@ match · the live site verified by byte size against the build · portal package
   CPU ×4), and lifting the dt/substep caps does not buy it back (canon 2026-09-05-d). ⚠️ **Your A/B
   on the phone in Low Power Mode**: `?fallcap=10`, `?fallcap=12` (production), `?fallcap=16` (the
   old feel) on the live link — the number you pick is one constant.
-- **The Safari 26 fields — the seventh edition, by your instruction** (`safari-26-liquid-glass.md`):
-  two 12 px sensor strips at the top and bottom edges (WebKit only, on top of everything,
-  pointer-events none) plus a small driver that keeps them the colour of the page row under them —
-  the sky's stops in the game and the menu, the composited dark over any popup, the SDK curtain's
-  grey while it is up. This is what makes the clock and address-bar zones DARK under the ×5 / win /
-  leaderboard screens on iOS 26 (your 3 September complaint): a popup's blurred fill can never win
-  Safari's edge heuristic, a flat strip always does. `theme-color` is back for Chrome/Android and
-  follows the top strip. ⚠️ **Check on your iPhone**: the zones under the ×5 screen must be as dark
-  as the screen; the game and the menu must look exactly as before; if a coloured band ever shows
-  at an edge, the instruction names the `env()` term as the knob. The simulator cannot show the
-  tinted mode, only the phone can.
-- **The page now lies under the address bar** (your word «the content is cut at the bottom too …
-  it must go under the browser elements», the eighth edition): measured on YOUR iPhone with
-  `tools/probe/chrome-probe.html` — a fixed stage ends at the layout viewport and Safari 26 paints
-  both zones with body's colour (no edge extension on the device; the simulator had lied), while a
-  document taller than the viewport is painted under the bar and seen through its glass. So the
-  document carries a 120 px tail of the sky's bottom colour under the bar; nothing scrolls (a real
-  wheel leaves scrollY 0), the HUD and every screen are untouched. ⚠️ **The top zone stays a
-  colour** (the sky's zenith): a non-scrolling document cannot extend above its own zero, so no
-  page content can go under the island. The open question is on your phone: open
-  `…/tools/probe/chrome-probe.html?v=scroll`, **scroll it half a screen** and screenshot — if the
-  scrolled-away content shows under the island through the glass, the menu can become the root
-  scroller and its card will slide under the island; if not, the top is closed by the platform.
-  ⛔ **Your night word «in the pause menu the content does not go under the island»**: the strips
-  now show ONLY over the dark popups and the SDK curtain; in the game and in the menu they hide
-  themselves, so Safari lays its glass over the page and the menu's card scrolls under the island
-  the way it did before the strips. Check the menu on the phone: the card should slide under the
-  island, and the ×5 / win / leaderboard screens should still darken the zones.
+- **The Safari 26 fields — everything I tried yesterday is DELETED and the cause is finally known.** The
+  bands are not something we paint: iOS 26 Safari draws its own flat colour over the top and bottom of the
+  screen whenever any part of the page is pinned to that edge, and in this game everything is pinned. When
+  the pinned element declares no colour, the browser falls back to the page's own `body` colour — which is
+  the sky's ZENITH violet. That is why the bottom looked cut (violet under a mint horizon) and why the dark
+  popups were framed in violet. Read from the WebKit sources, then confirmed on the game's own screens.
+- **Fixed now:** under the seven dark screens (the ×5 purchase, win, lose, museum, leaderboard, ad, new
+  object) the bands take the screen's own colour instead of the sky's violet. That is your 3 September
+  complaint, and it was never actually cured until now.
+- ⛔ **ONE SCREENSHOT FROM YOU DECIDES THE REST**, and nothing ships before it — the last three attempts
+  skipped exactly this step. Open on the phone and send one shot of the WHOLE screen, island and address bar
+  included: https://ikorzun.github.io/Blender/tools/probe/chrome-probe.html?v=cards
+  It is a page taller than the screen with a ruler, plus two thin strips in colours found nowhere else: red
+  at the top, blue at the bottom. If the bottom band is BLUE the browser paints over real content and the
+  fix is a bigger rebuild; if you can read RULER NUMBERS through the address bar's glass the fix is about
+  ten lines. **And one question that costs no screenshot: is Settings → Apps → Safari → Tabs → «Allow
+  Website Tinting» switched on?** With it off the shot cannot be read.
+- ⚠️ **The top, straight:** nothing can sit under the island while the page is still. The page begins below
+  the island and has no rows above its own first one. That is the browser's layout, not our code. The colour
+  up there is already an exact match to the sky's first row.
 
 ## What shipped 1–3 September
 
