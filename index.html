@@ -1110,7 +1110,7 @@
      are always black»): not `--btn-fg`, not the carbon #2a2935, but exactly #000». His word of
      2026-09-05, with the plus selected on the page: «shrink the + and − inside the button from
      32 px to 28 px; take the colour from the Shake text» — the glyph now wears `--shake-ink`
-     (#484472, the caption's ink) and is 28, not the `.iconBtn` base 32.
+     (#484472, the caption's ink) and is 24 (his «24 px» of the same evening; 28 for the morning).
      ⚠️ WHAT SURVIVES of the 2026-08-03/04 words: the glyph still does NOT read `--btn-fg` and
      does NOT switch at night — the zoom's backing is light in both themes, so the pinpoint rule
      below still names both themes; only the value moved. The rules are below. */
@@ -1152,10 +1152,11 @@
      ⛔ SINCE 2026-09-05 THE VALUE IS THE SHAKE CAPTION'S INK, NOT #000 (his word «take the
      colour from the Shake text»): `--shake-ink` is declared ONCE (on :root, next to
      `.shake-txt`) and read here and there — one number, two consumers, the two cannot drift.
-     ⚠️ AND THE GLYPH IS 28, NOT THE `.iconBtn` BASE 32 (his word «from 32 px to 28 px»): the
-     svg's viewBox is 28, so the asset draws 1:1 now. The desktop arm (`#zoomGrp .zoomBtn svg`
-     in the 768 media) says 28 too — without it the desktop would keep its own 32. */
-  .zoomBtn svg { width:28px; height:28px; }
+     ⚠️ AND THE GLYPH IS NOT THE `.iconBtn` BASE 32 (his word «from 32 px to 28 px»; the svg's
+     viewBox is 28). ⛔ 24 SINCE THE EVENING OF 2026-09-05 — his second word of the day, both svgs
+     selected: «24 px». The desktop arm (`#zoomGrp .zoomBtn svg` in the 768 media) says 24 too —
+     without it the desktop would keep its own size. */
+  .zoomBtn svg { width:24px; height:24px; }
   .zoomBtn svg path, html.night .zoomBtn svg path { fill:var(--shake-ink); }
   /* ⛔⛔ THE PAUSE BUTTON IS WHITE IN BOTH THEMES (the owner's word 2026-08-25-v, three
      properties verbatim: `border-radius:80px; background:rgba(255,255,255,.60);
@@ -3765,9 +3766,14 @@
      (his first number) but never narrower than a pill's own content (`min-width:264px` —
      71 + 12 + 56 + 12 + the label + the paddings), so the text never leaves the pills; under
      400px the block is 90vw. The pills and the description take the block's width. */
-  /* ⚠️ min-width 326 SINCE 2026-09-05: the phone's chips are a ROW (below) — two label-less chips
-     of 155 (8 + 71 + 12 + 56 + 8) plus the 16 gap; the old 272 was one chip's content with its label. */
-  .st-block { display:flex; flex-direction:column; align-items:center; gap:32px; width:60vw; min-width:326px; max-width:100%; }
+  /* ⚠️ min-width 342 SINCE 2026-09-05: the phone's chips are a ROW (below) — two label-less chips
+     of 163 (8 + 71 + 10 + 56 + 16 + the 1 px borders) plus the 16 gap; the old 272 was one chip's
+     content with its label. 342 + the wrap's 16 + 16 = 374: a 375 SE fits with 1 px to spare,
+     anything narrower takes the squeeze arm below. ⚠️ THE BADGE→ICON GAP IS 10 UNDER 400, NOT THE
+     12 OF THE MOCK-UP: with the owner's 16 on the right and the borders a 12 gap makes 165 a chip,
+     346 the row, and the SE leaves 343 — measured by the suite's own «inside the block» arm in a
+     dry run, 2 px over each side. 10 is the one number in the chip he did not name. */
+  .st-block { display:flex; flex-direction:column; align-items:center; gap:32px; width:60vw; min-width:342px; max-width:100%; }
   @media (max-width:399px){ .st-block { width:90vw; } }
   /* THE TITLE «×5 score» (937:1514 / 938:1687): SF Pro Rounded Black, a black fill, a 13px
      OUTSIDE stroke in the lime→cyan gradient (#c0ff47 → #47ffd7, left to right), the shadow
@@ -3822,9 +3828,10 @@
   .st-lab { display:none; }
   /* ⚠️ THE RIGHT INSET INSIDE A PILL IS NEVER UNDER 20 (the owner's word 2026-09-04) — ON THE
      DESKTOP ROW, where the label is (the override sits in the ≥560 block): a hugging pill is
-     exactly 20 from the label to the edge. ⚠️ The phone chip has NO label since 2026-09-05, so
-     it is symmetric — 8 on both sides of the badge and the icon. */
-  .st-chip { box-sizing:border-box; height:80px; padding:8px; display:flex;
+     exactly 20 from the label to the edge. ⚠️ The phone chip has NO label since 2026-09-05: 8 on
+     the left of the badge, and 16 on the right of the icon — the owner's word the same evening
+     with both chips selected, «double the right inset» (it was the symmetric 8). */
+  .st-chip { box-sizing:border-box; height:80px; padding:8px 16px 8px 8px; display:flex;
     align-items:center; gap:12px; border-radius:64px; background:rgba(255,255,255,.04);
     border:1px solid rgba(255,255,255,.16); }
   /* ⛔ the inner white glow (`box-shadow:inset 0 0 20px rgba(255,255,255,.8)`, read off the
@@ -3850,15 +3857,18 @@
   @media (max-width:559px) and (max-height:759px){
     #starsOverlay .st-wrap { gap:32px; padding-bottom:32px; }
   }
-  /* under 360 the row would not fit (2 × 155 + 16 = 326 against the 288 the wrap leaves at 320):
-     the badge, the icon and the gaps shrink — 2 × 134 + 12 = 280. iOS 26 has no phone this
-     narrow; this is the small-Android arm, like the menu's 343 squeeze. */
-  @media (max-width:359px){
+  /* under 375 the row would not fit (2 × 163 + 16 = 342 against the 328 the wrap leaves at 360 and
+     the 288 at 320): the badge, the icon and the gaps shrink while the owner's 16 on the right
+     stays — 8 + 62 + 8 + 44 + 16 = 138 a chip, 2 × 138 + 8 = 284. The 375 SE is the narrowest iOS 26
+     phone and takes the full design; this is the small-Android arm (360 is common there), like
+     the menu's 343 squeeze. */
+  @media (max-width:399px){ .st-chip { gap:10px; } }
+  @media (max-width:374px){
     .st-block { min-width:0; }
-    .st-chips { gap:12px; }
+    .st-chips { gap:8px; }
     .st-chip { gap:8px; }
     .st-plus { min-width:62px; padding:8px; }
-    .st-ico { width:48px; height:48px; }
+    .st-ico { width:44px; height:44px; }
   }
   /* THE BUTTON (937:1517 / 938:1710): lime, 80 high, radius 1000, Heavy 24 black, «Buy $1.99»;
      264 wide on mobile, hugging (180) on desktop. The label is the FALLBACK — 85-hud overwrites
@@ -4116,12 +4126,13 @@
       flex-direction:row; gap:8px; }
     /* ⚠️ THE ZOOM BUTTONS ARE THE HINT'S SIZE ON THE DESKTOP (the owner's word 2026-09-04: «the
        size of these buttons on the desktop must be the size of the hint button»): 56 like
-       `#hintBtn`. ⛔ THE ICON IS 28 SINCE 2026-09-05 (his word «from 32 px to 28 px»; on
-       2026-09-04 it had gone back to the round buttons' base 32, before that 48 with a 28 icon) —
-       the same 28 as the mobile rule at `.zoomBtn svg`, restated here because this arm used to
-       say 32 on its own and would otherwise keep the desktop on the old size. */
+       `#hintBtn`. ⛔ THE ICON IS 24 SINCE THE EVENING OF 2026-09-05 (his «24 px» with both svgs
+       selected; the morning's word had made it 28 from the round buttons' base 32; on 2026-09-04
+       it had gone back to 32 from 48 with a 28 icon) — the same 24 as the mobile rule at
+       `.zoomBtn svg`, restated here because this arm used to say 32 on its own and would
+       otherwise keep the desktop on the old size. */
     #zoomGrp .zoomBtn { width:56px; height:56px; }
-    #zoomGrp .zoomBtn svg { width:28px; height:28px; }
+    #zoomGrp .zoomBtn svg { width:24px; height:24px; }
     /* the node's order: the minus is TO THE LEFT of the plus (in the markup the plus goes first) */
     #zoomInBtn { order:2; }
     #zoomOutBtn { order:1; }

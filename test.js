@@ -5510,8 +5510,12 @@ window.bridge = {
     expect(m.open && m.chips.length === 2 && m.sameRow && m.labs.every(d => d === 'none'),
       'PHONE ROW ' + name + ': the two chips stand on ONE row and their labels are hidden (the owner 2026-09-05) (' +
       JSON.stringify({ chips: m.chips, labs: m.labs }) + ')');
-    expect(Math.abs(m.gap - (name === '375×667' ? 16 : 12)) <= 0.5,
-      'PHONE ROW ' + name + ': the gap between the chips is ' + (name === '375×667' ? '16' : '12 (the under-360 arm)') + ' (' + m.gap + ')');
+    expect(Math.abs(m.gap - (name === '375×667' ? 16 : 8)) <= 0.5,
+      'PHONE ROW ' + name + ': the gap between the chips is ' + (name === '375×667' ? '16' : '8 (the under-375 squeeze arm)') + ' (' + m.gap + ')');
+    // «double the right inset» (the owner, the same evening, both chips selected): 16 to the right of
+    // the icon on the phone at every width — the squeeze arm shrinks the icon, never this inset
+    expect(m.chips.every(c => c.pr === '16px'),
+      'PHONE ROW ' + name + ': the chip keeps 16 on the right of the icon (the owner 2026-09-05, «double», it was 8) (' + JSON.stringify(m.chips.map(c => c.pr)) + ')');
     // the row lives inside the block and the wrap: no horizontal overflow at either size
     expect(m.chips[0].l >= m.block.l - 0.5 && m.chips[1].r <= m.block.r + 0.5 && m.hOverflow <= 0,
       'PHONE ROW ' + name + ': the row fits inside the block, nothing overflows sideways (' +
@@ -8543,12 +8547,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // size of the hint button»); the node's 48 is history
   expect(zoomDesk.plus.w === 56 && zoomDesk.minus.w === 56 && zoomDesk.plus.y === zoomDesk.minus.y,
     'ZOOM-DESKTOP: a row of 56×56 (the hint\'s size, 2026-09-04; the node 741:1497 said 48) at the same height (' + JSON.stringify(zoomDesk) + ')');
-  // ⚠️ THE GLYPH IS 28 ON THE DESKTOP TOO (the owner 2026-09-05 «from 32 px to 28 px»): the 768
+  // ⚠️ THE GLYPH IS 24 ON THE DESKTOP TOO (the owner 2026-09-05, «24 px» in the evening): the 768
   // media block restates the size because it used to say 32 on its own — dropping that
   // restatement is the sabotage that leaves the phone right and the desktop wrong, and only this
   // arm sees it (the mobile arm in zoomSmooth reads the 390 page).
-  expect(zoomDesk.plusSvg.w === 28 && zoomDesk.plusSvg.h === 28 && zoomDesk.minusSvg.w === 28 && zoomDesk.minusSvg.h === 28,
-    'ZOOM-DESKTOP: the + and − glyphs are 28×28 inside the 56 row (the owner 2026-09-05) (' + JSON.stringify([zoomDesk.plusSvg, zoomDesk.minusSvg]) + ')');
+  expect(zoomDesk.plusSvg.w === 24 && zoomDesk.plusSvg.h === 24 && zoomDesk.minusSvg.w === 24 && zoomDesk.minusSvg.h === 24,
+    'ZOOM-DESKTOP: the + and − glyphs are 24×24 inside the 56 row (the owner 2026-09-05, «24 px» in the evening) (' + JSON.stringify([zoomDesk.plusSvg, zoomDesk.minusSvg]) + ')');
   expect(zoomDesk.minus.x < zoomDesk.plus.x && Math.abs(zoomDesk.cx - 640) <= 2 && Math.abs(zoomDesk.bottom - 20) <= 2,
     'ZOOM-DESKTOP: the minus on the left, the group centred, 20px from the bottom (' + JSON.stringify(zoomDesk) + ')');
   // ⚠️ A direct complaint from the owner with a screenshot: the controls were creeping onto the item list.
@@ -8585,10 +8589,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // ⚠️ THE SIZE IS THE BOX, NOT THE DECLARATION: `getBoundingClientRect` of the svg on the mobile
   // column (the suite's 390 page); the desktop row has its own arm in zoomDesk below.
   // ⛔ SABOTAGE: `.zoomBtn svg` back to 32, or deleted (the `.iconBtn` base is 32) → red.
-  expect(zoomSmooth.plusBox.w === 28 && zoomSmooth.plusBox.h === 28 &&
-         zoomSmooth.minusBox.w === 28 && zoomSmooth.minusBox.h === 28,
-    'ZOOM: the + and − glyphs are 28×28 inside the 56 button on the phone (the owner 2026-09-05 ' +
-    '«from 32 px to 28 px») (' + JSON.stringify([zoomSmooth.plusBox, zoomSmooth.minusBox]) + ')');
+  // ⛔ 24 SINCE THE EVENING OF 2026-09-05 (his «24 px», both svgs selected); the morning's 28 lived a day
+  expect(zoomSmooth.plusBox.w === 24 && zoomSmooth.plusBox.h === 24 &&
+         zoomSmooth.minusBox.w === 24 && zoomSmooth.minusBox.h === 24,
+    'ZOOM: the + and − glyphs are 24×24 inside the 56 button on the phone (the owner 2026-09-05, ' +
+    '«24 px» in the evening after «from 32 px to 28 px» in the morning) (' + JSON.stringify([zoomSmooth.plusBox, zoomSmooth.minusBox]) + ')');
   // ⛔⛔ THE 50% AT REST IS GONE (the owner's word 2026-08-23-b, with a frame of the two pale
   // circles: «do not take them into transparency, the style of these buttons is the same as the
   // magnifier button's»). ⛔ It cancels his spec of 2026-08-05 AND his own answer of the day

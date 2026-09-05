@@ -14887,6 +14887,16 @@ run out, nowhere else. 4. only game time». (1) 20 GAM stays. (2) The dashboard 
   the same quiet machine — **952 green, 0 red, SUITE: PASS** (21 minutes; the runs here take 13-21).
   ⚠️ The lesson, unchanged from the canon: re-run once before touching a guard; the seven were
   not touched. The host's ZOOM settle flake (`rEnd === rMid` at 80 ms) is a subject if it recurs.
+- ⛔ 24 SINCE THE EVENING OF THE SAME DAY: with both svgs selected he wrote «24 px», and «then push
+  it all». The two rules (`.zoomBtn svg` and the 768 arm) say 24, both size arms of the guard moved
+  to 24, the standalone reader too; the colour and everything else above stands. Measured on the
+  build: 24×24 in the 56 buttons at 390 and 1280.
+- ⚠️ AND THE ×5 CHIPS' RIGHT INSET DOUBLED THE SAME EVENING (both phone chips selected, «double the
+  right inset»): the label-less phone chip is `padding:8px 16px 8px 8px` (it was the symmetric 8),
+  the block's floor 326 → 342 (2 × 163 + 16; a 375 SE keeps 1 px of slack), and the squeeze arm
+  now starts under 375 instead of 360 (a 360 Android would overflow by 14): there the icon is 44,
+  the badge 62, the gaps 8/8 and the 16 on the right STAYS — 2 × 138 + 8 = 284 inside the 288 a
+  320 phone leaves. The phone-row guard pins the 16 at 375 and at 320 and the 320 gap at 8.
 
 ## BATCH 2026-09-05-b: THE OWNER'S FIVE WORDS WITH THE INSPECTOR OPEN — THE PAUSE GLYPH 28, THE MENU'S INSETS, THE SEGMENT'S RIGHT INSET, THE CARD'S SQUEEZE, THE ×5 POPUP AS A PHONE ROW
 
