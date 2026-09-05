@@ -10415,6 +10415,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(!strips.none && strips.hook.top === skyTop && strips.hook.bottom === skyBot && strips.hook.meta === skyTop,
       'STRIPS AT REST: the top strip = --sky-top-rgb, the bottom = --sky-bot-rgb (the frame\'s own edge rows), theme-color = the top (' +
       JSON.stringify({ hook: strips.hook, skyTop, skyBot }) + ')');
+    // ⛔ HIDDEN AT REST (the owner the same night: «in the pause menu the content does not go under
+    // the island»): with no layer composited the driver writes inline display:none, and Safari — with no
+    // candidate at the edge — lays its glass over the page's own content. The inline value is read, not
+    // the computed one: Chromium computes none either way through the WebKit-only @supports gate.
+    expect(!strips.none && strips.hook.topInline === 'none' && strips.hook.bottomInline === 'none',
+      'STRIPS AT REST ARE HIDDEN BY THE DRIVER (inline display:none on both) — the game\'s edge goes under the glass, not under a flat band (' +
+      JSON.stringify({ top: strips.hook.topInline, bottom: strips.hook.bottomInline }) + '). ⛔ SABOTAGE: show the strips unconditionally');
     // TWO-SIDED ON THE BASE: move the palette variable, the strip follows on the next frame
     // ⚠️ `chromeStripsSync` is IIFE-private — the hook `__game.chromeSync` is the page-side door (a
     // bare call here threw a ReferenceError that killed run 4 of 2026-09-05 without a verdict — the
@@ -10445,12 +10452,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const afterPopup = await sbPage.evaluate(() => window.__game.chromeStrips());
     const near = (a, b) => { const x = (a.match(/\d+/g) || []).map(Number), y = (b.match(/\d+/g) || []).map(Number);
       return x.length === 3 && y.length === 3 && x.every((v, i) => Math.abs(v - y[i]) <= 1); };
+    expect(underPopup.topInline === '' && underPopup.bottomInline === '',
+      'STRIPS UNDER THE PURCHASE POPUP ARE SHOWN (inline display cleared, the stylesheet decides: block in WebKit) (' +
+      JSON.stringify({ top: underPopup.topInline, bottom: underPopup.bottomInline }) + ')');
     expect(near(underPopup.top, dimTop) && near(underPopup.bottom, dimBot),
       '⚠️⚠️ STRIPS UNDER THE PURCHASE POPUP: both carry the 88 % dark fill composited over their sky stop — the popup\'s ' +
       '::before is read as a full-screen layer (' + JSON.stringify({ got: underPopup, expected: { top: dimTop, bottom: dimBot } }) + '). ' +
       'The sabotage — drop the ::before arm of the driver: the strips stay sky-coloured and the clock zone shows the sky under a dark popup, the owner\'s 2026-09-03 complaint');
-    expect(afterPopup.top === skyTop && afterPopup.bottom === skyBot,
-      'STRIPS AFTER THE POPUP: back to the sky stops (' + JSON.stringify(afterPopup) + ')');
+    expect(afterPopup.top === skyTop && afterPopup.bottom === skyBot && afterPopup.topInline === 'none' && afterPopup.bottomInline === 'none',
+      'STRIPS AFTER THE POPUP: back to the sky stops and hidden again (' + JSON.stringify(afterPopup) + ')');
     // THE MENU: the gradient layer (#mainScreen::before, a background-IMAGE) and the 1 px mint
     // strip (#mainScreen::after) must NOT tint — the top stays the zenith, the bottom the sky\'s bottom
     await sbPage.click('#pauseBtn', { force: true });
@@ -10458,6 +10468,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const underMenu = await sbPage.evaluate(() => ({ open: document.getElementById('mainScreen').classList.contains('open'), s: window.__game.chromeStrips() }));
     await sbPage.evaluate(() => { const b = document.querySelector('.ms-play'); if (b) b.click(); });
     await sbPage.waitForTimeout(400);
+    expect(underMenu.open && underMenu.s.topInline === 'none' && underMenu.s.bottomInline === 'none',
+      '⚠️⚠️ STRIPS UNDER THE MENU ARE HIDDEN — the menu is not a layer, so its card scrolls under the island\'s glass (the owner\'s complaint of the same night) (' +
+      JSON.stringify({ top: underMenu.s.topInline, bottom: underMenu.s.bottomInline }) + ')');
     expect(underMenu.open && underMenu.s.top === skyTop && underMenu.s.bottom === skyBot,
       'STRIPS UNDER THE MENU: the sky stops on both — the gradient pseudo is skipped as an image, the 1 px ::after as a non-layer (' +
       JSON.stringify(underMenu) + '). The sabotage — drop the height filter on pseudos: the TOP strip turns mint from the bottom strip\'s colour');
@@ -10470,7 +10483,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await raf2(); await sbPage.waitForTimeout(60); await raf2();
     const afterCurtain = await sbPage.evaluate(() => window.__game.chromeStrips());
     await sbPage.close();
-    expect(underCurtain.top === 'rgb(36, 36, 36)' && underCurtain.bottom === 'rgb(36, 36, 36)' && afterCurtain.top === skyTop && afterCurtain.bottom === skyBot,
+    expect(underCurtain.top === 'rgb(36, 36, 36)' && underCurtain.bottom === 'rgb(36, 36, 36)' && underCurtain.topInline === '' &&
+           afterCurtain.top === skyTop && afterCurtain.bottom === skyBot && afterCurtain.topInline === 'none',
       'STRIPS UNDER A FOREIGN CURTAIN: a fixed full-screen body child with a solid colour takes both strips through the OBSERVER (no show() call), ' +
       'and its removal gives them back (' + JSON.stringify({ underCurtain, afterCurtain }) + '). The sabotage — drop the MutationObserver');
   }

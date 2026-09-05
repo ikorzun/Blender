@@ -15034,6 +15034,17 @@ mechanism seen from outside: a painted candidate is a colour source, so the exte
   The owner had the batch pushed before the verdict on his word («push it all»); the game code was not
   at fault — the strips, the driver and every CSS rule are identical in the pushed build — only the
   suite could not say so. The verdict of run 5 on the corrected suite is in STATUS.md.
+- ⛔⛔ THE SAME NIGHT, HIS WORD: «in the pause menu the content does not go under the island, I am tired
+  of this problem». A painted strip is a flat band under the island — that is what the seventh
+  edition put over the MENU, where the sixth edition's «no candidate → glass over the content» had
+  let the card scroll under the island on his phone (his 2026-08-30-g words said the top was done).
+  THE HYBRID: the driver now shows a strip (inline display '') only when a LAYER was composited
+  into its colour — a dark popup, the SDK curtain — and hides it (inline display:none) otherwise;
+  the game and the menu are back on the glass, the popups keep their flat dark zones. The guards
+  moved: hidden at rest and under the menu, shown under the popup and the curtain, the colours as
+  before; proven two-sided (the hide removed → the rest and menu arms red, nothing else).
+  ⚠️ What the instruction's full recipe assumed and this project does not want: a zone that is
+  always OURS. He wants the zone to be Safari's glass except where the screen is dark.
 
 ## BATCH 2026-09-05-d: THE FLIGHT FALL CAP — THE ERUPTION AFTER A SHAKE OR A BOMB FALLS AT 12, NOT 16 (the owner's word, about the phone in Low Power Mode: «check the animation after the bomb and after the toss: reduce the falling speed or the whole animation, like we did with the pour — there is a braking effect»; then: «only the phone and the battery-saving mode»)
 

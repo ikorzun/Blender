@@ -1104,6 +1104,8 @@ window.__game = {
     return { top: top ? top.style.backgroundColor : null, bottom: bot ? bot.style.backgroundColor : null,
              computedTop: chromeStripColor('top'), computedBottom: chromeStripColor('bottom'),
              shown: top ? getComputedStyle(top).display : null,
+             // the driver's own decision, independent of the WebKit-only stylesheet: '' = shown over a layer, 'none' = hidden
+             topInline: top ? top.style.display : null, bottomInline: bot ? bot.style.display : null,
              meta: (document.querySelector('meta[name=theme-color]') || {}).content || null };
   },
   // the same driver, callable from a test page: `chromeStripsSync` is IIFE-private, and a

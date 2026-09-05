@@ -47,9 +47,18 @@ function chromeBase(edge){
   const c = chromeParseColor('rgb(' + v + ')');
   return c || (edge === 'top' ? { r: 133, g: 220, b: 255, a: 1 } : { r: 204, g: 255, b: 248, a: 1 });
 }
-// the colour the strip of `edge` must carry right now
+// the colour the strip of `edge` must carry right now, and whether any LAYER was composited into
+// it — ⛔ THE STRIP SHOWS ONLY WHEN A LAYER IS (the owner's word the same night: «in the pause menu
+// the content does not go under the island, I am tired of this problem»): a painted strip is a
+// flat band under the island, while with NO candidate Safari lays its glass over the page and the
+// menu's card scrolls under the island the way the sixth edition did on his phone. So the strips
+// exist for the dark popups and the SDK curtain alone — there a flat dark zone is the point — and
+// hide themselves (inline display:none) whenever the page's own edge is what should show.
 function chromeStripColor(edge){
-  let acc = chromeBase(edge);
+  return chromeStripSample(edge).css;
+}
+function chromeStripSample(edge){
+  let acc = chromeBase(edge), layered = false;
   const W = innerWidth, H = innerHeight;
   const x = Math.round(W / 2), y = edge === 'top' ? 8 : H - 8;
   let stack = [];
@@ -63,7 +72,7 @@ function chromeStripColor(edge){
     if (r.width < W * 0.9) continue;                       // a control, not a layer
     const op = parseFloat(cs.opacity); if (!(op > 0)) continue;
     const own = chromeParseColor(cs.backgroundColor);
-    if (own && own.a > 0 && (!cs.backgroundImage || cs.backgroundImage === 'none')) acc = chromeOver(acc, own, op);
+    if (own && own.a > 0 && (!cs.backgroundImage || cs.backgroundImage === 'none')){ acc = chromeOver(acc, own, op); layered = true; }
     for (const pseudo of ['::before', '::after']){
       const ps = getComputedStyle(el, pseudo);
       if (!ps || ps.content === 'none' || ps.display === 'none') continue;
@@ -71,19 +80,25 @@ function chromeStripColor(edge){
       if (parseFloat(ps.width) < W * 0.9 || parseFloat(ps.height) < H * 0.9) continue;   // a strip, not a layer
       if (ps.backgroundImage && ps.backgroundImage !== 'none') continue;            // the sky gradient = the base
       const pc = chromeParseColor(ps.backgroundColor);
-      if (pc && pc.a > 0) acc = chromeOver(acc, pc, op * (parseFloat(ps.opacity) || 1));
+      if (pc && pc.a > 0){ acc = chromeOver(acc, pc, op * (parseFloat(ps.opacity) || 1)); layered = true; }
     }
   }
-  return 'rgb(' + Math.round(acc.r) + ', ' + Math.round(acc.g) + ', ' + Math.round(acc.b) + ')';
+  return { css: 'rgb(' + Math.round(acc.r) + ', ' + Math.round(acc.g) + ', ' + Math.round(acc.b) + ')', layered };
 }
 let chromeSyncQueued = false;
 function chromeStripsApply(){
   chromeSyncQueued = false;
   const top = document.getElementById('sbTop'), bot = document.getElementById('sbBot');
   if (!top || !bot) return;
-  const ct = chromeStripColor('top'), cb = chromeStripColor('bottom');
+  const st = chromeStripSample('top'), sb = chromeStripSample('bottom');
+  const ct = st.css, cb = sb.css;
   if (top.dataset.sb !== ct){ top.dataset.sb = ct; top.style.backgroundColor = ct; }
   if (bot.dataset.sb !== cb){ bot.dataset.sb = cb; bot.style.backgroundColor = cb; }
+  // shown only over a composited layer; '' hands the decision back to the stylesheet (block in
+  // WebKit, none elsewhere), 'none' hides it everywhere — the page's own edge shows under the glass
+  const dt = st.layered ? '' : 'none', db = sb.layered ? '' : 'none';
+  if (top.style.display !== dt) top.style.display = dt;
+  if (bot.style.display !== db) bot.style.display = db;
   // theme-color for Chrome/Android rides on the top strip's colour (Safari 26 ignores the meta)
   const meta = document.querySelector('meta[name=theme-color]');
   if (meta && meta.content !== ct) meta.content = ct;
