@@ -31,11 +31,7 @@
      the live sky stops (top and bottom are DIFFERENT — a gradient, day/night on their own),
      the menu — the menu background, the dark popup fade — dark. The meta is ignored by
      Safari 26, it is kept in lockstep for Android/macOS. -->
-<!-- ⛔ theme-color REMOVED 2026-08-14 together with the whole edge machinery.
-     ⚠️ BACK SINCE 2026-09-05 (the owner's instruction safari-26-liquid-glass.md, checklist item 3):
-     Safari 26 parses it and ignores it, Chrome on Android still tints by it. Its content is
-     written by the strips' driver (84-chrome) — the same colour the top strip carries. -->
-<meta name="theme-color" content="rgb(133,220,255)">
+<!-- ⛔ theme-color REMOVED 2026-08-14 together with the whole edge machinery -->
 <title>BLENDO</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -139,82 +135,7 @@
      2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
   body { background-color:rgb(var(--sky-top-rgb, 133,220,255));
          background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe)); }
-  /* ═══ THE SAFARI 26 SENSOR STRIPS — THE SEVENTH EDITION OF THE FIELDS (the owner's instruction
-     of 2026-09-05, `safari-26-liquid-glass.md` on his desktop, written from the WebKit sources:
-     `LocalFrameView::fixedContainerEdges`). WHAT SAFARI ACTUALLY DOES: at each obscured edge it
-     hit-tests the point (width/2, 4 px inside the layout viewport), walks up to the nearest
-     `position:fixed`/`sticky` ancestor and takes the chain's `background-color` — a single
-     opaque colour paints the zone; a gradient/image, a `backdrop-filter` anywhere in the chain or
-     several colours give «multiple» = the PAGE's colour (body, else html); no candidate at all =
-     glass over the content (the «extension» the 2026-08-30 matrix measured). A fixed full-screen
-     DIMMING layer (a bg with alpha < 1, no children) only blends with the page colour and NEVER
-     REPLACES an edge colour already found — which is exactly why the dark popups could not darken
-     the clock zone (the owner's complaint of 2026-09-03), whatever the 5th/6th editions did.
-     ⛔⛔ THIS CANCELS the sixth edition's «not a single line of JS» (2026-08-20) and supersedes
-     the 2026-08-30/31 extension recipe as the MECHANISM for the zones: the two strips below are
-     ordinary candidates (thicker than 10 px, ≥ 90 % wide, a flat colour, no filter), they sit on
-     top of everything (z max) and are found FIRST at both points, so the zone colour is whatever
-     the driver writes into them — deterministic, no heuristic left to guess. The extension
-     recipe's set (html transparent, body = zenith colour + the sky gradient, the bars paint
-     nothing, the overlays paint on ::before) STAYS as it is: it is the belt for the WebKits that
-     hide the strips, and it costs nothing.
-     THE STRIPS: 12 px tall at top:-6 / bottom:-6 — the check point at 4 px is covered with 2 px
-     to spare, and only 6 px show inside the viewport, painted the SAME colour as the page row
-     under them (the zenith above the HUD, the sky's bottom below the bar, the composited dark
-     over a popup), i.e. invisible by construction. `pointer-events:none`: WebKit's first
-     hit-test pass ignores that property (the instruction, §2), while clicks and
-     `elementsFromPoint` never see the strips. ⚠️ NO `env(safe-area-inset-*)` term in the height
-     (the instruction's optional belt): in the wrapper's WKWebView the top inset is ~59 and the
-     strip would paint a flat 65 px band over the sky's gradient rows; the zones are painted by
-     WebKit's colour extension from the strip, not by the strip's own pixels. If a phone ever
-     shows a coloured band at an edge, the instruction says which term to touch.
-     `display:none` outside WebKit (`@supports (font: -apple-system-body)` is true in every
-     browser on iOS and in Safari on macOS, false in Chromium — headless never sees them).
-     ⛔⛔ AND HIDDEN BY THE DRIVER UNLESS A LAYER IS COMPOSITED (the owner's word the same night:
-     «in the pause menu the content does not go under the island, I am tired of this problem»): a
-     painted strip is a flat band under the island; with no candidate at the edge Safari lays its
-     glass over the page and the menu's card scrolls UNDER the island, as the sixth edition did on
-     his phone. So the strips are shown (inline display '') only over the dark popups and the SDK
-     curtain, and hidden (inline display:none) in the game and in the menu. The stylesheet's
-     block/none stays the WebKit gate; the driver's inline none wins over it.
-     THE DRIVER lives in `src/app/84-chrome.js`; the colour is NOT sampled from the page's
-     background-colors as the instruction's generic script does — our sky is a WebGL canvas and
-     a gradient, and the overlays paint on pseudo-elements, so the driver takes the sky's own
-     edge stops (`--sky-top-rgb`/`--sky-bot-rgb`, the same numbers 10-stage writes) and
-     composites over them every full-width fixed layer found at the point, its ::before/::after
-     included. Read the module before touching this. */
-  .sb-strip { position:fixed; left:0; right:0; height:12px; pointer-events:none;
-    z-index:2147483647; display:none; }
-  #sbTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
-  #sbBot { bottom:-6px; background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
-  @supports (font: -apple-system-body) { .sb-strip { display:block; } }
-  /* ═══ THE EIGHTH EDITION OF THE FIELDS — THE DOCUMENT IS TALLER THAN THE LAYOUT VIEWPORT, AND THE
-     PAGE ITSELF LIES UNDER THE ADDRESS BAR (the owner's word 2026-09-05, late: «on the game view the
-     content is cut at the bottom too. IMPORTANT: the content must go under the browser elements and
-     the Dynamic Island in iOS 26 Safari. Complete the recipe and fix it once and for all»).
-     MEASURED ON HIS iPHONE, NOT ON THE SIMULATOR (tools/probe/chrome-probe.html, four screenshots):
-     screen 402×874, the layout viewport 654, env top/bottom 0/0, 100lvh 754; a FIXED stage
-     (the game's recipe until now) ends at 654 and BOTH zones take body's background-COLOUR — no
-     edge-pixel extension exists on the device (the 2026-08-30 simulator matrix was a simulator
-     artefact): under the mint bottom of the sky lay a zenith-violet zone, i.e. the «cut»; a stage
-     IN NORMAL FLOW taller than the viewport (html overflow:hidden, nothing scrolls) is painted under
-     the address bar and seen through its glass — the ruler's 700/750/800 marks were visible
-     around the bar. So: the document carries a TAIL under the bar, the colour of the sky's bottom
-     stop, and Safari shows it through the glass. The top zone keeps body's colour (the zenith): a
-     document cannot extend above its own zero, so under the island there is never page content in
-     a non-scrolling page — only a colour, and ours is the sky's own top row.
-     ⚠️ `min-height` on body and NOT `height:100%`: the body is what makes the document taller
-     (100lvh + 120 = 874 on his phone = the screen); `html` keeps `height:100%` so percentages
-     inside the page still mean the layout viewport. Old WebKits without lvh keep the plain 100%.
-     ⚠️ Nothing in the page reads body's height (a census: no `body.clientHeight`/`scrollHeight`
-     reader in src/app); the canvas, the bars and every overlay are fixed to the layout viewport
-     and are untouched. The tail is `#skyTail`, the last child of body. */
-  html { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none; }
-  body { min-height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none; }
-  @supports (height: 100lvh) { body { min-height:calc(100lvh + 120px); } }
-  #skyTail { position:absolute; left:0; right:0; top:100%; height:320px; z-index:0; pointer-events:none;
-    background:rgb(var(--sky-bot-rgb, 204,255,248)); }
-  html, body {
+  html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
      (clip-path 40px / the --view-r formula). BOTH WERE REMOVED by the owner's word 2026-08-12
@@ -4198,14 +4119,6 @@
 </style>
 </head>
 <body>
-<!-- THE SAFARI 26 SENSOR STRIPS (2026-09-05): the first children of body so they are in the first
-     frame; their CSS and the reason live at the html/body rules, the driver in 84-chrome.js -->
-<div id="sbTop" class="sb-strip" aria-hidden="true"></div>
-<div id="sbBot" class="sb-strip" aria-hidden="true"></div>
-<!-- THE TAIL UNDER THE ADDRESS BAR (the eighth edition, 2026-09-05): absolute, from the layout
-     viewport's bottom 320 px down, the sky's bottom stop — the page's own content under the bar's
-     glass; the CSS and the measurement live at the html/body rules -->
-<div id="skyTail" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white

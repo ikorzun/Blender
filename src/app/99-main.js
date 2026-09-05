@@ -1096,21 +1096,6 @@ window.__game = {
   // property itself, read after the step (the cap is applied after world.step, so a sample is ≤ cap)
   fallCapNow(){ return currentFallCap(); },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
-  // the Safari 26 strips (84-chrome, 2026-09-05): what they carry, what the driver would compute now,
-  // and whether this browser shows them at all (WebKit only)
-  chromeStrips(){
-    const q = id => document.getElementById(id);
-    const top = q('sbTop'), bot = q('sbBot');
-    return { top: top ? top.style.backgroundColor : null, bottom: bot ? bot.style.backgroundColor : null,
-             computedTop: chromeStripColor('top'), computedBottom: chromeStripColor('bottom'),
-             shown: top ? getComputedStyle(top).display : null,
-             // the driver's own decision, independent of the WebKit-only stylesheet: '' = shown over a layer, 'none' = hidden
-             topInline: top ? top.style.display : null, bottomInline: bot ? bot.style.display : null,
-             meta: (document.querySelector('meta[name=theme-color]') || {}).content || null };
-  },
-  // the same driver, callable from a test page: `chromeStripsSync` is IIFE-private, and a
-  // `page.evaluate` that named it killed run 4 of 2026-09-05 with a ReferenceError and no verdict
-  chromeSync(){ chromeStripsSync(); },
   availablePairs,
   autoMatch(){
     stats.lastAction = performance.now(); // a bench match = a player action:

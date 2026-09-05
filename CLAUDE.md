@@ -14939,6 +14939,10 @@ screen). All measured on the build, headless at 375×667 / 320×568 / 390 / 1280
   { display:none }` deleted → only the phone-row arms red; the pause rule deleted → only the pause
   arm red; the healthy build all green.
 
+### ⛔⛔ REVOKED THE SAME NIGHT AND REVERTED OUT OF THE TREE — SEE BATCH 2026-09-05-f. The section
+### below is HISTORICAL: the strips, the driver `84-chrome.js`, the `theme-color` meta and their
+### guards are GONE from the build. Read -f before reviving any part of it.
+
 ## BATCH 2026-09-05-c: THE SEVENTH EDITION OF THE SAFARI 26 FIELDS — TWO SENSOR STRIPS AND A DRIVER (the owner's instruction `safari-26-liquid-glass.md`, 5 September 2026, written from the WebKit sources; his words: «act by the instruction for the fields in Safari», «the instruction», «then the other tasks»)
 
 ### WHAT THE INSTRUCTION ESTABLISHES (the primary source is his file on the desktop, in Russian; the English gist is here because the project is English-only)
@@ -15100,6 +15104,10 @@ mechanism seen from outside: a painted candidate is a colour source, so the exte
 - WHAT ONLY HIS PHONE CAN SAY: whether 12 reads smooth in Low Power Mode. `?fallcap=10` and
   `?fallcap=16` on the live link are the A/B; the number he picks is one constant.
 
+### ⛔⛔ REVOKED THE SAME NIGHT AND REVERTED OUT OF THE TREE — SEE BATCH 2026-09-05-f. The section
+### below is HISTORICAL: `#skyTail` and the tall-document body rules are GONE. ⚠️ ITS MEASUREMENTS
+### FROM HIS PHONE STAND and are the most valuable thing here — they are re-quoted in -f.
+
 ## BATCH 2026-09-05-e: THE EIGHTH EDITION OF THE FIELDS — THE DOCUMENT IS TALLER THAN THE VIEWPORT, THE PAGE LIES UNDER THE ADDRESS BAR (the owner's word, late: «on the game view the content is cut at the bottom too. IMPORTANT: the content must go under the browser elements and the Dynamic Island in iOS 26 Safari. Complete the recipe and fix it once and for all»)
 
 ### MEASURED ON HIS iPHONE — NO SIMULATOR ON THIS MAC (Command Line Tools only, no Xcode); `tools/probe/chrome-probe.html` on Pages, four screenshots
@@ -15147,3 +15155,65 @@ hard limit stands for fixed).
   and touch-action none; a real wheel does not scroll. Dry-run 4/4; the tail removed → 4 red.
 - WHAT ONLY HIS PHONE CAN SAY NOW: the game's and the menu's bottom zone should show mint under the
   address bar instead of the violet belt; the popups should still darken both zones.
+
+## BATCH 2026-09-05-f: EVERYTHING I DID WITH THE FIELDS TODAY IS REVERTED OUT OF THE TREE (his word: «you are overcomplicating. delete everything you did with the fields and start over, because the result is still just as bad — the fields are there both at the top AND at the bottom»)
+
+### WHAT WAS REMOVED, IN FULL
+- The SEVENTH edition (batch -c, tombstoned above): `src/app/84-chrome.js` (the driver, deleted),
+  the `.sb-strip` CSS and the `#sbTop` / `#sbBot` markup, the `theme-color` meta I had re-added, the
+  `chromeStripsSync()` calls in `85-hud` (show/hide) and `10-stage` (both palette writers), the
+  `__game.chromeStrips()` / `chromeSync()` hooks, and the whole 12-arm suite section.
+- The EIGHTH edition (batch -e, tombstoned above): `#skyTail`, the `body { min-height: 100lvh+120 }`
+  rules and their 4-arm suite section; `html, body { height:100%; overflow:hidden; touch-action:none;
+  overscroll-behavior:none }` is restored verbatim.
+- 630 lines out, 28 modules again (29 with the driver), the build 12 152 084 B. Verified headless at
+  390 and 1280: the HUD's geometry is byte-identical to the pre-field baseline (topBar 0..72,
+  bottomBar 700..844, the zoom column at 708, Shake at 772), `document.scrollHeight === innerHeight`,
+  no strips, no meta, no hooks, zero page errors.
+- ⚠️ KEPT ON PURPOSE, and he was told: `tools/probe/chrome-probe.html`. It is the RULER, not the
+  mechanism — the only thing on this project that has ever measured his actual phone, and every
+  number below came from it. There is no Xcode on this Mac (Command Line Tools only), so there is no
+  simulator; his phone is the whole laboratory.
+
+### ⛔⛔ THE POST-MORTEM — THREE EDITIONS IN ONE DAY, ALL REJECTED, AND THE PATTERN IS MINE
+1. Each edition treated the zones as something to PAINT (a tint channel, a sensor strip, a coloured
+   tail). He never asked for a colour. He asked for his CONTENT to be under the chrome. A flat band
+   of exactly the right colour is still a flat band to the eye that is looking for depth.
+2. I shipped each edition on a mechanism I could not measure. The canon's own law — «a complaint
+   about the device is closed by a measurement FROM THE DEVICE» — was followed for the fall cap the
+   same day and abandoned here, twice.
+3. THE 2026-08-30 SIMULATOR MATRIX WAS WRONG AND I BUILT ON IT ANYWAY. Its cell «html transparent +
+   body gradient → Safari extends the page's own edge pixels into both zones» does NOT reproduce on
+   his iPhone: a fixed stage ends at the layout viewport and both zones show body's flat
+   background-COLOUR. Measured, `fixed` variant, his screenshot. The 2026-08-31-a correction was
+   half right (fixed elements are clipped) and half wrong (the zone gets a stretched row) — the zone
+   gets a COLOUR.
+4. What his phone did prove, and it is the one solid brick to build on: **a document TALLER than the
+   layout viewport is painted under the BOTTOM bar and read through its glass** (the `tall` and
+   `lock` variants, ruler lines 700/750/800 visible around the floating pill). The bottom is
+   reachable. The top, in every variant tried, was body's colour — no variant has yet put content
+   there, and the `scroll` question (does content scrolled past y=0 show under the status bar?) is
+   still unanswered because the screenshot came back at scrollY 0.
+
+### THE MEASUREMENTS THAT SURVIVE THE REVERT (iPhone 16 Pro, his Safari, from the probe)
+| reading | value |
+|---|---|
+| screen | 402 × 874 |
+| layout viewport (innerHeight) | 654 |
+| visualViewport height / offsetTop | 654 / 0 |
+| env(safe-area-inset-top) / bottom | **0 / 0** — with `viewport-fit=cover` set |
+| 100lvh / 100svh / 100dvh | 754 / 654 / 654 |
+| page y=0 on the screen | ≈ 61 → the top zone ≈ 61 pt, the bottom zone ≈ 159 pt |
+| UA | truncated before the `Version/` token — **we do not actually know whether this is Safari 26 or 18.7**, and the probe must be fixed to print it |
+⚠️ `env()` returning 0 while the viewport is 220 pt shorter than the screen is the single most
+suspicious reading on this page: under a working `viewport-fit=cover` the viewport should COVER and
+the insets should be non-zero. Whatever explains that explains the fields.
+
+### WHAT HAPPENS NEXT — NOT ANOTHER GUESS
+A fifteen-agent investigation is running against the primary sources at last: his own instruction
+file read IN FULL (480 lines, never read whole before — I had worked from a subagent's digest), the
+canon's eight editions separated into device-measured and simulator-measured, the game's own edge
+pixels vs its declared colours, the public record on the iOS 26 viewport model, and the geometry
+derived only from his screenshots — then three independent recipes from different angles, two
+adversarial lenses each, and one synthesis. Its verdict, the recipe and any probe go into batch -g.
+⛔ NOTHING SHIPS TO HIS PHONE UNTIL A MEASUREMENT SAYS IT WORKS.

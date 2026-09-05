@@ -835,7 +835,6 @@ try {
   d.setProperty('--sky-grad', skyGradCSS);
   d.setProperty('--sky-top-rgb', rgbTriple(skyRGB[0]));
   d.setProperty('--sky-bot-rgb', rgbTriple(skyRGB[skyRGB.length - 1]));
-  if (typeof chromeStripsSync === 'function') chromeStripsSync();   // the Safari 26 strips (84-chrome)
 } catch(e){}
 
 // The sky. A ShaderMaterial bypasses
@@ -1194,7 +1193,6 @@ function setSkyStops(list){
       skyGradList(parsed.hex, parsed.pos, parsed.ownPos) + ')');
     d.setProperty('--sky-top-rgb', rgbTriple(rgb[0]));
     d.setProperty('--sky-bot-rgb', rgbTriple(rgb[rgb.length - 1]));
-    if (typeof chromeStripsSync === 'function') chromeStripsSync();   // the Safari 26 strips (84-chrome)
   } catch(e){}
   return list.slice();
 }
