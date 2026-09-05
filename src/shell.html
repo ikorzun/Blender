@@ -1059,11 +1059,15 @@
      two buttons: they are white ALWAYS, therefore we override `--btn-bg/--btn-fg`
      on top, and do not edit the rule itself (the canon permits pinpoint deviations).
      The look is from node 829:1242: white 40% + an inner glow from above.
-     ⚠️ THE GLYPHS + AND − ARE PURE BLACK AND ALWAYS (the owner's spec 2026-08-03
-     «inside the circle the + and − icons are always black»): not `--btn-fg`, not
-     the carbon #2a2935 from the button palette, but exactly #000, and it does NOT switch
-     at night. The zoom's backing is light in both themes, therefore a light glyph
-     cannot be here under any theme. */
+     ⛔ TOMBSTONE 2026-09-05 — THE GLYPHS ARE NOT BLACK ANY MORE. Here stood «THE GLYPHS + AND −
+     ARE PURE BLACK AND ALWAYS (the owner's spec 2026-08-03 «inside the circle the + and − icons
+     are always black»): not `--btn-fg`, not the carbon #2a2935, but exactly #000». His word of
+     2026-09-05, with the plus selected on the page: «shrink the + and − inside the button from
+     32 px to 28 px; take the colour from the Shake text» — the glyph now wears `--shake-ink`
+     (#484472, the caption's ink) and is 28, not the `.iconBtn` base 32.
+     ⚠️ WHAT SURVIVES of the 2026-08-03/04 words: the glyph still does NOT read `--btn-fg` and
+     does NOT switch at night — the zoom's backing is light in both themes, so the pinpoint rule
+     below still names both themes; only the value moved. The rules are below. */
   #zoomGrp { flex-direction:column; gap:8px; }
   /* ⚠️ THE ZOOM COLUMN'S BOTTOM INSET IS THE HINT'S AND THE SHAKE'S (the owner's word 2026-09-04):
      `.grpShake` lifts them 8 above the bar's 8 (= 16 from the edge); the zoom column sat on the
@@ -1097,9 +1101,16 @@
     box-shadow:inset 0 0 16px 0 #fff, inset 0 0 0 1px #fff; }
   /* ⚠️ THE GLYPH IS PAINTED NOT BY color, but by the rule «.iconBtn svg path { fill:var(--btn-fg) }»
      — at night the theme gave a WHITE plus/minus on a light backing (the owner's screenshot
-     2026-08-04, his word: «always of black colour»). The pinpoint re-painter is below
-     that rule, both themes at once. */
-  .zoomBtn svg path, html.night .zoomBtn svg path { fill:#000; }
+     2026-08-04, his word then: «always of black colour»). The pinpoint re-painter is below
+     that rule, both themes at once.
+     ⛔ SINCE 2026-09-05 THE VALUE IS THE SHAKE CAPTION'S INK, NOT #000 (his word «take the
+     colour from the Shake text»): `--shake-ink` is declared ONCE (on :root, next to
+     `.shake-txt`) and read here and there — one number, two consumers, the two cannot drift.
+     ⚠️ AND THE GLYPH IS 28, NOT THE `.iconBtn` BASE 32 (his word «from 32 px to 28 px»): the
+     svg's viewBox is 28, so the asset draws 1:1 now. The desktop arm (`#zoomGrp .zoomBtn svg`
+     in the 768 media) says 28 too — without it the desktop would keep its own 32. */
+  .zoomBtn svg { width:28px; height:28px; }
+  .zoomBtn svg path, html.night .zoomBtn svg path { fill:var(--shake-ink); }
   /* ⛔⛔ THE PAUSE BUTTON IS WHITE IN BOTH THEMES (the owner's word 2026-08-25-v, three
      properties verbatim: `border-radius:80px; background:rgba(255,255,255,.60);
      box-shadow:0 0 16px 0 #FFF inset`, «everywhere white with a black icon inside»).
@@ -1318,7 +1329,11 @@
      around the same point.
      ⚠️ THE COLOUR `#484472` IS HIS NUMBER AND THE SAME TONE AS THE CONTOUR OF THE ICONS (a measurement
      of the PNG gave the dominant 72,68,114 = #484472). The coincidence is not accidental, but is
-     pinned by the value: he changes the asset silently. */
+     pinned by the value: he changes the asset silently.
+     ⚠️ SINCE 2026-09-05 THE VALUE LIVES IN `--shake-ink` (declared right below, on :root): the
+     zoom's + and − read it too (his word «take the colour from the Shake text») — a repaint of
+     the caption is a repaint of the glyphs, by construction. The number itself is unchanged. */
+  :root { --shake-ink:#484472; }
   /* ⛔ THE CAPTION IS A FLEX CHILD NOW (2026-08-23-v) — the axis x=84 is gone with the fixed
      width that gave it meaning. Its type is untouched: 18px/700 `#484472`, the round family.
      ⚠️ THE FONT-METRIC ARGUMENT THAT PUT IT ON AN AXIS STILL HOLDS AND IS NOW SERVED BETTER:
@@ -1326,7 +1341,7 @@
      substituted — on an axis the text merely grew around its centre, in an auto-layout row
      the BUTTON grows around the text, which is what the owner's own frame does. */
   #shakeBtn .shake-txt { pointer-events:none; white-space:nowrap;
-    color:#484472; font-family:var(--font-round); font-size:18px;
+    color:var(--shake-ink); font-family:var(--font-round); font-size:18px;
     font-weight:700; line-height:1; }
   /* ⛔⛔ THE WHOLE MOTOR BEHAVIOUR OF THE ICON IS REMOVED (the owner's word 2026-08-21-p: «hover on
      the buttons: the button background fills with 80% white, delete the other animations»).
@@ -4010,9 +4025,12 @@
       flex-direction:row; gap:8px; }
     /* ⚠️ THE ZOOM BUTTONS ARE THE HINT'S SIZE ON THE DESKTOP (the owner's word 2026-09-04: «the
        size of these buttons on the desktop must be the size of the hint button»): 56 like
-       `#hintBtn`, the icon back to the round buttons' base 32 (it was 48 with a 28 icon). */
+       `#hintBtn`. ⛔ THE ICON IS 28 SINCE 2026-09-05 (his word «from 32 px to 28 px»; on
+       2026-09-04 it had gone back to the round buttons' base 32, before that 48 with a 28 icon) —
+       the same 28 as the mobile rule at `.zoomBtn svg`, restated here because this arm used to
+       say 32 on its own and would otherwise keep the desktop on the old size. */
     #zoomGrp .zoomBtn { width:56px; height:56px; }
-    #zoomGrp .zoomBtn svg { width:32px; height:32px; }
+    #zoomGrp .zoomBtn svg { width:28px; height:28px; }
     /* the node's order: the minus is TO THE LEFT of the plus (in the markup the plus goes first) */
     #zoomInBtn { order:2; }
     #zoomOutBtn { order:1; }

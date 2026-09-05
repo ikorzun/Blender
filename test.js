@@ -8421,12 +8421,18 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(guestC.circleW === '48px' && guestC.imgW === '100%' && guestC.imgFit === 'contain',
     'GUEST: the avatar is inscribed in a circle of 48 (' + JSON.stringify({ circle: guestC.circleW, w: guestC.imgW, fit: guestC.imgFit, box: guestC.avatarBox }) + ')');
 
-  // ===== ZOOM BUTTONS: a black glyph in both themes + a smooth travel (the words of the owner
-  // 2026-08-04: «always of black colour», «zooms in more smoothly, and not so abruptly»)
+  // ===== ZOOM BUTTONS: the glyph in the Shake caption's ink in both themes, 28×28, + a smooth
+  // travel. ⛔ «a black glyph» (the owner 2026-08-04: «always of black colour») is CANCELLED by
+  // his word of 2026-09-05 «shrink the + and − inside the button from 32 px to 28 px; take the
+  // colour from the Shake text»; «zooms in more smoothly, and not so abruptly» (2026-08-04) stands.
   const zoomSmooth = await page.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     g.regen(); g.skipIntro(); await sleep(500);
+    const box = sel => { const r = document.querySelector(sel).getBoundingClientRect();
+      return { w: +r.width.toFixed(1), h: +r.height.toFixed(1) }; };
+    const shakeInk = getComputedStyle(document.querySelector('#shakeBtn .shake-txt')).color;
+    const plusBox = box('#zoomInBtn svg'), minusBox = box('#zoomOutBtn svg');
     const glyphDay = getComputedStyle(document.querySelector('#zoomInBtn svg path')).fill;
     document.documentElement.classList.add('night');
     const glyphNight = getComputedStyle(document.querySelector('#zoomInBtn svg path')).fill;
@@ -8439,7 +8445,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     { const t0 = Date.now();                          // settling: arrived and stopped
       let prev = -1;
       while (Date.now() - t0 < 2000){ const r = g.cam().r; if (r === prev) { rEnd = r; break; } prev = r; await sleep(120); } }
-    return { glyphDay, glyphNight, r0, rMid, rEnd };
+    return { glyphDay, glyphNight, shakeInk, plusBox, minusBox, r0, rMid, rEnd };
   });
   console.log('zoom:', JSON.stringify(zoomSmooth));
   // THE DESKTOP LAYOUT OF THE ZOOM (node 741:1497): A ROW centred at the bottom, 48×48,
@@ -8454,9 +8460,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const g = (id) => { const b = document.getElementById(id).getBoundingClientRect();
         return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) }; };
       const plus = g('zoomInBtn'), minus = g('zoomOutBtn');
+      const svgBox = s => { const r = document.querySelector(s).getBoundingClientRect();
+        return { w: +r.width.toFixed(1), h: +r.height.toFixed(1) }; };
+      const plusSvg = svgBox('#zoomInBtn svg'), minusSvg = svgBox('#zoomOutBtn svg');
       const hint = g('hintBtn'), shake = g('shakeBtn'), vit = g('vitrine');
       const over = (r) => !(r.x + r.w < vit.x || r.x > vit.x + vit.w || r.y + r.h < vit.y || r.y > vit.y + vit.h);
-      return { plus, minus, cx: Math.round((Math.min(plus.x, minus.x) + Math.max(plus.x + plus.w, minus.x + minus.w)) / 2),
+      return { plus, minus, plusSvg, minusSvg, cx: Math.round((Math.min(plus.x, minus.x) + Math.max(plus.x + plus.w, minus.x + minus.w)) / 2),
                bottom: Math.round(innerHeight - Math.max(plus.y + plus.h, minus.y + minus.h)),
                hintRight: Math.round(innerWidth - (hint.x + hint.w)),
                shakeRight: Math.round(innerWidth - (shake.x + shake.w)),
@@ -8470,6 +8479,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // size of the hint button»); the node's 48 is history
   expect(zoomDesk.plus.w === 56 && zoomDesk.minus.w === 56 && zoomDesk.plus.y === zoomDesk.minus.y,
     'ZOOM-DESKTOP: a row of 56×56 (the hint\'s size, 2026-09-04; the node 741:1497 said 48) at the same height (' + JSON.stringify(zoomDesk) + ')');
+  // ⚠️ THE GLYPH IS 28 ON THE DESKTOP TOO (the owner 2026-09-05 «from 32 px to 28 px»): the 768
+  // media block restates the size because it used to say 32 on its own — dropping that
+  // restatement is the sabotage that leaves the phone right and the desktop wrong, and only this
+  // arm sees it (the mobile arm in zoomSmooth reads the 390 page).
+  expect(zoomDesk.plusSvg.w === 28 && zoomDesk.plusSvg.h === 28 && zoomDesk.minusSvg.w === 28 && zoomDesk.minusSvg.h === 28,
+    'ZOOM-DESKTOP: the + and − glyphs are 28×28 inside the 56 row (the owner 2026-09-05) (' + JSON.stringify([zoomDesk.plusSvg, zoomDesk.minusSvg]) + ')');
   expect(zoomDesk.minus.x < zoomDesk.plus.x && Math.abs(zoomDesk.cx - 640) <= 2 && Math.abs(zoomDesk.bottom - 20) <= 2,
     'ZOOM-DESKTOP: the minus on the left, the group centred, 20px from the bottom (' + JSON.stringify(zoomDesk) + ')');
   // ⚠️ A direct complaint from the owner with a screenshot: the controls were creeping onto the item list.
@@ -8492,8 +8507,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(Math.abs(zoomDesk.shakeRight - 24) <= 4 && zoomDesk.hintRight > zoomDesk.shakeRight,
     'DESKTOP: the hint and Shake on the right per node 741:1497 + the margin of the owner ' +
     '(' + JSON.stringify(zoomDesk) + ')');
-  expect(zoomSmooth.glyphDay === 'rgb(0, 0, 0)' && zoomSmooth.glyphNight === 'rgb(0, 0, 0)',
-    'ZOOM: the glyph is black in BOTH themes (' + zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ')');
+  // ⛔ «black in BOTH themes» MOVED WITH THE RULE (2026-09-05): the glyph wears the Shake caption's
+  // ink. ⚠️ AN EQUALITY OF TWO PLACES, NOT A LITERAL — what he named is «the colour of the Shake
+  // text», so the arm compares two computed colours; the caption's own pin (`labelColor ===
+  // rgb(72, 68, 114)` in the shake-hand guard) holds the number, a literal here would outlive the
+  // next repaint of the caption and quietly stop guarding the named property. The `night === day`
+  // reading stays: the theme rule (`--btn-fg`) still flips everything else, and a build that lost
+  // the pinpoint override would read white by day and carbon by night — unequal to the caption in
+  // both. ⛔ SABOTAGE: `fill:#000` back → red on both arms; the override deleted → red.
+  expect(zoomSmooth.glyphDay === zoomSmooth.shakeInk && zoomSmooth.glyphNight === zoomSmooth.shakeInk,
+    'ZOOM: the glyph wears the Shake caption\'s ink in BOTH themes (the owner 2026-09-05) (' +
+    zoomSmooth.glyphDay + ' / ' + zoomSmooth.glyphNight + ' vs the caption ' + zoomSmooth.shakeInk + ')');
+  // ⚠️ THE SIZE IS THE BOX, NOT THE DECLARATION: `getBoundingClientRect` of the svg on the mobile
+  // column (the suite's 390 page); the desktop row has its own arm in zoomDesk below.
+  // ⛔ SABOTAGE: `.zoomBtn svg` back to 32, or deleted (the `.iconBtn` base is 32) → red.
+  expect(zoomSmooth.plusBox.w === 28 && zoomSmooth.plusBox.h === 28 &&
+         zoomSmooth.minusBox.w === 28 && zoomSmooth.minusBox.h === 28,
+    'ZOOM: the + and − glyphs are 28×28 inside the 56 button on the phone (the owner 2026-09-05 ' +
+    '«from 32 px to 28 px») (' + JSON.stringify([zoomSmooth.plusBox, zoomSmooth.minusBox]) + ')');
   // ⛔⛔ THE 50% AT REST IS GONE (the owner's word 2026-08-23-b, with a frame of the two pale
   // circles: «do not take them into transparency, the style of these buttons is the same as the
   // magnifier button's»). ⛔ It cancels his spec of 2026-08-05 AND his own answer of the day

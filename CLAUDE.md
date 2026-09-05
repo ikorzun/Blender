@@ -14839,3 +14839,45 @@ run out, nowhere else. 4. only game time». (1) 20 GAM stays. (2) The dashboard 
   without one; the same arm was green in runs #13 and #18 on the same code. Re-run, not
   re-based; the honest fix is to force a painted type into that section's deal (a subject for
   a fresh day, named here).
+
+## BATCH 2026-09-05-a: THE ZOOM GLYPHS ARE 28 AND WEAR THE SHAKE CAPTION'S INK (the owner's word, with the plus selected on the page: «shrink the + and − inside the button from 32 px to 28 px; take the colour from the Shake text»)
+
+- ⛔ CANCELS his 2026-08-03 «inside the circle the + and − icons are always black» and the
+  2026-08-04 «always of black colour» — the VALUE only. What survives of those two words: the glyph
+  still does not read `--btn-fg` and still does not switch at night (the zoom's backing is light in
+  both themes), so the pinpoint rule keeps naming both themes, and the `night === day` reading in
+  the guard stays for the same reason. The tombstone sits at the rule in `src/shell.html`.
+- THE COLOUR IS AN EQUALITY OF TWO PLACES, NOT A SECOND LITERAL: `--shake-ink:#484472` is declared
+  once on `:root` (next to `.shake-txt`) and read by `#shakeBtn .shake-txt` and by
+  `.zoomBtn svg path` — one number, two consumers (the ring-samples pattern of 2026-09-02). A
+  repaint of the caption repaints the glyphs by construction; the number itself is unchanged, and
+  the caption's own pin (`labelColor === rgb(72, 68, 114)`, the shake-hand guard) still holds it.
+- THE SIZE IS TWO RULES, AND THE SECOND IS NOT REDUNDANT: `.zoomBtn svg { 28 }` beats the
+  `.iconBtn svg` base 32 by order on the phone, but the 768 media block carried its own
+  `#zoomGrp .zoomBtn svg { 32 }` (an id selector — it wins over any class rule), so it says 28 now
+  as well. MEASURED before the build by injecting the mobile rule alone into the live page: the
+  phone went to 28, the desktop stayed at 32 — the restatement is load-bearing. The svg's viewBox is
+  28, so the assets (`Interface/zoom-plus.svg` / `zoom-minus.svg`) draw 1:1 now. The pause button
+  and the crosses keep the base 32, and the pause keeps its black glyph (measured on the build:
+  32 / rgb(0, 0, 0)) — his word named the + and − alone.
+- THE GUARDS MOVED WITH THE RULE (test.js, the zoom block): «the glyph is black in BOTH themes»
+  became «the glyph equals the caption's COMPUTED colour in both themes»; two size arms were added —
+  the BOX (`getBoundingClientRect`, not the declaration) of both svgs on the 390 page and in the
+  1280 `zoomDesk` probe. PROVEN FOUR-SIDED on the build before the run, with a standalone Playwright
+  read of the same three properties (`tools`-less, kept in the session scratchpad): healthy → all
+  green at 390 and 1280; `fill:#000` restored → only the colour arm red, at both widths; the mobile
+  `.zoomBtn svg` rule deleted → only the 390 size arm red (the desktop keeps 28 by its own rule);
+  the desktop arm back to 32 → only the 1280 size arm red. Each sabotage drops exactly its own arm.
+- Measured on the build in the preview: the column (517 wide) — the + and − svgs 28×28 inside the
+  56 buttons, fill rgb(72, 68, 114) = the caption; the row (1280×832) — 28×28 inside the 56 row,
+  the same fill, the hint 56 beside it. `index.html` 12143571 → 12145267 B (comments and two rules).
+- ⚠️ THE BASELINE RUN OF THIS HOST, BEFORE THE CHANGE (the committed 3db715b build on a fresh clone
+  of 2026-09-05, Node 22, Chromium from `npx playwright install`): 948 green, 2 red, both outside
+  this batch and both timing-shaped — «BOWL: the pile FLIES TOGETHER» (minR 0.00, i.e. the mechanic
+  fired, but `samples 2` against the ≥ 3 the arm demands: the 60 ms poll got two reads before the
+  meshes were gone) and «THE CONSTANT REALLY REACHES THE ENVELOPE» (`[0.131,0.131,0.131,0.1]`: a
+  fourth `tone()` with its own 0.1 landed inside the capture window). ⚠️ The machine was NOT quiet
+  during that run — the preview pane was playing the live game at 60 fps beside the suite, the
+  class the canon already names («a guard that only passes on an idle machine»). The decode rate
+  here is 48000 (the audio arms are LIVE on this host, unlike the 16 kHz stand of 2026-09-02).
+  The run on the changed build is recorded below.
