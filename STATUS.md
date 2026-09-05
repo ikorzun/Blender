@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = 63b9e17 (2026-09-05, night)** · the suite **979 green, 0 red, SUITE: PASS (run 7; the run-6 paint-debris flake did not recur)** · `main` and `v2` on GitHub
+**Build: v2 = af8e5a0 (2026-09-05, night)** · the suite **982 green, 0 red, SUITE: PASS (run 8); +52d9d67 the chrome probe page, no build change** · `main` and `v2` on GitHub
 match · the live site verified by byte size against the build · portal package **5.48 MB** of the
 8 MB reference (headroom 2.52)
 
@@ -62,6 +62,11 @@ match · the live site verified by byte size against the build · portal package
   as the screen; the game and the menu must look exactly as before; if a coloured band ever shows
   at an edge, the instruction names the `env()` term as the knob. The simulator cannot show the
   tinted mode, only the phone can.
+  ⛔ **Your night word «in the pause menu the content does not go under the island»**: the strips
+  now show ONLY over the dark popups and the SDK curtain; in the game and in the menu they hide
+  themselves, so Safari lays its glass over the page and the menu's card scrolls under the island
+  the way it did before the strips. Check the menu on the phone: the card should slide under the
+  island, and the ×5 / win / leaderboard screens should still darken the zones.
 
 ## What shipped 1–3 September
 
