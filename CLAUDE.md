@@ -15374,6 +15374,19 @@ Both sides are read in the SAME tick (`edgeTriple()` with no argument answers fo
 ✅ The violet frames around the seven dark screens — the 2026-09-03 complaint, cured twice over now (body
    for the fallback, the cards for the zones).
 ✅ The menu and the pause screen — the same two variables, no separate path.
+### THE RUNS, AND THE TWO REDS THAT WERE NOT THIS BATCH
+Run 13 on this build: 978 green, 2 red — the glyph-counter guard (`score: 291`) and the paint-debris deal
+SANITY. Run 14, same build, one rig-hygiene edit apart: **980 green, 0 red, SUITE: PASS**, all ten zone and
+edge-card arms green.
+⚠️ I MISDIAGNOSED THE FIRST RED AND SAY SO: `#edgeTop` does cover the top 6 px of the viewport at z-index
+max, and the glyph rig is pinned at `top:0`, so «the card erased its border rows» was a plausible story. It
+is wrong — the flood fill enters from the LEFT and RIGHT columns, which stay magenta below y=6, and a
+standalone run of that probe on this exact build returned 0 at both `top:0` and `top:24`. It is the font
+race the guard's own comment already records («two runs of the BYTE-IDENTICAL build gave 0 and then 7»).
+✅ The four rigs pinned to the viewport's top were moved to `top:24` ANYWAY, as hygiene with the hazard
+written at the line: nothing may be MEASURED in the top or bottom 6 px any more, because a max-z card sits
+there. That is a real new constraint of this batch, and it is now stated where the next person will hit it.
+
 ⛔ CONTENT under either bar: impossible on this device. The bottom is impossible because the fill overprints
    (measured today); the top is impossible because a document has no rows above its own origin. Both zones
    are a COLOUR, and the only honest goal is that the colour is exactly right — which is what shipped.

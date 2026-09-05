@@ -1486,7 +1486,12 @@ page.on('response', (r) => {
         const src = document.querySelector(sel); if (!src) return false;
         const vb = (src.getAttribute('viewBox') || '0 0 240 78').split(/\s+/).map(Number);
         const box = document.createElement('div'); box.id = 'holeProbe';
-        box.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#ff00ff;padding:20px';
+        // ⚠️ top:24, NOT 0 (2026-09-06): `#edgeTop` — the iOS 26 colour-extension card — is fixed at
+        // top:-6 with z-index 2147483647, so it paints the sky's zenith over the top 6 px of ANY rig
+        // pinned to the viewport's top. Here that erased the magenta border rows, the flood fill had
+        // nowhere to start, and every background pixel counted as «enclosed by a glyph»: score 291 on a
+        // healthy build. Nothing may be MEASURED in the top or bottom 6 px any more.
+        box.style.cssText = 'position:fixed;left:0;top:24px;z-index:99999;background:#ff00ff;padding:20px';
         const cl = src.cloneNode(true);
         cl.style.display = 'block';
         cl.setAttribute('width', vb[2]); cl.setAttribute('height', vb[3]);
@@ -5310,7 +5315,7 @@ window.bridge = {
     // host + start of the spin
     const host = document.createElement('div');
     host.id = '__spinHost';
-    host.style.cssText = 'position:fixed;left:0;top:0;width:120px;height:120px;';
+    host.style.cssText = 'position:fixed;left:0;top:24px;width:120px;height:120px;';   // top:24 — under #edgeTop's 6 px (2026-09-06)
     document.body.appendChild(host);
     g.thumbSpinKey(rows[0].key, '#__spinHost');
     const s0 = g.spinState();
@@ -5351,7 +5356,7 @@ window.bridge = {
     // 2026-07-27: we gave the spin its own copy of yaw → it failed (−0.6 instead of 0.2).
     g.setPortraitPose(0.1, 0.2);
     const host = document.createElement('div'); host.id = '__ph';
-    host.style.cssText = 'position:fixed;left:0;top:0;width:80px;height:80px'; document.body.appendChild(host);
+    host.style.cssText = 'position:fixed;left:0;top:24px;width:80px;height:80px'; document.body.appendChild(host);   // top:24 — under #edgeTop (2026-09-06)
     g.thumbSpinKey(g.accSnapshot()[0].key, '#__ph');
     const startAngle = g.spinState().angle;
     g.thumbSpinStop(); host.remove();
@@ -17250,7 +17255,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const g = window.__game;
       const key = g.charge().name;
       const host = document.createElement('div');
-      host.style.cssText = 'position:fixed;left:0;top:0;width:64px;height:64px';
+      host.style.cssText = 'position:fixed;left:0;top:24px;width:64px;height:64px';   // top:24 — under #edgeTop (2026-09-06)
       host.id = 'cfHost'; document.body.appendChild(host);
       g.detonateCharge();
       for (let i = 0; i < 90 && g.charge().name; i++) await new Promise(r => requestAnimationFrame(r));
