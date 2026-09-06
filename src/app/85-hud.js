@@ -78,6 +78,9 @@ function refreshDimmed(){
     // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
     // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
     document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
+    // ⚡ the `?flow=1` trial: the same two screens, and the class is what turns the page into the
+    // scroller. `flowSet` is a no-op unless the flag is on, and it resets the page's scroll on the way out.
+    if (typeof flowSet === 'function') flowSet(vis('mainScreen') || vis('lbOverlay'));
   } catch(e){}
 }
 function show(id){

@@ -15537,3 +15537,56 @@ overlap again, that is the first picture of the real failure and the bug is fina
 ⚠️ ALSO SHIPPED FOR HIS A/B, and it costs nothing: `?edges=0` hides both colour cards, so he can see on the
 device how much of a band is OUR colour and how much is the browser's own.
 ⛔ NOTHING IS ON BY DEFAULT. The default path is byte-identical to the build he is running now.
+
+## BATCH 2026-09-06-c: `?flow=1` — THE TWO LIST SCREENS SCROLL AS THE PAGE, AND THEIR ROWS PASS UNDER BOTH SYSTEM ZONES (his word with four screenshots: «the content is cut at the top and at the bottom on every screen»; and «the design must not change»)
+
+### THE CAUSE, AND IT IS NOT COLOUR
+The pause menu and the leaderboard are scrollers INSIDE a box exactly one layout viewport tall
+(`#mainScreen` / `#lbOverlay`, both `position:fixed; inset:0; overflow-y:auto`). An inner scroller clips
+its content at its own frame — that frame IS the wall he photographed at both ends, and no tint, strip or
+zone colour can move it. A ROOT scroller has no such frame: Safari draws a scrolled page into both
+obscured insets, which is why every ordinary web page slides under the status bar and the address bar.
+⛔ THIS ALSO CORRECTS MY OWN «THE TOP IS IMPOSSIBLE» (batch -g): true for a page that does not scroll,
+false for a scrolled list. The rows above the scroll position exist and the scroll view draws them.
+
+### WHAT THE TRIAL DOES — FOUR RULES, EACH LOAD-BEARING
+1. the page scrolls, not the box (`html, body { height:auto; overflow:visible; touch-action:auto }`);
+2. the sky becomes the DOCUMENT's background with `background-attachment:fixed`, so it looks exactly as
+   it does today while belonging to no fixed ELEMENT — and `background-size:100% var(--vp-h)` keeps it
+   anchored to the viewport, or the gradient stretches over the whole document and the design shifts in
+   tone (a pixel diff caught exactly that on the previous attempt: 45 % of the viewport, max channel
+   delta 39, and zero pixels above 48 — a tone shift, nothing moved);
+3. the screen itself flows and its own fixed backdrop switches off;
+4. nothing of ours is left at a screen edge: `#c`, the bars, `#face` and both edge cards go
+   `visibility:hidden` — hidden is skipped by the hit test, so none can be the candidate WebKit paints a
+   flat colour from, while the canvas keeps its size and its WebGL context (`display:none` would hand
+   three.js a zero client box on the next resize).
+
+### THE TWO DEFECTS THE PICTURE FOUND, BOTH FIXED
+- ⚠️ THE FLOATING «My collection» HEADER VANISHED. Its thresholds are `getBoundingClientRect`, i.e.
+  viewport-relative and correct whichever box scrolled — but its LISTENER was bound to `#mainScreen`
+  alone, and in the trial the page is the scroller, so it never fired. The handler is named now and bound
+  to both; at most one of them fires in a given mode.
+- ⚠️ THE PAGE'S SCROLL IS RESET WHEN A LIST SCREEN CLOSES (`flowSet`), or the game's fixed HUD would sit
+  over a document offset by hundreds of pixels.
+
+### RENDERED FIRST, AS HE ASKED — AND THAT IS WHAT MADE THIS ONE WORK
+`scratchpad/screenshot-band.js` captures the band the PHONE shows: 61 px of the status-bar zone, the 654
+viewport and 159 px of the address-bar zone, in page coordinates around the current scroll, with markers
+at both boundaries. ⚠️ `clip` means PAGE coordinates only with `fullPage:true` — without it a scrolled
+page returns a sliver (measured: an 804×40 strip). On the real build: the leaderboard's row 5 continues up
+under the island and rows 18-19 down under the bar; the menu's cards do the same in both directions; the
+floating header is back; closing resets the scroll and re-locks the root.
+
+### THE GUARD — SIX ARMS, AND THEY ARE ABOUT STATE AND APPEARANCE, NOT COORDINATES
+Off by default (no flag, no class, root locked, the document one viewport, the menu still FIXED); the page
+is really the scroller; the floating header still appears on a PAGE scroll; the game does not show through
+(four points down the viewport belong to the menu, its sticky header or its pill — ⚠️ the first draft
+listed only `#mainScreen` and went red on a healthy build, because near the top the hit is
+`div.ms-sticky-in`); nothing fixed or sticky sits at either of WebKit's sample points; closing puts the
+page back. Healthy 6/6; the window binding dropped → the header arm; the flow rules disabled → three arms.
+⚠️ HONEST GAP: the `visibility:hidden` on the canvas is belt-and-braces and the sabotage for it does NOT
+redden — with the menu's own content on top at both sample points, the walk never reaches `#c`. It is kept
+because a transparent gap in a future layout would reach it, and it is written down rather than claimed.
+⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens over each other, a
+failure this Mac has never reproduced. It goes on when a screenshot from the device says it is right.

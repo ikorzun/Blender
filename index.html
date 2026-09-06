@@ -210,6 +210,45 @@
   html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
     position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
   html.bleed.underbar #edgeBot { display:none; }
+  /* ⚡⚡ `?flow=1` — THE TRIAL THAT ACTUALLY ANSWERS «the content is cut at the top AND at the bottom»
+     (his word 2026-09-06 with four screenshots). The cause is not colour and not the zones: the pause
+     menu and the leaderboard are scrollers INSIDE a box exactly one viewport tall, and an inner scroller
+     clips its content at its own frame. That frame is the wall he sees at both ends, and no tint can move
+     it. Under this trial those two screens scroll as the PAGE, so their rows pass under the island above
+     and under the address bar below — Safari draws a root scroller's content into both obscured insets,
+     which is why every ordinary web page behaves that way.
+     RENDERED BEFORE IT WAS WRITTEN (`scratchpad/screenshot-band.js`, his exact geometry): the
+     leaderboard's row 5 continues up under the island and rows 18-19 down under the bar; the menu's
+     cards do the same in both directions; the design inside the viewport is untouched.
+     THE FOUR RULES, and each is load-bearing:
+       1. the page scrolls, not the box;
+       2. the sky becomes the DOCUMENT's background with `background-attachment:fixed`, so it looks
+          exactly as it does today while belonging to no fixed ELEMENT — and `background-size` keeps it
+          anchored to the viewport, or the gradient stretches and the whole design shifts in tone (a
+          pixel diff caught that on the previous attempt: 45 % of the viewport, nothing moved);
+       3. the screen itself flows and its own fixed backdrop switches off;
+       4. nothing of ours is left at a screen edge — a fixed box there is the candidate WebKit paints a
+          flat colour from, and that colour is exactly what covers the glass.
+     ⚠️ `visibility:hidden` and not `display:none` on the canvas: hidden is skipped by the hit test, so it
+     is not a candidate, while the canvas keeps its size and its WebGL context.
+     ⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens painted over
+     each other, a failure this Mac has never reproduced. It goes on when a screenshot from the device
+     says it is right, and not before. */
+  html.flowscroll, html.flowscroll body { height:auto; overflow:visible; touch-action:auto; }
+  html.flowscroll body {
+    background-image:var(--sky-grad);
+    background-attachment:fixed;
+    background-size:100% var(--vp-h, 100%);
+    background-repeat:no-repeat;
+    background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
+  html.flowscroll #mainScreen, html.flowscroll #lbOverlay {
+    position:relative; top:auto; left:auto; right:auto; bottom:auto; height:auto; min-height:100%;
+    overflow:visible; }
+  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
+  html.flowscroll #lbOverlay::before { display:none; }
+  html.flowscroll.dimmed body { background-image:none; background-color:rgb(10,14,22); }
+  html.flowscroll #c, html.flowscroll #topBar, html.flowscroll #bottomBar, html.flowscroll #face,
+  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -19846,6 +19885,9 @@ function refreshDimmed(){
     // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
     // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
     document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
+    // ⚡ the `?flow=1` trial: the same two screens, and the class is what turns the page into the
+    // scroller. `flowSet` is a no-op unless the flag is on, and it resets the page's scroll on the way out.
+    if (typeof flowSet === 'function') flowSet(vis('mainScreen') || vis('lbOverlay'));
   } catch(e){}
 }
 function show(id){
@@ -23854,7 +23896,12 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
-  ms.addEventListener('scroll', () => {
+  // ⚠️ THE HANDLER IS NAMED AND BOUND TWICE (2026-09-06): its thresholds are
+  // `getBoundingClientRect`, i.e. viewport-relative, so they are right whichever box actually
+  // scrolled — but the EVENT only fires on the box that did. Under the `?flow=1` trial the PAGE is the
+  // scroller, so without the window binding the floating header never appears and the Play button never
+  // pops up. Bound to both, at most one of them ever fires in a given mode.
+  const onMenuScroll = () => {
     // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
     // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
     // The threshold is the BOTTOM edge of the title: while it is visible even partly,
@@ -23870,7 +23917,9 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
     // 78px). There is no stickiness any more — the header travels with the flow, it does
     // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
-  }, { passive: true });
+  };
+  ms.addEventListener('scroll', onMenuScroll, { passive: true });
+  addEventListener('scroll', onMenuScroll, { passive: true });
 })();
 // the debug panel — from the menu (previously the entrance was in the pause card)
 // THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The
@@ -24244,8 +24293,24 @@ let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is mul
 // ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
 // two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
 // not another guess.
-let bleedOn = false;
+let bleedOn = false, flowOn = false;
 try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
+// ⚡ `?flow=1` — the two list screens scroll as the PAGE (see the `html.flowscroll` rules in shell.html).
+// ⛔ Opt-in only, and it must stay that way until a screenshot from his phone says the screens are right.
+try { flowOn = /[?&]flow=1/.test(location.search); } catch(e){}
+// The trial needs the viewport's own height for the background anchor — without it the sky's gradient
+// would stretch over the whole document and every pixel of the design would shift in tone.
+function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
+if (flowOn){ flowVars(); try { addEventListener('orientationchange', () => setTimeout(flowVars, 250)); } catch(e){} }
+// ⚠️ THE PAGE'S SCROLL IS RESET WHEN A LIST SCREEN CLOSES. In the trial the document really scrolls, and
+// leaving it scrolled would put the game's fixed HUD over a page offset by hundreds of pixels.
+function flowSet(on){
+  if (!flowOn) return;
+  const d = document.documentElement;
+  if (d.classList.contains('flowscroll') === !!on) return;
+  d.classList.toggle('flowscroll', !!on);
+  try { scrollTo(0, 0); } catch(e){}
+}
 try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
 function applyBleed(forced){
   try {
@@ -25358,6 +25423,12 @@ window.__game = {
   dimList(){ return DIM_OVERLAYS.slice(); },
   // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
   // fire there and the branch would go untested
+  // the flow trial, forced: the URL flag cannot be set from inside a suite page that is already loaded
+  setFlow(on){ flowOn = true; flowVars(); flowSet(!!on);
+    return { on: document.documentElement.classList.contains('flowscroll'),
+             vp: document.documentElement.style.getPropertyValue('--vp-h'),
+             docH: document.documentElement.scrollHeight, scrollY }; },
+  flowState(){ return { flag: flowOn, on: document.documentElement.classList.contains('flowscroll') }; },
   setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
     inset: document.documentElement.style.getPropertyValue('--bot-inset'),
     on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },

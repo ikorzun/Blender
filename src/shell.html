@@ -210,6 +210,45 @@
   html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
     position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
   html.bleed.underbar #edgeBot { display:none; }
+  /* ⚡⚡ `?flow=1` — THE TRIAL THAT ACTUALLY ANSWERS «the content is cut at the top AND at the bottom»
+     (his word 2026-09-06 with four screenshots). The cause is not colour and not the zones: the pause
+     menu and the leaderboard are scrollers INSIDE a box exactly one viewport tall, and an inner scroller
+     clips its content at its own frame. That frame is the wall he sees at both ends, and no tint can move
+     it. Under this trial those two screens scroll as the PAGE, so their rows pass under the island above
+     and under the address bar below — Safari draws a root scroller's content into both obscured insets,
+     which is why every ordinary web page behaves that way.
+     RENDERED BEFORE IT WAS WRITTEN (`scratchpad/screenshot-band.js`, his exact geometry): the
+     leaderboard's row 5 continues up under the island and rows 18-19 down under the bar; the menu's
+     cards do the same in both directions; the design inside the viewport is untouched.
+     THE FOUR RULES, and each is load-bearing:
+       1. the page scrolls, not the box;
+       2. the sky becomes the DOCUMENT's background with `background-attachment:fixed`, so it looks
+          exactly as it does today while belonging to no fixed ELEMENT — and `background-size` keeps it
+          anchored to the viewport, or the gradient stretches and the whole design shifts in tone (a
+          pixel diff caught that on the previous attempt: 45 % of the viewport, nothing moved);
+       3. the screen itself flows and its own fixed backdrop switches off;
+       4. nothing of ours is left at a screen edge — a fixed box there is the candidate WebKit paints a
+          flat colour from, and that colour is exactly what covers the glass.
+     ⚠️ `visibility:hidden` and not `display:none` on the canvas: hidden is skipped by the hit test, so it
+     is not a candidate, while the canvas keeps its size and its WebGL context.
+     ⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens painted over
+     each other, a failure this Mac has never reproduced. It goes on when a screenshot from the device
+     says it is right, and not before. */
+  html.flowscroll, html.flowscroll body { height:auto; overflow:visible; touch-action:auto; }
+  html.flowscroll body {
+    background-image:var(--sky-grad);
+    background-attachment:fixed;
+    background-size:100% var(--vp-h, 100%);
+    background-repeat:no-repeat;
+    background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
+  html.flowscroll #mainScreen, html.flowscroll #lbOverlay {
+    position:relative; top:auto; left:auto; right:auto; bottom:auto; height:auto; min-height:100%;
+    overflow:visible; }
+  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
+  html.flowscroll #lbOverlay::before { display:none; }
+  html.flowscroll.dimmed body { background-image:none; background-color:rgb(10,14,22); }
+  html.flowscroll #c, html.flowscroll #topBar, html.flowscroll #bottomBar, html.flowscroll #face,
+  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view

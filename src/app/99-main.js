@@ -30,8 +30,24 @@ let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is mul
 // ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
 // two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
 // not another guess.
-let bleedOn = false;
+let bleedOn = false, flowOn = false;
 try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
+// ⚡ `?flow=1` — the two list screens scroll as the PAGE (see the `html.flowscroll` rules in shell.html).
+// ⛔ Opt-in only, and it must stay that way until a screenshot from his phone says the screens are right.
+try { flowOn = /[?&]flow=1/.test(location.search); } catch(e){}
+// The trial needs the viewport's own height for the background anchor — without it the sky's gradient
+// would stretch over the whole document and every pixel of the design would shift in tone.
+function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
+if (flowOn){ flowVars(); try { addEventListener('orientationchange', () => setTimeout(flowVars, 250)); } catch(e){} }
+// ⚠️ THE PAGE'S SCROLL IS RESET WHEN A LIST SCREEN CLOSES. In the trial the document really scrolls, and
+// leaving it scrolled would put the game's fixed HUD over a page offset by hundreds of pixels.
+function flowSet(on){
+  if (!flowOn) return;
+  const d = document.documentElement;
+  if (d.classList.contains('flowscroll') === !!on) return;
+  d.classList.toggle('flowscroll', !!on);
+  try { scrollTo(0, 0); } catch(e){}
+}
 try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
 function applyBleed(forced){
   try {
@@ -1144,6 +1160,12 @@ window.__game = {
   dimList(){ return DIM_OVERLAYS.slice(); },
   // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
   // fire there and the branch would go untested
+  // the flow trial, forced: the URL flag cannot be set from inside a suite page that is already loaded
+  setFlow(on){ flowOn = true; flowVars(); flowSet(!!on);
+    return { on: document.documentElement.classList.contains('flowscroll'),
+             vp: document.documentElement.style.getPropertyValue('--vp-h'),
+             docH: document.documentElement.scrollHeight, scrollY }; },
+  flowState(){ return { flag: flowOn, on: document.documentElement.classList.contains('flowscroll') }; },
   setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
     inset: document.documentElement.style.getPropertyValue('--bot-inset'),
     on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },

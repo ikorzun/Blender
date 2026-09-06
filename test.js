@@ -10604,6 +10604,86 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'his screenshot: the leaderboard\'s rows and the menu\'s cards interleaved');
   }
 
+  // ===== THE `?flow=1` TRIAL: the two list screens scroll as the PAGE (2026-09-06) =====
+  // ⛔ THE ARMS ARE ABOUT APPEARANCE AND STATE, NOT COORDINATES. The edition that shipped enabled had
+  // seven geometry arms, all green, on a build that showed him two screens over each other.
+  {
+    const fPage = await browser.newPage({ viewport: { width: 402, height: 654 } });
+    fPage.on('pageerror', e => errors.push('PAGEERROR(flow): ' + e.message));
+    await fPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await fPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await fPage.evaluate(() => window.__game.skipIntro());
+    await fPage.waitForTimeout(400);
+    const fOff = await fPage.evaluate(() => ({ st: window.__game.flowState(),
+      htmlOv: getComputedStyle(document.documentElement).overflowY,
+      bodyOv: getComputedStyle(document.body).overflowY,
+      docH: document.documentElement.scrollHeight, vh: innerHeight,
+      mainPos: getComputedStyle(document.getElementById('mainScreen')).position }));
+    // the trial, through the game's own path: open the menu, then force the class the flag would set
+    const fOn = await fPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sleep(700);
+      window.__game.setFlow(true); await sleep(300);
+      const scrolled = (() => { scrollTo(0, 900); return scrollY; })();
+      await sleep(400);
+      // 1. the PAGE is the scroller and it really moved
+      const scroll = { docH: document.documentElement.scrollHeight, vh: innerHeight, y: scrollY, moved: scrolled > 0 };
+      // 2. the floating header answers a PAGE scroll (its listener used to hear only the inner box)
+      const sticky = document.getElementById('msSticky');
+      const stickyOn = !!sticky && sticky.classList.contains('on');
+      // 3. the game must not show through: four points down the viewport belong to the menu or the page
+      const pts = [[201, 20], [201, 200], [201, 400], [201, 640]].map(([x, y]) => {
+        const el = document.elementsFromPoint(x, y)[0];
+        if (!el) return 'none';
+        // ⚠️ THE FLOATING HEADER AND THE RESUME PILL ARE PART OF THE MENU'S DESIGN, not the game showing
+        // through — the first draft of this arm listed only `#mainScreen` and went red on a healthy build
+        // because `div.ms-sticky-in` is what a point near the top actually hits.
+        if (el.closest('#mainScreen') || el.closest('#msSticky') || el.closest('.ms-float')) return 'menu';
+        return el.id || el.tagName.toLowerCase(); });
+      // 4. THE MECHANISM: no fixed or sticky box at either of WebKit's sample points, or the browser
+      //    paints a flat colour over the rows instead of letting its glass show them
+      const cand = [[201, 4], [201, innerHeight - 4]].map(([x, y]) => {
+        let n = document.elementsFromPoint(x, y)[0], f = null;
+        while (n && n.nodeType === 1){ const c = getComputedStyle(n);
+          if (c.position === 'fixed' || c.position === 'sticky'){ f = n; break; } n = n.parentElement; }
+        return f ? (f.id || f.tagName.toLowerCase() + '.' + String(f.className).split(' ')[0]) : null; });
+      return { scroll, stickyOn, pts, cand };
+    });
+    // 5. closing must put the page back: no class, scroll at zero, the root locked again
+    const fClosed = await fPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const b = document.querySelector('.ms-play'); if (b) b.click(); await sleep(700);
+      return { st: window.__game.flowState(), y: scrollY,
+        htmlOv: getComputedStyle(document.documentElement).overflowY,
+        docH: document.documentElement.scrollHeight, vh: innerHeight };
+    });
+    await fPage.close();
+    console.log('flow trial:', JSON.stringify({ fOff, fOn, fClosed }));
+    expect(fOff.st.flag === false && fOff.st.on === false && fOff.htmlOv === 'hidden' && fOff.bodyOv === 'hidden' &&
+           fOff.docH === fOff.vh && fOff.mainPos === 'fixed',
+      'FLOW OFF BY DEFAULT: no flag, no class, html and body still locked, the document exactly one viewport and the ' +
+      'menu still FIXED — the default path is today\'s build (' + JSON.stringify(fOff) + ')');
+    expect(fOn.scroll.docH > fOn.scroll.vh + 200 && fOn.scroll.moved && fOn.scroll.y > 0,
+      'FLOW ON: THE PAGE IS THE SCROLLER — the document is taller than the viewport and a real scroll moves it (' +
+      JSON.stringify(fOn.scroll) + '). This is the whole cure for «the content is cut at the top and the bottom»: an ' +
+      'inner scroller clips its rows at its own frame, a page scroller does not');
+    expect(fOn.stickyOn === true,
+      '⚠️⚠️ FLOW ON: THE FLOATING «My collection» HEADER STILL APPEARS — its listener was bound to the inner box ' +
+      'alone, so under this trial it would never fire and a piece of the design would silently vanish (' +
+      JSON.stringify({ sticky: fOn.stickyOn }) + '). ⛔ SABOTAGE: drop the window binding in 90-input');
+    expect(fOn.pts.every(p => p === 'menu' || p === 'html' || p === 'body'),
+      '⚠️⚠️ FLOW ON: THE GAME DOES NOT SHOW THROUGH — four points down the viewport belong to the menu or the page ' +
+      'itself, never the canvas (' + JSON.stringify(fOn.pts) + '). ⛔ THE ARM THE FIRST EDITION LACKED: his ' +
+      'screenshot showed the collection labels over the live 3D pile');
+    expect(fOn.cand.every(c => c === null),
+      '⚠️⚠️ FLOW ON: NOTHING FIXED OR STICKY SITS AT EITHER OF WEBKIT\'S SAMPLE POINTS (' + JSON.stringify(fOn.cand) +
+      '). A candidate there is what makes the browser paint a flat colour over the rows instead of showing them ' +
+      'through its glass — measured on his own phone with the `?v=cards` probe');
+    expect(fClosed.st.on === false && fClosed.y === 0 && fClosed.htmlOv === 'hidden' && fClosed.docH === fClosed.vh,
+      'FLOW: CLOSING PUTS THE PAGE BACK — class off, scroll at zero, the root locked and the document one viewport ' +
+      'again (' + JSON.stringify(fClosed) + '). ⛔ Left scrolled, the game\'s fixed HUD would sit over an offset page');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of
