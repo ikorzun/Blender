@@ -157,6 +157,7 @@
      is a separate, larger change gated on a measurement from his phone (canon 2026-09-05-g).
      ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
      `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
+  html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
   /* ⚡ THE TWO EDGE CARDS — MEASURED ON HIS PHONE, 2026-09-06 (the `?v=cards` probe: a 12 px fixed card
      of pure RED at the top and pure BLUE at the bottom turned BOTH zones exactly those colours, over a
      document that had real content underneath). That single frame proved three things at once: the
@@ -185,43 +186,6 @@
   #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
   html.dimmed #edgeTop, html.dimmed #edgeBot {
     background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  /* ⚡⚡ AND WHERE THE PAGE CAN OWN THE BOTTOM ZONE INSTEAD OF COLOURING IT — THE TWO SCROLLING SCREENS
-     (his word 2026-09-06, with two screenshots: «on the pause screen and on the leaderboard the content
-     does not go under the bottom bar»). The `?v=cards` measurement says a fixed box at the sample point
-     wins and its colour is painted OVER everything; the `tall` measurement says that with NO fixed box
-     there, the page's own rows are composited under the bar and read through its glass. Both are his
-     phone. So the two screens made of a LIST simply stop being fixed:
-       `body` grows to `--doc-h` (the layout viewport + the bar's inset — the `tall` configuration, root
-       still `overflow:hidden`, nothing scrolls); `#mainScreen` and `#lbOverlay` become ABSOLUTE and as
-       tall as the document, keeping their own `overflow-y:auto`, so their last rows are laid out inside
-       the bar's zone; their `::before` fill follows them (an absolute pseudo resolves against its own
-       positioned box, so `inset:0` is now the full height); and `#edgeBot` is HIDDEN while either is open,
-       because the card is exactly the fixed candidate that would paint over them.
-     ⛔ THE OTHER SIX POPUPS DO NOT GROW: they are centred cards (`.overlay { align-items:center }`) and a
-     taller box would drop every one of them by half the inset. `#lbOverlay` is safe because it overrides
-     that with `justify-content:flex-start` — its content hangs from the top.
-     ⛔ AND THE GAME DOES NOT GROW EITHER: its bottom row is a WebGL canvas fixed to the viewport, so there
-     is nothing to lay out down there and the card keeps giving that zone the sky's own nadir.
-     ⚠️ The gate is `html.bleed`, set from JS only where the browser really insets the viewport (99-main);
-     everywhere else — desktop, headless, the Playgama iframe, the WKWebView wrapper — every var falls back
-     and the geometry is byte-identical to today's. */
-  /* ⚠️⚠️ THE ROOT GROWS TOO, AND THAT LINE IS LOAD-BEARING: `html` is `height:100%; overflow:hidden`, so a
-     654-tall root box would CLIP the 874-tall body and the extra rows would never be painted — the whole
-     change would silently do nothing. `overflow:hidden` STAYS on both: the root box is exactly as tall as
-     the document, so there is nothing to scroll, and the game's gestures keep being governed by it exactly
-     as they are today (this game has no touchmove listener — the canon's own reason for never making the
-     root scrollable). */
-  html.bleed, html.bleed body { height:var(--doc-h, 100%); }
-  /* ⚠️ THE BELT, and it is why this change cannot regress: if a WebKit ever declines to paint those rows,
-     the zone falls back to body's colour — so while a scrolling screen is open body carries the sky's
-     NADIR (what that zone should look like) instead of its zenith. Ordered BEFORE `html.dimmed body`, which
-     has the same specificity and must win on the leaderboard, where the zone is dark. */
-  html.underbar body { background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
-  html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  html.bleed #mainScreen, html.bleed #lbOverlay {
-    position:absolute; top:0; left:0; right:0; bottom:auto; height:var(--doc-h, 100%); }
-  html.bleed #mainScreen::before, html.bleed #lbOverlay::before { position:absolute; }
-  html.bleed.underbar #edgeBot { display:none; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4062,7 +4026,7 @@
       background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
       transform:translateX(-160%) skewX(-16deg); pointer-events:none;
       animation:msGlint 4.5s ease-in-out infinite; }
-    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px) + var(--bot-inset, 0px)); }
+    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px)); }
   }
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }

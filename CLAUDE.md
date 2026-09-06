@@ -15456,3 +15456,41 @@ browser for anything — not a dry run, not a screenshot, not a one-off probe. W
 `position === 'absolute'` for the GATE-OFF case (it is `fixed` — that is the property under test), and I
 measured a `display:none` popup by its rect, which is zero whatever the rule says. An open box is measured
 by its box; a closed one by its computed position.
+
+## ⛔⛔ BATCH 2026-09-06-a IS REVERTED THE SAME HOUR — IT BROKE BOTH SCREENS ON HIS PHONE (his word: «everything got even worse, you are only burning tokens, not helping»)
+
+Two screenshots, and they are not a colour complaint — they are a LAYERING failure:
+- the leaderboard's rows and the pause menu's cards, header and Resume pill painted ON TOP OF EACH OTHER,
+  both screens visible at once;
+- in the game the menu's floating header, the collection labels and the level number painted over the live
+  3D pile with no backdrop at all.
+So making `#mainScreen` and `#lbOverlay` `position:absolute` inside a taller document destroyed the
+opaque full-screen backdrops those two screens rely on. The tree is back to `db68c16` — verified md5 by
+md5 on `index.html`, `src/shell.html`, `85-hud.js`, `99-main.js` and `test.js`, i.e. byte-identical to the
+build that ran 980 green and that he confirmed for colour.
+
+### WHAT I GOT WRONG, PLAINLY
+1. ⛔ THE GUARD WAS SEVEN ARMS OF GEOMETRY AND NOT ONE OF APPEARANCE. It asserted positions, heights,
+   classes and the absence of a fixed ancestor — every one of them true on the broken build. Nothing asked
+   the only question that mattered: **is the screen still opaque, and is exactly one screen visible?** A
+   guard that measures the mechanism and never the outcome is the shape this project has been bitten by
+   before, and I built another one.
+2. ⛔ NOTHING RENDERED WAS EVER LOOKED AT. Headless CAN screenshot with the gate forced
+   (`setBleed(220)`), and I never took one — not of the menu, not of the leaderboard. Nine hours of
+   measuring numbers and not a single picture of the thing being changed.
+3. ⚠️ THE `::before` BACKDROPS ARE THE LOAD-BEARING PART OF BOTH SCREENS and I treated them as a detail —
+   one line, `position:absolute`, with no check that they still cover. `#mainScreen::before` carries the
+   sky gradient and `.overlay::before` the 88 % fill; both had `position:fixed; inset:0`, i.e. the
+   VIEWPORT, and both silently became something else.
+4. ⚠️ AND THE STACKING BETWEEN THE TWO SCREENS WAS NEVER CONSIDERED: `.overlay` is z-index 20 and
+   `#mainScreen` is 30, so the leaderboard opens UNDER the menu and has always depended on the menu's own
+   fixed backdrop to hide it.
+
+### THE RULE THIS BATCH BUYS, AND IT IS THE EXPENSIVE KIND
+**A change to how a screen is POSITIONED is not verified by reading positions. Render it, screenshot it
+with the gate forced, and look — before the suite, before the commit, before his phone.** Every guard in
+this batch was green on a build that showed him two screens at once.
+⛔ AND THE STANDING BAN THAT FOLLOWS FROM IT: `#c`, `.bar`, `.overlay`, `#pauseOverlay`, `#mainScreen` and
+their `::before` layers STAY `position:fixed`. Content under the bottom bar is not worth a second attempt
+at this: the measured facts (batch -g/-h) already say the browser's fill paints over anything laid out
+there unless every fixed box leaves that edge — and those fixed boxes ARE the screens.

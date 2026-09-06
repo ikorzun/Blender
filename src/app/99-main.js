@@ -21,28 +21,6 @@ let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0,
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
 let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
-// ⚡ THE BOTTOM BAR'S INSET, AND THE ONLY PLACE IT IS KNOWN. `env(safe-area-inset-bottom)` is 0 on his
-// phone (the 220 pt of chrome is an OBSCURED CONTENT INSET, not a safe area), so the only reading is
-// `screen.height - innerHeight`. Used by the two scrolling screens to lay their last rows inside the
-// bar's zone — see the `html.bleed` rules in shell.html.
-// ⚠️ COMPUTED AT LOAD AND ON ROTATION ONLY, never on a visualViewport resize: the bar collapses on scroll
-// and innerHeight jumps by ~100, and re-anchoring on that would visibly resize the menu under the finger.
-// ⚠️ `forced` is the test path (`__game.setBleed`): headless has screen.height === innerHeight, so the
-// production gate can never fire there.
-function applyBleed(forced){
-  try {
-    const d = document.documentElement, ds = d.style;
-    const solo = window.top === window.self;
-    const ios = /iP(hone|od|ad)/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
-    const inset = forced != null && forced > 0 ? forced
-      : (solo && ios ? Math.max(0, Math.min(320, (screen.height || 0) - innerHeight)) : 0);
-    const on = inset > 24;
-    d.classList.toggle('bleed', on);
-    if (on){ ds.setProperty('--bot-inset', inset + 'px'); ds.setProperty('--doc-h', (innerHeight + inset) + 'px'); }
-    else { ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); }
-  } catch(e){}
-}
-try { addEventListener('orientationchange', () => setTimeout(() => applyBleed(), 250)); } catch(e){}
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
 // the physics step separately — from such a pair you cannot say who eats the frame:
@@ -423,7 +401,6 @@ function sleepPhysics(src){
 // theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
-applyBleed();   // the bottom bar's inset (iOS 26) — before the first layout read
 function resize(){
   // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
   // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
@@ -1135,12 +1112,6 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
-  // force the bleed geometry in a browser that does not inset the viewport (headless has
-  // screen.height === innerHeight, so the production gate can never fire there and the whole
-  // branch would go untested — the canon's rule about a gate that never fires)
-  setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
-    inset: document.documentElement.style.getPropertyValue('--bot-inset'),
-    on: document.documentElement.classList.contains('bleed') }; },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
