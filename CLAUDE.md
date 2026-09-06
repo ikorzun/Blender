@@ -15438,6 +15438,20 @@ with its `::before` following, the card hidden, and NO fixed/sticky ancestor at 
 belt colour; the leaderboard the same; the centred popups still 654 and still fixed.
 Healthy 7/7. `html` dropped from the growth rule → only the root arm. The card's suppression deleted → the
 menu and the leaderboard arms. `#mainScreen` left fixed → only the menu arm.
+### THE RUNS, AND THE MAN-MADE HALF OF TWO ABORTS
+Run 15 died at 372 green on a 30 s `page.goto` timeout; run 16 at 832 green on «Target page, context or
+browser has been closed» — two different, unrelated sections, no FAIL in either. RULED OUT BEFORE BLAMING
+THE STAND, as the canon requires: both aborted sections were lifted out and run alone against this exact
+build, three times each — 2.4-2.6 s per load, every time; the page loads in 2.2 s standalone; no orphaned
+browser processes existed (all five belonged to the live run, checked by parent chain, so nothing was
+killed); 32 GB with no swap in use.
+⛔⛔ AND THE HALF THAT WAS MINE: I WAS RUNNING BROWSER PROBES CONCURRENTLY WITH THE SUITE. The canon's own
+«three man-made sources of a suite that aborted by itself» names exactly this, and I did it twice in one
+hour while investigating why the suite kept aborting. Run 17, with the machine left alone: **987 green,
+0 red, SUITE: PASS.**
+⚠️ THE RULE, RESTATED WHERE THE NEXT PERSON WILL LOOK: while `node test.js` is running, do not open a
+browser for anything — not a dry run, not a screenshot, not a one-off probe. Wait.
+
 ⚠️ TWO OF MY OWN ARMS WENT RED ON A HEALTHY BUILD FIRST, and both were the arm's fault: I asserted
 `position === 'absolute'` for the GATE-OFF case (it is `fixed` — that is the property under test), and I
 measured a `display:none` popup by its rect, which is zero whatever the rule says. An open box is measured
