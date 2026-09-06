@@ -72,8 +72,12 @@ function hideMultToast(){
 const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
 function refreshDimmed(){
   try {
-    const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
-    document.documentElement.classList.toggle('dimmed', on);
+    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    document.documentElement.classList.toggle('dimmed', DIM_OVERLAYS.some(vis));
+    // ⚡ `underbar` matters only while the `?bleed=1` trial is on: there the two SCROLLING screens lay
+    // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
+    // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
+    document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
   } catch(e){}
 }
 function show(id){
@@ -2628,6 +2632,7 @@ function openMainScreen(){
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
+  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
 // function, and not a line in two places: a copy of a flag next to a working quantity
@@ -2659,6 +2664,7 @@ function closeMainScreen(){
   // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
+  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
 // on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.

@@ -186,6 +186,30 @@
   #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
   html.dimmed #edgeTop, html.dimmed #edgeBot {
     background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
+  /* ⚠️ `?edges=0` — the A/B switch for the cards themselves. With them gone WebKit finds no candidate at
+     an edge and lets the bar's glass show whatever is there; it is the cheapest way to see, on the device,
+     how much of the band is OUR colour and how much is the browser's own. Nothing in production reads it. */
+  html.noedges #edgeTop, html.noedges #edgeBot { display:none; }
+  /* ⚡ `?bleed=1` — THE OPT-IN TRIAL of «the content keeps going under the bottom bar» on the two SCROLLING
+     screens. Identical rules to batch 2026-09-06-a, which was reverted the same hour because his phone
+     showed the pause menu and the leaderboard painted on top of each other — a failure this Mac has never
+     reproduced (rendered in the bench at his exact geometry, the menu is pixel-identical inside the
+     viewport and simply continues below it). So it comes back OFF, behind a flag only he can set, until a
+     screenshot from the device says which of the two is true. ⛔ DEFAULT OFF, and it must not be turned on
+     by anything but the URL until that picture exists. */
+  html.bleed, html.bleed body { height:var(--doc-h, 100%); }
+  html.bleed #mainScreen, html.bleed #lbOverlay {
+    position:absolute; top:0; left:0; right:0; bottom:auto; height:var(--doc-h, 100%); }
+  /* ⚠️⚠️ THE GRADIENT STAYS ANCHORED TO THE VIEWPORT, AND THIS LINE IS THE WHOLE REASON THE TRIAL IS
+     ALLOWED TO EXIST — «дизайн менять нельзя». A backdrop that simply grows to 874 stretches its gradient
+     over the taller box, and every pixel of the menu's sky shifts: MEASURED on a pixel diff of the two
+     builds, 45 % of the viewport differs, max channel delta 39, and — the important half — ZERO pixels
+     differ by more than 48, i.e. nothing MOVED, only the tone. Pinning the gradient's size to `--vp-h`
+     makes rows 0..654 byte-identical to today and leaves the strip below it in the layer's own
+     `background-color`, the sky's nadir, which is exactly what that zone should be. */
+  html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
+    position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
+  html.bleed.underbar #edgeBot { display:none; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4026,7 +4050,7 @@
       background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
       transform:translateX(-160%) skewX(-16deg); pointer-events:none;
       animation:msGlint 4.5s ease-in-out infinite; }
-    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px)); }
+    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px) + var(--bot-inset, 0px)); }
   }
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }
@@ -19816,8 +19840,12 @@ function hideMultToast(){
 const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
 function refreshDimmed(){
   try {
-    const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
-    document.documentElement.classList.toggle('dimmed', on);
+    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    document.documentElement.classList.toggle('dimmed', DIM_OVERLAYS.some(vis));
+    // ⚡ `underbar` matters only while the `?bleed=1` trial is on: there the two SCROLLING screens lay
+    // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
+    // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
+    document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
   } catch(e){}
 }
 function show(id){
@@ -22372,6 +22400,7 @@ function openMainScreen(){
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
+  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
 // function, and not a line in two places: a copy of a flag next to a working quantity
@@ -22403,6 +22432,7 @@ function closeMainScreen(){
   // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
+  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
 // on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.
@@ -24204,6 +24234,35 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
+// ⚡ THE TRIAL OF «CONTENT UNDER THE BOTTOM BAR», OPT-IN ONLY (`?bleed=1`). The inset is the only reading
+// available — `env(safe-area-inset-bottom)` is 0 on his phone, because the 220 pt of chrome is an OBSCURED
+// CONTENT INSET and not a safe area — so it is `screen.height - innerHeight`.
+// ⚠️ ITS KNOWN WEAKNESS, NAMED RATHER THAN HIDDEN: Safari's bars collapse on scroll, which moves
+// innerHeight by ~100, so this number is a snapshot. It is taken at load and on rotation and deliberately
+// NOT on a viewport resize — re-anchoring mid-scroll would resize the menu under his finger. If the trial
+// is adopted, that is the first thing to revisit.
+// ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
+// two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
+// not another guess.
+let bleedOn = false;
+try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
+try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
+function applyBleed(forced){
+  try {
+    const d = document.documentElement, ds = d.style;
+    if (!bleedOn && forced == null){ d.classList.remove('bleed'); ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); return; }
+    const solo = window.top === window.self;
+    const ios = /iP(hone|od|ad)/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
+    const inset = forced != null && forced > 0 ? forced
+      : (solo && ios ? Math.max(0, Math.min(320, (screen.height || 0) - innerHeight)) : 0);
+    const on = inset > 24;
+    d.classList.toggle('bleed', on);
+    if (on){ ds.setProperty('--bot-inset', inset + 'px'); ds.setProperty('--doc-h', (innerHeight + inset) + 'px');
+      ds.setProperty('--vp-h', innerHeight + 'px'); }
+    else { ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); }
+  } catch(e){}
+}
+try { addEventListener('orientationchange', () => setTimeout(() => applyBleed(), 250)); } catch(e){}
 let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
@@ -24585,6 +24644,7 @@ function sleepPhysics(src){
 // theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
+applyBleed();   // the opt-in bleed trial (?bleed=1) — before the first layout read
 function resize(){
   // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
   // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
@@ -25296,6 +25356,11 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
+  // fire there and the branch would go untested
+  setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
+    inset: document.documentElement.style.getPropertyValue('--bot-inset'),
+    on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.

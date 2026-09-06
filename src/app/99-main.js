@@ -20,6 +20,35 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
+// ⚡ THE TRIAL OF «CONTENT UNDER THE BOTTOM BAR», OPT-IN ONLY (`?bleed=1`). The inset is the only reading
+// available — `env(safe-area-inset-bottom)` is 0 on his phone, because the 220 pt of chrome is an OBSCURED
+// CONTENT INSET and not a safe area — so it is `screen.height - innerHeight`.
+// ⚠️ ITS KNOWN WEAKNESS, NAMED RATHER THAN HIDDEN: Safari's bars collapse on scroll, which moves
+// innerHeight by ~100, so this number is a snapshot. It is taken at load and on rotation and deliberately
+// NOT on a viewport resize — re-anchoring mid-scroll would resize the menu under his finger. If the trial
+// is adopted, that is the first thing to revisit.
+// ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
+// two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
+// not another guess.
+let bleedOn = false;
+try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
+try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
+function applyBleed(forced){
+  try {
+    const d = document.documentElement, ds = d.style;
+    if (!bleedOn && forced == null){ d.classList.remove('bleed'); ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); return; }
+    const solo = window.top === window.self;
+    const ios = /iP(hone|od|ad)/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
+    const inset = forced != null && forced > 0 ? forced
+      : (solo && ios ? Math.max(0, Math.min(320, (screen.height || 0) - innerHeight)) : 0);
+    const on = inset > 24;
+    d.classList.toggle('bleed', on);
+    if (on){ ds.setProperty('--bot-inset', inset + 'px'); ds.setProperty('--doc-h', (innerHeight + inset) + 'px');
+      ds.setProperty('--vp-h', innerHeight + 'px'); }
+    else { ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); }
+  } catch(e){}
+}
+try { addEventListener('orientationchange', () => setTimeout(() => applyBleed(), 250)); } catch(e){}
 let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
@@ -401,6 +430,7 @@ function sleepPhysics(src){
 // theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
+applyBleed();   // the opt-in bleed trial (?bleed=1) — before the first layout read
 function resize(){
   // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
   // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
@@ -1112,6 +1142,11 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
+  // fire there and the branch would go untested
+  setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
+    inset: document.documentElement.style.getPropertyValue('--bot-inset'),
+    on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.

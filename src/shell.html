@@ -186,6 +186,30 @@
   #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
   html.dimmed #edgeTop, html.dimmed #edgeBot {
     background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
+  /* ⚠️ `?edges=0` — the A/B switch for the cards themselves. With them gone WebKit finds no candidate at
+     an edge and lets the bar's glass show whatever is there; it is the cheapest way to see, on the device,
+     how much of the band is OUR colour and how much is the browser's own. Nothing in production reads it. */
+  html.noedges #edgeTop, html.noedges #edgeBot { display:none; }
+  /* ⚡ `?bleed=1` — THE OPT-IN TRIAL of «the content keeps going under the bottom bar» on the two SCROLLING
+     screens. Identical rules to batch 2026-09-06-a, which was reverted the same hour because his phone
+     showed the pause menu and the leaderboard painted on top of each other — a failure this Mac has never
+     reproduced (rendered in the bench at his exact geometry, the menu is pixel-identical inside the
+     viewport and simply continues below it). So it comes back OFF, behind a flag only he can set, until a
+     screenshot from the device says which of the two is true. ⛔ DEFAULT OFF, and it must not be turned on
+     by anything but the URL until that picture exists. */
+  html.bleed, html.bleed body { height:var(--doc-h, 100%); }
+  html.bleed #mainScreen, html.bleed #lbOverlay {
+    position:absolute; top:0; left:0; right:0; bottom:auto; height:var(--doc-h, 100%); }
+  /* ⚠️⚠️ THE GRADIENT STAYS ANCHORED TO THE VIEWPORT, AND THIS LINE IS THE WHOLE REASON THE TRIAL IS
+     ALLOWED TO EXIST — «дизайн менять нельзя». A backdrop that simply grows to 874 stretches its gradient
+     over the taller box, and every pixel of the menu's sky shifts: MEASURED on a pixel diff of the two
+     builds, 45 % of the viewport differs, max channel delta 39, and — the important half — ZERO pixels
+     differ by more than 48, i.e. nothing MOVED, only the tone. Pinning the gradient's size to `--vp-h`
+     makes rows 0..654 byte-identical to today and leaves the strip below it in the layer's own
+     `background-color`, the sky's nadir, which is exactly what that zone should be. */
+  html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
+    position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
+  html.bleed.underbar #edgeBot { display:none; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4026,7 +4050,7 @@
       background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
       transform:translateX(-160%) skewX(-16deg); pointer-events:none;
       animation:msGlint 4.5s ease-in-out infinite; }
-    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px)); }
+    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px) + var(--bot-inset, 0px)); }
   }
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }

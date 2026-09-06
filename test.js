@@ -10538,6 +10538,72 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'loop\'s write, or make `edgeBottomTriple` return a colour at zero — the arm reads the LOOP\'s output, not the formula');
   }
 
+  // ===== THE `?bleed=1` TRIAL: OFF BY DEFAULT, AND WHEN FORCED IT MUST NOT LOSE THE BACKDROPS =====
+  // ⛔⛔ THE ARMS THAT MATTER ARE THE LAST TWO, AND THEY EXIST BECAUSE THE FIRST EDITION OF THIS CHANGE
+  // SHIPPED WITH SEVEN GEOMETRY ARMS, ALL GREEN, ON A BUILD THAT SHOWED HIM THE PAUSE MENU AND THE
+  // LEADERBOARD PAINTED OVER EACH OTHER. Positions and heights are not the property; «the screen is still
+  // opaque» and «exactly one screen is visible» are.
+  {
+    const trPage = await browser.newPage({ viewport: { width: 402, height: 654 } });
+    trPage.on('pageerror', e => errors.push('PAGEERROR(trial): ' + e.message));
+    await trPage.goto('file://' + PAGE_FILE + '?dev=1');
+    await trPage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    await trPage.evaluate(() => window.__game.skipIntro());
+    await trPage.waitForTimeout(400);
+    const trOff = await trPage.evaluate(() => ({ flag: window.__game.setBleed(0).flag,
+      cls: document.documentElement.classList.contains('bleed'),
+      bodyH: Math.round(document.body.getBoundingClientRect().height), vh: innerHeight,
+      mainPos: getComputedStyle(document.getElementById('mainScreen')).position }));
+    const trOn = await trPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      window.__game.setBleed(220); await sleep(60);
+      document.getElementById('pauseBtn').click(); await sleep(700);
+      const ms = document.getElementById('mainScreen');
+      const pb = getComputedStyle(ms, '::before');
+      const alpha = s => { const m = String(s).match(/[\d.]+/g) || []; return m.length > 3 ? +m[3] : 1; };
+      // THE BACKDROP MUST STILL COVER THE WHOLE VIEWPORT, OPAQUELY. `::before` is absolute inside
+      // #mainScreen, so its box is read through the element it belongs to.
+      const box = ms.getBoundingClientRect();
+      const cover = { top: Math.round(box.top), bottom: Math.round(box.bottom), vh: innerHeight,
+        pos: pb.position, h: Math.round(parseFloat(pb.height)), bg: pb.backgroundColor, a: alpha(pb.backgroundColor),
+        size: pb.backgroundSize };
+      // AND THE GAME MUST NOT SHOW THROUGH: at four points inside the viewport the top-most element must
+      // belong to the menu, never the canvas.
+      const pts = [[201, 20], [201, 200], [201, 400], [201, 640]].map(([x, y]) => {
+        const el = document.elementsFromPoint(x, y)[0];
+        return el ? (el.closest('#mainScreen') ? 'menu' : (el.id || el.tagName.toLowerCase())) : 'none'; });
+      // EXACTLY ONE SCREEN: open the leaderboard from the menu and check what is displayed
+      const lbEntry = document.getElementById('msLbEntry') || document.querySelector('.ms-lb');
+      if (lbEntry) lbEntry.click();
+      await sleep(800);
+      const vis = id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; };
+      const both = { menu: vis('mainScreen'), lb: vis('lbOverlay'),
+        lbAbove: (() => { const el = document.elementsFromPoint(201, 300)[0]; return !!(el && el.closest('#lbOverlay')); })() };
+      return { cover, pts, both };
+    });
+    await trPage.close();
+    console.log('bleed trial:', JSON.stringify({ trOff, trOn }));
+    expect(trOff.flag === false && trOff.cls === false && trOff.bodyH === trOff.vh && trOff.mainPos === 'fixed',
+      'TRIAL OFF BY DEFAULT: no `?bleed=1` in the url means no class, body exactly the viewport and the menu still ' +
+      'FIXED — the default path is today\'s build byte for byte (' + JSON.stringify(trOff) + '). ⛔ This arm is the ' +
+      'promise that nothing reaches his phone enabled until a screenshot from the device says it works');
+    expect(trOn.cover.top <= 0 && trOn.cover.bottom >= trOn.cover.vh && trOn.cover.a === 1 &&
+           trOn.cover.size.indexOf(trOn.cover.vh + 'px') >= 0,
+      '⚠️⚠️ TRIAL ON: THE MENU\'S BACKDROP STILL COVERS THE WHOLE VIEWPORT, OPAQUELY, and its gradient stays ' +
+      'anchored to the viewport height (' + JSON.stringify(trOn.cover) + '). ⛔ The gradient anchor is «design must ' +
+      'not change» expressed as an assert: without it a pixel diff showed 45 % of the viewport shifted in tone ' +
+      '(max channel delta 39, and zero pixels above 48 — a tone shift, not a move)');
+    expect(trOn.pts.every(p => p === 'menu'),
+      '⚠️⚠️ TRIAL ON: THE GAME DOES NOT SHOW THROUGH THE MENU — at four points down the viewport the top-most ' +
+      'element belongs to `#mainScreen` (' + JSON.stringify(trOn.pts) + '). ⛔ THIS IS THE ARM THE FIRST EDITION ' +
+      'DID NOT HAVE: his screenshot showed the collection labels painted over the live 3D pile, and every ' +
+      'geometry arm was green on that build');
+    expect(trOn.both.lb === true && trOn.both.lbAbove === true,
+      '⚠️⚠️ TRIAL ON: EXACTLY ONE SCREEN IS ON TOP — with the leaderboard open it is what a point in the middle ' +
+      'of the viewport hits, never the menu underneath (' + JSON.stringify(trOn.both) + '). ⛔ The other half of ' +
+      'his screenshot: the leaderboard\'s rows and the menu\'s cards interleaved');
+  }
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

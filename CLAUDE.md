@@ -15494,3 +15494,46 @@ this batch was green on a build that showed him two screens at once.
 their `::before` layers STAY `position:fixed`. Content under the bottom bar is not worth a second attempt
 at this: the measured facts (batch -g/-h) already say the browser's fill paints over anything laid out
 there unless every fixed box leaves that edge — and those fixed boxes ARE the screens.
+
+## BATCH 2026-09-06-b: THE «CONTENT UNDER THE BAR» TRIAL COMES BACK BEHIND `?bleed=1`, DEFAULT OFF — AND THE BENCH THAT SHOULD HAVE EXISTED FROM THE START (his words: «take it on, start with a picture» and «the design must not change»)
+
+### THE BENCH, AND WHY IT IS THE REAL DELIVERABLE OF THIS BATCH
+`scratchpad/shoot.js` renders `index.html` at his phone's LAYOUT geometry (402×654 inside an 874 screen)
+and takes a FULL-PAGE screenshot, so whatever the document paints below 654 — exactly the strip Safari
+composites under its floating bar — is visible, with a rule drawn at the viewport's edge and a hatched band
+standing in for the bar. `flagshoot.js` renders the same screens with the flag off and on and PIXEL-DIFFS
+the viewport half, which is «дизайн менять нельзя» expressed as a number.
+⚠️ IT PINS THE GUEST IDENTITY FIRST (`mixer_save_v1` with a fixed `gn`/`gid`): the name and avatar are
+generated per session, so the first diff read 46 % on two builds that were identical in layout.
+✅ CONTROL: two runs of the SAME build diff to **0 pixels of 1 051 632, max delta 0**. The bench has no
+noise, so every number below is real.
+
+### WHAT THE PICTURES SETTLED, AND IT IS NOT WHAT I ASSUMED
+1. ⛔⛔ THE REVERTED CHANGE RENDERS CORRECTLY HERE. The menu continues under the bar, the design inside the
+   viewport does not move. **This machine has never reproduced the failure his phone showed**, so a fourth
+   blind attempt was out of the question — which is why the trial ships OFF behind a URL flag.
+2. ⚠️⚠️ AND THE PIXEL DIFF FOUND A REAL DESIGN CHANGE I WOULD OTHERWISE HAVE SHIPPED: a backdrop that
+   simply grows to 874 STRETCHES ITS GRADIENT over the taller box. 45 % of the viewport differed, max
+   channel delta 39 — and, the half that names the cause, ZERO pixels differed by more than 48, i.e.
+   nothing MOVED, the tone shifted. Cured by `background-size:100% var(--vp-h)` on the backdrop: rows
+   0..654 identical to today, the strip below in the layer's own nadir.
+3. AFTER THE ANCHOR the viewport diff is 3197 pixels above delta 10, ALL of them at page y 650..652 — a
+   collection thumbnail that now renders in the last four rows because the scroll container is taller.
+   That is the effect itself arriving, not the design moving.
+
+### THE GUARD, AND THE TWO ARMS THAT ARE THE POINT
+The first edition of this change shipped with SEVEN geometry arms, every one green, on a build that showed
+him two screens painted over each other. Positions and heights are not the property. The arms now are:
+the trial OFF by default (no class, body exactly the viewport, the menu still FIXED); with it forced, the
+menu's backdrop still COVERS the whole viewport OPAQUELY and its gradient is anchored to `--vp-h`; **the
+game does not show through the menu** (four points down the viewport all hit `#mainScreen`); and **exactly
+one screen is on top** (with the leaderboard open it is what the middle of the viewport hits).
+Healthy 4/4; the gradient anchor removed → the cover arm; the `::before` rule disabled → the cover arm.
+
+### WHAT IS ASKED OF HIM, AND IT IS THE ONLY WAY FORWARD
+Two screenshots from the phone, with the flag: `…/Blender/?bleed=1` — the pause menu scrolled, and the
+leaderboard. If they look like the bench's pictures, the flag becomes the default. If they show the
+overlap again, that is the first picture of the real failure and the bug is finally reproducible.
+⚠️ ALSO SHIPPED FOR HIS A/B, and it costs nothing: `?edges=0` hides both colour cards, so he can see on the
+device how much of a band is OUR colour and how much is the browser's own.
+⛔ NOTHING IS ON BY DEFAULT. The default path is byte-identical to the build he is running now.
