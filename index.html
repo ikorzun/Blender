@@ -135,120 +135,6 @@
      2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
   body { background-color:rgb(var(--sky-top-rgb, 133,220,255));
          background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe)); }
-  /* ⚠️⚠️ THE ONE COLOUR THAT REACHES THE iOS 26 CHROME ZONES, AND WHY IT IS ON `body`
-     (2026-09-05, read from the WebKit sources and confirmed against this game's own DOM).
-     `LocalFrameView::fixedContainerEdges()` hit-tests (innerWidth/2, 4) and (innerWidth/2,
-     innerHeight-4), walks up to the nearest `position:fixed`/`sticky` ancestor and, if that box
-     declares a resolved background-color thicker than 10 px and at least 0.9 of the viewport wide,
-     paints the whole zone with it through `WKColorExtensionView` — a UIView of ONE FLAT COLOUR
-     inserted ABOVE the web content. If the candidate declares nothing, `PageColorSampler` takes a
-     2 px snapshot with `ExcludeReplacedContentExceptForIFrames | ExcludeText |
-     FixedAndStickyLayersOnly` — which excludes our WebGL canvas (replaced content) AND all
-     normal-flow content — finds nothing, and WebKit falls back to `underPageBackgroundColor`, i.e.
-     THIS declaration. Measured on the real DOM: at both sample points the nearest fixed ancestor is
-     `#c` (transparent) on the game, `#starsOverlay` (transparent) on a popup, `#mainScreen`
-     (transparent) in the menu. So every zone on every screen is painted with body's colour.
-     ⛔⛔ ON A DARK POPUP THAT IS WRONG BY rgb(143,135,205) — the owner's 2026-09-03 complaint «on
-     the purchase screen the top background is not dark», never actually cured: `.overlay::before`
-     carries `backdrop-filter:blur(6px)`, which forces `PredominantColorType::Multiple`, so the
-     zones fall back here while the popup's own first row is ≈rgb(29,33,50). The rule below IS that
-     arithmetic — the 88% fill of `.overlay::before` composited over the zenith — so the zones match
-     the screen instead of framing it in violet. It is a colour, not content: content under the bars
-     is a separate, larger change gated on a measurement from his phone (canon 2026-09-05-g).
-     ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
-     `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
-  html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  /* ⚡ THE TWO EDGE CARDS — MEASURED ON HIS PHONE, 2026-09-06 (the `?v=cards` probe: a 12 px fixed card
-     of pure RED at the top and pure BLUE at the bottom turned BOTH zones exactly those colours, over a
-     document that had real content underneath). That single frame proved three things at once: the
-     colour-extension channel is LIVE on his device, the two edges take INDEPENDENT colours, and the fill
-     PAINTS OVER in-flow content — so a taller document can never win the bottom zone while a fixed box
-     covers the sample point, which is exactly why the eighth edition failed.
-     Each card is the candidate WebKit finds at its edge: 12 px (over the 10 px `thinBorderWidth`), full
-     width (over the 0.9 `minimumRatio`), one opaque colour (over the 0.75 alpha bar), z-index max so it is
-     topmost at the hit-test, `pointer-events:none` (which WebKit ignores for this pass and the page needs).
-     Only 6 px of each lies inside the viewport, painted the SAME colour as the row it covers — invisible
-     by construction, on every screen.
-     ⛔⛔ THIS IS THE SEVENTH EDITION'S MECHANISM WITHOUT ITS MISTAKE. There the strips were driven by a
-     module that sampled the page and then HID them in the game and the menu — so on the two screens he
-     actually looks at, the zones fell back to body's zenith violet and he saw the field he reported. Here
-     there is no driver, no sampling, no observer and no module: the colours are the sky's own CSS
-     variables, which 10-stage writes from the same palette the shader uses, so the zone and the frame's
-     edge row cannot drift apart. The menu, the pause screen and the loading curtain all paint that same
-     gradient, so the same two variables serve them.
-     ⚠️ `--edge-bot-rgb` is written ONLY during a combo fever (99-main), because the shader repaints the
-     frame's bottom rows then; at rest it does not exist and the fallback below is the sky's own stop.
-     ⚠️ The dark popups override BOTH cards through `html.dimmed` — a higher-specificity rule, so it wins
-     over the fever variable without `!important` and without an inline style. */
-  #edgeTop, #edgeBot { position:fixed; left:0; right:0; height:12px; z-index:2147483647;
-    pointer-events:none; }
-  #edgeTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
-  #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
-  html.dimmed #edgeTop, html.dimmed #edgeBot {
-    background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  /* ⚠️ `?edges=0` — the A/B switch for the cards themselves. With them gone WebKit finds no candidate at
-     an edge and lets the bar's glass show whatever is there; it is the cheapest way to see, on the device,
-     how much of the band is OUR colour and how much is the browser's own. Nothing in production reads it. */
-  html.noedges #edgeTop, html.noedges #edgeBot { display:none; }
-  /* ⚡ `?bleed=1` — THE OPT-IN TRIAL of «the content keeps going under the bottom bar» on the two SCROLLING
-     screens. Identical rules to batch 2026-09-06-a, which was reverted the same hour because his phone
-     showed the pause menu and the leaderboard painted on top of each other — a failure this Mac has never
-     reproduced (rendered in the bench at his exact geometry, the menu is pixel-identical inside the
-     viewport and simply continues below it). So it comes back OFF, behind a flag only he can set, until a
-     screenshot from the device says which of the two is true. ⛔ DEFAULT OFF, and it must not be turned on
-     by anything but the URL until that picture exists. */
-  html.bleed, html.bleed body { height:var(--doc-h, 100%); }
-  html.bleed #mainScreen, html.bleed #lbOverlay {
-    position:absolute; top:0; left:0; right:0; bottom:auto; height:var(--doc-h, 100%); }
-  /* ⚠️⚠️ THE GRADIENT STAYS ANCHORED TO THE VIEWPORT, AND THIS LINE IS THE WHOLE REASON THE TRIAL IS
-     ALLOWED TO EXIST — «дизайн менять нельзя». A backdrop that simply grows to 874 stretches its gradient
-     over the taller box, and every pixel of the menu's sky shifts: MEASURED on a pixel diff of the two
-     builds, 45 % of the viewport differs, max channel delta 39, and — the important half — ZERO pixels
-     differ by more than 48, i.e. nothing MOVED, only the tone. Pinning the gradient's size to `--vp-h`
-     makes rows 0..654 byte-identical to today and leaves the strip below it in the layer's own
-     `background-color`, the sky's nadir, which is exactly what that zone should be. */
-  html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
-    position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
-  html.bleed.underbar #edgeBot { display:none; }
-  /* ⚡⚡ `?flow=1` — THE TRIAL THAT ACTUALLY ANSWERS «the content is cut at the top AND at the bottom»
-     (his word 2026-09-06 with four screenshots). The cause is not colour and not the zones: the pause
-     menu and the leaderboard are scrollers INSIDE a box exactly one viewport tall, and an inner scroller
-     clips its content at its own frame. That frame is the wall he sees at both ends, and no tint can move
-     it. Under this trial those two screens scroll as the PAGE, so their rows pass under the island above
-     and under the address bar below — Safari draws a root scroller's content into both obscured insets,
-     which is why every ordinary web page behaves that way.
-     RENDERED BEFORE IT WAS WRITTEN (`scratchpad/screenshot-band.js`, his exact geometry): the
-     leaderboard's row 5 continues up under the island and rows 18-19 down under the bar; the menu's
-     cards do the same in both directions; the design inside the viewport is untouched.
-     THE FOUR RULES, and each is load-bearing:
-       1. the page scrolls, not the box;
-       2. the sky becomes the DOCUMENT's background with `background-attachment:fixed`, so it looks
-          exactly as it does today while belonging to no fixed ELEMENT — and `background-size` keeps it
-          anchored to the viewport, or the gradient stretches and the whole design shifts in tone (a
-          pixel diff caught that on the previous attempt: 45 % of the viewport, nothing moved);
-       3. the screen itself flows and its own fixed backdrop switches off;
-       4. nothing of ours is left at a screen edge — a fixed box there is the candidate WebKit paints a
-          flat colour from, and that colour is exactly what covers the glass.
-     ⚠️ `visibility:hidden` and not `display:none` on the canvas: hidden is skipped by the hit test, so it
-     is not a candidate, while the canvas keeps its size and its WebGL context.
-     ⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens painted over
-     each other, a failure this Mac has never reproduced. It goes on when a screenshot from the device
-     says it is right, and not before. */
-  html.flowscroll, html.flowscroll body { height:auto; overflow:visible; touch-action:auto; }
-  html.flowscroll body {
-    background-image:var(--sky-grad);
-    background-attachment:fixed;
-    background-size:100% var(--vp-h, 100%);
-    background-repeat:no-repeat;
-    background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
-  html.flowscroll #mainScreen, html.flowscroll #lbOverlay {
-    position:relative; top:auto; left:auto; right:auto; bottom:auto; height:auto; min-height:100%;
-    overflow:visible; }
-  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
-  html.flowscroll #lbOverlay::before { display:none; }
-  html.flowscroll.dimmed body { background-image:none; background-color:rgb(10,14,22); }
-  html.flowscroll #c, html.flowscroll #topBar, html.flowscroll #bottomBar, html.flowscroll #face,
-  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4089,7 +3975,7 @@
       background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
       transform:translateX(-160%) skewX(-16deg); pointer-events:none;
       animation:msGlint 4.5s ease-in-out infinite; }
-    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px) + var(--bot-inset, 0px)); }
+    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px)); }
   }
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }
@@ -4233,11 +4119,6 @@
 </style>
 </head>
 <body>
-<!-- THE TWO EDGE CARDS (2026-09-06): the candidates WebKit's colour extension reads at each screen edge,
-     so the iOS 26 chrome zones carry exactly the colour of the row they cover. First children of body so
-     they are present in the very first painted frame; the CSS and the measurement are at the `body` rule. -->
-<div id="edgeTop" aria-hidden="true"></div>
-<div id="edgeBot" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white
@@ -7276,7 +7157,7 @@ function applyPerfTier(tier){
   CFG.perfTier = 'low';
   CFG.fxScale = PERF_LOW_FX;
   renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
-  try { const el = renderer.domElement;   // the canvas's CSS size = the layout viewport (shell.html `#c`)
+  try { const el = renderer.domElement;   // the canvas CSS size — 100lvh on iOS, see shell.html
     renderer.setSize(el.clientWidth || innerWidth, el.clientHeight || innerHeight, false); } catch(e){}
   try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
   return true;
@@ -8059,25 +7940,12 @@ const skyGradCSS = 'linear-gradient(180deg,' +
 // invisible to the eye, but the tint is taken correctly. The top and the bottom are different, because
 // the sky is a gradient.
 const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
-// ⚠️ THE FRAME'S BOTTOM ROW IN NUMBERS, kept beside the CSS variable because the iOS 26 chrome zone
-// must equal it (shell.html, `#edgeBot`) and the combo fever repaints it every chain reaction.
-let edgeSkyBot = [204, 255, 248];
 try {
   const d = document.documentElement.style;
   d.setProperty('--sky-grad', skyGradCSS);
   d.setProperty('--sky-top-rgb', rgbTriple(skyRGB[0]));
   d.setProperty('--sky-bot-rgb', rgbTriple(skyRGB[skyRGB.length - 1]));
-  edgeSkyBot = skyRGB[skyRGB.length - 1].map(c => Math.round(c * 255));
 } catch(e){}
-// The colour of the frame's BOTTOM ROW at this fever level, as an "r, g, b" triple. The shader is
-// `mix(sky, FEVER, uCombo * (1 - smoothstep(0, FEVER_SPAN, sy)) * FEVER_MAX)`, and at the bottom row
-// sy = 0, so the admixture there is exactly `uCombo * FEVER_MAX` — no approximation.
-function edgeBottomTriple(uCombo){
-  const k = Math.max(0, Math.min(1, uCombo)) * FEVER_MAX;
-  if (k <= 0.005) return null;                       // no fever: the CSS variable is removed, the rule falls back
-  const f = feverColorNow();                         // 0..1 floats, day/night by the same clock as the sky
-  return [0, 1, 2].map(i => Math.round(edgeSkyBot[i] * (1 - k) + f['xyz'[i]] * 255 * k)).join(', ');
-}
 
 // The sky. A ShaderMaterial bypasses
 // the renderer's tone mapping and sRGB conversion, so the colours are given AS THEY ARE
@@ -19870,30 +19738,9 @@ function hideMultToast(){
     if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
   } catch(e){}
 }
-// ⚠️ THE SEVEN DARK OVERLAYS (`#pauseOverlay` is the eighth `.overlay` and is NOT one of them — it
-// paints the sky's own gradient, so body's default colour is already right for its zones).
-// `html.dimmed` gives the iOS 26 chrome zones the popup's colour instead of the sky's zenith; the
-// rule and the whole mechanism are written at the `body` declaration in shell.html.
-// ⚠️ THE STATE IS READ, NOT COUNTED: `#newObj` is toggled by a CLASS and never passes through
-// show()/hide(), so a counter would drift. This asks the DOM.
-const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
-function refreshDimmed(){
-  try {
-    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
-    document.documentElement.classList.toggle('dimmed', DIM_OVERLAYS.some(vis));
-    // ⚡ `underbar` matters only while the `?bleed=1` trial is on: there the two SCROLLING screens lay
-    // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
-    // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
-    document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
-    // ⚡ the `?flow=1` trial: the same two screens, and the class is what turns the page into the
-    // scroller. `flowSet` is a no-op unless the flag is on, and it resets the page's scroll on the way out.
-    if (typeof flowSet === 'function') flowSet(vis('mainScreen') || vis('lbOverlay'));
-  } catch(e){}
-}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
-  refreshDimmed();
   // edges: any full-screen fade darkens the strips (5th edition)
   hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
@@ -19902,7 +19749,6 @@ function show(id){
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
-  refreshDimmed();
   // back in the game — the screen is 'game' again (if the run is alive)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -22442,7 +22288,6 @@ function openMainScreen(){
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
-  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
 // function, and not a line in two places: a copy of a flag next to a working quantity
@@ -22474,7 +22319,6 @@ function closeMainScreen(){
   // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
-  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
 // on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.
@@ -22872,7 +22716,6 @@ function newObjDragWire(host){
 function newObjHide(){
   const box = $('newObj');
   if (box){ box.classList.remove('on'); box.setAttribute('aria-hidden', 'true'); }
-  refreshDimmed();
   try { thumbSpinStop(); } catch (e) {}
   const d = newObjDone; newObjDone = null;
   if (d) d();
@@ -23896,12 +23739,7 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
-  // ⚠️ THE HANDLER IS NAMED AND BOUND TWICE (2026-09-06): its thresholds are
-  // `getBoundingClientRect`, i.e. viewport-relative, so they are right whichever box actually
-  // scrolled — but the EVENT only fires on the box that did. Under the `?flow=1` trial the PAGE is the
-  // scroller, so without the window binding the floating header never appears and the Play button never
-  // pops up. Bound to both, at most one of them ever fires in a given mode.
-  const onMenuScroll = () => {
+  ms.addEventListener('scroll', () => {
     // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
     // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
     // The threshold is the BOTTOM edge of the title: while it is visible even partly,
@@ -23917,9 +23755,7 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
     // 78px). There is no stickiness any more — the header travels with the flow, it does
     // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
-  };
-  ms.addEventListener('scroll', onMenuScroll, { passive: true });
-  addEventListener('scroll', onMenuScroll, { passive: true });
+  }, { passive: true });
 })();
 // the debug panel — from the menu (previously the entrance was in the pause card)
 // THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The
@@ -24283,52 +24119,6 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
-// ⚡ THE TRIAL OF «CONTENT UNDER THE BOTTOM BAR», OPT-IN ONLY (`?bleed=1`). The inset is the only reading
-// available — `env(safe-area-inset-bottom)` is 0 on his phone, because the 220 pt of chrome is an OBSCURED
-// CONTENT INSET and not a safe area — so it is `screen.height - innerHeight`.
-// ⚠️ ITS KNOWN WEAKNESS, NAMED RATHER THAN HIDDEN: Safari's bars collapse on scroll, which moves
-// innerHeight by ~100, so this number is a snapshot. It is taken at load and on rotation and deliberately
-// NOT on a viewport resize — re-anchoring mid-scroll would resize the menu under his finger. If the trial
-// is adopted, that is the first thing to revisit.
-// ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
-// two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
-// not another guess.
-let bleedOn = false, flowOn = false;
-try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
-// ⚡ `?flow=1` — the two list screens scroll as the PAGE (see the `html.flowscroll` rules in shell.html).
-// ⛔ Opt-in only, and it must stay that way until a screenshot from his phone says the screens are right.
-try { flowOn = /[?&]flow=1/.test(location.search); } catch(e){}
-// The trial needs the viewport's own height for the background anchor — without it the sky's gradient
-// would stretch over the whole document and every pixel of the design would shift in tone.
-function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
-if (flowOn){ flowVars(); try { addEventListener('orientationchange', () => setTimeout(flowVars, 250)); } catch(e){} }
-// ⚠️ THE PAGE'S SCROLL IS RESET WHEN A LIST SCREEN CLOSES. In the trial the document really scrolls, and
-// leaving it scrolled would put the game's fixed HUD over a page offset by hundreds of pixels.
-function flowSet(on){
-  if (!flowOn) return;
-  const d = document.documentElement;
-  if (d.classList.contains('flowscroll') === !!on) return;
-  d.classList.toggle('flowscroll', !!on);
-  try { scrollTo(0, 0); } catch(e){}
-}
-try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
-function applyBleed(forced){
-  try {
-    const d = document.documentElement, ds = d.style;
-    if (!bleedOn && forced == null){ d.classList.remove('bleed'); ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); return; }
-    const solo = window.top === window.self;
-    const ios = /iP(hone|od|ad)/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
-    const inset = forced != null && forced > 0 ? forced
-      : (solo && ios ? Math.max(0, Math.min(320, (screen.height || 0) - innerHeight)) : 0);
-    const on = inset > 24;
-    d.classList.toggle('bleed', on);
-    if (on){ ds.setProperty('--bot-inset', inset + 'px'); ds.setProperty('--doc-h', (innerHeight + inset) + 'px');
-      ds.setProperty('--vp-h', innerHeight + 'px'); }
-    else { ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); }
-  } catch(e){}
-}
-try { addEventListener('orientationchange', () => setTimeout(() => applyBleed(), 250)); } catch(e){}
-let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
 // the physics step separately — from such a pair you cannot say who eats the frame:
@@ -24709,14 +24499,11 @@ function sleepPhysics(src){
 // theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
-applyBleed();   // the opt-in bleed trial (?bleed=1) — before the first layout read
 function resize(){
-  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
-  // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
-  // It does not — `#c` is `position:fixed; inset:0; height:100%` of the LAYOUT viewport, and a
-  // fixed box is clipped there. Reading clientHeight stays right anyway (it is what the buffer must
-  // match, and everywhere it equals innerHeight), and it is the line that keeps working unchanged
-  // if the canvas ever does grow past the viewport.
+  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight (2026-08-30): on iOS the canvas is 100lvh — taller
+  // than the layout viewport — so it extends under Safari's floating address bar. A buffer
+  // sized to innerHeight would be STRETCHED over that height. Everywhere else
+  // clientHeight === innerHeight and this line is byte-equivalent to the old one.
   const el = renderer.domElement;
   const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
@@ -25117,17 +24904,6 @@ function loop(){
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
-    // ⚠️ THE BOTTOM CHROME ZONE FOLLOWS THE FEVER (iOS 26; the mechanism is at the `body` rule in
-    // shell.html). Without this the zone keeps the calm mint while the frame's bottom rows go green —
-    // a 159 pt mismatch on his phone for the whole chain reaction. ⚠️ ONE CUSTOM PROPERTY WITH ONE
-    // CONSUMER (`#edgeBot`), written only when the value MOVES, and removed at zero so the plain rule
-    // takes over again — the loop pays nothing in the common case (uCombo stays 0).
-    const uc = skyMat.uniforms.uCombo.value;
-    if (Math.abs(uc - edgeFeverLast) > 0.02 || (uc === 0 && edgeFeverLast !== 0)){
-      edgeFeverLast = uc;
-      try { const t = edgeBottomTriple(uc), ds = document.documentElement.style;
-        if (t) ds.setProperty('--edge-bot-rgb', t); else ds.removeProperty('--edge-bot-rgb'); } catch(e){}
-    }
   }
   // ticks on the real clock (not on dt): at a low FPS the deadlock/mixer detection
   // does not stretch. AT CALM accessibility is not recomputed at all —
@@ -25418,26 +25194,6 @@ window.__game = {
   // the flight fall cap (2026-09-05): the cap in force now, and the fastest downward item — the
   // property itself, read after the step (the cap is applied after world.step, so a sample is ≤ cap)
   fallCapNow(){ return currentFallCap(); },
-  // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
-  // suite's census can prove a popup added later was not forgotten
-  dimList(){ return DIM_OVERLAYS.slice(); },
-  // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
-  // fire there and the branch would go untested
-  // the flow trial, forced: the URL flag cannot be set from inside a suite page that is already loaded
-  setFlow(on){ flowOn = true; flowVars(); flowSet(!!on);
-    return { on: document.documentElement.classList.contains('flowscroll'),
-             vp: document.documentElement.style.getPropertyValue('--vp-h'),
-             docH: document.documentElement.scrollHeight, scrollY }; },
-  flowState(){ return { flag: flowOn, on: document.documentElement.classList.contains('flowscroll') }; },
-  setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
-    inset: document.documentElement.style.getPropertyValue('--bot-inset'),
-    on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },
-  // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
-  // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
-  // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
-  // The tween decays it back on its own — nothing to clean up.
-  edgeTriple(uc){ return edgeBottomTriple(uc == null ? (skyMat ? skyMat.uniforms.uCombo.value : 0) : +uc); },
-  edgeFever(uc){ try { skyMat.uniforms.uCombo.value = Math.max(0, Math.min(1, +uc || 0)); } catch(e){} },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   availablePairs,
   autoMatch(){

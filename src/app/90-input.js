@@ -554,12 +554,7 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
-  // ⚠️ THE HANDLER IS NAMED AND BOUND TWICE (2026-09-06): its thresholds are
-  // `getBoundingClientRect`, i.e. viewport-relative, so they are right whichever box actually
-  // scrolled — but the EVENT only fires on the box that did. Under the `?flow=1` trial the PAGE is the
-  // scroller, so without the window binding the floating header never appears and the Play button never
-  // pops up. Bound to both, at most one of them ever fires in a given mode.
-  const onMenuScroll = () => {
+  ms.addEventListener('scroll', () => {
     // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
     // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
     // The threshold is the BOTTOM edge of the title: while it is visible even partly,
@@ -575,9 +570,7 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
     // 78px). There is no stickiness any more — the header travels with the flow, it does
     // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
-  };
-  ms.addEventListener('scroll', onMenuScroll, { passive: true });
-  addEventListener('scroll', onMenuScroll, { passive: true });
+  }, { passive: true });
 })();
 // the debug panel — from the menu (previously the entrance was in the pause card)
 // THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The

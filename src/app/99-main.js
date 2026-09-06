@@ -20,52 +20,6 @@ let perfFrames = 0, perfWorstMs = 0;
 let _phStep = 0, _phSolve = 0, _phSync = 0, _phSub = 0, _phFx = 0, _phBuild = 0, _phTap = 0, _phUi = 0, _phRen = 0;
 let seriesNextTick = 0; // throttling of the alarm tick of the series window (tempo package)
 let slowmoUntil = 0;    // slow-mo of the bowl shatter (v2 prototype): dt is multiplied by K
-// ⚡ THE TRIAL OF «CONTENT UNDER THE BOTTOM BAR», OPT-IN ONLY (`?bleed=1`). The inset is the only reading
-// available — `env(safe-area-inset-bottom)` is 0 on his phone, because the 220 pt of chrome is an OBSCURED
-// CONTENT INSET and not a safe area — so it is `screen.height - innerHeight`.
-// ⚠️ ITS KNOWN WEAKNESS, NAMED RATHER THAN HIDDEN: Safari's bars collapse on scroll, which moves
-// innerHeight by ~100, so this number is a snapshot. It is taken at load and on rotation and deliberately
-// NOT on a viewport resize — re-anchoring mid-scroll would resize the menu under his finger. If the trial
-// is adopted, that is the first thing to revisit.
-// ⛔ NOTHING TURNS THIS ON BUT THE URL. The same rules shipped enabled on 2026-09-06 and his phone showed
-// two screens painted over each other; this Mac has never reproduced it, so the next step is his picture,
-// not another guess.
-let bleedOn = false, flowOn = false;
-try { bleedOn = /[?&]bleed=1/.test(location.search); } catch(e){}
-// ⚡ `?flow=1` — the two list screens scroll as the PAGE (see the `html.flowscroll` rules in shell.html).
-// ⛔ Opt-in only, and it must stay that way until a screenshot from his phone says the screens are right.
-try { flowOn = /[?&]flow=1/.test(location.search); } catch(e){}
-// The trial needs the viewport's own height for the background anchor — without it the sky's gradient
-// would stretch over the whole document and every pixel of the design would shift in tone.
-function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
-if (flowOn){ flowVars(); try { addEventListener('orientationchange', () => setTimeout(flowVars, 250)); } catch(e){} }
-// ⚠️ THE PAGE'S SCROLL IS RESET WHEN A LIST SCREEN CLOSES. In the trial the document really scrolls, and
-// leaving it scrolled would put the game's fixed HUD over a page offset by hundreds of pixels.
-function flowSet(on){
-  if (!flowOn) return;
-  const d = document.documentElement;
-  if (d.classList.contains('flowscroll') === !!on) return;
-  d.classList.toggle('flowscroll', !!on);
-  try { scrollTo(0, 0); } catch(e){}
-}
-try { if (/[?&]edges=0/.test(location.search)) document.documentElement.classList.add('noedges'); } catch(e){}
-function applyBleed(forced){
-  try {
-    const d = document.documentElement, ds = d.style;
-    if (!bleedOn && forced == null){ d.classList.remove('bleed'); ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); return; }
-    const solo = window.top === window.self;
-    const ios = /iP(hone|od|ad)/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
-    const inset = forced != null && forced > 0 ? forced
-      : (solo && ios ? Math.max(0, Math.min(320, (screen.height || 0) - innerHeight)) : 0);
-    const on = inset > 24;
-    d.classList.toggle('bleed', on);
-    if (on){ ds.setProperty('--bot-inset', inset + 'px'); ds.setProperty('--doc-h', (innerHeight + inset) + 'px');
-      ds.setProperty('--vp-h', innerHeight + 'px'); }
-    else { ds.removeProperty('--bot-inset'); ds.removeProperty('--doc-h'); ds.removeProperty('--vp-h'); }
-  } catch(e){}
-}
-try { addEventListener('orientationchange', () => setTimeout(() => applyBleed(), 250)); } catch(e){}
-let edgeFeverLast = 0;  // the last fever level pushed into the bottom chrome zone (see the loop)
 // ⚠️ FRAME BREAKDOWN BY SUBSYSTEM (2026-07-31, the owner's task «the game
 // lags a bit on mobile»). The former perf meter gave the frame as ONE LUMP and
 // the physics step separately — from such a pair you cannot say who eats the frame:
@@ -446,14 +400,11 @@ function sleepPhysics(src){
 // theme) was removed too. The current 4th one is BLACK ALWAYS, statically, see shell.html.
 // The formula was honest (measurement: 50/39/36/30 by screen share) — it was not the solution
 // that turned out crooked, it was the very idea «the view as a card» that the owner rejected.
-applyBleed();   // the opt-in bleed trial (?bleed=1) — before the first layout read
 function resize(){
-  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight. ⛔ THE OLD REASON WAS DELETED WITH THE EIGHTH EDITION
-  // (2026-09-05): it claimed the canvas is 100lvh on iOS and bleeds under Safari's address bar.
-  // It does not — `#c` is `position:fixed; inset:0; height:100%` of the LAYOUT viewport, and a
-  // fixed box is clipped there. Reading clientHeight stays right anyway (it is what the buffer must
-  // match, and everywhere it equals innerHeight), and it is the line that keeps working unchanged
-  // if the canvas ever does grow past the viewport.
+  // ⚠️ THE CANVAS CSS SIZE, NOT innerHeight (2026-08-30): on iOS the canvas is 100lvh — taller
+  // than the layout viewport — so it extends under Safari's floating address bar. A buffer
+  // sized to innerHeight would be STRETCHED over that height. Everywhere else
+  // clientHeight === innerHeight and this line is byte-equivalent to the old one.
   const el = renderer.domElement;
   const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
@@ -854,17 +805,6 @@ function loop(){
     const target = chainUntil ? 1 : (comboUntil > now ? 0.3 + 0.5 * Math.min(1, comboCount / chainComboAt()) : 0);
     const cur = skyMat.uniforms.uCombo.value, stepK = dt / 0.35;
     skyMat.uniforms.uCombo.value = cur < target ? Math.min(target, cur + stepK) : Math.max(target, cur - stepK);
-    // ⚠️ THE BOTTOM CHROME ZONE FOLLOWS THE FEVER (iOS 26; the mechanism is at the `body` rule in
-    // shell.html). Without this the zone keeps the calm mint while the frame's bottom rows go green —
-    // a 159 pt mismatch on his phone for the whole chain reaction. ⚠️ ONE CUSTOM PROPERTY WITH ONE
-    // CONSUMER (`#edgeBot`), written only when the value MOVES, and removed at zero so the plain rule
-    // takes over again — the loop pays nothing in the common case (uCombo stays 0).
-    const uc = skyMat.uniforms.uCombo.value;
-    if (Math.abs(uc - edgeFeverLast) > 0.02 || (uc === 0 && edgeFeverLast !== 0)){
-      edgeFeverLast = uc;
-      try { const t = edgeBottomTriple(uc), ds = document.documentElement.style;
-        if (t) ds.setProperty('--edge-bot-rgb', t); else ds.removeProperty('--edge-bot-rgb'); } catch(e){}
-    }
   }
   // ticks on the real clock (not on dt): at a low FPS the deadlock/mixer detection
   // does not stretch. AT CALM accessibility is not recomputed at all —
@@ -1155,26 +1095,6 @@ window.__game = {
   // the flight fall cap (2026-09-05): the cap in force now, and the fastest downward item — the
   // property itself, read after the step (the cap is applied after world.step, so a sample is ≤ cap)
   fallCapNow(){ return currentFallCap(); },
-  // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
-  // suite's census can prove a popup added later was not forgotten
-  dimList(){ return DIM_OVERLAYS.slice(); },
-  // the bleed trial, forced: headless has screen.height === innerHeight, so the production gate can never
-  // fire there and the branch would go untested
-  // the flow trial, forced: the URL flag cannot be set from inside a suite page that is already loaded
-  setFlow(on){ flowOn = true; flowVars(); flowSet(!!on);
-    return { on: document.documentElement.classList.contains('flowscroll'),
-             vp: document.documentElement.style.getPropertyValue('--vp-h'),
-             docH: document.documentElement.scrollHeight, scrollY }; },
-  flowState(){ return { flag: flowOn, on: document.documentElement.classList.contains('flowscroll') }; },
-  setBleed(px){ applyBleed(+px || 0); return { doc: document.documentElement.style.getPropertyValue('--doc-h'),
-    inset: document.documentElement.style.getPropertyValue('--bot-inset'),
-    on: document.documentElement.classList.contains('bleed'), flag: bleedOn }; },
-  // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
-  // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
-  // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
-  // The tween decays it back on its own — nothing to clean up.
-  edgeTriple(uc){ return edgeBottomTriple(uc == null ? (skyMat ? skyMat.uniforms.uCombo.value : 0) : +uc); },
-  edgeFever(uc){ try { skyMat.uniforms.uCombo.value = Math.max(0, Math.min(1, +uc || 0)); } catch(e){} },
   maxFallSpeed(){ let m = 0; for (const it of items){ if (!it.alive || !it.body) continue; const v = it.body.linvel(); if (-v.y > m) m = -v.y; } return +m.toFixed(3); },
   availablePairs,
   autoMatch(){

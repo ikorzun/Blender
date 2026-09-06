@@ -63,30 +63,9 @@ function hideMultToast(){
     if (multTween){ cancelAnimationFrame(multTween); multTween = 0; }
   } catch(e){}
 }
-// ⚠️ THE SEVEN DARK OVERLAYS (`#pauseOverlay` is the eighth `.overlay` and is NOT one of them — it
-// paints the sky's own gradient, so body's default colour is already right for its zones).
-// `html.dimmed` gives the iOS 26 chrome zones the popup's colour instead of the sky's zenith; the
-// rule and the whole mechanism are written at the `body` declaration in shell.html.
-// ⚠️ THE STATE IS READ, NOT COUNTED: `#newObj` is toggled by a CLASS and never passes through
-// show()/hide(), so a counter would drift. This asks the DOM.
-const DIM_OVERLAYS = ['winOverlay', 'loseOverlay', 'museumOverlay', 'starsOverlay', 'lbOverlay', 'adOverlay', 'newObj'];
-function refreshDimmed(){
-  try {
-    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
-    document.documentElement.classList.toggle('dimmed', DIM_OVERLAYS.some(vis));
-    // ⚡ `underbar` matters only while the `?bleed=1` trial is on: there the two SCROLLING screens lay
-    // their own rows inside the bottom bar's zone, so the edge card must step aside — it is the fixed
-    // candidate whose flat colour WebKit would paint over them. Off the trial the class does nothing.
-    document.documentElement.classList.toggle('underbar', vis('mainScreen') || vis('lbOverlay'));
-    // ⚡ the `?flow=1` trial: the same two screens, and the class is what turns the page into the
-    // scroller. `flowSet` is a no-op unless the flag is on, and it resets the page's scroll on the way out.
-    if (typeof flowSet === 'function') flowSet(vis('mainScreen') || vis('lbOverlay'));
-  } catch(e){}
-}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
-  refreshDimmed();
   // edges: any full-screen fade darkens the strips (5th edition)
   hideMultToast();   // 2026-08-23-a — see the comment above hideMultToast
   if (SCREEN_OF[id]) Telemetry.screen.enter(SCREEN_OF[id]);
@@ -95,7 +74,6 @@ function show(id){
 function hide(id){
   const el = $(id);
   el.style.display = 'none';
-  refreshDimmed();
   // back in the game — the screen is 'game' again (if the run is alive)
   if (SCREEN_OF[id]) Telemetry.screen.enter(typeof level !== 'undefined' && level && !level.over ? 'game' : 'menu');
   if (id === 'winOverlay'){ winStopScore(); }
@@ -2635,7 +2613,6 @@ function openMainScreen(){
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
-  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
 // function, and not a line in two places: a copy of a flag next to a working quantity
@@ -2667,7 +2644,6 @@ function closeMainScreen(){
   // the floating Resume — the «My collection» plate got through onto the game screen).
   const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   if (menuPaused){ menuPaused = false; resumeGame(); }
-  refreshDimmed();   // the menu drives `underbar` (see refreshDimmed)
 }
 // #8b THE LIVE EYES OF THE MENU (the owner's spec): on the desktop the pupils FOLLOW the cursor;
 // on touch — a looped soft «looking around» (there is no cursor). The pupil does not go outside the white.
@@ -3065,7 +3041,6 @@ function newObjDragWire(host){
 function newObjHide(){
   const box = $('newObj');
   if (box){ box.classList.remove('on'); box.setAttribute('aria-hidden', 'true'); }
-  refreshDimmed();
   try { thumbSpinStop(); } catch (e) {}
   const d = newObjDone; newObjDone = null;
   if (d) d();

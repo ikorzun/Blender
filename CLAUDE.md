@@ -15590,3 +15590,45 @@ redden — with the menu's own content on top at both sample points, the walk ne
 because a transparent gap in a future layout would reach it, and it is written down rather than claimed.
 ⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens over each other, a
 failure this Mac has never reproduced. It goes on when a screenshot from the device says it is right.
+
+## ⛔⛔ BATCH 2026-09-06-d: EVERY FIELD DECISION OF THESE TWO DAYS IS ROLLED OUT OF THE TREE (his word: «the leaderboard now has the Resume button under it and the scrolling is broken and everything is broken. We roll it all back and look at why and what the options are. Roll back all the screens and all your decisions to the moment we started dealing with the fields»)
+
+### WHAT IS GONE — ALL OF IT
+The edge cards `#edgeTop`/`#edgeBot`; the `html.dimmed` body colour and `refreshDimmed`/`DIM_OVERLAYS`;
+the `?bleed=1` trial (`applyBleed`, `--doc-h`/`--bot-inset`, the grown screens); the `?flow=1` trial
+(`flowscroll`, the page-scroller rules, `flowSet`/`flowVars`); `?edges=0`; the combo-fever write into
+`--edge-bot-rgb` and `edgeBottomTriple`/`edgeSkyBot`; the window binding on the menu's scroll handler; the
+probe page `tools/probe/chrome-probe.html`; and every field guard in `test.js`.
+✅ VERIFIED THE ONLY WAY THAT MEANS ANYTHING: `git diff 03fe157` — the commit before any field work —
+now shows, per file, ONLY the work he asked for and kept: the zoom glyphs at 24 in the Shake caption's
+ink, the pause glyph at 28, the menu's 8 px side insets, the segment's 12 on the right, the collection
+card's 2 px squeeze, the ×5 phone row, and the flight fall cap. `85-hud.js` and `90-input.js` are back to
+ZERO changed lines. Rendered afterwards at 402×654: no edge elements, everything `fixed` as before, the
+document exactly one viewport, the menu's inner scroll and its floating header working, and the Resume
+pill correctly hidden while the leaderboard is open.
+
+### ⛔⛔ AND THE MISTAKE I MADE TWICE WHILE DOING THIS ROLLBACK, WHICH IS WORTH MORE THAN THE ROLLBACK
+**A cut between two anchors that are far apart eats everything in between, and it does so silently
+because the result still parses.** First it swallowed `html, body`, `#c`, `.bar` and `#topBar` out of
+`shell.html`; then 350 lines of live instrumentation out of `99-main.js` (`fxRing`, `renRing`, the worst-
+frame snapshots). Both times `node --check` passed and the build succeeded — the only thing that caught it
+was the byte size of `index.html` being 95 KB SMALLER than the reference.
+✅ THE METHOD THAT WORKED, and it is the one to use from now on: remove by BOUNDED ranges, each range
+asserted to contain the field token AND asserted NOT to contain a known live symbol; then diff the whole
+file against the reference commit and read every remaining line. A removal is not verified by a parse.
+⚠️ AND THE CHEAP ALARM THAT CAUGHT BOTH: compare the built `index.html`'s size against the reference. A
+removal of a few CSS rules cannot move it by 95 KB.
+
+### WHY THE FIELDS DEFEATED FOUR ATTEMPTS — THE SHORT VERSION, FOR WHOEVER PICKS THIS UP
+1. THE ONLY LABORATORY IS HIS PHONE. There is no Xcode on this Mac, so no simulator; headless Chromium
+   has no chrome zones at all. Three of the four editions were designed against a mechanism nobody here
+   could observe, and the fourth (the flow trial) rendered CORRECTLY on the bench and still broke on his
+   device — twice, in ways this machine has never reproduced.
+2. THE MECHANISM IS REAL AND IS NOW KNOWN (batch -g): WebKit paints each obscured edge with a flat colour
+   taken from the nearest fixed/sticky box at a sample point, falling back to `body`'s colour; with no
+   candidate it leaves its glass over the page. That part is settled and measured on his own phone.
+3. WHAT IS NOT SETTLED is what happens to a REAL screen of this game on his device when its box stops
+   being fixed — and that is exactly where both attempts died.
+⛔ SO THE NEXT ATTEMPT, IF THERE IS ONE, MUST BEGIN WITH A REPRODUCTION ON THE DEVICE, not with a design:
+a page that is not the game, that he can open and screenshot, that isolates one change at a time. Anything
+else is a fifth guess.

@@ -47,7 +47,7 @@ function applyPerfTier(tier){
   CFG.perfTier = 'low';
   CFG.fxScale = PERF_LOW_FX;
   renderer.setPixelRatio(Math.min(devicePixelRatio||1, dprCap()));
-  try { const el = renderer.domElement;   // the canvas's CSS size = the layout viewport (shell.html `#c`)
+  try { const el = renderer.domElement;   // the canvas CSS size — 100lvh on iOS, see shell.html
     renderer.setSize(el.clientWidth || innerWidth, el.clientHeight || innerHeight, false); } catch(e){}
   try { Telemetry.ev('perf_low', { dpr: renderer.getPixelRatio() }); } catch(e){}
   return true;
@@ -830,25 +830,12 @@ const skyGradCSS = 'linear-gradient(180deg,' +
 // invisible to the eye, but the tint is taken correctly. The top and the bottom are different, because
 // the sky is a gradient.
 const rgbTriple = a => a.map(c => Math.round(c*255)).join(',');
-// ⚠️ THE FRAME'S BOTTOM ROW IN NUMBERS, kept beside the CSS variable because the iOS 26 chrome zone
-// must equal it (shell.html, `#edgeBot`) and the combo fever repaints it every chain reaction.
-let edgeSkyBot = [204, 255, 248];
 try {
   const d = document.documentElement.style;
   d.setProperty('--sky-grad', skyGradCSS);
   d.setProperty('--sky-top-rgb', rgbTriple(skyRGB[0]));
   d.setProperty('--sky-bot-rgb', rgbTriple(skyRGB[skyRGB.length - 1]));
-  edgeSkyBot = skyRGB[skyRGB.length - 1].map(c => Math.round(c * 255));
 } catch(e){}
-// The colour of the frame's BOTTOM ROW at this fever level, as an "r, g, b" triple. The shader is
-// `mix(sky, FEVER, uCombo * (1 - smoothstep(0, FEVER_SPAN, sy)) * FEVER_MAX)`, and at the bottom row
-// sy = 0, so the admixture there is exactly `uCombo * FEVER_MAX` — no approximation.
-function edgeBottomTriple(uCombo){
-  const k = Math.max(0, Math.min(1, uCombo)) * FEVER_MAX;
-  if (k <= 0.005) return null;                       // no fever: the CSS variable is removed, the rule falls back
-  const f = feverColorNow();                         // 0..1 floats, day/night by the same clock as the sky
-  return [0, 1, 2].map(i => Math.round(edgeSkyBot[i] * (1 - k) + f['xyz'[i]] * 255 * k)).join(', ');
-}
 
 // The sky. A ShaderMaterial bypasses
 // the renderer's tone mapping and sRGB conversion, so the colours are given AS THEY ARE

@@ -135,120 +135,6 @@
      2026-08-20 and the platform moved. The suite guard moved WITH the rule. */
   body { background-color:rgb(var(--sky-top-rgb, 133,220,255));
          background-image:var(--sky-grad, linear-gradient(180deg,#cee4fe,#bec7fe)); }
-  /* ⚠️⚠️ THE ONE COLOUR THAT REACHES THE iOS 26 CHROME ZONES, AND WHY IT IS ON `body`
-     (2026-09-05, read from the WebKit sources and confirmed against this game's own DOM).
-     `LocalFrameView::fixedContainerEdges()` hit-tests (innerWidth/2, 4) and (innerWidth/2,
-     innerHeight-4), walks up to the nearest `position:fixed`/`sticky` ancestor and, if that box
-     declares a resolved background-color thicker than 10 px and at least 0.9 of the viewport wide,
-     paints the whole zone with it through `WKColorExtensionView` — a UIView of ONE FLAT COLOUR
-     inserted ABOVE the web content. If the candidate declares nothing, `PageColorSampler` takes a
-     2 px snapshot with `ExcludeReplacedContentExceptForIFrames | ExcludeText |
-     FixedAndStickyLayersOnly` — which excludes our WebGL canvas (replaced content) AND all
-     normal-flow content — finds nothing, and WebKit falls back to `underPageBackgroundColor`, i.e.
-     THIS declaration. Measured on the real DOM: at both sample points the nearest fixed ancestor is
-     `#c` (transparent) on the game, `#starsOverlay` (transparent) on a popup, `#mainScreen`
-     (transparent) in the menu. So every zone on every screen is painted with body's colour.
-     ⛔⛔ ON A DARK POPUP THAT IS WRONG BY rgb(143,135,205) — the owner's 2026-09-03 complaint «on
-     the purchase screen the top background is not dark», never actually cured: `.overlay::before`
-     carries `backdrop-filter:blur(6px)`, which forces `PredominantColorType::Multiple`, so the
-     zones fall back here while the popup's own first row is ≈rgb(29,33,50). The rule below IS that
-     arithmetic — the 88% fill of `.overlay::before` composited over the zenith — so the zones match
-     the screen instead of framing it in violet. It is a colour, not content: content under the bars
-     is a separate, larger change gated on a measurement from his phone (canon 2026-09-05-g).
-     ⚠️ `html.dimmed` is toggled by `refreshDimmed()` (85-hud) for the seven DARK overlays only;
-     `#pauseOverlay` is excluded because its own first row is the sky's zenith already. */
-  html.dimmed body { background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  /* ⚡ THE TWO EDGE CARDS — MEASURED ON HIS PHONE, 2026-09-06 (the `?v=cards` probe: a 12 px fixed card
-     of pure RED at the top and pure BLUE at the bottom turned BOTH zones exactly those colours, over a
-     document that had real content underneath). That single frame proved three things at once: the
-     colour-extension channel is LIVE on his device, the two edges take INDEPENDENT colours, and the fill
-     PAINTS OVER in-flow content — so a taller document can never win the bottom zone while a fixed box
-     covers the sample point, which is exactly why the eighth edition failed.
-     Each card is the candidate WebKit finds at its edge: 12 px (over the 10 px `thinBorderWidth`), full
-     width (over the 0.9 `minimumRatio`), one opaque colour (over the 0.75 alpha bar), z-index max so it is
-     topmost at the hit-test, `pointer-events:none` (which WebKit ignores for this pass and the page needs).
-     Only 6 px of each lies inside the viewport, painted the SAME colour as the row it covers — invisible
-     by construction, on every screen.
-     ⛔⛔ THIS IS THE SEVENTH EDITION'S MECHANISM WITHOUT ITS MISTAKE. There the strips were driven by a
-     module that sampled the page and then HID them in the game and the menu — so on the two screens he
-     actually looks at, the zones fell back to body's zenith violet and he saw the field he reported. Here
-     there is no driver, no sampling, no observer and no module: the colours are the sky's own CSS
-     variables, which 10-stage writes from the same palette the shader uses, so the zone and the frame's
-     edge row cannot drift apart. The menu, the pause screen and the loading curtain all paint that same
-     gradient, so the same two variables serve them.
-     ⚠️ `--edge-bot-rgb` is written ONLY during a combo fever (99-main), because the shader repaints the
-     frame's bottom rows then; at rest it does not exist and the fallback below is the sky's own stop.
-     ⚠️ The dark popups override BOTH cards through `html.dimmed` — a higher-specificity rule, so it wins
-     over the fever variable without `!important` and without an inline style. */
-  #edgeTop, #edgeBot { position:fixed; left:0; right:0; height:12px; z-index:2147483647;
-    pointer-events:none; }
-  #edgeTop { top:-6px; background-color:rgb(var(--sky-top-rgb, 133,220,255)); }
-  #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
-  html.dimmed #edgeTop, html.dimmed #edgeBot {
-    background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
-  /* ⚠️ `?edges=0` — the A/B switch for the cards themselves. With them gone WebKit finds no candidate at
-     an edge and lets the bar's glass show whatever is there; it is the cheapest way to see, on the device,
-     how much of the band is OUR colour and how much is the browser's own. Nothing in production reads it. */
-  html.noedges #edgeTop, html.noedges #edgeBot { display:none; }
-  /* ⚡ `?bleed=1` — THE OPT-IN TRIAL of «the content keeps going under the bottom bar» on the two SCROLLING
-     screens. Identical rules to batch 2026-09-06-a, which was reverted the same hour because his phone
-     showed the pause menu and the leaderboard painted on top of each other — a failure this Mac has never
-     reproduced (rendered in the bench at his exact geometry, the menu is pixel-identical inside the
-     viewport and simply continues below it). So it comes back OFF, behind a flag only he can set, until a
-     screenshot from the device says which of the two is true. ⛔ DEFAULT OFF, and it must not be turned on
-     by anything but the URL until that picture exists. */
-  html.bleed, html.bleed body { height:var(--doc-h, 100%); }
-  html.bleed #mainScreen, html.bleed #lbOverlay {
-    position:absolute; top:0; left:0; right:0; bottom:auto; height:var(--doc-h, 100%); }
-  /* ⚠️⚠️ THE GRADIENT STAYS ANCHORED TO THE VIEWPORT, AND THIS LINE IS THE WHOLE REASON THE TRIAL IS
-     ALLOWED TO EXIST — «дизайн менять нельзя». A backdrop that simply grows to 874 stretches its gradient
-     over the taller box, and every pixel of the menu's sky shifts: MEASURED on a pixel diff of the two
-     builds, 45 % of the viewport differs, max channel delta 39, and — the important half — ZERO pixels
-     differ by more than 48, i.e. nothing MOVED, only the tone. Pinning the gradient's size to `--vp-h`
-     makes rows 0..654 byte-identical to today and leaves the strip below it in the layer's own
-     `background-color`, the sky's nadir, which is exactly what that zone should be. */
-  html.bleed #mainScreen::before, html.bleed #lbOverlay::before {
-    position:absolute; background-size:100% var(--vp-h, 100%); background-repeat:no-repeat; }
-  html.bleed.underbar #edgeBot { display:none; }
-  /* ⚡⚡ `?flow=1` — THE TRIAL THAT ACTUALLY ANSWERS «the content is cut at the top AND at the bottom»
-     (his word 2026-09-06 with four screenshots). The cause is not colour and not the zones: the pause
-     menu and the leaderboard are scrollers INSIDE a box exactly one viewport tall, and an inner scroller
-     clips its content at its own frame. That frame is the wall he sees at both ends, and no tint can move
-     it. Under this trial those two screens scroll as the PAGE, so their rows pass under the island above
-     and under the address bar below — Safari draws a root scroller's content into both obscured insets,
-     which is why every ordinary web page behaves that way.
-     RENDERED BEFORE IT WAS WRITTEN (`scratchpad/screenshot-band.js`, his exact geometry): the
-     leaderboard's row 5 continues up under the island and rows 18-19 down under the bar; the menu's
-     cards do the same in both directions; the design inside the viewport is untouched.
-     THE FOUR RULES, and each is load-bearing:
-       1. the page scrolls, not the box;
-       2. the sky becomes the DOCUMENT's background with `background-attachment:fixed`, so it looks
-          exactly as it does today while belonging to no fixed ELEMENT — and `background-size` keeps it
-          anchored to the viewport, or the gradient stretches and the whole design shifts in tone (a
-          pixel diff caught that on the previous attempt: 45 % of the viewport, nothing moved);
-       3. the screen itself flows and its own fixed backdrop switches off;
-       4. nothing of ours is left at a screen edge — a fixed box there is the candidate WebKit paints a
-          flat colour from, and that colour is exactly what covers the glass.
-     ⚠️ `visibility:hidden` and not `display:none` on the canvas: hidden is skipped by the hit test, so it
-     is not a candidate, while the canvas keeps its size and its WebGL context.
-     ⛔ DEFAULT OFF. The same shape shipped enabled once and his phone showed two screens painted over
-     each other, a failure this Mac has never reproduced. It goes on when a screenshot from the device
-     says it is right, and not before. */
-  html.flowscroll, html.flowscroll body { height:auto; overflow:visible; touch-action:auto; }
-  html.flowscroll body {
-    background-image:var(--sky-grad);
-    background-attachment:fixed;
-    background-size:100% var(--vp-h, 100%);
-    background-repeat:no-repeat;
-    background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
-  html.flowscroll #mainScreen, html.flowscroll #lbOverlay {
-    position:relative; top:auto; left:auto; right:auto; bottom:auto; height:auto; min-height:100%;
-    overflow:visible; }
-  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
-  html.flowscroll #lbOverlay::before { display:none; }
-  html.flowscroll.dimmed body { background-image:none; background-color:rgb(10,14,22); }
-  html.flowscroll #c, html.flowscroll #topBar, html.flowscroll #bottomBar, html.flowscroll #face,
-  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -4089,7 +3975,7 @@
       background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
       transform:translateX(-160%) skewX(-16deg); pointer-events:none;
       animation:msGlint 4.5s ease-in-out infinite; }
-    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px) + var(--bot-inset, 0px)); }
+    .ms-wrap { padding-bottom:calc(132px + env(safe-area-inset-bottom, 0px)); }
   }
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }
@@ -4233,11 +4119,6 @@
 </style>
 </head>
 <body>
-<!-- THE TWO EDGE CARDS (2026-09-06): the candidates WebKit's colour extension reads at each screen edge,
-     so the iOS 26 chrome zones carry exactly the colour of the row they cover. First children of body so
-     they are present in the very first painted frame; the CSS and the measurement are at the `body` rule. -->
-<div id="edgeTop" aria-hidden="true"></div>
-<div id="edgeBot" aria-hidden="true"></div>
 <div id="skyFill" aria-hidden="true"></div>
 <script>
   // The fill starts on the NEXT frame: first the browser shows white
