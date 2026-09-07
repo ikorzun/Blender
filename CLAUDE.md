@@ -16013,3 +16013,19 @@ arm; `flex:0 0 auto` on the eyes → the 700 arm alone (eyes 232 → 232 while t
 - ⚠️ THE QUESTION LEFT TO HIM: «the mobile version's eyes» could also mean the pause MENU's collapsed
   pill at this resolution; his screenshot shows the GAME screen, so the HUD was read. The menu's own
   card already shrinks to fit a short window since batch -d.
+
+## BATCH 2026-09-07-f: THE CROSS IS BACK ON THE ×5 SCREEN; THE LEADERBOARD'S CLOSE MOVES LEFT LIKE THE BOOST PAGE'S (his two words, each with the button selected on his phone: «change to the cross icon» on the ×5 screen's arrow; «shift it left, like on the boost page» on the leaderboard's cross)
+
+- ⛔ THE BACK ARROW OF BATCH -b LIVED ONE BATCH. He saw it on the device and asked for the cross; the
+  LEFT placement of -b stands. The second svg and the swap rules are gone — one cross again, the same
+  markup as before -b — and `Interface/back.svg` stays in the folder untouched. The STCLOSE arms
+  moved with the word: ONE svg, viewBox 32, a square 15.1×15.1 ink on every size; the left and the
+  white/black arms unchanged. Dry run **19 green**.
+- THE LEADERBOARD'S CLOSE: `#lbOverlay .st-close` is `align-self:flex-start; margin-left:16px` on the
+  phone — the same 16 the ×5 screen's close has (its wrap's inset). ⛔ CANCELS «on mobile in the
+  centre above the heading» (his word 2026-08-10); still sticky, still above the heading, only the
+  horizontal moved. The desktop keeps its own 24 (the ≥1080 rule, untouched). The LB guard's arm (3)
+  moved from «centred» to «left at 16, above the title»; a standalone read of the built page gives
+  phone `left 16, above the title 16, sticky`, desktop `left 24`; the rule reverted to `center` gives
+  `left 167` on the phone and the same 24 on the desktop — the arm discriminates.
+- **Run 23** on this build: **1007 green, 0 red, SUITE: PASS**. Pushed to `v2`; `main` on his word.

@@ -2386,8 +2386,8 @@
   .lb-head { display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; }
   .lb-title { color:#fff; font-weight:900; font-size:36px; line-height:1.2; }
   .lb-sub { color:rgba(255,255,255,.8); font-weight:700; font-size:18px; line-height:1.17; }
-  /* ⚠️⚠️ THE CROSS: ON MOBILE IT IS IN THE CENTRE ABOVE THE HEADING (the owner's word
-     2026-08-10), on desktop on the left. The rule IS TIED TO `#lbOverlay`, and not
+  /* ⚠️⚠️ THE CROSS: ⛔ «on mobile in the centre above the heading» (the owner's word 2026-08-10) is
+     CANCELLED by his word of 2026-09-07-f (left, like the boost page — see the rule below); on desktop on the left. The rule IS TIED TO `#lbOverlay`, and not
      to `.st-close`: this class is shared with the «More» screen (that is intended — the style
      of the popups is one), and an edit of the class itself would have moved the cross there too.
      ⛔ The former `.lb-close` IS DELETED: the markup has long worn `iconBtn st-close`, and
@@ -2407,8 +2407,12 @@
      ⚠️ The negative bottom inset kills the space the button now occupies
      in the flow: at the top of the card 88px is already reserved for it, and without this
      the list would have driven down by exactly the height of the button. */
+  /* ⛔ «ON MOBILE IN THE CENTRE ABOVE THE HEADING» (2026-08-10) IS CANCELLED 2026-09-07-f — his word
+     with the cross selected on the phone: «shift it left, like on the boost page». The same 16 as the
+     ×5 screen's close (the wrap's inset there); the desktop keeps its own 24 (the ≥1080 rule below).
+     Still sticky, still above the heading — only the horizontal moved. */
   #lbOverlay .st-close { position:sticky;
-    top:calc(16px + env(safe-area-inset-top, 0px)); align-self:center;
+    top:calc(16px + env(safe-area-inset-top, 0px)); align-self:flex-start; margin-left:16px;
     flex:none; margin-bottom:-56px; z-index:3; }
   /* ⚠️⚠️ DESKTOP IS ON THE LEFT, AND THIS HAD TO BE FIXED SEPARATELY. The rule above hangs on
      `#lbOverlay` (weight 1,1,0) and overrode the common `.st-close { left:16px }` from
@@ -3803,19 +3807,14 @@
      top». The 2026-09-03 mock-ups draw the same white 56 circle («Pause-dark»). */
   .st-close { align-self:flex-start; flex:none; background:#fff; }
   .st-close svg path { fill:#000; }
-  /* THE PHONE'S CLOSE IS ON THE LEFT AND DRAWS THE BACK ARROW (the owner's word 2026-09-07, with
-     the cross selected on the page: «the close button on mobile on the LEFT, as on the desktop;
-     swap the cross for an arrow on mobile» — his asset Interface/back.svg, 28×28, inlined as-is
-     with its fill="black" attribute dropped so the rule above stays the single source of the
-     glyph's colour). ⛔ CANCELS the mock-up's CENTRED «Pause-dark» cross (937:1533) for the phone;
-     the desktop keeps the cross at the screen's top-left (the ≥560 block swaps the two SVGs —
-     the same device as the two title variants). The button stays in the flow on the phone (the
-     sheet scrolls on short screens) at the wrap's own 16px inset = the desktop's 16. The arrow
-     is drawn at its own 28 (the pause glyph's size), not stretched to the cross's 32.
-     ⚠️ Class-scoped on purpose: #lbClose shares .st-close but its svg carries no class — the
-     leaderboard keeps its cross. */
-  .st-close .st-ic-x { display:none; }
-  .st-close .st-ic-back { width:28px; height:28px; }
+  /* THE PHONE'S CLOSE IS ON THE LEFT (the owner's word 2026-09-07-b, with the cross selected: «the
+     close button on mobile on the LEFT, as on the desktop») — in the flow (the sheet scrolls on short
+     screens) at the wrap's own 16px inset = the desktop's fixed `left:16`. ⛔ CANCELS the mock-up's
+     CENTRED cross (937:1533) for the phone.
+     ⛔ THE BACK ARROW LIVED ONE BATCH (-b → -f, the same day): the same word asked for his
+     Interface/back.svg instead of the cross on the phone; he saw it on the device and asked for the
+     cross back («change to the cross icon»). One svg again, no swap rules; the asset stays in
+     Interface/ untouched. */
   /* THE CONTENT BLOCK (the owner's word 2026-09-04, second note): the DESKTOP row wherever it
      fits, the mobile column only where it does not; under 400px the block is 90% of the width.
      The mock-up's desktop block is 510 + the wrap's 16+16 insets = 542, so the desktop layout
@@ -3963,8 +3962,6 @@
        the env() term keeps it below the notch/island in landscape on the native wrapper */
     .st-close { position:fixed; top:calc(16px + env(safe-area-inset-top, 0px));
       left:16px; align-self:auto; }
-    .st-close .st-ic-x { display:block; }
-    .st-close .st-ic-back { display:none; }
   }
   /* THE EYES ON THE PLAY CARD — LARGER AND HIGHER (the owner's markup 2026-07-28:
      the whites almost across the whole width of the card with small insets, the block in the UPPER
@@ -4817,10 +4814,8 @@
      bytes the HUD buttons carry — inline, because the build must open as one file offline. -->
 <div class="overlay" id="starsOverlay">
   <div class="st-wrap">
-    <button class="iconBtn st-close" id="starsClose" aria-label="Close"><svg class="st-ic-x" viewBox="0 0 32 32" fill="none">
+    <button class="iconBtn st-close" id="starsClose" aria-label="Close"><svg viewBox="0 0 32 32" fill="none">
       <path d="M8.94 8.94a1.667 1.667 0 0 1 2.357 0L16 13.643l4.703-4.703a1.667 1.667 0 1 1 2.357 2.357L18.357 16l4.703 4.703a1.667 1.667 0 1 1-2.357 2.357L16 18.357l-4.703 4.703a1.667 1.667 0 0 1-2.357-2.357L13.643 16 8.94 11.297a1.667 1.667 0 0 1 0-2.357Z"/>
-    </svg><svg class="st-ic-back" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <path d="M22.965 12.3288L7.09685 12.3288L10.6883 8.59835C11.3 7.96306 11.3 6.93134 10.6883 6.29605C10.0767 5.66076 9.08341 5.66076 8.47179 6.29605L2.20872 12.8014C1.59709 13.4367 1.59709 14.4684 2.20872 15.1037L8.47179 21.6091C9.08341 22.2444 10.0767 22.2444 10.6883 21.6091C11.3 20.9738 11.3 19.9421 10.6883 19.3068L7.09685 15.5815H22.965C25.0117 15.5815 25.0117 12.3288 22.965 12.3288Z"/>
     </svg></button>
     <div class="st-block">
       <!-- the title: two SVGs, one shown by the media query (desktop one line at 117, mobile two

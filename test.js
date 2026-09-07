@@ -5554,21 +5554,19 @@ window.bridge = {
          Math.abs(phoneRow.d1280.gap - 20) <= 0.5 && phoneRow.d1280.sameRow,
     'DESKTOP ROW 1280: the labels are back, the pill keeps its 20 on the right (2026-09-04), the gap is 20 (' +
     JSON.stringify({ labs: phoneRow.d1280.labs, chips: phoneRow.d1280.chips, gap: phoneRow.d1280.gap }) + ')');
-  // THE CLOSE BUTTON (the owner's word 2026-09-07, with the cross selected): on the phone it stands
-  // on the LEFT, as on the desktop, and draws the BACK ARROW (his Interface/back.svg, 28×28); the
-  // desktop keeps the cross, fixed at the screen's top-left. ⚠️ Sabotages, each dropping its own arm:
-  // `.st-ic-x { display:none }` removed → «the arrow alone» (both svgs visible); `align-self` back to
-  // center → «at the LEFT»; the arrow's path swapped for the cross's → «the ink is the arrow».
+  // THE CLOSE BUTTON (the owner's word 2026-09-07-b, with the cross selected): on the phone it stands
+  // on the LEFT, as on the desktop. ⛔ THE BACK ARROW OF -b LIVED ONE BATCH — his word of -f, on the
+  // device: «change to the cross icon» — so the glyph is ONE cross on every size (the ink is square,
+  // 15.1×15.1 of 32: getBBox gives tight bounds and the round caps reach past 8.94..23.06).
+  // ⚠️ Sabotages, each dropping its own arm: a second svg in the button → «one cross»; `align-self`
+  // back to center → «at the LEFT»; the cross's path swapped for a wide glyph → «the ink is square».
   for (const [name, m] of [['375×667', phoneRow.p375], ['320×568', phoneRow.p320]]) {
     const c = m.close;
-    expect(c.vis.length === 1 && c.vis[0] === 'st-ic-back' && c.visVB === '0 0 28 28' && !!c.visSize &&
-           Math.abs(c.visSize[0] - 28) <= 0.5 && Math.abs(c.visSize[1] - 28) <= 0.5,
-      'CLOSE ' + name + ': the phone draws the back arrow alone, 28×28 in its own viewBox, the cross hidden (' + JSON.stringify(c.svgs) + ')');
-    // ⚠️ MEASURED, NOT ESTIMATED: getBBox gives the TIGHT bounds — the arrow 22.75×16.6 of 28 (the
-    // control points said 23.4), the cross 15.1×15.1 of 32 (the round caps reach past 8.94..23.06).
-    // The discriminator is the SHAPE: the arrow is wide (aspect ≈ 1.37), the cross is square.
-    expect(!!c.ink && c.ink[0] > 21 && c.ink[0] < 25 && c.ink[1] > 15 && c.ink[1] < 18 && c.ink[0] / c.ink[1] > 1.25,
-      'CLOSE ' + name + ': the drawn glyph is the wide arrow of back.svg (ink ≈ 22.8×16.6 of 28, aspect > 1.25), not the square cross (' + JSON.stringify(c.ink) + ')');
+    expect(c.svgs.length === 1 && c.vis.length === 1 && c.visVB === '0 0 32 32' && !!c.visSize &&
+           Math.abs(c.visSize[0] - 32) <= 0.5 && Math.abs(c.visSize[1] - 32) <= 0.5,
+      'CLOSE ' + name + ': the phone draws ONE cross, 32×32 in its own viewBox — the back arrow of -b is gone (' + JSON.stringify(c.svgs) + ')');
+    expect(!!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
+      'CLOSE ' + name + ': the drawn glyph is the square cross (ink ≈ 15.1×15.1 of 32), not a wide arrow (' + JSON.stringify(c.ink) + ')');
     expect(Math.abs(c.l - c.wrapInset) <= 0.5 && c.l < m.vw / 2 - c.w && c.alignSelf === 'flex-start' && c.position !== 'fixed',
       'CLOSE ' + name + ': the button stands at the LEFT of the wrap (x ' + c.l + ' = the wrap\'s inset ' + c.wrapInset + '), in the flow, not centred (' +
       JSON.stringify({ l: c.l, alignSelf: c.alignSelf, position: c.position }) + ')');
@@ -5577,7 +5575,7 @@ window.bridge = {
   }
   {
     const c = phoneRow.d1280.close;
-    expect(c.vis.length === 1 && c.vis[0] === 'st-ic-x' && c.visVB === '0 0 32 32' && c.position === 'fixed' &&
+    expect(c.svgs.length === 1 && c.visVB === '0 0 32 32' && c.position === 'fixed' &&
            Math.abs(c.l - 16) <= 0.5 && Math.abs(c.t - 16) <= 0.5 && !!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
       'CLOSE 1280: the desktop keeps the CROSS, fixed at the screen\'s top-left (16,16) (' +
       JSON.stringify({ vis: c.vis, vb: c.visVB, l: c.l, t: c.t, position: c.position, ink: c.ink }) + ')');
@@ -16487,7 +16485,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         sticks: me ? getComputedStyle(me).position : null,
         bottomAtTop: top, bottomAtMid: mid,
         closeCenter: Math.round(rx.left + rx.width / 2), screenCenter: Math.round(window.innerWidth / 2),
-        closeAboveTitle: Math.round(title.top - rx.bottom),
+        closeLeft: Math.round(rx.left), closeAboveTitle: Math.round(title.top - rx.bottom),
         pill: (function (){
           const read = (el) => { const sc = el.querySelector('.lb-score');
             const svg = sc.querySelector('svg'), num = sc.querySelector('span');
@@ -16562,10 +16560,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(lb.sticks === 'sticky' && lb.bottomAtTop === 32 && lb.bottomAtMid === 32,
       '⚠️⚠️ THE LEADERBOARD: the own row is propped up from below by 32px while its place is below the screen ' +
       '(' + JSON.stringify({ pos:lb.sticks, atTop:lb.bottomAtTop, atMid:lb.bottomAtMid }) + ')');
-    // (3) THE CROSS IS CENTERED ABOVE THE TITLE (mobile).
-    expect(Math.abs(lb.closeCenter - lb.screenCenter) <= 1 && lb.closeAboveTitle > 0,
-      '⚠️ THE LEADERBOARD: the cross is CENTERED and ABOVE the title (center ' + lb.closeCenter +
-      ' against ' + lb.screenCenter + ', to the title ' + lb.closeAboveTitle + 'px)');
+    // (3) THE CROSS IS ON THE LEFT, ABOVE THE TITLE (mobile). ⛔ «centred above the title» (2026-08-10)
+    // is cancelled by his word of 2026-09-07-f, with the cross selected: «shift it left, like on the
+    // boost page» — the same 16 as the ×5 screen's close; the desktop keeps its own 24.
+    expect(lb.closeLeft === 16 && lb.closeCenter < lb.screenCenter - 100 && lb.closeAboveTitle > 0,
+      '⚠️ THE LEADERBOARD: the cross is on the LEFT at 16 (like the boost page, the owner 2026-09-07-f) and ABOVE the title (left ' + lb.closeLeft +
+      ', centre ' + lb.closeCenter + ' against the screen\'s ' + lb.screenCenter + ', to the title ' + lb.closeAboveTitle + 'px)');
 
     // (3b) THE SCORE PILL: the number first, gap 8, star 20.
     const p = lb.pill;
