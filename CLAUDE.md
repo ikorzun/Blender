@@ -15807,7 +15807,8 @@ first time and no cut ate a neighbour — the built `index.html` moved by +7.7 K
 code and comments, against the 12 152 084 of the live build. The new section was lifted VERBATIM out of
 `test.js` by its markers and run alone before the suite: it went red twice on its own mistakes (above)
 and green only on the third draft — the cheap place for those reds. Sabotage builds were made OUTSIDE the
-tree from patched copies of `src/` (`scratchpad/build-variant.py`), so the tree's `index.html` never
+tree from patched copies of `src/` (`tools/build-variant.py`, paired with `tools/section-dryrun.js`,
+both in the repo since 2026-09-07-a), so the tree's `index.html` never
 carried a sabotage and the suite always ran on the honest build. ⚠️ THE SERVER HALF NEEDED NO BROWSER
 AND WAS DONE WHILE THE SUITE RAN — node:sqlite only; the client dry runs waited for the `SUITE:` line,
 as the -a rule demands.
@@ -15858,6 +15859,12 @@ test.js` (438 lines) applied with `git apply` — it applied cleanly on top of t
 - **Run 20**, the whole suite on this build: **987 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** — the ten restored arms and the hardened
   key section inside the full run. Pushed to `v2` and onto `main` on his word («push v2 onto main after a green run»).
 
-### WHAT IS HIS
-`git push origin v2:main` puts the colour edition and the review batch's client half on the live site;
-`npx wrangler deploy --config server/leaderboard/wrangler.toml` puts the rank fix on the worker.
+### WHAT IS HIS, AND WHAT IS DONE
+`v2` was pushed onto `main` on his word («push v2 onto main after a green run») — the colour edition and the
+review batch's client half are live, verified by byte size. What remains his:
+`npx wrangler deploy --config server/leaderboard/wrangler.toml` puts the rank fix and `t` on the worker;
+until then those two are inert and the client works with the old worker (`at` is 0).
+⚠️ THE TWO DRY-RUN TOOLS MOVED INTO THE REPO: `tools/section-dryrun.js` (lifts a marked section of
+test.js and runs it alone; SECTION=LBKEY|EDGES, MIXER_PAGE for a variant) and `tools/build-variant.py`
+(a sabotaged build under the system temp dir, never in the tree). The scratchpad dies with a session;
+the rule «dry-run a new section before the suite» now has a tool behind it that survives.

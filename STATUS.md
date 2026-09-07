@@ -199,8 +199,6 @@ payment tests are on it.
    `npx wrangler deploy --config server/leaderboard/wrangler.toml`. Nothing else to run: no schema
    change, no index migration; the first hour after the deploy has no ladder (places are counted the
    whole way, exact), the next cron tick builds it under its new key. The game works with either worker.
-7. **Push `v2` onto `main`** when you want the client half live (the key in the save, the override gate):
-   `git push origin v2:main`. It works with the old worker too.
 
 ## Decisions only you can take
 

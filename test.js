@@ -10372,7 +10372,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'under the clock again');
   }
 
-  // ⟦EDGES-SECTION-BEGIN⟧ (the lifter in the scratchpad runs the two blocks below alone; keep the markers)
+  // ⟦EDGES-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=EDGES runs the two blocks below alone; keep the markers)
   // ===== THE iOS 26 CHROME ZONES: THE ONE COLOUR THAT REACHES THEM (2026-09-05, the mechanism read
   // from the WebKit sources and confirmed against this game's own DOM; the prose lives at the `body`
   // declaration in shell.html) =====
@@ -17567,7 +17567,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // scripts (`window.__lbk.mode`), and it RECORDS every payload — the arms read what actually left.
   // ⚠️ THE ARMS ARE ORDERED AND SHARE ONE PAGE ON PURPOSE: the identity switch (A3/A4) needs a row
   // already registered under the first id, the recovery arms need the switched id — each state is
-  // the previous arm's result, exactly as it is for a player. The dry-run lifter in the scratchpad
+  // the previous arm's result, exactly as it is for a player. `tools/section-dryrun.js` (SECTION=LBKEY)
   // runs this block alone between its markers; keep the markers.
   {
     const stand = await httpStand();
