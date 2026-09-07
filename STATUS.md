@@ -6,9 +6,9 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = 68f95d6 (2026-09-06)** · the suite **987 green, 0 red, SUITE: PASS**
-match · the live site verified by byte size against the build · portal package **5.48 MB** of the
-8 MB reference (headroom 2.52)
+**Build: v2 = b80dc0d (2026-09-07)** · the suite **977 green, 0 red, SUITE: PASS** (run 19) · the live site
+still serves `34381f9` (run 18b: 970 green, 0 red) until you push `v2` onto `main` · the worker awaits your
+`wrangler deploy` · portal package unchanged in shape
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
@@ -30,6 +30,30 @@ match · the live site verified by byte size against the build · portal package
    package, the play-time budget, no interstitials, the x5 badge, the penalty rule), then this
    page; the suite's red lines are read before anything is re-based. On a Mac whose git fails
    with rc 69 (the Xcode licence), prefix `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+
+## What shipped 6 September, evening (the September review checked, your word «do only what you consider necessary»)
+
+- **The review** (`Blendo gpt/docs/CLAUDE-PROJECT-REVIEW-2026-09-06.md`) was checked against the tree item by
+  item; the disposition table is in CLAUDE.md, batch 2026-09-06-e. Four of its eight items were already
+  raised by the August review and had never been decided — they are decided now.
+- **Your leaderboard row no longer freezes on a second device.** The signing key that owns the row lives in
+  the save with your id and travels with it: whichever id wins a merge, its key wins with it. A key the
+  server refuses is dropped, so the next cloud sync brings the right one; a row deleted by the 180-day
+  retention is re-created on the next win instead of being refused for ever. ⚠️ Not retroactive: a row
+  frozen before this heals only after the device that owns the key runs the new build once.
+- **The rank was wrong for equal scores and said it was exact**: 200 players with the same score, the 50th
+  by time was told place 249, the very first place 200. The hourly ladder now remembers WHICH row stands
+  at every hundredth place, not only its score. ⚠️ The base of a deep place still comes from the hourly
+  snapshot, so it can lag by up to an hour while players above move (the review's second case); the
+  server now says «as of when» (`t`), and the screen may show it — that is a separate, unmade change.
+- **A crafted link can no longer redirect the first submission** (id, score, key) to a foreign server:
+  the `?lb=` and localStorage overrides work only on a local host — your `localhost:8781/?lb=` link and
+  every stand still work.
+- **Small things**: `npm run build` / `npm test` / `npm run test:lb`; the worker's module warning is gone;
+  the stale sabotage tool carries a dated warning; the July tech review is marked historical.
+- **Not done, on purpose**: the save merge that loses overlapping sessions on two devices (a recorded
+  boundary, V2-IDEAS); accessibility (your word whether it is a release requirement); the monolith and
+  the D1 budget (recorded decisions).
 
 ## What shipped 5 September (your words with the inspector open, and your Safari instruction)
 
@@ -153,6 +177,13 @@ payment tests are on it.
    portal now receives our `level_completed` — make sure NO interstitial appears at all (we call
    none since 3 September; one would be the portal's own doing).
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
+6. **Deploy the leaderboard worker** — the rank fix and the `t` field live on the server, and this Mac
+   has neither wrangler nor a Cloudflare login:
+   `npx wrangler deploy --config server/leaderboard/wrangler.toml`. Nothing else to run: no schema
+   change, no index migration; the first hour after the deploy has no ladder (places are counted the
+   whole way, exact), the next cron tick builds it under its new key. The game works with either worker.
+7. **Push `v2` onto `main`** when you want the client half live (the key in the save, the override gate):
+   `git push origin v2:main`. It works with the old worker too.
 
 ## Decisions only you can take
 
@@ -163,6 +194,11 @@ payment tests are on it.
   wrapper's StoreKit restore. The one hole is the plain web after Safari clears storage — say if
   you want our own server ledger keyed by the guest id (the leaderboard service already has it).
 
+- **The rank's freshness for deep places**: today the base is the hourly snapshot (up to an hour stale).
+  The option is a full count for shallow places (say, the first 1000 — at most 1000 rows read per
+  request) and the ladder beyond; it spends D1 rows exactly where the spec saved them. Say the number.
+- **Accessibility**: dialog roles, focus, keyboard — about half a day for the eight overlays; keyboard play
+  of the field is a separate design. Only if it is a release requirement.
 - Telemetry is OFF (`URL = ''`); switching it on is one line, and needs a privacy policy with it.
 - `bonus.html` — the one Cyrillic file left: translate its branch, or drop it.
 - `mat_cream` is first audible at level 87 — the order of TYPES is your lever.
