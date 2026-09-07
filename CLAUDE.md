@@ -15632,3 +15632,182 @@ removal of a few CSS rules cannot move it by 95 KB.
 ⛔ SO THE NEXT ATTEMPT, IF THERE IS ONE, MUST BEGIN WITH A REPRODUCTION ON THE DEVICE, not with a design:
 a page that is not the game, that he can open and screenshot, that isolates one change at a time. Anything
 else is a fifth guess.
+
+## BATCH 2026-09-06-e: THE SEPTEMBER REVIEW CHECKED AGAINST THE TREE — THE KEY TRAVELS WITH THE ID, THE LADDER LEARNS TIES, THE OVERRIDE IS LOCAL-ONLY (his word: «check the recommendations, then we return to the fields», then «do only what you consider necessary»)
+
+### THE REVIEW, AND WHAT IT WAS CHECKED AGAINST
+`Blendo gpt/docs/CLAUDE-PROJECT-REVIEW-2026-09-06.md` is another model's review of a COPY of this project
+(`Blendo gpt/`, no git). Eight of the ten files it cites are byte-identical to the tree at `34381f9`; the
+two that differ (`85-hud.js`, `shell.html`) differ only by the field rollback of batch -d and carry none
+of its findings. Every claim below was re-derived on the tree, not taken from the document. Four of the
+eight items are RE-RAISES of `docs/CODE-REVIEW-2026-08.md` (#3 «door A», #12, #23, and the monolith),
+none of which had a disposition in this canon — that is now written here so nobody pays for them a third
+time.
+
+| review item | verified | done |
+|---|---|---|
+| 2.1 `mergeSave` loses independent increments | ✅ reproduced on the extracted function | ⛔ no code — a boundary (below) + a V2-IDEAS entry |
+| 2.2 the rank is wrong and says `exact:1` | ✅ both halves reproduced on the local D1 adapter | ✅ ties cured (pair rungs); staleness named, `t` added; the hybrid COUNT is his call |
+| 2.3 the signing key does not travel with the save | ✅ by code; = August #3 «door A», the deadline item | ✅ `Save.lk`, `pickLk`, marks per id, 401 reject; + August «door B» (`nokey` retry) |
+| 3.1 `?lb=` honoured in production | ✅ a real, narrow leak path | ✅ overrides on a local host only |
+| 3.2 the monolithic load | not a defect — a recorded portal-package decision | ⛔ nothing |
+| 3.3 `tools/lb-entry-break.js` is stale | ✅ = August #23 | ✅ a dated stale-anchors header; the suite guards the geometry |
+| 3.4 D1 cost at scale | = August #12; the budget was computed (LEADERBOARD-OWN.md) | ⛔ nothing until a real `rows_read` reading — his dashboard |
+| 3.5 accessibility | ✅ 0 dialogs, Space is the only key | ⛔ deferred — a release requirement is his word |
+| 4 maintainability | ✅ `MODULE_TYPELESS` reproduced; no scripts/engines | ✅ scripts + engines; `src/package.json` type:module; a note on TECH-REVIEW |
+
+### 2.1 — THE MAX-MERGE LOSES OVERLAPPING SESSIONS, AND THAT IS A BOUNDARY, NOT A TASK
+Reproduced on `mergeSave` lifted out of 77-save: from a common base of 100, +40 on one device and +60 on
+the other merge to **160, not 200**; 60 spent on each merges to **ss 60, not 120**; and the control the
+rule was bought for still holds — a lagging copy does NOT resurrect what was spent (ss stays 60). The
+`max` is the canon's own decision (the coins trap, «a balance field with a max-merge is FORBIDDEN»), and
+its price is now named: two devices playing from the same base in OVERLAPPING sessions lose each other's
+increments. ⚠️ THE EXPOSURE IS NARROW: a cloud copy exists only through `bridge.storage`, so the plain
+web (GitHub Pages) never merges across devices at all; it takes a portal player logged in on two devices
+at once. The honest cure is one counter PER DEVICE under every key (se/ss, he/hs, pe/ps, bb/bu, ac …),
+summed for the balance — a schema project across every counter and every reader, and it still would not
+stop deliberate double spending offline (that needs a server ledger). ⛔ Not a patch; written into
+V2-IDEAS as a post-release item. The review's own warning stands: `max` must NOT become a sum — a
+re-delivered sync would double everything.
+
+### 2.2 — TWO DIFFERENT CAUSES BEHIND «THE WRONG RANK SAYS exact:1», ONE OF THEM CURED
+Reproduced on the project's own D1 adapter (`server/leaderboard/test/d1.js`, real SQL):
+- **TIES ACROSS A HUNDREDTH BOUNDARY.** 200 rows with the same score and distinct times: the 50th by time
+  was answered **249**, the very first **200**, both `exact:1`. The ladder stored the SCORE at every
+  hundredth place, and the walk `ladder[i] >= row.s` counted every rung that merely shared my score as
+  standing above me. ✅ THE RUNG IS NOW THE PAIR `[s, u]` of the row at that place — the table's own
+  order — and both the walk and the bucket COUNT compare against that row (`s < bs OR (s = bs AND u >= bu)`
+  is «at or below the rung»). Verified: places 1, 50, 100, 101, 200 exact on the tie seed; the 50 000-row
+  seed unchanged; a control of distinct scores 0 mismatches of 8. ⚠️ THE ACCEPTED RESIDUAL: two rows with
+  the same score AND the same second exactly at a hundredth boundary — curing that means `id` as a third
+  key in the index, i.e. an index migration on the live database (`CREATE INDEX IF NOT EXISTS` does
+  nothing to an existing one) for a one-second coincidence. Named, not bought.
+- ⚠️ **THE SNAPSHOT KEY MOVED TO `ladder2`.** The rungs changed shape, and the hour between a deploy and the
+  next cron tick must not feed numeric rungs to the pair reader. Under the new key that hour simply has
+  no ladder: `/v1/me` counts the whole way (exact, at most `rank` rows read — nothing at today's size) and
+  the submit estimate answers `null`; the old `ladder` row stays in `snap` unread, a one-row tombstone.
+  No schema change, no migration, nothing for him to run but the deploy.
+- **STALENESS BETWEEN SNAPSHOTS.** The base of a deep place comes from the hourly ladder while the bucket
+  is counted live: after 99 players above the 150th fell below him, `/v1/me` still said **150** (true
+  51). This is BY CONSTRUCTION — the spec rejected a full `COUNT(*)` per call because D1 bills scanned
+  rows (LEADERBOARD-OWN.md) — and it is bounded: one hour at most, and the seed is the extreme case.
+  ✅ `/v1/me` now carries `t`, the time of the snapshot behind the place (0 when there is none), and the
+  client passes it through as `me().at`. A screen may say «as of» — that is an Interface edit and was
+  not made. ⚠️ `exact:1` keeps its meaning of «not an estimate»; `t` is not an error marker. The hybrid
+  (a full count for shallow places, the ladder beyond) is a real option and HIS call: it trades rows_read
+  for freshness exactly where the spec spent them.
+- ⚠️ `estimateRank` still compares by the score of the rung alone (`rungS`): it names a bucket, not a place.
+- THE GUARDS: run.js 19 (the tie seed: rungs are pairs; places 1,50,100,101,200; `t` equals the snapshot's)
+  and 20 (the deploy hour: an old numeric `ladder` row is ignored, the place is counted the whole way with
+  `t` 0, the estimate is `null`). Three new sabotages in break.js — the walk by score alone, `t` dropped,
+  `/me` reading the OLD key — each brings down exactly its own assert. **run.js 36 green; break.js: 17
+  sabotages of the suite + 4 of the smoke caught, both builds green.**
+- ⛔ THE DEPLOY IS HIS: `npx wrangler deploy --config server/leaderboard/wrangler.toml`. There is no
+  wrangler and no Cloudflare login on this Mac (checked). Until then the live worker answers as before;
+  the client works with either worker (`at` is 0 against the old one).
+
+### 2.3 + AUGUST «DOOR B» — THE SIGNING KEY LIVES IN THE SAVE AND TRAVELS WITH THE ID
+The chain, by code: `Save.gid` merges to the OLDEST id (pickGid) and goes to the cloud; the HMAC key sat in
+`localStorage.mixer_lb_key` alone. A second device inherited the id, generated a NEW key for it, the
+server checked the signature with the key it stored and answered 401 to every submission — the row froze
+at its old score, silently, with the client's own comment saying «temporary, a request was sent to Meta».
+The August review flagged it as the ONE finding with a deadline (WORKSTREAMS.md); it never got a
+disposition; the September review found it again. Now:
+- `Save.lk` — the key, with `pickLk` in BOTH merge branches, called BEFORE the gid line: whichever gid wins,
+  ITS key wins with it; the same gid on both sides keeps our own non-empty key, ours empty adopts theirs.
+  ⛔ `lk` is deliberately NOT in `resetProgress` (with `gid`): a reset is a zero on the same row, and
+  clearing the key would freeze the row under TOFU — the note in resetProgress already said so.
+- 82-lb reads the key through the named seam `signingKey()` / `setSigningKey()` (77-save), never `Save` by
+  hand. The legacy localStorage key is adopted into the save ONCE as the key of the current id; a copy is
+  kept in localStorage for a build rolled back.
+- **THE MARKS NAME THE ID.** `mixer_lb_reg` holds the id the key was accepted for (the legacy `1` reads as
+  «this id»); `mixer_lb_sent_gid` says whose the last-sent memory is. After a merge switches the id, the
+  next submission is for the NEW id and carries ITS key — measured (arm A4).
+- **401 `sig` → the key is dropped** (`lbKeyReject`: the save, the copy, the mark, the sent memory). The
+  server has said the key is not the row's; a fresh key registers a row that does not exist, and a row
+  that does exist gets its real key from the other device's copy at the next cloud sync. Keeping a wrong
+  key IS the freeze. Also on `/v1/me`.
+- **400 `nokey` → the mark is dropped and ONE retry goes out with the key** — August «door B»: retention
+  (180 days) deletes the row, the browser still says «registered», every submission was refused for ever.
+  ⚠️ The client's old comment «against an existing row the server will not accept the key» was WRONG:
+  `postScore` reads `body.k` only when there is no row. The key still goes out only when it has to — a
+  secret on the wire is a secret on the wire — which is why 3.1 was gated in the same batch.
+- ⚠️ SAID OUT LOUD: the HMAC secret now travels to the portal's cloud storage with the save, not only the
+  browser. That is the direction the August review, the client's own note and the spec all named; the
+  save already carries the id, the name and every purchase.
+- ⚠️ NOT RETROACTIVE: a row frozen before this heals only when the device that OWNS the key runs this build
+  once and its copy reaches the cloud; the other device drops its wrong key on the next 401 and adopts
+  the right one on the next sync. Anyone whose original device is gone stays frozen — the reason the
+  August report called it a deadline.
+- THE GUARD: one suite section, seven arms on ONE page in order (the identity switch needs a registered
+  row, the recovery arms need the switched id — each state is the previous arm's result, exactly as for a
+  player): the key sent once and held in `Save.lk`; the merge rule both ways; the switched id sends its
+  own key; `nokey` → one retry with the key; `sig` → dropped and a new one made; the same id keeps ours.
+  The section sits between `⟦LBKEY-SECTION-BEGIN⟧`/`END⟧` markers so the scratchpad lifter can run it
+  alone, verbatim — keep the markers.
+
+### 3.1 — THE `?lb=` / `mixer_lb_url` OVERRIDES ARE HONOURED ON A LOCAL HOST ONLY
+The path was real and narrow: a crafted link `?lb=https://evil` made a player who had not registered yet
+send id, score AND key to a foreign address on the first win (a registered one sends no key). The
+markers themselves are a recorded decision (the stand, the probes, his `localhost:8781/?lb=` link), so the
+gate is the pure function the send-gate's table of hosts is already proven on — `lbHostIsLocal`:
+`file:`, localhost, 127/8, `.local`, RFC1918. Every path the suite, the stands and his link take is local;
+off a local host the constant wins whatever the URL or localStorage say. ⚠️ THE SECOND SIDE is a foreign
+host name mapped onto the loop with `--host-resolver-rules` (the `.local` pattern, mirrored): both the
+query and localStorage are ignored there, the base stays `lb.blendo.monster`. The existing delivery arm
+(`127.0.0.1/?lb=http://lb.probe` → read) is the first side and is untouched.
+
+### THE REST, IN ONE BREATH
+- 3.3: a dated `⛔ ANCHORS WENT STALE` header on `tools/lb-entry-break.js` (5 of 8 anchors dead since the
+  entry markup was renamed; the suite guards the same geometry live). Rebinding is his word, not mine.
+- 4: `package.json` gains `scripts` (build, test, test:lb, test:lb:break) and `engines` node ≥22 — the lock
+  file untouched; `server/leaderboard/src/package.json` = `{"type":"module"}` and the `MODULE_TYPELESS`
+  warning is gone. ⛔ NOT at the worker's root: `test/run.js` is CommonJS and would break. A HISTORICAL
+  note on top of `docs/TECH-REVIEW-2026-07.md` (its 1 MB arithmetic is July's).
+- 3.2 and 3.4: nothing, on purpose — the one-file portal package and the D1 budget are recorded decisions,
+  and a real `rows_read` number lives only in his Cloudflare dashboard.
+- 3.5: nothing until he says accessibility is a release requirement; the census is above.
+
+### THE RUNS
+- **Run 18** on the live build `34381f9` (never run as a whole after the rollback): ABORTED at 553 green,
+  0 red, on a 30 s `page.goto` timeout — the same shape as runs 15/16. ⚠️ No browser was open beside it
+  and nothing was rebuilt; the machine ran only node:sqlite reproductions. Not a red.
+- **Run 18b**, the same build, the machine left alone: **970 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (18:28–18:51, the machine left alone). The live
+  build is proven; the 17 checks below 987 are the field guards that left with batch -d.
+- The new section, lifted verbatim, against the healthy build: **7 of 7 green on the THIRD draft**, and the two drafts before it are the lesson:
+  (1) `bankScore(n)` banks a LEVEL TOTAL relative to `level.banked`, not an increment — six calls of
+  `bankScore(1000)` produced ONE submission and five arms measured silence; each bank is a larger total
+  now, and the trap is written at the line. (2) `window.__game` is DELETED outside dev mode (99-main,
+  `if (!DEV) delete window.__game`) — on a foreign host name the page has no hook to ask, and the first
+  draft of the foreign-host arm waited for it for ever; the arm reads `__lb.base()` alone, which is the
+  quantity under test anyway. ⚠️ Both were caught by the lifter in about 75 s each, not by a 20-minute
+  suite — the 2026-09-01-o rule earning its keep twice in one batch. Against the seven variants built
+  in the scratchpad from patched copies of `src/` (the tree's `index.html` never carried a sabotage):
+  each sabotage brought down ITS OWN arm and the self-check stayed green (7 of 7):
+  `pickLk` always keeping our key → the merge arm (+ the switch and the `nokey` arms, which stand on the
+  switched key); the key never written to the save → the first arm (+ the `sig` arms, which read the new
+  key back from the save); the `nokey` branch off → the `nokey` arm alone; the `sig` branch off → the
+  `sig` arm (+ «the same id keeps ours», which compares against the key the drop should have replaced);
+  the locality gate off → the foreign-host arm (`base` became `http://lb.probe`); «any mark means
+  registered» → the switch arm alone; a comment edit → nothing. ⚠️ ONE RED THAT WAS THE ARM'S OWN: on
+  the no-gate variant the switch arm read the marks a tick after the stub RECORDED the post but before
+  the client had processed the answer — `regAfter:false` on a build whose gate has nothing to do with
+  marks. A recorded payload is not a processed answer. Every mark read now WAITS FOR THE STATE
+  (`waitFor`), not for the post count and not for the clock; the hardened section was re-run alone
+  three times on the healthy build (7/7, 7/7, 7/7) and once more on the no-gate
+  variant, where exactly ONE arm is red now — the foreign-host one
+- **Run 19** on the new build: **977 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (19:16–19:39; the new section ran
+  its second draft there and passed). ⚠️ The wait-hardening of the section came AFTER run 19 and changes
+  no assertion — only how long an arm waits before reading — and it is proven by the three standalone runs
+  above; run 20 (the next batch) runs the hardened text in the full suite.
+
+### THE METHOD, RESTATED WHERE IT PAID
+Every anchored replacement asserted its anchor UNIQUE before writing (the batch -d rule); all matched
+first time and no cut ate a neighbour — the built `index.html` moved by +7.7 KB, the size of the added
+code and comments, against the 12 152 084 of the live build. The new section was lifted VERBATIM out of
+`test.js` by its markers and run alone before the suite: it went red twice on its own mistakes (above)
+and green only on the third draft — the cheap place for those reds. Sabotage builds were made OUTSIDE the
+tree from patched copies of `src/` (`scratchpad/build-variant.py`), so the tree's `index.html` never
+carried a sabotage and the suite always ran on the honest build. ⚠️ THE SERVER HALF NEEDED NO BROWSER
+AND WAS DONE WHILE THE SUITE RAN — node:sqlite only; the client dry runs waited for the `SUITE:` line,
+as the -a rule demands.

@@ -38,12 +38,18 @@ response code. A check on `res.ok` would be green on a dead leaderboard.
 
 ```js
 __lb.top()  → { state, rows: [{name, av, score}, …], total, at }
-__lb.me()   → { state, rank, exact, score, up: [rows], dn: [rows] }
+__lb.me()   → { state, rank, exact, score, up: [rows], dn: [rows], at }
 __lb.submit() → { state, dup, rank, exact, sent, score }
 ```
 
 `av` is the avatar number (1..49), `at` is the snapshot time (sec), `total` is how many
 players there are in the leaderboard altogether.
+
+⚠️ **`me().at` (2026-09-06-e) is the time of the ladder snapshot behind the place**, 0 when there is
+none yet or the worker predates the field. Above the hundredth place the rank is exact against the
+table AS IT STOOD AT `at` — the ladder is rebuilt once an hour, so it can lag by up to an hour while
+players above move. A screen may say «as of»; it is NOT an error marker, and `exact` keeps its
+meaning of «not an estimate».
 
 ⚠️⚠️ **ANY `me()` AND `submit()` RESPONSE WITH `state:'ok'` CARRIES `exact` — EVEN IF
 `false`.** Even when there is no place at all: `me()` has a legitimate case "the player's
@@ -111,3 +117,13 @@ changes, the screen is not touched.
 `__lb.base() === ''` — the address is not set, the leaderboard is switched off entirely (that
 is how it ships until the worker is deployed). All methods answer `state: 'offline'` and write
 no errors to the console. In this state the screen simply does not show the leaderboard block.
+
+
+## The signing key (2026-09-06-e)
+
+The key that owns the player's row lives in the save (`Save.lk`) and travels with `Save.gid`:
+whichever id wins a merge, its key wins with it. Before that the key sat in localStorage alone, and
+a second device inherited the id, made a new key and was refused for ever (the August review's #3).
+The screen needs to know only this: a `refused` with `err:'sig'` or `err:'nokey'` is handled by the
+module itself — the key or the mark is dropped and the next submission repairs the row — so the
+screen hides the block for that moment and does not retry on its own.

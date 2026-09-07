@@ -141,3 +141,16 @@ re-derive it or blunder into a decision already recorded elsewhere.
   points; cancellations are recorded right here with a date and the owner's word.
 - The v1 suite is the baseline: we break it deliberately, along with a guards fix.
 - node_modules is a symlink to Blender/ (build.py works as is).
+
+
+## PER-DEVICE COUNTERS FOR THE SAVE (a boundary recorded 2026-09-06, not a task)
+
+The save merges every lifetime counter by `max` (se/ss, he/hs, pe/ps, bb/bu, ac, ...). That is the
+anti-dupe rule the canon records, and it has a known price, reproduced on the extracted `mergeSave`:
+two devices that play from the same base in OVERLAPPING sessions lose each other's increments —
++40 and +60 from 100 merge to 160, not 200; 60 spent on each merges to 60 spent, not 120. It cannot
+happen on the plain web (no cloud copy), only for a portal player logged in on two devices at once,
+and a lagging copy still never resurrects what was spent (the property the rule was bought for).
+The honest cure is one counter PER DEVICE under each key, summed for the balance — a schema change
+across every counter and every reader, i.e. a project, and it does not stop deliberate double
+spending offline either (that needs a server ledger). Not planned before release.

@@ -1,4 +1,13 @@
 {
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node test.js",
+    "test:lb": "node server/leaderboard/test/run.js",
+    "test:lb:break": "node server/leaderboard/test/break.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
     "esbuild": "^0.28.1",

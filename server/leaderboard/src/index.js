@@ -108,12 +108,25 @@ function sameSig(a, b) {
 // OVERLOOKED: where there is no bound we return `null`, and the screen itself decides what to show.
 // ⛔ THE EXACT PLACE LIVES ONLY IN `/v1/me` (`exact: 1`). The estimate is a hint, and
 // it costs ZERO D1 rows; that is what the ladder was created for.
+// A RUNG OF THE LADDER IS THE PAIR `[s, u]` OF THE ROW STANDING AT THAT PLACE (2026-09-06-e), not
+// the score alone. The score alone cannot tell apart the rows that share it, and a player inside a
+// run of equal scores that crosses a hundredth boundary was handed a place a whole bucket (or
+// several) too low — measured on the project's own D1 adapter: 200 rows of 1000, the 50th by time
+// answered 249, the very first answered 200, both with `exact:1`. The time is what the table itself
+// orders by (`s DESC, u ASC`), so the pair names ONE row and the walk in getMe can compare against it.
+// ⚠️ A rung that is not a pair (a foreign shape) is never trusted for ties: `rungU` answers null and
+// getMe stops its walk there — the count then runs the whole way, exact and merely dearer.
+const rungS = (r) => (Array.isArray(r) ? r[0] : r);
+const rungU = (r) => (Array.isArray(r) && typeof r[1] === 'number' ? r[1] : null);
+
 function estimateRank(ladder, score) {
   if (!ladder || !ladder.length) return null;   // fewer than a hundred players — nothing to say
   let lo = 0, hi = ladder.length;
   while (lo < hi) {                       // look for the first rung BELOW our score
     const mid = (lo + hi) >> 1;
-    if (ladder[mid] >= score) lo = mid + 1; else hi = mid;
+    // The estimate compares by the SCORE of the rung alone: it names a bucket, not a place, and
+    // the rung's time means nothing to a player who is not that row.
+    if (rungS(ladder[mid]) >= score) lo = mid + 1; else hi = mid;
   }
   // we passed lo rungs -> we are below lo*100. When lo === 0 we are above the first rung,
   // that is, in the first hundred, but HOW FAR — the ladder does not know: that is `null` too.
@@ -160,7 +173,7 @@ async function postScore(req, env) {
     await env.DB.prepare(
       'INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)')
       .bind(id, body.k, n, Math.min(49, Math.max(1, a)), s, now, q, born).run();
-    const snap = await readSnap(env, 'ladder');
+    const snap = await readSnap(env, 'ladder2');
     return reply({ ok: 1, s: s, rank: estimateRank(snap && snap.v, s), exact: 0, n: n });
   }
 
@@ -169,7 +182,7 @@ async function postScore(req, env) {
   // ⚠️ AN IDEMPOTENT RETRY, NOT AN ERROR: the client sends an ABSOLUTE value,
   // so a retry is safe by construction — we return the stored state.
   if (q <= row.q) {
-    const snap = await readSnap(env, 'ladder');
+    const snap = await readSnap(env, 'ladder2');
     return reply({ ok: 1, dup: 1, s: row.s, rank: estimateRank(snap && snap.v, row.s), exact: 0, n: row.n }, 409);
   }
   if (now - row.u < RATE_SEC) {
@@ -183,7 +196,7 @@ async function postScore(req, env) {
     // submission falls inside the window, and if it is lost, "spending drops you in
     // the table immediately" will not happen in exactly the scenario for which all this
     // was built.
-    const snap = await readSnap(env, 'ladder');
+    const snap = await readSnap(env, 'ladder2');
     return reply({ ok: 0, err: 'rate', retry: RATE_SEC - (now - row.u),
       s: row.s, rank: estimateRank(snap && snap.v, row.s), n: row.n }, 429);
   }
@@ -199,7 +212,7 @@ async function postScore(req, env) {
   await env.DB.prepare('UPDATE p SET n=?, a=?, s=?, u=?, q=? WHERE id=?')
     .bind(n, Math.min(49, Math.max(1, a)), s, now, q, id).run();
 
-  const snap = await readSnap(env, 'ladder');
+  const snap = await readSnap(env, 'ladder2');
   // ⚠️ We STILL return the place to someone hidden by hand: on learning about the hiding, he will simply
   // create a new id. From the PUBLIC table he has disappeared anyway — the queries filter
   // by `f = 0`.
@@ -238,17 +251,28 @@ async function getMe(env, url) {
   if (!row) return reply({ err: 'none' }, 404);
   if (!sameSig(await hmacHex(row.k, id + '.me.' + t), sig)) return reply({ err: 'sig' }, 401);
 
-  const snap = await readSnap(env, 'ladder');
+  const snap = await readSnap(env, 'ladder2');
   const ladder = (snap && snap.v) || [];
   let base = 0, bound = null;
   for (let i = 0; i < ladder.length; i++) {
-    if (ladder[i] >= row.s) { base = (i + 1) * LADDER_STEP; bound = ladder[i]; } else break;
+    // ⚠️ THE RUNG IS COMPARED AS THE ROW IT NAMES, in the table's own order (s DESC, u ASC): it stands
+    // at or above me when its score is higher, or equal with an earlier (or the same) time. The old
+    // `ladder[i] >= row.s` counted every rung that merely SHARED my score as standing above me.
+    const rs = rungS(ladder[i]), ru = rungU(ladder[i]);
+    if (ru === null) break;   // not a pair — the walk stops, the count below runs the whole way
+    if (rs > row.s || (rs === row.s && ru <= row.u)) { base = (i + 1) * LADDER_STEP; bound = [rs, ru]; }
+    else break;
   }
   // Those who are above me but not above the bucket boundary — by construction there are <= ~100 of them.
+  // ⚠️ THE BOUNDARY IS THE ROW AT THE RUNG, in the same order: «at or below that row» is
+  // `s < bs OR (s = bs AND u >= bu)`. The old `s <= ?` swept in every row that shared the rung's
+  // score, from either side of the boundary. ⚠️ Two rows with the SAME score AND the SAME second
+  // exactly at a hundredth boundary are still one row to this count — accepted, named, not cured:
+  // it would cost an index migration on the live database for a coincidence of one second.
   const cnt = await env.DB.prepare(
     'SELECT COUNT(*) AS c FROM p WHERE f=0 AND s>0 AND (s > ? OR (s = ? AND u < ?))'
-    + (bound === null ? '' : ' AND s <= ?'))
-    .bind(...(bound === null ? [row.s, row.s, row.u] : [row.s, row.s, row.u, bound])).first();
+    + (bound === null ? '' : ' AND (s < ? OR (s = ? AND u >= ?))'))
+    .bind(...(bound === null ? [row.s, row.s, row.u] : [row.s, row.s, row.u, bound[0], bound[0], bound[1]])).first();
   // ⚠️⚠️ THE MINUS ONE IS NOT COSMETIC. A player standing EXACTLY on the bucket
   // boundary (place (i+1)·100) is counted TWICE: he is already included in `base`
   // and passes the `s <= bound` condition again. Without the subtraction everyone below
@@ -262,8 +286,13 @@ async function getMe(env, url) {
     'SELECT n,a,s FROM p WHERE f=0 AND s>0 AND (s < ? OR (s = ? AND u > ?)) ORDER BY s DESC, u ASC LIMIT ?')
     .bind(row.s, row.s, row.u, NEAR_N).all();
 
+  // ⚠️ `t` — THE TIME OF THE LADDER SNAPSHOT BEHIND THIS ANSWER, 0 when there is none yet. Above the
+  // bucket the place is exact against the rows AS THEY STOOD AT `t`, inside it against the live table:
+  // 99 players above me falling between two ticks do not move it until the next tick (measured: 150
+  // stays 150 while the true place is 51). One hour at most. `exact:1` keeps its meaning of «not an
+  // estimate»; `t` is what lets a screen say «as of» — additive, the client may ignore it.
   return reply({
-    ok: 1, s: row.s, n: row.n, a: row.a, rank: exactRank, exact: 1,
+    ok: 1, s: row.s, n: row.n, a: row.a, rank: exactRank, exact: 1, t: snap ? snap.t : 0,
     up: ((above.results || []).map((r) => [r.n, r.a, r.s])).reverse(),
     dn: (below.results || []).map((r) => [r.n, r.a, r.s]),
   });
@@ -305,14 +334,19 @@ async function buildSnapshot(env) {
     'SELECT n,a,s FROM p WHERE f=0 AND s>0 ORDER BY s DESC, u ASC LIMIT ?').bind(TOP_N).all();
   const cnt = await env.DB.prepare('SELECT COUNT(*) AS c FROM p WHERE f=0 AND s>0').first();
   const lad = await env.DB.prepare(
-    'SELECT s FROM (SELECT s, ROW_NUMBER() OVER (ORDER BY s DESC, u ASC) rn'
+    'SELECT s, u FROM (SELECT s, u, ROW_NUMBER() OVER (ORDER BY s DESC, u ASC) rn'
     + ' FROM p WHERE f=0 AND s>0) WHERE rn % ? = 0').bind(LADDER_STEP).all();
   const topJson = JSON.stringify({ n: (cnt && cnt.c) || 0, r: (top.results || []).map((r) => [r.n, r.a, r.s]) });
-  const ladJson = JSON.stringify((lad.results || []).map((r) => r.s));
+  const ladJson = JSON.stringify((lad.results || []).map((r) => [r.s, r.u]));   // pairs — see rungS
   await env.DB.prepare('INSERT INTO snap (k,v,t) VALUES (?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, t=excluded.t')
     .bind('top', topJson, now).run();
+  // ⚠️ THE KEY IS `ladder2`, NOT `ladder`: the rungs changed shape (pairs), and the hour between a
+  // deploy and the next cron tick must not serve the old numeric rungs to the new reader. Under the
+  // new key that hour simply has NO ladder: /v1/me counts the whole way (exact, at most `rank` rows
+  // read — nothing at today's table size) and the submit estimate answers `null`. The old `ladder`
+  // row stays in `snap` as a dead one-row tombstone; nothing reads it, no migration is needed.
   await env.DB.prepare('INSERT INTO snap (k,v,t) VALUES (?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, t=excluded.t')
-    .bind('ladder', ladJson, now).run();
+    .bind('ladder2', ladJson, now).run();
   return { top: (top.results || []).length, ladder: (lad.results || []).length };
 }
 

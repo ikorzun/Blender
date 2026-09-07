@@ -10,7 +10,8 @@ const SAVE_KEY = 'mixer_save_v1';
 // (Bridge storage might not accept the zeros, and the max-merge «lifted» them
 // back). ⚠️ Checklist for a new save field: add it to Save, to BOTH mergeSave
 // branches (the carry-over when from.gen>gen and the merge when equal), and to
-// resetProgress.
+// resetProgress. ⚠️ lk (the signing key) is the ONE field that stays OUT of
+// resetProgress on purpose — see pickLk.
 // ac — ACCUMULATION BY TYPE (the owner's spec 2026-07-22): lifetime
 // monotonic counters of merged items of EACH type (key = the type name
 // from the assets, TYPES[].name). The tier/multiplier are COMPUTED from the
@@ -51,7 +52,7 @@ const SAVE_KEY = 'mixer_save_v1';
 // pe/ps — SHAKES BOUGHT as a monotonic pair (the he/hs pattern), a permanent
 // wallet on top of the 3 free ones per level. ls — «the last seen time», a
 // monotonic mark against a clock rollback.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0  }; // he/hs — hints (start 3, the owner's spec)
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0, lk: ''  }; // he/hs — hints (start 3, the owner's spec); lk — the leaderboard signing key, it travels with gid (2026-09-06-e, see pickLk)
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
 function mergeSave(into, from){
@@ -67,6 +68,7 @@ function mergeSave(into, from){
     // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
     into.gn = into.gn || from.gn || ''; // name: our own non-empty one, else theirs
+    into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
     into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
     into.st = from.st || 0; into.sv = from.sv || 0; into.mt = from.mt || 0;
@@ -100,6 +102,7 @@ function mergeSave(into, from){
   into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
   into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
   into.gn = into.gn || from.gn || ''; // guest name: our own non-empty one wins
+  into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
   into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
   into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
   into.pe = Math.max(into.pe || 0, from.pe || 0); // bought shakes: a pair like he/hs,
@@ -304,6 +307,25 @@ function pickGid(a, b){
   if (!b) return a;
   return a < b ? a : b;
 }
+// THE LEADERBOARD SIGNING KEY FOLLOWS THE ID (2026-09-06-e; the August review's #3 «door A», and
+// 82-lb's own note that localStorage was a temporary home). The key is the secret of ONE row, and a
+// row is named by the gid — so whichever gid wins the merge, ITS key wins with it. Before this the id
+// went to the cloud and the key stayed in the browser: a second device inherited the OLD id, made
+// itself a NEW key, and the server answered 401 to every submission — the row froze, silently.
+// ⚠️ With the SAME gid on both sides our own non-empty key stays: a wrong local key cannot be told
+// from a right one here, but the server can — 82-lb drops a key the server refuses (`lbKeyReject`),
+// and the next sync adopts the other device's. Ours empty — theirs is taken.
+// ⚠️ It is called BEFORE pickGid overwrites `into.gid`: it needs to know which side won.
+// ⛔ NOT IN resetProgress ON PURPOSE: a reset is a zero on the SAME row, not a new player; clearing
+// the key would freeze the row for ever under TOFU (the note in resetProgress says the same).
+function pickLk(a, ak, b, bk){
+  const g = pickGid(a, b);
+  if (a === b) return ak || bk || '';
+  return g === a ? (ak || '') : (bk || '');
+}
+// The accessors 82-lb uses (the protocol module does not touch `Save` by hand — the seam is named).
+function signingKey(){ return (typeof Save.lk === 'string') ? Save.lk : ''; }
+function setSigningKey(k){ Save.lk = (typeof k === 'string') ? k : ''; commitSave(); }
 function guestId(){
   if (!Save.gid){
     Save.gid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -589,6 +611,8 @@ function resetProgress(){
   //     back as «reset, reloaded, still in the table»;
   //   • were it to clear the signing key — under TOFU the player would FOREVER
   //     lose the right to update his row, and it would freeze with the old score.
+  //     ⚠️ Since 2026-09-06-e the key lives in the save as `Save.lk` and it is deliberately
+  //     absent from the list above, together with `Save.gid`: the identity survives a reset.
   fireStarsChange();
 }
 

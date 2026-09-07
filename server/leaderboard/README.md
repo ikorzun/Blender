@@ -30,7 +30,7 @@ check mandated by the canon: 8 sabotage tests, each must bring down **its own** 
 |---|---|---|
 | `POST /v1/score` | `{id,k?,n,a,s,q,t,sig}` | upsert + an ESTIMATE of the place (`rank` may be `null`) |
 | `GET /v1/top?p=1` | — | top from the snapshot, cache 60 s |
-| `GET /v1/me?id&t&sig` | — | exact place + 5 neighbours above and below |
+| `GET /v1/me?id&t&sig` | — | exact place + 5 neighbours above and below + `t` of the ladder snapshot |
 | `DELETE /v1/me?id&t&sig` | — | deletion of one's own row |
 | `POST /admin/hide` | Bearer | hide/restore a row by hand |
 
@@ -45,6 +45,17 @@ set up for exactly this. There is no boundary in two cases, and both return `nul
   the state of the first weeks after launch);
 * the score is above the first rung — all that is known is «somewhere in the first
   hundred».
+
+⚠️ **The rungs of the ladder are PAIRS `[s, u]` since 2026-09-06-e, under the key `ladder2`.** The
+score alone could not tell apart the rows that share it: with 200 equal scores the 50th player by
+time was handed place 249 and the very first place 200, both `exact:1` (measured on the local D1
+adapter). The walk in `/v1/me` now compares the row the rung names, in the table's own order
+`s DESC, u ASC`. No schema change, no index migration: the hour between a deploy and the next cron
+tick has no ladder under the new key, so `/v1/me` counts the whole way (exact, at most `rank` rows
+read) and the submit estimate answers `null`; the old `ladder` row stays in `snap` unread. The
+accepted residual: two rows with the same score AND the same second exactly at a hundredth boundary.
+`/v1/me` also carries `t`, the time of the snapshot behind the place: above the bucket the place is
+exact against the table as it stood at `t` — up to an hour stale while players above move.
 
 ⛔ **The exact place lives ONLY in `/v1/me` (`exact: 1`). The screen must take the
 place from there and not from the response to a submission.** A confident `1` used to

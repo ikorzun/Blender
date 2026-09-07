@@ -214,7 +214,7 @@ async function score(worker, env, id, s, q, opts) {
   // correctly. The order is as in production: first cron assembled the snapshot, then the player came.
   await worker._internals.buildSnapshot(env2);
   const ladSteps = JSON.parse((await env2.DB.prepare('SELECT v FROM snap WHERE k=?')
-    .bind('ladder').first()).v);
+    .bind('ladder2').first()).v);
   const tMe = now();
   const meRes = await worker.fetch(new Request('https://x/v1/me?id=gid1user0005&t=' + tMe
     + '&sig=' + await sign(KEY, 'gid1user0005.me.' + tMe)), env2);
@@ -290,7 +290,7 @@ async function score(worker, env, id, s, q, opts) {
   envB.DB._raw.exec('COMMIT');
   const t0 = Date.now();
   const snapB = await worker._internals.buildSnapshot(envB);
-  const ladderB = JSON.parse((await envB.DB.prepare('SELECT v FROM snap WHERE k=?').bind('ladder').first()).v);
+  const ladderB = JSON.parse((await envB.DB.prepare('SELECT v FROM snap WHERE k=?').bind('ladder2').first()).v);
   expect(ladderB.length === N / 100 && snapB.top === 100,
     'LADDER on 50 000: ' + ladderB.length + ' steps, top ' + snapB.top
     + ', snapshot in ' + (Date.now() - t0) + ' ms');
@@ -315,6 +315,55 @@ async function score(worker, env, id, s, q, opts) {
   const dead = JSON.parse(await deadRes.text());
   expect(deadRes.status === 200 && dead.stale === 1,
     '/top with the database down: 200 with a marker, not 503 (' + deadRes.status + ')');
+
+  // ===== 19. TIES ACROSS A HUNDREDTH BOUNDARY (2026-09-06-e) =====
+  // The review's seed: 200 players with the SAME score and distinct times. The rungs at places 100 and
+  // 200 both carried 1000, and a walk that compared the score alone counted both as standing above
+  // the 50th player and handed him place 249 — the very first player got 200 — both `exact:1`. The
+  // rung is a PAIR `[s,u]` now and the walk compares the row it names. ⚠️ Not one seed above could
+  // reach this: every one of them has unique scores, which is exactly how it lived through 32 greens.
+  const envT = { DB: makeDB(SCHEMA) };
+  const baseT = now() - 100000;
+  envT.DB._raw.exec('BEGIN');
+  const stT = envT.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)');
+  for (let i = 1; i <= 200; i++) stT.run('gidtie' + String(i).padStart(6, '0'), KEY, 'T' + i, 1, 1000, baseT + i, 1, baseT);
+  envT.DB._raw.exec('COMMIT');
+  await worker._internals.buildSnapshot(envT);
+  const snapT = await envT.DB.prepare('SELECT v, t FROM snap WHERE k=?').bind('ladder2').first();
+  const rungs = JSON.parse(snapT.v);
+  const meT = async (env, i, prefix) => {
+    const id = prefix + String(i).padStart(6, '0'), tq = now();
+    const r = await worker.fetch(new Request('https://x/v1/me?id=' + id + '&t=' + tq
+      + '&sig=' + await sign(KEY, id + '.me.' + tq)), env);
+    return JSON.parse(await r.text());
+  };
+  const tie1 = await meT(envT, 1, 'gidtie'), tie50 = await meT(envT, 50, 'gidtie');
+  const tie100 = await meT(envT, 100, 'gidtie'), tie101 = await meT(envT, 101, 'gidtie'), tie200 = await meT(envT, 200, 'gidtie');
+  expect(rungs.length === 2 && Array.isArray(rungs[0]) && rungs[0].length === 2 && rungs[0][0] === 1000,
+    'TIES: the rungs are PAIRS [s,u], one per hundredth place (' + JSON.stringify(rungs) + ')');
+  const tieGot = [tie1.rank, tie50.rank, tie100.rank, tie101.rank, tie200.rank].join(',');
+  expect(tieGot === '1,50,100,101,200' && tie50.exact === 1,
+    'TIES across the hundredth boundary: 200 equal scores give places 1,50,100,101,200 — not 200,249,200,200,200 ('
+    + tieGot + ')');
+  expect(typeof tie50.t === 'number' && tie50.t === snapT.t && snapT.t > 0,
+    '/me CARRIES t — the time of the ladder snapshot behind the place (' + tie50.t + ')');
+
+  // ===== 20. THE HOUR AFTER A DEPLOY: the old `ladder` row is NOT read =====
+  // The rungs changed shape, so the snapshot moved to the key `ladder2`. Until the first cron tick of
+  // the new worker there is no ladder at all: the place is counted the whole way (exact), `t` is 0,
+  // and the submit estimate answers `null` — the old numeric rungs under `ladder` are never trusted.
+  const envL = { DB: makeDB(SCHEMA) };
+  envL.DB._raw.exec('BEGIN');
+  const stL = envL.DB._raw.prepare('INSERT INTO p (id,k,n,a,s,u,q,c,f) VALUES (?,?,?,?,?,?,?,?,0)');
+  for (let i = 1; i <= 200; i++) stL.run('gidold' + String(i).padStart(6, '0'), KEY, 'O' + i, 1, 1000, baseT + i, 1, baseT);
+  envL.DB._raw.exec('COMMIT');
+  envL.DB._raw.prepare('INSERT INTO snap (k,v,t) VALUES (?,?,?)').run('ladder', JSON.stringify([1000, 1000]), now() - 60);
+  const old50 = await meT(envL, 50, 'gidold');
+  envL.DB._raw.exec('UPDATE p SET u = u - 60');   // open the rate window for a fresh submit
+  const oldSub = await score(worker, envL, 'gidold000050', 1000, 2, { withKey: false });
+  expect(old50.rank === 50 && old50.exact === 1 && old50.t === 0 && oldSub.json && oldSub.json.rank === null,
+    'THE HOUR AFTER A DEPLOY: an old numeric `ladder` row is ignored — the place is counted the whole way ('
+    + old50.rank + ', t ' + old50.t + '), the estimate is null (' + (oldSub.json && oldSub.json.rank) + ')');
 
   console.log('\nTOTAL PASS: ' + pass + (fails.length ? ' | FAIL: ' + fails.length : ''));
   if (fails.length) { console.log('SUITE: FAIL — ' + fails.join(' || ')); process.exit(1); }

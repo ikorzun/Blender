@@ -115,6 +115,8 @@ CREATE TABLE snap (k TEXT PRIMARY KEY, v TEXT NOT NULL, t INTEGER NOT NULL);
 
 The partial index `WHERE f=0 AND s>0` throws hidden cheaters and zeroed-out players out of all scans for free. The `u ASC` tie-break (whoever reached it earlier stands higher) makes the ordering deterministic without an extra field.
 
+> ⚠️ 2026-09-06-e: the rung is the PAIR `[s, u]` of the row at every hundredth place, under the snapshot key `ladder2`. A rung of the score alone could not tell apart the rows sharing it, and a player inside a run of equal scores crossing a hundredth boundary was placed a whole bucket too low (200 equal scores: the 50th by time got 249). `/v1/me` also returns `t`, the snapshot's time. Details: CLAUDE.md batch 2026-09-06-e, the worker README.
+
 **The ladder of ranks is what makes the estimate add up.** Once an hour a cron collects, in a single query with a window function, the score at every hundredth place:
 ```sql
 SELECT s FROM (SELECT s, ROW_NUMBER() OVER (ORDER BY s DESC, u ASC) rn

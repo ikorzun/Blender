@@ -1,5 +1,13 @@
 // TWO-WAY CHECK OF THE LEADERBOARD ENTRY POINT GUARDS (dispatcher, 2026-08-10)
 //
+// ⛔ 2026-09-06: THE ANCHORS WENT STALE — do not run this before rebinding them. The entry-point
+// markup was renamed (`.ms-lbe-title` no longer exists: the row is `.ms-lbe-txt` / `.ms-lbe-sub` /
+// `.ms-lbe-right` now) and 5 of the 8 sabotage anchors below no longer match the code, including the
+// delivery ones (`LB_URL` is a bare constant since 2026-08-12 and the gate lives in `LB_NOSEND`).
+// Found by the August review (#23) and again by the September one (3.3). The suite guards the same
+// geometry live (test.js, the `.ms-lbe-txt` / `.ms-lbe-right` arms), so nothing is unprotected;
+// this file is only the fast sabotage loop, and it is stale until someone needs it and rebinds it.
+//
 // ⚠️ WHY A SEPARATE TOOL AND NOT THE FULL SUITE FOR EVERY SABOTAGE TEST: the suite takes
 // 13 minutes, there are six sabotage tests. Here we take EXACTLY THE SAME quantities that
 // the guards in test.js read — that is, the observability of the defect is checked with the

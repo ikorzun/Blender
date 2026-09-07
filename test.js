@@ -17385,6 +17385,179 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     }
   }
 
+  // ⟦LBKEY-SECTION-BEGIN⟧
+  // ═══ 2026-09-06-e: THE SIGNING KEY TRAVELS WITH THE ID; THE `?lb=` OVERRIDE IS LOCAL-ONLY ═══
+  // (the August review's #3, doors A and B, re-raised by the September review as 2.3; and its 3.1)
+  // ⚠️ ITS OWN PAGE OVER HTTP with the bot flag hidden: on `file:` the gate `LB_NOSEND` mutes every
+  // submission and the arms would be measuring silence. The «server» is a fetch stub the page itself
+  // scripts (`window.__lbk.mode`), and it RECORDS every payload — the arms read what actually left.
+  // ⚠️ THE ARMS ARE ORDERED AND SHARE ONE PAGE ON PURPOSE: the identity switch (A3/A4) needs a row
+  // already registered under the first id, the recovery arms need the switched id — each state is
+  // the previous arm's result, exactly as it is for a player. The dry-run lifter in the scratchpad
+  // runs this block alone between its markers; keep the markers.
+  {
+    const stand = await httpStand();
+    const kp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await kp.addInitScript(hideBotFlag);
+    await kp.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.test'); } catch (e) {}
+      window.__lbk = { posts: [], mode: 'ok' };   // 'ok' | 'nokey-without-k' | 'sig-once'
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        const s = String(u);
+        if (s.indexOf('/v1/score') >= 0) {
+          let b = null; try { b = JSON.parse(o && o.body); } catch (e) {}
+          window.__lbk.posts.push({ s: b && b.s, k: (b && typeof b.k === 'string') ? b.k : null, id: b && b.id });
+          if (window.__lbk.mode === 'nokey-without-k' && !(b && b.k))
+            return Promise.resolve(new Response(JSON.stringify({ err: 'nokey' }), { status: 400 }));
+          if (window.__lbk.mode === 'sig-once') {
+            window.__lbk.mode = 'ok';
+            return Promise.resolve(new Response(JSON.stringify({ err: 'sig' }), { status: 401 }));
+          }
+          return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: b && b.s, rank: null, exact: 0, n: b && b.n }), { status: 200 }));
+        }
+        if (s.indexOf('/v1/me') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ err: 'none' }), { status: 404 }));
+        if (s.indexOf('/v1/top') >= 0)
+          return Promise.resolve(new Response(JSON.stringify({ t: 0, n: 0, p: 1, r: [], stale: 1 }), { status: 200 }));
+        return of.apply(this, arguments);
+      };
+    });
+    await kp.goto(stand.url);
+    await kp.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
+    await kp.evaluate(() => window.__game.skipIntro());
+    const kres = await kp.evaluate(async () => {
+      const g = window.__game, L = window.__lbk, sl = ms => new Promise(r => setTimeout(r, ms));
+      const save = () => { try { return JSON.parse(localStorage.getItem('mixer_save_v1') || '{}'); } catch (e) { return {}; } };
+      const ls = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      // ⚠️ We wait for the FACT (a recorded payload), never for the clock — the coalescing delay plus a
+      // busy processor under the suite do not fit into a fixed pause (the canon's own catch).
+      const waitPosts = async (n) => { for (let i = 0; i < 100 && L.posts.length < n; i++) await sl(100); return L.posts.length; };
+      // ⚠️ A RECORDED PAYLOAD IS NOT A PROCESSED ANSWER: the stub pushes the post BEFORE the client has
+      // awaited the response, so the marks are written a tick later. Reading them right after
+      // `waitPosts` raced and went red once in seven runs on a healthy build. Wait for the state.
+      const waitFor = async (f) => { for (let i = 0; i < 50 && !f(); i++) await sl(100); return f(); };
+      const hex64 = v => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+      // ⚠️ `bankScore(n)` banks a LEVEL TOTAL relative to `level.banked`, not an increment: the same
+      // number twice banks nothing and fires nothing — the first draft of this section called
+      // `bankScore(1000)` six times and saw ONE submission. Each bank here is a new, larger total.
+      let bankTotal = 0;
+      const bank = () => { bankTotal += 1000; g.bankScore(bankTotal); };
+      const out = {};
+      // A1 — the first submission carries a key, and that key is IN THE SAVE, marked for this id
+      const gid0 = g.guestId();
+      bank(); await waitPosts(1); await waitFor(() => ls('mixer_lb_reg') === gid0);
+      const s1 = save();
+      out.a1 = { kSent: hex64(L.posts[0] && L.posts[0].k), inSave: !!s1.lk && s1.lk === (L.posts[0] && L.posts[0].k),
+                 reg: ls('mixer_lb_reg') === gid0, copy: ls('mixer_lb_key') === s1.lk };
+      // A1b — the second submission for the same id carries NO key
+      bank(); await waitPosts(2);
+      out.a1b = { posts: L.posts.length, kOnSecond: L.posts[1] ? L.posts[1].k : 'none' };
+      // A3 — THE MERGE RULE: an OLDER id from the cloud wins, and ITS key comes with it
+      const K0 = '0'.repeat(63) + '1', G0 = '0000000aaaaaa';   // lexicographically below any real gid
+      const gen = s1.gen || 0;
+      g.mergeRaw({ gid: G0, lk: K0, gen: gen });
+      const s2 = save();
+      out.a3 = { gid: s2.gid === G0, lk: s2.lk === K0 };
+      // A3b — a NEWER id from the cloud loses, and its key is NOT taken
+      g.mergeRaw({ gid: 'zzzzzzzzzzzzzz', lk: 'f'.repeat(64), gen: gen });
+      const s3 = save();
+      out.a3b = { gid: s3.gid === G0, lk: s3.lk === K0 };
+      // A4 — after the switch the next submission is for the NEW id and carries ITS key: the mark
+      //      was earned by the old id, and the memory of the last send is not this id's either
+      bank(); await waitPosts(3); await waitFor(() => ls('mixer_lb_reg') === G0 && ls('mixer_lb_sent_gid') === G0);
+      const p3 = L.posts[2] || {};
+      out.a4 = { id: p3.id === G0, k: p3.k === K0, regAfter: ls('mixer_lb_reg') === G0, sentGid: ls('mixer_lb_sent_gid') === G0 };
+      // A5 — `nokey`: the row is gone (retention) while the mark says registered — ONE retry WITH the key
+      L.mode = 'nokey-without-k';
+      const before5 = L.posts.length;
+      bank(); await waitPosts(before5 + 2); await waitFor(() => ls('mixer_lb_reg') === G0);
+      const p5a = L.posts[before5] || {}, p5b = L.posts[before5 + 1] || {};
+      out.a5 = { first: p5a.k === null, retry: p5b.k === K0, reg: ls('mixer_lb_reg') === G0, posts: L.posts.length - before5 };
+      L.mode = 'ok';
+      // A6 — `sig`: the key is not the row's — it is DROPPED with its mark, and a NEW one is made next time
+      L.mode = 'sig-once';
+      const before6 = L.posts.length;
+      bank(); await waitPosts(before6 + 1); await waitFor(() => save().lk === '' && ls('mixer_lb_reg') === null);
+      const s6 = save();
+      out.a6 = { dropped: s6.lk === '', regCleared: ls('mixer_lb_reg') === null, copyGone: ls('mixer_lb_key') === null };
+      bank(); await waitPosts(before6 + 2); await waitFor(() => ls('mixer_lb_reg') === G0);
+      const p6 = L.posts[before6 + 1] || {}; const s7 = save();
+      out.a6b = { newKey: hex64(p6.k) && p6.k !== K0, inSave: s7.lk === p6.k };
+      // A7 — the same id on both sides keeps OUR non-empty key
+      g.mergeRaw({ gid: G0, lk: 'e'.repeat(64), gen: gen });
+      const s8 = save();
+      out.a7 = { keptOwn: s8.lk === p6.k };
+      return out;
+    });
+    await kp.close(); stand.close();
+    console.log('lb-key:', JSON.stringify(kres));
+    expect(kres.a1.kSent && kres.a1.inSave && kres.a1.reg && kres.a1.copy && kres.a1b.kOnSecond === null,
+      '⛔ THE SIGNING KEY LIVES IN THE SAVE: the first submission carries it, `Save.lk` holds exactly ' +
+      'that key, the «registered» mark names the id, and the second submission carries none (' +
+      JSON.stringify([kres.a1, kres.a1b]) + ')');
+    expect(kres.a3.gid && kres.a3.lk && kres.a3b.gid && kres.a3b.lk,
+      '⛔ THE KEY FOLLOWS THE ID IN A MERGE: the older cloud id wins and its key comes with it; a newer ' +
+      'one loses and its key is not taken (' + JSON.stringify([kres.a3, kres.a3b]) + ')');
+    expect(kres.a4.id && kres.a4.k && kres.a4.regAfter && kres.a4.sentGid,
+      '⛔ AFTER THE SWITCH the submission is for the NEW id and carries ITS key — the mark and the ' +
+      'memory of the last send are the id\'s, not the browser\'s (' + JSON.stringify(kres.a4) + ')');
+    expect(kres.a5.first && kres.a5.retry && kres.a5.reg && kres.a5.posts === 2,
+      '⛔ `nokey` (the row deleted by retention): the mark is dropped and ONE retry goes out WITH the key ' +
+      '— door B of the August review (' + JSON.stringify(kres.a5) + ')');
+    expect(kres.a6.dropped && kres.a6.regCleared && kres.a6.copyGone && kres.a6b.newKey && kres.a6b.inSave,
+      '⛔ `sig` (the key is not the row\'s): the key is dropped with its mark and its localStorage copy, ' +
+      'and the next submission makes and saves a NEW one (' + JSON.stringify([kres.a6, kres.a6b]) + ')');
+    expect(kres.a7.keptOwn,
+      '⚠️ THE SAME ID ON BOTH SIDES keeps OUR non-empty key — a wrong local key is the server\'s to ' +
+      'refuse, not the merge\'s to guess (' + JSON.stringify(kres.a7) + ')');
+  }
+  // ── THE `?lb=` OVERRIDE IS READ ON A LOCAL HOST ONLY ──────────────────────────────────────
+  // The local half is proven above (the delivery guard: `127.0.0.1/?lb=http://lb.probe` gives base
+  // `http://lb.probe`). This is the other side: a FOREIGN host name, mapped onto the loop by a
+  // resolver rule of our own browser instance, must ignore both the query and localStorage — a
+  // crafted link cannot point an unregistered player's first submission (id, score, KEY) elsewhere.
+  {
+    const http = require('http');
+    const srvF = http.createServer((req, res) => {
+      if (String(req.url).split('?')[0] !== '/index.html'){ res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(fs.readFileSync(PAGE_FILE));
+    });
+    await new Promise((r) => srvF.listen(0, '127.0.0.1', r));
+    const bf = await chromium.launch({ args: ['--host-resolver-rules=MAP lb-foreign.example 127.0.0.1'] });
+    let foreign = null;
+    try {
+      const pf = await bf.newPage();
+      // ⚠️ No network from here either: reads would otherwise go to the production address, which
+      // is exactly what this page must derive for itself.
+      await pf.addInitScript(() => {
+        try { localStorage.clear(); localStorage.setItem('mixer_lb_url', 'http://lb.probe2'); } catch (e) {}
+        const of = window.fetch;
+        window.fetch = function (u) {
+          if (String(u).indexOf('/v1/') >= 0)
+            return Promise.resolve(new Response(JSON.stringify({ err: 'none' }), { status: 404 }));
+          return of.apply(this, arguments);
+        };
+      });
+      await pf.goto('http://lb-foreign.example:' + srvF.address().port + '/index.html?lb=http://lb.probe');
+      // ⚠️ We wait for `__lb` ALONE and read the base ALONE: `LB_BASE` is computed at module load, which
+      // is exactly the moment under test, while `__game` does not exist on this page at all — 99-main
+      // DELETES it outside dev mode (`if (!DEV) delete window.__game`), and a foreign host is not dev.
+      // The host's non-locality is not asserted through the hook here — the table of hosts already
+      // proves `lbHostIsLocal` both ways; this arm proves the CONSEQUENCE on a real foreign name.
+      await pf.waitForFunction(() => window.__lb && typeof window.__lb.base === 'function', { timeout: 60000 });
+      foreign = await pf.evaluate(() => ({ host: location.hostname, base: window.__lb.base() }));
+      await pf.close();
+    } finally { await bf.close(); srvF.close(); }
+    console.log('foreign-host override:', JSON.stringify(foreign));
+    expect(foreign && foreign.host === 'lb-foreign.example' && /^https:\/\/lb\.blendo\.monster/.test(foreign.base) &&
+           foreign.base !== 'http://lb.probe' && foreign.base !== 'http://lb.probe2',
+      '⛔ ON A FOREIGN HOST `?lb=` AND `mixer_lb_url` ARE IGNORED — the client keeps the production ' +
+      'address, so a crafted link cannot capture the first submission and its key (' + JSON.stringify(foreign) + ')');
+  }
+  // ⟦LBKEY-SECTION-END⟧
+
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.
   // The filters are the same (the synthetic crash of the suite and the newbie noise), so that the gate does not
   // start going red on what the two previous ones deliberately let through.

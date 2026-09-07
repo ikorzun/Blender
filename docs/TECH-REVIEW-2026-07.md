@@ -1,5 +1,7 @@
 # Technology reassessment: three.js r149 + Rapier + a single HTML file (July 2026)
 
+> ⚠️ HISTORICAL (note of 2026-09-06). The numbers below are July's: the build is 12.1 MB / ~4.1 MB gzip now (the models, the hit effects and the sound packs came after), the portal package is measured in STATUS.md, and the library versions and platform limits quoted here must be re-checked before use. The verdict (keep the stack) still stands; the arithmetic does not.
+
 ## Verdict: KEEP the stack, with planned changes (keep-with-changes)
 
 In short: a game can be built on this technology — it is already built and it works (a fresh build with all the fixes passes the full test suite: «ERRORS: none» — 141 bodies, win/loss/deadlock, the mixer punishment, the finale, the ad stub). The stack is exactly the class of technology that the portals themselves recommend for casual games. There is nothing to migrate to right now and no reason to. But there is one deliberate debt (three.js r149) with a clear plan to pay it off AFTER release.
