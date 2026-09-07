@@ -16133,3 +16133,16 @@ vertical; a three-digit mock is a separate arm.
 **Run 26** on the reviewed build (g + h): **1012 green, 0 red, SUITE: PASS**. Pushed to `v2` and onto `main` on his
 word («push v2 onto main after a green run»), the live site verified by byte size. (Run 24, the surge alone,
 was 1007 green with the one known audio flake; run 25 was stopped by me before the review's fixes.)
+
+## BATCH 2026-09-07-i: THE THREE-DIGIT RANK IS GUARDED (his word: «add a guard for a three-digit number in the leaderboard» — the gap named in -h)
+
+A section of its own (`⟦LBDIGITS-SECTION-BEGIN/END⟧`, a 390 page) whose mock answers `/v1/me` with
+rank **845** and `s: 0` — equal to a fresh page's live score, so the row takes the server's rank as is
+(the «caught up» branch of `lbLoadOurs`) and, being OUTSIDE the 50-row segment, goes last (the -a rule
+of 2026-08-11). Three arms: the row is 51st with its place «845»; `--lb-pos-w` is **37px** and every
+circle of the list is 37 wide; every avatar still on one vertical and the own number NOT cut by its
+circle (`scrollWidth − clientWidth ≤ 0`). Healthy 3 green; the width pinned at 28 → the width arm and
+the not-cut arm red (the number overflows by 7px, the avatars sit at 64 instead of 73). ⚠️ THE MOCK'S
+`s: 0` IS LOAD-BEARING: a non-zero score would send the row down the insertion branch and it would be
+placed 51st with the place «51» — two digits, and the section would measure the wrong thing.
+**Run 27**: **1015 green, 0 red, SUITE: PASS**. Pushed to `v2` and onto `main` on his word.

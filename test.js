@@ -10774,6 +10774,56 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦MENUFIT-SECTION-END⟧
 
+  // ⟦LBDIGITS-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=LBDIGITS runs this block alone; keep the markers)
+  // ===== A THREE-DIGIT RANK WIDENS EVERY CIRCLE OF THE LIST (the owner's word 2026-09-07-i «add a guard
+  // for a three-digit number in the leaderboard») =====
+  // The rank circle's width is list-wide since -h (`--lb-pos-w` from the longest rank rendered); the
+  // two-digit fixture of the main leaderboard section pins only the 28 floor. Here the own place is 845
+  // — OUTSIDE the 50-row segment, so the row goes last (the -a rule of 2026-08-11) — through the
+  // production path: the mock's `/v1/me` carries `s: 0`, which equals a fresh page's live score, so the
+  // server's rank is used as is (the «caught up» branch), not derived by insertion.
+  {
+    const dp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    dp.on('pageerror', e => errors.push('PAGEERROR(lbdigits): ' + e.message));
+    await dp.addInitScript(() => {
+      const rows = Array.from({ length: 50 }, (_, i) => ['Player' + (i + 1), (i % 24) + 1, 10000 - i * 100]);   // [name, avatar, score] — the server's shape
+      const of = window.fetch;
+      window.fetch = function (u, o) { const s = String(u);
+        if (s.indexOf('/v1/top') >= 0) return Promise.resolve(new Response(JSON.stringify({ t: 1, n: 900, p: 1, r: rows }), { status: 200, headers: { 'content-type': 'application/json' } }));
+        if (s.indexOf('/v1/me') >= 0) return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: 0, n: 'Stoat', a: 5, rank: 845, exact: 1, t: 1, up: [], dn: [] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+        return of.apply(this, arguments); };
+      localStorage.setItem('mixer_lb_url', 'http://lb.stub');
+    });
+    await dp.goto('file://' + PAGE_FILE);
+    await dp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await dp.evaluate(() => window.__game.skipIntro());
+    await dp.waitForTimeout(300);
+    const dig = await dp.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      document.getElementById('pauseBtn').click(); await sleep(400);
+      document.getElementById('msLbEntry').click();
+      for (let i = 0; i < 40 && !document.querySelector('#lbList .lb-row.me'); i++) await sleep(100);
+      const rows = [...document.querySelectorAll('#lbList .lb-row')], me = document.querySelector('#lbList .lb-row.me');
+      const mePos = me && me.querySelector('.lb-pos');
+      const out = { rows: rows.length, meIndex: rows.indexOf(me), mePosText: mePos ? mePos.textContent : null,
+        posVar: getComputedStyle(document.getElementById('lbList')).getPropertyValue('--lb-pos-w').trim(),
+        posWidths: [...new Set(rows.map(r => +r.querySelector('.lb-pos').getBoundingClientRect().width.toFixed(1)))],
+        avaLefts: [...new Set(rows.map(r => +r.querySelector('.lb-av').getBoundingClientRect().left.toFixed(1)))],
+        meCut: mePos ? mePos.scrollWidth - mePos.clientWidth : null };
+      document.getElementById('lbClose').click(); await sleep(200);
+      return out;
+    });
+    await dp.close();
+    console.log('lb digits:', JSON.stringify(dig));
+    expect(dig.rows === 51 && dig.meIndex === 50 && dig.mePosText === '845',
+      'LB DIGITS: the own row at 845 stands last after the 50-row segment, with its three-digit place (' + JSON.stringify(dig) + ')');
+    expect(dig.posVar === '37px' && dig.posWidths.length === 1 && Math.abs(dig.posWidths[0] - 37) <= 0.5,
+      'LB DIGITS: a three-digit rank widens EVERY circle of the list to 37 — `--lb-pos-w` is list-wide (' + JSON.stringify({ posVar: dig.posVar, widths: dig.posWidths }) + ')');
+    expect(dig.avaLefts.length === 1 && dig.meCut !== null && dig.meCut <= 0,
+      'LB DIGITS: every avatar still stands on ONE vertical and the own number is not cut by its circle (' + JSON.stringify({ avaLefts: dig.avaLefts, meCut: dig.meCut }) + '). ⛔ SABOTAGE: pin the width at 28 — the number overflows its circle');
+  }
+  // ⟦LBDIGITS-SECTION-END⟧
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of
