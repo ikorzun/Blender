@@ -16028,4 +16028,5 @@ arm; `flex:0 0 auto` on the eyes → the 700 arm alone (eyes 232 → 232 while t
   moved from «centred» to «left at 16, above the title»; a standalone read of the built page gives
   phone `left 16, above the title 16, sticky`, desktop `left 24`; the rule reverted to `center` gives
   `left 167` on the phone and the same 24 on the desktop — the arm discriminates.
-- **Run 23** on this build: **1007 green, 0 red, SUITE: PASS**. Pushed to `v2`; `main` on his word.
+- **Run 23** on this build: **1007 green, 0 red, SUITE: PASS**. Pushed to `v2`, then onto `main` on his word
+  («push v2 onto main»), the live site verified by byte size.

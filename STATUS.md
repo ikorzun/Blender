@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: the batches of 2026-09-07 b–f; `main` = run 22's build (b–e), `v2` one batch ahead (f: the cross back, the leaderboard's close left)** · the suite **1007 green, 0 red, SUITE: PASS** (run 23 on f; run 22 on b–e: 1007; run 21 on b alone: 996) · the live
+**Build: the batches of 2026-09-07 b–f, v2 = main (648bff0)** · the suite **1007 green, 0 red, SUITE: PASS** (run 23 on f; run 22 on b–e: 1007; run 21 on b alone: 996) · the live
 site verified by byte size against the build · the worker awaits your `wrangler deploy` (the rank fix and
 the `t` field) · portal package unchanged in shape
 
