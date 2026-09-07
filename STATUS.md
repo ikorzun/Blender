@@ -10,6 +10,8 @@ A new session is required to read the canon first — that rule is in its header
 site verified by byte size against the build · the worker awaits your `wrangler deploy` (the rank fix and
 the `t` field) · portal package unchanged in shape
 
+**THE WORKER IS DEPLOYED** — by the owner on 2026-09-07 at 10:09 (wrangler 4.129.0 via npx, an OAuth login made on the spot; `Deployed blendo-lb`, version `7f3fa914-9ad5-404f-9f4b-00391dfa1a8f`, the custom domain and both crons). Checked right after: `/v1/top` 200, `max-age=60` (not degraded), 52 players, the snapshot of 10:00 UTC; the live smoke (`server/leaderboard/test/smoke.js`, it writes ONE row and deletes it) — **11 green**, the row gone (404 after the delete). The first hourly tick under the new build (11:00 UTC) builds `ladder2`; until then places are counted the whole way, exact. ⚠️ This Mac now HAS wrangler and a Cloudflare login — a deploy is still your call, never a batch's side effect.
+
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
 ## To continue on another device (a new chat, a fresh clone)
@@ -194,11 +196,6 @@ payment tests are on it.
    portal now receives our `level_completed` — make sure NO interstitial appears at all (we call
    none since 3 September; one would be the portal's own doing).
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
-6. **Deploy the leaderboard worker** — the rank fix and the `t` field live on the server, and this Mac
-   has neither wrangler nor a Cloudflare login:
-   `npx wrangler deploy --config server/leaderboard/wrangler.toml`. Nothing else to run: no schema
-   change, no index migration; the first hour after the deploy has no ladder (places are counted the
-   whole way, exact), the next cron tick builds it under its new key. The game works with either worker.
 
 ## Decisions only you can take
 

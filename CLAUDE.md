@@ -15702,9 +15702,12 @@ Reproduced on the project's own D1 adapter (`server/leaderboard/test/d1.js`, rea
   `t` 0, the estimate is `null`). Three new sabotages in break.js — the walk by score alone, `t` dropped,
   `/me` reading the OLD key — each brings down exactly its own assert. **run.js 36 green; break.js: 17
   sabotages of the suite + 4 of the smoke caught, both builds green.**
-- ⛔ THE DEPLOY IS HIS: `npx wrangler deploy --config server/leaderboard/wrangler.toml`. There is no
-  wrangler and no Cloudflare login on this Mac (checked). Until then the live worker answers as before;
-  the client works with either worker (`at` is 0 against the old one).
+- ✅ DEPLOYED BY THE OWNER ON 2026-09-07 (10:09 local; wrangler 4.129.0 via npx, an OAuth login made on
+  the spot; version `7f3fa914-9ad5-404f-9f4b-00391dfa1a8f`, the custom domain and both crons). The live
+  smoke (`test/smoke.js`, one row written and deleted) gave 11 green; the first hourly tick after the
+  deploy builds `ladder2`. ⚠️ THE STANDING NOTE «no wrangler and no Cloudflare login on this Mac» IS
+  STALE SINCE THAT MORNING: both exist now; a worker deploy is still the OWNER'S action by rule, never a
+  batch's side effect. The client works with either worker (`at` is 0 against the old one).
 
 ### 2.3 + AUGUST «DOOR B» — THE SIGNING KEY LIVES IN THE SAVE AND TRAVELS WITH THE ID
 The chain, by code: `Save.gid` merges to the OLDEST id (pickGid) and goes to the cloud; the HMAC key sat in
@@ -15861,9 +15864,9 @@ test.js` (438 lines) applied with `git apply` — it applied cleanly on top of t
 
 ### WHAT IS HIS, AND WHAT IS DONE
 `v2` was pushed onto `main` on his word («push v2 onto main after a green run») — the colour edition and the
-review batch's client half are live, verified by byte size. What remains his:
-`npx wrangler deploy --config server/leaderboard/wrangler.toml` puts the rank fix and `t` on the worker;
-until then those two are inert and the client works with the old worker (`at` is 0).
+review batch's client half are live, verified by byte size. The worker was deployed by him
+the same morning (the «deployed» line of batch -e carries the version): the rank fix and `t` are live,
+the first hourly tick builds `ladder2`. Nothing of this batch is pending.
 ⚠️ THE TWO DRY-RUN TOOLS MOVED INTO THE REPO: `tools/section-dryrun.js` (lifts a marked section of
 test.js and runs it alone; SECTION=LBKEY|EDGES, MIXER_PAGE for a variant) and `tools/build-variant.py`
 (a sabotaged build under the system temp dir, never in the tree). The scratchpad dies with a session;
