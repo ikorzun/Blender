@@ -2624,6 +2624,7 @@ function openMainScreen(){
   // 0). We remove the classes EXPLICITLY: scrollTop=0 does not produce a scroll event.
   if (!wasOpen){
     ms.scrollTop = 0;
+    const msw = ms.querySelector('.ms-wrap'); if (msw) msw.scrollTop = 0; // the bento wrap scrolls on a short window (2026-09-07)
     ms.classList.remove('playoff');
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }

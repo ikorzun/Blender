@@ -5468,6 +5468,7 @@ window.bridge = {
   // Tips FIRST, then Shake's (the owner's word 2026-09-04)
   expect(sbProbe.chipLabels.join('|') === ('+' + sbProbe.tiers[0].hints + '|+' + sbProbe.tiers[0].shakes),
     'the chips «+13 Tips» then «+9 Shake\'s» match the package, in that order (' + JSON.stringify(sbProbe.chipLabels) + ')');
+  // ⟦STCLOSE-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=STCLOSE runs this block alone; keep the markers)
   // ═══ THE PHONE ROW (the owner's word 2026-09-05: «on mobile it must fit the screen. For the
   // phone remove the text inside the bubbles and put them side by side in one row with a 16 px
   // gap between») — read on its OWN page at the two phone sizes the fit was designed for (375×667,
@@ -5499,6 +5500,23 @@ window.bridge = {
         // run (the fit media disabled, the arm stayed green) before the first suite run
         hOverflow: wrap.scrollWidth - wrap.clientWidth,
         vOverflow: (() => { const so = document.getElementById('starsOverlay'); return so.scrollHeight - so.clientHeight; })() };
+      // THE CLOSE BUTTON (2026-09-07): the VISIBLE svg is read — two live in the button (the cross
+      // and the back arrow), the media query shows one; `getBBox` is in viewBox units, so the ink
+      // tells the arrow (≈23.4×16.6 of 28) from the cross (14.1×14.1 of 32) whatever the CSS size
+      const cb = document.getElementById('starsClose'), cbr = cb.getBoundingClientRect();
+      const svgs = [...cb.querySelectorAll('svg')].map(el => { const r = el.getBoundingClientRect();
+        return { cls: el.getAttribute('class') || '', vb: el.getAttribute('viewBox'), display: getComputedStyle(el).display, w: +r.width.toFixed(1), h: +r.height.toFixed(1) }; });
+      const visEl = [...cb.querySelectorAll('svg')].filter(el => getComputedStyle(el).display !== 'none');
+      const bb = visEl.length === 1 ? visEl[0].querySelector('path').getBBox() : null;
+      out.close = { l: +cbr.left.toFixed(1), t: +cbr.top.toFixed(1), w: +cbr.width.toFixed(1),
+        position: getComputedStyle(cb).position, alignSelf: getComputedStyle(cb).alignSelf,
+        wrapInset: +(wrap.getBoundingClientRect().left + parseFloat(getComputedStyle(wrap).paddingLeft)).toFixed(1),
+        svgs, vis: svgs.filter(x => x.display !== 'none').map(x => x.cls),
+        visVB: visEl.length === 1 ? visEl[0].getAttribute('viewBox') : null,
+        visSize: visEl.length === 1 ? [+visEl[0].getBoundingClientRect().width.toFixed(1), +visEl[0].getBoundingClientRect().height.toFixed(1)] : null,
+        ink: bb ? [+bb.width.toFixed(2), +bb.height.toFixed(2)] : null,
+        fill: visEl.length === 1 ? getComputedStyle(visEl[0].querySelector('path')).fill : null,
+        bg: getComputedStyle(cb).backgroundColor };
       document.getElementById('starsClose').click(); await sleep(250);
       return out;
     });
@@ -5536,6 +5554,35 @@ window.bridge = {
          Math.abs(phoneRow.d1280.gap - 20) <= 0.5 && phoneRow.d1280.sameRow,
     'DESKTOP ROW 1280: the labels are back, the pill keeps its 20 on the right (2026-09-04), the gap is 20 (' +
     JSON.stringify({ labs: phoneRow.d1280.labs, chips: phoneRow.d1280.chips, gap: phoneRow.d1280.gap }) + ')');
+  // THE CLOSE BUTTON (the owner's word 2026-09-07, with the cross selected): on the phone it stands
+  // on the LEFT, as on the desktop, and draws the BACK ARROW (his Interface/back.svg, 28×28); the
+  // desktop keeps the cross, fixed at the screen's top-left. ⚠️ Sabotages, each dropping its own arm:
+  // `.st-ic-x { display:none }` removed → «the arrow alone» (both svgs visible); `align-self` back to
+  // center → «at the LEFT»; the arrow's path swapped for the cross's → «the ink is the arrow».
+  for (const [name, m] of [['375×667', phoneRow.p375], ['320×568', phoneRow.p320]]) {
+    const c = m.close;
+    expect(c.vis.length === 1 && c.vis[0] === 'st-ic-back' && c.visVB === '0 0 28 28' && !!c.visSize &&
+           Math.abs(c.visSize[0] - 28) <= 0.5 && Math.abs(c.visSize[1] - 28) <= 0.5,
+      'CLOSE ' + name + ': the phone draws the back arrow alone, 28×28 in its own viewBox, the cross hidden (' + JSON.stringify(c.svgs) + ')');
+    // ⚠️ MEASURED, NOT ESTIMATED: getBBox gives the TIGHT bounds — the arrow 22.75×16.6 of 28 (the
+    // control points said 23.4), the cross 15.1×15.1 of 32 (the round caps reach past 8.94..23.06).
+    // The discriminator is the SHAPE: the arrow is wide (aspect ≈ 1.37), the cross is square.
+    expect(!!c.ink && c.ink[0] > 21 && c.ink[0] < 25 && c.ink[1] > 15 && c.ink[1] < 18 && c.ink[0] / c.ink[1] > 1.25,
+      'CLOSE ' + name + ': the drawn glyph is the wide arrow of back.svg (ink ≈ 22.8×16.6 of 28, aspect > 1.25), not the square cross (' + JSON.stringify(c.ink) + ')');
+    expect(Math.abs(c.l - c.wrapInset) <= 0.5 && c.l < m.vw / 2 - c.w && c.alignSelf === 'flex-start' && c.position !== 'fixed',
+      'CLOSE ' + name + ': the button stands at the LEFT of the wrap (x ' + c.l + ' = the wrap\'s inset ' + c.wrapInset + '), in the flow, not centred (' +
+      JSON.stringify({ l: c.l, alignSelf: c.alignSelf, position: c.position }) + ')');
+    expect(c.bg === 'rgb(255, 255, 255)' && c.fill === 'rgb(0, 0, 0)' && Math.abs(c.w - 56) <= 0.5,
+      'CLOSE ' + name + ': still a white 56 circle with a black glyph (' + JSON.stringify({ bg: c.bg, fill: c.fill, w: c.w }) + ')');
+  }
+  {
+    const c = phoneRow.d1280.close;
+    expect(c.vis.length === 1 && c.vis[0] === 'st-ic-x' && c.visVB === '0 0 32 32' && c.position === 'fixed' &&
+           Math.abs(c.l - 16) <= 0.5 && Math.abs(c.t - 16) <= 0.5 && !!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
+      'CLOSE 1280: the desktop keeps the CROSS, fixed at the screen\'s top-left (16,16) (' +
+      JSON.stringify({ vis: c.vis, vb: c.visVB, l: c.l, t: c.t, position: c.position, ink: c.ink }) + ')');
+  }
+  // ⟦STCLOSE-SECTION-END⟧
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint
   // server (stroke-width 26 under paint-order:stroke), NO #otlFill slug (it floods white), 117 on
   // the desktop variant and 80 on the mobile one. Read from the live nodes — computed styles
@@ -5637,7 +5684,8 @@ window.bridge = {
   // both themes, the system rule --btn-bg gave a dark button on dark during the day).
   // We check IN BOTH themes: a pinpoint deviation must not be eaten by the rule.
   const stClose = await page.evaluate(() => {
-    const b = document.getElementById('starsClose'), p = b.querySelector('svg path');
+    // ⚠️ the VISIBLE svg (2026-09-07: two live in the button — the cross and the phone's back arrow)
+    const b = document.getElementById('starsClose'), p = [...b.querySelectorAll('svg')].find(el => getComputedStyle(el).display !== 'none').querySelector('path');
     const wasNight = document.documentElement.classList.contains('night');
     const snap = () => ({ bg: getComputedStyle(b).backgroundColor, fill: getComputedStyle(p).fill });
     document.documentElement.classList.remove('night');
@@ -10539,7 +10587,141 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'loop\'s write, or make `edgeBottomTriple` return a colour at zero — the arm reads the LOOP\'s output, not the formula');
   }
 
+  // THE CARDS ARE PHONE-ONLY (the owner's word 2026-09-07 «remove the one-colour strips at the top and
+  // the bottom on the desktop and the tablet»): hidden from 768 — the HUD's own mobile/desktop
+  // boundary — and present below it. Two-sided ON the boundary: 768 hidden, 767 present.
+  {
+    const ep = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    ep.on('pageerror', e => errors.push('PAGEERROR(edge-desk): ' + e.message));
+    await ep.goto('file://' + PAGE_FILE);
+    await ep.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    const readCards = () => ep.evaluate(() => ({ vw: innerWidth,
+      top: getComputedStyle(document.getElementById('edgeTop')).display, bot: getComputedStyle(document.getElementById('edgeBot')).display }));
+    const at1280 = await readCards();
+    await ep.setViewportSize({ width: 768, height: 1024 }); await ep.waitForTimeout(120);
+    const at768 = await readCards();
+    await ep.setViewportSize({ width: 767, height: 1024 }); await ep.waitForTimeout(120);
+    const at767 = await readCards();
+    await ep.close();
+    console.log('edge cards by width:', JSON.stringify({ at1280, at768, at767 }));
+    expect(at1280.top === 'none' && at1280.bot === 'none' && at768.top === 'none' && at768.bot === 'none',
+      'EDGE CARDS: hidden on the desktop and the tablet — 1280 and the boundary 768 (' + JSON.stringify({ at1280, at768 }) + ')');
+    expect(at767.top === 'block' && at767.bot === 'block',
+      'EDGE CARDS: present on the phone — 767, the HUD\'s own boundary (' + JSON.stringify(at767) + ')');
+  }
   // ⟦EDGES-SECTION-END⟧
+
+  // ⟦KEYS-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=KEYS runs this block alone; keep the markers)
+  // ===== THE ARROW KEYS ORBIT THE BOWL (the owner's word 2026-09-07 «on the desktop, rotate the bowl
+  // with the keyboard arrows») =====
+  // Real key presses through Playwright's keyboard, the camera read from `cam()`. The property is the
+  // DIRECTION (the drag's), the CLAMPS and the GATES — never a literal angle: the speed is a constant
+  // the owner may retune. The thresholds are small (0.1 rad ≈ 6°) because the held key is integrated
+  // per frame with a 50 ms cap, and a loaded bench gives few frames.
+  {
+    const kp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    kp.on('pageerror', e => errors.push('PAGEERROR(keys): ' + e.message));
+    await kp.goto('file://' + PAGE_FILE);
+    await kp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await kp.evaluate(() => window.__game.skipIntro());
+    await kp.waitForTimeout(400);
+    const cam = () => kp.evaluate(() => window.__game.cam());
+    const hold = async (code, ms) => { const a = await cam(); await kp.keyboard.down(code); await kp.waitForTimeout(ms);
+      await kp.keyboard.up(code); await kp.waitForTimeout(60); const b = await cam(); return { a, b }; };
+    const left = await hold('ArrowLeft', 300), right = await hold('ArrowRight', 300);
+    // the tilt: two long holds each way reach the clamps even on a slow bench (3 s × ≥ 0.5 rad/s)
+    await hold('ArrowUp', 1500); const up = await hold('ArrowUp', 1500);
+    await hold('ArrowDown', 1500); const down = await hold('ArrowDown', 1500);
+    // paused (the menu open): the keys do nothing — and the menu keeps its own arrow scrolling
+    await kp.evaluate(() => { document.getElementById('pauseBtn').click(); });
+    await kp.waitForTimeout(300);
+    const pausedHold = await hold('ArrowLeft', 300);
+    const pausedState = await kp.evaluate(() => ({ paused: window.__game.pauseState().paused,
+      menu: document.getElementById('mainScreen').classList.contains('open') }));
+    await kp.evaluate(() => { (document.getElementById('msPlayBtn') || document.querySelector('.ms-play')).click(); });
+    await kp.waitForTimeout(300);
+    const resumed = await kp.evaluate(() => ({ paused: window.__game.pauseState().paused,
+      menu: document.getElementById('mainScreen').classList.contains('open') }));
+    // the hint flight is aborted by a key press, exactly like a gesture
+    await kp.evaluate(() => { document.getElementById('hintBtn').click(); });
+    await kp.waitForTimeout(80);
+    const flyBefore = (await cam()).fly;
+    await kp.keyboard.press('ArrowRight');
+    await kp.waitForTimeout(60);
+    const flyAfter = (await cam()).fly;
+    await kp.close();
+    console.log('arrow keys:', JSON.stringify({ left, right, up, down, pausedHold, pausedState, resumed, flyBefore, flyAfter }));
+    expect(left.b.az > left.a.az + 0.1 && right.b.az < right.a.az - 0.1,
+      'ARROW KEYS: ← raises the azimuth and → lowers it — the drag\'s directions (' + JSON.stringify({ left: [left.a.az, left.b.az], right: [right.a.az, right.b.az] }) + ')');
+    expect(up.b.phi > left.a.phi + 0.1 && Math.abs(up.b.phi - 1.35) < 0.02 && Math.abs(down.b.phi - 0.32) < 0.02,
+      'ARROW KEYS: ↑ tilts to the side view and stops at the drag\'s 1.35, ↓ tilts down and stops at 0.32 (' + JSON.stringify({ start: left.a.phi, up: up.b.phi, down: down.b.phi }) + ')');
+    expect(pausedState.paused && pausedState.menu && Math.abs(pausedHold.b.az - pausedHold.a.az) < 1e-6 && !resumed.paused && !resumed.menu,
+      'ARROW KEYS: nothing turns while the game is paused under the menu, and the menu resumes normally after (' + JSON.stringify({ pausedState, az: [pausedHold.a.az, pausedHold.b.az], resumed }) + ')');
+    expect(flyBefore === true && flyAfter === false,
+      'ARROW KEYS: a press aborts the hint\'s camera flight, exactly like a gesture (' + JSON.stringify({ flyBefore, flyAfter }) + ')');
+  }
+  // ⟦KEYS-SECTION-END⟧
+
+  // ⟦MENUFIT-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=MENUFIT runs this block alone; keep the markers)
+  // ===== THE DESKTOP MENU FITS A SHORT WINDOW: THE EYES SHRINK FIRST, THE COLUMN SCROLLS LAST (the
+  // owner's word 2026-09-07 «shrink the eyes on narrow screens, the settings must fit the screen +
+  // add a scroll») =====
+  // The bento (≥1080) is exactly one viewport tall with its overflow hidden; the eye card carried a
+  // min-height of 423 and on a short window the settings fell below the fold with NO way to reach
+  // them. Now the card and its eye box shrink (the SVG scales into the shorter box), and only past the
+  // column's floor does the wrap scroll. Three heights of one 1280 page; the property is «the
+  // settings are reachable», stated per height: FITS WITHOUT A SCROLL at 900 and 700 (the shrink buys
+  // it), SCROLLS at 480 (the fallback). A build that only scrolled passes 480 and fails 700; a build
+  // that only shrank passes 700 and fails 480.
+  {
+    const mp = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    mp.on('pageerror', e => errors.push('PAGEERROR(menufit): ' + e.message));
+    await mp.goto('file://' + PAGE_FILE);
+    await mp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await mp.evaluate(() => window.__game.skipIntro());
+    await mp.waitForTimeout(300);
+    await mp.evaluate(() => document.getElementById('pauseBtn').click());
+    await mp.waitForTimeout(400);
+    const read = () => mp.evaluate(() => {
+      const wrap = document.querySelector('#mainScreen .ms-wrap');
+      const R = s => { const r = document.querySelector(s).getBoundingClientRect();
+        return { t: +r.top.toFixed(1), b: +r.bottom.toFixed(1), h: +r.height.toFixed(1), w: +r.width.toFixed(1) }; };
+      return { vh: innerHeight, vw: innerWidth, menu: document.getElementById('mainScreen').classList.contains('open'),
+        eyes: R('.ms-eyes'), play: R('.ms-play'), sets: R('.ms-settings'), coll: R('.ms-coll'),
+        scroll: wrap.scrollHeight - wrap.clientHeight, wrapOverflowY: getComputedStyle(wrap).overflowY,
+        playMin: getComputedStyle(document.querySelector('.ms-play')).minHeight,
+        // the card's floor is a calc of its own variables — read them back so the arm derives, not copies
+        vars: (() => { const cs = getComputedStyle(document.querySelector('.ms-play'));
+          const v = n => parseFloat(cs.getPropertyValue(n)); return { pad: v('--ms-play-pad'), gap: v('--ms-play-gap'), btn: v('--ms-btn-h'), eyesMin: v('--ms-eyes-min') }; })() };
+    });
+    const h900 = await read();
+    // ⚠️ 700, NOT 800: the eye box shrinks only once the card's row is shorter than the box's own
+    // height plus the button (measured: at 800 the card still had slack — 396 against 380 — and the
+    // eyes stayed 232); at 700 the row is 296 and the eyes must give way
+    await mp.setViewportSize({ width: 1280, height: 700 }); await mp.waitForTimeout(250);
+    const h800 = await read();
+    await mp.setViewportSize({ width: 1280, height: 480 }); await mp.waitForTimeout(250);
+    const h480 = await read();
+    // the fallback: scroll the wrap to its end — the settings must come into view
+    const h480scrolled = await mp.evaluate(() => { const w = document.querySelector('#mainScreen .ms-wrap'); w.scrollTop = w.scrollHeight;
+      const r = document.querySelector('.ms-settings').getBoundingClientRect(); return { top: w.scrollTop, setsB: +r.bottom.toFixed(1), vh: innerHeight }; });
+    await mp.close();
+    console.log('menu fit:', JSON.stringify({ h900, h800, h480, h480scrolled }));
+    expect(h900.menu && h900.sets.b <= h900.vh + 0.5 && h900.scroll <= 0 && h900.coll.b <= h900.vh + 0.5,
+      'MENU FIT 1280×900: the settings and the collection both end inside the viewport, nothing scrolls (' +
+      JSON.stringify({ sets: h900.sets, coll: h900.coll, scroll: h900.scroll }) + ')');
+    expect(h800.sets.b <= h800.vh + 0.5 && h800.scroll <= 0 && h800.eyes.h < h900.eyes.h - 20 && h800.play.h < h900.play.h,
+      'MENU FIT 1280×700: the settings still fit WITHOUT a scroll because the eyes shrank (eyes ' + h900.eyes.h + ' → ' + h800.eyes.h +
+      ', the card ' + h900.play.h + ' → ' + h800.play.h + ') (' + JSON.stringify({ sets: h800.sets, scroll: h800.scroll }) + ')');
+    expect(h480.eyes.h >= 59.5 && h480.eyes.h <= h800.eyes.h && h480.scroll > 0 && h480scrolled.setsB <= h480scrolled.vh + 0.5,
+      'MENU FIT 1280×480: the eyes stop at their 60px floor and the column SCROLLS — the settings come into view at the end of the scroll (' +
+      JSON.stringify({ eyes: h480.eyes.h, scroll: h480.scroll, scrolled: h480scrolled }) + ')');
+    const floor = 2 * h900.vars.pad + h900.vars.eyesMin + h900.vars.gap + h900.vars.btn;
+    expect(Math.abs(parseFloat(h900.playMin) - floor) < 0.5 && floor < 423 && h900.wrapOverflowY === 'auto' && h480.play.h >= floor - 0.5,
+      'MENU FIT: the card\'s floor is its own content (padding ×2 + the eyes\' floor + the gap + the button = ' + floor +
+      '), not the mock-up\'s 423, and the wrap may scroll (' + JSON.stringify({ playMin: h900.playMin, vars: h900.vars, overflowY: h900.wrapOverflowY, playAt480: h480.play.h }) + ')');
+  }
+  // ⟦MENUFIT-SECTION-END⟧
 
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
@@ -12087,6 +12269,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // AND does NOT coincide with a fraction of `--eyeW`. Without the second half a return to one
     // variable would have passed green on the desktop, where they are equal — that is why the
     // comparison stands on MOBILE, the only layout where they are different.
+    // ⟦HUDEYES-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=HUDEYES runs this block alone; keep the markers)
     const eyesAt = async (w, h) => {
       const page = await browser.newPage({ viewport: { width: w, height: h } });
       page.on('pageerror', e => errors.push('PAGEERROR(eyes ' + w + '): ' + e.message));
@@ -12121,10 +12304,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       await page.close();
       return o;
     };
+    // ⚠️ THE DESKTOP ARM IS A TALL WINDOW SINCE 2026-09-07 (1280×1000): under 900px of viewport height
+    // a desktop window wears the PHONE'S construction (the owner's word, his 14" MacBook at 1352×878),
+    // so the former 1280×800 rig now reads 120/165 — measured by the fourth arm, `eShort`.
     const eMob = await eyesAt(390, 844), eNarrow = await eyesAt(320, 568),
-          eDesk = await eyesAt(1280, 800);
-    console.log('eyes:', JSON.stringify({ mob: eMob, narrowProbe: eNarrow, desk: eDesk }));
+          eDesk = await eyesAt(1280, 1000), eShort = await eyesAt(1280, 800);
+    console.log('eyes:', JSON.stringify({ mob: eMob, narrowProbe: eNarrow, desk: eDesk, short: eShort }));
     const nearN = (a, b) => Math.abs(a - b) < 0.7;
+    expect(eShort.width === 120 && nearN(eShort.timerW, 165) && nearN(eShort.num, 165 * 0.325) && eDesk.width === 210,
+      'A SHORT DESKTOP WINDOW (1280×800) WEARS THE PHONE\'S EYES — 120 wide, the number from the 165 cap — while a tall one (1280×1000) keeps 210 (the owner 2026-09-07, «at such a resolution take the eyes from the mobile version») (' +
+      JSON.stringify({ short: eShort, desk: { width: eDesk.width, num: eDesk.num } }) + ')');
     expect(eMob.width === 120 && eDesk.width === 210 &&
            eNarrow.width < 120 && eNarrow.gapToStack > 0 && eMob.gapToStack > 0 &&
            nearN(eMob.num, eMob.timerW * 0.325) &&
@@ -12138,6 +12327,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'cap 165), the seating is still from `--eyeW`. ⚠️ BOTH sides of the ' +
       'decoupling are compared, and exactly on mobile: on the desktop the variables are equal, and ' +
       'a return to one would have passed green there');
+    // ⟦HUDEYES-SECTION-END⟧
 
     // ══ THE MULTIPLIER BADGE ON THE CARD SHRINKS ON NARROW ONES (2026-08-22-v) ══
     // The owner's word verbatim: «in the mobile one, on screens smaller than 580 px, smoothly

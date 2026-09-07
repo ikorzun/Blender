@@ -15871,3 +15871,145 @@ the first hourly tick builds `ladder2`. Nothing of this batch is pending.
 test.js and runs it alone; SECTION=LBKEY|EDGES, MIXER_PAGE for a variant) and `tools/build-variant.py`
 (a sabotaged build under the system temp dir, never in the tree). The scratchpad dies with a session;
 the rule «dry-run a new section before the suite» now has a tool behind it that survives.
+
+## BATCH 2026-09-07-b: THE ×5 SCREEN'S CLOSE ON THE PHONE — ON THE LEFT, AND A BACK ARROW (his word with the cross selected on the page: «make the close button on mobile on the LEFT, as on the desktop; swap the cross for an arrow on mobile», his asset `Interface/back.svg`)
+
+### WHAT SHIPPED
+- The phone (<560, the screen's own mobile/desktop split of 2026-09-04-d): the button stays IN THE FLOW
+  (the sheet scrolls on short screens) but `align-self:flex-start` — x = the wrap's 16px inset, which
+  is the desktop's fixed `left:16`. ⛔ CANCELS the mock-up's CENTRED «Pause-dark» cross (937:1533) for
+  the phone; the desktop keeps the cross fixed at the screen's top-left (16, 16 + env).
+- The glyph: TWO SVGs in one button, `.st-ic-x` (the cross) and `.st-ic-back` (his arrow), the ≥560
+  block swaps them — the same device as the two title variants. The arrow is his file as-is: 28×28
+  viewBox, one path, no `preserveAspectRatio`, no ids; its `fill="black"` attribute was dropped so
+  `.st-close svg path { fill:#000 }` stays the single source of the glyph's colour. It is drawn at
+  its own 28 (the pause glyph's size), not stretched to the cross's 32.
+- ⚠️ CLASS-SCOPED ON PURPOSE: `#lbClose` shares `.st-close` (already on the left on the phone, by its
+  own rule) but its svg carries no class — **the leaderboard keeps its cross**. He named the ×5
+  screen's button; the leaderboard's is a fork named to him, one class attribute away.
+- `aria-label` stays «Close»: the action closes the popup whatever the glyph.
+
+### THE GUARD, PROVEN FOUR-SIDED WITH THE REPO'S OWN TOOLS
+The phone-row section (its own page, 375×667 / 320×568 / 1280×832) now sits between
+`⟦STCLOSE-SECTION-BEGIN/END⟧` markers and reads the close button from the VISIBLE svg — two live in the
+button, and the old colour guard's `querySelector('svg path')` would have read the hidden cross
+(re-pointed at the visible one). Arms per phone size: the arrow alone (viewBox 28, 28×28, the cross
+`display:none`); the INK is the arrow (`getBBox` in viewBox units — tight bounds 22.75×16.6 of 28,
+aspect > 1.25 — against the cross's square 15.1×15.1 of 32); the button at the wrap's inset, in the
+flow, not centred; still a white 56 circle with a black glyph. At 1280: the cross alone, fixed at (16,16).
+⚠️ MY FIRST PINS WERE GUESSES AND BOTH WERE WRONG: 14.12 for the cross (the round caps reach past the
+control points — measured 15.12) and 23.4 for the arrow (control points; the tight bound is 22.75).
+The healthy dry run went red on the cross pin; the corridors are now from the measurement and the
+discriminator is the SHAPE (wide against square), which no rounding moves.
+`tools/section-dryrun.js` + `tools/build-variant.py`: healthy **19 green**; the cross left visible on the
+phone → the «arrow alone», the ink and the colour arms (both sizes); `align-self` back to center → the
+LEFT arm alone (x 159.5 and 132 against 16); the arrow's `d` REPLACED by the cross's → the ink arm alone
+(15.12×15.15). ⚠️ AND A SABOTAGE OF MINE MISSED FIRST: I PREPENDED the cross's path to the arrow's, so
+the path drew BOTH shapes and the bbox stayed wide — 19 green, «the guard is blind». It was the
+sabotage that struck past the property (the canon's own rule); the replaced-not-prepended variant went
+red where it should. **A sabotage that leaves the original geometry in place tests nothing.**
+The build: `index.html` 12 168 952 → 12 170 642 (+1.7 KB: the second svg and the prose).
+**Run 21** on this change alone: **996 green, 0 red, SUITE: PASS**; the combined build of the afternoon (batches
+b–e) — **run 22: 1007 green, 0 red, SUITE: PASS**, pushed to `v2` and onto `main` on his word.
+
+## BATCH 2026-09-07-c: THE ARROW KEYS ORBIT THE BOWL; THE EDGE CARDS ARE PHONE-ONLY (his two words: «add the possibility on the desktop to rotate the bowl with the keyboard arrows» and «remove the solution with the one-colour strips at the top and the bottom on the desktop and the tablet»)
+
+### THE KEYS — THE DRAG'S TWO AXES, THE DRAG'S DIRECTIONS, THE DRAG'S CLAMPS
+- ←/→ turn the azimuth, ↑/↓ tilt; the directions are the mouse drag's (dragging right lowers
+  `camAz`, so → does; dragging up raises `camPhi`, so ↑ does) and the clamps are the drag's own
+  0.32..1.35. Nothing new is invented about the camera — only a third input for the orbit that already
+  exists beside the drag and the hint flight.
+- HELD KEYS ARE INTEGRATED PER FRAME (`tickKeyOrbit`, called in the loop next to `tickHintFly` and
+  `tickZoomAnim`) on the REAL clock with a 50 ms cap per frame — so the speed depends neither on the
+  frame rate nor on the OS key-repeat, and a thaw after a stall does not spin the bowl. A `Set` of held
+  codes, cleared on `keyup` and on window `blur` (a key held across an alt-tab would otherwise turn it
+  for ever). `KEY_AZ_SPEED` 1.8 rad/s (a full turn in ~3.5 s), `KEY_PHI_SPEED` 1.0 (the whole tilt
+  range in ~1 s) — dispatcher's numbers, one constant each if he wants them faster or slower.
+- THE GATES ARE SPACE'S: paused (the menu, the shop, an ad), the intro (the fly-around owns the
+  camera), a finished level. ⚠️ THE ORDER INSIDE THE HANDLER IS LOAD-BEARING: the gate stands BEFORE
+  `preventDefault`, so under the menu the arrows keep their native job — scrolling the menu's list.
+  A consumed arrow IS prevented: inside a portal iframe it would scroll the parent page.
+- A press aborts the hint flight exactly like a gesture (`hintFly = null`, `noteManualPan`'s rule).
+- THE GUARD (a KEYS section between markers, on its own 1280 page, real Playwright key presses):
+  ← raises and → lowers the azimuth; two 1.5 s holds of ↑ land on 1.35 and two of ↓ on 0.32 (the
+  clamps reached even on a slow bench); nothing turns under the menu and the menu resumes; a press
+  aborts the hint flight (`cam().fly` true → false, the control being that it was flying).
+
+### THE CARDS — FROM 768 THEY ARE GONE
+`@media (min-width:768px){ #edgeTop, #edgeBot { display:none } }` — the HUD's own mobile/desktop
+boundary. The cards exist for Safari on iPhone; on the desktop and the tablet the 6px inside the
+viewport are the only thing they ever drew, and he asked for them to go. ⚠️ A landscape phone (≥ 768
+wide) loses them too — the mobile layout of this game is the portrait one; named to him.
+The fever write and `html.dimmed` stay: they cost nothing, and `html.dimmed` also serves body's
+colour, the zone's fallback. The EDGES section gained a two-sided arm ON the boundary: hidden at 1280
+and 768, present at 767.
+
+### THE DRY RUNS (`tools/section-dryrun.js` + `tools/build-variant.py`, on the build 12 177 140 B)
+KEYS healthy **4 green** (← +0.595 rad in 300 ms, → back to 0.037; ↑ to 1.35, ↓ to 0.32; nothing under
+the menu; the hint flight aborted); `tickKeyOrbit()` removed from the loop → the direction and the
+tilt arms red, the paused and the flight arms green (they never needed the tick). EDGES healthy
+**12 green** (the ten restored arms plus the two width arms: 1280 and 768 `none`, 767 `block`); the
+media removed → the desktop-cards arm alone.
+
+## BATCH 2026-09-07-d: THE DESKTOP MENU ON A SHORT WINDOW — THE EYES SHRINK FIRST, THE COLUMN SCROLLS LAST (his word with a screenshot of the settings cut at the fold: «shrink the eyes on narrow screens, the settings must fit the screen + add a scroll»)
+
+### THE CAUSE, READ OFF THE BENTO'S OWN RULES
+The bento (≥1080) is exactly one viewport tall with `overflow:hidden` — his spec «the whole screen is a
+notional bento box», the collection scrolling INSIDE its cell. The left column is profile / eye card
+(the `1fr` row) / settings / dev, and the eye card carried the mock-up's `min-height:423px`. On a short
+window the autos plus 423 exceed the viewport, the grid overflows, and `overflow:hidden` CLIPS the
+settings: not below the fold — unreachable. His screenshot shows exactly that.
+
+### WHAT SHIPPED — THREE RULES IN THE ≥1080 BLOCK, ONE LINE IN 85-hud
+1. `.ms-play { min-height:0 }` — the 423 floor is gone; the card's floor is now its content: the
+   button (never squeezed) plus the eye box's floor.
+2. `.ms-eyes { flex:0 1 auto; min-height:60px }` — flex-SHRINK on, no grow (the 2026-08-20 void
+   argument stands: with room the box keeps its content height, pressed to the top). Squashed, the SVG
+   scales into the shorter box — `preserveAspectRatio` meet, centred — and that is «the eyes shrink».
+   The 60px floor keeps them legible.
+3. `.ms-wrap { overflow:hidden auto }` — the scroll fallback: the bento stays one viewport tall and
+   the tiles stay put; the scrollbar appears ONLY when the column cannot fit even with the card at its
+   floor. `openMainScreen` resets that scroll too (next to `#mainScreen`'s own reset).
+⚠️ «NARROW» IN HIS WORD IS THE WINDOW'S HEIGHT, NOT ITS WIDTH: the eyes' width cap (`min(88%,480px)`)
+is untouched, and on a tall window the card still takes the whole `1fr` row — the flexible-row guard
+of 2026-08-20 keeps holding.
+
+### THE GUARD (a MENUFIT section between markers, one 1280 page at three heights)
+Fits WITHOUT a scroll at 900 and at 700 (at 700 the eyes are measurably shorter than at 900 — the
+shrink is what buys the fit; at 800 the card still had slack and the eyes stayed 232); SCROLLS at 480 (the eyes at their floor, the settings reachable at the
+end of the scroll); the 423 gone and the wrap's overflow-y auto. A build that only scrolled passes
+480 and fails 700; a build that only shrank passes 700 and fails 480 — the two halves of his sentence
+are two arms.
+⚠️ THE FIRST DRY RUN CAUGHT A REAL DEFECT OF THE FIRST DRAFT, not a wrong threshold: with
+`min-height:0` the card shrank UNDER ITS OWN BUTTON — a grid item with `overflow:hidden` has an
+automatic minimum of zero, so the bare `1fr` row squashed the card to nothing and the settings «fit»
+at 480 with the Resume button clipped inside the card (scroll 0). The floor is now STATED on the card
+as a calc of the card's own variables (padding ×2 + the eyes' floor + the gap + the button — declared
+once on `.ms-play` and read by the button rule too), which the track's minimum honours; below it the
+grid overflows and the wrap scrolls, as intended.
+MENUFIT healthy **4 green** (900: eyes 232, card 496, the settings end at 865 of 900, scroll 0; 700:
+eyes **148**, card 296, the settings at 665 of 700, scroll 0; 480: eyes 60, the card at its 208 floor,
+scroll > 0 and the settings in view at the end of it). The floor removed → the 480 arm and the floor
+arm; `flex:0 0 auto` on the eyes → the 700 arm alone (eyes 232 → 232 while the card went 496 → 296).
+
+## BATCH 2026-09-07-e: A SHORT DESKTOP WINDOW WEARS THE PHONE'S HUD EYES (his word with his display settings — a 14" MacBook scaled to 1352×878 — and a game screenshot: «at such a resolution the eyes must be taken from the mobile version, otherwise they take too much of the screen»)
+
+- ONE MEDIA BLOCK, TWO VARIABLES: `@media (min-width:768px) and (max-height:899px)` sets `--eyeW` and
+  `--timerW` to the phone's pair (120 / 165, i.e. the eyes 120×60 and the number 53) instead of the
+  desktop's 210 / 210 (the eyes 210×105, the number 68). The whole construction is counted in
+  fractions of the two variables — the seating of the number, the toast under the eyes — so nothing
+  else moves. ⚠️ THE THRESHOLD IS THE VIEWPORT HEIGHT, NOT THE WIDTH: on his screenshot the eyes are
+  15% of the width and a quarter of the height; they crowd the BOWL, which sits below them. 900 puts
+  a laptop at any scaling below it (his 1352×878 gives ~770 of viewport in Chrome, the 14" default
+  1512×982 ~880) and a 1080p monitor (~970) above. A dispatcher's number, one literal if he wants it
+  moved. ⚠️ The block stands AFTER the ≥768 block: equal specificity, the cascade is the position in
+  the file — the trap already recorded at the block above it.
+- THE GUARD MOVED WITH THE RULE, AND THE MOVE IS INSTRUCTIVE: the eye-size guard's desktop rig was
+  1280×800, which is now a SHORT window and reads 120 by right. The desktop arm became 1280×1000
+  (still 210) and a fourth arm, `eShort` at 1280×800, pins the phone's pair there — the boundary is
+  held from both sides. The block sits between `⟦HUDEYES-SECTION-BEGIN/END⟧` markers for the lifter.
+  Dry run healthy **2 green** (1280×800: eyes 120, timer 165, the number 53.6; 1280×1000: 210 / 68.3;
+  the phone and the narrow probe unchanged); the height media disabled → the short-window arm alone.
+- ⚠️ THE QUESTION LEFT TO HIM: «the mobile version's eyes» could also mean the pause MENU's collapsed
+  pill at this resolution; his screenshot shows the GAME screen, so the HUD was read. The menu's own
+  card already shrinks to fit a short window since batch -d.

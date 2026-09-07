@@ -804,6 +804,41 @@ addEventListener('keydown', e => {
     requestShake();
   }
 });
+// ARROW KEYS ORBIT THE BOWL (the owner's word 2026-09-07 «on the desktop, rotate the bowl with the
+// keyboard arrows»): ←/→ turn the azimuth, ↑/↓ tilt — the same two axes and the SAME DIRECTIONS as
+// the mouse drag (dragging right lowers the azimuth, so → does; dragging up raises phi, so ↑ does),
+// the same clamps (phi 0.32..1.35). HELD keys are integrated per frame in the loop (tickKeyOrbit)
+// on the REAL clock, so the speed depends neither on the frame rate nor on the OS key-repeat; a set
+// of held codes, cleared on blur (a key held across an alt-tab would otherwise spin the bowl for
+// ever). The gates are Space's: not while paused (the menu, the shop, an ad — and there the arrows
+// keep their native job, scrolling the menu, because the handler returns BEFORE preventDefault),
+// not in the intro (the fly-around owns the camera), not after the level is over. A press aborts
+// the hint flight exactly like a gesture does (noteManualPan's rule). preventDefault on a consumed
+// arrow: inside a portal iframe the arrows would scroll the parent page.
+const KEY_ORBIT = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+const KEY_AZ_SPEED = 1.8, KEY_PHI_SPEED = 1.0;   // rad/s: a full turn in ~3.5 s, the whole tilt range in ~1 s
+const keysHeld = new Set();
+let keyOrbitAt = 0;
+addEventListener('keydown', e => {
+  if (!KEY_ORBIT[e.code]) return;
+  if (paused || intro || (level && level.over)) return;
+  e.preventDefault();
+  if (!keysHeld.has(e.code)){ keysHeld.add(e.code); hintFly = null; }
+});
+addEventListener('keyup', e => { keysHeld.delete(e.code); });
+addEventListener('blur', () => keysHeld.clear());
+function tickKeyOrbit(){
+  const now = performance.now();
+  const dt = keyOrbitAt ? Math.min(0.05, (now - keyOrbitAt) / 1000) : 0;   // capped: a thaw is not a turn
+  keyOrbitAt = now;
+  if (!keysHeld.size || paused || intro || (level && level.over)) return;
+  let dAz = 0, dPhi = 0;
+  for (const c of keysHeld){ const v = KEY_ORBIT[c]; dAz += v[0]; dPhi += v[1]; }
+  if (!dAz && !dPhi) return;
+  camAz += dAz * KEY_AZ_SPEED * dt;
+  camPhi = Math.max(0.32, Math.min(1.35, camPhi + dPhi * KEY_PHI_SPEED * dt));
+  updateCamera();
+}
 // The keyboard must work IMMEDIATELY, without a click on the bowl: in an embedding
 // (the preview panel, the portals) the iframe is deaf to keys until it gets the focus —
 // we take it programmatically at the start and on every return into the window

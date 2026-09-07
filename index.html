@@ -186,6 +186,13 @@
   #edgeBot { bottom:-6px; background-color:rgb(var(--edge-bot-rgb, var(--sky-bot-rgb, 204,255,248))); }
   html.dimmed #edgeTop, html.dimmed #edgeBot {
     background-color:color-mix(in srgb, rgb(10 14 22) 88%, rgb(var(--sky-top-rgb, 133,220,255))); }
+  /* ⛔ PHONE-ONLY SINCE 2026-09-07 (the owner's word «remove the one-colour strips at the top and the
+     bottom on the desktop and the tablet»): the cards exist for Safari on iPhone; from 768 — the HUD's
+     own mobile/desktop boundary — they are gone, and the 6px inside the viewport with them. A
+     landscape phone (≥ 768 wide) loses them too: the mobile layout of this game is the portrait one.
+     The fever write and html.dimmed stay — they cost nothing and html.dimmed also serves body's
+     colour, the zone's fallback. */
+  @media (min-width:768px){ #edgeTop, #edgeBot { display:none; } }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -1243,6 +1250,18 @@
        counted from them — splitting them here would mean starting a difference
        that the owner did not ask for. */
     --timerW: min(210px, calc(100vw - 202px)); } }
+  /* ⚠️ A SHORT DESKTOP WINDOW WEARS THE PHONE'S EYES (the owner's word 2026-09-07, his 14" MacBook
+     scaled to 1352×878: «at such a resolution the eyes must be taken from the mobile version,
+     otherwise they take too much of the screen»): under 900px of viewport height the desktop
+     construction (210 wide, the number 68 — ~180px at the top of a ~770px window) gives way to the
+     phone's pair, 120 and 165 (the number 53). The threshold is the viewport HEIGHT — the eyes crowd
+     the bowl vertically, the width is not the problem — and 900 puts a laptop at any scaling below
+     it and a 1080p monitor above. The whole construction follows the two variables (the seating,
+     the number, the toast under the eyes), nothing else changes.
+     ⚠️ AFTER the ≥768 block: equal specificity, the cascade is the position in the file. */
+  @media (min-width:768px) and (max-height:899px){ :root {
+    --eyeW: min(120px, calc((100vw - 202px) * 0.87));
+    --timerW: min(165px, calc((100vw - 202px) * 0.87)); } }
   #face { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 8px); left:50%;
     transform:translateX(-50%); width:var(--eyeW); height:calc(var(--eyeW) * .667);
     z-index:6; pointer-events:none;
@@ -2961,10 +2980,14 @@
      ⚠️ `overflow:hidden` and `border-radius` ARE LEFT: they are inherited by the layer of stars
      (`.ms-nightsky`, `border-radius:inherit`), and the card itself is still
      clickable as a whole. */
-  .ms-play { background:#d8bbff; border-radius:32px; padding:16px; min-height:340px;
+  /* ⚠️ THE CARD'S THREE SIZES ARE VARIABLES (2026-09-07): the ≥1080 block computes the card's FLOOR
+     from them (padding ×2 + the eyes' floor + the gap + the button), so the floor and the rules it
+     is made of cannot drift apart — a literal 208 there would be a copy of four numbers. */
+  .ms-play { --ms-play-pad:16px; --ms-play-gap:32px; --ms-btn-h:84px;
+    background:#d8bbff; border-radius:32px; padding:var(--ms-play-pad); min-height:340px;
     position:relative; overflow:hidden;
     display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
-    gap:32px; cursor:pointer; }
+    gap:var(--ms-play-gap); cursor:pointer; }
   /* ⛔ A TOMBSTONE 2026-08-20: below it says «the card ALREADY wears the sky gradient» —
      THIS IS NO LONGER SO, it has a solid `#d8bbff` fill. The night sky under
      the stars would be given by THE SCREEN ITSELF. ⚠️ The star layer is meanwhile unreachable for another reason — the theme
@@ -3014,7 +3037,7 @@
      so that it works both in the stacked <1080 and in the bento ≥1080; the button is flex:none at the bottom */
   .ms-eyes { width:240px; max-width:100%; height:auto; display:block; flex:1 1 auto; min-height:0; }
   .ms-playbtn { border:none; cursor:pointer; background:#000; color:#fff; width:100%;
-    height:84px; border-radius:100px; font-family:var(--font-round);
+    height:var(--ms-btn-h, 84px); border-radius:100px; font-family:var(--font-round);
     font-size:34px; font-weight:800; flex:none; position:relative; overflow:hidden; }
   /* #8a A LIGHT GLINT (the owner's spec): a diagonal white strip runs across
      the button once in ~4.5 s. The animation is on ::after (it does not touch the button/layout). */
@@ -3540,7 +3563,11 @@
        was left ~132px. At 700: 292+~166+~226 ≈ the viewport, the collection fits 2 cards. */
     .ms-wrap { max-width:none; display:grid; align-content:stretch;
       grid-template-columns:292px minmax(160px,260px) minmax(220px,1fr);
-      grid-template-rows:auto 1fr auto auto; height:100vh; overflow:hidden;
+      grid-template-rows:auto 1fr auto auto; height:100vh; overflow:hidden auto;
+      /* ⚠️ overflow-y AUTO since 2026-09-07 («+ add a scroll»): the bento stays one viewport tall and
+         the tiles stay put; the scrollbar appears ONLY when the left column cannot fit even with the
+         eye card at its floor — a short window — and then the settings are reachable instead of
+         clipped. On any normal height nothing scrolls (the collection keeps its own scroll). */
       /* ⚠️ THE DESKTOP ORDER: THE PROFILE → THE EYES → THE SETTINGS (the owner's word
          2026-08-20-k «put the block with the avatar and the leaderboards above the eyes, as
          it once was»).
@@ -3645,7 +3672,19 @@
        `#ffc800` from mock-up 840:4687 and overrode the base rule — that is,
        an edit of the base alone would have changed nothing, while looking done.
        Now the colour is ONE for both layouts and lives in one place. */
-    .ms-play { grid-area:play; min-height:423px; border-radius:56px; }
+    /* ⛔ THE 423 FLOOR IS GONE (the owner's word 2026-09-07 «shrink the eyes on narrow screens, the
+       settings must fit the screen + add a scroll»): the bento is exactly one viewport tall with its
+       overflow hidden, and on a short window the mock-up's 423 pushed the settings below the fold with
+       NO way to reach them (his screenshot). The card now shrinks to its content — the eye box gives
+       way first (see .ms-eyes at the ≥1080 rule below: flex-shrink, a 60px floor), the button never —
+       and only past that floor does the wrap scroll (overflow-y:auto on .ms-wrap). */
+    .ms-play { grid-area:play; border-radius:56px; --ms-eyes-min:60px;
+      min-height:calc(var(--ms-play-pad) * 2 + var(--ms-eyes-min) + var(--ms-play-gap) + var(--ms-btn-h)); }
+    /* ⚠️ THE FLOOR IS STATED ON THE CARD, NOT LEFT TO THE TRACK: with overflow:hidden a grid item's
+       automatic minimum is ZERO, so a bare `1fr` row let the card shrink under its own button and
+       clip it (measured at 1280×480: the settings «fit» at 445 with the card squashed to nothing).
+       A specified min-height is what the track's minimum reads — below it the grid overflows and
+       the wrap scrolls. */
     /* ⚠️ THE EYES FILL the Play card vertically (the owner's spec «filling the
        space with the block with the eyes, leaving no holes»): the card grows
        as a 1fr row, flex:1 stretches the eye box (centring the pupils), the button flex:none is
@@ -3762,8 +3801,21 @@
      themes, while the --btn-bg rule gave a dark button by day on a dark background. A pinpoint
      deviation from the system rule of button colour is the canonical path «by an override on
      top». The 2026-09-03 mock-ups draw the same white 56 circle («Pause-dark»). */
-  .st-close { align-self:center; flex:none; background:#fff; }
+  .st-close { align-self:flex-start; flex:none; background:#fff; }
   .st-close svg path { fill:#000; }
+  /* THE PHONE'S CLOSE IS ON THE LEFT AND DRAWS THE BACK ARROW (the owner's word 2026-09-07, with
+     the cross selected on the page: «the close button on mobile on the LEFT, as on the desktop;
+     swap the cross for an arrow on mobile» — his asset Interface/back.svg, 28×28, inlined as-is
+     with its fill="black" attribute dropped so the rule above stays the single source of the
+     glyph's colour). ⛔ CANCELS the mock-up's CENTRED «Pause-dark» cross (937:1533) for the phone;
+     the desktop keeps the cross at the screen's top-left (the ≥560 block swaps the two SVGs —
+     the same device as the two title variants). The button stays in the flow on the phone (the
+     sheet scrolls on short screens) at the wrap's own 16px inset = the desktop's 16. The arrow
+     is drawn at its own 28 (the pause glyph's size), not stretched to the cross's 32.
+     ⚠️ Class-scoped on purpose: #lbClose shares .st-close but its svg carries no class — the
+     leaderboard keeps its cross. */
+  .st-close .st-ic-x { display:none; }
+  .st-close .st-ic-back { width:28px; height:28px; }
   /* THE CONTENT BLOCK (the owner's word 2026-09-04, second note): the DESKTOP row wherever it
      fits, the mobile column only where it does not; under 400px the block is 90% of the width.
      The mock-up's desktop block is 510 + the wrap's 16+16 insets = 542, so the desktop layout
@@ -3911,6 +3963,8 @@
        the env() term keeps it below the notch/island in landscape on the native wrapper */
     .st-close { position:fixed; top:calc(16px + env(safe-area-inset-top, 0px));
       left:16px; align-self:auto; }
+    .st-close .st-ic-x { display:block; }
+    .st-close .st-ic-back { display:none; }
   }
   /* THE EYES ON THE PLAY CARD — LARGER AND HIGHER (the owner's markup 2026-07-28:
      the whites almost across the whole width of the card with small insets, the block in the UPPER
@@ -3934,7 +3988,11 @@
      desktop too. */
   @media (min-width:1080px){
     .ms-play { justify-content:flex-start; }
-    .ms-eyes { flex:0 0 auto; width:min(88%, 480px); height:auto; margin-bottom:auto; }
+    /* ⚠️ flex-SHRINK IS ON (2026-09-07): the box keeps its content height while there is room (no
+       grow — the 2026-08-20 void argument stands) and is squashed when the card is short; the SVG
+       scales into the shorter box (preserveAspectRatio meet, centred) — that is «the eyes shrink».
+       The 60px floor keeps them legible; below it the wrap scrolls instead. */
+    .ms-eyes { flex:0 1 auto; min-height:var(--ms-eyes-min, 60px); width:min(88%, 480px); height:auto; margin-bottom:auto; }
   }
   /* ⚠️⚠️ NARROW SCREENS ≤700: THE EYES FILL THE CARD BY HEIGHT, THE BLOCK BACKGROUND IS 16% WHITE
      (the owner's word 2026-08-20-v: «at a size of 700 and less, the eyes occupy the whole
@@ -4759,8 +4817,10 @@
      bytes the HUD buttons carry — inline, because the build must open as one file offline. -->
 <div class="overlay" id="starsOverlay">
   <div class="st-wrap">
-    <button class="iconBtn st-close" id="starsClose" aria-label="Close"><svg viewBox="0 0 32 32" fill="none">
+    <button class="iconBtn st-close" id="starsClose" aria-label="Close"><svg class="st-ic-x" viewBox="0 0 32 32" fill="none">
       <path d="M8.94 8.94a1.667 1.667 0 0 1 2.357 0L16 13.643l4.703-4.703a1.667 1.667 0 1 1 2.357 2.357L18.357 16l4.703 4.703a1.667 1.667 0 1 1-2.357 2.357L16 18.357l-4.703 4.703a1.667 1.667 0 0 1-2.357-2.357L13.643 16 8.94 11.297a1.667 1.667 0 0 1 0-2.357Z"/>
+    </svg><svg class="st-ic-back" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <path d="M22.965 12.3288L7.09685 12.3288L10.6883 8.59835C11.3 7.96306 11.3 6.93134 10.6883 6.29605C10.0767 5.66076 9.08341 5.66076 8.47179 6.29605L2.20872 12.8014C1.59709 13.4367 1.59709 14.4684 2.20872 15.1037L8.47179 21.6091C9.08341 22.2444 10.0767 22.2444 10.6883 21.6091C11.3 20.9738 11.3 19.9421 10.6883 19.3068L7.09685 15.5815H22.965C25.0117 15.5815 25.0117 12.3288 22.965 12.3288Z"/>
     </svg></button>
     <div class="st-block">
       <!-- the title: two SVGs, one shown by the media query (desktop one line at 117, mobile two
@@ -22460,6 +22520,7 @@ function openMainScreen(){
   // 0). We remove the classes EXPLICITLY: scrollTop=0 does not produce a scroll event.
   if (!wasOpen){
     ms.scrollTop = 0;
+    const msw = ms.querySelector('.ms-wrap'); if (msw) msw.scrollTop = 0; // the bento wrap scrolls on a short window (2026-09-07)
     ms.classList.remove('playoff');
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
@@ -24166,6 +24227,41 @@ addEventListener('keydown', e => {
     requestShake();
   }
 });
+// ARROW KEYS ORBIT THE BOWL (the owner's word 2026-09-07 «on the desktop, rotate the bowl with the
+// keyboard arrows»): ←/→ turn the azimuth, ↑/↓ tilt — the same two axes and the SAME DIRECTIONS as
+// the mouse drag (dragging right lowers the azimuth, so → does; dragging up raises phi, so ↑ does),
+// the same clamps (phi 0.32..1.35). HELD keys are integrated per frame in the loop (tickKeyOrbit)
+// on the REAL clock, so the speed depends neither on the frame rate nor on the OS key-repeat; a set
+// of held codes, cleared on blur (a key held across an alt-tab would otherwise spin the bowl for
+// ever). The gates are Space's: not while paused (the menu, the shop, an ad — and there the arrows
+// keep their native job, scrolling the menu, because the handler returns BEFORE preventDefault),
+// not in the intro (the fly-around owns the camera), not after the level is over. A press aborts
+// the hint flight exactly like a gesture does (noteManualPan's rule). preventDefault on a consumed
+// arrow: inside a portal iframe the arrows would scroll the parent page.
+const KEY_ORBIT = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+const KEY_AZ_SPEED = 1.8, KEY_PHI_SPEED = 1.0;   // rad/s: a full turn in ~3.5 s, the whole tilt range in ~1 s
+const keysHeld = new Set();
+let keyOrbitAt = 0;
+addEventListener('keydown', e => {
+  if (!KEY_ORBIT[e.code]) return;
+  if (paused || intro || (level && level.over)) return;
+  e.preventDefault();
+  if (!keysHeld.has(e.code)){ keysHeld.add(e.code); hintFly = null; }
+});
+addEventListener('keyup', e => { keysHeld.delete(e.code); });
+addEventListener('blur', () => keysHeld.clear());
+function tickKeyOrbit(){
+  const now = performance.now();
+  const dt = keyOrbitAt ? Math.min(0.05, (now - keyOrbitAt) / 1000) : 0;   // capped: a thaw is not a turn
+  keyOrbitAt = now;
+  if (!keysHeld.size || paused || intro || (level && level.over)) return;
+  let dAz = 0, dPhi = 0;
+  for (const c of keysHeld){ const v = KEY_ORBIT[c]; dAz += v[0]; dPhi += v[1]; }
+  if (!dAz && !dPhi) return;
+  camAz += dAz * KEY_AZ_SPEED * dt;
+  camPhi = Math.max(0.32, Math.min(1.35, camPhi + dPhi * KEY_PHI_SPEED * dt));
+  updateCamera();
+}
 // The keyboard must work IMMEDIATELY, without a click on the bowl: in an embedding
 // (the preview panel, the portals) the iframe is deaf to keys until it gets the focus —
 // we take it programmatically at the start and on every return into the window
@@ -25026,6 +25122,7 @@ function loop(){
   tickCamFollow(dt);
   tickHintFly(); // the camera flight to the hint (90-input), interrupted by a gesture
   tickZoomAnim(); // smooth zoom by buttons (90-input), a gesture cancels it
+  tickKeyOrbit(); // the arrow keys orbit the bowl (90-input): held keys, integrated on the real clock
   tickZoomHold(); // continuous zoom by holding (90-input) // the camera lowers itself after the pile as it is taken apart (90-input, the owner's spec)
   // the combo boost must go out on a SLEEPING pile too (refresh does not tick at calm,
   // and the tap reads CFG.matchRadius directly — a stuck boost would be a cheat)

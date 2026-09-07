@@ -750,6 +750,7 @@ function loop(){
   tickCamFollow(dt);
   tickHintFly(); // the camera flight to the hint (90-input), interrupted by a gesture
   tickZoomAnim(); // smooth zoom by buttons (90-input), a gesture cancels it
+  tickKeyOrbit(); // the arrow keys orbit the bowl (90-input): held keys, integrated on the real clock
   tickZoomHold(); // continuous zoom by holding (90-input) // the camera lowers itself after the pile as it is taken apart (90-input, the owner's spec)
   // the combo boost must go out on a SLEEPING pile too (refresh does not tick at calm,
   // and the tap reads CFG.matchRadius directly — a stuck boost would be a cheat)
