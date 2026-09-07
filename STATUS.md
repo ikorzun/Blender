@@ -6,7 +6,9 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-{{BUILD}}
+**Build: v2 = main = bc59a8e (2026-09-07)** · the suite **987 green, 0 red, SUITE: PASS** (run 20) · the live
+site verified by byte size against the build · the worker awaits your `wrangler deploy` (the rank fix and
+the `t` field) · portal package unchanged in shape
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
