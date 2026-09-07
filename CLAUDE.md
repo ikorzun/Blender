@@ -15811,3 +15811,53 @@ tree from patched copies of `src/` (`scratchpad/build-variant.py`), so the tree'
 carried a sabotage and the suite always ran on the honest build. ⚠️ THE SERVER HALF NEEDED NO BROWSER
 AND WAS DONE WHILE THE SUITE RAN — node:sqlite only; the client dry runs waited for the `SUITE:` line,
 as the -a rule demands.
+
+## BATCH 2026-09-07-a: THE COLOUR EDITION RETURNS (his word: «variant 1, bring back the colour edition»)
+
+### WHY THIS ONE, AND WHY NOTHING PAST IT
+He pasted an outside piece of advice about Safari 26 (routes instead of full-screen modals, a `theme-color`
+per page, a flat colour at the zone where the page meets the browser's material, «the exact continuation of
+a gradient under the chrome must not be part of the design contract») and asked to return to the fields.
+Checked against the measured mechanism (batch -g, the WebKit sources) and the guide of 2026-09-05:
+- the flat-colour contract is EXACTLY batch -h — two thin fixed cards in the colour of the row they cover;
+  WebKit reads only `background-color` from the nearest fixed box at the sample point, a gradient gives
+  «multiple» and body's colour;
+- `theme-color` is parsed and NOT read by Safari 26 (the guide §1.3, §8; Safari 27 beta has not brought it
+  back) — that part of the advice is Chrome/Android and Safari 15–18;
+- «routes» are inapplicable here: the pause menu and the leaderboard sit over a live WebGL canvas, a
+  physics world and an audio graph, a navigation destroys all three, and in the portal the game is an
+  iframe with no history of its own;
+- the WebKit report it cites (a stale glass after a dynamic light → dark switch) is the code rule «a
+  full-screen candidate does not replace an already found edge colour» — and the cards are thin, always the
+  candidate, and change only their COLOUR, which is a repaint and therefore a recompute. That is why the
+  seven dark screens coloured correctly on his phone in batch -h.
+⚠️ WHERE THE FIELDS ARE VISIBLE AT ALL: on a direct link (GitHub Pages, a shared URL) and a Home-screen
+web app. In the Playgama portal the game is an iframe and Safari colours its bars from the PORTAL's DOM;
+in the SwiftUI wrapper there is no Safari chrome. The fix is for the direct link.
+⛔ CONTENT UNDER EITHER BAR STAYS OUT OF THE CONTRACT — batch -h's closing lines, -d's post-mortem, and now
+an outside source saying the same. The two attempts at it (-a, -c) broke his phone twice and never
+reproduced here.
+
+### WHAT CAME BACK, VERBATIM
+`git diff 34381f9 f6ca027 -- src/shell.html src/app/10-stage.js src/app/85-hud.js src/app/99-main.js
+test.js` (438 lines) applied with `git apply` — it applied cleanly on top of the review batch:
+- the two edge cards `#edgeTop`/`#edgeBot` and their CSS at the `body` rule (the mechanism prose is there);
+- `html.dimmed` + `refreshDimmed()` + `DIM_OVERLAYS` for the seven dark overlays (the pause screen excluded);
+- the fever write `--edge-bot-rgb` from the loop, `edgeSkyBot`/`edgeBottomTriple` in 10-stage;
+- the hooks `dimList`, `edgeTriple`, `edgeFever`; the four rigs at `top:24`; the two guard blocks (the
+  zones: 4 arms; the cards: 6 arms), now between `⟦EDGES-SECTION-BEGIN/END⟧` markers for the lifter.
+⛔ NOT restored, on purpose: the probe page (`tools/probe/chrome-probe.html`, recoverable from `fda91af`),
+`?edges=0`, `?bleed=1`, `?flow=1` — the trials of -b and -c stay out of the tree.
+
+### THE RUNS
+- The restored guards lifted alone against the new build: **10 of 10 green** (the four zone arms and the six card arms) — the build is
+  12 168 952 bytes, +9.2 KB over the review batch, the size of the restored code and its prose.
+- The one sabotage re-run on this build (the card's height 12 → 8): **exactly the candidate-shape arm red, 9 green** — the guard still
+  discriminates on this tree; the other four sides were proven in batch -h and the code is byte-identical.
+- The review batch's section on this build: **7 of 7 green** (the hardened text, lifted alone).
+- **Run 20**, the whole suite on this build: **987 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** — the ten restored arms and the hardened
+  key section inside the full run. Pushed to `v2` and onto `main` on his word («push v2 onto main after a green run»).
+
+### WHAT IS HIS
+`git push origin v2:main` puts the colour edition and the review batch's client half on the live site;
+`npx wrangler deploy --config server/leaderboard/wrangler.toml` puts the rank fix on the worker.

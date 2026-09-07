@@ -6,9 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: v2 = b80dc0d (2026-09-07)** · the suite **977 green, 0 red, SUITE: PASS** (run 19) · the live site
-still serves `34381f9` (run 18b: 970 green, 0 red) until you push `v2` onto `main` · the worker awaits your
-`wrangler deploy` · portal package unchanged in shape
+{{BUILD}}
 
 **Play from your phone:** https://ikorzun.github.io/Blender/ (debug: ?dev=1)
 
@@ -30,6 +28,23 @@ still serves `34381f9` (run 18b: 970 green, 0 red) until you push `v2` onto `mai
    package, the play-time budget, no interstitials, the x5 badge, the penalty rule), then this
    page; the suite's red lines are read before anything is re-based. On a Mac whose git fails
    with rc 69 (the Xcode licence), prefix `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+
+## What shipped 7 September, morning (your word «variant 1, bring back the colour edition»)
+
+- **The Safari 26 fields are coloured again, by the edition your phone confirmed on 6 September**: two thin
+  strips at the screen edges carry exactly the colour of the row they cover, the seven dark screens get
+  their own near-black in the zones, and during a chain reaction the bottom follows the sky as it goes
+  green. Ten lines of CSS, two elements, no driver, nothing hidden. The design inside the screen is
+  untouched. Restored from git verbatim, together with its ten guards.
+- **What is not promised, and why**: content under the bars. Your own `?v=cards` frame proved the browser
+  paints its fill OVER page content wherever a fixed box touches the edge, and the two attempts to make the
+  menu and the leaderboard flow under the bar broke both screens on your phone in ways this Mac never
+  reproduced. The outside advice you pasted says the same: a flat colour at the edge, and no promise of a
+  gradient continuing under the chrome. The advice's `theme-color` does not apply — Safari 26 parses it and
+  ignores it.
+- **Where it shows**: only on a direct link (GitHub Pages, a shared URL). In the Playgama portal the game
+  is an iframe and Safari takes its colours from the portal's page; in the SwiftUI wrapper there is no
+  Safari chrome at all.
 
 ## What shipped 6 September, evening (the September review checked, your word «do only what you consider necessary»)
 
