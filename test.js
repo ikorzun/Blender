@@ -10410,7 +10410,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await edgePage.close();
     console.log('edges of the overlays:', JSON.stringify(darkOnes));
     expect(darkOnes.every(x => x.extra.every(n => n === 'topBar' || n === 'bottomBar' || n === x.id)
-        && x.top && nums(x.top)[3] === 0 && x.before && nums(x.before)[3] !== 0),
+        && x.top && nums(x.top)[3] === 0 && x.before && (nums(x.before).length === 3 || nums(x.before)[3] > 0)),   // alpha-aware: the phone's fill is opaque rgb() since 2026-09-07-h
       '⚠️⚠️ THE DARK OVERLAYS paint NOTHING themselves and carry the 88% fill on `::before` — the ' +
       '2026-08-30 edge law, priced by the owner on 2026-09-03 (' + JSON.stringify(darkOnes) + '). ' +
       'The sabotage — to give `.overlay` its fill back: a fixed element painting at the zone ' +
@@ -10461,10 +10461,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const b = getComputedStyle(document.getElementById('starsOverlay'), '::before').backgroundColor;
       return { cls: document.documentElement.classList.contains('dimmed'),
                col: rgb(getComputedStyle(document.body).backgroundColor),
-               fill: (String(b).match(/[\d.]+/g) || []).map(Number) }; });
+               fill: (String(b).match(/[\d.]+/g) || []).map(Number),
+               blur: getComputedStyle(document.getElementById('starsOverlay'), '::before').backdropFilter }; });
     await dimPage.evaluate(() => document.getElementById('starsClose').click());
     await dimPage.waitForTimeout(400);
     const dimClosed = await dimPage.evaluate(() => ({ cls: document.documentElement.classList.contains('dimmed') }));
+    // THE NEW-OBJECT SCREEN (2026-09-07-h, his screenshot «the strips at the top and the bottom remain»): it
+    // opens by a class and never passes through show(), so the dimmed state has to be refreshed by its own
+    // opener — the production `newObjShow`, through its hook; closed the same way
+    const dimNew = await dimPage.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const rgb = s => (String(s).match(/[\d.]+/g) || []).slice(0, 3).map(Number).map(Math.round);
+      const key = (window.__game.accSnapshot()[0] || {}).key;
+      window.__game.newObjShow(key); await sleep(120);
+      const open = { cls: document.documentElement.classList.contains('dimmed'), shown: getComputedStyle(document.getElementById('newObj')).display !== 'none',
+        top: rgb(getComputedStyle(document.getElementById('edgeTop')).backgroundColor), bot: rgb(getComputedStyle(document.getElementById('edgeBot')).backgroundColor),
+        fill: rgb(getComputedStyle(document.getElementById('newObj'), '::before').backgroundColor) };
+      window.__game.newObjHide(); await sleep(120);
+      return { key, open, closedCls: document.documentElement.classList.contains('dimmed') };
+    });
     await dimPage.click('#pauseBtn', { force: true });
     await dimPage.waitForTimeout(600);
     const dimMenu = await dimPage.evaluate(() => ({ cls: document.documentElement.classList.contains('dimmed') }));
@@ -10476,14 +10491,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       JSON.stringify({ cls: dim.game.cls, body: dim.game.col, sky: dim.sky }) + ')');
     // the expected mix is COMPUTED from the two inputs, never written as a literal: the fill lives in
     // shell.html and the zenith moves with the palette
+    // ⚠️ ALPHA-AWARE (2026-09-07-h): on the phone the fill is OPAQUE (`rgb(10,14,22)`, three numbers), so
+    // the expected colour is the fill itself; a translucent fill (the desktop's 88%) composites over the zenith
     const want = dimOpen.fill.length >= 4
       ? [0, 1, 2].map(i => Math.round(dimOpen.fill[i] * dimOpen.fill[3] + dim.sky[i] * (1 - dimOpen.fill[3])))
-      : null;
+      : (dimOpen.fill.length === 3 ? dimOpen.fill.slice(0, 3) : null);
     expect(dimOpen.cls === true && want && near(dimOpen.col, want),
-      '⚠️⚠️ ZONES, A DARK POPUP: body becomes the popup\'s own first row — the 88% fill of `.overlay::before` ' +
-      'composited over the zenith (' + JSON.stringify({ body: dimOpen.col, want, fill: dimOpen.fill }) + '). ' +
+      '⚠️⚠️ ZONES, A DARK POPUP: body becomes the popup\'s own first row — the fill of `.overlay::before`, opaque on ' +
+      'this phone page (since 2026-09-07-h), the 88% composited over the zenith on the desktop (' + JSON.stringify({ body: dimOpen.col, want, fill: dimOpen.fill }) + '). ' +
       'The owner\'s 2026-09-03 complaint «on the purchase screen the top background is not dark» is this arm. ' +
       '⛔ SABOTAGE: delete the `html.dimmed body` rule — the zones frame a near-black screen in violet again');
+    expect(dimNew.open.shown && dimNew.open.cls === true && near(dimNew.open.top, dimNew.open.fill) && near(dimNew.open.bot, dimNew.open.fill) && dimNew.closedCls === false,
+      '⚠️⚠️ ZONES, THE NEW-OBJECT SCREEN: opening it dims the edge cards to its own fill and closing clears the class (' +
+      JSON.stringify(dimNew) + '). His 2026-09-07 screenshot: the sky\'s strips framed the dark screen because this opener never refreshed the state');
+    expect(dimOpen.fill.length === 3 && dimOpen.blur === 'none',
+      '⚠️ THE PHONE\'S DARK SCREENS ARE OPAQUE AND UNBLURRED (the owner 2026-09-07-h): the fill is `rgb(10,14,22)` with no backdrop-filter on this 402-wide page (' +
+      JSON.stringify({ fill: dimOpen.fill, blur: dimOpen.blur }) + '). The desktop keeps 88% + blur — the table popup guard reads that at 1280');
     expect(dimClosed.cls === false && dimMenu.cls === false,
       'ZONES: the class is cleared when the popup closes, and the MENU never sets it — the pause screen paints ' +
       'the sky itself, so its zones are already right (' + JSON.stringify({ closed: dimClosed.cls, menu: dimMenu.cls }) + ')');
@@ -10515,7 +10538,10 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         return { col: rgb(c.backgroundColor), a: alpha(c.backgroundColor), h: r.height, w: r.width,
                  z: c.zIndex, pos: c.position, pe: c.pointerEvents, top: r.top, bottom: r.bottom }; };
       const d = getComputedStyle(document.documentElement);
+      const so = document.getElementById('starsOverlay');
+      const fillS = so ? getComputedStyle(so, '::before').backgroundColor : '';
       return { top: box('edgeTop'), bot: box('edgeBot'), vw: innerWidth, vh: innerHeight,
+        fill: (String(fillS).match(/[\d.]+/g) || []).map(Number),
         first: [...document.body.children].slice(0, 2).map(e => e.id),
         sky: [rgb('rgb(' + d.getPropertyValue('--sky-top-rgb') + ')'), rgb('rgb(' + d.getPropertyValue('--sky-bot-rgb') + ')')],
         fever: d.getPropertyValue('--edge-bot-rgb').trim() || null };
@@ -10573,9 +10599,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(same(eMenu.top.col, eMenu.sky[0]) && same(eMenu.bot.col, eMenu.sky[1]),
       'EDGE CARDS, THE MENU: the same two colours — the pause screen paints the same gradient, so the same variables serve it (' +
       JSON.stringify({ top: eMenu.top.col, bot: eMenu.bot.col }) + ')');
-    const mix = [0, 1, 2].map(i => Math.round([10, 14, 22][i] * 0.88 + ePopup.sky[0][i] * 0.12));
+    // alpha-aware (2026-09-07-h): the phone's fill is opaque, so the cards take the fill itself; a translucent fill composites over the zenith
+    const mix = ePopup.fill.length >= 4
+      ? [0, 1, 2].map(i => Math.round(ePopup.fill[i] * ePopup.fill[3] + ePopup.sky[0][i] * (1 - ePopup.fill[3])))
+      : ePopup.fill.slice(0, 3);
     expect(same(ePopup.top.col, mix) && same(ePopup.bot.col, mix),
-      '⚠️⚠️ EDGE CARDS, A DARK POPUP: BOTH cards take the popup\'s own first row (the 88% fill over the zenith) — ' +
+      '⚠️⚠️ EDGE CARDS, A DARK POPUP: BOTH cards take the popup\'s own first row (the flat fill on the phone since 2026-09-07-h; the 88% over the zenith on the desktop) — ' +
       'the owner\'s 2026-09-03 complaint «on the purchase screen the top background is not dark» (' +
       JSON.stringify({ top: ePopup.top.col, bot: ePopup.bot.col, want: mix }) + ')');
     expect(eFever.atZero === null && eFever.calm === null && eFever.got && eFever.got === eFever.want && eFever.gone === null,
@@ -10600,7 +10629,31 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const at768 = await readCards();
     await ep.setViewportSize({ width: 767, height: 1024 }); await ep.waitForTimeout(120);
     const at767 = await readCards();
+    // THE DESKTOP'S DIMMED COLOUR (the review of 2026-09-07-h named it unguarded once the phone went opaque):
+    // at 1280 the fill is still 88% + blur and `html.dimmed body` is the color-mix over the zenith —
+    // the composite branch of the alpha-aware expectation, exercised here on purpose
+    await ep.setViewportSize({ width: 1280, height: 832 }); await ep.waitForTimeout(120);
+    const deskDim = await ep.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const rgb = s => { const m = String(s).match(/[\d.]+/g) || []; const v = m.slice(0, 3).map(Number);
+        return String(s).startsWith('color(') ? v.map(x => Math.round(x * 255)) : v.map(Math.round); };
+      const d = getComputedStyle(document.documentElement);
+      const sky = rgb('rgb(' + d.getPropertyValue('--sky-top-rgb') + ')');
+      document.getElementById('x5Float').click(); await sleep(350);
+      const so = document.getElementById('starsOverlay');
+      const fill = (String(getComputedStyle(so, '::before').backgroundColor).match(/[\d.]+/g) || []).map(Number);
+      const out = { cls: document.documentElement.classList.contains('dimmed'), body: rgb(getComputedStyle(document.body).backgroundColor), fill, sky,
+        blur: getComputedStyle(so, '::before').backdropFilter };
+      document.getElementById('starsClose').click(); await sleep(250);
+      return out;
+    });
     await ep.close();
+    const deskWant = deskDim.fill.length >= 4 ? [0, 1, 2].map(i => Math.round(deskDim.fill[i] * deskDim.fill[3] + deskDim.sky[i] * (1 - deskDim.fill[3]))) : null;
+    console.log('desktop dimmed:', JSON.stringify({ deskDim, deskWant }));
+    expect(deskDim.cls && deskDim.fill.length === 4 && Math.abs(deskDim.fill[3] - 0.88) < 0.01 && /blur/.test(deskDim.blur) &&
+           !!deskWant && deskWant.every((v, i) => Math.abs(v - deskDim.body[i]) <= 1),
+      'ZONES, THE DESKTOP (1280): the fill is still 88% + blur and body under a popup is the color-mix over the zenith (' +
+      JSON.stringify({ body: deskDim.body, want: deskWant, fill: deskDim.fill, blur: deskDim.blur }) + ')');
     console.log('edge cards by width:', JSON.stringify({ at1280, at768, at767 }));
     expect(at1280.top === 'none' && at1280.bot === 'none' && at768.top === 'none' && at768.bot === 'none',
       'EDGE CARDS: hidden on the desktop and the tablet — 1280 and the boundary 768 (' + JSON.stringify({ at1280, at768 }) + ')');
@@ -16480,6 +16533,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const mid = me ? Math.round(window.innerHeight - me.getBoundingClientRect().bottom) : null;
       ov.scrollTop = 0; await sleep(200);
       return { rows: rows.length,
+        avaLefts: [...rows].map(r => +r.querySelector('.lb-av').getBoundingClientRect().left.toFixed(1)),
+        posWidths: [...rows].map(r => +r.querySelector('.lb-pos').getBoundingClientRect().width.toFixed(1)),
+        posVar: getComputedStyle(document.getElementById('lbList')).getPropertyValue('--lb-pos-w').trim(),
         myIndex: me ? Array.prototype.indexOf.call(rows, me) : -1,
         myPos: me ? (me.querySelector('.lb-pos') || {}).textContent : null,
         sticks: me ? getComputedStyle(me).position : null,
@@ -16567,6 +16623,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️ THE LEADERBOARD: the cross is on the LEFT at 16 (like the boost page, the owner 2026-09-07-f) and ABOVE the title (left ' + lb.closeLeft +
       ', centre ' + lb.closeCenter + ' against the screen\'s ' + lb.screenCenter + ', to the title ' + lb.closeAboveTitle + 'px)');
 
+    // (3a) EVERY AVATAR ON ONE VERTICAL, THE OWN ROW INCLUDED (the owner's word 2026-09-07-h): the rank
+    // circle's width is the list's, written from the longest rank rendered — 28 for this two-digit list
+    // — so the me row no longer grows its own circle and shifts its avatar.
+    expect(lb.avaLefts.length >= 5 && lb.myIndex >= 0 && lb.avaLefts.every(x => Math.abs(x - lb.avaLefts[0]) <= 0.5) &&
+           lb.posWidths.every(w => Math.abs(w - lb.posWidths[0]) <= 0.5) && lb.posVar === '28px',
+      '⚠️⚠️ THE LEADERBOARD: every avatar stands on ONE vertical, the own row included, and every rank circle is the list\'s width (' +
+      JSON.stringify({ avaLefts: lb.avaLefts, posWidths: lb.posWidths, posVar: lb.posVar, myIndex: lb.myIndex }) + '). ⛔ The me-row-only growth of 2026-08-10 shifted his avatar by ten pixels');
     // (3b) THE SCORE PILL: the number first, gap 8, star 20.
     const p = lb.pill;
     expect(p.first.firstTag === 'span' && p.first.gap === 8 && p.first.star === 20 &&
@@ -17368,6 +17431,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await mcPage.close();
   }
 
+  // ⟦CHARGEFX-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=CHARGEFX runs this block alone; keep the markers)
   // ═══ THE CHARGE'S ELECTRIC LOOK (his pick 2026-09-01-l: variant 6 «Surge band», cold) ═══
   // ⚠️⚠️ NOTHING GUARDED THE CHARGE SLOT'S APPEARANCE BEFORE THIS SECTION - not the ring that had
   // been on the build for a batch, and not the shell that replaced it. Both the change and its
@@ -17380,7 +17444,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE GRANT GOES THROUGH THE PRODUCTION FUNCTION (`chargeGive` -> `tryGiveCharge`), the
     // single point both live callers use - so the copies threshold and the `chargeGiven`
     // watermark are the game's, not the test's.
-    const gave = await cfPage.evaluate(() => window.__game.chargeGive());
+    // ⚠️ A ROUND ITEM IS ASKED FOR (the orange is on every level-1 deal): the sweep-direction arm below
+    // reads the band's x-centroid, and on a DIAGONAL banana an up-the-body band moves that centroid
+    // too — the arm was blind to the very sabotage it exists for until the item was pinned. The
+    // grant is still the production function; an absent name falls back to the random draw.
+    const gave = await cfPage.evaluate(() => window.__game.chargeGive('foodorange'));
     // ⚠️ WAIT ON THE FACT, NEVER ON A CLOCK: the shell is attached by `spinTick`, i.e. by a rAF,
     // and under the load of a full run a fixed pause measures the bench.
     const attached = await cfPage.waitForFunction(() => window.__game.chargeFx().shell === true,
@@ -17407,6 +17475,58 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️⚠️ THE SHELL HAS ITS OWN MATERIAL AND NEVER THE ITEM\'S. The canon\'s rule at the flame, ' +
       'and for the flame\'s reason: the collection portraits are rendered by the same material ' +
       'class, so a «charged» look written into the material would leak into the museum.');
+    // THE BAND SWEEPS LEFT → RIGHT ACROSS THE SCREEN (the owner's word 2026-09-07-g «strengthen the
+    // effect on the bonus object + change the direction, left to right»; ⛔ it cancels the «up the
+    // body» band of 2026-09-01-l). Read from PAGE SCREENSHOTS of the slot: the compositor sees the
+    // WebGL canvas, while an in-page read of the alpha:true spin renderer would need
+    // preserveDrawingBuffer. The band is the cyan/cold-white pixels (r<140, g>150, b>200 — the
+    // items' yellows and oranges and the mint sky all carry more red); its x-centroid must GROW
+    // between samples. Six samples 110 ms apart cover ~0.6 s of a 1.25 s sweep, so the head wraps at
+    // most once: at least two rising deltas, more rising than falling, the band present in ≥3 samples.
+    // ⚠️ A band running up the body (the old direction) keeps its centroid still (up 0) — the
+    // sabotage this arm exists for; a right→left band gives more falling than rising.
+    const pngRGBA = (buf) => {   // a minimal PNG reader: 8-bit RGB/RGBA, non-interlaced (Playwright's own output)
+      const zlib = require('zlib'); let p = 8, w, h, ct, idat = [];
+      while (p < buf.length){ const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8), data = buf.slice(p + 8, p + 8 + len);
+        if (type === 'IHDR'){ w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; } else if (type === 'IDAT') idat.push(data); p += 12 + len; }
+      const raw = zlib.inflateSync(Buffer.concat(idat)); const bpp = ct === 6 ? 4 : 3, stride = w * bpp; const out = Buffer.alloc(w * h * bpp); let prev = Buffer.alloc(stride);
+      for (let y = 0; y < h; y++){ const f = raw[y * (stride + 1)]; const line = raw.slice(y * (stride + 1) + 1, y * (stride + 1) + 1 + stride); const cur = Buffer.alloc(stride);
+        for (let i = 0; i < stride; i++){ const a = i >= bpp ? cur[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0; let v = line[i];
+          if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+          else if (f === 4){ const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c); }
+          cur[i] = v & 255; } cur.copy(out, y * stride); prev = cur; }
+      return { w, h, bpp, data: out }; };
+    const slotBox = await cfPage.evaluate(() => { const r = document.getElementById('chargeBtn').getBoundingClientRect();
+      return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }; });
+    // ⚠️ TEN SAMPLES, NOT SIX: a screenshot costs ~250 ms, the head is ON the model only ~60% of its
+    // 1.25 s sweep (the model is narrower than its bounding sphere), and a six-sample draw once
+    // caught it in only two — the phase test needs at least four. A handful of pixels at the edge
+    // is a valid reading (the head entering), hence the low presence floor.
+    const sweep = [];
+    for (let i = 0; i < 10; i++){
+      const im = pngRGBA(await cfPage.screenshot({ clip: slotBox })); let sx = 0, n = 0;
+      for (let y = 0; y < im.h; y++) for (let x = 0; x < im.w; x++){ const o = (y * im.w + x) * im.bpp;
+        if (im.data[o] < 140 && im.data[o + 1] > 150 && im.data[o + 2] > 200){ sx += x; n++; } }
+      sweep.push({ t: await cfPage.evaluate(() => window.__game.chargeFx().t), cx: n ? +(sx / n).toFixed(1) : null, n });
+      await cfPage.waitForTimeout(60);
+    }
+    // ⚠️ COMPARED AGAINST THE PHASE, NOT AGAINST THE PREVIOUS SAMPLE: the shell's clock `t` is read with
+    // each screenshot and the head's phase is `fract(t·speed)`, so a wrap between two samples is not a
+    // «falling» delta — every pair of present samples must order the centroid the way the phase does.
+    // Under the load of a full run the screenshots come slower and wraps come more often; a
+    // neighbour-only count would go red on a healthy build there.
+    const pres = sweep.filter(s => s.n >= 6 && s.cx !== null).map(s => ({ head: +((s.t * cf1.speed) % 1).toFixed(3), cx: s.cx }));
+    let pos = 0, neg = 0;
+    for (let i = 0; i < pres.length; i++) for (let j = i + 1; j < pres.length; j++){
+      const dh = pres[j].head - pres[i].head, dc = pres[j].cx - pres[i].cx;
+      if (Math.abs(dh) < 0.04 || Math.abs(dc) < 2) continue; if (dh * dc > 0) pos++; else neg++; }
+    const chargeType = await cfPage.evaluate(() => window.__game.charge().name);
+    console.log('charge sweep:', JSON.stringify({ speed: cf1.speed, type: chargeType, sweep, pres, pos, neg }));
+    // ⚠️ THE SUBJECT IS ASSERTED, NOT LOGGED (the review of 2026-09-07-h): the pin is a REQUEST to the grant,
+    // and a lost pin would silently test a random item — the very case the pin exists against
+    expect(chargeType === 'foodorange' && pres.length >= 4 && pos >= 3 && pos >= 2 * neg,
+      '⚠️⚠️ THE BAND SWEEPS LEFT → RIGHT ACROSS THE SLOT (the owner 2026-09-07-g): the cyan pixels\' x-centroid grows with the head\'s phase (' +
+      JSON.stringify({ pres, pos, neg }) + '). ⛔ The old band ran UP the body and its centroid did not follow the phase; a right→left band follows it inversely.');
     // the ring, tested where the change actually is - the stylesheet's gate
     const ring = await cfPage.evaluate(() => {
       const cb = document.getElementById('chargeBtn');
@@ -17473,6 +17593,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'canvas went nowhere at all, i.e. of a probe that measured nothing.');
     await cfPage.close();
   }
+  // ⟦CHARGEFX-SECTION-END⟧
 
   // ═══ THE Audio/ FOLDER IS THE SOURCE OF THE GAME'S SOUND (his word 2026-09-01-l) ═══
   // ⚠️⚠️ THIS SECTION IS NODE-SIDE AND OPENS NO PAGE. What it states cannot be seen from inside the

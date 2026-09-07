@@ -193,6 +193,12 @@
      The fever write and html.dimmed stay — they cost nothing and html.dimmed also serves body's
      colour, the zone's fallback. */
   @media (min-width:768px){ #edgeTop, #edgeBot { display:none; } }
+  /* THE PHONE'S DIMMED COLOUR IS THE FLAT FILL (2026-09-07-h): the dark screens are opaque there
+     (the .overlay::before block), so the zone under a popup is the fill itself, not a mix with the
+     zenith. body's fallback colour says the same. AFTER the color-mix rules above on purpose. */
+  @media (max-width:767px){
+    html.dimmed body, html.dimmed #edgeTop, html.dimmed #edgeBot { background-color:rgb(10,14,22); }
+  }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -1647,7 +1653,13 @@
      The only safety net is reduced-motion below (accessibility/battery).
      ⚠️ A CAVEAT: the measurement is CPU-bound; on a budget Android with a WEAK GPU
      backdrop-filter may cost more — there it is cured by one line
-     (@media (pointer:coarse){ blur(3px) }), should the testers complain. */
+     (@media (pointer:coarse){ blur(3px) }), should the testers complain.
+     ⛔⛔ «NO PER-DEVICE DOWNGRADES» IS CANCELLED FOR THE PHONE ON THE OWNER'S WORD 2026-09-07-h
+     (the phone block below): under 768 the fill is OPAQUE and there is no blur at all; the desktop
+     keeps this spec and this blur. The measurement above was CPU-bound emulation; the phone decision
+     was NOT measured here — it was made for the frame budget in Low Power Mode (a whole-viewport
+     backdrop blur over a live WebGL canvas is a real cost there) and because at 88% the dimmed game
+     behind a popup was near-invisible anyway. */
   /* ⛔⛔ THE OVERLAY ITSELF PAINTS NOTHING (the owner's complaint 2026-09-03: «the fields on iOS 26
      again … on the purchase screen the top background is not dark»). The measured 2x2 law of
      2026-08-30 (the html/body rules above): on iOS 26.5 a FIXED element that PAINTS any background
@@ -1668,6 +1680,18 @@
   /* Battery saving/accessibility: completely without blur — the 88% fill is enough */
   @media (prefers-reduced-motion: reduce){
     .overlay::before { -webkit-backdrop-filter:none; backdrop-filter:none; }
+  }
+  /* ⚠️ THE PHONE'S DARK SCREENS ARE OPAQUE AND UNBLURRED (the owner's word 2026-09-07-h: «do it», on
+     the option put to him in the -b report as «only on the phone, drop the backdrop-filter on the dark
+     overlays and make their fill opaque»): a backdrop blur of the whole viewport over a live WebGL
+     canvas is a real cost on a phone (Low Power Mode most of all — an expectation, not a measurement
+     made here), and at 88% the dimmed game behind a popup was already near-invisible. The desktop
+     keeps the 88% fill and the blur (nothing asked). The dimmed colours of body and the cards follow —
+     the block at the cards. ⚠️ NOT a belt for the edge zones: this pseudo-element has z-index −1,
+     which WebKit's candidate rule SKIPS (the zone law at `body`); the two cards stay the mechanism.
+     ⚠️ AFTER the base rule: equal specificity, the cascade is the position in the file. */
+  @media (max-width:767px){
+    .overlay::before { background:rgb(10,14,22); -webkit-backdrop-filter:none; backdrop-filter:none; }
   }
   /* ⚠️⚠️ THE PAUSE IS THE SAME GRADIENT AS THE SCREEN WITH THE BOWL (the owner's word
      2026-08-20). The source is ONE — `--sky-grad`, it is set by 10-stage from the same
@@ -2399,11 +2423,14 @@
      above the heading in the centre. */
   /* ⚠️⚠️ `sticky`, AND NOT `fixed` — AND THIS IS NOT NIT-PICKING AT A WORD. The owner's complaint
      2026-08-11: «it still scrolls with the whole list». `position:fixed` does NOT
-     WORK here by construction: `.overlay` has a `backdrop-filter`, and it creates
+     WORK here on the desktop by construction: `.overlay` has a `backdrop-filter`, and it creates
      A FRAME OF REFERENCE for fixed descendants — the button counted the overlay itself as the «screen»,
      and that is the scrollable block, therefore it drove off together with
      the list. `filter`, `transform` and `will-change` would do the same.
-     ⛔ Removing the blur for the sake of `fixed` is not allowed: this is the common style of all the popups.
+     ⚠️ SINCE 2026-09-07-h THE PHONE HAS NO BLUR (the overlays are opaque there), so `fixed` would
+     work on the phone — `sticky` stays because it is right on BOTH layouts and because #lbOverlay is
+     the scroller the button must stay put in; the former «⛔ removing the blur is not allowed: the
+     common style of all the popups» is withdrawn — the desktop keeps the blur, the phone does not.
      ⚠️ The negative bottom inset kills the space the button now occupies
      in the flow: at the top of the card 88px is already reserved for it, and without this
      the list would have driven down by exactly the height of the button. */
@@ -2443,7 +2470,14 @@
      the `min-width` at the score pill — the same result, but the stop stands where
      the column of numbers lives, and not where the name lives. */
   .lb-left { display:flex; align-items:center; gap:12px; flex:1 1 auto; min-width:0; }
-  .lb-pos { flex:none; width:28px; height:28px; display:grid; place-items:center;
+  /* ⚠️ THE CIRCLE'S WIDTH IS LIST-WIDE (the owner's word 2026-09-07-h, with his own row on the phone:
+     «the player's avatar must not be shifted, it must be on one vertical with the other avatars»):
+     `lbRowsRender` writes `--lb-pos-w` on the list from the LONGEST rank it renders (28 for one or two
+     digits — the mock-up's circle — 37 / 46 / 55 for three, four, five), so every row's circle is the
+     same width and every avatar stands on one vertical, and no rank is ever cut. ⛔ CANCELS the
+     me-row-only growth of 2026-08-10 (`width:auto; padding:0 5px` at `.me`), which shifted his
+     avatar by ten pixels on every list. */
+  .lb-pos { flex:none; width:var(--lb-pos-w, 28px); height:28px; display:grid; place-items:center;
     border-radius:48px; font-weight:700; font-size:18px; color:#fff; }
   .lb-ava { display:flex; align-items:center; gap:6px; min-width:0; }
   .lb-av { flex:none; width:48px; height:48px; background:transparent; }
@@ -2498,11 +2532,11 @@
      solution to the problem «and what if the place is four-digit» — a problem the owner
      did not set. What helps a long number to fit is not the type size, but the fact that the circle
      does not cut the content: the width grows from `min-width`. */
-  /* ⚠️ The circle GROWS for a long place, and does not cut it: the other rows have no background
-     and the overflow is not seen, at one's own it is seen. The width is only at `.me`, so that
-     the geometry of the other rows stays bit-for-bit. */
-  .lb-row.me .lb-pos { background:#fff; color:var(--carbon-400);
-    width:auto; min-width:28px; padding:0 5px; }
+  /* ⛔ THE TWO PARAGRAPHS ABOVE ARE HISTORY SINCE 2026-09-07-h: the circle no longer grows «from
+     min-width» and no longer grows at `.me` alone — the width is the LIST's (`--lb-pos-w`, see .lb-pos),
+     so a long rank widens EVERY circle of that list (a deliberate trade: «one vertical» for the
+     avatars beats the mock-up's 28 on a three-digit list), and no rank is cut on any row. */
+  .lb-row.me .lb-pos { background:#fff; color:var(--carbon-400); }   /* the width is the list's (2026-09-07-h) */
   .lb-row.me .lb-name { color:var(--carbon-400); }
   .lb-row.me .lb-score { background:#fff; color:var(--carbon-400); }
   .lb-row.me .lb-score svg path { fill:#FFE730; }
@@ -10736,7 +10770,10 @@ function makeBomb(){
 // ⚠️ EXTRACTED 2026-09-01-i BECAUSE IT NOW HAS TWO CALLERS - turbo ignition, as before, and the
 // schedule (`tickChargeSchedule`). Two copies of a grant would have drifted at the first edit of
 // the copies threshold, and the `chargeGiven` watermark only works if BOTH paths respect it.
-function tryGiveCharge(){
+// ⚠️ `prefer` IS A TEST DOOR ONLY (2026-09-07-g): the suite's direction guard needs a ROUND item (an
+// up-the-body band on a diagonal banana moves its x-centroid too, and the arm went blind to that
+// sabotage). Production callers pass nothing and the draw stays random; an absent name falls back.
+function tryGiveCharge(prefer){
   if (level.chargeGiven || chargeName) return false;
   const cnt = {};
   for (const it of items)
@@ -10745,7 +10782,7 @@ function tryGiveCharge(){
   const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
   if (!pool.length) return false;
   level.chargeGiven = true;
-  chargeName = pool[Math.floor(Math.random() * pool.length)];
+  chargeName = (prefer && pool.includes(prefer)) ? prefer : pool[Math.floor(Math.random() * pool.length)];
   chargeUntil = performance.now() + CHARGE_TTL_MS;
   try { updateHUD(); } catch(e){}
   return true;
@@ -14989,21 +15026,44 @@ function wiggle(item){
 // offscreen renderer without this line and the shell comes out washed and haloed at low alpha.
 const CHARGE_SURGE_PUFF = 0.030;   // the shell sits just off the surface; below THUMB_MARGIN so
                                    // frameCylinder's padding still contains it
-function chargeSurgeMat(y0, y1){
+// THE BAND RUNS LEFT → RIGHT ACROSS THE SCREEN AND IS STRONGER (the owner's word 2026-09-07-g, with
+// the slot on his phone: «strengthen the effect on the bonus object + change the direction, left to
+// right»). ⛔ CANCELS «a band running UP the body» of 2026-09-01-l. The band's coordinate is the
+// fragment's VIEW-space x, normalised by the model's bounding radius — not the model's local x: the
+// slot's turntable spins the model, and a local-x band would turn with it and read as «around» rather
+// than «across». View x grows to the right of the screen, so the head travels left → right whatever
+// the model's rotation. The strength lives in the five constants below — the same cold palette
+// (never the ice's pale one), just more of it: a wider band, a brighter head-on core, a faster sweep.
+const CHARGE_SURGE_SPEED = 0.80;   // sweeps per second (was 0.55): one pass in 1.25 s
+const CHARGE_SURGE_WIDTH = 45.0;   // the gaussian's k (was 90): ~1.4× wider
+const CHARGE_SURGE_RIM   = 0.30;   // the always-on fresnel rim (was 0.22)
+const CHARGE_SURGE_BAND  = 0.70;   // the band's alpha head-on (was 0.45); grazing adds up to +0.30 more
+const CHARGE_SURGE_CORE  = 0.70;   // the cold-white core's share at the peak (was 0.55)
+// THE HEAD'S TRAVEL OVERSHOOTS THE MODEL BY 3σ OF THE BAND ON EACH SIDE (the review of 2026-09-07-h):
+// the old `head*1.35 - 0.18` was tuned for k=90 (σ 0.075, a 2.4σ margin); at k=45 the band is wider
+// and 0.18 is only 1.7σ — the band popped in at the left edge and was cut at the right. Derived from
+// the width, so a retune of one moves the other.
+const CHARGE_SURGE_MARGIN = +(3 / Math.sqrt(2 * CHARGE_SURGE_WIDTH)).toFixed(3);   // 0.316 at k=45
+function chargeSurgeMat(r){
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.FrontSide,
-    uniforms: { t: { value: 0 }, uY0: { value: y0 }, uY1: { value: y1 } },
+    uniforms: { t: { value: 0 }, uR: { value: r || 1 } },
     vertexShader: [
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'uniform float uR;',
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP; varying float vU;',
       'void main(){',
       '  vN = normalize(normalMatrix*normal); vP = position;',
       '  vec3 p = position + normal*' + CHARGE_SURGE_PUFF.toFixed(3) + ';',
       '  vec4 mv = modelViewMatrix*vec4(p,1.0); vV = mv.xyz;',
+      // the band's coordinate: view-space x across the model's own diameter, 0 at its left edge, 1 at
+      // its right (the mesh origin is the centre, the x column's length is the spin's uniform scale)
+      '  float sc = length(modelViewMatrix[0].xyz); float cx = modelViewMatrix[3].x;',
+      '  vU = (mv.x - cx) / max(0.0001, uR*sc) * 0.5 + 0.5;',
       '  gl_Position = projectionMatrix*mv; }',
     ].join('\n'),
     fragmentShader: [
-      'uniform float t; uniform float uY0; uniform float uY1;',
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'uniform float t;',   // uY0/uY1 (the model's y range of the up-the-body band) left with the direction (2026-09-07-h)
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP; varying float vU;',
       'float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }',
       'float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);',
       '  return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),',
@@ -15011,23 +15071,29 @@ function chargeSurgeMat(y0, y1){
       'void main(){',
       '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
       '  float fres = pow(1.0 - ndv, 2.0);',
-      '  float u = (vP.y - uY0) / max(0.0001, uY1 - uY0);',
-      '  float head = fract(t*0.55);',
-      '  float d = u - (head*1.35 - 0.18);',
-      '  float band = exp(-d*d*90.0);',
+      '  float u = vU;',   // left → right on the screen (2026-09-07-g); was the model's local y, bottom → top
+      '  float head = fract(t*' + CHARGE_SURGE_SPEED.toFixed(2) + ');',
+      '  float d = u - (head*' + (1 + 2 * CHARGE_SURGE_MARGIN).toFixed(3) + ' - ' + CHARGE_SURGE_MARGIN.toFixed(3) + ');',
+      '  float band = exp(-d*d*' + CHARGE_SURGE_WIDTH.toFixed(1) + ');',
       '  float crk = n3(vP*17.0 + vec3(t*3.0));',
-      '  band *= 0.55 + 0.75*smoothstep(0.35, 0.9, crk);',
-      '  float a = 0.22*fres + band*(0.45 + 0.55*fres);',
+      '  band *= 0.65 + 0.75*smoothstep(0.35, 0.9, crk);',
+      '  float a = ' + CHARGE_SURGE_RIM.toFixed(2) + '*fres + band*(' + CHARGE_SURGE_BAND.toFixed(2) + ' + ' + (1 - CHARGE_SURGE_BAND).toFixed(2) + '*fres);',
       '  a = clamp(a, 0.0, 1.0);',
       '  if (a < 0.02) discard;',
       // ⚠️⚠️ COLD, AND THE PEAK IS A COLD WHITE RATHER THAN A WHITE. First render of the port
       // whitened the core with `mix(c, vec3(1.0), pow(band,3.0)*0.80)` - the bench's own line,
       // where a saturated GREEN base survived it. Against violet and cyan it did not: on the
       // frames the band read as a grey-white crackle on the model, i.e. the one thing «cold» must
-      // not turn into. The white is now (0.75,0.95,1.0) and reaches 0.55, so the hottest part of
-      // the band still leans blue instead of going neutral.
-      '  vec3 c = mix(vec3(0.20,0.12,0.85), vec3(0.10,0.78,1.00), band);',
-      '  c = mix(c, vec3(0.75,0.95,1.00), pow(band,3.0)*0.55);',
+      // not turn into. The white is (0.75,0.95,1.0) and reaches CHARGE_SURGE_CORE (0.70), so the
+      // hottest part of the band still leans blue instead of going neutral.
+      // ⚠️⚠️ THE COLOUR READS A CLAMPED BAND (the adversarial review of 2026-09-07-h, by arithmetic,
+      // not by a run): the crackle lifts `band` to 1.4, and an unclamped 1.4 in `mix` EXTRAPOLATES —
+      // pow(1.4,3)*0.70 = 1.92 pushed the core past the white to (1.39, 0.86, 0.95), a PINK-white,
+      // exactly the hue the paragraph above forbids. The alpha keeps the boosted band (that is the
+      // strength); the two mixes read `bc`, so the peak is B + 0.70*(W−B) = (0.56, 0.90, 1.0): cold.
+      '  float bc = min(band, 1.0);',
+      '  vec3 c = mix(vec3(0.20,0.12,0.85), vec3(0.10,0.78,1.00), bc);',
+      '  c = mix(c, vec3(0.75,0.95,1.00), pow(bc,3.0)*' + CHARGE_SURGE_CORE.toFixed(2) + ');',
       '  gl_FragColor = vec4(c*a, a); }',   // PREMULTIPLIED - see the note above
     ].join('\n'),
   });
@@ -15037,9 +15103,8 @@ function chargeSurgeMat(y0, y1){
 // though nothing in this path disposes it.
 function chargeSurgeMake(mesh){
   const geo = mesh.geometry;
-  if (!geo.boundingBox) geo.computeBoundingBox();
-  const b = geo.boundingBox;
-  const m = new THREE.Mesh(geo, chargeSurgeMat(b.min.y, b.max.y));
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const m = new THREE.Mesh(geo, chargeSurgeMat(geo.boundingSphere.radius));
   m.userData.keepGeo = true;
   m.renderOrder = 9;
   mesh.add(m);
@@ -20411,6 +20476,11 @@ function lbFmt(n){ return String(Math.max(0, n | 0)).replace(/\B(?=(\d{3})+(?!\d
 function lbRowsRender(rows){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = '';
+  // THE RANK CIRCLE'S WIDTH IS ONE FOR THE WHOLE LIST (2026-09-07-h): from the longest rank rendered —
+  // 28 (the mock-up) up to two digits, +9 per digit beyond. Every avatar stands on one vertical, and no
+  // rank is cut; the me row no longer grows its own circle (that shifted the owner's avatar).
+  const digits = rows.reduce((m, r) => Math.max(m, String(r.pos | 0).length), 1);
+  host.style.setProperty('--lb-pos-w', Math.max(28, 10 + 9 * digits) + 'px');
   rows.forEach(r => {
     const row = document.createElement('div');
     // ⚠️ THE PILL'S COLOUR IS BY RANK, AND NOT BY THE ORDER IN THE ARRAY: the screen's rows may
@@ -22903,6 +22973,10 @@ function newObjShow(key, done){
   host.innerHTML = '';
   box.setAttribute('aria-hidden', 'false');
   box.classList.add('on');
+  // ⚠️ THE EDGE ZONES (2026-09-07-h): this screen opens by a class, not through show(), so the
+  // dimmed state was never refreshed for it and the edge cards kept the sky's colours over a dark
+  // screen — his screenshot, «the strips at the top and the bottom remain». newObjHide already calls it.
+  refreshDimmed();
   // ⚠️ WE START THE SPIN AFTER THE DISPLAY: `frameCylinder` inside the start computes the frame from
   // the node's dimensions, and for a hidden block they are zero (the same nature as with
   // «the guard measured the height on a closed menu» — a hidden node has no geometry).
@@ -26216,6 +26290,8 @@ window.__game = {
              mountedOnCharge: !!(cb && spinR && spinR.domElement.parentNode === cb),
              t: u ? +u.t.value.toFixed(2) : null,
              puff: (typeof CHARGE_SURGE_PUFF !== 'undefined') ? CHARGE_SURGE_PUFF : null,
+             speed: (typeof CHARGE_SURGE_SPEED !== 'undefined') ? CHARGE_SURGE_SPEED : null,   // sweeps per second (2026-09-07-g)
+             uR: u && u.uR ? +u.uR.value.toFixed(3) : null,
              // the shell must never touch the item's own material - the museum reads the same class
              sharesItemMaterial: !!(spinSurge && spinMesh && spinSurge.material === spinMesh.material) };
   },
@@ -27107,7 +27183,7 @@ window.__game = {
   // ⚠️ IT IS NOT A DUPLICATE OF `chargeGrant` AND THE PAIR IS DELIBERATE: that one WRITES the state
   // (a named type, a chosen TTL) and is the scene-setter; this one asks the game to grant a charge
   // the way the game does, threshold and watermark included.
-  chargeGive(){ try { return tryGiveCharge(); } catch(e){ return false; } },
+  chargeGive(prefer){ try { return tryGiveCharge(prefer); } catch(e){ return false; } },   // `prefer`: the direction guard asks for a round type
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },

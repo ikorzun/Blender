@@ -359,7 +359,10 @@ function makeBomb(){
 // ⚠️ EXTRACTED 2026-09-01-i BECAUSE IT NOW HAS TWO CALLERS - turbo ignition, as before, and the
 // schedule (`tickChargeSchedule`). Two copies of a grant would have drifted at the first edit of
 // the copies threshold, and the `chargeGiven` watermark only works if BOTH paths respect it.
-function tryGiveCharge(){
+// ⚠️ `prefer` IS A TEST DOOR ONLY (2026-09-07-g): the suite's direction guard needs a ROUND item (an
+// up-the-body band on a diagonal banana moves its x-centroid too, and the arm went blind to that
+// sabotage). Production callers pass nothing and the draw stays random; an absent name falls back.
+function tryGiveCharge(prefer){
   if (level.chargeGiven || chargeName) return false;
   const cnt = {};
   for (const it of items)
@@ -368,7 +371,7 @@ function tryGiveCharge(){
   const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
   if (!pool.length) return false;
   level.chargeGiven = true;
-  chargeName = pool[Math.floor(Math.random() * pool.length)];
+  chargeName = (prefer && pool.includes(prefer)) ? prefer : pool[Math.floor(Math.random() * pool.length)];
   chargeUntil = performance.now() + CHARGE_TTL_MS;
   try { updateHUD(); } catch(e){}
   return true;

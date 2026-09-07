@@ -193,6 +193,12 @@
      The fever write and html.dimmed stay — they cost nothing and html.dimmed also serves body's
      colour, the zone's fallback. */
   @media (min-width:768px){ #edgeTop, #edgeBot { display:none; } }
+  /* THE PHONE'S DIMMED COLOUR IS THE FLAT FILL (2026-09-07-h): the dark screens are opaque there
+     (the .overlay::before block), so the zone under a popup is the fill itself, not a mix with the
+     zenith. body's fallback colour says the same. AFTER the color-mix rules above on purpose. */
+  @media (max-width:767px){
+    html.dimmed body, html.dimmed #edgeTop, html.dimmed #edgeBot { background-color:rgb(10,14,22); }
+  }
   html, body { height:100%; overflow:hidden; touch-action:none; overscroll-behavior:none;
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:#e8ecf4; user-select:none; -webkit-user-select:none; }
   /* ⛔ HERE THERE STOOD: the background by the device theme (3rd edition) and the rounding of the view
@@ -1647,7 +1653,13 @@
      The only safety net is reduced-motion below (accessibility/battery).
      ⚠️ A CAVEAT: the measurement is CPU-bound; on a budget Android with a WEAK GPU
      backdrop-filter may cost more — there it is cured by one line
-     (@media (pointer:coarse){ blur(3px) }), should the testers complain. */
+     (@media (pointer:coarse){ blur(3px) }), should the testers complain.
+     ⛔⛔ «NO PER-DEVICE DOWNGRADES» IS CANCELLED FOR THE PHONE ON THE OWNER'S WORD 2026-09-07-h
+     (the phone block below): under 768 the fill is OPAQUE and there is no blur at all; the desktop
+     keeps this spec and this blur. The measurement above was CPU-bound emulation; the phone decision
+     was NOT measured here — it was made for the frame budget in Low Power Mode (a whole-viewport
+     backdrop blur over a live WebGL canvas is a real cost there) and because at 88% the dimmed game
+     behind a popup was near-invisible anyway. */
   /* ⛔⛔ THE OVERLAY ITSELF PAINTS NOTHING (the owner's complaint 2026-09-03: «the fields on iOS 26
      again … on the purchase screen the top background is not dark»). The measured 2x2 law of
      2026-08-30 (the html/body rules above): on iOS 26.5 a FIXED element that PAINTS any background
@@ -1668,6 +1680,18 @@
   /* Battery saving/accessibility: completely without blur — the 88% fill is enough */
   @media (prefers-reduced-motion: reduce){
     .overlay::before { -webkit-backdrop-filter:none; backdrop-filter:none; }
+  }
+  /* ⚠️ THE PHONE'S DARK SCREENS ARE OPAQUE AND UNBLURRED (the owner's word 2026-09-07-h: «do it», on
+     the option put to him in the -b report as «only on the phone, drop the backdrop-filter on the dark
+     overlays and make their fill opaque»): a backdrop blur of the whole viewport over a live WebGL
+     canvas is a real cost on a phone (Low Power Mode most of all — an expectation, not a measurement
+     made here), and at 88% the dimmed game behind a popup was already near-invisible. The desktop
+     keeps the 88% fill and the blur (nothing asked). The dimmed colours of body and the cards follow —
+     the block at the cards. ⚠️ NOT a belt for the edge zones: this pseudo-element has z-index −1,
+     which WebKit's candidate rule SKIPS (the zone law at `body`); the two cards stay the mechanism.
+     ⚠️ AFTER the base rule: equal specificity, the cascade is the position in the file. */
+  @media (max-width:767px){
+    .overlay::before { background:rgb(10,14,22); -webkit-backdrop-filter:none; backdrop-filter:none; }
   }
   /* ⚠️⚠️ THE PAUSE IS THE SAME GRADIENT AS THE SCREEN WITH THE BOWL (the owner's word
      2026-08-20). The source is ONE — `--sky-grad`, it is set by 10-stage from the same
@@ -2399,11 +2423,14 @@
      above the heading in the centre. */
   /* ⚠️⚠️ `sticky`, AND NOT `fixed` — AND THIS IS NOT NIT-PICKING AT A WORD. The owner's complaint
      2026-08-11: «it still scrolls with the whole list». `position:fixed` does NOT
-     WORK here by construction: `.overlay` has a `backdrop-filter`, and it creates
+     WORK here on the desktop by construction: `.overlay` has a `backdrop-filter`, and it creates
      A FRAME OF REFERENCE for fixed descendants — the button counted the overlay itself as the «screen»,
      and that is the scrollable block, therefore it drove off together with
      the list. `filter`, `transform` and `will-change` would do the same.
-     ⛔ Removing the blur for the sake of `fixed` is not allowed: this is the common style of all the popups.
+     ⚠️ SINCE 2026-09-07-h THE PHONE HAS NO BLUR (the overlays are opaque there), so `fixed` would
+     work on the phone — `sticky` stays because it is right on BOTH layouts and because #lbOverlay is
+     the scroller the button must stay put in; the former «⛔ removing the blur is not allowed: the
+     common style of all the popups» is withdrawn — the desktop keeps the blur, the phone does not.
      ⚠️ The negative bottom inset kills the space the button now occupies
      in the flow: at the top of the card 88px is already reserved for it, and without this
      the list would have driven down by exactly the height of the button. */
@@ -2443,7 +2470,14 @@
      the `min-width` at the score pill — the same result, but the stop stands where
      the column of numbers lives, and not where the name lives. */
   .lb-left { display:flex; align-items:center; gap:12px; flex:1 1 auto; min-width:0; }
-  .lb-pos { flex:none; width:28px; height:28px; display:grid; place-items:center;
+  /* ⚠️ THE CIRCLE'S WIDTH IS LIST-WIDE (the owner's word 2026-09-07-h, with his own row on the phone:
+     «the player's avatar must not be shifted, it must be on one vertical with the other avatars»):
+     `lbRowsRender` writes `--lb-pos-w` on the list from the LONGEST rank it renders (28 for one or two
+     digits — the mock-up's circle — 37 / 46 / 55 for three, four, five), so every row's circle is the
+     same width and every avatar stands on one vertical, and no rank is ever cut. ⛔ CANCELS the
+     me-row-only growth of 2026-08-10 (`width:auto; padding:0 5px` at `.me`), which shifted his
+     avatar by ten pixels on every list. */
+  .lb-pos { flex:none; width:var(--lb-pos-w, 28px); height:28px; display:grid; place-items:center;
     border-radius:48px; font-weight:700; font-size:18px; color:#fff; }
   .lb-ava { display:flex; align-items:center; gap:6px; min-width:0; }
   .lb-av { flex:none; width:48px; height:48px; background:transparent; }
@@ -2498,11 +2532,11 @@
      solution to the problem «and what if the place is four-digit» — a problem the owner
      did not set. What helps a long number to fit is not the type size, but the fact that the circle
      does not cut the content: the width grows from `min-width`. */
-  /* ⚠️ The circle GROWS for a long place, and does not cut it: the other rows have no background
-     and the overflow is not seen, at one's own it is seen. The width is only at `.me`, so that
-     the geometry of the other rows stays bit-for-bit. */
-  .lb-row.me .lb-pos { background:#fff; color:var(--carbon-400);
-    width:auto; min-width:28px; padding:0 5px; }
+  /* ⛔ THE TWO PARAGRAPHS ABOVE ARE HISTORY SINCE 2026-09-07-h: the circle no longer grows «from
+     min-width» and no longer grows at `.me` alone — the width is the LIST's (`--lb-pos-w`, see .lb-pos),
+     so a long rank widens EVERY circle of that list (a deliberate trade: «one vertical» for the
+     avatars beats the mock-up's 28 on a three-digit list), and no rank is cut on any row. */
+  .lb-row.me .lb-pos { background:#fff; color:var(--carbon-400); }   /* the width is the list's (2026-09-07-h) */
   .lb-row.me .lb-name { color:var(--carbon-400); }
   .lb-row.me .lb-score { background:#fff; color:var(--carbon-400); }
   .lb-row.me .lb-score svg path { fill:#FFE730; }

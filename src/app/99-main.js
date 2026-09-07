@@ -1849,6 +1849,8 @@ window.__game = {
              mountedOnCharge: !!(cb && spinR && spinR.domElement.parentNode === cb),
              t: u ? +u.t.value.toFixed(2) : null,
              puff: (typeof CHARGE_SURGE_PUFF !== 'undefined') ? CHARGE_SURGE_PUFF : null,
+             speed: (typeof CHARGE_SURGE_SPEED !== 'undefined') ? CHARGE_SURGE_SPEED : null,   // sweeps per second (2026-09-07-g)
+             uR: u && u.uR ? +u.uR.value.toFixed(3) : null,
              // the shell must never touch the item's own material - the museum reads the same class
              sharesItemMaterial: !!(spinSurge && spinMesh && spinSurge.material === spinMesh.material) };
   },
@@ -2740,7 +2742,7 @@ window.__game = {
   // ⚠️ IT IS NOT A DUPLICATE OF `chargeGrant` AND THE PAIR IS DELIBERATE: that one WRITES the state
   // (a named type, a chosen TTL) and is the scene-setter; this one asks the game to grant a charge
   // the way the game does, threshold and watermark included.
-  chargeGive(){ try { return tryGiveCharge(); } catch(e){ return false; } },
+  chargeGive(prefer){ try { return tryGiveCharge(prefer); } catch(e){ return false; } },   // `prefer`: the direction guard asks for a round type
   chargeGrant(name, ms){ chargeName = name; chargeUntil = performance.now() + (ms || CHARGE_TTL_MS); updateHUD(); return chargeState(); },
   detonateCharge(){ return detonateCharge(); },
   chainAt(){ return chainComboAt(); },

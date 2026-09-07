@@ -1656,21 +1656,44 @@ function wiggle(item){
 // offscreen renderer without this line and the shell comes out washed and haloed at low alpha.
 const CHARGE_SURGE_PUFF = 0.030;   // the shell sits just off the surface; below THUMB_MARGIN so
                                    // frameCylinder's padding still contains it
-function chargeSurgeMat(y0, y1){
+// THE BAND RUNS LEFT → RIGHT ACROSS THE SCREEN AND IS STRONGER (the owner's word 2026-09-07-g, with
+// the slot on his phone: «strengthen the effect on the bonus object + change the direction, left to
+// right»). ⛔ CANCELS «a band running UP the body» of 2026-09-01-l. The band's coordinate is the
+// fragment's VIEW-space x, normalised by the model's bounding radius — not the model's local x: the
+// slot's turntable spins the model, and a local-x band would turn with it and read as «around» rather
+// than «across». View x grows to the right of the screen, so the head travels left → right whatever
+// the model's rotation. The strength lives in the five constants below — the same cold palette
+// (never the ice's pale one), just more of it: a wider band, a brighter head-on core, a faster sweep.
+const CHARGE_SURGE_SPEED = 0.80;   // sweeps per second (was 0.55): one pass in 1.25 s
+const CHARGE_SURGE_WIDTH = 45.0;   // the gaussian's k (was 90): ~1.4× wider
+const CHARGE_SURGE_RIM   = 0.30;   // the always-on fresnel rim (was 0.22)
+const CHARGE_SURGE_BAND  = 0.70;   // the band's alpha head-on (was 0.45); grazing adds up to +0.30 more
+const CHARGE_SURGE_CORE  = 0.70;   // the cold-white core's share at the peak (was 0.55)
+// THE HEAD'S TRAVEL OVERSHOOTS THE MODEL BY 3σ OF THE BAND ON EACH SIDE (the review of 2026-09-07-h):
+// the old `head*1.35 - 0.18` was tuned for k=90 (σ 0.075, a 2.4σ margin); at k=45 the band is wider
+// and 0.18 is only 1.7σ — the band popped in at the left edge and was cut at the right. Derived from
+// the width, so a retune of one moves the other.
+const CHARGE_SURGE_MARGIN = +(3 / Math.sqrt(2 * CHARGE_SURGE_WIDTH)).toFixed(3);   // 0.316 at k=45
+function chargeSurgeMat(r){
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.FrontSide,
-    uniforms: { t: { value: 0 }, uY0: { value: y0 }, uY1: { value: y1 } },
+    uniforms: { t: { value: 0 }, uR: { value: r || 1 } },
     vertexShader: [
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'uniform float uR;',
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP; varying float vU;',
       'void main(){',
       '  vN = normalize(normalMatrix*normal); vP = position;',
       '  vec3 p = position + normal*' + CHARGE_SURGE_PUFF.toFixed(3) + ';',
       '  vec4 mv = modelViewMatrix*vec4(p,1.0); vV = mv.xyz;',
+      // the band's coordinate: view-space x across the model's own diameter, 0 at its left edge, 1 at
+      // its right (the mesh origin is the centre, the x column's length is the spin's uniform scale)
+      '  float sc = length(modelViewMatrix[0].xyz); float cx = modelViewMatrix[3].x;',
+      '  vU = (mv.x - cx) / max(0.0001, uR*sc) * 0.5 + 0.5;',
       '  gl_Position = projectionMatrix*mv; }',
     ].join('\n'),
     fragmentShader: [
-      'uniform float t; uniform float uY0; uniform float uY1;',
-      'varying vec3 vN; varying vec3 vV; varying vec3 vP;',
+      'uniform float t;',   // uY0/uY1 (the model's y range of the up-the-body band) left with the direction (2026-09-07-h)
+      'varying vec3 vN; varying vec3 vV; varying vec3 vP; varying float vU;',
       'float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }',
       'float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);',
       '  return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),',
@@ -1678,23 +1701,29 @@ function chargeSurgeMat(y0, y1){
       'void main(){',
       '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
       '  float fres = pow(1.0 - ndv, 2.0);',
-      '  float u = (vP.y - uY0) / max(0.0001, uY1 - uY0);',
-      '  float head = fract(t*0.55);',
-      '  float d = u - (head*1.35 - 0.18);',
-      '  float band = exp(-d*d*90.0);',
+      '  float u = vU;',   // left → right on the screen (2026-09-07-g); was the model's local y, bottom → top
+      '  float head = fract(t*' + CHARGE_SURGE_SPEED.toFixed(2) + ');',
+      '  float d = u - (head*' + (1 + 2 * CHARGE_SURGE_MARGIN).toFixed(3) + ' - ' + CHARGE_SURGE_MARGIN.toFixed(3) + ');',
+      '  float band = exp(-d*d*' + CHARGE_SURGE_WIDTH.toFixed(1) + ');',
       '  float crk = n3(vP*17.0 + vec3(t*3.0));',
-      '  band *= 0.55 + 0.75*smoothstep(0.35, 0.9, crk);',
-      '  float a = 0.22*fres + band*(0.45 + 0.55*fres);',
+      '  band *= 0.65 + 0.75*smoothstep(0.35, 0.9, crk);',
+      '  float a = ' + CHARGE_SURGE_RIM.toFixed(2) + '*fres + band*(' + CHARGE_SURGE_BAND.toFixed(2) + ' + ' + (1 - CHARGE_SURGE_BAND).toFixed(2) + '*fres);',
       '  a = clamp(a, 0.0, 1.0);',
       '  if (a < 0.02) discard;',
       // ⚠️⚠️ COLD, AND THE PEAK IS A COLD WHITE RATHER THAN A WHITE. First render of the port
       // whitened the core with `mix(c, vec3(1.0), pow(band,3.0)*0.80)` - the bench's own line,
       // where a saturated GREEN base survived it. Against violet and cyan it did not: on the
       // frames the band read as a grey-white crackle on the model, i.e. the one thing «cold» must
-      // not turn into. The white is now (0.75,0.95,1.0) and reaches 0.55, so the hottest part of
-      // the band still leans blue instead of going neutral.
-      '  vec3 c = mix(vec3(0.20,0.12,0.85), vec3(0.10,0.78,1.00), band);',
-      '  c = mix(c, vec3(0.75,0.95,1.00), pow(band,3.0)*0.55);',
+      // not turn into. The white is (0.75,0.95,1.0) and reaches CHARGE_SURGE_CORE (0.70), so the
+      // hottest part of the band still leans blue instead of going neutral.
+      // ⚠️⚠️ THE COLOUR READS A CLAMPED BAND (the adversarial review of 2026-09-07-h, by arithmetic,
+      // not by a run): the crackle lifts `band` to 1.4, and an unclamped 1.4 in `mix` EXTRAPOLATES —
+      // pow(1.4,3)*0.70 = 1.92 pushed the core past the white to (1.39, 0.86, 0.95), a PINK-white,
+      // exactly the hue the paragraph above forbids. The alpha keeps the boosted band (that is the
+      // strength); the two mixes read `bc`, so the peak is B + 0.70*(W−B) = (0.56, 0.90, 1.0): cold.
+      '  float bc = min(band, 1.0);',
+      '  vec3 c = mix(vec3(0.20,0.12,0.85), vec3(0.10,0.78,1.00), bc);',
+      '  c = mix(c, vec3(0.75,0.95,1.00), pow(bc,3.0)*' + CHARGE_SURGE_CORE.toFixed(2) + ');',
       '  gl_FragColor = vec4(c*a, a); }',   // PREMULTIPLIED - see the note above
     ].join('\n'),
   });
@@ -1704,9 +1733,8 @@ function chargeSurgeMat(y0, y1){
 // though nothing in this path disposes it.
 function chargeSurgeMake(mesh){
   const geo = mesh.geometry;
-  if (!geo.boundingBox) geo.computeBoundingBox();
-  const b = geo.boundingBox;
-  const m = new THREE.Mesh(geo, chargeSurgeMat(b.min.y, b.max.y));
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const m = new THREE.Mesh(geo, chargeSurgeMat(geo.boundingSphere.radius));
   m.userData.keepGeo = true;
   m.renderOrder = 9;
   mesh.add(m);

@@ -520,6 +520,11 @@ function lbFmt(n){ return String(Math.max(0, n | 0)).replace(/\B(?=(\d{3})+(?!\d
 function lbRowsRender(rows){
   const host = $('lbList'); if (!host) return;
   host.innerHTML = '';
+  // THE RANK CIRCLE'S WIDTH IS ONE FOR THE WHOLE LIST (2026-09-07-h): from the longest rank rendered —
+  // 28 (the mock-up) up to two digits, +9 per digit beyond. Every avatar stands on one vertical, and no
+  // rank is cut; the me row no longer grows its own circle (that shifted the owner's avatar).
+  const digits = rows.reduce((m, r) => Math.max(m, String(r.pos | 0).length), 1);
+  host.style.setProperty('--lb-pos-w', Math.max(28, 10 + 9 * digits) + 'px');
   rows.forEach(r => {
     const row = document.createElement('div');
     // ⚠️ THE PILL'S COLOUR IS BY RANK, AND NOT BY THE ORDER IN THE ARRAY: the screen's rows may
@@ -3012,6 +3017,10 @@ function newObjShow(key, done){
   host.innerHTML = '';
   box.setAttribute('aria-hidden', 'false');
   box.classList.add('on');
+  // ⚠️ THE EDGE ZONES (2026-09-07-h): this screen opens by a class, not through show(), so the
+  // dimmed state was never refreshed for it and the edge cards kept the sky's colours over a dark
+  // screen — his screenshot, «the strips at the top and the bottom remain». newObjHide already calls it.
+  refreshDimmed();
   // ⚠️ WE START THE SPIN AFTER THE DISPLAY: `frameCylinder` inside the start computes the frame from
   // the node's dimensions, and for a hidden block they are zero (the same nature as with
   // «the guard measured the height on a closed menu» — a hidden node has no geometry).

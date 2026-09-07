@@ -16030,3 +16030,106 @@ arm; `flex:0 0 auto` on the eyes → the 700 arm alone (eyes 232 → 232 while t
   `left 167` on the phone and the same 24 on the desktop — the arm discriminates.
 - **Run 23** on this build: **1007 green, 0 red, SUITE: PASS**. Pushed to `v2`, then onto `main` on his word
   («push v2 onto main»), the live site verified by byte size.
+
+## BATCH 2026-09-07-g: THE CHARGE'S BAND SWEEPS LEFT → RIGHT ACROSS THE SCREEN, AND STRONGER (his word with the slot on his phone: «strengthen the effect on the bonus object + change the direction, left to right»)
+
+### THE DIRECTION IS VIEW-SPACE, NOT MODEL-SPACE — AND THAT IS THE WHOLE DESIGN
+⛔ CANCELS «a band running UP the body» of 2026-09-01-l. The band's coordinate is now the fragment's
+VIEW-space x, normalised by the model's bounding radius (`vU`, computed in the vertex shader from
+`modelViewMatrix` — the origin column for the centre, the x column's length for the spin's uniform
+scale, a `uR` uniform for the radius). ⚠️ NOT the model's local x: the slot's turntable spins the
+model, and a local-x band would turn with it and read as «around» rather than «across». View x grows
+to the right of the screen, so the head travels left → right whatever the rotation.
+THE STRENGTH is five named constants (they used to be literals inside the shader text): the sweep
+0.55 → **0.80** per second, the gaussian's k 90 → **45** (~1.4× wider), the rim 0.22 → **0.30**, the
+head-on alpha 0.45 → **0.70**, the cold-white core 0.55 → **0.70**, the crackle floor 0.55 → 0.65.
+The palette is untouched — the same cold violet/cyan, never the ice's pale one; only more of it.
+
+### THE GUARD — READ FROM SCREENSHOTS, COMPARED AGAINST THE PHASE, ON A ROUND ITEM
+The charge section now sits between `⟦CHARGEFX-SECTION-BEGIN/END⟧` markers. The new arm takes ten
+`page.screenshot` clips of the slot (the compositor sees the WebGL canvas; an in-page read of the
+alpha:true spin renderer would need preserveDrawingBuffer), finds the band's pixels (r<140, g>150,
+b>200 — the items' yellows and oranges and the mint sky all carry more red) and their x-centroid, and
+requires the centroid to ORDER WITH THE HEAD'S PHASE `fract(t·speed)` over all pairs of present
+samples (pos ≥ 3, pos ≥ 2·neg, ≥ 4 present). A tiny PNG reader (zlib, filters 0–4) lives in the arm.
+⚠️⚠️ THREE DRAFTS, EACH TAUGHT BY A RUN:
+1. neighbour-only deltas went red on a healthy build once the screenshots came slower (~350 ms apart
+   the head wraps between samples and a wrap reads as «falling») → the PHASE comparison, which no
+   sample spacing can break;
+2. six samples with a presence floor of 30 pixels caught the head on the model in only two → ten
+   samples, a floor of 6 (a handful of pixels at the edge IS the head entering);
+3. ⛔⛔ THE ARM WAS BLIND TO THE VERY SABOTAGE IT EXISTS FOR: with the old up-the-body band on a
+   DIAGONAL banana the x-centroid moved with the phase too (the band climbs the slant), and the
+   sabotage passed green. The grant is the production `tryGiveCharge`, which draws a random type —
+   so it gained a `prefer` argument, A TEST DOOR ONLY (the game's callers pass nothing), and the guard
+   asks for the orange, on every level-1 deal. On a round item the up-band's centroid stands still.
+Proven three-sided on the build: healthy twice (the orange, pos ≥ 3, neg 0); the band back on local y
+→ red (cx 50 → 51 → 59, no order); the sweep mirrored (`1.0 − vU`) → red (the inverse order).
+**A guard whose subject is drawn at random must pin the draw, or it tests a different subject every
+run — and one of them will be the subject on which the sabotage is invisible.**
+
+### WHAT THE ADVERSARIAL REVIEW FOUND BY ARITHMETIC, NOT BY A RUN (the -h workflow: 3 lenses, 2 skeptics each)
+- ⛔⛔ **THE PEAK HAD GONE PINK.** The crackle lifts `band` to 1.4, and an UNCLAMPED 1.4 in `mix`
+  EXTRAPOLATES: with the core raised to 0.70, pow(1.4,3)·0.70 = 1.92 pushed the colour past the white
+  to (1.39, 0.86, 0.95) — red above blue, the one hue the cold palette forbids, on a strip ~10% of the
+  diameter wide inside every bright crackle cell. The old constants (1.3, 0.55) peaked at
+  (0.89, 0.94, 0.99) and never crossed neutral. The two mixes now read `bc = min(band, 1.0)`; the
+  alpha keeps the boosted band (that is the strength). No guard sees a hue — the sweep arm's filter
+  rejects every r ≥ 140 pixel by design — so this one was caught only by reading the shader.
+- **THE TRAVEL WAS TUNED FOR THE OLD WIDTH:** `head*1.35 − 0.18` gave a 2.4σ margin at k=90 and
+  only 1.7σ at k=45 — the band popped in at the left edge and was cut at the right. The margin is
+  now DERIVED (`CHARGE_SURGE_MARGIN = 3/√(2k)` = 0.316), so a retune of the width moves it.
+- `uY0`/`uY1` (the up-the-body band's y range) were still declared and filled — gone with the direction.
+- The sweep arm's subject was LOGGED, not asserted: a lost pin would silently test a random item;
+  `chargeType === 'foodorange'` is in the predicate now.
+Dry runs after the fixes: CHARGEFX **7 green** twice on the orange (the longer off-model time did not
+starve the ten samples); the sabotages of the day still red on the direction.
+
+## BATCH 2026-09-07-h: THE NEW-OBJECT SCREEN DIMS THE EDGES; EVERY LEADERBOARD AVATAR ON ONE VERTICAL; THE PHONE'S DARK SCREENS ARE OPAQUE (his three words with two screenshots: «on this screen the strips at the top and the bottom remain — the fill over the whole viewport»; «the player's avatar must not be shifted, it must be on one vertical with the other avatars»; and «do it» on the option named in the -b report)
+
+### THE STRIPS ON THE NEW-OBJECT SCREEN — A MISSING CALL, NOT A MISSING RULE
+`#newObj` is in `DIM_OVERLAYS` and its fill is the common `.overlay::before`, but it opens by a CLASS
+(`newObjShow` adds `on`) and never passes through `show()`, so `refreshDimmed()` — called from
+show()/hide(), openMainScreen and `newObjHide` — was never called on OPENING. The cards kept the
+sky's zenith and nadir over a near-black screen: exactly his screenshot. One line in `newObjShow`.
+⚠️ The zone guard's census («every .overlay is in the dim list») could not see this: the list was
+right, the TRIGGER was missing. A new arm opens the screen through its own production hook and reads
+the cards.
+
+### THE OWN ROW'S AVATAR — THE CIRCLE GREW ONLY THERE
+`.lb-row.me .lb-pos { width:auto; min-width:28px; padding:0 5px }` (2026-08-10, «the circle grows for
+a long place and does not cut it») made the me row's circle 38 wide against everyone's 28, so his
+avatar sat ten pixels right of the column. ⛔ CANCELLED. The width is LIST-WIDE now: `lbRowsRender`
+writes `--lb-pos-w` on `#lbList` from the LONGEST rank it renders (28 up to two digits — the
+mock-up's circle — +9 per digit beyond), every row's circle reads it, no rank is cut anywhere, and
+every avatar stands on one vertical. A two-digit list is byte-identical to the mock-up.
+
+### THE PHONE'S DARK SCREENS ARE OPAQUE AND UNBLURRED (his «do it»)
+The option, as it was put to him in the -b report: «only on the phone, drop the backdrop-filter on the
+dark overlays and make their fill opaque». `@media (max-width:767px){ .overlay::before {
+background:rgb(10,14,22); backdrop-filter:none } }` plus the dimmed colours of body and the two cards =
+the same flat fill on the phone. The gain: a backdrop blur of the whole viewport over a live WebGL
+canvas is a real cost on a phone, Low Power Mode most of all — AN EXPECTATION, NOT A MEASUREMENT MADE
+HERE — and at 88% the dimmed game behind a popup was near-invisible anyway. The desktop keeps 88% +
+blur (nothing asked).
+⛔ THE «BELT UNDER THE CARDS» I FIRST CLAIMED IS WITHDRAWN (the review): the fill lives on a
+pseudo-element with z-index −1, which WebKit's candidate rule SKIPS — the two cards stay the only
+mechanism for the zones. ⛔ AND THE 2026-07-27 SPEC («NO per-device downgrades», measured 0/1 fps
+on emulation) carried no tombstone where it stood — it does now; likewise the sticky-close rationale
+that forbade removing the blur, and the two me-row paragraphs that still said «the width grows from
+min-width».
+⚠️ THE ORDER IN THE FILE IS LOAD-BEARING TWICE: the phone `.overlay::before` block stands AFTER the
+base rule and the reduced-motion block; the phone dimmed-colour block stands AFTER the color-mix rules.
+Equal specificity, the cascade is the position.
+⚠️ THE GUARDS MOVED WITH THE RULE, ALPHA-AWARE: the zone and the card arms compute the expected
+dimmed colour from the fill's own alpha — an opaque fill IS the expectation, a translucent one
+composites over the zenith. ⚠️ THE REVIEW NAMED THE HOLE THAT LEFT: every reader of `html.dimmed`
+ran at 402, so the desktop's color-mix rule was guarded by nobody — the EDGES section now reads body
+under the ×5 popup at 1280 as well (fill 88% + blur, body = the composite over the zenith: [29,32,50]).
+The table-popup guard, which pins 88% + blur, runs at 1280 and is untouched.
+⚠️ NAMED, NOT CLOSED: the list-wide circle growth (37/46/55 for three, four, five digits) is reachable
+in production and exercised by no guard — the two-digit fixture pins the 28 floor and the one
+vertical; a three-digit mock is a separate arm.
+**Run 26** on the reviewed build (g + h): **1012 green, 0 red, SUITE: PASS**. Pushed to `v2` and onto `main` on his
+word («push v2 onto main after a green run»), the live site verified by byte size. (Run 24, the surge alone,
+was 1007 green with the one known audio flake; run 25 was stopped by me before the review's fixes.)
