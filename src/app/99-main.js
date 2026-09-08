@@ -1872,11 +1872,19 @@ window.__game = {
              mountedOnCharge: !!(cb && spinR && spinR.domElement.parentNode === cb),
              t: u ? +u.t.value.toFixed(2) : null,
              puff: (typeof CHARGE_SURGE_PUFF !== 'undefined') ? CHARGE_SURGE_PUFF : null,
+             // the contour (2026-09-08-i): the shell's own scale as built, the constant, and the frame
+             // margin the slot's spin camera allows — a guard pins scale*(1+puff) <= 1 + 2*margin
+             scale: spinSurge ? +spinSurge.scale.x.toFixed(3) : null,
+             scaleK: (typeof CHARGE_SURGE_SCALE !== 'undefined') ? CHARGE_SURGE_SCALE : null,
+             body: (typeof CHARGE_SURGE_BODY !== 'undefined') ? CHARGE_SURGE_BODY : null,
+             frameMargin: (typeof THUMB_MARGIN !== 'undefined') ? THUMB_MARGIN : null,
              speed: (typeof CHARGE_SURGE_SPEED !== 'undefined') ? CHARGE_SURGE_SPEED : null,   // sweeps per second (2026-09-07-g)
              uR: u && u.uR ? +u.uR.value.toFixed(3) : null,
              // the shell must never touch the item's own material - the museum reads the same class
              sharesItemMaterial: !!(spinSurge && spinMesh && spinSurge.material === spinMesh.material) };
   },
+  // parks the surge's clock for the contour guard (2026-09-08-i); null releases it. Returns the hold.
+  chargeSurgeHold(t){ spinSurgeHold = (t === null || t === undefined) ? null : +t; return spinSurgeHold; },
   spinState(){ return { active: !!spinItem, angle: +spinAngle.toFixed(3), rafOn: !!spinRAF,
     auto: spinAuto, px: (spinR ? spinR.domElement.width : 0), tilt: +spinTilt.toFixed(3),
     mounted: !!(spinR && spinR.domElement.parentNode),

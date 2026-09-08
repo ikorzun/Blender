@@ -16050,7 +16050,8 @@ model, and a local-x band would turn with it and read as «around» rather than 
 to the right of the screen, so the head travels left → right whatever the rotation.
 THE STRENGTH is five named constants (they used to be literals inside the shader text): the sweep
 0.55 → **0.80** per second, the gaussian's k 90 → **45** (~1.4× wider), the rim 0.22 → **0.30**, the
-head-on alpha 0.45 → **0.70**, the cold-white core 0.55 → **0.70**, the crackle floor 0.55 → 0.65.
+head-on alpha 0.45 → **0.70** (⛔ CANCELLED 2026-09-08-i: the band's alpha is on the RIM, `BAND` 0.85
+means that, and the face carries `BODY` 0.12 at most), the cold-white core 0.55 → **0.70**, the crackle floor 0.55 → 0.65.
 The palette is untouched — the same cold violet/cyan, never the ice's pale one; only more of it.
 
 ### THE GUARD — READ FROM SCREENSHOTS, COMPARED AGAINST THE PHASE, ON A ROUND ITEM
@@ -16977,3 +16978,126 @@ SUITE: PASS** (run 33 was 1080; the nine are the new arms). `index.html` 12 739 
 message string of arm A4 (the tall-box wording, «widen the side cut» struck) was edited AFTER the run — a message,
 not a predicate; the section's own dry-run had it green in both wordings. Pushed to `v2` and onto `main` on his
 standing word («push v2 onto main after a green run»).
+
+## BATCH 2026-09-08-i: THE CHARGE'S SURGE RIDES A TRANSPARENT CONTOUR, SLIGHTLY BIGGER THAN THE OBJECT (his word with the slot on his phone: «fix the style of the bonus object: make the current electric shimmer run over a transparent outline of the object, a bit bigger than the object — like the ice or the fire»)
+
+### WHAT HE SAW, AND WHAT THE «BEFORE» FRAME SHOWS
+The 2026-09-07-g surge put the band's alpha on the shell's FACE (`band*(0.70 + 0.30*fres)`, the shell on
+the item's own surface with a 0.030 puff): with the head across the middle the orange wore a crackle
+STRIPE down its belly — the top row of the sheet sent to him. The ice and the fire are both an INFLATED
+COPY of the mesh with a FRESNEL: the crust is `scale.setScalar(1.14)` + `pow(1−d,1.6)`, the flame an
+inflated copy + `pow(1−ndv,1.35)`. That is the recipe he named, and it is what shipped.
+
+### WHAT SHIPPED (70-fx, 85-hud, 99-main)
+- THE SHELL IS SCALED, NOT PUFFED: `chargeSurgeMake` does `m.scale.setScalar(CHARGE_SURGE_SCALE)` on the
+  child mesh — the ice's device — and `CHARGE_SURGE_PUFF` is 0 (two offsets, one number). The scale is a
+  CHILD transform, so the shell inherits the spin and the band's `vU` still spans the shell's own
+  diameter: `sc = length(modelViewMatrix[0].xyz)` in the vertex shader carries the child's scale.
+- THE ALPHA IS FRESNEL-GATED: `a = fres*(RIM 0.30 + band*BAND 0.85) + band*BODY 0.12`, `fres =
+  pow(1−ndv, 1.5)` (was 2.0 — a hairline; the ice is 1.6, the fire 1.35). ⛔ CANCELS the head-on body
+  alpha of 2026-09-07-g (`band*(0.70 + 0.30*fres)`) — the tombstone stands at that line too. The face carries at most
+  BODY·band = 0.17 over the item's own colour; the silhouette carries RIM + band·BAND, so what the band
+  lights as it sweeps is the CONTOUR — with the head across the centre, the top and the bottom of the
+  outline; at the edges, the sides. `CHARGE_SURGE_BAND` changed MEANING (head-on → on the rim) and says
+  so at its line. The palette, the speed, the width, the crackle, the cold-white core, the premultiplied
+  output and the left→right direction of -g are untouched. FrontSide and depthWrite:false stand: the
+  back hemisphere of the inflated shell is culled, the front hemisphere behind the item fails the depth
+  test, and what remains is the front skin — its grazing ring IS the outline.
+- ⚠️⚠️ THE SCALE IS 1.06, NOT THE ICE'S 1.14, AND THE BOUND IS ARITHMETIC, NOT TASTE. `frameCylinder`
+  frames the slot's spin camera at half = (the larger projected extent)/2 × (1 + 2·THUMB_MARGIN) —
+  **1.08 × the radius for a type whose width sets the frame** — and the charge slot calls
+  `thumbSpinStart(sit, cb)` WITHOUT `px`: the ×1.22 headroom of the new-object screen never applies
+  there. ⛔ MY FIRST WORDING HAD THE EXAMPLE BACKWARDS AND THE REVIEW REPLICATED THE FRAME ON THE VERTEX
+  ARRAYS: a ROUND item has the MOST slack (the orange's frame is its tilted HEIGHT, 1.375 against a width of
+  1.18 — even 1.14 fits it), and it is the width-framed types that clip: **64 of the 105 pool types at
+  1.14; 1.06 fits every one** with ≥ 2 % to spare. The fresnel's brightest ring sits within a few percent
+  of the shell's silhouette (~0.98 of it — the view vector is the perspective one under the ortho camera,
+  a pre-existing detail), so a clipped shell loses its brightest line. ⚠️ THE PRICE OF GOING PAST 1.08,
+  NAMED TO HIM: `spinCam` must be widened in `spinTick` when the shell attaches (and restored on detach),
+  and the model in the slot shrinks by the same factor — ~5 % for the ice's 1.14. Not done; one constant
+  plus that widen if he wants the thicker halo. The structural guard states the relation
+  `scale·(1 + puff/R) ≤ 1 + 2·margin` (the puff is an absolute object-space offset, so it is divided by
+  the radius — latent while it is 0), so a retune past the frame goes red instead of clipping silently.
+- ⚠️ THE SCALE IS A SUPPORT-FUNCTION OFFSET, NOT A FIXED THICKNESS — AND THAT IS THE ICE'S OWN BEHAVIOUR
+  (the review, replicated per vertex): the halo outside the silhouette is 0.06 × the model's half-extent
+  in that direction — ~3 px on the 116 slot where the item reaches its bounding radius, sub-pixel along a
+  bar's long sides (brickbar 3.2 px at the ends, 0.6 along the sides; the banana 3.2 against 0.7), and
+  where p·n < 0 (a wheel arch, an underside — 32 % of the taxi's vertices) the shell enters the solid and
+  is hidden. On a flat-faced item the fresnel forms no gradient toward the edge either (ndv is constant
+  per face), so the offset alone marks the outline there. A uniform halo would need a puff component
+  (scale 1.03 + puff 0.03 fits the frame too) at the cost the -l shell paid — a puff opens gaps at
+  split-normal hard edges (0.03 gapped ~2 px). He named «the ice or the fire»; the ice's device shipped.
+  The suite pins the orange only and cannot see any of this; his knob.
+- `chargeFx()` (99-main) reports `scale` (the child's live scale), `scaleK` (the constant), `body` and
+  `frameMargin`; `chargeSurgeHold(t)` is a TEST DOOR that parks the shell's clock uniform (null releases
+  it) — `spinSurgeHold` in 85-hud, read by `spinTick`. Production never sets it; the sweep arm proves
+  the clock moves when it is null.
+
+### THE GUARD (CHARGEFX, nine arms; two new, one re-ordered, one re-keyed)
+- THE STRUCTURE: `scale ≥ 1.03`, `scale === scaleK`, the fit relation above. ⛔ scale 1 is the old form;
+  1.14 is the retune that needs the camera.
+- THE APPEARANCE: ON A FRESH CHARGE (a `regen` resets the grant's watermark — the slot fades over its 10 s
+  TTL and the sweep arm has spent 3–6 s of the first one; the review's second minor), the clock PARKED at
+  head 0.5 (`chargeSurgeHold(0.5/speed)` = 0.625 s — the band's centre `head·(1+2·margin) − margin` is
+  then exactly the slot's centre column), three screenshots of the slot, the inner disc (0.30 of the
+  slot's half-size about its centre — deep in the orange's body, clear of the stem and the sky) must hold
+  ≤ 2 % COLD pixels (`b > r+30 && b > 150`), AND `BODY ≤ 0.25`. The hold is WAITED FOR AS A FACT before
+  each shot (`t` within 0.011 of the parked value — the uniform is written only by spinTick's rAF, and a
+  fixed 80 ms need not contain one under load: the review's one bug, a healthy build reddened by its own
+  control) and read back after it: three shots of a live head somewhere on its sweep would be «warm» at
+  the empty phases too. ⚠️ THE BODY CEILING IS A PIN ON A CONSTANT, AND IT EXISTS BECAUSE THE PIXEL FILTER
+  IS BLIND BELOW ~0.5: a face alpha reads cold only above ~0.7, so a BODY of 0.45 — two thirds of the old
+  stripe — would pass the disc arm green. The constant defines «faint»; 0.25 keeps the disc warm by
+  arithmetic.
+  ⛔⛔ THE FIRST EDITION CAUGHT THE HEAD BY POLLING ITS PHASE INTO A 50 ms WINDOW AND KEPT A SHOT ONLY IF
+  THE PHASE AFTER IT WAS STILL NEAR THE CENTRE. A screenshot costs 250 ms alone (a fifth of a sweep), so
+  every attempt was a coin toss: the solo dry run got three samples at the window's upper bound, and the
+  same text run beside a second browser got NONE in fourteen attempts (each up to 4 s of waiting), ran
+  the section past the charge's 10 s TTL and reddened the LEAK arm downstream — the charge had dissolved,
+  `charge().name` read null, the toggle went nowhere. A parked clock costs nothing and reads the same
+  under any load: the canon's own «a fixed pause measures the bench's clock», met on a phase window.
+- ⚠️ THE COLD FILTER IS NOT THE SWEEP ARM'S. That arm's `r<140 && g>150 && b>200` never passes the old
+  form's composite over the orange (~94,184,197) either, so it could not discriminate the two forms; and
+  the old alpha gave it MORE rim pixels, not fewer — it stays green on both forms by design.
+- THE TYPE NAME IS READ ONCE, BEFORE THE SWEEP, AND HANDED TO THE LEAK ARM AS AN ARGUMENT: the section
+  spends ~5 s of screenshots on a charge that lives 10 s; an arm that reads `charge().name` at its end
+  measures the TTL, not the leak. A dissolved charge is a no-op detonate now, and the leak arm still
+  states its property (the shell gone once the canvas hangs elsewhere). ⚠️ The review tried to refute the
+  pin and could not — the overrun path and the live path reach the toggle in the identical state — but
+  two pre-existing facts came out of it: `spinTick`'s shell-REMOVAL branch is dead in production (every
+  hand-over passes through `thumbSpinStart`, whose first act `thumbSpinStop` nulls the shell) and stays as
+  a belt; and the arm cannot see a shell keyed on the charge's NAME in `thumbSpinStart`, because it
+  detonates before it toggles — as it always has. Neither is this batch's; both are written down.
+- ⛔ THE PNG READER AND THE SLOT BOX MOVED ABOVE THE CONTOUR ARM: they were `const`s of the sweep arm, the
+  contour arm now runs first, and a `const` read before its line is a TDZ ReferenceError — which kills a
+  run WITHOUT A VERDICT rather than reddening an arm. The second chain of this batch died at 5 checks on
+  exactly that; the lifter's «RUN ERROR» line was the only sign.
+- PROVEN FOUR-SIDED (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`): the healthy
+  build 9 green (0 cold of 949 on all three held shots; the sweep 8:0); the old alpha restored → ONLY the
+  contour arm red (cold 7–12 %, max 12.4 %); `scale.setScalar(1.0)` → ONLY the structural arm; the
+  constant at 1.14 → ONLY the structural arm (the shell clipped, the disc still warm — the two halves are
+  two properties); a comment edit → 9 green, the tool calls an empty sabotage empty.
+
+### THE PICTURE FIRST (his own rule of 2026-09-06-b), AND THE KNOBS THAT ARE HIS
+A sheet of six slot frames at his phone's viewport (390×844, DPR 3) — before/after at three phases —
+went to him before the guards were trusted, and two banana frames after the review. ⚠️ WHAT THE BANANA
+SHOWS AND THE ORANGE CANNOT: lying across the view the shell is a thin pale contour; turned END-ON by the
+slot's turntable, its whole visible skin sits at a grazing angle, the fresnel is high everywhere and the
+band covers the FACE for that part of the turn — the property of a fresnel shell, not of the band, and
+exactly what the ice crust does on an end-on banana. Named to him rather than tuned away: a stricter
+exponent narrows it and thins the contour everywhere else. What only his eye can settle: the rim's weight
+at rest (RIM 0.30 over the violet base reads as a pale outline around the whole object even between
+passes), the contour's thickness (1.06 against the ice's 1.14, the price of 1.14 named above), and the
+end-on coverage. Each is one constant.
+
+### THE RUN
+The read-only review workflow (three lenses, one skeptic per finding, no browsers; 16 agents, 33 minutes):
+13 findings, 12 confirmed, 1 refuted — one BUG in the guard (the hold read after a fixed 80 ms instead of on
+the fact), two minors (the BODY constant unpinned below the pixel filter's blind band; the sweep arm pushed
+into the slot's TTL fade by the arm order), the rest wording — the backwards «round item» example, the
+«a quarter of the disc», the stale «head-on core» line and the missing tombstone at -g. All taken before the
+run. The CHARGEFX section lifted alone on the reviewed text: **9 green**, the four variants each red on its
+own arm (the old alpha: cold 2.7–9.3 %). **Run 35 — the whole suite on this build: 1091 green, 0 red,
+`ERRORS(tail): none`, SUITE: PASS** (run 34 was 1089; the two are the structure and the contour arms).
+`index.html` 12 744 889 → 12 750 058 B. Pushed to `v2` and onto `main` on his standing word («push v2 onto
+main after a green run»), the live site verified by byte size.

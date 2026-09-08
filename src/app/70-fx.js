@@ -1654,8 +1654,36 @@ function wiggle(item){
 // and get away with it because they draw into the MAIN canvas, which is `alpha:false` — there the
 // framebuffer alpha is discarded and the difference never shows. Copy one of them into an
 // offscreen renderer without this line and the shell comes out washed and haloed at low alpha.
-const CHARGE_SURGE_PUFF = 0.030;   // the shell sits just off the surface; below THUMB_MARGIN so
-                                   // frameCylinder's padding still contains it
+// ⛔⛔ THE SURGE RIDES A TRANSPARENT CONTOUR THAT IS SLIGHTLY BIGGER THAN THE OBJECT (the owner's word
+// 2026-09-08-i: «make the current electric shimmer run over a transparent outline of the object that
+// is a bit bigger than the object — like the ice or the fire»). The ice is an inflated copy ×1.14 with
+// a fresnel, the fire an inflated copy with a fresnel: the SHELL IS SCALED (`CHARGE_SURGE_SCALE`, the
+// ice's device — `crust.scale.setScalar`), NOT puffed along the normals, and its alpha is GATED BY THE
+// FRESNEL so the body of the shell stays transparent and the band lights the SILHOUETTE as it passes.
+// ⛔ CANCELS the head-on body alpha of 2026-09-07-g (`band*(0.70 + 0.30*fres)` painted the band across
+// the model's face — the «before» frame of the batch shows a crackle stripe down the orange's belly).
+// ⚠️⚠️ THE SCALE IS BOUNDED BY THE SLOT'S FRAME, AND THE BOUND IS ARITHMETIC: `frameCylinder` gives the
+// spin camera half = extent/2 × (1 + 2·THUMB_MARGIN) = 1.08 × the radius, and the charge slot calls
+// `thumbSpinStart(sit, cb)` WITHOUT `px`, so the ×1.22 headroom of the new-object screen never applies
+// there. The frame is the LARGER of the projected width and height, so a ROUND item has the most slack
+// (the orange's frame is set by its tilted height — even 1.14 fits it), while a type whose width sets
+// the frame has only the 8 %: at 1.14 sixty-four of the 105 pool types would clip (the review of
+// 2026-09-08-i, replicated on the vertex arrays); 1.06 fits every one with ≥ 2 % to spare. The
+// fresnel puts its brightest ring within a few percent of the shell's silhouette (the view vector is
+// the perspective one under an ortho camera — the ring sits at ~0.98 of the outline). The puff is
+// folded into the scale (0 now): two offsets, one number.
+// ⚠️ THE SCALE IS A SUPPORT-FUNCTION OFFSET, NOT A FIXED THICKNESS — the ice's own behaviour: the halo
+// outside the silhouette is 0.06 × the model's half-extent in that direction, ~3 px on the 116 slot
+// where the item reaches its bounding radius and sub-pixel along a bar's long sides (brickbar 3.2 px
+// at the ends, 0.6 along the sides); where p·n < 0 (a wheel arch, an underside) the shell enters the
+// solid and is hidden. A uniform halo needs a puff component (scale 1.03 + puff 0.03 fits the frame
+// too), at the cost the -l shell paid: a puff opens gaps at split-normal hard edges. His knob.
+// ⚠️ Going past 1.08 means widening `spinCam` in `spinTick` when the shell attaches (and restoring on
+// detach) — the model in the slot shrinks by the same factor. Not done; the ice's 1.14 is his knob.
+const CHARGE_SURGE_PUFF  = 0.0;    // (was 0.030) the offset lives in the scale now
+const CHARGE_SURGE_SCALE = 1.06;   // the contour's inflation — the ice is 1.14, the frame allows 1.08
+const CHARGE_SURGE_BODY  = 0.12;   // the band's alpha on the shell's FACE (a faint tint, like the ice's 0.18 floor)
+const CHARGE_SURGE_FRES  = 1.5;    // the fresnel exponent: 2.0 gave a hairline; the ice is 1.6, the fire 1.35
 // THE BAND RUNS LEFT → RIGHT ACROSS THE SCREEN AND IS STRONGER (the owner's word 2026-09-07-g, with
 // the slot on his phone: «strengthen the effect on the bonus object + change the direction, left to
 // right»). ⛔ CANCELS «a band running UP the body» of 2026-09-01-l. The band's coordinate is the
@@ -1663,11 +1691,12 @@ const CHARGE_SURGE_PUFF = 0.030;   // the shell sits just off the surface; below
 // slot's turntable spins the model, and a local-x band would turn with it and read as «around» rather
 // than «across». View x grows to the right of the screen, so the head travels left → right whatever
 // the model's rotation. The strength lives in the five constants below — the same cold palette
-// (never the ice's pale one), just more of it: a wider band, a brighter head-on core, a faster sweep.
+// (never the ice's pale one), just more of it: a wider band, a brighter core, a faster sweep.
+// (⛔ «head-on» struck 2026-09-08-i: the band's alpha is on the RIM now, see the block above.)
 const CHARGE_SURGE_SPEED = 0.80;   // sweeps per second (was 0.55): one pass in 1.25 s
 const CHARGE_SURGE_WIDTH = 45.0;   // the gaussian's k (was 90): ~1.4× wider
 const CHARGE_SURGE_RIM   = 0.30;   // the always-on fresnel rim (was 0.22)
-const CHARGE_SURGE_BAND  = 0.70;   // the band's alpha head-on (was 0.45); grazing adds up to +0.30 more
+const CHARGE_SURGE_BAND  = 0.85;   // the band's alpha ON THE RIM (2026-09-08-i; was the head-on 0.70): fres*(RIM + band*BAND)
 const CHARGE_SURGE_CORE  = 0.70;   // the cold-white core's share at the peak (was 0.55)
 // THE HEAD'S TRAVEL OVERSHOOTS THE MODEL BY 3σ OF THE BAND ON EACH SIDE (the review of 2026-09-07-h):
 // the old `head*1.35 - 0.18` was tuned for k=90 (σ 0.075, a 2.4σ margin); at k=45 the band is wider
@@ -1700,14 +1729,18 @@ function chargeSurgeMat(r){
       '             mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }',
       'void main(){',
       '  float ndv = abs(dot(normalize(vN), normalize(-vV)));',
-      '  float fres = pow(1.0 - ndv, 2.0);',
+      '  float fres = pow(1.0 - ndv, ' + CHARGE_SURGE_FRES.toFixed(1) + ');',   // 1.5 since 2026-09-08-i (was 2.0): a contour, not a hairline
       '  float u = vU;',   // left → right on the screen (2026-09-07-g); was the model's local y, bottom → top
       '  float head = fract(t*' + CHARGE_SURGE_SPEED.toFixed(2) + ');',
       '  float d = u - (head*' + (1 + 2 * CHARGE_SURGE_MARGIN).toFixed(3) + ' - ' + CHARGE_SURGE_MARGIN.toFixed(3) + ');',
       '  float band = exp(-d*d*' + CHARGE_SURGE_WIDTH.toFixed(1) + ');',
       '  float crk = n3(vP*17.0 + vec3(t*3.0));',
       '  band *= 0.65 + 0.75*smoothstep(0.35, 0.9, crk);',
-      '  float a = ' + CHARGE_SURGE_RIM.toFixed(2) + '*fres + band*(' + CHARGE_SURGE_BAND.toFixed(2) + ' + ' + (1 - CHARGE_SURGE_BAND).toFixed(2) + '*fres);',
+      // THE ALPHA IS THE FRESNEL TIMES (the rim + the band), PLUS A FAINT BODY TINT (2026-09-08-i): the
+      // shell's face carries at most BODY*band (0.12 × up to 1.4 = 0.17 over the item's own colour),
+      // the silhouette carries RIM + band*BAND — so what the band lights as it sweeps is the CONTOUR.
+      // The old form `RIM*fres + band*(BAND + (1-BAND)*fres)` put 0.70 of the band on the face.
+      '  float a = fres*(' + CHARGE_SURGE_RIM.toFixed(2) + ' + band*' + CHARGE_SURGE_BAND.toFixed(2) + ') + band*' + CHARGE_SURGE_BODY.toFixed(2) + ';',
       '  a = clamp(a, 0.0, 1.0);',
       '  if (a < 0.02) discard;',
       // ⚠️⚠️ COLD, AND THE PEAK IS A COLD WHITE RATHER THAN A WHITE. First render of the port
@@ -1737,6 +1770,10 @@ function chargeSurgeMake(mesh){
   const m = new THREE.Mesh(geo, chargeSurgeMat(geo.boundingSphere.radius));
   m.userData.keepGeo = true;
   m.renderOrder = 9;
+  // the contour: an inflated copy, the ice's device (2026-09-08-i). The scale is a child transform, so
+  // the shell inherits the spin AND the band's `vU` still spans the shell's own diameter — `sc` in the
+  // vertex shader is the length of the modelView x column, which carries this scale.
+  m.scale.setScalar(CHARGE_SURGE_SCALE);
   mesh.add(m);
   return m;
 }

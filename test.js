@@ -18123,16 +18123,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️⚠️ THE SHELL HAS ITS OWN MATERIAL AND NEVER THE ITEM\'S. The canon\'s rule at the flame, ' +
       'and for the flame\'s reason: the collection portraits are rendered by the same material ' +
       'class, so a «charged» look written into the material would leak into the museum.');
-    // THE BAND SWEEPS LEFT → RIGHT ACROSS THE SCREEN (the owner's word 2026-09-07-g «strengthen the
-    // effect on the bonus object + change the direction, left to right»; ⛔ it cancels the «up the
-    // body» band of 2026-09-01-l). Read from PAGE SCREENSHOTS of the slot: the compositor sees the
-    // WebGL canvas, while an in-page read of the alpha:true spin renderer would need
-    // preserveDrawingBuffer. The band is the cyan/cold-white pixels (r<140, g>150, b>200 — the
-    // items' yellows and oranges and the mint sky all carry more red); its x-centroid must GROW
-    // between samples. Six samples 110 ms apart cover ~0.6 s of a 1.25 s sweep, so the head wraps at
-    // most once: at least two rising deltas, more rising than falling, the band present in ≥3 samples.
-    // ⚠️ A band running up the body (the old direction) keeps its centroid still (up 0) — the
-    // sabotage this arm exists for; a right→left band gives more falling than rising.
+    // ⚠️ THE TYPE IS READ ONCE, HERE, AND PINNED FOR THE WHOLE SECTION (2026-09-08-i): the charge LIVES
+    // 10 s (`CHARGE_TTL_MS`) and this section spends ~5 s of screenshots on it — the leak arm used to
+    // read `charge().name` AFTER all of them, and on a loaded run (or with one more arm in between) the
+    // charge had dissolved, the name was null, the toggle went nowhere and the arm reported a leak
+    // that was a starved probe. The name goes in as an argument; a dissolved charge is a no-op detonate.
+    const chargeType = await cfPage.evaluate(() => window.__game.charge().name);
+    // the PNG reader and the slot's box serve the sweep arm AND the contour arm after it (a `const` read
+    // before its line is a TDZ ReferenceError, which kills a run without a verdict rather than reddening
+    // an arm: one chain of 2026-09-08-i died at 5 checks on exactly that — the helpers stay up here)
     const pngRGBA = (buf) => {   // a minimal PNG reader: 8-bit RGB/RGBA, non-interlaced (Playwright's own output)
       const zlib = require('zlib'); let p = 8, w, h, ct, idat = [];
       while (p < buf.length){ const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8), data = buf.slice(p + 8, p + 8 + len);
@@ -18146,6 +18145,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       return { w, h, bpp, data: out }; };
     const slotBox = await cfPage.evaluate(() => { const r = document.getElementById('chargeBtn').getBoundingClientRect();
       return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }; });
+    // THE BAND SWEEPS LEFT → RIGHT ACROSS THE SCREEN (the owner's word 2026-09-07-g «strengthen the
+    // effect on the bonus object + change the direction, left to right»; ⛔ it cancels the «up the
+    // body» band of 2026-09-01-l). Read from PAGE SCREENSHOTS of the slot: the compositor sees the
+    // WebGL canvas, while an in-page read of the alpha:true spin renderer would need
+    // preserveDrawingBuffer. The band is the cyan/cold-white pixels (r<140, g>150, b>200 — the
+    // items' yellows and oranges and the mint sky all carry more red); its x-centroid must GROW
+    // between samples. Six samples 110 ms apart cover ~0.6 s of a 1.25 s sweep, so the head wraps at
+    // most once: at least two rising deltas, more rising than falling, the band present in ≥3 samples.
+    // ⚠️ A band running up the body (the old direction) keeps its centroid still (up 0) — the
+    // sabotage this arm exists for; a right→left band gives more falling than rising.
     // ⚠️ TEN SAMPLES, NOT SIX: a screenshot costs ~250 ms, the head is ON the model only ~60% of its
     // 1.25 s sweep (the model is narrower than its bounding sphere), and a six-sample draw once
     // caught it in only two — the phase test needs at least four. A handful of pixels at the edge
@@ -18168,13 +18177,91 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     for (let i = 0; i < pres.length; i++) for (let j = i + 1; j < pres.length; j++){
       const dh = pres[j].head - pres[i].head, dc = pres[j].cx - pres[i].cx;
       if (Math.abs(dh) < 0.04 || Math.abs(dc) < 2) continue; if (dh * dc > 0) pos++; else neg++; }
-    const chargeType = await cfPage.evaluate(() => window.__game.charge().name);
     console.log('charge sweep:', JSON.stringify({ speed: cf1.speed, type: chargeType, sweep, pres, pos, neg }));
     // ⚠️ THE SUBJECT IS ASSERTED, NOT LOGGED (the review of 2026-09-07-h): the pin is a REQUEST to the grant,
     // and a lost pin would silently test a random item — the very case the pin exists against
     expect(chargeType === 'foodorange' && pres.length >= 4 && pos >= 3 && pos >= 2 * neg,
       '⚠️⚠️ THE BAND SWEEPS LEFT → RIGHT ACROSS THE SLOT (the owner 2026-09-07-g): the cyan pixels\' x-centroid grows with the head\'s phase (' +
       JSON.stringify({ pres, pos, neg }) + '). ⛔ The old band ran UP the body and its centroid did not follow the phase; a right→left band follows it inversely.');
+    // ═══ THE BAND RIDES A TRANSPARENT CONTOUR, NOT THE BODY (the owner's word 2026-09-08-i: «the
+    // electric shimmer over a transparent outline of the object, a bit bigger than the object — like
+    // the ice or the fire») ═══
+    // Two halves. THE STRUCTURE: the shell is an INFLATED copy (scale > 1 — the ice's device), and it
+    // still FITS the slot's spin frame: `frameCylinder` pads by 1 + 2·THUMB_MARGIN = 1.08 and the charge
+    // slot never passes `px`, so the ×1.22 headroom of the new-object screen does not apply there — a
+    // shell past 1.08 would have its brightest line (the fresnel silhouette) cut flat at the widest
+    // points of the types whose width sets the frame. The relation is stated, not the number:
+    // scale·(1 + puff/R) ≤ 1 + 2·margin — the puff is an ABSOLUTE object-space offset, so it is divided by
+    // the model's radius `uR` (the review of 2026-09-08-i; the exact divisor is the frame's projected
+    // half-extent, which `uR` under-estimates only for the few types narrower than their radius —
+    // latent while the puff is 0).
+    expect(cf1.scale !== null && cf1.scale >= 1.03 && cf1.scale === cf1.scaleK &&
+           cf1.frameMargin !== null && cf1.uR && cf1.scale * (1 + cf1.puff / cf1.uR) <= 1 + 2 * cf1.frameMargin + 1e-6,
+      '⚠️⚠️ THE SHELL IS AN INFLATED CONTOUR AND IT FITS THE SLOT\'S FRAME (scale ' + cf1.scale +
+      ', puff ' + cf1.puff + ', the frame allows ' + (1 + 2 * cf1.frameMargin).toFixed(2) + '). The ice is ' +
+      '×1.14 in the MAIN scene under the perspective camera, with no frame bound at all; the slot\'s spin ' +
+      'frame is 1.08 × the larger projected extent, and the fresnel puts its brightest ring within a few ' +
+      'percent of the shell\'s silhouette — a scale past the frame clips it on every type whose WIDTH sets ' +
+      'the frame (64 of 105 at 1.14; a round item has the most slack). ⛔ scale 1 (the shell on the ' +
+      'item\'s own surface) is the old form; a scale past 1.08 is a retune that needs the camera widened ' +
+      'in spinTick first.');
+    // THE APPEARANCE: with the head across the CENTRE of the slot the inner disc of the item stays WARM
+    // — the band lights the top and bottom of the contour, and the face carries only a faint tint
+    // (BODY·band ≤ 0.17 over the orange: blue stays far under red). The old alpha `band*(0.70 +
+    // 0.30*fres)` painted the head across the face at up to 0.98 — cold pixels (blue over red) in the
+    // disc, the crackle stripe of the «before» frame. THE HEAD IS PARKED, NOT CAUGHT: the test door
+    // `chargeSurgeHold(t)` holds the shell's clock at head = fract(t·speed) = 0.5, whose band centre is
+    // exactly the slot's centre column (head·(1+2·margin) − margin = 0.5). ⛔ The first edition polled
+    // the live phase into a 50 ms window and kept a shot only if the phase after it was still near the
+    // centre — a screenshot costs 250 ms alone, so that was a coin toss per attempt, and under a loaded
+    // run it starved for fourteen attempts, ran the section past the charge's 10 s TTL and reddened the
+    // leak arm downstream. A parked clock costs nothing and reads the same under any load.
+    // ⚠️ The disc is 0.30 of the slot's half-size around the slot's centre — on the orange that is
+    // deep inside the body (its radius is ~0.85 of the half), clear of the stem and the sky.
+    // ⚠️ THE COLD FILTER IS NOT THE SWEEP ARM'S: that one wants r<140 && g>150 && b>200, which the old
+    // form's composite over the orange (~94,184,197) does not pass either — it cannot discriminate.
+    // ⚠️ ON A FRESH CHARGE (the review of 2026-09-08-i): the slot FADES over its 10 s TTL (85-hud: opacity
+    // 0.25 + 0.75·left/TTL) and the sweep arm above has spent ~3–6 s of it; a new level resets the grant's
+    // watermark, and the arm measures a slot at full opacity whatever the run's load. The type is the
+    // pinned one again, so the leak arm's key below still names what is in the slot.
+    await cfPage.evaluate(() => { window.__game.regen(); });
+    const gave2 = await cfPage.evaluate(() => window.__game.chargeGive('foodorange'));
+    const attached2 = await cfPage.waitForFunction(() => window.__game.chargeFx().shell === true,
+      null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const holdT = +(0.5 / cf1.speed).toFixed(4);   // head 0.5 at speed 0.8 → t = 0.625
+    await cfPage.evaluate((t) => window.__game.chargeSurgeHold(t), holdT);
+    const central = [];
+    for (let k = 0; k < 3; k++){
+      // ⚠️ THE HOLD IS WAITED FOR AS A FACT, NOT A CLOCK (the review's one bug): the uniform is written only
+      // by spinTick's rAF, and under a loaded run 80 ms need not contain one — the first sample read a live
+      // `t`, and the control below reddened a healthy build. The shot itself forces a compositor frame.
+      const held = await cfPage.waitForFunction((t) => { const f = window.__game.chargeFx(); return f.t !== null && Math.abs(f.t - t) < 0.011; },
+        holdT, { timeout: 4000 }).then(() => true).catch(() => false);
+      const im = pngRGBA(await cfPage.screenshot({ clip: slotBox }));
+      const tHeld = held ? await cfPage.evaluate(() => window.__game.chargeFx().t) : null;
+      const cx0 = im.w / 2, cy0 = im.h / 2, rad = 0.30 * Math.min(im.w, im.h) / 2;
+      let disc = 0, cold = 0;
+      for (let y = 0; y < im.h; y++) for (let x = 0; x < im.w; x++){
+        if ((x - cx0) * (x - cx0) + (y - cy0) * (y - cy0) > rad * rad) continue;
+        disc++; const o = (y * im.w + x) * im.bpp;
+        if (im.data[o + 2] > im.data[o] + 30 && im.data[o + 2] > 150) cold++; }
+      central.push({ t: tHeld, head: +((tHeld * cf1.speed) % 1).toFixed(3), disc, cold, share: +(cold / disc).toFixed(4) });
+    }
+    await cfPage.evaluate(() => window.__game.chargeSurgeHold(null));
+    const coldMax = Math.max(...central.map(c => c.share));
+    console.log('charge contour:', JSON.stringify({ gave2, attached2, scale: cf1.scale, body: cf1.body, holdT, central, coldMax }));
+    // ⚠️ THE HOLD IS ASSERTED AS A CONTROL: `t` must READ BACK as the parked value on every sample, or the
+    // three shots are of a live head somewhere on its sweep and «warm» is true of the empty phases too.
+    // ⚠️ AND THE BODY TINT IS PINNED BY A CEILING (the review): the pixel filter sees a face alpha only
+    // above ~0.7, i.e. BODY above ~0.5 — a 0.45 wash (two thirds of the old stripe) would pass it. The
+    // constant is the definition of «faint»; 0.25 is the ceiling under which the disc stays warm by
+    // arithmetic (0.25 × 1.4 = 0.35 of cyan over the orange keeps blue far under red).
+    expect(gave2 === true && attached2 && central.every(c => c.t !== null && Math.abs(c.t - holdT) < 0.011 && c.disc > 400) &&
+           coldMax <= 0.02 && cf1.body !== null && cf1.body <= 0.25,
+      '⚠️⚠️ THE BAND LIGHTS THE CONTOUR, NOT THE BODY: with the head parked across the centre (t ' + holdT +
+      ') the inner disc of the item is warm — cold pixels ' + JSON.stringify(central) + ' (max share ' + coldMax +
+      '), and the face tint BODY ' + cf1.body + ' is under 0.25. The old head-on alpha painted the crackle across ' +
+      'the face (7–12 % of the disc cold in the dry run).');
     // the ring, tested where the change actually is - the stylesheet's gate
     const ring = await cfPage.evaluate(() => {
       const cb = document.getElementById('chargeBtn');
@@ -18212,9 +18299,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ IT IS STILL NOT A TAUTOLOGY, and that was checked rather than assumed: a build that
     // attached the shell inside `thumbSpinStart` instead of asking every frame where the canvas
     // hangs would attach it to this host too, and this arm is the only one that would notice.
-    const leak = await cfPage.evaluate(async () => {
-      const g = window.__game;
-      const key = g.charge().name;
+    const leak = await cfPage.evaluate(async (key) => {
+      const g = window.__game;   // `key` is the type pinned at the top of the section (the TTL note there)
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;left:0;top:24px;width:64px;height:64px';   // top:24 — under #edgeTop (2026-09-06)
       host.id = 'cfHost'; document.body.appendChild(host);
@@ -18229,7 +18315,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       }
       return { moved: false, onHost: !!document.querySelector('#cfHost canvas'),
                charge: g.charge().name, f: g.chargeFx() };
-    });
+    }, chargeType);
     console.log('charge fx leak:', JSON.stringify(leak));
     expect(leak.moved === true && leak.onHost === true,
       '⚠️⚠️ THE SHELL DOES NOT FOLLOW THE SHARED CANVAS INTO THE COLLECTION (' +

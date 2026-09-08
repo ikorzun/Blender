@@ -1974,6 +1974,12 @@ let spinMesh = null, spinItem = null, spinRAF = 0, spinPrev = 0, spinAngle = 0;
 // THE CHARGE'S ELECTRIC SHELL (chargeSurgeMake, 70-fx) - a child of `spinMesh`, so it is
 // rebuilt with it and can never outlive the mesh it hangs on.
 let spinSurge = null;
+// ⚠️ A TEST DOOR (2026-09-08-i): `__game.chargeSurgeHold(t)` parks the shell's clock at t seconds
+// (null releases it). The contour guard reads the slot with the band's head at a KNOWN phase — a
+// screenshot's own latency (250 ms alone, more under a loaded run) moves a live head by a fifth of a
+// sweep, so a phase caught by polling was a coin toss and starved the section past the charge's 10 s
+// TTL. Production never sets it; the sweep guard proves the clock moves when it is null.
+let spinSurgeHold = null;
 const _spv = new THREE.Vector3(), _spm = new THREE.Matrix4();
 function ensureSpinR(){
   if (spinR) return;
@@ -2138,7 +2144,7 @@ function spinTick(now){
     else if (!onCharge && spinSurge){
       spinMesh.remove(spinSurge); spinSurge.material.dispose(); spinSurge = null;
     }
-    if (spinSurge) spinSurge.material.uniforms.t.value = now / 1000;
+    if (spinSurge) spinSurge.material.uniforms.t.value = (spinSurgeHold === null) ? now / 1000 : spinSurgeHold;
   } catch(e){}
   // the veil/matcap darkening and the transparency are OFF for the frame (the portrait does not go grey) —
   // the material is SHARED with the live one, we restore it at once (as itemThumb does)

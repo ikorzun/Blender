@@ -6,8 +6,21 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a to -h on top of 2026-09-07 b–i, v2 = main** · the suite **1089 green, 0 red, SUITE: PASS** (run 34) · the live
+**Build: batches 2026-09-08-a to -i on top of 2026-09-07 b–i, v2 = main** · the suite **1091 green, 0 red, SUITE: PASS** (run 35) · the live
 site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker is redeployed and **answers 206** (measured 8 September, see the first paragraph) · portal package unchanged in shape
+
+**8 SEPTEMBER, NIGHT — THE BONUS OBJECT'S SHIMMER ON A CONTOUR (batch 2026-09-08-i in CLAUDE.md).** The
+electric band no longer paints the object's body: the shell is an inflated copy of the model (×1.06, the ice's
+device) and its alpha is gated by the fresnel, so the band lights the OUTLINE as it sweeps — the top and the
+bottom of the contour with the head across the middle, the sides at the edges — and the face keeps only a faint
+tint. A before/after sheet at your phone's viewport went to you. ⚠️ Two knobs are yours: the contour's THICKNESS
+(1.06 now; the ice is 1.14, but the slot's spin frame allows 1.08 — a thicker halo means widening the camera and
+the object in the slot shrinks ~5 %), and the rim's weight at rest (a pale outline stays around the object between
+passes; one constant). ⚠️ One property of any fresnel shell, shown to you on the banana: turned end-on by the
+slot's turntable, an elongated object has its whole visible skin at a grazing angle and the band covers the face
+for that part of the turn (the ice crust does the same). Guarded four ways (the old alpha, the shell at 1.0, the
+shell at 1.14, a comment edit); a read-only review of the batch (three lenses, one skeptic per finding) caught
+one bug in the guard and two blind spots, all fixed before the run.
 
 **8 SEPTEMBER, YOUR FOUR ANSWERS TO THE OPEN LIST (batch 2026-09-08-h in CLAUDE.md).** The vignettes K1–K4 stay
 switched off as they are (nothing changed; deleting them would have saved ~20 KB and nothing else). **The portrait
@@ -309,6 +322,21 @@ payment tests are on it.
 
 ## Decisions only you can take
 
+- **The contour's thickness on the bonus object**: 1.06 now. Say «1.14 like the ice» and I widen the slot's
+  camera with it (the object in the slot gets ~5 % smaller); say «thinner rim» and RIM drops from 0.30.
+- **blendo.monster — what moving the game there needs** (your question of 8 September). The domain is already
+  on Cloudflare (the zone that serves lb. and video.), but its apex and www point at a Namecheap forward that is
+  broken over https (522 / 525 today; http www shows a parking page). The plan: a THIRD Worker
+  (`server/site/`, like the video one) serving the game as static assets — index.html, the two bridge files,
+  music.mp3, avatars/ (and video/ if you want one origin) — with the range-slicing script in front (Safari's
+  music.mp3 needs 206 exactly like the film) and a cache policy per type (html revalidates on every load so a
+  deploy is visible at once; media a day), on the custom domains `blendo.monster` + `www.blendo.monster`
+  (www → a 301 to the apex). YOUR two actions: in the Cloudflare DNS dashboard delete the apex A/AAAA and the
+  www records (a Worker custom domain refuses a hostname that already has a record — wrangler creates its own),
+  then the deploy line I give you. GitHub Pages stays as it is (the testers' link, the film's second source).
+  The game needs no change: on a non-local, non-github host it already takes the production leaderboard, the
+  mock platform (no ads) and the film from video.blendo.monster. Say «build it» and the Worker + a packer that
+  assembles the `site/` folder from the build arrive as the next batch.
 - **The boost after a reload**: measured — it survives (25 min / 83% before and after the reload,
   the numbers are in `localStorage` under the player's own guest id). What you saw was the live
   build without the badge's active look; this deploy fixes that. Where a paid boost lives:
