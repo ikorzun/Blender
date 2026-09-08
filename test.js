@@ -11164,6 +11164,152 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦LBSNAP-SECTION-END⟧
 
+  // ===== THE PHONE'S SPLASH (2026-09-08-b): on a phone-width viewport the three-panel prologue is
+  // replaced by one picture, painted from the first frame, held at least 1.5 s from the moment it was
+  // visible, then faded over 300 ms while the fall starts underneath. The suite's pages are webdriver and
+  // never see it unless `?splash=1`; the guard stretches the minimum to 4 s through a knob so the hold
+  // is measurable on a bench whose load already takes ~2.5 s. =====
+  // ⟦INTRO-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=INTRO runs this block alone; keep the markers)
+  {
+    const boot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
+    // (A) forced on a phone page, the hold stretched to 4 s
+    const ip = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    ip.on('pageerror', e => errors.push('PAGEERROR(splash): ' + e.message));
+    await ip.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(ip, '?dev=1&splash=1');
+    const early = await ip.evaluate(() => { const s = document.getElementById('introSplash'), cs = getComputedStyle(s), r = s.getBoundingClientRect(), im = s.querySelector('img');
+      return { st: window.__game.splashState(), display: cs.display, opacity: cs.opacity, pos: cs.position, z: cs.zIndex, box: [r.width, r.height], vw: innerWidth, vh: innerHeight,
+        nat: [im.naturalWidth, im.naturalHeight], fit: getComputedStyle(im).objectFit, phase: window.__game.introPhase(), trans: cs.transitionDuration, pe: cs.pointerEvents,
+        cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor] }; });
+    expect(early.st.on && !early.st.out && early.display === 'block' && early.opacity === '1' && early.pos === 'fixed' && early.box[0] === early.vw && early.box[1] === early.vh && early.nat[0] === 1129 && early.nat[1] === 2006 && early.fit === 'cover' && early.pe === 'none',
+      'SPLASH: the owner\'s 1129×2006 picture covers the phone viewport from the start, fixed, cover-fitted, untouchable (' + JSON.stringify({ st: early.st, display: early.display, box: early.box, nat: early.nat, fit: early.fit }) + ')');
+    expect(early.phase === 'wait',
+      'SPLASH: the fall is HELD while the picture shows (intro phase ' + early.phase + '). ⛔ SABOTAGE: drop the wait — the phase is drop by the time the page reports alive');
+    expect(early.cards[0] === 'rgb(142, 218, 253)' && early.cards[1] === 'rgb(185, 179, 158)',
+      'SPLASH: both edge cards wear the picture\'s own tones for its duration, not the game sky\'s (' + JSON.stringify(early.cards) + ')');
+    expect(early.trans === '0.3s' && early.st.ms === 1500 && early.st.fade === 300,
+      'SPLASH: the production numbers — 1.5 s minimum, a 0.3 s fade (' + JSON.stringify({ trans: early.trans, ms: early.st.ms, fade: early.st.fade }) + ')');
+    await ip.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 });
+    const fade = await ip.evaluate(() => ({ st: window.__game.splashState(), phase: window.__game.introPhase() }));
+    expect(fade.st.fadeAt - fade.st.t0 >= 3990,
+      'SPLASH: the fade began no earlier than the minimum after the first paint (' + Math.round(fade.st.fadeAt - fade.st.t0) + ' ms against the 4000 knob; the load alone is shorter). ⛔ SABOTAGE: `wait = 0` in splashPlay');
+    expect(fade.phase === 'drop',
+      'SPLASH: the fall starts in the very frame the fade begins — «quickly» (phase ' + fade.phase + ' at the fade\'s start). ⛔ SABOTAGE: call done() after the fade instead of at its start');
+    await ip.waitForTimeout(500);
+    const gone = await ip.evaluate(() => ({ st: window.__game.splashState(), display: getComputedStyle(document.getElementById('introSplash')).display,
+      cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor], phase: window.__game.introPhase() }));
+    expect(!gone.st.on && !gone.st.out && gone.st.done && gone.display === 'none' && gone.cards[0] === 'rgb(172, 168, 255)' && gone.cards[1] === 'rgb(197, 255, 216)',
+      'SPLASH: gone after the fade — display none, the cards back to the sky\'s stops, the intro running (' + JSON.stringify({ st: gone.st, display: gone.display, cards: gone.cards, phase: gone.phase }) + ')');
+    await ip.close();
+    // (B) an automated page WITHOUT the flag: no splash — the prologue comic holds the fall as before
+    const np = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await np.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(np, '?dev=1'); await np.waitForTimeout(700);
+    const off = await np.evaluate(() => ({ on: document.documentElement.classList.contains('splash'), display: getComputedStyle(document.getElementById('introSplash')).display, story: !!document.getElementById('storyOverlay'), phase: window.__game.introPhase() }));
+    expect(!off.on && off.display === 'none' && off.story === true && off.phase === 'wait',
+      'SPLASH off (webdriver, no flag): the suite\'s own pages never see it and the prologue comic holds the fall as before (' + JSON.stringify(off) + ')');
+    await np.close();
+    // (C) the desktop with the flag: the phone gate holds — the comic, no picture (it is a 9:16 poster)
+    const dp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    await dp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(dp, '?dev=1&splash=1'); await dp.waitForTimeout(700);
+    const desk = await dp.evaluate(() => ({ on: document.documentElement.classList.contains('splash'), display: getComputedStyle(document.getElementById('introSplash')).display, story: !!document.getElementById('storyOverlay'), panels: document.querySelectorAll('#storyOverlay svg').length }));
+    expect(!desk.on && desk.display === 'none' && desk.story === true,
+      'SPLASH desktop: the picture is the phone\'s — at 1280 the three-panel prologue stays (' + JSON.stringify(desk) + '). ⛔ SABOTAGE: drop the phone-width term of the gate');
+    await dp.close();
+    // (D) skipIntro closes it the way it closes the comic — the suite\'s pages must never wait on it
+    const kp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await kp.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(kp, '?dev=1&splash=1');
+    const skipped = await kp.evaluate(() => { const before = window.__game.splashState().on; window.__game.skipIntro(); return { before, after: window.__game.splashState().on, display: getComputedStyle(document.getElementById('introSplash')).display, introdone: document.documentElement.classList.contains('introdone') }; });
+    expect(skipped.before === true && skipped.after === false && skipped.display === 'none' && skipped.introdone === true,
+      'SPLASH skipIntro: the test door closes the picture at once and the level is live (' + JSON.stringify(skipped) + '). ⛔ SABOTAGE: drop splashForceClose() from skipIntro');
+    await kp.close();
+    // ===== THE TABLET/DESKTOP VIDEO INTRO (2026-09-08-c): ≥768 wide the prologue's slot is taken by the
+    // video in `video/` next to the build — played muted if ready, skipped by a click, the fall starting
+    // under its fade; not ready / an error / autoplay refused → the comic as before. The suite's pages are
+    // webdriver and never see it unless `?video=1`. The sources are relative on file://, so the real
+    // encodes play here (Chromium decodes the WebM; it has no H.264, which is why the WebM comes first). =====
+    const vboot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
+    const vstate = (pg) => pg.evaluate(() => ({ st: window.__game.videoState(), phase: window.__game.introPhase(), story: !!document.getElementById('storyOverlay'),
+      display: getComputedStyle(document.getElementById('introVideo')).display, fit: getComputedStyle(document.getElementById('introVideo')).objectFit,
+      box: (() => { const r = document.getElementById('introVideo').getBoundingClientRect(); return [r.width, r.height]; })(), vw: innerWidth, vh: innerHeight }));
+    // (E) the desktop with the flag: gated at load with both sources, PLAYS at the hand-off, holds the fall, ends → the fall starts under the fade
+    const vp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    vp.on('pageerror', e => errors.push('PAGEERROR(video): ' + e.message));
+    await vp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(vp, '?dev=1&video=1');
+    const g0 = await vstate(vp);
+    expect(g0.st.gated && g0.st.srcs.length === 2 && /blendo-intro\.webm$/.test(g0.st.srcs[0]) && /blendo-intro\.mp4$/.test(g0.st.srcs[1]) && g0.st.preload === 'auto' && g0.st.t0 > 0,
+      'VIDEO: gated at load on a 1280 page — two sources, the WebM first, preload auto, the download started in the first frame (' + JSON.stringify({ gated: g0.st.gated, srcs: g0.st.srcs, preload: g0.st.preload }) + ')');
+    let played = true; try { await vp.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ played = false; }
+    const g1 = await vstate(vp);
+    expect(played && g1.st.on && !g1.st.out && g1.display === 'block' && g1.fit === 'cover' && g1.box[0] === g1.vw && g1.box[1] === g1.vh && g1.st.muted === true && g1.st.paused === false && g1.story === false,
+      'VIDEO: it PLAYS at the hand-off — visible, cover-fitted over the whole viewport, muted, no comic underneath (' + JSON.stringify({ played, on: g1.st.on, display: g1.display, fit: g1.fit, box: g1.box, muted: g1.st.muted, paused: g1.st.paused, story: g1.story, ready: g1.st.ready }) + ')');
+    expect(g1.phase === 'wait', 'VIDEO: the fall is HELD while it plays (intro phase ' + g1.phase + ')');
+    await vp.waitForTimeout(500);
+    const g2 = await vstate(vp);
+    expect(g2.st.cur > g1.st.cur && g2.st.dur > 3.5 && g2.st.dur < 4.5,
+      'VIDEO: the clip really advances and is the 4-second film (' + g1.st.cur.toFixed(2) + ' → ' + g2.st.cur.toFixed(2) + ' s of ' + g2.st.dur.toFixed(2) + ')');
+    let ended = true; try { await vp.waitForFunction(() => window.__game.videoState().out || window.__game.videoState().done, null, { timeout: 20000 }); } catch(_){ ended = false; }
+    const g3 = await vstate(vp);
+    expect(ended && g3.st.why === 'ended' && g3.phase === 'drop',
+      'VIDEO: at its END the fall starts in the very frame the fade begins (why ' + g3.st.why + ', phase ' + g3.phase + '). ⛔ SABOTAGE: drop the `ended` listener, or call done() after the fade');
+    await vp.waitForTimeout(500);
+    const g4 = await vstate(vp);
+    expect(g4.st.done && !g4.st.gated && !g4.st.on && g4.display === 'none' && g4.st.srcs.length === 0,
+      'VIDEO: gone after the fade — display none, the sources released, the class cleared (' + JSON.stringify({ done: g4.st.done, gated: g4.st.gated, display: g4.display, srcs: g4.st.srcs }) + ')');
+    await vp.close();
+    // (F) a click SKIPS it: the fade begins and the fall starts at once
+    const sp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    sp.on('pageerror', e => errors.push('PAGEERROR(video-skip): ' + e.message));
+    await sp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(sp, '?dev=1&video=1');
+    let onS = true; try { await sp.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ onS = false; }
+    await sp.mouse.click(640, 400);
+    const sk = await vstate(sp);
+    expect(onS && sk.st.why === 'skipped' && sk.st.out && sk.phase === 'drop' && sk.st.cur < 3.5,
+      'VIDEO: a click on the playing film skips it — the fade and the fall in the same frame, mid-clip (' + JSON.stringify({ why: sk.st.why, out: sk.st.out, phase: sk.phase, cur: +sk.st.cur.toFixed(2) }) + '). ⛔ SABOTAGE: drop the pointerdown listener');
+    await sp.close();
+    // (G) a source that cannot load: the comic takes the slot, the fall still held, nothing shown
+    const fp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    fp2.on('pageerror', e => errors.push('PAGEERROR(video-fallback): ' + e.message));
+    await fp2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(fp2, '?dev=1&video=1&vsrc=' + encodeURIComponent('no-such-dir/'));
+    let fell = true; try { await fp2.waitForFunction(() => window.__game.videoState().done && !!document.getElementById('storyOverlay'), null, { timeout: 8000 }); } catch(_){ fell = false; }
+    const fb = await vstate(fp2);
+    expect(fell && fb.st.why === 'error' && fb.story && fb.phase === 'wait' && fb.display === 'none' && !fb.st.on,
+      'VIDEO fallback: a source that cannot load hands the slot to the prologue comic — the fall still held, the film never shown (' + JSON.stringify({ why: fb.st.why, story: fb.story, phase: fb.phase, display: fb.display }) + '). ⛔ SABOTAGE: drop the NETWORK_NO_SOURCE early bail at the top of videoPlay — the comic still comes, 1.5 s late, with why «not ready in time»');
+    await fp2.close();
+    // (H) the phone width with the flag: the gate holds — no class, NO sources (not a byte downloaded)
+    const pp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await pp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(pp, '?dev=1&video=1&splash=0'); await pp.waitForTimeout(400);
+    const ph = await vstate(pp);
+    expect(!ph.st.gated && ph.st.srcs.length === 0 && ph.st.preload === 'none' && ph.story,
+      'VIDEO phone: at 390 the gate holds — no sources, preload none, the comic as before (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: drop the min-width term of the gate');
+    await pp.close();
+    // (J) reduced motion: the gate holds on the desktop too
+    const rp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    await rp2.emulateMedia({ reducedMotion: 'reduce' });
+    await rp2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(rp2, '?dev=1&video=1'); await rp2.waitForTimeout(400);
+    const rm = await vstate(rp2);
+    expect(!rm.st.gated && rm.st.srcs.length === 0 && rm.story,
+      'VIDEO reduced-motion: the gate holds and the comic takes the slot (' + JSON.stringify({ gated: rm.st.gated, srcs: rm.st.srcs, story: rm.story }) + '). ⛔ SABOTAGE: drop the reduced-motion term');
+    await rp2.close();
+    // (K) skipIntro closes it WITHOUT the comic — the suite's pages must never wait on it
+    const kp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    await kp2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await vboot(kp2, '?dev=1&video=1');
+    const ks = await kp2.evaluate(() => { const before = window.__game.videoState(); window.__game.skipIntro();
+      return { beforeGated: before.gated, after: window.__game.videoState(), story: !!document.getElementById('storyOverlay'), introdone: document.documentElement.classList.contains('introdone'), display: getComputedStyle(document.getElementById('introVideo')).display }; });
+    expect(ks.beforeGated && ks.after.done && !ks.after.gated && !ks.after.on && ks.display === 'none' && !ks.story && ks.introdone,
+      'VIDEO skipIntro: the test door closes the film at once, opens NO comic, the level is live (' + JSON.stringify(ks) + '). ⛔ SABOTAGE: drop videoForceClose() from skipIntro');
+    await kp2.close();
+  }
+  // ⟦INTRO-SECTION-END⟧
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

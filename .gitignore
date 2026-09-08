@@ -37,3 +37,10 @@ Hits2 Animations/
 # same file falls into QUIRKS MODE and its WebGL viewports detach from the tiles they are scissored
 # into (measured). Rebuild it with `python3 tools/variants-artifact.py` whenever it is needed.
 electric-variants/artifact.html
+
+# ⚠️ THE OWNER'S TWO INTRO MASTERS (2026-09-08): his 9:16 poster is inlined into the build as base64
+# (the phone's splash) and his 10.2 MB HEVC video is what `video/blendo-intro.{webm,mp4}` were encoded
+# from (ffmpeg, VP9 CRF 30 / H.264 CRF 19 — no browser but Safari decodes HEVC). The masters are his
+# files at his paths — never re-encoded in place, never committed; the encodes in `video/` are tracked.
+/Blendo-9-16-intro.jpg
+/blendo-intro.mp4

@@ -296,7 +296,17 @@ function tickIntro(dt){
           // THE PROLOGUE COMIC for a new player — exactly here: the curtain is removed, the bowl
           // is empty, the items have not moved yet (86-story). If the prologue is not needed,
           // the callback is called right away and the fall starts as before.
-          storyPrologue(()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } });
+          // THE PHONE'S SPLASH (2026-09-08-b) takes the prologue's slot where it is on (85-hud): the
+          // picture keeps its 1.5 s from the moment it was VISIBLE — since the curtain lifted where the
+          // SDK drew one (`lifted by …`), since the first paint where there was none — and the fall
+          // starts under its fade. Everywhere else the prologue comic, as before.
+          // THE TABLET/DESKTOP VIDEO (2026-09-08-c) takes the same slot ≥768 wide where its gate is on:
+          // it plays if ready (or ready within its grace), else the comic — 85-hud `videoPlay`.
+          const go = ()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } };
+          const comic = ()=> storyPrologue(go);
+          if (typeof splashActive === 'function' && splashActive()) splashPlay(go, /^lifted/.test(String(Ads.curtainWhy || '')));
+          else if (typeof videoGated === 'function' && videoGated()) videoPlay(go, comic);
+          else comic();
         });
       } catch(_){ beginDrop(); }
     }
@@ -1117,6 +1127,12 @@ window.__game = {
   // reads the state the DOM carries; `setFlow(false)` puts the page back
   setFlow(on){ return flowForce(on); },
   flowState(){ return flowState(); },
+  // the phone's splash (2026-09-08-b, 85-hud): the state the DOM carries, and the door skipIntro uses
+  splashState(){ return splashState(); },
+  splashClose(){ splashForceClose(); },
+  // the tablet/desktop video intro (2026-09-08-c, 85-hud): the state, a skip by the production path
+  videoState(){ return videoState(); },
+  videoSkip(){ return videoSkipNow(); },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.
@@ -1310,6 +1326,8 @@ window.__game = {
     // and the coordinate clicks would go into the panel. We close it properly — that way the prologue
     // is also marked as shown, and does not pop up in the following sections.
     try { storyForceClose(); } catch(_){}
+    try { splashForceClose(); } catch(_){}   // the phone's splash holds the fall the same way (2026-09-08-b)
+    try { videoForceClose(); } catch(_){}    // and the tablet/desktop video — closed WITHOUT its comic fallback (2026-09-08-c)
     if (!intro) return;
     intro = null;
     // the same signal as in the honest finishIntro (otherwise the showcase would wait for

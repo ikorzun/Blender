@@ -6,8 +6,24 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-08-a on top of 2026-09-07 b–i, v2 = main** · the suite **1055 green, 0 red, SUITE: PASS** (run 29; run 28 was 1049 green with six timing reds of the new snapshot section, since replaced by polls) · the live
+**Build: batches 2026-09-08-a, -b and -c on top of 2026-09-07 b–i, v2 = main** · the suite **1076 green, 0 red, SUITE: PASS** (run 30; run 29 on -a alone 1055 green) · the live
 site verified by byte size against the build · the worker is deployed (the rank fix and the `t` field) · portal package unchanged in shape
+
+**8 SEPTEMBER, THE INTROS (batches 2026-09-08-b and -c in CLAUDE.md).**
+**On the phone the three-panel prologue is replaced by your 9:16 poster** — inlined into the build, in the very
+first painted frame (it covers the load too), held at least 1.5 s from the moment it was visible (the first
+paint; on the portal, the curtain's lift), then a 300 ms fade while the fall starts underneath. Dispatcher's
+defaults, yours to change: it shows on EVERY launch on the phone (the comic showed once), the story bits are not
+marked (a new player meets K0/K1 between levels), `?splash=0` switches it off. Price: +509 KB in `index.html`.
+**On the tablet and the desktop the prologue is replaced by your video** — NOT inside the build: two web encodes
+in `video/` next to it (VP9 WebM 1.10 MB, H.264 MP4 2.44 MB, from your 10.2 MB HEVC master; your 3.74 MB
+optimised copy is still HEVC, which Chrome, Edge and Firefox do not decode). GitHub Pages serves them with the
+game; on the portal the game fetches them from the github.io address (the portal package stays four files).
+Muted (an autoplay with sound is refused without a gesture); a click, tap or key skips it; not ready in 1.5 s,
+an error or a refused autoplay → the comic as before; `?video=0` switches it off, `?video=1` forces it.
+Open for you: (1) sound — a click could unmute it (one line); (2) hosting — your own domain or the package
+instead of the github.io files; (3) every launch or the first launch only (both intros); (4) the crop on a
+portrait tablet — a 16:9 film cover-fitted keeps the centre and loses the sides.
 
 **8 SEPTEMBER (batch 2026-09-08-a in CLAUDE.md), your four items — and the phone is the only real check.**
 (2, 3) **On the phone the pause menu, the leaderboard and the ×5 screen now scroll as the PAGE**, so their

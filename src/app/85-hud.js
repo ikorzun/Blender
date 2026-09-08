@@ -147,6 +147,107 @@ function flowState(){
 }
 // the suite's door: force the mode on the bench (Chromium never gates it on) and re-read the DOM
 function flowForce(on){ flowOn = !!on; flowRefresh(); return flowState(); }
+// ⚡ THE PHONE'S SPLASH (2026-09-08-b, the owner's word «replace the 3 intro screens at the start with 1
+// picture for mobile, show it 1.5 s, then quickly and smoothly go to the game screen»). The picture is
+// `#introSplash` (shell.html), painted from the FIRST frame on a phone-width viewport by the inline gate
+// at the top of body — before the big script runs — so it covers the load too. It stays at least
+// SPLASH_MS from the moment it was VISIBLE: since the first paint where no platform curtain covered the
+// page (file://, no SDK), since the curtain lifted where the SDK drew one (the portal — 99-main passes
+// `sinceNow`) — then it fades over SPLASH_FADE_MS while the fall starts underneath: the fade and the
+// pour begin in the same frame («quickly and smoothly»). Phone-width only; the desktop keeps the
+// prologue comic (the picture is 9:16). The suite's pages are webdriver and never see it unless
+// `?splash=1`; `?splash=0` switches it off anywhere.
+// ⚠️ THE STORY BITS ARE NOT MARKED: the splash takes the prologue's SLOT, not its marks — a new player
+// on the phone meets K0/K1 between levels by the queue («the old scheme» of 86-story). Named to him.
+const SPLASH_MS = 1500, SPLASH_FADE_MS = 300;
+let splashFadeAt = 0, splashDone = false;
+function splashActive(){ const h = document.documentElement; return h.classList.contains('splash') && !h.classList.contains('splash-out'); }
+function splashPlay(done, sinceNow){
+  if (!splashActive()) return done && done();
+  const min = (typeof window.__splashMinMs === 'number') ? window.__splashMinMs : SPLASH_MS;   // a test knob (the guard stretches the hold to measure it)
+  const t0 = sinceNow ? performance.now() : ((typeof window.__splashT0 === 'number') ? window.__splashT0 : performance.now());
+  const wait = Math.max(0, min - (performance.now() - t0));
+  setTimeout(() => {
+    if (!splashActive()) return done && done();   // closed meanwhile (skipIntro)
+    splashFadeAt = performance.now();
+    document.documentElement.classList.add('splash-out');
+    if (done) done();                              // the fall starts under the fading picture
+    setTimeout(splashClose, SPLASH_FADE_MS + 40);
+  }, wait);
+}
+function splashClose(){ const h = document.documentElement; h.classList.remove('splash'); h.classList.remove('splash-out'); splashDone = true; }
+function splashForceClose(){ if (document.documentElement.classList.contains('splash')) splashClose(); }
+function splashState(){ const h = document.documentElement;
+  return { on: h.classList.contains('splash'), out: h.classList.contains('splash-out'), t0: (typeof window.__splashT0 === 'number') ? window.__splashT0 : 0,
+    fadeAt: splashFadeAt, done: splashDone, ms: SPLASH_MS, fade: SPLASH_FADE_MS }; }
+// ⚡ THE TABLET/DESKTOP VIDEO INTRO (2026-09-08-c, the owner's word «for the tablet and the desktop I want
+// the intro replaced with a video, but it weighs a lot — work out how not to bake it into the game or
+// how to optimise it without losing quality»). The files live NEXT to the build, not inside it
+// (`video/blendo-intro.webm` 1.10 MB VP9, `video/blendo-intro.mp4` 2.44 MB H.264 — encoded from his
+// 10.2 MB HEVC master, which no browser but Safari decodes); the gate at the top of body picks the
+// address and starts the download in the first frame. HERE: at the wait-phase hand-off (99-main) the
+// video plays if it is READY — or becomes ready within VIDEO_GRACE_MS — and its end, or a click/tap/
+// key, fades it over VIDEO_FADE_MS while the fall starts underneath, in the same frame («quickly and
+// smoothly», the splash's rule). Anything else — not ready in time, a decode error, an autoplay
+// refused — falls back to the prologue comic exactly as before. Muted: an autoplay with sound is
+// refused by every browser without a gesture (named to him). ⚠️ THE STORY BITS ARE NOT MARKED (the
+// splash's rule): the video takes the prologue's SLOT, not its marks.
+const VIDEO_GRACE_MS = 1500, VIDEO_FADE_MS = 300;
+let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort = null, videoSkipFn = null;
+function videoEl(){ return document.getElementById('introVideo'); }
+function videoGated(){ return document.documentElement.classList.contains('video'); }
+function videoActive(){ const h = document.documentElement; return h.classList.contains('video-on') && !h.classList.contains('video-out'); }
+function videoClose(){
+  const h = document.documentElement, v = videoEl();
+  h.classList.remove('video-on'); h.classList.remove('video-out'); h.classList.remove('video');
+  videoDone = true; videoAbort = null; videoSkipFn = null;
+  try { if (v){ v.pause(); while (v.firstChild) v.removeChild(v.firstChild); v.removeAttribute('src'); v.load(); } } catch(e){}   // free the decoder
+}
+function videoPlay(done, fallback){
+  const v = videoEl(), h = document.documentElement;
+  if (!v || !videoGated() || videoDone) return fallback();
+  // every source already failed before we got here (NETWORK_NO_SOURCE, nothing decoded — a missing file
+  // on file:// fails ~2 s before the hand-off): the comic at once, not after the grace
+  if (v.networkState === 3 && v.readyState === 0){ videoWhy = 'error'; videoClose(); return fallback(); }
+  let settled = false, grace = 0;
+  // ⚠️ A SOURCE THAT FAILS FIRES `error` AT THE <source>, NOT AT THE VIDEO (the resource-selection
+  // algorithm): the element's own error only reports a decode failure of a source it accepted. So the
+  // LAST source's error is the sign «nothing loads» (the first's is merely «not this codec»).
+  const last = v.querySelector('source:last-of-type');
+  const unhook = () => { v.removeEventListener('canplay', onCan); v.removeEventListener('error', onErr); v.removeEventListener('ended', onEnd);
+    if (last) last.removeEventListener('error', onErr); v.removeEventListener('pointerdown', skip); removeEventListener('keydown', skip); };
+  const finish = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook();
+    videoFadeAt = performance.now(); h.classList.add('video-out');
+    if (done) done();                                    // the fall starts under the fading video
+    setTimeout(videoClose, VIDEO_FADE_MS + 40); };
+  const bail = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook(); videoClose(); fallback(); };
+  const onEnd = () => finish('ended');
+  const onErr = () => (videoActive() ? finish('error') : bail('error'));
+  const skip = (e) => { try { if (e && e.preventDefault) e.preventDefault(); } catch(_){} finish('skipped'); };
+  const start = () => { if (settled) return;
+    v.removeEventListener('canplay', onCan);
+    h.classList.add('video-on');
+    v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); addEventListener('keydown', skip);
+    videoT1 = performance.now();
+    let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); }
+    if (p && p.then) p.then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); };
+  const onCan = () => start();
+  videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };
+  videoSkipFn = () => skip(null);
+  v.addEventListener('error', onErr); if (last) last.addEventListener('error', onErr);
+  if (v.readyState >= 3) start();
+  else { grace = setTimeout(() => bail('not ready in time'), VIDEO_GRACE_MS); v.addEventListener('canplay', onCan); }
+}
+function videoForceClose(){ if (videoAbort) videoAbort(); else if (videoGated() || videoActive()) videoClose(); }
+function videoSkipNow(){ if (videoSkipFn) videoSkipFn(); return videoState(); }
+function videoState(){
+  const h = document.documentElement, v = videoEl();
+  return { gated: h.classList.contains('video'), on: h.classList.contains('video-on'), out: h.classList.contains('video-out'),
+    why: videoWhy, done: videoDone, t0: (typeof window.__videoT0 === 'number') ? window.__videoT0 : 0, t1: videoT1, fadeAt: videoFadeAt,
+    ready: v ? v.readyState : -1, cur: v ? v.currentTime : -1, dur: v ? v.duration : -1, paused: v ? v.paused : null, muted: v ? v.muted : null,
+    srcs: v ? Array.from(v.querySelectorAll('source')).map(s => s.getAttribute('src')) : [], preload: v ? v.preload : null,
+    grace: VIDEO_GRACE_MS, fade: VIDEO_FADE_MS };
+}
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
