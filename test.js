@@ -11159,10 +11159,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'SPLASH: the gate script is the FIRST child of body, before the edge cards — no frame can paint the game\'s card lines before the picture exists (' + early.order + '). ⛔ SABOTAGE: put a card before the gate');
     expect(early.trans === '0.3s' && early.st.ms === 1500 && early.st.fade === 300,
       'SPLASH: the production numbers — 1.5 s minimum, a 0.3 s fade (' + JSON.stringify({ trans: early.trans, ms: early.st.ms, fade: early.st.fade }) + ')');
-    await ip.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 });
+    // ⚠️ -h: a poster that never comes must be a RED, not a dead section — a bare wait threw here on the «drop the phone term» variant
+    let faded = true; try { await ip.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 }); } catch(_){ faded = false; }
     const fade = await ip.evaluate(() => ({ st: window.__game.splashState(), phase: window.__game.introPhase() }));
-    expect(fade.st.fadeAt - fade.st.t0 >= 3990,
-      'SPLASH: the fade began no earlier than the minimum after the first paint (' + Math.round(fade.st.fadeAt - fade.st.t0) + ' ms against the 4000 knob; the load alone is shorter). ⛔ SABOTAGE: `wait = 0` in splashPlay');
+    expect(faded && fade.st.fadeAt - fade.st.t0 >= 3990,
+      'SPLASH: the fade began no earlier than the minimum after the first paint (' + JSON.stringify({ faded, ms: Math.round(fade.st.fadeAt - fade.st.t0) }) + ' against the 4000 knob; the load alone is shorter). ⛔ SABOTAGE: `wait = 0` in splashPlay (or a gate that never shows the poster on the phone)');
     expect(fade.phase === 'drop',
       'SPLASH: the fall starts in the very frame the fade begins — «quickly» (phase ' + fade.phase + ' at the fade\'s start). ⛔ SABOTAGE: call done() after the fade instead of at its start');
     await ip.waitForTimeout(500);
@@ -11191,6 +11192,39 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(notApple.on && notApple.apple === false && notApple.chrome === 120 && notApple.tall === false && notApple.box[1] === notApple.vh,
       'SPLASH not Apple: chrome present but the engine is not Apple WebKit — the flat box (the tall one serves Safari\'s glass, no one else\'s bars) (' + JSON.stringify(notApple) + '). ⛔ SABOTAGE: drop the Apple term of the gate');
     await ip3.close();
+    // (A4) THE PORTRAIT TABLET (2026-09-08-h, his answer «the poster instead of the film»): both flags on a 768×1024
+    // page — the splash fires by the PORTRAIT term, the video gate holds (no sources, not a byte), the fall held; and
+    // with the Apple feature test + chrome the box stays FLAT: the tall box runs under the PHONE's bottom bar only
+    const tp = await browser.newPage({ viewport: { width: 768, height: 1024 }, screen: { width: 768, height: 1144 } });
+    tp.on('pageerror', e => errors.push('PAGEERROR(splash-tablet): ' + e.message));
+    await tp.addInitScript(appleUA);
+    await tp.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(tp, '?dev=1&splash=1&video=1');
+    const tab = await tp.evaluate(() => { const s = document.getElementById('introSplash'), r = s.getBoundingClientRect(), vs = window.__game.videoState();
+      return { on: window.__game.splashState().on, kind: window.__splashKind, display: getComputedStyle(s).display, box: [r.width, r.height], vw: innerWidth, vh: innerHeight, phase: window.__game.introPhase(),
+        tall: document.documentElement.classList.contains('splash-tall'), chrome: window.__splashChrome, apple: CSS.supports('font', '-apple-system-body'),
+        vGated: vs.gated, vSrcs: vs.srcs.length, vPreload: vs.preload, docH: document.documentElement.scrollHeight }; });
+    expect(tab.on && tab.kind === 'portrait' && tab.display === 'block' && tab.box[0] === tab.vw && tab.box[1] === tab.vh && tab.phase === 'wait' && !tab.vGated && tab.vSrcs === 0 && tab.vPreload === 'none',
+      'SPLASH portrait tablet: at 768×1024 the POSTER takes the slot (his answer to the crop fork) — the splash on by the portrait term, the fall held, and the video gate holds: no sources, not a byte of the film (' + JSON.stringify({ on: tab.on, kind: tab.kind, box: tab.box, vw: tab.vw, vh: tab.vh, phase: tab.phase, vGated: tab.vGated, vSrcs: tab.vSrcs, vPreload: tab.vPreload }) + '). ⛔ SABOTAGE: drop the portrait term of the splash gate (no poster — and no film either, the video gate still declines on portrait: the fall starts at once), or the landscape term of `__introFilm` (both intros gated at once)');
+    expect(tab.apple === true && tab.chrome === 120 && tab.tall === false && tab.box[1] === tab.vh && tab.docH === tab.vh,
+      'SPLASH portrait tablet: Apple WebKit WITH chrome and still the FLAT box — the tall box is the phone WIDTH\'s (a portrait tablet\'s bar is at the top; +80 there would only hide the poster\'s last rows below the screen — the poster is width-limited here, the side is not cut at all) (' + JSON.stringify({ apple: tab.apple, chrome: tab.chrome, tall: tab.tall, box: tab.box, docH: tab.docH, vh: tab.vh }) + '). ⛔ SABOTAGE: drop the phone term of the tall rule');
+    await tp.close();
+    // (A5) THE LANDSCAPE TABLET: the mirror — the film, no poster
+    const lt = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await lt.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await lt.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await lt.waitForTimeout(400);
+    const land = await lt.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length }));
+    expect(!land.splash && land.kind === null && land.vGated && land.vSrcs === 2,
+      'SPLASH landscape tablet: at 1024×768 the FILM takes the slot, no poster — the two gates are mirrors (' + JSON.stringify(land) + '). ⛔ SABOTAGE: make the splash gate\'s portrait term `!phone` alone (the poster on every wide viewport), or invert the orientation test of `__introFilm` (the film on portrait only)');
+    await lt.close();
+    // (A6) THE LANDSCAPE PHONE below 768 (an iPhone turned sideways): the PHONE term, not the portrait one — the poster, and no film
+    const lph = await browser.newPage({ viewport: { width: 667, height: 375 } });
+    await lph.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await lph.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await lph.waitForTimeout(400);
+    const lp0 = await lph.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length }));
+    expect(lp0.splash && lp0.kind === 'phone' && !lp0.vGated && lp0.vSrcs === 0,
+      'SPLASH landscape phone: at 667×375 the poster comes by the PHONE term and the film is not gated (' + JSON.stringify(lp0) + '). ⛔ SABOTAGE: drop the phone term of the splash gate (a landscape phone would get nothing), or the min-width term of the video gate (it would get the film)');
+    await lph.close();
     // (B) an automated page WITHOUT the flag: no splash, no comic — the fall starts at once
     const np = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await np.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
@@ -11205,7 +11239,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await boot(dp, '?dev=1&splash=1'); await dp.waitForTimeout(700);
     const desk = await dp.evaluate(() => ({ on: document.documentElement.classList.contains('splash'), display: getComputedStyle(document.getElementById('introSplash')).display, story: !!document.getElementById('storyOverlay'), panels: document.querySelectorAll('#storyOverlay svg').length }));
     expect(!desk.on && desk.display === 'none' && desk.story === false,
-      'SPLASH desktop: the picture is the phone\'s — at 1280 the gate holds and no comic comes either (' + JSON.stringify(desk) + '). ⛔ SABOTAGE: drop the phone-width term of the gate');
+      'SPLASH desktop: the picture is the phone\'s — at 1280 the gate holds and no comic comes either (' + JSON.stringify(desk) + '). ⛔ SABOTAGE: drop the phone-width term of the gate — ⚠️ since -h the landscape 1280 page holds by the orientation term anyway, so that sabotage is caught by arm A6 (the landscape phone); here: read landscape as portrait');
     await dp.close();
     // (D) skipIntro closes it the way it closes the comic — the suite\'s pages must never wait on it
     const kp = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -11267,16 +11301,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(g4.st.done && !g4.st.gated && !g4.st.on && g4.display === 'none' && g4.st.srcs.length === 0 && g4.body === 'rgb(172, 168, 255)' && g4.st.bgmHeld === false && g4.bgmPaused === false,
       'VIDEO: gone after the fade, body back on the zenith, the music released — display none, the sources released, the class cleared (' + JSON.stringify({ body: g4.body, bgmHeld: g4.st.bgmHeld, bgmPaused: g4.bgmPaused, done: g4.st.done, gated: g4.st.gated, display: g4.display, srcs: g4.st.srcs }) + ')');
     await vp.close();
-    // (F) a click SKIPS it: the fade begins and the fall starts at once
+    // (F) a click on a SOUNDING film SKIPS it: the fade begins and the fall starts at once. ⚠️ -h: the gesture comes at
+    // commit (arm E's device — a portal's Play precedes the game), so the film plays WITH sound and the first click is the
+    // skip; on a REFUSED film the first click is the sound (arm L2) — measured on a page nobody touched before the hand-off
     const sp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
     sp.on('pageerror', e => errors.push('PAGEERROR(video-skip): ' + e.message));
     await sp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
-    await vboot(sp, '?dev=1&video=1');
+    await sp.goto('file://' + PAGE_FILE + '?dev=1&video=1', { waitUntil: 'commit' }); await sp.evaluate(() => 1);   // the gesture, before the body parses
+    await sp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     let onS = true; try { await sp.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ onS = false; }
     await sp.mouse.click(640, 400);
     const sk = await vstate(sp);
-    expect(onS && sk.st.why === 'skipped' && sk.st.out && sk.phase === 'drop' && sk.st.cur < 3.5 && sk.body === 'rgb(172, 168, 255)' && zenithFill(sk.fill),
-      'VIDEO: a click on the playing film skips it — the fade and the fall in the same frame, mid-clip, and body and the fill are back on the zenith in that same read (the iPad/Mac freeze takes the game\'s colour, not the film\'s) (' + JSON.stringify({ why: sk.st.why, out: sk.st.out, phase: sk.phase, cur: +sk.st.cur.toFixed(2), body: sk.body, fill: sk.fill }) + '). ⛔ SABOTAGE: drop the pointerdown listener, or scope the colour to html.video instead of video-on:not(.video-out)');
+    expect(onS && sk.st.sound === 'on' && sk.st.tapSound === false && sk.st.why === 'skipped' && sk.st.out && sk.phase === 'drop' && sk.st.cur < 3.5 && sk.body === 'rgb(172, 168, 255)' && zenithFill(sk.fill),
+      'VIDEO: a click on the playing, SOUNDING film skips it (the gesture came before the hand-off; a refused film gives its sound to the first click — arm L2) — the fade and the fall in the same frame, mid-clip, and body and the fill are back on the zenith in that same read (the iPad/Mac freeze takes the game\'s colour, not the film\'s) (' + JSON.stringify({ onS, sound: sk.st.sound, tapSound: sk.st.tapSound, why: sk.st.why, out: sk.st.out, phase: sk.phase, cur: +sk.st.cur.toFixed(2), body: sk.body, fill: sk.fill }) + '). ⛔ SABOTAGE: drop the pointerdown listener, or scope the colour to html.video instead of video-on:not(.video-out)');
     await sp.close();
     // (G) a source that cannot load: the GAME takes the slot — the fall starts at once, nothing shown
     const fp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
@@ -11294,7 +11331,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await vboot(pp, '?dev=1&video=1&splash=0'); await pp.waitForTimeout(400);
     const ph = await vstate(pp);
     expect(!ph.st.gated && ph.st.srcs.length === 0 && ph.st.preload === 'none' && !ph.story,
-      'VIDEO phone: at 390 the gate holds — no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: drop the min-width term of the gate');
+      'VIDEO phone: at 390 the gate holds — no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: `window.__introFilm = !portrait` (the phone term dropped: `portrait` is FALSE on a phone by its own definition, so the film is gated here too — reddens this arm AND A6; measured); or gate the film on the phone width outright');
     await pp.close();
     // (J) reduced motion: the gate holds on the desktop too
     const rp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
@@ -11317,7 +11354,50 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const lr = await vstate(lp);
     expect(onL && lr.st.sound === 'refused' && lr.st.muted === true && lr.st.paused === false && lr.st.on && lr.st.bgmHeld === false && lr.phase === 'wait',
       'VIDEO sound refused: an unmuted autoplay the browser rejects is retried MUTED — the film plays silent, the music is not held, the fall still held (' + JSON.stringify({ onL, sound: lr.st.sound, muted: lr.st.muted, paused: lr.st.paused, bgmHeld: lr.st.bgmHeld, phase: lr.phase }) + '). ⛔ SABOTAGE: bail on the refusal instead of retrying muted');
+    // (L2) 2026-09-08-h, his answer «the first tap turns the sound on, the second skips»: on the REFUSED film a real click
+    // is the gesture the refusal wanted — the pointerdown is consumed (no skip), the CLICK that follows unmutes (user
+    // activation for every pointer kind), the film keeps playing, the music the same gesture unlocks is HELD (90-input's
+    // capture listener on window fires first, bgmHold() pauses it); a second click skips
+    await lp.mouse.click(640, 400); await lp.waitForTimeout(150);
+    const l2 = await vstate(lp);
+    expect(l2.st.on && !l2.st.out && l2.st.sound === 'on' && l2.st.tapSound === true && l2.st.muted === false && l2.st.paused === false && l2.st.bgmHeld === true && l2.bgmPaused === true && l2.phase === 'wait' && l2.st.why === '',
+      'VIDEO first tap = sound: on a film the browser muted by refusal the first click UNMUTES it — still playing, the fall still held, the music the same gesture unlocked is held (paused) by the film (' + JSON.stringify({ sound: l2.st.sound, tapSound: l2.st.tapSound, muted: l2.st.muted, paused: l2.st.paused, bgmHeld: l2.st.bgmHeld, bgmPaused: l2.bgmPaused, phase: l2.phase, why: l2.st.why }) + '). ⛔ SABOTAGE: drop the refused branch of skip (the first click skips), or its bgmHold() (the music plays over the film)');
+    await lp.mouse.click(640, 400);
+    const l3 = await vstate(lp);
+    expect(l3.st.why === 'skipped' && l3.st.out && l3.phase === 'drop',
+      'VIDEO second tap = skip: the next click on the now-sounding film skips it — the fade and the fall in the same frame (' + JSON.stringify({ why: l3.st.why, out: l3.st.out, phase: l3.phase }) + '). ⛔ SABOTAGE: make every tap on a refused film unmute (the film could never be skipped)');
     await lp.close();
+    // (L3) THE SAME WITH A FINGER (the -h review): by the HTML activation model a touch `pointerdown` carries NO user
+    // activation (a mouse pointerdown, a non-mouse pointerup, touchend, click and keydown do), so the unmute rides the
+    // `click` the tap synthesises. A touch context, a page nobody touched before the hand-off (refused), one real tap →
+    // sound on and STILL PLAYING; a second tap skips. ⚠️ Headless Chromium did NOT pause on a pointerdown-unmute (see the
+    // message) — the arm is the finger path's proof, the click form is the spec's
+    const tctx = await browser.newContext({ viewport: { width: 1280, height: 832 }, hasTouch: true });
+    const tpg = await tctx.newPage(); tpg.on('pageerror', e => errors.push('PAGEERROR(video-touch): ' + e.message));
+    await tpg.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await tpg.goto('file://' + PAGE_FILE + '?dev=1&video=1'); await tpg.waitForTimeout(1500);   // no evaluate before the hand-off (the gesture)
+    await tpg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    let onT = true; try { await tpg.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onT = false; }
+    const t0 = await vstate(tpg);
+    await tpg.touchscreen.tap(640, 400); await tpg.waitForTimeout(250);
+    const t1 = await vstate(tpg);
+    expect(onT && t0.st.sound === 'refused' && t1.st.on && !t1.st.out && t1.st.sound === 'on' && t1.st.tapSound === true && t1.st.muted === false && t1.st.paused === false && t1.phase === 'wait' && t1.st.why === '',
+      'VIDEO first TAP (touch) = sound: on the refused film one finger tap unmutes it and it KEEPS PLAYING — the unmute rides the click the tap synthesises, not the pointerdown that carries no activation (' + JSON.stringify({ onT, before: t0.st.sound, sound: t1.st.sound, tapSound: t1.st.tapSound, muted: t1.st.muted, paused: t1.st.paused, phase: t1.phase, why: t1.st.why, bgmHeld: t1.st.bgmHeld, bgmPaused: t1.bgmPaused }) + '). ⚠️ MEASURED, NOT ASSUMED: headless Chromium also accepts an unmute inside a touch pointerdown (the pointerdown-unmute variant stayed green here) — the click is the SPEC\'s guarantee across engines, and this arm proves the finger path works, not that the pointerdown form fails. ⛔ SABOTAGE: drop the refused branch (the first tap skips), or the click listener AND the keydown unmute (nothing unmutes)');
+    await tpg.touchscreen.tap(640, 400);
+    const t2 = await vstate(tpg);
+    expect(t2.st.why === 'skipped' && t2.st.out && t2.phase === 'drop',
+      'VIDEO second TAP (touch) = skip (' + JSON.stringify({ why: t2.st.why, out: t2.st.out, phase: t2.phase }) + ')');
+    await tctx.close();
+    // (L4) THE TEST DOOR ALWAYS SKIPS (the -h review): `__game.videoSkip()` on a REFUSED film skips it, it does not unmute it
+    const hp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    await hp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await hp.goto('file://' + PAGE_FILE + '?dev=1&video=1'); await hp.waitForTimeout(1500);
+    await hp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    let onH = true; try { await hp.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onH = false; }
+    const hk = await hp.evaluate(() => { const before = window.__game.videoState().sound; const st = window.__game.videoSkip(); return { before, why: st.why, out: st.out, sound: st.sound, phase: window.__game.introPhase() }; });
+    expect(onH && hk.before === 'refused' && hk.why === 'skipped' && hk.out && hk.sound === 'refused' && hk.phase === 'drop',
+      'VIDEO videoSkip() hook: on a refused film the test door SKIPS (why skipped, the fall started), it does not consume the call as an unmute (' + JSON.stringify(hk) + '). ⛔ SABOTAGE: bind videoSkipFn to skip(null) again');
+    await hp.close();
     // (M) the player's music is OFF: the film is silent by that setting, no attempt with sound
     const mp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
     await mp2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); localStorage.setItem('mixer_music', '0'); });

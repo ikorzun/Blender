@@ -16845,3 +16845,135 @@ this Mac's resolver answers both A records now and a plain `curl` without `--res
 172.67.216.170 — the `--resolve` note above was a transient of the day the record was created. Nothing
 page-side to do: the source-order flip named above is NOT needed and is not started. THE VIDEO WORKER IS
 LIVE; the pending item of batch -e/-g is closed.
+
+## BATCH 2026-09-08-h: THE PORTRAIT TABLET TAKES THE POSTER; THE FIRST TAP ON A REFUSED FILM GIVES IT ITS SOUND (his four answers to the open list, put to him as a questionnaire of choices with the price under each: the vignettes «keep them off»; the portrait tablet «the poster instead of the film»; the sound «the first tap the sound, the second the skip»; the devices «I will look later»)
+
+### THE ANSWER THAT COST NOTHING, AND THE FORK IT CLOSES
+The vignettes K1–K4 stay OFF as they are (`STORY_WIN_VIGNETTE = false` since 2026-08-11; the chapters and their
+guards untouched). Measured before asking: `86-story.js` is 28 KB with ZERO base64 payloads, so deletion would have
+saved ~20 KB and bought nothing else, and his «no comic at all» of -e named the comic at the START. The open question
+of -e («does no comic also mean the vignettes never return?») is closed by his word: they stay, switched off.
+
+### THE PORTRAIT TABLET — THE TWO GATES ARE MIRRORS NOW
+- THE NUMBERS THAT DECIDED IT (re-derived from the -c/-d measurement before asking): at 768×1024 `cover` cuts
+  **526 px a side** (BLENDO's letters, the characters); fit-to-width would show the film **432 px tall with 296 px
+  bands** above and below — and the film's BOTTOM row is not sky (ffmpeg: 162,130,82 at 0.5 s, 251,234,237 at 3.5 s
+  against a top of 127,209,254), so a band «on the film's sky» would have carried a seam at the bottom. The
+  recommendation was a portrait cut of the film from his master; he chose the poster, which needs no asset.
+- THE SPLASH GATE: `phone || portrait`, where `portrait = !phone && matchMedia('(orientation:portrait)').matches`;
+  it publishes ONE sample as `window.__introFilm = !phone && !portrait`, and THE VIDEO GATE reads that (its own
+  `≥768 && landscape` expression is only the fallback for a page where the splash gate did not run): the two inline
+  scripts stand 500 KB of poster apart in the parse, and sampling the media twice could see a rotation between them
+  (the -h review) — with one sample the gates are mirrors BY CONSTRUCTION: on a ≥768 viewport exactly one fires,
+  except where the film's own terms decline (reduced motion, an automated page without the flag), where the game
+  starts at once as before. The splash gate also writes `window.__splashKind` (`phone` / `portrait`) so a guard can
+  name the term that fired.
+- ⛔ THE TALL BOX IS THE PHONE-WIDTH'S: `splash-tall` gained `&& phone` (≤767, the HUD's own boundary). It exists so the
+  poster runs under the phone's BOTTOM bar (-e/-f); a portrait tablet's bar is at the TOP, and +80 there would only
+  hide the poster's last rows below the screen. ⚠️ A WIDTH TERM, NOT A DEVICE TERM (the -h review): an iPad mini in
+  portrait Safari is 744 wide and a Mac Safari window narrower than 768 has chrome too — both still take the tall box,
+  exactly as since -f (80 rows of the poster below the screen there); the case is narrowed, not closed. And at these
+  widths the poster is WIDTH-limited, so +80 shrinks the vertical crop rather than widening a side cut — the first
+  draft of this line had the geometry wrong. On 768×1024 `cover` scales the 9:16 poster to 768×1365 — ~170 px of sky
+  and ground lost top and bottom, nothing cut at the sides.
+- The film's `cover` crop now concerns only LANDSCAPE viewports taller than 16:9 (a 4:3 landscape tablet loses
+  ~170 px a side) — tombstoned at the `#introVideo` CSS comment, which described the portrait crop as the design.
+- ⚠️ `(orientation:portrait)` is height ≥ width, so a SQUARE window counts as portrait and takes the poster. Rare;
+  named, not special-cased. A landscape phone ≥768 wide (a Pro Max sideways) still gets the film, a landscape
+  phone under 768 the poster by the phone term — both as before, and the second is guarded now (A6), which it was not.
+
+### THE FIRST TAP GIVES THE SOUND, THE SECOND SKIPS — ON A REFUSED FILM ONLY
+- WHY IT MATTERS: Safari's default refuses an unmuted autoplay at EVERY launch (no gesture precedes the hand-off on a
+  direct link), so on his own Mac and iPad the film was always silent and nothing on the page could turn it on;
+  Chrome refuses on a first visit. His own alternative from the -c report was chosen over an icon: the shortest
+  route to sound in Safari, on a 4-second film where a second tap costs nothing. ⚠️ THE PRICE, NAMED: a tap has a
+  hidden second meaning on that one branch — a player who meant to skip taps twice.
+- THE MECHANISM (`videoPlay`, 85-hud): the skip DECISION stays at `pointerdown` (instant, as before) — on a refused
+  film it returns without skipping; the UNMUTE runs in `unmute()`, called only from an event that carries USER
+  ACTIVATION for its input kind: the `click` the same tap synthesises (a finger, a pen, a mouse) or the `keydown`
+  itself. `unmute()`: `v.muted = !!musicExtMuted; videoSound = 'on'; videoTapSound = true; bgmHold();` and, should
+  an engine have PAUSED the film on the unmute all the same, a `play()` inside that gesture restarts it — or, refused
+  again, the film goes back to muted-and-playing and the next input tries again. KEYS TOO: a key is as much a gesture
+  as a tap (the 2026-08-11 music lesson, «a KEY did not start it AT ALL»); `e.repeat` is ignored, or a held key would
+  unmute on its first keydown and skip on the OS auto-repeat. A film that already sounds, or is silent by the player's
+  own slider (`music-off`), skips on the first tap exactly as before. `videoTapSound` rides in `videoState()`; reset at
+  `start()`. `videoSkipFn` (the `__game.videoSkip()` door) binds to `finish('skipped')` directly — bound to
+  `skip(null)` it would have UNMUTED a refused film, which is every film on a webdriver page.
+- ⛔⛔ THE FIRST DRAFT UNMUTED INSIDE THE `pointerdown` HANDLER, AND THE REVIEW CAUGHT WHY THAT IS WRONG ON A FINGER:
+  the HTML activation model grants activation on keydown, mousedown, a MOUSE pointerdown, a non-mouse POINTERUP,
+  touchend and click — a touch `pointerdown` carries none, and Chromium pauses a muted-autoplaying film that is
+  unmuted without activation. On an Android tablet in landscape (the film's viewport) the first tap would have
+  PAUSED the film instead of sounding it, with the state already saying `on`. The skeptic could not refute it from
+  the code; the fix is the click. ⚠️ BUT THE MEASUREMENT DID NOT REPRODUCE THE PAUSE: a variant that unmutes inside
+  the pointerdown with no belt stayed 41 GREEN on the touch arm (L3) — headless Chromium's touch tap (a trusted input
+  event) accepts the unmute at pointerdown too. So the click form is kept on the SPEC's word (WebKit and Gecko are not
+  measured here), the touch arm proves the finger path works, and it is written down that this arm does NOT
+  distinguish the two forms — a sabotage that stays green is stated, not hidden (the canon's rule).
+- ⚠️⚠️ THE MUSIC UNLOCK OF 90-input FIRES ON THE SAME GESTURE, FIRST: its listener sits on `window` with
+  `capture:true`, so it runs before the video element's own handlers, starts the music the refusal had blocked too
+  (`play()` sets `paused` false synchronously), and `bgmHold()` here pauses it — MEASURED by the guard (`bgmHeld
+  true, bgmPaused true` right after the first click) AND with a finger (headless Chromium, a touch context): after
+  the first tap the film sounds and plays, the music is held; after the second tap the music PLAYS (`currentTime`
+  0.06 → 1.61 over the next 1.5 s). The release at the film's close plays it.
+- The platform's un-mute path needs nothing: `musicSuspend` reads `videoSound !== 'on'`, and after the tap the sound
+  is `on` — a later platform un-mute gives the film its sound back exactly as for a film that sounded from the start.
+- `v.muted = !!musicExtMuted`, not `false`: a platform mute that arrived mid-film keeps the film silent; the un-mute
+  lifts it.
+
+### THE GUARD (INTRO — 41 green on the healthy build, six new arms)
+- **A4** (768×1024, `?splash=1&video=1`, the Apple feature test + a screen 120 taller): the poster on by the
+  `portrait` term, the fall held, the video NOT gated (no sources, preload none); and the box FLAT — tall false,
+  exactly one viewport — with Apple AND chrome present. **A5** (1024×768, both flags): the film gated with two
+  sources, no poster, `__splashKind` absent. **A6** (667×375, both flags): the poster by the `phone` term, the film
+  not gated. **L2** (arm L's page — nobody touched it before the hand-off, the film REFUSED): the first real click →
+  `sound 'on'`, `tapSound true`, unmuted, still playing, the fall still held, `why ''`, the music the same gesture
+  unlocked HELD (`bgmHeld true`, the element paused); the second click → `skipped`, `out`, phase `drop`. **L3** (a
+  TOUCH context, `hasTouch`, the same untouched-before-the-hand-off page): one `touchscreen.tap` → sound `on`,
+  unmuted, STILL PLAYING (`paused false`), the fall held; a second tap → skipped. **L4**: `__game.videoSkip()` on a
+  refused film → `skipped`, the sound still `refused` — the door skips, it does not unmute.
+- ⛔ ARM F WENT RED ON THE HEALTHY BUILD AND WAS RE-BASED, NOT PATCHED. It clicked a film on a page nobody had
+  touched before the hand-off — i.e. a REFUSED film, though nothing in the arm said so — and asserted the skip; under
+  -h that first click is the sound (`why ''`, `out false`, phase `wait`). It now takes the commit-time gesture (arm
+  E's device: a portal's Play precedes the game), so the film SOUNDS and the first click is the skip, with
+  `sound === 'on' && tapSound === false` stated as its precondition. The property it guards — the fade and the fall
+  in one frame, body and the fill back on the zenith in that read — is unchanged; a precondition that was implicit
+  is explicit. ⚠️ The sabotage notes of arms C (1280×832) and H (390×844) moved too: since -h the ORIENTATION
+  term alone holds either page, so «drop the phone / min-width term» is caught by A6 (the landscape phone), not
+  there — a note that stays where the sabotage no longer bites is a false order to the next reader.
+- PROVEN AGAINST SEVEN VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`, the healthy
+  build 38 green twice), each red on its own arm(s): the portrait term dropped from the splash gate → A4 (both
+  arms — the second reads `__splashChrome`, which only a fired gate writes); the landscape term dropped from the
+  video gate → A4's first arm (the film gated on the portrait tablet beside the poster); the phone term dropped from
+  the tall rule → A4 (both arms — the first pins the one-viewport box too); the refused branch of `skip` dropped →
+  L2's first arm; its `bgmHold()` dropped → L2's first arm (`bgmHeld false`, the music playing over the film); the
+  min-width term dropped from the video gate → A6 (the landscape phone gets the film); a comment edit → 38 green,
+  the tool calls an empty sabotage empty.
+- ⛔ THE PHONE TERM DROPPED FROM THE SPLASH GATE KILLED THE SECTION INSTEAD OF REDDENING IT — `portrait` is
+  defined as `!phone && …`, so without the phone term NO phone gets the poster, and arm A's bare
+  `waitForFunction(splashState().out)` threw at 3 green, a dead section rather than a verdict (the canon's most
+  repeated signature, on a variant this time). The wait is caught now (`faded` folded into the fade arm), and the
+  same variant reads 11 red / 27 green: every phone arm of the poster, A6 included, and the section runs to its end.
+  **A bare wait in a guard is a run-killer waiting for the build that makes its condition false.**
+- THE REVIEWED FORM, SEVEN MORE VARIANTS (the healthy build 41 green): `__introFilm` without its landscape term →
+  A4; `__introFilm = !portrait` (the phone term dropped) → A6 AND H — on a phone `portrait` is false by its own
+  definition, so the film is gated at 390×844 too (H's note says so now; my first note had handed that sabotage to
+  A6 alone); `videoSkipFn` bound to `skip(null)` again → L4; `bgmHold()` dropped from the unmute → L2; the refused
+  branch dropped (the first input skips) → L2, L3 first tap, L3 second tap (the second reads the film already closed).
+  ⚠️ TWO VARIANTS STAYED GREEN AND ARE NAMED RATHER THAN HIDDEN: the unmute moved back inside the pointerdown (the
+  first draft's form, no belt) — 41 green, the touch arm included, i.e. the pause the review predicted does not happen
+  in headless Chromium and no arm here can tell the two forms apart (the click form stands on the spec); and the
+  `e.repeat` guard dropped — no arm holds a key down (Playwright's `keyboard.down` does not auto-repeat), so a held key
+  unmuting and then skipping on the OS repeat is guarded by nothing but the line itself.
+
+### THE RUNS
+The INTRO section lifted alone: 38 green on the first form, **41 green** on the reviewed one (arms A4, A5, A6, L2,
+L3, L4 and the re-based F); fourteen sabotage variants across the two forms, each on its own arm(s), two named
+greens. The read-only review workflow (three lenses, one skeptic per finding, no browsers, 14 agents, 28 minutes):
+11 findings, 0 refuted, all taken — one bug (the activation of a touch pointerdown; the fix stands on the spec,
+the pause itself was not reproduced), two minor code items (`e.repeat`, the `videoSkip` door), one rotation note
+(`__introFilm`), and seven texts (the tall-box claim, the video gate's header, the A4/A5 sabotage notes, arm F's
+diagnostic, the canon line). **Run 34 — the whole suite on this build: 1089 green, 0 red, `ERRORS(tail): none`,
+SUITE: PASS** (run 33 was 1080; the nine are the new arms). `index.html` 12 739 304 → 12 744 889 B. ⚠️ One
+message string of arm A4 (the tall-box wording, «widen the side cut» struck) was edited AFTER the run — a message,
+not a predicate; the section's own dry-run had it green in both wordings. Pushed to `v2` and onto `main` on his
+standing word («push v2 onto main after a green run»).

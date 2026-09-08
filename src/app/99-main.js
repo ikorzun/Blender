@@ -300,7 +300,8 @@ function tickIntro(dt){
           // picture keeps its 1.5 s from the moment it was VISIBLE — since the curtain lifted where the
           // SDK drew one (`lifted by …`), since the first paint where there was none — and the fall
           // starts under its fade. Everywhere else the prologue comic, as before.
-          // THE TABLET/DESKTOP VIDEO (2026-09-08-c) takes the same slot ≥768 wide where its gate is on:
+          // THE TABLET/DESKTOP VIDEO (2026-09-08-c) takes the same slot ≥768 wide where its gate is on (AND landscape
+          // since -h: a portrait tablet takes the splash — the gates are mirrors, so the order of the two tests below is inert):
           // it plays if ready (or ready within its grace), else the comic — 85-hud `videoPlay`.
           // ⛔ THE PROLOGUE COMIC IS GONE (2026-09-08-e, his word «there is no comic — only the intro picture or the
           // video, by platform»): where neither intro applies (a reduced-motion desktop, an automated page, a film

@@ -154,7 +154,8 @@ function flowForce(on){ flowOn = !!on; flowRefresh(); return flowState(); }
 // SPLASH_MS from the moment it was VISIBLE: since the first paint where no platform curtain covered the
 // page (file://, no SDK), since the curtain lifted where the SDK drew one (the portal — 99-main passes
 // `sinceNow`) — then it fades over SPLASH_FADE_MS while the fall starts underneath: the fade and the
-// pour begin in the same frame («quickly and smoothly»). Phone-width only; the desktop and the tablet
+// pour begin in the same frame («quickly and smoothly»). Phone-width — and since -h any PORTRAIT viewport (his
+// answer «the poster instead of the film» for the portrait tablet); the landscape tablet and the desktop
 // get the film (-c) — ⛔ the comic is gone (-e). The suite's pages are webdriver and never see it unless
 // `?splash=1`; `?splash=0` switches it off anywhere.
 // ⚠️ THE STORY BITS ARE NOT MARKED: the splash takes the prologue's SLOT, not its marks — a new player
@@ -210,7 +211,21 @@ let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort =
 // un-mute does not resume the music while the film holds it — the release at the film's close does, unless the
 // platform still says off. ⚠️ HONEST GAP: the start-under-a-mute branch has no guard (the mute comes from the
 // bridge before the hand-off; the suite's page cannot set it that early) — the mid-film branch is guarded.
-let videoSound = '', videoBgmHeld = false;
+// ⚡ 2026-09-08-h (his answer «the first tap turns the sound on, the second skips»): on a film the browser muted by
+// REFUSAL (`videoSound === 'refused'` — Safari's default on the Mac and the iPad at every launch, Chrome on a first
+// visit) the first input does NOT skip: it is the very gesture the refusal wanted, so it unmutes the film (unless
+// the platform says off) and holds the music, and only the next one skips. A film that already sounds, or is silent
+// by the player's own slider (`music-off`), skips on the first tap as before. `videoTapSound` records it for the
+// state hook. ⚠️ THE UNMUTE RUNS ONLY INSIDE AN EVENT THAT CARRIES USER ACTIVATION FOR EVERY INPUT KIND (the -h
+// review): a `click` for a finger, a pen or a mouse, a `keydown` for a key. A touch `pointerdown` carries none (the
+// HTML activation model: keydown, mousedown, a MOUSE pointerdown, a non-mouse pointerup, touchend, click), and
+// Chromium PAUSES a muted-autoplaying film that is unmuted without it. So the skip DECISION stays at pointerdown
+// (instant, as before) and the click that follows the same tap does the unmute; if an engine paused the film all
+// the same, a play() inside that gesture restarts it, or the film goes back to muted-and-playing and the next input
+// tries again. ⚠️ THE MUSIC UNLOCK OF 90-input FIRES ON THE SAME GESTURE (a capture listener on window, before this
+// element's handlers): it starts the music the refusal had blocked too, and bgmHold() here pauses it — the release
+// at the film's close plays it.
+let videoSound = '', videoBgmHeld = false, videoTapSound = false;
 function bgmHold(){ const b = document.getElementById('bgm'); if (b && !b.paused){ b.pause(); videoBgmHeld = true; } }
 function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b && musicVol > 0 && !musicExtMuted) { try { b.play().catch(()=>{}); } catch(_){} } }
 function videoEl(){ return document.getElementById('introVideo'); }
@@ -234,7 +249,7 @@ function videoPlay(done, fallback){
   // LAST source's error is the sign «nothing loads» (the first's is merely «not this codec»).
   const last = v.querySelector('source:last-of-type');
   const unhook = () => { v.removeEventListener('canplay', onCan); v.removeEventListener('error', onErr); v.removeEventListener('ended', onEnd);
-    if (last) last.removeEventListener('error', onErr); v.removeEventListener('pointerdown', skip); removeEventListener('keydown', skip); };
+    if (last) last.removeEventListener('error', onErr); v.removeEventListener('pointerdown', skip); v.removeEventListener('click', onClick); removeEventListener('keydown', skip); };
   const finish = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook();
     videoFadeAt = performance.now(); h.classList.add('video-out');
     if (done) done();                                    // the fall starts under the fading video
@@ -242,15 +257,29 @@ function videoPlay(done, fallback){
   const bail = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook(); videoClose(); fallback(); };
   const onEnd = () => finish('ended');
   const onErr = () => (videoActive() ? finish('error') : bail('error'));
-  const skip = (e) => { try { if (e && e.preventDefault) e.preventDefault(); } catch(_){} finish('skipped'); };
+  const tryPlay = () => { let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); } return (p && p.then) ? p : Promise.resolve(); };
+  // -h: the first input on a REFUSED film is for its sound. `unmute` is called only from an event that carries user
+  // activation for its input kind — `click` (any pointer) or `keydown`; see the note above `videoSound`.
+  const unmute = () => {
+    if (settled || videoSound !== 'refused') return false;
+    v.muted = !!musicExtMuted; videoSound = 'on'; videoTapSound = true; bgmHold();
+    if (v.paused){   // an engine that paused on the unmute all the same: a play() inside the gesture restarts it — or, refused again, back to muted-and-playing
+      tryPlay().then(null, () => { if (settled) return; videoSound = 'refused'; videoTapSound = false; v.muted = true; bgmRelease(); tryPlay().then(null, () => {}); }); }
+    return true; };
+  const onClick = () => { unmute(); };
+  const skip = (e) => { try { if (e && e.preventDefault) e.preventDefault(); } catch(_){}
+    if (e && e.repeat) return;                    // a held key is one gesture, not a second (the -h review)
+    if (!settled && videoSound === 'refused'){    // the first input on a refused film: its sound — a key here, a pointer at the click that follows
+      if (e && e.type === 'keydown') unmute();
+      return; }
+    finish('skipped'); };
   const start = () => { if (settled) return;
     v.removeEventListener('canplay', onCan);
     h.classList.add('video-on');
-    v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); addEventListener('keydown', skip);
-    videoT1 = performance.now();
+    v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); v.addEventListener('click', onClick); addEventListener('keydown', skip);
+    videoT1 = performance.now(); videoTapSound = false;
     const vol = (typeof musicVol === 'number') ? musicVol : 1, wantSound = vol > 0 && !musicExtMuted;
     v.muted = !wantSound; try { v.volume = vol; } catch(_){}   // the slider itself, not the music bus (the -f note above)
-    const tryPlay = () => { let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); } return (p && p.then) ? p : Promise.resolve(); };
     const withSound = wantSound ? tryPlay() : Promise.reject(null);
     withSound.then(() => { videoSound = 'on'; bgmHold(); },
       () => { if (settled) return;   // a forced close rejects the pending play() too (AbortError) — not a refusal
@@ -258,7 +287,7 @@ function videoPlay(done, fallback){
         tryPlay().then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); }); };
   const onCan = () => start();
   videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };
-  videoSkipFn = () => skip(null);
+  videoSkipFn = () => finish('skipped');   // the test door always SKIPS (the -h review: skip(null) would unmute a refused film instead)
   v.addEventListener('error', onErr); if (last) last.addEventListener('error', onErr);
   if (v.readyState >= 3) start();
   else { grace = setTimeout(() => bail('not ready in time'), VIDEO_GRACE_MS); v.addEventListener('canplay', onCan); }
@@ -271,7 +300,7 @@ function videoState(){
     why: videoWhy, done: videoDone, t0: (typeof window.__videoT0 === 'number') ? window.__videoT0 : 0, t1: videoT1, fadeAt: videoFadeAt,
     ready: v ? v.readyState : -1, cur: v ? v.currentTime : -1, dur: v ? v.duration : -1, paused: v ? v.paused : null, muted: v ? v.muted : null,
     srcs: v ? Array.from(v.querySelectorAll('source')).map(s => s.getAttribute('src')) : [], preload: v ? v.preload : null,
-    sound: videoSound, bgmHeld: videoBgmHeld, volume: v ? v.volume : null,
+    sound: videoSound, tapSound: videoTapSound, bgmHeld: videoBgmHeld, volume: v ? v.volume : null,
     grace: VIDEO_GRACE_MS, fade: VIDEO_FADE_MS };
 }
 function show(id){

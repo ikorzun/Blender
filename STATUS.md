@@ -6,8 +6,25 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a to -g on top of 2026-09-07 b–i, v2 = main** · the suite **1080 green, 0 red, SUITE: PASS** (run 33; -g is server-only, the build unchanged) · the live
+**Build: batches 2026-09-08-a to -h on top of 2026-09-07 b–i, v2 = main** · the suite **1089 green, 0 red, SUITE: PASS** (run 34) · the live
 site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker is redeployed and **answers 206** (measured 8 September, see the first paragraph) · portal package unchanged in shape
+
+**8 SEPTEMBER, YOUR FOUR ANSWERS TO THE OPEN LIST (batch 2026-09-08-h in CLAUDE.md).** The vignettes K1–K4 stay
+switched off as they are (nothing changed; deleting them would have saved ~20 KB and nothing else). **The portrait
+tablet shows the poster instead of the film:** the two intro gates are mirrors now — the phone width OR any wider
+viewport in portrait gets your 9:16 picture (on 768×1024 it loses ~170 px of sky and ground, nothing at the sides;
+the film there cut 526 px a side), a landscape tablet and the desktop get the film as before; the poster's tall box
+(+80 under the bottom bar) stays the phone width's. **On a film the browser started without sound (Safari's default
+on your Mac and iPad at every launch, Chrome on a first visit) the first tap or key turns the sound on and the second
+skips;** a film that already sounds, or is silent by the music slider, skips on the first tap as before. The unmute
+runs on the `click`/`keydown` that carries user activation in every browser (a touch `pointerdown` does not by the
+spec), the background music is held while the film sounds and plays after it — measured with a mouse and with a
+finger. The read-only review of the change found 11 things, none refuted; all taken (the click form, a held key
+ignored, the `videoSkip` door always skips, one viewport sample for both gates, comments and arm texts). ⚠️ NAMED,
+NOT FIXED: an iPad mini in portrait (744 wide) and a narrow Mac Safari window still take the tall poster box (they
+did since -f) — a width term, not a device term. **Your devices, when you look:** the poster on the phone under the
+address bar with no line; the poster on the iPad in portrait, the film in landscape; the first tap on the film in
+Safari gives sound, the second skips; the toolbar zone over the film on the iPad in the film's sky.
 
 **8 SEPTEMBER, THE 206 CHECK (batch 2026-09-08-g in CLAUDE.md).** You deployed the video Worker and I checked
 it: **it answers `200` with the whole file to every Range request** (both files, both edge IPs) — no 206, no
