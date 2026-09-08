@@ -332,7 +332,8 @@ payment tests are on it.
   music.mp3 needs 206 exactly like the film) and a cache policy per type (html revalidates on every load so a
   deploy is visible at once; media a day), on the custom domains `blendo.monster` + `www.blendo.monster`
   (www → a 301 to the apex). YOUR two actions: in the Cloudflare DNS dashboard delete the apex A/AAAA and the
-  www records (a Worker custom domain refuses a hostname that already has a record — wrangler creates its own),
+  www records (the Cloudflare docs refuse a Worker custom domain only on a hostname with an existing CNAME; the apex
+  carries A/AAAA, and removing them first is the safe path either way — wrangler creates its own record),
   then the deploy line I give you. GitHub Pages stays as it is (the testers' link, the film's second source).
   The game needs no change: on a non-local, non-github host it already takes the production leaderboard, the
   mock platform (no ads) and the film from video.blendo.monster. Say «build it» and the Worker + a packer that

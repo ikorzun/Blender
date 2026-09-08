@@ -17072,11 +17072,15 @@ inflated copy + `pow(1−ndv,1.35)`. That is the recipe he named, and it is what
   contour arm now runs first, and a `const` read before its line is a TDZ ReferenceError — which kills a
   run WITHOUT A VERDICT rather than reddening an arm. The second chain of this batch died at 5 checks on
   exactly that; the lifter's «RUN ERROR» line was the only sign.
-- PROVEN FOUR-SIDED (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`): the healthy
+- PROVEN FIVE-SIDED (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`): the healthy
   build 9 green (0 cold of 949 on all three held shots; the sweep 8:0); the old alpha restored → ONLY the
   contour arm red (cold 7–12 %, max 12.4 %); `scale.setScalar(1.0)` → ONLY the structural arm; the
   constant at 1.14 → ONLY the structural arm (the shell clipped, the disc still warm — the two halves are
-  two properties); a comment edit → 9 green, the tool calls an empty sabotage empty.
+  two properties); a comment edit → 9 green, the tool calls an empty sabotage empty; and, after the run,
+  `CHARGE_SURGE_BODY = 0.45` → ONLY the contour arm red, with the disc reading **0 cold of 949 on all three
+  shots** — the pixel filter is blind at that alpha exactly as the pin's paragraph claims, and the pin
+  (`body ≤ 0.25`) is the whole catch. The pin is not a formality: without it a face wash of two thirds of
+  the old stripe passes the pixel arm green.
 
 ### THE PICTURE FIRST (his own rule of 2026-09-06-b), AND THE KNOBS THAT ARE HIS
 A sheet of six slot frames at his phone's viewport (390×844, DPR 3) — before/after at three phases —
