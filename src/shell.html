@@ -3825,14 +3825,32 @@
      ⚠️ The mock-up's frame fill #2d2d2d is the CANVAS, not the popup style — the common .overlay
      (fade+blur) stays, as on every popup (the owner's word at the new-item screen). */
   #starsOverlay { z-index:40; overflow-y:auto; touch-action:pan-y; align-items:flex-start; }
-  /* THE BASE = MOBILE (937:1533): a column FROM THE TOP — the cross 56 centred, a gap of 80,
-     then the block; insets 16, the bottom inset 136 from the mock-up. ⚠️ NOT centred vertically
-     on purpose: the mock-up anchors the block under the cross (the desktop centres, see below).
-     The top inset grows by the safe area: in the native wrapper the sheet runs under the
-     Dynamic Island and the in-flow cross sat half-hidden behind it. */
-  #starsOverlay .st-wrap { margin:0 auto; width:100%; box-sizing:border-box;
+  /* THE BASE = MOBILE (937:1533): a column — the cross, then the block; insets 16.
+     ⛔ «NOT CENTRED VERTICALLY ON PURPOSE (the mock-up anchors the block under the cross, the bottom
+     inset 136)» IS CANCELLED 2026-09-08-a by the owner's word «on the boost page the content is
+     centred relative to the view horizontally and vertically — mobile only»: the wrap is at least
+     one viewport tall (`min-height:100%` of the fixed overlay; `100svh` in the flow mode, below),
+     its two insets are EQUAL (both the top one — the safe area counts on both sides so the centre
+     is the viewport's), the cross is ABSOLUTE at the top-left corner of the wrap (out of the flow,
+     so it does not shift the centre; it still scrolls with the sheet on a screen too short for the
+     block), and the block carries `margin:auto 0` — NOT `justify-content:center`: in a scrollable
+     column that centres a block taller than the screen and puts its top out of reach (the
+     leaderboard's own trap, 2026-08-10). `gap:80px` is inert now (one flow child) and stays only
+     because the short-screen media below still writes it and a guard reads it. */
+  #starsOverlay .st-wrap { margin:0 auto; width:100%; box-sizing:border-box; position:relative;
     display:flex; flex-direction:column; align-items:center; gap:80px;
-    padding:calc(16px + env(safe-area-inset-top, 0px)) 16px 136px; font-family:var(--font-round); }
+    padding:calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-top, 0px));
+    font-family:var(--font-round); }
+  @media (max-width:559px){
+    /* ⚠️ THE FULL-HEIGHT WRAP IS THE PHONE'S ALONE: on the desktop (≥560) the wrap is content-sized and
+       `margin:auto` centres IT in the overlay — a full-height wrap there has no free space for that
+       margin, and the block sat at the top under the cross (the review's blocker, caught before the run;
+       the ≥560 rule below says `min-height:0` as the belt, and the flow's own wrap rule carries the same
+       559 gate). */
+    #starsOverlay .st-wrap { min-height:100%; }
+    #starsOverlay .st-close { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; }
+    #starsOverlay .st-block { margin:auto 0; }
+  }
   /* ⚠️ THE CROSS IS ALWAYS WHITE WITH A BLACK CROSS (the owner's spec 2026-07-31:
      «a white button with a black little cross is needed, otherwise the contrast is bad. In this
      case the icon colour does not depend on the time of day»). The overlay is dark IN BOTH
@@ -3945,7 +3963,9 @@
      frame; on a 667 one (the SE) the button fell below the fold even with the row. Under 760 of
      height the two insets shrink to 32 — 16 + 56 + 32 + 460 + 32 = 596 on 375×667. */
   @media (max-width:559px) and (max-height:759px){
-    #starsOverlay .st-wrap { gap:32px; padding-bottom:32px; }
+    /* ⛔ `padding-bottom:32px` left 2026-09-08-a: the insets are symmetric (the base rule) and the
+       block is centred — a 32 at the bottom against 16 at the top would shift the centre by 8. */
+    #starsOverlay .st-wrap { gap:32px; }
   }
   /* under 375 the row would not fit (2 × 163 + 16 = 342 against the 328 the wrap leaves at 360 and
      the 288 at 320): the badge, the icon and the gaps shrink while the owner's 16 on the right
@@ -3981,7 +4001,7 @@
      (180), the cross in the corner of the SCREEN. The threshold 700 is this screen's own
      (the dispatcher's decision 2026-07-28) — it stays. */
   @media (min-width:560px){
-    #starsOverlay .st-wrap { margin:auto; width:auto; gap:32px; padding:32px 16px; }
+    #starsOverlay .st-wrap { margin:auto; width:auto; min-height:0; gap:32px; padding:32px 16px; }
     /* the block hugs the row: the mock-up's 510 plus the pills' 20px right insets (≈519) */
     .st-block { width:auto; min-width:510px; max-width:100%; }
     .st-x-m { display:none; }
@@ -4120,6 +4140,81 @@
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }
   }
+  /* ⚡⚡ THE FLOW MODE — THE PAUSE MENU, THE LEADERBOARD AND THE ×5 SCREEN SCROLL AS THE PAGE
+     (2026-09-08-a; the owner's word: «on the boost and leaderboard pages the content must scroll
+     under the Safari iOS 26 system elements», «the same on the pause page»). The mechanism, measured
+     on his phone (canon 2026-09-05-g/-h): WebKit hit-tests (w/2, 4) and (w/2, h−4), walks to the
+     nearest FIXED/STICKY ancestor and paints the zone with its flat colour, else body's colour;
+     with NO candidate at the edge it leaves its glass over the page, and a ROOT scroller draws its
+     scrolled rows into both obscured insets — that is how every ordinary page slides under the
+     status bar and the address bar. An INNER scroller (the three screens until now) clips at its
+     own frame, and no colour can move that frame. So while one of the three is open:
+       - the ROOT is the scroller (`html.flowscroll`): html/body auto-height, overflow visible;
+       - the open screen is `position:relative`, at least one small-viewport tall, its own fixed
+         backdrop layer OFF — the menu paints the sky on ITSELF, sized to the viewport height
+         (`--vp-h`, written at load and on every resize: the fixed layer's box grew with the
+         viewport on every bar collapse too, so this is the same picture in every state — a
+         reload with the bar collapsed reads 754 and the frame is 754) with the nadir below, so the
+         frame at scroll 0 is byte-identical to today and nothing FIXED carries the gradient (iOS
+         ignores `background-attachment:fixed` on the root anyway; the price, named to the owner:
+         the sky scrolls with the cards); the dark screens stand on `html.dimmed body` (opaque on
+         the phone since -h);
+       - NOTHING OF OURS stays at a screen edge: the canvas, the bars, the face and the two edge
+         cards are `visibility:hidden` (skipped by the hit test; the canvas keeps its size and its
+         WebGL context — `display:none` would hand three.js a zero box on the next resize);
+       - ONLY THE TOPMOST SCREEN FLOWS (`html.flowover`): with the leaderboard or the ×5 screen open
+         the menu is `display:none` and so is its floating header. ⛔ THIS IS THE LESSON OF THE
+         TWO ROLLBACKS (2026-09-06-a/-d, «the Resume button under the leaderboard»): two relative
+         siblings stack VERTICALLY in the document and a transparent leaderboard shows the menu
+         through — both screens were visible at once. One screen on top, always;
+       - the floating header, when shown in the flow, is 7% narrower on each side than the
+         viewport — its FIXED box is 86% wide at ANY width, under WebKit's 0.9 ratio, so it can never
+         be the edge candidate (its alpha .01 colour would otherwise be a coin toss) — while its pill
+         is re-centred by a transform at exactly the width it has today, min(100vw − 32, 700):
+         visually identical on a phone and on a 744-wide iPad mini alike (a fixed 28px inset plus a
+         negative margin, the first draft, dropped the 700 cap and was a candidate again from 488 wide);
+       - the root's `touch-action` is `pan-y`, never `auto`: the root's `none` is what has blocked
+         pinch zoom on iPhone since iOS 10 ignored the viewport meta, and a zoom entered on the menu
+         would outlive it and land on the fixed canvas;
+       - the pinned Resume pill stays fixed (≤ 275 wide, 24 off the bottom) — never a candidate.
+     The gate is JS (85-hud `flowOn`): Apple WebKit on a phone-width viewport, `?flow=1` forces it
+     anywhere, `?flow=0` is the kill switch he can test without a deploy. Chromium never sees these
+     rules unless the suite forces them — every existing guard keeps measuring the inner scrollers.
+     ⛔ The centred popups (win, lose, new object, museum, ad) do NOT flow: `.overlay` centres its
+     content and a taller box would drop every card by half the inset. */
+  html.flowscroll, html.flowscroll body { height:auto; min-height:100%; overflow:visible; touch-action:pan-y; }
+  /* ⚠️ NO SCROLL ANCHORING ON THE FLOWING ROOT: the dark screens stand BEFORE the menu in the DOM, and
+     Chromium's anchoring shifts the page by one viewport when one of them is displayed above the menu
+     (measured: 900 → 1744) — the remembered offset would land the menu a screen lower. Safari has no
+     scroll anchoring, so this also makes the bench behave like the phone. */
+  html.flowscroll { overflow-anchor:none; }
+  html.flowscroll body { background-image:none; }
+  html.flowscroll #c, html.flowscroll .bar, html.flowscroll #face,
+  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
+  html.flowscroll #mainScreen, html.flowscroll #lbOverlay, html.flowscroll #starsOverlay {
+    position:relative; inset:auto; height:auto; min-height:100vh; min-height:100svh; overflow:visible;
+    touch-action:pan-y; -webkit-overflow-scrolling:auto; }
+  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
+  html.flowscroll #lbOverlay::before, html.flowscroll #starsOverlay::before { display:none; }
+  html.flowscroll #mainScreen { background-color:rgb(var(--sky-bot-rgb, 204,255,248));
+    background-image:var(--sky-grad, none); background-repeat:no-repeat;
+    background-size:100% var(--vp-h, 100vh); }
+  html.flowover #mainScreen, html.flowover #msSticky { display:none; }
+  html.flowscroll #msSticky { left:7vw; right:7vw; padding-left:0; padding-right:0; }
+  html.flowscroll #msSticky .ms-sticky-in { position:relative; left:50%; transform:translateX(-50%);
+    width:min(calc(100vw - 32px), 700px); max-width:none; margin:0; }
+  /* the ×5 wrap fills the small viewport ON THE PHONE ONLY — the same 559 gate as its base rule: at
+     ≥560 (an iPad mini in the flow) the wrap is content-sized and centred by margin:auto, and this rule,
+     being more specific than the desktop one, would have pinned the block to the top there (the review) */
+  @media (max-width:559px){ html.flowscroll #starsOverlay .st-wrap { min-height:100vh; min-height:100svh; } }
+  /* THE BEYOND-DOCUMENT COLOUR FOLLOWS THE SCROLL (the review): Safari's bottom bar is a content inset, so
+     with the menu scrolled to its END the zone under the bar lies beyond the document and shows body's
+     colour — the zenith violet under the menu's mint tail, the -g colour pair. One body colour cannot serve
+     both ends, but the two beyond-document regions are never visible together on a document this tall: past
+     half of it body turns the nadir (onMenuScroll toggles the class, flowRefresh clears it).
+     ⚠️ `:not(.dimmed)` IS LOAD-BEARING: without it this rule outranks `html.dimmed body` and puts the
+     leaderboard and the ×5 screen on a mint body. */
+  html.flowscroll.flowbot:not(.dimmed) body { background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
   /* ⚠️ THE CURSORS BLOCK STANDS LAST IN THE CSS DELIBERATELY: cursor:pointer on ID
      selectors is scattered across the file at the buttons — the order + !important are load-bearing
      (the history is in the log v198). DO NOT MOVE IT.

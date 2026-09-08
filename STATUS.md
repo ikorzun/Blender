@@ -6,9 +6,37 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: the batches of 2026-09-07 b–i, v2 = main** · the suite **1015 green, 0 red, SUITE: PASS** (run 27 with the three-digit leaderboard guard; run 26 on g + h: 1012) · the live
-site verified by byte size against the build · the worker awaits your `wrangler deploy` (the rank fix and
-the `t` field) · portal package unchanged in shape
+**Build: batch 2026-09-08-a on top of 2026-09-07 b–i, v2 = main** · the suite **1055 green, 0 red, SUITE: PASS** (run 29; run 28 was 1049 green with six timing reds of the new snapshot section, since replaced by polls) · the live
+site verified by byte size against the build · the worker is deployed (the rank fix and the `t` field) · portal package unchanged in shape
+
+**8 SEPTEMBER (batch 2026-09-08-a in CLAUDE.md), your four items — and the phone is the only real check.**
+(2, 3) **On the phone the pause menu, the leaderboard and the ×5 screen now scroll as the PAGE**, so their
+rows pass under the status bar and the address bar: nothing of ours is fixed at a screen edge while one of
+them is open (the canvas, the bars, the face and the two colour cards are hidden), the open screen is the
+document, and ONLY THE TOPMOST screen exists — the leaderboard and the ×5 screen hide the menu under them
+(this is the rule the two 6 September attempts lacked when your phone showed both screens at once). The sky
+of the menu is painted by the menu itself, sized to the viewport at load, so the frame at the top is the one
+you know; the price is that the sky scrolls with the cards. The colour edition stays as the fallback (the
+game's own zones, and any phone where the mode is off). ⚠️ THIS ROUTE BROKE YOUR PHONE TWICE BEFORE AND NEVER
+REPRODUCED HERE: the bench renders (sent to you) show the rows under both edges, the guards prove one screen
+on top by pixels, but your screenshot after the deploy is the real verdict — open the pause menu and scroll,
+open the leaderboard and scroll, open ×5 from the badge. If anything is wrong, `?flow=0` on the link switches
+the mode off without a deploy, and the rollback is one commit. (4) **The ×5 screen is centred in the view on the
+phone**, both axes, the cross in the top-left corner. (1) **The delay**: measured on the bench, opening ×5 and
+the leaderboard costs almost no JS; what is real is the network round trip of the leaderboard on a cold cache
+(0.4–0.7 s from this Mac, more on a phone) and the pause menu's FIRST open of a session (~120 ms building the
+collection's portraits). The leaderboard now opens on its LAST SNAPSHOT at once and refreshes underneath
+(«Loading…» only the very first time). Two candidates the bench cannot see on iOS: the ×5 title's SVG filter
+(a heavy CPU rasterisation in WebKit) and the zone recolour Safari does on the two tap-opened screens — if the
+delay is still there after this build, a 60 fps screen recording of the two taps is what settles it (it
+settled the shake judder). An adversarial review (3 lenses × skeptics) ran before the suite and caught two blockers on the bench — resume
+from a scrolled menu left the floating header over the game, and the ×5 block sat at the top on desktop — plus
+six smaller ones (pinch zoom re-enabled by the root's touch-action, the snapshot's own row lost on a failed
+signed read, the menu thrown to the top after a dark screen closed, the sky's anchor, the zone colour at the
+end of the collection, the header pill's cap on a tablet): all fixed and guarded before the run. ⚠️ THE REVIEW
+DID NOT EXPLAIN THE ORIGINAL PHONE FAILURE — no finding reproduces «both screens at once»; the topmost-only
+rule is the structural answer, and your screenshot is the proof. NAMED, NOT DONE: chunking the menu's
+first-open portrait build; a phone loaded in landscape keeps the mode it loaded with.
 
 **THE WORKER IS DEPLOYED** — by the owner on 2026-09-07 at 10:09 (wrangler 4.129.0 via npx, an OAuth login made on the spot; `Deployed blendo-lb`, version `7f3fa914-9ad5-404f-9f4b-00391dfa1a8f`, the custom domain and both crons). Checked right after: `/v1/top` 200, `max-age=60` (not degraded), 52 players, the snapshot of 10:00 UTC; the live smoke (`server/leaderboard/test/smoke.js`, it writes ONE row and deletes it) — **11 green**, the row gone (404 after the delete). The first hourly tick under the new build (11:00 UTC) builds `ladder2`; until then places are counted the whole way, exact. ⚠️ This Mac now HAS wrangler and a Cloudflare login — a deploy is still your call, never a batch's side effect.
 

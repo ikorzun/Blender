@@ -554,7 +554,23 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
-  ms.addEventListener('scroll', () => {
+  // ⚠️ NAMED AND BOUND TWICE (2026-09-08-a): in the flow mode the PAGE is the menu's scroller and
+  // `#mainScreen` never fires `scroll` — the header vanished on the phone until the window was
+  // listened to as well. The thresholds are viewport-relative rects, correct whichever box scrolled;
+  // at most one of the two listeners fires in a given mode.
+  const onMenuScroll = () => {
+    // ⛔ NOT ON A CLOSED OR HIDDEN MENU (the review's blocker): closing the menu in the flow mode scrolls
+    // the page to 0, and the window's scroll event is dispatched a frame LATER — when the menu is
+    // already display:none, its title's rect is all zeros, «bottom <= 0» reads true, and the header
+    // re-armed itself over the running game, covering the pause button (the 2026-07-31 screenshot,
+    // back). Under a dark screen (`flowover`) the same zeros would arm a hidden header, to surface on
+    // its return. The classes are already cleared by flowRefresh; the event only needs ignoring.
+    if (!ms.classList.contains('open') || getComputedStyle(ms).display === 'none') return;
+    flowNoteScroll();   // the flow mode remembers the visible menu's offset across a dark screen (85-hud)
+    // THE BEYOND-DOCUMENT COLOUR FOLLOWS THE SCROLL in the flow (the review; the rule is at the
+    // `html.flowscroll.flowbot` line of shell.html): past half of the document body turns the nadir,
+    // so the zone under Safari's bottom bar at the end of the collection is not the zenith violet.
+    document.documentElement.classList.toggle('flowbot', document.documentElement.classList.contains('flowscroll') && scrollY > (document.documentElement.scrollHeight - innerHeight) / 2);
     // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
     // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
     // The threshold is the BOTTOM edge of the title: while it is visible even partly,
@@ -570,7 +586,9 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
     // 78px). There is no stickiness any more — the header travels with the flow, it does
     // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
-  }, { passive: true });
+  };
+  ms.addEventListener('scroll', onMenuScroll, { passive: true });
+  addEventListener('scroll', onMenuScroll, { passive: true });
 })();
 // the debug panel — from the menu (previously the entrance was in the pause card)
 // THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The

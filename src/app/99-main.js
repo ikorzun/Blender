@@ -1113,6 +1113,10 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the flow mode (2026-09-08-a, 85-hud): the suite forces it — Chromium never gates it on — and
+  // reads the state the DOM carries; `setFlow(false)` puts the page back
+  setFlow(on){ return flowForce(on); },
+  flowState(){ return flowState(); },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.

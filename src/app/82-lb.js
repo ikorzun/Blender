@@ -175,6 +175,34 @@ let lbMeCache = null;
 // lives until the next successful read and is spent on it.
 let lbBust = 0;
 function lbInvalidate() { lbTopCache = null; lbMeCache = null; lbBust = Date.now(); }
+// ⚡ THE PERSISTED SNAPSHOT (2026-09-08-a): the last GOOD `/v1/top` page 1 and the last good own
+// row, in localStorage, so the screen can lay out rows before the network answers (85-hud
+// `lbScreenRender`). Keyed by the server address (a dev override must not show production's rows)
+// and, for the own row, by the guest id (a merge that switches the id must not show the old row).
+// ⚠️ Only `state:'ok'` results are written — an early/empty board is not a snapshot.
+const LB_SNAP_KEY = 'mixer_lb_snap';
+const LB_SNAP_MAX_MS = 7 * 86400000;   // older than a week it is not shown: a board the server has long rebuilt
+// ⚠️ `lbInvalidate` deliberately leaves the snapshot alone: it fires on every balance change, and the
+// snapshot's job is the NEXT open — the live read that follows refreshes it anyway.
+function lbSnapWrite(patch) {
+  try {
+    if (!LB_BASE) return;
+    let s = null; try { s = JSON.parse(localStorage.getItem(LB_SNAP_KEY) || 'null'); } catch (e) {}
+    if (!s || s.base !== LB_BASE) s = { base: LB_BASE };
+    Object.assign(s, patch);
+    localStorage.setItem(LB_SNAP_KEY, JSON.stringify(s));
+  } catch (e) {}
+}
+function lbSnap() {
+  try {
+    if (!LB_BASE) return null;
+    const s = JSON.parse(localStorage.getItem(LB_SNAP_KEY) || 'null');
+    if (!s || s.base !== LB_BASE || !s.top) return null;
+    if (!(s.at > 0) || Date.now() - s.at > LB_SNAP_MAX_MS) return null;
+    const id = (typeof guestId === 'function') ? guestId() : '';
+    return { top: s.top, me: (s.me && s.gid && s.gid === id) ? s.me : null, at: s.at || 0 };
+  } catch (e) { return null; }
+}
 // ⚠️⚠️ THE «THE SCORE HAS ARRIVED» SUBSCRIPTION — THE POINT THAT WAS MISSING (the owner's complaint
 // 2026-08-12: «I need an instant recount of the rating and the position if I
 // finished a level or spent points on an upgrade»). The submission FORGOT THE CACHE, but
@@ -203,6 +231,7 @@ async function lbTop(page) {
   } else out = { state: 'ok', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: r.body.t };
   if (out.state === 'ok' || out.state === 'early') lbBust = 0;  // the mark is spent
   lbTopCache = { p: p, at: Date.now(), data: out };
+  if (out.state === 'ok' && p === 1) lbSnapWrite({ top: out, at: Date.now() });   // the persisted snapshot (2026-09-08-a)
   return out;
 }
 
@@ -258,6 +287,8 @@ async function lbMe() {
     at: (typeof r.body.t === 'number') ? r.body.t : 0,
   };
   lbMeCache = { at: Date.now(), data: out };
+  if (out.state === 'ok' && out.exact && out.rank > 0) lbSnapWrite({ me: out, gid: id });   // the persisted own row (2026-09-08-a)
+  else if (out.state === 'ok' && !out.rank) lbSnapWrite({ me: null });   // the server says «no row» — the persisted one is dropped, it must not outlive the row
   return out;
 }
 
@@ -464,7 +495,7 @@ try {
 // been burned by this before (`itemsBrief`). Our own namespace rules such a collision
 // out BY CONSTRUCTION.
 window.__lb = {
-  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent,
+  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent, snap: lbSnap,
   base: function () { return LB_BASE; },
   // ⚠️ Outwards goes the SUBMISSION STATE, not an «all is well» flag: the guard must
   // see that the deferred send is ALIVE (a timer is scheduled), otherwise «the 429 is not

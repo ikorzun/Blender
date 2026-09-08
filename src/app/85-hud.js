@@ -75,7 +75,78 @@ function refreshDimmed(){
     const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
     document.documentElement.classList.toggle('dimmed', on);
   } catch(e){}
+  flowRefresh();
 }
+// ⚡⚡ THE FLOW MODE (2026-09-08-a): the pause menu, the leaderboard and the ×5 screen scroll as
+// the PAGE on the phone, so their rows pass under the iOS 26 status bar and address bar. The CSS
+// and the whole mechanism are written at the `html.flowscroll` block at the end of shell.html.
+// THE GATE, decided ONCE at load: Apple WebKit (the one engine that supports the system font
+// keyword — true in every browser on iOS and in Safari on macOS, false in Chromium) on a
+// phone-width viewport (the HUD's own 767 boundary). `?flow=1` forces it anywhere (the bench,
+// an A/B), `?flow=0` switches it off — the owner's kill switch, no deploy needed.
+// ⚠️ NOT re-evaluated on resize: a phone turned to landscape mid-session keeps the mode it loaded
+// with; the rules are harmless at any width.
+const FLOW_Q = (() => { try { const m = /[?&]flow=([01])/.exec(location.search); return m ? m[1] : null; } catch(e){ return null; } })();
+const FLOW_UA = (() => { try { return CSS.supports('font', '-apple-system-body') && matchMedia('(max-width:767px)').matches; } catch(e){ return false; } })();
+let flowOn = FLOW_Q === '1' ? true : FLOW_Q === '0' ? false : FLOW_UA;
+// `--vp-h` = the viewport height, written at load and on every resize: the menu's sky in the flow is
+// sized to it, so the frame is the one the fixed layer painted in EVERY state — that layer's box grew
+// with the viewport on every bar collapse (654 → 754) as well, so re-anchoring on resize is the same
+// picture, not a new cost (the review corrected the first draft's «not on resize»; a load-only value
+// also read 754 on a reload with the bar collapsed and stretched the frame).
+function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
+flowVars();
+try { addEventListener('resize', flowVars); } catch(e){}
+// THE STATE IS READ FROM THE DOM ON EVERY TRANSITION (show/hide, the menu opening and closing):
+// `on` while one of the three is open, `over` while a dark one is on top of the menu — then the menu
+// is `display:none` under it (the CSS), so it is read by its OPEN CLASS and not by its computed
+// display, or the menu would read «closed» while hidden under the leaderboard and the mode would
+// drop the moment the leaderboard closed. Every change of state resets the page scroll (the game's
+// fixed HUD must not come back over a document scrolled by hundreds of pixels) and the menu's own
+// scroll-driven classes (the header's `.on` would otherwise survive at scroll 0 — `openMainScreen`
+// removes them for the same reason).
+// ⚠️ THE MENU'S PLACE IS REMEMBERED ACROSS A DARK SCREEN (the review): the leaderboard and the ×5
+// screen hide the menu under them, and the first draft put it back at the top on every close — in
+// normal mode the inner scroller keeps its place, and the header's own «×5 Boost» exists only after
+// the player has scrolled deep into the collection. The offset is NOTED ON REAL SCROLL EVENTS of the
+// visible menu (`flowNoteScroll`, from onMenuScroll) — not read at the transition: a dark screen
+// stands before the menu in the DOM, and the moment it is displayed the page's offset is no longer
+// the menu's (the bench's scroll anchoring shifted it by a viewport, 900 → 1744). It is restored
+// when the menu returns from under a dark screen, forgotten when the menu closes, and untouched by
+// the suite's `setFlow` toggles. The classes the scroll drives are re-derived EXPLICITLY on the
+// restored, visible menu (a synthetic scroll event — the natural one does not fire when the
+// position does not move).
+let flowSavedY = 0;
+function flowNoteScroll(){
+  try { const h = document.documentElement; if (h.classList.contains('flowscroll') && !h.classList.contains('flowover')) flowSavedY = scrollY; } catch(e){}
+}
+function flowRefresh(){
+  try {
+    const h = document.documentElement, ms = $('mainScreen');
+    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    const menu = !!ms && ms.classList.contains('open'), lb = vis('lbOverlay'), shop = vis('starsOverlay');
+    const on = !!flowOn && (menu || lb || shop), over = on && (lb || shop);
+    const was = h.classList.contains('flowscroll'), wasOver = h.classList.contains('flowover');
+    h.classList.toggle('flowscroll', on); h.classList.toggle('flowover', over);
+    if (on !== was || over !== wasOver){
+      const back = (on && wasOver && !over && menu) ? flowSavedY : 0;   // the menu returns from under a dark screen
+      if (ms){ ms.scrollTop = 0; ms.classList.remove('playoff'); }
+      const sk = $('msSticky'); if (sk) sk.classList.remove('on');
+      h.classList.remove('flowbot');
+      try { scrollTo(0, back); } catch(e){}
+      if (back){ try { dispatchEvent(new Event('scroll')); } catch(e){} }
+    }
+    if (!menu) flowSavedY = 0;   // nothing to remember once the menu is closed
+  } catch(e){}
+}
+function flowState(){
+  const h = document.documentElement;
+  return { enabled: !!flowOn, on: h.classList.contains('flowscroll'), over: h.classList.contains('flowover'),
+    vp: innerHeight, docH: document.documentElement.scrollHeight, scrollY: scrollY,
+    vpH: h.style.getPropertyValue('--vp-h'), saved: flowSavedY };
+}
+// the suite's door: force the mode on the bench (Chromium never gates it on) and re-read the DOM
+function flowForce(on){ flowOn = !!on; flowRefresh(); return flowState(); }
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
@@ -569,11 +640,25 @@ async function lbLoadOurs(my){
   if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
   const t = await lb.top(1).catch(()=>null);
   if (my !== lbEpoch) return;
-  if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
-  if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  const rows = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
+  // ⚠️ A FAILED LIVE READ DOES NOT ERASE THE SNAPSHOT'S ROWS (2026-09-08-a): stale rows beat an
+  // error line — the message is shown only when there is nothing on the screen yet.
+  if (!t || t.state === 'offline' || t.state === 'broken'){ if (!lbHasRows()) lbServ('No connection. Try again later.'); return; }
+  if (t.state === 'early' || !t.rows || !t.rows.length){ if (!lbHasRows()) lbServ('The board is still being built.'); return; }
   const m = await lb.me().catch(()=>null);
   if (my !== lbEpoch) return;
+  // ⚠️ A FAILED OWN-ROW READ MUST NOT ERASE THE OWN ROW THE SNAPSHOT DREW (the review): `/v1/top` is a
+  // plain GET and often lands while the signed `/v1/me` fails — the persisted own row stands in. ONLY
+  // on a FAILURE (offline / broken): a `refused` (`sig`) answer says the key is not this row's, and a
+  // server that SAYS «no row» is not a failure either — 82-lb drops the persisted row on that answer.
+  let mm = m;
+  if (!m || m.state === 'offline' || m.state === 'broken'){ try { const s = lb.snap ? lb.snap() : null; if (s && s.me) mm = s.me; } catch(e){} }
+  lbRenderFrom(t, mm);
+}
+function lbHasRows(){ const host = $('lbList'); return !!(host && host.querySelector('.lb-row')); }
+// THE ONE RENDER PATH (2026-09-08-a): the live read and the persisted snapshot both come here, so
+// the stale rows are laid out by exactly the code the fresh ones are — no second layout to drift.
+function lbRenderFrom(t, m){
+  const rows = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
   // ⚠️⚠️ ONE'S OWN ROW GOES THROUGH THE SAME RENDER as all the others. Previously it
   // was assembled by a SEPARATE piece of code — and diverged from the mockup in three
   // places at once (the rank with a hash sign, the name «You» instead of «Name • You», a compressed score). This is
@@ -684,9 +769,22 @@ async function lbLoadPlat(my){
 // the platform — the display can be brought back with one line if the owner changes his mind.
 function lbScreenRender(){
   // «Loading…» — only on an empty list: the instant re-render after a spend
-  // comes from the __lb caches, and a loading blink on a live list would read as flicker
-  const host = $('lbList');
-  if (!host || !host.querySelector('.lb-row')) lbServ('Loading…');
+  // comes from the __lb caches, and a loading blink on a live list would read as flicker.
+  // ⚡ STALE-WHILE-REVALIDATE (2026-09-08-a, the owner's «an unpleasant delay opening the
+  // leaderboards»): the live top is a network round trip — 0.43–0.66 s measured against
+  // lb.blendo.monster from this Mac, more on a phone — and until it lands the screen said
+  // «Loading…». The last good top and own row are persisted by 82-lb (`__lb.snap()`); on an
+  // empty list they are laid out SYNCHRONOUSLY through the same `lbRenderFrom`, and the live read
+  // replaces them when it arrives. «Loading…» only when nothing was ever loaded.
+  if (!lbHasRows()){
+    let drew = false;
+    try {
+      const lb = (typeof window !== 'undefined') ? window.__lb : null;
+      const s = (lb && lb.snap) ? lb.snap() : null;
+      if (s && s.top && s.top.state === 'ok' && s.top.rows && s.top.rows.length){ lbRenderFrom(s.top, s.me || null); drew = true; }
+    } catch(e){}
+    if (!drew) lbServ('Loading…');
+  }
   const my = ++lbEpoch;
   lbLoadOurs(my).catch(()=>{});
 }
@@ -2633,6 +2731,7 @@ function openMainScreen(){
     ms.classList.remove('playoff');
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
+  flowRefresh();   // the flow mode (2026-09-08-a): the menu is now the page's scroller on the phone
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
@@ -2659,6 +2758,7 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
+  flowRefresh();   // the flow mode (2026-09-08-a): the root locks again, the page scroll is reset
   // The floating header is a SEPARATE fixed node OUTSIDE #mainScreen (z-index 31):
   // closing the screen does not hide it. Without an explicit dismissal it survived the closing
   // and hung over the game (the owner's screenshot 2026-07-31: he scrolled the menu, pressed

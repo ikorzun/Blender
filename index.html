@@ -3825,14 +3825,32 @@
      ⚠️ The mock-up's frame fill #2d2d2d is the CANVAS, not the popup style — the common .overlay
      (fade+blur) stays, as on every popup (the owner's word at the new-item screen). */
   #starsOverlay { z-index:40; overflow-y:auto; touch-action:pan-y; align-items:flex-start; }
-  /* THE BASE = MOBILE (937:1533): a column FROM THE TOP — the cross 56 centred, a gap of 80,
-     then the block; insets 16, the bottom inset 136 from the mock-up. ⚠️ NOT centred vertically
-     on purpose: the mock-up anchors the block under the cross (the desktop centres, see below).
-     The top inset grows by the safe area: in the native wrapper the sheet runs under the
-     Dynamic Island and the in-flow cross sat half-hidden behind it. */
-  #starsOverlay .st-wrap { margin:0 auto; width:100%; box-sizing:border-box;
+  /* THE BASE = MOBILE (937:1533): a column — the cross, then the block; insets 16.
+     ⛔ «NOT CENTRED VERTICALLY ON PURPOSE (the mock-up anchors the block under the cross, the bottom
+     inset 136)» IS CANCELLED 2026-09-08-a by the owner's word «on the boost page the content is
+     centred relative to the view horizontally and vertically — mobile only»: the wrap is at least
+     one viewport tall (`min-height:100%` of the fixed overlay; `100svh` in the flow mode, below),
+     its two insets are EQUAL (both the top one — the safe area counts on both sides so the centre
+     is the viewport's), the cross is ABSOLUTE at the top-left corner of the wrap (out of the flow,
+     so it does not shift the centre; it still scrolls with the sheet on a screen too short for the
+     block), and the block carries `margin:auto 0` — NOT `justify-content:center`: in a scrollable
+     column that centres a block taller than the screen and puts its top out of reach (the
+     leaderboard's own trap, 2026-08-10). `gap:80px` is inert now (one flow child) and stays only
+     because the short-screen media below still writes it and a guard reads it. */
+  #starsOverlay .st-wrap { margin:0 auto; width:100%; box-sizing:border-box; position:relative;
     display:flex; flex-direction:column; align-items:center; gap:80px;
-    padding:calc(16px + env(safe-area-inset-top, 0px)) 16px 136px; font-family:var(--font-round); }
+    padding:calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-top, 0px));
+    font-family:var(--font-round); }
+  @media (max-width:559px){
+    /* ⚠️ THE FULL-HEIGHT WRAP IS THE PHONE'S ALONE: on the desktop (≥560) the wrap is content-sized and
+       `margin:auto` centres IT in the overlay — a full-height wrap there has no free space for that
+       margin, and the block sat at the top under the cross (the review's blocker, caught before the run;
+       the ≥560 rule below says `min-height:0` as the belt, and the flow's own wrap rule carries the same
+       559 gate). */
+    #starsOverlay .st-wrap { min-height:100%; }
+    #starsOverlay .st-close { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; }
+    #starsOverlay .st-block { margin:auto 0; }
+  }
   /* ⚠️ THE CROSS IS ALWAYS WHITE WITH A BLACK CROSS (the owner's spec 2026-07-31:
      «a white button with a black little cross is needed, otherwise the contrast is bad. In this
      case the icon colour does not depend on the time of day»). The overlay is dark IN BOTH
@@ -3945,7 +3963,9 @@
      frame; on a 667 one (the SE) the button fell below the fold even with the row. Under 760 of
      height the two insets shrink to 32 — 16 + 56 + 32 + 460 + 32 = 596 on 375×667. */
   @media (max-width:559px) and (max-height:759px){
-    #starsOverlay .st-wrap { gap:32px; padding-bottom:32px; }
+    /* ⛔ `padding-bottom:32px` left 2026-09-08-a: the insets are symmetric (the base rule) and the
+       block is centred — a 32 at the bottom against 16 at the top would shift the centre by 8. */
+    #starsOverlay .st-wrap { gap:32px; }
   }
   /* under 375 the row would not fit (2 × 163 + 16 = 342 against the 328 the wrap leaves at 360 and
      the 288 at 320): the badge, the icon and the gaps shrink while the owner's 16 on the right
@@ -3981,7 +4001,7 @@
      (180), the cross in the corner of the SCREEN. The threshold 700 is this screen's own
      (the dispatcher's decision 2026-07-28) — it stays. */
   @media (min-width:560px){
-    #starsOverlay .st-wrap { margin:auto; width:auto; gap:32px; padding:32px 16px; }
+    #starsOverlay .st-wrap { margin:auto; width:auto; min-height:0; gap:32px; padding:32px 16px; }
     /* the block hugs the row: the mock-up's 510 plus the pills' 20px right insets (≈519) */
     .st-block { width:auto; min-width:510px; max-width:100%; }
     .st-x-m { display:none; }
@@ -4120,6 +4140,81 @@
   @media (max-width:1079px) and (prefers-reduced-motion: reduce){
     .ms-play::after { animation:none; opacity:0; }
   }
+  /* ⚡⚡ THE FLOW MODE — THE PAUSE MENU, THE LEADERBOARD AND THE ×5 SCREEN SCROLL AS THE PAGE
+     (2026-09-08-a; the owner's word: «on the boost and leaderboard pages the content must scroll
+     under the Safari iOS 26 system elements», «the same on the pause page»). The mechanism, measured
+     on his phone (canon 2026-09-05-g/-h): WebKit hit-tests (w/2, 4) and (w/2, h−4), walks to the
+     nearest FIXED/STICKY ancestor and paints the zone with its flat colour, else body's colour;
+     with NO candidate at the edge it leaves its glass over the page, and a ROOT scroller draws its
+     scrolled rows into both obscured insets — that is how every ordinary page slides under the
+     status bar and the address bar. An INNER scroller (the three screens until now) clips at its
+     own frame, and no colour can move that frame. So while one of the three is open:
+       - the ROOT is the scroller (`html.flowscroll`): html/body auto-height, overflow visible;
+       - the open screen is `position:relative`, at least one small-viewport tall, its own fixed
+         backdrop layer OFF — the menu paints the sky on ITSELF, sized to the viewport height
+         (`--vp-h`, written at load and on every resize: the fixed layer's box grew with the
+         viewport on every bar collapse too, so this is the same picture in every state — a
+         reload with the bar collapsed reads 754 and the frame is 754) with the nadir below, so the
+         frame at scroll 0 is byte-identical to today and nothing FIXED carries the gradient (iOS
+         ignores `background-attachment:fixed` on the root anyway; the price, named to the owner:
+         the sky scrolls with the cards); the dark screens stand on `html.dimmed body` (opaque on
+         the phone since -h);
+       - NOTHING OF OURS stays at a screen edge: the canvas, the bars, the face and the two edge
+         cards are `visibility:hidden` (skipped by the hit test; the canvas keeps its size and its
+         WebGL context — `display:none` would hand three.js a zero box on the next resize);
+       - ONLY THE TOPMOST SCREEN FLOWS (`html.flowover`): with the leaderboard or the ×5 screen open
+         the menu is `display:none` and so is its floating header. ⛔ THIS IS THE LESSON OF THE
+         TWO ROLLBACKS (2026-09-06-a/-d, «the Resume button under the leaderboard»): two relative
+         siblings stack VERTICALLY in the document and a transparent leaderboard shows the menu
+         through — both screens were visible at once. One screen on top, always;
+       - the floating header, when shown in the flow, is 7% narrower on each side than the
+         viewport — its FIXED box is 86% wide at ANY width, under WebKit's 0.9 ratio, so it can never
+         be the edge candidate (its alpha .01 colour would otherwise be a coin toss) — while its pill
+         is re-centred by a transform at exactly the width it has today, min(100vw − 32, 700):
+         visually identical on a phone and on a 744-wide iPad mini alike (a fixed 28px inset plus a
+         negative margin, the first draft, dropped the 700 cap and was a candidate again from 488 wide);
+       - the root's `touch-action` is `pan-y`, never `auto`: the root's `none` is what has blocked
+         pinch zoom on iPhone since iOS 10 ignored the viewport meta, and a zoom entered on the menu
+         would outlive it and land on the fixed canvas;
+       - the pinned Resume pill stays fixed (≤ 275 wide, 24 off the bottom) — never a candidate.
+     The gate is JS (85-hud `flowOn`): Apple WebKit on a phone-width viewport, `?flow=1` forces it
+     anywhere, `?flow=0` is the kill switch he can test without a deploy. Chromium never sees these
+     rules unless the suite forces them — every existing guard keeps measuring the inner scrollers.
+     ⛔ The centred popups (win, lose, new object, museum, ad) do NOT flow: `.overlay` centres its
+     content and a taller box would drop every card by half the inset. */
+  html.flowscroll, html.flowscroll body { height:auto; min-height:100%; overflow:visible; touch-action:pan-y; }
+  /* ⚠️ NO SCROLL ANCHORING ON THE FLOWING ROOT: the dark screens stand BEFORE the menu in the DOM, and
+     Chromium's anchoring shifts the page by one viewport when one of them is displayed above the menu
+     (measured: 900 → 1744) — the remembered offset would land the menu a screen lower. Safari has no
+     scroll anchoring, so this also makes the bench behave like the phone. */
+  html.flowscroll { overflow-anchor:none; }
+  html.flowscroll body { background-image:none; }
+  html.flowscroll #c, html.flowscroll .bar, html.flowscroll #face,
+  html.flowscroll #edgeTop, html.flowscroll #edgeBot { visibility:hidden; }
+  html.flowscroll #mainScreen, html.flowscroll #lbOverlay, html.flowscroll #starsOverlay {
+    position:relative; inset:auto; height:auto; min-height:100vh; min-height:100svh; overflow:visible;
+    touch-action:pan-y; -webkit-overflow-scrolling:auto; }
+  html.flowscroll #mainScreen::before, html.flowscroll #mainScreen::after,
+  html.flowscroll #lbOverlay::before, html.flowscroll #starsOverlay::before { display:none; }
+  html.flowscroll #mainScreen { background-color:rgb(var(--sky-bot-rgb, 204,255,248));
+    background-image:var(--sky-grad, none); background-repeat:no-repeat;
+    background-size:100% var(--vp-h, 100vh); }
+  html.flowover #mainScreen, html.flowover #msSticky { display:none; }
+  html.flowscroll #msSticky { left:7vw; right:7vw; padding-left:0; padding-right:0; }
+  html.flowscroll #msSticky .ms-sticky-in { position:relative; left:50%; transform:translateX(-50%);
+    width:min(calc(100vw - 32px), 700px); max-width:none; margin:0; }
+  /* the ×5 wrap fills the small viewport ON THE PHONE ONLY — the same 559 gate as its base rule: at
+     ≥560 (an iPad mini in the flow) the wrap is content-sized and centred by margin:auto, and this rule,
+     being more specific than the desktop one, would have pinned the block to the top there (the review) */
+  @media (max-width:559px){ html.flowscroll #starsOverlay .st-wrap { min-height:100vh; min-height:100svh; } }
+  /* THE BEYOND-DOCUMENT COLOUR FOLLOWS THE SCROLL (the review): Safari's bottom bar is a content inset, so
+     with the menu scrolled to its END the zone under the bar lies beyond the document and shows body's
+     colour — the zenith violet under the menu's mint tail, the -g colour pair. One body colour cannot serve
+     both ends, but the two beyond-document regions are never visible together on a document this tall: past
+     half of it body turns the nadir (onMenuScroll toggles the class, flowRefresh clears it).
+     ⚠️ `:not(.dimmed)` IS LOAD-BEARING: without it this rule outranks `html.dimmed body` and puts the
+     leaderboard and the ×5 screen on a mint body. */
+  html.flowscroll.flowbot:not(.dimmed) body { background-color:rgb(var(--sky-bot-rgb, 204,255,248)); }
   /* ⚠️ THE CURSORS BLOCK STANDS LAST IN THE CSS DELIBERATELY: cursor:pointer on ID
      selectors is scattered across the file at the buttons — the order + !important are load-bearing
      (the history is in the log v198). DO NOT MOVE IT.
@@ -19657,6 +19752,34 @@ let lbMeCache = null;
 // lives until the next successful read and is spent on it.
 let lbBust = 0;
 function lbInvalidate() { lbTopCache = null; lbMeCache = null; lbBust = Date.now(); }
+// ⚡ THE PERSISTED SNAPSHOT (2026-09-08-a): the last GOOD `/v1/top` page 1 and the last good own
+// row, in localStorage, so the screen can lay out rows before the network answers (85-hud
+// `lbScreenRender`). Keyed by the server address (a dev override must not show production's rows)
+// and, for the own row, by the guest id (a merge that switches the id must not show the old row).
+// ⚠️ Only `state:'ok'` results are written — an early/empty board is not a snapshot.
+const LB_SNAP_KEY = 'mixer_lb_snap';
+const LB_SNAP_MAX_MS = 7 * 86400000;   // older than a week it is not shown: a board the server has long rebuilt
+// ⚠️ `lbInvalidate` deliberately leaves the snapshot alone: it fires on every balance change, and the
+// snapshot's job is the NEXT open — the live read that follows refreshes it anyway.
+function lbSnapWrite(patch) {
+  try {
+    if (!LB_BASE) return;
+    let s = null; try { s = JSON.parse(localStorage.getItem(LB_SNAP_KEY) || 'null'); } catch (e) {}
+    if (!s || s.base !== LB_BASE) s = { base: LB_BASE };
+    Object.assign(s, patch);
+    localStorage.setItem(LB_SNAP_KEY, JSON.stringify(s));
+  } catch (e) {}
+}
+function lbSnap() {
+  try {
+    if (!LB_BASE) return null;
+    const s = JSON.parse(localStorage.getItem(LB_SNAP_KEY) || 'null');
+    if (!s || s.base !== LB_BASE || !s.top) return null;
+    if (!(s.at > 0) || Date.now() - s.at > LB_SNAP_MAX_MS) return null;
+    const id = (typeof guestId === 'function') ? guestId() : '';
+    return { top: s.top, me: (s.me && s.gid && s.gid === id) ? s.me : null, at: s.at || 0 };
+  } catch (e) { return null; }
+}
 // ⚠️⚠️ THE «THE SCORE HAS ARRIVED» SUBSCRIPTION — THE POINT THAT WAS MISSING (the owner's complaint
 // 2026-08-12: «I need an instant recount of the rating and the position if I
 // finished a level or spent points on an upgrade»). The submission FORGOT THE CACHE, but
@@ -19685,6 +19808,7 @@ async function lbTop(page) {
   } else out = { state: 'ok', rows: r.body.r.map(lbRow), total: r.body.n || 0, at: r.body.t };
   if (out.state === 'ok' || out.state === 'early') lbBust = 0;  // the mark is spent
   lbTopCache = { p: p, at: Date.now(), data: out };
+  if (out.state === 'ok' && p === 1) lbSnapWrite({ top: out, at: Date.now() });   // the persisted snapshot (2026-09-08-a)
   return out;
 }
 
@@ -19740,6 +19864,8 @@ async function lbMe() {
     at: (typeof r.body.t === 'number') ? r.body.t : 0,
   };
   lbMeCache = { at: Date.now(), data: out };
+  if (out.state === 'ok' && out.exact && out.rank > 0) lbSnapWrite({ me: out, gid: id });   // the persisted own row (2026-09-08-a)
+  else if (out.state === 'ok' && !out.rank) lbSnapWrite({ me: null });   // the server says «no row» — the persisted one is dropped, it must not outlive the row
   return out;
 }
 
@@ -19946,7 +20072,7 @@ try {
 // been burned by this before (`itemsBrief`). Our own namespace rules such a collision
 // out BY CONSTRUCTION.
 window.__lb = {
-  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent,
+  top: lbTop, me: lbMe, submit: lbSubmit, invalidate: lbInvalidate, onSent: lbOnSent, snap: lbSnap,
   base: function () { return LB_BASE; },
   // ⚠️ Outwards goes the SUBMISSION STATE, not an «all is well» flag: the guard must
   // see that the deferred send is ALIVE (a timer is scheduled), otherwise «the 429 is not
@@ -20031,7 +20157,78 @@ function refreshDimmed(){
     const on = DIM_OVERLAYS.some(id => { const e = $(id); return e && getComputedStyle(e).display !== 'none'; });
     document.documentElement.classList.toggle('dimmed', on);
   } catch(e){}
+  flowRefresh();
 }
+// ⚡⚡ THE FLOW MODE (2026-09-08-a): the pause menu, the leaderboard and the ×5 screen scroll as
+// the PAGE on the phone, so their rows pass under the iOS 26 status bar and address bar. The CSS
+// and the whole mechanism are written at the `html.flowscroll` block at the end of shell.html.
+// THE GATE, decided ONCE at load: Apple WebKit (the one engine that supports the system font
+// keyword — true in every browser on iOS and in Safari on macOS, false in Chromium) on a
+// phone-width viewport (the HUD's own 767 boundary). `?flow=1` forces it anywhere (the bench,
+// an A/B), `?flow=0` switches it off — the owner's kill switch, no deploy needed.
+// ⚠️ NOT re-evaluated on resize: a phone turned to landscape mid-session keeps the mode it loaded
+// with; the rules are harmless at any width.
+const FLOW_Q = (() => { try { const m = /[?&]flow=([01])/.exec(location.search); return m ? m[1] : null; } catch(e){ return null; } })();
+const FLOW_UA = (() => { try { return CSS.supports('font', '-apple-system-body') && matchMedia('(max-width:767px)').matches; } catch(e){ return false; } })();
+let flowOn = FLOW_Q === '1' ? true : FLOW_Q === '0' ? false : FLOW_UA;
+// `--vp-h` = the viewport height, written at load and on every resize: the menu's sky in the flow is
+// sized to it, so the frame is the one the fixed layer painted in EVERY state — that layer's box grew
+// with the viewport on every bar collapse (654 → 754) as well, so re-anchoring on resize is the same
+// picture, not a new cost (the review corrected the first draft's «not on resize»; a load-only value
+// also read 754 on a reload with the bar collapsed and stretched the frame).
+function flowVars(){ try { document.documentElement.style.setProperty('--vp-h', innerHeight + 'px'); } catch(e){} }
+flowVars();
+try { addEventListener('resize', flowVars); } catch(e){}
+// THE STATE IS READ FROM THE DOM ON EVERY TRANSITION (show/hide, the menu opening and closing):
+// `on` while one of the three is open, `over` while a dark one is on top of the menu — then the menu
+// is `display:none` under it (the CSS), so it is read by its OPEN CLASS and not by its computed
+// display, or the menu would read «closed» while hidden under the leaderboard and the mode would
+// drop the moment the leaderboard closed. Every change of state resets the page scroll (the game's
+// fixed HUD must not come back over a document scrolled by hundreds of pixels) and the menu's own
+// scroll-driven classes (the header's `.on` would otherwise survive at scroll 0 — `openMainScreen`
+// removes them for the same reason).
+// ⚠️ THE MENU'S PLACE IS REMEMBERED ACROSS A DARK SCREEN (the review): the leaderboard and the ×5
+// screen hide the menu under them, and the first draft put it back at the top on every close — in
+// normal mode the inner scroller keeps its place, and the header's own «×5 Boost» exists only after
+// the player has scrolled deep into the collection. The offset is NOTED ON REAL SCROLL EVENTS of the
+// visible menu (`flowNoteScroll`, from onMenuScroll) — not read at the transition: a dark screen
+// stands before the menu in the DOM, and the moment it is displayed the page's offset is no longer
+// the menu's (the bench's scroll anchoring shifted it by a viewport, 900 → 1744). It is restored
+// when the menu returns from under a dark screen, forgotten when the menu closes, and untouched by
+// the suite's `setFlow` toggles. The classes the scroll drives are re-derived EXPLICITLY on the
+// restored, visible menu (a synthetic scroll event — the natural one does not fire when the
+// position does not move).
+let flowSavedY = 0;
+function flowNoteScroll(){
+  try { const h = document.documentElement; if (h.classList.contains('flowscroll') && !h.classList.contains('flowover')) flowSavedY = scrollY; } catch(e){}
+}
+function flowRefresh(){
+  try {
+    const h = document.documentElement, ms = $('mainScreen');
+    const vis = id => { const e = $(id); return !!e && getComputedStyle(e).display !== 'none'; };
+    const menu = !!ms && ms.classList.contains('open'), lb = vis('lbOverlay'), shop = vis('starsOverlay');
+    const on = !!flowOn && (menu || lb || shop), over = on && (lb || shop);
+    const was = h.classList.contains('flowscroll'), wasOver = h.classList.contains('flowover');
+    h.classList.toggle('flowscroll', on); h.classList.toggle('flowover', over);
+    if (on !== was || over !== wasOver){
+      const back = (on && wasOver && !over && menu) ? flowSavedY : 0;   // the menu returns from under a dark screen
+      if (ms){ ms.scrollTop = 0; ms.classList.remove('playoff'); }
+      const sk = $('msSticky'); if (sk) sk.classList.remove('on');
+      h.classList.remove('flowbot');
+      try { scrollTo(0, back); } catch(e){}
+      if (back){ try { dispatchEvent(new Event('scroll')); } catch(e){} }
+    }
+    if (!menu) flowSavedY = 0;   // nothing to remember once the menu is closed
+  } catch(e){}
+}
+function flowState(){
+  const h = document.documentElement;
+  return { enabled: !!flowOn, on: h.classList.contains('flowscroll'), over: h.classList.contains('flowover'),
+    vp: innerHeight, docH: document.documentElement.scrollHeight, scrollY: scrollY,
+    vpH: h.style.getPropertyValue('--vp-h'), saved: flowSavedY };
+}
+// the suite's door: force the mode on the bench (Chromium never gates it on) and re-read the DOM
+function flowForce(on){ flowOn = !!on; flowRefresh(); return flowState(); }
 function show(id){
   const el = $(id);
   el.style.display = 'flex';
@@ -20525,11 +20722,25 @@ async function lbLoadOurs(my){
   if (!lb || !lb.top || (typeof lb.base === 'function' && !lb.base())){ lbServ('Leaderboard is off in this build.'); return; }
   const t = await lb.top(1).catch(()=>null);
   if (my !== lbEpoch) return;
-  if (!t || t.state === 'offline' || t.state === 'broken'){ lbServ('No connection. Try again later.'); return; }
-  if (t.state === 'early' || !t.rows || !t.rows.length){ lbServ('The board is still being built.'); return; }
-  const rows = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
+  // ⚠️ A FAILED LIVE READ DOES NOT ERASE THE SNAPSHOT'S ROWS (2026-09-08-a): stale rows beat an
+  // error line — the message is shown only when there is nothing on the screen yet.
+  if (!t || t.state === 'offline' || t.state === 'broken'){ if (!lbHasRows()) lbServ('No connection. Try again later.'); return; }
+  if (t.state === 'early' || !t.rows || !t.rows.length){ if (!lbHasRows()) lbServ('The board is still being built.'); return; }
   const m = await lb.me().catch(()=>null);
   if (my !== lbEpoch) return;
+  // ⚠️ A FAILED OWN-ROW READ MUST NOT ERASE THE OWN ROW THE SNAPSHOT DREW (the review): `/v1/top` is a
+  // plain GET and often lands while the signed `/v1/me` fails — the persisted own row stands in. ONLY
+  // on a FAILURE (offline / broken): a `refused` (`sig`) answer says the key is not this row's, and a
+  // server that SAYS «no row» is not a failure either — 82-lb drops the persisted row on that answer.
+  let mm = m;
+  if (!m || m.state === 'offline' || m.state === 'broken'){ try { const s = lb.snap ? lb.snap() : null; if (s && s.me) mm = s.me; } catch(e){} }
+  lbRenderFrom(t, mm);
+}
+function lbHasRows(){ const host = $('lbList'); return !!(host && host.querySelector('.lb-row')); }
+// THE ONE RENDER PATH (2026-09-08-a): the live read and the persisted snapshot both come here, so
+// the stale rows are laid out by exactly the code the fresh ones are — no second layout to drift.
+function lbRenderFrom(t, m){
+  const rows = t.rows.map((r, i) => ({ pos:i + 1, name:r && r.name, av:r && r.av, score:r && r.score }));
   // ⚠️⚠️ ONE'S OWN ROW GOES THROUGH THE SAME RENDER as all the others. Previously it
   // was assembled by a SEPARATE piece of code — and diverged from the mockup in three
   // places at once (the rank with a hash sign, the name «You» instead of «Name • You», a compressed score). This is
@@ -20640,9 +20851,22 @@ async function lbLoadPlat(my){
 // the platform — the display can be brought back with one line if the owner changes his mind.
 function lbScreenRender(){
   // «Loading…» — only on an empty list: the instant re-render after a spend
-  // comes from the __lb caches, and a loading blink on a live list would read as flicker
-  const host = $('lbList');
-  if (!host || !host.querySelector('.lb-row')) lbServ('Loading…');
+  // comes from the __lb caches, and a loading blink on a live list would read as flicker.
+  // ⚡ STALE-WHILE-REVALIDATE (2026-09-08-a, the owner's «an unpleasant delay opening the
+  // leaderboards»): the live top is a network round trip — 0.43–0.66 s measured against
+  // lb.blendo.monster from this Mac, more on a phone — and until it lands the screen said
+  // «Loading…». The last good top and own row are persisted by 82-lb (`__lb.snap()`); on an
+  // empty list they are laid out SYNCHRONOUSLY through the same `lbRenderFrom`, and the live read
+  // replaces them when it arrives. «Loading…» only when nothing was ever loaded.
+  if (!lbHasRows()){
+    let drew = false;
+    try {
+      const lb = (typeof window !== 'undefined') ? window.__lb : null;
+      const s = (lb && lb.snap) ? lb.snap() : null;
+      if (s && s.top && s.top.state === 'ok' && s.top.rows && s.top.rows.length){ lbRenderFrom(s.top, s.me || null); drew = true; }
+    } catch(e){}
+    if (!drew) lbServ('Loading…');
+  }
   const my = ++lbEpoch;
   lbLoadOurs(my).catch(()=>{});
 }
@@ -22589,6 +22813,7 @@ function openMainScreen(){
     ms.classList.remove('playoff');
     const sk = $('msSticky'); if (sk) sk.classList.remove('on');
   }
+  flowRefresh();   // the flow mode (2026-09-08-a): the menu is now the page's scroller on the phone
   menuEyesStart(); // #8b: bring the menu's eyes to life (the cursor / the looking around)
 }
 // THE SINGLE WRITE POINT OF THE EDGE'S SECOND CHANNEL (the `theme-color` meta). A separate
@@ -22615,6 +22840,7 @@ function closeMainScreen(){
   try { msSkyStop(); } catch(e){}
   $('mainScreen').classList.remove('open');
   document.documentElement.classList.remove('menuopen');
+  flowRefresh();   // the flow mode (2026-09-08-a): the root locks again, the page scroll is reset
   // The floating header is a SEPARATE fixed node OUTSIDE #mainScreen (z-index 31):
   // closing the screen does not hide it. Without an explicit dismissal it survived the closing
   // and hung over the game (the owner's screenshot 2026-07-31: he scrolled the menu, pressed
@@ -24046,7 +24272,23 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
   const ms = $('mainScreen'), play = document.querySelector('.ms-play'),
         sticky = $('msSticky');
   if (!ms || !play) return;
-  ms.addEventListener('scroll', () => {
+  // ⚠️ NAMED AND BOUND TWICE (2026-09-08-a): in the flow mode the PAGE is the menu's scroller and
+  // `#mainScreen` never fires `scroll` — the header vanished on the phone until the window was
+  // listened to as well. The thresholds are viewport-relative rects, correct whichever box scrolled;
+  // at most one of the two listeners fires in a given mode.
+  const onMenuScroll = () => {
+    // ⛔ NOT ON A CLOSED OR HIDDEN MENU (the review's blocker): closing the menu in the flow mode scrolls
+    // the page to 0, and the window's scroll event is dispatched a frame LATER — when the menu is
+    // already display:none, its title's rect is all zeros, «bottom <= 0» reads true, and the header
+    // re-armed itself over the running game, covering the pause button (the 2026-07-31 screenshot,
+    // back). Under a dark screen (`flowover`) the same zeros would arm a hidden header, to surface on
+    // its return. The classes are already cleared by flowRefresh; the event only needs ignoring.
+    if (!ms.classList.contains('open') || getComputedStyle(ms).display === 'none') return;
+    flowNoteScroll();   // the flow mode remembers the visible menu's offset across a dark screen (85-hud)
+    // THE BEYOND-DOCUMENT COLOUR FOLLOWS THE SCROLL in the flow (the review; the rule is at the
+    // `html.flowscroll.flowbot` line of shell.html): past half of the document body turns the nadir,
+    // so the zone under Safari's bottom bar at the end of the collection is not the zenith violet.
+    document.documentElement.classList.toggle('flowbot', document.documentElement.classList.contains('flowscroll') && scrollY > (document.documentElement.scrollHeight - innerHeight) / 2);
     // ⚠️ THE FLOATING HEADER APPEARS WHEN THE «My Collection» BLOCK GOES ABOVE THE
     // TOP OF THE VIEW (the owner's spec 2026-07-31), and NOT on the fact of scrolling.
     // The threshold is the BOTTOM edge of the title: while it is visible even partly,
@@ -24062,7 +24304,9 @@ if ($('msGetMore2')) $('msGetMore2').addEventListener('click', () => $('msGetMor
     // 78px). There is no stickiness any more — the header travels with the flow, it does
     // not overlap anything, and the window closes by itself.
     ms.classList.toggle('playoff', play.getBoundingClientRect().bottom <= 0);
-  }, { passive: true });
+  };
+  ms.addEventListener('scroll', onMenuScroll, { passive: true });
+  addEventListener('scroll', onMenuScroll, { passive: true });
 })();
 // the debug panel — from the menu (previously the entrance was in the pause card)
 // THE LEADERBOARD SCREEN: it is opened from the menu, it is closed by the cross. ⚠️ The
@@ -25554,6 +25798,10 @@ window.__game = {
   // the seven dark overlays that darken the iOS 26 chrome zones (85-hud `DIM_OVERLAYS`) — exposed so the
   // suite's census can prove a popup added later was not forgotten
   dimList(){ return DIM_OVERLAYS.slice(); },
+  // the flow mode (2026-09-08-a, 85-hud): the suite forces it — Chromium never gates it on — and
+  // reads the state the DOM carries; `setFlow(false)` puts the page back
+  setFlow(on){ return flowForce(on); },
+  flowState(){ return flowState(); },
   // the two edge cards (the iOS 26 chrome zones — shell.html at the `body` rule). `edgeTriple` is the
   // pure formula for the frame's bottom row at a fever level; `edgeFever` forces the uniform and lets the
   // LOOP write the variable through its own path, so the guard tests the wiring and not a copy of it.

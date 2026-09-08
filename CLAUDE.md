@@ -15632,6 +15632,10 @@ removal of a few CSS rules cannot move it by 95 KB.
 ⛔ SO THE NEXT ATTEMPT, IF THERE IS ONE, MUST BEGIN WITH A REPRODUCTION ON THE DEVICE, not with a design:
 a page that is not the game, that he can open and screenshot, that isolates one change at a time. Anything
 else is a fifth guess.
+⛔ OVERRIDDEN BY HIS DIRECT ORDER OF 2026-09-08 («the content must scroll under the Safari iOS 26 system
+elements», «after you fix it and run the suite, push it all»): batch 2026-09-08-a ships the route ON by
+default on the phone, with a picture first (the bench at his phone's geometry), the two device failures
+encoded as rules (one screen on top, always), and a kill switch (`?flow=0`) he can test without a deploy.
 
 ## BATCH 2026-09-06-e: THE SEPTEMBER REVIEW CHECKED AGAINST THE TREE — THE KEY TRAVELS WITH THE ID, THE LADDER LEARNS TIES, THE OVERRIDE IS LOCAL-ONLY (his word: «check the recommendations, then we return to the fields», then «do only what you consider necessary»)
 
@@ -15841,6 +15845,10 @@ in the SwiftUI wrapper there is no Safari chrome. The fix is for the direct link
 ⛔ CONTENT UNDER EITHER BAR STAYS OUT OF THE CONTRACT — batch -h's closing lines, -d's post-mortem, and now
 an outside source saying the same. The two attempts at it (-a, -c) broke his phone twice and never
 reproduced here.
+⛔⛔ REOPENED BY HIS OWN WORD THE NEXT DAY (2026-09-08-a): «on the boost and leaderboard pages the content
+must scroll under the Safari iOS 26 system elements», «the same on the pause page». The colour edition
+STAYS as the fallback (the game's own zones, and every phone where the mode is off); the three list
+screens now flow as the page on the phone — see that batch.
 
 ### WHAT CAME BACK, VERBATIM
 `git diff 34381f9 f6ca027 -- src/shell.html src/app/10-stage.js src/app/85-hud.js src/app/99-main.js
@@ -16146,3 +16154,223 @@ the not-cut arm red (the number overflows by 7px, the avatars sit at 64 instead 
 `s: 0` IS LOAD-BEARING: a non-zero score would send the row down the insertion branch and it would be
 placed 51st with the place «51» — two digits, and the section would measure the wrong thing.
 **Run 27**: **1015 green, 0 red, SUITE: PASS**. Pushed to `v2` and onto `main` on his word.
+
+## BATCH 2026-09-08-a: THE THREE LIST SCREENS SCROLL AS THE PAGE ON THE PHONE, THE ×5 SCREEN IS CENTRED, THE LEADERBOARD OPENS ON ITS LAST SNAPSHOT (his four items: «an unpleasant delay opening the boost page and the leaderboards»; «on the boost and leaderboard pages the content must scroll under the Safari iOS 26 system elements»; «the same on the pause page»; «on the boost page the content is centred relative to the view horizontally and vertically — mobile only»; and «after you fix it and run the suite, push it all»)
+
+### ⛔⛔ THIS REOPENS WHAT -a OF 2026-09-07 CLOSED, ON HIS WORD — AND IT IS THE THIRD EDITION OF THE ROUTE
+The first two (2026-09-06-a and -c, the `?flow=1` trial of commit 3278aed) broke his phone — both screens
+painted over each other, «the Resume button under the leaderboard» — and never reproduced on this Mac.
+The 2026-09-06-d post-mortem ordered a device reproduction before any new attempt; he overrode that with
+a direct order and a push, so the batch went the other way round: **a picture first** (the bench at his
+phone's geometry, sent to him before a single guard was written), the failure ENCODED AS A RULE, and a
+kill switch he can test without a deploy. What the two failures had in common, read off the recovered
+trial: the menu and the leaderboard both went `position:relative` and both fixed fills went off — two
+relative siblings STACK VERTICALLY in the document, and a transparent leaderboard shows the menu through
+it. The rule that follows is the load-bearing line of this batch: **ONLY THE TOPMOST SCREEN FLOWS**
+(`html.flowover` puts `#mainScreen` and its floating header on `display:none` while the leaderboard or
+the ×5 screen is open), and the bench's pixel arm below is what proves it.
+
+### THE MECHANISM, AND THE FOUR RULES (shell.html, the `html.flowscroll` block; 85-hud `flowRefresh`)
+WebKit (canon -g/-h, measured on his phone) hit-tests (w/2, 4) and (w/2, h−4), walks to the nearest
+fixed/sticky ancestor and paints the zone with its flat colour, else body's colour; with NO candidate it
+leaves its glass over the page, and a scrolled ROOT draws its rows into both obscured insets. An inner
+scroller — the three screens until now — clips at its own frame, and no colour can move that frame. So
+while one of the three is open on the phone:
+1. the ROOT is the scroller (`html, body { height:auto; overflow:visible; touch-action:auto }`);
+2. the open screen is `position:relative`, at least `100svh` tall, its fixed backdrop OFF. The menu
+   paints the sky ON ITSELF, `background-size:100% var(--vp-h)` with the nadir colour below —
+   `--vp-h` is the viewport height, written at load AND on every resize: the fixed layer's box grew
+   with the viewport on every bar collapse (654 → 754) too, so this is the same picture in every
+   state, and a reload with the bar collapsed reads 754 for a 754 frame (the review corrected the
+   first draft's «load only»; ⛔ `100lvh` must not be used here — 754 in a 654 viewport at load,
+   14 % of the scroll-0 frame shifted, and Chromium cannot see it because lvh = innerHeight there).
+   The dark screens stand on `html.dimmed body`, opaque on the phone since -h;
+3. nothing of ours stays at a screen edge: `#c`, both bars, `#face` and the two edge cards are
+   `visibility:hidden` (skipped by the hit test; the canvas keeps its size and its WebGL context);
+4. ONLY THE TOPMOST SCREEN FLOWS — the rule above. The floating header in the flow is 7 % in from
+   each side — its FIXED box is 86 % of the viewport at ANY width, under WebKit's 0.9 ratio, so it is
+   never the candidate (its alpha .01 colour would otherwise be a coin toss the guide does not settle)
+   — while its pill is re-centred by a transform at exactly the width it has today,
+   `min(100vw − 32px, 700px)`: 16..374 on his phone, the 700 cap centred on a 744-wide iPad mini.
+   ⛔ The first draft's fixed 28 px inset with a −12 px pill margin dropped the 700 cap above 732 wide
+   and was a candidate again from 488 wide (the review). The pinned Resume pill stays fixed: ≤ 275
+   wide, 24 off the bottom, never a candidate;
+5. the root's `touch-action` is `pan-y`, NEVER `auto` (the review): the root's `none` is what has
+   blocked pinch zoom on iPhone since iOS 10 ignored the viewport meta, and a zoom entered on the
+   menu would outlive it and land on the fixed canvas — `pan-y` still lets the page scroll;
+6. `overflow-anchor:none` on the flowing root: the dark screens stand BEFORE the menu in the DOM, and
+   the bench's scroll anchoring shifted the page by a viewport the moment one was displayed above
+   the menu (900 → 1744); Safari has no scroll anchoring, so the bench now behaves like the phone.
+THE GATE is decided once at load (85-hud): `CSS.supports('font','-apple-system-body')` — true in every
+browser on iOS and in Safari on macOS, false in Chromium — AND a phone-width viewport (the HUD's 767).
+`?flow=1` forces it anywhere, `?flow=0` is the kill switch. ⚠️ NOT re-evaluated on resize: a phone
+turned to landscape keeps the mode it loaded with. Chromium never sees these rules unless the suite
+forces them, so every existing guard keeps measuring the inner scrollers.
+THE STATE IS READ ON EVERY TRANSITION (`flowRefresh`, called from `refreshDimmed` — i.e. every show/hide
+— and from open/closeMainScreen): the menu by its OPEN CLASS, not its computed display — under the
+leaderboard it is `display:none`, and a display read would drop the mode the moment the leaderboard
+closed. Every change of state resets the menu's scroll-driven classes and the page scroll — EXCEPT
+the return of the menu from under a dark screen, which goes back WHERE IT WAS (the review: the header's
+own «×5 Boost» exists only deep in the collection, and a close that threw the player to the top from
+there was the «3000 → 0» he rejected once already). The offset is noted on REAL scroll events of the
+visible menu (`flowNoteScroll` from `onMenuScroll`), never read at the transition — the moment a dark
+screen is displayed above the menu the page's offset is no longer the menu's — and it is untouched by
+the suite's `setFlow` toggles; the restore re-derives the header's classes with a synthetic scroll
+event, since the natural one does not fire for a position that does not move.
+⛔⛔ THE HANDLER MUST BAIL OUT ON A CLOSED OR HIDDEN MENU (the review's blocker, reproduced on the bench):
+closing the menu scrolls the page to 0, and the window's scroll event arrives a frame LATER, when the
+menu is already `display:none` — its title's rect is all zeros, «bottom <= 0» reads true, and the
+floating «My collection ★ ×5 Boost» pill re-armed itself over the running game, covering the pause
+button (the 2026-07-31 screenshot, back). One early return at the top of `onMenuScroll`.
+⚠️ THE BEYOND-DOCUMENT COLOUR FOLLOWS THE SCROLL (`html.flowbot`, the review): Safari's bottom bar is a
+content inset, so with the collection scrolled to its END the zone under the bar lies beyond the
+document and shows body's colour — the zenith violet under the menu's mint tail, the -g colour pair
+reopened. Past half of the document `onMenuScroll` turns body the nadir; `flowRefresh` clears it on
+every transition; `:not(.dimmed)` on the rule is load-bearing (it would outrank `html.dimmed body`
+and put the dark screens on a mint body). Not a rubber-band: root `overscroll-behavior:none` IS
+honoured on the iOS main document (WebKit bug 237696, 2022) — the pair shows at rest at scroll-max.
+⚠️ THE PRICES, NAMED TO HIM: the sky SCROLLS WITH THE CARDS in the flow (a fixed layer cannot carry it
+without becoming the candidate; iOS ignores `background-attachment:fixed` on the root anyway); the
+×5 page is shorter than a viewport, so it does not scroll and its zones are body's dark colour — the
+same look, by a different mechanism.
+⛔ The centred popups (win, lose, new object, museum, ad) do NOT flow: `.overlay` centres its content and
+a taller box would drop every card by half the inset.
+⚠️ THE WINDOW IS BOUND TOO (90-input `onMenuScroll`): the floating header's thresholds are viewport
+rects, correct whichever box scrolled, but its listener was bound to `#mainScreen` alone — in the
+flow the page scrolls and the header vanished (the recovered trial's own defect, met again on the bench).
+
+### THE ×5 SCREEN IS CENTRED IN THE VIEW ON THE PHONE (item 4) — AND THE MOCK-UP'S «NOT CENTRED» IS CANCELLED
+The base `.st-wrap` (<560) is at least one viewport tall (`min-height:100%` of the fixed overlay,
+`100svh` in the flow — ⛔ BOTH UNDER THE 559 GATE: the first draft put `min-height:100%` on the BASE
+rule and the desktop's `margin:auto` centring lost its free space, the block sat at the top beside
+the cross on every window ≥ 560 — the review's blocker, and the flow's own wrap rule, being more
+specific than the desktop rule, needed the same gate) with EQUAL insets top and bottom (both `16 + env(top)`, so the centre is the
+viewport's), the cross is ABSOLUTE at (16, 16 + env) — out of the flow, so it does not shift the centre,
+still inside the scrolling wrap, which was -b's reason to keep it in the flow — and `.st-block` carries
+`margin:auto 0`. ⛔ NOT `justify-content:center`: in a scrollable column it centres a block taller than
+the screen and puts its top out of reach (the leaderboard's own trap of 2026-08-10). ⛔ CANCELS the
+mock-up's «anchored under the cross, the bottom inset 136» (937:1533) and the short-screen media's
+`padding-bottom:32` (its `gap:32` stays — inert with one flow child, but a guard reads it). The desktop
+(≥560) is untouched: its wrap `margin:auto`, its cross fixed. Measured: 375×667 → the block's centre
+(187.5, 333.5) against (187.5, 333.5); 320×568 → (160, 284) exact. The STCLOSE arm moved with the rule:
+«in the flow» → `position === 'absolute'`; the LEFT at the wrap's inset is the property and is unchanged.
+
+### THE DELAY (item 1): WHAT WAS MEASURED, WHAT SHIPPED, WHAT ONLY HIS PHONE CAN SAY
+The bench (Chromium, the phone viewport, CPU ×4, a CDP profile): the ×5 popup's click handler is 10 ms
+and its layout 8 ms — no JS long task; the leaderboard's handler is 3 ms and its rows are INSTANT when
+the menu's prefetch has warmed the 20-second cache, otherwise «Loading…» for the network round trip;
+the pause menu's FIRST open of a session costs a synchronous ~120 ms at ×1 (≈ 450 at ×4) — the
+collection's ~105 portraits rendered through `toDataURL` in one go — and a ~420 ms long task if the
+leaderboard is tapped right after the menu opens (the menu's deferred collection build). The live
+round trip to `lb.blendo.monster/v1/top` from this Mac: 0.43–0.66 s — more on a phone, and that is
+what he feels on a cold cache.
+✅ SHIPPED — THE LEADERBOARD OPENS ON ITS LAST SNAPSHOT (stale-while-revalidate): 82-lb persists the
+last GOOD `/v1/top` page 1 and the last good own row in `localStorage.mixer_lb_snap`, keyed by the
+server address (a dev override must not show production's rows) and, for the own row, by the guest id;
+`lbScreenRender` lays them out SYNCHRONOUSLY on an empty list through the SAME `lbRenderFrom` the live
+read uses — one render path, nothing to drift — and the live read replaces them when it lands.
+«Loading…» only when nothing was ever loaded; a FAILED live read (`offline`/`broken`, on either
+branch) keeps the stale rows instead of replacing them with an error line. The own row in the
+snapshot carries its old rank while the score is live — the same two-epoch shape the 2026-08-13 rule
+already allows for the live read. Three rules from the review: when `/v1/top` lands but the SIGNED
+`/v1/me` FAILS, the persisted own row stands in (only on a failure — a `refused`/`sig` answer says
+the key is not this row's, and the row must go); a server that SAYS «no row» drops the persisted own
+row (it must not outlive the deleted row); a snapshot older than a WEEK is not shown. `lbInvalidate`
+deliberately leaves the snapshot alone — it fires on every balance change, and the snapshot's job is
+the next open.
+⛔ NOT SHIPPED, ON PURPOSE: a render skip of the WebGL loop under an opaque cover (outside the ask,
+unproven as the cause, and a buffer that is not redrawn can come back blank — the 2026-08-31-v lesson);
+the menu's portrait build chunked over frames (a real ~120 ms hitch on the first open, offered to him).
+⚠️ WHAT THE BENCH CANNOT SEE, named to him: the ×5 title's morphology filter (`#stClose`, a 14 px
+dilate + erode over a 330×144 text — WebKit rasterises SVG filters on the CPU), and the zone recolour
+that `html.dimmed` triggers on exactly the two tap-opened screens. If the delay survives this batch,
+a 60 fps screen recording of the two taps is what settles it (it settled the shake judder).
+
+### THE BENCH — A PICTURE FIRST, BY HIS OWN RULE OF 2026-09-06-b
+`tools/flow-band.js` (in the repo, so it survives the session): Playwright at 402×654 (his phone's layout viewport inside its 874 screen, DPR 2),
+the leaderboard stubbed, the guest identity pinned, `?flow=1`; full-page screenshots clipped to the band
+the phone shows — 61 above the viewport, 654, 159 below — with the two edges ruled. The menu scrolled,
+the leaderboard scrolled, the ×5 screen, the game after: the cards and the rows continue past both
+rules, the header is back, the block is centred, the HUD returns. Sent to him before the guards.
+
+### THE GUARDS — STATE AND APPEARANCE, NOT COORDINATES (the lesson of the two rollbacks)
+**FLOW** (`⟦FLOW-SECTION⟧`, 26 arms on a 390×844 page, the mode forced by `__game.setFlow(true)`):
+off by default (the fixed inner scroller, the root one viewport, nothing hidden); forced with the menu
+open — the root scrolls (doc 6466 > 844), the menu relative, the fixed sky layer off and the sky anchored
+to the viewport height, the six edge elements hidden, NO fixed/sticky candidate at either sample point
+(`cand` walks every element under the point to the root and reports any fixed/sticky box ≥ 0.9 of the
+viewport −8 wide), the middle of the view owned by the menu at four heights; **a PIXEL arm** — the
+viewport at scroll 0 in the flow against the same viewport of the fixed screen (`setFlow` toggled with
+the screen open): 698 of 329 160 pixels differ (0.21 %, the pill's eyes) — the design did not change;
+a real wheel moves the PAGE (scrollY 900, the box 0) and the header appears on a page scroll, its fixed
+box 334 of 390 while its pill still spans 16..374; the leaderboard over the scrolled menu — relative,
+50 rows, the page back at 0, the menu and its header `display:none`, the middle owned by the
+leaderboard, body dimmed opaque, **its pixel arm: 0 pixels differ** from the fixed screen; scrolled,
+still no candidate; closed — the menu back on top at 0 with the header cleared; the menu closed — the
+root locked, the canvas and bars visible, the game running; the ×5 from the HUD — flows alone, paused,
+the block centred, the cross absolute at (16,16), its pixel arm 0; closed — locked, resumed. After
+the review: the root scrolls by `pan-y` (`none,none,pan-y` off, `pan-y,pan-y,pan-y` on); past half
+of the document body is the nadir and the zenith above it; resume from the SCROLLED menu leaves the
+header down and the pause button reachable (`elementFromPoint`); the ×5 from the HEADER at scroll
+3000 brings the menu back exactly there; at 744 wide the header's pill is the 700 cap centred and
+the ×5 block is still centred in the flow (the desktop layout under the phone gate).
+**LBSNAP** (`⟦LBSNAP-SECTION⟧`, 11 arms, the mock 350 ms late and switchable per load): the first ever
+open shows «Loading…» then the rows and persists the snapshot; the next session shows 50 rows
+SYNCHRONOUSLY after the tap with a live read issued, and the live answer replaces them; another guest id
+keeps the top but not the own row; another server address shows no snapshot; a NETWORK failure keeps the
+stale rows; a failed OWN-ROW read keeps the persisted own row; a «no row» answer drops it from the list
+and the snapshot; an `early` board keeps the rows; a week-old snapshot is not shown. **STCLOSE**: + the
+centring arm at both phone sizes, the DESKTOP block still centred at 1280; the close arm reads `absolute`.
+PROVEN AGAINST TWENTY-ONE VARIANTS — the eleven of the first pass and, after the review: `touch-action:
+auto` → the pan-y arm; the bail-out removed → the resume arm (the header re-armed, the pause button
+unreachable); the restore removed → both restore arms; `min-height:100%` back on the base wrap → the
+desktop centring arm; the flow wrap rule's 559 gate removed → the 744 ×5 arm alone; the flowbot toggle
+removed → the past-half arm; the own-row fallback removed, the «no row» clearing removed, the age check
+removed, the early-branch guard removed → each its own LBSNAP arm. And the eleven (`tools/build-variant.py` + `tools/section-dryrun.js`), each reddening
+its own arms: the topmost rule off → the «one screen» arm and the leaderboard's pixel arm (5.99 % —
+the rows land below the menu: the device failure, on the bench at last); the sky anchor off → the anchor
+arm and the menu's pixel arm (57.68 %, the gradient stretched over the document); the window binding
+off → the header arm; the header full width → the width arm; `margin:auto 0` off → both centring arms;
+the menu read as always open in `flowRefresh` → the resume and ×5-closed arms; no snapshot write → five
+LBSNAP arms; the base key off → the address arm; the error line unguarded → the failed-read arm.
+⚠️ TWO SABOTAGES STAYED GREEN AND TAUGHT SOMETHING: (1) dropping `flowRefresh()` from `closeMainScreen`
+changes nothing on the resume path — `resumeGame` hides the pause overlay and `refreshDimmed` re-reads
+the mode; the call stays (the DEV path) and the arm's note names the second holder; (2) a 500 with an
+`err` body is `refused`, not `offline`, and lands in the «still being built» branch — the first sabotage
+struck the «No connection» branch and the mock never reached it. The fail mode is a rejected fetch now.
+⚠️ THE LBSNAP ARMS HAVE AN ORDER: the snapshot holds ONE server address, so the «other address» arm
+re-keys it — the «other id» arm must run before it (the dry run caught the wrong order).
+
+### THE ADVERSARIAL REVIEW (a Workflow: three lenses, a rank judge, eight skeptics, a synthesis — 13 agents, 76 minutes) — EIGHT CONFIRMED, NONE REFUTED WHOLE, AND TWO WERE BLOCKERS THE BENCH HAD NOT SHOWN
+The first three finders stalled at ~19 minutes and were retried by the harness — the transcript count
+doubled, the findings did not. What it found, all fixed before the run (the details are folded into
+the rules above): (1) BLOCKER — resume from a scrolled menu left the floating header over the game,
+covering the pause button: the late scroll event on a hidden menu; (2) BLOCKER — the ×5 block hugged
+the top on every window ≥ 560: `min-height:100%` on the base wrap rule, and the flow's wrap rule
+needed the same 559 gate; (3) `touch-action:auto` on the root re-enabled pinch zoom on iPhone;
+(4) the snapshot's own row vanished when `/v1/me` failed while `/v1/top` landed, and outlived a
+deleted row; (5) every close of a dark screen threw the menu to the top — and the header's own «×5
+Boost» is a third entry point that sits deep in the collection; (6) the sky anchored at load stayed
+654 after the bar collapsed (now written on resize, like the fixed layer's box); (7) the zone under
+the bar at the END of the collection shows body's zenith under the mint tail (`flowbot`); (8) the
+header's pill lost its 700 cap between 733 and 767 wide, and the fixed box was a candidate from 488
+(the 7 % inset + the transform). ⚠️ What the review did NOT find is worth as much: **no finding
+explains the original device failure** («both screens painted over each other, the Resume button
+under the leaderboard») — the candidate walk at both sample points came back clean on all three
+screens at rest and scrolled, and the topmost rule is the only structural answer. The phone decides.
+⚠️ THE DRY RUN THEN CAUGHT TWO BUGS IN THE FIX ITSELF: the offset saved when a dark screen opened was
+zeroed on the same pass (the «no restore» branch ran for every non-restoring transition); and the
+saved value was 1744 for a menu at 900 — the bench's scroll anchoring, since the dark screens stand
+before the menu in the DOM. Hence the note-on-real-scroll design and `overflow-anchor:none`.
+
+### THE RUNS
+**Run 28** on the reviewed build: 1049 green, **6 red — all in the new LBSNAP section, all timing**: the arms
+waited a FIXED 900 ms for a mock answering 350 ms late and read the list mid-flight under the loaded bench
+(the canon's own «a fixed pause measures the bench's clock, not the page's state»). Every fixed wait in the
+section became a `settle(pred, ms)` poll on the FACT (the rows rendered, the own row gone, the snapshot
+written) with a ceiling as insurance; the section lifted alone on the same build: 11 green. **Run 29** on
+the same source, the polls in: **1055 green, 0 red, SUITE: PASS**. Pushed to `v2` and onto `main` on his word
+(«after you fix it and run the suite, push it all»). ⚠️ THE ONLY REAL CHECK IS HIS PHONE: this is the third
+edition of the route and neither device failure ever reproduced here; `?flow=0` is the kill switch he can
+test without a deploy, and the rollback is one commit.
+

@@ -5543,6 +5543,14 @@ window.bridge = {
     expect(m.chips[0].l >= m.block.l - 0.5 && m.chips[1].r <= m.block.r + 0.5 && m.hOverflow <= 0,
       'PHONE ROW ' + name + ': the row fits inside the block, nothing overflows sideways (' +
       JSON.stringify({ block: m.block, chips: m.chips, hOverflow: m.hOverflow }) + ')');
+    // THE BLOCK IS CENTRED IN THE VIEW, both axes (the owner's word 2026-09-08-a, item 4 — «only mobile»):
+    // the wrap is one viewport tall with EQUAL insets and the block carries margin:auto. ⚠️ Measured on
+    // the BOX, not on a rule: `justify-content:center` would centre it too and put the top of a tall
+    // block out of reach (the -b trap) — the sabotage is `margin:auto 0` removed → the block sits at
+    // the top inset and the centre reads ~100px high.
+    expect(Math.abs((m.block.t + m.block.b) / 2 - m.vh / 2) <= 1.5 && Math.abs((m.block.l + m.block.r) / 2 - m.vw / 2) <= 1.5,
+      'PHONE ROW ' + name + ': the block is centred in the view — centre (' + ((m.block.l + m.block.r) / 2).toFixed(1) + ', ' +
+      ((m.block.t + m.block.b) / 2).toFixed(1) + ') against (' + m.vw / 2 + ', ' + m.vh / 2 + ')');
   }
   // «it must fit the screen»: on 375×667 the buy button ends above the fold and the wrap does not
   // scroll — the two insets shrink to 32 under 760 of height (the mock-up's 80/136 were drawn on 852)
@@ -5567,14 +5575,20 @@ window.bridge = {
       'CLOSE ' + name + ': the phone draws ONE cross, 32×32 in its own viewBox — the back arrow of -b is gone (' + JSON.stringify(c.svgs) + ')');
     expect(!!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
       'CLOSE ' + name + ': the drawn glyph is the square cross (ink ≈ 15.1×15.1 of 32), not a wide arrow (' + JSON.stringify(c.ink) + ')');
-    expect(Math.abs(c.l - c.wrapInset) <= 0.5 && c.l < m.vw / 2 - c.w && c.alignSelf === 'flex-start' && c.position !== 'fixed',
-      'CLOSE ' + name + ': the button stands at the LEFT of the wrap (x ' + c.l + ' = the wrap\'s inset ' + c.wrapInset + '), in the flow, not centred (' +
+    // ⛔ «in the flow» left with 2026-09-08-a: the cross is ABSOLUTE at the wrap's top-left corner so
+    // that it does not shift the centred block (item 4 of that batch) — it still scrolls with the sheet
+    // (absolute inside the scrolling wrap), which was the reason -b kept it in the flow. The property is
+    // the LEFT at the wrap's inset, not the position value.
+    expect(Math.abs(c.l - c.wrapInset) <= 0.5 && c.l < m.vw / 2 - c.w && c.position === 'absolute',
+      'CLOSE ' + name + ': the button stands at the LEFT of the wrap (x ' + c.l + ' = the wrap\'s inset ' + c.wrapInset + '), absolute in the corner, not centred (' +
       JSON.stringify({ l: c.l, alignSelf: c.alignSelf, position: c.position }) + ')');
     expect(c.bg === 'rgb(255, 255, 255)' && c.fill === 'rgb(0, 0, 0)' && Math.abs(c.w - 56) <= 0.5,
       'CLOSE ' + name + ': still a white 56 circle with a black glyph (' + JSON.stringify({ bg: c.bg, fill: c.fill, w: c.w }) + ')');
   }
   {
     const c = phoneRow.d1280.close;
+    expect(Math.abs((phoneRow.d1280.block.t + phoneRow.d1280.block.b) / 2 - phoneRow.d1280.vh / 2) <= 2,
+      'DESKTOP 1280: the block is still centred vertically — the wrap\'s margin:auto in the overlay (centre ' + ((phoneRow.d1280.block.t + phoneRow.d1280.block.b) / 2).toFixed(1) + ' against ' + phoneRow.d1280.vh / 2 + '). ⛔ SABOTAGE: min-height:100% on the BASE wrap rule — the wrap fills the overlay, margin:auto has no room, the block sits at the top');
     expect(c.svgs.length === 1 && c.visVB === '0 0 32 32' && c.position === 'fixed' &&
            Math.abs(c.l - 16) <= 0.5 && Math.abs(c.t - 16) <= 0.5 && !!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
       'CLOSE 1280: the desktop keeps the CROSS, fixed at the screen\'s top-left (16,16) (' +
@@ -10823,6 +10837,332 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'LB DIGITS: every avatar still stands on ONE vertical and the own number is not cut by its circle (' + JSON.stringify({ avaLefts: dig.avaLefts, meCut: dig.meCut }) + '). ⛔ SABOTAGE: pin the width at 28 — the number overflows its circle');
   }
   // ⟦LBDIGITS-SECTION-END⟧
+
+  // ===== THE FLOW MODE (2026-09-08-a): on the phone the pause menu, the leaderboard and the ×5 screen
+  // scroll as the PAGE, so their rows pass under the iOS 26 status bar and address bar. Chromium never
+  // gates it on (the gate is Apple WebKit + a phone width), so the suite FORCES it through
+  // `__game.setFlow(true)` and reads the state the DOM carries. The arms are about STATE and
+  // APPEARANCE, not coordinates — the lesson of the two rollbacks (2026-09-06-a/-d): seven green
+  // geometry arms on a build that showed the owner two screens painted over each other. =====
+  // ⟦FLOW-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=FLOW runs this block alone; keep the markers)
+  {
+    const fp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    fp.on('pageerror', e => errors.push('PAGEERROR(flow): ' + e.message));
+    await fp.addInitScript(() => {
+      const rows = Array.from({ length: 50 }, (_, i) => ['Player' + (i + 1), (i % 24) + 1, 10000 - i * 100]);
+      const of = window.fetch;
+      const json = (b) => new Promise(res => setTimeout(() => res(new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } })), 250));
+      window.fetch = function (u) { const s = String(u);
+        if (s.indexOf('/v1/top') >= 0) return json({ t: 1, n: 900, p: 1, r: rows });
+        if (s.indexOf('/v1/me') >= 0) return json({ ok: 1, s: 0, n: 'Stoat', a: 5, rank: 7, exact: 1, t: 1, up: [], dn: [] });
+        return of.apply(this, arguments); };
+      localStorage.setItem('mixer_lb_url', 'http://lb.stub');
+      localStorage.setItem('mixer_save_v1', JSON.stringify({ gid: 'g-flow-0001' }));   // the name and avatar derive from the id
+    });
+    await fp.goto('file://' + PAGE_FILE + '?dev=1');
+    await fp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await fp.evaluate(() => window.__game.skipIntro());
+    await fp.waitForTimeout(300);
+    // the pill's glint and every transition are frozen for the pixel arms — a moving highlight is not a design change
+    await fp.addStyleTag({ content: '.ms-play::after{animation:none!important;opacity:0!important} *{transition:none!important}' });
+    // ONE SNAPSHOT FOR EVERY STATE. `cand` walks every element under WebKit's two sample points up to the
+    // root and reports any fixed/sticky box that would be an edge CANDIDATE (≥ 0.9 of the viewport −8
+    // wide, > 10 thick, covering the point); `owner` says which screen the middle of the view belongs to.
+    const snap = () => fp.evaluate(() => {
+      const g = window.__game, h = document.documentElement, W = innerWidth, H = innerHeight;
+      const cs = (s, pseudo) => getComputedStyle(document.querySelector(s), pseudo || null);
+      const cand = (x, y) => { const out = [];
+        for (const e of document.elementsFromPoint(x, y)) { let n = e;
+          while (n && n !== h) { const p = getComputedStyle(n).position;
+            if (p === 'fixed' || p === 'sticky') { const r = n.getBoundingClientRect();
+              if (r.width >= 0.9 * (W - 8) && r.height > 10 && r.top <= y && r.bottom >= y) { const k = n.id || n.className || n.tagName; if (out.indexOf(k) < 0) out.push(k); } }
+            n = n.parentElement; } }
+        return out; };
+      const owner = (y) => { const e = document.elementFromPoint(W / 2, y); if (!e) return null;
+        const o = e.closest('#lbOverlay, #starsOverlay, #mainScreen, #msSticky, .ms-play'); return o ? (o.id || 'ms-play') : (e.id || e.tagName); };
+      const sk = document.getElementById('msSticky'), skr = sk.getBoundingClientRect(), skIn = sk.querySelector('.ms-sticky-in').getBoundingClientRect();
+      const blk = document.querySelector('#starsOverlay .st-block'), br = blk ? blk.getBoundingClientRect() : null;
+      const cl = document.querySelector('#starsOverlay .st-close'), cr = cl ? cl.getBoundingClientRect() : null;
+      return { st: g.flowState(), scrollY: Math.round(scrollY), docH: h.scrollHeight, vh: H, vw: W,
+        msPos: cs('#mainScreen').position, msDisp: cs('#mainScreen').display, msScrollTop: document.getElementById('mainScreen').scrollTop,
+        msBefore: cs('#mainScreen', '::before').display, msBg: cs('#mainScreen').backgroundImage.slice(0, 15), msBgSize: cs('#mainScreen').backgroundSize,
+        lbPos: cs('#lbOverlay').position, lbDisp: cs('#lbOverlay').display, lbBefore: cs('#lbOverlay', '::before').display, lbRows: document.querySelectorAll('#lbList .lb-row').length,
+        stPos: cs('#starsOverlay').position, stDisp: cs('#starsOverlay').display,
+        bodyImg: cs('body').backgroundImage, bodyBg: cs('body').backgroundColor,
+        hidden: ['#c', '#topBar', '#bottomBar', '#face', '#edgeTop', '#edgeBot'].map(s => cs(s).visibility).join(','),
+        ta: [cs('html').touchAction, cs('body').touchAction, cs('#mainScreen').touchAction].join(','),
+        stickyOn: sk.classList.contains('on'), stickyDisp: cs('#msSticky').display, playoff: document.getElementById('mainScreen').classList.contains('playoff'),
+        stickyBox: [+skr.left.toFixed(1), +skr.width.toFixed(1)], stickyPill: [+skIn.left.toFixed(1), +skIn.width.toFixed(1)],
+        candTop: cand(W / 2, 4), candBot: cand(W / 2, H - 4), owners: [30, 250, 500, 800].map(owner),
+        flowbot: h.classList.contains('flowbot'),
+        pauseHit: (() => { const b = document.getElementById('pauseBtn'); if (!b) return null; const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!(e && e.closest('#pauseBtn')); })(),
+        block: br ? { cx: +((br.left + br.right) / 2).toFixed(1), cy: +((br.top + br.bottom) / 2).toFixed(1), h: +br.height.toFixed(1) } : null,
+        close: cr ? [+cr.left.toFixed(1), +cr.top.toFixed(1), cs('#starsOverlay .st-close').position] : null,
+        paused: g.pauseState().paused };
+    });
+    const pngRGBA = (buf) => {   // the CHARGEFX reader: 8-bit RGB/RGBA, non-interlaced (Playwright's own output)
+      const zlib = require('zlib'); let p = 8, w, h, ct, idat = [];
+      while (p < buf.length){ const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8), data = buf.slice(p + 8, p + 8 + len);
+        if (type === 'IHDR'){ w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; } else if (type === 'IDAT') idat.push(data); p += 12 + len; }
+      const raw = zlib.inflateSync(Buffer.concat(idat)); const bpp = ct === 6 ? 4 : 3, stride = w * bpp; const out = Buffer.alloc(w * h * bpp); let prev = Buffer.alloc(stride);
+      for (let y = 0; y < h; y++){ const f = raw[y * (stride + 1)]; const line = raw.slice(y * (stride + 1) + 1, y * (stride + 1) + 1 + stride); const cur = Buffer.alloc(stride);
+        for (let i = 0; i < stride; i++){ const a = i >= bpp ? cur[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0; let v = line[i];
+          if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+          else if (f === 4){ const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c); }
+          cur[i] = v & 255; } cur.copy(out, y * stride); prev = cur; }
+      return { w, h, bpp, data: out }; };
+    // THE PIXEL DIFF OF TWO VIEWPORT SHOTS: the count of pixels differing by > 10 in any channel, and where they are
+    const pixDiff = (A, B) => { const a = pngRGBA(A), b = pngRGBA(B); let n = 0, minY = 1e9, maxY = -1;
+      for (let y = 0; y < a.h; y++) for (let x = 0; x < a.w; x++){ const i = (y * a.w + x) * a.bpp, j = (y * b.w + x) * b.bpp; let d = 0;
+        for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[j + k]));
+        if (d > 10){ n++; if (y < minY) minY = y; if (y > maxY) maxY = y; } }
+      return { n, total: a.w * a.h, pct: +(100 * n / (a.w * a.h)).toFixed(2), yRange: maxY < 0 ? null : [minY, maxY] }; };
+    const settled = async () => { let last = -1;   // the collection's portraits arrive by a timer — both shots must see the same cards
+      for (let i = 0; i < 40; i++){ const n = await fp.evaluate(() => [...document.querySelectorAll('#msGrid img')].filter(im => (im.getAttribute('src') || '').length > 3200).length);
+        if (n === last) return n; last = n; await fp.waitForTimeout(250); } return last; };
+    // (0) THE GATE IS OFF ON THE BENCH: the menu opens the way it always did — an inner scroller in a fixed box
+    await fp.click('#pauseBtn'); await fp.waitForTimeout(400);
+    const off = await snap();
+    expect(off.st.enabled === false && off.st.on === false && off.msPos === 'fixed' && off.docH === off.vh && off.hidden === 'visible,visible,visible,visible,visible,visible' && off.ta === 'none,none,pan-y',
+      'FLOW off: Chromium never gates the mode on — the menu is the fixed inner scroller, the root is one viewport, nothing hidden, the root refuses every touch (' +
+      JSON.stringify({ st: off.st, msPos: off.msPos, docH: off.docH, vh: off.vh, hidden: off.hidden, ta: off.ta }) + ')');
+    // (1) FORCED, THE MENU OPEN: the root is the scroller, the screen flows, the sky is the menu's own, nothing of ours at an edge
+    await settled();
+    const shotOff = await fp.screenshot();   // the design as it is today, at scroll 0
+    await fp.evaluate(() => window.__game.setFlow(true)); await fp.waitForTimeout(150);
+    const on = await snap();
+    expect(on.st.on === true && on.st.over === false && on.msPos === 'relative' && on.msDisp === 'block' && on.docH > on.vh + 400 && on.scrollY === 0,
+      'FLOW menu: the root is the scroller (doc ' + on.docH + ' > viewport ' + on.vh + '), the menu is relative and open, the page at 0 (' + JSON.stringify(on.st) + ')');
+    expect(on.msBefore === 'none' && on.msBg === 'linear-gradient' && on.msBgSize === '100% ' + on.vh + 'px' && on.bodyImg === 'none',
+      'FLOW menu: the fixed sky layer is off, the sky is the menu\'s own background anchored to the viewport height at load (' + JSON.stringify({ before: on.msBefore, bg: on.msBg, size: on.msBgSize, bodyImg: on.bodyImg }) + ')');
+    expect(on.hidden === 'hidden,hidden,hidden,hidden,hidden,hidden',
+      'FLOW menu: the canvas, both bars, the face and both edge cards are visibility:hidden — nothing of ours stays at a screen edge (' + on.hidden + ')');
+    expect(on.ta === 'pan-y,pan-y,pan-y',
+      'FLOW menu: the root scrolls by pan-y and never `auto` — the root\'s `none` is what blocks pinch and double-tap zoom on iPhone, and a zoom entered here would land on the fixed canvas (' + on.ta + '). ⛔ SABOTAGE: touch-action:auto on html/body in the flow');
+    expect(on.candTop.length === 0 && on.candBot.length === 0 && on.owners.every(o => o === 'mainScreen' || o === 'msSticky' || o === 'ms-play'),
+      'FLOW menu: NO fixed/sticky candidate at either WebKit sample point, and the middle of the view belongs to the menu at four heights (' + JSON.stringify({ candTop: on.candTop, candBot: on.candBot, owners: on.owners }) + ')');
+    // (2) THE DESIGN DID NOT CHANGE: the viewport at scroll 0 in the flow is the viewport of the fixed screen
+    const shotOn = await fp.screenshot();
+    const dMenu = pixDiff(shotOff, shotOn);
+    expect(dMenu.pct < 1.0,
+      'FLOW menu: the frame at scroll 0 is the frame the fixed screen painted — ' + dMenu.n + ' of ' + dMenu.total + ' pixels differ by > 10 (' + dMenu.pct + '%, rows ' + JSON.stringify(dMenu.yRange) + '). ⛔ SABOTAGE: drop the background-size anchor — the gradient stretches over the document and the tone shifts');
+    // (3) A REAL WHEEL SCROLLS THE PAGE, NOT THE BOX — and the floating header still appears (the window binding of 90-input)
+    await fp.mouse.move(195, 400); await fp.mouse.wheel(0, 900); await fp.waitForTimeout(500);
+    const sc = await snap();
+    expect(sc.scrollY > 300 && sc.msScrollTop === 0 && sc.stickyOn === true && sc.stickyDisp !== 'none',
+      'FLOW menu scrolled: the page moved (scrollY ' + sc.scrollY + '), the box did not (' + sc.msScrollTop + '), and the floating header appeared on a PAGE scroll (on ' + sc.stickyOn + '). ⛔ SABOTAGE: bind onMenuScroll to #mainScreen alone — the header never appears');
+    expect(sc.flowbot === false && sc.bodyBg === 'rgb(172, 168, 255)',
+      'FLOW menu scrolled (900 of ' + sc.docH + '): body still the zenith above half of the document (' + sc.bodyBg + ')');
+    await fp.mouse.wheel(0, 4000); await fp.waitForTimeout(400);
+    const deep = await snap();
+    expect(deep.scrollY > deep.docH / 2 && deep.flowbot === true && deep.bodyBg === 'rgb(197, 255, 216)',
+      'FLOW menu scrolled past half (' + deep.scrollY + ' of ' + deep.docH + '): body is the nadir — the zone under the bar at the end of the collection is not the zenith violet (' + deep.bodyBg + '). ⛔ SABOTAGE: drop the flowbot toggle in onMenuScroll');
+    await fp.mouse.wheel(0, -4000); await fp.waitForTimeout(400);
+    expect(sc.stickyBox[1] < 0.9 * (sc.vw - 8) && Math.abs(sc.stickyBox[0] - 0.07 * sc.vw) <= 0.5 && Math.abs(sc.stickyPill[0] - 16) <= 0.5 && Math.abs(sc.stickyPill[1] - (sc.vw - 32)) <= 0.5 && sc.candTop.length === 0,
+      'FLOW menu scrolled: the header\'s FIXED box is under WebKit\'s 0.9 width ratio (' + sc.stickyBox[1] + ' of ' + sc.vw + ', left 7%) while its pill still spans 16..' + (sc.vw - 16) + ' (' + JSON.stringify(sc.stickyPill) + ') — visually the same, never an edge candidate (' + JSON.stringify(sc.candTop) + ')');
+    // (4) THE LEADERBOARD OVER THE MENU: one screen on top — the menu and its header are display:none under it
+    await fp.click('#msLbEntry'); await fp.waitForTimeout(700);
+    const lb = await snap();
+    expect(lb.st.on === true && lb.st.over === true && lb.lbPos === 'relative' && lb.lbDisp === 'flex' && lb.lbRows >= 50 && lb.scrollY === 0,
+      'FLOW leaderboard: on top of the scrolled menu the leaderboard flows (relative, ' + lb.lbRows + ' rows) and the page is back at 0 (' + JSON.stringify({ st: lb.st, scrollY: lb.scrollY }) + ')');
+    expect(lb.msDisp === 'none' && lb.stickyDisp === 'none' && lb.owners.every(o => o === 'lbOverlay') && lb.candTop.length === 0 && lb.candBot.length === 0,
+      'FLOW leaderboard: EXACTLY ONE screen is on top — the menu and its floating header are display:none, the middle of the view belongs to the leaderboard at four heights, no edge candidate (' + JSON.stringify({ msDisp: lb.msDisp, sticky: lb.stickyDisp, owners: lb.owners }) + '). ⛔ SABOTAGE: drop `html.flowover #mainScreen { display:none }` — the two screens stack in the document, the device failure of 2026-09-06');
+    expect(lb.lbBefore === 'none' && lb.bodyImg === 'none' && lb.bodyBg === 'rgb(10, 14, 22)',
+      'FLOW leaderboard: the fixed dark layer is off and the dark screen stands on body\'s opaque dimmed colour (' + JSON.stringify({ before: lb.lbBefore, bodyImg: lb.bodyImg, bodyBg: lb.bodyBg }) + ')');
+    // the leaderboard's frame in the flow is the frame of the fixed screen
+    const lbOn = await fp.screenshot();
+    await fp.evaluate(() => window.__game.setFlow(false)); await fp.waitForTimeout(150);
+    const lbOff = await fp.screenshot();
+    await fp.evaluate(() => window.__game.setFlow(true)); await fp.waitForTimeout(150);
+    const dLb = pixDiff(lbOff, lbOn);
+    expect(dLb.pct < 1.0,
+      'FLOW leaderboard: the frame at scroll 0 is the fixed screen\'s frame — ' + dLb.n + ' of ' + dLb.total + ' pixels differ (' + dLb.pct + '%, rows ' + JSON.stringify(dLb.yRange) + '). ⛔ SABOTAGE: the menu left visible under it — the rows land below the menu and the frame shows the menu');
+    await fp.mouse.move(195, 400); await fp.mouse.wheel(0, 700); await fp.waitForTimeout(400);
+    const lbs = await snap();
+    expect(lbs.scrollY > 300 && lbs.docH > lbs.vh + 400 && lbs.candTop.length === 0 && lbs.candBot.length === 0,
+      'FLOW leaderboard scrolled: the page scrolls the rows (scrollY ' + lbs.scrollY + ', doc ' + lbs.docH + '), still no edge candidate (the sticky cross sits at the left, off the sample point)');
+    // (5) CLOSING THE LEADERBOARD: the menu comes back at the top, the header cleared, still in the flow
+    await fp.click('#lbClose'); await fp.waitForTimeout(500);
+    const back = await snap();
+    expect(back.st.on === true && back.st.over === false && back.msDisp === 'block' && back.msPos === 'relative' && Math.abs(back.scrollY - sc.scrollY) <= 2 && back.stickyOn === true && back.owners.every(o => o === 'mainScreen' || o === 'msSticky' || o === 'ms-play'),
+      'FLOW leaderboard closed: the menu is back on top WHERE IT WAS (scrollY ' + back.scrollY + ' against ' + sc.scrollY + ' before), the header re-derived on the visible menu, the root still the scroller (' + JSON.stringify({ st: back.st, msDisp: back.msDisp, scrollY: back.scrollY, stickyOn: back.stickyOn, owners: back.owners }) + '). ⛔ SABOTAGE: scrollTo(0, 0) on every change — the menu comes back at the top');
+    // (6) CLOSING THE MENU FROM ITS SCROLLED PLACE: the root locks, everything is fixed again, the game is
+    // visible and running — and the floating header is NOT re-armed over it by the scroll event the lock
+    // dispatches a frame later (the review's blocker: onMenuScroll read a hidden menu's zero rects)
+    await fp.click('.ms-play'); await fp.waitForTimeout(600);
+    const game = await snap();
+    expect(game.stickyOn === false && game.playoff === false && game.stickyDisp !== 'none' && game.st.on === false && game.pauseHit === true && game.flowbot === false,
+      'FLOW resume from a scrolled menu: the floating header stays down over the game and the pause button is reachable (on ' + game.stickyOn + ', playoff ' + game.playoff + ', pause hit ' + game.pauseHit + '). ⛔ SABOTAGE: drop the closed-menu bail-out of onMenuScroll — the late scroll event re-arms the header over the pause button');
+    expect(game.st.on === false && game.st.over === false && game.msPos === 'fixed' && game.docH === game.vh && game.scrollY === 0 && game.hidden === 'visible,visible,visible,visible,visible,visible' && game.paused === false,
+      'FLOW resume: the root is locked again, the menu is fixed, the canvas and the bars are visible, the game runs (' + JSON.stringify({ st: game.st, msPos: game.msPos, docH: game.docH, hidden: game.hidden, paused: game.paused }) + '). ⚠️ TWO HOLDERS re-read the mode on this path — closeMainScreen itself and resumeGame\'s hide(pauseOverlay) → refreshDimmed — so dropping one leaves the arm green (measured); ⛔ SABOTAGE: read the menu as always open in flowRefresh — the root stays a scroller under the game');
+    // (6b) THE ×5 FROM THE HEADER'S OWN BUTTON, DEEP IN THE COLLECTION: the third entry point the first draft
+    // forgot — closing it must bring the menu back WHERE IT WAS (the offset is read before the toggles;
+    // once the dark screen is on, its shorter document clamps scrollY to 0)
+    await fp.click('#pauseBtn'); await fp.waitForTimeout(400);
+    await fp.mouse.move(195, 400); await fp.mouse.wheel(0, 3000); await fp.waitForTimeout(500);
+    const deep2 = await snap();
+    await fp.click('#msGetMore2'); await fp.waitForTimeout(500);
+    const x5m = await snap();
+    await fp.click('#starsOverlay .st-close'); await fp.waitForTimeout(500);
+    const back2 = await snap();
+    expect(deep2.stickyOn === true && x5m.st.over === true && x5m.msDisp === 'none' && back2.st.over === false && Math.abs(back2.scrollY - deep2.scrollY) <= 2 && back2.stickyOn === true && back2.st.on === true,
+      'FLOW ×5 from the header at scroll ' + deep2.scrollY + ': the menu hidden under it, and back exactly there on close with the header on (' + JSON.stringify({ x5: [x5m.st.over, x5m.msDisp], back: [back2.scrollY, back2.stickyOn] }) + '). ⛔ SABOTAGE: read scrollY after the toggles — the restore goes to 0');
+    await fp.click('.ms-play'); await fp.waitForTimeout(500);
+    // (7) THE ×5 SCREEN FROM THE HUD (no menu): it flows on its own, its block centred in the view, its cross in the corner
+    await fp.click('#x5Float'); await fp.waitForTimeout(500);
+    const x5 = await snap();
+    expect(x5.st.on === true && x5.st.over === true && x5.stPos === 'relative' && x5.stDisp === 'flex' && x5.paused === true && x5.candTop.length === 0 && x5.candBot.length === 0 && x5.owners.every(o => o === 'starsOverlay'),
+      'FLOW ×5 from the HUD: the screen flows alone (the game paused), no edge candidate, the middle of the view is the ×5 screen at four heights (' + JSON.stringify({ st: x5.st, stPos: x5.stPos, owners: x5.owners }) + ')');
+    const x5On = await fp.screenshot();
+    await fp.evaluate(() => window.__game.setFlow(false)); await fp.waitForTimeout(150);
+    const x5Off = await fp.screenshot();
+    await fp.evaluate(() => window.__game.setFlow(true)); await fp.waitForTimeout(150);
+    const dX5 = pixDiff(x5Off, x5On);
+    expect(dX5.pct < 1.0,
+      'FLOW ×5: the frame in the flow is the fixed screen\'s frame — ' + dX5.n + ' of ' + dX5.total + ' pixels differ (' + dX5.pct + '%, rows ' + JSON.stringify(dX5.yRange) + ')');
+    expect(x5.block && Math.abs(x5.block.cx - x5.vw / 2) <= 1.5 && Math.abs(x5.block.cy - x5.vh / 2) <= 1.5 && x5.close && Math.abs(x5.close[0] - 16) <= 0.5 && Math.abs(x5.close[1] - 16) <= 0.5 && x5.close[2] === 'absolute',
+      'FLOW ×5: the block is centred in the view (' + JSON.stringify(x5.block) + ' in ' + x5.vw + '×' + x5.vh + ') and the cross sits absolute at (16, 16) (' + JSON.stringify(x5.close) + ')');
+    await fp.click('#starsOverlay .st-close'); await fp.waitForTimeout(400);
+    const x5c = await snap();
+    expect(x5c.st.on === false && x5c.msPos === 'fixed' && x5c.docH === x5c.vh && x5c.paused === false && x5c.hidden === 'visible,visible,visible,visible,visible,visible',
+      'FLOW ×5 closed: the root locks, the game is visible and resumed (' + JSON.stringify({ st: x5c.st, docH: x5c.docH, paused: x5c.paused }) + ')');
+    // (8) AN iPAD MINI PORTRAIT (744, inside the phone gate): the header's pill is its 700 cap, centred,
+    // and the FIXED box is still under 0.9 — the first draft's fixed 28px inset was a candidate again from 488 wide
+    await fp.setViewportSize({ width: 744, height: 1024 }); await fp.waitForTimeout(300);
+    await fp.click('#pauseBtn'); await fp.waitForTimeout(500);
+    await fp.mouse.move(372, 500); await fp.mouse.wheel(0, 1200); await fp.waitForTimeout(500);
+    const tab = await snap();
+    expect(tab.st.on === true && tab.stickyOn === true && tab.stickyBox[1] < 0.9 * (tab.vw - 8) && Math.abs(tab.stickyPill[1] - 700) <= 0.5 && Math.abs(tab.stickyPill[0] - (tab.vw - 700) / 2) <= 0.5 && tab.candTop.length === 0,
+      'FLOW 744 wide: the header\'s pill is the 700 cap centred (' + JSON.stringify(tab.stickyPill) + ') while its fixed box is ' + tab.stickyBox[1] + ' of ' + tab.vw + ' — under 0.9, never a candidate (' + JSON.stringify(tab.candTop) + ')');
+    await fp.click('.ms-play'); await fp.waitForTimeout(400);
+    await fp.click('#x5Float'); await fp.waitForTimeout(500);
+    const tabX5 = await snap();
+    expect(tabX5.st.over === true && tabX5.block && Math.abs(tabX5.block.cy - tabX5.vh / 2) <= 2 && tabX5.close && tabX5.close[2] === 'fixed',
+      'FLOW 744 wide ×5: the desktop layout keeps its centred block in the flow too (centre ' + (tabX5.block && tabX5.block.cy) + ' against ' + tabX5.vh / 2 + ', the cross fixed). ⛔ SABOTAGE: drop the 559 gate on the flow wrap rule — it outranks the desktop rule and pins the block to the top');
+    await fp.click('#starsOverlay .st-close'); await fp.waitForTimeout(400);
+    await fp.evaluate(() => window.__game.setFlow(false));
+    await fp.close();
+  }
+  // ⟦FLOW-SECTION-END⟧
+
+  // ===== THE LEADERBOARD SNAPSHOT (2026-09-08-a, the owner's «an unpleasant delay opening the
+  // leaderboards»): the last good top and own row are persisted in localStorage by 82-lb and laid out
+  // SYNCHRONOUSLY on the next open through the same render path; the live read then replaces them.
+  // «Loading…» only when nothing was ever loaded. The mock answers 350 ms late so «before the network»
+  // is a real state, and its data is switchable per page load through a localStorage flag. =====
+  // ⟦LBSNAP-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=LBSNAP runs this block alone; keep the markers)
+  {
+    const sp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    sp.on('pageerror', e => errors.push('PAGEERROR(lbsnap): ' + e.message));
+    await sp.addInitScript(() => {
+      const mode = localStorage.getItem('lbsnap_mode') || 'a';
+      const rows = (pre) => Array.from({ length: 50 }, (_, i) => [pre + (i + 1), (i % 24) + 1, 10000 - i * 100]);
+      window.__topCalls = 0;
+      const of = window.fetch;
+      const json = (b, st) => new Promise(res => setTimeout(() => res(new Response(JSON.stringify(b), { status: st || 200, headers: { 'content-type': 'application/json' } })), 350));
+      window.fetch = function (u) { const s = String(u);
+        // ⚠️ 'fail' is a NETWORK failure (a rejected fetch → lbFetch's 'offline'), not a 500 with an `err`
+        // body: that one is 'refused' and lands in the «still being built» branch — a sabotage of the
+        // «No connection» branch stayed green under it (the dry run caught the wrong branch)
+        const fail = () => new Promise((_, rej) => setTimeout(() => rej(new TypeError('Failed to fetch')), 350));
+        if (s.indexOf('/v1/top') >= 0){ window.__topCalls++; return mode === 'fail' ? fail() : mode === 'early' ? json({ t: 0, n: 0, p: 1, r: [], stale: 1 }) : json({ t: 1, n: 900, p: 1, r: rows(mode === 'b' ? 'Fresh' : 'Player') }); }
+        if (s.indexOf('/v1/me') >= 0) return (mode === 'fail' || mode === 'mefail') ? fail() : mode === 'norow' ? json({ err: 'none' }, 404) : json({ ok: 1, s: 0, n: 'Stoat', a: 5, rank: 7, exact: 1, t: 1, up: [], dn: [] });
+        return of.apply(this, arguments); };
+      if (!localStorage.getItem('mixer_lb_url')) localStorage.setItem('mixer_lb_url', 'http://lb.stub');
+      if (!localStorage.getItem('mixer_save_v1')) localStorage.setItem('mixer_save_v1', JSON.stringify({ gid: 'g-snap-0001' }));
+    });
+    const boot = async () => { await sp.goto('file://' + PAGE_FILE + '?dev=1'); await sp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); await sp.evaluate(() => window.__game.skipIntro()); await sp.waitForTimeout(300); };
+    // the menu, then the leaderboard — and the list read in the SAME task, before any network answer can land
+    // ⚠️ THE LIVE PASS IS WAITED FOR BY POLLING, NOT BY THE CLOCK (run 28: six arms red in the full suite
+    // and green alone — the mock's 350 ms plus the loaded bench outran a fixed 900 ms). `settle` polls
+    // the list until the live pass has landed (a predicate on the DOM), with a ceiling as insurance.
+    const settle = (pred, ms) => sp.waitForFunction(pred, null, { timeout: ms || 8000 }).catch(() => null);
+    const read = () => sp.evaluate(() => { const host = document.getElementById('lbList');
+      return { rows: host.querySelectorAll('.lb-row').length, me: host.querySelectorAll('.lb-row.me').length,
+        serv: (host.querySelector('.lb-serv') || {}).textContent || '', first: (host.querySelector('.lb-row .lb-name') || {}).textContent || '', calls: window.__topCalls,
+        snap: (() => { try { const s = JSON.parse(localStorage.getItem('mixer_lb_snap') || 'null'); return s && { base: s.base, rows: s.top && s.top.rows.length, first: s.top && s.top.rows[0] && s.top.rows[0].name, meRank: s.me && s.me.rank, gid: s.gid }; } catch (e) { return 'bad'; } })() }; });
+    const openLb = async () => { await sp.evaluate(() => { document.getElementById('pauseBtn').click(); document.getElementById('msLbEntry').click(); }); return read(); };
+    // (1) THE FIRST EVER OPEN: nothing to show yet — «Loading…», then the rows, and the snapshot written
+    await boot();
+    const s1 = await openLb();
+    await settle(() => document.querySelectorAll('#lbList .lb-row.me').length === 1);
+    const s1b = await read();
+    expect(s1.rows === 0 && s1.serv === 'Loading…' && s1b.rows === 50 && s1b.me === 1 && s1b.first === 'Player1',
+      'LB SNAP first open: «Loading…» first (' + JSON.stringify({ rows: s1.rows, serv: s1.serv }) + '), the live rows after the network (' + JSON.stringify({ rows: s1b.rows, me: s1b.me, first: s1b.first }) + ')');
+    expect(s1b.snap && s1b.snap.base === 'http://lb.stub' && s1b.snap.rows === 50 && s1b.snap.first === 'Player1' && s1b.snap.meRank === 7 && s1b.snap.gid === 'g-snap-0001',
+      'LB SNAP first open: the good top and own row are persisted, keyed by the server address and the guest id (' + JSON.stringify(s1b.snap) + '). ⛔ SABOTAGE: drop the lbSnapWrite in lbTop — nothing persisted');
+    // (2) THE NEXT SESSION: the snapshot's rows are on the screen BEFORE the network answers, the live read is still issued, and it replaces them
+    await sp.evaluate(() => localStorage.setItem('lbsnap_mode', 'b'));
+    await boot();
+    const s2 = await openLb();
+    await settle(() => { const n = document.querySelector('#lbList .lb-row .lb-name'); return !!n && n.textContent === 'Fresh1'; });
+    const s2b = await read();
+    expect(s2.rows === 50 && s2.serv === '' && s2.first === 'Player1' && s2.me === 1 && s2.calls >= 1,
+      'LB SNAP next session: 50 rows synchronously after the tap, no «Loading…», the snapshot\'s names, the own row from the snapshot, and a live read issued (' + JSON.stringify({ rows: s2.rows, serv: s2.serv, first: s2.first, me: s2.me, calls: s2.calls }) + ')');
+    expect(s2b.rows === 50 && s2b.first === 'Fresh1' && s2b.snap && s2b.snap.first === 'Fresh1',
+      'LB SNAP next session: the live answer replaced the stale rows (first ' + s2b.first + ') and refreshed the snapshot (' + JSON.stringify(s2b.snap) + ')');
+    // (3) A DIFFERENT GUEST ID KEEPS THE TOP BUT NOT THE OWN ROW (before the address arm: the snapshot
+    // holds ONE server address, and the address arm re-keys it — the dry run caught the wrong order)
+    await sp.evaluate(() => { localStorage.setItem('lbsnap_mode', 'a'); localStorage.setItem('mixer_save_v1', JSON.stringify({ gid: 'g-snap-0002' })); });
+    await boot();
+    const s4 = await openLb();
+    await settle(() => document.querySelectorAll('#lbList .lb-row.me').length === 1);
+    const s4b = await read();
+    expect(s4.rows === 50 && s4.me === 0 && s4b.me === 1 && s4b.snap && s4b.snap.gid === 'g-snap-0002',
+      'LB SNAP other id: the top is shown at once without the previous id\'s own row (' + JSON.stringify({ rows: s4.rows, me: s4.me }) + '), the live read brings the own row and re-keys the snapshot (' + JSON.stringify({ me: s4b.me, gid: s4b.snap && s4b.snap.gid }) + ')');
+    // (4) A DIFFERENT SERVER ADDRESS DOES NOT SHOW THE OLD SNAPSHOT (the snapshot is re-keyed to it; the
+    // failed-read arm below runs against this address on purpose)
+    await sp.evaluate(() => { localStorage.setItem('mixer_lb_url', 'http://lb.other'); });
+    await boot();
+    const s3 = await openLb();
+    await settle(() => document.querySelectorAll('#lbList .lb-row').length === 50);
+    const s3b = await read();
+    expect(s3.rows === 0 && s3.serv === 'Loading…' && s3b.rows === 50 && s3b.snap && s3b.snap.base === 'http://lb.other',
+      'LB SNAP other address: the snapshot of another server is not shown — «Loading…» then the live rows, and the snapshot re-keyed (' + JSON.stringify({ rows: s3.rows, serv: s3.serv, live: s3b.rows, snap: s3b.snap }) + '). ⛔ SABOTAGE: drop the base check in lbSnap');
+    // (5) A FAILED LIVE READ KEEPS THE STALE ROWS INSTEAD OF AN ERROR LINE
+    await sp.evaluate(() => localStorage.setItem('lbsnap_mode', 'fail'));
+    await boot();
+    const s5 = await openLb();
+    await settle(() => window.__topCalls >= 1 && !document.querySelector('#lbList .lb-serv'), 3000); await sp.waitForTimeout(700);   // a failure leaves no mark on the DOM — the calls counter plus a grace
+    const s5b = await read();
+    expect(s5.rows === 50 && s5b.rows === 50 && s5b.serv === '',
+      'LB SNAP failed live read: the snapshot\'s rows stay on the screen, no «No connection» line replaces them (' + JSON.stringify({ sync: s5.rows, after: s5b.rows, serv: s5b.serv }) + '). ⛔ SABOTAGE: drop the lbHasRows guard — the rows are erased by the error line');
+    // (6) THE TOP LANDS, THE SIGNED OWN-ROW READ FAILS: the snapshot's own row stands in (the review)
+    await sp.evaluate(() => localStorage.setItem('lbsnap_mode', 'mefail'));
+    await boot();
+    const s6 = await openLb();
+    await settle(() => window.__topCalls >= 1, 3000); await sp.waitForTimeout(900);   // the top lands, the own-row read fails without a mark — a grace after the call
+    const s6b = await read();
+    expect(s6.rows === 50 && s6.me === 1 && s6b.rows === 50 && s6b.me === 1 && s6b.first === 'Player1',
+      'LB SNAP own-row read failed: the live top replaced the rows and the persisted own row stayed in them (' + JSON.stringify({ sync: [s6.rows, s6.me], after: [s6b.rows, s6b.me, s6b.first] }) + '). ⛔ SABOTAGE: drop the snapshot fallback in lbLoadOurs — the own row vanishes on the live pass');
+    // (7) THE SERVER SAYS «NO ROW»: the persisted own row is dropped, it must not outlive the row
+    await sp.evaluate(() => localStorage.setItem('lbsnap_mode', 'norow'));
+    await boot();
+    const s7 = await openLb();
+    await settle(() => document.querySelectorAll('#lbList .lb-row.me').length === 0 && document.querySelectorAll('#lbList .lb-row').length === 50);
+    const s7b = await read();
+    expect(s7.me === 1 && s7b.me === 0 && s7b.snap && s7b.snap.meRank == null,
+      'LB SNAP no row: the stale own row is shown until the server answers «no row», then it leaves the list AND the snapshot (' + JSON.stringify({ sync: s7.me, after: s7b.me, snapMe: s7b.snap && s7b.snap.meRank }) + '). ⛔ SABOTAGE: drop the «no row» clearing in lbMe — the persisted row outlives the deleted one');
+    // (7b) AN «EARLY» BOARD (the server's snapshot rebuilt or D1 away, `t:0`): the stale rows stay too
+    await sp.evaluate(() => localStorage.setItem('lbsnap_mode', 'early'));
+    await boot();
+    const s7e = await openLb();
+    await settle(() => window.__topCalls >= 1, 3000); await sp.waitForTimeout(700);   // an early board leaves the rows as they were — the calls counter plus a grace
+    const s7eb = await read();
+    expect(s7e.rows === 50 && s7eb.rows === 50 && s7eb.serv === '',
+      'LB SNAP early board: the snapshot\'s rows stay, no «still being built» line replaces them (' + JSON.stringify({ sync: s7e.rows, after: s7eb.rows, serv: s7eb.serv }) + '). ⛔ SABOTAGE: drop the lbHasRows guard on the EARLY branch');
+    // (8) A SNAPSHOT OLDER THAN A WEEK IS NOT SHOWN
+    await sp.evaluate(() => { localStorage.setItem('lbsnap_mode', 'a'); const s = JSON.parse(localStorage.getItem('mixer_lb_snap')); s.at = Date.now() - 8 * 86400000; localStorage.setItem('mixer_lb_snap', JSON.stringify(s)); });
+    await boot();
+    const s8 = await openLb();
+    await settle(() => document.querySelectorAll('#lbList .lb-row').length === 50);
+    const s8b = await read();
+    expect(s8.rows === 0 && s8.serv === 'Loading…' && s8b.rows === 50,
+      'LB SNAP a week old: not shown — «Loading…» then the live rows (' + JSON.stringify({ sync: [s8.rows, s8.serv], after: s8b.rows }) + '). ⛔ SABOTAGE: drop the age check in lbSnap');
+    await sp.evaluate(() => { localStorage.removeItem('lbsnap_mode'); localStorage.removeItem('mixer_lb_snap'); localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await sp.close();
+  }
+  // ⟦LBSNAP-SECTION-END⟧
 
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
