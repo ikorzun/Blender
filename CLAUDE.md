@@ -16374,3 +16374,144 @@ the same source, the polls in: **1055 green, 0 red, SUITE: PASS**. Pushed to `v2
 edition of the route and neither device failure ever reproduced here; `?flow=0` is the kill switch he can
 test without a deploy, and the rollback is one commit.
 
+
+## BATCH 2026-09-08-b: THE PHONE'S INTRO IS ONE PICTURE FOR 1.5 SECONDS (his word: «replace the 3 intro screens at the start with 1 picture for mobile and show it 1.5 seconds, then quickly and smoothly go to the game screen», with `Blendo-9-16-intro.jpg`)
+
+### WHAT SHIPPED
+- His 9:16 poster (1129×2006 JPEG, 382 KB → 509 KB of base64) is INLINED into the build — the build
+  opens as ONE file offline, his rule; the file is his and is never re-encoded. `#introSplash` is a
+  fixed full-viewport `<img>` with `object-fit:cover` (on a 9:16.3 layout viewport it loses ~30 px of
+  sky and ground; the flames keep a 5 px margin), one notch under the two edge cards, which for its
+  duration wear the PICTURE's edge tones (its top rows 142,218,253; its visible bottom rows 185,179,158
+  — measured off the file) instead of the game sky's, so the zones match the picture on the device.
+  ⚠️ SEEN ON THE BENCH AND NAMED TO HIM: the bottom card is ONE flat tone under a multicoloured row of
+  bricks, so while the poster shows there is a 6 px beige line along the very bottom of the viewport
+  (the card's inside half; the top card's sky-blue merges with the poster's sky). The alternative —
+  hiding the card — would paint that zone body's violet under the poster, which is worse. His call.
+- THE GATE IS AN INLINE SCRIPT AT THE TOP OF BODY, before the 12 MB script parses: a phone-width
+  viewport (≤767, the HUD's own boundary) and not an automated browser (`?splash=1` lets a guard see
+  it, `?splash=0` switches it off anywhere). The picture is therefore in the very FIRST painted frame
+  and covers the load as well — ⛔ this supersedes, on the phone only, his July «first the browser
+  shows white» start; the desktop keeps it.
+- THE 1.5 s COUNT FROM THE MOMENT THE PICTURE WAS VISIBLE: from the first paint where no platform
+  curtain covered the page (file://, no SDK); from the curtain's lift where the SDK drew one (the
+  portal — `Ads.curtainWhy` says `lifted by …`). Then a 300 ms opacity fade, and `beginDrop()` runs in
+  the SAME frame the fade begins — the fall starts under the fading picture («quickly and smoothly»).
+  `display` returns to none after the fade (Safari samples `opacity:0` at the edges too).
+- The splash takes the prologue's SLOT in the wait phase (`splashPlay` where it is on, `storyPrologue`
+  otherwise); `skipIntro` closes it the way it closes the comic, so the suite never waits on it.
+- ⚠️ NAMED TO HIM, DISPATCHER'S DEFAULTS: it shows on EVERY launch on the phone (the comic showed
+  once, to a new player; a 1.5 s title card is a launch ritual, and it also hides the load); THE
+  STORY BITS ARE NOT MARKED — a new phone player meets K0/K1 between levels by the queue («the old
+  scheme» of 86-story); the desktop and the tablet keep the comic (the picture is 9:16) — batch -c
+  gives them the video.
+- THE PRICE, MEASURED: `index.html` 12 204 526 → 12 729 496 B (+525 KB — the JPEG's 509 KB of base64 plus
+  the two intros' code, this batch and -c built together); the portal ZIP (index + 2 bridge + music)
+  5 743 098 → 6 128 627 B (+0.39 MB — a JPEG does not zip); the headroom to the 8 MB reference 1.87 MB.
+
+### THE GUARD (the INTRO section, `⟦INTRO-SECTION⟧`, arms A–D, its own pages)
+A phone page with `?splash=1` and the minimum stretched to 4 s through `window.__splashMinMs` (the
+bench's load alone takes ~2.5 s — at 1.5 s the hold would be indistinguishable from the load): the
+picture covers the viewport from the start (fixed, cover, the natural 1129×2006), the fall is HELD
+(phase `wait`), both cards wear the picture's tones, the production numbers are 1500 / 300; the fade
+begins no earlier than the minimum after the first paint and the phase is `drop` in that very frame;
+500 ms later — display none, the cards back on the sky's stops. An automated page without the flag:
+no splash, the comic holds the fall as before. A 1280 page with the flag: the phone gate holds — the
+comic. `skipIntro` closes it at once. PROVEN AGAINST FIVE VARIANTS (`tools/build-variant.py` +
+`tools/section-dryrun.js`; the healthy build 21 green), each reddening its own arm: `wait = 0` → the
+minimum arm (2514 ms against the 4000 knob) AND the two «held» arms that read the phase while the picture
+shows — with no wait the fall has begun by the first read; `done()` moved after the fade → the «same
+frame» arm alone; the phone-width term dropped → the desktop arm alone (the poster at 1280); the card
+overrides removed → the cards arm alone (the sky's stops under the poster); `splashForceClose()` dropped
+from `skipIntro` → the skip arm alone (the picture still on, the level live under it).
+
+
+## BATCH 2026-09-08-c: THE TABLET AND THE DESKTOP GET THE VIDEO INTRO — NEXT TO THE BUILD, NOT INSIDE IT (his word: «for the tablet and the desktop I want the intro replaced with a video, but it weighs a lot — work out how not to bake it into the game or how to optimise it without losing quality», with `blendo-intro.mp4`; later his own optimised copy)
+
+### THE FILE, MEASURED, AND WHY HIS OPTIMISED COPY COULD NOT SHIP
+| file | codec | size | bitrate |
+|---|---|---|---|
+| his master `blendo-intro.mp4` | HEVC 10-bit (yuv420p10le), 1920×1080, 24 fps, 3.995 s + AAC 264 kbps | 10.2 MB | 19.8 Mbps |
+| his optimised copy (`Blendo gpt/output/video/blendo-intro-optimized.mp4`) | HEVC | 3.74 MB | 7.2 Mbps |
+| `video/blendo-intro.mp4` — H.264 High 4.1, CRF 19, preset slow, 8-bit, +faststart, AAC 128k | H.264 | **2.44 MB** | 4.7 Mbps |
+| `video/blendo-intro.webm` — VP9 CRF 30, row-mt, Opus 96k | VP9 | **1.10 MB** | ~2.1 Mbps |
+⛔ HEVC IS NOT A WEB CODEC: Chrome, Edge and Firefox decode it only where the OS exposes a hardware
+decoder (Windows with the paid extension, some Android), and never on Linux; only Safari decodes it
+everywhere. His 3.74 MB copy would have played for Safari users and shown a black box to the rest.
+Both encodes are 8-bit 4:2:0 from the 10-bit master (the web's decoders are 8-bit); at CRF 19 the
+H.264 is visually transparent for this content (flat-shaded low-poly, four seconds), and the VP9 at
+CRF 30 the same at half the bytes. «Without losing quality» is honoured in the only way the web can:
+the master stays his, untracked; the two encodes are what ships.
+
+### HOSTING — VARIANT 1 OF THE THREE PUT TO HIM (unanswered; the dispatcher's choice, one line to move)
+1. **IN THE REPO, NEXT TO THE BUILD** (`video/`) — shipped: served by GitHub Pages with the game; the
+   gate uses the relative address on github.io and on any local host, and the ABSOLUTE github.io
+   address everywhere else (the portal, the wrapper), so the portal package stays its four files and
+   the video is never inside `index.html`. Nothing to deploy, nothing to pay for; the video's arrival
+   depends on GitHub Pages being up, which the game does too.
+2. His own domain (`blendo.monster` — the worker could front an R2 bucket): a deploy of his.
+3. Inside the portal package: +3.5 MB on a 5.6 MB ZIP against the 8 MB reference — rejected.
+⚠️ THE DOWNLOAD STARTS IN THE FIRST FRAME (`preload=auto` + `load()` in the gate) and competes with
+the 12 MB script's own parse; by the wait-phase hand-off on a fast line the WebM is in; on a slow one
+the grace below decides.
+
+### THE MECHANISM (shell.html: the element, the inline gate, the CSS; 85-hud `videoPlay`; 99-main the hand-off)
+- THE GATE: ≥768 wide (the phone has the splash), not `prefers-reduced-motion`, not an automated
+  browser unless `?video=1`; `?video=0` switches it off anywhere. Off → the element keeps
+  `preload=none` and NO sources: a phone never fetches a byte. On → two `<source>`s, WebM VP9 first
+  (1.1 MB), H.264 second: a browser that cannot decode the first answers '' to `canPlayType` and takes
+  the second (Playwright's Chromium has no H.264 — it takes the WebM, which is why the suite plays the
+  real file). `?vsrc=<base>` on a local host is a dev knob (the fallback guard points it at nothing).
+- AT THE HAND-OFF (the same slot the splash and the comic use): if `readyState ≥ 3` the video plays
+  at once; else it waits up to `VIDEO_GRACE_MS` 1500 for `canplay`; not ready, a decode error, an
+  autoplay refused → the prologue comic exactly as before. Muted (an autoplay with sound is refused
+  without a gesture — named to him; a click could unmute, one line, his word). Shown only while it
+  plays (`html.video-on` when the first frame is decoded — nothing shows before that, so no backing
+  colour), fixed, `object-fit:cover` (a 16:9 film on a portrait tablet keeps its centre — the eyes
+  and the logo — and loses its sides; the pile is framed centrally throughout). MEASURED on the bench
+  at 768×1024: the 1080-tall frame scales to 1024 → 1820 wide, so 526 px of EACH side is cut — the
+  «BLENDO» letters lose their ends, the cat and the dog stand half out of frame. A picture was sent to
+  him with the report; a 9:16 cut of the film for portrait tablets is his call, not a code change.
+- ITS END, OR A CLICK/TAP/KEY, fades it over 300 ms while `beginDrop()` runs in the SAME frame — the
+  fall starts under the fading film (the splash's rule). `skipIntro` closes it WITHOUT its comic
+  fallback (the story's `storyForceClose` runs first; a fallback there would open a comic on every
+  suite page). After the close the sources are removed and `load()` called — the decoder is freed.
+- ⚠️ ON file:// A MISSING FILE FAILS ~2 s BEFORE THE HAND-OFF (the 12 MB script's parse stands between
+  the gate and `videoPlay`), so both sources have already failed when the controller attaches its
+  listeners: `videoPlay` checks `networkState === NETWORK_NO_SOURCE && readyState === 0` FIRST and
+  hands the slot to the comic at once (why «error») instead of after the 1.5 s grace (the review).
+- ⚠️ A SOURCE THAT FAILS FIRES `error` AT THE `<source>`, NOT AT THE VIDEO (the resource-selection
+  algorithm): the element's own `error` reports only a decode failure of a source it accepted. The
+  controller listens on the LAST source too — the first's error is merely «not this codec».
+- ⚠️ NAMED TO HIM: every launch, skippable (the comic showed once); the story bits are not marked
+  (the splash's rule); a landscape phone ≥768 wide gets the video, a portrait tablet the crop above.
+
+### THE GUARD (the INTRO section, arms E–K, its own 1280 pages; the real WebM plays from file://)
+Gated at load with both sources and `preload auto`; PLAYS at the hand-off — visible, cover-fitted
+over the whole viewport, muted, no comic — with the fall HELD; the clip advances and is the 4-second
+film; at its END the phase is `drop` in the frame the fade begins; after the fade — display none, the
+sources released. A click mid-clip skips it — fade and fall in the same frame. A source that cannot
+load (`vsrc=no-such-dir/`) hands the slot to the comic, the fall still held, nothing shown. At 390
+with the flag: no sources, preload none, the comic. Reduced motion at 1280: the same. `skipIntro`
+closes the film at once and opens NO comic. PROVEN AGAINST SIX VARIANTS, each reddening its own
+arm: the NETWORK_NO_SOURCE early bail dropped → the fallback arm alone (the comic still comes, 1.5 s
+late, why «not ready in time» — the arm demands «error»); `done()` moved after the fade → the end AND
+the skip arms (both read the phase in the fade's first frame); the min-width term dropped → the phone
+arm alone (two sources on a 390 page); the reduced-motion term dropped → its arm alone; `videoForceClose()`
+dropped from `skipIntro` → the skip-intro arm alone (the film still on over a live level); the `ended`
+listener dropped → the end arm and the «gone after the fade» arm (the film never finishes, the sources
+never released). Every variant built OUTSIDE the tree with `video/` symlinked beside it — the tool learned
+that in this batch: on file:// the gate takes the relative address, and a variant without the folder would
+have sent every desktop arm down the comic fallback and the proof could not have been made.
+
+### THE RUNS OF -b AND -c (one build, one suite)
+The INTRO section lifted alone on the healthy build: **21 green** (arms A–D and E–K), the strict fallback arm
+included; the eleven sabotage variants above, each on its own arm; the bench pictures (the splash at 402×654
+mid-hold and after its fade, the video mid-play at 768×1024 and 1280×832) sent to him BEFORE the guards were
+trusted. **Run 30** — the whole suite on the build carrying both batches: **1076 green, 0 red, SUITE: PASS**.
+Pushed to `v2` and onto `main` on his standing word; the live site verified by byte size on `index.html` AND
+on both video files (status, length, type, `Accept-Ranges`). ⚠️ THE ADVISOR'S CHECKS BEFORE THE APPLY, all
+taken: the variant tool symlinks `video/`; the section's own pages feed the error gate only through
+`pageerror` (Chromium's two `ERR_FILE_NOT_FOUND` console lines of the fallback arm never reach it); the
+load-lengthened ceilings raised to 20 s and the splash's upper bound dropped; the NETWORK_NO_SOURCE early
+bail added and the fallback arm made strict on it.
