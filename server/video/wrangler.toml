@@ -1,0 +1,27 @@
+# THE INTRO FILM'S HOME ON HIS OWN DOMAIN (2026-09-08-e, the owner's word: «my domain — blendo.monster»).
+# An assets-only Worker: no code, the two encodes in the repo's `video/` directory served as static
+# assets at https://video.blendo.monster/blendo-intro.{webm,mp4}. The game's inline gate (src/shell.html)
+# asks this address FIRST from any host that is not local and not github.io (the portal, the wrapper),
+# and the github.io copy SECOND — the <video> resource-selection algorithm moves to the next <source>
+# on a network error, so until this Worker is deployed the film still comes from GitHub Pages.
+# ⚠️ DEPLOYS ARE THE OWNER'S ACTION (the leaderboard's rule):
+#   npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml
+# then: curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm  → 206, video/webm
+name = "blendo-video"
+compatibility_date = "2026-08-01"
+
+# ⛔ workers.dev IS OFF ON PURPOSE (the leaderboard's reason): one public address, our own domain,
+# not *.workers.dev which school and corporate networks block. A TOP-LEVEL key — it must stand before
+# any [table] header (TOML: everything after a header belongs to it).
+workers_dev = false
+
+# The files are NOT copied here: the directory is the repo's own `video/`, relative to this file,
+# so a re-encode lands in one place and the github.io copy and this Worker never drift apart.
+[assets]
+directory = "../../video"
+
+# The owner's zone (set up 2026-08-10, on Cloudflare); `custom_domain` makes wrangler create the DNS
+# record on deploy, the same way lb.blendo.monster was mounted.
+[[routes]]
+pattern = "video.blendo.monster"
+custom_domain = true

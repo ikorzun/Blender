@@ -6,8 +6,24 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a, -b and -c on top of 2026-09-07 b–i, v2 = main** · the suite **1076 green, 0 red, SUITE: PASS** (run 30; run 29 on -a alone 1055 green) · the live
+**Build: batches 2026-09-08-a to -e on top of 2026-09-07 b–i, v2 = main** · the suite **1077 green, 0 red, SUITE: PASS** (run 32; run 30 on a–c 1076 green) · the live
 site verified by byte size against the build · the worker is deployed (the rank fix and the `t` field) · portal package unchanged in shape
+
+**8 SEPTEMBER, LATE — THE INTROS BY YOUR FIVE ANSWERS (batches 2026-09-08-d and -e in CLAUDE.md).** No lines
+over the poster: both edge cards are gone while it shows, the splash gate is the first thing in body (no frame of a
+slow load can show the game's card lines), body carries the poster's sky (the status zone above the picture stays
+a flat colour by Safari's own law — the picture cannot rise above its origin). **The poster occupies the whole
+screen:** the box is absolute and taller than the layout viewport, so on the phone it lies UNDER the bottom bar
+through its glass (the measured route of the flow mode); cover on the taller box cuts ~45 px a side on your phone.
+**There is no comic:** the prologue is deleted, the intro is the picture (phone) or the film (tablet/desktop), and
+where neither applies the game starts at once. **The film sounds:** unmuted at the music slider's volume, muted
+only where the browser refuses an autoplay with sound (a first visit in Chrome, Safari's default) or the music is
+off; the background music is held while it sounds. **The film on your domain:** an assets-only Worker in
+`server/video/` for `video.blendo.monster` — YOUR deploy (the command is in the toml); until then the game takes
+the github.io copy after two failed lookups. **On the iPad and the Mac** the toolbar zone over the film is the film's
+sky while it plays (scoped to the play so a skip-tap freezes the game's colour, not the film's). What only your
+devices can say: the phone's poster under the address bar with no line at the bottom and the sky to the top edge;
+the iPad's toolbar over the film; the film's sound in the wrapper and on the portal.
 
 **8 SEPTEMBER, THE INTROS (batches 2026-09-08-b and -c in CLAUDE.md).**
 **On the phone the three-panel prologue is replaced by your 9:16 poster** — inlined into the build, in the very

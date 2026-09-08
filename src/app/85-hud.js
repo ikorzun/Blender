@@ -190,17 +190,27 @@ function splashState(){ const h = document.documentElement;
 // key, fades it over VIDEO_FADE_MS while the fall starts underneath, in the same frame («quickly and
 // smoothly», the splash's rule). Anything else — not ready in time, a decode error, an autoplay
 // refused — falls back to the prologue comic exactly as before. Muted: an autoplay with sound is
-// refused by every browser without a gesture (named to him). ⚠️ THE STORY BITS ARE NOT MARKED (the
+// refused by every browser without a gesture (named to him) — ⛔ 2026-09-08-e: UNMUTED FIRST, muted only if refused, see below. ⚠️ THE STORY BITS ARE NOT MARKED (the
 // splash's rule): the video takes the prologue's SLOT, not its marks.
 const VIDEO_GRACE_MS = 1500, VIDEO_FADE_MS = 300;
 let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort = null, videoSkipFn = null;
+// THE FILM'S OWN SOUND (2026-09-08-e, his word «the video has its own sound»): the film starts UNMUTED at the
+// player's music volume (the music slider; off = the film is silent too); a browser that refuses an unmuted
+// autoplay (no gesture yet — Chrome on a first visit, Safari's default) gets the same film MUTED, so it always
+// plays. While it sounds, the background music is HELD (paused) and released when the film closes — two
+// soundtracks at once would be noise. Both branches are MEASURED by the suite without a knob: the game's own
+// play() at the hand-off is refused by Chromium on a page nobody has touched (Playwright's evaluate carries a
+// gesture, the page's own scripts do not) and allowed after one real click on the page.
+let videoSound = '', videoBgmHeld = false;
+function bgmHold(){ const b = document.getElementById('bgm'); if (b && !b.paused){ b.pause(); videoBgmHeld = true; } }
+function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b) { try { b.play().catch(()=>{}); } catch(_){} } }
 function videoEl(){ return document.getElementById('introVideo'); }
 function videoGated(){ return document.documentElement.classList.contains('video'); }
 function videoActive(){ const h = document.documentElement; return h.classList.contains('video-on') && !h.classList.contains('video-out'); }
 function videoClose(){
   const h = document.documentElement, v = videoEl();
   h.classList.remove('video-on'); h.classList.remove('video-out'); h.classList.remove('video');
-  videoDone = true; videoAbort = null; videoSkipFn = null;
+  videoDone = true; videoAbort = null; videoSkipFn = null; bgmRelease();
   try { if (v){ v.pause(); while (v.firstChild) v.removeChild(v.firstChild); v.removeAttribute('src'); v.load(); } } catch(e){}   // free the decoder
 }
 function videoPlay(done, fallback){
@@ -229,8 +239,13 @@ function videoPlay(done, fallback){
     h.classList.add('video-on');
     v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); addEventListener('keydown', skip);
     videoT1 = performance.now();
-    let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); }
-    if (p && p.then) p.then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); };
+    const vol = (typeof musicVol === 'number') ? musicVol : 1, wantSound = vol > 0;
+    v.muted = !wantSound; try { v.volume = (typeof musicOut === 'function') ? musicOut(vol) : vol; } catch(_){}
+    const tryPlay = () => { let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); } return (p && p.then) ? p : Promise.resolve(); };
+    const withSound = wantSound ? tryPlay() : Promise.reject(null);
+    withSound.then(() => { videoSound = 'on'; bgmHold(); },
+      () => { videoSound = wantSound ? 'refused' : 'music-off'; v.muted = true;
+        tryPlay().then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); }); };
   const onCan = () => start();
   videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };
   videoSkipFn = () => skip(null);
@@ -246,6 +261,7 @@ function videoState(){
     why: videoWhy, done: videoDone, t0: (typeof window.__videoT0 === 'number') ? window.__videoT0 : 0, t1: videoT1, fadeAt: videoFadeAt,
     ready: v ? v.readyState : -1, cur: v ? v.currentTime : -1, dur: v ? v.duration : -1, paused: v ? v.paused : null, muted: v ? v.muted : null,
     srcs: v ? Array.from(v.querySelectorAll('source')).map(s => s.getAttribute('src')) : [], preload: v ? v.preload : null,
+    sound: videoSound, bgmHeld: videoBgmHeld, volume: v ? v.volume : null,
     grace: VIDEO_GRACE_MS, fade: VIDEO_FADE_MS };
 }
 function show(id){

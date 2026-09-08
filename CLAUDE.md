@@ -16388,6 +16388,9 @@ test without a deploy, and the rollback is one commit.
   bricks, so while the poster shows there is a 6 px beige line along the very bottom of the viewport
   (the card's inside half; the top card's sky-blue merges with the poster's sky). The alternative —
   hiding the card — would paint that zone body's violet under the poster, which is worse. His call.
+  ⛔ 2026-09-08-d/-e: CANCELLED — his word «no lines at the top» (-d: the top card display:none) and then «remove
+  the violet, the picture occupies all the space» (-e): BOTH cards are display:none under the poster, the box is
+  absolute and lies under the bottom bar, body carries the poster's sky. No line at either edge.
 - THE GATE IS AN INLINE SCRIPT AT THE TOP OF BODY, before the 12 MB script parses: a phone-width
   viewport (≤767, the HUD's own boundary) and not an automated browser (`?splash=1` lets a guard see
   it, `?splash=0` switches it off anywhere). The picture is therefore in the very FIRST painted frame
@@ -16443,7 +16446,11 @@ H.264 is visually transparent for this content (flat-shaded low-poly, four secon
 CRF 30 the same at half the bytes. «Without losing quality» is honoured in the only way the web can:
 the master stays his, untracked; the two encodes are what ships.
 
+⛔ 2026-09-08-e SUPERSEDES THREE THINGS IN THIS SECTION: the comic fallback (there is no comic — the slot falls to the
+game itself), «muted» (the film sounds at the music volume, muted only where the browser refuses or the music is
+off), and the github.io-only address (his domain first — `server/video/`, video.blendo.monster; github second).
 ### HOSTING — VARIANT 1 OF THE THREE PUT TO HIM (unanswered; the dispatcher's choice, one line to move)
+⛔ ANSWERED 2026-09-08-e: his domain. Variant 2 below, as an assets-only Worker, not R2 — see batch -e.
 1. **IN THE REPO, NEXT TO THE BUILD** (`video/`) — shipped: served by GitHub Pages with the game; the
    gate uses the relative address on github.io and on any local host, and the ABSOLUTE github.io
    address everywhere else (the portal, the wrapper), so the portal package stays its four files and
@@ -16519,3 +16526,184 @@ bail added and the fallback arm made strict on it.
 append and the commit with `;`, not `&&` — its trailing-newline assert on CLAUDE.md failed AFTER STATUS.md was
 written, and the commit ran anyway with STATUS and without the canon. The class this file already records: a
 gate must tell «not finished» from «failed», and a chain of steps must stop at the first one that did not.
+
+## BATCH 2026-09-08-d: NO LINE OVER THE INTRO PICTURE, THE CHROME ZONES WEAR THE INTROS' OWN SKY, THE SPLASH GATE FIRST IN BODY (his word: «on the loading screen the lines at the top are not needed; the picture and the video must be the full width of the screen»)
+
+### WHAT HE SAW — READ FROM THE CANON'S OWN MEASUREMENTS, NOT FROM A DEVICE (this Mac has none)
+- THE PHONE. Batch -b kept the top edge card under the poster and recoloured it to the poster's sky: 6 px of
+  ONE flat tone INSIDE the viewport over the poster's clouds, continued upward by the status zone in the same
+  flat tone — a band with a hard lower edge where the clouds begin. And the gate that adds `html.splash`
+  stood BELOW the poster's 500 KB of base64 markup, after the cards and `#skyFill`: on the real 12.7 MB
+  load a frame could be painted with the game's own card lines (sky blue at the top, mint at the bottom)
+  before the picture existed — «the loading screen with lines at the top» in the most literal sense. The
+  bench never showed it: file:// parses the whole page in one go.
+- THE TABLET AND THE DESKTOP. From 768 the cards are gone (his 2026-09-07 word) and `<video>` is
+  transparent — not a candidate — so on iPad and Mac Safari 26 the zone over the film took body's colour:
+  the level's zenith violet (172,168,255), a flat band over a sky-blue film.
+
+### WHAT SHIPPED
+- `html.splash #edgeTop { display:none }` — the top card is GONE for the poster's duration, the 6 px line
+  with it. The status zone keeps the poster's sky all the same: `#introSplash` is itself a candidate by
+  WebKit's rules (fixed, full width, taller than 10 px, one opaque `background-color`; its `<img>` is a
+  CHILD, and children paint freely — only the container's own background counts), and `html.splash body {
+  background-color:rgb(142,218,253) }` backs it for the frames before the box is parsed. ⚠️ THE BOTTOM CARD
+  STAYS with the poster's ground tone: the poster's bottom rows are a multicoloured pile, the zone needs ONE
+  tone, and the 6 px line there was the open question of -b, not this word (which named the top).
+  Tombstoned in -b. ⛔ SUPERSEDED THE SAME EVENING BY -e (his answer «remove the violet, the picture occupies
+  all the space»): both cards are gone under the poster, the box is ABSOLUTE and no candidate at all — body
+  alone gives the top zone its colour; the `background-image:none` came from the -d review.
+- THE GATE IS THE FIRST CHILD OF BODY (`<script id="splashGate">`), before the cards and `#skyFill`:
+  `html.splash` exists before any element of body can paint, so no frame of a slow load can show the game's
+  card lines or the white start on the phone. The video gate stays where it was (it needs its element);
+  `window.__splashT0` is stamped a few ms earlier, which is nothing.
+- `html.video body { background-color:rgb(131,208,251) }` — the film's first top rows, measured with ffmpeg
+  off the WebM (crop 1920×8 at the top, area-scaled to one pixel; the top drifts 131→144 red over the clip)
+  — for the film's whole life from the first frame (`html.video`, not `html.video-on`: on iPad/macOS the edge
+  FREEZES after the first scroll or tap, so the colour at load is the one that sticks). On the desktop in
+  Chrome body shows only above the rising sky fill for 420 ms, and 131,208,251 sits next to the 133,220,255
+  it showed there before 10-stage writes the zenith — nothing to the eye.
+- ⛔ THE ZONE ABOVE THE PICTURE STAYS A FLAT COLOUR — the platform limit of 2026-09-05-f («not a fourth
+  time»): a fixed box is clipped at the layout viewport and a document has no rows above its origin. The
+  best any page can do there is the picture's OWN top colour, which is what it is now; named to him plainly.
+
+### «THE FULL WIDTH OF THE SCREEN» — THE READING, AND WHAT WAS NOT DONE
+Both intros keep `object-fit:cover`. On his phone's layout viewport (402×654, SHORTER than the poster's
+9:16) the poster is not side-cropped — it loses ~30 px of sky and ground and spans the full width already;
+the sides are cut only where the viewport is TALLER than the picture's ratio: the wrapper's 402×874 (45 px a
+side), tall Android viewports, and for the film the portrait tablet (526 px a side at 768×1024 — the open
+question of -c). A fit-to-width film on a portrait tablet manufactures two bands above and below — the very
+word he used for what he does not want — so cover stays and the choice is his: two renders (cover; fit-to-
+width on the film's sky) sent with the report. Nothing guards the crop either way until he speaks.
+
+### THE GUARD AS -d LEFT IT (INTRO, arms A and E extended; the healthy build 24 green) — -e rewrote arms A and E again, see there
+Arm A reads, while the poster shows: the top card `display:none`, the bottom card `block` in 185,179,158,
+body 142,218,253, the gate script `body.firstElementChild` and BEFORE `#edgeTop` (compareDocumentPosition);
+after the fade the top card back (`block`), both cards on the sky's stops, body on the zenith. Arm E reads
+body 131,208,251 while the film is gated and the zenith after its end. PROVEN AGAINST FOUR VARIANTS, each 23
+green + 1 red on its own arm: the top card's colour override back in place of `display:none` → the cards
+arm; the `html.splash body` rule dropped → the body arm; a card inserted before the gate → the order arm;
+the `html.video body` rule dropped → the film's body arm. ⚠️ HONEST GAP: the candidate claim («the box itself
+keeps the zone the poster's sky with no card») is WebKit-only and cannot be measured in Chromium — his
+phone says it, nothing else can.
+
+### WHAT ONLY HIS PHONE AND HIS iPAD CAN SAY
+The status zone over the poster: the poster's sky with NO line beneath it, the clouds running to the very
+edge of the viewport. The toolbar over the film on the iPad and the Mac: the film's own sky, not the violet.
+The bottom of the poster: ⛔ answered in -e — no line, the poster under the bar.
+
+## BATCH 2026-09-08-e: NO COMIC AT ALL, THE FILM WITH ITS OWN SOUND, THE FILM ON HIS DOMAIN, THE POSTER OVER THE WHOLE SCREEN (his five answers to the -c/-d report: «there is no comic — only the intro picture or the video, by platform»; «the sound is switched on at the picture, the video has its own sound»; «my domain — blendo.monster» (the Cloudflare dashboard link); «on every launch»; «remove the violet background — the picture occupies all the space, like the video»)
+
+### 1. THE PROLOGUE COMIC IS GONE — DELETED, NOT FLAGGED
+- What it was: STORY_PROLOGUE (p0 = K0a, K0b, K1; bit 32, marking 32|1|2) in 86-story, the 2026-07-30 spec's «tell
+  this story BEFORE the game», alive in the wait phase for a new player, and since -b/-c the FALLBACK behind the
+  poster and the film. His word makes the intro the picture or the film and nothing else: the hand-off in 99-main
+  is `splashPlay(go)` where the splash is on, `videoPlay(go, go)` where the film is gated, `go()` otherwise —
+  where neither intro applies (a reduced-motion desktop, an automated page, a film that cannot play) the fall
+  starts AT ONCE. `storyPrologue`, `storyPrologueDue`, STORY_PROLOGUE, STORY_INTRO_MS and the three hooks
+  (`storyPrologueDue/Spy/Now`) are out; `storyForceClose` stays for the vignettes the suite raises.
+- ⛔ WHY DELETED WHEN THE VIGNETTE WAS FLAGGED (2026-08-11): the vignette waits for material that may come; the
+  prologue's slot he filled himself. The K-chapters and the between-levels tract (STORY_WIN_VIGNETTE=false, the
+  suite's own lever) stand exactly as before — his word named the comic at the start; the vignettes were already
+  off by his 08-11 word, so nothing a player sees changed there. ASKED, not decided: whether «no comic at all»
+  also means the K1–K4 vignettes should never come back.
+- The suite: the seven prologue arms in the story section went with the mechanic, each asked the 17662 question
+  (five were about the removed mechanic; «the callback waits» and «done() at once» are the HOLD and the HAND-OFF,
+  guarded in INTRO for the poster and the film). The INTRO arms that read «the comic holds the fall» now read «no
+  comic, the fall starts at once» (B, C, G, H, J); the control page's «mark the story seen before the load» stays
+  as belt and braces with its comment corrected.
+
+### 2. THE FILM'S OWN SOUND; THE PICTURE'S SOUND IS THE GAME'S MUSIC
+- The film starts UNMUTED at the music slider's volume (`musicOut(musicVol)`; slider 0 → the film is muted by the
+  player's own setting, `sound: 'music-off'`). A browser that refuses the unmuted autoplay (no gesture yet: Chrome
+  on a first visit, Safari's default) gets the same film MUTED — it always plays (`sound: 'refused'`). While it
+  sounds, the background music is HELD (`bgmHold`: paused if it was playing) and released in `videoClose` — two
+  soundtracks at once would be noise. Both encodes carry the master's stereo track (Opus 48 kHz in the WebM, AAC in
+  the MP4 — checked with ffprobe).
+- «The sound is switched on at the picture»: the game's music already attempts to start WITHOUT a gesture at load
+  (90-input, the 2026-08-11 measurement) — on the phone that is during the poster, wherever the platform allows it
+  (the wrapper; a portal that has had its Play click); iOS Safari refuses it without a tap and no page can change
+  that. Nothing new was built for it; named to him.
+- ⚠️ THE SUITE MEASURES BOTH SOUND BRANCHES WITHOUT A KNOB — a knob was written and then removed: Playwright's
+  `evaluate` carries a user gesture (Chromium's sticky activation), the page's own scripts do not. So arm E issues
+  one evaluate right after the navigation COMMITS, before the hand-off — the film's own `play()` then sounds and
+  the music is held; arm L touches its page with nothing until 1.5 s after load — the film's `play()` was refused,
+  the film plays muted, the music is not held. ⛔ THE ORDER IS THE WHOLE MEASUREMENT: the first evaluate before the
+  hand-off = a gesture. A `route()` hold on the film's request does NOT work on file:// (the media fetch never
+  completes after `continue()`; measured — «not ready in time» every time), which is why the gesture is the lever.
+
+### 3. THE FILM ON HIS DOMAIN — AN ASSETS-ONLY WORKER HE DEPLOYS
+- `server/video/wrangler.toml`: `blendo-video`, `[assets] directory = "../../video"` (the repo's own directory —
+  a re-encode lands in ONE place), `workers_dev = false` (the leaderboard's reason), the custom domain
+  `video.blendo.monster` (wrangler creates the DNS record on deploy, as it did for lb.). `npx wrangler deploy
+  --dry-run` passes on this Mac (wrangler 4.129.1) — THE DEPLOY IS HIS ACTION, the standing rule:
+  `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
+  `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm` → 206, video/webm.
+- The gate: off any host that is neither local nor github.io (the portal, the wrapper) the sources are domain
+  WebM, domain MP4, github WebM, github MP4 — the resource-selection algorithm moves to the next `<source>` on a
+  network error, so until he deploys the film still comes from GitHub Pages, two failed lookups later; after, the
+  github pair is never reached. On github.io and local hosts: the relative `video/` alone, as before.
+
+### 4. ON EVERY LAUNCH — ALREADY SO
+Both intros show on every launch (the -b/-c defaults); his answer confirms them. Nothing changed.
+
+### 5. THE POSTER OVER THE WHOLE SCREEN — UNDER THE BOTTOM BAR, NO CARDS, NO VIOLET
+- `#introSplash` is ABSOLUTE (not fixed) and TALLER than the layout viewport: `height:calc(100lvh + 120px)` = 874
+  on his phone, the screen itself (`100vh` the fallback). The one solid brick of the fields campaign (2026-09-05-e,
+  measured on his phone; the flow mode's route): a document that reaches under the BOTTOM bar is painted there
+  and read through its glass, while a fixed box is clipped at the layout viewport (08-31-a). `cover` on the taller
+  box scales the 9:16 poster to the screen's height and cuts ~45 px a side on 402×874 — «all the space», his word.
+  Both edge cards are display:none under it (a fixed card would OVERPRINT the poster in the zone — 09-06,
+  measured); body wears the poster's sky with no gradient. The document returns to one viewport when the poster
+  goes (display none) — guarded.
+- ⛔ THE TOP ZONE STAYS A FLAT COLOUR — the poster's own sky, from body: the platform limit (09-05-f, «not a fourth
+  time»). Named to him plainly: the picture cannot rise above its own origin.
+- The film: already the whole viewport; on the iPad and the Mac the zone over it is the film's sky (batch -d,
+  scoped to the play by its review). Nothing else to do for «like the video».
+
+### THE -d REVIEW (three lenses; the skeptics fell to the session limit) — WHAT IT CHANGED
+- BLOCKER, real: the EDGE CARDS guard read body's first two children and would have gone red on the moved gate
+  script; it now reads the first two PAINTED children (scripts skipped). The INTRO dry-run could not see it — a
+  guard in another section — which is exactly what a full run is for.
+- The freeze on the skip path (two lenses): the film's colour is scoped to `video-on:not(.video-out)` — `finish()`
+  adds `video-out` synchronously inside the skip's pointerdown, so in the frame the tap paints body and the fill
+  are back on the zenith and an iPad/Mac freeze takes the game's colour, not the film's; the skip arm reads it.
+- The snapshot branch (the webkit lens): a transparent `<video>` may be «a candidate that declares nothing» → a
+  2 px snapshot of the fixed layers → `#skyFill`'s top row, not body. Both are painted the film's sky during the
+  play; which branch Safari takes is DEDUCED — his iPad during the film is the check.
+- body's gradient in the pre-parse frames → `background-image:none` under the splash; the img's own box → its
+  own arm; the `catch` of the hand-off closes the intros before `beginDrop`; four comments corrected.
+
+### THE GUARD (INTRO, 29 green healthy)
+Arms A (the tall absolute box, its top at 0, the document taller by ≥ 100, both cards none, body's colour and no
+gradient, the img's box = the box, the gate first in body; after the fade: cards back, body the zenith, the
+document one viewport), B/C (no comic, the fall starts at once), E (the film with sound after the commit-time
+gesture, the music held, then released; the zone rules scoped to the play — a text arm on the build; body and the
+fill the film's sky while it plays), F (the skip: body and the fill back on the zenith in that read), G (a source
+that cannot load → the game itself), H/J (no comic on the phone width / under reduced motion), L (no gesture →
+refused → muted, still plays, the music not held), M (music off → muted by the setting), N (the address list in
+the build: his domain first, github second), K (skipIntro). PROVEN AGAINST FOURTEEN VARIANTS, each 28 green and red
+on its own arm(s) (d1–d3 the -d rules, d4/d5 the film's zone rules and their scope, e1 the box fixed again, e2 the
+bottom card kept, e3 the img's rules dropped, e4 the film muted, e5 the muted retry dropped, e6 bgmHold dropped,
+e7 the fallback dropped, e8 the domain dropped, e9 the slot held) — ⚠️ the first eleven ALSO reddened «the music
+released after the film» on every variant: `tools/build-variant.py` gave a variant no `music.mp3`, so the bgm's
+play() rejected there — the tool's artefact, not the sabotage's; the tool now symlinks the music beside the
+variant (as it does `video/`), and d1 re-run under it reddens its own arm alone.
+⛔ ONE GUARD OUTSIDE THE SECTION WENT RED IN RUN 31 AND WAS RIGHT TO: «THE WAVES OF BODIES ARE ALIVE» (test.js
+~2538, acceptance #51) polled the pour on an automated phone page — which the prologue comic had HELD in the wait
+phase since 2026-07-30, so the probe read every body switched off. With the comic gone the fall starts at the
+hand-off inside the load and the probe met a poured pile (peak 0, wave 15). The probe now boots its page with
+`?splash=1` and the poster's minimum stretched to 4 s — the phone's REAL intro holds the fall the same way — and
+reads the phase flip (wave 0 released on that frame, next 2) and the pour's peak (64 switched off), then
+skipIntro's 0. Markers `⟦WAVES-SECTION⟧` added so it dry-runs alone (2/2, twice).
+
+### THE RUNS OF -d AND -e (one build, two suites)
+**Run 31** — the whole suite on the build carrying both batches: 1076 green, **1 red** — the waves guard
+above, red for the right reason (the comic's hold gone). Its page fixed (the poster's hold), the guard dry-run
+twice, **run 32** on the same build: **1077 green, 0 red, SUITE: PASS** (run 30 on a–c: 1076; minus the seven
+prologue arms, plus the INTRO's new arms and the EDGE CARDS read). The -d review
+workflow ran before -e was written (three lenses; its skeptics fell to the session limit — the findings were
+triaged by hand, see the -e section). ⚠️ A second, smaller review of the COMBINED diff was started before the
+suite and STOPPED: its three lenses ran 50 minutes of probes, eleven skeptics started, none returned, the journal
+froze (two agents failed on the session limit) — the suite ran without it; -e stands on the dry run, the fourteen
+variants and the -d review's reasoning. Pushed to `v2` and onto `main` on his standing word; the live site
+verified by byte size; the Worker NOT deployed — his action.

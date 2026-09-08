@@ -31,7 +31,7 @@ const STORY_AUTO_MS = 4000;    // §6.2: the panel lives no longer than 4 s on i
 // and every extra second here hits the portal's trump card «I'm playing in 20 seconds».
 // 3 panels × 2.6 s = 7.8 s in the worst case, if the player does not touch the screen
 // at all; a tap flips through instantly, i.e. an attentive one gets through in ~1-2 s.
-const STORY_INTRO_MS = 2600;
+// ⛔ STORY_INTRO_MS (2600, the prologue's faster panels) went with the prologue, 2026-09-08-e.
 const STORY_GAP_LEVELS = 2;    // §6.3: no more often than one vignette per 2 levels
 const STORY_INK = '#fff', STORY_DIM = 'rgba(255,255,255,.5)', STORY_ACC = '#c0ff47';
 const STORY_BG = '#0e1320', STORY_PAPER = '#161c2a', STORY_FIRE = '#ff5a3c';
@@ -329,7 +329,8 @@ function storyEnable(v){ storyOn = v !== false; }
 // the placeholder screen that appears after the screen with the new object». This is
 // exactly it: in the victory chain the vignette follows the new-item screen
 // (`90-input.js:313`), and for now it is drawn with PLACEHOLDER panels.
-// ⚠️⚠️ ONLY THE VICTORY PATH IS MUTED, THE PROLOGUE IS ALIVE. The owner named ONE screen —
+// ⚠️⚠️ ONLY THE VICTORY PATH IS MUTED, THE PROLOGUE IS ALIVE (⛔ 2026-09-08-e: the prologue is GONE too — his
+// word «there is no comic»; see the tombstone at the end of this file). The owner named ONE screen —
 // the one after the new item; the prologue before the game he is replacing himself («it
 // will be one, not three, I'll bring it today»). Killing the prologue along with it would
 // mean deciding its separate fate for him under the guise of the first one.
@@ -380,7 +381,7 @@ function storyOnWin(done){
 function storyPlay(ch, done){
   if (storyBusy){ if (done) done(); return; }
   storyBusy = true;
-  const autoMs = ch.intro ? STORY_INTRO_MS : STORY_AUTO_MS;
+  const autoMs = STORY_AUTO_MS;
   let i = 0, timer = 0;
   const box = document.createElement('div');
   box.id = 'storyOverlay';
@@ -425,30 +426,11 @@ function storyPlay(ch, done){
   draw();
   timer = setTimeout(next, autoMs);
 }
-// ── THE PROLOGUE (the owner's spec 2026-07-30: «tell this story BEFORE the game in the
-// form of a comic»). ⚠️ THIS IS A DELIBERATE CANCELLATION of rule §6.1 of the spec,
-// «never before the first tap of the session»: it protected the trump card «I'm playing
-// in 20 seconds», and the owner's word is newer. The risk is removed BY CONSTRUCTION,
-// not by ignoring it:
-//  • the prologue is embedded into the 'wait' phase of the intro — the platform's curtain
-//    is already removed, the jar is empty, and the items HAVE NOT FALLEN YET. That means
-//    the filling animation (which the owner fought for separately) is not lost: it simply
-//    starts after the comic.
-//  • the panels are faster than the usual ones (2.6 s against 4), a tap flips instantly;
-//  • it is shown EXACTLY ONCE per lifetime of the save and only to a NEW player.
-// ⚠️ The condition is «st === 0», and not «the bit is not set»: for a player who has
-// already seen K0/K1 between levels under the old scheme the prologue will NOT pop up —
-// otherwise he would watch the same content twice. Closing the prologue marks both K0 and
-// K1 — between levels they will not come any more.
-const STORY_PROLOGUE = { id: 'p0', bit: 32, marks: 32 | 1 | 2, intro: true,
-                         panels: [stPanelK0a, stPanelK0b, stPanelK1] };
+// ⛔⛔ THE PROLOGUE COMIC IS GONE (2026-09-08-e, the owner's word: «there is no comic — only the intro picture or
+// the video, by platform»). Here stood STORY_PROLOGUE (p0: K0a, K0b, K1; bit 32, marking 32|1|2), the
+// 2026-07-30 spec's «tell this story BEFORE the game» — superseded by his own poster (2026-09-08-b) and film
+// (-c). DELETED, not flagged: the vignette below is flagged because its material may still come; the
+// prologue's slot has been filled by him. The K-chapters and the between-levels tract stay as they are.
 let storyDismiss = null;
-function storyPrologueDue(){ return storyOn && (Save.st || 0) === 0; }
-// done() is called ALWAYS — both when the prologue has been shown and when it is not
-// needed: the start of the items' fall hangs on this callback, it must not be lost.
-function storyPrologue(done){
-  if (!storyPrologueDue()) return done && done();
-  storyPlay(STORY_PROLOGUE, done);
-}
 // Close an open panel through the regular path (skipIntro in tests, emergency paths)
 function storyForceClose(){ if (storyDismiss) storyDismiss(); return !document.getElementById('storyOverlay'); }

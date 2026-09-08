@@ -15,6 +15,10 @@ shutil.copytree(os.path.join(ROOT, 'src'), os.path.join(OUT, 'src'))
 # address on file:// — a variant without them would send every desktop arm down the comic fallback and the
 # proof «each sabotage reddens its own arm» could not be made; a symlink, so nothing is copied.
 if os.path.isdir(os.path.join(ROOT, 'video')): os.symlink(os.path.join(ROOT, 'video'), os.path.join(OUT, 'video'))
+# the background music too (2026-09-08-e): the film's guard reads «the music held while the film sounds, released
+# after» — without music.mp3 next to the variant the bgm's play() rejects and that arm reddened on EVERY variant,
+# an artefact of this tool, not of the sabotage. build.py copies it into the tree; here a symlink.
+if os.path.isfile(os.path.join(ROOT, 'music.mp3')): os.symlink(os.path.join(ROOT, 'music.mp3'), os.path.join(OUT, 'music.mp3'))
 f = os.path.join(OUT, rel); s = open(f, encoding='utf-8').read()
 assert s.count(find) == 1, 'anchor count %d for %s' % (s.count(find), find[:60])
 open(f, 'w', encoding='utf-8').write(s.replace(find, repl))

@@ -302,13 +302,15 @@ function tickIntro(dt){
           // starts under its fade. Everywhere else the prologue comic, as before.
           // THE TABLET/DESKTOP VIDEO (2026-09-08-c) takes the same slot ≥768 wide where its gate is on:
           // it plays if ready (or ready within its grace), else the comic — 85-hud `videoPlay`.
+          // ⛔ THE PROLOGUE COMIC IS GONE (2026-09-08-e, his word «there is no comic — only the intro picture or the
+          // video, by platform»): where neither intro applies (a reduced-motion desktop, an automated page, a film
+          // that cannot play) the fall starts AT ONCE. The comments above describe the slot's history.
           const go = ()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } };
-          const comic = ()=> storyPrologue(go);
           if (typeof splashActive === 'function' && splashActive()) splashPlay(go, /^lifted/.test(String(Ads.curtainWhy || '')));
-          else if (typeof videoGated === 'function' && videoGated()) videoPlay(go, comic);
-          else comic();
+          else if (typeof videoGated === 'function' && videoGated()) videoPlay(go, go);
+          else go();
         });
-      } catch(_){ beginDrop(); }
+      } catch(_){ try { splashForceClose(); } catch(__){} try { videoForceClose(); } catch(__){} beginDrop(); }   // an exception in the hand-off must not leave an intro class on html (the -d review)
     }
     return;
   }
@@ -1321,10 +1323,8 @@ window.__game = {
   },
   // finish the intro instantly (for tests): a synchronous settling + shake-down
   skipIntro(){
-    // ⚠️ The prologue comic hangs above the 'wait' phase and WAITS for a tap. In an auto run
-    // there is nobody to tap: without this line the suite would get stuck on the very first screen,
-    // and the coordinate clicks would go into the panel. We close it properly — that way the prologue
-    // is also marked as shown, and does not pop up in the following sections.
+    // ⚠️ A story vignette (86-story, the suite's own sections raise it) swallows taps; closed through its
+    // regular path so nothing waits on it. ⛔ The prologue comic that used to hang here is GONE (2026-09-08-e).
     try { storyForceClose(); } catch(_){}
     try { splashForceClose(); } catch(_){}   // the phone's splash holds the fall the same way (2026-09-08-b)
     try { videoForceClose(); } catch(_){}    // and the tablet/desktop video — closed WITHOUT its comic fallback (2026-09-08-c)
@@ -1723,7 +1723,6 @@ window.__game = {
   storyMark(bit){ Save.st = (Save.st || 0) | bit; commitSave(); },       // test: count the chapter as shown
   storySetLevelMark(lv){ Save.sv = lv; commitSave(); },                  // test: when the last vignette was
   storyClearAcc(){ Save.ac = {}; commitSave(); },  // test: zero the accumulations — the K2-K4 milestones are counted by them
-  storyPrologueDue(){ return storyPrologueDue(); },
   // ⚠️ TWO DIFFERENT HOOKS, AND THE DIFFERENCE IS LOAD-BEARING: `storyWinShipped` hands out the LIVE
   // constant (asserted by the guard «in the shipped build the between-levels vignette
   // is off by the owner's word»), `storyWinForce` is the auto-run lever
@@ -1732,8 +1731,6 @@ window.__game = {
   // what the suite itself has set.
   storyWinShipped(){ return STORY_WIN_VIGNETTE; },
   storyWinForce(v){ return storyWinForceSet(v); },
-  storyPrologueSpy(cb){ return storyPrologue(cb); }, // test: check that the callback is called
-  storyPrologueNow(){ Save.st = 0; commitSave(); return new Promise(r => storyPrologue(() => r(true))); },
   storyClose(){ const b = document.getElementById('storyOverlay');
     if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
   storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // test: the names of the types that have a pack
