@@ -6,8 +6,22 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a to -f on top of 2026-09-07 b–i, v2 = main** · the suite **1080 green, 0 red, SUITE: PASS** (run 33; run 32 on a–e 1077 green) · the live
-site verified by byte size against the build · the worker is deployed (the rank fix and the `t` field) · portal package unchanged in shape
+**Build: batches 2026-09-08-a to -g on top of 2026-09-07 b–i, v2 = main** · the suite **1080 green, 0 red, SUITE: PASS** (run 33; -g is server-only, the build unchanged) · the live
+site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · **the VIDEO worker needs YOUR redeploy** (see the first paragraph) · portal package unchanged in shape
+
+**8 SEPTEMBER, THE 206 CHECK (batch 2026-09-08-g in CLAUDE.md).** You deployed the video Worker and I checked
+it: **it answers `200` with the whole file to every Range request** (both files, both edge IPs) — no 206, no
+`Content-Range`, no `Accept-Ranges`. Cloudflare's static-asset store ignores Range, and Safari plays nothing from a
+source that answers 200 to its two-byte probe — so until the redeploy, Safari on iPad and Mac skips your domain
+pair and takes the github.io copy two failed downloads later, if the 1.5 s grace has not run out. **The fix is a
+small script in front of the store** (`server/video/src/index.js`, `run_worker_first` in the toml): it fetches the
+file from the store and slices the requested bytes itself — 206 with `Content-Range`, `Accept-Ranges`, 416 past the
+end, HEAD, a stale `If-Range` → a plain GET. Proven three ways here: a unit test with a fake store (14 green, five
+sabotages each reddening its own assert), and `wrangler dev` with the real runtime and the real files (206 / 416 /
+200, the slices byte-identical to `video/`). **YOUR ONE COMMAND — the same deploy line as before**:
+`npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
+`curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm` → `HTTP/2 206`,
+`content-range: bytes 0-99/1100266`. Plan B stays R2 if the script ever does not do.
 
 **8 SEPTEMBER, NIGHT — THE REVIEW'S SEVEN (batch 2026-09-08-f in CLAUDE.md).** The film's volume is the music
 slider itself, not the music bus (it played 5 dB under the music that follows it; the iPad ignores element volume
@@ -16,7 +30,7 @@ un-mute no longer restarts the music over it. The poster's tall box (under the b
 gate sees Apple WebKit with browser chrome — +80 instead of +120 (the poster's last rows are on the screen, ~35 px
 a side cut instead of 45); in your wrapper's full-screen view the box is one viewport. The 206 check after the
 Worker deploy is the whole check (Safari plays nothing from a 200); plan B if it answers 200 is an R2 bucket on the
-same domain.
+same domain. ⛔ 2026-09-08-g: MEASURED — it answered 200; the script above is the cure, a redeploy is yours.
 
 **8 SEPTEMBER, LATE — THE INTROS BY YOUR FIVE ANSWERS (batches 2026-09-08-d and -e in CLAUDE.md).** No lines
 over the poster: both edge cards are gone while it shows, the splash gate is the first thing in body (no frame of a
@@ -27,9 +41,10 @@ through its glass (the measured route of the flow mode); cover on the taller box
 **There is no comic:** the prologue is deleted, the intro is the picture (phone) or the film (tablet/desktop), and
 where neither applies the game starts at once. **The film sounds:** unmuted at the music slider's volume, muted
 only where the browser refuses an autoplay with sound (a first visit in Chrome, Safari's default) or the music is
-off; the background music is held while it sounds. **The film on your domain:** an assets-only Worker in
+off; the background music is held while it sounds. **The film on your domain:** a Worker in
 `server/video/` for `video.blendo.monster` — YOUR deploy (the command is in the toml); until then the game takes
-the github.io copy after two failed lookups. **On the iPad and the Mac** the toolbar zone over the film is the film's
+the github.io copy after two failed lookups (⛔ -g: the assets-only edition is deployed and answers 200 — the
+script edition needs the redeploy). **On the iPad and the Mac** the toolbar zone over the film is the film's
 sky while it plays (scoped to the play so a skip-tap freezes the game's colour, not the film's). What only your
 devices can say: the phone's poster under the address bar with no line at the bottom and the sky to the top edge;
 the iPad's toolbar over the film; the film's sound in the wrapper and on the portal.

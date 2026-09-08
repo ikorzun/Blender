@@ -44,3 +44,6 @@ electric-variants/artifact.html
 # files at his paths — never re-encoded in place, never committed; the encodes in `video/` are tracked.
 /Blendo-9-16-intro.jpg
 /blendo-intro.mp4
+
+# wrangler dev keeps its local state here (server/*/.wrangler)
+.wrangler/

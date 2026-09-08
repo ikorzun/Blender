@@ -16769,3 +16769,65 @@ three new INTRO arms). Six sabotage variants before it, each red on its own arm(
 the chrome term dropped → A2; the Apple term dropped → A3; the volume through the bus → E; the resume without
 the hold term → P; the film ignoring the mute → P. Pushed to `v2` and onto `main` on his standing word; the
 live site verified by byte size; the Worker still NOT deployed — his action.
+
+## BATCH 2026-09-08-g: THE FILM'S WORKER SLICES RANGES ITSELF — THE DEPLOYED STORE ANSWERED 200 TO SAFARI'S PROBE (his word: «I deployed the worker, check the 206»)
+
+### THE MEASUREMENT, AND WHY IT IS A LIVE DEFECT RATHER THAN A NOTE
+The assets-only Worker of batch -e went up under `video.blendo.monster` (wrangler 4.129.1, the custom
+domain created; 1.1.1.1 resolves A 104.21.43.29 / 172.67.216.170 — ⚠️ this Mac's resolver had cached an
+NXDOMAIN from lookups made BEFORE the record existed, so every check ran with
+`--resolve video.blendo.monster:443:<edge IP>`). Both files, both edge IPs, `cf-cache-status` HIT and MISS
+alike, for `Range: bytes=0-1`, `0-99` and `1000000-`: **`HTTP/2 200` with the WHOLE file** — the right
+`content-type`, the full `content-length` (1 100 266 / 2 438 208), bytes identical to `video/`, an ETag —
+and **no 206, no `Content-Range`, no `Accept-Ranges`**. Cloudflare's static-asset store ignores Range.
+⛔ Safari's media stack probes a `<source>` with a two-byte Range and refuses a server that answers 200. The
+gate of 40855b5 lists the domain pair FIRST off any non-local, non-github host, so on iPad and Mac Safari the
+film's first two sources failed — each failure costing a full download before the next `<source>` — and the
+1.5 s grace was likely gone before the github pair was reached. **That was the live state for Safari users on
+≥ 768 from the moment the store was deployed**, which is why the fix went out the same session.
+
+### THE FIX: ONE ADDRESS, A SCRIPT IN FRONT OF THE STORE (plan A of the -f toml; R2 stays plan B)
+`server/video/src/index.js` (an ES module, `export default { fetch }` — the leaderboard's shape), with
+`main = "src/index.js"` and `[assets] binding = "ASSETS"` + `run_worker_first = true` in the toml. Without
+`run_worker_first` the store answers before the script runs and nothing changes. The script fetches the asset
+from the store through the binding — ALWAYS as a plain GET, the client's Range NEVER forwarded (if the store
+ever honours Range, forwarding would double-slice) — reads the whole file (2.4 MB at most, inside the free
+plan) and slices it here. The rules, each with its reason in the source header: `bytes=a-b` / `a-` / `-n` →
+206 with `Content-Range`, the sliced `Content-Length`, `Accept-Ranges: bytes`, the store's `Content-Type` and
+`ETag`, and a `Cache-Control` (the store omits one on Range requests); `end` clamped to size − 1; a
+multi-range → the full 200 (permitted; Safari never sends one); an unparsable or past-the-end range → 416 with
+`bytes */size`; HEAD → the same status and headers, no body; a stale `If-Range` → a plain GET; a 404 or 304
+from the store passes through. `Accept-Ranges: bytes` rides on the plain 200 too.
+
+### PROVEN THREE WAYS BEFORE HIS REDEPLOY
+- **THE UNIT TEST** `server/video/test/run.js` (`npm run test:video`): a fake `ASSETS` over a 5000-byte body
+  whose byte i is (7·i) mod 256, so every slice is checked by arithmetic — 14 green: the grammar table (15
+  forms), the plain GET, the Safari probe, an open tail, a clamped end, a suffix, 416, a multi-range, HEAD, the
+  store asked ONCE by GET without the client's Range, If-Range both ways, the 404, the 304, the Cache-Control.
+- **THE TWO-SIDED PROOF** `test/break.js` (`npm run test:video:break`, the leaderboard's pattern: a patched copy
+  under the system temp dir, the anchor asserted to match exactly once, a self-check on a comment edit): five
+  sabotages, each reddening exactly its own asserts — the end not clamped; 206 answered as 200; the client's
+  Range forwarded; a past-the-end start clamped into the file instead of 416; Accept-Ranges dropped.
+  ⚠️ THE FOURTH SABOTAGE MISSED IN ITS FIRST FORM: dropping `start >= size` leaves `bytes=5000-` invalid anyway,
+  because `end` is already clamped to 4999 and `start > end` still fires — the sabotage struck past the
+  property (the canon's own rule). Rewritten to CLAMP the start into the file, which is the plausible defect
+  (a server that clamps both ends serves one byte instead of 416), it reddens GRAMMAR and RANGE 5000-.
+- **THE LOCAL SMOKE** with the real runtime and the real files: `npx wrangler dev --config
+  server/video/wrangler.toml --port 8790` (workerd, the assets store, `run_worker_first`), then curl — both
+  files: `Range: bytes=0-1` → `206`, `Content-Range: bytes 0-1/1100266` (`/2438208`), 2 bytes;
+  `bytes=1000000-` → 206 with the right length and the tail BYTE-IDENTICAL to the file (`cmp`); `bytes=5000000-`
+  → 416 `bytes */size`; no Range → 200 with `Accept-Ranges` and a body byte-identical to `video/`; HEAD 0-99 →
+  206 with the headers and no body; `/nope.webm` → 404. ⚠️ `wrangler dev` is NOT a deploy and is mine to run;
+  the deploy is still his — `npx wrangler deploy --dry-run` on the new toml passes (2.94 KiB of script, the two
+  files read from `video/`).
+⚠️ WHAT THIS BATCH DOES NOT NEED: a game build or a suite run — the Worker lives outside `index.html`
+(unchanged, 12 739 304 B) and the leaderboard precedent is a server-only commit.
+
+### WHAT IS HIS, AND THE CHECK THAT CLOSES IT
+The same deploy line as before (`npx wrangler deploy --config
+/Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml` — the script travels with the assets), then
+`curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm` → `HTTP/2 206`,
+`content-range: bytes 0-99/1100266`, `accept-ranges: bytes`. Until he redeploys, Safari on iPad/Mac skips
+the domain pair as described above; the only page-side remedy would be flipping the source order (github
+first) — a build plus a suite run — and it is NOT started unless he says the redeploy waits.
+⚠️ `.wrangler/` (wrangler dev's local state) is gitignored now — it appeared beside the leaderboard's already.

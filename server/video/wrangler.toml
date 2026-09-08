@@ -1,18 +1,26 @@
 # THE INTRO FILM'S HOME ON HIS OWN DOMAIN (2026-09-08-e, the owner's word: «my domain — blendo.monster»).
-# An assets-only Worker: no code, the two encodes in the repo's `video/` directory served as static
-# assets at https://video.blendo.monster/blendo-intro.{webm,mp4}. The game's inline gate (src/shell.html)
-# asks this address FIRST from any host that is not local and not github.io (the portal, the wrapper),
-# and the github.io copy SECOND — the <video> resource-selection algorithm moves to the next <source>
-# on a network error, so until this Worker is deployed the film still comes from GitHub Pages.
+# A Worker in front of the two encodes in the repo's `video/` directory, served as static assets at
+# https://video.blendo.monster/blendo-intro.{webm,mp4}. The game's inline gate (src/shell.html) asks this
+# address FIRST from any host that is not local and not github.io (the portal, the wrapper), and the
+# github.io copy SECOND — the <video> resource-selection algorithm moves to the next <source> on a
+# network error.
+#
+# ⚠️⚠️ WHY THERE IS A SCRIPT (2026-09-08-g): the assets-only edition of this file was deployed and MEASURED —
+# the store answers `200` with the whole file to every Range request (no 206, no Content-Range, no
+# Accept-Ranges), and Safari plays nothing from such a source. `src/index.js` runs FIRST on every request
+# (`run_worker_first`), fetches the asset from the store through the `ASSETS` binding and slices it to a
+# 206 itself. PLAN B, should the script ever not do: an R2 bucket with a custom domain (R2 serves ranges
+# natively), the same two files, the same address in the gate.
+#
 # ⚠️ DEPLOYS ARE THE OWNER'S ACTION (the leaderboard's rule):
 #   npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml
-# then: curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm  → 206, video/webm
-# ⚠️ THE 206 IS THE WHOLE CHECK: Safari asks for the first two bytes with a Range header and plays nothing from a
-# server that answers 200. Cloudflare's static-assets docs (read 2026-09-08) name Range only in their caching rule
-# («Cache-Control is sent when the request has no Authorization or Range header») and promise no 206 — so this is
-# measured after the deploy, not assumed. PLAN B if it answers 200: an R2 bucket with a custom domain (R2 serves
-# ranges natively), the same two files, the same address in the gate.
+# then the 206 check — THE WHOLE CHECK:
+#   curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm
+#   → HTTP/2 206, content-range: bytes 0-99/1100266, accept-ranges: bytes, content-type: video/webm
+# The unit tests: `node server/video/test/run.js` (and `test/break.js` for the two-sided proof); the local
+# smoke: `npx wrangler dev --config server/video/wrangler.toml --port 8790` and the same curl on localhost.
 name = "blendo-video"
+main = "src/index.js"
 compatibility_date = "2026-08-01"
 
 # ⛔ workers.dev IS OFF ON PURPOSE (the leaderboard's reason): one public address, our own domain,
@@ -22,8 +30,12 @@ workers_dev = false
 
 # The files are NOT copied here: the directory is the repo's own `video/`, relative to this file,
 # so a re-encode lands in one place and the github.io copy and this Worker never drift apart.
+# `binding` gives the script `env.ASSETS.fetch(request)`; `run_worker_first` makes the script run
+# BEFORE the store answers — without it the store's 200 goes out and the script never sees the request.
 [assets]
 directory = "../../video"
+binding = "ASSETS"
+run_worker_first = true
 
 # The owner's zone (set up 2026-08-10, on Cloudflare); `custom_domain` makes wrangler create the DNS
 # record on deploy, the same way lb.blendo.monster was mounted.
