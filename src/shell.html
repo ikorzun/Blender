@@ -4226,18 +4226,25 @@
      ⚠️ THE FIRST FRAME ON THE PHONE IS THE PICTURE, not the white the owner asked for in July: the
      splash supersedes the white-then-sky start there; the desktop keeps it. */
   /* ⚡ THE POSTER TAKES THE WHOLE SCREEN (2026-09-08-e, his word «remove the violet background — the picture
-     occupies all the space, like the video»): ABSOLUTE, not fixed, and TALLER than the layout viewport —
-     `100lvh + 120px` = 874 on his phone, the screen itself. A fixed box is clipped at the layout viewport
+     occupies all the space, like the video»): ABSOLUTE, not fixed. A fixed box is clipped at the layout viewport
      (2026-08-31-a, measured), but a document that reaches under the BOTTOM bar is painted there and read
-     through its glass (2026-09-05-e, measured on his phone — the eighth edition's one solid brick, the
-     flow mode's route): the poster's lower part lies under the address bar instead of a flat zone. Both
-     edge cards are gone under it (below), so no fixed box overprints that zone. `cover` on the taller box
-     scales the 9:16 poster to the screen's height and cuts ~45 px a side on 402×874 — «all the space»,
-     his word. The 100vh line is the fallback where lvh is unknown (then the box is one viewport).
+     through its glass (2026-09-05-e, measured for in-flow content on his phone — the eighth edition's one solid
+     brick, the flow mode's route; for an absolute box it is DEDUCED from the same scrollable-overflow rule, his
+     phone is the check): the poster's lower part lies under the address bar instead of a flat zone. Both edge
+     cards are gone under it (below), so no fixed box overprints that zone.
+     THE BOX IS TALLER THAN THE VIEWPORT ONLY WHERE THERE IS CHROME TO RUN UNDER (2026-09-08-f, the -e review):
+     `html.splash-tall`, decided by the gate — Apple WebKit (the flow mode's feature test) with browser chrome
+     present (screen.height − innerHeight > 20) — makes it `100lvh + 80px`: on his phone the page's origin sits 61
+     below the screen's top, so 754 + 80 reaches the screen's bottom (813) with 21 to spare; the -e figure of
+     +120 hid the poster's last 61 rows below the screen for nothing. `cover` then scales the 9:16 poster to 834
+     and cuts ~35 px a side. Where there is NO chrome (the wrapper's full-screen 402×874, Android fullscreen) the
+     box is one viewport and the poster keeps 45 px a side more than a tall box would take. The 100vh line is the
+     fallback where lvh is unknown.
      ⚠️ THE TOP ZONE STAYS A FLAT COLOUR — body's, the poster's own sky (the platform limit, 09-05-f). */
-  #introSplash { display:none; position:absolute; top:0; left:0; width:100%; height:100vh; height:calc(100lvh + 120px);
+  #introSplash { display:none; position:absolute; top:0; left:0; width:100%; height:100vh;
     z-index:2147483646; background:rgb(142,218,253); opacity:1; transition:opacity .3s ease-out; pointer-events:none; }
   #introSplash img { display:block; width:100%; height:100%; object-fit:cover; object-position:center; }
+  html.splash-tall #introSplash { height:100vh; height:calc(100lvh + 80px); }
   html.splash #introSplash { display:block; }
   html.splash-out #introSplash { opacity:0; }
   /* ⚡ NO CARD LINE OVER THE PICTURE (2026-09-08-d, his word «lines at the top are not needed on the loading
@@ -4434,7 +4441,17 @@
   (function(){ try {
     var m = /[?&]splash=([01])/.exec(location.search), f = m ? m[1] : null;
     var on = f === '0' ? false : (matchMedia('(max-width:767px)').matches && (!navigator.webdriver || f === '1'));
-    if (on){ document.documentElement.classList.add('splash'); window.__splashT0 = performance.now(); }
+    if (on){
+      document.documentElement.classList.add('splash'); window.__splashT0 = performance.now();
+      // THE TALL BOX (2026-09-08-f): only where the poster has browser chrome to run under — Apple WebKit (the
+      // flow mode's feature test: every browser on iOS, Safari on the Mac; false in Chromium) AND chrome present
+      // (the screen taller than the layout viewport by more than 20). The wrapper's full-screen view and Android's
+      // fullscreen get the flat one-viewport box. `window.__splashChrome` is what a guard reads.
+      var apple = false; try { apple = CSS.supports('font', '-apple-system-body'); } catch(e){}
+      var chrome = 0; try { chrome = (screen && screen.height ? screen.height : innerHeight) - innerHeight; } catch(e){}
+      window.__splashChrome = chrome;
+      if (apple && chrome > 20) document.documentElement.classList.add('splash-tall');
+    }
   } catch(e){} })();
 </script>
 <!-- THE TWO EDGE CARDS (2026-09-06): the candidates WebKit's colour extension reads at each screen edge,

@@ -154,8 +154,8 @@ function flowForce(on){ flowOn = !!on; flowRefresh(); return flowState(); }
 // SPLASH_MS from the moment it was VISIBLE: since the first paint where no platform curtain covered the
 // page (file://, no SDK), since the curtain lifted where the SDK drew one (the portal — 99-main passes
 // `sinceNow`) — then it fades over SPLASH_FADE_MS while the fall starts underneath: the fade and the
-// pour begin in the same frame («quickly and smoothly»). Phone-width only; the desktop keeps the
-// prologue comic (the picture is 9:16). The suite's pages are webdriver and never see it unless
+// pour begin in the same frame («quickly and smoothly»). Phone-width only; the desktop and the tablet
+// get the film (-c) — ⛔ the comic is gone (-e). The suite's pages are webdriver and never see it unless
 // `?splash=1`; `?splash=0` switches it off anywhere.
 // ⚠️ THE STORY BITS ARE NOT MARKED: the splash takes the prologue's SLOT, not its marks — a new player
 // on the phone meets K0/K1 between levels by the queue («the old scheme» of 86-story). Named to him.
@@ -189,7 +189,7 @@ function splashState(){ const h = document.documentElement;
 // video plays if it is READY — or becomes ready within VIDEO_GRACE_MS — and its end, or a click/tap/
 // key, fades it over VIDEO_FADE_MS while the fall starts underneath, in the same frame («quickly and
 // smoothly», the splash's rule). Anything else — not ready in time, a decode error, an autoplay
-// refused — falls back to the prologue comic exactly as before. Muted: an autoplay with sound is
+// refused — hands the slot to the GAME itself, the fall at once (⛔ -e: there is no comic). Muted: an autoplay with sound is
 // refused by every browser without a gesture (named to him) — ⛔ 2026-09-08-e: UNMUTED FIRST, muted only if refused, see below. ⚠️ THE STORY BITS ARE NOT MARKED (the
 // splash's rule): the video takes the prologue's SLOT, not its marks.
 const VIDEO_GRACE_MS = 1500, VIDEO_FADE_MS = 300;
@@ -201,9 +201,18 @@ let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort =
 // soundtracks at once would be noise. Both branches are MEASURED by the suite without a knob: the game's own
 // play() at the hand-off is refused by Chromium on a page nobody has touched (Playwright's evaluate carries a
 // gesture, the page's own scripts do not) and allowed after one real click on the page.
+// ⚡ -f (the -e review): the film takes the SLIDER's value, not the music bus (musicOut = slider × 0.5): the bus
+// exists to seat the −15.2 LUFS bed under the sfx, and no sfx play during the film; through the bus the −20.4 LUFS
+// film landed at ≈ −29.5 against the bed's ≈ −24.3 that follows it — a 5 dB step UP when it ends. At the raw 0.7
+// it plays ≈ −23.5, level with the bed. iPadOS ignores element volume: the film plays at unity there (−20.4).
+// The film also follows the PLATFORM's mute (`musicExtMuted`, 78-ads applyMute → musicSuspend): silent under a
+// portal audio-off from the start, muted by a platform mute mid-film and back when it lifts, and a platform
+// un-mute does not resume the music while the film holds it — the release at the film's close does, unless the
+// platform still says off. ⚠️ HONEST GAP: the start-under-a-mute branch has no guard (the mute comes from the
+// bridge before the hand-off; the suite's page cannot set it that early) — the mid-film branch is guarded.
 let videoSound = '', videoBgmHeld = false;
 function bgmHold(){ const b = document.getElementById('bgm'); if (b && !b.paused){ b.pause(); videoBgmHeld = true; } }
-function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b) { try { b.play().catch(()=>{}); } catch(_){} } }
+function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b && musicVol > 0 && !musicExtMuted) { try { b.play().catch(()=>{}); } catch(_){} } }
 function videoEl(){ return document.getElementById('introVideo'); }
 function videoGated(){ return document.documentElement.classList.contains('video'); }
 function videoActive(){ const h = document.documentElement; return h.classList.contains('video-on') && !h.classList.contains('video-out'); }
@@ -217,7 +226,7 @@ function videoPlay(done, fallback){
   const v = videoEl(), h = document.documentElement;
   if (!v || !videoGated() || videoDone) return fallback();
   // every source already failed before we got here (NETWORK_NO_SOURCE, nothing decoded — a missing file
-  // on file:// fails ~2 s before the hand-off): the comic at once, not after the grace
+  // on file:// fails ~2 s before the hand-off): the game at once, not after the grace
   if (v.networkState === 3 && v.readyState === 0){ videoWhy = 'error'; videoClose(); return fallback(); }
   let settled = false, grace = 0;
   // ⚠️ A SOURCE THAT FAILS FIRES `error` AT THE <source>, NOT AT THE VIDEO (the resource-selection
@@ -239,12 +248,13 @@ function videoPlay(done, fallback){
     h.classList.add('video-on');
     v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); addEventListener('keydown', skip);
     videoT1 = performance.now();
-    const vol = (typeof musicVol === 'number') ? musicVol : 1, wantSound = vol > 0;
-    v.muted = !wantSound; try { v.volume = (typeof musicOut === 'function') ? musicOut(vol) : vol; } catch(_){}
+    const vol = (typeof musicVol === 'number') ? musicVol : 1, wantSound = vol > 0 && !musicExtMuted;
+    v.muted = !wantSound; try { v.volume = vol; } catch(_){}   // the slider itself, not the music bus (the -f note above)
     const tryPlay = () => { let p; try { p = v.play(); } catch(e){ p = Promise.reject(e); } return (p && p.then) ? p : Promise.resolve(); };
     const withSound = wantSound ? tryPlay() : Promise.reject(null);
     withSound.then(() => { videoSound = 'on'; bgmHold(); },
-      () => { videoSound = wantSound ? 'refused' : 'music-off'; v.muted = true;
+      () => { if (settled) return;   // a forced close rejects the pending play() too (AbortError) — not a refusal
+        videoSound = wantSound ? 'refused' : 'music-off'; v.muted = true;
         tryPlay().then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); }); };
   const onCan = () => start();
   videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };
@@ -2552,9 +2562,11 @@ function applyMusic(v01){
 let musicExtMuted = false;
 function musicSuspend(on){
   musicExtMuted = !!on;
+  // the film follows the platform's mute (2026-09-08-f): silent while the platform says off, its own sound back when it lifts
+  try { const fv = videoEl(); if (fv && videoActive()) fv.muted = musicExtMuted || videoSound !== 'on'; } catch(_){}
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
-  else if (musicVol > 0 && bgm.paused){
+  else if (musicVol > 0 && bgm.paused && !videoBgmHeld){   // not while the film HOLDS it (-f): the release at the film's close resumes it
     bgm.volume = musicOut(musicVol); // the invariant: the volume BEFORE play (see the musicVol block)
     bgm.play().catch(()=>{});
   }

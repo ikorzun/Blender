@@ -1731,6 +1731,9 @@ window.__game = {
   // what the suite itself has set.
   storyWinShipped(){ return STORY_WIN_VIGNETTE; },
   storyWinForce(v){ return storyWinForceSet(v); },
+  // the platform's mute, as 78-ads applies it (test: the film follows it, the held music does not resume on the un-mute)
+  musicSuspend(on){ musicSuspend(on); const b = document.getElementById('bgm'), v = document.getElementById('introVideo');
+    return { ext: musicExtMuted, bgmPaused: b ? b.paused : null, filmMuted: v ? v.muted : null }; },
   storyClose(){ const b = document.getElementById('storyOverlay');
     if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !document.getElementById('storyOverlay'); },
   storyTypeNames(){ return TYPES.filter(t => t.tex).map(t => t.name); }, // test: the names of the types that have a pack

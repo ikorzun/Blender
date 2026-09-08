@@ -6,8 +6,17 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a to -e on top of 2026-09-07 b–i, v2 = main** · the suite **1077 green, 0 red, SUITE: PASS** (run 32; run 30 on a–c 1076 green) · the live
+**Build: batches 2026-09-08-a to -f on top of 2026-09-07 b–i, v2 = main** · the suite **1080 green, 0 red, SUITE: PASS** (run 33; run 32 on a–e 1077 green) · the live
 site verified by byte size against the build · the worker is deployed (the rank fix and the `t` field) · portal package unchanged in shape
+
+**8 SEPTEMBER, NIGHT — THE REVIEW'S SEVEN (batch 2026-09-08-f in CLAUDE.md).** The film's volume is the music
+slider itself, not the music bus (it played 5 dB under the music that follows it; the iPad ignores element volume
+and plays it at unity). The film follows the portal's audio-off and a platform mute mid-film, and a platform
+un-mute no longer restarts the music over it. The poster's tall box (under the bottom bar) exists only where the
+gate sees Apple WebKit with browser chrome — +80 instead of +120 (the poster's last rows are on the screen, ~35 px
+a side cut instead of 45); in your wrapper's full-screen view the box is one viewport. The 206 check after the
+Worker deploy is the whole check (Safari plays nothing from a 200); plan B if it answers 200 is an R2 bucket on the
+same domain.
 
 **8 SEPTEMBER, LATE — THE INTROS BY YOUR FIVE ANSWERS (batches 2026-09-08-d and -e in CLAUDE.md).** No lines
 over the poster: both edge cards are gone while it shows, the splash gate is the first thing in body (no frame of a

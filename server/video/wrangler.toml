@@ -7,6 +7,11 @@
 # ⚠️ DEPLOYS ARE THE OWNER'S ACTION (the leaderboard's rule):
 #   npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml
 # then: curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm  → 206, video/webm
+# ⚠️ THE 206 IS THE WHOLE CHECK: Safari asks for the first two bytes with a Range header and plays nothing from a
+# server that answers 200. Cloudflare's static-assets docs (read 2026-09-08) name Range only in their caching rule
+# («Cache-Control is sent when the request has no Authorization or Range header») and promise no 206 — so this is
+# measured after the deploy, not assumed. PLAN B if it answers 200: an R2 bucket with a custom domain (R2 serves
+# ranges natively), the same two files, the same address in the gate.
 name = "blendo-video"
 compatibility_date = "2026-08-01"
 

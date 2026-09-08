@@ -16568,7 +16568,8 @@ gate must tell «not finished» from «failed», and a chain of steps must stop 
 
 ### «THE FULL WIDTH OF THE SCREEN» — THE READING, AND WHAT WAS NOT DONE
 Both intros keep `object-fit:cover`. On his phone's layout viewport (402×654, SHORTER than the poster's
-9:16) the poster is not side-cropped — it loses ~30 px of sky and ground and spans the full width already;
+9:16) the poster is not side-cropped — it loses ~30 px of sky and ground and spans the full width already
+(⛔ -e made the box taller than the viewport, so the phone now loses ~35 px a side — -f's figure);
 the sides are cut only where the viewport is TALLER than the picture's ratio: the wrapper's 402×874 (45 px a
 side), tall Android viewports, and for the film the portrait tablet (526 px a side at 768×1024 — the open
 question of -c). A fit-to-width film on a portrait tablet manufactures two bands above and below — the very
@@ -16648,10 +16649,13 @@ Both intros show on every launch (the -b/-c defaults); his answer confirms them.
 
 ### 5. THE POSTER OVER THE WHOLE SCREEN — UNDER THE BOTTOM BAR, NO CARDS, NO VIOLET
 - `#introSplash` is ABSOLUTE (not fixed) and TALLER than the layout viewport: `height:calc(100lvh + 120px)` = 874
-  on his phone, the screen itself (`100vh` the fallback). The one solid brick of the fields campaign (2026-09-05-e,
-  measured on his phone; the flow mode's route): a document that reaches under the BOTTOM bar is painted there
-  and read through its glass, while a fixed box is clipped at the layout viewport (08-31-a). `cover` on the taller
-  box scales the 9:16 poster to the screen's height and cuts ~45 px a side on 402×874 — «all the space», his word.
+  on his phone (`100vh` the fallback) — ⛔ -f: +120 overshot the screen by 61 and is +80 now, and ONLY where the
+  gate sees Apple WebKit with chrome; flat elsewhere. The one solid brick of the fields campaign (2026-09-05-e,
+  measured on his phone FOR IN-FLOW CONTENT — `tall`/`lock`; the absolute box is DEDUCED from the same
+  scrollable-overflow rule, his phone is the check; the flow mode's route): a document that reaches under the
+  BOTTOM bar is painted there and read through its glass, while a fixed box is clipped at the layout viewport
+  (08-31-a). `cover` on the taller box scales the 9:16 poster past the viewport and cuts the sides (~35 px a side
+  with -f's +80; -e's +120 cut 45) — «all the space», his word.
   Both edge cards are display:none under it (a fixed card would OVERPRINT the poster in the zone — 09-06,
   measured); body wears the poster's sky with no gradient. The document returns to one viewport when the poster
   goes (display none) — guarded.
@@ -16707,3 +16711,61 @@ suite and STOPPED: its three lenses ran 50 minutes of probes, eleven skeptics st
 froze (two agents failed on the session limit) — the suite ran without it; -e stands on the dry run, the fourteen
 variants and the -d review's reasoning. Pushed to `v2` and onto `main` on his standing word; the live site
 verified by byte size; the Worker NOT deployed — his action.
+
+## BATCH 2026-09-08-f: THE SEVEN OF THE -d/-e REVIEW (his word «continue»; the compact read-only review of commit 40855b5 — three lenses, one skeptic each — confirmed seven findings, none refuted; this batch takes all seven)
+
+### WHAT SHIPPED
+1. THE FILM'S VOLUME IS THE SLIDER, NOT THE MUSIC BUS. `v.volume = musicVol` (was `musicOut(musicVol)` = slider × 0.5,
+   0.35 at the default). The bus exists to seat the −15.2 LUFS bed under the sfx (2026-09-01); no sfx play during
+   the film. Measured with ffmpeg ebur128 by the review: the film −20.4 LUFS integrated, the music −15.2 — through
+   the bus the film landed at ≈ −29.5 against the bed's ≈ −24.3 that follows it, a 5 dB step UP when it ends; at
+   the raw 0.7 it plays ≈ −23.5, level with the bed. ⚠️ iPadOS ignores HTMLMediaElement.volume: the iPad plays the
+   film at unity (−20.4) whatever the slider — named here, not fixable from the page.
+2. THE FILM FOLLOWS THE PLATFORM'S MUTE (`musicExtMuted`, 78-ads applyMute → musicSuspend): it does not start with
+   sound under a portal audio-off (`wantSound = vol > 0 && !musicExtMuted`); a platform mute mid-film mutes it and
+   the un-mute gives its sound back; the un-mute does NOT resume the music the film holds (`!videoBgmHeld` in
+   musicSuspend's resume), and the release at the film's close plays the music only if the slider is up and the
+   platform does not say off. A hook `__game.musicSuspend(on)` for the guard. ⚠️ HONEST GAP: the start-under-a-mute
+   branch has no guard — the bridge sets the mute before the hand-off and the suite's page cannot reach it that
+   early; the mid-film branch is guarded (arm P).
+3. THE TALL BOX ONLY WHERE THERE IS CHROME TO RUN UNDER. -e made the poster's box `100lvh + 120px` everywhere (the
+   eighth edition's tail number) — but the page's origin sits 61 below the screen's top on his phone, so 754 + 120
+   reached 121 past the screen: the poster's last 61 rows were below the screen and the side cut grew to 45 a side;
+   in the wrapper's full-screen 402×874 (no bars) the box was 994 for nothing — 120 rows lost and 78 a side. Now the
+   gate decides `html.splash-tall` — Apple WebKit (the flow mode's feature test `CSS.supports('font',
+   '-apple-system-body')`) AND chrome present (screen.height − innerHeight > 20; `window.__splashChrome`) — and only
+   then the box is `100lvh + 80px` (813 = the screen's bottom on his phone, with 21 to spare; ~35 px a side); flat
+   one-viewport otherwise (the wrapper, Android fullscreen, every desktop). The crop figures in -d and -e are
+   corrected below.
+4. A forced close while the unmuted play() is pending (skipIntro, videoAbort) rejects that promise with AbortError —
+   the refusal handler now returns when `settled`, instead of marking «refused» and calling play() on the emptied
+   element.
+5. Comments in 85-hud that still spoke of the comic fallback (three sentences) say the game itself; the INTRO arm
+   headers (B, C, the video banner, G) match their own expect strings.
+6. The canon's -e §5 «measured on his phone» is precise now: measured for IN-FLOW content (09-05-e `tall`/`lock`);
+   the absolute box is DEDUCED from the same scrollable-overflow rule (the Chromium guard shows it counts toward the
+   document) — his phone is the check, added to the list below.
+7. `server/video/wrangler.toml` names the 206 check as the whole check (Safari asks the first two bytes with a Range
+   header and plays nothing from a 200) — Cloudflare's static-assets docs, read today, name Range only in their
+   caching rule and promise no 206 — and PLAN B: an R2 bucket with a custom domain (native ranges), the same files,
+   the same address.
+
+### THE GUARD (INTRO, 32 green healthy: three new arms)
+A reads the tall box on a page that LOOKS like his phone to the gate — the feature test answered true by an init
+script, a screen 120 taller than the viewport — `splash-tall`, chrome 120, the box exactly vh + 80, the document
+with it. A2: the same engine with NO chrome (screen = viewport, the wrapper) — flat, one viewport, the img one
+viewport. A3: chrome present but Chromium's own answer to the feature test — flat. E reads the film's volume 0.7
+(the slider itself). P: `musicSuspend(true)` mid-film → the film muted, the music paused; `musicSuspend(false)` →
+the film sounds again, the held music STILL paused; bgmHeld on. PROVEN AGAINST SIX VARIANTS — see the run line.
+
+### WHAT ONLY HIS DEVICES CAN SAY (added to -e's list)
+The poster's bottom under the address bar — the absolute box is deduced, the in-flow case measured; the film's
+loudness against the music that follows it (the Mac: 0.7; the iPad: unity); the film silent under the portal's
+audio-off.
+
+### THE RUN
+**Run 33** — the whole suite on this build: **1080 green, 0 red, SUITE: PASS** (run 32 on -d/-e: 1077; plus the
+three new INTRO arms). Six sabotage variants before it, each red on its own arm(s): the tall rule dropped → A;
+the chrome term dropped → A2; the Apple term dropped → A3; the volume through the bus → E; the resume without
+the hold term → P; the film ignoring the mute → P. Pushed to `v2` and onto `main` on his standing word; the
+live site verified by byte size; the Worker still NOT deployed — his action.

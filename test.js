@@ -11129,19 +11129,24 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   {
     const boot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
     // (A) forced on a phone page, the hold stretched to 4 s
-    const ip = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    // the page LOOKS like his phone to the gate: Apple WebKit (the flow mode's feature test, answered true here) with
+    // browser chrome (a screen 120 taller than the viewport) — the tall box; (A2) and (A3) below take the two terms away
+    const appleUA = () => { const orig = CSS.supports.bind(CSS); CSS.supports = function(a, b){ return (a === 'font' && b === '-apple-system-body') ? true : orig.apply(CSS, arguments); }; };
+    const ip = await browser.newPage({ viewport: { width: 390, height: 844 }, screen: { width: 390, height: 964 } });
     ip.on('pageerror', e => errors.push('PAGEERROR(splash): ' + e.message));
+    await ip.addInitScript(appleUA);
     await ip.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await boot(ip, '?dev=1&splash=1');
     const early = await ip.evaluate(() => { const s = document.getElementById('introSplash'), cs = getComputedStyle(s), r = s.getBoundingClientRect(), im = s.querySelector('img');
       return { st: window.__game.splashState(), display: cs.display, opacity: cs.opacity, pos: cs.position, z: cs.zIndex, box: [r.width, r.height], vw: innerWidth, vh: innerHeight, top: r.top, docH: document.documentElement.scrollHeight,
         imgBox: (() => { const q = im.getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; })(), bodyImg: getComputedStyle(document.body).backgroundImage,
+        tall: document.documentElement.classList.contains('splash-tall'), chrome: window.__splashChrome,
         nat: [im.naturalWidth, im.naturalHeight], fit: getComputedStyle(im).objectFit, phase: window.__game.introPhase(), trans: cs.transitionDuration, pe: cs.pointerEvents,
         cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor],
         cardsDisp: [getComputedStyle(document.getElementById('edgeTop')).display, getComputedStyle(document.getElementById('edgeBot')).display], body: getComputedStyle(document.body).backgroundColor,
         order: (() => { const g = document.getElementById('splashGate'), c = document.getElementById('edgeTop'); return !!g && !!c && g.tagName === 'SCRIPT' && g === document.body.firstElementChild && !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); })() }; });
-    expect(early.st.on && !early.st.out && early.display === 'block' && early.opacity === '1' && early.pos === 'absolute' && early.top === 0 && early.box[0] === early.vw && early.box[1] >= early.vh + 100 && early.docH >= early.vh + 100 && early.nat[0] === 1129 && early.nat[1] === 2006 && early.fit === 'cover' && early.pe === 'none',
-      'SPLASH: the owner\'s 1129×2006 picture lies over the phone viewport AND under its bottom bar from the start — absolute at the top, taller than the viewport by the chrome (the document with it), cover-fitted, untouchable (' + JSON.stringify({ st: early.st, display: early.display, pos: early.pos, top: early.top, box: early.box, vh: early.vh, docH: early.docH, nat: early.nat, fit: early.fit }) + '). ⛔ SABOTAGE: make the box fixed inset:0 again — it ends at the layout viewport and the document is one viewport tall');
+    expect(early.st.on && !early.st.out && early.display === 'block' && early.opacity === '1' && early.pos === 'absolute' && early.top === 0 && early.box[0] === early.vw && early.tall === true && early.chrome === 120 && early.box[1] === early.vh + 80 && early.docH === early.vh + 80 && early.nat[0] === 1129 && early.nat[1] === 2006 && early.fit === 'cover' && early.pe === 'none',
+      'SPLASH: the owner\'s 1129×2006 picture lies over the phone viewport AND under its bottom bar from the start — absolute at the top, the TALL box (+80, the chrome\'s collapsed rest; the document with it) where the gate sees Apple WebKit with chrome, cover-fitted, untouchable (' + JSON.stringify({ st: early.st, display: early.display, pos: early.pos, top: early.top, box: early.box, vh: early.vh, docH: early.docH, tall: early.tall, chrome: early.chrome, nat: early.nat, fit: early.fit }) + '). ⛔ SABOTAGE: make the box fixed inset:0 again, or drop the html.splash-tall rule — the box ends at the layout viewport and the document is one viewport tall');
     expect(early.phase === 'wait',
       'SPLASH: the fall is HELD while the picture shows (intro phase ' + early.phase + '). ⛔ SABOTAGE: drop the wait — the phase is drop by the time the page reports alive');
     expect(early.cardsDisp[0] === 'none' && early.cardsDisp[1] === 'none',
@@ -11168,7 +11173,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(!gone.st.on && !gone.st.out && gone.st.done && gone.display === 'none' && gone.cards[0] === 'rgb(172, 168, 255)' && gone.cards[1] === 'rgb(197, 255, 216)' && gone.topDisp === 'block' && gone.botDisp === 'block' && gone.body === 'rgb(172, 168, 255)' && gone.docH === gone.vh,
       'SPLASH: gone after the fade — display none, both cards back (display block) on the sky\'s stops, body on the zenith, the document one viewport tall again, the intro running (' + JSON.stringify({ st: gone.st, display: gone.display, cards: gone.cards, topDisp: gone.topDisp, botDisp: gone.botDisp, body: gone.body, docH: gone.docH, vh: gone.vh, phase: gone.phase }) + ')');
     await ip.close();
-    // (B) an automated page WITHOUT the flag: no splash — the prologue comic holds the fall as before
+    // (A2) THE SAME PHONE WITHOUT CHROME (the wrapper's full-screen view: screen = viewport): the FLAT box, one viewport, no side rows lost for nothing
+    const ip2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await ip2.addInitScript(appleUA);
+    await ip2.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(ip2, '?dev=1&splash=1');
+    const flat = await ip2.evaluate(() => { const s = document.getElementById('introSplash'), r = s.getBoundingClientRect(), im = s.querySelector('img').getBoundingClientRect();
+      return { on: window.__game.splashState().on, tall: document.documentElement.classList.contains('splash-tall'), chrome: window.__splashChrome, box: [r.width, r.height], img: [im.width, im.height], vw: innerWidth, vh: innerHeight, docH: document.documentElement.scrollHeight }; });
+    expect(flat.on && flat.tall === false && flat.chrome === 0 && flat.box[1] === flat.vh && flat.img[1] === flat.vh && flat.docH === flat.vh,
+      'SPLASH flat: with NO browser chrome (screen = viewport, the wrapper) the box is exactly one viewport — nothing of the poster below the screen, 45 px a side kept (' + JSON.stringify(flat) + '). ⛔ SABOTAGE: drop the chrome term of the gate (every Apple page tall)');
+    await ip2.close();
+    // (A3) CHROME PRESENT BUT NOT APPLE WEBKIT (Chromium\'s own answer to the feature test): flat — the glass under the bars is Safari\'s
+    const ip3 = await browser.newPage({ viewport: { width: 390, height: 844 }, screen: { width: 390, height: 964 } });
+    await ip3.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(ip3, '?dev=1&splash=1');
+    const notApple = await ip3.evaluate(() => ({ on: window.__game.splashState().on, tall: document.documentElement.classList.contains('splash-tall'), chrome: window.__splashChrome, apple: CSS.supports('font', '-apple-system-body'), box: [document.getElementById('introSplash').getBoundingClientRect().width, document.getElementById('introSplash').getBoundingClientRect().height], vh: innerHeight }));
+    expect(notApple.on && notApple.apple === false && notApple.chrome === 120 && notApple.tall === false && notApple.box[1] === notApple.vh,
+      'SPLASH not Apple: chrome present but the engine is not Apple WebKit — the flat box (the tall one serves Safari\'s glass, no one else\'s bars) (' + JSON.stringify(notApple) + '). ⛔ SABOTAGE: drop the Apple term of the gate');
+    await ip3.close();
+    // (B) an automated page WITHOUT the flag: no splash, no comic — the fall starts at once
     const np = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await np.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await boot(np, '?dev=1'); await np.waitForFunction(() => window.__game.introPhase() !== 'wait', null, { timeout: 20000 }).catch(() => {}); await np.waitForTimeout(300);
@@ -11176,7 +11199,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(!off.on && off.display === 'none' && off.story === false && off.phase !== 'wait',
       'SPLASH off (webdriver, no flag): the suite\'s own pages never see it, NO comic takes the slot, the fall starts at once (' + JSON.stringify(off) + '). ⛔ SABOTAGE: hold the slot with anything when neither intro applies');
     await np.close();
-    // (C) the desktop with the flag: the phone gate holds — the comic, no picture (it is a 9:16 poster)
+    // (C) the desktop with the flag: the phone gate holds — no picture (it is a 9:16 poster), and no comic either
     const dp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
     await dp.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await boot(dp, '?dev=1&splash=1'); await dp.waitForTimeout(700);
@@ -11194,7 +11217,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await kp.close();
     // ===== THE TABLET/DESKTOP VIDEO INTRO (2026-09-08-c): ≥768 wide the prologue's slot is taken by the
     // video in `video/` next to the build — played muted if ready, skipped by a click, the fall starting
-    // under its fade; not ready / an error / autoplay refused → the comic as before. The suite's pages are
+    // under its fade; not ready / an error / autoplay refused → the game itself (no comic since -e). The suite's pages are
     // webdriver and never see it unless `?video=1`. The sources are relative on file://, so the real
     // encodes play here (Chromium decodes the WebM; it has no H.264, which is why the WebM comes first). =====
     const vboot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
@@ -11222,11 +11245,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'VIDEO: the film\'s colour on body and on the sky fill is scoped to the PLAY and lifted at the fade — not the class\'s whole life (the loading screen keeps its zenith zone; a skip-tap freezes the game\'s colour on iPad/Mac, not the film\'s). ⛔ SABOTAGE: hook either rule on html.video, or on video-on without :not(.video-out)');
     let played = true; try { await vp.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ played = false; }
     const g1 = await vstate(vp);
-    expect(played && g1.st.on && !g1.st.out && g1.display === 'block' && g1.fit === 'cover' && g1.box[0] === g1.vw && g1.box[1] === g1.vh && g1.st.muted === false && g1.st.sound === 'on' && g1.st.volume > 0 && g1.st.bgmHeld === true && g1.bgmPaused === true && g1.st.paused === false && g1.story === false,
-      'VIDEO: it PLAYS at the hand-off — visible, cover-fitted over the whole viewport, WITH ITS OWN SOUND at the music volume (after the click — the gesture every browser wants), the background music held meanwhile, no comic underneath (' + JSON.stringify({ played, on: g1.st.on, display: g1.display, fit: g1.fit, box: g1.box, muted: g1.st.muted, sound: g1.st.sound, volume: g1.st.volume, bgmHeld: g1.st.bgmHeld, bgmPaused: g1.bgmPaused, paused: g1.st.paused, story: g1.story, ready: g1.st.ready }) + '). ⛔ SABOTAGE: start the film muted, or drop bgmHold()');
+    expect(played && g1.st.on && !g1.st.out && g1.display === 'block' && g1.fit === 'cover' && g1.box[0] === g1.vw && g1.box[1] === g1.vh && g1.st.muted === false && g1.st.sound === 'on' && Math.abs(g1.st.volume - 0.7) < 0.01 && g1.st.bgmHeld === true && g1.bgmPaused === true && g1.st.paused === false && g1.story === false,
+      'VIDEO: it PLAYS at the hand-off — visible, cover-fitted over the whole viewport, WITH ITS OWN SOUND at the slider\'s own 0.7 (not the music bus) after the gesture every browser wants, the background music held meanwhile, no comic underneath (' + JSON.stringify({ played, on: g1.st.on, display: g1.display, fit: g1.fit, box: g1.box, muted: g1.st.muted, sound: g1.st.sound, volume: g1.st.volume, bgmHeld: g1.st.bgmHeld, bgmPaused: g1.bgmPaused, paused: g1.st.paused, story: g1.story, ready: g1.st.ready }) + '). ⛔ SABOTAGE: start the film muted, drop bgmHold(), or route the volume through musicOut()');
     expect(g1.phase === 'wait', 'VIDEO: the fall is HELD while it plays (intro phase ' + g1.phase + ')');
     expect(g1.body === 'rgb(131, 208, 251)' && g1.fill && g1.fill[0] === 'rgb(131, 208, 251)' && g1.fill[1] === 'none' && g1.fill[2] !== 'none',
       'VIDEO: while it plays, body AND the sky fill under it wear the film\'s first top rows — whichever branch Safari takes for a transparent <video>, the iPad/Mac zone over the film is the film\'s sky (' + JSON.stringify({ body: g1.body, fill: g1.fill }) + '). ⛔ SABOTAGE: drop either play-time rule');
+    // (P) THE PLATFORM'S MUTE MID-FILM (78-ads applyMute → musicSuspend): the film goes silent and comes back with the un-mute; the held music does NOT resume on the un-mute
+    const pm = await vp.evaluate(() => { const a = window.__game.musicSuspend(true); const b = window.__game.musicSuspend(false); return { a, b, st: window.__game.videoState() }; });
+    expect(pm.a.ext === true && pm.a.filmMuted === true && pm.a.bgmPaused === true && pm.b.ext === false && pm.b.filmMuted === false && pm.b.bgmPaused === true && pm.st.bgmHeld === true && pm.st.on,
+      'VIDEO platform mute: muted by the platform the film is silent, un-muted it sounds again, and the music the film holds stays paused through the un-mute (' + JSON.stringify(pm) + '). ⛔ SABOTAGE: drop the film line in musicSuspend, or the !videoBgmHeld term of its resume');
     await vp.waitForTimeout(500);
     const g2 = await vstate(vp);
     expect(g2.st.cur > g1.st.cur && g2.st.dur > 3.5 && g2.st.dur < 4.5,
@@ -11251,7 +11278,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(onS && sk.st.why === 'skipped' && sk.st.out && sk.phase === 'drop' && sk.st.cur < 3.5 && sk.body === 'rgb(172, 168, 255)' && zenithFill(sk.fill),
       'VIDEO: a click on the playing film skips it — the fade and the fall in the same frame, mid-clip, and body and the fill are back on the zenith in that same read (the iPad/Mac freeze takes the game\'s colour, not the film\'s) (' + JSON.stringify({ why: sk.st.why, out: sk.st.out, phase: sk.phase, cur: +sk.st.cur.toFixed(2), body: sk.body, fill: sk.fill }) + '). ⛔ SABOTAGE: drop the pointerdown listener, or scope the colour to html.video instead of video-on:not(.video-out)');
     await sp.close();
-    // (G) a source that cannot load: the comic takes the slot, the fall still held, nothing shown
+    // (G) a source that cannot load: the GAME takes the slot — the fall starts at once, nothing shown
     const fp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
     fp2.on('pageerror', e => errors.push('PAGEERROR(video-fallback): ' + e.message));
     await fp2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
