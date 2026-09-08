@@ -16831,3 +16831,17 @@ The same deploy line as before (`npx wrangler deploy --config
 the domain pair as described above; the only page-side remedy would be flipping the source order (github
 first) — a build plus a suite run — and it is NOT started unless he says the redeploy waits.
 ⚠️ `.wrangler/` (wrangler dev's local state) is gitignored now — it appeared beside the leaderboard's already.
+
+### ✅ REDEPLOYED BY THE OWNER THE SAME EVENING — MEASURED 206 ON THE DOMAIN (his word: «done»)
+Both files, both edge IPs (104.21.43.29 / 172.67.216.170): `Range: bytes=0-99` → `HTTP/2 206`,
+`content-range: bytes 0-99/1100266` (`/2438208`), `accept-ranges: bytes`, `content-length: 100`, exactly 100
+bytes received; `bytes=1000000-` → 206 with the right `Content-Range` and the tail BYTE-IDENTICAL to `video/`
+(`cmp`); the plain GET → 200, `accept-ranges: bytes`, the body byte-identical to the file, the store's ETag;
+HEAD 0-99 → 206 with the headers and no body; `bytes=5000000-` → 416 `bytes */size`; `/nope.webm` → 404 —
+the same six shapes the `wrangler dev` smoke gave, now on the edge. ⚠️ `cf-cache-status` is ABSENT on the
+script edition's answers — a Worker response bypasses the CDN cache; do not read that as a failure (the
+sign of success is 206 + `Content-Range` + `Accept-Ranges` + the byte count). ⚠️ THE STALE NXDOMAIN IS GONE:
+this Mac's resolver answers both A records now and a plain `curl` without `--resolve` gives 206 from
+172.67.216.170 — the `--resolve` note above was a transient of the day the record was created. Nothing
+page-side to do: the source-order flip named above is NOT needed and is not started. THE VIDEO WORKER IS
+LIVE; the pending item of batch -e/-g is closed.

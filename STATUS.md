@@ -7,7 +7,7 @@ a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
 **Build: batches 2026-09-08-a to -g on top of 2026-09-07 b–i, v2 = main** · the suite **1080 green, 0 red, SUITE: PASS** (run 33; -g is server-only, the build unchanged) · the live
-site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · **the VIDEO worker needs YOUR redeploy** (see the first paragraph) · portal package unchanged in shape
+site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker is redeployed and **answers 206** (measured 8 September, see the first paragraph) · portal package unchanged in shape
 
 **8 SEPTEMBER, THE 206 CHECK (batch 2026-09-08-g in CLAUDE.md).** You deployed the video Worker and I checked
 it: **it answers `200` with the whole file to every Range request** (both files, both edge IPs) — no 206, no
@@ -22,6 +22,12 @@ sabotages each reddening its own assert), and `wrangler dev` with the real runti
 `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
 `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro.webm` → `HTTP/2 206`,
 `content-range: bytes 0-99/1100266`. Plan B stays R2 if the script ever does not do.
+✅ **REDEPLOYED AND MEASURED, 8 SEPTEMBER:** both files, both edge IPs — `Range: bytes=0-99` → `HTTP/2 206`,
+`content-range: bytes 0-99/1100266` (`/2438208`), `accept-ranges: bytes`, exactly 100 bytes; the open tail
+`1000000-` → 206 and byte-identical to `video/`; the plain GET 200 byte-identical to the file with
+`Accept-Ranges`; HEAD 0-99 → 206 with no body; past the end → 416 `bytes */size`; a missing file → 404. The
+domain resolves on this Mac again (the stale NXDOMAIN cache expired), and a plain `curl` without `--resolve`
+gives 206 too. Safari on the iPad and the Mac takes the film from your domain now — nothing page-side to do.
 
 **8 SEPTEMBER, NIGHT — THE REVIEW'S SEVEN (batch 2026-09-08-f in CLAUDE.md).** The film's volume is the music
 slider itself, not the music bus (it played 5 dB under the music that follows it; the iPad ignores element volume
@@ -30,7 +36,8 @@ un-mute no longer restarts the music over it. The poster's tall box (under the b
 gate sees Apple WebKit with browser chrome — +80 instead of +120 (the poster's last rows are on the screen, ~35 px
 a side cut instead of 45); in your wrapper's full-screen view the box is one viewport. The 206 check after the
 Worker deploy is the whole check (Safari plays nothing from a 200); plan B if it answers 200 is an R2 bucket on the
-same domain. ⛔ 2026-09-08-g: MEASURED — it answered 200; the script above is the cure, a redeploy is yours.
+same domain. ⛔ 2026-09-08-g: MEASURED — it answered 200; the script above is the cure, a redeploy is yours. ✅ Redeployed the
+same evening and measured 206 (the first paragraph).
 
 **8 SEPTEMBER, LATE — THE INTROS BY YOUR FIVE ANSWERS (batches 2026-09-08-d and -e in CLAUDE.md).** No lines
 over the poster: both edge cards are gone while it shows, the splash gate is the first thing in body (no frame of a
@@ -43,8 +50,8 @@ where neither applies the game starts at once. **The film sounds:** unmuted at t
 only where the browser refuses an autoplay with sound (a first visit in Chrome, Safari's default) or the music is
 off; the background music is held while it sounds. **The film on your domain:** a Worker in
 `server/video/` for `video.blendo.monster` — YOUR deploy (the command is in the toml); until then the game takes
-the github.io copy after two failed lookups (⛔ -g: the assets-only edition is deployed and answers 200 — the
-script edition needs the redeploy). **On the iPad and the Mac** the toolbar zone over the film is the film's
+the github.io copy after two failed lookups (⛔ -g: the assets-only edition answered 200; ✅ the script edition
+is deployed and answers 206 — measured, the first paragraph). **On the iPad and the Mac** the toolbar zone over the film is the film's
 sky while it plays (scoped to the play so a skip-tap freezes the game's colour, not the film's). What only your
 devices can say: the phone's poster under the address bar with no line at the bottom and the sky to the top edge;
 the iPad's toolbar over the film; the film's sound in the wrapper and on the portal.
