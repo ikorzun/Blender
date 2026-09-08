@@ -16515,3 +16515,7 @@ taken: the variant tool symlinks `video/`; the section's own pages feed the erro
 `pageerror` (Chromium's two `ERR_FILE_NOT_FOUND` console lines of the fallback arm never reach it); the
 load-lengthened ceilings raised to 20 s and the splash's upper bound dropped; the NETWORK_NO_SOURCE early
 bail added and the fallback arm made strict on it.
+⛔ WHY -b/-c ARE TWO COMMITS (ccfa0bd the code, cde30b0 the canon): the post-run script chained the canon
+append and the commit with `;`, not `&&` — its trailing-newline assert on CLAUDE.md failed AFTER STATUS.md was
+written, and the commit ran anyway with STATUS and without the canon. The class this file already records: a
+gate must tell «not finished» from «failed», and a chain of steps must stop at the first one that did not.
