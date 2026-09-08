@@ -627,8 +627,18 @@ $('msMusicSw').addEventListener('click', () => {
 // blocked by the browser). Once, passively — the game's pointerdown handlers are not touched.
 let bgmUnlocked = false;
 function unlockBgm(){
-  if (bgmUnlocked) return; bgmUnlocked = true;
-  const bgm = $('bgm'); if (bgm){ bgm.volume = musicOut(musicVol); if (musicVol > 0) bgm.play().catch(()=>{}); }
+  if (bgmUnlocked) return;
+  // ⚡ 2026-09-09-a: NOT under an intro (the poster, a film) — the gesture is noted and the intro's close starts the
+  // music (85-hud `bgmDeferredStart`); the film's own track is the only sound meanwhile. `bgmUnlocked` stays false so
+  // this very path runs again at the close. A play() the policy refuses (a deferred start from a timer, no gesture yet)
+  // re-arms it too: the next gesture retries, as it always did.
+  if (typeof introHoldsMusic === 'function' && introHoldsMusic()){ bgmDeferred = true; return; }
+  bgmUnlocked = true;
+  // ⚠️ AND NOT UNDER THE PLATFORM'S MUTE (the -a review): this path is the game's PRIMARY music starter now (the intro's close
+  // reaches it), and a portal whose player has the sound off sets musicExtMuted before the hand-off — without the term the
+  // track started under the mute and the later un-mute found it playing and did nothing. `bgmUnlocked` stays true: the
+  // un-mute itself resumes a paused track (musicSuspend(false) in 85-hud) once no intro holds it.
+  const bgm = $('bgm'); if (bgm){ bgm.volume = musicOut(musicVol); if (musicVol > 0 && !musicExtMuted) bgm.play().catch(()=>{ bgmUnlocked = false; }); }
 }
 // ⚠️⚠️ THE GESTURE IS ANY GESTURE, AND NOT ONLY A TOUCH (the owner's complaint «the
 // music starts playing with a delay», taken apart by the measurement 2026-08-11). A
@@ -644,7 +654,7 @@ function unlockBgm(){
 // But in some environments (the portal has already got a gesture, a desktop with previous
 // interaction) it goes through, and the music starts IMMEDIATELY, and not when the player
 // first touches the screen. It costs zero.
-try { const _b = $('bgm'); if (_b && musicVol > 0) _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{}); } catch(e){}
+try { const _b = $('bgm'); if (_b && musicVol > 0){ if (introHoldsMusic()) bgmDeferred = true; else _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{}); } } catch(e){}   // under an intro (2026-09-09-a): deferred to its close
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyHard(b.dataset.hard === '1');

@@ -176,11 +176,11 @@ function splashPlay(done, sinceNow){
     setTimeout(splashClose, SPLASH_FADE_MS + 40);
   }, wait);
 }
-function splashClose(){ const h = document.documentElement; h.classList.remove('splash'); h.classList.remove('splash-out'); splashDone = true; }
+function splashClose(){ const h = document.documentElement; h.classList.remove('splash'); h.classList.remove('splash-out'); splashDone = true; bgmDeferredStart(); }   // the intro's close starts the deferred music (2026-09-09-a)
 function splashForceClose(){ if (document.documentElement.classList.contains('splash')) splashClose(); }
 function splashState(){ const h = document.documentElement;
   return { on: h.classList.contains('splash'), out: h.classList.contains('splash-out'), t0: (typeof window.__splashT0 === 'number') ? window.__splashT0 : 0,
-    fadeAt: splashFadeAt, done: splashDone, ms: SPLASH_MS, fade: SPLASH_FADE_MS }; }
+    fadeAt: splashFadeAt, done: splashDone, ms: SPLASH_MS, fade: SPLASH_FADE_MS, deferred: bgmDeferred, holds: introHoldsMusic() }; }
 // ⚡ THE TABLET/DESKTOP VIDEO INTRO (2026-09-08-c, the owner's word «for the tablet and the desktop I want
 // the intro replaced with a video, but it weighs a lot — work out how not to bake it into the game or
 // how to optimise it without losing quality»). The files live NEXT to the build, not inside it
@@ -225,17 +225,36 @@ let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort =
 // tries again. ⚠️ THE MUSIC UNLOCK OF 90-input FIRES ON THE SAME GESTURE (a capture listener on window, before this
 // element's handlers): it starts the music the refusal had blocked too, and bgmHold() here pauses it — the release
 // at the film's close plays it.
-let videoSound = '', videoBgmHeld = false, videoTapSound = false;
+let videoSound = '', videoBgmHeld = false, videoTapSound = false, videoKicked = false;
+// ⚡ NO GAME MUSIC UNDER AN INTRO — IT STARTS WHEN THE INTRO CLOSES (2026-09-09-a, his word «remove the music, leave
+// only the sound» with the portrait film): while the poster or a film shows, the background track does not start at
+// all — not on the load's own attempt (90-input's gestureless play()), not on the first gesture (`unlockBgm`), not on a
+// platform un-mute, not on the music switch — it is DEFERRED (`bgmDeferred`) and started by the intro's close
+// (`splashClose`, the final `videoClose`), still subject to the slider and the platform's mute. The film's own track is
+// the intro's only sound. ⛔ This CANCELS the hold-and-release dance as the phone's rule: `bgmHold`/`bgmRelease` stay
+// as the belt for a track that was already playing (nothing starts one under an intro now, so they are inert in
+// practice). ⚠️ A deferred start from a TIMER (a film that ended untouched on iOS) is refused by the autoplay policy;
+// `unlockBgm` re-arms itself on a refusal so the next gesture starts the music (2026-08-11's «a key did not start it
+// at all» is not reopened: the gesture path is the same, it only waits for the intro). ⚠️ The desktop changes with it:
+// where the load's attempt was allowed (the wrapper, a portal that had its click) the music used to start under the
+// loading screen and be paused by the film — a stutter; now it starts after the film. Named to him.
+let bgmDeferred = false;
+function introHoldsMusic(){ return splashActive() || (videoGated() && !videoDone) || videoActive(); }
+function bgmDeferredStart(){ if (!bgmDeferred || introHoldsMusic()) return; bgmDeferred = false; try { if (typeof unlockBgm === 'function') unlockBgm(); } catch(_){} }
 function bgmHold(){ const b = document.getElementById('bgm'); if (b && !b.paused){ b.pause(); videoBgmHeld = true; } }
 function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b && musicVol > 0 && !musicExtMuted) { try { b.play().catch(()=>{}); } catch(_){} } }
 function videoEl(){ return document.getElementById('introVideo'); }
 function videoGated(){ return document.documentElement.classList.contains('video'); }
 function videoActive(){ const h = document.documentElement; return h.classList.contains('video-on') && !h.classList.contains('video-out'); }
-function videoClose(){
+function videoClose(closeSplash){
   const h = document.documentElement, v = videoEl();
   h.classList.remove('video-on'); h.classList.remove('video-out'); h.classList.remove('video');
   videoDone = true; videoAbort = null; videoSkipFn = null; bgmRelease();
   try { if (v){ v.pause(); while (v.firstChild) v.removeChild(v.firstChild); v.removeAttribute('src'); v.load(); } } catch(e){}   // free the decoder
+  // 2026-09-09-a: on the PLAYED path the poster under the phone's film goes with it (both faded together in finish);
+  // a bail keeps the poster — it is the fallback, and splashPlay takes over. Then the deferred music, if the intro is over.
+  if (closeSplash) splashForceClose();
+  bgmDeferredStart();
 }
 function videoPlay(done, fallback){
   const v = videoEl(), h = document.documentElement;
@@ -252,8 +271,9 @@ function videoPlay(done, fallback){
     if (last) last.removeEventListener('error', onErr); v.removeEventListener('pointerdown', skip); v.removeEventListener('click', onClick); removeEventListener('keydown', skip); };
   const finish = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook();
     videoFadeAt = performance.now(); h.classList.add('video-out');
+    if (splashActive()){ splashFadeAt = videoFadeAt; h.classList.add('splash-out'); }   // 2026-09-09-a: the poster under the phone's film fades WITH it — one fade over the falling pile
     if (done) done();                                    // the fall starts under the fading video
-    setTimeout(videoClose, VIDEO_FADE_MS + 40); };
+    setTimeout(() => videoClose(true), VIDEO_FADE_MS + 40); };
   const bail = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook(); videoClose(); fallback(); };
   const onEnd = () => finish('ended');
   const onErr = () => (videoActive() ? finish('error') : bail('error'));
@@ -274,6 +294,7 @@ function videoPlay(done, fallback){
       return; }
     finish('skipped'); };
   const start = () => { if (settled) return;
+    clearTimeout(grace);   // the -a review's BLOCKER: a film that started via canplay was bailed by the grace at hand-off + 1.5 s — a hard cut mid-clip, no fade, the poster exposed (the phone's normal path through the kick)
     v.removeEventListener('canplay', onCan);
     h.classList.add('video-on');
     v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); v.addEventListener('click', onClick); addEventListener('keydown', skip);
@@ -285,12 +306,20 @@ function videoPlay(done, fallback){
       () => { if (settled) return;   // a forced close rejects the pending play() too (AbortError) — not a refusal
         videoSound = wantSound ? 'refused' : 'music-off'; v.muted = true;
         tryPlay().then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); }); };
-  const onCan = () => start();
+  // ⚡ THE LOAD KICK (2026-09-09-a, the phone's film): iOS Safari need not buffer a `preload=auto` film at all before a
+  // play() — then `canplay` never fires inside the grace and the phone would ALWAYS fall back to the poster, silently.
+  // A muted play() on a `playsinline` element is the documented way to make it load; the element is display:none until
+  // `video-on`, so nothing shows. At `canplay` the kicked play is PAUSED and REWOUND before start(), so the film does
+  // not begin mid-clip (start() plays it again, with sound where allowed). Chromium never needs it (readyState ≥ 3 at
+  // the hand-off on file://) — the branch is measured only on a slow stand; his phone is the check.
+  let kicked = false; videoKicked = false;
+  const onCan = () => { if (kicked){ kicked = false; try { v.pause(); v.currentTime = 0; } catch(_){} } start(); };
   videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };
   videoSkipFn = () => finish('skipped');   // the test door always SKIPS (the -h review: skip(null) would unmute a refused film instead)
   v.addEventListener('error', onErr); if (last) last.addEventListener('error', onErr);
   if (v.readyState >= 3) start();
-  else { grace = setTimeout(() => bail('not ready in time'), VIDEO_GRACE_MS); v.addEventListener('canplay', onCan); }
+  else { grace = setTimeout(() => bail('not ready in time'), VIDEO_GRACE_MS); v.addEventListener('canplay', onCan);
+    kicked = true; videoKicked = true; v.muted = true; tryPlay().then(null, () => { kicked = false; }); }
 }
 function videoForceClose(){ if (videoAbort) videoAbort(); else if (videoGated() || videoActive()) videoClose(); }
 function videoSkipNow(){ if (videoSkipFn) videoSkipFn(); return videoState(); }
@@ -301,6 +330,7 @@ function videoState(){
     ready: v ? v.readyState : -1, cur: v ? v.currentTime : -1, dur: v ? v.duration : -1, paused: v ? v.paused : null, muted: v ? v.muted : null,
     srcs: v ? Array.from(v.querySelectorAll('source')).map(s => s.getAttribute('src')) : [], preload: v ? v.preload : null,
     sound: videoSound, tapSound: videoTapSound, bgmHeld: videoBgmHeld, volume: v ? v.volume : null,
+    deferred: bgmDeferred, holds: introHoldsMusic(), kicked: videoKicked, position: v ? getComputedStyle(v).position : null,
     grace: VIDEO_GRACE_MS, fade: VIDEO_FADE_MS };
 }
 function show(id){
@@ -2574,7 +2604,7 @@ function applyMusic(v01){
   bgm.volume = musicOut(musicVol);
   // ⚠️ The external muffling (an ad / the platform's pause) is STRONGER than the slider: otherwise
   // a player who moved the volume during an ad would have started the track over the ad.
-  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused) bgm.play().catch(()=>{}); } // they pull it up — we start it
+  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused){ if (introHoldsMusic()) bgmDeferred = true; else bgm.play().catch(()=>{}); } } // they pull it up — we start it (under an intro: at its close, 2026-09-09-a)
   else if (!bgm.paused) bgm.pause();                             // down to zero — we mute it
 }
 // THE EXTERNAL MUFFLING OF THE MUSIC (INTEGRATION's edit 2026-07-29 by the dispatcher's
@@ -2602,6 +2632,7 @@ function musicSuspend(on){
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
   else if (musicVol > 0 && bgm.paused && !videoBgmHeld){   // not while the film HOLDS it (-f): the release at the film's close resumes it
+    if (introHoldsMusic()){ bgmDeferred = true; return; }   // 2026-09-09-a: not under an intro either — its close starts it
     bgm.volume = musicOut(musicVol); // the invariant: the volume BEFORE play (see the musicVol block)
     bgm.play().catch(()=>{});
   }

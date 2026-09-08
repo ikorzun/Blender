@@ -6,8 +6,36 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batches 2026-09-08-a to -i on top of 2026-09-07 b–i, v2 = main** · the suite **1091 green, 0 red, SUITE: PASS** (run 35) · the live
-site verified by byte size against the build · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker is redeployed and **answers 206** (measured 8 September, see the first paragraph) · portal package unchanged in shape
+**Build: batch 2026-09-09-a on top of 2026-09-08 a–i, v2 = main** · the suite **1105 green, 0 red, SUITE: PASS** (run 36) · the live
+site verified by byte size against the build (index.html and both portrait video files) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below) · portal package unchanged in shape
+
+**9 SEPTEMBER — THE PORTRAIT FILM ON THE PHONE AND THE PORTRAIT TABLET, THE GAME'S MUSIC ONLY AFTER THE INTRO (batch
+2026-09-09-a in CLAUDE.md).** Your 9:16 film (720×1280, 4 s, 4.4 MB) was re-encoded into two files next to the build —
+WebM 675 KB and MP4 1.35 MB, mono audio (the master's «stereo» is one mono mix; nothing is lost) — and it plays where the
+poster showed: on the phone and on the portrait tablet, OVER the poster, in the poster's own box (under the bottom bar
+on the phone). Frame 0 of the film is the poster, so the switch is seamless; the poster stays as the load's cover and as
+the fallback — a film that is not ready, refused or broken leaves the poster's 1.5 s hold as before. At the film's end
+both fade together and the pour starts under the fade. **«Remove the music, leave only the sound»:** the file carries ONE
+mixed track (measured: a hit at 2 s and a broadband rumble tail — no separable music bed inside it), so what shipped is
+that the GAME's background music never starts under an intro (poster or film) on any device and starts when the intro
+closes; the film's own track is the intro's only sound. If you meant a music bed INSIDE the clip, send an SFX-only
+render — one command re-encodes it. ⚠️ Named: 720 wide is a 1.6× upscale on your phone and 2.1× on the iPad — a
+1080×1920 render would be sharper at about double the bytes, your call. ⚠️ A landscape phone under 768 wide gets the
+portrait film cover-cropped, as it gets the poster. ⚠️ On the desktop the music no longer starts under the loading
+screen where autoplay was allowed (the wrapper, the portal) — it starts after the film, without the stutter. A bench at
+your phone's geometry and at 768×1024 was sent to you first. Guarded five new ways on the phone plus the re-based film
+arms; fifteen sabotage variants each reddened their own arm, a comment edit none. The suite: **1105 green, 0 red** (run 36). A read-only review (three lenses, a
+skeptic per finding) confirmed four things, none refuted, all fixed before the run: a BLOCKER on the phone's own path
+(a film that started late was cut by the 1.5 s grace timer — pre-existing, never reachable before the phone's film), the
+deferred music ignoring the portal's sound-off, the poster's fallback hold measured from the wrong moment on a portal,
+and the body colour during the joint fade.
+**YOUR ONE COMMAND** — the two new files reach `video.blendo.monster` only with a redeploy of the video Worker
+(the same line as before): `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`,
+then `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro-portrait.webm` → `HTTP/2 206`. Until
+then the phone's film comes from github.io (the direct link takes the relative address anyway).
+**Your devices, when you look:** the phone — the poster, then the film starting on it, its sound on the first tap (the
+second skips), the film under the address bar, the music arriving only after; the iPad in portrait the same; whether
+the film starts at all on iOS Safari before the poster's hold runs out (an iOS load kick is in; unmeasurable here).
 
 **8 SEPTEMBER, NIGHT — THE BONUS OBJECT'S SHIMMER ON A CONTOUR (batch 2026-09-08-i in CLAUDE.md).** The
 electric band no longer paints the object's body: the shell is an inflated copy of the model (×1.06, the ice's
@@ -319,9 +347,21 @@ payment tests are on it.
    portal now receives our `level_completed` — make sure NO interstitial appears at all (we call
    none since 3 September; one would be the portal's own doing).
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
+6. The video Worker — ONE redeploy so the two new portrait files reach `video.blendo.monster`
+   (the store reads the repo's `video/` folder; a dry-run deploy here reads 4 files — both pairs):
+   `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
+   `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro-portrait.webm` → `HTTP/2 206`.
+   Until then the phone's film comes from github.io (the direct link takes the relative address anyway).
 
 ## Decisions only you can take
 
+- **The film's sound — an SFX-only stem?** The 9:16 file carries ONE mixed mono track (a hit at 2 s, a broadband
+  rumble tail — nothing separable inside it). Shipped: the game's music never plays under an intro, the film's own
+  track is the only sound. If «remove the music» meant a music bed INSIDE the clip, send an SFX-only render — one
+  command re-encodes it into the same two files.
+- **A 1080×1920 render of the portrait film?** 720 wide is a 1.6× upscale on your phone and 2.1× on the iPad in
+  portrait. A 1080×1920 export from your source would be sharper at roughly double the bytes (~1.3 MB WebM,
+  ~2.7 MB MP4). Your call; the recipe is one command.
 - **The contour's thickness on the bonus object**: 1.06 now. Say «1.14 like the ice» and I widen the slot's
   camera with it (the object in the slot gets ~5 % smaller); say «thinner rim» and RIM drops from 0.30.
 - **blendo.monster — what moving the game there needs** (your question of 8 September). The domain is already

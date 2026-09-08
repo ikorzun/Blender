@@ -11203,9 +11203,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const tab = await tp.evaluate(() => { const s = document.getElementById('introSplash'), r = s.getBoundingClientRect(), vs = window.__game.videoState();
       return { on: window.__game.splashState().on, kind: window.__splashKind, display: getComputedStyle(s).display, box: [r.width, r.height], vw: innerWidth, vh: innerHeight, phase: window.__game.introPhase(),
         tall: document.documentElement.classList.contains('splash-tall'), chrome: window.__splashChrome, apple: CSS.supports('font', '-apple-system-body'),
-        vGated: vs.gated, vSrcs: vs.srcs.length, vPreload: vs.preload, docH: document.documentElement.scrollHeight }; });
-    expect(tab.on && tab.kind === 'portrait' && tab.display === 'block' && tab.box[0] === tab.vw && tab.box[1] === tab.vh && tab.phase === 'wait' && !tab.vGated && tab.vSrcs === 0 && tab.vPreload === 'none',
-      'SPLASH portrait tablet: at 768×1024 the POSTER takes the slot (his answer to the crop fork) — the splash on by the portrait term, the fall held, and the video gate holds: no sources, not a byte of the film (' + JSON.stringify({ on: tab.on, kind: tab.kind, box: tab.box, vw: tab.vw, vh: tab.vh, phase: tab.phase, vGated: tab.vGated, vSrcs: tab.vSrcs, vPreload: tab.vPreload }) + '). ⛔ SABOTAGE: drop the portrait term of the splash gate (no poster — and no film either, the video gate still declines on portrait: the fall starts at once), or the landscape term of `__introFilm` (both intros gated at once)');
+        vGated: vs.gated, vSrcs: vs.srcs.length, vSrc0: vs.srcs[0] || null, vPreload: vs.preload, vPos: getComputedStyle(document.getElementById('introVideo')).position,
+        vBox: (() => { const q = document.getElementById('introVideo').getBoundingClientRect(); return [q.width, q.height]; })(), docH: document.documentElement.scrollHeight }; });
+    // ⛔ 2026-09-09-a (his word «add the video for the portrait mode of the phone and the tablet»): the poster stays the cover
+    // and the video gate fires TOO — the PORTRAIT pair, the film absolute in the poster's flat box (the tall box is the phone's)
+    expect(tab.on && tab.kind === 'portrait' && tab.display === 'block' && tab.box[0] === tab.vw && tab.box[1] === tab.vh && tab.phase === 'wait' && tab.vGated && tab.vSrcs === 2 && /blendo-intro-portrait\.webm$/.test(tab.vSrc0) && tab.vPreload === 'auto' && tab.vPos === 'absolute' && tab.vBox[0] === tab.vw && tab.vBox[1] === tab.vh,
+      'SPLASH portrait tablet: at 768×1024 the POSTER is the cover and the PORTRAIT film is gated over it (2026-09-09-a) — the splash on by the portrait term, the fall held, two sources of the portrait pair (webm first), preload auto, the film absolute in the poster\'s own one-viewport box (' + JSON.stringify({ on: tab.on, kind: tab.kind, box: tab.box, vw: tab.vw, vh: tab.vh, phase: tab.phase, vGated: tab.vGated, vSrcs: tab.vSrcs, vSrc0: tab.vSrc0, vPreload: tab.vPreload, vPos: tab.vPos, vBox: tab.vBox }) + '). ⛔ SABOTAGE: drop the portrait term of the splash gate (no poster — and the film gated by nothing on a portrait viewport: the fall starts at once), drop the splashOn term of the video gate (the poster alone), or pick the landscape pair under the poster');
     expect(tab.apple === true && tab.chrome === 120 && tab.tall === false && tab.box[1] === tab.vh && tab.docH === tab.vh,
       'SPLASH portrait tablet: Apple WebKit WITH chrome and still the FLAT box — the tall box is the phone WIDTH\'s (a portrait tablet\'s bar is at the top; +80 there would only hide the poster\'s last rows below the screen — the poster is width-limited here, the side is not cut at all) (' + JSON.stringify({ apple: tab.apple, chrome: tab.chrome, tall: tab.tall, box: tab.box, docH: tab.docH, vh: tab.vh }) + '). ⛔ SABOTAGE: drop the phone term of the tall rule');
     await tp.close();
@@ -11221,9 +11224,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const lph = await browser.newPage({ viewport: { width: 667, height: 375 } });
     await lph.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await lph.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await lph.waitForTimeout(400);
-    const lp0 = await lph.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length }));
-    expect(lp0.splash && lp0.kind === 'phone' && !lp0.vGated && lp0.vSrcs === 0,
-      'SPLASH landscape phone: at 667×375 the poster comes by the PHONE term and the film is not gated (' + JSON.stringify(lp0) + '). ⛔ SABOTAGE: drop the phone term of the splash gate (a landscape phone would get nothing), or the min-width term of the video gate (it would get the film)');
+    const lp0 = await lph.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length, vSrc0: (s => s ? s.getAttribute('src') : null)(document.querySelector('#introVideo source')) }));
+    // ⛔ 2026-09-09-a: the film is gated under the poster here too — the PORTRAIT pair (the poster's), cover-cropped on the
+    // sideways phone exactly as the poster is; named to the owner, not special-cased (the pair follows the poster, never a
+    // second sample of the orientation — the -h review's rule)
+    expect(lp0.splash && lp0.kind === 'phone' && lp0.vGated && lp0.vSrcs === 2 && /blendo-intro-portrait\.webm$/.test(lp0.vSrc0),
+      'SPLASH landscape phone: at 667×375 the poster comes by the PHONE term and the PORTRAIT film is gated over it (' + JSON.stringify(lp0) + '). ⛔ SABOTAGE: drop the phone term of the splash gate (a landscape phone would get nothing — no poster, and the film by `film` alone is off under 768), or pick the pair by a second orientation sample (the landscape film under the portrait poster)');
     await lph.close();
     // (B) an automated page WITHOUT the flag: no splash, no comic — the fall starts at once
     const np = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -11255,8 +11261,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // webdriver and never see it unless `?video=1`. The sources are relative on file://, so the real
     // encodes play here (Chromium decodes the WebM; it has no H.264, which is why the WebM comes first). =====
     const vboot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
-    const vstate = (pg) => pg.evaluate(() => ({ st: window.__game.videoState(), phase: window.__game.introPhase(), story: !!document.getElementById('storyOverlay'),
+    const vstate = (pg) => pg.evaluate(() => ({ st: window.__game.videoState(), s: window.__game.splashState(), phase: window.__game.introPhase(), story: !!document.getElementById('storyOverlay'),
       display: getComputedStyle(document.getElementById('introVideo')).display, fit: getComputedStyle(document.getElementById('introVideo')).objectFit,
+      pos: getComputedStyle(document.getElementById('introVideo')).position, z: getComputedStyle(document.getElementById('introVideo')).zIndex, top: document.getElementById('introVideo').getBoundingClientRect().top,
+      pdisp: getComputedStyle(document.getElementById('introSplash')).display, docH: document.documentElement.scrollHeight,
+      cards: [getComputedStyle(document.getElementById('edgeTop')).display, getComputedStyle(document.getElementById('edgeBot')).display],
       box: (() => { const r = document.getElementById('introVideo').getBoundingClientRect(); return [r.width, r.height]; })(), vw: innerWidth, vh: innerHeight, body: getComputedStyle(document.body).backgroundColor,
       bgmPaused: (b => b ? b.paused : null)(document.getElementById('bgm')),
       fill: (f => f ? [getComputedStyle(f).backgroundColor, getComputedStyle(f).backgroundImage, getComputedStyle(f).display] : null)(document.getElementById('skyFill')) }));
@@ -11279,15 +11288,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'VIDEO: the film\'s colour on body and on the sky fill is scoped to the PLAY and lifted at the fade — not the class\'s whole life (the loading screen keeps its zenith zone; a skip-tap freezes the game\'s colour on iPad/Mac, not the film\'s). ⛔ SABOTAGE: hook either rule on html.video, or on video-on without :not(.video-out)');
     let played = true; try { await vp.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ played = false; }
     const g1 = await vstate(vp);
-    expect(played && g1.st.on && !g1.st.out && g1.display === 'block' && g1.fit === 'cover' && g1.box[0] === g1.vw && g1.box[1] === g1.vh && g1.st.muted === false && g1.st.sound === 'on' && Math.abs(g1.st.volume - 0.7) < 0.01 && g1.st.bgmHeld === true && g1.bgmPaused === true && g1.st.paused === false && g1.story === false,
-      'VIDEO: it PLAYS at the hand-off — visible, cover-fitted over the whole viewport, WITH ITS OWN SOUND at the slider\'s own 0.7 (not the music bus) after the gesture every browser wants, the background music held meanwhile, no comic underneath (' + JSON.stringify({ played, on: g1.st.on, display: g1.display, fit: g1.fit, box: g1.box, muted: g1.st.muted, sound: g1.st.sound, volume: g1.st.volume, bgmHeld: g1.st.bgmHeld, bgmPaused: g1.bgmPaused, paused: g1.st.paused, story: g1.story, ready: g1.st.ready }) + '). ⛔ SABOTAGE: start the film muted, drop bgmHold(), or route the volume through musicOut()');
+    expect(played && g1.st.on && !g1.st.out && g1.display === 'block' && g1.fit === 'cover' && g1.box[0] === g1.vw && g1.box[1] === g1.vh && g1.st.muted === false && g1.st.sound === 'on' && Math.abs(g1.st.volume - 0.7) < 0.01 && g1.st.bgmHeld === false && g1.bgmPaused === true && g1.st.deferred === true && g1.st.holds === true && g1.st.paused === false && g1.story === false,
+      'VIDEO: it PLAYS at the hand-off — visible, cover-fitted over the whole viewport, WITH ITS OWN SOUND at the slider\'s own 0.7 (not the music bus) after the gesture every browser wants, the background music NOT STARTED meanwhile — deferred to the film\'s close (2026-09-09-a, his «remove the music, leave only the sound»: the load\'s own play() attempt is deferred under an intro, nothing to hold), no comic underneath (' + JSON.stringify({ played, on: g1.st.on, display: g1.display, fit: g1.fit, box: g1.box, muted: g1.st.muted, sound: g1.st.sound, volume: g1.st.volume, bgmHeld: g1.st.bgmHeld, bgmPaused: g1.bgmPaused, deferred: g1.st.deferred, holds: g1.st.holds, paused: g1.st.paused, story: g1.story, ready: g1.st.ready }) + '). ⛔ SABOTAGE: start the film muted, route the volume through musicOut(), or let the load\'s attempt start the music under an intro (drop its introHoldsMusic branch — bgmPaused false)');
     expect(g1.phase === 'wait', 'VIDEO: the fall is HELD while it plays (intro phase ' + g1.phase + ')');
     expect(g1.body === 'rgb(131, 208, 251)' && g1.fill && g1.fill[0] === 'rgb(131, 208, 251)' && g1.fill[1] === 'none' && g1.fill[2] !== 'none',
       'VIDEO: while it plays, body AND the sky fill under it wear the film\'s first top rows — whichever branch Safari takes for a transparent <video>, the iPad/Mac zone over the film is the film\'s sky (' + JSON.stringify({ body: g1.body, fill: g1.fill }) + '). ⛔ SABOTAGE: drop either play-time rule');
     // (P) THE PLATFORM'S MUTE MID-FILM (78-ads applyMute → musicSuspend): the film goes silent and comes back with the un-mute; the held music does NOT resume on the un-mute
     const pm = await vp.evaluate(() => { const a = window.__game.musicSuspend(true); const b = window.__game.musicSuspend(false); return { a, b, st: window.__game.videoState() }; });
-    expect(pm.a.ext === true && pm.a.filmMuted === true && pm.a.bgmPaused === true && pm.b.ext === false && pm.b.filmMuted === false && pm.b.bgmPaused === true && pm.st.bgmHeld === true && pm.st.on,
-      'VIDEO platform mute: muted by the platform the film is silent, un-muted it sounds again, and the music the film holds stays paused through the un-mute (' + JSON.stringify(pm) + '). ⛔ SABOTAGE: drop the film line in musicSuspend, or the !videoBgmHeld term of its resume');
+    expect(pm.a.ext === true && pm.a.filmMuted === true && pm.a.bgmPaused === true && pm.b.ext === false && pm.b.filmMuted === false && pm.b.bgmPaused === true && pm.st.deferred === true && pm.st.bgmHeld === false && pm.st.on,
+      'VIDEO platform mute: muted by the platform the film is silent, un-muted it sounds again, and the music DEFERRED under the film does NOT start on the un-mute — it stays for the close (2026-09-09-a) (' + JSON.stringify(pm) + '). ⛔ SABOTAGE: drop the film line in musicSuspend, or the introHoldsMusic term of its resume (the un-mute starts the music over the film: bgmPaused false)');
     await vp.waitForTimeout(500);
     const g2 = await vstate(vp);
     expect(g2.st.cur > g1.st.cur && g2.st.dur > 3.5 && g2.st.dur < 4.5,
@@ -11298,8 +11307,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'VIDEO: at its END the fall starts in the very frame the fade begins (why ' + g3.st.why + ', phase ' + g3.phase + '). ⛔ SABOTAGE: drop the `ended` listener, or call done() after the fade');
     await vp.waitForTimeout(500);
     const g4 = await vstate(vp);
-    expect(g4.st.done && !g4.st.gated && !g4.st.on && g4.display === 'none' && g4.st.srcs.length === 0 && g4.body === 'rgb(172, 168, 255)' && g4.st.bgmHeld === false && g4.bgmPaused === false,
-      'VIDEO: gone after the fade, body back on the zenith, the music released — display none, the sources released, the class cleared (' + JSON.stringify({ body: g4.body, bgmHeld: g4.st.bgmHeld, bgmPaused: g4.bgmPaused, done: g4.st.done, gated: g4.st.gated, display: g4.display, srcs: g4.st.srcs }) + ')');
+    expect(g4.st.done && !g4.st.gated && !g4.st.on && g4.display === 'none' && g4.st.srcs.length === 0 && g4.body === 'rgb(172, 168, 255)' && g4.st.bgmHeld === false && g4.st.deferred === false && g4.st.holds === false && g4.bgmPaused === false,
+      'VIDEO: gone after the fade, body back on the zenith, the DEFERRED music STARTED at the close (the commit-time activation lets a play() from the close through) — display none, the sources released, the class cleared (' + JSON.stringify({ body: g4.body, bgmHeld: g4.st.bgmHeld, deferred: g4.st.deferred, holds: g4.st.holds, bgmPaused: g4.bgmPaused, done: g4.st.done, gated: g4.st.gated, display: g4.display, srcs: g4.st.srcs }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose (the music never starts on a page whose only gesture came before the film)');
     await vp.close();
     // (F) a click on a SOUNDING film SKIPS it: the fade begins and the fall starts at once. ⚠️ -h: the gesture comes at
     // commit (arm E's device — a portal's Play precedes the game), so the film plays WITH sound and the first click is the
@@ -11331,7 +11340,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await vboot(pp, '?dev=1&video=1&splash=0'); await pp.waitForTimeout(400);
     const ph = await vstate(pp);
     expect(!ph.st.gated && ph.st.srcs.length === 0 && ph.st.preload === 'none' && !ph.story,
-      'VIDEO phone: at 390 the gate holds — no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: `window.__introFilm = !portrait` (the phone term dropped: `portrait` is FALSE on a phone by its own definition, so the film is gated here too — reddens this arm AND A6; measured); or gate the film on the phone width outright');
+      'VIDEO phone with `?splash=0`: the WHOLE phone intro is off — no poster and therefore no film under it (2026-09-09-a: the phone\'s film rides the poster; with the poster on it is the portrait pair — arms Q1-Q4): no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: `window.__introFilm = !portrait` (the phone term dropped: `portrait` is FALSE on a phone by its own definition, so the film is gated here too — reddens this arm AND A6; measured); or gate the film on the phone width outright');
     await pp.close();
     // (J) reduced motion: the gate holds on the desktop too
     const rp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
@@ -11360,12 +11369,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // capture listener on window fires first, bgmHold() pauses it); a second click skips
     await lp.mouse.click(640, 400); await lp.waitForTimeout(150);
     const l2 = await vstate(lp);
-    expect(l2.st.on && !l2.st.out && l2.st.sound === 'on' && l2.st.tapSound === true && l2.st.muted === false && l2.st.paused === false && l2.st.bgmHeld === true && l2.bgmPaused === true && l2.phase === 'wait' && l2.st.why === '',
-      'VIDEO first tap = sound: on a film the browser muted by refusal the first click UNMUTES it — still playing, the fall still held, the music the same gesture unlocked is held (paused) by the film (' + JSON.stringify({ sound: l2.st.sound, tapSound: l2.st.tapSound, muted: l2.st.muted, paused: l2.st.paused, bgmHeld: l2.st.bgmHeld, bgmPaused: l2.bgmPaused, phase: l2.phase, why: l2.st.why }) + '). ⛔ SABOTAGE: drop the refused branch of skip (the first click skips), or its bgmHold() (the music plays over the film)');
+    expect(l2.st.on && !l2.st.out && l2.st.sound === 'on' && l2.st.tapSound === true && l2.st.muted === false && l2.st.paused === false && l2.st.bgmHeld === false && l2.bgmPaused === true && l2.st.deferred === true && l2.phase === 'wait' && l2.st.why === '',
+      'VIDEO first tap = sound: on a film the browser muted by refusal the first click UNMUTES it — still playing, the fall still held, and the music the same gesture would have unlocked is DEFERRED to the film\'s close, not started under it (2026-09-09-a; 90-input\'s capture listener defers instead of playing) (' + JSON.stringify({ sound: l2.st.sound, tapSound: l2.st.tapSound, muted: l2.st.muted, paused: l2.st.paused, bgmHeld: l2.st.bgmHeld, bgmPaused: l2.bgmPaused, deferred: l2.st.deferred, phase: l2.phase, why: l2.st.why }) + '). ⛔ SABOTAGE: drop the refused branch of skip (the first click skips), or the introHoldsMusic branch of unlockBgm (the music plays over the film: bgmPaused false)');
     await lp.mouse.click(640, 400);
     const l3 = await vstate(lp);
     expect(l3.st.why === 'skipped' && l3.st.out && l3.phase === 'drop',
       'VIDEO second tap = skip: the next click on the now-sounding film skips it — the fade and the fall in the same frame (' + JSON.stringify({ why: l3.st.why, out: l3.st.out, phase: l3.phase }) + '). ⛔ SABOTAGE: make every tap on a refused film unmute (the film could never be skipped)');
+    await lp.waitForTimeout(600);
+    const l3b = await vstate(lp);
+    expect(l3b.st.done && l3b.st.holds === false && l3b.st.deferred === false && l3b.bgmPaused === false,
+      'VIDEO after the skip: the music the clicks DEFERRED starts at the film\'s close — the clicks\' activation lets a play() from a timer through (' + JSON.stringify({ done: l3b.st.done, holds: l3b.st.holds, deferred: l3b.st.deferred, bgmPaused: l3b.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose');
     await lp.close();
     // (L3) THE SAME WITH A FINGER (the -h review): by the HTML activation model a touch `pointerdown` carries NO user
     // activation (a mouse pointerdown, a non-mouse pointerup, touchend, click and keydown do), so the unmute rides the
@@ -11407,6 +11420,124 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(onM && mr.st.sound === 'music-off' && mr.st.muted === true && mr.st.paused === false && mr.st.bgmHeld === false,
       'VIDEO music off: with the music slider at 0 the film plays MUTED by the player\'s own setting (' + JSON.stringify({ onM, sound: mr.st.sound, muted: mr.st.muted, paused: mr.st.paused }) + '). ⛔ SABOTAGE: ignore musicVol');
     await mp2.close();
+    // ===== THE PHONE'S FILM (2026-09-09-a, his word «add the video for the portrait mode of the phone and the tablet»,
+    // «remove the music, leave only the sound»): where the poster is on, the video gate fires TOO, with the PORTRAIT pair;
+    // the film plays OVER the poster in the poster's own box (absolute; the tall box under the phone's bottom bar where the
+    // gate found chrome), the poster stays under it as the cover of the load and the fallback; both fade together at the
+    // end; and the game's music does not start under either intro — it starts at the intro's close. =====
+    // (Q1) the phone with both flags, the Apple feature test + chrome (his phone to the gate); nobody touches the page
+    // before the hand-off, so the film's own play() is refused (a fresh phone) and it plays muted — the box is the point here
+    const q1 = await browser.newPage({ viewport: { width: 390, height: 844 }, screen: { width: 390, height: 964 } });
+    q1.on('pageerror', e => errors.push('PAGEERROR(phone-film): ' + e.message));
+    await q1.addInitScript(appleUA);
+    await q1.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await q1.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await q1.waitForTimeout(1500);
+    await q1.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    const q1a = await vstate(q1);
+    expect(q1a.st.gated && q1a.st.srcs.length === 2 && /blendo-intro-portrait\.webm$/.test(q1a.st.srcs[0]) && /blendo-intro-portrait\.mp4$/.test(q1a.st.srcs[1]) && q1a.st.preload === 'auto' && q1a.s.on,
+      'PHONE FILM: with the poster on, the video gate fires too — the PORTRAIT pair (webm first), preload auto, the poster still on (' + JSON.stringify({ gated: q1a.st.gated, srcs: q1a.st.srcs, preload: q1a.st.preload, splash: q1a.s.on }) + '). ⛔ SABOTAGE: drop the splashOn term of the video gate, or pick the landscape pair under the poster');
+    let onQ = true; try { await q1.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onQ = false; }
+    const q1b = await vstate(q1);
+    expect(onQ && q1b.st.on && !q1b.st.out && q1b.display === 'block' && q1b.pos === 'absolute' && q1b.top === 0 && q1b.box[0] === q1b.vw && q1b.box[1] === q1b.vh + 80 && q1b.docH === q1b.vh + 80 && q1b.z === '2147483647' && q1b.pdisp === 'block' && q1b.s.on && !q1b.s.out && q1b.cards[0] === 'none' && q1b.cards[1] === 'none' && q1b.phase === 'wait' && q1b.st.paused === false,
+      'PHONE FILM: it plays OVER the poster in the poster\'s own TALL box — absolute at the top, one viewport + 80 under the bottom bar (the document with it), above the poster (z 2147483647 over its 2147483646), the poster still displayed under it, both cards gone, the fall held (' + JSON.stringify({ onQ, on: q1b.st.on, pos: q1b.pos, top: q1b.top, box: q1b.box, vw: q1b.vw, vh: q1b.vh, docH: q1b.docH, z: q1b.z, poster: q1b.pdisp, splash: q1b.s.on, cards: q1b.cards, phase: q1b.phase, paused: q1b.st.paused, sound: q1b.st.sound }) + '). ⛔ SABOTAGE: leave the film FIXED under the poster (drop the `html.splash #introVideo` rule), drop the tall rule, or hide the poster while the film plays');
+    expect(q1b.body === 'rgb(134, 211, 248)' && q1b.bgmPaused === true && q1b.st.deferred === true && q1b.st.holds === true,
+      'PHONE FILM: while it plays body wears the PORTRAIT film\'s first top rows (the status zone), and the game\'s music has NOT started — deferred to the intro\'s close (' + JSON.stringify({ body: q1b.body, bgmPaused: q1b.bgmPaused, deferred: q1b.st.deferred, holds: q1b.st.holds }) + '). ⛔ SABOTAGE: drop the phone play-time body rule, or start the music on the load\'s attempt under an intro');
+    let endQ = true; try { await q1.waitForFunction(() => window.__game.videoState().out, null, { timeout: 20000 }); } catch(_){ endQ = false; }
+    const q1c = await vstate(q1);
+    expect(endQ && q1c.st.why === 'ended' && q1c.st.out && q1c.s.on && q1c.s.out && q1c.phase === 'drop' && q1c.pdisp === 'block' && q1c.body === 'rgb(172, 168, 255)',
+      'PHONE FILM: at its END the film and the poster fade TOGETHER (both `-out` in one read — the poster does not reappear under the fading film), the fall starts in that frame, and body is on the game\'s ZENITH for the fade (the -a review: the frame an iPad edge would freeze carries the game\'s colour, as on the desktop) (' + JSON.stringify({ endQ, why: q1c.st.why, out: q1c.st.out, splashOn: q1c.s.on, splashOut: q1c.s.out, phase: q1c.phase, poster: q1c.pdisp, body: q1c.body }) + '). ⛔ SABOTAGE: drop the splash-out line of finish(), close the poster before the film ends, or drop the `html.splash.video-out body` rule (body stays the poster\'s sky through the fade)');
+    await q1.waitForTimeout(600);
+    const q1d = await vstate(q1);
+    expect(q1d.st.done && !q1d.st.gated && !q1d.s.on && !q1d.s.out && q1d.display === 'none' && q1d.pdisp === 'none' && q1d.docH === q1d.vh && q1d.body === 'rgb(172, 168, 255)' && q1d.cards[0] === 'block' && q1d.cards[1] === 'block' && q1d.st.holds === false && q1d.st.deferred === false,
+      'PHONE FILM: gone after the fade — the film AND the poster display none, the document one viewport again, body on the zenith, the cards back, the intro no longer holds the music and the deferred start was attempted (refused here: no gesture on this page) (' + JSON.stringify({ done: q1d.st.done, splashOn: q1d.s.on, display: q1d.display, poster: q1d.pdisp, docH: q1d.docH, vh: q1d.vh, body: q1d.body, cards: q1d.cards, holds: q1d.st.holds, deferred: q1d.st.deferred, bgmPaused: q1d.bgmPaused }) + '). ⛔ SABOTAGE: videoClose() without closing the poster on the played path');
+    await q1.close();
+    // (Q2) a film that cannot load on the phone: the POSTER keeps the slot — its own 1.5 s hold and fade, as before the film
+    const q2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    q2.on('pageerror', e => errors.push('PAGEERROR(phone-film-fallback): ' + e.message));
+    await q2.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await boot(q2, '?dev=1&splash=1&video=1&vsrc=' + encodeURIComponent('no-such-dir/'));
+    let fellQ = true; try { await q2.waitForFunction(() => window.__game.videoState().done, null, { timeout: 8000 }); } catch(_){ fellQ = false; }
+    const q2a = await vstate(q2);
+    expect(fellQ && q2a.st.why === 'error' && !q2a.st.on && q2a.display === 'none' && q2a.s.on && !q2a.s.out && q2a.pdisp === 'block' && q2a.phase === 'wait' && q2a.st.holds === true,
+      'PHONE FILM fallback: a film that cannot load hands the slot BACK TO THE POSTER — the poster still on and displayed, the fall still held, the music still deferred (' + JSON.stringify({ fellQ, why: q2a.st.why, on: q2a.st.on, display: q2a.display, splashOn: q2a.s.on, splashOut: q2a.s.out, poster: q2a.pdisp, phase: q2a.phase, holds: q2a.st.holds }) + '). ⛔ SABOTAGE: videoClose(true) on the bail (the poster closed with the broken film), or fall back to go() instead of the poster');
+    let fadedQ = true; try { await q2.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 }); } catch(_){ fadedQ = false; }
+    const q2b = await q2.evaluate(() => ({ st: window.__game.splashState(), phase: window.__game.introPhase() }));
+    expect(fadedQ && q2b.st.fadeAt - q2b.st.t0 >= 3990 && q2b.phase === 'drop',
+      'PHONE FILM fallback: the poster then keeps its OWN minimum and fades with the fall starting under it — the -b rule intact behind a broken film (' + JSON.stringify({ fadedQ, ms: Math.round(q2b.st.fadeAt - q2b.st.t0), phase: q2b.phase }) + ')');
+    await q2.close();
+    // (Q3) THE PHONE'S FIRST TAP = THE FILM'S SOUND, on the absolute film ABOVE the poster (a touch context, nobody touched the
+    // page before the hand-off — refused): one tap → sound on, the poster still under, the fall held, the music deferred;
+    // a second → both fade; after the close the deferred music starts (the taps' activation)
+    const q3ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const q3 = await q3ctx.newPage(); q3.on('pageerror', e => errors.push('PAGEERROR(phone-film-tap): ' + e.message));
+    await q3.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await q3.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await q3.waitForTimeout(1500);
+    await q3.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    let onQ3 = true; try { await q3.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onQ3 = false; }
+    const q3a = await vstate(q3);
+    await q3.touchscreen.tap(195, 400); await q3.waitForTimeout(250);
+    const q3b = await vstate(q3);
+    // ⚠️ `bgmHeld === false` is the discriminating term: a build that STARTS the music on the tap and then holds it (the -h
+    // form) also reads bgmPaused true and deferred true (the load's attempt deferred it) — measured on the v05 variant
+    expect(onQ3 && q3a.st.sound === 'refused' && q3b.st.on && !q3b.st.out && q3b.st.sound === 'on' && q3b.st.muted === false && q3b.st.paused === false && q3b.s.on && q3b.phase === 'wait' && q3b.bgmPaused === true && q3b.st.deferred === true && q3b.st.bgmHeld === false,
+      'PHONE FILM first tap = sound: the tap reaches the film above the poster — unmuted, still playing, the poster still under, the fall held, the music the gesture would have unlocked DEFERRED, not started under the film and held (' + JSON.stringify({ onQ3, before: q3a.st.sound, sound: q3b.st.sound, muted: q3b.st.muted, paused: q3b.st.paused, splashOn: q3b.s.on, phase: q3b.phase, bgmPaused: q3b.bgmPaused, deferred: q3b.st.deferred, bgmHeld: q3b.st.bgmHeld }) + '). ⛔ SABOTAGE: put the poster above the film (the tap never reaches it), or start the music in unlockBgm under an intro');
+    await q3.touchscreen.tap(195, 400);
+    const q3c = await vstate(q3);
+    expect(q3c.st.why === 'skipped' && q3c.st.out && q3c.s.out && q3c.phase === 'drop' && q3c.body === 'rgb(172, 168, 255)',
+      'PHONE FILM second tap = skip: the film and the poster fade together, the fall starts, body on the zenith in that read (' + JSON.stringify({ why: q3c.st.why, out: q3c.st.out, splashOut: q3c.s.out, phase: q3c.phase, body: q3c.body }) + ')');
+    await q3.waitForTimeout(600);
+    const q3d = await vstate(q3);
+    expect(q3d.st.done && q3d.st.holds === false && q3d.st.deferred === false && q3d.bgmPaused === false,
+      'PHONE FILM after the close: the DEFERRED music starts — the taps\' activation lets a play() from the close through (' + JSON.stringify({ done: q3d.st.done, holds: q3d.st.holds, deferred: q3d.st.deferred, bgmPaused: q3d.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose / splashClose');
+    await q3ctx.close();
+    // (Q4) THE CANPLAY PATH — THE FILM STARTED LATE MUST NOT BE BAILED BY THE GRACE (the -a review's blocker): the phone's normal
+    // path by the kick's own reasoning (iOS need not buffer before a play()), unreachable on file:// where the element is ready at
+    // the hand-off — so `readyState` is HELD at 0 by an init script until the kick has run, then released with one synthetic
+    // `canplay`. The controller is the real one; only the element's readiness is staged. The film must still be on screen well
+    // past hand-off + 1.5 s, with its listeners (a tap skips it).
+    const q4 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    q4.on('pageerror', e => errors.push('PAGEERROR(phone-film-grace): ' + e.message));
+    await q4.addInitScript(() => { window.__splashMinMs = 6000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); window.__vHold = true;
+      const d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'readyState');
+      Object.defineProperty(HTMLMediaElement.prototype, 'readyState', { configurable: true, get(){ return window.__vHold ? 0 : d.get.call(this); } }); });
+    // ⚠️ NO 1.5 s wait after goto here (the L arms' device against an early gesture): on file:// the hand-off comes ~1 s after
+    // goto and the grace 1.5 s later — a wait that long let the grace fire BEFORE the release, and the healthy build read red
+    await q4.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1');
+    await q4.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    let kickedQ = true; try { await q4.waitForFunction(() => window.__game.videoState().kicked === true, null, { timeout: 10000 }); } catch(_){ kickedQ = false; }
+    const q4a = await vstate(q4);
+    const tKick = Date.now();
+    await q4.evaluate(() => { window.__vHold = false; document.getElementById('introVideo').dispatchEvent(new Event('canplay')); });
+    await q4.waitForTimeout(200);
+    const q4b = await vstate(q4);
+    // past hand-off + 1.5 s by a margin: the grace, were it still armed, has fired by now
+    await q4.waitForTimeout(Math.max(0, 2200 - (Date.now() - tKick)));
+    const q4c = await vstate(q4);
+    expect(kickedQ && q4a.st.kicked === true && !q4a.st.on && q4a.s.on && q4b.st.on && q4b.st.paused === false && q4c.st.on && !q4c.st.out && !q4c.st.done && q4c.st.why === '' && q4c.display === 'block' && q4c.s.on && q4c.phase === 'wait' && q4c.st.cur > 0.3,
+      'PHONE FILM grace: a film not ready at the hand-off is KICKED (a muted play on the hidden element), and once canplay releases it it plays ON — still on screen, still playing and the fall still held 2.2 s after the kick, i.e. past the 1.5 s grace, which start() cleared (' + JSON.stringify({ kickedQ, kicked: q4a.st.kicked, onAtKick: q4a.st.on, onAfterCan: q4b.st.on, pausedAfterCan: q4b.st.paused, on: q4c.st.on, out: q4c.st.out, done: q4c.st.done, why: q4c.st.why, display: q4c.display, splash: q4c.s.on, phase: q4c.phase, cur: q4c.st.cur }) + '). ⛔ SABOTAGE: drop clearTimeout(grace) from start() — the film snaps to display:none at +1.5 s, why «not ready in time», the poster exposed');
+    await q4.mouse.click(195, 400);
+    const q4d = await vstate(q4);
+    expect(q4d.st.why === 'skipped' || q4d.st.sound === 'on',
+      'PHONE FILM grace: the late-started film still has its input — a click skips it (or, refused, gives it its sound) (' + JSON.stringify({ why: q4d.st.why, sound: q4d.st.sound, out: q4d.st.out }) + ')');
+    await q4.close();
+    // (P2) THE PLATFORM'S MUTE HELD THROUGH THE INTRO'S CLOSE (the -a review's bug): the deferred start must NOT play the track
+    // while the platform says off — a portal with the player's sound off sets it before the hand-off; the later un-mute starts it
+    const p2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    p2.on('pageerror', e => errors.push('PAGEERROR(video-mute-close): ' + e.message));
+    await p2.addInitScript(() => { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    await p2.goto('file://' + PAGE_FILE + '?dev=1&video=1', { waitUntil: 'commit' }); await p2.evaluate(() => 1);   // the gesture (a portal's Play precedes the game) — a play() from the close WOULD be allowed
+    await p2.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    let onP2 = true; try { await p2.waitForFunction(() => window.__game.videoState().on, null, { timeout: 20000 }); } catch(_){ onP2 = false; }
+    const p2a = await p2.evaluate(() => window.__game.musicSuspend(true));
+    let endP2 = true; try { await p2.waitForFunction(() => window.__game.videoState().done, null, { timeout: 20000 }); } catch(_){ endP2 = false; }
+    await p2.waitForTimeout(600);
+    const p2b = await vstate(p2);
+    const p2c = await p2.evaluate(() => window.__game.musicSuspend(false));
+    await p2.waitForTimeout(300);
+    const p2d = await vstate(p2);
+    expect(onP2 && p2a.ext === true && endP2 && p2b.st.done && p2b.st.holds === false && p2b.st.deferred === false && p2b.bgmPaused === true && p2c.ext === false && p2d.bgmPaused === false,
+      'VIDEO platform mute through the close: with the platform saying OFF since mid-film, the deferred start at the film\'s close does NOT play the track (paused, deferred spent, the gesture would have allowed it), and the un-mute afterwards starts it (' + JSON.stringify({ onP2, mutedBefore: p2a.ext, endP2, done: p2b.st.done, holds: p2b.st.holds, deferred: p2b.st.deferred, pausedAtClose: p2b.bgmPaused, unmuted: p2c.ext, pausedAfterUnmute: p2d.bgmPaused }) + '). ⛔ SABOTAGE: drop the !musicExtMuted term of unlockBgm (the track plays under the mute and the un-mute finds it playing)');
+    await p2.close();
     // (N) the gate's address list in the BUILD: his domain first, github.io second, for every host that is neither local nor github.io
     const built = require('fs').readFileSync(PAGE_FILE, 'utf8');
     const iDom = built.indexOf("'https://video.blendo.monster/'"), iGh = built.indexOf("'https://ikorzun.github.io/Blender/video/'");

@@ -17105,3 +17105,167 @@ own arm (the old alpha: cold 2.7–9.3 %). **Run 35 — the whole suite on this 
 `ERRORS(tail): none`, SUITE: PASS** (run 34 was 1089; the two are the structure and the contour arms).
 `index.html` 12 744 889 → 12 750 058 B. Pushed to `v2` and onto `main` on his standing word («push v2 onto
 main after a green run»), the live site verified by byte size.
+
+
+## BATCH 2026-09-09-a: THE PORTRAIT FILM RIDES THE POSTER ON THE PHONE AND THE PORTRAIT TABLET; THE GAME'S MUSIC WAITS FOR THE INTRO TO CLOSE (his word with a 9:16 film attached: «optimise it and add the video for the portrait mode of the phone and the tablet. Remove the music, leave only the sound»)
+
+### THE FILE, MEASURED, AND THE TWO ENCODES
+| file | codec | size | bitrate |
+|---|---|---|---|
+| his `ad2aaace-….mp4` (the master, untracked) | H.264 High, 720×1280, 24 fps, 97 frames, 4.04 s; ONE AAC stereo track, 135 kbps | 4.41 MB | 8.55 Mbps |
+| `video/blendo-intro-portrait.webm` — VP9 CRF 30, row-mt, Opus 64k MONO | VP9 | **675 KB** | ~1.3 Mbps |
+| `video/blendo-intro-portrait.mp4` — H.264 High 4.1, CRF 19, preset slow, +faststart, AAC 96k MONO | H.264 | **1.35 MB** | ~2.7 Mbps |
+The content is the animated poster (the flames grow, the zoom into the eyes); frame 0 ≈ `Blendo-9-16-intro.jpg`
+itself. The same recipe as the landscape film (batch -c) at the same CRFs; the master stays his and untracked, the
+two encodes ship next to the build (`video/`, the -c decision) — the portal package stays four files.
+⚠️ **MONO IS HONEST, NOT A SAVING:** the master's «stereo» has its side channel at −44…−61 dB against a mid of
+−14…−32 — a mono mix in a stereo container; encoding it mono loses nothing and halves the audio bytes.
+⚠️ **THE UPSCALE, NAMED TO HIM:** 720 wide on a DPR-3 phone is 1.6× (402×3 = 1206 across), on an iPad in portrait
+2.1×. A 1080×1920 render from his source would be sharper at roughly double the bytes; his call, one command.
+
+### «REMOVE THE MUSIC, LEAVE ONLY THE SOUND» — WHAT IT COULD MEAN, AND WHAT SHIPPED
+The file has ONE audio track and no stems. Measured (ffmpeg astats/aspectralstats, a pure-python autocorrelation —
+no numpy on this Mac): quiet until 1.75 s, a hit at 2.0 s, then a sustained tail; the tail's spectral flatness is
+0.17–0.43 (the landscape film's own approved «sound» is the TONAL one at 0.01–0.04), its autocorrelation peaks at
+0.17–0.34 with two blips of 0.53/0.57, its f0 wanders 48–67 Hz — a broadband rumble/roar, not a melody or a drone.
+There is nothing separable inside the file here. ⛔ So the only reading that yields a deliverable is the one that
+shipped: **the GAME's background track does not play under the intro; the film's own track is the intro's only
+sound** — and the file's track ships INTACT. If he meant a music bed inside the clip, that is an SFX-only render of
+his; named to him, not blocking.
+
+### THE FILM OVER THE POSTER — COMPOSITION, NOT REPLACEMENT
+- THE GATE (shell.html, the video gate): where the splash gate put the poster up (`html.splash` — the phone width,
+  or any portrait viewport since -h) the film fires TOO, with the PORTRAIT pair (`blendo-intro-portrait.{webm,mp4}`,
+  the same `bases`: relative on github.io and local hosts, his domain then github elsewhere), not reduced motion, not
+  webdriver unless `?video=1`. `?splash=0` switches the whole phone intro off (poster AND film — arm H); `?video=0`
+  the film alone. ⛔ The -c line «a phone never fetches a byte» is cancelled where it stood.
+- THE PAIR FOLLOWS THE POSTER, NEVER A SECOND ORIENTATION SAMPLE (the -h review's rule): a landscape phone under 768
+  gets the portrait film cover-cropped exactly as it gets the poster — named to him, not special-cased (arm A6).
+- THE BOX IS THE POSTER'S (CSS): under `html.splash` the film is ABSOLUTE, `inset:0 auto auto 0`, one viewport, and
+  `calc(100lvh + 80px)` under `splash-tall` — NOT fixed: a fixed box ends at the layout viewport and the zone under
+  the bar would take body's flat colour under a multicoloured film row (the -e/-f measurement; the line he rejected).
+  z-index 2147483647 over the poster's …646 (the edge cards, also …647, are display:none under the poster since -e).
+  The poster STAYS displayed under the film: frame 0 of the film IS the poster, so the switch is seamless, and a film
+  that never plays leaves the poster's own hold in place. `object-fit:cover` on the 9:16 source in the tall box:
+  ~35 px a side on his phone (the poster's figure), nothing cut on 768×1024.
+- THE HAND-OFF (99-main): the film is asked FIRST, the poster is its fallback — `videoPlay(go, poster)` where
+  `poster = splashActive() ? splashPlay(go, lifted) : go`. ⛔ The -e note «the order of the two tests is inert» is
+  dead: asked the other way round the poster would fade before the film ever played. No minimum before the film —
+  it starts the moment it is ready; the 1.5 s was the picture-only case.
+- THE PLAYED PATH CLOSES BOTH; THE BAIL KEEPS THE POSTER (85-hud): `finish()` adds `splash-out` beside `video-out`
+  (one fade over the falling pile; `done()` in the same frame as before) and calls `videoClose(true)`, which closes
+  the poster after the fade; every bail (`NETWORK_NO_SOURCE`, an error, the grace, a refusal that cannot even play
+  muted) calls `videoClose()` without it and hands the slot to `splashPlay` — the -b hold, intact behind a broken film.
+- BODY'S COLOUR WHILE THE PHONE'S FILM PLAYS = the PORTRAIT film's first top rows, rgb(134,211,248) (ffmpeg off the
+  WebM, the top drifts 129..149 red), scoped to the play exactly like the landscape rule (`html.splash.video-on:not
+  (.video-out) body`, higher specificity); the poster's sky returns at `video-out`.
+- ⚠️ THE iOS LOAD KICK (videoPlay): when `readyState < 3` at the hand-off, a MUTED play() is issued on the hidden
+  element — iOS Safari need not buffer a `preload=auto` film at all before a play(), and without it `canplay` would
+  never fire inside the grace and the phone would ALWAYS fall back to the poster, silently; at `canplay` the kicked
+  play is paused and rewound before `start()`. Chromium never needs it (ready at the hand-off on file://): the branch
+  is UNMEASURED here — his phone is the check.
+
+### THE MUSIC: DEFERRED, NOT HELD
+`introHoldsMusic() = splashActive() || (videoGated() && !videoDone) || videoActive()` (85-hud). While it is true,
+every path that could start the background track DEFERS instead (`bgmDeferred = true`): 90-input's load-time play()
+attempt, the gesture unlock (`unlockBgm` — it returns WITHOUT setting `bgmUnlocked`, so the same path runs again at
+the close), a platform un-mute (`musicSuspend(false)`), the music switch/slider (`applyMusic`). The intro's close —
+`splashClose`, and `videoClose` on every path — calls `bgmDeferredStart()`, which runs `unlockBgm()` only when no
+intro holds any more (a film's bail under a live poster stays deferred until the poster closes). The slider and the
+platform's mute still rule. ⚠️ A deferred start from a TIMER (a film that ended untouched on Safari) is refused by
+the autoplay policy: `unlockBgm` re-arms `bgmUnlocked = false` on a refused play(), so the next gesture starts the
+music exactly as the 2026-08-11 rule demands («a key did not start it at all» is not reopened).
+⚠️ WHAT CHANGED ON THE DESKTOP, NAMED TO HIM: where the load's attempt was allowed (the wrapper, a portal that had
+its click) the music used to start under the loading screen and be PAUSED by the film — a stutter; now it starts
+after the film. `bgmHold`/`bgmRelease` stay as the belt for a track that was already playing (nothing starts one under
+an intro now, so they are inert in practice).
+⚠️ ARM E'S DEVICE STILL WORKS THE OTHER WAY ROUND: the commit-time evaluate gives the page sticky activation, so the
+deferred play() from the close IS allowed there and the arm reads `bgmPaused false` after the film — the same
+activation that lets the film sound. On a page nobody touched (Q1) the deferred start is refused and stays so.
+
+### THE GUARD (INTRO, 55 green on the healthy build — 41 before, the rest new or re-based; two of the new arms came out of the review below)
+- RE-BASED: **A4** (768×1024, both flags) — the poster on by the portrait term AND the film gated with the portrait
+  pair, absolute in the poster's flat box; **A6** (667×375) — the portrait film gated under the poster; **H** (390,
+  `?splash=0`) — the same expectation, the message names the whole intro off; **E** — the music NOT started under the
+  film (`bgmHeld false, bgmPaused true, deferred true, holds true`) and STARTED at the close (`deferred false`,
+  `bgmPaused false`); **P** — the platform un-mute mid-film does not start the deferred music; **L2** — the first
+  click defers the music instead of unlocking it, and a new read after the skip: the deferred music starts at the
+  film's close (the clicks' activation).
+- NEW: **Q1** (390×844, Apple + chrome, both flags, nobody touches the page): the portrait pair gated with the poster
+  on; the film plays OVER the poster in the TALL box (absolute, top 0, 390×924, the document 924, z 2147483647, the
+  poster displayed, both cards none, the fall held); body 134,211,248 and the music deferred; at the END both `-out`
+  in one read (the poster does not reappear), phase drop, body the poster's sky; after the fade both gone, the
+  document one viewport, body the zenith, the cards back, `holds false`, `deferred false`. **Q2** (the phone with
+  `vsrc=no-such-dir/`): the broken film hands the slot BACK TO THE POSTER — still on, displayed, the fall held, the
+  music still deferred — and the poster then keeps its OWN 4 s knob and fades with the fall under it. **Q3** (a touch
+  context): one tap on the absolute film above the poster → sound on, still playing, the poster under, the music
+  deferred AND NOT HELD (`bgmHeld false` — the discriminating term, see below); a second tap → both fade; after the
+  close the deferred music starts (the taps' activation). **Q4** (the canplay path — see the review) and **P2** (the
+  platform's mute through the close — see the review).
+- PROVEN AGAINST TWELVE VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`), each red on
+  its own arm(s), the rest green: the splashOn term dropped from the video gate → the 12 phone/portrait film arms (A4,
+  A6, Q1–Q3), nothing else; the phone box rule dropped (the film fixed under the poster) → A4's box read and Q1's box
+  arm; the `splash-out` line of finish() dropped → Q1's end arm and Q3's second tap; `videoClose()` instead of
+  `videoClose(true)` on the played path → Q1's gone arm (the poster stays); the deferral dropped from unlockBgm → L2
+  and Q3's first tap; the load's attempt undeferred → E's play arm and P (the commit gesture lets it through); the
+  un-mute's deferral dropped → E's play arm AND P — 78-ads calls `musicSuspend` at init, so on a page with a gesture the
+  music started under the film at load; `bgmDeferredStart()` dropped from videoClose → E's after arm and L2's after
+  read (the phone arms stay green there — splashClose's own call covers the phone's played path, which is the point of
+  having it in both); the landscape pair under the poster → A4, A6, Q1's first arm; the phone play-time body rule
+  dropped → Q1's body arm; `splashForceClose()` unconditional in videoClose (the bail closes the poster) → both Q2
+  arms; a comment edit → 52 green, the tool calls an empty sabotage empty.
+- THE REVIEW'S THREE VARIANTS, on the reviewed build (55 green healthy): `clearTimeout(grace)` dropped from start() → ONLY
+  the Q4 arms; the `!musicExtMuted` term dropped from unlockBgm → ONLY P2; the `html.splash.video-out body` rule dropped →
+  ONLY Q1's end read and Q3's second tap.
+- ⚠️ THE FIRST FORM OF Q3 WAS BLIND TO ONE SABOTAGE AND THE VARIANT SHOWED IT: with the unlock's deferral dropped, the
+  tap STARTS the music and the unmute's `bgmHold()` pauses it — `bgmPaused true` and `deferred true` (the load's
+  attempt had deferred) read exactly like the healthy build; L2 caught it only because it reads `bgmHeld === false`.
+  Q3 reads it now too. **Two properties that share a symptom need the term that separates them, and the variant is
+  what shows which term that is.**
+
+### THE READ-ONLY REVIEW (a Workflow: three lenses, one skeptic per finding, no browsers; 10 agents, 21 minutes, after a first
+### launch that died whole on the session limit) — FOUR CONFIRMED, NONE REFUTED, ALL FOUR TAKEN BEFORE THE RUN
+1. ⛔⛔ **A BLOCKER ON THE BATCH'S OWN TARGET PATH: `start()` NEVER CLEARED THE GRACE.** A film not ready at the hand-off arms
+   `grace = setTimeout(bail, 1500)` and starts later via `canplay`; `start()` cleared nothing, so at hand-off + 1.5 s `bail`
+   found `settled === false` and CUT a film that was on screen — no fade, `display:none`, the poster exposed, why «not ready
+   in time», the listeners gone (no skip). The shape is PRE-EXISTING (the -c code had it; the desktop's slow-line path was never
+   measured — on file:// the element is ready at the hand-off), and the kick makes the canplay path the PHONE'S NORMAL PATH.
+   One line: `clearTimeout(grace)` in `start()`, the same clearing `finish`, `bail` and `videoAbort` already do. THE GUARD
+   (Q4): `readyState` is HELD at 0 by an init script (a getter over `HTMLMediaElement.prototype`) until the controller's kick
+   has run (`videoState().kicked`, a new field), then released with ONE synthetic `canplay`; the real controller then plays
+   the real film, and 2.2 s after the kick — past the grace — it must still be on, playing, the fall held, and a click must
+   still reach it. ⚠️ THE ARM'S FIRST FORM WENT RED ON THE HEALTHY BUILD: it copied the L arms' 1.5 s wait after `goto` (their
+   device against an early gesture), and on file:// the hand-off comes ~1 s after goto — the grace fired BEFORE the release,
+   and the arm was measuring its own delay. The wait is gone; the release follows the kick by ~0.2 s.
+2. ⛔ **THE DEFERRED START IGNORED THE PLATFORM'S MUTE** (all three lenses, independently). `unlockBgm` played on `musicVol > 0`
+   alone — pre-existing, but the batch made it the game's PRIMARY starter: a portal with the player's sound off sets
+   `musicExtMuted` at bridge init, before the hand-off; at the intro's close the deferred play() started the track under the
+   mute, and the later un-mute found it playing and did nothing. The term is in; `bgmUnlocked` stays true, and the platform's
+   own un-mute (`musicSuspend(false)`) resumes the paused track once no intro holds it. THE GUARD (P2): the commit gesture, the
+   mute set mid-film, the film ends → the track stays paused with the deferral spent; the un-mute starts it.
+3. **THE POSTER FALLBACK RE-MEASURED ITS HOLD FROM THE FILM'S BAIL** on a curtain portal (`splashPlay(go, true)` from the
+   fallback = 3 s of poster). The lift is stamped ONCE at the hand-off (`window.__splashT0 = now` when `lifted`) and the poster
+   plays from that stamp on both paths. ⚠️ UNGUARDED: file:// has no curtain and the suite's pages cannot lift one before the
+   hand-off; named rather than claimed.
+4. **THE JOINT FADE LEFT BODY ON THE POSTER'S SKY** in the frame a skip tap paints on the phone — the desktop rule's freeze
+   reason (an iPad/macOS edge freezes the colour of that frame) said the zenith. `html.splash.video-out body` puts body on
+   `--sky-top-rgb` for the fade; Q1's end read and Q3's second tap read the zenith now. ⚠️ Residual, named: an unmute-first
+   tap on a refused film still freezes the film's sky (that tap paints no fade).
+
+### WHAT ONLY HIS DEVICES CAN SAY
+Whether iOS Safari buffers the phone's film before the hand-off (the kick is the belt); the film's sound on the first
+tap on the phone (the -h rule on the absolute film); the poster→film switch (frame 0 = the poster) and the joint fade
+under the bottom bar; the status zone in the film's sky while it plays; the game's music arriving only after the intro
+on the phone, the iPad and the Mac. And the domain: the two new files land on `video.blendo.monster` only with HIS
+redeploy of the video Worker (`[assets] directory = "../../video"` — a `--dry-run` deploy on this Mac reads **4 files** from it: the landscape pair and the new portrait pair); until then the domain pair 404s and the phone's
+film comes from github.io two failed lookups later — moot on the direct link, which takes the relative address.
+
+### THE RUN
+The INTRO section lifted alone on the final build: **55 green**; the fifteen sabotage variants above, each on its own
+arm(s), a comment edit none. **Run 36 — the whole suite on this build: 1105 green, 0 red, `ERRORS(tail): none`,
+SUITE: PASS** (run 35 was 1091; the fourteen are the new and re-based INTRO arms). `index.html` 12 750 058 →
+12 759 626 B (28 modules). ⚠️ One message string of arm H («arms Q1-Q3» → «Q1-Q4», the arms that gate the portrait
+pair on the phone) was edited AFTER the run started — a message, not a predicate; the section's own dry-run had the
+arm green in both wordings. Pushed to `v2` and onto `main` on his standing word («push v2 onto main after a green
+run»), the live site verified by byte size on `index.html` and on both portrait video files. The video Worker is NOT
+redeployed — his action (the STATUS line).

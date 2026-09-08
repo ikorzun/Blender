@@ -306,10 +306,20 @@ function tickIntro(dt){
           // ⛔ THE PROLOGUE COMIC IS GONE (2026-09-08-e, his word «there is no comic — only the intro picture or the
           // video, by platform»): where neither intro applies (a reduced-motion desktop, an automated page, a film
           // that cannot play) the fall starts AT ONCE. The comments above describe the slot's history.
+          // ⚡ 2026-09-09-a (his word «add the video for the portrait mode of the phone and the tablet»): the FILM comes
+          // first wherever its gate is on — on the phone and the portrait tablet it plays OVER the poster with the portrait
+          // pair, and the POSTER is its fallback (not ready in time, refused, broken → `splashPlay`, the 1.5 s hold as
+          // before); where no film is gated the poster alone; neither → the game at once. The order of the two tests is
+          // no longer inert: the film must be asked first, or the poster would fade before the film ever played.
           const go = ()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } };
-          if (typeof splashActive === 'function' && splashActive()) splashPlay(go, /^lifted/.test(String(Ads.curtainWhy || '')));
-          else if (typeof videoGated === 'function' && videoGated()) videoPlay(go, go);
-          else go();
+          // the lift is STAMPED here once (the -a review): the poster's minimum counts from the curtain's lift whether the poster
+          // plays now or as the film's fallback after its grace — `splashPlay(go, true)` from the fallback would have re-measured
+          // the 1.5 s from the bail (3 s of poster on a curtain portal)
+          const lifted = /^lifted/.test(String(Ads.curtainWhy || ''));
+          if (lifted) window.__splashT0 = performance.now();
+          const poster = ()=>{ if (typeof splashActive === 'function' && splashActive()) splashPlay(go, false); else go(); };
+          if (typeof videoGated === 'function' && videoGated()) videoPlay(go, poster);
+          else poster();
         });
       } catch(_){ try { splashForceClose(); } catch(__){} try { videoForceClose(); } catch(__){} beginDrop(); }   // an exception in the hand-off must not leave an intro class on html (the -d review)
     }
