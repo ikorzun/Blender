@@ -18184,3 +18184,26 @@ change depends on an intermediary — a CDN, a proxy, a browser's own cache poli
 that intermediary belongs in the batch, before the deploy**, and its result belongs in the canon as a fact
 about that intermediary rather than as a conclusion about our code. It is the same law this project already
 paid for on the iPhone (a fields recipe designed against a simulator matrix his phone refuted), met on a CDN.
+
+### ⛔⛔ AND THE FULL RUN OF THIS BATCH CAUGHT WHAT SEVEN BATCHES OF SECTION DRY-RUNS COULD NOT
+Run 43: **1123 green, 0 failed asserts, `SUITE: FAIL (1)`** — not from a `FAIL:` line but from a CONSOLE
+**404** collected by the bridge probe. The four bridge stands answer THREE paths (`index.html` and the two
+bridge files) and 404 everything else; since 2026-09-09-h the head links `manifest.webmanifest`,
+`icons/apple-touch-icon.png` and `icons/icon-192.png`, the browser fetched them, and the section's error
+collector reddened a run in which every assert passed.
+⚠️ **IT IS A FIXTURE GAP AND THE PROOF IS IN THE STAND ITSELF: it does not serve `music.mp3` either**, which
+the portal package DOES carry — so it never was a portal replica, it is a minimal rig for the bridge/curtain
+contract. All four now fall back to the folder the BUILD lives in (a variant's own symlinked side files, not
+the repo's), with a traversal guard checked on the raw `../` and on `%2e%2e`. Run 44: **1123 green, 0 red,
+`ERRORS: none`, SUITE: PASS**.
+⚠️⚠️ **THE LESSON IS ABOUT THE GATE, NOT THE STAND.** Those links shipped SEVEN batches ago and the gate has
+been «dry-run the changed sections» ever since — and no section dry-run touches that stand. **A change to
+`src/shell.html`'s HEAD is a change to what EVERY stand in the suite must serve**, and the head is exactly
+the part of the build that no section owns. When the head gains a link, grep the suite for its own
+mini-servers before the next full run finds it for you.
+⚠️ **AND THE SAME 404 IS REAL ON THE PORTAL, WHERE IT IS NOT A FIXTURE:** the Playgama package is
+`index.html` + the two bridge files + `music.mp3`, so those three links 404 there at every launch — 77.7 KB
+of files against a 13.96 MB package. Harmless (an iframe can install nothing, and the service worker
+already refuses to register there) but it is console noise in someone else's console. NAMED TO HIM WITH THE
+NUMBERS AND NOT DECIDED HERE: the portal upload is his manual procedure, and adding files to it changes his
+routine — his word turns it into one line in `docs/` and the packer.

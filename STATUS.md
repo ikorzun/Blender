@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-m (the domain's cache fix now actually works at the edge) on top of -k, -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: the site worker **31 green** + its **18 sabotages**, each red on its own arms + OG 4 green + PWA 9 green + **the fix run against the REAL Cloudflare edge before the deploy** (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · **blendo.monster is deployed and measured** · the leaderboard and the video workers are deployed · ⚠️ index.html did not change in this batch, so GitHub Pages is unaffected
+**Build: batch 2026-09-09-m (the domain's cache fix now actually works at the edge) on top of -k, -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · **the full suite: 1123 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 44 — the first full run in seven batches, and it earned its keep: see below) · the site worker **31 green** + its **18 sabotages**, each red on its own arms + **the fix run against the REAL Cloudflare edge before the deploy** · **blendo.monster is deployed and measured** · the leaderboard and the video workers are deployed
 
 **9 SEPTEMBER — THE SPEED FIX OF LAST NIGHT WAS DOING NOTHING, AND NOW IT IS (batch 2026-09-09-m).**
 I deployed it, checked it, and found the domain unchanged: the page still came back without a validator and
@@ -20,6 +20,15 @@ card and the music are untouched. Nothing for you to do — the deploy is done.
 ⚠️ The lesson I am writing into the memory file: a green test suite here proves our code, not what Cloudflare
 does to it on the way out. Anything that depends on the CDN gets one real measurement against the CDN before
 I call it fixed. That is on me — last night I reported it as done on the strength of the tests alone.
+
+**AND THE FULL RUN FOUND ONE THING — A QUESTION FOR YOU AT THE END.** 1123 checks passed and the run
+still came back red, on a 404 in a TEST rig: the bridge stand serves three files and 404s the rest, and the
+PWA batch added three links to the page's head seven batches ago. Fixed the rig (it now serves what a real
+host serves) and re-ran green. ⚠️ But the same 404 is REAL on Playgama: the package you upload there is
+index.html + two bridge files + music.mp3, so the manifest and two icons are missing and the portal logs
+three 404s at every launch. Nothing breaks — you cannot install a game inside an iframe anyway — it is
+console noise in their console. **77.7 KB against a 13.96 MB package.** Say the word and I add the three
+files to the package; I did not change your upload routine on my own.
 
 **9 SEPTEMBER, NIGHT — THE TELEGRAM PREVIEW WORKS.** Confirmed by you after `@WebpageBot`. The cause was
 Telegram remembering a FAILED preview on the address, not the page itself: a URL it had never seen showed the

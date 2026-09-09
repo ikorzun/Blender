@@ -3898,11 +3898,33 @@ window.bridge = {
   setGameLoadingProgress(v){ window.__probe.progress = v; },
 };
 `;
+  // ⚠️ THE FOUR BRIDGE STANDS SERVE THE BUILD'S SIDE FILES TOO (2026-09-09-m). They used to answer THREE
+  // paths and 404 the rest, which was fine until the head started linking the manifest and two icons
+  // (2026-09-09-h): the browser fetched them, got a 404, and the bridge probe's error collector turned a
+  // run of 1123 green asserts red — the first FULL run since those links shipped, and it caught this.
+  // ⛔ AND IT IS A FIXTURE GAP, NOT THE PORTAL: this stand does not serve music.mp3 either, which the
+  // portal package DOES carry. It is a minimal rig for the bridge/curtain contract, so it must not 404
+  // what a real host serves beside the build. ⚠️ The traversal guard is not decoration — `u` is off the wire.
+  // ⚠️ The root is the folder the BUILD lives in, not the repo: a sabotage variant (tools/build-variant.py)
+  // symlinks its own manifest/icons beside its own index.html, and the stand must read THOSE.
+  const standSide = (u, res) => {
+    const TYPES = { '.png':'image/png', '.jpg':'image/jpeg', '.json':'application/json',
+                    '.js':'text/javascript', '.mp3':'audio/mpeg', '.webmanifest':'application/manifest+json' };
+    const rootDir = path.dirname(PAGE_FILE);
+    let want;
+    try { want = path.resolve(rootDir, '.' + decodeURIComponent(u)); } catch (_) { return false; }
+    if (!want.startsWith(rootDir + path.sep)) return false;
+    if (!fs.existsSync(want) || !fs.statSync(want).isFile()) return false;
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(want)] || 'application/octet-stream' });
+    res.end(fs.readFileSync(want));
+    return true;
+  };
   const srv = http.createServer((req, res) => {
     const u = req.url.split('?')[0];
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_SDK); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
     if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
+    if (standSide(u, res)) return;                 // the manifest, the icons — anything a real host serves
     res.writeHead(404); res.end();
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
@@ -4290,6 +4312,7 @@ window.bridge = {
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end('/* the mock is preloaded by addInitScript — the server hands out a dummy, a load race is excluded by construction */'); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
     if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
+    if (standSide(u, res)) return;                 // the manifest, the icons — anything a real host serves
     res.writeHead(404); res.end();
   });
   await new Promise(r => srvH.listen(0, '127.0.0.1', r));
@@ -4345,6 +4368,7 @@ window.bridge = {
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_THROW); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
     if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
+    if (standSide(u, res)) return;                 // the manifest, the icons — anything a real host serves
     res.writeHead(404); res.end();
   });
   await new Promise(r => srvT.listen(0, '127.0.0.1', r));
@@ -4466,6 +4490,7 @@ window.bridge = {
     if (u === '/playgama-bridge.js'){ res.writeHead(200, {'Content-Type':'text/javascript'}); return res.end(MOCK_RW); }
     if (u === '/playgama-bridge-config.json'){ res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"platforms":{}}'); }
     if (u === '/' || u === '/index.html'){ res.writeHead(200, {'Content-Type':'text/html'}); return res.end(fs.readFileSync(PAGE_FILE)); }
+    if (standSide(u, res)) return;                 // the manifest, the icons — anything a real host serves
     res.writeHead(404); res.end();
   });
   await new Promise(r => srv2.listen(0, '127.0.0.1', r));
