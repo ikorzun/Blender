@@ -6,8 +6,21 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-g (the crawler card for Telegram) on top of 2026-09-09 a–f and 2026-09-08 a–i, v2 = main** · the gate of this push: OG 4 green ×2 + the site worker 20 green + its 10 sabotages + a live local run of the worker over https (no full suite — your rule of 9 September); the last full suite: · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
-site verified by byte size against the build (index.html) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below — it serves the iPad in portrait alone now) · portal package unchanged in shape
+**Build: batch 2026-09-09-h (installing the game as an app — a PWA) on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+
+**9 SEPTEMBER, NIGHT — THE GAME INSTALLS AS AN APP (batch 2026-09-09-h in CLAUDE.md).** Point 2 of your
+list is done. On Android and on the desktop Chrome now offers an install; on the iPhone and the iPad it is
+Share → «Add to Home Screen», and the game opens without Safari's bars at all — which is, by the way, the
+one mode where the whole screen belongs to the page, without the fields we fought all week. THE ICON is cut
+from your own `Blendo OG.jpg` — the face on the poster's own sky, nothing redrawn; I sent you a sheet of how
+it looks on Android, on iOS and in a round launcher, and one command re-cuts it if you want another framing.
+The launch splash on Android is the poster's sky, so it and the poster that follows are one colour.
+✅ AND IT WORKS OFFLINE: measured in a real browser against the real site worker — the network cut, a reload,
+and the game came up in full from the cache. ⛔ THE ONE THING I WATCHED HARDEST: the worker does not touch the
+music or the video AT ALL. A worker that answers a Range request kills playback in Safari, and that is
+guarded from three sides plus a live check (the music still answers 206 with the worker in front).
+⚠️ YOUR ONE STEP: `npm run site:deploy` — the manifest, the worker and the icons are new files, and the site
+does not follow GitHub. After that, open blendo.monster on the phone and try «Add to Home Screen».
 
 **9 SEPTEMBER, NIGHT — THE SHARE PICTURE IN TELEGRAM (batch 2026-09-09-g in CLAUDE.md).** Your report that the
 share picture does not come out. The origin turned out to be right already: the metas are whole and sit at byte

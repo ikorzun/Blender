@@ -2993,6 +2993,9 @@ if (!window.RAPIER){
     // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
     // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
+    // ⚡ PWA: the worker is registered AFTER the game is up — it must never compete with the
+    // 12.7 MB load, and an install prompt the browser shows a second later is not worse for it.
+    registerServiceWorker();
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }
 
@@ -3002,4 +3005,32 @@ if (!window.RAPIER){
 // together with it starGrant (hand out currency), buyBundle (a $19.99 bundle for
 // free), setLevel and boostSetClock (move the timestamp on which
 // the protection against clock tampering rests) are closed off. To open it on the live site: ?dev=1.
+// ⚡ PWA — THE SERVICE WORKER (2026-09-09-h, his word «install the game as a PWA … so that the
+// browser definitely understands that such a possibility exists»). The manifest and the icons are
+// static links in the head; this is the third thing a browser asks for before it offers an install.
+// ⛔ THE FOUR GATES, EACH LOAD-BEARING:
+//   https      — an installable PWA needs a secure context anyway, and this keeps the worker off the
+//                owner's http preview and off file://, where it cannot register at all;
+//   webdriver  — the suite must NEVER register one: background fetches of a 12.7 MB document while
+//                its pages are being torn down would land in the console, and the suite's error gate
+//                reads console errors. sw.js is guarded in node instead (server-worker style);
+//   top!==self — inside the portal the game is an iframe on Playgama's origin, and a worker there
+//                would be scoped to THEIR path. Not ours to touch;
+//   ?nosw=1    — the escape hatch, and it does not merely skip the registration: it UNREGISTERS what
+//                is already installed. If a bad worker ever ships, this is the only way back for a
+//                player who has one — and it has to exist BEFORE it is needed.
+function registerServiceWorker(){
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    if (/[?&]nosw=1/.test(location.search)){
+      navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
+      return;
+    }
+    if (location.protocol !== 'https:') return;
+    if (navigator.webdriver) return;
+    if (window.top !== window.self) return;
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  } catch(e){}
+}
+
 if (!DEV){ try { delete window.__game; } catch(e){ window.__game = undefined; } }

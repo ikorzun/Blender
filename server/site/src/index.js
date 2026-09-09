@@ -53,6 +53,12 @@ export default {
     const upstream = await env.ASSETS.fetch(request);
     const res = new Response(upstream.body, upstream);
     res.headers.set('Cache-Control', STATIC_DAY.test(url.pathname) ? 'public, max-age=86400' : 'no-cache');
+    // ⚠️ THE MANIFEST'S TYPE IS FORCED (2026-09-09-h): the assets store need not know `.webmanifest`,
+    // and a manifest served as octet-stream is a warning in Chrome and a refusal in some browsers —
+    // i.e. exactly «the browser does not understand that the game can be installed». `sw.js` needs no
+    // such line (`.js` is a known type) but WOULD need one if it ever stopped being served as
+    // JavaScript: a worker script with a wrong MIME fails registration with a SecurityError.
+    if (url.pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json');
     return res;
   }
 };

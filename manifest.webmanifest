@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Blendo",
+  "short_name": "Blendo",
+  "description": "Blendo — a 3D match-pair puzzle: dig through the blender's bowl and match the pairs before the blades get to them.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#7acefc",
+  "theme_color": "#aca8ff",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

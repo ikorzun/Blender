@@ -10,8 +10,9 @@ const CASES = [
   ['the www/http redirect dropped', "if (url.hostname === WWW || (url.hostname === APEX && url.protocol === 'http:')) {", "if (false) {", 3],
   // 5, not 4, since 2026-09-09-g: the crawler section asks the music with a Range under a bot user-agent too
   ['the media not delegated to the slicer (200 to a Range)', "if (MEDIA.test(url.pathname)) return film.fetch(request, env);", "", 5],
-  // 4, not 3, since 2026-09-09-g: the crawler section reads og.jpg's day of cache as well
-  ['the cache policy dropped', "res.headers.set('Cache-Control', STATIC_DAY.test(url.pathname) ? 'public, max-age=86400' : 'no-cache');", "", 4],
+  // 6, not 4, since 2026-09-09-h: the PWA arms read the manifest's and sw.js's `no-cache` too — and a day
+  // of cache on sw.js is the worst bug this file can ship (every installed player pinned to the old build)
+  ['the cache policy dropped', "res.headers.set('Cache-Control', STATIC_DAY.test(url.pathname) ? 'public, max-age=86400' : 'no-cache');", "", 6],
   ['the redirect loses the path', "url.hostname = APEX; url.protocol = 'https:'; url.port = '';", "url.hostname = APEX; url.protocol = 'https:'; url.port = ''; url.pathname = '/'; url.search = '';", 2],
   // the crawler card (2026-09-09-g): four ways to get it wrong, each reddening its own arms
   ['the crawler shortcut dropped (Telegram swallows the build again)', "if (DOC.test(url.pathname) && PREVIEW_BOT.test(request.headers.get('user-agent') || '')) {", "if (false) {", 3],
@@ -19,6 +20,8 @@ const CASES = [
   ['the shortcut ignores the user-agent (a player is served the card)', "PREVIEW_BOT.test(request.headers.get('user-agent') || '')", "true", 5],
   ['Vary: User-Agent dropped (a shared cache would mix the two documents)', "        r.headers.set('Vary', 'User-Agent');   // one URL, two documents: the shared cache must not mix them\n", "", 1],
   ['a missing card answered instead of falling through to the build', "if (card.status === 200) {", "if (true) {", 1],
+  // the manifest's type (2026-09-09-h): forced here because the assets store need not know `.webmanifest`
+  ["the manifest's type not forced (a browser gets octet-stream)", "if (url.pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json');", "", 1],
 ];
 const base = fs.readFileSync(SRC, 'utf8');
 let bad = 0;

@@ -10,8 +10,12 @@
 import os, re, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'site')
-FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3', 'og.jpg']   # og.jpg: the share card (2026-09-09-f), the html's og:image points at it on the domain
-DIRS = ['avatars'] + (['video'] if '--with-video' in sys.argv else [])
+FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3', 'og.jpg',
+         'manifest.webmanifest', 'sw.js']   # og.jpg: the share card (2026-09-09-f), the html's og:image points at it on the domain
+# ⚠️ manifest.webmanifest + sw.js + icons/ (2026-09-09-h): a browser offers an install only when it can
+# fetch all three from the SAME origin as the page. Miss one here and the site is installable on GitHub
+# Pages (which serves the repository) and not on his own domain — the one place he shows people.
+DIRS = ['avatars', 'icons'] + (['video'] if '--with-video' in sys.argv else [])
 QUIET = '--quiet' in sys.argv
 LIMIT = 25 * 1024 * 1024   # the platform's per-file limit for static assets (25 MiB)
 CARD_WINDOW = 512 * 1024   # how far into index.html the head metas are allowed to sit (they live at ~2.5 KB)

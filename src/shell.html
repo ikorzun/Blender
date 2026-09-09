@@ -35,6 +35,26 @@
 <meta property="og:image:height" content="1260">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://blendo.monster/og.jpg">
+<!-- ⚡ PWA (2026-09-09-h, his word «I need to be able to install the game as a PWA for the mobile
+     version and for the desktop, and so that the browser definitely understands that such a possibility
+     exists»). A browser offers an install when it sees THREE things: a manifest, HTTPS and a service
+     worker with a fetch handler. Two of them are these links; the worker is registered from 99-main
+     (https only, never under automation, never inside the portal's iframe).
+     ⛔ THIS IS NOT A RETURN OF `theme-color` — the meta below its tombstone stays removed. The
+     manifest's own `theme_color` is a DIFFERENT surface: it paints the system bars of an INSTALLED
+     app, which has no browser chrome to fight with, and Safari never reads it for a tab. Its value is
+     the game's own top sky row (#aca8ff = --sky-top-rgb, measured off the running build), while
+     `background_color` is the poster's sky (#7acefc) — so Android's launch splash and the poster that
+     follows it are one colour.
+     ⛔ NO `apple-mobile-web-app-status-bar-style`: `display:standalone` in the manifest has been
+     enough since iOS 16.4, and that meta changes the standalone layout on a phone nobody here can
+     measure — the fields campaign of 5-8 September is what that costs. `apple-touch-icon` is still
+     needed: iOS reads the icon from the link, not from the manifest.
+     ⚠️ THE PATHS ARE RELATIVE ON PURPOSE: the game is served from `/` on blendo.monster and from
+     `/Blender/` on GitHub Pages, and the manifest's scope must follow the folder it sits in. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <!-- ⚠️⚠️ FIFTH EDITION OF THE EDGES (the owner's word 2026-08-12: «I do not need
      black bars, I need the colour of every screen from the top edge to the
      bottom one»). THE MECHANISM WAS ESTABLISHED BY EXPERIMENT, not by guesswork: Safari 26

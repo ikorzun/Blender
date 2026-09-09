@@ -22,6 +22,11 @@ const FILES = {
   '/music.mp3': { type: 'audio/mpeg', body: MP3, etag: '"m1"' },
   '/og.jpg': { type: 'image/jpeg', body: JPG, etag: '"o1"' },
   '/avatars/Avatar01.png': { type: 'image/png', body: PNG, etag: '"p1"' },
+  // ⚠️ THE MANIFEST IS DELIBERATELY GIVEN THE WRONG TYPE BY THE FAKE STORE: an assets store need not know
+  // `.webmanifest`, and a manifest served as octet-stream is a warning in Chrome and a refusal elsewhere —
+  // i.e. exactly «the browser does not understand that the game can be installed». The worker forces it.
+  '/manifest.webmanifest': { type: 'application/octet-stream', body: '{"name":"Blendo"}', etag: '"w1"' },
+  '/sw.js': { type: 'text/javascript', body: 'self.addEventListener("fetch",function(){});', etag: '"s1"' },
 };
 // `drop` removes one file from the store — the only way to state what happens to a `site/` packed before
 // the card existed (the worker must fall through to the build, not answer the crawler with a 404).
@@ -121,6 +126,18 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': TG } }, '/card.html');
     expect(res.status === 200 && (await res.text()) === HTML && log.length === 2 && log[1].path === '/index.html',
       'CRAWLER: a store packed before the card falls through to the build, never a 404 (' + res.status + ' asked=' + log.map(l => l.path).join(',') + ')'); }
+
+  // 21. THE MANIFEST (2026-09-09-h): the type is forced, and it revalidates every time — a manifest cached for a
+  //     day would keep a renamed icon or a changed scope out of the installed app for a day.
+  { const { res } = await go('https://blendo.monster/manifest.webmanifest');
+    expect(res.status === 200 && res.headers.get('content-type') === 'application/manifest+json' && res.headers.get('cache-control') === 'no-cache',
+      'PWA: manifest.webmanifest is forced to application/manifest+json and revalidates (' + res.status + ' ' + res.headers.get('content-type') + ' ' + res.headers.get('cache-control') + ')'); }
+  // 22. THE WORKER SCRIPT: `no-cache`. ⛔ A DAY OF CACHE HERE IS THE WORST BUG THIS FILE CAN SHIP: sw.js carries
+  //     the build's hash, so a stale copy pins every installed player to the PREVIOUS release, and nothing on
+  //     screen says so. It must never fall into the STATIC_DAY branch.
+  { const { res } = await go('https://blendo.monster/sw.js');
+    expect(res.status === 200 && res.headers.get('cache-control') === 'no-cache' && /javascript/.test(res.headers.get('content-type') || ''),
+      'PWA: sw.js revalidates every time and keeps its JavaScript type — a worker script with a wrong MIME fails registration with a SecurityError (' + res.status + ' ' + res.headers.get('content-type') + ' ' + res.headers.get('cache-control') + ')'); }
 
   console.log('\nSITE WORKER: ' + pass + ' PASS, ' + fails.length + ' FAIL');
   if (fails.length) { console.log('SITE WORKER: FAIL'); process.exit(1); } else console.log('SITE WORKER: PASS');

@@ -35,6 +35,26 @@
 <meta property="og:image:height" content="1260">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://blendo.monster/og.jpg">
+<!-- ⚡ PWA (2026-09-09-h, his word «I need to be able to install the game as a PWA for the mobile
+     version and for the desktop, and so that the browser definitely understands that such a possibility
+     exists»). A browser offers an install when it sees THREE things: a manifest, HTTPS and a service
+     worker with a fetch handler. Two of them are these links; the worker is registered from 99-main
+     (https only, never under automation, never inside the portal's iframe).
+     ⛔ THIS IS NOT A RETURN OF `theme-color` — the meta below its tombstone stays removed. The
+     manifest's own `theme_color` is a DIFFERENT surface: it paints the system bars of an INSTALLED
+     app, which has no browser chrome to fight with, and Safari never reads it for a tab. Its value is
+     the game's own top sky row (#aca8ff = --sky-top-rgb, measured off the running build), while
+     `background_color` is the poster's sky (#7acefc) — so Android's launch splash and the poster that
+     follows it are one colour.
+     ⛔ NO `apple-mobile-web-app-status-bar-style`: `display:standalone` in the manifest has been
+     enough since iOS 16.4, and that meta changes the standalone layout on a phone nobody here can
+     measure — the fields campaign of 5-8 September is what that costs. `apple-touch-icon` is still
+     needed: iOS reads the icon from the link, not from the manifest.
+     ⚠️ THE PATHS ARE RELATIVE ON PURPOSE: the game is served from `/` on blendo.monster and from
+     `/Blender/` on GitHub Pages, and the manifest's scope must follow the folder it sits in. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <!-- ⚠️⚠️ FIFTH EDITION OF THE EDGES (the owner's word 2026-08-12: «I do not need
      black bars, I need the colour of every screen from the top edge to the
      bottom one»). THE MECHANISM WAS ESTABLISHED BY EXPERIMENT, not by guesswork: Safari 26
@@ -28178,6 +28198,9 @@ if (!window.RAPIER){
     // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
     // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
+    // ⚡ PWA: the worker is registered AFTER the game is up — it must never compete with the
+    // 12.7 MB load, and an install prompt the browser shows a second later is not worse for it.
+    registerServiceWorker();
   }).catch(e => { window.__fatal && window.__fatal('Physics init failed: ' + e.message); });
 }
 
@@ -28187,6 +28210,34 @@ if (!window.RAPIER){
 // together with it starGrant (hand out currency), buyBundle (a $19.99 bundle for
 // free), setLevel and boostSetClock (move the timestamp on which
 // the protection against clock tampering rests) are closed off. To open it on the live site: ?dev=1.
+// ⚡ PWA — THE SERVICE WORKER (2026-09-09-h, his word «install the game as a PWA … so that the
+// browser definitely understands that such a possibility exists»). The manifest and the icons are
+// static links in the head; this is the third thing a browser asks for before it offers an install.
+// ⛔ THE FOUR GATES, EACH LOAD-BEARING:
+//   https      — an installable PWA needs a secure context anyway, and this keeps the worker off the
+//                owner's http preview and off file://, where it cannot register at all;
+//   webdriver  — the suite must NEVER register one: background fetches of a 12.7 MB document while
+//                its pages are being torn down would land in the console, and the suite's error gate
+//                reads console errors. sw.js is guarded in node instead (server-worker style);
+//   top!==self — inside the portal the game is an iframe on Playgama's origin, and a worker there
+//                would be scoped to THEIR path. Not ours to touch;
+//   ?nosw=1    — the escape hatch, and it does not merely skip the registration: it UNREGISTERS what
+//                is already installed. If a bad worker ever ships, this is the only way back for a
+//                player who has one — and it has to exist BEFORE it is needed.
+function registerServiceWorker(){
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    if (/[?&]nosw=1/.test(location.search)){
+      navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
+      return;
+    }
+    if (location.protocol !== 'https:') return;
+    if (navigator.webdriver) return;
+    if (window.top !== window.self) return;
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  } catch(e){}
+}
+
 if (!DEV){ try { delete window.__game; } catch(e){ window.__game = undefined; } }
 
 })();</script>

@@ -17734,3 +17734,143 @@ OG section 4 green (twice), site worker 20 green, site break PASS (10 sabotages)
    deploy proves nothing.
 3. Still no picture -> Cloudflare dashboard, Security -> Events, filter user-agent `TelegramBot`: if the crawler is
    being challenged, the fix is there and not in the page.
+
+## BATCH 2026-09-09-h: THE GAME INSTALLS AS AN APP — A MANIFEST, AN ICON CUT FROM HIS OWN POSTER, AND A
+## SERVICE WORKER THAT REFUSES TO TOUCH MEDIA (his word: «I also need to be able to install the game as a
+## PWA for the mobile version and for the desktop, and so that the browser definitely understands that such
+## a possibility exists»; his order of the day: «1. the share picture 2. pwa 3. stripe portugal»)
+
+### WHAT A BROWSER ACTUALLY ASKS FOR, AND WHERE EACH PIECE LIVES
+Chrome and Edge offer an install when they can fetch, FROM THE PAGE'S OWN ORIGIN: a manifest naming at
+least a 192 and a 512 icon, a secure context, and a service worker with a fetch handler. Safari on iOS
+offers «Add to Home Screen» from the share sheet with no worker at all but reads the `apple-touch-icon`
+LINK rather than the manifest, and honours `display:standalone` since 16.4. So: `manifest.webmanifest`
++ `icons/` + `sw.js` at the root (tracked, packed into `site/`), three links in the head, and a
+registration in 99-main. His «the browser definitely understands» is exactly the install prompt.
+⚠️ WHERE IT IS VISIBLE AT ALL: on the direct link (blendo.monster, GitHub Pages). In the Playgama portal
+the game is an IFRAME on their origin — a worker there would be scoped to THEIR path, so the registration
+refuses (`window.top !== window.self`); in the SwiftUI wrapper there is nothing to install.
+
+### THE ICON IS CUT FROM HIS OWN POSTER, BY A TOOL, AND IT WENT TO HIM AS A PICTURE FIRST
+`tools/icon-gen.py` cuts the face out of `og.jpg` and pads it on the poster's own sky. EVERY NUMBER WAS
+MEASURED OFF THE FILE, none chosen by eye (the advisor's condition, and the canon's own rule about
+deriving a colour): the sky is a TOP-ROW pixel — rgb(122,206,252) = **#7ACEFC**; the face is
+**x 936..1448, y 34..350**, found by scanning for flame-orange and near-black runs and confirmed on a
+rendered crop. The black BLENDO wordmark begins at y≈310 on the right and is deliberately left OUT — at
+48 px its top edge reads as a dirty wedge under the eyes (visible in the first sheet, gone in the second).
+The pads put the face at ~85% of an «any» icon, **~60% of the maskable one** (the Android adaptive mask
+can eat everything outside the middle 80%, and a CIRCLE is the worst case) and ~76% for the iOS squircle.
+⚠️ IT IS A DERIVED ASSET AND THEREFORE HIS TO JUDGE: a sheet showing the icon as Android, iOS and a round
+launcher render it, plus 48/64/96 px, went to him BEFORE the guards were trusted — his standing «a picture
+first». One command re-cuts it; the poster itself is never re-encoded.
+⚠️ AND THE TOOL EXISTS FOR THE SAME REASON `tools/sfx-pack.py` does: a hand-made crop nobody can reproduce
+is the «second copy that drifts». Change the framing = change four numbers and re-run.
+
+### THE MANIFEST — AND `id`, WHICH IS THE FIELD THAT IS NOT OPTIONAL
+`id`, `start_url` and `scope` are all `./` — RELATIVE, because the same file is served from `/` on
+blendo.monster and from `/Blender/` on GitHub Pages. ⛔⛔ WITHOUT `"id"` Chrome derives the app identity
+from the RESOLVED `start_url`, so the two hosts install as two different apps and a later manifest edit
+can orphan an existing install. A guard states it.
+⚠️⚠️ **`theme_color` IS NOT A RETURN OF THE `theme-color` META, AND THE DIFFERENCE IS THE WHOLE POINT.**
+The meta stays removed under its 2026-08-14 tombstone; Safari 26 ignores it for a tab anyway (measured,
+2026-09-05-g). The manifest's field paints the system bars of an INSTALLED app — which has no browser
+chrome to fight with. Its value is **#aca8ff = the live `--sky-top-rgb`**, read off the running build, not
+recalled: the canon's own #bab6ff was the 40% fade and went stale when he set the fade to 0.28
+(2026-09-01-b). `background_color` is the POSTER's #7acefc, so Android's launch splash and the poster that
+follows it are one colour. ⚠️ A GUARD HOLDS THE FIRST AS AN EQUALITY OF TWO PLACES: change the palette and
+leave the manifest, and the installed game gets a system bar in a colour that is on no screen — which is
+the complaint the whole fields campaign of 5-8 September was about.
+
+### THE SERVICE WORKER — THREE LAYERS BETWEEN IT AND ANY MEDIA
+⛔⛔ THE RULE THAT MUST NEVER BE RELAXED: a `respondWith` on a request carrying a Range header answers
+Safari's two-byte probe with a 200 out of the Cache API, and Safari then plays NOTHING. The site Worker
+slices ranges on purpose (2026-09-08-g, measured on the edge); a service worker in front of it would undo
+that in one line. So `src/sw.js` refuses, in this order: any `range` header, any media extension or
+anything under `/video/`, and — the layer that does the work today — a POSITIVE ALLOWLIST that simply does
+not list media. A «cache everything except…» list grows a hole at the first new asset; an allowlist cannot.
+⚠️⚠️ AND A SABOTAGE PROVED WHICH LAYER IS LOAD-BEARING TODAY, WHICH IS WORTH MORE THAN THE RULE: removing
+the MEDIA test ALONE changed nothing observable — the allowlist already refused music.mp3 and `/video/`,
+and that variant stayed **green**. MEDIA is the layer that saves the NEXT edit: a variant that adds
+`music.mp3` to the allowlist is still green (MEDIA refuses it) and only reddens when MEDIA goes too. Both
+are kept, and the comment says so instead of claiming the wrong one is the protection.
+**THE STRATEGIES:** the DOCUMENT is network-first with a cache fallback — index.html is served `no-cache`
++ ETag, so an unchanged build costs a 304 and a release reaches the next load; serve it cache-first and a
+player keeps yesterday's game until the second launch. The small allowlist is cache-first. Nothing else is
+touched at all. There is NO install-time precache: 12.7 MB fetched a second time at install buys nothing
+the first navigation has not already put in the HTTP cache.
+⚠️ THE CACHE NAME CARRIES THE MD5 OF THE BUILT index.html, written by `build.py` into `src/sw.js`'s
+`__BUILD__` placeholder. A hand-bumped version is the defect this canon has paid for five times: whoever
+forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on
+screen says so. `build.py` REFUSES to build if the placeholder is gone. Activation deletes only caches
+whose name begins `blendo-` — a neighbour's cache on the same origin is not ours to drop.
+**THE FOUR GATES on the registration**, each with its own reason: `https` (an installable PWA needs a
+secure context anyway, and it keeps the worker off his http preview); `!navigator.webdriver` (the suite
+must never register one — background fetches of a 12.7 MB document while its pages are torn down would
+land in the console, and the error gate reads console errors); `window.top === window.self` (the portal);
+and **`?nosw=1`, which does not merely skip the registration — it UNREGISTERS what is installed.** If a bad
+worker ever ships that line is the only way back for a player who has one, and it must exist BEFORE it is
+needed. The registration runs AFTER `window.__booted`, never competing with the load.
+
+### THE WIRING, AND THE ONE LINE THE SITE WORKER NEEDED
+`build.py` writes `sw.js` from `src/sw.js` (a build artefact, committed, like index.html and music.mp3);
+`tools/site-pack.py` carries `manifest.webmanifest`, `sw.js` and `icons/` into `site/` — miss one and the
+game is installable on GitHub Pages, which serves the repository, and NOT on his own domain, the one place
+he shows people. The site Worker FORCES `application/manifest+json`: an assets store need not know
+`.webmanifest`, and a manifest served as octet-stream is a warning in Chrome and a refusal elsewhere, i.e.
+exactly «the browser does not understand that the game can be installed». `sw.js` needs no such line
+(`.js` is known) but DOES need the default `no-cache` — a day of cache on the worker script is the worst
+bug that file can ship, since it pins every installed player to the previous build.
+
+### THE GUARDS — SEVEN ARMS, AND THE END-TO-END THAT NO TEXT ASSERT CAN REPLACE
+`⟦PWA-SECTION⟧` in test.js (six arms node-side, one on a page): the manifest is installable (id/scope
+relative, standalone, 192+512 any and a 512 maskable); the four icons are square PNGs of the size they
+claim, read off the **IHDR** and not the file name, and the packer lists them; the build carries the links
+and the registration carries its four gates; **the worker intercepts NOTHING it must not** (a Range on
+media AND on the document, music.mp3, `/video/`, a cross-origin fetch, a POST, an unlisted same-origin
+path); it DOES answer navigations and static assets, and in the right order; the cache name is this
+build's; and theme_color equals the live sky.
+PROVEN AGAINST NINE VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`; the
+healthy build **7 green**), each red on its own arm and nothing else: the range gate dropped → the media
+arm (the DOCUMENT-with-Range case flips); the allowlist grown to music WITHOUT the media gate → the media
+arm (and WITH it → green, the pair above); the strategies swapped → the strategy arm; activation deleting
+every cache → the cache arm; the webdriver gate dropped → the gates arm; the maskable icon downgraded to
+`any` → the manifest arm; `icons/` dropped from the packer → the icons arm; theme_color changed → the sky
+arm; a comment edit → nothing. The site Worker's own test went 20 → 22 arms and its `break.js` gained a
+sabotage (the forced type) plus a re-reasoned count (the cache policy now reddens 4 → **6**, because two
+PWA arms read `no-cache` as well): **22 green, 11 sabotages each on its own arms.**
+⚡ **AND THE MEASUREMENT THAT MATTERS MOST WAS TAKEN IN A REAL BROWSER AGAINST THE REAL SITE WORKER**
+(`wrangler dev --local-protocol https`, killed afterwards by recorded PID): under automation the game
+registered **nothing** on its own (the gate, live, not merely in a text assert); after a manual
+registration and a reload the page was CONTROLLED; `music.mp3` with a Range still came back **206, 100
+bytes, `bytes 0-99/1575693`** — the load-bearing rule holds with the worker in front; the manifest arrived
+as `application/manifest+json`; `caches.keys()` held exactly one entry named for this build; and **a reload
+with the network cut brought the whole game up from the cache** (title, canvas, 12 763 083 bytes of
+document), zero page errors. The film 404s there only because `site/` is packed without `--with-video` —
+it lives on video.blendo.monster.
+⚠️ A registration needs a TRUSTED certificate: Playwright's `ignoreHTTPSErrors` covers the page and NOT the
+worker script (`SecurityError: An SSL certificate error occurred when fetching the script`). The browser
+must be launched with `--ignore-certificate-errors`.
+
+### THREE TRAPS THIS BATCH PAID FOR
+⛔⛔ **`tools/build-variant.py` COULD HAVE WRITTEN THROUGH A SYMLINK INTO THE REPOSITORY.** The tool now
+symlinks the side files a node-side section reads (the manifest, `og.jpg`, `icons`, `tools`, the bridge
+pair, `avatars`) — without them a PWA or share-card variant does not redden its own arm, it DIES on a
+missing file, which reads like «the guard is blind» and is really the tool's artefact. But a sabotage aimed
+AT one of those files would then have opened the REPOSITORY's own copy for writing and left the tree
+sabotaged — the very thing the tool exists to prevent. It now materialises the topmost symlinked component
+before editing, and the tree was verified byte-identical (md5 before and after the manifest and packer
+sabotages).
+⚠️ **ZSH ATE A FILTER STRING: `scale=$2:$2:flags=lanczos` BECAME `512:512ags=lanczos`** — `:f` and `:l` are
+zsh history modifiers on a bare `$2`. Brace it (`${2}`). The third zsh trap in this canon after
+`for x in "a b c"` and Cyrillic variable names.
+⚠️ **A `<link rel="manifest">` COSTS NOTHING ON `file://`** — measured before writing a line: zero console
+messages of type `error`, so the suite's error gate is untouched. The icon links resolve to real files next
+to the build, in the tree and in a variant alike.
+
+### WHAT ONLY HIS DEVICES CAN SAY, AND HIS ONE STEP
+Chrome on Android and on the desktop: the install button in the address bar and the icon in the launcher.
+iPhone/iPad: Share → «Add to Home Screen» — the icon from the link, and the game opening WITHOUT Safari's
+bars (`display:standalone`), which is also the one mode where the whole 874 pt of the screen is the page's
+(the fields campaign's own closing note). The system bar's colour in the installed app.
+⚠️ NOTHING REACHES blendo.monster UNTIL HE RUNS `npm run site:deploy` — the site does not follow GitHub, and
+the manifest, the worker and the icons are new files in `site/`. On GitHub Pages they arrive with the push.

@@ -11706,6 +11706,126 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦OG-SECTION-END⟧
 
+  // ⟦PWA-SECTION-BEGIN⟧ — INSTALLABLE AS AN APP (2026-09-09-h, his word «I need to be able to install the game as a
+  // PWA for the mobile version and for the desktop, and so that the browser definitely understands that such a
+  // possibility exists»). A browser offers an install when it can fetch, from the page's own origin: a MANIFEST with
+  // an icon, over HTTPS, with a SERVICE WORKER that has a fetch handler. All three are guarded here — and the fourth
+  // arm is the one that matters most, because it is the only one whose failure is invisible: THE WORKER MUST NOT
+  // TOUCH MEDIA. A respondWith on a Range request answers Safari's two-byte probe from the Cache API and the film and
+  // the music stop playing, on a build where every other assert is green.
+  {
+    const pth = require('path'), vm = require('vm');
+    const root = pth.dirname(PAGE_FILE);
+    const html = fs.readFileSync(PAGE_FILE, 'utf8');
+    const swTxt = fs.readFileSync(pth.join(root, 'sw.js'), 'utf8');
+    const mfTxt = fs.readFileSync(pth.join(root, 'manifest.webmanifest'), 'utf8');
+    const crypto = require('crypto');
+
+    // ---- 1. the manifest itself
+    let mf = null; try { mf = JSON.parse(mfTxt); } catch (_) {}
+    const ico = (mf && mf.icons) || [];
+    const has = (sz, purpose) => ico.some(i => i.sizes === sz && (i.purpose || 'any').split(/\s+/).indexOf(purpose) >= 0 && i.type === 'image/png');
+    expect(!!mf && mf.id === './' && mf.start_url === './' && mf.scope === './' && mf.display === 'standalone' &&
+      !!mf.name && !!mf.short_name && has('192x192', 'any') && has('512x512', 'any') && has('512x512', 'maskable') &&
+      /^#[0-9a-f]{6}$/i.test(mf.theme_color || '') && /^#[0-9a-f]{6}$/i.test(mf.background_color || ''),
+      'PWA: manifest.webmanifest is installable — id/start_url/scope "./" (RELATIVE, so the same file works at blendo.monster/ and at ikorzun.github.io/Blender/), display standalone, a 192 and a 512 "any" plus a 512 MASKABLE png, both colours set (' +
+      JSON.stringify({ id: mf && mf.id, scope: mf && mf.scope, display: mf && mf.display, icons: ico.map(i => i.sizes + '/' + (i.purpose || 'any')), theme: mf && mf.theme_color, bg: mf && mf.background_color }) +
+      '). ⛔ WHY `id` IS NOT OPTIONAL: without it Chrome derives the app identity from the RESOLVED start_url, so the domain and GitHub Pages install as two different apps and a later manifest edit can orphan the existing install. ⛔ SABOTAGE: drop "id"; drop the maskable entry');
+
+    // ---- 2. the icons exist and are the size they claim (the PNG header, not the file name)
+    const png = (name) => { try { const b = fs.readFileSync(pth.join(root, 'icons', name)); return (b.toString('ascii', 1, 4) === 'PNG') ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20), bytes: b.length } : null; } catch (_) { return null; } };
+    const i192 = png('icon-192.png'), i512 = png('icon-512.png'), imsk = png('icon-maskable-512.png'), iapl = png('apple-touch-icon.png');
+    const packTxt = fs.readFileSync(pth.join(root, 'tools', 'site-pack.py'), 'utf8');
+    const packed = /'manifest\.webmanifest'/.test(packTxt) && /'sw\.js'/.test(packTxt) && /'icons'/.test(packTxt);
+    expect(i192 && i192.w === 192 && i192.h === 192 && i512 && i512.w === 512 && i512.h === 512 &&
+      imsk && imsk.w === 512 && imsk.h === 512 && iapl && iapl.w === 180 && iapl.h === 180 && packed,
+      'PWA: the four icons are square PNGs of the size they claim, read off the IHDR, and the packer carries the manifest, sw.js and icons/ into the site (' +
+      JSON.stringify({ i192, i512, imsk, iapl, packed }) + '). ⛔ WHY THE PACKER IS IN THE SAME ARM: miss one file there and the game is installable on GitHub Pages, which serves the repository, and NOT on his own domain — the one place he shows people. ⛔ SABOTAGE: drop icons/ from DIRS; write a 256 png under the 512 name');
+
+    // ---- 3. the head links and the registration gates, read off the BUILT artefact
+    const linkM = /<link rel="manifest" href="manifest\.webmanifest">/.test(html);
+    const linkA = /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/.test(html);
+    const reg = (html.match(/function registerServiceWorker\(\)\{[\s\S]*?\n\}/) || [''])[0];
+    const gates = { https: /location\.protocol !== 'https:'/.test(reg), wd: /navigator\.webdriver/.test(reg), frame: /window\.top !== window\.self/.test(reg), kill: /nosw=1/.test(reg), unreg: /unregister\(\)/.test(reg), call: /register\('sw\.js'\)/.test(reg) };
+    expect(linkM && linkA && gates.https && gates.wd && gates.frame && gates.kill && gates.unreg && gates.call,
+      'PWA: the build links the manifest and an apple-touch-icon (iOS reads the icon from the LINK, not from the manifest), and the registration is gated on https, NOT under automation, NOT inside the portal\'s iframe, with ?nosw=1 as an escape hatch that UNREGISTERS (' +
+      JSON.stringify({ linkM, linkA, gates }) + '). ⛔ EACH GATE IS LOAD-BEARING: the suite must never register one (13 MB of background fetches into the console the error gate reads); the portal frames the game on Playgama\'s origin, whose scope is not ours; and a bad worker that ever ships needs a way back that exists BEFORE it is needed. ⛔ SABOTAGE: drop the webdriver gate; drop the ?nosw=1 branch');
+
+    // ---- 4. the worker's own behaviour, in a sandbox: what it refuses to touch
+    const runSw = () => {
+      const calls = [], handlers = {};
+      const box = {
+        console, URL,
+        self: { addEventListener: (t, f) => { handlers[t] = f; }, location: { origin: 'https://blendo.monster' }, skipWaiting: () => calls.push('skipWaiting'), clients: { claim: async () => calls.push('claim') } },
+        caches: { keys: async () => ['blendo-old', 'other'], delete: async k => { calls.push('delete:' + k); return true; }, open: async k => ({ put: async () => calls.push('put') }), match: async k => { calls.push('cache:' + (k.url || k)); return null; } },
+        fetch: async r => { calls.push('net:' + (r.url || r)); return { ok: true, status: 200, type: 'basic', clone() { return this; } }; }
+      };
+      vm.createContext(box); vm.runInContext(swTxt, box);
+      const ev = (url, o) => { o = o || {}; const e = { request: { url, method: o.method || 'GET', mode: o.mode || 'no-cors', headers: { has: n => !!(o.range && n === 'range') } }, took: null, respondWith(p) { e.took = p; } }; return e; };
+      return { handlers, calls, ev };
+    };
+    const sw = runSw();
+    const ORI = 'https://blendo.monster/';
+    const shot = (url, o) => { const e = sw.ev(url, o); sw.handlers.fetch(e); return e.took !== null; };
+    const untouched = {
+      range: shot(ORI + 'music.mp3', { range: true }),
+      rangeDoc: shot(ORI, { mode: 'navigate', range: true }),
+      music: shot(ORI + 'music.mp3'),
+      film: shot(ORI + 'video/blendo-intro.webm'),
+      filmDir: shot(ORI + 'video/anything-future.bin'),
+      cross: shot('https://video.blendo.monster/blendo-intro.webm'),
+      crossLb: shot('https://lb.blendo.monster/v1/top'),
+      post: shot(ORI, { method: 'POST', mode: 'navigate' }),
+      unknown: shot(ORI + 'some-new-asset.json')
+    };
+    expect(Object.keys(untouched).every(k => untouched[k] === false),
+      'PWA: the worker does not intercept a single media or foreign request — a Range header (on media OR on the document), music.mp3, anything under /video/, a cross-origin fetch (the video domain, the leaderboard), a POST, and any same-origin path outside the allowlist (' +
+      JSON.stringify(untouched) + '). ⛔⛔ THE RANGE ARM IS THE ONE THAT MATTERS: a respondWith on a Range request answers Safari\'s two-byte probe with a 200 out of the Cache API, and the film and the music then play NOTHING — on a build where every other assert here is green. The site Worker slices ranges on purpose (2026-09-08-g); a service worker in front of it would undo that. ⛔ SABOTAGE: drop the `headers.has(\'range\')` line (the DOCUMENT-with-Range case flips). ⚠️ DROPPING THE MEDIA TEST ALONE CHANGES NOTHING — measured: the allowlist does not list media either, so MEDIA is the layer that saves the NEXT edit. The pair that proves it: add music.mp3 to ALLOW (still green — MEDIA refuses it) and then remove MEDIA (red)');
+
+    // ---- 5. and what it DOES take, and in which order
+    const nav = sw.ev(ORI + 'index.html?flow=0', { mode: 'navigate' });
+    sw.calls.length = 0; sw.handlers.fetch(nav); await nav.took;
+    const navCalls = sw.calls.slice();
+    const icon = sw.ev(ORI + 'icons/icon-192.png');
+    sw.calls.length = 0; sw.handlers.fetch(icon); await icon.took;
+    const icoCalls = sw.calls.slice();
+    const mfEv = sw.ev(ORI + 'manifest.webmanifest');
+    sw.calls.length = 0; sw.handlers.fetch(mfEv); await mfEv.took;
+    const mfCalls = sw.calls.slice();
+    expect(nav.took !== null && navCalls[0] && navCalls[0].indexOf('net:') === 0 &&
+      icon.took !== null && icoCalls[0] && icoCalls[0].indexOf('cache:') === 0 && mfEv.took !== null,
+      'PWA: the worker HAS a fetch handler that answers (without one no browser offers an install), and the strategies are the right way round — the DOCUMENT goes to the network first (' + JSON.stringify(navCalls) + ') and a static asset to the cache first (' + JSON.stringify(icoCalls.concat(mfCalls)) + '). ⛔ WHY NETWORK-FIRST FOR THE DOCUMENT: index.html is served no-cache + ETag, so an unchanged build costs a 304 and a release reaches the next load. Serve it from the cache first and a player keeps yesterday\'s game until the second launch. ⛔ SABOTAGE: swap the two strategies');
+
+    // ---- 6. the cache name carries THIS build, and the old one is dropped
+    const stamp = crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE)).digest('hex').slice(0, 12);
+    const swSelf = runSw(); const act = { waitUntil: p => p };
+    let waited = null; swSelf.handlers.activate({ waitUntil: p => { waited = p; } }); await waited;
+    expect(swTxt.indexOf("'" + stamp + "'") >= 0 && !/__BUILD__/.test(swTxt) && /const CACHE = 'blendo-' \+ BUILD/.test(swTxt) &&
+      swSelf.calls.indexOf('delete:blendo-old') >= 0 && swSelf.calls.indexOf('delete:other') < 0 && swSelf.calls.indexOf('claim') >= 0,
+      'PWA: the cache name carries the md5 of THIS index.html (' + stamp + '), the placeholder is spent, and activation deletes the previous blendo cache and only ours (' + JSON.stringify(swSelf.calls) + '). ⛔ WHY DERIVED AND NOT A HAND-BUMPED VERSION: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on screen says so. ⛔ SABOTAGE: freeze BUILD to a literal; delete every cache, including a neighbour\'s');
+  }
+
+  // ---- 7. AN EQUALITY OF TWO PLACES: the manifest's theme_color IS the game's own top sky row.
+  // In an installed app there is no browser chrome, and Android paints its system bars with theme_color —
+  // so a palette edit that leaves this behind gives the installed game a band in a colour that is on no
+  // screen. That is exactly the complaint the whole fields campaign of 5-8 September was about, and this
+  // arm is what makes the two move together. The page is read live; the manifest is a tracked file.
+  {
+    const pth = require('path');
+    const mf = JSON.parse(fs.readFileSync(pth.join(pth.dirname(PAGE_FILE), 'manifest.webmanifest'), 'utf8'));
+    const tPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    tPage.on('pageerror', e => errors.push('PAGEERROR(pwa-theme): ' + e.message));
+    await tPage.goto('file://' + PAGE_FILE + '?dev=1&splash=0&video=0');
+    await tPage.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--sky-top-rgb').trim().length > 0, null, { timeout: 60000 });
+    const skyTop = await tPage.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sky-top-rgb').trim());
+    await tPage.close();
+    const hex = '#' + skyTop.split(',').map(x => (+x.trim()).toString(16).padStart(2, '0')).join('');
+    expect(hex === (mf.theme_color || '').toLowerCase(),
+      'PWA: the manifest theme_color equals the live --sky-top-rgb — the row the player actually sees at the top of the frame (' +
+      JSON.stringify({ sky: skyTop, hex, theme: mf.theme_color }) + '). ⛔ SABOTAGE: change the palette and leave the manifest — the installed app gets a system bar in a colour that is on no screen');
+  }
+  // ⟦PWA-SECTION-END⟧
+
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
   // after a shake and after a bomb the terminal falling speed is FLIGHT_FALL_CAP (12) instead of

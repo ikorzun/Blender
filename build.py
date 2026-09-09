@@ -33,6 +33,26 @@ out = (shell
 open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(out)
 print('index.html:', os.path.getsize(os.path.join(root, 'index.html')), 'bytes,', len(modules), 'modules')
 
+# ── THE SERVICE WORKER: src/sw.js -> ./sw.js, with THIS build's hash baked in ─────────────────
+# ⚠️⚠️ THE CACHE NAME CARRIES THE HASH OF THE BUILT index.html, AND THAT IS THE WHOLE VERSIONING
+# STORY. A hand-bumped version string is the "second copy that drifts" this canon has paid for
+# five times: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every
+# installed player, and nothing on screen says so. Derived from the artefact, it cannot be forgotten.
+# ⚠️ THE ROOT sw.js IS A BUILD ARTEFACT AND IS COMMITTED, exactly like index.html and music.mp3 —
+# GitHub Pages and the site Worker both serve the repository. Do not edit it by hand; edit src/sw.js.
+SW_SRC = os.path.join(root, 'src', 'sw.js')
+SW_DST = os.path.join(root, 'sw.js')
+if os.path.exists(SW_SRC):
+    sw = open(SW_SRC, encoding='utf-8').read()
+    if '__BUILD__' not in sw:
+        raise SystemExit('src/sw.js has no __BUILD__ placeholder - the cache name would freeze '
+                         'across releases and installed players would keep the old build.')
+    stamp = hashlib.md5(out.encode('utf-8')).hexdigest()[:12]
+    open(SW_DST, 'w', encoding='utf-8').write(sw.replace('__BUILD__', stamp))
+    print('sw.js: written from src/sw.js, build', stamp)
+else:
+    print('sw.js: NO SOURCE at src/sw.js - the root copy (if any) is left as it is')
+
 # ── THE MUSIC: Audio/2-music/background-music.mp3 -> ./music.mp3 ──────────────────────────────
 # ⚠️⚠️ THE TRACK IS THE ONE SOUND THAT IS **NOT** INLINED INTO index.html, and that is a measured
 # decision the canon carries: 4.4 MB of base64 would have bloated the build 7 -> 12.6 MB and
