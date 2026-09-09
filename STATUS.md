@@ -8,6 +8,15 @@ A new session is required to read the canon first — that rule is in its header
 
 **Build: batch 2026-09-09-k (the document gets a validator on the domain) on top of -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
 
+**9 SEPTEMBER, NIGHT — THE TELEGRAM PREVIEW WORKS.** Confirmed by you after `@WebpageBot`. The cause was
+Telegram remembering a FAILED preview on the address, not the page itself: a URL it had never seen showed the
+picture straight away. ⚠️ Honestly: I never proved my original suspicion — that the 12.7 MB page was too big
+for the crawler — and now it cannot be proved either way. The 1 KB card stays regardless, because it takes the
+page's size out of the question for every messenger and every network, and it is built from the game itself so
+it cannot drift. Worth remembering for the next time something of ours is cached somewhere invisible: ask with
+an address the other side has never seen, `?v=2` and the like, and you learn in five seconds whether the fault
+is ours or their memory.
+
 **9 SEPTEMBER, NIGHT — WHY THE DOMAIN FELT SLOWER, AND THE TELEGRAM ANSWER (batch 2026-09-09-k).**
 THE SPEED: measured, and the pipe was innocent — the domain even sends FEWER bytes than GitHub Pages (brotli
 4.50 MB against gzip 4.59 MB, the same build). The difference is the browser cache. Pages says `max-age=600`

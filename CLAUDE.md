@@ -18063,3 +18063,32 @@ weak, returns **304 with 0 bytes**; a stale one returns the full **12 773 127**;
 body; the Telegram card is still 1162 and the music's Range still 206.
 ⚠️ WHAT ONLY HIS DEPLOY CAN SHOW: that the ETag survives Cloudflare's edge. The evidence says it will — every
 other asset's does — but it is one curl to confirm, and it is in STATUS.
+
+## 2026-09-09-l: THE TELEGRAM PREVIEW WORKS — AND THE CAUSE WAS NOT THE ONE I SUSPECTED
+
+His word: «everything works with the preview», after `@WebpageBot`. The three-step recipe of 2026-09-09-g
+closed on step 2.
+
+⛔⛔ **AND THE HYPOTHESIS THAT DROVE BATCH -g WAS NEVER PROVEN. IT MUST NOT SETTLE INTO THIS FILE AS A FACT.**
+That batch measured the page at 12 769 321 B raw / 4 503 873 B gzipped and named its size the leading suspect,
+while saying in as many words that this was «a leading suspect, not a measurement». The actual cause of what
+he saw was **Telegram's cached FAILURE on the canonical URL**: a URL it had never seen (`?v=2`) previewed
+correctly, and the canonical one started working the moment `@WebpageBot` cleared it.
+⚠️ **WHETHER THE SIZE WOULD ALSO HAVE BLOCKED A FIRST FETCH IS STILL UNKNOWN**, and it cannot be recovered:
+nobody tested a fresh URL against the PRE-card build, and the card is deployed now. So the honest record is
+«the observed failure was a stale negative cache; the size was never shown to matter». Whoever later reads
+that a 12.7 MB page breaks link previews will be reading a guess.
+✅ **WHAT THE CARD IS WORTH ANYWAY, and why it stays:** 1162 bytes instead of 4.5 MB takes the page's size out
+of the question for EVERY crawler, every messenger and every network, permanently, and it costs nothing —
+it is built from the build itself, so it cannot drift.
+
+⚡ **THE TECHNIQUE IS THE REAL YIELD, AND IT GENERALISES: A NEGATIVE CACHE IS INVISIBLE, SO ASK WITH AN
+ADDRESS THE OTHER SIDE HAS NEVER SEEN.** `https://blendo.monster/?v=2` separates «our page is wrong» from
+«their memory is stale» in five seconds, and it works because the worker's DOC test reads the PATHNAME, so a
+query changes nothing (measured: 1162 to a bot, 4.5 MB to a browser, at both addresses). The same shape fits
+anything that caches a fetch of ours — a messenger, a search preview, an OpenGraph debugger.
+⚠️ Measured at the same time, so it is not asked again: all four forms a person might send —
+`http://blendo.monster/`, `http://blendo.monster`, `https://www.blendo.monster/`, `https://blendo.monster` —
+redirect to the apex and hand the crawler the card with its `og:image`.
+⚠️ AND THE HALF OF THE RECIPE THAT IS EASY TO MISS: clearing the cache does NOT change previews on messages
+already sent. They keep the empty one for ever; the link has to go out in a NEW message.
