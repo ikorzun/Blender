@@ -18092,3 +18092,95 @@ anything that caches a fetch of ours — a messenger, a search preview, an OpenG
 redirect to the apex and hand the crawler the card with its `og:image`.
 ⚠️ AND THE HALF OF THE RECIPE THAT IS EASY TO MISS: clearing the cache does NOT change previews on messages
 already sent. They keep the empty one for ever; the link has to go out in a NEW message.
+
+## BATCH 2026-09-09-m: THE ETag WAS A NO-OP AT THE EDGE FOR A DAY — CLOUDFLARE STRIPS IT FROM A STREAMED
+## RESPONSE, AND `Last-Modified` IS WHAT SURVIVES (the -k feature deployed, measured, and dead on arrival)
+
+### ⛔⛔ THE STATE FOUND: THE FEATURE SHIPPED, THE SUITE WAS GREEN, AND THE DOMAIN DID NOT CHANGE BY ONE BYTE
+Batch -k gave the document an ETag and 31 arms said so. On the deployed site `/` came back with
+`cache-control: no-cache`, **no `etag`**, and a repeat visit still downloaded the whole 4 504 872 B. The
+guards were not lying — they run against a FAKE store in node, where a header set is a header sent. **The
+edge is a second machine, and nothing in this project had ever asserted what it does to our headers.**
+
+### THE DIAGNOSIS, AND THE TECHNIQUE THAT ENDED THREE HOURS OF WRONG THEORIES
+The first instrumented copy (`globalThis.__dbg` + an `X-Dbg` header, both gated on `DOC.test`) came back
+with **neither the ETag nor X-Dbg**, while `Cache-Control: no-cache` — set on the SAME line of the SAME
+branch — was there. That is arithmetically impossible if the script is running, and it sent me hunting for a
+stale bundle, a wrong config and a dead code path. All three were wrong.
+⚡ **WHAT BROKE THE DEADLOCK: PUT THE ANSWER IN THE BODY, NOT IN A HEADER.** A minimal probe worker that
+returns its diagnosis as JSON answered every question at once: the script runs, `env.ASSETS.fetch('/build.txt')`
+returns **200 `1e02859b201a`** at the edge, and a header set after `new Response(...)` **does** reach the
+client. **When the instrument you are reading is the same KIND of thing as the suspect, you cannot tell a
+broken subject from a broken instrument. Change the channel.**
+Then `If-None-Match` against the real worker returned **304 with the ETag** — so the validator was running
+all along and only the 200 lost its tag. Six single-variable cases against a real assets store settled it:
+
+| case | body | what left the edge | ETag |
+|---|---|---|---|
+| a small file (12 B) | 12 B | `Content-Length: 12` | **survives** |
+| the document, `new Response(up.body, up)` | 12.7 MB | `Transfer-Encoding: chunked` | **stripped** |
+| the same, headers built from scratch | 12.7 MB | chunked | **stripped** |
+| the same, body BUFFERED through `arrayBuffer()` | 12.7 MB | chunked | **stripped** |
+| the same, buffered + an explicit `Content-Length` | 12.7 MB | chunked | **stripped** |
+| a **WEAK** `W/"…"` tag, streamed | 12.7 MB | chunked | **stripped** |
+| the store's OWN strong tag, passed through untouched | 12.7 MB | chunked | **stripped** |
+| **`Last-Modified`**, streamed | 12.7 MB | chunked | ⚡ **SURVIVES** |
+
+⛔⛔ **THE LAW: A RESPONSE THE RUNTIME STREAMS LEAVES CHUNKED, AND THE EDGE STRIPS EVERY ETag FROM IT — OURS
+STRONG, OURS WEAK, AND THE STORE'S OWN ALIKE — WHILE EVERY OTHER HEADER SURVIVES.** Buffering does not
+help; an explicit `Content-Length` does not help. `Last-Modified` is untouched.
+⚠️ **AND IT CORRECTS A "MEASUREMENT" THIS FILE ALREADY CARRIED.** The -k entry says «the assets store gives
+every asset an ETag EXCEPT the document at `/`». **The store gives `/` an ETag** —
+`"22945636fd1ec87f5df1aa1e66c1d706"`, read straight off the binding by the probe. It is lost on the way out,
+for the reason above. The old sentence was an INFERENCE from an edge reading, written as an observation of
+the store; that is the difference between «I measured the store» and «I measured what reached me».
+⚠️ It also explains the fact that had looked like a contradiction for two batches: every SMALL asset here
+keeps its tag (the icons, the manifest, the bridge, og.jpg) and only the 12.7 MB document has none. Size is
+the whole discriminator, not the code path — they all go through the same generic line.
+
+### WHAT SHIPPED
+`build.txt` carries TWO lines — the md5 (unchanged) and the build's epoch seconds — and the worker sends
+**both validators** on the document, answering `If-None-Match` **and** `If-Modified-Since`.
+⚠️ **THE ETag IS KEPT THOUGH IT DIES AT THE EDGE, AND THAT IS NOT SENTIMENT:** a 304 is a small response, so
+it carries its tag intact, and a client that once received one keeps sending it — the two validators answer
+the same question and cost one comparison.
+⚠️ **`If-None-Match` WINS WHEN BOTH ARE SENT** (RFC 9110): a client whose tag does NOT match must get the
+whole page even if its date still looks fresh. An arm states it, because the natural implementation — check
+whichever matches — silently serves a 304 to a client holding a stale tag.
+⚠️ **THE DATE IS REUSED WHEN THE BUILD IS BYTE-IDENTICAL.** `build.py` rewrites `index.html` on every run, so
+its mtime moves even when its bytes do not; without the reuse every re-pack would invalidate every returning
+player's copy — and the ETag, which would have caught that, is the one that does not survive. The packer
+reads the previous stamp BEFORE the `rmtree` that wipes `site/`.
+⚠️ **A ONE-LINE `build.txt` (AN OLDER PACK) STILL WORKS**: the ETag and no date — degraded to exactly what
+this worker did before the measurement, never broken. Its own arm.
+
+### THE GUARDS, AND THE TWO COUNTS THAT WERE RE-DERIVED RATHER THAN COPIED
+The site worker's test is **31 green** (four new arms: both validators on the 200; a matching
+`If-Modified-Since` → 304 with no body; an OLDER date → the whole document; the RFC precedence) and its
+`break.js` **18 sabotages, each red on its own arms**: the `Last-Modified` header dropped (2), the
+`If-Modified-Since` branch dropped (1), the precedence broken (1), the date not parsed out of `build.txt` (2).
+⚠️ Two existing counts moved because the new arms are legitimately covered by old sabotages, and both were
+reasoned before being changed: «the document validator dropped» **4 → 6** (the date-304 arm becomes a 200 and
+the one-line arm reads the store's own tag; the two arms that expect a 200 WITH the body stay green **by
+right** — a sabotage is not obliged to redden every arm of its section), and «everyone is a bot» **10 → 14**
+(the document arms went 5 → 9). ⚠️ The packer is read by two suite sections, so both were dry-run: OG 4
+green, PWA 9 green.
+✅ **AND THE GATE THAT ACTUALLY MATTERED WAS NEITHER: THE FIX WAS RUN AGAINST THE REAL EDGE BEFORE THE
+DEPLOY** — the repo's own file, unmodified, in a clean tree, through `wrangler dev --remote`: the 200 carries
+the date, a repeat visit is a 304, an older date gets the whole document, the card is still 1162 B and the
+music still answers 206.
+
+### MEASURED ON THE LIVE DOMAIN AFTER THE DEPLOY (version 62db97f8)
+| | before | after |
+|---|---|---|
+| repeat visit | 200, **4 504 872 B** | **304, 0 B, 0.147 s** |
+| a stale date (a release) | — | 200, 4 504 872 B — the release still reaches the player |
+| Telegram card / music Range | 1162 B / 206 | unchanged |
+
+### ⚠️ THE RULE THIS BATCH BUYS, AND IT IS THE EXPENSIVE KIND
+**A GUARD THAT RUNS AGAINST A FAKE CANNOT SEE WHAT A REAL EDGE DOES TO ITS OUTPUT.** Thirty-one green arms
+described a feature that did nothing on the only machine that matters, and nothing on screen said so. Where a
+change depends on an intermediary — a CDN, a proxy, a browser's own cache policy — **one measurement against
+that intermediary belongs in the batch, before the deploy**, and its result belongs in the canon as a fact
+about that intermediary rather than as a conclusion about our code. It is the same law this project already
+paid for on the iPhone (a fields recipe designed against a simulator matrix his phone refuted), met on a CDN.

@@ -52,6 +52,12 @@ if '--card-only' in sys.argv:
 for f in FILES + DIRS:
     if not os.path.exists(os.path.join(ROOT, f)):
         sys.exit('site-pack: missing ' + f + ' — build first (python3 build.py …)')
+# ⚠️ READ THE PREVIOUS STAMP BEFORE THE WIPE: when the build is byte-identical the date below is REUSED,
+# so a re-pack of an unchanged build does not invalidate every returning player's copy (build.py rewrites
+# index.html on every run, so its mtime moves even when its bytes do not).
+prev_stamp = ''
+try: prev_stamp = open(os.path.join(OUT, 'build.txt'), encoding='utf-8').read().split()
+except OSError: prev_stamp = []
 shutil.rmtree(OUT, ignore_errors=True); os.makedirs(OUT)
 total = 0; count = 0; rows = []
 for f in FILES:
@@ -67,8 +73,13 @@ n = os.path.getsize(cardp); total += n; count += 1; rows.append(('card.html (cra
 # Pages answers a returning player from its own cache. This file gives the worker a validator to hand out.
 stampp = os.path.join(OUT, 'build.txt')
 stamp = hashlib.md5(open(os.path.join(ROOT, 'index.html'), 'rb').read()).hexdigest()[:12]
-with open(stampp, 'w', encoding='utf-8') as fh: fh.write(stamp)
-n = os.path.getsize(stampp); total += n; count += 1; rows.append(('build.txt (' + stamp + ')', n))
+# ⛔⛔ TWO LINES SINCE 2026-09-09-m, AND THE SECOND IS THE ONE THAT WORKS ON THE EDGE: an ETag on the
+# document is STRIPPED there (the response streams, so it goes out chunked — measured, see the worker's
+# own header), while `Last-Modified` survives. So the stamp file carries the md5 AND the build's date.
+when = prev_stamp[1] if (len(prev_stamp) > 1 and prev_stamp[0] == stamp and prev_stamp[1].isdigit()) \
+       else str(int(os.path.getmtime(os.path.join(ROOT, 'index.html'))))
+with open(stampp, 'w', encoding='utf-8') as fh: fh.write(stamp + '\n' + when + '\n')
+n = os.path.getsize(stampp); total += n; count += 1; rows.append(('build.txt (' + stamp + ' @' + when + ')', n))
 ignore = shutil.ignore_patterns('.*', '_orig-p')   # dotfiles and the untracked originals folder inside avatars/
 for d in DIRS:
     shutil.copytree(os.path.join(ROOT, d), os.path.join(OUT, d), ignore=ignore)

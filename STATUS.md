@@ -6,7 +6,20 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-k (the document gets a validator on the domain) on top of -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+**Build: batch 2026-09-09-m (the domain's cache fix now actually works at the edge) on top of -k, -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: the site worker **31 green** + its **18 sabotages**, each red on its own arms + OG 4 green + PWA 9 green + **the fix run against the REAL Cloudflare edge before the deploy** (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · **blendo.monster is deployed and measured** · the leaderboard and the video workers are deployed · ⚠️ index.html did not change in this batch, so GitHub Pages is unaffected
+
+**9 SEPTEMBER — THE SPEED FIX OF LAST NIGHT WAS DOING NOTHING, AND NOW IT IS (batch 2026-09-09-m).**
+I deployed it, checked it, and found the domain unchanged: the page still came back without a validator and
+a second visit still downloaded all 4.5 MB. The cause is Cloudflare, not our code — **it strips the ETag from
+any response big enough to be streamed** (measured, eight cases: a 12-byte file keeps its tag, the 12.7 MB
+page loses it, and it loses it whether the tag is strong, weak, ours or the store's own). `Last-Modified`
+survives the same response untouched. So the page now carries a DATE as well as the tag, and answers both.
+**Measured on the live domain just now: a repeat visit is `304, 0 bytes, 0.147 s` instead of 4.5 MB**, and a
+player on an older build still gets the whole new page, so a release still reaches him at once. Telegram's
+card and the music are untouched. Nothing for you to do — the deploy is done.
+⚠️ The lesson I am writing into the memory file: a green test suite here proves our code, not what Cloudflare
+does to it on the way out. Anything that depends on the CDN gets one real measurement against the CDN before
+I call it fixed. That is on me — last night I reported it as done on the strength of the tests alone.
 
 **9 SEPTEMBER, NIGHT — THE TELEGRAM PREVIEW WORKS.** Confirmed by you after `@WebpageBot`. The cause was
 Telegram remembering a FAILED preview on the address, not the page itself: a URL it had never seen showed the

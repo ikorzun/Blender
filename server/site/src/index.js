@@ -29,25 +29,42 @@ const STATIC_DAY = /\.(png|jpe?g|webp|gif|svg|ico|woff2?)$/i;  // a day; the htm
 const PREVIEW_BOT = /TelegramBot|Twitterbot|facebookexternalhit|WhatsApp|Discordbot|Slackbot|Slack-ImgProxy|LinkedInBot|Pinterest|redditbot|vkShare|Iframely|SkypeUriPreview|Embedly|Mastodon|Bluesky/i;
 const DOC = /^\/(index\.html)?$/;                            // the document itself, nothing else
 
-// ⚡ THE DOCUMENT'S VALIDATOR (2026-09-09-k, his «the game loads longer at the address than on GitHub Pages»).
-// MEASURED at the edge: every asset keeps the store's ETag (the icons, the manifest, the bridge, og.jpg) —
-// EXCEPT the document at `/`, which arrives with no ETag and no Last-Modified. Together with our own
-// `Cache-Control: no-cache` that means a returning player re-downloads the WHOLE 4.5 MB compressed document
-// on EVERY load, while GitHub Pages (max-age=600 + ETag) answers him from his own browser cache for nothing.
-// ⚠️ THE FIX IS A VALIDATOR, NOT A LONGER max-age: `no-cache` is the promise that a release reaches the next
-// load (2026-09-09-c), and a max-age would break exactly that for the length of the window. With an ETag the
-// browser asks and gets a 304 of a few bytes — faster than Pages AND still instant on a release.
-// The stamp is the md5 of index.html, written into site/build.txt by tools/site-pack.py, read ONCE per
-// isolate. ⚠️ A failure is memoised too, or a store without build.txt would be asked on every request.
-let BUILD_TAG = null;
-async function buildTag(env, url) {
-  if (BUILD_TAG !== null) return BUILD_TAG;
-  BUILD_TAG = '';
+// ⚡ THE DOCUMENT'S VALIDATOR (2026-09-09-k, his «the game loads longer at the address than on GitHub
+// Pages»; the Last-Modified half is 2026-09-09-m, after the ETag alone was MEASURED DEAD at the edge).
+// The document reaches the browser with no validator, and together with our own `Cache-Control: no-cache`
+// that means a returning player re-downloads the WHOLE 4.5 MB compressed document on EVERY load, while
+// GitHub Pages (max-age=600 + a WEAK ETag) answers him from his own browser cache for nothing.
+// ⚠️ THE FIX IS A VALIDATOR, NOT A LONGER max-age: `no-cache` is the promise that a release reaches the
+// next load (2026-09-09-c), and a max-age would break exactly that for the length of the window.
+// ⛔⛔ AND IT MUST BE `Last-Modified`, NOT AN ETag ALONE — MEASURED AGAINST A REAL ASSETS STORE AT THE EDGE
+// (2026-09-09-m, six cases): a response whose body the runtime STREAMS leaves as `Transfer-Encoding:
+// chunked`, and the edge STRIPS EVERY ETag from it — ours strong, ours weak, and the store's own alike —
+// while `Cache-Control` and any other header survive. The SAME construction on a SMALL body keeps its
+// ETag (a 12-byte file did), which is exactly why every other asset here has one and the 12.7 MB document
+// has none. Buffering the body first does not help (tried: still chunked). `Last-Modified` survives.
+// ⚠️ SO BOTH ARE SENT AND BOTH ARE ANSWERED: Last-Modified for the edge we actually ship on, the ETag for
+// wherever it survives — the 304 is a small response, so a client that once received one keeps sending it.
+// ⛔ DO NOT «SIMPLIFY» THIS BACK TO ONE VALIDATOR: with the ETag alone the whole feature is a no-op on
+// blendo.monster, which is the state this file shipped in for a day and nothing on screen said so.
+// The stamp is the md5 of index.html and the date is that build's own mtime, both written into
+// site/build.txt by tools/site-pack.py, read ONCE per isolate. ⚠️ A failure is memoised too, or a store
+// without build.txt would be asked on every request.
+let BUILD_VAL = null;
+async function buildVal(env, url) {
+  if (BUILD_VAL !== null) return BUILD_VAL;
+  BUILD_VAL = { tag: '', lastmod: '' };
   try {
     const r = await env.ASSETS.fetch(new Request(new URL('/build.txt', url).toString()));
-    if (r.status === 200) { const t = (await r.text()).trim(); if (/^[0-9a-f]{6,64}$/.test(t)) BUILD_TAG = '"' + t + '"'; }
+    if (r.status === 200) {
+      // line 1 the stamp, line 2 the epoch seconds. A ONE-LINE file is an older pack and still works: it
+      // yields the ETag and no date — degraded to what this worker did before the measurement, never broken.
+      const parts = (await r.text()).trim().split(/\s+/);
+      if (/^[0-9a-f]{6,64}$/.test(parts[0] || '')) BUILD_VAL.tag = '"' + parts[0] + '"';
+      const secs = parseInt(parts[1], 10);
+      if (BUILD_VAL.tag && secs > 0) BUILD_VAL.lastmod = new Date(secs * 1000).toUTCString();
+    }
   } catch (_) {}
-  return BUILD_TAG;
+  return BUILD_VAL;
 }
 
 export default {
@@ -71,19 +88,28 @@ export default {
       }
     }
     if (DOC.test(url.pathname) && (request.method === 'GET' || request.method === 'HEAD')) {
-      const tag = await buildTag(env, url);
-      if (tag) {
+      const val = await buildVal(env, url);
+      if (val.tag) {
         const inm = request.headers.get('if-none-match') || '';
-        // a weak comparison: the edge weakens a strong ETag when it compresses, so `W/"x"` must match `"x"`
-        if (inm.split(',').some((t) => t.trim().replace(/^W\//, '') === tag)) {
-          return new Response(null, { status: 304, headers: { ETag: tag, 'Cache-Control': 'no-cache' } });
+        const ims = request.headers.get('if-modified-since') || '';
+        let fresh = false;
+        // ⚠️ If-None-Match WINS when both are sent (RFC 9110): a client whose ETag does not match must get
+        // the whole page even if its date still looks fresh — the ETag is the stronger statement.
+        if (inm) {
+          // a weak comparison: the edge weakens a strong ETag when it compresses, so `W/"x"` must match `"x"`
+          fresh = inm.split(',').some((t) => t.trim().replace(/^W\//, '') === val.tag);
+        } else if (ims && val.lastmod) {
+          const a = Date.parse(ims), b = Date.parse(val.lastmod);
+          fresh = !Number.isNaN(a) && !Number.isNaN(b) && a >= b;
         }
+        const h = { 'Cache-Control': 'no-cache', ETag: val.tag };
+        if (val.lastmod) h['Last-Modified'] = val.lastmod;
+        if (fresh) return new Response(null, { status: 304, headers: h });
         // the store is asked WITHOUT the client's conditional headers, for the card's reason: an
         // If-None-Match of OURS would otherwise earn a 304 whose empty body we would pass on as the game
         const up = await env.ASSETS.fetch(new Request(url.toString(), { method: request.method }));
         const r = new Response(up.body, up);
-        r.headers.set('Cache-Control', 'no-cache');
-        r.headers.set('ETag', tag);
+        for (const k in h) r.headers.set(k, h[k]);
         return r;
       }
     }

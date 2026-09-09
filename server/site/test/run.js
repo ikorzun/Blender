@@ -28,16 +28,18 @@ const FILES = {
   // i.e. exactly «the browser does not understand that the game can be installed». The worker forces it.
   '/manifest.webmanifest': { type: 'application/octet-stream', body: '{"name":"Blendo"}', etag: '"w1"' },
   '/sw.js': { type: 'text/javascript', body: 'self.addEventListener("fetch",function(){});', etag: '"s1"' },
-  '/build.txt': { type: 'text/plain', body: 'abc123def456', etag: '"b1"' },
+  // ⚠️ TWO LINES since 2026-09-09-m: the md5 and the build's epoch seconds. The date is the validator
+  // that actually survives the edge; a ONE-LINE file (an older pack) is a case of its own below.
+  '/build.txt': { type: 'text/plain', body: 'abc123def456\n1788900000\n', etag: '"b1"' },
 };
 // `drop` removes one file from the store — the only way to state what happens to a `site/` packed before
 // the card existed (the worker must fall through to the build, not answer the crawler with a 404).
-function fakeAssets(log, drop) {
+function fakeAssets(log, drop, patch) {
   return { fetch(req) {
     const r = req instanceof Request ? req : new Request(req);
     const u = new URL(r.url); const p = u.pathname === '/' ? '/index.html' : u.pathname;
     log.push({ method: r.method, path: p, range: r.headers.get('range') });
-    const f = p === drop ? null : FILES[p];
+    const f = p === drop ? null : (patch && patch[p] ? patch[p] : FILES[p]);
     if (!f) return Promise.resolve(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }));
     if (r.headers.get('if-none-match') === f.etag) return Promise.resolve(new Response(null, { status: 304, headers: { etag: f.etag } }));
     const body = typeof f.body === 'string' ? f.body : f.body.slice();
@@ -50,6 +52,7 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   const mod = await import(process.env.SITE_WORKER ? path.resolve(process.env.SITE_WORKER) : path.join(__dirname, '..', 'src', 'index.js'));
   const worker = mod.default;
   const go = (url, init, drop) => { const log = []; return worker.fetch(new Request(url, init), { ASSETS: fakeAssets(log, drop) }).then(res => ({ res, log })); };
+  const LM = new Date(1788900000 * 1000).toUTCString();   // the fixture build.txt's own date
   const TG = 'TelegramBot (like TwitterBot)';
   const HUMAN = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15';
 
@@ -151,8 +154,8 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   //        `no-cache` a returning player re-downloaded the whole 4.5 MB every load. The worker now hands
   //        out the build stamp and answers a conditional request itself.
   { const { res, log } = await go('https://blendo.monster/');
-    expect(res.status === 200 && res.headers.get('etag') === '"abc123def456"' && res.headers.get('cache-control') === 'no-cache' && (await res.text()) === HTML,
-      'DOC-ETAG: the document carries the build stamp as its ETag and still revalidates (' + res.status + ' ' + res.headers.get('etag') + ' ' + res.headers.get('cache-control') + ' asked=' + log.map(l => l.path).join(',') + ')'); }
+    expect(res.status === 200 && res.headers.get('etag') === '"abc123def456"' && res.headers.get('last-modified') === LM && res.headers.get('cache-control') === 'no-cache' && (await res.text()) === HTML,
+      'DOC-ETAG: the document carries BOTH validators — the stamp as its ETag and the build date as Last-Modified, which is the one that survives a chunked response at the edge — and still revalidates (' + res.headers.get('last-modified') + ' ' + res.status + ' ' + res.headers.get('etag') + ' ' + res.headers.get('cache-control') + ' asked=' + log.map(l => l.path).join(',') + ')'); }
   { const { res, log } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"abc123def456"' } });
     const body = await res.text();
     expect(res.status === 304 && body === '' && !log.some(l => l.path === '/index.html'),
@@ -169,6 +172,28 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
     const et = res.headers.get('etag');
     expect(res.status === 200 && (await res.text()) === HTML && et !== '"abc123def456"',
       'DOC-ETAG: a store with no build.txt still serves the document — no stamp invented, but never a 404 or an empty page (' + res.status + ' etag=' + et + ')'); }
+
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'if-modified-since': LM } });
+    const body = await res.text();
+    expect(res.status === 304 && body === '' && res.headers.get('last-modified') === LM && !log.some(l => l.path === '/index.html'),
+      'DOC-DATE: a matching If-Modified-Since is answered 304 with no body and the date repeated — THE PATH THE REAL EDGE TAKES, since it strips the ETag from a chunked response (' + res.status + ' body=' + body.length + 'B asked=' + log.map(l => l.path).join(',') + ')'); }
+  { const { res } = await go('https://blendo.monster/', { headers: { 'if-modified-since': new Date(1788900000000 - 1000).toUTCString() } });
+    const body = await res.text();
+    expect(res.status === 200 && body === HTML,
+      'DOC-DATE: an OLDER If-Modified-Since gets the whole document — a release reaches the next load (' + res.status + ' body=' + body.length + 'B)'); }
+  { // ⚠️ RFC 9110 PRECEDENCE, and it is not a formality: a client that still holds a stale ETag from an
+    //   edge where the tag survived must NOT be answered 304 because its date happens to look fresh.
+    const { res } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"stale-tag"', 'if-modified-since': LM } });
+    const body = await res.text();
+    expect(res.status === 200 && body === HTML,
+      'DOC-DATE: If-None-Match WINS over If-Modified-Since — a stale tag with a fresh date still gets the whole document (' + res.status + ' body=' + body.length + 'B)'); }
+  { // an older pack whose build.txt is ONE line: the ETag alone, no date invented. A FRESH module, because
+    // the validators are memoised per isolate.
+    const oneline = (await import(pathToFileURL(process.env.SITE_WORKER ? path.resolve(process.env.SITE_WORKER) : path.join(__dirname, '..', 'src', 'index.js')).href + '?oneline')).default;
+    const log = []; const res = await oneline.fetch(new Request('https://blendo.monster/'),
+      { ASSETS: fakeAssets(log, null, { '/build.txt': { type: 'text/plain', body: 'abc123def456', etag: '"b1"' } }) });
+    expect(res.status === 200 && res.headers.get('etag') === '"abc123def456"' && !res.headers.get('last-modified') && (await res.text()) === HTML,
+      'DOC-DATE: a ONE-LINE build.txt (an older pack) yields the ETag and NO invented date — degraded, never broken (' + res.headers.get('etag') + ' lm=' + res.headers.get('last-modified') + ')'); }
 
   { // 27. A STALE VALIDATOR MUST GET THE WHOLE PAGE. ⛔ THIS IS THE ARM FOR THE ONE REAL HAZARD OF THE
     //     shortcut: forward the client's If-None-Match to the store and a browser holding ANY other tag
