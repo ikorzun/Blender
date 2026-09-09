@@ -1,0 +1,50 @@
+# THE GAME'S HOME ON HIS DOMAIN (2026-09-09-c): blendo.monster and www.blendo.monster, both bound to this
+# Worker as Custom Domains (wrangler creates the two DNS records of type Worker and the certificates on
+# deploy — the owner deletes the old apex A/AAAA and www records first; a Custom Domain cannot be created
+# over an existing CNAME, and an empty name is safer than any override).
+#
+# THE STORE is the repo's `site/` folder, ASSEMBLED by tools/site-pack.py from the build (index.html, the
+# two bridge files, music.mp3, avatars/) — run `npm run site:deploy`, which packs and deploys in one go,
+# or `python3 tools/site-pack.py` and then the deploy line. `site/` is gitignored: it is a product of
+# the build, never a source.
+#
+# `run_worker_first = true`: EVERY request passes through src/index.js — the script redirects www→apex
+# and http→https (a host rule cannot be expressed as an asset path pattern), slices Range for the media
+# (Safari plays nothing from a server that answers 200 to a two-byte Range — the video Worker's lesson,
+# batch 2026-09-08-g; its slicer is IMPORTED here, not copied) and sets the cache policy (html and the
+# bridge revalidate every time by ETag, media and images live a day). ⚠️ THE PRICE, named: a request that
+# runs the script counts toward the Free plan's daily Worker requests (100 000/day); pure static requests
+# would be free and unlimited. A visit is ~8 requests, so the budget is ~12 000 visits a day — plenty for a
+# showcase domain. If it ever binds, switch to `run_worker_first = ["/music.mp3", "/video/*"]` and move
+# the www redirect into a Redirect Rule in the dashboard (one more of the owner's steps).
+#
+# THE DEPLOY IS THE OWNER'S ACTION (the standing rule):
+#   cd /Users/ikorzyn/Desktop/Claude/Blender && npm run site:deploy
+# THE CHECKS (each must hold, in this order):
+#   curl -sI https://blendo.monster/ | head -3                                           → HTTP/2 200, text/html
+#   curl -sI https://www.blendo.monster/ | grep -i "^HTTP\|^location"                    → 301, location: https://blendo.monster/
+#   curl -sI -H 'Range: bytes=0-99' https://blendo.monster/music.mp3 | grep -i "^HTTP\|content-range" → 206, bytes 0-99/…
+# A 525/526 or «not secure» in the first minutes after the first deploy is the certificate still being
+# issued — wait, do not redeploy.
+# ⚠️ THE LOCAL SMOKE RUNS OVER HTTPS: `npx wrangler dev --config server/site/wrangler.toml --port 8791
+# --local-protocol https` and `curl -k`. Plain `wrangler dev` rewrites every request to the route's host over
+# http (`http://blendo.monster/…`) and rewrites the Location of an answer back to localhost — so the
+# script's own http→https rule fires and everything reads 301 (measured 2026-09-09; the unit test's
+# «localhost is served as is» arm is about a real localhost URL, which dev never presents).
+name = "blendo-site"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+[assets]
+directory = "../../site"
+binding = "ASSETS"
+run_worker_first = true
+
+[[routes]]
+pattern = "blendo.monster"
+custom_domain = true
+
+[[routes]]
+pattern = "www.blendo.monster"
+custom_domain = true

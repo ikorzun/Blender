@@ -47,3 +47,8 @@ electric-variants/artifact.html
 
 # wrangler dev keeps its local state here (server/*/.wrangler)
 .wrangler/
+
+# `site/` is the folder the site Worker serves at blendo.monster — ASSEMBLED from the build by
+# tools/site-pack.py (index.html, the bridge pair, music.mp3, avatars/), rebuilt on every build.py run and
+# by `npm run site:deploy`. A product of the build, never a source (2026-09-09-c).
+/site/

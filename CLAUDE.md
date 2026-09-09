@@ -17269,3 +17269,57 @@ pair on the phone) was edited AFTER the run started — a message, not a predica
 arm green in both wordings. Pushed to `v2` and onto `main` on his standing word («push v2 onto main after a green
 run»), the live site verified by byte size on `index.html` and on both portrait video files. The video Worker is NOT
 redeployed — his action (the STATUS line).
+
+## BATCH 2026-09-09-c: THE GAME ON blendo.monster — THE SITE WORKER, THE PACKER, THE OWNER'S TWO STEPS (his word: the deploy line run before the worker existed, and «write out my steps in detail»; his three empty curls said the DNS step was already done)
+
+### THE STATE FOUND, MEASURED
+The zone is on Cloudflare (lb. and video. are Custom Domains of Workers on the same account, `3779b17e…`,
+wrangler 4.130 logged in on this Mac). The apex and `www` resolved to Cloudflare's proxies and pointed at
+Namecheap's URL forwarder: `http://blendo.monster/` → 302 to `www` with `X-Served-By: Namecheap URL Forward`,
+`https://` → 522 (the apex) / 525 (`www`). The docs: «You cannot create a Custom Domain on a hostname with
+an existing CNAME DNS record», and on adding one «Cloudflare will create a new DNS record for you» plus an
+Advanced Certificate. Hence his step 1: delete the apex A/AAAA and the `www` record (silent on A/AAAA, the
+docs; an empty name is the one case with no override to get wrong). Nothing at Namecheap: its forwarder was
+reached only through those records.
+
+### WHAT SHIPPED (server-only; the game build is untouched — `build.py` gained a packer call that does not change index.html)
+- `server/site/` — `blendo-site`: the repo's `site/` as static assets, `blendo.monster` and `www.blendo.monster`
+  as Custom Domains, `workers_dev = false`, `run_worker_first = true`. `src/index.js`: `www` → `https://blendo.monster`
+  and `http` → `https` (301, the path and the query kept); media (`.mp3 .mp4 .webm .m4a .aac .ogg .wav`) through
+  the VIDEO WORKER'S SLICER — `import film from '../../video/src/index.js'`, not a copy (the project's most repeated
+  defect is a copy that drifts); everything else through the store with the policy html/bridge `no-cache`
+  (ETag → 304; a release reaches the next load), images a day. ⚠️ `run_worker_first = true` because a host rule
+  cannot be an asset path pattern; the price named in the toml: the Free plan's 100 000 Worker requests a day
+  (~8 per visit); the fallback is the path-list form plus a Redirect Rule in the dashboard.
+- `tools/site-pack.py` assembles `site/` (index.html, the bridge pair, music.mp3, avatars/ without `_orig-p`;
+  `--with-video` optional — on this host the gate never uses the relative folder) and refuses a file over the
+  platform's 25 MiB; `build.py` runs it at the end of every build (a stale folder can never be deployed after a
+  build); `site/` is gitignored; `npm run site:deploy` = pack + deploy; `test:site` / `test:site:break`.
+- `docs/SITE-MOVE.md` — his steps in English, the checks, the measured facts.
+- THE GUARD: 13 arms on a fake store (the html 200 no-cache; www → 301 with the path and the query; http → https;
+  http+www in one hop; a real localhost served as is; the music 206 with the right bytes, `Accept-Ranges`, a day of
+  cache and the store asked WITHOUT the Range; 200 + `Accept-Ranges` without a Range; HEAD 206 without a body;
+  416 past the end; an image a day; the bridge no-cache; the 304 and the 404 passed through). `break.js`: five
+  sabotages on a copy under the temp dir (the video worker's slicer copied beside it so the relative import
+  holds), each red on its own arms — the redirect dropped → the three redirect arms; the media not delegated →
+  the four music arms; the cache policy dropped → html/image/bridge; the redirect losing the path → the two
+  www arms; a comment edit → none.
+- THE LOCAL SMOKE (`wrangler dev --local-protocol https --port 8791`, `curl -k`): `/` 200 text/html 12 762 024 B
+  byte-identical to the build, `no-cache` + ETag; `/music.mp3` Range 0-99 → 206 `bytes 0-99/1575693`, the tail
+  from 1 500 000 byte-identical to the file; no Range → 200 + `Accept-Ranges`; an avatar a day; the bridge
+  no-cache; `/nope.txt` 404; `/index.html` → 307 to `/` (the store's html handling). `deploy --dry-run`: 54 files
+  read, 3.72 KiB of script. ⚠️ PLAIN `wrangler dev` REWRITES EVERY REQUEST TO THE ROUTE'S HOST OVER http and the
+  Location back to localhost — the first smoke read 301 on everything, which was the script's own http→https
+  rule doing its job; written at the toml.
+
+### THE OWNER'S STEPS (the detail he asked for; the same in docs/SITE-MOVE.md)
+1. DNS → Records: delete the apex A/AAAA and `www`; keep `lb`, `video` (type Worker), MX/TXT. Done by him before
+   this batch was built — the deploy line he ran first failed on the missing toml, and his three curls came back
+   empty (the hosts no longer answer), which is how the state was read.
+2. `cd /Users/ikorzyn/Desktop/Claude/Blender && npm run site:deploy` — ~15 MB the first time; wrangler creates the
+   two Worker records and the certificates (525/526 for a few minutes = the certificate; wait, do not redeploy;
+   a prompt to override DNS records = step 1 unfinished, answer no). Repeat after every release: the site does not
+   follow GitHub.
+3. The three curls (200 html; 301 to the apex; 206 on music) and the phone.
+⚠️ NAMED TO HIM: `site/` is packed from the CURRENT build, which carries the uncommitted batch -b (the phone's
+poster alone) — a deploy now puts -b on blendo.monster before it is pushed to GitHub; his call on both.

@@ -65,3 +65,14 @@ else:
                          '  ffmpeg -i "%s" -c:a libmp3lame -b:a 96k '
                          '"Audio/2-music/background-music.mp3"' % (os.path.basename(other[0]), other[0]))
     print('music.mp3: NO SOURCE in Audio/2-music/ - the root copy (if any) is left as it is')
+
+# THE SITE FOLDER (2026-09-09-c): `site/` — what the site Worker serves at blendo.monster — is assembled from
+# THIS build by tools/site-pack.py at the end of every build, so a deploy line run after a build never ships
+# a stale folder (the deploy itself is the owner's action: `npm run site:deploy`). A packer failure is
+# printed and does not fail the build: the game's artifact is index.html, the site is its repackaging.
+try:
+    import subprocess as _sp, sys as _sys
+    _sp.check_call([_sys.executable, os.path.join(root, 'tools', 'site-pack.py'), '--quiet'])
+    print('site/: assembled from this build (tools/site-pack.py)')
+except Exception as _e:
+    print('site/: NOT assembled -', _e)

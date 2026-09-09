@@ -9,6 +9,14 @@ A new session is required to read the canon first — that rule is in its header
 **Build: batch 2026-09-09-a on top of 2026-09-08 a–i, v2 = main** · the suite **1105 green, 0 red, SUITE: PASS** (run 36) · the live
 site verified by byte size against the build (index.html and both portrait video files) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below) · portal package unchanged in shape
 
+**9 SEPTEMBER, MIDDAY — THE GAME ON YOUR DOMAIN: THE SITE WORKER IS BUILT (batch 2026-09-09-c in CLAUDE.md).**
+`server/site/` serves `blendo.monster` and `www.blendo.monster` (www → apex, http → https, the music sliced for
+Safari's Range through the video worker's own code, html revalidated on every load); `npm run site:deploy` packs
+`site/` from the build and deploys. Verified locally over `wrangler dev`: the html byte-identical to the build,
+music 206, the tail byte-identical, avatars a day, 404s pass. YOUR DEPLOY LINE (item 7 below), then the three
+curls. Note: `site/` is packed from the CURRENT build, which carries the phone-poster batch of the same morning
+before it is pushed to GitHub. The full steps: docs/SITE-MOVE.md.
+
 **9 SEPTEMBER — THE PORTRAIT FILM ON THE PHONE AND THE PORTRAIT TABLET, THE GAME'S MUSIC ONLY AFTER THE INTRO (batch
 2026-09-09-a in CLAUDE.md).** Your 9:16 film (720×1280, 4 s, 4.4 MB) was re-encoded into two files next to the build —
 WebM 675 KB and MP4 1.35 MB, mono audio (the master's «stereo» is one mono mix; nothing is lost) — and it plays where the
@@ -352,6 +360,13 @@ payment tests are on it.
    `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
    `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro-portrait.webm` → `HTTP/2 206`.
    Until then the phone's film comes from github.io (the direct link takes the relative address anyway).
+
+7. YOUR DOMAIN — the site Worker's deploy (after step 1 in the dashboard, which you did; repeat after every
+   release — the site does not follow GitHub):
+   `cd /Users/ikorzyn/Desktop/Claude/Blender && npm run site:deploy`, then
+   `curl -sI https://blendo.monster/ | head -3` → `HTTP/2 200`; `curl -sI https://www.blendo.monster/ | grep -i "^HTTP\|^location"`
+   → `301` to `https://blendo.monster/`; `curl -sI -H 'Range: bytes=0-99' https://blendo.monster/music.mp3 | grep -i "^HTTP\|content-range"`
+   → `206`. A 525/526 in the first minutes is the certificate — wait. The full steps: docs/SITE-MOVE.md.
 
 ## Decisions only you can take
 
