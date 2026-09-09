@@ -17874,3 +17874,50 @@ bars (`display:standalone`), which is also the one mode where the whole 874 pt o
 (the fields campaign's own closing note). The system bar's colour in the installed app.
 ⚠️ NOTHING REACHES blendo.monster UNTIL HE RUNS `npm run site:deploy` — the site does not follow GitHub, and
 the manifest, the worker and the icons are new files in `site/`. On GitHub Pages they arrive with the push.
+
+## BATCH 2026-09-09-i: STRIPE IN PORTUGAL — THE INSTRUCTION (his point 3: «stripe portugal — a full
+## instruction for opening it and integrating it»). THE DELIVERABLE IS `docs/STRIPE-PORTUGAL.md`;
+## what is here is only what a future session must not re-derive or get wrong.
+
+⚠️ NO CODE WAS WRITTEN AND THAT IS DELIBERATE: the document ends with a decision that is HIS (§1 —
+Stripe or a merchant of record) and with paperwork that must exist before a line is worth writing.
+Building a payments Worker against an account that does not exist is the shape of work this canon
+calls «a stub that reads as live».
+
+**THE FOUR FACTS THAT DECIDE THE SHAPE OF ANY LATER BATCH** (all verified against primary sources on
+2026-09-09 and dated in the document, because prices and tax rules move):
+1. ✅ **THE FIXED FEE IS THE STORY, NOT THE PERCENTAGE.** Stripe Portugal is 1.5% + €0.25 on an EEA
+   card and 3.15% + €0.25 outside the EEA (+2% on conversion). On the €1.99 `bundle5` that is
+   **14–18%, almost all of it the €0.25**; on a €9.99 pack it would be 3.5%. **A bigger item in the
+   catalogue is worth more than any fee negotiation** — a product observation that follows from the
+   numbers, and it is his call.
+2. ⛔ **STRIPE IS NOT A MERCHANT OF RECORD.** Every European sale's VAT is HIS to compute, collect,
+   declare and pay; Stripe Tax (0.5%) calculates and reports, it does not take the liability. The
+   alternative (Paddle/Lemon Squeezy/Polar, ~5% + $0.50 ≈ 30% of a €1.99 sale) buys exactly that
+   problem. Whoever implements «just add Stripe» without reading §3 is signing him up for a monthly
+   obligation he did not agree to.
+3. ⛔⛔ **PORTUGAL HAS AN INVOICING REGIME STRIPE DOES NOT SATISFY.** ATCUD + QR on every invoice,
+   SAF-T monthly by the 5th, AT-CERTIFIED software mandatory above €50,000 turnover **and for any
+   invoice issued by software at all**, and a qualified electronic signature from 1 January 2027.
+   Stripe's receipts are not Portuguese invoices. The plan is a Portuguese invoicing API called from
+   the same Worker that grants the purchase.
+4. ✅ **THE GAME SIDE IS ALREADY SHAPED FOR IT.** `payApi()` (78-ads) is a provider chain and a
+   provider is four methods; `buyBundle` is provider-independent. Stripe is
+   `nativePayments() || webPayments() || bridgePayments()` — **and the ORDER is the design**: the
+   wrapper must keep StoreKit (Apple requires it) and the portal must keep Playgama, so
+   `webPayments()` returns non-null only on our own domain, outside the iframe and outside the
+   wrapper — the same three questions the PWA registration already asks.
+
+⚡ **AND THE ONE THING THE BATCH WOULD FIX BEYOND PAYMENTS: THE ENTITLEMENT LEDGER.** A purchase
+today lives in `localStorage` and dies with a cleared browser (the hole named in 2026-09-04-a). A
+`server/pay/` Worker keyed by **`Save.gid`** and signed with **`Save.lk`** — the identity machinery
+the leaderboard already registers TOFU (2026-09-06-e) — makes a purchase follow the player to his
+other device. The webhook, not the browser, is what grants; `sid` is the primary key, so a replay
+writes once. ⚠️ The HMAC is not strong protection (the key is in the save) and does not need to be:
+the money is verified by Stripe's own webhook signature; the HMAC only stops a stranger reading or
+spending someone else's entitlement.
+
+⚠️ WHAT THE DOCUMENT DELIBERATELY DOES NOT ANSWER, AND NOBODY HERE SHOULD: whether the EU
+cross-border SME scheme covers digital services in his case, which CAE code fits, ENI or Lda. Those
+are one paid hour with a Portuguese accountant, and guessing them in a canon would be worse than
+silence.

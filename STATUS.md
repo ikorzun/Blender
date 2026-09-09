@@ -8,6 +8,20 @@ A new session is required to read the canon first — that rule is in its header
 
 **Build: batch 2026-09-09-h (installing the game as an app — a PWA) on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
 
+**9 SEPTEMBER, NIGHT — STRIPE IN PORTUGAL, THE INSTRUCTION (docs/STRIPE-PORTUGAL.md).** Point 3 of your
+list. The whole route is written out: what must exist before Stripe (NIF, an open activity at Finanças,
+IBAN), the account itself step by step, the taxes honestly, and how it wires into the game — the payment
+seam already exists, so Stripe becomes a third provider next to the wrapper and Playgama, and `buyBundle`
+does not change at all. THREE THINGS TO READ BEFORE DECIDING: (1) on a €1.99 boost Stripe takes 14–18%,
+and almost all of it is the fixed €0.25 — on a €9.99 pack it would be 3.5%, so a bigger item in the
+catalogue is worth more than any fee haggling; (2) Stripe is NOT the seller, so the VAT of every European
+sale is yours to declare — a merchant of record (~5% + $0.50, i.e. ~30% of €1.99) buys that problem
+instead; (3) Portugal wants ATCUD, a QR code and a monthly SAF-T on every invoice, and Stripe's receipts
+are not Portuguese invoices — that piece needs a Portuguese invoicing API. ⚠️ I wrote NO code: the first
+decision (Stripe or a merchant of record) and the paperwork are yours, and building against an account
+that does not exist would be work thrown away. When you decide, the code is one day — and it also closes
+the old hole that a purchase today lives only in the browser and dies with a cleared cache.
+
 **9 SEPTEMBER, NIGHT — THE GAME INSTALLS AS AN APP (batch 2026-09-09-h in CLAUDE.md).** Point 2 of your
 list is done. On Android and on the desktop Chrome now offers an install; on the iPhone and the iPad it is
 Share → «Add to Home Screen», and the game opens without Safari's bars at all — which is, by the way, the
