@@ -17564,3 +17564,95 @@ if it recurs at that line, the honest hardening is a fresh page and ONE retry ar
 of someone else's guard. **Run 42, the same build: 1106 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (run 40 was
 1106 too: no arm was added, two changed how long they wait). `index.html` unchanged (12 763 721 B, md5 a6b03027…);
 the commit carries `test.js`, this file and STATUS. Pushed to `v2` and onto `main` on his standing word.
+
+
+## BATCH 2026-09-09-f: THE LOADER BEFORE THE FILM, THE SHARE CARD, THE MUSIC AT LOAD AND WITHOUT A LAG — AND THE OWNER'S RULE ON RUNS (his words: «use this picture for the share»; «a strange load on the desktop and the tablet: a blue screen with the cursor → for a second the game with the bowl filling → the video → the game; that order will not do: a background with a simple loader in the centre if the video needs time to load; the video; the game with the cursor and the pour»; «check that the music in the intro and in the game turns on not by a click, immediately as it loads, and lags behind neither the animation nor the intro»; «do not run the whole build every time, it is expensive — only runs of the changes»)
+
+### ⛔⛔ THE RULE ON RUNS, IN FORCE FROM THIS BATCH
+**No full suite per batch.** The gate for a commit and a push is the DRY-RUN of every section the batch touched
+(`tools/section-dryrun.js`, on the healthy build, twice where a new arm is timing-shaped) plus the SABOTAGE variants
+(`tools/build-variant.py`), each red on its own arm(s) and green elsewhere. The full suite runs on his word or at a
+milestone he names. This supersedes «commit + push only after SUITE: PASS» wherever it stands in this file; the reason
+is his (13–21 minutes of a loaded machine per run, and two of the last five runs died on a stand flake in a section
+nobody had touched). ⚠️ The price, named: a change that breaks a section it did not touch is caught only by the next full
+run — so a batch that edits a SHARED helper (vstate, boot, a hook in 99-main) dry-runs every section that reads it.
+
+### 1. THE LOADER — THE CANVAS HIDDEN UNTIL THE FILM'S FIRST FRAME, A RING ON THE SKY
+- WHAT HE SAW, BY THE MECHANISM: the video gate runs at the top of body, so the film's download starts at the first paint
+  — but the film was not ready at the hand-off on his line; the grace (1.5 s) and the kick covered the wait, and during
+  it the CANVAS was visible: the wait phase's bowl with the frozen spawn column above it — «the game with the bowl
+  filling, for a second» — then `canplay` → the film → the game. The bench never shows it: on file:// the element is
+  ready at the hand-off.
+- IN FORCE (shell.html at the film's CSS): `html.video:not(.video-on) #c { visibility:hidden }` and a 56 px ring
+  `#introLoader` (white, 35 % track, `introSpin` .9 s, centred, `pointer-events:none`, z 3) displayed under the same
+  selector; the element stands right after the video gate in body. `visibility` and not `display`: the WebGL context and
+  the canvas's size stay, the loop renders on. At `video-on` the canvas returns UNDER the film in the same frame — ⚠️
+  DELIBERATELY NOT HIDDEN THROUGH THE PLAY: the -e measurement (a CDP trace) showed the compositor's first commit with
+  the film and the canvas together is a ~1 s GPU task on the software compositor of the bench; under the film it is
+  invisible, at the fade it is a freeze. A bail removes `html.video` and the game shows at once. Under the portrait
+  tablet's poster the ring is covered (the poster is z-max) and the canvas is hidden by the -d rule anyway. The ring is
+  never a zone candidate (centred, small). Listed under `prefers-reduced-motion` by the standing rule (never shown there —
+  the film gate declines).
+- `VIDEO_GRACE_MS` 1500 → 2500: the wait is a loader now, not a second of the game; his desktop needed ~1 s past the
+  hand-off. ⚠️ The ceiling is arm Q4: it reads at kick + grace + 0.3 s and the film is 4.04 s — past ~3.5 s that arm can
+  no longer prove the grace was cleared. Q4 reads the grace as a FIELD now (`videoState().grace`), no literal.
+- THE GUARD (INTRO, arm R, its own 1280 page): Q4's device — `readyState` HELD at 0 by an init script, released BY HAND
+  after the reads — gives the exact state he photographed («the level built, the film not ready»): the canvas hidden,
+  the ring displayed, centred within 2 px, animated, the fill displayed, the fall held, the gate ahead of the canvas in
+  the DOM; released → `video-on` → the ring gone and the canvas visible under the film; the skip → all gone. Arm G (a
+  source that cannot load) reads the ring gone and the canvas visible after the bail. PROVEN AGAINST THREE VARIANTS,
+  each red on its own arm alone: the ring's rule dropped → R1; the canvas rule dropped → R1 (the bowl under the ring — his
+  second); the canvas rule scoped to `html.video` (hidden through the play) → R2.
+
+### 2. THE SHARE CARD — `og.jpg` ON HIS DOMAIN
+His `Blendo OG.jpg` (2400×1260, 1.905:1 — the card ratio; 2.09 MB, never re-encoded) is tracked as `og.jpg` at the root;
+the html carries `description`, `og:type/site_name/title/description/url/image/image:type/width/height` and
+`twitter:card summary_large_image` + `twitter:image`, all ABSOLUTE on `https://blendo.monster/` (a crawler needs a full
+address; GitHub Pages serves the root file too, but the card names his domain). `tools/site-pack.py` packs `og.jpg`
+into `site/` — the domain shows it only after HIS `npm run site:deploy`. The description is a dispatcher's default, one
+string shared with the search meta. THE GUARD (`⟦OG-SECTION⟧`, node-side): the metas by value; the JPEG's own pixel size
+read off its SOF marker must equal the meta's; ≥ 1200 wide at the card ratio; the packer lists the file. Proven on two
+manual variants (the file dropped from FILES; another width in the meta) — each red on the second arm alone.
+
+### 3. THE MUSIC — THE POSTER NO LONGER HOLDS IT, THE BUFFER WARMS UNDER THE INTRO
+- MEASURED FIRST (an http bench, 1.5 Mbit throttled after the script ran, an evaluate at the commit as the gesture):
+
+| arm | the intro's close → the music's `playing` |
+|---|---|
+| the desktop film, `preload=none` (the build he has) | **354 ms** |
+| the same with `preload=auto` + `load()` at the deferral | **30 ms** |
+| the phone's poster, deferred to its close (the -a rule) | **314 ms** |
+| the same with the warm-up | **18 ms** |
+
+- TWO CHANGES. (a) `introHoldsMusic()` lost `splashActive()`: the poster is silent, and a hold there was 1.5 s of
+  silence for nothing — under the phone's poster the load's own play() is made at once (allowed on the portal after its
+  Play click and in the wrapper; refused on a direct link until the first tap, by the browser). The FILM still holds —
+  its own soundtrack plays alone (his -a word); the portrait tablet's film gate holds through the poster's wait for it.
+  (b) `bgmWarm()` — `preload=auto` + `load()` ONCE, on a paused element only — at every deferral (`bgmDefer()`: the
+  load's attempt, the gesture unlock, the slider, a platform un-mute) and on a REFUSED load-time play(), so the deferred
+  start at the film's close and the first tap on a refused page both find the buffer full. ⛔ THE 2026-08-11 TOMBSTONE
+  («pre-warming was tried and removed — do not invent it again») IS HALF-REVOKED where it stands: it measured the
+  GESTURE path, where the fetch and the play coincide (467 ms at 1.5 Mbit whatever you do); the deferred close is a known
+  moment seconds away. What stands: never `load()` a playing element.
+- ⛔⛔ WHAT NO PAGE CAN CHANGE, SAID TO HIM PLAINLY: an UNMUTED autoplay without a gesture is the browser's call. Safari
+  refuses it by default on every site (the per-site «Auto-Play» setting); Chrome allows it only where the site's Media
+  Engagement is high — and `blendo.monster` is two days old, so on the new domain Chrome refuses what it allowed on
+  github.io (the score is per origin; `chrome://media-engagement` shows it). Where it is refused the code retries at
+  every allowed moment (the load, the intro's close, a platform un-mute) and the first gesture starts the music at once
+  — the warm-up is what makes «at once» true. The film's sound on a refused page is the first click (-h), unchanged.
+- THE GUARDS (INTRO): Q1 (the phone poster, nobody touched the page) — `holds false`, `deferred false`, the load's play()
+  refused (paused) and the buffer WARMED (preload auto); Q1b (new: the same poster with an evaluate at the commit) — the
+  music PLAYS under the poster, the fall held, nothing deferred; Q2 (the tablet's broken film) — the start the film had
+  deferred is MADE at the bail, nothing deferred any more (allowed or refused by the activation's timing — the arm does
+  not read the outcome); E (the desktop film) — under the play `preload auto` and `readyState ≥ 1` (the fetch started;
+  a preload=none element stays at 0 until play()). PROVEN AGAINST THREE VARIANTS: `splashActive()` back in the hold →
+  Q1, Q1b, Q2; the warm-up dropped from the deferral → E alone; the refusal's warm-up dropped → Q1 alone.
+- ⚠️ ARM E'S FIRST FORM DEMANDED `readyState ≥ 3` AND FLAKED ON THE HEALTHY BUILD (green, then red on the same build):
+  the fetch is started by the warm-up, how far it has decoded by the read is the bench's clock. The property is «the fetch
+  STARTED under the intro», and 1 says it.
+
+### THE RUNS
+INTRO 60 green twice on the healthy build (56 → 60: arms R ×3 and Q1b), OG 2 green; nine sabotage variants across the
+three items, each on its own arm(s), none on another's; no full suite — the rule above. `index.html` 12 763 721 →
+12 769 321 B. Pushed to `v2` and onto `main` on his standing word; the site (the loader, the card, the music) reaches
+`blendo.monster` with his `npm run site:deploy`.

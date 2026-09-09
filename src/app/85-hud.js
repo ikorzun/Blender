@@ -193,7 +193,7 @@ function splashState(){ const h = document.documentElement;
 // refused — hands the slot to the GAME itself, the fall at once (⛔ -e: there is no comic). Muted: an autoplay with sound is
 // refused by every browser without a gesture (named to him) — ⛔ 2026-09-08-e: UNMUTED FIRST, muted only if refused, see below. ⚠️ THE STORY BITS ARE NOT MARKED (the
 // splash's rule): the video takes the prologue's SLOT, not its marks.
-const VIDEO_GRACE_MS = 1500, VIDEO_FADE_MS = 300;
+const VIDEO_GRACE_MS = 2500, VIDEO_FADE_MS = 300;   // 2026-09-09-f: 1500 → 2500 — the wait is a LOADER now (the ring on the sky, the canvas hidden), not a second of the game; his desktop needed ~1 s past the hand-off. ⚠️ Q4 reads at kick + grace + 0.3 s and the film is 4.04 s: past ~3.5 s that arm cannot prove the grace was cleared
 let videoWhy = '', videoFadeAt = 0, videoDone = false, videoT1 = 0, videoAbort = null, videoSkipFn = null;
 // THE FILM'S OWN SOUND (2026-09-08-e, his word «the video has its own sound»): the film starts UNMUTED at the
 // player's music volume (the music slider; off = the film is silent too); a browser that refuses an unmuted
@@ -239,7 +239,20 @@ let videoSound = '', videoBgmHeld = false, videoTapSound = false, videoKicked = 
 // where the load's attempt was allowed (the wrapper, a portal that had its click) the music used to start under the
 // loading screen and be paused by the film — a stutter; now it starts after the film. Named to him.
 let bgmDeferred = false;
-function introHoldsMusic(){ return splashActive() || (videoGated() && !videoDone) || videoActive(); }
+// ⛔ 2026-09-09-f: `splashActive()` LEFT this term — the poster no longer holds the music (his word «the music in the intro
+// and in the game turns on not by a click, immediately as it loads, and lags behind neither the animation nor the intro»):
+// the poster is silent, and a hold there was 1.5 s of silence for nothing. The FILM still holds — its own soundtrack plays
+// alone (his -a word); on the portrait tablet the film's gate holds through the poster's wait for it.
+function introHoldsMusic(){ return (videoGated() && !videoDone) || videoActive(); }
+// ⚡ THE WARM-UP RETURNS — FOR THE DEFERRED START AND FOR A REFUSED LOAD-TIME play() (2026-09-09-f). Measured on an http
+// bench at 1.5 Mbit: the music's `playing` came 354 ms after the film's close on the desktop and 314 ms after the poster's
+// close on the phone (the fetch starts at play()); with `preload=auto` + load() issued at the deferral — 30 ms and 18 ms.
+// The 2026-08-11 verdict («nothing») measured the GESTURE path, where the fetch and the play coincide; here the close is a
+// KNOWN moment seconds away and the fetch is done by then. Only on a PAUSED element (load() on a playing one cuts its sound
+// — the 2026-08-11 defect), once per page; the volume set on the element survives a load().
+let bgmWarmed = false;
+function bgmWarm(){ if (bgmWarmed) return; const b = document.getElementById('bgm'); if (!b || !b.paused) return; bgmWarmed = true; try { b.preload = 'auto'; b.load(); } catch(_){} }
+function bgmDefer(){ bgmDeferred = true; bgmWarm(); }
 function bgmDeferredStart(){ if (!bgmDeferred || introHoldsMusic()) return; bgmDeferred = false; try { if (typeof unlockBgm === 'function') unlockBgm(); } catch(_){} }
 function bgmHold(){ const b = document.getElementById('bgm'); if (b && !b.paused){ b.pause(); videoBgmHeld = true; } }
 function bgmRelease(){ if (!videoBgmHeld) return; videoBgmHeld = false; const b = document.getElementById('bgm'); if (b && musicVol > 0 && !musicExtMuted) { try { b.play().catch(()=>{}); } catch(_){} } }
@@ -2607,7 +2620,7 @@ function applyMusic(v01){
   bgm.volume = musicOut(musicVol);
   // ⚠️ The external muffling (an ad / the platform's pause) is STRONGER than the slider: otherwise
   // a player who moved the volume during an ad would have started the track over the ad.
-  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused){ if (introHoldsMusic()) bgmDeferred = true; else bgm.play().catch(()=>{}); } } // they pull it up — we start it (under an intro: at its close, 2026-09-09-a)
+  if (musicVol > 0 && !musicExtMuted){ if (bgm.paused){ if (introHoldsMusic()) bgmDefer(); else bgm.play().catch(()=>{}); } } // they pull it up — we start it (under a film: at its close, 2026-09-09-a; -f: the poster does not hold)
   else if (!bgm.paused) bgm.pause();                             // down to zero — we mute it
 }
 // THE EXTERNAL MUFFLING OF THE MUSIC (INTEGRATION's edit 2026-07-29 by the dispatcher's
@@ -2617,6 +2630,9 @@ function applyMusic(v01){
 // localStorage; overwriting it with a temporary muffling is forbidden. That is why we keep the
 // reason separately and on the release we restore exactly what the player chose
 // (including NOT starting the track if the slider stands at zero).
+// ⛔⛔ HALF-REVOKED 2026-09-09-f: the warm-up is BACK for the DEFERRED start under a film and for a REFUSED load-time play()
+// (`bgmWarm`, at `introHoldsMusic`) — measured 354/314 ms → 30/18 ms at 1.5 Mbit. What STANDS below: no gain on the gesture
+// path's own timing, and never load() a playing element.
 // ⛔⛔ PRE-WARMING THE BUFFER WAS TRIED AND REMOVED — DO NOT INVENT IT AGAIN.
 // The hypothesis was reasonable: the file is external, 4.4 MB, the tag is `preload="none"`, which means
 // the download starts only with the first gesture. THE MEASUREMENT DID NOT CONFIRM IT. The delay
@@ -2635,7 +2651,7 @@ function musicSuspend(on){
   const bgm = $('bgm'); if (!bgm) return;
   if (musicExtMuted){ if (!bgm.paused) bgm.pause(); }
   else if (musicVol > 0 && bgm.paused && !videoBgmHeld){   // not while the film HOLDS it (-f): the release at the film's close resumes it
-    if (introHoldsMusic()){ bgmDeferred = true; return; }   // 2026-09-09-a: not under an intro either — its close starts it
+    if (introHoldsMusic()){ bgmDefer(); return; }   // 2026-09-09-a: not under a film either — its close starts it (-f: the poster does not hold)
     bgm.volume = musicOut(musicVol); // the invariant: the volume BEFORE play (see the musicVol block)
     bgm.play().catch(()=>{});
   }

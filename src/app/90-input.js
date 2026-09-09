@@ -632,13 +632,13 @@ function unlockBgm(){
   // music (85-hud `bgmDeferredStart`); the film's own track is the only sound meanwhile. `bgmUnlocked` stays false so
   // this very path runs again at the close. A play() the policy refuses (a deferred start from a timer, no gesture yet)
   // re-arms it too: the next gesture retries, as it always did.
-  if (typeof introHoldsMusic === 'function' && introHoldsMusic()){ bgmDeferred = true; return; }
+  if (typeof introHoldsMusic === 'function' && introHoldsMusic()){ bgmDefer(); return; }   // -f: the deferral WARMS the buffer
   bgmUnlocked = true;
   // ⚠️ AND NOT UNDER THE PLATFORM'S MUTE (the -a review): this path is the game's PRIMARY music starter now (the intro's close
   // reaches it), and a portal whose player has the sound off sets musicExtMuted before the hand-off — without the term the
   // track started under the mute and the later un-mute found it playing and did nothing. `bgmUnlocked` stays true: the
   // un-mute itself resumes a paused track (musicSuspend(false) in 85-hud) once no intro holds it.
-  const bgm = $('bgm'); if (bgm){ bgm.volume = musicOut(musicVol); if (musicVol > 0 && !musicExtMuted) bgm.play().catch(()=>{ bgmUnlocked = false; }); }
+  const bgm = $('bgm'); if (bgm){ bgm.volume = musicOut(musicVol); if (musicVol > 0 && !musicExtMuted) bgm.play().catch(()=>{ bgmUnlocked = false; bgmWarm(); }); }   // refused → the buffer warms for the gesture that will be allowed (-f)
 }
 // ⚠️⚠️ THE GESTURE IS ANY GESTURE, AND NOT ONLY A TOUCH (the owner's complaint «the
 // music starts playing with a delay», taken apart by the measurement 2026-08-11). A
@@ -654,7 +654,7 @@ function unlockBgm(){
 // But in some environments (the portal has already got a gesture, a desktop with previous
 // interaction) it goes through, and the music starts IMMEDIATELY, and not when the player
 // first touches the screen. It costs zero.
-try { const _b = $('bgm'); if (_b && musicVol > 0){ if (introHoldsMusic()) bgmDeferred = true; else _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{}); } } catch(e){}   // under an intro (2026-09-09-a): deferred to its close
+try { const _b = $('bgm'); if (_b && musicVol > 0){ if (introHoldsMusic()) bgmDefer(); else _b.play().then(()=>{ bgmUnlocked = true; }).catch(()=>{ bgmWarm(); }); } } catch(e){}   // under a film (2026-09-09-a): deferred to its close; -f: the poster does not hold, and a refusal warms the buffer
 $('msDiff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyHard(b.dataset.hard === '1');

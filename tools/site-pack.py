@@ -10,7 +10,7 @@
 import os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'site')
-FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3']
+FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3', 'og.jpg']   # og.jpg: the share card (2026-09-09-f), the html's og:image points at it on the domain
 DIRS = ['avatars'] + (['video'] if '--with-video' in sys.argv else [])
 QUIET = '--quiet' in sys.argv
 LIMIT = 25 * 1024 * 1024   # the platform's per-file limit for static assets (25 MiB)

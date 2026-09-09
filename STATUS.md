@@ -6,8 +6,19 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-e (docs + two guard waits; the game byte-identical to -b/-d) on top of 2026-09-09-a and 2026-09-08 a–i, v2 = main** · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
+**Build: batch 2026-09-09-f (the loader, the share card, the music) on top of 2026-09-09 a–e and 2026-09-08 a–i, v2 = main** · the gate of this push: INTRO 60 green ×2 + OG 2 green + nine sabotage variants (no full suite — your rule of 9 September); the last full suite: · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
 site verified by byte size against the build (index.html) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below — it serves the iPad in portrait alone now) · portal package unchanged in shape
+
+**9 SEPTEMBER, EVENING — THE LOADER, THE SHARE CARD, THE MUSIC (batch 2026-09-09-f in CLAUDE.md).** Your
+picture is the share card (`og.jpg`, absolute on blendo.monster — the domain shows it after your deploy). The
+desktop/tablet order is now: the sky with a spinning ring while the film loads (the canvas hidden until the film's
+first frame) → the film → the game with the pour; the wait for a slow film is 2.5 s instead of 1.5. The music: the
+poster no longer holds it (it starts under the poster wherever the browser allows), and the buffer warms under the
+intro — measured at 1.5 Mbit, the start after the film 354 → 30 ms, after the poster 314 → 18 ms. What no page can
+change: an unmuted autoplay without a gesture is the browser's decision — Safari refuses by default, Chrome allows
+it only where the site's media engagement is high, and blendo.monster is two days old (`chrome://media-engagement`);
+where refused, the first tap or click starts it at once. Your rule on runs is in force: section dry-runs and
+sabotages gate a push, the full suite on your word. Your step: `npm run site:deploy`.
 
 **9 SEPTEMBER, LATE AFTERNOON — «FIX THE REST» (batch 2026-09-09-e in CLAUDE.md).** Read as the FILM (the second
 half of your morning word). The poster's recipe was applied to the film, measured and NOT shipped: the film's
