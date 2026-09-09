@@ -16466,7 +16466,8 @@ the grace below decides.
 ### THE MECHANISM (shell.html: the element, the inline gate, the CSS; 85-hud `videoPlay`; 99-main the hand-off)
 - THE GATE: ≥768 wide (the phone has the splash), not `prefers-reduced-motion`, not an automated
   browser unless `?video=1`; `?video=0` switches it off anywhere. Off → the element keeps
-  `preload=none` and NO sources: a phone never fetches a byte. On → two `<source>`s, WebM VP9 first
+  `preload=none` and NO sources: a phone never fetches a byte (⛔ cancelled by -a for one day; ✅ TRUE AGAIN since
+  2026-09-09-b). On → two `<source>`s, WebM VP9 first
   (1.1 MB), H.264 second: a browser that cannot decode the first answers '' to `canPlayType` and takes
   the second (Playwright's Chromium has no H.264 — it takes the WebM, which is why the suite plays the
   real file). `?vsrc=<base>` on a local host is a dev knob (the fallback guard points it at nothing).
@@ -17107,6 +17108,11 @@ own arm (the old alpha: cold 2.7–9.3 %). **Run 35 — the whole suite on this 
 main after a green run»), the live site verified by byte size.
 
 
+### ⛔⛔ HALF SUPERSEDED THE NEXT MORNING — SEE BATCH 2026-09-09-b. The PHONE half of this section is HISTORICAL: his word
+### «leave only the poster on phones; let the video be on tablets and the desktop» took the film off the phone WIDTH (the
+### poster alone, not a byte of film fetched). The PORTRAIT TABLET half stands as written (the portrait film over the
+### poster), and so does the music deferral. Read the phone paragraphs below as the map of the TABLET's composition.
+
 ## BATCH 2026-09-09-a: THE PORTRAIT FILM RIDES THE POSTER ON THE PHONE AND THE PORTRAIT TABLET; THE GAME'S MUSIC WAITS FOR THE INTRO TO CLOSE (his word with a 9:16 film attached: «optimise it and add the video for the portrait mode of the phone and the tablet. Remove the music, leave only the sound»)
 
 ### THE FILE, MEASURED, AND THE TWO ENCODES
@@ -17138,9 +17144,15 @@ his; named to him, not blocking.
   or any portrait viewport since -h) the film fires TOO, with the PORTRAIT pair (`blendo-intro-portrait.{webm,mp4}`,
   the same `bases`: relative on github.io and local hosts, his domain then github elsewhere), not reduced motion, not
   webdriver unless `?video=1`. `?splash=0` switches the whole phone intro off (poster AND film — arm H); `?video=0`
-  the film alone. ⛔ The -c line «a phone never fetches a byte» is cancelled where it stood.
+  the film alone. ⛔ The -c line «a phone never fetches a byte» is cancelled where it stood. ✅ 2026-09-09-b: TRUE AGAIN —
+  the phone gates no film; the term is `html.splash && window.__splashKind === 'portrait'`, the portrait TABLET alone.
+- ⛔ -b: a landscape phone under 768 gets the POSTER ALONE now (arm A6 re-based) — the rule «never a second orientation
+  sample» stands: the tablet term reads the splash gate's OWN kind. The bullet below is the -a form.
 - THE PAIR FOLLOWS THE POSTER, NEVER A SECOND ORIENTATION SAMPLE (the -h review's rule): a landscape phone under 768
   gets the portrait film cover-cropped exactly as it gets the poster — named to him, not special-cased (arm A6).
+- ⛔ -b: the film's TALL-BOX rule (`html.splash.splash-tall #introVideo`) is REMOVED — unreachable (`splash-tall` is
+  phone-only and the phone gates no film); the film's box is the portrait tablet's flat one viewport. The bullet below is
+  the -a form.
 - THE BOX IS THE POSTER'S (CSS): under `html.splash` the film is ABSOLUTE, `inset:0 auto auto 0`, one viewport, and
   `calc(100lvh + 80px)` under `splash-tall` — NOT fixed: a fixed box ends at the layout viewport and the zone under
   the bar would take body's flat colour under a multicoloured film row (the -e/-f measurement; the line he rejected).
@@ -17191,6 +17203,8 @@ activation that lets the film sound. On a page nobody touched (Q1) the deferred 
   `bgmPaused false`); **P** — the platform un-mute mid-film does not start the deferred music; **L2** — the first
   click defers the music instead of unlocking it, and a new read after the skip: the deferred music starts at the
   film's close (the clicks' activation).
+- ⛔ -b RE-BASED THE ARMS BELOW: Q1 is now «THE PHONE: THE POSTER ALONE» (both flags, no film gated), Q2–Q4 moved to
+  768×1024 (the portrait tablet), A6 and H read «no film on the phone», A5 gained a full-viewport play arm — see -b.
 - NEW: **Q1** (390×844, Apple + chrome, both flags, nobody touches the page): the portrait pair gated with the poster
   on; the film plays OVER the poster in the TALL box (absolute, top 0, 390×924, the document 924, z 2147483647, the
   poster displayed, both cards none, the fall held); body 134,211,248 and the music deferred; at the END both `-out`
@@ -17253,6 +17267,7 @@ activation that lets the film sound. On a page nobody touched (Q1) the deferred 
    tap on a refused film still freezes the film's sky (that tap paints no fade).
 
 ### WHAT ONLY HIS DEVICES CAN SAY
+⛔ -b: the PHONE lines of this list are moot — the phone is the poster alone; read them for the iPad in portrait.
 Whether iOS Safari buffers the phone's film before the hand-off (the kick is the belt); the film's sound on the first
 tap on the phone (the -h rule on the absolute film); the poster→film switch (frame 0 = the poster) and the joint fade
 under the bottom bar; the status zone in the film's sky while it plays; the game's music arriving only after the intro
@@ -17269,6 +17284,127 @@ pair on the phone) was edited AFTER the run started — a message, not a predica
 arm green in both wordings. Pushed to `v2` and onto `main` on his standing word («push v2 onto main after a green
 run»), the live site verified by byte size on `index.html` and on both portrait video files. The video Worker is NOT
 redeployed — his action (the STATUS line).
+
+
+## BATCH 2026-09-09-b: THE PHONE IS THE POSTER ALONE; THE FILM STAYS ON THE TABLETS AND THE DESKTOP; BOTH ALWAYS FULL SCREEN (his word the next morning: «leave only the poster on phones; let the video be on tablets and the desktop. And both the poster and the video always full screen and under all the system elements»)
+
+### THE READING, AND THE ONE FORK NAMED
+- THE PHONE (≤767 wide, the HUD's own boundary — the splash gate's `phone` term, whatever the orientation) gets the POSTER
+  ALONE: not a byte of film is fetched (the -c line, true again). The landscape tablet and the desktop keep the landscape
+  film (-c, untouched). THE PORTRAIT TABLET keeps -a's composition — the portrait film over its poster: his sentence named
+  the phone and «the video on tablets», and the poster under the tablet's film is an UNNAMED property, which the house rule
+  leaves alone. ⚠️ THE OTHER READING (the poster gone from the portrait tablet too — the film alone there, with no cover of
+  the load and no fallback) was named to him; one term in the video gate and one in the splash gate if that is what he meant.
+  ⚠️ AND «PHONE» IS THE PHONE WIDTH, the HUD's own boundary: an iPhone held SIDEWAYS lays out ≥ 768 wide (a Pro Max at
+  932 CSS px) and takes the LANDSCAPE film — the -h decision, unchanged; a device test would be a new mechanism and was not
+  built. Named to him.
+- «ALWAYS FULL SCREEN AND UNDER ALL THE SYSTEM ELEMENTS» IS A CONSTRAINT TO KEEP, NOT A NEW MECHANISM — and the canon's
+  measured limits bound it: both intros are `object-fit:cover` over the whole layout viewport (-c, -e); on the phone the
+  poster's ABSOLUTE tall box runs under the BOTTOM bar (-e/-f — deduced from the in-flow measurement of 09-05-e; his phone is
+  the check); the iPad's bar is at the TOP and its one-viewport box is the screen; the TOP zone is a flat colour on every
+  device — the intro's OWN sky, from body (-d, -g: a document has no rows above its origin and a fixed box clips at the
+  layout viewport — «not a fourth time»); the Fullscreen API needs a gesture and cannot serve an autoplay intro. Nothing of
+  the box mechanics moved; what was added is a MEASUREMENT — A5 now reads the landscape film's full-viewport box.
+
+### WHAT SHIPPED (shell.html; comments in 85-hud and 99-main; no controller code moved)
+- THE VIDEO GATE: the -a term `splashOn` (`html.splash` — the phone width or any portrait viewport) became
+  `tablet = html.splash && window.__splashKind === 'portrait'` — the splash gate's OWN kind (one sample of the media, the
+  -h review's rule; never a second reading here) AND the class (the poster actually up: `?splash=0` switches the tablet's
+  whole intro off, `?video=0` the film alone, reduced motion → the poster alone). The pair follows the same term.
+  `on = film || tablet`; nothing else in the gate moved. The hand-off (99-main) is unchanged: `videoGated()` decides, and on
+  the phone it is false → `splashPlay(go)`.
+- THE CSS: `html.splash.splash-tall #introVideo { height:calc(100lvh + 80px) }` REMOVED with a tombstone — `splash-tall` is
+  phone-only (-h) and the phone gates no film, so the rule was unreachable; left in place it would have read as live.
+  `html.splash #introVideo` (absolute, one viewport, z 2147483647) stays — the tablet's box; the play-time body rules stay
+  (`html.splash.video-on:not(.video-out) body` = the portrait film's first rows, now the tablet's status zone;
+  `html.splash.video-out body` = the zenith for the joint fade).
+- THE PROSE MOVED WITH THE RULE: the gate's -a note (the «⛔ no longer never fetches a byte» line), the `<video>` banner, the
+  CSS comment («THE PHONE'S FILM RIDES THE POSTER'S BOX» → the portrait tablet's), 85-hud (the played path, the joint fade,
+  the load kick → the tablet; iPadOS Safari is the same engine), 99-main (a -b tombstone at the hand-off).
+- `index.html` 12 759 626 → 12 761 642 B (the prose). The video files are untouched: the portrait pair now serves the
+  portrait tablet alone.
+
+### THE GUARD (INTRO, 55 green on the healthy build, three dry-runs in a row; re-based, not «fixed»)
+- **A6** (667×375): the poster by the phone term and NO film — no sources, preload none. **H** (390, `?splash=0`): the
+  predicate unchanged; the message names the phone's «no film at all», and its sabotage `__introFilm = !portrait` reddens
+  H, A6 AND Q1 now. **Q1** → «THE PHONE: THE POSTER ALONE»: both flags, Apple + chrome, nobody touches the page — the video
+  gate does NOT fire (no sources, preload none, the film display none), the poster displayed (its tall box is arm A's read), the fall held,
+  body the POSTER's sky throughout (never a film's), the music deferred; the poster's own 4 s knob and fade close the intro;
+  after the fade the document is one viewport, the cards back, `holds false`, `deferred false`. **Q2/Q3/Q4** → 768×1024
+  (the portrait tablet) — Q2 and Q3 with their predicates unchanged, Q4 with its precondition re-stated (below): the broken
+  film hands the slot back to the poster; the first tap the
+  sound with `bgmHeld false` (the discriminating term), the second the skip, the deferred music at the close; the canplay
+  path past the grace. **A4**: unchanged (it already read the film absolute in the poster's flat box with the portrait
+  pair); its note says -b keeps the tablet's composition. **A5** (1024×768): + a play arm — the film ON, fixed, cover, its
+  box the layout viewport from the top edge, the fall held.
+- ⚠️⚠️ TWO OF THE MOVED ARMS RACED THE PAGE AND ARE PAGE-DRIVEN NOW — the canon's own «a fixed pause measures the bench's
+  clock, not the page's state», met at 768×1024, where the HAND-OFF CAN PRECEDE `goto` (the load event waits on the 500 KB
+  poster; on the 390 page of -a it came ~1 s after). Measured with a probe before the arms were touched: one run in two.
+  (1) **Q4** released the held `readyState` from the bench after `goto` and two polls — the 1.5 s grace had fired before
+  the bench's first read (`why: not ready in time`, `t1: 0` — and `videoState().t1` is start()'s stamp, NOT the hand-off's,
+  which the first reading of the probe got wrong until the code was opened). The init script now releases the hold 200 ms
+  after the KICK ITSELF (the first play() on `#introVideo` while held — the kick is issued synchronously on the grace path,
+  so its time IS the hand-off's) and records both stamps; the arm reads at kick + 2.2 s on the PAGE's clock and asserts
+  `kickAt < t1 < kickAt + 1500` — the film started late and before the grace, the precondition without which «still on at
+  +2.2 s» proves nothing; which canplay started it (the real one or the synthetic) does not matter, both run onCan → start().
+  (2) **Q3** waited a fixed 1.5 s after `goto` and then polled — the -a device against an early gesture (an evaluate BEFORE
+  the hand-off grants activation and the film SOUNDS instead of being refused, the -e measurement); on the tablet page the
+  film had ENDED before the first read. The page now reports the film's first `playing` frame under `video-on` on the console
+  (where the kick's own muted `playing` fires before start() it carries no `video-on` and is skipped; where Blink drains
+  `canplay` and `playing` in one task it may carry it — the review's correction — and the poll on `sound !== ''` that follows
+  makes the arm indifferent to which `playing` was reported, the refusal being decided at play() call time); a
+  `waitForEvent('console')` is PASSIVE — no activation. `q3ev` is printed in the arm. ⚠️ AND THE REVIEW'S ONE MINOR, TAKEN:
+  the tablet arms still gated their FIRST read on `goto`'s load event — Q3 and Q4 navigate with `waitUntil: 'commit'` now
+  (Q4's polls may then precede the hand-off and let the film sound; its last read tolerates that), and Q2's poster knob is
+  6 s, so «the fall still held» is read inside the hold whatever the load event's timing; A4 keeps its shape (its reads
+  passed every run, and the film's end is the only clock it depends on).
+- ⚠️ A5's new arm hit the TDZ trap of 2026-09-08-i on its first dry-run (`vstate` is declared BELOW A5): a `const` read
+  before its line is a ReferenceError that KILLS the section instead of reddening an arm — an inline read now.
+- PROVEN AGAINST FIVE VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`; the healthy build
+  55 green three times), each red on its own arms and nothing else: the -a form (`tablet = html.splash` alone) → A6 and
+  Q1's three arms (the film gated on the phone; H stays green — with `?splash=0` that form gates nothing either, as its
+  note says); the term dropped (`tablet = false`) → A4's first arm and all eight tablet-film arms (Q2 ×2, Q3 ×3, Q4 ×2);
+  the `html.splash #introVideo` rule removed (the film FIXED under the poster) → A4's box arm ALONE — ⚠️ Q3 stayed green
+  there, and its sabotage note was wrong until this measurement: the poster is `pointer-events:none`, so a tap falls
+  through to a film UNDER it (the note names the sabotage that is A4's); `#introVideo { height:90% }` → A5's new arm and
+  E (both read the full-viewport box); a comment edit → 55 green, the tool calls an empty sabotage empty.
+
+### THE REVIEW (a read-only Workflow before the suite: three lenses — the gate and the CSS, the guard, the prose and the
+### canon — one skeptic per finding, no browsers; run beside the sabotage chain)
+Fourteen findings, twelve confirmed, two refuted (a wording gap that conceded it was one; a quote no longer in the tree
+because it had been fixed in the same pass). NO BUG IN THE RUNTIME CHANGE: the gate lens found no viewport or flag where
+the phone gates a film or the portrait tablet loses one, and confirmed the removed tall rule as unreachable. What was
+taken, all before the run: one MINOR — the tablet arms gated their first read on `goto`'s load event (above); the rest
+WORDING that contradicted the code beside it — the splash gate's «the two never fire together» (false since -a on the
+portrait tablet), the load kick's tail «his phone is the check» and start()'s «the phone's normal path», the
+`html.splash.video-out body` comment's «kept on the phone», STATUS's -a paragraph telling him a sideways phone gets the
+portrait film and its redeploy line saying «the phone's film comes from github.io», this section's «Q2/Q3/Q4 the
+predicates unchanged» (Q4's changed) and Q1's «in its tall box» (arm A reads that, Q1 does not), Q1's message claiming a
+refusal «for lack of a gesture» on a page whose reads before the close ARE the gesture (printed, not asserted, now), and
+the «kick's playing carries no video-on» claim (true only where it fires before start()). ⚠️ The gap the review named
+and this batch carries forward on purpose: «phone» is the WIDTH — a sideways iPhone ≥ 768 wide takes the landscape film.
+
+### THE RUNS
+**Run 37** — 1062 green, 3 red, then it DIED WITHOUT A VERDICT: the reds (the ZOOM settle arm's `rEnd === rMid` at
+80 ms — the host flake of 2026-09-05-a; the bowl shatter's slow-mo at 0 ms; the ice block's pulse flag) are all
+timing-shaped and none is in this batch's section; the machine carried the review's seventeen agents for the run's
+first eleven minutes (load average 13.8) and another chat's two Vite servers throughout. The death: «Execution
+context was destroyed» inside the pack-matcap section's own `brightness()` read — the THIRD occurrence of the stand
+flake of 2026-09-01-p / 2026-09-03-e; it is a subject now, named in STATUS. **Run 38** — 1104 green, 1 red: the known
+audio flake («THE CONSTANT REALLY REACHES THE ENVELOPE», `[0.131,0.131,0.131,0.1]`, 2026-09-05-a). **Run 39** — red at
+174 on the shake-spread convergence arm (timing), stopped. **Run 40** — on the build carrying -b AND -d (the poster's
+zones), the machine quieter: **1106 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (run 36 was 1105; the delta is
+the INTRO's re-based, added and -d arms). Pushed to `v2` and onto `main` on his standing word, the live site verified
+by byte size on `index.html` (12 763 721 B). The video files are untouched; the Worker redeploy of -a is still his
+action — the portrait pair serves the iPad in portrait alone now.
+
+### WHAT ONLY HIS DEVICES CAN SAY
+The phone: the poster alone — no film starting on it, its bottom under the address bar (the tall absolute box, deduced: no
+line and no violet at the bottom edge), the status zone the poster's own sky (a flat colour — the platform's, on every
+page). The iPad in portrait: the poster, then the film over it, its sound on the first tap, the second tap the skip. The
+landscape iPad and the Mac: the film over the whole viewport. The Worker: his redeploy, as before — the two portrait files
+serve the portrait tablet alone now.
+
 
 ## BATCH 2026-09-09-c: THE GAME ON blendo.monster — THE SITE WORKER, THE PACKER, THE OWNER'S TWO STEPS (his word: the deploy line run before the worker existed, and «write out my steps in detail»; his three empty curls said the DNS step was already done)
 
@@ -17323,3 +17459,45 @@ reached only through those records.
 3. The three curls (200 html; 301 to the apex; 206 on music) and the phone.
 ⚠️ NAMED TO HIM: `site/` is packed from the CURRENT build, which carries the uncommitted batch -b (the phone's
 poster alone) — a deploy now puts -b on blendo.monster before it is pushed to GitHub; his call on both.
+
+
+## BATCH 2026-09-09-d: NOTHING FIXED UNDER THE POSTER — THE ZONES TAKE THE POSTER'S SKY, THE POSTER CAN RUN UNDER THE BAR (his screenshot from blendo.monster: both zones over and under the poster in the GAME's lavender, the poster cut at the bar's top edge; his word «the poster must go under the browser's system elements», and the condition «if you start breaking everything again, the other path: round the poster top and bottom like the browser bar»)
+
+### THE DIAGNOSIS, FROM THE MEASURED MECHANISM (09-05-g/-h), NOT FROM A NEW GUESS
+- THE LAVENDER: the zone colour is read from the nearest FIXED box at WebKit's sample point. Under the poster
+  the fixed boxes were `#skyFill` — the load fill, `position:fixed`, full height for the WHOLE intro (until
+  `uiready`), with a DECLARED `background-color` and the game's gradient — the canvas `#c` and the three HUD bars.
+  The fill declares the game's colours; the poster (absolute since -e) is not a candidate at all and cannot give
+  the zones anything. -d/-e had deduced «body alone gives the top zone its colour» — true only with NO fixed box
+  at the point, and -e removed the two cards but not the canvas, the bars or the fill.
+- THE CUT: 09-05-h, measured on his phone — «the fill PAINTS OVER in-flow content … a taller document can never
+  win the bottom zone while any fixed box covers the sample point, and `#c` covers both on every screen». The
+  tall absolute box of -e/-f never had a chance while `#c` stood at (w/2, h−4).
+
+### WHAT SHIPPED — ONE RULE, SCOPED TO THE POSTER'S SHOW (shell.html, at the splash block)
+`html.splash:not(.splash-out) #skyFill { display:none }` and `html.splash:not(.splash-out) #c, #topBar,
+#bottomBar, #face { visibility:hidden }`. `visibility:hidden` is what the hit test skips (the guide, 09-05-c);
+the canvas keeps its size and its WebGL context (the flow trial's own device, 09-06-c); the HUD is under the
+opaque poster anyway and the intro swallows input. At `splash-out` the canvas is back, so the fall starts under
+the fading picture exactly as before. With no fixed box at either point: the TOP zone falls to body's colour —
+the poster's own sky (a document has no rows above its origin; the zone equals the picture's first rows) — and
+the BOTTOM zone shows the document's OWN rows through the bar's glass (09-05-e, measured for in-flow content;
+the absolute box is the deduction his phone checks). Nothing in the layout, the scrolling or the positioning of
+any screen is touched — the condition he set; the rollback is one rule.
+⚠️ PLAN B, HIS, IF THE BOTTOM STAYS CUT: `#introSplash { border-radius … ; overflow:hidden }` — the poster as a
+card rounded like the browser bar, one line, the corners showing body's sky.
+
+### THE GUARD (INTRO, arm A; 56 green on the healthy build)
+While the poster shows: `html.skyfill` on and `uiready` off (the load is still on — the fill would be displayed
+by its own rules) yet the fill `display:none`; the canvas and the three bars `visibility:hidden`; and a
+STRUCTURAL census — every element whose computed position is fixed/sticky, displayed and visible, ≥ 90 % of
+`innerWidth − 8` wide and covering (w/2, 4) or (w/2, h−4) — finds NOTHING at either point (a hit test would
+not do: `elementsFromPoint` honours `pointer-events`, WebKit's first pass ignores it). After the fade the canvas
+is `visible` again. ⚠️ THE FIRST FORM ALSO DEMANDED THE BARS VISIBLE AFTER THE FADE and went red on a healthy
+build: the bars stay under the `uiready` gate until the intro ends — as they always have — and the arm was
+asserting a pre-existing state it had no business in. PROVEN TWO-SIDED: the fill rule dropped → the arm alone
+(`fill: block`); the visibility rule dropped → the arm alone (`#c` at both points); the healthy build 56 green.
+
+### WHAT ONLY HIS PHONE CAN SAY
+The top zone in the poster's sky with no border; the poster's rows under the address bar. The deploy is his
+(`npm run site:deploy` — build.py had already re-packed `site/`); the GitHub push of -b/-d waits for the suite.

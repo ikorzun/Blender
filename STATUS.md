@@ -6,8 +6,17 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-a on top of 2026-09-08 a–i, v2 = main** · the suite **1105 green, 0 red, SUITE: PASS** (run 36) · the live
-site verified by byte size against the build (index.html and both portrait video files) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below) · portal package unchanged in shape
+**Build: batch 2026-09-09-b on top of 2026-09-09-a and 2026-09-08 a–i, v2 = main** · the suite **1106 green, 0 red, SUITE: PASS** (run 40, the poster batches -b and -d together; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
+site verified by byte size against the build (index.html) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below — it serves the iPad in portrait alone now) · portal package unchanged in shape
+
+**9 SEPTEMBER, AFTERNOON — THE POSTER'S ZONES (batch 2026-09-09-d in CLAUDE.md).** Your screenshot from
+blendo.monster: the zones over and under the poster in the game's lavender, the poster cut at the bar. The cause,
+by the 5 September measurements: fixed layers under the poster (the load fill with the game's colours, the canvas,
+the HUD bars) — WebKit reads the zone colour from the nearest fixed box at its sample point and, while any fixed box
+covers the bottom point, paints OVER the document's rows there. One rule now hides them for the poster's duration
+only (nothing else touched, one-line rollback): the top zone should be the poster's own sky, the bottom the poster's
+rows under the bar. Your check: `npm run site:deploy`, a fresh tab, a screenshot. If the bottom is still cut, plan B
+is yours: the poster rounded top and bottom like the browser bar, one line.
 
 **9 SEPTEMBER, MIDDAY — THE GAME ON YOUR DOMAIN: THE SITE WORKER IS BUILT (batch 2026-09-09-c in CLAUDE.md).**
 `server/site/` serves `blendo.monster` and `www.blendo.monster` (www → apex, http → https, the music sliced for
@@ -16,6 +25,22 @@ Safari's Range through the video worker's own code, html revalidated on every lo
 music 206, the tail byte-identical, avatars a day, 404s pass. YOUR DEPLOY LINE (item 7 below), then the three
 curls. Note: `site/` is packed from the CURRENT build, which carries the phone-poster batch of the same morning
 before it is pushed to GitHub. The full steps: docs/SITE-MOVE.md.
+
+**9 SEPTEMBER, THE MORNING — THE PHONE IS THE POSTER ALONE; THE FILM STAYS ON THE TABLETS AND THE DESKTOP (batch
+2026-09-09-b in CLAUDE.md).** Your word «leave only the poster on phones; the video on tablets and the desktop; both
+always full screen and under all the system elements». Done: on a phone-width screen (under 768, any orientation) the
+poster is the whole intro and not a byte of film is fetched; the iPad in portrait keeps last night's composition — the
+portrait film over its poster (the poster stays the cover of the load and the fallback; you named the phone, not the
+tablet's poster — say the word and the tablet becomes the film alone); the landscape iPad and the Mac keep the landscape
+film (an iPhone held sideways lays out wider than 768 and takes the landscape film — the width is what «phone» means
+here, as everywhere in the layout; say the word if a sideways phone should show the poster). «Full screen, under the
+system elements» is already how both intros are built: cover-fitted over the whole layout
+viewport; on the phone the poster's box runs under the address bar (deduced from your phone's measurement of 5 September;
+your phone is the check — no line and no violet at the bottom edge). Two limits, plainly: the zone under the clock and the
+island is a flat colour on EVERY web page (the intro's own sky here — a page has no rows above its origin, five editions
+measured it), and the browser's Fullscreen API needs a tap, so it cannot serve an autoplay intro. The suite: the phone
+arms re-based to «no film», the tablet film arms moved to 768×1024, a new arm measures the landscape film's full-viewport
+box; two of the moved arms were made page-driven after a race with the bench's clock showed up at the tablet size.
 
 **9 SEPTEMBER — THE PORTRAIT FILM ON THE PHONE AND THE PORTRAIT TABLET, THE GAME'S MUSIC ONLY AFTER THE INTRO (batch
 2026-09-09-a in CLAUDE.md).** Your 9:16 film (720×1280, 4 s, 4.4 MB) was re-encoded into two files next to the build —
@@ -28,8 +53,9 @@ mixed track (measured: a hit at 2 s and a broadband rumble tail — no separable
 that the GAME's background music never starts under an intro (poster or film) on any device and starts when the intro
 closes; the film's own track is the intro's only sound. If you meant a music bed INSIDE the clip, send an SFX-only
 render — one command re-encodes it. ⚠️ Named: 720 wide is a 1.6× upscale on your phone and 2.1× on the iPad — a
-1080×1920 render would be sharper at about double the bytes, your call. ⚠️ A landscape phone under 768 wide gets the
-portrait film cover-cropped, as it gets the poster. ⚠️ On the desktop the music no longer starts under the loading
+1080×1920 render would be sharper at about double the bytes, your call (⛔ since batch -b the same morning the phone
+shows the poster alone; the iPad's 2.1× is the one that matters). ⚠️ A landscape phone under 768 wide gets the
+portrait film cover-cropped, as it gets the poster (⛔ since batch -b: the poster alone). ⚠️ On the desktop the music no longer starts under the loading
 screen where autoplay was allowed (the wrapper, the portal) — it starts after the film, without the stutter. A bench at
 your phone's geometry and at 768×1024 was sent to you first. Guarded five new ways on the phone plus the re-based film
 arms; fifteen sabotage variants each reddened their own arm, a comment edit none. The suite: **1105 green, 0 red** (run 36). A read-only review (three lenses, a
@@ -40,10 +66,13 @@ and the body colour during the joint fade.
 **YOUR ONE COMMAND** — the two new files reach `video.blendo.monster` only with a redeploy of the video Worker
 (the same line as before): `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`,
 then `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro-portrait.webm` → `HTTP/2 206`. Until
-then the phone's film comes from github.io (the direct link takes the relative address anyway).
-**Your devices, when you look:** the phone — the poster, then the film starting on it, its sound on the first tap (the
-second skips), the film under the address bar, the music arriving only after; the iPad in portrait the same; whether
-the film starts at all on iOS Safari before the poster's hold runs out (an iOS load kick is in; unmeasurable here).
+then the iPad's portrait film comes from github.io (the direct link takes the relative address anyway; since batch -b
+the phone fetches no film at all).
+**Your devices, when you look:** the phone — the POSTER ALONE (no film starts on it), its bottom under the address bar
+with no line and no violet, the status zone the poster's sky, the music arriving only after; the iPad in portrait — the
+poster, then the film starting on it, its sound on the first tap (the second skips), the music only after; whether the
+film starts at all on iPadOS Safari before the poster's hold runs out (an iOS load kick is in; unmeasurable here); the
+landscape iPad and the Mac — the film over the whole viewport.
 
 **8 SEPTEMBER, NIGHT — THE BONUS OBJECT'S SHIMMER ON A CONTOUR (batch 2026-09-08-i in CLAUDE.md).** The
 electric band no longer paints the object's body: the shell is an inflated copy of the model (×1.06, the ice's
@@ -355,11 +384,11 @@ payment tests are on it.
    portal now receives our `level_completed` — make sure NO interstitial appears at all (we call
    none since 3 September; one would be the portal's own doing).
 5. A `?fps=1` reading from your iPhone on level 39+ on Hard.
-6. The video Worker — ONE redeploy so the two new portrait files reach `video.blendo.monster`
-   (the store reads the repo's `video/` folder; a dry-run deploy here reads 4 files — both pairs):
+6. The video Worker — ONE redeploy so the two new portrait files reach `video.blendo.monster` (they serve the iPad
+   in portrait alone since batch -b; the store reads the repo's `video/` folder; a dry-run deploy here reads 4 files — both pairs):
    `npx wrangler deploy --config /Users/ikorzyn/Desktop/Claude/Blender/server/video/wrangler.toml`, then
    `curl -sI -H 'Range: bytes=0-99' https://video.blendo.monster/blendo-intro-portrait.webm` → `HTTP/2 206`.
-   Until then the phone's film comes from github.io (the direct link takes the relative address anyway).
+   Until then the tablet's portrait film comes from github.io (the direct link takes the relative address anyway).
 
 7. YOUR DOMAIN — the site Worker's deploy (after step 1 in the dashboard, which you did; repeat after every
    release — the site does not follow GitHub):
@@ -370,13 +399,13 @@ payment tests are on it.
 
 ## Decisions only you can take
 
-- **The film's sound — an SFX-only stem?** The 9:16 file carries ONE mixed mono track (a hit at 2 s, a broadband
+- **The portrait film's sound — an SFX-only stem?** (The iPad in portrait is the only place it plays now.) The 9:16 file carries ONE mixed mono track (a hit at 2 s, a broadband
   rumble tail — nothing separable inside it). Shipped: the game's music never plays under an intro, the film's own
   track is the only sound. If «remove the music» meant a music bed INSIDE the clip, send an SFX-only render — one
   command re-encodes it into the same two files.
-- **A 1080×1920 render of the portrait film?** 720 wide is a 1.6× upscale on your phone and 2.1× on the iPad in
-  portrait. A 1080×1920 export from your source would be sharper at roughly double the bytes (~1.3 MB WebM,
-  ~2.7 MB MP4). Your call; the recipe is one command.
+- **A 1080×1920 render of the portrait film?** 720 wide is a 2.1× upscale on the iPad in portrait — the only place the
+  portrait film is seen since batch -b (the phone shows the poster). A 1080×1920 export from your source would be sharper
+  at roughly double the bytes (~1.3 MB WebM, ~2.7 MB MP4). Your call; the recipe is one command.
 - **The contour's thickness on the bonus object**: 1.06 now. Say «1.14 like the ice» and I widen the slot's
   camera with it (the object in the slot gets ~5 % smaller); say «thinner rim» and RIM drops from 0.30.
 - **blendo.monster — what moving the game there needs** (your question of 8 September). The domain is already

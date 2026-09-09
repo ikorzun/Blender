@@ -311,6 +311,9 @@ function tickIntro(dt){
           // pair, and the POSTER is its fallback (not ready in time, refused, broken → `splashPlay`, the 1.5 s hold as
           // before); where no film is gated the poster alone; neither → the game at once. The order of the two tests is
           // no longer inert: the film must be asked first, or the poster would fade before the film ever played.
+          // ⛔ 2026-09-09-b (his word «leave only the poster on phones; the video on tablets and the desktop»): the PHONE
+          // gates no film any more — its hand-off is the poster alone; the composition above is the PORTRAIT TABLET's.
+          // Nothing here changed: `videoGated()` decides, and on a phone-width viewport it is false.
           const go = ()=>{ if (intro && intro.phase === 'wait'){ beginDrop(); } };
           // the lift is STAMPED here once (the -a review): the poster's minimum counts from the curtain's lift whether the poster
           // plays now or as the film's fallback after its grace — `splashPlay(go, true)` from the fallback would have re-measured

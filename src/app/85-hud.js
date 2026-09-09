@@ -251,8 +251,10 @@ function videoClose(closeSplash){
   h.classList.remove('video-on'); h.classList.remove('video-out'); h.classList.remove('video');
   videoDone = true; videoAbort = null; videoSkipFn = null; bgmRelease();
   try { if (v){ v.pause(); while (v.firstChild) v.removeChild(v.firstChild); v.removeAttribute('src'); v.load(); } } catch(e){}   // free the decoder
-  // 2026-09-09-a: on the PLAYED path the poster under the phone's film goes with it (both faded together in finish);
-  // a bail keeps the poster — it is the fallback, and splashPlay takes over. Then the deferred music, if the intro is over.
+  // 2026-09-09-a: on the PLAYED path the poster under the portrait TABLET's film goes with it (both faded together in
+  // finish; ⛔ -b: the phone gates no film — his word «leave only the poster on phones» — so the only poster a film
+  // ever rides is the portrait tablet's); a bail keeps the poster — it is the fallback, and splashPlay takes over.
+  // Then the deferred music, if the intro is over.
   if (closeSplash) splashForceClose();
   bgmDeferredStart();
 }
@@ -271,7 +273,7 @@ function videoPlay(done, fallback){
     if (last) last.removeEventListener('error', onErr); v.removeEventListener('pointerdown', skip); v.removeEventListener('click', onClick); removeEventListener('keydown', skip); };
   const finish = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook();
     videoFadeAt = performance.now(); h.classList.add('video-out');
-    if (splashActive()){ splashFadeAt = videoFadeAt; h.classList.add('splash-out'); }   // 2026-09-09-a: the poster under the phone's film fades WITH it — one fade over the falling pile
+    if (splashActive()){ splashFadeAt = videoFadeAt; h.classList.add('splash-out'); }   // 2026-09-09-a: the poster under the portrait tablet's film fades WITH it — one fade over the falling pile (-b: the phone has no film)
     if (done) done();                                    // the fall starts under the fading video
     setTimeout(() => videoClose(true), VIDEO_FADE_MS + 40); };
   const bail = (why) => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = why; unhook(); videoClose(); fallback(); };
@@ -294,7 +296,7 @@ function videoPlay(done, fallback){
       return; }
     finish('skipped'); };
   const start = () => { if (settled) return;
-    clearTimeout(grace);   // the -a review's BLOCKER: a film that started via canplay was bailed by the grace at hand-off + 1.5 s — a hard cut mid-clip, no fade, the poster exposed (the phone's normal path through the kick)
+    clearTimeout(grace);   // the -a review's BLOCKER: a film that started via canplay was bailed by the grace at hand-off + 1.5 s — a hard cut mid-clip, no fade, the poster exposed (the portrait tablet's normal path through the kick; -b: the phone has no film)
     v.removeEventListener('canplay', onCan);
     h.classList.add('video-on');
     v.addEventListener('ended', onEnd); v.addEventListener('pointerdown', skip); v.addEventListener('click', onClick); addEventListener('keydown', skip);
@@ -306,12 +308,13 @@ function videoPlay(done, fallback){
       () => { if (settled) return;   // a forced close rejects the pending play() too (AbortError) — not a refusal
         videoSound = wantSound ? 'refused' : 'music-off'; v.muted = true;
         tryPlay().then(null, () => { h.classList.remove('video-on'); bail('autoplay refused'); }); }); };
-  // ⚡ THE LOAD KICK (2026-09-09-a, the phone's film): iOS Safari need not buffer a `preload=auto` film at all before a
-  // play() — then `canplay` never fires inside the grace and the phone would ALWAYS fall back to the poster, silently.
+  // ⚡ THE LOAD KICK (2026-09-09-a, the portrait tablet's film — iPadOS Safari is the same engine; ⛔ -b: the phone gates
+  // no film, so this branch serves the tablet): iOS Safari need not buffer a `preload=auto` film at all before a
+  // play() — then `canplay` never fires inside the grace and the tablet would ALWAYS fall back to the poster, silently.
   // A muted play() on a `playsinline` element is the documented way to make it load; the element is display:none until
   // `video-on`, so nothing shows. At `canplay` the kicked play is PAUSED and REWOUND before start(), so the film does
   // not begin mid-clip (start() plays it again, with sound where allowed). Chromium never needs it (readyState ≥ 3 at
-  // the hand-off on file://) — the branch is measured only on a slow stand; his phone is the check.
+  // the hand-off on file://) — the branch is measured only on a slow stand; his iPad in portrait is the check (-b).
   let kicked = false; videoKicked = false;
   const onCan = () => { if (kicked){ kicked = false; try { v.pause(); v.currentTime = 0; } catch(_){} } start(); };
   videoAbort = () => { if (settled) return; settled = true; clearTimeout(grace); videoWhy = 'forced'; unhook(); videoClose(); };

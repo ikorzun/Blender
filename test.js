@@ -11144,7 +11144,13 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         nat: [im.naturalWidth, im.naturalHeight], fit: getComputedStyle(im).objectFit, phase: window.__game.introPhase(), trans: cs.transitionDuration, pe: cs.pointerEvents,
         cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor],
         cardsDisp: [getComputedStyle(document.getElementById('edgeTop')).display, getComputedStyle(document.getElementById('edgeBot')).display], body: getComputedStyle(document.body).backgroundColor,
-        order: (() => { const g = document.getElementById('splashGate'), c = document.getElementById('edgeTop'); return !!g && !!c && g.tagName === 'SCRIPT' && g === document.body.firstElementChild && !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); })() }; });
+        order: (() => { const g = document.getElementById('splashGate'), c = document.getElementById('edgeTop'); return !!g && !!c && g.tagName === 'SCRIPT' && g === document.body.firstElementChild && !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); })(),
+        // 2026-09-09-d: no FIXED/STICKY box may cover WebKit's two sample points while the poster shows — the census is
+        // STRUCTURAL (position, visibility, display, the box), not a hit test: elementsFromPoint honours pointer-events,
+        // WebKit's first pass does not (09-05-h)
+        cands: (() => { const f = (x, y) => Array.from(document.querySelectorAll('body *')).filter(el => { const cs = getComputedStyle(el); if (cs.position !== 'fixed' && cs.position !== 'sticky') return false; if (cs.display === 'none' || cs.visibility === 'hidden') return false; const r = el.getBoundingClientRect(); return r.width >= 0.9 * (innerWidth - 8) && r.height > 10 && r.left <= x && r.right >= x && r.top <= y && r.bottom >= y; }).map(el => el.id || el.className || el.tagName); return { top: f(innerWidth / 2, 4), bot: f(innerWidth / 2, innerHeight - 4) }; })(),
+        fill: getComputedStyle(document.getElementById('skyFill')).display, skyfillClass: document.documentElement.classList.contains('skyfill'), uiready: document.documentElement.classList.contains('uiready'),
+        hidden: ['c', 'topBar', 'bottomBar', 'face'].map(id => getComputedStyle(document.getElementById(id)).visibility) }; });
     expect(early.st.on && !early.st.out && early.display === 'block' && early.opacity === '1' && early.pos === 'absolute' && early.top === 0 && early.box[0] === early.vw && early.tall === true && early.chrome === 120 && early.box[1] === early.vh + 80 && early.docH === early.vh + 80 && early.nat[0] === 1129 && early.nat[1] === 2006 && early.fit === 'cover' && early.pe === 'none',
       'SPLASH: the owner\'s 1129×2006 picture lies over the phone viewport AND under its bottom bar from the start — absolute at the top, the TALL box (+80, the chrome\'s collapsed rest; the document with it) where the gate sees Apple WebKit with chrome, cover-fitted, untouchable (' + JSON.stringify({ st: early.st, display: early.display, pos: early.pos, top: early.top, box: early.box, vh: early.vh, docH: early.docH, tall: early.tall, chrome: early.chrome, nat: early.nat, fit: early.fit }) + '). ⛔ SABOTAGE: make the box fixed inset:0 again, or drop the html.splash-tall rule — the box ends at the layout viewport and the document is one viewport tall');
     expect(early.phase === 'wait',
@@ -11155,6 +11161,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'SPLASH: body carries the poster\'s sky while it shows — the status zone\'s colour with no card at the top, and NO gradient over it for the frames before the picture (' + JSON.stringify({ body: early.body, img: early.bodyImg }) + '). ⛔ SABOTAGE: drop the `html.splash body` rule, or its background-image:none');
     expect(early.imgBox[0] === 0 && early.imgBox[1] === 0 && early.imgBox[2] === early.box[0] && early.imgBox[3] === early.box[1],
       'SPLASH: the PICTURE\'s own box is the whole tall box — his «full width», the img\'s width/height rules, not only the container\'s (' + JSON.stringify({ imgBox: early.imgBox, box: early.box }) + '). ⛔ SABOTAGE: drop the img\'s width:100%/height:100%');
+    // 2026-09-09-d (his screenshot from blendo.monster: the zones over and under the poster in the GAME's lavender, the
+    // poster cut at the bar): while the poster shows NO fixed/sticky box covers either sample point — the load fill is
+    // display:none (it is fixed, full-height until uiready and declares the game's colours), the canvas and the bars are
+    // visibility:hidden — so the top zone falls to body (the poster's sky) and the bottom zone can show the poster's own rows
+    expect(early.skyfillClass === true && early.uiready === false && early.fill === 'none' && early.hidden.every(v => v === 'hidden') && early.cands.top.length === 0 && early.cands.bot.length === 0,
+      'SPLASH: NOTHING FIXED under the poster — the load fill display none although the load is still on (html.skyfill, no uiready yet), the canvas and the three HUD bars visibility hidden, and the structural census finds NO fixed/sticky box ≥ 90% wide covering (w/2, 4) or (w/2, h−4) (' + JSON.stringify({ skyfill: early.skyfillClass, uiready: early.uiready, fill: early.fill, hidden: early.hidden, cands: early.cands }) + '). ⛔ SABOTAGE: drop the `html.splash:not(.splash-out) #skyFill` rule (the fill declares the zenith to both zones), or the visibility rule (`#c` is a candidate at both points — the fill OVERPRINTS the poster under the bar)');
     expect(early.order === true,
       'SPLASH: the gate script is the FIRST child of body, before the edge cards — no frame can paint the game\'s card lines before the picture exists (' + early.order + '). ⛔ SABOTAGE: put a card before the gate');
     expect(early.trans === '0.3s' && early.st.ms === 1500 && early.st.fade === 300,
@@ -11170,9 +11182,10 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const gone = await ip.evaluate(() => ({ st: window.__game.splashState(), display: getComputedStyle(document.getElementById('introSplash')).display,
       cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor], phase: window.__game.introPhase(),
       topDisp: getComputedStyle(document.getElementById('edgeTop')).display, botDisp: getComputedStyle(document.getElementById('edgeBot')).display, body: getComputedStyle(document.body).backgroundColor,
-      docH: document.documentElement.scrollHeight, vh: innerHeight }));
-    expect(!gone.st.on && !gone.st.out && gone.st.done && gone.display === 'none' && gone.cards[0] === 'rgb(172, 168, 255)' && gone.cards[1] === 'rgb(197, 255, 216)' && gone.topDisp === 'block' && gone.botDisp === 'block' && gone.body === 'rgb(172, 168, 255)' && gone.docH === gone.vh,
-      'SPLASH: gone after the fade — display none, both cards back (display block) on the sky\'s stops, body on the zenith, the document one viewport tall again, the intro running (' + JSON.stringify({ st: gone.st, display: gone.display, cards: gone.cards, topDisp: gone.topDisp, botDisp: gone.botDisp, body: gone.body, docH: gone.docH, vh: gone.vh, phase: gone.phase }) + ')');
+      docH: document.documentElement.scrollHeight, vh: innerHeight,
+      cVis: getComputedStyle(document.getElementById('c')).visibility, barVis: getComputedStyle(document.getElementById('bottomBar')).visibility }));
+    expect(!gone.st.on && !gone.st.out && gone.st.done && gone.display === 'none' && gone.cards[0] === 'rgb(172, 168, 255)' && gone.cards[1] === 'rgb(197, 255, 216)' && gone.topDisp === 'block' && gone.botDisp === 'block' && gone.body === 'rgb(172, 168, 255)' && gone.docH === gone.vh && gone.cVis === 'visible',
+      'SPLASH: gone after the fade — display none, both cards back (display block) on the sky\'s stops, body on the zenith, the document one viewport tall again, the intro running  — and the CANVAS visible again (2026-09-09-d: hidden under the poster only; the bars stay under the uiready gate until the intro ends, as before) (' + JSON.stringify({ st: gone.st, display: gone.display, cards: gone.cards, topDisp: gone.topDisp, botDisp: gone.botDisp, body: gone.body, docH: gone.docH, vh: gone.vh, phase: gone.phase, cVis: gone.cVis, barVis: gone.barVis }) + ')');
     await ip.close();
     // (A2) THE SAME PHONE WITHOUT CHROME (the wrapper's full-screen view: screen = viewport): the FLAT box, one viewport, no side rows lost for nothing
     const ip2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -11192,9 +11205,10 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(notApple.on && notApple.apple === false && notApple.chrome === 120 && notApple.tall === false && notApple.box[1] === notApple.vh,
       'SPLASH not Apple: chrome present but the engine is not Apple WebKit — the flat box (the tall one serves Safari\'s glass, no one else\'s bars) (' + JSON.stringify(notApple) + '). ⛔ SABOTAGE: drop the Apple term of the gate');
     await ip3.close();
-    // (A4) THE PORTRAIT TABLET (2026-09-08-h, his answer «the poster instead of the film»): both flags on a 768×1024
-    // page — the splash fires by the PORTRAIT term, the video gate holds (no sources, not a byte), the fall held; and
-    // with the Apple feature test + chrome the box stays FLAT: the tall box runs under the PHONE's bottom bar only
+    // (A4) THE PORTRAIT TABLET (2026-09-08-h, his answer «the poster instead of the film»; since 2026-09-09-a the portrait
+    // FILM over that poster, and 2026-09-09-b keeps it — his word named the phone alone): both flags on a 768×1024 page —
+    // the splash fires by the PORTRAIT term, the video gate fires TOO with the portrait pair, the fall held; and with the
+    // Apple feature test + chrome the box stays FLAT: the tall box runs under the PHONE's bottom bar only
     const tp = await browser.newPage({ viewport: { width: 768, height: 1024 }, screen: { width: 768, height: 1144 } });
     tp.on('pageerror', e => errors.push('PAGEERROR(splash-tablet): ' + e.message));
     await tp.addInitScript(appleUA);
@@ -11206,9 +11220,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         vGated: vs.gated, vSrcs: vs.srcs.length, vSrc0: vs.srcs[0] || null, vPreload: vs.preload, vPos: getComputedStyle(document.getElementById('introVideo')).position,
         vBox: (() => { const q = document.getElementById('introVideo').getBoundingClientRect(); return [q.width, q.height]; })(), docH: document.documentElement.scrollHeight }; });
     // ⛔ 2026-09-09-a (his word «add the video for the portrait mode of the phone and the tablet»): the poster stays the cover
-    // and the video gate fires TOO — the PORTRAIT pair, the film absolute in the poster's flat box (the tall box is the phone's)
+    // and the video gate fires TOO — the PORTRAIT pair, the film absolute in the poster's flat box (the tall box is the phone's).
+    // ✅ 2026-09-09-b: the TABLET keeps this composition (an unnamed property is not touched); the PHONE is the poster alone
+    // — arms A6, H and Q1; the tablet's film arms are Q2–Q4 (moved from the phone)
     expect(tab.on && tab.kind === 'portrait' && tab.display === 'block' && tab.box[0] === tab.vw && tab.box[1] === tab.vh && tab.phase === 'wait' && tab.vGated && tab.vSrcs === 2 && /blendo-intro-portrait\.webm$/.test(tab.vSrc0) && tab.vPreload === 'auto' && tab.vPos === 'absolute' && tab.vBox[0] === tab.vw && tab.vBox[1] === tab.vh,
-      'SPLASH portrait tablet: at 768×1024 the POSTER is the cover and the PORTRAIT film is gated over it (2026-09-09-a) — the splash on by the portrait term, the fall held, two sources of the portrait pair (webm first), preload auto, the film absolute in the poster\'s own one-viewport box (' + JSON.stringify({ on: tab.on, kind: tab.kind, box: tab.box, vw: tab.vw, vh: tab.vh, phase: tab.phase, vGated: tab.vGated, vSrcs: tab.vSrcs, vSrc0: tab.vSrc0, vPreload: tab.vPreload, vPos: tab.vPos, vBox: tab.vBox }) + '). ⛔ SABOTAGE: drop the portrait term of the splash gate (no poster — and the film gated by nothing on a portrait viewport: the fall starts at once), drop the splashOn term of the video gate (the poster alone), or pick the landscape pair under the poster');
+      'SPLASH portrait tablet: at 768×1024 the POSTER is the cover and the PORTRAIT film is gated over it (2026-09-09-a) — the splash on by the portrait term, the fall held, two sources of the portrait pair (webm first), preload auto, the film absolute in the poster\'s own one-viewport box — kept by 2026-09-09-b, which took the film off the PHONE only (' + JSON.stringify({ on: tab.on, kind: tab.kind, box: tab.box, vw: tab.vw, vh: tab.vh, phase: tab.phase, vGated: tab.vGated, vSrcs: tab.vSrcs, vSrc0: tab.vSrc0, vPreload: tab.vPreload, vPos: tab.vPos, vBox: tab.vBox }) + '). ⛔ SABOTAGE: drop the portrait term of the splash gate (no poster — and the film gated by nothing on a portrait viewport: the fall starts at once), drop the tablet term of the video gate (the poster alone — the -c form), or pick the landscape pair under the poster');
     expect(tab.apple === true && tab.chrome === 120 && tab.tall === false && tab.box[1] === tab.vh && tab.docH === tab.vh,
       'SPLASH portrait tablet: Apple WebKit WITH chrome and still the FLAT box — the tall box is the phone WIDTH\'s (a portrait tablet\'s bar is at the top; +80 there would only hide the poster\'s last rows below the screen — the poster is width-limited here, the side is not cut at all) (' + JSON.stringify({ apple: tab.apple, chrome: tab.chrome, tall: tab.tall, box: tab.box, docH: tab.docH, vh: tab.vh }) + '). ⛔ SABOTAGE: drop the phone term of the tall rule');
     await tp.close();
@@ -11219,17 +11235,26 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const land = await lt.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length }));
     expect(!land.splash && land.kind === null && land.vGated && land.vSrcs === 2,
       'SPLASH landscape tablet: at 1024×768 the FILM takes the slot, no poster — the two gates are mirrors (' + JSON.stringify(land) + '). ⛔ SABOTAGE: make the splash gate\'s portrait term `!phone` alone (the poster on every wide viewport), or invert the orientation test of `__introFilm` (the film on portrait only)');
+    // 2026-09-09-b (his word «the poster and the video always full screen, under all the system elements»): the film PLAYS
+    // the whole layout viewport here — fixed, cover, its box the viewport from the top (the -c rule, stated for the tablet;
+    // the zones beyond the layout viewport are WebKit's own and take body's colour — the film's sky, arm E)
+    let onA5 = true; try { await lt.waitForFunction(() => window.__game && window.__game.videoState().on, null, { timeout: 30000 }); } catch(_){ onA5 = false; }
+    // ⚠️ an inline read, not `vstate` — that helper's `const` stands BELOW this arm (a TDZ ReferenceError kills the section, the 2026-09-08-i trap)
+    const land2 = await lt.evaluate(() => { const v = document.getElementById('introVideo'), cs = getComputedStyle(v), r = v.getBoundingClientRect();
+      return { st: window.__game.videoState(), display: cs.display, pos: cs.position, fit: cs.objectFit, top: r.top, box: [r.width, r.height], vw: innerWidth, vh: innerHeight, phase: window.__game.introPhase() }; });
+    expect(onA5 && land2.st.on && !land2.st.out && land2.display === 'block' && land2.pos === 'fixed' && land2.fit === 'cover' && land2.top === 0 && land2.box[0] === land2.vw && land2.box[1] === land2.vh && land2.phase === 'wait' && land2.st.paused === false,
+      'VIDEO landscape tablet: the film plays the WHOLE viewport — fixed, cover-fitted, its box the layout viewport from the top edge, the fall held (' + JSON.stringify({ onA5, on: land2.st.on, out: land2.st.out, display: land2.display, pos: land2.pos, fit: land2.fit, top: land2.top, box: land2.box, vw: land2.vw, vh: land2.vh, phase: land2.phase, paused: land2.st.paused }) + '). ⛔ SABOTAGE: give #introVideo a bottom inset or a fixed height under 100% (the film ends short of the viewport), or object-fit contain (bands)');
     await lt.close();
     // (A6) THE LANDSCAPE PHONE below 768 (an iPhone turned sideways): the PHONE term, not the portrait one — the poster, and no film
     const lph = await browser.newPage({ viewport: { width: 667, height: 375 } });
     await lph.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await lph.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await lph.waitForTimeout(400);
-    const lp0 = await lph.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length, vSrc0: (s => s ? s.getAttribute('src') : null)(document.querySelector('#introVideo source')) }));
-    // ⛔ 2026-09-09-a: the film is gated under the poster here too — the PORTRAIT pair (the poster's), cover-cropped on the
-    // sideways phone exactly as the poster is; named to the owner, not special-cased (the pair follows the poster, never a
-    // second sample of the orientation — the -h review's rule)
-    expect(lp0.splash && lp0.kind === 'phone' && lp0.vGated && lp0.vSrcs === 2 && /blendo-intro-portrait\.webm$/.test(lp0.vSrc0),
-      'SPLASH landscape phone: at 667×375 the poster comes by the PHONE term and the PORTRAIT film is gated over it (' + JSON.stringify(lp0) + '). ⛔ SABOTAGE: drop the phone term of the splash gate (a landscape phone would get nothing — no poster, and the film by `film` alone is off under 768), or pick the pair by a second orientation sample (the landscape film under the portrait poster)');
+    const lp0 = await lph.evaluate(() => ({ splash: document.documentElement.classList.contains('splash'), kind: window.__splashKind || null, vGated: document.documentElement.classList.contains('video'), vSrcs: document.querySelectorAll('#introVideo source').length, vSrc0: (s => s ? s.getAttribute('src') : null)(document.querySelector('#introVideo source')), vPreload: document.getElementById('introVideo').preload }));
+    // ⛔ 2026-09-09-a gated the PORTRAIT film under the poster here too (the pair followed the poster). ✅ 2026-09-09-b (his word
+    // «leave only the poster on phones»): the phone — whatever its orientation — is the poster ALONE, and the video gate fetches
+    // NOT A BYTE on it (the -c line, true again)
+    expect(lp0.splash && lp0.kind === 'phone' && !lp0.vGated && lp0.vSrcs === 0 && lp0.vSrc0 === null && lp0.vPreload === 'none',
+      'SPLASH landscape phone: at 667×375 the poster comes by the PHONE term and NO film is gated — the phone is the poster alone (2026-09-09-b): no sources, preload none (' + JSON.stringify(lp0) + '). ⛔ SABOTAGE: drop the phone term of the splash gate (a landscape phone would get nothing — no poster, and the film by `film` alone is off under 768), gate the film on `html.splash` alone (the -a form: the portrait pair over the phone\'s poster), or `window.__introFilm = !portrait` (the phone term dropped: the film by the width term)');
     await lph.close();
     // (B) an automated page WITHOUT the flag: no splash, no comic — the fall starts at once
     const np = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -11340,7 +11365,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await vboot(pp, '?dev=1&video=1&splash=0'); await pp.waitForTimeout(400);
     const ph = await vstate(pp);
     expect(!ph.st.gated && ph.st.srcs.length === 0 && ph.st.preload === 'none' && !ph.story,
-      'VIDEO phone with `?splash=0`: the WHOLE phone intro is off — no poster and therefore no film under it (2026-09-09-a: the phone\'s film rides the poster; with the poster on it is the portrait pair — arms Q1-Q4): no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: `window.__introFilm = !portrait` (the phone term dropped: `portrait` is FALSE on a phone by its own definition, so the film is gated here too — reddens this arm AND A6; measured); or gate the film on the phone width outright');
+      'VIDEO phone with `?splash=0`: the WHOLE phone intro is off — no poster, and the phone gates no film at all since 2026-09-09-b (the poster is its whole intro; with the poster on, arm Q1 holds the same «no film»): no sources, preload none, no comic (' + JSON.stringify({ gated: ph.st.gated, srcs: ph.st.srcs, preload: ph.st.preload, story: ph.story }) + '). ⛔ SABOTAGE: `window.__introFilm = !portrait` (the phone term dropped: `portrait` is FALSE on a phone by its own definition, so the film is gated here too — reddens this arm AND A6 AND Q1; measured); or gate the film on the phone width outright');
     await pp.close();
     // (J) reduced motion: the gate holds on the desktop too
     const rp2 = await browser.newPage({ viewport: { width: 1280, height: 832 } });
@@ -11420,105 +11445,127 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(onM && mr.st.sound === 'music-off' && mr.st.muted === true && mr.st.paused === false && mr.st.bgmHeld === false,
       'VIDEO music off: with the music slider at 0 the film plays MUTED by the player\'s own setting (' + JSON.stringify({ onM, sound: mr.st.sound, muted: mr.st.muted, paused: mr.st.paused }) + '). ⛔ SABOTAGE: ignore musicVol');
     await mp2.close();
-    // ===== THE PHONE'S FILM (2026-09-09-a, his word «add the video for the portrait mode of the phone and the tablet»,
-    // «remove the music, leave only the sound»): where the poster is on, the video gate fires TOO, with the PORTRAIT pair;
-    // the film plays OVER the poster in the poster's own box (absolute; the tall box under the phone's bottom bar where the
-    // gate found chrome), the poster stays under it as the cover of the load and the fallback; both fade together at the
-    // end; and the game's music does not start under either intro — it starts at the intro's close. =====
-    // (Q1) the phone with both flags, the Apple feature test + chrome (his phone to the gate); nobody touches the page
-    // before the hand-off, so the film's own play() is refused (a fresh phone) and it plays muted — the box is the point here
+    // ===== THE PORTRAIT TABLET'S FILM (2026-09-09-a, his word «add the video for the portrait mode of the phone and the
+    // tablet», «remove the music, leave only the sound»; ⛔ 2026-09-09-b, his word «leave only the poster on phones; the video
+    // on tablets and the desktop»: the PHONE left this composition — arm Q1 below holds the phone as the poster ALONE, and the
+    // film arms Q2–Q4 moved from 390×844 to 768×1024): where the poster is on by the PORTRAIT term, the video gate fires TOO,
+    // with the PORTRAIT pair; the film plays OVER the poster in the poster's own one-viewport box (absolute), the poster stays
+    // under it as the cover of the load and the fallback; both fade together at the end; and the game's music does not start
+    // under either intro — it starts at the intro's close. =====
+    // (Q1) THE PHONE IS THE POSTER ALONE (2026-09-09-b): his phone to the gate (Apple + chrome), BOTH flags, nobody touches the
+    // page — the poster in its tall box, NO film gated (not a byte), body the POSTER's sky throughout, the music deferred; the
+    // poster's own hold and fade close the intro
     const q1 = await browser.newPage({ viewport: { width: 390, height: 844 }, screen: { width: 390, height: 964 } });
-    q1.on('pageerror', e => errors.push('PAGEERROR(phone-film): ' + e.message));
+    q1.on('pageerror', e => errors.push('PAGEERROR(phone-poster-alone): ' + e.message));
     await q1.addInitScript(appleUA);
     await q1.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await q1.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await q1.waitForTimeout(1500);
     await q1.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
     const q1a = await vstate(q1);
-    expect(q1a.st.gated && q1a.st.srcs.length === 2 && /blendo-intro-portrait\.webm$/.test(q1a.st.srcs[0]) && /blendo-intro-portrait\.mp4$/.test(q1a.st.srcs[1]) && q1a.st.preload === 'auto' && q1a.s.on,
-      'PHONE FILM: with the poster on, the video gate fires too — the PORTRAIT pair (webm first), preload auto, the poster still on (' + JSON.stringify({ gated: q1a.st.gated, srcs: q1a.st.srcs, preload: q1a.st.preload, splash: q1a.s.on }) + '). ⛔ SABOTAGE: drop the splashOn term of the video gate, or pick the landscape pair under the poster');
-    let onQ = true; try { await q1.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onQ = false; }
-    const q1b = await vstate(q1);
-    expect(onQ && q1b.st.on && !q1b.st.out && q1b.display === 'block' && q1b.pos === 'absolute' && q1b.top === 0 && q1b.box[0] === q1b.vw && q1b.box[1] === q1b.vh + 80 && q1b.docH === q1b.vh + 80 && q1b.z === '2147483647' && q1b.pdisp === 'block' && q1b.s.on && !q1b.s.out && q1b.cards[0] === 'none' && q1b.cards[1] === 'none' && q1b.phase === 'wait' && q1b.st.paused === false,
-      'PHONE FILM: it plays OVER the poster in the poster\'s own TALL box — absolute at the top, one viewport + 80 under the bottom bar (the document with it), above the poster (z 2147483647 over its 2147483646), the poster still displayed under it, both cards gone, the fall held (' + JSON.stringify({ onQ, on: q1b.st.on, pos: q1b.pos, top: q1b.top, box: q1b.box, vw: q1b.vw, vh: q1b.vh, docH: q1b.docH, z: q1b.z, poster: q1b.pdisp, splash: q1b.s.on, cards: q1b.cards, phase: q1b.phase, paused: q1b.st.paused, sound: q1b.st.sound }) + '). ⛔ SABOTAGE: leave the film FIXED under the poster (drop the `html.splash #introVideo` rule), drop the tall rule, or hide the poster while the film plays');
-    expect(q1b.body === 'rgb(134, 211, 248)' && q1b.bgmPaused === true && q1b.st.deferred === true && q1b.st.holds === true,
-      'PHONE FILM: while it plays body wears the PORTRAIT film\'s first top rows (the status zone), and the game\'s music has NOT started — deferred to the intro\'s close (' + JSON.stringify({ body: q1b.body, bgmPaused: q1b.bgmPaused, deferred: q1b.st.deferred, holds: q1b.st.holds }) + '). ⛔ SABOTAGE: drop the phone play-time body rule, or start the music on the load\'s attempt under an intro');
-    let endQ = true; try { await q1.waitForFunction(() => window.__game.videoState().out, null, { timeout: 20000 }); } catch(_){ endQ = false; }
+    expect(!q1a.st.gated && q1a.st.srcs.length === 0 && q1a.st.preload === 'none' && q1a.display === 'none' && q1a.s.on && !q1a.s.out && q1a.pdisp === 'block' && q1a.phase === 'wait' && q1a.cards[0] === 'none' && q1a.cards[1] === 'none',
+      'PHONE POSTER ALONE: with the poster on and the video flag set, the video gate does NOT fire on the phone — no sources, preload none, the film display none — the poster displayed, the fall held, both cards gone (' + JSON.stringify({ gated: q1a.st.gated, srcs: q1a.st.srcs, preload: q1a.st.preload, display: q1a.display, splash: q1a.s.on, poster: q1a.pdisp, phase: q1a.phase, cards: q1a.cards }) + '). ⛔ SABOTAGE: gate the film on `html.splash` alone (the -a form: the portrait pair over the phone\'s poster), or on the phone width');
+    expect(q1a.body === 'rgb(142, 218, 253)' && q1a.bgmPaused === true && q1a.st.deferred === true && q1a.st.holds === true,
+      'PHONE POSTER ALONE: body wears the POSTER\'s sky (not a film\'s), and the game\'s music has NOT started — deferred to the intro\'s close (' + JSON.stringify({ body: q1a.body, bgmPaused: q1a.bgmPaused, deferred: q1a.st.deferred, holds: q1a.st.holds }) + '). ⛔ SABOTAGE: start the music on the load\'s attempt under an intro');
+    let fadedQ1 = true; try { await q1.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 }); } catch(_){ fadedQ1 = false; }
     const q1c = await vstate(q1);
-    expect(endQ && q1c.st.why === 'ended' && q1c.st.out && q1c.s.on && q1c.s.out && q1c.phase === 'drop' && q1c.pdisp === 'block' && q1c.body === 'rgb(172, 168, 255)',
-      'PHONE FILM: at its END the film and the poster fade TOGETHER (both `-out` in one read — the poster does not reappear under the fading film), the fall starts in that frame, and body is on the game\'s ZENITH for the fade (the -a review: the frame an iPad edge would freeze carries the game\'s colour, as on the desktop) (' + JSON.stringify({ endQ, why: q1c.st.why, out: q1c.st.out, splashOn: q1c.s.on, splashOut: q1c.s.out, phase: q1c.phase, poster: q1c.pdisp, body: q1c.body }) + '). ⛔ SABOTAGE: drop the splash-out line of finish(), close the poster before the film ends, or drop the `html.splash.video-out body` rule (body stays the poster\'s sky through the fade)');
+    expect(fadedQ1 && q1c.s.out && q1c.s.fadeAt - q1c.s.t0 >= 3990 && q1c.phase === 'drop' && !q1c.st.gated && q1c.display === 'none' && q1c.pdisp === 'block',
+      'PHONE POSTER ALONE: the poster keeps its OWN minimum and fades with the fall starting under it — no film ever came (' + JSON.stringify({ fadedQ1, out: q1c.s.out, ms: Math.round(q1c.s.fadeAt - q1c.s.t0), phase: q1c.phase, gated: q1c.st.gated, display: q1c.display, poster: q1c.pdisp }) + ')');
     await q1.waitForTimeout(600);
     const q1d = await vstate(q1);
-    expect(q1d.st.done && !q1d.st.gated && !q1d.s.on && !q1d.s.out && q1d.display === 'none' && q1d.pdisp === 'none' && q1d.docH === q1d.vh && q1d.body === 'rgb(172, 168, 255)' && q1d.cards[0] === 'block' && q1d.cards[1] === 'block' && q1d.st.holds === false && q1d.st.deferred === false,
-      'PHONE FILM: gone after the fade — the film AND the poster display none, the document one viewport again, body on the zenith, the cards back, the intro no longer holds the music and the deferred start was attempted (refused here: no gesture on this page) (' + JSON.stringify({ done: q1d.st.done, splashOn: q1d.s.on, display: q1d.display, poster: q1d.pdisp, docH: q1d.docH, vh: q1d.vh, body: q1d.body, cards: q1d.cards, holds: q1d.st.holds, deferred: q1d.st.deferred, bgmPaused: q1d.bgmPaused }) + '). ⛔ SABOTAGE: videoClose() without closing the poster on the played path');
+    expect(!q1d.st.gated && !q1d.s.on && !q1d.s.out && q1d.display === 'none' && q1d.pdisp === 'none' && q1d.docH === q1d.vh && q1d.body === 'rgb(172, 168, 255)' && q1d.cards[0] === 'block' && q1d.cards[1] === 'block' && q1d.st.holds === false && q1d.st.deferred === false,
+      'PHONE POSTER ALONE: gone after the fade — the poster display none, the document one viewport again, body on the zenith, the cards back, the intro no longer holds the music and the deferred start was attempted (whether it played is the bench\'s: the reads before the close carry activation here, a fresh phone has none until a tap — printed, not asserted) (' + JSON.stringify({ splashOn: q1d.s.on, display: q1d.display, poster: q1d.pdisp, docH: q1d.docH, vh: q1d.vh, body: q1d.body, cards: q1d.cards, holds: q1d.st.holds, deferred: q1d.st.deferred, bgmPaused: q1d.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from splashClose');
     await q1.close();
-    // (Q2) a film that cannot load on the phone: the POSTER keeps the slot — its own 1.5 s hold and fade, as before the film
-    const q2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    q2.on('pageerror', e => errors.push('PAGEERROR(phone-film-fallback): ' + e.message));
-    await q2.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
+    // (Q2) a film that cannot load on the PORTRAIT TABLET: the POSTER keeps the slot — its own 1.5 s hold and fade, as before the film
+    const q2 = await browser.newPage({ viewport: { width: 768, height: 1024 } });
+    q2.on('pageerror', e => errors.push('PAGEERROR(tablet-film-fallback): ' + e.message));
+    // the poster's knob at 6 s (not 4): the arm reads «the fall still held» AFTER goto's load event, which at 768×1024 can come
+    // late (the -b measurement); the second arm asserts only «≥ the -b minimum», so a longer hold changes no statement
+    await q2.addInitScript(() => { window.__splashMinMs = 6000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
     await boot(q2, '?dev=1&splash=1&video=1&vsrc=' + encodeURIComponent('no-such-dir/'));
     let fellQ = true; try { await q2.waitForFunction(() => window.__game.videoState().done, null, { timeout: 8000 }); } catch(_){ fellQ = false; }
     const q2a = await vstate(q2);
     expect(fellQ && q2a.st.why === 'error' && !q2a.st.on && q2a.display === 'none' && q2a.s.on && !q2a.s.out && q2a.pdisp === 'block' && q2a.phase === 'wait' && q2a.st.holds === true,
-      'PHONE FILM fallback: a film that cannot load hands the slot BACK TO THE POSTER — the poster still on and displayed, the fall still held, the music still deferred (' + JSON.stringify({ fellQ, why: q2a.st.why, on: q2a.st.on, display: q2a.display, splashOn: q2a.s.on, splashOut: q2a.s.out, poster: q2a.pdisp, phase: q2a.phase, holds: q2a.st.holds }) + '). ⛔ SABOTAGE: videoClose(true) on the bail (the poster closed with the broken film), or fall back to go() instead of the poster');
+      'TABLET FILM fallback: at 768×1024 a film that cannot load hands the slot BACK TO THE POSTER — the poster still on and displayed, the fall still held, the music still deferred (' + JSON.stringify({ fellQ, why: q2a.st.why, on: q2a.st.on, display: q2a.display, splashOn: q2a.s.on, splashOut: q2a.s.out, poster: q2a.pdisp, phase: q2a.phase, holds: q2a.st.holds }) + '). ⛔ SABOTAGE: videoClose(true) on the bail (the poster closed with the broken film), fall back to go() instead of the poster, or drop the tablet term of the video gate (no film is gated at all — `why` stays empty)');
     let fadedQ = true; try { await q2.waitForFunction(() => window.__game.splashState().out, null, { timeout: 20000 }); } catch(_){ fadedQ = false; }
     const q2b = await q2.evaluate(() => ({ st: window.__game.splashState(), phase: window.__game.introPhase() }));
     expect(fadedQ && q2b.st.fadeAt - q2b.st.t0 >= 3990 && q2b.phase === 'drop',
-      'PHONE FILM fallback: the poster then keeps its OWN minimum and fades with the fall starting under it — the -b rule intact behind a broken film (' + JSON.stringify({ fadedQ, ms: Math.round(q2b.st.fadeAt - q2b.st.t0), phase: q2b.phase }) + ')');
+      'TABLET FILM fallback: the poster then keeps its OWN minimum and fades with the fall starting under it — the -b rule intact behind a broken film (' + JSON.stringify({ fadedQ, ms: Math.round(q2b.st.fadeAt - q2b.st.t0), phase: q2b.phase }) + ')');
     await q2.close();
-    // (Q3) THE PHONE'S FIRST TAP = THE FILM'S SOUND, on the absolute film ABOVE the poster (a touch context, nobody touched the
-    // page before the hand-off — refused): one tap → sound on, the poster still under, the fall held, the music deferred;
-    // a second → both fade; after the close the deferred music starts (the taps' activation)
-    const q3ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
-    const q3 = await q3ctx.newPage(); q3.on('pageerror', e => errors.push('PAGEERROR(phone-film-tap): ' + e.message));
-    await q3.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); });
-    await q3.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1'); await q3.waitForTimeout(1500);
-    await q3.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
-    let onQ3 = true; try { await q3.waitForFunction(() => window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 20000 }); } catch(_){ onQ3 = false; }
+    // (Q3) THE PORTRAIT TABLET'S FIRST TAP = THE FILM'S SOUND, on the absolute film ABOVE the poster (a touch context, nobody
+    // touched the page before the hand-off — refused): one tap → sound on, the poster still under, the fall held, the music
+    // deferred; a second → both fade; after the close the deferred music starts (the taps' activation)
+    const q3ctx = await browser.newContext({ viewport: { width: 768, height: 1024 }, hasTouch: true });
+    const q3 = await q3ctx.newPage(); q3.on('pageerror', e => errors.push('PAGEERROR(tablet-film-tap): ' + e.message));
+    // ⚠️ NO FIXED WAIT AND NO EVALUATE BEFORE THE FILM'S OWN PLAY() (2026-09-09-b): at 768×1024 the hand-off can come BEFORE
+    // `goto` resolves (the load event waits on the poster), so the -a form — 1.5 s after goto, then a poll — read a film that
+    // had already ENDED (one run in two); and an evaluate BEFORE the hand-off would grant the page activation and the film
+    // would SOUND instead of being refused (the -e measurement). The page reports the film's first PLAYING frame under
+    // `video-on` on the console (where the kick's own muted `playing` fires before start() it carries no `video-on` and is
+    // skipped; where Blink drains `canplay` and `playing` in one task it may carry it — either way the poll on `sound !== ''`
+    // below makes the arm indifferent to WHICH `playing` was reported, and the refusal is decided at play() call time, before
+    // any evaluate of this arm); a wait on a console event is passive. `goto` returns at COMMIT, not at the load event —
+    // the load event waits on the 500 KB poster and can come after the film has ended (the -b measurement).
+    await q3.addInitScript(() => { window.__splashMinMs = 4000; localStorage.setItem('mixer_lb_url', 'http://lb.stub');
+      addEventListener('playing', e => { if (e.target && e.target.id === 'introVideo' && document.documentElement.classList.contains('video-on')) console.log('Q3PLAYING:' + e.target.muted); }, true); });
+    const q3playing = q3.waitForEvent('console', { predicate: m => /^Q3PLAYING:/.test(m.text()), timeout: 30000 }).then(m => m.text(), () => null);
+    await q3.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1', { waitUntil: 'commit' });
+    const q3ev = await q3playing;
+    let onQ3 = q3ev !== null; try { await q3.waitForFunction(() => window.__game && window.__game.videoState().on && window.__game.videoState().sound !== '', null, { timeout: 5000 }); } catch(_){ onQ3 = false; }
     const q3a = await vstate(q3);
-    await q3.touchscreen.tap(195, 400); await q3.waitForTimeout(250);
+    await q3.touchscreen.tap(384, 500); await q3.waitForTimeout(250);
     const q3b = await vstate(q3);
     // ⚠️ `bgmHeld === false` is the discriminating term: a build that STARTS the music on the tap and then holds it (the -h
     // form) also reads bgmPaused true and deferred true (the load's attempt deferred it) — measured on the v05 variant
     expect(onQ3 && q3a.st.sound === 'refused' && q3b.st.on && !q3b.st.out && q3b.st.sound === 'on' && q3b.st.muted === false && q3b.st.paused === false && q3b.s.on && q3b.phase === 'wait' && q3b.bgmPaused === true && q3b.st.deferred === true && q3b.st.bgmHeld === false,
-      'PHONE FILM first tap = sound: the tap reaches the film above the poster — unmuted, still playing, the poster still under, the fall held, the music the gesture would have unlocked DEFERRED, not started under the film and held (' + JSON.stringify({ onQ3, before: q3a.st.sound, sound: q3b.st.sound, muted: q3b.st.muted, paused: q3b.st.paused, splashOn: q3b.s.on, phase: q3b.phase, bgmPaused: q3b.bgmPaused, deferred: q3b.st.deferred, bgmHeld: q3b.st.bgmHeld }) + '). ⛔ SABOTAGE: put the poster above the film (the tap never reaches it), or start the music in unlockBgm under an intro');
-    await q3.touchscreen.tap(195, 400);
+      'TABLET FILM first tap = sound: at 768×1024 the tap reaches the film above the poster — unmuted, still playing, the poster still under, the fall held, the music the gesture would have unlocked DEFERRED, not started under the film and held (' + JSON.stringify({ onQ3, playing: q3ev, before: q3a.st.sound, sound: q3b.st.sound, muted: q3b.st.muted, paused: q3b.st.paused, splashOn: q3b.s.on, phase: q3b.phase, bgmPaused: q3b.bgmPaused, deferred: q3b.st.deferred, bgmHeld: q3b.st.bgmHeld }) + '). ⛔ SABOTAGE: start the music in unlockBgm under an intro (measured -b: leaving the film FIXED under the poster does NOT redden this arm — the poster is pointer-events:none and the tap falls through to the film; that sabotage is A4\'s)');
+    await q3.touchscreen.tap(384, 500);
     const q3c = await vstate(q3);
     expect(q3c.st.why === 'skipped' && q3c.st.out && q3c.s.out && q3c.phase === 'drop' && q3c.body === 'rgb(172, 168, 255)',
-      'PHONE FILM second tap = skip: the film and the poster fade together, the fall starts, body on the zenith in that read (' + JSON.stringify({ why: q3c.st.why, out: q3c.st.out, splashOut: q3c.s.out, phase: q3c.phase, body: q3c.body }) + ')');
+      'TABLET FILM second tap = skip: the film and the poster fade together, the fall starts, body on the zenith in that read (' + JSON.stringify({ why: q3c.st.why, out: q3c.st.out, splashOut: q3c.s.out, phase: q3c.phase, body: q3c.body }) + ')');
     await q3.waitForTimeout(600);
     const q3d = await vstate(q3);
     expect(q3d.st.done && q3d.st.holds === false && q3d.st.deferred === false && q3d.bgmPaused === false,
-      'PHONE FILM after the close: the DEFERRED music starts — the taps\' activation lets a play() from the close through (' + JSON.stringify({ done: q3d.st.done, holds: q3d.st.holds, deferred: q3d.st.deferred, bgmPaused: q3d.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose / splashClose');
+      'TABLET FILM after the close: the DEFERRED music starts — the taps\' activation lets a play() from the close through (' + JSON.stringify({ done: q3d.st.done, holds: q3d.st.holds, deferred: q3d.st.deferred, bgmPaused: q3d.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose / splashClose');
     await q3ctx.close();
-    // (Q4) THE CANPLAY PATH — THE FILM STARTED LATE MUST NOT BE BAILED BY THE GRACE (the -a review's blocker): the phone's normal
-    // path by the kick's own reasoning (iOS need not buffer before a play()), unreachable on file:// where the element is ready at
+    // (Q4) THE CANPLAY PATH — THE FILM STARTED LATE MUST NOT BE BAILED BY THE GRACE (the -a review's blocker): the portrait
+    // tablet's normal path by the kick's own reasoning (iPadOS Safari need not buffer before a play()), unreachable on file:// where the element is ready at
     // the hand-off — so `readyState` is HELD at 0 by an init script until the kick has run, then released with one synthetic
     // `canplay`. The controller is the real one; only the element's readiness is staged. The film must still be on screen well
     // past hand-off + 1.5 s, with its listeners (a tap skips it).
-    const q4 = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    q4.on('pageerror', e => errors.push('PAGEERROR(phone-film-grace): ' + e.message));
-    await q4.addInitScript(() => { window.__splashMinMs = 6000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); window.__vHold = true;
+    const q4 = await browser.newPage({ viewport: { width: 768, height: 1024 } });
+    q4.on('pageerror', e => errors.push('PAGEERROR(tablet-film-grace): ' + e.message));
+    // ⚠️ THE RELEASE IS PAGE-DRIVEN (2026-09-09-b): the hold is lifted and the synthetic `canplay` dispatched by the PAGE, 200 ms
+    // after the kick itself — the first play() on #introVideo while held. Released from the bench it was a race: at 768×1024 the
+    // hand-off can come BEFORE `goto` resolves (the load event waits on the 500 KB poster), so the 1.5 s grace fired before the
+    // bench's first read and the arm went red on a healthy build (measured: one run in two). The kick's time is the HAND-OFF's
+    // time (the kick is issued synchronously on the grace path), and every later read is placed against it.
+    await q4.addInitScript(() => { window.__splashMinMs = 6000; localStorage.setItem('mixer_lb_url', 'http://lb.stub'); window.__vHold = true; window.__kickAt = null; window.__relAt = null;
       const d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'readyState');
-      Object.defineProperty(HTMLMediaElement.prototype, 'readyState', { configurable: true, get(){ return window.__vHold ? 0 : d.get.call(this); } }); });
-    // ⚠️ NO 1.5 s wait after goto here (the L arms' device against an early gesture): on file:// the hand-off comes ~1 s after
-    // goto and the grace 1.5 s later — a wait that long let the grace fire BEFORE the release, and the healthy build read red
-    await q4.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1');
+      Object.defineProperty(HTMLMediaElement.prototype, 'readyState', { configurable: true, get(){ return window.__vHold ? 0 : d.get.call(this); } });
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function(){ if (this.id === 'introVideo' && window.__vHold && window.__kickAt === null){ window.__kickAt = performance.now();
+          const el = this; setTimeout(() => { window.__vHold = false; el.dispatchEvent(new Event('canplay')); window.__relAt = performance.now(); }, 200); }
+        return play.apply(this, arguments); }; });
+    // `goto` returns at COMMIT (the load event can come after the hand-off at this size); the polls that follow may precede
+    // the hand-off and grant the page activation — the film may then SOUND, which this arm tolerates (its last read is
+    // «skipped OR sound on»); the kick and the grace do not depend on activation
+    await q4.goto('file://' + PAGE_FILE + '?dev=1&splash=1&video=1', { waitUntil: 'commit' });
     await q4.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
-    let kickedQ = true; try { await q4.waitForFunction(() => window.__game.videoState().kicked === true, null, { timeout: 10000 }); } catch(_){ kickedQ = false; }
-    const q4a = await vstate(q4);
-    const tKick = Date.now();
-    await q4.evaluate(() => { window.__vHold = false; document.getElementById('introVideo').dispatchEvent(new Event('canplay')); });
-    await q4.waitForTimeout(200);
-    const q4b = await vstate(q4);
-    // past hand-off + 1.5 s by a margin: the grace, were it still armed, has fired by now
-    await q4.waitForTimeout(Math.max(0, 2200 - (Date.now() - tKick)));
+    let kickedQ = true; try { await q4.waitForFunction(() => window.__game.videoState().kicked === true && window.__kickAt !== null && window.__relAt !== null, null, { timeout: 10000 }); } catch(_){ kickedQ = false; }
+    // past hand-off + 1.5 s by a margin: the grace, were it still armed, has fired by now (the wait is on the PAGE's clock)
+    let pastQ = true; try { await q4.waitForFunction(() => performance.now() > window.__kickAt + 2200, null, { timeout: 10000 }); } catch(_){ pastQ = false; }
     const q4c = await vstate(q4);
-    expect(kickedQ && q4a.st.kicked === true && !q4a.st.on && q4a.s.on && q4b.st.on && q4b.st.paused === false && q4c.st.on && !q4c.st.out && !q4c.st.done && q4c.st.why === '' && q4c.display === 'block' && q4c.s.on && q4c.phase === 'wait' && q4c.st.cur > 0.3,
-      'PHONE FILM grace: a film not ready at the hand-off is KICKED (a muted play on the hidden element), and once canplay releases it it plays ON — still on screen, still playing and the fall still held 2.2 s after the kick, i.e. past the 1.5 s grace, which start() cleared (' + JSON.stringify({ kickedQ, kicked: q4a.st.kicked, onAtKick: q4a.st.on, onAfterCan: q4b.st.on, pausedAfterCan: q4b.st.paused, on: q4c.st.on, out: q4c.st.out, done: q4c.st.done, why: q4c.st.why, display: q4c.display, splash: q4c.s.on, phase: q4c.phase, cur: q4c.st.cur }) + '). ⛔ SABOTAGE: drop clearTimeout(grace) from start() — the film snaps to display:none at +1.5 s, why «not ready in time», the poster exposed');
-    await q4.mouse.click(195, 400);
+    const q4t = await q4.evaluate(() => ({ kickAt: window.__kickAt, relAt: window.__relAt, now: performance.now() }));
+    // the film started AFTER the hand-off (the grace path — `t1` is start()'s stamp) and BEFORE the grace would have fired: the
+    // precondition without which «still on at +2.2 s» proves nothing; which canplay started it (the real one or the released
+    // synthetic one) does not matter — both run onCan → start(), the path that must clear the grace
+    const lateStart = q4c.st.t1 > q4t.kickAt && q4c.st.t1 < q4t.kickAt + 1500;
+    expect(kickedQ && pastQ && q4c.st.kicked === true && lateStart && q4c.st.on && !q4c.st.out && !q4c.st.done && q4c.st.why === '' && q4c.display === 'block' && q4c.s.on && q4c.phase === 'wait' && q4c.st.cur > 0.3,
+      'TABLET FILM grace: at 768×1024 a film not ready at the hand-off is KICKED (a muted play on the hidden element), and once canplay releases it it plays ON — still on screen, still playing and the fall still held 2.2 s after the kick, i.e. past the 1.5 s grace, which start() cleared (' + JSON.stringify({ kickedQ, pastQ, kicked: q4c.st.kicked, kickAt: Math.round(q4t.kickAt), relAt: Math.round(q4t.relAt), t1: Math.round(q4c.st.t1), readAt: Math.round(q4t.now), lateStart, on: q4c.st.on, out: q4c.st.out, done: q4c.st.done, why: q4c.st.why, display: q4c.display, splash: q4c.s.on, phase: q4c.phase, cur: q4c.st.cur }) + '). ⛔ SABOTAGE: drop clearTimeout(grace) from start() — the film snaps to display:none at +1.5 s, why «not ready in time», the poster exposed');
+    await q4.mouse.click(384, 500);
     const q4d = await vstate(q4);
     expect(q4d.st.why === 'skipped' || q4d.st.sound === 'on',
-      'PHONE FILM grace: the late-started film still has its input — a click skips it (or, refused, gives it its sound) (' + JSON.stringify({ why: q4d.st.why, sound: q4d.st.sound, out: q4d.st.out }) + ')');
+      'TABLET FILM grace: the late-started film still has its input — a click skips it (or, refused, gives it its sound) (' + JSON.stringify({ why: q4d.st.why, sound: q4d.st.sound, out: q4d.st.out }) + ')');
     await q4.close();
     // (P2) THE PLATFORM'S MUTE HELD THROUGH THE INTRO'S CLOSE (the -a review's bug): the deferred start must NOT play the track
     // while the platform says off — a portal with the player's sound off sets it before the hand-off; the later un-mute starts it
