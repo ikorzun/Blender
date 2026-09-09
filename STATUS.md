@@ -6,7 +6,28 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-j (his own icon.jpg in the PWA) on top of -h and -i on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+**Build: batch 2026-09-09-k (the document gets a validator on the domain) on top of -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+
+**9 SEPTEMBER, NIGHT — WHY THE DOMAIN FELT SLOWER, AND THE TELEGRAM ANSWER (batch 2026-09-09-k).**
+THE SPEED: measured, and the pipe was innocent — the domain even sends FEWER bytes than GitHub Pages (brotli
+4.50 MB against gzip 4.59 MB, the same build). The difference is the browser cache. Pages says `max-age=600`
+and gives you an ETag, so a second visit downloads NOTHING. The domain said `no-cache`, and Cloudflare's asset
+store gives the page at `/` no ETag at all — every asset around it has one, only the page does not. Without a
+validator «revalidate» means «download the whole 4.5 MB again», on every single load. Fixed: the site now
+hands out the build's hash as the ETag and answers a repeat visit with a 304 of zero bytes. That is faster
+than Pages on a second visit and still instant on a release, which `max-age` would not be. The service worker
+also stopped rewriting the 12.7 MB page into its cache on every load; once per build is enough.
+⚠️ IT REACHES THE DOMAIN ONLY WITH YOUR DEPLOY, and the check afterwards is one line, both below.
+
+THE PREVIEW: our side is correct and I measured it from outside. To Telegram's crawler the address returns the
+1162-byte card with the picture in it, and `og.jpg` answers 200 as a 2 MB JPEG. I also checked the thing that
+would have been really bad — Cloudflare's cache ignoring `Vary: User-Agent` and mixing the two — and it does
+not: six alternating requests gave the bot the card and the browser the game, six times out of six. So what is
+left is Telegram itself. It remembers a FAILED preview for days, and `@WebpageBot` is the only way to clear
+it. To tell the two causes apart in five seconds: send `https://blendo.monster/?v=2` in any chat — that URL
+Telegram has never seen, and the site answers it exactly like the main one. Preview appears there → the main
+URL is just a stale cache, push it through `@WebpageBot`. Preview does NOT appear even there → the crawler is
+not reaching us, and the answer is in Cloudflare, Security → Events, filter user-agent `TelegramBot`.
 
 **9 SEPTEMBER, NIGHT — THE ICON IS YOURS NOW (batch 2026-09-09-j).** Your `icon.jpg` replaced the crop I had cut
 out of the poster. It is taken AS IS for Android, the desktop and iOS: nothing cropped, nothing recoloured, the

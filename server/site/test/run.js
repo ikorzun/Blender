@@ -3,6 +3,7 @@
 // `ASSETS` binding over four known files, so the tests state the routing, the slicing and the cache
 // policy, not Cloudflare. ⚠️ Every guard is verified BOTH WAYS by the sibling break.js.
 const path = require('path');
+const { pathToFileURL } = require('url');
 let pass = 0; const fails = [];
 function expect(cond, name) { if (cond) { pass++; console.log('PASS: ' + name); } else { fails.push(name); console.log('FAIL: ' + name); } }
 
@@ -27,6 +28,7 @@ const FILES = {
   // i.e. exactly «the browser does not understand that the game can be installed». The worker forces it.
   '/manifest.webmanifest': { type: 'application/octet-stream', body: '{"name":"Blendo"}', etag: '"w1"' },
   '/sw.js': { type: 'text/javascript', body: 'self.addEventListener("fetch",function(){});', etag: '"s1"' },
+  '/build.txt': { type: 'text/plain', body: 'abc123def456', etag: '"b1"' },
 };
 // `drop` removes one file from the store — the only way to state what happens to a `site/` packed before
 // the card existed (the worker must fall through to the build, not answer the crawler with a 404).
@@ -54,8 +56,11 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   // 1. the html at the apex over https: 200, the store's type, revalidate-every-time
   { const { res, log } = await go('https://blendo.monster/');
     const body = await res.text();
-    expect(res.status === 200 && /text\/html/.test(res.headers.get('content-type')) && body === HTML && res.headers.get('cache-control') === 'no-cache' && log.length === 1 && log[0].path === '/index.html',
-      'HTML: https://blendo.monster/ is the index from the store, 200 text/html, Cache-Control no-cache (a release reaches the next load by ETag)'); }
+    // ⚠️ `log.length === 1` since 2026-09-09-k: the worker reads /build.txt once per ISOLATE for the
+    // document's validator, so the FIRST document request of a run carries it and later ones do not — a
+    // count would make this arm depend on its position in the file.
+    expect(res.status === 200 && /text\/html/.test(res.headers.get('content-type')) && body === HTML && res.headers.get('cache-control') === 'no-cache' && log.some((l) => l.path === '/index.html') && !log.some((l) => l.path === '/music.mp3' || l.path === '/card.html'),
+      'HTML: https://blendo.monster/ is the index from the store, 200 text/html, Cache-Control no-cache (a release reaches the next load by ETag; asked=' + log.map((l) => l.path).join(',') + ')'); }
   // 2. www → apex, 301, the path and the query survive
   { const { res, log } = await go('https://www.blendo.monster/menu/?x=1&y=2');
     expect(res.status === 301 && res.headers.get('location') === 'https://blendo.monster/menu/?x=1&y=2' && log.length === 0,
@@ -89,9 +94,12 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   // 11. the bridge script: revalidate every time
   { const { res } = await go('https://blendo.monster/playgama-bridge.js');
     expect(res.status === 200 && res.headers.get('cache-control') === 'no-cache' && (await res.text()) === JS, 'BRIDGE: playgama-bridge.js is served with no-cache (an SDK bump reaches the next load)'); }
-  // 12. a conditional reload of the html: the store's 304 passes through
-  { const { res } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"h1"' } });
-    expect(res.status === 304, 'HTML 304: If-None-Match with the current ETag → 304 from the store, passed through (' + res.status + ')'); }
+  // 12. a conditional reload: the store's 304 passes through.
+  // ⛔ MOVED OFF THE DOCUMENT 2026-09-09-k: `/` no longer forwards the client's If-None-Match to the store
+  // (it would earn a 304 for a validator that is not ours and we would pass on an empty page), so the
+  // document's own conditional case is DOC-ETAG below. The pass-through itself is still real everywhere else.
+  { const { res } = await go('https://blendo.monster/playgama-bridge.js', { headers: { 'if-none-match': '"j1"' } });
+    expect(res.status === 304, 'BRIDGE 304: If-None-Match with the store\'s ETag → 304, passed through (' + res.status + ')'); }
   // 13. a missing path: the store's 404 passes through
   { const { res } = await go('https://blendo.monster/nope.txt');
     expect(res.status === 404, 'MISSING: /nope.txt → 404 from the store (' + res.status + ')'); }
@@ -138,6 +146,37 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   { const { res } = await go('https://blendo.monster/sw.js');
     expect(res.status === 200 && res.headers.get('cache-control') === 'no-cache' && /javascript/.test(res.headers.get('content-type') || ''),
       'PWA: sw.js revalidates every time and keeps its JavaScript type — a worker script with a wrong MIME fails registration with a SecurityError (' + res.status + ' ' + res.headers.get('content-type') + ' ' + res.headers.get('cache-control') + ')'); }
+
+  // 23-26. THE DOCUMENT'S VALIDATOR (2026-09-09-k). The store gives `/` no ETag at the edge, so with
+  //        `no-cache` a returning player re-downloaded the whole 4.5 MB every load. The worker now hands
+  //        out the build stamp and answers a conditional request itself.
+  { const { res, log } = await go('https://blendo.monster/');
+    expect(res.status === 200 && res.headers.get('etag') === '"abc123def456"' && res.headers.get('cache-control') === 'no-cache' && (await res.text()) === HTML,
+      'DOC-ETAG: the document carries the build stamp as its ETag and still revalidates (' + res.status + ' ' + res.headers.get('etag') + ' ' + res.headers.get('cache-control') + ' asked=' + log.map(l => l.path).join(',') + ')'); }
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"abc123def456"' } });
+    const body = await res.text();
+    expect(res.status === 304 && body === '' && !log.some(l => l.path === '/index.html'),
+      'DOC-ETAG: a matching If-None-Match is answered 304 with no body, and the 12.7 MB document is never read from the store (' + res.status + ' body=' + body.length + 'B asked=' + log.map(l => l.path).join(',') + ')'); }
+  { const { res } = await go('https://blendo.monster/', { headers: { 'if-none-match': 'W/"abc123def456"' } });
+    expect(res.status === 304,
+      'DOC-ETAG: a WEAK If-None-Match matches too — the edge weakens a strong ETag when it compresses, and a browser sends back what it was given (' + res.status + ')'); }
+  { // a store packed before build.txt existed: degraded, never broken. A FRESH module, because the stamp is
+    // memoised per isolate and every arm above has already filled it.
+    const fresh = (await import(pathToFileURL(process.env.SITE_WORKER ? path.resolve(process.env.SITE_WORKER) : path.join(__dirname, '..', 'src', 'index.js')).href + '?nobuild')).default;
+    const log = []; const res = await fresh.fetch(new Request('https://blendo.monster/'), { ASSETS: fakeAssets(log, '/build.txt') });
+    // ⚠️ the arm does NOT demand «no ETag at all»: this fake store gives /index.html one of its own, and at
+    // the real edge it does not — what is asserted is that we invent no stamp when there is no build.txt.
+    const et = res.headers.get('etag');
+    expect(res.status === 200 && (await res.text()) === HTML && et !== '"abc123def456"',
+      'DOC-ETAG: a store with no build.txt still serves the document — no stamp invented, but never a 404 or an empty page (' + res.status + ' etag=' + et + ')'); }
+
+  { // 27. A STALE VALIDATOR MUST GET THE WHOLE PAGE. ⛔ THIS IS THE ARM FOR THE ONE REAL HAZARD OF THE
+    //     shortcut: forward the client's If-None-Match to the store and a browser holding ANY other tag
+    //     earns the store's 304, whose empty body we would hand over as the game.
+    const { res } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"h1"' } });
+    const body = await res.text();
+    expect(res.status === 200 && body === HTML,
+      'DOC-ETAG: a client holding a STALE validator gets the whole document, never an empty 304 (' + res.status + ' body=' + body.length + 'B)'); }
 
   console.log('\nSITE WORKER: ' + pass + ' PASS, ' + fails.length + ' FAIL');
   if (fails.length) { console.log('SITE WORKER: FAIL'); process.exit(1); } else console.log('SITE WORKER: PASS');

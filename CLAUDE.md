@@ -17978,3 +17978,88 @@ RATHER THAN CHASED:** Android's launch splash shows the icon on `background_colo
 POSTER, so matching the poster keeps the transition the eye actually follows seamless; the price is that his
 icon's own border (123..144 red) meets the splash's 122 with a step of up to 21 units at the middle of an edge.
 No single value removes both, and a whole-screen step is more visible than a halo round a small icon.
+
+## BATCH 2026-09-09-k: THE DOCUMENT HAD NO VALIDATOR ON THE DOMAIN (his two complaints: «still no preview in
+## telegram» and «the game loads longer at the address than on github pages»)
+
+### THE TELEGRAM HALF: OUR SIDE IS CORRECT, MEASURED, AND THE CAUSE IS NOT IN THE PAGE
+Against the live domain, with a `TelegramBot (like TwitterBot)` user-agent: `/` returns **1162 bytes** of
+card carrying `og:image`, and `og.jpg` returns **200 image/jpeg, 2 094 276 bytes**, a day of cache. So he DID
+deploy and the shortcut works.
+⛔⛔ **AND THE DANGEROUS THING WAS CHECKED RATHER THAN ASSUMED: Cloudflare's edge cache ignores
+`Vary: User-Agent` on every plan below enterprise**, which would have meant either players being served the
+1 KB card or Telegram being served the 12.7 MB build, at random. **Six alternating requests, bot and browser:
+429 bytes / 4 504 872 bytes, six times, `cf-cache-status: HIT` throughout — the edge separates them
+perfectly** (`run_worker_first` puts the script before the cache). No action needed, and now it is written
+down instead of being a worry.
+⚠️ WHAT REMAINS IS HIS TO CHECK, AND A DIAGNOSTIC THAT SETTLES IT IN FIVE SECONDS: Telegram caches a preview,
+INCLUDING A FAILURE, for days. `https://blendo.monster/?v=2` is a URL Telegram has never seen, and the worker
+answers it exactly as the apex (the DOC test reads the PATHNAME, so a query changes nothing — measured: 1162
+to a bot, 4.5 MB to a browser). If the preview appears for `?v=2`, the canonical URL is a cached miss and
+`@WebpageBot` clears it. If it does NOT, the crawler is not reaching us at all and the answer is in
+Cloudflare → Security → Events filtered by `TelegramBot`, which no token in this session can read.
+
+### THE SPEED HALF: THE STORE GIVES `/` NO ETag, AND `no-cache` WITHOUT A VALIDATOR IS A FULL RE-DOWNLOAD
+⚠️ **THE FIRST MEASUREMENT REFUTED THE OBVIOUS SUSPECT.** The domain is not slower on the wire: it serves
+**brotli, 4 504 872 B** against Pages' **gzip, 4 587 348 B**, the same build byte for byte (md5 equal on both
+hosts), comparable TTFB, and its best of three totals was 3.80 s against Pages' 6.48 s on this line. The film
+is comparable too (video.blendo.monster 1.82 s against Pages 1.53 s for the full 1.1 MB, both ~0.3 s on a
+Range). Whatever he felt, it was not the pipe.
+⛔⛔ **THE CAUSE IS CACHING, AND IT IS A DEFECT OF OUR OWN POLICY.** Full headers, live:
+
+| | GitHub Pages | blendo.monster |
+|---|---|---|
+| `cache-control` | `max-age=600` | `no-cache` |
+| `etag` | `W/"6aa18822-c2e707"` | **absent** |
+| `last-modified` | present | **absent** |
+
+A returning player on Pages downloads **nothing** for ten minutes and then revalidates into a 304. On the
+domain `no-cache` means «revalidate before use», and **with no validator the revalidation is an
+unconditional GET — the whole 4.5 MB, on every single load.**
+⚠️ AND THE ETag IS MISSING ONLY THERE, WHICH IS WHY IT WAS INVISIBLE: measured across the domain, the icons
+(`"f48be…"`), the manifest (`W/"adde2…"`), the bridge (`W/"c55f2…"`) and `og.jpg` (`"b1287…"`) ALL keep the
+store's ETag at the edge. Only `/` has none — the store's index rewrite carries no validator there, though it
+does under `wrangler dev` locally. **A policy written on the assumption that a validator exists must check
+that it does; the comment in the worker had promised «the ETag makes that a 304» since 2026-09-09-c.**
+
+**THE FIX IS A VALIDATOR, NOT A LONGER `max-age`.** `no-cache` is the promise that a release reaches the next
+load, and a window would break exactly that for its length. `tools/site-pack.py` writes `site/build.txt` = the
+md5 of index.html (the same stamp `sw.js` carries), and the site worker hands it out as the document's ETag,
+answering a matching `If-None-Match` itself with a 304 of zero bytes. Faster than Pages on a repeat visit AND
+still instant on a release. The stamp is read ONCE per isolate; a failure is memoised too, or a store packed
+before this batch would be asked on every request.
+⚠️⚠️ **TWO DETAILS THAT ARE THE WHOLE CORRECTNESS OF IT, AND EACH HAS ITS OWN GUARD:**
+- **the store is asked WITHOUT the client's conditional headers** — the card's own reason: an `If-None-Match`
+  that is not ours would otherwise earn the store's 304, and we would hand that empty body over AS THE GAME.
+  Its arm is «a client holding a STALE validator gets the whole document», and the sabotage that forwards the
+  header reddens exactly it;
+- **the comparison is weak** (`W/"x"` matches `"x"`): the edge weakens a strong ETag whenever it compresses,
+  and a browser sends back what it was given.
+
+**AND THE SERVICE WORKER STOPPED REWRITING 12.7 MB ON EVERY NAVIGATION.** `fromNetworkThenCache` cloned the
+whole document into the Cache API on every load — real disk work on a phone for nothing, since the cache NAME
+carries the build hash and an entry that is there IS this build's. Now: one write per build. ⚠️ Its guard's
+control is the second half — «one put» is also true of a worker that caches nothing, so the entry must be
+there afterwards and BOTH navigations must still have gone to the network.
+
+### THE GUARDS, AND THE THREE THINGS THE SABOTAGE RUN CORRECTED
+The site worker's test is **27 green** (four new DOC-ETAG arms plus the stale-validator one), the PWA section
+**9 green**, and every sabotage lands where reasoned. Two existing arms MOVED with the rule rather than being
+patched: «the html from the store» no longer counts the store requests (the isolate reads `build.txt` once, so
+a count would depend on the arm's position in the file), and «a conditional reload passes the store's 304
+through» moved OFF the document to the bridge, because the document's validator is ours now.
+⚠️ **AND THE TOOL CAUGHT WHAT I WOULD HAVE MISSED: a sabotage anchor stopped being unique.** `DOC.test(url
+.pathname) && ` now matches two shortcuts (the card's and the validator's), and `break.js` printed **STALE
+SABOTAGE (2 anchors)** instead of patching one at random — which is exactly what that check is for. The anchor
+carries `PREVIEW_BOT` now.
+⚠️ Two expected counts were re-derived, not copied: «the cache policy dropped» **6 → 5** (the document sets
+its own `no-cache` in the shortcut now, so the html arm stays green), and «the shortcut ignores the
+user-agent» **5 → 10** (the card shortcut stands BEFORE the validator, so «everyone is a bot» replaces the
+document for all five DOC-ETAG arms as well).
+
+✅ **PROVEN END TO END ON THE REAL RUNTIME** (`wrangler dev --local-protocol https`, killed by recorded PID):
+a plain GET returns 200 with `ETag: "1e02859b201a"` and `no-cache`; a matching `If-None-Match`, strong or
+weak, returns **304 with 0 bytes**; a stale one returns the full **12 773 127**; HEAD returns 200 with no
+body; the Telegram card is still 1162 and the music's Range still 206.
+⚠️ WHAT ONLY HIS DEPLOY CAN SHOW: that the ETag survives Cloudflare's edge. The evidence says it will — every
+other asset's does — but it is one curl to confirm, and it is in STATUS.

@@ -7,7 +7,7 @@
 # upload 5.6 MB for nothing; `--with-video` copies it all the same (a belt for a future gate change).
 # `site/` is gitignored: a product of the build, rebuilt from scratch on every run (rm -rf, then copy).
 # Run: `python3 tools/site-pack.py [--with-video] [--quiet]`; `npm run site:deploy` runs it before wrangler.
-import os, re, shutil, sys
+import os, re, shutil, sys, hashlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'site')
 FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3', 'og.jpg',
@@ -60,6 +60,15 @@ for f in FILES:
 cardp = os.path.join(OUT, 'card.html')
 with open(cardp, 'w', encoding='utf-8') as fh: fh.write(build_card(os.path.join(ROOT, 'index.html')))
 n = os.path.getsize(cardp); total += n; count += 1; rows.append(('card.html (crawlers)', n))
+# ⚡ THE BUILD STAMP (2026-09-09-k, his «the game loads longer at the address than on GitHub Pages»).
+# MEASURED: the assets store gives every file an ETag EXCEPT the document at `/` (the icons, the manifest,
+# the bridge and og.jpg all keep theirs at the edge; `/` has none). With `Cache-Control: no-cache` and NO
+# validator a browser must re-fetch the WHOLE 4.5 MB compressed document on every single load, while GitHub
+# Pages answers a returning player from its own cache. This file gives the worker a validator to hand out.
+stampp = os.path.join(OUT, 'build.txt')
+stamp = hashlib.md5(open(os.path.join(ROOT, 'index.html'), 'rb').read()).hexdigest()[:12]
+with open(stampp, 'w', encoding='utf-8') as fh: fh.write(stamp)
+n = os.path.getsize(stampp); total += n; count += 1; rows.append(('build.txt (' + stamp + ')', n))
 ignore = shutil.ignore_patterns('.*', '_orig-p')   # dotfiles and the untracked originals folder inside avatars/
 for d in DIRS:
     shutil.copytree(os.path.join(ROOT, d), os.path.join(OUT, d), ignore=ignore)

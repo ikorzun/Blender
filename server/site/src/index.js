@@ -29,6 +29,27 @@ const STATIC_DAY = /\.(png|jpe?g|webp|gif|svg|ico|woff2?)$/i;  // a day; the htm
 const PREVIEW_BOT = /TelegramBot|Twitterbot|facebookexternalhit|WhatsApp|Discordbot|Slackbot|Slack-ImgProxy|LinkedInBot|Pinterest|redditbot|vkShare|Iframely|SkypeUriPreview|Embedly|Mastodon|Bluesky/i;
 const DOC = /^\/(index\.html)?$/;                            // the document itself, nothing else
 
+// ⚡ THE DOCUMENT'S VALIDATOR (2026-09-09-k, his «the game loads longer at the address than on GitHub Pages»).
+// MEASURED at the edge: every asset keeps the store's ETag (the icons, the manifest, the bridge, og.jpg) —
+// EXCEPT the document at `/`, which arrives with no ETag and no Last-Modified. Together with our own
+// `Cache-Control: no-cache` that means a returning player re-downloads the WHOLE 4.5 MB compressed document
+// on EVERY load, while GitHub Pages (max-age=600 + ETag) answers him from his own browser cache for nothing.
+// ⚠️ THE FIX IS A VALIDATOR, NOT A LONGER max-age: `no-cache` is the promise that a release reaches the next
+// load (2026-09-09-c), and a max-age would break exactly that for the length of the window. With an ETag the
+// browser asks and gets a 304 of a few bytes — faster than Pages AND still instant on a release.
+// The stamp is the md5 of index.html, written into site/build.txt by tools/site-pack.py, read ONCE per
+// isolate. ⚠️ A failure is memoised too, or a store without build.txt would be asked on every request.
+let BUILD_TAG = null;
+async function buildTag(env, url) {
+  if (BUILD_TAG !== null) return BUILD_TAG;
+  BUILD_TAG = '';
+  try {
+    const r = await env.ASSETS.fetch(new Request(new URL('/build.txt', url).toString()));
+    if (r.status === 200) { const t = (await r.text()).trim(); if (/^[0-9a-f]{6,64}$/.test(t)) BUILD_TAG = '"' + t + '"'; }
+  } catch (_) {}
+  return BUILD_TAG;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -46,6 +67,23 @@ export default {
         const r = new Response(card.body, card);
         r.headers.set('Cache-Control', 'no-cache');
         r.headers.set('Vary', 'User-Agent');   // one URL, two documents: the shared cache must not mix them
+        return r;
+      }
+    }
+    if (DOC.test(url.pathname) && (request.method === 'GET' || request.method === 'HEAD')) {
+      const tag = await buildTag(env, url);
+      if (tag) {
+        const inm = request.headers.get('if-none-match') || '';
+        // a weak comparison: the edge weakens a strong ETag when it compresses, so `W/"x"` must match `"x"`
+        if (inm.split(',').some((t) => t.trim().replace(/^W\//, '') === tag)) {
+          return new Response(null, { status: 304, headers: { ETag: tag, 'Cache-Control': 'no-cache' } });
+        }
+        // the store is asked WITHOUT the client's conditional headers, for the card's reason: an
+        // If-None-Match of OURS would otherwise earn a 304 whose empty body we would pass on as the game
+        const up = await env.ASSETS.fetch(new Request(url.toString(), { method: request.method }));
+        const r = new Response(up.body, up);
+        r.headers.set('Cache-Control', 'no-cache');
+        r.headers.set('ETag', tag);
         return r;
       }
     }

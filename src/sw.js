@@ -47,9 +47,13 @@ self.addEventListener('activate', (e) => {
 async function fromNetworkThenCache(req) {
   try {
     const res = await fetch(req);
+    // ⚡ WRITE THE DOCUMENT ONCE PER BUILD, NOT ONCE PER NAVIGATION (2026-09-09-k, his «the game loads longer
+    // at the address»): the document is 12.7 MB, and cloning it into the Cache API on every single load is
+    // real disk work on a phone for nothing. The cache NAME carries the build's hash, so an entry that is
+    // already there is by construction THIS build's — there is nothing to refresh.
     if (res && res.ok && res.type !== 'opaque') {
       const c = await caches.open(CACHE);
-      await c.put(DOC, res.clone());
+      if (!(await c.match(DOC))) await c.put(DOC, res.clone());
     }
     return res;
   } catch (err) {

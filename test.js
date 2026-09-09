@@ -11789,16 +11789,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
 
     // ---- 4. the worker's own behaviour, in a sandbox: what it refuses to touch
     const runSw = () => {
-      const calls = [], handlers = {};
+      const calls = [], handlers = {}, store = new Map();
       const box = {
         console, URL,
         self: { addEventListener: (t, f) => { handlers[t] = f; }, location: { origin: 'https://blendo.monster' }, skipWaiting: () => calls.push('skipWaiting'), clients: { claim: async () => calls.push('claim') } },
-        caches: { keys: async () => ['blendo-old', 'other'], delete: async k => { calls.push('delete:' + k); return true; }, open: async k => ({ put: async () => calls.push('put') }), match: async k => { calls.push('cache:' + (k.url || k)); return null; } },
+        // a Map-backed fake cache: `put once per build` cannot be stated against a cache that never remembers
+        caches: { keys: async () => ['blendo-old', 'other'], delete: async k => { calls.push('delete:' + k); return true; },
+          open: async k => ({ put: async (key, val) => { calls.push('put'); store.set(String((key && key.url) || key), val || true); },
+                              match: async key => { calls.push('chk:' + String((key && key.url) || key)); return store.get(String((key && key.url) || key)) || null; } }),
+          match: async k => { const key = String((k && k.url) || k); calls.push('cache:' + key); return store.get(key) || null; } },
         fetch: async r => { calls.push('net:' + (r.url || r)); return { ok: true, status: 200, type: 'basic', clone() { return this; } }; }
       };
       vm.createContext(box); vm.runInContext(swTxt, box);
       const ev = (url, o) => { o = o || {}; const e = { request: { url, method: o.method || 'GET', mode: o.mode || 'no-cors', headers: { has: n => !!(o.range && n === 'range') } }, took: null, respondWith(p) { e.took = p; } }; return e; };
-      return { handlers, calls, ev };
+      return { handlers, calls, ev, sandboxCaches: box.caches };
     };
     const sw = runSw();
     const ORI = 'https://blendo.monster/';
@@ -11831,6 +11835,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(nav.took !== null && navCalls[0] && navCalls[0].indexOf('net:') === 0 &&
       icon.took !== null && icoCalls[0] && icoCalls[0].indexOf('cache:') === 0 && mfEv.took !== null,
       'PWA: the worker HAS a fetch handler that answers (without one no browser offers an install), and the strategies are the right way round — the DOCUMENT goes to the network first (' + JSON.stringify(navCalls) + ') and a static asset to the cache first (' + JSON.stringify(icoCalls.concat(mfCalls)) + '). ⛔ WHY NETWORK-FIRST FOR THE DOCUMENT: index.html is served no-cache + ETag, so an unchanged build costs a 304 and a release reaches the next load. Serve it from the cache first and a player keeps yesterday\'s game until the second launch. ⛔ SABOTAGE: swap the two strategies');
+
+    // ---- 5b. THE DOCUMENT IS WRITTEN ONCE PER BUILD, NOT ONCE PER NAVIGATION (2026-09-09-k, his «the game
+    // loads longer at the address than on GitHub Pages»). The document is 12.7 MB; cloning it into the Cache
+    // API on every load is real disk work on a phone and it buys nothing, because the cache NAME carries the
+    // build's hash — an entry that is already there IS this build's.
+    // ⚠️ THE SECOND HALF IS THE CONTROL: «one put» is also true of a worker that caches nothing at all, so
+    // the entry must actually be there afterwards and the network must have been asked BOTH times (the
+    // document stays network-first, or a release would wait for the second launch).
+    {
+      const s2 = runSw();
+      const nav1 = s2.ev(ORI, { mode: 'navigate' }); s2.handlers.fetch(nav1); await nav1.took;
+      const nav2 = s2.ev(ORI + '?again=1', { mode: 'navigate' }); s2.handlers.fetch(nav2); await nav2.took;
+      const puts = s2.calls.filter(c => c === 'put').length;
+      const nets = s2.calls.filter(c => c.indexOf('net:') === 0).length;
+      const cached = await (await s2.sandboxCaches.open('x')).match({ url: './' });
+      expect(puts === 1 && nets === 2 && !!cached,
+        'PWA: two navigations write the 12.7 MB document to the cache ONCE, and both still go to the network (' +
+        JSON.stringify({ puts, nets, cached: !!cached, calls: s2.calls }) + '). ⛔ SABOTAGE: put on every navigation; skip the network when the cache has it');
+    }
 
     // ---- 6. the cache name carries THIS build, and the old one is dropped
     const stamp = crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE)).digest('hex').slice(0, 12);
