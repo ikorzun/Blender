@@ -11671,6 +11671,39 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(dims !== null && dims.w >= 1200 && Math.abs(dims.w / dims.h - 1.905) < 0.05 && String(dims.w) === og.w && String(dims.h) === og.h && packed,
       'OG: og.jpg is a JPEG at the root, ≥ 1200 wide at the 1.9:1 card ratio, its OWN pixel size in og:image:width/height, and listed in tools/site-pack.py so the site carries it (' + JSON.stringify({ dims, metaW: og.w, metaH: og.h, packed }) + '). ⛔ SABOTAGE: drop og.jpg from FILES; write another size into the meta');
   }
+  // THE CRAWLER CARD (2026-09-09-g, his word «the share picture does not come out in telegram»): the site
+  // worker hands a link-preview bot `card.html` instead of the 12.7 MB build, and tools/site-pack.py CUTS
+  // that card out of index.html's head. Two things are stated here, and they are the whole reason the card
+  // is safe: the card's metas are the build's metas CHARACTER FOR CHARACTER (a hand-written second copy
+  // would drift on the first edit of shell.html and nobody would notice until a link looked wrong), and the
+  // worker's bot list carries no search engine (serving a ranking crawler a different document is cloaking).
+  {
+    const pth = require('path'), os = require('os'), cp = require('child_process');
+    const root = pth.dirname(PAGE_FILE);
+    const html = fs.readFileSync(PAGE_FILE, 'utf8');
+    const metaRe = /<meta (?:name|property)="(?:description|og:[\w:]+|twitter:[\w:]+)" content="[^"]*"\s*\/?>/g;
+    const fromIndex = (html.slice(0, 512 * 1024).match(metaRe) || []);
+    let card = null, err = null;
+    const dir = fs.mkdtempSync(pth.join(os.tmpdir(), 'blendo-card-'));
+    try {
+      const r = cp.spawnSync('python3', [pth.join(root, 'tools', 'site-pack.py'), '--card-only', dir, '--quiet'], { encoding: 'utf8' });
+      if (r.status !== 0) err = (r.stderr || r.stdout || 'exit ' + r.status).trim().slice(0, 200);
+      else card = fs.readFileSync(pth.join(dir, 'card.html'), 'utf8');
+    } catch (e) { err = String(e && e.message).slice(0, 200); }
+    const fromCard = card ? (card.match(metaRe) || []) : [];
+    const same = fromIndex.length > 0 && fromCard.length === fromIndex.length && fromCard.every((m, i) => m === fromIndex[i]);
+    expect(same && card.length < 4096 && /<title>/.test(card),
+      'CARD: tools/site-pack.py cuts card.html out of the build — ' + fromIndex.length + ' head metas character for character, a title, under 4 KB against the build\'s ' +
+      (html.length / 1e6).toFixed(1) + ' MB (' + JSON.stringify({ cardBytes: card ? card.length : null, metasIndex: fromIndex.length, metasCard: fromCard.length, err }) + '). ' +
+      '⛔ SABOTAGE: change one og: meta in shell.html without rebuilding; make build_card drop the twitter metas');
+    const wk = fs.readFileSync(pth.join(root, 'server', 'site', 'src', 'index.js'), 'utf8');
+    const botLine = (wk.match(/^const PREVIEW_BOT = .*$/m) || [''])[0];
+    expect(/card\.html/.test(wk) && /TelegramBot/.test(botLine) && /facebookexternalhit/.test(botLine) &&
+      !/Googlebot|Bingbot|Applebot|YandexBot|DuckDuckBot/i.test(botLine) && /Vary/.test(wk),
+      'CARD: the site worker serves card.html to preview bots (Telegram, Facebook and the rest) with Vary: User-Agent, and NO search engine sits in that list — a ranking crawler must read the same document as the player, or the domain is cloaking (' +
+      JSON.stringify({ botLine: botLine.slice(0, 90) + '...' }) + '). ⛔ SABOTAGE: add Googlebot to PREVIEW_BOT; drop the Vary header');
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  }
   // ⟦OG-SECTION-END⟧
 
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:

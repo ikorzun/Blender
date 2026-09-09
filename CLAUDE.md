@@ -17656,3 +17656,81 @@ INTRO 60 green twice on the healthy build (56 → 60: arms R ×3 and Q1b), OG 2 
 three items, each on its own arm(s), none on another's; no full suite — the rule above. `index.html` 12 763 721 →
 12 769 321 B. Pushed to `v2` and onto `main` on his standing word; the site (the loader, the card, the music) reaches
 `blendo.monster` with his `npm run site:deploy`.
+
+## BATCH 2026-09-09-g — THE SHARE CARD DOES NOT COME OUT IN TELEGRAM (his word: «the share picture does not come
+## out in the same telegram»)
+
+### WHAT WAS MEASURED FIRST, BEFORE ANY CODE
+The origin is CORRECT and was correct before this batch — that is the finding, and it is why the fix is not in the
+metas. Against the live domain, with a `TelegramBot (like TwitterBot)` user-agent:
+- `https://blendo.monster/` → 200 `text/html`, the head metas whole; `og:image` sits at byte **2522**, `<title>` at
+  **3976**, `</head>` at 399 943. `og:url`, `og:title`, both descriptions, `twitter:card summary_large_image` — all there.
+- `https://blendo.monster/og.jpg` → 200 `image/jpeg`, `content-length: 2094276`, `cache-control: public, max-age=86400`.
+  2400 x 1260, inside every crawler's limits (Telegram's own ceiling for a preview photo is 5 MB).
+- THE ONE NUMBER THAT IS OUT OF PLACE: the DOCUMENT is **12 769 321 B raw / 4 503 873 B gzipped, 3.46 s** to fetch on a
+  fast home line. A link-preview crawler budgets a page in both bytes and seconds. Ours asks it to read 4.5 MB to find
+  a meta that ends at byte 2.7 K.
+
+### ⚠️ WHAT IS **NOT** PROVEN, AND MUST NOT BE WRITTEN AS PROVEN
+Telegram's exact byte/second budget is not published, and its crawler cannot be driven from here: no token, no logs.
+So «the size is the cause» is the **leading suspect, not a measurement**. Two other causes stayed unchecked from this
+machine and are HIS to check, in this order (they are cheaper than any code):
+1. **Telegram's preview cache.** It keeps a result — including a FAILURE — for hours to days. If he looked before the
+   deploy, or in the minutes when `og.jpg` was still a 404, he is looking at a cached miss. `@WebpageBot`, send the
+   link, it re-reads on the spot. THIS IS STEP ONE; nothing else can be judged before it.
+2. **Cloudflare in front of the origin.** The zone is two days old. If Bot Fight Mode or a high security level is on,
+   Telegram's crawler IPs get a challenge page with no metas in it, and NO page trick can fix that — the answer is in
+   the dashboard, Security -> Events, filter by user-agent `TelegramBot`. ⛔ I could not read it: the `cloudflare_*`
+   tools in this session answer `http 403: Invalid access token`. A curl from here with a SPOOFED bot user-agent proves
+   nothing about it — my IP is not Telegram's.
+
+### THE FIX THAT IS INDEPENDENT OF WHICH OF THE THREE IT IS
+`site/card.html` — the same head metas and NOTHING else, **1162 B** — handed by the site worker to link-preview bots
+only. Whatever the budget is, the card fits in it, and previews stop depending on the size of the build for every
+network and every messenger, forever.
+- ⚠️⚠️ **THE CARD IS DERIVED, NEVER HAND-WRITTEN.** `tools/site-pack.py` CUTS `<title>` and every
+  `description`/`og:*`/`twitter:*` meta out of the built `index.html` and writes the card beside it on every pack. A
+  second hand-kept copy of the metas is exactly the defect this project has been burned by five times: it drifts on the
+  first edit of `src/shell.html`, and nobody notices until a link looks wrong in someone else's chat. The packer
+  `sys.exit`s if `<title>` or `og:image` is not inside the first 512 KB — which also states the ceiling that makes the
+  card honest: the metas must stay near the top of the head.
+- `--card-only DIR` writes JUST the card and leaves: the suite's drift guard reads 1 KB without rebuilding 12.7 MB.
+- The worker swaps the **DOCUMENT ONLY** (`/` and `/index.html`). `/og.jpg`, the media and everything else fall
+  through untouched — the crawler's SECOND request is for the picture itself, and it must arrive as the picture.
+- The store is asked for the card WITHOUT the client's conditional headers: an `If-None-Match` carrying the INDEX's
+  ETag would earn a 304 for a different file.
+- A `site/` packed before this batch (no card) FALLS THROUGH to the build. Degraded, never broken, never a 404.
+- `Vary: User-Agent` — one URL now has two documents, and a shared cache must not mix them.
+- ⛔⛔ **NO SEARCH ENGINE IS IN THE BOT LIST** — no Googlebot, no Bingbot, no Applebot, no YandexBot. Handing a crawler
+  that RANKS the page a different document than the player gets is cloaking and it is punished. A preview bot renders a
+  card and ranks nothing; that is the whole reason the swap is legitimate for it and only for it. A guard states this.
+
+### THE GUARDS
+- SITE WORKER (`server/site/test/run.js`, 13 -> 20 arms): Telegram on `/` gets the card (same `og:image`, under 4 KB,
+  `no-cache`, `Vary`, the build never read); `/index.html` spelled out likewise; a Safari user-agent gets the build; **
+  Googlebot gets the build**; `og.jpg` under a bot user-agent is the image with its day of cache; the music with a
+  Range under a bot user-agent still goes through the slicer (206); a store with no card falls through to the build.
+- `break.js`, five new sabotages, each red on its own arms and no other: the shortcut dropped (3), the path check
+  dropped so the picture becomes the card (2), the user-agent check dropped so the player is served the card (5), the
+  `Vary` dropped (1), a missing card answered instead of falling through (1). ⚠️ Two OLD expectations moved by one (the
+  slicer 4 -> 5, the cache policy 3 -> 4) because the new arms legitimately cover those paths too — the counts are
+  reasoned, not copied from the output.
+- SUITE, the OG section (2 -> 4 arms): the card's metas equal the build's **character for character** (12 of them),
+  a title, under 4 KB against the build's 12.8 MB; and the worker's `PREVIEW_BOT` line carries Telegram and Facebook
+  and NO search engine, with `Vary` present. Proven against three copies outside the tree: the packer stripped of the
+  twitter metas -> the drift arm alone; `Googlebot` added to the bot list -> the cloaking arm alone; the `Vary` line
+  removed -> the cloaking arm alone; the untouched control green.
+
+### THE RUNS
+OG section 4 green (twice), site worker 20 green, site break PASS (10 sabotages). END TO END on the real assets store
+(`wrangler dev --local-protocol https`, killed by recorded PID): TelegramBot on `/` -> **1162 B** with the `og:image`,
+`Vary: User-Agent`, `no-cache`; a Safari user-agent -> **12 769 321 B**; Googlebot -> **12 769 321 B**; `og.jpg` ->
+2 094 276 B `image/jpeg`; a Range on the music -> 206. No full suite — his rule of 9 September.
+⚠️ `index.html` IS UNTOUCHED by this batch (no rebuild): the card is a packing product, the swap is a worker rule.
+
+### HIS STEPS, IN THIS ORDER
+1. `npm run site:deploy` — the card only exists on the domain after it.
+2. `@WebpageBot` in Telegram, send `https://blendo.monster/` — this drops the cached preview. Without this step the
+   deploy proves nothing.
+3. Still no picture -> Cloudflare dashboard, Security -> Events, filter user-agent `TelegramBot`: if the crawler is
+   being challenged, the fix is there and not in the page.

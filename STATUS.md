@@ -6,8 +6,21 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-f (the loader, the share card, the music) on top of 2026-09-09 a–e and 2026-09-08 a–i, v2 = main** · the gate of this push: INTRO 60 green ×2 + OG 2 green + nine sabotage variants (no full suite — your rule of 9 September); the last full suite: · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
+**Build: batch 2026-09-09-g (the crawler card for Telegram) on top of 2026-09-09 a–f and 2026-09-08 a–i, v2 = main** · the gate of this push: OG 4 green ×2 + the site worker 20 green + its 10 sabotages + a live local run of the worker over https (no full suite — your rule of 9 September); the last full suite: · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
 site verified by byte size against the build (index.html) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below — it serves the iPad in portrait alone now) · portal package unchanged in shape
+
+**9 SEPTEMBER, NIGHT — THE SHARE PICTURE IN TELEGRAM (batch 2026-09-09-g in CLAUDE.md).** Your report that the
+share picture does not come out. The origin turned out to be right already: the metas are whole and sit at byte
+2522, and `og.jpg` answers 200 as a 2 MB JPEG. What is out of place is the size of the page itself — a crawler is
+asked to read 4.5 MB (12.8 MB unpacked) to find a meta that ends at byte 2.7 K. So the site now hands link-preview
+bots a 1162-byte card with the same metas and nothing else, built out of the game by the packer so it can never
+drift from it; players and search engines keep getting the real page, because showing a search engine something
+else is cloaking and is punished. ⚠️ I could NOT prove that the size is what Telegram chokes on, and I am not
+claiming it: two cheaper causes are yours to check first. THREE STEPS, IN ORDER: (1) `npm run site:deploy`;
+(2) in Telegram send `https://blendo.monster/` to `@WebpageBot` — it drops the cached preview, and until you do
+this the deploy proves nothing, because Telegram remembers a failure for days; (3) if it is still empty, open
+Cloudflare → Security → Events and filter the user-agent `TelegramBot`: a challenged crawler is a dashboard
+setting, not a page problem (I could not read that from here — the token in this session is refused).
 
 **9 SEPTEMBER, EVENING — THE LOADER, THE SHARE CARD, THE MUSIC (batch 2026-09-09-f in CLAUDE.md).** Your
 picture is the share card (`og.jpg`, absolute on blendo.monster — the domain shows it after your deploy). The

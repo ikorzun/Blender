@@ -10,18 +10,27 @@ const HTML = '<!doctype html><html><body>blendo</body></html>';
 const JS = 'window.bridge={};';
 const SIZE = 5000; const MP3 = new Uint8Array(SIZE); for (let i = 0; i < SIZE; i++) MP3[i] = (i * 7) & 255;
 const PNG = new Uint8Array(300).fill(9);
+// The card is what tools/site-pack.py writes beside the build: the head metas and nothing else.
+const CARD = '<!doctype html><html lang="en"><head><title>BLENDO</title>'
+  + '<meta property="og:image" content="https://blendo.monster/og.jpg">'
+  + '<meta name="twitter:card" content="summary_large_image"></head><body>Blendo</body></html>';
+const JPG = new Uint8Array(400).fill(7);
 const FILES = {
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML, etag: '"h1"' },
+  '/card.html': { type: 'text/html; charset=utf-8', body: CARD, etag: '"c1"' },
   '/playgama-bridge.js': { type: 'text/javascript', body: JS, etag: '"j1"' },
   '/music.mp3': { type: 'audio/mpeg', body: MP3, etag: '"m1"' },
+  '/og.jpg': { type: 'image/jpeg', body: JPG, etag: '"o1"' },
   '/avatars/Avatar01.png': { type: 'image/png', body: PNG, etag: '"p1"' },
 };
-function fakeAssets(log) {
+// `drop` removes one file from the store — the only way to state what happens to a `site/` packed before
+// the card existed (the worker must fall through to the build, not answer the crawler with a 404).
+function fakeAssets(log, drop) {
   return { fetch(req) {
     const r = req instanceof Request ? req : new Request(req);
     const u = new URL(r.url); const p = u.pathname === '/' ? '/index.html' : u.pathname;
     log.push({ method: r.method, path: p, range: r.headers.get('range') });
-    const f = FILES[p];
+    const f = p === drop ? null : FILES[p];
     if (!f) return Promise.resolve(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }));
     if (r.headers.get('if-none-match') === f.etag) return Promise.resolve(new Response(null, { status: 304, headers: { etag: f.etag } }));
     const body = typeof f.body === 'string' ? f.body : f.body.slice();
@@ -33,7 +42,9 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
 (async () => {
   const mod = await import(process.env.SITE_WORKER ? path.resolve(process.env.SITE_WORKER) : path.join(__dirname, '..', 'src', 'index.js'));
   const worker = mod.default;
-  const go = (url, init) => { const log = []; return worker.fetch(new Request(url, init), { ASSETS: fakeAssets(log) }).then(res => ({ res, log })); };
+  const go = (url, init, drop) => { const log = []; return worker.fetch(new Request(url, init), { ASSETS: fakeAssets(log, drop) }).then(res => ({ res, log })); };
+  const TG = 'TelegramBot (like TwitterBot)';
+  const HUMAN = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15';
 
   // 1. the html at the apex over https: 200, the store's type, revalidate-every-time
   { const { res, log } = await go('https://blendo.monster/');
@@ -79,6 +90,37 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   // 13. a missing path: the store's 404 passes through
   { const { res } = await go('https://blendo.monster/nope.txt');
     expect(res.status === 404, 'MISSING: /nope.txt → 404 from the store (' + res.status + ')'); }
+
+  // ===== THE CRAWLER CARD (2026-09-09-g): a link-preview bot gets 1 KB of metas, everyone else the build.
+  // 14. Telegram on the document: the card, not the 12.7 MB index — and the store was asked for /card.html
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': TG } });
+    const body = await res.text();
+    expect(res.status === 200 && body === CARD && /og:image/.test(body) && body.length < 4096
+      && res.headers.get('cache-control') === 'no-cache' && /user-agent/i.test(res.headers.get('vary') || '')
+      && log.length === 1 && log[0].path === '/card.html',
+      'CRAWLER: TelegramBot on / gets card.html — the same og:image under 4 KB, no-cache, Vary: User-Agent, the build never read ('
+      + res.status + ' bytes=' + body.length + ' asked=' + log.map(l => l.path).join(',') + ')'); }
+  // 15. the same for /index.html spelled out (a crawler follows what the link says)
+  { const { res, log } = await go('https://blendo.monster/index.html', { headers: { 'user-agent': TG } });
+    expect((await res.text()) === CARD && log[0].path === '/card.html', 'CRAWLER: /index.html spelled out is the card too (' + log[0].path + ')'); }
+  // 16. A PLAYER IS NOT A CRAWLER: an ordinary browser gets the game
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': HUMAN } });
+    expect((await res.text()) === HTML && log[0].path === '/index.html', 'CRAWLER: a Safari user-agent still gets the build, never the card (' + log[0].path + ')'); }
+  // 17. ⛔ NO CLOAKING: a search engine ranks the page, so it must see exactly what the player sees
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' } });
+    expect((await res.text()) === HTML && log[0].path === '/index.html', 'CRAWLER: Googlebot gets the build — the swap is for preview bots only, ranking crawlers are never cloaked (' + log[0].path + ')'); }
+  // 18. THE PICTURE ITSELF is the crawler's second request and must pass through untouched
+  { const { res, log } = await go('https://blendo.monster/og.jpg', { headers: { 'user-agent': TG } });
+    const b = new Uint8Array(await res.arrayBuffer());
+    expect(res.status === 200 && b.length === 400 && /image\/jpeg/.test(res.headers.get('content-type')) && res.headers.get('cache-control') === 'public, max-age=86400' && log[0].path === '/og.jpg',
+      'CRAWLER: og.jpg is served to the bot as the image, a day of cache, not the card (' + res.status + ' ' + b.length + 'B ' + log[0].path + ')'); }
+  // 19. media keep the slicer even for a bot user-agent (a preview of a link to the music must not 200 a Range)
+  { const { res } = await go('https://blendo.monster/music.mp3', { headers: { 'user-agent': TG, range: 'bytes=0-99' } });
+    expect(res.status === 206 && res.headers.get('content-range') === 'bytes 0-99/' + SIZE, 'CRAWLER: a bot asking the music with a Range still gets the slicer (' + res.status + ')'); }
+  // 20. an old site/ with no card: fall through to the build rather than answer 404
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': TG } }, '/card.html');
+    expect(res.status === 200 && (await res.text()) === HTML && log.length === 2 && log[1].path === '/index.html',
+      'CRAWLER: a store packed before the card falls through to the build, never a 404 (' + res.status + ' asked=' + log.map(l => l.path).join(',') + ')'); }
 
   console.log('\nSITE WORKER: ' + pass + ' PASS, ' + fails.length + ' FAIL');
   if (fails.length) { console.log('SITE WORKER: FAIL'); process.exit(1); } else console.log('SITE WORKER: PASS');
