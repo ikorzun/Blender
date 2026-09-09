@@ -18207,3 +18207,72 @@ of files against a 13.96 MB package. Harmless (an iframe can install nothing, an
 already refuses to register there) but it is console noise in someone else's console. NAMED TO HIM WITH THE
 NUMBERS AND NOT DECIDED HERE: the portal upload is his manual procedure, and adding files to it changes his
 routine — his word turns it into one line in `docs/` and the packer.
+
+## BATCH 2026-09-10: THE BEGINNER WINDOW 1 → 5 AND THE CLAMP 5 → 10 (his word «A+B», after an external playtester: «from level 4 on, any tap takes points away, because the items are blocked by others»)
+
+### ⛔⛔ THE LEVER I RECOMMENDED FIRST WAS A NO-OP, AND THE MEASUREMENT IS WHAT SAID SO
+I proposed lowering `MISS_TIE_FROM` 30 → 1 («tie the price of a mistake to the price of a merge from
+level one»), he answered «давай», and the number refuted it before a line was written. The tie is
+`Math.min(ladder, MISS_TIE_MERGES × a typical merge)`, and at LOW levels there are FEW types,
+therefore many copies per type, therefore FAT groups. Measured on the file's own
+`expectedGroup`/`typicalMergeScore`, extracted from the source rather than retyped:
+
+| lv | typical merge | tie ceiling (4 merges) | now n=1..6 | with FROM=1 |
+|---|---|---|---|---|
+| 1 | 8 | **32** | 10-11-12-13-14-15 | unchanged |
+| 5 | 5 | **23** | 10-11-12-13-14-15 | unchanged |
+| 10 | 4 | **18** | 10-11-12-13-14-15 | unchanged |
+| 20 | 3 | 13 | 10-11-12-13-14-15 | 10-11-12-13-**13-13** |
+| 30 | 3 | 12 | already in force | — |
+
+The cap hangs TWICE ABOVE the ladder until merges get cheap — i.e. it bites from ~lv.20, where it
+already stands. ⚠️ AND THE CANON HAD SAID SO ALL ALONG: the note at `MISS_TIE_FROM` reads «without
+that clamp the same formula would make a mistake cost ~58 points on level 1». I recommended without
+re-reading my own file. **The constant was NOT changed; a no-op shipped as a fix would have been
+worse than nothing.**
+
+### THE DIAGNOSIS THAT REPLACED IT: THE REWARD WAS INVISIBLE WHILE THE PUNISHMENT WAS LOUD
+On levels 2-5 the score WAS charged and then clamped at zero. A pair pays +2 — on a chip pinned to
+0 that is nothing to see; a miss fired a red pop, a reddened chip and a −10. That is literally «any
+tap takes points away», and the ARITHMETIC SAYS THE PRICE THERE WAS FAIR (the tie ceiling is 2-3×
+the ladder). What was broken is the feedback, not the number. `SCORE_NO_PENALTY_LEVELS` 1 → **5**,
+`SCORE_CLAMP_LEVELS` 5 → **10**.
+⚠️ A MISTAKE STILL COUNTS ON A FREE LEVEL — measured, not assumed: `penalize` (70-fx) and
+`penalizeDouble` (80-gameplay) increment `stats.misses` and `stats.missRun` BEFORE the charge, so
+the turbo reset, the bowl streak and the radius assist are untouched. Probe at lv.3: four misses
+moved the radius 0.45 → **0.65**, its own cap.
+⚠️ THE PRICE, NAMED TO HIM: `scorePenalty` returning false also suppresses the red pop and the
+reddening chip (the `charged && shown > 0` gate), so on levels 1-5 a pairless tap now costs nothing
+AND SAYS NOTHING but the sound — while still being a mistake. The cliff does not vanish, it MOVES
+from level 2 to level 6; at 2 it stood where the player could not see it, at 6 it stands where he
+already has something to lose.
+
+### NINE GUARDS MOVED WITH THE RULE, AND TWO OF THEM WOULD HAVE STAYED GREEN FOR THE WRONG REASON
+⛔⛔ **READING THE SCORE AT ZERO CANNOT TELL «no penalty» FROM «charged and clamped» — BOTH READ 0.**
+The clamp arm stood on lv.3 and the ×5 clamp arm on lv.3: after the change both would have measured
+the FREE window and called it the clamp, in silence. Moved to lv.8/lv.10. The other seven stood on
+lv.8 under the comment «above 5 the minus is honest» — 8 is now inside the clamp — and moved to
+lv.11: the price ladder, its reset, the reddening chip, «+0 from a merge in the minus», the booster
+symmetry, the cost of the deadlock rescue, the early bank.
+✅ **AND THE WINDOW GAINED BOUNDARIES FROM BOTH SIDES, WHICH IT NEVER HAD.** Because zero cannot
+discriminate, the free arms START FROM A POSITIVE SCORE: lv.5 seeded 500 → 500 (the old build reads
+400); lv.6 seeded 500 → 400 (catches the window growing); lv.10 → 0 (the old build reads −100);
+lv.11 → −100. `misses === 1` rides on the free arms as the control — «the score did not move» is
+also true of a tap that never landed, a trap this file has already paid for once.
+⚠️ THE OTHER LOW-LEVEL SITES WERE AUDITED AND LEFT: `grindNow` at lv.3 measures FX kinds, the
+turbo-kill and turbo-out misses at lv.3 are tools that ride `stats.misses`, and every `score - before`
+at lv.2/3/10 is a GAIN (`matchType`, `addScore`), which no clamp touches.
+⛔ THE SECTION WAS NOT MOVED TO ITS OWN PAGE, though the canon prefers that: `turboReset` right
+below it inherits the level this block leaves (8 before, 11 now) and does its own `regen` without a
+`setLevel`. Giving the block a fresh page would have changed a guard nobody asked to touch.
+
+### PROVEN TWO-SIDED, AND THE FULL RUN WAS THE ONLY POSSIBLE GATE
+A variant with the OLD constants built outside the tree (`tools/build-variant.py`), the same probe
+against both: lv.5 reads 400 against 500 and lv.10 reads −100 against 0 — the two new arms redden
+exactly where reasoned; lv.6 and lv.11 read the same on both, by design (they guard the other
+direction). The tree's md5 was verified before and after.
+⚠️ **HIS RULE «no full suite per batch» COULD NOT APPLY HERE AND THAT WAS SAID OUT LOUD:** the edit
+lands in the MAIN sequential run, not in a marked section, so `tools/section-dryrun.js` cannot lift
+it and nine moved guards are provable only in their real context. **Run 45: 1125 green, 0 red,
+`ERRORS: none`, SUITE: PASS** (run 44 was 1123; the +2 are exactly the two new boundary arms).
+`index.html` 12 773 127 → 12 775 700 B.

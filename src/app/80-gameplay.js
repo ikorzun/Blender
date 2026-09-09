@@ -1,10 +1,14 @@
 // ===== 80-gameplay: matches, tap, mixer, shake, win/lose =====
 
 // THE SINGLE POINT OF SCORE PENALTIES (the owner's balance table 2026-07-22).
-// Level 1 — no penalties at all (returns false: we don't draw the «−N» pop, so as
-// not to lie); levels 2..SCORE_CLAMP_LEVELS — the score is clamped at zero from
-// below (the penalty is shown, but it doesn't take you negative); beyond that —
-// the full minus.
+// Levels 1..SCORE_NO_PENALTY_LEVELS (FIVE since 2026-09-09) — no penalties at all
+// (returns false: we draw no «−N» pop and do not redden the chip, so as not to lie
+// about a number that did not move); levels 6..SCORE_CLAMP_LEVELS (TEN) — the score is
+// clamped at zero from below (the penalty is shown, but it doesn't take you negative);
+// from level 11 — the full minus.
+// ⚠️ THE COUNTERS ARE INCREMENTED BY THE CALLERS BEFORE THIS FUNCTION RUNS, so a mistake on a
+// free level still resets the turbo, still cuts the radius ladder and still feeds the radius
+// assist — this gate waives the POINTS and nothing else.
 // The mixer's mechanic (eating items) does NOT depend on the level — only the score does.
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;

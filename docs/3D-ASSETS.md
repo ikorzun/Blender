@@ -110,6 +110,20 @@ atlas at runtime is needed, or the model has to be dropped.
 
 ⚠️ The models look like a third-party author's asset pack (the sticker sheet contains
 someone else's "PYRE PALS" logo). Check the license before publishing.
+⛔⛔ CHECKED 2026-09-10 AND THE ALARM IS MISDIRECTED — DO NOT RAISE IT AGAIN AS A BLOCKER.
+`CA_Head` occurs in THIS DOCUMENT ONLY: zero occurrences in `src/`, and the recommendation three
+lines up («put `CA_Head` on hold») is what actually happened. The shipped pool in `30-shapes.js`
+is animal / food / car / sport / props / brick / pirate / holiday / survival / toycar / factory —
+the owner's own 3D artist plus the Kenney packs. Nothing from the batch this warning describes is
+in the game, and the sentence above is a note about a batch that was EVALUATED AND NOT TAKEN.
+⚠️ THE REAL OPEN LICENCE ITEM IS A DIFFERENT ONE AND IT IS THE OWNER'S RECORDED DECISION, NOT A
+DISCOVERY: the matcaps come from `nidorx/matcaps`, a library with NO licence at all. The risk was
+named to him verbatim and he answered «we take the images» (2026-08-18/19). See the canon at
+«THE MATCAP IMAGES PER PACK ARE MERGED IN».
+⚠️ An audit of 2026-09-09 read the sentence above and reported it as the single legally-shaped
+blocker before publishing. It cost a round of checking. That is why this tombstone is here rather
+than in a batch note: a warning about an unshipped batch, left unqualified next to shipped work,
+reads as a live order.
 
 ## Integration 2026-07-20 (10 models, textures stripped)
 

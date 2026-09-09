@@ -1721,28 +1721,50 @@ page.on('response', (r) => {
     'place (' + mixer.angry + '). Without this hand the guard above would go green on a ' +
     'build too where the whole signal of the grinding was lost together with the fire');
 
-  // THE BALANCE TABLE (the owner's spec 2026-07-22): a miss −10; level 1 —
-  // WITHOUT point penalties at all; levels 2-5 — the score is clamped from below by zero;
-  // from level 6 — the full minus. The point (25, 540) is to the left of the bowl, outside the HUD.
-  await page.evaluate(() => { window.__game.setLevel(1); window.__game.regen(); window.__game.skipIntro(); });
-  await page.waitForTimeout(600);
-  await page.mouse.click(25, 540);
-  await page.waitForTimeout(300);
-  const missL1 = await page.evaluate(() => { const s = window.__game.stats();
-    return { score: s.score, misses: s.misses }; });
+  // THE BALANCE TABLE (the owner's spec 2026-07-22, the two windows widened by his word
+  // 2026-09-09 «A+B»): a miss −10; levels 1..5 — WITHOUT point penalties at all; levels 6..10 —
+  // the score is clamped from below by zero; from level 11 — the full minus.
+  // The point (25, 540) is to the left of the bowl, outside the HUD.
+  // ⚠️⚠️ THE FOUR ARMS BELOW PIN BOTH BOUNDARIES FROM BOTH SIDES, and that is what makes them a
+  // guard of HIS decision rather than of a state that merely happens to hold. ⛔ READING THE SCORE
+  // AT ZERO CANNOT TELL «no penalty» FROM «charged and clamped» — both read 0, which is exactly
+  // how the old lv.3 arm below would have stayed GREEN through this change while silently
+  // measuring the wrong window. So the free arms START FROM A POSITIVE SCORE, where the two
+  // builds diverge: the old one takes 100 raw there, the new one takes nothing.
+  const missAt = async (lv, seed) => {
+    await page.evaluate(([l, sd]) => { const g = window.__game;
+      g.setLevel(l); g.regen(); g.skipIntro(); if (sd) g.addScore(sd); }, [lv, seed || 0]);
+    await page.waitForTimeout(600);
+    await page.mouse.click(25, 540);
+    await page.waitForTimeout(300);
+    return page.evaluate(() => { const st = window.__game.stats();
+      return { score: st.score, misses: st.misses, run: st.missRun }; });
+  };
+  const missL1 = await missAt(1);
   console.log('miss L1:', JSON.stringify(missL1));
   expect(missL1.misses === 1 && missL1.score === 0, 'lv.1 without penalties: the miss did not take away points (score ' + missL1.score + ', misses ' + missL1.misses + ')');
-  await page.evaluate(() => { window.__game.setLevel(3); window.__game.regen(); window.__game.skipIntro(); });
-  await page.waitForTimeout(600);
-  await page.mouse.click(25, 540);
-  await page.waitForTimeout(300);
-  const missL3 = await page.evaluate(() => window.__game.stats().score);
-  expect(missL3 === 0, 'lv.3: the clamp by zero — a miss from zero holds 0 (' + missL3 + ')');
-  await page.evaluate(() => { window.__game.setLevel(8); window.__game.regen(); window.__game.skipIntro(); });
-  await page.waitForTimeout(600);
-  await page.mouse.click(25, 540);
-  await page.waitForTimeout(300);
-  const missL8 = await page.evaluate(() => window.__game.stats().score);
+  // ⚠️ LEVEL 5 IS THE UPPER EDGE OF HIS FREE WINDOW AND THIS IS THE ARM THAT DISCRIMINATES: on
+  // every build before 2026-09-09 level five charged, so a score of 500 would read 400 here.
+  const missL5 = await missAt(5, 500);
+  console.log('miss L5 (free window, from a positive score):', JSON.stringify(missL5));
+  expect(missL5.score === 500 && missL5.misses === 1,
+    '⚠️⚠️ LEVEL 5 TAKES NOTHING (the owner 2026-09-09 «A+B», after the playtester «from level 4 ' +
+    'on, any tap takes points away»): the score stood at 500 raw and a REAL miss left it at ' +
+    missL5.score + '. ⚠️ `misses === 1` IS THE CONTROL — without it «the score did not move» is ' +
+    'also true of a tap that never landed, a trap this file has already paid for once. ' +
+    '⛔ SABOTAGE: `SCORE_NO_PENALTY_LEVELS` back to 1 — this reads 400');
+  // ⚠️ AND LEVEL 6 IS THE LOWER EDGE OF THE PENALTY: a ceiling is not a boundary guard, so the
+  // window is stated from the other side too.
+  const missL6 = await missAt(6, 500);
+  expect(missL6.score === 400 && missL6.misses === 1,
+    '⚠️ LEVEL 6 CHARGES THE FULL FIRST RUNG (' + missL6.score + ' from 500 raw): his free window ' +
+    'ENDS at five. ⛔ SABOTAGE: widen `SCORE_NO_PENALTY_LEVELS` past 5 — this reads 500');
+  const missL10 = await missAt(10);
+  expect(missL10.score === 0,
+    'lv.10: the clamp by zero — a miss from zero holds 0 (' + missL10.score + '). ⚠️ TEN is the ' +
+    'upper edge of the clamp window since 2026-09-09; it used to be five, and this arm used to ' +
+    'stand on lv.3 — where it now would be measuring the FREE window and calling it the clamp');
+  const missL8 = (await missAt(11)).score;
   // ⛔⛔ 10 → 100 RAW (the owner's word 2026-08-23-v: «the cost of a mistake is STILL −1 and not
   // −10»). ⚠️ IT IS NOT A TENFOLD TIGHTENING INVENTED BY ANYONE — it is a re-basing into the
   // units of the SCREEN: his balance table of 2026-07-22 said «a miss costs 10», the ×10
@@ -1773,7 +1795,7 @@ page.on('response', (r) => {
   // ⚠️ AND THE RESET: a new level starts the ladder over, because `stats` is rebuilt by
   // `genLevel` — the scope is where the counter LIVES, not a number someone chose. Without this
   // arm a build that let the ladder run across the whole session would pass green.
-  await page.evaluate(() => { window.__game.setLevel(8); window.__game.regen(); window.__game.skipIntro(); });
+  await page.evaluate(() => { window.__game.setLevel(11); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(600);
   await page.mouse.click(25, 540);
   await page.waitForTimeout(300);
@@ -1806,7 +1828,7 @@ page.on('response', (r) => {
   const capProbe = await page.evaluate(async () => {
     const g = window.__game;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    g.setLevel(8); g.regen(); g.skipIntro();        // lv.>5: no clamp, the minus is honest
+    g.setLevel(11); g.regen(); g.skipIntro();       // lv.>10: no clamp, the minus is honest
     await sleep(700);
     // SEVEN mistakes in a row: six rungs and the WRAP on the seventh
     const seq = [];
@@ -1877,7 +1899,7 @@ page.on('response', (r) => {
     // rgb() back to the hex the code is written in — the comparison is with `MISS_COLOR`
     const hex = () => { const m = getComputedStyle(el).fill.match(/\d+/g);
       return m ? '#' + m.slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join('') : null; };
-    g.setLevel(8); g.regen(); g.skipIntro(); await sleep(800);   // lv.>5: the minus is honest
+    g.setLevel(11); g.regen(); g.skipIntro(); await sleep(800);  // lv.>10: the minus is honest
     const calm = { cls: g.scoreMissOn(), fill: hex() };
     g.penalizeTest();
     const atOnce = g.scoreMissOn();          // the CLASS lands in the same tick as the charge
@@ -1930,7 +1952,8 @@ page.on('response', (r) => {
   expect(redProbe.lv1.cls === false && redProbe.lv1.fill === redProbe.calm.fill &&
          redProbe.lv1.missed === true && redProbe.lv1.scoreMoved === false,
     '⚠️⚠️ ON LEVEL 1 THE CHIP DOES NOT REDDEN, AND THAT IS NOT AN OVERSIGHT: his beginner grace ' +
-    '(`SCORE_NO_PENALTY_LEVELS`) takes no points there, and a chip that reddened would be ' +
+    '(`SCORE_NO_PENALTY_LEVELS` — levels 1..5 since 2026-09-09) takes no points there, and a ' +
+    'chip that reddened would be ' +
     'colouring a number that did not move. The flash sits inside the same `charged && shown > 0` ' +
     'gate as the red pop. ⚠️ `missed === true` IS THE CONTROL THAT CARRIES THIS ASSERT: without ' +
     'it «the chip stayed yellow» is also true of a build where the tap was not a mistake at all, ' +
@@ -1951,7 +1974,10 @@ page.on('response', (r) => {
     const clear = () => document.querySelectorAll('.pop').forEach(e => e.remove());
     const popOf = () => { const p = [...document.querySelectorAll('.pop')]
       .map(e => e.textContent.trim()).filter(t => /^[+-]\d/.test(t)); return p.length ? p[p.length - 1] : null; };
-    g.setLevel(8); g.regen(); g.skipIntro();
+    // ⚠️ LEVEL 11 SINCE 2026-09-09: this probe REQUIRES an honest minus (`negAt < 0` is its own
+    // control), and the clamp window grew to ten — on lv.8 the score would bottom at zero and the
+    // control would go red on a healthy build.
+    g.setLevel(11); g.regen(); g.skipIntro();
     await sleep(700);
     // (a) A MERGE WHILE THE SCORE IS POSITIVE — the reference reading
     clear(); const b1 = g.stats().score; g.autoMatch(); await sleep(350);
@@ -5948,7 +5974,7 @@ window.bridge = {
   const penSym = await page.evaluate(async () => {
     const g = window.__game;
     g.boostClear(); g.boostSetClock(0);
-    g.setLevel(8); g.regen(); g.skipIntro();          // lv.>5: there is no clamp, the minus is honest
+    g.setLevel(11); g.regen(); g.skipIntro();         // lv.>10: there is no clamp, the minus is honest
     await new Promise(r => setTimeout(r, 400));
     const s0 = g.stats().score;
     g.penalizeTest();                                  // a miss without the booster
@@ -5999,7 +6025,10 @@ window.bridge = {
   const penClamp = await page.evaluate(async () => {
     const g = window.__game;
     g.boostClear(); g.boostSetClock(0);
-    g.setLevel(3); g.regen(); g.skipIntro();          // lv.<=5 — clamped at zero
+    g.setLevel(8); g.regen(); g.skipIntro();          // 6..10 — charged and clamped at zero
+    // ⚠️ LEVEL 8 SINCE 2026-09-09, NOT 3: the free window grew to five, so on lv.3 «clamped at
+    // zero» would read 0 because NOTHING IS CHARGED — the arm would stay green while measuring
+    // somebody else's exemption. Eight is inside the clamp window and is charged.
     await new Promise(r => setTimeout(r, 400));
     g.buyBundle('bundle5');                            // x5
     for (let i = 0; i < 5; i++) g.penalizeTest();
@@ -6022,7 +6051,7 @@ window.bridge = {
     await page.evaluate(async (boost) => {
       const g = window.__game;
       g.boostClear(); g.boostSetClock(0);
-      g.setLevel(8); g.regen(); g.skipIntro();        // lv.>5 — the minus is honest, without a clamp
+      g.setLevel(11); g.regen(); g.skipIntro();       // lv.>10 — the minus is honest, without a clamp
       if (boost) g.buyBundle('bundle5');              // x5 — the worst case
       // ⚠️ Draining the stock is MANDATORY IN BOTH runs: purchased shakes accumulate
       // in the save from the previous sections, and our own guard does not recognize a deadlock while
@@ -6132,7 +6161,7 @@ window.bridge = {
   // bank (penalties/grinding). se is monotonic — it must not be decreased, the correction is in ss.
   const bankDrop = await page.evaluate(async () => {
     const g = window.__game;
-    g.setLevel(8); g.regen(); g.skipIntro();          // lv.>5 — the minus is honest
+    g.setLevel(11); g.regen(); g.skipIntro();         // lv.>10 — the minus is honest
     await new Promise(r => setTimeout(r, 400));
     const w0 = g.starBalance(), rank0 = g.leaderboardScore();
     g.addScore(3000);                                 // 300 units
@@ -6167,12 +6196,12 @@ window.bridge = {
   // ⛔ THIS CANCELS HIS OWN SPEC OF 2026-07-29 that stood here before — the two asserts
   // «did NOT take points away» / «was NOT counted as a miss» are inverted, not deleted:
   // the same line of `handleTap` is still the subject, only its verdict has flipped.
-  // ⚠️ THE POINTS HALF NEEDS A LEVEL >= 6. On lv.1 there is no point penalty at all
-  // (SCORE_NO_PENALTY_LEVELS), on lv.2-5 the score is clamped at zero — there a score
-  // delta of ZERO is somebody else's exemption, and a guard written on the suite's main
-  // page (it plays lv.1) could be «fixed» into a tautology. The canon pins the full
-  // minus at lv.8 (test.js «lv.8: the full penalty of a miss −10»); we stay on lv.11,
-  // the level this block has always used.
+  // ⚠️ THE POINTS HALF NEEDS A LEVEL >= 11. On lv.1-5 there is no point penalty at all
+  // (SCORE_NO_PENALTY_LEVELS, widened from 1 to 5 on 2026-09-09), on lv.6-10 the score is
+  // clamped at zero — there a score delta of ZERO is somebody else's exemption, and a guard
+  // written on the suite's main page (it plays lv.1) could be «fixed» into a tautology.
+  // ⚠️ THE FULL MINUS NOW STARTS AT ELEVEN, WHICH IS THE LEVEL THIS BLOCK HAS ALWAYS USED — so
+  // this section needed no move; the sentence naming lv.8 as the full-minus level did.
   // ⛔ NO COPY OF MISS_PENALTY HERE. The cost of one miss is MEASURED on this very level
   // through `penalizeTest()` — the single penalty point — and the tap is required to cost
   // exactly the same. When the owner retunes the number, both move together.

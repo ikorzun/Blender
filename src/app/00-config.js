@@ -63,7 +63,8 @@ const SCORE_DENOM = 10;
 const PT = SCORE_DENOM;
 const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a pair = 2 points
 // NEW BALANCE TABLE (the owner's spec 2026-07-22, via the dispatcher):
-// a miss got more expensive 7 -> 10; level 1 — NO score penalties at all;
+// a miss got more expensive 7 -> 10; levels 1..SCORE_NO_PENALTY_LEVELS — NO score penalties at
+// all (his window, widened to 5 on 2026-09-09);
 // levels 1..SCORE_CLAMP_LEVELS — the score is clamped at zero from below (the grind −20
 // stays, but it does not push a beginner into the negative); the fish gets more expensive with level.
 // The single point of application is scorePenalty (80-gameplay).
@@ -147,8 +148,32 @@ const MISS_COLOR = '#e5484d';
 // how long the score stays red after a mistake — long enough to be seen, short enough not to
 // still be burning when the next tap lands
 const SCORE_MISS_MS = 520;
-const SCORE_NO_PENALTY_LEVELS = 1; // levels <= N: score penalties are off
-const SCORE_CLAMP_LEVELS = 5;      // levels <= N: the score does not go below zero
+// ⛔⛔ THE BEGINNER WINDOW WIDENED 1 → 5 AND THE CLAMP 5 → 10 (the owner's word 2026-09-09,
+// «A+B», after an external playtester: «from level 4 on, any tap takes points away, because the
+// items are blocked by others»).
+// ⚠️⚠️ THE DIAGNOSIS IS NOT THE PRICE OF A MISS — IT IS THAT THE REWARD WAS INVISIBLE WHILE THE
+// PUNISHMENT WAS LOUD. On levels 2-5 the score WAS charged and then clamped at zero, so a pair's
+// +2 moved a chip pinned to 0 (nothing to see) while every miss fired a red pop, a reddened chip
+// and a −10. That is literally «any tap takes points away». The arithmetic says the PRICE was
+// fair there — see the refuted lever below — so what was broken is the feedback, not the number.
+// ⛔ AND THE LEVER RECOMMENDED FIRST WAS MEASURED AND REFUTED, WHICH IS WHY IT IS NOT THE FIX:
+// lowering `MISS_TIE_FROM` to 1 is a NO-OP below level 20. The tie is
+// `Math.min(ladder, MISS_TIE_MERGES × a typical merge)`, and at low levels there are FEW types,
+// therefore many copies per type, therefore fat groups: at lv.1 a merge is worth 8 points and
+// four of them are 32, against a ladder that tops at 15. The cap hangs twice above the ladder
+// and cuts nothing until merges get cheap — i.e. from ~lv.20, where it already stands. Measured
+// on the real formulas of this file (`expectedGroup`/`typicalMergeScore`), not recalled; the
+// note at `MISS_TIE_FROM` («~58 points on level 1») had said so all along.
+// ⚠️ A MISTAKE STILL COUNTS ON A FREE LEVEL: `penalize` (70-fx) and `penalizeDouble`
+// (80-gameplay) increment `stats.misses` and `stats.missRun` BEFORE the charge, so the turbo
+// reset, the bowl streak and the radius assist are untouched — only the POINTS are waived.
+// `scorePenalty` returning false also suppresses the red pop and the reddening chip, which is
+// the point: nothing lies about a number that did not move.
+// ⚠️ THE PRICE, NAMED TO HIM: the cliff does not disappear, it MOVES from level 2 to level 6 —
+// but at level 2 it stood where the player could not see it, and at 6 it stands where he already
+// has something to lose.
+const SCORE_NO_PENALTY_LEVELS = 5;  // levels <= N: score penalties are off entirely
+const SCORE_CLAMP_LEVELS = 10;      // levels <= N: the score does not go below zero
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)
 const FINALE_GRIND_MS = 220; // ms between leftovers in the FINALE (was 500; the owner's
 // word 2026-08-05 "the blender must grind the leftovers faster")

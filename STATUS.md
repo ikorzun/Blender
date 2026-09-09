@@ -6,7 +6,50 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-m (the domain's cache fix now actually works at the edge) on top of -k, -h, -i and -j on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · **the full suite: 1123 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 44 — the first full run in seven batches, and it earned its keep: see below) · the site worker **31 green** + its **18 sabotages**, each red on its own arms + **the fix run against the REAL Cloudflare edge before the deploy** · **blendo.monster is deployed and measured** · the leaderboard and the video workers are deployed
+**Build: batch 2026-09-10 (the beginner window 1 → 5, the clamp 5 → 10) on top of 2026-09-09 a–m and 2026-09-08 a–i, v2 = main** · **the full suite: 1125 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 45) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+
+**10 SEPTEMBER — THE FIRST FIVE LEVELS NO LONGER TAKE POINTS (batch 2026-09-10, your «A+B»).**
+`SCORE_NO_PENALTY_LEVELS` 1 → 5 and `SCORE_CLAMP_LEVELS` 5 → 10. Levels 1-5 charge nothing at all;
+6-10 charge but cannot push you into the minus; from 11 the full minus, as before. Measured on the
+built page at every boundary: at level 5 a real miss on a score of 500 leaves 500, at level 6 it
+leaves 400, at 10 it holds 0, at 11 it reads −100.
+⛔ **THE LEVER I RECOMMENDED TO YOU FIRST DOES NOTHING, AND I SAY SO RATHER THAN SHIP IT.** Lowering
+`MISS_TIE_FROM` to 1 is a no-op below level 20: the tie caps the price at four typical merges, and
+on low levels merges are FAT (three types, sixty copies each — a merge is worth 8, four of them 32)
+against a ladder that tops at 15. The cap hangs twice above the ladder. I recommended it without
+re-reading my own memory file, which had said exactly this all along. The constant was not touched.
+✅ **WHAT WAS ACTUALLY WRONG:** on levels 2-5 the score WAS charged and then clamped at zero — so a
+pair's +2 moved a chip pinned to 0 (nothing to see) while every miss fired a red pop, a reddened
+chip and a −10. The price there was fair; the FEEDBACK was one-sided. That is the tester's «any tap
+takes points away», word for word.
+⚠️ **THE OTHER SIDE, SO YOU HEAR IT FROM ME:** on levels 1-5 a pairless tap now costs nothing and
+says nothing but the sound — and it is still a mistake (the turbo resets, the radius assist accrues,
+the counters climb). The cliff moved from level 2 to level 6: it used to stand where you could not
+see it, it now stands where you already have something to lose.
+Nine guards in the suite moved with the rule, and two of them would otherwise have stayed GREEN for
+the wrong reason — they stood on level 3 and measured «clamped at zero», which after this change
+reads 0 because NOTHING IS CHARGED. The window now has boundaries pinned from both sides, which it
+never had. **Run 45: 1125 green, 0 red.** Pushed; the site needs your `npm run site:deploy`.
+
+**10 SEPTEMBER — THREE THINGS THE PLAYTEST AUDIT FOUND, AND ONE FALSE ALARM I KILLED.**
+The audit's headline was a legal blocker before publishing, quoting `docs/3D-ASSETS.md`: *«the models
+look like a third-party asset pack, the sticker sheet contains someone else's PYRE PALS logo»*.
+**Checked: misdirected.** That model (`CA_Head`) appears in that document only, zero occurrences in
+the code, and the recommendation three lines above it — «put it on hold» — is what happened. A
+tombstone now sits at that line so nobody raises it a third time. ⚠️ The real open licence item is a
+different one and it is your own recorded decision, not a discovery: the matcaps come from a library
+with no licence at all, the risk was named to you on 18 August and you answered «we take the images».
+Three real defects, each verified by me:
+1. **`wiggle(item)` fires twice on one pairless tap** (`80-gameplay.js:1128` and `:1152`). One line.
+2. **The level goal went dark by accident, not by decision** — it is written into a node inside a
+   `hidden` holder, a side effect of the Figma win-screen redesign of 24 July. ⚠️ Simply un-hiding it
+   makes things worse: nothing branches on the goal and it is beaten several times over at level 1.
+3. **Telemetry is switched off** (`let URL = ''`), so the tester's «a solid 3» and «six minutes» are
+   unanswerable and will stay so until a worker exists. You already run three.
+⚠️ AND ONE QUESTION FOR THE TESTER, WHICH I GOT WRONG MYSELF: I told you he was on Easy. His wording
+«предметы заблочены другими» matches the HARD toast «Item is covered from above» almost verbatim. On
+Easy nothing is ever blocked. Which difficulty he played decides whether that complaint is in scope
+at all.
 
 **9 SEPTEMBER — THE SPEED FIX OF LAST NIGHT WAS DOING NOTHING, AND NOW IT IS (batch 2026-09-09-m).**
 I deployed it, checked it, and found the domain unchanged: the page still came back without a validator and
