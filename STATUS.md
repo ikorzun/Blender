@@ -6,8 +6,19 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-b on top of 2026-09-09-a and 2026-09-08 a–i, v2 = main** · the suite **1106 green, 0 red, SUITE: PASS** (run 40, the poster batches -b and -d together; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
+**Build: batch 2026-09-09-e (docs + two guard waits; the game byte-identical to -b/-d) on top of 2026-09-09-a and 2026-09-08 a–i, v2 = main** · the suite **1106 green, 0 red, SUITE: PASS** (run 42 on the -e tree — run 41 died on the pack-matcap stand flake at 1066 green; run 40 gave the same 1106 on the -b/-d build; runs 37–39 died or reddened on the stand's known timing flakes, none in these batches) · the live
 site verified by byte size against the build (index.html) · the leaderboard worker is deployed (the rank fix and the `t` field) · the video worker answers 206 for the landscape pair; **the portrait pair reaches the domain only with your redeploy** (item 6 below — it serves the iPad in portrait alone now) · portal package unchanged in shape
+
+**9 SEPTEMBER, LATE AFTERNOON — «FIX THE REST» (batch 2026-09-09-e in CLAUDE.md).** Read as the FILM (the second
+half of your morning word). The poster's recipe was applied to the film, measured and NOT shipped: the film's
+zone colour was already right by the afternoon batch (the load fill and body both wear the film's sky while it
+plays; the iPad and the Mac have no bottom zone; the top zone is a flat colour on every device — the platform's
+limit), and the recipe only moved a ~1 s compositor commit (film + canvas) from under the film to the fade — a
+freeze of the fade on the bench. The tree is byte-identical to what you have; two suite arms now wait for the
+fact instead of 600 ms of the clock (a latent flake of the tablet's arm, uncovered by this). If «the rest» meant
+other phone screens (the game, the menu, the leaderboard, the ×5 screen, the win screen) — name which: those stand
+on the 6 September edge cards you confirmed. Your check remains the iPad/Mac over the film, and `npm run
+site:deploy` after this push.
 
 **9 SEPTEMBER, AFTERNOON — THE POSTER'S ZONES (batch 2026-09-09-d in CLAUDE.md).** Your screenshot from
 blendo.monster: the zones over and under the poster in the game's lavender, the poster cut at the bar. The cause,
@@ -16,7 +27,7 @@ the HUD bars) — WebKit reads the zone colour from the nearest fixed box at its
 covers the bottom point, paints OVER the document's rows there. One rule now hides them for the poster's duration
 only (nothing else touched, one-line rollback): the top zone should be the poster's own sky, the bottom the poster's
 rows under the bar. Your check: `npm run site:deploy`, a fresh tab, a screenshot. If the bottom is still cut, plan B
-is yours: the poster rounded top and bottom like the browser bar, one line.
+is yours: the poster rounded top and bottom like the browser bar, one line. (Pushed with -b as 0a13b8d after run 40; you confirmed the poster on your phone.)
 
 **9 SEPTEMBER, MIDDAY — THE GAME ON YOUR DOMAIN: THE SITE WORKER IS BUILT (batch 2026-09-09-c in CLAUDE.md).**
 `server/site/` serves `blendo.monster` and `www.blendo.monster` (www → apex, http → https, the music sliced for

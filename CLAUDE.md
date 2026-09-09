@@ -17500,4 +17500,67 @@ asserting a pre-existing state it had no business in. PROVEN TWO-SIDED: the fill
 
 ### WHAT ONLY HIS PHONE CAN SAY
 The top zone in the poster's sky with no border; the poster's rows under the address bar. The deploy is his
-(`npm run site:deploy` — build.py had already re-packed `site/`); the GitHub push of -b/-d waits for the suite.
+(`npm run site:deploy` — build.py had already re-packed `site/`); -b/-d were pushed as 0a13b8d after run 40 (1106 green), and he
+confirmed the poster on his phone: «with the poster all good».
+
+
+## BATCH 2026-09-09-e: «FIX THE REST» — THE FILM'S ZONES WERE ALREADY RIGHT BY -d; THE POSTER'S RECIPE ON THE FILM WAS BUILT, MEASURED AND NOT SHIPPED; TWO GUARDS NOW WAIT FOR THE FACT (his words after the poster: «with the poster all good, fix the rest», then «what are you waiting for?»)
+
+### THE READING, AND THE ALTERNATIVES NAMED
+«The rest» was read as the second half of his morning word — the FILM on the tablet and the desktop «full screen
+and under all the system elements» (the poster was the first half, confirmed on his phone). If he meant other
+PHONE screens (the game, the menu, the leaderboard, the ×5 screen, the win screen), those stand on the -h edge
+cards and `html.dimmed`, both confirmed on his phone on 2026-09-06, and nothing in his screenshot named them;
+his word decides.
+
+### WHAT WAS TRIED — AND WHY IT IS NOT IN THE TREE
+The -d recipe applied to the film's play: `#introVideo` ABSOLUTE instead of fixed, `#skyFill { display:none }`
+under `html.video-on:not(.video-out)` (instead of -d's «the fill wears the film's colour»), the canvas and the
+three HUD bars `visibility:hidden` for the play. Arms E and A5 re-based on it (the structural census empty at
+both sample points, the canvas hidden, the box absolute). The INTRO dry-run came back 54 green, 2 red — arms L2
+and Q3's «after the close» reads (`done:false` at 600 ms) — and the reason is worth more than the change:
+- ⚠️⚠️ **THE RECIPE MOVES A ~1 s COMPOSITOR COMMIT FROM UNDER THE FILM TO THE FADE.** A CDP trace around the skip
+  on the -e build: `RunTask` 1132 ms = `Commit` 1087 ms waiting on a `GPUTask` 1085 ms (57 MB) — the compositor's
+  first frame with the VIDEO layer and the WebGL CANVAS together. On the -d build that same commit (1382 ms)
+  happens at `video-on`, under the film, where nothing sees it; hide the canvas for the play and it lands on the
+  frame the fade begins in — a 1 s freeze of the fade and the start of the fall. Not the GL: every link/compile/
+  draw call wrapped and timed reads ~0 ms on both builds, the counts identical. Headless Chromium composites in
+  software (the GPU process is SwiftShader here); on an iPad or a Mac the same commit is milliseconds — but it is
+  the shape of the cost that decides, and it is paid for NOTHING:
+- ⛔ **THE FILM'S ZONE COLOUR WAS ALREADY RIGHT BY -d, ON BOTH BRANCHES SAFARI CAN TAKE.** During the play the
+  fill DECLARES one opaque colour = the film's first top rows (131,208,251), and body wears the same; the canvas
+  above the fill declares nothing and a replaced element is excluded from the snapshot — so the candidate
+  branch reads the fill and the fallback branch reads body, and both say the film's sky. The top zone is a flat
+  colour on every device by the platform limit (09-05-f) — the recipe cannot improve it; the iPad and the Mac
+  have no bottom zone in Safari; «full screen» is `object-fit:cover` since -c. Nothing visible was to be gained.
+  The code was reverted (`git checkout` of the two files); the rebuilt `index.html` is byte-identical to
+  0a13b8d's (md5 a6b03027…).
+
+### THE TWO GUARDS THAT MOVED — AND THE FLAKE THIS UNCOVERED ON THE -d BUILD ITSELF
+On the RESTORED build the INTRO dry-run gave 55 green, 1 red: Q3's «after the close» (the portrait tablet's
+film over its poster) — the same `done:false` at 600 ms. Under -d the tablet's joint fade returns the canvas
+(`html.splash:not(.splash-out)` releases it) while the film is still displayed — the same commit, at the same
+moment, on a build the suite ran green in run 40 and the dry-run passed 56 green on 2026-09-09-d: the commit's
+own spread (871–1416 ms measured today) against a fixed 600 ms wait. The canon's own «a fixed pause measures the
+bench's clock, not the page's state», met on a wait that had passed by luck. Both arms (L2's after-skip read and
+Q3's after-close read) now WAIT FOR THE FACT — `videoState().done` — with a 4 s ceiling in a `try` (a bare wait is
+a run-killer), and read after it; the predicates are unchanged. INTRO alone: 56 green twice on the restored build.
+⚠️ NOT TOUCHED, DELIBERATELY: the -d rule on the tablet. Scoping the canvas term to the phone would edit the path he
+just confirmed, for a cost that exists on the software compositor of the bench and is milliseconds on an iPad.
+Named here; his iPad in portrait is the check (the -b list).
+
+### WHAT ONLY HIS DEVICES CAN SAY
+The iPad (landscape and portrait) and the Mac over the film: the toolbar in the film's own sky, not the game's
+lavender — the -d rule, never yet reported on. The site: `npm run site:deploy` after this push (the site does
+not follow GitHub).
+
+### THE RUNS
+**Run 41** (the two hardened arms, the restored build): **1066 green, 0 red, then DEAD WITHOUT A VERDICT** — «Execution
+context was destroyed» inside the pack-matcap section's own `brightness()` read (test.js ~18131), the FOURTH occurrence
+of the subject named on 2026-09-01-p / 2026-09-03-e / run 37: a heavy WebGL page's renderer dying on a loaded stand
+(the load average 8–12 through both runs — other chats' processes, none of mine; free memory 3 GB, no swap; no
+browser of mine open beside either run). The section is untouched by this batch; the death is recorded, not cured —
+if it recurs at that line, the honest hardening is a fresh page and ONE retry around the two reads, a design change
+of someone else's guard. **Run 42, the same build: 1106 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (run 40 was
+1106 too: no arm was added, two changed how long they wait). `index.html` unchanged (12 763 721 B, md5 a6b03027…);
+the commit carries `test.js`, this file and STATUS. Pushed to `v2` and onto `main` on his standing word.

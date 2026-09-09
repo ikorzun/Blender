@@ -11400,7 +11400,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const l3 = await vstate(lp);
     expect(l3.st.why === 'skipped' && l3.st.out && l3.phase === 'drop',
       'VIDEO second tap = skip: the next click on the now-sounding film skips it — the fade and the fall in the same frame (' + JSON.stringify({ why: l3.st.why, out: l3.st.out, phase: l3.phase }) + '). ⛔ SABOTAGE: make every tap on a refused film unmute (the film could never be skipped)');
-    await lp.waitForTimeout(600);
+    // 2026-09-09-e: WAIT FOR THE FACT (done), not 600 ms of the bench's clock: at the fade the compositor's first commit of the
+    // film + the returning canvas together is a ~0.9-1.4 s GPU task in headless (a trace: Commit → GPUTask, 57 MB), and the
+    // 340 ms close timer fires only after it — a fixed 600 ms read `done:false` on a healthy build (the tablet arm below the
+    // same; -d's dry-run passed it by the commit's own spread). The ceiling is insurance, the read after it says what it saw.
+    try { await lp.waitForFunction(() => window.__game.videoState().done, null, { timeout: 4000 }); } catch(_){}
     const l3b = await vstate(lp);
     expect(l3b.st.done && l3b.st.holds === false && l3b.st.deferred === false && l3b.bgmPaused === false,
       'VIDEO after the skip: the music the clicks DEFERRED starts at the film\'s close — the clicks\' activation lets a play() from a timer through (' + JSON.stringify({ done: l3b.st.done, holds: l3b.st.holds, deferred: l3b.st.deferred, bgmPaused: l3b.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose');
@@ -11522,7 +11526,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const q3c = await vstate(q3);
     expect(q3c.st.why === 'skipped' && q3c.st.out && q3c.s.out && q3c.phase === 'drop' && q3c.body === 'rgb(172, 168, 255)',
       'TABLET FILM second tap = skip: the film and the poster fade together, the fall starts, body on the zenith in that read (' + JSON.stringify({ why: q3c.st.why, out: q3c.st.out, splashOut: q3c.s.out, phase: q3c.phase, body: q3c.body }) + ')');
-    await q3.waitForTimeout(600);
+    try { await q3.waitForFunction(() => window.__game.videoState().done, null, { timeout: 4000 }); } catch(_){}   // the fact, not the clock (the -e note at arm L2)
     const q3d = await vstate(q3);
     expect(q3d.st.done && q3d.st.holds === false && q3d.st.deferred === false && q3d.bgmPaused === false,
       'TABLET FILM after the close: the DEFERRED music starts — the taps\' activation lets a play() from the close through (' + JSON.stringify({ done: q3d.st.done, holds: q3d.st.holds, deferred: q3d.st.deferred, bgmPaused: q3d.bgmPaused }) + '). ⛔ SABOTAGE: drop bgmDeferredStart() from videoClose / splashClose');
