@@ -11742,6 +11742,42 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'PWA: the four icons are square PNGs of the size they claim, read off the IHDR, and the packer carries the manifest, sw.js and icons/ into the site (' +
       JSON.stringify({ i192, i512, imsk, iapl, packed }) + '). ⛔ WHY THE PACKER IS IN THE SAME ARM: miss one file there and the game is installable on GitHub Pages, which serves the repository, and NOT on his own domain — the one place he shows people. ⛔ SABOTAGE: drop icons/ from DIRS; write a 256 png under the 512 name');
 
+    // ---- 2b. THE MASKABLE'S SAFE ZONE, MEASURED IN PIXELS (2026-09-09-j). His `icon.jpg` fills the square,
+    // and Android may mask an icon with a CIRCLE of 80% of the side — handed over as is it cuts the bottom of
+    // the jar and the tops of the flames. This arm decodes the shipped PNG and states the property the maskable
+    // variant EXISTS for; nothing else in the suite could tell a correctly built one from a plain copy.
+    // ⚠️ ITS CONTROL IS THE SECOND HALF: «no art outside the circle» is also true of a blank blue square, and of
+    // a build where the maskable is a copy of the «any» icon ONLY if that one is inside the circle too — which
+    // his is not. So the plain 512 must have art OUTSIDE the circle, and the maskable must not.
+    // ⚠️ THE READER IS A LOCAL COPY of the one in the CHARGEFX section on purpose: that one is a `const` inside
+    // another block and this section runs EARLIER in the file, so referencing it would be a TDZ ReferenceError —
+    // which kills a run without a verdict instead of reddening an arm (the trap of batch 2026-09-08-i).
+    const pngRGB = (file) => {
+      const zlib = require('zlib'); const buf = fs.readFileSync(file); let q = 8, w, h, ct, idat = [];
+      while (q < buf.length){ const len = buf.readUInt32BE(q), type = buf.toString('ascii', q + 4, q + 8), data = buf.slice(q + 8, q + 8 + len);
+        if (type === 'IHDR'){ w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; } else if (type === 'IDAT') idat.push(data); q += 12 + len; }
+      const raw = zlib.inflateSync(Buffer.concat(idat)); const bpp = ct === 6 ? 4 : 3, stride = w * bpp; const out = Buffer.alloc(w * h * bpp); let prev = Buffer.alloc(stride);
+      for (let y = 0; y < h; y++){ const f = raw[y * (stride + 1)]; const line = raw.slice(y * (stride + 1) + 1, y * (stride + 1) + 1 + stride); const cur = Buffer.alloc(stride);
+        for (let i = 0; i < stride; i++){ const aa = i >= bpp ? cur[i - bpp] : 0, bb = prev[i], cc = i >= bpp ? prev[i - bpp] : 0; let v = line[i];
+          if (f === 1) v += aa; else if (f === 2) v += bb; else if (f === 3) v += (aa + bb) >> 1;
+          else if (f === 4){ const pp = aa + bb - cc, pa = Math.abs(pp - aa), pb = Math.abs(pp - bb), pc = Math.abs(pp - cc); v += (pa <= pb && pa <= pc) ? aa : (pb <= pc ? bb : cc); }
+          cur[i] = v & 255; } cur.copy(out, y * stride); prev = cur; }
+      return { w, h, bpp, data: out }; };
+    const outsideSafe = (file) => {              // art pixels farther than 80% of the half-side from the centre
+      const im = pngRGB(file), R = 0.8 * im.w / 2, cx = im.w / 2, cy = im.h / 2; let n = 0, far = 0;
+      for (let y = 0; y < im.h; y++){
+        const row = y * im.w * im.bpp, br = im.data[row], bg = im.data[row + 1], bb = im.data[row + 2];
+        for (let x = 0; x < im.w; x++){
+          const i = row + x * im.bpp;
+          if (Math.abs(im.data[i] - br) + Math.abs(im.data[i + 1] - bg) + Math.abs(im.data[i + 2] - bb) > 40){
+            n++; if (Math.hypot(x - cx, y - cy) > R) far++; } } }
+      return { art: n, far: far }; };
+    const mkSafe = outsideSafe(pth.join(root, 'icons', 'icon-maskable-512.png'));
+    const anyArt = outsideSafe(pth.join(root, 'icons', 'icon-512.png'));
+    expect(mkSafe.art > 5000 && mkSafe.far === 0 && anyArt.far > 1000,
+      'PWA: the maskable icon keeps ALL of its art inside the 80% safe circle, while the plain one does not — i.e. the maskable was really built for the mask and is not a copy (' +
+      JSON.stringify({ maskable: mkSafe, plain: anyArt }) + '). ⛔ WHY IT MATTERS: Android masks an adaptive icon with a circle, and his icon fills the square — as is, the bottom of the jar and the tops of the flames are cut. ⛔ SABOTAGE: copy icon-512 over icon-maskable-512; regenerate with --scale 1.0');
+
     // ---- 3. the head links and the registration gates, read off the BUILT artefact
     const linkM = /<link rel="manifest" href="manifest\.webmanifest">/.test(html);
     const linkA = /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/.test(html);

@@ -17752,6 +17752,10 @@ the game is an IFRAME on their origin — a worker there would be scoped to THEI
 refuses (`window.top !== window.self`); in the SwiftUI wrapper there is nothing to install.
 
 ### THE ICON IS CUT FROM HIS OWN POSTER, BY A TOOL, AND IT WENT TO HIM AS A PICTURE FIRST
+⛔⛔ **SUPERSEDED THE SAME EVENING BY 2026-09-09-j: he drew an icon and dropped `icon.jpg` on the disk**
+(«update the icon»). The crop out of og.jpg was a stand-in; `tools/icon-gen.py` now takes his file as it is.
+The paragraph below is the history of that stand-in, and its measuring technique is what found the scale for
+the maskable variant of his own icon.
 `tools/icon-gen.py` cuts the face out of `og.jpg` and pads it on the poster's own sky. EVERY NUMBER WAS
 MEASURED OFF THE FILE, none chosen by eye (the advisor's condition, and the canon's own rule about
 deriving a colour): the sky is a TOP-ROW pixel — rgb(122,206,252) = **#7ACEFC**; the face is
@@ -17921,3 +17925,56 @@ spending someone else's entitlement.
 cross-border SME scheme covers digital services in his case, which CAE code fits, ENI or Lda. Those
 are one paid hour with a Portuguese accountant, and guessing them in a canon would be worse than
 silence.
+
+## BATCH 2026-09-09-j: HIS OWN ICON REPLACES THE CROP (one line, «update the icon», with `icon.jpg` on the disk)
+
+⚠️ THE SILENT DELIVERY CHANNEL AGAIN, THE FOURTH TIME (the bar's PNGs twice, the sounds, now this): he puts a
+file where the game can see it and names it in a sentence. `git status` is what finds it — and it did.
+
+**THE FILE, MEASURED:** 1024×1024 JPEG, 470 KB, square, the jar with the wordmark, the eyes and the flames on
+his own RADIAL vignette (the corners rgb(123,193,255), the middle of an edge rgb(143,203,255), the centre
+rgb(185,224,253)). It is a finished app icon, so `icon-192`, `icon-512` and `apple-touch-icon` are a PLAIN
+DOWNSCALE — nothing cropped, re-framed or recoloured, and the JPEG is never rewritten. `icon.jpg` is TRACKED,
+like `og.jpg`, because a derived asset whose source is not in the repository cannot be rebuilt by anyone else.
+
+⛔⛔ **THE ONE VARIANT THAT CANNOT BE A DOWNSCALE IS `maskable`, AND THE NUMBER SAYS SO:** his art fills the
+square (bbox x161..859, y49..960; the farthest pixel 477.5 of the 512 half-side = 93.3%), while Android may
+mask with a CIRCLE of 80% of the side — **6.6% of the art's pixels fall outside it**, and what they are is the
+bottom of the jar and the tops of the flames. So the maskable is his icon scaled until the art fits that
+circle, on a background that fills the square.
+⚠️⚠️ **AND THE BACKGROUND IS HIS OWN EDGE SMEARED OUTWARD, WHICH WAS CHOSEN BY MEASUREMENT AFTER THREE
+CANDIDATES FAILED.** His vignette is radial, so NO single colour matches a whole edge, and a step at the seam
+shows as a square frame inside the icon on every launcher that masks with a rounded square. Measured across
+the seam at the middle of an edge: a flat pad of the CORNER colour steps **20** units, a flat pad of the
+MID-EDGE colour steps the other way, a synthetic radial vignette built with `geq` still steps **17** — and
+`fillborders=…:mode=smear` steps **1**, because it replicates his own border pixels and is therefore exact by
+construction. ⚠️ The eye did not settle this: the synthetic vignette looked seamless at 200 px and was 17 units
+wrong. The pixels did.
+
+⚠️ **THE SCALE IS MEASURED FROM THE FILE, NOT WRITTEN DOWN**, so a future icon of his adapts by itself: the
+background is read PER ROW from the outermost pixel (a single corner colour is not a usable reference against
+a vignette), a pixel is «art» when it differs from that row's edge by more than 40, and the scale is the safe
+radius divided by the art's farthest radius. The numbers are PRINTED on every run and `--scale N` overrides
+them. ⛔ THE LIMIT OF THAT RULE, NAMED IN THE TOOL: on an icon whose background is much lighter in the middle
+than at the edges AND whose art does not cover the centre, background near the centre would count as art and
+the scale would come out too small.
+
+⚠️ **A 2.5% MARGIN INSIDE THE SAFE CIRCLE (`FRINGE`), AND IT IS A FIX OF THE BUILD RATHER THAN OF THE GUARD.**
+Scaling so the art TOUCHES the circle exactly left its antialiased fringe a fraction of a pixel outside after
+the downscale: five pixels of a flame tip, 0.1–0.3 px over, measured on the first build. The guard states «no
+art outside» and must not carry a tolerance for our own resampling, so the picture was given the room.
+
+✅ **AND THE GUARD GAINED THE ARM THAT WAS MISSING:** the shipped PNG is decoded in node and every art pixel
+must lie inside the 80% circle, **with the plain 512 as the control — it must have art OUTSIDE it**. Without
+that second half the arm is satisfied by a blank blue square and by a maskable that is merely a copy of the
+«any» icon. Two sabotages, each red on that arm alone and nothing else: the plain icon copied over the
+maskable, and a maskable rebuilt at scale 1.0. The section is **8 green**.
+⚠️ Its PNG reader is a local copy of the CHARGEFX one on purpose: that one is a `const` inside another block
+and this section runs EARLIER in the file, so referencing it would be a TDZ ReferenceError — which kills a run
+without a verdict instead of reddening an arm (the trap of 2026-09-08-i).
+
+⚠️ **`background_color` STAYS THE POSTER'S #7acefc AND `theme_color` THE LIVE SKY, AND THE DIFFERENCE IS NAMED
+RATHER THAN CHASED:** Android's launch splash shows the icon on `background_color` and is followed by the
+POSTER, so matching the poster keeps the transition the eye actually follows seamless; the price is that his
+icon's own border (123..144 red) meets the splash's 122 with a step of up to 21 units at the middle of an edge.
+No single value removes both, and a whole-screen step is more visible than a halo round a small icon.

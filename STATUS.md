@@ -6,7 +6,15 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-09-h (installing the game as an app — a PWA) on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+**Build: batch 2026-09-09-j (his own icon.jpg in the PWA) on top of -h and -i on top of 2026-09-09 a–g and 2026-09-08 a–i, v2 = main** · the gate of this push: PWA 7 green + OG 4 green + the site worker **22 green** + its **11 sabotages** + **nine** sabotage variants of the new section, each red on its own arm + a live run in a real browser against the real site worker (no full suite — your rule of 9 September); the last full suite: **1106 green, 0 red, SUITE: PASS** (run 42) · the live site verified by byte size against the build · the leaderboard and the video workers are deployed · ⚠️ the manifest, the worker and the icons reach blendo.monster only with your `npm run site:deploy`
+
+**9 SEPTEMBER, NIGHT — THE ICON IS YOURS NOW (batch 2026-09-09-j).** Your `icon.jpg` replaced the crop I had cut
+out of the poster. It is taken AS IS for Android, the desktop and iOS: nothing cropped, nothing recoloured, the
+JPEG itself untouched. One variant had to be built rather than copied: Android may mask an icon with a CIRCLE,
+and your art fills the square, so the bottom of the jar and the tops of the flames were being cut — 6.6% of the
+drawing. For that variant the picture is shrunk until it fits the circle, and the field around it is your own
+edge continued outward, so there is no square seam inside the icon (measured: the seam is 1 unit of colour,
+against 17-20 for every flat backing I tried). The sheet is above.
 
 **9 SEPTEMBER, NIGHT — STRIPE IN PORTUGAL, THE INSTRUCTION (docs/STRIPE-PORTUGAL.md).** Point 3 of your
 list. The whole route is written out: what must exist before Stripe (NIF, an open activity at Finanças,
