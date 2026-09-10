@@ -154,3 +154,31 @@ and a lagging copy still never resurrects what was spent (the property the rule 
 The honest cure is one counter PER DEVICE under each key, summed for the balance — a schema change
 across every counter and every reader, i.e. a project, and it does not stop deliberate double
 spending offline either (that needs a server ledger). Not planned before release.
+
+## A «PAYMENT WENT THROUGH» SCREEN IN THE GAME (his word 2026-09-10, «запиши на будущее»)
+
+Verbatim: «Внутри после покупки нужен экран, что платеж прошел и возвращать на него после оплаты».
+Recorded, deliberately NOT built in that batch — he asked for it to be written down.
+
+⚠️⚠️ **«RETURN TO IT» MEANS SOMETHING DIFFERENT SINCE 2026-09-10-zh, AND THAT IS THE WHOLE DESIGN NOTE.**
+Payment opens in a NEW TAB and the paying tab CLOSES itself; the grant lands in the tab the player was
+playing in, woken by the `storage` event (or by `visibilitychange`). So there is nothing to «return» to —
+the screen must be shown WHERE THE GRANT LANDS, i.e. in the game tab, at the moment `buyBundle` succeeds.
+The two paths that reach that moment are already one function: the `storage`/visibility hand-back of -zh
+and the boot-time claim pass (`83-pay.js`, `/v1/mine` → `/v1/claim`), so a screen hung on the grant covers
+the tab-closed-on-Stripe case for free.
+
+WHAT IT HAS TO SAY, from the data the grant already carries: ×5 for 30 minutes of PLAY time (not wall
+clock — the budget model of 2026-09-03-c), +9 Shake's, +13 Tips, and the new totals. The ×5 badge in the
+corner already states the live multiplier and counts its minutes down — the screen should not become a
+second truth about it; it announces, the badge tracks.
+
+⚠️ THREE THINGS TO DECIDE WITH HIM BEFORE BUILDING IT: (1) does it PAUSE the game (the shop screen already
+holds a silent pause while he is away — the screen could simply replace the shop screen in place, which is
+the cheapest and keeps the pause); (2) what it shows when the grant arrives at BOOT, seconds before the
+first level exists; (3) whether a SECOND purchase (the boost stacks — 45 minutes on top of 15) says
+«added» rather than «bought», because the numbers differ.
+
+⛔ AND THE ONE TRAP: the screen must never be the thing that CONFIRMS a purchase to the player — the grant
+is confirmed by the server's webhook and the ledger, and a screen that appears on the redirect alone would
+lie about a delayed method (MB WAY pays minutes later). Hang it on the grant, never on the return.

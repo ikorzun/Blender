@@ -11450,6 +11450,87 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // visible, then faded over 300 ms while the fall starts underneath. The suite's pages are webdriver and
   // never see it unless `?splash=1`; the guard stretches the minimum to 4 s through a knob so the hold
   // is measurable on a bench whose load already takes ~2.5 s. =====
+  // ⟦LOADING-SECTION-BEGIN⟧ — THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «хорошо бы сразу
+  // показывать голубой фон и ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться
+  // и это важно»). MEASURED on the artefact before the rule was written: the render-blocking head is 404 KB, so
+  // the first paint — the blue body — is possible at 3.08% of the download and the loader ELEMENT is parsed at
+  // 3.1%, while the poster's own bytes only complete at 11.6%. Between those two the phone showed a flat blue
+  // field with NOTHING on it. `html.loading` is written STATICALLY on the <html> tag (earlier than any script)
+  // and 99-main removes it at `window.__booted`.
+  // ⚠️⚠️ THE STATE IS RECORDED IN THE PAGE, NOT POLLED FROM THE BENCH: the whole window is ~300 ms on file://
+  // and a read from node measures the harness's clock rather than the page's. A rAF recorder installed by an
+  // init script samples EVERY frame from document start and stops at boot — the technique the ice scatter's
+  // own guard uses. Measured on the healthy build: 9-10 samples over ~290 ms, every pre-boot one carrying the
+  // ring; on a real phone the window is seconds, not milliseconds.
+  {
+    const recorder = () => {
+      window.__loadRec = [];
+      const tick = () => {
+        const el = document.getElementById('introLoader');
+        const cs = el ? getComputedStyle(el) : null, r = el ? el.getBoundingClientRect() : null;
+        window.__loadRec.push({ t: Math.round(performance.now()),
+          loading: document.documentElement.classList.contains('loading'), booted: !!window.__booted,
+          disp: cs ? cs.display : null, anim: cs ? cs.animationName : null,
+          cx: r ? Math.round(r.left + r.width / 2 - innerWidth / 2) : null,
+          cy: r ? Math.round(r.top + r.height / 2 - innerHeight / 2) : null,
+          bg: document.body ? getComputedStyle(document.body).backgroundColor : null });
+        if (!window.__booted && window.__loadRec.length < 600) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    // a blue field, whatever writes it: the CSS fallback before any script (133,220,255), the poster's own sky
+    // under `html.splash` (142,218,253), or the palette's zenith once 10-stage has run (172,168,255)
+    const blue = (s) => { const m = /rgb\((\d+), (\d+), (\d+)\)/.exec(s || ''); if (!m) return false;
+      const r = +m[1], g = +m[2], b = +m[3]; return b >= 200 && b >= r && b >= g; };
+
+    const watch = async (label, q, vp) => {
+      const pg = await browser.newPage({ viewport: vp });
+      pg.on('pageerror', e => errors.push('PAGEERROR(loading-' + label + '): ' + e.message));
+      await pg.addInitScript(recorder);
+      await pg.goto('file://' + PAGE_FILE + q, { waitUntil: 'commit' });
+      await pg.waitForFunction(() => window.__booted === true, null, { timeout: 60000 });
+      const rec = await pg.evaluate(() => window.__loadRec);
+      const after = await pg.evaluate(() => ({ loading: document.documentElement.classList.contains('loading'),
+        disp: getComputedStyle(document.getElementById('introLoader')).display,
+        alive: window.__game ? window.__game.alive() : -1 }));
+      await pg.close();
+      const pre = rec.filter(s => !s.booted);
+      return { rec, pre, after, ok: pre.length >= 3 && pre.every(s => s.loading && s.disp === 'block' &&
+        Math.abs(s.cx) <= 2 && Math.abs(s.cy) <= 2 && s.anim === 'introSpin' && blue(s.bg)) };
+    };
+
+    // (A) THE PLAIN PAGE — the desktop's own order, and the case he described first
+    const A = await watch('plain', '?dev=1&splash=0&video=0', { width: 390, height: 844 });
+    expect(A.ok && A.after.loading === false && A.after.disp === 'none' && A.after.alive > 0,
+      'LOADING: from the very first frame the page is a blue field with the ring spinning at its centre, and EVERY frame before the boot carries it — then the boot takes it away and the game is live (' +
+      JSON.stringify({ frames: A.pre.length, first: A.pre[0], last: A.pre[A.pre.length - 1], after: A.after }) + '). ⛔ SABOTAGE: drop `class="loading"` from the <html> tag; drop the `html.loading #introLoader` rule; remove the class before the boot instead of at it. ⚠️ THE CONTROL IS `alive > 0`: «the ring is gone» is also true of a build that never showed it');
+
+    // (B) THE PHONE, WITH THE POSTER — the ring must never sit on the wrong colour: here the blue is the
+    // POSTER's own sky (142,218,253), written by the splash gate at the top of body, so the ring, the field
+    // and the picture that follows are one continuous surface.
+    const B = await watch('splash', '?dev=1&splash=1', { width: 390, height: 844 });
+    const posterSky = B.pre.every(s => s.bg === 'rgb(142, 218, 253)');
+    expect(B.ok && posterSky && B.after.loading === false,
+      'LOADING: on the phone the same ring waits on the POSTER\'s own sky, so the field the player sees before the picture is the field the picture will stand on (' +
+      JSON.stringify({ frames: B.pre.length, bg: B.pre[0] && B.pre[0].bg, posterSky, after: B.after }) + '). ⛔ SABOTAGE: give `html.loading` a background of its own — it would fight `html.splash body` at equal specificity and the field under the ring would stop being the poster\'s');
+
+    // (C) THE ARTEFACT: the class is STATIC and both removals exist. A class added by a script would arrive
+    // after the 12.7 MB parse — i.e. exactly when it is no longer needed — and the whole point is that it is
+    // there before anything runs. `__fatal` is the other end: a start that FAILS must not leave a spinner
+    // promising a wait that will never end.
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const staticClass = /<html lang="en" class="loading">/.test(html);
+      const rule = /html\.loading #introLoader \{ display:block; \}/.test(html);
+      const atBoot = /window\.__booted = true;[\s\S]{0,900}?classList\.remove\('loading'\)/.test(html);
+      const atFatal = /window\.__fatal = function\(msg\)\{[\s\S]{0,400}?classList\.remove\('loading'\)/.test(html);
+      expect(staticClass && rule && atBoot && atFatal,
+        'LOADING: the class is written STATICALLY on the <html> tag (a script could only add it after the 12.7 MB parse, i.e. when it is no longer needed), the rule is in the build, and it is taken off at the boot AND on the fatal screen (' +
+        JSON.stringify({ staticClass, rule, atBoot, atFatal }) + '). ⛔ SABOTAGE: add the class from a script; drop either removal — the fatal one leaves a spinner over «Failed to start 3D» for ever');
+    }
+  }
+  // ⟦LOADING-SECTION-END⟧
+
   // ⟦INTRO-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=INTRO runs this block alone; keep the markers)
   {
     const boot = async (pg, url) => { await pg.goto('file://' + PAGE_FILE + url); await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); };
@@ -12114,27 +12195,59 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const linkM = /<link rel="manifest" href="manifest\.webmanifest">/.test(html);
     const linkA = /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/.test(html);
     const reg = (html.match(/function registerServiceWorker\(\)\{[\s\S]*?\n\}/) || [''])[0];
-    const gates = { https: /location\.protocol !== 'https:'/.test(reg), wd: /navigator\.webdriver/.test(reg), frame: /window\.top !== window\.self/.test(reg), kill: /nosw=1/.test(reg), unreg: /unregister\(\)/.test(reg), call: /register\('sw\.js'\)/.test(reg) };
-    expect(linkM && linkA && gates.https && gates.wd && gates.frame && gates.kill && gates.unreg && gates.call,
+    const gates = { https: /location\.protocol !== 'https:'/.test(reg), wd: /navigator\.webdriver/.test(reg), frame: /window\.top !== window\.self/.test(reg), kill: /nosw=1/.test(reg), unreg: /unregister\(\)/.test(reg), call: /register\('sw\.js'\)/.test(reg),
+      // ⚡ THE RELEASE CHECK, AND IT IS LOAD-BEARING RATHER THAN BELT AND BRACES (2026-09-10-i): `register()`
+      // on an EXISTING registration short-circuits by spec and byte-checks nothing — measured in a real
+      // browser, four launches after a release asked the server for sw.js exactly ONCE and the new build
+      // never arrived. Take this out with a cache-first document and a release sits on an installed device
+      // until the browser's own soft-update throttle expires, which is not the one launch he agreed to.
+      upd: /\.update\(\)/.test(reg) };
+    expect(linkM && linkA && gates.https && gates.wd && gates.frame && gates.kill && gates.unreg && gates.call && gates.upd,
       'PWA: the build links the manifest and an apple-touch-icon (iOS reads the icon from the LINK, not from the manifest), and the registration is gated on https, NOT under automation, NOT inside the portal\'s iframe, with ?nosw=1 as an escape hatch that UNREGISTERS (' +
-      JSON.stringify({ linkM, linkA, gates }) + '). ⛔ EACH GATE IS LOAD-BEARING: the suite must never register one (13 MB of background fetches into the console the error gate reads); the portal frames the game on Playgama\'s origin, whose scope is not ours; and a bad worker that ever ships needs a way back that exists BEFORE it is needed. ⛔ SABOTAGE: drop the webdriver gate; drop the ?nosw=1 branch');
+      JSON.stringify({ linkM, linkA, gates }) + '). ⛔ EACH GATE IS LOAD-BEARING: the suite must never register one (13 MB of background fetches into the console the error gate reads); the portal frames the game on Playgama\'s origin, whose scope is not ours; and a bad worker that ever ships needs a way back that exists BEFORE it is needed. ⛔ SABOTAGE: drop the webdriver gate; drop the ?nosw=1 branch; delete the `update()` call (measured red). ⚠️ THE HONEST LIMIT OF `upd`, NAMED RATHER THAN HIDDEN: this is a TEXT assert over the built artefact, so it catches a DELETION and NOT a disabling — a variant that kept the call under `if (0)` stayed green here (measured). What the call actually DOES is proven only in a real browser against a real server, and that rig is in the batch entry: without it, four launches after a release fetched sw.js once and the new build never came.');
 
     // ---- 4. the worker's own behaviour, in a sandbox: what it refuses to touch
-    const runSw = () => {
-      const calls = [], handlers = {}, store = new Map();
+    // ⚠️⚠️ ONE STORE PER CACHE NAME, and not one shared Map as before 2026-09-10-i: the gated prune and the
+    // offline belt are BOTH statements about WHICH cache holds the document, and a fake that cannot tell two
+    // caches apart cannot state either of them. `blendo-old` is seeded with a document — it stands for the
+    // previous build still on the device.
+    const runSw = (opt) => {
+      opt = opt || {};
+      const calls = [], handlers = {}, stores = new Map();
+      stores.set('other', new Map());
+      // ⚠️ `noOld` removes the NAME, not merely its contents: the install branches on `caches.keys()`, so a
+      //   present-but-empty `blendo-old` would still read as «a release» and the newcomer arm would be empty.
+      if (!opt.noOld) stores.set('blendo-old', new Map([['./', { previousBuild: true }]]));
+      const bucket = (k) => { if (!stores.has(k)) stores.set(k, new Map()); return stores.get(k); };
+      const view = (k) => ({
+        put: async (key, val) => { calls.push('put:' + k); bucket(k).set(String((key && key.url) || key), val || true); },
+        match: async (key) => { const s = String((key && key.url) || key); calls.push('chk:' + k + ':' + s); return bucket(k).get(s) || null; }
+      });
+      let offline = !!opt.offline;
       const box = {
         console, URL,
-        self: { addEventListener: (t, f) => { handlers[t] = f; }, location: { origin: 'https://blendo.monster' }, skipWaiting: () => calls.push('skipWaiting'), clients: { claim: async () => calls.push('claim') } },
-        // a Map-backed fake cache: `put once per build` cannot be stated against a cache that never remembers
-        caches: { keys: async () => ['blendo-old', 'other'], delete: async k => { calls.push('delete:' + k); return true; },
-          open: async k => ({ put: async (key, val) => { calls.push('put'); store.set(String((key && key.url) || key), val || true); },
-                              match: async key => { calls.push('chk:' + String((key && key.url) || key)); return store.get(String((key && key.url) || key)) || null; } }),
-          match: async k => { const key = String((k && k.url) || k); calls.push('cache:' + key); return store.get(key) || null; } },
-        fetch: async r => { calls.push('net:' + (r.url || r)); return { ok: true, status: 200, type: 'basic', clone() { return this; } }; }
+        self: { addEventListener: (t, f) => { handlers[t] = f; }, location: { origin: 'https://blendo.monster' },
+          skipWaiting: async () => { calls.push('skipWaiting'); }, clients: { claim: async () => { calls.push('claim'); } } },
+        caches: {
+          keys: async () => [...stores.keys()],
+          delete: async k => { calls.push('delete:' + k); stores.delete(k); return true; },
+          open: async k => view(k),
+          // the global match searches EVERY cache — that is exactly the offline belt under test
+          match: async k => { const key = String((k && k.url) || k); calls.push('cache:' + key);
+            for (const st of stores.values()) if (st.has(key)) return st.get(key); return null; } },
+        fetch: async r => { const u = (r && r.url) || r; calls.push('net:' + u);
+          if (offline) throw new Error('offline'); return { ok: true, status: 200, type: 'basic', clone() { return this; } }; }
       };
       vm.createContext(box); vm.runInContext(swTxt, box);
       const ev = (url, o) => { o = o || {}; const e = { request: { url, method: o.method || 'GET', mode: o.mode || 'no-cors', headers: { has: n => !!(o.range && n === 'range') } }, took: null, respondWith(p) { e.took = p; } }; return e; };
-      return { handlers, calls, ev, sandboxCaches: box.caches };
+      const pump = async (name) => { let w = null; handlers[name]({ waitUntil: p => { w = p; } }); await w; };
+      const go = async (url, o) => { const e = ev(url, o || { mode: 'navigate' }); handlers.fetch(e);
+        e.res = e.took ? await e.took.catch(err => ({ threw: String(err && err.message) })) : null; return e; };
+      return { handlers, calls, ev, stores, go,
+        install: () => pump('install'), activate: () => pump('activate'),
+        setOffline: v => { offline = v; },
+        cacheNames: () => [...stores.keys()],
+        docIn: (k) => stores.has(k) && stores.get(k).has('./') };
     };
     const sw = runSw();
     const ORI = 'https://blendo.monster/';
@@ -12155,45 +12268,98 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       JSON.stringify(untouched) + '). ⛔⛔ THE RANGE ARM IS THE ONE THAT MATTERS: a respondWith on a Range request answers Safari\'s two-byte probe with a 200 out of the Cache API, and the film and the music then play NOTHING — on a build where every other assert here is green. The site Worker slices ranges on purpose (2026-09-08-g); a service worker in front of it would undo that. ⛔ SABOTAGE: drop the `headers.has(\'range\')` line (the DOCUMENT-with-Range case flips). ⚠️ DROPPING THE MEDIA TEST ALONE CHANGES NOTHING — measured: the allowlist does not list media either, so MEDIA is the layer that saves the NEXT edit. The pair that proves it: add music.mp3 to ALLOW (still green — MEDIA refuses it) and then remove MEDIA (red)');
 
     // ---- 5. and what it DOES take, and in which order
-    const nav = sw.ev(ORI + 'index.html?flow=0', { mode: 'navigate' });
-    sw.calls.length = 0; sw.handlers.fetch(nav); await nav.took;
-    const navCalls = sw.calls.slice();
-    const icon = sw.ev(ORI + 'icons/icon-192.png');
-    sw.calls.length = 0; sw.handlers.fetch(icon); await icon.took;
-    const icoCalls = sw.calls.slice();
-    const mfEv = sw.ev(ORI + 'manifest.webmanifest');
-    sw.calls.length = 0; sw.handlers.fetch(mfEv); await mfEv.took;
-    const mfCalls = sw.calls.slice();
-    expect(nav.took !== null && navCalls[0] && navCalls[0].indexOf('net:') === 0 &&
-      icon.took !== null && icoCalls[0] && icoCalls[0].indexOf('cache:') === 0 && mfEv.took !== null,
-      'PWA: the worker HAS a fetch handler that answers (without one no browser offers an install), and the strategies are the right way round — the DOCUMENT goes to the network first (' + JSON.stringify(navCalls) + ') and a static asset to the cache first (' + JSON.stringify(icoCalls.concat(mfCalls)) + '). ⛔ WHY NETWORK-FIRST FOR THE DOCUMENT: index.html is served no-cache + ETag, so an unchanged build costs a 304 and a release reaches the next load. Serve it from the cache first and a player keeps yesterday\'s game until the second launch. ⛔ SABOTAGE: swap the two strategies');
-
-    // ---- 5b. THE DOCUMENT IS WRITTEN ONCE PER BUILD, NOT ONCE PER NAVIGATION (2026-09-09-k, his «the game
-    // loads longer at the address than on GitHub Pages»). The document is 12.7 MB; cloning it into the Cache
-    // API on every load is real disk work on a phone and it buys nothing, because the cache NAME carries the
-    // build's hash — an entry that is already there IS this build's.
-    // ⚠️ THE SECOND HALF IS THE CONTROL: «one put» is also true of a worker that caches nothing at all, so
-    // the entry must actually be there afterwards and the network must have been asked BOTH times (the
-    // document stays network-first, or a release would wait for the second launch).
+    // ⛔⛔ THIS ARM IS THE INVERSE OF WHAT IT SAID UNTIL 2026-09-10-i, AND ITS OLD SABOTAGE IS THE NEW HEALTHY
+    // BUILD. It used to read «the DOCUMENT goes to the network first … serve it from the cache first and a
+    // player keeps yesterday's game until the second launch» — and that sentence is the PRICE HE THEN BOUGHT
+    // ON PURPOSE: «делаем 1 пункт» against «долго все грузится», with the cost named to him in his own words
+    // beforehand, «после выпуска новой версии вы один раз увидите старую». A guard states a DECISION, not a
+    // truth: it moves with his word and is not «repaired».
+    const stamp = crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE)).digest('hex').slice(0, 12);
+    const BUILD_CACHE = 'blendo-' + stamp;
     {
-      const s2 = runSw();
-      const nav1 = s2.ev(ORI, { mode: 'navigate' }); s2.handlers.fetch(nav1); await nav1.took;
-      const nav2 = s2.ev(ORI + '?again=1', { mode: 'navigate' }); s2.handlers.fetch(nav2); await nav2.took;
-      const puts = s2.calls.filter(c => c === 'put').length;
-      const nets = s2.calls.filter(c => c.indexOf('net:') === 0).length;
-      const cached = await (await s2.sandboxCaches.open('x')).match({ url: './' });
-      expect(puts === 1 && nets === 2 && !!cached,
-        'PWA: two navigations write the 12.7 MB document to the cache ONCE, and both still go to the network (' +
-        JSON.stringify({ puts, nets, cached: !!cached, calls: s2.calls }) + '). ⛔ SABOTAGE: put on every navigation; skip the network when the cache has it');
+      const warmSw = runSw();
+      await warmSw.install();                       // a release: the new worker prefetches its own document
+      warmSw.calls.length = 0;
+      const warm = await warmSw.go(ORI + 'index.html?flow=0');
+      const warmNet = warmSw.calls.filter(c => c.indexOf('net:') === 0).length;
+
+      const coldSw = runSw({ noOld: true });        // a first-ever visit: nothing of ours on the device
+      const cold = await coldSw.go(ORI);
+      const coldNet = coldSw.calls.filter(c => c.indexOf('net:') === 0).length;
+
+      const icon = warmSw.ev(ORI + 'icons/icon-192.png');
+      warmSw.calls.length = 0; warmSw.handlers.fetch(icon); await icon.took;
+      const icoCalls = warmSw.calls.slice();
+      const mfEv = warmSw.ev(ORI + 'manifest.webmanifest');
+      warmSw.handlers.fetch(mfEv); await mfEv.took;
+
+      expect(warm.took !== null && warmNet === 0 &&
+        cold.took !== null && coldNet === 1 && coldSw.docIn(BUILD_CACHE) &&
+        icon.took !== null && icoCalls[0] && icoCalls[0].indexOf('cache:') === 0 && mfEv.took !== null,
+        'PWA: the worker HAS a fetch handler that answers (without one no browser offers an install), and the strategies are his — a WARM launch answers the document out of the player\'s own copy and touches the network ZERO times, a COLD one goes to the network exactly once and keeps what it got, and an allowlisted asset is cache-first (' +
+        JSON.stringify({ warmNet, coldNet, coldCached: coldSw.docIn(BUILD_CACHE), icon: icoCalls[0], mf: mfEv.took !== null }) + '). ⛔ SABOTAGE: restore network-first for the document (`docFromNetwork` in the navigate branch) — the warm launch shows a `net:` again, which is the build he asked to leave behind; or swap the two strategies the other way and the icon goes to the network first');
     }
 
-    // ---- 6. the cache name carries THIS build, and the old one is dropped
-    const stamp = crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE)).digest('hex').slice(0, 12);
-    const swSelf = runSw(); const act = { waitUntil: p => p };
-    let waited = null; swSelf.handlers.activate({ waitUntil: p => { waited = p; } }); await waited;
-    expect(swTxt.indexOf("'" + stamp + "'") >= 0 && !/__BUILD__/.test(swTxt) && /const CACHE = 'blendo-' \+ BUILD/.test(swTxt) &&
-      swSelf.calls.indexOf('delete:blendo-old') >= 0 && swSelf.calls.indexOf('delete:other') < 0 && swSelf.calls.indexOf('claim') >= 0,
-      'PWA: the cache name carries the md5 of THIS index.html (' + stamp + '), the placeholder is spent, and activation deletes the previous blendo cache and only ours (' + JSON.stringify(swSelf.calls) + '). ⛔ WHY DERIVED AND NOT A HAND-BUMPED VERSION: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on screen says so. ⛔ SABOTAGE: freeze BUILD to a literal; delete every cache, including a neighbour\'s');
+    // ---- 5b. THE RELEASE DOWNLOADS ITSELF WHILE THE PLAYER PLAYS — AND A NEWCOMER DOES NOT PAY FOR IT TWICE.
+    // ⚡⚡ THE SECOND HALF IS A MEASUREMENT, NOT A PRECAUTION (2026-09-10-i, a real browser against the real
+    // site worker): the install prefetch came back `GET / 200`, a FULL second download, not the 304 the
+    // browser's own HTTP cache was expected to give — 12.7 MB does not survive in it reliably. On a RELEASE
+    // those bytes are not extra, they are the next launch's bytes spent in the background instead of blocking;
+    // on a FIRST-EVER visit they are pure waste, because the document had just arrived as the navigation. The
+    // presence of a previous `blendo-` cache is exactly the difference, and it is what the worker branches on.
+    // ⚠️ THE ORDER INSIDE INSTALL IS LOAD-BEARING AND IS ASSERTED: `skipWaiting` comes AFTER the prefetch, so
+    // the new worker never takes over a client with a cache that cannot answer — which is also what makes the
+    // gated prune below safe.
+    {
+      const fresh = runSw({ noOld: true });          // a first-ever install: nothing of ours on the device
+      await fresh.install();
+      const freshNet = fresh.calls.filter(c => c.indexOf('net:') === 0).length;
+
+      const s2 = runSw();                            // a release: the previous build's cache is there
+      await s2.install();
+      const inst = s2.calls.slice();
+      const instNet = inst.filter(c => c === 'net:./').length;
+      const instPut = inst.filter(c => c === 'put:' + BUILD_CACHE).length;
+      const skipAt = inst.indexOf('skipWaiting');
+      s2.calls.length = 0;
+      await s2.go(ORI); await s2.go(ORI + '?again=1');
+      const nets = s2.calls.filter(c => c.indexOf('net:') === 0).length;
+      const puts = s2.calls.filter(c => c.indexOf('put:') === 0).length;
+      expect(freshNet === 0 && fresh.calls.indexOf('skipWaiting') >= 0 &&
+        instNet === 1 && instPut === 1 && skipAt >= 0 && inst.indexOf('net:./') < skipAt &&
+        nets === 0 && puts === 0 && s2.docIn(BUILD_CACHE),
+        'PWA: a RELEASE fetches the 12.7 MB document once into its own cache while the player plays, and the two launches after it ask the network for nothing at all — while a FIRST-EVER install fetches nothing, so a newcomer never downloads the same document twice (' +
+        JSON.stringify({ freshNet, instNet, instPut, skipAfterFetch: inst.indexOf('net:./') < skipAt, nets, puts, cached: s2.docIn(BUILD_CACHE) }) + '). ⛔ SABOTAGE: drop the `old` gate from install (freshNet 1 — the measured waste, 4.5 MB on every first visit); drop the prefetch entirely (a release then costs a full blocking download on the launch after it); call skipWaiting before the fetch; write the document on every navigation');
+    }
+
+    // ---- 5c. ⛔⛔ THE OLD CACHE IS NOT DROPPED WHILE THE NEW ONE IS EMPTY, AND OFFLINE STILL ANSWERS.
+    // The install prefetch can fail — offline, an interrupted release, a store out of quota — and an
+    // `activate` that deleted the previous cache unconditionally would turn the next OFFLINE launch from
+    // «yesterday's game» into a blank page. This is the arm that pays for the cache-first document.
+    {
+      const s3 = runSw({ offline: true });
+      await s3.install();                          // the prefetch throws and is swallowed
+      s3.calls.length = 0;
+      await s3.activate();
+      const deleted = s3.calls.filter(c => c.indexOf('delete:') === 0);
+      const claimed = s3.calls.indexOf('claim') >= 0;
+      const kept = s3.cacheNames().indexOf('blendo-old') >= 0;
+      const off = await s3.go(ORI);                // still offline, and this build's cache holds nothing
+      expect(deleted.length === 0 && claimed && kept && off.took !== null && off.res && off.res.previousBuild === true,
+        'PWA: a release whose prefetch failed keeps the PREVIOUS build\'s cache, still claims its clients, and an offline launch is answered from it — yesterday\'s game rather than a blank page (' +
+        JSON.stringify({ deleted, claimed, kept, served: off.res }) + '). ⛔ SABOTAGE: delete the old caches unconditionally in activate (the offline launch then throws); drop the `caches.match` fallback in docFromNetwork\'s catch');
+    }
+
+    // ---- 6. the cache name carries THIS build, and the old one is dropped ONCE the new one can answer
+    {
+      const s6 = runSw();
+      await s6.install();                          // the prefetch fills the new cache — the gate opens
+      s6.calls.length = 0;
+      await s6.activate();
+      expect(swTxt.indexOf("'" + stamp + "'") >= 0 && !/__BUILD__/.test(swTxt) && /const CACHE = 'blendo-' \+ BUILD/.test(swTxt) &&
+        s6.calls.indexOf('delete:blendo-old') >= 0 && s6.calls.indexOf('delete:other') < 0 && s6.calls.indexOf('claim') >= 0,
+        'PWA: the cache name carries the md5 of THIS index.html (' + stamp + '), the placeholder is spent, and once the new cache holds the document activation deletes the previous blendo cache and only ours (' + JSON.stringify({ calls: s6.calls }) + '). ⛔ WHY IT IS DERIVED AND NOT A HAND-BUMPED VERSION: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on screen says so. ⛔ SABOTAGE: freeze BUILD to a literal; delete every cache, including a neighbour\'s');
+    }
   }
 
   // ---- 7. AN EQUALITY OF TWO PLACES: the manifest's theme_color IS the game's own top sky row.

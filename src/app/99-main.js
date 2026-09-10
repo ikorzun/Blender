@@ -3087,6 +3087,12 @@ if (!window.RAPIER){
     // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
     // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
+    // ⚡ THE FIRST-FRAME RING STOPS HERE (2026-09-10-i, his «лоадер помогает дождаться»). `html.loading` is
+    // written STATICALLY on the <html> tag in the markup — earlier than any script — and this is the moment
+    // the wait is over: the level is built, the loop is running, and the intro hand-off (the poster or the
+    // film) begins on the very next line. ⚠️ THE OTHER END IS `window.__fatal` (shell.html): a start that
+    // FAILS must not leave a spinner promising a wait that will never end.
+    try { document.documentElement.classList.remove('loading'); } catch(e){}
     // ⚡ PWA: the worker is registered AFTER the game is up — it must never compete with the
     // 12.7 MB load, and an install prompt the browser shows a second later is not worse for it.
     registerServiceWorker();
@@ -3123,7 +3129,19 @@ function registerServiceWorker(){
     if (location.protocol !== 'https:') return;
     if (navigator.webdriver) return;
     if (window.top !== window.self) return;
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    // ⚡⚡ THE EXPLICIT UPDATE CHECK, AND IT IS THE OPPOSITE OF WHAT I WAS ADVISED — MEASURED (2026-09-10-i,
+    // a real browser against the real site worker). `register()` on an EXISTING registration with the same
+    // script url short-circuits by spec and byte-checks NOTHING: across four launches after a release the
+    // server was asked for sw.js exactly ONCE (the very first registration), the old build kept answering
+    // and the new cache was never built. One `update()` and the release arrived on the spot — the script
+    // fetched, the new worker installed, its prefetch run, the old cache pruned, the next launch new.
+    // ⛔ WITHOUT THIS LINE A RELEASE CAN SIT ON AN INSTALLED DEVICE FOR AS LONG AS THE BROWSER'S OWN
+    // soft-update throttle lasts (up to a day) — which is not the price he agreed to. He agreed to ONE
+    // launch. The cost of the line is a conditional GET of an 8 KB script, after the game is already up.
+    // ⚠️ ONLY WHEN THERE IS SOMETHING TO UPDATE: on a first-ever visit `register()` is itself the install.
+    navigator.serviceWorker.register('sw.js').then(function(r){
+      try { if (r && r.active) r.update(); } catch(e){}
+    }).catch(function(){});
   } catch(e){}
 }
 

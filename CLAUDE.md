@@ -18842,3 +18842,120 @@ paints nothing, now stands ahead of it. The PROPERTY it guards is «no frame can
 lines before `html.splash` exists», so the form moved to «nothing PAINTABLE stands before the gate,
 only scripts may», and the message moved with the predicate. Re-proved: a `<div>` inserted before the
 gate still reddens it, so nothing was weakened to make it green.
+
+## BATCH 2026-09-10-i: THE RING FROM THE FIRST FRAME, AND THE INSTALLED GAME STARTS FROM ITS OWN COPY (his three items: «1. Делаем 1 пункт и по загрузке: хорошо бы сразу показывать голубой фон и ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться и это важно 2. Внутри после покупки нужен экран, что платеж прошел и возвращать на него после оплаты, запиши на будущее 3. стоит прикрутить авторизацию через гугл аккаунт»)
+
+Item 1 and its «по загрузке» half are built and guarded; item 2 is recorded in `V2-IDEAS.md` with its seam
+named; item 3 is `docs/GOOGLE-AUTH.md` — an analysis of checks, not a plan, because it reverses a decision
+of his own and two of its questions belong to Apple and to Google rather than to us.
+
+### THE RING: WHAT HE WAS LOOKING AT, MEASURED ON THE ARTEFACT BEFORE A LINE WAS WRITTEN
+The render-blocking head is 404 KB of a 12.8 MB document, so the FIRST PAINT — the blue body — is possible
+at **3.08 %** of the download and the loader ELEMENT is parsed at **3.1 %**, while the poster's own bytes
+only complete at **11.6 %**. Between those two the phone showed a flat blue field with NOTHING on it, then a
+static picture until the parse ended. His sentence is that gap exactly.
+✅ `class="loading"` is written STATICALLY on the `<html>` tag — earlier than any script, so no slow load can
+miss it — with `html.loading #introLoader { display:block }` beside the film's own rule, and 99-main removes
+it at `window.__booted`, the moment the intro hand-off begins. Measured: on file:// the ring is up at
+**32-57 ms** and stands for ~290 ms; on a phone that window is seconds.
+⚠️ **NO `html.loading body` RULE, AND THAT IS A DECISION.** The blue is already there — body carries the sky's
+top stop (`rgb(133,220,255)` before any script) and the poster's own sky under `html.splash`
+(`rgb(142,218,253)`) — so a third writer of that colour would fight two existing ones at equal specificity,
+where order decides. The guard states the outcome instead: every pre-boot frame's body is a BLUE, and on the
+phone it is the poster's own.
+⚠️ **THE RING STAYS BEHIND THE POSTER AND THE FILM** (z-index 3 against their z-max): it fills the blank gap
+and the artwork covers it. That is the order he named, it needs no z change, and it is the same on every
+platform. If he wants a sign of life on the poster itself, that is a separate word and a separate element.
+⛔ **«never shown under reduced motion» OF 2026-09-09-f IS STALE:** the film gate declines there, `html.loading`
+does not. A frozen spinner reads as broken, so under reduced motion the accent is dropped and an even ring is
+left — a mark that says «not empty», with no motion at all.
+⚠️ `window.__fatal` removes the class too: a spinner over «Failed to start 3D» promises a wait that will never end.
+
+### THE DOCUMENT IS CACHE-FIRST — AND THE PRICE WAS NAMED TO HIM IN HIS OWN WORDS BEFORE HE CHOSE
+«Делаем 1 пункт» is the first of three levers he was offered against «долго все грузится», and it was offered
+with its cost written out: «Цена: после выпуска новой версии вы один раз увидите старую». So an installed
+launch answers the document from the player's own copy and asks the network for it **not at all**, and a
+release reaches him on the NEXT launch. ⛔ Whoever wants that back changes one line (`docFromCache` →
+`docFromNetwork` in the navigate branch) and gives up the instant start.
+
+### ⚡⚡ THREE THINGS THE REAL-BROWSER RIG CORRECTED, AND EVERY ONE OF THEM WOULD HAVE SHIPPED
+The design was reviewed before it was written and three of its assumptions were named as unmeasured. A rig
+was built for exactly those: `wrangler dev --local-protocol https` on the REAL site worker, Chromium with
+`--ignore-certificate-errors`, the production registration path (the webdriver flag hidden), and the local
+server's own log read for what actually left it.
+
+**1. ⛔⛔ `register()` DOES NOT BYTE-CHECK, SO A RELEASE NEVER ARRIVED AT ALL.** I was advised that
+`registration.update()` after boot is redundant because `register()` already checks the script. It does not:
+the spec short-circuits `register()` on an existing registration with the same script url, and Chrome's own
+soft update did not fire either. **Measured: four launches after a release asked the server for `sw.js`
+exactly ONCE (the first registration), the old build kept answering, the new cache was never built.** One
+explicit `update()` and the release arrived on the spot — the script fetched, the worker installed, its
+prefetch run, the old cache pruned, the next launch new. The line is in `registerServiceWorker`, gated on
+`r.active` so a first-ever visit does not check for an update to something it has just installed.
+⚠️ This is the operating rule about advice met head-on: primary evidence beats a plausible step. Without that
+line a release would sit on an installed device until the browser's own throttle expired — up to a day — which
+is not the ONE launch he agreed to.
+
+**2. ⛔ THE INSTALL PREFETCH IS A FULL DOWNLOAD, NOT A 304.** The design prefetches the new document at install
+so the launch after a release is instant too, and the whole question was whether the browser's own HTTP cache
+makes that free. **Measured: `GET / 200` — a full second download, seconds after the navigation had fetched
+the same file.** On a RELEASE those bytes are not extra (the next launch would have spent them anyway, and it
+would have spent them BLOCKING); on a FIRST-EVER visit they are pure waste. So the prefetch is gated on the
+presence of a previous `blendo-` cache, which is exactly the difference between a release and a newcomer.
+⚠️ **THE LIMIT OF THAT MEASUREMENT, NAMED:** `wrangler dev` local does not compress, so the entry was 12.8 MB
+rather than the 4.5 MB brotli the edge serves — the production entry may survive the HTTP cache better. The
+gate costs nothing either way and the newcomer's case is settled whichever it is.
+
+**3. THE OLD CACHES GO ONLY ONCE THE NEW ONE CAN ANSWER.** The prefetch can fail — offline, an interrupted
+release — and an unconditional `activate` delete would turn the next OFFLINE launch from «yesterday's game»
+into a blank page. `pruneOldCaches` returns early while this build's cache holds no document, and the fetch
+handler's catch searches EVERY `blendo-` cache rather than only its own.
+
+**AND THE END-TO-END, IN ONE TABLE (the rig, the real site worker, the production registration):**
+| step | what the server saw | what the player got |
+|---|---|---|
+| first visit | `GET / 200` (the navigation), install fetched NOTHING | the game |
+| the launch after it | `GET / 200` — the cache was empty, this fills it | the game |
+| a release (index.html + sw.js + build.txt changed) | `GET /sw.js`, then `GET / 200` in the BACKGROUND | the OLD build, instantly — the price he agreed to |
+| the launch after the release | **nothing at all** | the NEW build, instantly |
+⚠️ And a fact worth keeping: the repeat launch BEFORE the cache was filled came back `200`, not `304` — i.e.
+the browser's HTTP cache did not hold a 12.7 MB document across a single reload. The validators of
+2026-09-09-m only pay when it does; the Cache API is what makes an instant launch reliable.
+
+### ⚠️ A SMALL DEFECT FOUND BY THE RIG'S OWN MISTAKE, AND IT WAS SHIPPING
+`build.py` replaces EVERY occurrence of the build placeholder in `src/sw.js`, including the one in the header
+sentence that NAMES it — so the served worker's first paragraph read «with 96d252b3198d replaced by the md5
+of THIS build's index.html», which is nonsense, and it also gave a naive «replace the stamp» edit a first
+target that is not the constant (which is how the rig found it — its first release simulation patched the
+comment and the release never arrived). The prose no longer spells the token.
+
+### THE GUARDS MOVED WITH THE RULE — AND ONE OF THEM IS THE INVERSE OF WHAT IT SAID
+- **arm 5** used to read «the DOCUMENT goes to the network first … serve it from the cache first and a player
+  keeps yesterday's game until the second launch». That sentence IS the price he then bought, so the arm now
+  states the opposite: a WARM launch touches the network zero times, a COLD one goes exactly once and keeps
+  what it got, and an allowlisted asset is still cache-first. **A guard states a decision, not a truth.**
+- **arm 5b** now has two halves: a RELEASE prefetches once with `skipWaiting` AFTER the fetch, and a
+  FIRST-EVER install fetches **nothing** — the measured half.
+- **arm 5c is new**: a release whose prefetch failed keeps the previous cache, still claims, and an offline
+  launch is answered from it — the arm that pays for the cache-first document.
+- **arm 6** deletes the old cache only after the install has filled the new one.
+- the registration arm gained `upd`. ⚠️ **ITS LIMIT IS NAMED IN THE ARM ITSELF:** it is a TEXT assert over the
+  artefact, so it catches a DELETION and not a disabling — a variant that kept the call under `if (0)` stayed
+  GREEN (measured). What the call DOES is proven only by the rig above.
+- **the sandbox fake was rewritten** to one store per cache NAME with an offline switch: the gated prune and
+  the offline belt are both statements about WHICH cache holds the document, and a fake that cannot tell two
+  caches apart cannot state either. ⚠️ And its `noOld` had to remove the NAME and not merely its contents —
+  the install branches on `caches.keys()`, so a present-but-empty `blendo-old` read as a release and the
+  newcomer arm measured nothing (caught by the dry run, on the healthy build).
+
+### THE RUNS — HIS RULE OF 9 SEPTEMBER, NO FULL SUITE
+PWA **10 green**, LOADING **3 green** (new), and the neighbours that share the head or the loader element
+re-run on the final build: INTRO 60, EDGES 15, OG 4, STCLOSE 26. **Eleven sabotage variants**, each red on its
+own arm(s) and green elsewhere: the document back to network-first (arms 5 and 5b — the same property in two
+places); the `old` gate dropped from install (5b: `freshNet 1`, the measured waste); the prefetch dropped
+entirely (5, 5b, 6 — an honest cascade: three arms stand on that mechanism); `skipWaiting` before the fetch
+(5b alone); the prune ungated (5c alone); the `caches.match` fallback dropped (5c alone); the `update()` call
+deleted (the registration arm alone); `class="loading"` dropped (all three LOADING arms); the CSS rule dropped
+(all three); the class removed before the boot (A and B, C green — the boot removal is still there); a
+`html.loading body` of its own (A and B — the reason the rule was not written); and a comment edit, which the
+tool called empty. Plus the real-browser end-to-end above, which no node fake can replace.

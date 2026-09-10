@@ -6,7 +6,42 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-zh (the payment opens in a new tab) on top of 2026-09-10-e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+**Build: batch 2026-09-10-i (the loader from the first frame; the installed game starts from its own copy) on top of 2026-09-10-zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+
+**10 SEPTEMBER, NIGHT — THE LOADER FROM THE FIRST FRAME, AND THE INSTALLED GAME STARTS INSTANTLY
+(batch 2026-09-10-i, your three items).**
+
+**1. The waiting now has something to look at.** I measured what the phone actually showed: the blue
+appears after 3 % of the download, the loader element after 3.1 %, and the picture only completes at
+11.6 % — so for that whole stretch there was a blank blue field. Now a ring spins in the centre of it
+from the very first frame the browser paints, and it goes out the moment the game is ready. The picture
+then covers it, exactly as you described the order. On a computer nothing waits at all if the video is
+already there; if it is not, the same ring waits for it.
+
+**2. The installed game no longer downloads itself.** A repeat launch reads the game from its own copy
+and asks the server for nothing — I measured it end to end in a real browser against the real server.
+The price is the one I named to you before you chose: **after I publish an update, the first launch
+still shows the previous version, and the new one arrives on the next launch.** It arrives by itself —
+that turned out to need one extra line, see below.
+
+**Three things the measurement changed, and each of them would have shipped as a bug:**
+• I was advised that the browser checks for a new version by itself on every launch. **It does not.**
+  Four launches after a publish and the server was asked for the worker script exactly ONCE — the
+  update never arrived at all. One explicit check per launch (an 8 KB request, after the game is up)
+  and it arrives on the spot. Without it a new version could sit on your phone for up to a day.
+• the pre-download of a new version turned out to cost a FULL download rather than being free, so it
+  now happens only when there IS a previous version to replace — a first-ever visitor never downloads
+  the same file twice.
+• the previous copy is deleted only once the new one is genuinely in place, so an update that fails
+  half-way leaves you with yesterday's game rather than a blank page.
+
+**3. Your other two items.** The «payment went through» screen is written down for the future with the
+one thing that has changed since you asked — the paying tab now closes itself, so the screen belongs in
+the tab you are playing in, at the moment the boost actually arrives. And the Google sign-in is written
+up as an analysis rather than a plan: it reverses your own decision of 7 August («a guest gets our own
+id, not a Google one»), it only helps on blendo.monster, and it is worth doing for exactly one reason —
+today a cleared browser loses the id, and with it the leaderboard row **and a purchase you paid for**.
+Two of its questions are Apple's and Google's rules, not mine to guess. It is in docs/GOOGLE-AUTH.md.
 
 **10 SEPTEMBER, NIGHT — THE PAYMENT OPENS IN A NEW TAB (batch 2026-09-10-zh, your two lines).**
 Your two remarks turned out to be one thing, and you were right about it: paying in the same tab meant
