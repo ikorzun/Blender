@@ -18276,3 +18276,18 @@ lands in the MAIN sequential run, not in a marked section, so `tools/section-dry
 it and nine moved guards are provable only in their real context. **Run 45: 1125 green, 0 red,
 `ERRORS: none`, SUITE: PASS** (run 44 was 1123; the +2 are exactly the two new boundary arms).
 `index.html` 12 773 127 → 12 775 700 B.
+
+## ⛔ THE SITE DEPLOY IS MINE NOW, NOT HIS (his word 2026-09-10: «делай деплой сам каждый раз, если все зеленое»)
+
+`blendo.monster` does NOT follow GitHub: the domain is a Cloudflare Worker serving a packed copy of
+the build (`server/site/`), so a push to `main` updates GitHub Pages and leaves the domain on the
+PREVIOUS build. It stood on his list of manual steps from 2026-09-09-c and drifted behind more than
+once. **From this date: after a green suite and a push, run `npm run site:deploy` without asking.**
+⛔ NOT on a red suite and NOT on an unrun one — «если всё зелёное» is the whole condition.
+⚠️ VERIFY THREE THINGS AFTER EVERY DEPLOY, and by BYTES rather than by the wrangler output: the md5
+of `curl https://blendo.monster/` against the local `index.html` (a size match alone would also
+match a different file of the same length); the Telegram card (1162 B to a `TelegramBot` UA — the
+worker's document shortcut); and a `Range: bytes=0-99` on `/music.mp3` (206 — the slicer imported
+from the video worker). Those three cover the three things this worker does.
+⚠️ The FIRST deploy under this rule was 2026-09-10, version `77568dc3`, and it carried the beginner
+window of batch 2026-09-10 — the domain had been a build behind since the push.
