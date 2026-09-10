@@ -353,6 +353,117 @@ function makeBomb(){
   return item;
 }
 
+
+// ⚡ THE RIVAL: THE NEXT PLAYER OF THE TABLE, LYING IN THE BOWL (the owner's spec 2026-09-10).
+// A BALL IN THAT PLAYER'S OWN COLOUR, WEARING HIS FACE AS STICKERS — his third and final word on
+// the shape, after a sheet of six recipes and a sheet of four camera angles: «вернём сферу и на неё
+// наклеим аватарки как стикеры друг на друга, не растягивая аватарку».
+// ⛔⛔ «НЕ РАСТЯГИВАЯ» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
+// WHOSE UVs ARE AN ORTHOGRAPHIC PROJECTION of the picture — the image is projected onto the ball
+// the way a slide is, so at the centre there is no distortion at all and towards the rim it is
+// pressed exactly as a paper sticker on a ball is pressed. TWO WAYS THAT LOOK EASIER AND ARE BOTH
+// WRONG, and both were measured on frames rather than reasoned about:
+//   • wrapping the picture over the sphere (a plain `map`) STRETCHES it at the poles — his own
+//     «сильно растягивает», and no parameter cures it: it is the wrap itself;
+//   • putting it on a cylinder cap CROPS it — three maps the cap onto the circle INSCRIBED in the
+//     texture, so a 192-square avatar loses its ears. That is what the coin before this did.
+// ⚠️ EACH STICKER SITS ON ITS OWN RADIUS so the stack has an order and the overlaps cannot z-fight;
+// they are laid out on a Fibonacci sphere, which is deterministic — no `Math.random` in the shape,
+// so two rivals of one avatar are the same piece.
+// ⚠️ NO PICTURE — NO STICKERS, AND THAT IS THE PORTAL'S FALLBACK: the avatars are 49 files next to
+// the build and the portal package carries four. Where they are missing the rival is simply a ball
+// in that player's colour; nothing throws, nothing waits and no face is invented.
+const rivalTexCache = new Map();      // avatar number -> { tex, waiting[] }, one attempt per session
+function rivalFace(n, cb){
+  n = n | 0; if (!(n > 0)) return;
+  // ⛔ NOT ON file://: an image loaded there carries the origin `null`, and WebGL REFUSES to upload
+  // it — «the image element contains cross-origin data» — so the sticker would go visible and
+  // render blank, which is worse than the plain coloured ball. It costs nothing in production: on
+  // file:// the leaderboard is muted outright, so there is no neighbour to put on a piece at all.
+  if (typeof location !== 'undefined' && location.protocol === 'file:') return;
+  let e = rivalTexCache.get(n);
+  if (e && e.tex){ cb(e.tex); return; }
+  if (e){ e.waiting.push(cb); return; }
+  e = { tex: null, waiting: [cb] }; rivalTexCache.set(n, e);
+  // ⛔⛔ A PLAIN <img>, NOT `TextureLoader`, AND THE REASON IS MEASURED: the loader asks for CORS,
+  // and on file:// Chromium blocks that outright («has been blocked by CORS policy»). The HUD has
+  // always drawn these same avatars with a bare <img>; this is the same request. Nothing reads the
+  // pixels back, so no canvas can be tainted either.
+  try {
+    const img = new Image();
+    img.onload = () => { const t = new THREE.Texture(img);
+      t.encoding = THREE.sRGBEncoding;          // the project's own convention (three r149)
+      t.needsUpdate = true; e.tex = t;
+      e.waiting.splice(0).forEach(f => { try { f(t); } catch(_){} }); };
+    img.onerror = () => { e.waiting.length = 0; };
+    img.src = 'avatars/Avatar' + String(n).padStart(2, '0') + '.png';
+  } catch(_){ e.waiting.length = 0; }
+}
+// a sticker: a cap of a sphere of radius `rad`, half-angle `half`, with the picture projected onto
+// it along the cap's own axis. ⚠️ THE UV IS THE STATEMENT «not stretched» AND A GUARD READS IT BACK
+// off the shipped geometry — u = x/(2s)+0.5 for every vertex, i.e. a parallel projection and
+// nothing else.
+function rivalStickerGeo(rad, half){
+  const g = new THREE.SphereGeometry(rad, 40, 24, 0, Math.PI * 2, 0, half);
+  g.rotateX(Math.PI / 2);                                    // the cap looks down +Z
+  const p = g.attributes.position, uv = g.attributes.uv, s = rad * Math.sin(half);
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * s) + 0.5, p.getY(i) / (2 * s) + 0.5);
+  uv.needsUpdate = true;
+  return g;
+}
+function makeRival(av, name){
+  const S = MESH_SCALE;                        // a rival is exactly the size of a standard item
+  if (!geoCache.has('RV')) geoCache.set('RV', new THREE.SphereGeometry(1.0, 40, 28));
+  const tint = new THREE.Color(avatarTint(av)).convertSRGBToLinear();
+  let mat;
+  if (CFG.matcap){
+    mat = new THREE.MeshMatcapMaterial({ color: tint, matcap: makeMatcap('soft') });
+    mat.onBeforeCompile = matcapSpecPatch;     // the same relief and depth tint the pile has
+  } else {
+    mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0, roughness: 0.28 });
+    mat.envMapIntensity = 0.5;
+  }
+  const mesh = new THREE.Mesh(geoCache.get('RV'), mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.scale.setScalar(S);
+  // the stickers are CHILDREN of the ball — the fire overlay's own pattern: syncMeshes moves one
+  // object, and the item's material stays the one thing the veil and the dissolve reach for
+  const faceMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.35,
+    side: THREE.FrontSide, depthWrite: true, visible: false });
+  const N = RIVAL_STICKERS, GA = Math.PI * (3 - Math.sqrt(5));
+  const RV_UP = new THREE.Vector3(0, 1, 0), RV_Z = new THREE.Vector3(0, 0, 1);
+  const bx = new THREE.Vector3(), by = new THREE.Vector3(), bm = new THREE.Matrix4();
+  for (let i = 0; i < N; i++){
+    const y = 1 - (i / Math.max(1, N - 1)) * 2, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * i;
+    const dir = new THREE.Vector3(Math.cos(t) * rr, y, Math.sin(t) * rr).normalize();
+    const key = 'RVC' + i;
+    if (!geoCache.has(key)) geoCache.set(key, rivalStickerGeo(1.004 + i * 0.007, RIVAL_STICKER_HALF));
+    const st = new THREE.Mesh(geoCache.get(key), faceMat);
+    // ⚠️⚠️ THE ROLL IS NOT LEFT TO ARITHMETIC: the face's own +Y is laid along the MERIDIAN, so
+    // every sticker stands upright in the BALL's frame. `setFromUnitVectors` alone gives the
+    // minimal rotation from +Z to the normal and lets the roll fall where it may — measured in
+    // the live game, the face the player was looking at came out UPSIDE DOWN. At the two poles
+    // the meridian does not exist and +Z is the reference: a choice, not a measurement.
+    const ref = Math.abs(dir.y) > 0.985 ? RV_Z : RV_UP;
+    bx.crossVectors(ref, dir).normalize();
+    by.crossVectors(dir, bx);
+    st.quaternion.setFromRotationMatrix(bm.makeBasis(bx, by, dir));
+    st.rotateZ((i * 0.7919 % 1 - 0.5) * 0.36);                // slapped on by hand, not by a ruler
+    mesh.add(st);
+  }
+  rivalFace(av, t => { faceMat.map = t; faceMat.visible = true; faceMat.needsUpdate = true; });
+  const item = {
+    key: 'RIVAL', rival: true, rivalAv: av | 0, rivalName: name || '',
+    type: { name: 'rival', mat: 'rival' }, baseColor: tint.clone(), fxColor: tint.clone(),
+    r: 1.0 * S, scl: S, p: new THREE.Vector3(0, FUNNEL.H + 2, 0),
+    body: null, mesh, alive: true, animating: false, accessible: false,
+  };
+  mesh.userData.item = item;
+  mesh.position.copy(item.p);
+  scene.add(mesh);
+  return item;
+}
+
 // THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot. The type is
 // random among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold the charge
 // would blow up 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
@@ -449,6 +560,20 @@ function bombDueThisLevel(){
 function bombNoteGiven(){
   const gap = BOMB_GAP_MIN + Math.floor(Math.random() * (BOMB_GAP_MAX - BOMB_GAP_MIN + 1));
   bombNextLevel = levelNum + gap;
+}
+// ═══ THE RIVAL: WHEN THERE IS ONE (the owner's spec 2026-09-10) ═══
+// The same shape as the bomb's, deliberately: from the fifth level, every 1-3 levels, and the gap
+// lives in the SESSION'S memory rather than in the save — it is the rhythm of delivery, not
+// progress. ⚠️ THE GAP IS ASSIGNED ONLY WHEN A RIVAL WAS ACTUALLY HANDED OUT: on a level where
+// the table has no neighbour to show, the queue simply waits instead of silently skipping a turn.
+let rivalNextLevel = RIVAL_FROM_LEVEL;
+function rivalDueThisLevel(){
+  if (levelNum < RIVAL_FROM_LEVEL) return false;
+  return levelNum >= rivalNextLevel;
+}
+function rivalNoteGiven(){
+  const gap = RIVAL_GAP_MIN + Math.floor(Math.random() * (RIVAL_GAP_MAX - RIVAL_GAP_MIN + 1));
+  rivalNextLevel = levelNum + gap;
 }
 // REWARD FOR SERIES: the bomb falls from the sky by the same path as the turbo
 // top-up.
@@ -899,6 +1024,27 @@ function genLevel(){
         b.wave = Math.floor(n/8); waveHold(b);
         items.push(b);
       }
+      // THE RIVAL rides the column a little ABOVE the bomb's point: both are due on the same
+      // levels often enough (both are «from 5, every 1-3»), and two special pieces born in one
+      // layer land on top of each other. ⚠️ THE FACE COMES FROM THE LEADERBOARD AND MAY NOT BE
+      // THERE AT ALL (a guest, no connection, the first place): then there is no rival on this
+      // level and the queue keeps waiting — we do not put a stranger's face on the piece.
+      if (n === Math.floor(pairsCnt * 1.25) && rivalDueThisLevel()){
+        const nb = (typeof lbNextRival === 'function') ? lbNextRival() : null;
+        if (nb && nb.av > 0){
+          rivalNoteGiven();
+          const r = makeRival(nb.av, nb.name);
+          r.p.set((Math.random() - 0.5) * 2, FUNNEL.H + 1.6 + Math.floor(n / 8) * 1.35 + 0.7,
+                  (Math.random() - 0.5) * 2);
+          r.mesh.position.copy(r.p);
+          // ⚠️ AN EXACT SPHERE, NOT A HULL: a ball taken down the hull branch would keep every
+          // vertex AND take the 1.2 damping of a box, and Rapier has no rolling friction — a
+          // sphere that never stops means the pile never sleeps (the 2026-08-28 measurement).
+          createItemBody(r, 'ball', geoCache.get('RV'));
+          r.wave = Math.floor(n / 8); waveHold(r);
+          items.push(r);
+        }
+      }
     }
   }
   // ⛔ THE SPAWN OF STONES WAS CUT 2026-08-17 together with the stones themselves
@@ -1002,6 +1148,7 @@ function genLevel(){
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // the combo/chain reaction do not survive the level
   missRadiusClear();   // and the miss penalty: a new level starts with the full radius
   chargeName = ''; chargeUntil = 0; // review v212: the type charge does not survive either
+  rivalWindowClear();               // ... and neither does the rival's five-second window
   // THE SCATTERING BOWL (prototype v2): the bowl is NEW every level (the owner's
   // decision no. 1) — the cracks are back to zero, the glass and the walls are
   // restored

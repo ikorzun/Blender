@@ -42,7 +42,7 @@ function skyCast(ray, maxToi, excludeBody){
 function isAccessible(item){
   // easy difficulty: any pair is accessible. The exception is the SURPRISE: it is always
   // "honestly" occluded (otherwise +150 would be taken with a tap from the very first second)
-  if (!CFG.hard && !item.surprise) return true;
+  if (!CFG.hard && !item.surprise && !item.rival) return true;   // the rival is dug out honestly in BOTH modes
   if (!item.samples || !item.samples.length) return false;
   if (!_rapierRay) _rapierRay = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:1, z:0 });
   const q = item.mesh.quaternion;
@@ -78,7 +78,7 @@ function isAccessible(item){
 // notion of the rule rather than the rule (a law of this project, caught five times).
 function aliveCountForRadius(){
   let n = 0;
-  for (const it of items) if (it.alive && !it.surprise && !it.frozen) n++;
+  for (const it of items) if (it.alive && !it.surprise && !it.frozen && !it.rival) n++;
   return n;
 }
 function updateMatchRadius(){
@@ -247,7 +247,7 @@ function refreshAccessibilityNear(p, extra){
     const was = it.accessible;
     it.accessible = !it.animating && isAccessible(it);
     if (it.accessible !== was) accFlips++;
-    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 function refreshAccessibility(partial){
@@ -263,7 +263,7 @@ function refreshAccessibility(partial){
       const was = it.accessible;
       it.accessible = !it.animating && isAccessible(it);
       if (it.accessible !== was) accFlips++;
-      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
     }
     accCursor = (accCursor + sliceSize) % aliveList.length;
     return;
@@ -284,7 +284,7 @@ function refreshAccessibility(partial){
     // ⚠️ THE TUNER'S PIN outranks accessibility: without it the "veil on everyone" preview lived
     // at most until the next refresh tick (300 ms) and silently dissolved —
     // the veil-strength sliders would be untweakable.
-    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 // Smooth fade-in/removal of the veil (~0.25 s), from the main loop every frame.

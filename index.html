@@ -2929,6 +2929,15 @@
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
      overridden there too below. The colour is the `--carbon-400` token, and not the literal
      `#000`: the name has exactly that one, and «of the same style» means the same source. */
+  /* ⛔⛔ THE SUBTITLE KEEPS ITS OWN STYLE AND ITS OWN 14 — HIS SECOND WORD OF 2026-09-10 CANCELS
+     HIS FIRST. The first was «write it in the same font size and with the same paddings»; he
+     looked at the rendered pair and answered: «the line with the points and the name must be of
+     the style and text size that „on leaderboard" is written in NOW». So the type here is exactly
+     what it was before this batch — only the TEXT under the place changed.
+     ⚠️ AND THE SIZE IS WHAT BOUGHT THE NAME BACK: at 18 the line «340 to Oystercatcher» is 176px
+     against 172 of room at 390 and 122 at 320 — it ran onto the avatars. At 14, and with ONE
+     avatar on the right instead of three, it is 137 against 320px of room. The name is in the
+     line because the type stayed small, not despite it. */
   .ms-lbe-rank { font-size:18px; font-weight:700; color:var(--carbon-400);
     line-height:1.15; white-space:nowrap; }
   .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
@@ -3707,6 +3716,13 @@
        the caption is the same 14. The «Open» button here is a VISIBLE pill.
        ⚠️ THE FACE IS ALSO FROM THE NAME (the owner's word 2026-08-12): `.ms-uname`
        on desktop has 22/900, and the place repeats both values, and not only the type size. */
+    /* ⛔ THE SUBTITLE IS NOT IN THIS RULE (his second word of 2026-09-10, the tombstone at the
+       base declaration): the place is 22 on the desktop, the line under it keeps its own 14.
+       ⚠️ AND `line-height` IS NOT TOUCHED HERE EITHER — it was needed only while the pair shared
+       the type size: at 22 + 4 + 22 the text column outgrew the 48 of the badge and the row jumped
+       by 3px when the data arrived. At 22/1.15 + 4 + 14 the column is 39.3 and the badge keeps the
+       height, as it always did. The guard states the property (the row does not move), not the
+       line-height — so a future return of the shared size goes red rather than silent. */
     .ms-lbe-rank { font-size:22px; font-weight:900; }
     .ms-lbe-act { position:static; width:auto; height:auto; margin:0;
       overflow:visible; clip-path:none; display:flex; align-items:center; }
@@ -5191,7 +5207,7 @@
   <div class="lb-card">
     <div class="lb-head">
       <div class="lb-title">Leaderboard</div>
-      <div class="lb-sub">Compete with other players and climb to the top — but remember, boosting your items spends stars and drops your place.</div>
+      <div class="lb-sub">Compete with other players and climb to the top — but remember, boosting your items spends points and drops your place.</div>
     </div>
     <div class="lb-list" id="lbList"></div>
   </div>
@@ -6729,6 +6745,39 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.8
 // scale, the enclosing radius `r` used by the blast metric, and `scl` used to build the collider.
 const BOMB_SCALE = 1.425;   // 0.95 x 1.5, in units of MESH_SCALE
 const FROZEN_BOMB_RADIUS = 2.86;
+// ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
+// dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
+// One item per level wears the face of the NEXT player in the table — the same neighbour the
+// leaderboard row and the win screen already name. It does not match and needs no pair: a tap on
+// a DUG-OUT rival turns a multiplier on ALL EARNINGS on for RIVAL_MS.
+// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «делай»: ×2 over
+// five seconds is not felt, ×5 collides with the paid boost's own number. It MULTIPLIES with the
+// paid one (5 × 3 = 15) instead of replacing it — the window is short and rare, and the paid
+// boost is his own «the money has to be played off» model.
+// ⚠️⚠️ THE WINDOW IS PLAY TIME, NOT WALL CLOCK: its anchor is shifted by `resumeGame` like every
+// other real-clock anchor, so a pause, an ad or the shop do not burn it. The float in the corner
+// is the only place a multiplier is shown on this screen, so it shows this one too.
+// ⛔ IT DOES NOT MULTIPLY PENALTIES — the same rule the paid boost has followed since 2026-09-03-h.
+// ⛔ AND IT IS NOT A SAVE FIELD AND NEEDS NONE (the type charge's own lesson): five seconds of a
+// live round cannot survive a reload in any meaningful sense.
+const RIVAL_FROM_LEVEL = 5;                  // the same start as the bomb and the ice (his word)
+const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1-3 levels
+const RIVAL_MULT = 3;
+// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «давай вернём сферу и на неё наклеим аватарки
+// как стикеры друг на друга, не растягивая аватарку». A ball in the neighbour's own colour, wearing
+// N copies of his face as stickers. ⚠️ THE STICKERS ONLY KISS AT THE EDGES: at a strong overlap the
+// sticker above eats a third of the one below and nothing reads. Six at a half-angle of 0.62 rad
+// (35°) leaves the ball's own tone showing between them, which is what makes it read as a sticker
+// BALL and not as a painted one — and from any angle at least one face is turned to the player,
+// which is the whole reason there are several.
+const RIVAL_STICKERS = 6;
+const RIVAL_STICKER_HALF = 0.62;
+const RIVAL_MS = 5000;
+// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «как японский дорума»): the render
+// rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own
+// axis. `false` gives it the pile's tumble back — and with it the upside-down face of the first
+// live frame. The branch lives in `syncMeshes` (50-physics) and the whole reason is written there.
+const RIVAL_UPRIGHT = true;
 // "THE EXPLOSION IS LIKE A SHAKE EFFECT" (the second half of the owner's spec 2026-07-27-b;
 // PHYSICS's constants, added by rule 3 — adding one's own is allowed).
 // BOMB_JOLT is the amplitude of the jolt given to the WHOLE pile (the second layer of blastWave on top of
@@ -7649,6 +7698,26 @@ PACK_MATCAP_SRC.car = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAI
 // their own strength, contrast and gain, and the animals' gain differs (1.503 against
 // food's 1.556): the multiplier depends on which normals of the pack's items are in frame.
 PACK_MATCAP_SRC.animal = PACK_MATCAP_SRC.food;
+
+// GENERATED by tools/avatar-tint.js — DO NOT EDIT BY HAND.
+// One tone per avatar file: the MODAL opaque colour of avatars/AvatarNN.png (index 0 = Avatar01).
+// It paints the body of the rival item in the bowl, so the piece reads as that player's colour
+// before its face is even legible. Re-run the tool when the owner's avatars change.
+// ⚠️ THE NUMBERS ARE sRGB: a material colour is LINEAR in three, so a consumer converts.
+const AVATAR_TINT = [
+  0xd7a985, 0xdaa5e5, 0xe3b726, 0xc99576, 0xd4d6eb, 0xd3e8c5, 0x23b4f1,
+  0xc99576, 0xb46757, 0xe7b4ac, 0xd7d8ea, 0xdd9787, 0xe4a9a8, 0xa65755,
+  0xc9d3eb, 0x868996, 0xa55858, 0x78b535, 0xd7d8eb, 0xe2b47a, 0xe7b4aa,
+  0xda76e7, 0xd8d8e9, 0xd8d8e9, 0xdcdced, 0xe6e6e7, 0xe7e7e8, 0xe7e7e8,
+  0xd7d8e8, 0xe8baea, 0xdad9eb, 0xe8e7e8, 0xe6b986, 0xe7e7e7, 0xe6e7e8,
+  0xd6d7eb, 0x464547, 0x868996, 0xdbd7d7, 0xe77728, 0xe7e6e7, 0x565557,
+  0xecc618, 0xd28827, 0x938994, 0xe7e7e8, 0xd3a826, 0xe7e6e7, 0xe7e7e8,
+];
+// the tone of avatar number n (1-based, as the files are named); an unknown number -> a neutral
+function avatarTint(n){
+  const i = (n | 0) - 1;
+  return (i >= 0 && i < AVATAR_TINT.length) ? AVATAR_TINT[i] : 0xc0c4cc;
+}
 
 // ===== 10-stage: renderer, camera, light, IBL environment, sky =====
 // The owner's reference: threejs.org webgl_batch_lod_bvh (RoomEnvironment + ACES 0.8)
@@ -11161,6 +11230,117 @@ function makeBomb(){
   return item;
 }
 
+
+// ⚡ THE RIVAL: THE NEXT PLAYER OF THE TABLE, LYING IN THE BOWL (the owner's spec 2026-09-10).
+// A BALL IN THAT PLAYER'S OWN COLOUR, WEARING HIS FACE AS STICKERS — his third and final word on
+// the shape, after a sheet of six recipes and a sheet of four camera angles: «вернём сферу и на неё
+// наклеим аватарки как стикеры друг на друга, не растягивая аватарку».
+// ⛔⛔ «НЕ РАСТЯГИВАЯ» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
+// WHOSE UVs ARE AN ORTHOGRAPHIC PROJECTION of the picture — the image is projected onto the ball
+// the way a slide is, so at the centre there is no distortion at all and towards the rim it is
+// pressed exactly as a paper sticker on a ball is pressed. TWO WAYS THAT LOOK EASIER AND ARE BOTH
+// WRONG, and both were measured on frames rather than reasoned about:
+//   • wrapping the picture over the sphere (a plain `map`) STRETCHES it at the poles — his own
+//     «сильно растягивает», and no parameter cures it: it is the wrap itself;
+//   • putting it on a cylinder cap CROPS it — three maps the cap onto the circle INSCRIBED in the
+//     texture, so a 192-square avatar loses its ears. That is what the coin before this did.
+// ⚠️ EACH STICKER SITS ON ITS OWN RADIUS so the stack has an order and the overlaps cannot z-fight;
+// they are laid out on a Fibonacci sphere, which is deterministic — no `Math.random` in the shape,
+// so two rivals of one avatar are the same piece.
+// ⚠️ NO PICTURE — NO STICKERS, AND THAT IS THE PORTAL'S FALLBACK: the avatars are 49 files next to
+// the build and the portal package carries four. Where they are missing the rival is simply a ball
+// in that player's colour; nothing throws, nothing waits and no face is invented.
+const rivalTexCache = new Map();      // avatar number -> { tex, waiting[] }, one attempt per session
+function rivalFace(n, cb){
+  n = n | 0; if (!(n > 0)) return;
+  // ⛔ NOT ON file://: an image loaded there carries the origin `null`, and WebGL REFUSES to upload
+  // it — «the image element contains cross-origin data» — so the sticker would go visible and
+  // render blank, which is worse than the plain coloured ball. It costs nothing in production: on
+  // file:// the leaderboard is muted outright, so there is no neighbour to put on a piece at all.
+  if (typeof location !== 'undefined' && location.protocol === 'file:') return;
+  let e = rivalTexCache.get(n);
+  if (e && e.tex){ cb(e.tex); return; }
+  if (e){ e.waiting.push(cb); return; }
+  e = { tex: null, waiting: [cb] }; rivalTexCache.set(n, e);
+  // ⛔⛔ A PLAIN <img>, NOT `TextureLoader`, AND THE REASON IS MEASURED: the loader asks for CORS,
+  // and on file:// Chromium blocks that outright («has been blocked by CORS policy»). The HUD has
+  // always drawn these same avatars with a bare <img>; this is the same request. Nothing reads the
+  // pixels back, so no canvas can be tainted either.
+  try {
+    const img = new Image();
+    img.onload = () => { const t = new THREE.Texture(img);
+      t.encoding = THREE.sRGBEncoding;          // the project's own convention (three r149)
+      t.needsUpdate = true; e.tex = t;
+      e.waiting.splice(0).forEach(f => { try { f(t); } catch(_){} }); };
+    img.onerror = () => { e.waiting.length = 0; };
+    img.src = 'avatars/Avatar' + String(n).padStart(2, '0') + '.png';
+  } catch(_){ e.waiting.length = 0; }
+}
+// a sticker: a cap of a sphere of radius `rad`, half-angle `half`, with the picture projected onto
+// it along the cap's own axis. ⚠️ THE UV IS THE STATEMENT «not stretched» AND A GUARD READS IT BACK
+// off the shipped geometry — u = x/(2s)+0.5 for every vertex, i.e. a parallel projection and
+// nothing else.
+function rivalStickerGeo(rad, half){
+  const g = new THREE.SphereGeometry(rad, 40, 24, 0, Math.PI * 2, 0, half);
+  g.rotateX(Math.PI / 2);                                    // the cap looks down +Z
+  const p = g.attributes.position, uv = g.attributes.uv, s = rad * Math.sin(half);
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * s) + 0.5, p.getY(i) / (2 * s) + 0.5);
+  uv.needsUpdate = true;
+  return g;
+}
+function makeRival(av, name){
+  const S = MESH_SCALE;                        // a rival is exactly the size of a standard item
+  if (!geoCache.has('RV')) geoCache.set('RV', new THREE.SphereGeometry(1.0, 40, 28));
+  const tint = new THREE.Color(avatarTint(av)).convertSRGBToLinear();
+  let mat;
+  if (CFG.matcap){
+    mat = new THREE.MeshMatcapMaterial({ color: tint, matcap: makeMatcap('soft') });
+    mat.onBeforeCompile = matcapSpecPatch;     // the same relief and depth tint the pile has
+  } else {
+    mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0, roughness: 0.28 });
+    mat.envMapIntensity = 0.5;
+  }
+  const mesh = new THREE.Mesh(geoCache.get('RV'), mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.scale.setScalar(S);
+  // the stickers are CHILDREN of the ball — the fire overlay's own pattern: syncMeshes moves one
+  // object, and the item's material stays the one thing the veil and the dissolve reach for
+  const faceMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.35,
+    side: THREE.FrontSide, depthWrite: true, visible: false });
+  const N = RIVAL_STICKERS, GA = Math.PI * (3 - Math.sqrt(5));
+  const RV_UP = new THREE.Vector3(0, 1, 0), RV_Z = new THREE.Vector3(0, 0, 1);
+  const bx = new THREE.Vector3(), by = new THREE.Vector3(), bm = new THREE.Matrix4();
+  for (let i = 0; i < N; i++){
+    const y = 1 - (i / Math.max(1, N - 1)) * 2, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * i;
+    const dir = new THREE.Vector3(Math.cos(t) * rr, y, Math.sin(t) * rr).normalize();
+    const key = 'RVC' + i;
+    if (!geoCache.has(key)) geoCache.set(key, rivalStickerGeo(1.004 + i * 0.007, RIVAL_STICKER_HALF));
+    const st = new THREE.Mesh(geoCache.get(key), faceMat);
+    // ⚠️⚠️ THE ROLL IS NOT LEFT TO ARITHMETIC: the face's own +Y is laid along the MERIDIAN, so
+    // every sticker stands upright in the BALL's frame. `setFromUnitVectors` alone gives the
+    // minimal rotation from +Z to the normal and lets the roll fall where it may — measured in
+    // the live game, the face the player was looking at came out UPSIDE DOWN. At the two poles
+    // the meridian does not exist and +Z is the reference: a choice, not a measurement.
+    const ref = Math.abs(dir.y) > 0.985 ? RV_Z : RV_UP;
+    bx.crossVectors(ref, dir).normalize();
+    by.crossVectors(dir, bx);
+    st.quaternion.setFromRotationMatrix(bm.makeBasis(bx, by, dir));
+    st.rotateZ((i * 0.7919 % 1 - 0.5) * 0.36);                // slapped on by hand, not by a ruler
+    mesh.add(st);
+  }
+  rivalFace(av, t => { faceMat.map = t; faceMat.visible = true; faceMat.needsUpdate = true; });
+  const item = {
+    key: 'RIVAL', rival: true, rivalAv: av | 0, rivalName: name || '',
+    type: { name: 'rival', mat: 'rival' }, baseColor: tint.clone(), fxColor: tint.clone(),
+    r: 1.0 * S, scl: S, p: new THREE.Vector3(0, FUNNEL.H + 2, 0),
+    body: null, mesh, alive: true, animating: false, accessible: false,
+  };
+  mesh.userData.item = item;
+  mesh.position.copy(item.p);
+  scene.add(mesh);
+  return item;
+}
+
 // THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot. The type is
 // random among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold the charge
 // would blow up 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
@@ -11257,6 +11437,20 @@ function bombDueThisLevel(){
 function bombNoteGiven(){
   const gap = BOMB_GAP_MIN + Math.floor(Math.random() * (BOMB_GAP_MAX - BOMB_GAP_MIN + 1));
   bombNextLevel = levelNum + gap;
+}
+// ═══ THE RIVAL: WHEN THERE IS ONE (the owner's spec 2026-09-10) ═══
+// The same shape as the bomb's, deliberately: from the fifth level, every 1-3 levels, and the gap
+// lives in the SESSION'S memory rather than in the save — it is the rhythm of delivery, not
+// progress. ⚠️ THE GAP IS ASSIGNED ONLY WHEN A RIVAL WAS ACTUALLY HANDED OUT: on a level where
+// the table has no neighbour to show, the queue simply waits instead of silently skipping a turn.
+let rivalNextLevel = RIVAL_FROM_LEVEL;
+function rivalDueThisLevel(){
+  if (levelNum < RIVAL_FROM_LEVEL) return false;
+  return levelNum >= rivalNextLevel;
+}
+function rivalNoteGiven(){
+  const gap = RIVAL_GAP_MIN + Math.floor(Math.random() * (RIVAL_GAP_MAX - RIVAL_GAP_MIN + 1));
+  rivalNextLevel = levelNum + gap;
 }
 // REWARD FOR SERIES: the bomb falls from the sky by the same path as the turbo
 // top-up.
@@ -11707,6 +11901,27 @@ function genLevel(){
         b.wave = Math.floor(n/8); waveHold(b);
         items.push(b);
       }
+      // THE RIVAL rides the column a little ABOVE the bomb's point: both are due on the same
+      // levels often enough (both are «from 5, every 1-3»), and two special pieces born in one
+      // layer land on top of each other. ⚠️ THE FACE COMES FROM THE LEADERBOARD AND MAY NOT BE
+      // THERE AT ALL (a guest, no connection, the first place): then there is no rival on this
+      // level and the queue keeps waiting — we do not put a stranger's face on the piece.
+      if (n === Math.floor(pairsCnt * 1.25) && rivalDueThisLevel()){
+        const nb = (typeof lbNextRival === 'function') ? lbNextRival() : null;
+        if (nb && nb.av > 0){
+          rivalNoteGiven();
+          const r = makeRival(nb.av, nb.name);
+          r.p.set((Math.random() - 0.5) * 2, FUNNEL.H + 1.6 + Math.floor(n / 8) * 1.35 + 0.7,
+                  (Math.random() - 0.5) * 2);
+          r.mesh.position.copy(r.p);
+          // ⚠️ AN EXACT SPHERE, NOT A HULL: a ball taken down the hull branch would keep every
+          // vertex AND take the 1.2 damping of a box, and Rapier has no rolling friction — a
+          // sphere that never stops means the pile never sleeps (the 2026-08-28 measurement).
+          createItemBody(r, 'ball', geoCache.get('RV'));
+          r.wave = Math.floor(n / 8); waveHold(r);
+          items.push(r);
+        }
+      }
     }
   }
   // ⛔ THE SPAWN OF STONES WAS CUT 2026-08-17 together with the stones themselves
@@ -11810,6 +12025,7 @@ function genLevel(){
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // the combo/chain reaction do not survive the level
   missRadiusClear();   // and the miss penalty: a new level starts with the full radius
   chargeName = ''; chargeUntil = 0; // review v212: the type charge does not survive either
+  rivalWindowClear();               // ... and neither does the rival's five-second window
   // THE SCATTERING BOWL (prototype v2): the bowl is NEW every level (the owner's
   // decision no. 1) — the cracks are back to zero, the glass and the walls are
   // restored
@@ -12637,14 +12853,31 @@ function destroyItemBody(item){
 
 // Synchronization: the position AND ROTATION of the meshes now come from the
 // bodies (the rotation is honest)
+const RIVAL_UP_AXIS = new THREE.Vector3(0, 1, 0);   // read by the rival's branch below
 function syncMeshes(){
   for (const it of items){
     if (!it.alive || !it.body) continue;
     const t = it.body.translation();
     it.p.set(t.x, t.y, t.z);
     it.mesh.position.set(t.x, t.y, t.z);
+    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «как японский дорума»,
+    // 2026-09-10). Its collider is a SPHERE, so the render rotation carries NO physics whatsoever:
+    // nothing here touches the simulation, the tap still lands on the collider, and this is the one
+    // object in the bowl whose orientation the player READS — a face on its side or upside down
+    // reads as a defect and not as a tumble (measured in the live game before this line: the very
+    // first frame showed the face upside down). The ball still turns on its own axis — the yaw
+    // integrates the body's OWN angular velocity, so which sticker faces the player is still the
+    // simulation's answer and not a decision of ours.
+    // ⛔⛔ IT IS AN EXCEPTION TO «the rotation of the meshes is HONEST», AND IT IS THE ONLY ONE
+    // ALLOWED: legitimate for a BALL collider and for nothing else — on any other shape the mesh
+    // and the collider would part company and the finger would land where the picture is not.
+    // `RIVAL_UPRIGHT = false` gives the rival the pile's own tumble back, in one word.
     const r = it.body.rotation();
-    it.mesh.quaternion.set(r.x, r.y, r.z, r.w);
+    if (RIVAL_UPRIGHT && it.rival){
+      const av = it.body.angvel();
+      it.rvYaw = (it.rvYaw || 0) + av.y * (1 / 60);
+      it.mesh.quaternion.setFromAxisAngle(RIVAL_UP_AXIS, it.rvYaw);
+    } else it.mesh.quaternion.set(r.x, r.y, r.z, r.w);
   }
 }
 
@@ -13417,7 +13650,7 @@ function skyCast(ray, maxToi, excludeBody){
 function isAccessible(item){
   // easy difficulty: any pair is accessible. The exception is the SURPRISE: it is always
   // "honestly" occluded (otherwise +150 would be taken with a tap from the very first second)
-  if (!CFG.hard && !item.surprise) return true;
+  if (!CFG.hard && !item.surprise && !item.rival) return true;   // the rival is dug out honestly in BOTH modes
   if (!item.samples || !item.samples.length) return false;
   if (!_rapierRay) _rapierRay = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:1, z:0 });
   const q = item.mesh.quaternion;
@@ -13453,7 +13686,7 @@ function isAccessible(item){
 // notion of the rule rather than the rule (a law of this project, caught five times).
 function aliveCountForRadius(){
   let n = 0;
-  for (const it of items) if (it.alive && !it.surprise && !it.frozen) n++;
+  for (const it of items) if (it.alive && !it.surprise && !it.frozen && !it.rival) n++;
   return n;
 }
 function updateMatchRadius(){
@@ -13622,7 +13855,7 @@ function refreshAccessibilityNear(p, extra){
     const was = it.accessible;
     it.accessible = !it.animating && isAccessible(it);
     if (it.accessible !== was) accFlips++;
-    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 function refreshAccessibility(partial){
@@ -13638,7 +13871,7 @@ function refreshAccessibility(partial){
       const was = it.accessible;
       it.accessible = !it.animating && isAccessible(it);
       if (it.accessible !== was) accFlips++;
-      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+      if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
     }
     accCursor = (accCursor + sliceSize) % aliveList.length;
     return;
@@ -13659,7 +13892,7 @@ function refreshAccessibility(partial){
     // ⚠️ THE TUNER'S PIN outranks accessibility: without it the "veil on everyone" preview lived
     // at most until the next refresh tick (300 ms) and silently dissolved —
     // the veil-strength sliders would be untweakable.
-    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.accessible) ? VEIL_TARGET : 0;
+    if (!it.animating && !veilPinned) it.veilTarget = (CFG.highlight && !it.surprise && !it.frozen && !it.rival && !it.accessible) ? VEIL_TARGET : 0;
   }
 }
 // Smooth fade-in/removal of the veil (~0.25 s), from the main loop every frame.
@@ -18681,7 +18914,7 @@ function doMatch(list){
   // and fire multipliers do not work (a promise to the owner); the type's upgrade and the
   // purchased booster stay — they are not series-based.
   const hasRefill = list.some(i => i.refill);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   // the multiplier toast under the eyes (node 829:1242): only for upgraded types
   // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
   // «the toast under the eyes is shown only if the item's multiplier was increased
@@ -18891,7 +19124,7 @@ function breakIce(it, byBomb){
     const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
                               type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
                               exactly 1, always, against a comment promising «x the type's multiplier».
-                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * scoreBoostMult());
+                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * rewardMult());
     stats.score += gained;
     const shown = scoreShownDelta(before, stats.score);
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
@@ -18922,7 +19155,7 @@ function detonateBomb(bomb){
   items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= FROZEN_BOMB_RADIUS)
        .forEach(i => { try { breakIce(i, true); thawed.add(i); } catch(e){} });
   const victims = items
-    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !thawed.has(i))
+    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival && !thawed.has(i))
     .map(i => ({ i, d: pairDist(i, bomb) }))
     .filter(v => v.d <= BOMB_RADIUS)
     .sort((a, b) => a.d - b.d)
@@ -18969,6 +19202,21 @@ function detonateBomb(bomb){
 // The charge's state is RUNTIME, not the save (the owner's correction «it must not live
 // longer than 7 seconds»): chargeName/chargeUntil; the expiry is checked by chargeTick from the loop.
 let chargeName = '', chargeUntil = 0;
+// ⚡ THE RIVAL'S WINDOW — RUNTIME STATE, exactly like the type charge's above (2026-07-31): five
+// seconds of a live round mean nothing after a reload, so there is no save field and none is
+// needed. The anchor is real-clock and is shifted by `resumeGame`, so a pause, an ad or the shop
+// do not burn it (the owner's own «only game time» for the paid budget).
+let rivalUntil = 0;
+function rivalMultNow(){ return (rivalUntil && performance.now() < rivalUntil) ? RIVAL_MULT : 1; }
+function rivalLeftMs(){ const d = rivalUntil - performance.now(); return d > 0 ? d : 0; }
+function rivalWindowClear(){ rivalUntil = 0; }
+// ⚠️⚠️ THE SINGLE POINT EVERY REWARD MULTIPLIES BY, AND THE PAID BOOST'S OWN FUNCTION IS
+// DELIBERATELY LEFT ALONE. `boostTick`/`boostProgress` in 77-save read `scoreBoostMult()` to
+// decide WHOSE budget to burn and how much is left of it — fold a runtime multiplier in there and
+// a five-second window would start spending a paid tier that was never bought.
+// ⛔ PENALTIES DO NOT PASS THROUGH HERE: `scorePenalty` multiplies by nothing since 2026-09-03-h,
+// and the rival does not reopen that — a mistake costs its rung whatever is multiplying earnings.
+function rewardMult(){ return scoreBoostMult() * rivalMultNow(); }
 // THE TEMPO LADDER — the single point of the series multiplier (the tempo package 2026-07-31):
 // ×4 in turbo, ×3 from the SERIES_X3_AT-th match of the series, otherwise the base ×2. Consumers:
 // the crediting in doMatch and __game.series() (the Interface's eyes read the very same one —
@@ -19058,7 +19306,7 @@ function bowlCollectAll(){
   for (const [name, list] of Object.entries(byType)){
     const k = list.length;
     const kk = Math.min(k, MATCH_MAX_N);
-    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * scoreBoostMult());
+    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * rewardMult());
     accAdd(name, k, list[0]);
   }
   stats.score += gainedTotal;
@@ -19138,7 +19386,7 @@ function detonateCharge(){
   const name = chargeName;
   // ⚠️ !i.frozen: the charge strikes by the TYPE'S NAME (not by the key), and without the
   // exception it would take an ice block past its condition; the collected pieces, however, DO go into the credit (the owner).
-  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb
+  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rival
                                     && !i.frozen && i.type && i.type.name === name);
   chargeName = ''; chargeUntil = 0;
   if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // the type ran out before the click
@@ -19148,7 +19396,7 @@ function detonateCharge(){
   const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * rewardMult());
   const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
@@ -19417,6 +19665,36 @@ function detectorHighlight(){
   Telemetry.ev('rw', { p: 'detector' });
   updateHUD();
 }
+
+// THE RIVAL IS DUG OUT AND TAPPED: the multiplier window opens and the piece leaves. It pays NO
+// score of its own — the owner's spec is «множитель всех очков на 5 секунд», and points on top of
+// it would be a second reward nobody asked for.
+// ⚠️ THE REMOVAL TAIL IS THE TREASURE'S, LINE FOR LINE: the same `animating` guard, the same
+// `afterPause` deferral and the same `checkEnd` — the rival is the second unpaired single item
+// this game has, and it must behave like the first one everywhere the machinery counts pieces.
+function collectRival(it){
+  it.animating = true;
+  destroyItemBody(it);
+  wakePhysics('gameplay:rival');
+  faceEvent('surprised', 900);
+  stats.lastAction = performance.now();
+  rivalUntil = performance.now() + RIVAL_MS;
+  scorePop('×' + RIVAL_MULT, it.p.clone().setY(it.p.y + 0.6), '#c0ff47', true);
+  popFX(it.p);
+  dissolveFX(it);
+  Sound.play('combo');                      // the ignition of a window, in the combo's own voice
+  vibrate([20, 40, 30]);
+  const s0 = it.mesh.scale.x;
+  addFX(new THREE.Object3D(), 0.2, (o, k) => { it.mesh.scale.setScalar(s0 * (1 - k)); });
+  try { Telemetry.ev('rival', { av: it.rivalAv | 0, lv: levelNum }); } catch(e){}
+  setTimeout(() => afterPause(() => {
+    removeItem(it);
+    wakePhysics('gameplay:rival2');
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 200);
+  updateHUD();
+  try { refreshX5Float(); } catch(e){}       // the corner shows the window from its first frame
+}
 // The surprise is dug out and tapped: a bonus and a golden split
 function collectSurprise(it){
   it.animating = true;
@@ -19425,7 +19703,7 @@ function collectSurprise(it){
   faceEvent('surprised', 1000); // the INTERFACE's emotion matrix: the treasure — «surprised» eyes (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
   // the little fish gets dearer with the level: +150 + 5×level (the balance table 2026-07-22)
-  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * scoreBoostMult()); // the booster works on the treasure too
+  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * rewardMult()); // the booster and the rival's window work on the treasure too
   const before = stats.score;
   stats.score += bonus;
   const shown = scoreShownDelta(before, stats.score); // denom. gain (#10)
@@ -19538,11 +19816,13 @@ function handleTapInner(x, y){
 
   if (!isAccessible(item)){
     wiggle(item);
-    toast(item.surprise ? 'The treasure is still buried' : 'Item is covered from above');
+    toast(item.surprise ? 'The treasure is still buried'
+      : item.rival ? 'Your rival is still buried' : 'Item is covered from above');
     if (!finale) penalize(item.p);
     return;
   }
   if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // a dug-out surprise is collected by a tap
+  if (item.rival){ Telemetry.tap(x, y, 'rival'); collectRival(item); return; }   // a dug-out rival opens the window
   if (item.bomb){ detonateBomb(item); return; } // the bomb: an explosion instead of a match, no score
   if (item.frozen){
     // THE ICE BLOCK (the spec 2026-08-13): ready — the tap BREAKS it; too early — a penalty
@@ -19645,14 +19925,20 @@ function handleTapInner(x, y){
     markerFX(copies[0].p, 0xff6369);
     toast('Pair is deeper and farther');
   }
-  wiggle(item);
+  // ⛔ HERE STOOD A SECOND `wiggle(item)` (the owner's word 2026-09-10: «one clean
+  // nudge»). It was a DUPLICATE and not a stronger shove: both calls captured the same
+  // `mesh.rotation.z` in the same frame and drove the same formula over the same 0.3 s, so
+  // the two FX wrote byte-identical values — the animation was one nudge either way, and
+  // what the second call cost was an extra FX entry on the most frequent mistake in the game.
+  // ⚠ The surviving call stands next to `penalize` deliberately: the nudge belongs to the
+  // moment of the mistake, not after the markers and the toast.
 }
 
 // ---------- The hint ----------
 // Finds the best accessible group (the maximum of identical ones within the radius) and highlights it
 function findHintGroup(){
   refreshAccessibility();
-  const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
+  const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.rival && i.accessible);
   // the top of the pile is taken over the NON-flying ones, so that a fresh top-up does not raise the bar
   let pileTop = 0;
   for (const it of items) if (it.alive && it.p.y < FUNNEL.H) pileTop = Math.max(pileTop, it.p.y);
@@ -19759,7 +20045,7 @@ function hintPulse(item){
 // item into the blades (it sinks while spinning), its pair splits along with it, and score is
 // taken away for the pair.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen); // the punishment mixer does not eat the surprise or the bomb (the finale finishes those off)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival); // the punishment mixer does not eat the surprise, the bomb or the rival (the finale finishes those off)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];
@@ -19817,12 +20103,12 @@ function performShake(){
   // the pull grows as things empty out: >=40 alive — pure loosening,
   // <=12 — almost pure pull towards the nearest twin by type.
   let aliveCnt = 0;
-  for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
+  for (const it of items) if (it.alive && !it.surprise && !it.rival) aliveCnt++;
   const pullK = Math.max(0, Math.min(1, (40 - aliveCnt) / 28));
   for (const it of items){
     if (!it.alive || !it.body) continue;
     let ax = 0, az = 0;
-    if (pullK > 0 && !it.surprise){
+    if (pullK > 0 && !it.surprise && !it.rival){   // it has no twin to be pulled towards
       let twin = null, bd = 1e9;
       for (const ot of items){
         if (ot === it || !ot.alive || ot.animating || ot.key !== it.key) continue;
@@ -21035,6 +21321,72 @@ function lbRankNow(m, live, top){
   }
   return null;
 }
+
+// ⚡ THE LINE UNDER THE PLACE IS THE GAP TO THE PLAYER ABOVE, AND IT NAMES HIM (the owner's word
+// 2026-09-10; it is his own note of 2026-08-09, written into this canon: «the neighbours above and
+// below matter more than the overall top: „300 points to the next one" motivates, „you are
+// 4172nd" does not»). It replaces the flat «on leaderboard», which said nothing at all.
+// ⚠️⚠️ THE NEIGHBOUR IS PICKED BY THE LIVE SCORE, NOT AS `up[0]`. `up` is the SERVER's window
+// around the row as the server last saw it, while the number on screen is live (a win or a spend
+// moves it between sends — the whole reason `lbRankNow` exists). The nearest above is the
+// SMALLEST score strictly greater than the live one; `up[0]` would point at a player the game has
+// already overtaken, and the line would ask for points the player does not owe.
+// ⚠️ STRICTLY greater: an equal score IS legitimately above me by the server's ordering
+// (`s DESC, u ASC`), but «0 to X» is not a gap — it reads as a defect. We step to the next one up.
+// ⚠️⚠️ THE WINDOW IS EXHAUSTED — WE SAY NOTHING NEW, and the caller keeps the old line. This is
+// `lbRankNow`'s own refusal and for its reason: the five neighbours are the SERVER's `NEAR_N`, and
+// a gap derived beyond them would be an estimate — which this block does not show anywhere.
+// ⚠️ THE FIRST PLACE FALLS HERE TOO (nobody above), and it keeps «on leaderboard». A line of its
+// own for the leader would be a new string nobody has asked for; named to the owner instead.
+// ⚠️⚠️ THE ROW IS RETURNED, NOT THE TEXT, BECAUSE TWO THINGS NOW STAND ON IT: the line and THE
+// AVATAR ON THE RIGHT (his second word of the day: «the icon on the right must be the avatar of
+// whoever is next in the list — i.e. leave one instead of 3»). Deriving the neighbour twice would
+// be the shape this canon keeps paying for — a copy that drifts, and here it would drift into a
+// line naming one player beside the face of another.
+function lbGapNext(m, live){
+  if (!m || m.state !== 'ok' || !Array.isArray(m.up) || !m.up.length) return null;
+  let best = null;
+  for (const r of m.up){
+    if (!r) continue;
+    const s = r.score | 0;
+    if (s <= live) continue;
+    if (!best || s < (best.score | 0)) best = r;
+  }
+  return best;
+}
+// ⚠️⚠️ THE NAME IS CAPPED, AND THAT IS A LAYOUT GUARD RATHER THAN TIDINESS: our own guest names top
+// out at «Oystercatcher» (13 characters), but the server accepts up to 40
+// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar), and this line is
+// `white-space:nowrap` in a row whose right side is the avatar. 16 changes nothing for a real
+// player and bounds the crafted case.
+const LB_GAP_NAME_MAX = 16;
+function lbGapLine(next, live){
+  if (!next) return '';
+  const gap = (next.score | 0) - live;
+  if (gap <= 0) return '';
+  let name = String(next.name == null ? '' : next.name).trim();
+  if (!name) return '';
+  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
+  // ⚠️ THE SAME `winFmtScore` THE PLACE AND THE WALLET USE (12480 -> «12.5k»): a second number
+  // format on one row would be a second truth about how this game writes a score.
+  return winFmtScore(gap) + ' to ' + name;
+}
+// One circle: a real avatar when there is somebody to show, a neutral slot when there is not.
+// ⚠️ IT IS SHARED BY THE TWO INSTANCES ON PURPOSE — the win row shows the PLAYER'S own avatar and
+// the menu row the NEXT player's, but «what a 40px circle in this block looks like» is one
+// statement, and a second copy of it would drift at the first change of the file name.
+function lbEntryAvatar(ai){
+  if (!(ai > 0)){
+    const blank = document.createElement('i');
+    blank.className = 'ms-lbe-slot';
+    return blank;
+  }
+  const img = document.createElement('img');
+  img.src = 'avatars/Avatar' + String(ai | 0).padStart(2, '0') + '.png';
+  img.alt = ''; img.decoding = 'async';
+  return img;
+}
+
 // ⚠️⚠️ THERE ARE NOW TWO INSTANCES OF THE ROW: in the menu (`#msLbEntry`) and on the win screen
 // (`#winLbEntry`, node 891:4297, the owner's word 2026-08-21-n). The function now
 // writes into ALL the ones it finds, and not into a node by id.
@@ -21054,6 +21406,21 @@ function lbEntryStampBadge(){
     if (badge !== source && !badge.firstElementChild) badge.innerHTML = source.innerHTML;
   });
 }
+// ⚡ THE NEXT PLAYER, REMEMBERED FOR THE BOWL (the owner's spec 2026-09-10). The rival item is
+// built inside `genLevel`, which is synchronous, while everything about the table is a promise —
+// so the ONE place that already derives «who is ahead of you» writes the answer here and the game
+// reads the remembered one. ⛔ NOTHING IS INVENTED WHEN IT IS EMPTY: a guest, no connection and
+// the first place all mean there is no rival on the level, and a stranger's face on the piece
+// would be a lie about who you are racing.
+// ⚠️ IT IS FED BY THE SAME `next` THE ROW'S OWN CIRCLE AND ITS «340 to Godwit» LINE ARE DRAWN
+// FROM — one derivation, three consumers, so the face in the bowl cannot name a different player
+// than the line on the screen.
+let lbRivalNext = null;
+function lbNextRival(){ return lbRivalNext; }
+// a test door (99-main `rivalSetNext`): production has exactly one writer, `lbEntryRefresh` below
+function lbRivalSet(av, name){
+  lbRivalNext = ((av | 0) > 0) ? { av: av | 0, name: String(name || '') } : null;
+}
 function lbEntryRefresh(){
   lbEntryStampBadge();
   const boxes = lbEntryAll('.ms-lbentry'); if (!boxes.length) return;
@@ -21064,59 +21431,33 @@ function lbEntryRefresh(){
   // means moving the menu for no reason (the same rule as with the inset).
   const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
   boxes.forEach(b => { b.hidden = !on; });
-  if (!on) return;
+  if (!on){ lbRivalNext = null; return; }
+  // ⚠️⚠️ THE CIRCLE IS DRAWN SYNCHRONOUSLY, BEFORE ANY NETWORK ANSWER — as the NEUTRAL SLOT, and
+  // the face replaces it when the answer comes. That is the same property the row's fixed height
+  // is kept for: the block stands in the layout from the first frame, so its right side must not
+  // be an empty hole while the server is being asked, and the slot is the same 40px (56 on the
+  // win screen) as the face, so nothing moves when the picture arrives.
+  // ⛔⛔ HERE STOOD `lb.top(1).then(...)` DRAWING THREE AVATARS OF THE TOP IN THE MENU — the
+  // owner's rule of 2026-08-05 («always show 3 avatars»), CANCELLED by his word of 2026-09-10:
+  // «the icon on the right must be the avatar of whoever is next in the list — i.e. leave one
+  // instead of 3». The top's rows are no longer read by this block at all.
+  // ⛔⛔ AND THE WIN ROW NO LONGER SHOWS THE PLAYER'S OWN FACE EITHER: asked whether the next
+  // player belongs there too, he answered «нужен» (2026-09-10). That cancels his word of
+  // 2026-08-21-r («instead of three avatars we show only the avatar of the player»), and the two
+  // instances of this component say ONE thing again — who is ahead of you.
+  // ⚠️⚠️ THE PRICE, NAMED RATHER THAN HIDDEN: the win row's circle now WAITS for the network. The
+  // own avatar was derived from the player's key and needed nothing, and the canon recorded that
+  // as the reason the win row «is drawn in full in the first frame, even if the top never arrives
+  // at all». There is no second source for a NEIGHBOUR's face — so what is guaranteed in the first
+  // frame is the geometry (the neutral slot), and the face is what arrives.
+  // ⚠️ AND DROPPING THAT BRANCH REMOVED A RACE THAT WAS LIVE IN IT: it cleared BOTH hosts and then
+  // filled them, so whichever of the two promises resolved second wiped what the first had drawn.
+  // One writer now owns both hosts.
+  lbEntryAll('.ms-lbe-avs').forEach(h => {
+    h.innerHTML = '';
+    h.appendChild(lbEntryAvatar(0));
+  });
   const my = ++lbEntryEpoch;
-  lb.top(1).then(t => {
-    if (my !== lbEntryEpoch) return;
-    const hosts = lbEntryAll('.ms-lbe-avs'); if (!hosts.length) return;
-    hosts.forEach(h => { h.innerHTML = ''; });
-    // ⛔⛔ ON THE WIN SCREEN THERE IS ONE AVATAR, AND IT IS THE PLAYER'S AVATAR, NOT THE FIRST FROM
-    // THE TOP (the owner's word 2026-08-21-r: «instead of three avatars we show
-    // only the player's avatar», node 891:4307 — one circle of 56).
-    // ⚠️ HIS OWN RULE «always show 3 avatars» (2026-08-05) REMAINS IN
-    // FORCE FOR THE MENU: there three avatars show the TOP, here one shows
-    // YOU — these are different statements, not a different density of one and the same thing.
-    // ⚠️ THIS BRANCH DOES NOT WAIT FOR THE NETWORK: the avatar number is derived from the player's key
-    // (`guestAvatar`), so the win row is drawn in full in the first frame,
-    // even if the top never arrives at all.
-    const own = lbEntryAll('#winLbeAvs');
-    own.forEach(h => {
-      const ai = (typeof guestAvatar === 'function') ? (guestAvatar() | 0) : 0;
-      if (ai <= 0){ const blank = document.createElement('i');
-        blank.className = 'ms-lbe-slot'; h.appendChild(blank); return; }
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; h.appendChild(img);
-    });
-    const topHosts = hosts.filter(h => h.id !== 'winLbeAvs');
-    if (!topHosts.length) return;
-    if (!t || t.state !== 'ok' || !t.rows) return;
-    // ⚠️ `lbRow` returns `null` on a row that failed to parse (the server sends
-    // ARRAYS `[name, avatar, score]`, not objects). Without this check a broken
-    // row would bring the whole avatar render down into `catch`, and the block would silently stay
-    // without pictures — that is, the defect would look like «the server is empty».
-    // ⚠️⚠️ THERE ARE ALWAYS THREE SLOTS (the owner's word «always show 3 avatars»), and
-    // AN EMPTY SLOT IS A NEUTRAL CIRCLE, not somebody else's avatar. Putting the picture of
-    // a live player there would mean inventing a participant of the table; at the start,
-    // when there are fewer than three rows, that is a direct lie in the most visible place.
-    for (let i = 0; i < 3; i++){
-      const r = t.rows[i];
-      const ai = r ? (r.av | 0) : 0;
-      if (ai <= 0){
-        topHosts.forEach(h => {
-          const blank = document.createElement('i');
-          blank.className = 'ms-lbe-slot';
-          h.appendChild(blank);
-        });
-        continue;
-      }
-      topHosts.forEach(h => {
-        const img = document.createElement('img');
-        img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-        img.alt = ''; img.decoding = 'async'; h.appendChild(img);
-      });
-    }
-  }).catch(()=>{});
   lb.me().then(async m => {
     if (my !== lbEntryEpoch) return;
     // ⚠️ WE TAKE THE TOP THROUGH THE SAME CACHED CALL, AND NOT FROM A VARIABLE OF THE NEIGHBOURING
@@ -21146,13 +21487,20 @@ function lbEntryRefresh(){
     // is computed — but only when it CAN be derived: the live score is obliged
     // to fall INSIDE the top segment that was sent, then the position is simply
     // «how many rows are above», not an estimate. It did not fall in — we keep the server's number.
+    // ⚠️⚠️ THE LIVE SCORE IS READ ONCE AND BOTH LINES TAKE IT — THE ROW HAS ONE EPOCH (the
+    // lesson of «the two epochs», his screenshot 2026-08-11: a place from the snapshot next to a
+    // score from the live base, and a column that contradicted itself). The place and the gap
+    // under it are two statements about the same number; reading it twice would let them
+    // disagree by whatever a match scored in between.
+    const live = (typeof leaderboardScore === 'function') ? (leaderboardScore() | 0)
+               : (m && typeof m.score === 'number' ? (m.score | 0) : 0);
     let rank = ok ? (m.rank | 0) : 0;
     if (ok && typeof leaderboardScore === 'function'){
       // ⚠️ IT IS COMPUTED BY `lbRankNow` — a separate function, not an inline: there is
       // a guard on it, and the next consumer of the live rank will call the very same one. The leaderboard
       // screen computes ITS OWN (the insertion of the row into the visible segment) — there one needs not
       // a number but a position in the list; they have no shared formula.
-      const fresh = lbRankNow(m, leaderboardScore() | 0, lbEntryTop);
+      const fresh = lbRankNow(m, live, lbEntryTop);
       if (fresh > 0) rank = fresh;
     }
     // ⚠️ BOTH mobile rows and the class come from THE SAME `ok` as before, —
@@ -21170,7 +21518,23 @@ function lbEntryRefresh(){
     // is data too — it is the answer, and it is what the row is going to show.
     boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
-    subs.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
+    // ⚠️ «on leaderboard» IS NOW THE FALLBACK AND NOT THE LINE: it stands where a gap cannot be
+    // derived (the first place, an exhausted window, a neighbour list the server did not send) —
+    // i.e. it says «you are on the board» exactly where that is all we honestly know.
+    const next = ok ? lbGapNext(m, live) : null;
+    const gapLine = lbGapLine(next, live);
+    subs.forEach(sub => { sub.textContent = ok ? (gapLine || 'on leaderboard') : ''; });
+    // ⚠️⚠️ THE FACE AND THE LINE ARE WRITTEN FROM ONE ROW AND IN ONE PLACE, AND INTO BOTH
+    // INSTANCES. If the text says «340 to Godwit», the circle is Godwit's — on the menu row and on
+    // the win row alike — and when there is no gap to show (the first place, an exhausted window,
+    // a newcomer) the circle stays the neutral slot rather than borrowing a face from the top: a
+    // face there would name a player the line does not.
+    lbRivalNext = (gapLine && next && (next.av | 0) > 0)
+      ? { av: next.av | 0, name: String(next.name || '') } : null;
+    lbEntryAll('.ms-lbe-avs').forEach(h => {
+      h.innerHTML = '';
+      h.appendChild(lbEntryAvatar(gapLine && next ? (next.av | 0) : 0));
+    });
     boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
     // ⚠️⚠️ THE DIRECTION IS BY COMPARISON WITH THE PREVIOUSLY SEEN RANK, and not by the sign of
     // the score: the owner gave TWO badges (up/down), which means both states are obliged
@@ -21446,7 +21810,7 @@ function captureLevelTypes(){
   const seen = new Set(), keys = [];
   try {
     for (const it of items){
-      if (!it || it.surprise || it.bomb || !it.type) continue;
+      if (!it || it.surprise || it.bomb || it.rival || !it.type) continue;
       const k = String(it.type.name);
       if (!seen.has(k)){ seen.add(k); keys.push(k); }
     }
@@ -21998,18 +22362,42 @@ function showMultToast(typeName, mult, isTierUp){
 // in the last one), the bar is remaining / the streak's total (77-save boostProgress). Called
 // from updateHUD and from the loop after boostTick; it writes the DOM only when the shown
 // minute or the bar's percent (in whole points) changes — a comparison per frame, not a write.
+// ⚠️ THE TITLE IS TWO STACKED TEXT LAYERS (a gradient stroke under a white one) and each carries
+// two tspans — the number and the word. BOTH numbers are written or the outline would say ×5 under
+// a ×15. The tspans are picked by their first character rather than by index: the markup's order is
+// not this function's business to know.
+function x5FloatMult(m){
+  const f = $('x5Float'); if (!f) return;
+  const want = '×' + (m > 1 ? m : 5);      // with no window at all the card advertises the shop's own ×5
+  f.querySelectorAll('.x5f-x tspan').forEach(s => {
+    if (s.textContent.charAt(0) === '×' && s.textContent !== want) s.textContent = want;
+  });
+  const svg = f.querySelector('.x5f-x');
+  if (svg && svg.getAttribute('aria-label') !== want + ' score') svg.setAttribute('aria-label', want + ' score');
+}
 function refreshX5Float(){
   const f = $('x5Float'); if (!f) return;
-  const left = (typeof scoreBoostLeftMs === 'function') ? scoreBoostLeftMs() : 0;
-  const on = left > 0;
-  const label = on ? (Math.ceil(left / 60000) + ' min') : 'Boost';
-  const pct = on ? Math.round(boostProgress() * 100) : 0;
-  const key = label + '|' + pct;
+  const paid = (typeof scoreBoostLeftMs === 'function') ? scoreBoostLeftMs() : 0;
+  // ⚡ THE RIVAL'S FIVE SECONDS SHARE THIS BADGE (the owner's spec 2026-09-10): there is no second
+  // place on this screen where a multiplier lives, and a window nobody can see is a window nobody
+  // can use. While it burns, the card states the COMBINED multiplier and its own countdown; the
+  // paid budget's minutes come back the moment it ends — the paid state is never lost, only hidden
+  // for five seconds. ⚠️ THE BAR IS THE RIVAL'S OWN FRACTION, not the paid streak's: two different
+  // quantities, and the one being counted down is the one the player is watching.
+  const rl = (typeof rivalLeftMs === 'function') ? rivalLeftMs() : 0;
+  const mult = (typeof rewardMult === 'function') ? rewardMult() : 1;
+  const on = paid > 0 || rl > 0;
+  const label = rl > 0 ? (Math.ceil(rl / 1000) + ' s')
+              : (paid > 0 ? (Math.ceil(paid / 60000) + ' min') : 'Boost');
+  const pct = rl > 0 ? Math.max(0, Math.min(100, Math.round(rl / RIVAL_MS * 100)))
+            : (paid > 0 ? Math.round(boostProgress() * 100) : 0);
+  const key = label + '|' + pct + '|' + mult;
   if (f.dataset.x5 === key) return;
   f.dataset.x5 = key;
   f.classList.toggle('active', on);
   const b = $('x5FloatBtn'); if (b) b.textContent = label;
   f.style.setProperty('--x5f-pct', pct + '%');
+  x5FloatMult(mult);
 }
 function updateHUD(){
   try { refreshX5Float(); } catch(e){}
@@ -22670,7 +23058,7 @@ function demoAccSnapshot(){
   // demo: the level's live types with plausible accumulations — only so that
   // the owner sees the skeleton; NOT real data (the DEMO badge in the header)
   const byKey = {};
-  for (const it of items) if (it.alive && !it.surprise) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
+  for (const it of items) if (it.alive && !it.surprise && !it.rival) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
   return Object.keys(byKey).slice(0, 12).map((k, i) => {
     const count = 40 + i * 97 % 900 + byKey[k].n * 7;
     let tier = 0; while (tier < ACC_TIERS_DEMO.length && count >= ACC_TIERS_DEMO[tier]) tier++;
@@ -24305,7 +24693,7 @@ function tickCamFollow(dt){
     if (now < camFollowAt) return;
     camFollowAt = now + 500; // counting the live ones — not every frame
     let aliveCnt = 0;
-    for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
+    for (const it of items) if (it.alive && !it.surprise && !it.rival) aliveCnt++;
     if (aliveCnt > level.aliveN0 * CAM_FOLLOW_FRAC) return; // the camera stands still
     level.camFollowOn = true;
   }
@@ -24675,7 +25063,7 @@ $('museumBtn').addEventListener('click', openMuseum);
 $('museumClose').addEventListener('click', closeMuseum);
 // the popup demo button (the developer panel): a random live item
 $('tierDemoBtn').addEventListener('click', ()=>{
-  const alive = items.filter(i => i.alive && !i.surprise);
+  const alive = items.filter(i => i.alive && !i.surprise && !i.rival);
   if (!alive.length) return;
   const it = alive[(Math.random() * alive.length) | 0];
   showTierUp({ name: String(it.key), tier: 2, mult: 1.25, item: it });
@@ -25028,7 +25416,7 @@ $('msGrid').addEventListener('click', e => {
     // refreshMainScreen rebuilds the grid (the balance/the availability of the others) — we hang
     // the celebration AFTER, on the fresh card by key (the green top-up + the particles of joy)
     if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
-    else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough stars');
+    else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough points');
     return;
   }
   const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;
@@ -25487,7 +25875,7 @@ function finalizeFill(){
   let top0 = 0, aliveN = 0;
   // stones are not counted (spec 2026-07-22): the par score and the auto-pan threshold (20%)
   // are computed over the matchable mass
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen) aliveN++; }
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen && !it.rival) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // starting load — the 20% threshold for the camera auto-pan
   // par score (stars): the base = «everything matched in pairs without combos» BY TYPE and
@@ -25502,7 +25890,7 @@ function finalizeFill(){
   // A META edit in a physics file — sanctioned by the dispatcher's task
   // (the balance table).
   const accPerType = {};
-  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen)
+  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen && !it.rival)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
   let accPar = 0;
   for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
@@ -25768,6 +26156,10 @@ function resumeGame(){
   // that 0 into a small PAST timestamp — i.e. it would ARM a charge on a level that was never
   // meant to have one. The same sentinel pattern as `level.nextGrind` above.
   if (level.chargeAt) level.chargeAt += d;
+  if (rivalUntil) rivalUntil += d;     // ⚡ the rival's five seconds are PLAY time (2026-09-10):
+                                       // a pause, an ad or the shop must not burn them. The
+                                       // truthiness guard is the same sentinel rule as above —
+                                       // 0 means «no window», and `0 + d` would open one.
   if (chargeUntil) chargeUntil += d;   // review v212: the pause (ads/menu/tab)
                                        // does not eat the charge TTL — like all anchors;
                                        // spending it under the pause is impossible anyway
@@ -26841,6 +27233,65 @@ window.__game = {
                        inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.bomb) n++; return n; })(),
                        series: (level && level.bowlCracks) || 0, rewardGiven: !!(level && level.bombReward) }; },
   bombNextAt(lv){ if (lv != null) bombNextLevel = lv | 0; return bombNextLevel; },
+  // ⚡ THE RIVAL (the owner's spec 2026-09-10). The state is entirely inside the IIFE, and from
+  // outside «the window is open» is indistinguishable from «the paid boost is running» — this
+  // hands out the state itself rather than a retelling of it.
+  rivalRule(){ return { fromLevel: RIVAL_FROM_LEVEL, gapMin: RIVAL_GAP_MIN, gapMax: RIVAL_GAP_MAX,
+                        mult: RIVAL_MULT, ms: RIVAL_MS, nextLevel: rivalNextLevel,
+                        next: (typeof lbNextRival === 'function') ? lbNextRival() : null,
+                        inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.rival) n++; return n; })() }; },
+  rivalInfo(){ const i = items.findIndex(it => it.alive && it.rival);
+               const it = i >= 0 ? items[i] : null;
+               const pl = it && it.mesh.children[0];
+               // ⚠️ THE BODY'S TONE IS HANDED OUT IN sRGB, i.e. in the units of the baked table:
+               // the material holds it in LINEAR, and comparing a linear number with the table
+               // would go red on a healthy build.
+               const c = it && it.mesh.material.color.clone().convertLinearToSRGB();
+               // ⚠️⚠️ «NOT STRETCHED» IS A STATEMENT ABOUT THE UVs AND IS READ BACK OFF THE SHIPPED
+               // GEOMETRY: a sticker is an ORTHOGRAPHIC projection, u = x/(2s)+0.5 for every
+               // vertex. A wrap or a cap-mapped cylinder gives a wildly different number here.
+               let uvErr = -1;
+               if (pl){ const gg = pl.geometry, pp2 = gg.attributes.position, uu = gg.attributes.uv;
+                 const s2 = gg.parameters.radius * Math.sin(gg.parameters.thetaLength);
+                 uvErr = 0;
+                 for (let k = 0; k < pp2.count; k++) uvErr = Math.max(uvErr,
+                   Math.abs(uu.getX(k) - (pp2.getX(k) / (2 * s2) + 0.5)),
+                   Math.abs(uu.getY(k) - (pp2.getY(k) / (2 * s2) + 0.5))); }
+               // ⚠️ «THE FACES STAND UPRIGHT» IS AN ANGLE, AND IT IS MEASURED ONLY WHERE IT
+               // EXISTS: at the two poles the meridian is undefined, so those stickers are
+               // skipped and `upN` says how many were actually read — an empty measurement must
+               // not pass for a green one.
+               let upErr = -1, upN = 0;
+               if (it){ const U = new THREE.Vector3(0, 1, 0), dv = new THREE.Vector3(),
+                        yv = new THREE.Vector3(), mv = new THREE.Vector3();
+                 upErr = 0;
+                 for (const st of it.mesh.children){
+                   dv.set(0, 0, 1).applyQuaternion(st.quaternion);
+                   if (Math.abs(dv.y) > 0.985) continue;
+                   yv.set(0, 1, 0).applyQuaternion(st.quaternion);
+                   mv.copy(U).addScaledVector(dv, -U.dot(dv)).normalize();
+                   upErr = Math.max(upErr, Math.acos(Math.min(1, Math.max(-1, yv.dot(mv)))));
+                   upN++; } }
+               return { index: i, av: it ? (it.rivalAv | 0) : 0, name: it ? it.rivalName : '',
+                        // ⚠️ THE FLAG IS ON THE SHARED MATERIAL, NOT ON THE MESHES: reading
+                        // `child.visible` here would be true on a build with no picture at all.
+                        faceOn: !!(pl && pl.material.visible && pl.material.map),
+                        stickers: it ? it.mesh.children.length : 0,
+                        half: pl ? +pl.geometry.parameters.thetaLength.toFixed(3) : 0,
+                        uvErr: +uvErr.toFixed(6), upErr: +upErr.toFixed(4), upN,
+                        tint: c ? c.getHexString() : '',
+                        want: it ? new THREE.Color(avatarTint(it.rivalAv)).getHexString() : '',
+                        left: Math.round(rivalLeftMs()), mult: rivalMultNow(),
+                        reward: rewardMult(), paid: scoreBoostMult() }; },
+  rivalNextAt(lv){ if (lv != null) rivalNextLevel = lv | 0; return rivalNextLevel; },
+  // ⚠️ A TEST DOOR AND NOTHING ELSE: the neighbour comes from the leaderboard, and a guard cannot
+  // wait for a live table. Production never calls this — `lbEntryRefresh` is the only writer.
+  rivalSetNext(av, name){ lbRivalSet(av, name); return (typeof lbNextRival === 'function') ? lbNextRival() : null; },
+  rivalClear(){ rivalWindowClear(); return rivalLeftMs(); },
+  // ⚠️ A TEST DOOR: the window normally opens by a tap on the piece, and a guard that has to
+  // outlive a pause or a finale cannot live inside five seconds. Production never calls it.
+  rivalOpen(ms){ rivalUntil = performance.now() + (ms || RIVAL_MS); try { refreshX5Float(); } catch(e){}
+                 return Math.round(rivalLeftMs()); },
   // ⚠️ LOAD-BEARING HOOKS OF THE RADIUS PENALTY (the owner's spec 2026-08-11). Without them
   // the mechanic cannot be checked: it is entirely inside an IIFE, and from outside only
   // `CFG.matchRadius` is visible — by it «it dropped because of a miss» is indistinguishable from «it dropped because
@@ -27261,7 +27712,7 @@ window.__game = {
   // multiplier test: match a pair of a SPECIFIC type (accessible and within the radius)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;

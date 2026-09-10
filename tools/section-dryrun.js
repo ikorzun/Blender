@@ -37,12 +37,38 @@ const hideBotFlag = () => {
   const browser = await chromium.launch();
   // Page errors and console errors of every page the section opens are printed here — a silent
   // exception inside the page is otherwise indistinguishable from a missing submission.
+  // ⚠️⚠️ THE STUB IS THE SUITE'S OWN (test.js, `lbNetStub`) AND IT IS NOT OPTIONAL HERE: a section
+  // that opens the menu calls `/v1/me`, `LB_BASE` keeps the production address even on a local
+  // host by the owner's rule («read always, do not send»), and without the stub EVERY dry-run
+  // knocked at his live worker AND put a lawful 404 into the console — measured 2026-09-10, the
+  // same defect the suite itself paid a run for on 2026-08-10. A section with a mock of its own
+  // wraps this from above and stays in charge.
+  const lbNetStub = () => {
+    const of = window.fetch;
+    window.fetch = function (u, o) {
+      const s = String(u);
+      if (s.indexOf('/v1/top') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ r: [], t: 0, n: 0 }), { status: 200 }));
+      if (s.indexOf('/v1/me') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ err: 'none' }), { status: 404 }));
+      if (s.indexOf('/v1/score') >= 0)
+        return Promise.resolve(new Response(JSON.stringify({ ok: 1, s: 0, rank: null, exact: 0 }), { status: 200 }));
+      return of.apply(this, arguments);
+    };
+  };
   const _np = browser.newPage.bind(browser);
   browser.newPage = async function (...a) {
     const pg = await _np(...a);
+    await pg.addInitScript(lbNetStub);
     pg.on('pageerror', (e) => console.log('PAGEERROR: ' + (e && e.message || e)));
     pg.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('CONSOLE.' + m.type() + ': ' + m.text().slice(0, 300)); });
     return pg;
+  };
+  const _nc = browser.newContext.bind(browser);
+  browser.newContext = async function (...a) {
+    const ctx = await _nc(...a);
+    await ctx.addInitScript(lbNetStub);
+    return ctx;
   };
   const fn = new Function('browser', 'expect', 'httpStand', 'hideBotFlag', 'chromium', 'PAGE_FILE', 'fs', 'path', 'require', 'errors',
     'return (async () => {' + body + '})();');

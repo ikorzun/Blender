@@ -185,7 +185,7 @@ function doMatch(list){
   // and fire multipliers do not work (a promise to the owner); the type's upgrade and the
   // purchased booster stay — they are not series-based.
   const hasRefill = list.some(i => i.refill);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * scoreBoostMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   // the multiplier toast under the eyes (node 829:1242): only for upgraded types
   // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
   // «the toast under the eyes is shown only if the item's multiplier was increased
@@ -395,7 +395,7 @@ function breakIce(it, byBomb){
     const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
                               type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
                               exactly 1, always, against a comment promising «x the type's multiplier».
-                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * scoreBoostMult());
+                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * rewardMult());
     stats.score += gained;
     const shown = scoreShownDelta(before, stats.score);
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
@@ -426,7 +426,7 @@ function detonateBomb(bomb){
   items.filter(i => i.alive && i.frozen && pairDist(i, bomb) <= FROZEN_BOMB_RADIUS)
        .forEach(i => { try { breakIce(i, true); thawed.add(i); } catch(e){} });
   const victims = items
-    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !thawed.has(i))
+    .filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival && !thawed.has(i))
     .map(i => ({ i, d: pairDist(i, bomb) }))
     .filter(v => v.d <= BOMB_RADIUS)
     .sort((a, b) => a.d - b.d)
@@ -473,6 +473,21 @@ function detonateBomb(bomb){
 // The charge's state is RUNTIME, not the save (the owner's correction «it must not live
 // longer than 7 seconds»): chargeName/chargeUntil; the expiry is checked by chargeTick from the loop.
 let chargeName = '', chargeUntil = 0;
+// ⚡ THE RIVAL'S WINDOW — RUNTIME STATE, exactly like the type charge's above (2026-07-31): five
+// seconds of a live round mean nothing after a reload, so there is no save field and none is
+// needed. The anchor is real-clock and is shifted by `resumeGame`, so a pause, an ad or the shop
+// do not burn it (the owner's own «only game time» for the paid budget).
+let rivalUntil = 0;
+function rivalMultNow(){ return (rivalUntil && performance.now() < rivalUntil) ? RIVAL_MULT : 1; }
+function rivalLeftMs(){ const d = rivalUntil - performance.now(); return d > 0 ? d : 0; }
+function rivalWindowClear(){ rivalUntil = 0; }
+// ⚠️⚠️ THE SINGLE POINT EVERY REWARD MULTIPLIES BY, AND THE PAID BOOST'S OWN FUNCTION IS
+// DELIBERATELY LEFT ALONE. `boostTick`/`boostProgress` in 77-save read `scoreBoostMult()` to
+// decide WHOSE budget to burn and how much is left of it — fold a runtime multiplier in there and
+// a five-second window would start spending a paid tier that was never bought.
+// ⛔ PENALTIES DO NOT PASS THROUGH HERE: `scorePenalty` multiplies by nothing since 2026-09-03-h,
+// and the rival does not reopen that — a mistake costs its rung whatever is multiplying earnings.
+function rewardMult(){ return scoreBoostMult() * rivalMultNow(); }
 // THE TEMPO LADDER — the single point of the series multiplier (the tempo package 2026-07-31):
 // ×4 in turbo, ×3 from the SERIES_X3_AT-th match of the series, otherwise the base ×2. Consumers:
 // the crediting in doMatch and __game.series() (the Interface's eyes read the very same one —
@@ -562,7 +577,7 @@ function bowlCollectAll(){
   for (const [name, list] of Object.entries(byType)){
     const k = list.length;
     const kk = Math.min(k, MATCH_MAX_N);
-    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * scoreBoostMult());
+    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * rewardMult());
     accAdd(name, k, list[0]);
   }
   stats.score += gainedTotal;
@@ -642,7 +657,7 @@ function detonateCharge(){
   const name = chargeName;
   // ⚠️ !i.frozen: the charge strikes by the TYPE'S NAME (not by the key), and without the
   // exception it would take an ice block past its condition; the collected pieces, however, DO go into the credit (the owner).
-  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb
+  const victims = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.rival
                                     && !i.frozen && i.type && i.type.name === name);
   chargeName = ''; chargeUntil = 0;
   if (!victims.length){ try { updateHUD(); } catch(e){} return false; } // the type ran out before the click
@@ -652,7 +667,7 @@ function detonateCharge(){
   const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * scoreBoostMult());
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * rewardMult());
   const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
@@ -921,6 +936,36 @@ function detectorHighlight(){
   Telemetry.ev('rw', { p: 'detector' });
   updateHUD();
 }
+
+// THE RIVAL IS DUG OUT AND TAPPED: the multiplier window opens and the piece leaves. It pays NO
+// score of its own — the owner's spec is «множитель всех очков на 5 секунд», and points on top of
+// it would be a second reward nobody asked for.
+// ⚠️ THE REMOVAL TAIL IS THE TREASURE'S, LINE FOR LINE: the same `animating` guard, the same
+// `afterPause` deferral and the same `checkEnd` — the rival is the second unpaired single item
+// this game has, and it must behave like the first one everywhere the machinery counts pieces.
+function collectRival(it){
+  it.animating = true;
+  destroyItemBody(it);
+  wakePhysics('gameplay:rival');
+  faceEvent('surprised', 900);
+  stats.lastAction = performance.now();
+  rivalUntil = performance.now() + RIVAL_MS;
+  scorePop('×' + RIVAL_MULT, it.p.clone().setY(it.p.y + 0.6), '#c0ff47', true);
+  popFX(it.p);
+  dissolveFX(it);
+  Sound.play('combo');                      // the ignition of a window, in the combo's own voice
+  vibrate([20, 40, 30]);
+  const s0 = it.mesh.scale.x;
+  addFX(new THREE.Object3D(), 0.2, (o, k) => { it.mesh.scale.setScalar(s0 * (1 - k)); });
+  try { Telemetry.ev('rival', { av: it.rivalAv | 0, lv: levelNum }); } catch(e){}
+  setTimeout(() => afterPause(() => {
+    removeItem(it);
+    wakePhysics('gameplay:rival2');
+    refreshAccessibility(); updateHUD(); checkEnd();
+  }), 200);
+  updateHUD();
+  try { refreshX5Float(); } catch(e){}       // the corner shows the window from its first frame
+}
 // The surprise is dug out and tapped: a bonus and a golden split
 function collectSurprise(it){
   it.animating = true;
@@ -929,7 +974,7 @@ function collectSurprise(it){
   faceEvent('surprised', 1000); // the INTERFACE's emotion matrix: the treasure — «surprised» eyes (EYES-CHARACTER-SPEC §5)
   stats.lastAction = performance.now();
   // the little fish gets dearer with the level: +150 + 5×level (the balance table 2026-07-22)
-  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * scoreBoostMult()); // the booster works on the treasure too
+  const bonus = Math.round((SURPRISE_BONUS + SURPRISE_LEVEL_BONUS * levelNum) * rewardMult()); // the booster and the rival's window work on the treasure too
   const before = stats.score;
   stats.score += bonus;
   const shown = scoreShownDelta(before, stats.score); // denom. gain (#10)
@@ -1042,11 +1087,13 @@ function handleTapInner(x, y){
 
   if (!isAccessible(item)){
     wiggle(item);
-    toast(item.surprise ? 'The treasure is still buried' : 'Item is covered from above');
+    toast(item.surprise ? 'The treasure is still buried'
+      : item.rival ? 'Your rival is still buried' : 'Item is covered from above');
     if (!finale) penalize(item.p);
     return;
   }
   if (item.surprise){ Telemetry.tap(x, y, 'surprise'); collectSurprise(item); return; } // a dug-out surprise is collected by a tap
+  if (item.rival){ Telemetry.tap(x, y, 'rival'); collectRival(item); return; }   // a dug-out rival opens the window
   if (item.bomb){ detonateBomb(item); return; } // the bomb: an explosion instead of a match, no score
   if (item.frozen){
     // THE ICE BLOCK (the spec 2026-08-13): ready — the tap BREAKS it; too early — a penalty
@@ -1149,14 +1196,20 @@ function handleTapInner(x, y){
     markerFX(copies[0].p, 0xff6369);
     toast('Pair is deeper and farther');
   }
-  wiggle(item);
+  // ⛔ HERE STOOD A SECOND `wiggle(item)` (the owner's word 2026-09-10: «one clean
+  // nudge»). It was a DUPLICATE and not a stronger shove: both calls captured the same
+  // `mesh.rotation.z` in the same frame and drove the same formula over the same 0.3 s, so
+  // the two FX wrote byte-identical values — the animation was one nudge either way, and
+  // what the second call cost was an extra FX entry on the most frequent mistake in the game.
+  // ⚠ The surviving call stands next to `penalize` deliberately: the nudge belongs to the
+  // moment of the mistake, not after the markers and the toast.
 }
 
 // ---------- The hint ----------
 // Finds the best accessible group (the maximum of identical ones within the radius) and highlights it
 function findHintGroup(){
   refreshAccessibility();
-  const acc = items.filter(i => i.alive && !i.animating && !i.surprise && i.accessible);
+  const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.rival && i.accessible);
   // the top of the pile is taken over the NON-flying ones, so that a fresh top-up does not raise the bar
   let pileTop = 0;
   for (const it of items) if (it.alive && it.p.y < FUNNEL.H) pileTop = Math.max(pileTop, it.p.y);
@@ -1263,7 +1316,7 @@ function hintPulse(item){
 // item into the blades (it sinks while spinning), its pair splits along with it, and score is
 // taken away for the pair.
 function mixerGrind(){
-  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen); // the punishment mixer does not eat the surprise or the bomb (the finale finishes those off)
+  const cand = items.filter(i => i.alive && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival); // the punishment mixer does not eat the surprise, the bomb or the rival (the finale finishes those off)
   if (!cand.length) return;
   cand.sort((a,b) => a.p.y - b.p.y);
   const low = cand[0];
@@ -1321,12 +1374,12 @@ function performShake(){
   // the pull grows as things empty out: >=40 alive — pure loosening,
   // <=12 — almost pure pull towards the nearest twin by type.
   let aliveCnt = 0;
-  for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
+  for (const it of items) if (it.alive && !it.surprise && !it.rival) aliveCnt++;
   const pullK = Math.max(0, Math.min(1, (40 - aliveCnt) / 28));
   for (const it of items){
     if (!it.alive || !it.body) continue;
     let ax = 0, az = 0;
-    if (pullK > 0 && !it.surprise){
+    if (pullK > 0 && !it.surprise && !it.rival){   // it has no twin to be pulled towards
       let twin = null, bd = 1e9;
       for (const ot of items){
         if (ot === it || !ot.alive || ot.animating || ot.key !== it.key) continue;

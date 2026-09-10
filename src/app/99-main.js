@@ -253,7 +253,7 @@ function finalizeFill(){
   let top0 = 0, aliveN = 0;
   // stones are not counted (spec 2026-07-22): the par score and the auto-pan threshold (20%)
   // are computed over the matchable mass
-  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen) aliveN++; }
+  for (const it of items) if (it.alive){ top0 = Math.max(top0, it.p.y + it.r); if (!it.surprise && !it.frozen && !it.rival) aliveN++; }
   level.topY0 = top0;
   level.aliveN0 = aliveN; // starting load — the 20% threshold for the camera auto-pan
   // par score (stars): the base = «everything matched in pairs without combos» BY TYPE and
@@ -268,7 +268,7 @@ function finalizeFill(){
   // A META edit in a physics file — sanctioned by the dispatcher's task
   // (the balance table).
   const accPerType = {};
-  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen)
+  for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen && !it.rival)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
   let accPar = 0;
   for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
@@ -534,6 +534,10 @@ function resumeGame(){
   // that 0 into a small PAST timestamp — i.e. it would ARM a charge on a level that was never
   // meant to have one. The same sentinel pattern as `level.nextGrind` above.
   if (level.chargeAt) level.chargeAt += d;
+  if (rivalUntil) rivalUntil += d;     // ⚡ the rival's five seconds are PLAY time (2026-09-10):
+                                       // a pause, an ad or the shop must not burn them. The
+                                       // truthiness guard is the same sentinel rule as above —
+                                       // 0 means «no window», and `0 + d` would open one.
   if (chargeUntil) chargeUntil += d;   // review v212: the pause (ads/menu/tab)
                                        // does not eat the charge TTL — like all anchors;
                                        // spending it under the pause is impossible anyway
@@ -1607,6 +1611,65 @@ window.__game = {
                        inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.bomb) n++; return n; })(),
                        series: (level && level.bowlCracks) || 0, rewardGiven: !!(level && level.bombReward) }; },
   bombNextAt(lv){ if (lv != null) bombNextLevel = lv | 0; return bombNextLevel; },
+  // ⚡ THE RIVAL (the owner's spec 2026-09-10). The state is entirely inside the IIFE, and from
+  // outside «the window is open» is indistinguishable from «the paid boost is running» — this
+  // hands out the state itself rather than a retelling of it.
+  rivalRule(){ return { fromLevel: RIVAL_FROM_LEVEL, gapMin: RIVAL_GAP_MIN, gapMax: RIVAL_GAP_MAX,
+                        mult: RIVAL_MULT, ms: RIVAL_MS, nextLevel: rivalNextLevel,
+                        next: (typeof lbNextRival === 'function') ? lbNextRival() : null,
+                        inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.rival) n++; return n; })() }; },
+  rivalInfo(){ const i = items.findIndex(it => it.alive && it.rival);
+               const it = i >= 0 ? items[i] : null;
+               const pl = it && it.mesh.children[0];
+               // ⚠️ THE BODY'S TONE IS HANDED OUT IN sRGB, i.e. in the units of the baked table:
+               // the material holds it in LINEAR, and comparing a linear number with the table
+               // would go red on a healthy build.
+               const c = it && it.mesh.material.color.clone().convertLinearToSRGB();
+               // ⚠️⚠️ «NOT STRETCHED» IS A STATEMENT ABOUT THE UVs AND IS READ BACK OFF THE SHIPPED
+               // GEOMETRY: a sticker is an ORTHOGRAPHIC projection, u = x/(2s)+0.5 for every
+               // vertex. A wrap or a cap-mapped cylinder gives a wildly different number here.
+               let uvErr = -1;
+               if (pl){ const gg = pl.geometry, pp2 = gg.attributes.position, uu = gg.attributes.uv;
+                 const s2 = gg.parameters.radius * Math.sin(gg.parameters.thetaLength);
+                 uvErr = 0;
+                 for (let k = 0; k < pp2.count; k++) uvErr = Math.max(uvErr,
+                   Math.abs(uu.getX(k) - (pp2.getX(k) / (2 * s2) + 0.5)),
+                   Math.abs(uu.getY(k) - (pp2.getY(k) / (2 * s2) + 0.5))); }
+               // ⚠️ «THE FACES STAND UPRIGHT» IS AN ANGLE, AND IT IS MEASURED ONLY WHERE IT
+               // EXISTS: at the two poles the meridian is undefined, so those stickers are
+               // skipped and `upN` says how many were actually read — an empty measurement must
+               // not pass for a green one.
+               let upErr = -1, upN = 0;
+               if (it){ const U = new THREE.Vector3(0, 1, 0), dv = new THREE.Vector3(),
+                        yv = new THREE.Vector3(), mv = new THREE.Vector3();
+                 upErr = 0;
+                 for (const st of it.mesh.children){
+                   dv.set(0, 0, 1).applyQuaternion(st.quaternion);
+                   if (Math.abs(dv.y) > 0.985) continue;
+                   yv.set(0, 1, 0).applyQuaternion(st.quaternion);
+                   mv.copy(U).addScaledVector(dv, -U.dot(dv)).normalize();
+                   upErr = Math.max(upErr, Math.acos(Math.min(1, Math.max(-1, yv.dot(mv)))));
+                   upN++; } }
+               return { index: i, av: it ? (it.rivalAv | 0) : 0, name: it ? it.rivalName : '',
+                        // ⚠️ THE FLAG IS ON THE SHARED MATERIAL, NOT ON THE MESHES: reading
+                        // `child.visible` here would be true on a build with no picture at all.
+                        faceOn: !!(pl && pl.material.visible && pl.material.map),
+                        stickers: it ? it.mesh.children.length : 0,
+                        half: pl ? +pl.geometry.parameters.thetaLength.toFixed(3) : 0,
+                        uvErr: +uvErr.toFixed(6), upErr: +upErr.toFixed(4), upN,
+                        tint: c ? c.getHexString() : '',
+                        want: it ? new THREE.Color(avatarTint(it.rivalAv)).getHexString() : '',
+                        left: Math.round(rivalLeftMs()), mult: rivalMultNow(),
+                        reward: rewardMult(), paid: scoreBoostMult() }; },
+  rivalNextAt(lv){ if (lv != null) rivalNextLevel = lv | 0; return rivalNextLevel; },
+  // ⚠️ A TEST DOOR AND NOTHING ELSE: the neighbour comes from the leaderboard, and a guard cannot
+  // wait for a live table. Production never calls this — `lbEntryRefresh` is the only writer.
+  rivalSetNext(av, name){ lbRivalSet(av, name); return (typeof lbNextRival === 'function') ? lbNextRival() : null; },
+  rivalClear(){ rivalWindowClear(); return rivalLeftMs(); },
+  // ⚠️ A TEST DOOR: the window normally opens by a tap on the piece, and a guard that has to
+  // outlive a pause or a finale cannot live inside five seconds. Production never calls it.
+  rivalOpen(ms){ rivalUntil = performance.now() + (ms || RIVAL_MS); try { refreshX5Float(); } catch(e){}
+                 return Math.round(rivalLeftMs()); },
   // ⚠️ LOAD-BEARING HOOKS OF THE RADIUS PENALTY (the owner's spec 2026-08-11). Without them
   // the mechanic cannot be checked: it is entirely inside an IIFE, and from outside only
   // `CFG.matchRadius` is visible — by it «it dropped because of a miss» is indistinguishable from «it dropped because
@@ -2027,7 +2090,7 @@ window.__game = {
   // multiplier test: match a pair of a SPECIFIC type (accessible and within the radius)
   matchType(name){
     refreshAccessibility();
-    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && i.type.name === name);
+    const arr = items.filter(i => i.alive && i.accessible && !i.animating && !i.surprise && !i.bomb && !i.frozen && !i.rival && i.type.name === name);
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
       if (pairMatch(arr[i], arr[j])){ doMatch([arr[i], arr[j]]); return true; }
     return false;

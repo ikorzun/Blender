@@ -48,7 +48,7 @@ function tickCamFollow(dt){
     if (now < camFollowAt) return;
     camFollowAt = now + 500; // counting the live ones — not every frame
     let aliveCnt = 0;
-    for (const it of items) if (it.alive && !it.surprise) aliveCnt++;
+    for (const it of items) if (it.alive && !it.surprise && !it.rival) aliveCnt++;
     if (aliveCnt > level.aliveN0 * CAM_FOLLOW_FRAC) return; // the camera stands still
     level.camFollowOn = true;
   }
@@ -418,7 +418,7 @@ $('museumBtn').addEventListener('click', openMuseum);
 $('museumClose').addEventListener('click', closeMuseum);
 // the popup demo button (the developer panel): a random live item
 $('tierDemoBtn').addEventListener('click', ()=>{
-  const alive = items.filter(i => i.alive && !i.surprise);
+  const alive = items.filter(i => i.alive && !i.surprise && !i.rival);
   if (!alive.length) return;
   const it = alive[(Math.random() * alive.length) | 0];
   showTierUp({ name: String(it.key), tier: 2, mult: 1.25, item: it });
@@ -771,7 +771,7 @@ $('msGrid').addEventListener('click', e => {
     // refreshMainScreen rebuilds the grid (the balance/the availability of the others) — we hang
     // the celebration AFTER, on the fresh card by key (the green top-up + the particles of joy)
     if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
-    else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough stars');
+    else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough points');
     return;
   }
   const card = e.target.closest('.msc'); if (!card || card.classList.contains('lock')) return;

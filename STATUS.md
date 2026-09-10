@@ -6,7 +6,47 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10 (the beginner window 1 → 5, the clamp 5 → 10) on top of 2026-09-09 a–m and 2026-09-08 a–i, v2 = main** · **the full suite: 1125 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 45) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+**Build: batch 2026-09-10-b (the rival in the bowl) on top of 2026-09-10 and 2026-09-09 a–m, v2 = main** · **the full suite: 1142 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 47) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+
+**10 SEPTEMBER — THE NEXT PLAYER OF THE TABLE NOW LIES IN THE BOWL (batch 2026-09-10-b, your
+«Делай» + «вернем сферу и наклеим аватарки как стикеры»).** One piece per level from the fifth,
+every 1-3 levels, wearing the face of the neighbour your leaderboard row already names. No pair:
+one tap on a dug-out rival turns **×3 on ALL earnings for five seconds**, and the corner badge shows
+the combined multiplier and counts the seconds down.
+**THE SHAPE IS THE ONE YOU ASKED FOR LAST:** a ball in that player's own colour with his face stuck
+on as **six overlapping stickers**. A sticker is a cap of the ball with the picture projected
+straight onto it — 1:1 in the middle, compressed toward the rim, the way a sticker behaves on a ball
+— so nothing is stretched and nothing is cropped. The count and the size are one number each; 4, 6
+and 8 are on the sheet I sent, 6 is what shipped.
+⚡ **AND THE BALL STANDS UPRIGHT LIKE A DARUMA — your own reference.** Two frames decided it: with a
+free roll the face came out upside down, and with the stickers straightened but the ball rolling it
+came out on its side. Now the ball only turns around its axis, so a face always stands up. It costs
+NOTHING in physics — the collider is a sphere, and a sphere does not care which way its picture is
+turned; the pile, the sleep and the tap are untouched. One word turns it back into an ordinary
+tumbling ball.
+✅ **THE TWO REASONS THE EARLIER SHAPES LOOKED WRONG, BOTH MEASURED:** a picture wrapped on a sphere
+stretches at the poles by construction, and a cylinder cap crops a square avatar into its inscribed
+circle — that is what cut the ears off the coin. On top of that every mockup shape was 0.62× too
+small: the item mesh carries its own scale and I had been building in world units.
+⚠️ **WHAT IT DOES NOT MULTIPLY:** mistakes. The rule from 3 September stands — a miss costs its rung
+whatever is running. The window is PLAY time: a pause, an ad or the shop do not burn it (measured —
+three seconds under the pause menu cost 0).
+⚠️ **WHERE THERE WILL BE NO FACE, AND IT IS BETTER YOU HEAR IT NOW:** in the Playgama package. It is
+four files by hand and the 49 avatars are not among them, so the piece there is a plain ball in the
+player's colour — and the same gap already applies to the circles in your leaderboard row. Putting
+the folder into the package costs ~848 KB of the 8 MB reference; your call.
+⚠️ **AND WHERE THERE IS NO RIVAL AT ALL:** a guest, no connection, or you being first — there is
+nobody to show, so no piece is dealt and the queue simply waits for the next level. Nothing invents
+a stranger's face.
+The suite got a section of its own — ten arms on its own page, and it runs over http because a
+picture loaded from a double-clicked file is refused by WebGL; seven sabotage builds each redden
+exactly their own arm. Along the way the dry-run tool turned out to be knocking at your live
+leaderboard worker on every run — it now answers itself, like the suite does.
+This push also carries the uncommitted leaderboard row work (your two words of 10 September: the
+subtitle keeps its own size, one avatar instead of three).
+⚠️ **STILL WAITING ON YOUR WORD:** the fire from level 5 more often (you said so, I have not touched
+it yet — it is one number, 30 s → 20 s), and the rest of the special objects table (ice from level
+5, the rainbow, X-ray, the hourglass, the joker).
 
 **10 SEPTEMBER — THE FIRST FIVE LEVELS NO LONGER TAKE POINTS (batch 2026-09-10, your «A+B»).**
 `SCORE_NO_PENALTY_LEVELS` 1 → 5 and `SCORE_CLAMP_LEVELS` 5 → 10. Levels 1-5 charge nothing at all;

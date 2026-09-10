@@ -2929,6 +2929,15 @@
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
      overridden there too below. The colour is the `--carbon-400` token, and not the literal
      `#000`: the name has exactly that one, and «of the same style» means the same source. */
+  /* ⛔⛔ THE SUBTITLE KEEPS ITS OWN STYLE AND ITS OWN 14 — HIS SECOND WORD OF 2026-09-10 CANCELS
+     HIS FIRST. The first was «write it in the same font size and with the same paddings»; he
+     looked at the rendered pair and answered: «the line with the points and the name must be of
+     the style and text size that „on leaderboard" is written in NOW». So the type here is exactly
+     what it was before this batch — only the TEXT under the place changed.
+     ⚠️ AND THE SIZE IS WHAT BOUGHT THE NAME BACK: at 18 the line «340 to Oystercatcher» is 176px
+     against 172 of room at 390 and 122 at 320 — it ran onto the avatars. At 14, and with ONE
+     avatar on the right instead of three, it is 137 against 320px of room. The name is in the
+     line because the type stayed small, not despite it. */
   .ms-lbe-rank { font-size:18px; font-weight:700; color:var(--carbon-400);
     line-height:1.15; white-space:nowrap; }
   .ms-lbe-sub { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
@@ -3707,6 +3716,13 @@
        the caption is the same 14. The «Open» button here is a VISIBLE pill.
        ⚠️ THE FACE IS ALSO FROM THE NAME (the owner's word 2026-08-12): `.ms-uname`
        on desktop has 22/900, and the place repeats both values, and not only the type size. */
+    /* ⛔ THE SUBTITLE IS NOT IN THIS RULE (his second word of 2026-09-10, the tombstone at the
+       base declaration): the place is 22 on the desktop, the line under it keeps its own 14.
+       ⚠️ AND `line-height` IS NOT TOUCHED HERE EITHER — it was needed only while the pair shared
+       the type size: at 22 + 4 + 22 the text column outgrew the 48 of the badge and the row jumped
+       by 3px when the data arrived. At 22/1.15 + 4 + 14 the column is 39.3 and the badge keeps the
+       height, as it always did. The guard states the property (the row does not move), not the
+       line-height — so a future return of the shared size goes red rather than silent. */
     .ms-lbe-rank { font-size:22px; font-weight:900; }
     .ms-lbe-act { position:static; width:auto; height:auto; margin:0;
       overflow:visible; clip-path:none; display:flex; align-items:center; }
@@ -5191,7 +5207,7 @@
   <div class="lb-card">
     <div class="lb-head">
       <div class="lb-title">Leaderboard</div>
-      <div class="lb-sub">Compete with other players and climb to the top — but remember, boosting your items spends stars and drops your place.</div>
+      <div class="lb-sub">Compete with other players and climb to the top — but remember, boosting your items spends points and drops your place.</div>
     </div>
     <div class="lb-list" id="lbList"></div>
   </div>

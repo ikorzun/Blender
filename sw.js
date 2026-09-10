@@ -1,5 +1,5 @@
 /* Blendo — the service worker. SOURCE: src/sw.js; build.py writes the served copy to the
-   repo root with a623e9ad2972 replaced by the md5 of THIS build's index.html. Do not edit the
+   repo root with fe494d554163 replaced by the md5 of THIS build's index.html. Do not edit the
    root sw.js by hand — it is a build artifact, like index.html.
 
    ⛔⛔ THE ONE RULE THAT MUST NEVER BE RELAXED: THIS WORKER DOES NOT TOUCH MEDIA.
@@ -24,7 +24,7 @@
    - everything else falls through untouched. A positive allowlist cannot surprise us; a
      "cache everything except…" list would grow a hole at the first new asset.  */
 
-const BUILD = 'a623e9ad2972';
+const BUILD = 'fe494d554163';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 

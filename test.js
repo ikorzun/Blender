@@ -1021,6 +1021,15 @@ page.on('response', (r) => {
              avatars: (document.getElementById('winLbeAvs') || { children: [] }).children.length,
              ownTag: (() => { const h = document.getElementById('winLbeAvs');
                return h && h.firstElementChild ? h.firstElementChild.tagName : null; })(),
+             // ⚠️ THE SIZE, AND NOT THE TAG, SINCE 2026-09-10: the circle is the NEIGHBOUR's face
+             // now (his word «нужен» about the win screen too), and a neighbour arrives over the
+             // network — on this page there is none, so the child is legitimately the neutral slot
+             // `<i>`. What is invariant is that there is EXACTLY ONE circle and it is the win
+             // instance's 56, whichever of the two it is; WHOSE face it is, is guarded in the
+             // POINTS section, where a mock actually supplies a neighbour.
+             ownW: (() => { const h = document.getElementById('winLbeAvs');
+               const k = h && h.firstElementChild;
+               return k ? Math.round(k.getBoundingClientRect().width) : 0; })(),
              // ⚠️ WE CHECK THE CURSOR AGAINST THE MENU, AND NOT AGAINST THE LITERAL 'default': the game
              // cursor is set for the whole page with a picture (`image-set(url(data:…))`),
              // and any literal name lies here. The load-bearing thing is THE DIFFERENCE: in the menu
@@ -1042,23 +1051,27 @@ page.on('response', (r) => {
       winLbRow.border === '1px solid rgba(255, 255, 255, 0.12)' &&
       winLbRow.glow === 'none' && winLbRow.underHead && winLbRow.aboveList &&
       winLbRow.badges === 3 && winLbRow.visibleBadges === 1 && winLbRow.ownButtons === 0 &&
-      // ⚠️⚠️ WE CHECK ONLY OUR OWN AVATAR, AND NOT «one against three». The first
+      // ⚠️⚠️ WE CHECK ONLY THIS ROW'S OWN CIRCLE, AND NOT «one against three». The first
       // edition demanded `avatarsMenu === 3` and WENT RED ON A SOUND
-      // BUILD: three avatars in the menu are THE TOP, it arrives over the network, and on
+      // BUILD: three avatars in the menu were THE TOP, it arrives over the network, and on
       // the page of the suite there is no answer at all (`avatarsMenu: 0`). A number depending
       // on the network would be a flake in this assert, and not a statement.
-      // ⚠️ BUT `ownTag === 'IMG'` IS LOAD-BEARING: an empty slot is drawn as `<i>`, and
-      // «exactly one child» is true of the stub too — that is, without the tag the guard
-      // would go green on a build where the avatar of the player was not found.
-      winLbRow.avatars === 1 && winLbRow.ownTag === 'IMG' &&
+      // ⛔⛔ AND `ownTag === 'IMG'` MOVED TO A SIZE FOR THAT VERY REASON. It was load-bearing while
+      // the face was the PLAYER'S OWN — derived from his key, so present in the first frame, so an
+      // `<i>` there meant a defect. Since his word of 2026-09-10 («нужен» — the next player on the
+      // win screen too) the face comes over the network, and on this page there is no neighbour:
+      // the neutral slot is the CORRECT answer here. What stays invariant is one circle at the win
+      // instance's 56 — the geometry that must not move when the picture arrives.
+      winLbRow.avatars === 1 && winLbRow.ownW === 56 &&
       winLbRow.cursor !== winLbRow.cursorMenu)),
     '⚠️⚠️ VICTORY: the row «N place / on leaderboard» stands BETWEEN the header and the list ' +
     'of items — a FRAMED pill 72px (white 4%, a 1px frame of white 12%, radius 64, NO inner ' +
     'glow — the owner 2026-08-25, verbatim three properties, confirmed against node 891:4297 ' +
     'with get_design_context), EXACTLY ONE ' +
-    'avatar — THE PLAYER one, and not the first one from the top (the word of the owner 2026-08-21-r ' +
-    '«instead of three avatars we show only the avatar of the player»; his rule ' +
-    '«always three» from 2026-08-05 has remained in force FOR THE MENU and is guarded there), ' +
+    'circle of 56 — since 2026-09-10 it carries the NEXT player\'s face, the same as the menu row ' +
+    '(⛔ this cancels the owner\'s word 2026-08-21-r «instead of three avatars we show only the ' +
+    'avatar of the player», and his «always three» of 2026-08-05 with it — whose face it is, is ' +
+    'guarded in the POINTS section, where a mock supplies a neighbour), ' +
     'exactly ONE visible badge of direction out of ' +
     'three, without the «Open» button and without the hand cursor (node 891:4297, the word of the owner ' +
     '2026-08-21-n). ⚠️ `instances === 2` IS THE SANITY CHECK AGAINST A SUBSTITUTION: the row ' +
@@ -10848,6 +10861,194 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦LBDIGITS-SECTION-END⟧
 
+  // ⟦POINTS-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=POINTS runs this block alone; keep the markers)
+  // ===== THE LINE UNDER THE PLACE NAMES THE PLAYER AHEAD, THE CIRCLE ON THE RIGHT IS HIS FACE,
+  // AND THE WORD «stars» IS GONE (the owner's batch 2026-09-10, items 2 and 3) =====
+  // ⚠️ THE TWO LIVE ON ONE PAGE ON PURPOSE: they are one word of his about the same screen — the
+  // block says what it costs to move up, and it says it in POINTS, the only currency this game has.
+  {
+    // ⚠️⚠️ THE PLAYER'S OWN IDENTITY IS PINNED BY THE FIXTURE BELOW, AND WITHOUT IT ONE ARM WOULD
+    // BE A COIN TOSS: the own avatar is derived from a gid that is random per page, so «the win row
+    // shows the NEIGHBOUR's face and not the player's own» would be vacuous on the runs where the
+    // two numbers happened to coincide (1 in 49). The pinned gid gives avatar 36 and the name
+    // «Crake», measured on the built page; the fixture's neighbour wears 4.
+    // ⛔ AND THE NOTE STANDS HERE, OUTSIDE THE TEMPLATE LITERAL, ON PURPOSE: a backtick inside one
+    // closes it, and the file stops parsing — the trap this canon already records.
+    const gapInit = (up, s) => `(() => {
+      const rows = Array.from({length:50},(_,i)=>['Player'+(i+1),(i%24)+1,10000-i*100]);
+      const of = window.fetch;
+      window.fetch = function(u,o){ const q = String(u);
+        if (q.indexOf('/v1/top')>=0) return Promise.resolve(new Response(JSON.stringify({t:1,n:900,p:1,r:rows}),{status:200,headers:{'content-type':'application/json'}}));
+        if (q.indexOf('/v1/me')>=0)  return Promise.resolve(new Response(JSON.stringify({ok:1,s:${s},n:'Stoat',a:5,rank:12,exact:1,t:1,up:${JSON.stringify(up)},dn:[]}),{status:200,headers:{'content-type':'application/json'}}));
+        // ⚠️ EVERY OTHER lb.stub CALL IS ANSWERED TOO (the submission that banking fires): a fetch
+        // that falls through to a name that does not resolve prints a console error, and the
+        // suite's error gate reads console errors — our own routine traffic must not redden a run.
+        if (q.indexOf('lb.stub')>=0)  return Promise.resolve(new Response(JSON.stringify({ok:1}),{status:200,headers:{'content-type':'application/json'}}));
+        return of.apply(this, arguments); };
+      localStorage.setItem('mixer_lb_url','http://lb.stub');
+      try { localStorage.removeItem('mixer_lb_seen_rank'); } catch(e){}
+      localStorage.setItem('mixer_save_v1', JSON.stringify({ gid: 'guardgid0001' }));
+    })()`;
+    // ⚠️ THE LIVE SCORE IS BROUGHT ABOUT, NOT ASSUMED: a fresh page reads 0, and every number below
+    // is a difference against it. `bankScore(10000)` banks a LEVEL TOTAL and `se += floor(n/10)`,
+    // so the live `leaderboardScore()` becomes exactly 1000 — asserted as the control, because
+    // without it «340» would only look right.
+    const gapRead = async (pg, win) => pg.evaluate(async (win) => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const g = window.__game;
+      g.bankScore(10000); await sleep(150);
+      if (win) g.winScreen(true); else document.getElementById('pauseBtn').click();
+      await sleep(400);
+      g.lbEntryRefresh();
+      const id = win ? 'winLbe' : 'msLbe';
+      for (let i = 0; i < 40 && !document.getElementById(id + 'Rank').textContent; i++) await sleep(100);
+      await sleep(250);
+      const box = document.getElementById(win ? 'winLbEntry' : 'msLbEntry'),
+            rank = document.getElementById(id + 'Rank'), sub = document.getElementById(id + 'Sub'),
+            avs = document.getElementById(id + 'Avs'), cs = e => getComputedStyle(e);
+      const H = () => +box.getBoundingClientRect().height.toFixed(2);
+      const withText = H(), keep = sub.textContent;
+      // the height must not depend on what the line says: the row stands in the layout from the
+      // first frame and the data arrives over the network
+      sub.textContent = ''; await sleep(60); const empty = H();
+      sub.textContent = keep; await sleep(60);
+      const kid = avs.children[0];
+      return { live: g.leaderboardScore() | 0, rank: rank.textContent, sub: sub.textContent,
+        rankSize: cs(rank).fontSize, subSize: cs(sub).fontSize,
+        rankPad: cs(rank).padding, subPad: cs(sub).padding,
+        avKids: avs.children.length, avTag: kid && kid.tagName,
+        avSrc: kid ? (kid.getAttribute('src') || '') : '',
+        ownAv: (g.guestAvatar ? g.guestAvatar() : 0) | 0,
+        withText, empty,
+        clear: +(avs.getBoundingClientRect().left - box.querySelector('.ms-lbe-txt').getBoundingClientRect().right).toFixed(1),
+        vw: innerWidth };
+    }, win);
+    const gapPage = async (w, h, up, srv, win) => {
+      const pg = await browser.newPage({ viewport: { width: w, height: h } });
+      pg.on('pageerror', e => errors.push('PAGEERROR(points): ' + e.message));
+      await pg.addInitScript(new Function(gapInit(up, srv)));
+      await pg.goto('file://' + PAGE_FILE);
+      await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+      await pg.evaluate(() => window.__game.skipIntro());
+      await pg.waitForTimeout(250);
+      const out = await gapRead(pg, !!win);
+      await pg.close();
+      return out;
+    };
+    // ⚠️⚠️ `up[0]` IS THE ROW THE GAME HAS ALREADY OVERTAKEN (Gull at 900 against a live 1000), AND
+    // THAT IS THE WHOLE DISCRIMINATION: the answer must be «340 to Godwit» with GODWIT'S face —
+    // 1340 is the smallest score above the live one. A build that took `up[0]` reads «-100 to Gull»
+    // and shows Gull's avatar; a build that took the line from one row and the face from another
+    // fails the same arm.
+    const UP = [['Gull', 3, 900], ['Godwit', 4, 1340], ['Curlew', 5, 2500], ['Oystercatcher', 6, 5000]];
+    const mob = await gapPage(390, 780, UP, 1000);
+    const desk = await gapPage(1280, 900, UP, 1000);
+    const none = await gapPage(390, 780, [['Gull', 3, 900], ['Teal', 7, 500]], 1000);   // everyone in the window is BELOW the live score
+    // the widest line this block can ever produce: the formatter's longest number and a name at
+    // the cap (16). Our own guest names top out at «Oystercatcher» (13) — the extra characters are
+    // the crafted case the server's 40-character bar lets through.
+    const wide = await gapPage(320, 568, [['Oystercatcherpseudonymissimusmaximus1234', 9, 1000900]], 1000);
+    const win = await gapPage(390, 844, UP, 1000, true);
+    console.log('points/gap:', JSON.stringify({ mob, desk, none, wide, win }));
+
+    expect(mob.live === 1000 && /place/.test(mob.rank) && mob.sub === '340 to Godwit' &&
+           mob.ownAv === 36 && mob.avKids === 1 && mob.avTag === 'IMG' && mob.avSrc === 'avatars/Avatar04.png',
+      '⚡ THE LINE NAMES THE NEAREST ABOVE BY THE LIVE SCORE AND THE ONE CIRCLE IS HIS FACE — ' +
+      '«340 to Godwit» (1340 − 1000) with Godwit\'s avatar 04, not `up[0]` (Gull, 900, already ' +
+      'overtaken). ⛔ SABOTAGE: take `up[0]` — this reads «-100 to Gull» with Avatar03 (' +
+      JSON.stringify({ live: mob.live, rank: mob.rank, sub: mob.sub, av: mob.avSrc, kids: mob.avKids }) + ')');
+
+    // ⚠️⚠️ THE TWO LINES ARE DELIBERATELY OF DIFFERENT SIZES, AND THAT IS HIS SECOND WORD OF THE DAY
+    // CANCELLING HIS FIRST. The first was «the same font size as the place»; he looked at the
+    // rendered pair and answered «the style and text size that „on leaderboard" is written in
+    // NOW» — i.e. the subtitle keeps its own 14 while the place stays 18 on the phone and 22 on
+    // the desktop. ⛔ SABOTAGE: share the size again — the phone reads 18/18 here.
+    expect(mob.subSize === '14px' && desk.subSize === '14px' &&
+           mob.rankSize === '18px' && desk.rankSize === '22px' &&
+           mob.subPad === '0px' && mob.rankPad === '0px' && desk.subPad === '0px' && desk.rankPad === '0px',
+      '⚡ THE LINE KEEPS THE SUBTITLE\'S OWN 14 WHILE THE PLACE STAYS 18/22 (' +
+      JSON.stringify({ mob: [mob.rankSize, mob.subSize], desk: [desk.rankSize, desk.subSize] }) + ')');
+
+    // ⚠️⚠️ THE ROW MUST NOT GROW WHEN THE DATA ARRIVES. Its height is the taller of the badge (48)
+    // and the two lines, and the line under the place is written over the network — a row whose
+    // height depended on the text would move the whole menu under the finger at every opening.
+    expect(mob.withText === mob.empty && desk.withText === desk.empty && win.withText === win.empty,
+      '⚡ THE LINE DOES NOT MOVE THE ROW: the height is the same with the subtitle empty and ' +
+      'written, on both layouts and on the win screen (' +
+      JSON.stringify({ mob: [mob.empty, mob.withText], desk: [desk.empty, desk.withText], win: [win.empty, win.withText] }) + ')');
+
+    // ⚠️ THE REFUSAL IS THE OLD LINE AND A NEUTRAL CIRCLE. Five neighbours are the SERVER's window;
+    // when nobody in it is above the live score there is no gap and no «next» — and the circle
+    // must NOT borrow a face from the top, which would name a player the line does not.
+    expect(none.sub === 'on leaderboard' && /place/.test(none.rank) &&
+           none.avKids === 1 && none.avTag === 'I',
+      '⚡ THE WINDOW IS EXHAUSTED (nobody in `up` is above the live score) — «on leaderboard» and ' +
+      'the neutral circle, no borrowed face (' + JSON.stringify({ rank: none.rank, sub: none.sub, tag: none.avTag }) + ')');
+
+    // ⚠️⚠️ THE WIDTH IS WHY THE NAME IS CAPPED AT 16, AND IT IS GUARDED AT THE NARROWEST WIDTH WITH
+    // THE WIDEST STRING THIS BLOCK CAN PRODUCE. At the subtitle's own 14, and with ONE circle on
+    // the right instead of three, «1000k to Oystercatchers1…» is 177px and still clears it; at the
+    // place's 18, which his first word asked for, «340 to Oystercatcher» alone overlapped the
+    // three avatars by 54px here. The clearance is the property: the text ends BEFORE the circle.
+    expect(/^1000k to /.test(wide.sub) && wide.sub.length <= 25 && wide.clear > 4,
+      '⚡ THE WIDEST LINE STILL CLEARS THE CIRCLE AT 320 (' +
+      JSON.stringify({ sub: wide.sub, clearPx: wide.clear }) + '). ⛔ SABOTAGE: drop the name cap ' +
+      '— a 40-character name pushes the circle off the screen');
+
+    // ⚠️⚠️ THE WIN ROW SHOWS THE SAME NEIGHBOUR — asked whether the next player belongs there too,
+    // he answered «нужен» (2026-09-10), which cancels his own word of 2026-08-21-r («instead of
+    // three avatars we show only the avatar of the player»). ⛔ The former arm asserted the
+    // OPPOSITE and moved with the rule rather than being deleted: a silent return of the own face
+    // is exactly what it now catches, and the pinned identity (36) is what makes that catchable —
+    // without it «not the player's own» would be a coin toss on the runs where the two numbers
+    // coincide.
+    expect(win.avKids === 1 && win.avTag === 'IMG' && win.ownAv === 36 &&
+           win.avSrc === 'avatars/Avatar04.png' && win.avSrc === mob.avSrc &&
+           win.sub === '340 to Godwit',
+      '⚡ THE WIN ROW SHOWS THE NEIGHBOUR\'S AVATAR TOO — the same face as the menu row, and NOT ' +
+      'the player\'s own 36 (' + JSON.stringify({ av: win.avSrc, own: win.ownAv, menu: mob.avSrc, sub: win.sub }) + ')');
+  }
+
+  // ===== THE GAME HAS NO STARS, ONLY POINTS (the owner 2026-09-10: «Points, there are no stars in
+  // the game and their mention must be removed everywhere») =====
+  // ⚠️ THE ★ ICON STAYS AND IS NOT WHAT HE NAMED: `Interface/Star.svg` is his own asset and it is the
+  // ICON OF THE POINTS in the HUD and in the wallet. What he named is the WORD.
+  {
+    const src = fs.readFileSync(PAGE_FILE, 'utf8');
+    const gone = ['Not enough stars', 'spends stars and drops your place'];
+    const live = ['Not enough points', 'spends points and drops your place'];
+    const stillThere = gone.filter(t => src.indexOf(t) >= 0);
+    const missing = live.filter(t => src.indexOf(t) < 0);
+    console.log('points/strings:', JSON.stringify({ stillThere, missing }));
+    expect(!stillThere.length && !missing.length,
+      '⚡ THE TWO PLAYER-VISIBLE STRINGS SPEAK OF POINTS: the boost refusal and the leaderboard ' +
+      'subtitle (' + JSON.stringify({ starsLeft: stillThere, pointsMissing: missing }) + ')');
+
+    // ⚠️⚠️ AND A CENSUS RATHER THAN A PAIR OF NAMED EXAMPLES: every text node of the shipped markup
+    // is read, and not one of them may carry the word. A list of two would go stale the day a third
+    // string is written — the shape this canon has paid for more than once.
+    const cp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    cp.on('pageerror', e => errors.push('PAGEERROR(points/census): ' + e.message));
+    await cp.goto('file://' + PAGE_FILE);
+    await cp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    const census = await cp.evaluate(() => {
+      const bad = [];
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()){
+        const p = n.parentElement;
+        if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') continue;
+        const t = String(n.nodeValue || '');
+        if (/\bstars?\b/i.test(t)) bad.push(t.trim().slice(0, 80));
+      }
+      return bad;
+    });
+    await cp.close();
+    console.log('points/census:', JSON.stringify(census));
+    expect(census.length === 0,
+      '⚡ NOT ONE TEXT NODE OF THE MARKUP CARRIES THE WORD «star(s)» (' + JSON.stringify(census) + ')');
+  }
+  // ⟦POINTS-SECTION-END⟧
+
   // ===== THE FLOW MODE (2026-09-08-a): on the phone the pause menu, the leaderboard and the ×5 screen
   // scroll as the PAGE, so their rows pass under the iOS 26 status bar and address bar. Chromium never
   // gates it on (the gate is Apple WebKit + a phone width), so the suite FORCES it through
@@ -16325,9 +16526,17 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     '⚠️⚠️ THE SOUND SWITCHER: off→on returned ITS 40, and not 100 (' +
     JSON.stringify({ before: soundSwBefore, off: soundSwOff, on: soundSwOn }) + ')');
 
-  expect(narrowProbe.avGap === 2 && tightProbe.avGap === 4,
-    '⚠️ THE ENTRY POINT: the gap of the avatars is 2 by the mockup at 390 and 4 at the tight 320 (390 → ' +
-    narrowProbe.avGap + ', 320 → ' + tightProbe.avGap + ')');
+  // ⛔⛔ THE GAP BETWEEN THE AVATARS (2 at 390, 4 at 320 — his own numbers of 2026-08-10/11) HAS
+  // NOTHING LEFT TO SEPARATE: since 2026-09-10 the right side is ONE circle, «the avatar of
+  // whoever is next in the list — i.e. leave one instead of 3». The rules keep their gaps and are
+  // inert with a single child; the assert moved onto what replaced them, and was not deleted —
+  // a return of the three would otherwise pass silently. WHOSE face it is, is stated in the
+  // POINTS section (it is the neighbour the line names, and on the win screen the player's own).
+  expect(narrowProbe.visibleAvatars === 1 && tightProbe.visibleAvatars === 1 &&
+         narrowProbe.avGap === null && tightProbe.avGap === null,
+    '⚡ THE ENTRY POINT: exactly ONE circle on the right at both phone widths, so there is no ' +
+    'second avatar to measure a gap against (390 → ' + narrowProbe.visibleAvatars +
+    ', 320 → ' + tightProbe.visibleAvatars + ')');
   // ⛔ THERE IS NO ARROW ON THE RIGHT AT ALL ANY MORE (the mockup 840:3910: the row is pressed as a whole).
   // The former guard asserted «at 390 it is visible, at 320 it is hidden»; the rule changed,
   // and it MOVED with the OPPOSITE assertion, and was not deleted — otherwise a return of the arrow
@@ -16345,20 +16554,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(tightProbe.ink <= tightProbe.boxProbe + 1 && tightProbe.gap >= 0 && tightProbe.horiz === 0,
     '⚠️ THE ENTRY POINT at 320: the heading fits and does not ride over — the avatars give way to it ' +
     'one by one (' + JSON.stringify(tightProbe) + ')');
-  // ⚠️ THE SECOND HALF, WITHOUT WHICH THE FIRST IS GREEN UNDER ANY BEHAVIOUR: «it fits»
-  // is true even for a build where there are NO avatars AT ALL. We assert that in the wide
-  // layout there are three of them, and in the tight one fewer, that is, the giving way WORKS.
-  // ⚠️⚠️ THREE AVATARS ALWAYS, AT BOTH WIDTHS — the owner's direct word. ⛔ By this
-  // the former assert «the avatars give way to the text one by one» IS CANCELLED: it asserted
-  // my solution of the same task, while the owner chose another one (a stack instead of
-  // hiding). The guard moved after the rule, and was not deleted.
-  // ⚠️ And it IS OBLIGED to stand next to the check «the heading fits» above: «three»
-  // must not be obtained at the price of clipped text — otherwise we return the original defect
-  // and declare it a victory.
-  expect(narrowProbe.visibleAvatars === 3 && tightProbe.visibleAvatars === 3,
-    '⚠️ THE ENTRY POINT: three avatars are visible both at 390 and at 320 — as a stack, without ' +
-    'hiding and without riding over the heading (390 → ' + narrowProbe.visibleAvatars +
-    ', 320 → ' + tightProbe.visibleAvatars + ')');
+  // ⛔⛔ HERE STOOD «THREE AVATARS ALWAYS, AT BOTH WIDTHS» — the owner's word of 2026-08-05,
+  // CANCELLED by his word of 2026-09-10 («leave one instead of 3»). Its second half — «it fits»
+  // is green even for a build with NO avatars at all — is not lost: the arm above now counts the
+  // ONE circle, and it stands beside the same «the heading fits» checks, so a single circle still
+  // must not be bought at the price of clipped text.
+  // ⚠️ The whole history of that number is worth keeping: three avatars at 320 were the reason
+  // for the stack and for the 32px size, and both rules are still in the file. Bring the three
+  // back and they work again.
   // ⛔ THERE ARE NO TABS — the owner's decision «only our table, the tabs
   // are cancelled». The former guard asserted that they switch; the rule
   // changed, and it MOVED after it with the OPPOSITE assertion, and was not deleted:
@@ -17835,7 +18038,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const gap = () => { const a = document.querySelectorAll('#msLbeAvs > *');
         return a.length >= 2 ? Math.round(a[1].getBoundingClientRect().left - a[0].getBoundingClientRect().right) : null; };
       const mob = gap();
-      return { mob, more: getComputedStyle(document.getElementById('msGetMore')).backgroundColor };
+      return { mob, kids: document.querySelectorAll('#msLbeAvs > *').length,
+        more: getComputedStyle(document.getElementById('msGetMore')).backgroundColor };
     });
     await up.setViewportSize({ width: 1440, height: 900 });
     await up.waitForTimeout(400);
@@ -17929,9 +18133,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     /* ⚠️ 2, AND NOT 4: the updated mockup 840:4679. The owner's former live numbers
        (16 → 6 → 8 → 4) referred to THE PLATE BEFORE THE REMAKE, where on the left stood
        the word «Leaderboard» and on the right lived an arrow. The guard moves after the mockup. */
-    expect(desk.gap === 2 && desk.avatars === 3,
-      '⚠️ THE ENTRY POINT, DESKTOP: the gap between the avatars is 2 and there are THREE of them (' +
-      desk.gap + 'px, ' + desk.avatars + ' pcs)');
+    // ⛔ ONE CIRCLE ON THE DESKTOP TOO (his word 2026-09-10) — the former «the gap is 2 and there
+    // are THREE of them» is cancelled with the rule; the gap has nothing left to separate.
+    expect(desk.gap === null && desk.avatars === 1,
+      '⚡ THE ENTRY POINT, DESKTOP: exactly ONE circle on the right, so no gap to measure (' +
+      desk.gap + ', ' + desk.avatars + ' pcs)');
     // ⚠️⚠️ THE WORDING AND THE PLACE ON THE DESKTOP — AS ON MOBILE (the owner's word).
     // We assert THREE signs at once: the two lines are shown, the title is hidden,
     // the dot with the place is NOT shown. Without the third one the place would be duplicated in two
@@ -17951,9 +18157,18 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(desk.more === 'rgb(255, 231, 48)' && menu.more === 'rgb(255, 231, 48)',
       '⚠️ THE More BUTTON: the color #FFE730 on BOTH layouts, there is no override (' +
       JSON.stringify({ desktop:desk.more, mobile:menu.more }) + ')');
-    expect(menu.mob !== null && menu.mob < 16,
-      '⛔ THE ENTRY POINT, MOBILE: the stack is preserved — 16px there squeezes the title ' +
-      '(measured: ink 139 against a box of 128 at 390); the gap is ' + menu.mob + 'px');
+    // ⛔⛔ HERE STOOD «THE STACK IS PRESERVED»: at 390 the three avatars overlapped (a gap under 16)
+    // so that «Leaderboard» — 139px of ink against a box of 128 — still fitted. Since 2026-09-10
+    // the right side is ONE circle («the avatar of whoever is next in the list — i.e. leave one
+    // instead of 3»), there is nothing left to overlap and the title has more room than the stack
+    // ever bought it. The arm moved onto what replaced the stack rather than being deleted — a
+    // silent return of the three would otherwise pass here.
+    // ⚠️ THIS IS THE FOURTH READER OF THAT COUNT IN THE FILE AND THE ONE MY GREP MISSED: it names
+    // neither «avatars» nor «avGap», it names the GAP OF THE STACK. When a number leaves the game,
+    // grep the suite for what it MEANT, not only for what it was called.
+    expect(menu.kids === 1 && menu.mob === null,
+      '⚡ THE ENTRY POINT, MOBILE: exactly ONE circle, so there is no stack gap to measure (' +
+      JSON.stringify({ kids: menu.kids, gap: menu.mob }) + ')');
     // (5) THE TITLE OF THE COLLECTION: height 88 and centered on both axes.
     // ⚠️ We check the centering BY THE EQUALITY OF THE MARGINS around the text (Range), and not
     // by the presence of `place-items` in the styles: the latter is a retelling of the intent.
@@ -19291,6 +19506,187 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'address, so a crafted link cannot capture the first submission and its key (' + JSON.stringify(foreign) + ')');
   }
   // ⟦LBKEY-SECTION-END⟧
+
+  // ⟦RIVAL-SECTION-BEGIN⟧
+  // ═══ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10) ═══
+  // One piece per level wears the face of the NEXT player in the table, needs no pair, and a tap on
+  // a dug-out one opens a ×3 window on ALL EARNINGS for five seconds. Nothing in this file read any
+  // of that before the section existed, so the feature AND its rollback would both have passed green.
+  // ⚠️ IT HAS A PAGE OF ITS OWN, AND THAT IS NOT TIDINESS: it raises the level, opens the menu,
+  // pauses the round and leaves a chewed pile behind — every one of those is a precondition a
+  // neighbour would inherit (the law this file has already paid for four times).
+  {
+    const rvErr = [];
+    // ⚠️⚠️ THE SECTION RUNS OVER http AND NOT OFF file://, AND THAT IS THE ONLY WAY THE FACE CAN BE
+    // ASSERTED AT ALL: an image loaded from file:// carries the origin `null`, and WebGL refuses to
+    // upload it («the image element contains cross-origin data»). http is also the honest
+    // environment — the rival exists only where the leaderboard does, i.e. never on file://.
+    // ⚠️ THE STAND SERVES THE AVATARS TOO: the shared `httpStand` answers `/index.html` and 404s
+    // everything else, which is exactly the fixture gap this file paid a whole run for on
+    // 2026-09-09-k. Its own server, its own traversal guard, nothing shared to break.
+    const rvStand = await (async () => {
+      const http = require('http'), fs = require('fs'), path = require('path');
+      const root = path.dirname(PAGE_FILE);
+      const srv = http.createServer((req, res) => {
+        const rel = decodeURIComponent(String(req.url).split('?')[0]).replace(/^\/+/, '') || 'index.html';
+        const file = path.join(root, rel);
+        if (!file.startsWith(root + path.sep) || /(^|[\\/])\.\./.test(rel)){ res.writeHead(403); res.end(); return; }
+        fs.readFile(file, (err, buf) => {
+          if (err){ res.writeHead(404); res.end(); return; }
+          res.writeHead(200, { 'content-type': /\.png$/.test(file) ? 'image/png'
+            : /\.html$/.test(file) ? 'text/html' : 'application/octet-stream' });
+          res.end(buf);
+        });
+      });
+      await new Promise(r => srv.listen(0, '127.0.0.1', r));
+      return { url: 'http://127.0.0.1:' + srv.address().port + '/index.html', close(){ try { srv.close(); } catch(e){} } };
+    })();
+    const rp = await browser.newPage({ viewport: { width: 1280, height: 832 } });
+    rp.on('pageerror', e => rvErr.push(e.message));
+    await rp.goto(rvStand.url);
+    await rp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 40000 });
+
+    // (1) THE SCHEDULE, AND THE CONTROL THAT KEEPS IT HONEST. «From the fifth, every 1-3 levels»
+    // is his own rhythm for the bomb and the ice; the second arm is the case only the leaderboard
+    // can produce — a guest, no connection or the first place — where there is nobody to show.
+    const rvSched = await rp.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms)), out = {};
+      g.rivalSetNext(7, 'Godwit');
+      g.setLevel(4); g.rivalNextAt(4); g.regen(); g.skipIntro(); await sl(500);
+      out.early = g.rivalRule().inPile;                    // below the fifth — none, whatever the queue says
+      g.setLevel(6); g.rivalNextAt(6); g.regen(); g.skipIntro(); await sl(500);
+      const r1 = g.rivalRule(); out.on = r1.inPile; out.gap = r1.nextLevel - 6;
+      g.rivalSetNext(0); g.rivalNextAt(6);                 // the table has no neighbour to name
+      g.setLevel(6); g.regen(); g.skipIntro(); await sl(500);
+      const r2 = g.rivalRule(); out.none = r2.inPile; out.kept = r2.nextLevel;
+      g.rivalSetNext(7, 'Godwit');
+      return out;
+    });
+    expect(rvSched.early === 0 && rvSched.on === 1 && rvSched.gap >= 1 && rvSched.gap <= 3,
+      'THE RIVAL COMES FROM THE FIFTH LEVEL, ONE AT A TIME, EVERY 1-3 LEVELS (' + JSON.stringify(rvSched) + ')');
+    // ⚠️ THE QUEUE MUST NOT MOVE ON A LEVEL THAT HANDED OUT NOTHING — otherwise a player whose
+    // table is silent silently loses his turn as well.
+    expect(rvSched.none === 0 && rvSched.kept === 6,
+      '⛔ NO NEIGHBOUR IN THE TABLE — NO RIVAL, AND THE QUEUE KEEPS WAITING (' + JSON.stringify(rvSched) + ')');
+
+    // (2) THE PIECE ITSELF. A ball in the neighbour's tone with his face STUCK ON as overlapping
+    // stickers («вернем сферу и на нее наклеим аватарки как стикеры друг на друга, не растягивая
+    // аватарку»): the owner rejected a wrapped sphere («сильно растягивает») and the cylinder cap
+    // before it, which crops a 192-square avatar into its inscribed circle.
+    const rvItem = await rp.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      g.rivalSetNext(7, 'Godwit'); g.setLevel(6); g.rivalNextAt(6); g.regen(); g.skipIntro();
+      await sl(800);
+      const info = g.rivalInfo();
+      if (info.index < 0) return { why: 'no rival in the pile' };
+      const geo = g.itemsGeo()[info.index];
+      g.place(info.index, geo.x, g.topY() + 1.1, geo.z); g.forceRefresh();   // dig it out for the tap
+      await sl(400);
+      return { info, px: g.pixelOf(info.index), acc: g.accessibleList().includes(info.index),
+               score: g.stats().score, misses: g.stats().misses, alive: g.alive() };
+    });
+    // ⚠️⚠️ «NOT STRETCHED» IS ASSERTED ON THE UVs THEMSELVES, and that is the only honest way to
+    // state it: a sticker is an ORTHOGRAPHIC projection of the picture onto a cap of the ball
+    // (u = x/(2s)+0.5), while a wrapped `map` — the shape he rejected — puts a longitude there and
+    // reads far from it. A count of stickers alone would be green on a build that wraps.
+    expect(rvItem.info && rvItem.info.stickers === 6 && rvItem.info.faceOn && rvItem.info.av === 7 &&
+           rvItem.info.uvErr >= 0 && rvItem.info.uvErr < 1e-5 && rvItem.info.tint === rvItem.info.want,
+      'THE PIECE: a ball in the neighbour\'s own tone wearing six stickers of his face, each an ' +
+      'orthographic projection — the picture is not stretched anywhere (' + JSON.stringify(rvItem.info) + ')');
+    // ⚠️⚠️ AND THE FACES STAND UPRIGHT, which the UV assert above cannot see: a sticker's own +Y
+    // lies along the meridian, so the only spread is the ±0.18 rad of hand-slapped jitter. ⛔ THE
+    // SABOTAGE IS `setFromUnitVectors` ALONE (the shape this shipped as, and the frame in which the
+    // player met an UPSIDE-DOWN face). `upN` is the control — at the two poles the meridian does
+    // not exist and those stickers are skipped, so an empty measurement must not read as green.
+    expect(rvItem.info && rvItem.info.upN >= 3 && rvItem.info.upErr >= 0 && rvItem.info.upErr < 0.25,
+      'THE PIECE: every sticker away from the poles stands UPRIGHT on the ball — max tilt ' +
+      (rvItem.info ? rvItem.info.upErr : '?') + ' rad over ' + (rvItem.info ? rvItem.info.upN : '?') +
+      ' of them, against the ±0.18 of jitter (' + JSON.stringify(rvItem.info) + ')');
+
+    // (3) NO PAIR NEEDED — and the tap pays no score and counts no mistake. ⚠️ THE THREE NEGATIVE
+    // HALVES NEED THE POSITIVE ONE BESIDE THEM: «the score did not move» is also true of a tap
+    // that never landed, which is exactly how this file lost a guard for three weeks.
+    let rvTap = { why: 'no pixel' };
+    if (rvItem.px && !rvItem.px.occluded){
+      await rp.mouse.click(rvItem.px.px, rvItem.px.py);
+      await rp.waitForTimeout(450);
+      rvTap = await rp.evaluate(() => {
+        const g = window.__game, f = document.getElementById('x5Float');
+        return { rival: g.rivalInfo(), inPile: g.rivalRule().inPile, alive: g.alive(),
+                 score: g.stats().score, misses: g.stats().misses,
+                 label: document.getElementById('x5FloatBtn').textContent,
+                 active: f.classList.contains('active'),
+                 title: [...f.querySelectorAll('.x5f-x tspan')].map(s => s.textContent).join(' ') };
+      });
+    }
+    expect(rvTap.inPile === 0 && rvTap.alive === rvItem.alive - 1 &&
+           rvTap.score === rvItem.score && rvTap.misses === rvItem.misses &&
+           rvTap.rival.left > 3000 && rvTap.rival.mult === 3,
+      'A TAP ON A SINGLE RIVAL: it leaves alone (no pair), pays NO score and counts NO mistake, and ' +
+      'opens the ×3 window (' + JSON.stringify(rvTap) + ')');
+    // (4) AND THE CORNER SAYS SO — the only place on this screen where a multiplier lives.
+    expect(rvTap.active === true && /^\d s$/.test(String(rvTap.label)) && /×3/.test(String(rvTap.title)),
+      'THE BADGE CARRIES THE WINDOW: the combined multiplier and its own countdown in seconds (' +
+      JSON.stringify({ label: rvTap.label, title: rvTap.title, active: rvTap.active }) + ')');
+
+    // (5) THE MULTIPLIER REACHES THE SCORE, MEASURED ON THE PRODUCTION PATH. Two matches of THE
+    // SAME type on the same pile: `matchType` always merges exactly a PAIR, so the group term is
+    // equal on both sides and what is left between them is the window.
+    // ⚠️ THE 4.5 s GAP IS LOAD-BEARING: a second merge inside COMBO_CHAIN_MS ignites a series and
+    // its own ×2 would be measured as ours.
+    const rvGain = await rp.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      g.rivalClear(); g.boostClear();
+      g.setLevel(6); g.regen(); g.skipIntro(); await sl(600);
+      const cnt = {}; for (const it of g.itemsGeo()) cnt[it.name] = (cnt[it.name] || 0) + 1;
+      const name = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+      const s0 = g.stats().score, a0 = g.alive();
+      const ok1 = g.matchType(name); await sl(400);
+      const plain = g.stats().score - s0, n1 = a0 - g.alive();
+      await sl(4500);                                   // let the series die out (COMBO_MS 4000)
+      g.rivalOpen(30000);
+      const s1 = g.stats().score, a1 = g.alive();
+      const ok2 = g.matchType(name); await sl(400);
+      const boosted = g.stats().score - s1, n2 = a1 - g.alive();
+      return { name, plain, boosted, n1, n2, ok1, ok2, mult: g.rivalInfo().mult };
+    });
+    expect(rvGain.ok1 && rvGain.ok2 && rvGain.n1 === 2 && rvGain.n2 === 2 && rvGain.plain > 0 &&
+           Math.abs(rvGain.boosted - 3 * rvGain.plain) <= 1,
+      '⚡ THE WINDOW MULTIPLIES A REAL MERGE BY EXACTLY THREE: ' + rvGain.plain + ' → ' + rvGain.boosted +
+      ' on equal pairs of «' + rvGain.name + '» (' + JSON.stringify(rvGain) + ')');
+
+    // (6) THE FIVE SECONDS ARE PLAY TIME. His own rule for the paid budget, and the anchor is the
+    // one thing that makes it true: `resumeGame` shifts it, and a pause under the menu, an ad or
+    // the shop must not eat it. ⛔ The truthiness guard there is the sentinel rule — 0 means «no
+    // window», and a bare `+= d` would OPEN one on a level that never had a rival.
+    const rvPause = await rp.evaluate(() => { const g = window.__game;
+      g.rivalOpen(20000); return { left: g.rivalInfo().left }; });
+    await rp.click('#pauseBtn');
+    await rp.waitForFunction(() => window.__game.pauseState().paused, null, { timeout: 5000 });
+    await rp.waitForTimeout(3000);
+    await rp.click('#msPlayBtn');
+    await rp.waitForFunction(() => !window.__game.pauseState().paused, null, { timeout: 5000 });
+    const rvAfterPause = await rp.evaluate(() => window.__game.rivalInfo().left);
+    expect(rvPause.left > 19000 && rvAfterPause > 18000,
+      '⚠️ THE WINDOW IS PLAY TIME: three seconds under the pause menu did not burn it (' +
+      rvPause.left + ' → ' + rvAfterPause + ' ms left)');
+
+    // (7) AND IT ENDS BY ITSELF, giving the badge back to the paid budget it borrowed.
+    const rvEnd = await rp.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+      g.rivalOpen(600); await sl(1200);
+      const f = document.getElementById('x5Float');
+      return { left: g.rivalInfo().left, mult: g.rivalInfo().mult, reward: g.rivalInfo().reward,
+               label: document.getElementById('x5FloatBtn').textContent,
+               title: [...f.querySelectorAll('.x5f-x tspan')].map(s => s.textContent).join(' ') };
+    });
+    expect(rvEnd.left === 0 && rvEnd.mult === 1 && rvEnd.reward === 1 &&
+           rvEnd.label === 'Boost' && /×5/.test(String(rvEnd.title)),
+      'THE WINDOW CLOSES BY ITSELF AND THE CORNER GOES BACK TO THE SHOP\'S OWN ×5 (' + JSON.stringify(rvEnd) + ')');
+    expect(rvErr.length === 0, 'THE RIVAL\'S PAGE RAISED NO ERRORS (' + rvErr.join(' | ') + ')');
+    await rp.close(); rvStand.close();
+  }
+  // ⟦RIVAL-SECTION-END⟧
 
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.
   // The filters are the same (the synthetic crash of the suite and the newbie noise), so that the gate does not

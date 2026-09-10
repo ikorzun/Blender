@@ -1203,6 +1203,39 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.8
 // scale, the enclosing radius `r` used by the blast metric, and `scl` used to build the collider.
 const BOMB_SCALE = 1.425;   // 0.95 x 1.5, in units of MESH_SCALE
 const FROZEN_BOMB_RADIUS = 2.86;
+// ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
+// dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
+// One item per level wears the face of the NEXT player in the table — the same neighbour the
+// leaderboard row and the win screen already name. It does not match and needs no pair: a tap on
+// a DUG-OUT rival turns a multiplier on ALL EARNINGS on for RIVAL_MS.
+// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «делай»: ×2 over
+// five seconds is not felt, ×5 collides with the paid boost's own number. It MULTIPLIES with the
+// paid one (5 × 3 = 15) instead of replacing it — the window is short and rare, and the paid
+// boost is his own «the money has to be played off» model.
+// ⚠️⚠️ THE WINDOW IS PLAY TIME, NOT WALL CLOCK: its anchor is shifted by `resumeGame` like every
+// other real-clock anchor, so a pause, an ad or the shop do not burn it. The float in the corner
+// is the only place a multiplier is shown on this screen, so it shows this one too.
+// ⛔ IT DOES NOT MULTIPLY PENALTIES — the same rule the paid boost has followed since 2026-09-03-h.
+// ⛔ AND IT IS NOT A SAVE FIELD AND NEEDS NONE (the type charge's own lesson): five seconds of a
+// live round cannot survive a reload in any meaningful sense.
+const RIVAL_FROM_LEVEL = 5;                  // the same start as the bomb and the ice (his word)
+const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1-3 levels
+const RIVAL_MULT = 3;
+// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «давай вернём сферу и на неё наклеим аватарки
+// как стикеры друг на друга, не растягивая аватарку». A ball in the neighbour's own colour, wearing
+// N copies of his face as stickers. ⚠️ THE STICKERS ONLY KISS AT THE EDGES: at a strong overlap the
+// sticker above eats a third of the one below and nothing reads. Six at a half-angle of 0.62 rad
+// (35°) leaves the ball's own tone showing between them, which is what makes it read as a sticker
+// BALL and not as a painted one — and from any angle at least one face is turned to the player,
+// which is the whole reason there are several.
+const RIVAL_STICKERS = 6;
+const RIVAL_STICKER_HALF = 0.62;
+const RIVAL_MS = 5000;
+// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «как японский дорума»): the render
+// rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own
+// axis. `false` gives it the pile's tumble back — and with it the upside-down face of the first
+// live frame. The branch lives in `syncMeshes` (50-physics) and the whole reason is written there.
+const RIVAL_UPRIGHT = true;
 // "THE EXPLOSION IS LIKE A SHAKE EFFECT" (the second half of the owner's spec 2026-07-27-b;
 // PHYSICS's constants, added by rule 3 — adding one's own is allowed).
 // BOMB_JOLT is the amplitude of the jolt given to the WHOLE pile (the second layer of blastWave on top of

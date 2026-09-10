@@ -632,14 +632,31 @@ function destroyItemBody(item){
 
 // Synchronization: the position AND ROTATION of the meshes now come from the
 // bodies (the rotation is honest)
+const RIVAL_UP_AXIS = new THREE.Vector3(0, 1, 0);   // read by the rival's branch below
 function syncMeshes(){
   for (const it of items){
     if (!it.alive || !it.body) continue;
     const t = it.body.translation();
     it.p.set(t.x, t.y, t.z);
     it.mesh.position.set(t.x, t.y, t.z);
+    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «как японский дорума»,
+    // 2026-09-10). Its collider is a SPHERE, so the render rotation carries NO physics whatsoever:
+    // nothing here touches the simulation, the tap still lands on the collider, and this is the one
+    // object in the bowl whose orientation the player READS — a face on its side or upside down
+    // reads as a defect and not as a tumble (measured in the live game before this line: the very
+    // first frame showed the face upside down). The ball still turns on its own axis — the yaw
+    // integrates the body's OWN angular velocity, so which sticker faces the player is still the
+    // simulation's answer and not a decision of ours.
+    // ⛔⛔ IT IS AN EXCEPTION TO «the rotation of the meshes is HONEST», AND IT IS THE ONLY ONE
+    // ALLOWED: legitimate for a BALL collider and for nothing else — on any other shape the mesh
+    // and the collider would part company and the finger would land where the picture is not.
+    // `RIVAL_UPRIGHT = false` gives the rival the pile's own tumble back, in one word.
     const r = it.body.rotation();
-    it.mesh.quaternion.set(r.x, r.y, r.z, r.w);
+    if (RIVAL_UPRIGHT && it.rival){
+      const av = it.body.angvel();
+      it.rvYaw = (it.rvYaw || 0) + av.y * (1 / 60);
+      it.mesh.quaternion.setFromAxisAngle(RIVAL_UP_AXIS, it.rvYaw);
+    } else it.mesh.quaternion.set(r.x, r.y, r.z, r.w);
   }
 }
 

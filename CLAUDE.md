@@ -18291,3 +18291,156 @@ worker's document shortcut); and a `Range: bytes=0-99` on `/music.mp3` (206 — 
 from the video worker). Those three cover the three things this worker does.
 ⚠️ The FIRST deploy under this rule was 2026-09-10, version `77568dc3`, and it carried the beginner
 window of batch 2026-09-10 — the domain had been a build behind since the push.
+
+## BATCH 2026-09-10-b: THE RIVAL IN THE BOWL — THE NEXT PLAYER OF THE TABLE, A TAP ON HIM IS ×3 ON EVERYTHING FOR FIVE SECONDS (his spec over five messages: «покажи как выглядит» → the sheets → «аватарка… сильно растягивает… можем попробовать несколько лиц, как японский дорума» → «1. Множитель всех очков на 5 секунд 2. Пара не нужна 3. Следущего» → «Делай» → «давай вернем сферу и на нее наклеим аватарки как стикеры друг на друга, не растягивая аватарку»)
+
+### THE SHAPE WAS PICKED OFF RENDERED SHEETS, AND THREE OF ITS RULES ARE MEASUREMENTS RATHER THAN TASTE
+Six recipes were built on ONE item of ONE seeded layout (a mulberry32 `Math.random` in an init script — every
+variant lands on the same piece, so the comparison is about the recipe and not about the deal) and shown as a
+contact sheet; a second sheet turned the camera through 40/80/120° so he could see each of them from a rotated
+bowl. He rejected the coin, then the sphere, then asked for a two-sided sandwich, looked at it and ASKED FOR
+THE SPHERE BACK with the avatar STUCK ON as overlapping stickers. That is what shipped. ⚠️ Each time the FRAME
+decided and not the argument — the fourth time in this project; a sheet costs twenty minutes, a wrong shape
+costs a round trip.
+- ⛔⛔ **A PICTURE WRAPPED ON A SPHERE STRETCHES AT THE POLES** («сильно растягивает») and no parameter cures
+  it: it is the wrap itself. A STICKER cannot stretch anything — it is a cap of the sphere whose UV is a
+  parallel projection of the square, `u = x/(2s) + 0.5` with `s = radius·sin(half)`: at the centre it is
+  exactly 1:1 and toward the rim it COMPRESSES, which is what a sticker glued to a ball does in life.
+- ⛔⛔ **AND A CYLINDER CAP CROPS: three maps the cap onto the circle INSCRIBED in the texture**, so a
+  192-square avatar loses its ears — which is what the coin of the previous round actually did, and what he was
+  looking at when he wrote «растягивает». Neither defect is visible in a diff; both are visible in a frame.
+- ⚠️ **A THIRD DEFECT WAS FOUND ONLY BECAUSE THE SHEETS WERE MEASURED, NOT ADMIRED: every mockup shape was
+  0.62× TOO SMALL.** The item mesh carries `sz.s * MESH_SCALE`, so a geometry built in WORLD units and assigned
+  to it comes out that much smaller. The rule for anything that replaces an item's geometry: build it in the
+  mesh's OWN units (`worldR / mesh.scale.x`); only what is added to the SCENE stays in world units.
+- **THE COUNT AND THE SIZE ARE ONE NUMBER EACH** — `RIVAL_STICKERS` 6 and `RIVAL_STICKER_HALF` 0.62 rad. They
+  were chosen off the 4/6/8 sheet: at 6 the caps only KISS at their edges, and the first parameters tried
+  (half 0.86-1.02 with a free roll) made an unreadable jumble. Each sticker sits on its own radius
+  (`1.004 + i·0.007`), so the depth test never fights over a shared surface.
+
+### ⚠️⚠️ THE ROLL IS NOT LEFT TO ARITHMETIC, AND THE LIVE FRAME IS WHAT SAID SO
+`setFromUnitVectors(+Z, dir)` gives the MINIMAL rotation onto the normal and leaves the roll wherever it lands.
+The first live frame — the one that was about to be sent to him — showed the face **UPSIDE DOWN**. The sticker's
+own +Y is laid along the MERIDIAN now (a basis from `ref × dir`, with +Z as the reference at the two poles,
+where a meridian does not exist), so every sticker stands upright in the BALL's frame and the only spread left
+is the ±0.18 rad of hand-slapped jitter. ⚠️ A face is the one thing a player reads as BROKEN when it is not
+upright; a banana lying on its side is just a banana.
+
+### ⚡ AND THE BALL ITSELF NEVER TIPS — A DARUMA, WHICH IS HIS OWN REFERENCE
+Upright stickers on a ball that has rolled still give a face on its side: the second live frame showed exactly
+that. `syncMeshes` (50-physics) gives the rival the body's YAW only — integrated from its own `angvel().y`, so
+which sticker faces the player is still the simulation's answer and not a decision of ours.
+⛔⛔ **IT IS AN EXCEPTION TO «the rotation of the meshes is HONEST», AND IT IS THE ONLY ONE ALLOWED: the
+collider is a SPHERE, so the render rotation carries no physics at all** — nothing was added to the solver, no
+torque, no damping, the sleep scheme is untouched and the finger still lands on the collider. ⛔ On ANY other
+shape the same line would part the mesh from its collider and the tap would land where the picture is not.
+`RIVAL_UPRIGHT = false` gives the rival the pile's tumble back, in one word.
+
+### THE AVATAR'S COLOUR IS BAKED AT BUILD TIME, NOT READ AT RUNTIME
+`tools/avatar-tint.js` decodes all 49 PNGs (zlib + unfilter, PALETTE colour type included — `Avatar10` is one)
+and writes `src/app/09-avatar-tint.js`, one tone per file. ⚠️ THE TONE IS THE **MODAL** OPAQUE COLOUR, NOT THE
+AVERAGE: an average of fur + a white muzzle + a black outline is mud; near-white and near-black are dropped
+because they are every avatar's highlight and outline rather than its colour.
+⛔ **AND IT IS BAKED BECAUSE THE RUNTIME ROUTE CANNOT BE MADE SAFE:** reading a PNG back through a canvas
+taints it on `file://`, and on the portal the file is not shipped at all. 49 numbers cannot fail.
+
+### THE MECHANIC, AND THE ONE SEAM IT NEEDED
+No pair (his word), so it is the SECOND unpaired single item this game has and it behaves like the first one —
+`collectRival` is the treasure's removal tail line for line. A tap on a DUG-OUT rival opens `RIVAL_MULT` on all
+EARNINGS for `RIVAL_MS`; it pays no score of its own and counts no mistake.
+⚡ **`rewardMult()` (80-gameplay) IS THE SINGLE POINT EVERY REWARD MULTIPLIES BY, AND THE PAID BOOST'S OWN
+FUNCTION WAS DELIBERATELY LEFT ALONE.** `boostTick`/`boostProgress` in 77-save read `scoreBoostMult()` to
+decide WHOSE budget to burn and how much of it is left — fold a runtime multiplier in there and a five-second
+window starts spending a paid tier that was never bought. Five reward sites moved to the new function (a match,
+the ice credit, the bowl collect-all, the type charge, the treasure); every accounting site kept the old one.
+⛔ **PENALTIES DO NOT PASS THROUGH IT** — the rule since 2026-09-03-h is untouched: a mistake costs its rung
+whatever is multiplying earnings.
+⚠️ **THE WINDOW IS PLAY TIME**: its anchor is shifted by `resumeGame` like every other real-clock anchor, and
+the truthiness guard there is the sentinel rule the charge's own anchor paid for — `0` means «no window», and a
+bare `+= d` would OPEN one on a level that never had a rival.
+⚠️ **THE CORNER BADGE CARRIES IT** (`refreshX5Float`): while the window burns, the card states the COMBINED
+multiplier (paid × rival) and counts its own seconds down; the paid budget's minutes come back the moment it
+ends. There is no second place on that screen where a multiplier lives, and a window nobody can see is a window
+nobody can use.
+
+### WHERE THE FACE COMES FROM, AND WHAT HAPPENS WHEN THERE IS NOBODY
+`lbNextRival()` (85-hud) is written by the ONE place that already derives «who is ahead of you» — the same
+`next` the leaderboard row's circle and its «340 to Godwit» line are drawn from. One derivation, three
+consumers, so the face in the bowl can never name a different player than the line on the screen. `genLevel` is
+synchronous and reads the remembered answer.
+⚠️ **NO NEIGHBOUR — NO RIVAL, AND THE QUEUE DOES NOT MOVE**: a guest, no connection and the first place all
+mean there is nobody to show, and a player whose table is silent must not lose his turn as well. The gap is
+noted only when a piece was actually handed out — the bomb's own rule.
+⛔ **THE FACE IS NOT LOADED ON `file://` AT ALL, AND THAT IS MEASURED**: `TextureLoader` asks for CORS and
+Chromium blocks it («has been blocked by CORS policy»), while a bare `<img>` loads but WebGL then refuses to
+upload it («the image element contains cross-origin data») — so the stickers would go visible and render blank,
+which is worse than the plain coloured ball. It costs nothing in production: on `file://` the leaderboard is
+muted outright, so no neighbour exists and no rival is dealt.
+⚠️ **ON THE PORTAL THERE WILL BE NO FACE EITHER, AND HE WAS TOLD**: the package is four files by hand and the
+49 avatars are not among them — the same gap the leaderboard's own circles already have there. The piece falls
+back to the player's colour; adding the folder is his call and costs ~848 KB.
+
+### THE CENSUS OF `!it.surprise` — EVERY FILTER THAT EXISTS BECAUSE THE TREASURE IS NOT A MATCHABLE PIECE
+Fourteen places were walked and answered one at a time: accessibility honest in BOTH modes; out of the endgame
+∞ counter, out of the veil (it glows through, like the treasure), out of the bomb's victims and the charge's,
+out of the hint, out of the punishment mixer, out of the shake's pair-pull, out of the two alive counters, out
+of `finalizeFill`'s pair base, and out of two dev-only demos.
+⚠️ **TWO WERE DELIBERATELY LEFT ALONE, AND THAT IS THE HALF WORTH RECORDING:** the pile-top height counts it
+(it is an ordinary body in the pile), and **the finale grinds it with no reward** — `finaleGrind` picks the
+lowest of ALL live items and only the treasure has a branch there, so «swept without a reward» is what the
+existing code already does. Nothing was added for it.
+
+### THE GUARD: TEN ARMS ON ITS OWN PAGE, OVER http, AND SEVEN SABOTAGES
+Nothing in the suite read any of this before, so the feature AND its rollback would both have passed green.
+The arms: the schedule (from 5, one at a time, every 1-3) and its control (no neighbour → no piece AND the
+queue keeps waiting); the piece itself (six stickers, the face of the avatar the table named, the body wearing
+that avatar's own baked tone, and **the UVs read back off the shipped geometry**); the faces standing upright;
+the tap (it leaves alone, pays no score, counts no mistake, opens ×3); the badge; the multiplier reaching a
+REAL merge; the pause not burning the window; the window closing by itself and giving the badge back.
+⚠️⚠️ **«NOT STRETCHED» IS ASSERTED ON THE UVs THEMSELVES, and that is the only honest way to state it**: a
+count of stickers alone is green on a build that WRAPS. `uvErr` is the largest deviation from the orthographic
+formula over every vertex of the shipped cap — 0 on this build, and far from it on any wrap.
+⚠️ **`upN` IS THE CONTROL OF THE UPRIGHT ARM**: at the two poles the meridian does not exist and those stickers
+are skipped, so an empty measurement must not read as a green one.
+⚠️⚠️ **THE SECTION RUNS OVER http, AND THAT IS THE ONLY WAY THE FACE CAN BE ASSERTED AT ALL** (the file://
+measurement above). Its stand serves the avatars as well — the shared `httpStand` answers `/index.html` and
+404s everything else, which is exactly the fixture gap that cost a whole run on 2026-09-09-k.
+⚠️ **THE MERGE ARM IS DETERMINISTIC BECAUSE `matchType` ALWAYS MERGES EXACTLY A PAIR**: the group term is equal
+on both sides, so what is left between them is the window. The 4.5 s gap between the two merges is
+load-bearing — a second merge inside `COMBO_CHAIN_MS` ignites a series whose own ×2 would be measured as ours.
+**PROVEN SEVEN-SIDED** (`tools/build-variant.py` + `tools/section-dryrun.js`, the healthy build 10 green): the
+level gate dropped → the schedule arm; the queue moved with no neighbour → its control; the UV rewrite removed
+(i.e. a wrap) → the piece arm; **`setFromUnitVectors` back in place of the meridian basis → the upright arm
+alone (0.12 rad → 2.29)**; `rewardMult` back to the paid function → the ×3 arm (20 → 20); the `resumeGame`
+anchor dropped → the play-time arm; the face never loaded → the piece arm. Each reddens ITS OWN arm and
+nothing else.
+
+### ⛔⛔ AND THE DRY-RUN TOOL WAS KNOCKING AT HIS LIVE LEADERBOARD ON EVERY RUN
+`tools/section-dryrun.js` had no `lbNetStub`, so a section that opens the menu called `/v1/me` — and
+`LB_BASE` keeps the PRODUCTION address even on a local host by his own rule («read always, do not send»).
+Measured on the rival's own page: a live `404 https://lb.blendo.monster/v1/me?…`, i.e. an external dependency
+in every dry-run and a lawful 404 sitting in the console of a tool whose whole job is to show console errors.
+The suite itself was cured of exactly this on 2026-08-10; the tool built afterwards inherited the hole. The
+stub is the suite's own, on `newPage` AND on `newContext`.
+⚠️ **THE RULE, WIDER THAN THE CASE: A TOOL THAT OPENS THE GAME IS A CLIENT OF EVERY GATE THE SUITE HAS** —
+whatever the suite installs before a page's first byte (the network stub, the bot flag) the tool owes too, or
+its verdict is about a different environment than the one the suite measures.
+
+### ⚠️ A FLAKE NAMED RATHER THAN FIXED: THE BOMB-ICE FAR ARM
+Run 46 on this build went **1 red — «BOMB-ICE: a FAR explosion does not touch the ice block»**
+(`iceIntact:false, killed:8`), and run 47 on the BYTE-IDENTICAL build went 1142 green. The arm is
+not this batch's: nothing here touches the bomb, the ice or `pairDist`, and the rival is not even
+dealt on that page (the leaderboard is muted on `file://`, so there is no neighbour to show).
+**MEASURED BEFORE ANY GUARD WAS TOUCHED, ten-plus stagings of the arm's own scene in isolation:**
+the distance stays exactly 6, the ice stays intact and the blast takes 8 — on a SLEEPING pile and
+on one woken by a shake alike. Two mechanisms were proposed and both are REFUTED by that
+measurement: the rescuer teleporting an item staged at x=6 (outside the bowl at that height — it
+never fired in the window: `x` read 6.00 before and after), and a stale `it.p` (`place()` calls
+`syncMeshes` itself, and the probe read the placed coordinates back).
+⛔ SO THE CAUSE IS NOT KNOWN AND IS NOT CLAIMED. What is known: the arm stages with `place()` and
+then WAITS 300 ms before detonating, i.e. it lets the world change under a staged scene — the shape
+this file has paid for repeatedly. If it recurs, the first thing to try is staging and detonating in
+ONE task (no `await` between them), which makes the blast read exactly the positions that were set;
+the second is printing both positions and the gap at detonation time instead of guessing.
+
+**THE PRICE:** `index.html` 12 775 700 → 12 808 939 B, 28 → 29 modules (the baked tint table is the new one).

@@ -610,6 +610,72 @@ function lbRankNow(m, live, top){
   }
   return null;
 }
+
+// ⚡ THE LINE UNDER THE PLACE IS THE GAP TO THE PLAYER ABOVE, AND IT NAMES HIM (the owner's word
+// 2026-09-10; it is his own note of 2026-08-09, written into this canon: «the neighbours above and
+// below matter more than the overall top: „300 points to the next one" motivates, „you are
+// 4172nd" does not»). It replaces the flat «on leaderboard», which said nothing at all.
+// ⚠️⚠️ THE NEIGHBOUR IS PICKED BY THE LIVE SCORE, NOT AS `up[0]`. `up` is the SERVER's window
+// around the row as the server last saw it, while the number on screen is live (a win or a spend
+// moves it between sends — the whole reason `lbRankNow` exists). The nearest above is the
+// SMALLEST score strictly greater than the live one; `up[0]` would point at a player the game has
+// already overtaken, and the line would ask for points the player does not owe.
+// ⚠️ STRICTLY greater: an equal score IS legitimately above me by the server's ordering
+// (`s DESC, u ASC`), but «0 to X» is not a gap — it reads as a defect. We step to the next one up.
+// ⚠️⚠️ THE WINDOW IS EXHAUSTED — WE SAY NOTHING NEW, and the caller keeps the old line. This is
+// `lbRankNow`'s own refusal and for its reason: the five neighbours are the SERVER's `NEAR_N`, and
+// a gap derived beyond them would be an estimate — which this block does not show anywhere.
+// ⚠️ THE FIRST PLACE FALLS HERE TOO (nobody above), and it keeps «on leaderboard». A line of its
+// own for the leader would be a new string nobody has asked for; named to the owner instead.
+// ⚠️⚠️ THE ROW IS RETURNED, NOT THE TEXT, BECAUSE TWO THINGS NOW STAND ON IT: the line and THE
+// AVATAR ON THE RIGHT (his second word of the day: «the icon on the right must be the avatar of
+// whoever is next in the list — i.e. leave one instead of 3»). Deriving the neighbour twice would
+// be the shape this canon keeps paying for — a copy that drifts, and here it would drift into a
+// line naming one player beside the face of another.
+function lbGapNext(m, live){
+  if (!m || m.state !== 'ok' || !Array.isArray(m.up) || !m.up.length) return null;
+  let best = null;
+  for (const r of m.up){
+    if (!r) continue;
+    const s = r.score | 0;
+    if (s <= live) continue;
+    if (!best || s < (best.score | 0)) best = r;
+  }
+  return best;
+}
+// ⚠️⚠️ THE NAME IS CAPPED, AND THAT IS A LAYOUT GUARD RATHER THAN TIDINESS: our own guest names top
+// out at «Oystercatcher» (13 characters), but the server accepts up to 40
+// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar), and this line is
+// `white-space:nowrap` in a row whose right side is the avatar. 16 changes nothing for a real
+// player and bounds the crafted case.
+const LB_GAP_NAME_MAX = 16;
+function lbGapLine(next, live){
+  if (!next) return '';
+  const gap = (next.score | 0) - live;
+  if (gap <= 0) return '';
+  let name = String(next.name == null ? '' : next.name).trim();
+  if (!name) return '';
+  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
+  // ⚠️ THE SAME `winFmtScore` THE PLACE AND THE WALLET USE (12480 -> «12.5k»): a second number
+  // format on one row would be a second truth about how this game writes a score.
+  return winFmtScore(gap) + ' to ' + name;
+}
+// One circle: a real avatar when there is somebody to show, a neutral slot when there is not.
+// ⚠️ IT IS SHARED BY THE TWO INSTANCES ON PURPOSE — the win row shows the PLAYER'S own avatar and
+// the menu row the NEXT player's, but «what a 40px circle in this block looks like» is one
+// statement, and a second copy of it would drift at the first change of the file name.
+function lbEntryAvatar(ai){
+  if (!(ai > 0)){
+    const blank = document.createElement('i');
+    blank.className = 'ms-lbe-slot';
+    return blank;
+  }
+  const img = document.createElement('img');
+  img.src = 'avatars/Avatar' + String(ai | 0).padStart(2, '0') + '.png';
+  img.alt = ''; img.decoding = 'async';
+  return img;
+}
+
 // ⚠️⚠️ THERE ARE NOW TWO INSTANCES OF THE ROW: in the menu (`#msLbEntry`) and on the win screen
 // (`#winLbEntry`, node 891:4297, the owner's word 2026-08-21-n). The function now
 // writes into ALL the ones it finds, and not into a node by id.
@@ -629,6 +695,21 @@ function lbEntryStampBadge(){
     if (badge !== source && !badge.firstElementChild) badge.innerHTML = source.innerHTML;
   });
 }
+// ⚡ THE NEXT PLAYER, REMEMBERED FOR THE BOWL (the owner's spec 2026-09-10). The rival item is
+// built inside `genLevel`, which is synchronous, while everything about the table is a promise —
+// so the ONE place that already derives «who is ahead of you» writes the answer here and the game
+// reads the remembered one. ⛔ NOTHING IS INVENTED WHEN IT IS EMPTY: a guest, no connection and
+// the first place all mean there is no rival on the level, and a stranger's face on the piece
+// would be a lie about who you are racing.
+// ⚠️ IT IS FED BY THE SAME `next` THE ROW'S OWN CIRCLE AND ITS «340 to Godwit» LINE ARE DRAWN
+// FROM — one derivation, three consumers, so the face in the bowl cannot name a different player
+// than the line on the screen.
+let lbRivalNext = null;
+function lbNextRival(){ return lbRivalNext; }
+// a test door (99-main `rivalSetNext`): production has exactly one writer, `lbEntryRefresh` below
+function lbRivalSet(av, name){
+  lbRivalNext = ((av | 0) > 0) ? { av: av | 0, name: String(name || '') } : null;
+}
 function lbEntryRefresh(){
   lbEntryStampBadge();
   const boxes = lbEntryAll('.ms-lbentry'); if (!boxes.length) return;
@@ -639,59 +720,33 @@ function lbEntryRefresh(){
   // means moving the menu for no reason (the same rule as with the inset).
   const on = !!(lb && lb.top && lb.me && (typeof lb.base !== 'function' || lb.base()));
   boxes.forEach(b => { b.hidden = !on; });
-  if (!on) return;
+  if (!on){ lbRivalNext = null; return; }
+  // ⚠️⚠️ THE CIRCLE IS DRAWN SYNCHRONOUSLY, BEFORE ANY NETWORK ANSWER — as the NEUTRAL SLOT, and
+  // the face replaces it when the answer comes. That is the same property the row's fixed height
+  // is kept for: the block stands in the layout from the first frame, so its right side must not
+  // be an empty hole while the server is being asked, and the slot is the same 40px (56 on the
+  // win screen) as the face, so nothing moves when the picture arrives.
+  // ⛔⛔ HERE STOOD `lb.top(1).then(...)` DRAWING THREE AVATARS OF THE TOP IN THE MENU — the
+  // owner's rule of 2026-08-05 («always show 3 avatars»), CANCELLED by his word of 2026-09-10:
+  // «the icon on the right must be the avatar of whoever is next in the list — i.e. leave one
+  // instead of 3». The top's rows are no longer read by this block at all.
+  // ⛔⛔ AND THE WIN ROW NO LONGER SHOWS THE PLAYER'S OWN FACE EITHER: asked whether the next
+  // player belongs there too, he answered «нужен» (2026-09-10). That cancels his word of
+  // 2026-08-21-r («instead of three avatars we show only the avatar of the player»), and the two
+  // instances of this component say ONE thing again — who is ahead of you.
+  // ⚠️⚠️ THE PRICE, NAMED RATHER THAN HIDDEN: the win row's circle now WAITS for the network. The
+  // own avatar was derived from the player's key and needed nothing, and the canon recorded that
+  // as the reason the win row «is drawn in full in the first frame, even if the top never arrives
+  // at all». There is no second source for a NEIGHBOUR's face — so what is guaranteed in the first
+  // frame is the geometry (the neutral slot), and the face is what arrives.
+  // ⚠️ AND DROPPING THAT BRANCH REMOVED A RACE THAT WAS LIVE IN IT: it cleared BOTH hosts and then
+  // filled them, so whichever of the two promises resolved second wiped what the first had drawn.
+  // One writer now owns both hosts.
+  lbEntryAll('.ms-lbe-avs').forEach(h => {
+    h.innerHTML = '';
+    h.appendChild(lbEntryAvatar(0));
+  });
   const my = ++lbEntryEpoch;
-  lb.top(1).then(t => {
-    if (my !== lbEntryEpoch) return;
-    const hosts = lbEntryAll('.ms-lbe-avs'); if (!hosts.length) return;
-    hosts.forEach(h => { h.innerHTML = ''; });
-    // ⛔⛔ ON THE WIN SCREEN THERE IS ONE AVATAR, AND IT IS THE PLAYER'S AVATAR, NOT THE FIRST FROM
-    // THE TOP (the owner's word 2026-08-21-r: «instead of three avatars we show
-    // only the player's avatar», node 891:4307 — one circle of 56).
-    // ⚠️ HIS OWN RULE «always show 3 avatars» (2026-08-05) REMAINS IN
-    // FORCE FOR THE MENU: there three avatars show the TOP, here one shows
-    // YOU — these are different statements, not a different density of one and the same thing.
-    // ⚠️ THIS BRANCH DOES NOT WAIT FOR THE NETWORK: the avatar number is derived from the player's key
-    // (`guestAvatar`), so the win row is drawn in full in the first frame,
-    // even if the top never arrives at all.
-    const own = lbEntryAll('#winLbeAvs');
-    own.forEach(h => {
-      const ai = (typeof guestAvatar === 'function') ? (guestAvatar() | 0) : 0;
-      if (ai <= 0){ const blank = document.createElement('i');
-        blank.className = 'ms-lbe-slot'; h.appendChild(blank); return; }
-      const img = document.createElement('img');
-      img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-      img.alt = ''; img.decoding = 'async'; h.appendChild(img);
-    });
-    const topHosts = hosts.filter(h => h.id !== 'winLbeAvs');
-    if (!topHosts.length) return;
-    if (!t || t.state !== 'ok' || !t.rows) return;
-    // ⚠️ `lbRow` returns `null` on a row that failed to parse (the server sends
-    // ARRAYS `[name, avatar, score]`, not objects). Without this check a broken
-    // row would bring the whole avatar render down into `catch`, and the block would silently stay
-    // without pictures — that is, the defect would look like «the server is empty».
-    // ⚠️⚠️ THERE ARE ALWAYS THREE SLOTS (the owner's word «always show 3 avatars»), and
-    // AN EMPTY SLOT IS A NEUTRAL CIRCLE, not somebody else's avatar. Putting the picture of
-    // a live player there would mean inventing a participant of the table; at the start,
-    // when there are fewer than three rows, that is a direct lie in the most visible place.
-    for (let i = 0; i < 3; i++){
-      const r = t.rows[i];
-      const ai = r ? (r.av | 0) : 0;
-      if (ai <= 0){
-        topHosts.forEach(h => {
-          const blank = document.createElement('i');
-          blank.className = 'ms-lbe-slot';
-          h.appendChild(blank);
-        });
-        continue;
-      }
-      topHosts.forEach(h => {
-        const img = document.createElement('img');
-        img.src = 'avatars/Avatar' + String(ai).padStart(2, '0') + '.png';
-        img.alt = ''; img.decoding = 'async'; h.appendChild(img);
-      });
-    }
-  }).catch(()=>{});
   lb.me().then(async m => {
     if (my !== lbEntryEpoch) return;
     // ⚠️ WE TAKE THE TOP THROUGH THE SAME CACHED CALL, AND NOT FROM A VARIABLE OF THE NEIGHBOURING
@@ -721,13 +776,20 @@ function lbEntryRefresh(){
     // is computed — but only when it CAN be derived: the live score is obliged
     // to fall INSIDE the top segment that was sent, then the position is simply
     // «how many rows are above», not an estimate. It did not fall in — we keep the server's number.
+    // ⚠️⚠️ THE LIVE SCORE IS READ ONCE AND BOTH LINES TAKE IT — THE ROW HAS ONE EPOCH (the
+    // lesson of «the two epochs», his screenshot 2026-08-11: a place from the snapshot next to a
+    // score from the live base, and a column that contradicted itself). The place and the gap
+    // under it are two statements about the same number; reading it twice would let them
+    // disagree by whatever a match scored in between.
+    const live = (typeof leaderboardScore === 'function') ? (leaderboardScore() | 0)
+               : (m && typeof m.score === 'number' ? (m.score | 0) : 0);
     let rank = ok ? (m.rank | 0) : 0;
     if (ok && typeof leaderboardScore === 'function'){
       // ⚠️ IT IS COMPUTED BY `lbRankNow` — a separate function, not an inline: there is
       // a guard on it, and the next consumer of the live rank will call the very same one. The leaderboard
       // screen computes ITS OWN (the insertion of the row into the visible segment) — there one needs not
       // a number but a position in the list; they have no shared formula.
-      const fresh = lbRankNow(m, leaderboardScore() | 0, lbEntryTop);
+      const fresh = lbRankNow(m, live, lbEntryTop);
       if (fresh > 0) rank = fresh;
     }
     // ⚠️ BOTH mobile rows and the class come from THE SAME `ok` as before, —
@@ -745,7 +807,23 @@ function lbEntryRefresh(){
     // is data too — it is the answer, and it is what the row is going to show.
     boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
-    subs.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
+    // ⚠️ «on leaderboard» IS NOW THE FALLBACK AND NOT THE LINE: it stands where a gap cannot be
+    // derived (the first place, an exhausted window, a neighbour list the server did not send) —
+    // i.e. it says «you are on the board» exactly where that is all we honestly know.
+    const next = ok ? lbGapNext(m, live) : null;
+    const gapLine = lbGapLine(next, live);
+    subs.forEach(sub => { sub.textContent = ok ? (gapLine || 'on leaderboard') : ''; });
+    // ⚠️⚠️ THE FACE AND THE LINE ARE WRITTEN FROM ONE ROW AND IN ONE PLACE, AND INTO BOTH
+    // INSTANCES. If the text says «340 to Godwit», the circle is Godwit's — on the menu row and on
+    // the win row alike — and when there is no gap to show (the first place, an exhausted window,
+    // a newcomer) the circle stays the neutral slot rather than borrowing a face from the top: a
+    // face there would name a player the line does not.
+    lbRivalNext = (gapLine && next && (next.av | 0) > 0)
+      ? { av: next.av | 0, name: String(next.name || '') } : null;
+    lbEntryAll('.ms-lbe-avs').forEach(h => {
+      h.innerHTML = '';
+      h.appendChild(lbEntryAvatar(gapLine && next ? (next.av | 0) : 0));
+    });
     boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
     // ⚠️⚠️ THE DIRECTION IS BY COMPARISON WITH THE PREVIOUSLY SEEN RANK, and not by the sign of
     // the score: the owner gave TWO badges (up/down), which means both states are obliged
@@ -1021,7 +1099,7 @@ function captureLevelTypes(){
   const seen = new Set(), keys = [];
   try {
     for (const it of items){
-      if (!it || it.surprise || it.bomb || !it.type) continue;
+      if (!it || it.surprise || it.bomb || it.rival || !it.type) continue;
       const k = String(it.type.name);
       if (!seen.has(k)){ seen.add(k); keys.push(k); }
     }
@@ -1573,18 +1651,42 @@ function showMultToast(typeName, mult, isTierUp){
 // in the last one), the bar is remaining / the streak's total (77-save boostProgress). Called
 // from updateHUD and from the loop after boostTick; it writes the DOM only when the shown
 // minute or the bar's percent (in whole points) changes — a comparison per frame, not a write.
+// ⚠️ THE TITLE IS TWO STACKED TEXT LAYERS (a gradient stroke under a white one) and each carries
+// two tspans — the number and the word. BOTH numbers are written or the outline would say ×5 under
+// a ×15. The tspans are picked by their first character rather than by index: the markup's order is
+// not this function's business to know.
+function x5FloatMult(m){
+  const f = $('x5Float'); if (!f) return;
+  const want = '×' + (m > 1 ? m : 5);      // with no window at all the card advertises the shop's own ×5
+  f.querySelectorAll('.x5f-x tspan').forEach(s => {
+    if (s.textContent.charAt(0) === '×' && s.textContent !== want) s.textContent = want;
+  });
+  const svg = f.querySelector('.x5f-x');
+  if (svg && svg.getAttribute('aria-label') !== want + ' score') svg.setAttribute('aria-label', want + ' score');
+}
 function refreshX5Float(){
   const f = $('x5Float'); if (!f) return;
-  const left = (typeof scoreBoostLeftMs === 'function') ? scoreBoostLeftMs() : 0;
-  const on = left > 0;
-  const label = on ? (Math.ceil(left / 60000) + ' min') : 'Boost';
-  const pct = on ? Math.round(boostProgress() * 100) : 0;
-  const key = label + '|' + pct;
+  const paid = (typeof scoreBoostLeftMs === 'function') ? scoreBoostLeftMs() : 0;
+  // ⚡ THE RIVAL'S FIVE SECONDS SHARE THIS BADGE (the owner's spec 2026-09-10): there is no second
+  // place on this screen where a multiplier lives, and a window nobody can see is a window nobody
+  // can use. While it burns, the card states the COMBINED multiplier and its own countdown; the
+  // paid budget's minutes come back the moment it ends — the paid state is never lost, only hidden
+  // for five seconds. ⚠️ THE BAR IS THE RIVAL'S OWN FRACTION, not the paid streak's: two different
+  // quantities, and the one being counted down is the one the player is watching.
+  const rl = (typeof rivalLeftMs === 'function') ? rivalLeftMs() : 0;
+  const mult = (typeof rewardMult === 'function') ? rewardMult() : 1;
+  const on = paid > 0 || rl > 0;
+  const label = rl > 0 ? (Math.ceil(rl / 1000) + ' s')
+              : (paid > 0 ? (Math.ceil(paid / 60000) + ' min') : 'Boost');
+  const pct = rl > 0 ? Math.max(0, Math.min(100, Math.round(rl / RIVAL_MS * 100)))
+            : (paid > 0 ? Math.round(boostProgress() * 100) : 0);
+  const key = label + '|' + pct + '|' + mult;
   if (f.dataset.x5 === key) return;
   f.dataset.x5 = key;
   f.classList.toggle('active', on);
   const b = $('x5FloatBtn'); if (b) b.textContent = label;
   f.style.setProperty('--x5f-pct', pct + '%');
+  x5FloatMult(mult);
 }
 function updateHUD(){
   try { refreshX5Float(); } catch(e){}
@@ -2245,7 +2347,7 @@ function demoAccSnapshot(){
   // demo: the level's live types with plausible accumulations — only so that
   // the owner sees the skeleton; NOT real data (the DEMO badge in the header)
   const byKey = {};
-  for (const it of items) if (it.alive && !it.surprise) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
+  for (const it of items) if (it.alive && !it.surprise && !it.rival) (byKey[it.key] = byKey[it.key] || { it, n: 0 }).n++;
   return Object.keys(byKey).slice(0, 12).map((k, i) => {
     const count = 40 + i * 97 % 900 + byKey[k].n * 7;
     let tier = 0; while (tier < ACC_TIERS_DEMO.length && count >= ACC_TIERS_DEMO[tier]) tier++;
