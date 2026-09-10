@@ -8271,6 +8271,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'THE ICE CRUST IS IN THE PRESET PALETTE (' + (ice ? JSON.stringify(ice.tone) : '?') + ')');
   await icePage.close();
 
+  // ⟦FIRE-SECTION-BEGIN⟧
   // ===== A BURNING ITEM: THE MECHANICS (the owner's spec 2026-08-01) =====
   // Word for word: «DO IT, only 1 item per 30 seconds may catch fire» + my
   // gate «set fire only to the accessible ones, otherwise the reward is mocking».
@@ -8280,7 +8281,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   firePage.on('pageerror', e => errors.push('PAGEERROR(fire): ' + e.message));
   await firePage.goto('file://' + PAGE_FILE);
   await firePage.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
-  await firePage.evaluate(() => window.__game.skipIntro());
+  // ⚠️ THE LEVEL IS SET EXPLICITLY, AND SINCE 2026-09-10-v THAT IS LOAD-BEARING: the period is 30 s
+  // below FIRE_FAST_FROM and 20 s from it, so an arm that inherits whatever level localStorage
+  // happened to carry would measure a different rule every run.
+  await firePage.evaluate(async () => { const g = window.__game;
+    g.setLevel(1); g.regen(); g.skipIntro(); await new Promise(r => setTimeout(r, 300)); });
   await new Promise(r => setTimeout(r, 700));
   expect((await firePage.evaluate(() => window.__game.burning())) === null,
     'FIRE: at the start of the round nobody is burning');
@@ -8308,6 +8313,28 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect((fire2.due - fire2.t) / 1000 > 20,
     'FIRE: after the burn-out a second flare-up did NOT happen earlier than the schedule (' +
     ((fire2.due - fire2.t) / 1000).toFixed(1) + ' s left)');
+  // ⚠️ THE BLOCK BELOW STANDS HERE AND NOT ABOVE, AND THE DRY-RUN IS WHAT SAID SO: put between the
+  // ignition and the burn-out it SPENDS the schedule the two arms above measure — it lit a fire of
+  // its own and the neighbour read 11.8 s left instead of the > 20 it asserts. The canon's own law
+  // about a block appended into someone else's section, met on a five-line insert.
+  // ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «огонь да», 2026-09-10-v). ⚠️ THE ARM IS
+  // BEHAVIOURAL, not a reading of the constant: it lets the scheduler ignite and measures the gap
+  // IT wrote — a build that shortened the number and kept scheduling by the old one would satisfy
+  // any assert on `fireRule().every` alone. The rule is printed beside it as the control (the two
+  // numbers are the owner's), and the level is put back afterwards, as the canon demands.
+  const fireFast = await firePage.evaluate(async () => {
+    const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
+    g.setLevel(g.fireRule().from); g.regen(); g.skipIntro(); await sl(400);
+    g.extinguish(); g.fireDue(200); await sl(1100);
+    const r = { rule: g.fireRule(), burning: g.burning(), due: g.fireDue(), t: performance.now() };
+    g.setLevel(1); g.regen(); g.skipIntro(); await sl(400); g.extinguish();
+    return r;
+  });
+  const gapFast = (fireFast.due - fireFast.t) / 1000;
+  expect(!!fireFast.burning && fireFast.rule.every === fireFast.rule.fast &&
+         gapFast > 18 && gapFast <= 20.5,
+    '⚡ FIRE: from level ' + fireFast.rule.from + ' the next flare-up comes in ' + gapFast.toFixed(1) +
+    ' s instead of ' + (fireFast.rule.base / 1000) + ' (' + JSON.stringify(fireFast.rule) + ')');
   // whom it sets on fire: special items are not allowed, and on Hard — only the accessible ones
   await firePage.evaluate(() => { window.__game.cfg.hard = true; window.__game.forceRefresh(); });
   const picks = [];
@@ -8413,6 +8440,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(fireBonus.afterCollect === null,
     '🔥 BONUS: collecting the group PUTS OUT the fire — it is one-shot (' + JSON.stringify(fireBonus.afterCollect) + ')');
   await firePage.close();
+  // ⟦FIRE-SECTION-END⟧
 
   // ===== CURSOR-PRESS (the owner's spec 2026-08-02: a mouse click squeezes
   // the cursor by 4% for 140 ms — «the feeling of a press»). The guards: the style of the squeezed
@@ -19589,10 +19617,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // state it: a sticker is an ORTHOGRAPHIC projection of the picture onto a cap of the ball
     // (u = x/(2s)+0.5), while a wrapped `map` — the shape he rejected — puts a longitude there and
     // reads far from it. A count of stickers alone would be green on a build that wraps.
-    expect(rvItem.info && rvItem.info.stickers === 6 && rvItem.info.faceOn && rvItem.info.av === 7 &&
+    expect(rvItem.info && rvItem.info.stickers >= 10 && rvItem.info.faceOn && rvItem.info.av === 7 &&
            rvItem.info.uvErr >= 0 && rvItem.info.uvErr < 1e-5 && rvItem.info.tint === rvItem.info.want,
-      'THE PIECE: a ball in the neighbour\'s own tone wearing six stickers of his face, each an ' +
+      'THE PIECE: a ball in the neighbour\'s own tone wearing stickers of his face, each an ' +
       'orthographic projection — the picture is not stretched anywhere (' + JSON.stringify(rvItem.info) + ')');
+    // ⚠️⚠️ «ПОЛНОСТЬЮ ЗАКЛЕЕНА, ДАЖЕ ВНАХЛЕСТ» (his word 2026-09-10-v) IS ASSERTED AS A NUMBER: 600
+    // directions of the ball, every one of them inside some cap, and the WORST seam overlapping by
+    // at least 0.05 rad. ⛔ THE OVERLAP HALF IS NOT DECORATION — «covered» alone is satisfied by
+    // caps that merely touch, i.e. by the exact configuration he asked to leave behind, and a
+    // touching cover falls apart at the first change of the count. The sabotage is the previous
+    // shape (6 caps of 0.62 rad), which reads about half a ball.
+    expect(rvItem.info && rvItem.info.cover === 1 && rvItem.info.coverGap <= -0.05,
+      'THE PIECE: the ball is COVERED, with overlap on every seam — 600 directions, cover ' +
+      (rvItem.info ? rvItem.info.cover : '?') + ', the worst seam ' +
+      (rvItem.info ? rvItem.info.coverGap : '?') + ' rad (' + JSON.stringify(rvItem.info) + ')');
     // ⚠️⚠️ AND THE FACES STAND UPRIGHT, which the UV assert above cannot see: a sticker's own +Y
     // lies along the meridian, so the only spread is the ±0.18 rad of hand-slapped jitter. ⛔ THE
     // SABOTAGE IS `setFromUnitVectors` ALONE (the shape this shipped as, and the frame in which the

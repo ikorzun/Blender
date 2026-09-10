@@ -983,6 +983,13 @@ const FIRE_FADE_MS = 450;     // the fade-out when extinguishing
 // a few seconds and goes out; collecting a group of the burning type is a bonus (the crediting
 // is up to the DISPATCHER, the joint is burningName in 70-fx).
 const FIRE_EVERY_MS = 30000;  // ⚠️ THE OWNER'S NUMBER, do not tune without his word
+// ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «огонь да» of 2026-09-10-v to the proposal
+// «пламя оставляем с первого, на 5 увеличиваем частоту его появления»). ⛔ THE FIRE STILL STARTS
+// AT THE FIRST LEVEL — only the PERIOD shortens, and only from FIRE_FAST_FROM; the burn time,
+// the choice of victim and the bonus are untouched. The two numbers are his 30 s and my 20 s
+// (a third off, named to him); one line moves either.
+const FIRE_FAST_FROM = 5;
+const FIRE_EVERY_FAST_MS = 20000;
 const FIRE_BURN_MS = 6000;    // how long it burns if it is not collected
 // ⚠️ WE CHOOSE FROM THE TOP ONES, NOT FROM ANY ACCESSIBLE ONES. isAccessible on the easy
 // difficulty lets EVERYTHING through (overlaps are not checked there) — that is, by
@@ -1223,13 +1230,22 @@ const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1
 const RIVAL_MULT = 3;
 // ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «давай вернём сферу и на неё наклеим аватарки
 // как стикеры друг на друга, не растягивая аватарку». A ball in the neighbour's own colour, wearing
-// N copies of his face as stickers. ⚠️ THE STICKERS ONLY KISS AT THE EDGES: at a strong overlap the
-// sticker above eats a third of the one below and nothing reads. Six at a half-angle of 0.62 rad
-// (35°) leaves the ball's own tone showing between them, which is what makes it read as a sticker
-// BALL and not as a painted one — and from any angle at least one face is turned to the player,
-// which is the whole reason there are several.
-const RIVAL_STICKERS = 6;
-const RIVAL_STICKER_HALF = 0.62;
+// N copies of his face as stickers.
+// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «полностью заклеена стикерами,
+// даже внахлест» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
+// fibonacci spiral the COVERING RADIUS (the largest angle from any direction to its nearest centre)
+// is 1.09 / 0.95 / 0.86 / 0.78 / 0.72 rad at N = 6 / 8 / 10 / 12 / 14 — measured, not estimated. A
+// cap must exceed it or a bald patch is guaranteed: 10 at 0.95 rad clears 0.86 with 0.095 rad of
+// overlap on every seam, and `rivalInfo().cover` reads that back off the shipped geometry.
+// ⚠️ TEN AND NOT FOURTEEN BECAUSE THE FACE IS THE POINT: both cover the ball, and both were
+// rendered side by side — at fourteen the heads shrink into a pattern and the neighbour stops
+// being recognisable, which is the whole reason his face is on the piece at all.
+// ⚠️ THE TESSELLATION MOVED WITH THE COUNT (40×24 → 20×10 in `rivalStickerGeo`): fourteen caps of
+// the old resolution are 27k triangles for ONE item, against a pool median of 424 and a maximum of
+// 3100. At this size a cap of 20×10 is smooth — the SILHOUETTE of a sticker is drawn by the
+// picture's alpha, not by the mesh.
+const RIVAL_STICKERS = 10;
+const RIVAL_STICKER_HALF = 0.95;
 const RIVAL_MS = 5000;
 // ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «как японский дорума»): the render
 // rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own

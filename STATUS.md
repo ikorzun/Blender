@@ -6,7 +6,26 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-b (the rival in the bowl) on top of 2026-09-10 and 2026-09-09 a–m, v2 = main** · **the full suite: 1142 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 47) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+**Build: batch 2026-09-10-v (the ball plastered, the fire oftener from level 5) on top of 2026-09-10-b and 2026-09-09 a–m, v2 = main** · **the full suite: 1142 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 47, the batch before this one; this one is gated by the two section dry-runs and their sabotages, his rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+
+**10 SEPTEMBER, EVENING — THE BALL IS PLASTERED ALL OVER, AND THE FIRE COMES OFTENER FROM LEVEL 5
+(batch 2026-09-10-v, your «полностью заклеена стикерами, даже внахлест» and «огонь да»).**
+**THE BALL** now wears ten faces overlapping, and «fully» is a NUMBER rather than an impression:
+600 directions of the ball, every one of them inside some sticker, the narrowest seam overlapped by
+0.095 rad. The sizes are not guesses — I measured at which count the spiral leaves bald patches:
+six of the old caps cover about half a ball, ten of the new ones cover it with margin. Ten and not
+fourteen because at fourteen the heads shrink into a pattern and the neighbour is no longer
+recognisable — both frames are with you.
+⚠️ **ABOUT «РАЗМЕРОМ С АРБУЗ» — IT ALREADY IS, AND I MEASURED IT.** Every model in the game is
+normalised to one radius, so on a live level: the rival 0.62, a watermelon 0.62, the whole pile
+0.62, the bomb 0.884 (it alone is bigger — the dynamite). The ball IS a watermelon. If you want it
+**bigger than the pile**, that is one number, in the bomb's class; I did not change it on my own —
+it is a body in the pile and it changes how the pile behaves.
+**THE FIRE.** From level 5 an item catches fire every 20 seconds instead of 30. It still STARTS at
+level 1, and the burn time, the choice of victim and the ×2 bonus are untouched. The check is
+behavioural: I let the scheduler ignite and measure the gap IT wrote — 19.1 s at level 5 against
+29.1 s at level 1.
+The rest of the special-objects table is on hold, as you said.
 
 **10 SEPTEMBER — THE NEXT PLAYER OF THE TABLE NOW LIES IN THE BOWL (batch 2026-09-10-b, your
 «Делай» + «вернем сферу и наклеим аватарки как стикеры»).** One piece per level from the fifth,

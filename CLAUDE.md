@@ -18444,3 +18444,70 @@ ONE task (no `await` between them), which makes the blast read exactly the posit
 the second is printing both positions and the gap at detonation time instead of guessing.
 
 **THE PRICE:** `index.html` 12 775 700 → 12 808 939 B, 28 → 29 modules (the baked tint table is the new one).
+
+## BATCH 2026-09-10-v: THE BALL IS PLASTERED, NOT DOTTED; THE FIRE COMES OFTENER FROM THE FIFTH (his three lines: «сфера размером с арбуз и она полностью заклеена стикерами, даже внахлест» / «огонь да» / «остальная таблица по объектам пока на стопе»)
+
+### ⛔⛔ «ONLY KISSING AT THE EDGES» LIVED ONE BATCH — THE PAIR IS DERIVED NOW, NOT CHOSEN
+The previous edition wrote «the stickers only kiss at the edges … which is what makes it read as a
+sticker BALL and not as a painted one». He looked at the frame and asked for the opposite. THE
+COVERING RADIUS OF THE FIBONACCI SPIRAL (the largest angle from any direction to its nearest centre)
+WAS MEASURED, not estimated — **1.091 / 0.954 / 0.855 / 0.780 / 0.723 rad at N = 6 / 8 / 10 / 12 /
+14** (20 000 sampled directions each) — and a cap must EXCEED it or a bald patch is guaranteed
+somewhere. In force: **10 caps of 0.95 rad**, i.e. 0.095 rad of overlap on the worst seam.
+⚠️ **TEN AND NOT FOURTEEN BECAUSE THE FACE IS THE POINT**: both cover the ball and both were
+rendered side by side; at fourteen the heads shrink into a pattern and the neighbour stops being
+recognisable, which is the only reason his face is on the piece at all. Both frames went to him.
+⚠️ **THE PLACEMENT MOVED TO THE OFFSET FIBONACCI** (`y = 1 − 2(i+0.5)/N`): the endpoint form put a
+centre EXACTLY on each pole — the worst covering of the family, and the poles are also the only
+directions where a meridian does not exist, so they cost twice (the upright basis falls back to +Z
+there). With the offset form no sticker sits on a pole and all ten are measured by `upErr`.
+⚠️ **THE TESSELLATION MOVED WITH THE COUNT** (40×24 → 20×10 in `rivalStickerGeo`) and that is not
+tidiness: ten caps of the old resolution are 19k triangles for ONE item, against a pool median of
+424 and a maximum of 3100. The SILHOUETTE of a sticker is drawn by the picture's alpha, not by the
+mesh, so the sphere piece only has to be smooth.
+⚠️ **AND THE RADIUS LADDER SHRANK** (`1.004 + i·0.007` → `+ i·0.003`): the caps sit on their own
+radii so two overlapping ones never z-fight, but with ten of them the old step would have lifted the
+last sticker 6.3% above the ball and the silhouette would have been the sticker's, not the ball's.
+
+### ⚡ «FULLY COVERED» IS A NUMBER NOW, AND THE GUARD READS IT OFF THE SHIPPED GEOMETRY
+`rivalInfo().cover` samples 600 directions of the ball and asks each whether it lies inside SOME
+cap; `coverGap` is the worst margin. On this build: **cover 1, coverGap −0.095 rad**.
+⚠️ **THE OVERLAP HALF OF THE ASSERT IS NOT DECORATION**: «covered» alone is satisfied by caps that
+merely TOUCH — the exact configuration he asked to leave behind — and a touching cover falls apart
+at the first change of the count. The sabotage (the cap 0.95 → 0.45, the count kept) reads
+**cover 0.498, gap +0.405** and reddens that arm alone.
+⛔ A COUNT OF STICKERS CANNOT STATE THIS, which is why the piece arm now says `stickers >= 10` and
+the coverage arm carries the statement.
+
+### ⚠️ «РАЗМЕРОМ С АРБУЗ» IS ALREADY TRUE, AND IT WAS MEASURED BEFORE ANYTHING WAS TOUCHED
+Every model is normalised to `rc = 1.00` by the generator, so at a uniform level EVERY item has the
+same enclosing radius. Measured live on level 6: **the rival 0.62, a watermelon 0.62, the whole pile
+0.62, the bomb 0.884** (the dynamite's own 1.425×). So the ball IS a watermelon, and the sentence
+describes the target rather than asking for a change — the coverage was the half that was missing.
+⛔ NOTHING WAS RESIZED ON A GUESS: bigger than the pile is a gameplay change (a bigger body among
+the items), and it is one number in the class of the bomb's 1.425 if he wants it. Named to him with
+the three figures.
+
+### THE FIRE: THE PERIOD IS A FUNCTION FROM THE FIFTH LEVEL
+`FIRE_FAST_FROM = 5`, `FIRE_EVERY_FAST_MS = 20000`. ⛔ THE FIRE STILL STARTS AT THE FIRST LEVEL —
+only the PERIOD shortens (his own «пламя оставляем с первого, на 5 увеличиваем частоту»), and the
+burn time, the choice of victim, the pair condition and the ×2 bonus are untouched. `fireEveryMs()`
+is read by BOTH call sites — the first countdown of a session and the rescheduling after an
+ignition — so a level change is honoured on the very next flare-up.
+⚠️ **THE ARM IS BEHAVIOURAL AND NOT A READING OF THE CONSTANT**: it lets the scheduler ignite at
+level 5 and measures the gap IT wrote (19.1 s against 29.1 at level 1). A build that shortened the
+number and kept scheduling by the old one satisfies any assert on `fireRule().every` alone — the
+sabotage `fireEveryMs(){ return FIRE_EVERY_MS; }` proves it, reddening that arm and nothing else.
+⚠️ **AND THE EXISTING 30 s ARM GAINED AN EXPLICIT `setLevel(1)`**: it used to inherit whatever level
+localStorage happened to carry, which under the new rule is a different period every run.
+
+### ⛔⛔ THE DRY-RUN CAUGHT MY OWN INSERT STARVING ITS NEIGHBOUR — THE LAW, MET ON FIVE LINES
+The new fire arm was first placed between the ignition and the burn-out, and it SPENT the schedule
+the two arms below it measure: it lit a fire of its own, and «after the burn-out the next flare-up
+is not earlier than the schedule» read **11.8 s left against the > 20 it asserts** — red on a
+healthy build. Moved below them, the section is 12 green. This is the canon's own law about a block
+appended into someone else's section (a conflict splice, a hover arm after a closed page, an aged
+page), and it cost one dry-run instead of a twenty-minute run — the reason the rule «a new or moved
+arm is lifted out and run alone first» exists.
+
+**THE PRICE:** `index.html` 12 808 939 → 12 813 257 B, 29 modules unchanged.

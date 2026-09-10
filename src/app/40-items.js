@@ -404,7 +404,7 @@ function rivalFace(n, cb){
 // off the shipped geometry — u = x/(2s)+0.5 for every vertex, i.e. a parallel projection and
 // nothing else.
 function rivalStickerGeo(rad, half){
-  const g = new THREE.SphereGeometry(rad, 40, 24, 0, Math.PI * 2, 0, half);
+  const g = new THREE.SphereGeometry(rad, 20, 10, 0, Math.PI * 2, 0, half);
   g.rotateX(Math.PI / 2);                                    // the cap looks down +Z
   const p = g.attributes.position, uv = g.attributes.uv, s = rad * Math.sin(half);
   for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * s) + 0.5, p.getY(i) / (2 * s) + 0.5);
@@ -434,10 +434,16 @@ function makeRival(av, name){
   const RV_UP = new THREE.Vector3(0, 1, 0), RV_Z = new THREE.Vector3(0, 0, 1);
   const bx = new THREE.Vector3(), by = new THREE.Vector3(), bm = new THREE.Matrix4();
   for (let i = 0; i < N; i++){
-    const y = 1 - (i / Math.max(1, N - 1)) * 2, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * i;
+    // ⚠️ THE OFFSET FIBONACCI (`i + 0.5`), NOT THE ENDPOINT ONE: the old form put a centre EXACTLY
+    // on each pole, which is the placement whose covering radius is worst — and the two poles are
+    // also the only directions where a meridian does not exist, so they cost twice.
+    const y = 1 - 2 * (i + 0.5) / N, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * i;
     const dir = new THREE.Vector3(Math.cos(t) * rr, y, Math.sin(t) * rr).normalize();
     const key = 'RVC' + i;
-    if (!geoCache.has(key)) geoCache.set(key, rivalStickerGeo(1.004 + i * 0.007, RIVAL_STICKER_HALF));
+    // ⚠️ EACH STICKER ON ITS OWN RADIUS so that two overlapping caps never z-fight, and the STEP is
+    // small (0.003): with fourteen of them the old 0.007 would have lifted the last one 9.5% above
+    // the ball and the silhouette would be the sticker's, not the ball's.
+    if (!geoCache.has(key)) geoCache.set(key, rivalStickerGeo(1.004 + i * 0.003, RIVAL_STICKER_HALF));
     const st = new THREE.Mesh(geoCache.get(key), faceMat);
     // ⚠️⚠️ THE ROLL IS NOT LEFT TO ARITHMETIC: the face's own +Y is laid along the MERIDIAN, so
     // every sticker stands upright in the BALL's frame. `setFromUnitVectors` alone gives the

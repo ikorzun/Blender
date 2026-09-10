@@ -600,9 +600,13 @@ function tickPerfTier(ms){
 // ⚠️ EXACTLY ONE BURNS: igniteItem itself extinguishes the previous one, and the next flare-up
 // is scheduled from THE MOMENT OF THIS ONE, not from the moment the previous one burned out.
 let fireNextMs = 0;
+// ⚠️ THE PERIOD IS A FUNCTION AND NOT A CONSTANT since 2026-09-10-v: from FIRE_FAST_FROM the fire
+// comes oftener. Both call sites below read it — the first countdown of a session and the
+// rescheduling after an ignition — so a level change is honoured on the very next flare-up.
+function fireEveryMs(){ return levelNum >= FIRE_FAST_FROM ? FIRE_EVERY_FAST_MS : FIRE_EVERY_MS; }
 function tickFireSpawn(now){
   if (intro || paused || !level || level.over){ fireNextMs = 0; return; }
-  if (!fireNextMs){ fireNextMs = now + FIRE_EVERY_MS; return; }  // the first countdown from the start of the session
+  if (!fireNextMs){ fireNextMs = now + fireEveryMs(); return; }  // the first countdown from the start of the session
   if (now < fireNextMs || burningName()) return;
   // ⚠️ ONLY WHAT IS COLLECTABLE BURNS (the owner's word 2026-08-05: «an object
   // catches fire only if it has at least one pair and it is within
@@ -633,7 +637,7 @@ function tickFireSpawn(now){
   cand.sort((a, b) => b.p.y - a.p.y);
   const top = cand.slice(0, Math.min(FIRE_TOP_N, cand.length));
   igniteItem(top[Math.floor(Math.random() * top.length)]);
-  fireNextMs = now + FIRE_EVERY_MS;
+  fireNextMs = now + fireEveryMs();
 }
 
 function loop(){
@@ -1639,6 +1643,28 @@ window.__game = {
                // EXISTS: at the two poles the meridian is undefined, so those stickers are
                // skipped and `upN` says how many were actually read — an empty measurement must
                // not pass for a green one.
+               // ⚠️⚠️ «ПОЛНОСТЬЮ ЗАКЛЕЕНА» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
+               // 600 directions of a fibonacci sample, each asked whether it lies inside SOME cap.
+               // `cover` is the share that does (1 = no bald patch anywhere) and `coverGap` the
+               // worst margin — negative means every seam overlaps, and by how much. A count of
+               // stickers cannot say this: six caps of 0.62 rad give 14 pieces of geometry and
+               // half a ball.
+               let cover = -1, coverGap = -1;
+               if (it && pl){
+                 const hf = pl.geometry.parameters.thetaLength, M = 600, GA = Math.PI * (3 - Math.sqrt(5));
+                 const axes = it.mesh.children.map(st => new THREE.Vector3(0, 0, 1).applyQuaternion(st.quaternion));
+                 const v = new THREE.Vector3(); let inside = 0; coverGap = -Math.PI;
+                 for (let k = 0; k < M; k++){
+                   const y = 1 - 2 * (k + 0.5) / M, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * k;
+                   v.set(Math.cos(t) * rr, y, Math.sin(t) * rr);
+                   let best = -1;
+                   for (const a of axes){ const d = v.dot(a); if (d > best) best = d; }
+                   const ang = Math.acos(Math.min(1, Math.max(-1, best)));
+                   if (ang <= hf) inside++;
+                   if (ang - hf > coverGap) coverGap = ang - hf;
+                 }
+                 cover = inside / M;
+               }
                let upErr = -1, upN = 0;
                if (it){ const U = new THREE.Vector3(0, 1, 0), dv = new THREE.Vector3(),
                         yv = new THREE.Vector3(), mv = new THREE.Vector3();
@@ -1657,6 +1683,7 @@ window.__game = {
                         stickers: it ? it.mesh.children.length : 0,
                         half: pl ? +pl.geometry.parameters.thetaLength.toFixed(3) : 0,
                         uvErr: +uvErr.toFixed(6), upErr: +upErr.toFixed(4), upN,
+                        cover: +cover.toFixed(3), coverGap: +coverGap.toFixed(3),
                         tint: c ? c.getHexString() : '',
                         want: it ? new THREE.Color(avatarTint(it.rivalAv)).getHexString() : '',
                         left: Math.round(rivalLeftMs()), mult: rivalMultNow(),
@@ -2167,6 +2194,10 @@ window.__game = {
   // the number of types. We take the reference FROM 70-fx, and do not guess by the mesh's signs.
   burningIndex(){ const it = burningItemRef(); return it ? items.indexOf(it) : -1; },
   fireSoon(){ fireNextMs = performance.now() + 120; }, // test: do not wait for FIRE_EVERY_MS
+  // ⚠️ THE PERIOD IN FORCE AND THE RULE BEHIND IT, so that a guard states the OWNER'S numbers
+  // instead of a copy of them: `every` is what the scheduler will actually use at this level.
+  fireRule(){ return { base: FIRE_EVERY_MS, fast: FIRE_EVERY_FAST_MS, from: FIRE_FAST_FROM,
+                       every: fireEveryMs(), level: levelNum }; },
   faceState(){ return faceHold || faceState; }, // test: which face is HELD (a reaction on top of the state)
   refreshAcc(){ refreshAccessibility(); }, // test: a fresh recomputation of accessibility (the cache lives only while there is movement)
   // THE BOWL SHATTER (v2 prototype): the bench and the guards
