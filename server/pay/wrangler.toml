@@ -1,0 +1,42 @@
+# THE PAYMENT WORKER — pay.blendo.monster (2026-09-10-d). The fifth worker of the project, and it
+# exists for one reason a browser cannot cover: THE GRANT MUST BE MADE BY WHOEVER SAW THE PAYMENT,
+# and only Stripe's webhook sees it. Today a purchase lives in localStorage and dies with a cleared
+# browser (the hole named on 2026-09-04-a); with this ledger it comes back on the same device and on
+# the next one, because it is keyed by the same `Save.gid` the leaderboard already knows.
+#
+# ⛔ IT SERVES blendo.monster ONLY. In the Playgama portal the payment belongs to the portal and in
+# the app wrapper to StoreKit — that is Apple's rule, not a preference (see docs/STRIPE-PORTUGAL.md).
+#
+# ⚠️ TWO SECRETS, AND THEY NEVER ENTER THE REPOSITORY:
+#   npx wrangler secret put STRIPE_SECRET_KEY  --config server/pay/wrangler.toml
+#   npx wrangler secret put STRIPE_WEBHOOK_SECRET --config server/pay/wrangler.toml
+# The first is Dashboard → Developers → API keys (sk_test_… while we are testing, sk_live_… after);
+# the second is the "Signing secret" of the webhook endpoint (whsec_…).
+#
+# ⚠️ `workers_dev = false` for the leaderboard's own reason: the *.workers.dev subdomain is
+# disabled on this account, so an address that used it would answer with a refusal.
+name = "blendo-pay"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+workers_dev = false
+
+[[routes]]
+pattern = "pay.blendo.monster"
+custom_domain = true
+
+# The ledger. `schema.sql` is applied by hand ONCE per environment:
+#   npx wrangler d1 execute blendo-pay --remote --file server/pay/schema.sql --config server/pay/wrangler.toml
+[[d1_databases]]
+binding = "DB"
+database_name = "blendo-pay"
+database_id = "PLACEHOLDER-CREATE-WITH-wrangler-d1-create"
+
+[vars]
+# ⚠️ THE PRICE LIVES ON THE SERVER, NEVER ON THE CLIENT: a browser that could name its own price
+# would name zero. The client sends only WHICH product it wants. A guard in test.js compares this
+# number with `STAR_BUNDLES` in 00-config AND with the worker's own `PID` (the arm «ONE PRICE, ONE
+# PRODUCT» in server/pay/test/run.js), because two numbers for one price is how they drift.
+PRICE_CENTS = "199"
+CURRENCY = "eur"
+PRODUCT_NAME = "Blendo x5 Boost"
+SITE = "https://blendo.monster"

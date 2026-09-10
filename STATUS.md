@@ -6,7 +6,40 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-g (the legal pages + the links on the purchase screen) on top of 2026-09-10-v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, two batches back; -v and -g are gated by their section dry-runs and sabotages, his rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+**Build: batch 2026-09-10-d (the payment server, written and guarded, NOT yet deployed) on top of 2026-09-10-g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is waiting for five commands of yours**
+
+**10 SEPTEMBER, LATE — STRIPE, THE SECOND HALF: THE PAYMENT SERVER IS WRITTEN AND TESTED
+(batch 2026-09-10-d).** It has four jobs, and the third is the reason it exists at all: it opens the
+payment page with OUR price, it listens to Stripe's own confirmation that the money arrived, it
+remembers what you have bought so a purchase survives a cleared browser and reaches your second
+device, and it marks it taken so the next launch does not give it twice. 30 checks green, and 24
+deliberate breakages of the code, each caught by exactly the check that names it.
+
+⚡ **FOUR REAL HOLES WERE FOUND AND CLOSED BEFORE THE TESTS WERE EVEN WRITTEN**, and they are worth
+knowing because each would have cost money rather than looks:
+• any OTHER product on your Stripe account — a payment link made by hand in the dashboard — would
+  have granted the boost, because the server did not insist that the product be named by it;
+• a second click twenty seconds after paying would have handed the player the page he had ALREADY
+  PAID (Stripe replays an answer for a day when the request repeats);
+• the player's own key travelled inside a web address on first contact, i.e. into server logs and
+  browser history — it goes in the request body now;
+• a server started before its secret is set answered with a crash and a stack instead of saying what
+  was missing. I had written in the file that it would have been fooled by a forged payment; I
+  measured it, and that was wrong — it crashed. The comment says the true reason now.
+
+⛔ **NOTHING IS DEPLOYED AND NO SECRET EXISTS YET — the next five commands are yours**, and each is
+in its own block in the chat: create the database, load its schema, deploy, then the two secrets with
+TEST keys. Between the deploy and the secrets there is one dashboard step: Developers → Webhooks →
+add an endpoint at `https://pay.blendo.monster/v1/webhook`, in TEST mode, with the two
+`checkout.session` events — it hands you the second secret.
+⚠️ **ONE THING WILL LOOK LIKE A FAILURE AND IS NOT:** Stripe Tax is configured PER MODE. A test-mode
+payment can answer with a tax error while live is perfectly set up — it has to be switched on in test
+mode as well.
+⚠️ **AND ONE MISMATCH I LEFT ON PURPOSE:** the button in the game says $1.99 while your account
+charges EUR 1.99. Fixing it belongs with the in-game purchase button (the next piece of work): the
+label will read the currency from the server instead of a dollar sign written into the markup.
+
+Next: the third payment provider inside the game — the wallet and the portal are not touched.
 
 **10 SEPTEMBER — STRIPE, THE FIRST HALF: THE THREE PAGES AND THE LINKS ON THE PURCHASE SCREEN
 (batch 2026-09-10-g).** Terms, refund and privacy are written and published on the domain, and the

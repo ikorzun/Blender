@@ -4,6 +4,8 @@
     "test": "node test.js",
     "test:lb": "node server/leaderboard/test/run.js",
     "test:lb:break": "node server/leaderboard/test/break.js",
+    "test:pay": "node server/pay/test/run.js",
+    "test:pay:break": "node server/pay/test/break.js",
     "test:video": "node server/video/test/run.js",
     "test:video:break": "node server/video/test/break.js",
     "test:site": "node server/site/test/run.js",

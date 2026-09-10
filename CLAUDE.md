@@ -18588,3 +18588,101 @@ tool's own reason — the recorded class «a variant without the side files does
 arm», met again.
 
 **THE PRICE:** `index.html` 12 813 257 → 12 815 316 B; three new files of ~3 KB on the domain.
+
+## BATCH 2026-09-10-d: THE PAYMENT WORKER IS WRITTEN AND GUARDED — 30 ARMS, 24 SABOTAGES, AND ONE MEASUREMENT THAT CORRECTED ITS OWN COMMENT (the second half of his Stripe order, after the three legal pages of -g; his standing answers: «один товар и продаем», «такой же как домашний», «давай команду и куда вставлять»)
+
+### WHAT SHIPPED — FOUR ENDPOINTS, AND THE THIRD IS WHY THE WORKER EXISTS
+`server/pay/` — `blendo-pay` on `pay.blendo.monster`, a D1 ledger (`ent` keyed by the Checkout
+Session, `pk` the player's key table). `/v1/checkout` turns «this player wants the boost» into a
+Stripe Checkout Session; `/v1/webhook` is THE ONLY PLACE THAT MAY GRANT; `/v1/mine` says what the
+player has bought and not yet taken — which is what makes a purchase survive a cleared browser and
+reach a second device (the hole named on 2026-09-04-a); `/v1/claim` closes the row so the next start
+does not grant it twice. `/v1/price` answers the amount so the label and the charge cannot drift.
+⚠️ THE IDENTITY IS THE LEADERBOARD'S OWN — `Save.gid` plus the HMAC key `Save.lk`, trust-on-first-use
+— but with its OWN key table: two services must not be able to lock each other out of a player.
+⛔ NOTHING IS DEPLOYED AND NO SECRET EXISTS YET. The D1 create, the schema, the deploy, the webhook
+endpoint and the two `wrangler secret put` are HIS, in that order, and they are in STATUS.
+
+### FIVE THINGS WERE FIXED BEFORE A GUARD WAS WRITTEN, AND EACH IS A REAL HOLE
+1. **THE WEBHOOK VERIFIED WITH WHATEVER SECRET IT HAD, INCLUDING NONE** — now a stated 503.
+2. **`pid` FELL BACK TO `bundle5`**, so ANY completed session on the account — a payment link made by
+   hand in the dashboard — would have granted the boost merely by carrying a `client_reference_id`
+   that looks like a gid. The product must be named by US or the session is not ours. One constant
+   (`PID`) writes the metadata and refuses the event, because two copies drift.
+3. **`/v1/mine` WAS A GET AND CARRIED THE PLAYER'S KEY IN THE QUERY STRING** on first contact — i.e.
+   into edge logs, `wrangler tail` and the browser's history. It is a POST; the GET is a 404, or a
+   client falls back to it.
+4. **THE IDEMPOTENCY KEY WAS A WALL-CLOCK MINUTE.** Stripe replays the cached response for 24h on a
+   repeated key: a player who paid at :30 and clicked again at :50 would have been handed the URL of
+   the session he had ALREADY PAID. It is the client's own signed second now — one tap, one `t`.
+5. `isGid` was checked against the generator (`Date.now().toString(36) + Math.random()…`) rather than
+   assumed: base36, lowercase, ~14 chars, inside `[a-z0-9]{6,40}`.
+
+### ⛔⛔ AND THE MEASUREMENT THAT CORRECTED MY OWN COMMENT — THE «FAIL-OPEN» WAS A CRASH, NOT A FOOLING
+I wrote, and was told, that an unset `STRIPE_WEBHOOK_SECRET` makes the worker verify a FORGED event
+because `hmac('')` is a valid HMAC over an empty key. **Measured before it went into the file: it is
+not.** WebCrypto refuses a zero-length HMAC key by spec (`DataError: Zero-length key is not
+supported`), so the old code did not fool itself — it THREW, on every delivery, giving a 500 with a
+stack and no word about the cause while Stripe retried for days. The guard is still right and the
+comment now says why it is right.
+⚠️ **WHAT THE GUARD DOES NOT COVER, NAMED RATHER THAN IMPLIED:** a secret that is PRESENT but wrong —
+a placeholder, a stray space, a copied example — verifies happily, and whoever knows that string can
+forge a grant. Nothing inside a worker can tell a real whsec from a plausible one.
+⚠️ THE ARM MOVED WITH THE FACT: it catches the exception and demands the STATED refusal, because
+«no rows were written» is also true of a crash — the property is that the refusal is CLEAN.
+
+### THE GUARDS: 30 ARMS, AND THE THREE QUESTIONS THEY ARE WRITTEN AGAINST
+Who names the price (the server, never the browser); who may grant (the signed webhook, never a
+redirect); whose row is it (the gid whose key it was registered under, and no other). The webhook
+arms state the pair the money actually depends on: a card pays inside `checkout.session.completed`
+while a delayed method (MB WAY, a bank debit) completes the session UNPAID and pays later in
+`async_payment_succeeded` — granting on the first alone hands the boost to somebody whose payment can
+still fail, ignoring the second never pays a real one; and the same session delivered three times
+writes ONE row, which is the whole idempotence.
+⚡ **THE STRIPE STUB RECORDS WHAT WE SENT, AND THAT IS THE POINT:** «a session was opened» says
+nothing about the amount that will be charged, and the amount is the one thing the client must not
+own. The arm sends `cents: 1` in the request body and reads 199 off the wire.
+⚠️ **THE TEST ADAPTER IS NOT THE LEADERBOARD'S, AND THE DIFFERENCE IS LOAD-BEARING.** node:sqlite's
+`run()` returns `{changes}`, D1 returns `{success, meta:{changes}}`, and `/v1/claim` answers the
+player with `res.meta.changes`. Hand it the bare node:sqlite shape and every claim reports 0 taken
+while the rows are honestly marked. It has its own sabotage.
+✅ **A CROSS-FILE ARM CLOSES A DRIFT NOBODY WAS WATCHING:** the price the player is SHOWN
+(`STAR_BUNDLES` in 00-config), the price he is CHARGED (the worker's vars) and the product the
+webhook agrees to grant (`PID`) are three copies of two numbers. All three files are substitutable
+by env var precisely so both halves can be sabotaged — a guard whose inputs cannot be moved has half
+its sabotages unwritable.
+⚠️ **AND IT PRINTS A MISMATCH IT DELIBERATELY DOES NOT ASSERT:** the game's field is called `usd`
+while the account charges EUR. The web provider is not written yet; when it is, the label must read
+the currency from `/v1/price` instead of a dollar sign in the markup.
+⛔ **ONE PROPERTY CANNOT BE SABOTAGED FROM THIS SIDE AND IT IS SAID IN THE HARNESS RATHER THAN
+HIDDEN:** «one signature, one endpoint». The endpoint's name is part of the signed string, so a build
+that drops it has a different signing CONTRACT — every call in the suite would fail its signature and
+every arm would go red, which proves nothing about that one arm.
+
+### TWO-SIDED: 24 SABOTAGES, EACH RED ON ITS OWN ARM
+`npm run test:pay` 30 green; `npm run test:pay:break` — the healthy build twice (the noise ruler
+reads **0 noisy lines**: the session and event ids were made deterministic on purpose, or «the
+sabotage went past the observable» could not be told from ordinary noise), then 24 patched copies
+under the system temp dir. The honest collateral is recorded at the entries that cause it: keying the
+row by the EVENT instead of the session also moves the sid a neighbouring arm prints (the row IS
+keyed by the wrong thing), and renaming `PID` on one side breaks every grant. The self-check (a
+comment edit) is called empty by the tool.
+⚠️ THE PROJECT'S OWN GATE, HIS RULE OF 9 SEPTEMBER: no full game suite for this batch — `index.html`
+is untouched, no `src/app` file changed, and the gate is the pay suite plus its sabotages. The same
+shape as every server-only commit since the leaderboard.
+
+### WHAT IS HIS, IN ORDER, AND THE TWO THINGS THAT WILL LOOK LIKE FAILURES
+The D1 create → the schema → the deploy → the webhook endpoint in TEST mode
+(`https://pay.blendo.monster/v1/webhook`, the two `checkout.session.*` events) → the two secrets with
+TEST keys → a purchase with 4242 → then the same in live.
+⚠️ **STRIPE TAX SETTINGS ARE PER-MODE:** a test-mode checkout can answer `err: stripe` about Tax
+while live is perfectly configured — it must be activated in test mode too.
+⚠️ **`wrangler d1 create` PRINTS A UUID THAT MUST REACH `wrangler.toml`, AND A MISTYPED ONE FAILS AT
+DEPLOY TIME**, so `tools/pay-dbid.js` reads it back from wrangler and writes it in — the same
+«compare, never retype» rule the Playgama token was reconciled by.
+
+### WHAT IS NAMED AND NOT DONE
+The client provider (`webPayments()` as the third arm of `payApi()`, reusing `IAP_LEDGER` for the
+double-grant guard, the origin gate so a purchase made on github.io cannot land in a localStorage the
+grant will never see, and the redirect that beats the webhook — poll `/v1/mine`, do not read once);
+the price label's currency; and the support address / street questions of -g.
