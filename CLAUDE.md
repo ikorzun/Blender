@@ -18291,6 +18291,12 @@ worker's document shortcut); and a `Range: bytes=0-99` on `/music.mp3` (206 — 
 from the video worker). Those three cover the three things this worker does.
 ⚠️ The FIRST deploy under this rule was 2026-09-10, version `77568dc3`, and it carried the beginner
 window of batch 2026-09-10 — the domain had been a build behind since the push.
+⚠️⚠️ **AND THE FIRST md5 READ IN THE SECONDS AFTER A DEPLOY CAN STILL BE THE PREVIOUS BUILD** —
+measured 2026-09-10-v: the check right after «Deployed» returned the old hash while `site/` on disk
+and `build.txt` at the edge already carried the new one, and three reads a minute later all matched.
+An edge node had not caught up. **Read it again before believing a mismatch**, and compare
+`content-length` against the local file at the same time — a stale node gives the OLD length, a
+genuinely bad pack gives a new length with a wrong hash.
 
 ## BATCH 2026-09-10-b: THE RIVAL IN THE BOWL — THE NEXT PLAYER OF THE TABLE, A TAP ON HIM IS ×3 ON EVERYTHING FOR FIVE SECONDS (his spec over five messages: «покажи как выглядит» → the sheets → «аватарка… сильно растягивает… можем попробовать несколько лиц, как японский дорума» → «1. Множитель всех очков на 5 секунд 2. Пара не нужна 3. Следущего» → «Делай» → «давай вернем сферу и на нее наклеим аватарки как стикеры друг на друга, не растягивая аватарку»)
 
