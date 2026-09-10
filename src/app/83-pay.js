@@ -36,6 +36,7 @@ const PAY_BASE = (function () {
 
 const PAY_TIMEOUT_MS = 8000;
 const PAY_PENDING_LS = 'mixer_pay_pending';   // a payment was started and not yet accounted for
+const PAY_RETURN_LS = 'mixer_pay_return';     // the paying TAB says «I am back» to the game tab
 const PAY_REG_LS = 'mixer_pay_reg';           // the gid whose key this server already knows
 // The redirect beats the webhook, so the first answer is not the last word. Measured against
 // nothing yet — these are the delays Stripe's own guidance implies and they cost nothing while the
@@ -133,33 +134,79 @@ function payReturnParam() {
   } catch (e) { return ''; }
 }
 
-// The one entry point the seam calls at startup. `restore` is 78-ads's own restorePurchases — the
-// grant, the ledger and the claim all live there; this only decides HOW MANY TIMES to ask.
-function payWebBoot(restore) {
-  if (!payHostOk() || typeof restore !== 'function') return Promise.resolve({ ok: false });
-  const back = payReturnParam();
-  const pending = payPending();
-  // ⛔ A CANCEL IS NOT A PURCHASE: the player pressed «back» on Stripe's page. Clearing the mark is
-  // the whole handling — polling for a payment that was never made would just cost five requests.
-  if (back === 'cancel') { payClearPending(); return Promise.resolve({ ok: true, cancelled: true }); }
-  if (!back && !pending) return Promise.resolve(restore()).then(() => ({ ok: true, single: true }));
-  // We are back from a payment (or the tab died mid-flow): the webhook may still be in the air.
+// ⚠️ ONE POLL, THREE CALLERS (the startup pass, the paying tab's signal, a return to this tab), and
+// the flag is what stops them running over each other: three overlapping passes would ask the same
+// question three times and could grant on two of them before the first writes the ledger.
+let payPolling = false;
+function payPollGrant(restore) {
+  if (payPolling) return Promise.resolve({ ok: true, busy: true });
+  payPolling = true;
   let i = 0;
   return new Promise((done) => {
     const step = () => {
       Promise.resolve(restore()).then((r) => {
-        if (r && r.restored > 0) { payClearPending(); done({ ok: true, restored: r.restored, tries: i }); return; }
+        if (r && r.restored > 0) { payClearPending(); payPolling = false; done({ ok: true, restored: r.restored, tries: i }); return; }
         if (++i >= PAY_POLL_MS.length) {
           // ⚠️ THE MARK SURVIVES A FRUITLESS ROUND, AND THAT IS DELIBERATE: a delayed method (MB
           // WAY, a bank debit) pays MINUTES later, so the next launch must ask again. It is cleared
           // only by a grant or by a cancel.
-          done({ ok: true, restored: 0, tries: i }); return;
+          payPolling = false; done({ ok: true, restored: 0, tries: i }); return;
         }
         setTimeout(step, PAY_POLL_MS[i]);
       });
     };
     setTimeout(step, PAY_POLL_MS[0]);
   });
+}
+
+// ⚠️⚠️ THE GAME TAB LISTENS WHILE THE PLAYER PAYS IN THE OTHER ONE. Two signals, because neither
+// alone covers the flow: the `storage` event fires in OTHER tabs of the same origin the moment the
+// paying tab writes its mark (instant, even unfocused), and `visibilitychange` catches the player
+// coming back by any other road — he closed the payment tab himself, the browser refused to close
+// it, or he simply switched.
+// ⚠️ BOTH ARE GATED ON THE PENDING MARK, so an ordinary tab switch costs nothing.
+let payWatching = false;
+function payWatch(restore) {
+  if (payWatching || !payHostOk() || typeof restore !== 'function') return;
+  payWatching = true;
+  const kick = () => { if (payPending()) payPollGrant(restore); };
+  try { window.addEventListener('storage', (e) => { if (e && e.key === PAY_RETURN_LS) kick(); }); } catch (e) {}
+  try { document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); }); } catch (e) {}
+}
+
+// The one entry point the seam calls at startup. `restore` is 78-ads's own restorePurchases — the
+// grant, the ledger and the claim all live there; this only decides HOW MANY TIMES to ask.
+function payWebBoot(restore) {
+  if (!payHostOk() || typeof restore !== 'function') return Promise.resolve({ ok: false });
+  payWatch(restore);
+  const back = payReturnParam();
+  const pending = payPending();
+  // ⛔ A CANCEL IS NOT A PURCHASE: the player pressed «back» on Stripe's page. Clearing the mark is
+  // the whole handling — polling for a payment that was never made would just cost five requests.
+  if (back === 'cancel') { payClearPending(); try { payHandBack(''); } catch (e) {} return Promise.resolve({ ok: true, cancelled: true }); }
+  // ⛔⛔ THE PAYMENT CAME BACK INTO ITS OWN TAB, AND THE GAME IS IN THE OTHER ONE. Granting here
+  // would write the boost into a COPY of the game that is about to close, while the tab the player
+  // is actually looking at holds the pre-purchase save IN MEMORY and would overwrite it on its next
+  // commit — the purchase would vanish in front of him. So this tab only says «I am back» and goes.
+  // ⚠️ If the browser refuses to close it, the fallback below grants here after all: a tab the
+  // player is left staring at must not be the one without the boost.
+  if (back && window.opener && !window.opener.closed) {
+    payHandBack(back);
+    try { window.close(); } catch (e) {}
+    return new Promise((done) => setTimeout(() => {
+      payPollGrant(restore).then((r) => done(Object.assign({ handed: true }, r)));
+    }, 600));
+  }
+  if (!back && !pending) return Promise.resolve(restore()).then(() => ({ ok: true, single: true }));
+  // We are back from a payment (or the tab died mid-flow): the webhook may still be in the air.
+  return payPollGrant(restore);
+}
+
+// ⚠️ THE VALUE CARRIES A TIMESTAMP because a `storage` event only fires when the value CHANGES:
+// two payments of the same session id in one browser lifetime would otherwise be silent the second
+// time. The game tab reads nothing out of it — its presence is the whole message.
+function payHandBack(sid) {
+  try { localStorage.setItem(PAY_RETURN_LS, (sid || '') + ':' + Date.now()); } catch (e) {}
 }
 
 // ===== THE PROVIDER — the shape 78-ads's seam already speaks =====
@@ -185,16 +232,30 @@ const PAY_WEB_API = {
   consumePurchase(id, orderId) { return payClaim([orderId]); },
   purchase(id) {
     if (id !== 'bundle5') return Promise.reject(new Error('unavailable'));
+    // ⚠️⚠️ THE TAB IS OPENED SYNCHRONOUSLY, INSIDE THE CLICK, AND POINTED AT THE ADDRESS LATER.
+    // `window.open` after an `await` has lost the user activation, and Safari and Chrome block it —
+    // the player would press Buy and nothing at all would happen. A blank tab opened now is still
+    // inside the gesture; the address arrives half a second later and it is simply steered there.
+    let win = null;
+    try { win = window.open('', '_blank'); } catch (e) { win = null; }
     return payCheckout().then((r) => {
-      if (!r || !r.url) throw new Error('failed');
-      // ⚠️⚠️ THE MARK IS WRITTEN BEFORE THE NAVIGATION, or a tab closed on Stripe's page leaves
+      if (!r || !r.url) { try { win && win.close(); } catch (e) {} throw new Error('failed'); }
+      // ⚠️⚠️ THE MARK IS WRITTEN BEFORE THE PLAYER LEAVES, or a tab closed on Stripe's page leaves
       // nothing behind to say a payment was ever started.
       payMarkPending(r.sid);
-      location.href = r.url;
-      // ⚠️ THE PAGE IS LEAVING, SO THERE IS NO RESULT TO REPORT. 'redirect' is a reason the caller
-      // keeps silent about — «Purchase failed» over a page that is opening the payment form would
-      // be a lie, and a promise that never settles would leave the button in a state nobody clears.
-      throw new Error('redirect');
+      if (win && !win.closed) {
+        try { win.location.href = r.url; } catch (e) { win = null; }
+      }
+      if (!win || win.closed) {
+        // ⛔ THE POPUP WAS BLOCKED — and the player has already decided to buy. Sending THIS tab is
+        // worse than a new one (the game reloads on the way back) but infinitely better than a
+        // button that silently does nothing.
+        location.href = r.url;
+        throw new Error('redirect');
+      }
+      // ⚠️ 'opened': the game stays where it is, the payment happens elsewhere, and the boost
+      // arrives here through the watcher above. Silent at the call site, like a cancel.
+      throw new Error('opened');
     });
   },
 };

@@ -910,8 +910,10 @@ const Ads = (function(){
         //   redirect  — the web provider is handing the player to Stripe's own page and this tab is
         //               leaving: there is no result to report, and «Purchase failed» over an opening
         //               payment form would be a lie. The grant arrives on the way back (payWebBoot).
-        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable' || m === 'redirect')
-          ? m : 'failed';
+        //   opened    — the same, but the payment went into a NEW TAB and this one stays: the game
+        //               keeps running and the boost arrives through the watcher (83-pay).
+        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable'
+                        || m === 'redirect' || m === 'opened') ? m : 'failed';
         Telemetry.ev('iap', { ph: reason === 'failed' ? 'fail' : reason, id: id, r: m.slice(0, 60) });
         return { ok: false, reason: reason };
       });

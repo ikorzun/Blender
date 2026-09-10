@@ -18780,3 +18780,65 @@ The in-game label still says «$1.99» wherever the catalogue has not answered y
 the live path reads `€1.99` from `/v1/price` now, which is what closes the currency drift. And the one
 purchase already paid belongs to a made-up player (`probetest0910`) — the end-to-end test THROUGH THE
 BUTTON is one more real purchase, his call when he wants it.
+
+## BATCH 2026-09-10-zh: THE PAYMENT OPENS IN A NEW TAB, AND THE RETURN NO LONGER PARSES THE WHOLE GAME (his two lines: «давай оплату открывать в новой вкладке» and «долго все грузится»)
+
+### ⚡ HIS TWO ITEMS TURNED OUT TO BE ONE PROBLEM, AND HIS INSTINCT WAS RIGHT
+Paying in the SAME tab means the return reloads the entire game — 4.47 MB over the wire and a 12.8 MB
+parse — at the one moment the player is waiting to see what he paid for. A new tab keeps the game
+alive: the tab that goes to Stripe is the only one that reloads, and it now closes itself in a
+fraction of a second. That is most of «долго» in the flow he had just walked through.
+
+### WHAT THE LOAD ACTUALLY COSTS, MEASURED RATHER THAN GUESSED (curl, his line, the live domain)
+| | |
+|---|---|
+| the document, cold | **4.47 MB brotli** (12.8 MB raw), 4.2 / 6.5 / 7.5 s in three reads |
+| the same file from GitHub Pages, same line | 4.61 MB gzip, **9.3 s** — the domain is the faster of the two |
+| a repeat visit, with the validator | **304, 0 bytes, 0.15 s** — the browser re-downloads nothing |
+| one outlier worth recording | a single cold read took **38 s**; three reads a minute later were 4-7 s |
+⚠️ SO THE WIRE IS NOT THE STORY ON A REPEAT LAUNCH — the 304 works and costs 150 ms. What remains is
+the FIRST load, every load after a release, and the 12.8 MB parse itself, which no caching removes.
+⛔ The two real levers are named and NOT taken here: a stale-while-revalidate document in the service
+worker (every launch instant, a release arriving one launch later — his call, it changes a promise),
+and the size of the build itself (half of it is model geometry — a project, not a batch).
+
+### THE NEW TAB: THREE THINGS THAT MAKE IT WORK, AND EACH IS A DEFECT IF MISSED
+1. ⛔⛔ **THE TAB IS OPENED SYNCHRONOUSLY, INSIDE THE CLICK.** `window.open` after an `await` has lost
+   the user activation and Safari and Chrome block it — the player would press Buy and NOTHING would
+   happen. A blank tab is opened while the gesture is still live and steered at the address when the
+   server answers; if it was blocked anyway, this tab goes instead ('redirect'), because a taken
+   decision must never end in a button that does nothing.
+2. ⛔⛔ **THE PAYING TAB MUST NOT GRANT.** It holds a COPY of the game, while the tab the player is
+   looking at keeps the pre-purchase save IN MEMORY and would overwrite it on its next commit — the
+   purchase would vanish in front of him. It writes a mark and closes; the game tab wakes on the
+   `storage` event (it fires in OTHER tabs of the same origin) or on `visibilitychange`, and grants
+   into its own memory. If the browser refuses to close it, a 600 ms fallback grants there after all:
+   a tab the player is left staring at must not be the one without the boost.
+3. ⚡ **THE RETURN IS CAUGHT AT THE FIRST BYTE OF BODY** (`#payReturnGate`), before the 12.8 MB parse:
+   with a live opener the returning tab writes the mark and closes in a fraction of a second instead
+   of booting a second copy of the game for five. With NO opener it does nothing and the game boots
+   and grants normally — a player who closed his game tab must not be left with a blank page.
+⚠️ `'opened'` IS A NEW REFUSAL REASON WITH A TOAST, and the toast is there for the reason `'pending'`
+has one: the card stays on screen inviting a second tap, and a second tap opens a SECOND Stripe
+session — two charges for one boost. The shop screen deliberately stays open, so the game keeps its
+pause while the player is away.
+
+### THE GUARDS: 14 ARMS, 11 SABOTAGES — AND TWO OF THEM ARE STRUCTURAL BECAUSE THE PROPERTY IS TIME
+The section now runs from ONE CONTEXT: a popup inherits the CONTEXT's init script, never the opening
+page's, so a page built with `browser.newPage` would have let the paying tab boot unstubbed and knock
+at the live worker.
+⚠️ **TWO ARMS ARE TEXT ASSERTS ON THE SHIPPED FILE, AND THAT IS STATED RATHER THAN HIDDEN:** automation
+runs no popup blocker, so a `window.open` moved after the `await` opens perfectly well on this bench
+and would be blocked on his phone; and a returning tab that takes five seconds to close is still
+«green». Both are asserted by ORDER inside `index.html` — the open before the network call, the gate
+before the app script — and both go red on their own sabotage.
+✅ **THE HAND-BACK SABOTAGE DEMONSTRATES THE DEFECT RATHER THAN MERELY FAILING:** with it removed the
+game tab reads `x1, +0 tips, +0 shakes` while the claim count is 1 — the paying tab granted into a
+copy that then closed, exactly the loss the design avoids.
+
+### ⚠️ A GUARD OF ANOTHER BATCH WENT RED ON A HEALTHY BUILD, AND IT WAS THE FORM THAT WAS WRONG
+The splash gate's arm asserted `body.firstElementChild` — and the payment-return gate, a SCRIPT that
+paints nothing, now stands ahead of it. The PROPERTY it guards is «no frame can paint the game's card
+lines before `html.splash` exists», so the form moved to «nothing PAINTABLE stands before the gate,
+only scripts may», and the message moved with the predicate. Re-proved: a `<div>` inserted before the
+gate still reddens it, so nothing was weakened to make it green.

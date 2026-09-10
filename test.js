@@ -11469,7 +11469,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         nat: [im.naturalWidth, im.naturalHeight], fit: getComputedStyle(im).objectFit, phase: window.__game.introPhase(), trans: cs.transitionDuration, pe: cs.pointerEvents,
         cards: [getComputedStyle(document.getElementById('edgeTop')).backgroundColor, getComputedStyle(document.getElementById('edgeBot')).backgroundColor],
         cardsDisp: [getComputedStyle(document.getElementById('edgeTop')).display, getComputedStyle(document.getElementById('edgeBot')).display], body: getComputedStyle(document.body).backgroundColor,
-        order: (() => { const g = document.getElementById('splashGate'), c = document.getElementById('edgeTop'); return !!g && !!c && g.tagName === 'SCRIPT' && g === document.body.firstElementChild && !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); })(),
+        // ⚠️ THE PROPERTY IS «NOTHING PAINTABLE STANDS BEFORE THE GATE», NOT «IT IS THE FIRST CHILD».
+        // The form moved on 2026-09-10-zh, when the payment-return gate — a SCRIPT, which paints
+        // nothing — was placed ahead of it to close the returning tab before the 12.8 MB parse.
+        // Pinning `firstElementChild` would have gone red on a build whose guarded property is intact.
+        order: (() => { const g = document.getElementById('splashGate'), c = document.getElementById('edgeTop');
+          const before = [...document.body.children].slice(0, [...document.body.children].indexOf(g));
+          return !!g && !!c && g.tagName === 'SCRIPT' && before.every(e => e.tagName === 'SCRIPT')
+            && !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING); })(),
         // 2026-09-09-d: no FIXED/STICKY box may cover WebKit's two sample points while the poster shows — the census is
         // STRUCTURAL (position, visibility, display, the box), not a hit test: elementsFromPoint honours pointer-events,
         // WebKit's first pass does not (09-05-h)
@@ -11493,7 +11500,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(early.skyfillClass === true && early.uiready === false && early.fill === 'none' && early.hidden.every(v => v === 'hidden') && early.cands.top.length === 0 && early.cands.bot.length === 0,
       'SPLASH: NOTHING FIXED under the poster — the load fill display none although the load is still on (html.skyfill, no uiready yet), the canvas and the three HUD bars visibility hidden, and the structural census finds NO fixed/sticky box ≥ 90% wide covering (w/2, 4) or (w/2, h−4) (' + JSON.stringify({ skyfill: early.skyfillClass, uiready: early.uiready, fill: early.fill, hidden: early.hidden, cands: early.cands }) + '). ⛔ SABOTAGE: drop the `html.splash:not(.splash-out) #skyFill` rule (the fill declares the zenith to both zones), or the visibility rule (`#c` is a candidate at both points — the fill OVERPRINTS the poster under the bar)');
     expect(early.order === true,
-      'SPLASH: the gate script is the FIRST child of body, before the edge cards — no frame can paint the game\'s card lines before the picture exists (' + early.order + '). ⛔ SABOTAGE: put a card before the gate');
+      'SPLASH: NOTHING PAINTABLE STANDS BEFORE THE GATE (only scripts may), and the edge cards follow it — no frame can paint the game\'s card lines before the picture exists (' + early.order + '). ⛔ SABOTAGE: put a card before the gate');
     expect(early.trans === '0.3s' && early.st.ms === 1500 && early.st.fade === 300,
       'SPLASH: the production numbers — 1.5 s minimum, a 0.3 s fade (' + JSON.stringify({ trans: early.trans, ms: early.st.ms, fade: early.st.fade }) + ')');
     // ⚠️ -h: a poster that never comes must be a RED, not a dead section — a bare wait threw here on the «drop the phone term» variant
@@ -19824,17 +19831,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const payRead = (pg, k) => pg.evaluate((kk) => { try { return JSON.parse(localStorage.getItem(kk) || 'null'); } catch (e) { return null; } }, k);
     const payErr = [];
 
+    // ⚠️⚠️ ONE CONTEXT, NOT A LOOSE PAGE: since the purchase opens the payment in a NEW TAB, the
+    // paying tab is a POPUP — and a popup inherits the CONTEXT's init script, never the opening
+    // page's. Built with `browser.newPage` the payment tab would boot with no stub at all and knock
+    // at the live worker.
+    const payCtx = await browser.newContext({ viewport: { width: 390, height: 780 } });
+    await payCtx.addInitScript(payStub);
+
     // --- 1. THE GATE: off the return origin there is no provider, and the button keeps saying «soon»
-    const gp = await browser.newPage({ viewport: { width: 390, height: 780 } });
-    await gp.addInitScript(payStub);
+    const gp = await payCtx.newPage();
     await gp.goto('file://' + PAGE_FILE);
     await gp.waitForFunction(() => !!(window.__game && window.__ads));
     const gateOff = await gp.evaluate(() => ({ on: window.__ads.paymentsOn }));
     await gp.close();
 
-    const pp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    const pp = await payCtx.newPage();
     pp.on('pageerror', e => payErr.push('PAGEERROR: ' + e.message));
-    await pp.addInitScript(payStub);
     await pp.goto(PAY_URL_Q);
     await pp.waitForFunction(() => !!(window.__game && window.__ads));
     const gateOn = await pp.evaluate(() => ({ on: window.__ads.paymentsOn }));
@@ -19882,13 +19894,42 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const before = await pp.evaluate(() => ({ mult: window.__game.scoreBoostMult(),
                                               hints: window.__game.wallet().hints,
                                               pe: window.__game.boostRaw().pe }));
+    // ⚠️⚠️ THE PAYMENT GOES INTO A NEW TAB (his word, 2026-09-10-zh) AND THIS ONE MUST NOT MOVE:
+    // the game keeps its state and its pause instead of reloading 12.8 MB on the way back.
+    let popup = null, stayed = pp.url();
     try {
-      await Promise.all([
-        pp.waitForNavigation({ timeout: 20000 }),
+      const both = await Promise.all([
+        payCtx.waitForEvent('page', { timeout: 20000 }),
         pp.evaluate(() => { window.__ads.purchase('bundle5'); }),
       ]);
-      await pp.waitForFunction(() => !!(window.__game && window.__ads), null, { timeout: 20000 });
+      popup = both[0];
+      stayed = pp.url();
+      // The paying tab loads the return address, hands the job back and closes itself.
+      await popup.waitForEvent('close', { timeout: 30000 });
     } catch (e) {}
+    expect(!!popup && stayed === PAY_URL_Q,
+      'THE PAYMENT OPENS IN A NEW TAB AND THE GAME STAYS PUT: a tab opened (' + !!popup
+      + '), this one is still at ' + (stayed === PAY_URL_Q ? 'the game' : stayed));
+    // ⚠️⚠️ AND IT IS OPENED *INSIDE THE CLICK*, WHICH NO HIT TEST HERE CAN SEE: automation does not
+    // run a popup blocker, so a `window.open` moved after the `await` opens just fine on this bench
+    // and would be blocked on his phone — the button would do nothing at all. The property is
+    // therefore asserted STRUCTURALLY, on the shipped file: the open must stand BEFORE the network
+    // call inside `purchase`, or the user activation is already spent when it runs.
+    const shipped = fs.readFileSync(PAGE_FILE, 'utf8');
+    const buyBody = shipped.slice(shipped.indexOf('purchase(id) {\n    if (id !== \'bundle5\''));
+    const iOpen = buyBody.indexOf("window.open('', '_blank')");
+    const iNet = buyBody.indexOf('payCheckout()');
+    expect(iOpen > 0 && iNet > 0 && iOpen < iNet,
+      'THE TAB IS OPENED INSIDE THE CLICK, BEFORE THE NETWORK CALL (open at ' + iOpen
+      + ', the request at ' + iNet + ') — after an await the browser blocks it');
+    // ⚠️⚠️ AND THE RETURNING TAB MUST NOT PARSE 12.8 MB JUST TO CLOSE ITSELF (his «долго всё
+    // грузится»): the gate that catches `?paid=` with a live opener stands at the FIRST BYTE OF
+    // BODY, before the app script. This is a structural arm because what it guards is TIME, and a
+    // bench that closes the tab in five seconds instead of a fraction of one is still «green».
+    const iGate = shipped.indexOf('id="payReturnGate"');
+    const iApp = shipped.indexOf("(function(){\n'use strict';");
+    expect(iGate > 0 && iApp > 0 && iGate < iApp,
+      'THE RETURN IS CAUGHT BEFORE THE GAME PARSES (the gate at ' + iGate + ', the app at ' + iApp + ')');
     const buyLog = await payRead(pp, '__payLog');
     const co = buyLog.find(r => r.url.indexOf('/v1/checkout') >= 0);
     expect(!!co && co.body.id === gid && /^[0-9a-f]{64}$/.test(String(co.body.sig))
@@ -19905,6 +19946,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
                                              pend: localStorage.getItem('mixer_pay_pending') }));
     const st = await payRead(pp, '__payState');
     const mineCalls = (await payRead(pp, '__payLog')).filter(r => r.url.indexOf('/v1/mine') >= 0).length;
+    const handed = await pp.evaluate(() => localStorage.getItem('mixer_pay_return'));
     expect(after.mult === 5 && after.bb === 30 * 60 * 1000 && after.hints === before.hints + 13
       && after.pe === before.pe + 9 && mineCalls >= 2,
       'THE GRANT ARRIVES AFTER THE REDIRECT, AND IT POLLS: x' + after.mult + ', +'
@@ -19914,6 +19956,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       && after.search.indexOf('paid=') < 0,
       'TAKEN, MARKED AND CLEANED UP: claimed [' + (st.claimed || []).join(',') + '], the pending mark '
       + after.pend + ', the address bar ' + after.search);
+    // ⛔ THE PAYING TAB MUST NOT GRANT: it holds a COPY of the game, and the tab the player is
+    // looking at keeps the pre-purchase save in memory — a grant written there would be overwritten
+    // by this tab's next commit, in front of him. It hands the job back instead, and closes.
+    expect(!!handed && (st.claimed || []).length === 1,
+      'THE PAYING TAB HANDS THE JOB BACK AND CLOSES: the signal ' + (handed ? 'left' : 'MISSING')
+      + ', claims in total ' + (st.claimed || []).length + ' (one, not two)');
 
     // --- 6. A CLAIM THAT NEVER REACHED THE SERVER MUST NOT GRANT A SECOND TIME
     // ⚠️ This is the free-boost-for-ever case, and the ledger is the only thing standing in its way.

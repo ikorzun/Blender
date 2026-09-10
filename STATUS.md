@@ -6,7 +6,26 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-e (the buy button works on blendo.monster) on top of 2026-09-10-d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+**Build: batch 2026-09-10-zh (the payment opens in a new tab) on top of 2026-09-10-e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+
+**10 SEPTEMBER, NIGHT — THE PAYMENT OPENS IN A NEW TAB (batch 2026-09-10-zh, your two lines).**
+Your two remarks turned out to be one thing, and you were right about it: paying in the same tab meant
+the whole game reloaded on the way back — at exactly the moment you are waiting to see what you bought.
+Now the game stays where it is, the payment happens in its own tab, and that tab closes itself the
+instant Stripe returns it. The boost arrives in the tab you are actually looking at.
+
+**About the loading, with numbers.** The page is 4.5 MB over the wire; from your domain it takes 4-7
+seconds on this line, and the same file from GitHub takes 9. A REPEAT visit downloads nothing at all —
+the server answers «unchanged» in 0.15 s. So what is slow is the first load, any load right after I
+publish something, and the browser's own work of reading a 12.8 MB file — no caching removes that.
+
+Two ways to make it faster, both yours to decide:
+• let the installed game start from its saved copy instantly and pick up a new version on the NEXT
+  launch. Every start becomes immediate; the price is that my update reaches you one launch later;
+• make the file itself smaller. Half of it is 3D models. That is a separate piece of work, not an
+  evening.
+
+Say which, or neither, and I will do it.
 
 **10 SEPTEMBER, NIGHT — THE BUY BUTTON WORKS ON blendo.monster (batch 2026-09-10-e).** The game now
 has a third way to pay, beside the portal's wallet and the app wrapper: on our own domain the button

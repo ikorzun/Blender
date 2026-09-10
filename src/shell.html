@@ -4559,6 +4559,25 @@
 </style>
 </head>
 <body>
+<script id="payReturnGate">
+  // THE RETURN FROM STRIPE, CAUGHT BEFORE THE GAME LOADS (2026-09-10-zh, his «долго всё грузится»).
+  // ⚠️⚠️ THE PAYMENT NOW OPENS IN ITS OWN TAB, so the address Stripe returns to is loaded by a tab whose
+  // whole job is to say «I am back» and go. Left to the app that costs the FULL 12.8 MB parse first — the
+  // player watches a second copy of the game boot for several seconds before it closes itself. Standing
+  // here, at the first byte of body, it closes in a fraction of a second.
+  // ⛔ IT ACTS ONLY WITH A LIVE OPENER, i.e. only when the game really is in the other tab. Without one
+  // this tab IS the game: it must boot and grant normally (83-pay does that), or a player who closed his
+  // game tab would be left with a blank page and a purchase nobody asked for.
+  // ⚠️ It writes the same mark 83-pay writes and reads — the game tab wakes on the `storage` event. The
+  // timestamp is what makes a SECOND payment of the same session id fire the event again.
+  (function(){ try {
+    var p = new URLSearchParams(location.search).get('paid');
+    if (!p || p === 'cancel') return;
+    if (!(window.opener && !window.opener.closed)) return;
+    localStorage.setItem('mixer_pay_return', p + ':' + Date.now());
+    window.close();
+  } catch(e){} })();
+</script>
 <script id="splashGate">
   // THE PHONE'S SPLASH GATE (2026-09-08-b): decided HERE, before the big script, so the picture is in the
   // very first frame. ⚡ THE FIRST CHILD OF BODY SINCE 2026-09-08-d (his word «no lines at the top on the loading

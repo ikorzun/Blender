@@ -741,6 +741,11 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           // just pointed this tab at Stripe's payment page, so any message would flash over a page
           // that is leaving — and would tell the player his purchase broke while it is opening.
           if (r === 'pending') toast('Waiting for approval');
+          // ⚠️ 'opened' GETS A WORD FOR THE SAME REASON 'pending' DOES: the card stays on the screen
+          // inviting a second tap, and a second tap here opens a SECOND Stripe session — two charges
+          // for one boost. One honest line prevents that; the screen stays open on purpose, so the
+          // game keeps its pause while the player is away in the other tab.
+          else if (r === 'opened') toast('Payment opened in a new tab');
           else if (r !== 'cancelled' && r !== 'redirect')
             toast(r === 'unsupported' || r === 'unavailable' ? 'Coming soon' : 'Purchase failed');
           return;
