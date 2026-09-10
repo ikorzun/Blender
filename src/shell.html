@@ -5272,13 +5272,15 @@
     <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («ссылки на экран покупки 10 px шрифтом в самый
          низ, серый цвет, в одну строку»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
          from github.io, from inside the portal's iframe and from the app wrapper, where a relative
-         `/terms.html` is somebody else's page or nothing at all. `target=_blank` + `rel=noopener` —
+         `/terms` is somebody else's page or nothing at all. The addresses are EXTENSIONLESS because
+         that is what the assets store serves: `/terms.html` answers 307 to `/terms` (measured on the
+         live domain), and a redirect on a phone is a round trip for nothing. `target=_blank` + `rel=noopener` —
          a purchase screen must not navigate the game away. -->
   </div>
   <p class="st-legal">
-    <a href="https://blendo.monster/terms.html" target="_blank" rel="noopener">Terms</a> ·
-    <a href="https://blendo.monster/refund.html" target="_blank" rel="noopener">Refund</a> ·
-    <a href="https://blendo.monster/privacy.html" target="_blank" rel="noopener">Privacy</a>
+    <a href="https://blendo.monster/terms" target="_blank" rel="noopener">Terms</a> ·
+    <a href="https://blendo.monster/refund" target="_blank" rel="noopener">Refund</a> ·
+    <a href="https://blendo.monster/privacy" target="_blank" rel="noopener">Privacy</a>
   </p>
 </div>
 
