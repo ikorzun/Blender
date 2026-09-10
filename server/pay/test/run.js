@@ -417,6 +417,10 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
     const toml = fs.readFileSync(TOML_PATH, 'utf8');
     const srcTxt = fs.readFileSync(SRC_PATH, 'utf8');
     const bundle = cfg.match(/\{\s*id:\s*'([^']+)',\s*usd:\s*([0-9.]+)/);
+    const site = toml.match(/^SITE\s*=\s*"([^"]+)"/m);
+    const paySite = cfg.match(/const PAY_SITE = '([^']+)'/);
+    const payUrl = cfg.match(/const PAY_URL = '([^']+)'/);
+    const route = toml.match(/^pattern = "([^"]+)"/m);
     const cents = toml.match(/^PRICE_CENTS\s*=\s*"([^"]+)"/m);
     const cur = toml.match(/^CURRENCY\s*=\s*"([^"]+)"/m);
     const pid = srcTxt.match(/const PID = '([^']+)'/);
@@ -430,6 +434,20 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
       // The web provider is not written yet; when it is, the label must take the currency from the
       // provider's own catalogue (/v1/price answers it) instead of a dollar sign in the markup.
       + '  [the label still says USD — the web provider must read the currency from /v1/price]');
+
+    // ⚠️⚠️ THE RETURN ORIGIN IS A GATE IN TWO FILES. The worker sends the player to its `SITE`
+    // after Stripe; the client offers the web provider ONLY on `PAY_SITE` (83-pay), because a
+    // purchase that returns to another origin lands in another localStorage under another
+    // `Save.gid` — money taken, grant unreachable. Two strings, one meaning, and nothing else in
+    // the project compares them. The address is the same kind of pair: the client calls
+    // `PAY_URL`, the worker answers on its route.
+    const sameSite = site && paySite && site[1] === paySite[1];
+    const sameHost = payUrl && route && payUrl[1] === 'https://' + route[1];
+    expect(sameSite && sameHost,
+      'ONE RETURN ORIGIN, ONE ADDRESS: the worker returns to ' + (site && site[1])
+      + ' and the client offers itself on ' + (paySite && paySite[1])
+      + '; the client calls ' + (payUrl && payUrl[1]) + ' and the worker answers on '
+      + (route && route[1]));
   }
 
   console.log('\nTOTAL PASS: ' + pass + (fails.length ? ' | FAIL: ' + fails.length : ''));

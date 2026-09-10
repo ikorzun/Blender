@@ -6,7 +6,35 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-d (the payment server, written and guarded, NOT yet deployed) on top of 2026-09-10-g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is waiting for five commands of yours**
+**Build: batch 2026-09-10-e (the buy button works on blendo.monster) on top of 2026-09-10-d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+
+**10 SEPTEMBER, NIGHT — THE BUY BUTTON WORKS ON blendo.monster (batch 2026-09-10-e).** The game now
+has a third way to pay, beside the portal's wallet and the app wrapper: on our own domain the button
+opens Stripe's page, and on the way back the game asks the server what it owes the player and switches
+the boost on.
+
+**Your payment proved the whole path before I built on it.** From Stripe: paid, €1.99, and of that
+**0.37 is Portuguese VAT** — the price stays 1.99 for the player, the tax lives inside it, exactly as you
+wanted. From our server: one record, tied to the product and the player. That is the part that cannot be
+faked from a browser.
+
+**What changed in the game:**
+• the price on the button now comes FROM THE SERVER, so it can no longer say dollars while the card
+  charges euros — that mismatch I left open yesterday is closed on this path;
+• after the payment the game asks several times over the first seconds, not once: Stripe returns the
+  player faster than it tells our server about the money, and a single question would find nothing about
+  half the time;
+• if the tab is closed on the payment page, the next launch finishes the job;
+• the same purchase can never be granted twice, and a cancel grants nothing.
+
+⛔ **The button still does nothing on github.io and inside the portal, and that is deliberate.** Stripe
+returns the player to blendo.monster and nowhere else: a purchase started elsewhere would come back to a
+different copy of the game, where the money would be real and the boost unreachable. In the portal the
+payment belongs to the portal, in the app to Apple — those are their rules, not ours.
+
+⚠️ **The €1.99 you paid belongs to a made-up test player, so it will not appear in your own game.**
+Return it from the dashboard when you like. The real end-to-end check is one more purchase, made with the
+button on blendo.monster — say when, and I will watch both sides while you do it.
 
 **10 SEPTEMBER, LATE — STRIPE, THE SECOND HALF: THE PAYMENT SERVER IS WRITTEN AND TESTED
 (batch 2026-09-10-d).** It has four jobs, and the third is the reason it exists at all: it opens the

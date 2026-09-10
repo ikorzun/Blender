@@ -281,6 +281,12 @@ const Ads = (function(){
     // exists. On the web nativePayments() is null, so this line does nothing and the bridge
     // path below keeps its own call: no double restore.
     if (nativePayments()) { try { restorePurchases(); } catch(e){} }
+    // ⚠️⚠️ THE WEB PROVIDER DOES NOT LIVE BEHIND THE SDK GATE EITHER, and it is here for the same
+    // reason the native line above is: our own domain loads no bridge, so a pass placed inside
+    // `bridge.initialize().then()` would never run and every purchase made on blendo.monster would
+    // hang unclaimed. This is also where a return from Stripe is handled — the redirect arrives
+    // before the webhook, so the pass polls rather than reads once (payWebBoot, 83-pay).
+    if (!nativePayments() && webPayments()) { try { payWebBoot(restorePurchases); } catch(e){} }
     // file:// (the offline prototype, headless tests) — we do not load the SDK, we live on the stub
     if (location.protocol !== 'http:' && location.protocol !== 'https:') {
       curtainDone('no sdk (file://)');   // there can be no curtain — we do not make anyone wait
@@ -751,9 +757,21 @@ const Ads = (function(){
               && window.bridge.payments.isPaymentsSupported) ? window.bridge.payments : null;
     } catch(e){ return null; }
   }
+  // ⚠️⚠️ THE THIRD PROVIDER — OUR OWN SERVER (2026-09-10-e), and it is LAST ON PURPOSE. In the
+  // wrapper Apple's rules leave no choice, in the portal the payment belongs to the portal; the web
+  // provider is what the game falls back to on our own domain, where neither of those exists. It
+  // refuses everywhere else by construction — inside an iframe and off `PAY_SITE` (83-pay), because
+  // Stripe returns the player to that origin and nowhere else.
+  function webPayments(){
+    try { return (typeof payWebApi === 'function') ? payWebApi() : null; } catch(e){ return null; }
+  }
   // The native provider wins when present: inside the wrapper Apple's rules leave no choice.
-  function payApi(){ return nativePayments() || bridgePayments(); }
+  function payApi(){ return nativePayments() || bridgePayments() || webPayments(); }
   const isNativeApi = (api) => !!api && api === nativePayments();
+  // ⚠️ A CAPABILITY, NOT AN IDENTITY: two of the three providers close a purchase by the ORDER it
+  // was paid in (StoreKit's transaction, our Checkout Session) and one by the product id. Asking
+  // «who are you» here would mean editing this line for every future provider.
+  const consumesByOrder = (api) => isNativeApi(api) || !!(api && api.byOrder);
 
   // ⚠️ THE STORE'S PRODUCT IDS ARE NOT OURS. StoreKit needs the full bundle-scoped id; the game
   // speaks its own short ones everywhere else (the ledger, the telemetry, the grant handles), so
@@ -847,8 +865,11 @@ const Ads = (function(){
         // ⛔ The Playgama bridge takes ONE argument. Do not «unify» these by passing the extra
         // one to the vendor SDK — an ignored argument today is a changed meaning tomorrow.
         const api = payApi();
-        const p = isNativeApi(api) ? api.consumePurchase(toNativeId(id) || id, orderId)
-                                   : api.consumePurchase(id);
+        // ⚠️ THE STORE'S ID IS THE NATIVE PROVIDER'S ALONE: our own server speaks the game's short
+        // ids everywhere, and handing it `monster.blendo.bundle5` would be a name it has never heard.
+        const storeId = isNativeApi(api) ? (toNativeId(id) || id) : id;
+        const p = consumesByOrder(api) ? api.consumePurchase(storeId, orderId)
+                                       : api.consumePurchase(id);
         if (p && p.catch) p.catch(()=>{ console.warn('[iap] the consume did not go through:', id); });
       } catch(e){}
     }
@@ -886,7 +907,11 @@ const Ads = (function(){
         //                 tell the player their purchase broke, when nothing was ever on sale.
         //   failed    — a real error: tell the player.
         const m = String((e && e.message) || e || '');
-        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable') ? m : 'failed';
+        //   redirect  — the web provider is handing the player to Stripe's own page and this tab is
+        //               leaving: there is no result to report, and «Purchase failed» over an opening
+        //               payment form would be a lie. The grant arrives on the way back (payWebBoot).
+        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable' || m === 'redirect')
+          ? m : 'failed';
         Telemetry.ev('iap', { ph: reason === 'failed' ? 'fail' : reason, id: id, r: m.slice(0, 60) });
         return { ok: false, reason: reason };
       });

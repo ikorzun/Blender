@@ -18686,3 +18686,97 @@ The client provider (`webPayments()` as the third arm of `payApi()`, reusing `IA
 double-grant guard, the origin gate so a purchase made on github.io cannot land in a localStorage the
 grant will never see, and the redirect that beats the webhook — poll `/v1/mine`, do not read once);
 the price label's currency; and the support address / street questions of -g.
+
+## BATCH 2026-09-10-e: THE THIRD PAYMENT PROVIDER — THE GAME BUYS THROUGH OUR OWN SERVER ON OUR OWN DOMAIN (his «делай же скорее», after the live proof of -d: a real €1.99 paid, the webhook verified, one row written)
+
+### THE LIVE PROOF THAT CAME FIRST, AND WHAT IT SETTLED
+Before a line of client code: the owner deployed the worker, created the event destination in LIVE mode
+and paid €1.99 with his own card. Read back from Stripe and from D1: `payment_status: paid`,
+`automatic_tax.status: complete` with **amount_tax 37** (the VAT lives INSIDE the 1.99 — his own
+requirement, now a measurement), `metadata.gid`/`pid` intact, and **exactly one row in `ent`**, keyed by
+the Checkout Session, unclaimed. So the money path was proven end to end BEFORE anything was built on
+top of it — which is the only order that makes sense when the thing underneath handles money.
+⚠️ AND IT EXPOSED THE TWO SYMPTOMS HE THEN REPORTED, BOTH EXPECTED: the return to blendo.monster
+granted nothing (no client code read it) and the in-game button did nothing (no provider on our domain).
+This batch is exactly those two.
+⛔ **THE ENDPOINT IS LIVE-MODE, AND THAT WAS FOUND BY READING HIS ACCOUNT RATHER THAN BY ASKING**
+(`livemode: true` on `we_1UEAcx…`). It matters because the two modes have SEPARATE endpoint lists: a
+live endpoint plus a test key is a webhook that never fires and a purchase that silently never lands.
+He chose to go straight to live knowingly.
+
+### WHAT SHIPPED: A PROTOCOL MODULE, AND A SEAM THAT LEARNED A CAPABILITY
+`src/app/83-pay.js` (module 30) owns the PROTOCOL — the address, the signing, the four calls, the
+pending mark and the return from Stripe — exactly as `82-lb.js` owns the leaderboard's (the canon's zone
+rule: protocol code belongs to whoever owns the protocol). `78-ads.js` only wires it as the third
+provider. Two constants in 00-config: `PAY_URL` (where the worker answers) and `PAY_SITE` (where it
+returns the player).
+⚡ **`payApi()` IS NOW `native || bridge || web`, AND THE ORDER IS THE RULE:** in the wrapper Apple's
+rules leave no choice, in the portal the payment belongs to the portal, and the web provider is what our
+own domain falls back to. It refuses to exist anywhere else BY CONSTRUCTION — inside an iframe and off
+`PAY_SITE` — so on github.io and in the portal the button keeps saying «Coming soon», which is the truth.
+⛔⛔ **THE ORIGIN GATE IS NOT TIDINESS, IT IS THE HOLE IT CLOSES:** `success_url` is fixed on the server,
+so a purchase started on another origin returns to a DIFFERENT localStorage under a DIFFERENT `Save.gid`
+— the money is taken and the grant is written where nobody will ever look for it. The gate is stated in
+two files and the pay suite now asserts the two strings are the same.
+⚡ **THE SEAM ASKS A CAPABILITY, NOT AN IDENTITY.** `consumePurchase` takes the ORDER for two of the
+three providers (StoreKit's transaction, our Checkout Session) and the product id for the third.
+`consumesByOrder(api)` replaced `isNativeApi(api)` at that one branch; the store id stays native-only,
+because our server has never heard of `monster.blendo.bundle5`. Asking «who are you» there would mean
+editing that line for every future provider.
+⚠️ **THE BOOT PASS DOES NOT LIVE BEHIND THE SDK GATE, AND THAT IS THE 2026-08-28 LESSON APPLIED
+FORWARD:** our domain loads no bridge, so a pass placed inside `bridge.initialize().then()` would never
+run and every purchase made on blendo.monster would hang unclaimed — the exact shape that made
+`restorePurchases` unreachable in the wrapper for weeks.
+⚠️ **THE REDIRECT BEATS THE WEBHOOK, SO THE RETURN POLLS** (0/1/2/4/8 s) instead of reading once, and the
+pending mark is written BEFORE the navigation so a tab closed on Stripe's page finishes on the next
+launch. The mark survives a fruitless round on purpose: a delayed method (MB WAY) pays minutes later.
+⚠️ **`'redirect'` IS A NEW REFUSAL REASON AND IT IS SILENT.** The tab is leaving for Stripe's page:
+«Purchase failed» over an opening payment form would be a lie, and a promise that never settles would
+leave the button in a state nobody clears.
+⚠️ **THE REQUEST IS A «SIMPLE» ONE BY CORS RULES** — a text/plain body, no custom headers — or every
+call costs a preflight round trip. The worker's `.json()` does not look at the content type; the
+leaderboard is written to the same contract.
+⚠️ **ONE KEY, ONE DERIVATION:** the identity is `guestId()` and the key behind `lbSign` (`Save.lk`), and
+the pay worker keeps its own trust-on-first-use copy. The key goes out on the FIRST contact only — a
+secret on the wire is a secret on the wire — and again exactly once if the server answers `nokey`, which
+is the leaderboard's «door B»: retention deletes a row, the browser still believes it is registered, and
+every call would be refused for ever, silently.
+
+### THE GUARDS: 10 ARMS, 8 SABOTAGES — AND ONE ARM PROVES THE TWO SIDES AGREE WITHOUT A DEPLOY
+Nothing in the suite read this path before, so the feature AND its rollback would both have passed green.
+`⟦PAYWEB-SECTION⟧` runs the whole loop on its own page against a stubbed worker: the gate, the price, the
+purchase, the return, the poll, the claim, the ledger, a cancel and the `nokey` retry.
+⚡ **THE BEST ARM RECOMPUTES THE SIGNATURE IN NODE** from `Save.lk` and the exact string the worker
+expects (`gid.what.t`). That is the one place client and server can be proven to agree without deploying
+anything: a drift in the key or the format shows up here rather than as a 401 in production three weeks
+later. The `sig-format` sabotage (dropping `what` from the signed string) reddens it and nothing else.
+⚠️ **THE STUB LOGS INTO localStorage, NOT INTO A PAGE VARIABLE**, because the purchase NAVIGATES — that
+is the whole flow — and a page variable dies with the context. The checkout URL the stub answers with is
+the RETURN URL, so one navigation simulates the entire trip to Stripe and back.
+⛔ **AND IT MUST MATCH `/v1/mine` BEFORE DELEGATING:** the suite's own `lbNetStub` tests
+`indexOf('/v1/me')`, and `/v1/mine` CONTAINS that string — an unstubbed call would be answered
+`{"err":"none"}` 404 by the leaderboard's stub and the section would measure that instead.
+**THE SABOTAGES, each red on its own arm:** the origin gate always-on → the gate arm; the price
+hard-wired to a dollar sign → the price arm; the signed string without `what` → the one-key arm; the poll
+reduced to one ask → the grant arm (plus two downstream, an honest cascade: without the poll the purchase
+is simply lost); the ledger check removed → «never granted twice» (the budget doubles to 3600000 — the
+free-boost-for-ever defect); the `?paid` param left in the address bar → the cleanup arm (plus the cancel
+arm, the same property in two places); a cancel treated as a purchase → the cancel arm; the `nokey` retry
+removed → its own arm.
+⛔ **NOT COVERED, NAMED RATHER THAN IMPLIED:** the iframe branch of the gate — the harness has no iframe,
+so «the portal keeps its own wallet» rests on the one line that reads `window.top !== window.self`.
+
+### THREE TRAPS I WALKED INTO WHILE WRITING THE GUARD, ALL RECORDED HERE BEFORE
+1. ⛔ **`crypto` ALONE IS THE WEB GLOBAL IN NODE** and has no `createHmac` — the canon's own «a bare
+   identifier may resolve to a web global» (the `URL` trap of 2026-08-31-g), met on a lowercase one.
+2. ⛔⛔ **A BARE `waitForFunction` IS A RUN-KILLER, AND MY OWN SABOTAGE PROVED IT:** the no-poll variant
+   reported «4 green» and no failing arm, because the wait for the grant threw and killed the section —
+   i.e. the guard that should have gone red looked blind instead. Every wait in the section is caught now.
+3. ⛔ **AN ARM THAT INDEXES A MISSING ELEMENT THROWS INSTEAD OF REDDENING:** `rl[1].body` on a build with
+   no retry killed the section the same way. Defensive indexing, stated at the line.
+
+### WHAT IS STILL NOT DONE
+The in-game label still says «$1.99» wherever the catalogue has not answered yet (the fallback markup);
+the live path reads `€1.99` from `/v1/price` now, which is what closes the currency drift. And the one
+purchase already paid belongs to a made-up player (`probetest0910`) — the end-to-end test THROUGH THE
+BUTTON is one more real purchase, his call when he wants it.

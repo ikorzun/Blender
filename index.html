@@ -7504,6 +7504,19 @@ const LB_NOSEND = (function () {
 })();
 const LB_URL = 'https://lb.blendo.monster';
 
+// ===== THE PAYMENT SERVER (2026-09-10-e) =====
+// ⚠️⚠️ TWO CONSTANTS AND THE SECOND ONE IS A GATE, NOT AN ADDRESS. `PAY_SITE` is the origin the
+// worker sends the player BACK to after Stripe (`success_url`, its `SITE` var — the pay suite
+// asserts the two are the same string). A purchase started anywhere else returns to a DIFFERENT
+// origin, i.e. a different localStorage and a different `Save.gid`: the money is taken and the
+// grant lands where nobody will ever look for it. So the web provider is offered on this origin
+// only — everywhere else the button keeps saying «Coming soon», which is the truth.
+// ⛔ In the Playgama portal the payment belongs to the portal and in the app wrapper to StoreKit
+// (Apple's rule, not a preference): 83-pay refuses inside an iframe, and `payApi()` puts the
+// native provider first.
+const PAY_URL = 'https://pay.blendo.monster';
+const PAY_SITE = 'https://blendo.monster';
+
 // ===== 06-matcap-metal: the metal matcap for the mixer blades =====
 // The owner's asset "3d assets/matcap/metall.png" (512×512), inlined as base64:
 // the build must open offline as a SINGLE file, we have no external fetches.
@@ -17875,6 +17888,12 @@ const Ads = (function(){
     // exists. On the web nativePayments() is null, so this line does nothing and the bridge
     // path below keeps its own call: no double restore.
     if (nativePayments()) { try { restorePurchases(); } catch(e){} }
+    // ⚠️⚠️ THE WEB PROVIDER DOES NOT LIVE BEHIND THE SDK GATE EITHER, and it is here for the same
+    // reason the native line above is: our own domain loads no bridge, so a pass placed inside
+    // `bridge.initialize().then()` would never run and every purchase made on blendo.monster would
+    // hang unclaimed. This is also where a return from Stripe is handled — the redirect arrives
+    // before the webhook, so the pass polls rather than reads once (payWebBoot, 83-pay).
+    if (!nativePayments() && webPayments()) { try { payWebBoot(restorePurchases); } catch(e){} }
     // file:// (the offline prototype, headless tests) — we do not load the SDK, we live on the stub
     if (location.protocol !== 'http:' && location.protocol !== 'https:') {
       curtainDone('no sdk (file://)');   // there can be no curtain — we do not make anyone wait
@@ -18345,9 +18364,21 @@ const Ads = (function(){
               && window.bridge.payments.isPaymentsSupported) ? window.bridge.payments : null;
     } catch(e){ return null; }
   }
+  // ⚠️⚠️ THE THIRD PROVIDER — OUR OWN SERVER (2026-09-10-e), and it is LAST ON PURPOSE. In the
+  // wrapper Apple's rules leave no choice, in the portal the payment belongs to the portal; the web
+  // provider is what the game falls back to on our own domain, where neither of those exists. It
+  // refuses everywhere else by construction — inside an iframe and off `PAY_SITE` (83-pay), because
+  // Stripe returns the player to that origin and nowhere else.
+  function webPayments(){
+    try { return (typeof payWebApi === 'function') ? payWebApi() : null; } catch(e){ return null; }
+  }
   // The native provider wins when present: inside the wrapper Apple's rules leave no choice.
-  function payApi(){ return nativePayments() || bridgePayments(); }
+  function payApi(){ return nativePayments() || bridgePayments() || webPayments(); }
   const isNativeApi = (api) => !!api && api === nativePayments();
+  // ⚠️ A CAPABILITY, NOT AN IDENTITY: two of the three providers close a purchase by the ORDER it
+  // was paid in (StoreKit's transaction, our Checkout Session) and one by the product id. Asking
+  // «who are you» here would mean editing this line for every future provider.
+  const consumesByOrder = (api) => isNativeApi(api) || !!(api && api.byOrder);
 
   // ⚠️ THE STORE'S PRODUCT IDS ARE NOT OURS. StoreKit needs the full bundle-scoped id; the game
   // speaks its own short ones everywhere else (the ledger, the telemetry, the grant handles), so
@@ -18441,8 +18472,11 @@ const Ads = (function(){
         // ⛔ The Playgama bridge takes ONE argument. Do not «unify» these by passing the extra
         // one to the vendor SDK — an ignored argument today is a changed meaning tomorrow.
         const api = payApi();
-        const p = isNativeApi(api) ? api.consumePurchase(toNativeId(id) || id, orderId)
-                                   : api.consumePurchase(id);
+        // ⚠️ THE STORE'S ID IS THE NATIVE PROVIDER'S ALONE: our own server speaks the game's short
+        // ids everywhere, and handing it `monster.blendo.bundle5` would be a name it has never heard.
+        const storeId = isNativeApi(api) ? (toNativeId(id) || id) : id;
+        const p = consumesByOrder(api) ? api.consumePurchase(storeId, orderId)
+                                       : api.consumePurchase(id);
         if (p && p.catch) p.catch(()=>{ console.warn('[iap] the consume did not go through:', id); });
       } catch(e){}
     }
@@ -18480,7 +18514,11 @@ const Ads = (function(){
         //                 tell the player their purchase broke, when nothing was ever on sale.
         //   failed    — a real error: tell the player.
         const m = String((e && e.message) || e || '');
-        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable') ? m : 'failed';
+        //   redirect  — the web provider is handing the player to Stripe's own page and this tab is
+        //               leaving: there is no result to report, and «Purchase failed» over an opening
+        //               payment form would be a lie. The grant arrives on the way back (payWebBoot).
+        const reason = (m === 'cancelled' || m === 'pending' || m === 'unavailable' || m === 'redirect')
+          ? m : 'failed';
         Telemetry.ev('iap', { ph: reason === 'failed' ? 'fail' : reason, id: id, r: m.slice(0, 60) });
         return { ok: false, reason: reason };
       });
@@ -20756,6 +20794,208 @@ window.__lb = {
   // lost» would be checked against a returned word rather than against the fact.
   pending: function () { return { timer: !!lbTimer, again: lbAgain, sent: lbSentScore }; },
 };
+
+// ===== THE WEB PAYMENT PROTOCOL — the client of pay.blendo.monster (2026-09-10-e) =====
+// The third way to pay, beside the portal's wallet and the wrapper's StoreKit, and the only one
+// that works on our own domain. It owns the PROTOCOL only; the seam that turns it into a provider
+// lives in 78-ads beside the other two (the canon's zone rule: protocol code belongs to whoever
+// owns the protocol, and 82-lb owns the leaderboard's the same way).
+//
+// ⚠️⚠️ THE THREE FACTS THIS FILE IS BUILT ON, AND EACH IS A DEFECT IF IGNORED:
+//   1. A BROWSER NEVER SEES A PAYMENT. It sees a redirect it could type by hand. So nothing here
+//      grants anything: the server writes the entitlement when Stripe's signed webhook arrives,
+//      and this file only ASKS what is owed and marks it taken.
+//   2. THE REDIRECT BEATS THE WEBHOOK. Stripe returns the player to us at once and delivers the
+//      event a moment later — reading `/v1/mine` a single time on return would find nothing about
+//      half the time. Hence the poll below, and hence the pending mark, so a tab closed mid-flow
+//      finishes on the next launch instead of losing the purchase.
+//   3. THE IDENTITY IS THE LEADERBOARD'S OWN — `guestId()` and the key behind `lbSign` (Save.lk).
+//      ONE key, one derivation: a second copy would drift, and the drift would look like theft
+//      (the server would refuse a signature made with the other copy).
+// ⚠️ The key is trust-on-first-use on the server's side too, in its OWN table: two services must
+// not be able to lock each other out of a player. It is sent EXACTLY on the first contact — a
+// secret on the wire is a secret on the wire — and again only if the server says it forgot us.
+
+// ⚠️ THE OVERRIDE IS HONOURED ON A LOCAL HOST ONLY, and the reason is 82-lb's word for word: on a
+// real host a crafted `?pay=https://evil` would hand a stranger the player's id AND the key that
+// owns his purchases. `lbHostIsLocal` is the same pure function the leaderboard's send-gate is
+// proven on — file:, localhost, 127/8, .local, RFC1918.
+const PAY_BASE = (function () {
+  try {
+    const local = (typeof lbHostIsLocal === 'function') && lbHostIsLocal(location.protocol, location.hostname);
+    if (local) {
+      const q = new URLSearchParams(location.search).get('pay');
+      if (q) return q === '1' ? (typeof PAY_URL === 'string' ? PAY_URL : '') : q;
+    }
+  } catch (e) {}
+  return (typeof PAY_URL === 'string' && PAY_URL) ? PAY_URL : '';
+})();
+
+const PAY_TIMEOUT_MS = 8000;
+const PAY_PENDING_LS = 'mixer_pay_pending';   // a payment was started and not yet accounted for
+const PAY_REG_LS = 'mixer_pay_reg';           // the gid whose key this server already knows
+// The redirect beats the webhook, so the first answer is not the last word. Measured against
+// nothing yet — these are the delays Stripe's own guidance implies and they cost nothing while the
+// player is looking at the screen he came back to.
+const PAY_POLL_MS = [0, 1000, 2000, 4000, 8000];
+
+// ⛔ NOT MERELY «is there an address»: the ORIGIN decides, because `success_url` is fixed on the
+// server. See the note at PAY_SITE in 00-config.
+function payHostOk() {
+  try {
+    if (!PAY_BASE) return false;
+    if (window.top !== window.self) return false;      // the portal pays with its own wallet
+    if (location.origin === (typeof PAY_SITE === 'string' ? PAY_SITE : '')) return true;
+    const local = (typeof lbHostIsLocal === 'function') && lbHostIsLocal(location.protocol, location.hostname);
+    return !!(local && new URLSearchParams(location.search).get('pay'));
+  } catch (e) { return false; }
+}
+
+// ⚠️⚠️ A «SIMPLE» REQUEST BY CORS RULES: a text/plain body and NO custom headers, or the browser
+// spends a preflight round trip on every call. The worker parses the body with `.json()`, which
+// does not look at the content type — the same contract the leaderboard is written to.
+async function payFetch(path, body) {
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const timer = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, PAY_TIMEOUT_MS);
+  try {
+    const opts = { signal: ctl && ctl.signal };
+    if (body !== undefined) { opts.method = 'POST'; opts.body = JSON.stringify(body); }
+    const res = await fetch(PAY_BASE + path, opts);
+    const text = await res.text();
+    let json = null; try { json = JSON.parse(text); } catch (e) {}
+    return { status: res.status, json: json };
+  } catch (e) {
+    return { status: 0, json: null };
+  } finally { clearTimeout(timer); }
+}
+
+const payRegistered = (gid) => { try { return localStorage.getItem(PAY_REG_LS) === gid; } catch (e) { return false; } };
+const payMarkReg = (gid) => { try { localStorage.setItem(PAY_REG_LS, gid); } catch (e) {} };
+const payClearReg = () => { try { localStorage.removeItem(PAY_REG_LS); } catch (e) {} };
+
+// The signed string is always `gid.what.t` — the worker's own rule, and `what` carries the
+// endpoint's own payload so a signature for one call can never be replayed on another.
+async function paySigned(what, extra) {
+  const gid = (typeof guestId === 'function') ? guestId() : '';
+  const t = Math.floor(Date.now() / 1000);
+  const sig = (typeof lbSign === 'function') ? await lbSign(gid + '.' + what + '.' + t) : '';
+  const b = Object.assign({ id: gid, t: t, sig: sig }, extra || {});
+  // ⚠️ THE KEY GOES OUT ONLY WHEN THE SERVER CANNOT KNOW IT YET. `payCall` sends it a second time
+  // if the server answers `nokey` — that is the leaderboard's «door B»: retention deletes a row,
+  // the browser still believes it is registered, and every call would be refused for ever.
+  if (!payRegistered(gid) && typeof lbKey === 'function') b.k = lbKey();
+  return b;
+}
+
+async function payCall(path, what, extra) {
+  if (!payHostOk()) return null;
+  const gid = (typeof guestId === 'function') ? guestId() : '';
+  let r = await payFetch(path, await paySigned(what, extra));
+  if (r.json && r.json.err === 'nokey') {           // the server forgot us — offer the key once
+    payClearReg();
+    r = await payFetch(path, await paySigned(what, extra));
+  }
+  if (r.json && r.json.ok === 1) payMarkReg(gid);
+  return r.json;
+}
+
+// ===== THE FOUR CALLS =====
+function payPrice() { return payFetch('/v1/price').then((r) => (r.json && r.json.ok === 1) ? r.json : null); }
+function payMine() { return payCall('/v1/mine', 'mine'); }
+function payClaim(sids) {
+  const list = (sids || []).filter((s) => typeof s === 'string' && s);
+  if (!list.length) return Promise.resolve(null);
+  // ⚠️ THE SIGNED STRING CARRIES THE SESSIONS THEMSELVES, SORTED: the order of a JSON array is not
+  // a contract, and a signature for one claim must not be replayable to close another row.
+  return payCall('/v1/claim', 'claim.' + list.slice().sort().join(','), { sids: list });
+}
+function payCheckout() { return payCall('/v1/checkout', 'checkout.bundle5'); }
+
+// ===== THE RETURN FROM STRIPE =====
+const payPending = () => { try { return localStorage.getItem(PAY_PENDING_LS) || ''; } catch (e) { return ''; } };
+const payMarkPending = (sid) => { try { localStorage.setItem(PAY_PENDING_LS, sid || '1'); } catch (e) {} };
+const payClearPending = () => { try { localStorage.removeItem(PAY_PENDING_LS); } catch (e) {} };
+
+// ⚠️ THE PARAMETER IS STRIPPED THE MOMENT IT IS READ (`replaceState` touches no history entry and
+// no layout): otherwise a reload would replay the return, and the address bar would carry a
+// session id the player has no business seeing.
+function payReturnParam() {
+  try {
+    const u = new URL(location.href);
+    const v = u.searchParams.get('paid');
+    if (v === null) return '';
+    u.searchParams.delete('paid');
+    history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || ''));
+    return v;
+  } catch (e) { return ''; }
+}
+
+// The one entry point the seam calls at startup. `restore` is 78-ads's own restorePurchases — the
+// grant, the ledger and the claim all live there; this only decides HOW MANY TIMES to ask.
+function payWebBoot(restore) {
+  if (!payHostOk() || typeof restore !== 'function') return Promise.resolve({ ok: false });
+  const back = payReturnParam();
+  const pending = payPending();
+  // ⛔ A CANCEL IS NOT A PURCHASE: the player pressed «back» on Stripe's page. Clearing the mark is
+  // the whole handling — polling for a payment that was never made would just cost five requests.
+  if (back === 'cancel') { payClearPending(); return Promise.resolve({ ok: true, cancelled: true }); }
+  if (!back && !pending) return Promise.resolve(restore()).then(() => ({ ok: true, single: true }));
+  // We are back from a payment (or the tab died mid-flow): the webhook may still be in the air.
+  let i = 0;
+  return new Promise((done) => {
+    const step = () => {
+      Promise.resolve(restore()).then((r) => {
+        if (r && r.restored > 0) { payClearPending(); done({ ok: true, restored: r.restored, tries: i }); return; }
+        if (++i >= PAY_POLL_MS.length) {
+          // ⚠️ THE MARK SURVIVES A FRUITLESS ROUND, AND THAT IS DELIBERATE: a delayed method (MB
+          // WAY, a bank debit) pays MINUTES later, so the next launch must ask again. It is cleared
+          // only by a grant or by a cancel.
+          done({ ok: true, restored: 0, tries: i }); return;
+        }
+        setTimeout(step, PAY_POLL_MS[i]);
+      });
+    };
+    setTimeout(step, PAY_POLL_MS[0]);
+  });
+}
+
+// ===== THE PROVIDER — the shape 78-ads's seam already speaks =====
+// ⚠️ `byOrder` is a CAPABILITY, not an identity check: this provider closes a purchase by the
+// SESSION it was paid in, exactly as StoreKit closes by its transaction id, while the Playgama
+// bridge closes by the product id. The seam asks the capability instead of asking who we are.
+const PAY_WEB_API = {
+  kind: 'web',
+  byOrder: true,
+  getCatalog() {
+    return payPrice().then((p) => {
+      if (!p) return [];
+      const cur = String(p.currency || '').toUpperCase();
+      const v = Math.floor(Number(p.cents) || 0) / 100;
+      const sign = cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '';
+      return [{ id: 'bundle5', price: sign ? sign + v.toFixed(2) : v.toFixed(2) + ' ' + cur,
+                priceValue: v, priceCurrencyCode: cur }];
+    }).catch(() => []);
+  },
+  getPurchases() {
+    return payMine().then((r) => ((r && r.items) || []).map((it) => ({ id: it.pid, orderId: it.sid })));
+  },
+  consumePurchase(id, orderId) { return payClaim([orderId]); },
+  purchase(id) {
+    if (id !== 'bundle5') return Promise.reject(new Error('unavailable'));
+    return payCheckout().then((r) => {
+      if (!r || !r.url) throw new Error('failed');
+      // ⚠️⚠️ THE MARK IS WRITTEN BEFORE THE NAVIGATION, or a tab closed on Stripe's page leaves
+      // nothing behind to say a payment was ever started.
+      payMarkPending(r.sid);
+      location.href = r.url;
+      // ⚠️ THE PAGE IS LEAVING, SO THERE IS NO RESULT TO REPORT. 'redirect' is a reason the caller
+      // keeps silent about — «Purchase failed» over a page that is opening the payment form would
+      // be a lie, and a promise that never settles would leave the button in a state nobody clears.
+      throw new Error('redirect');
+    });
+  },
+};
+function payWebApi() { return payHostOk() ? PAY_WEB_API : null; }
 
 // ===== 85-hud: DOM helpers and interface updates =====
 
@@ -25430,8 +25670,11 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           // invites a second tap, and a second tap sends a SECOND approval request to the
           // parent for the same product. One honest line prevents that.
           const r = res && res.reason;
+          // ⚠️ 'redirect' IS SILENT LIKE A CANCEL, AND FOR A STRONGER REASON: the web provider has
+          // just pointed this tab at Stripe's payment page, so any message would flash over a page
+          // that is leaving — and would tell the player his purchase broke while it is opening.
           if (r === 'pending') toast('Waiting for approval');
-          else if (r !== 'cancelled')
+          else if (r !== 'cancelled' && r !== 'redirect')
             toast(r === 'unsupported' || r === 'unavailable' ? 'Coming soon' : 'Purchase failed');
           return;
         }

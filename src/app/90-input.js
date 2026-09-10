@@ -737,8 +737,11 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
           // invites a second tap, and a second tap sends a SECOND approval request to the
           // parent for the same product. One honest line prevents that.
           const r = res && res.reason;
+          // ⚠️ 'redirect' IS SILENT LIKE A CANCEL, AND FOR A STRONGER REASON: the web provider has
+          // just pointed this tab at Stripe's payment page, so any message would flash over a page
+          // that is leaving — and would tell the player his purchase broke while it is opening.
           if (r === 'pending') toast('Waiting for approval');
-          else if (r !== 'cancelled')
+          else if (r !== 'cancelled' && r !== 'redirect')
             toast(r === 'unsupported' || r === 'unavailable' ? 'Coming soon' : 'Purchase failed');
           return;
         }

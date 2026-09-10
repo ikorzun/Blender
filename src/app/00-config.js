@@ -1935,3 +1935,16 @@ const LB_NOSEND = (function () {
   } catch (e) { return true; }
 })();
 const LB_URL = 'https://lb.blendo.monster';
+
+// ===== THE PAYMENT SERVER (2026-09-10-e) =====
+// ⚠️⚠️ TWO CONSTANTS AND THE SECOND ONE IS A GATE, NOT AN ADDRESS. `PAY_SITE` is the origin the
+// worker sends the player BACK to after Stripe (`success_url`, its `SITE` var — the pay suite
+// asserts the two are the same string). A purchase started anywhere else returns to a DIFFERENT
+// origin, i.e. a different localStorage and a different `Save.gid`: the money is taken and the
+// grant lands where nobody will ever look for it. So the web provider is offered on this origin
+// only — everywhere else the button keeps saying «Coming soon», which is the truth.
+// ⛔ In the Playgama portal the payment belongs to the portal and in the app wrapper to StoreKit
+// (Apple's rule, not a preference): 83-pay refuses inside an iframe, and `payApi()` puts the
+// native provider first.
+const PAY_URL = 'https://pay.blendo.monster';
+const PAY_SITE = 'https://blendo.monster';

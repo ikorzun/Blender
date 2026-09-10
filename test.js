@@ -19768,6 +19768,205 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦RIVAL-SECTION-END⟧
 
+  // ⟦PAYWEB-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=PAYWEB runs this block alone; keep the markers)
+  // ===== THE WEB PAYMENT PROVIDER (2026-09-10-e) =====
+  // ⚠️⚠️ NOTHING IN THE SUITE READ THIS PATH BEFORE, so the feature AND its rollback would both have
+  // passed green. The arms are written against the three ways a payment goes missing on the web:
+  //   1. THE ORIGIN. Stripe returns the player to `PAY_SITE` and nowhere else, so a purchase started
+  //      on another origin comes back to a different localStorage and a different `Save.gid` — money
+  //      taken, grant unreachable. The provider must refuse to exist off that origin.
+  //   2. THE RACE. The redirect beats the webhook: reading `/v1/mine` once on return finds nothing
+  //      about half the time. The pass must POLL, and the pending mark must survive a closed tab.
+  //   3. THE SECOND GRANT. A claim that did not reach the server leaves the row in the list, and the
+  //      next launch would grant the bundle again — free, for ever. The ledger is what stops it.
+  // ⚠️ The stub logs into localStorage rather than a page variable ON PURPOSE: the purchase NAVIGATES
+  // (that is the whole flow), and a page variable dies with the context.
+  // ⛔ IT MUST MATCH `/v1/mine` BEFORE DELEGATING: the suite's own `lbNetStub` tests `indexOf('/v1/me')`,
+  // and `/v1/mine` contains that string — an unstubbed call would be answered `{"err":"none"}` 404 by
+  // the leaderboard's stub and this section would measure that instead of the payment path.
+  {
+    // ⛔ `crypto` ALONE IS THE WEB GLOBAL IN NODE, and it has no `createHmac` — the canon's own
+    // «a bare capitalised identifier may resolve to a web global» (the URL trap of 2026-08-31-g),
+    // met on a lowercase one. A local require, like the neighbouring blocks do.
+    const nodeCrypto = require('crypto');
+    const payStub = () => {
+      const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
+      const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        const s = String(u);
+        if (s.indexOf('pay.blendo.monster') < 0) return of.apply(this, arguments);
+        let body = null; try { body = JSON.parse((o && o.body) || 'null'); } catch (e) {}
+        const log = rd('__payLog', []); log.push({ url: s, body: body }); wr('__payLog', log);
+        const S = rd('__payState', {});
+        const j = (obj, code) => Promise.resolve(new Response(JSON.stringify(obj), { status: code || 200 }));
+        if (s.indexOf('/v1/price') >= 0) return j({ ok: 1, cents: 199, currency: 'eur', name: 'Blendo x5 Boost' });
+        if (s.indexOf('/v1/checkout') >= 0) return j({ ok: 1, url: S.checkoutUrl || 'about:blank', sid: S.sid || 'cs_test_1' });
+        if (s.indexOf('/v1/mine') >= 0) {
+          // the server refuses when it has no row and no key was offered — the client must retry with k
+          if (S.nokey && !(body && body.k)) return j({ err: 'nokey' }, 400);
+          S.mineCalls = (S.mineCalls || 0) + 1; wr('__payState', S);
+          const late = (S.mineDelay || 0) >= S.mineCalls;   // the webhook has not landed yet
+          return j({ ok: 1, items: late ? [] : (S.items || []) });
+        }
+        if (s.indexOf('/v1/claim') >= 0) {
+          const sids = (body && body.sids) || [];
+          S.claimed = (S.claimed || []).concat(sids);
+          S.items = (S.items || []).filter((it) => sids.indexOf(it.sid) < 0);
+          wr('__payState', S);
+          return j({ ok: 1, claimed: sids.length });
+        }
+        return j({ err: 'route' }, 404);
+      };
+    };
+    const PAY_URL_Q = 'file://' + PAGE_FILE + '?pay=1&dev=1';
+    const payState = (pg, o) => pg.evaluate((x) => localStorage.setItem('__payState', JSON.stringify(x)), o);
+    const payRead = (pg, k) => pg.evaluate((kk) => { try { return JSON.parse(localStorage.getItem(kk) || 'null'); } catch (e) { return null; } }, k);
+    const payErr = [];
+
+    // --- 1. THE GATE: off the return origin there is no provider, and the button keeps saying «soon»
+    const gp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    await gp.addInitScript(payStub);
+    await gp.goto('file://' + PAGE_FILE);
+    await gp.waitForFunction(() => !!(window.__game && window.__ads));
+    const gateOff = await gp.evaluate(() => ({ on: window.__ads.paymentsOn }));
+    await gp.close();
+
+    const pp = await browser.newPage({ viewport: { width: 390, height: 780 } });
+    pp.on('pageerror', e => payErr.push('PAGEERROR: ' + e.message));
+    await pp.addInitScript(payStub);
+    await pp.goto(PAY_URL_Q);
+    await pp.waitForFunction(() => !!(window.__game && window.__ads));
+    const gateOn = await pp.evaluate(() => ({ on: window.__ads.paymentsOn }));
+    expect(gateOff.on === false && gateOn.on === true,
+      'THE ORIGIN GATE: no provider where Stripe cannot return the player (' + gateOff.on
+      + '), a provider where it can (' + gateOn.on + ')');
+
+    // --- 2. THE PRICE COMES FROM THE SERVER, so the label cannot say dollars while the card charges euros
+    const price = await pp.evaluate(async () => {
+      await window.__ads.catalog();
+      return { p: window.__ads.priceOf('bundle5') };
+    });
+    expect(price.p === '€1.99',
+      'THE LABEL READS THE CURRENCY FROM THE SERVER: ' + price.p + ' (the markup no longer decides)');
+
+    // --- 3. THE FIRST CONTACT CARRIES THE KEY, AND IT IS THE LEADERBOARD'S OWN
+    // ⚠️ The signature is RECOMPUTED HERE from `Save.lk` and the exact string the server expects
+    // (`gid.what.t`). This is the one place client and server can be proven to agree without a
+    // deploy: a drift in either the key or the format shows up as a mismatch, not as a 401 in
+    // production three weeks later.
+    // ⛔ EVERY WAIT IN THIS SECTION IS CAUGHT. A bare `waitForFunction` on a build that never
+    // grants THROWS, and a throw kills the section without a verdict — which reads as «the guard is
+    // blind» when the guard is exactly what should have gone red.
+    try {
+      await pp.waitForFunction(() => {
+        try { return (JSON.parse(localStorage.getItem('__payLog') || '[]')).some(r => r.url.indexOf('/v1/mine') >= 0); }
+        catch (e) { return false; }
+      }, null, { timeout: 15000 });
+    } catch (e) {}
+    const boot = await payRead(pp, '__payLog');
+    const mine0 = boot.find(r => r.url.indexOf('/v1/mine') >= 0);
+    const lk = await pp.evaluate(() => window.__game.saveRaw().lk);
+    const gid = await pp.evaluate(() => window.__game.saveRaw().gid);
+    const want = nodeCrypto.createHmac('sha256', Buffer.from(lk, 'hex'))
+      .update(gid + '.mine.' + (mine0 && mine0.body && mine0.body.t)).digest('hex');
+    expect(!!mine0 && mine0.body.id === gid && mine0.body.k === lk && mine0.body.sig === want,
+      'ONE KEY, ONE FORMAT: the first call carries the key (' + (!!mine0 && mine0.body.k === lk)
+      + ') and its signature verifies against Save.lk (' + (!!mine0 && mine0.body.sig === want) + ')');
+
+    // --- 4. THE PURCHASE: the price is not named by us, the mark is written, the tab leaves
+    await payState(pp, { checkoutUrl: PAY_URL_Q + '&paid=cs_pay_1', sid: 'cs_pay_1',
+                         mineDelay: 1,               // the webhook lands only on the SECOND ask
+                         items: [{ sid: 'cs_pay_1', pid: 'bundle5', amt: 199, cur: 'eur', c: 1 }] });
+    await pp.evaluate(() => { localStorage.setItem('__payLog', '[]'); });
+    const before = await pp.evaluate(() => ({ mult: window.__game.scoreBoostMult(),
+                                              hints: window.__game.wallet().hints,
+                                              pe: window.__game.boostRaw().pe }));
+    try {
+      await Promise.all([
+        pp.waitForNavigation({ timeout: 20000 }),
+        pp.evaluate(() => { window.__ads.purchase('bundle5'); }),
+      ]);
+      await pp.waitForFunction(() => !!(window.__game && window.__ads), null, { timeout: 20000 });
+    } catch (e) {}
+    const buyLog = await payRead(pp, '__payLog');
+    const co = buyLog.find(r => r.url.indexOf('/v1/checkout') >= 0);
+    expect(!!co && co.body.id === gid && /^[0-9a-f]{64}$/.test(String(co.body.sig))
+      && co.body.cents === undefined && co.body.amount === undefined,
+      'THE REQUEST NAMES THE PRODUCT, NEVER THE PRICE: ' + JSON.stringify(co && Object.keys(co.body || {})));
+
+    // --- 5. THE RETURN: it polls past the empty first answer, grants exactly once, claims, and cleans up
+    try { await pp.waitForFunction(() => window.__game.scoreBoostMult() === 5, null, { timeout: 20000 }); } catch (e) {}
+    const after = await pp.evaluate(() => ({ mult: window.__game.scoreBoostMult(),
+                                             hints: window.__game.wallet().hints,
+                                             pe: window.__game.boostRaw().pe,
+                                             bb: (window.__game.boostRaw().bb || {})['5'],
+                                             search: location.search,
+                                             pend: localStorage.getItem('mixer_pay_pending') }));
+    const st = await payRead(pp, '__payState');
+    const mineCalls = (await payRead(pp, '__payLog')).filter(r => r.url.indexOf('/v1/mine') >= 0).length;
+    expect(after.mult === 5 && after.bb === 30 * 60 * 1000 && after.hints === before.hints + 13
+      && after.pe === before.pe + 9 && mineCalls >= 2,
+      'THE GRANT ARRIVES AFTER THE REDIRECT, AND IT POLLS: x' + after.mult + ', +'
+      + (after.hints - before.hints) + ' tips, +' + (after.pe - before.pe) + ' shakes, '
+      + mineCalls + ' asks (the first one answered empty)');
+    expect((st.claimed || []).join(',') === 'cs_pay_1' && after.pend === null
+      && after.search.indexOf('paid=') < 0,
+      'TAKEN, MARKED AND CLEANED UP: claimed [' + (st.claimed || []).join(',') + '], the pending mark '
+      + after.pend + ', the address bar ' + after.search);
+
+    // --- 6. A CLAIM THAT NEVER REACHED THE SERVER MUST NOT GRANT A SECOND TIME
+    // ⚠️ This is the free-boost-for-ever case, and the ledger is the only thing standing in its way.
+    await pp.evaluate(() => {
+      const S = JSON.parse(localStorage.getItem('__payState') || '{}');
+      S.items = [{ sid: 'cs_pay_1', pid: 'bundle5', amt: 199, cur: 'eur', c: 1 }];
+      S.mineDelay = 0; localStorage.setItem('__payState', JSON.stringify(S));
+    });
+    const again = await pp.evaluate(async () => {
+      const r = await window.__ads.restorePurchases();
+      return { r: r, mult: window.__game.scoreBoostMult(), bb: (window.__game.boostRaw().bb || {})['5'] };
+    });
+    expect(again.r && again.r.restored === 0 && again.r.skipped === 1 && again.bb === 30 * 60 * 1000,
+      'THE SAME PURCHASE IS NEVER GRANTED TWICE: restored ' + (again.r && again.r.restored)
+      + ', skipped ' + (again.r && again.r.skipped) + ', the budget still ' + again.bb);
+
+    // --- 7. A CANCEL IS NOT A PURCHASE
+    await pp.evaluate(() => {
+      localStorage.setItem('mixer_pay_pending', 'cs_pay_2');
+      localStorage.setItem('__payState', JSON.stringify({ items: [] }));
+      localStorage.setItem('__payLog', '[]');
+    });
+    await pp.goto(PAY_URL_Q + '&paid=cancel');
+    try { await pp.waitForFunction(() => !!(window.__game && window.__ads), null, { timeout: 20000 }); } catch (e) {}
+    const canc = await pp.evaluate(() => ({ pend: localStorage.getItem('mixer_pay_pending'),
+                                            search: location.search }));
+    const cancAsks = (await payRead(pp, '__payLog')).filter(r => r.url.indexOf('/v1/mine') >= 0).length;
+    expect(canc.pend === null && canc.search.indexOf('paid=') < 0 && cancAsks === 0,
+      'A CANCEL CLEARS THE MARK AND ASKS NOTHING: mark ' + canc.pend + ', asks ' + cancAsks);
+
+    // --- 8. THE SERVER FORGOT THE KEY: one retry WITH it, instead of a refusal for ever
+    // ⚠️ Retention deletes a row after 180 days; without this the browser would go on believing it
+    // is registered and every call would be refused, silently, for the rest of that save's life.
+    await pp.evaluate(() => {
+      localStorage.setItem('__payState', JSON.stringify({ nokey: true, items: [] }));
+      localStorage.setItem('__payLog', '[]');
+    });
+    const retry = await pp.evaluate(() => window.__ads.restorePurchases());
+    const rl = (await payRead(pp, '__payLog')).filter(r => r.url.indexOf('/v1/mine') >= 0);
+    // ⚠️ INDEXED DEFENSIVELY: on a build WITHOUT the retry there is only one ask, and `rl[1].body`
+    // would throw — an arm that throws kills the section instead of going red, which is the very
+    // thing this arm exists to catch.
+    const kOf = (i) => !!(rl[i] && rl[i].body && rl[i].body.k);
+    expect(rl.length === 2 && !kOf(0) && kOf(1) && retry && retry.ok === true,
+      'A FORGOTTEN KEY IS OFFERED AGAIN, ONCE: ' + rl.length + ' asks, the first without the key ('
+      + !kOf(0) + '), the second with it (' + kOf(1) + ')');
+
+    expect(payErr.length === 0, 'THE PAYMENT PAGE RAISED NO ERRORS (' + payErr.join(' | ') + ')');
+    await pp.close();
+  }
+  // ⟦PAYWEB-SECTION-END⟧
+
+
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.
   // The filters are the same (the synthetic crash of the suite and the newbie noise), so that the gate does not
   // start going red on what the two previous ones deliberately let through.

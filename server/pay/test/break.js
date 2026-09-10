@@ -146,6 +146,15 @@ const SABOTAGE = [
     repl: "{ id: 'bundle5', usd: 2.99,",
     expect: 'ONE PRICE, ONE PRODUCT' },
 
+  { name: 'the worker returns the player to an origin the client does not serve', file: 'toml',
+    find: 'SITE = "https://blendo.monster"',
+    repl: 'SITE = "https://www.blendo.monster"',
+    expect: 'ONE RETURN ORIGIN' },
+  { name: 'the client calls an address the worker does not answer on', file: 'cfg',
+    find: "const PAY_URL = 'https://pay.blendo.monster';",
+    repl: "const PAY_URL = 'https://pay2.blendo.monster';",
+    expect: 'ONE RETURN ORIGIN' },
+
   { name: 'SELF-CHECK: editing a comment does not change behaviour',
     find: '// ===== 2. THE WEBHOOK =====',
     repl: '// ===== 2. THE WEBHOOK (self-check marker) =====',
