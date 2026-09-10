@@ -5590,6 +5590,18 @@ window.bridge = {
         ink: bb ? [+bb.width.toFixed(2), +bb.height.toFixed(2)] : null,
         fill: visEl.length === 1 ? getComputedStyle(visEl[0].querySelector('path')).fill : null,
         bg: getComputedStyle(cb).backgroundColor };
+      // ⚠️ THE THREE LEGAL LINKS (his word 2026-09-10-g). The BOX is read, not the declaration: «one
+      // line» is three rects at one top, «at the very bottom» is the gap to `innerHeight`, and the
+      // addresses must be ABSOLUTE — a relative one is a 404 on github.io, inside the portal's iframe
+      // and in the app wrapper, i.e. exactly where most of the players are.
+      const lg = document.querySelector('.st-legal');
+      if (lg){ const lr = lg.getBoundingClientRect(), ls = getComputedStyle(lg);
+        const as = [...lg.querySelectorAll('a')].map(a => ({ text: a.textContent.trim(),
+          top: +a.getBoundingClientRect().top.toFixed(1), href: a.getAttribute('href'),
+          target: a.getAttribute('target'), rel: a.getAttribute('rel') }));
+        out.legal = { n: as.length, as, font: ls.fontSize, color: ls.color, position: ls.position,
+          bottomGap: +(innerHeight - lr.bottom).toFixed(1), lines: new Set(as.map(a => a.top)).size }; }
+      else out.legal = null;
       document.getElementById('starsClose').click(); await sleep(250);
       return out;
     });
@@ -5635,6 +5647,21 @@ window.bridge = {
          Math.abs(phoneRow.d1280.gap - 20) <= 0.5 && phoneRow.d1280.sameRow,
     'DESKTOP ROW 1280: the labels are back, the pill keeps its 20 on the right (2026-09-04), the gap is 20 (' +
     JSON.stringify({ labs: phoneRow.d1280.labs, chips: phoneRow.d1280.chips, gap: phoneRow.d1280.gap }) + ')');
+  // ⚡ THE THREE LEGAL LINKS ON THE PURCHASE SCREEN (his word 2026-09-10-g: «ссылки на экран покупки
+  // 10 px шрифтом в самый низ, серый цвет, в одну строку все 3 ссылки»). Nothing read them before, so
+  // both the links and their removal would have passed green. ⚠️ THE ADDRESSES ARE THE LOAD-BEARING
+  // HALF: a relative `/terms.html` works only on the domain, and the same build runs from github.io,
+  // from the portal's iframe and from the wrapper — the sabotage is a relative href, and it reddens
+  // exactly here while every geometry arm stays green.
+  for (const [name, m] of [['375×667', phoneRow.p375], ['320×568', phoneRow.p320], ['1280', phoneRow.d1280]]){
+    const L = m.legal;
+    expect(!!L && L.n === 3 && L.lines === 1 && L.font === '10px' && L.bottomGap >= 0 && L.bottomGap <= 16 &&
+           L.as.every(a => /^https:\/\/blendo\.monster\//.test(a.href) && a.target === '_blank' &&
+                           (a.rel || '').indexOf('noopener') >= 0) &&
+           L.as.map(a => a.text).join(' ') === 'Terms Refund Privacy',
+      'THE PURCHASE SCREEN ' + name + ': three grey links in ONE line at the very bottom, absolute and ' +
+      'opening in a new tab (' + JSON.stringify(L) + ')');
+  }
   // THE CLOSE BUTTON (the owner's word 2026-09-07-b, with the cross selected): on the phone it stands
   // on the LEFT, as on the desktop. ⛔ THE BACK ARROW OF -b LIVED ONE BATCH — his word of -f, on the
   // device: «change to the cross icon» — so the glyph is ONE cross on every size (the ink is square,
@@ -5666,6 +5693,21 @@ window.bridge = {
            Math.abs(c.l - 16) <= 0.5 && Math.abs(c.t - 16) <= 0.5 && !!c.ink && c.ink[0] > 14 && c.ink[0] < 16.5 && Math.abs(c.ink[0] - c.ink[1]) < 0.3,
       'CLOSE 1280: the desktop keeps the CROSS, fixed at the screen\'s top-left (16,16) (' +
       JSON.stringify({ vis: c.vis, vb: c.visVB, l: c.l, t: c.t, position: c.position, ink: c.ink }) + ')');
+  }
+  // ⚠️ AND THE PAGES THE LINKS POINT AT MUST BE PACKED ONTO THE DOMAIN. `site/` is assembled by an
+  // EXPLICIT list, so a page that exists in the repository and is missing from `tools/site-pack.py`
+  // is a 404 at the end of a link the purchase screen shows — the same shape as the PWA icons, which
+  // this file already pays a guard for. Node-side: the file on disk AND the packer's own list.
+  {
+    const packer = fs.readFileSync(path.join(path.dirname(PAGE_FILE), 'tools', 'site-pack.py'), 'utf8');
+    const missing = [], unpacked = [];
+    for (const f of ['terms.html', 'refund.html', 'privacy.html']){
+      if (!fs.existsSync(path.join(path.dirname(PAGE_FILE), f))) missing.push(f);
+      if (packer.indexOf("'" + f + "'") < 0) unpacked.push(f);
+    }
+    expect(missing.length === 0 && unpacked.length === 0,
+      'THE PURCHASE SCREEN: the three pages exist and the packer puts them on the domain (missing ' +
+      JSON.stringify(missing) + ', not packed ' + JSON.stringify(unpacked) + ')');
   }
   // ⟦STCLOSE-SECTION-END⟧
   // THE TITLE «×5 score» (937:1514 / 938:1687): a 13px gradient outline through the shared paint

@@ -11,7 +11,11 @@ import os, re, shutil, sys, hashlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'site')
 FILES = ['index.html', 'playgama-bridge.js', 'playgama-bridge-config.json', 'music.mp3', 'og.jpg',
-         'manifest.webmanifest', 'sw.js']   # og.jpg: the share card (2026-09-09-f), the html's og:image points at it on the domain
+         'manifest.webmanifest', 'sw.js',
+         # ⚠️ THE THREE LEGAL PAGES (2026-09-10-g): the purchase screen links to them by ABSOLUTE address
+         # on this domain, and Stripe reviews an account that sells without them. Miss one here and the
+         # link in the game is a 404 — the packer's list is the only thing that puts them on the domain.
+         'terms.html', 'refund.html', 'privacy.html']   # og.jpg: the share card (2026-09-09-f), the html's og:image points at it on the domain
 # ⚠️ manifest.webmanifest + sw.js + icons/ (2026-09-09-h): a browser offers an install only when it can
 # fetch all three from the SAME origin as the page. Miss one here and the site is installable on GitHub
 # Pages (which serves the repository) and not on his own domain — the one place he shows people.

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Blendo — Privacy</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index, follow">
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #f6f9fc; color: #1d1c26;
+         font: 16px/1.55 ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 32px 20px 64px; }
+  a { color: #2b6cb0; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 28px 0 6px; }
+  p, li { margin: 8px 0; }
+  ul { padding-left: 20px; }
+  .top { font-size: 13px; color: #6b7280; margin: 0 0 24px; }
+  .top a { color: #6b7280; }
+  footer { margin-top: 40px; font-size: 12px; color: #6b7280; }
+  footer a { color: #6b7280; }
+</style>
+</head>
+<body>
+<main>
+<p class="top"><a href="/">← Blendo</a></p>
+<h1>Privacy</h1>
+<p class="top">Last updated: 10 September 2026</p>
+
+<h2>The short version</h2>
+<p>Blendo asks for nothing about you. No account, no name, no e-mail, no advertising trackers, no
+analytics, and <strong>no cookies at all</strong>. On the first launch your browser makes up a random
+player identifier and an animal nickname, and that is the whole of your identity here.</p>
+
+<h2>What stays in your browser</h2>
+<p>In the browser's own storage on your device: your level and progress, your collection, your balance,
+your purchases, the sound and music settings, and the random player identifier. It never leaves the device
+except in the two cases below. Clearing the site data erases it.</p>
+
+<h2>What reaches our server</h2>
+<p><strong>The leaderboard.</strong> To place you in the table we store: the random identifier, the animal
+nickname, the number of the avatar picture, your score, the time of the last update and a signing key your
+device generated so that nobody else can write to your row. That is the whole record. We do not store IP
+addresses and we do not log requests with them.</p>
+<p><strong>The purchase.</strong> If you buy the boost, we store the payment identifier from Stripe together
+with the same random player identifier, so that the purchase can be restored on that device. No card data
+reaches us: the payment page belongs to Stripe.</p>
+<p>Both live on Cloudflare's infrastructure in the EU. Stripe is the payment processor
+(<a href="https://stripe.com/privacy" target="_blank" rel="noopener">their privacy policy</a>).</p>
+
+<h2>Music, video and the offline copy</h2>
+<p>The game may load its intro video from our own domain and installs a service worker so it can open
+without a network. Both are files; neither reports anything about you.</p>
+
+<h2>Other places the game runs</h2>
+<p>In the Playgama portal and in the mobile application the game is embedded by that platform, and the
+platform collects what its own policy says it collects. This page covers <strong>blendo.monster</strong>.</p>
+
+<h2>Removing your data</h2>
+<p>Write to <a href="mailto:ikorzyn@gmail.com">ikorzyn@gmail.com</a> with your animal nickname and we will
+delete your leaderboard row. Everything else lives on your device — clearing the site data removes it. If
+you had a purchase, tell us and we will delete its record too; the payment itself stays in Stripe's books
+for as long as accounting law requires.</p>
+
+<h2>Children</h2>
+<p>The game is suitable for any age and collects no personal data, so there is nothing to consent to.</p>
+
+<footer>
+<a href="/terms.html">Terms</a> · <a href="/refund.html">Refund</a> · <a href="/privacy.html">Privacy</a>
+</footer>
+</main>
+</body>
+</html>

@@ -24,7 +24,10 @@ if os.path.isfile(os.path.join(ROOT, 'music.mp3')): os.symlink(os.path.join(ROOT
 # with `--card-only`. Without these a variant does not redden its own arm — the section DIES on a missing file,
 # which reads like «the guard is blind» and is really the tool's artefact. `tools` is symlinked whole so the
 # packer runs against the VARIANT (its own ROOT comes from the invocation path, not from a resolved symlink).
-for _side in ('manifest.webmanifest', 'og.jpg', 'icons', 'tools', 'playgama-bridge.js', 'playgama-bridge-config.json', 'avatars'):
+for _side in ('manifest.webmanifest', 'og.jpg', 'icons', 'tools', 'playgama-bridge.js',
+              'playgama-bridge-config.json', 'avatars',
+              # the three legal pages (2026-09-10-g): a node-side arm reads them NEXT TO the artefact
+              'terms.html', 'refund.html', 'privacy.html'):
     _src = os.path.join(ROOT, _side)
     if os.path.exists(_src) and not os.path.exists(os.path.join(OUT, _side)): os.symlink(_src, os.path.join(OUT, _side))
 # ⛔⛔ NEVER WRITE THROUGH A SYMLINK. The side files above are symlinked into the variant, so a sabotage

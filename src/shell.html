@@ -4040,6 +4040,20 @@
     color:#000; font-family:var(--font-round); font-size:24px; font-weight:800; line-height:24px;
     cursor:pointer; padding:13px 32px; }
   .st-buy:active { transform:scale(.97); }
+  /* ⚠️ OUT OF THE FLOW, AND THAT IS THE WHOLE REASON IT DOES NOT MOVE THE SCREEN: the block is centred
+     in the view by `margin:auto 0` (his word 2026-09-04-d, and a guard measures its centre to the pixel)
+     — a line added to the FLOW would take its share of the free space and shift the block by half a line.
+     ⚠️ FIXED AND NOT ABSOLUTE: on the desktop `.st-wrap` is sized by its CONTENT, so its bottom is not
+     the screen's — measured, the line stood at 637 of an 832 viewport. Fixed inside a fixed overlay
+     resolves against the viewport (there is no transform or filter on the overlay itself, checked).
+     ⚠️ IT NEVER TOUCHES THE CHROME-ZONE SAMPLE POINT: it spans [h−22, h−10] and WebKit reads (w/2, h−4),
+     so the edge card stays the only candidate down there (the fields, 2026-09-05-h). */
+  .st-legal { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom, 0px));
+    margin:0; text-align:center; font-size:10px; line-height:1.2; color:#9aa3b2;
+    white-space:nowrap; pointer-events:none; }
+  .st-legal a { pointer-events:auto; }
+  .st-legal a { color:inherit; text-decoration:none; }
+  .st-legal a:hover { text-decoration:underline; }
   /* HOVER — the owner's word 2026-09-03 on the live button: «on hover the button is white and
      the text is black». ⛔ CANCELS the 2026-07-28 inversion (a BLACK backing + WHITE text) that
      had been kept through the one-package rebuild because the mock-ups show no hover state.
@@ -5255,7 +5269,17 @@
       <p class="st-desc">5× points in every match for 30 min of play. <br>Tips &amp; Shakes stay active anytime.</p>
       <button class="st-buy" data-tier="5">Buy $1.99</button>
     </div>
+    <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («ссылки на экран покупки 10 px шрифтом в самый
+         низ, серый цвет, в одну строку»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
+         from github.io, from inside the portal's iframe and from the app wrapper, where a relative
+         `/terms.html` is somebody else's page or nothing at all. `target=_blank` + `rel=noopener` —
+         a purchase screen must not navigate the game away. -->
   </div>
+  <p class="st-legal">
+    <a href="https://blendo.monster/terms.html" target="_blank" rel="noopener">Terms</a> ·
+    <a href="https://blendo.monster/refund.html" target="_blank" rel="noopener">Refund</a> ·
+    <a href="https://blendo.monster/privacy.html" target="_blank" rel="noopener">Privacy</a>
+  </p>
 </div>
 
 <div class="overlay" id="museumOverlay">

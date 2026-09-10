@@ -6,7 +6,29 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-v (the ball plastered, the fire oftener from level 5) on top of 2026-09-10-b and 2026-09-09 a–m, v2 = main** · **the full suite: 1142 green, 0 red, `ERRORS: none`, SUITE: PASS** (run 47, the batch before this one; this one is gated by the two section dry-runs and their sabotages, his rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+**Build: batch 2026-09-10-g (the legal pages + the links on the purchase screen) on top of 2026-09-10-v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, two batches back; -v and -g are gated by their section dry-runs and sabotages, his rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed
+
+**10 SEPTEMBER — STRIPE, THE FIRST HALF: THE THREE PAGES AND THE LINKS ON THE PURCHASE SCREEN
+(batch 2026-09-10-g).** Terms, refund and privacy are written and published on the domain, and the
+purchase screen carries all three as one grey 10 px line at the very bottom, exactly as you asked.
+The pages describe THIS game and nothing invented: one item, delivered to the browser it was bought
+in; the 14-day withdrawal right and the three cases where we refund anyway; and a privacy page
+written from the code — no cookies at all, no analytics, and the leaderboard row is your nickname,
+avatar number, score and time, with no IP stored anywhere.
+⚠️ **TWO THINGS I DECIDED FOR YOU AND WANT YOU TO KNOW:** the support address on the pages is your
+personal ikorzyn@gmail.com (it is the one on the Stripe account — say the word and I will put
+support@blendo.monster there instead), and the pages give Porto/Portugal but NOT your street. EU
+distance-selling rules technically want the full postal address; publishing a home address is your
+call.
+⚠️ **THE TAX FIELD IS YOURS, I COULD NOT WRITE IT.** My write into your live Stripe account was
+blocked from here on purpose — the account is set to read-only for me. Stripe Tax is one field short
+of working: Dashboard → Tax → Settings → head office → the same address as on the account
+(Rua Do Marechal Saldanha 8, 4150-650 Porto). Thirty seconds.
+⚡ **AND ONE STEP YOU AGREED TO IS NOT NEEDED:** the Apple Pay domain file. The payment page will be
+Stripe's own, and Apple Pay and Google Pay work there without it. That also keeps card fields out of
+our page entirely.
+Next: the payment server itself, in test mode, and the third provider in the game beside the wallet
+and the portal.
 
 **10 SEPTEMBER, EVENING — THE BALL IS PLASTERED ALL OVER, AND THE FIRE COMES OFTENER FROM LEVEL 5
 (batch 2026-09-10-v, your «полностью заклеена стикерами, даже внахлест» and «огонь да»).**

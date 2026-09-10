@@ -18517,3 +18517,74 @@ page), and it cost one dry-run instead of a twenty-minute run — the reason the
 arm is lifted out and run alone first» exists.
 
 **THE PRICE:** `index.html` 12 808 939 → 12 813 257 B, 29 modules unchanged.
+
+## BATCH 2026-09-10-g: THE THREE LEGAL PAGES AND THE LINKS ON THE PURCHASE SCREEN — THE FIRST HALF OF THE STRIPE WORK (his answers: «1. один товар и продаем, расчет устраивает / 2. разберусь сам / 3. такой же как домашний / 4. собери сам, добавь ссылки на экран покупки 10 px шрифтом в самый низ, серый цвет, в одну строку все 3 ссылки / 5. давай команду и куда вставлять / 6. давай»)
+
+### THE ACCOUNT, READ BEFORE ANY ADVICE (read-only, the standing rule on this connector)
+`acct_1TybgqFm93w5zgdt`, **live**, Portugal, EUR, individual. **`charges_enabled: true`,
+`payouts_enabled: true`, `requirements.currently_due: []`** — Stripe can take money today. Statement
+descriptor `BLENDO X5 BOOST`. Card, Link, MB WAY, Klarna, Revolut Pay and more are active; Cartes
+Bancaires pending. **Zero products.** Payouts are on a **manual** schedule (money waits for a
+button). `individual.verification.status: unverified` with `failed_keyed_identity` — nothing is due,
+so it blocks nothing today; if Stripe asks again it will appear in `requirements`.
+⛔⛔ **STRIPE TAX IS `pending`, MISSING EXACTLY ONE FIELD — `head_office`.** He answered «такой же как
+домашний», and **the write was BLOCKED FROM HERE** by the environment's classifier
+(`PostTaxSettings`), so it is his 30 seconds in the dashboard. The address is the one already on the
+account: Rua Do Marechal Saldanha 8, 4150-650 Porto, PT.
+
+### ⚡ HOSTED CHECKOUT, AND IT REMOVES A STEP HE HAD ALREADY AGREED TO
+The payment page will be **Stripe's own** (`checkout.stripe.com`), not a form embedded in ours.
+Consequences, and the middle one is the reason: no card field ever touches our page (the PCI surface
+is Stripe's); **Apple Pay and Google Pay work there with NO domain-verification file** — his item 6
+(«давай») turns out not to be needed, and `.well-known` never has to enter `tools/site-pack.py`; and
+the redirect back is a URL we control. ⚠️ IT IS THE DIRECT-LINK PATH ONLY: the portal pays through
+Playgama and the wrapper through StoreKit — that is Apple's rule, not a preference.
+⛔ IF THE FORM IS EVER EMBEDDED (Payment Element), the domain file comes back and with it the
+`.well-known` entry in the packer — write that down before choosing to embed.
+
+### THE THREE PAGES ARE TRACKED FILES AT THE ROOT, AND THE PACKER'S LIST IS WHAT PUTS THEM ONLINE
+`terms.html`, `refund.html`, `privacy.html` — standalone, ~3 KB each, no build step, English (the
+project has been English-only since 2026-08-22-g; his own words are quoted in Russian where they are
+quoted at all). They say what this game actually is: one item, delivered to the browser it was bought
+in, tied to the anonymous player id; the EU withdrawal right and the immediate-delivery consent that
+ends it, with the three cases we refund anyway; and a privacy page written FROM THE CODE — no
+cookies (`document.cookie` has zero occurrences in `src/`), no analytics (`79-telemetry.js` has
+`URL = ''`, so nothing is sent), and the leaderboard row is exactly `id, nickname, avatar number,
+score, timestamp, signing key` with **no IP stored** (`cf-connecting-ip` has zero occurrences in the
+worker).
+⚠️ **`tools/site-pack.py` ASSEMBLES `site/` FROM AN EXPLICIT LIST** — a page that exists in the
+repository and is missing from `FILES` is a 404 at the end of a link the purchase screen shows. The
+same shape as the PWA icons, and it has a node-side arm now: the file on disk AND the packer's list.
+⚠️ TWO CHOICES NAMED TO HIM RATHER THAN MADE SILENTLY: the support address is his personal
+`ikorzyn@gmail.com` (it is the one on the Stripe account), and the pages give the city and country
+but NOT the street — EU distance-selling rules want a full geographical address, and publishing a
+home address is his call.
+
+### THE LINKS: OUT OF THE FLOW, AND THAT IS THE WHOLE OF THE LAYOUT DECISION
+«10 px, grey, one line, at the very bottom» — `.st-legal`, three links separated by «·».
+⚠️⚠️ **`position: fixed`, NOT IN THE FLOW AND NOT ABSOLUTE.** In the flow the line would take its
+share of the free space and shift the block, which is centred in the view by `margin:auto 0` — his
+own word of 2026-09-08-a, and a guard measures that centre to the pixel. Absolute inside `.st-wrap`
+looked right on the phone and wrong on the desktop, where the wrap is sized by its CONTENT:
+**measured, the line stood at 637 of an 832 viewport**. Fixed inside the fixed overlay resolves
+against the viewport (there is no transform or filter on `.overlay` itself — checked, because one
+would silently make `fixed` mean «relative to that ancestor»).
+⚠️ **IT NEVER TOUCHES THE CHROME-ZONE SAMPLE POINT**: it spans [h−22, h−10] and WebKit reads
+(w/2, h−4), so the edge card stays the only candidate down there (the fields, 2026-09-05-h).
+⚠️ `pointer-events` is off on the paragraph and on for the links: the overlay closes on a click
+anywhere outside the block, and a transparent full-width strip would have eaten those clicks.
+⚠️ **THE ADDRESSES ARE ABSOLUTE ON PURPOSE.** The same build runs from github.io, from inside the
+portal's iframe and from the app wrapper — `/terms.html` there is somebody else's page or nothing.
+The sabotage is exactly that (absolute → relative) and it reddens the three link arms and no other.
+
+### THE GUARD
+Four arms in the STCLOSE section: the three viewports (375×667, 320×568, 1280) read the BOX — three
+rects at one top, 10 px, the grey, the gap to `innerHeight` ≤ 16, `https://blendo.monster/…`,
+`target=_blank` with `rel=noopener`, and the text «Terms Refund Privacy» — plus the node-side arm
+above. **Healthy 26 green; the relative-href sabotage reddens exactly the three link arms.**
+⚠️ AND THE VARIANT TOOL LEARNED THE THREE PAGES (`tools/build-variant.py`): a node-side arm reads
+them NEXT TO the artefact, so without the symlinks the sabotage run reddened a fourth arm for the
+tool's own reason — the recorded class «a variant without the side files does not redden its own
+arm», met again.
+
+**THE PRICE:** `index.html` 12 813 257 → 12 815 316 B; three new files of ~3 KB on the domain.
