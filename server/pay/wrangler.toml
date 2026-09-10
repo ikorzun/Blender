@@ -29,7 +29,7 @@ custom_domain = true
 [[d1_databases]]
 binding = "DB"
 database_name = "blendo-pay"
-database_id = "PLACEHOLDER-CREATE-WITH-wrangler-d1-create"
+database_id = "7b20b5d9-e532-46ed-9617-c919aa789806"   # created 2026-09-10, schema applied (ent, pk)
 
 [vars]
 # ⚠️ THE PRICE LIVES ON THE SERVER, NEVER ON THE CLIENT: a browser that could name its own price
