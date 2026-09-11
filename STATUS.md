@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1201 green, 0 red** · **eight sabotages, each red on its own check** · ⚠️ **sign-in still waits on three steps of yours, below**
+**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1202 green, 0 red** · **ten sabotages, each red on its own check** · ⚠️ **sign-in still waits on three steps of yours, below**
 
 **11 SEPTEMBER, NIGHT — YOUR FOUR CORRECTIONS TO THE CARD.**
 
@@ -35,11 +35,18 @@ next player is on the right with his face and his score, and the gap is the subt
 yourself between two numbers that are both on the row. That also answers the question I left open
 yesterday: **the number on the right stays his score, not the gap.**
 
-**The full run you asked for: 1201 checks, all green.** It took four attempts, and three of them are
+**The full run you asked for: 1202 checks, all green.** It took four attempts, and three of them are
 worth one line: your machine was so loaded that the game's own page stopped loading within thirty
 seconds, and two runs failed nine DIFFERENT checks between them. A real fault fails the same check
 every time; only a tired machine fails a different one each time. On a calm machine everything is
 green, including the eight deliberately broken versions I build to prove the checks can still fail.
+
+**And then I opened the live site by hand and found what 1201 green checks had missed.** On a narrow
+phone the sign-in read «Sign…» — cut by a single pixel. Behind it sat a worse one: the savings I make
+on the narrowest screens stopped at 359, and a 360 screen gets 40 more pixels of width but spends
+about 45 on the full-size avatar, star and button — so 360 to 380 was WORSE than 320, with the word
+cut by up to 22 pixels. Both are fixed, and the game now checks every width from 320 to 1280 in steps
+of eight rather than the three I would have picked: both faults were hiding between them.
 
 **One place where your three rules collide, and you should decide it, not me.** At 320 pixels — the
 narrowest phone there is — the star, the number and «×5 Boost» take almost the whole width. Keeping the

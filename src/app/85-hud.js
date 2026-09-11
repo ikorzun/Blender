@@ -2539,9 +2539,15 @@ function setWalletNumber(el, n){
     // «Sig…» — his own rule of -g says the short «[G] Sign in» is MANDATORY, so a clip of it is a
     // number that did not fit. `headFit` writes the short label before calling this, which is what
     // makes the question well-posed: «does the column overflow with the label already at its floor».
-    const cut = sel => { const e = row.querySelector(sel);
-      return !!e && e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1; };
-    if (ok && (cut('.ms-uname') || cut('.ms-auth-lbl') || cut('.ms-auth-out'))) ok = false;
+    // ⛔⛔ THE TOLERANCE IS THE NAME'S ALONE, AND A WHOLE PIXEL OF IT HID A REAL CLIP. Caught on the
+    // LIVE domain at 320: the label read «Sign...» with `scrollWidth − clientWidth === 1`, which
+    // `+ 1` calls a fit — so the ladder stopped on the middle rung and never freed the room the
+    // short wording needed. One pixel off a faded name is nothing; one pixel off «Sign in» is the
+    // very complaint he made on 2026-09-11-g. The name keeps the tolerance (its own edge is a
+    // gradient and its width is fractional), the two text slots get none.
+    const cut = (sel, tol) => { const e = row.querySelector(sel);
+      return !!e && e.offsetParent !== null && e.scrollWidth > e.clientWidth + (tol || 0); };
+    if (ok && (cut('.ms-uname', 1) || cut('.ms-auth-lbl') || cut('.ms-auth-out'))) ok = false;
     return ok;
   };
   if (grouped !== plain && !fits()) el.textContent = plain;

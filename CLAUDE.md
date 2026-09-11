@@ -19515,8 +19515,45 @@ accident:**
   reasons anyway. The term is correct arithmetic for the band where the choice sits exactly on the
   floor, and covering it would mean tuning a viewport onto that boundary — a brittle arm for an
   insurance line. **The code says out loud that no arm covers it.**
+### ⛔⛔ AND THEN THE LIVE DOMAIN CAUGHT WHAT 1201 GREEN ARMS DID NOT — TWICE IN ONE LOOK
+After the push and the deploy I opened `blendo.monster` itself at 320. The sign-in read **«Sign…»**.
+Two faults, one behind the other:
+1. **A WHOLE PIXEL OF TOLERANCE HID A REAL CLIP.** `scrollWidth > clientWidth + 1` was copied onto
+   the label from the name's test, and the label's overflow was exactly **1** — so the fit called it
+   a fit, the wallet's ladder stopped on its middle rung, and the room the short wording needed was
+   never freed. One pixel off a faded name is nothing; one pixel off «Sign in» is the very complaint
+   he made on -g. The tolerance is the NAME'S alone now.
+2. **REMOVING IT UNCOVERED A CLIFF: 360 WAS WORSE THAN 320.** With the narrow reductions ending at
+   `359`, a 360 screen gained 40px of width and spent about 45 of them on the full-size avatar, star,
+   wallet type and button — the label was clipped by **up to 22px from 360 to 380** while 320 was
+   clean. ⚠️ **A BREAKPOINT THAT HANDS BACK MORE WIDTH THAN IT EARNS IS A CLIFF, NOT A FALLBACK.**
+   Two tiers now: the RIGHT SIDE tightens up to 383 (measured — where the full-size row finally holds
+   «[G] Sign in»), the AVATAR only at ≤359, where nothing else is left to give.
+⚠️⚠️ **AND THE NEW ARM IS A SWEEP, NOT THREE WIDTHS** — 121 of them from 320 to 1280 in steps of 8.
+Both faults lived BETWEEN the widths anyone would have picked (320, 390, 1280 were all clean at the
+moment the second one existed), and a breakpoint cliff can only be found by walking across it.
+⚠️ THE WORST CASE IS THE SHORTEST NAME, and it is stated in the arm: the profile's column is
+`max(name, line)`, so once the name is narrower than the line (61px) the column is sized by the LINE
+— a longer name only compacts the number sooner and hands the line MORE room.
+⚠️⚠️ **THE LESSON, AND IT IS THE EXPENSIVE ONE:** the frames were rendered at 320 / 360 / 390 / 1280
+and every one of them was clean, because the stand's random guest name («Coyote», «Wigeon») was wide
+enough to compact the number for other reasons. **A frame at a width is not a frame at a width with
+the worst content.** The live domain, opened by hand after the deploy, is what asked the question
+properly — and that step is now worth keeping whatever the suite says.
+⛔⛔ **AND THE FIRST VERSION OF THE NEW ARM WAS ITSELF A COIN TOSS — THE SAME COIN.** It swept 121
+widths and stayed GREEN on the build with the tolerance restored, because it used the stand's random
+name. Pinning `gid: 'guardgid0001'` («Crake», 5 characters, narrower than the line itself) is what
+made it bite; **the name is now ASSERTED inside the arm**, or a future stand that hands out a wide
+one would report a clean sweep of the very case the arm exists to cover.
+⚠️ **AND TWO WALLETS, BECAUSE THE CLIP MOVES WITH THE NUMBER:** 320 for his own six-digit score, 340
+for a late-game seven-digit one — and the second is ONE width wide, which a step of 8 walked straight
+over. Step 4 through 480, a handful of wide ones after it, two wallets: 94 measurements.
+**PROVEN, BOTH FAULTS:** the `+1` tolerance restored on the label → clipped at 320 and 340 by exactly
+1px; the reductions moved back to one tier at 359 → clipped from 360 to 380 by up to 22px.
+
 ### THE FULL RUN — HIS WORD THIS TIME, AND IT TOOK FOUR ATTEMPTS ON A STAND THAT COULD NOT ANSWER
-He asked for it («then a full run and push»). **Run 52: 1201 green, 0 red, `ERRORS(tail): none`,
+He asked for it («then a full run and push»). **Run 52: 1201 green, 0 red, SUITE: PASS** — and after the live
+domain caught what it had not, **run 53 on the fixed build: 1202 green, 0 red, `ERRORS(tail): none`,
 SUITE: PASS.** The three attempts before it are recorded because they are the more useful half:
 - **Run 49b CRASHED** in the pack-matcap section — «Execution context was destroyed» inside
   `brightness()` on its own `file://` page. The canon already records that exact crash at that exact

@@ -20718,6 +20718,71 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE NAME IS PINNED BY SIGNING IN: the guest name is random per page («Coati», «Spoonbill»),
     // and both halves of this arm depend on how wide it is.
     {
+      // ⛔⛔ THE SIGNED-OUT SWEEP COMES FIRST, AND IT EXISTS BECAUSE THE LIVE DOMAIN SHOWED WHAT THE
+      // SUITE DID NOT. At 320 the label read «Sign…» with an overflow of exactly ONE pixel — which
+      // `scrollWidth > clientWidth + 1` calls a fit, so the wallet's ladder stopped a rung early and
+      // never freed the room. Removing that tolerance then uncovered a second one: with the narrow
+      // reductions ending at 359, a 360 screen gained 40px of width and spent ~45 on the full-size
+      // avatar, star, wallet type and button — the label was clipped by up to 22px from 360 to 380
+      // while 320 was clean. ⚠️ A SWEEP AND NOT THREE WIDTHS: both faults lived BETWEEN the widths
+      // anyone would have picked, and a breakpoint that hands back less width than it earns can only
+      // be found by walking across it.
+      // ⚠️ THE SHORTEST NAME IS THE WORST CASE and it is what the stand gives: the profile's column
+      // is `max(name, line)`, so once the name is narrower than the line (61px) the column is sized
+      // by the LINE, and a longer name only compacts the number sooner and hands the line more room.
+      // ⛔⛔ AND THE GUEST NAME IS PINNED, WITHOUT WHICH THIS ARM IS A COIN TOSS. The stand's name is
+      // random per page («Coyote», «Wigeon», «Spoonbill»), and a WIDE one compacts the number for
+      // its own reasons and hands the line all the room it needs — which is precisely why the
+      // frames at 320/360/390/1280 were all clean while the live site was clipped. `guardgid0001`
+      // gives «Crake» (5 characters), narrower than the line itself: the worst case.
+      // ⚠️ TWO WALLETS, because the width at which the clip appeared MOVED with the number: 320 for
+      // his own six-digit score, 340 for a late-game seven-digit one.
+      const sweepCtx = await browser.newContext({ viewport: { width: 320, height: 760 } });
+      await sweepCtx.addInitScript(hideBotFlag);
+      await sweepCtx.addInitScript(authStub);
+      await sweepCtx.addInitScript(() => { localStorage.setItem('mixer_save_v1', JSON.stringify({ gid: 'guardgid0001' })); });
+      const spg = await sweepCtx.newPage();
+      spg.on('pageerror', (e) => errors.push('AUTH ' + e.message));
+      await spg.goto(authStand.url + '?pay=1&dev=1');
+      await spg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+      const clipped = [];
+      // ⚠️ STEP 4 WHERE IT MATTERS AND A HANDFUL OF WIDE ONES AFTER IT: both faults lived inside
+      // 320-400, and one of them was a SINGLE width wide — a step of 8 walked straight over it.
+      const widths = [];
+      for (let w = 320; w <= 480; w += 4) widths.push(w);
+      widths.push(560, 640, 768, 900, 1024, 1280);
+      for (const se of [123116, 9876543]){
+        await spg.evaluate((v) => {
+          window.__auth.score = v; window.__auth.up = [['Godwit', 7, 123456]];
+          __game.mergeRaw({ se: v });
+          try { __game.skipIntro(); } catch (e) {}
+        }, se);
+        await spg.evaluate(() => { const b = document.getElementById('pauseBtn'); if (b) b.click(); });
+        await spg.waitForTimeout(500);
+        for (const w of widths){
+          await spg.setViewportSize({ width: w, height: 760 });
+          await spg.waitForTimeout(40);
+          const r = await spg.evaluate(() => { const l = document.querySelector('.ms-auth-lbl');
+            const m = document.getElementById('mainScreen');
+            return { cut: l.scrollWidth - l.clientWidth, lbl: l.textContent,
+              name: document.getElementById('msUser').textContent,
+              wallet: document.getElementById('msStars').textContent,
+              horiz: m.scrollWidth - m.clientWidth }; });
+          if (r.cut > 0 || r.horiz > 0) clipped.push(Object.assign({ w: w, se: se }, r));
+        }
+      }
+      const sweepName = await spg.evaluate(() => document.getElementById('msUser').textContent);
+      await sweepCtx.close();
+      console.log('auth sweep:', JSON.stringify({ name: sweepName, widths: widths.length * 2, clipped: clipped.slice(0, 6) }));
+      // ⚠️ THE NAME IS ASSERTED TOO — an arm that swept the wrong (wide) name would otherwise report
+      // a clean sweep of the case it was written to avoid.
+      expect(sweepName === 'Crake' && clipped.length === 0,
+        'AUTH HEAD: with the NARROWEST name and two wallets, across every width from 320 to 1280, ' +
+        'the sign-in wording is shown WHOLE — the short form when the long one does not fit, never ' +
+        'a «Sign…» — and the menu never gains a horizontal scroll (' +
+        JSON.stringify({ name: sweepName, clipped: clipped.slice(0, 6) }) + ')',
+        JSON.stringify({ name: sweepName, clipped: clipped.slice(0, 6) }));
+
       const { pg, ctx } = await authPage();
       await pg.setViewportSize({ width: 1280, height: 900 });
       await pg.evaluate(async (k) => {

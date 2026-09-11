@@ -2982,10 +2982,14 @@
      ⛔⛔ AND IT MUST STAND **AFTER** `.ms-getmore` AND `.ms-head-r`: a media query adds no
      specificity, so the first draft of this block sat above their declarations and every rule
      in it but the avatar's was silently overridden — the frame read 17px where 37 were due. */
-  @media (max-width:359px){
-    .ms-head { padding:10px 8px; }
-    .ms-av { width:32px; height:32px; font-size:16px; }
-    .ms-prof { gap:4px; }
+  /* ⛔⛔ TWO TIERS, AND THE SECOND ONE EXISTS BECAUSE ONE TIER MADE 360 WORSE THAN 320. With the
+     reductions ending at 359 a 360 screen gained 40px of width and spent ~45 of them on the
+     full-size avatar, star, wallet type and button — so the sign-in was clipped to «Sign…» from 360
+     to 380 while 320 was clean. A breakpoint that hands back more than the width it earns is a
+     cliff, not a fallback. THE RIGHT SIDE tightens first and up to 383 (where the measurement says
+     the full-size row finally holds «[G] Sign in»); the AVATAR is touched only at the narrowest,
+     where nothing else is left to give. */
+  @media (max-width:383px){
     .ms-head-r { gap:6px; }
     .ms-stars { gap:4px; }
     .ms-stars svg { width:18px; height:17px; }
@@ -2993,6 +2997,11 @@
        header, for the same reason: a tighter row */
     .ms-stars span { font-size:18px; }
     .ms-getmore { padding:12px 7px; font-size:14px; }
+  }
+  @media (max-width:359px){
+    .ms-head { padding:10px 8px; }
+    .ms-av { width:32px; height:32px; font-size:16px; }
+    .ms-prof { gap:4px; }
   }
   /* THE ENTRY POINT INTO THE LEADERBOARD — THE MOBILE VARIANT (mock-up 840:4344).
      A pill on a semi-transparent cold background with a white frame; on the left two lines,
