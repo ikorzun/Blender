@@ -6,7 +6,7 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11 (Google sign-in — the client half) on top of 2026-09-10-i, -zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1183 green, 0 red** (run 48, on the sign-in batch itself) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
+**Build: batch 2026-09-11-b (the way back survives a progress reset) on top of 2026-09-11 (Google sign-in — the client half), v2 = main** · **the full suite: 1186 green, 0 red** (run 49, on the fixed build) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
 
 **11 SEPTEMBER, LATER — A BUG I FOUND AFTER I HAD WRITTEN TO YOU, AND YOU WOULD HAVE BEEN THE FIRST TO HIT IT.**
 
