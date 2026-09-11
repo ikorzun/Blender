@@ -155,6 +155,47 @@ const SABOTAGE = [
     repl: "const PAY_URL = 'https://pay2.blendo.monster';",
     expect: 'ONE RETURN ORIGIN' },
 
+  // ===== google sign-in: the account → identity mapping =====
+  // ⛔⛔ THE FIRST ONE IS THE EXPLOIT ITSELF. Unsigned, `/v1/auth` hands a stranger the victim's
+  // real key — the shape the design started from, before the advisor named it.
+  { name: '/v1/auth is unsigned again (a stranger claims a gid he merely knows)',
+    find: "  const chk = await checkSig(env, gid, 'auth.' + await sha256Hex(tok), b && b.t, (b && b.sig) || '', (b && b.k) || '');",
+    repl: "  const chk = { ok: true, k: (await ownerKey(env, gid, (b && b.k) || '')) || '' };",
+    expect: 'A FOREIGN GID CANNOT BE CLAIMED' },
+  // ⚠️⚠️ TWO HOLDERS, ONE SABOTAGE — the canon's own rule. «One identity, one account» is held by
+  // the explicit check AND by the UNIQUE index; removing only the check leaves the index refusing
+  // the insert, so the arm would stay green and the run would call the guard blind. `OR REPLACE`
+  // defeats both at once, and it is the plausible mistake: it is what someone reaches for when the
+  // insert «mysteriously does nothing».
+  { name: 'the fresh path overwrites whoever held the gid (both holders broken at once)',
+    find: "  if (taken && taken.sub) return reply({ err: 'bound' }, 409);",
+    repl: "  await env.DB.prepare('DELETE FROM acc WHERE gid = ?').bind(gid).run();",
+    expect: 'ONE IDENTITY, ONE ACCOUNT' },
+  { name: "the account stores the key that was SENT, not the one the signature was verified with",
+    find: '.bind(v.sub, gid, chk.k, nowSec()).run();',
+    repl: ".bind(v.sub, gid, (b && b.k) || '', nowSec()).run();",
+    expect: 'THE KEY STORED IS THE ONE VERIFIED' },
+  { name: "the token's `aud` is not checked (any Google token from any site signs a player in)",
+    find: "  if (body.aud !== clientId) return { err: 'aud' };",
+    repl: '  if (false) return { err: 0 };',
+    expect: 'THE TOKEN IS VERIFIED' },
+  { name: 'the RSA signature is not verified (a forged token is accepted)',
+    find: "  if (!ok) return { err: 'token' };",
+    repl: '  if (false) return { err: 0 };',
+    expect: 'THE TOKEN IS VERIFIED' },
+  { name: 'only one form of `iss` is accepted (a sign-in that works until it does not)',
+    find: "  if (GOOGLE_ISS.indexOf(String(body.iss)) < 0) return { err: 'iss' };",
+    repl: "  if (String(body.iss) !== GOOGLE_ISS[0]) return { err: 'iss' };",
+    expect: 'BOTH ISSUER FORMS PASS' },
+  { name: 'an unknown `kid` is treated as a forgery (a rotation locks everyone out)',
+    find: '  if (!jwk) { keys = await jwksGet(true); jwk = keys && keys.find((k) => k.kid === head.kid); }',
+    repl: '  if (false) { keys = await jwksGet(true); }',
+    expect: 'AN UNKNOWN kid IS A ROTATION' },
+  { name: 'a missing client id is not refused (the token is verified without an audience)',
+    find: "  if (!env.GOOGLE_CLIENT_ID) return reply({ err: 'noclient' }, 503);",
+    repl: '  if (false) return reply({ err: 0 }, 503);',
+    expect: 'ONE CLIENT ID' },
+
   { name: 'SELF-CHECK: editing a comment does not change behaviour',
     find: '// ===== 2. THE WEBHOOK =====',
     repl: '// ===== 2. THE WEBHOOK (self-check marker) =====',

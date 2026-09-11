@@ -40,3 +40,13 @@ PRICE_CENTS = "199"
 CURRENCY = "eur"
 PRODUCT_NAME = "Blendo x5 Boost"
 SITE = "https://blendo.monster"
+
+# ===== GOOGLE SIGN-IN (docs/GOOGLE-AUTH.md) =====
+# ⚠️ A VAR AND NOT A SECRET, ON PURPOSE: an OAuth *client id* is public — it ships inside the page
+# for the Google library to read. It is here because the worker needs it as the token's `aud`, and
+# `GET /v1/auth/cfg` hands the same string to the client so there is exactly ONE copy of it.
+# ⛔ EMPTY UNTIL HE CREATES IT. While it is empty `/v1/auth` answers `noclient` 503 and the client
+# does not draw the button at all — the sign-in is simply absent, never broken.
+# His step: Google Cloud → APIs & Services → Credentials → OAuth client ID → Web application,
+# with `https://blendo.monster` as an authorised JavaScript origin. Paste the id below and redeploy.
+GOOGLE_CLIENT_ID = ""

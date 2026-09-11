@@ -72,7 +72,128 @@ async function checkSig(env, gid, what, t, sig, offeredKey) {
   const k = await ownerKey(env, gid, offeredKey);
   if (!k) return { err: 'nokey' };
   const want = await hmacHex(hexKey(k), gid + '.' + what + '.' + ts);
-  return sameSig(want, sig) ? { ok: true, ts } : { err: 'sig' };
+  // ⚠️ THE ANCHORED KEY TRAVELS BACK WITH THE VERDICT: `/v1/auth` stores it in the mapping, so
+  // `acc.k === pk.k` holds BY CONSTRUCTION instead of by a second read that could see another row.
+  return sameSig(want, sig) ? { ok: true, ts, k } : { err: 'sig' };
+}
+
+// ===== GOOGLE SIGN-IN — THE TOKEN, AND THE FOUR DETAILS THAT ONLY BITE IN PRODUCTION =====
+// The design and every trap it answers: docs/GOOGLE-AUTH.md.
+const GOOGLE_JWKS = 'https://www.googleapis.com/oauth2/v3/certs';
+// ⚠️ `iss` COMES IN TWO LEGITIMATE FORMS. Accepting one is a sign-in that works until it does not.
+const GOOGLE_ISS = ['https://accounts.google.com', 'accounts.google.com'];
+// ⚠️ The key set is cached in THIS ISOLATE and nowhere else — a Worker isolate is not a shared
+// cache, and Google rotates these keys on its own schedule.
+let jwks = { keys: null, exp: 0 };
+
+function b64uBytes(s) {
+  const t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(t + (t.length % 4 ? '='.repeat(4 - (t.length % 4)) : ''));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function sha256Hex(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function jwksGet(force) {
+  if (!force && jwks.keys && jwks.exp > nowSec()) return jwks.keys;
+  const r = await fetch(GOOGLE_JWKS).catch(() => null);
+  if (!r || !r.ok) return null;
+  const j = await r.json().catch(() => null);
+  if (!j || !Array.isArray(j.keys)) return null;
+  // The TTL is Google's own, clamped: a one-second max-age would make every sign-in a round trip,
+  // and an enormous one would outlive a rotation.
+  let ttl = 3600;
+  const m = String(r.headers.get('cache-control') || '').match(/max-age=(\d+)/);
+  if (m) ttl = Math.min(86400, Math.max(60, parseInt(m[1], 10)));
+  jwks = { keys: j.keys, exp: nowSec() + ttl };
+  return j.keys;
+}
+// ⚠️ RS256 ONLY, AND THE ALGORITHM IS READ FROM OUR RULE RATHER THAN FROM THE TOKEN'S OWN HEADER:
+// honouring `alg` from the header is the classic JWT forgery (`alg: none`, or HS256 signed with the
+// public key). The header is used for `kid` and for nothing else.
+async function verifyGoogleToken(tok, clientId) {
+  const parts = String(tok || '').split('.');
+  if (parts.length !== 3) return { err: 'token' };
+  let head = null, body = null;
+  try {
+    head = JSON.parse(new TextDecoder().decode(b64uBytes(parts[0])));
+    body = JSON.parse(new TextDecoder().decode(b64uBytes(parts[1])));
+  } catch (e) { return { err: 'token' }; }
+  if (!head || head.alg !== 'RS256' || !head.kid || !body) return { err: 'token' };
+  // ⚠️ AN UNKNOWN `kid` IS A ROTATION, NOT A FORGERY: re-fetch ONCE and retry before refusing —
+  // otherwise every player signing in during a rotation is told his account is invalid.
+  let keys = await jwksGet(false);
+  let jwk = keys && keys.find((k) => k.kid === head.kid);
+  if (!jwk) { keys = await jwksGet(true); jwk = keys && keys.find((k) => k.kid === head.kid); }
+  if (!jwk) return { err: 'jwks' };
+  let key = null;
+  try {
+    key = await crypto.subtle.importKey('jwk',
+      { kty: 'RSA', n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  } catch (e) { return { err: 'jwks' }; }
+  const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64uBytes(parts[2]),
+    new TextEncoder().encode(parts[0] + '.' + parts[1])).catch(() => false);
+  if (!ok) return { err: 'token' };
+  if (GOOGLE_ISS.indexOf(String(body.iss)) < 0) return { err: 'iss' };
+  // ⛔ `aud` IS THE WHOLE POINT OF HAVING A CLIENT ID HERE: without it any valid Google token, from
+  // any site in the world, signs a player in to this game.
+  if (body.aud !== clientId) return { err: 'aud' };
+  const exp = Math.floor(Number(body.exp));
+  if (!Number.isFinite(exp) || exp + SKEW_SEC < nowSec()) return { err: 'expired' };
+  const sub = String(body.sub || '');
+  if (!sub || sub.length > 64) return { err: 'token' };
+  const name = typeof body.name === 'string' ? body.name
+    : (typeof body.given_name === 'string' ? body.given_name : '');
+  // ⛔ NOTHING ELSE LEAVES THIS FUNCTION. `email` is deliberately not read, so it cannot be stored
+  // by accident by whoever edits the caller next.
+  return { ok: true, sub, name: name.slice(0, 80) };
+}
+
+// ===== THE MAPPING: ACCOUNT → IDENTITY =====
+// ⛔⛔ IT IS A SIGNED CALL LIKE EVERY OTHER ENDPOINT HERE, AND THAT IS TRAP 4 OF THE DESIGN. The
+// obvious shape — «send your token plus any {gid, k} and we will anchor them» — has a working
+// exploit: a gid is semi-public, so an attacker sends `{victim_gid, any k}` with his OWN Google
+// account, `ownerKey` returns the victim's REAL key (he has bought something), and the mapping
+// hands the attacker a working key for BOTH services. Signed, a foreign key fails on `sig`.
+async function auth(req, env) {
+  // The client id is not a secret (it ships in the page) but without it `aud` cannot be checked,
+  // and an unchecked `aud` is the hole above. 503, not 400: nothing the client sent is wrong.
+  if (!env.GOOGLE_CLIENT_ID) return reply({ err: 'noclient' }, 503);
+  let b = null;
+  try { b = await req.json(); } catch (e) { return reply({ err: 'json' }, 400); }
+  const gid = (b && b.id) || '';
+  const tok = (b && b.tok) || '';
+  if (typeof tok !== 'string' || tok.length < 20 || tok.length > 8192) return reply({ err: 'token' }, 400);
+  // ⚠️ THE TOKEN IS INSIDE THE SIGNED STRING (as its hash — the token itself is far too long for a
+  // signing payload), so a captured signature cannot be replayed with a DIFFERENT token.
+  const chk = await checkSig(env, gid, 'auth.' + await sha256Hex(tok), b && b.t, (b && b.sig) || '', (b && b.k) || '');
+  if (chk.err) return reply({ err: chk.err }, chk.err === 'nokey' ? 400 : 401);
+  const v = await verifyGoogleToken(tok, env.GOOGLE_CLIENT_ID);
+  // ⚠️ A JWKS FAILURE IS OURS, NOT THE PLAYER'S: 503 so the client may retry, while a bad token is
+  // a flat 401.
+  if (v.err) return reply({ err: v.err }, v.err === 'jwks' ? 503 : 401);
+
+  const row = await env.DB.prepare('SELECT gid, k FROM acc WHERE sub = ?').bind(v.sub).first();
+  if (row && row.gid) return reply({ ok: 1, gid: row.gid, k: row.k, fresh: 0, name: v.name });
+
+  // ⛔⛔ TRAP 5: ONE IDENTITY, ONE ACCOUNT. Without this the shared phone binds the child's Google
+  // account to the parent's identity for ever, and the child's own phone then receives the parent's
+  // purchases and the parent's leaderboard row.
+  const taken = await env.DB.prepare('SELECT sub FROM acc WHERE gid = ?').bind(gid).first();
+  if (taken && taken.sub) return reply({ err: 'bound' }, 409);
+  // ⚠️ THE KEY IS THE ONE `checkSig` ANCHORED, never a second read of `pk`: the pair stored here is
+  // the pair the two services will accept.
+  await env.DB.prepare('INSERT OR IGNORE INTO acc (sub, gid, k, c) VALUES (?,?,?,?)')
+    .bind(v.sub, gid, chk.k, nowSec()).run();
+  // ⚠️ READ BACK RATHER THAN ASSUME: `OR IGNORE` plus the UNIQUE index on `gid` is what settles a
+  // race between two sign-ins, and the loser must learn that it lost instead of reporting success.
+  const back = await env.DB.prepare('SELECT gid, k FROM acc WHERE sub = ?').bind(v.sub).first();
+  if (!back || !back.gid) return reply({ err: 'bound' }, 409);
+  return reply({ ok: 1, gid: back.gid, k: back.k, fresh: back.gid === gid ? 1 : 0, name: v.name });
 }
 
 // ===== 1. THE CHECKOUT SESSION =====
@@ -248,6 +369,12 @@ export default {
       if (s.err) return reply({ err: s.err, detail: s.detail || '' }, 502);
       return reply({ ok: 1, url: s.url, sid: s.sid });
     }
+    // ⚠️ ONE COPY OF THE CLIENT ID, AND THE CLIENT READS IT FROM HERE. It is needed twice — by the
+    // Google library in the page and as `aud` on this worker — and two copies are the drift this
+    // project has already paid for with the PID, the price and the material map.
+    if (p === '/v1/auth/cfg' && req.method === 'GET')
+      return reply({ ok: 1, cid: env.GOOGLE_CLIENT_ID || '' });
+    if (p === '/v1/auth' && req.method === 'POST') return auth(req, env);
     if (p === '/v1/webhook' && req.method === 'POST') return webhook(req, env);
     if (p === '/v1/mine' && req.method === 'POST') return mine(req, env);
     if (p === '/v1/claim' && req.method === 'POST') return claim(req, env);

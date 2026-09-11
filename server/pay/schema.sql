@@ -31,3 +31,27 @@ CREATE TABLE IF NOT EXISTS pk (
   k   TEXT NOT NULL,
   c   INTEGER NOT NULL
 );
+
+-- ===== GOOGLE SIGN-IN: THE ACCOUNT → IDENTITY MAPPING (docs/GOOGLE-AUTH.md) =====
+-- ⚠️⚠️ IT STORES THE PAIR `{gid, k}` AND NOT THE GID ALONE, AND THAT IS THE WHOLE POINT. The
+-- signing key is registered trust-on-first-use in TWO separate tables — the leaderboard's `p.k` and
+-- this worker's `pk` — and whoever registers first owns the row. A sign-in that handed back only an
+-- id would have the second device generate a FRESH key, the service that already holds one answer
+-- 401, and the player's row (or his purchase) locked out for ever.
+-- ⚠️ The key written here is the one `checkSig` has just anchored in `pk`, so `acc.k === pk.k` by
+-- construction rather than by a second write.
+-- ⛔ NO EMAIL AND NO NAME: `sub` is the only Google field stored. The display name lives in the
+-- save and reaches the leaderboard as the nickname it already stores.
+CREATE TABLE IF NOT EXISTS acc (
+  sub TEXT PRIMARY KEY,           -- Google's stable subject id for this account
+  gid TEXT NOT NULL,              -- the identity this account owns
+  k   TEXT NOT NULL,              -- its signing key, the pair above
+  c   INTEGER NOT NULL            -- created, unix seconds
+);
+
+-- ⛔⛔ UNIQUE, AND IT IS A RULE RATHER THAN AN OPTIMISATION: without it two Google accounts can bind
+-- to one identity for ever, and the shared phone this feature exists for is exactly where that
+-- bites — the parent signs in, the child signs in on the same phone, and on his own phone the child
+-- receives the parent's purchases and the parent's row. The endpoint checks it too; the index is
+-- what makes the check hold across two requests that race.
+CREATE UNIQUE INDEX IF NOT EXISTS ix_acc_gid ON acc(gid);

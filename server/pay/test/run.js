@@ -47,6 +47,39 @@ const sigFor = (keyH, gid, what, t) => hmac(keyHex(keyH), gid + '.' + what + '.'
 // gives different bytes and every signature fails — which is why the raw text is what travels.
 const stripeSig = async (secret, t, raw) => 't=' + t + ',v1=' + await hmac(keyStr(secret), t + '.' + raw);
 
+// ===== A REAL RS256 TOKEN, SIGNED HERE =====
+// ⚠️⚠️ THE TOKEN IS GENUINELY SIGNED AND GENUINELY VERIFIED — no branch of the worker is stubbed.
+// A guard that handed the worker a token it had been told to trust would be measuring the stub.
+const b64u = (b) => Buffer.from(b).toString('base64url');
+let GKEY = null;               // { priv, jwk } — filled once at the start of the run
+const CLIENT_ID = '111.apps.googleusercontent.com';
+async function mint(over) {
+  const o = over || {};
+  const head = { alg: o.alg || 'RS256', kid: o.kid || 'k1', typ: 'JWT' };
+  const body = Object.assign({
+    iss: 'https://accounts.google.com',
+    aud: CLIENT_ID,
+    sub: 'sub-default',
+    exp: now() + 3600,
+    iat: now(),
+    name: 'Иван Игрок',
+  }, o.claims || {});
+  const h = b64u(JSON.stringify(head)), pl = b64u(JSON.stringify(body));
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', o.priv || GKEY.priv,
+    new TextEncoder().encode(h + '.' + pl));
+  return h + '.' + pl + '.' + b64u(Buffer.from(new Uint8Array(sig)));
+}
+const sha256Hex = async (str) =>
+  hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)));
+// The signed string of `/v1/auth` carries the token's HASH: a captured signature cannot be
+// replayed with a different token.
+async function authCall(worker, e, gid, keyH, tok, over) {
+  const t = (over && over.t) || now();
+  const what = 'auth.' + await sha256Hex(tok);
+  return call(worker, e, '/v1/auth', { body: Object.assign({
+    id: gid, t, sig: await sigFor(keyH, gid, what, t), k: keyH, tok }, (over && over.body) || {}) });
+}
+
 function env(over) {
   return Object.assign({
     DB: makeDB(SCHEMA),
@@ -56,6 +89,7 @@ function env(over) {
     CURRENCY: 'eur',
     PRODUCT_NAME: 'Blendo x5 Boost',
     SITE: 'https://blendo.monster',
+    GOOGLE_CLIENT_ID: CLIENT_ID,
   }, over || {});
 }
 
@@ -64,7 +98,16 @@ function env(over) {
 // about the amount that will be charged, and the amount is the thing the client must not own.
 let stripeCalls = [];
 let stripeReply = null;
+let jwksCalls = 0;
+let jwksServe = null;          // the key set Google is pretending to publish right now
 globalThis.fetch = async (u, init) => {
+  // ⚠️ GOOGLE'S KEY SET IS SERVED FROM HERE, AND THE CALLS ARE COUNTED: «an unknown kid re-fetches
+  // ONCE» is a statement about how many times we ask, and nothing else can observe it.
+  if (String(u).indexOf('googleapis.com') >= 0) {
+    jwksCalls++;
+    return new Response(JSON.stringify({ keys: jwksServe || [] }),
+      { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   const body = String((init && init.body) || '');
   stripeCalls.push({
     url: String(u),
@@ -115,6 +158,16 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
   const src = process.env.PAY_SRC
     ? require('url').pathToFileURL(process.env.PAY_SRC).href : '../src/index.js';
   const worker = (await import(src)).default;
+
+  // One RSA pair for the whole run; `jwksServe` is what Google is publishing at this moment.
+  {
+    const pair = await crypto.subtle.generateKey(
+      { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+      true, ['sign', 'verify']);
+    const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    GKEY = { priv: pair.privateKey, jwk };
+    jwksServe = [{ kid: 'k1', kty: 'RSA', alg: 'RS256', use: 'sig', n: jwk.n, e: jwk.e }];
+  }
 
   // ===== 1. THE PRICE IS THE SERVER'S =====
   // A browser that could name its own amount would name zero. The request names the PRODUCT.
@@ -448,6 +501,141 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
       + ' and the client offers itself on ' + (paySite && paySite[1])
       + '; the client calls ' + (payUrl && payUrl[1]) + ' and the worker answers on '
       + (route && route[1]));
+  }
+
+  // ===== 9. GOOGLE SIGN-IN — THE ACCOUNT → IDENTITY MAPPING =====
+  // The design and every trap: docs/GOOGLE-AUTH.md. The three questions these arms are written
+  // against: can a stranger claim somebody else's identity; can two accounts share one; and does
+  // the KEY travel with the id (without it the second device is locked out of both services).
+  {
+    const e = env();
+
+    // --- the honest first sign-in: the account is created and the pair is this device's ---
+    const gidA = 'gidauth00001', subA = 'sub-alice';
+    const okTok = await mint({ claims: { sub: subA } });
+    const r1 = await authCall(worker, e, gidA, KEY_A, okTok);
+    const accA = e.DB._raw.prepare('SELECT * FROM acc WHERE sub = ?').get(subA);
+    const pkA = e.DB._raw.prepare('SELECT * FROM pk WHERE gid = ?').get(gidA);
+    expect(r1.json && r1.json.ok === 1 && r1.json.fresh === 1 && r1.json.gid === gidA
+      && r1.json.k === KEY_A && r1.json.name === 'Иван Игрок'
+      && accA && accA.gid === gidA && accA.k === KEY_A
+      // ⚠️ THE PAIR, NOT THE ID: `acc.k` must equal what the key table anchored, or the second
+      // device generates a fresh key and both services answer 401 for ever.
+      && pkA && pkA.k === accA.k,
+      'A FRESH ACCOUNT KEEPS THIS DEVICE: fresh ' + (r1.json && r1.json.fresh)
+      + ', acc {' + (accA && accA.gid) + ', ' + (accA && accA.k.slice(0, 6)) + '…}'
+      + ', pk ' + (pkA && pkA.k.slice(0, 6)) + '…  [acc.k === pk.k: '
+      + !!(accA && pkA && accA.k === pkA.k) + ']');
+
+    // --- the second device: the SAME account, a fresh gid and a fresh key of its own ---
+    const gidB = 'gidauth00002';
+    const r2 = await authCall(worker, e, gidB, KEY_B, await mint({ claims: { sub: subA } }));
+    expect(r2.json && r2.json.ok === 1 && r2.json.fresh === 0
+      && r2.json.gid === gidA && r2.json.k === KEY_A,
+      'A SECOND DEVICE IS HANDED THE PAIR: it asked as ' + gidB + ' and was answered '
+      + (r2.json && r2.json.gid) + ' with the key ' + (r2.json && String(r2.json.k).slice(0, 6))
+      + '… (fresh ' + (r2.json && r2.json.fresh) + ')');
+
+    // --- ⛔⛔ TRAP 4: A STRANGER CANNOT CLAIM A GID, AND THE VICTIM IS THE REALISTIC ONE ---
+    // ⚠️⚠️ THE VICTIM HAS BOUGHT SOMETHING AND NEVER SIGNED IN — that is the state most players are
+    // in, and the one where trap 5's `bound` check cannot help, because there is no account row to
+    // collide with. Unsigned, `ownerKey` hands the attacker the victim's REAL key (it is already in
+    // `pk`) and the mapping binds it to the attacker's `sub`: a working key for BOTH services.
+    // Staged through the PRODUCTION path — a signed `/v1/mine` is how a purchasing client anchors
+    // its key — because a row inserted by hand would prove the exploit against a fixture.
+    const victim = 'gidvictim001', vKey = KEY_B;
+    {
+      const t = now();
+      await call(worker, e, '/v1/mine', { body: { id: victim, t, sig: await sigFor(vKey, victim, 'mine', t), k: vKey } });
+    }
+    const anchored = e.DB._raw.prepare('SELECT k FROM pk WHERE gid = ?').get(victim);
+    const evilKey = 'c'.repeat(64);
+    const bad = await authCall(worker, e, victim, evilKey, await mint({ claims: { sub: 'sub-mallory' } }));
+    const stole = e.DB._raw.prepare('SELECT * FROM acc WHERE sub = ?').get('sub-mallory');
+    const pkIntact = e.DB._raw.prepare('SELECT k FROM pk WHERE gid = ?').get(victim);
+    expect(anchored && anchored.k === vKey && bad.status === 401 && bad.json && bad.json.err === 'sig'
+      // ⚠️ THE PAYLOAD OF THE EXPLOIT IS THE KEY IN THE ANSWER, so its absence is asserted by name
+      // and not merely inferred from the status.
+      && !bad.json.k && !stole && pkIntact && pkIntact.k === vKey,
+      'A FOREIGN GID CANNOT BE CLAIMED: the victim had bought (pk ' + (anchored && anchored.k.slice(0, 6))
+      + '…), the stranger got ' + bad.status + ' ' + (bad.json && bad.json.err)
+      + ' with no key in the answer, rows for him: ' + (stole ? 1 : 0)
+      + ', the victim\'s key still ' + (pkIntact && pkIntact.k.slice(0, 6)) + '…');
+
+    // --- ⛔⛔ TRAP 5: TWO GOOGLE ACCOUNTS, ONE IDENTITY — the shared phone ---
+    // The child signs in on the parent's phone. Without the refusal his account binds to the
+    // parent's identity for ever and his own phone then receives the parent's purchases.
+    const child = await authCall(worker, e, gidA, KEY_A, await mint({ claims: { sub: 'sub-child' } }));
+    const stillA = e.DB._raw.prepare('SELECT * FROM acc WHERE gid = ?').all(gidA);
+    expect(child.status === 409 && child.json && child.json.err === 'bound'
+      && stillA.length === 1 && stillA[0].sub === subA,
+      'ONE IDENTITY, ONE ACCOUNT: ' + child.status + ' ' + (child.json && child.json.err)
+      + ', rows on that gid: ' + stillA.length + ' (owner ' + (stillA[0] && stillA[0].sub) + ')');
+
+    // --- the token's own three refusals, each on a REAL signature over a wrong claim ---
+    const g3 = 'gidauth00003';
+    const wrongAud = await authCall(worker, e, g3, KEY_A, await mint({ claims: { sub: 's3', aud: 'someone-else.apps.googleusercontent.com' } }));
+    const wrongIss = await authCall(worker, e, g3, KEY_A, await mint({ claims: { sub: 's3', iss: 'https://evil.example' } }));
+    const expired  = await authCall(worker, e, g3, KEY_A, await mint({ claims: { sub: 's3', exp: now() - 3600 } }));
+    // A token signed by a DIFFERENT RSA key, i.e. an outright forgery with a valid shape.
+    const other = await crypto.subtle.generateKey(
+      { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+      true, ['sign', 'verify']);
+    const forged = await authCall(worker, e, g3, KEY_A, await mint({ claims: { sub: 's3' }, priv: other.privateKey }));
+    const none = e.DB._raw.prepare('SELECT COUNT(*) c FROM acc WHERE gid = ?').get(g3);
+    expect(wrongAud.json && wrongAud.json.err === 'aud' && wrongIss.json && wrongIss.json.err === 'iss'
+      && expired.json && expired.json.err === 'expired' && forged.json && forged.json.err === 'token'
+      && none.c === 0,
+      'THE TOKEN IS VERIFIED, NOT TRUSTED: aud ' + (wrongAud.json && wrongAud.json.err)
+      + ', iss ' + (wrongIss.json && wrongIss.json.err) + ', exp ' + (expired.json && expired.json.err)
+      + ', forged ' + (forged.json && forged.json.err) + ', rows written ' + none.c);
+
+    // --- BOTH forms of `iss` are legitimate, and accepting one is a sign-in that works until it doesn't ---
+    const g4 = 'gidauth00004';
+    const shortIss = await authCall(worker, e, g4, KEY_A, await mint({ claims: { sub: 's4', iss: 'accounts.google.com' } }));
+    expect(shortIss.json && shortIss.json.ok === 1 && shortIss.json.gid === g4,
+      'BOTH ISSUER FORMS PASS: `accounts.google.com` → ' + (shortIss.json && (shortIss.json.err || 'ok')));
+
+    // --- a key ROTATION is not a forgery: one re-fetch, then the sign-in goes through ---
+    const before = jwksCalls;
+    const rot = await crypto.subtle.generateKey(
+      { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+      true, ['sign', 'verify']);
+    const rotJwk = await crypto.subtle.exportKey('jwk', rot.publicKey);
+    jwksServe = jwksServe.concat([{ kid: 'k2', kty: 'RSA', alg: 'RS256', use: 'sig', n: rotJwk.n, e: rotJwk.e }]);
+    const g5 = 'gidauth00005';
+    const rotated = await authCall(worker, e, g5, KEY_A,
+      await mint({ kid: 'k2', priv: rot.privateKey, claims: { sub: 's5' } }));
+    expect(rotated.json && rotated.json.ok === 1 && jwksCalls === before + 1,
+      'AN UNKNOWN kid IS A ROTATION: ' + (rotated.json && (rotated.json.err || 'ok'))
+      + ' after ' + (jwksCalls - before) + ' extra fetch(es) of the key set');
+
+    // --- ⚠️⚠️ THE COMMON PRODUCTION PATH: A DEVICE THAT IS ALREADY REGISTERED SENDS NO KEY ---
+    // A player who has bought something anchored his key long ago, so the client stops sending it
+    // (a secret on the wire is a secret on the wire). The mapping must still store the key the
+    // signature was VERIFIED with — take it from the request body and a registered device writes an
+    // EMPTY key into the account, and every later device is handed nothing.
+    const g7 = 'gidauth00007';
+    {
+      const t = now();
+      await call(worker, e, '/v1/mine', { body: { id: g7, t, sig: await sigFor(KEY_B, g7, 'mine', t), k: KEY_B } });
+    }
+    const silent = await authCall(worker, e, g7, KEY_B, await mint({ claims: { sub: 's7' } }), { body: { k: undefined } });
+    const acc7 = e.DB._raw.prepare('SELECT * FROM acc WHERE sub = ?').get('s7');
+    expect(silent.json && silent.json.ok === 1 && silent.json.k === KEY_B
+      && acc7 && acc7.k === KEY_B,
+      'THE KEY STORED IS THE ONE VERIFIED, NOT THE ONE SENT: the device sent none, the account holds '
+      + (acc7 && String(acc7.k).slice(0, 6)) + '… and the answer carried '
+      + (silent.json && String(silent.json.k || '(empty)').slice(0, 6)) + '…');
+
+    // --- the client id is answered, in exactly one copy, and its absence is a clean refusal ---
+    const cfg = await call(worker, e, '/v1/auth/cfg', { method: 'GET' });
+    const blind = env({ GOOGLE_CLIENT_ID: '' });
+    const noCid = await authCall(worker, blind, 'gidauth00006', KEY_A, await mint({ claims: { sub: 's6' } }));
+    expect(cfg.json && cfg.json.cid === CLIENT_ID && noCid.status === 503
+      && noCid.json && noCid.json.err === 'noclient',
+      'ONE CLIENT ID, ANSWERED BY THE SERVER: /v1/auth/cfg → ' + (cfg.json && cfg.json.cid)
+      + '; unset → ' + noCid.status + ' ' + (noCid.json && noCid.json.err));
   }
 
   console.log('\nTOTAL PASS: ' + pass + (fails.length ? ' | FAIL: ' + fails.length : ''));
