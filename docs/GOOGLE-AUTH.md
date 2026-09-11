@@ -236,6 +236,15 @@ with one made on another device. That follows from trap 5 and it is not a defect
   iframe it cannot see, and the guard says so.
 - **The client id is read from `/v1/auth/cfg` and written down nowhere else** — one copy, the
   worker's var, asserted by the guard against what GIS was initialised with.
+- **⚡ THE LINE'S TWO WORDINGS ARE CHOSEN BY MEASUREMENT, AND THE SHORT ONE IS MANDATORY** (his word
+  2026-09-11-g). «Sign in with Google» is written, measured against the room the header has left, and
+  swapped for «[G] Sign in» only when it does not fit. A width breakpoint is wrong for it — whether
+  the words fit depends on the SCORE beside them as much as on the screen.
+  ⛔⛔ AND SINCE 2026-09-11-p THE NUMBER GIVES WAY TO IT. At 320 with a short name the profile's
+  column stopped shrinking where the NAME stopped, and the line beneath was ellipsised to «Sig…» —
+  so the wallet's fit now asks about the whole column (`.ms-uname`, `.ms-auth-lbl`, `.ms-auth-out`)
+  and falls down its own ladder rather than let the mandatory short form be clipped. `headFit` drives
+  the label to its floor BEFORE deciding the number, or the two measurements chase each other.
 
 **THE ONE TAP** (his word 2026-09-11-v: «show the native Google popup on entering the game,
 auto-login if possible») is `authPromptOneTap()`, called from `finishIntro` — the honest «entered the

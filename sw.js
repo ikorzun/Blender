@@ -52,7 +52,7 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = 'b2e377c3524c';
+const BUILD = '33c0cc3d2d9e';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 

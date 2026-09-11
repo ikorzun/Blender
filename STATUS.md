@@ -6,7 +6,47 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11-v (the Google popup on entry, the sign-in line, «Logout», the leaderboard block) on top of 2026-09-11-b, v2 = main** · **the changed sections: 27 + 4 + 3 + 11 green, 0 red; seven sabotages, each red on its own check** · **the full suite has NOT been run on this build — your word** · blendo.monster is a build behind until it is · ⚠️ **sign-in still waits on three steps of yours, below**
+**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1201 green, 0 red** · **eight sabotages, each red on its own check** · ⚠️ **sign-in still waits on three steps of yours, below**
+
+**11 SEPTEMBER, NIGHT — YOUR FOUR CORRECTIONS TO THE CARD.**
+
+**«123 456» with a space, everywhere it fits.** The wallet in the menu's top bar used to read
+«123116»; it now reads «123 456», grouped the same way the leaderboard screen has always written a
+result. One card, one way of writing a number.
+
+**And when it does not fit, it gives up the space first and the digits last.** «123 456» → «123456» →
+«123,1k». The space costs a few pixels and hides nothing; the short form hides three digits, so it is
+the last thing tried, not the first. The comma is deliberate: this game already groups thousands with
+a space, and a dot for the fraction beside a space for the group would be two conventions on one card.
+The Boost buttons in the collection ride along — a price that read «Boost 2K» reads «Boost 2k»
+now, one short form in the menu instead of two.
+
+**The top row never breaks onto two lines again.** Two days ago I let it wrap on the narrowest phones,
+which is exactly what you cancelled: the name and the score stay on ONE line at every width, and there
+are always at least 20 pixels between them.
+
+**The name fades and drifts instead of ending in «…».** A long name is clipped with a soft fade and
+slides gently back and forth so you can read all of it. A name that fits does neither — no fade on
+«Guest», no animation running for nothing. If your phone is set to reduce motion, the drift stops and
+the fade stays.
+
+**Under your place it now just says «on leaderboard».** «340 to Godwit» is gone, as you asked — the
+next player is on the right with his face and his score, and the gap is the subtraction you do
+yourself between two numbers that are both on the row. That also answers the question I left open
+yesterday: **the number on the right stays his score, not the gap.**
+
+**The full run you asked for: 1201 checks, all green.** It took four attempts, and three of them are
+worth one line: your machine was so loaded that the game's own page stopped loading within thirty
+seconds, and two runs failed nine DIFFERENT checks between them. A real fault fails the same check
+every time; only a tired machine fails a different one each time. On a calm machine everything is
+green, including the eight deliberately broken versions I build to prove the checks can still fail.
+
+**One place where your three rules collide, and you should decide it, not me.** At 320 pixels — the
+narrowest phone there is — the star, the number and «×5 Boost» take almost the whole width. Keeping the
+name and the score on one line leaves the name about three characters before the fade. To find even
+those I made the avatar and the «×5 Boost» button slightly smaller on that one width. It reads
+honestly, but it is small; the wrap is what used to pay for it. **Say the word and I put the wrap back
+for 320 alone, or shrink something else instead.** Everything from 360 upwards is untouched.
 
 **11 SEPTEMBER, EVENING — YOUR TWO MESSAGES: THE GOOGLE POPUP, THE SIGN-IN LINE, AND THE LEADERBOARD BLOCK.**
 
@@ -41,12 +81,15 @@ score of 50); the exact number stands at 390 and 360 and becomes «123k» at 320
 **On a very narrow phone the top row now wraps onto two lines.** With a score like 123116 the star, the
 number and «×5 Boost» take almost the whole width, and the name was being squeezed down to one letter.
 It now drops the score onto its own line instead. You only ever see this on the smallest phones.
+⛔ *Cancelled the same night by your own word — see «The top row never breaks onto two lines again» above.*
 
 **The leaderboard block, by your second drawing.** The three faces became one — the player right above
 you — with a thin divider and **his score** under his face. The line on the left still says how far
 behind you are («340 to Godwit»), so read together the row tells the whole story: you are 340 behind
 Godwit, who has 123 456. **If you meant that number to be the gap rather than his score, say so — it
 is one line.** The same block appears on the victory screen; it is one component and always has been.
+⛔ *Answered that night: the line is gone and the number stays his score — see «Under your place it now
+just says `on leaderboard`» above.*
 
 **What I have NOT done, and it is one word from you.** The full suite has not been run on this build.
 Your own rule is that I run the changed checks and you decide about the full one — and this batch moves

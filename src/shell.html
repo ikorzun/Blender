@@ -2833,15 +2833,16 @@
     display:flex; flex-direction:column; gap:8px; }
   .ms-wrap section, .ms-wrap header { box-sizing:border-box; }
   /* the header */
-  /* ⚠️⚠️ THE HEADER WRAPS RATHER THAN CRUSHING ITS LEFT SIDE, AND THAT IS THE EXTREME CASE
-     MEASURED: at 320 with a late-game score («123116») the star, the number and «×5 Boost» take
-     240 of the 296 available, and the profile column was squeezed to about thirty pixels — the
-     name truncated to one letter and the sign-in line cut in half. Wrapping drops the score row
-     under the profile instead; the card grows by one row, and nothing becomes unreadable.
-     ⛔ THE FLOOR IS WHAT MAKES THE WRAP HAPPEN: without a minimum on the profile, flex prefers to
-     shrink it to nothing and the wrap never fires. */
-  .ms-head { display:flex; align-items:center; justify-content:space-between;
-    flex-wrap:wrap; row-gap:8px;
+  /* ⛔⛔ THE WRAP OF 2026-09-11-v IS CANCELLED BY HIS WORD OF 2026-09-11-p («it matters that both
+     the name and the score are on ONE line»), and with it the paragraph that stood here: at 320
+     with a late-game score the header used to drop the score row under the profile, which kept
+     everything readable at the cost of the row he wanted. The crush it was insurance against is
+     now answered where the width actually is — the number shortens first («123 456» → «123,4k»),
+     and only then the name fades into its scroll. Restoring `flex-wrap` = reverting that order.
+     ⚠️ `gap:20px` IS A MINIMUM AND NOT A SPACING: under `space-between` the two sides are pushed
+     apart by whatever room is left, and this is the floor they may never come closer than — his
+     «between the score and the name there must always be a gap of 20px». */
+  .ms-head { display:flex; align-items:center; justify-content:space-between; gap:20px;
     background:#fff; border-radius:1000px; padding:12px; }
   /* GOOGLE SIGN-IN — THE PROFILE'S SECOND LINE (his node 840:4681, 2026-09-11-v).
      ⛔⛔ NO BACKING OF ITS OWN, AT ANY WIDTH, AND THAT WAS MEASURED RATHER THAN COPIED. The markup
@@ -2888,14 +2889,45 @@
   /* ⚠️ THE PROFILE IS THE SIDE THAT SHRINKS: the header is `space-between`, and with the sign-in
      line under the name the left column can now be wider than the room left by the score and the
      «×5 Boost» button. Flex overflows rather than wrapping, so without this the two sides simply
-     lie on top of each other — measured on the first frame at 390. The name already truncated;
-     the line truncates with it. */
+     lie on top of each other — measured on the first frame at 390. The name fades into its scroll
+     (2026-09-11-p, it used to truncate); the sign-in line under it keeps its ellipsis, and when
+     even its short wording would be clipped the NUMBER gives way instead — see `setWalletNumber`. */
   .ms-prof { display:flex; align-items:center; gap:6px; min-width:0; flex:0 1 auto; }
   .ms-head-r { flex:none; }
   .ms-av { width:48px; height:48px; border-radius:50%; background:#6e659d; flex:none;
     display:grid; place-items:center; font-size:22px; }
-  .ms-uname { font-size:18px; font-weight:700; color:var(--carbon-400); overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap; }
+  /* ⚡ THE NAME FADES AND SCROLLS RATHER THAN ENDING IN AN ELLIPSIS (his word 2026-09-11-p: «the
+     player's name may be shortened — take it into a fade and give it a light horizontal-scroll
+     animation»). ⛔ THE ELLIPSIS GOES, and it is a different statement, not a prettier one:
+     «…» says the name is cut and leaves it cut; the fade says there is more, and then shows it.
+     ⚠️⚠️ THE CLIP IS THE OUTER SPAN AND THE TEXT IS AN INNER ONE THAT MOVES BY `transform`, and
+     that split is load-bearing twice over. `#msUser` stays the element whose `textContent` is
+     written and read (`refreshGuestProfile` and three arms do exactly that), and a transform does
+     NOT touch layout — so the overflow test the WALLET NUMBER is decided by (`.ms-uname`
+     scrollWidth against clientWidth) stays honest WHILE the animation runs. `text-indent` on a
+     single element would have spared the wrapper and made that measurement oscillate in time with
+     the animation — the number would have flickered between its two forms.
+     ⚠️ The mask hangs on `.over` alone: a name that fits must not fade its own last letter. */
+  .ms-uname { display:block; min-width:0; overflow:hidden;
+    font-size:18px; font-weight:700; color:var(--carbon-400); }
+  /* ⚠️ THE FADE IS 20px OR A THIRD OF THE BOX, WHICHEVER IS SMALLER: at 320 that box is about
+     forty pixels wide (see the narrow-width block below), and a flat 20 would have spent half of
+     the little there is on the gradient itself. */
+  .ms-uname.over { -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - min(20px,33%)),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - min(20px,33%)),transparent); }
+  .ms-uname-in { display:block; width:max-content; white-space:nowrap; }
+  /* the travel is exactly the overflow (`--un-shift`, written by `unameFit`), with a dwell at both
+     ends so the name is READABLE at rest instead of permanently sliding */
+  .ms-uname.over .ms-uname-in { animation:msUnameScroll 8s ease-in-out infinite; }
+  @keyframes msUnameScroll {
+    0%, 22% { transform:translateX(0); }
+    50%, 72% { transform:translateX(var(--un-shift, 0px)); }
+    100% { transform:translateX(0); }
+  }
+  /* ⛔ THE MOTION IS A PREFERENCE, THE FADE IS THE INFORMATION: the scroll stops, the gradient
+     stays. Dropping both would leave a reduced-motion reader a name cut dead at the edge with
+     nothing on screen to say that it was cut. */
+  @media (prefers-reduced-motion: reduce) { .ms-uname.over .ms-uname-in { animation:none; } }
   /* ⚠️ the entrance to the debug is visible only in development — the class is set by 90-input */
   /* ⚠️ WITHOUT !important: `html.dev .ms-dev` (specificity 0,2,1) overrides
      this rule (0,1,0) anyway. With !important the panel did not open even in development —
@@ -2935,6 +2967,33 @@
   .ms-getmore { white-space:nowrap; border:none; cursor:pointer; background:#FFE730; color:#000;
     border-radius:1000px; padding:13px 16px; font-family:var(--font-round);
     font-size:16px; font-weight:700; }
+  /* ⚡⚡ AT 320 HIS THREE RULES DO NOT ADD UP, AND THE FRAME SAID SO IN ONE NUMBER: the name's
+     column measured ZERO. The arithmetic of that width — avatar 48 + gap 6 + the 20px floor + the
+     right side 207 (star 25, the compact number ~50, «×5 Boost» ~114) = 281 against 280 available —
+     leaves the profile exactly nothing, and `flex:0 1 auto` duly shrank it to nothing. The wrap
+     used to pay for this; his word of 2026-09-11-p spent it («the name and the score on ONE line»).
+     ⛔ SO THE ROOM IS TAKEN FROM THE RIGHT SIDE AND THE AVATAR, AT THE NARROWEST WIDTH ONLY, and
+     every number here is his own or measured: 32 for the avatar on a narrow screen is his word of
+     2026-08-10/11 (said of the entry point's circles, the same screen), and the rest is the button
+     and the gaps giving back their slack. It buys the name a readable, fading sliver instead of an
+     absence. ⚠️ THIS IS THE ONE PLACE HIS OWN RULES COLLIDE — told to him with the frame, not
+     tidied away: even after every reduction here the name's column at 320 is about three
+     characters wide, and restoring the 48 avatar spends most of them.
+     ⛔⛔ AND IT MUST STAND **AFTER** `.ms-getmore` AND `.ms-head-r`: a media query adds no
+     specificity, so the first draft of this block sat above their declarations and every rule
+     in it but the avatar's was silently overridden — the frame read 17px where 37 were due. */
+  @media (max-width:359px){
+    .ms-head { padding:10px 8px; }
+    .ms-av { width:32px; height:32px; font-size:16px; }
+    .ms-prof { gap:4px; }
+    .ms-head-r { gap:6px; }
+    .ms-stars { gap:4px; }
+    .ms-stars svg { width:18px; height:17px; }
+    /* 18 is not a new number — `#msSticky` has been carrying the wallet at 18 since the floating
+       header, for the same reason: a tighter row */
+    .ms-stars span { font-size:18px; }
+    .ms-getmore { padding:12px 7px; font-size:14px; }
+  }
   /* THE ENTRY POINT INTO THE LEADERBOARD — THE MOBILE VARIANT (mock-up 840:4344).
      A pill on a semi-transparent cold background with a white frame; on the left two lines,
      on the right three avatars and a round arrow.
@@ -5487,7 +5546,7 @@
              320. This line is 14px tall inside the profile's own column, so the row grows in
              HEIGHT and not in width — a different thing, and it is what he drew. -->
         <div class="ms-prof-txt">
-          <span class="ms-uname" id="msUser">Guest</span>
+          <span class="ms-uname"><span class="ms-uname-in" id="msUser">Guest</span></span>
           <div class="ms-auth" id="msAuth" hidden>
             <!-- ⛔⛔ THE GOOGLE MARK AND THE WORDS ARE OURS, THE HIT AREA IS GOOGLE'S. `#msAuthBtn`
                  holds Google's OWN rendered button at `opacity:0` on top of this line, because a

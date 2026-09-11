@@ -826,13 +826,14 @@ function layoutHUD(){
   if (typeof fitStat === 'function'){ fitStat('lvlNum'); fitStat('timer'); fitStat('score'); }
 }
 addEventListener('resize', layoutHUD);
-// ⚠️ THE MENU'S TWO FITS RE-RUN ON A RESIZE, AND BOTH ARE «does it still fit» QUESTIONS whose answer
-// is the width: the sign-in wording (his word 2026-09-11-g) and the next player's score. Without
-// this a phone turned while the menu is open keeps the form it was opened with — the short words on
-// a screen that has since gained room, or the exact number on one that has lost it. Both are no-ops
-// while the menu is closed (they refuse to decide on a zero measurement).
+// ⚠️ THE MENU'S FITS RE-RUN ON A RESIZE, AND EVERY ONE OF THEM IS A «does it still fit» QUESTION
+// whose answer is the width: the header's three (`headFit` — the wallet number, the sign-in wording,
+// the name's fade) and the next player's score. Without this a phone turned while the menu is open
+// keeps the form it was opened with — the short words on a screen that has since gained room, or the
+// exact number on one that has lost it. Both are no-ops while the menu is closed (they refuse to
+// decide on a zero measurement).
 addEventListener('resize', function (){
-  try { authFitLabel(); } catch (e) {}
+  try { headFit(); } catch (e) {}
   try { lbEntryFitScore(); } catch (e) {}
 });
 layoutHUD();

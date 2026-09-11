@@ -10983,7 +10983,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       sub.textContent = ''; await sleep(60); const empty = H();
       sub.textContent = keep; await sleep(60);
       const kid = avs.children[0];
+      const scoreEl = document.getElementById(id + 'Score');
       return { live: g.leaderboardScore() | 0, rank: rank.textContent, sub: sub.textContent,
+        score: scoreEl ? scoreEl.textContent : null,
+        nextEmpty: document.getElementById(id + 'Next').classList.contains('empty'),
+        horiz: (() => { const m = document.getElementById(win ? 'winWrap' : 'mainScreen');
+          return m ? m.scrollWidth - m.clientWidth : -1; })(),
         rankSize: cs(rank).fontSize, subSize: cs(sub).fontSize,
         rankPad: cs(rank).padding, subPad: cs(sub).padding,
         avKids: avs.children.length, avTag: kid && kid.tagName,
@@ -11014,19 +11019,26 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const mob = await gapPage(390, 780, UP, 1000);
     const desk = await gapPage(1280, 900, UP, 1000);
     const none = await gapPage(390, 780, [['Gull', 3, 900], ['Teal', 7, 500]], 1000);   // everyone in the window is BELOW the live score
-    // the widest line this block can ever produce: the formatter's longest number and a name at
-    // the cap (16). Our own guest names top out at «Oystercatcher» (13) — the extra characters are
-    // the crafted case the server's 40-character bar lets through.
+    // ⛔ THE WIDTH RISK MOVED WITH THE DESIGN (2026-09-11-p). It used to be the LINE — «1000k to a
+    // 40-character name» pushing the circle off a 320 screen, which is why the name is capped at
+    // 16. The line is static now; what varies is the NUMBER under the neighbour's face, and the
+    // worst case is a seven-digit one on the narrowest screen.
     const wide = await gapPage(320, 568, [['Oystercatcherpseudonymissimusmaximus1234', 9, 1000900]], 1000);
     const win = await gapPage(390, 844, UP, 1000, true);
     console.log('points/gap:', JSON.stringify({ mob, desk, none, wide, win }));
 
-    expect(mob.live === 1000 && /place/.test(mob.rank) && mob.sub === '340 to Godwit' &&
-           mob.ownAv === 36 && mob.avKids === 1 && mob.avTag === 'IMG' && mob.avSrc === 'avatars/Avatar04.png',
-      '⚡ THE LINE NAMES THE NEAREST ABOVE BY THE LIVE SCORE AND THE ONE CIRCLE IS HIS FACE — ' +
-      '«340 to Godwit» (1340 − 1000) with Godwit\'s avatar 04, not `up[0]` (Gull, 900, already ' +
-      'overtaken). ⛔ SABOTAGE: take `up[0]` — this reads «-100 to Gull» with Avatar03 (' +
-      JSON.stringify({ live: mob.live, rank: mob.rank, sub: mob.sub, av: mob.avSrc, kids: mob.avKids }) + ')');
+    // ⛔⛔ THE LINE NO LONGER NAMES HIM — his word of 2026-09-11-p («13 place, under it `on
+    // leaderboard`, because the next player is on the right and his name does not matter») — SO
+    // THE DISCRIMINATION MOVED ONTO THE TWO THINGS THAT DO SHOW HIM: his FACE and his SCORE. The
+    // derivation is unchanged and so is the trap: `up[0]` is Gull at 900, already overtaken, and a
+    // build that takes it shows Avatar03 with «900» instead of Avatar04 with «1 340».
+    expect(mob.live === 1000 && /place/.test(mob.rank) && mob.sub === 'on leaderboard' &&
+           mob.score === '1 340' && mob.ownAv === 36 && mob.avKids === 1 && mob.avTag === 'IMG' &&
+           mob.avSrc === 'avatars/Avatar04.png',
+      '⚡ THE NEAREST ABOVE BY THE LIVE SCORE IS THE ONE SHOWN — Godwit\'s face (avatar 04) with ' +
+      'his exact «1 340», not `up[0]` (Gull, 900, already overtaken); the line under the place is ' +
+      'the static «on leaderboard». ⛔ SABOTAGE: take `up[0]` — Avatar03 and «900» (' +
+      JSON.stringify({ live: mob.live, rank: mob.rank, sub: mob.sub, score: mob.score, av: mob.avSrc, kids: mob.avKids }) + ')');
 
     // ⚠️⚠️ THE TWO LINES ARE DELIBERATELY OF DIFFERENT SIZES, AND THAT IS HIS SECOND WORD OF THE DAY
     // CANCELLING HIS FIRST. The first was «the same font size as the place»; he looked at the
@@ -11050,20 +11062,25 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ THE REFUSAL IS THE OLD LINE AND A NEUTRAL CIRCLE. Five neighbours are the SERVER's window;
     // when nobody in it is above the live score there is no gap and no «next» — and the circle
     // must NOT borrow a face from the top, which would name a player the line does not.
-    expect(none.sub === 'on leaderboard' && /place/.test(none.rank) &&
-           none.avKids === 1 && none.avTag === 'I',
-      '⚡ THE WINDOW IS EXHAUSTED (nobody in `up` is above the live score) — «on leaderboard» and ' +
-      'the neutral circle, no borrowed face (' + JSON.stringify({ rank: none.rank, sub: none.sub, tag: none.avTag }) + ')');
+    // ⚠️ «on leaderboard» IS NOW WHAT THE ROW ALWAYS SAYS, so it discriminates NOTHING here on its
+    // own — what this arm is about is the right-hand side going quiet: the number and the caption
+    // collapse (`.empty`), and the circle stays a NEUTRAL slot rather than borrowing a face from
+    // the top, which would show a player nothing on the row names.
+    expect(none.sub === 'on leaderboard' && /place/.test(none.rank) && none.nextEmpty &&
+           none.score === '' && none.avKids === 1 && none.avTag === 'I',
+      '⚡ THE WINDOW IS EXHAUSTED (nobody in `up` is above the live score) — the number and the ' +
+      'caption collapse and the circle is the neutral slot, no borrowed face (' +
+      JSON.stringify({ rank: none.rank, sub: none.sub, score: none.score, empty: none.nextEmpty, tag: none.avTag }) + ')');
 
-    // ⚠️⚠️ THE WIDTH IS WHY THE NAME IS CAPPED AT 16, AND IT IS GUARDED AT THE NARROWEST WIDTH WITH
-    // THE WIDEST STRING THIS BLOCK CAN PRODUCE. At the subtitle's own 14, and with ONE circle on
-    // the right instead of three, «1000k to Oystercatchers1…» is 177px and still clears it; at the
-    // place's 18, which his first word asked for, «340 to Oystercatcher» alone overlapped the
-    // three avatars by 54px here. The clearance is the property: the text ends BEFORE the circle.
-    expect(/^1000k to /.test(wide.sub) && wide.sub.length <= 25 && wide.clear > 4,
-      '⚡ THE WIDEST LINE STILL CLEARS THE CIRCLE AT 320 (' +
-      JSON.stringify({ sub: wide.sub, clearPx: wide.clear }) + '). ⛔ SABOTAGE: drop the name cap ' +
-      '— a 40-character name pushes the circle off the screen');
+    // ⚠️⚠️ THE WORST NUMBER AT THE NARROWEST WIDTH: 1 000 900 grouped is nine characters, and at
+    // 320 they do not fit — the compact «1M» is taken, the left group still ends BEFORE the circle,
+    // and the screen does not gain a horizontal scroll. ⛔ THE THREE TERMS ARE ONE PROPERTY: a
+    // build that «fell back» by letting the row overflow satisfies a text assert and breaks the
+    // menu, which is why `clear` and `horiz` stand beside the string.
+    expect(wide.score === '1M' && wide.sub === 'on leaderboard' && wide.clear > 4 && wide.horiz === 0,
+      '⚡ THE SEVEN-DIGIT NEIGHBOUR AT 320 TAKES THE COMPACT «1M», CLEARS THE CIRCLE AND DOES NOT ' +
+      'SCROLL THE SCREEN (' + JSON.stringify({ score: wide.score, clearPx: wide.clear, horiz: wide.horiz }) +
+      '). ⛔ SABOTAGE: keep the exact form here — the number lies on the circle');
 
     // ⚠️⚠️ THE WIN ROW SHOWS THE SAME NEIGHBOUR — asked whether the next player belongs there too,
     // he answered «нужен» (2026-09-10), which cancels his own word of 2026-08-21-r («instead of
@@ -11074,9 +11091,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // coincide.
     expect(win.avKids === 1 && win.avTag === 'IMG' && win.ownAv === 36 &&
            win.avSrc === 'avatars/Avatar04.png' && win.avSrc === mob.avSrc &&
-           win.sub === '340 to Godwit',
+           (win.score === '1 340' || win.score === '1,3k') && win.sub === 'on leaderboard',
       '⚡ THE WIN ROW SHOWS THE NEIGHBOUR\'S AVATAR TOO — the same face as the menu row, and NOT ' +
-      'the player\'s own 36 (' + JSON.stringify({ av: win.avSrc, own: win.ownAv, menu: mob.avSrc, sub: win.sub }) + ')');
+      'the player\'s own 36; his score stands under it in one of the two sanctioned forms (' +
+      JSON.stringify({ av: win.avSrc, own: win.ownAv, menu: mob.avSrc, score: win.score, sub: win.sub }) + ')');
+    // ⚠️ WHY NOT «the same string as the menu»: that card is NARROWER than the menu row at the same
+    // width, so the fit honestly takes the compact form there while the menu keeps «1 340» — and an
+    // equality across the two screens would be asserting a promise the design never made. What is
+    // worth pinning is that the number is THERE at all: a hidden row cannot be measured, and a
+    // tidy-up that skipped it once left this very number EMPTY.
   }
 
   // ===== THE GAME HAS NO STARS, ONLY POINTS (the owner 2026-09-10: «Points, there are no stars in
@@ -20571,11 +20594,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       });
       // ⚠️ THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE GAP — the gap is the line on the LEFT,
       // and printing one quantity twice in two formats is the drift this file keeps paying for.
-      expect(d.score === '123 456' && d.sub === '340 to Godwit' && d.cap === 'next players'
+      // ⛔⛔ «340 to Godwit» WENT WITH HIS WORD OF 2026-09-11-p, AND THE ARM MOVED WITH THE RULE
+      // RATHER THAN BEING DELETED. `sub === 'on leaderboard'` ALONE WOULD BE VACUOUS — that is
+      // also the old no-neighbour fallback — so it is asserted TOGETHER with the neighbour being
+      // shown: his face, his exact score. A build that lost the neighbour reads the same line with
+      // a neutral circle and an empty number, and fails here.
+      expect(d.score === '123 456' && d.sub === 'on leaderboard' && d.cap === 'next players'
         && d.capColour === 'rgb(162, 162, 168)' && d.ruleW === 1 && d.ruleH > 20
         && d.avTag === 'IMG' && d.avSrc.indexOf('Avatar07') >= 0 && d.order && d.inLeft,
         'AUTH: the entry point carries the next player — his face, his EXACT score «123 456», the ' +
-        'hairline rule, «next players» in Carbon 600; the gap «340 to Godwit» stays the line on the left',
+        'hairline rule, «next players» in Carbon 600; under the place the static «on leaderboard»',
         JSON.stringify(d));
       // ⛔ AND THE CONTROL: no neighbour (the first place, a guest, no connection) collapses the
       // NUMBER and the caption — but never the circle, whose geometry this row guarantees in the
@@ -20669,13 +20697,141 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         JSON.stringify(wide));
       // ⛔ THE CONTROL IS `horiz === 0`: a build that «fell back» by letting the row overflow
       // instead of shortening would satisfy a text assert and break the menu.
-      // ⚠️ THE COMPACT FORM IS `winFmtScore`, WHICH IS «k» **OR** «M» — the first draft of this
-      // assert demanded a «k» and went red on a sound build against a nine-digit neighbour. The
-      // property is «compact», i.e. no grouping spaces, and that is what is asked.
-      expect(tight.label === 'Sign in' && /^[\d.]+[kM]$/.test(tight.score || '') && tight.horiz === 0,
+      // ⚠️ THE COMPACT FORM IS `fmtStars`, WHICH IS «k» **OR** «M» — the first draft of this assert
+      // demanded a «k» and went red on a sound build against a nine-digit neighbour. The property
+      // is «compact», i.e. no grouping spaces, and that is what is asked.
+      // ⚡ AND THE FRACTION IS A COMMA SINCE 2026-09-11-p («123,4k»), which the pattern pins: a
+      // build that reverted to `winFmtScore` here writes «123.5k» and reddens this line.
+      expect(tight.label === 'Sign in' && /^\d+(,\d)?[kM]$/.test(tight.score || '') && tight.horiz === 0,
         'AUTH: with the room gone, both fall back — «Sign in» and the compact score — and nothing overflows',
         JSON.stringify(tight));
       await ctx.close();
+    }
+
+    // ---- A15: THE HEADER IS ONE ROW WITH A 20px FLOOR, AND THE WALLET IS GROUPED OR COMMA-COMPACT
+    // ⚡ HIS THREE ITEMS OF 2026-09-11-p READ TOGETHER: «123 456 with a space if it all fits», «123,4k
+    // may be shortened — it matters that the name AND the score are on ONE line», «between the score
+    // and the name there must always be a gap of 20px».
+    // ⛔⛔ THIS ARM CANCELS THE WRAP OF -v, and the wrap is exactly what it catches: `flex-wrap` on
+    // `.ms-head` kept everything readable at 320 by dropping the score under the profile — green on
+    // every arm of that batch, and the first thing he said about it.
+    // ⚠️ THE NAME IS PINNED BY SIGNING IN: the guest name is random per page («Coati», «Spoonbill»),
+    // and both halves of this arm depend on how wide it is.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.setViewportSize({ width: 1280, height: 900 });
+      await pg.evaluate(async (k) => {
+        window.__auth.score = 123116; window.__auth.up = [['Godwit', 7, 123456]];
+        __game.mergeRaw({ se: 123116 });
+        window.__auth.authAns = { ok: 1, gid: 'accHEAD', k: k, fresh: 0, name: 'Ivan Korzyn' };
+        await __game.authSignIn('h.p.s');
+      }, AK);
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.waitForFunction(() => { const n = document.getElementById('msLbeNext');
+        return n && !n.classList.contains('empty'); }, null, { timeout: 15000 }).catch(() => {});
+      const head = () => pg.evaluate(() => {
+        const prof = document.querySelector('.ms-prof'), right = document.querySelector('.ms-head-r');
+        const a = prof.getBoundingClientRect(), b = right.getBoundingClientRect();
+        const lbl = document.querySelector('.ms-auth-lbl'), out = document.getElementById('msAuthOut');
+        const shown = out && !out.hidden ? out : lbl;
+        const hd = document.querySelector('.ms-head'), hs = getComputedStyle(hd);
+        return { wallet: document.getElementById('msStars').textContent,
+          name: document.getElementById('msUser').textContent,
+          // ⚠️ «ONE ROW» IS AN OVERLAP AND NOT AN EQUAL TOP: `align-items:center` centres two boxes
+          // of different heights (the profile carries two lines, the score one), so their tops
+          // differ by design on a perfectly sound build — the first draft of this arm asserted
+          // equal tops and went red at every width.
+          oneRow: a.top < b.bottom && b.top < a.bottom,
+          gap: +(b.left - a.right).toFixed(1),
+          rows: +hd.getBoundingClientRect().height.toFixed(1),
+          // the header's own height against its tallest child: a wrapped header is taller than this
+          oneRowH: +(a.height + parseFloat(hs.paddingTop) + parseFloat(hs.paddingBottom)).toFixed(1),
+          // his own rule of -g: the short wording is MANDATORY, so a clip of it is a failure
+          slotCut: shown ? shown.scrollWidth - shown.clientWidth : -1,
+          horiz: (() => { const m = document.getElementById('mainScreen');
+            return m ? m.scrollWidth - m.clientWidth : -1; })() };
+      });
+      const wideH = await head();
+      await pg.setViewportSize({ width: 320, height: 640 });
+      await pg.evaluate(async () => { await new Promise(r => setTimeout(r, 400)); });
+      const tightH = await head();
+      console.log('auth head:', JSON.stringify({ wideH, tightH }));
+      // ⛔ THE GROUPING IS THE POINT OF THE FIRST TERM: a build that writes `String(n)` reads
+      // «123116» and fails, and one that reverted to the compact form fails the same line.
+      expect(wideH.wallet === '123 116' && wideH.oneRow && wideH.gap >= 20 && wideH.horiz === 0 &&
+             wideH.rows <= wideH.oneRowH + 1,
+        'AUTH HEAD 1280: the name and the wallet on ONE row, the exact grouped «123 116», at least 20px between them',
+        JSON.stringify(wideH));
+      // ⛔⛔ AND AT 320 THE ROW STAYS ONE ROW — this is the term the wrap breaks. The number gives
+      // way instead (his «123,4k»), the 20px floor holds, the sign-in slot is not clipped, and the
+      // menu gains no horizontal scroll.
+      expect(tightH.oneRow && tightH.gap >= 20 && /^\d+(,\d)?[kM]$/.test(tightH.wallet || '') &&
+             tightH.slotCut <= 0 && tightH.horiz === 0 && tightH.rows <= tightH.oneRowH + 1,
+        'AUTH HEAD 320: still ONE row — the number falls back to the comma-compact form, the 20px ' +
+        'floor holds and nothing is clipped or scrolled',
+        JSON.stringify(tightH));
+      await ctx.close();
+    }
+
+    // ---- A16: THE NAME FADES AND SCROLLS INSTEAD OF ENDING IN AN ELLIPSIS (his item 3)
+    // ⚡ «The player's name may be shortened — take it into a fade and give it a light
+    // horizontal-scroll animation». Three states, and the middle one is what makes the arm real:
+    // a name that FITS wears neither the gradient nor the animation.
+    // ⛔ AND THE CONTRACT UNDER IT: `#msUser` stays the element whose `textContent` is the name.
+    // The wrapper could as easily have been built the other way round, and then two guards of this
+    // suite and `refreshGuestProfile` would all have been writing into the clip instead.
+    {
+      const readName = async (pg) => pg.evaluate(() => {
+        const box = document.querySelector('.ms-uname'), inr = document.getElementById('msUser');
+        const cs = getComputedStyle(box), is = getComputedStyle(inr);
+        return { text: inr.textContent, over: box.classList.contains('over'),
+          shift: box.style.getPropertyValue('--un-shift').trim(),
+          need: box.scrollWidth - box.clientWidth,
+          mask: (cs.webkitMaskImage && cs.webkitMaskImage !== 'none' ? cs.webkitMaskImage : cs.maskImage) || 'none',
+          anim: is.animationName, inClip: inr.parentElement === box };
+      });
+      const namePage = async (name, opts) => {
+        const ctx = await browser.newContext(Object.assign({ viewport: { width: 390, height: 780 } }, opts || {}));
+        await ctx.addInitScript(hideBotFlag); await ctx.addInitScript(authStub);
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errors.push('AUTH ' + e.message));
+        await pg.goto(authStand.url + '?pay=1&dev=1');
+        await pg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+        await pg.evaluate(async (a) => {
+          window.__auth.score = 123116; window.__auth.up = [['Godwit', 7, 123456]];
+          __game.mergeRaw({ se: 123116 });
+          window.__auth.authAns = { ok: 1, gid: 'accN', k: a.k, fresh: 0, name: a.name };
+          await __game.authSignIn('h.p.s');
+        }, { k: AK, name: name });
+        await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+        await pg.click('#pauseBtn');
+        await pg.waitForTimeout(700);
+        const out = await readName(pg);
+        await ctx.close();
+        return out;
+      };
+      const long = await namePage('Konstantin Ostrowski');
+      const short = await namePage('Ivo');
+      const calm = await namePage('Konstantin Ostrowski', { reducedMotion: 'reduce' });
+      console.log('auth name:', JSON.stringify({ long, short, calm }));
+      // ⛔ THE TRAVEL IS THE OVERFLOW ITSELF: a distance typed into the keyframes stops short of the
+      // last letters or sails the name out of its box, and both look like «it animates».
+      expect(long.text === 'Konstantin Ostrowski' && long.inClip && long.over && long.need > 1 &&
+             long.shift === '-' + long.need + 'px' && /gradient/.test(long.mask) && long.anim === 'msUnameScroll',
+        'AUTH NAME: a name that does not fit fades and scrolls by exactly its own overflow, and ' +
+        '`#msUser` still carries the text',
+        JSON.stringify(long));
+      // ⛔⛔ THE DISCRIMINATOR: without this an «always faded» build passes every other term here.
+      expect(short.text === 'Ivo' && !short.over && short.need <= 1 &&
+             short.mask === 'none' && short.anim === 'none',
+        'AUTH NAME: a name that FITS wears neither the gradient nor the animation',
+        JSON.stringify(short));
+      // ⚠️ THE MOTION IS A PREFERENCE, THE FADE IS THE INFORMATION — dropping both would leave a
+      // reduced-motion reader a name cut dead at the edge with nothing to say that it was cut.
+      expect(calm.over && /gradient/.test(calm.mask) && calm.anim === 'none',
+        'AUTH NAME: under prefers-reduced-motion the scroll stops and the fade stays',
+        JSON.stringify(calm));
     }
 
     // ---- A9: the name follows the ID, and the way back never travels from a cloud copy

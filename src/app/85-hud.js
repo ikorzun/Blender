@@ -643,11 +643,12 @@ function lbGapNext(m, live){
   }
   return best;
 }
-// ⚠️⚠️ THE NAME IS CAPPED, AND THAT IS A LAYOUT GUARD RATHER THAN TIDINESS: our own guest names top
-// out at «Oystercatcher» (13 characters), but the server accepts up to 40
-// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar), and this line is
-// `white-space:nowrap` in a row whose right side is the avatar. 16 changes nothing for a real
-// player and bounds the crafted case.
+// ⚠️ THE NAME IS CAPPED — AND SINCE 2026-09-11-p THAT CAP GUARDS NOTHING ON SCREEN: this line is
+// no longer shown (the row says «on leaderboard»), so the string it builds is only ever tested for
+// being non-empty. It was a LAYOUT guard: the server accepts names up to 40 characters
+// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar) and the line used to be
+// `white-space:nowrap` in a row whose right side is the avatar. Kept because it costs nothing and
+// because the line comes back the day he asks for it; not described as a layout guard any more.
 const LB_GAP_NAME_MAX = 16;
 function lbGapLine(next, live){
   if (!next) return '';
@@ -813,12 +814,19 @@ function lbEntryRefresh(){
     // is data too — it is the answer, and it is what the row is going to show.
     boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
-    // ⚠️ «on leaderboard» IS NOW THE FALLBACK AND NOT THE LINE: it stands where a gap cannot be
-    // derived (the first place, an exhausted window, a neighbour list the server did not send) —
-    // i.e. it says «you are on the board» exactly where that is all we honestly know.
+    // ⛔⛔ «340 to Godwit» IS CANCELLED BY HIS WORD OF 2026-09-11-p: «13 place, and under it `on
+    // leaderboard` — because the next player is on the RIGHT and his name does not matter». The
+    // line is static now, and that retires two earlier rules at once: the note of 2026-09-10 that
+    // made «on leaderboard» a mere fallback, and the one of 2026-08-09 that put the gap into words
+    // in the first place («300 points motivates»). The gap did not go anywhere — it became
+    // arithmetic the player does himself, between two numbers that are both on the row.
+    // ⛔ `lbGapLine` STAYS, AND IS STILL CALLED: its non-empty answer is the CONDITION under which
+    // there is a neighbour at all — `hasNext` below draws the face and the score off it, and
+    // `lbRivalNext` hands the same row to the bowl. Only its text stopped being shown. Deleting
+    // the call would empty the right-hand side of the row it looks like it only feeds.
     const next = ok ? lbGapNext(m, live) : null;
     const gapLine = lbGapLine(next, live);
-    subs.forEach(sub => { sub.textContent = ok ? (gapLine || 'on leaderboard') : ''; });
+    subs.forEach(sub => { sub.textContent = ok ? 'on leaderboard' : ''; });
     // ⚠️⚠️ THE FACE AND THE LINE ARE WRITTEN FROM ONE ROW AND IN ONE PLACE, AND INTO BOTH
     // INSTANCES. If the text says «340 to Godwit», the circle is Godwit's — on the menu row and on
     // the win row alike — and when there is no gap to show (the first place, an exhausted window,
@@ -905,14 +913,23 @@ function lbEntryFitScore(){
     // dropped the string altogether. A default that is always written, refined when it can be.
     sc.textContent = lbFmt(raw);
     if (!row.clientWidth) return;
+    // ⚡ THE SAME THREE-RUNG LADDER THE WALLET FALLS DOWN (2026-09-11-p): the grouping SPACE is the
+    // cheapest thing to give up — it costs a few pixels and no information — and only when the bare
+    // digits still do not fit is the compact form taken. Measured on the win card, whose row is
+    // narrower than the menu's at the same width: a four-digit neighbour used to jump «1 340» →
+    // «1,3k», hiding 40 points where one space would have shown them all.
     // ⚠️⚠️ THE ROW **AND** ITS LEFT GROUP ARE BOTH ASKED, AND THE SECOND IS THE SENSITIVE ONE: the
     // group carries `min-width:0`, so it SHRINKS and its own content spills inside it — the row
     // above can report a clean `scrollWidth` while the number is already lying on its neighbour.
     // The number itself never clips (it is `nowrap` in a column that does not shrink), it PUSHES.
     const left = row.querySelector('.ms-lbe-left');
-    const over = row.scrollWidth > row.clientWidth + 1
+    const over = () => row.scrollWidth > row.clientWidth + 1
       || (!!left && left.scrollWidth > left.clientWidth + 1);
-    if (over) sc.textContent = winFmtScore(raw);
+    // ⚡ THE COMPACT FORM IS `fmtStars` AND NOT `winFmtScore` SINCE 2026-09-11-p: his «123,4k» has a
+    // comma, and the wallet three centimetres above this number now writes it that way. Two
+    // compact formats on one card would be the same drift the exact form was just spared.
+    if (over()) sc.textContent = String(raw);
+    if (over()) sc.textContent = fmtStars(raw);
   });
 }
 function lbServ(text){
@@ -2471,39 +2488,64 @@ if (typeof onAccTierUp === 'function') onAccTierUp(showTierUp);
 // it has to be made a hover, desktop»). The variable lived longer than the menu's opening and
 // restored the highlight on a repeated entry — a hover has nothing to restore,
 // it follows the cursor. To bring it back = revert this commit.
+// ⚡ «123,4k» — A COMMA AND A LOWERCASE k (his word 2026-09-11-p). The comma is not a whim: this
+// project already writes numbers the European way — `lbFmt` groups thousands with a SPACE
+// («123 456»), and a dot for the fraction beside a space for the group is two conventions in one
+// card. ⛔ THE M BRANCH IS NEW AND IT IS A BUG FIX, not a flourish: without it the wallet of a
+// late game printed «1234,6k» instead of «1,2M» — `fmtStars` had no ceiling at all.
+// ⚠️ THE BOOST BUTTONS RIDE ALONG («2K» → «2k») and that is deliberate: this is the ONE compact
+// form of the menu card, and a second one next to it would be a second truth about the same star.
 function fmtStars(n){
   n = n | 0;
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-  return String(n);
+  if (n < 1000) return String(n);
+  if (n < 1e6) return (n / 1000).toFixed(1).replace(/\.0$/, '').replace('.', ',') + 'k';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '').replace('.', ',') + 'M';
 }
 // THE WALLET IN THE MENU'S HEADER: THE EXACT NUMBER IF IT FITS HORIZONTALLY (the owner's
-// spec 2026-07-28: «1466, and not 1.5K, if it fits»). We write the exact one,
+// spec 2026-07-28: «1466, and not 1.5K, if it fits»).
+// ⚡ AND IT IS GROUPED SINCE 2026-09-11-p — «123 456 with a space, if it all fits». It is the same
+// `lbFmt` the table screen writes its results with, which is the point: one card must not hold
+// «123456» beside the entry point's «123 456». We write the exact one,
 // we measure the row — if it has overflowed OR Get More has moved onto another line
 // (.ms-collhead has flex-wrap on the desktop), we fall back to the abbreviation.
 // ⚠️ The threshold is not in characters: the width depends on the layout (the mobile pill against
 // the desktop header) and on the name's length — we measure the FACT, we do not guess.
 // The Boost buttons keep the abbreviation (the spec is about the wallet) — they call fmtStars.
+// ⚡ THE LADDER HAS THREE RUNGS SINCE 2026-09-11-p, AND THE MIDDLE ONE IS THE CHEAPEST THING TO
+// GIVE UP: «123 456» → «123456» → «123,1k». The grouping space costs a few pixels and NO
+// information; the compact form costs the last three digits. Before this the fall was straight from
+// the grouped form to «1,3k», and a build measured on the win card turned a four-digit neighbour
+// «1 340» into «1,3k» when dropping one space would have shown it whole.
 function setWalletNumber(el, n){
   if (!el) return;
-  const exact = String(n | 0), short = fmtStars(n);
-  el.textContent = exact;
-  if (exact === short) return;                       // there is nothing to abbreviate
+  const grouped = lbFmt(n), plain = String(n | 0), short = fmtStars(n);
+  el.textContent = grouped;
   const row = el.closest('.ms-head'); if (!row) return;
-  let fits = row.scrollWidth <= row.clientWidth + 1; // the row has not overflowed
-  if (fits){
+  // ⚠️ ASKED AFTER EVERY RUNG, NOT COMPUTED ONCE: each form is narrower than the last, so the
+  // answer changes under us — that is the whole point of a ladder.
+  const fits = () => {
+    let ok = row.scrollWidth <= row.clientWidth + 1;   // the row has not overflowed
+    if (!ok) return false;
     const gm = $('msGetMore');
-    if (gm){                                          // is Get More on the same line?
+    if (gm){                                           // is Get More on the same line?
       const a = el.getBoundingClientRect(), b = gm.getBoundingClientRect();
-      if (Math.abs(a.top - b.top) > Math.max(a.height, b.height) * 0.6) fits = false;
+      if (Math.abs(a.top - b.top) > Math.max(a.height, b.height) * 0.6) ok = false;
     }
-    // ⚠️ AND THE NAME MUST NOT BE TRUNCATED: .ms-uname has overflow:hidden, which is why
-    // the flex «squeezed in» a long number at the expense of the name («Guest» → «Gu…»), while the row
-    // did NOT overflow and the check above stayed silent. A truncation of the name = the number
-    // did not fit horizontally.
-    const un = row.querySelector('.ms-uname');
-    if (fits && un && un.offsetParent !== null && un.scrollWidth > un.clientWidth + 1) fits = false;
-  }
-  if (!fits) el.textContent = short;
+    // ⚠️ AND THE PROFILE'S COLUMN MUST NOT BE SQUEEZED BELOW ITS CONTENT: it carries `min-width:0`,
+    // which is why the flex «squeezed in» a long number at the expense of the name («Guest» →
+    // «Gu…») while the row did NOT overflow and the check above stayed silent.
+    // ⚡ AND IT IS THE WHOLE COLUMN, NOT ONLY THE NAME (2026-09-11-p): at 320 with a SHORT name the
+    // column stopped shrinking where the name stopped, and the sign-in BENEATH it was ellipsised to
+    // «Sig…» — his own rule of -g says the short «[G] Sign in» is MANDATORY, so a clip of it is a
+    // number that did not fit. `headFit` writes the short label before calling this, which is what
+    // makes the question well-posed: «does the column overflow with the label already at its floor».
+    const cut = sel => { const e = row.querySelector(sel);
+      return !!e && e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1; };
+    if (ok && (cut('.ms-uname') || cut('.ms-auth-lbl') || cut('.ms-auth-out'))) ok = false;
+    return ok;
+  };
+  if (grouped !== plain && !fits()) el.textContent = plain;
+  if (plain !== short && !fits()) el.textContent = short;
 }
 // how many types are opened by the progression: 9 at level 1, +1 per level, the pool's ceiling
 // (the types are opened IN THE ORDER of the TYPES array — as in genLevel)
@@ -2878,6 +2920,9 @@ function refreshMainScreen(){
   // of a narrow score that is about to grow. Caught by a rendered frame: at 390 a six-digit score
   // wrapped the header while the words stayed long.
   try { authFitLabel(); } catch(e){}
+  // ⚠️ AND THE NAME LAST, for the same reason one step further on: its box is what the number and
+  // the label have just finished leaving it.
+  try { unameFit(); } catch(e){}
   // the button's role: there is no live run — «Play Game» (a start), otherwise «Resume»
   const btn = $('msPlayBtn');
   const role = (!level || level.over) ? 'Play' : 'Resume';   // «just Play» — the owner's word 2026-09-04 (it was «Play Game»)
@@ -2930,6 +2975,9 @@ function refreshBundlePrices(){
 // header has left for it, whatever the header is doing at this instant.
 // ⚠️ `scrollWidth` IS THE HONEST WIDTH OF THE WORDS even while the label is clipped for the
 // ellipsis — its box may be squeezed, its content is not.
+// the two wordings, named once: `headFit` writes the short one before it measures the number, and
+// this function decides which of them survives
+const AUTH_LBL_FULL = 'Sign in with Google', AUTH_LBL_SHORT = 'Sign in';
 function authFitLabel(){
   const lbl = document.querySelector('.ms-auth-lbl');
   const head = document.querySelector('.ms-head');
@@ -2944,8 +2992,13 @@ function authFitLabel(){
   const lead = (av ? av.getBoundingClientRect().width : 0) + parseFloat(ps.columnGap || 0);
   const mark = line.querySelector('.ms-auth-g');
   const markW = (mark ? mark.getBoundingClientRect().width : 0) + parseFloat(ls.columnGap || 0);
-  const room = inner - right.getBoundingClientRect().width - lead - markW;
-  lbl.textContent = 'Sign in with Google';
+  // ⛔ THE 20px FLOOR BETWEEN THE TWO SIDES IS ROOM SOMEBODY ELSE OWNS, and it was missing from
+  // this sum: `.ms-head` is `space-between` with `gap:20px` (his word 2026-09-11-p), so a line that
+  // only fits when the profile touches the score does not fit at all. Read off the element rather
+  // than typed here — the floor is a CSS decision and this is its consumer.
+  const gap = parseFloat(hs.columnGap || 0) || 0;
+  const room = inner - right.getBoundingClientRect().width - lead - markW - gap;
+  lbl.textContent = AUTH_LBL_FULL;
   // ⛔⛔ A ZERO IS NOT A MEASUREMENT, IT IS A HIDDEN ELEMENT. While the band is still `hidden` the
   // whole subtree is `display:none` and `scrollWidth` reports 0 — which compares as «it fits» and
   // silently keeps the long words for ever. That is exactly what the first three drafts did, and
@@ -2954,7 +3007,55 @@ function authFitLabel(){
   // instant the band is revealed, removing it changes nothing today and its sabotage stays green.
   // It is insurance against a future caller that runs earlier — not the half that does the work.
   if (!lbl.scrollWidth) return;
-  if (lbl.scrollWidth > room) lbl.textContent = 'Sign in';
+  if (lbl.scrollWidth > room) lbl.textContent = AUTH_LBL_SHORT;
+}
+// ⚡ THE NAME'S FADE AND ITS SCROLL ARE ARMED BY MEASUREMENT (his word 2026-09-11-p: «the player's
+// name may be shortened — take it into a fade with a light horizontal-scroll animation»). `.over`
+// is the entire switch: the CSS hangs BOTH the gradient and the animation off it, so a name that
+// fits wears neither — no fading tail on «Guest», no animation running on a still name.
+// ⚠️ THE TRAVEL IS WRITTEN AS A VARIABLE BECAUSE ONLY A MEASUREMENT KNOWS IT — it is exactly the
+// overflow, and a distance typed into the keyframes would either stop short of the last letters
+// («Oystercatcher» on a phone) or sail the name clean out of its own box.
+// ⚠️ A CLOSED MENU IS NOT A NARROW ONE: a zero box means «not laid out», and arming the fade for it
+// would leave a faded, sliding name waiting on screen for the next time the card opens.
+function unameFit(){
+  const box = document.querySelector('.ms-uname');
+  if (!box) return;
+  if (!box.clientWidth){ box.classList.remove('over'); return; }
+  const over = box.scrollWidth - box.clientWidth;
+  if (over > 1){
+    box.style.setProperty('--un-shift', '-' + over + 'px');
+    box.classList.add('over');
+  } else {
+    box.classList.remove('over');
+    box.style.removeProperty('--un-shift');
+  }
+}
+// ⚡⚡ THE HEADER'S THREE MEASUREMENTS IN THEIR ONLY VALID ORDER (2026-09-11-p). THE NUMBER FIRST:
+// it is the widest thing on the right and it decides its own form by whether the name's box
+// overflows. THEN THE LABEL, which asks how much room is left beside that number. THE NAME LAST,
+// because its fade is armed by the box the first two have finished sizing. Run in any other order
+// each one answers a question about a layout that is about to move under it.
+// ⛔ THE RESIZE HANDLER USED TO RE-RUN ONLY THE LABEL AND THE ENTRY SCORE: a phone turned with the
+// menu open kept the wallet's opening form — the exact number on a screen that had since lost the
+// room for it, and the name crushed under it with no way to get it back short of closing the menu.
+function headFit(){
+  const head = document.querySelector('.ms-head');
+  if (!head || !head.clientWidth) return;          // the menu is closed — nothing to measure
+  const bal = typeof liveBalance === 'function' ? liveBalance()
+            : (typeof starBalance === 'function' ? starBalance() : 0);
+  // ⚠️⚠️ THE LABEL GOES TO ITS SHORT FORM FIRST, AND ONLY THEN THE NUMBER IS DECIDED. Otherwise the
+  // two measurements chase each other: the number asks «is the sign-in clipped?» while the sign-in
+  // is still carrying the long wording it is about to give up, and answers yes for the wrong
+  // reason. With the label at its floor the question has one answer, and `authFitLabel` below
+  // hands the long wording back the moment the number has made room for it.
+  const lbl0 = document.querySelector('.ms-auth-lbl');
+  if (lbl0) lbl0.textContent = AUTH_LBL_SHORT;
+  setWalletNumber($('msStars'), bal);
+  const st2 = $('msStars2');
+  if (st2) setWalletNumber(st2, bal);
+  authFitLabel();
+  unameFit();
 }
 function refreshAuthUi(){
   const band = document.getElementById('msAuth');
@@ -2971,11 +3072,18 @@ function refreshAuthUi(){
     if (line) line.hidden = true;
     if (out) out.hidden = false;
     band.hidden = false;
+    // ⛔ AND THE HEADER IS RE-FITTED HERE TOO, WHICH THIS BRANCH DID NOT DO AT ALL. Signing in while
+    // the menu is open replaces «Cormorant» with the account's name — a different width in the same
+    // column — and until this line the number, the label and the fade all kept the shape they had
+    // been given for somebody else's name.
+    headFit();
     return;
   }
   if (out) out.hidden = true;
   if (line) line.hidden = false;
-  authFitLabel();
+  // the band appearing under the name changes the profile's column — all three measurements are
+  // about that column, so all three are asked again
+  headFit();
   // ⚠️ THE BUTTON IS ASKED FOR ONCE PER MENU LIFETIME, not once per opening: `renderButton` builds
   // an iframe of Google's, and rebuilding it on every open would spend a request and flash it —
   // invisible though it is, an iframe that is being rebuilt is an iframe that is not clickable.
@@ -2985,7 +3093,7 @@ function refreshAuthUi(){
       .then((ok) => {
         // ⚠️ THE FIT BELONGS HERE AND NOT ONLY ABOVE: this is the first instant the line has a size
         // at all — before it the band is `hidden`, and a hidden line measures zero.
-        if (ok){ band.hidden = false; authFitLabel(); return; }
+        if (ok){ band.hidden = false; headFit(); return; }
         delete host.dataset.ready;      // nothing was rendered — let a later open try again
         band.hidden = true;
       }, () => { delete host.dataset.ready; band.hidden = true; });
@@ -3182,11 +3290,14 @@ function openMainScreen(){
   // `html.menuopen` in shell.html; it is set AFTER the guard of somebody else's pause, otherwise
   // if the opening were refused the edge would be repainted for an invisible menu.
   document.documentElement.classList.add('menuopen');
-  // ⚠️⚠️ THE LABEL IS FITTED **AFTER** THE MENU IS ACTUALLY SHOWN, and that order is the whole of
+  // ⚠️⚠️ THE HEADER IS FITTED **AFTER** THE MENU IS ACTUALLY SHOWN, and that order is the whole of
   // it: `refreshAuthUi` runs at the top of this function, where `#mainScreen` has no `open` class
   // yet and every width in the header is 0 — a fit measured there is a fit measured on nothing.
   // Caught by a rendered frame: the words stayed long on a wrapped 390 header.
-  try { authFitLabel(); } catch(e){}
+  // ⛔ ALL THREE AND NOT THE LABEL ALONE (2026-09-11-p): `refreshMainScreen` above wrote the wallet
+  // number against that same zero-width header, where everything «fits», so on the FIRST opening
+  // the exact form was never re-decided against a real width. `headFit` re-runs the three in order.
+  try { headFit(); } catch(e){}
   // ⛔⛔ THE REPAINTING OF THE EDGE FOR THE MENU WAS REMOVED (the owner's decision 2026-08-12): the strips
   // take THE DEVICE'S THEME, while the view is separated from them by a 40px rounding. Here stood
   // `chromeMeta(menuChrome())` — the second channel of the edge, introduced 2026-08-10,

@@ -19383,3 +19383,163 @@ win screen: `#mainScreen` horizontal overflow **0** at every width, `.ms-lbe-rig
 .ms-lbe-txt.right` ≥ 0, `#msLbeAvs img` 1, `#msLbEntry button` 1, the entry below the profile and
 above Play, and on the win screen kids 1 / **circle 56** / height 72 / 0 buttons / 3 badges with 1
 visible. All intact; the full run is his word.
+
+## BATCH 2026-09-11-p: ONE ROW IN THE HEADER, «123 456» WITH A SPACE, THE NAME IN A FADE, AND «on leaderboard» UNDER THE PLACE (his four items: «1. 123 456 needs a space if it all fits · 2. 123,4k may be shortened, it matters that the name AND the score are on ONE line · 3. the player's name may be shortened (take it into a fade and give it a light horizontal-scroll animation), it matters that there is ALWAYS a 20px gap between the score and the name · 4. 13 place, under it `on leaderboard` (because the next player is on the right and his name does not matter)»)
+
+### THE FIRST ITEM WAS ABOUT A NUMBER I HAD NOT TOUCHED, AND READING IT AS «CONFIRM THE ENTRY POINT» WOULD HAVE SHIPPED NOTHING
+The entry point's score has read «123 456» since -v. **The one number on that card without a space was
+the WALLET** — «123116» in every frame he had just been sent. So item 1 is an instruction, not a
+compliment, and items 1-3 are one message about the header: `setWalletNumber`'s exact form became
+`lbFmt`, the same grouping the table screen writes results with. ⚠️ **THE HABIT:** when a correction
+looks like it describes what the build already does, look for the OTHER element on the same screen
+that it describes better. A confirmation costs nothing to act on; a missed instruction costs a batch.
+
+### HIS ITEM 2 CANCELS THE WRAP HIS -v BATCH SHIPPED, AND THAT IS THE SECOND TIME THIS WEEK
+`.ms-head { flex-wrap:wrap; row-gap:8px }` was my answer of two days ago to the 320 crush. «It matters
+that the name AND the score are on ONE line» retires it, and `gap:20px` takes its place — under
+`space-between` a `gap` is a FLOOR, not a spacing, which is exactly the shape of «always at least 20».
+⛔ Restoring `flex-wrap` now reverses the whole shrink order and reddens A15.
+
+### THE THREE-RUNG LADDER, AND THE RUNG THAT WAS MISSING
+«123 456» → «123456» → «123,1k». **The grouping SPACE is the cheapest thing to give up: a few pixels
+and no information; the compact form costs three digits.** The first draft fell straight from the
+grouped form to the compact one, and the POINTS dry run printed the consequence in one field — a
+four-digit neighbour on the WIN card (whose row is narrower than the menu's at the same width) turned
+«1 340» into «1,3k», hiding 40 points where dropping one space would have shown them all. Both writers
+(`setWalletNumber` and `lbEntryFitScore`) now walk the same three rungs.
+⚠️ **THE LADDER FORCED A SHAPE CHANGE:** the old fit computed one `fits` boolean. Each rung is
+narrower than the last, so the answer changes under you — `fits()` is a closure now, asked again after
+every rung.
+
+### THE COMMA IS A CONVENTION THIS PROJECT ALREADY KEEPS, NOT A TASTE
+`fmtStars` writes «123,1k» and «1,2M». The space in `lbFmt` is the European group separator; a DOT for
+the fraction beside it would be two conventions on one card. ⛔ **AND THE `M` BRANCH IS A BUG FIX, not
+a flourish:** `fmtStars` had no ceiling at all, so a seven-digit wallet printed «1234,6k». The Boost
+buttons of the collection ride along («Boost 2K» → «Boost 2k») — one compact form in the menu,
+deliberately.
+⚠️ **AND THE ENTRY POINT'S FALLBACK MOVED OFF `winFmtScore` ONTO `fmtStars`** for the same reason:
+the wallet three centimetres above it writes the comma. `winFmtScore` keeps its seven other callers.
+
+### THE NAME'S FADE NEEDED A WRAPPER, AND WHICH HALF KEEPS THE ID IS LOAD-BEARING
+`.ms-uname` is the CLIP and `#msUser` is the inner span that moves by `transform`. Two reasons, and
+the second is the one that decided it:
+1. `#msUser`'s `textContent` is written by `refreshGuestProfile` and read by three arms — the id had to
+   stay on the text.
+2. **A TRANSFORM DOES NOT TOUCH LAYOUT.** The wallet's form is decided by whether that box overflows,
+   and `text-indent` on a single element — which would have spared the wrapper entirely — makes that
+   very measurement oscillate in time with the animation: the number would have flickered between its
+   two forms. The travel comes from JS (`--un-shift` = exactly the overflow) because only a measurement
+   knows it; a distance typed into the keyframes stops short of the last letters or sails past them.
+⚠️ `.over` is the whole switch — the gradient AND the animation hang off it, so a name that fits wears
+neither. Under `prefers-reduced-motion` the scroll stops and **the fade stays**: the motion is a
+preference, the fade is the information.
+
+### ITEM 4 RETIRES TWO EARLIER RULES AT ONCE, AND KEEPS THE FUNCTION THAT FED THE LINE
+«340 to Godwit» is gone; the row says «on leaderboard». That cancels the note of 2026-09-10 that made
+«on leaderboard» a mere fallback AND the rule of 2026-08-09 that put the gap into words at all («300
+points motivates»). The gap did not disappear — it became a subtraction the player does himself
+between two numbers that are both on the row.
+⛔⛔ **`lbGapLine` STAYS AND IS STILL CALLED:** its non-empty answer is the CONDITION under which there
+is a neighbour at all — the face, the score and `lbRivalNext` (the bowl) all hang off it. Deleting the
+call as «dead» would empty the right-hand side of the row it only appears to feed.
+⚠️ `LB_GAP_NAME_MAX` now guards nothing on screen. It is kept (it costs nothing, and the line comes
+back the day he asks) and **its comment no longer calls itself a layout guard** — a note that lies
+about why a line exists is worse than the line.
+
+### THE GUARDS — TWO NEW ARMS, AND FOUR THAT MOVED WITH THE RULES RATHER THAN BEING DELETED
+AUTH 30 → **35 green** (A15 the header, A16 the name). The four that moved: A13's `sub` and the POINTS
+section's `mob`/`win` arms went from «340 to Godwit» to «on leaderboard», and A14's compact pattern
+learned the comma.
+⛔⛔ **«on leaderboard» ALONE IS VACUOUS AND IS NEVER ASSERTED ALONE** — it is also the old
+no-neighbour fallback. Every arm that reads it also reads the neighbour being SHOWN (his face, his
+score), and the POINTS `mob` arm moved its whole discrimination onto those two: `up[0]` is Gull at 900,
+already overtaken, so a build that takes him shows Avatar03 with «900» instead of Avatar04 with «1 340».
+⛔ **THE POINTS WIDTH ARM WAS REPOINTED, NOT DROPPED.** It used to guard the 16-character name cap
+(«1000k to a 40-character name» pushing the circle off a 320 screen). The line is static now; what
+varies is the NUMBER under the neighbour's face, so it asks the worst case instead — a seven-digit
+neighbour at 320 takes «1M», the left group still clears the circle, and the screen gains no
+horizontal scroll.
+⚠️ **AND ONE ASSERT OF MINE WAS WRONG BEFORE THE BUILD WAS, TWICE.** «One row» written as `top === top`
+goes red at every width on a sound build: `align-items:center` centres two boxes of DIFFERENT heights
+(the profile carries two lines, the score one). It is an OVERLAP now, plus the header's own height
+against its tallest child. And `win.score === mob.score` asserted a promise the design never made —
+the win card is narrower, so its fit honestly takes a different rung; what is worth pinning is that the
+number is THERE (a hidden row cannot be measured, and a tidy-up once left it EMPTY).
+
+### `headFit` — THE HEADER'S THREE MEASUREMENTS IN THEIR ONLY VALID ORDER, AND THE FIRST OPENING WAS NEVER FITTED AT ALL
+NUMBER → LABEL → NAME. Each one's room is what the previous has left it.
+⛔⛔ **AND THE BUG THAT CAME OUT OF WRITING IT DOWN:** `refreshMainScreen` writes the wallet number
+BEFORE `showMainScreen` adds `.open`, i.e. against a header whose every width is 0 — where everything
+«fits». Only the label was re-fitted after the menu was shown, so **on the first opening the exact
+form was never re-decided against a real width.** `headFit` runs all three there now, and on resize
+(where before, a phone turned with the menu open kept the wallet's opening form).
+⚠️ **AND THE LABEL IS DRIVEN TO ITS SHORT FORM BEFORE THE NUMBER IS DECIDED**, or the two measurements
+chase each other: the number asks «is the sign-in clipped?» while the sign-in still carries the long
+wording it is about to give up. With the label at its floor the question has one answer, and
+`authFitLabel` hands the long wording back the moment the number has made room.
+⛔ `authFitLabel`'s `room` was missing the 20px floor — it could keep the long words for a line that
+only fits when the two sides touch.
+
+### THE FRAME SAID IN ONE NUMBER WHAT NO ASSERT WOULD HAVE: AT 320 THE NAME'S COLUMN WAS **ZERO**
+With the wrap gone, `.ms-prof { flex:0 1 auto }` shrank the profile to the avatar and nothing else —
+the name was not truncated, it was ABSENT. The arithmetic of that width: avatar 48 + gap 6 + the 20px
+floor + a right side of 207 (star 25, the compact number ~50, «×5 Boost» ~114) = 281 against 280
+available. **His three rules cannot all hold at 320 with that right side**, and the wrap is what used
+to pay for it.
+⚡ **THE ROOM IS TAKEN FROM THE RIGHT SIDE AND THE AVATAR, AT `max-width:359px` ONLY** — 32 for the
+avatar on a narrow screen is his own word of 2026-08-10/11, 18 for the wallet is what `#msSticky` has
+carried since the floating header, and the rest is the button and the gaps giving back their slack. It
+buys the name about three characters before the fade, and the sign-in line its mandatory «[G] Sign in».
+**Told to him in STATUS with the frame rather than tidied away — it is his design decision, not mine.**
+⛔⛔ **AND THE FIRST DRAFT OF THAT MEDIA BLOCK WAS SILENTLY DEAD:** a media query adds NO specificity,
+and the block sat ABOVE the `.ms-getmore` / `.ms-head-r` / `.ms-stars` declarations it meant to
+override. Every rule in it but the avatar's did nothing — the frame read 17px where 37 were due. **A
+narrow-width override must stand after the rules it overrides.**
+⚠️ **AND THE SECOND LINE OF THAT COLUMN HAD TO ENTER THE NUMBER'S DECISION.** With a SHORT name at 320
+the column stopped shrinking where the NAME stopped, and the sign-in beneath it was ellipsised to
+«Sig…» — his own rule of -g says the short «[G] Sign in» is mandatory. The fit asks about the whole
+column now (`.ms-uname`, `.ms-auth-lbl`, `.ms-auth-out`), not the name alone.
+
+**PROVEN SEVEN-SIDED** (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`), each
+reddening its OWN arms and nothing else: `flex-wrap` restored → A15's 320 half **and both name arms**
+(with the wrap the profile gets a whole row, so the name stops overflowing — the right attribution,
+and worth reading: the wrap and the fade are two answers to the same crush); the column check removed
+from the wallet's fit → A15's 320 half; the comma back to a dot in `fmtStars` → A14 and A15; `lbFmt`
+back to `String(n)` in the wallet → A15's 1280 half; the gap line restored → three POINTS arms,
+including the width one (`horiz` 60 at 320 — the old line genuinely overflowed that screen); `.over`
+never armed → both name arms; a fixed `--un-shift` instead of the measured one → the name arm.
+⛔⛔ **AND TWO SABOTAGES STAYED GREEN. BOTH ARE STATED RATHER THAN HIDDEN, and neither is covered by
+accident:**
+- **The 20px floor subtracted from `authFitLabel`'s `room`.** Removing it changes no decision at any
+  width the suite uses: at 1280 there is slack, and at 320 the short wording is chosen for other
+  reasons anyway. The term is correct arithmetic for the band where the choice sits exactly on the
+  floor, and covering it would mean tuning a viewport onto that boundary — a brittle arm for an
+  insurance line. **The code says out loud that no arm covers it.**
+### THE FULL RUN — HIS WORD THIS TIME, AND IT TOOK FOUR ATTEMPTS ON A STAND THAT COULD NOT ANSWER
+He asked for it («then a full run and push»). **Run 52: 1201 green, 0 red, `ERRORS(tail): none`,
+SUITE: PASS.** The three attempts before it are recorded because they are the more useful half:
+- **Run 49b CRASHED** in the pack-matcap section — «Execution context was destroyed» inside
+  `brightness()` on its own `file://` page. The canon already records that exact crash at that exact
+  spot as a stand flake (2026-09-03) with the instruction «re-run once».
+- **Run 50 finished 1196/5 red**; **run 51 CRASHED** on a 30-second `page.goto` timeout for a LOCAL
+  file at 524/4 red. ⛔⛔ **AND THE TWO FAILURE SETS WERE DISJOINT** — nine different arms across two
+  runs of ONE build. A defect fails the same arm every time; only a stand fails a different one each
+  time. The machine's 1-minute load average was measured at **63** with 3.4 GB of 5 GB swap in use.
+- **Every failing arm was timing- or pixel-sensitive** (the frame cap, the charge band's sweep, the
+  intro waves, the shake spread, the glyph gaps, the chip's miss colour, the rival's 450 ms removal,
+  the pause window's ms) and **not one of them touches the header or the entry row**.
+- **AND THE ONE THAT LOOKED WORST WAS PROVED INNOCENT RATHER THAN ARGUED INNOCENT:** CHARGEFX's band
+  arm failed on the new build and PASSED on the previous one — the shape of a real regression. Its
+  samples said otherwise: `head` 0.792 → 0.008 → 0, i.e. the animation's phase WRAPPED between two
+  wall-clock samples, so a centroid that grows with the phase must read as falling. Re-run on a calm
+  stand it went green three times in a row.
+⚠️ **THE RULE THIS LEAVES:** a red arm on a loaded stand is not a verdict, and neither is a green one
+— but a DISJOINT failure set across two runs is evidence, and a section re-run against the PREVIOUS
+build is what turns a suspicion into an answer. Both cost minutes; a wrong push costs the build.
+
+- **The middle rung (`String(raw)`) dropped from the entry point's ladder.** Measured: the win card at
+  390 shows «1,3k» WITH the rung as well as without — the plain form still does not fit there, so no
+  fixture in the suite sits in the narrow band (~4px, the width of one grouping space) where the rung
+  changes anything. It is kept because it is the right order and costs nothing; it is not claimed to
+  be guarded.
+
