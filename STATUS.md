@@ -6,7 +6,20 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1202 green, 0 red** · **ten sabotages, each red on its own check** · ⚠️ **sign-in still waits on three steps of yours, below**
+**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1202 green, 0 red** · **ten sabotages, each red on its own check** · ✅ **sign-in is live: your three steps are done and checked from here**
+
+**12 SEPTEMBER, NIGHT — SIGN-IN IS LIVE. You ran the last two steps yourself; I checked the result.**
+
+The payment worker's database now carries the account table (`acc`, `ent`, `pk` and both indexes),
+the worker is deployed, and it answers with your client id. Google's own button really renders on
+blendo.monster — which is the part a wrong setting would have broken silently.
+
+**What is left is one thing only I cannot do for you: sign in.** Open blendo.monster in a browser
+where you are logged into Google. The popup should appear by itself and sign you in; after that the
+line under your name reads «Logout».
+⚠️ **If the page looks like yesterday's, reload it once.** The game keeps itself in the browser's
+cache so it starts instantly offline — a new version installs in the background and takes over on the
+next load. I lost ten minutes to exactly that tonight, chasing a fault that was already fixed.
 
 **11 SEPTEMBER, NIGHT — YOUR FOUR CORRECTIONS TO THE CARD.**
 
@@ -167,6 +180,10 @@ Google accounts owning one player, and it is deliberate.
 3. that client id pasted into the worker's settings. **Until it is there the band does not show at
    all** — no half-working button, no error on screen.
 Say the word and I will write out each step with the exact commands.
+✅ *All three are DONE as of the night of 11–12 September — you ran the last two yourself. Checked
+from here: the database carries `acc`, `ent`, `pk` and both indexes; the worker answers with the
+client id; and Google's own button really renders on the live domain (the only messages in the
+console are «not signed into Google in this browser», which is this browser and not the setup).*
 
 **The look of the button is Google's**, and their themes are the only choice — outline (what I set),
 filled blue, filled black. One word and one line changes it.
