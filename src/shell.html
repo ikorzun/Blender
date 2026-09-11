@@ -2861,17 +2861,13 @@
     font-family:var(--font-round); font-size:14px; font-weight:700; line-height:1; color:#3971ff; }
   .ms-auth-in[hidden] { display:none; }
   .ms-auth-g { flex:none; display:block; width:14px; height:14px; }
-  .ms-auth-lbl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-  .ms-auth-short { display:none; }
-  /* ⛔⛔ THE PHONE SAYS «Sign in», AND IT IS A MEASUREMENT RATHER THAN A PREFERENCE. His node is the
-     DESKTOP card; on a 390 screen the profile column is now 139px wide and the header's right side
-     carries the star, the score and «×5 Boost» — with a real late-game score («123116») the two
-     sides overlapped, and the first rendered frame showed the star sitting on top of the words.
-     The mark is right beside it, so «Sign in» names the same thing in half the width. */
-  @media (max-width:767px){
-    .ms-auth-long { display:none; }
-    .ms-auth-short { display:inline; }
-  }
+  /* ⛔⛔ `line-height:1` ON A CLIPPED LABEL CUTS ITS OWN DESCENDERS, AND HE SAW IT BEFORE I DID
+     («you are clipping Sign in at the bottom»). The ellipsis needs `overflow:hidden`, and that
+     clips the BOX — which at line-height 1 is exactly 14px, while the «g» of «Sign» reaches about
+     three pixels below the baseline. The node's 14 is Figma's CAP height (`text-box-trim`), not a
+     CSS line box; in CSS the same picture needs room under the baseline. */
+  .ms-auth-lbl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+    line-height:1.35; }
   /* ⛔⛔ GOOGLE'S OWN BUTTON, INVISIBLE AND CLIPPED TO THIS LINE. `opacity:0` and NOT
      `visibility:hidden`: a hidden element takes no clicks, and the click IS the point — it is the
      only path that yields an ID token. The clip is what keeps its ~200px minimum width off the
@@ -2883,7 +2879,7 @@
      entry point's caption already wears. It is a real button: the keyboard and the screen
      reader get the only way out for free. */
   .ms-auth-out { border:0; background:none; padding:0; margin:0; cursor:pointer;
-    font-family:var(--font-round); font-size:14px; font-weight:700; line-height:1;
+    font-family:var(--font-round); font-size:14px; font-weight:700; line-height:1.35;
     color:#a2a2a8; }
   .ms-auth-out[hidden] { display:none; }
   /* the profile slot: avatar + name (for a future Google profile) */
@@ -5503,7 +5499,12 @@
                  outside the box. -->
             <span class="ms-auth-in" id="msAuthIn">
               <svg class="ms-auth-g" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 7.15912C14 6.66276 13.9545 6.18549 13.8701 5.72731H7.14285V8.43503H10.987C10.8214 9.31003 10.3182 10.0514 9.56169 10.5478V12.3041H11.8701C13.2208 11.0855 14 9.29094 14 7.15912Z" fill="#4285F4"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 14C9.07144 14 10.6883 13.3732 11.8701 12.3041L9.56169 10.5478C8.92207 10.9678 8.10391 11.2159 7.14287 11.2159C5.28247 11.2159 3.7078 9.98452 3.14611 8.32998H0.759744V10.1436C1.93507 12.4313 4.35066 14 7.14287 14Z" fill="#34A853"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14611 8.32998C3.00325 7.90998 2.92208 7.46139 2.92208 7.00003C2.92208 6.53866 3.00325 6.09003 3.14611 5.67003V3.85639H0.759741C0.275974 4.80139 0 5.87048 0 7.00003C0 8.12957 0.275977 9.19862 0.759744 10.1436L3.14611 8.32998Z" fill="#FBBC05"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 2.78409C8.19157 2.78409 9.13313 3.13727 9.87339 3.8309L11.9221 1.82318C10.6851 0.693635 9.06819 0 7.14287 0C4.35066 0 1.93507 1.56867 0.759741 3.85639L3.14611 5.67003C3.70779 4.01548 5.28247 2.78409 7.14287 2.78409Z" fill="#EA4335"/></svg>
-              <span class="ms-auth-lbl"><span class="ms-auth-long">Sign in with Google</span><span class="ms-auth-short">Sign in</span></span>
+              <!-- ⚡ THE FULL WORDS ARE THE DEFAULT AND «Sign in» IS THE FALLBACK, CHOSEN BY
+                   MEASUREMENT (his word 2026-09-11-g). ⛔ A WIDTH BREAKPOINT IS WRONG HERE and was
+                   the first draft: whether the words fit depends on the SCORE beside them as much
+                   as on the screen, so a 390 phone with a small score was being shortened for
+                   nothing while a 400 one with a six-digit score still overlapped. -->
+              <span class="ms-auth-lbl">Sign in with Google</span>
               <span class="ms-auth-gis" id="msAuthBtn"></span>
             </span>
             <!-- ⚠️ «Logout» IN Carbon 600 (#a2a2a8, read out of Figma — his word «the sign-out in

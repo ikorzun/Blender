@@ -19263,11 +19263,42 @@ what he asked for — while the same call on a PHONE renders a bottom sheet, and
 localStorage (2026-09-04-a) — a player whose save was swept returns to his purchases and his row
 without touching anything.
 
-### THE PHONE SAYS «Sign in», AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE
-His node is the DESKTOP card. On a 390 screen the profile column is 139 wide and the header's right
-side carries the star, the score and «×5 Boost» — with a real late-game score («123116») the two
-sides overlapped and the FIRST RENDERED FRAME showed the star sitting on the words. The mark is right
-beside it, so «Sign in» names the same thing in half the width (60.8 against 139.6).
+### ⚡ «THE EXACT THING, AND THE SHORT ONE ONLY IF IT DOES NOT FIT» — HIS RULE, TWICE, AND IT IS ARITHMETIC
+He said it of the number («120 000, shorten to 120k if it does not fit») and, in the next breath, of
+the words («if it does not fit then the shortened form is mandatory: [G] Sign in»). One rule, two
+texts: write the full thing, measure, fall back only on the measurement.
+⛔⛔ **A WIDTH BREAKPOINT IS WRONG FOR BOTH, AND THAT WAS THE FIRST DRAFT.** Whether they fit depends
+on the SCORE beside them as much as on the screen — his own late-game score is what overflowed the
+header in the first place — so a `max-width:767px` swap shortened a 390 phone that had room and left
+a 400 one that did not. Measured on the built game: the words fit at 1280 (room 202 against 122) and
+at no phone width (111 at 390 even with a score of 50); the exact number fits at 390 and 360 and
+falls back at 320.
+⛔⛔ **AND THE FIT IS ARITHMETIC, NOT A READING OF THE CURRENT LAYOUT — TWO DRAFTS DIED ON THAT.** The
+first asked «are the profile and the score still on ONE row?», which is true and useless: called
+before the wallet number is written it measures a narrow right side and keeps the long words; called
+after, it measures a row that has already wrapped for a reason the words cannot fix. The same build
+answered differently at 360 and at 390. What is asked now has one answer whenever it is asked — does
+the line's own content fit the room the header has left for it.
+⛔⛔⛔ **AND THE THIRD DRAFT RAN AGAINST NOTHING: A ZERO MEASURED LIKE A FIT.** While the band is
+`hidden` the whole subtree is `display:none` and `scrollWidth` reports **0** — which compares as «it
+fits» and silently keeps the long words for ever. The arithmetic was right and was being asked of a
+hidden element; the frames showed it and no assert did, because there was none. Two lines now: the
+fit refuses to decide on a zero, and it runs again the instant the band is revealed.
+⚠️ **THE SCORE'S FIT ASKS THE ROW *AND* ITS LEFT GROUP, AND THE SECOND IS THE SENSITIVE ONE:** the
+group carries `min-width:0`, so it SHRINKS and its content spills inside it while the row above still
+reports a clean `scrollWidth`. With the row alone, 320 kept the exact number lying on its neighbour.
+⚠️ **BOTH RE-FIT ON RESIZE** (90-input, beside `layoutHUD`): a phone turned with the menu open would
+otherwise keep the form it was opened with. Both are no-ops while the menu is closed — they refuse to
+decide on a zero.
+
+### ⛔⛔ `line-height:1` ON A CLIPPED LABEL CUTS ITS OWN DESCENDERS — HE SAW IT BEFORE I DID
+«You are clipping Sign in at the bottom.» The ellipsis needs `overflow:hidden`, and that clips the
+BOX: at `line-height:1` the box is exactly 14px while the «g» of «Sign» reaches about three pixels
+below the baseline. **The node's 14 is Figma's CAP height (`text-box-trim`), not a CSS line box** —
+in CSS the same picture needs room under the baseline. `line-height:1.35` on the label and on
+«Logout», which has a descender too.
+⚠️ AND THE GUARD MOVED WITH IT: pinning `lineH === 14` would DEMAND the very clipping he reported.
+What is pinned is the MARK's 14 and `scrollHeight === clientHeight` — the property he named.
 ⚠️⚠️ **AND THE HEADER WRAPS RATHER THAN CRUSHING ITS LEFT SIDE.** At 320 with the same score the
 right group takes 215 of the 280 available and the profile's own 115 does not fit beside it: without
 `flex-wrap` the column was squeezed to about thirty pixels — the name truncated to one letter and the
@@ -19284,7 +19315,9 @@ touched.
 ⚠️⚠️ **THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE GAP, AND THE FORK IS NAMED:** the gap is
 already the line on the LEFT («340 to Godwit» — his own decision of 2026-08-09, «300 points to the
 next one motivates»), and printing one quantity twice in two formats is the drift this file keeps
-paying for. Read together the row says it whole: you are 340 behind Godwit, who has 123k.
+paying for. Read together the row says it whole: you are 340 behind Godwit, who has 123 456.
+⛔ **AND IT IS THE TABLE SCREEN'S GROUPED FORM (`lbFmt`), NOT THE NODE'S «123k»** — his word an hour
+later. The compact `winFmtScore` is now the FALLBACK, chosen by the measurement above.
 ⚠️ **THE CAPTION IS `.ms-lbe-cap`, NOT `.ms-lbe-sub`** — `lbEntryRefresh` writes the gap line into
 EVERY `.ms-lbe-sub` it finds, so sharing the class would have this static caption overwritten by
 «340 to Godwit» on the first answer from the server.
@@ -19301,7 +19334,7 @@ the surface it was drawn for.**
 
 ### THE GUARDS — FOUR NEW ARMS, AND THE STUB HAD TO LEARN THE SURFACE FIRST
 Nothing in the suite read the line, the Logout, the One Tap or the next-player group, so the feature
-AND its rollback would both have passed green. AUTH 20 → **27 green**.
+AND its rollback would both have passed green. AUTH 20 → **30 green**.
 ⛔ **AND ONE EXISTING ARM WENT RED ON A SOUND BUILD FOR THE RIGHT REASON:** it read
 `band.style.display !== 'none'`, and the line is revealed with `hidden` now — a read of the MECHANISM,
 true for a hidden band. The property («off our own origin there is no sign-in») is unchanged; the read
@@ -19319,7 +19352,28 @@ section rather than reddening an arm. The canon's most repeated signature, met a
 reddening its OWN arm and nothing else: `auto_select:false` → the One Tap arm; `disableAutoSelect`
 dropped → the sign-out arm; the once-per-launch guard removed → the One Tap arm; the overlay's
 `overflow:hidden` → the line arm; the Logout colour → the Logout arm; the score written as the GAP →
-the next-player arm; the `.empty` collapse dropped → its control.
+the next-player arm; the `.empty` collapse dropped → its control. And after his two corrections, four
+more: the left group's term removed from the score's fit → the fallback arm; the exact form replaced
+by the compact one IN THE FIT → both number arms; `line-height` back to 1 → the line arm.
+⛔⛔ **AND TWO SABOTAGES STAYED GREEN — BOTH ARE FINDINGS, AND ONE OF THEM CHANGED THE CODE.**
+Replacing the exact form where `lbEntryRefresh` first WRITES it changed nothing on screen, because
+the fit re-wrote the text from the same number a moment later: **two writers of one string**, the
+shape this file keeps paying for, and it announced itself exactly as such things do. The write now
+sets the NUMBER and the fit is the only writer of its text — after which the same sabotage, aimed at
+the fit, reddens both arms. The second: the guard that refuses to decide on a zero measurement is
+insurance since the fit also runs the instant the band is revealed, so removing it is a no-op today.
+**It is kept and the code says out loud that no arm covers it** — a line nobody guards must not read
+as a line somebody does.
+⛔⛔ **AND THE TIDY-UP THAT CAME OUT OF THE FIRST FINDING IMMEDIATELY BROKE THE WIN SCREEN, WHICH A
+FRAME CAUGHT AND NO ASSERT DID.** Making the fit the only writer of the text meant that a row it
+cannot measure — the win instance is HIDDEN while the answer lands — got no text at all: its number
+was simply EMPTY. The exact form is the DEFAULT now, written whether the row can be measured or not,
+and the fit only ever shortens it; a thirtieth arm reads that row's number so the next tidy-up cannot
+do it again. **A refactor made for cleanliness is still a change, and it earns a frame like any
+other.**
+⚠️ **ONE ASSERT OF MINE WAS WRONG BEFORE THE BUILD WAS:** the fallback arm demanded a «k» and the
+compact form of a nine-digit neighbour is «987.7M». The property is «compact» — no grouping spaces —
+and that is what it asks now.
 
 ### WHAT THE UNMARKED GUARDS READ WAS MEASURED RATHER THAN HOPED
 This batch moves the menu header (it wraps now), the entry point's markup and the win row — and their

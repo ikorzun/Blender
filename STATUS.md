@@ -25,10 +25,18 @@ place. Now he comes back and both return by themselves.
 **The sign-in line, by your drawing.** Under the name: the Google mark and «Sign in with Google» in
 blue. Signed in, the same spot reads «Logout» in the grey you named — I read that grey out of your own
 Figma file rather than matching it by eye, and it is the same grey the line under your place already
-uses. Two things I decided and am telling you rather than burying: **«Logout» has no Google mark**
-(a brand mark beside a word that ends a session reads as an invitation to start one), and **on a phone
-the line reads just «Sign in»** — at 390 pixels wide, with a real late-game score next to it, the full
-wording ran into your own score; the mark is right there, so the short form says the same thing.
+uses. One thing I decided and am telling you rather than burying: **«Logout» has no Google mark** —
+a brand mark beside a word that ends a session reads as an invitation to start one.
+
+**You caught the clipping before I did, and you were right.** The tail of the «g» in «Sign» was being
+cut by the line's own box. Fixed, and now checked on every run.
+
+**«In full, and short only if it does not fit» — I made that one rule for both.** You said it about
+the number and then about the words, so both are written in full, measured, and shortened only when
+the room has actually run out. A rule by screen width would have been wrong for both, and it was my
+first version: whether they fit depends on your score beside them as much as on the screen. Measured
+on the built game — the full wording fits the desktop and fits no phone width at all (even with a
+score of 50); the exact number stands at 390 and 360 and becomes «123k» at 320.
 
 **On a very narrow phone the top row now wraps onto two lines.** With a score like 123116 the star, the
 number and «×5 Boost» take almost the whole width, and the name was being squeezed down to one letter.
@@ -37,8 +45,8 @@ It now drops the score onto its own line instead. You only ever see this on the 
 **The leaderboard block, by your second drawing.** The three faces became one — the player right above
 you — with a thin divider and **his score** under his face. The line on the left still says how far
 behind you are («340 to Godwit»), so read together the row tells the whole story: you are 340 behind
-Godwit, who has 123k. **If you meant that number to be the gap rather than his score, say so — it is
-one line.** The same block appears on the victory screen; it is one component and always has been.
+Godwit, who has 123 456. **If you meant that number to be the gap rather than his score, say so — it
+is one line.** The same block appears on the victory screen; it is one component and always has been.
 
 **What I have NOT done, and it is one word from you.** The full suite has not been run on this build.
 Your own rule is that I run the changed checks and you decide about the full one — and this batch moves

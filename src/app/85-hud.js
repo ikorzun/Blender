@@ -833,16 +833,27 @@ function lbEntryRefresh(){
     // are 340 behind Godwit, who has 123k.
     const hasNext = !!(gapLine && next && (next.av | 0) > 0);
     lbEntryAll('.ms-lbe-next').forEach(n => { n.classList.toggle('empty', !hasNext); });
-    // ⚠️ `winFmtScore` AND NOT `lbFmt`: this is the compact reading the place and the wallet use
-    // («123k»), which is what the node draws; the exact grouped form belongs to the table screen,
-    // where the difference between neighbours is the point.
+    // ⚡ THE EXACT NUMBER FIRST, THE COMPACT ONE ONLY IF IT DOES NOT FIT — his word 2026-09-11-g
+    // («120 000, shorten to 120k if it does not fit»). ⛔ THIS CANCELS `winFmtScore` HERE, and with
+    // it the note that stood in its place: the node's «123k» was the compact reading, and he has
+    // now asked for the table screen's own grouped form («123 900») wherever there is room.
+    // ⚠️ THE RAW NUMBER IS PARKED ON THE ELEMENT so the fit can be re-run later without this
+    // closure — the win instance is HIDDEN while this write lands, and a hidden row cannot be
+    // measured at all.
+    // ⛔⛔ THIS WRITES THE NUMBER AND NOT ITS TEXT — `lbEntryFitScore` below is the ONLY writer of
+    // what is shown. The first draft wrote the exact form here too, and the fit then rewrote it
+    // from the same number: two writers of one string, which is the shape this file keeps paying
+    // for, and it showed itself the way such things do — a sabotage that replaced THIS format with
+    // the compact one changed nothing on screen and left its arm green.
     lbEntryAll('.ms-lbe-score').forEach(sc => {
-      sc.textContent = hasNext ? winFmtScore(next.score | 0) : '';
+      sc.dataset.score = hasNext ? String(next.score | 0) : '';
+      if (!hasNext) sc.textContent = '';
     });
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
       h.appendChild(lbEntryAvatar(hasNext ? (next.av | 0) : 0));
     });
+    lbEntryFitScore();
     boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
     // ⚠️⚠️ THE DIRECTION IS BY COMPARISON WITH THE PREVIOUSLY SEEN RANK, and not by the sign of
     // the score: the owner gave TWO badges (up/down), which means both states are obliged
@@ -872,6 +883,37 @@ function lbEntryRefresh(){
       if (dir) b.classList.add(dir);
     });
   }).catch(()=>{});
+}
+// ⚡ «120 000, AND SHORTEN TO 120k IF IT DOES NOT FIT» (his word 2026-09-11-g). It is a MEASUREMENT
+// and not a breakpoint: whether the exact number fits depends on how long it is as much as on how
+// wide the screen is, and a width rule would compress a four-digit score on a phone that had room
+// for it. Written full, measured, swapped only when the row genuinely overflows.
+// ⚠️⚠️ A HIDDEN ROW CANNOT BE MEASURED — its `clientWidth` is 0 and every comparison is a fantasy.
+// The win instance is hidden while the answer from the server lands, so it is fitted again when the
+// screen is shown (`fitWinTopRow`, which runs on exactly that path). Skipping a hidden row leaves
+// it on the exact form until then, which is the correct starting point for the next measurement.
+function lbEntryFitScore(){
+  lbEntryAll('.ms-lbentry').forEach(row => {
+    const sc = row.querySelector('.ms-lbe-score');
+    if (!sc) return;
+    const raw = (sc.dataset.score | 0);
+    if (!raw){ sc.textContent = ''; return; }
+    // ⛔⛔ THE EXACT FORM IS WRITTEN EVEN FOR A ROW THAT CANNOT BE MEASURED — this is the ONLY
+    // writer of the text, and skipping a hidden row left the win screen's number EMPTY. Caught by
+    // a rendered frame, and it was my own tidy-up that caused it: the write above had been setting
+    // the text too, I removed that as «two writers of one string», and the fit's early return then
+    // dropped the string altogether. A default that is always written, refined when it can be.
+    sc.textContent = lbFmt(raw);
+    if (!row.clientWidth) return;
+    // ⚠️⚠️ THE ROW **AND** ITS LEFT GROUP ARE BOTH ASKED, AND THE SECOND IS THE SENSITIVE ONE: the
+    // group carries `min-width:0`, so it SHRINKS and its own content spills inside it — the row
+    // above can report a clean `scrollWidth` while the number is already lying on its neighbour.
+    // The number itself never clips (it is `nowrap` in a column that does not shrink), it PUSHES.
+    const left = row.querySelector('.ms-lbe-left');
+    const over = row.scrollWidth > row.clientWidth + 1
+      || (!!left && left.scrollWidth > left.clientWidth + 1);
+    if (over) sc.textContent = winFmtScore(raw);
+  });
 }
 function lbServ(text){
   const host = $('lbList'); if (!host) return;
@@ -1537,7 +1579,11 @@ function fitStat(id){
 // the squeeze x has to be re-centred — otherwise the text is drawn beside its own frame.
 // ⚠️ The row itself carries the font, and the single space between the boxes comes from
 // the MARKUP's whitespace in the inline flow — see `.win-toprow` in shell.html.
+// ⚠️ IT ALSO RE-FITS THE LEADERBOARD ROW'S SCORE: that row is hidden while the server's answer
+// lands, and a hidden row cannot be measured (`clientWidth` 0). This is the path that runs when the
+// screen becomes visible, which is the first moment the question can be answered at all.
 function fitWinTopRow(){
+  try { lbEntryFitScore(); } catch (e) {}
   const row = document.querySelector('.win-toprow');
   if (!row) return;
   // ⚠️⚠️ THE TIME IS SKIPPED WHILE ITS COUNT-UP IS IN FLIGHT (audit 2026-09-01-o). The fit sizes
@@ -2826,6 +2872,12 @@ function refreshMainScreen(){
   // a second source of one number: they diverge on the very first accrual.
   const st2 = $('msStars2');
   if (st2) setWalletNumber(st2, bal);
+  // ⚠️⚠️ THE SIGN-IN LABEL IS FITTED HERE, AFTER THE NUMBER IS WRITTEN, AND THAT IS THE ORDER THAT
+  // MATTERS. The label's short form is chosen by whether the header still holds one row, and the
+  // header's right side is this very number — fit it before the number lands and the measurement is
+  // of a narrow score that is about to grow. Caught by a rendered frame: at 390 a six-digit score
+  // wrapped the header while the words stayed long.
+  try { authFitLabel(); } catch(e){}
   // the button's role: there is no live run — «Play Game» (a start), otherwise «Resume»
   const btn = $('msPlayBtn');
   const role = (!level || level.over) ? 'Play' : 'Resume';   // «just Play» — the owner's word 2026-09-04 (it was «Play Game»)
@@ -2867,6 +2919,43 @@ function refreshBundlePrices(){
 // starts hidden in the markup and is revealed only by the branch that has something to put there.
 // ⛔ THE NAME IS NOT REPEATED HERE (it did not use to be either, and for the same reason): the row
 // this line belongs to already carries it, three centimetres up.
+// ⚡ «Sign in with Google», AND «Sign in» ONLY IF IT DOES NOT FIT (his word 2026-09-11-g, the same
+// principle as the number in the row below: the exact thing first, the short form on measurement).
+// ⛔⛔ IT IS ARITHMETIC AND NOT A READING OF THE CURRENT LAYOUT, AND THAT COST TWO DRAFTS. The first
+// asked «are the profile and the score still on ONE row?» — true, and useless: the answer depends on
+// WHEN it is asked. Called before the wallet number is written it measures a narrow right side and
+// keeps the long words; called after, it measures a row that has already wrapped for a reason the
+// words cannot fix. Both drafts gave a different answer at 360 and at 390 on the same build.
+// What is asked now is a question with one answer: does the line's own content fit the room the
+// header has left for it, whatever the header is doing at this instant.
+// ⚠️ `scrollWidth` IS THE HONEST WIDTH OF THE WORDS even while the label is clipped for the
+// ellipsis — its box may be squeezed, its content is not.
+function authFitLabel(){
+  const lbl = document.querySelector('.ms-auth-lbl');
+  const head = document.querySelector('.ms-head');
+  const prof = document.querySelector('.ms-prof');
+  const right = document.querySelector('.ms-head-r');
+  const line = document.getElementById('msAuthIn');
+  if (!lbl || !head || !prof || !right || !line) return;
+  if (!head.clientWidth) return;                  // the menu is closed — nothing to measure
+  const hs = getComputedStyle(head), ps = getComputedStyle(prof), ls = getComputedStyle(line);
+  const inner = head.clientWidth - parseFloat(hs.paddingLeft || 0) - parseFloat(hs.paddingRight || 0);
+  const av = prof.querySelector('.ms-av');
+  const lead = (av ? av.getBoundingClientRect().width : 0) + parseFloat(ps.columnGap || 0);
+  const mark = line.querySelector('.ms-auth-g');
+  const markW = (mark ? mark.getBoundingClientRect().width : 0) + parseFloat(ls.columnGap || 0);
+  const room = inner - right.getBoundingClientRect().width - lead - markW;
+  lbl.textContent = 'Sign in with Google';
+  // ⛔⛔ A ZERO IS NOT A MEASUREMENT, IT IS A HIDDEN ELEMENT. While the band is still `hidden` the
+  // whole subtree is `display:none` and `scrollWidth` reports 0 — which compares as «it fits» and
+  // silently keeps the long words for ever. That is exactly what the first three drafts did, and
+  // the frame showed it: the arithmetic was right and was being run against nothing.
+  // ⚠️ NO ARM COVERS THIS LINE, AND THAT IS STATED RATHER THAN HIDDEN: since the fit also runs the
+  // instant the band is revealed, removing it changes nothing today and its sabotage stays green.
+  // It is insurance against a future caller that runs earlier — not the half that does the work.
+  if (!lbl.scrollWidth) return;
+  if (lbl.scrollWidth > room) lbl.textContent = 'Sign in';
+}
 function refreshAuthUi(){
   const band = document.getElementById('msAuth');
   if (!band) return;
@@ -2886,6 +2975,7 @@ function refreshAuthUi(){
   }
   if (out) out.hidden = true;
   if (line) line.hidden = false;
+  authFitLabel();
   // ⚠️ THE BUTTON IS ASKED FOR ONCE PER MENU LIFETIME, not once per opening: `renderButton` builds
   // an iframe of Google's, and rebuilding it on every open would spend a request and flash it —
   // invisible though it is, an iframe that is being rebuilt is an iframe that is not clickable.
@@ -2893,7 +2983,9 @@ function refreshAuthUi(){
     host.dataset.ready = '1';
     Promise.resolve((typeof authRenderButton === 'function') ? authRenderButton(host) : false)
       .then((ok) => {
-        if (ok){ band.hidden = false; return; }
+        // ⚠️ THE FIT BELONGS HERE AND NOT ONLY ABOVE: this is the first instant the line has a size
+        // at all — before it the band is `hidden`, and a hidden line measures zero.
+        if (ok){ band.hidden = false; authFitLabel(); return; }
         delete host.dataset.ready;      // nothing was rendered — let a later open try again
         band.hidden = true;
       }, () => { delete host.dataset.ready; band.hidden = true; });
@@ -3090,6 +3182,11 @@ function openMainScreen(){
   // `html.menuopen` in shell.html; it is set AFTER the guard of somebody else's pause, otherwise
   // if the opening were refused the edge would be repainted for an invisible menu.
   document.documentElement.classList.add('menuopen');
+  // ⚠️⚠️ THE LABEL IS FITTED **AFTER** THE MENU IS ACTUALLY SHOWN, and that order is the whole of
+  // it: `refreshAuthUi` runs at the top of this function, where `#mainScreen` has no `open` class
+  // yet and every width in the header is 0 — a fit measured there is a fit measured on nothing.
+  // Caught by a rendered frame: the words stayed long on a wrapped 390 header.
+  try { authFitLabel(); } catch(e){}
   // ⛔⛔ THE REPAINTING OF THE EDGE FOR THE MENU WAS REMOVED (the owner's decision 2026-08-12): the strips
   // take THE DEVICE'S THEME, while the view is separated from them by a 40px rounding. Here stood
   // `chromeMeta(menuChrome())` — the second channel of the edge, introduced 2026-08-10,

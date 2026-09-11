@@ -20446,6 +20446,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         return {
           lineH: Math.round(lr.height), markW: Math.round(g(mark).width),
           colour: getComputedStyle(lbl).color, text: (lbl.textContent || '').trim(),
+          // ⛔ HIS OWN COMPLAINT, GUARDED: «you are clipping Sign in at the bottom». The ellipsis
+          // needs `overflow:hidden`, and at `line-height:1` that box cut the «g» of «Sign».
+          clipY: lbl.scrollHeight - lbl.clientHeight,
           opacity: cs.opacity, overflow: cs.overflow,
           // the overlay is exactly the line's box — Google's wider button is clipped away
           clipW: Math.round(hr.width) === Math.round(lr.width), inner: Math.round(host.firstElementChild.getBoundingClientRect().width),
@@ -20453,11 +20456,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
           onLine: !!host.contains(at(lr)), onBoost: at(br) === boost,
         };
       });
-      expect(d.lineH === 14 && d.markW === 14 && d.colour === 'rgb(57, 113, 255)'
-        && d.text.indexOf('Sign in') === 0 && d.opacity === '0' && d.overflow === 'hidden'
+      // ⚠️ THE NODE'S 14 IS THE MARK, NOT THE LINE BOX. Figma's 14 is the CAP height of trimmed
+      // text; in CSS the same picture needs room under the baseline, so the line is taller than 14
+      // and pinning `lineH === 14` would demand the very clipping he reported.
+      expect(d.markW === 14 && d.clipY === 0 && d.colour === 'rgb(57, 113, 255)'
+        && d.text === 'Sign in with Google' && d.opacity === '0' && d.overflow === 'hidden'
         && d.clipW && d.inner > d.lineH * 10 && !d.overBoost && d.onLine && d.onBoost,
-        'AUTH: the sign-in is HIS line (the 14px mark, #3971ff) with Google\'s own invisible button ' +
-        'clipped onto it — the click lands on the button, and «×5 Boost» keeps its own taps',
+        'AUTH: the sign-in is HIS line (the 14px mark, #3971ff, the words whole and unclipped) with ' +
+        'Google\'s own invisible button clipped onto it — the click lands on the button, and ' +
+        '«×5 Boost» keeps its own taps',
         JSON.stringify(d));
       await ctx.close();
     }
@@ -20564,11 +20571,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       });
       // ⚠️ THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE GAP — the gap is the line on the LEFT,
       // and printing one quantity twice in two formats is the drift this file keeps paying for.
-      expect(d.score === '123k' && d.sub === '340 to Godwit' && d.cap === 'next players'
+      expect(d.score === '123 456' && d.sub === '340 to Godwit' && d.cap === 'next players'
         && d.capColour === 'rgb(162, 162, 168)' && d.ruleW === 1 && d.ruleH > 20
         && d.avTag === 'IMG' && d.avSrc.indexOf('Avatar07') >= 0 && d.order && d.inLeft,
-        'AUTH: the entry point carries the next player — his face, his score «123k», the hairline ' +
-        'rule, «next players» in Carbon 600; the gap «340 to Godwit» stays the line on the left',
+        'AUTH: the entry point carries the next player — his face, his EXACT score «123 456», the ' +
+        'hairline rule, «next players» in Carbon 600; the gap «340 to Godwit» stays the line on the left',
         JSON.stringify(d));
       // ⛔ AND THE CONTROL: no neighbour (the first place, a guest, no connection) collapses the
       // NUMBER and the caption — but never the circle, whose geometry this row guarantees in the
@@ -20586,6 +20593,88 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       expect(none.empty && !none.txtShown && none.circle > 0,
         'AUTH: with no neighbour the number and the caption collapse — the circle does not',
         JSON.stringify(none));
+      // ⛔⛔ THE WIN INSTANCE GETS THE NUMBER TOO, AND THIS ARM EXISTS BECAUSE A FRAME CAUGHT WHAT
+      // NO ASSERT DID. That row is HIDDEN while the server's answer lands, so it cannot be
+      // measured — and a tidy-up that made the fit the only writer of the text then skipped it and
+      // left the win screen's score EMPTY. The exact form is the default now, written whether the
+      // row can be measured or not; the fit only ever shortens it.
+      // ⚠️ HONEST LIMIT: this arm catches a build that never writes that number (proven — the
+      // sabotage that swaps the exact form for the compact one reddens it), but NOT the narrower
+      // «skip a row that cannot be measured» on its own: showing the win screen re-runs the fit,
+      // and by then the row has a width. The frame is what caught that one, and the frame is what
+      // would catch it again.
+      const win = await pg.evaluate(async () => {
+        window.__auth.up = [['Godwit', 7, 123456]];
+        window.__lb.invalidate(); __game.lbEntryRefresh();
+        await new Promise(r => setTimeout(r, 800));
+        __game.winScreen(true);
+        await new Promise(r => setTimeout(r, 400));
+        const sc = document.getElementById('winLbeScore');
+        const av = document.querySelector('#winLbeAvs > *');
+        const out = { score: sc ? sc.textContent : null,
+          circle: av ? Math.round(av.getBoundingClientRect().width) : 0 };
+        __game.winScreen(false);
+        return out;
+      });
+      expect(win.score === '123 456' && win.circle === 56,
+        'AUTH: the victory screen carries the same number — written for a row that could not be measured',
+        JSON.stringify(win));
+      await ctx.close();
+    }
+
+    // ---- A14: «THE EXACT THING, AND THE SHORT ONE ONLY IF IT DOES NOT FIT» — BOTH FALLBACKS
+    // ⚠️⚠️ HIS WORD 2026-09-11-g TWICE OVER: «120 000, shorten to 120k if it does not fit» and «if
+    // it does not fit then the shortened form is mandatory: [G] Sign in». Two different texts, one
+    // rule — write the full thing, measure, fall back only on the measurement. A width breakpoint
+    // would be wrong for both: whether they fit depends on the SCORE beside them as much as on the
+    // screen, and his own late-game score is what overflowed the header in the first place.
+    // ⛔⛔ AND THE ARM EXISTS BECAUSE A ZERO MEASURED LIKE A FIT. Three drafts of the label's fit
+    // ran against a band that was still `hidden`, where `scrollWidth` is 0 and «0 > room» is false
+    // — the arithmetic was right and was being asked of nothing. The frames showed it; no assert
+    // did, because there was none.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.setViewportSize({ width: 1280, height: 900 });
+      await pg.evaluate(() => {
+        window.__auth.score = 123116;
+        window.__auth.up = [['Godwit', 7, 123456]];
+        __game.mergeRaw({ se: 123116 });
+      });
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.waitForFunction(() => { const n = document.getElementById('msLbeNext');
+        return n && !n.classList.contains('empty'); }, null, { timeout: 15000 }).catch(() => {});
+      const wide = await pg.evaluate(() => ({
+        label: (document.querySelector('.ms-auth-lbl') || {}).textContent,
+        score: (document.getElementById('msLbeScore') || {}).textContent,
+        horiz: (() => { const m = document.getElementById('mainScreen');
+          return m ? m.scrollWidth - m.clientWidth : -1; })() }));
+      // ⚠️ THE ROOM RUNS OUT BY THE SCREEN ALONE, with his own six-digit score unchanged — the
+      // realistic case, and the one that exercises the fit's sensitive half: the left group
+      // SHRINKS (`min-width:0`) and its content spills inside it while the row above still reports
+      // a clean `scrollWidth`. A wider phone with a nine-digit neighbour overflows the row itself
+      // and would pass even a fit that never looked at the group.
+      await pg.setViewportSize({ width: 320, height: 640 });
+      await pg.evaluate(async () => {
+        window.__lb.invalidate(); __game.lbEntryRefresh();
+        await new Promise(r => setTimeout(r, 800));
+      });
+      const tight = await pg.evaluate(() => ({
+        label: (document.querySelector('.ms-auth-lbl') || {}).textContent,
+        score: (document.getElementById('msLbeScore') || {}).textContent,
+        horiz: (() => { const m = document.getElementById('mainScreen');
+          return m ? m.scrollWidth - m.clientWidth : -1; })() }));
+      expect(wide.label === 'Sign in with Google' && wide.score === '123 456' && wide.horiz === 0,
+        'AUTH: with room, both are written in full — «Sign in with Google» and the exact «123 456»',
+        JSON.stringify(wide));
+      // ⛔ THE CONTROL IS `horiz === 0`: a build that «fell back» by letting the row overflow
+      // instead of shortening would satisfy a text assert and break the menu.
+      // ⚠️ THE COMPACT FORM IS `winFmtScore`, WHICH IS «k» **OR** «M» — the first draft of this
+      // assert demanded a «k» and went red on a sound build against a nine-digit neighbour. The
+      // property is «compact», i.e. no grouping spaces, and that is what is asked.
+      expect(tight.label === 'Sign in' && /^[\d.]+[kM]$/.test(tight.score || '') && tight.horiz === 0,
+        'AUTH: with the room gone, both fall back — «Sign in» and the compact score — and nothing overflows',
+        JSON.stringify(tight));
       await ctx.close();
     }
 
