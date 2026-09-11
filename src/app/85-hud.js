@@ -2840,6 +2840,46 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
+// THE SIGN-IN BAND UNDER THE PROFILE ROW (84-auth does the talking; docs/GOOGLE-AUTH.md).
+// ⚠️⚠️ THE BAND IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW, AND THAT IS THREE DIFFERENT «NO»s:
+// off our own origin there is no sign-in at all (the portal signs in with its own account, the
+// wrapper has neither); on our origin the worker may carry no client id yet; and Google's library
+// may fail to load. An empty band, or one with a dead button in it, is worse than no band — so it
+// starts hidden in the markup and is revealed only by the branch that has something to put in it.
+function refreshAuthUi(){
+  const band = document.getElementById('msAuth');
+  if (!band) return;
+  const on = (typeof authOn === 'function') && authOn();
+  if (!on){ band.style.display = 'none'; return; }
+  const host = document.getElementById('msAuthBtn');
+  const note = document.getElementById('msAuthNote');
+  const out = document.getElementById('msAuthOut');
+  const inn = (typeof authSignedIn === 'function') && authSignedIn();
+  if (inn){
+    // Signed in: the name and the way out. No library is needed for this state, so it never waits.
+    if (host){ host.style.display = 'none'; }
+    if (note){ note.style.display = ''; note.textContent = 'Signed in with Google'; }
+    if (out) out.style.display = '';
+    band.style.display = '';
+    return;
+  }
+  if (note){ note.textContent = ''; note.style.display = 'none'; }
+  if (out) out.style.display = 'none';
+  if (host) host.style.display = '';
+  // ⚠️ THE BUTTON IS ASKED FOR ONCE PER MENU LIFETIME, not once per opening: `renderButton` builds
+  // an iframe of Google's, and rebuilding it on every open would flash it and spend a request.
+  if (host && !host.dataset.ready){
+    host.dataset.ready = '1';
+    Promise.resolve((typeof authRenderButton === 'function') ? authRenderButton(host) : false)
+      .then((ok) => {
+        if (ok){ band.style.display = ''; return; }
+        delete host.dataset.ready;      // nothing was rendered — let a later open try again
+        band.style.display = 'none';
+      }, () => { delete host.dataset.ready; band.style.display = 'none'; });
+    return;
+  }
+  band.style.display = host && host.childNodes.length ? '' : 'none';
+}
 // THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
 // (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,
 // the saturation fixed — any name gives a readable circle.
@@ -2988,6 +3028,7 @@ function openMainScreen(){
   hideMultToast();
   try { Telemetry.screen.enter('menu'); } catch(e){}
   try { refreshGuestProfile(); } catch(e){}
+  try { refreshAuthUi(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // somebody else's pause (an ad / the tab) — we do not meddle
   // ⚠️⚠️ WE BANK THE RUN'S SCORE BEFORE THE DISPLAY — THE OWNER'S COMPLAINT «different values»

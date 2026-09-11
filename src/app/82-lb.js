@@ -115,6 +115,16 @@ function lbMarkRegistered(id) { try { localStorage.setItem(LB_REG_LS, id || '1')
 function lbClearRegistered() { try { localStorage.removeItem(LB_REG_LS); } catch (e) {} }
 // The memory of the last submission belongs to the id it was made for — see lbSubmit.
 const LB_SENT_GID_LS = 'mixer_lb_sent_gid';
+// ⛔⛔ A SIGN-IN CHANGES THE NAME WITHOUT CHANGING THE SCORE, AND THE TABLE WOULD NEVER LEARN OF IT.
+// `lbSubmit` skips a submission whose score equals the last one sent (the rate window must not be
+// spent on a number the server already holds) — so a player who signed in would keep his animal
+// name on the row until his score next moved. A CHANGE OF ID invalidates the memory by itself
+// (`lbSentGid !== id` in lbSubmit); a change of NAME does not, and that is the gap this closes.
+// ⚠️ The id's own mark is left alone: the memory is being forgotten for THIS id, not moved.
+function lbForgetSent() {
+  lbSentScore = null;
+  try { localStorage.removeItem(LB_SENT_LS); } catch (e) {}
+}
 
 async function lbSign(msg) {
   const keyHex = lbKey();
@@ -501,4 +511,5 @@ window.__lb = {
   // see that the deferred send is ALIVE (a timer is scheduled), otherwise «the 429 is not
   // lost» would be checked against a returned word rather than against the fact.
   pending: function () { return { timer: !!lbTimer, again: lbAgain, sent: lbSentScore }; },
+  forgetSent: lbForgetSent,   // a sign-in must reach the row even when the score did not move
 };

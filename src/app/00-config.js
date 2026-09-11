@@ -1948,3 +1948,15 @@ const LB_URL = 'https://lb.blendo.monster';
 // native provider first.
 const PAY_URL = 'https://pay.blendo.monster';
 const PAY_SITE = 'https://blendo.monster';
+
+// ===== GOOGLE SIGN-IN (84-auth; the endpoint lives in the pay worker, docs/GOOGLE-AUTH.md) =====
+// ⚠️ THE CLIENT ID IS NOT HERE, AND THAT IS DELIBERATE: it is needed by GIS on the client and as
+// `aud` on the worker, and two copies are the drift this project has paid for with PID, the price
+// and the material map. The client READS it from the worker (`GET /v1/auth/cfg`) — one copy, the
+// worker's var.
+// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT TO THE SERVER'S OWN LIMIT: a Google display name is
+// arbitrary user text shown to other players in the table.
+const AUTH_NAME_MAX = 40;
+// The look of Google's own rendered button — its themes are the only ones GIS offers
+// ('outline' | 'filled_blue' | 'filled_black'). A frame of each went to the owner; this is his knob.
+const GSI_THEME = 'outline';

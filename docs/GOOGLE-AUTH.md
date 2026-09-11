@@ -182,3 +182,58 @@ JWKS fetch; the client half is a marked section with a stubbed `/v1/auth` and a 
   blocking; it must be read before it ever does.
 - **The consent screen's verification state** — a bare sign-in usually needs none, and an unverified
   screen shows a warning. A product decision on his side.
+
+## ✅ THE CLIENT HALF SHIPPED 2026-09-11 — WHAT THE CODE ACTUALLY DOES, AND THE THREE THINGS THE PLAN DID NOT COVER
+
+`src/app/84-auth.js` owns the ORDER OF THE STEPS and nothing else; the protocol calls are 83-pay's
+(`payAuthCfg`, `payAuth` — one signed call, the token's hash in the signed string), the identity
+arithmetic is 77-save's (`pickName`, `rawScore`, `identityAdopt/Lift/Restore`, `playerNameSet`), the
+band is drawn by 85-hud into `#msAuth` under the profile row. The gate is `payHostOk()`'s.
+
+**1. ⛔⛔ SIGN-OUT LEAKED THE ACCOUNT'S BALANCE, AND THE PLAN ABOVE HAD NO ANSWER FOR IT.** Step 5
+raises `se` by `S − rawScore()`; step «restore the pre-adoption `{gid, lk}`» gives the identity back
+and says nothing about the raise. So the guest's own row and his own wallet inherited the account's
+score. `Save.gr` records the lift (it ACCUMULATES — signing into a second account while signed into
+the first must not lose the first lift) and `identityRestore` subtracts it.
+⚠️ `se` GOES DOWN THERE, and it is the only place in the game where a monotone counter does. It is
+safe because the lift and its rollback live on ONE device: sign-in exists only on our own origin,
+where there is no bridge and `bridgeSyncSave` never runs, so no cloud copy can merge the raised value
+back by max. The residual, named to him: a player who SPENT from the lifted wallet ends below where
+he started — `ss` is monotone and what is spent is spent.
+
+**2. THE NAME NEVER REACHED THE ROW WHEN THE SCORE DID NOT MOVE.** `lbSubmit` skips a submission
+whose score equals the last one sent, so a sign-in that changes only the name was silently dropped
+and the row kept the animal until the score next moved. `lbForgetSent()` (82-lb) is called on every
+successful sign-in AND on sign-out. ⚠️ A change of ID invalidates that memory by itself
+(`lbSentGid !== id` inside `lbSubmit`, verified by reading); a change of NAME does not — that gap is
+the whole reason the function exists. Measured on an http stand with the bot flag hidden: two
+submissions, the same score 70, `Crab` then `Ivan K`.
+
+**3. THE `bound` WALL IS PRODUCT, AND HE IS TOLD IT IN THESE WORDS:** «This device already belongs to
+another account». It fires exactly when a NEW account is created on a device whose gid already
+belongs to one — i.e. a second person on a shared phone cannot CREATE an account there, only sign in
+with one made on another device. That follows from trap 5 and it is not a defect.
+
+**WHAT WAS MEASURED AND CORRECTED AGAINST THE PLAN:**
+- **`gp`/`lp`/`gr` MUST be named in `mergeSave`, against the advice they should not be.** `loadSave`
+  merges the stored copy INTO the empty literal, so a field that is not named there is LOST at every
+  launch — «do not mention them and the device keeps its own» would have dropped the way back on the
+  first reload. They are named under a new `own` argument, true only for our own storage: at load
+  they survive, from a CLOUD copy they never arrive.
+- **The band wears no backing at any width.** The first draft gave it a white pill on the authority
+  of a markup comment saying the card «dissolves on mobile». Measured at 390 / 800 / 1280: the card
+  is a real white card at every width and `.ms-head` is transparent at every one — the comment has
+  been stale since 2026-08-11. A white pill inside a white card.
+- **The band says «Signed in with Google», not the name.** The first frame showed the account's name
+  twice, three centimetres apart: the profile row already carries it.
+- **The client id is read from `/v1/auth/cfg` and written down nowhere else** — one copy, the
+  worker's var, asserted by the guard against what GIS was initialised with.
+
+**THE GUARD** is the marked section `⟦AUTH-SECTION⟧` — 17 arms on an http stand with the bot flag
+hidden (a submission is muted on `file://` and under automation), a stubbed worker and a stubbed
+`google.accounts.id` (so no Google script is ever fetched, and the arm asserts the absence of the
+tag). Proven against eight variants, each reddening its own arms and a comment edit none: the lift
+from the CLAMPED figure → the lift arm alone; `lbInvalidate` moved after `lbMe` → the cache arms;
+`lbForgetSent` made a no-op → the row arm alone; the lift not recorded → the two arms that read it;
+the way back not stored → its four arms; `guestName` ignoring the source → all five name arms; the
+origin gate always true → the gate arm alone; `gp/lp/gr` copied unconditionally → the cloud arm alone.

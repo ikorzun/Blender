@@ -1548,6 +1548,15 @@ window.__game = {
   // has already twice let through a case nobody remembered. A separate end-to-end
   // assert proves that this very function is wired to `location`.
   lbHostIsLocal(protocol, hostname){ return lbHostIsLocal(protocol, hostname); },
+  // ===== GOOGLE SIGN-IN (84-auth). The names were grepped over this literal before they were
+  // added — a duplicate key in this object does not conflict, the LAST one silently wins, and the
+  // project has three scars from exactly that (`itemsBrief`, `boltProbe`, `colliderCensus`).
+  authState(){ return authState(); },
+  // The credential path WITHOUT Google: the guard feeds a token straight to the exchange, so the
+  // whole order of the steps is exercised against a stubbed worker and no third-party script is
+  // ever fetched. Production reaches the same function only through GIS's own callback.
+  authSignIn(tok){ return authExchange(tok); },
+  authOut(){ return authSignOut(); },
   // THE NEW-ITEM SCREEN: the occasion, the display and a state snapshot for the guards.
   // ⚠️ `newObjInfo` hands out a LIVE CANVAS (`canvas:true`), not the fact of a call: without
   // this the guard «the model spins» would check the intent and not the picture —
@@ -1776,6 +1785,7 @@ window.__game = {
   starBalance: starBalance,       // THE SINGLE number: the chip, the wallet, the leaderboard base
   liveBalance: liveBalance,       // for the in-game CHIP: the balance + the unbanked level score
   leaderboardScore: leaderboardScore, // the rank = WHAT WAS PLAYED (se−max(0,ss−tu)); lower than the wallet by the unspent tu — a top-up does not raise the rank
+  rawScore: rawScore,                 // the same figure WITHOUT the clamp — the quantity the sign-in lift is counted from (77-save)
   spendStars: spendStars,         // a write-off with a sufficiency check -> bool
   onStarsChange: onStarsChange,   // subscription: {balance, earned, spent}
   boostPrice: boostPrice,         // the price of the next tier of a type (null — the cap)

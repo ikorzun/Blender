@@ -20180,6 +20180,276 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦PAYWEB-SECTION-END⟧
 
+  // ⟦AUTH-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=AUTH runs this block alone; keep the markers)
+  // ===== GOOGLE SIGN-IN, THE CLIENT HALF (2026-09-11; the server half is server/pay/test) =====
+  // ⚠️⚠️ NOTHING IN THE SUITE READ THIS PATH BEFORE, so the feature AND its rollback would both have
+  // passed green. The arms are written against the four ways the identity goes wrong, and each of
+  // the four was reproduced on a variant before it was believed:
+  //   1. THE LIFT. The account's score arrives by raising `se`, and it must be counted from the
+  //      UNCLAMPED figure: a player who has spent more than he earned stands at 0 in the table
+  //      while his raw number is negative, and a lift built on the clamp leaves him below the score
+  //      the server holds for the account.
+  //   2. THE ORDER. `lbMe` serves a 20-second cache that does not name an id, so the cache must be
+  //      dropped BEFORE it is asked — otherwise the lift is counted against the OLD id's score.
+  //   3. THE NAME. A sign-in usually does not move the score, and `lbSubmit` skips a submission
+  //      whose score equals the last one sent — so without forgetting that memory the row keeps the
+  //      animal name until the score next moves.
+  //   4. THE WAY BACK. Sign-out must give the device its own identity AND take the lift away with
+  //      it, or the guest inherits a stranger's balance on his own row and in his own wallet.
+  // ⚠️ THE PAGE IS OVER HTTP WITH THE BOT FLAG HIDDEN, and that is not decoration: on `file:` and
+  // under automation `LB_NOSEND` mutes every submission, so arm A3 would measure the gate instead
+  // of the submission and go red on a sound build (the recipe at the top of this file).
+  // ⛔ THE MOCK MATCHES `/v1/auth/cfg` BEFORE `/v1/auth` — the second is a substring of the first —
+  // and `/v1/mine` before the leaderboard's own `/v1/me`, which is a substring of it. Both bites
+  // are recorded in this file already; they cost a section each when they were found.
+  // ⛔ NO GOOGLE SCRIPT IS EVER FETCHED: the loader checks for `window.google.accounts.id` BEFORE
+  // injecting a tag, so a stub short-circuits it. Arm A8 asserts the absence of the tag.
+  {
+    const authStub = () => {
+      const S = { score: -1, sub: [], me: 0 };
+      window.__auth = S;
+      const of = window.fetch;
+      window.fetch = function (u, o) {
+        const s = String(u);
+        let body = null; try { body = JSON.parse((o && o.body) || 'null'); } catch (e) {}
+        const j = (obj, code) => Promise.resolve(new Response(JSON.stringify(obj), { status: code || 200 }));
+        if (s.indexOf('pay.blendo.monster') >= 0) {
+          if (s.indexOf('/v1/auth/cfg') >= 0) return j(S.cfg || { ok: 1, cid: 'CID.apps.googleusercontent.com' });
+          if (s.indexOf('/v1/auth') >= 0) { S.auth = body; return S.authAns ? j(S.authAns) : j({ err: S.authErr || 'token' }, S.authCode || 401); }
+          if (s.indexOf('/v1/mine') >= 0) { S.mine = (S.mine || 0) + 1; return j({ ok: 1, items: [] }); }
+          if (s.indexOf('/v1/price') >= 0) return j({ ok: 1, cents: 199, currency: 'eur' });
+          return j({ err: 'route' }, 404);
+        }
+        if (s.indexOf('lb.blendo.monster') >= 0) {
+          if (s.indexOf('/v1/score') >= 0) { S.sub.push(body); return j({ ok: 1, rank: 7, exact: 1 }); }
+          if (s.indexOf('/v1/me') >= 0) {
+            S.me++;
+            return S.score < 0 ? j({ err: 'none' }, 404)
+              : j({ ok: 1, s: S.score, rank: 12, exact: 1, up: [], dn: [], t: 0 });
+          }
+          return j({ err: 'route' }, 404);
+        }
+        return of.apply(this, arguments);
+      };
+      // GIS, stubbed. The production loader looks for exactly this object BEFORE it injects a tag.
+      window.google = { accounts: { id: {
+        initialize(o){ window.__auth.gis = { cid: o.client_id, cb: typeof o.callback }; },
+        renderButton(host, o){ window.__auth.btn = o; host.appendChild(document.createElement('span')); },
+      } } };
+    };
+    const AK = 'ab'.repeat(32), AK2 = 'cd'.repeat(32);
+    const authStand = await httpStand();
+    const authPage = async (query) => {
+      const ctx = await browser.newContext();
+      await ctx.addInitScript(hideBotFlag);
+      await ctx.addInitScript(authStub);
+      const pg = await ctx.newPage();
+      pg.on('pageerror', (e) => errors.push('AUTH ' + e.message));
+      await pg.goto(authStand.url + (query || '?pay=1&dev=1'));
+      await pg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+      return { pg, ctx };
+    };
+
+    // ---- A1 + A2: the adoption, and the lift counted from the UNCLAMPED figure
+    {
+      const { pg, ctx } = await authPage();
+      const own = await pg.evaluate(() => __game.authState().gid);
+      const animal = await pg.evaluate(() => __game.guestName());
+      // a player who has spent more than he earned: raw is NEGATIVE, the table shows 0
+      await pg.evaluate(() => __game.mergeRaw({ se: 100, ss: 300 }));
+      const raw0 = await pg.evaluate(() => ({ raw: __game.rawScore(), lb: __game.leaderboardScore() }));
+      const r = await pg.evaluate(async (k) => {
+        window.__auth.score = 500;
+        window.__auth.authAns = { ok: 1, gid: 'acc000zzz', k: k, fresh: 0, name: '  Ivan   K  ' };
+        return await __game.authSignIn('h.p.s');
+      }, AK);
+      const st = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName(),
+        se: __game.saveRaw().se, lb: __game.leaderboardScore(), key: __game.saveRaw().lk }));
+      expect(raw0.raw === -200 && raw0.lb === 0,
+        'AUTH: the scene is set — raw ' + raw0.raw + ' while the table shows ' + raw0.lb,
+        'raw ' + raw0.raw + ' / lb ' + raw0.lb + ' (expected -200 / 0)');
+      expect(st.s.gid === 'acc000zzz' && st.key === AK && st.s.own === own && st.name === 'Ivan K' && st.s.src === 'g',
+        'AUTH: the account is adopted — the id, its key, its name, and the device keeps its way back',
+        JSON.stringify({ gid: st.s.gid, key: st.key === AK, own: st.s.own === own, name: st.name, src: st.s.src }));
+      // ⛔ THE ARM THAT DISCRIMINATES: from the clamp the lift would be 500 and `se` 600, and the
+      // table would show 300 — the player would stand BELOW the account's own score.
+      expect(r.lifted === 700 && st.se === 800 && st.lb === 500 && st.s.lift === 700,
+        'AUTH: the lift is counted from the UNCLAMPED figure — se 100 -> 800, the table shows exactly the account\'s 500',
+        JSON.stringify({ lifted: r.lifted, se: st.se, lb: st.lb, gr: st.s.lift }) + ' (from the clamp: 500 / 600 / 300)');
+      // ---- A5: sign-out gives the device its identity back AND takes the lift with it
+      await pg.evaluate(() => __game.authOut());
+      const back = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName(),
+        se: __game.saveRaw().se, lb: __game.leaderboardScore(), bal: __game.starBalance(), key: __game.saveRaw().lk }));
+      expect(back.s.gid === own && back.name === animal && back.s.src === '' && back.s.own === '',
+        'AUTH: sign-out gives the DEVICE its own identity back, not only its name',
+        JSON.stringify({ gid: back.s.gid === own, name: back.name, animal: animal, src: back.s.src, own: back.s.own }));
+      // ⛔ WITHOUT THIS THE ACCOUNT'S BALANCE LEAKS TO THE GUEST: `se` stays raised, so his own row
+      // and his own wallet inherit a stranger's score — the one new decision of this batch.
+      expect(back.se === 100 && back.lb === 0 && back.s.lift === 0,
+        'AUTH: the lift goes back with the identity — se 800 -> 100, the table is his own 0 again',
+        JSON.stringify({ se: back.se, lb: back.lb, gr: back.s.lift }) + ' (leaked: se 800 / lb 500)');
+      await ctx.close();
+    }
+
+    // ---- A4: the cache is dropped BEFORE `lbMe`, or the lift is counted against the OLD id
+    {
+      const { pg, ctx } = await authPage();
+      // warm the cache for the DEVICE's id with a number that must never be used
+      await pg.evaluate(async () => { window.__auth.score = 9; await __lb.me(); });
+      const warm = await pg.evaluate(() => window.__auth.me);
+      const r = await pg.evaluate(async (k) => {
+        window.__auth.score = 4200;
+        window.__auth.authAns = { ok: 1, gid: 'acc111zzz', k: k, fresh: 0, name: 'Ann' };
+        return await __game.authSignIn('h.p.s');
+      }, AK);
+      const st = await pg.evaluate(() => ({ lb: __game.leaderboardScore(), me: window.__auth.me }));
+      expect(warm === 1 && st.me === 2,
+        'AUTH: the sanity — the cache was warm before the sign-in and `lbMe` was asked again after it',
+        'calls before ' + warm + ', after ' + st.me);
+      expect(r.lifted === 4200 && st.lb === 4200,
+        'AUTH: the cache is dropped BEFORE lbMe — the lift is the ADOPTED id\'s 4200, not the cached 9',
+        JSON.stringify({ lifted: r.lifted, lb: st.lb }) + ' (invalidated after lbMe: 9 / 9)');
+      await ctx.close();
+    }
+
+    // ---- A3: the name reaches the table although the score did not move
+    {
+      const { pg, ctx } = await authPage();
+      const own = await pg.evaluate(() => __game.authState().gid);
+      const animal = await pg.evaluate(() => __game.guestName());
+      await pg.evaluate(() => __game.bankScore(700));
+      await pg.waitForFunction(() => window.__auth.sub.length >= 1, null, { timeout: 20000 }).catch(() => {});
+      const first = await pg.evaluate(() => window.__auth.sub.map((x) => ({ n: x && x.n, s: x && x.s })));
+      const r = await pg.evaluate(async (g) => {
+        window.__auth.authAns = { ok: 1, gid: g, k: 'cdcd', fresh: 1, name: 'Ivan K' };
+        return await __game.authSignIn('h.p.s');
+      }, own);
+      await pg.waitForFunction(() => window.__auth.sub.length >= 2, null, { timeout: 20000 }).catch(() => {});
+      const subs = await pg.evaluate(() => window.__auth.sub.map((x) => ({ n: x && x.n, s: x && x.s })));
+      const st = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName() }));
+      expect(first.length === 1 && first[0].n === animal && first[0].s === 70,
+        'AUTH: the sanity — the score was submitted once under the animal name before the sign-in',
+        JSON.stringify(first));
+      // ⛔ THE DISCRIMINATING PAIR: the SAME score, a DIFFERENT name. Without `lbForgetSent` the
+      // second submission never happens and the row keeps the animal until the score next moves.
+      expect(subs.length === 2 && subs[1].n === 'Ivan K' && subs[1].s === subs[0].s,
+        'AUTH: the sign-in reaches the row — the same score is sent again under the account\'s name',
+        JSON.stringify(subs));
+      // ---- A7: the account was CREATED from this device — no way back is stored, and none is needed
+      expect(r.adopted === false && r.fresh === true && st.s.own === '' && st.name === 'Ivan K',
+        'AUTH: an account created FROM this device takes the name only — the identity was already his',
+        JSON.stringify({ adopted: r.adopted, fresh: r.fresh, own: st.s.own, name: st.name }));
+      await pg.evaluate(() => __game.authOut());
+      const back = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName() }));
+      expect(back.s.gid === own && back.name === animal && back.s.src === '',
+        'AUTH: signing out of an account created here is name-only — the id must NOT be regenerated',
+        JSON.stringify({ same: back.s.gid === own, name: back.name }));
+      await ctx.close();
+    }
+
+    // ---- A6: `bound` is a wall, and it changes nothing
+    {
+      const { pg, ctx } = await authPage();
+      const own = await pg.evaluate(() => __game.authState().gid);
+      const animal = await pg.evaluate(() => __game.guestName());
+      const r = await pg.evaluate(async () => {
+        window.__auth.authErr = 'bound'; window.__auth.authCode = 409;
+        return await __game.authSignIn('h.p.s');
+      });
+      const st = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName(),
+        toast: (document.getElementById('toast') || {}).textContent || '' }));
+      // ⚠️ THE WALL, AND IT IS PRODUCT RATHER THAN PLUMBING: a second person cannot CREATE an
+      // account on a phone whose identity already belongs to one — he can only sign in with an
+      // account made on another device. The message is what the player is told about it.
+      expect(r.state === 'refused' && r.err === 'bound' && st.s.gid === own && st.name === animal
+        && st.s.src === '' && st.s.own === '' && st.toast.indexOf('another account') >= 0,
+        'AUTH: a refused `bound` changes no identity and says so on screen',
+        JSON.stringify({ state: r.state, err: r.err, same: st.s.gid === own, name: st.name, toast: st.toast }));
+      await ctx.close();
+    }
+
+    // ---- A8: the button, the client id's single copy, and the origin gate
+    {
+      const { pg, ctx } = await authPage();
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.waitForFunction(() => { const b = document.getElementById('msAuth'); return b && b.style.display !== 'none'; },
+        null, { timeout: 15000 }).catch(() => {});
+      const on = await pg.evaluate(() => {
+        const band = document.getElementById('msAuth'), host = document.getElementById('msAuthBtn');
+        return { shown: !!band && band.style.display !== 'none', kids: host ? host.childNodes.length : -1,
+          gis: window.__auth.gis, btn: window.__auth.btn,
+          tags: document.querySelectorAll('script[src*="gsi"]').length };
+      });
+      // ⚠️ THE CLIENT ID COMES FROM THE WORKER AND IS NOWHERE ELSE: GIS needs it on the client and
+      // the worker needs it as `aud`, and two copies are the drift this project has paid for three
+      // times. The arm compares what GIS was initialised with against the worker's own answer.
+      expect(on.shown && on.kids > 0 && on.gis && on.gis.cid === 'CID.apps.googleusercontent.com'
+        && on.gis.cb === 'function' && on.btn && on.tags === 0,
+        'AUTH: the band shows Google\'s own button, initialised with the client id THE WORKER gave, and no script is fetched',
+        JSON.stringify(on));
+      await ctx.close();
+      // ⛔ THE ORIGIN GATE: without `?pay=1` a local host is not our own origin, so there is no
+      // sign-in at all — the band stays hidden and Google's library is never even asked for. This
+      // is the same gate that keeps a third-party script out of the portal and out of the wrapper.
+      const off = await authPage('?dev=1');
+      await off.pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await off.pg.click('#pauseBtn');
+      await off.pg.waitForTimeout(600);
+      const offSt = await off.pg.evaluate(() => {
+        const band = document.getElementById('msAuth');
+        return { on: __game.authState().on, shown: !!band && band.style.display !== 'none',
+          gis: !!window.__auth.gis, tags: document.querySelectorAll('script[src*="gsi"]').length };
+      });
+      expect(offSt.on === false && offSt.shown === false && offSt.gis === false && offSt.tags === 0,
+        'AUTH: off our own origin there is no sign-in — no band, no library, no request',
+        JSON.stringify(offSt));
+      await off.ctx.close();
+    }
+
+    // ---- A9: the name follows the ID, and the way back never travels from a cloud copy
+    {
+      const { pg, ctx } = await authPage();
+      const own = await pg.evaluate(() => __game.authState().gid);
+      // sign in, then merge a CLOUD-shaped copy (mergeRaw does not pass `own`)
+      await pg.evaluate(async (k) => {
+        window.__auth.authAns = { ok: 1, gid: 'zzz999', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+      }, AK2);
+      const mine = await pg.evaluate(() => {
+        // a lagging copy of the SAME identity carrying the animal name and a FOREIGN way back
+        __game.mergeRaw({ gid: 'zzz999', gn: 'Narwhal', gs: '', gp: 'foreign-device', lp: 'ff'.repeat(32), gr: 99999 });
+        return { name: __game.guestName(), src: __game.authState().src,
+          own: __game.authState().own, lift: __game.authState().lift };
+      });
+      // ⚠️ SAME ID, TWO NAMES: the account's beats the derived one. The old rule («our own non-empty
+      // one wins») knew nothing about the source and would have kept whichever loaded first.
+      expect(mine.name === 'Ivan K' && mine.src === 'g',
+        'AUTH: with one id the account\'s name beats the animal — a lagging copy does not rename the player',
+        JSON.stringify(mine));
+      // ⛔ THE WAY BACK BELONGS TO THIS DEVICE AND MUST NEVER ARRIVE FROM THE CLOUD: another
+      // device's identity restored here would hand this phone an id nobody on it has ever used.
+      expect(mine.own === own && mine.lift === 0,
+        'AUTH: the device\'s way back does not travel from a cloud copy',
+        JSON.stringify({ own: mine.own, expected: own, lift: mine.lift }));
+      // The other direction: a DIFFERENT id wins the merge, and its name comes with it.
+      // ⚠️ THE FOREIGN SIDE CARRIES A GOOGLE NAME ON PURPOSE. A DERIVED name would prove nothing
+      // here: `guestName` recomputes a derived name from the key on every call, so whatever the
+      // merge chose, the answer would be the animal of the winning id — the arm would be green
+      // under any pickName at all. Only a name the merge must CARRY can state that it was carried.
+      const other = await pg.evaluate(() => {
+        __game.mergeRaw({ gid: 'aaa000', gn: 'Ann', gs: 'g' });
+        return { gid: __game.authState().gid, name: __game.guestName(), src: __game.authState().src };
+      });
+      expect(other.gid === 'aaa000' && other.name === 'Ann' && other.src === 'g',
+        'AUTH: a different id wins the merge and brings ITS name with it — the name follows the identity',
+        JSON.stringify(other));
+      await ctx.close();
+    }
+    authStand.close();
+  }
+  // ⟦AUTH-SECTION-END⟧
+
 
   // ⚠️⚠️ THE TAIL OF THE TAIL: the page errors that happened after the gate at 40% of the file.
   // The filters are the same (the synthetic crash of the suite and the newbie noise), so that the gate does not

@@ -667,6 +667,8 @@ $('msDiff').addEventListener('click', e => {
 // own pause (the ownership of the pause belongs to openMainScreen, going in there is not
 // allowed, see CLAUDE.md).
 $('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
+// SIGN OUT — and it gives the device its own identity back, not only its name (84-auth says why).
+if ($('msAuthOut')) $('msAuthOut').addEventListener('click', ()=> { try { authSignOut(); } catch(e){} });
 // THE «x5 float» BOOST BUTTON (947:3670, the owner's word 2026-09-03: «this element opens the
 // full-screen purchase popup, like the More button in the pause menu»): the SAME overlay,
 // opened DIRECTLY from the live HUD. The menu is not involved, so the game has no pause under

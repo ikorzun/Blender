@@ -6,7 +6,56 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-10-i (the loader from the first frame; the installed game starts from its own copy) on top of 2026-09-10-zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red, SUITE: PASS** (run 47, three batches back; -v, -g and -d are gated by their own dry-runs and sabotages, his rule of 9 September — and -d touches no game file at all) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it**
+**Build: batch 2026-09-11 (Google sign-in — the client half) on top of 2026-09-10-i, -zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red** (run 47, four batches back; every batch since is gated by its own dry-runs and sabotages, your rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
+
+**11 SEPTEMBER — SIGNING IN WITH GOOGLE: THE SECOND HALF, THE ONE THAT RUNS IN THE BROWSER.**
+
+Yesterday the server half went in. Today the game itself can sign in, and it does the two things you
+asked for: **the purchases and the place in the table follow the account**, while the collection, the
+level and the boosts stay on the device they were earned on.
+
+**What a player sees.** In the pause menu, under his name, a band appears with Google's own button. He
+presses it, picks his account, and: his name replaces the animal one everywhere — in the menu, on his
+row in the table, on the victory screen; his score in the table becomes the account's, wherever he
+earned it; his purchases come back. Signing in on a second phone brings all of that to the second
+phone. I have sent you four frames of the band — the phone and the desktop, before and after.
+
+**Sign-out gives the phone its own identity back, not just its name.** You wanted it because a phone is
+shared, and a name-only sign-out would have left the phone BEING that account: the next person plays,
+earns and buys as a stranger. So the device remembers who it was before it signed in and goes back to
+it. **This is the one thing I added that was not in the plan**, and it was the right call: without it
+the guest also inherited the account's score in his own wallet and on his own row — and «sign in, sign
+out» is the first thing anyone tries on a shared phone.
+
+**One wall, and I want you to know its wording.** If one person has already made an account on a phone,
+a second person cannot MAKE a new one there — he can only sign in with an account he created somewhere
+else. The game says: «This device already belongs to another account». That is the rule that stops two
+Google accounts owning one player, and it is deliberate.
+
+**Three things I measured that changed the work:**
+• The name would never have reached your row unless the score happened to move — the game refuses to
+  send the same score twice. Now a sign-in always reaches the row. Measured: the same score sent twice,
+  «Crab» then «Ivan K».
+• The score arriving from the account is counted from the true figure, not the one the table shows
+  clamped at zero — otherwise a player who had spent more than he earned would land BELOW his own
+  account's score, on the very device the feature exists to rescue.
+• The first version of the band wore a white pill inside a white card, because I trusted a comment in
+  the code instead of measuring the card. Fixed before you saw it.
+
+**⚠️ IT DOES NOT APPEAR YET, AND THAT IS BY DESIGN — three steps are yours:**
+1. the `acc` table in the payment worker's database, and a deploy of that worker;
+2. a Google Cloud project with an OAuth client id (Web application), `https://blendo.monster` as an
+   authorised JavaScript origin, and the consent screen pointing at our privacy page;
+3. that client id pasted into the worker's settings. **Until it is there the band does not show at
+   all** — no half-working button, no error on screen.
+Say the word and I will write out each step with the exact commands.
+
+**The look of the button is Google's**, and their themes are the only choice — outline (what I set),
+filled blue, filled black. One word and one line changes it.
+
+**The privacy page now says it plainly:** signing in stores the account identifier Google issues for
+this game and the display name, **your email is never read**, and the display name becomes visible to
+other players on the leaderboard.
 
 **10 SEPTEMBER, NIGHT — THE LOADER FROM THE FIRST FRAME, AND THE INSTALLED GAME STARTS INSTANTLY
 (batch 2026-09-10-i, your three items).**

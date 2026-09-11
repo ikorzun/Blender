@@ -2827,6 +2827,19 @@
   /* the header */
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
+  /* GOOGLE SIGN-IN — the band under the profile row (2026-09-11).
+     ⛔⛔ NO BACKING OF ITS OWN, AT ANY WIDTH, AND THAT WAS MEASURED RATHER THAN COPIED. The markup
+     comment two screens up still says the card «dissolves on mobile (display:contents) — there
+     these are two independent pills», and that has been stale since the card became real
+     (2026-08-11/12): measured at 390 / 800 / 1280 the card is a white card at EVERY width and
+     `.ms-head` is transparent at every one of them. A pill here would be a white pill inside a
+     white card — which is exactly what the first draft of this rule shipped. */
+  .ms-auth { display:flex; align-items:center; gap:10px; min-height:44px; }
+  .ms-auth-note { font-size:16px; font-weight:700; color:var(--carbon-400);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .ms-auth-out { margin-left:auto; flex:none; border:1px solid rgba(0,0,0,.12); background:#fff;
+    border-radius:80px; padding:8px 16px; font:inherit; font-size:14px; font-weight:700;
+    color:var(--carbon-400); cursor:pointer; }
   /* the profile slot: avatar + name (for a future Google profile) */
   /* gap 4 and the name Bold 18 `--carbon-400` — the numbers of the mock-up 840:4331/840:4334
      (it used to be 10 and 16px «by eye») */
@@ -3340,6 +3353,8 @@
        direct children of `.ms-wrap` and shared one scale. */
     .ms-card { order:-1; }
     .ms-head { order:-1; }
+    /* the sign-in band — between the profile row and the entry point, inside the card's own scale */
+    .ms-auth { order:0; }
     /* the entry point into the table — right under the profile and ABOVE Play (mock-up 840:4344) */
     .ms-lbentry { order:1; }
     /* ⚠️ THE SETTINGS ARE ABOVE THE EYES (the owner's word 2026-08-20 «put the block with the
@@ -5382,6 +5397,27 @@
         <button class="ms-getmore" id="msGetMore">×5 Boost</button>
       </div>
     </header>
+    <!-- GOOGLE SIGN-IN (his word 2026-09-10: «I need a Google account and its name, with the
+         leaderboard on a separate domain as it is now»; the design and the six traps are
+         docs/GOOGLE-AUTH.md — the rule of 2026-08-22-g: his quotes in the code are translated).
+         ⛔ THE BAND STANDS UNDER THE PROFILE ROW AND NEVER INSIDE IT — the ban is recorded at the
+         settings block and it is a measurement: a second element in the row itself crawled out of
+         the pill by 29px at a width of 320 and dropped the narrow menu's own guard.
+         ⚠️ IT STARTS HIDDEN AND IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW: off our own origin
+         (the portal pays and signs in with its own account, the wrapper has neither) there is no
+         sign-in at all, and while the worker carries no client id the button cannot be rendered —
+         an empty band would be worse than none. -->
+    <div class="ms-auth" id="msAuth" style="display:none">
+      <!-- ⛔ GOOGLE'S OWN RENDERED BUTTON GOES IN HERE, and the host is deliberately empty: with a
+           button of ours the GIS library hands back no ID TOKEN at all, and an ID token is exactly
+           what the worker verifies against Google's JWKS. -->
+      <div class="ms-auth-btn" id="msAuthBtn"></div>
+      <!-- ⚠️ THE BAND SAYS WHAT THE ROW ABOVE CANNOT. The first draft repeated the account's
+           name here and the frame showed it twice, three centimetres apart — the profile row
+           already carries the name, so what is missing is WHY it changed and what «Sign out» ends. -->
+      <span class="ms-auth-note" id="msAuthNote"></span>
+      <button type="button" class="ms-auth-out" id="msAuthOut" style="display:none">Sign out</button>
+    </div>
     <!-- the card's divider — desktop only (in mock-up 840:4688 a line across the whole
          width between the profile row and the entry; on mobile these are two separate
          pills, there is nothing to divide) -->
@@ -7556,6 +7592,18 @@ const LB_URL = 'https://lb.blendo.monster';
 // native provider first.
 const PAY_URL = 'https://pay.blendo.monster';
 const PAY_SITE = 'https://blendo.monster';
+
+// ===== GOOGLE SIGN-IN (84-auth; the endpoint lives in the pay worker, docs/GOOGLE-AUTH.md) =====
+// ⚠️ THE CLIENT ID IS NOT HERE, AND THAT IS DELIBERATE: it is needed by GIS on the client and as
+// `aud` on the worker, and two copies are the drift this project has paid for with PID, the price
+// and the material map. The client READS it from the worker (`GET /v1/auth/cfg`) — one copy, the
+// worker's var.
+// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT TO THE SERVER'S OWN LIMIT: a Google display name is
+// arbitrary user text shown to other players in the table.
+const AUTH_NAME_MAX = 40;
+// The look of Google's own rendered button — its themes are the only ones GIS offers
+// ('outline' | 'filled_blue' | 'filled_black'). A frame of each went to the owner; this is his knob.
+const GSI_THEME = 'outline';
 
 // ===== 06-matcap-metal: the metal matcap for the mixer blades =====
 // The owner's asset "3d assets/matcap/metall.png" (512×512), inlined as base64:
@@ -16820,10 +16868,21 @@ const SAVE_KEY = 'mixer_save_v1';
 // pe/ps — SHAKES BOUGHT as a monotonic pair (the he/hs pattern), a permanent
 // wallet on top of the 3 free ones per level. ls — «the last seen time», a
 // monotonic mark against a clock rollback.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0, lk: ''  }; // he/hs — hints (start 3, the owner's spec); lk — the leaderboard signing key, it travels with gid (2026-09-06-e, see pickLk)
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0, lk: '', gs: '', gp: '', lp: '', gr: 0  }; // he/hs — hints (start 3, the owner's spec); lk — the leaderboard signing key, it travels with gid (2026-09-06-e, see pickLk)
+// gs — WHERE THE NAME CAME FROM: '' derived from the key (the animal), 'g' the Google account.
+// The name and its source travel with the gid (pickName), because a name is a property of the
+// IDENTITY and not of the device. gp/lp/gr are the opposite — they belong to THIS DEVICE and are
+// its way back: the identity it had before it adopted an account, and the lift that was added to
+// `se` for that account (see identityAdopt/identityRestore, and the `own` argument of mergeSave).
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
-function mergeSave(into, from){
+// ⚠️⚠️ `own` IS TRUE ONLY FOR OUR OWN STORAGE (loadSave), AND THAT IS LOAD-BEARING IN BOTH
+// DIRECTIONS. A field that is not named in this function is LOST at every launch — `loadSave`
+// merges the stored copy INTO the empty literal, so «do not mention gp/lp and the device keeps its
+// own» would have silently dropped the way back on the first reload. And a field that IS named
+// unconditionally travels from a CLOUD copy, i.e. another device's way back would land here.
+// So they are named, and only for the local copy.
+function mergeSave(into, from, own){
   if (!from) return;
   const gi = into.gen || 0, gf = from.gen || 0;
   if (gf > gi){
@@ -16835,7 +16894,7 @@ function mergeSave(into, from){
     // naf — A FOREVER PURCHASE: survives even a generation change (a progress
     // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
-    into.gn = into.gn || from.gn || ''; // name: our own non-empty one, else theirs
+    { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
     into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
     into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
@@ -16869,7 +16928,7 @@ function mergeSave(into, from){
   into.ls = Math.max(into.ls || 0, from.ls || 0); // the time mark is monotonic — a clock rollback is not cured by switching devices
   into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
   into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
-  into.gn = into.gn || from.gn || ''; // guest name: our own non-empty one wins
+  { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
   into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
   into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
   into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
@@ -16900,9 +16959,11 @@ function mergeSave(into, from){
   if (!into.uk) into.uk = {};
   const uk = from.uk || {};
   for (const k in uk) if (uk[k]) into.uk[k] = 1; // bought unlocks — OR-merge
+  // THE DEVICE'S WAY BACK — our own storage only, never a cloud copy (see the note at the top).
+  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
 }
 function loadSave(){
-  try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
+  try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'), true); } catch(e){}
 }
 // The ×N play-time accumulator (the block «THE MULTIPLIER IS A PLAY-TIME BUDGET» below) is
 // FOLDED into Save.bu here, at every commit — so a level end, a hint, a shake, a purchase all
@@ -17070,6 +17131,23 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
 // get two rows in the table). The base36 timestamp is 8 characters long until
 // the year 2059, so the lexicographic minimum = THE OLDEST id; the rule is
 // idempotent and commutative — both copies converge to one value.
+// THE NAME FOLLOWS THE ID, FOR THE SAME REASON THE KEY DOES (pickLk, right below). A Google name
+// belongs to the account, so whichever gid wins the merge, ITS name wins with it — otherwise a
+// second device would show the animal name of a player who signed in on the first.
+// ⚠️ WITH THE SAME GID ON BOTH SIDES A GOOGLE NAME BEATS A DERIVED ONE: the derived one is
+// recomputed from the key at any time (guestName), the Google one arrives only from the account,
+// so «ours wins» would let a stale animal name sit on top of a signed-in identity for ever.
+// ⛔ NOT the old `into.gn || from.gn` rule: it knew nothing about the source and kept whichever
+// copy happened to be loaded first.
+function pickName(ag, an, as_, bg, bn, bs){
+  const a = { gn: an || '', gs: as_ || '' }, b = { gn: bn || '', gs: bs || '' };
+  if (!a.gn) return b;
+  if (!b.gn) return a;
+  if (ag && bg && ag !== bg) return (ag < bg) ? a : b;   // different ids — the winner of pickGid
+  if (a.gs === 'g' && b.gs !== 'g') return a;            // same id — the account's name beats the animal
+  if (b.gs === 'g' && a.gs !== 'g') return b;
+  return a;
+}
 function pickGid(a, b){
   if (!a) return b || '';
   if (!b) return a;
@@ -17111,11 +17189,71 @@ function gidHash(){
   return h;
 }
 function guestName(){
+  // ⛔⛔ THE ACCOUNT'S NAME IS RETURNED AS IT IS, AND THIS LINE IS THE WHOLE REASON `gs` EXISTS.
+  // The branch below OVERWRITES `Save.gn` on every call — four consumers ask for the name (the
+  // table row, the profile, the menu pill, the test hook), so without the check the very first
+  // one of them would replace a signed-in player's name with the animal again, silently.
+  if (Save.gs === 'g' && Save.gn) return Save.gn;
   const want = GUEST_NAMES[gidHash() % GUEST_NAMES.length];
-  if (Save.gn !== want){ Save.gn = want; commitSave(); }
+  if (Save.gn !== want || Save.gs){ Save.gn = want; Save.gs = ''; commitSave(); }
   return Save.gn;
 }
 function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // the file number avatars/AvatarNN.png
+
+// ===== THE ACCOUNT'S IDENTITY ON THIS DEVICE =====
+// 84-auth does the talking (the token, the worker, the order of the steps); these four only touch
+// `Save`, so the arithmetic of the identity lives where the identity is stored.
+function playerNameSet(name, src){
+  const nm = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().slice(0, AUTH_NAME_MAX);
+  if (!nm) return false;                       // empty after trimming — keep the animal name
+  if (Save.gn === nm && Save.gs === (src || '')) return false;
+  Save.gn = nm; Save.gs = src || '';
+  commitSave();
+  return true;
+}
+function identityAdopt(gid, lk){
+  if (!gid || gid === Save.gid) return false;
+  // ⚠️ THE WAY BACK IS WRITTEN ONCE. Signing into a SECOND account while already signed into the
+  // first must not overwrite the device's own identity with the first account's — the phone would
+  // then have no way home at all, which is the whole point of keeping it (his «a phone is shared»).
+  if (!Save.gp){ Save.gp = Save.gid || ''; Save.lp = Save.lk || ''; }
+  Save.gid = gid; Save.lk = lk || '';
+  commitSave();
+  return true;
+}
+// THE SERVER'S SCORE FOR THE ADOPTED IDENTITY ARRIVES ON THIS DEVICE. `se` is a monotone counter
+// merged by max, so raising it is legitimate and cannot double: after the raise the two numbers are
+// equal and the branch never fires again.
+function identityLift(S){
+  const s = Math.max(0, Math.floor(S || 0));
+  const raw = rawScore();
+  if (!(s > raw)) return 0;
+  const add = s - raw;
+  Save.se = (Save.se || 0) + add;
+  // ⛔⛔ WITHOUT THIS LINE SIGN-OUT LEAKS THE ACCOUNT'S BALANCE TO THE DEVICE: the identity goes
+  // back to the guest and the raised `se` stays, so his own row and his own wallet inherit a
+  // stranger's score. The lift accumulates across several sign-ins and is spent in one go.
+  Save.gr = (Save.gr || 0) + add;
+  commitSave();
+  return add;
+}
+function identityRestore(){
+  if (!Save.gp) return false;                  // the account was created FROM this device — nothing to restore
+  // ⚠️⚠️ `se` GOES DOWN HERE, AND THIS IS THE ONLY PLACE IN THE GAME WHERE A MONOTONE COUNTER DOES.
+  // It is safe because the lift and its rollback live on ONE device: sign-in exists only on our own
+  // origin (the gate in 84-auth is payHostOk's), where there is no bridge and `bridgeSyncSave`
+  // never runs — so no cloud copy can merge the raised value back in by max. The merge at load is
+  // against the copy we have just written.
+  // ⚠️ THE RESIDUAL, NAMED: if the player SPENT from the lifted wallet, his own balance after the
+  // rollback is lower than it was before he signed in. `ss` is monotone and what is spent is spent.
+  Save.se = Math.max(0, (Save.se || 0) - (Save.gr || 0));
+  Save.gr = 0;
+  Save.gid = Save.gp; Save.lk = Save.lp || '';
+  Save.gp = ''; Save.lp = '';
+  Save.gn = ''; Save.gs = '';                  // the name belonged to the account; the animal comes back by itself
+  commitSave();
+  return true;
+}
 function grantNoAdsForever(){
   if (Save.naf) return;
   Save.naf = 1;
@@ -17184,6 +17322,11 @@ function starBalance(){ return Math.max(0, (Save.se || 0) + (Save.tu || 0) - (Sa
 // The leaderboard feature itself is waiting for the platform (Playgama/Yandex
 // yes, Poki no) — for now it is a number-handle.
 function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0))); }
+// THE SAME FIGURE WITHOUT THE CLAMP. It exists for exactly one consumer — the lift at sign-in
+// (identityLift): a player who has spent more than he earned stands at 0 in the table while his raw
+// figure is negative, and a lift counted from the CLAMPED number would leave him below the score
+// the server holds for the account. Nothing else may use it: the table and the wallet are clamped.
+function rawScore(){ return (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0)); }
 // THE DENOMINATED DISPLAY of the score: floor(max(0,score)/10). A single source
 // for the chip AND for the floating pop numbers (the owner's #10 2026-07-27:
 // «the numbers are clear both during play and in the tally»). ⚠️ A pop is
@@ -17354,7 +17497,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
+  Save.bx = {}; Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; Save.gr = 0; // gr: the lift lived INSIDE se, and se is zeroed here — the identity (gid/lk/gn/gs/gp/lp) is NOT progress and is not touched // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
@@ -20449,6 +20592,16 @@ function lbMarkRegistered(id) { try { localStorage.setItem(LB_REG_LS, id || '1')
 function lbClearRegistered() { try { localStorage.removeItem(LB_REG_LS); } catch (e) {} }
 // The memory of the last submission belongs to the id it was made for — see lbSubmit.
 const LB_SENT_GID_LS = 'mixer_lb_sent_gid';
+// ⛔⛔ A SIGN-IN CHANGES THE NAME WITHOUT CHANGING THE SCORE, AND THE TABLE WOULD NEVER LEARN OF IT.
+// `lbSubmit` skips a submission whose score equals the last one sent (the rate window must not be
+// spent on a number the server already holds) — so a player who signed in would keep his animal
+// name on the row until his score next moved. A CHANGE OF ID invalidates the memory by itself
+// (`lbSentGid !== id` in lbSubmit); a change of NAME does not, and that is the gap this closes.
+// ⚠️ The id's own mark is left alone: the memory is being forgotten for THIS id, not moved.
+function lbForgetSent() {
+  lbSentScore = null;
+  try { localStorage.removeItem(LB_SENT_LS); } catch (e) {}
+}
 
 async function lbSign(msg) {
   const keyHex = lbKey();
@@ -20835,6 +20988,7 @@ window.__lb = {
   // see that the deferred send is ALIVE (a timer is scheduled), otherwise «the 429 is not
   // lost» would be checked against a returned word rather than against the fact.
   pending: function () { return { timer: !!lbTimer, again: lbAgain, sent: lbSentScore }; },
+  forgetSent: lbForgetSent,   // a sign-in must reach the row even when the score did not move
 };
 
 // ===== THE WEB PAYMENT PROTOCOL — the client of pay.blendo.monster (2026-09-10-e) =====
@@ -20953,6 +21107,26 @@ function payClaim(sids) {
   return payCall('/v1/claim', 'claim.' + list.slice().sort().join(','), { sids: list });
 }
 function payCheckout() { return payCall('/v1/checkout', 'checkout.bundle5'); }
+
+// ===== THE GOOGLE ENDPOINT (84-auth owns the order of the steps; docs/GOOGLE-AUTH.md) =====
+// ⚠️ IT LIVES IN THIS WORKER because it already owns the gid, a trust-on-first-use key table and a
+// D1 — and because the main thing sign-in buys the player is his purchases back.
+// ⚠️ THE CLIENT ID IS READ FROM THE SERVER AND NEVER WRITTEN DOWN HERE: GIS needs it on the client
+// and the worker needs it as `aud`, and two copies are the drift this project has paid for with
+// PID, the price and the material map. One copy, the worker's var.
+function payAuthCfg() { return payFetch('/v1/auth/cfg').then((r) => (r.json && r.json.ok === 1) ? r.json : null); }
+async function paySha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str)));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+// ⛔⛔ THE CALL IS SIGNED LIKE EVERY OTHER ONE, AND THAT IS THE WHOLE OF TRAP 4: an unsigned
+// /v1/auth would hand ANY caller the victim's signing key merely for naming his gid — the worker
+// answers a successful sign-in with `{gid, k}`, which is the row's secret.
+// ⚠️ THE SIGNED STRING CARRIES THE TOKEN'S HASH rather than the token: a JWT is 1-2 KB, and the
+// hash still binds the signature to THIS token, so one signature cannot be replayed with another.
+function payAuth(tok) {
+  return paySha256Hex(tok).then((h) => payCall('/v1/auth', 'auth.' + h, { tok: tok }));
+}
 
 // ===== THE RETURN FROM STRIPE =====
 const payPending = () => { try { return localStorage.getItem(PAY_PENDING_LS) || ''; } catch (e) { return ''; } };
@@ -21099,6 +21273,191 @@ const PAY_WEB_API = {
   },
 };
 function payWebApi() { return payHostOk() ? PAY_WEB_API : null; }
+
+// ===== GOOGLE SIGN-IN, THE CLIENT HALF =====
+// The server half is `server/pay/` (one endpoint, `/v1/auth`), the whole design and the six
+// measured traps are in docs/GOOGLE-AUTH.md. His word: «I need a Google account and its name, with
+// the leaderboard on a separate domain as it is now», and his answer to the one fork: «the purchases
+// and the place in the table» — signing in on a new device brings back the PURCHASES and the ROW;
+// the collection,
+// the level and the boosts stay on the device.
+//
+// ⛔⛔ THE ENDPOINT LIVES IN THE PAY WORKER, AND THE MODULE THAT TALKS TO IT IS 83-pay: it already
+// owns the gid, a trust-on-first-use key table and a D1, and the main thing sign-in buys the player
+// is his purchases back. This module owns the ORDER OF THE STEPS and nothing else — the protocol is
+// 83-pay's, the save arithmetic is 77-save's, the button is drawn by 85-hud into a host element.
+//
+// ⚠️ THE MODULE NUMBER IS LOAD-BEARING: 85-hud calls `authRenderButton` at runtime (functions are
+// hoisted across the concatenation, so that direction is free), while nothing here reads another
+// module's `const` at the TOP LEVEL — the temporal dead zone that cost this project six days
+// (2026-08-13). Everything below runs on a call, never at load.
+
+const AUTH_GSI_SRC = 'https://accounts.google.com/gsi/client';
+// ⚠️ THE WORDING OF A REFUSAL IS PRODUCT, NOT PLUMBING. `bound` in particular is a WALL and it was
+// named to the owner as one: a second person cannot CREATE an account on a phone whose identity is
+// already some account's — he can only sign in with an account made on another device. That is the
+// server's «one identity, one account» rule (trap 5) seen from the player's side.
+const AUTH_MSG = {
+  bound: 'This device already belongs to another account',
+  noclient: 'Sign-in is not set up yet',
+  net: 'No connection',
+};
+let authCfg = null;        // { cid } — the client id, read ONCE from the worker, never a second copy
+let authGisP = null;       // the library's load promise
+let authBusy = false;
+let authLast = { state: '', err: '' };
+
+// THE GATE IS THE PAYMENT'S OWN (our own origin, not in an iframe, not the wrapper). Google's
+// library must not land in the portal's console or in an App Store review.
+function authOn(){ try { return typeof payHostOk === 'function' && payHostOk(); } catch (e) { return false; } }
+function authSignedIn(){ try { return Save.gs === 'g' && !!Save.gn; } catch (e) { return false; } }
+function authCanRestore(){ try { return !!Save.gp; } catch (e) { return false; } }
+
+function authGetCfg(){
+  if (authCfg) return Promise.resolve(authCfg);
+  if (!authOn() || typeof payAuthCfg !== 'function') return Promise.resolve(null);
+  return payAuthCfg().then((c) => { authCfg = (c && c.cid) ? c : null; return authCfg; }, () => null);
+}
+
+// ⚠️⚠️ AN ALREADY PRESENT LIBRARY SHORT-CIRCUITS THE INJECT, AND THAT IS BOTH THE CORRECT CHECK AND
+// THE ONLY WAY A STAND CAN EXERCISE THIS PATH: a bench stubs `window.google.accounts.id` and no
+// third-party script is ever fetched. The check therefore stands BEFORE the tag, not after it.
+function authLoadGis(){
+  try { if (window.google && window.google.accounts && window.google.accounts.id) return Promise.resolve(window.google.accounts.id); } catch (e) {}
+  if (!authOn()) return Promise.reject(new Error('gate'));
+  if (authGisP) return authGisP;
+  authGisP = new Promise((ok, bad) => {
+    const el = document.createElement('script');
+    el.src = AUTH_GSI_SRC; el.async = true; el.defer = true;
+    el.onload = () => {
+      try { if (window.google && window.google.accounts && window.google.accounts.id) return ok(window.google.accounts.id); } catch (e) {}
+      bad(new Error('gis'));
+    };
+    el.onerror = () => bad(new Error('gis'));
+    document.head.appendChild(el);
+  });
+  return authGisP;
+}
+
+// ⛔ GOOGLE'S OWN RENDERED BUTTON, AND NOT A BUTTON OF OURS: with a custom one the GIS library does
+// not hand back an ID TOKEN at all, only an access token through a second flow — and an ID token is
+// exactly what the worker verifies against Google's JWKS.
+async function authRenderButton(host){
+  if (!host || !authOn()) return false;
+  const cfg = await authGetCfg();
+  if (!cfg || !cfg.cid) return false;          // the worker carries no client id yet — no button, and no error on screen
+  let gis = null;
+  try { gis = await authLoadGis(); } catch (e) { return false; }
+  try {
+    gis.initialize({ client_id: cfg.cid, callback: authCredential, auto_select: false, cancel_on_tap_outside: true });
+    host.textContent = '';
+    gis.renderButton(host, { theme: (typeof GSI_THEME === 'string' ? GSI_THEME : 'outline'),
+      size: 'large', type: 'standard', shape: 'pill', text: 'signin_with' });
+  } catch (e) { return false; }
+  return true;
+}
+
+function authCredential(resp){
+  const tok = resp && resp.credential;
+  if (!tok) return Promise.resolve(authFail('token'));
+  return authExchange(tok);
+}
+
+function authFail(err){
+  authLast = { state: 'refused', err: err || 'net' };
+  const msg = AUTH_MSG[err];
+  try { if (msg && typeof toast === 'function') toast(msg); } catch (e) {}
+  return authLast;
+}
+
+async function authExchange(tok){
+  if (authBusy) return authLast;
+  if (!authOn() || typeof payAuth !== 'function') return authFail('net');
+  authBusy = true;
+  try {
+    const r = await payAuth(tok);
+    if (!r) return authFail('net');
+    if (r.err || r.ok !== 1) return authFail(r.err || 'net');
+    return await authApply(r);
+  } catch (e) {
+    return authFail('net');
+  } finally { authBusy = false; }
+}
+
+// ===== THE SEVEN STEPS, AND THEIR ORDER IS THE MECHANIC =====
+async function authApply(r){
+  const before = (typeof guestId === 'function') ? guestId() : '';
+  // 1-2. the way back and the identity (identityAdopt writes `gp`/`lp` once and commits)
+  const adopted = (typeof identityAdopt === 'function') ? identityAdopt(r.gid, r.k) : false;
+  // the name always — a sign-in that changes nothing else still brings the account's name
+  if (typeof playerNameSet === 'function') playerNameSet(r.name, 'g');
+  let lifted = 0, score = -1;
+  if (adopted){
+    // ⛔⛔ THE CACHE IS DROPPED BEFORE `lbMe`, NOT AFTER. `lbMe` serves a 20-second cache, and that
+    // cache holds the answer for the OLD id — the lift would then be counted against a stranger's
+    // score, on the device of the player it was meant to rescue.
+    try { if (typeof lbInvalidate === 'function') lbInvalidate(); } catch (e) {}
+    let me = null;
+    try { me = (typeof lbMe === 'function') ? await lbMe() : null; } catch (e) {}
+    if (me && me.state === 'ok' && typeof me.score === 'number') score = me.score;
+    // ⚠️ NO ROW ON THE SERVER IS NOT A ZERO: a fresh account has no row at all, and `lbMe` answers
+    // without a `score` field. Lifting to 0 from a negative raw would be a silent gift.
+    if (score >= 0 && typeof identityLift === 'function') lifted = identityLift(score);
+    // ⚠️ THE TWO REGISTRATION MARKS NEED NO CLEARING AND ARE DELIBERATELY LEFT ALONE: both NAME the
+    // id they were earned for (`lbRegistered(id)`, `payRegistered(gid)` compare against it on the
+    // path), so a change of id invalidates them by itself — verified by reading, 2026-09-06-e.
+  }
+  // ⛔ THE ONE MEMORY THAT DOES NOT NAME AN ID IS THE LAST SUBMITTED SCORE, and a sign-in usually
+  // does not move the score — without this the row would keep the animal name until it next did.
+  try { if (typeof lbForgetSent === 'function') lbForgetSent(); } catch (e) {}
+  // the purchases come back by the same road a returning payment takes
+  try { if (window.Ads && typeof Ads.restorePurchases === 'function') Ads.restorePurchases(); } catch (e) {}
+  // ⚠️ `fireStarsChange` AND NOT A SUBMISSION OF OUR OWN: seven places already go through it, and
+  // its leaderboard subscriber is what drops the cache and schedules the send. A second tract next
+  // to a working one is the defect this project has paid for five times.
+  try { if (typeof fireStarsChange === 'function') fireStarsChange(); } catch (e) {}
+  authRedraw();
+  authLast = { state: 'ok', err: '', name: (r.name || ''), gid: (r.gid || ''), was: before,
+    adopted: !!adopted, fresh: !!r.fresh, lifted: lifted, score: score };
+  return authLast;
+}
+
+// ⛔⛔ SIGN-OUT GIVES THE DEVICE ITS OWN IDENTITY BACK, AND THAT IS WHY HE WANTED IT AT ALL («a
+// phone is shared»): a name-only sign-out would leave the phone BEING that account — the next
+// person plays, earns and BUYS under a stranger's gid.
+// ⛔ IT NEVER GENERATES A NEW gid: that would strand this device's purchases behind an id nobody
+// remembers — the very hole this feature exists to close.
+function authSignOut(){
+  const restored = (typeof identityRestore === 'function') ? identityRestore() : false;
+  if (!restored){
+    // The account was CREATED from this device: the identity is the device's own, only the name goes.
+    try { if (Save.gs === 'g'){ Save.gn = ''; Save.gs = ''; commitSave(); } } catch (e) {}
+  }
+  try { if (typeof lbInvalidate === 'function') lbInvalidate(); } catch (e) {}
+  try { if (typeof lbForgetSent === 'function') lbForgetSent(); } catch (e) {}
+  try { if (typeof fireStarsChange === 'function') fireStarsChange(); } catch (e) {}
+  authRedraw();
+  authLast = { state: 'out', err: '', restored: !!restored };
+  return authLast;
+}
+
+function authRedraw(){
+  try { if (typeof refreshGuestProfile === 'function') refreshGuestProfile(); } catch (e) {}
+  try { if (typeof refreshAuthUi === 'function') refreshAuthUi(); } catch (e) {}
+  try { if (typeof updateHUD === 'function') updateHUD(); } catch (e) {}
+}
+
+function authState(){
+  let sv = {};
+  try { sv = Save || {}; } catch (e) { sv = {}; }
+  return {
+    on: authOn(), cid: authCfg ? (authCfg.cid || '') : '',
+    signedIn: authSignedIn(), canRestore: authCanRestore(),
+    name: sv.gn || '', src: sv.gs || '', lift: sv.gr || 0, own: sv.gp || '',
+    gid: (typeof guestId === 'function') ? guestId() : '',
+    last: authLast,
+  };
+}
 
 // ===== 85-hud: DOM helpers and interface updates =====
 
@@ -23942,6 +24301,46 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
+// THE SIGN-IN BAND UNDER THE PROFILE ROW (84-auth does the talking; docs/GOOGLE-AUTH.md).
+// ⚠️⚠️ THE BAND IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW, AND THAT IS THREE DIFFERENT «NO»s:
+// off our own origin there is no sign-in at all (the portal signs in with its own account, the
+// wrapper has neither); on our origin the worker may carry no client id yet; and Google's library
+// may fail to load. An empty band, or one with a dead button in it, is worse than no band — so it
+// starts hidden in the markup and is revealed only by the branch that has something to put in it.
+function refreshAuthUi(){
+  const band = document.getElementById('msAuth');
+  if (!band) return;
+  const on = (typeof authOn === 'function') && authOn();
+  if (!on){ band.style.display = 'none'; return; }
+  const host = document.getElementById('msAuthBtn');
+  const note = document.getElementById('msAuthNote');
+  const out = document.getElementById('msAuthOut');
+  const inn = (typeof authSignedIn === 'function') && authSignedIn();
+  if (inn){
+    // Signed in: the name and the way out. No library is needed for this state, so it never waits.
+    if (host){ host.style.display = 'none'; }
+    if (note){ note.style.display = ''; note.textContent = 'Signed in with Google'; }
+    if (out) out.style.display = '';
+    band.style.display = '';
+    return;
+  }
+  if (note){ note.textContent = ''; note.style.display = 'none'; }
+  if (out) out.style.display = 'none';
+  if (host) host.style.display = '';
+  // ⚠️ THE BUTTON IS ASKED FOR ONCE PER MENU LIFETIME, not once per opening: `renderButton` builds
+  // an iframe of Google's, and rebuilding it on every open would flash it and spend a request.
+  if (host && !host.dataset.ready){
+    host.dataset.ready = '1';
+    Promise.resolve((typeof authRenderButton === 'function') ? authRenderButton(host) : false)
+      .then((ok) => {
+        if (ok){ band.style.display = ''; return; }
+        delete host.dataset.ready;      // nothing was rendered — let a later open try again
+        band.style.display = 'none';
+      }, () => { delete host.dataset.ready; band.style.display = 'none'; });
+    return;
+  }
+  band.style.display = host && host.childNodes.length ? '' : 'none';
+}
 // THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
 // (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,
 // the saturation fixed — any name gives a readable circle.
@@ -24090,6 +24489,7 @@ function openMainScreen(){
   hideMultToast();
   try { Telemetry.screen.enter('menu'); } catch(e){}
   try { refreshGuestProfile(); } catch(e){}
+  try { refreshAuthUi(); } catch(e){}
   if (!menuPaused) menuPaused = pauseGame(true);
   if (!menuPaused && paused) return; // somebody else's pause (an ad / the tab) — we do not meddle
   // ⚠️⚠️ WE BANK THE RUN'S SCORE BEFORE THE DISPLAY — THE OWNER'S COMPLAINT «different values»
@@ -25703,6 +26103,8 @@ $('msDiff').addEventListener('click', e => {
 // own pause (the ownership of the pause belongs to openMainScreen, going in there is not
 // allowed, see CLAUDE.md).
 $('msGetMore').addEventListener('click', ()=> { show('starsOverlay'); try { refreshBundlePrices(); } catch(e){} });
+// SIGN OUT — and it gives the device its own identity back, not only its name (84-auth says why).
+if ($('msAuthOut')) $('msAuthOut').addEventListener('click', ()=> { try { authSignOut(); } catch(e){} });
 // THE «x5 float» BOOST BUTTON (947:3670, the owner's word 2026-09-03: «this element opens the
 // full-screen purchase popup, like the More button in the pause menu»): the SAME overlay,
 // opened DIRECTLY from the live HUD. The menu is not involved, so the game has no pause under
@@ -27569,6 +27971,15 @@ window.__game = {
   // has already twice let through a case nobody remembered. A separate end-to-end
   // assert proves that this very function is wired to `location`.
   lbHostIsLocal(protocol, hostname){ return lbHostIsLocal(protocol, hostname); },
+  // ===== GOOGLE SIGN-IN (84-auth). The names were grepped over this literal before they were
+  // added — a duplicate key in this object does not conflict, the LAST one silently wins, and the
+  // project has three scars from exactly that (`itemsBrief`, `boltProbe`, `colliderCensus`).
+  authState(){ return authState(); },
+  // The credential path WITHOUT Google: the guard feeds a token straight to the exchange, so the
+  // whole order of the steps is exercised against a stubbed worker and no third-party script is
+  // ever fetched. Production reaches the same function only through GIS's own callback.
+  authSignIn(tok){ return authExchange(tok); },
+  authOut(){ return authSignOut(); },
   // THE NEW-ITEM SCREEN: the occasion, the display and a state snapshot for the guards.
   // ⚠️ `newObjInfo` hands out a LIVE CANVAS (`canvas:true`), not the fact of a call: without
   // this the guard «the model spins» would check the intent and not the picture —
@@ -27797,6 +28208,7 @@ window.__game = {
   starBalance: starBalance,       // THE SINGLE number: the chip, the wallet, the leaderboard base
   liveBalance: liveBalance,       // for the in-game CHIP: the balance + the unbanked level score
   leaderboardScore: leaderboardScore, // the rank = WHAT WAS PLAYED (se−max(0,ss−tu)); lower than the wallet by the unspent tu — a top-up does not raise the rank
+  rawScore: rawScore,                 // the same figure WITHOUT the clamp — the quantity the sign-in lift is counted from (77-save)
   spendStars: spendStars,         // a write-off with a sufficiency check -> bool
   onStarsChange: onStarsChange,   // subscription: {balance, earned, spent}
   boostPrice: boostPrice,         // the price of the next tier of a type (null — the cap)

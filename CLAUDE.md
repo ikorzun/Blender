@@ -18959,3 +18959,148 @@ deleted (the registration arm alone); `class="loading"` dropped (all three LOADI
 (all three); the class removed before the boot (A and B, C green — the boot removal is still there); a
 `html.loading body` of its own (A and B — the reason the rule was not written); and a comment edit, which the
 tool called empty. Plus the real-browser end-to-end above, which no node fake can replace.
+
+## BATCH 2026-09-11: GOOGLE SIGN-IN, THE CLIENT HALF — THE NAME, THE PURCHASES AND THE ROW FOLLOW THE ACCOUNT (his word 2026-09-10 «мне нужен гугловый акк и его имя с лидербордом на отдельном домене как сейчас», and his answer to the one fork: «покупки и место в таблице»)
+
+The server half shipped the day before (`7998b7a`: one endpoint in the pay worker, 40 green, 34 sabotages).
+This is the half that runs in the browser. The whole design and the six measured traps live in
+`docs/GOOGLE-AUTH.md`; what follows is what the plan did NOT cover and what the measurements corrected.
+
+### WHERE EACH PIECE LIVES, AND WHY IT IS SPLIT THAT WAY
+`src/app/84-auth.js` (a new module, 31 in the build) owns THE ORDER OF THE STEPS and nothing else; the
+protocol is 83-pay's (`payAuthCfg`, `payAuth` — one signed call, the token's hash inside the signed
+string); the identity arithmetic is 77-save's (`pickName`, `rawScore`, `identityAdopt/Lift/Restore`,
+`playerNameSet`); the band is drawn by 85-hud into `#msAuth` under the profile row. The gate is
+`payHostOk()`'s — our own origin, not in an iframe, not the wrapper — so a third-party script can never
+land in the portal's console or in an App Store review.
+⚠️ THE MODULE NUMBER IS LOAD-BEARING and nothing in it reads another module's `const` at the TOP LEVEL:
+everything runs on a call. The temporal dead zone cost this project six days (2026-08-13).
+
+### ⛔⛔ THE ONE NEW DECISION: SIGN-OUT LEAKED THE ACCOUNT'S BALANCE, AND THE PLAN HAD NO ANSWER
+Step 5 of the recorded plan raises `se` by `S − rawScore()` so the account's score arrives on this
+device; the sign-out step gives the pre-adoption `{gid, lk}` back and says nothing about the raise. So
+the guest's OWN row and his OWN wallet inherited the account's score — and it is the first thing he
+would have seen, because «sign in, sign out» is the first thing anyone tests on a shared phone.
+`Save.gr` records the lift and `identityRestore` subtracts it. It ACCUMULATES: signing into a second
+account while signed into the first must not lose the first lift, and `gp`/`lp` are written ONCE for the
+same reason — the way back belongs to the DEVICE, not to whichever account came last.
+⚠️⚠️ `se` GOES DOWN THERE, AND IT IS THE ONLY PLACE IN THE GAME WHERE A MONOTONE COUNTER DOES. It is
+safe because the lift and its rollback live on ONE device: sign-in exists only on our own origin, where
+there is no bridge and `bridgeSyncSave` never runs, so no cloud copy can merge the raised value back by
+max, and the merge at load is against the copy we have just written.
+⚠️ THE RESIDUAL, NAMED TO HIM: a player who SPENT from the lifted wallet ends below where he started —
+`ss` is monotone and what is spent is spent.
+⛔ `resetProgress` clears `gr` and NOTHING ELSE of the identity: the lift lived inside `se`, and `se` is
+zeroed there. A name is not progress.
+
+### THE LIFT IS COUNTED FROM THE UNCLAMPED FIGURE, AND THAT IS AN ARM RATHER THAN A PREFERENCE
+`leaderboardScore()` clamps at zero, so a player who has spent more than he earned stands at 0 in the
+table while his raw number is negative. `rawScore()` (77-save, one consumer only) is the same figure
+without the clamp. Measured on the live build: `mergeRaw({se:100, ss:300})` → raw −200, table 0; an
+account worth 500 → `se` 100 → **800** and the table shows exactly 500. From the clamp it would have
+been 600 and 300 — the player would stand BELOW the account's own score, on the device the feature
+exists to rescue.
+
+### THE NAME FOLLOWS THE ID, AND `guestName` HAD TO LEARN TO KEEP ITS HANDS OFF
+`Save.gs` says where the name came from (`''` derived, `'g'` Google), and `pickName` — shaped like
+`pickLk`, called BEFORE the gid line in BOTH merge branches — carries the pair with whichever gid wins.
+With the SAME id on both sides a Google name beats a derived one: a derived name is recomputed from the
+key at any time, so «ours wins» would let a stale animal sit on a signed-in identity for ever.
+⛔⛔ AND THE LOAD-BEARING LINE IS IN `guestName`: its old body OVERWRITES `Save.gn` on every call, and
+four consumers ask for the name — so without the `gs === 'g'` check the very first of them would replace
+the account's name with the animal again, silently. The sabotage that removes it reddens FIVE arms.
+
+### ⛔⛔ THE ADVICE «DO NOT NAME gp/lp IN mergeSave» WAS WRONG FOR THIS CODEBASE, AND THE FILE SAID SO
+The reasoning was right — the way back is a property of the DEVICE and another device's must never
+arrive — but `loadSave` merges the stored copy INTO the empty literal, so a field that is not named in
+`mergeSave` is **lost at every launch**. The way back would have survived exactly until the first
+reload. They are named under a new third argument `own`, true only for our own storage: at load they
+survive, from a cloud copy they never arrive.
+⚠️ THE GENERAL FORM: in this project `mergeSave` is not «the cloud merge», it is ALSO the loader. Any
+new persisted field must be named there or it does not persist.
+
+### THE NAME NEVER REACHED THE ROW WHEN THE SCORE DID NOT MOVE
+`lbSubmit` skips a submission whose score equals the last one sent — the rate window must not be spent
+on a number the server already holds — so a sign-in that changes only the name was silently dropped and
+the row kept the animal until the score next moved. `lbForgetSent()` (82-lb) is called on every
+successful sign-in and on sign-out.
+⚠️ A CHANGE OF ID INVALIDATES THAT MEMORY BY ITSELF (`lbSentGid !== id` inside `lbSubmit`, verified by
+reading, not recalled); a change of NAME does not. Both registration marks — the leaderboard's and the
+pay worker's — NAME the id they were earned for and are deliberately left alone for the same reason.
+✅ MEASURED on an http stand with the bot flag hidden: two submissions, the SAME score 70, `Crab` then
+`Ivan K`. On `file://` and under automation `LB_NOSEND` mutes every submission, so that arm would have
+measured the gate and gone red on a sound build — the recipe at the top of `test.js`.
+
+### THE ORDER INSIDE THE ADOPTION IS THE MECHANIC
+`identityAdopt` (the way back, then gid/lk, then commit) → **`lbInvalidate()`** → `lbMe()` → the lift →
+the pay restore pass → `fireStarsChange()`. The invalidate stands BEFORE `lbMe` because that call serves
+a 20-second cache which does not name an id: after it the lift would be counted against the OLD id's
+score. The guard warms the cache with a 9 and requires the lift to be the adopted id's 4200.
+⚠️ `fireStarsChange` AND NOT A SUBMISSION OF OUR OWN: seven places already go through it, and its
+leaderboard subscriber is what drops the cache and schedules the send. A second tract next to a working
+one is the defect this project has paid for five times.
+⚠️ AT SIGN-IN THE CALL IS SIGNED WITH THE CURRENT (pre-adoption) IDENTITY — measured: the body carried
+`id, t, sig, tok` and no `k`, because the boot's own `/v1/mine` had already registered this device's key
+under the old gid. That is exactly what the worker checks; the account's key arrives in the answer.
+
+### THE `bound` WALL IS PRODUCT, AND HE IS TOLD IT IN THESE WORDS
+«This device already belongs to another account». It fires exactly when a NEW account is created on a
+device whose gid already belongs to one — i.e. a second person on a shared phone cannot CREATE an
+account there, only sign in with one made on another device. That follows from trap 5 of the doc and it
+is not a defect; it is named to him rather than buried.
+
+### THE BAND, AND THE TWO THINGS THE FRAME CORRECTED
+It stands UNDER the profile row and never inside it — the ban is recorded at the settings block and it
+is a measurement (a second element in the row itself crawled out of the pill by 29px at 320). It starts
+hidden and is shown only when there is something to show: off our own origin there is no sign-in, and
+while the worker carries no client id the button cannot be rendered.
+⛔⛔ IT WEARS NO BACKING AT ANY WIDTH, AND THE FIRST DRAFT GOT THAT WRONG BY COPYING A COMMENT. The
+markup still says the card «dissolves on mobile (`display:contents`) — there these are two independent
+pills»; measured at 390 / 800 / 1280 the card is a real white card at EVERY width and `.ms-head` is
+transparent at every one. The draft shipped a white pill inside a white card. **The comment has been
+stale since the card became real (2026-08-11/12) — read the computed style, not the prose beside it.**
+⚠️ AND THE BAND SAYS «Signed in with Google», NOT THE NAME: the first frame showed the account's name
+twice, three centimetres apart, because the profile row already carries it.
+⚠️ A HIDDEN BAND MOVES NOTHING, AND THAT WAS MEASURED RATHER THAN CLAIMED — against a build with the
+markup removed, at 390 and 1280, every structural rect is identical (only `.ms-prof`'s width differs,
+and that is a different random animal name per context).
+
+### THE GUARD: 17 ARMS, EIGHT SABOTAGES, AND ONE ARM THAT WAS MINE TO FIX
+`⟦AUTH-SECTION⟧` runs on an http stand with the bot flag hidden, a stubbed worker and a stubbed
+`google.accounts.id` — the production loader looks for that object BEFORE it injects a tag, so no Google
+script is ever fetched and an arm asserts the absence of the tag.
+⛔ THE MOCK MATCHES `/v1/auth/cfg` BEFORE `/v1/auth` (the second is a substring of the first) and
+`/v1/mine` before the leaderboard's `/v1/me` (which is a substring of it). Both bites are already in
+this file; they cost a section each when they were found.
+PROVEN EIGHT-SIDED (`tools/build-variant.py` outside the tree, the tree's md5 verified after): the lift
+from the CLAMPED figure → the lift arm alone; `lbInvalidate` after `lbMe` → the two cache arms;
+`lbForgetSent` made a no-op → the row arm alone; the lift not recorded → the two arms that read it; the
+way back not stored → its four arms; `guestName` ignoring the source → all five name arms; the origin
+gate always true → the gate arm alone; `gp/lp/gr` copied unconditionally → the cloud arm alone; a
+comment edit → 17 green, the tool calls an empty sabotage empty.
+⚠️ ONE ARM WENT RED ON A HEALTHY BUILD AND IT WAS THE ARM THAT WAS WRONG: it merged a foreign copy
+carrying a DERIVED name and expected that name back. A derived name is recomputed from the key on every
+`guestName` call, so the answer is the animal of the winning id whatever `pickName` chose — the arm
+would have been green under ANY implementation. It now merges a foreign copy carrying a GOOGLE name:
+only a name the merge must CARRY can state that it was carried.
+⚠️ AND A PROBE CAUGHT THE RUN-KILLER BEFORE THE GUARD DID: `authRenderButton` is IIFE-private, so a
+`page.evaluate` calling it by name throws `ReferenceError` and KILLS the section rather than reddening
+an arm (the `chromeStripsSync` scar of 2026-09-05-c). The arm drives the production path instead — open
+the menu, read the band.
+
+### THE GATES (his rule of 9 September: no full suite per batch)
+AUTH 17 green twice, and every section that reads what this batch changed re-run on the final build:
+LBKEY 7, PAYWEB 14, MENUFIT 4, LBSNAP 11, LBDIGITS 3. `index.html` 12 865 525 → 12 866 167 B, 31
+modules. ⚠️ THE FULL SUITE HAS NOT RUN ON THIS BUILD: the batch touches `mergeSave`, `guestName` and
+the menu markup, which the main sequential run also reads — the dry-runs above cover every MARKED
+section that does, and the first full run is owed at the next milestone.
+
+### WHAT IS HIS, AND IT GATES THE LIVE CHECK
+The D1 migration for the `acc` table, the pay worker deploy, and `GOOGLE_CLIENT_ID` in its `[vars]` —
+until that var carries a client id the band does not appear at all, by construction. Then: a Google
+Cloud project, an OAuth client id (Web application) with `https://blendo.monster` as an authorised
+JavaScript origin, and the consent screen linking `privacy.html` (which now discloses the `sub` and the
+display name, and says the email is never read).
+⚠️ THE BUTTON'S LOOK IS GOOGLE'S, and its themes are the only choice: `GSI_THEME` in 00-config
+('outline' | 'filled_blue' | 'filled_black'). A frame of the band in both states and both layouts went
+to him; the button itself cannot be rendered on the bench (file://, a foreign origin).

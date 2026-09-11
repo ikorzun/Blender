@@ -115,6 +115,26 @@ function payClaim(sids) {
 }
 function payCheckout() { return payCall('/v1/checkout', 'checkout.bundle5'); }
 
+// ===== THE GOOGLE ENDPOINT (84-auth owns the order of the steps; docs/GOOGLE-AUTH.md) =====
+// ⚠️ IT LIVES IN THIS WORKER because it already owns the gid, a trust-on-first-use key table and a
+// D1 — and because the main thing sign-in buys the player is his purchases back.
+// ⚠️ THE CLIENT ID IS READ FROM THE SERVER AND NEVER WRITTEN DOWN HERE: GIS needs it on the client
+// and the worker needs it as `aud`, and two copies are the drift this project has paid for with
+// PID, the price and the material map. One copy, the worker's var.
+function payAuthCfg() { return payFetch('/v1/auth/cfg').then((r) => (r.json && r.json.ok === 1) ? r.json : null); }
+async function paySha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str)));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+// ⛔⛔ THE CALL IS SIGNED LIKE EVERY OTHER ONE, AND THAT IS THE WHOLE OF TRAP 4: an unsigned
+// /v1/auth would hand ANY caller the victim's signing key merely for naming his gid — the worker
+// answers a successful sign-in with `{gid, k}`, which is the row's secret.
+// ⚠️ THE SIGNED STRING CARRIES THE TOKEN'S HASH rather than the token: a JWT is 1-2 KB, and the
+// hash still binds the signature to THIS token, so one signature cannot be replayed with another.
+function payAuth(tok) {
+  return paySha256Hex(tok).then((h) => payCall('/v1/auth', 'auth.' + h, { tok: tok }));
+}
+
 // ===== THE RETURN FROM STRIPE =====
 const payPending = () => { try { return localStorage.getItem(PAY_PENDING_LS) || ''; } catch (e) { return ''; } };
 const payMarkPending = (sid) => { try { localStorage.setItem(PAY_PENDING_LS, sid || '1'); } catch (e) {} };

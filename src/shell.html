@@ -2827,6 +2827,19 @@
   /* the header */
   .ms-head { display:flex; align-items:center; justify-content:space-between;
     background:#fff; border-radius:1000px; padding:12px; }
+  /* GOOGLE SIGN-IN — the band under the profile row (2026-09-11).
+     ⛔⛔ NO BACKING OF ITS OWN, AT ANY WIDTH, AND THAT WAS MEASURED RATHER THAN COPIED. The markup
+     comment two screens up still says the card «dissolves on mobile (display:contents) — there
+     these are two independent pills», and that has been stale since the card became real
+     (2026-08-11/12): measured at 390 / 800 / 1280 the card is a white card at EVERY width and
+     `.ms-head` is transparent at every one of them. A pill here would be a white pill inside a
+     white card — which is exactly what the first draft of this rule shipped. */
+  .ms-auth { display:flex; align-items:center; gap:10px; min-height:44px; }
+  .ms-auth-note { font-size:16px; font-weight:700; color:var(--carbon-400);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .ms-auth-out { margin-left:auto; flex:none; border:1px solid rgba(0,0,0,.12); background:#fff;
+    border-radius:80px; padding:8px 16px; font:inherit; font-size:14px; font-weight:700;
+    color:var(--carbon-400); cursor:pointer; }
   /* the profile slot: avatar + name (for a future Google profile) */
   /* gap 4 and the name Bold 18 `--carbon-400` — the numbers of the mock-up 840:4331/840:4334
      (it used to be 10 and 16px «by eye») */
@@ -3340,6 +3353,8 @@
        direct children of `.ms-wrap` and shared one scale. */
     .ms-card { order:-1; }
     .ms-head { order:-1; }
+    /* the sign-in band — between the profile row and the entry point, inside the card's own scale */
+    .ms-auth { order:0; }
     /* the entry point into the table — right under the profile and ABOVE Play (mock-up 840:4344) */
     .ms-lbentry { order:1; }
     /* ⚠️ THE SETTINGS ARE ABOVE THE EYES (the owner's word 2026-08-20 «put the block with the
@@ -5382,6 +5397,27 @@
         <button class="ms-getmore" id="msGetMore">×5 Boost</button>
       </div>
     </header>
+    <!-- GOOGLE SIGN-IN (his word 2026-09-10: «I need a Google account and its name, with the
+         leaderboard on a separate domain as it is now»; the design and the six traps are
+         docs/GOOGLE-AUTH.md — the rule of 2026-08-22-g: his quotes in the code are translated).
+         ⛔ THE BAND STANDS UNDER THE PROFILE ROW AND NEVER INSIDE IT — the ban is recorded at the
+         settings block and it is a measurement: a second element in the row itself crawled out of
+         the pill by 29px at a width of 320 and dropped the narrow menu's own guard.
+         ⚠️ IT STARTS HIDDEN AND IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW: off our own origin
+         (the portal pays and signs in with its own account, the wrapper has neither) there is no
+         sign-in at all, and while the worker carries no client id the button cannot be rendered —
+         an empty band would be worse than none. -->
+    <div class="ms-auth" id="msAuth" style="display:none">
+      <!-- ⛔ GOOGLE'S OWN RENDERED BUTTON GOES IN HERE, and the host is deliberately empty: with a
+           button of ours the GIS library hands back no ID TOKEN at all, and an ID token is exactly
+           what the worker verifies against Google's JWKS. -->
+      <div class="ms-auth-btn" id="msAuthBtn"></div>
+      <!-- ⚠️ THE BAND SAYS WHAT THE ROW ABOVE CANNOT. The first draft repeated the account's
+           name here and the frame showed it twice, three centimetres apart — the profile row
+           already carries the name, so what is missing is WHY it changed and what «Sign out» ends. -->
+      <span class="ms-auth-note" id="msAuthNote"></span>
+      <button type="button" class="ms-auth-out" id="msAuthOut" style="display:none">Sign out</button>
+    </div>
     <!-- the card's divider — desktop only (in mock-up 840:4688 a line across the whole
          width between the profile row and the entry; on mobile these are two separate
          pills, there is nothing to divide) -->

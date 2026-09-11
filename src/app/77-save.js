@@ -52,10 +52,21 @@ const SAVE_KEY = 'mixer_save_v1';
 // pe/ps — SHAKES BOUGHT as a monotonic pair (the he/hs pattern), a permanent
 // wallet on top of the 3 free ones per level. ls — «the last seen time», a
 // monotonic mark against a clock rollback.
-const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0, lk: ''  }; // he/hs — hints (start 3, the owner's spec); lk — the leaderboard signing key, it travels with gid (2026-09-06-e, see pickLk)
+const Save = { ce: 0, cs: 0, he: 3, hs: 0, se: 0, ss: 0, tu: 0, stars: {}, ac: {}, bo: {}, uk: {}, sm: 0, gen: 0, bx: {}, na: 0, pe: 0, ps: 0, ls: 0, iw: 0, st: 0, sv: 0, mt: 0, lk: '', gs: '', gp: '', lp: '', gr: 0  }; // he/hs — hints (start 3, the owner's spec); lk — the leaderboard signing key, it travels with gid (2026-09-06-e, see pickLk)
+// gs — WHERE THE NAME CAME FROM: '' derived from the key (the animal), 'g' the Google account.
+// The name and its source travel with the gid (pickName), because a name is a property of the
+// IDENTITY and not of the device. gp/lp/gr are the opposite — they belong to THIS DEVICE and are
+// its way back: the identity it had before it adopted an account, and the lift that was added to
+// `se` for that account (see identityAdopt/identityRestore, and the `own` argument of mergeSave).
 function coins(){ return Math.max(0, Save.ce - Save.cs); }
 function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]; return s; }
-function mergeSave(into, from){
+// ⚠️⚠️ `own` IS TRUE ONLY FOR OUR OWN STORAGE (loadSave), AND THAT IS LOAD-BEARING IN BOTH
+// DIRECTIONS. A field that is not named in this function is LOST at every launch — `loadSave`
+// merges the stored copy INTO the empty literal, so «do not mention gp/lp and the device keeps its
+// own» would have silently dropped the way back on the first reload. And a field that IS named
+// unconditionally travels from a CLOUD copy, i.e. another device's way back would land here.
+// So they are named, and only for the local copy.
+function mergeSave(into, from, own){
   if (!from) return;
   const gi = into.gen || 0, gf = from.gen || 0;
   if (gf > gi){
@@ -67,7 +78,7 @@ function mergeSave(into, from){
     // naf — A FOREVER PURCHASE: survives even a generation change (a progress
     // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
-    into.gn = into.gn || from.gn || ''; // name: our own non-empty one, else theirs
+    { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
     into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
     into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
@@ -101,7 +112,7 @@ function mergeSave(into, from){
   into.ls = Math.max(into.ls || 0, from.ls || 0); // the time mark is monotonic — a clock rollback is not cured by switching devices
   into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
   into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
-  into.gn = into.gn || from.gn || ''; // guest name: our own non-empty one wins
+  { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
   into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
   into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
   into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
@@ -132,9 +143,11 @@ function mergeSave(into, from){
   if (!into.uk) into.uk = {};
   const uk = from.uk || {};
   for (const k in uk) if (uk[k]) into.uk[k] = 1; // bought unlocks — OR-merge
+  // THE DEVICE'S WAY BACK — our own storage only, never a cloud copy (see the note at the top).
+  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
 }
 function loadSave(){
-  try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch(e){}
+  try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'), true); } catch(e){}
 }
 // The ×N play-time accumulator (the block «THE MULTIPLIER IS A PLAY-TIME BUDGET» below) is
 // FOLDED into Save.bu here, at every commit — so a level end, a hint, a shake, a purchase all
@@ -302,6 +315,23 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
 // get two rows in the table). The base36 timestamp is 8 characters long until
 // the year 2059, so the lexicographic minimum = THE OLDEST id; the rule is
 // idempotent and commutative — both copies converge to one value.
+// THE NAME FOLLOWS THE ID, FOR THE SAME REASON THE KEY DOES (pickLk, right below). A Google name
+// belongs to the account, so whichever gid wins the merge, ITS name wins with it — otherwise a
+// second device would show the animal name of a player who signed in on the first.
+// ⚠️ WITH THE SAME GID ON BOTH SIDES A GOOGLE NAME BEATS A DERIVED ONE: the derived one is
+// recomputed from the key at any time (guestName), the Google one arrives only from the account,
+// so «ours wins» would let a stale animal name sit on top of a signed-in identity for ever.
+// ⛔ NOT the old `into.gn || from.gn` rule: it knew nothing about the source and kept whichever
+// copy happened to be loaded first.
+function pickName(ag, an, as_, bg, bn, bs){
+  const a = { gn: an || '', gs: as_ || '' }, b = { gn: bn || '', gs: bs || '' };
+  if (!a.gn) return b;
+  if (!b.gn) return a;
+  if (ag && bg && ag !== bg) return (ag < bg) ? a : b;   // different ids — the winner of pickGid
+  if (a.gs === 'g' && b.gs !== 'g') return a;            // same id — the account's name beats the animal
+  if (b.gs === 'g' && a.gs !== 'g') return b;
+  return a;
+}
 function pickGid(a, b){
   if (!a) return b || '';
   if (!b) return a;
@@ -343,11 +373,71 @@ function gidHash(){
   return h;
 }
 function guestName(){
+  // ⛔⛔ THE ACCOUNT'S NAME IS RETURNED AS IT IS, AND THIS LINE IS THE WHOLE REASON `gs` EXISTS.
+  // The branch below OVERWRITES `Save.gn` on every call — four consumers ask for the name (the
+  // table row, the profile, the menu pill, the test hook), so without the check the very first
+  // one of them would replace a signed-in player's name with the animal again, silently.
+  if (Save.gs === 'g' && Save.gn) return Save.gn;
   const want = GUEST_NAMES[gidHash() % GUEST_NAMES.length];
-  if (Save.gn !== want){ Save.gn = want; commitSave(); }
+  if (Save.gn !== want || Save.gs){ Save.gn = want; Save.gs = ''; commitSave(); }
   return Save.gn;
 }
 function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // the file number avatars/AvatarNN.png
+
+// ===== THE ACCOUNT'S IDENTITY ON THIS DEVICE =====
+// 84-auth does the talking (the token, the worker, the order of the steps); these four only touch
+// `Save`, so the arithmetic of the identity lives where the identity is stored.
+function playerNameSet(name, src){
+  const nm = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().slice(0, AUTH_NAME_MAX);
+  if (!nm) return false;                       // empty after trimming — keep the animal name
+  if (Save.gn === nm && Save.gs === (src || '')) return false;
+  Save.gn = nm; Save.gs = src || '';
+  commitSave();
+  return true;
+}
+function identityAdopt(gid, lk){
+  if (!gid || gid === Save.gid) return false;
+  // ⚠️ THE WAY BACK IS WRITTEN ONCE. Signing into a SECOND account while already signed into the
+  // first must not overwrite the device's own identity with the first account's — the phone would
+  // then have no way home at all, which is the whole point of keeping it (his «a phone is shared»).
+  if (!Save.gp){ Save.gp = Save.gid || ''; Save.lp = Save.lk || ''; }
+  Save.gid = gid; Save.lk = lk || '';
+  commitSave();
+  return true;
+}
+// THE SERVER'S SCORE FOR THE ADOPTED IDENTITY ARRIVES ON THIS DEVICE. `se` is a monotone counter
+// merged by max, so raising it is legitimate and cannot double: after the raise the two numbers are
+// equal and the branch never fires again.
+function identityLift(S){
+  const s = Math.max(0, Math.floor(S || 0));
+  const raw = rawScore();
+  if (!(s > raw)) return 0;
+  const add = s - raw;
+  Save.se = (Save.se || 0) + add;
+  // ⛔⛔ WITHOUT THIS LINE SIGN-OUT LEAKS THE ACCOUNT'S BALANCE TO THE DEVICE: the identity goes
+  // back to the guest and the raised `se` stays, so his own row and his own wallet inherit a
+  // stranger's score. The lift accumulates across several sign-ins and is spent in one go.
+  Save.gr = (Save.gr || 0) + add;
+  commitSave();
+  return add;
+}
+function identityRestore(){
+  if (!Save.gp) return false;                  // the account was created FROM this device — nothing to restore
+  // ⚠️⚠️ `se` GOES DOWN HERE, AND THIS IS THE ONLY PLACE IN THE GAME WHERE A MONOTONE COUNTER DOES.
+  // It is safe because the lift and its rollback live on ONE device: sign-in exists only on our own
+  // origin (the gate in 84-auth is payHostOk's), where there is no bridge and `bridgeSyncSave`
+  // never runs — so no cloud copy can merge the raised value back in by max. The merge at load is
+  // against the copy we have just written.
+  // ⚠️ THE RESIDUAL, NAMED: if the player SPENT from the lifted wallet, his own balance after the
+  // rollback is lower than it was before he signed in. `ss` is monotone and what is spent is spent.
+  Save.se = Math.max(0, (Save.se || 0) - (Save.gr || 0));
+  Save.gr = 0;
+  Save.gid = Save.gp; Save.lk = Save.lp || '';
+  Save.gp = ''; Save.lp = '';
+  Save.gn = ''; Save.gs = '';                  // the name belonged to the account; the animal comes back by itself
+  commitSave();
+  return true;
+}
 function grantNoAdsForever(){
   if (Save.naf) return;
   Save.naf = 1;
@@ -416,6 +506,11 @@ function starBalance(){ return Math.max(0, (Save.se || 0) + (Save.tu || 0) - (Sa
 // The leaderboard feature itself is waiting for the platform (Playgama/Yandex
 // yes, Poki no) — for now it is a number-handle.
 function leaderboardScore(){ return Math.max(0, (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0))); }
+// THE SAME FIGURE WITHOUT THE CLAMP. It exists for exactly one consumer — the lift at sign-in
+// (identityLift): a player who has spent more than he earned stands at 0 in the table while his raw
+// figure is negative, and a lift counted from the CLAMPED number would leave him below the score
+// the server holds for the account. Nothing else may use it: the table and the wallet are clamped.
+function rawScore(){ return (Save.se || 0) - Math.max(0, (Save.ss || 0) - (Save.tu || 0)); }
 // THE DENOMINATED DISPLAY of the score: floor(max(0,score)/10). A single source
 // for the chip AND for the floating pop numbers (the owner's #10 2026-07-27:
 // «the numbers are clear both during play and in the tally»). ⚠️ A pop is
@@ -586,7 +681,7 @@ function resetProgress(){
   Save.gen = (Save.gen || 0) + 1;
   Save.ce = 0; Save.cs = 0; Save.he = 3; Save.hs = 0; Save.stars = {}; Save.ac = {};
   Save.se = 0; Save.ss = 0; Save.tu = 0; Save.bo = {}; Save.uk = {}; Save.sm = 1;
-  Save.bx = {}; Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
+  Save.bx = {}; Save.bb = {}; Save.bu = {}; Save.bs = {}; boostAcc = {}; boostAccMs = 0; Save.na = 0; Save.pe = 0; Save.ps = 0; Save.iw = 0; Save.st = 0; Save.sv = 0; Save.mt = 0; Save.gr = 0; // gr: the lift lived INSIDE se, and se is zeroed here — the identity (gid/lk/gn/gs/gp/lp) is NOT progress and is not touched // bundle windows, bought shakes, story chapters and meta explainers // sm=1: nothing to migrate, the rating is empty
   commitSave();
   levelNum = 1;
   try { localStorage.setItem('mixer_level', '1'); } catch(e){}
