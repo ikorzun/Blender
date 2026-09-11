@@ -20446,6 +20446,55 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         JSON.stringify(other));
       await ctx.close();
     }
+
+    // ---- A9 + A10: THE WAY BACK SURVIVES A RELAUNCH IN **BOTH** MERGE BRANCHES
+    // ⛔⛔ THE BRANCH IS THE WHOLE POINT, AND UNTIL 2026-09-11 THE SECOND ONE DROPPED IT. `mergeSave`
+    // has two paths and `loadSave` is one of its callers: the `gf > gi` branch takes a copy of a
+    // NEWER generation whole and RETURNS, and after any `resetProgress` (gen++) the stored copy IS
+    // newer than the empty literal. With `if (own)` standing at the TAIL of the function, every
+    // launch that followed a reset came up with `gp` EMPTY — sign-out became name-only and the phone
+    // stayed bound to the account for good, which is the one hole `gp` exists to close.
+    // ⚠️ NOTHING IN THIS SECTION WALKED A RELAUNCH AT ALL, so the defect was invisible: every other
+    // arm reads the state IN MEMORY, where the tail line had already run.
+    // ⚠️ THE `gen` READING IS THE CONTROL OF EACH HALF — without it «the way back survived» is also
+    // true of a run that never entered the branch its half is named after.
+    {
+      const { pg, ctx } = await authPage();
+      const own = await pg.evaluate(() => __game.authState().gid);
+      await pg.evaluate(async (k) => {
+        window.__auth.score = 400;
+        window.__auth.authAns = { ok: 1, gid: 'acc222zzz', k: k, fresh: 0, name: 'Rita' };
+        return await __game.authSignIn('h.p.s');
+      }, AK);
+      const lift0 = await pg.evaluate(() => __game.authState().lift);
+      // (a) THE SAME-GENERATION PATH — an ordinary relaunch
+      await pg.reload();
+      await pg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+      const r1 = await pg.evaluate(() => ({ s: __game.authState(), gen: __game.saveRaw().gen, lp: __game.saveRaw().lp }));
+      expect(r1.gen === 0 && r1.s.gid === 'acc222zzz' && r1.s.own === own && r1.s.lift === lift0 && lift0 > 0 && !!r1.lp,
+        'AUTH: a relaunch keeps the account AND the device\'s way back — the same-generation path',
+        JSON.stringify({ gen: r1.gen, gid: r1.s.gid, own: r1.s.own === own, lift: r1.s.lift, lift0: lift0, lp: !!r1.lp }));
+      // (b) THE WHOLESALE PATH — the owner resets his own progress and relaunches.
+      // ⚠️ THE REAL BUTTON AND NOT A HOOK: `resetProgress` is reachable from exactly one place in
+      // production, and `__game` carries no door to it — a new hook here would be a second path next
+      // to a working one, and that literal is one object where a duplicate key wins silently.
+      // ⚠️ DEFENSIVE: a bare `getElementById(...).click()` THROWS inside evaluate the day that id is
+      // renamed, and a throw here kills the section without a verdict instead of reddening an arm.
+      const hitReset = await pg.evaluate(() => { const b = document.getElementById('resetBtn'); if (!b) return false; b.click(); return true; });
+      await pg.reload();
+      await pg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+      const r2 = await pg.evaluate(() => ({ s: __game.authState(), gen: __game.saveRaw().gen, lp: __game.saveRaw().lp }));
+      expect(hitReset && r2.gen === 1 && r2.s.gid === 'acc222zzz' && r2.s.own === own && !!r2.lp,
+        'AUTH: a reset takes the progress and NOT the identity — after the relaunch the way back is still there (the WHOLESALE path)',
+        JSON.stringify({ hitReset: hitReset, gen: r2.gen, gid: r2.s.gid, own: r2.s.own === own, lp: !!r2.lp }) + ' (before the fix: own "" — the device bound for good)');
+      // ⛔ AND THE POINT OF KEEPING IT: the device can still sign out into its own identity.
+      await pg.evaluate(() => __game.authOut());
+      const r3 = await pg.evaluate(() => ({ s: __game.authState(), name: __game.guestName(), se: __game.saveRaw().se }));
+      expect(r3.s.gid === own && r3.s.own === '' && r3.s.src === '' && r3.se === 0,
+        'AUTH: and it signs out into ITS OWN identity after a reset and a relaunch',
+        JSON.stringify({ gid: r3.s.gid === own, own: r3.s.own, src: r3.s.src, se: r3.se, name: r3.name }));
+      await ctx.close();
+    }
     authStand.close();
   }
   // ⟦AUTH-SECTION-END⟧

@@ -19091,9 +19091,10 @@ the menu, read the band.
 ### THE GATES (his rule of 9 September: no full suite per batch)
 AUTH 17 green twice, and every section that reads what this batch changed re-run on the final build:
 LBKEY 7, PAYWEB 14, MENUFIT 4, LBSNAP 11, LBDIGITS 3. `index.html` 12 865 525 → 12 866 167 B, 31
-modules. ⚠️ THE FULL SUITE HAS NOT RUN ON THIS BUILD: the batch touches `mergeSave`, `guestName` and
-the menu markup, which the main sequential run also reads — the dry-runs above cover every MARKED
-section that does, and the first full run is owed at the next milestone.
+modules. ✅ AND THE FULL SUITE THE NOTE HERE OWED WAS RUN THE SAME DAY — **run 48: 1183 green, 0 red,
+`ERRORS(tail): none`, SUITE: PASS**, with the 17 AUTH arms inside it. It is what proved the committed
+batch; the blocker below was found by an adversarial read WHILE that run was in flight, and the
+dry-runs could never have found it — see the section.
 
 ### WHAT IS HIS, AND IT GATES THE LIVE CHECK
 The D1 migration for the `acc` table, the pay worker deploy, and `GOOGLE_CLIENT_ID` in its `[vars]` —
@@ -19104,3 +19105,85 @@ display name, and says the email is never read).
 ⚠️ THE BUTTON'S LOOK IS GOOGLE'S, and its themes are the only choice: `GSI_THEME` in 00-config
 ('outline' | 'filled_blue' | 'filled_black'). A frame of the band in both states and both layouts went
 to him; the button itself cannot be rendered on the bench (file://, a foreign origin).
+
+## BATCH 2026-09-11-b: THE WAY BACK DIED AT EVERY LAUNCH THAT FOLLOWED A PROGRESS RESET — ONE LINE, THE WRONG SIDE OF A `return`
+
+### ⛔⛔ THE DEFECT, AND IT IS THE ONE HOLE `gp` EXISTS TO CLOSE
+`mergeSave` has TWO paths, and `loadSave` is one of its callers. The `gf > gi` branch — a copy of a
+NEWER generation is taken whole — **RETURNS**; `resetProgress` does `gen++`; the save literal is
+`gen: 0`. So after ANY progress reset the stored copy is a newer generation than the literal, every
+launch took the wholesale branch, and `if (own){ into.gp … into.lp … into.gr … }` — which stood at the
+TAIL of the function, after that return — never ran. `Save.gp` came up EMPTY, `identityRestore`
+returned false on its first line, `authSignOut` fell to the name-only branch, and **the phone stayed
+bound to the account for good**. The owner resets his own progress from the dev panel; this is not an
+edge case, it is his habit.
+⚠️ THE BLAST RADIUS IS EXACTLY ONE CALLER: `own` is true only for `loadSave`, and for `own=false` the
+line is a no-op wherever it stands. ⛔ So the cure is placement, not logic: the block now stands FIRST,
+before any branch can return. The way back is a property of the DEVICE and belongs to no branch.
+
+### ⚡ PROVEN BROWSER-FREE BEFORE A GUARD WAS WRITTEN — `mergeSave` LIFTED OUT AND RUN BOTH WAYS
+The technique this file already records for this very function (2026-09-06-e). A phone that signed in,
+reset its progress (gen 1) and relaunched:
+
+| shape | result |
+|---|---|
+| FIXED (`own` first) | `gp "own-device-id"`, `lp "DK"` → sign-out restores the device |
+| OLD (`own` at the tail) | `gp ""`, `lp ""` → **SIGN-OUT IS NAME-ONLY, the phone stays bound** |
+| both shapes, NO reset (gen 0 both sides) | `gp "own-device-id"` — identical |
+| FIXED, a CLOUD copy (`own=false`) | `gp "mine"`, `gr 0` — a foreign way back is still not taken |
+
+⚠️⚠️ **THE THIRD ROW IS WHY SEVENTEEN GREEN ARMS MISSED IT, AND IT IS THE LESSON OF THE BATCH.** Every
+existing arm reads the state IN MEMORY, where the tail line had already run, and no arm in the section
+walked a RELAUNCH at all. A guard that never reloads cannot see a defect that lives in the loader —
+and `mergeSave` is not «the cloud merge», it is ALSO the loader (the note above it says so, and that
+note is what made the field survive at all; it did not go on to ask WHICH BRANCH survives).
+⛔ **THE GENERAL FORM, AND IT IS THE 2026-08-19 LAW MET AGAIN: A FUNCTION WITH TWO BRANCHES NEEDS A
+GUARD THROUGH EACH.** Any new persisted field must be named in `mergeSave` — and then asked, once,
+which of the two paths a launch will actually take.
+
+### THE GUARD: TWO HALVES, AND `gen` IS THE CONTROL OF EACH
+Arm (a) adopts an account and reloads — `gen 0`, the same-generation path; arm (b) resets through the
+REAL dev-panel button and reloads — `gen 1`, the wholesale path; then a third reads that the device
+still signs out into its OWN identity after all of it.
+⚠️ **WITHOUT THE `gen` READING EITHER HALF IS SATISFIED BY A RUN THAT NEVER ENTERED THE BRANCH ITS NAME
+CLAIMS** — the two halves are two branches, and a guard that cannot say which one it walked is one
+guard, not two.
+⚠️ **THE REAL BUTTON AND NOT A NEW HOOK:** `resetProgress` is reachable from exactly one place in
+production and `__game` carries no door to it; a hook here would be a second path beside a working one,
+in a literal where a duplicate key wins silently (the `itemsBrief` / `boltProbe` / `colliderCensus`
+scars). ⚠️ And the click is DEFENSIVE (`if (!b) return false`): a bare `getElementById(...).click()`
+throws inside `evaluate` the day that id is renamed, and a throw kills a section WITHOUT A VERDICT
+instead of reddening an arm.
+**PROVEN TWO-SIDED** (`tools/build-variant.py` outside the tree, the tree's md5 verified identical
+before and after): the healthy build **20 green**; the sabotage — the shipped defect reproduced exactly
+for `loadSave`, `if (own && !(gf > gi))` — reddens **the wholesale arm and the sign-out that stands on
+it, and nothing else**, while the same-generation arm stays green. That is the pair that proves the two
+halves separate the branches rather than merely repeating each other.
+
+### ⚠️ AN ADJACENT FIELD OF THE SAME SHAPE — NAMED, DELIBERATELY NOT CHANGED
+A census of both branches' field sets (`into.X =`, `into.X[`, and the loop form) says the two paths
+differ in exactly two places beyond `gen`: `bb`/`bu`/`bs` are merged in the same-generation path by a
+`for (const f of ['bb','bu','bs'])` loop (not a defect — a regex that only knows `into.X =` misses the
+form), and **`ls` is assigned in the same-generation path and NOT in the wholesale one**, i.e. the
+anti-clock-rollback mark is zeroed by a post-reset load exactly as `gp` was.
+⛔ **IT IS LEFT ALONE, AND THE REASON IS A MEASUREMENT RATHER THAN A SHRUG:** `ls` has ONE consumer,
+`Save.na` (`boostNow`), and no package has granted `na` since 2026-09-03-c removed `noAdMs`; the boost
+budget is PLAY TIME since the same batch, so no clock can extend anything; and `resetProgress` zeroes
+`na` itself. The mark guards nothing today. Assigning it in the wholesale branch would also make a
+FOREIGN device's clock mark travel on a cloud merge — the lax direction. **Whoever next adds a
+wall-clock entitlement must read this paragraph first: `ls` does not survive a post-reset load.**
+
+### THE PRODUCT CONSEQUENCE OF HIS OWN FORK, NAMED TO HIM RATHER THAN DISCOVERED
+A reset **while signed in** sends 0 to the ACCOUNT's row — and by his choice («purchases and the place in the
+table», his answer to the one fork of 2026-09-10) that row is shared across his devices. Reset on the phone and the laptop puts it back on its
+next submission. That is the fork working as specified, not a defect, but it reads like one.
+⚠️ AND THE SECOND HALF OF THE SAME FORK IS ALREADY IN THE CODE AND IS WORTH SAYING ONCE: the reset
+keeps the identity (`gid`, `lk`, `gn`, `gs`, `gp`, `lp`) and zeroes only `gr` — a name is not progress.
+
+### THE MINOR, AND WHY THE NUMBER DID NOT MOVE
+`AUTH_NAME_MAX = 40` carried the comment «CUT TO THE SERVER'S OWN LIMIT». The worker cuts at **80**
+(`name.slice(0, 80)`), so the sentence asserted a fact the neighbouring file refutes. The number stays
+— it is the DISPLAY limit (a menu band and a table row), and a stricter client limit costs nothing —
+and the wording now says which limit it is and where the other one lives. ⚠️ The class is the one this
+file keeps paying for: a comment that states a fact about ANOTHER file goes stale in silence, and
+nothing on screen ever says so.

@@ -68,6 +68,14 @@ function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]
 // So they are named, and only for the local copy.
 function mergeSave(into, from, own){
   if (!from) return;
+  // ⛔⛔ THE DEVICE'S WAY BACK STANDS FIRST, BEFORE EVERY BRANCH, AND THAT IS LOAD-BEARING.
+  // The `gf > gi` branch below RETURNS (a copy of a NEWER generation is taken whole), and after any
+  // `resetProgress` the stored copy IS a newer generation than the empty literal (`gen` 0) — so at
+  // the TAIL of this function, where these three lived until 2026-09-11, they were dropped at every
+  // launch that followed a reset: `gp` empty, sign-out name-only, the phone bound to the account for
+  // good. That is exactly the hole `gp` exists to close. The way back is a property of the DEVICE and
+  // belongs to no branch. `own` is true only for our own storage (loadSave) — never a cloud copy.
+  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
   const gi = into.gen || 0, gf = from.gen || 0;
   if (gf > gi){
     // a foreign copy from a NEWER generation (after a reset): take it whole
@@ -143,8 +151,6 @@ function mergeSave(into, from, own){
   if (!into.uk) into.uk = {};
   const uk = from.uk || {};
   for (const k in uk) if (uk[k]) into.uk[k] = 1; // bought unlocks — OR-merge
-  // THE DEVICE'S WAY BACK — our own storage only, never a cloud copy (see the note at the top).
-  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'), true); } catch(e){}

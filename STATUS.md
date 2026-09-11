@@ -6,7 +6,28 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11 (Google sign-in — the client half) on top of 2026-09-10-i, -zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1142 green, 0 red** (run 47, four batches back; every batch since is gated by its own dry-runs and sabotages, your rule of 9 September) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
+**Build: batch 2026-09-11 (Google sign-in — the client half) on top of 2026-09-10-i, -zh, -e, -d, -g, -v and -b, v2 = main** · **the full suite: 1183 green, 0 red** (run 48, on the sign-in batch itself) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
+
+**11 SEPTEMBER, LATER — A BUG I FOUND AFTER I HAD WRITTEN TO YOU, AND YOU WOULD HAVE BEEN THE FIRST TO HIT IT.**
+
+Signing out worked — unless you had reset your progress. Reset the progress, restart the game, and
+sign-out stopped giving the phone its own name back: the phone stayed that account for good, with no
+way out but clearing the browser. You reset progress from the dev panel yourself, so this was waiting
+for you specifically.
+
+It is fixed, and the game now checks both cases on every run: sign in and restart, and sign in, reset,
+restart. The old code fails that second check and the new one passes it — I built the broken version
+on purpose to be sure the check is worth having.
+
+**What I want you to know about it, because it is the more useful half.** The seventeen checks I wrote
+yesterday all passed on the broken game. Not one of them restarted the game — they all looked at it
+while it was still running, and the bug only existed after a restart. So the lesson is not «I missed a
+line»; it is that a feature which has to survive a restart needs a check that actually restarts.
+
+**And one thing about the table that is not a bug, but will look like one.** You chose that the place in
+the table follows the account. So if you reset your progress while signed in, your row in the table
+goes to zero — on every device, because it is one row now. Play on the laptop afterwards and it climbs
+back. Tell me if you would rather a reset left the table alone; that is a decision, not a defect.
 
 **11 SEPTEMBER — SIGNING IN WITH GOOGLE: THE SECOND HALF, THE ONE THAT RUNS IN THE BROWSER.**
 

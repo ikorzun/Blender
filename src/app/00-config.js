@@ -1954,8 +1954,10 @@ const PAY_SITE = 'https://blendo.monster';
 // `aud` on the worker, and two copies are the drift this project has paid for with PID, the price
 // and the material map. The client READS it from the worker (`GET /v1/auth/cfg`) — one copy, the
 // worker's var.
-// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT TO THE SERVER'S OWN LIMIT: a Google display name is
-// arbitrary user text shown to other players in the table.
+// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT: a Google display name is arbitrary user text shown
+// to other players in the table. ⚠️ THIS IS THE DISPLAY LIMIT AND NOT THE SERVER'S — the worker cuts
+// at 80 (`name.slice(0, 80)` in server/pay/src/index.js); ours is stricter because the name is drawn
+// in the menu band and in a table row, and a stricter client limit costs nothing.
 const AUTH_NAME_MAX = 40;
 // The look of Google's own rendered button — its themes are the only ones GIS offers
 // ('outline' | 'filled_blue' | 'filled_black'). A frame of each went to the owner; this is his knob.

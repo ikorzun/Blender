@@ -7598,8 +7598,10 @@ const PAY_SITE = 'https://blendo.monster';
 // `aud` on the worker, and two copies are the drift this project has paid for with PID, the price
 // and the material map. The client READS it from the worker (`GET /v1/auth/cfg`) — one copy, the
 // worker's var.
-// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT TO THE SERVER'S OWN LIMIT: a Google display name is
-// arbitrary user text shown to other players in the table.
+// ⚠️ THE NAME IS TRIMMED, COLLAPSED AND CUT: a Google display name is arbitrary user text shown
+// to other players in the table. ⚠️ THIS IS THE DISPLAY LIMIT AND NOT THE SERVER'S — the worker cuts
+// at 80 (`name.slice(0, 80)` in server/pay/src/index.js); ours is stricter because the name is drawn
+// in the menu band and in a table row, and a stricter client limit costs nothing.
 const AUTH_NAME_MAX = 40;
 // The look of Google's own rendered button — its themes are the only ones GIS offers
 // ('outline' | 'filled_blue' | 'filled_black'). A frame of each went to the owner; this is his knob.
@@ -16884,6 +16886,14 @@ function totalStars(){ let s = 0; for (const k in Save.stars) s += Save.stars[k]
 // So they are named, and only for the local copy.
 function mergeSave(into, from, own){
   if (!from) return;
+  // ⛔⛔ THE DEVICE'S WAY BACK STANDS FIRST, BEFORE EVERY BRANCH, AND THAT IS LOAD-BEARING.
+  // The `gf > gi` branch below RETURNS (a copy of a NEWER generation is taken whole), and after any
+  // `resetProgress` the stored copy IS a newer generation than the empty literal (`gen` 0) — so at
+  // the TAIL of this function, where these three lived until 2026-09-11, they were dropped at every
+  // launch that followed a reset: `gp` empty, sign-out name-only, the phone bound to the account for
+  // good. That is exactly the hole `gp` exists to close. The way back is a property of the DEVICE and
+  // belongs to no branch. `own` is true only for our own storage (loadSave) — never a cloud copy.
+  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
   const gi = into.gen || 0, gf = from.gen || 0;
   if (gf > gi){
     // a foreign copy from a NEWER generation (after a reset): take it whole
@@ -16959,8 +16969,6 @@ function mergeSave(into, from, own){
   if (!into.uk) into.uk = {};
   const uk = from.uk || {};
   for (const k in uk) if (uk[k]) into.uk[k] = 1; // bought unlocks — OR-merge
-  // THE DEVICE'S WAY BACK — our own storage only, never a cloud copy (see the note at the top).
-  if (own){ into.gp = from.gp || ''; into.lp = from.lp || ''; into.gr = from.gr || 0; }
 }
 function loadSave(){
   try { mergeSave(Save, JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'), true); } catch(e){}
