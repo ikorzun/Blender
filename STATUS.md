@@ -6,7 +6,46 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11-b (the way back survives a progress reset) on top of 2026-09-11 (Google sign-in — the client half), v2 = main** · **the full suite: 1186 green, 0 red** (run 49, on the fixed build) · **blendo.monster is deployed and measured** · the leaderboard, video and site workers are deployed · **the payment worker is deployed, its secrets are in, and one real purchase went through it** · ⚠️ **sign-in does not appear yet — it waits on three steps of yours, below**
+**Build: batch 2026-09-11-v (the Google popup on entry, the sign-in line, «Logout», the leaderboard block) on top of 2026-09-11-b, v2 = main** · **the changed sections: 27 + 4 + 3 + 11 green, 0 red; seven sabotages, each red on its own check** · **the full suite has NOT been run on this build — your word** · blendo.monster is a build behind until it is · ⚠️ **sign-in still waits on three steps of yours, below**
+
+**11 SEPTEMBER, EVENING — YOUR TWO MESSAGES: THE GOOGLE POPUP, THE SIGN-IN LINE, AND THE LEADERBOARD BLOCK.**
+
+**The popup on entering the game.** When the level starts, Google's own sign-in card appears by itself,
+and a player who has signed in before is signed in again without touching anything. One thing you
+should hear from me rather than discover: **the corner is Google's choice, not mine.** On a computer it
+is the top-right, exactly as you asked. On a phone the same call draws a panel at the BOTTOM of the
+screen, and there is no setting anywhere that moves it. If the bottom is wrong for you, the honest
+answer is that we would have to stop using Google's own popup and draw our own — which costs the
+automatic sign-in, because only their popup can do it.
+
+**Why the automatic sign-in matters more than a saved tap.** Safari deletes a website's saved data
+after seven days without a visit. Until today that meant a player could lose his purchases and his
+place. Now he comes back and both return by themselves.
+
+**The sign-in line, by your drawing.** Under the name: the Google mark and «Sign in with Google» in
+blue. Signed in, the same spot reads «Logout» in the grey you named — I read that grey out of your own
+Figma file rather than matching it by eye, and it is the same grey the line under your place already
+uses. Two things I decided and am telling you rather than burying: **«Logout» has no Google mark**
+(a brand mark beside a word that ends a session reads as an invitation to start one), and **on a phone
+the line reads just «Sign in»** — at 390 pixels wide, with a real late-game score next to it, the full
+wording ran into your own score; the mark is right there, so the short form says the same thing.
+
+**On a very narrow phone the top row now wraps onto two lines.** With a score like 123116 the star, the
+number and «×5 Boost» take almost the whole width, and the name was being squeezed down to one letter.
+It now drops the score onto its own line instead. You only ever see this on the smallest phones.
+
+**The leaderboard block, by your second drawing.** The three faces became one — the player right above
+you — with a thin divider and **his score** under his face. The line on the left still says how far
+behind you are («340 to Godwit»), so read together the row tells the whole story: you are 340 behind
+Godwit, who has 123k. **If you meant that number to be the gap rather than his score, say so — it is
+one line.** The same block appears on the victory screen; it is one component and always has been.
+
+**What I have NOT done, and it is one word from you.** The full suite has not been run on this build.
+Your own rule is that I run the changed checks and you decide about the full one — and this batch moves
+the menu's top row and the leaderboard block, which are checked in the main run rather than in a block
+I can run on its own. So I measured every number those checks read, by hand, on the built game at three
+widths and on the victory screen: all of them are intact. Say the word and I run the full suite; the
+site on blendo.monster goes out after it, not before.
 
 **11 SEPTEMBER, LATER — A BUG I FOUND AFTER I HAD WRITTEN TO YOU, AND YOU WOULD HAVE BEEN THE FIRST TO HIT IT.**
 

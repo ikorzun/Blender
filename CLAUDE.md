@@ -19201,3 +19201,131 @@ me; **he did not answer, and silence is not his word.** The reason I ran it anyw
 LOADER, so every page of the suite passes through the changed line — the property is not confined to a
 marked section, and a section dry-run cannot state it. **Run 48 had already been owed to this batch by its
 own note.** If he would rather the dry-runs gated it alone, that is one word and the rule is unchanged.
+
+## BATCH 2026-09-11-v: THE ONE TAP ON ENTRY, THE SIGN-IN AS THE PROFILE'S SECOND LINE, «Logout» IN CARBON 600, AND THE ENTRY POINT'S NEXT PLAYER (his two messages: «1. let's show the native Google popup in the top-right corner on entering the game, auto-login if possible 2. redo the sign-in button (the sign-out in the same place, only grey Carbon 600 and reading Logout)» + node 840:4681 and his `Google Icon.svg`; then «when you are done with the button, update the leaderboard entry block in the pause menu» + node 840:4689)
+
+### THE TOKENS WERE READ OUT OF FIGMA, NOT INVENTED — AND ONE OF THEM WAS NOT ON THE NODE HE GAVE
+`get_variable_defs` on 840:4681 answers `{Rounded: 1000, Experimental/Carbon-Purple-400: #2a2935}` —
+**no Carbon 600 at all**. It is on the OTHER node he sent an hour later: `Carbon/600 = #a2a2a8`,
+which is also the grey the entry point's own caption has worn since 2026-08-10. So «grey Carbon 600»
+is a value measured on his own file rather than a grey picked to look right.
+⚠️ THE HABIT WORTH KEEPING: when a named token is absent from the node under the cursor, ask the
+NEIGHBOURING node before asking him — a design system is one file, and he had already sent the file.
+
+### ⛔⛔ THE SIGN-IN LINE CANCELS THE BAND, AND WITH IT A BAN THIS CANON RECORDED AS MEASURED
+The band (a full-size Google button + «Signed in with Google» + a bordered «Sign out» pill) stood
+UNDER the profile row, and the canon's ban said in as many words: «THE BAND STANDS UNDER THE PROFILE
+ROW AND NEVER INSIDE IT — a second element in the row itself crawled out of the pill by 29px at 320».
+His node puts it INSIDE the row, and the ban does not apply to what he drew: that measurement was of
+a 44px-tall band of three controls, while this is a 14px line in the profile's own COLUMN — the row
+grows in HEIGHT, not in width. The ban is tombstoned where it stood, with the distinction named.
+**IN FORCE** (node 840:4681): avatar 48, gap 6, a column of gap 2 — the name, and under it the 14px
+Google mark + gap 4 + «Sign in with Google» in Bold 14 `#3971ff`; signed in, that same slot carries
+«Logout» in Bold 14 `#a2a2a8`, a real `<button>`.
+⚠️ WITHOUT THE MARK ON «Logout»: a brand mark beside a word that ENDS a session reads as an
+invitation to start one. The dispatcher's call, named to him.
+
+### ⛔⛔ THE LINE IS THE PICTURE; THE HIT AREA IS GOOGLE'S OWN BUTTON, CLIPPED ONTO IT
+The load-bearing line of `84-auth.js` says it: with a button of ours the GIS library hands back no ID
+TOKEN at all, and the token is exactly what the worker verifies against Google's JWKS. So `#msAuthBtn`
+renders Google's own button at `opacity:0` on top of the line.
+- ⚠️⚠️ **`opacity:0` AND NEVER `visibility:hidden`**: a hidden element takes no clicks, and the click
+  IS the point.
+- ⚠️⚠️ **THE CLIP IS THE WHOLE SAFETY OF IT.** Google's button has a ~200px minimum width; unclipped
+  it would lie across the «×5 Boost» control beside it and swallow its taps. `overflow:hidden` on a
+  box that is the line's own width is what makes it un-hit-testable outside. Measured: the overlay is
+  139.6 wide against the line's 139.6, its inner button 200, and a hit test at the centre of «×5
+  Boost» returns the boost button.
+- ⚠️ The box is stretched 6px above and below, so the tap target is ~26px rather than the line's 14.
+⛔⛔ **AND WHAT NO GUARD HERE CAN SAY, NAMED RATHER THAN IMPLIED:** whether a click that lands on the
+overlay produces a token. That happens inside Google's iframe, which the stand never loads (the stub
+short-circuits the library on purpose). Our half is measurable and is measured; the other half is his
+device. The arm says so in its own message.
+⛔ **ONE `initialize` SERVES THE BUTTON AND THE PROMPT.** It is GLOBAL library config: a second call
+with different options would silently re-point the callback and re-decide auto-select for whichever
+consumer ran last.
+
+### THE ONE TAP — AND THE TRAP THE WHOLE FEATURE TURNS ON
+`authPromptOneTap()` is called from `finishIntro` (the honest «entered the game») and never from
+`skipIntro`, which every probe and the whole suite take; `authOn()` gates it to our own origin outside
+an iframe, so on `file://`, on a stand and inside the portal it is a no-op by construction.
+`auto_select: true` is his «auto-login if possible»; `itp_support: true` is what makes the prompt
+appear in Safari AT ALL — his own browser; `use_fedcm_for_prompt: true` because the browser owns that
+UI now. Once per launch: the library has its own cooldown after a dismissal.
+⛔ **NO MOMENT LISTENER.** Under FedCM `getNotDisplayedReason` and its neighbours are gone; a branch
+on them would throw or lie. The only honest signal is the credential arriving at the callback.
+⛔⛔ **`disableAutoSelect()` ON SIGN-OUT.** Without it the next launch signs the same account straight
+back in before anyone taps — the sign-out undone in silence, on the shared phone that is the only
+reason sign-out exists. It is the first thing anyone tests, and it had no guard until this batch.
+⚠️⚠️ **THE CORNER IS GOOGLE'S AND HE WAS TOLD:** on a desktop the prompt is a card in the top-right —
+what he asked for — while the same call on a PHONE renders a bottom sheet, and no option moves it.
+⚡ **AND AUTO-LOGIN BUYS MORE THAN A SAVED TAP:** it re-covers Safari's seven-day eviction of
+localStorage (2026-09-04-a) — a player whose save was swept returns to his purchases and his row
+without touching anything.
+
+### THE PHONE SAYS «Sign in», AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE
+His node is the DESKTOP card. On a 390 screen the profile column is 139 wide and the header's right
+side carries the star, the score and «×5 Boost» — with a real late-game score («123116») the two
+sides overlapped and the FIRST RENDERED FRAME showed the star sitting on the words. The mark is right
+beside it, so «Sign in» names the same thing in half the width (60.8 against 139.6).
+⚠️⚠️ **AND THE HEADER WRAPS RATHER THAN CRUSHING ITS LEFT SIDE.** At 320 with the same score the
+right group takes 215 of the 280 available and the profile's own 115 does not fit beside it: without
+`flex-wrap` the column was squeezed to about thirty pixels — the name truncated to one letter and the
+sign-in line cut in half (measured, and visible in the frame). Wrapping drops the score row under the
+profile; the card grows by one row and nothing becomes unreadable. `flex-wrap` fires BEFORE flex
+shrinks, so no minimum had to be invented — and a first draft that DID invent one (`min-width:132px`)
+made 390 wrap too, where 115 + 215 = 330 fits inside 350. **The floor was removed, not tuned.**
+
+### THE ENTRY POINT: THE THIRD EDITION OF THE ROW'S RIGHT SIDE (node 840:4689)
+Three avatars of the top (his word 2026-08-05) → ONE, the next player's (2026-09-10) → and now that
+face with a hairline rule in front of it and HIS SCORE under it, with «next players» in Carbon 600.
+The «Open» button, `#d9f4ff` at radius 1000 with 13/16 paddings, already matched the node and was not
+touched.
+⚠️⚠️ **THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE GAP, AND THE FORK IS NAMED:** the gap is
+already the line on the LEFT («340 to Godwit» — his own decision of 2026-08-09, «300 points to the
+next one motivates»), and printing one quantity twice in two formats is the drift this file keeps
+paying for. Read together the row says it whole: you are 340 behind Godwit, who has 123k.
+⚠️ **THE CAPTION IS `.ms-lbe-cap`, NOT `.ms-lbe-sub`** — `lbEntryRefresh` writes the gap line into
+EVERY `.ms-lbe-sub` it finds, so sharing the class would have this static caption overwritten by
+«340 to Godwit» on the first answer from the server.
+⛔⛔ **ONLY THE NUMBER WAITS FOR THE ANSWER; THE RULE AND THE CIRCLE STAND FROM THE FIRST FRAME.** The
+first draft hid the whole group until a neighbour arrived and broke this row's own recorded rule —
+the win screen's guard reads the circle's 56 in the first frame, and it measured **0**. The group now
+carries `.empty`, which collapses the number and the caption and nothing else.
+⚠️ **IT APPEARS ON THE WIN SCREEN TOO, and that is the component's own law** (two instances, one
+statement — who is ahead of you). ⛔⛔ AND THE FIRST FRAME THERE FOUND TWO DEFECTS THE MENU COULD NOT:
+the score is `#000` for the menu's white pill and came out **black on near-black**, and the hairline
+is a 12% dark rule and was simply **not there**. The rank beside it has carried a white override since
+the block came to that screen; the new half had to join it. **A shared component is not verified on
+the surface it was drawn for.**
+
+### THE GUARDS — FOUR NEW ARMS, AND THE STUB HAD TO LEARN THE SURFACE FIRST
+Nothing in the suite read the line, the Logout, the One Tap or the next-player group, so the feature
+AND its rollback would both have passed green. AUTH 20 → **27 green**.
+⛔ **AND ONE EXISTING ARM WENT RED ON A SOUND BUILD FOR THE RIGHT REASON:** it read
+`band.style.display !== 'none'`, and the line is revealed with `hidden` now — a read of the MECHANISM,
+true for a hidden band. The property («off our own origin there is no sign-in») is unchanged; the read
+moved to the OUTCOME (`!hidden && computed display`), which survives either implementation.
+⚠️ **THE TEST'S OWN GIS STUB PREDATED ONE TAP** — it recorded neither `auto_select` nor `prompt` nor
+`disableAutoSelect`, so A12 failed on a correct build until the stub grew them. A probe against the
+live page (prompted 1, auto true, itp true) is what separated «the code is wrong» from «the stub is
+deaf», and it took one minute against a twenty-minute run.
+⚠️ **A12 RUNS THE INTRO FOR REAL** — no `skipIntro`: the production caller is `finishIntro`, and a
+guard that only drove the test door would prove the function and not the WIRING.
+⚠️ **AND A RUN-KILLER WAS CAUGHT BY THE DRY RUN:** `__game.lbInvalidate` does not exist (the door is
+`window.__lb.invalidate`), and a missing function inside `page.evaluate` throws — which KILLS a
+section rather than reddening an arm. The canon's most repeated signature, met again.
+**PROVEN SEVEN-SIDED** (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`), each
+reddening its OWN arm and nothing else: `auto_select:false` → the One Tap arm; `disableAutoSelect`
+dropped → the sign-out arm; the once-per-launch guard removed → the One Tap arm; the overlay's
+`overflow:hidden` → the line arm; the Logout colour → the Logout arm; the score written as the GAP →
+the next-player arm; the `.empty` collapse dropped → its control.
+
+### WHAT THE UNMARKED GUARDS READ WAS MEASURED RATHER THAN HOPED
+This batch moves the menu header (it wraps now), the entry point's markup and the win row — and their
+guards live in the MAIN sequential run, which `section-dryrun` cannot lift. Rather than spend a full
+run blind, every read those arms make was replicated on the built page at 320 / 390 / 1280 and on the
+win screen: `#mainScreen` horizontal overflow **0** at every width, `.ms-lbe-right.left −
+.ms-lbe-txt.right` ≥ 0, `#msLbeAvs img` 1, `#msLbEntry button` 1, the entry below the profile and
+above Play, and on the win screen kids 1 / **circle 56** / height 72 / 0 buttons / 3 badges with 1
+visible. All intact; the full run is his word.

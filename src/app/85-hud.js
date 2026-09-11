@@ -742,6 +742,12 @@ function lbEntryRefresh(){
   // ⚠️ AND DROPPING THAT BRANCH REMOVED A RACE THAT WAS LIVE IN IT: it cleared BOTH hosts and then
   // filled them, so whichever of the two promises resolved second wiped what the first had drawn.
   // One writer now owns both hosts.
+  // ⚠️⚠️ ONLY THE NUMBER WAITS FOR THE ANSWER — THE RULE AND THE CIRCLE STAND FROM THE FIRST
+  // FRAME. That is this row's own rule, and it is guarded on the win screen: the neutral slot is
+  // the same size as the face, so the geometry does not move when the picture arrives. A number
+  // and a caption beside a blank circle, on the other hand, would assert a neighbour who may not
+  // exist (the first place, a guest, no connection) — so those two collapse, and only those two.
+  lbEntryAll('.ms-lbe-next').forEach(n => { n.classList.add('empty'); });
   lbEntryAll('.ms-lbe-avs').forEach(h => {
     h.innerHTML = '';
     h.appendChild(lbEntryAvatar(0));
@@ -820,9 +826,22 @@ function lbEntryRefresh(){
     // face there would name a player the line does not.
     lbRivalNext = (gapLine && next && (next.av | 0) > 0)
       ? { av: next.av | 0, name: String(next.name || '') } : null;
+    // ⚡ THE FACE, THE NUMBER AND THE LINE ALL COME OFF `next` — ONE ROW, ONE DERIVATION (his node
+    // 840:4689 puts his score under his face). ⛔ THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE
+    // GAP: the gap already stands on the left («340 to Godwit»), and printing it twice in two
+    // formats would be two truths about one quantity. Read together the row says it whole — you
+    // are 340 behind Godwit, who has 123k.
+    const hasNext = !!(gapLine && next && (next.av | 0) > 0);
+    lbEntryAll('.ms-lbe-next').forEach(n => { n.classList.toggle('empty', !hasNext); });
+    // ⚠️ `winFmtScore` AND NOT `lbFmt`: this is the compact reading the place and the wallet use
+    // («123k»), which is what the node draws; the exact grouped form belongs to the table screen,
+    // where the difference between neighbours is the point.
+    lbEntryAll('.ms-lbe-score').forEach(sc => {
+      sc.textContent = hasNext ? winFmtScore(next.score | 0) : '';
+    });
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
-      h.appendChild(lbEntryAvatar(gapLine && next ? (next.av | 0) : 0));
+      h.appendChild(lbEntryAvatar(hasNext ? (next.av | 0) : 0));
     });
     boxes.forEach(b => { b.classList.toggle('has-rank', ok); });
     // ⚠️⚠️ THE DIRECTION IS BY COMPARISON WITH THE PREVIOUSLY SEEN RANK, and not by the sign of
@@ -2840,45 +2859,47 @@ function refreshBundlePrices(){
     });
   } catch(e){}
 }
-// THE SIGN-IN BAND UNDER THE PROFILE ROW (84-auth does the talking; docs/GOOGLE-AUTH.md).
-// ⚠️⚠️ THE BAND IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW, AND THAT IS THREE DIFFERENT «NO»s:
+// THE PROFILE'S SECOND LINE (84-auth does the talking; docs/GOOGLE-AUTH.md).
+// ⚠️⚠️ IT IS SHOWN ONLY WHEN THERE IS SOMETHING TO SHOW, AND THAT IS THREE DIFFERENT «NO»s:
 // off our own origin there is no sign-in at all (the portal signs in with its own account, the
 // wrapper has neither); on our origin the worker may carry no client id yet; and Google's library
-// may fail to load. An empty band, or one with a dead button in it, is worse than no band — so it
-// starts hidden in the markup and is revealed only by the branch that has something to put in it.
+// may fail to load. An empty line, or one with a dead hit area in it, is worse than none — so it
+// starts hidden in the markup and is revealed only by the branch that has something to put there.
+// ⛔ THE NAME IS NOT REPEATED HERE (it did not use to be either, and for the same reason): the row
+// this line belongs to already carries it, three centimetres up.
 function refreshAuthUi(){
   const band = document.getElementById('msAuth');
   if (!band) return;
   const on = (typeof authOn === 'function') && authOn();
-  if (!on){ band.style.display = 'none'; return; }
-  const host = document.getElementById('msAuthBtn');
-  const note = document.getElementById('msAuthNote');
-  const out = document.getElementById('msAuthOut');
+  if (!on){ band.hidden = true; return; }
   const inn = (typeof authSignedIn === 'function') && authSignedIn();
+  const line = document.getElementById('msAuthIn');
+  const host = document.getElementById('msAuthBtn');
+  const out = document.getElementById('msAuthOut');
   if (inn){
-    // Signed in: the name and the way out. No library is needed for this state, so it never waits.
-    if (host){ host.style.display = 'none'; }
-    if (note){ note.style.display = ''; note.textContent = 'Signed in with Google'; }
-    if (out) out.style.display = '';
-    band.style.display = '';
+    // Signed in: «Logout» in Carbon 600, in the very slot the sign-in stood in. No library is
+    // needed for this state, so it never waits on one.
+    if (line) line.hidden = true;
+    if (out) out.hidden = false;
+    band.hidden = false;
     return;
   }
-  if (note){ note.textContent = ''; note.style.display = 'none'; }
-  if (out) out.style.display = 'none';
-  if (host) host.style.display = '';
+  if (out) out.hidden = true;
+  if (line) line.hidden = false;
   // ⚠️ THE BUTTON IS ASKED FOR ONCE PER MENU LIFETIME, not once per opening: `renderButton` builds
-  // an iframe of Google's, and rebuilding it on every open would flash it and spend a request.
+  // an iframe of Google's, and rebuilding it on every open would spend a request and flash it —
+  // invisible though it is, an iframe that is being rebuilt is an iframe that is not clickable.
   if (host && !host.dataset.ready){
     host.dataset.ready = '1';
     Promise.resolve((typeof authRenderButton === 'function') ? authRenderButton(host) : false)
       .then((ok) => {
-        if (ok){ band.style.display = ''; return; }
+        if (ok){ band.hidden = false; return; }
         delete host.dataset.ready;      // nothing was rendered — let a later open try again
-        band.style.display = 'none';
-      }, () => { delete host.dataset.ready; band.style.display = 'none'; });
+        band.hidden = true;
+      }, () => { delete host.dataset.ready; band.hidden = true; });
     return;
   }
-  band.style.display = host && host.childNodes.length ? '' : 'none';
+  band.hidden = !(host && host.childNodes.length);
 }
 // THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
 // (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,

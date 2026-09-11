@@ -234,6 +234,11 @@ function finishIntro(){
   camAz = 0; camPhi = 0.45; camR = 16.2;
   updateCamera();
   introZoomStart();   // smooth final zoom by one «+» press (the owner's word 2026-08-21-r)
+  // ⚡ THE GOOGLE ONE TAP, ON ENTERING THE GAME (his word 2026-09-11-v). It stands HERE and not in
+  // `skipIntro`: this is the honest «entered the game», while skipIntro is what every probe and
+  // the whole suite take. It is gated by `authOn()` anyway — our own origin, outside an iframe —
+  // so on file://, on a stand and inside the portal it is a no-op by construction.
+  try { authPromptOneTap(); } catch(_){}
   stats.t0 = performance.now();
   stats.lastAction = performance.now();
   // a fresh 3-second forced-sleep budget AFTER the intro: wakeAtMs had stood since genLevel,
@@ -1557,6 +1562,9 @@ window.__game = {
   // ever fetched. Production reaches the same function only through GIS's own callback.
   authSignIn(tok){ return authExchange(tok); },
   authOut(){ return authSignOut(); },
+  // a test door onto the production One Tap: `finishIntro` is the only live caller, and a guard
+  // cannot drive a real intro on every page it needs this on
+  authPrompt(){ return authPromptOneTap(); },
   // THE NEW-ITEM SCREEN: the occasion, the display and a state snapshot for the guards.
   // ⚠️ `newObjInfo` hands out a LIVE CANVAS (`canvas:true`), not the fact of a call: without
   // this the guard «the model spins» would check the intent and not the picture —

@@ -63,21 +63,78 @@ function authLoadGis(){
   return authGisP;
 }
 
-// ⛔ GOOGLE'S OWN RENDERED BUTTON, AND NOT A BUTTON OF OURS: with a custom one the GIS library does
-// not hand back an ID TOKEN at all, only an access token through a second flow — and an ID token is
-// exactly what the worker verifies against Google's JWKS.
+// ⛔⛔ GOOGLE'S OWN RENDERED BUTTON, AND NOT A BUTTON OF OURS: with a custom one the GIS library
+// does not hand back an ID TOKEN at all, only an access token through a second flow — and an ID
+// token is exactly what the worker verifies against Google's JWKS.
+// ⚡ SO THE LINE HE DREW (node 840:4681) IS THE PICTURE AND GOOGLE'S BUTTON IS THE HIT AREA:
+// 85-hud overlays the rendered button on it at `opacity:0`, clipped to the line's own box. The
+// token path stays 100% Google's; what changes is only what the eye sees.
+// ⚠⚠ ONE `initialize` SERVES BOTH THE BUTTON AND THE ONE TAP, and that is not tidiness: the call
+// is GLOBAL library config, so a second one with different options would silently re-point the
+// callback and re-decide auto-select for whichever consumer ran last.
+let authGis = null;        // the library handle, kept so the prompt and the sign-out can reach it
+let authInited = false;    // `initialize` has run — once per page, by the line above
+let authTapped = false;    // the One Tap has been asked for this launch
+
+async function authInit(){
+  if (authInited) return true;
+  if (!authOn()) return false;
+  const cfg = await authGetCfg();
+  if (!cfg || !cfg.cid) return false;          // the worker carries no client id yet — nothing to configure
+  try { authGis = await authLoadGis(); } catch (e) { return false; }
+  try {
+    authGis.initialize({
+      client_id: cfg.cid,
+      callback: authCredential,
+      // ⚡ AUTO-LOGIN IS HIS OWN «auto-login if possible», AND IT BUYS MORE THAN A SAVED TAP: it
+      // re-covers Safari's seven-day eviction of localStorage (2026-09-04-a) — a player whose save
+      // was swept comes back to his purchases and his row without touching anything.
+      auto_select: true,
+      // ⛔ WITHOUT `itp_support` THE PROMPT DOES NOTHING AT ALL IN SAFARI, which is his own
+      // browser. It costs nothing in the engines that do not need it.
+      itp_support: true,
+      // ⚠ UNDER FedCM THE BROWSER OWNS THE PROMPT'S UI. We ask for it explicitly rather than
+      // letting the library guess, and we read the RESULT through the callback — never through
+      // the moment notifications, which FedCM took away.
+      use_fedcm_for_prompt: true,
+      cancel_on_tap_outside: true,
+    });
+  } catch (e) { return false; }
+  authInited = true;
+  return true;
+}
+
 async function authRenderButton(host){
   if (!host || !authOn()) return false;
-  const cfg = await authGetCfg();
-  if (!cfg || !cfg.cid) return false;          // the worker carries no client id yet — no button, and no error on screen
-  let gis = null;
-  try { gis = await authLoadGis(); } catch (e) { return false; }
+  if (!(await authInit())) return false;
   try {
-    gis.initialize({ client_id: cfg.cid, callback: authCredential, auto_select: false, cancel_on_tap_outside: true });
     host.textContent = '';
-    gis.renderButton(host, { theme: (typeof GSI_THEME === 'string' ? GSI_THEME : 'outline'),
-      size: 'large', type: 'standard', shape: 'pill', text: 'signin_with' });
+    authGis.renderButton(host, { theme: (typeof GSI_THEME === 'string' ? GSI_THEME : 'outline'),
+      size: 'medium', type: 'standard', shape: 'pill', text: 'signin_with' });
   } catch (e) { return false; }
+  return true;
+}
+
+// ⚡ THE ONE TAP ON ENTERING THE GAME (his word 2026-09-11-v: «show the native Google popup in
+// the top-right corner on entering the game, auto-login if possible»).
+// ⚠⚠ THE CORNER IS GOOGLE'S TO CHOOSE, NOT OURS, AND HE WAS TOLD SO: on a desktop the prompt is
+// a card in the TOP-RIGHT of the window — which is what he asked for — while the same call on a
+// phone renders a BOTTOM SHEET, and no option of the library moves it. What we own is when it is
+// asked for, and whether a returning player is signed in without a tap.
+// ⚠ ONCE PER LAUNCH: the library has its own cooldown after a dismissal, and asking twice in one
+// session would spend it for nothing and read as nagging.
+function authPromptOneTap(){
+  if (authTapped) return false;
+  if (!authOn()) return false;
+  if ((typeof authSignedIn === 'function') && authSignedIn()) return false;   // already his account
+  authTapped = true;
+  authInit().then((ok) => {
+    if (!ok || !authGis) return;
+    // ⛔ NO MOMENT LISTENER. Under FedCM `getNotDisplayedReason` and its neighbours are gone, and
+    // a branch on them would throw or lie; the only honest signal that the prompt worked is the
+    // credential arriving at `authCredential` — the same callback the button uses.
+    try { authGis.prompt(); } catch (e) {}
+  }, () => {});
   return true;
 }
 
@@ -152,6 +209,10 @@ async function authApply(r){
 // ⛔ IT NEVER GENERATES A NEW gid: that would strand this device's purchases behind an id nobody
 // remembers — the very hole this feature exists to close.
 function authSignOut(){
+  // ⛔⛔ WITHOUT THIS THE NEXT LAUNCH SIGNS THE SAME ACCOUNT STRAIGHT BACK IN, BEFORE ANYONE HAS
+  // TAPPED ANYTHING: `auto_select` remembers the last account, and the One Tap on entry would undo
+  // the sign-out in silence. A shared phone is the whole reason sign-out exists at all.
+  try { if (authGis && authGis.disableAutoSelect) authGis.disableAutoSelect(); } catch (e) {}
   const restored = (typeof identityRestore === 'function') ? identityRestore() : false;
   if (!restored){
     // The account was CREATED from this device: the identity is the device's own, only the name goes.
@@ -178,6 +239,7 @@ function authState(){
     on: authOn(), cid: authCfg ? (authCfg.cid || '') : '',
     signedIn: authSignedIn(), canRestore: authCanRestore(),
     name: sv.gn || '', src: sv.gs || '', lift: sv.gr || 0, own: sv.gp || '',
+    inited: authInited, tapped: authTapped,
     gid: (typeof guestId === 'function') ? guestId() : '',
     last: authLast,
   };

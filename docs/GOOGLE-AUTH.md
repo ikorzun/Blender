@@ -224,12 +224,37 @@ with one made on another device. That follows from trap 5 and it is not a defect
   of a markup comment saying the card «dissolves on mobile». Measured at 390 / 800 / 1280: the card
   is a real white card at every width and `.ms-head` is transparent at every one — the comment has
   been stale since 2026-08-11. A white pill inside a white card.
-- **The band says «Signed in with Google», not the name.** The first frame showed the account's name
-  twice, three centimetres apart: the profile row already carries it.
+- **⛔ THE BAND IS GONE — THE SIGN-IN IS THE PROFILE'S SECOND LINE (his node 840:4681, 2026-09-11-v).**
+  The whole band (a full-size Google button, «Signed in with Google», a bordered «Sign out» pill) was
+  replaced by one 14px line under the name: the Google mark, «Sign in with Google» in #3971ff, and —
+  signed in — «Logout» in Carbon 600 (#a2a2a8) in the same slot. The reason the band never repeated
+  the name still holds and is why the line does not either: the row above already carries it.
+  ⛔⛔ AND THE LINE IS THE PICTURE, NOT THE BUTTON. A button of ours yields no ID token, so Google's
+  own rendered button lies on the line at `opacity:0`, CLIPPED to it (`overflow:hidden`) — the clip is
+  what keeps its ~200px minimum width off the «×5 Boost» control beside it. What the suite can state
+  is our half: the click reaches the overlay and not the page behind it. What happens inside Google's
+  iframe it cannot see, and the guard says so.
 - **The client id is read from `/v1/auth/cfg` and written down nowhere else** — one copy, the
   worker's var, asserted by the guard against what GIS was initialised with.
 
-**THE GUARD** is the marked section `⟦AUTH-SECTION⟧` — 17 arms on an http stand with the bot flag
+**THE ONE TAP** (his word 2026-09-11-v: «show the native Google popup on entering the game,
+auto-login if possible») is `authPromptOneTap()`, called from `finishIntro` — the honest «entered the
+game», and never from `skipIntro`, which is what every probe and the whole suite take. One
+`initialize` serves both the button and the prompt (it is GLOBAL library config; a second call would
+silently re-point the callback), with `auto_select: true`, `itp_support: true` — without which the
+prompt does nothing at all in Safari, his own browser — and `use_fedcm_for_prompt: true`.
+- ⚠️ **THE CORNER IS GOOGLE'S, NOT OURS, AND HE WAS TOLD.** On a desktop the prompt is a card in the
+  top-right of the window, which is what he asked for; the same call on a phone renders a BOTTOM
+  SHEET, and no option of the library moves it.
+- ⛔ **NO MOMENT LISTENER.** Under FedCM the notification reasons are gone, and a branch on them would
+  throw or lie. The only honest signal is the credential arriving at the callback.
+- ⛔⛔ **`disableAutoSelect()` ON SIGN-OUT IS THE TRAP THE WHOLE FEATURE TURNS ON.** Without it the
+  next launch signs the same account straight back in, before anyone taps — the sign-out undone in
+  silence, on the shared phone that is the only reason sign-out exists.
+- ⚡ **AND AUTO-LOGIN BUYS MORE THAN A SAVED TAP:** it re-covers Safari's seven-day eviction of
+  localStorage (2026-09-04-a) — a player whose save was swept returns to his purchases and his row.
+
+**THE GUARD** is the marked section `⟦AUTH-SECTION⟧` — 27 arms on an http stand with the bot flag
 hidden (a submission is muted on `file://` and under automation), a stubbed worker and a stubbed
 `google.accounts.id` (so no Google script is ever fetched, and the arm asserts the absence of the
 tag). Proven against eight variants, each reddening its own arms and a comment edit none: the lift

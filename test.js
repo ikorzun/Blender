@@ -20225,7 +20225,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
           if (s.indexOf('/v1/me') >= 0) {
             S.me++;
             return S.score < 0 ? j({ err: 'none' }, 404)
-              : j({ ok: 1, s: S.score, rank: 12, exact: 1, up: [], dn: [], t: 0 });
+              : j({ ok: 1, s: S.score, rank: 12, exact: 1, up: S.up || [], dn: [], t: 0 });
           }
           return j({ err: 'route' }, 404);
         }
@@ -20233,8 +20233,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       };
       // GIS, stubbed. The production loader looks for exactly this object BEFORE it injects a tag.
       window.google = { accounts: { id: {
-        initialize(o){ window.__auth.gis = { cid: o.client_id, cb: typeof o.callback }; },
-        renderButton(host, o){ window.__auth.btn = o; host.appendChild(document.createElement('span')); },
+        initialize(o){ window.__auth.gis = { cid: o.client_id, cb: typeof o.callback,
+          auto: o.auto_select, itp: o.itp_support, fedcm: o.use_fedcm_for_prompt }; },
+        // ⚠️ THE STUB STANDS IN FOR GOOGLE'S IFRAME, AND ITS WIDTH IS THE POINT: the real button
+        // has a ~200px minimum, and the overlay's whole job is to clip that away from «×5 Boost».
+        renderButton(host, o){ window.__auth.btn = o;
+          const d = document.createElement('div'); d.style.cssText = 'width:200px;height:32px';
+          host.appendChild(d); },
+        prompt(){ window.__auth.prompted = (window.__auth.prompted || 0) + 1; },
+        disableAutoSelect(){ window.__auth.disabled = true; },
       } } };
     };
     const AK = 'ab'.repeat(32), AK2 = 'cd'.repeat(32);
@@ -20373,11 +20380,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const { pg, ctx } = await authPage();
       await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
       await pg.click('#pauseBtn');
-      await pg.waitForFunction(() => { const b = document.getElementById('msAuth'); return b && b.style.display !== 'none'; },
+      // ⚠️ THE READ IS THE OUTCOME AND NOT THE MECHANISM: the line is revealed with `hidden` since
+      // 2026-09-11-v (it used to be an inline `display`), and a read of `style.display` would be
+      // true for a HIDDEN band — the arm below went red on a sound build for exactly that.
+      await pg.waitForFunction(() => { const b = document.getElementById('msAuth');
+        return b && !b.hidden && getComputedStyle(b).display !== 'none'; },
         null, { timeout: 15000 }).catch(() => {});
       const on = await pg.evaluate(() => {
         const band = document.getElementById('msAuth'), host = document.getElementById('msAuthBtn');
-        return { shown: !!band && band.style.display !== 'none', kids: host ? host.childNodes.length : -1,
+        return { shown: !!band && !band.hidden && getComputedStyle(band).display !== 'none',
+          kids: host ? host.childNodes.length : -1,
           gis: window.__auth.gis, btn: window.__auth.btn,
           tags: document.querySelectorAll('script[src*="gsi"]').length };
       });
@@ -20398,13 +20410,183 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       await off.pg.waitForTimeout(600);
       const offSt = await off.pg.evaluate(() => {
         const band = document.getElementById('msAuth');
-        return { on: __game.authState().on, shown: !!band && band.style.display !== 'none',
+        return { on: __game.authState().on,
+          shown: !!band && !band.hidden && getComputedStyle(band).display !== 'none',
           gis: !!window.__auth.gis, tags: document.querySelectorAll('script[src*="gsi"]').length };
       });
       expect(offSt.on === false && offSt.shown === false && offSt.gis === false && offSt.tags === 0,
         'AUTH: off our own origin there is no sign-in — no band, no library, no request',
         JSON.stringify(offSt));
       await off.ctx.close();
+    }
+
+    // ---- A10: THE LINE HE DREW, AND THE HIT AREA UNDER IT (node 840:4681, 2026-09-11-v)
+    // ⚠️⚠️ NOTHING READ ANY OF THIS BEFORE, so the redraw AND its rollback would both have passed
+    // green. The arm states the two halves that can be stated here: the PICTURE is ours (the 14px
+    // mark, the words, #3971ff), and the HIT AREA is Google's own button, invisible, lying on the
+    // line and CLIPPED to it.
+    // ⛔⛔ WHAT THIS ARM CANNOT SAY, AND IT IS NAMED RATHER THAN IMPLIED: whether a click that
+    // lands on the overlay produces an ID TOKEN. That happens inside Google's iframe, which this
+    // stand never loads (the stub short-circuits the library on purpose). Our half is that the
+    // click reaches the overlay and NOT the page behind it — and that the overlay's ~200px
+    // minimum width does not lie across «×5 Boost» and swallow its taps.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.waitForFunction(() => { const b = document.getElementById('msAuth');
+        return b && !b.hidden && getComputedStyle(b).display !== 'none'; }, null, { timeout: 15000 }).catch(() => {});
+      const d = await pg.evaluate(() => {
+        const g = el => el ? el.getBoundingClientRect() : null;
+        const line = document.getElementById('msAuthIn'), host = document.getElementById('msAuthBtn');
+        const mark = document.querySelector('.ms-auth-g'), lbl = document.querySelector('.ms-auth-lbl');
+        const boost = document.getElementById('msGetMore');
+        const lr = g(line), hr = g(host), br = g(boost), cs = getComputedStyle(host);
+        const at = (r) => document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {
+          lineH: Math.round(lr.height), markW: Math.round(g(mark).width),
+          colour: getComputedStyle(lbl).color, text: (lbl.textContent || '').trim(),
+          opacity: cs.opacity, overflow: cs.overflow,
+          // the overlay is exactly the line's box — Google's wider button is clipped away
+          clipW: Math.round(hr.width) === Math.round(lr.width), inner: Math.round(host.firstElementChild.getBoundingClientRect().width),
+          overBoost: hr.right > br.left && hr.left < br.right,
+          onLine: !!host.contains(at(lr)), onBoost: at(br) === boost,
+        };
+      });
+      expect(d.lineH === 14 && d.markW === 14 && d.colour === 'rgb(57, 113, 255)'
+        && d.text.indexOf('Sign in') === 0 && d.opacity === '0' && d.overflow === 'hidden'
+        && d.clipW && d.inner > d.lineH * 10 && !d.overBoost && d.onLine && d.onBoost,
+        'AUTH: the sign-in is HIS line (the 14px mark, #3971ff) with Google\'s own invisible button ' +
+        'clipped onto it — the click lands on the button, and «×5 Boost» keeps its own taps',
+        JSON.stringify(d));
+      await ctx.close();
+    }
+
+    // ---- A11: «Logout» IN THE SAME SLOT, IN Carbon 600 (#a2a2a8, the token read out of Figma)
+    {
+      const { pg, ctx } = await authPage();
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.evaluate(async (k) => {
+        window.__auth.score = 0;
+        window.__auth.authAns = { ok: 1, gid: 'accLogout1', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+      }, 'ab'.repeat(32));
+      const d = await pg.evaluate(() => {
+        const line = document.getElementById('msAuthIn'), out = document.getElementById('msAuthOut');
+        const lr = line.getBoundingClientRect(), or_ = out.getBoundingClientRect();
+        return { lineShown: !line.hidden && lr.width > 0, outShown: !out.hidden && or_.width > 0,
+          colour: getComputedStyle(out).color, tag: out.tagName, text: (out.textContent || '').trim(),
+          // it stands where the sign-in stood: under the name, inside the profile's own column
+          inProfile: !!out.closest('.ms-prof'),
+          belowName: Math.round(or_.top) >= Math.round(document.getElementById('msUser').getBoundingClientRect().bottom) - 1 };
+      });
+      expect(!d.lineShown && d.outShown && d.colour === 'rgb(162, 162, 168)' && d.tag === 'BUTTON'
+        && d.text === 'Logout' && d.inProfile && d.belowName,
+        'AUTH: signed in, the same slot carries «Logout» in Carbon 600 — a real button under the name',
+        JSON.stringify(d));
+      // and it really signs out through the production click path (90-input binds this id)
+      await pg.click('#msAuthOut');
+      const back = await pg.evaluate(() => ({ src: __game.authState().src,
+        line: !document.getElementById('msAuthIn').hidden, out: !document.getElementById('msAuthOut').hidden }));
+      expect(back.src === '' && back.line && !back.out,
+        'AUTH: a click on «Logout» signs out and the slot goes back to the sign-in line',
+        JSON.stringify(back));
+      await ctx.close();
+    }
+
+    // ---- A12: THE ONE TAP ON ENTERING THE GAME, AND THE SIGN-OUT THAT MUST DISARM IT
+    // ⚠️⚠️ THE INTRO IS RUN FOR REAL HERE — no `skipIntro`. The production caller is `finishIntro`,
+    // and a guard that only drove the test door would prove the function and not the WIRING.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.waitForFunction(() => document.documentElement.classList.contains('introdone'),
+        null, { timeout: 30000 });
+      await pg.waitForFunction(() => window.__auth.prompted > 0, null, { timeout: 15000 }).catch(() => {});
+      const first = await pg.evaluate(() => ({ prompted: window.__auth.prompted || 0,
+        auto: window.__auth.gis && window.__auth.gis.auto, itp: window.__auth.gis && window.__auth.gis.itp,
+        again: __game.authPrompt(), after: window.__auth.prompted || 0 }));
+      // ⛔ `auto_select` IS THE «auto-login» HALF OF HIS WORD, and `itp_support` is what makes the
+      // prompt appear in Safari at all — his own browser. Without either the feature is a no-op
+      // that still looks implemented.
+      expect(first.prompted === 1 && first.auto === true && first.itp === true
+        && first.again === false && first.after === 1,
+        'AUTH: entering the game asks Google ONCE, with auto-login on and Safari\'s ITP support',
+        JSON.stringify(first));
+      // signed in — there is nothing to ask for, and asking would be nagging
+      const inn = await pg.evaluate(async (k) => {
+        window.__auth.score = 0;
+        window.__auth.authAns = { ok: 1, gid: 'accTap001', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+        window.__auth.prompted = 0;
+        return { asked: __game.authPrompt(), prompted: window.__auth.prompted || 0,
+          disabled: !!window.__auth.disabled };
+      }, 'ab'.repeat(32));
+      // ⛔⛔ AND THE TRAP THE WHOLE FEATURE TURNS ON: without `disableAutoSelect` the NEXT launch
+      // signs the same account straight back in, before anyone taps — i.e. the sign-out is undone
+      // in silence, on the shared phone that is the only reason sign-out exists.
+      const out = await pg.evaluate(() => { __game.authOut();
+        return { disabled: !!window.__auth.disabled }; });
+      expect(inn.asked === false && inn.prompted === 0 && inn.disabled === false && out.disabled === true,
+        'AUTH: signed in it is not asked again, and signing out DISARMS the auto-login',
+        JSON.stringify({ inn: inn, out: out }));
+      await ctx.close();
+    }
+
+    // ---- A13: THE ENTRY POINT'S NEXT PLAYER (his node 840:4689, 2026-09-11-v)
+    // ⛔⛔ THE THIRD EDITION OF THIS SIDE OF THE ROW: three avatars of the top (2026-08-05), then
+    // one — the next player's (2026-09-10) — and now that face with his SCORE under it and a rule
+    // in front of it. Nothing read the new half, so both the redraw and its rollback were green.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.evaluate(() => {
+        window.__auth.score = 123116;
+        window.__auth.up = [['Godwit', 7, 123456]];
+        __game.mergeRaw({ se: 123116 });
+      });
+      await pg.evaluate(() => { try { __game.skipIntro(); } catch (e) {} });
+      await pg.click('#pauseBtn');
+      await pg.waitForFunction(() => { const n = document.getElementById('msLbeNext');
+        return n && !n.classList.contains('empty'); }, null, { timeout: 15000 }).catch(() => {});
+      const d = await pg.evaluate(() => {
+        const g = el => el ? el.getBoundingClientRect() : null;
+        const nx = document.getElementById('msLbeNext');
+        const rule = nx.querySelector('.ms-lbe-rule'), cap = nx.querySelector('.ms-lbe-cap');
+        const av = document.querySelector('#msLbeAvs > *');
+        return { score: (document.getElementById('msLbeScore') || {}).textContent,
+          sub: (document.getElementById('msLbeSub') || {}).textContent,
+          cap: (cap.textContent || '').trim(), capColour: getComputedStyle(cap).color,
+          ruleW: Math.round(g(rule).width), ruleH: Math.round(g(rule).height),
+          avTag: av ? av.tagName : null, avSrc: av && av.getAttribute ? (av.getAttribute('src') || '') : '',
+          // the rule stands between the place and the face, in that order
+          order: Math.round(g(rule).left) < Math.round(g(av).left),
+          inLeft: !!nx.closest('.ms-lbe-left') };
+      });
+      // ⚠️ THE NUMBER IS THE NEIGHBOUR'S SCORE AND NOT THE GAP — the gap is the line on the LEFT,
+      // and printing one quantity twice in two formats is the drift this file keeps paying for.
+      expect(d.score === '123k' && d.sub === '340 to Godwit' && d.cap === 'next players'
+        && d.capColour === 'rgb(162, 162, 168)' && d.ruleW === 1 && d.ruleH > 20
+        && d.avTag === 'IMG' && d.avSrc.indexOf('Avatar07') >= 0 && d.order && d.inLeft,
+        'AUTH: the entry point carries the next player — his face, his score «123k», the hairline ' +
+        'rule, «next players» in Carbon 600; the gap «340 to Godwit» stays the line on the left',
+        JSON.stringify(d));
+      // ⛔ AND THE CONTROL: no neighbour (the first place, a guest, no connection) collapses the
+      // NUMBER and the caption — but never the circle, whose geometry this row guarantees in the
+      // first frame. A build that hid the whole group broke exactly that on the win screen.
+      const none = await pg.evaluate(async () => {
+        window.__auth.up = [];
+        window.__lb.invalidate(); __game.lbEntryRefresh();
+        await new Promise(r => setTimeout(r, 700));
+        const nx = document.getElementById('msLbeNext');
+        const av = document.querySelector('#msLbeAvs > *');
+        return { empty: nx.classList.contains('empty'),
+          txtShown: getComputedStyle(nx.querySelector('.ms-lbe-txt')).display !== 'none',
+          circle: av ? Math.round(av.getBoundingClientRect().width) : 0 };
+      });
+      expect(none.empty && !none.txtShown && none.circle > 0,
+        'AUTH: with no neighbour the number and the caption collapse — the circle does not',
+        JSON.stringify(none));
+      await ctx.close();
     }
 
     // ---- A9: the name follows the ID, and the way back never travels from a cloud copy
