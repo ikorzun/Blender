@@ -45,8 +45,11 @@ SITE = "https://blendo.monster"
 # ⚠️ A VAR AND NOT A SECRET, ON PURPOSE: an OAuth *client id* is public — it ships inside the page
 # for the Google library to read. It is here because the worker needs it as the token's `aud`, and
 # `GET /v1/auth/cfg` hands the same string to the client so there is exactly ONE copy of it.
-# ⛔ EMPTY UNTIL HE CREATES IT. While it is empty `/v1/auth` answers `noclient` 503 and the client
-# does not draw the button at all — the sign-in is simply absent, never broken.
-# His step: Google Cloud → APIs & Services → Credentials → OAuth client ID → Web application,
-# with `https://blendo.monster` as an authorised JavaScript origin. Paste the id below and redeploy.
-GOOGLE_CLIENT_ID = ""
+# ⚠ THE EMPTY-STRING BRANCH IS ALIVE AND IS THE SAFE STATE, NOT A PLACEHOLDER: with no id
+# `/v1/auth` answers `noclient` 503 and the client does not draw the button at all — the sign-in is
+# simply absent, never half-working. Blank it and the feature switches itself off cleanly.
+# ✅ FILLED 2026-09-11 by the owner: Google Cloud project `blendo-508309`, an OAuth client of type
+# Web application with `https://blendo.monster` as its only authorised JavaScript origin and NO
+# redirect URI (we verify the token's signature, we never exchange a code). The client *secret* that
+# Google issued alongside it is not used by anything here and was deliberately never stored.
+GOOGLE_CLIENT_ID = "46111827882-4ug26k6k8lhlq0n2a400numok7ecv8lc.apps.googleusercontent.com"
