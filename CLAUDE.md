@@ -19550,6 +19550,16 @@ for a late-game seven-digit one — and the second is ONE width wide, which a st
 over. Step 4 through 480, a handful of wide ones after it, two wallets: 94 measurements.
 **PROVEN, BOTH FAULTS:** the `+1` tolerance restored on the label → clipped at 320 and 340 by exactly
 1px; the reductions moved back to one tier at 359 → clipped from 360 to 380 by up to 22px.
+⛔⛔ **AND ONE TRAP IN CHECKING A DEPLOY BY EYE, WHICH COST TEN MINUTES AND NEARLY A PHANTOM FIX:** the
+fixed build was live (md5 against the local file, twice), and the browser still showed the clip —
+because **the SERVICE WORKER was serving the previous build to a tab that had visited before**.
+`navigator.serviceWorker.controller` was set and the CSSOM held the OLD `(max-width: 359px)` block
+with 8 rules. `curl` sees the server; a returning BROWSER sees the cache. Unregister the worker and
+clear `caches` before believing a live look — or read the CSSOM for a rule you know you just shipped,
+which is what settled it here.
+⚠️ AND A FALSE POSITIVE ON THE WAY: a substring probe for «TWO TIERS» in the DOM answered true on
+the STALE page — the file has carried an older «TWO TIERS, NOT FIVE» comment for months. A grep for a
+phrase is not a version check; a CSSOM rule is.
 
 ### THE FULL RUN — HIS WORD THIS TIME, AND IT TOOK FOUR ATTEMPTS ON A STAND THAT COULD NOT ANSWER
 He asked for it («then a full run and push»). **Run 52: 1201 green, 0 red, SUITE: PASS** — and after the live
